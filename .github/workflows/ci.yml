@@ -45,6 +45,9 @@ jobs:
     - name: Run tests
       run: flox activate -- task test
 
+    - name: Clean build artifacts
+      run: flox activate -- task clean
+
     - name: Check for dirty project
       run: |
         if [ -n "$(git status --porcelain)" ]; then
