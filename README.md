@@ -25,7 +25,7 @@ A powerful command-line interface for managing and interacting with the Inferenc
 - [Quick Start](#quick-start)
 - [Commands](#commands)
   - [`infer status`](#infer-status)
-  - [`infer list`](#infer-list)
+  - [`infer models list`](#infer-models-list)
   - [`infer chat`](#infer-chat)
   - [`infer tools`](#infer-tools)
   - [`infer prompt`](#infer-prompt-text)
@@ -130,7 +130,7 @@ go build -o infer .
 
 5. **List deployed models:**
    ```bash
-   infer list
+   infer models list
    ```
 
 ## Commands
@@ -150,12 +150,12 @@ infer status --format json
 ```
 
 
-### `infer list`
+### `infer models list`
 List all deployed models and services on the inference gateway.
 
 **Examples:**
 ```bash
-infer list
+infer models list
 ```
 
 ### `infer chat`
