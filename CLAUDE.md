@@ -141,6 +141,8 @@ tools:
       - "^git log --oneline -n [0-9]+$"
       - "^docker ps$"
       - "^kubectl get pods$"
+compact:
+  output_dir: ".infer"  # Directory for compact command exports (default: project root/.infer)
 ```
 
 ### Command Structure
@@ -152,6 +154,7 @@ tools:
   - `list`: List deployed models
   - `prompt <text>`: Send prompts to models
   - `chat`: Interactive chat with model selection and tool support
+    - `/compact`: Export conversation to markdown file
   - `tools`: Tool management and execution
   - `version`: Version information
 

@@ -13,6 +13,7 @@ type Config struct {
 	Gateway GatewayConfig `yaml:"gateway"`
 	Output  OutputConfig  `yaml:"output"`
 	Tools   ToolsConfig   `yaml:"tools"`
+	Compact CompactConfig `yaml:"compact"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -38,6 +39,11 @@ type ToolsConfig struct {
 type ToolWhitelistConfig struct {
 	Commands []string `yaml:"commands"`
 	Patterns []string `yaml:"patterns"`
+}
+
+// CompactConfig contains settings for compact command
+type CompactConfig struct {
+	OutputDir string `yaml:"output_dir"`
 }
 
 // DefaultConfig returns a default configuration
@@ -66,6 +72,9 @@ func DefaultConfig() *Config {
 					"^kubectl get pods$",
 				},
 			},
+		},
+		Compact: CompactConfig{
+			OutputDir: ".infer",
 		},
 	}
 }

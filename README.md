@@ -167,6 +167,7 @@ Start an interactive chat session with model selection and tool support. Provide
 - Tool execution (when enabled)
 - Conversation history management
 - Real-time streaming responses
+- Conversation export to markdown files
 
 **Examples:**
 ```bash
@@ -179,6 +180,7 @@ infer chat
 - `/history` - Show conversation history
 - `/models` - Show available models
 - `/switch` - Switch to a different model
+- `/compact` - Export conversation to markdown file
 - `/help` - Show help information
 
 ### `infer tools`
@@ -271,6 +273,8 @@ tools:
       - "^git log --oneline -n [0-9]+$"
       - "^docker ps$"
       - "^kubectl get pods$"
+compact:
+  output_dir: ".infer"  # Directory for compact command exports
 ```
 
 ### Configuration Options
@@ -288,6 +292,9 @@ tools:
 - **tools.enabled**: Enable/disable tool execution for LLMs (default: false)
 - **tools.whitelist.commands**: List of allowed commands (supports arguments)
 - **tools.whitelist.patterns**: Regex patterns for complex command validation
+
+**Compact Settings:**
+- **compact.output_dir**: Directory for compact command exports (default: ".infer")
 
 ## Global Flags
 
