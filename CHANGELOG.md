@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.3.2](https://github.com/inference-gateway/cli/compare/v0.3.1...v0.3.2) (2025-08-10)
+
+### 👷 CI/CD
+
+* Add CI workflow for automated testing and linting ([#9](https://github.com/inference-gateway/cli/issues/9)) ([00d519a](https://github.com/inference-gateway/cli/commit/00d519a1639212dbdf904f75fed7819e488a6f18))
+
 ## [0.3.1](https://github.com/inference-gateway/cli/compare/v0.3.0...v0.3.1) (2025-08-10)
 
 ### ♻️ Code Refactoring
