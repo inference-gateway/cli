@@ -38,8 +38,8 @@ tools:
 # Basic status check
 infer status
 
-# Detailed status with JSON output
-infer status --detailed --format json
+# Status with JSON output
+infer status --format json
 ```
 
 ### List Deployed Models
