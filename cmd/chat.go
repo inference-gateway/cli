@@ -76,7 +76,7 @@ func startChatSession() error {
 	}
 
 	fmt.Printf("\n🤖 Starting chat session with %s\n", selectedModel)
-	fmt.Println("Commands: '/exit' to quit, '/clear' for history, '/switch' for models, '/help' for all")
+	fmt.Println("Commands: '/exit' to quit, '/clear' for history, '/compact' to export, '/help' for all")
 	fmt.Println("Commands are processed immediately and won't be sent to the model")
 	fmt.Println("📁 File references: Use @filename to include file contents in your message")
 
@@ -242,6 +242,12 @@ func handleChatCommands(input string, conversation *[]sdk.Message, selectedModel
 			fmt.Printf("Switched to model: %s\n", newModel)
 		}
 		return true
+	case "/compact":
+		err := compactConversation(*conversation, *selectedModel)
+		if err != nil {
+			fmt.Printf("❌ Error creating compact file: %v\n", err)
+		}
+		return true
 	case "/help":
 		showChatHelp()
 		return true
@@ -290,6 +296,7 @@ func showChatHelp() {
 	fmt.Println("  /history         - Show conversation history")
 	fmt.Println("  /models          - Show current and available models")
 	fmt.Println("  /switch          - Switch to a different model")
+	fmt.Println("  /compact         - Export conversation to markdown file")
 	fmt.Println("  /help            - Show this help")
 	fmt.Println()
 	fmt.Println("File References:")
@@ -708,6 +715,95 @@ func displayChatMetrics(metrics *ChatMetrics) {
 			fmt.Printf(" | Total: %d tokens", metrics.Usage.TotalTokens)
 		}
 	}
+}
+
+func compactConversation(conversation []sdk.Message, selectedModel string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if len(conversation) == 0 {
+		fmt.Println("📝 No conversation to export - conversation history is empty")
+		return nil
+	}
+
+	outputDir := cfg.Compact.OutputDir
+	if outputDir == "" {
+		outputDir = ".infer"
+	}
+
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return fmt.Errorf("failed to create output directory '%s': %w", outputDir, err)
+	}
+
+	timestamp := time.Now().Format("20060102-150405")
+	filename := fmt.Sprintf("chat-export-%s.md", timestamp)
+	filePath := filepath.Join(outputDir, filename)
+
+	var content strings.Builder
+	content.WriteString("# Chat Session Export\n\n")
+	content.WriteString(fmt.Sprintf("**Model:** %s\n", selectedModel))
+	content.WriteString(fmt.Sprintf("**Date:** %s\n", time.Now().Format("2006-01-02 15:04:05")))
+	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n\n", len(conversation)))
+	content.WriteString("---\n\n")
+
+	for i, msg := range conversation {
+		var role string
+		switch msg.Role {
+		case sdk.User:
+			role = "👤 **You**"
+		case sdk.Assistant:
+			role = "🤖 **Assistant**"
+		case sdk.System:
+			role = "⚙️ **System**"
+		case sdk.Tool:
+			role = "🔧 **Tool Result**"
+		default:
+			role = fmt.Sprintf("**%s**", string(msg.Role))
+		}
+
+		content.WriteString(fmt.Sprintf("## Message %d - %s\n\n", i+1, role))
+
+		if msg.Content != "" {
+			content.WriteString(msg.Content)
+			content.WriteString("\n\n")
+		}
+
+		if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
+			content.WriteString("### Tool Calls\n\n")
+			for _, toolCall := range *msg.ToolCalls {
+				content.WriteString(fmt.Sprintf("**Tool:** %s\n\n", toolCall.Function.Name))
+				if toolCall.Function.Arguments != "" {
+					content.WriteString("**Arguments:**\n```json\n")
+					content.WriteString(toolCall.Function.Arguments)
+					content.WriteString("\n```\n\n")
+				}
+			}
+		}
+
+		if msg.ToolCallId != nil {
+			content.WriteString(fmt.Sprintf("*Tool Call ID: %s*\n\n", *msg.ToolCallId))
+		}
+
+		content.WriteString("---\n\n")
+	}
+
+	content.WriteString(fmt.Sprintf("*Exported on %s using Inference Gateway CLI*\n", time.Now().Format("2006-01-02 15:04:05")))
+
+	if err := os.WriteFile(filePath, []byte(content.String()), 0644); err != nil {
+		return fmt.Errorf("failed to write file '%s': %w", filePath, err)
+	}
+
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		absPath = filePath
+	}
+
+	fmt.Printf("📝 Conversation exported successfully to: %s\n", absPath)
+	fmt.Printf("📊 Exported %d message(s) from chat session with %s\n", len(conversation), selectedModel)
+
+	return nil
 }
 
 func init() {
