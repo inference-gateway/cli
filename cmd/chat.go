@@ -131,47 +131,71 @@ func startChatSession() error {
 
 		fmt.Printf("\n%s: ", selectedModel)
 
-		var wg sync.WaitGroup
-		var spinnerActive = true
-		var mu sync.Mutex
+		var totalMetrics *ChatMetrics
+		maxIterations := 10
+		for iteration := 0; iteration < maxIterations; iteration++ {
+			var wg sync.WaitGroup
+			var spinnerActive = true
+			var mu sync.Mutex
 
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			showSpinner(&spinnerActive, &mu)
-		}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				showSpinner(&spinnerActive, &mu)
+			}()
 
-		assistantMessage, assistantToolCalls, metrics, err := sendStreamingChatCompletion(cfg, selectedModel, conversation, &spinnerActive, &mu)
+			assistantMessage, assistantToolCalls, metrics, err := sendStreamingChatCompletion(cfg, selectedModel, conversation, &spinnerActive, &mu)
 
-		wg.Wait()
+			wg.Wait()
 
-		if err != nil {
-			fmt.Printf("❌ Error: %v\n", err)
-			conversation = conversation[:len(conversation)-1]
-			continue
-		}
-
-		assistantMsg := sdk.Message{
-			Role:    sdk.Assistant,
-			Content: assistantMessage,
-		}
-		if len(assistantToolCalls) > 0 {
-			assistantMsg.ToolCalls = &assistantToolCalls
-		}
-		conversation = append(conversation, assistantMsg)
-
-		for _, toolCall := range assistantToolCalls {
-			toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
-			if err == nil {
-				conversation = append(conversation, sdk.Message{
-					Role:       sdk.Tool,
-					Content:    toolResult,
-					ToolCallId: &toolCall.Id,
-				})
+			if err != nil {
+				fmt.Printf("❌ Error: %v\n", err)
+				conversation = conversation[:len(conversation)-1]
+				break
 			}
+
+			if totalMetrics == nil {
+				totalMetrics = metrics
+			} else if metrics != nil {
+				totalMetrics.Duration += metrics.Duration
+				if totalMetrics.Usage != nil && metrics.Usage != nil {
+					totalMetrics.Usage.PromptTokens += metrics.Usage.PromptTokens
+					totalMetrics.Usage.CompletionTokens += metrics.Usage.CompletionTokens
+					totalMetrics.Usage.TotalTokens += metrics.Usage.TotalTokens
+				}
+			}
+
+			assistantMsg := sdk.Message{
+				Role:    sdk.Assistant,
+				Content: assistantMessage,
+			}
+			if len(assistantToolCalls) > 0 {
+				assistantMsg.ToolCalls = &assistantToolCalls
+			}
+			conversation = append(conversation, assistantMsg)
+
+			if len(assistantToolCalls) == 0 {
+				break
+			}
+
+			for _, toolCall := range assistantToolCalls {
+				toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
+				if err != nil {
+					fmt.Printf("❌ Tool execution failed: %v\n", err)
+				} else {
+					fmt.Printf("✅ Tool result:\n%s\n", toolResult)
+					conversation = append(conversation, sdk.Message{
+						Role:       sdk.Tool,
+						Content:    toolResult,
+						ToolCallId: &toolCall.Id,
+					})
+				}
+			}
+
+			fmt.Printf("\n%s: ", selectedModel)
 		}
 
-		displayChatMetrics(metrics)
+		displayChatMetrics(totalMetrics)
 		fmt.Print("\n\n")
 	}
 
@@ -396,7 +420,7 @@ func sendStreamingChatCompletion(cfg *config.Config, model string, messages []Ch
 		return "", nil, nil, err
 	}
 
-	finalToolCalls := executeRemainingToolCalls(cfg, result.activeToolCalls, result.toolCalls)
+	finalToolCalls := result.toolCalls
 
 	duration := time.Since(startTime)
 	metrics := &ChatMetrics{
@@ -533,7 +557,14 @@ func handleToolCallDelta(deltaToolCall sdk.ChatCompletionMessageToolCallChunk, r
 
 func handleStreamEnd(result *streamingResult) {
 	stopSpinner(result)
-	result.toolCalls = executeToolCalls(result.cfg, result.activeToolCalls)
+	var toolCalls []sdk.ChatCompletionMessageToolCall
+	for _, toolCall := range result.activeToolCalls {
+		if toolCall.Function.Name != "" {
+			fmt.Printf(" with arguments: %s\n", toolCall.Function.Arguments)
+			toolCalls = append(toolCalls, *toolCall)
+		}
+	}
+	result.toolCalls = toolCalls
 }
 
 func handleStreamError(event sdk.SSEvent, result *streamingResult) error {
