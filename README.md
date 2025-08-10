@@ -225,8 +225,8 @@ Send a text prompt to the inference gateway for processing.
 
 **Examples:**
 ```bash
-infer prompt "Hello, world!"
-infer prompt "Translate this text to French: Hello"
+infer prompt --model "deepseek/deepseek-chat" "Hello, world!"
+infer prompt --model "deepseek/deepseek-chat" "Translate this text to French: Hello"
 ```
 
 ### `infer version`
