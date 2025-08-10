@@ -161,11 +161,18 @@ Start an interactive chat session with model selection and tool support. Provide
 
 **Features:**
 - Model selection with search
+- Interactive file selection with `@` symbol
 - File references using `@filename` syntax
 - Tool execution (when enabled)
 - Conversation history management
 - Real-time streaming responses
 - Conversation export to markdown files
+
+**File Reference Options:**
+- Type `@` alone to open an interactive file selector dropdown
+- Use `@filename` to directly reference a specific file
+- Search and filter files in the interactive dropdown
+- Automatic exclusion of binary files and common build directories
 
 **Examples:**
 ```bash

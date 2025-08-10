@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -78,7 +80,7 @@ func startChatSession() error {
 	fmt.Printf("\n🤖 Starting chat session with %s\n", selectedModel)
 	fmt.Println("Commands: '/exit' to quit, '/clear' for history, '/compact' to export, '/help' for all")
 	fmt.Println("Commands are processed immediately and won't be sent to the model")
-	fmt.Println("📁 File references: Use @filename to include file contents in your message")
+	fmt.Println("📁 File references: Type '@' alone to select files interactively, or use @filename directly")
 
 	if cfg.Tools.Enabled {
 		toolCount := len(createSDKTools(cfg))
@@ -115,6 +117,13 @@ func startChatSession() error {
 		}
 
 		if handleChatCommands(userInput, &conversation, &selectedModel, models) {
+			continue
+		}
+
+		// Handle interactive file reference if user typed "@"
+		userInput, err = handleFileReference(userInput)
+		if err != nil {
+			fmt.Printf("❌ Error with file selection: %v\n", err)
 			continue
 		}
 
@@ -333,6 +342,7 @@ func showChatHelp() {
 	fmt.Println("  /help            - Show this help")
 	fmt.Println()
 	fmt.Println("File References:")
+	fmt.Println("  @                - Interactive file selector dropdown (NEW!)")
 	fmt.Println("  @filename.txt    - Include contents of filename.txt in your message")
 	fmt.Println("  @./config.yaml   - Include contents of config.yaml from current directory")
 	fmt.Println("  @../README.md    - Include contents of README.md from parent directory")
@@ -598,9 +608,6 @@ func stopSpinner(result *streamingResult) {
 	result.mu.Unlock()
 }
 
-
-
-
 func showSpinner(active *bool, mu *sync.Mutex) {
 	spinner := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
 	i := 0
@@ -700,6 +707,189 @@ func displayChatMetrics(metrics *ChatMetrics) {
 			fmt.Printf(" | Total: %d tokens", metrics.Usage.TotalTokens)
 		}
 	}
+}
+
+// scanProjectFiles recursively scans the current directory for files,
+// excluding common directories that should not be included
+func scanProjectFiles() ([]string, error) {
+	var files []string
+
+	// Directories to exclude from scanning
+	excludeDirs := map[string]bool{
+		".git":         true,
+		".github":      true,
+		"node_modules": true,
+		".infer":       true,
+		"vendor":       true,
+		".flox":        true,
+		"dist":         true,
+		"build":        true,
+		"bin":          true,
+		".vscode":      true,
+		".idea":        true,
+	}
+
+	// File extensions to exclude
+	excludeExts := map[string]bool{
+		".exe":   true,
+		".bin":   true,
+		".dll":   true,
+		".so":    true,
+		".dylib": true,
+		".a":     true,
+		".o":     true,
+		".obj":   true,
+		".pyc":   true,
+		".class": true,
+		".jar":   true,
+		".war":   true,
+		".zip":   true,
+		".tar":   true,
+		".gz":    true,
+		".rar":   true,
+		".7z":    true,
+		".png":   true,
+		".jpg":   true,
+		".jpeg":  true,
+		".gif":   true,
+		".bmp":   true,
+		".ico":   true,
+		".svg":   true,
+		".pdf":   true,
+		".mov":   true,
+		".mp4":   true,
+		".avi":   true,
+		".mp3":   true,
+		".wav":   true,
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	err = filepath.WalkDir(cwd, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // Skip files with errors
+		}
+
+		// Get relative path from current directory
+		relPath, err := filepath.Rel(cwd, path)
+		if err != nil {
+			return nil // Skip if we can't get relative path
+		}
+
+		// Skip directories that should be excluded
+		if d.IsDir() {
+			if excludeDirs[d.Name()] || strings.HasPrefix(d.Name(), ".") && d.Name() != "." {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Skip files with excluded extensions
+		ext := strings.ToLower(filepath.Ext(relPath))
+		if excludeExts[ext] {
+			return nil
+		}
+
+		// Skip very large files (over 1MB)
+		if info, err := d.Info(); err == nil && info.Size() > 1024*1024 {
+			return nil
+		}
+
+		// Only include regular files
+		if d.Type().IsRegular() {
+			files = append(files, relPath)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan directory: %w", err)
+	}
+
+	// Sort files for consistent ordering
+	sort.Strings(files)
+
+	return files, nil
+}
+
+// selectFileInteractively shows a dropdown to select a file from the project
+func selectFileInteractively() (string, error) {
+	files, err := scanProjectFiles()
+	if err != nil {
+		return "", fmt.Errorf("failed to scan project files: %w", err)
+	}
+
+	if len(files) == 0 {
+		return "", fmt.Errorf("no files found in the current directory")
+	}
+
+	// Add a limit to prevent overwhelming dropdown
+	maxFiles := 200
+	if len(files) > maxFiles {
+		files = files[:maxFiles]
+		fmt.Printf("⚠️  Showing first %d files (found %d total)\n", maxFiles, len(files))
+	}
+
+	searcher := func(input string, index int) bool {
+		file := files[index]
+		name := strings.ReplaceAll(strings.ToLower(file), " ", "")
+		input = strings.ReplaceAll(strings.ToLower(input), " ", "")
+		return strings.Contains(name, input)
+	}
+
+	prompt := promptui.Select{
+		Label:    "Select a file to include (type to search, ESC to cancel)",
+		Items:    files,
+		Size:     15,
+		Searcher: searcher,
+		Templates: &promptui.SelectTemplates{
+			Label:    "{{ . }}?",
+			Active:   "▶ {{ . | cyan | bold }}",
+			Inactive: "  {{ . }}",
+			Selected: "✓ Selected file: {{ . | green | bold }}",
+		},
+	}
+
+	_, result, err := prompt.Run()
+	if err != nil {
+		if err == promptui.ErrInterrupt {
+			return "", fmt.Errorf("file selection cancelled")
+		}
+		return "", fmt.Errorf("file selection failed: %w", err)
+	}
+
+	return result, nil
+}
+
+// handleFileReference processes "@" references in user input
+func handleFileReference(input string) (string, error) {
+	// Check if input is exactly "@" - trigger interactive selection
+	if strings.TrimSpace(input) == "@" {
+		selectedFile, err := selectFileInteractively()
+		if err != nil {
+			return "", err
+		}
+		return "@" + selectedFile, nil
+	}
+
+	// Check if input ends with "@" - trigger interactive selection and append
+	if strings.HasSuffix(strings.TrimSpace(input), "@") {
+		selectedFile, err := selectFileInteractively()
+		if err != nil {
+			return "", err
+		}
+		// Remove the trailing @ and append the selected file reference
+		trimmed := strings.TrimSpace(input)
+		prefix := trimmed[:len(trimmed)-1]
+		return prefix + "@" + selectedFile, nil
+	}
+
+	// Return input unchanged if no "@" trigger detected
+	return input, nil
 }
 
 func compactConversation(conversation []sdk.Message, selectedModel string) error {
