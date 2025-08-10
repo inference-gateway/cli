@@ -84,7 +84,7 @@ curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.
 
 **Custom install directory:**
 ```bash
-curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --dir /usr/local/bin
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
 ```
 
 The install script will:

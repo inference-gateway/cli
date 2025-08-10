@@ -12,7 +12,7 @@ docker run --rm -it --env-file .env -p 8080:8080 ghcr.io/inference-gateway/infer
 
 2. Install the CLI:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
 ```
 
 ## Configuration

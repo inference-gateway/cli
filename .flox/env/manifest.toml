@@ -32,7 +32,7 @@ go-task.version= "^3.44.0"
 [hook]
 on-activate = """
   mkdir -p "$NPM_CONFIG_PREFIX"
-  export PATH="$PATH:$NPM_CONFIG_PREFIX/bin:$HOME/go/bin"
+  export PATH="$PATH:$NPM_CONFIG_PREFIX/bin:$HOME/go/bin:$HOME/.local/bin"
 
   if [ ! -d "$NPM_CONFIG_PREFIX/lib/node_modules/semantic-release" ]; then
     echo "Installing semantic-release and plugins..."
