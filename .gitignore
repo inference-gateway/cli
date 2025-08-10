@@ -1,3 +1,4 @@
 **/.env
 /.task
 /dist
+flox.*-linux.*
