@@ -151,11 +151,14 @@ func startChatSession() error {
 			continue
 		}
 
-		conversation = append(conversation, sdk.Message{
-			Role:      sdk.Assistant,
-			Content:   assistantMessage,
-			ToolCalls: &assistantToolCalls,
-		})
+		assistantMsg := sdk.Message{
+			Role:    sdk.Assistant,
+			Content: assistantMessage,
+		}
+		if len(assistantToolCalls) > 0 {
+			assistantMsg.ToolCalls = &assistantToolCalls
+		}
+		conversation = append(conversation, assistantMsg)
 
 		for _, toolCall := range assistantToolCalls {
 			toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
@@ -354,6 +357,61 @@ func createSDKTools(cfg *config.Config) []sdk.ChatCompletionTool {
 }
 
 func sendStreamingChatCompletion(cfg *config.Config, model string, messages []ChatMessage, spinnerActive *bool, mu *sync.Mutex) (string, []sdk.ChatCompletionMessageToolCall, *ChatMetrics, error) {
+	client, err := createStreamingClient(cfg)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	ctx := context.Background()
+	startTime := time.Now()
+
+	provider, modelName, err := parseProvider(model)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
+	}
+
+	events, err := client.GenerateContentStream(ctx, provider, modelName, messages)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("failed to generate content stream: %w", err)
+	}
+
+	result := &streamingResult{
+		fullMessage:     &strings.Builder{},
+		firstContent:    true,
+		activeToolCalls: make(map[int]*sdk.ChatCompletionMessageToolCall),
+		spinnerActive:   spinnerActive,
+		mu:              mu,
+		cfg:             cfg,
+	}
+
+	err = processStreamingEvents(events, result)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	finalToolCalls := executeRemainingToolCalls(cfg, result.activeToolCalls, result.toolCalls)
+
+	duration := time.Since(startTime)
+	metrics := &ChatMetrics{
+		Duration: duration,
+		Usage:    result.usage,
+	}
+
+	return result.fullMessage.String(), finalToolCalls, metrics, nil
+}
+
+type streamingResult struct {
+	fullMessage     *strings.Builder
+	firstContent    bool
+	usage           *sdk.CompletionUsage
+	toolCalls       []sdk.ChatCompletionMessageToolCall
+	activeToolCalls map[int]*sdk.ChatCompletionMessageToolCall
+	spinnerActive   *bool
+	mu              *sync.Mutex
+	cfg             *config.Config
+}
+
+func createStreamingClient(cfg *config.Config) (sdk.Client, error) {
 	baseURL := strings.TrimSuffix(cfg.Gateway.URL, "/")
 	if !strings.HasSuffix(baseURL, "/v1") {
 		baseURL += "/v1"
@@ -364,34 +422,15 @@ func sendStreamingChatCompletion(cfg *config.Config, model string, messages []Ch
 		APIKey:  cfg.Gateway.APIKey,
 	})
 
-	// Add tools if enabled
 	tools := createSDKTools(cfg)
 	if len(tools) > 0 {
 		client = client.WithTools(&tools)
 	}
 
-	ctx := context.Background()
-	startTime := time.Now()
+	return client, nil
+}
 
-	// Messages are already SDK types, no conversion needed
-	sdkMessages := messages
-
-	provider, modelName, err := parseProvider(model)
-	if err != nil {
-		return "", nil, nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
-	}
-
-	events, err := client.GenerateContentStream(ctx, provider, modelName, sdkMessages)
-	if err != nil {
-		return "", nil, nil, fmt.Errorf("failed to generate content stream: %w", err)
-	}
-
-	var fullMessage strings.Builder
-	var firstContent = true
-	var usage *sdk.CompletionUsage
-	var toolCalls []sdk.ChatCompletionMessageToolCall
-	var activeToolCalls = make(map[int]*sdk.ChatCompletionMessageToolCall)
-
+func processStreamingEvents(events <-chan sdk.SSEvent, result *streamingResult) error {
 	for event := range events {
 		if event.Event == nil {
 			continue
@@ -399,150 +438,175 @@ func sendStreamingChatCompletion(cfg *config.Config, model string, messages []Ch
 
 		switch *event.Event {
 		case sdk.ContentDelta:
-			if event.Data != nil {
-				var streamResponse sdk.CreateChatCompletionStreamResponse
-				if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
-					continue
-				}
-
-				for _, choice := range streamResponse.Choices {
-					if choice.Delta.Content != "" {
-						if firstContent {
-							mu.Lock()
-							*spinnerActive = false
-							mu.Unlock()
-							firstContent = false
-						}
-
-						fmt.Print(choice.Delta.Content)
-						fullMessage.WriteString(choice.Delta.Content)
-					}
-
-					// Handle tool calls - accumulate during streaming
-					if len(choice.Delta.ToolCalls) > 0 {
-						if firstContent {
-							mu.Lock()
-							*spinnerActive = false
-							mu.Unlock()
-							firstContent = false
-						}
-
-						for _, deltaToolCall := range choice.Delta.ToolCalls {
-							index := deltaToolCall.Index
-
-							// Initialize tool call if it doesn't exist
-							if activeToolCalls[index] == nil {
-								activeToolCalls[index] = &sdk.ChatCompletionMessageToolCall{
-									Id:   deltaToolCall.ID,
-									Type: sdk.ChatCompletionToolType(deltaToolCall.Type),
-									Function: sdk.ChatCompletionMessageToolCallFunction{
-										Name:      deltaToolCall.Function.Name,
-										Arguments: "",
-									},
-								}
-								if deltaToolCall.Function.Name != "" {
-									fmt.Printf("\n🔧 Calling tool: %s", deltaToolCall.Function.Name)
-								}
-							}
-
-							// Accumulate arguments
-							if deltaToolCall.Function.Arguments != "" {
-								activeToolCalls[index].Function.Arguments += deltaToolCall.Function.Arguments
-							}
-						}
-					}
-				}
-
-				if streamResponse.Usage != nil {
-					usage = streamResponse.Usage
-				}
+			if err := handleContentDelta(event, result); err != nil {
+				return err
 			}
-
 		case sdk.StreamEnd:
-			mu.Lock()
-			*spinnerActive = false
-			mu.Unlock()
-
-			// Execute any completed tool calls
-			for _, toolCall := range activeToolCalls {
-				if toolCall.Function.Name != "" {
-					fmt.Printf(" with arguments: %s\n", toolCall.Function.Arguments)
-
-					// Execute the tool call
-					toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
-					if err != nil {
-						fmt.Printf("❌ Tool execution failed: %v\n", err)
-					} else {
-						fmt.Printf("✅ Tool result:\n%s\n", toolResult)
-					}
-
-					// Store completed tool call for conversation history
-					toolCalls = append(toolCalls, *toolCall)
-				}
-			}
-
-			duration := time.Since(startTime)
-			metrics := &ChatMetrics{
-				Duration: duration,
-				Usage:    usage,
-			}
-			return fullMessage.String(), toolCalls, metrics, nil
-
+			handleStreamEnd(result)
+			return nil
 		case "error":
-			mu.Lock()
-			*spinnerActive = false
-			mu.Unlock()
-			if event.Data != nil {
-				var errResp struct {
-					Error string `json:"error"`
-				}
-				if err := json.Unmarshal(*event.Data, &errResp); err != nil {
-					continue
-				}
-				return "", nil, nil, fmt.Errorf("stream error: %s", errResp.Error)
-			}
+			return handleStreamError(event, result)
+		}
+	}
+	return nil
+}
+
+func handleContentDelta(event sdk.SSEvent, result *streamingResult) error {
+	if event.Data == nil {
+		return nil
+	}
+
+	var streamResponse sdk.CreateChatCompletionStreamResponse
+	if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
+		return nil
+	}
+
+	for _, choice := range streamResponse.Choices {
+		handleContentChoice(choice, result)
+		handleToolCallsChoice(choice, result)
+	}
+
+	if streamResponse.Usage != nil {
+		result.usage = streamResponse.Usage
+	}
+
+	return nil
+}
+
+func handleContentChoice(choice sdk.ChatCompletionStreamChoice, result *streamingResult) {
+	if choice.Delta.Content == "" {
+		return
+	}
+
+	if result.firstContent {
+		stopSpinner(result)
+		result.firstContent = false
+	}
+
+	fmt.Print(choice.Delta.Content)
+	result.fullMessage.WriteString(choice.Delta.Content)
+}
+
+func handleToolCallsChoice(choice sdk.ChatCompletionStreamChoice, result *streamingResult) {
+	if len(choice.Delta.ToolCalls) == 0 {
+		return
+	}
+
+	if result.firstContent {
+		stopSpinner(result)
+		result.firstContent = false
+	}
+
+	for _, deltaToolCall := range choice.Delta.ToolCalls {
+		handleToolCallDelta(deltaToolCall, result)
+	}
+}
+
+func handleToolCallDelta(deltaToolCall sdk.ChatCompletionMessageToolCallChunk, result *streamingResult) {
+	index := deltaToolCall.Index
+
+	if result.activeToolCalls[index] == nil {
+		result.activeToolCalls[index] = &sdk.ChatCompletionMessageToolCall{
+			Id:   deltaToolCall.ID,
+			Type: sdk.ChatCompletionToolType(deltaToolCall.Type),
+			Function: sdk.ChatCompletionMessageToolCallFunction{
+				Name:      deltaToolCall.Function.Name,
+				Arguments: "",
+			},
+		}
+		if deltaToolCall.Function.Name != "" {
+			fmt.Printf("\n🔧 Calling tool: %s", deltaToolCall.Function.Name)
 		}
 	}
 
-	mu.Lock()
-	*spinnerActive = false
-	mu.Unlock()
+	if deltaToolCall.Function.Arguments != "" {
+		result.activeToolCalls[index].Function.Arguments += deltaToolCall.Function.Arguments
+	}
+}
 
-	// Execute any remaining tool calls that weren't handled in StreamEnd
+func handleStreamEnd(result *streamingResult) {
+	stopSpinner(result)
+	result.toolCalls = executeToolCalls(result.cfg, result.activeToolCalls)
+}
+
+func handleStreamError(event sdk.SSEvent, result *streamingResult) error {
+	stopSpinner(result)
+
+	if event.Data == nil {
+		return fmt.Errorf("stream error: unknown error")
+	}
+
+	var errResp struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(*event.Data, &errResp); err != nil {
+		return fmt.Errorf("stream error: failed to parse error response")
+	}
+	return fmt.Errorf("stream error: %s", errResp.Error)
+}
+
+func stopSpinner(result *streamingResult) {
+	result.mu.Lock()
+	*result.spinnerActive = false
+	result.mu.Unlock()
+}
+
+func executeToolCalls(cfg *config.Config, activeToolCalls map[int]*sdk.ChatCompletionMessageToolCall) []sdk.ChatCompletionMessageToolCall {
+	var toolCalls []sdk.ChatCompletionMessageToolCall
+
 	for _, toolCall := range activeToolCalls {
 		if toolCall.Function.Name != "" {
-			// Check if this tool call was already processed
-			alreadyProcessed := false
-			for _, processedCall := range toolCalls {
-				if processedCall.Id == toolCall.Id {
-					alreadyProcessed = true
-					break
-				}
+			fmt.Printf(" with arguments: %s\n", toolCall.Function.Arguments)
+
+			toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
+			if err != nil {
+				fmt.Printf("❌ Tool execution failed: %v\n", err)
+			} else {
+				fmt.Printf("✅ Tool result:\n%s\n", toolResult)
 			}
 
-			if !alreadyProcessed {
-				fmt.Printf(" with arguments: %s\n", toolCall.Function.Arguments)
-
-				// Execute the tool call
-				toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
-				if err != nil {
-					fmt.Printf("❌ Tool execution failed: %v\n", err)
-				} else {
-					fmt.Printf("✅ Tool result:\n%s\n", toolResult)
-				}
-
-				// Store completed tool call for conversation history
-				toolCalls = append(toolCalls, *toolCall)
-			}
+			toolCalls = append(toolCalls, *toolCall)
 		}
 	}
 
-	duration := time.Since(startTime)
-	metrics := &ChatMetrics{
-		Duration: duration,
-		Usage:    usage,
+	return toolCalls
+}
+
+func executeRemainingToolCalls(cfg *config.Config, activeToolCalls map[int]*sdk.ChatCompletionMessageToolCall, processedToolCalls []sdk.ChatCompletionMessageToolCall) []sdk.ChatCompletionMessageToolCall {
+	finalToolCalls := make([]sdk.ChatCompletionMessageToolCall, len(processedToolCalls))
+	copy(finalToolCalls, processedToolCalls)
+
+	for _, toolCall := range activeToolCalls {
+		if toolCall.Function.Name == "" {
+			continue
+		}
+
+		if isToolCallProcessed(toolCall.Id, processedToolCalls) {
+			continue
+		}
+
+		fmt.Printf(" with arguments: %s\n", toolCall.Function.Arguments)
+
+		toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
+		if err != nil {
+			fmt.Printf("❌ Tool execution failed: %v\n", err)
+		} else {
+			fmt.Printf("✅ Tool result:\n%s\n", toolResult)
+		}
+
+		finalToolCalls = append(finalToolCalls, *toolCall)
 	}
-	return fullMessage.String(), toolCalls, metrics, nil
+
+	return finalToolCalls
+}
+
+func isToolCallProcessed(toolCallId string, processedToolCalls []sdk.ChatCompletionMessageToolCall) bool {
+	for _, processedCall := range processedToolCalls {
+		if processedCall.Id == toolCallId {
+			return true
+		}
+	}
+	return false
 }
 
 func showSpinner(active *bool, mu *sync.Mutex) {
