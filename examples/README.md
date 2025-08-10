@@ -17,7 +17,7 @@ curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.
 
 ## Configuration
 
-Set up your CLI configuration at `~/.infer.yaml`:
+Set up your CLI configuration at `.infer/config.yaml`:
 
 ```yaml
 gateway:
@@ -79,7 +79,7 @@ All commands support these global flags:
 
 ## Configuration Management
 
-The CLI automatically creates a default configuration file at `~/.infer.yaml` on first run. You can customize:
+The CLI automatically creates a default configuration file at `.infer/config.yaml` on first run. You can customize:
 
 - Gateway URL and API credentials
 - Output formatting preferences

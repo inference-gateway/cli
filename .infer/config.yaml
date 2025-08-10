@@ -1,0 +1,31 @@
+gateway:
+    url: http://localhost:8080
+    api_key: ""
+    timeout: 30
+output:
+    format: text
+    quiet: false
+tools:
+    enabled: false
+    whitelist:
+        commands:
+            - ls
+            - pwd
+            - echo
+            - cat
+            - head
+            - tail
+            - grep
+            - find
+            - wc
+            - sort
+            - uniq
+        patterns:
+            - ^git status$
+            - ^git log --oneline -n [0-9]+$
+            - ^docker ps$
+            - ^kubectl get pods$
+    safety:
+        require_approval: true
+compact:
+    output_dir: .infer

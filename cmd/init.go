@@ -11,10 +11,10 @@ import (
 var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a new project configuration",
-	Long: `Initialize a new .infer.yaml configuration file in the current directory.
+	Long: `Initialize a new .infer/config.yaml configuration file in the current directory.
 This creates a local project configuration with default settings.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath := ".infer.yaml"
+		configPath := ".infer/config.yaml"
 
 		if _, err := os.Stat(configPath); err == nil {
 			overwrite, _ := cmd.Flags().GetBool("overwrite")

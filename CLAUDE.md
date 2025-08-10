@@ -111,7 +111,7 @@ The project follows the standard Go CLI architecture using Cobra framework:
 - `config/config.go`: Configuration management with YAML support
 
 ### Configuration System
-The CLI uses a project-based YAML configuration file at `.infer.yaml` in the current directory with the following structure:
+The CLI uses a project-based YAML configuration file at `.infer/config.yaml` in the current directory with the following structure:
 ```yaml
 gateway:
   url: "http://localhost:8080"

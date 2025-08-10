@@ -141,7 +141,7 @@ func showInteractiveHelp() {
 
 func showHistory(rl *readline.Instance) {
 	fmt.Println("📝 Command History:")
-	fmt.Println("(History is stored in ~/.infer_history)")
+	fmt.Println("(History is stored in .infer/history)")
 	fmt.Println()
 }
 
@@ -221,11 +221,11 @@ func executeInteractiveCommand(line string) {
 }
 
 func getHistoryFile() string {
-	homeDir, err := os.UserHomeDir()
+	cwd, err := os.Getwd()
 	if err != nil {
 		return ""
 	}
-	return filepath.Join(homeDir, ".infer_history")
+	return filepath.Join(cwd, ".infer", "history")
 }
 
 func createCompleter(cfg *config.Config) readline.AutoCompleter {

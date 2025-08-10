@@ -256,7 +256,7 @@ infer version
 
 ## Configuration
 
-The CLI uses a YAML configuration file located at `~/.infer.yaml`. You can also specify a custom config file using the `--config` flag.
+The CLI uses a YAML configuration file located at `.infer/config.yaml`. You can also specify a custom config file using the `--config` flag.
 
 ### Default Configuration
 
@@ -363,7 +363,7 @@ The Inference Gateway CLI includes a secure tool execution system that allows LL
 
    Please select an option:
    ▶ Yes - Execute this command
-     Yes, and don't ask again - Execute this and all future commands  
+     Yes, and don't ask again - Execute this and all future commands
      No - Cancel command execution
 
    [User selects "Yes - Execute this command"]
@@ -382,7 +382,7 @@ The Inference Gateway CLI includes a secure tool execution system that allows LL
 
 ### Customizing Tool Whitelist
 
-Edit `~/.infer.yaml` to add custom commands:
+Edit `.infer/config.yaml` to add custom commands:
 
 ```yaml
 tools:
@@ -408,7 +408,7 @@ tools:
 
 **"Tools are disabled" error:**
 - Enable tools: `infer tools enable`
-- Verify config: `tools.enabled: true` in `~/.infer.yaml`
+- Verify config: `tools.enabled: true` in `.infer/config.yaml`
 
 **Safety approval prompts:**
 - Disable safety prompts: `infer tools safety disable`
