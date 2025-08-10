@@ -199,6 +199,18 @@ Validate if a command is whitelisted without executing it.
 #### `infer tools exec <command>`
 Execute a whitelisted command directly.
 
+#### `infer tools safety`
+Manage safety approval settings for command execution.
+
+#### `infer tools safety enable`
+Enable safety approval prompts before executing commands.
+
+#### `infer tools safety disable`
+Disable safety approval prompts (commands execute immediately).
+
+#### `infer tools safety status`
+Show current safety approval status.
+
 **Options:**
 - `-f, --format`: Output format (text, json)
 
@@ -215,6 +227,11 @@ infer tools validate "ls -la"
 
 # Execute a command
 infer tools exec "pwd"
+
+# Manage safety settings
+infer tools safety enable
+infer tools safety status
+infer tools safety disable
 
 # Get tool definitions for LLMs
 infer tools llm list --format=json
@@ -271,6 +288,8 @@ tools:
       - "^git log --oneline -n [0-9]+$"
       - "^docker ps$"
       - "^kubectl get pods$"
+  safety:
+    require_approval: true  # Prompt user before executing any command
 compact:
   output_dir: ".infer"  # Directory for compact command exports
 ```
@@ -290,6 +309,7 @@ compact:
 - **tools.enabled**: Enable/disable tool execution for LLMs (default: false)
 - **tools.whitelist.commands**: List of allowed commands (supports arguments)
 - **tools.whitelist.patterns**: Regex patterns for complex command validation
+- **tools.safety.require_approval**: Prompt user before executing any command (default: true)
 
 **Compact Settings:**
 - **compact.output_dir**: Directory for compact command exports (default: ".infer")
@@ -308,6 +328,7 @@ The Inference Gateway CLI includes a secure tool execution system that allows LL
 
 - **Whitelist-Only Execution**: Only explicitly allowed commands can be executed
 - **Command Validation**: Support for exact matches and regex patterns
+- **Safety Approval System**: Interactive prompts before command execution (enabled by default)
 - **Timeout Protection**: Commands timeout after 30 seconds
 - **Secure Environment**: Tools run with CLI user permissions
 - **Disabled by Default**: Tools must be explicitly enabled
@@ -331,11 +352,23 @@ The Inference Gateway CLI includes a secure tool execution system that allows LL
    infer chat
    ```
 
-3. **Example interaction**:
+3. **Example interaction with safety approval**:
    ```
    You: Can you list the files in this directory?
 
-   Model: 🔧 Calling tool: Bash with arguments: {"command":"ls"}
+   Model: I'll list the files in this directory for you.
+
+   ⚠️  Command execution approval required:
+   Command: ls
+
+   Please select an option:
+   ▶ Yes - Execute this command
+     Yes, and don't ask again - Execute this and all future commands  
+     No - Cancel command execution
+
+   [User selects "Yes - Execute this command"]
+
+   🔧 Calling tool: Bash with arguments: {"command":"ls"}
    ✅ Tool result:
    Command: ls
    Exit Code: 0
@@ -362,6 +395,8 @@ tools:
     patterns:
       - "^git status$"
       - "^your-pattern.*$"
+  safety:
+    require_approval: true  # Set to false to disable safety prompts
 ```
 
 ### Troubleshooting Tools
@@ -374,6 +409,11 @@ tools:
 **"Tools are disabled" error:**
 - Enable tools: `infer tools enable`
 - Verify config: `tools.enabled: true` in `~/.infer.yaml`
+
+**Safety approval prompts:**
+- Disable safety prompts: `infer tools safety disable`
+- Enable safety prompts: `infer tools safety enable`
+- Check current status: `infer tools safety status`
 
 ## Examples
 
@@ -410,6 +450,11 @@ infer tools exec "pwd"
 
 # Disable tool execution
 infer tools disable
+
+# Manage safety settings
+infer tools safety enable   # Enable safety approval prompts
+infer tools safety status   # Check current safety status
+infer tools safety disable  # Disable safety approval prompts
 ```
 
 ### Configuration Management

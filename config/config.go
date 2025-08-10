@@ -33,12 +33,18 @@ type OutputConfig struct {
 type ToolsConfig struct {
 	Enabled   bool                `yaml:"enabled"`
 	Whitelist ToolWhitelistConfig `yaml:"whitelist"`
+	Safety    SafetyConfig        `yaml:"safety"`
 }
 
 // ToolWhitelistConfig contains whitelisted commands and patterns
 type ToolWhitelistConfig struct {
 	Commands []string `yaml:"commands"`
 	Patterns []string `yaml:"patterns"`
+}
+
+// SafetyConfig contains safety approval settings
+type SafetyConfig struct {
+	RequireApproval bool `yaml:"require_approval"`
 }
 
 // CompactConfig contains settings for compact command
@@ -71,6 +77,9 @@ func DefaultConfig() *Config {
 					"^docker ps$",
 					"^kubectl get pods$",
 				},
+			},
+			Safety: SafetyConfig{
+				RequireApproval: true,
 			},
 		},
 		Compact: CompactConfig{

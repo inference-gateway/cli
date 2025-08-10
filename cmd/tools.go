@@ -224,6 +224,74 @@ var toolsLLMInvokeCmd = &cobra.Command{
 	},
 }
 
+var toolsSafetyCmd = &cobra.Command{
+	Use:   "safety",
+	Short: "Manage safety approval settings",
+	Long:  "Configure safety approval requirements for command execution.",
+}
+
+var toolsSafetyEnableCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable safety approval for command execution",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		configPath, _ := cmd.Flags().GetString("config")
+		cfg, err := config.LoadConfig(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		cfg.Tools.Safety.RequireApproval = true
+
+		if err := cfg.SaveConfig(configPath); err != nil {
+			return fmt.Errorf("failed to save config: %w", err)
+		}
+
+		fmt.Println("Safety approval enabled successfully")
+		return nil
+	},
+}
+
+var toolsSafetyDisableCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable safety approval for command execution",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		configPath, _ := cmd.Flags().GetString("config")
+		cfg, err := config.LoadConfig(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		cfg.Tools.Safety.RequireApproval = false
+
+		if err := cfg.SaveConfig(configPath); err != nil {
+			return fmt.Errorf("failed to save config: %w", err)
+		}
+
+		fmt.Println("Safety approval disabled successfully")
+		return nil
+	},
+}
+
+var toolsSafetyStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show safety approval status",
+	RunE: func(cmd *cobra.Command, args []string) error {
+		configPath, _ := cmd.Flags().GetString("config")
+		cfg, err := config.LoadConfig(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		status := "disabled"
+		if cfg.Tools.Safety.RequireApproval {
+			status = "enabled"
+		}
+
+		fmt.Printf("Safety approval: %s\n", status)
+		return nil
+	},
+}
+
 func init() {
 	rootCmd.AddCommand(toolsCmd)
 
@@ -233,9 +301,14 @@ func init() {
 	toolsCmd.AddCommand(toolsExecCmd)
 	toolsCmd.AddCommand(toolsValidateCmd)
 	toolsCmd.AddCommand(toolsLLMCmd)
+	toolsCmd.AddCommand(toolsSafetyCmd)
 
 	toolsLLMCmd.AddCommand(toolsLLMListCmd)
 	toolsLLMCmd.AddCommand(toolsLLMInvokeCmd)
+
+	toolsSafetyCmd.AddCommand(toolsSafetyEnableCmd)
+	toolsSafetyCmd.AddCommand(toolsSafetyDisableCmd)
+	toolsSafetyCmd.AddCommand(toolsSafetyStatusCmd)
 
 	toolsExecCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	toolsLLMListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")

@@ -13,12 +13,16 @@ import (
 
 // ToolEngine manages tool execution with security controls
 type ToolEngine struct {
-	config *config.Config
+	config          *config.Config
+	approvalSession *ApprovalSession
 }
 
 // NewToolEngine creates a new tool engine
 func NewToolEngine(cfg *config.Config) *ToolEngine {
-	return &ToolEngine{config: cfg}
+	return &ToolEngine{
+		config:          cfg,
+		approvalSession: NewApprovalSession(),
+	}
 }
 
 // ToolResult represents the result of a tool execution
@@ -38,6 +42,17 @@ func (te *ToolEngine) ExecuteBash(command string) (*ToolResult, error) {
 
 	if !te.isCommandAllowed(command) {
 		return nil, fmt.Errorf("command not whitelisted: %s", command)
+	}
+
+	if te.config.Tools.Safety.RequireApproval {
+		decision, err := te.approvalSession.PromptForApproval(command)
+		if err != nil {
+			return nil, fmt.Errorf("approval prompt failed: %w", err)
+		}
+
+		if decision == ApprovalDeny {
+			return nil, fmt.Errorf("command execution cancelled by user")
+		}
 	}
 
 	start := time.Now()
@@ -104,4 +119,9 @@ func (te *ToolEngine) ValidateCommand(command string) error {
 	}
 
 	return nil
+}
+
+// GetApprovalSession returns the approval session
+func (te *ToolEngine) GetApprovalSession() *ApprovalSession {
+	return te.approvalSession
 }
