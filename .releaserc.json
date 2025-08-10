@@ -63,7 +63,7 @@
     [
       "@semantic-release/exec",
       {
-        "prepareCmd": "flox activate -- task release:build",
+        "prepareCmd": "VERSION=v${nextRelease.version} COMMIT=$(git rev-parse --short HEAD) DATE=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\") flox activate -- task release:build",
         "publishCmd": "echo 'Binaries built successfully'"
       }
     ],
