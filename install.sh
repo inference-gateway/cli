@@ -145,6 +145,10 @@ install_cli() {
 
     check_dependencies
 
+    if [ -z "$VERSION" ]; then
+        get_latest_version
+    fi
+
     print_status "Installing version: $VERSION"
 
     FILENAME="${BINARY_NAME}-${PLATFORM}-${ARCH}"
