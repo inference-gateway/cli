@@ -148,7 +148,7 @@ compact:
 - Root command: `infer`
 - Global flags: `--config`, `--verbose`
 - Subcommands:
-  - `status [--detailed] [--format]`: Gateway status
+  - `status [--format]`: Gateway status
   - `list`: List deployed models
   - `prompt <text>`: Send prompts to models
   - `chat`: Interactive chat with model selection and tool support

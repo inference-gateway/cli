@@ -139,13 +139,11 @@ go build -o infer .
 Check the status of the inference gateway including running services, model deployments, health checks, and resource usage.
 
 **Options:**
-- `-d, --detailed`: Show detailed status information
 - `-f, --format`: Output format (text, json, yaml)
 
 **Examples:**
 ```bash
 infer status
-infer status --detailed
 infer status --format json
 ```
 

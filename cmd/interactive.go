@@ -116,12 +116,11 @@ func showInteractiveHelp() {
 	fmt.Println("🔧 Interactive Mode Commands:")
 	fmt.Println()
 	fmt.Println("Regular Commands:")
-	fmt.Println("  status           - Check gateway status")
-	fmt.Println("  status -d        - Detailed status")
-	fmt.Println("  models list      - List deployed models")
-	fmt.Println("  prompt <text>    - Send prompt to inference gateway")
-	fmt.Println("  chat             - Start interactive chat with model selection")
-	fmt.Println("  version          - Show version information")
+	fmt.Println("  status                - Check gateway status")
+	fmt.Println("  models list           - List deployed models")
+	fmt.Println("  prompt <flags> <text> - Send prompt to inference gateway")
+	fmt.Println("  chat                  - Start interactive chat with model selection")
+	fmt.Println("  version               - Show version information")
 	fmt.Println()
 	fmt.Println("Special Commands:")
 	fmt.Println("  /help            - Show this help")
@@ -232,8 +231,6 @@ func getHistoryFile() string {
 func createCompleter(cfg *config.Config) readline.AutoCompleter {
 	items := []readline.PrefixCompleterInterface{
 		readline.PcItem("status",
-			readline.PcItem("--detailed"),
-			readline.PcItem("-d"),
 			readline.PcItem("--format"),
 			readline.PcItem("-f"),
 		),
