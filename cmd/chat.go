@@ -598,63 +598,8 @@ func stopSpinner(result *streamingResult) {
 	result.mu.Unlock()
 }
 
-func executeToolCalls(cfg *config.Config, activeToolCalls map[int]*sdk.ChatCompletionMessageToolCall) []sdk.ChatCompletionMessageToolCall {
-	var toolCalls []sdk.ChatCompletionMessageToolCall
 
-	for _, toolCall := range activeToolCalls {
-		if toolCall.Function.Name != "" {
-			fmt.Printf(" with arguments: %s\n", toolCall.Function.Arguments)
 
-			toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
-			if err != nil {
-				fmt.Printf("❌ Tool execution failed: %v\n", err)
-			} else {
-				fmt.Printf("✅ Tool result:\n%s\n", toolResult)
-			}
-
-			toolCalls = append(toolCalls, *toolCall)
-		}
-	}
-
-	return toolCalls
-}
-
-func executeRemainingToolCalls(cfg *config.Config, activeToolCalls map[int]*sdk.ChatCompletionMessageToolCall, processedToolCalls []sdk.ChatCompletionMessageToolCall) []sdk.ChatCompletionMessageToolCall {
-	finalToolCalls := make([]sdk.ChatCompletionMessageToolCall, len(processedToolCalls))
-	copy(finalToolCalls, processedToolCalls)
-
-	for _, toolCall := range activeToolCalls {
-		if toolCall.Function.Name == "" {
-			continue
-		}
-
-		if isToolCallProcessed(toolCall.Id, processedToolCalls) {
-			continue
-		}
-
-		fmt.Printf(" with arguments: %s\n", toolCall.Function.Arguments)
-
-		toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
-		if err != nil {
-			fmt.Printf("❌ Tool execution failed: %v\n", err)
-		} else {
-			fmt.Printf("✅ Tool result:\n%s\n", toolResult)
-		}
-
-		finalToolCalls = append(finalToolCalls, *toolCall)
-	}
-
-	return finalToolCalls
-}
-
-func isToolCallProcessed(toolCallId string, processedToolCalls []sdk.ChatCompletionMessageToolCall) bool {
-	for _, processedCall := range processedToolCalls {
-		if processedCall.Id == toolCallId {
-			return true
-		}
-	}
-	return false
-}
 
 func showSpinner(active *bool, mu *sync.Mutex) {
 	spinner := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
