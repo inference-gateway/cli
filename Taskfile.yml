@@ -3,6 +3,12 @@ version: '3'
 vars:
   BINARY_NAME: infer
   MAIN_PACKAGE: .
+  VERSION:
+    sh: git describe --tags --always --dirty 2>/dev/null || echo "dev"
+  COMMIT:
+    sh: git rev-parse --short HEAD 2>/dev/null || echo "unknown"
+  DATE:
+    sh: date -u +"%Y-%m-%dT%H:%M:%SZ"
 
 tasks:
   default:
@@ -13,7 +19,7 @@ tasks:
   build:
     desc: Build the CLI binary
     cmds:
-      - go build -o {{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+      - go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o {{.BINARY_NAME}} {{.MAIN_PACKAGE}}
     sources:
       - "**/*.go"
       - go.mod
@@ -24,7 +30,7 @@ tasks:
   install:
     desc: Install the CLI from source
     cmds:
-      - go install {{.MAIN_PACKAGE}}
+      - go install -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" {{.MAIN_PACKAGE}}
 
   clean:
     desc: Clean build artifacts
@@ -112,10 +118,10 @@ tasks:
     desc: Build release binaries for multiple platforms
     cmds:
       - mkdir -p dist
-      - CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o dist/{{.BINARY_NAME}}-darwin-amd64 {{.MAIN_PACKAGE}}
-      - CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o dist/{{.BINARY_NAME}}-darwin-arm64 {{.MAIN_PACKAGE}}
-      - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PACKAGE}}
-      - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o dist/{{.BINARY_NAME}}-linux-arm64 {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-darwin-amd64 {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-darwin-arm64 {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-arm64 {{.MAIN_PACKAGE}}
 
   clean:release:
     desc: Clean release artifacts
