@@ -157,10 +157,7 @@ func startChatSession() error {
 			ToolCalls: &assistantToolCalls,
 		})
 
-		// If tools were called, we need to add tool result messages to the conversation
 		for _, toolCall := range assistantToolCalls {
-			// Tool results are already displayed to user during streaming,
-			// but we need to add them to conversation history for the model
 			toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
 			if err == nil {
 				conversation = append(conversation, sdk.Message{
