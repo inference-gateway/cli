@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**/*.md'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**/*.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.2.2
+
+    - name: Install Flox
+      uses: flox/install-flox-action@v2
+
+    - name: Activate Flox environment
+      run: flox activate
+
+    - name: Run mod tidy
+      run: flox activate -- task mod:tidy
+
+    - name: Run linter
+      run: flox activate -- task lint
+
+    - name: Run vet
+      run: flox activate -- task vet
+
+    - name: Build project
+      run: flox activate -- task build
+
+    - name: Run tests
+      run: flox activate -- task test
+
+    - name: Clean build artifacts
+      run: flox activate -- task clean
+
+    - name: Check for dirty project
+      run: |
+        if [ -n "$(git status --porcelain)" ]; then
+          echo "Project has uncommitted changes:"
+          git status --porcelain
+          git diff
+          exit 1
+        fi
+        echo "Project is clean"
