@@ -135,9 +135,9 @@ func (c *Config) SaveConfig(configPath string) error {
 }
 
 func getDefaultConfigPath() string {
-	homeDir, err := os.UserHomeDir()
+	wd, err := os.Getwd()
 	if err != nil {
-		return ".infer.yaml"
+		return ".infer/config.yaml"
 	}
-	return filepath.Join(homeDir, ".infer.yaml")
+	return filepath.Join(wd, ".infer/config.yaml")
 }
