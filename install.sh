@@ -145,13 +145,6 @@ install_cli() {
 
     check_dependencies
 
-    if [ -z "$VERSION" ]; then
-        print_error "Version is required for private repositories"
-        print_status "Please specify a version with --version flag"
-        print_status "Example: $0 --version v0.1.3"
-        exit 1
-    fi
-
     print_status "Installing version: $VERSION"
 
     FILENAME="${BINARY_NAME}-${PLATFORM}-${ARCH}"
