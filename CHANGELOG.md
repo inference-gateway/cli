@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.1.8](https://github.com/inference-gateway/cli/compare/v0.1.7...v0.1.8) (2025-08-10)
+
+### 🐛 Bug Fixes
+
+* Ensure end-of-file-fixer applies to all files except manifest.lock ([c5f77fe](https://github.com/inference-gateway/cli/commit/c5f77fe00089b5cb33812452443eb1d657c4052b))
+
 ## [0.1.7](https://github.com/inference-gateway/cli/compare/v0.1.6...v0.1.7) (2025-08-10)
 
 ### ♻️ Code Refactoring
