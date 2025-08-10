@@ -1,11 +1,9 @@
 package internal
 
 import (
-	"bufio"
 	"fmt"
-	"os"
-	"strconv"
-	"strings"
+
+	"github.com/manifoldco/promptui"
 )
 
 // ApprovalSession tracks approval decisions for a session
@@ -51,34 +49,39 @@ func (as *ApprovalSession) PromptForApproval(command string) (ApprovalDecision, 
 
 	fmt.Printf("\n⚠️  Command execution approval required:\n")
 	fmt.Printf("Command: %s\n\n", command)
-	fmt.Println("Please select an option:")
-	fmt.Println("1. Yes - Execute this command")
-	fmt.Println("2. Yes, and don't ask again - Execute this and all future commands")
-	fmt.Println("3. No - Cancel command execution")
-	fmt.Print("\nEnter your choice (1-3): ")
 
-	reader := bufio.NewReader(os.Stdin)
-	input, err := reader.ReadString('\n')
-	if err != nil {
-		return ApprovalDeny, fmt.Errorf("failed to read input: %w", err)
+	options := []string{
+		"Yes - Execute this command",
+		"Yes, and don't ask again - Execute this and all future commands",
+		"No - Cancel command execution",
 	}
 
-	choice := strings.TrimSpace(input)
-	choiceNum, err := strconv.Atoi(choice)
-	if err != nil {
-		return ApprovalDeny, fmt.Errorf("invalid input: please enter 1, 2, or 3")
+	prompt := promptui.Select{
+		Label: "Please select an option",
+		Items: options,
+		Templates: &promptui.SelectTemplates{
+			Label:    "{{ . }}:",
+			Active:   "▶ {{ . | cyan | bold }}",
+			Inactive: "  {{ . }}",
+			Selected: "✓ {{ . | green }}",
+		},
 	}
 
-	switch choiceNum {
-	case 1:
+	index, _, err := prompt.Run()
+	if err != nil {
+		return ApprovalDeny, fmt.Errorf("selection failed: %w", err)
+	}
+
+	switch index {
+	case 0:
 		return ApprovalAllow, nil
-	case 2:
+	case 1:
 		as.skipApproval = true
 		return ApprovalAllowAll, nil
-	case 3:
+	case 2:
 		return ApprovalDeny, nil
 	default:
-		return ApprovalDeny, fmt.Errorf("invalid choice: please enter 1, 2, or 3")
+		return ApprovalDeny, fmt.Errorf("invalid selection")
 	}
 }
 

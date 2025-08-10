@@ -178,10 +178,13 @@ func startChatSession() error {
 				break
 			}
 
+			toolExecutionFailed := false
 			for _, toolCall := range assistantToolCalls {
 				toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
 				if err != nil {
 					fmt.Printf("❌ Tool execution failed: %v\n", err)
+					toolExecutionFailed = true
+					break
 				} else {
 					fmt.Printf("✅ Tool result:\n%s\n", toolResult)
 					conversation = append(conversation, sdk.Message{
@@ -190,6 +193,12 @@ func startChatSession() error {
 						ToolCallId: &toolCall.Id,
 					})
 				}
+			}
+
+			if toolExecutionFailed {
+				conversation = conversation[:len(conversation)-1]
+				fmt.Printf("\n❌ Tool execution was cancelled. Please try a different request.\n")
+				break
 			}
 
 			fmt.Printf("\n%s: ", selectedModel)
