@@ -1,0 +1,60 @@
+version = 1
+
+[vars]
+GOPATH = "$HOME/go"
+GOPROXY = "https://proxy.golang.org,direct"
+GOSUMDB = "sum.golang.org"
+GO111MODULE = "on"
+CGO_ENABLED = "1"
+NPM_CONFIG_PREFIX = "$FLOX_ENV_PROJECT/.flox/npm"
+NODE_PATH = "$FLOX_ENV_PROJECT/.flox/npm/lib/node_modules"
+
+[install]
+go.pkg-path = "go"
+go.version = "^1.24.5"
+
+docker.pkg-path = "docker"
+docker.version = "28.3.2"
+
+golangci-lint.pkg-path = "golangci-lint"
+golangci-lint.version = "v2.3.0"
+
+nodejs.pkg-path = "nodejs"
+nodejs.version = "^22"
+
+pre-commit.pkg-path = "pre-commit"
+pre-commit.version = "^4.2.0"
+
+go-task.pkg-path = "go-task"
+go-task.version= "^3.44.0"
+
+
+[hook]
+on-activate = """
+  mkdir -p "$NPM_CONFIG_PREFIX"
+  export PATH="$PATH:$NPM_CONFIG_PREFIX/bin"
+
+  if [ ! -d "$NPM_CONFIG_PREFIX/lib/node_modules/semantic-release" ]; then
+    echo "Installing semantic-release and plugins..."
+    npm install -g \
+      semantic-release@24.2.7 \
+      @semantic-release/commit-analyzer@13.0.1 \
+      @semantic-release/release-notes-generator@14.0.3 \
+      @semantic-release/changelog@6.0.3 \
+      @semantic-release/git@10.0.1 \
+      @semantic-release/exec@7.1.0 \
+      @semantic-release/github@11.0.3 \
+      conventional-changelog-conventionalcommits@9.1.0 \
+      conventional-changelog-cli@5.0.0
+  fi
+"""
+
+[profile]
+
+[services]
+
+[include]
+
+[build]
+
+[options]

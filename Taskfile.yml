@@ -1,0 +1,145 @@
+version: '3'
+
+vars:
+  BINARY_NAME: infer
+  MAIN_PACKAGE: .
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  build:
+    desc: Build the CLI binary
+    cmds:
+      - go build -o {{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+    sources:
+      - "**/*.go"
+      - go.mod
+      - go.sum
+    generates:
+      - "{{.BINARY_NAME}}"
+
+  install:
+    desc: Install the CLI from source
+    cmds:
+      - go install {{.MAIN_PACKAGE}}
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - rm -f {{.BINARY_NAME}}
+      - go clean
+
+  test:
+    desc: Run all tests
+    cmds:
+      - go test ./...
+
+  test:verbose:
+    desc: Run tests with verbose output
+    cmds:
+      - go test -v ./...
+
+  test:coverage:
+    desc: Run tests with coverage report
+    cmds:
+      - go test -cover ./...
+      - go test -coverprofile=coverage.out ./...
+      - go tool cover -html=coverage.out -o coverage.html
+
+  lint:
+    desc: Run linter (requires golangci-lint)
+    cmds:
+      - golangci-lint run
+
+  fmt:
+    desc: Format Go code
+    cmds:
+      - go fmt ./...
+
+  vet:
+    desc: Run go vet
+    cmds:
+      - go vet ./...
+
+  mod:tidy:
+    desc: Tidy go modules
+    cmds:
+      - go mod tidy
+
+  mod:download:
+    desc: Download go modules
+    cmds:
+      - go mod download
+
+  run:
+    desc: Run the CLI locally
+    cmds:
+      - go run {{.MAIN_PACKAGE}} {{.CLI_ARGS}}
+
+  run:status:
+    desc: Run status command locally
+    cmds:
+      - go run {{.MAIN_PACKAGE}} status
+
+  run:version:
+    desc: Run version command locally
+    cmds:
+      - go run {{.MAIN_PACKAGE}} version
+
+  run:help:
+    desc: Show CLI help
+    cmds:
+      - go run {{.MAIN_PACKAGE}} --help
+
+  check:
+    desc: Run all quality checks
+    deps:
+      - fmt
+      - vet
+      - test
+
+  dev:
+    desc: Development workflow - format, build, and test
+    deps:
+      - fmt
+      - build
+      - test
+
+  release:build:
+    desc: Build release binaries for multiple platforms
+    cmds:
+      - mkdir -p dist
+      - CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -o dist/{{.BINARY_NAME}}-darwin-amd64 {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -o dist/{{.BINARY_NAME}}-darwin-arm64 {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o dist/{{.BINARY_NAME}}-linux-arm64 {{.MAIN_PACKAGE}}
+
+  clean:release:
+    desc: Clean release artifacts
+    cmds:
+      - rm -rf dist/
+
+  deps:install:
+    desc: Install development dependencies
+    cmds:
+      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+  setup:
+    desc: Set up development environment
+    deps:
+      - deps:install
+      - mod:download
+      - precommit:install
+
+  precommit:install:
+    desc: Install pre-commit hooks
+    cmds:
+      - pre-commit install
+
+  precommit:run:
+    desc: Run pre-commit on all files
+    cmds:
+      - pre-commit run --all-files
