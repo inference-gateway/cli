@@ -140,6 +140,8 @@ tools:
       - "^git log --oneline -n [0-9]+$"
       - "^docker ps$"
       - "^kubectl get pods$"
+  safety:
+    require_approval: true  # Prompt user before executing any command
 compact:
   output_dir: ".infer"  # Directory for compact command exports (default: project root/.infer)
 ```
@@ -154,6 +156,7 @@ compact:
   - `chat`: Interactive chat with model selection and tool support
     - `/compact`: Export conversation to markdown file
   - `tools`: Tool management and execution
+    - `safety enable/disable/status`: Manage safety approval settings
   - `version`: Version information
 
 ## Dependencies
