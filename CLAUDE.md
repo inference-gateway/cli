@@ -108,10 +108,10 @@ The project follows the standard Go CLI architecture using Cobra framework:
   - `status.go`: Status monitoring (`infer status`, `infer models list`)
   - `prompt.go`: Prompt testing (`infer prompt`)
   - `version.go`: Version information (`infer version`)
-- `internal/config.go`: Configuration management with YAML support
+- `config/config.go`: Configuration management with YAML support
 
 ### Configuration System
-The CLI uses a YAML configuration file at `~/.infer.yaml` with the following structure:
+The CLI uses a project-based YAML configuration file at `.infer.yaml` in the current directory with the following structure:
 ```yaml
 gateway:
   url: "http://localhost:8080"
@@ -150,6 +150,7 @@ compact:
 - Root command: `infer`
 - Global flags: `--config`, `--verbose`
 - Subcommands:
+  - `init [--overwrite]`: Initialize local project configuration
   - `status [--format]`: Gateway status
   - `list`: List deployed models
   - `prompt <text>`: Send prompts to models

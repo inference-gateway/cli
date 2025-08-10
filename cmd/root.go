@@ -31,6 +31,6 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("config", "c", "", "config file (default is $HOME/.infer.yaml)")
+	rootCmd.PersistentFlags().StringP("config", "c", "", "config file (default is ./.infer.yaml)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 }
