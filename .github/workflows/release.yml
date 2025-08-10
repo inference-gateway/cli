@@ -49,11 +49,6 @@ jobs:
       - name: Install Flox
         uses: flox/install-flox-action@main
 
-      - name: Verify flox environment
-        run: |
-          flox activate -- go version
-          flox activate -- task --version
-
       - name: Check for existing releases
         id: check_releases
         env:
