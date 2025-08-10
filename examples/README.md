@@ -42,18 +42,9 @@ infer status
 infer status --detailed --format json
 ```
 
-### Deploy a Model
-```bash
-# Deploy a model with default settings
-infer deploy model llama2
-
-# Deploy with custom configuration
-infer deploy model gpt-4 --endpoint /v1/chat/completions --replicas 3
-```
-
 ### List Deployed Models
 ```bash
-infer list
+infer models list
 ```
 
 ### Send Prompts
@@ -69,7 +60,7 @@ infer chat
 ```bash
 # Enable tools in your config first, then:
 infer tools list
-infer tools execute "ls -la"
+infer tools exec "ls -la"
 ```
 
 ### Version Information

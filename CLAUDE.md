@@ -105,8 +105,7 @@ The project follows the standard Go CLI architecture using Cobra framework:
 - `main.go`: Entry point that calls `cmd.Execute()`
 - `cmd/`: Contains all CLI command implementations using Cobra
   - `root.go`: Root command setup with global flags (`--config`, `--verbose`)
-  - `deploy.go`: Model deployment commands (`infer deploy model`)
-  - `status.go`: Status monitoring (`infer status`, `infer list`)
+  - `status.go`: Status monitoring (`infer status`, `infer models list`)
   - `prompt.go`: Prompt testing (`infer prompt`)
   - `version.go`: Version information (`infer version`)
 - `internal/config.go`: Configuration management with YAML support
@@ -150,7 +149,6 @@ compact:
 - Global flags: `--config`, `--verbose`
 - Subcommands:
   - `status [--detailed] [--format]`: Gateway status
-  - `deploy model <name> [--endpoint] [--replicas] [--config]`: Model deployment
   - `list`: List deployed models
   - `prompt <text>`: Send prompts to models
   - `chat`: Interactive chat with model selection and tool support
