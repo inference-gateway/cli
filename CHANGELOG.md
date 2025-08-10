@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.3.0](https://github.com/inference-gateway/cli/compare/v0.2.0...v0.3.0) (2025-08-10)
+
+### 🚀 Features
+
+* Add safety approval before executing any command ([#6](https://github.com/inference-gateway/cli/issues/6)) ([ba5fd7e](https://github.com/inference-gateway/cli/commit/ba5fd7e7a1e4e2217525b445bc8d36b570414c70)), closes [#5](https://github.com/inference-gateway/cli/issues/5) [#5](https://github.com/inference-gateway/cli/issues/5)
+
 ## [0.2.0](https://github.com/inference-gateway/cli/compare/v0.1.15...v0.2.0) (2025-08-10)
 
 ### 🚀 Features
