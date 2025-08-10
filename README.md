@@ -10,8 +10,11 @@
 
 A powerful command-line interface for managing and interacting with the Inference Gateway. This CLI provides tools for configuration, deployment, monitoring, and management of inference services.
 
-> [!WARNING]
-> **Early Development Stage**: This project is in its early development stage and breaking changes are expected until it reaches a stable version. Always use pinned versions by specifying a specific version tag when downloading binaries or using install scripts.
+## ⚠️ Warning
+
+> **Early Development Stage**: This project is in its early development stage and breaking changes are expected until it reaches a stable version.
+>
+> Always use pinned versions by specifying a specific version tag when downloading binaries or using install scripts.
 
 </div>
 
