@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.2.0](https://github.com/inference-gateway/cli/compare/v0.1.15...v0.2.0) (2025-08-10)
+
+### 🚀 Features
+
+* Add /compact command for exporting chat conversations ([#4](https://github.com/inference-gateway/cli/issues/4)) ([f5380e8](https://github.com/inference-gateway/cli/commit/f5380e8cfc70c4661f44354ec1f1c8a4983a4cce)), closes [#2](https://github.com/inference-gateway/cli/issues/2)
+
 ## [0.1.15](https://github.com/inference-gateway/cli/compare/v0.1.14...v0.1.15) (2025-08-10)
 
 ### ♻️ Code Refactoring
