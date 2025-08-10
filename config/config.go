@@ -30,7 +30,7 @@ type OutputConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled   bool               `yaml:"enabled"`
+	Enabled   bool                `yaml:"enabled"`
 	Whitelist ToolWhitelistConfig `yaml:"whitelist"`
 }
 

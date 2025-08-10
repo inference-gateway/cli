@@ -67,9 +67,7 @@ func startChatSession() error {
 
 	models, err := getAvailableModelsList(cfg)
 	if err != nil {
-		fmt.Printf("Warning: Could not fetch models from gateway: %v\n", err)
-		fmt.Println("Using fallback models...")
-		models = []string{"gpt-4", "gpt-3.5-turbo", "claude-3-sonnet", "claude-3-haiku"}
+		return fmt.Errorf("inference gateway is not available: %w", err)
 	}
 
 	selectedModel, err := selectModel(models)

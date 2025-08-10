@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/spf13/cobra"
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal"
+	"github.com/spf13/cobra"
 )
 
 var toolsCmd = &cobra.Command{
