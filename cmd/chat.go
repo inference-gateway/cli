@@ -141,29 +141,23 @@ func startChatSession() error {
 			continue
 		}
 
-		// Add user message to conversation
 		conversation = append(conversation, sdk.Message{
 			Role:    sdk.User,
 			Content: processedInput,
 		})
 
-		// Immediately update UI to show user's message
 		userChatHistory := formatConversationForDisplay(conversation, selectedModel)
 		program.Send(internal.UpdateHistoryMsg{History: userChatHistory})
 
-		// Show generating status
 		program.Send(internal.SetStatusMsg{Message: "Generating response...", Spinner: true})
 
-		// Reset cancellation flag before starting generation
 		inputModel.ResetCancellation()
 
 		var totalMetrics *ChatMetrics
 		maxIterations := 10
 		for iteration := 0; iteration < maxIterations; iteration++ {
-			// Check for cancellation before each iteration
 			if inputModel.IsCancelled() {
-				conversation = conversation[:len(conversation)-1] // Remove the user message that was just added
-				// Update UI to reflect the conversation change
+				conversation = conversation[:len(conversation)-1]
 				chatHistory := formatConversationForDisplay(conversation, selectedModel)
 				program.Send(internal.UpdateHistoryMsg{History: chatHistory})
 				program.Send(internal.SetStatusMsg{Message: "❌ Generation cancelled by user", Spinner: false})
@@ -174,11 +168,9 @@ func startChatSession() error {
 
 			if err != nil {
 				if strings.Contains(err.Error(), "cancelled by user") {
-					// Cancellation already handled, don't show error message
 					break
 				}
 				conversation = conversation[:len(conversation)-1]
-				// Update UI to reflect the conversation change
 				chatHistory := formatConversationForDisplay(conversation, selectedModel)
 				program.Send(internal.UpdateHistoryMsg{History: chatHistory})
 				program.Send(internal.SetStatusMsg{Message: fmt.Sprintf("❌ Error: %v", err), Spinner: false})
@@ -196,12 +188,10 @@ func startChatSession() error {
 				}
 			}
 
-			// Update the last message with tool calls if any
 			if len(assistantToolCalls) > 0 && len(conversation) > 0 {
 				lastIdx := len(conversation) - 1
 				if conversation[lastIdx].Role == sdk.Assistant {
 					conversation[lastIdx].ToolCalls = &assistantToolCalls
-					// Update UI with tool calls
 					chatHistory := formatConversationForDisplay(conversation, selectedModel)
 					program.Send(internal.UpdateHistoryMsg{History: chatHistory})
 				}
@@ -213,10 +203,8 @@ func startChatSession() error {
 
 			toolExecutionFailed := false
 			for _, toolCall := range assistantToolCalls {
-				// Check for cancellation during tool execution
 				if inputModel.IsCancelled() {
 					conversation = conversation[:len(conversation)-1]
-					// Update UI to reflect the conversation change (remove assistant message with cancelled tool calls)
 					chatHistory := formatConversationForDisplay(conversation, selectedModel)
 					program.Send(internal.UpdateHistoryMsg{History: chatHistory})
 					program.Send(internal.SetStatusMsg{Message: "❌ Generation cancelled by user", Spinner: false})
@@ -230,20 +218,17 @@ func startChatSession() error {
 					toolExecutionFailed = true
 					break
 				} else {
-					// Add tool result to conversation
 					conversation = append(conversation, sdk.Message{
 						Role:       sdk.Tool,
 						Content:    toolResult,
 						ToolCallId: &toolCall.Id,
 					})
-					// Update UI to show the tool result was executed
 					program.Send(internal.SetStatusMsg{Message: "✅ Tool executed successfully", Spinner: false})
 				}
 			}
 
 			if toolExecutionFailed {
 				conversation = conversation[:len(conversation)-1]
-				// Update UI to reflect the conversation change (remove assistant message with rejected tool calls)
 				chatHistory := formatConversationForDisplay(conversation, selectedModel)
 				program.Send(internal.UpdateHistoryMsg{History: chatHistory})
 				program.Send(internal.SetStatusMsg{Message: "❌ Tool execution was cancelled. Please try a different request.", Spinner: false})
@@ -252,7 +237,6 @@ func startChatSession() error {
 
 		}
 
-		// Show generation complete status with metrics
 		if totalMetrics != nil {
 			metricsMsg := formatMetricsString(totalMetrics)
 			program.Send(internal.SetStatusMsg{Message: fmt.Sprintf("✅ Complete - %s", metricsMsg), Spinner: false})
@@ -260,10 +244,6 @@ func startChatSession() error {
 			program.Send(internal.SetStatusMsg{Message: "✅ Response complete", Spinner: false})
 		}
 	}
-
-	program.Quit()
-	fmt.Println("\n👋 Chat session ended!")
-	return nil
 }
 
 // waitForInput waits for user input from the chat interface
@@ -273,7 +253,6 @@ func waitForInput(program *tea.Program, inputModel *internal.ChatInputModel) str
 		if inputModel.HasInput() {
 			return inputModel.GetInput()
 		}
-		// Check if the user requested to quit (e.g., pressed Ctrl+C)
 		if inputModel.IsQuitRequested() {
 			return ""
 		}
@@ -760,7 +739,6 @@ func handleStreamErrorToUI(event sdk.SSEvent, result *uiStreamingResult) error {
 	return fmt.Errorf("stream error: %s", errResp.Error)
 }
 
-
 func compactConversation(conversation []sdk.Message, selectedModel string) error {
 	cfg, err := config.LoadConfig("")
 	if err != nil {
@@ -872,7 +850,6 @@ func formatConversationForDisplay(conversation []sdk.Message, selectedModel stri
 
 		content = msg.Content
 
-		// Keep newlines for multi-line display
 		content = strings.ReplaceAll(content, "\r\n", "\n")
 		content = strings.ReplaceAll(content, "\r", "\n")
 
@@ -880,7 +857,6 @@ func formatConversationForDisplay(conversation []sdk.Message, selectedModel stri
 			history = append(history, fmt.Sprintf("%s: %s", role, content))
 		}
 
-		// Show tool calls if present
 		if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
 			for _, toolCall := range *msg.ToolCalls {
 				history = append(history, fmt.Sprintf("🔧 Tool Call: %s", toolCall.Function.Name))
