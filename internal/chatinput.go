@@ -322,7 +322,7 @@ func (m *ChatInputModel) View() string {
 
 		for i, option := range options {
 			if i == m.approvalSelected {
-				b.WriteString(fmt.Sprintf("▶ %s\n", option))
+				b.WriteString(fmt.Sprintf("▶ \033[36;1m%s\033[0m\n", option))
 			} else {
 				b.WriteString(fmt.Sprintf("  %s\n", option))
 			}
