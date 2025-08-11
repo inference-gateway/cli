@@ -76,11 +76,14 @@ func startChatSession() error {
 
 	var conversation []sdk.Message
 
-	// Create persistent chat input interface
 	inputModel := internal.NewChatInputModel()
 	program := tea.NewProgram(inputModel, tea.WithAltScreen())
 
-	// Set initial welcome message
+	var toolsManager *internal.LLMToolsManager
+	if cfg.Tools.Enabled {
+		toolsManager = internal.NewLLMToolsManagerWithUI(cfg, program, inputModel)
+	}
+
 	welcomeHistory := []string{
 		fmt.Sprintf("🤖 Chat session started with %s", selectedModel),
 		"💡 Type '/help' or '?' for commands • Use @filename for file references",
@@ -225,7 +228,7 @@ func startChatSession() error {
 					break
 				}
 
-				toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments, program, inputModel)
+				toolResult, err := executeToolCall(toolsManager, toolCall.Function.Name, toolCall.Function.Arguments)
 				if err != nil {
 					program.Send(internal.SetStatusMsg{Message: fmt.Sprintf("❌ Tool execution failed: %v", err), Spinner: false})
 					toolExecutionFailed = true
@@ -396,8 +399,10 @@ type ChatMetrics struct {
 	Usage    *sdk.CompletionUsage
 }
 
-func executeToolCall(cfg *config.Config, toolName, arguments string, program *tea.Program, inputModel *internal.ChatInputModel) (string, error) {
-	manager := internal.NewLLMToolsManagerWithUI(cfg, program, inputModel)
+func executeToolCall(manager *internal.LLMToolsManager, toolName, arguments string) (string, error) {
+	if manager == nil {
+		return "", fmt.Errorf("tools are not enabled")
+	}
 
 	var params map[string]interface{}
 	if arguments != "" {
