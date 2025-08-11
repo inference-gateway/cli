@@ -78,17 +78,17 @@ func startChatSession() error {
 
 	var conversation []sdk.Message
 
-	inputModel := internal.NewChatInputModel()
+	inputModel := internal.NewChatManagerModel()
 	program := tea.NewProgram(inputModel, tea.WithAltScreen())
 
 	var toolsManager *internal.LLMToolsManager
 	if cfg.Tools.Enabled {
-		toolsManager = internal.NewLLMToolsManagerWithUI(cfg, program, inputModel)
+		toolsManager = internal.NewLLMToolsManagerWithUI(cfg, program, inputModel.GetChatInput())
 	}
 
 	welcomeHistory := []string{
 		fmt.Sprintf("🤖 Chat session started with %s", selectedModel),
-		"💡 Type '/help' or '?' for commands • Use @filename for file references",
+		"💡 Type '/help' or '?' for commands • Press @ to select files to reference",
 	}
 
 	if cfg.Tools.Enabled {
@@ -121,7 +121,7 @@ func startChatSession() error {
 	for {
 		updateHistory(conversation)
 
-		userInput := waitForInput(program, inputModel)
+		userInput := waitForInput(program, inputModel.GetChatInput())
 		if userInput == "" {
 			program.Quit()
 			fmt.Println("\n👋 Chat session ended!")
@@ -173,7 +173,7 @@ func startChatSession() error {
 				break
 			}
 
-			_, assistantToolCalls, metrics, err := sendStreamingChatCompletionToUI(cfg, selectedModel, conversation, program, &conversation, inputModel)
+			_, assistantToolCalls, metrics, err := sendStreamingChatCompletionToUI(cfg, selectedModel, conversation, program, &conversation, inputModel.GetChatInput())
 
 			if err != nil {
 				if strings.Contains(err.Error(), "cancelled by user") {

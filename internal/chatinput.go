@@ -24,6 +24,14 @@ type ApprovalRequestMsg struct {
 	Command string
 }
 
+// FileSelectionRequestMsg is used to request file selection
+type FileSelectionRequestMsg struct{}
+
+// FileSelectedMsg is used to indicate a file was selected
+type FileSelectedMsg struct {
+	FilePath string
+}
+
 // ChatInputModel represents a persistent chat input interface
 type ChatInputModel struct {
 	textarea         []string
@@ -94,6 +102,15 @@ func (m *ChatInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.approvalCommand = msg.Command
 		m.approvalResponse = -1
 		m.approvalSelected = 0 // Start with first option selected
+		return m, nil
+
+	case FileSelectedMsg:
+		fileRef := "@" + msg.FilePath + " "
+		currentLine := m.textarea[m.lineIndex]
+		before := currentLine[:m.cursor]
+		after := currentLine[m.cursor:]
+		m.textarea[m.lineIndex] = before + fileRef + after
+		m.cursor += len(fileRef)
 		return m, nil
 
 	case SetStatusMsg:
@@ -244,6 +261,14 @@ func (m *ChatInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		default:
 			if !m.focusOnHistory && len(msg.String()) == 1 && msg.String()[0] >= 32 {
 				char := msg.String()
+
+				// If user types "@", trigger file selector
+				if char == "@" {
+					return m, func() tea.Msg {
+						return FileSelectionRequestMsg{}
+					}
+				}
+
 				currentLine := m.textarea[m.lineIndex]
 				before := currentLine[:m.cursor]
 				after := currentLine[m.cursor:]
