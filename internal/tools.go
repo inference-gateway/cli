@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/config"
 )
 
@@ -15,6 +16,8 @@ import (
 type ToolEngine struct {
 	config          *config.Config
 	approvalSession *ApprovalSession
+	program         *tea.Program
+	inputModel      *ChatInputModel
 }
 
 // NewToolEngine creates a new tool engine
@@ -22,6 +25,18 @@ func NewToolEngine(cfg *config.Config) *ToolEngine {
 	return &ToolEngine{
 		config:          cfg,
 		approvalSession: NewApprovalSession(),
+		program:         nil,
+		inputModel:      nil,
+	}
+}
+
+// NewToolEngineWithUI creates a new tool engine with UI integration
+func NewToolEngineWithUI(cfg *config.Config, program *tea.Program, inputModel *ChatInputModel) *ToolEngine {
+	return &ToolEngine{
+		config:          cfg,
+		approvalSession: NewApprovalSession(),
+		program:         program,
+		inputModel:      inputModel,
 	}
 }
 
@@ -45,7 +60,17 @@ func (te *ToolEngine) ExecuteBash(command string) (*ToolResult, error) {
 	}
 
 	if te.config.Tools.Safety.RequireApproval {
-		decision, err := te.approvalSession.PromptForApproval(command)
+		var decision ApprovalDecision
+		var err error
+
+		if te.program != nil && te.inputModel != nil {
+			// Use Bubble Tea UI for approval
+			decision, err = te.approvalSession.PromptForApprovalBubbleTea(command, te.program, te.inputModel)
+		} else {
+			// Fallback to console approval (shouldn't happen in chat mode)
+			return nil, fmt.Errorf("approval UI not available")
+		}
+
 		if err != nil {
 			return nil, fmt.Errorf("approval prompt failed: %w", err)
 		}

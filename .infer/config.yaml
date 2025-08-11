@@ -6,7 +6,7 @@ output:
     format: text
     quiet: false
 tools:
-    enabled: false
+    enabled: true
     whitelist:
         commands:
             - ls

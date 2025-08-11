@@ -10,13 +10,12 @@ import (
 	"regexp"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
+	"github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal"
 	sdk "github.com/inference-gateway/sdk"
-	"github.com/manifoldco/promptui"
 	"github.com/spf13/cobra"
 )
 
@@ -77,38 +76,56 @@ func startChatSession() error {
 		return fmt.Errorf("model selection failed: %w", err)
 	}
 
-	fmt.Printf("\n🤖 Starting chat session with %s\n", selectedModel)
-	fmt.Println("Commands: '/exit' to quit, '/clear' for history, '/compact' to export, '/help' for all")
-	fmt.Println("Commands are processed immediately and won't be sent to the model")
-	fmt.Println("📁 File references: Type '@' alone to select files interactively, or use @filename directly")
+	var conversation []sdk.Message
+
+	inputModel := internal.NewChatInputModel()
+	program := tea.NewProgram(inputModel, tea.WithAltScreen())
+
+	var toolsManager *internal.LLMToolsManager
+	if cfg.Tools.Enabled {
+		toolsManager = internal.NewLLMToolsManagerWithUI(cfg, program, inputModel)
+	}
+
+	welcomeHistory := []string{
+		fmt.Sprintf("🤖 Chat session started with %s", selectedModel),
+		"💡 Type '/help' or '?' for commands • Use @filename for file references",
+	}
 
 	if cfg.Tools.Enabled {
 		toolCount := len(createSDKTools(cfg))
 		if toolCount > 0 {
-			fmt.Printf("🔧 Tools enabled: %d tool(s) available for the model to use\n", toolCount)
+			welcomeHistory = append(welcomeHistory, fmt.Sprintf("🔧 %d tool(s) available for the model to use", toolCount))
 		}
 	}
 
-	var conversation []sdk.Message
+	welcomeHistory = append(welcomeHistory, "")
+
+	updateHistory := func(conversation []sdk.Message) {
+		if len(conversation) > 0 {
+			chatHistory := formatConversationForDisplay(conversation, selectedModel)
+			program.Send(internal.UpdateHistoryMsg{History: append(welcomeHistory, chatHistory...)})
+		} else {
+			program.Send(internal.UpdateHistoryMsg{History: welcomeHistory})
+		}
+	}
+
+	go func() {
+		_, err := program.Run()
+		if err != nil {
+			fmt.Printf("Error running chat interface: %v\n", err)
+		}
+	}()
+
+	updateHistory(conversation)
 
 	for {
-		prompt := promptui.Prompt{
-			Label:       "You",
-			HideEntered: false,
-			Templates: &promptui.PromptTemplates{
-				Prompt:  "{{ . | bold }}{{ \":\" | faint }} ",
-				Valid:   "{{ . | bold }}{{ \":\" | faint }} ",
-				Invalid: "{{ . | bold }}{{ \":\" | faint }} ",
-			},
-		}
+		updateHistory(conversation)
 
-		userInput, err := prompt.Run()
-		if err != nil {
-			if err == promptui.ErrInterrupt {
-				break
-			}
-			fmt.Printf("Error reading input: %v\n", err)
-			continue
+		userInput := waitForInput(program, inputModel)
+		if userInput == "" {
+			program.Quit()
+			fmt.Println("\n👋 Chat session ended!")
+			os.Exit(0)
 		}
 
 		userInput = strings.TrimSpace(userInput)
@@ -129,7 +146,7 @@ func startChatSession() error {
 
 		processedInput, err := processFileReferences(userInput)
 		if err != nil {
-			fmt.Printf("❌ Error processing file references: %v\n", err)
+			program.Send(internal.SetStatusMsg{Message: fmt.Sprintf("❌ Error processing file references: %v", err), Spinner: false})
 			continue
 		}
 
@@ -138,28 +155,34 @@ func startChatSession() error {
 			Content: processedInput,
 		})
 
-		fmt.Printf("\n%s: ", selectedModel)
+		userChatHistory := formatConversationForDisplay(conversation, selectedModel)
+		program.Send(internal.UpdateHistoryMsg{History: userChatHistory})
+
+		program.Send(internal.SetStatusMsg{Message: "Generating response...", Spinner: true})
+
+		inputModel.ResetCancellation()
 
 		var totalMetrics *ChatMetrics
 		maxIterations := 10
 		for iteration := 0; iteration < maxIterations; iteration++ {
-			var wg sync.WaitGroup
-			var spinnerActive = true
-			var mu sync.Mutex
+			if inputModel.IsCancelled() {
+				conversation = conversation[:len(conversation)-1]
+				chatHistory := formatConversationForDisplay(conversation, selectedModel)
+				program.Send(internal.UpdateHistoryMsg{History: chatHistory})
+				program.Send(internal.SetStatusMsg{Message: "❌ Generation cancelled by user", Spinner: false})
+				break
+			}
 
-			wg.Add(1)
-			go func() {
-				defer wg.Done()
-				showSpinner(&spinnerActive, &mu)
-			}()
-
-			assistantMessage, assistantToolCalls, metrics, err := sendStreamingChatCompletion(cfg, selectedModel, conversation, &spinnerActive, &mu)
-
-			wg.Wait()
+			_, assistantToolCalls, metrics, err := sendStreamingChatCompletionToUI(cfg, selectedModel, conversation, program, &conversation, inputModel)
 
 			if err != nil {
-				fmt.Printf("❌ Error: %v\n", err)
+				if strings.Contains(err.Error(), "cancelled by user") {
+					break
+				}
 				conversation = conversation[:len(conversation)-1]
+				chatHistory := formatConversationForDisplay(conversation, selectedModel)
+				program.Send(internal.UpdateHistoryMsg{History: chatHistory})
+				program.Send(internal.SetStatusMsg{Message: fmt.Sprintf("❌ Error: %v", err), Spinner: false})
 				break
 			}
 
@@ -174,14 +197,14 @@ func startChatSession() error {
 				}
 			}
 
-			assistantMsg := sdk.Message{
-				Role:    sdk.Assistant,
-				Content: assistantMessage,
+			if len(assistantToolCalls) > 0 && len(conversation) > 0 {
+				lastIdx := len(conversation) - 1
+				if conversation[lastIdx].Role == sdk.Assistant {
+					conversation[lastIdx].ToolCalls = &assistantToolCalls
+					chatHistory := formatConversationForDisplay(conversation, selectedModel)
+					program.Send(internal.UpdateHistoryMsg{History: chatHistory})
+				}
 			}
-			if len(assistantToolCalls) > 0 {
-				assistantMsg.ToolCalls = &assistantToolCalls
-			}
-			conversation = append(conversation, assistantMsg)
 
 			if len(assistantToolCalls) == 0 {
 				break
@@ -189,61 +212,80 @@ func startChatSession() error {
 
 			toolExecutionFailed := false
 			for _, toolCall := range assistantToolCalls {
-				toolResult, err := executeToolCall(cfg, toolCall.Function.Name, toolCall.Function.Arguments)
+				if inputModel.IsCancelled() {
+					conversation = conversation[:len(conversation)-1]
+					chatHistory := formatConversationForDisplay(conversation, selectedModel)
+					program.Send(internal.UpdateHistoryMsg{History: chatHistory})
+					program.Send(internal.SetStatusMsg{Message: "❌ Generation cancelled by user", Spinner: false})
+					toolExecutionFailed = true
+					break
+				}
+
+				toolResult, err := executeToolCall(toolsManager, toolCall.Function.Name, toolCall.Function.Arguments)
 				if err != nil {
-					fmt.Printf("❌ Tool execution failed: %v\n", err)
+					program.Send(internal.SetStatusMsg{Message: fmt.Sprintf("❌ Tool execution failed: %v", err), Spinner: false})
 					toolExecutionFailed = true
 					break
 				} else {
-					fmt.Printf("✅ Tool result:\n%s\n", toolResult)
 					conversation = append(conversation, sdk.Message{
 						Role:       sdk.Tool,
 						Content:    toolResult,
 						ToolCallId: &toolCall.Id,
 					})
+					program.Send(internal.SetStatusMsg{Message: "✅ Tool executed successfully", Spinner: false})
 				}
 			}
 
 			if toolExecutionFailed {
 				conversation = conversation[:len(conversation)-1]
-				fmt.Printf("\n❌ Tool execution was cancelled. Please try a different request.\n")
+				chatHistory := formatConversationForDisplay(conversation, selectedModel)
+				program.Send(internal.UpdateHistoryMsg{History: chatHistory})
+				program.Send(internal.SetStatusMsg{Message: "❌ Tool execution was cancelled. Please try a different request.", Spinner: false})
 				break
 			}
 
-			fmt.Printf("\n%s: ", selectedModel)
 		}
 
-		displayChatMetrics(totalMetrics)
-		fmt.Print("\n\n")
+		if totalMetrics != nil {
+			metricsMsg := formatMetricsString(totalMetrics)
+			program.Send(internal.SetStatusMsg{Message: fmt.Sprintf("✅ Complete - %s", metricsMsg), Spinner: false})
+		} else {
+			program.Send(internal.SetStatusMsg{Message: "✅ Response complete", Spinner: false})
+		}
 	}
+}
 
-	fmt.Println("\n👋 Chat session ended!")
-	return nil
+// waitForInput waits for user input from the chat interface
+func waitForInput(program *tea.Program, inputModel *internal.ChatInputModel) string {
+	for {
+		time.Sleep(100 * time.Millisecond)
+		if inputModel.HasInput() {
+			return inputModel.GetInput()
+		}
+		if inputModel.IsQuitRequested() {
+			return ""
+		}
+	}
 }
 
 func selectModel(models []string) (string, error) {
-	searcher := func(input string, index int) bool {
-		model := models[index]
-		name := strings.ReplaceAll(strings.ToLower(model), " ", "")
-		input = strings.ReplaceAll(strings.ToLower(input), " ", "")
-		return strings.Contains(name, input)
+	modelSelector := internal.NewModelSelectorModel(models)
+	program := tea.NewProgram(modelSelector)
+
+	_, err := program.Run()
+	if err != nil {
+		return "", fmt.Errorf("model selection failed: %w", err)
 	}
 
-	prompt := promptui.Select{
-		Label:    "Search and select a model for the chat session (type / to search)",
-		Items:    models,
-		Size:     10,
-		Searcher: searcher,
-		Templates: &promptui.SelectTemplates{
-			Label:    "{{ . }}?",
-			Active:   "▶ {{ . | cyan | bold }}",
-			Inactive: "  {{ . }}",
-			Selected: "✓ Selected model: {{ . | green | bold }}",
-		},
+	if modelSelector.IsCancelled() {
+		return "", fmt.Errorf("model selection was cancelled")
 	}
 
-	_, result, err := prompt.Run()
-	return result, err
+	if !modelSelector.IsSelected() {
+		return "", fmt.Errorf("no model was selected")
+	}
+
+	return modelSelector.GetSelected(), nil
 }
 
 func getAvailableModelsList(cfg *config.Config) ([]string, error) {
@@ -290,8 +332,8 @@ func handleChatCommands(input string, conversation *[]sdk.Message, selectedModel
 			fmt.Printf("❌ Error creating compact file: %v\n", err)
 		}
 		return true
-	case "/help":
-		showChatHelp()
+	case "/help", "?":
+		showHelpScreen()
 		return true
 	}
 
@@ -329,36 +371,14 @@ func showConversationHistory(conversation []sdk.Message) {
 	fmt.Println()
 }
 
-func showChatHelp() {
-	fmt.Println("💬 Chat Session Commands:")
-	fmt.Println()
-	fmt.Println("Chat Commands:")
-	fmt.Println("  /exit, /quit     - Exit the chat session")
-	fmt.Println("  /clear           - Clear conversation history")
-	fmt.Println("  /history         - Show conversation history")
-	fmt.Println("  /models          - Show current and available models")
-	fmt.Println("  /switch          - Switch to a different model")
-	fmt.Println("  /compact         - Export conversation to markdown file")
-	fmt.Println("  /help            - Show this help")
-	fmt.Println()
-	fmt.Println("File References:")
-	fmt.Println("  @                - Interactive file selector dropdown (NEW!)")
-	fmt.Println("  @filename.txt    - Include contents of filename.txt in your message")
-	fmt.Println("  @./config.yaml   - Include contents of config.yaml from current directory")
-	fmt.Println("  @../README.md    - Include contents of README.md from parent directory")
-	fmt.Println("  Maximum file size: 100KB")
-	fmt.Println()
-	fmt.Println("Tool Usage:")
-	fmt.Println("  Models can invoke available tools automatically during conversation")
-	fmt.Println("  Use 'infer tools list' to see whitelisted commands")
-	fmt.Println("  Use 'infer tools enable/disable' to control tool access")
-	fmt.Println("  Tools execute securely with command whitelisting")
-	fmt.Println()
-	fmt.Println("Input Tips:")
-	fmt.Println("  End line with '\\' for multi-line input")
-	fmt.Println("  Press Ctrl+C to interrupt")
-	fmt.Println("  Press Ctrl+D to exit")
-	fmt.Println()
+func showHelpScreen() {
+	helpViewer := internal.NewHelpViewerModel()
+	program := tea.NewProgram(helpViewer, tea.WithAltScreen())
+
+	_, err := program.Run()
+	if err != nil {
+		fmt.Printf("Error displaying help: %v\n", err)
+	}
 }
 
 // ChatMetrics holds timing and token usage information
@@ -367,8 +387,10 @@ type ChatMetrics struct {
 	Usage    *sdk.CompletionUsage
 }
 
-func executeToolCall(cfg *config.Config, toolName, arguments string) (string, error) {
-	manager := internal.NewLLMToolsManager(cfg)
+func executeToolCall(manager *internal.LLMToolsManager, toolName, arguments string) (string, error) {
+	if manager == nil {
+		return "", fmt.Errorf("tools are not enabled")
+	}
 
 	var params map[string]interface{}
 	if arguments != "" {
@@ -406,59 +428,17 @@ func createSDKTools(cfg *config.Config) []sdk.ChatCompletionTool {
 	return sdkTools
 }
 
-func sendStreamingChatCompletion(cfg *config.Config, model string, messages []ChatMessage, spinnerActive *bool, mu *sync.Mutex) (string, []sdk.ChatCompletionMessageToolCall, *ChatMetrics, error) {
-	client, err := createStreamingClient(cfg)
-	if err != nil {
-		return "", nil, nil, err
-	}
-
-	ctx := context.Background()
-	startTime := time.Now()
-
-	provider, modelName, err := parseProvider(model)
-	if err != nil {
-		return "", nil, nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
-	}
-
-	events, err := client.GenerateContentStream(ctx, provider, modelName, messages)
-	if err != nil {
-		return "", nil, nil, fmt.Errorf("failed to generate content stream: %w", err)
-	}
-
-	result := &streamingResult{
-		fullMessage:     &strings.Builder{},
-		firstContent:    true,
-		activeToolCalls: make(map[int]*sdk.ChatCompletionMessageToolCall),
-		spinnerActive:   spinnerActive,
-		mu:              mu,
-		cfg:             cfg,
-	}
-
-	err = processStreamingEvents(events, result)
-	if err != nil {
-		return "", nil, nil, err
-	}
-
-	finalToolCalls := result.toolCalls
-
-	duration := time.Since(startTime)
-	metrics := &ChatMetrics{
-		Duration: duration,
-		Usage:    result.usage,
-	}
-
-	return result.fullMessage.String(), finalToolCalls, metrics, nil
-}
-
-type streamingResult struct {
+type uiStreamingResult struct {
 	fullMessage     *strings.Builder
 	firstContent    bool
 	usage           *sdk.CompletionUsage
 	toolCalls       []sdk.ChatCompletionMessageToolCall
 	activeToolCalls map[int]*sdk.ChatCompletionMessageToolCall
-	spinnerActive   *bool
-	mu              *sync.Mutex
+	program         *tea.Program
+	conversation    *[]sdk.Message
 	cfg             *config.Config
+	inputModel      *internal.ChatInputModel
+	selectedModel   string
 }
 
 func createStreamingClient(cfg *config.Config) (sdk.Client, error) {
@@ -478,155 +458,6 @@ func createStreamingClient(cfg *config.Config) (sdk.Client, error) {
 	}
 
 	return client, nil
-}
-
-func processStreamingEvents(events <-chan sdk.SSEvent, result *streamingResult) error {
-	for event := range events {
-		if event.Event == nil {
-			continue
-		}
-
-		switch *event.Event {
-		case sdk.ContentDelta:
-			if err := handleContentDelta(event, result); err != nil {
-				return err
-			}
-		case sdk.StreamEnd:
-			handleStreamEnd(result)
-			return nil
-		case "error":
-			return handleStreamError(event, result)
-		}
-	}
-	return nil
-}
-
-func handleContentDelta(event sdk.SSEvent, result *streamingResult) error {
-	if event.Data == nil {
-		return nil
-	}
-
-	var streamResponse sdk.CreateChatCompletionStreamResponse
-	if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
-		return nil
-	}
-
-	for _, choice := range streamResponse.Choices {
-		handleContentChoice(choice, result)
-		handleToolCallsChoice(choice, result)
-	}
-
-	if streamResponse.Usage != nil {
-		result.usage = streamResponse.Usage
-	}
-
-	return nil
-}
-
-func handleContentChoice(choice sdk.ChatCompletionStreamChoice, result *streamingResult) {
-	if choice.Delta.Content == "" {
-		return
-	}
-
-	if result.firstContent {
-		stopSpinner(result)
-		result.firstContent = false
-	}
-
-	fmt.Print(choice.Delta.Content)
-	result.fullMessage.WriteString(choice.Delta.Content)
-}
-
-func handleToolCallsChoice(choice sdk.ChatCompletionStreamChoice, result *streamingResult) {
-	if len(choice.Delta.ToolCalls) == 0 {
-		return
-	}
-
-	if result.firstContent {
-		stopSpinner(result)
-		result.firstContent = false
-	}
-
-	for _, deltaToolCall := range choice.Delta.ToolCalls {
-		handleToolCallDelta(deltaToolCall, result)
-	}
-}
-
-func handleToolCallDelta(deltaToolCall sdk.ChatCompletionMessageToolCallChunk, result *streamingResult) {
-	index := deltaToolCall.Index
-
-	if result.activeToolCalls[index] == nil {
-		result.activeToolCalls[index] = &sdk.ChatCompletionMessageToolCall{
-			Id:   deltaToolCall.ID,
-			Type: sdk.ChatCompletionToolType(deltaToolCall.Type),
-			Function: sdk.ChatCompletionMessageToolCallFunction{
-				Name:      deltaToolCall.Function.Name,
-				Arguments: "",
-			},
-		}
-		if deltaToolCall.Function.Name != "" {
-			fmt.Printf("\n🔧 Calling tool: %s", deltaToolCall.Function.Name)
-		}
-	}
-
-	if deltaToolCall.Function.Arguments != "" {
-		result.activeToolCalls[index].Function.Arguments += deltaToolCall.Function.Arguments
-	}
-}
-
-func handleStreamEnd(result *streamingResult) {
-	stopSpinner(result)
-	var toolCalls []sdk.ChatCompletionMessageToolCall
-	for _, toolCall := range result.activeToolCalls {
-		if toolCall.Function.Name != "" {
-			fmt.Printf(" with arguments: %s\n", toolCall.Function.Arguments)
-			toolCalls = append(toolCalls, *toolCall)
-		}
-	}
-	result.toolCalls = toolCalls
-}
-
-func handleStreamError(event sdk.SSEvent, result *streamingResult) error {
-	stopSpinner(result)
-
-	if event.Data == nil {
-		return fmt.Errorf("stream error: unknown error")
-	}
-
-	var errResp struct {
-		Error string `json:"error"`
-	}
-	if err := json.Unmarshal(*event.Data, &errResp); err != nil {
-		return fmt.Errorf("stream error: failed to parse error response")
-	}
-	return fmt.Errorf("stream error: %s", errResp.Error)
-}
-
-func stopSpinner(result *streamingResult) {
-	result.mu.Lock()
-	*result.spinnerActive = false
-	result.mu.Unlock()
-}
-
-func showSpinner(active *bool, mu *sync.Mutex) {
-	spinner := []string{"⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"}
-	i := 0
-
-	for {
-		mu.Lock()
-		if !*active {
-			mu.Unlock()
-			break
-		}
-		mu.Unlock()
-
-		fmt.Printf("%s", spinner[i%len(spinner)])
-		fmt.Printf("\b")
-		i++
-		time.Sleep(100 * time.Millisecond)
-	}
-
-	fmt.Print(" \b")
 }
 
 func processFileReferences(input string) (string, error) {
@@ -686,27 +517,235 @@ func readFileForChat(filePath string) (string, error) {
 	return string(content), nil
 }
 
-func displayChatMetrics(metrics *ChatMetrics) {
+func formatMetricsString(metrics *ChatMetrics) string {
 	if metrics == nil {
-		return
+		return ""
 	}
 
-	fmt.Printf("\n📊 ")
+	var parts []string
 
 	duration := metrics.Duration.Round(time.Millisecond)
-	fmt.Printf("Time: %v", duration)
+	parts = append(parts, fmt.Sprintf("Time: %v", duration))
 
 	if metrics.Usage != nil {
 		if metrics.Usage.PromptTokens > 0 {
-			fmt.Printf(" | Input: %d tokens", metrics.Usage.PromptTokens)
+			parts = append(parts, fmt.Sprintf("Input: %d tokens", metrics.Usage.PromptTokens))
 		}
 		if metrics.Usage.CompletionTokens > 0 {
-			fmt.Printf(" | Output: %d tokens", metrics.Usage.CompletionTokens)
+			parts = append(parts, fmt.Sprintf("Output: %d tokens", metrics.Usage.CompletionTokens))
 		}
 		if metrics.Usage.TotalTokens > 0 {
-			fmt.Printf(" | Total: %d tokens", metrics.Usage.TotalTokens)
+			parts = append(parts, fmt.Sprintf("Total: %d tokens", metrics.Usage.TotalTokens))
 		}
 	}
+
+	return strings.Join(parts, " | ")
+}
+
+func sendStreamingChatCompletionToUI(cfg *config.Config, model string, messages []ChatMessage, program *tea.Program, conversation *[]sdk.Message, inputModel *internal.ChatInputModel) (string, []sdk.ChatCompletionMessageToolCall, *ChatMetrics, error) {
+	client, err := createStreamingClient(cfg)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	ctx := context.Background()
+	startTime := time.Now()
+
+	provider, modelName, err := parseProvider(model)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
+	}
+
+	events, err := client.GenerateContentStream(ctx, provider, modelName, messages)
+	if err != nil {
+		return "", nil, nil, fmt.Errorf("failed to generate content stream: %w", err)
+	}
+
+	result := &uiStreamingResult{
+		fullMessage:     &strings.Builder{},
+		firstContent:    true,
+		activeToolCalls: make(map[int]*sdk.ChatCompletionMessageToolCall),
+		program:         program,
+		conversation:    conversation,
+		cfg:             cfg,
+		inputModel:      inputModel,
+		selectedModel:   model,
+	}
+
+	err = processStreamingEventsToUI(events, result)
+	if err != nil {
+		return "", nil, nil, err
+	}
+
+	finalToolCalls := result.toolCalls
+
+	duration := time.Since(startTime)
+	metrics := &ChatMetrics{
+		Duration: duration,
+		Usage:    result.usage,
+	}
+
+	return result.fullMessage.String(), finalToolCalls, metrics, nil
+}
+
+func processStreamingEventsToUI(events <-chan sdk.SSEvent, result *uiStreamingResult) error {
+	for event := range events {
+		// Check for cancellation
+		if result.inputModel.IsCancelled() {
+			return fmt.Errorf("generation cancelled by user")
+		}
+
+		if event.Event == nil {
+			continue
+		}
+
+		switch *event.Event {
+		case sdk.ContentDelta:
+			if err := handleContentDeltaToUI(event, result); err != nil {
+				return err
+			}
+		case sdk.StreamEnd:
+			handleStreamEndToUI(result)
+			return nil
+		case "error":
+			return handleStreamErrorToUI(event, result)
+		}
+	}
+	return nil
+}
+
+func handleContentDeltaToUI(event sdk.SSEvent, result *uiStreamingResult) error {
+	if event.Data == nil {
+		return nil
+	}
+
+	var streamResponse sdk.CreateChatCompletionStreamResponse
+	if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
+		return nil
+	}
+
+	for _, choice := range streamResponse.Choices {
+		handleContentChoiceToUI(choice, result)
+		handleToolCallsChoiceToUI(choice, result)
+	}
+
+	if streamResponse.Usage != nil {
+		result.usage = streamResponse.Usage
+		// Update status with token count
+		result.program.Send(internal.SetStatusMsg{
+			Message: fmt.Sprintf("Generating response... (%d tokens)", streamResponse.Usage.TotalTokens),
+			Spinner: true,
+		})
+	}
+
+	return nil
+}
+
+func handleContentChoiceToUI(choice sdk.ChatCompletionStreamChoice, result *uiStreamingResult) {
+	if choice.Delta.Content == "" {
+		return
+	}
+
+	if result.firstContent {
+		// Add assistant message to conversation and update UI
+		assistantMsg := sdk.Message{
+			Role:    sdk.Assistant,
+			Content: choice.Delta.Content,
+		}
+		*result.conversation = append(*result.conversation, assistantMsg)
+
+		// Update UI with new history using model name
+		chatHistory := formatConversationForDisplay(*result.conversation, result.selectedModel)
+		result.program.Send(internal.UpdateHistoryMsg{History: chatHistory})
+
+		result.firstContent = false
+	} else {
+		// Update the last message in conversation
+		if len(*result.conversation) > 0 {
+			lastIdx := len(*result.conversation) - 1
+			(*result.conversation)[lastIdx].Content += choice.Delta.Content
+
+			// Update UI with updated history using model name
+			chatHistory := formatConversationForDisplay(*result.conversation, result.selectedModel)
+			result.program.Send(internal.UpdateHistoryMsg{History: chatHistory})
+		}
+	}
+
+	result.fullMessage.WriteString(choice.Delta.Content)
+}
+
+func handleToolCallsChoiceToUI(choice sdk.ChatCompletionStreamChoice, result *uiStreamingResult) {
+	if len(choice.Delta.ToolCalls) == 0 {
+		return
+	}
+
+	for _, deltaToolCall := range choice.Delta.ToolCalls {
+		handleToolCallDeltaToUI(deltaToolCall, result)
+	}
+}
+
+func handleToolCallDeltaToUI(deltaToolCall sdk.ChatCompletionMessageToolCallChunk, result *uiStreamingResult) {
+	index := deltaToolCall.Index
+
+	if result.activeToolCalls[index] == nil {
+		// Ensure we have an assistant message in the conversation when tool calls start
+		if result.firstContent {
+			// Add empty assistant message to conversation since tool calls are starting
+			assistantMsg := sdk.Message{
+				Role:    sdk.Assistant,
+				Content: "",
+			}
+			*result.conversation = append(*result.conversation, assistantMsg)
+			result.firstContent = false
+		}
+
+		result.activeToolCalls[index] = &sdk.ChatCompletionMessageToolCall{
+			Id:   deltaToolCall.ID,
+			Type: sdk.ChatCompletionToolType(deltaToolCall.Type),
+			Function: sdk.ChatCompletionMessageToolCallFunction{
+				Name:      deltaToolCall.Function.Name,
+				Arguments: "",
+			},
+		}
+		if deltaToolCall.Function.Name != "" {
+			result.program.Send(internal.SetStatusMsg{
+				Message: fmt.Sprintf("🔧 Calling tool: %s", deltaToolCall.Function.Name),
+				Spinner: true,
+			})
+		}
+	}
+
+	if deltaToolCall.Function.Arguments != "" {
+		result.activeToolCalls[index].Function.Arguments += deltaToolCall.Function.Arguments
+	}
+}
+
+func handleStreamEndToUI(result *uiStreamingResult) {
+	var toolCalls []sdk.ChatCompletionMessageToolCall
+	for _, toolCall := range result.activeToolCalls {
+		if toolCall.Function.Name != "" {
+			result.program.Send(internal.SetStatusMsg{
+				Message: fmt.Sprintf("🔧 Tool: %s with arguments: %s", toolCall.Function.Name, toolCall.Function.Arguments),
+				Spinner: false,
+			})
+			toolCalls = append(toolCalls, *toolCall)
+		}
+	}
+	result.toolCalls = toolCalls
+}
+
+func handleStreamErrorToUI(event sdk.SSEvent, result *uiStreamingResult) error {
+	if event.Data == nil {
+		return fmt.Errorf("stream error: unknown error")
+	}
+
+	var errResp struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal(*event.Data, &errResp); err != nil {
+		return fmt.Errorf("stream error: failed to parse error response")
+	}
+	return fmt.Errorf("stream error: %s", errResp.Error)
 }
 
 // scanProjectFiles recursively scans the current directory for files,
@@ -834,40 +873,27 @@ func selectFileInteractively() (string, error) {
 		fmt.Printf("⚠️  Showing first %d files (found %d total)\n", maxFiles, len(files))
 	}
 
-	searcher := func(input string, index int) bool {
-		file := files[index]
-		name := strings.ReplaceAll(strings.ToLower(file), " ", "")
-		input = strings.ReplaceAll(strings.ToLower(input), " ", "")
-		return strings.Contains(name, input)
-	}
+	fileSelector := internal.NewFileSelectorModel(files)
+	program := tea.NewProgram(fileSelector)
 
-	prompt := promptui.Select{
-		Label:    "Select a file to include (type to search, ESC to cancel)",
-		Items:    files,
-		Size:     15,
-		Searcher: searcher,
-		Templates: &promptui.SelectTemplates{
-			Label:    "{{ . }}?",
-			Active:   "▶ {{ . | cyan | bold }}",
-			Inactive: "  {{ . }}",
-			Selected: "✓ Selected file: {{ . | green | bold }}",
-		},
-	}
-
-	_, result, err := prompt.Run()
+	_, err = program.Run()
 	if err != nil {
-		if err == promptui.ErrInterrupt {
-			return "", fmt.Errorf("file selection cancelled")
-		}
 		return "", fmt.Errorf("file selection failed: %w", err)
 	}
 
-	return result, nil
+	if fileSelector.IsCancelled() {
+		return "", fmt.Errorf("file selection cancelled")
+	}
+
+	if !fileSelector.IsSelected() {
+		return "", fmt.Errorf("no file was selected")
+	}
+
+	return fileSelector.GetSelected(), nil
 }
 
 // handleFileReference processes "@" references in user input
 func handleFileReference(input string) (string, error) {
-	// Check if input is exactly "@" - trigger interactive selection
 	if strings.TrimSpace(input) == "@" {
 		selectedFile, err := selectFileInteractively()
 		if err != nil {
@@ -876,19 +902,17 @@ func handleFileReference(input string) (string, error) {
 		return "@" + selectedFile, nil
 	}
 
-	// Check if input ends with "@" - trigger interactive selection and append
 	if strings.HasSuffix(strings.TrimSpace(input), "@") {
 		selectedFile, err := selectFileInteractively()
 		if err != nil {
 			return "", err
 		}
-		// Remove the trailing @ and append the selected file reference
+
 		trimmed := strings.TrimSpace(input)
 		prefix := trimmed[:len(trimmed)-1]
 		return prefix + "@" + selectedFile, nil
 	}
 
-	// Return input unchanged if no "@" trigger detected
 	return input, nil
 }
 
@@ -979,6 +1003,45 @@ func compactConversation(conversation []sdk.Message, selectedModel string) error
 	fmt.Printf("📊 Exported %d message(s) from chat session with %s\n", len(conversation), selectedModel)
 
 	return nil
+}
+
+func formatConversationForDisplay(conversation []sdk.Message, selectedModel string) []string {
+	var history []string
+
+	for _, msg := range conversation {
+		var role string
+		var content string
+
+		switch msg.Role {
+		case sdk.User:
+			role = "👤 You"
+		case sdk.Assistant:
+			role = fmt.Sprintf("🤖 %s", selectedModel)
+		case sdk.System:
+			role = "⚙️ System"
+		case sdk.Tool:
+			role = "🔧 Tool"
+		default:
+			role = string(msg.Role)
+		}
+
+		content = msg.Content
+
+		content = strings.ReplaceAll(content, "\r\n", "\n")
+		content = strings.ReplaceAll(content, "\r", "\n")
+
+		if content != "" {
+			history = append(history, fmt.Sprintf("%s: %s", role, content))
+		}
+
+		if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
+			for _, toolCall := range *msg.ToolCalls {
+				history = append(history, fmt.Sprintf("🔧 Tool Call: %s", toolCall.Function.Name))
+			}
+		}
+	}
+
+	return history
 }
 
 func init() {
