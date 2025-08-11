@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.4.0](https://github.com/inference-gateway/cli/compare/v0.3.3...v0.4.0) (2025-08-11)
+
+### 🚀 Features
+
+* Add interactive file selection dropdown with @ symbol ([#10](https://github.com/inference-gateway/cli/issues/10)) ([8cabd7d](https://github.com/inference-gateway/cli/commit/8cabd7dbf6bba8bc6dc4c2c5101ddd718851fe96)), closes [#3](https://github.com/inference-gateway/cli/issues/3)
+
 ## [0.3.3](https://github.com/inference-gateway/cli/compare/v0.3.2...v0.3.3) (2025-08-11)
 
 ### ♻️ Code Refactoring
