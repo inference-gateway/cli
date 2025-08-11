@@ -37,6 +37,14 @@ type SetSelectedModelMsg struct {
 	Model string
 }
 
+// ShowErrorMsg is used to display persistent error messages
+type ShowErrorMsg struct {
+	Error string
+}
+
+// ClearErrorMsg is used to clear error messages
+type ClearErrorMsg struct{}
+
 // ChatInputModel represents a persistent chat input interface
 type ChatInputModel struct {
 	textarea         []string
@@ -61,6 +69,8 @@ type ChatInputModel struct {
 	approvalResponse int // 0=deny, 1=allow, 2=allow all
 	approvalSelected int // Currently selected option in dropdown
 	selectedModel    string
+	errorMessage     string
+	showError        bool
 }
 
 // SpinnerTick represents a spinner animation tick
@@ -90,6 +100,8 @@ func NewChatInputModel() *ChatInputModel {
 		approvalCommand:  "",
 		approvalResponse: -1,
 		approvalSelected: 0,
+		errorMessage:     "",
+		showError:        false,
 	}
 }
 
@@ -123,6 +135,19 @@ func (m *ChatInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selectedModel = msg.Model
 		return m, nil
 
+	case ShowErrorMsg:
+		m.errorMessage = msg.Error
+		m.showError = true
+		// Clear spinner when showing error
+		m.showSpinner = false
+		m.showTimer = false
+		return m, nil
+
+	case ClearErrorMsg:
+		m.errorMessage = ""
+		m.showError = false
+		return m, nil
+
 	case SetStatusMsg:
 		m.statusMessage = msg.Message
 		if msg.Spinner {
@@ -154,6 +179,13 @@ func (m *ChatInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
+		// Clear error on any key press
+		if m.showError {
+			m.showError = false
+			m.errorMessage = ""
+			return m, nil
+		}
+
 		if m.approvalPending {
 			switch msg.String() {
 			case "up":
@@ -367,6 +399,12 @@ func (m *ChatInputModel) View() string {
 		}
 
 		b.WriteString("\nUse ↑↓ arrows to navigate, Enter to select, Esc to cancel\n")
+		b.WriteString(strings.Repeat("─", m.width) + "\n")
+	} else if m.showError {
+		b.WriteString("\n")
+		b.WriteString("\033[41;37;1m ERROR \033[0m ")
+		b.WriteString("\033[31;1m" + m.errorMessage + "\033[0m\n")
+		b.WriteString("\033[90mPress any key to continue...\033[0m\n")
 		b.WriteString(strings.Repeat("─", m.width) + "\n")
 	} else {
 		statusLine := ""

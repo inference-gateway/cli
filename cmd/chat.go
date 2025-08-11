@@ -25,7 +25,7 @@ type ChatMessage = sdk.Message
 // ConversationEntry tracks a message along with which model generated it (for assistant messages)
 type ConversationEntry struct {
 	Message sdk.Message `json:"message"`
-	Model   string       `json:"model,omitempty"` // Only set for assistant messages
+	Model   string       `json:"model,omitempty"`
 }
 
 // ChatRequest represents a chat completion request
@@ -182,22 +182,32 @@ func startChatSession() error {
 				break
 			}
 
-			// Convert conversation to sdk.Message for API call
 			sdkMessages := make([]sdk.Message, len(conversation))
 			for i, entry := range conversation {
 				sdkMessages[i] = entry.Message
 			}
-			
+
 			_, assistantToolCalls, metrics, err := sendStreamingChatCompletionToUI(cfg, selectedModel, sdkMessages, program, &conversation, inputModel.GetChatInput())
 
 			if err != nil {
 				if strings.Contains(err.Error(), "cancelled by user") {
 					break
 				}
-				conversation = conversation[:len(conversation)-1]
-				chatHistory := formatConversationForDisplay(conversation, selectedModel)
-				program.Send(internal.UpdateHistoryMsg{History: chatHistory})
-				program.Send(internal.SetStatusMsg{Message: fmt.Sprintf("❌ Error: %v", err), Spinner: false})
+
+				if strings.Contains(strings.ToLower(err.Error()), "timed out") {
+					if len(conversation) > 0 && conversation[len(conversation)-1].Message.Role == sdk.Assistant {
+						conversation = conversation[:len(conversation)-1]
+					}
+					chatHistory := formatConversationForDisplay(conversation, selectedModel)
+					program.Send(internal.UpdateHistoryMsg{History: chatHistory})
+				errorMsg := fmt.Sprintf("⏰ %v\n\nSuggestions:\n• Try breaking your request into smaller parts\n• Check if the server is overloaded\n• Verify your network connection", err)
+				program.Send(internal.ShowErrorMsg{Error: errorMsg})
+				} else {
+					conversation = conversation[:len(conversation)-1]
+					chatHistory := formatConversationForDisplay(conversation, selectedModel)
+					program.Send(internal.UpdateHistoryMsg{History: chatHistory})
+				program.Send(internal.ShowErrorMsg{Error: fmt.Sprintf("❌ %v", err)})
+				}
 				break
 			}
 
@@ -565,12 +575,42 @@ func formatMetricsString(metrics *ChatMetrics) string {
 }
 
 func sendStreamingChatCompletionToUI(cfg *config.Config, model string, messages []ChatMessage, program *tea.Program, conversation *[]ConversationEntry, inputModel *internal.ChatInputModel) (string, []sdk.ChatCompletionMessageToolCall, *ChatMetrics, error) {
+	timeoutDuration := time.Duration(cfg.Gateway.Timeout) * time.Second
+
+	// Create a channel to receive the result
+	type streamResult struct {
+		message   string
+		toolCalls []sdk.ChatCompletionMessageToolCall
+		metrics   *ChatMetrics
+		err       error
+	}
+
+	resultChan := make(chan streamResult, 1)
+
+	// Run the streaming operation in a goroutine
+	go func() {
+		msg, toolCalls, metrics, err := doStreamingChatCompletionToUI(cfg, model, messages, program, conversation, inputModel)
+		resultChan <- streamResult{msg, toolCalls, metrics, err}
+	}()
+
+	// Wait for either the result or timeout
+	select {
+	case result := <-resultChan:
+		return result.message, result.toolCalls, result.metrics, result.err
+	case <-time.After(timeoutDuration):
+		return "", nil, nil, fmt.Errorf("request timed out after %v. The model may be generating a very long response, the server may be overloaded, or your network connection may be slow", timeoutDuration)
+	}
+}
+
+func doStreamingChatCompletionToUI(cfg *config.Config, model string, messages []ChatMessage, program *tea.Program, conversation *[]ConversationEntry, inputModel *internal.ChatInputModel) (string, []sdk.ChatCompletionMessageToolCall, *ChatMetrics, error) {
 	client, err := createStreamingClient(cfg)
 	if err != nil {
 		return "", nil, nil, err
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
+	defer cancel()
+
 	startTime := time.Now()
 
 	provider, modelName, err := parseProvider(model)
@@ -580,6 +620,9 @@ func sendStreamingChatCompletionToUI(cfg *config.Config, model string, messages 
 
 	events, err := client.GenerateContentStream(ctx, provider, modelName, messages)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", nil, nil, fmt.Errorf("request timed out after %v seconds. The model may be generating a very long response, the server may be overloaded, or your network connection may be slow", cfg.Gateway.Timeout)
+		}
 		return "", nil, nil, fmt.Errorf("failed to generate content stream: %w", err)
 	}
 
@@ -594,8 +637,11 @@ func sendStreamingChatCompletionToUI(cfg *config.Config, model string, messages 
 		selectedModel:   model,
 	}
 
-	err = processStreamingEventsToUI(events, result)
+	err = processStreamingEventsToUI(ctx, events, result)
 	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			return "", nil, nil, fmt.Errorf("request timed out after %v seconds while processing response. The model generated a very long response that exceeded the timeout limit", cfg.Gateway.Timeout)
+		}
 		return "", nil, nil, err
 	}
 
@@ -610,30 +656,37 @@ func sendStreamingChatCompletionToUI(cfg *config.Config, model string, messages 
 	return result.fullMessage.String(), finalToolCalls, metrics, nil
 }
 
-func processStreamingEventsToUI(events <-chan sdk.SSEvent, result *uiStreamingResult) error {
-	for event := range events {
-		// Check for cancellation
-		if result.inputModel.IsCancelled() {
-			return fmt.Errorf("generation cancelled by user")
-		}
-
-		if event.Event == nil {
-			continue
-		}
-
-		switch *event.Event {
-		case sdk.ContentDelta:
-			if err := handleContentDeltaToUI(event, result); err != nil {
-				return err
+func processStreamingEventsToUI(ctx context.Context, events <-chan sdk.SSEvent, result *uiStreamingResult) error {
+	for {
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("request timed out during stream processing")
+		case event, ok := <-events:
+			if !ok {
+				return nil
 			}
-		case sdk.StreamEnd:
-			handleStreamEndToUI(result)
-			return nil
-		case "error":
-			return handleStreamErrorToUI(event, result)
+
+			if result.inputModel.IsCancelled() {
+				return fmt.Errorf("generation cancelled by user")
+			}
+
+			if event.Event == nil {
+				continue
+			}
+
+			switch *event.Event {
+			case sdk.ContentDelta:
+				if err := handleContentDeltaToUI(event, result); err != nil {
+					return err
+				}
+			case sdk.StreamEnd:
+				handleStreamEndToUI(result)
+				return nil
+			case "error":
+				return handleStreamErrorToUI(event, result)
+			}
 		}
 	}
-	return nil
 }
 
 func handleContentDeltaToUI(event sdk.SSEvent, result *uiStreamingResult) error {
@@ -653,7 +706,6 @@ func handleContentDeltaToUI(event sdk.SSEvent, result *uiStreamingResult) error 
 
 	if streamResponse.Usage != nil {
 		result.usage = streamResponse.Usage
-		// Update status with token count
 		result.program.Send(internal.SetStatusMsg{
 			Message: fmt.Sprintf("Generating response... (%d tokens)", streamResponse.Usage.TotalTokens),
 			Spinner: true,
@@ -679,18 +731,15 @@ func handleContentChoiceToUI(choice sdk.ChatCompletionStreamChoice, result *uiSt
 		}
 		*result.conversation = append(*result.conversation, assistantEntry)
 
-		// Update UI with new history using model name
 		chatHistory := formatConversationForDisplay(*result.conversation, result.selectedModel)
 		result.program.Send(internal.UpdateHistoryMsg{History: chatHistory})
 
 		result.firstContent = false
 	} else {
-		// Update the last message in conversation
 		if len(*result.conversation) > 0 {
 			lastIdx := len(*result.conversation) - 1
 			(*result.conversation)[lastIdx].Message.Content += choice.Delta.Content
 
-			// Update UI with updated history using model name
 			chatHistory := formatConversationForDisplay(*result.conversation, result.selectedModel)
 			result.program.Send(internal.UpdateHistoryMsg{History: chatHistory})
 		}
@@ -713,9 +762,7 @@ func handleToolCallDeltaToUI(deltaToolCall sdk.ChatCompletionMessageToolCallChun
 	index := deltaToolCall.Index
 
 	if result.activeToolCalls[index] == nil {
-		// Ensure we have an assistant message in the conversation when tool calls start
 		if result.firstContent {
-			// Add empty assistant message to conversation since tool calls are starting
 			assistantEntry := ConversationEntry{
 				Message: sdk.Message{
 					Role:    sdk.Assistant,
@@ -781,7 +828,6 @@ func handleStreamErrorToUI(event sdk.SSEvent, result *uiStreamingResult) error {
 func scanProjectFiles() ([]string, error) {
 	var files []string
 
-	// Directories to exclude from scanning
 	excludeDirs := map[string]bool{
 		".git":         true,
 		".github":      true,
@@ -796,7 +842,6 @@ func scanProjectFiles() ([]string, error) {
 		".idea":        true,
 	}
 
-	// File extensions to exclude
 	excludeExts := map[string]bool{
 		".exe":   true,
 		".bin":   true,
@@ -837,16 +882,14 @@ func scanProjectFiles() ([]string, error) {
 
 	err = filepath.WalkDir(cwd, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil // Skip files with errors
+			return nil
 		}
 
-		// Get relative path from current directory
 		relPath, err := filepath.Rel(cwd, path)
 		if err != nil {
-			return nil // Skip if we can't get relative path
+			return nil
 		}
 
-		// Skip directories that should be excluded
 		if d.IsDir() {
 			if excludeDirs[d.Name()] || strings.HasPrefix(d.Name(), ".") && d.Name() != "." {
 				return filepath.SkipDir
@@ -854,18 +897,15 @@ func scanProjectFiles() ([]string, error) {
 			return nil
 		}
 
-		// Skip files with excluded extensions
 		ext := strings.ToLower(filepath.Ext(relPath))
 		if excludeExts[ext] {
 			return nil
 		}
 
-		// Skip very large files (over 1MB)
 		if info, err := d.Info(); err == nil && info.Size() > 1024*1024 {
 			return nil
 		}
 
-		// Only include regular files
 		if d.Type().IsRegular() {
 			files = append(files, relPath)
 		}
@@ -877,7 +917,6 @@ func scanProjectFiles() ([]string, error) {
 		return nil, fmt.Errorf("failed to scan directory: %w", err)
 	}
 
-	// Sort files for consistent ordering
 	sort.Strings(files)
 
 	return files, nil
@@ -894,7 +933,6 @@ func selectFileInteractively() (string, error) {
 		return "", fmt.Errorf("no files found in the current directory")
 	}
 
-	// Add a limit to prevent overwhelming dropdown
 	maxFiles := 200
 	if len(files) > maxFiles {
 		files = files[:maxFiles]
