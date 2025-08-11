@@ -96,9 +96,8 @@ func startChatSession() error {
 		}
 	}
 
-	welcomeHistory = append(welcomeHistory, "")  // Empty line for separation
+	welcomeHistory = append(welcomeHistory, "")
 
-	// Helper function to send history updates with welcome message
 	updateHistory := func(conversation []sdk.Message) {
 		if len(conversation) > 0 {
 			chatHistory := formatConversationForDisplay(conversation, selectedModel)
@@ -108,7 +107,6 @@ func startChatSession() error {
 		}
 	}
 
-	// Start the program in a goroutine
 	go func() {
 		_, err := program.Run()
 		if err != nil {
@@ -116,18 +114,16 @@ func startChatSession() error {
 		}
 	}()
 
-	// Send initial welcome message
 	updateHistory(conversation)
 
-	// Main chat loop
 	for {
-		// Update chat history in the UI
 		updateHistory(conversation)
 
-		// Wait for user input
 		userInput := waitForInput(program, inputModel)
 		if userInput == "" {
-			break // User cancelled
+			program.Quit()
+			fmt.Println("\n👋 Chat session ended!")
+			os.Exit(0)
 		}
 
 		userInput = strings.TrimSpace(userInput)
@@ -276,6 +272,10 @@ func waitForInput(program *tea.Program, inputModel *internal.ChatInputModel) str
 		time.Sleep(100 * time.Millisecond)
 		if inputModel.HasInput() {
 			return inputModel.GetInput()
+		}
+		// Check if the user requested to quit (e.g., pressed Ctrl+C)
+		if inputModel.IsQuitRequested() {
+			return ""
 		}
 	}
 }

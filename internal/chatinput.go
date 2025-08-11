@@ -42,6 +42,7 @@ type ChatInputModel struct {
 	startTime        time.Time
 	showTimer        bool
 	cancelled        bool
+	quit             bool
 	approvalPending  bool
 	approvalCommand  string
 	approvalResponse int // 0=deny, 1=allow, 2=allow all
@@ -70,6 +71,7 @@ func NewChatInputModel() *ChatInputModel {
 		startTime:        time.Now(),
 		showTimer:        false,
 		cancelled:        false,
+		quit:             false,
 		approvalPending:  false,
 		approvalCommand:  "",
 		approvalResponse: -1,
@@ -158,6 +160,7 @@ func (m *ChatInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch msg.String() {
 		case "ctrl+c":
+			m.quit = true
 			return m, tea.Quit
 
 		case "esc":
@@ -431,6 +434,11 @@ func (m *ChatInputModel) IsCancelled() bool {
 // ResetCancellation resets the cancellation flag
 func (m *ChatInputModel) ResetCancellation() {
 	m.cancelled = false
+}
+
+// IsQuitRequested returns true if the user requested to quit
+func (m *ChatInputModel) IsQuitRequested() bool {
+	return m.quit
 }
 
 // IsApprovalPending returns true if approval is pending
