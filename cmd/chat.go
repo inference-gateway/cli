@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -76,17 +78,17 @@ func startChatSession() error {
 
 	var conversation []sdk.Message
 
-	inputModel := internal.NewChatInputModel()
+	inputModel := internal.NewChatManagerModel()
 	program := tea.NewProgram(inputModel, tea.WithAltScreen())
 
 	var toolsManager *internal.LLMToolsManager
 	if cfg.Tools.Enabled {
-		toolsManager = internal.NewLLMToolsManagerWithUI(cfg, program, inputModel)
+		toolsManager = internal.NewLLMToolsManagerWithUI(cfg, program, inputModel.GetChatInput())
 	}
 
 	welcomeHistory := []string{
 		fmt.Sprintf("🤖 Chat session started with %s", selectedModel),
-		"💡 Type '/help' or '?' for commands • Use @filename for file references",
+		"💡 Type '/help' or '?' for commands • Press @ to select files to reference",
 	}
 
 	if cfg.Tools.Enabled {
@@ -119,7 +121,7 @@ func startChatSession() error {
 	for {
 		updateHistory(conversation)
 
-		userInput := waitForInput(program, inputModel)
+		userInput := waitForInput(program, inputModel.GetChatInput())
 		if userInput == "" {
 			program.Quit()
 			fmt.Println("\n👋 Chat session ended!")
@@ -132,6 +134,13 @@ func startChatSession() error {
 		}
 
 		if handleChatCommands(userInput, &conversation, &selectedModel, models) {
+			continue
+		}
+
+		// Handle interactive file reference if user typed "@"
+		userInput, err = handleFileReference(userInput)
+		if err != nil {
+			fmt.Printf("❌ Error with file selection: %v\n", err)
 			continue
 		}
 
@@ -164,7 +173,7 @@ func startChatSession() error {
 				break
 			}
 
-			_, assistantToolCalls, metrics, err := sendStreamingChatCompletionToUI(cfg, selectedModel, conversation, program, &conversation, inputModel)
+			_, assistantToolCalls, metrics, err := sendStreamingChatCompletionToUI(cfg, selectedModel, conversation, program, &conversation, inputModel.GetChatInput())
 
 			if err != nil {
 				if strings.Contains(err.Error(), "cancelled by user") {
@@ -737,6 +746,174 @@ func handleStreamErrorToUI(event sdk.SSEvent, result *uiStreamingResult) error {
 		return fmt.Errorf("stream error: failed to parse error response")
 	}
 	return fmt.Errorf("stream error: %s", errResp.Error)
+}
+
+// scanProjectFiles recursively scans the current directory for files,
+// excluding common directories that should not be included
+func scanProjectFiles() ([]string, error) {
+	var files []string
+
+	// Directories to exclude from scanning
+	excludeDirs := map[string]bool{
+		".git":         true,
+		".github":      true,
+		"node_modules": true,
+		".infer":       true,
+		"vendor":       true,
+		".flox":        true,
+		"dist":         true,
+		"build":        true,
+		"bin":          true,
+		".vscode":      true,
+		".idea":        true,
+	}
+
+	// File extensions to exclude
+	excludeExts := map[string]bool{
+		".exe":   true,
+		".bin":   true,
+		".dll":   true,
+		".so":    true,
+		".dylib": true,
+		".a":     true,
+		".o":     true,
+		".obj":   true,
+		".pyc":   true,
+		".class": true,
+		".jar":   true,
+		".war":   true,
+		".zip":   true,
+		".tar":   true,
+		".gz":    true,
+		".rar":   true,
+		".7z":    true,
+		".png":   true,
+		".jpg":   true,
+		".jpeg":  true,
+		".gif":   true,
+		".bmp":   true,
+		".ico":   true,
+		".svg":   true,
+		".pdf":   true,
+		".mov":   true,
+		".mp4":   true,
+		".avi":   true,
+		".mp3":   true,
+		".wav":   true,
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current directory: %w", err)
+	}
+
+	err = filepath.WalkDir(cwd, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil // Skip files with errors
+		}
+
+		// Get relative path from current directory
+		relPath, err := filepath.Rel(cwd, path)
+		if err != nil {
+			return nil // Skip if we can't get relative path
+		}
+
+		// Skip directories that should be excluded
+		if d.IsDir() {
+			if excludeDirs[d.Name()] || strings.HasPrefix(d.Name(), ".") && d.Name() != "." {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Skip files with excluded extensions
+		ext := strings.ToLower(filepath.Ext(relPath))
+		if excludeExts[ext] {
+			return nil
+		}
+
+		// Skip very large files (over 1MB)
+		if info, err := d.Info(); err == nil && info.Size() > 1024*1024 {
+			return nil
+		}
+
+		// Only include regular files
+		if d.Type().IsRegular() {
+			files = append(files, relPath)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to scan directory: %w", err)
+	}
+
+	// Sort files for consistent ordering
+	sort.Strings(files)
+
+	return files, nil
+}
+
+// selectFileInteractively shows a dropdown to select a file from the project
+func selectFileInteractively() (string, error) {
+	files, err := scanProjectFiles()
+	if err != nil {
+		return "", fmt.Errorf("failed to scan project files: %w", err)
+	}
+
+	if len(files) == 0 {
+		return "", fmt.Errorf("no files found in the current directory")
+	}
+
+	// Add a limit to prevent overwhelming dropdown
+	maxFiles := 200
+	if len(files) > maxFiles {
+		files = files[:maxFiles]
+		fmt.Printf("⚠️  Showing first %d files (found %d total)\n", maxFiles, len(files))
+	}
+
+	fileSelector := internal.NewFileSelectorModel(files)
+	program := tea.NewProgram(fileSelector)
+
+	_, err = program.Run()
+	if err != nil {
+		return "", fmt.Errorf("file selection failed: %w", err)
+	}
+
+	if fileSelector.IsCancelled() {
+		return "", fmt.Errorf("file selection cancelled")
+	}
+
+	if !fileSelector.IsSelected() {
+		return "", fmt.Errorf("no file was selected")
+	}
+
+	return fileSelector.GetSelected(), nil
+}
+
+// handleFileReference processes "@" references in user input
+func handleFileReference(input string) (string, error) {
+	if strings.TrimSpace(input) == "@" {
+		selectedFile, err := selectFileInteractively()
+		if err != nil {
+			return "", err
+		}
+		return "@" + selectedFile, nil
+	}
+
+	if strings.HasSuffix(strings.TrimSpace(input), "@") {
+		selectedFile, err := selectFileInteractively()
+		if err != nil {
+			return "", err
+		}
+
+		trimmed := strings.TrimSpace(input)
+		prefix := trimmed[:len(trimmed)-1]
+		return prefix + "@" + selectedFile, nil
+	}
+
+	return input, nil
 }
 
 func compactConversation(conversation []sdk.Message, selectedModel string) error {
