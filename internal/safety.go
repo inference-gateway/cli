@@ -2,8 +2,9 @@ package internal
 
 import (
 	"fmt"
+	"time"
 
-	"github.com/manifoldco/promptui"
+	"github.com/charmbracelet/bubbletea"
 )
 
 // ApprovalSession tracks approval decisions for a session
@@ -41,47 +42,35 @@ func (ad ApprovalDecision) String() string {
 	}
 }
 
-// PromptForApproval prompts the user for command execution approval
-func (as *ApprovalSession) PromptForApproval(command string) (ApprovalDecision, error) {
+// PromptForApprovalBubbleTea prompts the user for command execution approval using Bubble Tea
+func (as *ApprovalSession) PromptForApprovalBubbleTea(command string, program *tea.Program, inputModel *ChatInputModel) (ApprovalDecision, error) {
 	if as.skipApproval {
 		return ApprovalAllow, nil
 	}
 
-	fmt.Printf("\n⚠️  Command execution approval required:\n")
-	fmt.Printf("Command: %s\n\n", command)
+	// Send approval request to the chat interface
+	program.Send(ApprovalRequestMsg{Command: command})
 
-	options := []string{
-		"Yes - Execute this command",
-		"Yes, and don't ask again - Execute this and all future commands",
-		"No - Cancel command execution",
-	}
+	// Wait for user response
+	for {
+		time.Sleep(50 * time.Millisecond)
 
-	prompt := promptui.Select{
-		Label: "Please select an option",
-		Items: options,
-		Templates: &promptui.SelectTemplates{
-			Label:    "{{ . }}:",
-			Active:   "▶ {{ . | cyan | bold }}",
-			Inactive: "  {{ . }}",
-			Selected: "✓ {{ . | green }}",
-		},
-	}
+		if !inputModel.IsApprovalPending() {
+			response := inputModel.GetApprovalResponse()
+			inputModel.ResetApproval()
 
-	index, _, err := prompt.Run()
-	if err != nil {
-		return ApprovalDeny, fmt.Errorf("selection failed: %w", err)
-	}
-
-	switch index {
-	case 0:
-		return ApprovalAllow, nil
-	case 1:
-		as.skipApproval = true
-		return ApprovalAllowAll, nil
-	case 2:
-		return ApprovalDeny, nil
-	default:
-		return ApprovalDeny, fmt.Errorf("invalid selection")
+			switch response {
+			case 1:
+				return ApprovalAllow, nil
+			case 2:
+				as.skipApproval = true
+				return ApprovalAllowAll, nil
+			case 0:
+				return ApprovalDeny, nil
+			default:
+				return ApprovalDeny, fmt.Errorf("invalid or cancelled selection")
+			}
+		}
 	}
 }
 

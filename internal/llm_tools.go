@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/config"
 )
 
@@ -16,6 +17,13 @@ type LLMToolsManager struct {
 func NewLLMToolsManager(cfg *config.Config) *LLMToolsManager {
 	return &LLMToolsManager{
 		toolEngine: NewToolEngine(cfg),
+	}
+}
+
+// NewLLMToolsManagerWithUI creates a new LLM tools manager with UI integration
+func NewLLMToolsManagerWithUI(cfg *config.Config, program *tea.Program, inputModel *ChatInputModel) *LLMToolsManager {
+	return &LLMToolsManager{
+		toolEngine: NewToolEngineWithUI(cfg, program, inputModel),
 	}
 }
 
