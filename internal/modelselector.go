@@ -126,10 +126,8 @@ func (m *ModelSelectorModel) adjustCursor() {
 func (m *ModelSelectorModel) View() string {
 	var b strings.Builder
 
-	// Title
 	b.WriteString("🤖 Select a model for the chat session\n\n")
 
-	// Search box
 	searchBox := fmt.Sprintf("🔍 Search: %s", m.searchQuery)
 	if len(m.searchQuery) == 0 {
 		searchBox += "│"
@@ -137,20 +135,17 @@ func (m *ModelSelectorModel) View() string {
 	b.WriteString(searchBox + "\n")
 	b.WriteString(strings.Repeat("─", min(m.width, 60)) + "\n\n")
 
-	// Show filtered count
 	if len(m.filteredModels) != len(m.models) {
 		b.WriteString(fmt.Sprintf("Showing %d of %d models\n\n", len(m.filteredModels), len(m.models)))
 	}
 
-	// Model list
 	if len(m.filteredModels) == 0 {
 		b.WriteString("❌ No models match your search\n")
 	} else {
-		maxVisible := min(10, m.height-8) // Leave space for header/footer
+		maxVisible := min(10, m.height-8)
 		startIdx := 0
 		endIdx := len(m.filteredModels)
 
-		// Scroll logic to keep cursor visible
 		if len(m.filteredModels) > maxVisible {
 			if m.cursor >= maxVisible/2 {
 				startIdx = min(m.cursor-maxVisible/2, len(m.filteredModels)-maxVisible)
@@ -163,14 +158,12 @@ func (m *ModelSelectorModel) View() string {
 		for i := startIdx; i < endIdx && i < len(m.filteredModels); i++ {
 			model := m.filteredModels[i]
 			if i == m.cursor {
-				// Highlight selected model with arrow and styling
 				b.WriteString(fmt.Sprintf("▶ \033[36;1m%s\033[0m\n", model))
 			} else {
 				b.WriteString(fmt.Sprintf("  %s\n", model))
 			}
 		}
 
-		// Show scroll indicators if needed
 		if len(m.filteredModels) > maxVisible {
 			if startIdx > 0 {
 				b.WriteString("\n  ↑ More models above\n")
@@ -181,7 +174,6 @@ func (m *ModelSelectorModel) View() string {
 		}
 	}
 
-	// Footer with instructions
 	b.WriteString("\n")
 	b.WriteString(strings.Repeat("─", min(m.width, 60)) + "\n")
 	b.WriteString("💡 \033[90mType to search • ↑↓ Navigate • Enter Select • Esc Cancel\033[0m")
