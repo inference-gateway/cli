@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.3.3](https://github.com/inference-gateway/cli/compare/v0.3.2...v0.3.3) (2025-08-11)
+
+### ♻️ Code Refactoring
+
+* Improve The TUI Using Bubble Tea ([#11](https://github.com/inference-gateway/cli/issues/11)) ([b318d1c](https://github.com/inference-gateway/cli/commit/b318d1c9d69abcef6cc838adadfa93bd58dbdfc6))
+
 ## [0.3.2](https://github.com/inference-gateway/cli/compare/v0.3.1...v0.3.2) (2025-08-10)
 
 ### 👷 CI/CD
