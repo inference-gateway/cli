@@ -22,6 +22,12 @@ import (
 // Use SDK types for messages
 type ChatMessage = sdk.Message
 
+// ConversationEntry tracks a message along with which model generated it (for assistant messages)
+type ConversationEntry struct {
+	Message sdk.Message `json:"message"`
+	Model   string       `json:"model,omitempty"` // Only set for assistant messages
+}
+
 // ChatRequest represents a chat completion request
 type ChatRequest struct {
 	Model    string        `json:"model"`
@@ -76,9 +82,10 @@ func startChatSession() error {
 		return fmt.Errorf("model selection failed: %w", err)
 	}
 
-	var conversation []sdk.Message
+	var conversation []ConversationEntry
 
 	inputModel := internal.NewChatManagerModel()
+	inputModel.GetChatInput().SetSelectedModel(selectedModel)
 	program := tea.NewProgram(inputModel, tea.WithAltScreen())
 
 	var toolsManager *internal.LLMToolsManager
@@ -100,7 +107,7 @@ func startChatSession() error {
 
 	welcomeHistory = append(welcomeHistory, "")
 
-	updateHistory := func(conversation []sdk.Message) {
+	updateHistory := func(conversation []ConversationEntry) {
 		if len(conversation) > 0 {
 			chatHistory := formatConversationForDisplay(conversation, selectedModel)
 			program.Send(internal.UpdateHistoryMsg{History: append(welcomeHistory, chatHistory...)})
@@ -133,7 +140,7 @@ func startChatSession() error {
 			continue
 		}
 
-		if handleChatCommands(userInput, &conversation, &selectedModel, models) {
+		if handleChatCommands(userInput, &conversation, &selectedModel, models, program, inputModel) {
 			continue
 		}
 
@@ -150,9 +157,11 @@ func startChatSession() error {
 			continue
 		}
 
-		conversation = append(conversation, sdk.Message{
-			Role:    sdk.User,
-			Content: processedInput,
+		conversation = append(conversation, ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: processedInput,
+			},
 		})
 
 		userChatHistory := formatConversationForDisplay(conversation, selectedModel)
@@ -173,7 +182,13 @@ func startChatSession() error {
 				break
 			}
 
-			_, assistantToolCalls, metrics, err := sendStreamingChatCompletionToUI(cfg, selectedModel, conversation, program, &conversation, inputModel.GetChatInput())
+			// Convert conversation to sdk.Message for API call
+			sdkMessages := make([]sdk.Message, len(conversation))
+			for i, entry := range conversation {
+				sdkMessages[i] = entry.Message
+			}
+			
+			_, assistantToolCalls, metrics, err := sendStreamingChatCompletionToUI(cfg, selectedModel, sdkMessages, program, &conversation, inputModel.GetChatInput())
 
 			if err != nil {
 				if strings.Contains(err.Error(), "cancelled by user") {
@@ -199,8 +214,8 @@ func startChatSession() error {
 
 			if len(assistantToolCalls) > 0 && len(conversation) > 0 {
 				lastIdx := len(conversation) - 1
-				if conversation[lastIdx].Role == sdk.Assistant {
-					conversation[lastIdx].ToolCalls = &assistantToolCalls
+				if conversation[lastIdx].Message.Role == sdk.Assistant {
+					conversation[lastIdx].Message.ToolCalls = &assistantToolCalls
 					chatHistory := formatConversationForDisplay(conversation, selectedModel)
 					program.Send(internal.UpdateHistoryMsg{History: chatHistory})
 				}
@@ -227,10 +242,12 @@ func startChatSession() error {
 					toolExecutionFailed = true
 					break
 				} else {
-					conversation = append(conversation, sdk.Message{
-						Role:       sdk.Tool,
-						Content:    toolResult,
-						ToolCallId: &toolCall.Id,
+					conversation = append(conversation, ConversationEntry{
+						Message: sdk.Message{
+							Role:       sdk.Tool,
+							Content:    toolResult,
+							ToolCallId: &toolCall.Id,
+						},
 					})
 					program.Send(internal.SetStatusMsg{Message: "✅ Tool executed successfully", Spinner: false})
 				}
@@ -301,13 +318,13 @@ func getAvailableModelsList(cfg *config.Config) ([]string, error) {
 	return models, nil
 }
 
-func handleChatCommands(input string, conversation *[]sdk.Message, selectedModel *string, availableModels []string) bool {
+func handleChatCommands(input string, conversation *[]ConversationEntry, selectedModel *string, availableModels []string, program *tea.Program, inputModel *internal.ChatManagerModel) bool {
 	switch input {
 	case "/exit", "/quit":
 		os.Exit(0)
 		return true
 	case "/clear":
-		*conversation = []sdk.Message{}
+		*conversation = []ConversationEntry{}
 		fmt.Println("🧹 Conversation history cleared!")
 		return true
 	case "/history":
@@ -323,6 +340,7 @@ func handleChatCommands(input string, conversation *[]sdk.Message, selectedModel
 			fmt.Printf("Error switching model: %v\n", err)
 		} else {
 			*selectedModel = newModel
+			inputModel.GetChatInput().SetSelectedModel(newModel)
 			fmt.Printf("Switched to model: %s\n", newModel)
 		}
 		return true
@@ -345,28 +363,32 @@ func handleChatCommands(input string, conversation *[]sdk.Message, selectedModel
 	return false
 }
 
-func showConversationHistory(conversation []sdk.Message) {
+func showConversationHistory(conversation []ConversationEntry) {
 	fmt.Println("💬 Conversation History:")
 	if len(conversation) == 0 {
 		fmt.Println("  (empty)")
 		return
 	}
 
-	for i, msg := range conversation {
+	for i, entry := range conversation {
 		var role string
-		switch msg.Role {
+		switch entry.Message.Role {
 		case sdk.User:
 			role = "You"
 		case sdk.Assistant:
-			role = "Assistant"
+			if entry.Model != "" {
+				role = fmt.Sprintf("Assistant (%s)", entry.Model)
+			} else {
+				role = "Assistant"
+			}
 		case sdk.System:
 			role = "System"
 		case sdk.Tool:
 			role = "Tool"
 		default:
-			role = string(msg.Role)
+			role = string(entry.Message.Role)
 		}
-		fmt.Printf("  %d. %s: %s\n", i+1, role, msg.Content)
+		fmt.Printf("  %d. %s: %s\n", i+1, role, entry.Message.Content)
 	}
 	fmt.Println()
 }
@@ -435,7 +457,7 @@ type uiStreamingResult struct {
 	toolCalls       []sdk.ChatCompletionMessageToolCall
 	activeToolCalls map[int]*sdk.ChatCompletionMessageToolCall
 	program         *tea.Program
-	conversation    *[]sdk.Message
+	conversation    *[]ConversationEntry
 	cfg             *config.Config
 	inputModel      *internal.ChatInputModel
 	selectedModel   string
@@ -542,7 +564,7 @@ func formatMetricsString(metrics *ChatMetrics) string {
 	return strings.Join(parts, " | ")
 }
 
-func sendStreamingChatCompletionToUI(cfg *config.Config, model string, messages []ChatMessage, program *tea.Program, conversation *[]sdk.Message, inputModel *internal.ChatInputModel) (string, []sdk.ChatCompletionMessageToolCall, *ChatMetrics, error) {
+func sendStreamingChatCompletionToUI(cfg *config.Config, model string, messages []ChatMessage, program *tea.Program, conversation *[]ConversationEntry, inputModel *internal.ChatInputModel) (string, []sdk.ChatCompletionMessageToolCall, *ChatMetrics, error) {
 	client, err := createStreamingClient(cfg)
 	if err != nil {
 		return "", nil, nil, err
@@ -648,11 +670,14 @@ func handleContentChoiceToUI(choice sdk.ChatCompletionStreamChoice, result *uiSt
 
 	if result.firstContent {
 		// Add assistant message to conversation and update UI
-		assistantMsg := sdk.Message{
-			Role:    sdk.Assistant,
-			Content: choice.Delta.Content,
+		assistantEntry := ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: choice.Delta.Content,
+			},
+			Model: result.selectedModel,
 		}
-		*result.conversation = append(*result.conversation, assistantMsg)
+		*result.conversation = append(*result.conversation, assistantEntry)
 
 		// Update UI with new history using model name
 		chatHistory := formatConversationForDisplay(*result.conversation, result.selectedModel)
@@ -663,7 +688,7 @@ func handleContentChoiceToUI(choice sdk.ChatCompletionStreamChoice, result *uiSt
 		// Update the last message in conversation
 		if len(*result.conversation) > 0 {
 			lastIdx := len(*result.conversation) - 1
-			(*result.conversation)[lastIdx].Content += choice.Delta.Content
+			(*result.conversation)[lastIdx].Message.Content += choice.Delta.Content
 
 			// Update UI with updated history using model name
 			chatHistory := formatConversationForDisplay(*result.conversation, result.selectedModel)
@@ -691,11 +716,14 @@ func handleToolCallDeltaToUI(deltaToolCall sdk.ChatCompletionMessageToolCallChun
 		// Ensure we have an assistant message in the conversation when tool calls start
 		if result.firstContent {
 			// Add empty assistant message to conversation since tool calls are starting
-			assistantMsg := sdk.Message{
-				Role:    sdk.Assistant,
-				Content: "",
+			assistantEntry := ConversationEntry{
+				Message: sdk.Message{
+					Role:    sdk.Assistant,
+					Content: "",
+				},
+				Model: result.selectedModel,
 			}
-			*result.conversation = append(*result.conversation, assistantMsg)
+			*result.conversation = append(*result.conversation, assistantEntry)
 			result.firstContent = false
 		}
 
@@ -916,7 +944,7 @@ func handleFileReference(input string) (string, error) {
 	return input, nil
 }
 
-func compactConversation(conversation []sdk.Message, selectedModel string) error {
+func compactConversation(conversation []ConversationEntry, selectedModel string) error {
 	cfg, err := config.LoadConfig("")
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -942,36 +970,40 @@ func compactConversation(conversation []sdk.Message, selectedModel string) error
 
 	var content strings.Builder
 	content.WriteString("# Chat Session Export\n\n")
-	content.WriteString(fmt.Sprintf("**Model:** %s\n", selectedModel))
+	content.WriteString(fmt.Sprintf("**Default Model:** %s\n", selectedModel))
 	content.WriteString(fmt.Sprintf("**Date:** %s\n", time.Now().Format("2006-01-02 15:04:05")))
 	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n\n", len(conversation)))
 	content.WriteString("---\n\n")
 
-	for i, msg := range conversation {
+	for i, entry := range conversation {
 		var role string
-		switch msg.Role {
+		switch entry.Message.Role {
 		case sdk.User:
 			role = "👤 **You**"
 		case sdk.Assistant:
-			role = "🤖 **Assistant**"
+			if entry.Model != "" {
+				role = fmt.Sprintf("🤖 **Assistant (%s)**", entry.Model)
+			} else {
+				role = "🤖 **Assistant**"
+			}
 		case sdk.System:
 			role = "⚙️ **System**"
 		case sdk.Tool:
 			role = "🔧 **Tool Result**"
 		default:
-			role = fmt.Sprintf("**%s**", string(msg.Role))
+			role = fmt.Sprintf("**%s**", string(entry.Message.Role))
 		}
 
 		content.WriteString(fmt.Sprintf("## Message %d - %s\n\n", i+1, role))
 
-		if msg.Content != "" {
-			content.WriteString(msg.Content)
+		if entry.Message.Content != "" {
+			content.WriteString(entry.Message.Content)
 			content.WriteString("\n\n")
 		}
 
-		if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
+		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
 			content.WriteString("### Tool Calls\n\n")
-			for _, toolCall := range *msg.ToolCalls {
+			for _, toolCall := range *entry.Message.ToolCalls {
 				content.WriteString(fmt.Sprintf("**Tool:** %s\n\n", toolCall.Function.Name))
 				if toolCall.Function.Arguments != "" {
 					content.WriteString("**Arguments:**\n```json\n")
@@ -981,8 +1013,8 @@ func compactConversation(conversation []sdk.Message, selectedModel string) error
 			}
 		}
 
-		if msg.ToolCallId != nil {
-			content.WriteString(fmt.Sprintf("*Tool Call ID: %s*\n\n", *msg.ToolCallId))
+		if entry.Message.ToolCallId != nil {
+			content.WriteString(fmt.Sprintf("*Tool Call ID: %s*\n\n", *entry.Message.ToolCallId))
 		}
 
 		content.WriteString("---\n\n")
@@ -1005,27 +1037,31 @@ func compactConversation(conversation []sdk.Message, selectedModel string) error
 	return nil
 }
 
-func formatConversationForDisplay(conversation []sdk.Message, selectedModel string) []string {
+func formatConversationForDisplay(conversation []ConversationEntry, selectedModel string) []string {
 	var history []string
 
-	for _, msg := range conversation {
+	for _, entry := range conversation {
 		var role string
 		var content string
 
-		switch msg.Role {
+		switch entry.Message.Role {
 		case sdk.User:
 			role = "👤 You"
 		case sdk.Assistant:
-			role = fmt.Sprintf("🤖 %s", selectedModel)
+			if entry.Model != "" {
+				role = fmt.Sprintf("🤖 %s", entry.Model)
+			} else {
+				role = fmt.Sprintf("🤖 %s", selectedModel)
+			}
 		case sdk.System:
 			role = "⚙️ System"
 		case sdk.Tool:
 			role = "🔧 Tool"
 		default:
-			role = string(msg.Role)
+			role = string(entry.Message.Role)
 		}
 
-		content = msg.Content
+		content = entry.Message.Content
 
 		content = strings.ReplaceAll(content, "\r\n", "\n")
 		content = strings.ReplaceAll(content, "\r", "\n")
@@ -1034,8 +1070,8 @@ func formatConversationForDisplay(conversation []sdk.Message, selectedModel stri
 			history = append(history, fmt.Sprintf("%s: %s", role, content))
 		}
 
-		if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
-			for _, toolCall := range *msg.ToolCalls {
+		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
+			for _, toolCall := range *entry.Message.ToolCalls {
 				history = append(history, fmt.Sprintf("🔧 Tool Call: %s", toolCall.Function.Name))
 			}
 		}

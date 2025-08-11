@@ -32,6 +32,11 @@ type FileSelectedMsg struct {
 	FilePath string
 }
 
+// SetSelectedModelMsg is used to set the selected model
+type SetSelectedModelMsg struct {
+	Model string
+}
+
 // ChatInputModel represents a persistent chat input interface
 type ChatInputModel struct {
 	textarea         []string
@@ -55,6 +60,7 @@ type ChatInputModel struct {
 	approvalCommand  string
 	approvalResponse int // 0=deny, 1=allow, 2=allow all
 	approvalSelected int // Currently selected option in dropdown
+	selectedModel    string
 }
 
 // SpinnerTick represents a spinner animation tick
@@ -111,6 +117,10 @@ func (m *ChatInputModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		after := currentLine[m.cursor:]
 		m.textarea[m.lineIndex] = before + fileRef + after
 		m.cursor += len(fileRef)
+		return m, nil
+
+	case SetSelectedModelMsg:
+		m.selectedModel = msg.Model
 		return m, nil
 
 	case SetStatusMsg:
@@ -384,18 +394,33 @@ func (m *ChatInputModel) View() string {
 	}
 
 	currentText := strings.Join(m.textarea, " ")
+	inputLine := ""
 	if len(currentText) > 0 {
 		if m.cursor <= len(currentText) {
 			before := currentText[:min(m.cursor, len(currentText))]
 			after := currentText[min(m.cursor, len(currentText)):]
-			b.WriteString(fmt.Sprintf("> %s│%s", before, after))
+			inputLine = fmt.Sprintf("> %s│%s", before, after)
 		} else {
-			b.WriteString(fmt.Sprintf("> %s│", currentText))
+			inputLine = fmt.Sprintf("> %s│", currentText)
 		}
 	} else {
-		b.WriteString("> │")
+		inputLine = "> │"
 	}
 
+	// Add model display on the right side if available
+	if m.selectedModel != "" {
+		modelDisplay := fmt.Sprintf("\033[90m[%s]\033[0m", m.selectedModel)
+		// Calculate spacing to right-align the model
+		availableWidth := m.width - len(inputLine) - len(m.selectedModel) - 2 // 2 for brackets
+		if availableWidth > 0 {
+			inputLine += strings.Repeat(" ", availableWidth) + modelDisplay
+		} else {
+			// If not enough space, just append with a space
+			inputLine += " " + modelDisplay
+		}
+	}
+
+	b.WriteString(inputLine)
 	b.WriteString("\n\n\033[90mPress Ctrl+D to send message, Ctrl+C to exit\033[0m")
 
 	return b.String()
@@ -482,6 +507,11 @@ func (m *ChatInputModel) ResetApproval() {
 	m.approvalCommand = ""
 	m.approvalResponse = -1
 	m.approvalSelected = 0
+}
+
+// SetSelectedModel sets the selected model
+func (m *ChatInputModel) SetSelectedModel(model string) {
+	m.selectedModel = model
 }
 
 func min(a, b int) int {
