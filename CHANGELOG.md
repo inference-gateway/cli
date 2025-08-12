@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.7.0](https://github.com/inference-gateway/cli/compare/v0.6.0...v0.7.0) (2025-08-12)
+
+### 🚀 Features
+
+* Implement Read tool for file system access ([#16](https://github.com/inference-gateway/cli/issues/16)) ([45e8d0a](https://github.com/inference-gateway/cli/commit/45e8d0a1ad0fcc0e44ddc2e623218d3c1825ce4b)), closes [#14](https://github.com/inference-gateway/cli/issues/14) [#14](https://github.com/inference-gateway/cli/issues/14)
+
 ## [0.6.0](https://github.com/inference-gateway/cli/compare/v0.5.4...v0.6.0) (2025-08-12)
 
 ### 🚀 Features
