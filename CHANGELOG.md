@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.0](https://github.com/inference-gateway/cli/compare/v0.4.0...v0.5.0) (2025-08-12)
+
+### 🚀 Features
+
+* Add model visibility in chat UI and enhanced export format ([#15](https://github.com/inference-gateway/cli/issues/15)) ([cc98503](https://github.com/inference-gateway/cli/commit/cc98503b16a3448dacf4b2098dde580920999630)), closes [#12](https://github.com/inference-gateway/cli/issues/12) [#12](https://github.com/inference-gateway/cli/issues/12)
+
 ## [0.4.0](https://github.com/inference-gateway/cli/compare/v0.3.3...v0.4.0) (2025-08-11)
 
 ### 🚀 Features
