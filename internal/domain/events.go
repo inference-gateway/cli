@@ -23,7 +23,7 @@ type ChatChunkEvent struct {
 	Timestamp time.Time
 	Content   string
 	ToolCalls []sdk.ChatCompletionMessageToolCall
-	Delta     bool // true if this is a delta update
+	Delta     bool
 }
 
 func (e ChatChunkEvent) GetType() ChatEventType  { return EventChatChunk }
