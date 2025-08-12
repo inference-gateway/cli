@@ -107,7 +107,7 @@ The project follows a modern SOLID architecture using Bubble Tea for the TUI and
 - `main.go`: Entry point that calls `cmd.Execute()`
 - `cmd/`: Contains all CLI command implementations using Cobra
   - `root.go`: Root command setup with global flags (`--config`, `--verbose`)
-  - `init.go`: Project initialization (`infer init`)
+  - `config.go`: Configuration management (`infer config`)
   - `status.go`: Status monitoring (`infer status`)
   - `chat.go`: Interactive chat (`infer chat`)
   - `version.go`: Version information (`infer version`)
@@ -131,7 +131,7 @@ output:
   format: "text"  # text, json, yaml
   quiet: false
 tools:
-  enabled: false  # Set to true to enable tool execution for LLMs
+  enabled: true  # Tools are enabled by default with safe read-only commands
   whitelist:
     commands:  # Exact command matches
       - "ls"
@@ -162,11 +162,21 @@ chat:
 - Root command: `infer`
 - Global flags: `--config`, `--verbose`
 - Subcommands:
-  - `init [--overwrite]`: Initialize local project configuration
   - `status`: Gateway status
   - `chat`: Interactive chat with model selection (or uses default model if configured)
   - `config`: Manage CLI configuration
+    - `init [--overwrite]`: Initialize local project configuration
     - `set-model [MODEL_NAME]`: Set default model for chat sessions
+    - `tools`: Manage tool execution settings
+      - `enable`: Enable tool execution for LLMs
+      - `disable`: Disable tool execution for LLMs
+      - `list [--format text|json]`: List whitelisted commands and patterns
+      - `validate <command>`: Validate if a command is whitelisted
+      - `exec <command> [--format text|json]`: Execute a whitelisted command directly
+      - `safety`: Manage safety approval settings
+        - `enable`: Enable safety approval prompts
+        - `disable`: Disable safety approval prompts
+        - `status`: Show current safety approval status
   - `version`: Version information
 
 ## Dependencies
@@ -197,12 +207,44 @@ infer chat
 
 ### Configuration Management
 ```bash
+# Initialize a new project configuration
+infer config init
+
+# Initialize with overwrite existing config
+infer config init --overwrite
+
 # View current configuration (check .infer/config.yaml)
 cat .infer/config.yaml
 
 # The default model will be saved in the chat section:
 # chat:
 #   default_model: "gpt-4-turbo"
+```
+
+### Tool Management
+```bash
+# Enable tool execution
+infer config tools enable
+
+# Disable tool execution
+infer config tools disable
+
+# List whitelisted commands and patterns
+infer config tools list
+
+# List in JSON format
+infer config tools list --format json
+
+# Validate if a command is whitelisted
+infer config tools validate "ls -la"
+
+# Execute a whitelisted command directly
+infer config tools exec "git status"
+
+# Manage safety approval settings
+infer config tools safety enable
+infer config tools safety disable
+infer config tools safety status
 ```
 
 ## Code Style Guidelines
