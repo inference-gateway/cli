@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.9.0](https://github.com/inference-gateway/cli/compare/v0.8.1...v0.9.0) (2025-08-12)
+
+### 🚀 Features
+
+* **security:** Add excluded paths configuration for improved security ([#24](https://github.com/inference-gateway/cli/issues/24)) ([22c4d72](https://github.com/inference-gateway/cli/commit/22c4d7251cc2d35b84c0cca3482ef491326a6ec3)), closes [#21](https://github.com/inference-gateway/cli/issues/21)
+
 ## [0.8.1](https://github.com/inference-gateway/cli/compare/v0.8.0...v0.8.1) (2025-08-12)
 
 ### ♻️ Code Refactoring
