@@ -297,9 +297,9 @@ func (app *ChatApplication) validateSelectedIndex(files []string, selectedIndex 
 
 func (app *ChatApplication) renderFileSelectionHeader(b *strings.Builder, files, allFiles []string, searchQuery string) {
 	if searchQuery != "" {
-		b.WriteString(fmt.Sprintf("📁 File Search - %d matches (of %d total files):\n", len(files), len(allFiles)))
+		fmt.Fprintf(b, "📁 File Search - %d matches (of %d total files):\n", len(files), len(allFiles))
 	} else {
-		b.WriteString(fmt.Sprintf("📁 Select a file to include in your message (%d files found):\n", len(files)))
+		fmt.Fprintf(b, "📁 Select a file to include in your message (%d files found):\n", len(files))
 	}
 	b.WriteString(strings.Repeat("═", app.state.Width))
 	b.WriteString("\n\n")
@@ -310,9 +310,9 @@ func (app *ChatApplication) renderFileSearchField(b *strings.Builder, searchQuer
 
 	b.WriteString("🔍 Search: ")
 	if searchQuery != "" {
-		b.WriteString(fmt.Sprintf("%s%s%s│", theme.GetUserColor(), searchQuery, "\033[0m"))
+		fmt.Fprintf(b, "%s%s%s│", theme.GetUserColor(), searchQuery, "\033[0m")
 	} else {
-		b.WriteString(fmt.Sprintf("%stype to filter files...%s│", theme.GetDimColor(), "\033[0m"))
+		fmt.Fprintf(b, "%stype to filter files...%s│", theme.GetDimColor(), "\033[0m")
 	}
 	b.WriteString("\n\n")
 }
@@ -334,9 +334,9 @@ func (app *ChatApplication) renderFileList(b *strings.Builder, files []string, s
 	for i := startIndex; i < endIndex; i++ {
 		file := files[i]
 		if i == selectedIndex {
-			b.WriteString(fmt.Sprintf("%s▶ %s%s\n", theme.GetAccentColor(), file, "\033[0m"))
+			fmt.Fprintf(b, "%s▶ %s%s\n", theme.GetAccentColor(), file, "\033[0m")
 		} else {
-			b.WriteString(fmt.Sprintf("%s  %s%s\n", theme.GetDimColor(), file, "\033[0m"))
+			fmt.Fprintf(b, "%s  %s%s\n", theme.GetDimColor(), file, "\033[0m")
 		}
 	}
 }
@@ -365,8 +365,8 @@ func (app *ChatApplication) renderFileSelectionFooter(b *strings.Builder, files 
 			selectedIndex = idx
 		}
 		startIndex, endIndex := app.calculateVisibleRange(len(files), selectedIndex, maxVisible)
-		b.WriteString(fmt.Sprintf("%sShowing %d-%d of %d matches%s\n",
-			theme.GetDimColor(), startIndex+1, endIndex, len(files), "\033[0m"))
+		fmt.Fprintf(b, "%sShowing %d-%d of %d matches%s\n",
+			theme.GetDimColor(), startIndex+1, endIndex, len(files), "\033[0m")
 		b.WriteString("\n")
 	}
 
