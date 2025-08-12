@@ -1,9 +1,12 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/inference-gateway/cli/config"
+	"github.com/inference-gateway/cli/internal/container"
 	"github.com/spf13/cobra"
 )
 
@@ -44,6 +47,27 @@ var statusCmd = &cobra.Command{
 
 		return nil
 	},
+}
+
+// fetchModels retrieves the list of available models from the gateway
+func fetchModels(cfg *config.Config) (*struct {
+	Data []string `json:"data"`
+}, error) {
+	services := container.NewServiceContainer(cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	models, err := services.GetModelService().ListModels(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &struct {
+		Data []string `json:"data"`
+	}{
+		Data: models,
+	}, nil
 }
 
 func init() {
