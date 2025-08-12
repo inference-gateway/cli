@@ -94,6 +94,25 @@ func (r *InMemoryConversationRepository) UpdateLastMessage(content string) error
 	return nil
 }
 
+func (r *InMemoryConversationRepository) UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if len(r.messages) == 0 {
+		return fmt.Errorf("no messages to update")
+	}
+
+	lastIndex := len(r.messages) - 1
+	if r.messages[lastIndex].Message.Role != sdk.Assistant {
+		return fmt.Errorf("last message is not from assistant")
+	}
+
+	r.messages[lastIndex].Message.ToolCalls = toolCalls
+	r.messages[lastIndex].Time = time.Now()
+
+	return nil
+}
+
 // exportMarkdown exports conversation as markdown
 func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 	var content strings.Builder

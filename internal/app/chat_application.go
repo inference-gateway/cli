@@ -428,7 +428,8 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 		toolResultEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Tool,
-				Content: fmt.Sprintf("🔧 Tool Result: %v\n\n%s", toolCall.Arguments["command"], result),
+				Content: result,
+				ToolCallId: &toolCall.ID,
 			},
 			Time: time.Now(),
 		}
@@ -444,8 +445,8 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 		return tea.Batch(
 			func() tea.Msg {
 				return ui.SetStatusMsg{
-					Message: fmt.Sprintf("✅ Tool executed: %s", toolCall.Name),
-					Spinner: false,
+					Message: fmt.Sprintf("✅ Tool executed: %s - sending to model...", toolCall.Name),
+					Spinner: true,
 				}
 			},
 			func() tea.Msg {
@@ -453,7 +454,42 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 					History: conversationRepo.GetMessages(),
 				}
 			},
+
+			app.triggerFollowUpLLMCall(),
 		)()
+	}
+}
+
+// triggerFollowUpLLMCall sends the conversation with tool result back to the LLM for reasoning
+func (app *ChatApplication) triggerFollowUpLLMCall() tea.Cmd {
+	return func() tea.Msg {
+		conversationRepo := app.services.GetConversationRepository()
+		modelService := app.services.GetModelService()
+
+		entries := conversationRepo.GetMessages()
+		messages := make([]sdk.Message, len(entries))
+		for i, entry := range entries {
+			messages[i] = entry.Message
+		}
+
+		ctx := context.Background()
+		currentModel := modelService.GetCurrentModel()
+		if currentModel == "" {
+			return ui.ShowErrorMsg{
+				Error:  "No model selected for follow-up",
+				Sticky: false,
+			}
+		}
+
+		eventChan, err := app.services.GetChatService().SendMessage(ctx, currentModel, messages)
+		if err != nil {
+			return ui.ShowErrorMsg{
+				Error:  fmt.Sprintf("Failed to send follow-up to LLM: %v", err),
+				Sticky: true,
+			}
+		}
+
+		return handlers.ChatStreamStartedMsg{EventChannel: eventChan}
 	}
 }
 

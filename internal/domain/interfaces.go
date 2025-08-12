@@ -31,6 +31,7 @@ type ConversationRepository interface {
 	Export(format ExportFormat) ([]byte, error)
 	GetMessageCount() int
 	UpdateLastMessage(content string) error
+	UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error
 }
 
 // ModelService handles model selection and information

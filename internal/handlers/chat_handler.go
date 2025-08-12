@@ -207,7 +207,52 @@ func (h *ChatMessageHandler) handleChatComplete(msg domain.ChatCompleteEvent, st
 
 	delete(state.Data, "eventChannel")
 
+	// Check for structured tool calls first (preferred method)
+	if len(msg.ToolCalls) > 0 {
+		// Update the last assistant message to include the tool calls
+		h.updateAssistantMessageWithToolCalls(msg.ToolCalls)
+
+		toolCall := msg.ToolCalls[0] // Handle first tool call
+
+		// Parse arguments from JSON string to map
+		args := make(map[string]interface{})
+		if toolCall.Function.Arguments != "" {
+			if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
+				toolCallRequest := ToolCallRequest{
+					ID:        toolCall.Id,
+					Name:      toolCall.Function.Name,
+					Arguments: args,
+				}
+
+				return nil, func() tea.Msg {
+					return ToolCallDetectedMsg{
+						ToolCall: toolCallRequest,
+						Response: msg.Message,
+					}
+				}
+			}
+		}
+	}
+
+	// Fallback to text parsing for backward compatibility
 	if toolCall := h.parseToolCall(msg.Message); toolCall != nil {
+		// Generate a unique tool call ID for text-based tool calls
+		toolCallID := h.generateToolCallID()
+		toolCall.ID = toolCallID
+
+		// Create structured tool call for the assistant message
+		structuredToolCall := sdk.ChatCompletionMessageToolCall{
+			Id:   toolCallID,
+			Type: "function",
+			Function: sdk.ChatCompletionMessageToolCallFunction{
+				Name:      toolCall.Name,
+				Arguments: h.marshalToolArguments(toolCall.Arguments),
+			},
+		}
+
+		// Update the assistant message with structured tool calls
+		h.updateAssistantMessageWithToolCalls([]sdk.ChatCompletionMessageToolCall{structuredToolCall})
+
 		return nil, func() tea.Msg {
 			return ToolCallDetectedMsg{
 				ToolCall: *toolCall,
@@ -285,6 +330,7 @@ type ChatStreamStartedMsg struct {
 
 // ToolCallRequest represents a parsed tool call from LLM response
 type ToolCallRequest struct {
+	ID        string                 `json:"id"`
 	Name      string                 `json:"name"`
 	Arguments map[string]interface{} `json:"arguments"`
 }
@@ -400,4 +446,29 @@ func joinStrings(strs []string, sep string) string {
 		result += sep + str
 	}
 	return result
+}
+
+// updateAssistantMessageWithToolCalls updates the last assistant message to include tool calls
+func (h *ChatMessageHandler) updateAssistantMessageWithToolCalls(toolCalls []sdk.ChatCompletionMessageToolCall) {
+	_ = h.conversationRepo.UpdateLastMessageToolCalls(&toolCalls)
+	// Ignore error - the tool call will still work without proper tool_calls structure in the conversation
+}
+
+// marshalToolArguments converts tool arguments map to JSON string
+func (h *ChatMessageHandler) marshalToolArguments(args map[string]interface{}) string {
+	if args == nil {
+		return "{}"
+	}
+
+	jsonBytes, err := json.Marshal(args)
+	if err != nil {
+		return "{}"
+	}
+
+	return string(jsonBytes)
+}
+
+// generateToolCallID generates a unique tool call ID for text-based tool calls
+func (h *ChatMessageHandler) generateToolCallID() string {
+	return fmt.Sprintf("call_%d", time.Now().UnixNano())
 }

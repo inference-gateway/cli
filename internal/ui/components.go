@@ -204,7 +204,6 @@ func (cv *ConversationViewImpl) Init() tea.Cmd { return nil }
 func (cv *ConversationViewImpl) View() string { return cv.Render() }
 
 func (cv *ConversationViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Handle conversation-specific updates
 	switch msg := msg.(type) {
 	case UpdateHistoryMsg:
 		cv.SetConversation(msg.History)
@@ -266,16 +265,13 @@ func (iv *InputViewImpl) Render() string {
 
 	inputLine := fmt.Sprintf("> %s", displayText)
 
-	// Add model display on the right side from model service
 	currentModel := iv.modelService.GetCurrentModel()
 	if currentModel != "" {
 		modelDisplay := fmt.Sprintf("%s[%s]%s", iv.theme.GetDimColor(), currentModel, "\033[0m")
-		// Calculate spacing to right-align the model
-		availableWidth := iv.width - len(inputLine) - len(currentModel) - 2 // 2 for brackets
-		if availableWidth > 3 {                                             // Minimum space required
+		availableWidth := iv.width - len(inputLine) - len(currentModel) - 2
+		if availableWidth > 3 {
 			inputLine += strings.Repeat(" ", availableWidth) + modelDisplay
 		} else {
-			// If not enough space, put it on next line
 			inputLine += "\n" + strings.Repeat(" ", iv.width-len(currentModel)-2) + modelDisplay
 		}
 	}
@@ -290,7 +286,6 @@ func (iv *InputViewImpl) Init() tea.Cmd { return nil }
 func (iv *InputViewImpl) View() string { return iv.Render() }
 
 func (iv *InputViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	// Input updates will be handled by key handlers
 	return iv, nil
 }
 
@@ -328,7 +323,6 @@ func (iv *InputViewImpl) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 }
 
 func (iv *InputViewImpl) CanHandle(key tea.KeyMsg) bool {
-	// Handle most printable characters and navigation keys
 	return true
 }
 
@@ -374,11 +368,9 @@ func (sv *StatusViewImpl) IsShowingSpinner() bool {
 }
 
 func (sv *StatusViewImpl) SetWidth(width int) {
-	// Status view adapts to width
 }
 
 func (sv *StatusViewImpl) SetHeight(height int) {
-	// Status view height is flexible
 }
 
 func (sv *StatusViewImpl) Render() string {

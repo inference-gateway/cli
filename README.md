@@ -8,7 +8,7 @@
 [![Release](https://img.shields.io/github/v/release/inference-gateway/cli?style=for-the-badge&logo=github)](https://github.com/inference-gateway/cli/releases)
 [![Go Report Card](https://goreportcard.com/badge/github.com/inference-gateway/cli?style=for-the-badge)](https://goreportcard.com/report/github.com/inference-gateway/cli)
 
-A powerful command-line interface for managing and interacting with the Inference Gateway. This CLI provides tools for configuration, deployment, monitoring, and management of inference services.
+A powerful command-line interface for managing and interacting with the Inference Gateway. This CLI provides tools for configuration, monitoring, and management of inference services.
 
 ## ⚠️ Warning
 
@@ -24,26 +24,15 @@ A powerful command-line interface for managing and interacting with the Inferenc
 - [Installation](#installation)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
+  - [`infer init`](#infer-init)
   - [`infer status`](#infer-status)
-  - [`infer models list`](#infer-models-list)
   - [`infer chat`](#infer-chat)
-  - [`infer tools`](#infer-tools)
-  - [`infer prompt`](#infer-prompt-text)
   - [`infer version`](#infer-version)
 - [Configuration](#configuration)
   - [Default Configuration](#default-configuration)
   - [Configuration Options](#configuration-options)
 - [Global Flags](#global-flags)
-- [Tool System](#tool-system)
-  - [Tool Security Features](#tool-security-features)
-  - [Available Tools](#available-tools)
-  - [Tool Usage in Chat](#tool-usage-in-chat)
-  - [Customizing Tool Whitelist](#customizing-tool-whitelist)
-  - [Troubleshooting Tools](#troubleshooting-tools)
 - [Examples](#examples)
-  - [Complete Workflow with Tools](#complete-workflow-with-tools)
-  - [Tool Management](#tool-management)
-  - [Configuration Management](#configuration-management)
 - [Development](#development)
   - [Building](#building)
   - [Testing](#testing)
@@ -52,13 +41,10 @@ A powerful command-line interface for managing and interacting with the Inferenc
 
 ## Features
 
-- **Model Deployment**: Deploy and manage machine learning models
 - **Status Monitoring**: Check gateway health and resource usage
 - **Interactive Chat**: Chat with models using an interactive interface
-- **Tool Execution**: Allow LLMs to execute whitelisted bash commands securely
-- **Prompt Testing**: Send prompts directly to deployed models
 - **Configuration Management**: Manage gateway settings via YAML config
-- **Multiple Output Formats**: Support for text, JSON, and YAML output
+- **Project Initialization**: Set up local project configurations
 
 ## Installation
 
@@ -108,149 +94,54 @@ go build -o infer .
 
 ## Quick Start
 
-1. **Check gateway status:**
+1. **Initialize project configuration:**
+   ```bash
+   infer init
+   ```
+
+2. **Check gateway status:**
    ```bash
    infer status
    ```
 
-2. **Start an interactive chat:**
+3. **Start an interactive chat:**
    ```bash
    infer chat
    ```
 
-3. **Enable tools for LLM interaction:**
-   ```bash
-   infer tools enable
-   ```
-
-4. **Send a one-shot prompt:**
-   ```bash
-   infer prompt --model <model-name> "What is machine learning?"
-   ```
-
-5. **List deployed models:**
-   ```bash
-   infer models list
-   ```
-
 ## Commands
 
-### `infer status`
-Check the status of the inference gateway including running services, model deployments, health checks, and resource usage.
+### `infer init`
+Initialize a new `.infer/config.yaml` configuration file in the current directory. This creates a local project configuration with default settings.
 
 **Options:**
-- `-f, --format`: Output format (text, json, yaml)
+- `--overwrite`: Overwrite existing configuration file
+
+**Examples:**
+```bash
+infer init
+infer init --overwrite
+```
+
+### `infer status`
+Check the status of the inference gateway including health checks and resource usage.
 
 **Examples:**
 ```bash
 infer status
-infer status --format json
-```
-
-
-### `infer models list`
-List all deployed models and services on the inference gateway.
-
-**Examples:**
-```bash
-infer models list
 ```
 
 ### `infer chat`
-Start an interactive chat session with model selection and tool support. Provides a conversational interface where you can switch models, view history, and leverage LLM tools.
+Start an interactive chat session with model selection. Provides a conversational interface where you can select models and have conversations.
 
 **Features:**
-- Model selection with search
-- Interactive file selection with `@` symbol
-- File references using `@filename` syntax
-- Tool execution (when enabled)
-- Conversation history management
+- Interactive model selection
+- Conversational interface
 - Real-time streaming responses
-- Conversation export to markdown files
-
-**File Reference Options:**
-- Type `@` alone to open an interactive file selector dropdown
-- Use `@filename` to directly reference a specific file
-- Search and filter files in the interactive dropdown
-- Automatic exclusion of binary files and common build directories
 
 **Examples:**
 ```bash
 infer chat
-```
-
-**Chat Commands:**
-- `/exit`, `/quit` - Exit the chat session
-- `/clear` - Clear conversation history
-- `/history` - Show conversation history
-- `/models` - Show available models
-- `/switch` - Switch to a different model
-- `/compact` - Export conversation to markdown file
-- `/help` - Show help information
-
-### `infer tools`
-Manage and execute tools that LLMs can use during chat sessions. Tools provide secure execution of whitelisted bash commands.
-
-#### `infer tools enable`
-Enable tool execution for LLMs.
-
-#### `infer tools disable`
-Disable tool execution for LLMs.
-
-#### `infer tools list`
-List whitelisted commands and patterns.
-
-#### `infer tools validate <command>`
-Validate if a command is whitelisted without executing it.
-
-#### `infer tools exec <command>`
-Execute a whitelisted command directly.
-
-#### `infer tools safety`
-Manage safety approval settings for command execution.
-
-#### `infer tools safety enable`
-Enable safety approval prompts before executing commands.
-
-#### `infer tools safety disable`
-Disable safety approval prompts (commands execute immediately).
-
-#### `infer tools safety status`
-Show current safety approval status.
-
-**Options:**
-- `-f, --format`: Output format (text, json)
-
-**Examples:**
-```bash
-# Enable tools
-infer tools enable
-
-# List whitelisted commands
-infer tools list
-
-# Validate a command
-infer tools validate "ls -la"
-
-# Execute a command
-infer tools exec "pwd"
-
-# Manage safety settings
-infer tools safety enable
-infer tools safety status
-infer tools safety disable
-
-# Get tool definitions for LLMs
-infer tools llm list --format=json
-```
-
-### `infer prompt [text]`
-Send a text prompt to the inference gateway for processing.
-
-**Examples:**
-```bash
-infer prompt --model "deepseek/deepseek-chat" "Hello, world!"
-infer prompt --model "deepseek/deepseek-chat" "Translate this text to French: Hello"
 ```
 
 ### `infer version`
@@ -276,7 +167,7 @@ output:
   format: "text"
   quiet: false
 tools:
-  enabled: false  # Set to true to enable tool execution
+  enabled: false  # Set to true to enable tool execution for LLMs
   whitelist:
     commands:  # Exact command matches
       - "ls"
@@ -290,7 +181,7 @@ tools:
       - "wc"
       - "sort"
       - "uniq"
-    patterns:  # Regex patterns for complex commands
+    patterns:  # Regex patterns for more complex commands
       - "^git status$"
       - "^git log --oneline -n [0-9]+$"
       - "^docker ps$"
@@ -323,145 +214,23 @@ compact:
 
 ## Global Flags
 
-- `-c, --config`: Config file (default: `$HOME/.infer.yaml`)
+- `-c, --config`: Config file (default is `./.infer.yaml`)
 - `-v, --verbose`: Verbose output
 - `-h, --help`: Help for any command
 
-## Tool System
-
-The Inference Gateway CLI includes a secure tool execution system that allows LLMs to execute whitelisted bash commands during chat conversations.
-
-### Tool Security Features
-
-- **Whitelist-Only Execution**: Only explicitly allowed commands can be executed
-- **Command Validation**: Support for exact matches and regex patterns
-- **Safety Approval System**: Interactive prompts before command execution (enabled by default)
-- **Timeout Protection**: Commands timeout after 30 seconds
-- **Secure Environment**: Tools run with CLI user permissions
-- **Disabled by Default**: Tools must be explicitly enabled
-
-### Available Tools
-
-**Bash Tool**: Allows LLMs to execute whitelisted bash commands
-- **Parameters**:
-  - `command` (required): The bash command to execute
-  - `format` (optional): Output format ("text" or "json")
-
-### Tool Usage in Chat
-
-1. **Enable tools**:
-   ```bash
-   infer tools enable
-   ```
-
-2. **Start chat**:
-   ```bash
-   infer chat
-   ```
-
-3. **Example interaction with safety approval**:
-   ```
-   You: Can you list the files in this directory?
-
-   Model: I'll list the files in this directory for you.
-
-   ⚠️  Command execution approval required:
-   Command: ls
-
-   Please select an option:
-   ▶ Yes - Execute this command
-     Yes, and don't ask again - Execute this and all future commands
-     No - Cancel command execution
-
-   [User selects "Yes - Execute this command"]
-
-   🔧 Calling tool: Bash with arguments: {"command":"ls"}
-   ✅ Tool result:
-   Command: ls
-   Exit Code: 0
-   Output:
-   README.md
-   main.go
-   cmd/
-
-   I can see the files in your directory: README.md, main.go, and a cmd/ folder.
-   ```
-
-### Customizing Tool Whitelist
-
-Edit `.infer/config.yaml` to add custom commands:
-
-```yaml
-tools:
-  enabled: true
-  whitelist:
-    commands:
-      - "ls"
-      - "pwd"
-      - "your-custom-command"
-    patterns:
-      - "^git status$"
-      - "^your-pattern.*$"
-  safety:
-    require_approval: true  # Set to false to disable safety prompts
-```
-
-### Troubleshooting Tools
-
-**"Command not whitelisted" error:**
-- Check allowed commands: `infer tools list`
-- Add command to your config file
-- Validate with: `infer tools validate "your-command"`
-
-**"Tools are disabled" error:**
-- Enable tools: `infer tools enable`
-- Verify config: `tools.enabled: true` in `.infer/config.yaml`
-
-**Safety approval prompts:**
-- Disable safety prompts: `infer tools safety disable`
-- Enable safety prompts: `infer tools safety enable`
-- Check current status: `infer tools safety status`
-
 ## Examples
 
-### Complete Workflow with Tools
+### Basic Workflow
 
 ```bash
+# Initialize project configuration
+infer init
+
 # Check if gateway is running
 infer status
 
-# Enable tools for LLM interaction
-infer tools enable
-
-# List whitelisted commands
-infer tools list
-
-# Start interactive chat with tools
+# Start interactive chat
 infer chat
-```
-
-### Tool Management
-
-```bash
-# Enable tool execution
-infer tools enable
-
-# List allowed commands and patterns
-infer tools list
-
-# Validate a command before use
-infer tools validate "git status"
-
-# Execute a command directly
-infer tools exec "pwd"
-
-# Disable tool execution
-infer tools disable
-
-# Manage safety settings
-infer tools safety enable   # Enable safety approval prompts
-infer tools safety status   # Check current safety status
-infer tools safety disable  # Disable safety approval prompts
 ```
 
 ### Configuration Management
@@ -471,7 +240,7 @@ infer tools safety disable  # Disable safety approval prompts
 infer --config ./my-config.yaml status
 
 # Get verbose output
-infer --verbose tools list
+infer --verbose status
 ```
 
 ## Development
