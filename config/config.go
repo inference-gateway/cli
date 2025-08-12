@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -145,11 +146,21 @@ func (c *Config) SaveConfig(configPath string) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	data, err := yaml.Marshal(c)
-	if err != nil {
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+	defer func() {
+		if err := encoder.Close(); err != nil {
+			logger.Error("Failed to close YAML encoder", "error", err)
+		}
+	}()
+
+	if err := encoder.Encode(c); err != nil {
 		logger.Error("Failed to marshal config", "error", err)
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
+
+	data := buf.Bytes()
 
 	logger.Debug("Writing config file", "path", configPath, "size", len(data))
 	if err := os.WriteFile(configPath, data, 0644); err != nil {

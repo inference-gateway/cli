@@ -43,7 +43,6 @@ func startChatSession() error {
 		return fmt.Errorf("no models available from inference gateway")
 	}
 
-	// Check if there's a default model configured
 	defaultModel := cfg.Chat.DefaultModel
 	if defaultModel != "" {
 		defaultModel = validateAndSetDefaultModel(services, models, defaultModel)
@@ -63,7 +62,6 @@ func startChatSession() error {
 }
 
 func validateAndSetDefaultModel(services *container.ServiceContainer, models []string, defaultModel string) string {
-	// Validate the default model is available
 	modelFound := false
 	for _, model := range models {
 		if model == defaultModel {
@@ -71,18 +69,17 @@ func validateAndSetDefaultModel(services *container.ServiceContainer, models []s
 			break
 		}
 	}
-	
+
 	if !modelFound {
 		fmt.Printf("⚠️  Default model '%s' is not available, showing model selection...\n", defaultModel)
-		return "" // Clear default so selection view is shown
+		return ""
 	}
-	
-	// Set the default model in the service
+
 	if err := services.GetModelService().SelectModel(defaultModel); err != nil {
 		fmt.Printf("⚠️  Failed to set default model: %v, showing model selection...\n", err)
 		return ""
 	}
-	
+
 	fmt.Printf("🤖 Using default model: %s\n", defaultModel)
 	return defaultModel
 }

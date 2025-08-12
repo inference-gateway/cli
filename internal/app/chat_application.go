@@ -45,7 +45,7 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 	if defaultModel != "" {
 		initialView = handlers.ViewChat
 	}
-	
+
 	app := &ChatApplication{
 		services:        services,
 		availableModels: models,
