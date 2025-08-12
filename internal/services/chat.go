@@ -20,6 +20,7 @@ type StreamingChatService struct {
 	timeoutSeconds int
 	client         sdk.Client
 	toolService    domain.ToolService
+	systemPrompt   string
 
 	// Request tracking
 	activeRequests map[string]context.CancelFunc
@@ -31,7 +32,7 @@ type StreamingChatService struct {
 }
 
 // NewStreamingChatService creates a new streaming chat service
-func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolService domain.ToolService) *StreamingChatService {
+func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolService domain.ToolService, systemPrompt string) *StreamingChatService {
 	if !strings.HasSuffix(baseURL, "/v1") {
 		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
 	}
@@ -47,6 +48,7 @@ func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolSer
 		timeoutSeconds: timeoutSeconds,
 		client:         client,
 		toolService:    toolService,
+		systemPrompt:   systemPrompt,
 		activeRequests: make(map[string]context.CancelFunc),
 		metrics:        make(map[string]*domain.ChatMetrics),
 	}
@@ -78,12 +80,25 @@ func (s *StreamingChatService) validateSendMessageParams(model string, messages 
 }
 
 func (s *StreamingChatService) addToolsIfAvailable(messages []sdk.Message) []sdk.Message {
+	var systemMessages []sdk.Message
+
+	if s.systemPrompt != "" {
+		systemMessages = append(systemMessages, sdk.Message{
+			Role:    sdk.System,
+			Content: s.systemPrompt,
+		})
+	}
+
 	if s.toolService != nil {
 		availableTools := s.toolService.ListTools()
 		if len(availableTools) > 0 {
 			toolsMessage := s.createToolsSystemMessage(availableTools)
-			messages = append([]sdk.Message{toolsMessage}, messages...)
+			systemMessages = append(systemMessages, toolsMessage)
 		}
+	}
+
+	if len(systemMessages) > 0 {
+		messages = append(systemMessages, messages...)
 	}
 	return messages
 }

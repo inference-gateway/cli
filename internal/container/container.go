@@ -68,6 +68,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.APIKey,
 		c.config.Gateway.Timeout,
 		c.toolService,
+		c.config.Chat.SystemPrompt,
 	)
 }
 
