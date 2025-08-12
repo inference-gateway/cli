@@ -431,7 +431,7 @@ type ToolCallDetectedMsg struct {
 }
 
 // SwitchModelMsg indicates that model selection view should be shown
-type SwitchModelMsg struct {}
+type SwitchModelMsg struct{}
 
 // listenForChatEvents creates a command that listens for the next chat event
 func (h *ChatMessageHandler) listenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd {
