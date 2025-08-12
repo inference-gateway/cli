@@ -16,6 +16,7 @@ type LocalFileService struct {
 	excludeDirs map[string]bool
 	excludeExts map[string]bool
 	maxFileSize int64
+	maxDepth    int
 }
 
 // NewLocalFileService creates a new local file service
@@ -67,6 +68,7 @@ func NewLocalFileService() *LocalFileService {
 			".wav":   true,
 		},
 		maxFileSize: 100 * 1024, // 100KB max file size
+		maxDepth:    10,         // Maximum directory depth
 	}
 }
 
@@ -80,6 +82,7 @@ func (s *LocalFileService) ListProjectFiles() ([]string, error) {
 
 	err = filepath.WalkDir(cwd, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
+			// Skip errors but continue walking
 			return nil
 		}
 
@@ -88,10 +91,25 @@ func (s *LocalFileService) ListProjectFiles() ([]string, error) {
 			return nil
 		}
 
+		depth := strings.Count(relPath, string(filepath.Separator))
+
+		if d.IsDir() && depth >= s.maxDepth {
+			return filepath.SkipDir
+		}
+
 		if d.IsDir() {
-			if s.excludeDirs[d.Name()] || (strings.HasPrefix(d.Name(), ".") && d.Name() != ".") {
+			if s.excludeDirs[d.Name()] {
 				return filepath.SkipDir
 			}
+
+			if strings.HasPrefix(d.Name(), ".") && relPath != "." {
+				return filepath.SkipDir
+			}
+
+			return nil
+		}
+
+		if !d.Type().IsRegular() {
 			return nil
 		}
 
@@ -104,10 +122,11 @@ func (s *LocalFileService) ListProjectFiles() ([]string, error) {
 			return nil
 		}
 
-		if d.Type().IsRegular() {
-			files = append(files, relPath)
+		if strings.HasPrefix(d.Name(), ".") {
+			return nil
 		}
 
+		files = append(files, relPath)
 		return nil
 	})
 

@@ -146,6 +146,13 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
+	case handlers.ViewFileSelection:
+		if keyMsg, ok := msg.(tea.KeyMsg); ok {
+			if cmd := app.handleFileSelectionKeys(keyMsg); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+
 	case handlers.ViewApproval:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			cmds = append(cmds, func() tea.Msg {
@@ -223,7 +230,94 @@ func (app *ChatApplication) renderModelSelection() string {
 }
 
 func (app *ChatApplication) renderFileSelection() string {
-	return "📁 Please select a file...\n(File selection UI would be implemented here)"
+	allFiles, ok := app.state.Data["files"].([]string)
+	if !ok || len(allFiles) == 0 {
+		return "📁 No files found in current directory\n\nPress ESC to return to chat"
+	}
+
+	searchQuery := ""
+	if query, ok := app.state.Data["fileSearchQuery"].(string); ok {
+		searchQuery = query
+	}
+
+	var files []string
+	if searchQuery == "" {
+		files = allFiles
+	} else {
+		for _, file := range allFiles {
+			if strings.Contains(strings.ToLower(file), strings.ToLower(searchQuery)) {
+				files = append(files, file)
+			}
+		}
+	}
+
+	selectedIndex := 0
+	if idx, ok := app.state.Data["fileSelectedIndex"].(int); ok {
+		selectedIndex = idx
+	}
+
+	if selectedIndex >= len(files) {
+		selectedIndex = 0
+		app.state.Data["fileSelectedIndex"] = 0
+	}
+
+	var b strings.Builder
+	theme := app.services.GetTheme()
+
+	if searchQuery != "" {
+		b.WriteString(fmt.Sprintf("📁 File Search - %d matches (of %d total files):\n", len(files), len(allFiles)))
+	} else {
+		b.WriteString(fmt.Sprintf("📁 Select a file to include in your message (%d files found):\n", len(files)))
+	}
+	b.WriteString(strings.Repeat("═", app.state.Width))
+	b.WriteString("\n\n")
+
+	b.WriteString("🔍 Search: ")
+	if searchQuery != "" {
+		b.WriteString(fmt.Sprintf("%s%s%s│", theme.GetUserColor(), searchQuery, "\033[0m"))
+	} else {
+		b.WriteString(fmt.Sprintf("%stype to filter files...%s│", theme.GetDimColor(), "\033[0m"))
+	}
+	b.WriteString("\n\n")
+
+	if len(files) == 0 {
+		b.WriteString(fmt.Sprintf("%sNo files match '%s'%s\n\n", theme.GetErrorColor(), searchQuery, "\033[0m"))
+		helpText := "Type to search, BACKSPACE to clear search, ESC to cancel"
+		b.WriteString(theme.GetDimColor() + helpText + "\033[0m")
+		return b.String()
+	}
+
+	maxVisible := 12
+	startIndex := 0
+	if selectedIndex >= maxVisible {
+		startIndex = selectedIndex - maxVisible + 1
+	}
+	endIndex := startIndex + maxVisible
+	if endIndex > len(files) {
+		endIndex = len(files)
+	}
+
+	for i := startIndex; i < endIndex; i++ {
+		file := files[i]
+		if i == selectedIndex {
+			b.WriteString(fmt.Sprintf("%s▶ %s%s\n", theme.GetAccentColor(), file, "\033[0m"))
+		} else {
+			b.WriteString(fmt.Sprintf("%s  %s%s\n", theme.GetDimColor(), file, "\033[0m"))
+		}
+	}
+
+	b.WriteString("\n")
+
+	if len(files) > maxVisible {
+		b.WriteString(fmt.Sprintf("%sShowing %d-%d of %d matches%s\n",
+			theme.GetDimColor(), startIndex+1, endIndex, len(files), "\033[0m"))
+		b.WriteString("\n")
+	}
+
+	helpText := "Type to search, ↑↓ to navigate, ENTER to select, BACKSPACE to clear, ESC to cancel"
+	b.WriteString(theme.GetDimColor() + helpText + "\033[0m")
+
+	return b.String()
 }
 
 func (app *ChatApplication) renderApproval() string {
@@ -331,6 +425,126 @@ func (app *ChatApplication) handleGlobalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 			app.state.CurrentView = handlers.ViewHelp
 		}
 		return nil
+	}
+
+	return nil
+}
+
+func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
+	allFiles, ok := app.state.Data["files"].([]string)
+	if !ok || len(allFiles) == 0 {
+		return nil
+	}
+
+	searchQuery := ""
+	if query, ok := app.state.Data["fileSearchQuery"].(string); ok {
+		searchQuery = query
+	}
+
+	var files []string
+	if searchQuery == "" {
+		files = allFiles
+	} else {
+		for _, file := range allFiles {
+			if strings.Contains(strings.ToLower(file), strings.ToLower(searchQuery)) {
+				files = append(files, file)
+			}
+		}
+	}
+
+	selectedIndex := 0
+	if idx, ok := app.state.Data["fileSelectedIndex"].(int); ok {
+		selectedIndex = idx
+	}
+
+	switch keyMsg.String() {
+	case "up", "k":
+		if len(files) > 0 && selectedIndex > 0 {
+			selectedIndex--
+		}
+		app.state.Data["fileSelectedIndex"] = selectedIndex
+		return nil
+
+	case "down", "j":
+		if len(files) > 0 && selectedIndex < len(files)-1 {
+			selectedIndex++
+		}
+		app.state.Data["fileSelectedIndex"] = selectedIndex
+		return nil
+
+	case "enter", "return":
+		if len(files) > 0 && selectedIndex >= 0 && selectedIndex < len(files) {
+			selectedFile := files[selectedIndex]
+			app.state.CurrentView = handlers.ViewChat
+			delete(app.state.Data, "files")
+			delete(app.state.Data, "fileSelectedIndex")
+			delete(app.state.Data, "fileSearchQuery")
+
+			currentInput := app.inputView.GetInput()
+			cursor := app.inputView.GetCursor()
+
+			atIndex := -1
+			for i := cursor - 1; i >= 0; i-- {
+				if currentInput[i] == '@' {
+					atIndex = i
+					break
+				}
+			}
+
+			var newInput string
+			var newCursor int
+			if atIndex >= 0 {
+				before := currentInput[:atIndex]
+				after := currentInput[cursor:]
+				replacement := "@" + selectedFile + " "
+				newInput = before + replacement + after
+				newCursor = atIndex + len(replacement)
+			} else {
+				newInput = currentInput + "@" + selectedFile + " "
+				newCursor = len(newInput)
+			}
+
+			if inputImpl, ok := app.inputView.(*ui.InputViewImpl); ok {
+				inputImpl.SetText(newInput)
+				inputImpl.SetCursor(newCursor)
+			}
+
+			return func() tea.Msg {
+				return ui.SetStatusMsg{
+					Message: fmt.Sprintf("📁 File selected: %s", selectedFile),
+					Spinner: false,
+				}
+			}
+		}
+		return nil
+
+	case "backspace":
+		if len(searchQuery) > 0 {
+			searchQuery = searchQuery[:len(searchQuery)-1]
+			app.state.Data["fileSearchQuery"] = searchQuery
+			app.state.Data["fileSelectedIndex"] = 0
+		}
+		return nil
+
+	case "esc":
+		app.state.CurrentView = handlers.ViewChat
+		delete(app.state.Data, "files")
+		delete(app.state.Data, "fileSelectedIndex")
+		delete(app.state.Data, "fileSearchQuery")
+		return func() tea.Msg {
+			return ui.SetStatusMsg{
+				Message: "File selection cancelled",
+				Spinner: false,
+			}
+		}
+
+	default:
+		if len(keyMsg.String()) == 1 && keyMsg.String()[0] >= 32 && keyMsg.String()[0] <= 126 {
+			char := keyMsg.String()
+			searchQuery += char
+			app.state.Data["fileSearchQuery"] = searchQuery
+			app.state.Data["fileSelectedIndex"] = 0
+		}
 	}
 
 	return nil

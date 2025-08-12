@@ -245,6 +245,10 @@ func (iv *InputViewImpl) SetCursor(position int) {
 	}
 }
 
+func (iv *InputViewImpl) SetText(text string) {
+	iv.text = text
+}
+
 func (iv *InputViewImpl) SetWidth(width int) {
 	iv.width = width
 }
@@ -317,6 +321,12 @@ func (iv *InputViewImpl) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			char := key.String()
 			iv.text = iv.text[:iv.cursor] + char + iv.text[iv.cursor:]
 			iv.cursor++
+
+			if char == "@" {
+				return iv, func() tea.Msg {
+					return FileSelectionRequestMsg{}
+				}
+			}
 		}
 	}
 	return iv, nil
