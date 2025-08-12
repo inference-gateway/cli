@@ -4,7 +4,6 @@ go 1.24.5
 
 require (
 	github.com/charmbracelet/bubbletea v1.3.6
-	github.com/chzyer/readline v1.5.1
 	github.com/inference-gateway/sdk v1.11.0
 	github.com/spf13/cobra v1.9.1
 	gopkg.in/yaml.v3 v3.0.1
