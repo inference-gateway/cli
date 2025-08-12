@@ -310,7 +310,6 @@ func (app *ChatApplication) renderFileSelection() string {
 	return b.String()
 }
 
-
 func (app *ChatApplication) renderApproval() string {
 	pendingToolCall, ok := app.state.Data["pendingToolCall"].(handlers.ToolCallRequest)
 	if !ok {

@@ -3,9 +3,14 @@ package commands
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // ClearCommand clears the conversation history
@@ -39,11 +44,19 @@ func (c *ClearCommand) Execute(ctx context.Context, args []string) (CommandResul
 
 // ExportCommand exports the conversation
 type ExportCommand struct {
-	repo domain.ConversationRepository
+	repo         domain.ConversationRepository
+	chatService  domain.ChatService
+	modelService domain.ModelService
+	config       *config.Config
 }
 
-func NewExportCommand(repo domain.ConversationRepository) *ExportCommand {
-	return &ExportCommand{repo: repo}
+func NewExportCommand(repo domain.ConversationRepository, chatService domain.ChatService, modelService domain.ModelService, config *config.Config) *ExportCommand {
+	return &ExportCommand{
+		repo:         repo,
+		chatService:  chatService,
+		modelService: modelService,
+		config:       config,
+	}
 }
 
 func (c *ExportCommand) GetName() string               { return "compact" }
@@ -52,23 +65,6 @@ func (c *ExportCommand) GetUsage() string              { return "/compact [forma
 func (c *ExportCommand) CanExecute(args []string) bool { return len(args) <= 1 }
 
 func (c *ExportCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
-	format := domain.ExportMarkdown
-	if len(args) > 0 {
-		switch strings.ToLower(args[0]) {
-		case "json":
-			format = domain.ExportJSON
-		case "text":
-			format = domain.ExportText
-		case "markdown", "md":
-			format = domain.ExportMarkdown
-		default:
-			return CommandResult{
-				Output:  fmt.Sprintf("Unknown format '%s'. Available: markdown, json, text", args[0]),
-				Success: false,
-			}, nil
-		}
-	}
-
 	if c.repo.GetMessageCount() == 0 {
 		return CommandResult{
 			Output:  "📝 No conversation to export - conversation history is empty",
@@ -76,20 +72,122 @@ func (c *ExportCommand) Execute(ctx context.Context, args []string) (CommandResu
 		}, nil
 	}
 
-	data, err := c.repo.Export(format)
-	if err != nil {
-		return CommandResult{
-			Output:  fmt.Sprintf("Failed to export conversation: %v", err),
-			Success: false,
-		}, nil
-	}
-
 	return CommandResult{
-		Output:     "📝 Conversation exported successfully",
+		Output:     "🔄 Generating summary and exporting conversation...",
 		Success:    true,
 		SideEffect: SideEffectExportConversation,
-		Data:       data,
+		Data:       ctx, // Pass context to side effect handler
 	}, nil
+}
+
+// PerformExport performs the actual export operation (called by side effect handler)
+func (c *ExportCommand) PerformExport(ctx context.Context) (string, error) {
+	filename := fmt.Sprintf("chat_export_%s.md", time.Now().Format("20060102_150405"))
+
+	outputDir := c.config.Compact.OutputDir
+	if outputDir == "" {
+		outputDir = ".infer"
+	}
+
+	if err := os.MkdirAll(outputDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	filePath := filepath.Join(outputDir, filename)
+
+	summary, err := c.generateSummary(ctx)
+	if err != nil {
+		summary = fmt.Sprintf("*Summary generation failed: %v*", err)
+	}
+
+	conversationData, err := c.repo.Export(domain.ExportMarkdown)
+	if err != nil {
+		return "", fmt.Errorf("failed to export conversation: %w", err)
+	}
+
+	content := c.createCompactMarkdown(summary, string(conversationData))
+
+	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
+		return "", fmt.Errorf("failed to write export file: %w", err)
+	}
+
+	return filePath, nil
+}
+
+// generateSummary uses the LLM to generate a summary of the conversation
+func (c *ExportCommand) generateSummary(ctx context.Context) (string, error) {
+	entries := c.repo.GetMessages()
+	if len(entries) == 0 {
+		return "No conversation to summarize", nil
+	}
+
+	messages := make([]sdk.Message, 0, len(entries)+1)
+
+	messages = append(messages, sdk.Message{
+		Role: sdk.System,
+		Content: `You are a helpful assistant that creates concise summaries of chat conversations. Please provide:
+1. A brief overview of the main topics discussed
+2. Key questions asked and answers provided
+3. Important decisions or conclusions reached
+4. Any action items or next steps mentioned
+
+Keep the summary concise but informative, using bullet points where appropriate.`,
+	})
+
+	for _, entry := range entries {
+		if entry.Message.Role == sdk.User || entry.Message.Role == sdk.Assistant {
+			messages = append(messages, entry.Message)
+		}
+	}
+
+	messages = append(messages, sdk.Message{
+		Role:    sdk.User,
+		Content: "Please provide a summary of our conversation above.",
+	})
+
+	currentModel := c.modelService.GetCurrentModel()
+	if currentModel == "" {
+		return "No model selected for summary generation", nil
+	}
+
+	eventChan, err := c.chatService.SendMessage(ctx, currentModel, messages)
+	if err != nil {
+		return "", fmt.Errorf("failed to start summary generation: %w", err)
+	}
+
+	var summaryBuilder strings.Builder
+	for event := range eventChan {
+		switch e := event.(type) {
+		case domain.ChatChunkEvent:
+			summaryBuilder.WriteString(e.Content)
+		case domain.ChatCompleteEvent:
+			return summaryBuilder.String(), nil
+		case domain.ChatErrorEvent:
+			return "", fmt.Errorf("summary generation failed: %w", e.Error)
+		}
+	}
+
+	return summaryBuilder.String(), nil
+}
+
+// createCompactMarkdown creates the final markdown content with summary and full conversation
+func (c *ExportCommand) createCompactMarkdown(summary, fullConversation string) string {
+	var content strings.Builder
+
+	content.WriteString("# Chat Conversation Export\n\n")
+	content.WriteString(fmt.Sprintf("**Generated:** %s\n", time.Now().Format("January 2, 2006 at 3:04 PM")))
+	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n\n", c.repo.GetMessageCount()))
+
+	content.WriteString("---\n\n")
+	content.WriteString("## 📝 Summary\n\n")
+	content.WriteString(summary)
+	content.WriteString("\n\n---\n\n")
+	content.WriteString("## 💬 Full Conversation\n\n")
+	content.WriteString(fullConversation)
+	content.WriteString("\n\n---\n\n")
+	content.WriteString(fmt.Sprintf("*Generated by Inference Gateway CLI on %s*\n", time.Now().Format("2006-01-02 15:04:05")))
+
+	return content.String()
 }
 
 // HelpCommand shows available commands
@@ -108,7 +206,6 @@ func (c *HelpCommand) CanExecute(args []string) bool { return len(args) <= 1 }
 
 func (c *HelpCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
 	if len(args) == 1 {
-		// Show help for specific command
 		cmdName := args[0]
 		cmd, exists := c.registry.Get(cmdName)
 		if !exists {
@@ -127,7 +224,6 @@ func (c *HelpCommand) Execute(ctx context.Context, args []string) (CommandResult
 		}, nil
 	}
 
-	// Show all commands
 	var output strings.Builder
 	output.WriteString("Available commands:\n")
 
@@ -277,7 +373,6 @@ func (c *SwitchCommand) CanExecute(args []string) bool { return len(args) <= 1 }
 
 func (c *SwitchCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
 	if len(args) == 0 {
-		// Interactive model selection will be triggered by the side effect
 		return CommandResult{
 			Output:     "Select a model from the dropdown",
 			Success:    true,
@@ -285,7 +380,6 @@ func (c *SwitchCommand) Execute(ctx context.Context, args []string) (CommandResu
 		}, nil
 	}
 
-	// Direct model switch
 	modelID := args[0]
 	if err := c.modelService.SelectModel(modelID); err != nil {
 		return CommandResult{

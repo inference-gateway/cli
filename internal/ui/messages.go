@@ -13,8 +13,9 @@ type UpdateHistoryMsg struct {
 
 // SetStatusMsg sets a status message
 type SetStatusMsg struct {
-	Message string
-	Spinner bool
+	Message    string
+	Spinner    bool
+	TokenUsage string
 }
 
 // ShowErrorMsg displays an error message

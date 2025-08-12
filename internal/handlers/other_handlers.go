@@ -81,8 +81,6 @@ func (h *FileMessageHandler) handleFileSelected(msg ui.FileSelectedMsg, state *A
 	return nil, nil
 }
 
-
-
 // ToolMessageHandler handles tool-related messages
 type ToolMessageHandler struct {
 	toolService domain.ToolService

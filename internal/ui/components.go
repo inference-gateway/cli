@@ -3,8 +3,10 @@ package ui
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
@@ -95,12 +97,15 @@ func (f *ComponentFactory) CreateInputView() InputComponent {
 }
 
 func (f *ComponentFactory) CreateStatusView() StatusComponent {
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
 	return &StatusViewImpl{
-		message:     "",
-		isError:     false,
-		isSpinner:   false,
-		spinnerChar: "⠋",
-		theme:       f.theme,
+		message:   "",
+		isError:   false,
+		isSpinner: false,
+		spinner:   s,
+		theme:     f.theme,
 	}
 }
 
@@ -404,14 +409,19 @@ type StatusViewImpl struct {
 	message     string
 	isError     bool
 	isSpinner   bool
-	spinnerChar string
+	spinner     spinner.Model
 	theme       Theme
+	startTime   time.Time
+	tokenUsage  string
+	baseMessage string
 }
 
 func (sv *StatusViewImpl) ShowStatus(message string) {
 	sv.message = message
+	sv.baseMessage = message
 	sv.isError = false
 	sv.isSpinner = false
+	sv.tokenUsage = ""
 }
 
 func (sv *StatusViewImpl) ShowError(message string) {
@@ -421,15 +431,21 @@ func (sv *StatusViewImpl) ShowError(message string) {
 }
 
 func (sv *StatusViewImpl) ShowSpinner(message string) {
+	sv.baseMessage = message
 	sv.message = message
 	sv.isError = false
 	sv.isSpinner = true
+	sv.startTime = time.Now()
+	sv.tokenUsage = ""
 }
 
 func (sv *StatusViewImpl) ClearStatus() {
 	sv.message = ""
+	sv.baseMessage = ""
 	sv.isError = false
 	sv.isSpinner = false
+	sv.tokenUsage = ""
+	sv.startTime = time.Time{}
 }
 
 func (sv *StatusViewImpl) IsShowingError() bool {
@@ -440,6 +456,10 @@ func (sv *StatusViewImpl) IsShowingSpinner() bool {
 	return sv.isSpinner
 }
 
+func (sv *StatusViewImpl) SetTokenUsage(usage string) {
+	sv.tokenUsage = usage
+}
+
 func (sv *StatusViewImpl) SetWidth(width int) {
 }
 
@@ -447,43 +467,68 @@ func (sv *StatusViewImpl) SetHeight(height int) {
 }
 
 func (sv *StatusViewImpl) Render() string {
-	if sv.message == "" {
+	if sv.message == "" && sv.baseMessage == "" {
 		return ""
 	}
 
-	var prefix, color string
+	var prefix, color, displayMessage string
 	if sv.isError {
 		prefix = "❌"
 		color = sv.theme.GetErrorColor()
+		displayMessage = sv.message
 	} else if sv.isSpinner {
-		prefix = sv.spinnerChar
+		prefix = sv.spinner.View()
 		color = sv.theme.GetStatusColor()
+
+		// Calculate elapsed time
+		elapsed := time.Since(sv.startTime)
+		seconds := int(elapsed.Seconds())
+		displayMessage = fmt.Sprintf("%s (%ds)", sv.baseMessage, seconds)
 	} else {
 		prefix = "ℹ️"
 		color = sv.theme.GetStatusColor()
+		displayMessage = sv.message
+
+		// Show token usage if available
+		if sv.tokenUsage != "" {
+			displayMessage = fmt.Sprintf("%s (%s)", displayMessage, sv.tokenUsage)
+		}
 	}
 
-	return fmt.Sprintf("%s%s %s%s", color, prefix, sv.message, "\033[0m")
+	return fmt.Sprintf("%s%s %s%s", color, prefix, displayMessage, "\033[0m")
 }
 
 func (sv *StatusViewImpl) GetID() string { return "status" }
 
-func (sv *StatusViewImpl) Init() tea.Cmd { return nil }
+func (sv *StatusViewImpl) Init() tea.Cmd { return sv.spinner.Tick }
 
 func (sv *StatusViewImpl) View() string { return sv.Render() }
 
 func (sv *StatusViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	if sv.isSpinner {
+		sv.spinner, cmd = sv.spinner.Update(msg)
+	}
+
 	switch msg := msg.(type) {
 	case SetStatusMsg:
 		if msg.Spinner {
 			sv.ShowSpinner(msg.Message)
+			if cmd == nil {
+				cmd = sv.spinner.Tick
+			}
 		} else {
 			sv.ShowStatus(msg.Message)
+			if msg.TokenUsage != "" {
+				sv.SetTokenUsage(msg.TokenUsage)
+			}
 		}
 	case ShowErrorMsg:
 		sv.ShowError(msg.Error)
 	case ClearErrorMsg:
 		sv.ClearStatus()
 	}
-	return sv, nil
+
+	return sv, cmd
 }

@@ -167,6 +167,16 @@ func (h *ChatMessageHandler) handleCommand(commandText string, state *AppState) 
 				}
 			},
 		)
+	case commands.SideEffectExportConversation:
+		return nil, tea.Batch(
+			func() tea.Msg {
+				return ui.SetStatusMsg{
+					Message: result.Output,
+					Spinner: true,
+				}
+			},
+			h.performExport(cmd, result.Data),
+		)
 	default:
 		return nil, func() tea.Msg {
 			return ui.SetStatusMsg{
@@ -272,21 +282,20 @@ func (h *ChatMessageHandler) handleChatChunk(msg domain.ChatChunkEvent, state *A
 
 func (h *ChatMessageHandler) handleChatComplete(msg domain.ChatCompleteEvent, state *AppState) (tea.Model, tea.Cmd) {
 	statusMsg := ui.FormatSuccess("Response complete")
+	tokenUsage := ""
 	if msg.Metrics != nil {
-		statusMsg = ui.FormatSuccess(fmt.Sprintf("Complete - %s", h.formatMetrics(msg.Metrics)))
+		statusMsg = ui.FormatSuccess("Response complete")
+		tokenUsage = h.formatMetrics(msg.Metrics)
 	}
 
 	delete(state.Data, "eventChannel")
 	delete(state.Data, "currentRequestID")
 
-	// Check for structured tool calls first (preferred method)
 	if len(msg.ToolCalls) > 0 {
-		// Update the last assistant message to include the tool calls
 		h.updateAssistantMessageWithToolCalls(msg.ToolCalls)
 
-		toolCall := msg.ToolCalls[0] // Handle first tool call
+		toolCall := msg.ToolCalls[0]
 
-		// Parse arguments from JSON string to map
 		args := make(map[string]interface{})
 		if toolCall.Function.Arguments != "" {
 			if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
@@ -306,13 +315,10 @@ func (h *ChatMessageHandler) handleChatComplete(msg domain.ChatCompleteEvent, st
 		}
 	}
 
-	// Fallback to text parsing for backward compatibility
 	if toolCall := h.parseToolCall(msg.Message); toolCall != nil {
-		// Generate a unique tool call ID for text-based tool calls
 		toolCallID := h.generateToolCallID()
 		toolCall.ID = toolCallID
 
-		// Create structured tool call for the assistant message
 		structuredToolCall := sdk.ChatCompletionMessageToolCall{
 			Id:   toolCallID,
 			Type: "function",
@@ -322,7 +328,6 @@ func (h *ChatMessageHandler) handleChatComplete(msg domain.ChatCompleteEvent, st
 			},
 		}
 
-		// Update the assistant message with structured tool calls
 		h.updateAssistantMessageWithToolCalls([]sdk.ChatCompletionMessageToolCall{structuredToolCall})
 
 		return nil, func() tea.Msg {
@@ -335,8 +340,9 @@ func (h *ChatMessageHandler) handleChatComplete(msg domain.ChatCompleteEvent, st
 
 	return nil, func() tea.Msg {
 		return ui.SetStatusMsg{
-			Message: statusMsg,
-			Spinner: false,
+			Message:    statusMsg,
+			Spinner:    false,
+			TokenUsage: tokenUsage,
 		}
 	}
 }
@@ -629,4 +635,35 @@ func (h *ChatMessageHandler) processFileReferences(content string) string {
 
 		return fmt.Sprintf("\n\n📁 **File: %s**\n```%s\n%s\n```\n", filename, language, string(content))
 	})
+}
+
+// performExport performs the export operation in background and returns the result
+func (h *ChatMessageHandler) performExport(cmd commands.Command, data interface{}) tea.Cmd {
+	return func() tea.Msg {
+		exportCmd, ok := cmd.(*commands.ExportCommand)
+		if !ok {
+			return ui.ShowErrorMsg{
+				Error:  "Invalid export command type",
+				Sticky: false,
+			}
+		}
+
+		ctx, ok := data.(context.Context)
+		if !ok {
+			ctx = context.Background()
+		}
+
+		filePath, err := exportCmd.PerformExport(ctx)
+		if err != nil {
+			return ui.ShowErrorMsg{
+				Error:  fmt.Sprintf("Export failed: %v", err),
+				Sticky: true,
+			}
+		}
+
+		return ui.SetStatusMsg{
+			Message: fmt.Sprintf("📝 Chat exported to %s", filePath),
+			Spinner: false,
+		}
+	}
 }
