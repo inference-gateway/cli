@@ -207,7 +207,7 @@ cat .infer/config.yaml
 
 ## Code Style Guidelines
 
-- **No Redundant Comments**: The codebase has been cleaned of redundant inline comments. Avoid adding comments that simply restate what the code does or explain obvious operations.
+- **Inline Comments**: Do not write inline comments unless the code is genuinely unclear or requires specific explanation.
 - **Comment Policy**: Only add comments for:
   - Complex business logic that isn't immediately clear
   - External API interactions or protocol specifications
