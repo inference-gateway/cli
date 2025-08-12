@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.8.0](https://github.com/inference-gateway/cli/compare/v0.7.0...v0.8.0) (2025-08-12)
+
+### 🚀 Features
+
+* Add default model configuration for chat sessions ([#18](https://github.com/inference-gateway/cli/issues/18)) ([4c361d9](https://github.com/inference-gateway/cli/commit/4c361d901cd68bd4423978339dc9dce2b493bfd9)), closes [#17](https://github.com/inference-gateway/cli/issues/17)
+
 ## [0.7.0](https://github.com/inference-gateway/cli/compare/v0.6.0...v0.7.0) (2025-08-12)
 
 ### 🚀 Features
