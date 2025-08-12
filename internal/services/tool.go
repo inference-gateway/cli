@@ -114,87 +114,9 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[
 
 	switch name {
 	case "Bash":
-		command, ok := args["command"].(string)
-		if !ok {
-			return "", fmt.Errorf("command parameter is required and must be a string")
-		}
-
-		format, ok := args["format"].(string)
-		if !ok {
-			format = "text"
-		}
-
-		result, err := s.executeBash(ctx, command)
-		if err != nil {
-			return "", fmt.Errorf("bash execution failed: %w", err)
-		}
-
-		if format == "json" {
-			jsonOutput, err := json.MarshalIndent(result, "", "  ")
-			if err != nil {
-				return "", fmt.Errorf("failed to marshal result: %w", err)
-			}
-			return string(jsonOutput), nil
-		}
-
-		output := fmt.Sprintf("Command: %s\n", result.Command)
-		output += fmt.Sprintf("Exit Code: %d\n", result.ExitCode)
-		output += fmt.Sprintf("Duration: %s\n", result.Duration)
-
-		if result.Error != "" {
-			output += fmt.Sprintf("Error: %s\n", result.Error)
-		}
-
-		output += fmt.Sprintf("Output:\n%s", result.Output)
-		return output, nil
-
+		return s.executeBashTool(ctx, args)
 	case "Read":
-		filePath, ok := args["file_path"].(string)
-		if !ok {
-			return "", fmt.Errorf("file_path parameter is required and must be a string")
-		}
-
-		format, ok := args["format"].(string)
-		if !ok {
-			format = "text"
-		}
-
-		var startLine, endLine int
-		if startLineFloat, ok := args["start_line"].(float64); ok {
-			startLine = int(startLineFloat)
-		}
-		if endLineFloat, ok := args["end_line"].(float64); ok {
-			endLine = int(endLineFloat)
-		}
-
-		result, err := s.executeRead(filePath, startLine, endLine)
-		if err != nil {
-			return "", fmt.Errorf("file read failed: %w", err)
-		}
-
-		if format == "json" {
-			jsonOutput, err := json.MarshalIndent(result, "", "  ")
-			if err != nil {
-				return "", fmt.Errorf("failed to marshal result: %w", err)
-			}
-			return string(jsonOutput), nil
-		}
-
-		output := fmt.Sprintf("File: %s\n", result.FilePath)
-		if result.StartLine > 0 {
-			output += fmt.Sprintf("Lines: %d", result.StartLine)
-			if result.EndLine > 0 && result.EndLine != result.StartLine {
-				output += fmt.Sprintf("-%d", result.EndLine)
-			}
-			output += "\n"
-		}
-		output += fmt.Sprintf("Size: %d bytes\n", result.Size)
-		if result.Error != "" {
-			output += fmt.Sprintf("Error: %s\n", result.Error)
-		}
-		output += fmt.Sprintf("Content:\n%s", result.Content)
-		return output, nil
-
+		return s.executeReadTool(args)
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
@@ -223,44 +145,14 @@ func (s *LLMToolService) ValidateTool(name string, args map[string]interface{}) 
 		return fmt.Errorf("tool '%s' is not available", name)
 	}
 
-	if name == "Bash" {
-		command, ok := args["command"].(string)
-		if !ok {
-			return fmt.Errorf("command parameter is required and must be a string")
-		}
-
-		if !s.isCommandAllowed(command) {
-			return fmt.Errorf("command not whitelisted: %s", command)
-		}
+	switch name {
+	case "Bash":
+		return s.validateBashTool(args)
+	case "Read":
+		return s.validateReadTool(args)
+	default:
+		return nil
 	}
-
-	if name == "Read" {
-		filePath, ok := args["file_path"].(string)
-		if !ok {
-			return fmt.Errorf("file_path parameter is required and must be a string")
-		}
-
-		if err := s.fileService.ValidateFile(filePath); err != nil {
-			return fmt.Errorf("file validation failed: %w", err)
-		}
-
-		if startLineFloat, ok := args["start_line"].(float64); ok {
-			if startLineFloat < 1 {
-				return fmt.Errorf("start_line must be >= 1")
-			}
-		}
-
-		if endLineFloat, ok := args["end_line"].(float64); ok {
-			if endLineFloat < 1 {
-				return fmt.Errorf("end_line must be >= 1")
-			}
-			if startLineFloat, ok := args["start_line"].(float64); ok && endLineFloat < startLineFloat {
-				return fmt.Errorf("end_line must be >= start_line")
-			}
-		}
-	}
-
-	return nil
 }
 
 // executeBash executes a bash command with security validation
@@ -364,4 +256,153 @@ func (s *NoOpToolService) IsToolEnabled(name string) bool {
 
 func (s *NoOpToolService) ValidateTool(name string, args map[string]interface{}) error {
 	return fmt.Errorf("tools are not enabled")
+}
+
+// executeBashTool handles Bash tool execution
+func (s *LLMToolService) executeBashTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	command, ok := args["command"].(string)
+	if !ok {
+		return "", fmt.Errorf("command parameter is required and must be a string")
+	}
+
+	format, ok := args["format"].(string)
+	if !ok {
+		format = "text"
+	}
+
+	result, err := s.executeBash(ctx, command)
+	if err != nil {
+		return "", fmt.Errorf("bash execution failed: %w", err)
+	}
+
+	if format == "json" {
+		jsonOutput, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal result: %w", err)
+		}
+		return string(jsonOutput), nil
+	}
+
+	return s.formatBashResult(result), nil
+}
+
+// executeReadTool handles Read tool execution
+func (s *LLMToolService) executeReadTool(args map[string]interface{}) (string, error) {
+	filePath, ok := args["file_path"].(string)
+	if !ok {
+		return "", fmt.Errorf("file_path parameter is required and must be a string")
+	}
+
+	format, ok := args["format"].(string)
+	if !ok {
+		format = "text"
+	}
+
+	var startLine, endLine int
+	if startLineFloat, ok := args["start_line"].(float64); ok {
+		startLine = int(startLineFloat)
+	}
+	if endLineFloat, ok := args["end_line"].(float64); ok {
+		endLine = int(endLineFloat)
+	}
+
+	result, err := s.executeRead(filePath, startLine, endLine)
+	if err != nil {
+		return "", fmt.Errorf("file read failed: %w", err)
+	}
+
+	if format == "json" {
+		jsonOutput, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal result: %w", err)
+		}
+		return string(jsonOutput), nil
+	}
+
+	return s.formatReadResult(result), nil
+}
+
+// validateBashTool validates Bash tool arguments
+func (s *LLMToolService) validateBashTool(args map[string]interface{}) error {
+	command, ok := args["command"].(string)
+	if !ok {
+		return fmt.Errorf("command parameter is required and must be a string")
+	}
+
+	if !s.isCommandAllowed(command) {
+		return fmt.Errorf("command not whitelisted: %s", command)
+	}
+
+	return nil
+}
+
+// validateReadTool validates Read tool arguments
+func (s *LLMToolService) validateReadTool(args map[string]interface{}) error {
+	filePath, ok := args["file_path"].(string)
+	if !ok {
+		return fmt.Errorf("file_path parameter is required and must be a string")
+	}
+
+	if err := s.fileService.ValidateFile(filePath); err != nil {
+		return fmt.Errorf("file validation failed: %w", err)
+	}
+
+	return s.validateLineNumbers(args)
+}
+
+// validateLineNumbers validates start_line and end_line parameters
+func (s *LLMToolService) validateLineNumbers(args map[string]interface{}) error {
+	var startLine float64
+	var hasStartLine bool
+
+	if startLineFloat, ok := args["start_line"].(float64); ok {
+		if startLineFloat < 1 {
+			return fmt.Errorf("start_line must be >= 1")
+		}
+		startLine = startLineFloat
+		hasStartLine = true
+	}
+
+	if endLineFloat, ok := args["end_line"].(float64); ok {
+		if endLineFloat < 1 {
+			return fmt.Errorf("end_line must be >= 1")
+		}
+		if hasStartLine && endLineFloat < startLine {
+			return fmt.Errorf("end_line must be >= start_line")
+		}
+	}
+
+	return nil
+}
+
+// formatBashResult formats bash execution result for text output
+func (s *LLMToolService) formatBashResult(result *ToolResult) string {
+	output := fmt.Sprintf("Command: %s\n", result.Command)
+	output += fmt.Sprintf("Exit Code: %d\n", result.ExitCode)
+	output += fmt.Sprintf("Duration: %s\n", result.Duration)
+
+	if result.Error != "" {
+		output += fmt.Sprintf("Error: %s\n", result.Error)
+	}
+
+	output += fmt.Sprintf("Output:\n%s", result.Output)
+	return output
+}
+
+// formatReadResult formats read result for text output
+func (s *LLMToolService) formatReadResult(result *FileReadResult) string {
+	output := fmt.Sprintf("File: %s\n", result.FilePath)
+	if result.StartLine > 0 {
+		output += fmt.Sprintf("Lines: %d", result.StartLine)
+		if result.EndLine > 0 && result.EndLine != result.StartLine {
+			output += fmt.Sprintf("-%d", result.EndLine)
+		}
+		output += "\n"
+	}
+	output += fmt.Sprintf("Size: %d bytes\n", result.Size)
+	if result.Error != "" {
+		output += fmt.Sprintf("Error: %s\n", result.Error)
+	}
+	output += fmt.Sprintf("Content:\n%s", result.Content)
+	return output
 }

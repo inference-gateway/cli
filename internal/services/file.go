@@ -171,7 +171,9 @@ func (s *LocalFileService) ReadFileLines(path string, startLine, endLine int) (s
 	if err != nil {
 		return "", fmt.Errorf("failed to open file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close() // Ignore close error as read was successful
+	}()
 
 	scanner := bufio.NewScanner(file)
 	var result strings.Builder
