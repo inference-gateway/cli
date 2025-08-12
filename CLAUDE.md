@@ -154,6 +154,8 @@ tools:
     require_approval: true  # Prompt user before executing any command
 compact:
   output_dir: ".infer"  # Directory for compact command exports (default: project root/.infer)
+chat:
+  default_model: ""  # Default model for chat sessions (when set, skips model selection)
 ```
 
 ### Command Structure
@@ -162,7 +164,9 @@ compact:
 - Subcommands:
   - `init [--overwrite]`: Initialize local project configuration
   - `status`: Gateway status
-  - `chat`: Interactive chat with model selection
+  - `chat`: Interactive chat with model selection (or uses default model if configured)
+  - `config`: Manage CLI configuration
+    - `set-model [MODEL_NAME]`: Set default model for chat sessions
   - `version`: Version information
 
 ## Dependencies
@@ -178,10 +182,32 @@ compact:
 - Architecture follows SOLID principles with dependency injection
 - Configuration loading handles missing config files gracefully by returning defaults
 - The project uses modern Go project structure with `internal/` for private packages
+- Default model configuration allows skipping model selection in chat sessions when a preferred model is set
+
+## Usage Examples
+
+### Setting a Default Model
+```bash
+# Set a default model for chat sessions
+infer config set-model gpt-4-turbo
+
+# Now chat will automatically use this model without showing selection
+infer chat
+```
+
+### Configuration Management
+```bash
+# View current configuration (check .infer/config.yaml)
+cat .infer/config.yaml
+
+# The default model will be saved in the chat section:
+# chat:
+#   default_model: "gpt-4-turbo"
+```
 
 ## Code Style Guidelines
 
-- **No Redundant Comments**: The codebase has been cleaned of redundant inline comments. Avoid adding comments that simply restate what the code does or explain obvious operations.
+- **Inline Comments**: Do not write inline comments unless the code is genuinely unclear or requires specific explanation.
 - **Comment Policy**: Only add comments for:
   - Complex business logic that isn't immediately clear
   - External API interactions or protocol specifications

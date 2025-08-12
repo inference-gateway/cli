@@ -43,7 +43,12 @@ func startChatSession() error {
 		return fmt.Errorf("no models available from inference gateway")
 	}
 
-	application := app.NewChatApplication(services, models)
+	defaultModel := cfg.Chat.DefaultModel
+	if defaultModel != "" {
+		defaultModel = validateAndSetDefaultModel(services, models, defaultModel)
+	}
+
+	application := app.NewChatApplication(services, models, defaultModel)
 
 	program := tea.NewProgram(application, tea.WithAltScreen())
 
@@ -54,6 +59,29 @@ func startChatSession() error {
 
 	fmt.Println("👋 Chat session ended!")
 	return nil
+}
+
+func validateAndSetDefaultModel(services *container.ServiceContainer, models []string, defaultModel string) string {
+	modelFound := false
+	for _, model := range models {
+		if model == defaultModel {
+			modelFound = true
+			break
+		}
+	}
+
+	if !modelFound {
+		fmt.Printf("⚠️  Default model '%s' is not available, showing model selection...\n", defaultModel)
+		return ""
+	}
+
+	if err := services.GetModelService().SelectModel(defaultModel); err != nil {
+		fmt.Printf("⚠️  Failed to set default model: %v, showing model selection...\n", err)
+		return ""
+	}
+
+	fmt.Printf("🤖 Using default model: %s\n", defaultModel)
+	return defaultModel
 }
 
 func init() {
