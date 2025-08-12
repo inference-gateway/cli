@@ -48,43 +48,35 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
-	// Create conversation repository
 	c.conversationRepo = services.NewInMemoryConversationRepository()
 
-	// Create model service
 	c.modelService = services.NewHTTPModelService(
 		c.config.Gateway.URL,
 		c.config.Gateway.APIKey,
 	)
 
-	// Create tool service first (needed by chat service)
+	c.fileService = services.NewLocalFileService()
+
 	if c.config.Tools.Enabled {
-		c.toolService = services.NewLLMToolService(c.config)
+		c.toolService = services.NewLLMToolService(c.config, c.fileService)
 	} else {
 		c.toolService = services.NewNoOpToolService()
 	}
 
-	// Create chat service with tool service
 	c.chatService = services.NewStreamingChatService(
 		c.config.Gateway.URL,
 		c.config.Gateway.APIKey,
 		c.config.Gateway.Timeout,
 		c.toolService,
 	)
-
-	// Create file service
-	c.fileService = services.NewLocalFileService()
 }
 
 // initializeUIComponents creates UI components and theme
 func (c *ServiceContainer) initializeUIComponents() {
-	// Create theme based on configuration
 	c.theme = ui.NewDefaultTheme()
 
-	// Create layout manager
 	c.layout = ui.NewDefaultLayout()
 
-	// Create component factory
 	c.componentFactory = ui.NewComponentFactory(c.theme, c.layout, c.modelService)
 }
 

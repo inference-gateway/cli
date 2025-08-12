@@ -10,6 +10,8 @@ This is the Inference Gateway CLI (`infer`), a Go-based command-line tool for ma
 
 **Note: All commands should be run with `flox activate -- <command>` to ensure the proper development environment is activated.**
 
+**IMPORTANT: Always run `task setup` first when working with a fresh checkout of the repository to ensure all dependencies are properly installed.**
+
 ### Setup Development Environment
 ```bash
 flox activate -- task setup

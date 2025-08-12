@@ -103,6 +103,7 @@ type ToolService interface {
 type FileService interface {
 	ListProjectFiles() ([]string, error)
 	ReadFile(path string) (string, error)
+	ReadFileLines(path string, startLine, endLine int) (string, error)
 	ValidateFile(path string) error
 	GetFileInfo(path string) (FileInfo, error)
 }

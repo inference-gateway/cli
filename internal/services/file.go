@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bufio"
 	"fmt"
 	"io/fs"
 	"os"
@@ -159,6 +160,46 @@ func (s *LocalFileService) ReadFile(path string) (string, error) {
 	}
 
 	return string(content), nil
+}
+
+func (s *LocalFileService) ReadFileLines(path string, startLine, endLine int) (string, error) {
+	if err := s.ValidateFile(path); err != nil {
+		return "", err
+	}
+
+	file, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to open file: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	scanner := bufio.NewScanner(file)
+	var result strings.Builder
+	currentLine := 1
+
+	for scanner.Scan() {
+		if startLine > 0 && currentLine < startLine {
+			currentLine++
+			continue
+		}
+		if endLine > 0 && currentLine > endLine {
+			break
+		}
+
+		if result.Len() > 0 {
+			result.WriteString("\n")
+		}
+		result.WriteString(scanner.Text())
+		currentLine++
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("failed to read file lines: %w", err)
+	}
+
+	return result.String(), nil
 }
 
 func (s *LocalFileService) ValidateFile(path string) error {
