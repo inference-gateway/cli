@@ -77,7 +77,7 @@ func DefaultConfig() *Config {
 			Enabled: true,
 			Whitelist: ToolWhitelistConfig{
 				Commands: []string{
-					"ls", "pwd", "echo", "cat", "head", "tail",
+					"ls", "pwd", "echo",
 					"grep", "find", "wc", "sort", "uniq",
 				},
 				Patterns: []string{

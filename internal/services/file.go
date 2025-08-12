@@ -211,7 +211,7 @@ func (s *LocalFileService) ValidateFile(path string) error {
 	}
 
 	if s.isPathExcluded(path) {
-		return fmt.Errorf("file path is excluded for security: %s", path)
+		return fmt.Errorf("file is excluded: %s", path)
 	}
 
 	absPath, err := filepath.Abs(path)

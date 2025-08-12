@@ -12,9 +12,6 @@ tools:
       - ls
       - pwd
       - echo
-      - cat
-      - head
-      - tail
       - grep
       - find
       - wc
