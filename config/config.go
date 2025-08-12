@@ -59,6 +59,7 @@ type CompactConfig struct {
 // ChatConfig contains chat-related settings
 type ChatConfig struct {
 	DefaultModel string `yaml:"default_model"`
+	SystemPrompt string `yaml:"system_prompt"`
 }
 
 // DefaultConfig returns a default configuration
@@ -100,6 +101,7 @@ func DefaultConfig() *Config {
 		},
 		Chat: ChatConfig{
 			DefaultModel: "",
+			SystemPrompt: "",
 		},
 	}
 }

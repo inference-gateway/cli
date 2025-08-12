@@ -31,6 +31,18 @@ the chat command will skip the model selection view and use the configured model
 	},
 }
 
+var setSystemCmd = &cobra.Command{
+	Use:   "set-system [SYSTEM_PROMPT]",
+	Short: "Set the system prompt for chat sessions",
+	Long: `Set the system prompt that will be included with every chat session.
+The system prompt provides context and instructions to the AI model about how to behave.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		systemPrompt := args[0]
+		return setSystemPrompt(systemPrompt)
+	},
+}
+
 var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a new project configuration",
@@ -176,8 +188,27 @@ func setDefaultModel(modelName string) error {
 	return nil
 }
 
+func setSystemPrompt(systemPrompt string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	cfg.Chat.SystemPrompt = systemPrompt
+
+	if err := cfg.SaveConfig(""); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	fmt.Printf("✅ System prompt set successfully\n")
+	fmt.Printf("System prompt: %s\n", systemPrompt)
+	fmt.Println("This prompt will be included with every chat session.")
+	return nil
+}
+
 func init() {
 	configCmd.AddCommand(setModelCmd)
+	configCmd.AddCommand(setSystemCmd)
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configToolsCmd)
 

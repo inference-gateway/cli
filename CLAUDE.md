@@ -159,6 +159,7 @@ compact:
   output_dir: ".infer"  # Directory for compact command exports (default: project root/.infer)
 chat:
   default_model: ""  # Default model for chat sessions (when set, skips model selection)
+  system_prompt: ""  # System prompt included with every chat session
 ```
 
 ### Command Structure
@@ -170,6 +171,7 @@ chat:
   - `config`: Manage CLI configuration
     - `init [--overwrite]`: Initialize local project configuration
     - `set-model [MODEL_NAME]`: Set default model for chat sessions
+    - `set-system [SYSTEM_PROMPT]`: Set system prompt for chat sessions
     - `tools`: Manage tool execution settings
       - `enable`: Enable tool execution for LLMs
       - `disable`: Disable tool execution for LLMs
@@ -212,6 +214,16 @@ infer config set-model gpt-4-turbo
 infer chat
 ```
 
+### Setting a System Prompt
+```bash
+# Set a system prompt for chat sessions
+infer config set-system "You are a helpful assistant."
+
+# The system prompt will now be included with every chat session
+# providing context and instructions to the AI model
+infer chat
+```
+
 ### Configuration Management
 ```bash
 # Initialize a new project configuration
@@ -223,9 +235,10 @@ infer config init --overwrite
 # View current configuration (check .infer/config.yaml)
 cat .infer/config.yaml
 
-# The default model will be saved in the chat section:
+# The default model and system prompt will be saved in the chat section:
 # chat:
 #   default_model: "gpt-4-turbo"
+#   system_prompt: "You are a helpful assistant."
 ```
 
 ### Tool Management
