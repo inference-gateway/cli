@@ -10,7 +10,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.6
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/go-resty/resty/v2 v2.16.5
-	github.com/inference-gateway/sdk v1.11.1
+	github.com/inference-gateway/sdk v1.11.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/muesli/reflow v0.3.0
 	github.com/spf13/cobra v1.9.1
