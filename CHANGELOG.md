@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.10.0](https://github.com/inference-gateway/cli/compare/v0.9.0...v0.10.0) (2025-08-12)
+
+### 🚀 Features
+
+* Add system prompt configuration support ([#26](https://github.com/inference-gateway/cli/issues/26)) ([bf4a5ff](https://github.com/inference-gateway/cli/commit/bf4a5ffdd472637feada17a7b8ea835d7c90178b)), closes [#25](https://github.com/inference-gateway/cli/issues/25) [#25](https://github.com/inference-gateway/cli/issues/25)
+
 ## [0.9.0](https://github.com/inference-gateway/cli/compare/v0.8.1...v0.9.0) (2025-08-12)
 
 ### 🚀 Features
