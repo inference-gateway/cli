@@ -22,17 +22,29 @@ type ToolResult struct {
 	Duration string `json:"duration"`
 }
 
+// FileReadResult represents the result of a file read operation
+type FileReadResult struct {
+	FilePath  string `json:"file_path"`
+	Content   string `json:"content"`
+	Size      int64  `json:"size"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+	Error     string `json:"error,omitempty"`
+}
+
 // LLMToolService implements ToolService with direct tool execution
 type LLMToolService struct {
-	config  *config.Config
-	enabled bool
+	config      *config.Config
+	fileService domain.FileService
+	enabled     bool
 }
 
 // NewLLMToolService creates a new LLM tool service
-func NewLLMToolService(cfg *config.Config) *LLMToolService {
+func NewLLMToolService(cfg *config.Config, fileService domain.FileService) *LLMToolService {
 	return &LLMToolService{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled,
+		config:      cfg,
+		fileService: fileService,
+		enabled:     cfg.Tools.Enabled,
 	}
 }
 
@@ -60,6 +72,36 @@ func (s *LLMToolService) ListTools() []domain.ToolDefinition {
 					},
 				},
 				"required": []string{"command"},
+			},
+		},
+		{
+			Name:        "Read",
+			Description: "Read file content from the filesystem with optional line range",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"file_path": map[string]interface{}{
+						"type":        "string",
+						"description": "The path to the file to read",
+					},
+					"start_line": map[string]interface{}{
+						"type":        "integer",
+						"description": "Starting line number (1-indexed, optional)",
+						"minimum":     1,
+					},
+					"end_line": map[string]interface{}{
+						"type":        "integer",
+						"description": "Ending line number (1-indexed, optional)",
+						"minimum":     1,
+					},
+					"format": map[string]interface{}{
+						"type":        "string",
+						"description": "Output format (text or json)",
+						"enum":        []string{"text", "json"},
+						"default":     "text",
+					},
+				},
+				"required": []string{"file_path"},
 			},
 		},
 	}
@@ -106,6 +148,53 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[
 		output += fmt.Sprintf("Output:\n%s", result.Output)
 		return output, nil
 
+	case "Read":
+		filePath, ok := args["file_path"].(string)
+		if !ok {
+			return "", fmt.Errorf("file_path parameter is required and must be a string")
+		}
+
+		format, ok := args["format"].(string)
+		if !ok {
+			format = "text"
+		}
+
+		var startLine, endLine int
+		if startLineFloat, ok := args["start_line"].(float64); ok {
+			startLine = int(startLineFloat)
+		}
+		if endLineFloat, ok := args["end_line"].(float64); ok {
+			endLine = int(endLineFloat)
+		}
+
+		result, err := s.executeRead(filePath, startLine, endLine)
+		if err != nil {
+			return "", fmt.Errorf("file read failed: %w", err)
+		}
+
+		if format == "json" {
+			jsonOutput, err := json.MarshalIndent(result, "", "  ")
+			if err != nil {
+				return "", fmt.Errorf("failed to marshal result: %w", err)
+			}
+			return string(jsonOutput), nil
+		}
+
+		output := fmt.Sprintf("File: %s\n", result.FilePath)
+		if result.StartLine > 0 {
+			output += fmt.Sprintf("Lines: %d", result.StartLine)
+			if result.EndLine > 0 && result.EndLine != result.StartLine {
+				output += fmt.Sprintf("-%d", result.EndLine)
+			}
+			output += "\n"
+		}
+		output += fmt.Sprintf("Size: %d bytes\n", result.Size)
+		if result.Error != "" {
+			output += fmt.Sprintf("Error: %s\n", result.Error)
+		}
+		output += fmt.Sprintf("Content:\n%s", result.Content)
+		return output, nil
+
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
@@ -145,6 +234,32 @@ func (s *LLMToolService) ValidateTool(name string, args map[string]interface{}) 
 		}
 	}
 
+	if name == "Read" {
+		filePath, ok := args["file_path"].(string)
+		if !ok {
+			return fmt.Errorf("file_path parameter is required and must be a string")
+		}
+
+		if err := s.fileService.ValidateFile(filePath); err != nil {
+			return fmt.Errorf("file validation failed: %w", err)
+		}
+
+		if startLineFloat, ok := args["start_line"].(float64); ok {
+			if startLineFloat < 1 {
+				return fmt.Errorf("start_line must be >= 1")
+			}
+		}
+
+		if endLineFloat, ok := args["end_line"].(float64); ok {
+			if endLineFloat < 1 {
+				return fmt.Errorf("end_line must be >= 1")
+			}
+			if startLineFloat, ok := args["start_line"].(float64); ok && endLineFloat < startLineFloat {
+				return fmt.Errorf("end_line must be >= start_line")
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -175,6 +290,34 @@ func (s *LLMToolService) executeBash(ctx context.Context, command string) (*Tool
 		}
 		result.Error = err.Error()
 	}
+
+	return result, nil
+}
+
+// executeRead reads a file with optional line range
+func (s *LLMToolService) executeRead(filePath string, startLine, endLine int) (*FileReadResult, error) {
+	result := &FileReadResult{
+		FilePath:  filePath,
+		StartLine: startLine,
+		EndLine:   endLine,
+	}
+
+	var content string
+	var err error
+
+	if startLine > 0 || endLine > 0 {
+		content, err = s.fileService.ReadFileLines(filePath, startLine, endLine)
+	} else {
+		content, err = s.fileService.ReadFile(filePath)
+	}
+
+	if err != nil {
+		result.Error = err.Error()
+		return result, nil
+	}
+
+	result.Content = content
+	result.Size = int64(len(content))
 
 	return result, nil
 }

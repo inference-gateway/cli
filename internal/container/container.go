@@ -57,9 +57,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.APIKey,
 	)
 
-	// Create tool service first (needed by chat service)
+	// Create file service first (needed by tool service)
+	c.fileService = services.NewLocalFileService()
+
+	// Create tool service (needs file service)
 	if c.config.Tools.Enabled {
-		c.toolService = services.NewLLMToolService(c.config)
+		c.toolService = services.NewLLMToolService(c.config, c.fileService)
 	} else {
 		c.toolService = services.NewNoOpToolService()
 	}
@@ -71,9 +74,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.Timeout,
 		c.toolService,
 	)
-
-	// Create file service
-	c.fileService = services.NewLocalFileService()
 }
 
 // initializeUIComponents creates UI components and theme
