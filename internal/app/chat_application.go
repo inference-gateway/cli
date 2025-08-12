@@ -40,7 +40,6 @@ type ChatApplication struct {
 
 // NewChatApplication creates a new chat application with all dependencies injected
 func NewChatApplication(services *container.ServiceContainer, models []string, defaultModel string) *ChatApplication {
-	// If default model is set, start in chat view, otherwise show model selection
 	initialView := handlers.ViewModelSelection
 	if defaultModel != "" {
 		initialView = handlers.ViewChat
