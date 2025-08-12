@@ -210,7 +210,6 @@ func (s *LocalFileService) ValidateFile(path string) error {
 		return fmt.Errorf("file path cannot be empty")
 	}
 
-	// Check if path is explicitly excluded
 	if s.isPathExcluded(path) {
 		return fmt.Errorf("file path is excluded for security: %s", path)
 	}
@@ -251,23 +250,18 @@ func (s *LocalFileService) isPathExcluded(path string) bool {
 		return false
 	}
 
-	// Clean the path for consistent matching
 	cleanPath := filepath.Clean(path)
 
-	// Convert to forward slashes for consistent pattern matching
 	normalizedPath := filepath.ToSlash(cleanPath)
 
 	for _, excludePattern := range s.config.Tools.ExcludePaths {
-		// Clean the pattern as well
 		cleanPattern := filepath.Clean(excludePattern)
 		normalizedPattern := filepath.ToSlash(cleanPattern)
 
-		// Check for exact match
 		if normalizedPath == normalizedPattern {
 			return true
 		}
 
-		// Check if pattern ends with /* for directory wildcard matching
 		if strings.HasSuffix(normalizedPattern, "/*") {
 			dirPattern := strings.TrimSuffix(normalizedPattern, "/*")
 			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
@@ -275,7 +269,6 @@ func (s *LocalFileService) isPathExcluded(path string) bool {
 			}
 		}
 
-		// Check if pattern ends with / for directory matching
 		if strings.HasSuffix(normalizedPattern, "/") {
 			dirPattern := strings.TrimSuffix(normalizedPattern, "/")
 			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
@@ -283,7 +276,6 @@ func (s *LocalFileService) isPathExcluded(path string) bool {
 			}
 		}
 
-		// Check for simple prefix matching
 		if strings.HasPrefix(normalizedPath, normalizedPattern) {
 			return true
 		}
