@@ -152,6 +152,9 @@ tools:
       - "^kubectl get pods$"
   safety:
     require_approval: true  # Prompt user before executing any command
+  exclude_paths:  # Paths excluded from tool access for security
+    - ".infer/"     # Protect infer's own configuration directory
+    - ".infer/*"    # Protect all files in infer's configuration directory
 compact:
   output_dir: ".infer"  # Directory for compact command exports (default: project root/.infer)
 chat:
@@ -177,6 +180,10 @@ chat:
         - `enable`: Enable safety approval prompts
         - `disable`: Disable safety approval prompts
         - `status`: Show current safety approval status
+      - `exclude`: Manage excluded paths for security
+        - `list`: List all excluded paths
+        - `add <path>`: Add a path to the exclusion list
+        - `remove <path>`: Remove a path from the exclusion list
   - `version`: Version information
 
 ## Dependencies
@@ -245,6 +252,11 @@ infer config tools exec "git status"
 infer config tools safety enable
 infer config tools safety disable
 infer config tools safety status
+
+# Manage excluded paths for security
+infer config tools exclude list
+infer config tools exclude add ".github/"
+infer config tools exclude remove "test.txt"
 ```
 
 ## Code Style Guidelines

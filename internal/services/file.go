@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -18,11 +19,13 @@ type LocalFileService struct {
 	excludeExts map[string]bool
 	maxFileSize int64
 	maxDepth    int
+	config      *config.Config
 }
 
 // NewLocalFileService creates a new local file service
-func NewLocalFileService() *LocalFileService {
+func NewLocalFileService(cfg *config.Config) *LocalFileService {
 	return &LocalFileService{
+		config: cfg,
 		excludeDirs: map[string]bool{
 			".git":         true,
 			".github":      true,
@@ -207,6 +210,11 @@ func (s *LocalFileService) ValidateFile(path string) error {
 		return fmt.Errorf("file path cannot be empty")
 	}
 
+	// Check if path is explicitly excluded
+	if s.isPathExcluded(path) {
+		return fmt.Errorf("file path is excluded for security: %s", path)
+	}
+
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to resolve file path: %w", err)
@@ -235,6 +243,53 @@ func (s *LocalFileService) ValidateFile(path string) error {
 	}
 
 	return nil
+}
+
+// isPathExcluded checks if a file path should be excluded based on configuration
+func (s *LocalFileService) isPathExcluded(path string) bool {
+	if s.config == nil {
+		return false
+	}
+
+	// Clean the path for consistent matching
+	cleanPath := filepath.Clean(path)
+
+	// Convert to forward slashes for consistent pattern matching
+	normalizedPath := filepath.ToSlash(cleanPath)
+
+	for _, excludePattern := range s.config.Tools.ExcludePaths {
+		// Clean the pattern as well
+		cleanPattern := filepath.Clean(excludePattern)
+		normalizedPattern := filepath.ToSlash(cleanPattern)
+
+		// Check for exact match
+		if normalizedPath == normalizedPattern {
+			return true
+		}
+
+		// Check if pattern ends with /* for directory wildcard matching
+		if strings.HasSuffix(normalizedPattern, "/*") {
+			dirPattern := strings.TrimSuffix(normalizedPattern, "/*")
+			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
+				return true
+			}
+		}
+
+		// Check if pattern ends with / for directory matching
+		if strings.HasSuffix(normalizedPattern, "/") {
+			dirPattern := strings.TrimSuffix(normalizedPattern, "/")
+			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
+				return true
+			}
+		}
+
+		// Check for simple prefix matching
+		if strings.HasPrefix(normalizedPath, normalizedPattern) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *LocalFileService) GetFileInfo(path string) (domain.FileInfo, error) {
