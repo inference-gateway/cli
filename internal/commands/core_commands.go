@@ -135,7 +135,7 @@ Keep the summary concise but informative, using bullet points where appropriate.
 	})
 
 	for _, entry := range entries {
-		if entry.Message.Role == sdk.User || entry.Message.Role == sdk.Assistant {
+		if entry.Message.Role == sdk.User || entry.Message.Role == sdk.Assistant || entry.Message.Role == sdk.Tool {
 			messages = append(messages, entry.Message)
 		}
 	}

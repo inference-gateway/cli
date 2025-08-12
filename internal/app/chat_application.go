@@ -89,14 +89,15 @@ func (app *ChatApplication) Init() tea.Cmd {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg.(type) {
-	case tea.KeyMsg:
-		// Remove excessive debug logging
-	case ui.SetStatusMsg:
-		// Status messages pass through normally
-	default:
-		// Remove excessive debug logging
-	}
+	cmds = append(cmds, app.handleCommonMessages(msg)...)
+	cmds = append(cmds, app.handleViewSpecificMessages(msg)...)
+	cmds = append(cmds, app.updateUIComponents(msg)...)
+
+	return app, tea.Batch(cmds...)
+}
+
+func (app *ChatApplication) handleCommonMessages(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
 
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		app.handleResize(windowMsg)
@@ -108,58 +109,102 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
+	return cmds
+}
+
+func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	switch app.state.CurrentView {
 	case handlers.ViewModelSelection:
-		if model, cmd := app.modelSelector.Update(msg); cmd != nil {
-			cmds = append(cmds, cmd)
-			app.modelSelector = model.(*ui.ModelSelectorImpl)
-
-			if app.modelSelector.IsSelected() {
-				app.state.CurrentView = handlers.ViewChat
-				app.focusedComponent = app.inputView
-			} else if app.modelSelector.IsCancelled() {
-				return app, tea.Quit
-			}
-		}
-
+		return app.handleModelSelectionView(msg)
 	case handlers.ViewChat:
-		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			if cmd := app.handleGlobalKeys(keyMsg); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-
-			if app.focusedComponent != nil && app.focusedComponent.CanHandle(keyMsg) {
-				if model, cmd := app.focusedComponent.HandleKey(keyMsg); cmd != nil {
-					cmds = append(cmds, cmd)
-					app.updateFocusedComponent(model)
-				}
-			}
-		}
-
+		return app.handleChatView(msg)
 	case handlers.ViewFileSelection:
-		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			if cmd := app.handleFileSelectionKeys(keyMsg); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
-
+		return app.handleFileSelectionView(msg)
 	case handlers.ViewApproval:
-		if keyMsg, ok := msg.(tea.KeyMsg); ok {
-			cmds = append(cmds, func() tea.Msg {
-				return ui.SetStatusMsg{
-					Message: fmt.Sprintf("Approval view - Key: '%s'", keyMsg.String()),
-					Spinner: false,
-				}
-			})
-			if cmd := app.handleApprovalKeys(keyMsg); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
+		return app.handleApprovalView(msg)
+	default:
+		return nil
+	}
+}
+
+func (app *ChatApplication) handleModelSelectionView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if model, cmd := app.modelSelector.Update(msg); cmd != nil {
+		cmds = append(cmds, cmd)
+		app.modelSelector = model.(*ui.ModelSelectorImpl)
+
+		if app.modelSelector.IsSelected() {
+			app.state.CurrentView = handlers.ViewChat
+			app.focusedComponent = app.inputView
+		} else if app.modelSelector.IsCancelled() {
+			cmds = append(cmds, tea.Quit)
 		}
 	}
 
-	cmds = append(cmds, app.updateUIComponents(msg)...)
+	return cmds
+}
 
-	return app, tea.Batch(cmds...)
+func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	keyMsg, ok := msg.(tea.KeyMsg)
+	if !ok {
+		return cmds
+	}
+
+	if cmd := app.handleGlobalKeys(keyMsg); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	if cmd := app.handleFocusedComponentKeys(keyMsg); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) handleFocusedComponentKeys(keyMsg tea.KeyMsg) tea.Cmd {
+	if app.focusedComponent == nil || !app.focusedComponent.CanHandle(keyMsg) {
+		return nil
+	}
+
+	model, cmd := app.focusedComponent.HandleKey(keyMsg)
+	if cmd != nil {
+		app.updateFocusedComponent(model)
+	}
+
+	return cmd
+}
+
+func (app *ChatApplication) handleFileSelectionView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		if cmd := app.handleFileSelectionKeys(keyMsg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) handleApprovalView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		cmds = append(cmds, func() tea.Msg {
+			return ui.SetStatusMsg{
+				Message: fmt.Sprintf("Approval view - Key: '%s'", keyMsg.String()),
+				Spinner: false,
+			}
+		})
+		if cmd := app.handleApprovalKeys(keyMsg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	return cmds
 }
 
 // View renders the current application view
@@ -427,9 +472,33 @@ func (app *ChatApplication) handleGlobalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
+	allFiles, searchQuery, selectedIndex := app.getFileSelectionState()
+	if allFiles == nil {
+		return nil
+	}
+
+	files := app.filterFiles(allFiles, searchQuery)
+
+	switch keyMsg.String() {
+	case "up", "k":
+		return app.handleFileNavigation(files, selectedIndex, -1)
+	case "down", "j":
+		return app.handleFileNavigation(files, selectedIndex, 1)
+	case "enter", "return":
+		return app.handleFileSelection(files, selectedIndex)
+	case "backspace":
+		return app.handleFileSearchBackspace(searchQuery)
+	case "esc":
+		return app.handleFileSelectionCancel()
+	default:
+		return app.handleFileSearchInput(keyMsg, searchQuery)
+	}
+}
+
+func (app *ChatApplication) getFileSelectionState() ([]string, string, int) {
 	allFiles, ok := app.state.Data["files"].([]string)
 	if !ok || len(allFiles) == 0 {
-		return nil
+		return nil, "", 0
 	}
 
 	searchQuery := ""
@@ -437,112 +506,123 @@ func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
 		searchQuery = query
 	}
 
-	var files []string
-	if searchQuery == "" {
-		files = allFiles
-	} else {
-		for _, file := range allFiles {
-			if strings.Contains(strings.ToLower(file), strings.ToLower(searchQuery)) {
-				files = append(files, file)
-			}
-		}
-	}
-
 	selectedIndex := 0
 	if idx, ok := app.state.Data["fileSelectedIndex"].(int); ok {
 		selectedIndex = idx
 	}
 
-	switch keyMsg.String() {
-	case "up", "k":
-		if len(files) > 0 && selectedIndex > 0 {
-			selectedIndex--
-		}
-		app.state.Data["fileSelectedIndex"] = selectedIndex
-		return nil
+	return allFiles, searchQuery, selectedIndex
+}
 
-	case "down", "j":
-		if len(files) > 0 && selectedIndex < len(files)-1 {
-			selectedIndex++
-		}
-		app.state.Data["fileSelectedIndex"] = selectedIndex
-		return nil
-
-	case "enter", "return":
-		if len(files) > 0 && selectedIndex >= 0 && selectedIndex < len(files) {
-			selectedFile := files[selectedIndex]
-			app.state.CurrentView = handlers.ViewChat
-			delete(app.state.Data, "files")
-			delete(app.state.Data, "fileSelectedIndex")
-			delete(app.state.Data, "fileSearchQuery")
-
-			currentInput := app.inputView.GetInput()
-			cursor := app.inputView.GetCursor()
-
-			atIndex := -1
-			for i := cursor - 1; i >= 0; i-- {
-				if currentInput[i] == '@' {
-					atIndex = i
-					break
-				}
-			}
-
-			var newInput string
-			var newCursor int
-			if atIndex >= 0 {
-				before := currentInput[:atIndex]
-				after := currentInput[cursor:]
-				replacement := "@" + selectedFile + " "
-				newInput = before + replacement + after
-				newCursor = atIndex + len(replacement)
-			} else {
-				newInput = currentInput + "@" + selectedFile + " "
-				newCursor = len(newInput)
-			}
-
-			if inputImpl, ok := app.inputView.(*ui.InputViewImpl); ok {
-				inputImpl.SetText(newInput)
-				inputImpl.SetCursor(newCursor)
-			}
-
-			return func() tea.Msg {
-				return ui.SetStatusMsg{
-					Message: fmt.Sprintf("📁 File selected: %s", selectedFile),
-					Spinner: false,
-				}
-			}
-		}
-		return nil
-
-	case "backspace":
-		if len(searchQuery) > 0 {
-			searchQuery = searchQuery[:len(searchQuery)-1]
-			app.state.Data["fileSearchQuery"] = searchQuery
-			app.state.Data["fileSelectedIndex"] = 0
-		}
-		return nil
-
-	case "esc":
-		app.state.CurrentView = handlers.ViewChat
-		delete(app.state.Data, "files")
-		delete(app.state.Data, "fileSelectedIndex")
-		delete(app.state.Data, "fileSearchQuery")
-		return func() tea.Msg {
-			return ui.SetStatusMsg{
-				Message: "File selection cancelled",
-				Spinner: false,
-			}
-		}
-
-	default:
-		if len(keyMsg.String()) == 1 && keyMsg.String()[0] >= 32 && keyMsg.String()[0] <= 126 {
-			char := keyMsg.String()
-			searchQuery += char
-			app.state.Data["fileSearchQuery"] = searchQuery
-			app.state.Data["fileSelectedIndex"] = 0
-		}
+func (app *ChatApplication) filterFiles(allFiles []string, searchQuery string) []string {
+	if searchQuery == "" {
+		return allFiles
 	}
 
+	var files []string
+	for _, file := range allFiles {
+		if strings.Contains(strings.ToLower(file), strings.ToLower(searchQuery)) {
+			files = append(files, file)
+		}
+	}
+	return files
+}
+
+func (app *ChatApplication) handleFileNavigation(files []string, selectedIndex, direction int) tea.Cmd {
+	if len(files) == 0 {
+		return nil
+	}
+
+	newIndex := selectedIndex + direction
+	if newIndex >= 0 && newIndex < len(files) {
+		app.state.Data["fileSelectedIndex"] = newIndex
+	}
+	return nil
+}
+
+func (app *ChatApplication) handleFileSelection(files []string, selectedIndex int) tea.Cmd {
+	if len(files) == 0 || selectedIndex < 0 || selectedIndex >= len(files) {
+		return nil
+	}
+
+	selectedFile := files[selectedIndex]
+	app.clearFileSelectionState()
+	app.updateInputWithSelectedFile(selectedFile)
+
+	return func() tea.Msg {
+		return ui.SetStatusMsg{
+			Message: fmt.Sprintf("📁 File selected: %s", selectedFile),
+			Spinner: false,
+		}
+	}
+}
+
+func (app *ChatApplication) clearFileSelectionState() {
+	app.state.CurrentView = handlers.ViewChat
+	delete(app.state.Data, "files")
+	delete(app.state.Data, "fileSelectedIndex")
+	delete(app.state.Data, "fileSearchQuery")
+}
+
+func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
+	currentInput := app.inputView.GetInput()
+	cursor := app.inputView.GetCursor()
+
+	atIndex := app.findAtSymbolIndex(currentInput, cursor)
+	newInput, newCursor := app.buildInputWithFile(currentInput, cursor, atIndex, selectedFile)
+
+	if inputImpl, ok := app.inputView.(*ui.InputViewImpl); ok {
+		inputImpl.SetText(newInput)
+		inputImpl.SetCursor(newCursor)
+	}
+}
+
+func (app *ChatApplication) findAtSymbolIndex(input string, cursor int) int {
+	for i := cursor - 1; i >= 0; i-- {
+		if input[i] == '@' {
+			return i
+		}
+	}
+	return -1
+}
+
+func (app *ChatApplication) buildInputWithFile(input string, cursor, atIndex int, selectedFile string) (string, int) {
+	replacement := "@" + selectedFile + " "
+
+	if atIndex >= 0 {
+		before := input[:atIndex]
+		after := input[cursor:]
+		return before + replacement + after, atIndex + len(replacement)
+	}
+
+	newInput := input + replacement
+	return newInput, len(newInput)
+}
+
+func (app *ChatApplication) handleFileSearchBackspace(searchQuery string) tea.Cmd {
+	if len(searchQuery) > 0 {
+		app.state.Data["fileSearchQuery"] = searchQuery[:len(searchQuery)-1]
+		app.state.Data["fileSelectedIndex"] = 0
+	}
+	return nil
+}
+
+func (app *ChatApplication) handleFileSelectionCancel() tea.Cmd {
+	app.clearFileSelectionState()
+	return func() tea.Msg {
+		return ui.SetStatusMsg{
+			Message: "File selection cancelled",
+			Spinner: false,
+		}
+	}
+}
+
+func (app *ChatApplication) handleFileSearchInput(keyMsg tea.KeyMsg, searchQuery string) tea.Cmd {
+	if len(keyMsg.String()) == 1 && keyMsg.String()[0] >= 32 && keyMsg.String()[0] <= 126 {
+		char := keyMsg.String()
+		app.state.Data["fileSearchQuery"] = searchQuery + char
+		app.state.Data["fileSelectedIndex"] = 0
+	}
 	return nil
 }
 

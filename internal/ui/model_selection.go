@@ -47,87 +47,121 @@ func (m *ModelSelectorImpl) Init() tea.Cmd {
 func (m *ModelSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		return m, nil
-
+		return m.handleWindowResize(msg)
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c":
-			m.cancelled = true
-			m.done = true
-			return m, tea.Quit
-
-		case "up", "k":
-			if m.selected > 0 {
-				m.selected--
-			}
-			return m, nil
-
-		case "down", "j":
-			if m.selected < len(m.filteredModels)-1 {
-				m.selected++
-			}
-			return m, nil
-
-		case "enter", " ":
-			if len(m.filteredModels) > 0 {
-				selectedModel := m.filteredModels[m.selected]
-				// Select the model
-				if err := m.modelService.SelectModel(selectedModel); err == nil {
-					m.done = true
-					return m, func() tea.Msg {
-						return ModelSelectedMsg{Model: selectedModel}
-					}
-				}
-			}
-			return m, nil
-
-		case "esc":
-			if m.searchMode {
-				m.searchMode = false
-				m.searchQuery = ""
-				m.filterModels()
-				m.selected = 0
-				return m, nil
-			}
-			m.cancelled = true
-			m.done = true
-			return m, tea.Quit
-
-		case "/":
-			m.searchMode = true
-			return m, nil
-
-		case "backspace":
-			if m.searchMode && len(m.searchQuery) > 0 {
-				m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
-				m.filterModels()
-				m.selected = 0
-			}
-			return m, nil
-
-		default:
-			if m.searchMode && len(msg.String()) == 1 && msg.String()[0] >= 32 {
-				m.searchQuery += msg.String()
-				m.filterModels()
-				m.selected = 0
-			}
-			return m, nil
-		}
+		return m.handleKeyInput(msg)
 	}
 
 	return m, nil
 }
 
+func (m *ModelSelectorImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
+	m.width = msg.Width
+	m.height = msg.Height
+	return m, nil
+}
+
+func (m *ModelSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "ctrl+c":
+		return m.handleCancel()
+	case "up", "k":
+		return m.handleNavigationUp()
+	case "down", "j":
+		return m.handleNavigationDown()
+	case "enter", " ":
+		return m.handleSelection()
+	case "esc":
+		return m.handleEscape()
+	case "/":
+		return m.handleSearchToggle()
+	case "backspace":
+		return m.handleBackspace()
+	default:
+		return m.handleCharacterInput(msg)
+	}
+}
+
+func (m *ModelSelectorImpl) handleCancel() (tea.Model, tea.Cmd) {
+	m.cancelled = true
+	m.done = true
+	return m, tea.Quit
+}
+
+func (m *ModelSelectorImpl) handleNavigationUp() (tea.Model, tea.Cmd) {
+	if m.selected > 0 {
+		m.selected--
+	}
+	return m, nil
+}
+
+func (m *ModelSelectorImpl) handleNavigationDown() (tea.Model, tea.Cmd) {
+	if m.selected < len(m.filteredModels)-1 {
+		m.selected++
+	}
+	return m, nil
+}
+
+func (m *ModelSelectorImpl) handleSelection() (tea.Model, tea.Cmd) {
+	if len(m.filteredModels) > 0 {
+		selectedModel := m.filteredModels[m.selected]
+		if err := m.modelService.SelectModel(selectedModel); err == nil {
+			m.done = true
+			return m, func() tea.Msg {
+				return ModelSelectedMsg{Model: selectedModel}
+			}
+		}
+	}
+	return m, nil
+}
+
+func (m *ModelSelectorImpl) handleEscape() (tea.Model, tea.Cmd) {
+	if m.searchMode {
+		m.exitSearchMode()
+		return m, nil
+	}
+	return m.handleCancel()
+}
+
+func (m *ModelSelectorImpl) handleSearchToggle() (tea.Model, tea.Cmd) {
+	m.searchMode = true
+	return m, nil
+}
+
+func (m *ModelSelectorImpl) handleBackspace() (tea.Model, tea.Cmd) {
+	if m.searchMode && len(m.searchQuery) > 0 {
+		m.searchQuery = m.searchQuery[:len(m.searchQuery)-1]
+		m.updateSearch()
+	}
+	return m, nil
+}
+
+func (m *ModelSelectorImpl) handleCharacterInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if m.searchMode && len(msg.String()) == 1 && msg.String()[0] >= 32 {
+		m.searchQuery += msg.String()
+		m.updateSearch()
+	}
+	return m, nil
+}
+
+func (m *ModelSelectorImpl) exitSearchMode() {
+	m.searchMode = false
+	m.searchQuery = ""
+	m.filterModels()
+	m.selected = 0
+}
+
+func (m *ModelSelectorImpl) updateSearch() {
+	m.filterModels()
+	m.selected = 0
+}
+
 func (m *ModelSelectorImpl) View() string {
 	var b strings.Builder
 
-	// Header
 	b.WriteString(fmt.Sprintf("%s🤖 Select a Model%s\n\n",
 		m.theme.GetAccentColor(), "\033[0m"))
 
-	// Search box
 	if m.searchMode {
 		b.WriteString(fmt.Sprintf("%sSearch: %s%s│%s\n\n",
 			m.theme.GetStatusColor(), m.searchQuery, m.theme.GetAccentColor(), "\033[0m"))
@@ -147,8 +181,7 @@ func (m *ModelSelectorImpl) View() string {
 		return b.String()
 	}
 
-	// Model list
-	maxVisible := m.height - 10 // Reserve space for header, search, and footer
+	maxVisible := m.height - 10
 	if maxVisible > len(m.filteredModels) {
 		maxVisible = len(m.filteredModels)
 	}
@@ -174,7 +207,6 @@ func (m *ModelSelectorImpl) View() string {
 			m.theme.GetDimColor(), start+1, start+maxVisible, len(m.filteredModels), "\033[0m"))
 	}
 
-	// Footer
 	b.WriteString("\n")
 	b.WriteString(strings.Repeat("─", m.width))
 	b.WriteString("\n")

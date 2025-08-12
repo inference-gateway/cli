@@ -124,45 +124,47 @@ func (s *HTTPModelService) ValidateModel(modelID string) error {
 	}
 
 	s.modelsMux.RLock()
-	if len(s.models) > 0 {
-		available := false
-		for _, model := range s.models {
-			if model == modelID {
-				available = true
-				break
-			}
-		}
-		s.modelsMux.RUnlock()
+	cachedModels := s.models
+	s.modelsMux.RUnlock()
 
-		if !available {
-			return fmt.Errorf("model '%s' is not available", modelID)
-		}
-	} else {
-		s.modelsMux.RUnlock()
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-		defer cancel()
+	if len(cachedModels) > 0 {
+		return s.validateAgainstCachedModels(modelID, cachedModels)
+	}
 
-		models, err := s.ListModels(ctx)
-		if err != nil {
-			if !isValidModelFormat(modelID) {
-				return fmt.Errorf("invalid model ID format: %s", modelID)
-			}
+	return s.validateAgainstFetchedModels(modelID)
+}
+
+func (s *HTTPModelService) validateAgainstCachedModels(modelID string, models []string) error {
+	for _, model := range models {
+		if model == modelID {
 			return nil
 		}
+	}
+	return fmt.Errorf("model '%s' is not available", modelID)
+}
 
-		available := false
-		for _, model := range models {
-			if model == modelID {
-				available = true
-				break
-			}
-		}
+func (s *HTTPModelService) validateAgainstFetchedModels(modelID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-		if !available {
-			return fmt.Errorf("model '%s' is not available", modelID)
+	models, err := s.ListModels(ctx)
+	if err != nil {
+		return s.handleListModelsError(modelID, err)
+	}
+
+	for _, model := range models {
+		if model == modelID {
+			return nil
 		}
 	}
 
+	return fmt.Errorf("model '%s' is not available", modelID)
+}
+
+func (s *HTTPModelService) handleListModelsError(modelID string, err error) error {
+	if !isValidModelFormat(modelID) {
+		return fmt.Errorf("invalid model ID format: %s", modelID)
+	}
 	return nil
 }
 

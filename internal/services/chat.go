@@ -53,14 +53,31 @@ func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolSer
 }
 
 func (s *StreamingChatService) SendMessage(ctx context.Context, model string, messages []sdk.Message) (<-chan domain.ChatEvent, error) {
+	if err := s.validateSendMessageParams(model, messages); err != nil {
+		return nil, err
+	}
+
+	messages = s.addToolsIfAvailable(messages)
+	requestID := generateRequestID()
+	timeoutCtx, cancel := s.setupRequest(ctx, requestID)
+	events := make(chan domain.ChatEvent, 100)
+
+	go s.processStreamingRequest(timeoutCtx, cancel, requestID, model, messages, events)
+
+	return events, nil
+}
+
+func (s *StreamingChatService) validateSendMessageParams(model string, messages []sdk.Message) error {
 	if len(messages) == 0 {
-		return nil, fmt.Errorf("no messages provided")
+		return fmt.Errorf("no messages provided")
 	}
-
 	if model == "" {
-		return nil, fmt.Errorf("no model specified")
+		return fmt.Errorf("no model specified")
 	}
+	return nil
+}
 
+func (s *StreamingChatService) addToolsIfAvailable(messages []sdk.Message) []sdk.Message {
 	if s.toolService != nil {
 		availableTools := s.toolService.ListTools()
 		if len(availableTools) > 0 {
@@ -68,149 +85,193 @@ func (s *StreamingChatService) SendMessage(ctx context.Context, model string, me
 			messages = append([]sdk.Message{toolsMessage}, messages...)
 		}
 	}
+	return messages
+}
 
-	requestID := generateRequestID()
-
+func (s *StreamingChatService) setupRequest(ctx context.Context, requestID string) (context.Context, context.CancelFunc) {
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
 
 	s.requestsMux.Lock()
 	s.activeRequests[requestID] = cancel
 	s.requestsMux.Unlock()
 
-	events := make(chan domain.ChatEvent, 100)
+	return timeoutCtx, cancel
+}
 
-	go func() {
-		defer close(events)
-		defer cancel()
-		defer func() {
-			s.requestsMux.Lock()
-			delete(s.activeRequests, requestID)
-			s.requestsMux.Unlock()
-		}()
+func (s *StreamingChatService) processStreamingRequest(timeoutCtx context.Context, cancel context.CancelFunc, requestID, model string, messages []sdk.Message, events chan<- domain.ChatEvent) {
+	defer close(events)
+	defer cancel()
+	defer s.cleanupRequest(requestID)
 
-		startTime := time.Now()
+	startTime := time.Now()
+	s.sendStartEvent(events, requestID, startTime)
+	s.initializeMetrics(requestID)
 
-		events <- domain.ChatStartEvent{
-			RequestID: requestID,
-			Timestamp: startTime,
-		}
+	stream, err := s.createContentStream(timeoutCtx, model, messages)
+	if err != nil {
+		s.sendErrorEvent(events, requestID, err)
+		return
+	}
 
-		s.metricsMux.Lock()
-		s.metrics[requestID] = &domain.ChatMetrics{
-			Duration: 0,
-			Usage:    nil,
-		}
-		s.metricsMux.Unlock()
+	s.processEventStream(timeoutCtx, stream, events, requestID, startTime)
+}
 
-		provider, modelName, err := s.parseProvider(model)
-		if err != nil {
-			events <- domain.ChatErrorEvent{
-				RequestID: requestID,
-				Timestamp: time.Now(),
-				Error:     fmt.Errorf("failed to parse provider from model '%s': %w", model, err),
-			}
+func (s *StreamingChatService) cleanupRequest(requestID string) {
+	s.requestsMux.Lock()
+	delete(s.activeRequests, requestID)
+	s.requestsMux.Unlock()
+}
+
+func (s *StreamingChatService) sendStartEvent(events chan<- domain.ChatEvent, requestID string, startTime time.Time) {
+	events <- domain.ChatStartEvent{
+		RequestID: requestID,
+		Timestamp: startTime,
+	}
+}
+
+func (s *StreamingChatService) initializeMetrics(requestID string) {
+	s.metricsMux.Lock()
+	s.metrics[requestID] = &domain.ChatMetrics{
+		Duration: 0,
+		Usage:    nil,
+	}
+	s.metricsMux.Unlock()
+}
+
+func (s *StreamingChatService) createContentStream(timeoutCtx context.Context, model string, messages []sdk.Message) (<-chan sdk.SSEvent, error) {
+	provider, modelName, err := s.parseProvider(model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
+	}
+
+	providerType := sdk.Provider(provider)
+	stream, err := s.client.GenerateContentStream(timeoutCtx, providerType, modelName, messages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate content stream: %w", err)
+	}
+
+	return stream, nil
+}
+
+func (s *StreamingChatService) sendErrorEvent(events chan<- domain.ChatEvent, requestID string, err error) {
+	events <- domain.ChatErrorEvent{
+		RequestID: requestID,
+		Timestamp: time.Now(),
+		Error:     err,
+	}
+}
+
+func (s *StreamingChatService) processEventStream(timeoutCtx context.Context, stream <-chan sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, startTime time.Time) {
+	var fullMessage strings.Builder
+	var toolCalls []sdk.ChatCompletionMessageToolCall
+	var usage *sdk.CompletionUsage
+
+	for {
+		select {
+		case <-timeoutCtx.Done():
+			s.handleTimeout(events, requestID, timeoutCtx)
 			return
-		}
 
-		providerType := sdk.Provider(provider)
-		stream, err := s.client.GenerateContentStream(timeoutCtx, providerType, modelName, messages)
-		if err != nil {
-			events <- domain.ChatErrorEvent{
-				RequestID: requestID,
-				Timestamp: time.Now(),
-				Error:     fmt.Errorf("failed to generate content stream: %w", err),
-			}
-			return
-		}
-
-		var fullMessage strings.Builder
-		var toolCalls []sdk.ChatCompletionMessageToolCall
-		var usage *sdk.CompletionUsage
-
-		for {
-			select {
-			case <-timeoutCtx.Done():
-				var errorMsg string
-				if timeoutCtx.Err() == context.DeadlineExceeded {
-					errorMsg = fmt.Sprintf("request timed out after %d seconds", s.timeoutSeconds)
-				} else {
-					errorMsg = "request cancelled by user"
-				}
-
-				events <- domain.ChatErrorEvent{
-					RequestID: requestID,
-					Timestamp: time.Now(),
-					Error:     errors.New(errorMsg),
-				}
+		case event, ok := <-stream:
+			if !ok {
+				s.sendCompleteEvent(events, requestID, startTime, fullMessage.String(), toolCalls, usage)
 				return
+			}
 
-			case event, ok := <-stream:
-				if !ok {
-					duration := time.Since(startTime)
+			if event.Event == nil {
+				continue
+			}
 
-					s.metricsMux.Lock()
-					if metrics, exists := s.metrics[requestID]; exists {
-						metrics.Duration = duration
-						metrics.Usage = usage
-					}
-					s.metricsMux.Unlock()
-
-					events <- domain.ChatCompleteEvent{
-						RequestID: requestID,
-						Timestamp: time.Now(),
-						Message:   fullMessage.String(),
-						ToolCalls: toolCalls,
-						Metrics:   s.metrics[requestID],
-					}
-					return
-				}
-
-				if event.Event == nil {
-					continue
-				}
-
-				switch *event.Event {
-				case sdk.ContentDelta:
-					chunk, toolCallsChunk, usageChunk := s.processContentDelta(event)
-					if chunk != "" {
-						fullMessage.WriteString(chunk)
-						events <- domain.ChatChunkEvent{
-							RequestID: requestID,
-							Timestamp: time.Now(),
-							Content:   chunk,
-							ToolCalls: toolCallsChunk,
-							Delta:     true,
-						}
-					}
-					if len(toolCallsChunk) > 0 {
-						toolCalls = append(toolCalls, toolCallsChunk...)
-					}
-					if usageChunk != nil {
-						usage = usageChunk
-					}
-
-				case sdk.StreamEnd:
-					continue
-
-				case "error":
-					var errResp struct {
-						Error string `json:"error"`
-					}
-					if event.Data != nil {
-						_ = json.Unmarshal(*event.Data, &errResp)
-					}
-					events <- domain.ChatErrorEvent{
-						RequestID: requestID,
-						Timestamp: time.Now(),
-						Error:     fmt.Errorf("stream error: %s", errResp.Error),
-					}
-					return
-				}
+			if s.handleStreamEvent(event, events, requestID, &fullMessage, &toolCalls, &usage) {
+				return
 			}
 		}
-	}()
+	}
+}
 
-	return events, nil
+func (s *StreamingChatService) handleTimeout(events chan<- domain.ChatEvent, requestID string, timeoutCtx context.Context) {
+	var errorMsg string
+	if timeoutCtx.Err() == context.DeadlineExceeded {
+		errorMsg = fmt.Sprintf("request timed out after %d seconds", s.timeoutSeconds)
+	} else {
+		errorMsg = "request cancelled by user"
+	}
+
+	events <- domain.ChatErrorEvent{
+		RequestID: requestID,
+		Timestamp: time.Now(),
+		Error:     errors.New(errorMsg),
+	}
+}
+
+func (s *StreamingChatService) sendCompleteEvent(events chan<- domain.ChatEvent, requestID string, startTime time.Time, message string, toolCalls []sdk.ChatCompletionMessageToolCall, usage *sdk.CompletionUsage) {
+	duration := time.Since(startTime)
+
+	s.metricsMux.Lock()
+	if metrics, exists := s.metrics[requestID]; exists {
+		metrics.Duration = duration
+		metrics.Usage = usage
+	}
+	s.metricsMux.Unlock()
+
+	events <- domain.ChatCompleteEvent{
+		RequestID: requestID,
+		Timestamp: time.Now(),
+		Message:   message,
+		ToolCalls: toolCalls,
+		Metrics:   s.metrics[requestID],
+	}
+}
+
+func (s *StreamingChatService) handleStreamEvent(event sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, fullMessage *strings.Builder, toolCalls *[]sdk.ChatCompletionMessageToolCall, usage **sdk.CompletionUsage) bool {
+	switch *event.Event {
+	case sdk.ContentDelta:
+		s.handleContentDelta(event, events, requestID, fullMessage, toolCalls, usage)
+		return false
+
+	case sdk.StreamEnd:
+		return false
+
+	case "error":
+		s.handleStreamError(event, events, requestID)
+		return true
+	}
+
+	return false
+}
+
+func (s *StreamingChatService) handleContentDelta(event sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, fullMessage *strings.Builder, toolCalls *[]sdk.ChatCompletionMessageToolCall, usage **sdk.CompletionUsage) {
+	chunk, toolCallsChunk, usageChunk := s.processContentDelta(event)
+	if chunk != "" {
+		fullMessage.WriteString(chunk)
+		events <- domain.ChatChunkEvent{
+			RequestID: requestID,
+			Timestamp: time.Now(),
+			Content:   chunk,
+			ToolCalls: toolCallsChunk,
+			Delta:     true,
+		}
+	}
+	if len(toolCallsChunk) > 0 {
+		*toolCalls = append(*toolCalls, toolCallsChunk...)
+	}
+	if usageChunk != nil {
+		*usage = usageChunk
+	}
+}
+
+func (s *StreamingChatService) handleStreamError(event sdk.SSEvent, events chan<- domain.ChatEvent, requestID string) {
+	var errResp struct {
+		Error string `json:"error"`
+	}
+	if event.Data != nil {
+		_ = json.Unmarshal(*event.Data, &errResp)
+	}
+	events <- domain.ChatErrorEvent{
+		RequestID: requestID,
+		Timestamp: time.Now(),
+		Error:     fmt.Errorf("stream error: %s", errResp.Error),
+	}
 }
 
 func (s *StreamingChatService) CancelRequest(requestID string) error {
@@ -290,23 +351,7 @@ func (s *StreamingChatService) createToolsSystemMessage(tools []domain.ToolDefin
 	toolDescriptions = append(toolDescriptions, "You have access to the following tools:")
 
 	for _, tool := range tools {
-		description := fmt.Sprintf("\n- **%s**: %s", tool.Name, tool.Description)
-
-		if tool.Parameters != nil {
-			if paramMap, ok := tool.Parameters.(map[string]interface{}); ok {
-				if props, ok := paramMap["properties"].(map[string]interface{}); ok {
-					description += "\n  Parameters:"
-					for paramName, paramInfo := range props {
-						if paramInfoMap, ok := paramInfo.(map[string]interface{}); ok {
-							if desc, ok := paramInfoMap["description"].(string); ok {
-								description += fmt.Sprintf("\n    - %s: %s", paramName, desc)
-							}
-						}
-					}
-				}
-			}
-		}
-
+		description := s.formatToolDescription(tool)
 		toolDescriptions = append(toolDescriptions, description)
 	}
 
@@ -316,6 +361,55 @@ func (s *StreamingChatService) createToolsSystemMessage(tools []domain.ToolDefin
 		Role:    sdk.System,
 		Content: strings.Join(toolDescriptions, ""),
 	}
+}
+
+func (s *StreamingChatService) formatToolDescription(tool domain.ToolDefinition) string {
+	description := fmt.Sprintf("\n- **%s**: %s", tool.Name, tool.Description)
+
+	if tool.Parameters != nil {
+		parameterDescription := s.formatToolParameters(tool.Parameters)
+		if parameterDescription != "" {
+			description += parameterDescription
+		}
+	}
+
+	return description
+}
+
+func (s *StreamingChatService) formatToolParameters(parameters interface{}) string {
+	paramMap, ok := parameters.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	props, ok := paramMap["properties"].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	description := "\n  Parameters:"
+	for paramName, paramInfo := range props {
+		paramDesc := s.extractParameterDescription(paramInfo)
+		if paramDesc != "" {
+			description += fmt.Sprintf("\n    - %s: %s", paramName, paramDesc)
+		}
+	}
+
+	return description
+}
+
+func (s *StreamingChatService) extractParameterDescription(paramInfo interface{}) string {
+	paramInfoMap, ok := paramInfo.(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	desc, ok := paramInfoMap["description"].(string)
+	if !ok {
+		return ""
+	}
+
+	return desc
 }
 
 // generateRequestID generates a unique request ID

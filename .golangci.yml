@@ -1,0 +1,41 @@
+version: "2"
+
+run:
+  timeout: 5m
+  tests: true
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - ineffassign
+    - staticcheck
+    - unused
+    - gocyclo
+    - cyclop
+    - funlen
+    - gocognit
+    - nestif
+  disable:
+    - exhaustruct
+    - varnamelen
+    - wrapcheck
+    - paralleltest
+    - testpackage
+  settings:
+    gocyclo:
+      min-complexity: 25
+    cyclop:
+      max-complexity: 25
+      package-average: 15.0
+    funlen:
+      lines: 150
+      statements: 80
+    gocognit:
+      min-complexity: 25
+    nestif:
+      min-complexity: 4
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0

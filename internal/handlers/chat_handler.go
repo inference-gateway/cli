@@ -571,77 +571,93 @@ func (h *ChatMessageHandler) processFileReferences(content string) string {
 
 	return fileRefRegex.ReplaceAllStringFunc(content, func(match string) string {
 		filename := match[1:]
-
-		var fullPath string
-		if filepath.IsAbs(filename) {
-			fullPath = filename
-		} else {
-			cwd, err := os.Getwd()
-			if err != nil {
-				return fmt.Sprintf("\n[Error: Could not determine working directory for file %s: %v]\n", filename, err)
-			}
-			fullPath = filepath.Join(cwd, filename)
-		}
-
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			return fmt.Sprintf("\n[Error: File not found: %s]\n", filename)
-		}
-
-		content, err := os.ReadFile(fullPath)
-		if err != nil {
-			return fmt.Sprintf("\n[Error: Could not read file %s: %v]\n", filename, err)
-		}
-
-		const maxFileSize = 50 * 1024 // 50KB
-		if len(content) > maxFileSize {
-			return fmt.Sprintf("\n[Error: File %s is too large (%d bytes). Maximum size is %d bytes.]\n", filename, len(content), maxFileSize)
-		}
-
-		ext := strings.ToLower(filepath.Ext(filename))
-		var language string
-		switch ext {
-		case ".go":
-			language = "go"
-		case ".js", ".jsx":
-			language = "javascript"
-		case ".ts", ".tsx":
-			language = "typescript"
-		case ".py":
-			language = "python"
-		case ".java":
-			language = "java"
-		case ".c", ".h":
-			language = "c"
-		case ".cpp", ".cc", ".cxx", ".hpp":
-			language = "cpp"
-		case ".rs":
-			language = "rust"
-		case ".rb":
-			language = "ruby"
-		case ".php":
-			language = "php"
-		case ".sh":
-			language = "bash"
-		case ".sql":
-			language = "sql"
-		case ".html", ".htm":
-			language = "html"
-		case ".css":
-			language = "css"
-		case ".xml":
-			language = "xml"
-		case ".json":
-			language = "json"
-		case ".yaml", ".yml":
-			language = "yaml"
-		case ".md":
-			language = "markdown"
-		default:
-			language = "text"
-		}
-
-		return fmt.Sprintf("\n\n📁 **File: %s**\n```%s\n%s\n```\n", filename, language, string(content))
+		return h.processFileReference(filename)
 	})
+}
+
+func (h *ChatMessageHandler) processFileReference(filename string) string {
+	fullPath, err := h.resolveFilePath(filename)
+	if err != nil {
+		return fmt.Sprintf("\n[Error: Could not determine working directory for file %s: %v]\n", filename, err)
+	}
+
+	content, err := h.readAndValidateFile(fullPath, filename)
+	if err != nil {
+		return fmt.Sprintf("\n[Error: %v]\n", err)
+	}
+
+	language := h.getLanguageFromExtension(filename)
+	return fmt.Sprintf("\n\n📁 **File: %s**\n```%s\n%s\n```\n", filename, language, string(content))
+}
+
+func (h *ChatMessageHandler) resolveFilePath(filename string) (string, error) {
+	if filepath.IsAbs(filename) {
+		return filename, nil
+	}
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Join(cwd, filename), nil
+}
+
+func (h *ChatMessageHandler) readAndValidateFile(fullPath, filename string) ([]byte, error) {
+	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("file not found: %s", filename)
+	}
+
+	content, err := os.ReadFile(fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not read file %s: %v", filename, err)
+	}
+
+	const maxFileSize = 50 * 1024 // 50KB
+	if len(content) > maxFileSize {
+		return nil, fmt.Errorf("file %s is too large (%d bytes). Maximum size is %d bytes", filename, len(content), maxFileSize)
+	}
+
+	return content, nil
+}
+
+func (h *ChatMessageHandler) getLanguageFromExtension(filename string) string {
+	ext := strings.ToLower(filepath.Ext(filename))
+
+	languageMap := map[string]string{
+		".go":   "go",
+		".js":   "javascript",
+		".jsx":  "javascript",
+		".ts":   "typescript",
+		".tsx":  "typescript",
+		".py":   "python",
+		".java": "java",
+		".c":    "c",
+		".h":    "c",
+		".cpp":  "cpp",
+		".cc":   "cpp",
+		".cxx":  "cpp",
+		".hpp":  "cpp",
+		".rs":   "rust",
+		".rb":   "ruby",
+		".php":  "php",
+		".sh":   "bash",
+		".sql":  "sql",
+		".html": "html",
+		".htm":  "html",
+		".css":  "css",
+		".xml":  "xml",
+		".json": "json",
+		".yaml": "yaml",
+		".yml":  "yaml",
+		".md":   "markdown",
+	}
+
+	if language, exists := languageMap[ext]; exists {
+		return language
+	}
+
+	return "text"
 }
 
 // performExport performs the export operation in background and returns the result

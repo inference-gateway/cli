@@ -82,7 +82,6 @@ func (s *LocalFileService) ListProjectFiles() ([]string, error) {
 
 	err = filepath.WalkDir(cwd, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			// Skip errors but continue walking
 			return nil
 		}
 
@@ -91,42 +90,14 @@ func (s *LocalFileService) ListProjectFiles() ([]string, error) {
 			return nil
 		}
 
-		depth := strings.Count(relPath, string(filepath.Separator))
-
-		if d.IsDir() && depth >= s.maxDepth {
-			return filepath.SkipDir
-		}
-
 		if d.IsDir() {
-			if s.excludeDirs[d.Name()] {
-				return filepath.SkipDir
-			}
-
-			if strings.HasPrefix(d.Name(), ".") && relPath != "." {
-				return filepath.SkipDir
-			}
-
-			return nil
+			return s.handleDirectory(d, relPath)
 		}
 
-		if !d.Type().IsRegular() {
-			return nil
+		if s.shouldIncludeFile(d, relPath) {
+			files = append(files, relPath)
 		}
 
-		ext := strings.ToLower(filepath.Ext(relPath))
-		if s.excludeExts[ext] {
-			return nil
-		}
-
-		if info, err := d.Info(); err == nil && info.Size() > s.maxFileSize {
-			return nil
-		}
-
-		if strings.HasPrefix(d.Name(), ".") {
-			return nil
-		}
-
-		files = append(files, relPath)
 		return nil
 	})
 
@@ -136,6 +107,45 @@ func (s *LocalFileService) ListProjectFiles() ([]string, error) {
 
 	sort.Strings(files)
 	return files, nil
+}
+
+func (s *LocalFileService) handleDirectory(d fs.DirEntry, relPath string) error {
+	depth := strings.Count(relPath, string(filepath.Separator))
+
+	if depth >= s.maxDepth {
+		return filepath.SkipDir
+	}
+
+	if s.excludeDirs[d.Name()] {
+		return filepath.SkipDir
+	}
+
+	if strings.HasPrefix(d.Name(), ".") && relPath != "." {
+		return filepath.SkipDir
+	}
+
+	return nil
+}
+
+func (s *LocalFileService) shouldIncludeFile(d fs.DirEntry, relPath string) bool {
+	if !d.Type().IsRegular() {
+		return false
+	}
+
+	if strings.HasPrefix(d.Name(), ".") {
+		return false
+	}
+
+	ext := strings.ToLower(filepath.Ext(relPath))
+	if s.excludeExts[ext] {
+		return false
+	}
+
+	if info, err := d.Info(); err == nil && info.Size() > s.maxFileSize {
+		return false
+	}
+
+	return true
 }
 
 func (s *LocalFileService) ReadFile(path string) (string, error) {
