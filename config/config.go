@@ -34,9 +34,10 @@ type OutputConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled   bool                `yaml:"enabled"`
-	Whitelist ToolWhitelistConfig `yaml:"whitelist"`
-	Safety    SafetyConfig        `yaml:"safety"`
+	Enabled      bool                `yaml:"enabled"`
+	Whitelist    ToolWhitelistConfig `yaml:"whitelist"`
+	Safety       SafetyConfig        `yaml:"safety"`
+	ExcludePaths []string            `yaml:"exclude_paths"`
 }
 
 // ToolWhitelistConfig contains whitelisted commands and patterns
@@ -76,7 +77,7 @@ func DefaultConfig() *Config {
 			Enabled: true,
 			Whitelist: ToolWhitelistConfig{
 				Commands: []string{
-					"ls", "pwd", "echo", "cat", "head", "tail",
+					"ls", "pwd", "echo",
 					"grep", "find", "wc", "sort", "uniq",
 				},
 				Patterns: []string{
@@ -88,6 +89,10 @@ func DefaultConfig() *Config {
 			},
 			Safety: SafetyConfig{
 				RequireApproval: true,
+			},
+			ExcludePaths: []string{
+				".infer/",
+				".infer/*",
 			},
 		},
 		Compact: CompactConfig{

@@ -204,8 +204,7 @@ func (s *LLMToolService) executeRead(filePath string, startLine, endLine int) (*
 	}
 
 	if err != nil {
-		result.Error = err.Error()
-		return result, nil
+		return nil, err
 	}
 
 	result.Content = content
@@ -308,7 +307,7 @@ func (s *LLMToolService) executeReadTool(args map[string]interface{}) (string, e
 
 	result, err := s.executeRead(filePath, startLine, endLine)
 	if err != nil {
-		return "", fmt.Errorf("file read failed: %w", err)
+		return "", err
 	}
 
 	if format == "json" {

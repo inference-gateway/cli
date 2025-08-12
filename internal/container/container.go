@@ -55,7 +55,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.APIKey,
 	)
 
-	c.fileService = services.NewLocalFileService()
+	c.fileService = services.NewLocalFileService(c.config)
 
 	if c.config.Tools.Enabled {
 		c.toolService = services.NewLLMToolService(c.config, c.fileService)

@@ -130,6 +130,35 @@ var configToolsSafetyStatusCmd = &cobra.Command{
 	RunE:  safetyStatus,
 }
 
+var configToolsExcludePathCmd = &cobra.Command{
+	Use:   "exclude-path",
+	Short: "Manage excluded paths",
+	Long:  `Manage paths that are excluded from tool access for security purposes.`,
+}
+
+var configToolsExcludePathListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List excluded paths",
+	Long:  `Display all paths that are excluded from tool access.`,
+	RunE:  listExcludedPaths,
+}
+
+var configToolsExcludePathAddCmd = &cobra.Command{
+	Use:   "add <path>",
+	Short: "Add a path to the exclusion list",
+	Long:  `Add a path to the exclusion list to prevent tools from accessing it.`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  addExcludedPath,
+}
+
+var configToolsExcludePathRemoveCmd = &cobra.Command{
+	Use:   "remove <path>",
+	Short: "Remove a path from the exclusion list",
+	Long:  `Remove a path from the exclusion list to allow tools to access it again.`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  removeExcludedPath,
+}
+
 func setDefaultModel(modelName string) error {
 	cfg, err := config.LoadConfig("")
 	if err != nil {
@@ -158,10 +187,15 @@ func init() {
 	configToolsCmd.AddCommand(configToolsValidateCmd)
 	configToolsCmd.AddCommand(configToolsExecCmd)
 	configToolsCmd.AddCommand(configToolsSafetyCmd)
+	configToolsCmd.AddCommand(configToolsExcludePathCmd)
 
 	configToolsSafetyCmd.AddCommand(configToolsSafetyEnableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyDisableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyStatusCmd)
+
+	configToolsExcludePathCmd.AddCommand(configToolsExcludePathListCmd)
+	configToolsExcludePathCmd.AddCommand(configToolsExcludePathAddCmd)
+	configToolsExcludePathCmd.AddCommand(configToolsExcludePathRemoveCmd)
 
 	configInitCmd.Flags().Bool("overwrite", false, "Overwrite existing configuration file")
 	configToolsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
@@ -208,9 +242,10 @@ func listTools(cmd *cobra.Command, args []string) error {
 
 	if format == "json" {
 		data := map[string]interface{}{
-			"enabled":  cfg.Tools.Enabled,
-			"commands": cfg.Tools.Whitelist.Commands,
-			"patterns": cfg.Tools.Whitelist.Patterns,
+			"enabled":       cfg.Tools.Enabled,
+			"commands":      cfg.Tools.Whitelist.Commands,
+			"patterns":      cfg.Tools.Whitelist.Patterns,
+			"exclude_paths": cfg.Tools.ExcludePaths,
 			"safety": map[string]bool{
 				"require_approval": cfg.Tools.Safety.RequireApproval,
 			},
@@ -238,6 +273,15 @@ func listTools(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\nWhitelisted Patterns (%d):\n", len(cfg.Tools.Whitelist.Patterns))
 	for _, pattern := range cfg.Tools.Whitelist.Patterns {
 		fmt.Printf("  • %s\n", pattern)
+	}
+
+	fmt.Printf("\nExcluded Paths (%d):\n", len(cfg.Tools.ExcludePaths))
+	if len(cfg.Tools.ExcludePaths) == 0 {
+		fmt.Printf("  • None\n")
+	} else {
+		for _, path := range cfg.Tools.ExcludePaths {
+			fmt.Printf("  • %s\n", path)
+		}
 	}
 
 	fmt.Printf("\nSafety Settings:\n")
@@ -380,4 +424,70 @@ func getConfigPath() string {
 		configPath = ".infer.yaml"
 	}
 	return configPath
+}
+
+func listExcludedPaths(cmd *cobra.Command, args []string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if len(cfg.Tools.ExcludePaths) == 0 {
+		fmt.Println("No paths are currently excluded.")
+		return nil
+	}
+
+	fmt.Printf("Excluded Paths (%d):\n", len(cfg.Tools.ExcludePaths))
+	for _, path := range cfg.Tools.ExcludePaths {
+		fmt.Printf("  • %s\n", path)
+	}
+
+	return nil
+}
+
+func addExcludedPath(cmd *cobra.Command, args []string) error {
+	pathToAdd := args[0]
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		for _, existingPath := range c.Tools.ExcludePaths {
+			if existingPath == pathToAdd {
+				return
+			}
+		}
+		c.Tools.ExcludePaths = append(c.Tools.ExcludePaths, pathToAdd)
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Added '%s' to excluded paths", pathToAdd)))
+	fmt.Printf("Tools will no longer be able to access this path\n")
+	return nil
+}
+
+func removeExcludedPath(cmd *cobra.Command, args []string) error {
+	pathToRemove := args[0]
+	var found bool
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		for i, existingPath := range c.Tools.ExcludePaths {
+			if existingPath == pathToRemove {
+				c.Tools.ExcludePaths = append(c.Tools.ExcludePaths[:i], c.Tools.ExcludePaths[i+1:]...)
+				found = true
+				return
+			}
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	if !found {
+		fmt.Printf("%s\n", ui.FormatWarning(fmt.Sprintf("Path '%s' was not in the excluded paths list", pathToRemove)))
+		return nil
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed '%s' from excluded paths", pathToRemove)))
+	fmt.Printf("Tools can now access this path again\n")
+	return nil
 }

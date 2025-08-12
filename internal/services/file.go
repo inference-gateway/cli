@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -18,11 +19,13 @@ type LocalFileService struct {
 	excludeExts map[string]bool
 	maxFileSize int64
 	maxDepth    int
+	config      *config.Config
 }
 
 // NewLocalFileService creates a new local file service
-func NewLocalFileService() *LocalFileService {
+func NewLocalFileService(cfg *config.Config) *LocalFileService {
 	return &LocalFileService{
+		config: cfg,
 		excludeDirs: map[string]bool{
 			".git":         true,
 			".github":      true,
@@ -207,6 +210,10 @@ func (s *LocalFileService) ValidateFile(path string) error {
 		return fmt.Errorf("file path cannot be empty")
 	}
 
+	if s.isPathExcluded(path) {
+		return fmt.Errorf("file is excluded: %s", path)
+	}
+
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to resolve file path: %w", err)
@@ -235,6 +242,46 @@ func (s *LocalFileService) ValidateFile(path string) error {
 	}
 
 	return nil
+}
+
+// isPathExcluded checks if a file path should be excluded based on configuration
+func (s *LocalFileService) isPathExcluded(path string) bool {
+	if s.config == nil {
+		return false
+	}
+
+	cleanPath := filepath.Clean(path)
+
+	normalizedPath := filepath.ToSlash(cleanPath)
+
+	for _, excludePattern := range s.config.Tools.ExcludePaths {
+		cleanPattern := filepath.Clean(excludePattern)
+		normalizedPattern := filepath.ToSlash(cleanPattern)
+
+		if normalizedPath == normalizedPattern {
+			return true
+		}
+
+		if strings.HasSuffix(normalizedPattern, "/*") {
+			dirPattern := strings.TrimSuffix(normalizedPattern, "/*")
+			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
+				return true
+			}
+		}
+
+		if strings.HasSuffix(normalizedPattern, "/") {
+			dirPattern := strings.TrimSuffix(normalizedPattern, "/")
+			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
+				return true
+			}
+		}
+
+		if strings.HasPrefix(normalizedPath, normalizedPattern) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (s *LocalFileService) GetFileInfo(path string) (domain.FileInfo, error) {
