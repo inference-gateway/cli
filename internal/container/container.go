@@ -90,18 +90,17 @@ func (c *ServiceContainer) initializeUIComponents() {
 
 // initializeExtensibility sets up extensible systems
 func (c *ServiceContainer) initializeExtensibility() {
-	// Create command registry and register default commands
 	c.commandRegistry = commands.NewRegistry()
 	c.registerDefaultCommands()
 
-	// Create message router and register default handlers
+	c.componentFactory.SetCommandRegistry(c.commandRegistry)
+
 	c.messageRouter = handlers.NewMessageRouter()
 	c.registerMessageHandlers()
 }
 
 // registerDefaultCommands registers the built-in commands
 func (c *ServiceContainer) registerDefaultCommands() {
-	// Register core commands
 	c.commandRegistry.Register(commands.NewClearCommand(c.conversationRepo))
 	c.commandRegistry.Register(commands.NewExportCommand(c.conversationRepo))
 	c.commandRegistry.Register(commands.NewHelpCommand(c.commandRegistry))
@@ -117,20 +116,17 @@ func (c *ServiceContainer) registerMessageHandlers() {
 		c.chatService,
 		c.conversationRepo,
 		c.modelService,
+		c.commandRegistry,
 	))
 
 	c.messageRouter.AddHandler(handlers.NewFileMessageHandler(c.fileService))
-	c.messageRouter.AddHandler(handlers.NewCommandSelectionHandler(c.commandRegistry))
 
 	if c.config.Tools.Enabled {
 		c.messageRouter.AddHandler(handlers.NewToolMessageHandler(c.toolService))
 	}
 
 	c.messageRouter.AddHandler(handlers.NewUIMessageHandler())
-	c.messageRouter.AddHandler(handlers.NewCommandMessageHandler(c.commandRegistry))
 }
-
-// Getters for accessing services
 
 func (c *ServiceContainer) GetConfig() *config.Config {
 	return c.config

@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
+	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
@@ -21,6 +22,7 @@ type ChatMessageHandler struct {
 	chatService      domain.ChatService
 	conversationRepo domain.ConversationRepository
 	modelService     domain.ModelService
+	commandRegistry  *commands.Registry
 }
 
 // NewChatMessageHandler creates a new chat message handler
@@ -28,11 +30,13 @@ func NewChatMessageHandler(
 	chatService domain.ChatService,
 	conversationRepo domain.ConversationRepository,
 	modelService domain.ModelService,
+	commandRegistry *commands.Registry,
 ) *ChatMessageHandler {
 	return &ChatMessageHandler{
 		chatService:      chatService,
 		conversationRepo: conversationRepo,
 		modelService:     modelService,
+		commandRegistry:  commandRegistry,
 	}
 }
 
@@ -83,6 +87,10 @@ func (h *ChatMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, te
 }
 
 func (h *ChatMessageHandler) handleUserInput(msg ui.UserInputMsg, state *AppState) (tea.Model, tea.Cmd) {
+	if strings.HasPrefix(msg.Content, "/") {
+		return h.handleCommand(msg.Content, state)
+	}
+
 	processedContent := h.processFileReferences(msg.Content)
 
 	userEntry := domain.ConversationEntry{
@@ -115,6 +123,58 @@ func (h *ChatMessageHandler) handleUserInput(msg ui.UserInputMsg, state *AppStat
 	cmds = append(cmds, h.startChatCompletion(messages))
 
 	return nil, tea.Batch(cmds...)
+}
+
+func (h *ChatMessageHandler) handleCommand(commandText string, state *AppState) (tea.Model, tea.Cmd) {
+	commandName := strings.TrimPrefix(commandText, "/")
+
+	cmd, exists := h.commandRegistry.Get(commandName)
+	if !exists || cmd == nil {
+		return nil, func() tea.Msg {
+			return ui.ShowErrorMsg{
+				Error:  fmt.Sprintf("Command not found: %s", commandName),
+				Sticky: false,
+			}
+		}
+	}
+
+	ctx := context.Background()
+	result, err := cmd.Execute(ctx, []string{})
+
+	if err != nil {
+		return nil, func() tea.Msg {
+			return ui.ShowErrorMsg{
+				Error:  fmt.Sprintf("Command execution failed: %v", err),
+				Sticky: false,
+			}
+		}
+	}
+
+	switch result.SideEffect {
+	case commands.SideEffectExit:
+		return nil, tea.Quit
+	case commands.SideEffectClearConversation:
+		return nil, tea.Batch(
+			func() tea.Msg {
+				return ui.UpdateHistoryMsg{
+					History: []domain.ConversationEntry{},
+				}
+			},
+			func() tea.Msg {
+				return ui.SetStatusMsg{
+					Message: result.Output,
+					Spinner: false,
+				}
+			},
+		)
+	default:
+		return nil, func() tea.Msg {
+			return ui.SetStatusMsg{
+				Message: result.Output,
+				Spinner: false,
+			}
+		}
+	}
 }
 
 func (h *ChatMessageHandler) handleStreamStarted(msg ChatStreamStartedMsg, state *AppState) (tea.Model, tea.Cmd) {

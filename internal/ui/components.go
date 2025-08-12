@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -51,17 +52,24 @@ func (l *DefaultLayout) GetMargins() (top, right, bottom, left int) {
 
 // ComponentFactory creates UI components with injected dependencies
 type ComponentFactory struct {
-	theme        Theme
-	layout       Layout
-	modelService domain.ModelService
+	theme           Theme
+	layout          Layout
+	modelService    domain.ModelService
+	commandRegistry *commands.Registry
 }
 
 func NewComponentFactory(theme Theme, layout Layout, modelService domain.ModelService) *ComponentFactory {
 	return &ComponentFactory{
-		theme:        theme,
-		layout:       layout,
-		modelService: modelService,
+		theme:           theme,
+		layout:          layout,
+		modelService:    modelService,
+		commandRegistry: nil,
 	}
+}
+
+// SetCommandRegistry updates the command registry for the factory
+func (f *ComponentFactory) SetCommandRegistry(registry *commands.Registry) {
+	f.commandRegistry = registry
 }
 
 func (f *ComponentFactory) CreateConversationView() ConversationRenderer {
@@ -82,6 +90,7 @@ func (f *ComponentFactory) CreateInputView() InputComponent {
 		width:        80,
 		theme:        f.theme,
 		modelService: f.modelService,
+		autocomplete: NewAutocomplete(f.theme, f.commandRegistry),
 	}
 }
 
@@ -221,6 +230,7 @@ type InputViewImpl struct {
 	width        int
 	theme        Theme
 	modelService domain.ModelService
+	autocomplete *AutocompleteImpl
 }
 
 func (iv *InputViewImpl) GetInput() string {
@@ -230,6 +240,7 @@ func (iv *InputViewImpl) GetInput() string {
 func (iv *InputViewImpl) ClearInput() {
 	iv.text = ""
 	iv.cursor = 0
+	iv.autocomplete.Hide()
 }
 
 func (iv *InputViewImpl) SetPlaceholder(text string) {
@@ -252,6 +263,9 @@ func (iv *InputViewImpl) SetText(text string) {
 
 func (iv *InputViewImpl) SetWidth(width int) {
 	iv.width = width
+	if iv.autocomplete != nil {
+		iv.autocomplete.SetWidth(width)
+	}
 }
 
 func (iv *InputViewImpl) SetHeight(height int) {
@@ -285,6 +299,15 @@ func (iv *InputViewImpl) Render() string {
 	result.WriteString(borderedInput)
 	result.WriteString("\n")
 
+	// Add autocomplete suggestions if visible
+	if iv.autocomplete.IsVisible() {
+		autocompleteContent := iv.autocomplete.Render()
+		if autocompleteContent != "" {
+			result.WriteString(autocompleteContent)
+			result.WriteString("\n")
+		}
+	}
+
 	currentModel := iv.modelService.GetCurrentModel()
 	if currentModel != "" {
 		modelStyle := lipgloss.NewStyle().
@@ -303,15 +326,32 @@ func (iv *InputViewImpl) Init() tea.Cmd { return nil }
 func (iv *InputViewImpl) View() string { return iv.Render() }
 
 func (iv *InputViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	switch msg.(type) {
+	switch msg := msg.(type) {
 	case ClearInputMsg:
 		iv.ClearInput()
+		return iv, nil
+	case SetInputMsg:
+		iv.SetText(msg.Text)
+		iv.SetCursor(len(msg.Text))
 		return iv, nil
 	}
 	return iv, nil
 }
 
 func (iv *InputViewImpl) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// First, check if autocomplete should handle the key
+	if handled, completion := iv.autocomplete.HandleKey(key); handled {
+		if completion != "" {
+			// Replace the current input with the selected completion
+			iv.text = completion
+			iv.cursor = len(completion)
+			iv.autocomplete.Hide()
+		}
+		// Update autocomplete state after any changes
+		iv.autocomplete.Update(iv.text, iv.cursor)
+		return iv, nil
+	}
+
 	switch key.String() {
 	case "left":
 		if iv.cursor > 0 {
@@ -330,6 +370,7 @@ func (iv *InputViewImpl) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if iv.text != "" {
 			input := iv.text
 			iv.ClearInput()
+			iv.autocomplete.Hide()
 			return iv, func() tea.Msg {
 				return UserInputMsg{Content: input}
 			}
@@ -345,14 +386,12 @@ func (iv *InputViewImpl) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 					return FileSelectionRequestMsg{}
 				}
 			}
-			if char == "/" && iv.cursor == 1 && iv.text == "/" {
-				// Only trigger command selection if "/" is the first character
-				return iv, func() tea.Msg {
-					return CommandSelectionRequestMsg{}
-				}
-			}
 		}
 	}
+
+	// Update autocomplete after any text changes
+	iv.autocomplete.Update(iv.text, iv.cursor)
+
 	return iv, nil
 }
 

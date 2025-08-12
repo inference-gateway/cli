@@ -29,6 +29,11 @@ type ClearErrorMsg struct{}
 // ClearInputMsg clears the input field
 type ClearInputMsg struct{}
 
+// SetInputMsg sets text in the input field
+type SetInputMsg struct {
+	Text string
+}
+
 // UserInputMsg represents user input submission
 type UserInputMsg struct {
 	Content string
@@ -46,14 +51,6 @@ type FileSelectedMsg struct {
 
 // FileSelectionRequestMsg requests file selection UI
 type FileSelectionRequestMsg struct{}
-
-// CommandSelectedMsg indicates command selection
-type CommandSelectedMsg struct {
-	Command string
-}
-
-// CommandSelectionRequestMsg requests command selection UI
-type CommandSelectionRequestMsg struct{}
 
 // ApprovalRequestMsg requests user approval for an action
 type ApprovalRequestMsg struct {

@@ -27,7 +27,6 @@ type ChatApplication struct {
 	inputView        ui.InputComponent
 	statusView       ui.StatusComponent
 	modelSelector    *ui.ModelSelectorImpl
-	commandSelector  *ui.CommandSelectorImpl
 
 	// Message routing
 	messageRouter *handlers.MessageRouter
@@ -58,7 +57,6 @@ func NewChatApplication(services *container.ServiceContainer, models []string) *
 	app.statusView = factory.CreateStatusView()
 
 	app.modelSelector = ui.NewModelSelector(models, services.GetModelService(), services.GetTheme())
-	app.commandSelector = ui.NewCommandSelector(services.GetTheme())
 
 	app.focusedComponent = nil
 
@@ -81,9 +79,6 @@ func (app *ChatApplication) Init() tea.Cmd {
 		cmds = append(cmds, cmd)
 	}
 	if cmd := app.modelSelector.Init(); cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-	if cmd := app.commandSelector.Init(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
@@ -148,20 +143,6 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-	case handlers.ViewCommandSelection:
-		if model, cmd := app.commandSelector.Update(msg); cmd != nil {
-			cmds = append(cmds, cmd)
-			app.commandSelector = model.(*ui.CommandSelectorImpl)
-
-			if app.commandSelector.IsSelected() {
-				app.state.CurrentView = handlers.ViewChat
-				app.focusedComponent = app.inputView
-			} else if app.commandSelector.IsCancelled() {
-				app.state.CurrentView = handlers.ViewChat
-				app.focusedComponent = app.inputView
-			}
-		}
-
 	case handlers.ViewApproval:
 		if keyMsg, ok := msg.(tea.KeyMsg); ok {
 			cmds = append(cmds, func() tea.Msg {
@@ -190,8 +171,6 @@ func (app *ChatApplication) View() string {
 		return app.renderChatInterface()
 	case handlers.ViewFileSelection:
 		return app.renderFileSelection()
-	case handlers.ViewCommandSelection:
-		return app.renderCommandSelection()
 	case handlers.ViewApproval:
 		approvalContent := app.renderApproval()
 		return approvalContent + fmt.Sprintf("\n\n[DEBUG: CurrentView=%v, PendingToolCall=%v]",
@@ -331,11 +310,6 @@ func (app *ChatApplication) renderFileSelection() string {
 	return b.String()
 }
 
-func (app *ChatApplication) renderCommandSelection() string {
-	app.commandSelector.SetWidth(app.state.Width)
-	app.commandSelector.SetHeight(app.state.Height)
-	return app.commandSelector.View()
-}
 
 func (app *ChatApplication) renderApproval() string {
 	pendingToolCall, ok := app.state.Data["pendingToolCall"].(handlers.ToolCallRequest)

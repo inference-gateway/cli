@@ -1,12 +1,9 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
-	"strings"
 
 	"github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 )
@@ -84,106 +81,7 @@ func (h *FileMessageHandler) handleFileSelected(msg ui.FileSelectedMsg, state *A
 	return nil, nil
 }
 
-// CommandSelectionHandler handles command selection UI
-type CommandSelectionHandler struct {
-	commandRegistry *commands.Registry
-}
 
-func NewCommandSelectionHandler(registry *commands.Registry) *CommandSelectionHandler {
-	return &CommandSelectionHandler{
-		commandRegistry: registry,
-	}
-}
-
-func (h *CommandSelectionHandler) GetPriority() int { return 55 }
-
-func (h *CommandSelectionHandler) CanHandle(msg tea.Msg) bool {
-	switch msg.(type) {
-	case ui.CommandSelectionRequestMsg, ui.CommandSelectedMsg:
-		return true
-	default:
-		return false
-	}
-}
-
-func (h *CommandSelectionHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case ui.CommandSelectionRequestMsg:
-		return h.handleCommandSelectionRequest(state)
-
-	case ui.CommandSelectedMsg:
-		return h.handleCommandSelected(msg, state)
-	}
-
-	return nil, nil
-}
-
-func (h *CommandSelectionHandler) handleCommandSelectionRequest(state *AppState) (tea.Model, tea.Cmd) {
-	state.CurrentView = ViewCommandSelection
-	return nil, nil
-}
-
-func (h *CommandSelectionHandler) handleCommandSelected(msg ui.CommandSelectedMsg, state *AppState) (tea.Model, tea.Cmd) {
-	state.CurrentView = ViewChat
-
-	commandName := strings.TrimPrefix(msg.Command, "/")
-
-	cmd, exists := h.commandRegistry.Get(commandName)
-	if !exists || cmd == nil {
-		return nil, func() tea.Msg {
-			return ui.ShowErrorMsg{
-				Error:  fmt.Sprintf("Command not found: %s", commandName),
-				Sticky: false,
-			}
-		}
-	}
-
-	ctx := context.Background()
-	result, err := cmd.Execute(ctx, []string{})
-
-	if err != nil {
-		return nil, func() tea.Msg {
-			return ui.ShowErrorMsg{
-				Error:  fmt.Sprintf("Command execution failed: %v", err),
-				Sticky: false,
-			}
-		}
-	}
-
-	switch result.SideEffect {
-	case commands.SideEffectExit:
-		return nil, tea.Quit
-	case commands.SideEffectClearConversation:
-		return nil, tea.Batch(
-			func() tea.Msg {
-				return ui.ClearInputMsg{}
-			},
-			func() tea.Msg {
-				return ui.UpdateHistoryMsg{
-					History: []domain.ConversationEntry{},
-				}
-			},
-			func() tea.Msg {
-				return ui.SetStatusMsg{
-					Message: result.Output,
-					Spinner: false,
-				}
-			},
-		)
-	default:
-		return nil, tea.Batch(
-			func() tea.Msg {
-				return ui.ClearInputMsg{}
-			},
-			func() tea.Msg {
-				return ui.SetStatusMsg{
-					Message: result.Output,
-					Spinner: false,
-				}
-			},
-		)
-	}
-}
 
 // ToolMessageHandler handles tool-related messages
 type ToolMessageHandler struct {
@@ -277,63 +175,4 @@ func (h *HelpMessageHandler) CanHandle(msg tea.Msg) bool {
 func (h *HelpMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.Cmd) {
 	// Implementation for help handling
 	return nil, nil
-}
-
-// CommandMessageHandler handles command execution
-type CommandMessageHandler struct {
-	commandRegistry *commands.Registry
-}
-
-func NewCommandMessageHandler(registry *commands.Registry) *CommandMessageHandler {
-	return &CommandMessageHandler{commandRegistry: registry}
-}
-
-func (h *CommandMessageHandler) GetPriority() int { return 90 }
-
-func (h *CommandMessageHandler) CanHandle(msg tea.Msg) bool {
-	switch msg := msg.(type) {
-	case ui.UserInputMsg:
-		return len(msg.Content) > 0 && msg.Content[0] == '/'
-	default:
-		return false
-	}
-}
-
-func (h *CommandMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.Cmd) {
-	switch msg := msg.(type) {
-	case ui.UserInputMsg:
-		return h.handleCommand(msg.Content, state)
-	}
-
-	return nil, nil
-}
-
-func (h *CommandMessageHandler) handleCommand(command string, state *AppState) (tea.Model, tea.Cmd) {
-	cmd, exists := h.commandRegistry.Get(command)
-	if !exists {
-		return nil, func() tea.Msg {
-			return ui.ShowErrorMsg{
-				Error:  fmt.Sprintf("Unknown command: %s", command),
-				Sticky: false,
-			}
-		}
-	}
-
-	// Execute command asynchronously
-	return nil, func() tea.Msg {
-		ctx := context.Background()
-		result, err := cmd.Execute(ctx, []string{})
-
-		if err != nil {
-			return ui.ShowErrorMsg{
-				Error:  fmt.Sprintf("Command failed: %v", err),
-				Sticky: false,
-			}
-		}
-
-		return ui.SetStatusMsg{
-			Message: result.Output,
-			Spinner: false,
-		}
-	}
 }
