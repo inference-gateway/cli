@@ -130,20 +130,20 @@ var configToolsSafetyStatusCmd = &cobra.Command{
 	RunE:  safetyStatus,
 }
 
-var configToolsExcludeCmd = &cobra.Command{
-	Use:   "exclude",
+var configToolsExcludePathCmd = &cobra.Command{
+	Use:   "exclude-path",
 	Short: "Manage excluded paths",
 	Long:  `Manage paths that are excluded from tool access for security purposes.`,
 }
 
-var configToolsExcludeListCmd = &cobra.Command{
+var configToolsExcludePathListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List excluded paths",
 	Long:  `Display all paths that are excluded from tool access.`,
 	RunE:  listExcludedPaths,
 }
 
-var configToolsExcludeAddCmd = &cobra.Command{
+var configToolsExcludePathAddCmd = &cobra.Command{
 	Use:   "add <path>",
 	Short: "Add a path to the exclusion list",
 	Long:  `Add a path to the exclusion list to prevent tools from accessing it.`,
@@ -151,7 +151,7 @@ var configToolsExcludeAddCmd = &cobra.Command{
 	RunE:  addExcludedPath,
 }
 
-var configToolsExcludeRemoveCmd = &cobra.Command{
+var configToolsExcludePathRemoveCmd = &cobra.Command{
 	Use:   "remove <path>",
 	Short: "Remove a path from the exclusion list",
 	Long:  `Remove a path from the exclusion list to allow tools to access it again.`,
@@ -187,15 +187,15 @@ func init() {
 	configToolsCmd.AddCommand(configToolsValidateCmd)
 	configToolsCmd.AddCommand(configToolsExecCmd)
 	configToolsCmd.AddCommand(configToolsSafetyCmd)
-	configToolsCmd.AddCommand(configToolsExcludeCmd)
+	configToolsCmd.AddCommand(configToolsExcludePathCmd)
 
 	configToolsSafetyCmd.AddCommand(configToolsSafetyEnableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyDisableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyStatusCmd)
 
-	configToolsExcludeCmd.AddCommand(configToolsExcludeListCmd)
-	configToolsExcludeCmd.AddCommand(configToolsExcludeAddCmd)
-	configToolsExcludeCmd.AddCommand(configToolsExcludeRemoveCmd)
+	configToolsExcludePathCmd.AddCommand(configToolsExcludePathListCmd)
+	configToolsExcludePathCmd.AddCommand(configToolsExcludePathAddCmd)
+	configToolsExcludePathCmd.AddCommand(configToolsExcludePathRemoveCmd)
 
 	configInitCmd.Flags().Bool("overwrite", false, "Overwrite existing configuration file")
 	configToolsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")

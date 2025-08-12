@@ -180,7 +180,7 @@ chat:
         - `enable`: Enable safety approval prompts
         - `disable`: Disable safety approval prompts
         - `status`: Show current safety approval status
-      - `exclude`: Manage excluded paths for security
+      - `exclude-path`: Manage excluded paths for security
         - `list`: List all excluded paths
         - `add <path>`: Add a path to the exclusion list
         - `remove <path>`: Remove a path from the exclusion list
@@ -254,9 +254,9 @@ infer config tools safety disable
 infer config tools safety status
 
 # Manage excluded paths for security
-infer config tools exclude list
-infer config tools exclude add ".github/"
-infer config tools exclude remove "test.txt"
+infer config tools exclude-path list
+infer config tools exclude-path add ".github/"
+infer config tools exclude-path remove "test.txt"
 ```
 
 ## Code Style Guidelines
