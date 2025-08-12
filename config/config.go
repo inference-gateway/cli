@@ -73,7 +73,7 @@ func DefaultConfig() *Config {
 			Quiet:  false,
 		},
 		Tools: ToolsConfig{
-			Enabled: false,
+			Enabled: true,
 			Whitelist: ToolWhitelistConfig{
 				Commands: []string{
 					"ls", "pwd", "echo", "cat", "head", "tail",
