@@ -1,315 +1,315 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal"
+	"github.com/inference-gateway/cli/internal/container"
+	"github.com/inference-gateway/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
 
 var toolsCmd = &cobra.Command{
 	Use:   "tools",
-	Short: "Manage and execute tools",
-	Long:  "Manage tool configuration and execute whitelisted commands securely.",
+	Short: "Manage and execute tools for LLM interaction",
+	Long: `Manage the tool execution system that allows LLMs to execute whitelisted bash commands securely.
+Tools must be explicitly enabled and commands must be whitelisted for execution.`,
+}
+
+var toolsEnableCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable tool execution for LLMs",
+	Long:  `Enable the tool execution system, allowing LLMs to execute whitelisted bash commands.`,
+	RunE:  enableTools,
+}
+
+var toolsDisableCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable tool execution for LLMs",
+	Long:  `Disable the tool execution system, preventing LLMs from executing any commands.`,
+	RunE:  disableTools,
 }
 
 var toolsListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List whitelisted commands and patterns",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		fmt.Printf("Tools enabled: %t\n\n", cfg.Tools.Enabled)
-		fmt.Println("Whitelisted commands:")
-		for _, command := range cfg.Tools.Whitelist.Commands {
-			fmt.Printf("  - %s\n", command)
-		}
-
-		fmt.Println("\nWhitelisted patterns:")
-		for _, pattern := range cfg.Tools.Whitelist.Patterns {
-			fmt.Printf("  - %s\n", pattern)
-		}
-
-		return nil
-	},
-}
-
-var toolsEnableCmd = &cobra.Command{
-	Use:   "enable",
-	Short: "Enable tool execution",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		cfg.Tools.Enabled = true
-
-		if err := cfg.SaveConfig(configPath); err != nil {
-			return fmt.Errorf("failed to save config: %w", err)
-		}
-
-		fmt.Println("Tools enabled successfully")
-		return nil
-	},
-}
-
-var toolsDisableCmd = &cobra.Command{
-	Use:   "disable",
-	Short: "Disable tool execution",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		cfg.Tools.Enabled = false
-
-		if err := cfg.SaveConfig(configPath); err != nil {
-			return fmt.Errorf("failed to save config: %w", err)
-		}
-
-		fmt.Println("Tools disabled successfully")
-		return nil
-	},
-}
-
-var toolsExecCmd = &cobra.Command{
-	Use:   "exec <command>",
-	Short: "Execute a whitelisted command",
-	Args:  cobra.MinimumNArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		toolEngine := internal.NewToolEngine(cfg)
-		command := args[0]
-		if len(args) > 1 {
-			command = fmt.Sprintf("%s %s", args[0], args[1])
-		}
-
-		result, err := toolEngine.ExecuteBash(command)
-		if err != nil {
-			return fmt.Errorf("execution failed: %w", err)
-		}
-
-		outputFormat, _ := cmd.Flags().GetString("format")
-		switch outputFormat {
-		case "json":
-			output, _ := json.MarshalIndent(result, "", "  ")
-			fmt.Println(string(output))
-		default:
-			fmt.Printf("Command: %s\n", result.Command)
-			fmt.Printf("Exit Code: %d\n", result.ExitCode)
-			fmt.Printf("Duration: %s\n", result.Duration)
-			if result.Error != "" {
-				fmt.Printf("Error: %s\n", result.Error)
-			}
-			fmt.Printf("Output:\n%s\n", result.Output)
-		}
-
-		if result.ExitCode != 0 {
-			os.Exit(result.ExitCode)
-		}
-
-		return nil
-	},
+	Long:  `Display all whitelisted commands and regex patterns that can be executed by LLMs.`,
+	RunE:  listTools,
 }
 
 var toolsValidateCmd = &cobra.Command{
 	Use:   "validate <command>",
 	Short: "Validate if a command is whitelisted",
+	Long:  `Check if a specific command would be allowed to execute without actually running it.`,
 	Args:  cobra.ExactArgs(1),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		toolEngine := internal.NewToolEngine(cfg)
-		command := args[0]
-
-		if err := toolEngine.ValidateCommand(command); err != nil {
-			fmt.Printf("❌ Command not allowed: %s\n", err)
-			os.Exit(1)
-		} else {
-			fmt.Printf("✅ Command allowed: %s\n", command)
-		}
-
-		return nil
-	},
+	RunE:  validateTool,
 }
 
-var toolsLLMCmd = &cobra.Command{
-	Use:   "llm",
-	Short: "LLM tool interface",
-	Long:  "Interface for LLMs to interact with available tools.",
-}
-
-var toolsLLMListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "List available tools for LLMs",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		manager := internal.NewLLMToolsManager(cfg)
-		tools := manager.GetAvailableTools()
-
-		outputFormat, _ := cmd.Flags().GetString("format")
-		switch outputFormat {
-		case "json":
-			output, _ := json.MarshalIndent(tools, "", "  ")
-			fmt.Println(string(output))
-		default:
-			if len(tools) == 0 {
-				fmt.Println("No tools available (tools may be disabled)")
-				return nil
-			}
-			fmt.Printf("Available tools (%d):\n\n", len(tools))
-			for _, tool := range tools {
-				fmt.Printf("Name: %s\n", tool.Name)
-				fmt.Printf("Description: %s\n", tool.Description)
-				fmt.Printf("Parameters: %+v\n\n", tool.Parameters)
-			}
-		}
-
-		return nil
-	},
-}
-
-var toolsLLMInvokeCmd = &cobra.Command{
-	Use:   "invoke <tool_name> <parameters_json>",
-	Short: "Invoke a tool with JSON parameters",
-	Args:  cobra.ExactArgs(2),
-	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		toolName := args[0]
-		parametersJSON := args[1]
-
-		var parameters map[string]interface{}
-		if err := json.Unmarshal([]byte(parametersJSON), &parameters); err != nil {
-			return fmt.Errorf("failed to parse parameters JSON: %w", err)
-		}
-
-		manager := internal.NewLLMToolsManager(cfg)
-		result, err := manager.InvokeTool(toolName, parameters)
-		if err != nil {
-			return fmt.Errorf("tool invocation failed: %w", err)
-		}
-
-		fmt.Println(result)
-		return nil
-	},
+var toolsExecCmd = &cobra.Command{
+	Use:   "exec <command>",
+	Short: "Execute a whitelisted command directly",
+	Long:  `Execute a command directly if it passes whitelist validation.`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  execTool,
 }
 
 var toolsSafetyCmd = &cobra.Command{
 	Use:   "safety",
 	Short: "Manage safety approval settings",
-	Long:  "Configure safety approval requirements for command execution.",
+	Long:  `Manage safety approval prompts that are shown before executing commands.`,
 }
 
 var toolsSafetyEnableCmd = &cobra.Command{
 	Use:   "enable",
-	Short: "Enable safety approval for command execution",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		cfg.Tools.Safety.RequireApproval = true
-
-		if err := cfg.SaveConfig(configPath); err != nil {
-			return fmt.Errorf("failed to save config: %w", err)
-		}
-
-		fmt.Println("Safety approval enabled successfully")
-		return nil
-	},
+	Short: "Enable safety approval prompts",
+	Long:  `Enable safety approval prompts that ask for confirmation before executing commands.`,
+	RunE:  enableSafety,
 }
 
 var toolsSafetyDisableCmd = &cobra.Command{
 	Use:   "disable",
-	Short: "Disable safety approval for command execution",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		cfg.Tools.Safety.RequireApproval = false
-
-		if err := cfg.SaveConfig(configPath); err != nil {
-			return fmt.Errorf("failed to save config: %w", err)
-		}
-
-		fmt.Println("Safety approval disabled successfully")
-		return nil
-	},
+	Short: "Disable safety approval prompts",
+	Long:  `Disable safety approval prompts, allowing commands to execute immediately.`,
+	RunE:  disableSafety,
 }
 
 var toolsSafetyStatusCmd = &cobra.Command{
 	Use:   "status",
-	Short: "Show safety approval status",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath, _ := cmd.Flags().GetString("config")
-		cfg, err := config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
-		status := "disabled"
-		if cfg.Tools.Safety.RequireApproval {
-			status = "enabled"
-		}
-
-		fmt.Printf("Safety approval: %s\n", status)
-		return nil
-	},
+	Short: "Show current safety approval status",
+	Long:  `Display whether safety approval prompts are currently enabled or disabled.`,
+	RunE:  safetyStatus,
 }
 
 func init() {
 	rootCmd.AddCommand(toolsCmd)
 
-	toolsCmd.AddCommand(toolsListCmd)
 	toolsCmd.AddCommand(toolsEnableCmd)
 	toolsCmd.AddCommand(toolsDisableCmd)
-	toolsCmd.AddCommand(toolsExecCmd)
+	toolsCmd.AddCommand(toolsListCmd)
 	toolsCmd.AddCommand(toolsValidateCmd)
-	toolsCmd.AddCommand(toolsLLMCmd)
+	toolsCmd.AddCommand(toolsExecCmd)
 	toolsCmd.AddCommand(toolsSafetyCmd)
-
-	toolsLLMCmd.AddCommand(toolsLLMListCmd)
-	toolsLLMCmd.AddCommand(toolsLLMInvokeCmd)
 
 	toolsSafetyCmd.AddCommand(toolsSafetyEnableCmd)
 	toolsSafetyCmd.AddCommand(toolsSafetyDisableCmd)
 	toolsSafetyCmd.AddCommand(toolsSafetyStatusCmd)
 
+	toolsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	toolsExecCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
-	toolsLLMListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+}
+
+func enableTools(cmd *cobra.Command, args []string) error {
+	cfg, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Enabled = true
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess("Tools enabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Whitelisted commands: %d\n", len(cfg.Tools.Whitelist.Commands))
+	fmt.Printf("Whitelisted patterns: %d\n", len(cfg.Tools.Whitelist.Patterns))
+	return nil
+}
+
+func disableTools(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Enabled = false
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatErrorCLI("Tools disabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	return nil
+}
+
+func listTools(cmd *cobra.Command, args []string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	format, _ := cmd.Flags().GetString("format")
+
+	if format == "json" {
+		data := map[string]interface{}{
+			"enabled":  cfg.Tools.Enabled,
+			"commands": cfg.Tools.Whitelist.Commands,
+			"patterns": cfg.Tools.Whitelist.Patterns,
+			"safety": map[string]bool{
+				"require_approval": cfg.Tools.Safety.RequireApproval,
+			},
+		}
+		jsonOutput, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal output: %w", err)
+		}
+		fmt.Println(string(jsonOutput))
+		return nil
+	}
+
+	fmt.Printf("Tools Status: ")
+	if cfg.Tools.Enabled {
+		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+	} else {
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+	}
+
+	fmt.Printf("\nWhitelisted Commands (%d):\n", len(cfg.Tools.Whitelist.Commands))
+	for _, cmd := range cfg.Tools.Whitelist.Commands {
+		fmt.Printf("  • %s\n", cmd)
+	}
+
+	fmt.Printf("\nWhitelisted Patterns (%d):\n", len(cfg.Tools.Whitelist.Patterns))
+	for _, pattern := range cfg.Tools.Whitelist.Patterns {
+		fmt.Printf("  • %s\n", pattern)
+	}
+
+	fmt.Printf("\nSafety Settings:\n")
+	if cfg.Tools.Safety.RequireApproval {
+		fmt.Printf("  • Approval required: %s\n", ui.FormatSuccess("Enabled"))
+	} else {
+		fmt.Printf("  • Approval required: %s\n", ui.FormatErrorCLI("Disabled"))
+	}
+
+	return nil
+}
+
+func validateTool(cmd *cobra.Command, args []string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if !cfg.Tools.Enabled {
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Tools are disabled"))
+		return nil
+	}
+
+	services := container.NewServiceContainer(cfg)
+	toolService := services.GetToolService()
+
+	command := args[0]
+	toolArgs := map[string]interface{}{
+		"command": command,
+	}
+
+	err = toolService.ValidateTool("Bash", toolArgs)
+	if err != nil {
+		fmt.Printf("%s\n", ui.FormatErrorCLI(fmt.Sprintf("Command not allowed: %s", command)))
+		fmt.Printf("Reason: %s\n", err.Error())
+		return nil
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Command is whitelisted: %s", command)))
+	return nil
+}
+
+func execTool(cmd *cobra.Command, args []string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	if !cfg.Tools.Enabled {
+		return fmt.Errorf("tools are not enabled")
+	}
+
+	services := container.NewServiceContainer(cfg)
+	toolService := services.GetToolService()
+
+	command := args[0]
+	format, _ := cmd.Flags().GetString("format")
+
+	toolArgs := map[string]interface{}{
+		"command": command,
+		"format":  format,
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+	defer cancel()
+
+	result, err := toolService.ExecuteTool(ctx, "Bash", toolArgs)
+	if err != nil {
+		return fmt.Errorf("command execution failed: %w", err)
+	}
+
+	fmt.Print(result)
+	return nil
+}
+
+func enableSafety(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Safety.RequireApproval = true
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess("Safety approval enabled"))
+	fmt.Printf("Commands will require approval before execution\n")
+	return nil
+}
+
+func disableSafety(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Safety.RequireApproval = false
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatWarning("Safety approval disabled"))
+	fmt.Printf("Commands will execute immediately without approval\n")
+	return nil
+}
+
+func safetyStatus(cmd *cobra.Command, args []string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	fmt.Printf("Safety Approval Status: ")
+	if cfg.Tools.Safety.RequireApproval {
+		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+		fmt.Printf("Commands require approval before execution\n")
+	} else {
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+		fmt.Printf("Commands execute immediately without approval\n")
+	}
+
+	return nil
+}
+
+func loadAndUpdateConfig(updateFn func(*config.Config)) (*config.Config, error) {
+	configPath := getConfigPath()
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	updateFn(cfg)
+
+	err = cfg.SaveConfig(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to save config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+func getConfigPath() string {
+	configPath := ".infer/config.yaml"
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		configPath = ".infer.yaml"
+	}
+	return configPath
 }

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the Inference Gateway CLI (`infer`), a Go-based command-line tool for managing and interacting with machine learning inference services. The CLI provides functionality for model deployment, status monitoring, prompt testing, and configuration management.
+This is the Inference Gateway CLI (`infer`), a Go-based command-line tool for managing and interacting with machine learning inference services. The CLI provides functionality for status monitoring, interactive chat, and configuration management.
 
 ## Development Commands
 
@@ -100,15 +100,23 @@ flox activate -- task --list
 
 ## Architecture
 
-The project follows the standard Go CLI architecture using Cobra framework:
+The project follows a modern SOLID architecture using Bubble Tea for the TUI and dependency injection:
 
 - `main.go`: Entry point that calls `cmd.Execute()`
 - `cmd/`: Contains all CLI command implementations using Cobra
   - `root.go`: Root command setup with global flags (`--config`, `--verbose`)
-  - `status.go`: Status monitoring (`infer status`, `infer models list`)
-  - `prompt.go`: Prompt testing (`infer prompt`)
+  - `init.go`: Project initialization (`infer init`)
+  - `status.go`: Status monitoring (`infer status`)
+  - `chat.go`: Interactive chat (`infer chat`)
   - `version.go`: Version information (`infer version`)
 - `config/config.go`: Configuration management with YAML support
+- `internal/`: Internal application architecture
+  - `app/`: Application layer with Bubble Tea models
+  - `handlers/`: Request handlers and routing
+  - `services/`: Business logic services
+  - `ui/`: UI components and interfaces
+  - `domain/`: Domain models and interfaces
+  - `container/`: Dependency injection container
 
 ### Configuration System
 The CLI uses a project-based YAML configuration file at `.infer/config.yaml` in the current directory with the following structure:
@@ -151,27 +159,23 @@ compact:
 - Global flags: `--config`, `--verbose`
 - Subcommands:
   - `init [--overwrite]`: Initialize local project configuration
-  - `status [--format]`: Gateway status
-  - `list`: List deployed models
-  - `prompt <text>`: Send prompts to models
-  - `chat`: Interactive chat with model selection and tool support
-    - `/compact`: Export conversation to markdown file
-  - `tools`: Tool management and execution
-    - `safety enable/disable/status`: Manage safety approval settings
+  - `status`: Gateway status
+  - `chat`: Interactive chat with model selection
   - `version`: Version information
 
 ## Dependencies
 
 - **Cobra** (`github.com/spf13/cobra`): CLI framework for command structure
+- **Bubble Tea** (`github.com/charmbracelet/bubbletea`): TUI framework for interactive chat
 - **YAML v3** (`gopkg.in/yaml.v3`): Configuration file parsing
 - Go 1.24+ required
 
 ## Implementation Notes
 
-- All commands currently contain placeholder implementations with mock outputs
-- The actual inference gateway communication logic is not yet implemented (marked as TODO)
+- The chat command uses Bubble Tea for interactive TUI experience
+- Architecture follows SOLID principles with dependency injection
 - Configuration loading handles missing config files gracefully by returning defaults
-- The project uses standard Go project structure with `internal/` for private packages
+- The project uses modern Go project structure with `internal/` for private packages
 
 ## Code Style Guidelines
 

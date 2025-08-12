@@ -17,3 +17,12 @@ repos:
     rev: v2.3.1
     hooks:
       - id: golangci-lint
+
+  - repo: local
+    hooks:
+      - id: mod-tidy
+        name: Go mod tidy
+        entry: flox activate -- task mod:tidy
+        language: system
+        files: '(go\.mod|go\.sum)$'
+        pass_filenames: false

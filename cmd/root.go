@@ -15,10 +15,11 @@ the Inference Gateway. This CLI provides tools for configuration,
 deployment, monitoring, and management of inference services.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 && !cmd.Flags().Changed("help") {
-			interactiveCmd.Run(cmd, args)
+			fmt.Println("Welcome to the Inference Gateway CLI!")
+			fmt.Println("Use 'infer chat' to start interactive chat or --help to see available commands.")
 		} else {
 			fmt.Println("Welcome to the Inference Gateway CLI!")
-			fmt.Println("Use --help to see available commands or run without arguments for interactive mode.")
+			fmt.Println("Use --help to see available commands or 'infer chat' for interactive mode.")
 		}
 	},
 }
