@@ -99,7 +99,17 @@ func (h *ChatMessageHandler) handleUserInput(msg ui.UserInputMsg, state *AppStat
 
 	messages := h.conversationToSDKMessages()
 
-	return nil, h.startChatCompletion(messages)
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		return ui.UpdateHistoryMsg{
+			History: h.conversationRepo.GetMessages(),
+		}
+	})
+
+	cmds = append(cmds, h.startChatCompletion(messages))
+
+	return nil, tea.Batch(cmds...)
 }
 
 func (h *ChatMessageHandler) handleStreamStarted(msg ChatStreamStartedMsg, state *AppState) (tea.Model, tea.Cmd) {
