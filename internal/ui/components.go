@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -37,7 +38,7 @@ func (l *DefaultLayout) CalculateConversationHeight(totalHeight int) int {
 }
 
 func (l *DefaultLayout) CalculateInputHeight(totalHeight int) int {
-	return 3 // Input area takes 3 lines
+	return 5 // Input area takes 5 lines (border + input + model name + border)
 }
 
 func (l *DefaultLayout) CalculateStatusHeight(totalHeight int) int {
@@ -259,28 +260,40 @@ func (iv *InputViewImpl) SetHeight(height int) {
 
 func (iv *InputViewImpl) Render() string {
 	var displayText string
+
 	if iv.text == "" {
-		displayText = fmt.Sprintf("%s%s%s", iv.theme.GetDimColor(), iv.placeholder, "\033[0m")
+		displayText = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240")).
+			Render(iv.placeholder)
 	} else {
 		before := iv.text[:iv.cursor]
 		after := iv.text[iv.cursor:]
 		displayText = fmt.Sprintf("%s│%s", before, after)
 	}
 
-	inputLine := fmt.Sprintf("> %s", displayText)
+	inputContent := fmt.Sprintf("> %s", displayText)
+
+	inputStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(0, 1).
+		Width(iv.width - 4)
+
+	borderedInput := inputStyle.Render(inputContent)
+
+	var result strings.Builder
+	result.WriteString(borderedInput)
+	result.WriteString("\n")
 
 	currentModel := iv.modelService.GetCurrentModel()
 	if currentModel != "" {
-		modelDisplay := fmt.Sprintf("%s[%s]%s", iv.theme.GetDimColor(), currentModel, "\033[0m")
-		availableWidth := iv.width - len(inputLine) - len(currentModel) - 2
-		if availableWidth > 3 {
-			inputLine += strings.Repeat(" ", availableWidth) + modelDisplay
-		} else {
-			inputLine += "\n" + strings.Repeat(" ", iv.width-len(currentModel)-2) + modelDisplay
-		}
+		modelStyle := lipgloss.NewStyle().
+			Foreground(lipgloss.Color("240"))
+		modelDisplay := modelStyle.Render(fmt.Sprintf("Model: %s", currentModel))
+		result.WriteString(modelDisplay)
 	}
 
-	return inputLine
+	return result.String()
 }
 
 func (iv *InputViewImpl) GetID() string { return "input" }
