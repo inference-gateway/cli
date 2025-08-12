@@ -120,7 +120,7 @@ func (h *ChatMessageHandler) handleStreamStarted(msg ChatStreamStartedMsg, state
 func (h *ChatMessageHandler) handleToolCallDetected(msg ToolCallDetectedMsg, state *AppState) (tea.Model, tea.Cmd) {
 	state.Data["pendingToolCall"] = msg.ToolCall
 	state.Data["toolCallResponse"] = msg.Response
-	state.Data["approvalSelectedIndex"] = 0
+	state.Data["approvalSelectedIndex"] = int(domain.ApprovalApprove)
 
 	state.CurrentView = ViewApproval
 

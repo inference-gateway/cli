@@ -23,6 +23,15 @@ const (
 	ExportText     ExportFormat = "text"
 )
 
+// ApprovalAction defines the possible approval actions for tool calls
+type ApprovalAction int
+
+const (
+	ApprovalApprove ApprovalAction = iota // Approve and execute
+	ApprovalReject                        // Deny and cancel
+	ApprovalView                          // View full response
+)
+
 // ConversationRepository handles conversation storage and retrieval
 type ConversationRepository interface {
 	AddMessage(msg ConversationEntry) error

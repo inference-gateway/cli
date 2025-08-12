@@ -232,7 +232,7 @@ func (app *ChatApplication) renderApproval() string {
 		return "⚠️ No pending tool call found"
 	}
 
-	selectedIndex := 0
+	selectedIndex := int(domain.ApprovalApprove)
 	if idx, ok := app.state.Data["approvalSelectedIndex"].(int); ok {
 		selectedIndex = idx
 	}
@@ -337,33 +337,33 @@ func (app *ChatApplication) handleGlobalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
-	selectedIndex := 0
+	selectedIndex := int(domain.ApprovalApprove)
 	if idx, ok := app.state.Data["approvalSelectedIndex"].(int); ok {
 		selectedIndex = idx
 	}
 
 	switch keyMsg.String() {
 	case "up", "k":
-		if selectedIndex > 0 {
+		if selectedIndex > int(domain.ApprovalApprove) {
 			selectedIndex--
 		}
 		app.state.Data["approvalSelectedIndex"] = selectedIndex
 		return nil
 
 	case "down", "j":
-		if selectedIndex < 2 { // 3 options: 0, 1, 2
+		if selectedIndex < int(domain.ApprovalView) {
 			selectedIndex++
 		}
 		app.state.Data["approvalSelectedIndex"] = selectedIndex
 		return nil
 
 	case "enter", "return", "ctrl+m", " ":
-		switch selectedIndex {
-		case 0: // Approve and execute
+		switch domain.ApprovalAction(selectedIndex) {
+		case domain.ApprovalApprove:
 			return app.approveToolCall()
-		case 1: // Deny and cancel
+		case domain.ApprovalReject:
 			return app.denyToolCall()
-		case 2: // View full response
+		case domain.ApprovalView:
 			if response, ok := app.state.Data["toolCallResponse"].(string); ok {
 				return func() tea.Msg {
 					return ui.ShowErrorMsg{
