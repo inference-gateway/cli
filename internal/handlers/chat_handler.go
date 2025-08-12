@@ -177,6 +177,10 @@ func (h *ChatMessageHandler) handleCommand(commandText string, state *AppState) 
 			},
 			h.performExport(cmd, result.Data),
 		)
+	case commands.SideEffectSwitchModel:
+		return nil, func() tea.Msg {
+			return SwitchModelMsg{}
+		}
 	default:
 		return nil, func() tea.Msg {
 			return ui.SetStatusMsg{
@@ -425,6 +429,9 @@ type ToolCallDetectedMsg struct {
 	ToolCall ToolCallRequest
 	Response string
 }
+
+// SwitchModelMsg indicates that model selection view should be shown
+type SwitchModelMsg struct {}
 
 // listenForChatEvents creates a command that listens for the next chat event
 func (h *ChatMessageHandler) listenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd {

@@ -131,7 +131,7 @@ func (h *UIMessageHandler) GetPriority() int { return 10 }
 
 func (h *UIMessageHandler) CanHandle(msg tea.Msg) bool {
 	switch msg.(type) {
-	case ui.SetStatusMsg, ui.ShowErrorMsg, ui.ClearErrorMsg:
+	case ui.SetStatusMsg, ui.ShowErrorMsg, ui.ClearErrorMsg, SwitchModelMsg:
 		return true
 	default:
 		return false
@@ -150,6 +150,10 @@ func (h *UIMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.
 
 	case ui.ClearErrorMsg:
 		state.Error = ""
+		return nil, nil
+
+	case SwitchModelMsg:
+		state.CurrentView = ViewModelSelection
 		return nil, nil
 	}
 
