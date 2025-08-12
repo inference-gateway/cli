@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.5.4](https://github.com/inference-gateway/cli/compare/v0.5.3...v0.5.4) (2025-08-12)
+
+### ♻️ Code Refactoring
+
+* Replace b.WriteString with fmt.Fprintf for improved string formatting in file selection ([7315289](https://github.com/inference-gateway/cli/commit/7315289d89ef59f61110412fd6a8b83593cd8011))
+
 ## [0.5.3](https://github.com/inference-gateway/cli/compare/v0.5.2...v0.5.3) (2025-08-12)
 
 ### 📚 Documentation
