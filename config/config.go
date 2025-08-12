@@ -15,6 +15,7 @@ type Config struct {
 	Output  OutputConfig  `yaml:"output"`
 	Tools   ToolsConfig   `yaml:"tools"`
 	Compact CompactConfig `yaml:"compact"`
+	Chat    ChatConfig    `yaml:"chat"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -53,6 +54,11 @@ type CompactConfig struct {
 	OutputDir string `yaml:"output_dir"`
 }
 
+// ChatConfig contains chat-related settings
+type ChatConfig struct {
+	DefaultModel string `yaml:"default_model"`
+}
+
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
@@ -85,6 +91,9 @@ func DefaultConfig() *Config {
 		},
 		Compact: CompactConfig{
 			OutputDir: ".infer",
+		},
+		Chat: ChatConfig{
+			DefaultModel: "",
 		},
 	}
 }

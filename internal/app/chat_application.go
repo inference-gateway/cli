@@ -39,12 +39,18 @@ type ChatApplication struct {
 }
 
 // NewChatApplication creates a new chat application with all dependencies injected
-func NewChatApplication(services *container.ServiceContainer, models []string) *ChatApplication {
+func NewChatApplication(services *container.ServiceContainer, models []string, defaultModel string) *ChatApplication {
+	// If default model is set, start in chat view, otherwise show model selection
+	initialView := handlers.ViewModelSelection
+	if defaultModel != "" {
+		initialView = handlers.ViewChat
+	}
+	
 	app := &ChatApplication{
 		services:        services,
 		availableModels: models,
 		state: &handlers.AppState{
-			CurrentView: handlers.ViewModelSelection,
+			CurrentView: initialView,
 			Width:       80,
 			Height:      24,
 			Data:        make(map[string]interface{}),
@@ -58,7 +64,12 @@ func NewChatApplication(services *container.ServiceContainer, models []string) *
 
 	app.modelSelector = ui.NewModelSelector(models, services.GetModelService(), services.GetTheme())
 
-	app.focusedComponent = nil
+	// Set focused component based on initial view
+	if initialView == handlers.ViewChat {
+		app.focusedComponent = app.inputView
+	} else {
+		app.focusedComponent = nil
+	}
 
 	app.messageRouter = services.GetMessageRouter()
 
