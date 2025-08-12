@@ -265,40 +265,37 @@ func (app *ChatApplication) renderModelSelection() string {
 }
 
 func (app *ChatApplication) renderFileSelection() string {
-	allFiles, ok := app.state.Data["files"].([]string)
-	if !ok || len(allFiles) == 0 {
+	allFiles, searchQuery, selectedIndex := app.getFileSelectionState()
+	if allFiles == nil {
 		return "📁 No files found in current directory\n\nPress ESC to return to chat"
 	}
 
-	searchQuery := ""
-	if query, ok := app.state.Data["fileSearchQuery"].(string); ok {
-		searchQuery = query
+	files := app.filterFiles(allFiles, searchQuery)
+	selectedIndex = app.validateSelectedIndex(files, selectedIndex)
+
+	var b strings.Builder
+	app.renderFileSelectionHeader(&b, files, allFiles, searchQuery)
+	app.renderFileSearchField(&b, searchQuery)
+
+	if len(files) == 0 {
+		return app.renderNoFilesFound(&b, searchQuery)
 	}
 
-	var files []string
-	if searchQuery == "" {
-		files = allFiles
-	} else {
-		for _, file := range allFiles {
-			if strings.Contains(strings.ToLower(file), strings.ToLower(searchQuery)) {
-				files = append(files, file)
-			}
-		}
-	}
+	app.renderFileList(&b, files, selectedIndex)
+	app.renderFileSelectionFooter(&b, files)
 
-	selectedIndex := 0
-	if idx, ok := app.state.Data["fileSelectedIndex"].(int); ok {
-		selectedIndex = idx
-	}
+	return b.String()
+}
 
+func (app *ChatApplication) validateSelectedIndex(files []string, selectedIndex int) int {
 	if selectedIndex >= len(files) {
 		selectedIndex = 0
 		app.state.Data["fileSelectedIndex"] = 0
 	}
+	return selectedIndex
+}
 
-	var b strings.Builder
-	theme := app.services.GetTheme()
-
+func (app *ChatApplication) renderFileSelectionHeader(b *strings.Builder, files, allFiles []string, searchQuery string) {
 	if searchQuery != "" {
 		b.WriteString(fmt.Sprintf("📁 File Search - %d matches (of %d total files):\n", len(files), len(allFiles)))
 	} else {
@@ -306,6 +303,10 @@ func (app *ChatApplication) renderFileSelection() string {
 	}
 	b.WriteString(strings.Repeat("═", app.state.Width))
 	b.WriteString("\n\n")
+}
+
+func (app *ChatApplication) renderFileSearchField(b *strings.Builder, searchQuery string) {
+	theme := app.services.GetTheme()
 
 	b.WriteString("🔍 Search: ")
 	if searchQuery != "" {
@@ -314,23 +315,21 @@ func (app *ChatApplication) renderFileSelection() string {
 		b.WriteString(fmt.Sprintf("%stype to filter files...%s│", theme.GetDimColor(), "\033[0m"))
 	}
 	b.WriteString("\n\n")
+}
 
-	if len(files) == 0 {
-		b.WriteString(fmt.Sprintf("%sNo files match '%s'%s\n\n", theme.GetErrorColor(), searchQuery, "\033[0m"))
-		helpText := "Type to search, BACKSPACE to clear search, ESC to cancel"
-		b.WriteString(theme.GetDimColor() + helpText + "\033[0m")
-		return b.String()
-	}
+func (app *ChatApplication) renderNoFilesFound(b *strings.Builder, searchQuery string) string {
+	theme := app.services.GetTheme()
 
+	fmt.Fprintf(b, "%sNo files match '%s'%s\n\n", theme.GetErrorColor(), searchQuery, "\033[0m")
+	helpText := "Type to search, BACKSPACE to clear search, ESC to cancel"
+	b.WriteString(theme.GetDimColor() + helpText + "\033[0m")
+	return b.String()
+}
+
+func (app *ChatApplication) renderFileList(b *strings.Builder, files []string, selectedIndex int) {
+	theme := app.services.GetTheme()
 	maxVisible := 12
-	startIndex := 0
-	if selectedIndex >= maxVisible {
-		startIndex = selectedIndex - maxVisible + 1
-	}
-	endIndex := startIndex + maxVisible
-	if endIndex > len(files) {
-		endIndex = len(files)
-	}
+	startIndex, endIndex := app.calculateVisibleRange(len(files), selectedIndex, maxVisible)
 
 	for i := startIndex; i < endIndex; i++ {
 		file := files[i]
@@ -340,10 +339,32 @@ func (app *ChatApplication) renderFileSelection() string {
 			b.WriteString(fmt.Sprintf("%s  %s%s\n", theme.GetDimColor(), file, "\033[0m"))
 		}
 	}
+}
+
+func (app *ChatApplication) calculateVisibleRange(totalFiles, selectedIndex, maxVisible int) (int, int) {
+	startIndex := 0
+	if selectedIndex >= maxVisible {
+		startIndex = selectedIndex - maxVisible + 1
+	}
+	endIndex := startIndex + maxVisible
+	if endIndex > totalFiles {
+		endIndex = totalFiles
+	}
+	return startIndex, endIndex
+}
+
+func (app *ChatApplication) renderFileSelectionFooter(b *strings.Builder, files []string) {
+	theme := app.services.GetTheme()
+	maxVisible := 12
 
 	b.WriteString("\n")
 
 	if len(files) > maxVisible {
+		selectedIndex := 0
+		if idx, ok := app.state.Data["fileSelectedIndex"].(int); ok {
+			selectedIndex = idx
+		}
+		startIndex, endIndex := app.calculateVisibleRange(len(files), selectedIndex, maxVisible)
 		b.WriteString(fmt.Sprintf("%sShowing %d-%d of %d matches%s\n",
 			theme.GetDimColor(), startIndex+1, endIndex, len(files), "\033[0m"))
 		b.WriteString("\n")
@@ -351,8 +372,6 @@ func (app *ChatApplication) renderFileSelection() string {
 
 	helpText := "Type to search, ↑↓ to navigate, ENTER to select, BACKSPACE to clear, ESC to cancel"
 	b.WriteString(theme.GetDimColor() + helpText + "\033[0m")
-
-	return b.String()
 }
 
 func (app *ChatApplication) renderApproval() string {
