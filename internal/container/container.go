@@ -113,7 +113,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 
 // registerMessageHandlers registers the message handlers
 func (c *ServiceContainer) registerMessageHandlers() {
-	// Register core message handlers
 	c.messageRouter.AddHandler(handlers.NewChatMessageHandler(
 		c.chatService,
 		c.conversationRepo,
@@ -121,6 +120,7 @@ func (c *ServiceContainer) registerMessageHandlers() {
 	))
 
 	c.messageRouter.AddHandler(handlers.NewFileMessageHandler(c.fileService))
+	c.messageRouter.AddHandler(handlers.NewCommandSelectionHandler(c.commandRegistry))
 
 	if c.config.Tools.Enabled {
 		c.messageRouter.AddHandler(handlers.NewToolMessageHandler(c.toolService))

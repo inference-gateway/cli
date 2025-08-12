@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/commands"
@@ -83,6 +84,107 @@ func (h *FileMessageHandler) handleFileSelected(msg ui.FileSelectedMsg, state *A
 	return nil, nil
 }
 
+// CommandSelectionHandler handles command selection UI
+type CommandSelectionHandler struct {
+	commandRegistry *commands.Registry
+}
+
+func NewCommandSelectionHandler(registry *commands.Registry) *CommandSelectionHandler {
+	return &CommandSelectionHandler{
+		commandRegistry: registry,
+	}
+}
+
+func (h *CommandSelectionHandler) GetPriority() int { return 55 }
+
+func (h *CommandSelectionHandler) CanHandle(msg tea.Msg) bool {
+	switch msg.(type) {
+	case ui.CommandSelectionRequestMsg, ui.CommandSelectedMsg:
+		return true
+	default:
+		return false
+	}
+}
+
+func (h *CommandSelectionHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case ui.CommandSelectionRequestMsg:
+		return h.handleCommandSelectionRequest(state)
+
+	case ui.CommandSelectedMsg:
+		return h.handleCommandSelected(msg, state)
+	}
+
+	return nil, nil
+}
+
+func (h *CommandSelectionHandler) handleCommandSelectionRequest(state *AppState) (tea.Model, tea.Cmd) {
+	state.CurrentView = ViewCommandSelection
+	return nil, nil
+}
+
+func (h *CommandSelectionHandler) handleCommandSelected(msg ui.CommandSelectedMsg, state *AppState) (tea.Model, tea.Cmd) {
+	state.CurrentView = ViewChat
+
+	commandName := strings.TrimPrefix(msg.Command, "/")
+
+	cmd, exists := h.commandRegistry.Get(commandName)
+	if !exists || cmd == nil {
+		return nil, func() tea.Msg {
+			return ui.ShowErrorMsg{
+				Error:  fmt.Sprintf("Command not found: %s", commandName),
+				Sticky: false,
+			}
+		}
+	}
+
+	ctx := context.Background()
+	result, err := cmd.Execute(ctx, []string{})
+
+	if err != nil {
+		return nil, func() tea.Msg {
+			return ui.ShowErrorMsg{
+				Error:  fmt.Sprintf("Command execution failed: %v", err),
+				Sticky: false,
+			}
+		}
+	}
+
+	switch result.SideEffect {
+	case commands.SideEffectExit:
+		return nil, tea.Quit
+	case commands.SideEffectClearConversation:
+		return nil, tea.Batch(
+			func() tea.Msg {
+				return ui.ClearInputMsg{}
+			},
+			func() tea.Msg {
+				return ui.UpdateHistoryMsg{
+					History: []domain.ConversationEntry{},
+				}
+			},
+			func() tea.Msg {
+				return ui.SetStatusMsg{
+					Message: result.Output,
+					Spinner: false,
+				}
+			},
+		)
+	default:
+		return nil, tea.Batch(
+			func() tea.Msg {
+				return ui.ClearInputMsg{}
+			},
+			func() tea.Msg {
+				return ui.SetStatusMsg{
+					Message: result.Output,
+					Spinner: false,
+				}
+			},
+		)
+	}
+}
+
 // ToolMessageHandler handles tool-related messages
 type ToolMessageHandler struct {
 	toolService domain.ToolService
@@ -112,31 +214,17 @@ func (h *ToolMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, te
 	return nil, nil
 }
 
-func (h *ToolMessageHandler) handleToolCall(msg domain.ToolCallEvent, state *AppState) (tea.Model, tea.Cmd) {
+func (h *ToolMessageHandler) handleToolCall(event domain.ToolCallEvent, state *AppState) (tea.Model, tea.Cmd) {
+	// For now, just show a status message
 	return nil, func() tea.Msg {
-		// Parse tool arguments
-		args := make(map[string]interface{})
-		// In a real implementation, you'd parse the JSON args
-
-		// Execute the tool
-		ctx := context.Background()
-		_, err := h.toolService.ExecuteTool(ctx, msg.ToolName, args)
-
-		if err != nil {
-			return ui.ShowErrorMsg{
-				Error:  fmt.Sprintf("Tool execution failed: %v", err),
-				Sticky: false,
-			}
-		}
-
 		return ui.SetStatusMsg{
-			Message: fmt.Sprintf("✅ Tool '%s' executed successfully", msg.ToolName),
+			Message: fmt.Sprintf("Tool call received: %s", event.ToolName),
 			Spinner: false,
 		}
 	}
 }
 
-// UIMessageHandler handles general UI messages
+// UIMessageHandler handles UI-related messages
 type UIMessageHandler struct{}
 
 func NewUIMessageHandler() *UIMessageHandler {
@@ -147,9 +235,7 @@ func (h *UIMessageHandler) GetPriority() int { return 10 }
 
 func (h *UIMessageHandler) CanHandle(msg tea.Msg) bool {
 	switch msg.(type) {
-	case ui.SetStatusMsg, ui.ShowErrorMsg, ui.ClearErrorMsg, ui.ResizeMsg:
-		return true
-	case tea.WindowSizeMsg:
+	case ui.SetStatusMsg, ui.ShowErrorMsg, ui.ClearErrorMsg:
 		return true
 	default:
 		return false
@@ -160,22 +246,36 @@ func (h *UIMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.
 	switch msg := msg.(type) {
 	case ui.SetStatusMsg:
 		state.Status = msg.Message
+		return nil, nil
 
 	case ui.ShowErrorMsg:
 		state.Error = msg.Error
+		return nil, nil
 
 	case ui.ClearErrorMsg:
 		state.Error = ""
-
-	case ui.ResizeMsg:
-		state.Width = msg.Width
-		state.Height = msg.Height
-
-	case tea.WindowSizeMsg:
-		state.Width = msg.Width
-		state.Height = msg.Height
+		return nil, nil
 	}
 
+	return nil, nil
+}
+
+// HelpMessageHandler handles help-related messages
+type HelpMessageHandler struct{}
+
+func NewHelpMessageHandler() *HelpMessageHandler {
+	return &HelpMessageHandler{}
+}
+
+func (h *HelpMessageHandler) GetPriority() int { return 70 }
+
+func (h *HelpMessageHandler) CanHandle(msg tea.Msg) bool {
+	// Can handle help request messages when they're implemented
+	return false
+}
+
+func (h *HelpMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.Cmd) {
+	// Implementation for help handling
 	return nil, nil
 }
 
@@ -208,49 +308,27 @@ func (h *CommandMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model,
 	return nil, nil
 }
 
-func (h *CommandMessageHandler) handleCommand(input string, state *AppState) (tea.Model, tea.Cmd) {
-	commandName, args, err := h.commandRegistry.ParseCommand(input)
-	if err != nil {
+func (h *CommandMessageHandler) handleCommand(command string, state *AppState) (tea.Model, tea.Cmd) {
+	cmd, exists := h.commandRegistry.Get(command)
+	if !exists {
 		return nil, func() tea.Msg {
 			return ui.ShowErrorMsg{
-				Error:  fmt.Sprintf("Invalid command: %v", err),
+				Error:  fmt.Sprintf("Unknown command: %s", command),
 				Sticky: false,
 			}
 		}
 	}
 
+	// Execute command asynchronously
 	return nil, func() tea.Msg {
 		ctx := context.Background()
-		result, err := h.commandRegistry.Execute(ctx, commandName, args)
+		result, err := cmd.Execute(ctx, []string{})
 
 		if err != nil {
 			return ui.ShowErrorMsg{
-				Error:  fmt.Sprintf("Command execution failed: %v", err),
+				Error:  fmt.Sprintf("Command failed: %v", err),
 				Sticky: false,
 			}
-		}
-
-		if !result.Success {
-			return ui.ShowErrorMsg{
-				Error:  result.Output,
-				Sticky: false,
-			}
-		}
-
-		switch result.SideEffect {
-		case commands.SideEffectExit:
-			return tea.Quit()
-
-		case commands.SideEffectSwitchModel:
-			if result.Data != nil {
-				if modelID, ok := result.Data.(string); ok {
-					return ui.ModelSelectedMsg{Model: modelID}
-				}
-			}
-			state.CurrentView = ViewModelSelection
-
-		case commands.SideEffectClearConversation:
-			return ui.UpdateHistoryMsg{History: []domain.ConversationEntry{}}
 		}
 
 		return ui.SetStatusMsg{

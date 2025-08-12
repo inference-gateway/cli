@@ -40,6 +40,7 @@ const (
 	ViewModelSelection ViewType = iota
 	ViewChat
 	ViewFileSelection
+	ViewCommandSelection
 	ViewApproval
 	ViewHelp
 )

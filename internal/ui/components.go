@@ -303,6 +303,11 @@ func (iv *InputViewImpl) Init() tea.Cmd { return nil }
 func (iv *InputViewImpl) View() string { return iv.Render() }
 
 func (iv *InputViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg.(type) {
+	case ClearInputMsg:
+		iv.ClearInput()
+		return iv, nil
+	}
 	return iv, nil
 }
 
@@ -338,6 +343,12 @@ func (iv *InputViewImpl) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if char == "@" {
 				return iv, func() tea.Msg {
 					return FileSelectionRequestMsg{}
+				}
+			}
+			if char == "/" && iv.cursor == 1 && iv.text == "/" {
+				// Only trigger command selection if "/" is the first character
+				return iv, func() tea.Msg {
+					return CommandSelectionRequestMsg{}
 				}
 			}
 		}

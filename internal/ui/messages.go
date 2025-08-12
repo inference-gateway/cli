@@ -26,6 +26,9 @@ type ShowErrorMsg struct {
 // ClearErrorMsg clears any displayed error
 type ClearErrorMsg struct{}
 
+// ClearInputMsg clears the input field
+type ClearInputMsg struct{}
+
 // UserInputMsg represents user input submission
 type UserInputMsg struct {
 	Content string
