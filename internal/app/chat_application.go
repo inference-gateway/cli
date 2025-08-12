@@ -64,7 +64,6 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 
 	app.modelSelector = ui.NewModelSelector(models, services.GetModelService(), services.GetTheme())
 
-	// Set focused component based on initial view
 	if initialView == handlers.ViewChat {
 		app.focusedComponent = app.inputView
 	} else {
