@@ -6,7 +6,7 @@
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
 [![Build Status](https://img.shields.io/github/actions/workflow/status/inference-gateway/cli/ci.yml?style=for-the-badge&logo=github)](https://github.com/inference-gateway/cli/actions)
 [![Release](https://img.shields.io/github/v/release/inference-gateway/cli?style=for-the-badge&logo=github)](https://github.com/inference-gateway/cli/releases)
-[![Go Report Card](https://goreportcard.com/badge/github.com/inference-gateway/cli?style=for-the-badge)](https://goreportcard.com/report/github.com/inference-gateway/cli)
+[![Go Report Card](https://img.shields.io/badge/Go%20Report%20Card-A+-brightgreen?style=for-the-badge&logo=go&logoColor=white)](https://goreportcard.com/report/github.com/inference-gateway/cli)
 
 A powerful command-line interface for managing and interacting with the Inference Gateway. This CLI provides tools for configuration, monitoring, and management of inference services.
 
