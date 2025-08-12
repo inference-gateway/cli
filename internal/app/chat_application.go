@@ -341,7 +341,7 @@ func (app *ChatApplication) renderApproval() string {
 	options := []string{
 		"✅ Approve and execute",
 		"❌ Deny and cancel",
-		"👁️  View full response",
+		"👁️ View full response",
 	}
 
 	b.WriteString("Please select an action:\n\n")
