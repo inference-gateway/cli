@@ -27,7 +27,10 @@ tools:
       - ^kubectl get pods$
   safety:
     require_approval: true
+  exclude_paths:
+    - .infer/
+    - .infer/*
 compact:
   output_dir: .infer
 chat:
-  default_model: deepseek/deepseek-chat
+  default_model: ""
