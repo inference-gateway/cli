@@ -138,10 +138,10 @@ func (m *ModelSelectorImpl) View() string {
 
 	if len(m.filteredModels) == 0 {
 		if m.searchQuery != "" {
-			b.WriteString(fmt.Sprintf("%s❌ No models match '%s'%s\n",
+			b.WriteString(fmt.Sprintf("%sNo models match '%s'%s\n",
 				m.theme.GetErrorColor(), m.searchQuery, "\033[0m"))
 		} else {
-			b.WriteString(fmt.Sprintf("%s❌ No models available%s\n",
+			b.WriteString(fmt.Sprintf("%sNo models available%s\n",
 				m.theme.GetErrorColor(), "\033[0m"))
 		}
 		return b.String()

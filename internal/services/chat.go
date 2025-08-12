@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -76,17 +77,16 @@ func (s *StreamingChatService) SendMessage(ctx context.Context, model string, me
 	s.activeRequests[requestID] = cancel
 	s.requestsMux.Unlock()
 
-	defer func() {
-		s.requestsMux.Lock()
-		delete(s.activeRequests, requestID)
-		s.requestsMux.Unlock()
-	}()
-
 	events := make(chan domain.ChatEvent, 100)
 
 	go func() {
 		defer close(events)
 		defer cancel()
+		defer func() {
+			s.requestsMux.Lock()
+			delete(s.activeRequests, requestID)
+			s.requestsMux.Unlock()
+		}()
 
 		startTime := time.Now()
 
@@ -130,10 +130,17 @@ func (s *StreamingChatService) SendMessage(ctx context.Context, model string, me
 		for {
 			select {
 			case <-timeoutCtx.Done():
+				var errorMsg string
+				if timeoutCtx.Err() == context.DeadlineExceeded {
+					errorMsg = fmt.Sprintf("request timed out after %d seconds", s.timeoutSeconds)
+				} else {
+					errorMsg = "request cancelled by user"
+				}
+
 				events <- domain.ChatErrorEvent{
 					RequestID: requestID,
 					Timestamp: time.Now(),
-					Error:     fmt.Errorf("request timed out after %d seconds", s.timeoutSeconds),
+					Error:     errors.New(errorMsg),
 				}
 				return
 

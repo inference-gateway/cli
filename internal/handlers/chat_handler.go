@@ -119,6 +119,9 @@ func (h *ChatMessageHandler) handleUserInput(msg ui.UserInputMsg, state *AppStat
 
 func (h *ChatMessageHandler) handleStreamStarted(msg ChatStreamStartedMsg, state *AppState) (tea.Model, tea.Cmd) {
 	state.Data["eventChannel"] = msg.EventChannel
+	if msg.RequestID != "" {
+		state.Data["currentRequestID"] = msg.RequestID
+	}
 	return nil, h.listenForChatEvents(msg.EventChannel)
 }
 
@@ -139,6 +142,9 @@ func (h *ChatMessageHandler) handleToolCallDetected(msg ToolCallDetectedMsg, sta
 
 func (h *ChatMessageHandler) handleChatStart(msg domain.ChatStartEvent, state *AppState) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
+
+	// Store the request ID for cancellation
+	state.Data["currentRequestID"] = msg.RequestID
 
 	cmds = append(cmds, func() tea.Msg {
 		return ui.SetStatusMsg{
@@ -205,12 +211,13 @@ func (h *ChatMessageHandler) handleChatChunk(msg domain.ChatChunkEvent, state *A
 }
 
 func (h *ChatMessageHandler) handleChatComplete(msg domain.ChatCompleteEvent, state *AppState) (tea.Model, tea.Cmd) {
-	statusMsg := "✅ Response complete"
+	statusMsg := ui.FormatSuccess("Response complete")
 	if msg.Metrics != nil {
-		statusMsg = fmt.Sprintf("✅ Complete - %s", h.formatMetrics(msg.Metrics))
+		statusMsg = ui.FormatSuccess(fmt.Sprintf("Complete - %s", h.formatMetrics(msg.Metrics)))
 	}
 
 	delete(state.Data, "eventChannel")
+	delete(state.Data, "currentRequestID")
 
 	// Check for structured tool calls first (preferred method)
 	if len(msg.ToolCalls) > 0 {
@@ -275,13 +282,14 @@ func (h *ChatMessageHandler) handleChatComplete(msg domain.ChatCompleteEvent, st
 }
 
 func (h *ChatMessageHandler) handleChatError(msg domain.ChatErrorEvent, state *AppState) (tea.Model, tea.Cmd) {
-	errorMsg := fmt.Sprintf("❌ %v", msg.Error)
+	errorMsg := ui.FormatError(msg.Error.Error())
 
 	if contains(msg.Error.Error(), "timed out") {
 		errorMsg = fmt.Sprintf("⏰ %v\n\nSuggestions:\n• Try breaking your request into smaller parts\n• Check if the server is overloaded\n• Verify your network connection", msg.Error)
 	}
 
 	delete(state.Data, "eventChannel")
+	delete(state.Data, "currentRequestID")
 
 	return nil, func() tea.Msg {
 		return ui.ShowErrorMsg{
@@ -324,13 +332,19 @@ func (h *ChatMessageHandler) startChatCompletion(messages []sdk.Message) tea.Cmd
 			}
 		}
 
-		return ChatStreamStartedMsg{EventChannel: eventChan}
+		requestID := "unknown"
+
+		return ChatStreamStartedMsg{
+			EventChannel: eventChan,
+			RequestID:    requestID,
+		}
 	}
 }
 
 // ChatStreamStartedMsg wraps the event channel for stream processing
 type ChatStreamStartedMsg struct {
 	EventChannel <-chan domain.ChatEvent
+	RequestID    string
 }
 
 // ToolCallRequest represents a parsed tool call from LLM response
@@ -491,23 +505,23 @@ func (h *ChatMessageHandler) processFileReferences(content string) string {
 		} else {
 			cwd, err := os.Getwd()
 			if err != nil {
-				return fmt.Sprintf("\n[❌ Error: Could not determine working directory for file %s: %v]\n", filename, err)
+				return fmt.Sprintf("\n[Error: Could not determine working directory for file %s: %v]\n", filename, err)
 			}
 			fullPath = filepath.Join(cwd, filename)
 		}
 
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			return fmt.Sprintf("\n[❌ Error: File not found: %s]\n", filename)
+			return fmt.Sprintf("\n[Error: File not found: %s]\n", filename)
 		}
 
 		content, err := os.ReadFile(fullPath)
 		if err != nil {
-			return fmt.Sprintf("\n[❌ Error: Could not read file %s: %v]\n", filename, err)
+			return fmt.Sprintf("\n[Error: Could not read file %s: %v]\n", filename, err)
 		}
 
 		const maxFileSize = 50 * 1024 // 50KB
 		if len(content) > maxFileSize {
-			return fmt.Sprintf("\n[❌ Error: File %s is too large (%d bytes). Maximum size is %d bytes.]\n", filename, len(content), maxFileSize)
+			return fmt.Sprintf("\n[Error: File %s is too large (%d bytes). Maximum size is %d bytes.]\n", filename, len(content), maxFileSize)
 		}
 
 		ext := strings.ToLower(filepath.Ext(filename))

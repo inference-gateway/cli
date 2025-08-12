@@ -9,6 +9,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/container"
+	"github.com/inference-gateway/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
 
@@ -109,7 +110,7 @@ func enableTools(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("✅ Tools enabled successfully\n")
+	fmt.Printf("%s\n", ui.FormatSuccess("Tools enabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
 	fmt.Printf("Whitelisted commands: %d\n", len(cfg.Tools.Whitelist.Commands))
 	fmt.Printf("Whitelisted patterns: %d\n", len(cfg.Tools.Whitelist.Patterns))
@@ -124,7 +125,7 @@ func disableTools(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("❌ Tools disabled successfully\n")
+	fmt.Printf("%s\n", ui.FormatErrorCLI("Tools disabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
 	return nil
 }
@@ -156,9 +157,9 @@ func listTools(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Tools Status: ")
 	if cfg.Tools.Enabled {
-		fmt.Printf("✅ Enabled\n")
+		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
 	} else {
-		fmt.Printf("❌ Disabled\n")
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
 	}
 
 	fmt.Printf("\nWhitelisted Commands (%d):\n", len(cfg.Tools.Whitelist.Commands))
@@ -173,9 +174,9 @@ func listTools(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\nSafety Settings:\n")
 	if cfg.Tools.Safety.RequireApproval {
-		fmt.Printf("  • Approval required: ✅ Enabled\n")
+		fmt.Printf("  • Approval required: %s\n", ui.FormatSuccess("Enabled"))
 	} else {
-		fmt.Printf("  • Approval required: ❌ Disabled\n")
+		fmt.Printf("  • Approval required: %s\n", ui.FormatErrorCLI("Disabled"))
 	}
 
 	return nil
@@ -188,7 +189,7 @@ func validateTool(cmd *cobra.Command, args []string) error {
 	}
 
 	if !cfg.Tools.Enabled {
-		fmt.Printf("❌ Tools are disabled\n")
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Tools are disabled"))
 		return nil
 	}
 
@@ -202,12 +203,12 @@ func validateTool(cmd *cobra.Command, args []string) error {
 
 	err = toolService.ValidateTool("Bash", toolArgs)
 	if err != nil {
-		fmt.Printf("❌ Command not allowed: %s\n", command)
+		fmt.Printf("%s\n", ui.FormatErrorCLI(fmt.Sprintf("Command not allowed: %s", command)))
 		fmt.Printf("Reason: %s\n", err.Error())
 		return nil
 	}
 
-	fmt.Printf("✅ Command is whitelisted: %s\n", command)
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Command is whitelisted: %s", command)))
 	return nil
 }
 
@@ -252,7 +253,7 @@ func enableSafety(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("✅ Safety approval enabled\n")
+	fmt.Printf("%s\n", ui.FormatSuccess("Safety approval enabled"))
 	fmt.Printf("Commands will require approval before execution\n")
 	return nil
 }
@@ -265,7 +266,7 @@ func disableSafety(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("⚠️  Safety approval disabled\n")
+	fmt.Printf("%s\n", ui.FormatWarning("Safety approval disabled"))
 	fmt.Printf("Commands will execute immediately without approval\n")
 	return nil
 }
@@ -278,10 +279,10 @@ func safetyStatus(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Safety Approval Status: ")
 	if cfg.Tools.Safety.RequireApproval {
-		fmt.Printf("✅ Enabled\n")
+		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
 		fmt.Printf("Commands require approval before execution\n")
 	} else {
-		fmt.Printf("❌ Disabled\n")
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
 		fmt.Printf("Commands execute immediately without approval\n")
 	}
 

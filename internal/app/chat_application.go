@@ -89,23 +89,13 @@ func (app *ChatApplication) Init() tea.Cmd {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	switch msg := msg.(type) {
+	switch msg.(type) {
 	case tea.KeyMsg:
-		cmds = append(cmds, func() tea.Msg {
-			return ui.SetStatusMsg{
-				Message: fmt.Sprintf("UPDATE: Key='%s', View=%d", msg.String(), app.state.CurrentView),
-				Spinner: false,
-			}
-		})
+		// Remove excessive debug logging
 	case ui.SetStatusMsg:
-
+		// Status messages pass through normally
 	default:
-		cmds = append(cmds, func() tea.Msg {
-			return ui.SetStatusMsg{
-				Message: fmt.Sprintf("UPDATE: Msg=%T, View=%d", msg, app.state.CurrentView),
-				Spinner: false,
-			}
-		})
+		// Remove excessive debug logging
 	}
 
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
@@ -323,7 +313,7 @@ func (app *ChatApplication) renderFileSelection() string {
 func (app *ChatApplication) renderApproval() string {
 	pendingToolCall, ok := app.state.Data["pendingToolCall"].(handlers.ToolCallRequest)
 	if !ok {
-		return "⚠️ No pending tool call found"
+		return ui.FormatWarning("No pending tool call found")
 	}
 
 	selectedIndex := int(domain.ApprovalApprove)
@@ -408,11 +398,17 @@ func (app *ChatApplication) handleGlobalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case "esc":
-		if app.statusView.IsShowingSpinner() {
-			return func() tea.Msg {
-				return ui.ShowErrorMsg{
-					Error:  "Operation cancelled by user",
-					Sticky: false,
+		if requestID, ok := app.state.Data["currentRequestID"].(string); ok {
+			chatService := app.services.GetChatService()
+			if err := chatService.CancelRequest(requestID); err == nil {
+				delete(app.state.Data, "currentRequestID")
+				delete(app.state.Data, "eventChannel")
+
+				return func() tea.Msg {
+					return ui.SetStatusMsg{
+						Message: "Response cancelled",
+						Spinner: false,
+					}
 				}
 			}
 		}
@@ -591,15 +587,56 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case "esc":
+		toolCall, ok := app.state.Data["pendingToolCall"].(handlers.ToolCallRequest)
+		if !ok {
+			app.state.CurrentView = handlers.ViewChat
+			delete(app.state.Data, "pendingToolCall")
+			delete(app.state.Data, "toolCallResponse")
+			delete(app.state.Data, "approvalSelectedIndex")
+			return func() tea.Msg {
+				return ui.SetStatusMsg{
+					Message: "Tool call cancelled - no pending call found",
+					Spinner: false,
+				}
+			}
+		}
+
 		app.state.CurrentView = handlers.ViewChat
 		delete(app.state.Data, "pendingToolCall")
 		delete(app.state.Data, "toolCallResponse")
 		delete(app.state.Data, "approvalSelectedIndex")
+
 		return func() tea.Msg {
-			return ui.SetStatusMsg{
-				Message: "Tool call cancelled",
-				Spinner: false,
+			toolResultEntry := domain.ConversationEntry{
+				Message: sdk.Message{
+					Role:       sdk.Tool,
+					Content:    "Tool execution cancelled by user.",
+					ToolCallId: &toolCall.ID,
+				},
+				Time: time.Now(),
 			}
+
+			conversationRepo := app.services.GetConversationRepository()
+			if err := conversationRepo.AddMessage(toolResultEntry); err != nil {
+				return ui.ShowErrorMsg{
+					Error:  fmt.Sprintf("Failed to save tool result: %v", err),
+					Sticky: false,
+				}
+			}
+
+			return tea.Batch(
+				func() tea.Msg {
+					return ui.SetStatusMsg{
+						Message: "Tool call cancelled",
+						Spinner: false,
+					}
+				},
+				func() tea.Msg {
+					return ui.UpdateHistoryMsg{
+						History: conversationRepo.GetMessages(),
+					}
+				},
+			)()
 		}
 
 	default:
@@ -641,8 +678,8 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 
 		toolResultEntry := domain.ConversationEntry{
 			Message: sdk.Message{
-				Role:    sdk.Tool,
-				Content: result,
+				Role:       sdk.Tool,
+				Content:    result,
 				ToolCallId: &toolCall.ID,
 			},
 			Time: time.Now(),
@@ -659,7 +696,7 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 		return tea.Batch(
 			func() tea.Msg {
 				return ui.SetStatusMsg{
-					Message: fmt.Sprintf("✅ Tool executed: %s - sending to model...", toolCall.Name),
+					Message: ui.FormatSuccess(fmt.Sprintf("Tool executed: %s - sending to model...", toolCall.Name)),
 					Spinner: true,
 				}
 			},
@@ -708,6 +745,20 @@ func (app *ChatApplication) triggerFollowUpLLMCall() tea.Cmd {
 }
 
 func (app *ChatApplication) denyToolCall() tea.Cmd {
+	toolCall, ok := app.state.Data["pendingToolCall"].(handlers.ToolCallRequest)
+	if !ok {
+		delete(app.state.Data, "pendingToolCall")
+		delete(app.state.Data, "toolCallResponse")
+		delete(app.state.Data, "approvalSelectedIndex")
+		app.state.CurrentView = handlers.ViewChat
+		return func() tea.Msg {
+			return ui.SetStatusMsg{
+				Message: "Tool call denied - no pending call found",
+				Spinner: false,
+			}
+		}
+	}
+
 	delete(app.state.Data, "pendingToolCall")
 	delete(app.state.Data, "toolCallResponse")
 	delete(app.state.Data, "approvalSelectedIndex")
@@ -715,10 +766,36 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 	app.state.CurrentView = handlers.ViewChat
 
 	return func() tea.Msg {
-		return ui.SetStatusMsg{
-			Message: "Tool call denied",
-			Spinner: false,
+		toolResultEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:       sdk.Tool,
+				Content:    "Tool execution denied by user.",
+				ToolCallId: &toolCall.ID,
+			},
+			Time: time.Now(),
 		}
+
+		conversationRepo := app.services.GetConversationRepository()
+		if err := conversationRepo.AddMessage(toolResultEntry); err != nil {
+			return ui.ShowErrorMsg{
+				Error:  fmt.Sprintf("Failed to save tool result: %v", err),
+				Sticky: false,
+			}
+		}
+
+		return tea.Batch(
+			func() tea.Msg {
+				return ui.SetStatusMsg{
+					Message: "Tool call denied",
+					Spinner: false,
+				}
+			},
+			func() tea.Msg {
+				return ui.UpdateHistoryMsg{
+					History: conversationRepo.GetMessages(),
+				}
+			},
+		)()
 	}
 }
 
