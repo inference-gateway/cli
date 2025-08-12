@@ -62,7 +62,6 @@ func (h *FileMessageHandler) handleFileSelectionRequest(state *AppState) (tea.Mo
 		}
 	}
 
-	// Transition to file selection view
 	state.CurrentView = ViewFileSelection
 	state.Data["files"] = files
 
@@ -70,7 +69,6 @@ func (h *FileMessageHandler) handleFileSelectionRequest(state *AppState) (tea.Mo
 }
 
 func (h *FileMessageHandler) handleFileSelected(msg ui.FileSelectedMsg, state *AppState) (tea.Model, tea.Cmd) {
-	// Validate the selected file
 	if err := h.fileService.ValidateFile(msg.FilePath); err != nil {
 		return nil, func() tea.Msg {
 			return ui.ShowErrorMsg{
@@ -80,10 +78,8 @@ func (h *FileMessageHandler) handleFileSelected(msg ui.FileSelectedMsg, state *A
 		}
 	}
 
-	// Return to chat view
 	state.CurrentView = ViewChat
 
-	// The file reference will be handled by the input component
 	return nil, nil
 }
 
@@ -147,7 +143,7 @@ func NewUIMessageHandler() *UIMessageHandler {
 	return &UIMessageHandler{}
 }
 
-func (h *UIMessageHandler) GetPriority() int { return 10 } // Low priority
+func (h *UIMessageHandler) GetPriority() int { return 10 }
 
 func (h *UIMessageHandler) CanHandle(msg tea.Msg) bool {
 	switch msg.(type) {
@@ -197,7 +193,6 @@ func (h *CommandMessageHandler) GetPriority() int { return 90 }
 func (h *CommandMessageHandler) CanHandle(msg tea.Msg) bool {
 	switch msg := msg.(type) {
 	case ui.UserInputMsg:
-		// Check if the input is a command (starts with /)
 		return len(msg.Content) > 0 && msg.Content[0] == '/'
 	default:
 		return false
@@ -242,7 +237,6 @@ func (h *CommandMessageHandler) handleCommand(input string, state *AppState) (te
 			}
 		}
 
-		// Handle side effects
 		switch result.SideEffect {
 		case commands.SideEffectExit:
 			return tea.Quit()
@@ -253,7 +247,6 @@ func (h *CommandMessageHandler) handleCommand(input string, state *AppState) (te
 					return ui.ModelSelectedMsg{Model: modelID}
 				}
 			}
-			// Trigger interactive model selection
 			state.CurrentView = ViewModelSelection
 
 		case commands.SideEffectClearConversation:

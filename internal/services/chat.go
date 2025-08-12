@@ -31,7 +31,6 @@ type StreamingChatService struct {
 
 // NewStreamingChatService creates a new streaming chat service
 func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolService domain.ToolService) *StreamingChatService {
-	// Prepare base URL for SDK
 	if !strings.HasSuffix(baseURL, "/v1") {
 		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
 	}
@@ -61,59 +60,47 @@ func (s *StreamingChatService) SendMessage(ctx context.Context, model string, me
 		return nil, fmt.Errorf("no model specified")
 	}
 
-	// Add tools system message if tools are available
 	if s.toolService != nil {
 		availableTools := s.toolService.ListTools()
 		if len(availableTools) > 0 {
 			toolsMessage := s.createToolsSystemMessage(availableTools)
-			// Prepend tools message to the messages
 			messages = append([]sdk.Message{toolsMessage}, messages...)
 		}
 	}
 
-	// Generate request ID
 	requestID := generateRequestID()
 
-	// Create context with timeout
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
 
-	// Track active request
 	s.requestsMux.Lock()
 	s.activeRequests[requestID] = cancel
 	s.requestsMux.Unlock()
 
-	// Clean up tracking when done
 	defer func() {
 		s.requestsMux.Lock()
 		delete(s.activeRequests, requestID)
 		s.requestsMux.Unlock()
 	}()
 
-	// Create output channel
 	events := make(chan domain.ChatEvent, 100)
 
-	// Start async processing
 	go func() {
 		defer close(events)
 		defer cancel()
 
 		startTime := time.Now()
 
-		// Send start event
 		events <- domain.ChatStartEvent{
 			RequestID: requestID,
 			Timestamp: startTime,
 		}
 
-		// Initialize metrics
 		s.metricsMux.Lock()
 		s.metrics[requestID] = &domain.ChatMetrics{
 			Duration: 0,
 			Usage:    nil,
 		}
 		s.metricsMux.Unlock()
-
-		// Use the provided model
 
 		provider, modelName, err := s.parseProvider(model)
 		if err != nil {
@@ -125,7 +112,6 @@ func (s *StreamingChatService) SendMessage(ctx context.Context, model string, me
 			return
 		}
 
-		// Start streaming - convert string provider to SDK provider type
 		providerType := sdk.Provider(provider)
 		stream, err := s.client.GenerateContentStream(timeoutCtx, providerType, modelName, messages)
 		if err != nil {
@@ -137,7 +123,6 @@ func (s *StreamingChatService) SendMessage(ctx context.Context, model string, me
 			return
 		}
 
-		// Process stream
 		var fullMessage strings.Builder
 		var toolCalls []sdk.ChatCompletionMessageToolCall
 		var usage *sdk.CompletionUsage
@@ -154,10 +139,8 @@ func (s *StreamingChatService) SendMessage(ctx context.Context, model string, me
 
 			case event, ok := <-stream:
 				if !ok {
-					// Stream closed - send completion event
 					duration := time.Since(startTime)
 
-					// Update metrics
 					s.metricsMux.Lock()
 					if metrics, exists := s.metrics[requestID]; exists {
 						metrics.Duration = duration
@@ -200,7 +183,6 @@ func (s *StreamingChatService) SendMessage(ctx context.Context, model string, me
 					}
 
 				case sdk.StreamEnd:
-					// Stream ended normally
 					continue
 
 				case "error":
@@ -242,7 +224,6 @@ func (s *StreamingChatService) GetMetrics(requestID string) *domain.ChatMetrics 
 	defer s.metricsMux.RUnlock()
 
 	if metrics, exists := s.metrics[requestID]; exists {
-		// Return copy to prevent external modification
 		return &domain.ChatMetrics{
 			Duration: metrics.Duration,
 			Usage:    metrics.Usage,
@@ -279,7 +260,6 @@ func (s *StreamingChatService) processContentDelta(event sdk.SSEvent) (string, [
 			content += choice.Delta.Content
 		}
 
-		// Process tool calls
 		for _, deltaToolCall := range choice.Delta.ToolCalls {
 			toolCall := sdk.ChatCompletionMessageToolCall{
 				Id:   deltaToolCall.ID,
@@ -305,7 +285,6 @@ func (s *StreamingChatService) createToolsSystemMessage(tools []domain.ToolDefin
 	for _, tool := range tools {
 		description := fmt.Sprintf("\n- **%s**: %s", tool.Name, tool.Description)
 
-		// Add parameter information if available
 		if tool.Parameters != nil {
 			if paramMap, ok := tool.Parameters.(map[string]interface{}); ok {
 				if props, ok := paramMap["properties"].(map[string]interface{}); ok {

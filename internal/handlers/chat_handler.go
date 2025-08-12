@@ -34,7 +34,7 @@ func NewChatMessageHandler(
 }
 
 func (h *ChatMessageHandler) GetPriority() int {
-	return 100 // High priority for core chat functionality
+	return 100
 }
 
 func (h *ChatMessageHandler) CanHandle(msg tea.Msg) bool {
@@ -288,7 +288,6 @@ type ToolCallDetectedMsg struct {
 // listenForChatEvents creates a command that listens for the next chat event
 func (h *ChatMessageHandler) listenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd {
 	return func() tea.Msg {
-		// Read one event from the channel
 		if event, ok := <-eventChan; ok {
 			return event
 		}

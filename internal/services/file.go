@@ -80,15 +80,14 @@ func (s *LocalFileService) ListProjectFiles() ([]string, error) {
 
 	err = filepath.WalkDir(cwd, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
-			return nil // Skip files with errors
+			return nil
 		}
 
 		relPath, err := filepath.Rel(cwd, path)
 		if err != nil {
-			return nil // Skip files with path issues
+			return nil
 		}
 
-		// Skip excluded directories
 		if d.IsDir() {
 			if s.excludeDirs[d.Name()] || (strings.HasPrefix(d.Name(), ".") && d.Name() != ".") {
 				return filepath.SkipDir
@@ -96,18 +95,15 @@ func (s *LocalFileService) ListProjectFiles() ([]string, error) {
 			return nil
 		}
 
-		// Skip excluded extensions
 		ext := strings.ToLower(filepath.Ext(relPath))
 		if s.excludeExts[ext] {
 			return nil
 		}
 
-		// Skip large files
 		if info, err := d.Info(); err == nil && info.Size() > s.maxFileSize {
 			return nil
 		}
 
-		// Only include regular files
 		if d.Type().IsRegular() {
 			files = append(files, relPath)
 		}

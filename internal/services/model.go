@@ -43,7 +43,6 @@ func NewHTTPModelService(baseURL, apiKey string) *HTTPModelService {
 
 func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 	s.modelsMux.RLock()
-	// Return cached models if they're still fresh
 	if time.Since(s.lastFetch) < s.cacheTTL && len(s.models) > 0 {
 		result := make([]string, len(s.models))
 		copy(result, s.models)
@@ -52,7 +51,6 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 	}
 	s.modelsMux.RUnlock()
 
-	// Fetch fresh models
 	url := fmt.Sprintf("%s/v1/models", s.baseURL)
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -80,19 +78,16 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 		return nil, fmt.Errorf("failed to parse response: %w", err)
 	}
 
-	// Extract model IDs
 	models := make([]string, len(modelsResp.Data))
 	for i, model := range modelsResp.Data {
 		models[i] = model.ID
 	}
 
-	// Update cache
 	s.modelsMux.Lock()
 	s.models = models
 	s.lastFetch = time.Now()
 	s.modelsMux.Unlock()
 
-	// Return copy
 	result := make([]string, len(models))
 	copy(result, models)
 	return result, nil
@@ -128,7 +123,6 @@ func (s *HTTPModelService) ValidateModel(modelID string) error {
 		return fmt.Errorf("model ID cannot be empty")
 	}
 
-	// If we have cached models, check against them
 	s.modelsMux.RLock()
 	if len(s.models) > 0 {
 		available := false
@@ -145,13 +139,11 @@ func (s *HTTPModelService) ValidateModel(modelID string) error {
 		}
 	} else {
 		s.modelsMux.RUnlock()
-		// If no cached models, try to fetch them to validate
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
 
 		models, err := s.ListModels(ctx)
 		if err != nil {
-			// If we can't fetch models, just validate the format
 			if !isValidModelFormat(modelID) {
 				return fmt.Errorf("invalid model ID format: %s", modelID)
 			}
@@ -176,6 +168,5 @@ func (s *HTTPModelService) ValidateModel(modelID string) error {
 
 // isValidModelFormat performs basic format validation on model IDs
 func isValidModelFormat(modelID string) bool {
-	// Basic validation - should contain provider/model format
 	return strings.Contains(modelID, "/") && len(modelID) > 3
 }

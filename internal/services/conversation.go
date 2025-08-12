@@ -28,7 +28,6 @@ func (r *InMemoryConversationRepository) AddMessage(msg domain.ConversationEntry
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	// Set timestamp if not provided
 	if msg.Time.IsZero() {
 		msg.Time = time.Now()
 	}
@@ -41,7 +40,6 @@ func (r *InMemoryConversationRepository) GetMessages() []domain.ConversationEntr
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()
 
-	// Return a copy to prevent external modification
 	result := make([]domain.ConversationEntry, len(r.messages))
 	copy(result, r.messages)
 	return result
@@ -89,7 +87,6 @@ func (r *InMemoryConversationRepository) UpdateLastMessage(content string) error
 		return fmt.Errorf("no messages to update")
 	}
 
-	// Update the content of the last message
 	lastIndex := len(r.messages) - 1
 	r.messages[lastIndex].Message.Content = content
 	r.messages[lastIndex].Time = time.Now()

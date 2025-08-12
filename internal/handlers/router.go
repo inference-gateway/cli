@@ -22,7 +22,6 @@ func NewMessageRouter() *MessageRouter {
 func (r *MessageRouter) AddHandler(handler MessageHandler) {
 	r.handlers = append(r.handlers, handler)
 
-	// Sort handlers by priority (higher priority first)
 	sort.Slice(r.handlers, func(i, j int) bool {
 		return r.handlers[i].GetPriority() > r.handlers[j].GetPriority()
 	})
@@ -46,7 +45,6 @@ func (r *MessageRouter) Route(msg tea.Msg, state *AppState) (tea.Model, tea.Cmd)
 		}
 	}
 
-	// No handler found - return nil to indicate no action
 	return nil, nil
 }
 
