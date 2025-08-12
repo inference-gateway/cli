@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -32,6 +33,13 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("config", "c", "", "config file (default is ./.infer.yaml)")
+	rootCmd.PersistentFlags().StringP("config", "c", "", "config file (default is ./.infer/config.yaml)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+
+	cobra.OnInitialize(initConfig)
+}
+
+func initConfig() {
+	verbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
+	logger.Init(verbose)
 }

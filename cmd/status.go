@@ -7,6 +7,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/container"
+	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/spf13/cobra"
 )
 
@@ -19,24 +20,31 @@ var statusCmd = &cobra.Command{
 - Health checks
 - Resource usage`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		logger.Debug("Starting status command")
 		fmt.Println("Checking inference gateway status...")
 
 		configPath, _ := cmd.Flags().GetString("config")
 		format, _ := cmd.Flags().GetString("format")
 
+		logger.Debug("Status command flags", "config_path", configPath, "format", format)
+
 		cfg, err := config.LoadConfig(configPath)
 		if err != nil {
+			logger.Error("Failed to load config in status command", "error", err)
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
+		logger.Debug("Fetching models from gateway", "gateway_url", cfg.Gateway.URL)
 		modelsResp, err := fetchModels(cfg)
 		if err != nil {
+			logger.Warn("Gateway unreachable", "error", err)
 			fmt.Printf("Gateway Status: Unreachable (%v)\n", err)
 			fmt.Println("Models: Unable to connect")
 			return nil
 		}
 
 		modelCount := len(modelsResp.Data)
+		logger.Debug("Successfully fetched models", "count", modelCount)
 
 		fmt.Println("Gateway Status: Running")
 		fmt.Printf("Models: %d active\n", modelCount)
@@ -53,16 +61,22 @@ var statusCmd = &cobra.Command{
 func fetchModels(cfg *config.Config) (*struct {
 	Data []string `json:"data"`
 }, error) {
+	logger.Debug("Creating service container")
 	services := container.NewServiceContainer(cfg)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	timeout := time.Duration(cfg.Gateway.Timeout) * time.Second
+	logger.Debug("Creating request context", "timeout", timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
+	logger.Debug("Calling ListModels API")
 	models, err := services.GetModelService().ListModels(ctx)
 	if err != nil {
+		logger.Error("ListModels API call failed", "error", err)
 		return nil, err
 	}
 
+	logger.Debug("ListModels API call succeeded", "models", models)
 	return &struct {
 		Data []string `json:"data"`
 	}{

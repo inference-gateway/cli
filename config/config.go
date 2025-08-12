@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/inference-gateway/cli/internal/logger"
 	"gopkg.in/yaml.v3"
 )
 
@@ -92,22 +93,30 @@ func DefaultConfig() *Config {
 func LoadConfig(configPath string) (*Config, error) {
 	if configPath == "" {
 		configPath = getDefaultConfigPath()
+		logger.Debug("Using default config path", "path", configPath)
+	} else {
+		logger.Debug("Using custom config path", "path", configPath)
 	}
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		logger.Debug("Config file not found, using default configuration", "path", configPath)
 		return DefaultConfig(), nil
 	}
 
+	logger.Debug("Loading config file", "path", configPath)
 	data, err := os.ReadFile(configPath)
 	if err != nil {
+		logger.Error("Failed to read config file", "path", configPath, "error", err)
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
+		logger.Error("Failed to parse config file", "path", configPath, "error", err)
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
 
+	logger.Debug("Successfully loaded config", "path", configPath, "gateway_url", config.Gateway.URL)
 	return &config, nil
 }
 
@@ -115,22 +124,31 @@ func LoadConfig(configPath string) (*Config, error) {
 func (c *Config) SaveConfig(configPath string) error {
 	if configPath == "" {
 		configPath = getDefaultConfigPath()
+		logger.Debug("Using default config path for save", "path", configPath)
+	} else {
+		logger.Debug("Using custom config path for save", "path", configPath)
 	}
 
 	dir := filepath.Dir(configPath)
+	logger.Debug("Creating config directory", "dir", dir)
 	if err := os.MkdirAll(dir, 0755); err != nil {
+		logger.Error("Failed to create config directory", "dir", dir, "error", err)
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
 	data, err := yaml.Marshal(c)
 	if err != nil {
+		logger.Error("Failed to marshal config", "error", err)
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
+	logger.Debug("Writing config file", "path", configPath, "size", len(data))
 	if err := os.WriteFile(configPath, data, 0644); err != nil {
+		logger.Error("Failed to write config file", "path", configPath, "error", err)
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
+	logger.Debug("Successfully saved config", "path", configPath)
 	return nil
 }
 
