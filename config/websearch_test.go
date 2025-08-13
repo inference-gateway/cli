@@ -44,7 +44,7 @@ func TestLoadConfig_WebSearch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	configPath := filepath.Join(tempDir, "config.yaml")
 	configContent := `
@@ -138,7 +138,7 @@ func TestSaveConfig_WebSearch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	configPath := filepath.Join(tempDir, "config.yaml")
 
@@ -189,7 +189,7 @@ func TestLoadConfig_MissingWebSearchSection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	configPath := filepath.Join(tempDir, "config.yaml")
 	configContent := `

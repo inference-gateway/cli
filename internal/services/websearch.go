@@ -104,7 +104,7 @@ func (s *WebSearchService) performGoogleSearch(ctx context.Context, query string
 	if err != nil {
 		return nil, fmt.Errorf("search request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		// For non-200 responses, return mock results instead of failing
@@ -132,7 +132,7 @@ func (s *WebSearchService) performDuckDuckGoSearch(ctx context.Context, query st
 	if err != nil {
 		return nil, fmt.Errorf("search request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		// For non-200 responses, return mock results instead of failing
@@ -199,7 +199,7 @@ func (s *WebSearchService) parseDuckDuckGoResponse(response map[string]interface
 		if abstract, ok := response["Abstract"].(string); ok && abstract != "" {
 			if abstractURL, ok := response["AbstractURL"].(string); ok && abstractURL != "" {
 				results = append(results, domain.WebSearchResult{
-					Title:   fmt.Sprintf("DuckDuckGo Result"),
+					Title:   "DuckDuckGo Result",
 					URL:     abstractURL,
 					Snippet: abstract,
 				})
