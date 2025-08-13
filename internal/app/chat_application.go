@@ -422,7 +422,6 @@ func (app *ChatApplication) renderApproval() string {
 	options := []string{
 		"✅ Approve and execute",
 		"❌ Deny and cancel",
-		"👁️ View full response",
 	}
 
 	b.WriteString("Please select an action:\n\n")
@@ -677,7 +676,7 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case "down", "j":
-		if selectedIndex < int(domain.ApprovalView) {
+		if selectedIndex < int(domain.ApprovalReject) {
 			selectedIndex++
 		}
 		app.state.Data["approvalSelectedIndex"] = selectedIndex
@@ -689,16 +688,6 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 			return app.approveToolCall()
 		case domain.ApprovalReject:
 			return app.denyToolCall()
-		case domain.ApprovalView:
-			if response, ok := app.state.Data["toolCallResponse"].(string); ok {
-				return func() tea.Msg {
-					return ui.ShowErrorMsg{
-						Error:  fmt.Sprintf("Full response: %s", response),
-						Sticky: true,
-					}
-				}
-			}
-			return nil
 		}
 		return nil
 
