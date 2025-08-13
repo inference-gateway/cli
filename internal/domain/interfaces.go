@@ -132,3 +132,28 @@ type FetchService interface {
 	ClearCache()
 	GetCacheStats() map[string]interface{}
 }
+
+// WebSearchResult represents a single search result
+type WebSearchResult struct {
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Snippet string `json:"snippet"`
+}
+
+// WebSearchResponse represents the complete search response
+type WebSearchResponse struct {
+	Query   string            `json:"query"`
+	Engine  string            `json:"engine"`
+	Results []WebSearchResult `json:"results"`
+	Total   int               `json:"total"`
+	Time    time.Duration     `json:"time"`
+	Error   string            `json:"error,omitempty"`
+}
+
+// WebSearchService handles web search operations
+type WebSearchService interface {
+	SearchGoogle(ctx context.Context, query string, maxResults int) (*WebSearchResponse, error)
+	SearchDuckDuckGo(ctx context.Context, query string, maxResults int) (*WebSearchResponse, error)
+	IsEnabled() bool
+	SetEnabled(enabled bool)
+}

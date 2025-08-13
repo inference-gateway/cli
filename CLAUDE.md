@@ -160,6 +160,14 @@ compact:
 chat:
   default_model: ""  # Default model for chat sessions (when set, skips model selection)
   system_prompt: ""  # System prompt included with every chat session
+web_search:
+  enabled: true  # Enable web search tool for LLMs
+  default_engine: "google"  # Default search engine (google, duckduckgo)
+  max_results: 10  # Default maximum number of search results
+  engines:  # Available search engines
+    - "google"
+    - "duckduckgo"
+  timeout: 10  # Search timeout in seconds
 ```
 
 ### Command Structure
@@ -271,6 +279,63 @@ infer config tools exclude-path list
 infer config tools exclude-path add ".github/"
 infer config tools exclude-path remove "test.txt"
 ```
+
+### Web Search Tool
+
+The CLI includes a web search tool that allows LLMs to search the web using Google or DuckDuckGo search engines. This tool is enabled by default and provides search results with configurable limits.
+
+#### Features
+
+- **Multiple Search Engines**: Supports Google and DuckDuckGo
+- **Result Limiting**: Configure maximum number of results (default: 10)
+- **Format Options**: Return results in text or JSON format
+- **Mock Results**: Falls back to mock results for demonstration when APIs are unavailable
+- **Configurable**: Enable/disable and customize through configuration
+
+#### Configuration
+
+```yaml
+web_search:
+  enabled: true                    # Enable/disable web search tool
+  default_engine: "google"         # Default search engine
+  max_results: 10                  # Default maximum results
+  engines: ["google", "duckduckgo"] # Available engines
+  timeout: 10                      # Search timeout (seconds)
+```
+
+#### Tool Parameters
+
+When the LLM uses the WebSearch tool, it can specify:
+
+- `query` (required): The search query string
+- `engine` (optional): Search engine to use ("google" or "duckduckgo")
+- `limit` (optional): Maximum number of results (1-50)
+- `format` (optional): Output format ("text" or "json")
+
+#### Example LLM Usage
+
+The LLM can invoke the web search tool like this:
+
+```json
+{
+  "name": "WebSearch",
+  "parameters": {
+    "query": "golang web development tutorial",
+    "engine": "google",
+    "limit": 5,
+    "format": "text"
+  }
+}
+```
+
+#### Implementation Notes
+
+- The current implementation uses mock results for demonstration purposes
+- In production, you would integrate with actual search APIs:
+  - Google: Custom Search JSON API (requires API key)
+  - DuckDuckGo: Uses the instant answer API when available
+- Non-200 HTTP responses fall back to mock results instead of failing
+- Results include title, URL, and snippet for each search result
 
 ## Code Style Guidelines
 

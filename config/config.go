@@ -12,12 +12,13 @@ import (
 
 // Config represents the CLI configuration
 type Config struct {
-	Gateway GatewayConfig `yaml:"gateway"`
-	Output  OutputConfig  `yaml:"output"`
-	Tools   ToolsConfig   `yaml:"tools"`
-	Compact CompactConfig `yaml:"compact"`
-	Chat    ChatConfig    `yaml:"chat"`
-	Fetch   FetchConfig   `yaml:"fetch"`
+	Gateway   GatewayConfig   `yaml:"gateway"`
+	Output    OutputConfig    `yaml:"output"`
+	Tools     ToolsConfig     `yaml:"tools"`
+	Compact   CompactConfig   `yaml:"compact"`
+	Chat      ChatConfig      `yaml:"chat"`
+	Fetch     FetchConfig     `yaml:"fetch"`
+	WebSearch WebSearchConfig `yaml:"web_search"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -93,6 +94,15 @@ type FetchCacheConfig struct {
 	MaxSize int64 `yaml:"max_size"`
 }
 
+// WebSearchConfig contains settings for web search functionality
+type WebSearchConfig struct {
+	Enabled       bool     `yaml:"enabled"`
+	DefaultEngine string   `yaml:"default_engine"`
+	MaxResults    int      `yaml:"max_results"`
+	Engines       []string `yaml:"engines"`
+	Timeout       int      `yaml:"timeout"`
+}
+
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
@@ -152,6 +162,13 @@ func DefaultConfig() *Config {
 				TTL:     3600,     // 1 hour
 				MaxSize: 52428800, // 50MB
 			},
+		},
+		WebSearch: WebSearchConfig{
+			Enabled:       true,
+			DefaultEngine: "google",
+			MaxResults:    10,
+			Engines:       []string{"google", "duckduckgo"},
+			Timeout:       10,
 		},
 	}
 }
