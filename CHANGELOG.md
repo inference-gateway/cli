@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.12.0](https://github.com/inference-gateway/cli/compare/v0.11.1...v0.12.0) (2025-08-13)
+
+### 🚀 Features
+
+* Add Cosign integration for signing checksums in release process ([7230948](https://github.com/inference-gateway/cli/commit/7230948ce4e7f5a6f43a07311d4536e3ec28e58f))
+
+## [0.11.1](https://github.com/inference-gateway/cli/compare/v0.11.0...v0.11.1) (2025-08-13)
+
+### 🐛 Bug Fixes
+
+* Include checksums.txt in GitHub releases ([cc7ffc0](https://github.com/inference-gateway/cli/commit/cc7ffc0607903d62087459b37a35e315bffd4aa2))
+
 ## [0.11.0](https://github.com/inference-gateway/cli/compare/v0.10.3...v0.11.0) (2025-08-13)
 
 ### 🚀 Features

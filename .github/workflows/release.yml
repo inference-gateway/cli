@@ -49,6 +49,9 @@ jobs:
       - name: Install Flox
         uses: flox/install-flox-action@main
 
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v3.9.2
+
       - name: Check for existing releases
         id: check_releases
         env:
