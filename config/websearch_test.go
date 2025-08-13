@@ -9,7 +9,6 @@ import (
 func TestDefaultConfig_WebSearch(t *testing.T) {
 	cfg := DefaultConfig()
 
-	// Verify web search configuration
 	if !cfg.WebSearch.Enabled {
 		t.Error("Expected WebSearch to be enabled by default")
 	}
@@ -39,7 +38,6 @@ func TestDefaultConfig_WebSearch(t *testing.T) {
 }
 
 func TestLoadConfig_WebSearch(t *testing.T) {
-	// Create temporary config file
 	tempDir, err := os.MkdirTemp("", "config_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -110,7 +108,6 @@ web_search:
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Verify web search configuration was loaded correctly
 	if !cfg.WebSearch.Enabled {
 		t.Error("Expected WebSearch to be enabled")
 	}
@@ -142,7 +139,6 @@ func TestSaveConfig_WebSearch(t *testing.T) {
 
 	configPath := filepath.Join(tempDir, "config.yaml")
 
-	// Create config with custom web search settings
 	cfg := DefaultConfig()
 	cfg.WebSearch.Enabled = false
 	cfg.WebSearch.DefaultEngine = "duckduckgo"
@@ -150,18 +146,15 @@ func TestSaveConfig_WebSearch(t *testing.T) {
 	cfg.WebSearch.Timeout = 15
 	cfg.WebSearch.Engines = []string{"duckduckgo"}
 
-	// Save config
 	if err := cfg.SaveConfig(configPath); err != nil {
 		t.Fatalf("Failed to save config: %v", err)
 	}
 
-	// Load config back
 	loadedCfg, err := LoadConfig(configPath)
 	if err != nil {
 		t.Fatalf("Failed to load saved config: %v", err)
 	}
 
-	// Verify web search configuration was saved and loaded correctly
 	if loadedCfg.WebSearch.Enabled {
 		t.Error("Expected WebSearch to be disabled")
 	}
@@ -184,7 +177,6 @@ func TestSaveConfig_WebSearch(t *testing.T) {
 }
 
 func TestLoadConfig_MissingWebSearchSection(t *testing.T) {
-	// Create temporary config file without web_search section
 	tempDir, err := os.MkdirTemp("", "config_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -212,8 +204,6 @@ output:
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	// When web_search section is missing, zero values should be loaded
-	// The application should handle this gracefully
 	if cfg.WebSearch.DefaultEngine != "" {
 		t.Errorf("Expected default engine to be empty when not specified, got %q", cfg.WebSearch.DefaultEngine)
 	}
@@ -256,14 +246,12 @@ func TestWebSearchConfig_Validation(t *testing.T) {
 			config: WebSearchConfig{
 				Enabled: false,
 			},
-			valid: true, // Disabled config should be valid regardless of other fields
+			valid: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// For this simple test, we just verify the struct can be created
-			// In a real application, you might have a Validate() method
 			cfg := &Config{
 				WebSearch: tt.config,
 			}
@@ -280,7 +268,6 @@ func TestWebSearchConfig_Validation(t *testing.T) {
 }
 
 func TestWebSearchConfig_EdgeCases(t *testing.T) {
-	// Test with large values
 	cfg := &WebSearchConfig{
 		Enabled:       true,
 		DefaultEngine: "google",
@@ -292,13 +279,11 @@ func TestWebSearchConfig_EdgeCases(t *testing.T) {
 		t.Errorf("Expected max results to handle large values, got %d", cfg.MaxResults)
 	}
 
-	// Test with zero timeout (edge case)
 	cfg.Timeout = 0
 	if cfg.Timeout != 0 {
 		t.Errorf("Expected timeout to handle zero value, got %d", cfg.Timeout)
 	}
 
-	// Test with empty engine list
 	cfg.Engines = []string{}
 	if len(cfg.Engines) != 0 {
 		t.Errorf("Expected empty engines list to be handled, got %d engines", len(cfg.Engines))
