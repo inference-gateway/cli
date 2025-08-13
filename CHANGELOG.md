@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.10.3](https://github.com/inference-gateway/cli/compare/v0.10.2...v0.10.3) (2025-08-13)
+
+### 🧹 Maintenance
+
+* Create dependabot.yml ([d64f569](https://github.com/inference-gateway/cli/commit/d64f569e40474957056bc1177db8df56cf733753))
+
 ## [0.10.2](https://github.com/inference-gateway/cli/compare/v0.10.1...v0.10.2) (2025-08-13)
 
 ### 📚 Documentation
