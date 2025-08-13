@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/inference-gateway/cli/config"
@@ -171,6 +172,98 @@ var configToolsExcludePathRemoveCmd = &cobra.Command{
 	RunE:  removeExcludedPath,
 }
 
+var configFetchCmd = &cobra.Command{
+	Use:   "fetch",
+	Short: "Manage fetch tool settings",
+	Long: `Manage the fetch tool that allows LLMs to retrieve content from whitelisted URLs.
+The fetch tool supports GitHub integration and URL pattern matching for secure content retrieval.`,
+}
+
+var configFetchEnableCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable the fetch tool",
+	Long:  `Enable the fetch tool to allow LLMs to retrieve content from whitelisted sources.`,
+	RunE:  enableFetch,
+}
+
+var configFetchDisableCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable the fetch tool",
+	Long:  `Disable the fetch tool to prevent LLMs from retrieving any external content.`,
+	RunE:  disableFetch,
+}
+
+var configFetchListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List whitelisted domains",
+	Long:  `Display all whitelisted domains that can be fetched by LLMs.`,
+	RunE:  listFetchDomains,
+}
+
+var configFetchAddDomainCmd = &cobra.Command{
+	Use:   "add-domain <domain>",
+	Short: "Add a domain to the whitelist",
+	Long:  `Add a domain to the whitelist of allowed fetch sources (e.g., github.com, example.org).`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  addFetchDomain,
+}
+
+var configFetchRemoveDomainCmd = &cobra.Command{
+	Use:   "remove-domain <domain>",
+	Short: "Remove a domain from the whitelist",
+	Long:  `Remove a domain from the whitelist of allowed fetch sources.`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  removeFetchDomain,
+}
+
+var configFetchGitHubCmd = &cobra.Command{
+	Use:   "github",
+	Short: "Manage GitHub integration settings",
+	Long:  `Manage GitHub-specific fetch settings including API access and optimization features.`,
+}
+
+var configFetchGitHubEnableCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable GitHub integration",
+	Long:  `Enable GitHub API integration for optimized fetching of GitHub issues and pull requests.`,
+	RunE:  enableGitHubFetch,
+}
+
+var configFetchGitHubDisableCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable GitHub integration",
+	Long:  `Disable GitHub API integration, falling back to regular HTTP fetching.`,
+	RunE:  disableGitHubFetch,
+}
+
+var configFetchGitHubTokenCmd = &cobra.Command{
+	Use:   "set-token <token>",
+	Short: "Set GitHub API token",
+	Long:  `Set the GitHub API token for authenticated requests to increase rate limits.`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  setGitHubToken,
+}
+
+var configFetchCacheCmd = &cobra.Command{
+	Use:   "cache",
+	Short: "Manage fetch cache settings",
+	Long:  `Manage caching settings for fetched content to improve performance.`,
+}
+
+var configFetchCacheStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show cache status and statistics",
+	Long:  `Display current cache status, statistics, and configuration.`,
+	RunE:  fetchCacheStatus,
+}
+
+var configFetchCacheClearCmd = &cobra.Command{
+	Use:   "clear",
+	Short: "Clear the fetch cache",
+	Long:  `Clear all cached content to free up memory and force fresh fetches.`,
+	RunE:  fetchCacheClear,
+}
+
 func setDefaultModel(modelName string) error {
 	cfg, err := config.LoadConfig("")
 	if err != nil {
@@ -211,6 +304,7 @@ func init() {
 	configCmd.AddCommand(setSystemCmd)
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configToolsCmd)
+	configCmd.AddCommand(configFetchCmd)
 
 	configToolsCmd.AddCommand(configToolsEnableCmd)
 	configToolsCmd.AddCommand(configToolsDisableCmd)
@@ -228,9 +322,25 @@ func init() {
 	configToolsExcludePathCmd.AddCommand(configToolsExcludePathAddCmd)
 	configToolsExcludePathCmd.AddCommand(configToolsExcludePathRemoveCmd)
 
+	configFetchCmd.AddCommand(configFetchEnableCmd)
+	configFetchCmd.AddCommand(configFetchDisableCmd)
+	configFetchCmd.AddCommand(configFetchListCmd)
+	configFetchCmd.AddCommand(configFetchAddDomainCmd)
+	configFetchCmd.AddCommand(configFetchRemoveDomainCmd)
+	configFetchCmd.AddCommand(configFetchGitHubCmd)
+	configFetchCmd.AddCommand(configFetchCacheCmd)
+
+	configFetchGitHubCmd.AddCommand(configFetchGitHubEnableCmd)
+	configFetchGitHubCmd.AddCommand(configFetchGitHubDisableCmd)
+	configFetchGitHubCmd.AddCommand(configFetchGitHubTokenCmd)
+
+	configFetchCacheCmd.AddCommand(configFetchCacheStatusCmd)
+	configFetchCacheCmd.AddCommand(configFetchCacheClearCmd)
+
 	configInitCmd.Flags().Bool("overwrite", false, "Overwrite existing configuration file")
 	configToolsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	configToolsExecCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	configFetchListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 
 	rootCmd.AddCommand(configCmd)
 }
@@ -520,5 +630,249 @@ func removeExcludedPath(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed '%s' from excluded paths", pathToRemove)))
 	fmt.Printf("Tools can now access this path again\n")
+	return nil
+}
+
+func enableFetch(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Fetch.Enabled = true
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess("Fetch tool enabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Println("You can now configure whitelisted sources with 'infer config fetch add-source <url>'")
+	return nil
+}
+
+func disableFetch(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Fetch.Enabled = false
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatErrorCLI("Fetch tool disabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	return nil
+}
+
+func listFetchDomains(cmd *cobra.Command, args []string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	format, _ := cmd.Flags().GetString("format")
+
+	if format == "json" {
+		data := map[string]interface{}{
+			"enabled":             cfg.Fetch.Enabled,
+			"whitelisted_domains": cfg.Fetch.WhitelistedDomains,
+			"github": map[string]interface{}{
+				"enabled":   cfg.Fetch.GitHub.Enabled,
+				"base_url":  cfg.Fetch.GitHub.BaseURL,
+				"has_token": cfg.Fetch.GitHub.Token != "",
+			},
+			"safety": map[string]interface{}{
+				"max_size":       cfg.Fetch.Safety.MaxSize,
+				"timeout":        cfg.Fetch.Safety.Timeout,
+				"allow_redirect": cfg.Fetch.Safety.AllowRedirect,
+			},
+			"cache": map[string]interface{}{
+				"enabled":  cfg.Fetch.Cache.Enabled,
+				"ttl":      cfg.Fetch.Cache.TTL,
+				"max_size": cfg.Fetch.Cache.MaxSize,
+			},
+		}
+		jsonOutput, err := json.MarshalIndent(data, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal output: %w", err)
+		}
+		fmt.Println(string(jsonOutput))
+		return nil
+	}
+
+	fmt.Printf("Fetch Tool Status: ")
+	if cfg.Fetch.Enabled {
+		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+	} else {
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+	}
+
+	fmt.Printf("\nWhitelisted Domains (%d):\n", len(cfg.Fetch.WhitelistedDomains))
+	if len(cfg.Fetch.WhitelistedDomains) == 0 {
+		fmt.Printf("  • None configured\n")
+	} else {
+		for _, domain := range cfg.Fetch.WhitelistedDomains {
+			fmt.Printf("  • %s\n", domain)
+		}
+	}
+
+	fmt.Printf("\nGitHub Integration:\n")
+	if cfg.Fetch.GitHub.Enabled {
+		fmt.Printf("  • Status: %s\n", ui.FormatSuccess("Enabled"))
+		fmt.Printf("  • Base URL: %s\n", cfg.Fetch.GitHub.BaseURL)
+		if cfg.Fetch.GitHub.Token != "" {
+			fmt.Printf("  • Token: %s\n", ui.FormatSuccess("Configured"))
+		} else {
+			fmt.Printf("  • Token: %s\n", ui.FormatWarning("Not configured"))
+		}
+	} else {
+		fmt.Printf("  • Status: %s\n", ui.FormatErrorCLI("Disabled"))
+	}
+
+	fmt.Printf("\nSafety Settings:\n")
+	fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", cfg.Fetch.Safety.MaxSize, float64(cfg.Fetch.Safety.MaxSize)/(1024*1024))
+	fmt.Printf("  • Timeout: %d seconds\n", cfg.Fetch.Safety.Timeout)
+	fmt.Printf("  • Allow redirects: %t\n", cfg.Fetch.Safety.AllowRedirect)
+
+	fmt.Printf("\nCache Settings:\n")
+	if cfg.Fetch.Cache.Enabled {
+		fmt.Printf("  • Status: %s\n", ui.FormatSuccess("Enabled"))
+		fmt.Printf("  • TTL: %d seconds\n", cfg.Fetch.Cache.TTL)
+		fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", cfg.Fetch.Cache.MaxSize, float64(cfg.Fetch.Cache.MaxSize)/(1024*1024))
+	} else {
+		fmt.Printf("  • Status: %s\n", ui.FormatErrorCLI("Disabled"))
+	}
+
+	return nil
+}
+
+func addFetchDomain(cmd *cobra.Command, args []string) error {
+	domainToAdd := args[0]
+
+	// Basic domain validation
+	if strings.Contains(domainToAdd, "://") {
+		return fmt.Errorf("please provide just the domain (e.g., 'github.com'), not a full URL")
+	}
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		for _, existingDomain := range c.Fetch.WhitelistedDomains {
+			if existingDomain == domainToAdd {
+				return
+			}
+		}
+		c.Fetch.WhitelistedDomains = append(c.Fetch.WhitelistedDomains, domainToAdd)
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Added '%s' to whitelisted domains", domainToAdd)))
+	fmt.Printf("LLMs can now fetch content from this domain and its subdomains\n")
+	return nil
+}
+
+func removeFetchDomain(cmd *cobra.Command, args []string) error {
+	domainToRemove := args[0]
+	var found bool
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		for i, existingDomain := range c.Fetch.WhitelistedDomains {
+			if existingDomain == domainToRemove {
+				c.Fetch.WhitelistedDomains = append(c.Fetch.WhitelistedDomains[:i], c.Fetch.WhitelistedDomains[i+1:]...)
+				found = true
+				return
+			}
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	if !found {
+		fmt.Printf("%s\n", ui.FormatWarning(fmt.Sprintf("Domain '%s' was not in the whitelist", domainToRemove)))
+		return nil
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed '%s' from whitelisted domains", domainToRemove)))
+	fmt.Printf("LLMs can no longer fetch content from this domain\n")
+	return nil
+}
+
+func enableGitHubFetch(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Fetch.GitHub.Enabled = true
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess("GitHub integration enabled"))
+	fmt.Printf("LLMs can now use optimized GitHub fetching with 'github:owner/repo#123' syntax\n")
+	fmt.Printf("Set a GitHub token with 'infer config fetch github set-token <token>' for higher rate limits\n")
+	return nil
+}
+
+func disableGitHubFetch(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Fetch.GitHub.Enabled = false
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatErrorCLI("GitHub integration disabled"))
+	fmt.Printf("GitHub URLs will now be fetched using regular HTTP requests\n")
+	return nil
+}
+
+func setGitHubToken(cmd *cobra.Command, args []string) error {
+	token := args[0]
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Fetch.GitHub.Token = token
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess("GitHub token configured successfully"))
+	fmt.Printf("GitHub API requests will now use authentication for higher rate limits\n")
+	return nil
+}
+
+func fetchCacheStatus(cmd *cobra.Command, args []string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	services := container.NewServiceContainer(cfg)
+	fetchService := services.GetFetchService()
+	stats := fetchService.GetCacheStats()
+
+	fmt.Printf("Cache Status: ")
+	if cfg.Fetch.Cache.Enabled {
+		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+	} else {
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+	}
+
+	fmt.Printf("\nCache Statistics:\n")
+	fmt.Printf("  • Entries: %d\n", stats["entries"])
+	fmt.Printf("  • Total size: %d bytes (%.1f KB)\n", stats["total_size"], float64(stats["total_size"].(int64))/1024)
+	fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", stats["max_size"], float64(stats["max_size"].(int64))/(1024*1024))
+	fmt.Printf("  • TTL: %d seconds\n", stats["ttl"])
+
+	return nil
+}
+
+func fetchCacheClear(cmd *cobra.Command, args []string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	services := container.NewServiceContainer(cfg)
+	fetchService := services.GetFetchService()
+	fetchService.ClearCache()
+
+	fmt.Printf("%s\n", ui.FormatSuccess("Fetch cache cleared successfully"))
+	fmt.Printf("All cached content has been removed\n")
 	return nil
 }

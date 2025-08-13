@@ -32,3 +32,19 @@ compact:
 chat:
   default_model: ""
   system_prompt: ""
+fetch:
+  enabled: false
+  whitelisted_domains:
+    - github.com
+  github:
+    enabled: false
+    token: ""
+    base_url: https://api.github.com
+  safety:
+    max_size: 8192
+    timeout: 30
+    allow_redirect: true
+  cache:
+    enabled: true
+    ttl: 3600
+    max_size: 52428800

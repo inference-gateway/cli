@@ -113,3 +113,22 @@ type FileInfo struct {
 	Size  int64
 	IsDir bool
 }
+
+// FetchResult represents the result of a fetch operation
+type FetchResult struct {
+	Content     string            `json:"content"`
+	URL         string            `json:"url"`
+	Status      int               `json:"status"`
+	Size        int64             `json:"size"`
+	ContentType string            `json:"content_type"`
+	Cached      bool              `json:"cached"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
+// FetchService handles content fetching operations
+type FetchService interface {
+	ValidateURL(url string) error
+	FetchContent(ctx context.Context, target string) (*FetchResult, error)
+	ClearCache()
+	GetCacheStats() map[string]interface{}
+}
