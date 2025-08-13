@@ -162,6 +162,14 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	key := keyMsg.String()
+	if key == "ctrl+v" || key == "alt+v" || key == "ctrl+x" || key == "ctrl+shift+c" {
+		if cmd := app.handleFocusedComponentKeys(keyMsg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return cmds
+	}
+
 	if cmd := app.handleGlobalKeys(keyMsg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -256,11 +264,11 @@ func (app *ChatApplication) renderChatInterface() string {
 	statusContent := app.statusView.Render()
 	if statusContent != "" {
 		b.WriteString(statusContent)
-		b.WriteString("\n")
+		b.WriteString("\n\n")
 	}
 
 	b.WriteString(app.inputView.Render())
-	b.WriteString("\n")
+	b.WriteString("\n\n")
 
 	b.WriteString(app.renderHelpText())
 
@@ -414,7 +422,6 @@ func (app *ChatApplication) renderApproval() string {
 	options := []string{
 		"✅ Approve and execute",
 		"❌ Deny and cancel",
-		"👁️ View full response",
 	}
 
 	b.WriteString("Please select an action:\n\n")
@@ -453,7 +460,7 @@ func (app *ChatApplication) renderHelp() string {
 
 func (app *ChatApplication) renderHelpText() string {
 	theme := app.services.GetTheme()
-	helpText := "Press Ctrl+D to send message, Ctrl+C to exit • Type @ for files, / for commands"
+	helpText := "Press Ctrl+D to send message, Ctrl+C to exit, Ctrl+Shift+C to copy, Ctrl+V to paste • Type @ for files, / for commands"
 	return theme.GetDimColor() + helpText + "\033[0m"
 }
 
@@ -669,7 +676,7 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 
 	case "down", "j":
-		if selectedIndex < int(domain.ApprovalView) {
+		if selectedIndex < int(domain.ApprovalReject) {
 			selectedIndex++
 		}
 		app.state.Data["approvalSelectedIndex"] = selectedIndex
@@ -681,16 +688,6 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 			return app.approveToolCall()
 		case domain.ApprovalReject:
 			return app.denyToolCall()
-		case domain.ApprovalView:
-			if response, ok := app.state.Data["toolCallResponse"].(string); ok {
-				return func() tea.Msg {
-					return ui.ShowErrorMsg{
-						Error:  fmt.Sprintf("Full response: %s", response),
-						Sticky: true,
-					}
-				}
-			}
-			return nil
 		}
 		return nil
 
