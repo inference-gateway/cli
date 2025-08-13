@@ -2,16 +2,14 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"regexp"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/container"
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/services"
+	"github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 	"github.com/spf13/cobra"
 )
@@ -20,12 +18,11 @@ var promptCmd = &cobra.Command{
 	Use:   "prompt [prompt_text]",
 	Short: "Execute a one-off prompt in background mode",
 	Long: `Execute a one-off prompt that runs in background mode until the task is complete.
-This command can automatically fetch GitHub issues and work on them iteratively.
+This command can work with URLs (including GitHub issues) using the Fetch tool.
 
 Examples:
-  infer prompt "Please fix the github issue #123"
-  infer prompt "Please fix the github owner/repo#456"
-  infer prompt "Please fix the github https://github.com/owner/repo/issues/789"
+  infer prompt "Please analyze https://github.com/owner/repo/issues/123"
+  infer prompt "Help me understand this issue: https://github.com/owner/repo/issues/456"
   infer prompt "Optimize the database queries in the user service"`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -36,10 +33,8 @@ Examples:
 
 // BackgroundExecutor handles background execution of prompts
 type BackgroundExecutor struct {
-	services       *container.ServiceContainer
-	githubService  *services.GitHubService
-	maxIterations  int
-	currentContext string
+	services      *container.ServiceContainer
+	maxIterations int
 }
 
 // executeBackgroundPrompt executes a prompt in background mode
@@ -50,15 +45,13 @@ func executeBackgroundPrompt(promptText string) error {
 	}
 
 	serviceContainer := container.NewServiceContainer(cfg)
-	githubService := services.NewGitHubService()
 
 	executor := &BackgroundExecutor{
 		services:      serviceContainer,
-		githubService: githubService,
-		maxIterations: 10, // Prevent infinite loops
+		maxIterations: 10,
 	}
 
-	fmt.Println("🚀 Starting background execution...")
+	logger.Info("background_execution_starting", "prompt_text", promptText)
 	return executor.Execute(promptText)
 }
 
@@ -66,164 +59,128 @@ func executeBackgroundPrompt(promptText string) error {
 func (e *BackgroundExecutor) Execute(promptText string) error {
 	ctx := context.Background()
 
-	// Check if this involves a GitHub issue
-	if issueContext, err := e.extractGitHubIssueContext(ctx, promptText); err == nil && issueContext != "" {
-		fmt.Println("📄 GitHub issue detected, fetching context...")
-		e.currentContext = issueContext
-		promptText = e.enhancePromptWithIssueContext(promptText, issueContext)
-	}
-
-	// Get available models
-	models, err := e.getAvailableModels(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get available models: %w", err)
-	}
-
-	// Select or use default model
-	model, err := e.selectModel(models)
+	model, err := e.selectModelRobust(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to select model: %w", err)
 	}
 
-	fmt.Printf("🤖 Using model: %s\n", model)
+	logger.Info("model_selected", "model", model)
 
-	// Create initial system prompt for background execution
-	systemPrompt := e.createSystemPrompt()
+	// Use system prompt from config
+	cfg := e.services.GetConfig()
+	systemPrompt := cfg.Chat.SystemPrompt
 
-	// Execute iteratively
+	logger.Debug("background_execution_started",
+		"model", model,
+		"prompt_text", promptText,
+		"system_prompt", systemPrompt)
+
 	return e.executeIteratively(ctx, model, systemPrompt, promptText)
 }
 
-// extractGitHubIssueContext extracts and fetches GitHub issue information from prompt
-func (e *BackgroundExecutor) extractGitHubIssueContext(ctx context.Context, promptText string) (string, error) {
-	// Look for GitHub issue references in the prompt
-	patterns := []string{
-		`github\s+issue\s+#(\d+)`,                                       // "github issue #123"
-		`github\s+(\w+/\w+)#(\d+)`,                                      // "github owner/repo#123"
-		`github\s+(https://github\.com/[\w\-\.]+/[\w\-\.]+/issues/\d+)`, // "github https://github.com/..."
-		`#(\d+)`, // "#123"
-	}
 
-	for _, pattern := range patterns {
-		re := regexp.MustCompile(`(?i)` + pattern)
-		matches := re.FindStringSubmatch(promptText)
 
-		if len(matches) > 1 {
-			return e.fetchIssueContext(ctx, matches)
-		}
-	}
-
-	return "", fmt.Errorf("no GitHub issue reference found")
-}
-
-// fetchIssueContext fetches the GitHub issue context
-func (e *BackgroundExecutor) fetchIssueContext(ctx context.Context, matches []string) (string, error) {
-	var repository string
-	var issueNumber int
-	var err error
-
-	// Parse based on match pattern
-	if len(matches) == 2 {
-		// Simple number pattern (#123 or issue #123)
-		if issueNumber, err = strconv.Atoi(matches[1]); err != nil {
-			return "", fmt.Errorf("invalid issue number: %s", matches[1])
-		}
-
-		// Try to infer repository from current directory or ask user
-		repository = e.inferRepository()
-		if repository == "" {
-			return "", fmt.Errorf("could not determine repository for issue #%d. Please specify as owner/repo#%d", issueNumber, issueNumber)
-		}
-	} else if len(matches) == 3 {
-		// owner/repo#123 pattern
-		repository = matches[1]
-		if issueNumber, err = strconv.Atoi(matches[2]); err != nil {
-			return "", fmt.Errorf("invalid issue number: %s", matches[2])
-		}
-	} else if strings.HasPrefix(matches[1], "https://") {
-		// Full URL pattern
-		repository, issueNumber, err = e.githubService.ParseIssueReference(matches[1])
-		if err != nil {
-			return "", err
-		}
-	}
-
-	// Fetch the issue
-	issue, err := e.githubService.FetchIssue(ctx, repository, issueNumber)
-	if err != nil {
-		return "", fmt.Errorf("failed to fetch GitHub issue: %w", err)
-	}
-
-	fmt.Printf("📋 Fetched issue #%d: %s\n", issue.Number, issue.Title)
-	return e.githubService.FormatIssueForPrompt(issue), nil
-}
-
-// inferRepository tries to infer the repository from the current directory
-func (e *BackgroundExecutor) inferRepository() string {
-	// This is a simplified implementation
-	// In a real scenario, you might want to check git remotes, etc.
-	// For now, return empty to require explicit specification
-	return ""
-}
-
-// enhancePromptWithIssueContext enhances the original prompt with issue context
-func (e *BackgroundExecutor) enhancePromptWithIssueContext(originalPrompt, issueContext string) string {
-	return fmt.Sprintf("%s\n\nHere is the GitHub issue context:\n\n%s\n\nPlease analyze this issue and provide a solution.", originalPrompt, issueContext)
-}
-
-// getAvailableModels gets the list of available models
-func (e *BackgroundExecutor) getAvailableModels(ctx context.Context) ([]string, error) {
-	timeoutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	models, err := e.services.GetModelService().ListModels(timeoutCtx)
-	if err != nil {
-		return nil, fmt.Errorf("inference gateway is not available: %w", err)
-	}
-
-	if len(models) == 0 {
-		return nil, fmt.Errorf("no models available from inference gateway")
-	}
-
-	return models, nil
-}
-
-// selectModel selects a model (use default if configured, otherwise pick first available)
-func (e *BackgroundExecutor) selectModel(models []string) (string, error) {
+// selectModelRobust selects the configured default model only
+func (e *BackgroundExecutor) selectModelRobust(ctx context.Context) (string, error) {
 	cfg := e.services.GetConfig()
 
-	// Use default model if configured
-	if cfg.Chat.DefaultModel != "" {
-		for _, model := range models {
-			if model == cfg.Chat.DefaultModel {
-				return cfg.Chat.DefaultModel, nil
-			}
-		}
-		fmt.Printf("⚠️  Default model '%s' not available, using %s\n", cfg.Chat.DefaultModel, models[0])
+	if cfg.Chat.DefaultModel == "" {
+		return "", fmt.Errorf("no default model configured in .infer/config.yaml")
 	}
 
-	// Use first available model
-	return models[0], nil
+	if err := e.services.GetModelService().SelectModel(cfg.Chat.DefaultModel); err != nil {
+		return "", fmt.Errorf("failed to select configured default model '%s': %w", cfg.Chat.DefaultModel, err)
+	}
+
+	return cfg.Chat.DefaultModel, nil
 }
 
-// createSystemPrompt creates a system prompt for background execution
-func (e *BackgroundExecutor) createSystemPrompt() string {
-	return `You are an AI assistant running in background mode to solve a specific task or issue.
 
-Your goal is to:
-1. Analyze the given task/issue thoroughly
-2. Break it down into actionable steps
-3. Provide detailed solutions or implementations
-4. Consider edge cases and potential problems
-5. Suggest next steps or follow-up actions
+// sendMessageDirectWithToolCalls sends a message and returns both content and tool calls
+func (e *BackgroundExecutor) sendMessageDirectWithToolCalls(ctx context.Context, model string, messages []sdk.Message) (string, []sdk.ChatCompletionMessageToolCall, error) {
+	parts := strings.SplitN(model, "/", 2)
+	if len(parts) != 2 {
+		return "", nil, fmt.Errorf("invalid model format, expected 'provider/model'")
+	}
+	provider := parts[0]
+	modelName := parts[1]
 
-When working on GitHub issues:
-- Understand the problem described in the issue
-- Consider the codebase context if available
-- Provide specific, actionable solutions
-- Consider implementation details and best practices
+	cfg := e.services.GetConfig()
+	client := sdk.NewClient(&sdk.ClientOptions{
+		BaseURL: strings.TrimSuffix(cfg.Gateway.URL, "/") + "/v1",
+		APIKey:  cfg.Gateway.APIKey,
+	})
 
-Be thorough, practical, and focused on delivering complete solutions.`
+	messages = e.addToolsIfAvailable(messages)
+
+	providerType := sdk.Provider(provider)
+	response, err := client.GenerateContent(ctx, providerType, modelName, messages)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to generate content: %w", err)
+	}
+
+	if len(response.Choices) == 0 {
+		return "", nil, fmt.Errorf("no choices in response")
+	}
+
+	choice := response.Choices[0]
+	content := choice.Message.Content
+	var toolCalls []sdk.ChatCompletionMessageToolCall
+
+	if choice.Message.ToolCalls != nil {
+		toolCalls = *choice.Message.ToolCalls
+	}
+
+	return content, toolCalls, nil
+}
+
+// addToolsIfAvailable adds tools to messages if tool service is available
+func (e *BackgroundExecutor) addToolsIfAvailable(messages []sdk.Message) []sdk.Message {
+	toolService := e.services.GetToolService()
+	if toolService == nil {
+		return messages
+	}
+
+	availableTools := toolService.ListTools()
+	if len(availableTools) == 0 {
+		return messages
+	}
+
+	toolsMessage := e.createToolsSystemMessage(availableTools)
+
+	var result []sdk.Message
+	systemAdded := false
+
+	for _, msg := range messages {
+		if msg.Role == sdk.System && !systemAdded {
+			result = append(result, msg, toolsMessage)
+			systemAdded = true
+		} else {
+			result = append(result, msg)
+		}
+	}
+
+	if !systemAdded {
+		result = append([]sdk.Message{toolsMessage}, result...)
+	}
+
+	return result
+}
+
+// createToolsSystemMessage creates a system message describing available tools
+func (e *BackgroundExecutor) createToolsSystemMessage(tools []domain.ToolDefinition) sdk.Message {
+	content := "You have access to the following tools:\n\n"
+
+	for _, tool := range tools {
+		content += fmt.Sprintf("- **%s**: %s\n", tool.Name, tool.Description)
+	}
+
+	content += "\nTo use a tool, respond with a tool call using the proper format. The system will execute the tool and provide you with the results."
+
+	return sdk.Message{
+		Role:    sdk.System,
+		Content: content,
+	}
 }
 
 // executeIteratively executes the prompt iteratively until completion
@@ -234,71 +191,109 @@ func (e *BackgroundExecutor) executeIteratively(ctx context.Context, model, syst
 	}
 
 	for iteration := 1; iteration <= e.maxIterations; iteration++ {
-		fmt.Printf("\n📝 Iteration %d/%d\n", iteration, e.maxIterations)
-		fmt.Println("" + strings.Repeat("=", 50))
+		logger.Info("iteration_starting", "iteration", iteration, "max_iterations", e.maxIterations)
 
-		// Send message to the model
-		events, err := e.services.GetChatService().SendMessage(ctx, model, messages)
+		logger.Debug("sending_message_to_model",
+			"iteration", iteration,
+			"model", model,
+			"message_count", len(messages),
+			"messages", messages)
+
+		response, toolCalls, err := e.sendMessageDirectWithToolCalls(ctx, model, messages)
 		if err != nil {
+			logger.Error("failed_to_send_message", "error", err, "model", model)
 			return fmt.Errorf("failed to send message: %w", err)
 		}
 
-		// Process the response
-		response, completed, err := e.processResponse(events)
-		if err != nil {
-			return fmt.Errorf("error processing response: %w", err)
-		}
+		logger.Debug("received_assistant_response",
+			"iteration", iteration,
+			"response_length", len(response),
+			"tool_calls_count", len(toolCalls))
 
-		// Add response to conversation
-		messages = append(messages, sdk.Message{
+		logger.Info("assistant_response", "iteration", iteration, "content", response)
+
+		assistantMsg := sdk.Message{
 			Role:    sdk.Assistant,
 			Content: response,
-		})
+		}
 
-		// Check if task is completed
-		if completed || e.isTaskCompleted(response) {
-			fmt.Println("\n✅ Task completed successfully!")
-			fmt.Println("📄 Final solution:")
-			fmt.Println(response)
+		if len(toolCalls) > 0 {
+			assistantMsg.ToolCalls = &toolCalls
+		}
+
+		messages = append(messages, assistantMsg)
+
+		if len(toolCalls) > 0 {
+			logger.Info("processing_tool_calls", "count", len(toolCalls), "iteration", iteration)
+
+			toolResultsProcessed := false
+			for _, toolCall := range toolCalls {
+				logger.Info("executing_tool", "tool_name", toolCall.Function.Name, "iteration", iteration)
+
+				toolResult, err := e.executeToolCall(ctx, toolCall)
+				if err != nil {
+					logger.Error("tool_execution_failed", "tool_name", toolCall.Function.Name, "error", err)
+					toolResult = fmt.Sprintf("Tool execution failed: %v", err)
+				}
+
+				toolResultMsg := sdk.Message{
+					Role:       sdk.Tool,
+					Content:    toolResult,
+					ToolCallId: &toolCall.Id,
+				}
+				messages = append(messages, toolResultMsg)
+				toolResultsProcessed = true
+
+				logger.Info("tool_result", "tool_name", toolCall.Function.Name, "result", toolResult)
+			}
+
+			if toolResultsProcessed {
+				continue
+			}
+		}
+
+		if e.isTaskCompleted(response) {
+			logger.Info("task_completed", "iteration", iteration)
 			return nil
 		}
 
-		// If not completed, ask for next steps or refinement
 		followUpPrompt := e.generateFollowUpPrompt(response, iteration)
+		logger.Debug("generated_follow_up_prompt",
+			"iteration", iteration,
+			"follow_up_prompt", followUpPrompt)
+
 		messages = append(messages, sdk.Message{
 			Role:    sdk.User,
 			Content: followUpPrompt,
 		})
 	}
 
-	fmt.Printf("\n⚠️  Reached maximum iterations (%d). Task may not be fully completed.\n", e.maxIterations)
+	logger.Warn("max_iterations_reached", "max_iterations", e.maxIterations)
 	return nil
 }
 
-// processResponse processes the chat response events
-func (e *BackgroundExecutor) processResponse(events <-chan domain.ChatEvent) (string, bool, error) {
-	var fullResponse strings.Builder
-	completed := false
+// executeToolCall executes a single tool call and returns the result
+func (e *BackgroundExecutor) executeToolCall(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCall) (string, error) {
+	toolService := e.services.GetToolService()
+	if toolService == nil {
+		return "", fmt.Errorf("tool service not available")
+	}
 
-	for event := range events {
-		switch evt := event.(type) {
-		case domain.ChatChunkEvent:
-			fullResponse.WriteString(evt.Content)
-			fmt.Print(evt.Content) // Real-time output
-
-		case domain.ChatCompleteEvent:
-			completed = true
-			if evt.Message != "" {
-				fullResponse.WriteString(evt.Message)
-			}
-
-		case domain.ChatErrorEvent:
-			return "", false, evt.Error
+	var args map[string]interface{}
+	if toolCall.Function.Arguments != "" {
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+			return "", fmt.Errorf("failed to parse tool arguments: %w", err)
 		}
 	}
 
-	return fullResponse.String(), completed, nil
+	result, err := toolService.ExecuteTool(ctx, toolCall.Function.Name, args)
+	if err != nil {
+		return "", fmt.Errorf("tool execution failed: %w", err)
+	}
+
+	return result, nil
 }
+
 
 // isTaskCompleted checks if the task appears to be completed based on the response
 func (e *BackgroundExecutor) isTaskCompleted(response string) bool {
@@ -331,7 +326,6 @@ func (e *BackgroundExecutor) generateFollowUpPrompt(response string, iteration i
 		"Please provide any additional implementation details or next steps.",
 	}
 
-	// Use different prompts based on iteration to add variety
 	promptIndex := (iteration - 1) % len(prompts)
 	return prompts[promptIndex]
 }
