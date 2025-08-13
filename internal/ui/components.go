@@ -305,7 +305,6 @@ func (iv *InputViewImpl) Render() string {
 	result.WriteString(borderedInput)
 	result.WriteString("\n")
 
-	// Add autocomplete suggestions if visible
 	if iv.autocomplete.IsVisible() {
 		autocompleteContent := iv.autocomplete.Render()
 		if autocompleteContent != "" {
@@ -345,7 +344,6 @@ func (iv *InputViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (iv *InputViewImpl) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// First, check if autocomplete should handle the key
 	if handled, completion := iv.autocomplete.HandleKey(key); handled {
 		return iv.handleAutocomplete(completion)
 	}
@@ -366,7 +364,8 @@ func (iv *InputViewImpl) handleAutocomplete(completion string) (tea.Model, tea.C
 }
 
 func (iv *InputViewImpl) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
-	switch key.String() {
+	keyStr := key.String()
+	switch keyStr {
 	case "left":
 		if iv.cursor > 0 {
 			iv.cursor--
@@ -376,15 +375,23 @@ func (iv *InputViewImpl) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
 			iv.cursor++
 		}
 	case "backspace":
-		if iv.cursor > 0 {
-			iv.text = iv.text[:iv.cursor-1] + iv.text[iv.cursor:]
-			iv.cursor--
+		if key.Alt {
+			iv.deleteWordBackward()
+		} else {
+			if iv.cursor > 0 {
+				iv.text = iv.text[:iv.cursor-1] + iv.text[iv.cursor:]
+				iv.cursor--
+			}
 		}
+	case "ctrl+u":
+		iv.deleteWordBackward()
+	case "ctrl+w":
+		iv.deleteWordBackward()
 	case "ctrl+d":
 		return iv.handleSubmit()
-	case "ctrl+c":
+	case "ctrl+shift+c":
 		iv.handleCopy()
-	case "ctrl+v":
+	case "ctrl+v", "alt+v":
 		iv.handlePaste()
 	case "ctrl+x":
 		iv.handleCut()
@@ -417,23 +424,54 @@ func (iv *InputViewImpl) handleCopy() {
 }
 
 func (iv *InputViewImpl) handlePaste() {
-	if clipboardText, err := clipboard.ReadAll(); err == nil && clipboardText != "" {
-		iv.text = iv.text[:iv.cursor] + clipboardText + iv.text[iv.cursor:]
-		iv.cursor += len(clipboardText)
+	clipboardText, err := clipboard.ReadAll()
+	if err != nil {
+		return
+	}
+
+	if clipboardText == "" {
+		return
+	}
+
+	cleanText := strings.ReplaceAll(clipboardText, "\n", " ")
+	cleanText = strings.ReplaceAll(cleanText, "\r", " ")
+	cleanText = strings.ReplaceAll(cleanText, "\t", " ")
+
+	if cleanText != "" {
+		iv.text = iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
+		iv.cursor += len(cleanText)
 	}
 }
 
 func (iv *InputViewImpl) handleCut() {
 	if iv.text != "" {
-		_ = clipboard.WriteAll(iv.text) // Ignore error for clipboard operations
+		_ = clipboard.WriteAll(iv.text)
 		iv.text = ""
 		iv.cursor = 0
 	}
 }
 
 func (iv *InputViewImpl) handleCharacterInput(key tea.KeyMsg) tea.Cmd {
-	if len(key.String()) == 1 && key.String()[0] >= 32 {
-		char := key.String()
+	keyStr := key.String()
+
+	if len(keyStr) > 1 && key.Type == tea.KeyRunes {
+		cleanText := strings.ReplaceAll(keyStr, "\n", " ")
+		cleanText = strings.ReplaceAll(cleanText, "\r", " ")
+		cleanText = strings.ReplaceAll(cleanText, "\t", " ")
+
+		if strings.HasPrefix(cleanText, "[") && strings.HasSuffix(cleanText, "]") {
+			cleanText = cleanText[1 : len(cleanText)-1]
+		}
+
+		if cleanText != "" {
+			iv.text = iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
+			iv.cursor += len(cleanText)
+		}
+		return nil
+	}
+
+	if len(keyStr) == 1 && keyStr[0] >= 32 {
+		char := keyStr
 		iv.text = iv.text[:iv.cursor] + char + iv.text[iv.cursor:]
 		iv.cursor++
 
@@ -448,6 +486,24 @@ func (iv *InputViewImpl) handleCharacterInput(key tea.KeyMsg) tea.Cmd {
 
 func (iv *InputViewImpl) CanHandle(key tea.KeyMsg) bool {
 	return true
+}
+
+// deleteWordBackward deletes the word before the cursor
+func (iv *InputViewImpl) deleteWordBackward() {
+	if iv.cursor > 0 {
+		start := iv.cursor
+
+		for start > 0 && (iv.text[start-1] == ' ' || iv.text[start-1] == '\t') {
+			start--
+		}
+
+		for start > 0 && iv.text[start-1] != ' ' && iv.text[start-1] != '\t' {
+			start--
+		}
+
+		iv.text = iv.text[:start] + iv.text[iv.cursor:]
+		iv.cursor = start
+	}
 }
 
 // StatusViewImpl implements StatusComponent

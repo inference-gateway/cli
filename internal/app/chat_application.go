@@ -162,6 +162,14 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	key := keyMsg.String()
+	if key == "ctrl+v" || key == "alt+v" || key == "ctrl+x" || key == "ctrl+shift+c" {
+		if cmd := app.handleFocusedComponentKeys(keyMsg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return cmds
+	}
+
 	if cmd := app.handleGlobalKeys(keyMsg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -453,7 +461,7 @@ func (app *ChatApplication) renderHelp() string {
 
 func (app *ChatApplication) renderHelpText() string {
 	theme := app.services.GetTheme()
-	helpText := "Press Ctrl+D to send message, Ctrl+C to copy/exit, Ctrl+V to paste • Type @ for files, / for commands"
+	helpText := "Press Ctrl+D to send message, Ctrl+C to exit, Ctrl+Shift+C to copy, Ctrl+V to paste • Type @ for files, / for commands"
 	return theme.GetDimColor() + helpText + "\033[0m"
 }
 
@@ -465,15 +473,6 @@ func (app *ChatApplication) handleResize(msg tea.WindowSizeMsg) {
 func (app *ChatApplication) handleGlobalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 	switch keyMsg.String() {
 	case "ctrl+c":
-		// Allow input component to handle copy if there's text in the input field
-		if app.focusedComponent == app.inputView && app.inputView.GetInput() != "" {
-			// Let the input component handle the copy operation
-			model, cmd := app.focusedComponent.HandleKey(keyMsg)
-			if cmd != nil {
-				app.updateFocusedComponent(model)
-				return cmd
-			}
-		}
 		return tea.Quit
 
 	case "tab":
