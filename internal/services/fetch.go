@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -50,14 +49,14 @@ func NewFetchService(cfg *config.Config) *FetchService {
 	}
 }
 
-// ValidateURL checks if a URL is whitelisted for fetching
+// ValidateURL checks if a URL's domain is whitelisted for fetching
 func (f *FetchService) ValidateURL(targetURL string) error {
 	if !f.config.Fetch.Enabled {
 		return fmt.Errorf("fetch tool is not enabled - use 'infer config fetch enable' to enable it")
 	}
 
-	if len(f.config.Fetch.WhitelistedURLs) == 0 && len(f.config.Fetch.URLPatterns) == 0 {
-		return fmt.Errorf("no whitelisted sources configured - use 'infer config fetch add-source' to configure allowed URLs")
+	if len(f.config.Fetch.WhitelistedDomains) == 0 {
+		return fmt.Errorf("no whitelisted domains configured - use 'infer config fetch add-domain' to configure allowed domains")
 	}
 
 	parsedURL, err := url.Parse(targetURL)
@@ -69,26 +68,19 @@ func (f *FetchService) ValidateURL(targetURL string) error {
 		return fmt.Errorf("only HTTP and HTTPS URLs are allowed")
 	}
 
-	for _, whitelistedURL := range f.config.Fetch.WhitelistedURLs {
-		if strings.HasPrefix(targetURL, whitelistedURL) {
-			logger.Debug("URL matches whitelist", "url", targetURL, "pattern", whitelistedURL)
+	domain := parsedURL.Hostname()
+	if domain == "" {
+		return fmt.Errorf("unable to extract domain from URL: %s", targetURL)
+	}
+
+	for _, whitelistedDomain := range f.config.Fetch.WhitelistedDomains {
+		if domain == whitelistedDomain || strings.HasSuffix(domain, "."+whitelistedDomain) {
+			logger.Debug("URL domain matches whitelist", "url", targetURL, "domain", domain, "whitelisted", whitelistedDomain)
 			return nil
 		}
 	}
 
-	for _, pattern := range f.config.Fetch.URLPatterns {
-		matched, err := regexp.MatchString(pattern, targetURL)
-		if err != nil {
-			logger.Error("Invalid URL pattern", "pattern", pattern, "error", err)
-			continue
-		}
-		if matched {
-			logger.Debug("URL matches pattern", "url", targetURL, "pattern", pattern)
-			return nil
-		}
-	}
-
-	return fmt.Errorf("URL not whitelisted: %s", targetURL)
+	return fmt.Errorf("domain not whitelisted: %s (from URL: %s)", domain, targetURL)
 }
 
 // FetchContent fetches content from a URL or GitHub reference
@@ -314,7 +306,7 @@ func (f *FetchService) fetchGitHubContent(ctx context.Context, ref *GitHubRefere
 	default:
 		typeTitle = ref.Type
 	}
-	
+
 	content := fmt.Sprintf("# %s #%d: %s\n\n**Author:** @%s\n**State:** %s\n**URL:** %s\n\n%s",
 		typeTitle, issue.Number, issue.Title, issue.User.Login, issue.State, issue.HTMLURL, issue.Body)
 

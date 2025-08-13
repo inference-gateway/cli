@@ -65,12 +65,11 @@ type ChatConfig struct {
 
 // FetchConfig contains settings for content fetching
 type FetchConfig struct {
-	Enabled         bool              `yaml:"enabled"`
-	WhitelistedURLs []string          `yaml:"whitelisted_urls"`
-	URLPatterns     []string          `yaml:"url_patterns"`
-	GitHub          GitHubFetchConfig `yaml:"github"`
-	Safety          FetchSafetyConfig `yaml:"safety"`
-	Cache           FetchCacheConfig  `yaml:"cache"`
+	Enabled            bool              `yaml:"enabled"`
+	WhitelistedDomains []string          `yaml:"whitelisted_domains"`
+	GitHub             GitHubFetchConfig `yaml:"github"`
+	Safety             FetchSafetyConfig `yaml:"safety"`
+	Cache              FetchCacheConfig  `yaml:"cache"`
 }
 
 // GitHubFetchConfig contains GitHub-specific fetch settings
@@ -136,9 +135,8 @@ func DefaultConfig() *Config {
 			SystemPrompt: "",
 		},
 		Fetch: FetchConfig{
-			Enabled:         false,
-			WhitelistedURLs: []string{},
-			URLPatterns:     []string{},
+			Enabled:            false,
+			WhitelistedDomains: []string{"github.com"},
 			GitHub: GitHubFetchConfig{
 				Enabled: false,
 				Token:   "",

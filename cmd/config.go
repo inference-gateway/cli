@@ -4,9 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"net/url"
 	"os"
-	"regexp"
+	"strings"
 	"time"
 
 	"github.com/inference-gateway/cli/config"
@@ -196,41 +195,25 @@ var configFetchDisableCmd = &cobra.Command{
 
 var configFetchListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List whitelisted sources and patterns",
-	Long:  `Display all whitelisted URLs and patterns that can be fetched by LLMs.`,
-	RunE:  listFetchSources,
+	Short: "List whitelisted domains",
+	Long:  `Display all whitelisted domains that can be fetched by LLMs.`,
+	RunE:  listFetchDomains,
 }
 
-var configFetchAddSourceCmd = &cobra.Command{
-	Use:   "add-source <url>",
-	Short: "Add a URL to the whitelist",
-	Long:  `Add a URL or URL prefix to the whitelist of allowed fetch sources.`,
+var configFetchAddDomainCmd = &cobra.Command{
+	Use:   "add-domain <domain>",
+	Short: "Add a domain to the whitelist",
+	Long:  `Add a domain to the whitelist of allowed fetch sources (e.g., github.com, example.org).`,
 	Args:  cobra.ExactArgs(1),
-	RunE:  addFetchSource,
+	RunE:  addFetchDomain,
 }
 
-var configFetchRemoveSourceCmd = &cobra.Command{
-	Use:   "remove-source <url>",
-	Short: "Remove a URL from the whitelist",
-	Long:  `Remove a URL or URL prefix from the whitelist of allowed fetch sources.`,
+var configFetchRemoveDomainCmd = &cobra.Command{
+	Use:   "remove-domain <domain>",
+	Short: "Remove a domain from the whitelist",
+	Long:  `Remove a domain from the whitelist of allowed fetch sources.`,
 	Args:  cobra.ExactArgs(1),
-	RunE:  removeFetchSource,
-}
-
-var configFetchAddPatternCmd = &cobra.Command{
-	Use:   "add-pattern <pattern>",
-	Short: "Add a URL pattern to the whitelist",
-	Long:  `Add a regex pattern to match URLs that are allowed for fetching.`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  addFetchPattern,
-}
-
-var configFetchRemovePatternCmd = &cobra.Command{
-	Use:   "remove-pattern <pattern>",
-	Short: "Remove a URL pattern from the whitelist",
-	Long:  `Remove a regex pattern from the whitelist of allowed fetch patterns.`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  removeFetchPattern,
+	RunE:  removeFetchDomain,
 }
 
 var configFetchGitHubCmd = &cobra.Command{
@@ -342,10 +325,8 @@ func init() {
 	configFetchCmd.AddCommand(configFetchEnableCmd)
 	configFetchCmd.AddCommand(configFetchDisableCmd)
 	configFetchCmd.AddCommand(configFetchListCmd)
-	configFetchCmd.AddCommand(configFetchAddSourceCmd)
-	configFetchCmd.AddCommand(configFetchRemoveSourceCmd)
-	configFetchCmd.AddCommand(configFetchAddPatternCmd)
-	configFetchCmd.AddCommand(configFetchRemovePatternCmd)
+	configFetchCmd.AddCommand(configFetchAddDomainCmd)
+	configFetchCmd.AddCommand(configFetchRemoveDomainCmd)
 	configFetchCmd.AddCommand(configFetchGitHubCmd)
 	configFetchCmd.AddCommand(configFetchCacheCmd)
 
@@ -679,7 +660,7 @@ func disableFetch(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func listFetchSources(cmd *cobra.Command, args []string) error {
+func listFetchDomains(cmd *cobra.Command, args []string) error {
 	cfg, err := config.LoadConfig("")
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -689,9 +670,8 @@ func listFetchSources(cmd *cobra.Command, args []string) error {
 
 	if format == "json" {
 		data := map[string]interface{}{
-			"enabled":          cfg.Fetch.Enabled,
-			"whitelisted_urls": cfg.Fetch.WhitelistedURLs,
-			"url_patterns":     cfg.Fetch.URLPatterns,
+			"enabled":             cfg.Fetch.Enabled,
+			"whitelisted_domains": cfg.Fetch.WhitelistedDomains,
 			"github": map[string]interface{}{
 				"enabled":   cfg.Fetch.GitHub.Enabled,
 				"base_url":  cfg.Fetch.GitHub.BaseURL,
@@ -723,21 +703,12 @@ func listFetchSources(cmd *cobra.Command, args []string) error {
 		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
 	}
 
-	fmt.Printf("\nWhitelisted URLs (%d):\n", len(cfg.Fetch.WhitelistedURLs))
-	if len(cfg.Fetch.WhitelistedURLs) == 0 {
+	fmt.Printf("\nWhitelisted Domains (%d):\n", len(cfg.Fetch.WhitelistedDomains))
+	if len(cfg.Fetch.WhitelistedDomains) == 0 {
 		fmt.Printf("  • None configured\n")
 	} else {
-		for _, url := range cfg.Fetch.WhitelistedURLs {
-			fmt.Printf("  • %s\n", url)
-		}
-	}
-
-	fmt.Printf("\nURL Patterns (%d):\n", len(cfg.Fetch.URLPatterns))
-	if len(cfg.Fetch.URLPatterns) == 0 {
-		fmt.Printf("  • None configured\n")
-	} else {
-		for _, pattern := range cfg.Fetch.URLPatterns {
-			fmt.Printf("  • %s\n", pattern)
+		for _, domain := range cfg.Fetch.WhitelistedDomains {
+			fmt.Printf("  • %s\n", domain)
 		}
 	}
 
@@ -771,38 +742,39 @@ func listFetchSources(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func addFetchSource(cmd *cobra.Command, args []string) error {
-	urlToAdd := args[0]
+func addFetchDomain(cmd *cobra.Command, args []string) error {
+	domainToAdd := args[0]
 
-	if _, err := url.Parse(urlToAdd); err != nil {
-		return fmt.Errorf("invalid URL format: %w", err)
+	// Basic domain validation
+	if strings.Contains(domainToAdd, "://") {
+		return fmt.Errorf("please provide just the domain (e.g., 'github.com'), not a full URL")
 	}
 
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for _, existingURL := range c.Fetch.WhitelistedURLs {
-			if existingURL == urlToAdd {
+		for _, existingDomain := range c.Fetch.WhitelistedDomains {
+			if existingDomain == domainToAdd {
 				return
 			}
 		}
-		c.Fetch.WhitelistedURLs = append(c.Fetch.WhitelistedURLs, urlToAdd)
+		c.Fetch.WhitelistedDomains = append(c.Fetch.WhitelistedDomains, domainToAdd)
 	})
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Added '%s' to whitelisted URLs", urlToAdd)))
-	fmt.Printf("LLMs can now fetch content from this URL\n")
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Added '%s' to whitelisted domains", domainToAdd)))
+	fmt.Printf("LLMs can now fetch content from this domain and its subdomains\n")
 	return nil
 }
 
-func removeFetchSource(cmd *cobra.Command, args []string) error {
-	urlToRemove := args[0]
+func removeFetchDomain(cmd *cobra.Command, args []string) error {
+	domainToRemove := args[0]
 	var found bool
 
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for i, existingURL := range c.Fetch.WhitelistedURLs {
-			if existingURL == urlToRemove {
-				c.Fetch.WhitelistedURLs = append(c.Fetch.WhitelistedURLs[:i], c.Fetch.WhitelistedURLs[i+1:]...)
+		for i, existingDomain := range c.Fetch.WhitelistedDomains {
+			if existingDomain == domainToRemove {
+				c.Fetch.WhitelistedDomains = append(c.Fetch.WhitelistedDomains[:i], c.Fetch.WhitelistedDomains[i+1:]...)
 				found = true
 				return
 			}
@@ -813,63 +785,12 @@ func removeFetchSource(cmd *cobra.Command, args []string) error {
 	}
 
 	if !found {
-		fmt.Printf("%s\n", ui.FormatWarning(fmt.Sprintf("URL '%s' was not in the whitelist", urlToRemove)))
+		fmt.Printf("%s\n", ui.FormatWarning(fmt.Sprintf("Domain '%s' was not in the whitelist", domainToRemove)))
 		return nil
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed '%s' from whitelisted URLs", urlToRemove)))
-	fmt.Printf("LLMs can no longer fetch content from this URL\n")
-	return nil
-}
-
-func addFetchPattern(cmd *cobra.Command, args []string) error {
-	patternToAdd := args[0]
-
-	if _, err := regexp.Compile(patternToAdd); err != nil {
-		return fmt.Errorf("invalid regex pattern: %w", err)
-	}
-
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for _, existingPattern := range c.Fetch.URLPatterns {
-			if existingPattern == patternToAdd {
-				return
-			}
-		}
-		c.Fetch.URLPatterns = append(c.Fetch.URLPatterns, patternToAdd)
-	})
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Added pattern '%s' to URL patterns", patternToAdd)))
-	fmt.Printf("LLMs can now fetch content from URLs matching this pattern\n")
-	return nil
-}
-
-func removeFetchPattern(cmd *cobra.Command, args []string) error {
-	patternToRemove := args[0]
-	var found bool
-
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for i, existingPattern := range c.Fetch.URLPatterns {
-			if existingPattern == patternToRemove {
-				c.Fetch.URLPatterns = append(c.Fetch.URLPatterns[:i], c.Fetch.URLPatterns[i+1:]...)
-				found = true
-				return
-			}
-		}
-	})
-	if err != nil {
-		return err
-	}
-
-	if !found {
-		fmt.Printf("%s\n", ui.FormatWarning(fmt.Sprintf("Pattern '%s' was not in the URL patterns", patternToRemove)))
-		return nil
-	}
-
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed pattern '%s' from URL patterns", patternToRemove)))
-	fmt.Printf("LLMs can no longer fetch content from URLs matching this pattern\n")
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed '%s' from whitelisted domains", domainToRemove)))
+	fmt.Printf("LLMs can no longer fetch content from this domain\n")
 	return nil
 }
 
