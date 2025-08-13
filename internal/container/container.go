@@ -20,6 +20,7 @@ type ServiceContainer struct {
 	chatService      domain.ChatService
 	toolService      domain.ToolService
 	fileService      domain.FileService
+	fetchService     domain.FetchService
 
 	// UI components
 	theme  ui.Theme
@@ -57,8 +58,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.fileService = services.NewLocalFileService(c.config)
 
+	c.fetchService = services.NewFetchService(c.config)
+
 	if c.config.Tools.Enabled {
-		c.toolService = services.NewLLMToolService(c.config, c.fileService)
+		c.toolService = services.NewLLMToolService(c.config, c.fileService, c.fetchService)
 	} else {
 		c.toolService = services.NewNoOpToolService()
 	}
@@ -143,6 +146,10 @@ func (c *ServiceContainer) GetToolService() domain.ToolService {
 
 func (c *ServiceContainer) GetFileService() domain.FileService {
 	return c.fileService
+}
+
+func (c *ServiceContainer) GetFetchService() domain.FetchService {
+	return c.fetchService
 }
 
 func (c *ServiceContainer) GetTheme() ui.Theme {

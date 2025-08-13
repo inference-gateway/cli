@@ -774,34 +774,41 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 		toolService := app.services.GetToolService()
 		result, err := toolService.ExecuteTool(context.Background(), toolCall.Name, toolCall.Arguments)
 
+		var toolContent string
 		if err != nil {
-			return ui.ShowErrorMsg{
-				Error:  fmt.Sprintf("Tool execution failed: %v", err),
-				Sticky: true,
-			}
+			toolContent = fmt.Sprintf("Tool execution failed: %v", err)
+		} else {
+			toolContent = result
 		}
 
 		toolResultEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:       sdk.Tool,
-				Content:    result,
+				Content:    toolContent,
 				ToolCallId: &toolCall.ID,
 			},
 			Time: time.Now(),
 		}
 
 		conversationRepo := app.services.GetConversationRepository()
-		if err := conversationRepo.AddMessage(toolResultEntry); err != nil {
+		if saveErr := conversationRepo.AddMessage(toolResultEntry); saveErr != nil {
 			return ui.ShowErrorMsg{
-				Error:  fmt.Sprintf("Failed to save tool result: %v", err),
+				Error:  fmt.Sprintf("Failed to save tool result: %v", saveErr),
 				Sticky: false,
 			}
+		}
+
+		var statusMessage string
+		if err != nil {
+			statusMessage = fmt.Sprintf("Tool failed: %s - sending error to model...", toolCall.Name)
+		} else {
+			statusMessage = ui.FormatSuccess(fmt.Sprintf("Tool executed: %s - sending to model...", toolCall.Name))
 		}
 
 		return tea.Batch(
 			func() tea.Msg {
 				return ui.SetStatusMsg{
-					Message: ui.FormatSuccess(fmt.Sprintf("Tool executed: %s - sending to model...", toolCall.Name)),
+					Message: statusMessage,
 					Spinner: true,
 				}
 			},
