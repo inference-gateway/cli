@@ -159,59 +159,91 @@ func (s *WebSearchService) performDuckDuckGoSearch(ctx context.Context, query st
 func (s *WebSearchService) parseDuckDuckGoResponse(response map[string]interface{}, maxResults int) []domain.WebSearchResult {
 	var results []domain.WebSearchResult
 
-	// Parse RelatedTopics for web results
-	if relatedTopics, ok := response["RelatedTopics"].([]interface{}); ok {
-		count := 0
-		for _, topic := range relatedTopics {
-			if count >= maxResults {
-				break
-			}
-
-			if topicMap, ok := topic.(map[string]interface{}); ok {
-				result := domain.WebSearchResult{}
-
-				if text, ok := topicMap["Text"].(string); ok {
-					// Extract title and snippet from text
-					parts := strings.SplitN(text, " - ", 2)
-					if len(parts) >= 2 {
-						result.Title = strings.TrimSpace(parts[0])
-						result.Snippet = strings.TrimSpace(parts[1])
-					} else {
-						result.Title = text
-						result.Snippet = text
-					}
-				}
-
-				if firstURL, ok := topicMap["FirstURL"].(string); ok {
-					result.URL = firstURL
-				}
-
-				if result.Title != "" && result.URL != "" {
-					results = append(results, result)
-					count++
-				}
-			}
-		}
-	}
-
-	// If no related topics, try abstract
+	// Try parsing related topics first
+	results = s.parseRelatedTopics(response, maxResults)
+	
+	// Fall back to abstract if no related topics found
 	if len(results) == 0 {
-		if abstract, ok := response["Abstract"].(string); ok && abstract != "" {
-			if abstractURL, ok := response["AbstractURL"].(string); ok && abstractURL != "" {
-				results = append(results, domain.WebSearchResult{
-					Title:   "DuckDuckGo Result",
-					URL:     abstractURL,
-					Snippet: abstract,
-				})
-			}
-		}
+		results = s.parseAbstract(response)
 	}
 
-	// If still no results, generate mock results for demonstration
+	// Generate mock results if still nothing found
 	if len(results) == 0 {
 		return s.generateMockResults(fmt.Sprintf("%v", response["Heading"]), maxResults, "duckduckgo")
 	}
 
+	return results
+}
+
+// parseRelatedTopics extracts search results from DuckDuckGo RelatedTopics
+func (s *WebSearchService) parseRelatedTopics(response map[string]interface{}, maxResults int) []domain.WebSearchResult {
+	var results []domain.WebSearchResult
+	
+	relatedTopics, ok := response["RelatedTopics"].([]interface{})
+	if !ok {
+		return results
+	}
+
+	count := 0
+	for _, topic := range relatedTopics {
+		if count >= maxResults {
+			break
+		}
+
+		topicMap, ok := topic.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		result := s.parseTopicResult(topicMap)
+		if result.Title != "" && result.URL != "" {
+			results = append(results, result)
+			count++
+		}
+	}
+	
+	return results
+}
+
+// parseTopicResult extracts a single result from a DuckDuckGo topic
+func (s *WebSearchService) parseTopicResult(topicMap map[string]interface{}) domain.WebSearchResult {
+	result := domain.WebSearchResult{}
+
+	if text, ok := topicMap["Text"].(string); ok {
+		result.Title, result.Snippet = s.extractTitleAndSnippet(text)
+	}
+
+	if firstURL, ok := topicMap["FirstURL"].(string); ok {
+		result.URL = firstURL
+	}
+
+	return result
+}
+
+// extractTitleAndSnippet splits text into title and snippet
+func (s *WebSearchService) extractTitleAndSnippet(text string) (string, string) {
+	parts := strings.SplitN(text, " - ", 2)
+	if len(parts) >= 2 {
+		return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	}
+	return text, text
+}
+
+// parseAbstract extracts search result from DuckDuckGo Abstract
+func (s *WebSearchService) parseAbstract(response map[string]interface{}) []domain.WebSearchResult {
+	var results []domain.WebSearchResult
+	
+	abstract, hasAbstract := response["Abstract"].(string)
+	abstractURL, hasAbstractURL := response["AbstractURL"].(string)
+	
+	if hasAbstract && abstract != "" && hasAbstractURL && abstractURL != "" {
+		results = append(results, domain.WebSearchResult{
+			Title:   "DuckDuckGo Result",
+			URL:     abstractURL,
+			Snippet: abstract,
+		})
+	}
+	
 	return results
 }
 

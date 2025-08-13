@@ -113,27 +113,38 @@ func TestLLMToolService_ListTools_IncludesWebSearch(t *testing.T) {
 	}
 
 	// Check that engine parameter exists with enum values
-	if engine, exists := properties["engine"]; exists {
-		if engineMap, ok := engine.(map[string]interface{}); ok {
-			if enum, exists := engineMap["enum"]; exists {
-				if enumSlice, ok := enum.([]string); ok {
-					expectedEngines := []string{"google", "duckduckgo"}
-					for _, expected := range expectedEngines {
-						found := false
-						for _, actual := range enumSlice {
-							if actual == expected {
-								found = true
-								break
-							}
-						}
-						if !found {
-							t.Errorf("Expected engine %q not found in enum", expected)
-						}
-					}
-				} else {
-					t.Error("Engine enum is not a string slice")
-				}
+	engine, hasEngine := properties["engine"]
+	if !hasEngine {
+		return
+	}
+	
+	engineMap, ok := engine.(map[string]interface{})
+	if !ok {
+		return
+	}
+	
+	enum, hasEnum := engineMap["enum"]
+	if !hasEnum {
+		return
+	}
+	
+	enumSlice, ok := enum.([]string)
+	if !ok {
+		t.Error("Engine enum is not a string slice")
+		return
+	}
+	
+	expectedEngines := []string{"google", "duckduckgo"}
+	for _, expected := range expectedEngines {
+		found := false
+		for _, actual := range enumSlice {
+			if actual == expected {
+				found = true
+				break
 			}
+		}
+		if !found {
+			t.Errorf("Expected engine %q not found in enum", expected)
 		}
 	}
 }
