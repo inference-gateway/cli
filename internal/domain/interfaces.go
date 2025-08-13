@@ -29,7 +29,6 @@ type ApprovalAction int
 const (
 	ApprovalApprove ApprovalAction = iota // Approve and execute
 	ApprovalReject                        // Deny and cancel
-	ApprovalView                          // View full response
 )
 
 // ConversationRepository handles conversation storage and retrieval

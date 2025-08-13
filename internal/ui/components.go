@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/spinner"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -208,8 +209,9 @@ func (cv *ConversationViewImpl) renderEntry(entry domain.ConversationEntry) stri
 
 	content := entry.Message.Content
 	resetColor := "\033[0m"
+	message := fmt.Sprintf("%s%s:%s %s", color, role, resetColor, content)
 
-	return fmt.Sprintf("%s%s:%s %s", color, role, resetColor, content)
+	return message + "\n"
 }
 
 func (cv *ConversationViewImpl) GetID() string { return "conversation" }
@@ -304,7 +306,6 @@ func (iv *InputViewImpl) Render() string {
 	result.WriteString(borderedInput)
 	result.WriteString("\n")
 
-	// Add autocomplete suggestions if visible
 	if iv.autocomplete.IsVisible() {
 		autocompleteContent := iv.autocomplete.Render()
 		if autocompleteContent != "" {
@@ -344,20 +345,28 @@ func (iv *InputViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (iv *InputViewImpl) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	// First, check if autocomplete should handle the key
 	if handled, completion := iv.autocomplete.HandleKey(key); handled {
-		if completion != "" {
-			// Replace the current input with the selected completion
-			iv.text = completion
-			iv.cursor = len(completion)
-			iv.autocomplete.Hide()
-		}
-		// Update autocomplete state after any changes
-		iv.autocomplete.Update(iv.text, iv.cursor)
-		return iv, nil
+		return iv.handleAutocomplete(completion)
 	}
 
-	switch key.String() {
+	cmd := iv.handleSpecificKeys(key)
+	iv.autocomplete.Update(iv.text, iv.cursor)
+	return iv, cmd
+}
+
+func (iv *InputViewImpl) handleAutocomplete(completion string) (tea.Model, tea.Cmd) {
+	if completion != "" {
+		iv.text = completion
+		iv.cursor = len(completion)
+		iv.autocomplete.Hide()
+	}
+	iv.autocomplete.Update(iv.text, iv.cursor)
+	return iv, nil
+}
+
+func (iv *InputViewImpl) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
+	keyStr := key.String()
+	switch keyStr {
 	case "left":
 		if iv.cursor > 0 {
 			iv.cursor--
@@ -367,41 +376,135 @@ func (iv *InputViewImpl) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 			iv.cursor++
 		}
 	case "backspace":
-		if iv.cursor > 0 {
-			iv.text = iv.text[:iv.cursor-1] + iv.text[iv.cursor:]
-			iv.cursor--
-		}
-	case "ctrl+d":
-		if iv.text != "" {
-			input := iv.text
-			iv.ClearInput()
-			iv.autocomplete.Hide()
-			return iv, func() tea.Msg {
-				return UserInputMsg{Content: input}
+		if key.Alt {
+			iv.deleteWordBackward()
+		} else {
+			if iv.cursor > 0 {
+				iv.text = iv.text[:iv.cursor-1] + iv.text[iv.cursor:]
+				iv.cursor--
 			}
 		}
+	case "ctrl+u":
+		iv.deleteWordBackward()
+	case "ctrl+w":
+		iv.deleteWordBackward()
+	case "ctrl+d":
+		return iv.handleSubmit()
+	case "ctrl+shift+c":
+		iv.handleCopy()
+	case "ctrl+v", "alt+v":
+		iv.handlePaste()
+	case "ctrl+x":
+		iv.handleCut()
+	case "ctrl+a":
+		iv.cursor = 0
+	case "ctrl+e":
+		iv.cursor = len(iv.text)
 	default:
-		if len(key.String()) == 1 && key.String()[0] >= 32 {
-			char := key.String()
-			iv.text = iv.text[:iv.cursor] + char + iv.text[iv.cursor:]
-			iv.cursor++
+		return iv.handleCharacterInput(key)
+	}
+	return nil
+}
 
-			if char == "@" {
-				return iv, func() tea.Msg {
-					return FileSelectionRequestMsg{}
-				}
+func (iv *InputViewImpl) handleSubmit() tea.Cmd {
+	if iv.text != "" {
+		input := iv.text
+		iv.ClearInput()
+		iv.autocomplete.Hide()
+		return func() tea.Msg {
+			return UserInputMsg{Content: input}
+		}
+	}
+	return nil
+}
+
+func (iv *InputViewImpl) handleCopy() {
+	if iv.text != "" {
+		_ = clipboard.WriteAll(iv.text) // Ignore error for clipboard operations
+	}
+}
+
+func (iv *InputViewImpl) handlePaste() {
+	clipboardText, err := clipboard.ReadAll()
+	if err != nil {
+		return
+	}
+
+	if clipboardText == "" {
+		return
+	}
+
+	cleanText := strings.ReplaceAll(clipboardText, "\n", " ")
+	cleanText = strings.ReplaceAll(cleanText, "\r", " ")
+	cleanText = strings.ReplaceAll(cleanText, "\t", " ")
+
+	if cleanText != "" {
+		iv.text = iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
+		iv.cursor += len(cleanText)
+	}
+}
+
+func (iv *InputViewImpl) handleCut() {
+	if iv.text != "" {
+		_ = clipboard.WriteAll(iv.text)
+		iv.text = ""
+		iv.cursor = 0
+	}
+}
+
+func (iv *InputViewImpl) handleCharacterInput(key tea.KeyMsg) tea.Cmd {
+	keyStr := key.String()
+
+	if len(keyStr) > 1 && key.Type == tea.KeyRunes {
+		cleanText := strings.ReplaceAll(keyStr, "\n", " ")
+		cleanText = strings.ReplaceAll(cleanText, "\r", " ")
+		cleanText = strings.ReplaceAll(cleanText, "\t", " ")
+
+		if strings.HasPrefix(cleanText, "[") && strings.HasSuffix(cleanText, "]") {
+			cleanText = cleanText[1 : len(cleanText)-1]
+		}
+
+		if cleanText != "" {
+			iv.text = iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
+			iv.cursor += len(cleanText)
+		}
+		return nil
+	}
+
+	if len(keyStr) == 1 && keyStr[0] >= 32 {
+		char := keyStr
+		iv.text = iv.text[:iv.cursor] + char + iv.text[iv.cursor:]
+		iv.cursor++
+
+		if char == "@" {
+			return func() tea.Msg {
+				return FileSelectionRequestMsg{}
 			}
 		}
 	}
-
-	// Update autocomplete after any text changes
-	iv.autocomplete.Update(iv.text, iv.cursor)
-
-	return iv, nil
+	return nil
 }
 
 func (iv *InputViewImpl) CanHandle(key tea.KeyMsg) bool {
 	return true
+}
+
+// deleteWordBackward deletes the word before the cursor
+func (iv *InputViewImpl) deleteWordBackward() {
+	if iv.cursor > 0 {
+		start := iv.cursor
+
+		for start > 0 && (iv.text[start-1] == ' ' || iv.text[start-1] == '\t') {
+			start--
+		}
+
+		for start > 0 && iv.text[start-1] != ' ' && iv.text[start-1] != '\t' {
+			start--
+		}
+
+		iv.text = iv.text[:start] + iv.text[iv.cursor:]
+		iv.cursor = start
+	}
 }
 
 // StatusViewImpl implements StatusComponent
