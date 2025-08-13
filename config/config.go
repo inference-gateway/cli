@@ -17,6 +17,7 @@ type Config struct {
 	Tools   ToolsConfig   `yaml:"tools"`
 	Compact CompactConfig `yaml:"compact"`
 	Chat    ChatConfig    `yaml:"chat"`
+	Fetch   FetchConfig   `yaml:"fetch"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -62,6 +63,37 @@ type ChatConfig struct {
 	SystemPrompt string `yaml:"system_prompt"`
 }
 
+// FetchConfig contains settings for content fetching
+type FetchConfig struct {
+	Enabled         bool              `yaml:"enabled"`
+	WhitelistedURLs []string          `yaml:"whitelisted_urls"`
+	URLPatterns     []string          `yaml:"url_patterns"`
+	GitHub          GitHubFetchConfig `yaml:"github"`
+	Safety          FetchSafetyConfig `yaml:"safety"`
+	Cache           FetchCacheConfig  `yaml:"cache"`
+}
+
+// GitHubFetchConfig contains GitHub-specific fetch settings
+type GitHubFetchConfig struct {
+	Enabled bool   `yaml:"enabled"`
+	Token   string `yaml:"token"`
+	BaseURL string `yaml:"base_url"`
+}
+
+// FetchSafetyConfig contains safety settings for fetch operations
+type FetchSafetyConfig struct {
+	MaxSize       int64 `yaml:"max_size"`
+	Timeout       int   `yaml:"timeout"`
+	AllowRedirect bool  `yaml:"allow_redirect"`
+}
+
+// FetchCacheConfig contains cache settings for fetch operations
+type FetchCacheConfig struct {
+	Enabled bool  `yaml:"enabled"`
+	TTL     int   `yaml:"ttl"`
+	MaxSize int64 `yaml:"max_size"`
+}
+
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
@@ -102,6 +134,26 @@ func DefaultConfig() *Config {
 		Chat: ChatConfig{
 			DefaultModel: "",
 			SystemPrompt: "",
+		},
+		Fetch: FetchConfig{
+			Enabled:         false,
+			WhitelistedURLs: []string{},
+			URLPatterns:     []string{},
+			GitHub: GitHubFetchConfig{
+				Enabled: false,
+				Token:   "",
+				BaseURL: "https://api.github.com",
+			},
+			Safety: FetchSafetyConfig{
+				MaxSize:       10485760, // 10MB
+				Timeout:       30,       // 30 seconds
+				AllowRedirect: true,
+			},
+			Cache: FetchCacheConfig{
+				Enabled: true,
+				TTL:     3600,     // 1 hour
+				MaxSize: 52428800, // 50MB
+			},
 		},
 	}
 }

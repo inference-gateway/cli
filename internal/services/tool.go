@@ -34,17 +34,19 @@ type FileReadResult struct {
 
 // LLMToolService implements ToolService with direct tool execution
 type LLMToolService struct {
-	config      *config.Config
-	fileService domain.FileService
-	enabled     bool
+	config       *config.Config
+	fileService  domain.FileService
+	fetchService domain.FetchService
+	enabled      bool
 }
 
 // NewLLMToolService creates a new LLM tool service
-func NewLLMToolService(cfg *config.Config, fileService domain.FileService) *LLMToolService {
+func NewLLMToolService(cfg *config.Config, fileService domain.FileService, fetchService domain.FetchService) *LLMToolService {
 	return &LLMToolService{
-		config:      cfg,
-		fileService: fileService,
-		enabled:     cfg.Tools.Enabled,
+		config:       cfg,
+		fileService:  fileService,
+		fetchService: fetchService,
+		enabled:      cfg.Tools.Enabled,
 	}
 }
 
@@ -53,7 +55,7 @@ func (s *LLMToolService) ListTools() []domain.ToolDefinition {
 		return []domain.ToolDefinition{}
 	}
 
-	return []domain.ToolDefinition{
+	tools := []domain.ToolDefinition{
 		{
 			Name:        "Bash",
 			Description: "Execute whitelisted bash commands securely",
@@ -105,6 +107,31 @@ func (s *LLMToolService) ListTools() []domain.ToolDefinition {
 			},
 		},
 	}
+
+	if s.config.Fetch.Enabled {
+		tools = append(tools, domain.ToolDefinition{
+			Name:        "Fetch",
+			Description: "Fetch content from whitelisted URLs or GitHub references. Supports 'github:owner/repo#123' syntax for GitHub issues/PRs.",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"url": map[string]interface{}{
+						"type":        "string",
+						"description": "The URL to fetch content from, or GitHub reference (github:owner/repo#123)",
+					},
+					"format": map[string]interface{}{
+						"type":        "string",
+						"description": "Output format (text or json)",
+						"enum":        []string{"text", "json"},
+						"default":     "text",
+					},
+				},
+				"required": []string{"url"},
+			},
+		})
+	}
+
+	return tools
 }
 
 func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (string, error) {
@@ -117,6 +144,8 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[
 		return s.executeBashTool(ctx, args)
 	case "Read":
 		return s.executeReadTool(args)
+	case "Fetch":
+		return s.executeFetchTool(ctx, args)
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
@@ -150,6 +179,8 @@ func (s *LLMToolService) ValidateTool(name string, args map[string]interface{}) 
 		return s.validateBashTool(args)
 	case "Read":
 		return s.validateReadTool(args)
+	case "Fetch":
+		return s.validateFetchTool(args)
 	default:
 		return nil
 	}
@@ -402,6 +433,83 @@ func (s *LLMToolService) formatReadResult(result *FileReadResult) string {
 	if result.Error != "" {
 		output += fmt.Sprintf("Error: %s\n", result.Error)
 	}
+	output += fmt.Sprintf("Content:\n%s", result.Content)
+	return output
+}
+
+// executeFetchTool handles Fetch tool execution
+func (s *LLMToolService) executeFetchTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	if !s.config.Fetch.Enabled {
+		return "", fmt.Errorf("fetch tool is not enabled")
+	}
+
+	url, ok := args["url"].(string)
+	if !ok {
+		return "", fmt.Errorf("url parameter is required and must be a string")
+	}
+
+	format, ok := args["format"].(string)
+	if !ok {
+		format = "text"
+	}
+
+	result, err := s.fetchService.FetchContent(ctx, url)
+	if err != nil {
+		return "", fmt.Errorf("fetch failed: %w", err)
+	}
+
+	if format == "json" {
+		jsonOutput, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal result: %w", err)
+		}
+		return string(jsonOutput), nil
+	}
+
+	return s.formatFetchResult(result), nil
+}
+
+// validateFetchTool validates Fetch tool arguments
+func (s *LLMToolService) validateFetchTool(args map[string]interface{}) error {
+	if !s.config.Fetch.Enabled {
+		return fmt.Errorf("fetch tool is not enabled")
+	}
+
+	url, ok := args["url"].(string)
+	if !ok {
+		return fmt.Errorf("url parameter is required and must be a string")
+	}
+
+	if err := s.fetchService.ValidateURL(url); err != nil {
+		return fmt.Errorf("URL validation failed: %w", err)
+	}
+
+	return nil
+}
+
+// formatFetchResult formats fetch result for text output
+func (s *LLMToolService) formatFetchResult(result *domain.FetchResult) string {
+	output := fmt.Sprintf("URL: %s\n", result.URL)
+	if result.Status > 0 {
+		output += fmt.Sprintf("Status: %d\n", result.Status)
+	}
+	output += fmt.Sprintf("Size: %d bytes\n", result.Size)
+	if result.ContentType != "" {
+		output += fmt.Sprintf("Content-Type: %s\n", result.ContentType)
+	}
+	if result.Cached {
+		output += "Source: Cache\n"
+	} else {
+		output += "Source: Live\n"
+	}
+
+	if len(result.Metadata) > 0 {
+		output += "Metadata:\n"
+		for key, value := range result.Metadata {
+			output += fmt.Sprintf("  %s: %s\n", key, value)
+		}
+	}
+
 	output += fmt.Sprintf("Content:\n%s", result.Content)
 	return output
 }
