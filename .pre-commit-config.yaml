@@ -26,3 +26,9 @@ repos:
         language: system
         files: '(go\.mod|go\.sum)$'
         pass_filenames: false
+      - id: markdownlint
+        name: Markdown lint
+        entry: flox activate -- markdownlint
+        language: system
+        files: '\.md$'
+        pass_filenames: true
