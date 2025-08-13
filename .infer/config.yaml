@@ -48,3 +48,11 @@ fetch:
     enabled: true
     ttl: 3600
     max_size: 52428800
+web_search:
+  enabled: true
+  default_engine: google
+  max_results: 10
+  engines:
+    - google
+    - duckduckgo
+  timeout: 10
