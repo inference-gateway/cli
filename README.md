@@ -26,6 +26,7 @@ and management of inference services.
 
 - [Features](#features)
 - [Installation](#installation)
+  - [Verifying Release Binaries](#verifying-release-binaries)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
   - [`infer config`](#infer-config)
@@ -97,6 +98,62 @@ The install script will:
 ### Manual Download
 
 Download the latest release binary for your platform from the [releases page](https://github.com/inference-gateway/cli/releases).
+
+#### Verifying Release Binaries
+
+All release binaries are signed with [Cosign](https://github.com/sigstore/cosign) for supply
+chain security. You can verify the integrity and authenticity of downloaded binaries using the
+following steps:
+
+**1. Download the binary, checksums, and signature files:**
+
+```bash
+# Download binary (replace with your platform)
+curl -L -o infer-darwin-amd64 \
+  https://github.com/inference-gateway/cli/releases/download/v0.12.0/infer-darwin-amd64
+
+# Download checksums and signature files
+curl -L -o checksums.txt \
+  https://github.com/inference-gateway/cli/releases/download/v0.12.0/checksums.txt
+curl -L -o checksums.txt.pem \
+  https://github.com/inference-gateway/cli/releases/download/v0.12.0/checksums.txt.pem
+curl -L -o checksums.txt.sig \
+  https://github.com/inference-gateway/cli/releases/download/v0.12.0/checksums.txt.sig
+```
+
+**2. Verify SHA256 checksum:**
+
+```bash
+# Calculate checksum of downloaded binary
+shasum -a 256 infer-darwin-amd64
+
+# Compare with checksums in checksums.txt
+grep infer-darwin-amd64 checksums.txt
+```
+
+**3. Verify Cosign signature (requires [Cosign](https://github.com/sigstore/cosign) to be installed):**
+
+```bash
+# Decode base64 encoded certificate
+cat checksums.txt.pem | base64 -d > checksums.txt.pem.decoded
+
+# Verify the signature
+cosign verify-blob \
+  --certificate checksums.txt.pem.decoded \
+  --signature checksums.txt.sig \
+  --certificate-identity "https://github.com/inference-gateway/cli/.github/workflows/release.yml@refs/heads/main" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  checksums.txt
+```
+
+**4. Make binary executable and install:**
+
+```bash
+chmod +x infer-darwin-amd64
+sudo mv infer-darwin-amd64 /usr/local/bin/infer
+```
+
+> **Note**: Replace `v0.12.0` with the desired release version and `infer-darwin-amd64` with your platform's binary name.
 
 ### Build from Source
 
