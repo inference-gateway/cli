@@ -47,6 +47,11 @@ on-activate = """
       conventional-changelog-conventionalcommits@9.1.0 \
       conventional-changelog-cli@5.0.0
   fi
+
+  if [ ! -d "$NPM_CONFIG_PREFIX/lib/node_modules/markdownlint-cli" ]; then
+    echo "Installing markdownlint-cli..."
+    npm install -g markdownlint-cli
+  fi
 """
 
 [profile]
