@@ -322,42 +322,55 @@ You can also specify a custom config file using the `--config` flag.
 
 ```yaml
 gateway:
-  url: "http://localhost:8080"
+  url: http://localhost:8080
   api_key: ""
   timeout: 30
 output:
-  format: "text"
+  format: text
   quiet: false
 tools:
-  enabled: true  # Tools are enabled by default with safe read-only commands
+  enabled: true # Tools are enabled by default with safe read-only commands
   whitelist:
-    commands:  # Exact command matches
-      - "ls"
-      - "pwd"
-      - "echo"
-      - "cat"
-      - "head"
-      - "tail"
-      - "grep"
-      - "find"
-      - "wc"
-      - "sort"
-      - "uniq"
-    patterns:  # Regex patterns for more complex commands
-      - "^git status$"
-      - "^git log --oneline -n [0-9]+$"
-      - "^docker ps$"
-      - "^kubectl get pods$"
+    commands: # Exact command matches
+      - ls
+      - pwd
+      - echo
+      - grep
+      - find
+      - wc
+      - sort
+      - uniq
+    patterns: # Regex patterns for more complex commands
+      - ^git status$
+      - ^git log --oneline -n [0-9]+$
+      - ^docker ps$
+      - ^kubectl get pods$
   safety:
-    require_approval: true  # Prompt user before executing any command
-  exclude_paths:  # Paths excluded from tool access for security
-    - ".infer/"     # Protect infer's own configuration directory
-    - ".infer/*"    # Protect all files in infer's configuration directory
+    require_approval: true
+  exclude_paths:
+    - .infer/ # Protect infer's own configuration directory
+    - .infer/* # Protect all files in infer's configuration directory
 compact:
-  output_dir: ".infer"  # Directory for compact command exports
+  output_dir: .infer # Directory for compact command exports
 chat:
-  default_model: ""  # Default model for chat sessions (when set, skips model selection)
-  system_prompt: ""  # System prompt included with every chat session
+  default_model: "" # Default model for chat sessions (when set, skips model selection)
+  system_prompt: "" # System prompt included with every chat session
+fetch:
+  enabled: false
+  whitelisted_domains:
+    - github.com
+  github:
+    enabled: false
+    token: ""
+    base_url: https://api.github.com
+  safety:
+    max_size: 8192
+    timeout: 30
+    allow_redirect: true
+  cache:
+    enabled: true
+    ttl: 3600
+    max_size: 52428800
 ```
 
 ### Configuration Options
