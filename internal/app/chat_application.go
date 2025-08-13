@@ -453,7 +453,7 @@ func (app *ChatApplication) renderHelp() string {
 
 func (app *ChatApplication) renderHelpText() string {
 	theme := app.services.GetTheme()
-	helpText := "Press Ctrl+D to send message, Ctrl+C to exit • Type @ for files, / for commands"
+	helpText := "Press Ctrl+D to send message, Ctrl+C to copy/exit, Ctrl+V to paste • Type @ for files, / for commands"
 	return theme.GetDimColor() + helpText + "\033[0m"
 }
 
@@ -465,6 +465,15 @@ func (app *ChatApplication) handleResize(msg tea.WindowSizeMsg) {
 func (app *ChatApplication) handleGlobalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 	switch keyMsg.String() {
 	case "ctrl+c":
+		// Allow input component to handle copy if there's text in the input field
+		if app.focusedComponent == app.inputView && app.inputView.GetInput() != "" {
+			// Let the input component handle the copy operation
+			model, cmd := app.focusedComponent.HandleKey(keyMsg)
+			if cmd != nil {
+				app.updateFocusedComponent(model)
+				return cmd
+			}
+		}
 		return tea.Quit
 
 	case "tab":
