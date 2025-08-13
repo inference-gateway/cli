@@ -98,6 +98,16 @@
             "path": "dist/checksums.txt",
             "label": "SHA256 checksums",
             "name": "checksums.txt"
+          },
+          {
+            "path": "dist/checksums.txt.sig",
+            "label": "Cosign signature for checksums",
+            "name": "checksums.txt.sig"
+          },
+          {
+            "path": "dist/checksums.txt.pem",
+            "label": "Cosign certificate for checksums",
+            "name": "checksums.txt.pem"
           }
         ],
         "addReleases": "bottom"
