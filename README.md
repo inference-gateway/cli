@@ -76,8 +76,7 @@ curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.
 **With specific version:**
 
 ```bash
-curl -fsSL \
-  https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.1.1
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.1.1
 ```
 
 **Custom install directory:**
