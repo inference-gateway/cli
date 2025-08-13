@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.12.2](https://github.com/inference-gateway/cli/compare/v0.12.1...v0.12.2) (2025-08-13)
+
+### 📚 Documentation
+
+* **fix:** Simplify installation command formatting in README ([5a76c73](https://github.com/inference-gateway/cli/commit/5a76c731937c61d7da939bc2cdb278faa186bbac))
+* Update configuration formatting and add fetch options ([0eebc3a](https://github.com/inference-gateway/cli/commit/0eebc3a69cd435cdb4db27cedebf6daedc395e3d))
+
+## [0.12.1](https://github.com/inference-gateway/cli/compare/v0.12.0...v0.12.1) (2025-08-13)
+
+### 📚 Documentation
+
+* Add section for verifying release binaries with Cosign ([4822268](https://github.com/inference-gateway/cli/commit/48222687a0f05713ab917fbe376f7c263c2eb62a))
+
 ## [0.12.0](https://github.com/inference-gateway/cli/compare/v0.11.1...v0.12.0) (2025-08-13)
 
 ### 🚀 Features
