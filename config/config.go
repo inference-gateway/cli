@@ -143,8 +143,8 @@ func DefaultConfig() *Config {
 				BaseURL: "https://api.github.com",
 			},
 			Safety: FetchSafetyConfig{
-				MaxSize:       10485760, // 10MB
-				Timeout:       30,       // 30 seconds
+				MaxSize:       8192, // 8KB
+				Timeout:       30,   // 30 seconds
 				AllowRedirect: true,
 			},
 			Cache: FetchCacheConfig{
