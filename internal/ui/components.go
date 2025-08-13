@@ -209,8 +209,9 @@ func (cv *ConversationViewImpl) renderEntry(entry domain.ConversationEntry) stri
 
 	content := entry.Message.Content
 	resetColor := "\033[0m"
+	message := fmt.Sprintf("%s%s:%s %s", color, role, resetColor, content)
 
-	return fmt.Sprintf("%s%s:%s %s", color, role, resetColor, content)
+	return message + "\n"
 }
 
 func (cv *ConversationViewImpl) GetID() string { return "conversation" }

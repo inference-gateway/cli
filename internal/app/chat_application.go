@@ -264,11 +264,11 @@ func (app *ChatApplication) renderChatInterface() string {
 	statusContent := app.statusView.Render()
 	if statusContent != "" {
 		b.WriteString(statusContent)
-		b.WriteString("\n")
+		b.WriteString("\n\n")
 	}
 
 	b.WriteString(app.inputView.Render())
-	b.WriteString("\n")
+	b.WriteString("\n\n")
 
 	b.WriteString(app.renderHelpText())
 
