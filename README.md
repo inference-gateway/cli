@@ -57,7 +57,7 @@ and management of inference services.
 - **Project Initialization**: Set up local project configurations
 - **Tool Execution**: LLMs can execute whitelisted commands and tools including:
   - **Bash**: Execute safe shell commands
-  - **Read**: Read file contents with optional line ranges  
+  - **Read**: Read file contents with optional line ranges
   - **FileSearch**: Search for files using regex patterns
   - **WebSearch**: Search the web using DuckDuckGo or Google
   - **Fetch**: Fetch content from URLs and GitHub
@@ -271,9 +271,15 @@ infer config tools list --format json
 infer config tools validate "ls -la"
 infer config tools exec "git status"
 
-# Manage safety settings
-infer config tools safety enable
-infer config tools safety status
+# Manage global safety settings (approval prompts)
+infer config tools safety enable   # Enable approval prompts for all tool execution
+infer config tools safety disable  # Disable approval prompts (execute tools immediately)
+infer config tools safety status   # Show current safety approval status
+
+# Manage tool-specific safety settings (granular control)
+infer config tools safety set Bash enabled        # Require approval for Bash tool only
+infer config tools safety set WebSearch disabled  # Skip approval for WebSearch tool
+infer config tools safety unset Bash              # Remove tool-specific setting (use global)
 
 # Manage excluded paths
 infer config tools exclude-path list
@@ -352,7 +358,7 @@ This tool is particularly useful for finding files before reading them.
 
 Execute whitelisted bash commands securely with validation against configured command patterns.
 
-### Read Tool  
+### Read Tool
 
 Read file content from the filesystem with optional line range specification.
 

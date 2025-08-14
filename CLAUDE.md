@@ -267,11 +267,15 @@ cat .infer/config.yaml
 
 ### Tool Management
 
+The CLI provides comprehensive tool execution management with multiple layers of security:
+
+#### Basic Tool Control
+
 ```bash
-# Enable tool execution
+# Enable tool execution for LLMs
 infer config tools enable
 
-# Disable tool execution
+# Disable tool execution for LLMs
 infer config tools disable
 
 # List whitelisted commands and patterns
@@ -285,17 +289,40 @@ infer config tools validate "ls -la"
 
 # Execute a whitelisted command directly
 infer config tools exec "git status"
-
-# Manage safety approval settings
-infer config tools safety enable
-infer config tools safety disable
-infer config tools safety status
-
-# Manage excluded paths for security
-infer config tools exclude-path list
-infer config tools exclude-path add ".github/"
-infer config tools exclude-path remove "test.txt"
 ```
+
+#### Safety and Security Controls
+
+The tool system includes multiple security layers:
+
+1. **Approval Prompts**: User confirmation before executing any tool
+2. **Command Whitelisting**: Only pre-approved commands can be executed
+3. **Path Exclusions**: Protect sensitive directories from tool access
+
+```bash
+# Manage global safety settings (approval prompts)
+infer config tools safety enable   # Enable approval prompts for all tool execution
+infer config tools safety disable  # Disable approval prompts (execute tools immediately)
+infer config tools safety status   # Show current safety approval status
+
+# Manage tool-specific safety settings (granular control)
+infer config tools safety set Bash enabled        # Require approval for Bash tool only
+infer config tools safety set WebSearch disabled  # Skip approval for WebSearch tool
+infer config tools safety unset Bash              # Remove tool-specific setting (use global)
+
+# Manage excluded paths for security (tool-level protection)
+infer config tools exclude-path list               # List all excluded paths
+infer config tools exclude-path add ".github/"     # Add a path to the exclusion list
+infer config tools exclude-path remove "test.txt"  # Remove a path from the exclusion list
+```
+
+#### Security Features
+
+- **Global Approval Prompts**: When enabled, prompts user before executing any tool command
+- **Tool-Specific Safety**: Configure approval requirements per tool (Bash, Read, FileSearch, Fetch, WebSearch)
+- **Command Whitelist**: Only commands in the whitelist can be executed by tools
+- **Path Exclusions**: Specific paths are blocked from tool access (e.g., `.infer/` directory)
+- **Safe Defaults**: Tools are enabled with read-only commands and approval prompts by default
 
 ### Web Search Tool
 
