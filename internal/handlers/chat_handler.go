@@ -58,6 +58,10 @@ func (h *ChatMessageHandler) CanHandle(msg tea.Msg) bool {
 		return true
 	case ToolAutoApproveMsg:
 		return true
+	case StoreRemainingToolCallsMsg:
+		return true
+	case ProcessNextToolCallMsg:
+		return true
 	case domain.ChatStartEvent, domain.ChatChunkEvent, domain.ChatCompleteEvent, domain.ChatErrorEvent:
 		return true
 	default:
@@ -78,6 +82,12 @@ func (h *ChatMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, te
 
 	case ToolAutoApproveMsg:
 		return nil, nil
+
+	case StoreRemainingToolCallsMsg:
+		return h.handleStoreRemainingToolCalls(msg, state)
+
+	case ProcessNextToolCallMsg:
+		return h.handleProcessNextToolCall(msg, state)
 
 	case domain.ChatStartEvent:
 		return h.handleChatStart(msg, state)
@@ -412,6 +422,14 @@ type ToolAutoApproveMsg struct {
 	Response string
 }
 
+// StoreRemainingToolCallsMsg stores remaining tool calls for sequential processing
+type StoreRemainingToolCallsMsg struct {
+	RemainingCalls []sdk.ChatCompletionMessageToolCall
+}
+
+// ProcessNextToolCallMsg triggers processing of the next tool call in the queue
+type ProcessNextToolCallMsg struct{}
+
 // SwitchModelMsg indicates that model selection view should be shown
 type SwitchModelMsg struct{}
 
@@ -620,7 +638,22 @@ func (h *ChatMessageHandler) handleToolCalls(msg domain.ChatCompleteEvent, statu
 		}
 	}
 
-	toolCall := msg.ToolCalls[0]
+	return h.processToolCallsSequentially(msg.ToolCalls, statusMsg, tokenUsage)
+}
+
+// processToolCallsSequentially handles multiple tool calls one by one
+func (h *ChatMessageHandler) processToolCallsSequentially(toolCalls []sdk.ChatCompletionMessageToolCall, statusMsg, tokenUsage string) (tea.Model, tea.Cmd) {
+	if len(toolCalls) == 0 {
+		return nil, func() tea.Msg {
+			return ui.SetStatusMsg{
+				Message:    statusMsg,
+				Spinner:    false,
+				TokenUsage: tokenUsage,
+			}
+		}
+	}
+
+	toolCall := toolCalls[0]
 	args := h.parseToolArguments(toolCall.Function.Arguments)
 
 	toolCallRequest := ToolCallRequest{
@@ -640,7 +673,12 @@ func (h *ChatMessageHandler) handleToolCalls(msg domain.ChatCompleteEvent, statu
 		func() tea.Msg {
 			return ToolCallDetectedMsg{
 				ToolCall: toolCallRequest,
-				Response: msg.Message,
+				Response: fmt.Sprintf("Processing tool call 1 of %d", len(toolCalls)),
+			}
+		},
+		func() tea.Msg {
+			return StoreRemainingToolCallsMsg{
+				RemainingCalls: toolCalls[1:],
 			}
 		},
 	)
@@ -676,4 +714,58 @@ func (h *ChatMessageHandler) parseToolArguments(arguments string) map[string]int
 		}
 	}
 	return args
+}
+
+// handleStoreRemainingToolCalls stores remaining tool calls for sequential processing
+func (h *ChatMessageHandler) handleStoreRemainingToolCalls(msg StoreRemainingToolCallsMsg, state *AppState) (tea.Model, tea.Cmd) {
+	state.Data["remainingToolCalls"] = msg.RemainingCalls
+	return nil, nil
+}
+
+// handleProcessNextToolCall processes the next tool call in the queue
+func (h *ChatMessageHandler) handleProcessNextToolCall(msg ProcessNextToolCallMsg, state *AppState) (tea.Model, tea.Cmd) {
+	remainingCalls, ok := state.Data["remainingToolCalls"].([]sdk.ChatCompletionMessageToolCall)
+	if !ok || len(remainingCalls) == 0 {
+		delete(state.Data, "remainingToolCalls")
+		return nil, h.triggerFollowUpLLMCall()
+	}
+
+	nextCall := remainingCalls[0]
+	state.Data["remainingToolCalls"] = remainingCalls[1:]
+
+	args := h.parseToolArguments(nextCall.Function.Arguments)
+	toolCallRequest := ToolCallRequest{
+		ID:        nextCall.Id,
+		Name:      nextCall.Function.Name,
+		Arguments: args,
+	}
+
+	remainingCount := len(remainingCalls) - 1
+	statusMessage := fmt.Sprintf("Processing next tool call (%d remaining)", remainingCount)
+
+	return nil, tea.Batch(
+		func() tea.Msg {
+			return ui.SetStatusMsg{
+				Message: statusMessage,
+				Spinner: false,
+			}
+		},
+		func() tea.Msg {
+			return ToolCallDetectedMsg{
+				ToolCall: toolCallRequest,
+				Response: statusMessage,
+			}
+		},
+	)
+}
+
+// triggerFollowUpLLMCall sends the conversation with tool results back to the LLM for reasoning
+func (h *ChatMessageHandler) triggerFollowUpLLMCall() tea.Cmd {
+	return func() tea.Msg {
+		// Convert conversation to SDK messages
+		messages := h.conversationToSDKMessages()
+
+		// Start a new chat completion request
+		return h.startChatCompletion(messages)()
+	}
 }
