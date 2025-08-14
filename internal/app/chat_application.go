@@ -761,6 +761,9 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 						History: conversationRepo.GetMessages(),
 					}
 				},
+				func() tea.Msg {
+					return handlers.ProcessNextToolCallMsg{}
+				},
 			)()
 		}
 
@@ -848,44 +851,13 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 					History: conversationRepo.GetMessages(),
 				}
 			},
-
-			app.triggerFollowUpLLMCall(),
+			func() tea.Msg {
+				return handlers.ProcessNextToolCallMsg{}
+			},
 		)()
 	}
 }
 
-// triggerFollowUpLLMCall sends the conversation with tool result back to the LLM for reasoning
-func (app *ChatApplication) triggerFollowUpLLMCall() tea.Cmd {
-	return func() tea.Msg {
-		conversationRepo := app.services.GetConversationRepository()
-		modelService := app.services.GetModelService()
-
-		entries := conversationRepo.GetMessages()
-		messages := make([]sdk.Message, len(entries))
-		for i, entry := range entries {
-			messages[i] = entry.Message
-		}
-
-		ctx := context.Background()
-		currentModel := modelService.GetCurrentModel()
-		if currentModel == "" {
-			return ui.ShowErrorMsg{
-				Error:  "No model selected for follow-up",
-				Sticky: false,
-			}
-		}
-
-		eventChan, err := app.services.GetChatService().SendMessage(ctx, currentModel, messages)
-		if err != nil {
-			return ui.ShowErrorMsg{
-				Error:  fmt.Sprintf("Failed to send follow-up to LLM: %v", err),
-				Sticky: true,
-			}
-		}
-
-		return handlers.ChatStreamStartedMsg{EventChannel: eventChan}
-	}
-}
 
 func (app *ChatApplication) denyToolCall() tea.Cmd {
 	toolCall, ok := app.state.Data["pendingToolCall"].(handlers.ToolCallRequest)
@@ -946,6 +918,9 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 				return ui.UpdateHistoryMsg{
 					History: conversationRepo.GetMessages(),
 				}
+			},
+			func() tea.Msg {
+				return handlers.ProcessNextToolCallMsg{}
 			},
 		)()
 	}
