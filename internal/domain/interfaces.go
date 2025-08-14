@@ -9,9 +9,10 @@ import (
 
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
-	Message sdk.Message `json:"message"`
-	Model   string      `json:"model,omitempty"`
-	Time    time.Time   `json:"time"`
+	Message        sdk.Message          `json:"message"`
+	Model          string               `json:"model,omitempty"`
+	Time           time.Time            `json:"time"`
+	ToolExecution  *ToolExecutionResult `json:"tool_execution,omitempty"` // For tool result entries
 }
 
 // ExportFormat defines the format for exporting conversations
@@ -93,7 +94,7 @@ type ToolDefinition struct {
 // ToolService handles tool execution
 type ToolService interface {
 	ListTools() []ToolDefinition
-	ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (string, error)
+	ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (*ToolExecutionResult, error)
 	IsToolEnabled(name string) bool
 	ValidateTool(name string, args map[string]interface{}) error
 }
@@ -131,4 +132,83 @@ type FetchService interface {
 	FetchContent(ctx context.Context, target string) (*FetchResult, error)
 	ClearCache()
 	GetCacheStats() map[string]interface{}
+}
+
+// WebSearchResult represents a single search result
+type WebSearchResult struct {
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	Snippet string `json:"snippet"`
+}
+
+// WebSearchResponse represents the complete search response
+type WebSearchResponse struct {
+	Query   string            `json:"query"`
+	Engine  string            `json:"engine"`
+	Results []WebSearchResult `json:"results"`
+	Total   int               `json:"total"`
+	Time    time.Duration     `json:"time"`
+	Error   string            `json:"error,omitempty"`
+}
+
+// WebSearchService handles web search operations
+type WebSearchService interface {
+	SearchGoogle(ctx context.Context, query string, maxResults int) (*WebSearchResponse, error)
+	SearchDuckDuckGo(ctx context.Context, query string, maxResults int) (*WebSearchResponse, error)
+	IsEnabled() bool
+	SetEnabled(enabled bool)
+}
+
+// Tool represents a single tool with its definition, handler, and validator
+type Tool interface {
+	// Definition returns the tool definition for the LLM
+	Definition() ToolDefinition
+
+	// Execute runs the tool with given arguments
+	Execute(ctx context.Context, args map[string]interface{}) (*ToolExecutionResult, error)
+
+	// Validate checks if the tool arguments are valid
+	Validate(args map[string]interface{}) error
+
+	// IsEnabled returns whether this tool is enabled
+	IsEnabled() bool
+}
+
+// ToolFactory creates tool instances
+type ToolFactory interface {
+	// CreateTool creates a tool instance by name
+	CreateTool(name string) (Tool, error)
+
+	// ListAvailableTools returns names of all available tools
+	ListAvailableTools() []string
+}
+
+// ToolExecutionResult represents the complete result of a tool execution
+type ToolExecutionResult struct {
+	ToolName  string                 `json:"tool_name"`
+	Arguments map[string]interface{} `json:"arguments"`
+	Success   bool                   `json:"success"`
+	Duration  time.Duration          `json:"duration"`
+	Error     string                 `json:"error,omitempty"`
+	Data      interface{}            `json:"data,omitempty"`
+	Metadata  map[string]string      `json:"metadata,omitempty"`
+}
+
+// BashToolResult represents the result of a bash command execution
+type BashToolResult struct {
+	Command  string `json:"command"`
+	Output   string `json:"output"`
+	Error    string `json:"error,omitempty"`
+	ExitCode int    `json:"exit_code"`
+	Duration string `json:"duration"`
+}
+
+// FileReadToolResult represents the result of a file read operation
+type FileReadToolResult struct {
+	FilePath  string `json:"file_path"`
+	Content   string `json:"content"`
+	Size      int64  `json:"size"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+	Error     string `json:"error,omitempty"`
 }

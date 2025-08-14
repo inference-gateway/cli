@@ -6,6 +6,49 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.14.0](https://github.com/inference-gateway/cli/compare/v0.13.1...v0.14.0) (2025-08-14)
+
+### 🚀 Features
+
+* Implement FileSearch tool for filesystem file searching ([#36](https://github.com/inference-gateway/cli/issues/36)) ([8990815](https://github.com/inference-gateway/cli/commit/8990815cea8c66a758c0fa614d0dc4ef1f7e24f6)), closes [#13](https://github.com/inference-gateway/cli/issues/13)
+
+## [0.13.1](https://github.com/inference-gateway/cli/compare/v0.13.0...v0.13.1) (2025-08-14)
+
+### ♻️ Code Refactoring
+
+* Make use of Tools using the OpenAI spec properly ([#35](https://github.com/inference-gateway/cli/issues/35)) ([0278421](https://github.com/inference-gateway/cli/commit/02784214e45f690fd532b92931559b55db9b7b6d))
+
+## [0.13.0](https://github.com/inference-gateway/cli/compare/v0.12.2...v0.13.0) (2025-08-14)
+
+### 🚀 Features
+
+* Implement Web Search Tool ([#32](https://github.com/inference-gateway/cli/issues/32)) ([e80769b](https://github.com/inference-gateway/cli/commit/e80769bd2794b2e6979e885a3fc567bf8421061a)), closes [#31](https://github.com/inference-gateway/cli/issues/31)
+
+## [0.12.2](https://github.com/inference-gateway/cli/compare/v0.12.1...v0.12.2) (2025-08-13)
+
+### 📚 Documentation
+
+* **fix:** Simplify installation command formatting in README ([5a76c73](https://github.com/inference-gateway/cli/commit/5a76c731937c61d7da939bc2cdb278faa186bbac))
+* Update configuration formatting and add fetch options ([0eebc3a](https://github.com/inference-gateway/cli/commit/0eebc3a69cd435cdb4db27cedebf6daedc395e3d))
+
+## [0.12.1](https://github.com/inference-gateway/cli/compare/v0.12.0...v0.12.1) (2025-08-13)
+
+### 📚 Documentation
+
+* Add section for verifying release binaries with Cosign ([4822268](https://github.com/inference-gateway/cli/commit/48222687a0f05713ab917fbe376f7c263c2eb62a))
+
+## [0.12.0](https://github.com/inference-gateway/cli/compare/v0.11.1...v0.12.0) (2025-08-13)
+
+### 🚀 Features
+
+* Add Cosign integration for signing checksums in release process ([7230948](https://github.com/inference-gateway/cli/commit/7230948ce4e7f5a6f43a07311d4536e3ec28e58f))
+
+## [0.11.1](https://github.com/inference-gateway/cli/compare/v0.11.0...v0.11.1) (2025-08-13)
+
+### 🐛 Bug Fixes
+
+* Include checksums.txt in GitHub releases ([cc7ffc0](https://github.com/inference-gateway/cli/commit/cc7ffc0607903d62087459b37a35e315bffd4aa2))
+
 ## [0.11.0](https://github.com/inference-gateway/cli/compare/v0.10.3...v0.11.0) (2025-08-13)
 
 ### 🚀 Features

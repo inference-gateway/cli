@@ -89,18 +89,45 @@ func (s *StreamingChatService) addToolsIfAvailable(messages []sdk.Message) []sdk
 		})
 	}
 
-	if s.toolService != nil {
-		availableTools := s.toolService.ListTools()
-		if len(availableTools) > 0 {
-			toolsMessage := s.createToolsSystemMessage(availableTools)
-			systemMessages = append(systemMessages, toolsMessage)
-		}
-	}
-
 	if len(systemMessages) > 0 {
 		messages = append(systemMessages, messages...)
 	}
 	return messages
+}
+
+func (s *StreamingChatService) convertToSDKTools() *[]sdk.ChatCompletionTool {
+	if s.toolService == nil {
+		return nil
+	}
+
+	availableTools := s.toolService.ListTools()
+	if len(availableTools) == 0 {
+		return nil
+	}
+
+	sdkTools := make([]sdk.ChatCompletionTool, len(availableTools))
+	for i, tool := range availableTools {
+		description := tool.Description
+
+		var parameters *sdk.FunctionParameters
+		if tool.Parameters != nil {
+			if paramMap, ok := tool.Parameters.(map[string]interface{}); ok {
+				fp := sdk.FunctionParameters(paramMap)
+				parameters = &fp
+			}
+		}
+
+		sdkTools[i] = sdk.ChatCompletionTool{
+			Type: sdk.Function,
+			Function: sdk.FunctionObject{
+				Name:        tool.Name,
+				Description: &description,
+				Parameters:  parameters,
+			},
+		}
+	}
+
+	return &sdkTools
 }
 
 func (s *StreamingChatService) setupRequest(ctx context.Context, requestID string) (context.Context, context.CancelFunc) {
@@ -160,7 +187,13 @@ func (s *StreamingChatService) createContentStream(timeoutCtx context.Context, m
 	}
 
 	providerType := sdk.Provider(provider)
-	stream, err := s.client.GenerateContentStream(timeoutCtx, providerType, modelName, messages)
+
+	clientWithTools := s.client
+	if tools := s.convertToSDKTools(); tools != nil {
+		clientWithTools = s.client.WithTools(tools)
+	}
+
+	stream, err := clientWithTools.GenerateContentStream(timeoutCtx, providerType, modelName, messages)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content stream: %w", err)
 	}
@@ -179,6 +212,7 @@ func (s *StreamingChatService) sendErrorEvent(events chan<- domain.ChatEvent, re
 func (s *StreamingChatService) processEventStream(timeoutCtx context.Context, stream <-chan sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, startTime time.Time) {
 	var fullMessage strings.Builder
 	var toolCalls []sdk.ChatCompletionMessageToolCall
+	toolCallsMap := make(map[string]*sdk.ChatCompletionMessageToolCall)
 	var usage *sdk.CompletionUsage
 
 	for {
@@ -189,7 +223,11 @@ func (s *StreamingChatService) processEventStream(timeoutCtx context.Context, st
 
 		case event, ok := <-stream:
 			if !ok {
-				s.sendCompleteEvent(events, requestID, startTime, fullMessage.String(), toolCalls, usage)
+				finalToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(toolCallsMap))
+				for _, tc := range toolCallsMap {
+					finalToolCalls = append(finalToolCalls, *tc)
+				}
+				s.sendCompleteEvent(events, requestID, startTime, fullMessage.String(), finalToolCalls, usage)
 				return
 			}
 
@@ -197,7 +235,7 @@ func (s *StreamingChatService) processEventStream(timeoutCtx context.Context, st
 				continue
 			}
 
-			if s.handleStreamEvent(event, events, requestID, &fullMessage, &toolCalls, &usage) {
+			if s.handleStreamEvent(event, events, requestID, &fullMessage, &toolCalls, &usage, toolCallsMap) {
 				return
 			}
 		}
@@ -238,10 +276,10 @@ func (s *StreamingChatService) sendCompleteEvent(events chan<- domain.ChatEvent,
 	}
 }
 
-func (s *StreamingChatService) handleStreamEvent(event sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, fullMessage *strings.Builder, toolCalls *[]sdk.ChatCompletionMessageToolCall, usage **sdk.CompletionUsage) bool {
+func (s *StreamingChatService) handleStreamEvent(event sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, fullMessage *strings.Builder, toolCalls *[]sdk.ChatCompletionMessageToolCall, usage **sdk.CompletionUsage, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall) bool {
 	switch *event.Event {
 	case sdk.ContentDelta:
-		s.handleContentDelta(event, events, requestID, fullMessage, toolCalls, usage)
+		s.handleContentDelta(event, events, requestID, fullMessage, toolCalls, usage, toolCallsMap)
 		return false
 
 	case sdk.StreamEnd:
@@ -255,20 +293,17 @@ func (s *StreamingChatService) handleStreamEvent(event sdk.SSEvent, events chan<
 	return false
 }
 
-func (s *StreamingChatService) handleContentDelta(event sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, fullMessage *strings.Builder, toolCalls *[]sdk.ChatCompletionMessageToolCall, usage **sdk.CompletionUsage) {
-	chunk, toolCallsChunk, usageChunk := s.processContentDelta(event)
+func (s *StreamingChatService) handleContentDelta(event sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, fullMessage *strings.Builder, toolCalls *[]sdk.ChatCompletionMessageToolCall, usage **sdk.CompletionUsage, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall) {
+	chunk, usageChunk := s.processContentDelta(event, toolCallsMap)
 	if chunk != "" {
 		fullMessage.WriteString(chunk)
 		events <- domain.ChatChunkEvent{
 			RequestID: requestID,
 			Timestamp: time.Now(),
 			Content:   chunk,
-			ToolCalls: toolCallsChunk,
+			ToolCalls: nil,
 			Delta:     true,
 		}
-	}
-	if len(toolCallsChunk) > 0 {
-		*toolCalls = append(*toolCalls, toolCallsChunk...)
 	}
 	if usageChunk != nil {
 		*usage = usageChunk
@@ -324,19 +359,18 @@ func (s *StreamingChatService) parseProvider(model string) (string, string, erro
 	return parts[0], parts[1], nil
 }
 
-// processContentDelta processes a content delta event
-func (s *StreamingChatService) processContentDelta(event sdk.SSEvent) (string, []sdk.ChatCompletionMessageToolCall, *sdk.CompletionUsage) {
+// processContentDelta processes a content delta event and accumulates tool calls
+func (s *StreamingChatService) processContentDelta(event sdk.SSEvent, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall) (string, *sdk.CompletionUsage) {
 	if event.Data == nil {
-		return "", nil, nil
+		return "", nil
 	}
 
 	var streamResponse sdk.CreateChatCompletionStreamResponse
 	if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
-		return "", nil, nil
+		return "", nil
 	}
 
 	var content string
-	var toolCalls []sdk.ChatCompletionMessageToolCall
 
 	for _, choice := range streamResponse.Choices {
 		if choice.Delta.Content != "" {
@@ -344,87 +378,33 @@ func (s *StreamingChatService) processContentDelta(event sdk.SSEvent) (string, [
 		}
 
 		for _, deltaToolCall := range choice.Delta.ToolCalls {
-			toolCall := sdk.ChatCompletionMessageToolCall{
-				Id:   deltaToolCall.ID,
-				Type: sdk.ChatCompletionToolType(deltaToolCall.Type),
-				Function: sdk.ChatCompletionMessageToolCallFunction{
-					Name:      deltaToolCall.Function.Name,
-					Arguments: deltaToolCall.Function.Arguments,
-				},
+			key := fmt.Sprintf("%d", deltaToolCall.Index)
+
+			if toolCallsMap[key] == nil {
+				toolCallsMap[key] = &sdk.ChatCompletionMessageToolCall{
+					Id:   deltaToolCall.ID,
+					Type: sdk.Function,
+					Function: sdk.ChatCompletionMessageToolCallFunction{
+						Name:      "",
+						Arguments: "",
+					},
+				}
 			}
-			toolCalls = append(toolCalls, toolCall)
+
+			if deltaToolCall.ID != "" {
+				toolCallsMap[key].Id = deltaToolCall.ID
+			}
+
+			if deltaToolCall.Function.Name != "" {
+				toolCallsMap[key].Function.Name += deltaToolCall.Function.Name
+			}
+			if deltaToolCall.Function.Arguments != "" {
+				toolCallsMap[key].Function.Arguments += deltaToolCall.Function.Arguments
+			}
 		}
 	}
 
-	return content, toolCalls, streamResponse.Usage
-}
-
-// createToolsSystemMessage creates a system message describing available tools
-func (s *StreamingChatService) createToolsSystemMessage(tools []domain.ToolDefinition) sdk.Message {
-	var toolDescriptions []string
-
-	toolDescriptions = append(toolDescriptions, "You have access to the following tools:")
-
-	for _, tool := range tools {
-		description := s.formatToolDescription(tool)
-		toolDescriptions = append(toolDescriptions, description)
-	}
-
-	toolDescriptions = append(toolDescriptions, "\nTo use a tool, format your response as: `TOOL_CALL: {\"name\": \"tool_name\", \"arguments\": {\"param\": \"value\"}}`")
-
-	return sdk.Message{
-		Role:    sdk.System,
-		Content: strings.Join(toolDescriptions, ""),
-	}
-}
-
-func (s *StreamingChatService) formatToolDescription(tool domain.ToolDefinition) string {
-	description := fmt.Sprintf("\n- **%s**: %s", tool.Name, tool.Description)
-
-	if tool.Parameters != nil {
-		parameterDescription := s.formatToolParameters(tool.Parameters)
-		if parameterDescription != "" {
-			description += parameterDescription
-		}
-	}
-
-	return description
-}
-
-func (s *StreamingChatService) formatToolParameters(parameters interface{}) string {
-	paramMap, ok := parameters.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	props, ok := paramMap["properties"].(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	description := "\n  Parameters:"
-	for paramName, paramInfo := range props {
-		paramDesc := s.extractParameterDescription(paramInfo)
-		if paramDesc != "" {
-			description += fmt.Sprintf("\n    - %s: %s", paramName, paramDesc)
-		}
-	}
-
-	return description
-}
-
-func (s *StreamingChatService) extractParameterDescription(paramInfo interface{}) string {
-	paramInfoMap, ok := paramInfo.(map[string]interface{})
-	if !ok {
-		return ""
-	}
-
-	desc, ok := paramInfoMap["description"].(string)
-	if !ok {
-		return ""
-	}
-
-	return desc
+	return content, streamResponse.Usage
 }
 
 // generateRequestID generates a unique request ID

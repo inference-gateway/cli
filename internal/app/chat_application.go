@@ -112,6 +112,13 @@ func (app *ChatApplication) handleCommonMessages(msg tea.Msg) []tea.Cmd {
 		app.handleResize(windowMsg)
 	}
 
+	if autoApproveMsg, ok := msg.(handlers.ToolAutoApproveMsg); ok {
+		app.state.Data["pendingToolCall"] = autoApproveMsg.ToolCall
+		app.state.Data["toolCallResponse"] = autoApproveMsg.Response
+		cmds = append(cmds, app.approveToolCall())
+		return cmds
+	}
+
 	if app.state.CurrentView != handlers.ViewApproval {
 		if _, cmd := app.messageRouter.Route(msg, app.state); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -163,6 +170,10 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 	}
 
 	key := keyMsg.String()
+	if key == "ctrl+r" {
+		app.toggleToolResultExpansion()
+		return cmds
+	}
 	if key == "ctrl+v" || key == "alt+v" || key == "ctrl+x" || key == "ctrl+shift+c" {
 		if cmd := app.handleFocusedComponentKeys(keyMsg); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -409,7 +420,7 @@ func (app *ChatApplication) renderApproval() string {
 	b.WriteString(strings.Repeat("═", app.state.Width))
 	b.WriteString("\n\n")
 
-	b.WriteString(fmt.Sprintf("Tool: %s\n", pendingToolCall.Name))
+	b.WriteString(fmt.Sprintf("Tool: %s\n", pendingToolCall.String()))
 	b.WriteString("Arguments:\n")
 
 	for key, value := range pendingToolCall.Arguments {
@@ -712,13 +723,22 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 		delete(app.state.Data, "approvalSelectedIndex")
 
 		return func() tea.Msg {
+			cancelledResult := &domain.ToolExecutionResult{
+				ToolName:  toolCall.Name,
+				Arguments: toolCall.Arguments,
+				Success:   false,
+				Duration:  0,
+				Error:     "Cancelled by user",
+			}
+
 			toolResultEntry := domain.ConversationEntry{
 				Message: sdk.Message{
 					Role:       sdk.Tool,
 					Content:    "Tool execution cancelled by user.",
 					ToolCallId: &toolCall.ID,
 				},
-				Time: time.Now(),
+				Time:          time.Now(),
+				ToolExecution: cancelledResult,
 			}
 
 			conversationRepo := app.services.GetConversationRepository()
@@ -775,10 +795,20 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 		result, err := toolService.ExecuteTool(context.Background(), toolCall.Name, toolCall.Arguments)
 
 		var toolContent string
+		var toolResult *domain.ToolExecutionResult
 		if err != nil {
-			toolContent = fmt.Sprintf("Tool execution failed: %v", err)
+			failedResult := &domain.ToolExecutionResult{
+				ToolName:  toolCall.Name,
+				Arguments: toolCall.Arguments,
+				Success:   false,
+				Duration:  0,
+				Error:     err.Error(),
+			}
+			toolResult = failedResult
+			toolContent = ui.FormatToolResultForLLM(failedResult)
 		} else {
-			toolContent = result
+			toolResult = result
+			toolContent = ui.FormatToolResultForLLM(result)
 		}
 
 		toolResultEntry := domain.ConversationEntry{
@@ -787,7 +817,8 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 				Content:    toolContent,
 				ToolCallId: &toolCall.ID,
 			},
-			Time: time.Now(),
+			Time:          time.Now(),
+			ToolExecution: toolResult,
 		}
 
 		conversationRepo := app.services.GetConversationRepository()
@@ -800,9 +831,9 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 
 		var statusMessage string
 		if err != nil {
-			statusMessage = fmt.Sprintf("Tool failed: %s - sending error to model...", toolCall.Name)
+			statusMessage = fmt.Sprintf("Tool failed: %s - sending error to model...", toolCall.String())
 		} else {
-			statusMessage = ui.FormatSuccess(fmt.Sprintf("Tool executed: %s - sending to model...", toolCall.Name))
+			statusMessage = ui.FormatSuccess(fmt.Sprintf("Tool executed: %s - sending to model...", toolCall.String()))
 		}
 
 		return tea.Batch(
@@ -878,13 +909,22 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 	app.state.CurrentView = handlers.ViewChat
 
 	return func() tea.Msg {
+		deniedResult := &domain.ToolExecutionResult{
+			ToolName:  toolCall.Name,
+			Arguments: toolCall.Arguments,
+			Success:   false,
+			Duration:  0,
+			Error:     "Denied by user",
+		}
+
 		toolResultEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:       sdk.Tool,
 				Content:    "Tool execution denied by user.",
 				ToolCallId: &toolCall.ID,
 			},
-			Time: time.Now(),
+			Time:          time.Now(),
+			ToolExecution: deniedResult,
 		}
 
 		conversationRepo := app.services.GetConversationRepository()
@@ -946,6 +986,19 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 	}
 
 	return cmds
+}
+
+// toggleToolResultExpansion toggles expansion of the most recent tool result
+func (app *ChatApplication) toggleToolResultExpansion() {
+	conversationRepo := app.services.GetConversationRepository()
+	messages := conversationRepo.GetMessages()
+
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Message.Role == "tool" {
+			app.conversationView.ToggleToolResultExpansion(i)
+			break
+		}
+	}
 }
 
 // GetServices returns the service container (for testing or extensions)

@@ -26,6 +26,7 @@ and management of inference services.
 
 - [Features](#features)
 - [Installation](#installation)
+  - [Verifying Release Binaries](#verifying-release-binaries)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
   - [`infer config`](#infer-config)
@@ -39,6 +40,7 @@ and management of inference services.
 - [Configuration](#configuration)
   - [Default Configuration](#default-configuration)
   - [Configuration Options](#configuration-options)
+  - [Web Search API Setup (Optional)](#web-search-api-setup-optional)
 - [Global Flags](#global-flags)
 - [Examples](#examples)
 - [Development](#development)
@@ -53,6 +55,12 @@ and management of inference services.
 - **Interactive Chat**: Chat with models using an interactive interface
 - **Configuration Management**: Manage gateway settings via YAML config
 - **Project Initialization**: Set up local project configurations
+- **Tool Execution**: LLMs can execute whitelisted commands and tools including:
+  - **Bash**: Execute safe shell commands
+  - **Read**: Read file contents with optional line ranges
+  - **FileSearch**: Search for files using regex patterns
+  - **WebSearch**: Search the web using DuckDuckGo or Google
+  - **Fetch**: Fetch content from URLs and GitHub
 
 ## Installation
 
@@ -75,8 +83,7 @@ curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.
 **With specific version:**
 
 ```bash
-curl -fsSL \
-  https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.1.1
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.1.1
 ```
 
 **Custom install directory:**
@@ -97,6 +104,62 @@ The install script will:
 ### Manual Download
 
 Download the latest release binary for your platform from the [releases page](https://github.com/inference-gateway/cli/releases).
+
+#### Verifying Release Binaries
+
+All release binaries are signed with [Cosign](https://github.com/sigstore/cosign) for supply
+chain security. You can verify the integrity and authenticity of downloaded binaries using the
+following steps:
+
+**1. Download the binary, checksums, and signature files:**
+
+```bash
+# Download binary (replace with your platform)
+curl -L -o infer-darwin-amd64 \
+  https://github.com/inference-gateway/cli/releases/download/v0.12.0/infer-darwin-amd64
+
+# Download checksums and signature files
+curl -L -o checksums.txt \
+  https://github.com/inference-gateway/cli/releases/download/v0.12.0/checksums.txt
+curl -L -o checksums.txt.pem \
+  https://github.com/inference-gateway/cli/releases/download/v0.12.0/checksums.txt.pem
+curl -L -o checksums.txt.sig \
+  https://github.com/inference-gateway/cli/releases/download/v0.12.0/checksums.txt.sig
+```
+
+**2. Verify SHA256 checksum:**
+
+```bash
+# Calculate checksum of downloaded binary
+shasum -a 256 infer-darwin-amd64
+
+# Compare with checksums in checksums.txt
+grep infer-darwin-amd64 checksums.txt
+```
+
+**3. Verify Cosign signature (requires [Cosign](https://github.com/sigstore/cosign) to be installed):**
+
+```bash
+# Decode base64 encoded certificate
+cat checksums.txt.pem | base64 -d > checksums.txt.pem.decoded
+
+# Verify the signature
+cosign verify-blob \
+  --certificate checksums.txt.pem.decoded \
+  --signature checksums.txt.sig \
+  --certificate-identity "https://github.com/inference-gateway/cli/.github/workflows/release.yml@refs/heads/main" \
+  --certificate-oidc-issuer "https://token.actions.githubusercontent.com" \
+  checksums.txt
+```
+
+**4. Make binary executable and install:**
+
+```bash
+chmod +x infer-darwin-amd64
+sudo mv infer-darwin-amd64 /usr/local/bin/infer
+```
+
+> **Note**: Replace `v0.12.0` with the desired release version and `infer-darwin-amd64` with your platform's binary name.
 
 ### Build from Source
 
@@ -208,9 +271,15 @@ infer config tools list --format json
 infer config tools validate "ls -la"
 infer config tools exec "git status"
 
-# Manage safety settings
-infer config tools safety enable
-infer config tools safety status
+# Manage global safety settings (approval prompts)
+infer config tools safety enable   # Enable approval prompts for all tool execution
+infer config tools safety disable  # Disable approval prompts (execute tools immediately)
+infer config tools safety status   # Show current safety approval status
+
+# Manage tool-specific safety settings (granular control)
+infer config tools safety set Bash enabled        # Require approval for Bash tool only
+infer config tools safety set WebSearch disabled  # Skip approval for WebSearch tool
+infer config tools safety unset Bash              # Remove tool-specific setting (use global)
 
 # Manage excluded paths
 infer config tools exclude-path list
@@ -256,6 +325,57 @@ Display version information for the Inference Gateway CLI.
 infer version
 ```
 
+## Available Tools for LLMs
+
+When tool execution is enabled, LLMs can use the following tools to interact with the system:
+
+### FileSearch Tool
+
+Search for files in the filesystem using regex patterns on file names and paths.
+This tool is particularly useful for finding files before reading them.
+
+**Parameters:**
+
+- `pattern` (required): Regex pattern to match against file paths
+- `include_dirs` (optional): Whether to include directories in results (default: false)
+- `case_sensitive` (optional): Whether pattern matching is case sensitive (default: true)
+- `format` (optional): Output format - "text" or "json" (default: "text")
+
+**Examples:**
+
+- Find Go source files: `\.go$`
+- Find config files: `.*config.*\.(yaml|yml|json)$`
+- Find test files: `.*test.*\.go$`
+- Find files in cmd directory: `^cmd/.*\.go$`
+
+**Security:**
+
+- Respects the same exclusion rules as other file operations
+- Skips binary files, hidden directories, and configured excluded paths
+- Limited to reasonable search depth to prevent excessive resource usage
+
+### Bash Tool
+
+Execute whitelisted bash commands securely with validation against configured command patterns.
+
+### Read Tool
+
+Read file content from the filesystem with optional line range specification.
+
+### WebSearch Tool
+
+Search the web using DuckDuckGo or Google search engines to find information.
+
+### Fetch Tool
+
+Fetch content from whitelisted URLs or GitHub references using the format `github:owner/repo#123`.
+
+**Security Notes:**
+
+- All tools respect configured safety settings and exclusion patterns
+- Commands require approval when safety approval is enabled
+- File access is restricted to allowed paths and excludes sensitive directories
+
 ## Configuration
 
 The CLI uses a YAML configuration file located at `.infer/config.yaml`.
@@ -265,42 +385,63 @@ You can also specify a custom config file using the `--config` flag.
 
 ```yaml
 gateway:
-  url: "http://localhost:8080"
+  url: http://localhost:8080
   api_key: ""
   timeout: 30
 output:
-  format: "text"
+  format: text
   quiet: false
 tools:
-  enabled: true  # Tools are enabled by default with safe read-only commands
+  enabled: true # Tools are enabled by default with safe read-only commands
   whitelist:
-    commands:  # Exact command matches
-      - "ls"
-      - "pwd"
-      - "echo"
-      - "cat"
-      - "head"
-      - "tail"
-      - "grep"
-      - "find"
-      - "wc"
-      - "sort"
-      - "uniq"
-    patterns:  # Regex patterns for more complex commands
-      - "^git status$"
-      - "^git log --oneline -n [0-9]+$"
-      - "^docker ps$"
-      - "^kubectl get pods$"
+    commands: # Exact command matches
+      - ls
+      - pwd
+      - echo
+      - grep
+      - find
+      - wc
+      - sort
+      - uniq
+    patterns: # Regex patterns for more complex commands
+      - ^git status$
+      - ^git log --oneline -n [0-9]+$
+      - ^docker ps$
+      - ^kubectl get pods$
   safety:
-    require_approval: true  # Prompt user before executing any command
-  exclude_paths:  # Paths excluded from tool access for security
-    - ".infer/"     # Protect infer's own configuration directory
-    - ".infer/*"    # Protect all files in infer's configuration directory
+    require_approval: true
+  exclude_paths:
+    - .infer/ # Protect infer's own configuration directory
+    - .infer/* # Protect all files in infer's configuration directory
 compact:
-  output_dir: ".infer"  # Directory for compact command exports
+  output_dir: .infer # Directory for compact command exports
 chat:
-  default_model: ""  # Default model for chat sessions (when set, skips model selection)
-  system_prompt: ""  # System prompt included with every chat session
+  default_model: "" # Default model for chat sessions (when set, skips model selection)
+  system_prompt: "" # System prompt included with every chat session
+web_search:
+  enabled: true # Enable web search tool for LLMs
+  default_engine: duckduckgo # Default search engine (duckduckgo, google)
+  max_results: 10 # Default maximum number of search results
+  engines: # Available search engines
+    - duckduckgo
+    - google
+  timeout: 10 # Search timeout in seconds
+fetch:
+  enabled: false
+  whitelisted_domains:
+    - github.com
+  github:
+    enabled: false
+    token: ""
+    base_url: https://api.github.com
+  safety:
+    max_size: 8192
+    timeout: 30
+    allow_redirect: true
+  cache:
+    enabled: true
+    ttl: 3600
+    max_size: 52428800
 ```
 
 ### Configuration Options
@@ -336,6 +477,54 @@ chat:
 - **chat.default_model**: Default model for chat sessions (skips model
   selection when set)
 - **chat.system_prompt**: System prompt included with every chat session
+
+**Web Search Settings:**
+
+- **web_search.enabled**: Enable/disable web search tool for LLMs (default: true)
+- **web_search.default_engine**: Default search engine to use ("duckduckgo" or "google", default: "duckduckgo")
+- **web_search.max_results**: Maximum number of search results to return (1-50, default: 10)
+- **web_search.engines**: List of available search engines
+- **web_search.timeout**: Search timeout in seconds (default: 10)
+
+#### Web Search API Setup (Optional)
+
+Both search engines work out of the box, but for better reliability and performance in production, you can
+configure API keys:
+
+**Google Custom Search Engine:**
+
+1. **Create a Custom Search Engine:**
+   - Go to [Google Programmable Search Engine](https://programmablesearchengine.google.com/)
+   - Click "Add" to create a new search engine
+   - Enter a name for your search engine
+   - In "Sites to search", enter `*` to search the entire web
+   - Click "Create"
+
+2. **Get your Search Engine ID:**
+   - In your search engine settings, note the "Search engine ID" (cx parameter)
+
+3. **Get a Google API Key:**
+   - Go to the [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select an existing one
+   - Enable the "Custom Search JSON API"
+   - Go to "Credentials" and create an API key
+   - Restrict the API key to the Custom Search JSON API for security
+
+4. **Configure Environment Variables:**
+
+   ```bash
+   export GOOGLE_SEARCH_API_KEY="your_api_key_here"
+   export GOOGLE_SEARCH_ENGINE_ID="your_search_engine_id_here"
+   ```
+
+**DuckDuckGo API (Optional):**
+
+```bash
+export DUCKDUCKGO_SEARCH_API_KEY="your_api_key_here"
+```
+
+**Note:** Both engines have built-in fallback methods that work without API configuration. However, using
+official APIs provides better reliability and performance for production use.
 
 ## Global Flags
 
