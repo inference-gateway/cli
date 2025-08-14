@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -74,13 +75,40 @@ func (f *FetchService) ValidateURL(targetURL string) error {
 	}
 
 	for _, whitelistedDomain := range f.config.Fetch.WhitelistedDomains {
-		if domain == whitelistedDomain || strings.HasSuffix(domain, "."+whitelistedDomain) {
+		if f.matchesDomainPattern(domain, whitelistedDomain) {
 			logger.Debug("URL domain matches whitelist", "url", targetURL, "domain", domain, "whitelisted", whitelistedDomain)
 			return nil
 		}
 	}
 
 	return fmt.Errorf("domain not whitelisted: %s (from URL: %s)", domain, targetURL)
+}
+
+// matchesDomainPattern checks if a domain matches a whitelist pattern
+func (f *FetchService) matchesDomainPattern(domain, pattern string) bool {
+	if pattern == "*" {
+		return true
+	}
+
+	if domain == pattern {
+		return true
+	}
+
+	if strings.HasPrefix(pattern, "*.") {
+		basePattern := strings.TrimPrefix(pattern, "*.")
+		return domain == basePattern || strings.HasSuffix(domain, "."+basePattern)
+	}
+
+	if strings.ContainsAny(pattern, "^$[]{}()+?|\\") {
+		regex, err := regexp.Compile("^" + pattern + "$")
+		if err != nil {
+			logger.Debug("Invalid regex pattern in whitelist", "pattern", pattern, "error", err)
+			return false
+		}
+		return regex.MatchString(domain)
+	}
+
+	return false
 }
 
 // FetchContent fetches content from a URL or GitHub reference

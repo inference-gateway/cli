@@ -5,12 +5,14 @@ This directory contains practical examples for using the `infer` CLI tool to int
 ## Prerequisites
 
 1. Start the Inference Gateway server:
+
 ```bash
 cp .env.example .env
 docker run --rm -it --env-file .env -p 8080:8080 ghcr.io/inference-gateway/inference-gateway:latest
 ```
 
 2. Install the CLI:
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
 ```
@@ -34,6 +36,7 @@ tools:
 ## Basic Usage Examples
 
 ### Check Gateway Status
+
 ```bash
 # Basic status check
 infer status
@@ -43,11 +46,13 @@ infer status --format json
 ```
 
 ### List Deployed Models
+
 ```bash
 infer models list
 ```
 
 ### Send Prompts
+
 ```bash
 # Simple prompt
 infer prompt "What is machine learning?"
@@ -57,6 +62,7 @@ infer chat
 ```
 
 ### Tool Management (Advanced)
+
 ```bash
 # Enable tools in your config first, then:
 infer tools list
@@ -64,6 +70,7 @@ infer tools exec "ls -la"
 ```
 
 ### Version Information
+
 ```bash
 infer version
 ```

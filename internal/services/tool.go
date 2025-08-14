@@ -34,19 +34,21 @@ type FileReadResult struct {
 
 // LLMToolService implements ToolService with direct tool execution
 type LLMToolService struct {
-	config       *config.Config
-	fileService  domain.FileService
-	fetchService domain.FetchService
-	enabled      bool
+	config           *config.Config
+	fileService      domain.FileService
+	fetchService     domain.FetchService
+	webSearchService domain.WebSearchService
+	enabled          bool
 }
 
 // NewLLMToolService creates a new LLM tool service
-func NewLLMToolService(cfg *config.Config, fileService domain.FileService, fetchService domain.FetchService) *LLMToolService {
+func NewLLMToolService(cfg *config.Config, fileService domain.FileService, fetchService domain.FetchService, webSearchService domain.WebSearchService) *LLMToolService {
 	return &LLMToolService{
-		config:       cfg,
-		fileService:  fileService,
-		fetchService: fetchService,
-		enabled:      cfg.Tools.Enabled,
+		config:           cfg,
+		fileService:      fileService,
+		fetchService:     fetchService,
+		webSearchService: webSearchService,
+		enabled:          cfg.Tools.Enabled,
 	}
 }
 
@@ -131,6 +133,42 @@ func (s *LLMToolService) ListTools() []domain.ToolDefinition {
 		})
 	}
 
+	if s.config.WebSearch.Enabled {
+		tools = append(tools, domain.ToolDefinition{
+			Name:        "WebSearch",
+			Description: "Search the web using Google or DuckDuckGo search engines",
+			Parameters: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"query": map[string]interface{}{
+						"type":        "string",
+						"description": "The search query to execute",
+					},
+					"engine": map[string]interface{}{
+						"type":        "string",
+						"description": fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(s.config.WebSearch.Engines, " or "), s.config.WebSearch.DefaultEngine),
+						"enum":        s.config.WebSearch.Engines,
+						"default":     s.config.WebSearch.DefaultEngine,
+					},
+					"limit": map[string]interface{}{
+						"type":        "integer",
+						"description": "Maximum number of search results to return",
+						"minimum":     1,
+						"maximum":     50,
+						"default":     s.config.WebSearch.MaxResults,
+					},
+					"format": map[string]interface{}{
+						"type":        "string",
+						"description": "Output format (text or json)",
+						"enum":        []string{"text", "json"},
+						"default":     "text",
+					},
+				},
+				"required": []string{"query"},
+			},
+		})
+	}
+
 	return tools
 }
 
@@ -146,6 +184,8 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[
 		return s.executeReadTool(args)
 	case "Fetch":
 		return s.executeFetchTool(ctx, args)
+	case "WebSearch":
+		return s.executeWebSearchTool(ctx, args)
 	default:
 		return "", fmt.Errorf("unknown tool: %s", name)
 	}
@@ -181,6 +221,8 @@ func (s *LLMToolService) ValidateTool(name string, args map[string]interface{}) 
 		return s.validateReadTool(args)
 	case "Fetch":
 		return s.validateFetchTool(args)
+	case "WebSearch":
+		return s.validateWebSearchTool(args)
 	default:
 		return nil
 	}
@@ -511,5 +553,116 @@ func (s *LLMToolService) formatFetchResult(result *domain.FetchResult) string {
 	}
 
 	output += fmt.Sprintf("Content:\n%s", result.Content)
+	return output
+}
+
+// executeWebSearchTool handles WebSearch tool execution
+func (s *LLMToolService) executeWebSearchTool(ctx context.Context, args map[string]interface{}) (string, error) {
+	if !s.config.WebSearch.Enabled {
+		return "", fmt.Errorf("web search tool is not enabled")
+	}
+
+	query, ok := args["query"].(string)
+	if !ok {
+		return "", fmt.Errorf("query parameter is required and must be a string")
+	}
+
+	engine, ok := args["engine"].(string)
+	if !ok {
+		engine = s.config.WebSearch.DefaultEngine
+	}
+
+	var limit int
+	if limitFloat, ok := args["limit"].(float64); ok {
+		limit = int(limitFloat)
+	} else {
+		limit = s.config.WebSearch.MaxResults
+	}
+
+	format, ok := args["format"].(string)
+	if !ok {
+		format = "text"
+	}
+
+	var result *domain.WebSearchResponse
+	var err error
+
+	switch engine {
+	case "google":
+		result, err = s.webSearchService.SearchGoogle(ctx, query, limit)
+	case "duckduckgo":
+		result, err = s.webSearchService.SearchDuckDuckGo(ctx, query, limit)
+	default:
+		return "", fmt.Errorf("unsupported search engine: %s", engine)
+	}
+
+	if err != nil {
+		return "", fmt.Errorf("web search failed: %w", err)
+	}
+
+	if format == "json" {
+		jsonOutput, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal result: %w", err)
+		}
+		return string(jsonOutput), nil
+	}
+
+	return s.formatWebSearchResult(result), nil
+}
+
+// validateWebSearchTool validates WebSearch tool arguments
+func (s *LLMToolService) validateWebSearchTool(args map[string]interface{}) error {
+	if !s.config.WebSearch.Enabled {
+		return fmt.Errorf("web search tool is not enabled")
+	}
+
+	query, ok := args["query"].(string)
+	if !ok {
+		return fmt.Errorf("query parameter is required and must be a string")
+	}
+
+	if strings.TrimSpace(query) == "" {
+		return fmt.Errorf("query cannot be empty")
+	}
+
+	if engine, ok := args["engine"].(string); ok {
+		validEngines := make(map[string]bool)
+		for _, eng := range s.config.WebSearch.Engines {
+			validEngines[eng] = true
+		}
+		if !validEngines[engine] {
+			return fmt.Errorf("unsupported search engine: %s", engine)
+		}
+	}
+
+	if limitFloat, ok := args["limit"].(float64); ok {
+		limit := int(limitFloat)
+		if limit < 1 || limit > 50 {
+			return fmt.Errorf("limit must be between 1 and 50")
+		}
+	}
+
+	return nil
+}
+
+// formatWebSearchResult formats web search result for text output
+func (s *LLMToolService) formatWebSearchResult(result *domain.WebSearchResponse) string {
+	output := fmt.Sprintf("Query: %s\n", result.Query)
+	output += fmt.Sprintf("Engine: %s\n", result.Engine)
+	output += fmt.Sprintf("Results: %d\n", result.Total)
+	output += fmt.Sprintf("Time: %s\n", result.Time)
+
+	if result.Error != "" {
+		output += fmt.Sprintf("Error: %s\n", result.Error)
+	}
+
+	output += "\nSearch Results:\n"
+	for i, res := range result.Results {
+		output += fmt.Sprintf("\n%d. %s\n", i+1, res.Title)
+		output += fmt.Sprintf("   URL: %s\n", res.URL)
+		output += fmt.Sprintf("   Snippet: %s\n", res.Snippet)
+	}
+
 	return output
 }

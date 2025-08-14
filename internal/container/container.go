@@ -21,6 +21,7 @@ type ServiceContainer struct {
 	toolService      domain.ToolService
 	fileService      domain.FileService
 	fetchService     domain.FetchService
+	webSearchService domain.WebSearchService
 
 	// UI components
 	theme  ui.Theme
@@ -60,8 +61,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.fetchService = services.NewFetchService(c.config)
 
+	c.webSearchService = services.NewWebSearchService()
+
 	if c.config.Tools.Enabled {
-		c.toolService = services.NewLLMToolService(c.config, c.fileService, c.fetchService)
+		c.toolService = services.NewLLMToolService(c.config, c.fileService, c.fetchService, c.webSearchService)
 	} else {
 		c.toolService = services.NewNoOpToolService()
 	}
@@ -150,6 +153,10 @@ func (c *ServiceContainer) GetFileService() domain.FileService {
 
 func (c *ServiceContainer) GetFetchService() domain.FetchService {
 	return c.fetchService
+}
+
+func (c *ServiceContainer) GetWebSearchService() domain.WebSearchService {
+	return c.webSearchService
 }
 
 func (c *ServiceContainer) GetTheme() ui.Theme {

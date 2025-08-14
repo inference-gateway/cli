@@ -40,6 +40,7 @@ and management of inference services.
 - [Configuration](#configuration)
   - [Default Configuration](#default-configuration)
   - [Configuration Options](#configuration-options)
+  - [Web Search API Setup (Optional)](#web-search-api-setup-optional)
 - [Global Flags](#global-flags)
 - [Examples](#examples)
 - [Development](#development)
@@ -354,6 +355,14 @@ compact:
 chat:
   default_model: "" # Default model for chat sessions (when set, skips model selection)
   system_prompt: "" # System prompt included with every chat session
+web_search:
+  enabled: true # Enable web search tool for LLMs
+  default_engine: duckduckgo # Default search engine (duckduckgo, google)
+  max_results: 10 # Default maximum number of search results
+  engines: # Available search engines
+    - duckduckgo
+    - google
+  timeout: 10 # Search timeout in seconds
 fetch:
   enabled: false
   whitelisted_domains:
@@ -405,6 +414,54 @@ fetch:
 - **chat.default_model**: Default model for chat sessions (skips model
   selection when set)
 - **chat.system_prompt**: System prompt included with every chat session
+
+**Web Search Settings:**
+
+- **web_search.enabled**: Enable/disable web search tool for LLMs (default: true)
+- **web_search.default_engine**: Default search engine to use ("duckduckgo" or "google", default: "duckduckgo")
+- **web_search.max_results**: Maximum number of search results to return (1-50, default: 10)
+- **web_search.engines**: List of available search engines
+- **web_search.timeout**: Search timeout in seconds (default: 10)
+
+#### Web Search API Setup (Optional)
+
+Both search engines work out of the box, but for better reliability and performance in production, you can
+configure API keys:
+
+**Google Custom Search Engine:**
+
+1. **Create a Custom Search Engine:**
+   - Go to [Google Programmable Search Engine](https://programmablesearchengine.google.com/)
+   - Click "Add" to create a new search engine
+   - Enter a name for your search engine
+   - In "Sites to search", enter `*` to search the entire web
+   - Click "Create"
+
+2. **Get your Search Engine ID:**
+   - In your search engine settings, note the "Search engine ID" (cx parameter)
+
+3. **Get a Google API Key:**
+   - Go to the [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a new project or select an existing one
+   - Enable the "Custom Search JSON API"
+   - Go to "Credentials" and create an API key
+   - Restrict the API key to the Custom Search JSON API for security
+
+4. **Configure Environment Variables:**
+
+   ```bash
+   export GOOGLE_SEARCH_API_KEY="your_api_key_here"
+   export GOOGLE_SEARCH_ENGINE_ID="your_search_engine_id_here"
+   ```
+
+**DuckDuckGo API (Optional):**
+
+```bash
+export DUCKDUCKGO_SEARCH_API_KEY="your_api_key_here"
+```
+
+**Note:** Both engines have built-in fallback methods that work without API configuration. However, using
+official APIs provides better reliability and performance for production use.
 
 ## Global Flags
 

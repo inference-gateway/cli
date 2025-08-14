@@ -4,25 +4,31 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is the Inference Gateway CLI (`infer`), a Go-based command-line tool for managing and interacting with machine learning inference services. The CLI provides functionality for status monitoring, interactive chat, and configuration management.
+This is the Inference Gateway CLI (`infer`), a Go-based command-line tool for managing and interacting with
+machine learning inference services. The CLI provides functionality for status monitoring, interactive chat, and
+configuration management.
 
 ## Development Commands
 
 **Note: All commands should be run with `flox activate -- <command>` to ensure the proper development environment is activated.**
 
-**IMPORTANT: Always run `task setup` first when working with a fresh checkout of the repository to ensure all dependencies are properly installed.**
+**IMPORTANT: Always run `task setup` first when working with a fresh checkout of the repository to ensure all
+dependencies are properly installed.**
 
 ### Setup Development Environment
+
 ```bash
 flox activate -- task setup
 ```
 
 ### Building
+
 ```bash
 flox activate -- task build
 ```
 
 ### Testing
+
 ```bash
 # Run all tests
 flox activate -- task test
@@ -35,6 +41,7 @@ flox activate -- task test:coverage
 ```
 
 ### Running locally
+
 ```bash
 # Run the CLI with arguments
 flox activate -- task run CLI_ARGS="[command]"
@@ -46,11 +53,13 @@ flox activate -- task run:help
 ```
 
 ### Installing from source
+
 ```bash
 flox activate -- task install
 ```
 
 ### Code Quality
+
 ```bash
 # Format code
 flox activate -- task fmt
@@ -66,6 +75,7 @@ flox activate -- task check
 ```
 
 ### Module Management
+
 ```bash
 # Tidy modules
 flox activate -- task mod:tidy
@@ -75,12 +85,14 @@ flox activate -- task mod:download
 ```
 
 ### Development Workflow
+
 ```bash
 # Complete development workflow (format, build, test)
 flox activate -- task dev
 ```
 
 ### Release
+
 ```bash
 # Build release binaries for multiple platforms
 flox activate -- task release:build
@@ -90,11 +102,13 @@ flox activate -- task clean:release
 ```
 
 ### Cleanup
+
 ```bash
 flox activate -- task clean
 ```
 
 ### Available Tasks
+
 ```bash
 # Show all available tasks
 flox activate -- task --list
@@ -121,7 +135,10 @@ The project follows a modern SOLID architecture using Bubble Tea for the TUI and
   - `container/`: Dependency injection container
 
 ### Configuration System
-The CLI uses a project-based YAML configuration file at `.infer/config.yaml` in the current directory with the following structure:
+
+The CLI uses a project-based YAML configuration file at `.infer/config.yaml` in the current directory with the
+following structure:
+
 ```yaml
 gateway:
   url: "http://localhost:8080"
@@ -160,9 +177,18 @@ compact:
 chat:
   default_model: ""  # Default model for chat sessions (when set, skips model selection)
   system_prompt: ""  # System prompt included with every chat session
+web_search:
+  enabled: true  # Enable web search tool for LLMs
+  default_engine: "duckduckgo"  # Default search engine (duckduckgo, google)
+  max_results: 10  # Default maximum number of search results
+  engines:  # Available search engines
+    - "duckduckgo"
+    - "google"
+  timeout: 10  # Search timeout in seconds
 ```
 
 ### Command Structure
+
 - Root command: `infer`
 - Global flags: `--config`, `--verbose`
 - Subcommands:
@@ -206,6 +232,7 @@ chat:
 ## Usage Examples
 
 ### Setting a Default Model
+
 ```bash
 # Set a default model for chat sessions
 infer config set-model gpt-4-turbo
@@ -215,6 +242,7 @@ infer chat
 ```
 
 ### Setting a System Prompt
+
 ```bash
 # Set a system prompt for chat sessions
 infer config set-system "You are a helpful assistant."
@@ -225,6 +253,7 @@ infer chat
 ```
 
 ### Configuration Management
+
 ```bash
 # Initialize a new project configuration
 infer config init
@@ -242,6 +271,7 @@ cat .infer/config.yaml
 ```
 
 ### Tool Management
+
 ```bash
 # Enable tool execution
 infer config tools enable
@@ -271,6 +301,73 @@ infer config tools exclude-path list
 infer config tools exclude-path add ".github/"
 infer config tools exclude-path remove "test.txt"
 ```
+
+### Web Search Tool
+
+The CLI includes a web search tool that allows LLMs to search the web using DuckDuckGo or Google search
+engines. DuckDuckGo is the default engine and works reliably out of the box.
+
+#### Recommended Setup
+
+For production use and reliable search results, configure API keys:
+
+**Google Search**:
+
+```bash
+export GOOGLE_SEARCH_API_KEY="your_api_key"
+export GOOGLE_SEARCH_ENGINE_ID="your_engine_id"
+```
+
+**DuckDuckGo** (optional):
+
+```bash
+export DUCKDUCKGO_SEARCH_API_KEY="your_api_key"
+```
+
+Both engines work without API keys using built-in fallback methods, but API integration provides better
+reliability and performance.
+
+#### Features
+
+- **Multiple Search Engines**: Supports DuckDuckGo (default) and Google
+- **Result Limiting**: Configure maximum number of results (default: 10)
+- **Format Options**: Return results in text or JSON format
+- **API Integration**: Best performance with official search APIs
+- **Configurable**: Enable/disable and customize through configuration
+
+#### Tool Parameters
+
+When the LLM uses the WebSearch tool, it can specify:
+
+- `query` (required): The search query string
+- `engine` (optional): Search engine to use ("duckduckgo" or "google")
+- `limit` (optional): Maximum number of results (1-50)
+- `format` (optional): Output format ("text" or "json")
+
+#### Example LLM Usage
+
+```json
+{
+  "name": "WebSearch",
+  "parameters": {
+    "query": "golang web development tutorial",
+    "engine": "duckduckgo",
+    "limit": 5,
+    "format": "text"
+  }
+}
+```
+
+#### Setup Instructions
+
+1. **Google Custom Search API** (recommended for Google):
+   - Get API key from [Google Cloud Console](https://console.cloud.google.com/)
+   - Create a Custom Search Engine at [Google Programmable Search](https://programmablesearchengine.google.com/)
+   - Set environment variables `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_ENGINE_ID`
+
+2. **DuckDuckGo**: Optionally set `DUCKDUCKGO_SEARCH_API_KEY` environment variable, or use built-in fallback (no setup required)
+
+Results include title, URL, and snippet for each search result.
 
 ## Code Style Guidelines
 

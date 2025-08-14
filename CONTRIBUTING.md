@@ -2,11 +2,12 @@
 
 ## Commit Message Convention
 
-This project uses [Conventional Commits](https://www.conventionalcommits.org/) for commit messages. This allows us to automatically generate changelogs and determine version bumps.
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) for commit messages.
+This allows us to automatically generate changelogs and determine version bumps.
 
 ### Format
 
-```
+```text
 <type>[optional scope]: <description>
 
 [optional body]
@@ -39,6 +40,7 @@ This project uses [Conventional Commits](https://www.conventionalcommits.org/) f
 ### Breaking Changes
 
 Breaking changes should be indicated by:
+
 1. `!` after the type/scope: `feat!: change API interface`
 2. Or a footer: `BREAKING CHANGE: API interface has changed`
 
@@ -63,6 +65,7 @@ This project uses pre-commit hooks to ensure code quality and consistent formatt
 - **Run on all files**: `flox activate -- task precommit:run`
 
 The hooks automatically:
+
 - Add missing final newlines to files
 - Remove trailing whitespace
 - Validate YAML/JSON/TOML syntax
@@ -95,6 +98,7 @@ flox activate -- task release:build  # Build for all platforms
 ## Release Process
 
 Releases are automated using semantic-release:
+
 - Commits to `main` branch trigger automatic releases
 - Version numbers are determined by commit types:
   - `fix:` → patch version (1.0.1)
