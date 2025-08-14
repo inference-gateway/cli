@@ -23,6 +23,12 @@ tools:
         - ^git log --oneline -n [0-9]+$
         - ^docker ps$
         - ^kubectl get pods$
+  read:
+    enabled: true
+    require_approval: false
+  file_search:
+    enabled: true
+    require_approval: false
   fetch:
     enabled: true
     whitelisted_domains:

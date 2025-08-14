@@ -143,6 +143,22 @@ var configToolsSafetyStatusCmd = &cobra.Command{
 	RunE:  safetyStatus,
 }
 
+var configToolsSafetySetCmd = &cobra.Command{
+	Use:   "set <tool> <enabled|disabled>",
+	Short: "Set tool-specific approval requirement",
+	Long:  `Set whether approval is required for a specific tool. Valid tools: Bash, Read, FileSearch, Fetch, WebSearch.`,
+	Args:  cobra.ExactArgs(2),
+	RunE:  setToolApproval,
+}
+
+var configToolsSafetyUnsetCmd = &cobra.Command{
+	Use:   "unset <tool>",
+	Short: "Remove tool-specific approval setting",
+	Long:  `Remove tool-specific approval setting, falling back to global setting. Valid tools: Bash, Read, FileSearch, Fetch, WebSearch.`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  unsetToolApproval,
+}
+
 var configToolsExcludePathCmd = &cobra.Command{
 	Use:   "exclude-path",
 	Short: "Manage excluded paths",
@@ -359,6 +375,8 @@ func init() {
 	configToolsSafetyCmd.AddCommand(configToolsSafetyEnableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyDisableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyStatusCmd)
+	configToolsSafetyCmd.AddCommand(configToolsSafetySetCmd)
+	configToolsSafetyCmd.AddCommand(configToolsSafetyUnsetCmd)
 
 	configToolsExcludePathCmd.AddCommand(configToolsExcludePathListCmd)
 	configToolsExcludePathCmd.AddCommand(configToolsExcludePathAddCmd)
@@ -628,6 +646,127 @@ func safetyStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Commands execute immediately without approval\n")
 	}
 
+	// Show tool-specific settings
+	fmt.Printf("\nTool-specific Approval Settings:\n")
+	tools := []struct {
+		name    string
+		setting *bool
+	}{
+		{"Bash", cfg.Tools.Bash.RequireApproval},
+		{"Read", cfg.Tools.Read.RequireApproval},
+		{"FileSearch", cfg.Tools.FileSearch.RequireApproval},
+		{"Fetch", cfg.Tools.Fetch.RequireApproval},
+		{"WebSearch", cfg.Tools.WebSearch.RequireApproval},
+	}
+
+	for _, tool := range tools {
+		fmt.Printf("  %s: ", tool.name)
+		if tool.setting == nil {
+			fmt.Printf("using global setting (%s)\n",
+				func() string {
+					if cfg.Tools.Safety.RequireApproval { return "enabled" }
+					return "disabled"
+				}())
+		} else if *tool.setting {
+			fmt.Printf("%s\n", ui.FormatSuccess("enabled"))
+		} else {
+			fmt.Printf("%s\n", ui.FormatErrorCLI("disabled"))
+		}
+	}
+
+	return nil
+}
+
+func setToolApproval(cmd *cobra.Command, args []string) error {
+	toolName := args[0]
+	setting := args[1]
+
+	var enabled bool
+	switch strings.ToLower(setting) {
+	case "enabled", "enable", "true":
+		enabled = true
+	case "disabled", "disable", "false":
+		enabled = false
+	default:
+		return fmt.Errorf("invalid setting '%s', must be 'enabled' or 'disabled'", setting)
+	}
+
+	// Validate tool name first
+	validTools := []string{"bash", "read", "filesearch", "fetch", "websearch"}
+	toolLower := strings.ToLower(toolName)
+	isValid := false
+	for _, valid := range validTools {
+		if toolLower == valid {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		return fmt.Errorf("invalid tool '%s', must be one of: %s", toolName, strings.Join(validTools, ", "))
+	}
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		switch toolLower {
+		case "bash":
+			c.Tools.Bash.RequireApproval = &enabled
+		case "read":
+			c.Tools.Read.RequireApproval = &enabled
+		case "filesearch":
+			c.Tools.FileSearch.RequireApproval = &enabled
+		case "fetch":
+			c.Tools.Fetch.RequireApproval = &enabled
+		case "websearch":
+			c.Tools.WebSearch.RequireApproval = &enabled
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	status := "enabled"
+	if !enabled {
+		status = "disabled"
+	}
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Tool-specific approval for %s %s", toolName, status)))
+	return nil
+}
+
+func unsetToolApproval(cmd *cobra.Command, args []string) error {
+	toolName := args[0]
+
+	// Validate tool name first
+	validTools := []string{"bash", "read", "filesearch", "fetch", "websearch"}
+	toolLower := strings.ToLower(toolName)
+	isValid := false
+	for _, valid := range validTools {
+		if toolLower == valid {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		return fmt.Errorf("invalid tool '%s', must be one of: %s", toolName, strings.Join(validTools, ", "))
+	}
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		switch toolLower {
+		case "bash":
+			c.Tools.Bash.RequireApproval = nil
+		case "read":
+			c.Tools.Read.RequireApproval = nil
+		case "filesearch":
+			c.Tools.FileSearch.RequireApproval = nil
+		case "fetch":
+			c.Tools.Fetch.RequireApproval = nil
+		case "websearch":
+			c.Tools.WebSearch.RequireApproval = nil
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Tool-specific approval setting removed for %s (using global setting)", toolName)))
 	return nil
 }
 

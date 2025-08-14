@@ -23,7 +23,7 @@ type FileSearchTool struct {
 func NewFileSearchTool(cfg *config.Config) *FileSearchTool {
 	return &FileSearchTool{
 		config:  cfg,
-		enabled: cfg.Tools.Enabled,
+		enabled: cfg.Tools.Enabled && cfg.Tools.FileSearch.Enabled,
 	}
 }
 

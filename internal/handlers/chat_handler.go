@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui"
@@ -23,6 +24,7 @@ type ChatMessageHandler struct {
 	conversationRepo domain.ConversationRepository
 	modelService     domain.ModelService
 	commandRegistry  *commands.Registry
+	config           *config.Config
 }
 
 // NewChatMessageHandler creates a new chat message handler
@@ -31,12 +33,14 @@ func NewChatMessageHandler(
 	conversationRepo domain.ConversationRepository,
 	modelService domain.ModelService,
 	commandRegistry *commands.Registry,
+	config *config.Config,
 ) *ChatMessageHandler {
 	return &ChatMessageHandler{
 		chatService:      chatService,
 		conversationRepo: conversationRepo,
 		modelService:     modelService,
 		commandRegistry:  commandRegistry,
+		config:           config,
 	}
 }
 
@@ -51,6 +55,8 @@ func (h *ChatMessageHandler) CanHandle(msg tea.Msg) bool {
 	case ChatStreamStartedMsg:
 		return true
 	case ToolCallDetectedMsg:
+		return true
+	case ToolAutoApproveMsg:
 		return true
 	case domain.ChatStartEvent, domain.ChatChunkEvent, domain.ChatCompleteEvent, domain.ChatErrorEvent:
 		return true
@@ -69,6 +75,9 @@ func (h *ChatMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, te
 
 	case ToolCallDetectedMsg:
 		return h.handleToolCallDetected(msg, state)
+
+	case ToolAutoApproveMsg:
+		return nil, nil
 
 	case domain.ChatStartEvent:
 		return h.handleChatStart(msg, state)
@@ -200,6 +209,12 @@ func (h *ChatMessageHandler) handleStreamStarted(msg ChatStreamStartedMsg, state
 }
 
 func (h *ChatMessageHandler) handleToolCallDetected(msg ToolCallDetectedMsg, state *AppState) (tea.Model, tea.Cmd) {
+	if !h.config.IsApprovalRequired(msg.ToolCall.Name) {
+		return nil, func() tea.Msg {
+			return ToolAutoApproveMsg(msg)
+		}
+	}
+
 	state.Data["pendingToolCall"] = msg.ToolCall
 	state.Data["toolCallResponse"] = msg.Response
 	state.Data["approvalSelectedIndex"] = int(domain.ApprovalApprove)
@@ -387,6 +402,12 @@ func (t ToolCallRequest) String() string {
 
 // ToolCallDetectedMsg indicates a tool call was found in the response
 type ToolCallDetectedMsg struct {
+	ToolCall ToolCallRequest
+	Response string
+}
+
+// ToolAutoApproveMsg indicates a tool should be auto-executed without approval
+type ToolAutoApproveMsg struct {
 	ToolCall ToolCallRequest
 	Response string
 }

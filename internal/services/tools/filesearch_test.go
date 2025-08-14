@@ -55,6 +55,9 @@ func TestFileSearchTool_IsEnabled(t *testing.T) {
 			cfg := &config.Config{
 				Tools: config.ToolsConfig{
 					Enabled: tt.toolsEnabled,
+					FileSearch: config.FileSearchToolConfig{
+						Enabled: true,
+					},
 				},
 			}
 

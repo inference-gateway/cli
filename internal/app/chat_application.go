@@ -112,6 +112,13 @@ func (app *ChatApplication) handleCommonMessages(msg tea.Msg) []tea.Cmd {
 		app.handleResize(windowMsg)
 	}
 
+	if autoApproveMsg, ok := msg.(handlers.ToolAutoApproveMsg); ok {
+		app.state.Data["pendingToolCall"] = autoApproveMsg.ToolCall
+		app.state.Data["toolCallResponse"] = autoApproveMsg.Response
+		cmds = append(cmds, app.approveToolCall())
+		return cmds
+	}
+
 	if app.state.CurrentView != handlers.ViewApproval {
 		if _, cmd := app.messageRouter.Route(msg, app.state); cmd != nil {
 			cmds = append(cmds, cmd)

@@ -229,6 +229,12 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 							Patterns: []string{"^git status$"},
 						},
 					},
+					Read: config.ReadToolConfig{
+						Enabled: true,
+					},
+					FileSearch: config.FileSearchToolConfig{
+						Enabled: true,
+					},
 					Fetch: config.FetchToolConfig{
 						Enabled: true,
 					},
@@ -252,6 +258,12 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 							Commands: []string{"echo", "pwd", "ls"},
 							Patterns: []string{"^git status$"},
 						},
+					},
+					Read: config.ReadToolConfig{
+						Enabled: true,
+					},
+					FileSearch: config.FileSearchToolConfig{
+						Enabled: true,
 					},
 					Fetch: config.FetchToolConfig{
 						Enabled: false,
@@ -331,6 +343,12 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 					Commands: []string{"echo", "pwd", "ls"},
 					Patterns: []string{"^git status$"},
 				},
+			},
+			Read: config.ReadToolConfig{
+				Enabled: true,
+			},
+			FileSearch: config.FileSearchToolConfig{
+				Enabled: true,
 			},
 			Fetch: config.FetchToolConfig{
 				Enabled: true,

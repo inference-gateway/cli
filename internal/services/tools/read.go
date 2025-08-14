@@ -21,7 +21,7 @@ type ReadTool struct {
 func NewReadTool(cfg *config.Config) *ReadTool {
 	return &ReadTool{
 		config:  cfg,
-		enabled: cfg.Tools.Enabled,
+		enabled: cfg.Tools.Enabled && cfg.Tools.Read.Enabled,
 	}
 }
 

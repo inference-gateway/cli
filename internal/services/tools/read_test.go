@@ -55,6 +55,9 @@ func TestReadTool_IsEnabled(t *testing.T) {
 			cfg := &config.Config{
 				Tools: config.ToolsConfig{
 					Enabled: tt.toolsEnabled,
+					Read: config.ReadToolConfig{
+						Enabled: true,
+					},
 				},
 			}
 

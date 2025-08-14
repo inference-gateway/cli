@@ -36,6 +36,8 @@ type OutputConfig struct {
 type ToolsConfig struct {
 	Enabled      bool                `yaml:"enabled"`
 	Bash         BashToolConfig      `yaml:"bash"`
+	Read         ReadToolConfig      `yaml:"read"`
+	FileSearch   FileSearchToolConfig `yaml:"file_search"`
 	Fetch        FetchToolConfig     `yaml:"fetch"`
 	WebSearch    WebSearchToolConfig `yaml:"web_search"`
 	Safety       SafetyConfig        `yaml:"safety"`
@@ -44,8 +46,21 @@ type ToolsConfig struct {
 
 // BashToolConfig contains bash-specific tool settings
 type BashToolConfig struct {
-	Enabled   bool                `yaml:"enabled"`
-	Whitelist ToolWhitelistConfig `yaml:"whitelist"`
+	Enabled         bool                `yaml:"enabled"`
+	Whitelist       ToolWhitelistConfig `yaml:"whitelist"`
+	RequireApproval *bool               `yaml:"require_approval,omitempty"`
+}
+
+// ReadToolConfig contains read-specific tool settings
+type ReadToolConfig struct {
+	Enabled         bool  `yaml:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty"`
+}
+
+// FileSearchToolConfig contains file search-specific tool settings
+type FileSearchToolConfig struct {
+	Enabled         bool  `yaml:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty"`
 }
 
 // FetchToolConfig contains fetch-specific tool settings
@@ -55,15 +70,17 @@ type FetchToolConfig struct {
 	GitHub             GitHubFetchConfig `yaml:"github"`
 	Safety             FetchSafetyConfig `yaml:"safety"`
 	Cache              FetchCacheConfig  `yaml:"cache"`
+	RequireApproval    *bool             `yaml:"require_approval,omitempty"`
 }
 
 // WebSearchToolConfig contains web search-specific tool settings
 type WebSearchToolConfig struct {
-	Enabled       bool     `yaml:"enabled"`
-	DefaultEngine string   `yaml:"default_engine"`
-	MaxResults    int      `yaml:"max_results"`
-	Engines       []string `yaml:"engines"`
-	Timeout       int      `yaml:"timeout"`
+	Enabled         bool     `yaml:"enabled"`
+	DefaultEngine   string   `yaml:"default_engine"`
+	MaxResults      int      `yaml:"max_results"`
+	Engines         []string `yaml:"engines"`
+	Timeout         int      `yaml:"timeout"`
+	RequireApproval *bool    `yaml:"require_approval,omitempty"`
 }
 
 // ToolWhitelistConfig contains whitelisted commands and patterns
@@ -137,6 +154,14 @@ func DefaultConfig() *Config {
 						"^kubectl get pods$",
 					},
 				},
+			},
+			Read: ReadToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
+			},
+			FileSearch: FileSearchToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
 			},
 			Fetch: FetchToolConfig{
 				Enabled:            true,
@@ -261,4 +286,35 @@ func getDefaultConfigPath() string {
 		return ".infer/config.yaml"
 	}
 	return filepath.Join(wd, ".infer/config.yaml")
+}
+
+// IsApprovalRequired checks if approval is required for a specific tool
+// It returns true if tool-specific approval is set to true, or if global approval is true and tool-specific is not set to false
+func (c *Config) IsApprovalRequired(toolName string) bool {
+	globalApproval := c.Tools.Safety.RequireApproval
+
+	switch toolName {
+	case "Bash":
+		if c.Tools.Bash.RequireApproval != nil {
+			return *c.Tools.Bash.RequireApproval
+		}
+	case "Read":
+		if c.Tools.Read.RequireApproval != nil {
+			return *c.Tools.Read.RequireApproval
+		}
+	case "FileSearch":
+		if c.Tools.FileSearch.RequireApproval != nil {
+			return *c.Tools.FileSearch.RequireApproval
+		}
+	case "Fetch":
+		if c.Tools.Fetch.RequireApproval != nil {
+			return *c.Tools.Fetch.RequireApproval
+		}
+	case "WebSearch":
+		if c.Tools.WebSearch.RequireApproval != nil {
+			return *c.Tools.WebSearch.RequireApproval
+		}
+	}
+
+	return globalApproval
 }

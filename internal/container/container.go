@@ -114,6 +114,7 @@ func (c *ServiceContainer) registerMessageHandlers() {
 		c.conversationRepo,
 		c.modelService,
 		c.commandRegistry,
+		c.config,
 	))
 
 	if c.config.Tools.Enabled {
