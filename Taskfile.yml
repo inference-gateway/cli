@@ -152,3 +152,28 @@ tasks:
     desc: Run pre-commit on all files
     cmds:
       - pre-commit run --all-files
+
+  mocks:generate:
+    desc: Generate mocks using counterfeiter
+    cmds:
+      - mkdir -p internal/mocks
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain Tool
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain ToolFactory
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain ToolService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain WebSearchService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain FileService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain FetchService
+    sources:
+      - "internal/domain/interfaces.go"
+    generates:
+      - "internal/mocks/fake_tool.go"
+      - "internal/mocks/fake_tool_factory.go"
+      - "internal/mocks/fake_tool_service.go"
+      - "internal/mocks/fake_web_search_service.go"
+      - "internal/mocks/fake_file_service.go"
+      - "internal/mocks/fake_fetch_service.go"
+
+  mocks:clean:
+    desc: Clean generated mock files
+    cmds:
+      - rm -rf internal/mocks/

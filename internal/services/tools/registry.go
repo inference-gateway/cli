@@ -10,14 +10,14 @@ import (
 // Registry manages all available tools
 type Registry struct {
 	config *config.Config
-	tools  map[string]Tool
+	tools  map[string]domain.Tool
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
 func NewRegistry(cfg *config.Config) *Registry {
 	registry := &Registry{
 		config: cfg,
-		tools:  make(map[string]Tool),
+		tools:  make(map[string]domain.Tool),
 	}
 
 	registry.registerTools()
@@ -40,7 +40,7 @@ func (r *Registry) registerTools() {
 }
 
 // GetTool retrieves a tool by name
-func (r *Registry) GetTool(name string) (Tool, error) {
+func (r *Registry) GetTool(name string) (domain.Tool, error) {
 	tool, exists := r.tools[name]
 	if !exists {
 		return nil, fmt.Errorf("unknown tool: %s", name)
