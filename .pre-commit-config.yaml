@@ -26,3 +26,9 @@ repos:
         entry: flox activate -- task lint
         language: system
         pass_filenames: false
+      - id: generate
+        name: Generate mocks
+        entry: flox activate -- task mocks:generate
+        language: system
+        files: 'internal/domain/interfaces\.go$'
+        pass_filenames: false
