@@ -13,11 +13,6 @@ repos:
       - id: mixed-line-ending
         args: ['--fix=lf']
 
-  - repo: https://github.com/golangci/golangci-lint
-    rev: v2.3.1
-    hooks:
-      - id: golangci-lint
-
   - repo: local
     hooks:
       - id: mod-tidy
@@ -26,9 +21,8 @@ repos:
         language: system
         files: '(go\.mod|go\.sum)$'
         pass_filenames: false
-      - id: markdownlint
-        name: Markdown lint
-        entry: flox activate -- markdownlint
+      - id: lint
+        name: Lint
+        entry: flox activate -- task lint
         language: system
-        files: '\.md$'
-        pass_filenames: true
+        pass_filenames: false

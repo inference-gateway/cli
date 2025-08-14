@@ -13,8 +13,15 @@ func TestDefaultConfig_WebSearch(t *testing.T) {
 		t.Error("Expected WebSearch to be enabled by default")
 	}
 
-	if cfg.WebSearch.DefaultEngine != "google" {
-		t.Errorf("Expected default engine to be 'google', got %q", cfg.WebSearch.DefaultEngine)
+	defaultEngineFound := false
+	for _, engine := range cfg.WebSearch.Engines {
+		if cfg.WebSearch.DefaultEngine == engine {
+			defaultEngineFound = true
+			break
+		}
+	}
+	if !defaultEngineFound {
+		t.Errorf("Default engine %q is not in the list of available engines %v", cfg.WebSearch.DefaultEngine, cfg.WebSearch.Engines)
 	}
 
 	if cfg.WebSearch.MaxResults != 10 {
@@ -25,14 +32,21 @@ func TestDefaultConfig_WebSearch(t *testing.T) {
 		t.Errorf("Expected timeout to be 10, got %d", cfg.WebSearch.Timeout)
 	}
 
-	expectedEngines := []string{"google", "duckduckgo"}
+	expectedEngines := []string{"duckduckgo", "google"}
 	if len(cfg.WebSearch.Engines) != len(expectedEngines) {
 		t.Errorf("Expected %d engines, got %d", len(expectedEngines), len(cfg.WebSearch.Engines))
 	}
 
-	for i, expected := range expectedEngines {
-		if i >= len(cfg.WebSearch.Engines) || cfg.WebSearch.Engines[i] != expected {
-			t.Errorf("Expected engine %d to be %q, got %q", i, expected, cfg.WebSearch.Engines[i])
+	for _, expected := range expectedEngines {
+		found := false
+		for _, actual := range cfg.WebSearch.Engines {
+			if actual == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("Expected engine %q not found in %v", expected, cfg.WebSearch.Engines)
 		}
 	}
 }

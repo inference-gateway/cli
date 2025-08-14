@@ -165,9 +165,9 @@ func DefaultConfig() *Config {
 		},
 		WebSearch: WebSearchConfig{
 			Enabled:       true,
-			DefaultEngine: "google",
+			DefaultEngine: "duckduckgo",
 			MaxResults:    10,
-			Engines:       []string{"google", "duckduckgo"},
+			Engines:       []string{"duckduckgo", "google"},
 			Timeout:       10,
 		},
 	}

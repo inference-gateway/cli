@@ -117,23 +117,23 @@ func TestLLMToolService_ListTools_IncludesWebSearch(t *testing.T) {
 	if !hasEngine {
 		return
 	}
-	
+
 	engineMap, ok := engine.(map[string]interface{})
 	if !ok {
 		return
 	}
-	
+
 	enum, hasEnum := engineMap["enum"]
 	if !hasEnum {
 		return
 	}
-	
+
 	enumSlice, ok := enum.([]string)
 	if !ok {
 		t.Error("Engine enum is not a string slice")
 		return
 	}
-	
+
 	expectedEngines := []string{"google", "duckduckgo"}
 	for _, expected := range expectedEngines {
 		found := false

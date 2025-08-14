@@ -146,8 +146,8 @@ func (s *LLMToolService) ListTools() []domain.ToolDefinition {
 					},
 					"engine": map[string]interface{}{
 						"type":        "string",
-						"description": "The search engine to use (google or duckduckgo)",
-						"enum":        []string{"google", "duckduckgo"},
+						"description": fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(s.config.WebSearch.Engines, " or "), s.config.WebSearch.DefaultEngine),
+						"enum":        s.config.WebSearch.Engines,
 						"default":     s.config.WebSearch.DefaultEngine,
 					},
 					"limit": map[string]interface{}{
@@ -627,7 +627,10 @@ func (s *LLMToolService) validateWebSearchTool(args map[string]interface{}) erro
 	}
 
 	if engine, ok := args["engine"].(string); ok {
-		validEngines := map[string]bool{"google": true, "duckduckgo": true}
+		validEngines := make(map[string]bool)
+		for _, eng := range s.config.WebSearch.Engines {
+			validEngines[eng] = true
+		}
 		if !validEngines[engine] {
 			return fmt.Errorf("unsupported search engine: %s", engine)
 		}
