@@ -9,11 +9,9 @@ tools:
   enabled: true
   whitelist:
     commands:
-      - ls
       - pwd
       - echo
       - grep
-      - find
       - wc
       - sort
       - uniq
