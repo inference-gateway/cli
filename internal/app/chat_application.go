@@ -409,7 +409,7 @@ func (app *ChatApplication) renderApproval() string {
 	b.WriteString(strings.Repeat("═", app.state.Width))
 	b.WriteString("\n\n")
 
-	b.WriteString(fmt.Sprintf("Tool: %s\n", pendingToolCall.Name))
+	b.WriteString(fmt.Sprintf("Tool: %s\n", pendingToolCall.String()))
 	b.WriteString("Arguments:\n")
 
 	for key, value := range pendingToolCall.Arguments {
@@ -800,9 +800,9 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 
 		var statusMessage string
 		if err != nil {
-			statusMessage = fmt.Sprintf("Tool failed: %s - sending error to model...", toolCall.Name)
+			statusMessage = fmt.Sprintf("Tool failed: %s - sending error to model...", toolCall.String())
 		} else {
-			statusMessage = ui.FormatSuccess(fmt.Sprintf("Tool executed: %s - sending to model...", toolCall.Name))
+			statusMessage = ui.FormatSuccess(fmt.Sprintf("Tool executed: %s - sending to model...", toolCall.String()))
 		}
 
 		return tea.Batch(

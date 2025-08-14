@@ -1,6 +1,9 @@
 package ui
 
-import "fmt"
+import (
+	"fmt"
+	"sort"
+)
 
 // MessageType represents different types of messages
 type MessageType int
@@ -33,7 +36,7 @@ func FormatMessage(msgType MessageType, message string) string {
 
 // FormatError creates a properly formatted error message without duplicate symbols
 func FormatError(message string) string {
-	return message // UI component will add ❌ automatically
+	return message
 }
 
 // FormatSuccess creates a properly formatted success message
@@ -49,4 +52,36 @@ func FormatWarning(message string) string {
 // FormatErrorCLI creates an error message with ❌ prefix for CLI output
 func FormatErrorCLI(message string) string {
 	return fmt.Sprintf("❌ %s", message)
+}
+
+// FormatToolCall formats a tool call for consistent display across the application
+func FormatToolCall(toolName string, args map[string]interface{}) string {
+	if len(args) == 0 {
+		return fmt.Sprintf("%s()", toolName)
+	}
+
+	var argPairs []string
+	for key, value := range args {
+		argPairs = append(argPairs, fmt.Sprintf("%s=%v", key, value))
+	}
+
+	sort.Strings(argPairs)
+
+	return fmt.Sprintf("%s(%s)", toolName, joinArgs(argPairs))
+}
+
+// joinArgs joins argument pairs with commas, handling long argument lists
+func joinArgs(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	if len(args) == 1 {
+		return args[0]
+	}
+
+	result := args[0]
+	for i := 1; i < len(args); i++ {
+		result += ", " + args[i]
+	}
+	return result
 }

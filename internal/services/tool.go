@@ -11,6 +11,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui"
 )
 
 // ToolResult represents the result of a tool execution
@@ -648,7 +649,14 @@ func (s *LLMToolService) validateWebSearchTool(args map[string]interface{}) erro
 
 // formatWebSearchResult formats web search result for text output
 func (s *LLMToolService) formatWebSearchResult(result *domain.WebSearchResponse) string {
-	output := fmt.Sprintf("Query: %s\n", result.Query)
+	args := map[string]interface{}{
+		"query": result.Query,
+	}
+	if result.Engine != "" {
+		args["engine"] = result.Engine
+	}
+
+	output := fmt.Sprintf("%s\n", ui.FormatToolCall("WebSearch", args))
 	output += fmt.Sprintf("Engine: %s\n", result.Engine)
 	output += fmt.Sprintf("Results: %d\n", result.Total)
 	output += fmt.Sprintf("Time: %s\n", result.Time)
