@@ -299,8 +299,6 @@ func (h *ChatMessageHandler) handleChatComplete(msg domain.ChatCompleteEvent, st
 		return h.handleToolCalls(msg, statusMsg, tokenUsage)
 	}
 
-
-
 	return nil, func() tea.Msg {
 		return ui.SetStatusMsg{
 			Message:    statusMsg,
@@ -432,8 +430,6 @@ func (h *ChatMessageHandler) formatMetrics(metrics *domain.ChatMetrics) string {
 	return joinStrings(parts, " | ")
 }
 
-
-
 // Helper functions
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr ||
@@ -464,8 +460,6 @@ func joinStrings(strs []string, sep string) string {
 	}
 	return result
 }
-
-
 
 // processFileReferences processes @file references in user input and embeds file contents
 func (h *ChatMessageHandler) processFileReferences(content string) string {

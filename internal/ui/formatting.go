@@ -1,8 +1,12 @@
 package ui
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
+
+	"github.com/inference-gateway/cli/internal/domain"
 )
 
 // MessageType represents different types of messages
@@ -84,4 +88,447 @@ func joinArgs(args []string) string {
 		result += ", " + args[i]
 	}
 	return result
+}
+
+// FormatToolResult formats a tool execution result for display
+// Returns a compact 3-line summary by default
+func FormatToolResult(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	line1 := FormatToolCall(result.ToolName, result.Arguments)
+
+	var statusIcon string
+	if result.Success {
+		statusIcon = "✅"
+	} else {
+		statusIcon = "❌"
+	}
+	line2 := fmt.Sprintf("%s %s (%.2fs)", statusIcon, getStatusText(result.Success), result.Duration.Seconds())
+
+	line3 := formatResultSummary(result)
+
+	return fmt.Sprintf("%s\n%s\n%s", line1, line2, line3)
+}
+
+// FormatToolResultExpanded formats a tool execution result with full details
+// This is shown when user presses Ctrl+R to expand
+func FormatToolResultExpanded(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	var output strings.Builder
+
+	output.WriteString(fmt.Sprintf("🔧 Tool: %s\n", result.ToolName))
+	output.WriteString(fmt.Sprintf("⏱️  Duration: %s\n", result.Duration.String()))
+	output.WriteString(fmt.Sprintf("📊 Status: %s\n", getStatusText(result.Success)))
+
+	if result.Error != "" {
+		output.WriteString(fmt.Sprintf("❌ Error: %s\n", result.Error))
+	}
+
+	if len(result.Arguments) > 0 {
+		output.WriteString("\n📝 Arguments:\n")
+		for key, value := range result.Arguments {
+			output.WriteString(fmt.Sprintf("  %s: %v\n", key, value))
+		}
+	}
+
+	if result.Data != nil {
+		output.WriteString("\n📄 Result:\n")
+		output.WriteString(formatToolSpecificData(result.ToolName, result.Data))
+	}
+
+	if len(result.Metadata) > 0 {
+		output.WriteString("\n🏷️  Metadata:\n")
+		for key, value := range result.Metadata {
+			output.WriteString(fmt.Sprintf("  %s: %s\n", key, value))
+		}
+	}
+
+	return output.String()
+}
+
+// getStatusText returns a human-readable status text
+func getStatusText(success bool) string {
+	if success {
+		return "Success"
+	}
+	return "Failed"
+}
+
+// formatResultSummary creates a concise summary of the tool result
+func formatResultSummary(result *domain.ToolExecutionResult) string {
+	if !result.Success {
+		if result.Error != "" {
+			return fmt.Sprintf("Error: %s", truncateString(result.Error, 60))
+		}
+		return "Execution failed"
+	}
+
+	switch result.ToolName {
+	case "Bash":
+		if bashResult, ok := result.Data.(*domain.BashToolResult); ok {
+			if bashResult.ExitCode == 0 {
+				outputSummary := truncateString(strings.TrimSpace(bashResult.Output), 50)
+				if outputSummary == "" {
+					return "Command completed successfully"
+				}
+				return fmt.Sprintf("Output: %s", outputSummary)
+			}
+			return fmt.Sprintf("Exit code: %d", bashResult.ExitCode)
+		}
+	case "Read":
+		if readResult, ok := result.Data.(*domain.FileReadToolResult); ok {
+			return fmt.Sprintf("Read %d bytes from %s", readResult.Size, getFileName(readResult.FilePath))
+		}
+	case "Fetch":
+		if fetchResult, ok := result.Data.(*domain.FetchResult); ok {
+			return fmt.Sprintf("Fetched %d bytes from %s", fetchResult.Size, getDomainFromURL(fetchResult.URL))
+		}
+	case "WebSearch":
+		if searchResult, ok := result.Data.(*domain.WebSearchResponse); ok {
+			return fmt.Sprintf("Found %d results for '%s'", len(searchResult.Results), truncateString(searchResult.Query, 30))
+		}
+	}
+
+	return "Execution completed successfully"
+}
+
+// formatToolSpecificData formats the data section based on tool type
+func formatToolSpecificData(toolName string, data interface{}) string {
+	switch toolName {
+	case "Bash":
+		return formatBashToolData(data)
+	case "Read":
+		return formatReadToolData(data)
+	case "Fetch":
+		return formatFetchToolData(data)
+	case "WebSearch":
+		return formatWebSearchToolData(data)
+	}
+
+	if jsonData, err := json.MarshalIndent(data, "", "  "); err == nil {
+		return string(jsonData)
+	}
+
+	return fmt.Sprintf("%+v", data)
+}
+
+func formatBashToolData(data interface{}) string {
+	bashResult, ok := data.(*domain.BashToolResult)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Command: %s\n", bashResult.Command))
+	output.WriteString(fmt.Sprintf("Exit Code: %d\n", bashResult.ExitCode))
+	if bashResult.Error != "" {
+		output.WriteString(fmt.Sprintf("Error: %s\n", bashResult.Error))
+	}
+	if bashResult.Output != "" {
+		output.WriteString(fmt.Sprintf("Output:\n%s\n", bashResult.Output))
+	}
+	return output.String()
+}
+
+func formatReadToolData(data interface{}) string {
+	readResult, ok := data.(*domain.FileReadToolResult)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("File: %s\n", readResult.FilePath))
+	if readResult.StartLine > 0 {
+		output.WriteString(fmt.Sprintf("Lines: %d", readResult.StartLine))
+		if readResult.EndLine > 0 && readResult.EndLine != readResult.StartLine {
+			output.WriteString(fmt.Sprintf("-%d", readResult.EndLine))
+		}
+		output.WriteString("\n")
+	}
+	output.WriteString(fmt.Sprintf("Size: %d bytes\n", readResult.Size))
+	if readResult.Error != "" {
+		output.WriteString(fmt.Sprintf("Error: %s\n", readResult.Error))
+	}
+	if readResult.Content != "" {
+		output.WriteString(fmt.Sprintf("Content:\n%s\n", readResult.Content))
+	}
+	return output.String()
+}
+
+func formatFetchToolData(data interface{}) string {
+	fetchResult, ok := data.(*domain.FetchResult)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("URL: %s\n", fetchResult.URL))
+	if fetchResult.Status > 0 {
+		output.WriteString(fmt.Sprintf("Status: %d\n", fetchResult.Status))
+	}
+	output.WriteString(fmt.Sprintf("Size: %d bytes\n", fetchResult.Size))
+	if fetchResult.ContentType != "" {
+		output.WriteString(fmt.Sprintf("Content-Type: %s\n", fetchResult.ContentType))
+	}
+	if fetchResult.Cached {
+		output.WriteString("Source: Cache\n")
+	} else {
+		output.WriteString("Source: Live\n")
+	}
+	if len(fetchResult.Metadata) > 0 {
+		output.WriteString("Metadata:\n")
+		for key, value := range fetchResult.Metadata {
+			output.WriteString(fmt.Sprintf("  %s: %s\n", key, value))
+		}
+	}
+	if fetchResult.Content != "" {
+		output.WriteString(fmt.Sprintf("Content:\n%s\n", fetchResult.Content))
+	}
+	return output.String()
+}
+
+func formatWebSearchToolData(data interface{}) string {
+	searchResult, ok := data.(*domain.WebSearchResponse)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Query: %s\n", searchResult.Query))
+	output.WriteString(fmt.Sprintf("Engine: %s\n", searchResult.Engine))
+	output.WriteString(fmt.Sprintf("Results: %d/%d\n", len(searchResult.Results), searchResult.Total))
+	output.WriteString(fmt.Sprintf("Search Time: %s\n", searchResult.Time.String()))
+	if searchResult.Error != "" {
+		output.WriteString(fmt.Sprintf("Error: %s\n", searchResult.Error))
+	}
+	output.WriteString("\nResults:\n")
+	for i, result := range searchResult.Results {
+		output.WriteString(fmt.Sprintf("%d. %s\n", i+1, result.Title))
+		output.WriteString(fmt.Sprintf("   %s\n", result.URL))
+		if result.Snippet != "" {
+			output.WriteString(fmt.Sprintf("   %s\n", result.Snippet))
+		}
+		output.WriteString("\n")
+	}
+	return output.String()
+}
+
+// Helper functions
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen-3] + "..."
+}
+
+func getFileName(path string) string {
+	parts := strings.Split(path, "/")
+	if len(parts) > 0 {
+		return parts[len(parts)-1]
+	}
+	return path
+}
+
+func getDomainFromURL(url string) string {
+	if strings.HasPrefix(url, "http://") {
+		url = url[7:]
+	} else if strings.HasPrefix(url, "https://") {
+		url = url[8:]
+	}
+
+	parts := strings.Split(url, "/")
+	if len(parts) > 0 {
+		return parts[0]
+	}
+	return url
+}
+
+// FormatToolResultForLLM formats tool execution results specifically for LLM consumption
+// This returns the actual tool data in a format the LLM can understand and use
+func FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	if !result.Success {
+		if result.Error != "" {
+			return fmt.Sprintf("Tool execution failed: %s", result.Error)
+		}
+		return "Tool execution failed"
+	}
+
+	switch result.ToolName {
+	case "Bash":
+		return formatBashToolDataForLLM(result.Data)
+	case "Read":
+		return formatReadToolDataForLLM(result.Data)
+	case "Fetch":
+		return formatFetchToolDataForLLM(result.Data)
+	case "WebSearch":
+		return formatWebSearchToolDataForLLM(result.Data)
+	}
+
+	if jsonData, err := json.MarshalIndent(result.Data, "", "  "); err == nil {
+		return fmt.Sprintf("Tool result data:\n%s", string(jsonData))
+	}
+
+	return fmt.Sprintf("Tool execution completed successfully: %+v", result.Data)
+}
+
+func formatBashToolDataForLLM(data interface{}) string {
+	bashResult, ok := data.(*domain.BashToolResult)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Command executed: %s\n", bashResult.Command))
+	output.WriteString(fmt.Sprintf("Exit code: %d\n", bashResult.ExitCode))
+	if bashResult.Error != "" {
+		output.WriteString(fmt.Sprintf("Error: %s\n", bashResult.Error))
+	}
+	if bashResult.Output != "" {
+		output.WriteString(fmt.Sprintf("Output:\n%s", bashResult.Output))
+	}
+	return output.String()
+}
+
+func formatReadToolDataForLLM(data interface{}) string {
+	readResult, ok := data.(*domain.FileReadToolResult)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("File read: %s\n", readResult.FilePath))
+	if readResult.StartLine > 0 {
+		output.WriteString(fmt.Sprintf("Lines: %d", readResult.StartLine))
+		if readResult.EndLine > 0 && readResult.EndLine != readResult.StartLine {
+			output.WriteString(fmt.Sprintf("-%d", readResult.EndLine))
+		}
+		output.WriteString("\n")
+	}
+	if readResult.Error != "" {
+		output.WriteString(fmt.Sprintf("Error: %s\n", readResult.Error))
+	}
+	if readResult.Content != "" {
+		output.WriteString(fmt.Sprintf("Content:\n%s", readResult.Content))
+	}
+	return output.String()
+}
+
+func formatFetchToolDataForLLM(data interface{}) string {
+	fetchResult, ok := data.(*domain.FetchResult)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Content fetched from: %s\n", fetchResult.URL))
+	if fetchResult.Status > 0 {
+		output.WriteString(fmt.Sprintf("HTTP Status: %d\n", fetchResult.Status))
+	}
+	if fetchResult.ContentType != "" {
+		output.WriteString(fmt.Sprintf("Content-Type: %s\n", fetchResult.ContentType))
+	}
+	if len(fetchResult.Metadata) > 0 {
+		output.WriteString("Metadata:\n")
+		for key, value := range fetchResult.Metadata {
+			output.WriteString(fmt.Sprintf("  %s: %s\n", key, value))
+		}
+	}
+	if fetchResult.Content != "" {
+		output.WriteString(fmt.Sprintf("Content:\n%s", fetchResult.Content))
+	}
+	return output.String()
+}
+
+func formatWebSearchToolDataForLLM(data interface{}) string {
+	searchResult, ok := data.(*domain.WebSearchResponse)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Search query: %s\n", searchResult.Query))
+	output.WriteString(fmt.Sprintf("Search engine: %s\n", searchResult.Engine))
+	output.WriteString(fmt.Sprintf("Results found: %d\n", len(searchResult.Results)))
+	if searchResult.Error != "" {
+		output.WriteString(fmt.Sprintf("Search error: %s\n", searchResult.Error))
+	}
+
+	if len(searchResult.Results) > 0 {
+		output.WriteString("\nSearch Results:\n")
+		for i, result := range searchResult.Results {
+			output.WriteString(fmt.Sprintf("\n%d. %s\n", i+1, result.Title))
+			output.WriteString(fmt.Sprintf("   URL: %s\n", result.URL))
+			if result.Snippet != "" {
+				output.WriteString(fmt.Sprintf("   Description: %s\n", result.Snippet))
+			}
+		}
+	}
+	return output.String()
+}
+
+// FormatToolResultForUI formats tool execution results specifically for UI display
+// This shows a compact "ToolName(args)" format with 2 lines of preview
+func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := FormatToolCall(result.ToolName, result.Arguments)
+
+	var statusIcon string
+	if result.Success {
+		statusIcon = "✅"
+	} else {
+		statusIcon = "❌"
+	}
+
+	var preview string
+	switch result.ToolName {
+	case "WebSearch":
+		if searchResult, ok := result.Data.(*domain.WebSearchResponse); ok {
+			if len(searchResult.Results) > 0 {
+				preview = fmt.Sprintf("Found %d results: %s", len(searchResult.Results),
+					truncateString(searchResult.Results[0].Title, 60))
+			} else {
+				preview = "No results found"
+			}
+		}
+	case "Bash":
+		if bashResult, ok := result.Data.(*domain.BashToolResult); ok {
+			if bashResult.ExitCode == 0 && bashResult.Output != "" {
+				preview = truncateString(strings.TrimSpace(bashResult.Output), 60)
+			} else if bashResult.ExitCode != 0 {
+				preview = fmt.Sprintf("Exit code: %d", bashResult.ExitCode)
+			} else {
+				preview = "Command completed"
+			}
+		}
+	case "Read":
+		if readResult, ok := result.Data.(*domain.FileReadToolResult); ok {
+			fileName := getFileName(readResult.FilePath)
+			preview = fmt.Sprintf("Read %d bytes from %s", readResult.Size, fileName)
+		}
+	case "Fetch":
+		if fetchResult, ok := result.Data.(*domain.FetchResult); ok {
+			domain := getDomainFromURL(fetchResult.URL)
+			preview = fmt.Sprintf("Fetched %d bytes from %s", fetchResult.Size, domain)
+		}
+	default:
+		if result.Success {
+			preview = "Execution completed successfully"
+		} else {
+			preview = "Execution failed"
+		}
+	}
+
+	return fmt.Sprintf("%s\n%s %s", toolCall, statusIcon, preview)
 }

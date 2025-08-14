@@ -494,7 +494,7 @@ func execTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("command execution failed: %w", err)
 	}
 
-	fmt.Print(result)
+	fmt.Print(ui.FormatToolResultExpanded(result))
 	return nil
 }
 

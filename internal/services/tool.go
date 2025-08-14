@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os/exec"
 	"regexp"
@@ -11,10 +10,9 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui"
 )
 
-// ToolResult represents the result of a tool execution
+// Internal result types for backwards compatibility with existing methods
 type ToolResult struct {
 	Command  string `json:"command"`
 	Output   string `json:"output"`
@@ -23,7 +21,6 @@ type ToolResult struct {
 	Duration string `json:"duration"`
 }
 
-// FileReadResult represents the result of a file read operation
 type FileReadResult struct {
 	FilePath  string `json:"file_path"`
 	Content   string `json:"content"`
@@ -173,9 +170,9 @@ func (s *LLMToolService) ListTools() []domain.ToolDefinition {
 	return tools
 }
 
-func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (string, error) {
+func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
 	if !s.enabled {
-		return "", fmt.Errorf("tools are not enabled")
+		return nil, fmt.Errorf("tools are not enabled")
 	}
 
 	switch name {
@@ -188,7 +185,7 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[
 	case "WebSearch":
 		return s.executeWebSearchTool(ctx, args)
 	default:
-		return "", fmt.Errorf("unknown tool: %s", name)
+		return nil, fmt.Errorf("unknown tool: %s", name)
 	}
 }
 
@@ -319,8 +316,8 @@ func (s *NoOpToolService) ListTools() []domain.ToolDefinition {
 	return []domain.ToolDefinition{}
 }
 
-func (s *NoOpToolService) ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (string, error) {
-	return "", fmt.Errorf("tools are not enabled")
+func (s *NoOpToolService) ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+	return nil, fmt.Errorf("tools are not enabled")
 }
 
 func (s *NoOpToolService) IsToolEnabled(name string) bool {
@@ -332,43 +329,57 @@ func (s *NoOpToolService) ValidateTool(name string, args map[string]interface{})
 }
 
 // executeBashTool handles Bash tool execution
-func (s *LLMToolService) executeBashTool(ctx context.Context, args map[string]interface{}) (string, error) {
+func (s *LLMToolService) executeBashTool(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+	start := time.Now()
 	command, ok := args["command"].(string)
 	if !ok {
-		return "", fmt.Errorf("command parameter is required and must be a string")
+		return &domain.ToolExecutionResult{
+			ToolName:  "Bash",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     "command parameter is required and must be a string",
+		}, nil
 	}
 
-	format, ok := args["format"].(string)
-	if !ok {
-		format = "text"
+	bashResult, err := s.executeBash(ctx, command)
+	success := err == nil && bashResult.ExitCode == 0
+
+	toolData := &domain.BashToolResult{
+		Command:  bashResult.Command,
+		Output:   bashResult.Output,
+		Error:    bashResult.Error,
+		ExitCode: bashResult.ExitCode,
+		Duration: bashResult.Duration,
 	}
 
-	result, err := s.executeBash(ctx, command)
+	result := &domain.ToolExecutionResult{
+		ToolName:  "Bash",
+		Arguments: args,
+		Success:   success,
+		Duration:  time.Since(start),
+		Data:      toolData,
+	}
+
 	if err != nil {
-		return "", fmt.Errorf("bash execution failed: %w", err)
+		result.Error = err.Error()
 	}
 
-	if format == "json" {
-		jsonOutput, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal result: %w", err)
-		}
-		return string(jsonOutput), nil
-	}
-
-	return s.formatBashResult(result), nil
+	return result, nil
 }
 
 // executeReadTool handles Read tool execution
-func (s *LLMToolService) executeReadTool(args map[string]interface{}) (string, error) {
+func (s *LLMToolService) executeReadTool(args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+	start := time.Now()
 	filePath, ok := args["file_path"].(string)
 	if !ok {
-		return "", fmt.Errorf("file_path parameter is required and must be a string")
-	}
-
-	format, ok := args["format"].(string)
-	if !ok {
-		format = "text"
+		return &domain.ToolExecutionResult{
+			ToolName:  "Read",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     "file_path parameter is required and must be a string",
+		}, nil
 	}
 
 	var startLine, endLine int
@@ -379,20 +390,34 @@ func (s *LLMToolService) executeReadTool(args map[string]interface{}) (string, e
 		endLine = int(endLineFloat)
 	}
 
-	result, err := s.executeRead(filePath, startLine, endLine)
-	if err != nil {
-		return "", err
-	}
+	readResult, err := s.executeRead(filePath, startLine, endLine)
+	success := err == nil
 
-	if format == "json" {
-		jsonOutput, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal result: %w", err)
+	var toolData *domain.FileReadToolResult
+	if readResult != nil {
+		toolData = &domain.FileReadToolResult{
+			FilePath:  readResult.FilePath,
+			Content:   readResult.Content,
+			Size:      readResult.Size,
+			StartLine: readResult.StartLine,
+			EndLine:   readResult.EndLine,
+			Error:     readResult.Error,
 		}
-		return string(jsonOutput), nil
 	}
 
-	return s.formatReadResult(result), nil
+	result := &domain.ToolExecutionResult{
+		ToolName:  "Read",
+		Arguments: args,
+		Success:   success,
+		Duration:  time.Since(start),
+		Data:      toolData,
+	}
+
+	if err != nil {
+		result.Error = err.Error()
+	}
+
+	return result, nil
 }
 
 // validateBashTool validates Bash tool arguments
@@ -448,68 +473,40 @@ func (s *LLMToolService) validateLineNumbers(args map[string]interface{}) error 
 	return nil
 }
 
-// formatBashResult formats bash execution result for text output
-func (s *LLMToolService) formatBashResult(result *ToolResult) string {
-	output := fmt.Sprintf("Command: %s\n", result.Command)
-	output += fmt.Sprintf("Exit Code: %d\n", result.ExitCode)
-	output += fmt.Sprintf("Duration: %s\n", result.Duration)
-
-	if result.Error != "" {
-		output += fmt.Sprintf("Error: %s\n", result.Error)
-	}
-
-	output += fmt.Sprintf("Output:\n%s", result.Output)
-	return output
-}
-
-// formatReadResult formats read result for text output
-func (s *LLMToolService) formatReadResult(result *FileReadResult) string {
-	output := fmt.Sprintf("File: %s\n", result.FilePath)
-	if result.StartLine > 0 {
-		output += fmt.Sprintf("Lines: %d", result.StartLine)
-		if result.EndLine > 0 && result.EndLine != result.StartLine {
-			output += fmt.Sprintf("-%d", result.EndLine)
-		}
-		output += "\n"
-	}
-	output += fmt.Sprintf("Size: %d bytes\n", result.Size)
-	if result.Error != "" {
-		output += fmt.Sprintf("Error: %s\n", result.Error)
-	}
-	output += fmt.Sprintf("Content:\n%s", result.Content)
-	return output
-}
-
 // executeFetchTool handles Fetch tool execution
-func (s *LLMToolService) executeFetchTool(ctx context.Context, args map[string]interface{}) (string, error) {
+func (s *LLMToolService) executeFetchTool(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+	start := time.Now()
 	if !s.config.Fetch.Enabled {
-		return "", fmt.Errorf("fetch tool is not enabled")
+		return nil, fmt.Errorf("fetch tool is not enabled")
 	}
 
 	url, ok := args["url"].(string)
 	if !ok {
-		return "", fmt.Errorf("url parameter is required and must be a string")
+		return &domain.ToolExecutionResult{
+			ToolName:  "Fetch",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     "url parameter is required and must be a string",
+		}, nil
 	}
 
-	format, ok := args["format"].(string)
-	if !ok {
-		format = "text"
+	fetchResult, err := s.fetchService.FetchContent(ctx, url)
+	success := err == nil
+
+	result := &domain.ToolExecutionResult{
+		ToolName:  "Fetch",
+		Arguments: args,
+		Success:   success,
+		Duration:  time.Since(start),
+		Data:      fetchResult,
 	}
 
-	result, err := s.fetchService.FetchContent(ctx, url)
 	if err != nil {
-		return "", fmt.Errorf("fetch failed: %w", err)
+		result.Error = err.Error()
 	}
 
-	if format == "json" {
-		jsonOutput, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal result: %w", err)
-		}
-		return string(jsonOutput), nil
-	}
-
-	return s.formatFetchResult(result), nil
+	return result, nil
 }
 
 // validateFetchTool validates Fetch tool arguments
@@ -530,42 +527,22 @@ func (s *LLMToolService) validateFetchTool(args map[string]interface{}) error {
 	return nil
 }
 
-// formatFetchResult formats fetch result for text output
-func (s *LLMToolService) formatFetchResult(result *domain.FetchResult) string {
-	output := fmt.Sprintf("URL: %s\n", result.URL)
-	if result.Status > 0 {
-		output += fmt.Sprintf("Status: %d\n", result.Status)
-	}
-	output += fmt.Sprintf("Size: %d bytes\n", result.Size)
-	if result.ContentType != "" {
-		output += fmt.Sprintf("Content-Type: %s\n", result.ContentType)
-	}
-	if result.Cached {
-		output += "Source: Cache\n"
-	} else {
-		output += "Source: Live\n"
-	}
-
-	if len(result.Metadata) > 0 {
-		output += "Metadata:\n"
-		for key, value := range result.Metadata {
-			output += fmt.Sprintf("  %s: %s\n", key, value)
-		}
-	}
-
-	output += fmt.Sprintf("Content:\n%s", result.Content)
-	return output
-}
-
 // executeWebSearchTool handles WebSearch tool execution
-func (s *LLMToolService) executeWebSearchTool(ctx context.Context, args map[string]interface{}) (string, error) {
+func (s *LLMToolService) executeWebSearchTool(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+	start := time.Now()
 	if !s.config.WebSearch.Enabled {
-		return "", fmt.Errorf("web search tool is not enabled")
+		return nil, fmt.Errorf("web search tool is not enabled")
 	}
 
 	query, ok := args["query"].(string)
 	if !ok {
-		return "", fmt.Errorf("query parameter is required and must be a string")
+		return &domain.ToolExecutionResult{
+			ToolName:  "WebSearch",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     "query parameter is required and must be a string",
+		}, nil
 	}
 
 	engine, ok := args["engine"].(string)
@@ -580,36 +557,39 @@ func (s *LLMToolService) executeWebSearchTool(ctx context.Context, args map[stri
 		limit = s.config.WebSearch.MaxResults
 	}
 
-	format, ok := args["format"].(string)
-	if !ok {
-		format = "text"
-	}
-
-	var result *domain.WebSearchResponse
+	var searchResult *domain.WebSearchResponse
 	var err error
 
 	switch engine {
 	case "google":
-		result, err = s.webSearchService.SearchGoogle(ctx, query, limit)
+		searchResult, err = s.webSearchService.SearchGoogle(ctx, query, limit)
 	case "duckduckgo":
-		result, err = s.webSearchService.SearchDuckDuckGo(ctx, query, limit)
+		searchResult, err = s.webSearchService.SearchDuckDuckGo(ctx, query, limit)
 	default:
-		return "", fmt.Errorf("unsupported search engine: %s", engine)
+		return &domain.ToolExecutionResult{
+			ToolName:  "WebSearch",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     fmt.Sprintf("unsupported search engine: %s", engine),
+		}, nil
+	}
+
+	success := err == nil
+
+	result := &domain.ToolExecutionResult{
+		ToolName:  "WebSearch",
+		Arguments: args,
+		Success:   success,
+		Duration:  time.Since(start),
+		Data:      searchResult,
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("web search failed: %w", err)
+		result.Error = err.Error()
 	}
 
-	if format == "json" {
-		jsonOutput, err := json.MarshalIndent(result, "", "  ")
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal result: %w", err)
-		}
-		return string(jsonOutput), nil
-	}
-
-	return s.formatWebSearchResult(result), nil
+	return result, nil
 }
 
 // validateWebSearchTool validates WebSearch tool arguments
@@ -645,32 +625,4 @@ func (s *LLMToolService) validateWebSearchTool(args map[string]interface{}) erro
 	}
 
 	return nil
-}
-
-// formatWebSearchResult formats web search result for text output
-func (s *LLMToolService) formatWebSearchResult(result *domain.WebSearchResponse) string {
-	args := map[string]interface{}{
-		"query": result.Query,
-	}
-	if result.Engine != "" {
-		args["engine"] = result.Engine
-	}
-
-	output := fmt.Sprintf("%s\n", ui.FormatToolCall("WebSearch", args))
-	output += fmt.Sprintf("Engine: %s\n", result.Engine)
-	output += fmt.Sprintf("Results: %d\n", result.Total)
-	output += fmt.Sprintf("Time: %s\n", result.Time)
-
-	if result.Error != "" {
-		output += fmt.Sprintf("Error: %s\n", result.Error)
-	}
-
-	output += "\nSearch Results:\n"
-	for i, res := range result.Results {
-		output += fmt.Sprintf("\n%d. %s\n", i+1, res.Title)
-		output += fmt.Sprintf("   URL: %s\n", res.URL)
-		output += fmt.Sprintf("   Snippet: %s\n", res.Snippet)
-	}
-
-	return output
 }

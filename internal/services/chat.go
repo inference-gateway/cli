@@ -407,7 +407,6 @@ func (s *StreamingChatService) processContentDelta(event sdk.SSEvent, toolCallsM
 	return content, streamResponse.Usage
 }
 
-
 // generateRequestID generates a unique request ID
 func generateRequestID() string {
 	return fmt.Sprintf("req_%d", time.Now().UnixNano())

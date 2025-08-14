@@ -68,7 +68,6 @@ func TestLLMToolService_ListTools_IncludesWebSearch(t *testing.T) {
 		t.Fatal("WebSearch tool not found in ListTools() result")
 	}
 
-	// Verify tool definition
 	if webSearchTool.Description == "" {
 		t.Error("WebSearch tool has empty description")
 	}
@@ -77,7 +76,6 @@ func TestLLMToolService_ListTools_IncludesWebSearch(t *testing.T) {
 		t.Fatal("WebSearch tool has nil parameters")
 	}
 
-	// Verify parameter structure
 	params, ok := webSearchTool.Parameters.(map[string]interface{})
 	if !ok {
 		t.Fatal("WebSearch tool parameters is not a map")
@@ -88,7 +86,6 @@ func TestLLMToolService_ListTools_IncludesWebSearch(t *testing.T) {
 		t.Fatal("WebSearch tool properties is not a map")
 	}
 
-	// Check required parameters
 	requiredParams := []string{"query"}
 	if required, ok := params["required"].([]string); ok {
 		for _, param := range requiredParams {
@@ -107,12 +104,10 @@ func TestLLMToolService_ListTools_IncludesWebSearch(t *testing.T) {
 		t.Error("WebSearch tool required parameters is not a string slice")
 	}
 
-	// Check that query parameter exists
 	if _, exists := properties["query"]; !exists {
 		t.Error("Query parameter not found in properties")
 	}
 
-	// Check that engine parameter exists with enum values
 	engine, hasEngine := properties["engine"]
 	if !hasEngine {
 		return
@@ -156,7 +151,6 @@ func TestLLMToolService_IsToolEnabled_WebSearch(t *testing.T) {
 		t.Error("WebSearch tool should be enabled")
 	}
 
-	// Test with disabled web search
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
@@ -331,32 +325,34 @@ func TestLLMToolService_ExecuteTool_WebSearch(t *testing.T) {
 				return
 			}
 
-			if result == "" {
-				t.Error("Expected non-empty result")
+			if result == nil {
+				t.Error("Expected non-nil result")
 				return
 			}
 
-			// Check format
-			if format, ok := tt.args["format"].(string); ok && format == "json" {
-				// Should be valid JSON
-				if !strings.HasPrefix(result, "{") {
-					t.Error("Expected JSON format but got non-JSON result")
-				}
-			} else {
-				// Should be text format
-				expectedFields := []string{"Query:", "Engine:", "Results:", "Time:"}
-				for _, field := range expectedFields {
-					if !strings.Contains(result, field) {
-						t.Errorf("Expected result to contain %q", field)
-					}
-				}
+			if !result.Success {
+				t.Errorf("Expected successful execution but got error: %s", result.Error)
+				return
+			}
+
+			if result.ToolName != "WebSearch" {
+				t.Errorf("Expected tool name 'WebSearch' but got: %s", result.ToolName)
+			}
+
+			if result.Data == nil {
+				t.Error("Expected result data but got nil")
+				return
+			}
+
+			// Verify that the web search response is present
+			if _, ok := result.Data.(*domain.WebSearchResponse); !ok {
+				t.Error("Expected WebSearchResponse data type")
 			}
 		})
 	}
 }
 
 func TestLLMToolService_WebSearch_DisabledService(t *testing.T) {
-	// Create tool service with disabled web search
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
@@ -368,7 +364,6 @@ func TestLLMToolService_WebSearch_DisabledService(t *testing.T) {
 
 	toolService := NewLLMToolService(cfg, &mockFileService{}, &mockFetchService{}, NewWebSearchService())
 
-	// Should not appear in tool list
 	tools := toolService.ListTools()
 	for _, tool := range tools {
 		if tool.Name == "WebSearch" {
@@ -376,12 +371,10 @@ func TestLLMToolService_WebSearch_DisabledService(t *testing.T) {
 		}
 	}
 
-	// Should not be enabled
 	if toolService.IsToolEnabled("WebSearch") {
 		t.Error("WebSearch tool should not be enabled when disabled")
 	}
 
-	// Validation should fail
 	args := map[string]interface{}{
 		"query": "test",
 	}
@@ -391,13 +384,12 @@ func TestLLMToolService_WebSearch_DisabledService(t *testing.T) {
 		t.Error("Expected validation to fail when web search is disabled")
 	}
 
-	// Execution should fail
 	ctx := context.Background()
 	result, err := toolService.ExecuteTool(ctx, "WebSearch", args)
 	if err == nil {
 		t.Error("Expected execution to fail when web search is disabled")
 	}
-	if result != "" {
-		t.Error("Expected empty result when execution fails")
+	if result != nil {
+		t.Error("Expected nil result when execution fails")
 	}
 }

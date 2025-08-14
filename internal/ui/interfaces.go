@@ -38,6 +38,8 @@ type ConversationRenderer interface {
 	GetScrollOffset() int
 	CanScrollUp() bool
 	CanScrollDown() bool
+	ToggleToolResultExpansion(index int)
+	IsToolResultExpanded(index int) bool
 }
 
 // InputComponent interface for input handling components

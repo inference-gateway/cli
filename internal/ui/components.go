@@ -77,11 +77,12 @@ func (f *ComponentFactory) SetCommandRegistry(registry *commands.Registry) {
 
 func (f *ComponentFactory) CreateConversationView() ConversationRenderer {
 	return &ConversationViewImpl{
-		theme:        f.theme,
-		conversation: []domain.ConversationEntry{},
-		scrollOffset: 0,
-		width:        80,
-		height:       20,
+		theme:               f.theme,
+		conversation:        []domain.ConversationEntry{},
+		scrollOffset:        0,
+		width:               80,
+		height:              20,
+		expandedToolResults: make(map[int]bool),
 	}
 }
 
@@ -112,11 +113,12 @@ func (f *ComponentFactory) CreateStatusView() StatusComponent {
 
 // ConversationViewImpl implements ConversationRenderer
 type ConversationViewImpl struct {
-	theme        Theme
-	conversation []domain.ConversationEntry
-	scrollOffset int
-	width        int
-	height       int
+	theme               Theme
+	conversation        []domain.ConversationEntry
+	scrollOffset        int
+	width               int
+	height              int
+	expandedToolResults map[int]bool // Track which tool results are expanded by entry index
 }
 
 func (cv *ConversationViewImpl) SetConversation(conversation []domain.ConversationEntry) {
@@ -139,6 +141,19 @@ func (cv *ConversationViewImpl) CanScrollDown() bool {
 	return len(cv.conversation) > cv.height && cv.scrollOffset < len(cv.conversation)-cv.height
 }
 
+func (cv *ConversationViewImpl) ToggleToolResultExpansion(index int) {
+	if index >= 0 && index < len(cv.conversation) {
+		cv.expandedToolResults[index] = !cv.expandedToolResults[index]
+	}
+}
+
+func (cv *ConversationViewImpl) IsToolResultExpanded(index int) bool {
+	if index >= 0 && index < len(cv.conversation) {
+		return cv.expandedToolResults[index]
+	}
+	return false
+}
+
 func (cv *ConversationViewImpl) SetWidth(width int) {
 	cv.width = width
 }
@@ -155,8 +170,10 @@ func (cv *ConversationViewImpl) Render() string {
 	var b strings.Builder
 	visibleEntries := cv.getVisibleEntries()
 
-	for _, entry := range visibleEntries {
-		b.WriteString(cv.renderEntry(entry))
+	for i, entry := range visibleEntries {
+		// Calculate the actual index in the full conversation
+		actualIndex := cv.scrollOffset + i
+		b.WriteString(cv.renderEntryWithIndex(entry, actualIndex))
 		b.WriteString("\n")
 	}
 
@@ -182,10 +199,10 @@ func (cv *ConversationViewImpl) getVisibleEntries() []domain.ConversationEntry {
 	return cv.conversation[start:end]
 }
 
-func (cv *ConversationViewImpl) renderEntry(entry domain.ConversationEntry) string {
+func (cv *ConversationViewImpl) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
 	var color, role string
 
-	switch entry.Message.Role {
+	switch string(entry.Message.Role) {
 	case "user":
 		color = cv.theme.GetUserColor()
 		role = "👤 You"
@@ -202,6 +219,7 @@ func (cv *ConversationViewImpl) renderEntry(entry domain.ConversationEntry) stri
 	case "tool":
 		color = cv.theme.GetAccentColor()
 		role = "🔧 Tool"
+		return cv.renderToolEntry(entry, index, color, role)
 	default:
 		color = cv.theme.GetDimColor()
 		role = string(entry.Message.Role)
@@ -212,6 +230,50 @@ func (cv *ConversationViewImpl) renderEntry(entry domain.ConversationEntry) stri
 	message := fmt.Sprintf("%s%s:%s %s", color, role, resetColor, content)
 
 	return message + "\n"
+}
+
+func (cv *ConversationViewImpl) renderToolEntry(entry domain.ConversationEntry, index int, color, role string) string {
+	resetColor := "\033[0m"
+
+	var isExpanded bool
+	if index >= 0 {
+		isExpanded = cv.IsToolResultExpanded(index)
+	}
+
+	content := cv.formatEntryContent(entry, isExpanded)
+
+	message := fmt.Sprintf("%s%s:%s %s", color, role, resetColor, content)
+	return message + "\n"
+}
+
+func (cv *ConversationViewImpl) formatEntryContent(entry domain.ConversationEntry, isExpanded bool) string {
+	if isExpanded {
+		return cv.formatExpandedContent(entry)
+	}
+	return cv.formatCompactContent(entry)
+}
+
+func (cv *ConversationViewImpl) formatExpandedContent(entry domain.ConversationEntry) string {
+	if entry.ToolExecution != nil {
+		return FormatToolResultExpanded(entry.ToolExecution) + "\n\n💡 Press Ctrl+R to collapse"
+	}
+	return entry.Message.Content + "\n\n💡 Press Ctrl+R to collapse"
+}
+
+func (cv *ConversationViewImpl) formatCompactContent(entry domain.ConversationEntry) string {
+	if entry.ToolExecution != nil {
+		return FormatToolResultForUI(entry.ToolExecution) + "\n💡 Press Ctrl+R to expand details"
+	}
+	return cv.formatToolContentCompact(entry.Message.Content) + "\n💡 Press Ctrl+R to expand details"
+}
+
+func (cv *ConversationViewImpl) formatToolContentCompact(content string) string {
+	lines := strings.Split(content, "\n")
+	if len(lines) <= 3 {
+		return content
+	}
+
+	return strings.Join(lines[:3], "\n") + "\n... (truncated)"
 }
 
 func (cv *ConversationViewImpl) GetID() string { return "conversation" }
