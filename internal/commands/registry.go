@@ -70,7 +70,6 @@ func (r *Registry) GetAll() []Command {
 		commands = append(commands, cmd)
 	}
 
-	// Sort by name
 	sort.Slice(commands, func(i, j int) bool {
 		return commands[i].GetName() < commands[j].GetName()
 	})
