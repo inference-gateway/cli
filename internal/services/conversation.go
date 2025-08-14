@@ -8,7 +8,8 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/internal/domain"
-	sdk "github.com/inference-gateway/sdk"
+	"github.com/inference-gateway/cli/internal/ui"
+	"github.com/inference-gateway/sdk"
 )
 
 // InMemoryConversationRepository implements ConversationRepository using in-memory storage
@@ -22,6 +23,16 @@ func NewInMemoryConversationRepository() *InMemoryConversationRepository {
 	return &InMemoryConversationRepository{
 		messages: make([]domain.ConversationEntry, 0),
 	}
+}
+
+// formatToolCall formats a tool call for display
+func formatToolCall(toolCall sdk.ChatCompletionMessageToolCall) string {
+	var args map[string]interface{}
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
+		return fmt.Sprintf("%s()", toolCall.Function.Name)
+	}
+
+	return ui.FormatToolCall(toolCall.Function.Name, args)
 }
 
 func (r *InMemoryConversationRepository) AddMessage(msg domain.ConversationEntry) error {
@@ -152,7 +163,7 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
 			content.WriteString("### Tool Calls\n\n")
 			for _, toolCall := range *entry.Message.ToolCalls {
-				content.WriteString(fmt.Sprintf("**Tool:** %s\n\n", toolCall.Function.Name))
+				content.WriteString(fmt.Sprintf("**Tool:** %s\n\n", formatToolCall(toolCall)))
 				if toolCall.Function.Arguments != "" {
 					content.WriteString("**Arguments:**\n```json\n")
 					content.WriteString(toolCall.Function.Arguments)

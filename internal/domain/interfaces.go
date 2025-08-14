@@ -9,9 +9,10 @@ import (
 
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
-	Message sdk.Message `json:"message"`
-	Model   string      `json:"model,omitempty"`
-	Time    time.Time   `json:"time"`
+	Message        sdk.Message          `json:"message"`
+	Model          string               `json:"model,omitempty"`
+	Time           time.Time            `json:"time"`
+	ToolExecution  *ToolExecutionResult `json:"tool_execution,omitempty"` // For tool result entries
 }
 
 // ExportFormat defines the format for exporting conversations
@@ -93,7 +94,7 @@ type ToolDefinition struct {
 // ToolService handles tool execution
 type ToolService interface {
 	ListTools() []ToolDefinition
-	ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (string, error)
+	ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (*ToolExecutionResult, error)
 	IsToolEnabled(name string) bool
 	ValidateTool(name string, args map[string]interface{}) error
 }
@@ -156,4 +157,34 @@ type WebSearchService interface {
 	SearchDuckDuckGo(ctx context.Context, query string, maxResults int) (*WebSearchResponse, error)
 	IsEnabled() bool
 	SetEnabled(enabled bool)
+}
+
+// ToolExecutionResult represents the complete result of a tool execution
+type ToolExecutionResult struct {
+	ToolName  string                 `json:"tool_name"`
+	Arguments map[string]interface{} `json:"arguments"`
+	Success   bool                   `json:"success"`
+	Duration  time.Duration          `json:"duration"`
+	Error     string                 `json:"error,omitempty"`
+	Data      interface{}            `json:"data,omitempty"`
+	Metadata  map[string]string      `json:"metadata,omitempty"`
+}
+
+// BashToolResult represents the result of a bash command execution
+type BashToolResult struct {
+	Command  string `json:"command"`
+	Output   string `json:"output"`
+	Error    string `json:"error,omitempty"`
+	ExitCode int    `json:"exit_code"`
+	Duration string `json:"duration"`
+}
+
+// FileReadToolResult represents the result of a file read operation
+type FileReadToolResult struct {
+	FilePath  string `json:"file_path"`
+	Content   string `json:"content"`
+	Size      int64  `json:"size"`
+	StartLine int    `json:"start_line,omitempty"`
+	EndLine   int    `json:"end_line,omitempty"`
+	Error     string `json:"error,omitempty"`
 }
