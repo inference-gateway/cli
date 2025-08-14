@@ -9,21 +9,15 @@ import (
 
 // Registry manages all available tools
 type Registry struct {
-	config           *config.Config
-	fileService      domain.FileService
-	fetchService     domain.FetchService
-	webSearchService domain.WebSearchService
-	tools            map[string]Tool
+	config *config.Config
+	tools  map[string]Tool
 }
 
-// NewRegistry creates a new tool registry
-func NewRegistry(cfg *config.Config, fileService domain.FileService, fetchService domain.FetchService, webSearchService domain.WebSearchService) *Registry {
+// NewRegistry creates a new tool registry with self-contained tools
+func NewRegistry(cfg *config.Config) *Registry {
 	registry := &Registry{
-		config:           cfg,
-		fileService:      fileService,
-		fetchService:     fetchService,
-		webSearchService: webSearchService,
-		tools:            make(map[string]Tool),
+		config: cfg,
+		tools:  make(map[string]Tool),
 	}
 
 	registry.registerTools()
@@ -32,18 +26,16 @@ func NewRegistry(cfg *config.Config, fileService domain.FileService, fetchServic
 
 // registerTools initializes and registers all available tools
 func (r *Registry) registerTools() {
-	// Core tools (always available when tools are enabled)
 	r.tools["Bash"] = NewBashTool(r.config)
-	r.tools["Read"] = NewReadTool(r.config, r.fileService)
+	r.tools["Read"] = NewReadTool(r.config)
 	r.tools["FileSearch"] = NewFileSearchTool(r.config)
 
-	// Conditional tools
 	if r.config.Fetch.Enabled {
-		r.tools["Fetch"] = NewFetchTool(r.config, r.fetchService)
+		r.tools["Fetch"] = NewFetchTool(r.config)
 	}
 
 	if r.config.WebSearch.Enabled {
-		r.tools["WebSearch"] = NewWebSearchTool(r.config, r.webSearchService)
+		r.tools["WebSearch"] = NewWebSearchTool(r.config)
 	}
 }
 

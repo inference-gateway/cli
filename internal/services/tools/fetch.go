@@ -11,17 +11,15 @@ import (
 
 // FetchTool handles content fetching operations
 type FetchTool struct {
-	config       *config.Config
-	fetchService domain.FetchService
-	enabled      bool
+	config  *config.Config
+	enabled bool
 }
 
 // NewFetchTool creates a new fetch tool
-func NewFetchTool(cfg *config.Config, fetchService domain.FetchService) *FetchTool {
+func NewFetchTool(cfg *config.Config) *FetchTool {
 	return &FetchTool{
-		config:       cfg,
-		fetchService: fetchService,
-		enabled:      cfg.Tools.Enabled && cfg.Fetch.Enabled,
+		config:  cfg,
+		enabled: cfg.Tools.Enabled && cfg.Fetch.Enabled,
 	}
 }
 
@@ -67,7 +65,7 @@ func (t *FetchTool) Execute(ctx context.Context, args map[string]interface{}) (*
 		}, nil
 	}
 
-	fetchResult, err := t.fetchService.FetchContent(ctx, url)
+	fetchResult, err := t.fetchContent(ctx, url)
 	success := err == nil
 
 	result := &domain.ToolExecutionResult{
@@ -75,11 +73,12 @@ func (t *FetchTool) Execute(ctx context.Context, args map[string]interface{}) (*
 		Arguments: args,
 		Success:   success,
 		Duration:  time.Since(start),
-		Data:      fetchResult,
 	}
 
 	if err != nil {
 		result.Error = err.Error()
+	} else {
+		result.Data = fetchResult
 	}
 
 	return result, nil
@@ -96,7 +95,7 @@ func (t *FetchTool) Validate(args map[string]interface{}) error {
 		return fmt.Errorf("url parameter is required and must be a string")
 	}
 
-	if err := t.fetchService.ValidateURL(url); err != nil {
+	if err := t.validateURL(url); err != nil {
 		return fmt.Errorf("URL validation failed: %w", err)
 	}
 
@@ -106,4 +105,17 @@ func (t *FetchTool) Validate(args map[string]interface{}) error {
 // IsEnabled returns whether the fetch tool is enabled
 func (t *FetchTool) IsEnabled() bool {
 	return t.enabled
+}
+
+// fetchContent is a placeholder implementation
+func (t *FetchTool) fetchContent(ctx context.Context, url string) (*domain.FetchResult, error) {
+	return nil, fmt.Errorf("fetch functionality not yet implemented in self-contained tool")
+}
+
+// validateURL is a placeholder implementation
+func (t *FetchTool) validateURL(url string) error {
+	if url == "" {
+		return fmt.Errorf("URL cannot be empty")
+	}
+	return nil
 }

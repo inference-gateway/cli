@@ -1,45 +1,10 @@
 package tools
 
 import (
-	"context"
 	"testing"
 
 	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
 )
-
-// Mock implementations for testing
-type mockFileService struct{}
-
-func (m *mockFileService) ListProjectFiles() ([]string, error)  { return []string{}, nil }
-func (m *mockFileService) ReadFile(path string) (string, error) { return "", nil }
-func (m *mockFileService) ReadFileLines(path string, startLine, endLine int) (string, error) {
-	return "", nil
-}
-func (m *mockFileService) ValidateFile(path string) error { return nil }
-func (m *mockFileService) GetFileInfo(path string) (domain.FileInfo, error) {
-	return domain.FileInfo{}, nil
-}
-
-type mockFetchService struct{}
-
-func (m *mockFetchService) ValidateURL(url string) error { return nil }
-func (m *mockFetchService) FetchContent(ctx context.Context, target string) (*domain.FetchResult, error) {
-	return &domain.FetchResult{}, nil
-}
-func (m *mockFetchService) ClearCache()                           {}
-func (m *mockFetchService) GetCacheStats() map[string]interface{} { return nil }
-
-type mockWebSearchService struct{}
-
-func (m *mockWebSearchService) SearchGoogle(ctx context.Context, query string, maxResults int) (*domain.WebSearchResponse, error) {
-	return &domain.WebSearchResponse{}, nil
-}
-func (m *mockWebSearchService) SearchDuckDuckGo(ctx context.Context, query string, maxResults int) (*domain.WebSearchResponse, error) {
-	return &domain.WebSearchResponse{}, nil
-}
-func (m *mockWebSearchService) IsEnabled() bool     { return true }
-func (m *mockWebSearchService) SetEnabled(bool)     {}
 
 func createTestRegistry() *Registry {
 	cfg := &config.Config{
@@ -57,7 +22,7 @@ func createTestRegistry() *Registry {
 		},
 	}
 
-	return NewRegistry(cfg, &mockFileService{}, &mockFetchService{}, &mockWebSearchService{})
+	return NewRegistry(cfg)
 }
 
 func TestRegistry_GetTool(t *testing.T) {
@@ -167,18 +132,17 @@ func TestRegistry_DisabledTools(t *testing.T) {
 			Enabled: true,
 		},
 		Fetch: config.FetchConfig{
-			Enabled: false, // Fetch disabled
+			Enabled: false,
 		},
 		WebSearch: config.WebSearchConfig{
-			Enabled: false, // WebSearch disabled
+			Enabled: false,
 		},
 	}
 
-	registry := NewRegistry(cfg, &mockFileService{}, &mockFetchService{}, &mockWebSearchService{})
+	registry := NewRegistry(cfg)
 
-	// Should not have Fetch and WebSearch tools
 	tools := registry.ListAvailableTools()
-	
+
 	hasCore := false
 	hasFetch := false
 	hasWebSearch := false

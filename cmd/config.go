@@ -842,10 +842,6 @@ func fetchCacheStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	services := container.NewServiceContainer(cfg)
-	fetchService := services.GetFetchService()
-	stats := fetchService.GetCacheStats()
-
 	fmt.Printf("Cache Status: ")
 	if cfg.Fetch.Cache.Enabled {
 		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
@@ -854,25 +850,14 @@ func fetchCacheStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\nCache Statistics:\n")
-	fmt.Printf("  • Entries: %d\n", stats["entries"])
-	fmt.Printf("  • Total size: %d bytes (%.1f KB)\n", stats["total_size"], float64(stats["total_size"].(int64))/1024)
-	fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", stats["max_size"], float64(stats["max_size"].(int64))/(1024*1024))
-	fmt.Printf("  • TTL: %d seconds\n", stats["ttl"])
+	fmt.Printf("  • Fetch functionality has been refactored to tools package\n")
+	fmt.Printf("  • Cache statistics are currently unavailable\n")
 
 	return nil
 }
 
 func fetchCacheClear(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	services := container.NewServiceContainer(cfg)
-	fetchService := services.GetFetchService()
-	fetchService.ClearCache()
-
-	fmt.Printf("%s\n", ui.FormatSuccess("Fetch cache cleared successfully"))
-	fmt.Printf("All cached content has been removed\n")
+	fmt.Printf("%s\n", ui.FormatErrorCLI("Fetch cache clear is currently unavailable"))
+	fmt.Printf("Fetch functionality has been refactored to tools package\n")
 	return nil
 }

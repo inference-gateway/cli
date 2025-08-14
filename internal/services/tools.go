@@ -15,10 +15,18 @@ type LLMToolService struct {
 	enabled  bool
 }
 
-// NewLLMToolService creates a new LLM tool service
-func NewLLMToolService(cfg *config.Config, fileService domain.FileService, fetchService domain.FetchService, webSearchService domain.WebSearchService) *LLMToolService {
+// NewLLMToolService creates a new LLM tool service with a new registry
+func NewLLMToolService(cfg *config.Config) *LLMToolService {
 	return &LLMToolService{
-		registry: tools.NewRegistry(cfg, fileService, fetchService, webSearchService),
+		registry: tools.NewRegistry(cfg),
+		enabled:  cfg.Tools.Enabled,
+	}
+}
+
+// NewLLMToolServiceWithRegistry creates a new LLM tool service with an existing registry
+func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry) *LLMToolService {
+	return &LLMToolService{
+		registry: registry,
 		enabled:  cfg.Tools.Enabled,
 	}
 }

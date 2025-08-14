@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/inference-gateway/cli/config"
@@ -11,17 +13,15 @@ import (
 
 // ReadTool handles file reading operations with optional line range
 type ReadTool struct {
-	config      *config.Config
-	fileService domain.FileService
-	enabled     bool
+	config  *config.Config
+	enabled bool
 }
 
 // NewReadTool creates a new read tool
-func NewReadTool(cfg *config.Config, fileService domain.FileService) *ReadTool {
+func NewReadTool(cfg *config.Config) *ReadTool {
 	return &ReadTool{
-		config:      cfg,
-		fileService: fileService,
-		enabled:     cfg.Tools.Enabled,
+		config:  cfg,
+		enabled: cfg.Tools.Enabled,
 	}
 }
 
@@ -118,7 +118,7 @@ func (t *ReadTool) Validate(args map[string]interface{}) error {
 		return fmt.Errorf("file_path parameter is required and must be a string")
 	}
 
-	if err := t.fileService.ValidateFile(filePath); err != nil {
+	if err := t.validateFile(filePath); err != nil {
 		return fmt.Errorf("file validation failed: %w", err)
 	}
 
@@ -152,9 +152,9 @@ func (t *ReadTool) executeRead(filePath string, startLine, endLine int) (*FileRe
 	var err error
 
 	if startLine > 0 || endLine > 0 {
-		content, err = t.fileService.ReadFileLines(filePath, startLine, endLine)
+		content, err = t.readFileLines(filePath, startLine, endLine)
 	} else {
-		content, err = t.fileService.ReadFile(filePath)
+		content, err = t.readFile(filePath)
 	}
 
 	if err != nil {
@@ -190,4 +190,64 @@ func (t *ReadTool) validateLineNumbers(args map[string]interface{}) error {
 	}
 
 	return nil
+}
+
+// validateFile checks if a file path is valid and readable
+func (t *ReadTool) validateFile(path string) error {
+	for _, excludePath := range t.config.Tools.ExcludePaths {
+		if strings.HasPrefix(path, excludePath) {
+			return fmt.Errorf("access to path '%s' is excluded for security", path)
+		}
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("file %s does not exist", path)
+		}
+		return fmt.Errorf("cannot access file %s: %w", path, err)
+	}
+
+	if info.IsDir() {
+		return fmt.Errorf("path %s is a directory, not a file", path)
+	}
+
+	return nil
+}
+
+// readFile reads the entire content of a file
+func (t *ReadTool) readFile(path string) (string, error) {
+	if err := t.validateFile(path); err != nil {
+		return "", err
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", fmt.Errorf("failed to read file %s: %w", path, err)
+	}
+
+	return string(data), nil
+}
+
+// readFileLines reads specific lines from a file
+func (t *ReadTool) readFileLines(path string, startLine, endLine int) (string, error) {
+	content, err := t.readFile(path)
+	if err != nil {
+		return "", err
+	}
+
+	lines := strings.Split(content, "\n")
+
+	if startLine < 1 {
+		startLine = 1
+	}
+	if endLine < 1 || endLine > len(lines) {
+		endLine = len(lines)
+	}
+	if startLine > endLine {
+		return "", fmt.Errorf("start line %d is greater than end line %d", startLine, endLine)
+	}
+
+	selectedLines := lines[startLine-1:endLine]
+	return strings.Join(selectedLines, "\n"), nil
 }

@@ -6,6 +6,7 @@ import (
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/handlers"
 	"github.com/inference-gateway/cli/internal/services"
+	"github.com/inference-gateway/cli/internal/services/tools"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 
@@ -19,9 +20,6 @@ type ServiceContainer struct {
 	modelService     domain.ModelService
 	chatService      domain.ChatService
 	toolService      domain.ToolService
-	fileService      domain.FileService
-	fetchService     domain.FetchService
-	webSearchService domain.WebSearchService
 
 	// UI components
 	theme  ui.Theme
@@ -33,6 +31,9 @@ type ServiceContainer struct {
 
 	// Component factory
 	componentFactory *ui.ComponentFactory
+
+	// Tool registry
+	toolRegistry *tools.Registry
 }
 
 // NewServiceContainer creates a new service container with all dependencies
@@ -57,14 +58,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.APIKey,
 	)
 
-	c.fileService = services.NewLocalFileService(c.config)
-
-	c.fetchService = services.NewFetchService(c.config)
-
-	c.webSearchService = services.NewWebSearchService()
+	// Initialize tool registry with self-contained tools
+	c.toolRegistry = tools.NewRegistry(c.config)
 
 	if c.config.Tools.Enabled {
-		c.toolService = services.NewLLMToolService(c.config, c.fileService, c.fetchService, c.webSearchService)
+		c.toolService = services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
 	} else {
 		c.toolService = services.NewNoOpToolService()
 	}
@@ -118,8 +116,6 @@ func (c *ServiceContainer) registerMessageHandlers() {
 		c.commandRegistry,
 	))
 
-	c.messageRouter.AddHandler(handlers.NewFileMessageHandler(c.fileService))
-
 	if c.config.Tools.Enabled {
 		c.messageRouter.AddHandler(handlers.NewToolMessageHandler(c.toolService))
 	}
@@ -147,16 +143,8 @@ func (c *ServiceContainer) GetToolService() domain.ToolService {
 	return c.toolService
 }
 
-func (c *ServiceContainer) GetFileService() domain.FileService {
-	return c.fileService
-}
-
-func (c *ServiceContainer) GetFetchService() domain.FetchService {
-	return c.fetchService
-}
-
-func (c *ServiceContainer) GetWebSearchService() domain.WebSearchService {
-	return c.webSearchService
+func (c *ServiceContainer) GetToolRegistry() *tools.Registry {
+	return c.toolRegistry
 }
 
 func (c *ServiceContainer) GetTheme() ui.Theme {
