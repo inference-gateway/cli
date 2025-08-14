@@ -119,8 +119,8 @@ type ConversationViewImpl struct {
 	scrollOffset        int
 	width               int
 	height              int
-	expandedToolResult  int  // Track only the currently expanded tool result index (-1 if none)
-	isToolExpanded      bool // Track if the current tool result is expanded
+	expandedToolResult  int
+	isToolExpanded      bool
 }
 
 func (cv *ConversationViewImpl) SetConversation(conversation []domain.ConversationEntry) {
@@ -146,10 +146,8 @@ func (cv *ConversationViewImpl) CanScrollDown() bool {
 func (cv *ConversationViewImpl) ToggleToolResultExpansion(index int) {
 	if index >= 0 && index < len(cv.conversation) {
 		if cv.expandedToolResult == index {
-			// Toggle off the currently expanded tool
 			cv.isToolExpanded = !cv.isToolExpanded
 		} else {
-			// Switch to a new tool result and expand it
 			cv.expandedToolResult = index
 			cv.isToolExpanded = true
 		}
