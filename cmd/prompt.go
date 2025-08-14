@@ -10,6 +10,7 @@ import (
 	"github.com/inference-gateway/cli/internal/container"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/logger"
+	"github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
 	"github.com/spf13/cobra"
 )
@@ -291,7 +292,7 @@ func (e *BackgroundExecutor) executeToolCall(ctx context.Context, toolCall sdk.C
 		return "", fmt.Errorf("tool execution failed: %w", err)
 	}
 
-	return result, nil
+	return ui.FormatToolResultForLLM(result), nil
 }
 
 
