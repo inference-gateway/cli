@@ -97,11 +97,12 @@ flox activate -- task release:build  # Build for all platforms
 
 ## Adding New Tools
 
-The CLI uses a modular tools architecture where each tool is implemented as a separate module in the `internal/services/tools/` package. This section describes how to add new tools for LLM integration.
+The CLI uses a modular tools architecture where each tool is implemented as a separate module in the
+`internal/services/tools/` package. This section describes how to add new tools for LLM integration.
 
 ### Tool Architecture Overview
 
-```
+```text
 internal/services/tools/
 ├── interfaces.go      # Tool interface definitions
 ├── registry.go        # Tool management and registration
@@ -123,27 +124,27 @@ Create a new file `internal/services/tools/your_tool.go`:
 package tools
 
 import (
-	"context"
-	"fmt"
-	
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+    "context"
+    "fmt"
+    
+    "github.com/inference-gateway/cli/config"
+    "github.com/inference-gateway/cli/internal/domain"
 )
 
 // YourTool handles your specific functionality
 type YourTool struct {
-	config  *config.Config
-	enabled bool
-	// Add any additional dependencies here
+    config  *config.Config
+    enabled bool
+    // Add any additional dependencies here
 }
 
 // NewYourTool creates a new instance of your tool
 func NewYourTool(cfg *config.Config /* add other dependencies */) *YourTool {
-	return &YourTool{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled, // or specific config section
-		// Initialize dependencies
-	}
+    return &YourTool{
+        config:  cfg,
+        enabled: cfg.Tools.Enabled, // or specific config section
+        // Initialize dependencies
+    }
 }
 ```
 
@@ -154,60 +155,60 @@ Your tool must implement the `Tool` interface defined in `interfaces.go`:
 ```go
 // Definition returns the tool definition for the LLM
 func (t *YourTool) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{
-		Name:        "YourTool",
-		Description: "Description of what your tool does",
-		Parameters: map[string]interface{}{
-			"type": "object",
-			"properties": map[string]interface{}{
-				"param1": map[string]interface{}{
-					"type":        "string",
-					"description": "Description of parameter 1",
-				},
-				"param2": map[string]interface{}{
-					"type":        "integer",
-					"description": "Description of parameter 2",
-					"minimum":     1,
-				},
-			},
-			"required": []string{"param1"},
-		},
-	}
+    return domain.ToolDefinition{
+        Name:        "YourTool",
+        Description: "Description of what your tool does",
+        Parameters: map[string]interface{}{
+            "type": "object",
+            "properties": map[string]interface{}{
+                "param1": map[string]interface{}{
+                    "type":        "string",
+                    "description": "Description of parameter 1",
+                },
+                "param2": map[string]interface{}{
+                    "type":        "integer",
+                    "description": "Description of parameter 2",
+                    "minimum":     1,
+                },
+            },
+            "required": []string{"param1"},
+        },
+    }
 }
 
 // Execute runs the tool with given arguments
 func (t *YourTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
-	if !t.enabled {
-		return nil, fmt.Errorf("YourTool is not enabled")
-	}
-	
-	// Validate and extract arguments
-	param1, ok := args["param1"].(string)
-	if !ok {
-		return nil, fmt.Errorf("param1 must be a string")
-	}
-	
-	// Implement your tool logic here
-	result := fmt.Sprintf("Processing: %s", param1)
-	
-	return &domain.ToolExecutionResult{
-		Output: result,
-		// Add other result fields as needed
-	}, nil
+    if !t.enabled {
+        return nil, fmt.Errorf("YourTool is not enabled")
+    }
+    
+    // Validate and extract arguments
+    param1, ok := args["param1"].(string)
+    if !ok {
+        return nil, fmt.Errorf("param1 must be a string")
+    }
+    
+    // Implement your tool logic here
+    result := fmt.Sprintf("Processing: %s", param1)
+    
+    return &domain.ToolExecutionResult{
+        Output: result,
+        // Add other result fields as needed
+    }, nil
 }
 
 // Validate checks if the tool arguments are valid
 func (t *YourTool) Validate(args map[string]interface{}) error {
-	// Implement validation logic
-	if _, exists := args["param1"]; !exists {
-		return fmt.Errorf("param1 is required")
-	}
-	return nil
+    // Implement validation logic
+    if _, exists := args["param1"]; !exists {
+        return fmt.Errorf("param1 is required")
+    }
+    return nil
 }
 
 // IsEnabled returns whether this tool is enabled
 func (t *YourTool) IsEnabled() bool {
-	return t.enabled
+    return t.enabled
 }
 ```
 
@@ -225,7 +226,7 @@ For conditional tools (e.g., requiring external services or configuration):
 ```go
 // Example for conditional registration
 if r.config.YourService.Enabled {
-	r.tools["YourTool"] = NewYourTool(r.config, r.yourService)
+    r.tools["YourTool"] = NewYourTool(r.config, r.yourService)
 }
 ```
 
@@ -236,14 +237,14 @@ If your tool needs configuration, add it to `config/config.go`:
 ```go
 // Add to the Config struct
 type Config struct {
-	// ... existing fields
-	YourService YourServiceConfig `yaml:"your_service"`
+    // ... existing fields
+    YourService YourServiceConfig `yaml:"your_service"`
 }
 
 type YourServiceConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	APIKey  string `yaml:"api_key"`
-	// Add other config fields
+    Enabled bool   `yaml:"enabled"`
+    APIKey  string `yaml:"api_key"`
+    // Add other config fields
 }
 ```
 
@@ -255,56 +256,56 @@ Create `internal/services/tools/your_tool_test.go`:
 package tools
 
 import (
-	"context"
-	"testing"
-	
-	"github.com/inference-gateway/cli/config"
-	"github.com/stretchr/testify/assert"
+    "context"
+    "testing"
+    
+    "github.com/inference-gateway/cli/config"
+    "github.com/stretchr/testify/assert"
 )
 
 func TestYourTool_Definition(t *testing.T) {
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{Enabled: true},
-	}
-	
-	tool := NewYourTool(cfg)
-	def := tool.Definition()
-	
-	assert.Equal(t, "YourTool", def.Name)
-	assert.Contains(t, def.Description, "your tool")
+    cfg := &config.Config{
+        Tools: config.ToolsConfig{Enabled: true},
+    }
+    
+    tool := NewYourTool(cfg)
+    def := tool.Definition()
+    
+    assert.Equal(t, "YourTool", def.Name)
+    assert.Contains(t, def.Description, "your tool")
 }
 
 func TestYourTool_Execute(t *testing.T) {
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{Enabled: true},
-	}
-	
-	tool := NewYourTool(cfg)
-	
-	args := map[string]interface{}{
-		"param1": "test value",
-	}
-	
-	result, err := tool.Execute(context.Background(), args)
-	assert.NoError(t, err)
-	assert.NotNil(t, result)
-	assert.Contains(t, result.Output, "test value")
+    cfg := &config.Config{
+        Tools: config.ToolsConfig{Enabled: true},
+    }
+    
+    tool := NewYourTool(cfg)
+    
+    args := map[string]interface{}{
+        "param1": "test value",
+    }
+    
+    result, err := tool.Execute(context.Background(), args)
+    assert.NoError(t, err)
+    assert.NotNil(t, result)
+    assert.Contains(t, result.Output, "test value")
 }
 
 func TestYourTool_Validate(t *testing.T) {
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{Enabled: true},
-	}
-	
-	tool := NewYourTool(cfg)
-	
-	// Test valid args
-	validArgs := map[string]interface{}{"param1": "value"}
-	assert.NoError(t, tool.Validate(validArgs))
-	
-	// Test invalid args
-	invalidArgs := map[string]interface{}{}
-	assert.Error(t, tool.Validate(invalidArgs))
+    cfg := &config.Config{
+        Tools: config.ToolsConfig{Enabled: true},
+    }
+    
+    tool := NewYourTool(cfg)
+    
+    // Test valid args
+    validArgs := map[string]interface{}{"param1": "value"}
+    assert.NoError(t, tool.Validate(validArgs))
+    
+    // Test invalid args
+    invalidArgs := map[string]interface{}{}
+    assert.Error(t, tool.Validate(invalidArgs))
 }
 ```
 
