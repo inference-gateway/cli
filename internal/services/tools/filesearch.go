@@ -64,6 +64,10 @@ func (t *FileSearchTool) Definition() domain.ToolDefinition {
 // Execute runs the file search tool with given arguments
 func (t *FileSearchTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
+	if !t.config.Tools.Enabled {
+		return nil, fmt.Errorf("file search tool is not enabled")
+	}
+
 	pattern, ok := args["pattern"].(string)
 	if !ok {
 		return &domain.ToolExecutionResult{
@@ -105,6 +109,10 @@ func (t *FileSearchTool) Execute(ctx context.Context, args map[string]interface{
 
 // Validate checks if the file search tool arguments are valid
 func (t *FileSearchTool) Validate(args map[string]interface{}) error {
+	if !t.config.Tools.Enabled {
+		return fmt.Errorf("file search tool is not enabled")
+	}
+
 	pattern, ok := args["pattern"].(string)
 	if !ok {
 		return fmt.Errorf("pattern parameter is required and must be a string")
@@ -118,7 +126,37 @@ func (t *FileSearchTool) Validate(args map[string]interface{}) error {
 		return fmt.Errorf("invalid regex pattern: %w", err)
 	}
 
+	if args["include_dirs"] != nil {
+		if _, ok := args["include_dirs"].(bool); !ok {
+			return fmt.Errorf("include_dirs parameter must be a boolean")
+		}
+	}
+
+	if args["case_sensitive"] != nil {
+		if _, ok := args["case_sensitive"].(bool); !ok {
+			return fmt.Errorf("case_sensitive parameter must be a boolean")
+		}
+	}
+
+	if args["max_depth"] != nil {
+		err := t.validateMaxDepth(args["max_depth"])
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
+}
+
+// validateMaxDepth validates the max_depth parameter
+func (t *FileSearchTool) validateMaxDepth(maxDepth interface{}) error {
+	if maxDepthFloat, ok := maxDepth.(float64); ok {
+		if maxDepthFloat < 0 {
+			return fmt.Errorf("max_depth must be >= 0")
+		}
+		return nil
+	}
+	return fmt.Errorf("max_depth parameter must be a number")
 }
 
 // IsEnabled returns whether the file search tool is enabled

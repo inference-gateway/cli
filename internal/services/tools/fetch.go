@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/inference-gateway/cli/config"
@@ -50,7 +51,7 @@ func (t *FetchTool) Definition() domain.ToolDefinition {
 // Execute runs the fetch tool with given arguments
 func (t *FetchTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
-	if !t.config.Fetch.Enabled {
+	if !t.config.Tools.Enabled || !t.config.Fetch.Enabled {
 		return nil, fmt.Errorf("fetch tool is not enabled")
 	}
 
@@ -86,7 +87,7 @@ func (t *FetchTool) Execute(ctx context.Context, args map[string]interface{}) (*
 
 // Validate checks if the fetch tool arguments are valid
 func (t *FetchTool) Validate(args map[string]interface{}) error {
-	if !t.config.Fetch.Enabled {
+	if !t.config.Tools.Enabled || !t.config.Fetch.Enabled {
 		return fmt.Errorf("fetch tool is not enabled")
 	}
 
@@ -97,6 +98,14 @@ func (t *FetchTool) Validate(args map[string]interface{}) error {
 
 	if err := t.validateURL(url); err != nil {
 		return fmt.Errorf("URL validation failed: %w", err)
+	}
+
+	if format, ok := args["format"].(string); ok {
+		if format != "text" && format != "json" {
+			return fmt.Errorf("format must be 'text' or 'json'")
+		}
+	} else if args["format"] != nil {
+		return fmt.Errorf("format parameter must be a string")
 	}
 
 	return nil
@@ -112,10 +121,51 @@ func (t *FetchTool) fetchContent(ctx context.Context, url string) (*domain.Fetch
 	return nil, fmt.Errorf("fetch functionality not yet implemented in self-contained tool")
 }
 
-// validateURL is a placeholder implementation
+// validateURL validates URL against security rules and whitelists
 func (t *FetchTool) validateURL(url string) error {
 	if url == "" {
 		return fmt.Errorf("URL cannot be empty")
 	}
+
+	if strings.HasPrefix(url, "file://") || strings.HasPrefix(url, "ftp://") {
+		return fmt.Errorf("protocol not allowed")
+	}
+
+	if strings.HasPrefix(url, "github:") {
+		return t.validateGitHubReference(url)
+	}
+
+	return t.validateURLDomain(url)
+}
+
+// validateGitHubReference validates GitHub reference syntax (github:owner/repo#123)
+func (t *FetchTool) validateGitHubReference(reference string) error {
+	ref := strings.TrimPrefix(reference, "github:")
+
+	if !strings.Contains(ref, "/") {
+		return fmt.Errorf("invalid GitHub reference format")
+	}
+
+	parts := strings.Split(ref, "#")
+	if len(parts) > 2 {
+		return fmt.Errorf("invalid GitHub reference format")
+	}
+
+	ownerRepo := parts[0]
+	if strings.Count(ownerRepo, "/") != 1 {
+		return fmt.Errorf("invalid GitHub reference format")
+	}
+
 	return nil
+}
+
+// validateURLDomain checks if URL domain is in whitelist
+func (t *FetchTool) validateURLDomain(url string) error {
+	for _, domain := range t.config.Fetch.WhitelistedDomains {
+		if strings.Contains(url, domain) {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("domain not whitelisted")
 }

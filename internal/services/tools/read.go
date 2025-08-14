@@ -62,6 +62,10 @@ func (t *ReadTool) Definition() domain.ToolDefinition {
 // Execute runs the read tool with given arguments
 func (t *ReadTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
+	if !t.config.Tools.Enabled {
+		return nil, fmt.Errorf("read tool is not enabled")
+	}
+
 	filePath, ok := args["file_path"].(string)
 	if !ok {
 		return &domain.ToolExecutionResult{
@@ -82,7 +86,9 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 	}
 
 	readResult, err := t.executeRead(filePath, startLine, endLine)
-	success := err == nil
+	if err != nil {
+		return nil, err
+	}
 
 	var toolData *domain.FileReadToolResult
 	if readResult != nil {
@@ -99,13 +105,9 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 	result := &domain.ToolExecutionResult{
 		ToolName:  "Read",
 		Arguments: args,
-		Success:   success,
+		Success:   true,
 		Duration:  time.Since(start),
 		Data:      toolData,
-	}
-
-	if err != nil {
-		result.Error = err.Error()
 	}
 
 	return result, nil
@@ -113,13 +115,29 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 
 // Validate checks if the read tool arguments are valid
 func (t *ReadTool) Validate(args map[string]interface{}) error {
+	if !t.config.Tools.Enabled {
+		return fmt.Errorf("read tool is not enabled")
+	}
+
 	filePath, ok := args["file_path"].(string)
 	if !ok {
 		return fmt.Errorf("file_path parameter is required and must be a string")
 	}
 
-	if err := t.validateFile(filePath); err != nil {
-		return fmt.Errorf("file validation failed: %w", err)
+	if filePath == "" {
+		return fmt.Errorf("file_path cannot be empty")
+	}
+
+	if err := t.validatePathSecurity(filePath); err != nil {
+		return err
+	}
+
+	if format, ok := args["format"].(string); ok {
+		if format != "text" && format != "json" {
+			return fmt.Errorf("format must be 'text' or 'json'")
+		}
+	} else if args["format"] != nil {
+		return fmt.Errorf("format parameter must be a string")
 	}
 
 	return t.validateLineNumbers(args)
@@ -169,35 +187,77 @@ func (t *ReadTool) executeRead(filePath string, startLine, endLine int) (*FileRe
 
 // validateLineNumbers validates start_line and end_line parameters
 func (t *ReadTool) validateLineNumbers(args map[string]interface{}) error {
-	var startLine float64
-	var hasStartLine bool
-
-	if startLineFloat, ok := args["start_line"].(float64); ok {
-		if startLineFloat < 1 {
-			return fmt.Errorf("start_line must be >= 1")
-		}
-		startLine = startLineFloat
-		hasStartLine = true
+	startLine, hasStartLine, err := t.validateSingleLineNumber(args, "start_line")
+	if err != nil {
+		return err
 	}
 
-	if endLineFloat, ok := args["end_line"].(float64); ok {
-		if endLineFloat < 1 {
-			return fmt.Errorf("end_line must be >= 1")
-		}
-		if hasStartLine && endLineFloat < startLine {
-			return fmt.Errorf("end_line must be >= start_line")
-		}
+	endLine, hasEndLine, err := t.validateSingleLineNumber(args, "end_line")
+	if err != nil {
+		return err
+	}
+
+	if hasStartLine && hasEndLine && endLine < startLine {
+		return fmt.Errorf("end_line must be >= start_line")
 	}
 
 	return nil
 }
 
-// validateFile checks if a file path is valid and readable
-func (t *ReadTool) validateFile(path string) error {
+// validateSingleLineNumber validates a single line number parameter
+func (t *ReadTool) validateSingleLineNumber(args map[string]interface{}, paramName string) (float64, bool, error) {
+	if args[paramName] == nil {
+		return 0, false, nil
+	}
+
+	if lineFloat, ok := args[paramName].(float64); ok {
+		if lineFloat < 1 {
+			return 0, false, fmt.Errorf("%s must be >= 1", paramName)
+		}
+		return lineFloat, true, nil
+	}
+
+	if lineInt, ok := args[paramName].(int); ok {
+		if lineInt < 1 {
+			return 0, false, fmt.Errorf("%s must be >= 1", paramName)
+		}
+		return float64(lineInt), true, nil
+	}
+
+	return 0, false, fmt.Errorf("%s must be a number", paramName)
+}
+
+// validatePathSecurity checks if a path is allowed (no file existence check)
+func (t *ReadTool) validatePathSecurity(path string) error {
 	for _, excludePath := range t.config.Tools.ExcludePaths {
 		if strings.HasPrefix(path, excludePath) {
 			return fmt.Errorf("access to path '%s' is excluded for security", path)
 		}
+
+		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
+			return fmt.Errorf("access to path '%s' is excluded for security", path)
+		}
+	}
+	return nil
+}
+
+// matchesPattern checks if a path matches a simple glob pattern
+func matchesPattern(path, pattern string) bool {
+	if strings.HasSuffix(pattern, "*") {
+		prefix := strings.TrimSuffix(pattern, "*")
+		return strings.HasPrefix(path, prefix)
+	}
+	if strings.HasPrefix(pattern, "*") {
+		suffix := strings.TrimPrefix(pattern, "*")
+		return strings.HasSuffix(path, suffix)
+	}
+	return path == pattern
+}
+
+// validateFile checks if a file path is valid and readable
+func (t *ReadTool) validateFile(path string) error {
+	if err := t.validatePathSecurity(path); err != nil {
+		return err
 	}
 
 	info, err := os.Stat(path)

@@ -74,14 +74,8 @@ func (t *WebSearchTool) Definition() domain.ToolDefinition {
 // Execute runs the web search tool with given arguments
 func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
-	if !t.config.WebSearch.Enabled {
-		return &domain.ToolExecutionResult{
-			ToolName:  "WebSearch",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     "web search tool is not enabled",
-		}, nil
+	if !t.config.Tools.Enabled || !t.config.WebSearch.Enabled {
+		return nil, fmt.Errorf("web search tool is not enabled")
 	}
 
 	query, ok := args["query"].(string)
@@ -145,7 +139,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 
 // Validate checks if the web search tool arguments are valid
 func (t *WebSearchTool) Validate(args map[string]interface{}) error {
-	if !t.config.WebSearch.Enabled {
+	if !t.config.Tools.Enabled || !t.config.WebSearch.Enabled {
 		return fmt.Errorf("web search tool is not enabled")
 	}
 
@@ -171,14 +165,34 @@ func (t *WebSearchTool) Validate(args map[string]interface{}) error {
 		}
 	}
 
-	if limitFloat, ok := args["limit"].(float64); ok {
-		limit := int(limitFloat)
-		if limit < 1 || limit > 50 {
-			return fmt.Errorf("limit must be between 1 and 50")
+	if args["limit"] != nil {
+		err := t.validateLimit(args["limit"])
+		if err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+// validateLimit validates the limit parameter
+func (t *WebSearchTool) validateLimit(limit interface{}) error {
+	if limitFloat, ok := limit.(float64); ok {
+		limitInt := int(limitFloat)
+		if limitInt < 1 || limitInt > 50 {
+			return fmt.Errorf("limit must be between 1 and 50")
+		}
+		return nil
+	}
+
+	if limitInt, ok := limit.(int); ok {
+		if limitInt < 1 || limitInt > 50 {
+			return fmt.Errorf("limit must be between 1 and 50")
+		}
+		return nil
+	}
+
+	return fmt.Errorf("limit parameter must be a number")
 }
 
 // IsEnabled returns whether the web search tool is enabled
