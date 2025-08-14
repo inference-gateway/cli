@@ -28,15 +28,43 @@ func NewBashTool(cfg *config.Config) *BashTool {
 
 // Definition returns the tool definition for the LLM
 func (t *BashTool) Definition() domain.ToolDefinition {
+	var allowedCommands []string
+
+	for _, cmd := range t.config.Tools.Whitelist.Commands {
+		allowedCommands = append(allowedCommands, cmd)
+		switch cmd {
+		case "ls":
+			allowedCommands = append(allowedCommands, "ls -l", "ls -la", "ls -a")
+		case "git":
+		case "grep":
+			allowedCommands = append(allowedCommands, "grep -r", "grep -n", "grep -i")
+		}
+	}
+
+	patternExamples := []string{
+		"git status",
+		"git log --oneline -n 5",
+		"git log --oneline -n 10",
+		"docker ps",
+		"kubectl get pods",
+	}
+	allowedCommands = append(allowedCommands, patternExamples...)
+
+	commandDescription := "The bash command to execute. Must be from the whitelist of allowed commands."
+	if len(allowedCommands) > 0 {
+		commandDescription += " Available commands include: " + strings.Join(allowedCommands, ", ")
+	}
+
 	return domain.ToolDefinition{
 		Name:        "Bash",
-		Description: "Execute whitelisted bash commands securely",
+		Description: "Execute whitelisted bash commands securely. Only pre-approved commands from the whitelist can be executed.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"command": map[string]interface{}{
 					"type":        "string",
-					"description": "The bash command to execute",
+					"description": commandDescription,
+					"enum":        allowedCommands,
 				},
 				"format": map[string]interface{}{
 					"type":        "string",
@@ -120,13 +148,16 @@ type BashResult struct {
 
 // executeBash executes a bash command with security validation
 func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult, error) {
-	if !t.isCommandAllowed(command) {
-		return nil, fmt.Errorf("command not whitelisted: %s", command)
-	}
-
 	start := time.Now()
 	result := &BashResult{
 		Command: command,
+	}
+
+	if !t.isCommandAllowed(command) {
+		result.ExitCode = -1
+		result.Duration = time.Since(start).String()
+		result.Error = fmt.Sprintf("command not whitelisted: %s", command)
+		return result, fmt.Errorf("command not whitelisted: %s", command)
 	}
 
 	cmdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
