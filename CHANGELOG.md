@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.13.0](https://github.com/inference-gateway/cli/compare/v0.12.2...v0.13.0) (2025-08-14)
+
+### 🚀 Features
+
+* Implement Web Search Tool ([#32](https://github.com/inference-gateway/cli/issues/32)) ([e80769b](https://github.com/inference-gateway/cli/commit/e80769bd2794b2e6979e885a3fc567bf8421061a)), closes [#31](https://github.com/inference-gateway/cli/issues/31)
+
 ## [0.12.2](https://github.com/inference-gateway/cli/compare/v0.12.1...v0.12.2) (2025-08-13)
 
 ### 📚 Documentation
