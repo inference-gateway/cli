@@ -112,6 +112,13 @@ func (app *ChatApplication) handleCommonMessages(msg tea.Msg) []tea.Cmd {
 		app.handleResize(windowMsg)
 	}
 
+	if autoApproveMsg, ok := msg.(handlers.ToolAutoApproveMsg); ok {
+		app.state.Data["pendingToolCall"] = autoApproveMsg.ToolCall
+		app.state.Data["toolCallResponse"] = autoApproveMsg.Response
+		cmds = append(cmds, app.approveToolCall())
+		return cmds
+	}
+
 	if app.state.CurrentView != handlers.ViewApproval {
 		if _, cmd := app.messageRouter.Route(msg, app.state); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -716,7 +723,6 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 		delete(app.state.Data, "approvalSelectedIndex")
 
 		return func() tea.Msg {
-			// Create a cancelled tool execution result for UI formatting
 			cancelledResult := &domain.ToolExecutionResult{
 				ToolName:  toolCall.Name,
 				Arguments: toolCall.Arguments,
@@ -791,7 +797,6 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 		var toolContent string
 		var toolResult *domain.ToolExecutionResult
 		if err != nil {
-			// Create a failed tool execution result
 			failedResult := &domain.ToolExecutionResult{
 				ToolName:  toolCall.Name,
 				Arguments: toolCall.Arguments,
@@ -813,7 +818,7 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 				ToolCallId: &toolCall.ID,
 			},
 			Time:          time.Now(),
-			ToolExecution: toolResult, // Store the actual tool execution result for UI formatting
+			ToolExecution: toolResult,
 		}
 
 		conversationRepo := app.services.GetConversationRepository()

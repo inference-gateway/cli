@@ -7,19 +7,53 @@ output:
   quiet: false
 tools:
   enabled: true
-  whitelist:
-    commands:
-      - pwd
-      - echo
-      - grep
-      - wc
-      - sort
-      - uniq
-    patterns:
-      - ^git status$
-      - ^git log --oneline -n [0-9]+$
-      - ^docker ps$
-      - ^kubectl get pods$
+  bash:
+    enabled: true
+    whitelist:
+      commands:
+        - ls
+        - pwd
+        - echo
+        - grep
+        - wc
+        - sort
+        - uniq
+      patterns:
+        - ^git status$
+        - ^git log --oneline -n [0-9]+$
+        - ^docker ps$
+        - ^kubectl get pods$
+  read:
+    enabled: true
+    require_approval: false
+  file_search:
+    enabled: true
+    require_approval: false
+  fetch:
+    enabled: true
+    whitelisted_domains:
+      - github.com
+      - golang.org
+    github:
+      enabled: true
+      token: ""
+      base_url: https://api.github.com
+    safety:
+      max_size: 8192
+      timeout: 30
+      allow_redirect: true
+    cache:
+      enabled: true
+      ttl: 3600
+      max_size: 52428800
+  web_search:
+    enabled: true
+    default_engine: duckduckgo
+    max_results: 10
+    engines:
+      - duckduckgo
+      - google
+    timeout: 10
   safety:
     require_approval: true
   exclude_paths:
@@ -30,27 +64,3 @@ compact:
 chat:
   default_model: ""
   system_prompt: ""
-fetch:
-  enabled: false
-  whitelisted_domains:
-    - github.com
-  github:
-    enabled: false
-    token: ""
-    base_url: https://api.github.com
-  safety:
-    max_size: 8192
-    timeout: 30
-    allow_redirect: true
-  cache:
-    enabled: true
-    ttl: 3600
-    max_size: 52428800
-web_search:
-  enabled: true
-  default_engine: duckduckgo
-  max_results: 10
-  engines:
-    - duckduckgo
-    - google
-  timeout: 10

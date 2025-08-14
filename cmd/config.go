@@ -143,6 +143,22 @@ var configToolsSafetyStatusCmd = &cobra.Command{
 	RunE:  safetyStatus,
 }
 
+var configToolsSafetySetCmd = &cobra.Command{
+	Use:   "set <tool> <enabled|disabled>",
+	Short: "Set tool-specific approval requirement",
+	Long:  `Set whether approval is required for a specific tool. Valid tools: Bash, Read, FileSearch, Fetch, WebSearch.`,
+	Args:  cobra.ExactArgs(2),
+	RunE:  setToolApproval,
+}
+
+var configToolsSafetyUnsetCmd = &cobra.Command{
+	Use:   "unset <tool>",
+	Short: "Remove tool-specific approval setting",
+	Long:  `Remove tool-specific approval setting, falling back to global setting. Valid tools: Bash, Read, FileSearch, Fetch, WebSearch.`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  unsetToolApproval,
+}
+
 var configToolsExcludePathCmd = &cobra.Command{
 	Use:   "exclude-path",
 	Short: "Manage excluded paths",
@@ -170,6 +186,46 @@ var configToolsExcludePathRemoveCmd = &cobra.Command{
 	Long:  `Remove a path from the exclusion list to allow tools to access it again.`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  removeExcludedPath,
+}
+
+var configToolsBashCmd = &cobra.Command{
+	Use:   "bash",
+	Short: "Manage bash tool settings",
+	Long:  `Manage bash-specific tool execution settings.`,
+}
+
+var configToolsBashEnableCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable bash tool execution",
+	Long:  `Enable the bash tool for executing whitelisted bash commands.`,
+	RunE:  enableBashTool,
+}
+
+var configToolsBashDisableCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable bash tool execution",
+	Long:  `Disable the bash tool to prevent execution of bash commands.`,
+	RunE:  disableBashTool,
+}
+
+var configToolsWebSearchCmd = &cobra.Command{
+	Use:   "web-search",
+	Short: "Manage web search tool settings",
+	Long:  `Manage web search-specific tool execution settings.`,
+}
+
+var configToolsWebSearchEnableCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable web search tool",
+	Long:  `Enable the web search tool for LLM searches.`,
+	RunE:  enableWebSearchTool,
+}
+
+var configToolsWebSearchDisableCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable web search tool",
+	Long:  `Disable the web search tool to prevent web searches.`,
+	RunE:  disableWebSearchTool,
 }
 
 var configFetchCmd = &cobra.Command{
@@ -313,14 +369,24 @@ func init() {
 	configToolsCmd.AddCommand(configToolsExecCmd)
 	configToolsCmd.AddCommand(configToolsSafetyCmd)
 	configToolsCmd.AddCommand(configToolsExcludePathCmd)
+	configToolsCmd.AddCommand(configToolsBashCmd)
+	configToolsCmd.AddCommand(configToolsWebSearchCmd)
 
 	configToolsSafetyCmd.AddCommand(configToolsSafetyEnableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyDisableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyStatusCmd)
+	configToolsSafetyCmd.AddCommand(configToolsSafetySetCmd)
+	configToolsSafetyCmd.AddCommand(configToolsSafetyUnsetCmd)
 
 	configToolsExcludePathCmd.AddCommand(configToolsExcludePathListCmd)
 	configToolsExcludePathCmd.AddCommand(configToolsExcludePathAddCmd)
 	configToolsExcludePathCmd.AddCommand(configToolsExcludePathRemoveCmd)
+
+	configToolsBashCmd.AddCommand(configToolsBashEnableCmd)
+	configToolsBashCmd.AddCommand(configToolsBashDisableCmd)
+
+	configToolsWebSearchCmd.AddCommand(configToolsWebSearchEnableCmd)
+	configToolsWebSearchCmd.AddCommand(configToolsWebSearchDisableCmd)
 
 	configFetchCmd.AddCommand(configFetchEnableCmd)
 	configFetchCmd.AddCommand(configFetchDisableCmd)
@@ -355,8 +421,8 @@ func enableTools(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("%s\n", ui.FormatSuccess("Tools enabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
-	fmt.Printf("Whitelisted commands: %d\n", len(cfg.Tools.Whitelist.Commands))
-	fmt.Printf("Whitelisted patterns: %d\n", len(cfg.Tools.Whitelist.Patterns))
+	fmt.Printf("Whitelisted commands: %d\n", len(cfg.Tools.Bash.Whitelist.Commands))
+	fmt.Printf("Whitelisted patterns: %d\n", len(cfg.Tools.Bash.Whitelist.Patterns))
 	return nil
 }
 
@@ -383,9 +449,28 @@ func listTools(cmd *cobra.Command, args []string) error {
 
 	if format == "json" {
 		data := map[string]interface{}{
-			"enabled":       cfg.Tools.Enabled,
-			"commands":      cfg.Tools.Whitelist.Commands,
-			"patterns":      cfg.Tools.Whitelist.Patterns,
+			"enabled": cfg.Tools.Enabled,
+			"bash": map[string]bool{
+				"enabled": cfg.Tools.Bash.Enabled,
+			},
+			"fetch": map[string]interface{}{
+				"enabled":             cfg.Tools.Fetch.Enabled,
+				"whitelisted_domains": cfg.Tools.Fetch.WhitelistedDomains,
+				"github": map[string]interface{}{
+					"enabled":   cfg.Tools.Fetch.GitHub.Enabled,
+					"base_url":  cfg.Tools.Fetch.GitHub.BaseURL,
+					"has_token": cfg.Tools.Fetch.GitHub.Token != "",
+				},
+			},
+			"web_search": map[string]interface{}{
+				"enabled":        cfg.Tools.WebSearch.Enabled,
+				"default_engine": cfg.Tools.WebSearch.DefaultEngine,
+				"max_results":    cfg.Tools.WebSearch.MaxResults,
+				"engines":        cfg.Tools.WebSearch.Engines,
+				"timeout":        cfg.Tools.WebSearch.Timeout,
+			},
+			"commands":      cfg.Tools.Bash.Whitelist.Commands,
+			"patterns":      cfg.Tools.Bash.Whitelist.Patterns,
 			"exclude_paths": cfg.Tools.ExcludePaths,
 			"safety": map[string]bool{
 				"require_approval": cfg.Tools.Safety.RequireApproval,
@@ -406,13 +491,35 @@ func listTools(cmd *cobra.Command, args []string) error {
 		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
 	}
 
-	fmt.Printf("\nWhitelisted Commands (%d):\n", len(cfg.Tools.Whitelist.Commands))
-	for _, cmd := range cfg.Tools.Whitelist.Commands {
+	fmt.Printf("\nIndividual Tools:\n")
+	fmt.Printf("  Bash: ")
+	if cfg.Tools.Bash.Enabled {
+		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+	} else {
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+	}
+
+	fmt.Printf("  Fetch: ")
+	if cfg.Tools.Fetch.Enabled {
+		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+	} else {
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+	}
+
+	fmt.Printf("  Web Search: ")
+	if cfg.Tools.WebSearch.Enabled {
+		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+	} else {
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+	}
+
+	fmt.Printf("\nWhitelisted Commands (%d):\n", len(cfg.Tools.Bash.Whitelist.Commands))
+	for _, cmd := range cfg.Tools.Bash.Whitelist.Commands {
 		fmt.Printf("  • %s\n", cmd)
 	}
 
-	fmt.Printf("\nWhitelisted Patterns (%d):\n", len(cfg.Tools.Whitelist.Patterns))
-	for _, pattern := range cfg.Tools.Whitelist.Patterns {
+	fmt.Printf("\nWhitelisted Patterns (%d):\n", len(cfg.Tools.Bash.Whitelist.Patterns))
+	for _, pattern := range cfg.Tools.Bash.Whitelist.Patterns {
 		fmt.Printf("  • %s\n", pattern)
 	}
 
@@ -539,6 +646,127 @@ func safetyStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Commands execute immediately without approval\n")
 	}
 
+	// Show tool-specific settings
+	fmt.Printf("\nTool-specific Approval Settings:\n")
+	tools := []struct {
+		name    string
+		setting *bool
+	}{
+		{"Bash", cfg.Tools.Bash.RequireApproval},
+		{"Read", cfg.Tools.Read.RequireApproval},
+		{"FileSearch", cfg.Tools.FileSearch.RequireApproval},
+		{"Fetch", cfg.Tools.Fetch.RequireApproval},
+		{"WebSearch", cfg.Tools.WebSearch.RequireApproval},
+	}
+
+	for _, tool := range tools {
+		fmt.Printf("  %s: ", tool.name)
+		if tool.setting == nil {
+			fmt.Printf("using global setting (%s)\n",
+				func() string {
+					if cfg.Tools.Safety.RequireApproval { return "enabled" }
+					return "disabled"
+				}())
+		} else if *tool.setting {
+			fmt.Printf("%s\n", ui.FormatSuccess("enabled"))
+		} else {
+			fmt.Printf("%s\n", ui.FormatErrorCLI("disabled"))
+		}
+	}
+
+	return nil
+}
+
+func setToolApproval(cmd *cobra.Command, args []string) error {
+	toolName := args[0]
+	setting := args[1]
+
+	var enabled bool
+	switch strings.ToLower(setting) {
+	case "enabled", "enable", "true":
+		enabled = true
+	case "disabled", "disable", "false":
+		enabled = false
+	default:
+		return fmt.Errorf("invalid setting '%s', must be 'enabled' or 'disabled'", setting)
+	}
+
+	// Validate tool name first
+	validTools := []string{"bash", "read", "filesearch", "fetch", "websearch"}
+	toolLower := strings.ToLower(toolName)
+	isValid := false
+	for _, valid := range validTools {
+		if toolLower == valid {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		return fmt.Errorf("invalid tool '%s', must be one of: %s", toolName, strings.Join(validTools, ", "))
+	}
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		switch toolLower {
+		case "bash":
+			c.Tools.Bash.RequireApproval = &enabled
+		case "read":
+			c.Tools.Read.RequireApproval = &enabled
+		case "filesearch":
+			c.Tools.FileSearch.RequireApproval = &enabled
+		case "fetch":
+			c.Tools.Fetch.RequireApproval = &enabled
+		case "websearch":
+			c.Tools.WebSearch.RequireApproval = &enabled
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	status := "enabled"
+	if !enabled {
+		status = "disabled"
+	}
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Tool-specific approval for %s %s", toolName, status)))
+	return nil
+}
+
+func unsetToolApproval(cmd *cobra.Command, args []string) error {
+	toolName := args[0]
+
+	// Validate tool name first
+	validTools := []string{"bash", "read", "filesearch", "fetch", "websearch"}
+	toolLower := strings.ToLower(toolName)
+	isValid := false
+	for _, valid := range validTools {
+		if toolLower == valid {
+			isValid = true
+			break
+		}
+	}
+	if !isValid {
+		return fmt.Errorf("invalid tool '%s', must be one of: %s", toolName, strings.Join(validTools, ", "))
+	}
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		switch toolLower {
+		case "bash":
+			c.Tools.Bash.RequireApproval = nil
+		case "read":
+			c.Tools.Read.RequireApproval = nil
+		case "filesearch":
+			c.Tools.FileSearch.RequireApproval = nil
+		case "fetch":
+			c.Tools.Fetch.RequireApproval = nil
+		case "websearch":
+			c.Tools.WebSearch.RequireApproval = nil
+		}
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Tool-specific approval setting removed for %s (using global setting)", toolName)))
 	return nil
 }
 
@@ -635,7 +863,7 @@ func removeExcludedPath(cmd *cobra.Command, args []string) error {
 
 func enableFetch(cmd *cobra.Command, args []string) error {
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Fetch.Enabled = true
+		c.Tools.Fetch.Enabled = true
 	})
 	if err != nil {
 		return err
@@ -643,13 +871,13 @@ func enableFetch(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("%s\n", ui.FormatSuccess("Fetch tool enabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
-	fmt.Println("You can now configure whitelisted sources with 'infer config fetch add-source <url>'")
+	fmt.Println("You can now configure whitelisted sources with 'infer config fetch add-domain <domain>'")
 	return nil
 }
 
 func disableFetch(cmd *cobra.Command, args []string) error {
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Fetch.Enabled = false
+		c.Tools.Fetch.Enabled = false
 	})
 	if err != nil {
 		return err
@@ -670,22 +898,22 @@ func listFetchDomains(cmd *cobra.Command, args []string) error {
 
 	if format == "json" {
 		data := map[string]interface{}{
-			"enabled":             cfg.Fetch.Enabled,
-			"whitelisted_domains": cfg.Fetch.WhitelistedDomains,
+			"enabled":             cfg.Tools.Fetch.Enabled,
+			"whitelisted_domains": cfg.Tools.Fetch.WhitelistedDomains,
 			"github": map[string]interface{}{
-				"enabled":   cfg.Fetch.GitHub.Enabled,
-				"base_url":  cfg.Fetch.GitHub.BaseURL,
-				"has_token": cfg.Fetch.GitHub.Token != "",
+				"enabled":   cfg.Tools.Fetch.GitHub.Enabled,
+				"base_url":  cfg.Tools.Fetch.GitHub.BaseURL,
+				"has_token": cfg.Tools.Fetch.GitHub.Token != "",
 			},
 			"safety": map[string]interface{}{
-				"max_size":       cfg.Fetch.Safety.MaxSize,
-				"timeout":        cfg.Fetch.Safety.Timeout,
-				"allow_redirect": cfg.Fetch.Safety.AllowRedirect,
+				"max_size":       cfg.Tools.Fetch.Safety.MaxSize,
+				"timeout":        cfg.Tools.Fetch.Safety.Timeout,
+				"allow_redirect": cfg.Tools.Fetch.Safety.AllowRedirect,
 			},
 			"cache": map[string]interface{}{
-				"enabled":  cfg.Fetch.Cache.Enabled,
-				"ttl":      cfg.Fetch.Cache.TTL,
-				"max_size": cfg.Fetch.Cache.MaxSize,
+				"enabled":  cfg.Tools.Fetch.Cache.Enabled,
+				"ttl":      cfg.Tools.Fetch.Cache.TTL,
+				"max_size": cfg.Tools.Fetch.Cache.MaxSize,
 			},
 		}
 		jsonOutput, err := json.MarshalIndent(data, "", "  ")
@@ -697,26 +925,26 @@ func listFetchDomains(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Fetch Tool Status: ")
-	if cfg.Fetch.Enabled {
+	if cfg.Tools.Fetch.Enabled {
 		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
 	} else {
 		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
 	}
 
-	fmt.Printf("\nWhitelisted Domains (%d):\n", len(cfg.Fetch.WhitelistedDomains))
-	if len(cfg.Fetch.WhitelistedDomains) == 0 {
+	fmt.Printf("\nWhitelisted Domains (%d):\n", len(cfg.Tools.Fetch.WhitelistedDomains))
+	if len(cfg.Tools.Fetch.WhitelistedDomains) == 0 {
 		fmt.Printf("  • None configured\n")
 	} else {
-		for _, domain := range cfg.Fetch.WhitelistedDomains {
+		for _, domain := range cfg.Tools.Fetch.WhitelistedDomains {
 			fmt.Printf("  • %s\n", domain)
 		}
 	}
 
 	fmt.Printf("\nGitHub Integration:\n")
-	if cfg.Fetch.GitHub.Enabled {
+	if cfg.Tools.Fetch.GitHub.Enabled {
 		fmt.Printf("  • Status: %s\n", ui.FormatSuccess("Enabled"))
-		fmt.Printf("  • Base URL: %s\n", cfg.Fetch.GitHub.BaseURL)
-		if cfg.Fetch.GitHub.Token != "" {
+		fmt.Printf("  • Base URL: %s\n", cfg.Tools.Fetch.GitHub.BaseURL)
+		if cfg.Tools.Fetch.GitHub.Token != "" {
 			fmt.Printf("  • Token: %s\n", ui.FormatSuccess("Configured"))
 		} else {
 			fmt.Printf("  • Token: %s\n", ui.FormatWarning("Not configured"))
@@ -726,15 +954,15 @@ func listFetchDomains(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\nSafety Settings:\n")
-	fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", cfg.Fetch.Safety.MaxSize, float64(cfg.Fetch.Safety.MaxSize)/(1024*1024))
-	fmt.Printf("  • Timeout: %d seconds\n", cfg.Fetch.Safety.Timeout)
-	fmt.Printf("  • Allow redirects: %t\n", cfg.Fetch.Safety.AllowRedirect)
+	fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", cfg.Tools.Fetch.Safety.MaxSize, float64(cfg.Tools.Fetch.Safety.MaxSize)/(1024*1024))
+	fmt.Printf("  • Timeout: %d seconds\n", cfg.Tools.Fetch.Safety.Timeout)
+	fmt.Printf("  • Allow redirects: %t\n", cfg.Tools.Fetch.Safety.AllowRedirect)
 
 	fmt.Printf("\nCache Settings:\n")
-	if cfg.Fetch.Cache.Enabled {
+	if cfg.Tools.Fetch.Cache.Enabled {
 		fmt.Printf("  • Status: %s\n", ui.FormatSuccess("Enabled"))
-		fmt.Printf("  • TTL: %d seconds\n", cfg.Fetch.Cache.TTL)
-		fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", cfg.Fetch.Cache.MaxSize, float64(cfg.Fetch.Cache.MaxSize)/(1024*1024))
+		fmt.Printf("  • TTL: %d seconds\n", cfg.Tools.Fetch.Cache.TTL)
+		fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", cfg.Tools.Fetch.Cache.MaxSize, float64(cfg.Tools.Fetch.Cache.MaxSize)/(1024*1024))
 	} else {
 		fmt.Printf("  • Status: %s\n", ui.FormatErrorCLI("Disabled"))
 	}
@@ -751,12 +979,12 @@ func addFetchDomain(cmd *cobra.Command, args []string) error {
 	}
 
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for _, existingDomain := range c.Fetch.WhitelistedDomains {
+		for _, existingDomain := range c.Tools.Fetch.WhitelistedDomains {
 			if existingDomain == domainToAdd {
 				return
 			}
 		}
-		c.Fetch.WhitelistedDomains = append(c.Fetch.WhitelistedDomains, domainToAdd)
+		c.Tools.Fetch.WhitelistedDomains = append(c.Tools.Fetch.WhitelistedDomains, domainToAdd)
 	})
 	if err != nil {
 		return err
@@ -772,9 +1000,9 @@ func removeFetchDomain(cmd *cobra.Command, args []string) error {
 	var found bool
 
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for i, existingDomain := range c.Fetch.WhitelistedDomains {
+		for i, existingDomain := range c.Tools.Fetch.WhitelistedDomains {
 			if existingDomain == domainToRemove {
-				c.Fetch.WhitelistedDomains = append(c.Fetch.WhitelistedDomains[:i], c.Fetch.WhitelistedDomains[i+1:]...)
+				c.Tools.Fetch.WhitelistedDomains = append(c.Tools.Fetch.WhitelistedDomains[:i], c.Tools.Fetch.WhitelistedDomains[i+1:]...)
 				found = true
 				return
 			}
@@ -796,7 +1024,7 @@ func removeFetchDomain(cmd *cobra.Command, args []string) error {
 
 func enableGitHubFetch(cmd *cobra.Command, args []string) error {
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Fetch.GitHub.Enabled = true
+		c.Tools.Fetch.GitHub.Enabled = true
 	})
 	if err != nil {
 		return err
@@ -810,7 +1038,7 @@ func enableGitHubFetch(cmd *cobra.Command, args []string) error {
 
 func disableGitHubFetch(cmd *cobra.Command, args []string) error {
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Fetch.GitHub.Enabled = false
+		c.Tools.Fetch.GitHub.Enabled = false
 	})
 	if err != nil {
 		return err
@@ -825,7 +1053,7 @@ func setGitHubToken(cmd *cobra.Command, args []string) error {
 	token := args[0]
 
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Fetch.GitHub.Token = token
+		c.Tools.Fetch.GitHub.Token = token
 	})
 	if err != nil {
 		return err
@@ -842,37 +1070,78 @@ func fetchCacheStatus(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	services := container.NewServiceContainer(cfg)
-	fetchService := services.GetFetchService()
-	stats := fetchService.GetCacheStats()
-
 	fmt.Printf("Cache Status: ")
-	if cfg.Fetch.Cache.Enabled {
+	if cfg.Tools.Fetch.Cache.Enabled {
 		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
 	} else {
 		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
 	}
 
 	fmt.Printf("\nCache Statistics:\n")
-	fmt.Printf("  • Entries: %d\n", stats["entries"])
-	fmt.Printf("  • Total size: %d bytes (%.1f KB)\n", stats["total_size"], float64(stats["total_size"].(int64))/1024)
-	fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", stats["max_size"], float64(stats["max_size"].(int64))/(1024*1024))
-	fmt.Printf("  • TTL: %d seconds\n", stats["ttl"])
+	fmt.Printf("  • Fetch functionality has been refactored to tools package\n")
+	fmt.Printf("  • Cache statistics are currently unavailable\n")
 
 	return nil
 }
 
 func fetchCacheClear(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	fmt.Printf("%s\n", ui.FormatErrorCLI("Fetch cache clear is currently unavailable"))
+	fmt.Printf("Fetch functionality has been refactored to tools package\n")
+	return nil
+}
+
+func enableBashTool(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Bash.Enabled = true
+	})
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return err
 	}
 
-	services := container.NewServiceContainer(cfg)
-	fetchService := services.GetFetchService()
-	fetchService.ClearCache()
+	fmt.Printf("%s\n", ui.FormatSuccess("Bash tool enabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("LLMs can now execute whitelisted bash commands\n")
+	return nil
+}
 
-	fmt.Printf("%s\n", ui.FormatSuccess("Fetch cache cleared successfully"))
-	fmt.Printf("All cached content has been removed\n")
+func disableBashTool(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Bash.Enabled = false
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatErrorCLI("Bash tool disabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("LLMs can no longer execute bash commands\n")
+	return nil
+}
+
+func enableWebSearchTool(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.WebSearch.Enabled = true
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess("Web search tool enabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("LLMs can now perform web searches using %s\n", "DuckDuckGo and Google")
+	return nil
+}
+
+func disableWebSearchTool(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.WebSearch.Enabled = false
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatErrorCLI("Web search tool disabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("LLMs can no longer perform web searches\n")
 	return nil
 }
