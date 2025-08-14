@@ -181,6 +181,11 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	if cmd := app.handleScrollKeys(keyMsg); cmd != nil {
+		cmds = append(cmds, cmd)
+		return cmds
+	}
+
 	if cmd := app.handleGlobalKeys(keyMsg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -471,7 +476,7 @@ func (app *ChatApplication) renderHelp() string {
 
 func (app *ChatApplication) renderHelpText() string {
 	theme := app.services.GetTheme()
-	helpText := "Press Ctrl+D to send message, Ctrl+C to exit, Ctrl+Shift+C to copy, Ctrl+V to paste • Type @ for files, / for commands"
+	helpText := "Press Ctrl+D to send message, Ctrl+C to exit, Ctrl+Shift+C to copy, Ctrl+V to paste • Type @ for files, / for commands • ↑↓/k/j to scroll, mouse wheel supported"
 	return theme.GetDimColor() + helpText + "\033[0m"
 }
 
@@ -986,6 +991,82 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 	}
 
 	return cmds
+}
+
+func (app *ChatApplication) handleScrollKeys(keyMsg tea.KeyMsg) tea.Cmd {
+	switch keyMsg.String() {
+	case "up", "k":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollUp,
+				Amount:      1,
+			}
+		}
+	case "down", "j":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollDown,
+				Amount:      1,
+			}
+		}
+	case "pgup":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollUp,
+				Amount:      app.getPageSize(),
+			}
+		}
+	case "pgdn":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollDown,
+				Amount:      app.getPageSize(),
+			}
+		}
+	case "home":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollToTop,
+				Amount:      0,
+			}
+		}
+	case "end":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollToBottom,
+				Amount:      0,
+			}
+		}
+	case "shift+up":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollUp,
+				Amount:      app.getPageSize() / 2,
+			}
+		}
+	case "shift+down":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollDown,
+				Amount:      app.getPageSize() / 2,
+			}
+		}
+	}
+	return nil
+}
+
+func (app *ChatApplication) getPageSize() int {
+	layout := app.services.GetLayout()
+	conversationHeight := layout.CalculateConversationHeight(app.state.Height)
+	return max(1, conversationHeight-2) // Leave some buffer for smooth scrolling
 }
 
 // toggleToolResultExpansion toggles expansion of the most recent tool result

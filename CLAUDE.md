@@ -189,6 +189,8 @@ web_search:
 - Subcommands:
   - `status`: Gateway status
   - `chat`: Interactive chat with model selection (or uses default model if configured)
+    - Supports scrollable chat history with mouse wheel and keyboard navigation
+    - Navigation: ↑↓/k/j (line), Page Up/Down (page), Home/End (top/bottom), Shift+↑↓ (half-page)
   - `config`: Manage CLI configuration
     - `init [--overwrite]`: Initialize local project configuration
     - `set-model [MODEL_NAME]`: Set default model for chat sessions

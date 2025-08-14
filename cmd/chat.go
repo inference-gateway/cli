@@ -50,7 +50,7 @@ func startChatSession() error {
 
 	application := app.NewChatApplication(services, models, defaultModel)
 
-	program := tea.NewProgram(application, tea.WithAltScreen())
+	program := tea.NewProgram(application, tea.WithAltScreen(), tea.WithMouseCellMotion())
 
 	fmt.Println("🤖 Starting chat session...")
 	if _, err := program.Run(); err != nil {

@@ -114,13 +114,13 @@ func (f *ComponentFactory) CreateStatusView() StatusComponent {
 
 // ConversationViewImpl implements ConversationRenderer
 type ConversationViewImpl struct {
-	theme               Theme
-	conversation        []domain.ConversationEntry
-	scrollOffset        int
-	width               int
-	height              int
-	expandedToolResult  int
-	isToolExpanded      bool
+	theme              Theme
+	conversation       []domain.ConversationEntry
+	scrollOffset       int
+	width              int
+	height             int
+	expandedToolResult int
+	isToolExpanded     bool
 }
 
 func (cv *ConversationViewImpl) SetConversation(conversation []domain.ConversationEntry) {
@@ -175,6 +175,12 @@ func (cv *ConversationViewImpl) Render() string {
 	}
 
 	var b strings.Builder
+
+	// Add scroll indicator at the top if we can scroll up
+	if cv.CanScrollUp() {
+		b.WriteString(cv.theme.GetDimColor() + "▲ More messages above (scroll up: ↑/k, Page Up, mouse wheel)" + "\033[0m\n")
+	}
+
 	visibleEntries := cv.getVisibleEntries()
 
 	for i, entry := range visibleEntries {
@@ -182,6 +188,11 @@ func (cv *ConversationViewImpl) Render() string {
 		actualIndex := cv.scrollOffset + i
 		b.WriteString(cv.renderEntryWithIndex(entry, actualIndex))
 		b.WriteString("\n")
+	}
+
+	// Add scroll indicator at the bottom if we can scroll down
+	if cv.CanScrollDown() {
+		b.WriteString(cv.theme.GetDimColor() + "▼ More messages below (scroll down: ↓/j, Page Down, mouse wheel)" + "\033[0m\n")
 	}
 
 	return b.String()
@@ -294,6 +305,46 @@ func (cv *ConversationViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case UpdateHistoryMsg:
 		cv.SetConversation(msg.History)
 		return cv, nil
+	case tea.MouseMsg:
+		return cv.handleMouseEvent(msg)
+	case ScrollRequestMsg:
+		if msg.ComponentID == cv.GetID() {
+			return cv.handleScrollRequest(msg)
+		}
+	}
+	return cv, nil
+}
+
+func (cv *ConversationViewImpl) handleMouseEvent(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
+	switch msg.Type {
+	case tea.MouseWheelUp:
+		if cv.CanScrollUp() {
+			cv.scrollOffset--
+		}
+	case tea.MouseWheelDown:
+		if cv.CanScrollDown() {
+			cv.scrollOffset++
+		}
+	}
+	return cv, nil
+}
+
+func (cv *ConversationViewImpl) handleScrollRequest(msg ScrollRequestMsg) (tea.Model, tea.Cmd) {
+	switch msg.Direction {
+	case ScrollUp:
+		for i := 0; i < msg.Amount && cv.CanScrollUp(); i++ {
+			cv.scrollOffset--
+		}
+	case ScrollDown:
+		for i := 0; i < msg.Amount && cv.CanScrollDown(); i++ {
+			cv.scrollOffset++
+		}
+	case ScrollToTop:
+		cv.scrollOffset = 0
+	case ScrollToBottom:
+		if len(cv.conversation) > cv.height {
+			cv.scrollOffset = len(cv.conversation) - cv.height
+		}
 	}
 	return cv, nil
 }
