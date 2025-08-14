@@ -29,7 +29,6 @@ func NewInMemoryConversationRepository() *InMemoryConversationRepository {
 func formatToolCall(toolCall sdk.ChatCompletionMessageToolCall) string {
 	var args map[string]interface{}
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-		// If parsing fails, fall back to simple format
 		return fmt.Sprintf("%s()", toolCall.Function.Name)
 	}
 

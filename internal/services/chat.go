@@ -188,7 +188,6 @@ func (s *StreamingChatService) createContentStream(timeoutCtx context.Context, m
 
 	providerType := sdk.Provider(provider)
 
-	// Add tools to the client if available
 	clientWithTools := s.client
 	if tools := s.convertToSDKTools(); tools != nil {
 		clientWithTools = s.client.WithTools(tools)
