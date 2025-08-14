@@ -64,12 +64,16 @@ func FormatToolCall(toolName string, args map[string]interface{}) string {
 		return fmt.Sprintf("%s()", toolName)
 	}
 
-	var argPairs []string
-	for key, value := range args {
-		argPairs = append(argPairs, fmt.Sprintf("%s=%v", key, value))
+	keys := make([]string, 0, len(args))
+	for key := range args {
+		keys = append(keys, key)
 	}
+	sort.Strings(keys)
 
-	sort.Strings(argPairs)
+	argPairs := make([]string, 0, len(args))
+	for _, key := range keys {
+		argPairs = append(argPairs, fmt.Sprintf("%s=%v", key, args[key]))
+	}
 
 	return fmt.Sprintf("%s(%s)", toolName, joinArgs(argPairs))
 }
@@ -131,8 +135,14 @@ func FormatToolResultExpanded(result *domain.ToolExecutionResult) string {
 
 	if len(result.Arguments) > 0 {
 		output.WriteString("\n📝 Arguments:\n")
-		for key, value := range result.Arguments {
-			output.WriteString(fmt.Sprintf("  %s: %v\n", key, value))
+		keys := make([]string, 0, len(result.Arguments))
+		for key := range result.Arguments {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		for _, key := range keys {
+			output.WriteString(fmt.Sprintf("  %s: %v\n", key, result.Arguments[key]))
 		}
 	}
 
@@ -143,8 +153,15 @@ func FormatToolResultExpanded(result *domain.ToolExecutionResult) string {
 
 	if len(result.Metadata) > 0 {
 		output.WriteString("\n🏷️  Metadata:\n")
-		for key, value := range result.Metadata {
-			output.WriteString(fmt.Sprintf("  %s: %s\n", key, value))
+
+		keys := make([]string, 0, len(result.Metadata))
+		for key := range result.Metadata {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		for _, key := range keys {
+			output.WriteString(fmt.Sprintf("  %s: %s\n", key, result.Metadata[key]))
 		}
 	}
 
@@ -282,8 +299,15 @@ func formatFetchToolData(data interface{}) string {
 	}
 	if len(fetchResult.Metadata) > 0 {
 		output.WriteString("Metadata:\n")
-		for key, value := range fetchResult.Metadata {
-			output.WriteString(fmt.Sprintf("  %s: %s\n", key, value))
+
+		keys := make([]string, 0, len(fetchResult.Metadata))
+		for key := range fetchResult.Metadata {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		for _, key := range keys {
+			output.WriteString(fmt.Sprintf("  %s: %s\n", key, fetchResult.Metadata[key]))
 		}
 	}
 	if fetchResult.Content != "" {
@@ -438,8 +462,15 @@ func formatFetchToolDataForLLM(data interface{}) string {
 	}
 	if len(fetchResult.Metadata) > 0 {
 		output.WriteString("Metadata:\n")
-		for key, value := range fetchResult.Metadata {
-			output.WriteString(fmt.Sprintf("  %s: %s\n", key, value))
+
+		keys := make([]string, 0, len(fetchResult.Metadata))
+		for key := range fetchResult.Metadata {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		for _, key := range keys {
+			output.WriteString(fmt.Sprintf("  %s: %s\n", key, fetchResult.Metadata[key]))
 		}
 	}
 	if fetchResult.Content != "" {
