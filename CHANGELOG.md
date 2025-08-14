@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.14.3](https://github.com/inference-gateway/cli/compare/v0.14.2...v0.14.3) (2025-08-14)
+
+### ♻️ Code Refactoring
+
+* Add sequential processing for tool calls in chat handler ([24850f4](https://github.com/inference-gateway/cli/commit/24850f4c68df085a362c969c7434ccbe0217eaa9))
+
 ## [0.14.2](https://github.com/inference-gateway/cli/compare/v0.14.1...v0.14.2) (2025-08-14)
 
 ### 📚 Documentation
