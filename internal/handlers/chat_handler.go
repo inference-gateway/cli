@@ -217,7 +217,6 @@ func (h *ChatMessageHandler) handleToolCallDetected(msg ToolCallDetectedMsg, sta
 func (h *ChatMessageHandler) handleChatStart(msg domain.ChatStartEvent, state *AppState) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	// Store the request ID for cancellation
 	state.Data["currentRequestID"] = msg.RequestID
 
 	cmds = append(cmds, func() tea.Msg {

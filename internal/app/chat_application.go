@@ -716,7 +716,6 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 		delete(app.state.Data, "approvalSelectedIndex")
 
 		return func() tea.Msg {
-			// Create a cancelled tool execution result for UI formatting
 			cancelledResult := &domain.ToolExecutionResult{
 				ToolName:  toolCall.Name,
 				Arguments: toolCall.Arguments,
@@ -791,7 +790,6 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 		var toolContent string
 		var toolResult *domain.ToolExecutionResult
 		if err != nil {
-			// Create a failed tool execution result
 			failedResult := &domain.ToolExecutionResult{
 				ToolName:  toolCall.Name,
 				Arguments: toolCall.Arguments,
@@ -813,7 +811,7 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 				ToolCallId: &toolCall.ID,
 			},
 			Time:          time.Now(),
-			ToolExecution: toolResult, // Store the actual tool execution result for UI formatting
+			ToolExecution: toolResult,
 		}
 
 		conversationRepo := app.services.GetConversationRepository()

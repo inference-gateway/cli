@@ -119,7 +119,7 @@ func DefaultConfig() *Config {
 			Enabled: true,
 			Whitelist: ToolWhitelistConfig{
 				Commands: []string{
-					"pwd", "echo",
+					"ls", "pwd", "echo",
 					"grep", "wc", "sort", "uniq",
 				},
 				Patterns: []string{
