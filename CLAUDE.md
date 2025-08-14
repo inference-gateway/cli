@@ -151,14 +151,9 @@ tools:
   enabled: true  # Tools are enabled by default with safe read-only commands
   whitelist:
     commands:  # Exact command matches
-      - "ls"
       - "pwd"
       - "echo"
-      - "cat"
-      - "head"
-      - "tail"
       - "grep"
-      - "find"
       - "wc"
       - "sort"
       - "uniq"

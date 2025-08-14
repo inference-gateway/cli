@@ -55,6 +55,12 @@ and management of inference services.
 - **Interactive Chat**: Chat with models using an interactive interface
 - **Configuration Management**: Manage gateway settings via YAML config
 - **Project Initialization**: Set up local project configurations
+- **Tool Execution**: LLMs can execute whitelisted commands and tools including:
+  - **Bash**: Execute safe shell commands
+  - **Read**: Read file contents with optional line ranges  
+  - **FileSearch**: Search for files using regex patterns
+  - **WebSearch**: Search the web using DuckDuckGo or Google
+  - **Fetch**: Fetch content from URLs and GitHub
 
 ## Installation
 
@@ -312,6 +318,57 @@ Display version information for the Inference Gateway CLI.
 ```bash
 infer version
 ```
+
+## Available Tools for LLMs
+
+When tool execution is enabled, LLMs can use the following tools to interact with the system:
+
+### FileSearch Tool
+
+Search for files in the filesystem using regex patterns on file names and paths.
+This tool is particularly useful for finding files before reading them.
+
+**Parameters:**
+
+- `pattern` (required): Regex pattern to match against file paths
+- `include_dirs` (optional): Whether to include directories in results (default: false)
+- `case_sensitive` (optional): Whether pattern matching is case sensitive (default: true)
+- `format` (optional): Output format - "text" or "json" (default: "text")
+
+**Examples:**
+
+- Find Go source files: `\.go$`
+- Find config files: `.*config.*\.(yaml|yml|json)$`
+- Find test files: `.*test.*\.go$`
+- Find files in cmd directory: `^cmd/.*\.go$`
+
+**Security:**
+
+- Respects the same exclusion rules as other file operations
+- Skips binary files, hidden directories, and configured excluded paths
+- Limited to reasonable search depth to prevent excessive resource usage
+
+### Bash Tool
+
+Execute whitelisted bash commands securely with validation against configured command patterns.
+
+### Read Tool  
+
+Read file content from the filesystem with optional line range specification.
+
+### WebSearch Tool
+
+Search the web using DuckDuckGo or Google search engines to find information.
+
+### Fetch Tool
+
+Fetch content from whitelisted URLs or GitHub references using the format `github:owner/repo#123`.
+
+**Security Notes:**
+
+- All tools respect configured safety settings and exclusion patterns
+- Commands require approval when safety approval is enabled
+- File access is restricted to allowed paths and excludes sensitive directories
 
 ## Configuration
 
