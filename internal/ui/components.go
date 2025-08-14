@@ -77,12 +77,13 @@ func (f *ComponentFactory) SetCommandRegistry(registry *commands.Registry) {
 
 func (f *ComponentFactory) CreateConversationView() ConversationRenderer {
 	return &ConversationViewImpl{
-		theme:               f.theme,
-		conversation:        []domain.ConversationEntry{},
-		scrollOffset:        0,
-		width:               80,
-		height:              20,
-		expandedToolResults: make(map[int]bool),
+		theme:              f.theme,
+		conversation:       []domain.ConversationEntry{},
+		scrollOffset:       0,
+		width:              80,
+		height:             20,
+		expandedToolResult: -1, // No tool result expanded initially
+		isToolExpanded:     false,
 	}
 }
 
@@ -118,7 +119,8 @@ type ConversationViewImpl struct {
 	scrollOffset        int
 	width               int
 	height              int
-	expandedToolResults map[int]bool // Track which tool results are expanded by entry index
+	expandedToolResult  int  // Track only the currently expanded tool result index (-1 if none)
+	isToolExpanded      bool // Track if the current tool result is expanded
 }
 
 func (cv *ConversationViewImpl) SetConversation(conversation []domain.ConversationEntry) {
@@ -143,13 +145,20 @@ func (cv *ConversationViewImpl) CanScrollDown() bool {
 
 func (cv *ConversationViewImpl) ToggleToolResultExpansion(index int) {
 	if index >= 0 && index < len(cv.conversation) {
-		cv.expandedToolResults[index] = !cv.expandedToolResults[index]
+		if cv.expandedToolResult == index {
+			// Toggle off the currently expanded tool
+			cv.isToolExpanded = !cv.isToolExpanded
+		} else {
+			// Switch to a new tool result and expand it
+			cv.expandedToolResult = index
+			cv.isToolExpanded = true
+		}
 	}
 }
 
 func (cv *ConversationViewImpl) IsToolResultExpanded(index int) bool {
 	if index >= 0 && index < len(cv.conversation) {
-		return cv.expandedToolResults[index]
+		return cv.expandedToolResult == index && cv.isToolExpanded
 	}
 	return false
 }
