@@ -20,7 +20,7 @@ type FetchTool struct {
 func NewFetchTool(cfg *config.Config) *FetchTool {
 	return &FetchTool{
 		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Fetch.Enabled,
+		enabled: cfg.Tools.Enabled && cfg.Tools.Fetch.Enabled,
 	}
 }
 
@@ -51,7 +51,7 @@ func (t *FetchTool) Definition() domain.ToolDefinition {
 // Execute runs the fetch tool with given arguments
 func (t *FetchTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
-	if !t.config.Tools.Enabled || !t.config.Fetch.Enabled {
+	if !t.config.Tools.Enabled || !t.config.Tools.Fetch.Enabled {
 		return nil, fmt.Errorf("fetch tool is not enabled")
 	}
 
@@ -87,7 +87,7 @@ func (t *FetchTool) Execute(ctx context.Context, args map[string]interface{}) (*
 
 // Validate checks if the fetch tool arguments are valid
 func (t *FetchTool) Validate(args map[string]interface{}) error {
-	if !t.config.Tools.Enabled || !t.config.Fetch.Enabled {
+	if !t.config.Tools.Enabled || !t.config.Tools.Fetch.Enabled {
 		return fmt.Errorf("fetch tool is not enabled")
 	}
 
@@ -161,7 +161,7 @@ func (t *FetchTool) validateGitHubReference(reference string) error {
 
 // validateURLDomain checks if URL domain is in whitelist
 func (t *FetchTool) validateURLDomain(url string) error {
-	for _, domain := range t.config.Fetch.WhitelistedDomains {
+	for _, domain := range t.config.Tools.Fetch.WhitelistedDomains {
 		if strings.Contains(url, domain) {
 			return nil
 		}

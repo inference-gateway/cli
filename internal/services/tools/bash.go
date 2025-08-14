@@ -22,7 +22,7 @@ type BashTool struct {
 func NewBashTool(cfg *config.Config) *BashTool {
 	return &BashTool{
 		config:  cfg,
-		enabled: cfg.Tools.Enabled,
+		enabled: cfg.Tools.Enabled && cfg.Tools.Bash.Enabled,
 	}
 }
 
@@ -30,7 +30,7 @@ func NewBashTool(cfg *config.Config) *BashTool {
 func (t *BashTool) Definition() domain.ToolDefinition {
 	var allowedCommands []string
 
-	for _, cmd := range t.config.Tools.Whitelist.Commands {
+	for _, cmd := range t.config.Tools.Bash.Whitelist.Commands {
 		allowedCommands = append(allowedCommands, cmd)
 		switch cmd {
 		case "ls":
@@ -184,13 +184,13 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 func (t *BashTool) isCommandAllowed(command string) bool {
 	command = strings.TrimSpace(command)
 
-	for _, allowed := range t.config.Tools.Whitelist.Commands {
+	for _, allowed := range t.config.Tools.Bash.Whitelist.Commands {
 		if command == allowed || strings.HasPrefix(command, allowed+" ") {
 			return true
 		}
 	}
 
-	for _, pattern := range t.config.Tools.Whitelist.Patterns {
+	for _, pattern := range t.config.Tools.Bash.Whitelist.Patterns {
 		matched, err := regexp.MatchString(pattern, command)
 		if err == nil && matched {
 			return true

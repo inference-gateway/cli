@@ -53,6 +53,9 @@ func TestBashTool_IsEnabled(t *testing.T) {
 			cfg := &config.Config{
 				Tools: config.ToolsConfig{
 					Enabled: tt.toolsEnabled,
+					Bash: config.BashToolConfig{
+						Enabled: true,
+					},
 				},
 			}
 
@@ -68,9 +71,12 @@ func TestBashTool_Validate(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Whitelist: config.ToolWhitelistConfig{
-				Commands: []string{"echo", "pwd"},
-				Patterns: []string{"^git status$"},
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo", "pwd"},
+					Patterns: []string{"^git status$"},
+				},
 			},
 		},
 	}
@@ -131,8 +137,11 @@ func TestBashTool_Execute(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Whitelist: config.ToolWhitelistConfig{
-				Commands: []string{"echo"},
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo"},
+				},
 			},
 		},
 	}

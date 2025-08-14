@@ -13,15 +13,22 @@ func createTestRegistry() *Registry {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-		},
-		Fetch: config.FetchConfig{
-			Enabled: true,
-		},
-		WebSearch: config.WebSearchConfig{
-			Enabled:       true,
-			DefaultEngine: "duckduckgo",
-			MaxResults:    10,
-			Engines:       []string{"google", "duckduckgo"},
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo", "pwd", "ls"},
+					Patterns: []string{"^git status$"},
+				},
+			},
+			Fetch: config.FetchToolConfig{
+				Enabled: true,
+			},
+			WebSearch: config.WebSearchToolConfig{
+				Enabled:       true,
+				DefaultEngine: "duckduckgo",
+				MaxResults:    10,
+				Engines:       []string{"google", "duckduckgo"},
+			},
 		},
 	}
 
@@ -45,12 +52,19 @@ func TestRegistry_DisabledTools(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-		},
-		Fetch: config.FetchConfig{
-			Enabled: false,
-		},
-		WebSearch: config.WebSearchConfig{
-			Enabled: false,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo", "pwd", "ls"},
+					Patterns: []string{"^git status$"},
+				},
+			},
+			Fetch: config.FetchToolConfig{
+				Enabled: false,
+			},
+			WebSearch: config.WebSearchToolConfig{
+				Enabled: false,
+			},
 		},
 	}
 
@@ -90,12 +104,19 @@ func TestRegistry_NewRegistry(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-		},
-		Fetch: config.FetchConfig{
-			Enabled: false,
-		},
-		WebSearch: config.WebSearchConfig{
-			Enabled: false,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo", "pwd", "ls"},
+					Patterns: []string{"^git status$"},
+				},
+			},
+			Fetch: config.FetchToolConfig{
+				Enabled: false,
+			},
+			WebSearch: config.WebSearchToolConfig{
+				Enabled: false,
+			},
 		},
 	}
 
@@ -118,12 +139,19 @@ func TestRegistry_GetTool(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-		},
-		Fetch: config.FetchConfig{
-			Enabled: true,
-		},
-		WebSearch: config.WebSearchConfig{
-			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo", "pwd", "ls"},
+					Patterns: []string{"^git status$"},
+				},
+			},
+			Fetch: config.FetchToolConfig{
+				Enabled: true,
+			},
+			WebSearch: config.WebSearchToolConfig{
+				Enabled: true,
+			},
 		},
 	}
 
@@ -194,12 +222,19 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 			config: &config.Config{
 				Tools: config.ToolsConfig{
 					Enabled: true,
-				},
-				Fetch: config.FetchConfig{
-					Enabled: true,
-				},
-				WebSearch: config.WebSearchConfig{
-					Enabled: true,
+					Bash: config.BashToolConfig{
+						Enabled: true,
+						Whitelist: config.ToolWhitelistConfig{
+							Commands: []string{"echo", "pwd", "ls"},
+							Patterns: []string{"^git status$"},
+						},
+					},
+					Fetch: config.FetchToolConfig{
+						Enabled: true,
+					},
+					WebSearch: config.WebSearchToolConfig{
+						Enabled: true,
+					},
 				},
 			},
 			expectedMin:   5,
@@ -211,12 +246,19 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 			config: &config.Config{
 				Tools: config.ToolsConfig{
 					Enabled: true,
-				},
-				Fetch: config.FetchConfig{
-					Enabled: false,
-				},
-				WebSearch: config.WebSearchConfig{
-					Enabled: false,
+					Bash: config.BashToolConfig{
+						Enabled: true,
+						Whitelist: config.ToolWhitelistConfig{
+							Commands: []string{"echo", "pwd", "ls"},
+							Patterns: []string{"^git status$"},
+						},
+					},
+					Fetch: config.FetchToolConfig{
+						Enabled: false,
+					},
+					WebSearch: config.WebSearchToolConfig{
+						Enabled: false,
+					},
 				},
 			},
 			expectedMin:      3,
@@ -229,12 +271,19 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 			config: &config.Config{
 				Tools: config.ToolsConfig{
 					Enabled: false,
-				},
-				Fetch: config.FetchConfig{
-					Enabled: false,
-				},
-				WebSearch: config.WebSearchConfig{
-					Enabled: false,
+					Bash: config.BashToolConfig{
+						Enabled: false,
+						Whitelist: config.ToolWhitelistConfig{
+							Commands: []string{"echo", "pwd", "ls"},
+							Patterns: []string{"^git status$"},
+						},
+					},
+					Fetch: config.FetchToolConfig{
+						Enabled: false,
+					},
+					WebSearch: config.WebSearchToolConfig{
+						Enabled: false,
+					},
 				},
 			},
 			expectedMin:      0,
@@ -276,12 +325,19 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-		},
-		Fetch: config.FetchConfig{
-			Enabled: true,
-		},
-		WebSearch: config.WebSearchConfig{
-			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo", "pwd", "ls"},
+					Patterns: []string{"^git status$"},
+				},
+			},
+			Fetch: config.FetchToolConfig{
+				Enabled: true,
+			},
+			WebSearch: config.WebSearchToolConfig{
+				Enabled: true,
+			},
 		},
 	}
 
@@ -319,12 +375,19 @@ func TestRegistry_IsToolEnabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-		},
-		Fetch: config.FetchConfig{
-			Enabled: true,
-		},
-		WebSearch: config.WebSearchConfig{
-			Enabled: false,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo", "pwd", "ls"},
+					Patterns: []string{"^git status$"},
+				},
+			},
+			Fetch: config.FetchToolConfig{
+				Enabled: true,
+			},
+			WebSearch: config.WebSearchToolConfig{
+				Enabled: false,
+			},
 		},
 	}
 
@@ -371,6 +434,13 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo", "pwd", "ls"},
+					Patterns: []string{"^git status$"},
+				},
+			},
 		},
 	}
 

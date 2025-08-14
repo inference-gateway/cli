@@ -30,11 +30,11 @@ func (r *Registry) registerTools() {
 	r.tools["Read"] = NewReadTool(r.config)
 	r.tools["FileSearch"] = NewFileSearchTool(r.config)
 
-	if r.config.Fetch.Enabled {
+	if r.config.Tools.Fetch.Enabled {
 		r.tools["Fetch"] = NewFetchTool(r.config)
 	}
 
-	if r.config.WebSearch.Enabled {
+	if r.config.Tools.WebSearch.Enabled {
 		r.tools["WebSearch"] = NewWebSearchTool(r.config)
 	}
 }

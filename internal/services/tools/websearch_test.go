@@ -11,9 +11,9 @@ func TestWebSearchTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-		},
-		WebSearch: config.WebSearchConfig{
-			Enabled: true,
+			WebSearch: config.WebSearchToolConfig{
+				Enabled: true,
+			},
 		},
 	}
 
@@ -71,9 +71,9 @@ func TestWebSearchTool_IsEnabled(t *testing.T) {
 			cfg := &config.Config{
 				Tools: config.ToolsConfig{
 					Enabled: tt.toolsEnabled,
-				},
-				WebSearch: config.WebSearchConfig{
-					Enabled: tt.webSearchEnabled,
+					WebSearch: config.WebSearchToolConfig{
+						Enabled: tt.webSearchEnabled,
+					},
 				},
 			}
 
@@ -89,12 +89,12 @@ func TestWebSearchTool_Validate(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-		},
-		WebSearch: config.WebSearchConfig{
-			Enabled:       true,
-			DefaultEngine: "duckduckgo",
-			MaxResults:    10,
-			Engines:       []string{"duckduckgo", "google"},
+			WebSearch: config.WebSearchToolConfig{
+				Enabled:       true,
+				DefaultEngine: "duckduckgo",
+				MaxResults:    10,
+				Engines:       []string{"duckduckgo", "google"},
+			},
 		},
 	}
 
@@ -189,9 +189,9 @@ func TestWebSearchTool_Execute_Disabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: false,
-		},
-		WebSearch: config.WebSearchConfig{
-			Enabled: true,
+			WebSearch: config.WebSearchToolConfig{
+				Enabled: true,
+			},
 		},
 	}
 

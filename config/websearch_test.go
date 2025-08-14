@@ -9,44 +9,44 @@ import (
 func TestDefaultConfig_WebSearch(t *testing.T) {
 	cfg := DefaultConfig()
 
-	if !cfg.WebSearch.Enabled {
+	if !cfg.Tools.WebSearch.Enabled {
 		t.Error("Expected WebSearch to be enabled by default")
 	}
 
 	defaultEngineFound := false
-	for _, engine := range cfg.WebSearch.Engines {
-		if cfg.WebSearch.DefaultEngine == engine {
+	for _, engine := range cfg.Tools.WebSearch.Engines {
+		if cfg.Tools.WebSearch.DefaultEngine == engine {
 			defaultEngineFound = true
 			break
 		}
 	}
 	if !defaultEngineFound {
-		t.Errorf("Default engine %q is not in the list of available engines %v", cfg.WebSearch.DefaultEngine, cfg.WebSearch.Engines)
+		t.Errorf("Default engine %q is not in the list of available engines %v", cfg.Tools.WebSearch.DefaultEngine, cfg.Tools.WebSearch.Engines)
 	}
 
-	if cfg.WebSearch.MaxResults != 10 {
-		t.Errorf("Expected max results to be 10, got %d", cfg.WebSearch.MaxResults)
+	if cfg.Tools.WebSearch.MaxResults != 10 {
+		t.Errorf("Expected max results to be 10, got %d", cfg.Tools.WebSearch.MaxResults)
 	}
 
-	if cfg.WebSearch.Timeout != 10 {
-		t.Errorf("Expected timeout to be 10, got %d", cfg.WebSearch.Timeout)
+	if cfg.Tools.WebSearch.Timeout != 10 {
+		t.Errorf("Expected timeout to be 10, got %d", cfg.Tools.WebSearch.Timeout)
 	}
 
 	expectedEngines := []string{"duckduckgo", "google"}
-	if len(cfg.WebSearch.Engines) != len(expectedEngines) {
-		t.Errorf("Expected %d engines, got %d", len(expectedEngines), len(cfg.WebSearch.Engines))
+	if len(cfg.Tools.WebSearch.Engines) != len(expectedEngines) {
+		t.Errorf("Expected %d engines, got %d", len(expectedEngines), len(cfg.Tools.WebSearch.Engines))
 	}
 
 	for _, expected := range expectedEngines {
 		found := false
-		for _, actual := range cfg.WebSearch.Engines {
+		for _, actual := range cfg.Tools.WebSearch.Engines {
 			if actual == expected {
 				found = true
 				break
 			}
 		}
 		if !found {
-			t.Errorf("Expected engine %q not found in %v", expected, cfg.WebSearch.Engines)
+			t.Errorf("Expected engine %q not found in %v", expected, cfg.Tools.WebSearch.Engines)
 		}
 	}
 }
@@ -71,6 +71,31 @@ output:
 
 tools:
   enabled: true
+  bash:
+    enabled: true
+  fetch:
+    enabled: false
+    whitelisted_domains: []
+    github:
+      enabled: false
+      token: ""
+      base_url: "https://api.github.com"
+    safety:
+      max_size: 8192
+      timeout: 30
+      allow_redirect: true
+    cache:
+      enabled: true
+      ttl: 3600
+      max_size: 52428800
+  web_search:
+    enabled: true
+    default_engine: "duckduckgo"
+    max_results: 15
+    engines:
+      - "google"
+      - "duckduckgo"
+    timeout: 20
   whitelist:
     commands:
       - "ls"
@@ -86,31 +111,6 @@ compact:
 chat:
   default_model: ""
   system_prompt: ""
-
-fetch:
-  enabled: false
-  whitelisted_domains: []
-  github:
-    enabled: false
-    token: ""
-    base_url: "https://api.github.com"
-  safety:
-    max_size: 8192
-    timeout: 30
-    allow_redirect: true
-  cache:
-    enabled: true
-    ttl: 3600
-    max_size: 52428800
-
-web_search:
-  enabled: true
-  default_engine: "duckduckgo"
-  max_results: 15
-  engines:
-    - "google"
-    - "duckduckgo"
-  timeout: 20
 `
 
 	if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
@@ -122,25 +122,25 @@ web_search:
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	if !cfg.WebSearch.Enabled {
+	if !cfg.Tools.WebSearch.Enabled {
 		t.Error("Expected WebSearch to be enabled")
 	}
 
-	if cfg.WebSearch.DefaultEngine != "duckduckgo" {
-		t.Errorf("Expected default engine to be 'duckduckgo', got %q", cfg.WebSearch.DefaultEngine)
+	if cfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
+		t.Errorf("Expected default engine to be 'duckduckgo', got %q", cfg.Tools.WebSearch.DefaultEngine)
 	}
 
-	if cfg.WebSearch.MaxResults != 15 {
-		t.Errorf("Expected max results to be 15, got %d", cfg.WebSearch.MaxResults)
+	if cfg.Tools.WebSearch.MaxResults != 15 {
+		t.Errorf("Expected max results to be 15, got %d", cfg.Tools.WebSearch.MaxResults)
 	}
 
-	if cfg.WebSearch.Timeout != 20 {
-		t.Errorf("Expected timeout to be 20, got %d", cfg.WebSearch.Timeout)
+	if cfg.Tools.WebSearch.Timeout != 20 {
+		t.Errorf("Expected timeout to be 20, got %d", cfg.Tools.WebSearch.Timeout)
 	}
 
 	expectedEngines := []string{"google", "duckduckgo"}
-	if len(cfg.WebSearch.Engines) != len(expectedEngines) {
-		t.Errorf("Expected %d engines, got %d", len(expectedEngines), len(cfg.WebSearch.Engines))
+	if len(cfg.Tools.WebSearch.Engines) != len(expectedEngines) {
+		t.Errorf("Expected %d engines, got %d", len(expectedEngines), len(cfg.Tools.WebSearch.Engines))
 	}
 }
 
@@ -154,11 +154,11 @@ func TestSaveConfig_WebSearch(t *testing.T) {
 	configPath := filepath.Join(tempDir, "config.yaml")
 
 	cfg := DefaultConfig()
-	cfg.WebSearch.Enabled = false
-	cfg.WebSearch.DefaultEngine = "duckduckgo"
-	cfg.WebSearch.MaxResults = 25
-	cfg.WebSearch.Timeout = 15
-	cfg.WebSearch.Engines = []string{"duckduckgo"}
+	cfg.Tools.WebSearch.Enabled = false
+	cfg.Tools.WebSearch.DefaultEngine = "duckduckgo"
+	cfg.Tools.WebSearch.MaxResults = 25
+	cfg.Tools.WebSearch.Timeout = 15
+	cfg.Tools.WebSearch.Engines = []string{"duckduckgo"}
 
 	if err := cfg.SaveConfig(configPath); err != nil {
 		t.Fatalf("Failed to save config: %v", err)
@@ -169,24 +169,24 @@ func TestSaveConfig_WebSearch(t *testing.T) {
 		t.Fatalf("Failed to load saved config: %v", err)
 	}
 
-	if loadedCfg.WebSearch.Enabled {
+	if loadedCfg.Tools.WebSearch.Enabled {
 		t.Error("Expected WebSearch to be disabled")
 	}
 
-	if loadedCfg.WebSearch.DefaultEngine != "duckduckgo" {
-		t.Errorf("Expected default engine to be 'duckduckgo', got %q", loadedCfg.WebSearch.DefaultEngine)
+	if loadedCfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
+		t.Errorf("Expected default engine to be 'duckduckgo', got %q", loadedCfg.Tools.WebSearch.DefaultEngine)
 	}
 
-	if loadedCfg.WebSearch.MaxResults != 25 {
-		t.Errorf("Expected max results to be 25, got %d", loadedCfg.WebSearch.MaxResults)
+	if loadedCfg.Tools.WebSearch.MaxResults != 25 {
+		t.Errorf("Expected max results to be 25, got %d", loadedCfg.Tools.WebSearch.MaxResults)
 	}
 
-	if loadedCfg.WebSearch.Timeout != 15 {
-		t.Errorf("Expected timeout to be 15, got %d", loadedCfg.WebSearch.Timeout)
+	if loadedCfg.Tools.WebSearch.Timeout != 15 {
+		t.Errorf("Expected timeout to be 15, got %d", loadedCfg.Tools.WebSearch.Timeout)
 	}
 
-	if len(loadedCfg.WebSearch.Engines) != 1 || loadedCfg.WebSearch.Engines[0] != "duckduckgo" {
-		t.Errorf("Expected engines to be ['duckduckgo'], got %v", loadedCfg.WebSearch.Engines)
+	if len(loadedCfg.Tools.WebSearch.Engines) != 1 || loadedCfg.Tools.WebSearch.Engines[0] != "duckduckgo" {
+		t.Errorf("Expected engines to be ['duckduckgo'], got %v", loadedCfg.Tools.WebSearch.Engines)
 	}
 }
 
@@ -218,24 +218,24 @@ output:
 		t.Fatalf("Failed to load config: %v", err)
 	}
 
-	if cfg.WebSearch.DefaultEngine != "" {
-		t.Errorf("Expected default engine to be empty when not specified, got %q", cfg.WebSearch.DefaultEngine)
+	if cfg.Tools.WebSearch.DefaultEngine != "" {
+		t.Errorf("Expected default engine to be empty when not specified, got %q", cfg.Tools.WebSearch.DefaultEngine)
 	}
 
-	if cfg.WebSearch.MaxResults != 0 {
-		t.Errorf("Expected max results to be 0 when not specified, got %d", cfg.WebSearch.MaxResults)
+	if cfg.Tools.WebSearch.MaxResults != 0 {
+		t.Errorf("Expected max results to be 0 when not specified, got %d", cfg.Tools.WebSearch.MaxResults)
 	}
 }
 
 func TestWebSearchConfig_Validation(t *testing.T) {
 	tests := []struct {
 		name   string
-		config WebSearchConfig
+		config WebSearchToolConfig
 		valid  bool
 	}{
 		{
 			name: "valid config with google",
-			config: WebSearchConfig{
+			config: WebSearchToolConfig{
 				Enabled:       true,
 				DefaultEngine: "google",
 				MaxResults:    10,
@@ -246,7 +246,7 @@ func TestWebSearchConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "valid config with duckduckgo",
-			config: WebSearchConfig{
+			config: WebSearchToolConfig{
 				Enabled:       true,
 				DefaultEngine: "duckduckgo",
 				MaxResults:    5,
@@ -257,7 +257,7 @@ func TestWebSearchConfig_Validation(t *testing.T) {
 		},
 		{
 			name: "disabled config",
-			config: WebSearchConfig{
+			config: WebSearchToolConfig{
 				Enabled: false,
 			},
 			valid: true,
@@ -267,22 +267,24 @@ func TestWebSearchConfig_Validation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &Config{
-				WebSearch: tt.config,
+				Tools: ToolsConfig{
+					WebSearch: tt.config,
+				},
 			}
 
-			if cfg.WebSearch.Enabled != tt.config.Enabled {
-				t.Errorf("Expected Enabled to be %v, got %v", tt.config.Enabled, cfg.WebSearch.Enabled)
+			if cfg.Tools.WebSearch.Enabled != tt.config.Enabled {
+				t.Errorf("Expected Enabled to be %v, got %v", tt.config.Enabled, cfg.Tools.WebSearch.Enabled)
 			}
 
-			if cfg.WebSearch.DefaultEngine != tt.config.DefaultEngine {
-				t.Errorf("Expected DefaultEngine to be %q, got %q", tt.config.DefaultEngine, cfg.WebSearch.DefaultEngine)
+			if cfg.Tools.WebSearch.DefaultEngine != tt.config.DefaultEngine {
+				t.Errorf("Expected DefaultEngine to be %q, got %q", tt.config.DefaultEngine, cfg.Tools.WebSearch.DefaultEngine)
 			}
 		})
 	}
 }
 
 func TestWebSearchConfig_EdgeCases(t *testing.T) {
-	cfg := &WebSearchConfig{
+	cfg := &WebSearchToolConfig{
 		Enabled:       true,
 		DefaultEngine: "google",
 		MaxResults:    1000,

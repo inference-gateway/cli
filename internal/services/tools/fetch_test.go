@@ -11,9 +11,9 @@ func TestFetchTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-		},
-		Fetch: config.FetchConfig{
-			Enabled: true,
+			Fetch: config.FetchToolConfig{
+				Enabled: true,
+			},
 		},
 	}
 
@@ -71,9 +71,9 @@ func TestFetchTool_IsEnabled(t *testing.T) {
 			cfg := &config.Config{
 				Tools: config.ToolsConfig{
 					Enabled: tt.toolsEnabled,
-				},
-				Fetch: config.FetchConfig{
-					Enabled: tt.fetchEnabled,
+					Fetch: config.FetchToolConfig{
+						Enabled: tt.fetchEnabled,
+					},
 				},
 			}
 
@@ -89,13 +89,13 @@ func TestFetchTool_Validate(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-		},
-		Fetch: config.FetchConfig{
-			Enabled: true,
-			WhitelistedDomains: []string{
-				"api.github.com",
-				"httpbin.org",
-				"github.com",
+			Fetch: config.FetchToolConfig{
+				Enabled: true,
+				WhitelistedDomains: []string{
+					"api.github.com",
+					"httpbin.org",
+					"github.com",
+				},
 			},
 		},
 	}
@@ -215,9 +215,9 @@ func TestFetchTool_Execute_Disabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: false,
-		},
-		Fetch: config.FetchConfig{
-			Enabled: true,
+			Fetch: config.FetchToolConfig{
+				Enabled: true,
+			},
 		},
 	}
 
@@ -242,9 +242,9 @@ func TestFetchTool_Execute_FetchDisabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-		},
-		Fetch: config.FetchConfig{
-			Enabled: false,
+			Fetch: config.FetchToolConfig{
+				Enabled: false,
+			},
 		},
 	}
 

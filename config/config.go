@@ -12,13 +12,11 @@ import (
 
 // Config represents the CLI configuration
 type Config struct {
-	Gateway   GatewayConfig   `yaml:"gateway"`
-	Output    OutputConfig    `yaml:"output"`
-	Tools     ToolsConfig     `yaml:"tools"`
-	Compact   CompactConfig   `yaml:"compact"`
-	Chat      ChatConfig      `yaml:"chat"`
-	Fetch     FetchConfig     `yaml:"fetch"`
-	WebSearch WebSearchConfig `yaml:"web_search"`
+	Gateway GatewayConfig `yaml:"gateway"`
+	Output  OutputConfig  `yaml:"output"`
+	Tools   ToolsConfig   `yaml:"tools"`
+	Compact CompactConfig `yaml:"compact"`
+	Chat    ChatConfig    `yaml:"chat"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -37,9 +35,35 @@ type OutputConfig struct {
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
 	Enabled      bool                `yaml:"enabled"`
-	Whitelist    ToolWhitelistConfig `yaml:"whitelist"`
+	Bash         BashToolConfig      `yaml:"bash"`
+	Fetch        FetchToolConfig     `yaml:"fetch"`
+	WebSearch    WebSearchToolConfig `yaml:"web_search"`
 	Safety       SafetyConfig        `yaml:"safety"`
 	ExcludePaths []string            `yaml:"exclude_paths"`
+}
+
+// BashToolConfig contains bash-specific tool settings
+type BashToolConfig struct {
+	Enabled   bool                `yaml:"enabled"`
+	Whitelist ToolWhitelistConfig `yaml:"whitelist"`
+}
+
+// FetchToolConfig contains fetch-specific tool settings
+type FetchToolConfig struct {
+	Enabled            bool              `yaml:"enabled"`
+	WhitelistedDomains []string          `yaml:"whitelisted_domains"`
+	GitHub             GitHubFetchConfig `yaml:"github"`
+	Safety             FetchSafetyConfig `yaml:"safety"`
+	Cache              FetchCacheConfig  `yaml:"cache"`
+}
+
+// WebSearchToolConfig contains web search-specific tool settings
+type WebSearchToolConfig struct {
+	Enabled       bool     `yaml:"enabled"`
+	DefaultEngine string   `yaml:"default_engine"`
+	MaxResults    int      `yaml:"max_results"`
+	Engines       []string `yaml:"engines"`
+	Timeout       int      `yaml:"timeout"`
 }
 
 // ToolWhitelistConfig contains whitelisted commands and patterns
@@ -64,15 +88,6 @@ type ChatConfig struct {
 	SystemPrompt string `yaml:"system_prompt"`
 }
 
-// FetchConfig contains settings for content fetching
-type FetchConfig struct {
-	Enabled            bool              `yaml:"enabled"`
-	WhitelistedDomains []string          `yaml:"whitelisted_domains"`
-	GitHub             GitHubFetchConfig `yaml:"github"`
-	Safety             FetchSafetyConfig `yaml:"safety"`
-	Cache              FetchCacheConfig  `yaml:"cache"`
-}
-
 // GitHubFetchConfig contains GitHub-specific fetch settings
 type GitHubFetchConfig struct {
 	Enabled bool   `yaml:"enabled"`
@@ -94,15 +109,6 @@ type FetchCacheConfig struct {
 	MaxSize int64 `yaml:"max_size"`
 }
 
-// WebSearchConfig contains settings for web search functionality
-type WebSearchConfig struct {
-	Enabled       bool     `yaml:"enabled"`
-	DefaultEngine string   `yaml:"default_engine"`
-	MaxResults    int      `yaml:"max_results"`
-	Engines       []string `yaml:"engines"`
-	Timeout       int      `yaml:"timeout"`
-}
-
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config {
 	return &Config{
@@ -117,17 +123,46 @@ func DefaultConfig() *Config {
 		},
 		Tools: ToolsConfig{
 			Enabled: true,
-			Whitelist: ToolWhitelistConfig{
-				Commands: []string{
-					"ls", "pwd", "echo",
-					"grep", "wc", "sort", "uniq",
+			Bash: BashToolConfig{
+				Enabled: true,
+				Whitelist: ToolWhitelistConfig{
+					Commands: []string{
+						"ls", "pwd", "echo",
+						"grep", "wc", "sort", "uniq",
+					},
+					Patterns: []string{
+						"^git status$",
+						"^git log --oneline -n [0-9]+$",
+						"^docker ps$",
+						"^kubectl get pods$",
+					},
 				},
-				Patterns: []string{
-					"^git status$",
-					"^git log --oneline -n [0-9]+$",
-					"^docker ps$",
-					"^kubectl get pods$",
+			},
+			Fetch: FetchToolConfig{
+				Enabled:            true,
+				WhitelistedDomains: []string{"github.com", "golang.org"},
+				GitHub: GitHubFetchConfig{
+					Enabled: true,
+					Token:   "",
+					BaseURL: "https://api.github.com",
 				},
+				Safety: FetchSafetyConfig{
+					MaxSize:       8192, // 8KB
+					Timeout:       30,   // 30 seconds
+					AllowRedirect: true,
+				},
+				Cache: FetchCacheConfig{
+					Enabled: true,
+					TTL:     3600,     // 1 hour
+					MaxSize: 52428800, // 50MB
+				},
+			},
+			WebSearch: WebSearchToolConfig{
+				Enabled:       true,
+				DefaultEngine: "duckduckgo",
+				MaxResults:    10,
+				Engines:       []string{"duckduckgo", "google"},
+				Timeout:       10,
 			},
 			Safety: SafetyConfig{
 				RequireApproval: true,
@@ -143,32 +178,6 @@ func DefaultConfig() *Config {
 		Chat: ChatConfig{
 			DefaultModel: "",
 			SystemPrompt: "",
-		},
-		Fetch: FetchConfig{
-			Enabled:            false,
-			WhitelistedDomains: []string{"github.com"},
-			GitHub: GitHubFetchConfig{
-				Enabled: false,
-				Token:   "",
-				BaseURL: "https://api.github.com",
-			},
-			Safety: FetchSafetyConfig{
-				MaxSize:       8192, // 8KB
-				Timeout:       30,   // 30 seconds
-				AllowRedirect: true,
-			},
-			Cache: FetchCacheConfig{
-				Enabled: true,
-				TTL:     3600,     // 1 hour
-				MaxSize: 52428800, // 50MB
-			},
-		},
-		WebSearch: WebSearchConfig{
-			Enabled:       true,
-			DefaultEngine: "duckduckgo",
-			MaxResults:    10,
-			Engines:       []string{"duckduckgo", "google"},
-			Timeout:       10,
 		},
 	}
 }

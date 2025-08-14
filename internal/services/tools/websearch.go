@@ -28,9 +28,9 @@ func NewWebSearchTool(cfg *config.Config) *WebSearchTool {
 	return &WebSearchTool{
 		config: cfg,
 		client: &http.Client{
-			Timeout: time.Duration(cfg.WebSearch.Timeout) * time.Second,
+			Timeout: time.Duration(cfg.Tools.WebSearch.Timeout) * time.Second,
 		},
-		enabled: cfg.Tools.Enabled && cfg.WebSearch.Enabled,
+		enabled: cfg.Tools.Enabled && cfg.Tools.WebSearch.Enabled,
 	}
 }
 
@@ -48,16 +48,16 @@ func (t *WebSearchTool) Definition() domain.ToolDefinition {
 				},
 				"engine": map[string]interface{}{
 					"type":        "string",
-					"description": fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(t.config.WebSearch.Engines, " or "), t.config.WebSearch.DefaultEngine),
-					"enum":        t.config.WebSearch.Engines,
-					"default":     t.config.WebSearch.DefaultEngine,
+					"description": fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(t.config.Tools.WebSearch.Engines, " or "), t.config.Tools.WebSearch.DefaultEngine),
+					"enum":        t.config.Tools.WebSearch.Engines,
+					"default":     t.config.Tools.WebSearch.DefaultEngine,
 				},
 				"limit": map[string]interface{}{
 					"type":        "integer",
 					"description": "Maximum number of search results to return",
 					"minimum":     1,
 					"maximum":     50,
-					"default":     t.config.WebSearch.MaxResults,
+					"default":     t.config.Tools.WebSearch.MaxResults,
 				},
 				"format": map[string]interface{}{
 					"type":        "string",
@@ -74,7 +74,7 @@ func (t *WebSearchTool) Definition() domain.ToolDefinition {
 // Execute runs the web search tool with given arguments
 func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
-	if !t.config.Tools.Enabled || !t.config.WebSearch.Enabled {
+	if !t.config.Tools.Enabled || !t.config.Tools.WebSearch.Enabled {
 		return nil, fmt.Errorf("web search tool is not enabled")
 	}
 
@@ -91,14 +91,14 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 
 	engine, ok := args["engine"].(string)
 	if !ok {
-		engine = t.config.WebSearch.DefaultEngine
+		engine = t.config.Tools.WebSearch.DefaultEngine
 	}
 
 	var limit int
 	if limitFloat, ok := args["limit"].(float64); ok {
 		limit = int(limitFloat)
 	} else {
-		limit = t.config.WebSearch.MaxResults
+		limit = t.config.Tools.WebSearch.MaxResults
 	}
 
 	var searchResult *domain.WebSearchResponse
@@ -139,7 +139,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 
 // Validate checks if the web search tool arguments are valid
 func (t *WebSearchTool) Validate(args map[string]interface{}) error {
-	if !t.config.Tools.Enabled || !t.config.WebSearch.Enabled {
+	if !t.config.Tools.Enabled || !t.config.Tools.WebSearch.Enabled {
 		return fmt.Errorf("web search tool is not enabled")
 	}
 
@@ -154,7 +154,7 @@ func (t *WebSearchTool) Validate(args map[string]interface{}) error {
 
 	if engine, ok := args["engine"].(string); ok {
 		validEngine := false
-		for _, validEng := range t.config.WebSearch.Engines {
+		for _, validEng := range t.config.Tools.WebSearch.Engines {
 			if engine == validEng {
 				validEngine = true
 				break
