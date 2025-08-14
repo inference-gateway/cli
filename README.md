@@ -1,6 +1,6 @@
-# Inference Gateway CLI
-
 <div align="center">
+
+# Inference Gateway CLI
 
 [![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=for-the-badge&logo=go&logoColor=white)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)](LICENSE)
@@ -12,6 +12,8 @@ A powerful command-line interface for managing and interacting with the
 Inference Gateway. This CLI provides tools for configuration, monitoring,
 and management of inference services.
 
+</div>
+
 ## ⚠️ Warning
 
 > **Early Development Stage**: This project is in its early development
@@ -19,8 +21,6 @@ and management of inference services.
 >
 > Always use pinned versions by specifying a specific version tag when
 > downloading binaries or using install scripts.
-
-</div>
 
 ## Table of Contents
 
