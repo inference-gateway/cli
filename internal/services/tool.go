@@ -694,7 +694,6 @@ func (s *LLMToolService) executeFileSearchTool(args map[string]interface{}) (*do
 		}, nil
 	}
 
-	// Get optional parameters with defaults
 	includeDirs := false
 	if includeDirsVal, ok := args["include_dirs"].(bool); ok {
 		includeDirs = includeDirsVal
@@ -734,7 +733,6 @@ func (s *LLMToolService) validateFileSearchTool(args map[string]interface{}) err
 		return fmt.Errorf("pattern cannot be empty")
 	}
 
-	// Validate regex pattern
 	if _, err := regexp.Compile(pattern); err != nil {
 		return fmt.Errorf("invalid regex pattern: %w", err)
 	}
@@ -746,7 +744,6 @@ func (s *LLMToolService) validateFileSearchTool(args map[string]interface{}) err
 func (s *LLMToolService) searchFiles(pattern string, includeDirs bool, caseSensitive bool) (*FileSearchResult, error) {
 	start := time.Now()
 
-	// Compile regex pattern with proper flags
 	var regex *regexp.Regexp
 	var err error
 	if caseSensitive {
@@ -764,10 +761,9 @@ func (s *LLMToolService) searchFiles(pattern string, includeDirs bool, caseSensi
 		return nil, fmt.Errorf("failed to get current directory: %w", err)
 	}
 
-	// Walk the directory tree
 	err = filepath.WalkDir(cwd, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
-			return nil // Skip errors and continue
+			return nil
 		}
 
 		relPath, err := filepath.Rel(cwd, path)
@@ -775,12 +771,10 @@ func (s *LLMToolService) searchFiles(pattern string, includeDirs bool, caseSensi
 			return nil
 		}
 
-		// Handle directories
 		if d.IsDir() {
 			return s.handleSearchDirectory(d, relPath, regex, includeDirs, &matches)
 		}
 
-		// Handle files
 		if s.shouldIncludeInSearch(d, relPath, regex) {
 			info, err := d.Info()
 			if err == nil {
@@ -810,13 +804,11 @@ func (s *LLMToolService) searchFiles(pattern string, includeDirs bool, caseSensi
 
 // handleSearchDirectory handles directory processing during search
 func (s *LLMToolService) handleSearchDirectory(d os.DirEntry, relPath string, regex *regexp.Regexp, includeDirs bool, matches *[]FileSearchMatch) error {
-	// Check depth limit (reuse same logic as FileService)
 	depth := strings.Count(relPath, string(filepath.Separator))
-	if depth >= 10 { // maxDepth from LocalFileService
+	if depth >= 10 {
 		return filepath.SkipDir
 	}
 
-	// Check if directory should be excluded (same logic as FileService)
 	excludeDirs := map[string]bool{
 		".git":         true,
 		".github":      true,
@@ -839,16 +831,14 @@ func (s *LLMToolService) handleSearchDirectory(d os.DirEntry, relPath string, re
 		return filepath.SkipDir
 	}
 
-	// Check if path is excluded by configuration
 	if s.isPathExcluded(relPath) {
 		return filepath.SkipDir
 	}
 
-	// If includeDirs is true and directory name matches pattern, add it
 	if includeDirs && regex.MatchString(d.Name()) {
 		*matches = append(*matches, FileSearchMatch{
 			Path:    filepath.Join(filepath.Dir(relPath), d.Name()),
-			Size:    0, // Directories have size 0
+			Size:    0,
 			IsDir:   true,
 			RelPath: relPath,
 		})
@@ -863,17 +853,14 @@ func (s *LLMToolService) shouldIncludeInSearch(d os.DirEntry, relPath string, re
 		return false
 	}
 
-	// Skip hidden files
 	if strings.HasPrefix(d.Name(), ".") {
 		return false
 	}
 
-	// Check if path is excluded by configuration
 	if s.isPathExcluded(relPath) {
 		return false
 	}
 
-	// Check file extension exclusions (same as FileService)
 	excludeExts := map[string]bool{
 		".exe":   true, ".bin": true, ".dll": true, ".so": true, ".dylib": true,
 		".a": true, ".o": true, ".obj": true, ".pyc": true, ".class": true,
@@ -888,12 +875,10 @@ func (s *LLMToolService) shouldIncludeInSearch(d os.DirEntry, relPath string, re
 		return false
 	}
 
-	// Check file size (same as FileService)
 	if info, err := d.Info(); err == nil && info.Size() > 100*1024 { // 100KB limit
 		return false
 	}
 
-	// Check if filename or relative path matches the regex pattern
 	return regex.MatchString(d.Name()) || regex.MatchString(relPath)
 }
 
