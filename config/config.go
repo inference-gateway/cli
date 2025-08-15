@@ -38,6 +38,7 @@ type ToolsConfig struct {
 	Enabled      bool                 `yaml:"enabled"`
 	Bash         BashToolConfig       `yaml:"bash"`
 	Read         ReadToolConfig       `yaml:"read"`
+	Write        WriteToolConfig      `yaml:"write"`
 	FileSearch   FileSearchToolConfig `yaml:"file_search"`
 	Tree         TreeToolConfig       `yaml:"tree"`
 	Fetch        FetchToolConfig      `yaml:"fetch"`
@@ -55,6 +56,12 @@ type BashToolConfig struct {
 
 // ReadToolConfig contains read-specific tool settings
 type ReadToolConfig struct {
+	Enabled         bool  `yaml:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty"`
+}
+
+// WriteToolConfig contains write-specific tool settings
+type WriteToolConfig struct {
 	Enabled         bool  `yaml:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty"`
 }
@@ -167,6 +174,10 @@ func DefaultConfig() *Config {
 			Read: ReadToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
+			},
+			Write: WriteToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{true}[0],
 			},
 			FileSearch: FileSearchToolConfig{
 				Enabled:         true,
@@ -314,6 +325,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	case "Read":
 		if c.Tools.Read.RequireApproval != nil {
 			return *c.Tools.Read.RequireApproval
+		}
+	case "Write":
+		if c.Tools.Write.RequireApproval != nil {
+			return *c.Tools.Write.RequireApproval
 		}
 	case "FileSearch":
 		if c.Tools.FileSearch.RequireApproval != nil {

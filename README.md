@@ -58,6 +58,7 @@ and management of inference services.
 - **Tool Execution**: LLMs can execute whitelisted commands and tools including:
   - **Bash**: Execute safe shell commands
   - **Read**: Read file contents with optional line ranges
+  - **Write**: Write content to files with security controls
   - **FileSearch**: Search for files using regex patterns
   - **WebSearch**: Search the web using DuckDuckGo or Google
   - **Fetch**: Fetch content from URLs and GitHub
@@ -408,6 +409,38 @@ Execute whitelisted bash commands securely with validation against configured co
 
 Read file content from the filesystem with optional line range specification.
 
+### Write Tool
+
+Write content to files on the filesystem with security controls and directory creation support.
+
+**Parameters:**
+
+- `file_path` (required): The path to the file to write
+- `content` (required): The content to write to the file
+- `create_dirs` (optional): Whether to create parent directories if they don't exist (default: true)
+- `overwrite` (optional): Whether to overwrite existing files (default: true)
+- `format` (optional): Output format - "text" or "json" (default: "text")
+
+**Features:**
+
+- **Directory Creation**: Automatically creates parent directories when needed
+- **Overwrite Control**: Configurable behavior for existing files
+- **Security Validation**: Respects path exclusions and security restrictions
+- **Performance Optimized**: Efficient file writing with proper error handling
+
+**Security:**
+
+- **Approval Required**: Write operations require approval by default (secure by default)
+- **Path Exclusions**: Respects configured excluded paths (e.g., `.infer/` directory)
+- **Pattern Matching**: Supports glob patterns for path exclusions
+- **Validation**: Validates file paths and content before writing
+
+**Examples:**
+
+- Create new file: `file_path: "output.txt"`, `content: "Hello, World!"`
+- Write to subdirectory: `file_path: "logs/app.log"`, `content: "log entry"`, `create_dirs: true`
+- Safe overwrite: `file_path: "config.json"`, `content: "{...}"`, `overwrite: false`
+
 ### WebSearch Tool
 
 Search the web using DuckDuckGo or Google search engines to find information.
@@ -439,6 +472,12 @@ output:
   quiet: false
 tools:
   enabled: true # Tools are enabled by default with safe read-only commands
+  read:
+    enabled: true
+    require_approval: false
+  write:
+    enabled: true
+    require_approval: true # Write operations require approval by default for security
   whitelist:
     commands: # Exact command matches
       - ls
