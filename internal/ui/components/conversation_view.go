@@ -221,7 +221,9 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return cv.handleScrollRequest(msg)
 		}
 	default:
-		cv.Viewport, cmd = cv.Viewport.Update(msg)
+		if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
+			cv.Viewport, cmd = cv.Viewport.Update(msg)
+		}
 	}
 
 	return cv, cmd
