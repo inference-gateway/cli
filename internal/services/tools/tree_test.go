@@ -313,9 +313,9 @@ func TestTreeTool_ExecuteWithExcludePatterns(t *testing.T) {
 	ctx := context.Background()
 
 	result, err := tool.Execute(ctx, map[string]interface{}{
-		"path":               tempDir,
-		"exclude_patterns":   []interface{}{"*.log"},
-		"respect_gitignore":  false, // Disable gitignore for this test
+		"path":              tempDir,
+		"exclude_patterns":  []interface{}{"*.log"},
+		"respect_gitignore": false,
 	})
 
 	if err != nil {

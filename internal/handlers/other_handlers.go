@@ -161,12 +161,10 @@ func (h *UIMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.
 		state.CurrentView = ViewModelSelection
 		return nil, nil
 
-
 	}
 
 	return nil, nil
 }
-
 
 // HelpMessageHandler handles help-related messages
 type HelpMessageHandler struct{}

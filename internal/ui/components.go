@@ -16,10 +16,10 @@ import (
 
 // UI Color constants for consistency
 const (
-	ColorSpinnerAccent   = "205"  // Magenta/Pink - used for spinner
-	ColorBashMode        = "34"   // Green - inspired by GitHub bash syntax highlighting
-	ColorBorderDefault   = "240"  // Gray - default border color
-	ColorTextDim         = "240"  // Gray - dim text color
+	ColorSpinnerAccent = "205" // Magenta/Pink - used for spinner
+	ColorBashMode      = "34"  // Green - inspired by GitHub bash syntax highlighting
+	ColorBorderDefault = "240" // Gray - default border color
+	ColorTextDim       = "240" // Gray - dim text color
 )
 
 // DefaultTheme implements Theme interface with default colors
@@ -129,7 +129,7 @@ func (f *ComponentFactory) CreateInputView() InputComponent {
 		cursor:       0,
 		placeholder:  "Type your message... (Press Ctrl+D to send, ? for help)",
 		width:        80,
-		height:       5,  // Initialize with default height
+		height:       5, // Initialize with default height
 		theme:        f.theme,
 		modelService: f.modelService,
 		autocomplete: NewAutocomplete(f.theme, f.commandRegistry),
@@ -151,7 +151,6 @@ func (f *ComponentFactory) CreateStatusView() StatusComponent {
 		theme:     f.theme,
 	}
 }
-
 
 func (f *ComponentFactory) CreateHelpBar() HelpBarComponent {
 	return &HelpBarImpl{
@@ -252,7 +251,6 @@ func (cv *ConversationViewImpl) renderWelcome() string {
 	return fmt.Sprintf("%s🤖 Chat session ready! Type your message below.%s\n",
 		cv.theme.GetStatusColor(), "\033[0m")
 }
-
 
 func (cv *ConversationViewImpl) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
 	var color, role string
@@ -386,7 +384,6 @@ func (cv *ConversationViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return cv, cmd
 }
 
-
 func (cv *ConversationViewImpl) handleScrollRequest(msg ScrollRequestMsg) (tea.Model, tea.Cmd) {
 	switch msg.Direction {
 	case ScrollUp:
@@ -407,17 +404,17 @@ func (cv *ConversationViewImpl) handleScrollRequest(msg ScrollRequestMsg) (tea.M
 
 // InputViewImpl implements InputComponent
 type InputViewImpl struct {
-	text          string
-	cursor        int
-	placeholder   string
-	width         int
-	height        int
-	theme         Theme
-	modelService  domain.ModelService
-	autocomplete  *AutocompleteImpl
-	history       []string
-	historyIndex  int
-	currentInput  string
+	text         string
+	cursor       int
+	placeholder  string
+	width        int
+	height       int
+	theme        Theme
+	modelService domain.ModelService
+	autocomplete *AutocompleteImpl
+	history      []string
+	historyIndex int
+	currentInput string
 }
 
 func (iv *InputViewImpl) GetInput() string {
@@ -625,7 +622,7 @@ func (iv *InputViewImpl) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	if keyStr != "up" && keyStr != "down" && keyStr != "left" && keyStr != "right" &&
-	   keyStr != "ctrl+a" && keyStr != "ctrl+e" && keyStr != "home" && keyStr != "end" {
+		keyStr != "ctrl+a" && keyStr != "ctrl+e" && keyStr != "home" && keyStr != "end" {
 		iv.historyIndex = -1
 		iv.currentInput = ""
 	}
@@ -991,7 +988,6 @@ func (sv *StatusViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	return sv, cmd
 }
-
 
 // HelpBarImpl implements HelpBarComponent
 type HelpBarImpl struct {

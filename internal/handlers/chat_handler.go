@@ -295,7 +295,6 @@ func (h *ChatMessageHandler) executeBashCommand(command string) tea.Msg {
 	}
 }
 
-
 func (h *ChatMessageHandler) handleStreamStarted(msg ChatStreamStartedMsg, state *AppState) (tea.Model, tea.Cmd) {
 	state.Data["eventChannel"] = msg.EventChannel
 	if msg.RequestID != "" {

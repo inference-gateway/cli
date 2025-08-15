@@ -87,7 +87,6 @@ type Theme interface {
 	GetBorderColor() string
 }
 
-
 // HelpBarComponent interface for bottom help bar display
 type HelpBarComponent interface {
 	ViewComponent
