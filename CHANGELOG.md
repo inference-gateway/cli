@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.16.1](https://github.com/inference-gateway/cli/compare/v0.16.0...v0.16.1) (2025-08-15)
+
+### 📚 Documentation
+
+* Correct alignment of the Inference Gateway CLI header in README ([dd4f05c](https://github.com/inference-gateway/cli/commit/dd4f05c8762324c56707eb2af3ba0c3608bc4106))
+
 ## [0.16.0](https://github.com/inference-gateway/cli/compare/v0.15.0...v0.16.0) (2025-08-15)
 
 ### 🚀 Features

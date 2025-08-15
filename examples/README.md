@@ -14,6 +14,11 @@ docker run --rm -it --env-file .env -p 8080:8080 ghcr.io/inference-gateway/infer
 2. Install the CLI:
 
 ```bash
+# Build from source (recommended for development)
+flox activate -- task build
+flox activate -- task install
+
+# Or use install script
 curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
 ```
 
@@ -23,14 +28,75 @@ Set up your CLI configuration at `.infer/config.yaml`:
 
 ```yaml
 gateway:
-  url: "http://localhost:8080"
+  url: http://localhost:8080
   api_key: ""
   timeout: 30
 output:
-  format: "text"  # text, json, yaml
+  format: text
   quiet: false
+  debug: false
 tools:
-  enabled: false
+  enabled: true
+  bash:
+    enabled: true
+    whitelist:
+      commands:
+        - ls
+        - pwd
+        - echo
+        - grep
+        - wc
+        - sort
+        - uniq
+      patterns:
+        - ^git status$
+        - ^git log --oneline -n [0-9]+$
+        - ^docker ps$
+        - ^kubectl get pods$
+  read:
+    enabled: true
+    require_approval: false
+  file_search:
+    enabled: true
+    require_approval: false
+  tree:
+    enabled: true
+    require_approval: false
+  fetch:
+    enabled: true
+    whitelisted_domains:
+      - github.com
+      - golang.org
+    github:
+      enabled: true
+      token: ""
+      base_url: https://api.github.com
+    safety:
+      max_size: 8192
+      timeout: 30
+      allow_redirect: true
+    cache:
+      enabled: true
+      ttl: 3600
+      max_size: 52428800
+  web_search:
+    enabled: true
+    default_engine: duckduckgo
+    max_results: 10
+    engines:
+      - duckduckgo
+      - google
+    timeout: 10
+  safety:
+    require_approval: true
+  exclude_paths:
+    - .infer/
+    - .infer/*
+compact:
+  output_dir: .infer
+chat:
+  default_model: ""
+  system_prompt: ""
 ```
 
 ## Basic Usage Examples
@@ -45,28 +111,66 @@ infer status
 infer status --format json
 ```
 
-### List Deployed Models
+### Interactive Chat
 
 ```bash
-infer models list
-```
+# Start interactive chat (will show model selection)
+infer chat
 
-### Send Prompts
-
-```bash
-# Simple prompt
-infer prompt "What is machine learning?"
-
-# Interactive chat mode
+# Set a default model to skip selection
+infer config set-model anthropic/claude-3.5-sonnet
 infer chat
 ```
 
-### Tool Management (Advanced)
+### Configuration Management
 
 ```bash
-# Enable tools in your config first, then:
-infer tools list
-infer tools exec "ls -la"
+# Initialize project configuration
+infer config init
+
+# Set default model for chat sessions
+infer config set-model anthropic/claude-3.5-sonnet
+infer config set-model openai/gpt-4
+infer config set-model google/gemini-pro
+
+# Set system prompt for all chat sessions
+infer config set-system "You are a helpful assistant."
+```
+
+### Tool Management
+
+```bash
+# Enable/disable tool execution
+infer config tools enable
+infer config tools disable
+
+# List whitelisted commands and tool status
+infer config tools list
+infer config tools list --format json
+
+# Validate if a command is whitelisted
+infer config tools validate "ls"
+
+# Execute tools directly with JSON arguments
+infer config tools exec Bash '{"command":"git status"}'
+infer config tools exec Tree '{"path":"."}'
+infer config tools exec Read '{"file_path":"README.md"}'
+infer config tools exec WebSearch '{"query":"golang tutorial"}'
+
+# Manage safety settings
+infer config tools safety enable   # Require approval for all tools
+infer config tools safety disable  # Execute immediately
+infer config tools safety status   # Show current settings
+
+# Tool-specific safety settings
+infer config tools safety set bash enabled
+infer config tools safety set websearch disabled
+infer config tools safety unset bash
+
+# Manage excluded paths
+infer config tools exclude-path list
+infer config tools exclude-path add ".github/"
+infer config tools exclude-path remove "test.txt"
 ```
 
 ### Version Information
@@ -79,18 +183,25 @@ infer version
 
 All commands support these global flags:
 
-- `--config`: Specify custom config file path
-- `--verbose`: Enable verbose logging
-- `--format`: Output format (text, json, yaml)
-- `--quiet`: Suppress non-essential output
+- `--config, -c`: Specify custom config file path
+- `--verbose, -v`: Enable verbose logging
+- `--format`: Output format (text, json) - available on specific commands
 
-## Configuration Management
+## Available Commands
 
-The CLI automatically creates a default configuration file at `.infer/config.yaml` on first run. You can customize:
+- `infer status` - Check gateway status and health
+- `infer chat` - Start interactive chat with model selection
+- `infer config` - Manage CLI configuration
+  - `init [--overwrite]` - Initialize project configuration
+  - `set-model <MODEL>` - Set default model (format: provider/model)
+  - `set-system <PROMPT>` - Set system prompt
+  - `tools` - Manage tool execution settings
+- `infer version` - Show version information
 
-- Gateway URL and API credentials
-- Output formatting preferences
-- Tool execution settings and security whitelist
-- Request timeout values
+## Security Features
 
-For security, the tools feature requires explicit enablement and uses a whitelist approach for allowed commands.
+- **Tool Whitelisting**: Only pre-approved commands can be executed
+- **Approval Prompts**: Optional user confirmation before tool execution
+- **Path Exclusions**: Protect sensitive directories from tool access
+- **Tool-Specific Safety**: Configure approval requirements per tool
+- **Safe Defaults**: Tools enabled with read-only commands and approval prompts
