@@ -3,7 +3,11 @@ package ui
 import (
 	"github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/shared"
 )
+
+// Re-export shared types for backward compatibility
+type KeyShortcut = shared.KeyShortcut
 
 // Simple theme for backward compatibility with autocomplete/model_selection
 type Theme interface {
@@ -71,13 +75,16 @@ type StatusComponent interface {
 
 // HelpBarComponent interface for bottom help bar display
 type HelpBarComponent interface {
-	SetShortcuts(shortcuts []KeyShortcut)
+	SetShortcuts(shortcuts []shared.KeyShortcut)
 	IsEnabled() bool
 	SetEnabled(enabled bool)
 	SetWidth(width int)
 	SetHeight(height int)
 	Render() string
 }
+
+// Ensure AutocompleteImpl implements the shared interface
+var _ shared.AutocompleteInterface = (*AutocompleteImpl)(nil)
 
 // SelectionComponent interface for selection components (models, files, etc.)
 type SelectionComponent interface {

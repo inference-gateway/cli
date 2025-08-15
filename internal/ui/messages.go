@@ -1,105 +1,35 @@
 package ui
 
 import (
-	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
-// UI-specific messages for Bubble Tea
+// Re-export shared message types for backward compatibility
+type UpdateHistoryMsg = shared.UpdateHistoryMsg
+type SetStatusMsg = shared.SetStatusMsg
+type ShowErrorMsg = shared.ShowErrorMsg
+type ClearErrorMsg = shared.ClearErrorMsg
+type ClearInputMsg = shared.ClearInputMsg
+type SetInputMsg = shared.SetInputMsg
+type UserInputMsg = shared.UserInputMsg
+type ModelSelectedMsg = shared.ModelSelectedMsg
+type FileSelectedMsg = shared.FileSelectedMsg
+type FileSelectionRequestMsg = shared.FileSelectionRequestMsg
+type ApprovalRequestMsg = shared.ApprovalRequestMsg
+type ApprovalResponseMsg = shared.ApprovalResponseMsg
+type ScrollRequestMsg = shared.ScrollRequestMsg
+type FocusRequestMsg = shared.FocusRequestMsg
+type ResizeMsg = shared.ResizeMsg
+type DebugKeyMsg = shared.DebugKeyMsg
+type ToggleHelpBarMsg = shared.ToggleHelpBarMsg
+type HideHelpBarMsg = shared.HideHelpBarMsg
 
-// UpdateHistoryMsg updates the conversation history display
-type UpdateHistoryMsg struct {
-	History []domain.ConversationEntry
-}
-
-// SetStatusMsg sets a status message
-type SetStatusMsg struct {
-	Message    string
-	Spinner    bool
-	TokenUsage string
-}
-
-// ShowErrorMsg displays an error message
-type ShowErrorMsg struct {
-	Error  string
-	Sticky bool // Whether error persists until dismissed
-}
-
-// ClearErrorMsg clears any displayed error
-type ClearErrorMsg struct{}
-
-// ClearInputMsg clears the input field
-type ClearInputMsg struct{}
-
-// SetInputMsg sets text in the input field
-type SetInputMsg struct {
-	Text string
-}
-
-// UserInputMsg represents user input submission
-type UserInputMsg struct {
-	Content string
-}
-
-// ModelSelectedMsg indicates model selection
-type ModelSelectedMsg struct {
-	Model string
-}
-
-// FileSelectedMsg indicates file selection
-type FileSelectedMsg struct {
-	FilePath string
-}
-
-// FileSelectionRequestMsg requests file selection UI
-type FileSelectionRequestMsg struct{}
-
-// ApprovalRequestMsg requests user approval for an action
-type ApprovalRequestMsg struct {
-	Action      string
-	Description string
-}
-
-// ApprovalResponseMsg provides approval response
-type ApprovalResponseMsg struct {
-	Approved   bool
-	ApproveAll bool
-}
-
-// ScrollRequestMsg requests scrolling in a component
-type ScrollRequestMsg struct {
-	ComponentID string
-	Direction   ScrollDirection
-	Amount      int
-}
-
-type ScrollDirection int
+// Re-export shared types
+type ScrollDirection = shared.ScrollDirection
 
 const (
-	ScrollUp ScrollDirection = iota
-	ScrollDown
-	ScrollToTop
-	ScrollToBottom
+	ScrollUp       = shared.ScrollUp
+	ScrollDown     = shared.ScrollDown
+	ScrollToTop    = shared.ScrollToTop
+	ScrollToBottom = shared.ScrollToBottom
 )
-
-// FocusRequestMsg requests focus change
-type FocusRequestMsg struct {
-	ComponentID string
-}
-
-// ResizeMsg handles terminal resize
-type ResizeMsg struct {
-	Width  int
-	Height int
-}
-
-// DebugKeyMsg provides debug information about key presses
-type DebugKeyMsg struct {
-	Key     string
-	Handler string
-}
-
-// ToggleHelpBarMsg toggles the help bar visibility
-type ToggleHelpBarMsg struct{}
-
-// HideHelpBarMsg hides the help bar when typing other characters
-type HideHelpBarMsg struct{}

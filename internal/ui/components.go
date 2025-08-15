@@ -3,16 +3,17 @@ package ui
 import (
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/components"
 )
 
 // CreateConversationView creates a new conversation view component
 func CreateConversationView() ConversationRenderer {
-	return NewConversationView()
+	return components.NewConversationView()
 }
 
 // CreateInputView creates a new input view component
 func CreateInputView(modelService domain.ModelService, commandRegistry *commands.Registry) InputComponent {
-	iv := NewInputView(modelService)
+	iv := components.NewInputView(modelService)
 	// Update autocomplete with command registry if provided
 	if commandRegistry != nil {
 		iv.Autocomplete = NewAutocomplete(NewDefaultTheme(), commandRegistry)
@@ -22,12 +23,12 @@ func CreateInputView(modelService domain.ModelService, commandRegistry *commands
 
 // CreateStatusView creates a new status view component
 func CreateStatusView() StatusComponent {
-	return NewStatusView()
+	return components.NewStatusView()
 }
 
 // CreateHelpBar creates a new help bar component
 func CreateHelpBar() HelpBarComponent {
-	return NewHelpBar()
+	return components.NewHelpBar()
 }
 
 // Layout calculations - simplified without interfaces
