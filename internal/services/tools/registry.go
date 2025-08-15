@@ -29,6 +29,7 @@ func (r *Registry) registerTools() {
 	r.tools["Bash"] = NewBashTool(r.config)
 	r.tools["Read"] = NewReadTool(r.config)
 	r.tools["Write"] = NewWriteTool(r.config)
+	r.tools["Delete"] = NewDeleteTool(r.config)
 	r.tools["FileSearch"] = NewFileSearchTool(r.config)
 	r.tools["Tree"] = NewTreeTool(r.config)
 
