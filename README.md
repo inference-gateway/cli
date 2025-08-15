@@ -419,7 +419,8 @@ Fetch content from whitelisted URLs or GitHub references using the format `githu
 
 ### WriteTodos Tool
 
-Write and manage in-memory todo lists for task planning and tracking. This tool helps LLMs organize complex tasks step-by-step for better transparency and progress tracking.
+Write and manage in-memory todo lists for task planning and tracking. This tool helps LLMs organize complex tasks
+step-by-step for better transparency and progress tracking.
 
 **Parameters:**
 

@@ -113,19 +113,12 @@ func TestWriteTodosToolValidateSuccess(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestWriteTodosToolValidateErrors(t *testing.T) {
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Enabled: true,
-			WriteTodos: config.WriteTodosToolConfig{
-				Enabled: true,
-			},
-		},
-	}
-
-	tool := NewWriteTodosTool(cfg)
-
-	tests := []struct {
+func getBasicValidationTestCases() []struct {
+	name        string
+	args        map[string]interface{}
+	expectedErr string
+} {
+	return []struct {
 		name        string
 		args        map[string]interface{}
 		expectedErr string
@@ -156,6 +149,19 @@ func TestWriteTodosToolValidateErrors(t *testing.T) {
 			},
 			expectedErr: "todo item 0 must be an object",
 		},
+	}
+}
+
+func getFieldValidationTestCases() []struct {
+	name        string
+	args        map[string]interface{}
+	expectedErr string
+} {
+	return []struct {
+		name        string
+		args        map[string]interface{}
+		expectedErr string
+	}{
 		{
 			name: "missing id field",
 			args: map[string]interface{}{
@@ -249,6 +255,19 @@ func TestWriteTodosToolValidateErrors(t *testing.T) {
 			},
 			expectedErr: "todo item 0 has invalid status: invalid_status",
 		},
+	}
+}
+
+func getFormatValidationTestCases() []struct {
+	name        string
+	args        map[string]interface{}
+	expectedErr string
+} {
+	return []struct {
+		name        string
+		args        map[string]interface{}
+		expectedErr string
+	}{
 		{
 			name: "invalid format",
 			args: map[string]interface{}{
@@ -278,8 +297,24 @@ func TestWriteTodosToolValidateErrors(t *testing.T) {
 			expectedErr: "format parameter must be a string",
 		},
 	}
+}
 
-	for _, tt := range tests {
+func TestWriteTodosToolValidateErrors(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			WriteTodos: config.WriteTodosToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewWriteTodosTool(cfg)
+
+	allTestCases := append(getBasicValidationTestCases(), getFieldValidationTestCases()...)
+	allTestCases = append(allTestCases, getFormatValidationTestCases()...)
+
+	for _, tt := range allTestCases {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tool.Validate(tt.args)
 			assert.Error(t, err)
