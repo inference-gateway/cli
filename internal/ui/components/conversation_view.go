@@ -13,7 +13,7 @@ import (
 // ConversationView handles the chat conversation display
 type ConversationView struct {
 	conversation       []domain.ConversationEntry
-	Viewport           viewport.Model // Exported for testing
+	Viewport           viewport.Model
 	width              int
 	height             int
 	expandedToolResult int
@@ -104,7 +104,7 @@ func (cv *ConversationView) updateViewportContent() {
 }
 
 func (cv *ConversationView) renderWelcome() string {
-	return "\033[34m🤖 Chat session ready! Type your message below.\033[0m\n"
+	return shared.StatusColor.ANSI + "🤖 Chat session ready! Type your message below." + shared.Reset() + "\n"
 }
 
 func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
@@ -112,30 +112,30 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 
 	switch string(entry.Message.Role) {
 	case "user":
-		color = "\033[36m" // Cyan
+		color = shared.UserColor.ANSI
 		role = "👤 You"
 	case "assistant":
-		color = "\033[32m" // Green
+		color = shared.AssistantColor.ANSI
 		if entry.Model != "" {
 			role = fmt.Sprintf("🤖 %s", entry.Model)
 		} else {
 			role = "🤖 Assistant"
 		}
 	case "system":
-		color = "\033[90m" // Gray
+		color = shared.DimColor.ANSI
 		role = "⚙️ System"
 	case "tool":
-		color = "\033[35m" // Magenta
+		color = shared.AccentColor.ANSI
 		role = "🔧 Tool"
 		return cv.renderToolEntry(entry, index, color, role)
 	default:
-		color = "\033[90m" // Gray
+		color = shared.DimColor.ANSI
 		role = string(entry.Message.Role)
 	}
 
 	content := entry.Message.Content
 	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
-	message := fmt.Sprintf("%s%s:\033[0m %s", color, role, wrappedContent)
+	message := fmt.Sprintf("%s%s:%s %s", color, role, shared.Reset(), wrappedContent)
 
 	return message + "\n"
 }
@@ -147,7 +147,7 @@ func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, inde
 	}
 
 	content := cv.formatEntryContent(entry, isExpanded)
-	message := fmt.Sprintf("%s%s:\033[0m %s", color, role, content)
+	message := fmt.Sprintf("%s%s:%s %s", color, role, shared.Reset(), content)
 	return message + "\n"
 }
 
@@ -193,7 +193,6 @@ func (cv *ConversationView) View() string { return cv.Render() }
 func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	// Handle mouse scrolling
 	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
 		if mouseMsg.Action == tea.MouseActionPress {
 			switch mouseMsg.Button {
@@ -207,14 +206,12 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Handle window resize
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		cv.SetWidth(windowMsg.Width)
 		cv.height = windowMsg.Height
 		cv.updateViewportContent()
 	}
 
-	// Handle custom messages
 	switch msg := msg.(type) {
 	case shared.UpdateHistoryMsg:
 		cv.SetConversation(msg.History)

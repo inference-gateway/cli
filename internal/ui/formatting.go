@@ -598,11 +598,9 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 	return fmt.Sprintf("%s\n%s %s", toolCall, statusIcon, preview)
 }
 
-// Re-export shared formatting functions for backward compatibility
 var WrapText = shared.WrapText
 var GetResponsiveWidth = shared.GetResponsiveWidth
 
-// FormatResponsiveMessage formats a message with responsive width
 func FormatResponsiveMessage(message string, terminalWidth int) string {
 	width := GetResponsiveWidth(terminalWidth)
 	return shared.FormatResponsiveMessage(message, width)

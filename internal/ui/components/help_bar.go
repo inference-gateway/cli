@@ -143,7 +143,7 @@ func (hb *HelpBar) renderResponsiveTable() string {
 	}
 
 	tableStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
+		Foreground(shared.DimColor.GetLipglossColor()).
 		Width(hb.width)
 
 	return tableStyle.Render(strings.Join(tableRows, "\n"))

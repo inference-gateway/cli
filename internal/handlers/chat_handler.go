@@ -16,6 +16,7 @@ import (
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui"
+	"github.com/inference-gateway/cli/internal/ui/shared"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -51,7 +52,7 @@ func (h *ChatMessageHandler) GetPriority() int {
 
 func (h *ChatMessageHandler) CanHandle(msg tea.Msg) bool {
 	switch msg.(type) {
-	case ui.UserInputMsg:
+	case shared.UserInputMsg:
 		return true
 	case ChatStreamStartedMsg:
 		return true
@@ -72,7 +73,7 @@ func (h *ChatMessageHandler) CanHandle(msg tea.Msg) bool {
 
 func (h *ChatMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case ui.UserInputMsg:
+	case shared.UserInputMsg:
 		return h.handleUserInput(msg, state)
 
 	case ChatStreamStartedMsg:
@@ -106,7 +107,7 @@ func (h *ChatMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, te
 	return nil, nil
 }
 
-func (h *ChatMessageHandler) handleUserInput(msg ui.UserInputMsg, state *AppState) (tea.Model, tea.Cmd) {
+func (h *ChatMessageHandler) handleUserInput(msg shared.UserInputMsg, state *AppState) (tea.Model, tea.Cmd) {
 	if strings.HasPrefix(msg.Content, "/") {
 		return h.handleCommand(msg.Content, state)
 	}
@@ -127,7 +128,7 @@ func (h *ChatMessageHandler) handleUserInput(msg ui.UserInputMsg, state *AppStat
 
 	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
 		return nil, func() tea.Msg {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
 				Sticky: false,
 			}
@@ -139,7 +140,7 @@ func (h *ChatMessageHandler) handleUserInput(msg ui.UserInputMsg, state *AppStat
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
-		return ui.UpdateHistoryMsg{
+		return shared.UpdateHistoryMsg{
 			History: h.conversationRepo.GetMessages(),
 		}
 	})
@@ -155,7 +156,7 @@ func (h *ChatMessageHandler) handleCommand(commandText string, state *AppState) 
 	cmd, exists := h.commandRegistry.Get(commandName)
 	if !exists || cmd == nil {
 		return nil, func() tea.Msg {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Command not found: %s", commandName),
 				Sticky: false,
 			}
@@ -167,7 +168,7 @@ func (h *ChatMessageHandler) handleCommand(commandText string, state *AppState) 
 
 	if err != nil {
 		return nil, func() tea.Msg {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Command execution failed: %v", err),
 				Sticky: false,
 			}
@@ -180,12 +181,12 @@ func (h *ChatMessageHandler) handleCommand(commandText string, state *AppState) 
 	case commands.SideEffectClearConversation:
 		return nil, tea.Batch(
 			func() tea.Msg {
-				return ui.UpdateHistoryMsg{
+				return shared.UpdateHistoryMsg{
 					History: []domain.ConversationEntry{},
 				}
 			},
 			func() tea.Msg {
-				return ui.SetStatusMsg{
+				return shared.SetStatusMsg{
 					Message: result.Output,
 					Spinner: false,
 				}
@@ -194,7 +195,7 @@ func (h *ChatMessageHandler) handleCommand(commandText string, state *AppState) 
 	case commands.SideEffectExportConversation:
 		return nil, tea.Batch(
 			func() tea.Msg {
-				return ui.SetStatusMsg{
+				return shared.SetStatusMsg{
 					Message: result.Output,
 					Spinner: true,
 				}
@@ -207,7 +208,7 @@ func (h *ChatMessageHandler) handleCommand(commandText string, state *AppState) 
 		}
 	default:
 		return nil, func() tea.Msg {
-			return ui.SetStatusMsg{
+			return shared.SetStatusMsg{
 				Message: result.Output,
 				Spinner: false,
 			}
@@ -221,7 +222,7 @@ func (h *ChatMessageHandler) handleBashCommand(commandText string, state *AppSta
 
 	if bashCommand == "" {
 		return nil, func() tea.Msg {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  "No command provided after '!'",
 				Sticky: false,
 			}
@@ -238,7 +239,7 @@ func (h *ChatMessageHandler) handleBashCommand(commandText string, state *AppSta
 
 	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
 		return nil, func() tea.Msg {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
 				Sticky: false,
 			}
@@ -246,7 +247,7 @@ func (h *ChatMessageHandler) handleBashCommand(commandText string, state *AppSta
 	}
 
 	updateHistoryCmd := func() tea.Msg {
-		return ui.UpdateHistoryMsg{
+		return shared.UpdateHistoryMsg{
 			History: h.conversationRepo.GetMessages(),
 		}
 	}
@@ -284,13 +285,13 @@ func (h *ChatMessageHandler) executeBashCommand(command string) tea.Msg {
 	}
 
 	if saveErr := h.conversationRepo.AddMessage(bashResultEntry); saveErr != nil {
-		return ui.ShowErrorMsg{
+		return shared.ShowErrorMsg{
 			Error:  fmt.Sprintf("Failed to save bash result: %v", saveErr),
 			Sticky: false,
 		}
 	}
 
-	return ui.UpdateHistoryMsg{
+	return shared.UpdateHistoryMsg{
 		History: h.conversationRepo.GetMessages(),
 	}
 }
@@ -317,7 +318,7 @@ func (h *ChatMessageHandler) handleToolCallDetected(msg ToolCallDetectedMsg, sta
 	state.CurrentView = ViewApproval
 
 	return nil, func() tea.Msg {
-		return ui.SetStatusMsg{
+		return shared.SetStatusMsg{
 			Message: fmt.Sprintf("SWITCHED TO APPROVAL VIEW: %s", msg.ToolCall.String()),
 			Spinner: false,
 		}
@@ -330,7 +331,7 @@ func (h *ChatMessageHandler) handleChatStart(msg domain.ChatStartEvent, state *A
 	state.Data["currentRequestID"] = msg.RequestID
 
 	cmds = append(cmds, func() tea.Msg {
-		return ui.SetStatusMsg{
+		return shared.SetStatusMsg{
 			Message: "Generating response...",
 			Spinner: true,
 		}
@@ -352,7 +353,7 @@ func (h *ChatMessageHandler) handleChatChunk(msg domain.ChatChunkEvent, state *A
 
 		if err := h.conversationRepo.UpdateLastMessage(newContent); err != nil {
 			return nil, func() tea.Msg {
-				return ui.ShowErrorMsg{
+				return shared.ShowErrorMsg{
 					Error:  fmt.Sprintf("Failed to update assistant message: %v", err),
 					Sticky: false,
 				}
@@ -370,7 +371,7 @@ func (h *ChatMessageHandler) handleChatChunk(msg domain.ChatChunkEvent, state *A
 
 		if err := h.conversationRepo.AddMessage(assistantEntry); err != nil {
 			return nil, func() tea.Msg {
-				return ui.ShowErrorMsg{
+				return shared.ShowErrorMsg{
 					Error:  fmt.Sprintf("Failed to save assistant message: %v", err),
 					Sticky: false,
 				}
@@ -381,7 +382,7 @@ func (h *ChatMessageHandler) handleChatChunk(msg domain.ChatChunkEvent, state *A
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
-		return ui.UpdateHistoryMsg{
+		return shared.UpdateHistoryMsg{
 			History: h.conversationRepo.GetMessages(),
 		}
 	})
@@ -409,7 +410,7 @@ func (h *ChatMessageHandler) handleChatComplete(msg domain.ChatCompleteEvent, st
 	}
 
 	return nil, func() tea.Msg {
-		return ui.SetStatusMsg{
+		return shared.SetStatusMsg{
 			Message:    statusMsg,
 			Spinner:    false,
 			TokenUsage: tokenUsage,
@@ -435,7 +436,7 @@ func (h *ChatMessageHandler) handleChatError(msg domain.ChatErrorEvent, state *A
 	state.CurrentView = ViewChat
 
 	return nil, func() tea.Msg {
-		return ui.ShowErrorMsg{
+		return shared.ShowErrorMsg{
 			Error:  errorMsg,
 			Sticky: true,
 		}
@@ -691,7 +692,7 @@ func (h *ChatMessageHandler) performExport(cmd commands.Command, data interface{
 	return func() tea.Msg {
 		exportCmd, ok := cmd.(*commands.ExportCommand)
 		if !ok {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  "Invalid export command type",
 				Sticky: false,
 			}
@@ -704,13 +705,13 @@ func (h *ChatMessageHandler) performExport(cmd commands.Command, data interface{
 
 		filePath, err := exportCmd.PerformExport(ctx)
 		if err != nil {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Export failed: %v", err),
 				Sticky: true,
 			}
 		}
 
-		return ui.SetStatusMsg{
+		return shared.SetStatusMsg{
 			Message: fmt.Sprintf("📝 Chat exported to %s", filePath),
 			Spinner: false,
 		}
@@ -722,7 +723,7 @@ func (h *ChatMessageHandler) handleToolCalls(msg domain.ChatCompleteEvent, statu
 	if err := h.conversationRepo.UpdateLastMessageToolCalls(&msg.ToolCalls); err != nil {
 		if err := h.handleToolCallsUpdateError(msg); err != nil {
 			return nil, func() tea.Msg {
-				return ui.ShowErrorMsg{
+				return shared.ShowErrorMsg{
 					Error:  fmt.Sprintf("Failed to save assistant message with tool calls: %v", err),
 					Sticky: false,
 				}
@@ -737,7 +738,7 @@ func (h *ChatMessageHandler) handleToolCalls(msg domain.ChatCompleteEvent, statu
 func (h *ChatMessageHandler) processToolCallsSequentially(toolCalls []sdk.ChatCompletionMessageToolCall, statusMsg, tokenUsage string) (tea.Model, tea.Cmd) {
 	if len(toolCalls) == 0 {
 		return nil, func() tea.Msg {
-			return ui.SetStatusMsg{
+			return shared.SetStatusMsg{
 				Message:    statusMsg,
 				Spinner:    false,
 				TokenUsage: tokenUsage,
@@ -756,7 +757,7 @@ func (h *ChatMessageHandler) processToolCallsSequentially(toolCalls []sdk.ChatCo
 
 	return nil, tea.Batch(
 		func() tea.Msg {
-			return ui.SetStatusMsg{
+			return shared.SetStatusMsg{
 				Message:    statusMsg,
 				Spinner:    false,
 				TokenUsage: tokenUsage,
@@ -837,7 +838,7 @@ func (h *ChatMessageHandler) handleProcessNextToolCall(msg ProcessNextToolCallMs
 
 	return nil, tea.Batch(
 		func() tea.Msg {
-			return ui.SetStatusMsg{
+			return shared.SetStatusMsg{
 				Message: statusMessage,
 				Spinner: false,
 			}

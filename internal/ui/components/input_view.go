@@ -19,7 +19,7 @@ type InputView struct {
 	width        int
 	height       int
 	modelService domain.ModelService
-	Autocomplete shared.AutocompleteInterface // Exported for components.go access
+	Autocomplete shared.AutocompleteInterface
 	history      []string
 	historyIndex int
 	currentInput string
@@ -33,7 +33,7 @@ func NewInputView(modelService domain.ModelService) *InputView {
 		width:        80,
 		height:       5,
 		modelService: modelService,
-		Autocomplete: nil, // Will be set later if needed
+		Autocomplete: nil,
 		history:      make([]string, 0, 5),
 		historyIndex: -1,
 		currentInput: "",
@@ -89,7 +89,7 @@ func (iv *InputView) Render() string {
 
 	if iv.text == "" {
 		displayText = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
+			Foreground(shared.DimColor.GetLipglossColor()).
 			Render(iv.placeholder)
 	} else {
 		before := iv.text[:iv.cursor]
@@ -107,9 +107,9 @@ func (iv *InputView) Render() string {
 
 	inputContent := fmt.Sprintf("> %s", displayText)
 
-	borderColor := "240" // Gray
+	borderColor := shared.DimColor.Lipgloss
 	if isBashMode {
-		borderColor = "34" // Green
+		borderColor = shared.StatusColor.Lipgloss
 	}
 
 	inputStyle := lipgloss.NewStyle().
@@ -121,17 +121,15 @@ func (iv *InputView) Render() string {
 	borderedInput := inputStyle.Render(inputContent)
 	components := []string{borderedInput}
 
-	// Bash mode indicator
 	if isBashMode && iv.height >= 2 {
 		bashIndicator := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("34")).
+			Foreground(shared.StatusColor.GetLipglossColor()).
 			Bold(true).
 			Width(iv.width).
 			Render("BASH MODE - Command will be executed directly")
 		components = append(components, bashIndicator)
 	}
 
-	// Autocomplete
 	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() && iv.height >= 3 {
 		autocompleteContent := iv.Autocomplete.Render()
 		if autocompleteContent != "" {
@@ -139,12 +137,11 @@ func (iv *InputView) Render() string {
 		}
 	}
 
-	// Model display
 	if iv.modelService != nil {
 		currentModel := iv.modelService.GetCurrentModel()
 		if currentModel != "" && iv.height >= 2 && !isBashMode {
 			modelStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color("240")).
+				Foreground(shared.DimColor.GetLipglossColor()).
 				Width(iv.width)
 			modelDisplay := modelStyle.Render(fmt.Sprintf("Model: %s", currentModel))
 			components = append(components, modelDisplay)
@@ -231,7 +228,6 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	keyStr := key.String()
 
-	// History navigation (when autocomplete not visible)
 	if iv.Autocomplete == nil || !iv.Autocomplete.IsVisible() {
 		switch keyStr {
 		case "up":
@@ -249,14 +245,12 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	// Autocomplete handling
 	if iv.Autocomplete != nil {
 		if handled, completion := iv.Autocomplete.HandleKey(key); handled {
 			return iv.handleAutocomplete(completion)
 		}
 	}
 
-	// Reset history navigation on non-navigation keys
 	if keyStr != "up" && keyStr != "down" && keyStr != "left" && keyStr != "right" &&
 		keyStr != "ctrl+a" && keyStr != "ctrl+e" && keyStr != "home" && keyStr != "end" {
 		iv.historyIndex = -1

@@ -14,7 +14,7 @@ func CreateConversationView() ConversationRenderer {
 // CreateInputView creates a new input view component
 func CreateInputView(modelService domain.ModelService, commandRegistry *commands.Registry) InputComponent {
 	iv := components.NewInputView(modelService)
-	// Update autocomplete with command registry if provided
+
 	if commandRegistry != nil {
 		iv.Autocomplete = NewAutocomplete(NewDefaultTheme(), commandRegistry)
 	}

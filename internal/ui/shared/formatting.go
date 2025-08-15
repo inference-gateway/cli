@@ -19,10 +19,10 @@ func FormatResponsiveMessage(content string, width int) string {
 	if width <= 0 {
 		return content
 	}
-	
+
 	lines := strings.Split(content, "\n")
 	var result []string
-	
+
 	for _, line := range lines {
 		if len(line) <= width {
 			result = append(result, line)
@@ -31,7 +31,7 @@ func FormatResponsiveMessage(content string, width int) string {
 			result = append(result, wrapped)
 		}
 	}
-	
+
 	return strings.Join(result, "\n")
 }
 
@@ -59,10 +59,10 @@ func truncateText(text string, maxLength int) string {
 	if len(text) <= maxLength {
 		return text
 	}
-	
+
 	if maxLength <= 3 {
 		return "..."
 	}
-	
+
 	return text[:maxLength-3] + "..."
 }

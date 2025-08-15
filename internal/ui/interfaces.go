@@ -6,10 +6,8 @@ import (
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
-// Re-export shared types for backward compatibility
 type KeyShortcut = shared.KeyShortcut
 
-// Simple theme for backward compatibility with autocomplete/model_selection
 type Theme interface {
 	GetUserColor() string
 	GetAssistantColor() string
@@ -24,15 +22,14 @@ type DefaultTheme struct{}
 
 func NewDefaultTheme() *DefaultTheme { return &DefaultTheme{} }
 
-func (t *DefaultTheme) GetUserColor() string      { return "\033[36m" } // Cyan
-func (t *DefaultTheme) GetAssistantColor() string { return "\033[32m" } // Green
-func (t *DefaultTheme) GetErrorColor() string     { return "\033[31m" } // Red
-func (t *DefaultTheme) GetStatusColor() string    { return "\033[34m" } // Blue
-func (t *DefaultTheme) GetAccentColor() string    { return "\033[35m" } // Magenta
-func (t *DefaultTheme) GetDimColor() string       { return "\033[90m" } // Gray
-func (t *DefaultTheme) GetBorderColor() string    { return "\033[37m" } // White
+func (t *DefaultTheme) GetUserColor() string      { return shared.UserColor.ANSI }
+func (t *DefaultTheme) GetAssistantColor() string { return shared.AssistantColor.ANSI }
+func (t *DefaultTheme) GetErrorColor() string     { return shared.ErrorColor.ANSI }
+func (t *DefaultTheme) GetStatusColor() string    { return shared.StatusColor.ANSI }
+func (t *DefaultTheme) GetAccentColor() string    { return shared.AccentColor.ANSI }
+func (t *DefaultTheme) GetDimColor() string       { return shared.DimColor.ANSI }
+func (t *DefaultTheme) GetBorderColor() string    { return shared.BorderColor.ANSI }
 
-// ConversationRenderer interface for rendering conversation history
 type ConversationRenderer interface {
 	SetConversation([]domain.ConversationEntry)
 	GetScrollOffset() int
@@ -45,7 +42,6 @@ type ConversationRenderer interface {
 	Render() string
 }
 
-// InputComponent interface for input handling components
 type InputComponent interface {
 	GetInput() string
 	ClearInput()
@@ -60,7 +56,6 @@ type InputComponent interface {
 	CanHandle(key tea.KeyMsg) bool
 }
 
-// StatusComponent interface for status display components
 type StatusComponent interface {
 	ShowStatus(message string)
 	ShowError(message string)
@@ -74,7 +69,6 @@ type StatusComponent interface {
 	Render() string
 }
 
-// HelpBarComponent interface for bottom help bar display
 type HelpBarComponent interface {
 	SetShortcuts(shortcuts []shared.KeyShortcut)
 	IsEnabled() bool
@@ -84,10 +78,8 @@ type HelpBarComponent interface {
 	Render() string
 }
 
-// Ensure AutocompleteImpl implements the shared interface
 var _ shared.AutocompleteInterface = (*AutocompleteImpl)(nil)
 
-// SelectionComponent interface for selection components (models, files, etc.)
 type SelectionComponent interface {
 	GetOptions() []string
 	SetOptions(options []string)

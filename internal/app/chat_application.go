@@ -13,6 +13,7 @@ import (
 	"github.com/inference-gateway/cli/internal/handlers"
 	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/ui"
+	"github.com/inference-gateway/cli/internal/ui/shared"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -267,7 +268,7 @@ func (app *ChatApplication) handleApprovalView(msg tea.Msg) []tea.Cmd {
 
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		cmds = append(cmds, func() tea.Msg {
-			return ui.SetStatusMsg{
+			return shared.SetStatusMsg{
 				Message: fmt.Sprintf("Approval view - Key: '%s'", keyMsg.String()),
 				Spinner: false,
 			}
@@ -326,30 +327,22 @@ func (app *ChatApplication) renderChatInterface() string {
 	headerStyle := lipgloss.NewStyle().
 		Width(app.state.Width).
 		Align(lipgloss.Center).
-		Foreground(lipgloss.Color("39")).
+		Foreground(shared.HeaderColor.GetLipglossColor()).
 		Bold(true).
 		Padding(0, 1)
 
-	titleBorderStyle := lipgloss.NewStyle().
-		Width(app.state.Width).
-		Foreground(lipgloss.Color("240"))
-
 	header := headerStyle.Render("🚀 Inference Gateway CLI")
-	headerBorder := titleBorderStyle.Render(strings.Repeat("═", app.state.Width))
+	headerBorder := shared.CreateSeparator(app.state.Width, "═")
 
 	conversationStyle := lipgloss.NewStyle().
 		Width(app.state.Width).
 		Height(conversationHeight)
 
-	separatorStyle := lipgloss.NewStyle().
-		Width(app.state.Width).
-		Foreground(lipgloss.Color("240"))
-
 	inputStyle := lipgloss.NewStyle().
 		Width(app.state.Width)
 
 	conversationArea := conversationStyle.Render(app.conversationView.Render())
-	separator := separatorStyle.Render(strings.Repeat("─", app.state.Width))
+	separator := shared.CreateSeparator(app.state.Width, "─")
 	inputArea := inputStyle.Render(app.inputView.Render())
 
 	components := []string{header, headerBorder, conversationArea, separator}
@@ -367,10 +360,7 @@ func (app *ChatApplication) renderChatInterface() string {
 	app.helpBar.SetWidth(app.state.Width)
 	helpBarContent := app.helpBar.Render()
 	if helpBarContent != "" {
-		separatorStyle := lipgloss.NewStyle().
-			Width(app.state.Width).
-			Foreground(lipgloss.Color("240"))
-		separator := separatorStyle.Render(strings.Repeat("─", app.state.Width))
+		separator := shared.CreateSeparator(app.state.Width, "─")
 		components = append(components, separator)
 
 		helpBarStyle := lipgloss.NewStyle().
@@ -570,7 +560,7 @@ func (app *ChatApplication) handleGlobalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 				delete(app.state.Data, "eventChannel")
 
 				return func() tea.Msg {
-					return ui.SetStatusMsg{
+					return shared.SetStatusMsg{
 						Message: "Response cancelled",
 						Spinner: false,
 					}
@@ -663,7 +653,7 @@ func (app *ChatApplication) handleFileSelection(files []string, selectedIndex in
 	app.updateInputWithSelectedFile(selectedFile)
 
 	return func() tea.Msg {
-		return ui.SetStatusMsg{
+		return shared.SetStatusMsg{
 			Message: fmt.Sprintf("📁 File selected: %s", selectedFile),
 			Spinner: false,
 		}
@@ -721,7 +711,7 @@ func (app *ChatApplication) handleFileSearchBackspace(searchQuery string) tea.Cm
 func (app *ChatApplication) handleFileSelectionCancel() tea.Cmd {
 	app.clearFileSelectionState()
 	return func() tea.Msg {
-		return ui.SetStatusMsg{
+		return shared.SetStatusMsg{
 			Message: "File selection cancelled",
 			Spinner: false,
 		}
@@ -775,7 +765,7 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 			delete(app.state.Data, "toolCallResponse")
 			delete(app.state.Data, "approvalSelectedIndex")
 			return func() tea.Msg {
-				return ui.SetStatusMsg{
+				return shared.SetStatusMsg{
 					Message: "Tool call cancelled - no pending call found",
 					Spinner: false,
 				}
@@ -808,7 +798,7 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 
 			conversationRepo := app.services.GetConversationRepository()
 			if err := conversationRepo.AddMessage(toolResultEntry); err != nil {
-				return ui.ShowErrorMsg{
+				return shared.ShowErrorMsg{
 					Error:  fmt.Sprintf("Failed to save tool result: %v", err),
 					Sticky: false,
 				}
@@ -816,13 +806,13 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 
 			return tea.Batch(
 				func() tea.Msg {
-					return ui.SetStatusMsg{
+					return shared.SetStatusMsg{
 						Message: "Tool call cancelled",
 						Spinner: false,
 					}
 				},
 				func() tea.Msg {
-					return ui.UpdateHistoryMsg{
+					return shared.UpdateHistoryMsg{
 						History: conversationRepo.GetMessages(),
 					}
 				},
@@ -834,7 +824,7 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 
 	default:
 		return func() tea.Msg {
-			return ui.SetStatusMsg{
+			return shared.SetStatusMsg{
 				Message: fmt.Sprintf("Key pressed: '%s' (selection: %d)", keyMsg.String(), selectedIndex),
 				Spinner: false,
 			}
@@ -846,7 +836,7 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 	toolCall, ok := app.state.Data["pendingToolCall"].(handlers.ToolCallRequest)
 	if !ok {
 		return func() tea.Msg {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  "No pending tool call found",
 				Sticky: false,
 			}
@@ -891,7 +881,7 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 
 		conversationRepo := app.services.GetConversationRepository()
 		if saveErr := conversationRepo.AddMessage(toolResultEntry); saveErr != nil {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to save tool result: %v", saveErr),
 				Sticky: false,
 			}
@@ -906,13 +896,13 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 
 		return tea.Batch(
 			func() tea.Msg {
-				return ui.SetStatusMsg{
+				return shared.SetStatusMsg{
 					Message: statusMessage,
 					Spinner: true,
 				}
 			},
 			func() tea.Msg {
-				return ui.UpdateHistoryMsg{
+				return shared.UpdateHistoryMsg{
 					History: conversationRepo.GetMessages(),
 				}
 			},
@@ -931,7 +921,7 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 		delete(app.state.Data, "approvalSelectedIndex")
 		app.state.CurrentView = handlers.ViewChat
 		return func() tea.Msg {
-			return ui.SetStatusMsg{
+			return shared.SetStatusMsg{
 				Message: "Tool call denied - no pending call found",
 				Spinner: false,
 			}
@@ -965,7 +955,7 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 
 		conversationRepo := app.services.GetConversationRepository()
 		if err := conversationRepo.AddMessage(toolResultEntry); err != nil {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to save tool result: %v", err),
 				Sticky: false,
 			}
@@ -973,13 +963,13 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 
 		return tea.Batch(
 			func() tea.Msg {
-				return ui.SetStatusMsg{
+				return shared.SetStatusMsg{
 					Message: "Tool call denied",
 					Spinner: false,
 				}
 			},
 			func() tea.Msg {
-				return ui.UpdateHistoryMsg{
+				return shared.UpdateHistoryMsg{
 					History: conversationRepo.GetMessages(),
 				}
 			},
@@ -1044,33 +1034,33 @@ func (app *ChatApplication) handleScrollKeys(keyMsg tea.KeyMsg) tea.Cmd {
 	switch keyStr {
 	case "home":
 		return func() tea.Msg {
-			return ui.ScrollRequestMsg{
+			return shared.ScrollRequestMsg{
 				ComponentID: "conversation",
-				Direction:   ui.ScrollToTop,
+				Direction:   shared.ScrollToTop,
 				Amount:      0,
 			}
 		}
 	case "end":
 		return func() tea.Msg {
-			return ui.ScrollRequestMsg{
+			return shared.ScrollRequestMsg{
 				ComponentID: "conversation",
-				Direction:   ui.ScrollToBottom,
+				Direction:   shared.ScrollToBottom,
 				Amount:      0,
 			}
 		}
 	case "shift+up":
 		return func() tea.Msg {
-			return ui.ScrollRequestMsg{
+			return shared.ScrollRequestMsg{
 				ComponentID: "conversation",
-				Direction:   ui.ScrollUp,
+				Direction:   shared.ScrollUp,
 				Amount:      app.getPageSize() / 2,
 			}
 		}
 	case "shift+down":
 		return func() tea.Msg {
-			return ui.ScrollRequestMsg{
+			return shared.ScrollRequestMsg{
 				ComponentID: "conversation",
-				Direction:   ui.ScrollDown,
+				Direction:   shared.ScrollDown,
 				Amount:      app.getPageSize() / 2,
 			}
 		}
@@ -1118,7 +1108,7 @@ func (app *ChatApplication) debugKeyBinding(keyMsg tea.KeyMsg, handler string) t
 			"runes", string(keyMsg.Runes))
 
 		return func() tea.Msg {
-			return ui.DebugKeyMsg{
+			return shared.DebugKeyMsg{
 				Key:     keyMsg.String(),
 				Handler: handler,
 			}

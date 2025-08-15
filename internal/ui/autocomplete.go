@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/commands"
+	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // CommandOption represents a command option for autocomplete
@@ -37,7 +38,7 @@ func NewAutocomplete(theme Theme, commandRegistry *commands.Registry) *Autocompl
 		query:           "",
 		theme:           theme,
 		width:           80,
-		maxVisible:      5, // Show max 5 suggestions at once
+		maxVisible:      5,
 		commandRegistry: commandRegistry,
 	}
 }
@@ -172,7 +173,7 @@ func (a *AutocompleteImpl) Render() string {
 		prefix := "  "
 
 		if i == a.selected {
-			prefix = fmt.Sprintf("%s▶ %s", a.theme.GetAccentColor(), "\033[0m")
+			prefix = fmt.Sprintf("%s▶ %s", a.theme.GetAccentColor(), shared.Reset())
 		}
 
 		line := fmt.Sprintf("%s %-12s %s%s%s",
@@ -180,7 +181,7 @@ func (a *AutocompleteImpl) Render() string {
 			cmd.Command,
 			a.theme.GetDimColor(),
 			cmd.Description,
-			"\033[0m")
+			shared.Reset())
 
 		b.WriteString(line)
 		if i < end-1 {
@@ -191,7 +192,7 @@ func (a *AutocompleteImpl) Render() string {
 	helpColor := a.theme.GetDimColor()
 	if len(a.filtered) > 0 {
 		b.WriteString(fmt.Sprintf("\n%sTab/Enter to select, ↑↓ to navigate, Esc to cancel%s",
-			helpColor, "\033[0m"))
+			helpColor, shared.Reset()))
 	}
 
 	return b.String()

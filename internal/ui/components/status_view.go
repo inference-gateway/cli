@@ -26,7 +26,7 @@ type StatusView struct {
 func NewStatusView() *StatusView {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205")) // Magenta/Pink
+	s.Style = lipgloss.NewStyle().Foreground(shared.SpinnerColor.GetLipglossColor())
 	return &StatusView{
 		message:   "",
 		isError:   false,
@@ -96,18 +96,18 @@ func (sv *StatusView) Render() string {
 	var prefix, color, displayMessage string
 	if sv.isError {
 		prefix = "❌"
-		color = "\033[31m" // Red
+		color = shared.ErrorColor.ANSI
 		displayMessage = sv.message
 	} else if sv.isSpinner {
 		prefix = sv.spinner.View()
-		color = "\033[34m" // Blue
+		color = shared.StatusColor.ANSI
 
 		elapsed := time.Since(sv.startTime)
 		seconds := int(elapsed.Seconds())
 		displayMessage = fmt.Sprintf("%s (%ds) - Press ESC to interrupt", sv.baseMessage, seconds)
 	} else {
 		prefix = "ℹ️"
-		color = "\033[34m" // Blue
+		color = shared.StatusColor.ANSI
 		displayMessage = sv.message
 
 		if sv.tokenUsage != "" {
@@ -130,7 +130,7 @@ func (sv *StatusView) Render() string {
 		}
 	}
 
-	return fmt.Sprintf("%s%s %s\033[0m", color, prefix, displayMessage)
+	return fmt.Sprintf("%s%s %s%s", color, prefix, displayMessage, shared.Reset())
 }
 
 // Bubble Tea interface
