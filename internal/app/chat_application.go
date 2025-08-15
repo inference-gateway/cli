@@ -100,7 +100,6 @@ func (app *ChatApplication) Init() tea.Cmd {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	// Debug all key bindings in one place when debug is enabled
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		if cmd := app.debugKeyBinding(keyMsg, "main"); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -278,9 +277,12 @@ func (app *ChatApplication) View() string {
 
 func (app *ChatApplication) renderChatInterface() string {
 	layout := app.services.GetLayout()
-	conversationHeight := layout.CalculateConversationHeight(app.state.Height)
-	inputHeight := layout.CalculateInputHeight(app.state.Height)
-	statusHeight := layout.CalculateStatusHeight(app.state.Height)
+
+	headerHeight := 3
+	adjustedHeight := app.state.Height - headerHeight
+	conversationHeight := layout.CalculateConversationHeight(adjustedHeight)
+	inputHeight := layout.CalculateInputHeight(adjustedHeight)
+	statusHeight := layout.CalculateStatusHeight(adjustedHeight)
 
 	if conversationHeight < 3 {
 		conversationHeight = 3
@@ -291,6 +293,20 @@ func (app *ChatApplication) renderChatInterface() string {
 	app.inputView.SetWidth(app.state.Width)
 	app.inputView.SetHeight(inputHeight)
 	app.statusView.SetWidth(app.state.Width)
+
+	headerStyle := lipgloss.NewStyle().
+		Width(app.state.Width).
+		Align(lipgloss.Center).
+		Foreground(lipgloss.Color("39")).
+		Bold(true).
+		Padding(0, 1)
+
+	titleBorderStyle := lipgloss.NewStyle().
+		Width(app.state.Width).
+		Foreground(lipgloss.Color("240"))
+
+	header := headerStyle.Render("🚀 Inference Gateway CLI")
+	headerBorder := titleBorderStyle.Render(strings.Repeat("═", app.state.Width))
 
 	conversationStyle := lipgloss.NewStyle().
 		Width(app.state.Width).
@@ -307,7 +323,7 @@ func (app *ChatApplication) renderChatInterface() string {
 	separator := separatorStyle.Render(strings.Repeat("─", app.state.Width))
 	inputArea := inputStyle.Render(app.inputView.Render())
 
-	components := []string{conversationArea, separator}
+	components := []string{header, headerBorder, conversationArea, separator}
 
 	if statusHeight > 0 {
 		statusContent := app.statusView.Render()
