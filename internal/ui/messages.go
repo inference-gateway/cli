@@ -98,7 +98,6 @@ type DebugKeyMsg struct {
 	Handler string
 }
 
-
 // ToggleHelpBarMsg toggles the help bar visibility
 type ToggleHelpBarMsg struct{}
 

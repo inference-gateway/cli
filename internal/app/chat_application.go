@@ -25,11 +25,11 @@ type ChatApplication struct {
 	state *handlers.AppState
 
 	// UI components (injected)
-	conversationView    ui.ConversationRenderer
-	inputView           ui.InputComponent
-	statusView          ui.StatusComponent
-	helpBar             ui.HelpBarComponent
-	modelSelector       *ui.ModelSelectorImpl
+	conversationView ui.ConversationRenderer
+	inputView        ui.InputComponent
+	statusView       ui.StatusComponent
+	helpBar          ui.HelpBarComponent
+	modelSelector    *ui.ModelSelectorImpl
 
 	// Message routing
 	messageRouter *handlers.MessageRouter
@@ -101,7 +101,6 @@ func (app *ChatApplication) updateHelpBarShortcuts() {
 
 	app.helpBar.SetShortcuts(shortcuts)
 }
-
 
 // Init initializes the application
 func (app *ChatApplication) Init() tea.Cmd {
@@ -281,7 +280,6 @@ func (app *ChatApplication) handleApprovalView(msg tea.Msg) []tea.Cmd {
 
 	return cmds
 }
-
 
 // View renders the current application view
 func (app *ChatApplication) View() string {
@@ -552,8 +550,6 @@ func (app *ChatApplication) renderApproval() string {
 
 	return b.String()
 }
-
-
 
 func (app *ChatApplication) handleResize(msg tea.WindowSizeMsg) {
 	app.state.Width = msg.Width
@@ -1091,7 +1087,6 @@ func (app *ChatApplication) getPageSize() int {
 	conversationHeight := layout.CalculateConversationHeight(app.state.Height)
 	return max(1, conversationHeight-2)
 }
-
 
 // toggleToolResultExpansion toggles expansion of the most recent tool result
 func (app *ChatApplication) toggleToolResultExpansion() {
