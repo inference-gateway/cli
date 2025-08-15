@@ -213,6 +213,16 @@ type FileReadToolResult struct {
 	Error     string `json:"error,omitempty"`
 }
 
+// FileWriteToolResult represents the result of a file write operation
+type FileWriteToolResult struct {
+	FilePath    string `json:"file_path"`
+	BytesWriten int64  `json:"bytes_written"`
+	Created     bool   `json:"created"`
+	Overwritten bool   `json:"overwritten"`
+	DirsCreated bool   `json:"dirs_created"`
+	Error       string `json:"error,omitempty"`
+}
+
 // TreeToolResult represents the result of a tree operation
 type TreeToolResult struct {
 	Path            string   `json:"path"`
