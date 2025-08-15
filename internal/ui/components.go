@@ -85,7 +85,7 @@ func (f *ComponentFactory) CreateConversationView() ConversationRenderer {
 		viewport:           vp,
 		width:              80,
 		height:             20,
-		expandedToolResult: -1, // No tool result expanded initially
+		expandedToolResult: -1,
 		isToolExpanded:     false,
 	}
 }
