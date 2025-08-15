@@ -142,7 +142,6 @@ func (t *WriteTodosTool) Validate(args map[string]interface{}) error {
 		return fmt.Errorf("todos array cannot be empty")
 	}
 
-	// Validate each todo item
 	seenIDs := make(map[string]bool)
 	for i, todoRaw := range todosArray {
 		todoMap, ok := todoRaw.(map[string]interface{})
@@ -150,13 +149,11 @@ func (t *WriteTodosTool) Validate(args map[string]interface{}) error {
 			return fmt.Errorf("todo item %d must be an object", i)
 		}
 
-		// Validate required fields
 		id, hasID := todoMap["id"].(string)
 		if !hasID || id == "" {
 			return fmt.Errorf("todo item %d must have a non-empty id field", i)
 		}
 
-		// Check for duplicate IDs
 		if seenIDs[id] {
 			return fmt.Errorf("duplicate todo id: %s", id)
 		}
@@ -172,13 +169,11 @@ func (t *WriteTodosTool) Validate(args map[string]interface{}) error {
 			return fmt.Errorf("todo item %d must have a status field", i)
 		}
 
-		// Validate status values
 		if status != "pending" && status != "in_progress" && status != "completed" {
 			return fmt.Errorf("todo item %d has invalid status: %s (must be 'pending', 'in_progress', or 'completed')", i, status)
 		}
 	}
 
-	// Validate format if provided
 	if format, ok := args["format"].(string); ok {
 		if format != "text" && format != "json" {
 			return fmt.Errorf("format must be 'text' or 'json'")
@@ -251,7 +246,6 @@ func (t *WriteTodosTool) executeTodosWrite(todosArray []interface{}, format stri
 		Format:     format,
 	}
 
-	// Generate summary for text format
 	if format == "text" {
 		result.Summary = t.generateTextSummary(result)
 	}
@@ -269,7 +263,6 @@ func (t *WriteTodosTool) generateTextSummary(result *WriteTodosResult) string {
 	lines = append(lines, fmt.Sprintf("└─ Completed: %d", result.Completed))
 	lines = append(lines, "")
 
-	// Group todos by status for better organization
 	statusOrder := []string{"in_progress", "pending", "completed"}
 	statusSymbols := map[string]string{
 		"pending":     "◯",
@@ -300,7 +293,6 @@ func (t *WriteTodosTool) generateTextSummary(result *WriteTodosResult) string {
 		}
 	}
 
-	// Remove trailing empty line
 	if len(lines) > 0 && lines[len(lines)-1] == "" {
 		lines = lines[:len(lines)-1]
 	}
