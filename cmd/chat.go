@@ -52,7 +52,6 @@ func startChatSession() error {
 
 	program := tea.NewProgram(application)
 
-	fmt.Println("🤖 Starting chat session...")
 	if _, err := program.Run(); err != nil {
 		return fmt.Errorf("error running chat interface: %w", err)
 	}
