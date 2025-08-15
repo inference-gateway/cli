@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/container"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/handlers"
@@ -276,33 +277,57 @@ func (app *ChatApplication) View() string {
 }
 
 func (app *ChatApplication) renderChatInterface() string {
-	var b strings.Builder
+	layout := app.services.GetLayout()
+	conversationHeight := layout.CalculateConversationHeight(app.state.Height)
+	inputHeight := layout.CalculateInputHeight(app.state.Height)
+	statusHeight := layout.CalculateStatusHeight(app.state.Height)
 
-	conversationHeight := 20
+	if conversationHeight < 3 {
+		conversationHeight = 3
+	}
 
 	app.conversationView.SetWidth(app.state.Width)
 	app.conversationView.SetHeight(conversationHeight)
 	app.inputView.SetWidth(app.state.Width)
+	app.inputView.SetHeight(inputHeight)
 	app.statusView.SetWidth(app.state.Width)
 
-	b.WriteString(app.conversationView.Render())
-	b.WriteString("\n")
+	conversationStyle := lipgloss.NewStyle().
+		Width(app.state.Width).
+		Height(conversationHeight)
 
-	b.WriteString(strings.Repeat("─", app.state.Width))
-	b.WriteString("\n")
+	separatorStyle := lipgloss.NewStyle().
+		Width(app.state.Width).
+		Foreground(lipgloss.Color("240"))
 
-	statusContent := app.statusView.Render()
-	if statusContent != "" {
-		b.WriteString(statusContent)
-		b.WriteString("\n\n")
+	inputStyle := lipgloss.NewStyle().
+		Width(app.state.Width)
+
+	conversationArea := conversationStyle.Render(app.conversationView.Render())
+	separator := separatorStyle.Render(strings.Repeat("─", app.state.Width))
+	inputArea := inputStyle.Render(app.inputView.Render())
+
+	components := []string{conversationArea, separator}
+
+	if statusHeight > 0 {
+		statusContent := app.statusView.Render()
+		if statusContent != "" {
+			statusStyle := lipgloss.NewStyle().Width(app.state.Width)
+			components = append(components, statusStyle.Render(statusContent))
+		}
 	}
 
-	b.WriteString(app.inputView.Render())
-	b.WriteString("\n\n")
+	components = append(components, inputArea)
 
-	b.WriteString(app.renderHelpText())
+	if app.state.Height >= 12 {
+		helpStyle := lipgloss.NewStyle().
+			Width(app.state.Width).
+			Foreground(lipgloss.Color("240"))
+		helpText := helpStyle.Render(app.renderHelpText())
+		components = append(components, helpText)
+	}
 
-	return b.String()
+	return lipgloss.JoinVertical(lipgloss.Left, components...)
 }
 
 func (app *ChatApplication) renderModelSelection() string {
@@ -490,7 +515,14 @@ func (app *ChatApplication) renderHelp() string {
 
 func (app *ChatApplication) renderHelpText() string {
 	theme := app.services.GetTheme()
-	helpText := "Press Ctrl+D to send message, Ctrl+C to exit, Ctrl+Shift+C to copy, Ctrl+V to paste • Type @ for files, / for commands • Shift+↑↓, Home/End to scroll chat • Text selection enabled"
+
+	var helpText string
+	if app.state.Width < 80 {
+		helpText = "Ctrl+D:send • Ctrl+C:exit • @:files • /:commands • ↑↓:scroll"
+	} else {
+		helpText = "Press Ctrl+D to send message, Ctrl+C to exit, Ctrl+Shift+C to copy, Ctrl+V to paste • Type @ for files, / for commands • Shift+↑↓, Home/End to scroll chat • Text selection enabled"
+	}
+
 	return theme.GetDimColor() + helpText + "\033[0m"
 }
 

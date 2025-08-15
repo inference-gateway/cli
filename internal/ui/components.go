@@ -39,15 +39,40 @@ func NewDefaultLayout() *DefaultLayout {
 func (l *DefaultLayout) CalculateConversationHeight(totalHeight int) int {
 	inputHeight := l.CalculateInputHeight(totalHeight)
 	statusHeight := l.CalculateStatusHeight(totalHeight)
-	return totalHeight - inputHeight - statusHeight
+
+	extraLines := 5
+	if totalHeight < 12 {
+		extraLines = 3
+	}
+
+	conversationHeight := totalHeight - inputHeight - statusHeight - extraLines
+
+	minConversationHeight := 3
+	if conversationHeight < minConversationHeight {
+		conversationHeight = minConversationHeight
+	}
+
+	return conversationHeight
 }
 
 func (l *DefaultLayout) CalculateInputHeight(totalHeight int) int {
-	return 5 // Input area takes 5 lines (border + input + model name + border)
+	if totalHeight < 8 {
+		return 2
+	}
+	if totalHeight < 12 {
+		return 3
+	}
+	return 4
 }
 
 func (l *DefaultLayout) CalculateStatusHeight(totalHeight int) int {
-	return 3 // Status area takes 3 lines
+	if totalHeight < 8 {
+		return 0
+	}
+	if totalHeight < 12 {
+		return 1
+	}
+	return 2
 }
 
 func (l *DefaultLayout) GetMargins() (top, right, bottom, left int) {
@@ -96,6 +121,7 @@ func (f *ComponentFactory) CreateInputView() InputComponent {
 		cursor:       0,
 		placeholder:  "Type your message... (Press Ctrl+D to send)",
 		width:        80,
+		height:       5,  // Initialize with default height
 		theme:        f.theme,
 		modelService: f.modelService,
 		autocomplete: NewAutocomplete(f.theme, f.commandRegistry),
@@ -353,12 +379,13 @@ type InputViewImpl struct {
 	cursor        int
 	placeholder   string
 	width         int
+	height        int
 	theme         Theme
 	modelService  domain.ModelService
 	autocomplete  *AutocompleteImpl
-	history       []string // Store last 5 messages
-	historyIndex  int      // Current position in history (-1 means not browsing history)
-	currentInput  string   // Store current input when browsing history
+	history       []string
+	historyIndex  int
+	currentInput  string
 }
 
 func (iv *InputViewImpl) GetInput() string {
@@ -368,8 +395,8 @@ func (iv *InputViewImpl) GetInput() string {
 func (iv *InputViewImpl) ClearInput() {
 	iv.text = ""
 	iv.cursor = 0
-	iv.historyIndex = -1  // Reset history navigation
-	iv.currentInput = ""  // Clear stored input
+	iv.historyIndex = -1
+	iv.currentInput = ""
 	iv.autocomplete.Hide()
 }
 
@@ -452,7 +479,7 @@ func (iv *InputViewImpl) SetWidth(width int) {
 }
 
 func (iv *InputViewImpl) SetHeight(height int) {
-	// Input view height is fixed
+	iv.height = height
 }
 
 func (iv *InputViewImpl) Render() string {
@@ -478,27 +505,25 @@ func (iv *InputViewImpl) Render() string {
 
 	borderedInput := inputStyle.Render(inputContent)
 
-	var result strings.Builder
-	result.WriteString(borderedInput)
-	result.WriteString("\n")
+	components := []string{borderedInput}
 
-	if iv.autocomplete.IsVisible() {
+	if iv.autocomplete.IsVisible() && iv.height >= 3 {
 		autocompleteContent := iv.autocomplete.Render()
 		if autocompleteContent != "" {
-			result.WriteString(autocompleteContent)
-			result.WriteString("\n")
+			components = append(components, autocompleteContent)
 		}
 	}
 
 	currentModel := iv.modelService.GetCurrentModel()
-	if currentModel != "" {
+	if currentModel != "" && iv.height >= 2 {
 		modelStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+			Foreground(lipgloss.Color("240")).
+			Width(iv.width)
 		modelDisplay := modelStyle.Render(fmt.Sprintf("Model: %s", currentModel))
-		result.WriteString(modelDisplay)
+		components = append(components, modelDisplay)
 	}
 
-	return result.String()
+	return lipgloss.JoinVertical(lipgloss.Left, components...)
 }
 
 func (iv *InputViewImpl) GetID() string { return "input" }
