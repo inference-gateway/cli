@@ -61,6 +61,7 @@ and management of inference services.
   - **FileSearch**: Search for files using regex patterns
   - **WebSearch**: Search the web using DuckDuckGo or Google
   - **Fetch**: Fetch content from URLs and GitHub
+  - **WriteTodos**: Write and manage in-memory todo lists for task planning
 
 ## Installation
 
@@ -415,6 +416,57 @@ Search the web using DuckDuckGo or Google search engines to find information.
 ### Fetch Tool
 
 Fetch content from whitelisted URLs or GitHub references using the format `github:owner/repo#123`.
+
+### WriteTodos Tool
+
+Write and manage in-memory todo lists for task planning and tracking. This tool helps LLMs organize complex tasks step-by-step for better transparency and progress tracking.
+
+**Parameters:**
+
+- `todos` (required): Array of todo items with the following structure:
+  - `id` (required): Unique identifier for the todo item (string)
+  - `content` (required): The todo item description or content (string)
+  - `status` (required): Status of the todo item - "pending", "in_progress", or "completed" (string)
+- `format` (optional): Output format - "text" or "json" (default: "text")
+
+**Features:**
+
+- **Task Organization**: Structure complex tasks into manageable steps
+- **Progress Tracking**: Monitor task completion with status indicators
+- **Multiple Formats**: Human-readable text output or structured JSON data
+- **Status Management**: Track tasks through pending → in_progress → completed workflow
+- **Duplicate Prevention**: Validates unique todo IDs to prevent conflicts
+
+**Example Usage:**
+
+```json
+{
+  "todos": [
+    {
+      "id": "setup-env",
+      "content": "Set up development environment",
+      "status": "completed"
+    },
+    {
+      "id": "implement-feature", 
+      "content": "Implement new authentication feature",
+      "status": "in_progress"
+    },
+    {
+      "id": "write-tests",
+      "content": "Write comprehensive unit tests", 
+      "status": "pending"
+    }
+  ],
+  "format": "text"
+}
+```
+
+**Security:**
+
+- No file system access - operates entirely in memory
+- No external network requests
+- Safe for planning and organization without security concerns
 
 **Security Notes:**
 
