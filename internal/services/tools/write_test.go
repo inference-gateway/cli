@@ -194,18 +194,42 @@ func TestWriteTool_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tool.Validate(tt.args)
-			if tt.wantErr {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				} else if tt.errMsg != "" && err.Error() != tt.errMsg {
-					t.Errorf("Expected error '%s', got '%s'", tt.errMsg, err.Error())
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Expected no error but got: %v", err)
-				}
-			}
+			validateError(t, err, tt.wantErr, tt.errMsg)
 		})
+	}
+}
+
+// validatePathSecurity is a helper function to validate path security expectations
+func validatePathSecurity(t *testing.T, err error, allowed bool, errorMsg string) {
+	if allowed {
+		if err != nil {
+			t.Errorf("Path should be allowed: %v", err)
+		}
+		return
+	}
+	if err == nil {
+		t.Error("Path should be blocked")
+		return
+	}
+	if errorMsg != "" && err.Error() != errorMsg {
+		t.Errorf("Expected error '%s', got '%s'", errorMsg, err.Error())
+	}
+}
+
+// validateError is a helper function to validate error expectations
+func validateError(t *testing.T, err error, wantErr bool, errMsg string) {
+	if wantErr {
+		if err == nil {
+			t.Errorf("Expected error but got none")
+			return
+		}
+		if errMsg != "" && err.Error() != errMsg {
+			t.Errorf("Expected error '%s', got '%s'", errMsg, err.Error())
+		}
+		return
+	}
+	if err != nil {
+		t.Errorf("Expected no error but got: %v", err)
 	}
 }
 
@@ -235,218 +259,236 @@ func TestWriteTool_Execute(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("successful write to new file", func(t *testing.T) {
-		filePath := filepath.Join(tempDir, "test1.txt")
-		content := "Hello, World!"
-
-		args := map[string]interface{}{
-			"file_path": filePath,
-			"content":   content,
-		}
-
-		result, err := tool.Execute(ctx, args)
-		if err != nil {
-			t.Fatalf("Execute failed: %v", err)
-		}
-
-		if !result.Success {
-			t.Errorf("Expected success=true, got %v", result.Success)
-		}
-
-		if result.Error != "" {
-			t.Errorf("Expected no error, got: %s", result.Error)
-		}
-
-		data, ok := result.Data.(*domain.FileWriteToolResult)
-		if !ok {
-			t.Fatalf("Expected FileWriteToolResult, got %T", result.Data)
-		}
-
-		if data.FilePath != filePath {
-			t.Errorf("Expected file_path='%s', got '%s'", filePath, data.FilePath)
-		}
-
-		if data.BytesWriten != int64(len(content)) {
-			t.Errorf("Expected bytes_written=%d, got %d", len(content), data.BytesWriten)
-		}
-
-		if !data.Created {
-			t.Error("Expected created=true")
-		}
-
-		if data.Overwritten {
-			t.Error("Expected overwritten=false")
-		}
-
-		// Verify file was actually written
-		writtenContent, err := os.ReadFile(filePath)
-		if err != nil {
-			t.Fatalf("Failed to read written file: %v", err)
-		}
-
-		if string(writtenContent) != content {
-			t.Errorf("Expected content='%s', got '%s'", content, string(writtenContent))
-		}
+		testWriteNewFile(t, tempDir, tool, ctx)
 	})
 
 	t.Run("successful write with directory creation", func(t *testing.T) {
-		filePath := filepath.Join(tempDir, "subdir", "test2.txt")
-		content := "Hello, Directory!"
-
-		args := map[string]interface{}{
-			"file_path":   filePath,
-			"content":     content,
-			"create_dirs": true,
-		}
-
-		result, err := tool.Execute(ctx, args)
-		if err != nil {
-			t.Fatalf("Execute failed: %v", err)
-		}
-
-		if !result.Success {
-			t.Errorf("Expected success=true, got %v", result.Success)
-		}
-
-		data, ok := result.Data.(*domain.FileWriteToolResult)
-		if !ok {
-			t.Fatalf("Expected FileWriteToolResult, got %T", result.Data)
-		}
-
-		if !data.DirsCreated {
-			t.Error("Expected dirs_created=true")
-		}
-
-		// Verify file was actually written
-		writtenContent, err := os.ReadFile(filePath)
-		if err != nil {
-			t.Fatalf("Failed to read written file: %v", err)
-		}
-
-		if string(writtenContent) != content {
-			t.Errorf("Expected content='%s', got '%s'", content, string(writtenContent))
-		}
+		testWriteWithDirCreation(t, tempDir, tool, ctx)
 	})
 
 	t.Run("successful overwrite existing file", func(t *testing.T) {
-		filePath := filepath.Join(tempDir, "test3.txt")
-		originalContent := "Original content"
-		newContent := "New content"
-
-		// First, create a file
-		if err := os.WriteFile(filePath, []byte(originalContent), 0644); err != nil {
-			t.Fatalf("Failed to create initial file: %v", err)
-		}
-
-		args := map[string]interface{}{
-			"file_path": filePath,
-			"content":   newContent,
-			"overwrite": true,
-		}
-
-		result, err := tool.Execute(ctx, args)
-		if err != nil {
-			t.Fatalf("Execute failed: %v", err)
-		}
-
-		if !result.Success {
-			t.Errorf("Expected success=true, got %v", result.Success)
-		}
-
-		data, ok := result.Data.(*domain.FileWriteToolResult)
-		if !ok {
-			t.Fatalf("Expected FileWriteToolResult, got %T", result.Data)
-		}
-
-		if data.Created {
-			t.Error("Expected created=false")
-		}
-
-		if !data.Overwritten {
-			t.Error("Expected overwritten=true")
-		}
-
-		// Verify file was actually overwritten
-		writtenContent, err := os.ReadFile(filePath)
-		if err != nil {
-			t.Fatalf("Failed to read written file: %v", err)
-		}
-
-		if string(writtenContent) != newContent {
-			t.Errorf("Expected content='%s', got '%s'", newContent, string(writtenContent))
-		}
+		testWriteOverwriteExisting(t, tempDir, tool, ctx)
 	})
 
 	t.Run("fail when overwrite is false and file exists", func(t *testing.T) {
-		filePath := filepath.Join(tempDir, "test4.txt")
-		originalContent := "Original content"
-		newContent := "New content"
-
-		// First, create a file
-		if err := os.WriteFile(filePath, []byte(originalContent), 0644); err != nil {
-			t.Fatalf("Failed to create initial file: %v", err)
-		}
-
-		args := map[string]interface{}{
-			"file_path": filePath,
-			"content":   newContent,
-			"overwrite": false,
-		}
-
-		_, err := tool.Execute(ctx, args)
-		if err == nil {
-			t.Error("Expected error when overwrite=false and file exists")
-		}
-
-		if err.Error() != "file "+filePath+" already exists and overwrite is false" {
-			t.Errorf("Unexpected error message: %s", err.Error())
-		}
-
-		// Verify original file was not modified
-		writtenContent, err := os.ReadFile(filePath)
-		if err != nil {
-			t.Fatalf("Failed to read original file: %v", err)
-		}
-
-		if string(writtenContent) != originalContent {
-			t.Error("Original file should not have been modified")
-		}
+		testWriteFailNoOverwrite(t, tempDir, tool, ctx)
 	})
 
 	t.Run("fail with invalid arguments", func(t *testing.T) {
-		args := map[string]interface{}{
-			"file_path": 123,
-			"content":   "hello",
-		}
-
-		result, err := tool.Execute(ctx, args)
-		if err != nil {
-			t.Fatalf("Execute should not return error for validation failures: %v", err)
-		}
-
-		if result.Success {
-			t.Error("Expected success=false")
-		}
-
-		if result.Error != "file_path parameter is required and must be a string" {
-			t.Errorf("Expected validation error, got: %s", result.Error)
-		}
+		testWriteFailInvalidArgs(t, tool, ctx)
 	})
 
 	t.Run("fail when tools are disabled", func(t *testing.T) {
-		cfg := config.DefaultConfig()
-		cfg.Tools.Enabled = false
-		disabledTool := NewWriteTool(cfg)
-
-		args := map[string]interface{}{
-			"file_path": "test.txt",
-			"content":   "hello",
-		}
-
-		_, err := disabledTool.Execute(ctx, args)
-		if err == nil {
-			t.Error("Expected error when tools are disabled")
-		}
+		testWriteFailDisabled(t, ctx)
 	})
+}
+
+func testWriteNewFile(t *testing.T, tempDir string, tool *WriteTool, ctx context.Context) {
+	filePath := filepath.Join(tempDir, "test1.txt")
+	content := "Hello, World!"
+
+	args := map[string]interface{}{
+		"file_path": filePath,
+		"content":   content,
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success=true, got %v", result.Success)
+	}
+
+	if result.Error != "" {
+		t.Errorf("Expected no error, got: %s", result.Error)
+	}
+
+	data, ok := result.Data.(*domain.FileWriteToolResult)
+	if !ok {
+		t.Fatalf("Expected FileWriteToolResult, got %T", result.Data)
+	}
+
+	if data.FilePath != filePath {
+		t.Errorf("Expected file_path='%s', got '%s'", filePath, data.FilePath)
+	}
+
+	if data.BytesWriten != int64(len(content)) {
+		t.Errorf("Expected bytes_written=%d, got %d", len(content), data.BytesWriten)
+	}
+
+	if !data.Created {
+		t.Error("Expected created=true")
+	}
+
+	if data.Overwritten {
+		t.Error("Expected overwritten=false")
+	}
+
+	writtenContent, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read written file: %v", err)
+	}
+
+	if string(writtenContent) != content {
+		t.Errorf("Expected content='%s', got '%s'", content, string(writtenContent))
+	}
+}
+
+func testWriteWithDirCreation(t *testing.T, tempDir string, tool *WriteTool, ctx context.Context) {
+	filePath := filepath.Join(tempDir, "subdir", "test2.txt")
+	content := "Hello, Directory!"
+
+	args := map[string]interface{}{
+		"file_path":   filePath,
+		"content":     content,
+		"create_dirs": true,
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success=true, got %v", result.Success)
+	}
+
+	data, ok := result.Data.(*domain.FileWriteToolResult)
+	if !ok {
+		t.Fatalf("Expected FileWriteToolResult, got %T", result.Data)
+	}
+
+	if !data.DirsCreated {
+		t.Error("Expected dirs_created=true")
+	}
+
+	writtenContent, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read written file: %v", err)
+	}
+
+	if string(writtenContent) != content {
+		t.Errorf("Expected content='%s', got '%s'", content, string(writtenContent))
+	}
+}
+
+func testWriteOverwriteExisting(t *testing.T, tempDir string, tool *WriteTool, ctx context.Context) {
+	filePath := filepath.Join(tempDir, "test3.txt")
+	originalContent := "Original content"
+	newContent := "New content"
+
+	if err := os.WriteFile(filePath, []byte(originalContent), 0644); err != nil {
+		t.Fatalf("Failed to create initial file: %v", err)
+	}
+
+	args := map[string]interface{}{
+		"file_path": filePath,
+		"content":   newContent,
+		"overwrite": true,
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success=true, got %v", result.Success)
+	}
+
+	data, ok := result.Data.(*domain.FileWriteToolResult)
+	if !ok {
+		t.Fatalf("Expected FileWriteToolResult, got %T", result.Data)
+	}
+
+	if data.Created {
+		t.Error("Expected created=false")
+	}
+
+	if !data.Overwritten {
+		t.Error("Expected overwritten=true")
+	}
+
+	writtenContent, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read written file: %v", err)
+	}
+
+	if string(writtenContent) != newContent {
+		t.Errorf("Expected content='%s', got '%s'", newContent, string(writtenContent))
+	}
+}
+
+func testWriteFailNoOverwrite(t *testing.T, tempDir string, tool *WriteTool, ctx context.Context) {
+	filePath := filepath.Join(tempDir, "test4.txt")
+	originalContent := "Original content"
+	newContent := "New content"
+
+	if err := os.WriteFile(filePath, []byte(originalContent), 0644); err != nil {
+		t.Fatalf("Failed to create initial file: %v", err)
+	}
+
+	args := map[string]interface{}{
+		"file_path": filePath,
+		"content":   newContent,
+		"overwrite": false,
+	}
+
+	_, err := tool.Execute(ctx, args)
+	if err == nil {
+		t.Error("Expected error when overwrite=false and file exists")
+	}
+
+	if err.Error() != "file "+filePath+" already exists and overwrite is false" {
+		t.Errorf("Unexpected error message: %s", err.Error())
+	}
+
+	writtenContent, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read original file: %v", err)
+	}
+
+	if string(writtenContent) != originalContent {
+		t.Error("Original file should not have been modified")
+	}
+}
+
+func testWriteFailInvalidArgs(t *testing.T, tool *WriteTool, ctx context.Context) {
+	args := map[string]interface{}{
+		"file_path": 123,
+		"content":   "hello",
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute should not return error for validation failures: %v", err)
+	}
+
+	if result.Success {
+		t.Error("Expected success=false")
+	}
+
+	if result.Error != "file_path parameter is required and must be a string" {
+		t.Errorf("Expected validation error, got: %s", result.Error)
+	}
+}
+
+func testWriteFailDisabled(t *testing.T, ctx context.Context) {
+	cfg := config.DefaultConfig()
+	cfg.Tools.Enabled = false
+	disabledTool := NewWriteTool(cfg)
+
+	args := map[string]interface{}{
+		"file_path": "test.txt",
+		"content":   "hello",
+	}
+
+	_, err := disabledTool.Execute(ctx, args)
+	if err == nil {
+		t.Error("Expected error when tools are disabled")
+	}
 }
 
 func TestWriteTool_PathSecurity(t *testing.T) {
@@ -498,17 +540,7 @@ func TestWriteTool_PathSecurity(t *testing.T) {
 			}
 
 			err := tool.Validate(args)
-			if tt.allowed {
-				if err != nil {
-					t.Errorf("Path should be allowed: %v", err)
-				}
-			} else {
-				if err == nil {
-					t.Error("Path should be blocked")
-				} else if tt.errorMsg != "" && err.Error() != tt.errorMsg {
-					t.Errorf("Expected error '%s', got '%s'", tt.errorMsg, err.Error())
-				}
-			}
+			validatePathSecurity(t, err, tt.allowed, tt.errorMsg)
 		})
 	}
 }

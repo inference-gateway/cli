@@ -27,6 +27,9 @@ tools:
   read:
     enabled: true
     require_approval: false
+  write:
+    enabled: true
+    require_approval: true
   file_search:
     enabled: true
     require_approval: false

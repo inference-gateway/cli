@@ -158,7 +158,6 @@ func (t *WriteTool) Validate(args map[string]interface{}) error {
 		return fmt.Errorf("content parameter is required and must be a string")
 	}
 
-	// Validate boolean parameters
 	if createDirs, exists := args["create_dirs"]; exists {
 		if _, ok := createDirs.(bool); !ok {
 			return fmt.Errorf("create_dirs parameter must be a boolean")
@@ -203,7 +202,6 @@ func (t *WriteTool) executeWrite(filePath, content string, createDirs, overwrite
 		FilePath: filePath,
 	}
 
-	// Check if file exists
 	_, err := os.Stat(filePath)
 	fileExists := err == nil
 	result.Overwritten = fileExists && overwrite
@@ -212,17 +210,8 @@ func (t *WriteTool) executeWrite(filePath, content string, createDirs, overwrite
 		return nil, fmt.Errorf("file %s already exists and overwrite is false", filePath)
 	}
 
-	// Create parent directories if needed and allowed
-	if createDirs {
-		dir := filepath.Dir(filePath)
-		if dir != "." && dir != "/" {
-			if _, err := os.Stat(dir); os.IsNotExist(err) {
-				if err := os.MkdirAll(dir, 0755); err != nil {
-					return nil, fmt.Errorf("failed to create parent directories for %s: %w", filePath, err)
-				}
-				result.DirsCreated = true
-			}
-		}
+	if err := t.createParentDirs(filePath, createDirs, result); err != nil {
+		return nil, err
 	}
 
 	// Write the file
@@ -234,6 +223,27 @@ func (t *WriteTool) executeWrite(filePath, content string, createDirs, overwrite
 	result.Created = !fileExists
 
 	return result, nil
+}
+
+// createParentDirs creates parent directories if needed and allowed
+func (t *WriteTool) createParentDirs(filePath string, createDirs bool, result *FileWriteResult) error {
+	if !createDirs {
+		return nil
+	}
+
+	dir := filepath.Dir(filePath)
+	if dir == "." || dir == "/" {
+		return nil
+	}
+
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create parent directories for %s: %w", filePath, err)
+		}
+		result.DirsCreated = true
+	}
+
+	return nil
 }
 
 // validatePathSecurity checks if a path is allowed for writing (no file existence check)
