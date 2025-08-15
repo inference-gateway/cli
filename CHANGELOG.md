@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.17.0](https://github.com/inference-gateway/cli/compare/v0.16.2...v0.17.0) (2025-08-15)
+
+### 🚀 Features
+
+* Implement Write Tool for filesystem operations ([#46](https://github.com/inference-gateway/cli/issues/46)) ([ccf3091](https://github.com/inference-gateway/cli/commit/ccf3091b64edcaaa2ac019e2692e9b4d58a67950)), closes [#45](https://github.com/inference-gateway/cli/issues/45)
+
 ## [0.16.2](https://github.com/inference-gateway/cli/compare/v0.16.1...v0.16.2) (2025-08-15)
 
 ### 📚 Documentation
