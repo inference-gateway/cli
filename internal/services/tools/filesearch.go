@@ -303,7 +303,7 @@ func (t *FileSearchTool) shouldIncludeInSearch(d os.DirEntry, relPath string, re
 	}
 
 	excludeExts := map[string]bool{
-		".exe":   true, ".bin": true, ".dll": true, ".so": true, ".dylib": true,
+		".exe": true, ".bin": true, ".dll": true, ".so": true, ".dylib": true,
 		".a": true, ".o": true, ".obj": true, ".pyc": true, ".class": true,
 		".jar": true, ".war": true, ".zip": true, ".tar": true, ".gz": true,
 		".rar": true, ".7z": true, ".png": true, ".jpg": true, ".jpeg": true,

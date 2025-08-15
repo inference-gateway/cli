@@ -7,9 +7,11 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/container"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/handlers"
+	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -23,10 +25,11 @@ type ChatApplication struct {
 	state *handlers.AppState
 
 	// UI components (injected)
-	conversationView ui.ConversationRenderer
-	inputView        ui.InputComponent
-	statusView       ui.StatusComponent
-	modelSelector    *ui.ModelSelectorImpl
+	conversationView    ui.ConversationRenderer
+	inputView           ui.InputComponent
+	statusView          ui.StatusComponent
+	helpBar             ui.HelpBarComponent
+	modelSelector       *ui.ModelSelectorImpl
 
 	// Message routing
 	messageRouter *handlers.MessageRouter
@@ -60,6 +63,10 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 	app.conversationView = factory.CreateConversationView()
 	app.inputView = factory.CreateInputView()
 	app.statusView = factory.CreateStatusView()
+	app.helpBar = factory.CreateHelpBar()
+
+	// Initialize help bar with actual commands from registry
+	app.updateHelpBarShortcuts()
 
 	app.modelSelector = ui.NewModelSelector(models, services.GetModelService(), services.GetTheme())
 
@@ -73,6 +80,28 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 
 	return app
 }
+
+// updateHelpBarShortcuts updates the help bar with essential keyboard shortcuts
+func (app *ChatApplication) updateHelpBarShortcuts() {
+	var shortcuts []ui.KeyShortcut
+
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "!", Description: "for bash mode"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "/", Description: "for commands"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "@", Description: "for file paths"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "#", Description: "to memorize(not implemented)"})
+
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+d", Description: "to send message"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+c", Description: "to exit"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+shift+c", Description: "to copy"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+v", Description: "to paste"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "shift+↑↓", Description: "scroll chat"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "home/end", Description: "scroll top/bottom"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+r", Description: "expand/collapse"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "esc", Description: "interrupt/cancel"})
+
+	app.helpBar.SetShortcuts(shortcuts)
+}
+
 
 // Init initializes the application
 func (app *ChatApplication) Init() tea.Cmd {
@@ -97,6 +126,12 @@ func (app *ChatApplication) Init() tea.Cmd {
 // Update handles all application messages using the message router pattern
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
+
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		if cmd := app.debugKeyBinding(keyMsg, "main"); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
 
 	cmds = append(cmds, app.handleCommonMessages(msg)...)
 	cmds = append(cmds, app.handleViewSpecificMessages(msg)...)
@@ -169,15 +204,27 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	return app.handleChatViewKeypress(keyMsg)
+}
+
+func (app *ChatApplication) handleChatViewKeypress(keyMsg tea.KeyMsg) []tea.Cmd {
+	var cmds []tea.Cmd
 	key := keyMsg.String()
+
 	if key == "ctrl+r" {
 		app.toggleToolResultExpansion()
 		return cmds
 	}
+
 	if key == "ctrl+v" || key == "alt+v" || key == "ctrl+x" || key == "ctrl+shift+c" {
 		if cmd := app.handleFocusedComponentKeys(keyMsg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+		return cmds
+	}
+
+	if cmd := app.handleScrollKeys(keyMsg); cmd != nil {
+		cmds = append(cmds, cmd)
 		return cmds
 	}
 
@@ -235,6 +282,7 @@ func (app *ChatApplication) handleApprovalView(msg tea.Msg) []tea.Cmd {
 	return cmds
 }
 
+
 // View renders the current application view
 func (app *ChatApplication) View() string {
 	switch app.state.CurrentView {
@@ -248,42 +296,94 @@ func (app *ChatApplication) View() string {
 		approvalContent := app.renderApproval()
 		return approvalContent + fmt.Sprintf("\n\n[DEBUG: CurrentView=%v, PendingToolCall=%v]",
 			app.state.CurrentView, app.state.Data["pendingToolCall"] != nil)
-	case handlers.ViewHelp:
-		return app.renderHelp()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", app.state.CurrentView)
 	}
 }
 
 func (app *ChatApplication) renderChatInterface() string {
-	var b strings.Builder
-
 	layout := app.services.GetLayout()
-	conversationHeight := layout.CalculateConversationHeight(app.state.Height)
+
+	headerHeight := 3
+	helpBarHeight := 0
+
+	app.helpBar.SetWidth(app.state.Width)
+	if app.helpBar.IsEnabled() {
+		helpBarHeight = 6
+	}
+
+	adjustedHeight := app.state.Height - headerHeight - helpBarHeight
+	conversationHeight := layout.CalculateConversationHeight(adjustedHeight)
+	inputHeight := layout.CalculateInputHeight(adjustedHeight)
+	statusHeight := layout.CalculateStatusHeight(adjustedHeight)
+
+	if conversationHeight < 3 {
+		conversationHeight = 3
+	}
 
 	app.conversationView.SetWidth(app.state.Width)
 	app.conversationView.SetHeight(conversationHeight)
 	app.inputView.SetWidth(app.state.Width)
+	app.inputView.SetHeight(inputHeight)
 	app.statusView.SetWidth(app.state.Width)
 
-	b.WriteString(app.conversationView.Render())
-	b.WriteString("\n")
+	headerStyle := lipgloss.NewStyle().
+		Width(app.state.Width).
+		Align(lipgloss.Center).
+		Foreground(lipgloss.Color("39")).
+		Bold(true).
+		Padding(0, 1)
 
-	b.WriteString(strings.Repeat("─", app.state.Width))
-	b.WriteString("\n")
+	titleBorderStyle := lipgloss.NewStyle().
+		Width(app.state.Width).
+		Foreground(lipgloss.Color("240"))
 
-	statusContent := app.statusView.Render()
-	if statusContent != "" {
-		b.WriteString(statusContent)
-		b.WriteString("\n\n")
+	header := headerStyle.Render("🚀 Inference Gateway CLI")
+	headerBorder := titleBorderStyle.Render(strings.Repeat("═", app.state.Width))
+
+	conversationStyle := lipgloss.NewStyle().
+		Width(app.state.Width).
+		Height(conversationHeight)
+
+	separatorStyle := lipgloss.NewStyle().
+		Width(app.state.Width).
+		Foreground(lipgloss.Color("240"))
+
+	inputStyle := lipgloss.NewStyle().
+		Width(app.state.Width)
+
+	conversationArea := conversationStyle.Render(app.conversationView.Render())
+	separator := separatorStyle.Render(strings.Repeat("─", app.state.Width))
+	inputArea := inputStyle.Render(app.inputView.Render())
+
+	components := []string{header, headerBorder, conversationArea, separator}
+
+	if statusHeight > 0 {
+		statusContent := app.statusView.Render()
+		if statusContent != "" {
+			statusStyle := lipgloss.NewStyle().Width(app.state.Width)
+			components = append(components, statusStyle.Render(statusContent))
+		}
 	}
 
-	b.WriteString(app.inputView.Render())
-	b.WriteString("\n\n")
+	components = append(components, inputArea)
 
-	b.WriteString(app.renderHelpText())
+	app.helpBar.SetWidth(app.state.Width)
+	helpBarContent := app.helpBar.Render()
+	if helpBarContent != "" {
+		separatorStyle := lipgloss.NewStyle().
+			Width(app.state.Width).
+			Foreground(lipgloss.Color("240"))
+		separator := separatorStyle.Render(strings.Repeat("─", app.state.Width))
+		components = append(components, separator)
 
-	return b.String()
+		helpBarStyle := lipgloss.NewStyle().
+			Width(app.state.Width).
+			Padding(1, 1)
+		components = append(components, helpBarStyle.Render(helpBarContent))
+	}
+
+	return lipgloss.JoinVertical(lipgloss.Left, components...)
 }
 
 func (app *ChatApplication) renderModelSelection() string {
@@ -453,27 +553,7 @@ func (app *ChatApplication) renderApproval() string {
 	return b.String()
 }
 
-func (app *ChatApplication) renderHelp() string {
-	commands := app.services.GetCommandRegistry().GetAll()
-	var b strings.Builder
 
-	b.WriteString("Available commands:\n\n")
-	for _, cmd := range commands {
-		b.WriteString("  ")
-		b.WriteString(cmd.GetUsage())
-		b.WriteString(" - ")
-		b.WriteString(cmd.GetDescription())
-		b.WriteString("\n")
-	}
-
-	return b.String()
-}
-
-func (app *ChatApplication) renderHelpText() string {
-	theme := app.services.GetTheme()
-	helpText := "Press Ctrl+D to send message, Ctrl+C to exit, Ctrl+Shift+C to copy, Ctrl+V to paste • Type @ for files, / for commands"
-	return theme.GetDimColor() + helpText + "\033[0m"
-}
 
 func (app *ChatApplication) handleResize(msg tea.WindowSizeMsg) {
 	app.state.Width = msg.Width
@@ -505,13 +585,6 @@ func (app *ChatApplication) handleGlobalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 
-	case "f1":
-		if app.state.CurrentView == handlers.ViewHelp {
-			app.state.CurrentView = handlers.ViewChat
-		} else {
-			app.state.CurrentView = handlers.ViewHelp
-		}
-		return nil
 	}
 
 	return nil
@@ -526,9 +599,9 @@ func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
 	files := app.filterFiles(allFiles, searchQuery)
 
 	switch keyMsg.String() {
-	case "up", "k":
+	case "up":
 		return app.handleFileNavigation(files, selectedIndex, -1)
-	case "down", "j":
+	case "down":
 		return app.handleFileNavigation(files, selectedIndex, 1)
 	case "enter", "return":
 		return app.handleFileSelection(files, selectedIndex)
@@ -679,14 +752,14 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 	}
 
 	switch keyMsg.String() {
-	case "up", "k":
+	case "up":
 		if selectedIndex > int(domain.ApprovalApprove) {
 			selectedIndex--
 		}
 		app.state.Data["approvalSelectedIndex"] = selectedIndex
 		return nil
 
-	case "down", "j":
+	case "down":
 		if selectedIndex < int(domain.ApprovalReject) {
 			selectedIndex++
 		}
@@ -858,7 +931,6 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 	}
 }
 
-
 func (app *ChatApplication) denyToolCall() tea.Cmd {
 	toolCall, ok := app.state.Data["pendingToolCall"].(handlers.ToolCallRequest)
 	if !ok {
@@ -960,8 +1032,66 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 		}
 	}
 
+	if model, cmd := app.helpBar.(tea.Model).Update(msg); cmd != nil {
+		cmds = append(cmds, cmd)
+		if helpBarModel, ok := model.(ui.HelpBarComponent); ok {
+			app.helpBar = helpBarModel
+		}
+	}
+
 	return cmds
 }
+
+func (app *ChatApplication) handleScrollKeys(keyMsg tea.KeyMsg) tea.Cmd {
+	keyStr := keyMsg.String()
+
+	if strings.Contains(keyStr, "ctrl+") || strings.Contains(keyStr, "cmd+") || strings.Contains(keyStr, "alt+") {
+		return nil
+	}
+
+	switch keyStr {
+	case "home":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollToTop,
+				Amount:      0,
+			}
+		}
+	case "end":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollToBottom,
+				Amount:      0,
+			}
+		}
+	case "shift+up":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollUp,
+				Amount:      app.getPageSize() / 2,
+			}
+		}
+	case "shift+down":
+		return func() tea.Msg {
+			return ui.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ui.ScrollDown,
+				Amount:      app.getPageSize() / 2,
+			}
+		}
+	}
+	return nil
+}
+
+func (app *ChatApplication) getPageSize() int {
+	layout := app.services.GetLayout()
+	conversationHeight := layout.CalculateConversationHeight(app.state.Height)
+	return max(1, conversationHeight-2)
+}
+
 
 // toggleToolResultExpansion toggles expansion of the most recent tool result
 func (app *ChatApplication) toggleToolResultExpansion() {
@@ -984,4 +1114,25 @@ func (app *ChatApplication) GetServices() *container.ServiceContainer {
 // GetState returns the current application state (for testing or extensions)
 func (app *ChatApplication) GetState() *handlers.AppState {
 	return app.state
+}
+
+// debugKeyBinding logs key binding events when debug mode is enabled
+func (app *ChatApplication) debugKeyBinding(keyMsg tea.KeyMsg, handler string) tea.Cmd {
+	config := app.services.GetConfig()
+	if config != nil && config.Output.Debug {
+		logger.Debug("Key binding debug",
+			"key", keyMsg.String(),
+			"handler", handler,
+			"type", keyMsg.Type,
+			"alt", keyMsg.Alt,
+			"runes", string(keyMsg.Runes))
+
+		return func() tea.Msg {
+			return ui.DebugKeyMsg{
+				Key:     keyMsg.String(),
+				Handler: handler,
+			}
+		}
+	}
+	return nil
 }

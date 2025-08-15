@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/charmbracelet/bubbletea"
+	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 )
@@ -121,10 +122,14 @@ func (h *ToolMessageHandler) handleToolCall(event domain.ToolCallEvent, state *A
 }
 
 // UIMessageHandler handles UI-related messages
-type UIMessageHandler struct{}
+type UIMessageHandler struct {
+	commandRegistry *commands.Registry
+}
 
-func NewUIMessageHandler() *UIMessageHandler {
-	return &UIMessageHandler{}
+func NewUIMessageHandler(commandRegistry *commands.Registry) *UIMessageHandler {
+	return &UIMessageHandler{
+		commandRegistry: commandRegistry,
+	}
 }
 
 func (h *UIMessageHandler) GetPriority() int { return 10 }
@@ -155,10 +160,13 @@ func (h *UIMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.
 	case SwitchModelMsg:
 		state.CurrentView = ViewModelSelection
 		return nil, nil
+
+
 	}
 
 	return nil, nil
 }
+
 
 // HelpMessageHandler handles help-related messages
 type HelpMessageHandler struct{}

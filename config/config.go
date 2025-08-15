@@ -30,18 +30,19 @@ type GatewayConfig struct {
 type OutputConfig struct {
 	Format string `yaml:"format"`
 	Quiet  bool   `yaml:"quiet"`
+	Debug  bool   `yaml:"debug"`
 }
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled      bool                `yaml:"enabled"`
-	Bash         BashToolConfig      `yaml:"bash"`
-	Read         ReadToolConfig      `yaml:"read"`
+	Enabled      bool                 `yaml:"enabled"`
+	Bash         BashToolConfig       `yaml:"bash"`
+	Read         ReadToolConfig       `yaml:"read"`
 	FileSearch   FileSearchToolConfig `yaml:"file_search"`
-	Fetch        FetchToolConfig     `yaml:"fetch"`
-	WebSearch    WebSearchToolConfig `yaml:"web_search"`
-	Safety       SafetyConfig        `yaml:"safety"`
-	ExcludePaths []string            `yaml:"exclude_paths"`
+	Fetch        FetchToolConfig      `yaml:"fetch"`
+	WebSearch    WebSearchToolConfig  `yaml:"web_search"`
+	Safety       SafetyConfig         `yaml:"safety"`
+	ExcludePaths []string             `yaml:"exclude_paths"`
 }
 
 // BashToolConfig contains bash-specific tool settings
@@ -137,6 +138,7 @@ func DefaultConfig() *Config {
 		Output: OutputConfig{
 			Format: "text",
 			Quiet:  false,
+			Debug:  false,
 		},
 		Tools: ToolsConfig{
 			Enabled: true,

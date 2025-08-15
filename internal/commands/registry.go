@@ -115,6 +115,19 @@ func (r *Registry) ParseCommand(input string) (string, []string, error) {
 	return command, args, nil
 }
 
+// GetCommands returns a map of command names to descriptions
+func (r *Registry) GetCommands() map[string]string {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	commands := make(map[string]string)
+	for name, cmd := range r.commands {
+		commands[name] = cmd.GetDescription()
+	}
+
+	return commands
+}
+
 // GetCommandsStartingWith returns commands that start with the given prefix
 func (r *Registry) GetCommandsStartingWith(prefix string) []string {
 	r.mutex.RLock()

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/muesli/reflow/wordwrap"
 )
 
 // MessageType represents different types of messages
@@ -562,4 +563,66 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 	}
 
 	return fmt.Sprintf("%s\n%s %s", toolCall, statusIcon, preview)
+}
+
+// WrapText wraps text to the specified width using wordwrap
+func WrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+	return wordwrap.String(text, width)
+}
+
+// GetResponsiveWidth calculates appropriate width based on terminal size
+func GetResponsiveWidth(terminalWidth int) int {
+	minWidth := 40
+	maxWidth := 180
+
+	margin := 4
+	availableWidth := terminalWidth - margin
+
+	if availableWidth < minWidth {
+		return minWidth
+	}
+
+	if availableWidth > maxWidth {
+		return maxWidth
+	}
+
+	return availableWidth
+}
+
+// FormatResponsiveMessage formats a message with responsive width
+func FormatResponsiveMessage(message string, terminalWidth int) string {
+	width := GetResponsiveWidth(terminalWidth)
+	return WrapText(message, width)
+}
+
+// FormatResponsiveCodeBlock formats code blocks with responsive width
+func FormatResponsiveCodeBlock(code string, terminalWidth int) string {
+	width := GetResponsiveWidth(terminalWidth)
+	lines := strings.Split(code, "\n")
+	var wrappedLines []string
+
+	for _, line := range lines {
+		if len(line) > width {
+			wrappedLines = append(wrappedLines, WrapText(line, width))
+		} else {
+			wrappedLines = append(wrappedLines, line)
+		}
+	}
+
+	return strings.Join(wrappedLines, "\n")
+}
+
+// FormatToolResultExpandedResponsive formats a tool execution result with full details and responsive width
+func FormatToolResultExpandedResponsive(result *domain.ToolExecutionResult, terminalWidth int) string {
+	content := FormatToolResultExpanded(result)
+	return FormatResponsiveMessage(content, terminalWidth)
+}
+
+// FormatToolResultForUIResponsive formats tool execution results for UI display with responsive width
+func FormatToolResultForUIResponsive(result *domain.ToolExecutionResult, terminalWidth int) string {
+	content := FormatToolResultForUI(result)
+	return FormatResponsiveMessage(content, terminalWidth)
 }
