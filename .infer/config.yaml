@@ -30,6 +30,9 @@ tools:
   file_search:
     enabled: true
     require_approval: false
+  tree:
+    enabled: true
+    require_approval: false
   fetch:
     enabled: true
     whitelisted_domains:

@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.16.0](https://github.com/inference-gateway/cli/compare/v0.15.0...v0.16.0) (2025-08-15)
+
+### 🚀 Features
+
+* Implement Tree tool for directory structure visualization ([#43](https://github.com/inference-gateway/cli/issues/43)) ([69fa9c5](https://github.com/inference-gateway/cli/commit/69fa9c58f7cbb832f20fcb5ab5ee7e05613c48f2)), closes [#39](https://github.com/inference-gateway/cli/issues/39) [#39](https://github.com/inference-gateway/cli/issues/39)
+
 ## [0.15.0](https://github.com/inference-gateway/cli/compare/v0.14.3...v0.15.0) (2025-08-15)
 
 ### 🚀 Features

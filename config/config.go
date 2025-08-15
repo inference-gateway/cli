@@ -39,6 +39,7 @@ type ToolsConfig struct {
 	Bash         BashToolConfig       `yaml:"bash"`
 	Read         ReadToolConfig       `yaml:"read"`
 	FileSearch   FileSearchToolConfig `yaml:"file_search"`
+	Tree         TreeToolConfig       `yaml:"tree"`
 	Fetch        FetchToolConfig      `yaml:"fetch"`
 	WebSearch    WebSearchToolConfig  `yaml:"web_search"`
 	Safety       SafetyConfig         `yaml:"safety"`
@@ -60,6 +61,12 @@ type ReadToolConfig struct {
 
 // FileSearchToolConfig contains file search-specific tool settings
 type FileSearchToolConfig struct {
+	Enabled         bool  `yaml:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty"`
+}
+
+// TreeToolConfig contains tree-specific tool settings
+type TreeToolConfig struct {
 	Enabled         bool  `yaml:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty"`
 }
@@ -162,6 +169,10 @@ func DefaultConfig() *Config {
 				RequireApproval: &[]bool{false}[0],
 			},
 			FileSearch: FileSearchToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
+			},
+			Tree: TreeToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
 			},
@@ -307,6 +318,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	case "FileSearch":
 		if c.Tools.FileSearch.RequireApproval != nil {
 			return *c.Tools.FileSearch.RequireApproval
+		}
+	case "Tree":
+		if c.Tools.Tree.RequireApproval != nil {
+			return *c.Tools.Tree.RequireApproval
 		}
 	case "Fetch":
 		if c.Tools.Fetch.RequireApproval != nil {
