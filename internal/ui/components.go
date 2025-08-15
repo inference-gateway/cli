@@ -843,7 +843,7 @@ func (sv *StatusViewImpl) Render() string {
 
 		elapsed := time.Since(sv.startTime)
 		seconds := int(elapsed.Seconds())
-		displayMessage = fmt.Sprintf("%s (%ds)", sv.baseMessage, seconds)
+		displayMessage = fmt.Sprintf("%s (%ds) - Press ESC to interrupt", sv.baseMessage, seconds)
 	} else {
 		prefix = "ℹ️"
 		color = sv.theme.GetStatusColor()
