@@ -97,7 +97,7 @@ func (iv *InputView) Render() string {
 
 		availableWidth := iv.width - 8
 		if availableWidth > 0 {
-			wrappedBefore := shared.WrapText(before, availableWidth)
+			wrappedBefore := iv.preserveTrailingSpaces(before, availableWidth)
 			wrappedAfter := shared.WrapText(after, availableWidth)
 			displayText = fmt.Sprintf("%s│%s", wrappedBefore, wrappedAfter)
 		} else {
@@ -475,4 +475,26 @@ func (iv *InputView) deleteToBeginning() {
 		iv.text = iv.text[iv.cursor:]
 		iv.cursor = 0
 	}
+}
+
+// preserveTrailingSpaces wraps text while preserving trailing spaces that might be lost during wrapping
+func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) string {
+	wrappedText := shared.WrapText(text, availableWidth)
+
+	trailingSpaces := 0
+	for i := len(text) - 1; i >= 0 && text[i] == ' '; i-- {
+		trailingSpaces++
+	}
+
+	wrappedTrailingSpaces := 0
+	for i := len(wrappedText) - 1; i >= 0 && wrappedText[i] == ' '; i-- {
+		wrappedTrailingSpaces++
+	}
+
+	if trailingSpaces > wrappedTrailingSpaces {
+		spacesToAdd := trailingSpaces - wrappedTrailingSpaces
+		wrappedText += strings.Repeat(" ", spacesToAdd)
+	}
+
+	return wrappedText
 }
