@@ -25,10 +25,11 @@ type ChatApplication struct {
 	state *handlers.AppState
 
 	// UI components (injected)
-	conversationView ui.ConversationRenderer
-	inputView        ui.InputComponent
-	statusView       ui.StatusComponent
-	modelSelector    *ui.ModelSelectorImpl
+	conversationView    ui.ConversationRenderer
+	inputView           ui.InputComponent
+	statusView          ui.StatusComponent
+	helpBar             ui.HelpBarComponent
+	modelSelector       *ui.ModelSelectorImpl
 
 	// Message routing
 	messageRouter *handlers.MessageRouter
@@ -62,6 +63,10 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 	app.conversationView = factory.CreateConversationView()
 	app.inputView = factory.CreateInputView()
 	app.statusView = factory.CreateStatusView()
+	app.helpBar = factory.CreateHelpBar()
+
+	// Initialize help bar with actual commands from registry
+	app.updateHelpBarShortcuts()
 
 	app.modelSelector = ui.NewModelSelector(models, services.GetModelService(), services.GetTheme())
 
@@ -75,6 +80,28 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 
 	return app
 }
+
+// updateHelpBarShortcuts updates the help bar with essential keyboard shortcuts
+func (app *ChatApplication) updateHelpBarShortcuts() {
+	var shortcuts []ui.KeyShortcut
+
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "!", Description: "for bash mode"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "/", Description: "for commands"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "@", Description: "for file paths"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "#", Description: "to memorize"})
+
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+d", Description: "to send message"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+c", Description: "to exit"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+shift+c", Description: "to copy"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+v", Description: "to paste"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "shift+↑↓", Description: "scroll chat"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "home/end", Description: "scroll top/bottom"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+r", Description: "expand/collapse"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "esc", Description: "interrupt/cancel"})
+
+	app.helpBar.SetShortcuts(shortcuts)
+}
+
 
 // Init initializes the application
 func (app *ChatApplication) Init() tea.Cmd {
@@ -255,6 +282,7 @@ func (app *ChatApplication) handleApprovalView(msg tea.Msg) []tea.Cmd {
 	return cmds
 }
 
+
 // View renders the current application view
 func (app *ChatApplication) View() string {
 	switch app.state.CurrentView {
@@ -268,8 +296,6 @@ func (app *ChatApplication) View() string {
 		approvalContent := app.renderApproval()
 		return approvalContent + fmt.Sprintf("\n\n[DEBUG: CurrentView=%v, PendingToolCall=%v]",
 			app.state.CurrentView, app.state.Data["pendingToolCall"] != nil)
-	case handlers.ViewHelp:
-		return app.renderHelp()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", app.state.CurrentView)
 	}
@@ -279,7 +305,14 @@ func (app *ChatApplication) renderChatInterface() string {
 	layout := app.services.GetLayout()
 
 	headerHeight := 3
-	adjustedHeight := app.state.Height - headerHeight
+	helpBarHeight := 0
+
+	app.helpBar.SetWidth(app.state.Width)
+	if app.helpBar.IsEnabled() {
+		helpBarHeight = 6
+	}
+
+	adjustedHeight := app.state.Height - headerHeight - helpBarHeight
 	conversationHeight := layout.CalculateConversationHeight(adjustedHeight)
 	inputHeight := layout.CalculateInputHeight(adjustedHeight)
 	statusHeight := layout.CalculateStatusHeight(adjustedHeight)
@@ -335,12 +368,19 @@ func (app *ChatApplication) renderChatInterface() string {
 
 	components = append(components, inputArea)
 
-	if app.state.Height >= 12 {
-		helpStyle := lipgloss.NewStyle().
+	app.helpBar.SetWidth(app.state.Width)
+	helpBarContent := app.helpBar.Render()
+	if helpBarContent != "" {
+		separatorStyle := lipgloss.NewStyle().
 			Width(app.state.Width).
 			Foreground(lipgloss.Color("240"))
-		helpText := helpStyle.Render(app.renderHelpText())
-		components = append(components, helpText)
+		separator := separatorStyle.Render(strings.Repeat("─", app.state.Width))
+		components = append(components, separator)
+
+		helpBarStyle := lipgloss.NewStyle().
+			Width(app.state.Width).
+			Padding(1, 1)
+		components = append(components, helpBarStyle.Render(helpBarContent))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, components...)
@@ -513,34 +553,7 @@ func (app *ChatApplication) renderApproval() string {
 	return b.String()
 }
 
-func (app *ChatApplication) renderHelp() string {
-	commands := app.services.GetCommandRegistry().GetAll()
-	var b strings.Builder
 
-	b.WriteString("Available commands:\n\n")
-	for _, cmd := range commands {
-		b.WriteString("  ")
-		b.WriteString(cmd.GetUsage())
-		b.WriteString(" - ")
-		b.WriteString(cmd.GetDescription())
-		b.WriteString("\n")
-	}
-
-	return b.String()
-}
-
-func (app *ChatApplication) renderHelpText() string {
-	theme := app.services.GetTheme()
-
-	var helpText string
-	if app.state.Width < 80 {
-		helpText = "Ctrl+D:send • Ctrl+C:exit • @:files • /:commands • ↑↓:scroll"
-	} else {
-		helpText = "Press Ctrl+D to send message, Ctrl+C to exit, Ctrl+Shift+C to copy, Ctrl+V to paste • Type @ for files, / for commands • Shift+↑↓, Home/End to scroll chat • Text selection enabled"
-	}
-
-	return theme.GetDimColor() + helpText + "\033[0m"
-}
 
 func (app *ChatApplication) handleResize(msg tea.WindowSizeMsg) {
 	app.state.Width = msg.Width
@@ -572,13 +585,6 @@ func (app *ChatApplication) handleGlobalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 		}
 		return nil
 
-	case "f1":
-		if app.state.CurrentView == handlers.ViewHelp {
-			app.state.CurrentView = handlers.ViewChat
-		} else {
-			app.state.CurrentView = handlers.ViewHelp
-		}
-		return nil
 	}
 
 	return nil
@@ -1023,6 +1029,13 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 		cmds = append(cmds, cmd)
 		if inputModel, ok := model.(ui.InputComponent); ok {
 			app.inputView = inputModel
+		}
+	}
+
+	if model, cmd := app.helpBar.(tea.Model).Update(msg); cmd != nil {
+		cmds = append(cmds, cmd)
+		if helpBarModel, ok := model.(ui.HelpBarComponent); ok {
+			app.helpBar = helpBarModel
 		}
 	}
 

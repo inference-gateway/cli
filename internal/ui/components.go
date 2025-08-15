@@ -119,7 +119,7 @@ func (f *ComponentFactory) CreateInputView() InputComponent {
 	return &InputViewImpl{
 		text:         "",
 		cursor:       0,
-		placeholder:  "Type your message... (Press Ctrl+D to send)",
+		placeholder:  "Type your message... (Press Ctrl+D to send, ? for help)",
 		width:        80,
 		height:       5,  // Initialize with default height
 		theme:        f.theme,
@@ -141,6 +141,16 @@ func (f *ComponentFactory) CreateStatusView() StatusComponent {
 		isSpinner: false,
 		spinner:   s,
 		theme:     f.theme,
+	}
+}
+
+
+func (f *ComponentFactory) CreateHelpBar() HelpBarComponent {
+	return &HelpBarImpl{
+		enabled:   false,
+		width:     80,
+		theme:     f.theme,
+		shortcuts: make([]KeyShortcut, 0),
 	}
 }
 
@@ -607,6 +617,7 @@ func (iv *InputViewImpl) handleAutocomplete(completion string) (tea.Model, tea.C
 		iv.text = completion
 		iv.cursor = len(completion)
 		iv.autocomplete.Hide()
+		return iv, nil
 	}
 	iv.autocomplete.Update(iv.text, iv.cursor)
 	return iv, nil
@@ -632,22 +643,34 @@ func (iv *InputViewImpl) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
 				iv.cursor--
 			}
 		}
+		return nil
 	case "ctrl+u":
 		iv.deleteToBeginning()
+		return nil
 	case "ctrl+w":
 		iv.deleteWordBackward()
+		return nil
 	case "ctrl+d":
 		return iv.handleSubmit()
 	case "ctrl+shift+c":
 		iv.handleCopy()
 	case "ctrl+v", "alt+v":
 		iv.handlePaste()
+		return nil
 	case "ctrl+x":
 		iv.handleCut()
+		return nil
 	case "ctrl+a":
 		iv.cursor = 0
 	case "ctrl+e":
 		iv.cursor = len(iv.text)
+	case "?":
+		if len(strings.TrimSpace(iv.text)) == 0 {
+			return func() tea.Msg {
+				return ToggleHelpBarMsg{}
+			}
+		}
+		return iv.handleCharacterInput(key)
 	default:
 		return iv.handleCharacterInput(key)
 	}
@@ -748,13 +771,18 @@ func (iv *InputViewImpl) handleCharacterInput(key tea.KeyMsg) tea.Cmd {
 			)
 		}
 
-		return func() tea.Msg {
-			return ScrollRequestMsg{
-				ComponentID: "conversation",
-				Direction:   ScrollToBottom,
-				Amount:      0,
-			}
-		}
+		return tea.Batch(
+			func() tea.Msg {
+				return ScrollRequestMsg{
+					ComponentID: "conversation",
+					Direction:   ScrollToBottom,
+					Amount:      0,
+				}
+			},
+			func() tea.Msg {
+				return HideHelpBarMsg{}
+			},
+		)
 	}
 	return nil
 }
@@ -939,4 +967,156 @@ func (sv *StatusViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return sv, cmd
+}
+
+
+// HelpBarImpl implements HelpBarComponent
+type HelpBarImpl struct {
+	enabled   bool
+	width     int
+	theme     Theme
+	shortcuts []KeyShortcut
+}
+
+func (hb *HelpBarImpl) SetShortcuts(shortcuts []KeyShortcut) {
+	hb.shortcuts = shortcuts
+}
+
+func (hb *HelpBarImpl) IsEnabled() bool {
+	return hb.enabled
+}
+
+func (hb *HelpBarImpl) SetEnabled(enabled bool) {
+	hb.enabled = enabled
+}
+
+func (hb *HelpBarImpl) SetWidth(width int) {
+	hb.width = width
+}
+
+func (hb *HelpBarImpl) SetHeight(height int) {
+	// Help bar has fixed height
+}
+
+func (hb *HelpBarImpl) Render() string {
+	if !hb.enabled || len(hb.shortcuts) == 0 {
+		return ""
+	}
+
+	return hb.renderResponsiveTable()
+}
+
+// renderResponsiveTable creates a 4-row by 3-column grid layout for shortcuts
+func (hb *HelpBarImpl) renderResponsiveTable() string {
+	if len(hb.shortcuts) == 0 {
+		return ""
+	}
+
+	const rows = 4
+	const cols = 3
+
+	colWidth := (hb.width - 6) / cols
+	if colWidth < 20 {
+		colWidth = 20
+	}
+
+	grid := make([][]string, rows)
+	for i := range grid {
+		grid[i] = make([]string, cols)
+	}
+
+	var firstColumnKeys []KeyShortcut
+	var otherKeys []KeyShortcut
+
+	priorityKeys := []string{"!", "/", "@", "#"}
+	for _, shortcut := range hb.shortcuts {
+		isPriority := false
+		for _, priority := range priorityKeys {
+			if shortcut.Key == priority {
+				firstColumnKeys = append(firstColumnKeys, shortcut)
+				isPriority = true
+				break
+			}
+		}
+		if !isPriority {
+			otherKeys = append(otherKeys, shortcut)
+		}
+	}
+
+	for i, shortcut := range firstColumnKeys {
+		if i >= rows {
+			break
+		}
+
+		shortcutText := fmt.Sprintf("%s %s", shortcut.Key, shortcut.Description)
+
+		if len(shortcutText) > colWidth-2 {
+			shortcutText = shortcutText[:colWidth-5] + "..."
+		}
+
+		grid[i][0] = shortcutText
+	}
+
+	cellIndex := 0
+	for _, shortcut := range otherKeys {
+		for cellIndex < rows*cols {
+			row := cellIndex / cols
+			col := cellIndex % cols
+
+			if col == 0 && row < len(firstColumnKeys) {
+				cellIndex++
+				continue
+			}
+
+			shortcutText := fmt.Sprintf("%s %s", shortcut.Key, shortcut.Description)
+
+			if len(shortcutText) > colWidth-2 {
+				shortcutText = shortcutText[:colWidth-5] + "..."
+			}
+
+			grid[row][col] = shortcutText
+			cellIndex++
+			break
+		}
+
+		if cellIndex >= rows*cols {
+			break
+		}
+	}
+
+	var tableRows []string
+	for _, row := range grid {
+		var cells []string
+		for _, cell := range row {
+			cellStyle := lipgloss.NewStyle().
+				Width(colWidth).
+				Align(lipgloss.Left)
+			cells = append(cells, cellStyle.Render(cell))
+		}
+		tableRows = append(tableRows, lipgloss.JoinHorizontal(lipgloss.Left, cells...))
+	}
+
+	tableStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("240")).
+		Width(hb.width)
+
+	return tableStyle.Render(strings.Join(tableRows, "\n"))
+}
+
+func (hb *HelpBarImpl) GetID() string { return "help-bar" }
+
+func (hb *HelpBarImpl) Init() tea.Cmd { return nil }
+
+func (hb *HelpBarImpl) View() string { return hb.Render() }
+
+func (hb *HelpBarImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		hb.SetWidth(msg.Width)
+	case ToggleHelpBarMsg:
+		hb.enabled = !hb.enabled
+	case HideHelpBarMsg:
+		hb.enabled = false
+	}
+	return hb, nil
 }

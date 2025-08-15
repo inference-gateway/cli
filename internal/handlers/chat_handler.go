@@ -210,6 +210,7 @@ func (h *ChatMessageHandler) handleCommand(commandText string, state *AppState) 
 	}
 }
 
+
 func (h *ChatMessageHandler) handleStreamStarted(msg ChatStreamStartedMsg, state *AppState) (tea.Model, tea.Cmd) {
 	state.Data["eventChannel"] = msg.EventChannel
 	if msg.RequestID != "" {

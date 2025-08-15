@@ -41,5 +41,4 @@ const (
 	ViewChat
 	ViewFileSelection
 	ViewApproval
-	ViewHelp
 )

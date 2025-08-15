@@ -97,3 +97,10 @@ type DebugKeyMsg struct {
 	Key     string
 	Handler string
 }
+
+
+// ToggleHelpBarMsg toggles the help bar visibility
+type ToggleHelpBarMsg struct{}
+
+// HideHelpBarMsg hides the help bar when typing other characters
+type HideHelpBarMsg struct{}

@@ -100,7 +100,6 @@ func (c *ServiceContainer) initializeExtensibility() {
 func (c *ServiceContainer) registerDefaultCommands() {
 	c.commandRegistry.Register(commands.NewClearCommand(c.conversationRepo))
 	c.commandRegistry.Register(commands.NewExportCommand(c.conversationRepo, c.chatService, c.modelService, c.config))
-	c.commandRegistry.Register(commands.NewHelpCommand(c.commandRegistry))
 	c.commandRegistry.Register(commands.NewExitCommand())
 	c.commandRegistry.Register(commands.NewHistoryCommand(c.conversationRepo))
 	c.commandRegistry.Register(commands.NewModelsCommand(c.modelService))
@@ -121,7 +120,7 @@ func (c *ServiceContainer) registerMessageHandlers() {
 		c.messageRouter.AddHandler(handlers.NewToolMessageHandler(c.toolService))
 	}
 
-	c.messageRouter.AddHandler(handlers.NewUIMessageHandler())
+	c.messageRouter.AddHandler(handlers.NewUIMessageHandler(c.commandRegistry))
 }
 
 func (c *ServiceContainer) GetConfig() *config.Config {
