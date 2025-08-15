@@ -35,7 +35,7 @@ type ChatApplication struct {
 	messageRouter *handlers.MessageRouter
 
 	// Current active component for key handling
-	focusedComponent ui.InputHandler
+	focusedComponent ui.InputComponent
 
 	// Available models
 	availableModels []string
@@ -59,11 +59,10 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 		},
 	}
 
-	factory := services.GetComponentFactory()
-	app.conversationView = factory.CreateConversationView()
-	app.inputView = factory.CreateInputView()
-	app.statusView = factory.CreateStatusView()
-	app.helpBar = factory.CreateHelpBar()
+	app.conversationView = ui.CreateConversationView()
+	app.inputView = ui.CreateInputView(services.GetModelService(), services.GetCommandRegistry())
+	app.statusView = ui.CreateStatusView()
+	app.helpBar = ui.CreateHelpBar()
 
 	// Initialize help bar with actual commands from registry
 	app.updateHelpBarShortcuts()
@@ -300,7 +299,6 @@ func (app *ChatApplication) View() string {
 }
 
 func (app *ChatApplication) renderChatInterface() string {
-	layout := app.services.GetLayout()
 
 	headerHeight := 3
 	helpBarHeight := 0
@@ -311,9 +309,9 @@ func (app *ChatApplication) renderChatInterface() string {
 	}
 
 	adjustedHeight := app.state.Height - headerHeight - helpBarHeight
-	conversationHeight := layout.CalculateConversationHeight(adjustedHeight)
-	inputHeight := layout.CalculateInputHeight(adjustedHeight)
-	statusHeight := layout.CalculateStatusHeight(adjustedHeight)
+	conversationHeight := ui.CalculateConversationHeight(adjustedHeight)
+	inputHeight := ui.CalculateInputHeight(adjustedHeight)
+	statusHeight := ui.CalculateStatusHeight(adjustedHeight)
 
 	if conversationHeight < 3 {
 		conversationHeight = 3
@@ -686,7 +684,7 @@ func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
 	atIndex := app.findAtSymbolIndex(currentInput, cursor)
 	newInput, newCursor := app.buildInputWithFile(currentInput, cursor, atIndex, selectedFile)
 
-	if inputImpl, ok := app.inputView.(*ui.InputViewImpl); ok {
+	if inputImpl, ok := app.inputView.(*ui.InputView); ok {
 		inputImpl.SetText(newInput)
 		inputImpl.SetCursor(newCursor)
 	}
@@ -996,8 +994,8 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 
 func (app *ChatApplication) updateFocusedComponent(model tea.Model) {
 	switch app.focusedComponent.(type) {
-	case *ui.InputViewImpl:
-		if inputModel, ok := model.(*ui.InputViewImpl); ok {
+	case *ui.InputView:
+		if inputModel, ok := model.(*ui.InputView); ok {
 			app.inputView = inputModel
 			app.focusedComponent = inputModel
 		}
@@ -1083,8 +1081,7 @@ func (app *ChatApplication) handleScrollKeys(keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func (app *ChatApplication) getPageSize() int {
-	layout := app.services.GetLayout()
-	conversationHeight := layout.CalculateConversationHeight(app.state.Height)
+	conversationHeight := ui.CalculateConversationHeight(app.state.Height)
 	return max(1, conversationHeight-2)
 }
 
