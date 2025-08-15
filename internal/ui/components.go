@@ -14,6 +14,14 @@ import (
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
+// UI Color constants for consistency
+const (
+	ColorSpinnerAccent   = "205"  // Magenta/Pink - used for spinner
+	ColorBashMode        = "34"   // Green - inspired by GitHub bash syntax highlighting
+	ColorBorderDefault   = "240"  // Gray - default border color
+	ColorTextDim         = "240"  // Gray - dim text color
+)
+
 // DefaultTheme implements Theme interface with default colors
 type DefaultTheme struct{}
 
@@ -134,7 +142,7 @@ func (f *ComponentFactory) CreateInputView() InputComponent {
 func (f *ComponentFactory) CreateStatusView() StatusComponent {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSpinnerAccent))
 	return &StatusViewImpl{
 		message:   "",
 		isError:   false,
@@ -508,10 +516,11 @@ func (iv *InputViewImpl) SetHeight(height int) {
 
 func (iv *InputViewImpl) Render() string {
 	var displayText string
+	isBashMode := strings.HasPrefix(iv.text, "!")
 
 	if iv.text == "" {
 		displayText = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
+			Foreground(lipgloss.Color(ColorTextDim)).
 			Render(iv.placeholder)
 	} else {
 		before := iv.text[:iv.cursor]
@@ -529,15 +538,29 @@ func (iv *InputViewImpl) Render() string {
 
 	inputContent := fmt.Sprintf("> %s", displayText)
 
+	borderColor := ColorBorderDefault
+	if isBashMode {
+		borderColor = ColorBashMode
+	}
+
 	inputStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
+		BorderForeground(lipgloss.Color(borderColor)).
 		Padding(0, 1).
 		Width(iv.width - 4)
 
 	borderedInput := inputStyle.Render(inputContent)
 
 	components := []string{borderedInput}
+
+	if isBashMode && iv.height >= 2 {
+		bashIndicator := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorBashMode)).
+			Bold(true).
+			Width(iv.width).
+			Render("BASH MODE - Command will be executed directly")
+		components = append(components, bashIndicator)
+	}
 
 	if iv.autocomplete.IsVisible() && iv.height >= 3 {
 		autocompleteContent := iv.autocomplete.Render()
@@ -547,9 +570,9 @@ func (iv *InputViewImpl) Render() string {
 	}
 
 	currentModel := iv.modelService.GetCurrentModel()
-	if currentModel != "" && iv.height >= 2 {
+	if currentModel != "" && iv.height >= 2 && !isBashMode {
 		modelStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
+			Foreground(lipgloss.Color(ColorTextDim)).
 			Width(iv.width)
 		modelDisplay := modelStyle.Render(fmt.Sprintf("Model: %s", currentModel))
 		components = append(components, modelDisplay)
@@ -1097,7 +1120,7 @@ func (hb *HelpBarImpl) renderResponsiveTable() string {
 	}
 
 	tableStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
+		Foreground(lipgloss.Color(ColorTextDim)).
 		Width(hb.width)
 
 	return tableStyle.Render(strings.Join(tableRows, "\n"))

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -110,6 +111,10 @@ func (h *ChatMessageHandler) handleUserInput(msg ui.UserInputMsg, state *AppStat
 		return h.handleCommand(msg.Content, state)
 	}
 
+	if strings.HasPrefix(msg.Content, "!") {
+		return h.handleBashCommand(msg.Content, state)
+	}
+
 	processedContent := h.processFileReferences(msg.Content)
 
 	userEntry := domain.ConversationEntry{
@@ -207,6 +212,86 @@ func (h *ChatMessageHandler) handleCommand(commandText string, state *AppState) 
 				Spinner: false,
 			}
 		}
+	}
+}
+
+func (h *ChatMessageHandler) handleBashCommand(commandText string, state *AppState) (tea.Model, tea.Cmd) {
+	bashCommand := strings.TrimPrefix(commandText, "!")
+	bashCommand = strings.TrimSpace(bashCommand)
+
+	if bashCommand == "" {
+		return nil, func() tea.Msg {
+			return ui.ShowErrorMsg{
+				Error:  "No command provided after '!'",
+				Sticky: false,
+			}
+		}
+	}
+
+	userEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: commandText,
+		},
+		Time: time.Now(),
+	}
+
+	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
+		return nil, func() tea.Msg {
+			return ui.ShowErrorMsg{
+				Error:  fmt.Sprintf("Failed to save message: %v", err),
+				Sticky: false,
+			}
+		}
+	}
+
+	updateHistoryCmd := func() tea.Msg {
+		return ui.UpdateHistoryMsg{
+			History: h.conversationRepo.GetMessages(),
+		}
+	}
+
+	executeBashCmd := func() tea.Msg {
+		return h.executeBashCommand(bashCommand)
+	}
+
+	return nil, tea.Batch(updateHistoryCmd, executeBashCmd)
+}
+
+func (h *ChatMessageHandler) executeBashCommand(command string) tea.Msg {
+	cmd := exec.Command("sh", "-c", command)
+
+	output, err := cmd.CombinedOutput()
+
+	var content string
+
+	if err != nil {
+		content = fmt.Sprintf("Bash Command: `%s`\n\n❌ **Command failed:**\n```\n%s\n```\n\n**Error:** %v", command, string(output), err)
+	} else {
+		if len(output) == 0 {
+			content = fmt.Sprintf("Bash Command: `%s`\n\n✅ **Command executed successfully** (no output)", command)
+		} else {
+			content = fmt.Sprintf("Bash Command: `%s`\n\n✅ **Output:**\n```\n%s\n```", command, string(output))
+		}
+	}
+
+	bashResultEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: content,
+		},
+		Time: time.Now(),
+	}
+
+	if saveErr := h.conversationRepo.AddMessage(bashResultEntry); saveErr != nil {
+		return ui.ShowErrorMsg{
+			Error:  fmt.Sprintf("Failed to save bash result: %v", saveErr),
+			Sticky: false,
+		}
+	}
+
+	return ui.UpdateHistoryMsg{
+		History: h.conversationRepo.GetMessages(),
 	}
 }
 
