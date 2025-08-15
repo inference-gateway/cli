@@ -9,10 +9,10 @@ import (
 
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
-	Message        sdk.Message          `json:"message"`
-	Model          string               `json:"model,omitempty"`
-	Time           time.Time            `json:"time"`
-	ToolExecution  *ToolExecutionResult `json:"tool_execution,omitempty"` // For tool result entries
+	Message       sdk.Message          `json:"message"`
+	Model         string               `json:"model,omitempty"`
+	Time          time.Time            `json:"time"`
+	ToolExecution *ToolExecutionResult `json:"tool_execution,omitempty"` // For tool result entries
 }
 
 // ExportFormat defines the format for exporting conversations

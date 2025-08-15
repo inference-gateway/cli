@@ -7,6 +7,7 @@ import (
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/commands"
@@ -76,10 +77,12 @@ func (f *ComponentFactory) SetCommandRegistry(registry *commands.Registry) {
 }
 
 func (f *ComponentFactory) CreateConversationView() ConversationRenderer {
+	vp := viewport.New(80, 20)
+	vp.SetContent("")
 	return &ConversationViewImpl{
 		theme:              f.theme,
 		conversation:       []domain.ConversationEntry{},
-		scrollOffset:       0,
+		viewport:           vp,
 		width:              80,
 		height:             20,
 		expandedToolResult: -1, // No tool result expanded initially
@@ -116,7 +119,7 @@ func (f *ComponentFactory) CreateStatusView() StatusComponent {
 type ConversationViewImpl struct {
 	theme              Theme
 	conversation       []domain.ConversationEntry
-	scrollOffset       int
+	viewport           viewport.Model
 	width              int
 	height             int
 	expandedToolResult int
@@ -125,22 +128,23 @@ type ConversationViewImpl struct {
 
 func (cv *ConversationViewImpl) SetConversation(conversation []domain.ConversationEntry) {
 	cv.conversation = conversation
+	cv.updateViewportContent()
 }
 
 func (cv *ConversationViewImpl) SetScrollOffset(offset int) {
-	cv.scrollOffset = offset
+	// Viewport handles its own scrolling
 }
 
 func (cv *ConversationViewImpl) GetScrollOffset() int {
-	return cv.scrollOffset
+	return cv.viewport.YOffset
 }
 
 func (cv *ConversationViewImpl) CanScrollUp() bool {
-	return cv.scrollOffset > 0
+	return !cv.viewport.AtTop()
 }
 
 func (cv *ConversationViewImpl) CanScrollDown() bool {
-	return len(cv.conversation) > cv.height && cv.scrollOffset < len(cv.conversation)-cv.height
+	return !cv.viewport.AtBottom()
 }
 
 func (cv *ConversationViewImpl) ToggleToolResultExpansion(index int) {
@@ -163,39 +167,38 @@ func (cv *ConversationViewImpl) IsToolResultExpanded(index int) bool {
 
 func (cv *ConversationViewImpl) SetWidth(width int) {
 	cv.width = width
+	cv.viewport.Width = width
 }
 
 func (cv *ConversationViewImpl) SetHeight(height int) {
 	cv.height = height
+	cv.viewport.Height = height
 }
 
 func (cv *ConversationViewImpl) Render() string {
 	if len(cv.conversation) == 0 {
-		return cv.renderWelcome()
+		cv.viewport.SetContent(cv.renderWelcome())
+	} else {
+		cv.updateViewportContent()
 	}
+	return cv.viewport.View()
+}
 
+func (cv *ConversationViewImpl) updateViewportContent() {
 	var b strings.Builder
 
-	// Add scroll indicator at the top if we can scroll up
-	if cv.CanScrollUp() {
-		b.WriteString(cv.theme.GetDimColor() + "▲ More messages above (scroll up: ↑/k, Page Up, mouse wheel)" + "\033[0m\n")
-	}
-
-	visibleEntries := cv.getVisibleEntries()
-
-	for i, entry := range visibleEntries {
-		// Calculate the actual index in the full conversation
-		actualIndex := cv.scrollOffset + i
-		b.WriteString(cv.renderEntryWithIndex(entry, actualIndex))
+	for i, entry := range cv.conversation {
+		b.WriteString(cv.renderEntryWithIndex(entry, i))
 		b.WriteString("\n")
 	}
 
-	// Add scroll indicator at the bottom if we can scroll down
-	if cv.CanScrollDown() {
-		b.WriteString(cv.theme.GetDimColor() + "▼ More messages below (scroll down: ↓/j, Page Down, mouse wheel)" + "\033[0m\n")
-	}
+	wasAtBottom := cv.viewport.AtBottom()
 
-	return b.String()
+	cv.viewport.SetContent(b.String())
+
+	if wasAtBottom {
+		cv.viewport.GotoBottom()
+	}
 }
 
 func (cv *ConversationViewImpl) renderWelcome() string {
@@ -203,19 +206,6 @@ func (cv *ConversationViewImpl) renderWelcome() string {
 		cv.theme.GetStatusColor(), "\033[0m")
 }
 
-func (cv *ConversationViewImpl) getVisibleEntries() []domain.ConversationEntry {
-	if len(cv.conversation) <= cv.height {
-		return cv.conversation
-	}
-
-	start := cv.scrollOffset
-	end := start + cv.height
-	if end > len(cv.conversation) {
-		end = len(cv.conversation)
-	}
-
-	return cv.conversation[start:end]
-}
 
 func (cv *ConversationViewImpl) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
 	var color, role string
@@ -301,50 +291,55 @@ func (cv *ConversationViewImpl) Init() tea.Cmd { return nil }
 func (cv *ConversationViewImpl) View() string { return cv.Render() }
 
 func (cv *ConversationViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
+		if mouseMsg.Action == tea.MouseActionPress {
+			switch mouseMsg.Button {
+			case tea.MouseButtonWheelDown:
+				cv.viewport.ScrollDown(1)
+				return cv, nil
+			case tea.MouseButtonWheelUp:
+				cv.viewport.ScrollUp(1)
+				return cv, nil
+			}
+		}
+	}
+
+	switch msg.(type) {
+	case tea.KeyMsg:
+
+	default:
+		cv.viewport, cmd = cv.viewport.Update(msg)
+	}
+
 	switch msg := msg.(type) {
 	case UpdateHistoryMsg:
 		cv.SetConversation(msg.History)
-		return cv, nil
-	case tea.MouseMsg:
-		return cv.handleMouseEvent(msg)
+		return cv, cmd
 	case ScrollRequestMsg:
 		if msg.ComponentID == cv.GetID() {
 			return cv.handleScrollRequest(msg)
 		}
 	}
-	return cv, nil
+	return cv, cmd
 }
 
-func (cv *ConversationViewImpl) handleMouseEvent(msg tea.MouseMsg) (tea.Model, tea.Cmd) {
-	switch msg.Type {
-	case tea.MouseWheelUp:
-		if cv.CanScrollUp() {
-			cv.scrollOffset--
-		}
-	case tea.MouseWheelDown:
-		if cv.CanScrollDown() {
-			cv.scrollOffset++
-		}
-	}
-	return cv, nil
-}
 
 func (cv *ConversationViewImpl) handleScrollRequest(msg ScrollRequestMsg) (tea.Model, tea.Cmd) {
 	switch msg.Direction {
 	case ScrollUp:
-		for i := 0; i < msg.Amount && cv.CanScrollUp(); i++ {
-			cv.scrollOffset--
+		for i := 0; i < msg.Amount; i++ {
+			cv.viewport.ScrollUp(1)
 		}
 	case ScrollDown:
-		for i := 0; i < msg.Amount && cv.CanScrollDown(); i++ {
-			cv.scrollOffset++
+		for i := 0; i < msg.Amount; i++ {
+			cv.viewport.ScrollDown(1)
 		}
 	case ScrollToTop:
-		cv.scrollOffset = 0
+		cv.viewport.GotoTop()
 	case ScrollToBottom:
-		if len(cv.conversation) > cv.height {
-			cv.scrollOffset = len(cv.conversation) - cv.height
-		}
+		cv.viewport.GotoBottom()
 	}
 	return cv, nil
 }
@@ -505,7 +500,7 @@ func (iv *InputViewImpl) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
 			}
 		}
 	case "ctrl+u":
-		iv.deleteWordBackward()
+		iv.deleteToBeginning()
 	case "ctrl+w":
 		iv.deleteWordBackward()
 	case "ctrl+d":
@@ -540,7 +535,7 @@ func (iv *InputViewImpl) handleSubmit() tea.Cmd {
 
 func (iv *InputViewImpl) handleCopy() {
 	if iv.text != "" {
-		_ = clipboard.WriteAll(iv.text) // Ignore error for clipboard operations
+		_ = clipboard.WriteAll(iv.text)
 	}
 }
 
@@ -587,6 +582,14 @@ func (iv *InputViewImpl) handleCharacterInput(key tea.KeyMsg) tea.Cmd {
 		if cleanText != "" {
 			iv.text = iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
 			iv.cursor += len(cleanText)
+
+			return func() tea.Msg {
+				return ScrollRequestMsg{
+					ComponentID: "conversation",
+					Direction:   ScrollToBottom,
+					Amount:      0,
+				}
+			}
 		}
 		return nil
 	}
@@ -597,8 +600,25 @@ func (iv *InputViewImpl) handleCharacterInput(key tea.KeyMsg) tea.Cmd {
 		iv.cursor++
 
 		if char == "@" {
-			return func() tea.Msg {
-				return FileSelectionRequestMsg{}
+			return tea.Batch(
+				func() tea.Msg {
+					return ScrollRequestMsg{
+						ComponentID: "conversation",
+						Direction:   ScrollToBottom,
+						Amount:      0,
+					}
+				},
+				func() tea.Msg {
+					return FileSelectionRequestMsg{}
+				},
+			)
+		}
+
+		return func() tea.Msg {
+			return ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   ScrollToBottom,
+				Amount:      0,
 			}
 		}
 	}
@@ -627,6 +647,14 @@ func (iv *InputViewImpl) deleteWordBackward() {
 	}
 }
 
+// deleteToBeginning deletes from the cursor to the beginning of the line
+func (iv *InputViewImpl) deleteToBeginning() {
+	if iv.cursor > 0 {
+		iv.text = iv.text[iv.cursor:]
+		iv.cursor = 0
+	}
+}
+
 // StatusViewImpl implements StatusComponent
 type StatusViewImpl struct {
 	message     string
@@ -637,6 +665,7 @@ type StatusViewImpl struct {
 	startTime   time.Time
 	tokenUsage  string
 	baseMessage string
+	debugInfo   string
 }
 
 func (sv *StatusViewImpl) ShowStatus(message string) {
@@ -669,6 +698,7 @@ func (sv *StatusViewImpl) ClearStatus() {
 	sv.isSpinner = false
 	sv.tokenUsage = ""
 	sv.startTime = time.Time{}
+	sv.debugInfo = ""
 }
 
 func (sv *StatusViewImpl) IsShowingError() bool {
@@ -690,7 +720,7 @@ func (sv *StatusViewImpl) SetHeight(height int) {
 }
 
 func (sv *StatusViewImpl) Render() string {
-	if sv.message == "" && sv.baseMessage == "" {
+	if sv.message == "" && sv.baseMessage == "" && sv.debugInfo == "" {
 		return ""
 	}
 
@@ -703,7 +733,6 @@ func (sv *StatusViewImpl) Render() string {
 		prefix = sv.spinner.View()
 		color = sv.theme.GetStatusColor()
 
-		// Calculate elapsed time
 		elapsed := time.Since(sv.startTime)
 		seconds := int(elapsed.Seconds())
 		displayMessage = fmt.Sprintf("%s (%ds)", sv.baseMessage, seconds)
@@ -712,9 +741,16 @@ func (sv *StatusViewImpl) Render() string {
 		color = sv.theme.GetStatusColor()
 		displayMessage = sv.message
 
-		// Show token usage if available
 		if sv.tokenUsage != "" {
 			displayMessage = fmt.Sprintf("%s (%s)", displayMessage, sv.tokenUsage)
+		}
+	}
+
+	if sv.debugInfo != "" {
+		if displayMessage != "" {
+			displayMessage = fmt.Sprintf("%s | %s", displayMessage, sv.debugInfo)
+		} else {
+			displayMessage = sv.debugInfo
 		}
 	}
 
@@ -751,6 +787,8 @@ func (sv *StatusViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		sv.ShowError(msg.Error)
 	case ClearErrorMsg:
 		sv.ClearStatus()
+	case DebugKeyMsg:
+		sv.debugInfo = fmt.Sprintf("DEBUG: %s -> %s", msg.Key, msg.Handler)
 	}
 
 	return sv, cmd

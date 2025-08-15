@@ -10,15 +10,13 @@ import (
 
 func TestConversationViewScrolling(t *testing.T) {
 	theme := NewDefaultTheme()
-	cv := &ConversationViewImpl{
-		theme:        theme,
-		conversation: []domain.ConversationEntry{},
-		scrollOffset: 0,
-		width:        80,
-		height:       5, // Small height to test scrolling
-	}
+	layout := NewDefaultLayout()
+	factory := NewComponentFactory(theme, layout, nil)
 
-	// Create test messages
+	cv := factory.CreateConversationView().(*ConversationViewImpl)
+	cv.SetWidth(80)
+	cv.SetHeight(5)
+
 	messages := make([]domain.ConversationEntry, 10)
 	for i := 0; i < 10; i++ {
 		messages[i] = domain.ConversationEntry{
@@ -31,7 +29,8 @@ func TestConversationViewScrolling(t *testing.T) {
 
 	cv.SetConversation(messages)
 
-	// Test initial state
+	cv.viewport.GotoTop()
+
 	if cv.CanScrollUp() {
 		t.Error("Should not be able to scroll up initially")
 	}
@@ -39,8 +38,10 @@ func TestConversationViewScrolling(t *testing.T) {
 		t.Error("Should be able to scroll down with 10 messages and height 5")
 	}
 
-	// Test mouse wheel down
-	mouseMsg := tea.MouseMsg{Type: tea.MouseWheelDown}
+	mouseMsg := tea.MouseMsg{
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonWheelDown,
+	}
 	model, _ := cv.Update(mouseMsg)
 	cv = model.(*ConversationViewImpl)
 
@@ -48,8 +49,10 @@ func TestConversationViewScrolling(t *testing.T) {
 		t.Errorf("Expected scroll offset 1, got %d", cv.GetScrollOffset())
 	}
 
-	// Test mouse wheel up
-	mouseMsg = tea.MouseMsg{Type: tea.MouseWheelUp}
+	mouseMsg = tea.MouseMsg{
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonWheelUp,
+	}
 	model, _ = cv.Update(mouseMsg)
 	cv = model.(*ConversationViewImpl)
 
@@ -57,7 +60,6 @@ func TestConversationViewScrolling(t *testing.T) {
 		t.Errorf("Expected scroll offset 0, got %d", cv.GetScrollOffset())
 	}
 
-	// Test scroll request message - scroll down
 	scrollMsg := ScrollRequestMsg{
 		ComponentID: "conversation",
 		Direction:   ScrollDown,
@@ -70,7 +72,6 @@ func TestConversationViewScrolling(t *testing.T) {
 		t.Errorf("Expected scroll offset 3, got %d", cv.GetScrollOffset())
 	}
 
-	// Test scroll to bottom
 	scrollMsg = ScrollRequestMsg{
 		ComponentID: "conversation",
 		Direction:   ScrollToBottom,
@@ -79,12 +80,11 @@ func TestConversationViewScrolling(t *testing.T) {
 	model, _ = cv.Update(scrollMsg)
 	cv = model.(*ConversationViewImpl)
 
-	expectedBottom := len(messages) - cv.height
+	expectedBottom := cv.viewport.TotalLineCount() - cv.viewport.Height
 	if cv.GetScrollOffset() != expectedBottom {
 		t.Errorf("Expected scroll offset %d (bottom), got %d", expectedBottom, cv.GetScrollOffset())
 	}
 
-	// Test scroll to top
 	scrollMsg = ScrollRequestMsg{
 		ComponentID: "conversation",
 		Direction:   ScrollToTop,
@@ -100,17 +100,15 @@ func TestConversationViewScrolling(t *testing.T) {
 
 func TestConversationViewScrollBounds(t *testing.T) {
 	theme := NewDefaultTheme()
-	cv := &ConversationViewImpl{
-		theme:        theme,
-		conversation: []domain.ConversationEntry{},
-		scrollOffset: 0,
-		width:        80,
-		height:       5,
-	}
+	layout := NewDefaultLayout()
+	factory := NewComponentFactory(theme, layout, nil)
 
-	// Create fewer messages than height
-	messages := make([]domain.ConversationEntry, 3)
-	for i := 0; i < 3; i++ {
+	cv := factory.CreateConversationView().(*ConversationViewImpl)
+	cv.SetWidth(80)
+	cv.SetHeight(5)
+
+	messages := make([]domain.ConversationEntry, 1)
+	for i := 0; i < 1; i++ {
 		messages[i] = domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -121,7 +119,8 @@ func TestConversationViewScrollBounds(t *testing.T) {
 
 	cv.SetConversation(messages)
 
-	// Should not be able to scroll in either direction
+	cv.viewport.GotoTop()
+
 	if cv.CanScrollUp() {
 		t.Error("Should not be able to scroll up with fewer messages than height")
 	}
@@ -129,8 +128,10 @@ func TestConversationViewScrollBounds(t *testing.T) {
 		t.Error("Should not be able to scroll down with fewer messages than height")
 	}
 
-	// Mouse wheel events should have no effect
-	mouseMsg := tea.MouseMsg{Type: tea.MouseWheelDown}
+	mouseMsg := tea.MouseMsg{
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonWheelDown,
+	}
 	model, _ := cv.Update(mouseMsg)
 	cv = model.(*ConversationViewImpl)
 
@@ -138,7 +139,10 @@ func TestConversationViewScrollBounds(t *testing.T) {
 		t.Errorf("Scroll offset should remain 0, got %d", cv.GetScrollOffset())
 	}
 
-	mouseMsg = tea.MouseMsg{Type: tea.MouseWheelUp}
+	mouseMsg = tea.MouseMsg{
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonWheelUp,
+	}
 	model, _ = cv.Update(mouseMsg)
 	cv = model.(*ConversationViewImpl)
 

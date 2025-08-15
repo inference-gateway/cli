@@ -664,7 +664,9 @@ func safetyStatus(cmd *cobra.Command, args []string) error {
 		if tool.setting == nil {
 			fmt.Printf("using global setting (%s)\n",
 				func() string {
-					if cfg.Tools.Safety.RequireApproval { return "enabled" }
+					if cfg.Tools.Safety.RequireApproval {
+						return "enabled"
+					}
 					return "disabled"
 				}())
 		} else if *tool.setting {

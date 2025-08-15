@@ -10,6 +10,7 @@ import (
 	"github.com/inference-gateway/cli/internal/container"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/handlers"
+	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -98,6 +99,13 @@ func (app *ChatApplication) Init() tea.Cmd {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	// Debug all key bindings in one place when debug is enabled
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		if cmd := app.debugKeyBinding(keyMsg, "main"); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
 	cmds = append(cmds, app.handleCommonMessages(msg)...)
 	cmds = append(cmds, app.handleViewSpecificMessages(msg)...)
 	cmds = append(cmds, app.updateUIComponents(msg)...)
@@ -169,11 +177,18 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	return app.handleChatViewKeypress(keyMsg)
+}
+
+func (app *ChatApplication) handleChatViewKeypress(keyMsg tea.KeyMsg) []tea.Cmd {
+	var cmds []tea.Cmd
 	key := keyMsg.String()
+
 	if key == "ctrl+r" {
 		app.toggleToolResultExpansion()
 		return cmds
 	}
+
 	if key == "ctrl+v" || key == "alt+v" || key == "ctrl+x" || key == "ctrl+shift+c" {
 		if cmd := app.handleFocusedComponentKeys(keyMsg); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -263,8 +278,7 @@ func (app *ChatApplication) View() string {
 func (app *ChatApplication) renderChatInterface() string {
 	var b strings.Builder
 
-	layout := app.services.GetLayout()
-	conversationHeight := layout.CalculateConversationHeight(app.state.Height)
+	conversationHeight := 20
 
 	app.conversationView.SetWidth(app.state.Width)
 	app.conversationView.SetHeight(conversationHeight)
@@ -476,7 +490,7 @@ func (app *ChatApplication) renderHelp() string {
 
 func (app *ChatApplication) renderHelpText() string {
 	theme := app.services.GetTheme()
-	helpText := "Press Ctrl+D to send message, Ctrl+C to exit, Ctrl+Shift+C to copy, Ctrl+V to paste • Type @ for files, / for commands • ↑↓/k/j to scroll, mouse wheel supported"
+	helpText := "Press Ctrl+D to send message, Ctrl+C to exit, Ctrl+Shift+C to copy, Ctrl+V to paste • Type @ for files, / for commands • Shift+↑↓, Home/End to scroll chat • Text selection enabled"
 	return theme.GetDimColor() + helpText + "\033[0m"
 }
 
@@ -531,9 +545,9 @@ func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
 	files := app.filterFiles(allFiles, searchQuery)
 
 	switch keyMsg.String() {
-	case "up", "k":
+	case "up":
 		return app.handleFileNavigation(files, selectedIndex, -1)
-	case "down", "j":
+	case "down":
 		return app.handleFileNavigation(files, selectedIndex, 1)
 	case "enter", "return":
 		return app.handleFileSelection(files, selectedIndex)
@@ -684,14 +698,14 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 	}
 
 	switch keyMsg.String() {
-	case "up", "k":
+	case "up":
 		if selectedIndex > int(domain.ApprovalApprove) {
 			selectedIndex--
 		}
 		app.state.Data["approvalSelectedIndex"] = selectedIndex
 		return nil
 
-	case "down", "j":
+	case "down":
 		if selectedIndex < int(domain.ApprovalReject) {
 			selectedIndex++
 		}
@@ -863,7 +877,6 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 	}
 }
 
-
 func (app *ChatApplication) denyToolCall() tea.Cmd {
 	toolCall, ok := app.state.Data["pendingToolCall"].(handlers.ToolCallRequest)
 	if !ok {
@@ -969,39 +982,13 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 }
 
 func (app *ChatApplication) handleScrollKeys(keyMsg tea.KeyMsg) tea.Cmd {
-	switch keyMsg.String() {
-	case "up", "k":
-		return func() tea.Msg {
-			return ui.ScrollRequestMsg{
-				ComponentID: "conversation",
-				Direction:   ui.ScrollUp,
-				Amount:      1,
-			}
-		}
-	case "down", "j":
-		return func() tea.Msg {
-			return ui.ScrollRequestMsg{
-				ComponentID: "conversation",
-				Direction:   ui.ScrollDown,
-				Amount:      1,
-			}
-		}
-	case "pgup":
-		return func() tea.Msg {
-			return ui.ScrollRequestMsg{
-				ComponentID: "conversation",
-				Direction:   ui.ScrollUp,
-				Amount:      app.getPageSize(),
-			}
-		}
-	case "pgdn":
-		return func() tea.Msg {
-			return ui.ScrollRequestMsg{
-				ComponentID: "conversation",
-				Direction:   ui.ScrollDown,
-				Amount:      app.getPageSize(),
-			}
-		}
+	keyStr := keyMsg.String()
+
+	if strings.Contains(keyStr, "ctrl+") || strings.Contains(keyStr, "cmd+") || strings.Contains(keyStr, "alt+") {
+		return nil
+	}
+
+	switch keyStr {
 	case "home":
 		return func() tea.Msg {
 			return ui.ScrollRequestMsg{
@@ -1041,8 +1028,9 @@ func (app *ChatApplication) handleScrollKeys(keyMsg tea.KeyMsg) tea.Cmd {
 func (app *ChatApplication) getPageSize() int {
 	layout := app.services.GetLayout()
 	conversationHeight := layout.CalculateConversationHeight(app.state.Height)
-	return max(1, conversationHeight-2) // Leave some buffer for smooth scrolling
+	return max(1, conversationHeight-2)
 }
+
 
 // toggleToolResultExpansion toggles expansion of the most recent tool result
 func (app *ChatApplication) toggleToolResultExpansion() {
@@ -1065,4 +1053,25 @@ func (app *ChatApplication) GetServices() *container.ServiceContainer {
 // GetState returns the current application state (for testing or extensions)
 func (app *ChatApplication) GetState() *handlers.AppState {
 	return app.state
+}
+
+// debugKeyBinding logs key binding events when debug mode is enabled
+func (app *ChatApplication) debugKeyBinding(keyMsg tea.KeyMsg, handler string) tea.Cmd {
+	config := app.services.GetConfig()
+	if config != nil && config.Output.Debug {
+		logger.Debug("Key binding debug",
+			"key", keyMsg.String(),
+			"handler", handler,
+			"type", keyMsg.Type,
+			"alt", keyMsg.Alt,
+			"runes", string(keyMsg.Runes))
+
+		return func() tea.Msg {
+			return ui.DebugKeyMsg{
+				Key:     keyMsg.String(),
+				Handler: handler,
+			}
+		}
+	}
+	return nil
 }
