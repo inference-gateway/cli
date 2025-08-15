@@ -20,6 +20,7 @@ type ServiceContainer struct {
 	modelService     domain.ModelService
 	chatService      domain.ChatService
 	toolService      domain.ToolService
+	fileService      domain.FileService
 
 	// UI components
 	theme  ui.Theme
@@ -58,7 +59,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.APIKey,
 	)
 
-	// Initialize tool registry with self-contained tools
+	c.fileService = services.NewFileService()
+
 	c.toolRegistry = tools.NewRegistry(c.config)
 
 	if c.config.Tools.Enabled {
@@ -116,6 +118,8 @@ func (c *ServiceContainer) registerMessageHandlers() {
 		c.config,
 	))
 
+	c.messageRouter.AddHandler(handlers.NewFileMessageHandler(c.fileService))
+
 	if c.config.Tools.Enabled {
 		c.messageRouter.AddHandler(handlers.NewToolMessageHandler(c.toolService))
 	}
@@ -145,6 +149,10 @@ func (c *ServiceContainer) GetToolService() domain.ToolService {
 
 func (c *ServiceContainer) GetToolRegistry() *tools.Registry {
 	return c.toolRegistry
+}
+
+func (c *ServiceContainer) GetFileService() domain.FileService {
+	return c.fileService
 }
 
 func (c *ServiceContainer) GetTheme() ui.Theme {
