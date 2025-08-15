@@ -133,12 +133,25 @@ func TestDeleteTool_Execute_SingleFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Change to temp directory
-	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(tempDir)
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Logf("Failed to restore working directory: %v", err)
+		}
+	}()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to temp directory: %v", err)
+	}
 
 	// Create a test file
 	testFile := "test.txt"
@@ -190,12 +203,25 @@ func TestDeleteTool_Execute_Directory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Change to temp directory
-	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(tempDir)
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Logf("Failed to restore working directory: %v", err)
+		}
+	}()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to temp directory: %v", err)
+	}
 
 	// Create a test directory
 	testDir := "testdir"
@@ -212,14 +238,14 @@ func TestDeleteTool_Execute_Directory(t *testing.T) {
 		"path": testDir,
 	}
 
-	result, err := tool.Execute(context.Background(), args)
+	_, err = tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Error("Expected error when deleting directory without recursive flag")
 	}
 
 	// Test with recursive flag
 	args["recursive"] = true
-	result, err = tool.Execute(context.Background(), args)
+	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute failed: %v", err)
 	}
@@ -250,12 +276,25 @@ func TestDeleteTool_Execute_Wildcard(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Change to temp directory
-	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(tempDir)
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Logf("Failed to restore working directory: %v", err)
+		}
+	}()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to temp directory: %v", err)
+	}
 
 	// Create test files
 	testFiles := []string{"test1.txt", "test2.txt", "other.log"}
@@ -330,12 +369,25 @@ func TestDeleteTool_Execute_NonExistentFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Change to temp directory
-	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(tempDir)
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Logf("Failed to restore working directory: %v", err)
+		}
+	}()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to temp directory: %v", err)
+	}
 
 	cfg := config.DefaultConfig()
 	tool := NewDeleteTool(cfg)
@@ -345,14 +397,14 @@ func TestDeleteTool_Execute_NonExistentFile(t *testing.T) {
 		"path": "nonexistent.txt",
 	}
 
-	result, err := tool.Execute(context.Background(), args)
+	_, err = tool.Execute(context.Background(), args)
 	if err == nil {
 		t.Error("Expected error when deleting non-existent file without force flag")
 	}
 
 	// Test with force flag (should succeed)
 	args["force"] = true
-	result, err = tool.Execute(context.Background(), args)
+	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
 		t.Fatalf("Execute failed: %v", err)
 	}
@@ -368,12 +420,25 @@ func TestDeleteTool_SecurityRestrictions(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Change to temp directory
-	oldWd, _ := os.Getwd()
-	defer os.Chdir(oldWd)
-	os.Chdir(tempDir)
+	oldWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get working directory: %v", err)
+	}
+	defer func() {
+		if err := os.Chdir(oldWd); err != nil {
+			t.Logf("Failed to restore working directory: %v", err)
+		}
+	}()
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to temp directory: %v", err)
+	}
 
 	cfg := config.DefaultConfig()
 	cfg.Tools.Delete.RestrictToWorkDir = true

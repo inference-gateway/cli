@@ -269,23 +269,35 @@ func (t *DeleteTool) deleteSinglePath(path string, recursive bool, result *Delet
 	}
 
 	if info.IsDir() {
-		if recursive {
-			if err := os.RemoveAll(path); err != nil {
-				return fmt.Errorf("failed to delete directory %s: %w", path, err)
-			}
-			result.DeletedDirs = append(result.DeletedDirs, path)
-			result.TotalDirsDeleted++
-		} else {
-			return fmt.Errorf("path %s is a directory, use recursive=true to delete directories", path)
-		}
-	} else {
-		if err := os.Remove(path); err != nil {
-			return fmt.Errorf("failed to delete file %s: %w", path, err)
-		}
-		result.DeletedFiles = append(result.DeletedFiles, path)
-		result.TotalFilesDeleted++
+		return t.deleteDirectory(path, recursive, result)
 	}
 
+	return t.deleteFile(path, result)
+}
+
+// deleteDirectory handles directory deletion with recursive option
+func (t *DeleteTool) deleteDirectory(path string, recursive bool, result *DeleteResult) error {
+	if !recursive {
+		return fmt.Errorf("path %s is a directory, use recursive=true to delete directories", path)
+	}
+
+	if err := os.RemoveAll(path); err != nil {
+		return fmt.Errorf("failed to delete directory %s: %w", path, err)
+	}
+
+	result.DeletedDirs = append(result.DeletedDirs, path)
+	result.TotalDirsDeleted++
+	return nil
+}
+
+// deleteFile handles single file deletion
+func (t *DeleteTool) deleteFile(path string, result *DeleteResult) error {
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("failed to delete file %s: %w", path, err)
+	}
+
+	result.DeletedFiles = append(result.DeletedFiles, path)
+	result.TotalFilesDeleted++
 	return nil
 }
 

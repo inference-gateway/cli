@@ -407,9 +407,10 @@ Results include title, URL, and snippet for each search result.
 
 ### Delete Tool
 
-The CLI includes a delete tool that allows LLMs to safely delete files and directories with comprehensive security restrictions and wildcard support.
+The CLI includes a delete tool that allows LLMs to safely delete files and directories with
+comprehensive security restrictions and wildcard support.
 
-#### Security Features
+#### Delete Tool Security Features
 
 The Delete Tool implements multiple layers of security to prevent accidental or malicious deletions:
 
@@ -438,9 +439,10 @@ tools:
       - "backups/*"
 ```
 
-#### Usage Examples
+#### Delete Tool Usage Examples
 
 **Single File Deletion:**
+
 ```json
 {
   "name": "Delete",
@@ -451,6 +453,7 @@ tools:
 ```
 
 **Directory Deletion (Recursive):**
+
 ```json
 {
   "name": "Delete",
@@ -462,6 +465,7 @@ tools:
 ```
 
 **Wildcard Pattern Deletion:**
+
 ```json
 {
   "name": "Delete",
@@ -472,7 +476,7 @@ tools:
 }
 ```
 
-#### Tool Parameters
+#### Delete Tool Parameters
 
 When the LLM uses the Delete tool, it can specify:
 
