@@ -58,6 +58,9 @@ tools:
       - duckduckgo
       - google
     timeout: 10
+  write_todos:
+    enabled: true
+    require_approval: false
   safety:
     require_approval: true
   exclude_paths:
