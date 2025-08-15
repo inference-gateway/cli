@@ -231,8 +231,10 @@ web_search:
 ### Setting a Default Model
 
 ```bash
-# Set a default model for chat sessions
-infer config set-model gpt-4-turbo
+# Set a default model for chat sessions (use provider/model format)
+infer config set-model anthropic/claude-3.5-sonnet
+infer config set-model openai/gpt-4
+infer config set-model google/gemini-pro
 
 # Now chat will automatically use this model without showing selection
 infer chat
