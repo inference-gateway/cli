@@ -188,7 +188,6 @@ func (t *DeleteTool) executeDelete(path string, recursive, force bool) (*DeleteR
 		Errors:       []string{},
 	}
 
-	// Check if wildcards are enabled and if the path contains wildcards
 	if t.containsWildcards(path) {
 		if !t.config.Tools.Delete.AllowWildcards {
 			return nil, fmt.Errorf("wildcard patterns are not enabled in the configuration")
@@ -197,7 +196,6 @@ func (t *DeleteTool) executeDelete(path string, recursive, force bool) (*DeleteR
 		return t.executeWildcardDelete(path, recursive, force, result)
 	}
 
-	// Single file/directory deletion
 	return t.executeSingleDelete(path, recursive, force, result)
 }
 
@@ -263,7 +261,7 @@ func (t *DeleteTool) deleteSinglePath(path string, recursive bool, result *Delet
 	info, err := os.Stat(path)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil // File doesn't exist, consider it already deleted
+			return nil
 		}
 		return fmt.Errorf("failed to stat path %s: %w", path, err)
 	}
@@ -303,7 +301,6 @@ func (t *DeleteTool) deleteFile(path string, result *DeleteResult) error {
 
 // validatePathSecurity checks if a path is allowed for deletion
 func (t *DeleteTool) validatePathSecurity(path string) error {
-	// Ensure absolute path resolves within current working directory
 	if t.config.Tools.Delete.RestrictToWorkDir {
 		wd, err := os.Getwd()
 		if err != nil {
@@ -320,7 +317,6 @@ func (t *DeleteTool) validatePathSecurity(path string) error {
 		}
 	}
 
-	// Check against general excluded paths
 	for _, excludePath := range t.config.Tools.ExcludePaths {
 		if strings.HasPrefix(path, excludePath) {
 			return fmt.Errorf("access to path '%s' is excluded for security", path)
@@ -331,7 +327,6 @@ func (t *DeleteTool) validatePathSecurity(path string) error {
 		}
 	}
 
-	// Check against delete-specific protected paths
 	for _, protectedPath := range t.config.Tools.Delete.ProtectedPaths {
 		if strings.HasPrefix(path, protectedPath) {
 			return fmt.Errorf("path '%s' is protected from deletion", path)
