@@ -109,11 +109,32 @@ var configToolsValidateCmd = &cobra.Command{
 }
 
 var configToolsExecCmd = &cobra.Command{
-	Use:   "exec <command>",
-	Short: "Execute a whitelisted command directly",
-	Long:  `Execute a command directly if it passes whitelist validation.`,
-	Args:  cobra.ExactArgs(1),
-	RunE:  execTool,
+	Use:   "exec <tool> [json-args]",
+	Short: "Execute any enabled tool directly",
+	Long: `Execute any enabled tool directly with JSON arguments.
+
+Available tools: Bash, Read, FileSearch, Tree, Fetch, WebSearch
+
+Arguments must be provided as JSON to ensure consistency with LLM tool execution.
+
+Examples:
+  # Basic tool execution with required parameters
+  infer config tools exec Bash '{"command":"ls -la"}'
+  infer config tools exec Tree '{"path":"."}'
+  infer config tools exec Read '{"file_path":"README.md"}'
+  infer config tools exec Fetch '{"url":"https://example.com"}'
+  infer config tools exec WebSearch '{"query":"golang tutorial"}'
+
+  # Complex parameters (same as LLMs use)
+  infer config tools exec Tree '{"path":".", "max_depth":2, "max_files":20}'
+  infer config tools exec Read '{"file_path":"README.md", "start_line":1, "end_line":10}'
+
+  # No arguments for tools that have defaults
+  infer config tools exec Tree
+
+This uses the exact same argument parsing as LLMs, ensuring consistency.`,
+	Args: cobra.MinimumNArgs(1),
+	RunE: execTool,
 }
 
 var configToolsSafetyCmd = &cobra.Command{
@@ -585,20 +606,33 @@ func execTool(cmd *cobra.Command, args []string) error {
 	services := container.NewServiceContainer(cfg)
 	toolService := services.GetToolService()
 
-	command := args[0]
-	format, _ := cmd.Flags().GetString("format")
+	if len(args) == 0 {
+		return fmt.Errorf("tool name is required")
+	}
 
-	toolArgs := map[string]interface{}{
-		"command": command,
-		"format":  format,
+	toolName := args[0]
+	toolArgs := make(map[string]interface{})
+
+	if len(args) > 1 {
+		if err := json.Unmarshal([]byte(args[1]), &toolArgs); err != nil {
+			return fmt.Errorf("arguments must be provided as valid JSON. Example: infer config tools exec %s '{\"param\":\"value\"}'. Error: %w", toolName, err)
+		}
+	}
+
+	if format, _ := cmd.Flags().GetString("format"); format != "" {
+		toolArgs["format"] = format
+	}
+
+	if !toolService.IsToolEnabled(toolName) {
+		return fmt.Errorf("tool %s is not enabled", toolName)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
 
-	result, err := toolService.ExecuteTool(ctx, "Bash", toolArgs)
+	result, err := toolService.ExecuteTool(ctx, toolName, toolArgs)
 	if err != nil {
-		return fmt.Errorf("command execution failed: %w", err)
+		return fmt.Errorf("tool execution failed: %w", err)
 	}
 
 	fmt.Print(ui.FormatToolResultExpanded(result))

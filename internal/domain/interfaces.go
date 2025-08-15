@@ -220,8 +220,10 @@ type TreeToolResult struct {
 	TotalFiles      int      `json:"total_files"`
 	TotalDirs       int      `json:"total_dirs"`
 	MaxDepth        int      `json:"max_depth"`
+	MaxFiles        int      `json:"max_files"`
 	ExcludePatterns []string `json:"exclude_patterns"`
 	ShowHidden      bool     `json:"show_hidden"`
 	Format          string   `json:"format"`
 	UsingNativeTree bool     `json:"using_native_tree"`
+	Truncated       bool     `json:"truncated"`
 }

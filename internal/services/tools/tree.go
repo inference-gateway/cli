@@ -1,6 +1,7 @@
 package tools
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
@@ -43,15 +44,29 @@ func (t *TreeTool) Definition() domain.ToolDefinition {
 				},
 				"max_depth": map[string]interface{}{
 					"type":        "integer",
-					"description": "Maximum depth to traverse (optional, defaults to unlimited)",
+					"description": "Maximum depth to traverse (optional, defaults to 3 for efficiency)",
 					"minimum":     1,
+					"maximum":     10,
+					"default":     3,
+				},
+				"max_files": map[string]interface{}{
+					"type":        "integer",
+					"description": "Maximum number of files to display (optional, defaults to 100 for efficiency)",
+					"minimum":     1,
+					"maximum":     1000,
+					"default":     100,
 				},
 				"exclude_patterns": map[string]interface{}{
 					"type":        "array",
-					"description": "Array of glob patterns to exclude from the tree",
+					"description": "Array of glob patterns to exclude from the tree (automatically includes .gitignore patterns)",
 					"items": map[string]interface{}{
 						"type": "string",
 					},
+				},
+				"respect_gitignore": map[string]interface{}{
+					"type":        "boolean",
+					"description": "Whether to automatically exclude patterns from .gitignore (defaults to true)",
+					"default":     true,
 				},
 				"show_hidden": map[string]interface{}{
 					"type":        "boolean",
@@ -82,9 +97,14 @@ func (t *TreeTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 		path = pathArg
 	}
 
-	var maxDepth int
+	maxDepth := 3 // Default depth for efficiency
 	if maxDepthFloat, ok := args["max_depth"].(float64); ok {
 		maxDepth = int(maxDepthFloat)
+	}
+
+	maxFiles := 100 // Default file limit for efficiency
+	if maxFilesFloat, ok := args["max_files"].(float64); ok {
+		maxFiles = int(maxFilesFloat)
 	}
 
 	var excludePatterns []string
@@ -101,12 +121,17 @@ func (t *TreeTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 		showHidden = showHiddenArg
 	}
 
+	respectGitignore := true
+	if respectGitignoreArg, ok := args["respect_gitignore"].(bool); ok {
+		respectGitignore = respectGitignoreArg
+	}
+
 	format := "text"
 	if formatArg, ok := args["format"].(string); ok {
 		format = formatArg
 	}
 
-	treeResult, err := t.executeTree(path, maxDepth, excludePatterns, showHidden, format)
+	treeResult, err := t.executeTree(path, maxDepth, maxFiles, excludePatterns, showHidden, respectGitignore, format)
 	if err != nil {
 		return nil, err
 	}
@@ -119,10 +144,12 @@ func (t *TreeTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 			TotalFiles:      treeResult.TotalFiles,
 			TotalDirs:       treeResult.TotalDirs,
 			MaxDepth:        treeResult.MaxDepth,
+			MaxFiles:        treeResult.MaxFiles,
 			ExcludePatterns: treeResult.ExcludePatterns,
 			ShowHidden:      treeResult.ShowHidden,
 			Format:          treeResult.Format,
 			UsingNativeTree: treeResult.UsingNativeTree,
+			Truncated:       treeResult.Truncated,
 		}
 	}
 
@@ -154,8 +181,18 @@ func (t *TreeTool) Validate(args map[string]interface{}) error {
 		if !isFloat {
 			return fmt.Errorf("max_depth must be a number")
 		}
-		if maxDepthFloat < 1 {
-			return fmt.Errorf("max_depth must be >= 1")
+		if maxDepthFloat < 1 || maxDepthFloat > 10 {
+			return fmt.Errorf("max_depth must be between 1 and 10")
+		}
+	}
+
+	if maxFiles, ok := args["max_files"]; ok {
+		maxFilesFloat, isFloat := maxFiles.(float64)
+		if !isFloat {
+			return fmt.Errorf("max_files must be a number")
+		}
+		if maxFilesFloat < 1 || maxFilesFloat > 1000 {
+			return fmt.Errorf("max_files must be between 1 and 1000")
 		}
 	}
 
@@ -168,6 +205,12 @@ func (t *TreeTool) Validate(args map[string]interface{}) error {
 	if showHidden, ok := args["show_hidden"]; ok {
 		if _, ok := showHidden.(bool); !ok {
 			return fmt.Errorf("show_hidden must be a boolean")
+		}
+	}
+
+	if respectGitignore, ok := args["respect_gitignore"]; ok {
+		if _, ok := respectGitignore.(bool); !ok {
+			return fmt.Errorf("respect_gitignore must be a boolean")
 		}
 	}
 
@@ -196,17 +239,26 @@ type TreeResult struct {
 	TotalFiles      int      `json:"total_files"`
 	TotalDirs       int      `json:"total_dirs"`
 	MaxDepth        int      `json:"max_depth"`
+	MaxFiles        int      `json:"max_files"`
 	ExcludePatterns []string `json:"exclude_patterns"`
 	ShowHidden      bool     `json:"show_hidden"`
 	Format          string   `json:"format"`
 	UsingNativeTree bool     `json:"using_native_tree"`
+	Truncated       bool     `json:"truncated"`
 }
 
 // executeTree performs the tree operation
-func (t *TreeTool) executeTree(path string, maxDepth int, excludePatterns []string, showHidden bool, format string) (*TreeResult, error) {
+func (t *TreeTool) executeTree(path string, maxDepth, maxFiles int, excludePatterns []string, showHidden, respectGitignore bool, format string) (*TreeResult, error) {
+	// Merge gitignore patterns if requested
+	if respectGitignore {
+		gitignorePatterns := t.readGitignorePatterns(path)
+		excludePatterns = append(excludePatterns, gitignorePatterns...)
+	}
+
 	result := &TreeResult{
 		Path:            path,
 		MaxDepth:        maxDepth,
+		MaxFiles:        maxFiles,
 		ExcludePatterns: excludePatterns,
 		ShowHidden:      showHidden,
 		Format:          format,
@@ -227,7 +279,7 @@ func (t *TreeTool) executeTree(path string, maxDepth int, excludePatterns []stri
 	}
 
 	// Fall back to our own implementation
-	output, files, dirs, err := t.buildTreeFallback(path, maxDepth, excludePatterns, showHidden, format)
+	output, files, dirs, truncated, err := t.buildTreeFallback(path, maxDepth, maxFiles, excludePatterns, showHidden, format)
 	if err != nil {
 		return nil, err
 	}
@@ -235,6 +287,7 @@ func (t *TreeTool) executeTree(path string, maxDepth int, excludePatterns []stri
 	result.Output = output
 	result.TotalFiles = files
 	result.TotalDirs = dirs
+	result.Truncated = truncated
 	result.UsingNativeTree = false
 
 	return result, nil
@@ -274,40 +327,69 @@ func (t *TreeTool) tryNativeTree(path string, maxDepth int, excludePatterns []st
 }
 
 // buildTreeFallback builds a tree structure using our own implementation
-func (t *TreeTool) buildTreeFallback(rootPath string, maxDepth int, excludePatterns []string, showHidden bool, format string) (string, int, int, error) {
+func (t *TreeTool) buildTreeFallback(rootPath string, maxDepth, maxFiles int, excludePatterns []string, showHidden bool, format string) (string, int, int, bool, error) {
+	fileCounter := &fileCounter{max: maxFiles}
+
 	if format == "json" {
-		// For JSON format, we'd build a structured representation
-		// For now, we'll use the text format and wrap it
-		textOutput, files, dirs, err := t.buildTextTree(rootPath, maxDepth, excludePatterns, showHidden, "", 0)
+		textOutput, files, dirs, truncated, err := t.buildTextTree(rootPath, maxDepth, excludePatterns, showHidden, "", 0, fileCounter)
 		if err != nil {
-			return "", 0, 0, err
+			return "", 0, 0, false, err
 		}
-		return fmt.Sprintf(`{"tree": %q, "total_files": %d, "total_dirs": %d}`, textOutput, files, dirs), files, dirs, nil
+		jsonOutput := fmt.Sprintf(`{"tree": %q, "total_files": %d, "total_dirs": %d, "truncated": %t}`, textOutput, files, dirs, truncated)
+		return jsonOutput, files, dirs, truncated, nil
 	}
 
-	// Build text tree
-	output, files, dirs, err := t.buildTextTree(rootPath, maxDepth, excludePatterns, showHidden, "", 0)
+	output, files, dirs, truncated, err := t.buildTextTree(rootPath, maxDepth, excludePatterns, showHidden, "", 0, fileCounter)
 	if err != nil {
-		return "", 0, 0, err
+		return "", 0, 0, false, err
 	}
 
 	var builder strings.Builder
 	builder.WriteString(fmt.Sprintf("%s\n", rootPath))
 	builder.WriteString(output)
-	builder.WriteString(fmt.Sprintf("\n%d directories, %d files\n", dirs, files))
+	if truncated {
+		builder.WriteString(fmt.Sprintf("\n... (truncated at %d files for efficiency)\n", maxFiles))
+	}
+	builder.WriteString(fmt.Sprintf("\n%d directories, %d files", dirs, files))
+	if truncated {
+		builder.WriteString(" (partial)")
+	}
+	builder.WriteString("\n")
 
-	return builder.String(), files, dirs, nil
+	return builder.String(), files, dirs, truncated, nil
+}
+
+// fileCounter tracks file count with limit
+type fileCounter struct {
+	count int
+	max   int
+}
+
+func (fc *fileCounter) canAdd() bool {
+	return fc.count < fc.max
+}
+
+func (fc *fileCounter) add() {
+	fc.count++
+}
+
+func (fc *fileCounter) isTruncated() bool {
+	return fc.count >= fc.max
 }
 
 // buildTextTree recursively builds a text tree representation
-func (t *TreeTool) buildTextTree(dirPath string, maxDepth int, excludePatterns []string, showHidden bool, prefix string, currentDepth int) (string, int, int, error) {
+func (t *TreeTool) buildTextTree(dirPath string, maxDepth int, excludePatterns []string, showHidden bool, prefix string, currentDepth int, fc *fileCounter) (string, int, int, bool, error) {
 	if maxDepth > 0 && currentDepth >= maxDepth {
-		return "", 0, 0, nil
+		return "", 0, 0, false, nil
+	}
+
+	if fc.isTruncated() {
+		return "", 0, 0, true, nil
 	}
 
 	entries, err := os.ReadDir(dirPath)
 	if err != nil {
-		return "", 0, 0, fmt.Errorf("failed to read directory %s: %w", dirPath, err)
+		return "", 0, 0, false, fmt.Errorf("failed to read directory %s: %w", dirPath, err)
 	}
 
 	// Filter entries
@@ -338,8 +420,14 @@ func (t *TreeTool) buildTextTree(dirPath string, maxDepth int, excludePatterns [
 
 	var builder strings.Builder
 	var totalFiles, totalDirs int
+	var anyTruncated bool
 
 	for i, entry := range filteredEntries {
+		if fc.isTruncated() {
+			anyTruncated = true
+			break
+		}
+
 		isLast := i == len(filteredEntries)-1
 		var connector, newPrefix string
 
@@ -355,20 +443,35 @@ func (t *TreeTool) buildTextTree(dirPath string, maxDepth int, excludePatterns [
 
 		if entry.IsDir() {
 			totalDirs++
-			subPath := filepath.Join(dirPath, entry.Name())
-			subOutput, subFiles, subDirs, err := t.buildTextTree(subPath, maxDepth, excludePatterns, showHidden, newPrefix, currentDepth+1)
-			if err != nil {
-				continue // Skip directories we can't read
-			}
-			builder.WriteString(subOutput)
+			subFiles, subDirs, subTruncated := t.processDirectory(dirPath, entry.Name(), maxDepth, excludePatterns, showHidden, newPrefix, currentDepth, fc, &builder)
 			totalFiles += subFiles
 			totalDirs += subDirs
-		} else {
-			totalFiles++
+			if subTruncated {
+				anyTruncated = true
+			}
+			continue
 		}
+
+		if !fc.canAdd() {
+			anyTruncated = true
+			break
+		}
+		totalFiles++
+		fc.add()
 	}
 
-	return builder.String(), totalFiles, totalDirs, nil
+	return builder.String(), totalFiles, totalDirs, anyTruncated, nil
+}
+
+// processDirectory handles directory processing to reduce complexity
+func (t *TreeTool) processDirectory(dirPath, entryName string, maxDepth int, excludePatterns []string, showHidden bool, newPrefix string, currentDepth int, fc *fileCounter, builder *strings.Builder) (int, int, bool) {
+	subPath := filepath.Join(dirPath, entryName)
+	subOutput, subFiles, subDirs, subTruncated, err := t.buildTextTree(subPath, maxDepth, excludePatterns, showHidden, newPrefix, currentDepth+1, fc)
+	if err != nil {
+		return 0, 0, false
+	}
+	builder.WriteString(subOutput)
+	return subFiles, subDirs, subTruncated
 }
 
 // shouldExclude checks if a filename should be excluded based on patterns
@@ -414,4 +517,56 @@ func (t *TreeTool) validatePath(path string) error {
 	}
 
 	return nil
+}
+
+// readGitignorePatterns reads and parses .gitignore files
+func (t *TreeTool) readGitignorePatterns(rootPath string) []string {
+	var patterns []string
+
+	// Common ignore patterns for efficiency
+	defaultPatterns := []string{
+		"node_modules",
+		".git",
+		".DS_Store",
+		"*.log",
+		"dist",
+		"build",
+		"target",
+		".cache",
+		"coverage",
+		".nyc_output",
+		"*.tmp",
+		"*.temp",
+		".env",
+		".vscode",
+		".idea",
+	}
+	patterns = append(patterns, defaultPatterns...)
+
+	gitignorePath := filepath.Join(rootPath, ".gitignore")
+	file, err := os.Open(gitignorePath)
+	if err != nil {
+		return patterns // Return defaults if no .gitignore
+	}
+	defer func() { _ = file.Close() }()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Remove leading slash and convert to simple patterns
+		pattern := strings.TrimPrefix(line, "/")
+		if pattern != "" && pattern != line {
+			// It was a root-relative pattern, keep as is
+			patterns = append(patterns, pattern)
+		} else if pattern != "" {
+			// Regular pattern
+			patterns = append(patterns, pattern)
+		}
+	}
+
+	return patterns
 }
