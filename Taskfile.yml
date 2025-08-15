@@ -163,8 +163,17 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain WebSearchService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain FileService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain FetchService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/ui ConversationRenderer
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/ui InputComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/ui StatusComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/ui HelpBarComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/ui SelectionComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/ui Theme
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/ui/shared AutocompleteInterface
     sources:
       - "internal/domain/interfaces.go"
+      - "internal/ui/interfaces.go"
+      - "internal/ui/shared/interfaces.go"
     generates:
       - "internal/mocks/fake_tool.go"
       - "internal/mocks/fake_tool_factory.go"
@@ -172,6 +181,13 @@ tasks:
       - "internal/mocks/fake_web_search_service.go"
       - "internal/mocks/fake_file_service.go"
       - "internal/mocks/fake_fetch_service.go"
+      - "internal/mocks/fake_conversation_renderer.go"
+      - "internal/mocks/fake_input_component.go"
+      - "internal/mocks/fake_status_component.go"
+      - "internal/mocks/fake_help_bar_component.go"
+      - "internal/mocks/fake_selection_component.go"
+      - "internal/mocks/fake_theme.go"
+      - "internal/mocks/fake_autocomplete_interface.go"
 
   mocks:clean:
     desc: Clean generated mock files
