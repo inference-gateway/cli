@@ -237,17 +237,13 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		case "up":
 			iv.navigateHistoryUp()
 			if iv.Autocomplete != nil {
-				if iv.Autocomplete != nil {
-					iv.Autocomplete.Update(iv.text, iv.cursor)
-				}
+				iv.Autocomplete.Update(iv.text, iv.cursor)
 			}
 			return iv, nil
 		case "down":
 			iv.navigateHistoryDown()
 			if iv.Autocomplete != nil {
-				if iv.Autocomplete != nil {
-					iv.Autocomplete.Update(iv.text, iv.cursor)
-				}
+				iv.Autocomplete.Update(iv.text, iv.cursor)
 			}
 			return iv, nil
 		}

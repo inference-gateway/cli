@@ -684,10 +684,8 @@ func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
 	atIndex := app.findAtSymbolIndex(currentInput, cursor)
 	newInput, newCursor := app.buildInputWithFile(currentInput, cursor, atIndex, selectedFile)
 
-	if inputImpl, ok := app.inputView.(*ui.InputView); ok {
-		inputImpl.SetText(newInput)
-		inputImpl.SetCursor(newCursor)
-	}
+	app.inputView.SetText(newInput)
+	app.inputView.SetCursor(newCursor)
 }
 
 func (app *ChatApplication) findAtSymbolIndex(input string, cursor int) int {
@@ -994,8 +992,8 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 
 func (app *ChatApplication) updateFocusedComponent(model tea.Model) {
 	switch app.focusedComponent.(type) {
-	case *ui.InputView:
-		if inputModel, ok := model.(*ui.InputView); ok {
+	case ui.InputComponent:
+		if inputModel, ok := model.(ui.InputComponent); ok {
 			app.inputView = inputModel
 			app.focusedComponent = inputModel
 		}

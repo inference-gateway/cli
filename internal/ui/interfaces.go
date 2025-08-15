@@ -52,6 +52,7 @@ type InputComponent interface {
 	SetPlaceholder(text string)
 	GetCursor() int
 	SetCursor(position int)
+	SetText(text string)
 	SetWidth(width int)
 	SetHeight(height int)
 	Render() string

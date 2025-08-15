@@ -13,7 +13,7 @@ import (
 // ConversationView handles the chat conversation display
 type ConversationView struct {
 	conversation       []domain.ConversationEntry
-	viewport           viewport.Model
+	Viewport           viewport.Model // Exported for testing
 	width              int
 	height             int
 	expandedToolResult int
@@ -25,7 +25,7 @@ func NewConversationView() *ConversationView {
 	vp.SetContent("")
 	return &ConversationView{
 		conversation:       []domain.ConversationEntry{},
-		viewport:           vp,
+		Viewport:           vp,
 		width:              80,
 		height:             20,
 		expandedToolResult: -1,
@@ -39,15 +39,15 @@ func (cv *ConversationView) SetConversation(conversation []domain.ConversationEn
 }
 
 func (cv *ConversationView) GetScrollOffset() int {
-	return cv.viewport.YOffset
+	return cv.Viewport.YOffset
 }
 
 func (cv *ConversationView) CanScrollUp() bool {
-	return !cv.viewport.AtTop()
+	return !cv.Viewport.AtTop()
 }
 
 func (cv *ConversationView) CanScrollDown() bool {
-	return !cv.viewport.AtBottom()
+	return !cv.Viewport.AtBottom()
 }
 
 func (cv *ConversationView) ToggleToolResultExpansion(index int) {
@@ -70,21 +70,21 @@ func (cv *ConversationView) IsToolResultExpanded(index int) bool {
 
 func (cv *ConversationView) SetWidth(width int) {
 	cv.width = width
-	cv.viewport.Width = width
+	cv.Viewport.Width = width
 }
 
 func (cv *ConversationView) SetHeight(height int) {
 	cv.height = height
-	cv.viewport.Height = height
+	cv.Viewport.Height = height
 }
 
 func (cv *ConversationView) Render() string {
 	if len(cv.conversation) == 0 {
-		cv.viewport.SetContent(cv.renderWelcome())
+		cv.Viewport.SetContent(cv.renderWelcome())
 	} else {
 		cv.updateViewportContent()
 	}
-	return cv.viewport.View()
+	return cv.Viewport.View()
 }
 
 func (cv *ConversationView) updateViewportContent() {
@@ -95,11 +95,11 @@ func (cv *ConversationView) updateViewportContent() {
 		b.WriteString("\n")
 	}
 
-	wasAtBottom := cv.viewport.AtBottom()
-	cv.viewport.SetContent(b.String())
+	wasAtBottom := cv.Viewport.AtBottom()
+	cv.Viewport.SetContent(b.String())
 
 	if wasAtBottom {
-		cv.viewport.GotoBottom()
+		cv.Viewport.GotoBottom()
 	}
 }
 
@@ -198,10 +198,10 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if mouseMsg.Action == tea.MouseActionPress {
 			switch mouseMsg.Button {
 			case tea.MouseButtonWheelDown:
-				cv.viewport.ScrollDown(1)
+				cv.Viewport.ScrollDown(1)
 				return cv, nil
 			case tea.MouseButtonWheelUp:
-				cv.viewport.ScrollUp(1)
+				cv.Viewport.ScrollUp(1)
 				return cv, nil
 			}
 		}
@@ -224,7 +224,7 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return cv.handleScrollRequest(msg)
 		}
 	default:
-		cv.viewport, cmd = cv.viewport.Update(msg)
+		cv.Viewport, cmd = cv.Viewport.Update(msg)
 	}
 
 	return cv, cmd
@@ -234,16 +234,16 @@ func (cv *ConversationView) handleScrollRequest(msg shared.ScrollRequestMsg) (te
 	switch msg.Direction {
 	case shared.ScrollUp:
 		for i := 0; i < msg.Amount; i++ {
-			cv.viewport.ScrollUp(1)
+			cv.Viewport.ScrollUp(1)
 		}
 	case shared.ScrollDown:
 		for i := 0; i < msg.Amount; i++ {
-			cv.viewport.ScrollDown(1)
+			cv.Viewport.ScrollDown(1)
 		}
 	case shared.ScrollToTop:
-		cv.viewport.GotoTop()
+		cv.Viewport.GotoTop()
 	case shared.ScrollToBottom:
-		cv.viewport.GotoBottom()
+		cv.Viewport.GotoBottom()
 	}
 	return cv, nil
 }

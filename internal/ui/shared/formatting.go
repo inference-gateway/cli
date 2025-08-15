@@ -2,7 +2,6 @@ package shared
 
 import (
 	"strings"
-	"unicode"
 
 	"github.com/muesli/reflow/wordwrap"
 )
@@ -55,30 +54,6 @@ func GetResponsiveWidth(terminalWidth int) int {
 	return availableWidth
 }
 
-// stripANSI removes ANSI escape sequences from text
-func stripANSI(text string) string {
-	var result strings.Builder
-	inEscape := false
-	
-	for _, r := range text {
-		if r == '\033' {
-			inEscape = true
-			continue
-		}
-		
-		if inEscape {
-			if r == 'm' {
-				inEscape = false
-			}
-			continue
-		}
-		
-		result.WriteRune(r)
-	}
-	
-	return result.String()
-}
-
 // truncateText truncates text to fit within maxLength, adding "..." if needed
 func truncateText(text string, maxLength int) string {
 	if len(text) <= maxLength {
@@ -90,9 +65,4 @@ func truncateText(text string, maxLength int) string {
 	}
 	
 	return text[:maxLength-3] + "..."
-}
-
-// isWhitespace checks if a rune is whitespace
-func isWhitespace(r rune) bool {
-	return unicode.IsSpace(r)
 }
