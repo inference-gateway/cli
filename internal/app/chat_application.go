@@ -88,7 +88,7 @@ func (app *ChatApplication) updateHelpBarShortcuts() {
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "!", Description: "for bash mode"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "/", Description: "for commands"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "@", Description: "for file paths"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "#", Description: "to memorize"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "#", Description: "to memorize(not implemented)"})
 
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+d", Description: "to send message"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+c", Description: "to exit"})
