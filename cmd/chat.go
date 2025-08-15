@@ -50,9 +50,8 @@ func startChatSession() error {
 
 	application := app.NewChatApplication(services, models, defaultModel)
 
-	program := tea.NewProgram(application, tea.WithAltScreen())
+	program := tea.NewProgram(application)
 
-	fmt.Println("🤖 Starting chat session...")
 	if _, err := program.Run(); err != nil {
 		return fmt.Errorf("error running chat interface: %w", err)
 	}

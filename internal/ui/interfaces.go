@@ -87,6 +87,21 @@ type Theme interface {
 	GetBorderColor() string
 }
 
+
+// HelpBarComponent interface for bottom help bar display
+type HelpBarComponent interface {
+	ViewComponent
+	SetShortcuts(shortcuts []KeyShortcut)
+	IsEnabled() bool
+	SetEnabled(enabled bool)
+}
+
+// KeyShortcut represents a keyboard shortcut with description
+type KeyShortcut struct {
+	Key         string
+	Description string
+}
+
 // Layout interface for managing component positioning
 type Layout interface {
 	CalculateConversationHeight(totalHeight int) int

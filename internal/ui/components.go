@@ -7,10 +7,19 @@ import (
 
 	"github.com/atotto/clipboard"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/viewport"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
+)
+
+// UI Color constants for consistency
+const (
+	ColorSpinnerAccent   = "205"  // Magenta/Pink - used for spinner
+	ColorBashMode        = "34"   // Green - inspired by GitHub bash syntax highlighting
+	ColorBorderDefault   = "240"  // Gray - default border color
+	ColorTextDim         = "240"  // Gray - dim text color
 )
 
 // DefaultTheme implements Theme interface with default colors
@@ -38,15 +47,40 @@ func NewDefaultLayout() *DefaultLayout {
 func (l *DefaultLayout) CalculateConversationHeight(totalHeight int) int {
 	inputHeight := l.CalculateInputHeight(totalHeight)
 	statusHeight := l.CalculateStatusHeight(totalHeight)
-	return totalHeight - inputHeight - statusHeight
+
+	extraLines := 5
+	if totalHeight < 12 {
+		extraLines = 3
+	}
+
+	conversationHeight := totalHeight - inputHeight - statusHeight - extraLines
+
+	minConversationHeight := 3
+	if conversationHeight < minConversationHeight {
+		conversationHeight = minConversationHeight
+	}
+
+	return conversationHeight
 }
 
 func (l *DefaultLayout) CalculateInputHeight(totalHeight int) int {
-	return 5 // Input area takes 5 lines (border + input + model name + border)
+	if totalHeight < 8 {
+		return 2
+	}
+	if totalHeight < 12 {
+		return 3
+	}
+	return 4
 }
 
 func (l *DefaultLayout) CalculateStatusHeight(totalHeight int) int {
-	return 3 // Status area takes 3 lines
+	if totalHeight < 8 {
+		return 0
+	}
+	if totalHeight < 12 {
+		return 1
+	}
+	return 2
 }
 
 func (l *DefaultLayout) GetMargins() (top, right, bottom, left int) {
@@ -76,13 +110,15 @@ func (f *ComponentFactory) SetCommandRegistry(registry *commands.Registry) {
 }
 
 func (f *ComponentFactory) CreateConversationView() ConversationRenderer {
+	vp := viewport.New(80, 20)
+	vp.SetContent("")
 	return &ConversationViewImpl{
 		theme:              f.theme,
 		conversation:       []domain.ConversationEntry{},
-		scrollOffset:       0,
+		viewport:           vp,
 		width:              80,
 		height:             20,
-		expandedToolResult: -1, // No tool result expanded initially
+		expandedToolResult: -1,
 		isToolExpanded:     false,
 	}
 }
@@ -91,18 +127,22 @@ func (f *ComponentFactory) CreateInputView() InputComponent {
 	return &InputViewImpl{
 		text:         "",
 		cursor:       0,
-		placeholder:  "Type your message... (Press Ctrl+D to send)",
+		placeholder:  "Type your message... (Press Ctrl+D to send, ? for help)",
 		width:        80,
+		height:       5,  // Initialize with default height
 		theme:        f.theme,
 		modelService: f.modelService,
 		autocomplete: NewAutocomplete(f.theme, f.commandRegistry),
+		history:      make([]string, 0, 5),
+		historyIndex: -1,
+		currentInput: "",
 	}
 }
 
 func (f *ComponentFactory) CreateStatusView() StatusComponent {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color(ColorSpinnerAccent))
 	return &StatusViewImpl{
 		message:   "",
 		isError:   false,
@@ -112,35 +152,46 @@ func (f *ComponentFactory) CreateStatusView() StatusComponent {
 	}
 }
 
+
+func (f *ComponentFactory) CreateHelpBar() HelpBarComponent {
+	return &HelpBarImpl{
+		enabled:   false,
+		width:     80,
+		theme:     f.theme,
+		shortcuts: make([]KeyShortcut, 0),
+	}
+}
+
 // ConversationViewImpl implements ConversationRenderer
 type ConversationViewImpl struct {
-	theme               Theme
-	conversation        []domain.ConversationEntry
-	scrollOffset        int
-	width               int
-	height              int
-	expandedToolResult  int
-	isToolExpanded      bool
+	theme              Theme
+	conversation       []domain.ConversationEntry
+	viewport           viewport.Model
+	width              int
+	height             int
+	expandedToolResult int
+	isToolExpanded     bool
 }
 
 func (cv *ConversationViewImpl) SetConversation(conversation []domain.ConversationEntry) {
 	cv.conversation = conversation
+	cv.updateViewportContent()
 }
 
 func (cv *ConversationViewImpl) SetScrollOffset(offset int) {
-	cv.scrollOffset = offset
+	// Viewport handles its own scrolling
 }
 
 func (cv *ConversationViewImpl) GetScrollOffset() int {
-	return cv.scrollOffset
+	return cv.viewport.YOffset
 }
 
 func (cv *ConversationViewImpl) CanScrollUp() bool {
-	return cv.scrollOffset > 0
+	return !cv.viewport.AtTop()
 }
 
 func (cv *ConversationViewImpl) CanScrollDown() bool {
-	return len(cv.conversation) > cv.height && cv.scrollOffset < len(cv.conversation)-cv.height
+	return !cv.viewport.AtBottom()
 }
 
 func (cv *ConversationViewImpl) ToggleToolResultExpansion(index int) {
@@ -163,28 +214,38 @@ func (cv *ConversationViewImpl) IsToolResultExpanded(index int) bool {
 
 func (cv *ConversationViewImpl) SetWidth(width int) {
 	cv.width = width
+	cv.viewport.Width = width
 }
 
 func (cv *ConversationViewImpl) SetHeight(height int) {
 	cv.height = height
+	cv.viewport.Height = height
 }
 
 func (cv *ConversationViewImpl) Render() string {
 	if len(cv.conversation) == 0 {
-		return cv.renderWelcome()
+		cv.viewport.SetContent(cv.renderWelcome())
+	} else {
+		cv.updateViewportContent()
 	}
+	return cv.viewport.View()
+}
 
+func (cv *ConversationViewImpl) updateViewportContent() {
 	var b strings.Builder
-	visibleEntries := cv.getVisibleEntries()
 
-	for i, entry := range visibleEntries {
-		// Calculate the actual index in the full conversation
-		actualIndex := cv.scrollOffset + i
-		b.WriteString(cv.renderEntryWithIndex(entry, actualIndex))
+	for i, entry := range cv.conversation {
+		b.WriteString(cv.renderEntryWithIndex(entry, i))
 		b.WriteString("\n")
 	}
 
-	return b.String()
+	wasAtBottom := cv.viewport.AtBottom()
+
+	cv.viewport.SetContent(b.String())
+
+	if wasAtBottom {
+		cv.viewport.GotoBottom()
+	}
 }
 
 func (cv *ConversationViewImpl) renderWelcome() string {
@@ -192,19 +253,6 @@ func (cv *ConversationViewImpl) renderWelcome() string {
 		cv.theme.GetStatusColor(), "\033[0m")
 }
 
-func (cv *ConversationViewImpl) getVisibleEntries() []domain.ConversationEntry {
-	if len(cv.conversation) <= cv.height {
-		return cv.conversation
-	}
-
-	start := cv.scrollOffset
-	end := start + cv.height
-	if end > len(cv.conversation) {
-		end = len(cv.conversation)
-	}
-
-	return cv.conversation[start:end]
-}
 
 func (cv *ConversationViewImpl) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
 	var color, role string
@@ -233,8 +281,11 @@ func (cv *ConversationViewImpl) renderEntryWithIndex(entry domain.ConversationEn
 	}
 
 	content := entry.Message.Content
+
+	wrappedContent := FormatResponsiveMessage(content, cv.width)
+
 	resetColor := "\033[0m"
-	message := fmt.Sprintf("%s%s:%s %s", color, role, resetColor, content)
+	message := fmt.Sprintf("%s%s:%s %s", color, role, resetColor, wrappedContent)
 
 	return message + "\n"
 }
@@ -262,16 +313,21 @@ func (cv *ConversationViewImpl) formatEntryContent(entry domain.ConversationEntr
 
 func (cv *ConversationViewImpl) formatExpandedContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
-		return FormatToolResultExpanded(entry.ToolExecution) + "\n\n💡 Press Ctrl+R to collapse"
+		content := FormatToolResultExpandedResponsive(entry.ToolExecution, cv.width)
+		return content + "\n\n💡 Press Ctrl+R to collapse"
 	}
-	return entry.Message.Content + "\n\n💡 Press Ctrl+R to collapse"
+	wrappedContent := FormatResponsiveMessage(entry.Message.Content, cv.width)
+	return wrappedContent + "\n\n💡 Press Ctrl+R to collapse"
 }
 
 func (cv *ConversationViewImpl) formatCompactContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
-		return FormatToolResultForUI(entry.ToolExecution) + "\n💡 Press Ctrl+R to expand details"
+		content := FormatToolResultForUIResponsive(entry.ToolExecution, cv.width)
+		return content + "\n💡 Press Ctrl+R to expand details"
 	}
-	return cv.formatToolContentCompact(entry.Message.Content) + "\n💡 Press Ctrl+R to expand details"
+	content := cv.formatToolContentCompact(entry.Message.Content)
+	wrappedContent := FormatResponsiveMessage(content, cv.width)
+	return wrappedContent + "\n💡 Press Ctrl+R to expand details"
 }
 
 func (cv *ConversationViewImpl) formatToolContentCompact(content string) string {
@@ -290,23 +346,78 @@ func (cv *ConversationViewImpl) Init() tea.Cmd { return nil }
 func (cv *ConversationViewImpl) View() string { return cv.Render() }
 
 func (cv *ConversationViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
+		if mouseMsg.Action == tea.MouseActionPress {
+			switch mouseMsg.Button {
+			case tea.MouseButtonWheelDown:
+				cv.viewport.ScrollDown(1)
+				return cv, nil
+			case tea.MouseButtonWheelUp:
+				cv.viewport.ScrollUp(1)
+				return cv, nil
+			}
+		}
+	}
+
+	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		cv.SetWidth(windowMsg.Width)
+		cv.height = windowMsg.Height
+		cv.updateViewportContent()
+	}
+
+	switch msg.(type) {
+	case tea.KeyMsg:
+
+	default:
+		cv.viewport, cmd = cv.viewport.Update(msg)
+	}
+
 	switch msg := msg.(type) {
 	case UpdateHistoryMsg:
 		cv.SetConversation(msg.History)
-		return cv, nil
+		return cv, cmd
+	case ScrollRequestMsg:
+		if msg.ComponentID == cv.GetID() {
+			return cv.handleScrollRequest(msg)
+		}
+	}
+	return cv, cmd
+}
+
+
+func (cv *ConversationViewImpl) handleScrollRequest(msg ScrollRequestMsg) (tea.Model, tea.Cmd) {
+	switch msg.Direction {
+	case ScrollUp:
+		for i := 0; i < msg.Amount; i++ {
+			cv.viewport.ScrollUp(1)
+		}
+	case ScrollDown:
+		for i := 0; i < msg.Amount; i++ {
+			cv.viewport.ScrollDown(1)
+		}
+	case ScrollToTop:
+		cv.viewport.GotoTop()
+	case ScrollToBottom:
+		cv.viewport.GotoBottom()
 	}
 	return cv, nil
 }
 
 // InputViewImpl implements InputComponent
 type InputViewImpl struct {
-	text         string
-	cursor       int
-	placeholder  string
-	width        int
-	theme        Theme
-	modelService domain.ModelService
-	autocomplete *AutocompleteImpl
+	text          string
+	cursor        int
+	placeholder   string
+	width         int
+	height        int
+	theme         Theme
+	modelService  domain.ModelService
+	autocomplete  *AutocompleteImpl
+	history       []string
+	historyIndex  int
+	currentInput  string
 }
 
 func (iv *InputViewImpl) GetInput() string {
@@ -316,6 +427,8 @@ func (iv *InputViewImpl) GetInput() string {
 func (iv *InputViewImpl) ClearInput() {
 	iv.text = ""
 	iv.cursor = 0
+	iv.historyIndex = -1
+	iv.currentInput = ""
 	iv.autocomplete.Hide()
 }
 
@@ -337,6 +450,59 @@ func (iv *InputViewImpl) SetText(text string) {
 	iv.text = text
 }
 
+// addToHistory adds a message to the input history, keeping only the last 5
+func (iv *InputViewImpl) addToHistory(message string) {
+	if message == "" {
+		return
+	}
+
+	if len(iv.history) > 0 && iv.history[len(iv.history)-1] == message {
+		return
+	}
+
+	iv.history = append(iv.history, message)
+
+	if len(iv.history) > 5 {
+		iv.history = iv.history[1:]
+	}
+}
+
+// navigateHistoryUp moves up in history (to older messages)
+func (iv *InputViewImpl) navigateHistoryUp() {
+	if len(iv.history) == 0 {
+		return
+	}
+
+	if iv.historyIndex == -1 {
+		iv.currentInput = iv.text
+		iv.historyIndex = len(iv.history) - 1
+	} else if iv.historyIndex > 0 {
+		iv.historyIndex--
+	} else {
+		return
+	}
+
+	iv.text = iv.history[iv.historyIndex]
+	iv.cursor = len(iv.text)
+}
+
+// navigateHistoryDown moves down in history (to newer messages)
+func (iv *InputViewImpl) navigateHistoryDown() {
+	if iv.historyIndex == -1 {
+		return
+	}
+
+	if iv.historyIndex < len(iv.history)-1 {
+		iv.historyIndex++
+		iv.text = iv.history[iv.historyIndex]
+		iv.cursor = len(iv.text)
+	} else {
+		iv.historyIndex = -1
+		iv.text = iv.currentInput
+		iv.cursor = len(iv.text)
+	}
+}
+
 func (iv *InputViewImpl) SetWidth(width int) {
 	iv.width = width
 	if iv.autocomplete != nil {
@@ -345,53 +511,74 @@ func (iv *InputViewImpl) SetWidth(width int) {
 }
 
 func (iv *InputViewImpl) SetHeight(height int) {
-	// Input view height is fixed
+	iv.height = height
 }
 
 func (iv *InputViewImpl) Render() string {
 	var displayText string
+	isBashMode := strings.HasPrefix(iv.text, "!")
 
 	if iv.text == "" {
 		displayText = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
+			Foreground(lipgloss.Color(ColorTextDim)).
 			Render(iv.placeholder)
 	} else {
 		before := iv.text[:iv.cursor]
 		after := iv.text[iv.cursor:]
-		displayText = fmt.Sprintf("%s│%s", before, after)
+
+		availableWidth := iv.width - 8
+		if availableWidth > 0 {
+			wrappedBefore := WrapText(before, availableWidth)
+			wrappedAfter := WrapText(after, availableWidth)
+			displayText = fmt.Sprintf("%s│%s", wrappedBefore, wrappedAfter)
+		} else {
+			displayText = fmt.Sprintf("%s│%s", before, after)
+		}
 	}
 
 	inputContent := fmt.Sprintf("> %s", displayText)
 
+	borderColor := ColorBorderDefault
+	if isBashMode {
+		borderColor = ColorBashMode
+	}
+
 	inputStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("240")).
+		BorderForeground(lipgloss.Color(borderColor)).
 		Padding(0, 1).
 		Width(iv.width - 4)
 
 	borderedInput := inputStyle.Render(inputContent)
 
-	var result strings.Builder
-	result.WriteString(borderedInput)
-	result.WriteString("\n")
+	components := []string{borderedInput}
 
-	if iv.autocomplete.IsVisible() {
+	if isBashMode && iv.height >= 2 {
+		bashIndicator := lipgloss.NewStyle().
+			Foreground(lipgloss.Color(ColorBashMode)).
+			Bold(true).
+			Width(iv.width).
+			Render("BASH MODE - Command will be executed directly")
+		components = append(components, bashIndicator)
+	}
+
+	if iv.autocomplete.IsVisible() && iv.height >= 3 {
 		autocompleteContent := iv.autocomplete.Render()
 		if autocompleteContent != "" {
-			result.WriteString(autocompleteContent)
-			result.WriteString("\n")
+			components = append(components, autocompleteContent)
 		}
 	}
 
 	currentModel := iv.modelService.GetCurrentModel()
-	if currentModel != "" {
+	if currentModel != "" && iv.height >= 2 && !isBashMode {
 		modelStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240"))
+			Foreground(lipgloss.Color(ColorTextDim)).
+			Width(iv.width)
 		modelDisplay := modelStyle.Render(fmt.Sprintf("Model: %s", currentModel))
-		result.WriteString(modelDisplay)
+		components = append(components, modelDisplay)
 	}
 
-	return result.String()
+	return lipgloss.JoinVertical(lipgloss.Left, components...)
 }
 
 func (iv *InputViewImpl) GetID() string { return "input" }
@@ -401,6 +588,10 @@ func (iv *InputViewImpl) Init() tea.Cmd { return nil }
 func (iv *InputViewImpl) View() string { return iv.Render() }
 
 func (iv *InputViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		iv.SetWidth(windowMsg.Width)
+	}
+
 	switch msg := msg.(type) {
 	case ClearInputMsg:
 		iv.ClearInput()
@@ -414,8 +605,29 @@ func (iv *InputViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (iv *InputViewImpl) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
+	keyStr := key.String()
+
+	if !iv.autocomplete.IsVisible() {
+		switch keyStr {
+		case "up":
+			iv.navigateHistoryUp()
+			iv.autocomplete.Update(iv.text, iv.cursor)
+			return iv, nil
+		case "down":
+			iv.navigateHistoryDown()
+			iv.autocomplete.Update(iv.text, iv.cursor)
+			return iv, nil
+		}
+	}
+
 	if handled, completion := iv.autocomplete.HandleKey(key); handled {
 		return iv.handleAutocomplete(completion)
+	}
+
+	if keyStr != "up" && keyStr != "down" && keyStr != "left" && keyStr != "right" &&
+	   keyStr != "ctrl+a" && keyStr != "ctrl+e" && keyStr != "home" && keyStr != "end" {
+		iv.historyIndex = -1
+		iv.currentInput = ""
 	}
 
 	cmd := iv.handleSpecificKeys(key)
@@ -428,6 +640,7 @@ func (iv *InputViewImpl) handleAutocomplete(completion string) (tea.Model, tea.C
 		iv.text = completion
 		iv.cursor = len(completion)
 		iv.autocomplete.Hide()
+		return iv, nil
 	}
 	iv.autocomplete.Update(iv.text, iv.cursor)
 	return iv, nil
@@ -453,22 +666,34 @@ func (iv *InputViewImpl) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
 				iv.cursor--
 			}
 		}
+		return nil
 	case "ctrl+u":
-		iv.deleteWordBackward()
+		iv.deleteToBeginning()
+		return nil
 	case "ctrl+w":
 		iv.deleteWordBackward()
+		return nil
 	case "ctrl+d":
 		return iv.handleSubmit()
 	case "ctrl+shift+c":
 		iv.handleCopy()
 	case "ctrl+v", "alt+v":
 		iv.handlePaste()
+		return nil
 	case "ctrl+x":
 		iv.handleCut()
+		return nil
 	case "ctrl+a":
 		iv.cursor = 0
 	case "ctrl+e":
 		iv.cursor = len(iv.text)
+	case "?":
+		if len(strings.TrimSpace(iv.text)) == 0 {
+			return func() tea.Msg {
+				return ToggleHelpBarMsg{}
+			}
+		}
+		return iv.handleCharacterInput(key)
 	default:
 		return iv.handleCharacterInput(key)
 	}
@@ -478,6 +703,7 @@ func (iv *InputViewImpl) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
 func (iv *InputViewImpl) handleSubmit() tea.Cmd {
 	if iv.text != "" {
 		input := iv.text
+		iv.addToHistory(input)
 		iv.ClearInput()
 		iv.autocomplete.Hide()
 		return func() tea.Msg {
@@ -489,7 +715,7 @@ func (iv *InputViewImpl) handleSubmit() tea.Cmd {
 
 func (iv *InputViewImpl) handleCopy() {
 	if iv.text != "" {
-		_ = clipboard.WriteAll(iv.text) // Ignore error for clipboard operations
+		_ = clipboard.WriteAll(iv.text)
 	}
 }
 
@@ -536,6 +762,14 @@ func (iv *InputViewImpl) handleCharacterInput(key tea.KeyMsg) tea.Cmd {
 		if cleanText != "" {
 			iv.text = iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
 			iv.cursor += len(cleanText)
+
+			return func() tea.Msg {
+				return ScrollRequestMsg{
+					ComponentID: "conversation",
+					Direction:   ScrollToBottom,
+					Amount:      0,
+				}
+			}
 		}
 		return nil
 	}
@@ -546,10 +780,32 @@ func (iv *InputViewImpl) handleCharacterInput(key tea.KeyMsg) tea.Cmd {
 		iv.cursor++
 
 		if char == "@" {
-			return func() tea.Msg {
-				return FileSelectionRequestMsg{}
-			}
+			return tea.Batch(
+				func() tea.Msg {
+					return ScrollRequestMsg{
+						ComponentID: "conversation",
+						Direction:   ScrollToBottom,
+						Amount:      0,
+					}
+				},
+				func() tea.Msg {
+					return FileSelectionRequestMsg{}
+				},
+			)
 		}
+
+		return tea.Batch(
+			func() tea.Msg {
+				return ScrollRequestMsg{
+					ComponentID: "conversation",
+					Direction:   ScrollToBottom,
+					Amount:      0,
+				}
+			},
+			func() tea.Msg {
+				return HideHelpBarMsg{}
+			},
+		)
 	}
 	return nil
 }
@@ -576,6 +832,14 @@ func (iv *InputViewImpl) deleteWordBackward() {
 	}
 }
 
+// deleteToBeginning deletes from the cursor to the beginning of the line
+func (iv *InputViewImpl) deleteToBeginning() {
+	if iv.cursor > 0 {
+		iv.text = iv.text[iv.cursor:]
+		iv.cursor = 0
+	}
+}
+
 // StatusViewImpl implements StatusComponent
 type StatusViewImpl struct {
 	message     string
@@ -586,6 +850,8 @@ type StatusViewImpl struct {
 	startTime   time.Time
 	tokenUsage  string
 	baseMessage string
+	debugInfo   string
+	width       int
 }
 
 func (sv *StatusViewImpl) ShowStatus(message string) {
@@ -618,6 +884,7 @@ func (sv *StatusViewImpl) ClearStatus() {
 	sv.isSpinner = false
 	sv.tokenUsage = ""
 	sv.startTime = time.Time{}
+	sv.debugInfo = ""
 }
 
 func (sv *StatusViewImpl) IsShowingError() bool {
@@ -633,13 +900,14 @@ func (sv *StatusViewImpl) SetTokenUsage(usage string) {
 }
 
 func (sv *StatusViewImpl) SetWidth(width int) {
+	sv.width = width
 }
 
 func (sv *StatusViewImpl) SetHeight(height int) {
 }
 
 func (sv *StatusViewImpl) Render() string {
-	if sv.message == "" && sv.baseMessage == "" {
+	if sv.message == "" && sv.baseMessage == "" && sv.debugInfo == "" {
 		return ""
 	}
 
@@ -652,18 +920,31 @@ func (sv *StatusViewImpl) Render() string {
 		prefix = sv.spinner.View()
 		color = sv.theme.GetStatusColor()
 
-		// Calculate elapsed time
 		elapsed := time.Since(sv.startTime)
 		seconds := int(elapsed.Seconds())
-		displayMessage = fmt.Sprintf("%s (%ds)", sv.baseMessage, seconds)
+		displayMessage = fmt.Sprintf("%s (%ds) - Press ESC to interrupt", sv.baseMessage, seconds)
 	} else {
 		prefix = "ℹ️"
 		color = sv.theme.GetStatusColor()
 		displayMessage = sv.message
 
-		// Show token usage if available
 		if sv.tokenUsage != "" {
 			displayMessage = fmt.Sprintf("%s (%s)", displayMessage, sv.tokenUsage)
+		}
+	}
+
+	if sv.debugInfo != "" {
+		if displayMessage != "" {
+			displayMessage = fmt.Sprintf("%s | %s", displayMessage, sv.debugInfo)
+		} else {
+			displayMessage = sv.debugInfo
+		}
+	}
+
+	if sv.width > 0 {
+		availableWidth := sv.width - 4
+		if availableWidth > 0 {
+			displayMessage = WrapText(displayMessage, availableWidth)
 		}
 	}
 
@@ -678,6 +959,10 @@ func (sv *StatusViewImpl) View() string { return sv.Render() }
 
 func (sv *StatusViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+
+	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		sv.SetWidth(windowMsg.Width)
+	}
 
 	if sv.isSpinner {
 		sv.spinner, cmd = sv.spinner.Update(msg)
@@ -700,7 +985,161 @@ func (sv *StatusViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		sv.ShowError(msg.Error)
 	case ClearErrorMsg:
 		sv.ClearStatus()
+	case DebugKeyMsg:
+		sv.debugInfo = fmt.Sprintf("DEBUG: %s -> %s", msg.Key, msg.Handler)
 	}
 
 	return sv, cmd
+}
+
+
+// HelpBarImpl implements HelpBarComponent
+type HelpBarImpl struct {
+	enabled   bool
+	width     int
+	theme     Theme
+	shortcuts []KeyShortcut
+}
+
+func (hb *HelpBarImpl) SetShortcuts(shortcuts []KeyShortcut) {
+	hb.shortcuts = shortcuts
+}
+
+func (hb *HelpBarImpl) IsEnabled() bool {
+	return hb.enabled
+}
+
+func (hb *HelpBarImpl) SetEnabled(enabled bool) {
+	hb.enabled = enabled
+}
+
+func (hb *HelpBarImpl) SetWidth(width int) {
+	hb.width = width
+}
+
+func (hb *HelpBarImpl) SetHeight(height int) {
+	// Help bar has fixed height
+}
+
+func (hb *HelpBarImpl) Render() string {
+	if !hb.enabled || len(hb.shortcuts) == 0 {
+		return ""
+	}
+
+	return hb.renderResponsiveTable()
+}
+
+// renderResponsiveTable creates a 4-row by 3-column grid layout for shortcuts
+func (hb *HelpBarImpl) renderResponsiveTable() string {
+	if len(hb.shortcuts) == 0 {
+		return ""
+	}
+
+	const rows = 4
+	const cols = 3
+
+	colWidth := (hb.width - 6) / cols
+	if colWidth < 20 {
+		colWidth = 20
+	}
+
+	grid := make([][]string, rows)
+	for i := range grid {
+		grid[i] = make([]string, cols)
+	}
+
+	var firstColumnKeys []KeyShortcut
+	var otherKeys []KeyShortcut
+
+	priorityKeys := []string{"!", "/", "@", "#"}
+	for _, shortcut := range hb.shortcuts {
+		isPriority := false
+		for _, priority := range priorityKeys {
+			if shortcut.Key == priority {
+				firstColumnKeys = append(firstColumnKeys, shortcut)
+				isPriority = true
+				break
+			}
+		}
+		if !isPriority {
+			otherKeys = append(otherKeys, shortcut)
+		}
+	}
+
+	for i, shortcut := range firstColumnKeys {
+		if i >= rows {
+			break
+		}
+
+		shortcutText := fmt.Sprintf("%s %s", shortcut.Key, shortcut.Description)
+
+		if len(shortcutText) > colWidth-2 {
+			shortcutText = shortcutText[:colWidth-5] + "..."
+		}
+
+		grid[i][0] = shortcutText
+	}
+
+	cellIndex := 0
+	for _, shortcut := range otherKeys {
+		for cellIndex < rows*cols {
+			row := cellIndex / cols
+			col := cellIndex % cols
+
+			if col == 0 && row < len(firstColumnKeys) {
+				cellIndex++
+				continue
+			}
+
+			shortcutText := fmt.Sprintf("%s %s", shortcut.Key, shortcut.Description)
+
+			if len(shortcutText) > colWidth-2 {
+				shortcutText = shortcutText[:colWidth-5] + "..."
+			}
+
+			grid[row][col] = shortcutText
+			cellIndex++
+			break
+		}
+
+		if cellIndex >= rows*cols {
+			break
+		}
+	}
+
+	var tableRows []string
+	for _, row := range grid {
+		var cells []string
+		for _, cell := range row {
+			cellStyle := lipgloss.NewStyle().
+				Width(colWidth).
+				Align(lipgloss.Left)
+			cells = append(cells, cellStyle.Render(cell))
+		}
+		tableRows = append(tableRows, lipgloss.JoinHorizontal(lipgloss.Left, cells...))
+	}
+
+	tableStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(ColorTextDim)).
+		Width(hb.width)
+
+	return tableStyle.Render(strings.Join(tableRows, "\n"))
+}
+
+func (hb *HelpBarImpl) GetID() string { return "help-bar" }
+
+func (hb *HelpBarImpl) Init() tea.Cmd { return nil }
+
+func (hb *HelpBarImpl) View() string { return hb.Render() }
+
+func (hb *HelpBarImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		hb.SetWidth(msg.Width)
+	case ToggleHelpBarMsg:
+		hb.enabled = !hb.enabled
+	case HideHelpBarMsg:
+		hb.enabled = false
+	}
+	return hb, nil
 }

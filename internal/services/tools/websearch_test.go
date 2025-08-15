@@ -35,34 +35,34 @@ func TestWebSearchTool_Definition(t *testing.T) {
 
 func TestWebSearchTool_IsEnabled(t *testing.T) {
 	tests := []struct {
-		name              string
-		toolsEnabled      bool
-		webSearchEnabled  bool
-		expectedState     bool
+		name             string
+		toolsEnabled     bool
+		webSearchEnabled bool
+		expectedState    bool
 	}{
 		{
-			name:              "enabled when both tools and websearch enabled",
-			toolsEnabled:      true,
-			webSearchEnabled:  true,
-			expectedState:     true,
+			name:             "enabled when both tools and websearch enabled",
+			toolsEnabled:     true,
+			webSearchEnabled: true,
+			expectedState:    true,
 		},
 		{
-			name:              "disabled when tools disabled",
-			toolsEnabled:      false,
-			webSearchEnabled:  true,
-			expectedState:     false,
+			name:             "disabled when tools disabled",
+			toolsEnabled:     false,
+			webSearchEnabled: true,
+			expectedState:    false,
 		},
 		{
-			name:              "disabled when websearch disabled",
-			toolsEnabled:      true,
-			webSearchEnabled:  false,
-			expectedState:     false,
+			name:             "disabled when websearch disabled",
+			toolsEnabled:     true,
+			webSearchEnabled: false,
+			expectedState:    false,
 		},
 		{
-			name:              "disabled when both disabled",
-			toolsEnabled:      false,
-			webSearchEnabled:  false,
-			expectedState:     false,
+			name:             "disabled when both disabled",
+			toolsEnabled:     false,
+			webSearchEnabled: false,
+			expectedState:    false,
 		},
 	}
 

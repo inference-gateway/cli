@@ -65,16 +65,17 @@ func (m *ModelSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 	switch msg.String() {
 	case "ctrl+c":
 		return m.handleCancel()
-	case "up", "k":
+	case "up":
 		return m.handleNavigationUp()
-	case "down", "j":
+	case "down":
 		return m.handleNavigationDown()
 	case "enter", " ":
 		return m.handleSelection()
-	case "esc":
-		return m.handleEscape()
 	case "/":
-		return m.handleSearchToggle()
+		if !m.searchMode {
+			return m.handleSearchToggle()
+		}
+		return m.handleCharacterInput(msg)
 	case "backspace":
 		return m.handleBackspace()
 	default:
@@ -115,14 +116,6 @@ func (m *ModelSelectorImpl) handleSelection() (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m *ModelSelectorImpl) handleEscape() (tea.Model, tea.Cmd) {
-	if m.searchMode {
-		m.exitSearchMode()
-		return m, nil
-	}
-	return m.handleCancel()
-}
-
 func (m *ModelSelectorImpl) handleSearchToggle() (tea.Model, tea.Cmd) {
 	m.searchMode = true
 	return m, nil
@@ -142,13 +135,6 @@ func (m *ModelSelectorImpl) handleCharacterInput(msg tea.KeyMsg) (tea.Model, tea
 		m.updateSearch()
 	}
 	return m, nil
-}
-
-func (m *ModelSelectorImpl) exitSearchMode() {
-	m.searchMode = false
-	m.searchQuery = ""
-	m.filterModels()
-	m.selected = 0
 }
 
 func (m *ModelSelectorImpl) updateSearch() {

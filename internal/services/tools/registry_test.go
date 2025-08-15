@@ -35,7 +35,6 @@ func createTestRegistry() *Registry {
 	return NewRegistry(cfg)
 }
 
-
 func TestRegistry_GetTool_Unknown(t *testing.T) {
 	registry := createTestRegistry()
 
@@ -44,9 +43,6 @@ func TestRegistry_GetTool_Unknown(t *testing.T) {
 		t.Error("Expected error for unknown tool")
 	}
 }
-
-
-
 
 func TestRegistry_DisabledTools(t *testing.T) {
 	cfg := &config.Config{
@@ -210,11 +206,11 @@ func TestRegistry_GetTool(t *testing.T) {
 
 func TestRegistry_ListAvailableTools(t *testing.T) {
 	tests := []struct {
-		name         string
-		config       *config.Config
-		expectedMin  int
-		expectedMax  int
-		shouldContain []string
+		name             string
+		config           *config.Config
+		expectedMin      int
+		expectedMax      int
+		shouldContain    []string
 		shouldNotContain []string
 	}{
 		{

@@ -308,6 +308,6 @@ func (t *ReadTool) readFileLines(path string, startLine, endLine int) (string, e
 		return "", fmt.Errorf("start line %d is greater than end line %d", startLine, endLine)
 	}
 
-	selectedLines := lines[startLine-1:endLine]
+	selectedLines := lines[startLine-1 : endLine]
 	return strings.Join(selectedLines, "\n"), nil
 }
