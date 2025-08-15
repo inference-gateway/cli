@@ -342,6 +342,13 @@ func (h *ChatMessageHandler) handleChatError(msg domain.ChatErrorEvent, state *A
 	delete(state.Data, "eventChannel")
 	delete(state.Data, "currentRequestID")
 
+	delete(state.Data, "remainingToolCalls")
+	delete(state.Data, "pendingToolCall")
+	delete(state.Data, "toolCallResponse")
+	delete(state.Data, "approvalSelectedIndex")
+
+	state.CurrentView = ViewChat
+
 	return nil, func() tea.Msg {
 		return ui.ShowErrorMsg{
 			Error:  errorMsg,
