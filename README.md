@@ -364,6 +364,42 @@ This tool is particularly useful for finding files before reading them.
 - Skips binary files, hidden directories, and configured excluded paths
 - Limited to reasonable search depth to prevent excessive resource usage
 
+### Tree Tool
+
+Display directory structure in a tree format, similar to the Unix `tree` command. Provides a polyfill
+implementation when the native `tree` command is unavailable.
+
+**Parameters:**
+
+- `path` (optional): Directory path to display tree structure for (default: current directory)
+- `max_depth` (optional): Maximum depth to traverse (unlimited by default)
+- `exclude_patterns` (optional): Array of glob patterns to exclude from the tree (e.g., `["*.log", "node_modules"]`)
+- `show_hidden` (optional): Whether to show hidden files and directories (default: false)
+- `format` (optional): Output format - "text" or "json" (default: "text")
+
+**Examples:**
+
+- Basic tree: Uses current directory with default settings
+- Tree with depth limit: `max_depth: 2` - Shows only 2 levels deep
+- Tree excluding patterns: `exclude_patterns: ["*.log", "node_modules", ".git"]`
+- Tree with hidden files: `show_hidden: true`
+- JSON output: `format: "json"` - Returns structured data
+
+**Features:**
+
+- **Native Integration**: Uses system `tree` command when available for optimal performance
+- **Polyfill Implementation**: Falls back to custom implementation when `tree` is not installed
+- **Pattern Exclusion**: Supports glob patterns to exclude specific files and directories
+- **Depth Control**: Limit traversal depth to prevent overwhelming output
+- **Hidden File Control**: Toggle visibility of hidden files and directories
+- **Multiple Formats**: Text output for readability, JSON for structured data
+
+**Security:**
+
+- Respects configured path exclusions for security
+- Validates directory access permissions
+- Limited by the same security restrictions as other file tools
+
 ### Bash Tool
 
 Execute whitelisted bash commands securely with validation against configured command patterns.

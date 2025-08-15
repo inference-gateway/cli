@@ -222,6 +222,8 @@ func formatToolSpecificData(toolName string, data interface{}) string {
 		return formatBashToolData(data)
 	case "Read":
 		return formatReadToolData(data)
+	case "Tree":
+		return formatTreeToolData(data)
 	case "Fetch":
 		return formatFetchToolData(data)
 	case "WebSearch":
@@ -275,6 +277,37 @@ func formatReadToolData(data interface{}) string {
 	if readResult.Content != "" {
 		output.WriteString(fmt.Sprintf("Content:\n%s\n", readResult.Content))
 	}
+	return output.String()
+}
+
+func formatTreeToolData(data interface{}) string {
+	treeResult, ok := data.(*domain.TreeToolResult)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Path: %s\n", treeResult.Path))
+	output.WriteString(fmt.Sprintf("Max Depth: %d\n", treeResult.MaxDepth))
+	output.WriteString(fmt.Sprintf("Max Files: %d\n", treeResult.MaxFiles))
+
+	if treeResult.UsingNativeTree {
+		output.WriteString("Using: Native tree command\n")
+	} else {
+		output.WriteString("Using: Built-in implementation\n")
+	}
+
+	if treeResult.Truncated {
+		output.WriteString("⚠️  Output truncated due to limits\n")
+	}
+
+	if len(treeResult.ExcludePatterns) > 0 {
+		output.WriteString(fmt.Sprintf("Excluded patterns: %d\n", len(treeResult.ExcludePatterns)))
+	}
+
+	output.WriteString("\nTree Structure:\n")
+	output.WriteString(treeResult.Output)
+
 	return output.String()
 }
 
