@@ -28,7 +28,7 @@ func NewWriteTodosTool(cfg *config.Config) *WriteTodosTool {
 func (t *WriteTodosTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "WriteTodos",
-		Description: "Write and manage an in-memory todo list for task planning and tracking. This tool helps LLMs organize and track work step-by-step for better transparency.",
+		Description: "Write and manage an in-memory todo list for task planning and tracking.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
