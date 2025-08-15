@@ -162,6 +162,16 @@ tools:
       - "^git log --oneline -n [0-9]+$"
       - "^docker ps$"
       - "^kubectl get pods$"
+  delete:
+    enabled: true  # Enable delete tool for file/directory deletion
+    allow_wildcards: true  # Enable wildcard patterns like *.txt
+    restrict_to_workdir: true  # Only allow deletion within current working directory
+    protected_paths:  # Additional paths protected from deletion
+      - ".infer/"     # Protect infer's configuration directory
+      - ".infer/*"    # Protect all files in infer's configuration directory
+      - ".git/"       # Protect git repository
+      - ".git/*"      # Protect all git files
+    require_approval: true  # Require user approval before deletion
   safety:
     require_approval: true  # Prompt user before executing any command
   exclude_paths:  # Paths excluded from tool access for security
@@ -394,6 +404,94 @@ When the LLM uses the WebSearch tool, it can specify:
 2. **DuckDuckGo**: Optionally set `DUCKDUCKGO_SEARCH_API_KEY` environment variable, or use built-in fallback (no setup required)
 
 Results include title, URL, and snippet for each search result.
+
+### Delete Tool
+
+The CLI includes a delete tool that allows LLMs to safely delete files and directories with
+comprehensive security restrictions and wildcard support.
+
+#### Delete Tool Security Features
+
+The Delete Tool implements multiple layers of security to prevent accidental or malicious deletions:
+
+1. **Working Directory Restriction**: By default, only allows deletion within the current working directory
+2. **Protected Paths**: Configurable list of paths that are completely protected from deletion
+3. **Approval Prompts**: Requires user confirmation before executing any deletion operation
+4. **Path Exclusions**: Respects the global tool exclusion paths
+
+#### Default Protected Paths
+
+- `.infer/` - Protects the CLI's configuration directory
+- `.git/` - Protects Git repository files and metadata
+
+#### Configuration Options
+
+```yaml
+tools:
+  delete:
+    enabled: true                    # Enable/disable the delete tool
+    allow_wildcards: true           # Enable wildcard patterns (*.txt, temp/*)
+    restrict_to_workdir: true       # Restrict deletions to current working directory
+    require_approval: true          # Require user approval before deletion
+    protected_paths:                # Additional paths to protect
+      - "important/"
+      - "*.config"
+      - "backups/*"
+```
+
+#### Delete Tool Usage Examples
+
+**Single File Deletion:**
+
+```json
+{
+  "name": "Delete",
+  "parameters": {
+    "path": "temp.txt"
+  }
+}
+```
+
+**Directory Deletion (Recursive):**
+
+```json
+{
+  "name": "Delete",
+  "parameters": {
+    "path": "temp_folder",
+    "recursive": true
+  }
+}
+```
+
+**Wildcard Pattern Deletion:**
+
+```json
+{
+  "name": "Delete",
+  "parameters": {
+    "path": "*.log",
+    "force": true
+  }
+}
+```
+
+#### Delete Tool Parameters
+
+When the LLM uses the Delete tool, it can specify:
+
+- `path` (required): File or directory path to delete. Supports wildcards when enabled.
+- `recursive` (optional): Whether to delete directories recursively (default: false)
+- `force` (optional): Ignore non-existent files without error (default: false)
+- `format` (optional): Output format ("text" or "json", default: "text")
+
+#### Safety Considerations
+
+- Always requires approval by default for destructive operations
+- Cannot delete outside the current working directory when `restrict_to_workdir` is true
+- Protected paths cannot be deleted even with wildcard patterns
+- Wildcard support can be disabled for additional safety
+- Comprehensive validation prevents path traversal attacks
 
 ## Code Style Guidelines
 

@@ -30,6 +30,16 @@ tools:
   write:
     enabled: true
     require_approval: true
+  delete:
+    enabled: true
+    require_approval: true
+    protected_paths:
+      - .infer/
+      - .infer/*
+      - .git/
+      - .git/*
+    allow_wildcards: true
+    restrict_to_workdir: true
   file_search:
     enabled: true
     require_approval: false

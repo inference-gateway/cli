@@ -237,3 +237,14 @@ type TreeToolResult struct {
 	UsingNativeTree bool     `json:"using_native_tree"`
 	Truncated       bool     `json:"truncated"`
 }
+
+// DeleteToolResult represents the result of a delete operation
+type DeleteToolResult struct {
+	Path              string   `json:"path"`
+	DeletedFiles      []string `json:"deleted_files"`
+	DeletedDirs       []string `json:"deleted_dirs"`
+	TotalFilesDeleted int      `json:"total_files_deleted"`
+	TotalDirsDeleted  int      `json:"total_dirs_deleted"`
+	WildcardExpanded  bool     `json:"wildcard_expanded"`
+	Errors            []string `json:"errors,omitempty"`
+}

@@ -39,6 +39,7 @@ type ToolsConfig struct {
 	Bash         BashToolConfig       `yaml:"bash"`
 	Read         ReadToolConfig       `yaml:"read"`
 	Write        WriteToolConfig      `yaml:"write"`
+	Delete       DeleteToolConfig     `yaml:"delete"`
 	FileSearch   FileSearchToolConfig `yaml:"file_search"`
 	Tree         TreeToolConfig       `yaml:"tree"`
 	Fetch        FetchToolConfig      `yaml:"fetch"`
@@ -64,6 +65,15 @@ type ReadToolConfig struct {
 type WriteToolConfig struct {
 	Enabled         bool  `yaml:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty"`
+}
+
+// DeleteToolConfig contains delete-specific tool settings
+type DeleteToolConfig struct {
+	Enabled           bool     `yaml:"enabled"`
+	RequireApproval   *bool    `yaml:"require_approval,omitempty"`
+	ProtectedPaths    []string `yaml:"protected_paths"`
+	AllowWildcards    bool     `yaml:"allow_wildcards"`
+	RestrictToWorkDir bool     `yaml:"restrict_to_workdir"`
 }
 
 // FileSearchToolConfig contains file search-specific tool settings
@@ -178,6 +188,13 @@ func DefaultConfig() *Config {
 			Write: WriteToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{true}[0],
+			},
+			Delete: DeleteToolConfig{
+				Enabled:           true,
+				RequireApproval:   &[]bool{true}[0],
+				ProtectedPaths:    []string{".infer/", ".infer/*", ".git/", ".git/*"},
+				AllowWildcards:    true,
+				RestrictToWorkDir: true,
 			},
 			FileSearch: FileSearchToolConfig{
 				Enabled:         true,
@@ -329,6 +346,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	case "Write":
 		if c.Tools.Write.RequireApproval != nil {
 			return *c.Tools.Write.RequireApproval
+		}
+	case "Delete":
+		if c.Tools.Delete.RequireApproval != nil {
+			return *c.Tools.Delete.RequireApproval
 		}
 	case "FileSearch":
 		if c.Tools.FileSearch.RequireApproval != nil {
