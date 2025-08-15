@@ -1,0 +1,417 @@
+package tools
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/inference-gateway/cli/config"
+	"github.com/inference-gateway/cli/internal/domain"
+)
+
+// TreeTool handles directory tree visualization operations
+type TreeTool struct {
+	config  *config.Config
+	enabled bool
+}
+
+// NewTreeTool creates a new tree tool
+func NewTreeTool(cfg *config.Config) *TreeTool {
+	return &TreeTool{
+		config:  cfg,
+		enabled: cfg.Tools.Enabled && cfg.Tools.Tree.Enabled,
+	}
+}
+
+// Definition returns the tool definition for the LLM
+func (t *TreeTool) Definition() domain.ToolDefinition {
+	return domain.ToolDefinition{
+		Name:        "Tree",
+		Description: "Display directory structure in a tree format, similar to the Unix tree command",
+		Parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"path": map[string]interface{}{
+					"type":        "string",
+					"description": "The path to display tree structure for (defaults to current directory)",
+					"default":     ".",
+				},
+				"max_depth": map[string]interface{}{
+					"type":        "integer",
+					"description": "Maximum depth to traverse (optional, defaults to unlimited)",
+					"minimum":     1,
+				},
+				"exclude_patterns": map[string]interface{}{
+					"type":        "array",
+					"description": "Array of glob patterns to exclude from the tree",
+					"items": map[string]interface{}{
+						"type": "string",
+					},
+				},
+				"show_hidden": map[string]interface{}{
+					"type":        "boolean",
+					"description": "Whether to show hidden files and directories (defaults to false)",
+					"default":     false,
+				},
+				"format": map[string]interface{}{
+					"type":        "string",
+					"description": "Output format (text or json)",
+					"enum":        []string{"text", "json"},
+					"default":     "text",
+				},
+			},
+			"required": []string{},
+		},
+	}
+}
+
+// Execute runs the tree tool with given arguments
+func (t *TreeTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+	start := time.Now()
+	if !t.config.Tools.Enabled {
+		return nil, fmt.Errorf("tree tool is not enabled")
+	}
+
+	path := "."
+	if pathArg, ok := args["path"].(string); ok && pathArg != "" {
+		path = pathArg
+	}
+
+	var maxDepth int
+	if maxDepthFloat, ok := args["max_depth"].(float64); ok {
+		maxDepth = int(maxDepthFloat)
+	}
+
+	var excludePatterns []string
+	if excludeArray, ok := args["exclude_patterns"].([]interface{}); ok {
+		for _, pattern := range excludeArray {
+			if patternStr, ok := pattern.(string); ok {
+				excludePatterns = append(excludePatterns, patternStr)
+			}
+		}
+	}
+
+	showHidden := false
+	if showHiddenArg, ok := args["show_hidden"].(bool); ok {
+		showHidden = showHiddenArg
+	}
+
+	format := "text"
+	if formatArg, ok := args["format"].(string); ok {
+		format = formatArg
+	}
+
+	treeResult, err := t.executeTree(path, maxDepth, excludePatterns, showHidden, format)
+	if err != nil {
+		return nil, err
+	}
+
+	var toolData *domain.TreeToolResult
+	if treeResult != nil {
+		toolData = &domain.TreeToolResult{
+			Path:            treeResult.Path,
+			Output:          treeResult.Output,
+			TotalFiles:      treeResult.TotalFiles,
+			TotalDirs:       treeResult.TotalDirs,
+			MaxDepth:        treeResult.MaxDepth,
+			ExcludePatterns: treeResult.ExcludePatterns,
+			ShowHidden:      treeResult.ShowHidden,
+			Format:          treeResult.Format,
+			UsingNativeTree: treeResult.UsingNativeTree,
+		}
+	}
+
+	result := &domain.ToolExecutionResult{
+		ToolName:  "Tree",
+		Arguments: args,
+		Success:   true,
+		Duration:  time.Since(start),
+		Data:      toolData,
+	}
+
+	return result, nil
+}
+
+// Validate checks if the tree tool arguments are valid
+func (t *TreeTool) Validate(args map[string]interface{}) error {
+	if !t.config.Tools.Enabled {
+		return fmt.Errorf("tree tool is not enabled")
+	}
+
+	if path, ok := args["path"].(string); ok && path != "" {
+		if err := t.validatePathSecurity(path); err != nil {
+			return err
+		}
+	}
+
+	if maxDepth, ok := args["max_depth"]; ok {
+		maxDepthFloat, isFloat := maxDepth.(float64)
+		if !isFloat {
+			return fmt.Errorf("max_depth must be a number")
+		}
+		if maxDepthFloat < 1 {
+			return fmt.Errorf("max_depth must be >= 1")
+		}
+	}
+
+	if excludePatterns, ok := args["exclude_patterns"]; ok {
+		if _, ok := excludePatterns.([]interface{}); !ok {
+			return fmt.Errorf("exclude_patterns must be an array of strings")
+		}
+	}
+
+	if showHidden, ok := args["show_hidden"]; ok {
+		if _, ok := showHidden.(bool); !ok {
+			return fmt.Errorf("show_hidden must be a boolean")
+		}
+	}
+
+	if format, ok := args["format"]; ok {
+		formatStr, isString := format.(string)
+		if !isString {
+			return fmt.Errorf("format must be a string")
+		}
+		if formatStr != "text" && formatStr != "json" {
+			return fmt.Errorf("format must be 'text' or 'json'")
+		}
+	}
+
+	return nil
+}
+
+// IsEnabled returns whether the tree tool is enabled
+func (t *TreeTool) IsEnabled() bool {
+	return t.enabled
+}
+
+// TreeResult represents the internal result of a tree operation
+type TreeResult struct {
+	Path            string   `json:"path"`
+	Output          string   `json:"output"`
+	TotalFiles      int      `json:"total_files"`
+	TotalDirs       int      `json:"total_dirs"`
+	MaxDepth        int      `json:"max_depth"`
+	ExcludePatterns []string `json:"exclude_patterns"`
+	ShowHidden      bool     `json:"show_hidden"`
+	Format          string   `json:"format"`
+	UsingNativeTree bool     `json:"using_native_tree"`
+}
+
+// executeTree performs the tree operation
+func (t *TreeTool) executeTree(path string, maxDepth int, excludePatterns []string, showHidden bool, format string) (*TreeResult, error) {
+	result := &TreeResult{
+		Path:            path,
+		MaxDepth:        maxDepth,
+		ExcludePatterns: excludePatterns,
+		ShowHidden:      showHidden,
+		Format:          format,
+	}
+
+	// Validate the path first
+	if err := t.validatePath(path); err != nil {
+		return nil, err
+	}
+
+	// Try to use native tree command first (only for text format)
+	if format == "text" {
+		if nativeOutput, err := t.tryNativeTree(path, maxDepth, excludePatterns, showHidden); err == nil {
+			result.Output = nativeOutput
+			result.UsingNativeTree = true
+			return result, nil
+		}
+	}
+
+	// Fall back to our own implementation
+	output, files, dirs, err := t.buildTreeFallback(path, maxDepth, excludePatterns, showHidden, format)
+	if err != nil {
+		return nil, err
+	}
+
+	result.Output = output
+	result.TotalFiles = files
+	result.TotalDirs = dirs
+	result.UsingNativeTree = false
+
+	return result, nil
+}
+
+// tryNativeTree attempts to use the system's tree command
+func (t *TreeTool) tryNativeTree(path string, maxDepth int, excludePatterns []string, showHidden bool) (string, error) {
+	// Check if tree command is available
+	if _, err := exec.LookPath("tree"); err != nil {
+		return "", fmt.Errorf("native tree command not found")
+	}
+
+	args := []string{path}
+
+	// Add depth limit
+	if maxDepth > 0 {
+		args = append(args, "-L", fmt.Sprintf("%d", maxDepth))
+	}
+
+	// Add hidden files option
+	if showHidden {
+		args = append(args, "-a")
+	}
+
+	// Add exclude patterns
+	for _, pattern := range excludePatterns {
+		args = append(args, "-I", pattern)
+	}
+
+	cmd := exec.Command("tree", args...)
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("native tree command failed: %w", err)
+	}
+
+	return string(output), nil
+}
+
+// buildTreeFallback builds a tree structure using our own implementation
+func (t *TreeTool) buildTreeFallback(rootPath string, maxDepth int, excludePatterns []string, showHidden bool, format string) (string, int, int, error) {
+	if format == "json" {
+		// For JSON format, we'd build a structured representation
+		// For now, we'll use the text format and wrap it
+		textOutput, files, dirs, err := t.buildTextTree(rootPath, maxDepth, excludePatterns, showHidden, "", 0)
+		if err != nil {
+			return "", 0, 0, err
+		}
+		return fmt.Sprintf(`{"tree": %q, "total_files": %d, "total_dirs": %d}`, textOutput, files, dirs), files, dirs, nil
+	}
+
+	// Build text tree
+	output, files, dirs, err := t.buildTextTree(rootPath, maxDepth, excludePatterns, showHidden, "", 0)
+	if err != nil {
+		return "", 0, 0, err
+	}
+
+	var builder strings.Builder
+	builder.WriteString(fmt.Sprintf("%s\n", rootPath))
+	builder.WriteString(output)
+	builder.WriteString(fmt.Sprintf("\n%d directories, %d files\n", dirs, files))
+
+	return builder.String(), files, dirs, nil
+}
+
+// buildTextTree recursively builds a text tree representation
+func (t *TreeTool) buildTextTree(dirPath string, maxDepth int, excludePatterns []string, showHidden bool, prefix string, currentDepth int) (string, int, int, error) {
+	if maxDepth > 0 && currentDepth >= maxDepth {
+		return "", 0, 0, nil
+	}
+
+	entries, err := os.ReadDir(dirPath)
+	if err != nil {
+		return "", 0, 0, fmt.Errorf("failed to read directory %s: %w", dirPath, err)
+	}
+
+	// Filter entries
+	var filteredEntries []os.DirEntry
+	for _, entry := range entries {
+		name := entry.Name()
+
+		// Skip hidden files if not requested
+		if !showHidden && strings.HasPrefix(name, ".") {
+			continue
+		}
+
+		// Check exclude patterns
+		if t.shouldExclude(name, excludePatterns) {
+			continue
+		}
+
+		filteredEntries = append(filteredEntries, entry)
+	}
+
+	// Sort entries: directories first, then files, both alphabetically
+	sort.Slice(filteredEntries, func(i, j int) bool {
+		if filteredEntries[i].IsDir() != filteredEntries[j].IsDir() {
+			return filteredEntries[i].IsDir()
+		}
+		return filteredEntries[i].Name() < filteredEntries[j].Name()
+	})
+
+	var builder strings.Builder
+	var totalFiles, totalDirs int
+
+	for i, entry := range filteredEntries {
+		isLast := i == len(filteredEntries)-1
+		var connector, newPrefix string
+
+		if isLast {
+			connector = "└── "
+			newPrefix = prefix + "    "
+		} else {
+			connector = "├── "
+			newPrefix = prefix + "│   "
+		}
+
+		builder.WriteString(fmt.Sprintf("%s%s%s\n", prefix, connector, entry.Name()))
+
+		if entry.IsDir() {
+			totalDirs++
+			subPath := filepath.Join(dirPath, entry.Name())
+			subOutput, subFiles, subDirs, err := t.buildTextTree(subPath, maxDepth, excludePatterns, showHidden, newPrefix, currentDepth+1)
+			if err != nil {
+				continue // Skip directories we can't read
+			}
+			builder.WriteString(subOutput)
+			totalFiles += subFiles
+			totalDirs += subDirs
+		} else {
+			totalFiles++
+		}
+	}
+
+	return builder.String(), totalFiles, totalDirs, nil
+}
+
+// shouldExclude checks if a filename should be excluded based on patterns
+func (t *TreeTool) shouldExclude(name string, excludePatterns []string) bool {
+	for _, pattern := range excludePatterns {
+		if matched, _ := filepath.Match(pattern, name); matched {
+			return true
+		}
+	}
+	return false
+}
+
+// validatePathSecurity checks if a path is allowed (no file existence check)
+func (t *TreeTool) validatePathSecurity(path string) error {
+	for _, excludePath := range t.config.Tools.ExcludePaths {
+		if strings.HasPrefix(path, excludePath) {
+			return fmt.Errorf("access to path '%s' is excluded for security", path)
+		}
+
+		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
+			return fmt.Errorf("access to path '%s' is excluded for security", path)
+		}
+	}
+	return nil
+}
+
+// validatePath checks if a path exists and is accessible
+func (t *TreeTool) validatePath(path string) error {
+	if err := t.validatePathSecurity(path); err != nil {
+		return err
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("path %s does not exist", path)
+		}
+		return fmt.Errorf("cannot access path %s: %w", path, err)
+	}
+
+	if !info.IsDir() {
+		return fmt.Errorf("path %s is not a directory", path)
+	}
+
+	return nil
+}

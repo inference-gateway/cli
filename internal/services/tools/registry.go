@@ -29,6 +29,7 @@ func (r *Registry) registerTools() {
 	r.tools["Bash"] = NewBashTool(r.config)
 	r.tools["Read"] = NewReadTool(r.config)
 	r.tools["FileSearch"] = NewFileSearchTool(r.config)
+	r.tools["Tree"] = NewTreeTool(r.config)
 
 	if r.config.Tools.Fetch.Enabled {
 		r.tools["Fetch"] = NewFetchTool(r.config)
