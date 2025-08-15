@@ -263,8 +263,11 @@ func (cv *ConversationViewImpl) renderEntryWithIndex(entry domain.ConversationEn
 	}
 
 	content := entry.Message.Content
+
+	wrappedContent := FormatResponsiveMessage(content, cv.width)
+
 	resetColor := "\033[0m"
-	message := fmt.Sprintf("%s%s:%s %s", color, role, resetColor, content)
+	message := fmt.Sprintf("%s%s:%s %s", color, role, resetColor, wrappedContent)
 
 	return message + "\n"
 }
@@ -292,16 +295,21 @@ func (cv *ConversationViewImpl) formatEntryContent(entry domain.ConversationEntr
 
 func (cv *ConversationViewImpl) formatExpandedContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
-		return FormatToolResultExpanded(entry.ToolExecution) + "\n\n💡 Press Ctrl+R to collapse"
+		content := FormatToolResultExpandedResponsive(entry.ToolExecution, cv.width)
+		return content + "\n\n💡 Press Ctrl+R to collapse"
 	}
-	return entry.Message.Content + "\n\n💡 Press Ctrl+R to collapse"
+	wrappedContent := FormatResponsiveMessage(entry.Message.Content, cv.width)
+	return wrappedContent + "\n\n💡 Press Ctrl+R to collapse"
 }
 
 func (cv *ConversationViewImpl) formatCompactContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
-		return FormatToolResultForUI(entry.ToolExecution) + "\n💡 Press Ctrl+R to expand details"
+		content := FormatToolResultForUIResponsive(entry.ToolExecution, cv.width)
+		return content + "\n💡 Press Ctrl+R to expand details"
 	}
-	return cv.formatToolContentCompact(entry.Message.Content) + "\n💡 Press Ctrl+R to expand details"
+	content := cv.formatToolContentCompact(entry.Message.Content)
+	wrappedContent := FormatResponsiveMessage(content, cv.width)
+	return wrappedContent + "\n💡 Press Ctrl+R to expand details"
 }
 
 func (cv *ConversationViewImpl) formatToolContentCompact(content string) string {
@@ -333,6 +341,12 @@ func (cv *ConversationViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return cv, nil
 			}
 		}
+	}
+
+	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		cv.SetWidth(windowMsg.Width)
+		cv.height = windowMsg.Height
+		cv.updateViewportContent()
 	}
 
 	switch msg.(type) {
@@ -492,7 +506,15 @@ func (iv *InputViewImpl) Render() string {
 	} else {
 		before := iv.text[:iv.cursor]
 		after := iv.text[iv.cursor:]
-		displayText = fmt.Sprintf("%s│%s", before, after)
+
+		availableWidth := iv.width - 8
+		if availableWidth > 0 {
+			wrappedBefore := WrapText(before, availableWidth)
+			wrappedAfter := WrapText(after, availableWidth)
+			displayText = fmt.Sprintf("%s│%s", wrappedBefore, wrappedAfter)
+		} else {
+			displayText = fmt.Sprintf("%s│%s", before, after)
+		}
 	}
 
 	inputContent := fmt.Sprintf("> %s", displayText)
@@ -533,6 +555,10 @@ func (iv *InputViewImpl) Init() tea.Cmd { return nil }
 func (iv *InputViewImpl) View() string { return iv.Render() }
 
 func (iv *InputViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		iv.SetWidth(windowMsg.Width)
+	}
+
 	switch msg := msg.(type) {
 	case ClearInputMsg:
 		iv.ClearInput()
@@ -631,7 +657,7 @@ func (iv *InputViewImpl) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
 func (iv *InputViewImpl) handleSubmit() tea.Cmd {
 	if iv.text != "" {
 		input := iv.text
-		iv.addToHistory(input) // Add to history before clearing
+		iv.addToHistory(input)
 		iv.ClearInput()
 		iv.autocomplete.Hide()
 		return func() tea.Msg {
@@ -774,6 +800,7 @@ type StatusViewImpl struct {
 	tokenUsage  string
 	baseMessage string
 	debugInfo   string
+	width       int
 }
 
 func (sv *StatusViewImpl) ShowStatus(message string) {
@@ -822,6 +849,7 @@ func (sv *StatusViewImpl) SetTokenUsage(usage string) {
 }
 
 func (sv *StatusViewImpl) SetWidth(width int) {
+	sv.width = width
 }
 
 func (sv *StatusViewImpl) SetHeight(height int) {
@@ -862,6 +890,13 @@ func (sv *StatusViewImpl) Render() string {
 		}
 	}
 
+	if sv.width > 0 {
+		availableWidth := sv.width - 4
+		if availableWidth > 0 {
+			displayMessage = WrapText(displayMessage, availableWidth)
+		}
+	}
+
 	return fmt.Sprintf("%s%s %s%s", color, prefix, displayMessage, "\033[0m")
 }
 
@@ -873,6 +908,10 @@ func (sv *StatusViewImpl) View() string { return sv.Render() }
 
 func (sv *StatusViewImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
+
+	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		sv.SetWidth(windowMsg.Width)
+	}
 
 	if sv.isSpinner {
 		sv.spinner, cmd = sv.spinner.Update(msg)

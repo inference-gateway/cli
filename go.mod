@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.6
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/inference-gateway/sdk v1.11.0
+	github.com/muesli/reflow v0.3.0
 	github.com/spf13/cobra v1.9.1
 	gopkg.in/yaml.v3 v3.0.1
 )
