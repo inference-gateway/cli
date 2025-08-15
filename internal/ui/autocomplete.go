@@ -172,7 +172,7 @@ func (a *AutocompleteImpl) Render() string {
 		prefix := "  "
 
 		if i == a.selected {
-			prefix = fmt.Sprintf("%s▶%s", a.theme.GetAccentColor(), "\033[0m")
+			prefix = fmt.Sprintf("%s▶ %s", a.theme.GetAccentColor(), "\033[0m")
 		}
 
 		line := fmt.Sprintf("%s %-12s %s%s%s",
