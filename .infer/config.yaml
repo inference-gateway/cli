@@ -44,6 +44,9 @@ tools:
   file_search:
     enabled: true
     require_approval: false
+  grep:
+    enabled: true
+    require_approval: false
   tree:
     enabled: true
     require_approval: false
