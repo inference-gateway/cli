@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -113,7 +114,7 @@ var configToolsExecCmd = &cobra.Command{
 	Short: "Execute any enabled tool directly",
 	Long: `Execute any enabled tool directly with JSON arguments.
 
-Available tools: Bash, Read, FileSearch, Tree, Fetch, WebSearch
+Available tools: Bash, Read, Grep, Tree, Fetch, WebSearch
 
 Arguments must be provided as JSON to ensure consistency with LLM tool execution.
 
@@ -167,7 +168,7 @@ var configToolsSafetyStatusCmd = &cobra.Command{
 var configToolsSafetySetCmd = &cobra.Command{
 	Use:   "set <tool> <enabled|disabled>",
 	Short: "Set tool-specific approval requirement",
-	Long:  `Set whether approval is required for a specific tool. Valid tools: Bash, Read, FileSearch, Fetch, WebSearch.`,
+	Long:  `Set whether approval is required for a specific tool. Valid tools: Bash, Read, Grep, Fetch, WebSearch.`,
 	Args:  cobra.ExactArgs(2),
 	RunE:  setToolApproval,
 }
@@ -175,7 +176,7 @@ var configToolsSafetySetCmd = &cobra.Command{
 var configToolsSafetyUnsetCmd = &cobra.Command{
 	Use:   "unset <tool>",
 	Short: "Remove tool-specific approval setting",
-	Long:  `Remove tool-specific approval setting, falling back to global setting. Valid tools: Bash, Read, FileSearch, Fetch, WebSearch.`,
+	Long:  `Remove tool-specific approval setting, falling back to global setting. Valid tools: Bash, Read, Grep, Fetch, WebSearch.`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  unsetToolApproval,
 }
@@ -247,6 +248,52 @@ var configToolsWebSearchDisableCmd = &cobra.Command{
 	Short: "Disable web search tool",
 	Long:  `Disable the web search tool to prevent web searches.`,
 	RunE:  disableWebSearchTool,
+}
+
+var configToolsGrepCmd = &cobra.Command{
+	Use:   "grep",
+	Short: "Manage grep tool settings",
+	Long:  `Manage grep-specific tool execution settings including backend configuration.`,
+}
+
+var configToolsGrepEnableCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable grep tool",
+	Long:  `Enable the grep tool for searching file contents.`,
+	RunE:  enableGrepTool,
+}
+
+var configToolsGrepDisableCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable grep tool",
+	Long:  `Disable the grep tool to prevent file content searches.`,
+	RunE:  disableGrepTool,
+}
+
+var configToolsGrepBackendCmd = &cobra.Command{
+	Use:   "set-backend <backend>",
+	Short: "Set the grep backend implementation",
+	Long: `Set the backend implementation for grep operations.
+
+Available backends:
+  auto     - Automatically choose ripgrep if available, fall back to Go implementation (default)
+  ripgrep  - Use native ripgrep binary (fastest, requires rg to be installed)
+  rg       - Alias for ripgrep
+  go       - Use Go-based implementation (portable, no external dependencies)
+  native   - Alias for go
+
+The 'auto' backend provides the best experience by using ripgrep when available
+for maximum performance, and gracefully falling back to the Go implementation
+when ripgrep is not installed.`,
+	Args: cobra.ExactArgs(1),
+	RunE: setGrepBackend,
+}
+
+var configToolsGrepStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show grep tool status and backend information",
+	Long:  `Display current grep tool status, configured backend, and detection results.`,
+	RunE:  grepStatus,
 }
 
 var configFetchCmd = &cobra.Command{
@@ -392,6 +439,7 @@ func init() {
 	configToolsCmd.AddCommand(configToolsExcludePathCmd)
 	configToolsCmd.AddCommand(configToolsBashCmd)
 	configToolsCmd.AddCommand(configToolsWebSearchCmd)
+	configToolsCmd.AddCommand(configToolsGrepCmd)
 
 	configToolsSafetyCmd.AddCommand(configToolsSafetyEnableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyDisableCmd)
@@ -408,6 +456,11 @@ func init() {
 
 	configToolsWebSearchCmd.AddCommand(configToolsWebSearchEnableCmd)
 	configToolsWebSearchCmd.AddCommand(configToolsWebSearchDisableCmd)
+
+	configToolsGrepCmd.AddCommand(configToolsGrepEnableCmd)
+	configToolsGrepCmd.AddCommand(configToolsGrepDisableCmd)
+	configToolsGrepCmd.AddCommand(configToolsGrepBackendCmd)
+	configToolsGrepCmd.AddCommand(configToolsGrepStatusCmd)
 
 	configFetchCmd.AddCommand(configFetchEnableCmd)
 	configFetchCmd.AddCommand(configFetchDisableCmd)
@@ -688,7 +741,7 @@ func safetyStatus(cmd *cobra.Command, args []string) error {
 	}{
 		{"Bash", cfg.Tools.Bash.RequireApproval},
 		{"Read", cfg.Tools.Read.RequireApproval},
-		{"FileSearch", cfg.Tools.FileSearch.RequireApproval},
+		{"Grep", cfg.Tools.Grep.RequireApproval},
 		{"Fetch", cfg.Tools.Fetch.RequireApproval},
 		{"WebSearch", cfg.Tools.WebSearch.RequireApproval},
 	}
@@ -727,8 +780,7 @@ func setToolApproval(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid setting '%s', must be 'enabled' or 'disabled'", setting)
 	}
 
-	// Validate tool name first
-	validTools := []string{"bash", "read", "filesearch", "fetch", "websearch"}
+	validTools := []string{"bash", "read", "grep", "fetch", "websearch"}
 	toolLower := strings.ToLower(toolName)
 	isValid := false
 	for _, valid := range validTools {
@@ -747,8 +799,8 @@ func setToolApproval(cmd *cobra.Command, args []string) error {
 			c.Tools.Bash.RequireApproval = &enabled
 		case "read":
 			c.Tools.Read.RequireApproval = &enabled
-		case "filesearch":
-			c.Tools.FileSearch.RequireApproval = &enabled
+		case "grep":
+			c.Tools.Grep.RequireApproval = &enabled
 		case "fetch":
 			c.Tools.Fetch.RequireApproval = &enabled
 		case "websearch":
@@ -770,8 +822,7 @@ func setToolApproval(cmd *cobra.Command, args []string) error {
 func unsetToolApproval(cmd *cobra.Command, args []string) error {
 	toolName := args[0]
 
-	// Validate tool name first
-	validTools := []string{"bash", "read", "filesearch", "fetch", "websearch"}
+	validTools := []string{"bash", "read", "grep", "fetch", "websearch"}
 	toolLower := strings.ToLower(toolName)
 	isValid := false
 	for _, valid := range validTools {
@@ -790,8 +841,8 @@ func unsetToolApproval(cmd *cobra.Command, args []string) error {
 			c.Tools.Bash.RequireApproval = nil
 		case "read":
 			c.Tools.Read.RequireApproval = nil
-		case "filesearch":
-			c.Tools.FileSearch.RequireApproval = nil
+		case "grep":
+			c.Tools.Grep.RequireApproval = nil
 		case "fetch":
 			c.Tools.Fetch.RequireApproval = nil
 		case "websearch":
@@ -1179,5 +1230,126 @@ func disableWebSearchTool(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s\n", ui.FormatErrorCLI("Web search tool disabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
 	fmt.Printf("LLMs can no longer perform web searches\n")
+	return nil
+}
+
+func enableGrepTool(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Grep.Enabled = true
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess("Grep tool enabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("LLMs can now search file contents using grep\n")
+	return nil
+}
+
+func disableGrepTool(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Grep.Enabled = false
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatErrorCLI("Grep tool disabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("LLMs can no longer search file contents\n")
+	return nil
+}
+
+func setGrepBackend(cmd *cobra.Command, args []string) error {
+	backend := args[0]
+
+	validBackends := map[string]string{
+		"auto":    "auto",
+		"ripgrep": "ripgrep",
+		"rg":      "ripgrep",
+		"go":      "go",
+		"native":  "go",
+	}
+
+	normalizedBackend, valid := validBackends[strings.ToLower(backend)]
+	if !valid {
+		return fmt.Errorf("invalid backend '%s', must be one of: auto, ripgrep, rg, go, native", backend)
+	}
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Grep.Backend = normalizedBackend
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Grep backend set to: %s", normalizedBackend)))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+
+	switch normalizedBackend {
+	case "ripgrep":
+		fmt.Printf("Note: Ensure 'rg' is installed and available in PATH\n")
+	case "auto":
+		fmt.Printf("Backend will auto-detect: ripgrep if available, otherwise Go implementation\n")
+	default:
+		fmt.Printf("Using portable Go implementation (no external dependencies)\n")
+	}
+
+	return nil
+}
+
+func grepStatus(cmd *cobra.Command, args []string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	fmt.Printf("Grep Tool Status: ")
+	if cfg.Tools.Grep.Enabled {
+		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+	} else {
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+	}
+
+	backend := cfg.Tools.Grep.Backend
+	if backend == "" {
+		backend = "auto"
+	}
+
+	fmt.Printf("Configured Backend: %s\n", backend)
+
+	fmt.Printf("\nBackend Detection:\n")
+	if rgPath, err := exec.LookPath("rg"); err == nil {
+		fmt.Printf("  • ripgrep (rg): %s (%s)\n", ui.FormatSuccess("Available"), rgPath)
+	} else {
+		fmt.Printf("  • ripgrep (rg): %s\n", ui.FormatErrorCLI("Not found"))
+	}
+	fmt.Printf("  • Go implementation: %s\n", ui.FormatSuccess("Available"))
+
+	fmt.Printf("\nActive Backend: ")
+	switch backend {
+	case "ripgrep":
+		if _, err := exec.LookPath("rg"); err == nil {
+			fmt.Printf("%s\n", ui.FormatSuccess("ripgrep"))
+		} else {
+			fmt.Printf("%s (fallback to Go - ripgrep not found)\n", ui.FormatWarning("Go implementation"))
+		}
+	case "go":
+		fmt.Printf("%s\n", ui.FormatSuccess("Go implementation"))
+	case "auto":
+		if _, err := exec.LookPath("rg"); err == nil {
+			fmt.Printf("%s\n", ui.FormatSuccess("ripgrep (auto-detected)"))
+		} else {
+			fmt.Printf("%s\n", ui.FormatSuccess("Go implementation (auto-fallback)"))
+		}
+	default:
+		if _, err := exec.LookPath("rg"); err == nil {
+			fmt.Printf("%s\n", ui.FormatSuccess("ripgrep (auto-detected)"))
+		} else {
+			fmt.Printf("%s\n", ui.FormatSuccess("Go implementation (auto-fallback)"))
+		}
+	}
+
 	return nil
 }

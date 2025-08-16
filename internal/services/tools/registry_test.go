@@ -74,7 +74,7 @@ func TestRegistry_DisabledTools(t *testing.T) {
 
 	for _, tool := range tools {
 		switch tool {
-		case "Bash", "Read", "FileSearch":
+		case "Bash", "Read", "Grep":
 			hasCore = true
 		case "Fetch":
 			hasFetch = true
@@ -169,8 +169,8 @@ func TestRegistry_GetTool(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "get existing file search tool",
-			toolName: "FileSearch",
+			name:     "get existing grep tool",
+			toolName: "Grep",
 			wantErr:  false,
 		},
 		{
@@ -228,7 +228,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 					Read: config.ReadToolConfig{
 						Enabled: true,
 					},
-					FileSearch: config.FileSearchToolConfig{
+					Grep: config.GrepToolConfig{
 						Enabled: true,
 					},
 					Fetch: config.FetchToolConfig{
@@ -241,7 +241,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 			},
 			expectedMin:   5,
 			expectedMax:   5,
-			shouldContain: []string{"Bash", "Read", "FileSearch", "Fetch", "WebSearch"},
+			shouldContain: []string{"Bash", "Read", "Grep", "Fetch", "WebSearch"},
 		},
 		{
 			name: "only core tools enabled",
@@ -258,7 +258,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 					Read: config.ReadToolConfig{
 						Enabled: true,
 					},
-					FileSearch: config.FileSearchToolConfig{
+					Grep: config.GrepToolConfig{
 						Enabled: true,
 					},
 					Fetch: config.FetchToolConfig{
@@ -271,7 +271,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 			},
 			expectedMin:      3,
 			expectedMax:      3,
-			shouldContain:    []string{"Bash", "Read", "FileSearch"},
+			shouldContain:    []string{"Bash", "Read", "Grep"},
 			shouldNotContain: []string{"Fetch", "WebSearch"},
 		},
 		{
@@ -296,7 +296,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 			},
 			expectedMin:      0,
 			expectedMax:      0,
-			shouldNotContain: []string{"Bash", "Read", "FileSearch", "Fetch", "WebSearch"},
+			shouldNotContain: []string{"Bash", "Read", "Grep", "Fetch", "WebSearch"},
 		},
 	}
 
@@ -343,7 +343,7 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
-			FileSearch: config.FileSearchToolConfig{
+			Grep: config.GrepToolConfig{
 				Enabled: true,
 			},
 			Fetch: config.FetchToolConfig{
@@ -377,7 +377,7 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 		}
 	}
 
-	expectedTools := []string{"Bash", "Read", "FileSearch", "Fetch", "WebSearch"}
+	expectedTools := []string{"Bash", "Read", "Grep", "Fetch", "WebSearch"}
 	for _, tool := range expectedTools {
 		if !definitionNames[tool] {
 			t.Errorf("Expected tool definition for '%s'", tool)

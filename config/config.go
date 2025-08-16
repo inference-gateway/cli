@@ -35,17 +35,17 @@ type OutputConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled      bool                 `yaml:"enabled"`
-	Bash         BashToolConfig       `yaml:"bash"`
-	Read         ReadToolConfig       `yaml:"read"`
-	Write        WriteToolConfig      `yaml:"write"`
-	Delete       DeleteToolConfig     `yaml:"delete"`
-	FileSearch   FileSearchToolConfig `yaml:"file_search"`
-	Tree         TreeToolConfig       `yaml:"tree"`
-	Fetch        FetchToolConfig      `yaml:"fetch"`
-	WebSearch    WebSearchToolConfig  `yaml:"web_search"`
-	Safety       SafetyConfig         `yaml:"safety"`
-	ExcludePaths []string             `yaml:"exclude_paths"`
+	Enabled      bool                `yaml:"enabled"`
+	Bash         BashToolConfig      `yaml:"bash"`
+	Read         ReadToolConfig      `yaml:"read"`
+	Write        WriteToolConfig     `yaml:"write"`
+	Delete       DeleteToolConfig    `yaml:"delete"`
+	Grep         GrepToolConfig      `yaml:"grep"`
+	Tree         TreeToolConfig      `yaml:"tree"`
+	Fetch        FetchToolConfig     `yaml:"fetch"`
+	WebSearch    WebSearchToolConfig `yaml:"web_search"`
+	Safety       SafetyConfig        `yaml:"safety"`
+	ExcludePaths []string            `yaml:"exclude_paths"`
 }
 
 // BashToolConfig contains bash-specific tool settings
@@ -76,10 +76,11 @@ type DeleteToolConfig struct {
 	RestrictToWorkDir bool     `yaml:"restrict_to_workdir"`
 }
 
-// FileSearchToolConfig contains file search-specific tool settings
-type FileSearchToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+// GrepToolConfig contains grep-specific tool settings
+type GrepToolConfig struct {
+	Enabled         bool   `yaml:"enabled"`
+	Backend         string `yaml:"backend"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty"`
 }
 
 // TreeToolConfig contains tree-specific tool settings
@@ -171,7 +172,7 @@ func DefaultConfig() *Config {
 				Whitelist: ToolWhitelistConfig{
 					Commands: []string{
 						"ls", "pwd", "echo",
-						"grep", "wc", "sort",
+						"wc", "sort",
 						"uniq", "gh",
 					},
 					Patterns: []string{
@@ -197,8 +198,9 @@ func DefaultConfig() *Config {
 				AllowWildcards:    true,
 				RestrictToWorkDir: true,
 			},
-			FileSearch: FileSearchToolConfig{
+			Grep: GrepToolConfig{
 				Enabled:         true,
+				Backend:         "auto",
 				RequireApproval: &[]bool{false}[0],
 			},
 			Tree: TreeToolConfig{
@@ -352,9 +354,9 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 		if c.Tools.Delete.RequireApproval != nil {
 			return *c.Tools.Delete.RequireApproval
 		}
-	case "FileSearch":
-		if c.Tools.FileSearch.RequireApproval != nil {
-			return *c.Tools.FileSearch.RequireApproval
+	case "Grep":
+		if c.Tools.Grep.RequireApproval != nil {
+			return *c.Tools.Grep.RequireApproval
 		}
 	case "Tree":
 		if c.Tools.Tree.RequireApproval != nil {

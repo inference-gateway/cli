@@ -28,6 +28,9 @@ pre-commit.version = "^4.2.0"
 go-task.pkg-path = "go-task"
 go-task.version= "^3.44.0"
 
+ripgrep.pkg-path = "ripgrep"
+ripgrep.version= "^14.1.1"
+
 
 [hook]
 on-activate = """

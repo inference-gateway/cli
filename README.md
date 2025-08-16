@@ -59,7 +59,7 @@ and management of inference services.
   - **Bash**: Execute safe shell commands
   - **Read**: Read file contents with optional line ranges
   - **Write**: Write content to files with security controls
-  - **FileSearch**: Search for files using regex patterns
+  - **Grep**: Fast ripgrep-powered search with regex support and multiple output modes
   - **WebSearch**: Search the web using DuckDuckGo or Google
   - **Fetch**: Fetch content from URLs and GitHub
 
@@ -339,31 +339,6 @@ infer version
 ## Available Tools for LLMs
 
 When tool execution is enabled, LLMs can use the following tools to interact with the system:
-
-### FileSearch Tool
-
-Search for files in the filesystem using regex patterns on file names and paths.
-This tool is particularly useful for finding files before reading them.
-
-**Parameters:**
-
-- `pattern` (required): Regex pattern to match against file paths
-- `include_dirs` (optional): Whether to include directories in results (default: false)
-- `case_sensitive` (optional): Whether pattern matching is case sensitive (default: true)
-- `format` (optional): Output format - "text" or "json" (default: "text")
-
-**Examples:**
-
-- Find Go source files: `\.go$`
-- Find config files: `.*config.*\.(yaml|yml|json)$`
-- Find test files: `.*test.*\.go$`
-- Find files in cmd directory: `^cmd/.*\.go$`
-
-**Security:**
-
-- Respects the same exclusion rules as other file operations
-- Skips binary files, hidden directories, and configured excluded paths
-- Limited to reasonable search depth to prevent excessive resource usage
 
 ### Tree Tool
 
