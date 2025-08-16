@@ -18,8 +18,8 @@ func TestDefaultConfig(t *testing.T) {
 				if cfg.Gateway.URL != "http://localhost:8080" {
 					t.Errorf("Expected gateway URL to be 'http://localhost:8080', got %q", cfg.Gateway.URL)
 				}
-				if cfg.Gateway.Timeout != 30 {
-					t.Errorf("Expected gateway timeout to be 30, got %d", cfg.Gateway.Timeout)
+				if cfg.Gateway.Timeout != 200 {
+					t.Errorf("Expected gateway timeout to be 200, got %d", cfg.Gateway.Timeout)
 				}
 			},
 		},
