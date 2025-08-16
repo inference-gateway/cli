@@ -1,4 +1,4 @@
-package ui
+package shared
 
 import (
 	"github.com/inference-gateway/cli/internal/domain"
@@ -71,15 +71,6 @@ type ScrollRequestMsg struct {
 	Direction   ScrollDirection
 	Amount      int
 }
-
-type ScrollDirection int
-
-const (
-	ScrollUp ScrollDirection = iota
-	ScrollDown
-	ScrollToTop
-	ScrollToBottom
-)
 
 // FocusRequestMsg requests focus change
 type FocusRequestMsg struct {

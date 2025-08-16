@@ -6,7 +6,7 @@ import (
 	"github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui"
+	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // FileMessageHandler handles file-related messages
@@ -22,7 +22,7 @@ func (h *FileMessageHandler) GetPriority() int { return 50 }
 
 func (h *FileMessageHandler) CanHandle(msg tea.Msg) bool {
 	switch msg.(type) {
-	case ui.FileSelectionRequestMsg, ui.FileSelectedMsg:
+	case shared.FileSelectionRequestMsg, shared.FileSelectedMsg:
 		return true
 	default:
 		return false
@@ -31,10 +31,10 @@ func (h *FileMessageHandler) CanHandle(msg tea.Msg) bool {
 
 func (h *FileMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case ui.FileSelectionRequestMsg:
+	case shared.FileSelectionRequestMsg:
 		return h.handleFileSelectionRequest(state)
 
-	case ui.FileSelectedMsg:
+	case shared.FileSelectedMsg:
 		return h.handleFileSelected(msg, state)
 	}
 
@@ -45,7 +45,7 @@ func (h *FileMessageHandler) handleFileSelectionRequest(state *AppState) (tea.Mo
 	files, err := h.fileService.ListProjectFiles()
 	if err != nil {
 		return nil, func() tea.Msg {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to list files: %v", err),
 				Sticky: false,
 			}
@@ -54,7 +54,7 @@ func (h *FileMessageHandler) handleFileSelectionRequest(state *AppState) (tea.Mo
 
 	if len(files) == 0 {
 		return nil, func() tea.Msg {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  "No files found in current directory",
 				Sticky: false,
 			}
@@ -67,10 +67,10 @@ func (h *FileMessageHandler) handleFileSelectionRequest(state *AppState) (tea.Mo
 	return nil, nil
 }
 
-func (h *FileMessageHandler) handleFileSelected(msg ui.FileSelectedMsg, state *AppState) (tea.Model, tea.Cmd) {
+func (h *FileMessageHandler) handleFileSelected(msg shared.FileSelectedMsg, state *AppState) (tea.Model, tea.Cmd) {
 	if err := h.fileService.ValidateFile(msg.FilePath); err != nil {
 		return nil, func() tea.Msg {
-			return ui.ShowErrorMsg{
+			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Invalid file selection: %v", err),
 				Sticky: false,
 			}
@@ -114,7 +114,7 @@ func (h *ToolMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, te
 func (h *ToolMessageHandler) handleToolCall(event domain.ToolCallEvent, state *AppState) (tea.Model, tea.Cmd) {
 	// For now, just show a status message
 	return nil, func() tea.Msg {
-		return ui.SetStatusMsg{
+		return shared.SetStatusMsg{
 			Message: fmt.Sprintf("Tool call received: %s", event.ToolName),
 			Spinner: false,
 		}
@@ -136,7 +136,7 @@ func (h *UIMessageHandler) GetPriority() int { return 10 }
 
 func (h *UIMessageHandler) CanHandle(msg tea.Msg) bool {
 	switch msg.(type) {
-	case ui.SetStatusMsg, ui.ShowErrorMsg, ui.ClearErrorMsg, SwitchModelMsg:
+	case shared.SetStatusMsg, shared.ShowErrorMsg, shared.ClearErrorMsg, SwitchModelMsg:
 		return true
 	default:
 		return false
@@ -145,15 +145,15 @@ func (h *UIMessageHandler) CanHandle(msg tea.Msg) bool {
 
 func (h *UIMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case ui.SetStatusMsg:
+	case shared.SetStatusMsg:
 		state.Status = msg.Message
 		return nil, nil
 
-	case ui.ShowErrorMsg:
+	case shared.ShowErrorMsg:
 		state.Error = msg.Error
 		return nil, nil
 
-	case ui.ClearErrorMsg:
+	case shared.ClearErrorMsg:
 		state.Error = ""
 		return nil, nil
 

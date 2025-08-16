@@ -23,15 +23,11 @@ type ServiceContainer struct {
 	fileService      domain.FileService
 
 	// UI components
-	theme  ui.Theme
-	layout ui.Layout
+	theme ui.Theme
 
 	// Extensibility
 	commandRegistry *commands.Registry
 	messageRouter   *handlers.MessageRouter
-
-	// Component factory
-	componentFactory *ui.ComponentFactory
 
 	// Tool registry
 	toolRegistry *tools.Registry
@@ -81,18 +77,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 // initializeUIComponents creates UI components and theme
 func (c *ServiceContainer) initializeUIComponents() {
 	c.theme = ui.NewDefaultTheme()
-
-	c.layout = ui.NewDefaultLayout()
-
-	c.componentFactory = ui.NewComponentFactory(c.theme, c.layout, c.modelService)
 }
 
 // initializeExtensibility sets up extensible systems
 func (c *ServiceContainer) initializeExtensibility() {
 	c.commandRegistry = commands.NewRegistry()
 	c.registerDefaultCommands()
-
-	c.componentFactory.SetCommandRegistry(c.commandRegistry)
 
 	c.messageRouter = handlers.NewMessageRouter()
 	c.registerMessageHandlers()
@@ -159,20 +149,12 @@ func (c *ServiceContainer) GetTheme() ui.Theme {
 	return c.theme
 }
 
-func (c *ServiceContainer) GetLayout() ui.Layout {
-	return c.layout
-}
-
 func (c *ServiceContainer) GetCommandRegistry() *commands.Registry {
 	return c.commandRegistry
 }
 
 func (c *ServiceContainer) GetMessageRouter() *handlers.MessageRouter {
 	return c.messageRouter
-}
-
-func (c *ServiceContainer) GetComponentFactory() *ui.ComponentFactory {
-	return c.componentFactory
 }
 
 // RegisterCommand allows external registration of commands
