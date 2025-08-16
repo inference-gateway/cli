@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.18.4](https://github.com/inference-gateway/cli/compare/v0.18.3...v0.18.4) (2025-08-16)
+
+### ♻️ Code Refactoring
+
+* Update keyboard shortcuts for sending messages to use 'Enter' key ([0c8220d](https://github.com/inference-gateway/cli/commit/0c8220df0d460c53abf74ebd3008ee607e4bbcf8))
+
+### ✅ Tests
+
+* Update default gateway timeout in TestDefaultConfig to 200 ([7b77f8f](https://github.com/inference-gateway/cli/commit/7b77f8f8cf5d04c857fc6ed0ac7c85255bb191c7))
+
 ## [0.18.3](https://github.com/inference-gateway/cli/compare/v0.18.2...v0.18.3) (2025-08-16)
 
 ### 🧹 Maintenance
