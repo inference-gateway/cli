@@ -157,7 +157,7 @@ func DefaultConfig() *Config {
 		Gateway: GatewayConfig{
 			URL:     "http://localhost:8080",
 			APIKey:  "",
-			Timeout: 30,
+			Timeout: 200,
 		},
 		Output: OutputConfig{
 			Format: "text",
