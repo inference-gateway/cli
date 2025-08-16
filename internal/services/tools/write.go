@@ -146,28 +146,13 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]interface{}) (*
 		return nil, err
 	}
 
-	var toolData *domain.FileWriteToolResult
-	if writeResult != nil {
-		toolData = &domain.FileWriteToolResult{
-			FilePath:     writeResult.FilePath,
-			BytesWritten: writeResult.BytesWritten,
-			Created:      writeResult.Created,
-			Overwritten:  writeResult.Overwritten,
-			DirsCreated:  writeResult.DirsCreated,
-			Appended:     writeResult.Appended,
-			ChunkIndex:   writeResult.ChunkIndex,
-			TotalChunks:  writeResult.TotalChunks,
-			IsComplete:   writeResult.IsComplete,
-			Error:        writeResult.Error,
-		}
-	}
 
 	result := &domain.ToolExecutionResult{
 		ToolName:  "Write",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
-		Data:      toolData,
+		Data:      writeResult,
 	}
 
 	return result, nil
@@ -248,23 +233,10 @@ func (t *WriteTool) IsEnabled() bool {
 	return t.enabled
 }
 
-// FileWriteResult represents the internal result of a file write operation
-type FileWriteResult struct {
-	FilePath     string `json:"file_path"`
-	BytesWritten int64  `json:"bytes_written"`
-	Created      bool   `json:"created"`
-	Overwritten  bool   `json:"overwritten"`
-	DirsCreated  bool   `json:"dirs_created"`
-	Appended     bool   `json:"appended"`
-	ChunkIndex   int    `json:"chunk_index,omitempty"`
-	TotalChunks  int    `json:"total_chunks,omitempty"`
-	IsComplete   bool   `json:"is_complete"`
-	Error        string `json:"error,omitempty"`
-}
 
 // executeWrite writes content to a file with support for append and chunked writing
-func (t *WriteTool) executeWrite(filePath, content string, append bool, chunkIndex, totalChunks int, createDirs, overwrite bool) (*FileWriteResult, error) {
-	result := &FileWriteResult{
+func (t *WriteTool) executeWrite(filePath, content string, append bool, chunkIndex, totalChunks int, createDirs, overwrite bool) (*domain.FileWriteToolResult, error) {
+	result := &domain.FileWriteToolResult{
 		FilePath:    filePath,
 		Appended:    append,
 		ChunkIndex:  chunkIndex,
@@ -302,7 +274,7 @@ func (t *WriteTool) executeWrite(filePath, content string, append bool, chunkInd
 }
 
 // createParentDirs creates parent directories if needed and allowed
-func (t *WriteTool) createParentDirs(filePath string, createDirs bool, result *FileWriteResult) error {
+func (t *WriteTool) createParentDirs(filePath string, createDirs bool, result *domain.FileWriteToolResult) error {
 	if !createDirs {
 		return nil
 	}
@@ -337,7 +309,7 @@ func (t *WriteTool) validatePathSecurity(path string) error {
 }
 
 // executeAppendWrite handles writing in append mode
-func (t *WriteTool) executeAppendWrite(filePath, content string, result *FileWriteResult) (*FileWriteResult, error) {
+func (t *WriteTool) executeAppendWrite(filePath, content string, result *domain.FileWriteToolResult) (*domain.FileWriteToolResult, error) {
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open file %s for appending: %w", filePath, err)
@@ -357,7 +329,7 @@ func (t *WriteTool) executeAppendWrite(filePath, content string, result *FileWri
 }
 
 // executeChunkedWrite handles writing in chunked mode using temporary files
-func (t *WriteTool) executeChunkedWrite(filePath, content string, chunkIndex, totalChunks int, result *FileWriteResult) (*FileWriteResult, error) {
+func (t *WriteTool) executeChunkedWrite(filePath, content string, chunkIndex, totalChunks int, result *domain.FileWriteToolResult) (*domain.FileWriteToolResult, error) {
 	tempDir := filepath.Join(filepath.Dir(filePath), ".infer_chunks_"+filepath.Base(filePath))
 	chunkFile := filepath.Join(tempDir, fmt.Sprintf("chunk_%d", chunkIndex))
 
