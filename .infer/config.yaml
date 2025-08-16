@@ -1,7 +1,7 @@
 gateway:
   url: http://localhost:8080
   api_key: ""
-  timeout: 30
+  timeout: 200
 output:
   format: text
   quiet: false
@@ -19,6 +19,7 @@ tools:
         - wc
         - sort
         - uniq
+        - gh
       patterns:
         - ^git status$
         - ^git log --oneline -n [0-9]+$
@@ -27,6 +28,19 @@ tools:
   read:
     enabled: true
     require_approval: false
+  write:
+    enabled: true
+    require_approval: true
+  delete:
+    enabled: true
+    require_approval: true
+    protected_paths:
+      - .infer/
+      - .infer/*
+      - .git/
+      - .git/*
+    allow_wildcards: true
+    restrict_to_workdir: true
   file_search:
     enabled: true
     require_approval: false

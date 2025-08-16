@@ -3,6 +3,8 @@ package tools
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 type FetchTool struct {
 	config  *config.Config
 	enabled bool
+	client  *http.Client
 }
 
 // NewFetchTool creates a new fetch tool
@@ -21,6 +24,9 @@ func NewFetchTool(cfg *config.Config) *FetchTool {
 	return &FetchTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Fetch.Enabled,
+		client: &http.Client{
+			Timeout: time.Duration(cfg.Tools.Fetch.Safety.Timeout) * time.Second,
+		},
 	}
 }
 
@@ -28,13 +34,13 @@ func NewFetchTool(cfg *config.Config) *FetchTool {
 func (t *FetchTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Fetch",
-		Description: "Fetch content from whitelisted URLs or GitHub references. Supports 'github:owner/repo#123' syntax for GitHub issues/PRs.",
+		Description: "Fetch content from whitelisted URLs references.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
 				"url": map[string]interface{}{
 					"type":        "string",
-					"description": "The URL to fetch content from, or GitHub reference (github:owner/repo#123)",
+					"description": "The URL to fetch content from",
 				},
 				"format": map[string]interface{}{
 					"type":        "string",
@@ -116,9 +122,58 @@ func (t *FetchTool) IsEnabled() bool {
 	return t.enabled
 }
 
-// fetchContent is a placeholder implementation
+// fetchContent fetches content from the given URL
 func (t *FetchTool) fetchContent(ctx context.Context, url string) (*domain.FetchResult, error) {
-	return nil, fmt.Errorf("fetch functionality not yet implemented in self-contained tool")
+	return t.fetchHTTPContent(ctx, url)
+}
+
+// fetchHTTPContent fetches content from a regular HTTP/HTTPS URL
+func (t *FetchTool) fetchHTTPContent(ctx context.Context, url string) (*domain.FetchResult, error) {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch content: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	var sizeWarning bool
+	if resp.ContentLength > 0 && resp.ContentLength > t.config.Tools.Fetch.Safety.MaxSize {
+		sizeWarning = true
+	}
+
+	body, err := io.ReadAll(io.LimitReader(resp.Body, t.config.Tools.Fetch.Safety.MaxSize))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	var warning string
+	originalSize := int64(len(body))
+	if sizeWarning || int64(len(body)) >= t.config.Tools.Fetch.Safety.MaxSize {
+		warning = fmt.Sprintf("Content was truncated. Original size may exceed %d bytes, showing first %d bytes only.",
+			t.config.Tools.Fetch.Safety.MaxSize, len(body))
+	}
+
+	result := &domain.FetchResult{
+		Content:     string(body),
+		URL:         url,
+		Status:      resp.StatusCode,
+		Size:        originalSize,
+		ContentType: resp.Header.Get("Content-Type"),
+		Cached:      false,
+		Warning:     warning,
+		Metadata: map[string]string{
+			"last_modified": resp.Header.Get("Last-Modified"),
+			"etag":          resp.Header.Get("ETag"),
+		},
+	}
+
+	return result, nil
 }
 
 // validateURL validates URL against security rules and whitelists
@@ -127,36 +182,11 @@ func (t *FetchTool) validateURL(url string) error {
 		return fmt.Errorf("URL cannot be empty")
 	}
 
-	if strings.HasPrefix(url, "file://") || strings.HasPrefix(url, "ftp://") {
+	if !strings.HasPrefix(url, "http://") && !strings.HasPrefix(url, "https://") {
 		return fmt.Errorf("protocol not allowed")
 	}
 
-	if strings.HasPrefix(url, "github:") {
-		return t.validateGitHubReference(url)
-	}
-
 	return t.validateURLDomain(url)
-}
-
-// validateGitHubReference validates GitHub reference syntax (github:owner/repo#123)
-func (t *FetchTool) validateGitHubReference(reference string) error {
-	ref := strings.TrimPrefix(reference, "github:")
-
-	if !strings.Contains(ref, "/") {
-		return fmt.Errorf("invalid GitHub reference format")
-	}
-
-	parts := strings.Split(ref, "#")
-	if len(parts) > 2 {
-		return fmt.Errorf("invalid GitHub reference format")
-	}
-
-	ownerRepo := parts[0]
-	if strings.Count(ownerRepo, "/") != 1 {
-		return fmt.Errorf("invalid GitHub reference format")
-	}
-
-	return nil
 }
 
 // validateURLDomain checks if URL domain is in whitelist

@@ -6,6 +6,68 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.18.4](https://github.com/inference-gateway/cli/compare/v0.18.3...v0.18.4) (2025-08-16)
+
+### ♻️ Code Refactoring
+
+* Update keyboard shortcuts for sending messages to use 'Enter' key ([0c8220d](https://github.com/inference-gateway/cli/commit/0c8220df0d460c53abf74ebd3008ee607e4bbcf8))
+
+### ✅ Tests
+
+* Update default gateway timeout in TestDefaultConfig to 200 ([7b77f8f](https://github.com/inference-gateway/cli/commit/7b77f8f8cf5d04c857fc6ed0ac7c85255bb191c7))
+
+## [0.18.3](https://github.com/inference-gateway/cli/compare/v0.18.2...v0.18.3) (2025-08-16)
+
+### 🧹 Maintenance
+
+* Increase timeout value in gateway configuration to 200 ([7765fb0](https://github.com/inference-gateway/cli/commit/7765fb001c67f29c300ab8276559ad51efb1ae44))
+
+## [0.18.2](https://github.com/inference-gateway/cli/compare/v0.18.1...v0.18.2) (2025-08-16)
+
+### ♻️ Code Refactoring
+
+* FetchTool with HTTP client and warning for content size ([296701a](https://github.com/inference-gateway/cli/commit/296701a0bdc0ac98b2b37a5010a38c9b2f7b7cc8))
+
+### 🧹 Maintenance
+
+* Add 'gh' command to tool whitelist in config ([2849e97](https://github.com/inference-gateway/cli/commit/2849e97a09edc1e00aff35a0879f8dcbe3d34cf9))
+
+## [0.18.1](https://github.com/inference-gateway/cli/compare/v0.18.0...v0.18.1) (2025-08-16)
+
+### ♻️ Code Refactoring
+
+* Extract components.go file to multiple components files ([#51](https://github.com/inference-gateway/cli/issues/51)) ([67f9167](https://github.com/inference-gateway/cli/commit/67f91678ceff4482b885b1b4d71b317bd8bc8f8e)), closes [#49](https://github.com/inference-gateway/cli/issues/49)
+
+## [0.18.0](https://github.com/inference-gateway/cli/compare/v0.17.1...v0.18.0) (2025-08-15)
+
+### 🚀 Features
+
+* Implement Delete Tool with improved security features ([#48](https://github.com/inference-gateway/cli/issues/48)) ([8b5fade](https://github.com/inference-gateway/cli/commit/8b5fadee84012f95d278dd1cbda45c585ff8a2ea)), closes [#47](https://github.com/inference-gateway/cli/issues/47) [#47](https://github.com/inference-gateway/cli/issues/47)
+
+## [0.17.1](https://github.com/inference-gateway/cli/compare/v0.17.0...v0.17.1) (2025-08-15)
+
+### 💄 Styles
+
+* Clean up whitespace and formatting across multiple files ([74ab3c5](https://github.com/inference-gateway/cli/commit/74ab3c5202593ed3c0e5c0ed54feff0192a0d201))
+
+## [0.17.0](https://github.com/inference-gateway/cli/compare/v0.16.2...v0.17.0) (2025-08-15)
+
+### 🚀 Features
+
+* Implement Write Tool for filesystem operations ([#46](https://github.com/inference-gateway/cli/issues/46)) ([ccf3091](https://github.com/inference-gateway/cli/commit/ccf3091b64edcaaa2ac019e2692e9b4d58a67950)), closes [#45](https://github.com/inference-gateway/cli/issues/45)
+
+## [0.16.2](https://github.com/inference-gateway/cli/compare/v0.16.1...v0.16.2) (2025-08-15)
+
+### 📚 Documentation
+
+* Update default model configuration and enhance tool management in CLI examples ([8558a98](https://github.com/inference-gateway/cli/commit/8558a9864c48a9f5b9dff2063d0d1859dc670f91))
+
+## [0.16.1](https://github.com/inference-gateway/cli/compare/v0.16.0...v0.16.1) (2025-08-15)
+
+### 📚 Documentation
+
+* Correct alignment of the Inference Gateway CLI header in README ([dd4f05c](https://github.com/inference-gateway/cli/commit/dd4f05c8762324c56707eb2af3ba0c3608bc4106))
+
 ## [0.16.0](https://github.com/inference-gateway/cli/compare/v0.15.0...v0.16.0) (2025-08-15)
 
 ### 🚀 Features

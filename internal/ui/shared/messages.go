@@ -1,4 +1,4 @@
-package ui
+package shared
 
 import (
 	"github.com/inference-gateway/cli/internal/domain"
@@ -72,15 +72,6 @@ type ScrollRequestMsg struct {
 	Amount      int
 }
 
-type ScrollDirection int
-
-const (
-	ScrollUp ScrollDirection = iota
-	ScrollDown
-	ScrollToTop
-	ScrollToBottom
-)
-
 // FocusRequestMsg requests focus change
 type FocusRequestMsg struct {
 	ComponentID string
@@ -97,7 +88,6 @@ type DebugKeyMsg struct {
 	Key     string
 	Handler string
 }
-
 
 // ToggleHelpBarMsg toggles the help bar visibility
 type ToggleHelpBarMsg struct{}

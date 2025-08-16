@@ -124,6 +124,7 @@ type FetchResult struct {
 	ContentType string            `json:"content_type"`
 	Cached      bool              `json:"cached"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
+	Warning     string            `json:"warning,omitempty"`
 }
 
 // FetchService handles content fetching operations
@@ -213,6 +214,16 @@ type FileReadToolResult struct {
 	Error     string `json:"error,omitempty"`
 }
 
+// FileWriteToolResult represents the result of a file write operation
+type FileWriteToolResult struct {
+	FilePath    string `json:"file_path"`
+	BytesWriten int64  `json:"bytes_written"`
+	Created     bool   `json:"created"`
+	Overwritten bool   `json:"overwritten"`
+	DirsCreated bool   `json:"dirs_created"`
+	Error       string `json:"error,omitempty"`
+}
+
 // TreeToolResult represents the result of a tree operation
 type TreeToolResult struct {
 	Path            string   `json:"path"`
@@ -226,4 +237,15 @@ type TreeToolResult struct {
 	Format          string   `json:"format"`
 	UsingNativeTree bool     `json:"using_native_tree"`
 	Truncated       bool     `json:"truncated"`
+}
+
+// DeleteToolResult represents the result of a delete operation
+type DeleteToolResult struct {
+	Path              string   `json:"path"`
+	DeletedFiles      []string `json:"deleted_files"`
+	DeletedDirs       []string `json:"deleted_dirs"`
+	TotalFilesDeleted int      `json:"total_files_deleted"`
+	TotalDirsDeleted  int      `json:"total_dirs_deleted"`
+	WildcardExpanded  bool     `json:"wildcard_expanded"`
+	Errors            []string `json:"errors,omitempty"`
 }
