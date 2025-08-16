@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.18.5](https://github.com/inference-gateway/cli/compare/v0.18.4...v0.18.5) (2025-08-16)
+
+### ♻️ Code Refactoring
+
+* Add appending mode to Write Tool for chunked file writing ([#55](https://github.com/inference-gateway/cli/issues/55)) ([64eb38e](https://github.com/inference-gateway/cli/commit/64eb38e15dfff5bfc67041725cbcd985b616494b)), closes [#53](https://github.com/inference-gateway/cli/issues/53)
+
 ## [0.18.4](https://github.com/inference-gateway/cli/compare/v0.18.3...v0.18.4) (2025-08-16)
 
 ### ♻️ Code Refactoring
