@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.18.2](https://github.com/inference-gateway/cli/compare/v0.18.1...v0.18.2) (2025-08-16)
+
+### ♻️ Code Refactoring
+
+* FetchTool with HTTP client and warning for content size ([296701a](https://github.com/inference-gateway/cli/commit/296701a0bdc0ac98b2b37a5010a38c9b2f7b7cc8))
+
+### 🧹 Maintenance
+
+* Add 'gh' command to tool whitelist in config ([2849e97](https://github.com/inference-gateway/cli/commit/2849e97a09edc1e00aff35a0879f8dcbe3d34cf9))
+
 ## [0.18.1](https://github.com/inference-gateway/cli/compare/v0.18.0...v0.18.1) (2025-08-16)
 
 ### ♻️ Code Refactoring
