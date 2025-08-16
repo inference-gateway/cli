@@ -216,12 +216,16 @@ type FileReadToolResult struct {
 
 // FileWriteToolResult represents the result of a file write operation
 type FileWriteToolResult struct {
-	FilePath    string `json:"file_path"`
-	BytesWriten int64  `json:"bytes_written"`
-	Created     bool   `json:"created"`
-	Overwritten bool   `json:"overwritten"`
-	DirsCreated bool   `json:"dirs_created"`
-	Error       string `json:"error,omitempty"`
+	FilePath     string `json:"file_path"`
+	BytesWritten int64  `json:"bytes_written"`
+	Created      bool   `json:"created"`
+	Overwritten  bool   `json:"overwritten"`
+	DirsCreated  bool   `json:"dirs_created"`
+	Appended     bool   `json:"appended"`
+	ChunkIndex   int    `json:"chunk_index,omitempty"`
+	TotalChunks  int    `json:"total_chunks,omitempty"`
+	IsComplete   bool   `json:"is_complete"`
+	Error        string `json:"error,omitempty"`
 }
 
 // TreeToolResult represents the result of a tree operation

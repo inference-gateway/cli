@@ -30,7 +30,7 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 func (t *WriteTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Write",
-		Description: "Write content to a file on the filesystem. Creates parent directories if needed.",
+		Description: "Write content to a file on the filesystem. Supports append mode and chunked writing for large files. Creates parent directories if needed.",
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -42,6 +42,21 @@ func (t *WriteTool) Definition() domain.ToolDefinition {
 					"type":        "string",
 					"description": "The content to write to the file",
 				},
+				"append": map[string]interface{}{
+					"type":        "boolean",
+					"description": "Whether to append to the file (true) or overwrite it (false)",
+					"default":     false,
+				},
+				"chunk_index": map[string]interface{}{
+					"type":        "integer",
+					"description": "The index of this chunk (0-based). Use for ordered chunks in large file writing.",
+					"minimum":     0,
+				},
+				"total_chunks": map[string]interface{}{
+					"type":        "integer",
+					"description": "The total number of chunks expected. Required when using chunk_index.",
+					"minimum":     1,
+				},
 				"create_dirs": map[string]interface{}{
 					"type":        "boolean",
 					"description": "Whether to create parent directories if they don't exist",
@@ -49,7 +64,7 @@ func (t *WriteTool) Definition() domain.ToolDefinition {
 				},
 				"overwrite": map[string]interface{}{
 					"type":        "boolean",
-					"description": "Whether to overwrite existing files",
+					"description": "Whether to overwrite existing files (ignored when append=true)",
 					"default":     true,
 				},
 				"format": map[string]interface{}{
@@ -93,6 +108,25 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]interface{}) (*
 		}, nil
 	}
 
+	append := false
+	if appendVal, exists := args["append"]; exists {
+		if val, ok := appendVal.(bool); ok {
+			append = val
+		}
+	}
+
+	var chunkIndex, totalChunks int
+	if chunkIndexVal, exists := args["chunk_index"]; exists {
+		if val, ok := chunkIndexVal.(float64); ok {
+			chunkIndex = int(val)
+			var err *domain.ToolExecutionResult
+			totalChunks, err = getTotalChunks(args, start)
+			if err != nil {
+				return err, nil
+			}
+		}
+	}
+
 	createDirs := true
 	if createDirsVal, exists := args["create_dirs"]; exists {
 		if val, ok := createDirsVal.(bool); ok {
@@ -107,21 +141,9 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]interface{}) (*
 		}
 	}
 
-	writeResult, err := t.executeWrite(filePath, content, createDirs, overwrite)
+	writeResult, err := t.executeWrite(filePath, content, append, chunkIndex, totalChunks, createDirs, overwrite)
 	if err != nil {
 		return nil, err
-	}
-
-	var toolData *domain.FileWriteToolResult
-	if writeResult != nil {
-		toolData = &domain.FileWriteToolResult{
-			FilePath:    writeResult.FilePath,
-			BytesWriten: writeResult.BytesWriten,
-			Created:     writeResult.Created,
-			Overwritten: writeResult.Overwritten,
-			DirsCreated: writeResult.DirsCreated,
-			Error:       writeResult.Error,
-		}
 	}
 
 	result := &domain.ToolExecutionResult{
@@ -129,7 +151,7 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]interface{}) (*
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(start),
-		Data:      toolData,
+		Data:      writeResult,
 	}
 
 	return result, nil
@@ -156,6 +178,30 @@ func (t *WriteTool) Validate(args map[string]interface{}) error {
 
 	if _, ok := args["content"].(string); !ok {
 		return fmt.Errorf("content parameter is required and must be a string")
+	}
+
+	if append, exists := args["append"]; exists {
+		if _, ok := append.(bool); !ok {
+			return fmt.Errorf("append parameter must be a boolean")
+		}
+	}
+
+	if chunkIndex, exists := args["chunk_index"]; exists {
+		if _, ok := chunkIndex.(float64); !ok {
+			return fmt.Errorf("chunk_index parameter must be a number")
+		}
+		if _, exists := args["total_chunks"]; !exists {
+			return fmt.Errorf("total_chunks parameter is required when using chunk_index")
+		}
+	}
+
+	if totalChunks, exists := args["total_chunks"]; exists {
+		if _, ok := totalChunks.(float64); !ok {
+			return fmt.Errorf("total_chunks parameter must be a number")
+		}
+		if _, exists := args["chunk_index"]; !exists {
+			return fmt.Errorf("chunk_index parameter is required when using total_chunks")
+		}
 	}
 
 	if createDirs, exists := args["create_dirs"]; exists {
@@ -186,47 +232,47 @@ func (t *WriteTool) IsEnabled() bool {
 	return t.enabled
 }
 
-// FileWriteResult represents the internal result of a file write operation
-type FileWriteResult struct {
-	FilePath    string `json:"file_path"`
-	BytesWriten int64  `json:"bytes_written"`
-	Created     bool   `json:"created"`
-	Overwritten bool   `json:"overwritten"`
-	DirsCreated bool   `json:"dirs_created"`
-	Error       string `json:"error,omitempty"`
-}
-
-// executeWrite writes content to a file
-func (t *WriteTool) executeWrite(filePath, content string, createDirs, overwrite bool) (*FileWriteResult, error) {
-	result := &FileWriteResult{
-		FilePath: filePath,
+// executeWrite writes content to a file with support for append and chunked writing
+func (t *WriteTool) executeWrite(filePath, content string, append bool, chunkIndex, totalChunks int, createDirs, overwrite bool) (*domain.FileWriteToolResult, error) {
+	result := &domain.FileWriteToolResult{
+		FilePath:    filePath,
+		Appended:    append,
+		ChunkIndex:  chunkIndex,
+		TotalChunks: totalChunks,
+		IsComplete:  true,
 	}
 
 	_, err := os.Stat(filePath)
 	fileExists := err == nil
-	result.Overwritten = fileExists && overwrite
-
-	if fileExists && !overwrite {
-		return nil, fmt.Errorf("file %s already exists and overwrite is false", filePath)
-	}
+	result.Created = !fileExists
 
 	if err := t.createParentDirs(filePath, createDirs, result); err != nil {
 		return nil, err
 	}
 
-	// Write the file
+	if totalChunks > 0 {
+		return t.executeChunkedWrite(filePath, content, chunkIndex, totalChunks, result)
+	}
+
+	if append {
+		return t.executeAppendWrite(filePath, content, result)
+	}
+
+	result.Overwritten = fileExists && overwrite
+	if fileExists && !overwrite {
+		return nil, fmt.Errorf("file %s already exists and overwrite is false", filePath)
+	}
+
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
 		return nil, fmt.Errorf("failed to write file %s: %w", filePath, err)
 	}
 
-	result.BytesWriten = int64(len(content))
-	result.Created = !fileExists
-
+	result.BytesWritten = int64(len(content))
 	return result, nil
 }
 
 // createParentDirs creates parent directories if needed and allowed
-func (t *WriteTool) createParentDirs(filePath string, createDirs bool, result *FileWriteResult) error {
+func (t *WriteTool) createParentDirs(filePath string, createDirs bool, result *domain.FileWriteToolResult) error {
 	if !createDirs {
 		return nil
 	}
@@ -258,4 +304,106 @@ func (t *WriteTool) validatePathSecurity(path string) error {
 		}
 	}
 	return nil
+}
+
+// executeAppendWrite handles writing in append mode
+func (t *WriteTool) executeAppendWrite(filePath, content string, result *domain.FileWriteToolResult) (*domain.FileWriteToolResult, error) {
+	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open file %s for appending: %w", filePath, err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	bytesWritten, err := file.WriteString(content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to append to file %s: %w", filePath, err)
+	}
+
+	result.BytesWritten = int64(bytesWritten)
+	result.Appended = true
+	return result, nil
+}
+
+// executeChunkedWrite handles writing in chunked mode using temporary files
+func (t *WriteTool) executeChunkedWrite(filePath, content string, chunkIndex, totalChunks int, result *domain.FileWriteToolResult) (*domain.FileWriteToolResult, error) {
+	tempDir := filepath.Join(filepath.Dir(filePath), ".infer_chunks_"+filepath.Base(filePath))
+	chunkFile := filepath.Join(tempDir, fmt.Sprintf("chunk_%d", chunkIndex))
+
+	if err := os.MkdirAll(tempDir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create temp directory %s: %w", tempDir, err)
+	}
+
+	if err := os.WriteFile(chunkFile, []byte(content), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write chunk file %s: %w", chunkFile, err)
+	}
+
+	result.BytesWritten = int64(len(content))
+	result.IsComplete = false
+
+	if chunkIndex == totalChunks-1 {
+		if err := t.combineChunks(filePath, tempDir, totalChunks); err != nil {
+			return nil, fmt.Errorf("failed to combine chunks: %w", err)
+		}
+
+		if err := os.RemoveAll(tempDir); err != nil {
+			return nil, fmt.Errorf("failed to clean up temp directory %s: %w", tempDir, err)
+		}
+		result.IsComplete = true
+	}
+
+	return result, nil
+}
+
+// combineChunks combines all chunk files into the final file
+func (t *WriteTool) combineChunks(filePath, tempDir string, totalChunks int) error {
+	finalFile, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to create final file %s: %w", filePath, err)
+	}
+	defer func() {
+		_ = finalFile.Close()
+	}()
+
+	for i := 0; i < totalChunks; i++ {
+		chunkFile := filepath.Join(tempDir, fmt.Sprintf("chunk_%d", i))
+		chunkContent, err := os.ReadFile(chunkFile)
+		if err != nil {
+			return fmt.Errorf("failed to read chunk file %s: %w", chunkFile, err)
+		}
+
+		if _, err := finalFile.Write(chunkContent); err != nil {
+			return fmt.Errorf("failed to write chunk %d to final file: %w", i, err)
+		}
+	}
+
+	return nil
+}
+
+// getTotalChunks extracts and validates total_chunks parameter
+func getTotalChunks(args map[string]interface{}, start time.Time) (int, *domain.ToolExecutionResult) {
+	totalChunksVal, exists := args["total_chunks"]
+	if !exists {
+		return 0, &domain.ToolExecutionResult{
+			ToolName:  "Write",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     "total_chunks parameter is required when using chunk_index",
+		}
+	}
+
+	val, ok := totalChunksVal.(float64)
+	if !ok {
+		return 0, &domain.ToolExecutionResult{
+			ToolName:  "Write",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     "total_chunks parameter is required when using chunk_index",
+		}
+	}
+
+	return int(val), nil
 }
