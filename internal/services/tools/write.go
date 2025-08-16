@@ -280,17 +280,14 @@ func (t *WriteTool) executeWrite(filePath, content string, append bool, chunkInd
 		return nil, err
 	}
 
-	// Handle chunked writing
 	if totalChunks > 0 {
 		return t.executeChunkedWrite(filePath, content, chunkIndex, totalChunks, result)
 	}
 
-	// Handle simple write or append
 	if append {
 		return t.executeAppendWrite(filePath, content, result)
 	}
 
-	// Handle overwrite mode
 	result.Overwritten = fileExists && overwrite
 	if fileExists && !overwrite {
 		return nil, fmt.Errorf("file %s already exists and overwrite is false", filePath)
@@ -375,7 +372,6 @@ func (t *WriteTool) executeChunkedWrite(filePath, content string, chunkIndex, to
 	result.BytesWritten = int64(len(content))
 	result.IsComplete = false
 
-	// If this is the last chunk, combine all chunks into the final file
 	if chunkIndex == totalChunks-1 {
 		if err := t.combineChunks(filePath, tempDir, totalChunks); err != nil {
 			return nil, fmt.Errorf("failed to combine chunks: %w", err)
