@@ -124,6 +124,7 @@ type FetchResult struct {
 	ContentType string            `json:"content_type"`
 	Cached      bool              `json:"cached"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
+	Warning     string            `json:"warning,omitempty"`
 }
 
 // FetchService handles content fetching operations

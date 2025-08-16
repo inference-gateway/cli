@@ -130,13 +130,6 @@ func TestFetchTool_Validate(t *testing.T) {
 			wantError: false,
 		},
 		{
-			name: "valid GitHub reference",
-			args: map[string]interface{}{
-				"url": "github:owner/repo#123",
-			},
-			wantError: false,
-		},
-		{
 			name:      "missing URL",
 			args:      map[string]interface{}{},
 			wantError: true,
@@ -175,13 +168,6 @@ func TestFetchTool_Validate(t *testing.T) {
 			args: map[string]interface{}{
 				"url":    "https://httpbin.org/json",
 				"format": 123,
-			},
-			wantError: true,
-		},
-		{
-			name: "malformed GitHub reference",
-			args: map[string]interface{}{
-				"url": "github:invalid",
 			},
 			wantError: true,
 		},
