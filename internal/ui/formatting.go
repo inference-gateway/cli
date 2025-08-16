@@ -210,6 +210,17 @@ func formatResultSummary(result *domain.ToolExecutionResult) string {
 		if searchResult, ok := result.Data.(*domain.WebSearchResponse); ok {
 			return fmt.Sprintf("Found %d results for '%s'", len(searchResult.Results), truncateString(searchResult.Query, 30))
 		}
+	case "Write":
+		if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
+			fileName := getFileName(writeResult.FilePath)
+			action := "Written"
+			if writeResult.Created {
+				action = "Created"
+			} else if writeResult.Appended {
+				action = "Appended"
+			}
+			return fmt.Sprintf("%s %d bytes to %s", action, writeResult.BytesWritten, fileName)
+		}
 	}
 
 	return "Execution completed successfully"
@@ -222,6 +233,8 @@ func formatToolSpecificData(toolName string, data interface{}) string {
 		return formatBashToolData(data)
 	case "Read":
 		return formatReadToolData(data)
+	case "Write":
+		return formatWriteToolData(data)
 	case "Tree":
 		return formatTreeToolData(data)
 	case "Fetch":
@@ -277,6 +290,50 @@ func formatReadToolData(data interface{}) string {
 	if readResult.Content != "" {
 		output.WriteString(fmt.Sprintf("Content:\n%s\n", readResult.Content))
 	}
+	return output.String()
+}
+
+func formatWriteToolData(data interface{}) string {
+	writeResult, ok := data.(*domain.FileWriteToolResult)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("File: %s\n", writeResult.FilePath))
+	output.WriteString(fmt.Sprintf("Bytes written: %d\n", writeResult.BytesWritten))
+
+	var actions []string
+	if writeResult.Created {
+		actions = append(actions, "created")
+	}
+	if writeResult.Overwritten {
+		actions = append(actions, "overwritten")
+	}
+	if writeResult.Appended {
+		actions = append(actions, "appended")
+	}
+	if writeResult.DirsCreated {
+		actions = append(actions, "directories created")
+	}
+
+	if len(actions) > 0 {
+		output.WriteString(fmt.Sprintf("Actions: %s\n", strings.Join(actions, ", ")))
+	}
+
+	if writeResult.TotalChunks > 0 {
+		output.WriteString(fmt.Sprintf("Chunk: %d of %d", writeResult.ChunkIndex+1, writeResult.TotalChunks))
+		if writeResult.IsComplete {
+			output.WriteString(" (completed)\n")
+		} else {
+			output.WriteString(" (in progress)\n")
+		}
+	}
+
+	if writeResult.Error != "" {
+		output.WriteString(fmt.Sprintf("Error: %s\n", writeResult.Error))
+	}
+
 	return output.String()
 }
 
@@ -425,6 +482,8 @@ func FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
 		return formatBashToolDataForLLM(result.Data)
 	case "Read":
 		return formatReadToolDataForLLM(result.Data)
+	case "Write":
+		return formatWriteToolDataForLLM(result.Data)
 	case "Fetch":
 		return formatFetchToolDataForLLM(result.Data)
 	case "WebSearch":
@@ -540,6 +599,44 @@ func formatWebSearchToolDataForLLM(data interface{}) string {
 	return output.String()
 }
 
+func formatWriteToolDataForLLM(data interface{}) string {
+	writeResult, ok := data.(*domain.FileWriteToolResult)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("File written: %s\n", writeResult.FilePath))
+	output.WriteString(fmt.Sprintf("Bytes written: %d\n", writeResult.BytesWritten))
+
+	if writeResult.Created {
+		output.WriteString("File was created\n")
+	} else if writeResult.Overwritten {
+		output.WriteString("File was overwritten\n")
+	} else if writeResult.Appended {
+		output.WriteString("Content was appended to file\n")
+	}
+
+	if writeResult.DirsCreated {
+		output.WriteString("Parent directories were created\n")
+	}
+
+	if writeResult.TotalChunks > 0 {
+		output.WriteString(fmt.Sprintf("Chunk %d of %d", writeResult.ChunkIndex+1, writeResult.TotalChunks))
+		if writeResult.IsComplete {
+			output.WriteString(" - File assembly completed\n")
+		} else {
+			output.WriteString(" - Awaiting more chunks\n")
+		}
+	}
+
+	if writeResult.Error != "" {
+		output.WriteString(fmt.Sprintf("Error: %s\n", writeResult.Error))
+	}
+
+	return output.String()
+}
+
 // FormatToolResultForUI formats tool execution results specifically for UI display
 // This shows a compact "ToolName(args)" format with 2 lines of preview
 func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
@@ -581,6 +678,17 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 		if readResult, ok := result.Data.(*domain.FileReadToolResult); ok {
 			fileName := getFileName(readResult.FilePath)
 			preview = fmt.Sprintf("Read %d bytes from %s", readResult.Size, fileName)
+		}
+	case "Write":
+		if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
+			fileName := getFileName(writeResult.FilePath)
+			action := "Written"
+			if writeResult.Created {
+				action = "Created"
+			} else if writeResult.Appended {
+				action = "Appended"
+			}
+			preview = fmt.Sprintf("%s %d bytes to %s", action, writeResult.BytesWritten, fileName)
 		}
 	case "Fetch":
 		if fetchResult, ok := result.Data.(*domain.FetchResult); ok {

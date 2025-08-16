@@ -314,8 +314,8 @@ func testWriteNewFile(t *testing.T, tempDir string, tool *WriteTool, ctx context
 		t.Errorf("Expected file_path='%s', got '%s'", filePath, data.FilePath)
 	}
 
-	if data.BytesWriten != int64(len(content)) {
-		t.Errorf("Expected bytes_written=%d, got %d", len(content), data.BytesWriten)
+	if data.BytesWritten != int64(len(content)) {
+		t.Errorf("Expected bytes_written=%d, got %d", len(content), data.BytesWritten)
 	}
 
 	if !data.Created {
