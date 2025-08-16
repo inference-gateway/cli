@@ -60,6 +60,7 @@ and management of inference services.
   - **Read**: Read file contents with optional line ranges
   - **Write**: Write content to files with security controls
   - **FileSearch**: Search for files using regex patterns
+  - **Grep**: Fast ripgrep-powered search with regex support and multiple output modes
   - **WebSearch**: Search the web using DuckDuckGo or Google
   - **Fetch**: Fetch content from URLs and GitHub
 

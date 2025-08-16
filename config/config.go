@@ -41,6 +41,7 @@ type ToolsConfig struct {
 	Write        WriteToolConfig      `yaml:"write"`
 	Delete       DeleteToolConfig     `yaml:"delete"`
 	FileSearch   FileSearchToolConfig `yaml:"file_search"`
+	Grep         GrepToolConfig       `yaml:"grep"`
 	Tree         TreeToolConfig       `yaml:"tree"`
 	Fetch        FetchToolConfig      `yaml:"fetch"`
 	WebSearch    WebSearchToolConfig  `yaml:"web_search"`
@@ -78,6 +79,12 @@ type DeleteToolConfig struct {
 
 // FileSearchToolConfig contains file search-specific tool settings
 type FileSearchToolConfig struct {
+	Enabled         bool  `yaml:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty"`
+}
+
+// GrepToolConfig contains grep-specific tool settings
+type GrepToolConfig struct {
 	Enabled         bool  `yaml:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty"`
 }
@@ -198,6 +205,10 @@ func DefaultConfig() *Config {
 				RestrictToWorkDir: true,
 			},
 			FileSearch: FileSearchToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
+			},
+			Grep: GrepToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
 			},
@@ -355,6 +366,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	case "FileSearch":
 		if c.Tools.FileSearch.RequireApproval != nil {
 			return *c.Tools.FileSearch.RequireApproval
+		}
+	case "Grep":
+		if c.Tools.Grep.RequireApproval != nil {
+			return *c.Tools.Grep.RequireApproval
 		}
 	case "Tree":
 		if c.Tools.Tree.RequireApproval != nil {
