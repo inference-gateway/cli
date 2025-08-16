@@ -15,7 +15,6 @@ tools:
         - ls
         - pwd
         - echo
-        - grep
         - wc
         - sort
         - uniq
