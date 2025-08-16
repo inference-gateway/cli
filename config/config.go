@@ -85,8 +85,9 @@ type FileSearchToolConfig struct {
 
 // GrepToolConfig contains grep-specific tool settings
 type GrepToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool   `yaml:"enabled"`
+	Backend         string `yaml:"backend"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty"`
 }
 
 // TreeToolConfig contains tree-specific tool settings
@@ -210,6 +211,7 @@ func DefaultConfig() *Config {
 			},
 			Grep: GrepToolConfig{
 				Enabled:         true,
+				Backend:         "auto",
 				RequireApproval: &[]bool{false}[0],
 			},
 			Tree: TreeToolConfig{

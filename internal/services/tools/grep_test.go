@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"os/exec"
 	"strings"
 	"testing"
 
@@ -31,7 +32,7 @@ func TestGrepTool_Definition(t *testing.T) {
 
 	expectedPhrases := []string{
 		"ALWAYS use Grep for search tasks",
-		"native Go implementation",
+		"configurable backend",
 		"Output modes",
 		"files_with_matches",
 		"content",
@@ -503,6 +504,74 @@ func TestGrepCount_Structure(t *testing.T) {
 	}
 }
 
+func TestGrepTool_RipgrepDetection(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Grep: config.GrepToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewGrepTool(cfg)
+
+	if !tool.useRipgrep {
+		t.Error("Expected ripgrep to be detected and enabled")
+	}
+
+	if tool.ripgrepPath == "" {
+		t.Error("Expected ripgrep path to be set")
+	}
+
+	t.Logf("Ripgrep detected at: %s", tool.ripgrepPath)
+}
+
+func TestGrepTool_HybridSearch(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Grep: config.GrepToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewGrepTool(cfg)
+	ctx := context.Background()
+
+	args := map[string]interface{}{
+		"pattern":     "package",
+		"output_mode": "files_with_matches",
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected successful execution")
+	}
+
+	if result.ToolName != "Grep" {
+		t.Errorf("Expected tool name to be 'Grep', got %s", result.ToolName)
+	}
+
+	grepResult, ok := result.Data.(*GrepResult)
+	if !ok {
+		t.Fatal("Expected GrepResult data")
+	}
+
+	if len(grepResult.Files) == 0 {
+		t.Error("Expected to find files with 'package' keyword")
+	}
+
+	t.Logf("Found %d files with 'package' keyword using %s",
+		len(grepResult.Files),
+		map[bool]string{true: "ripgrep", false: "Go implementation"}[tool.useRipgrep])
+}
+
 func TestGrepTool_GoBasedSearch(t *testing.T) {
 	tool := &GrepTool{
 		config:  &config.Config{Tools: config.ToolsConfig{Enabled: true}},
@@ -526,6 +595,356 @@ func TestGrepTool_GoBasedSearch(t *testing.T) {
 
 	if result.ToolName != "Grep" {
 		t.Errorf("Expected tool name to be 'Grep', got %s", result.ToolName)
+	}
+}
+
+func BenchmarkGrepTool_SimplePattern(b *testing.B) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Grep: config.GrepToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewGrepTool(cfg)
+	ctx := context.Background()
+	args := map[string]interface{}{
+		"pattern":     "func",
+		"output_mode": "files_with_matches",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := tool.Execute(ctx, args)
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkGrepTool_ComplexRegex(b *testing.B) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Grep: config.GrepToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewGrepTool(cfg)
+	ctx := context.Background()
+	args := map[string]interface{}{
+		"pattern":     `func\s+\w+\s*\([^)]*\)\s*\{`,
+		"output_mode": "content",
+		"-n":          true,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := tool.Execute(ctx, args)
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkGrepTool_FileTypeFilter(b *testing.B) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Grep: config.GrepToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewGrepTool(cfg)
+	ctx := context.Background()
+	args := map[string]interface{}{
+		"pattern":     "import",
+		"type":        "go",
+		"output_mode": "files_with_matches",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := tool.Execute(ctx, args)
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkGrepTool_GlobPattern(b *testing.B) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Grep: config.GrepToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewGrepTool(cfg)
+	ctx := context.Background()
+	args := map[string]interface{}{
+		"pattern":     "package",
+		"glob":        "*.go",
+		"output_mode": "count",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := tool.Execute(ctx, args)
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkGrepTool_CaseInsensitive(b *testing.B) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Grep: config.GrepToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewGrepTool(cfg)
+	ctx := context.Background()
+	args := map[string]interface{}{
+		"pattern":     "FUNC",
+		"-i":          true,
+		"output_mode": "files_with_matches",
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := tool.Execute(ctx, args)
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkGrepTool_WithContext(b *testing.B) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Grep: config.GrepToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewGrepTool(cfg)
+	ctx := context.Background()
+	args := map[string]interface{}{
+		"pattern":     "func",
+		"output_mode": "content",
+		"-n":          true,
+		"-C":          2.0,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := tool.Execute(ctx, args)
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkGrepTool_HeadLimit(b *testing.B) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Grep: config.GrepToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewGrepTool(cfg)
+	ctx := context.Background()
+	args := map[string]interface{}{
+		"pattern":     ".",
+		"output_mode": "files_with_matches",
+		"head_limit":  10.0,
+	}
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := tool.Execute(ctx, args)
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
+	}
+}
+
+func BenchmarkRipgrepComparison_SimplePattern(b *testing.B) {
+	b.Run("GrepTool", func(b *testing.B) {
+		cfg := &config.Config{
+			Tools: config.ToolsConfig{
+				Enabled: true,
+				Grep: config.GrepToolConfig{
+					Enabled: true,
+				},
+			},
+		}
+
+		tool := NewGrepTool(cfg)
+		ctx := context.Background()
+		args := map[string]interface{}{
+			"pattern":     "func",
+			"output_mode": "files_with_matches",
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := tool.Execute(ctx, args)
+			if err != nil {
+				b.Fatalf("Execute failed: %v", err)
+			}
+		}
+	})
+
+	b.Run("RipgrepNative", func(b *testing.B) {
+		rgPath, err := exec.LookPath("rg")
+		if err != nil {
+			b.Skip("ripgrep not found in PATH, skipping native comparison")
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			cmd := exec.Command(rgPath, "--files-with-matches", "func", ".")
+			_, err := cmd.Output()
+			if err != nil {
+				b.Fatalf("rg command failed: %v", err)
+			}
+		}
+	})
+}
+
+func BenchmarkRipgrepComparison_ComplexRegex(b *testing.B) {
+	b.Run("GrepTool", func(b *testing.B) {
+		cfg := &config.Config{
+			Tools: config.ToolsConfig{
+				Enabled: true,
+				Grep: config.GrepToolConfig{
+					Enabled: true,
+				},
+			},
+		}
+
+		tool := NewGrepTool(cfg)
+		ctx := context.Background()
+		args := map[string]interface{}{
+			"pattern":     `func\s+\w+\s*\([^)]*\)\s*\{`,
+			"output_mode": "content",
+			"-n":          true,
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := tool.Execute(ctx, args)
+			if err != nil {
+				b.Fatalf("Execute failed: %v", err)
+			}
+		}
+	})
+
+	b.Run("RipgrepNative", func(b *testing.B) {
+		rgPath, err := exec.LookPath("rg")
+		if err != nil {
+			b.Skip("ripgrep not found in PATH, skipping native comparison")
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			cmd := exec.Command(rgPath, "-n", `func\s+\w+\s*\([^)]*\)\s*\{`, ".")
+			_, err := cmd.Output()
+			if err != nil {
+				b.Fatalf("rg command failed: %v", err)
+			}
+		}
+	})
+}
+
+func BenchmarkRipgrepComparison_FileTypeFilter(b *testing.B) {
+	b.Run("GrepTool", func(b *testing.B) {
+		cfg := &config.Config{
+			Tools: config.ToolsConfig{
+				Enabled: true,
+				Grep: config.GrepToolConfig{
+					Enabled: true,
+				},
+			},
+		}
+
+		tool := NewGrepTool(cfg)
+		ctx := context.Background()
+		args := map[string]interface{}{
+			"pattern":     "import",
+			"type":        "go",
+			"output_mode": "files_with_matches",
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_, err := tool.Execute(ctx, args)
+			if err != nil {
+				b.Fatalf("Execute failed: %v", err)
+			}
+		}
+	})
+
+	b.Run("RipgrepNative", func(b *testing.B) {
+		rgPath, err := exec.LookPath("rg")
+		if err != nil {
+			b.Skip("ripgrep not found in PATH, skipping native comparison")
+		}
+
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			cmd := exec.Command(rgPath, "--files-with-matches", "--type", "go", "import", ".")
+			_, err := cmd.Output()
+			if err != nil {
+				b.Fatalf("rg command failed: %v", err)
+			}
+		}
+	})
+}
+
+func BenchmarkGrepTool_MemoryAllocs(b *testing.B) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Grep: config.GrepToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewGrepTool(cfg)
+	ctx := context.Background()
+	args := map[string]interface{}{
+		"pattern":     "func",
+		"output_mode": "files_with_matches",
+	}
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := tool.Execute(ctx, args)
+		if err != nil {
+			b.Fatalf("Execute failed: %v", err)
+		}
 	}
 }
 

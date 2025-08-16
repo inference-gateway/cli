@@ -45,6 +45,7 @@ tools:
     require_approval: false
   grep:
     enabled: true
+    backend: auto
     require_approval: false
   tree:
     enabled: true

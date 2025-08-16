@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -15,11 +17,13 @@ import (
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
-// GrepTool handles Go-based search operations (ripgrep replacement)
+// GrepTool handles search operations with ripgrep fallback to Go implementation
 type GrepTool struct {
 	config            *config.Config
 	enabled           bool
 	gitignorePatterns []string
+	ripgrepPath       string
+	useRipgrep        bool
 }
 
 // NewGrepTool creates a new grep tool
@@ -29,14 +33,49 @@ func NewGrepTool(cfg *config.Config) *GrepTool {
 		enabled: cfg.Tools.Enabled && cfg.Tools.Grep.Enabled,
 	}
 	tool.loadGitignorePatterns()
+	tool.detectRipgrep()
 	return tool
+}
+
+// detectRipgrep checks if ripgrep is available and sets up the tool accordingly
+func (t *GrepTool) detectRipgrep() {
+	backend := t.config.Tools.Grep.Backend
+	if backend == "" {
+		backend = "auto"
+	}
+
+	switch backend {
+	case "ripgrep", "rg":
+		if rgPath, err := exec.LookPath("rg"); err == nil {
+			t.ripgrepPath = rgPath
+			t.useRipgrep = true
+		} else {
+			t.useRipgrep = false
+		}
+	case "go", "native":
+		t.useRipgrep = false
+	case "auto":
+		if rgPath, err := exec.LookPath("rg"); err == nil {
+			t.ripgrepPath = rgPath
+			t.useRipgrep = true
+		} else {
+			t.useRipgrep = false
+		}
+	default:
+		if rgPath, err := exec.LookPath("rg"); err == nil {
+			t.ripgrepPath = rgPath
+			t.useRipgrep = true
+		} else {
+			t.useRipgrep = false
+		}
+	}
 }
 
 // Definition returns the tool definition for the LLM
 func (t *GrepTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Grep",
-		Description: "A powerful search tool with native Go implementation\n\n  Usage:\n  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n  - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n  - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n  - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n  - Use Task tool for open-ended searches requiring multiple rounds\n  - Pattern syntax: Uses Go regex - literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code)\n  - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
+		Description: "A powerful search tool with configurable backend (ripgrep or Go implementation)\n\n  Usage:\n  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n  - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n  - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n  - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n  - Use Task tool for open-ended searches requiring multiple rounds\n  - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code)\n  - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
 		Parameters: map[string]interface{}{
 			"$schema": "http://json-schema.org/draft-07/schema#",
 			"type":    "object",
@@ -116,7 +155,14 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 		}, nil
 	}
 
-	result, err := t.performGoSearch(ctx, pattern, args)
+	var result *GrepResult
+	var err error
+
+	if t.useRipgrep {
+		result, err = t.performRipgrepSearch(ctx, pattern, args)
+	} else {
+		result, err = t.performGoSearch(ctx, pattern, args)
+	}
 	success := err == nil
 
 	toolResult := &domain.ToolExecutionResult{
@@ -282,6 +328,197 @@ type GrepMatch struct {
 type GrepCount struct {
 	File  string `json:"file"`
 	Count int    `json:"count"`
+}
+
+// performRipgrepSearch executes ripgrep-based search with given parameters
+func (t *GrepTool) performRipgrepSearch(ctx context.Context, pattern string, args map[string]interface{}) (*GrepResult, error) {
+	start := time.Now()
+
+	outputMode := t.getOutputMode(args)
+	searchPath, err := t.getSearchPath(args)
+	if err != nil {
+		return nil, err
+	}
+
+	rgArgs := t.buildRipgrepArgs(outputMode, args)
+	rgArgs = append(rgArgs, pattern, searchPath)
+
+	result, err := t.executeRipgrep(ctx, rgArgs, outputMode, pattern, start)
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+// buildRipgrepArgs constructs the ripgrep command arguments
+func (t *GrepTool) buildRipgrepArgs(outputMode string, args map[string]interface{}) []string {
+	var rgArgs []string
+
+	rgArgs = t.addOutputModeArgs(rgArgs, outputMode, args)
+	rgArgs = t.addSearchOptions(rgArgs, args)
+
+	return rgArgs
+}
+
+// addOutputModeArgs adds output mode specific arguments
+func (t *GrepTool) addOutputModeArgs(rgArgs []string, outputMode string, args map[string]interface{}) []string {
+	switch outputMode {
+	case "files_with_matches":
+		rgArgs = append(rgArgs, "--files-with-matches")
+	case "count":
+		rgArgs = append(rgArgs, "--count")
+	case "content":
+		rgArgs = append(rgArgs, "--with-filename")
+		rgArgs = t.addContextArgs(rgArgs, args)
+	}
+	return rgArgs
+}
+
+// addContextArgs adds context-related arguments for content mode
+func (t *GrepTool) addContextArgs(rgArgs []string, args map[string]interface{}) []string {
+	if showLineNumbers, exists := args["-n"]; exists {
+		if showLineNumbersBool, ok := showLineNumbers.(bool); ok && showLineNumbersBool {
+			rgArgs = append(rgArgs, "--line-number")
+		}
+	}
+
+	if contextAfter, exists := args["-A"]; exists {
+		if contextAfterFloat, ok := contextAfter.(float64); ok {
+			rgArgs = append(rgArgs, "-A", strconv.Itoa(int(contextAfterFloat)))
+		}
+	}
+	if contextBefore, exists := args["-B"]; exists {
+		if contextBeforeFloat, ok := contextBefore.(float64); ok {
+			rgArgs = append(rgArgs, "-B", strconv.Itoa(int(contextBeforeFloat)))
+		}
+	}
+	if context, exists := args["-C"]; exists {
+		if contextFloat, ok := context.(float64); ok {
+			rgArgs = append(rgArgs, "-C", strconv.Itoa(int(contextFloat)))
+		}
+	}
+	return rgArgs
+}
+
+// addSearchOptions adds general search option arguments
+func (t *GrepTool) addSearchOptions(rgArgs []string, args map[string]interface{}) []string {
+	if caseInsensitive, exists := args["-i"]; exists {
+		if caseInsensitiveBool, ok := caseInsensitive.(bool); ok && caseInsensitiveBool {
+			rgArgs = append(rgArgs, "--ignore-case")
+		}
+	}
+
+	if multiline, exists := args["multiline"]; exists {
+		if multilineBool, ok := multiline.(bool); ok && multilineBool {
+			rgArgs = append(rgArgs, "--multiline", "--multiline-dotall")
+		}
+	}
+
+	if fileType, exists := args["type"]; exists {
+		if fileTypeStr, ok := fileType.(string); ok {
+			rgArgs = append(rgArgs, "--type", fileTypeStr)
+		}
+	}
+
+	if glob, exists := args["glob"]; exists {
+		if globStr, ok := glob.(string); ok {
+			rgArgs = append(rgArgs, "--glob", globStr)
+		}
+	}
+
+	if headLimit, exists := args["head_limit"]; exists {
+		if headLimitFloat, ok := headLimit.(float64); ok {
+			rgArgs = append(rgArgs, "--max-count", strconv.Itoa(int(headLimitFloat)))
+		}
+	}
+
+	return rgArgs
+}
+
+// executeRipgrep runs the ripgrep command and processes the output
+func (t *GrepTool) executeRipgrep(ctx context.Context, rgArgs []string, outputMode, pattern string, start time.Time) (*GrepResult, error) {
+	cmd := exec.CommandContext(ctx, t.ripgrepPath, rgArgs...)
+	output, err := cmd.Output()
+	if err != nil {
+		if exitError, ok := err.(*exec.ExitError); ok && exitError.ExitCode() == 1 {
+			return &GrepResult{
+				Pattern:    pattern,
+				OutputMode: outputMode,
+				Files:      []string{},
+				Matches:    []GrepMatch{},
+				Counts:     []GrepCount{},
+				Total:      0,
+				Truncated:  false,
+				Duration:   time.Since(start).String(),
+			}, nil
+		}
+		return nil, fmt.Errorf("ripgrep execution failed: %w", err)
+	}
+
+	result := t.parseRipgrepOutput(string(output), outputMode, pattern)
+	result.Duration = time.Since(start).String()
+	return result, nil
+}
+
+// parseRipgrepOutput parses ripgrep output into GrepResult
+func (t *GrepTool) parseRipgrepOutput(output, outputMode, pattern string) *GrepResult {
+	result := &GrepResult{
+		Pattern:    pattern,
+		OutputMode: outputMode,
+		Files:      []string{},
+		Matches:    []GrepMatch{},
+		Counts:     []GrepCount{},
+	}
+
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return result
+	}
+
+	switch outputMode {
+	case "files_with_matches":
+		result.Files = lines
+		result.Total = len(lines)
+	case "count":
+		for _, line := range lines {
+			parts := strings.SplitN(line, ":", 2)
+			if len(parts) == 2 {
+				count, err := strconv.Atoi(parts[1])
+				if err == nil {
+					result.Counts = append(result.Counts, GrepCount{
+						File:  parts[0],
+						Count: count,
+					})
+				}
+			}
+		}
+		result.Total = len(result.Counts)
+	case "content":
+		for _, line := range lines {
+			parts := strings.SplitN(line, ":", 3)
+			if len(parts) >= 3 {
+				lineNum, err := strconv.Atoi(parts[1])
+				if err != nil {
+					lineNum = 0
+				}
+				result.Matches = append(result.Matches, GrepMatch{
+					File: parts[0],
+					Line: lineNum,
+					Text: parts[2],
+				})
+			} else if len(parts) == 2 {
+				result.Matches = append(result.Matches, GrepMatch{
+					File: parts[0],
+					Line: 0,
+					Text: parts[1],
+				})
+			}
+		}
+		result.Total = len(result.Matches)
+	}
+
+	return result
 }
 
 // performGoSearch executes Go-based search with given parameters
@@ -613,7 +850,7 @@ func (t *GrepTool) searchMultiline(filePath string, regex *regexp.Regexp, output
 			if regex.MatchString(line) {
 				matches = append(matches, GrepMatch{
 					File: filePath,
-					Line: 0, // Line numbers are complex for multiline matches
+					Line: 0,
 					Text: line,
 				})
 			}
@@ -680,7 +917,6 @@ func (t *GrepTool) isPathExcluded(path string) bool {
 		return false
 	}
 
-	// Check gitignore patterns first for performance
 	if t.matchesGitignorePattern(path) {
 		return true
 	}
@@ -718,7 +954,7 @@ func (t *GrepTool) isPathExcluded(path string) bool {
 	return false
 }
 
-// loadGitignorePatterns reads and caches gitignore patterns from current directory
+// loadGitignorePatterns reads and caches gitignore patterns from current directory and subdirectories
 func (t *GrepTool) loadGitignorePatterns() {
 	var patterns []string
 
@@ -740,41 +976,8 @@ func (t *GrepTool) loadGitignorePatterns() {
 		".idea",
 		".flox",
 	}
+
 	patterns = append(patterns, defaultPatterns...)
-
-	gitignorePath := ".gitignore"
-	file, err := os.Open(gitignorePath)
-	if err == nil {
-		defer func() { _ = file.Close() }()
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			pattern := strings.TrimPrefix(line, "/")
-			if pattern != "" {
-				patterns = append(patterns, pattern)
-			}
-		}
-	}
-
-	floxGitignorePath := ".flox/.gitignore"
-	file, err = os.Open(floxGitignorePath)
-	if err == nil {
-		defer func() { _ = file.Close() }()
-		scanner := bufio.NewScanner(file)
-		for scanner.Scan() {
-			line := strings.TrimSpace(scanner.Text())
-			if line == "" || strings.HasPrefix(line, "#") {
-				continue
-			}
-			pattern := strings.TrimPrefix(line, "/")
-			if pattern != "" {
-				patterns = append(patterns, ".flox/"+pattern)
-			}
-		}
-	}
 
 	t.gitignorePatterns = patterns
 }
