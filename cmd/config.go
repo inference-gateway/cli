@@ -114,7 +114,7 @@ var configToolsExecCmd = &cobra.Command{
 	Short: "Execute any enabled tool directly",
 	Long: `Execute any enabled tool directly with JSON arguments.
 
-Available tools: Bash, Read, FileSearch, Tree, Fetch, WebSearch
+Available tools: Bash, Read, Grep, Tree, Fetch, WebSearch
 
 Arguments must be provided as JSON to ensure consistency with LLM tool execution.
 
@@ -168,7 +168,7 @@ var configToolsSafetyStatusCmd = &cobra.Command{
 var configToolsSafetySetCmd = &cobra.Command{
 	Use:   "set <tool> <enabled|disabled>",
 	Short: "Set tool-specific approval requirement",
-	Long:  `Set whether approval is required for a specific tool. Valid tools: Bash, Read, FileSearch, Fetch, WebSearch.`,
+	Long:  `Set whether approval is required for a specific tool. Valid tools: Bash, Read, Grep, Fetch, WebSearch.`,
 	Args:  cobra.ExactArgs(2),
 	RunE:  setToolApproval,
 }
@@ -176,7 +176,7 @@ var configToolsSafetySetCmd = &cobra.Command{
 var configToolsSafetyUnsetCmd = &cobra.Command{
 	Use:   "unset <tool>",
 	Short: "Remove tool-specific approval setting",
-	Long:  `Remove tool-specific approval setting, falling back to global setting. Valid tools: Bash, Read, FileSearch, Fetch, WebSearch.`,
+	Long:  `Remove tool-specific approval setting, falling back to global setting. Valid tools: Bash, Read, Grep, Fetch, WebSearch.`,
 	Args:  cobra.ExactArgs(1),
 	RunE:  unsetToolApproval,
 }
@@ -741,7 +741,7 @@ func safetyStatus(cmd *cobra.Command, args []string) error {
 	}{
 		{"Bash", cfg.Tools.Bash.RequireApproval},
 		{"Read", cfg.Tools.Read.RequireApproval},
-		{"FileSearch", cfg.Tools.FileSearch.RequireApproval},
+		{"Grep", cfg.Tools.Grep.RequireApproval},
 		{"Fetch", cfg.Tools.Fetch.RequireApproval},
 		{"WebSearch", cfg.Tools.WebSearch.RequireApproval},
 	}
@@ -780,8 +780,7 @@ func setToolApproval(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid setting '%s', must be 'enabled' or 'disabled'", setting)
 	}
 
-	// Validate tool name first
-	validTools := []string{"bash", "read", "filesearch", "fetch", "websearch"}
+	validTools := []string{"bash", "read", "grep", "fetch", "websearch"}
 	toolLower := strings.ToLower(toolName)
 	isValid := false
 	for _, valid := range validTools {
@@ -800,8 +799,8 @@ func setToolApproval(cmd *cobra.Command, args []string) error {
 			c.Tools.Bash.RequireApproval = &enabled
 		case "read":
 			c.Tools.Read.RequireApproval = &enabled
-		case "filesearch":
-			c.Tools.FileSearch.RequireApproval = &enabled
+		case "grep":
+			c.Tools.Grep.RequireApproval = &enabled
 		case "fetch":
 			c.Tools.Fetch.RequireApproval = &enabled
 		case "websearch":
@@ -823,8 +822,7 @@ func setToolApproval(cmd *cobra.Command, args []string) error {
 func unsetToolApproval(cmd *cobra.Command, args []string) error {
 	toolName := args[0]
 
-	// Validate tool name first
-	validTools := []string{"bash", "read", "filesearch", "fetch", "websearch"}
+	validTools := []string{"bash", "read", "grep", "fetch", "websearch"}
 	toolLower := strings.ToLower(toolName)
 	isValid := false
 	for _, valid := range validTools {
@@ -843,8 +841,8 @@ func unsetToolApproval(cmd *cobra.Command, args []string) error {
 			c.Tools.Bash.RequireApproval = nil
 		case "read":
 			c.Tools.Read.RequireApproval = nil
-		case "filesearch":
-			c.Tools.FileSearch.RequireApproval = nil
+		case "grep":
+			c.Tools.Grep.RequireApproval = nil
 		case "fetch":
 			c.Tools.Fetch.RequireApproval = nil
 		case "websearch":

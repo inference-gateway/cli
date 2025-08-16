@@ -108,7 +108,7 @@ internal/services/tools/
 ├── registry.go        # Tool management and registration
 ├── bash.go           # Example: Bash command execution tool
 ├── read.go           # Example: File reading tool
-├── filesearch.go     # Example: File system search tool
+├── grep.go           # Example: Grep tool
 ├── fetch.go          # Example: Content fetching tool
 ├── websearch.go      # Example: Web search tool
 └── [your-tool].go    # Your new tool implementation
@@ -126,7 +126,7 @@ package tools
 import (
     "context"
     "fmt"
-    
+
     "github.com/inference-gateway/cli/config"
     "github.com/inference-gateway/cli/internal/domain"
 )
@@ -181,16 +181,16 @@ func (t *YourTool) Execute(ctx context.Context, args map[string]interface{}) (*d
     if !t.enabled {
         return nil, fmt.Errorf("YourTool is not enabled")
     }
-    
+
     // Validate and extract arguments
     param1, ok := args["param1"].(string)
     if !ok {
         return nil, fmt.Errorf("param1 must be a string")
     }
-    
+
     // Implement your tool logic here
     result := fmt.Sprintf("Processing: %s", param1)
-    
+
     return &domain.ToolExecutionResult{
         Output: result,
         // Add other result fields as needed
@@ -258,7 +258,7 @@ package tools
 import (
     "context"
     "testing"
-    
+
     "github.com/inference-gateway/cli/config"
     "github.com/stretchr/testify/assert"
 )
@@ -267,10 +267,10 @@ func TestYourTool_Definition(t *testing.T) {
     cfg := &config.Config{
         Tools: config.ToolsConfig{Enabled: true},
     }
-    
+
     tool := NewYourTool(cfg)
     def := tool.Definition()
-    
+
     assert.Equal(t, "YourTool", def.Name)
     assert.Contains(t, def.Description, "your tool")
 }
@@ -279,13 +279,13 @@ func TestYourTool_Execute(t *testing.T) {
     cfg := &config.Config{
         Tools: config.ToolsConfig{Enabled: true},
     }
-    
+
     tool := NewYourTool(cfg)
-    
+
     args := map[string]interface{}{
         "param1": "test value",
     }
-    
+
     result, err := tool.Execute(context.Background(), args)
     assert.NoError(t, err)
     assert.NotNil(t, result)
@@ -296,13 +296,13 @@ func TestYourTool_Validate(t *testing.T) {
     cfg := &config.Config{
         Tools: config.ToolsConfig{Enabled: true},
     }
-    
+
     tool := NewYourTool(cfg)
-    
+
     // Test valid args
     validArgs := map[string]interface{}{"param1": "value"}
     assert.NoError(t, tool.Validate(validArgs))
-    
+
     // Test invalid args
     invalidArgs := map[string]interface{}{}
     assert.Error(t, tool.Validate(invalidArgs))
@@ -344,7 +344,7 @@ Study the existing tools for implementation patterns:
 
 - **BashTool** (`bash.go`): Shows command execution with security validation
 - **ReadTool** (`read.go`): Demonstrates file system operations
-- **FileSearchTool** (`filesearch.go`): Shows complex parameter handling
+- **GrepTool** (`grep.go`): Shows complex parameter handling with ripgrep integration
 - **WebSearchTool** (`websearch.go`): Shows integration with external services
 
 ## Release Process

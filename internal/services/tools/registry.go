@@ -30,7 +30,6 @@ func (r *Registry) registerTools() {
 	r.tools["Read"] = NewReadTool(r.config)
 	r.tools["Write"] = NewWriteTool(r.config)
 	r.tools["Delete"] = NewDeleteTool(r.config)
-	r.tools["FileSearch"] = NewFileSearchTool(r.config)
 	r.tools["Grep"] = NewGrepTool(r.config)
 	r.tools["Tree"] = NewTreeTool(r.config)
 

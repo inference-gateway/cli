@@ -35,18 +35,17 @@ type OutputConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled      bool                 `yaml:"enabled"`
-	Bash         BashToolConfig       `yaml:"bash"`
-	Read         ReadToolConfig       `yaml:"read"`
-	Write        WriteToolConfig      `yaml:"write"`
-	Delete       DeleteToolConfig     `yaml:"delete"`
-	FileSearch   FileSearchToolConfig `yaml:"file_search"`
-	Grep         GrepToolConfig       `yaml:"grep"`
-	Tree         TreeToolConfig       `yaml:"tree"`
-	Fetch        FetchToolConfig      `yaml:"fetch"`
-	WebSearch    WebSearchToolConfig  `yaml:"web_search"`
-	Safety       SafetyConfig         `yaml:"safety"`
-	ExcludePaths []string             `yaml:"exclude_paths"`
+	Enabled      bool                `yaml:"enabled"`
+	Bash         BashToolConfig      `yaml:"bash"`
+	Read         ReadToolConfig      `yaml:"read"`
+	Write        WriteToolConfig     `yaml:"write"`
+	Delete       DeleteToolConfig    `yaml:"delete"`
+	Grep         GrepToolConfig      `yaml:"grep"`
+	Tree         TreeToolConfig      `yaml:"tree"`
+	Fetch        FetchToolConfig     `yaml:"fetch"`
+	WebSearch    WebSearchToolConfig `yaml:"web_search"`
+	Safety       SafetyConfig        `yaml:"safety"`
+	ExcludePaths []string            `yaml:"exclude_paths"`
 }
 
 // BashToolConfig contains bash-specific tool settings
@@ -75,12 +74,6 @@ type DeleteToolConfig struct {
 	ProtectedPaths    []string `yaml:"protected_paths"`
 	AllowWildcards    bool     `yaml:"allow_wildcards"`
 	RestrictToWorkDir bool     `yaml:"restrict_to_workdir"`
-}
-
-// FileSearchToolConfig contains file search-specific tool settings
-type FileSearchToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
 }
 
 // GrepToolConfig contains grep-specific tool settings
@@ -204,10 +197,6 @@ func DefaultConfig() *Config {
 				ProtectedPaths:    []string{".infer/", ".infer/*", ".git/", ".git/*"},
 				AllowWildcards:    true,
 				RestrictToWorkDir: true,
-			},
-			FileSearch: FileSearchToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
 			},
 			Grep: GrepToolConfig{
 				Enabled:         true,
@@ -364,10 +353,6 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	case "Delete":
 		if c.Tools.Delete.RequireApproval != nil {
 			return *c.Tools.Delete.RequireApproval
-		}
-	case "FileSearch":
-		if c.Tools.FileSearch.RequireApproval != nil {
-			return *c.Tools.FileSearch.RequireApproval
 		}
 	case "Grep":
 		if c.Tools.Grep.RequireApproval != nil {

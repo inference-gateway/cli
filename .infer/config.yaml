@@ -40,9 +40,6 @@ tools:
       - .git/*
     allow_wildcards: true
     restrict_to_workdir: true
-  file_search:
-    enabled: true
-    require_approval: false
   grep:
     enabled: true
     backend: auto
