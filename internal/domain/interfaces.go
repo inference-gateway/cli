@@ -216,24 +216,14 @@ type FileReadToolResult struct {
 
 // FileWriteToolResult represents the result of a file write operation
 type FileWriteToolResult struct {
-	FilePath    string `json:"file_path"`
-	BytesWriten int64  `json:"bytes_written"`
-	Created     bool   `json:"created"`
-	Overwritten bool   `json:"overwritten"`
-	DirsCreated bool   `json:"dirs_created"`
-	Error       string `json:"error,omitempty"`
-}
-
-// FileWriteChunkToolResult represents the result of a chunked file write operation
-type FileWriteChunkToolResult struct {
 	FilePath     string `json:"file_path"`
-	BytesWriten  int64  `json:"bytes_written"`
-	ChunkIndex   int    `json:"chunk_index,omitempty"`
-	TotalChunks  int    `json:"total_chunks,omitempty"`
-	AppendMode   bool   `json:"append_mode"`
+	BytesWritten int64  `json:"bytes_written"`
 	Created      bool   `json:"created"`
 	Overwritten  bool   `json:"overwritten"`
 	DirsCreated  bool   `json:"dirs_created"`
+	Appended     bool   `json:"appended"`
+	ChunkIndex   int    `json:"chunk_index,omitempty"`
+	TotalChunks  int    `json:"total_chunks,omitempty"`
 	IsComplete   bool   `json:"is_complete"`
 	Error        string `json:"error,omitempty"`
 }
