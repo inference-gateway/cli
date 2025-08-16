@@ -224,6 +224,20 @@ type FileWriteToolResult struct {
 	Error       string `json:"error,omitempty"`
 }
 
+// FileWriteChunkToolResult represents the result of a chunked file write operation
+type FileWriteChunkToolResult struct {
+	FilePath     string `json:"file_path"`
+	BytesWriten  int64  `json:"bytes_written"`
+	ChunkIndex   int    `json:"chunk_index,omitempty"`
+	TotalChunks  int    `json:"total_chunks,omitempty"`
+	AppendMode   bool   `json:"append_mode"`
+	Created      bool   `json:"created"`
+	Overwritten  bool   `json:"overwritten"`
+	DirsCreated  bool   `json:"dirs_created"`
+	IsComplete   bool   `json:"is_complete"`
+	Error        string `json:"error,omitempty"`
+}
+
 // TreeToolResult represents the result of a tree operation
 type TreeToolResult struct {
 	Path            string   `json:"path"`
