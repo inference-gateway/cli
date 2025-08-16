@@ -44,6 +44,7 @@ type ToolsConfig struct {
 	Tree         TreeToolConfig      `yaml:"tree"`
 	Fetch        FetchToolConfig     `yaml:"fetch"`
 	WebSearch    WebSearchToolConfig `yaml:"web_search"`
+	TodoWrite    TodoWriteToolConfig `yaml:"todo_write"`
 	Safety       SafetyConfig        `yaml:"safety"`
 	ExcludePaths []string            `yaml:"exclude_paths"`
 }
@@ -107,6 +108,12 @@ type WebSearchToolConfig struct {
 	Engines         []string `yaml:"engines"`
 	Timeout         int      `yaml:"timeout"`
 	RequireApproval *bool    `yaml:"require_approval,omitempty"`
+}
+
+// TodoWriteToolConfig contains TodoWrite-specific tool settings
+type TodoWriteToolConfig struct {
+	Enabled         bool  `yaml:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty"`
 }
 
 // ToolWhitelistConfig contains whitelisted commands and patterns
@@ -232,6 +239,10 @@ func DefaultConfig() *Config {
 				MaxResults:    10,
 				Engines:       []string{"duckduckgo", "google"},
 				Timeout:       10,
+			},
+			TodoWrite: TodoWriteToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
 			},
 			Safety: SafetyConfig{
 				RequireApproval: true,
@@ -369,6 +380,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	case "WebSearch":
 		if c.Tools.WebSearch.RequireApproval != nil {
 			return *c.Tools.WebSearch.RequireApproval
+		}
+	case "TodoWrite":
+		if c.Tools.TodoWrite.RequireApproval != nil {
+			return *c.Tools.TodoWrite.RequireApproval
 		}
 	}
 
