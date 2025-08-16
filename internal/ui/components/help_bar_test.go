@@ -31,7 +31,7 @@ func TestHelpBar_SetShortcuts(t *testing.T) {
 	hb := NewHelpBar()
 
 	shortcuts := []shared.KeyShortcut{
-		{Key: "Ctrl+D", Description: "Send message"},
+		{Key: "Enter", Description: "Send message"},
 		{Key: "Ctrl+C", Description: "Cancel"},
 		{Key: "↑↓", Description: "History"},
 	}
@@ -42,8 +42,8 @@ func TestHelpBar_SetShortcuts(t *testing.T) {
 		t.Errorf("Expected 3 shortcuts, got %d", len(hb.shortcuts))
 	}
 
-	if hb.shortcuts[0].Key != "Ctrl+D" {
-		t.Errorf("Expected first shortcut key 'Ctrl+D', got '%s'", hb.shortcuts[0].Key)
+	if hb.shortcuts[0].Key != "Enter" {
+		t.Errorf("Expected first shortcut key 'Enter', got '%s'", hb.shortcuts[0].Key)
 	}
 
 	if hb.shortcuts[1].Description != "Cancel" {
@@ -116,7 +116,7 @@ func TestHelpBar_Render_WithShortcuts(t *testing.T) {
 	hb.SetEnabled(true)
 
 	shortcuts := []shared.KeyShortcut{
-		{Key: "Ctrl+D", Description: "Send"},
+		{Key: "Enter", Description: "Send"},
 		{Key: "Ctrl+C", Description: "Cancel"},
 		{Key: "?", Description: "Help"},
 	}
@@ -128,8 +128,8 @@ func TestHelpBar_Render_WithShortcuts(t *testing.T) {
 		t.Error("Expected non-empty output with shortcuts")
 	}
 
-	if !strings.Contains(output, "Ctrl+D") {
-		t.Error("Expected output to contain 'Ctrl+D'")
+	if !strings.Contains(output, "Enter") {
+		t.Error("Expected output to contain 'Enter'")
 	}
 
 	if !strings.Contains(output, "Send") {

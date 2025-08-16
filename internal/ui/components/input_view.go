@@ -29,7 +29,7 @@ func NewInputView(modelService domain.ModelService) *InputView {
 	return &InputView{
 		text:         "",
 		cursor:       0,
-		placeholder:  "Type your message... (Press Ctrl+D to send, ? for help)",
+		placeholder:  "Type your message... (Press Enter to send, Alt+Enter for newline)",
 		width:        80,
 		height:       5,
 		modelService: modelService,
@@ -228,6 +228,12 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	keyStr := key.String()
 
+	if keyStr == "alt+enter" {
+		iv.text = iv.text[:iv.cursor] + "\n" + iv.text[iv.cursor:]
+		iv.cursor++
+		return iv, nil
+	}
+
 	if iv.Autocomplete == nil || !iv.Autocomplete.IsVisible() {
 		switch keyStr {
 		case "up":
@@ -283,6 +289,11 @@ func (iv *InputView) handleAutocomplete(completion string) (tea.Model, tea.Cmd) 
 
 func (iv *InputView) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
 	keyStr := key.String()
+
+	if key.Type == tea.KeyEnter {
+		return iv.handleSubmit()
+	}
+
 	switch keyStr {
 	case "left":
 		if iv.cursor > 0 {
@@ -308,8 +319,6 @@ func (iv *InputView) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
 	case "ctrl+w":
 		iv.deleteWordBackward()
 		return nil
-	case "ctrl+d":
-		return iv.handleSubmit()
 	case "ctrl+shift+c":
 		iv.handleCopy()
 	case "ctrl+v", "alt+v":
