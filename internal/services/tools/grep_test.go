@@ -29,10 +29,9 @@ func TestGrepTool_Definition(t *testing.T) {
 		t.Error("Expected non-empty description")
 	}
 
-	// Check that the description contains the expected key phrases
 	expectedPhrases := []string{
 		"ALWAYS use Grep for search tasks",
-		"ripgrep",
+		"native Go implementation",
 		"Output modes",
 		"files_with_matches",
 		"content",
@@ -45,7 +44,6 @@ func TestGrepTool_Definition(t *testing.T) {
 		}
 	}
 
-	// Verify parameters structure
 	params, ok := def.Parameters.(map[string]interface{})
 	if !ok {
 		t.Fatal("Expected parameters to be a map")
@@ -56,7 +54,6 @@ func TestGrepTool_Definition(t *testing.T) {
 		t.Fatal("Expected properties to be a map")
 	}
 
-	// Check required parameter
 	required, ok := params["required"].([]string)
 	if !ok {
 		t.Fatal("Expected required to be a string slice")
@@ -66,7 +63,6 @@ func TestGrepTool_Definition(t *testing.T) {
 		t.Errorf("Expected required to be ['pattern'], got %v", required)
 	}
 
-	// Check essential parameters exist
 	essentialParams := []string{"pattern", "output_mode", "glob", "type", "-i", "-n", "-A", "-B", "-C", "multiline", "head_limit"}
 	for _, param := range essentialParams {
 		if _, exists := properties[param]; !exists {
@@ -121,27 +117,22 @@ func TestGrepTool_Validate(t *testing.T) {
 
 	tool := NewGrepTool(cfg)
 
-	// Test pattern validation
 	t.Run("pattern validation", func(t *testing.T) {
 		testGrepValidationCases(t, tool, getPatternTestCases())
 	})
 
-	// Test output mode validation
 	t.Run("output mode validation", func(t *testing.T) {
 		testGrepValidationCases(t, tool, getOutputModeTestCases())
 	})
 
-	// Test context flags validation
 	t.Run("context flags validation", func(t *testing.T) {
 		testGrepValidationCases(t, tool, getContextFlagsTestCases())
 	})
 
-	// Test head limit validation
 	t.Run("head limit validation", func(t *testing.T) {
 		testGrepValidationCases(t, tool, getHeadLimitTestCases())
 	})
 
-	// Test boolean flags validation
 	t.Run("boolean flags validation", func(t *testing.T) {
 		testGrepValidationCases(t, tool, getBooleanFlagsTestCases())
 	})
@@ -167,7 +158,7 @@ func validateGrepTestResult(t *testing.T, err error, expectError bool, errorMsg 
 		}
 		return
 	}
-	
+
 	if err != nil {
 		t.Errorf("Expected no error, got: %v", err)
 	}
@@ -405,9 +396,6 @@ func TestGrepTool_Execute(t *testing.T) {
 			t.Errorf("Expected error about tool being disabled, got: %v", err)
 		}
 	})
-
-	// Note: We can't easily test successful execution without ripgrep installed
-	// In a real environment, you'd have integration tests that verify ripgrep execution
 }
 
 func TestGrepTool_PathExclusion(t *testing.T) {
@@ -450,7 +438,6 @@ func TestGrepTool_PathExclusion(t *testing.T) {
 }
 
 func TestGrepResult_Structure(t *testing.T) {
-	// Test that GrepResult structure matches the expected JSON output format
 	result := &GrepResult{
 		Pattern:    "test.*pattern",
 		OutputMode: "files_with_matches",
@@ -516,67 +503,29 @@ func TestGrepCount_Structure(t *testing.T) {
 	}
 }
 
-func TestGrepTool_ExtractFileFromJSON(t *testing.T) {
-	tool := &GrepTool{}
-
-	tests := []struct {
-		name     string
-		jsonLine string
-		expected string
-	}{
-		{
-			name:     "valid match type",
-			jsonLine: `{"type":"match","data":{"path":{"text":"main.go"},"lines":{"text":"package main"}}}`,
-			expected: "main.go",
-		},
-		{
-			name:     "valid end type",
-			jsonLine: `{"type":"end","data":{"path":{"text":"test.go"},"stats":{"matches":3}}}`,
-			expected: "test.go",
-		},
-		{
-			name:     "invalid type",
-			jsonLine: `{"type":"begin","data":{"path":{"text":"other.go"}}}`,
-			expected: "",
-		},
-		{
-			name:     "malformed json",
-			jsonLine: `{"type":"match","invalid"}`,
-			expected: "",
-		},
-		{
-			name:     "empty line",
-			jsonLine: "",
-			expected: "",
-		},
+func TestGrepTool_GoBasedSearch(t *testing.T) {
+	tool := &GrepTool{
+		config:  &config.Config{Tools: config.ToolsConfig{Enabled: true}},
+		enabled: true,
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tool.extractFileFromJSON(tt.jsonLine)
-			if result != tt.expected {
-				t.Errorf("Expected %s, got %s", tt.expected, result)
-			}
-		})
-	}
-}
-
-func TestGrepTool_ExtractMatchFromJSON(t *testing.T) {
-	tool := &GrepTool{}
-
-	jsonLine := `{"type":"match","data":{"path":{"text":"main.go"},"line_number":42,"lines":{"text":"func main() {"}}}`
-	match := tool.extractMatchFromJSON(jsonLine)
-
-	if match.File != "main.go" {
-		t.Errorf("Expected file to be 'main.go', got %s", match.File)
+	ctx := context.Background()
+	args := map[string]interface{}{
+		"pattern":     "package",
+		"output_mode": "files_with_matches",
 	}
 
-	if match.Line != 42 {
-		t.Errorf("Expected line to be 42, got %d", match.Line)
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
 	}
 
-	if match.Text != "func main() {" {
-		t.Errorf("Expected text to be 'func main() {', got %s", match.Text)
+	if !result.Success {
+		t.Errorf("Expected successful execution")
+	}
+
+	if result.ToolName != "Grep" {
+		t.Errorf("Expected tool name to be 'Grep', got %s", result.ToolName)
 	}
 }
 

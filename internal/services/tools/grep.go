@@ -1,12 +1,13 @@
 package tools
 
 import (
+	"bufio"
 	"context"
 	"fmt"
-	"os/exec"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
@@ -14,25 +15,28 @@ import (
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
-// GrepTool handles ripgrep-powered search operations
+// GrepTool handles Go-based search operations (ripgrep replacement)
 type GrepTool struct {
-	config  *config.Config
-	enabled bool
+	config            *config.Config
+	enabled           bool
+	gitignorePatterns []string
 }
 
 // NewGrepTool creates a new grep tool
 func NewGrepTool(cfg *config.Config) *GrepTool {
-	return &GrepTool{
+	tool := &GrepTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Grep.Enabled,
 	}
+	tool.loadGitignorePatterns()
+	return tool
 }
 
 // Definition returns the tool definition for the LLM
 func (t *GrepTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Grep",
-		Description: "A powerful search tool built on ripgrep\n\n  Usage:\n  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n  - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n  - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n  - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n  - Use Task tool for open-ended searches requiring multiple rounds\n  - Pattern syntax: Uses ripgrep (not grep) - literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code)\n  - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
+		Description: "A powerful search tool with native Go implementation\n\n  Usage:\n  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n  - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n  - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n  - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n  - Use Task tool for open-ended searches requiring multiple rounds\n  - Pattern syntax: Uses Go regex - literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code)\n  - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
 		Parameters: map[string]interface{}{
 			"$schema": "http://json-schema.org/draft-07/schema#",
 			"type":    "object",
@@ -112,7 +116,7 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 		}, nil
 	}
 
-	result, err := t.performRipgrep(ctx, pattern, args)
+	result, err := t.performGoSearch(ctx, pattern, args)
 	success := err == nil
 
 	toolResult := &domain.ToolExecutionResult{
@@ -166,7 +170,6 @@ func (t *GrepTool) validatePattern(args map[string]interface{}) error {
 		return fmt.Errorf("pattern cannot be empty")
 	}
 
-	// Validate regex pattern
 	if _, err := regexp.Compile(pattern); err != nil {
 		return fmt.Errorf("invalid regex pattern: %w", err)
 	}
@@ -281,30 +284,27 @@ type GrepCount struct {
 	Count int    `json:"count"`
 }
 
-// performRipgrep executes ripgrep with given parameters
-func (t *GrepTool) performRipgrep(ctx context.Context, pattern string, args map[string]interface{}) (*GrepResult, error) {
+// performGoSearch executes Go-based search with given parameters
+func (t *GrepTool) performGoSearch(ctx context.Context, pattern string, args map[string]interface{}) (*GrepResult, error) {
 	start := time.Now()
 
-	// Build ripgrep command
-	cmd, outputMode, err := t.buildRipgrepCommand(pattern, args)
+	outputMode := t.getOutputMode(args)
+	searchPath, err := t.getSearchPath(args)
 	if err != nil {
 		return nil, err
 	}
 
-	// Execute ripgrep command
-	output, err := t.executeRipgrep(ctx, cmd)
+	regexFlags := t.getRegexFlags(args)
+	regex, err := regexp.Compile(regexFlags + pattern)
 	if err != nil {
-		// ripgrep returns non-zero exit code when no matches found, which is not an error
-		if t.isNoMatchesError(err) {
-			return t.createEmptyResult(pattern, outputMode, start), nil
-		}
-		return nil, fmt.Errorf("ripgrep execution failed: %w", err)
+		return nil, fmt.Errorf("invalid regex pattern: %w", err)
 	}
 
-	// Parse JSON output and build result
-	result, err := t.parseRipgrepOutput(string(output), outputMode, args)
+	opts := t.buildSearchOptions(args, outputMode)
+
+	result, err := t.searchFiles(ctx, regex, searchPath, opts, outputMode)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse ripgrep output: %w", err)
+		return nil, err
 	}
 
 	result.Pattern = pattern
@@ -314,28 +314,96 @@ func (t *GrepTool) performRipgrep(ctx context.Context, pattern string, args map[
 	return result, nil
 }
 
-// buildRipgrepCommand builds the ripgrep command from arguments
-func (t *GrepTool) buildRipgrepCommand(pattern string, args map[string]interface{}) ([]string, string, error) {
-	cmd := []string{"rg", pattern}
+// SearchOptions holds configuration for the search operation
+type SearchOptions struct {
+	CaseInsensitive bool
+	ShowLineNumbers bool
+	ContextBefore   int
+	ContextAfter    int
+	Multiline       bool
+	GlobPattern     string
+	FileType        string
+	HeadLimit       int
+}
 
-	// Get output mode
-	outputMode := t.getOutputMode(args)
-	cmd = t.addOutputModeFlags(cmd, outputMode)
-
-	// Add flags based on arguments
-	cmd = t.addBooleanFlags(cmd, args, outputMode)
-	cmd = t.addContextFlags(cmd, args, outputMode)
-	cmd = t.addFilterFlags(cmd, args)
-
-	// Add JSON output and path
-	cmd = append(cmd, "--json")
-	searchPath, err := t.getSearchPath(args)
-	if err != nil {
-		return nil, "", err
+// getRegexFlags returns regex flags based on arguments
+func (t *GrepTool) getRegexFlags(args map[string]interface{}) string {
+	var flags string
+	if caseInsensitive, exists := args["-i"]; exists {
+		if caseInsensitiveBool, ok := caseInsensitive.(bool); ok && caseInsensitiveBool {
+			flags += "(?i)"
+		}
 	}
-	cmd = append(cmd, searchPath)
+	return flags
+}
 
-	return cmd, outputMode, nil
+// buildSearchOptions builds search options from arguments
+func (t *GrepTool) buildSearchOptions(args map[string]interface{}, outputMode string) *SearchOptions {
+	opts := &SearchOptions{}
+
+	if caseInsensitive, exists := args["-i"]; exists {
+		if caseInsensitiveBool, ok := caseInsensitive.(bool); ok {
+			opts.CaseInsensitive = caseInsensitiveBool
+		}
+	}
+
+	if outputMode == "content" {
+		if showLineNumbers, exists := args["-n"]; exists {
+			if showLineNumbersBool, ok := showLineNumbers.(bool); ok {
+				opts.ShowLineNumbers = showLineNumbersBool
+			}
+		}
+	}
+
+	if outputMode == "content" {
+		t.setContextOptions(args, opts)
+	}
+
+	if multiline, exists := args["multiline"]; exists {
+		if multilineBool, ok := multiline.(bool); ok {
+			opts.Multiline = multilineBool
+		}
+	}
+
+	if glob, exists := args["glob"]; exists {
+		if globStr, ok := glob.(string); ok {
+			opts.GlobPattern = globStr
+		}
+	}
+
+	if fileType, exists := args["type"]; exists {
+		if fileTypeStr, ok := fileType.(string); ok {
+			opts.FileType = fileTypeStr
+		}
+	}
+
+	if headLimit, exists := args["head_limit"]; exists {
+		if headLimitFloat, ok := headLimit.(float64); ok {
+			opts.HeadLimit = int(headLimitFloat)
+		}
+	}
+
+	return opts
+}
+
+// setContextOptions sets context line options for content mode
+func (t *GrepTool) setContextOptions(args map[string]interface{}, opts *SearchOptions) {
+	if contextAfter, exists := args["-A"]; exists {
+		if contextAfterFloat, ok := contextAfter.(float64); ok {
+			opts.ContextAfter = int(contextAfterFloat)
+		}
+	}
+	if contextBefore, exists := args["-B"]; exists {
+		if contextBeforeFloat, ok := contextBefore.(float64); ok {
+			opts.ContextBefore = int(contextBeforeFloat)
+		}
+	}
+	if context, exists := args["-C"]; exists {
+		if contextFloat, ok := context.(float64); ok {
+			opts.ContextBefore = int(contextFloat)
+			opts.ContextAfter = int(contextFloat)
+		}
+	}
 }
 
 // getOutputMode extracts output mode from arguments
@@ -349,87 +417,82 @@ func (t *GrepTool) getOutputMode(args map[string]interface{}) string {
 	return outputMode
 }
 
-// addOutputModeFlags adds output mode specific flags
-func (t *GrepTool) addOutputModeFlags(cmd []string, outputMode string) []string {
-	switch outputMode {
-	case "files_with_matches":
-		cmd = append(cmd, "-l")
-	case "count":
-		cmd = append(cmd, "-c")
-	case "content":
-		// Default ripgrep behavior shows content
+// searchFiles performs the actual file search
+func (t *GrepTool) searchFiles(ctx context.Context, regex *regexp.Regexp, searchPath string, opts *SearchOptions, outputMode string) (*GrepResult, error) {
+	result := &GrepResult{
+		Files:   []string{},
+		Matches: []GrepMatch{},
+		Counts:  []GrepCount{},
 	}
-	return cmd
-}
 
-// addBooleanFlags adds boolean flags to the command
-func (t *GrepTool) addBooleanFlags(cmd []string, args map[string]interface{}, outputMode string) []string {
-	// Add case insensitive flag
-	if caseInsensitive, exists := args["-i"]; exists {
-		if caseInsensitiveBool, ok := caseInsensitive.(bool); ok && caseInsensitiveBool {
-			cmd = append(cmd, "-i")
+	count := 0
+	err := filepath.WalkDir(searchPath, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
 		}
-	}
 
-	// Add line numbers (only for content mode)
-	if outputMode == "content" {
-		if showLineNumbers, exists := args["-n"]; exists {
-			if showLineNumbersBool, ok := showLineNumbers.(bool); ok && showLineNumbersBool {
-				cmd = append(cmd, "-n")
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		if d.IsDir() {
+			return nil
+		}
+
+		if t.isPathExcluded(path) {
+			return nil
+		}
+
+		if !t.matchesFileFilters(path, opts) {
+			return nil
+		}
+
+		if opts.HeadLimit > 0 && count >= opts.HeadLimit {
+			result.Truncated = true
+			return fs.SkipAll
+		}
+
+		matches, fileCount, err := t.searchFile(path, regex, opts, outputMode)
+		if err != nil {
+			return nil
+		}
+
+		switch outputMode {
+		case "files_with_matches":
+			if len(matches) > 0 || fileCount > 0 {
+				result.Files = append(result.Files, path)
+				count++
+			}
+		case "count":
+			if fileCount > 0 {
+				result.Counts = append(result.Counts, GrepCount{
+					File:  path,
+					Count: fileCount,
+				})
+				count++
+			}
+		case "content":
+			for _, match := range matches {
+				if opts.HeadLimit > 0 && count >= opts.HeadLimit {
+					result.Truncated = true
+					return fs.SkipAll
+				}
+				result.Matches = append(result.Matches, match)
+				count++
 			}
 		}
+
+		return nil
+	})
+
+	if err != nil && err != fs.SkipAll {
+		return nil, err
 	}
 
-	// Add multiline flag
-	if multiline, exists := args["multiline"]; exists {
-		if multilineBool, ok := multiline.(bool); ok && multilineBool {
-			cmd = append(cmd, "-U", "--multiline-dotall")
-		}
-	}
-
-	return cmd
-}
-
-// addContextFlags adds context flags to the command (only for content mode)
-func (t *GrepTool) addContextFlags(cmd []string, args map[string]interface{}, outputMode string) []string {
-	if outputMode != "content" {
-		return cmd
-	}
-
-	contextFlags := map[string]string{
-		"-A": "-A",
-		"-B": "-B",
-		"-C": "-C",
-	}
-
-	for argName, flagName := range contextFlags {
-		if value, exists := args[argName]; exists {
-			if valueFloat, ok := value.(float64); ok {
-				cmd = append(cmd, flagName, strconv.Itoa(int(valueFloat)))
-			}
-		}
-	}
-
-	return cmd
-}
-
-// addFilterFlags adds filter flags to the command
-func (t *GrepTool) addFilterFlags(cmd []string, args map[string]interface{}) []string {
-	// Add glob pattern
-	if glob, exists := args["glob"]; exists {
-		if globStr, ok := glob.(string); ok && globStr != "" {
-			cmd = append(cmd, "--glob", globStr)
-		}
-	}
-
-	// Add type filter
-	if fileType, exists := args["type"]; exists {
-		if fileTypeStr, ok := fileType.(string); ok && fileTypeStr != "" {
-			cmd = append(cmd, "--type", fileTypeStr)
-		}
-	}
-
-	return cmd
+	result.Total = count
+	return result, nil
 }
 
 // getSearchPath extracts and validates the search path
@@ -441,7 +504,6 @@ func (t *GrepTool) getSearchPath(args map[string]interface{}) (string, error) {
 		}
 	}
 
-	// Validate path to prevent directory traversal
 	if t.isPathExcluded(searchPath) {
 		return "", fmt.Errorf("access to path '%s' is not allowed", searchPath)
 	}
@@ -449,186 +511,178 @@ func (t *GrepTool) getSearchPath(args map[string]interface{}) (string, error) {
 	return searchPath, nil
 }
 
-// executeRipgrep executes the ripgrep command
-func (t *GrepTool) executeRipgrep(ctx context.Context, cmd []string) ([]byte, error) {
-	execCmd := exec.CommandContext(ctx, cmd[0], cmd[1:]...)
-	return execCmd.Output()
+// matchesFileFilters checks if a file matches the specified filters
+func (t *GrepTool) matchesFileFilters(filePath string, opts *SearchOptions) bool {
+	if opts.GlobPattern != "" {
+		matched, err := filepath.Match(opts.GlobPattern, filepath.Base(filePath))
+		if err != nil || !matched {
+			return false
+		}
+	}
+
+	if opts.FileType != "" {
+		if !t.matchesFileType(filePath, opts.FileType) {
+			return false
+		}
+	}
+
+	return true
 }
 
-// isNoMatchesError checks if the error is due to no matches found
-func (t *GrepTool) isNoMatchesError(err error) bool {
-	if exitError, ok := err.(*exec.ExitError); ok {
-		return exitError.ExitCode() == 1
+// matchesFileType checks if a file matches the specified type
+func (t *GrepTool) matchesFileType(filePath, fileType string) bool {
+	ext := strings.ToLower(filepath.Ext(filePath))
+
+	typeMap := map[string][]string{
+		"go":    {".go"},
+		"js":    {".js", ".jsx"},
+		"ts":    {".ts", ".tsx"},
+		"py":    {".py", ".pyw"},
+		"java":  {".java"},
+		"cpp":   {".cpp", ".cc", ".cxx", ".c++", ".h", ".hpp"},
+		"c":     {".c", ".h"},
+		"rust":  {".rs"},
+		"php":   {".php"},
+		"rb":    {".rb"},
+		"cs":    {".cs"},
+		"swift": {".swift"},
+		"kt":    {".kt"},
+		"scala": {".scala"},
+		"html":  {".html", ".htm"},
+		"css":   {".css"},
+		"json":  {".json"},
+		"xml":   {".xml"},
+		"yaml":  {".yaml", ".yml"},
+		"md":    {".md", ".markdown"},
+		"txt":   {".txt"},
+		"sh":    {".sh", ".bash", ".zsh"},
+		"sql":   {".sql"},
 	}
+
+	if extensions, exists := typeMap[fileType]; exists {
+		for _, validExt := range extensions {
+			if ext == validExt {
+				return true
+			}
+		}
+	}
+
 	return false
 }
 
-// createEmptyResult creates an empty result for no matches
-func (t *GrepTool) createEmptyResult(pattern, outputMode string, start time.Time) *GrepResult {
-	return &GrepResult{
-		Pattern:    pattern,
-		OutputMode: outputMode,
-		Files:      []string{},
-		Matches:    []GrepMatch{},
-		Counts:     []GrepCount{},
-		Total:      0,
-		Truncated:  false,
-		Duration:   time.Since(start).String(),
+// searchFile searches for regex matches in a single file
+func (t *GrepTool) searchFile(filePath string, regex *regexp.Regexp, opts *SearchOptions, outputMode string) ([]GrepMatch, int, error) {
+	file, err := os.Open(filePath)
+	if err != nil {
+		return nil, 0, err
 	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	var matches []GrepMatch
+	var totalMatches int
+
+	if opts.Multiline {
+		matches, totalMatches = t.searchMultiline(filePath, regex, outputMode)
+	} else {
+		var err error
+		matches, totalMatches, err = t.searchLineByLine(file, filePath, regex, opts, outputMode)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+
+	return matches, totalMatches, nil
 }
 
-// parseRipgrepOutput parses JSON output from ripgrep
-func (t *GrepTool) parseRipgrepOutput(output, outputMode string, args map[string]interface{}) (*GrepResult, error) {
-	lines := strings.Split(strings.TrimSpace(output), "\n")
-	result := &GrepResult{
-		Files:   []string{},
-		Matches: []GrepMatch{},
-		Counts:  []GrepCount{},
+// searchMultiline handles multiline search mode
+func (t *GrepTool) searchMultiline(filePath string, regex *regexp.Regexp, outputMode string) ([]GrepMatch, int) {
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, 0
 	}
 
-	// Apply head_limit if specified
-	headLimit := 0
-	if limit, exists := args["head_limit"]; exists {
-		if limitFloat, ok := limit.(float64); ok {
-			headLimit = int(limitFloat)
-		}
-	}
+	allMatches := regex.FindAllString(string(content), -1)
+	totalMatches := len(allMatches)
 
-	count := 0
-	for _, line := range lines {
-		if line == "" {
-			continue
-		}
-
-		// Simple JSON parsing for ripgrep output
-		// ripgrep JSON format varies by output mode, but we'll handle the common cases
-		switch outputMode {
-		case "files_with_matches":
-			// Extract file path from JSON line
-			if filePath := t.extractFileFromJSON(line); filePath != "" {
-				if headLimit > 0 && count >= headLimit {
-					result.Truncated = true
-					break
-				}
-				result.Files = append(result.Files, filePath)
-				count++
-			}
-		case "count":
-			// Extract file and count from JSON line
-			if file, matchCount := t.extractCountFromJSON(line); file != "" {
-				if headLimit > 0 && count >= headLimit {
-					result.Truncated = true
-					break
-				}
-				result.Counts = append(result.Counts, GrepCount{
-					File:  file,
-					Count: matchCount,
+	var matches []GrepMatch
+	if outputMode == "content" && len(allMatches) > 0 {
+		lines := strings.Split(string(content), "\n")
+		for _, line := range lines {
+			if regex.MatchString(line) {
+				matches = append(matches, GrepMatch{
+					File: filePath,
+					Line: 0, // Line numbers are complex for multiline matches
+					Text: line,
 				})
-				count++
 			}
-		case "content":
-			// Extract matches from JSON line
-			if match := t.extractMatchFromJSON(line); match.File != "" {
-				if headLimit > 0 && count >= headLimit {
-					result.Truncated = true
-					break
+		}
+	}
+
+	return matches, totalMatches
+}
+
+// searchLineByLine handles line-by-line search mode
+func (t *GrepTool) searchLineByLine(file *os.File, filePath string, regex *regexp.Regexp, opts *SearchOptions, outputMode string) ([]GrepMatch, int, error) {
+	scanner := bufio.NewScanner(file)
+	lineNum := 1
+	var contextLines []string
+	var matches []GrepMatch
+	var totalMatches int
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		if regex.MatchString(line) {
+			totalMatches++
+
+			if outputMode == "content" {
+				match := GrepMatch{
+					File: filePath,
+					Line: lineNum,
+					Text: line,
 				}
-				result.Matches = append(result.Matches, match)
-				count++
+
+				if opts.ContextBefore > 0 || opts.ContextAfter > 0 {
+					match = t.addContextToMatch(match, contextLines, scanner, opts)
+				}
+
+				matches = append(matches, match)
 			}
 		}
-	}
 
-	result.Total = count
-	return result, nil
-}
-
-// Helper functions for JSON parsing (simplified implementation)
-// In a production environment, you'd use proper JSON parsing
-
-func (t *GrepTool) extractFileFromJSON(jsonLine string) string {
-	// Simple extraction for file paths in ripgrep JSON output
-	// This is a simplified implementation - in production you'd use proper JSON parsing
-	if strings.Contains(jsonLine, `"type":"match"`) || strings.Contains(jsonLine, `"type":"end"`) {
-		// Look for "path":{"text":"filename"}
-		start := strings.Index(jsonLine, `"path":{"text":"`)
-		if start == -1 {
-			return ""
-		}
-		start += len(`"path":{"text":"`)
-		end := strings.Index(jsonLine[start:], `"`)
-		if end == -1 {
-			return ""
-		}
-		return jsonLine[start : start+end]
-	}
-	return ""
-}
-
-func (t *GrepTool) extractCountFromJSON(jsonLine string) (string, int) {
-	file := t.extractFileFromJSON(jsonLine)
-	if file == "" {
-		return "", 0
-	}
-
-	// Look for "stats":{"matches":count}
-	start := strings.Index(jsonLine, `"stats":{"matches":`)
-	if start == -1 {
-		return file, 0
-	}
-	start += len(`"stats":{"matches":`)
-	end := strings.Index(jsonLine[start:], `}`)
-	if end == -1 {
-		return file, 0
-	}
-
-	countStr := jsonLine[start : start+end]
-	if count, err := strconv.Atoi(countStr); err == nil {
-		return file, count
-	}
-	return file, 0
-}
-
-func (t *GrepTool) extractMatchFromJSON(jsonLine string) GrepMatch {
-	file := t.extractFileFromJSON(jsonLine)
-	if file == "" {
-		return GrepMatch{}
-	}
-
-	// Look for line number
-	lineNum := 0
-	if lineStart := strings.Index(jsonLine, `"line_number":`); lineStart != -1 {
-		lineStart += len(`"line_number":`)
-		if lineEnd := strings.Index(jsonLine[lineStart:], `,`); lineEnd != -1 {
-			if num, err := strconv.Atoi(jsonLine[lineStart : lineStart+lineEnd]); err == nil {
-				lineNum = num
+		if opts.ContextBefore > 0 {
+			contextLines = append(contextLines, line)
+			if len(contextLines) > opts.ContextBefore {
+				contextLines = contextLines[1:]
 			}
 		}
+
+		lineNum++
 	}
 
-	// Look for line text
-	text := ""
-	if textStart := strings.Index(jsonLine, `"lines":{"text":"`); textStart != -1 {
-		textStart += len(`"lines":{"text":"`)
-		if textEnd := strings.Index(jsonLine[textStart:], `"`); textEnd != -1 {
-			text = jsonLine[textStart : textStart+textEnd]
-			// Unescape basic JSON escapes
-			text = strings.ReplaceAll(text, `\"`, `"`)
-			text = strings.ReplaceAll(text, `\\`, `\`)
-		}
+	if err := scanner.Err(); err != nil {
+		return nil, 0, err
 	}
 
-	return GrepMatch{
-		File: file,
-		Line: lineNum,
-		Text: text,
-	}
+	return matches, totalMatches, nil
+}
+
+// addContextToMatch adds context lines to a match (simplified implementation)
+func (t *GrepTool) addContextToMatch(match GrepMatch, contextLines []string, scanner *bufio.Scanner, opts *SearchOptions) GrepMatch {
+	return match
 }
 
 // isPathExcluded checks if a file path should be excluded based on configuration
 func (t *GrepTool) isPathExcluded(path string) bool {
 	if t.config == nil {
 		return false
+	}
+
+	// Check gitignore patterns first for performance
+	if t.matchesGitignorePattern(path) {
+		return true
 	}
 
 	cleanPath := filepath.Clean(path)
@@ -658,6 +712,98 @@ func (t *GrepTool) isPathExcluded(path string) bool {
 
 		if strings.HasPrefix(normalizedPath, normalizedPattern) {
 			return true
+		}
+	}
+
+	return false
+}
+
+// loadGitignorePatterns reads and caches gitignore patterns from current directory
+func (t *GrepTool) loadGitignorePatterns() {
+	var patterns []string
+
+	defaultPatterns := []string{
+		"node_modules",
+		".git",
+		".DS_Store",
+		"*.log",
+		"dist",
+		"build",
+		"target",
+		".cache",
+		"coverage",
+		".nyc_output",
+		"*.tmp",
+		"*.temp",
+		".env",
+		".vscode",
+		".idea",
+		".flox",
+	}
+	patterns = append(patterns, defaultPatterns...)
+
+	gitignorePath := ".gitignore"
+	file, err := os.Open(gitignorePath)
+	if err == nil {
+		defer func() { _ = file.Close() }()
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			pattern := strings.TrimPrefix(line, "/")
+			if pattern != "" {
+				patterns = append(patterns, pattern)
+			}
+		}
+	}
+
+	floxGitignorePath := ".flox/.gitignore"
+	file, err = os.Open(floxGitignorePath)
+	if err == nil {
+		defer func() { _ = file.Close() }()
+		scanner := bufio.NewScanner(file)
+		for scanner.Scan() {
+			line := strings.TrimSpace(scanner.Text())
+			if line == "" || strings.HasPrefix(line, "#") {
+				continue
+			}
+			pattern := strings.TrimPrefix(line, "/")
+			if pattern != "" {
+				patterns = append(patterns, ".flox/"+pattern)
+			}
+		}
+	}
+
+	t.gitignorePatterns = patterns
+}
+
+// matchesGitignorePattern checks if a path matches any gitignore pattern
+func (t *GrepTool) matchesGitignorePattern(path string) bool {
+	normalizedPath := filepath.ToSlash(filepath.Clean(path))
+
+	for _, pattern := range t.gitignorePatterns {
+		if strings.Contains(normalizedPath, pattern) {
+			return true
+		}
+
+		if strings.Contains(pattern, "*") {
+			matched, err := filepath.Match(pattern, filepath.Base(normalizedPath))
+			if err == nil && matched {
+				return true
+			}
+		}
+
+		if strings.HasSuffix(pattern, "/") {
+			dirPattern := strings.TrimSuffix(pattern, "/")
+			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
+				return true
+			}
+		} else {
+			if normalizedPath == pattern || strings.HasPrefix(normalizedPath, pattern+"/") {
+				return true
+			}
 		}
 	}
 
