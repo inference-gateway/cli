@@ -146,7 +146,6 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]interface{}) (*
 		return nil, err
 	}
 
-
 	result := &domain.ToolExecutionResult{
 		ToolName:  "Write",
 		Arguments: args,
@@ -232,7 +231,6 @@ func (t *WriteTool) Validate(args map[string]interface{}) error {
 func (t *WriteTool) IsEnabled() bool {
 	return t.enabled
 }
-
 
 // executeWrite writes content to a file with support for append and chunked writing
 func (t *WriteTool) executeWrite(filePath, content string, append bool, chunkIndex, totalChunks int, createDirs, overwrite bool) (*domain.FileWriteToolResult, error) {
