@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.25.0](https://github.com/inference-gateway/cli/compare/v0.24.3...v0.25.0) (2025-08-17)
+
+### 🚀 Features
+
+* **chat:** Add shell history integration for chat commands ([#70](https://github.com/inference-gateway/cli/issues/70)) ([4e83b7d](https://github.com/inference-gateway/cli/commit/4e83b7d5dad70289fadf5ead0a98bc81c0de9fc7)), closes [#69](https://github.com/inference-gateway/cli/issues/69)
+
 ## [0.24.3](https://github.com/inference-gateway/cli/compare/v0.24.2...v0.24.3) (2025-08-17)
 
 ### 🧹 Maintenance
