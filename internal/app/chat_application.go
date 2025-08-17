@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/container"
 	"github.com/inference-gateway/cli/internal/domain"
@@ -817,7 +817,11 @@ func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
 					}
 				},
 				func() tea.Msg {
-					return handlers.ProcessNextToolCallMsg{}
+					if remainingCalls, ok := app.state.Data["remainingToolCalls"].([]sdk.ChatCompletionMessageToolCall); ok && len(remainingCalls) > 0 {
+						return handlers.ProcessNextToolCallMsg{}
+					} else {
+						return handlers.TriggerFollowUpLLMCallMsg{}
+					}
 				},
 			)()
 		}
@@ -907,7 +911,11 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 				}
 			},
 			func() tea.Msg {
-				return handlers.ProcessNextToolCallMsg{}
+				if remainingCalls, ok := app.state.Data["remainingToolCalls"].([]sdk.ChatCompletionMessageToolCall); ok && len(remainingCalls) > 0 {
+					return handlers.ProcessNextToolCallMsg{}
+				} else {
+					return handlers.TriggerFollowUpLLMCallMsg{}
+				}
 			},
 		)()
 	}
@@ -974,7 +982,11 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 				}
 			},
 			func() tea.Msg {
-				return handlers.ProcessNextToolCallMsg{}
+				if remainingCalls, ok := app.state.Data["remainingToolCalls"].([]sdk.ChatCompletionMessageToolCall); ok && len(remainingCalls) > 0 {
+					return handlers.ProcessNextToolCallMsg{}
+				} else {
+					return handlers.TriggerFollowUpLLMCallMsg{}
+				}
 			},
 		)()
 	}

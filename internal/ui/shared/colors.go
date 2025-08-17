@@ -8,15 +8,17 @@ import (
 
 // ANSI Color Codes
 const (
-	ColorReset     = "\033[0m"
-	ColorRed       = "\033[31m"
-	ColorGreen     = "\033[32m"
-	ColorBlue      = "\033[34m"
-	ColorCyan      = "\033[36m"
-	ColorMagenta   = "\033[35m"
-	ColorWhite     = "\033[37m"
-	ColorGray      = "\033[90m"
-	ColorBrightRed = "\033[91m"
+	ColorReset         = "\033[0m"
+	ColorRed           = "\033[31m"
+	ColorGreen         = "\033[32m"
+	ColorBlue          = "\033[34m"
+	ColorCyan          = "\033[36m"
+	ColorMagenta       = "\033[35m"
+	ColorWhite         = "\033[37m"
+	ColorGray          = "\033[90m"
+	ColorBrightRed     = "\033[91m"
+	ColorStrikethrough = "\033[9m"
+	ColorDim           = "\033[2m"
 )
 
 // Lipgloss Color Names
@@ -115,4 +117,14 @@ func CreateColoredText(text string, color Color) string {
 // CreateStyledText creates text with color and reset, commonly used pattern
 func CreateStyledText(text, colorCode string) string {
 	return colorCode + text + Reset()
+}
+
+// CreateStrikethroughText creates text with strikethrough styling
+func CreateStrikethroughText(text string) string {
+	return ColorStrikethrough + ColorGray + text + Reset()
+}
+
+// CreateDimText creates text with dim/faint styling
+func CreateDimText(text string) string {
+	return ColorDim + text + Reset()
 }
