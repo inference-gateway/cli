@@ -167,7 +167,7 @@ type FetchCacheConfig struct {
 }
 
 // DefaultConfig returns a default configuration
-func DefaultConfig() *Config {
+func DefaultConfig() *Config { //nolint:funlen
 	return &Config{
 		Gateway: GatewayConfig{
 			URL:     "http://localhost:8080",
@@ -305,6 +305,8 @@ You are an assistant for software engineering tasks.
 * Mark todos in_progress/completed immediately.
 * Don't batch completions.
 
+IMPORTANT: DO NOT provide code examples - instead apply them directly in the code using tools.
+
 ## Workflow
 
 1. Plan with TodoWrite.
@@ -316,7 +318,7 @@ You are an assistant for software engineering tasks.
 
 ## Tools
 
-* Prefer Task tool for search.
+* Prefer Grep tool for search.
 * Use agents when relevant.
 * Handle redirects.
 * Batch tool calls for efficiency.`,
