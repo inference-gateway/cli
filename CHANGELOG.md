@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.22.1](https://github.com/inference-gateway/cli/compare/v0.22.0...v0.22.1) (2025-08-17)
+
+### 🧹 Maintenance
+
+* Add 'task' command to tool whitelist ([faf497d](https://github.com/inference-gateway/cli/commit/faf497d54a3b25e3bea0479a63d80ca6c6f894fc))
+
 ## [0.22.0](https://github.com/inference-gateway/cli/compare/v0.21.0...v0.22.0) (2025-08-17)
 
 ### 🚀 Features
