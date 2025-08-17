@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.22.0](https://github.com/inference-gateway/cli/compare/v0.21.0...v0.22.0) (2025-08-17)
+
+### 🚀 Features
+
+* Add MultiEdit tool for batch file editing ([#62](https://github.com/inference-gateway/cli/issues/62)) ([6024652](https://github.com/inference-gateway/cli/commit/6024652a7646d9e2820c272fbe997b0e31229d80)), closes [#60](https://github.com/inference-gateway/cli/issues/60) [#60](https://github.com/inference-gateway/cli/issues/60)
+
 ## [0.21.0](https://github.com/inference-gateway/cli/compare/v0.20.0...v0.21.0) (2025-08-17)
 
 ### 🚀 Features
