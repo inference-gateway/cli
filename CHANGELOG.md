@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.26.0](https://github.com/inference-gateway/cli/compare/v0.25.1...v0.26.0) (2025-08-17)
+
+### 🚀 Features
+
+* **chat:** Add Ctrl+R support for expanding/collapsing all tool calls ([#74](https://github.com/inference-gateway/cli/issues/74)) ([7e21b92](https://github.com/inference-gateway/cli/commit/7e21b9251a9da91cbabd1497f237d22709fa7a3c)), closes [#71](https://github.com/inference-gateway/cli/issues/71) [#71](https://github.com/inference-gateway/cli/issues/71)
+
 ## [0.25.1](https://github.com/inference-gateway/cli/compare/v0.25.0...v0.25.1) (2025-08-17)
 
 ### 🧹 Maintenance
