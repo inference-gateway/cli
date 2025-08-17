@@ -11,17 +11,17 @@ func TestFetchTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: true,
 			},
 		},
 	}
 
-	tool := NewFetchTool(cfg)
+	tool := NewWebFetchTool(cfg)
 	def := tool.Definition()
 
-	if def.Name != "Fetch" {
-		t.Errorf("Expected tool name 'Fetch', got %s", def.Name)
+	if def.Name != "WebFetch" {
+		t.Errorf("Expected tool name 'WebFetch', got %s", def.Name)
 	}
 
 	if def.Description == "" {
@@ -71,13 +71,13 @@ func TestFetchTool_IsEnabled(t *testing.T) {
 			cfg := &config.Config{
 				Tools: config.ToolsConfig{
 					Enabled: tt.toolsEnabled,
-					Fetch: config.FetchToolConfig{
+					WebFetch: config.WebFetchToolConfig{
 						Enabled: tt.fetchEnabled,
 					},
 				},
 			}
 
-			tool := NewFetchTool(cfg)
+			tool := NewWebFetchTool(cfg)
 			if tool.IsEnabled() != tt.expectedState {
 				t.Errorf("Expected IsEnabled() = %v, got %v", tt.expectedState, tool.IsEnabled())
 			}
@@ -89,7 +89,7 @@ func TestFetchTool_Validate(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: true,
 				WhitelistedDomains: []string{
 					"api.github.com",
@@ -100,7 +100,7 @@ func TestFetchTool_Validate(t *testing.T) {
 		},
 	}
 
-	tool := NewFetchTool(cfg)
+	tool := NewWebFetchTool(cfg)
 
 	tests := []struct {
 		name      string
@@ -201,13 +201,13 @@ func TestFetchTool_Execute_Disabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: false,
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: true,
 			},
 		},
 	}
 
-	tool := NewFetchTool(cfg)
+	tool := NewWebFetchTool(cfg)
 	ctx := context.Background()
 
 	args := map[string]interface{}{
@@ -228,13 +228,13 @@ func TestFetchTool_Execute_FetchDisabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: false,
 			},
 		},
 	}
 
-	tool := NewFetchTool(cfg)
+	tool := NewWebFetchTool(cfg)
 	ctx := context.Background()
 
 	args := map[string]interface{}{

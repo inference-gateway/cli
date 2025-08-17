@@ -20,7 +20,7 @@ func createTestRegistry() *Registry {
 					Patterns: []string{"^git status$"},
 				},
 			},
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: true,
 			},
 			WebSearch: config.WebSearchToolConfig{
@@ -55,7 +55,7 @@ func TestRegistry_DisabledTools(t *testing.T) {
 					Patterns: []string{"^git status$"},
 				},
 			},
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: false,
 			},
 			WebSearch: config.WebSearchToolConfig{
@@ -76,7 +76,7 @@ func TestRegistry_DisabledTools(t *testing.T) {
 		switch tool {
 		case "Bash", "Read", "Grep":
 			hasCore = true
-		case "Fetch":
+		case "WebFetch":
 			hasFetch = true
 		case "WebSearch":
 			hasWebSearch = true
@@ -88,7 +88,7 @@ func TestRegistry_DisabledTools(t *testing.T) {
 	}
 
 	if hasFetch {
-		t.Error("Fetch tool should not be available when disabled")
+		t.Error("WebFetch tool should not be available when disabled")
 	}
 
 	if hasWebSearch {
@@ -107,7 +107,7 @@ func TestRegistry_NewRegistry(t *testing.T) {
 					Patterns: []string{"^git status$"},
 				},
 			},
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: false,
 			},
 			WebSearch: config.WebSearchToolConfig{
@@ -142,7 +142,7 @@ func TestRegistry_GetTool(t *testing.T) {
 					Patterns: []string{"^git status$"},
 				},
 			},
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: true,
 			},
 			WebSearch: config.WebSearchToolConfig{
@@ -174,8 +174,8 @@ func TestRegistry_GetTool(t *testing.T) {
 			wantErr:  false,
 		},
 		{
-			name:     "get existing fetch tool",
-			toolName: "Fetch",
+			name:     "get existing webfetch tool",
+			toolName: "WebFetch",
 			wantErr:  false,
 		},
 		{
@@ -231,7 +231,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 					Grep: config.GrepToolConfig{
 						Enabled: true,
 					},
-					Fetch: config.FetchToolConfig{
+					WebFetch: config.WebFetchToolConfig{
 						Enabled: true,
 					},
 					WebSearch: config.WebSearchToolConfig{
@@ -241,7 +241,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 			},
 			expectedMin:   5,
 			expectedMax:   5,
-			shouldContain: []string{"Bash", "Read", "Grep", "Fetch", "WebSearch"},
+			shouldContain: []string{"Bash", "Read", "Grep", "WebFetch", "WebSearch"},
 		},
 		{
 			name: "only core tools enabled",
@@ -261,7 +261,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 					Grep: config.GrepToolConfig{
 						Enabled: true,
 					},
-					Fetch: config.FetchToolConfig{
+					WebFetch: config.WebFetchToolConfig{
 						Enabled: false,
 					},
 					WebSearch: config.WebSearchToolConfig{
@@ -272,7 +272,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 			expectedMin:      3,
 			expectedMax:      3,
 			shouldContain:    []string{"Bash", "Read", "Grep"},
-			shouldNotContain: []string{"Fetch", "WebSearch"},
+			shouldNotContain: []string{"WebFetch", "WebSearch"},
 		},
 		{
 			name: "all tools disabled",
@@ -286,7 +286,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 							Patterns: []string{"^git status$"},
 						},
 					},
-					Fetch: config.FetchToolConfig{
+					WebFetch: config.WebFetchToolConfig{
 						Enabled: false,
 					},
 					WebSearch: config.WebSearchToolConfig{
@@ -296,7 +296,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 			},
 			expectedMin:      0,
 			expectedMax:      0,
-			shouldNotContain: []string{"Bash", "Read", "Grep", "Fetch", "WebSearch"},
+			shouldNotContain: []string{"Bash", "Read", "Grep", "WebFetch", "WebSearch"},
 		},
 	}
 
@@ -346,7 +346,7 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 			Grep: config.GrepToolConfig{
 				Enabled: true,
 			},
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: true,
 			},
 			WebSearch: config.WebSearchToolConfig{
@@ -377,7 +377,7 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 		}
 	}
 
-	expectedTools := []string{"Bash", "Read", "Grep", "Fetch", "WebSearch"}
+	expectedTools := []string{"Bash", "Read", "Grep", "WebFetch", "WebSearch"}
 	for _, tool := range expectedTools {
 		if !definitionNames[tool] {
 			t.Errorf("Expected tool definition for '%s'", tool)
@@ -396,7 +396,7 @@ func TestRegistry_IsToolEnabled(t *testing.T) {
 					Patterns: []string{"^git status$"},
 				},
 			},
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: true,
 			},
 			WebSearch: config.WebSearchToolConfig{
@@ -418,8 +418,8 @@ func TestRegistry_IsToolEnabled(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "fetch tool enabled",
-			toolName: "Fetch",
+			name:     "webfetch tool enabled",
+			toolName: "WebFetch",
 			expected: true,
 		},
 		{

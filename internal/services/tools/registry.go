@@ -38,8 +38,8 @@ func (r *Registry) registerTools() {
 	r.tools["Tree"] = NewTreeTool(r.config)
 	r.tools["TodoWrite"] = NewTodoWriteTool(r.config)
 
-	if r.config.Tools.Fetch.Enabled {
-		r.tools["Fetch"] = NewFetchTool(r.config)
+	if r.config.Tools.WebFetch.Enabled {
+		r.tools["WebFetch"] = NewWebFetchTool(r.config)
 	}
 
 	if r.config.Tools.WebSearch.Enabled {
