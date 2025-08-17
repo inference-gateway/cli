@@ -37,15 +37,17 @@ type Color struct {
 
 // Predefined colors for consistent theming
 var (
-	UserColor      = Color{ANSI: ColorCyan, Lipgloss: "36"}
-	AssistantColor = Color{ANSI: ColorGreen, Lipgloss: "32"}
-	ErrorColor     = Color{ANSI: ColorRed, Lipgloss: "31"}
-	StatusColor    = Color{ANSI: ColorBlue, Lipgloss: LipglossBlue}
-	AccentColor    = Color{ANSI: ColorMagenta, Lipgloss: "35"}
-	DimColor       = Color{ANSI: ColorGray, Lipgloss: LipglossGray}
-	BorderColor    = Color{ANSI: ColorWhite, Lipgloss: "37"}
-	HeaderColor    = Color{ANSI: ColorCyan, Lipgloss: LipglossCyan}
-	SpinnerColor   = Color{ANSI: ColorMagenta, Lipgloss: LipglossMagenta}
+	UserColor       = Color{ANSI: ColorCyan, Lipgloss: "36"}
+	AssistantColor  = Color{ANSI: ColorGreen, Lipgloss: "32"}
+	ErrorColor      = Color{ANSI: ColorRed, Lipgloss: "31"}
+	StatusColor     = Color{ANSI: ColorBlue, Lipgloss: LipglossBlue}
+	AccentColor     = Color{ANSI: ColorMagenta, Lipgloss: "35"}
+	DimColor        = Color{ANSI: ColorGray, Lipgloss: LipglossGray}
+	BorderColor     = Color{ANSI: ColorWhite, Lipgloss: "37"}
+	HeaderColor     = Color{ANSI: ColorCyan, Lipgloss: LipglossCyan}
+	SpinnerColor    = Color{ANSI: ColorMagenta, Lipgloss: LipglossMagenta}
+	DiffAddColor    = Color{ANSI: ColorGreen, Lipgloss: "32"}
+	DiffRemoveColor = Color{ANSI: ColorRed, Lipgloss: "31"}
 )
 
 // GetLipglossColor returns a lipgloss color for the given Color

@@ -3,6 +3,7 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -507,10 +508,17 @@ func (app *ChatApplication) renderApproval() string {
 	b.WriteString("\n\n")
 
 	b.WriteString(fmt.Sprintf("Tool: %s\n", pendingToolCall.String()))
-	b.WriteString("Arguments:\n")
 
-	for key, value := range pendingToolCall.Arguments {
-		b.WriteString(fmt.Sprintf("  • %s: %v\n", key, value))
+	switch pendingToolCall.Name {
+	case "Edit":
+		b.WriteString(app.renderEditToolArguments(pendingToolCall.Arguments, theme))
+	case "MultiEdit":
+		b.WriteString(app.renderMultiEditToolArguments(pendingToolCall.Arguments, theme))
+	default:
+		b.WriteString("Arguments:\n")
+		for key, value := range pendingToolCall.Arguments {
+			b.WriteString(fmt.Sprintf("  • %s: %v\n", key, value))
+		}
 	}
 
 	b.WriteString("\n")
@@ -537,6 +545,214 @@ func (app *ChatApplication) renderApproval() string {
 	b.WriteString(theme.GetDimColor() + helpText + "\033[0m")
 
 	return b.String()
+}
+
+// renderEditToolArguments renders Edit tool arguments with a colored diff preview
+func (app *ChatApplication) renderEditToolArguments(args map[string]interface{}, theme ui.Theme) string {
+	var b strings.Builder
+
+	filePath, _ := args["file_path"].(string)
+	oldString, _ := args["old_string"].(string)
+	newString, _ := args["new_string"].(string)
+	replaceAll, _ := args["replace_all"].(bool)
+
+	b.WriteString("Arguments:\n")
+	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
+	b.WriteString(fmt.Sprintf("  • replace_all: %v\n", replaceAll))
+	b.WriteString("\n")
+
+	b.WriteString("← Test edit for diff verification →\n")
+	b.WriteString(app.renderColoredDiff(oldString, newString, theme))
+
+	return b.String()
+}
+
+// renderColoredDiff creates a colored diff view using the same logic as generateDiff
+func (app *ChatApplication) renderColoredDiff(oldContent, newContent string, theme ui.Theme) string {
+	if oldContent == newContent {
+		return "No changes to display.\n"
+	}
+
+	oldLines := strings.Split(oldContent, "\n")
+	newLines := strings.Split(newContent, "\n")
+
+	var diff strings.Builder
+	maxLines := len(oldLines)
+	if len(newLines) > maxLines {
+		maxLines = len(newLines)
+	}
+
+	firstChanged := -1
+	lastChanged := -1
+	for i := 0; i < maxLines; i++ {
+		oldLine := ""
+		newLine := ""
+		if i < len(oldLines) {
+			oldLine = oldLines[i]
+		}
+		if i < len(newLines) {
+			newLine = newLines[i]
+		}
+
+		if oldLine != newLine {
+			if firstChanged == -1 {
+				firstChanged = i
+			}
+			lastChanged = i
+		}
+	}
+
+	if firstChanged == -1 {
+		return "No changes to display.\n"
+	}
+
+	contextBefore := 3
+	contextAfter := 3
+	startLine := firstChanged - contextBefore
+	if startLine < 0 {
+		startLine = 0
+	}
+	endLine := lastChanged + contextAfter
+	if endLine >= maxLines {
+		endLine = maxLines - 1
+	}
+
+	for i := startLine; i <= endLine; i++ {
+		lineNum := i + 1
+		app.appendDiffLine(&diff, i, lineNum, oldLines, newLines, theme)
+	}
+
+	return diff.String()
+}
+
+func (app *ChatApplication) appendDiffLine(diff *strings.Builder, i, lineNum int, oldLines, newLines []string, theme ui.Theme) {
+	oldExists := i < len(oldLines)
+	newExists := i < len(newLines)
+
+	if oldExists && newExists {
+		app.appendBothLinesDiff(diff, lineNum, oldLines[i], newLines[i], theme)
+		return
+	}
+
+	if oldExists {
+		fmt.Fprintf(diff, "%s-%3d %s\033[0m\n", theme.GetDiffRemoveColor(), lineNum, oldLines[i])
+		return
+	}
+
+	if newExists {
+		fmt.Fprintf(diff, "%s+%3d %s\033[0m\n", theme.GetDiffAddColor(), lineNum, newLines[i])
+	}
+}
+
+func (app *ChatApplication) appendBothLinesDiff(diff *strings.Builder, lineNum int, oldLine, newLine string, theme ui.Theme) {
+	if oldLine != newLine {
+		fmt.Fprintf(diff, "%s-%3d %s\033[0m\n", theme.GetDiffRemoveColor(), lineNum, oldLine)
+		fmt.Fprintf(diff, "%s+%3d %s\033[0m\n", theme.GetDiffAddColor(), lineNum, newLine)
+	} else {
+		fmt.Fprintf(diff, " %3d %s\n", lineNum, oldLine)
+	}
+}
+
+// renderMultiEditToolArguments renders MultiEdit tool arguments with a colored diff preview
+func (app *ChatApplication) renderMultiEditToolArguments(args map[string]interface{}, theme ui.Theme) string {
+	var b strings.Builder
+
+	filePath, _ := args["file_path"].(string)
+	editsInterface := args["edits"]
+
+	b.WriteString("Arguments:\n")
+	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
+
+	editsArray, ok := editsInterface.([]interface{})
+	if !ok {
+		b.WriteString("  • edits: [invalid format]\n")
+		return b.String()
+	}
+
+	b.WriteString(fmt.Sprintf("  • edits: %d operations\n", len(editsArray)))
+	b.WriteString("\n")
+
+	b.WriteString("Edit Operations:\n")
+	for i, editInterface := range editsArray {
+		editMap, ok := editInterface.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		oldString, _ := editMap["old_string"].(string)
+		newString, _ := editMap["new_string"].(string)
+		replaceAll, _ := editMap["replace_all"].(bool)
+
+		b.WriteString(fmt.Sprintf("  %d. ", i+1))
+		if replaceAll {
+			b.WriteString("[replace_all] ")
+		}
+
+		oldPreview := strings.ReplaceAll(oldString, "\n", "\\n")
+		newPreview := strings.ReplaceAll(newString, "\n", "\\n")
+		if len(oldPreview) > 50 {
+			oldPreview = oldPreview[:47] + "..."
+		}
+		if len(newPreview) > 50 {
+			newPreview = newPreview[:47] + "..."
+		}
+
+		b.WriteString(fmt.Sprintf("%s\"%s\"%s → %s\"%s\"%s\n",
+			theme.GetDiffRemoveColor(), oldPreview, "\033[0m",
+			theme.GetDiffAddColor(), newPreview, "\033[0m"))
+	}
+
+	b.WriteString("\n← Simulated diff preview →\n")
+
+	simulatedDiff := app.simulateMultiEditDiff(filePath, editsArray, theme)
+	b.WriteString(simulatedDiff)
+
+	return b.String()
+}
+
+// simulateMultiEditDiff simulates the multi-edit operation and generates a diff
+func (app *ChatApplication) simulateMultiEditDiff(filePath string, editsArray []interface{}, theme ui.Theme) string {
+	originalContent := ""
+	if content, err := os.ReadFile(filePath); err == nil {
+		originalContent = string(content)
+	}
+
+	currentContent := originalContent
+
+	for _, editInterface := range editsArray {
+		editMap, ok := editInterface.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		oldString, ok1 := editMap["old_string"].(string)
+		newString, ok2 := editMap["new_string"].(string)
+		replaceAll, _ := editMap["replace_all"].(bool)
+
+		if !ok1 || !ok2 {
+			continue
+		}
+
+		if !strings.Contains(currentContent, oldString) {
+			return "⚠️  Edit simulation failed: old_string not found after previous edits\n"
+		}
+
+		if replaceAll {
+			currentContent = strings.ReplaceAll(currentContent, oldString, newString)
+		} else {
+			count := strings.Count(currentContent, oldString)
+			if count > 1 {
+				return fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)\n", count)
+			}
+			currentContent = strings.Replace(currentContent, oldString, newString, 1)
+		}
+	}
+
+	if originalContent == currentContent {
+		return "No changes to display.\n"
+	}
+
+	return app.renderColoredDiff(originalContent, currentContent, theme)
 }
 
 func (app *ChatApplication) handleResize(msg tea.WindowSizeMsg) {

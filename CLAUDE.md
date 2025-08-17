@@ -44,7 +44,7 @@ flox activate -- task test:coverage
 
 ```bash
 # Run the CLI with arguments
-flox activate -- task run CLI_ARGS="[command]"
+flox activate -- task run -- [command]
 
 # Run specific commands
 flox activate -- task run:status

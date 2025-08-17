@@ -267,6 +267,8 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 	newSize := int64(len(newContent))
 	bytesDifference := newSize - originalSize
 
+	diff := generateDiff(originalContentStr, newContent)
+
 	result := &domain.EditToolResult{
 		FilePath:        filePath,
 		OldString:       oldString,
@@ -277,9 +279,92 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 		OriginalSize:    originalSize,
 		NewSize:         newSize,
 		BytesDifference: bytesDifference,
+		Diff:            diff,
 	}
 
 	return result, nil
+}
+
+func generateDiff(oldContent, newContent string) string {
+	oldLines := strings.Split(oldContent, "\n")
+	newLines := strings.Split(newContent, "\n")
+
+	var diff strings.Builder
+	maxLines := len(oldLines)
+	if len(newLines) > maxLines {
+		maxLines = len(newLines)
+	}
+
+	// Find the range of changed lines for context
+	firstChanged := -1
+	lastChanged := -1
+	for i := 0; i < maxLines; i++ {
+		oldLine := ""
+		newLine := ""
+		if i < len(oldLines) {
+			oldLine = oldLines[i]
+		}
+		if i < len(newLines) {
+			newLine = newLines[i]
+		}
+
+		if oldLine != newLine {
+			if firstChanged == -1 {
+				firstChanged = i
+			}
+			lastChanged = i
+		}
+	}
+
+	if firstChanged == -1 {
+		return ""
+	}
+
+	contextBefore := 3
+	contextAfter := 3
+	startLine := firstChanged - contextBefore
+	if startLine < 0 {
+		startLine = 0
+	}
+	endLine := lastChanged + contextAfter
+	if endLine >= maxLines {
+		endLine = maxLines - 1
+	}
+
+	for i := startLine; i <= endLine; i++ {
+		lineNum := i + 1
+		appendDiffLine(&diff, i, lineNum, oldLines, newLines)
+	}
+
+	return diff.String()
+}
+
+func appendDiffLine(diff *strings.Builder, i, lineNum int, oldLines, newLines []string) {
+	oldExists := i < len(oldLines)
+	newExists := i < len(newLines)
+
+	if oldExists && newExists {
+		appendBothLinesDiff(diff, lineNum, oldLines[i], newLines[i])
+		return
+	}
+
+	if oldExists {
+		fmt.Fprintf(diff, "-%3d %s\n", lineNum, oldLines[i])
+		return
+	}
+
+	if newExists {
+		fmt.Fprintf(diff, "+%3d %s\n", lineNum, newLines[i])
+	}
+}
+
+func appendBothLinesDiff(diff *strings.Builder, lineNum int, oldLine, newLine string) {
+	if oldLine != newLine {
+		fmt.Fprintf(diff, "-%3d %s\n", lineNum, oldLine)
+		fmt.Fprintf(diff, "+%3d %s\n", lineNum, newLine)
+	} else {
+		fmt.Fprintf(diff, " %3d %s\n", lineNum, oldLine)
+	}
 }
 
 // validatePathSecurity checks if a path is allowed for editing (reuses the same logic as other tools)

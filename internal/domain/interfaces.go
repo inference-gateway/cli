@@ -193,6 +193,7 @@ type ToolExecutionResult struct {
 	Error     string                 `json:"error,omitempty"`
 	Data      interface{}            `json:"data,omitempty"`
 	Metadata  map[string]string      `json:"metadata,omitempty"`
+	Diff      string                 `json:"diff,omitempty"`
 }
 
 // BashToolResult represents the result of a bash command execution
@@ -239,6 +240,7 @@ type EditToolResult struct {
 	OriginalSize    int64  `json:"original_size"`
 	NewSize         int64  `json:"new_size"`
 	BytesDifference int64  `json:"bytes_difference"`
+	Diff            string `json:"diff,omitempty"`
 }
 
 // TreeToolResult represents the result of a tree operation

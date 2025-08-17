@@ -16,19 +16,23 @@ type Theme interface {
 	GetAccentColor() string
 	GetDimColor() string
 	GetBorderColor() string
+	GetDiffAddColor() string
+	GetDiffRemoveColor() string
 }
 
 type DefaultTheme struct{}
 
 func NewDefaultTheme() *DefaultTheme { return &DefaultTheme{} }
 
-func (t *DefaultTheme) GetUserColor() string      { return shared.UserColor.ANSI }
-func (t *DefaultTheme) GetAssistantColor() string { return shared.AssistantColor.ANSI }
-func (t *DefaultTheme) GetErrorColor() string     { return shared.ErrorColor.ANSI }
-func (t *DefaultTheme) GetStatusColor() string    { return shared.StatusColor.ANSI }
-func (t *DefaultTheme) GetAccentColor() string    { return shared.AccentColor.ANSI }
-func (t *DefaultTheme) GetDimColor() string       { return shared.DimColor.ANSI }
-func (t *DefaultTheme) GetBorderColor() string    { return shared.BorderColor.ANSI }
+func (t *DefaultTheme) GetUserColor() string       { return shared.UserColor.ANSI }
+func (t *DefaultTheme) GetAssistantColor() string  { return shared.AssistantColor.ANSI }
+func (t *DefaultTheme) GetErrorColor() string      { return shared.ErrorColor.ANSI }
+func (t *DefaultTheme) GetStatusColor() string     { return shared.StatusColor.ANSI }
+func (t *DefaultTheme) GetAccentColor() string     { return shared.AccentColor.ANSI }
+func (t *DefaultTheme) GetDimColor() string        { return shared.DimColor.ANSI }
+func (t *DefaultTheme) GetBorderColor() string     { return shared.BorderColor.ANSI }
+func (t *DefaultTheme) GetDiffAddColor() string    { return shared.DiffAddColor.ANSI }
+func (t *DefaultTheme) GetDiffRemoveColor() string { return shared.DiffRemoveColor.ANSI }
 
 type ConversationRenderer interface {
 	SetConversation([]domain.ConversationEntry)

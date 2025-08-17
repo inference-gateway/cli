@@ -8,105 +8,156 @@ import (
 )
 
 func TestDefaultConfig(t *testing.T) {
-	tests := []struct {
-		name     string
-		testFunc func(t *testing.T, cfg *Config)
-	}{
-		{
-			name: "gateway defaults",
-			testFunc: func(t *testing.T, cfg *Config) {
-				if cfg.Gateway.URL != "http://localhost:8080" {
-					t.Errorf("Expected gateway URL to be 'http://localhost:8080', got %q", cfg.Gateway.URL)
-				}
-				if cfg.Gateway.Timeout != 200 {
-					t.Errorf("Expected gateway timeout to be 200, got %d", cfg.Gateway.Timeout)
-				}
-			},
-		},
-		{
-			name: "output defaults",
-			testFunc: func(t *testing.T, cfg *Config) {
-				if cfg.Output.Format != "text" {
-					t.Errorf("Expected output format to be 'text', got %q", cfg.Output.Format)
-				}
-				if cfg.Output.Quiet {
-					t.Error("Expected output quiet to be false")
-				}
-			},
-		},
-		{
-			name: "tools defaults",
-			testFunc: func(t *testing.T, cfg *Config) {
-				if !cfg.Tools.Enabled {
-					t.Error("Expected tools to be enabled by default")
-				}
-				if !cfg.Tools.Bash.Enabled {
-					t.Error("Expected bash tool to be enabled by default")
-				}
-			},
-		},
-		{
-			name: "websearch defaults",
-			testFunc: func(t *testing.T, cfg *Config) {
-				if !cfg.Tools.WebSearch.Enabled {
-					t.Error("Expected WebSearch to be enabled by default")
-				}
-				if cfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
-					t.Errorf("Expected default engine to be 'duckduckgo', got %q", cfg.Tools.WebSearch.DefaultEngine)
-				}
-				if cfg.Tools.WebSearch.MaxResults != 10 {
-					t.Errorf("Expected max results to be 10, got %d", cfg.Tools.WebSearch.MaxResults)
-				}
-				if cfg.Tools.WebSearch.Timeout != 10 {
-					t.Errorf("Expected timeout to be 10, got %d", cfg.Tools.WebSearch.Timeout)
-				}
-				expectedEngines := []string{"duckduckgo", "google"}
-				if !reflect.DeepEqual(cfg.Tools.WebSearch.Engines, expectedEngines) {
-					t.Errorf("Expected engines to be %v, got %v", expectedEngines, cfg.Tools.WebSearch.Engines)
-				}
-			},
-		},
-		{
-			name: "websearch engine validation",
-			testFunc: func(t *testing.T, cfg *Config) {
-				defaultEngineFound := false
-				for _, engine := range cfg.Tools.WebSearch.Engines {
-					if cfg.Tools.WebSearch.DefaultEngine == engine {
-						defaultEngineFound = true
-						break
-					}
-				}
-				if !defaultEngineFound {
-					t.Errorf("Default engine %q is not in the list of available engines %v", cfg.Tools.WebSearch.DefaultEngine, cfg.Tools.WebSearch.Engines)
-				}
-			},
-		},
-		{
-			name: "compact defaults",
-			testFunc: func(t *testing.T, cfg *Config) {
-				if cfg.Compact.OutputDir != ".infer" {
-					t.Errorf("Expected compact output dir to be '.infer', got %q", cfg.Compact.OutputDir)
-				}
-			},
-		},
-		{
-			name: "chat defaults",
-			testFunc: func(t *testing.T, cfg *Config) {
-				if cfg.Chat.DefaultModel != "" {
-					t.Errorf("Expected default model to be empty, got %q", cfg.Chat.DefaultModel)
-				}
-				if cfg.Chat.SystemPrompt != "" {
-					t.Errorf("Expected system prompt to be empty, got %q", cfg.Chat.SystemPrompt)
-				}
-			},
-		},
-	}
-
 	cfg := DefaultConfig()
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tt.testFunc(t, cfg)
-		})
+
+	t.Run("gateway defaults", func(t *testing.T) {
+		testGatewayDefaults(t, cfg)
+	})
+	t.Run("output defaults", func(t *testing.T) {
+		testOutputDefaults(t, cfg)
+	})
+	t.Run("tools defaults", func(t *testing.T) {
+		testToolsDefaults(t, cfg)
+	})
+	t.Run("websearch defaults", func(t *testing.T) {
+		testWebSearchDefaults(t, cfg)
+	})
+	t.Run("websearch engine validation", func(t *testing.T) {
+		testWebSearchEngineValidation(t, cfg)
+	})
+	t.Run("compact defaults", func(t *testing.T) {
+		testCompactDefaults(t, cfg)
+	})
+	t.Run("chat defaults", func(t *testing.T) {
+		testChatDefaults(t, cfg)
+	})
+}
+
+func testGatewayDefaults(t *testing.T, cfg *Config) {
+	if cfg.Gateway.URL != "http://localhost:8080" {
+		t.Errorf("Expected gateway URL to be 'http://localhost:8080', got %q", cfg.Gateway.URL)
+	}
+	if cfg.Gateway.Timeout != 200 {
+		t.Errorf("Expected gateway timeout to be 200, got %d", cfg.Gateway.Timeout)
+	}
+}
+
+func testOutputDefaults(t *testing.T, cfg *Config) {
+	if cfg.Output.Format != "text" {
+		t.Errorf("Expected output format to be 'text', got %q", cfg.Output.Format)
+	}
+	if cfg.Output.Quiet {
+		t.Error("Expected output quiet to be false")
+	}
+}
+
+func testToolsDefaults(t *testing.T, cfg *Config) {
+	if !cfg.Tools.Enabled {
+		t.Error("Expected tools to be enabled by default")
+	}
+	if !cfg.Tools.Bash.Enabled {
+		t.Error("Expected bash tool to be enabled by default")
+	}
+}
+
+func testWebSearchDefaults(t *testing.T, cfg *Config) {
+	if !cfg.Tools.WebSearch.Enabled {
+		t.Error("Expected WebSearch to be enabled by default")
+	}
+	if cfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
+		t.Errorf("Expected default engine to be 'duckduckgo', got %q", cfg.Tools.WebSearch.DefaultEngine)
+	}
+	if cfg.Tools.WebSearch.MaxResults != 10 {
+		t.Errorf("Expected max results to be 10, got %d", cfg.Tools.WebSearch.MaxResults)
+	}
+	if cfg.Tools.WebSearch.Timeout != 10 {
+		t.Errorf("Expected timeout to be 10, got %d", cfg.Tools.WebSearch.Timeout)
+	}
+	expectedEngines := []string{"duckduckgo", "google"}
+	if !reflect.DeepEqual(cfg.Tools.WebSearch.Engines, expectedEngines) {
+		t.Errorf("Expected engines to be %v, got %v", expectedEngines, cfg.Tools.WebSearch.Engines)
+	}
+}
+
+func testWebSearchEngineValidation(t *testing.T, cfg *Config) {
+	defaultEngineFound := false
+	for _, engine := range cfg.Tools.WebSearch.Engines {
+		if cfg.Tools.WebSearch.DefaultEngine == engine {
+			defaultEngineFound = true
+			break
+		}
+	}
+	if !defaultEngineFound {
+		t.Errorf("Default engine %q is not in the list of available engines %v", cfg.Tools.WebSearch.DefaultEngine, cfg.Tools.WebSearch.Engines)
+	}
+}
+
+func testCompactDefaults(t *testing.T, cfg *Config) {
+	if cfg.Compact.OutputDir != ".infer" {
+		t.Errorf("Expected compact output dir to be '.infer', got %q", cfg.Compact.OutputDir)
+	}
+}
+
+func testChatDefaults(t *testing.T, cfg *Config) {
+	if cfg.Chat.DefaultModel != "" {
+		t.Errorf("Expected default model to be empty, got %q", cfg.Chat.DefaultModel)
+	}
+	expectedSystemPrompt := `
+You are an assistant for software engineering tasks.
+
+## Security
+
+* Defensive security only. No offensive/malicious code.
+* Allowed: analysis, detection rules, defensive tools, docs.
+
+## URLs
+
+* Never guess/generate. Use only user-provided or local.
+
+## Style
+
+* Concise (<4 lines).
+* No pre/postamble. Answer directly.
+* Prefer one-word/short answers.
+* Explain bash only if non-trivial.
+* No emojis unless asked.
+* No code comments unless asked.
+
+## Proactiveness
+
+* Act only when asked. Don't surprise user.
+
+## Code Conventions
+
+* Follow existing style, libs, idioms.
+* Never assume deps. Check imports/config.
+* No secrets in code/logs.
+
+## Tasks
+
+* Always plan with **TodoWrite**.
+* Mark todos in_progress/completed immediately.
+* Don't batch completions.
+
+IMPORTANT: DO NOT provide code examples - instead apply them directly in the code using tools.
+
+## Workflow
+
+1. Plan with TodoWrite.
+2. Explore code via search.
+3. Implement.
+4. Verify with tests.
+5. Run lint/typecheck (ask if unknown). Suggest documenting.
+6. Commit only if asked.
+
+## Tools
+
+* Prefer Grep tool for search.
+* Use agents when relevant.
+* Handle redirects.
+* Batch tool calls for efficiency.`
+	if cfg.Chat.SystemPrompt != expectedSystemPrompt {
+		t.Errorf("Expected system prompt to match default, got %q", cfg.Chat.SystemPrompt)
 	}
 }
 

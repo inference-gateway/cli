@@ -38,6 +38,26 @@ type FakeTheme struct {
 	getBorderColorReturnsOnCall map[int]struct {
 		result1 string
 	}
+	GetDiffAddColorStub        func() string
+	getDiffAddColorMutex       sync.RWMutex
+	getDiffAddColorArgsForCall []struct {
+	}
+	getDiffAddColorReturns struct {
+		result1 string
+	}
+	getDiffAddColorReturnsOnCall map[int]struct {
+		result1 string
+	}
+	GetDiffRemoveColorStub        func() string
+	getDiffRemoveColorMutex       sync.RWMutex
+	getDiffRemoveColorArgsForCall []struct {
+	}
+	getDiffRemoveColorReturns struct {
+		result1 string
+	}
+	getDiffRemoveColorReturnsOnCall map[int]struct {
+		result1 string
+	}
 	GetDimColorStub        func() string
 	getDimColorMutex       sync.RWMutex
 	getDimColorArgsForCall []struct {
@@ -237,6 +257,112 @@ func (fake *FakeTheme) GetBorderColorReturnsOnCall(i int, result1 string) {
 		})
 	}
 	fake.getBorderColorReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeTheme) GetDiffAddColor() string {
+	fake.getDiffAddColorMutex.Lock()
+	ret, specificReturn := fake.getDiffAddColorReturnsOnCall[len(fake.getDiffAddColorArgsForCall)]
+	fake.getDiffAddColorArgsForCall = append(fake.getDiffAddColorArgsForCall, struct {
+	}{})
+	stub := fake.GetDiffAddColorStub
+	fakeReturns := fake.getDiffAddColorReturns
+	fake.recordInvocation("GetDiffAddColor", []interface{}{})
+	fake.getDiffAddColorMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeTheme) GetDiffAddColorCallCount() int {
+	fake.getDiffAddColorMutex.RLock()
+	defer fake.getDiffAddColorMutex.RUnlock()
+	return len(fake.getDiffAddColorArgsForCall)
+}
+
+func (fake *FakeTheme) GetDiffAddColorCalls(stub func() string) {
+	fake.getDiffAddColorMutex.Lock()
+	defer fake.getDiffAddColorMutex.Unlock()
+	fake.GetDiffAddColorStub = stub
+}
+
+func (fake *FakeTheme) GetDiffAddColorReturns(result1 string) {
+	fake.getDiffAddColorMutex.Lock()
+	defer fake.getDiffAddColorMutex.Unlock()
+	fake.GetDiffAddColorStub = nil
+	fake.getDiffAddColorReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeTheme) GetDiffAddColorReturnsOnCall(i int, result1 string) {
+	fake.getDiffAddColorMutex.Lock()
+	defer fake.getDiffAddColorMutex.Unlock()
+	fake.GetDiffAddColorStub = nil
+	if fake.getDiffAddColorReturnsOnCall == nil {
+		fake.getDiffAddColorReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getDiffAddColorReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeTheme) GetDiffRemoveColor() string {
+	fake.getDiffRemoveColorMutex.Lock()
+	ret, specificReturn := fake.getDiffRemoveColorReturnsOnCall[len(fake.getDiffRemoveColorArgsForCall)]
+	fake.getDiffRemoveColorArgsForCall = append(fake.getDiffRemoveColorArgsForCall, struct {
+	}{})
+	stub := fake.GetDiffRemoveColorStub
+	fakeReturns := fake.getDiffRemoveColorReturns
+	fake.recordInvocation("GetDiffRemoveColor", []interface{}{})
+	fake.getDiffRemoveColorMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeTheme) GetDiffRemoveColorCallCount() int {
+	fake.getDiffRemoveColorMutex.RLock()
+	defer fake.getDiffRemoveColorMutex.RUnlock()
+	return len(fake.getDiffRemoveColorArgsForCall)
+}
+
+func (fake *FakeTheme) GetDiffRemoveColorCalls(stub func() string) {
+	fake.getDiffRemoveColorMutex.Lock()
+	defer fake.getDiffRemoveColorMutex.Unlock()
+	fake.GetDiffRemoveColorStub = stub
+}
+
+func (fake *FakeTheme) GetDiffRemoveColorReturns(result1 string) {
+	fake.getDiffRemoveColorMutex.Lock()
+	defer fake.getDiffRemoveColorMutex.Unlock()
+	fake.GetDiffRemoveColorStub = nil
+	fake.getDiffRemoveColorReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeTheme) GetDiffRemoveColorReturnsOnCall(i int, result1 string) {
+	fake.getDiffRemoveColorMutex.Lock()
+	defer fake.getDiffRemoveColorMutex.Unlock()
+	fake.GetDiffRemoveColorStub = nil
+	if fake.getDiffRemoveColorReturnsOnCall == nil {
+		fake.getDiffRemoveColorReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getDiffRemoveColorReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
 }
