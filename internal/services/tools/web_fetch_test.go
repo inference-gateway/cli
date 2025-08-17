@@ -17,7 +17,7 @@ func TestFetchTool_Definition(t *testing.T) {
 		},
 	}
 
-	tool := NewFetchTool(cfg)
+	tool := NewWebFetchTool(cfg)
 	def := tool.Definition()
 
 	if def.Name != "Fetch" {
@@ -77,7 +77,7 @@ func TestFetchTool_IsEnabled(t *testing.T) {
 				},
 			}
 
-			tool := NewFetchTool(cfg)
+			tool := NewWebFetchTool(cfg)
 			if tool.IsEnabled() != tt.expectedState {
 				t.Errorf("Expected IsEnabled() = %v, got %v", tt.expectedState, tool.IsEnabled())
 			}
@@ -100,7 +100,7 @@ func TestFetchTool_Validate(t *testing.T) {
 		},
 	}
 
-	tool := NewFetchTool(cfg)
+	tool := NewWebFetchTool(cfg)
 
 	tests := []struct {
 		name      string
@@ -207,7 +207,7 @@ func TestFetchTool_Execute_Disabled(t *testing.T) {
 		},
 	}
 
-	tool := NewFetchTool(cfg)
+	tool := NewWebFetchTool(cfg)
 	ctx := context.Background()
 
 	args := map[string]interface{}{
@@ -234,7 +234,7 @@ func TestFetchTool_Execute_FetchDisabled(t *testing.T) {
 		},
 	}
 
-	tool := NewFetchTool(cfg)
+	tool := NewWebFetchTool(cfg)
 	ctx := context.Background()
 
 	args := map[string]interface{}{

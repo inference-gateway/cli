@@ -61,7 +61,7 @@ and management of inference services.
   - **Write**: Write content to files with security controls
   - **Grep**: Fast ripgrep-powered search with regex support and multiple output modes
   - **WebSearch**: Search the web using DuckDuckGo or Google
-  - **Fetch**: Fetch content from URLs and GitHub
+  - **WebFetch**: Fetch content from URLs and GitHub
 
 ## Installation
 

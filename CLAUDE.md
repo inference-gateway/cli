@@ -333,7 +333,7 @@ infer config tools exclude-path remove "test.txt"  # Remove a path from the excl
 #### Security Features
 
 - **Global Approval Prompts**: When enabled, prompts user before executing any tool command
-- **Tool-Specific Safety**: Configure approval requirements per tool (Bash, Read, Grep, Fetch, WebSearch)
+- **Tool-Specific Safety**: Configure approval requirements per tool (Bash, Read, Grep, WebSearch)
 - **Command Whitelist**: Only commands in the whitelist can be executed by tools
 - **Path Exclusions**: Specific paths are blocked from tool access (e.g., `.infer/` directory)
 - **Safe Defaults**: Tools are enabled with read-only commands and approval prompts by default

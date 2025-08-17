@@ -12,16 +12,16 @@ import (
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
-// FetchTool handles content fetching operations
-type FetchTool struct {
+// WebFetchTool handles content fetching operations
+type WebFetchTool struct {
 	config  *config.Config
 	enabled bool
 	client  *http.Client
 }
 
-// NewFetchTool creates a new fetch tool
-func NewFetchTool(cfg *config.Config) *FetchTool {
-	return &FetchTool{
+// NewWebFetchTool creates a new fetch tool
+func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
+	return &WebFetchTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Fetch.Enabled,
 		client: &http.Client{
@@ -31,7 +31,7 @@ func NewFetchTool(cfg *config.Config) *FetchTool {
 }
 
 // Definition returns the tool definition for the LLM
-func (t *FetchTool) Definition() domain.ToolDefinition {
+func (t *WebFetchTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Fetch",
 		Description: "Fetch content from whitelisted URLs references.",
@@ -55,7 +55,7 @@ func (t *FetchTool) Definition() domain.ToolDefinition {
 }
 
 // Execute runs the fetch tool with given arguments
-func (t *FetchTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled || !t.config.Tools.Fetch.Enabled {
 		return nil, fmt.Errorf("fetch tool is not enabled")
@@ -92,7 +92,7 @@ func (t *FetchTool) Execute(ctx context.Context, args map[string]interface{}) (*
 }
 
 // Validate checks if the fetch tool arguments are valid
-func (t *FetchTool) Validate(args map[string]interface{}) error {
+func (t *WebFetchTool) Validate(args map[string]interface{}) error {
 	if !t.config.Tools.Enabled || !t.config.Tools.Fetch.Enabled {
 		return fmt.Errorf("fetch tool is not enabled")
 	}
@@ -118,17 +118,17 @@ func (t *FetchTool) Validate(args map[string]interface{}) error {
 }
 
 // IsEnabled returns whether the fetch tool is enabled
-func (t *FetchTool) IsEnabled() bool {
+func (t *WebFetchTool) IsEnabled() bool {
 	return t.enabled
 }
 
 // fetchContent fetches content from the given URL
-func (t *FetchTool) fetchContent(ctx context.Context, url string) (*domain.FetchResult, error) {
+func (t *WebFetchTool) fetchContent(ctx context.Context, url string) (*domain.FetchResult, error) {
 	return t.fetchHTTPContent(ctx, url)
 }
 
 // fetchHTTPContent fetches content from a regular HTTP/HTTPS URL
-func (t *FetchTool) fetchHTTPContent(ctx context.Context, url string) (*domain.FetchResult, error) {
+func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*domain.FetchResult, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -177,7 +177,7 @@ func (t *FetchTool) fetchHTTPContent(ctx context.Context, url string) (*domain.F
 }
 
 // validateURL validates URL against security rules and whitelists
-func (t *FetchTool) validateURL(url string) error {
+func (t *WebFetchTool) validateURL(url string) error {
 	if url == "" {
 		return fmt.Errorf("URL cannot be empty")
 	}
@@ -190,7 +190,7 @@ func (t *FetchTool) validateURL(url string) error {
 }
 
 // validateURLDomain checks if URL domain is in whitelist
-func (t *FetchTool) validateURLDomain(url string) error {
+func (t *WebFetchTool) validateURLDomain(url string) error {
 	for _, domain := range t.config.Tools.Fetch.WhitelistedDomains {
 		if strings.Contains(url, domain) {
 			return nil

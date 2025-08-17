@@ -39,7 +39,7 @@ func (r *Registry) registerTools() {
 	r.tools["TodoWrite"] = NewTodoWriteTool(r.config)
 
 	if r.config.Tools.Fetch.Enabled {
-		r.tools["Fetch"] = NewFetchTool(r.config)
+		r.tools["Fetch"] = NewWebFetchTool(r.config)
 	}
 
 	if r.config.Tools.WebSearch.Enabled {
