@@ -125,7 +125,22 @@ func TestEditTool_IsEnabled(t *testing.T) {
 }
 
 func TestEditTool_Validate(t *testing.T) {
-	cfg := &config.Config{
+	cfg := getTestConfig()
+	tests := getValidationTests()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockTracker := &MockReadToolTracker{readToolUsed: tt.readUsed}
+			tool := NewEditToolWithRegistry(cfg, mockTracker)
+
+			err := tool.Validate(tt.args)
+			checkValidationResult(t, err, tt.wantError, tt.errorMessage)
+		})
+	}
+}
+
+func getTestConfig() *config.Config {
+	return &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Edit: config.EditToolConfig{
@@ -137,8 +152,38 @@ func TestEditTool_Validate(t *testing.T) {
 			},
 		},
 	}
+}
 
+func getValidationTests() []struct {
+	name         string
+	readUsed     bool
+	args         map[string]interface{}
+	wantError    bool
+	errorMessage string
+} {
 	tests := []struct {
+		name         string
+		readUsed     bool
+		args         map[string]interface{}
+		wantError    bool
+		errorMessage string
+	}{}
+
+	tests = append(tests, getValidSuccessTests()...)
+	tests = append(tests, getValidFailureTests()...)
+	tests = append(tests, getValidSecurityTests()...)
+
+	return tests
+}
+
+func getValidSuccessTests() []struct {
+	name         string
+	readUsed     bool
+	args         map[string]interface{}
+	wantError    bool
+	errorMessage string
+} {
+	return []struct {
 		name         string
 		readUsed     bool
 		args         map[string]interface{}
@@ -166,6 +211,23 @@ func TestEditTool_Validate(t *testing.T) {
 			},
 			wantError: false,
 		},
+	}
+}
+
+func getValidFailureTests() []struct {
+	name         string
+	readUsed     bool
+	args         map[string]interface{}
+	wantError    bool
+	errorMessage string
+} {
+	return []struct {
+		name         string
+		readUsed     bool
+		args         map[string]interface{}
+		wantError    bool
+		errorMessage string
+	}{
 		{
 			name:     "read tool not used",
 			readUsed: false,
@@ -285,6 +347,23 @@ func TestEditTool_Validate(t *testing.T) {
 			wantError:    true,
 			errorMessage: "replace_all parameter must be a boolean",
 		},
+	}
+}
+
+func getValidSecurityTests() []struct {
+	name         string
+	readUsed     bool
+	args         map[string]interface{}
+	wantError    bool
+	errorMessage string
+} {
+	return []struct {
+		name         string
+		readUsed     bool
+		args         map[string]interface{}
+		wantError    bool
+		errorMessage string
+	}{
 		{
 			name:     "excluded path",
 			readUsed: true,
@@ -308,26 +387,21 @@ func TestEditTool_Validate(t *testing.T) {
 			errorMessage: "access to path 'database.secret' is excluded for security",
 		},
 	}
+}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockTracker := &MockReadToolTracker{readToolUsed: tt.readUsed}
-			tool := NewEditToolWithRegistry(cfg, mockTracker)
-
-			err := tool.Validate(tt.args)
-
-			if tt.wantError {
-				if err == nil {
-					t.Errorf("Expected error but got none")
-				} else if tt.errorMessage != "" && err.Error() != tt.errorMessage {
-					t.Errorf("Expected error message '%s', got '%s'", tt.errorMessage, err.Error())
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Unexpected error: %v", err)
-				}
-			}
-		})
+func checkValidationResult(t *testing.T, err error, wantError bool, errorMessage string) {
+	if wantError {
+		if err == nil {
+			t.Errorf("Expected error but got none")
+			return
+		}
+		if errorMessage != "" && err.Error() != errorMessage {
+			t.Errorf("Expected error message '%s', got '%s'", errorMessage, err.Error())
+		}
+		return
+	}
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
 	}
 }
 
@@ -556,21 +630,33 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			result, err := tool.Execute(context.Background(), tt.args)
 
-			if err != nil {
-				// Some errors are returned as error, others as failed result
-				if tt.expectedErrorSubstring != "" && !strings.Contains(err.Error(), tt.expectedErrorSubstring) {
-					t.Errorf("Expected error message to contain '%s', got '%s'", tt.expectedErrorSubstring, err.Error())
-				}
-			} else if result != nil && !result.Success {
-				// Error in result
-				if tt.expectedErrorSubstring != "" && !strings.Contains(result.Error, tt.expectedErrorSubstring) {
-					t.Errorf("Expected error message to contain '%s', got '%s'", tt.expectedErrorSubstring, result.Error)
-				}
-			} else {
-				t.Error("Expected error but got successful result")
-			}
+			checkExecuteErrorResult(t, err, result, tt.expectedErrorSubstring)
 		})
 	}
+}
+
+func checkExecuteErrorResult(t *testing.T, err error, result interface{}, expectedErrorSubstring string) {
+	if err != nil {
+		if expectedErrorSubstring != "" && !strings.Contains(err.Error(), expectedErrorSubstring) {
+			t.Errorf("Expected error message to contain '%s', got '%s'", expectedErrorSubstring, err.Error())
+		}
+		return
+	}
+
+	toolResult, ok := result.(*domain.ToolExecutionResult)
+	if !ok || toolResult == nil {
+		t.Error("Expected error but got successful result")
+		return
+	}
+
+	if !toolResult.Success {
+		if expectedErrorSubstring != "" && !strings.Contains(toolResult.Error, expectedErrorSubstring) {
+			t.Errorf("Expected error message to contain '%s', got '%s'", expectedErrorSubstring, toolResult.Error)
+		}
+		return
+	}
+
+	t.Error("Expected error but got successful result")
 }
 
 func TestEditTool_Execute_DisabledTool(t *testing.T) {

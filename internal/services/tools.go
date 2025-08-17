@@ -52,7 +52,6 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[
 
 	result, err := tool.Execute(ctx, args)
 
-	// Track Read tool usage for Edit tool requirement
 	if name == "Read" && err == nil && result != nil && result.Success {
 		s.registry.SetReadToolUsed()
 	}

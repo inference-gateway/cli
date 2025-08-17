@@ -43,8 +43,16 @@ func NewEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *Edit
 // Definition returns the tool definition for the LLM
 func (t *EditTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
-		Name:        "Edit",
-		Description: "Performs exact string replacements in files.\n\nUsage:\n- You must use your `Read` tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file.\n- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: spaces + line number + tab. Everything after that tab is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.\n- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.\n- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.\n- The edit will FAIL if `old_string` is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use `replace_all` to change every instance of `old_string`.\n- Use `replace_all` for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.",
+		Name: "Edit",
+		Description: `Performs exact string replacements in files.
+
+Usage:
+- You must use your Read tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file.
+- When editing text from Read tool output, ensure you preserve the exact indentation (tabs/spaces) as it appears AFTER the line number prefix. The line number prefix format is: spaces + line number + tab. Everything after that tab is the actual file content to match. Never include any part of the line number prefix in the old_string or new_string.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
+- The edit will FAIL if old_string is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use replace_all to change every instance of old_string.
+- Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.`,
 		Parameters: map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{
@@ -78,7 +86,6 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 		return nil, fmt.Errorf("edit tool is not enabled")
 	}
 
-	// Check if Read tool has been used
 	if t.registry != nil && !t.registry.IsReadToolUsed() {
 		return &domain.ToolExecutionResult{
 			ToolName:  "Edit",
@@ -122,7 +129,6 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 		}, nil
 	}
 
-	// Validate that old_string and new_string are different
 	if oldString == newString {
 		return &domain.ToolExecutionResult{
 			ToolName:  "Edit",
@@ -168,7 +174,6 @@ func (t *EditTool) Validate(args map[string]interface{}) error {
 		return fmt.Errorf("edit tool is not enabled")
 	}
 
-	// Check if Read tool has been used
 	if t.registry != nil && !t.registry.IsReadToolUsed() {
 		return fmt.Errorf("edit tool requires that the Read tool has been used at least once in the conversation before editing files")
 	}
@@ -200,7 +205,6 @@ func (t *EditTool) Validate(args map[string]interface{}) error {
 		return fmt.Errorf("new_string parameter is required and must be a string")
 	}
 
-	// Validate that old_string and new_string are different
 	if oldString == newString {
 		return fmt.Errorf("new_string must be different from old_string")
 	}
@@ -221,12 +225,10 @@ func (t *EditTool) IsEnabled() bool {
 
 // executeEdit performs the actual edit operation
 func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll bool) (*domain.EditToolResult, error) {
-	// Validate file exists and is readable
 	if err := t.validateFile(filePath); err != nil {
 		return nil, err
 	}
 
-	// Read file content
 	originalContent, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", filePath, err)
@@ -235,7 +237,6 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 	originalContentStr := string(originalContent)
 	originalSize := int64(len(originalContent))
 
-	// Check if old_string exists in file
 	if !strings.Contains(originalContentStr, oldString) {
 		return nil, fmt.Errorf("old_string not found in file %s", filePath)
 	}
@@ -244,21 +245,17 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 	var replacedCount int
 
 	if replaceAll {
-		// Replace all occurrences
 		newContent = strings.ReplaceAll(originalContentStr, oldString, newString)
 		replacedCount = strings.Count(originalContentStr, oldString)
 	} else {
-		// Check if old_string is unique
 		count := strings.Count(originalContentStr, oldString)
 		if count > 1 {
 			return nil, fmt.Errorf("old_string '%s' is not unique in file %s (found %d occurrences). Use replace_all=true to replace all occurrences or provide a larger string with more surrounding context to make it unique", oldString, filePath, count)
 		}
-		// Replace single occurrence
 		newContent = strings.Replace(originalContentStr, oldString, newString, 1)
 		replacedCount = 1
 	}
 
-	// Only write file if content actually changed
 	fileModified := false
 	if newContent != originalContentStr {
 		if err := os.WriteFile(filePath, []byte(newContent), 0644); err != nil {
