@@ -12,24 +12,24 @@ import (
 
 // ConversationView handles the chat conversation display
 type ConversationView struct {
-	conversation       []domain.ConversationEntry
-	Viewport           viewport.Model
-	width              int
-	height             int
-	expandedToolResult int
-	isToolExpanded     bool
+	conversation        []domain.ConversationEntry
+	Viewport            viewport.Model
+	width               int
+	height              int
+	expandedToolResults map[int]bool
+	allToolsExpanded    bool
 }
 
 func NewConversationView() *ConversationView {
 	vp := viewport.New(80, 20)
 	vp.SetContent("")
 	return &ConversationView{
-		conversation:       []domain.ConversationEntry{},
-		Viewport:           vp,
-		width:              80,
-		height:             20,
-		expandedToolResult: -1,
-		isToolExpanded:     false,
+		conversation:        []domain.ConversationEntry{},
+		Viewport:            vp,
+		width:               80,
+		height:              20,
+		expandedToolResults: make(map[int]bool),
+		allToolsExpanded:    false,
 	}
 }
 
@@ -52,18 +52,23 @@ func (cv *ConversationView) CanScrollDown() bool {
 
 func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 	if index >= 0 && index < len(cv.conversation) {
-		if cv.expandedToolResult == index {
-			cv.isToolExpanded = !cv.isToolExpanded
-		} else {
-			cv.expandedToolResult = index
-			cv.isToolExpanded = true
+		cv.expandedToolResults[index] = !cv.expandedToolResults[index]
+	}
+}
+
+func (cv *ConversationView) ToggleAllToolResultsExpansion() {
+	cv.allToolsExpanded = !cv.allToolsExpanded
+
+	for i, entry := range cv.conversation {
+		if entry.Message.Role == "tool" {
+			cv.expandedToolResults[i] = cv.allToolsExpanded
 		}
 	}
 }
 
 func (cv *ConversationView) IsToolResultExpanded(index int) bool {
 	if index >= 0 && index < len(cv.conversation) {
-		return cv.expandedToolResult == index && cv.isToolExpanded
+		return cv.expandedToolResults[index]
 	}
 	return false
 }
@@ -161,20 +166,20 @@ func (cv *ConversationView) formatEntryContent(entry domain.ConversationEntry, i
 func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
 		content := shared.FormatToolResultExpandedResponsive(entry.ToolExecution, cv.width)
-		return content + "\n\n💡 Press Ctrl+R to collapse"
+		return content + "\n\n💡 Press Ctrl+R to collapse all tool calls"
 	}
 	wrappedContent := shared.FormatResponsiveMessage(entry.Message.Content, cv.width)
-	return wrappedContent + "\n\n💡 Press Ctrl+R to collapse"
+	return wrappedContent + "\n\n💡 Press Ctrl+R to collapse all tool calls"
 }
 
 func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
 		content := shared.FormatToolResultForUIResponsive(entry.ToolExecution, cv.width)
-		return content + "\n💡 Press Ctrl+R to expand details"
+		return content + "\n💡 Press Ctrl+R to expand all tool calls"
 	}
 	content := cv.formatToolContentCompact(entry.Message.Content)
 	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
-	return wrappedContent + "\n💡 Press Ctrl+R to expand details"
+	return wrappedContent + "\n💡 Press Ctrl+R to expand all tool calls"
 }
 
 func (cv *ConversationView) formatToolContentCompact(content string) string {
