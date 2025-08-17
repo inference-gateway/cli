@@ -19,6 +19,7 @@ tools:
         - sort
         - uniq
         - gh
+        - task
       patterns:
         - ^git status$
         - ^git log --oneline -n [0-9]+$
