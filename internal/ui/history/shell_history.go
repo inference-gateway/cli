@@ -86,7 +86,9 @@ func (sh *ShellHistory) LoadHistory() ([]string, error) {
 		}
 		return nil, fmt.Errorf("failed to open history file %s: %w", sh.historyFile, err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close() // ignore close error for read operations
+	}()
 
 	var commands []string
 	scanner := bufio.NewScanner(file)
@@ -134,7 +136,9 @@ func (sh *ShellHistory) SaveToHistory(command string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open history file for writing: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close() // ignore close error for write operations
+	}()
 
 	var entry string
 	if sh.shell == "zsh" {

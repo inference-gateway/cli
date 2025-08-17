@@ -244,7 +244,11 @@ func TestNewHistoryManager_Integration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("Failed to clean up temp directory: %v", err)
+		}
+	}()
 
 	// Create a test history file
 	historyFile := filepath.Join(tempDir, ".bash_history")
@@ -256,8 +260,14 @@ func TestNewHistoryManager_Integration(t *testing.T) {
 
 	// Temporarily set HOME to our test directory
 	originalHome := os.Getenv("HOME")
-	os.Setenv("HOME", tempDir)
-	defer os.Setenv("HOME", originalHome)
+	if err := os.Setenv("HOME", tempDir); err != nil {
+		t.Fatalf("Failed to set HOME environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Setenv("HOME", originalHome); err != nil {
+			t.Errorf("Failed to restore HOME environment variable: %v", err)
+		}
+	}()
 
 	// Create history manager
 	hm, err := NewHistoryManager(5)

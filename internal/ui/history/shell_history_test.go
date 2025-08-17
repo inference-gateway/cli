@@ -39,11 +39,17 @@ func TestDetectShell(t *testing.T) {
 	}
 
 	originalShell := os.Getenv("SHELL")
-	defer os.Setenv("SHELL", originalShell)
+	defer func() {
+		if err := os.Setenv("SHELL", originalShell); err != nil {
+			t.Errorf("Failed to restore SHELL environment variable: %v", err)
+		}
+	}()
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			os.Setenv("SHELL", tt.shellEnv)
+			if err := os.Setenv("SHELL", tt.shellEnv); err != nil {
+				t.Fatalf("Failed to set SHELL environment variable: %v", err)
+			}
 			result := detectShell()
 			if result != tt.expected {
 				t.Errorf("detectShell() = %v, want %v", result, tt.expected)
@@ -81,7 +87,11 @@ func TestLoadHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("Failed to clean up temp directory: %v", err)
+		}
+	}()
 
 	// Test bash history
 	t.Run("bash history", func(t *testing.T) {
@@ -172,7 +182,11 @@ func TestSaveToHistory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("Failed to clean up temp directory: %v", err)
+		}
+	}()
 
 	// Test bash history saving
 	t.Run("bash history", func(t *testing.T) {
