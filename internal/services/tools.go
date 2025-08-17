@@ -50,7 +50,13 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[
 		return nil, err
 	}
 
-	return tool.Execute(ctx, args)
+	result, err := tool.Execute(ctx, args)
+
+	if name == "Read" && err == nil && result != nil && result.Success {
+		s.registry.SetReadToolUsed()
+	}
+
+	return result, err
 }
 
 // IsToolEnabled checks if a tool is enabled

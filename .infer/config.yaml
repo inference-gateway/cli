@@ -30,6 +30,9 @@ tools:
   write:
     enabled: true
     require_approval: true
+  edit:
+    enabled: true
+    require_approval: true
   delete:
     enabled: true
     require_approval: true

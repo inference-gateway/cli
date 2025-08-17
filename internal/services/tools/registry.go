@@ -9,15 +9,17 @@ import (
 
 // Registry manages all available tools
 type Registry struct {
-	config *config.Config
-	tools  map[string]domain.Tool
+	config       *config.Config
+	tools        map[string]domain.Tool
+	readToolUsed bool
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
 func NewRegistry(cfg *config.Config) *Registry {
 	registry := &Registry{
-		config: cfg,
-		tools:  make(map[string]domain.Tool),
+		config:       cfg,
+		tools:        make(map[string]domain.Tool),
+		readToolUsed: false,
 	}
 
 	registry.registerTools()
@@ -29,6 +31,7 @@ func (r *Registry) registerTools() {
 	r.tools["Bash"] = NewBashTool(r.config)
 	r.tools["Read"] = NewReadTool(r.config)
 	r.tools["Write"] = NewWriteTool(r.config)
+	r.tools["Edit"] = NewEditToolWithRegistry(r.config, r)
 	r.tools["Delete"] = NewDeleteTool(r.config)
 	r.tools["Grep"] = NewGrepTool(r.config)
 	r.tools["Tree"] = NewTreeTool(r.config)
@@ -81,4 +84,14 @@ func (r *Registry) IsToolEnabled(name string) bool {
 		return false
 	}
 	return tool.IsEnabled()
+}
+
+// SetReadToolUsed marks that the Read tool has been used
+func (r *Registry) SetReadToolUsed() {
+	r.readToolUsed = true
+}
+
+// IsReadToolUsed returns whether the Read tool has been used
+func (r *Registry) IsReadToolUsed() bool {
+	return r.readToolUsed
 }
