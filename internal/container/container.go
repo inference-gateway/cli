@@ -21,6 +21,7 @@ type ServiceContainer struct {
 	chatService      domain.ChatService
 	toolService      domain.ToolService
 	fileService      domain.FileService
+	a2aService       domain.A2AService
 
 	// UI components
 	theme ui.Theme
@@ -56,6 +57,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 	)
 
 	c.fileService = services.NewFileService()
+
+	c.a2aService = services.NewHTTPA2AService(
+		c.config.Gateway.URL,
+		c.config.Gateway.APIKey,
+	)
 
 	c.toolRegistry = tools.NewRegistry(c.config)
 
@@ -96,6 +102,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.commandRegistry.Register(commands.NewHistoryCommand(c.conversationRepo))
 	c.commandRegistry.Register(commands.NewModelsCommand(c.modelService))
 	c.commandRegistry.Register(commands.NewSwitchCommand(c.modelService))
+	c.commandRegistry.Register(commands.NewA2ACommand(c.a2aService))
 }
 
 // registerMessageHandlers registers the message handlers
@@ -143,6 +150,10 @@ func (c *ServiceContainer) GetToolRegistry() *tools.Registry {
 
 func (c *ServiceContainer) GetFileService() domain.FileService {
 	return c.fileService
+}
+
+func (c *ServiceContainer) GetA2AService() domain.A2AService {
+	return c.a2aService
 }
 
 func (c *ServiceContainer) GetTheme() ui.Theme {

@@ -160,6 +160,29 @@ type WebSearchService interface {
 	SetEnabled(enabled bool)
 }
 
+// A2AAgentStatus represents the possible statuses of an A2A agent
+type A2AAgentStatus string
+
+const (
+	A2AAgentStatusUnknown   A2AAgentStatus = "unknown"
+	A2AAgentStatusAvailable A2AAgentStatus = "available"
+	A2AAgentStatusDegraded  A2AAgentStatus = "degraded"
+)
+
+// A2AAgent represents an Agent-to-Agent connection
+type A2AAgent struct {
+	ID       string         `json:"id"`
+	Name     string         `json:"name"`
+	Status   A2AAgentStatus `json:"status"`
+	Endpoint string         `json:"endpoint,omitempty"`
+	Version  string         `json:"version,omitempty"`
+}
+
+// A2AService handles Agent-to-Agent operations
+type A2AService interface {
+	ListAgents(ctx context.Context) ([]A2AAgent, error)
+}
+
 // Tool represents a single tool with its definition, handler, and validator
 type Tool interface {
 	// Definition returns the tool definition for the LLM

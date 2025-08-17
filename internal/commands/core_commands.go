@@ -366,6 +366,55 @@ func NewSwitchCommand(modelService domain.ModelService) *SwitchCommand {
 	return &SwitchCommand{modelService: modelService}
 }
 
+// A2ACommand shows A2A agents
+type A2ACommand struct {
+	a2aService domain.A2AService
+}
+
+func NewA2ACommand(a2aService domain.A2AService) *A2ACommand {
+	return &A2ACommand{a2aService: a2aService}
+}
+
+func (c *A2ACommand) GetName() string               { return "a2a" }
+func (c *A2ACommand) GetDescription() string        { return "Show A2A agents" }
+func (c *A2ACommand) GetUsage() string              { return "/a2a" }
+func (c *A2ACommand) CanExecute(args []string) bool { return len(args) == 0 }
+
+func (c *A2ACommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
+	agents, err := c.a2aService.ListAgents(ctx)
+	if err != nil {
+		return CommandResult{
+			Output:  fmt.Sprintf("Failed to fetch A2A agents: %v", err),
+			Success: false,
+		}, nil
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("A2A Agents: %d connected\n", len(agents)))
+
+	if len(agents) == 0 {
+		output.WriteString("No A2A agents are currently connected.")
+	} else {
+		for _, agent := range agents {
+			status := "❓"
+			switch agent.Status {
+			case domain.A2AAgentStatusAvailable:
+				status = "✅"
+			case domain.A2AAgentStatusDegraded:
+				status = "⚠️"
+			}
+
+			output.WriteString(fmt.Sprintf("  %s %s (%s) - %s\n",
+				status, agent.Name, agent.ID, agent.Status))
+		}
+	}
+
+	return CommandResult{
+		Output:  output.String(),
+		Success: true,
+	}, nil
+}
+
 func (c *SwitchCommand) GetName() string               { return "switch" }
 func (c *SwitchCommand) GetDescription() string        { return "Switch to a different model" }
 func (c *SwitchCommand) GetUsage() string              { return "/switch [model]" }
