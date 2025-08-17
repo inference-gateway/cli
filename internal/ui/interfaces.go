@@ -40,6 +40,7 @@ type ConversationRenderer interface {
 	CanScrollUp() bool
 	CanScrollDown() bool
 	ToggleToolResultExpansion(index int)
+	ToggleAllToolResultsExpansion()
 	IsToolResultExpanded(index int) bool
 	SetWidth(width int)
 	SetHeight(height int)

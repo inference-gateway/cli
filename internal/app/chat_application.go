@@ -1301,17 +1301,9 @@ func (app *ChatApplication) getPageSize() int {
 	return max(1, conversationHeight-2)
 }
 
-// toggleToolResultExpansion toggles expansion of the most recent tool result
+// toggleToolResultExpansion toggles expansion of all tool results
 func (app *ChatApplication) toggleToolResultExpansion() {
-	conversationRepo := app.services.GetConversationRepository()
-	messages := conversationRepo.GetMessages()
-
-	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Message.Role == "tool" {
-			app.conversationView.ToggleToolResultExpansion(i)
-			break
-		}
-	}
+	app.conversationView.ToggleAllToolResultsExpansion()
 }
 
 // GetServices returns the service container (for testing or extensions)

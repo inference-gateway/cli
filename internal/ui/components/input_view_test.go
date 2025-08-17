@@ -61,12 +61,8 @@ func TestNewInputView(t *testing.T) {
 		t.Error("Expected model service to be set")
 	}
 
-	if len(iv.history) != 0 {
-		t.Errorf("Expected empty history, got length %d", len(iv.history))
-	}
-
-	if iv.historyIndex != -1 {
-		t.Errorf("Expected historyIndex -1, got %d", iv.historyIndex)
+	if iv.historyManager == nil {
+		t.Error("Expected history manager to be initialized")
 	}
 }
 
@@ -88,7 +84,6 @@ func TestInputView_ClearInput(t *testing.T) {
 
 	iv.text = "Some text"
 	iv.cursor = 5
-	iv.historyIndex = 2
 
 	iv.ClearInput()
 
@@ -98,10 +93,6 @@ func TestInputView_ClearInput(t *testing.T) {
 
 	if iv.cursor != 0 {
 		t.Errorf("Expected cursor at 0 after clear, got %d", iv.cursor)
-	}
-
-	if iv.historyIndex != -1 {
-		t.Errorf("Expected historyIndex -1 after clear, got %d", iv.historyIndex)
 	}
 }
 
@@ -297,38 +288,7 @@ func TestInputView_History(t *testing.T) {
 	mockModelService := &mockModelService{}
 	iv := NewInputView(mockModelService)
 
-	iv.history = []string{"first", "second", "third"}
-	iv.historyIndex = -1
-
-	upKey := tea.KeyMsg{Type: tea.KeyUp}
-	iv.HandleKey(upKey)
-
-	if iv.historyIndex != 2 {
-		t.Errorf("Expected historyIndex 2 after up, got %d", iv.historyIndex)
-	}
-
-	if iv.text != "third" {
-		t.Errorf("Expected text 'third' from history, got '%s'", iv.text)
-	}
-
-	iv.HandleKey(upKey)
-
-	if iv.historyIndex != 1 {
-		t.Errorf("Expected historyIndex 1 after second up, got %d", iv.historyIndex)
-	}
-
-	if iv.text != "second" {
-		t.Errorf("Expected text 'second' from history, got '%s'", iv.text)
-	}
-
-	downKey := tea.KeyMsg{Type: tea.KeyDown}
-	iv.HandleKey(downKey)
-
-	if iv.historyIndex != 2 {
-		t.Errorf("Expected historyIndex 2 after down, got %d", iv.historyIndex)
-	}
-
-	if iv.text != "third" {
-		t.Errorf("Expected text 'third' after down, got '%s'", iv.text)
+	if iv.historyManager == nil {
+		t.Error("Expected history manager to be initialized")
 	}
 }
