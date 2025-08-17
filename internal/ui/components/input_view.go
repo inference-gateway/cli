@@ -8,35 +8,37 @@ import (
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/history"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // InputView handles user input with history and autocomplete
 type InputView struct {
-	text         string
-	cursor       int
-	placeholder  string
-	width        int
-	height       int
-	modelService domain.ModelService
-	Autocomplete shared.AutocompleteInterface
-	history      []string
-	historyIndex int
-	currentInput string
+	text           string
+	cursor         int
+	placeholder    string
+	width          int
+	height         int
+	modelService   domain.ModelService
+	Autocomplete   shared.AutocompleteInterface
+	historyManager *history.HistoryManager
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
+	historyManager, err := history.NewHistoryManager(5)
+	if err != nil {
+		historyManager = history.NewMemoryOnlyHistoryManager(5)
+	}
+
 	return &InputView{
-		text:         "",
-		cursor:       0,
-		placeholder:  "Type your message... (Press Enter to send, Alt+Enter for newline)",
-		width:        80,
-		height:       5,
-		modelService: modelService,
-		Autocomplete: nil,
-		history:      make([]string, 0, 5),
-		historyIndex: -1,
-		currentInput: "",
+		text:           "",
+		cursor:         0,
+		placeholder:    "Type your message... (Press Enter to send, Alt+Enter for newline)",
+		width:          80,
+		height:         5,
+		modelService:   modelService,
+		Autocomplete:   nil,
+		historyManager: historyManager,
 	}
 }
 
@@ -47,8 +49,7 @@ func (iv *InputView) GetInput() string {
 func (iv *InputView) ClearInput() {
 	iv.text = ""
 	iv.cursor = 0
-	iv.historyIndex = -1
-	iv.currentInput = ""
+	iv.historyManager.ResetNavigation()
 	if iv.Autocomplete != nil {
 		iv.Autocomplete.Hide()
 	}
@@ -151,56 +152,29 @@ func (iv *InputView) Render() string {
 	return lipgloss.JoinVertical(lipgloss.Left, components...)
 }
 
-// addToHistory adds a message to the input history, keeping only the last 5
+// addToHistory adds a message to the input history
 func (iv *InputView) addToHistory(message string) {
 	if message == "" {
 		return
 	}
 
-	if len(iv.history) > 0 && iv.history[len(iv.history)-1] == message {
-		return
-	}
-
-	iv.history = append(iv.history, message)
-	if len(iv.history) > 5 {
-		iv.history = iv.history[1:]
+	if err := iv.historyManager.AddToHistory(message); err != nil {
+		fmt.Printf("Warning: Failed to add to shell history: %v\n", err)
 	}
 }
 
 // navigateHistoryUp moves up in history (to older messages)
 func (iv *InputView) navigateHistoryUp() {
-	if len(iv.history) == 0 {
-		return
-	}
-
-	if iv.historyIndex == -1 {
-		iv.currentInput = iv.text
-		iv.historyIndex = len(iv.history) - 1
-	} else if iv.historyIndex > 0 {
-		iv.historyIndex--
-	} else {
-		return
-	}
-
-	iv.text = iv.history[iv.historyIndex]
+	newText := iv.historyManager.NavigateUp(iv.text)
+	iv.text = newText
 	iv.cursor = len(iv.text)
 }
 
 // navigateHistoryDown moves down in history (to newer messages)
 func (iv *InputView) navigateHistoryDown() {
-	if iv.historyIndex == -1 {
-		return
-	}
-
-	if iv.historyIndex < len(iv.history)-1 {
-		iv.historyIndex++
-		iv.text = iv.history[iv.historyIndex]
-		iv.cursor = len(iv.text)
-	} else {
-		iv.historyIndex = -1
-		iv.text = iv.currentInput
-		iv.cursor = len(iv.text)
-	}
+	newText := iv.historyManager.NavigateDown(iv.text)
+	iv.text = newText
+	iv.cursor = len(iv.text)
 }
 
 // Bubble Tea interface
@@ -259,8 +233,7 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if keyStr != "up" && keyStr != "down" && keyStr != "left" && keyStr != "right" &&
 		keyStr != "ctrl+a" && keyStr != "ctrl+e" && keyStr != "home" && keyStr != "end" {
-		iv.historyIndex = -1
-		iv.currentInput = ""
+		iv.historyManager.ResetNavigation()
 	}
 
 	cmd := iv.handleSpecificKeys(key)
@@ -486,7 +459,6 @@ func (iv *InputView) deleteToBeginning() {
 	}
 }
 
-// preserveTrailingSpaces wraps text while preserving trailing spaces that might be lost during wrapping
 func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) string {
 	wrappedText := shared.WrapText(text, availableWidth)
 
