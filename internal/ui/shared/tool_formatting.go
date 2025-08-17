@@ -99,7 +99,7 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 			fileName := getFileName(readResult.FilePath)
 			preview = fmt.Sprintf("Read %d bytes from %s", readResult.Size, fileName)
 		}
-	case "Fetch":
+	case "WebFetch":
 		if fetchResult, ok := result.Data.(*domain.FetchResult); ok {
 			domain := getDomainFromURL(fetchResult.URL)
 			preview = fmt.Sprintf("Fetched %d bytes from %s", fetchResult.Size, domain)
@@ -188,7 +188,7 @@ func formatToolSpecificData(toolName string, data interface{}) string {
 		return formatReadToolData(data)
 	case "Tree":
 		return formatTreeToolData(data)
-	case "Fetch":
+	case "WebFetch":
 		return formatFetchToolData(data)
 	case "WebSearch":
 		return formatWebSearchToolData(data)

@@ -202,7 +202,7 @@ func formatResultSummary(result *domain.ToolExecutionResult) string {
 		if readResult, ok := result.Data.(*domain.FileReadToolResult); ok {
 			return fmt.Sprintf("Read %d bytes from %s", readResult.Size, getFileName(readResult.FilePath))
 		}
-	case "Fetch":
+	case "WebFetch":
 		if fetchResult, ok := result.Data.(*domain.FetchResult); ok {
 			return fmt.Sprintf("Fetched %d bytes from %s", fetchResult.Size, getDomainFromURL(fetchResult.URL))
 		}
@@ -237,7 +237,7 @@ func formatToolSpecificData(toolName string, data interface{}) string {
 		return formatWriteToolData(data)
 	case "Tree":
 		return formatTreeToolData(data)
-	case "Fetch":
+	case "WebFetch":
 		return formatFetchToolData(data)
 	case "WebSearch":
 		return formatWebSearchToolData(data)
@@ -543,7 +543,7 @@ func FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
 		return formatReadToolDataForLLM(result.Data)
 	case "Write":
 		return formatWriteToolDataForLLM(result.Data)
-	case "Fetch":
+	case "WebFetch":
 		return formatFetchToolDataForLLM(result.Data)
 	case "WebSearch":
 		return formatWebSearchToolDataForLLM(result.Data)
@@ -801,7 +801,7 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 			}
 			preview = fmt.Sprintf("%s %d bytes to %s", action, writeResult.BytesWritten, fileName)
 		}
-	case "Fetch":
+	case "WebFetch":
 		if fetchResult, ok := result.Data.(*domain.FetchResult); ok {
 			domain := getDomainFromURL(fetchResult.URL)
 			preview = fmt.Sprintf("Fetched %d bytes from %s", fetchResult.Size, domain)

@@ -11,7 +11,7 @@ func TestFetchTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: true,
 			},
 		},
@@ -20,8 +20,8 @@ func TestFetchTool_Definition(t *testing.T) {
 	tool := NewWebFetchTool(cfg)
 	def := tool.Definition()
 
-	if def.Name != "Fetch" {
-		t.Errorf("Expected tool name 'Fetch', got %s", def.Name)
+	if def.Name != "WebFetch" {
+		t.Errorf("Expected tool name 'WebFetch', got %s", def.Name)
 	}
 
 	if def.Description == "" {
@@ -71,7 +71,7 @@ func TestFetchTool_IsEnabled(t *testing.T) {
 			cfg := &config.Config{
 				Tools: config.ToolsConfig{
 					Enabled: tt.toolsEnabled,
-					Fetch: config.FetchToolConfig{
+					WebFetch: config.WebFetchToolConfig{
 						Enabled: tt.fetchEnabled,
 					},
 				},
@@ -89,7 +89,7 @@ func TestFetchTool_Validate(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: true,
 				WhitelistedDomains: []string{
 					"api.github.com",
@@ -201,7 +201,7 @@ func TestFetchTool_Execute_Disabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: false,
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: true,
 			},
 		},
@@ -228,7 +228,7 @@ func TestFetchTool_Execute_FetchDisabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			Fetch: config.FetchToolConfig{
+			WebFetch: config.WebFetchToolConfig{
 				Enabled: false,
 			},
 		},

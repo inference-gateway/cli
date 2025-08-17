@@ -23,9 +23,9 @@ type WebFetchTool struct {
 func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
 	return &WebFetchTool{
 		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.Fetch.Enabled,
+		enabled: cfg.Tools.Enabled && cfg.Tools.WebFetch.Enabled,
 		client: &http.Client{
-			Timeout: time.Duration(cfg.Tools.Fetch.Safety.Timeout) * time.Second,
+			Timeout: time.Duration(cfg.Tools.WebFetch.Safety.Timeout) * time.Second,
 		},
 	}
 }
@@ -33,7 +33,7 @@ func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
 // Definition returns the tool definition for the LLM
 func (t *WebFetchTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
-		Name:        "Fetch",
+		Name:        "WebFetch",
 		Description: "Fetch content from whitelisted URLs references.",
 		Parameters: map[string]interface{}{
 			"type": "object",
@@ -57,14 +57,14 @@ func (t *WebFetchTool) Definition() domain.ToolDefinition {
 // Execute runs the fetch tool with given arguments
 func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
-	if !t.config.Tools.Enabled || !t.config.Tools.Fetch.Enabled {
+	if !t.config.Tools.Enabled || !t.config.Tools.WebFetch.Enabled {
 		return nil, fmt.Errorf("fetch tool is not enabled")
 	}
 
 	url, ok := args["url"].(string)
 	if !ok {
 		return &domain.ToolExecutionResult{
-			ToolName:  "Fetch",
+			ToolName:  "WebFetch",
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
@@ -76,7 +76,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{})
 	success := err == nil
 
 	result := &domain.ToolExecutionResult{
-		ToolName:  "Fetch",
+		ToolName:  "WebFetch",
 		Arguments: args,
 		Success:   success,
 		Duration:  time.Since(start),
@@ -93,7 +93,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{})
 
 // Validate checks if the fetch tool arguments are valid
 func (t *WebFetchTool) Validate(args map[string]interface{}) error {
-	if !t.config.Tools.Enabled || !t.config.Tools.Fetch.Enabled {
+	if !t.config.Tools.Enabled || !t.config.Tools.WebFetch.Enabled {
 		return fmt.Errorf("fetch tool is not enabled")
 	}
 
@@ -143,20 +143,20 @@ func (t *WebFetchTool) fetchHTTPContent(ctx context.Context, url string) (*domai
 	defer func() { _ = resp.Body.Close() }()
 
 	var sizeWarning bool
-	if resp.ContentLength > 0 && resp.ContentLength > t.config.Tools.Fetch.Safety.MaxSize {
+	if resp.ContentLength > 0 && resp.ContentLength > t.config.Tools.WebFetch.Safety.MaxSize {
 		sizeWarning = true
 	}
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, t.config.Tools.Fetch.Safety.MaxSize))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, t.config.Tools.WebFetch.Safety.MaxSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
 	var warning string
 	originalSize := int64(len(body))
-	if sizeWarning || int64(len(body)) >= t.config.Tools.Fetch.Safety.MaxSize {
+	if sizeWarning || int64(len(body)) >= t.config.Tools.WebFetch.Safety.MaxSize {
 		warning = fmt.Sprintf("Content was truncated. Original size may exceed %d bytes, showing first %d bytes only.",
-			t.config.Tools.Fetch.Safety.MaxSize, len(body))
+			t.config.Tools.WebFetch.Safety.MaxSize, len(body))
 	}
 
 	result := &domain.FetchResult{
@@ -191,7 +191,7 @@ func (t *WebFetchTool) validateURL(url string) error {
 
 // validateURLDomain checks if URL domain is in whitelist
 func (t *WebFetchTool) validateURLDomain(url string) error {
-	for _, domain := range t.config.Tools.Fetch.WhitelistedDomains {
+	for _, domain := range t.config.Tools.WebFetch.WhitelistedDomains {
 		if strings.Contains(url, domain) {
 			return nil
 		}

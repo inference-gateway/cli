@@ -43,7 +43,7 @@ type ToolsConfig struct {
 	Delete       DeleteToolConfig    `yaml:"delete"`
 	Grep         GrepToolConfig      `yaml:"grep"`
 	Tree         TreeToolConfig      `yaml:"tree"`
-	Fetch        FetchToolConfig     `yaml:"fetch"`
+	WebFetch     WebFetchToolConfig  `yaml:"web_fetch"`
 	WebSearch    WebSearchToolConfig `yaml:"web_search"`
 	TodoWrite    TodoWriteToolConfig `yaml:"todo_write"`
 	Safety       SafetyConfig        `yaml:"safety"`
@@ -97,8 +97,8 @@ type TreeToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty"`
 }
 
-// FetchToolConfig contains fetch-specific tool settings
-type FetchToolConfig struct {
+// WebFetchToolConfig contains fetch-specific tool settings
+type WebFetchToolConfig struct {
 	Enabled            bool              `yaml:"enabled"`
 	WhitelistedDomains []string          `yaml:"whitelisted_domains"`
 	GitHub             GitHubFetchConfig `yaml:"github"`
@@ -225,7 +225,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
 			},
-			Fetch: FetchToolConfig{
+			WebFetch: WebFetchToolConfig{
 				Enabled:            true,
 				WhitelistedDomains: []string{"github.com", "golang.org"},
 				GitHub: GitHubFetchConfig{
@@ -441,9 +441,9 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 		if c.Tools.Tree.RequireApproval != nil {
 			return *c.Tools.Tree.RequireApproval
 		}
-	case "Fetch":
-		if c.Tools.Fetch.RequireApproval != nil {
-			return *c.Tools.Fetch.RequireApproval
+	case "WebFetch":
+		if c.Tools.WebFetch.RequireApproval != nil {
+			return *c.Tools.WebFetch.RequireApproval
 		}
 	case "WebSearch":
 		if c.Tools.WebSearch.RequireApproval != nil {
