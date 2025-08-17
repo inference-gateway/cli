@@ -11,11 +11,30 @@ type UpdateHistoryMsg struct {
 	History []domain.ConversationEntry
 }
 
+// StatusType represents different types of status messages
+type StatusType int
+
+const (
+	StatusDefault StatusType = iota
+	StatusGenerating
+	StatusWorking
+	StatusProcessing
+	StatusPreparing
+)
+
 // SetStatusMsg sets a status message
 type SetStatusMsg struct {
 	Message    string
 	Spinner    bool
 	TokenUsage string
+	StatusType StatusType
+	Progress   *StatusProgress
+}
+
+// StatusProgress represents progress information for status messages
+type StatusProgress struct {
+	Current int
+	Total   int
 }
 
 // ShowErrorMsg displays an error message

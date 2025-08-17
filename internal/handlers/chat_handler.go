@@ -337,8 +337,9 @@ func (h *ChatMessageHandler) handleChatStart(msg domain.ChatStartEvent, state *A
 
 	cmds = append(cmds, func() tea.Msg {
 		return shared.SetStatusMsg{
-			Message: "Generating response...",
-			Spinner: true,
+			Message:    "Thinking and generating response...",
+			Spinner:    true,
+			StatusType: shared.StatusGenerating,
 		}
 	})
 
@@ -774,7 +775,7 @@ func (h *ChatMessageHandler) processToolCallsSequentially(toolCalls []sdk.ChatCo
 		func() tea.Msg {
 			return ToolCallDetectedMsg{
 				ToolCall: toolCallRequest,
-				Response: fmt.Sprintf("Processing tool call 1 of %d", len(toolCalls)),
+				Response: fmt.Sprintf("Working on tool: %s", toolCallRequest.Name),
 			}
 		},
 		func() tea.Msg {
@@ -820,6 +821,10 @@ func (h *ChatMessageHandler) parseToolArguments(arguments string) map[string]int
 // handleStoreRemainingToolCalls stores remaining tool calls for sequential processing
 func (h *ChatMessageHandler) handleStoreRemainingToolCalls(msg StoreRemainingToolCallsMsg, state *AppState) (tea.Model, tea.Cmd) {
 	state.Data["remainingToolCalls"] = msg.RemainingCalls
+	// Store total tool count for progress tracking if not already stored
+	if _, exists := state.Data["totalToolCalls"]; !exists {
+		state.Data["totalToolCalls"] = len(msg.RemainingCalls) + 1 // +1 for the current one being processed
+	}
 	return nil, nil
 }
 
@@ -828,11 +833,13 @@ func (h *ChatMessageHandler) handleProcessNextToolCall(msg ProcessNextToolCallMs
 	remainingCalls, ok := state.Data["remainingToolCalls"].([]sdk.ChatCompletionMessageToolCall)
 	if !ok || len(remainingCalls) == 0 {
 		delete(state.Data, "remainingToolCalls")
+		delete(state.Data, "totalToolCalls") // Clean up progress tracking
 
 		return nil, func() tea.Msg {
 			return shared.SetStatusMsg{
-				Message: "All tool calls completed, preparing follow-up request...",
-				Spinner: true,
+				Message:    "All tools executed, preparing next response...",
+				Spinner:    true,
+				StatusType: shared.StatusPreparing,
 			}
 		}
 	}
@@ -847,14 +854,25 @@ func (h *ChatMessageHandler) handleProcessNextToolCall(msg ProcessNextToolCallMs
 		Arguments: args,
 	}
 
-	remainingCount := len(remainingCalls) - 1
-	statusMessage := fmt.Sprintf("Processing next tool call (%d remaining)", remainingCount)
+	// Calculate progress using stored total tool count
+	totalTools, _ := state.Data["totalToolCalls"].(int)
+	if totalTools == 0 {
+		totalTools = len(remainingCalls) + 1 // Fallback calculation
+	}
+	currentToolIndex := totalTools - len(remainingCalls)
+
+	statusMessage := fmt.Sprintf("Working on tool: %s", toolCallRequest.Name)
 
 	return nil, tea.Batch(
 		func() tea.Msg {
 			return shared.SetStatusMsg{
-				Message: statusMessage,
-				Spinner: false,
+				Message:    statusMessage,
+				Spinner:    false,
+				StatusType: shared.StatusWorking,
+				Progress: &shared.StatusProgress{
+					Current: currentToolIndex,
+					Total:   totalTools,
+				},
 			}
 		},
 		func() tea.Msg {

@@ -115,8 +115,9 @@ func (h *ToolMessageHandler) handleToolCall(event domain.ToolCallEvent, state *A
 	// For now, just show a status message
 	return nil, func() tea.Msg {
 		return shared.SetStatusMsg{
-			Message: fmt.Sprintf("Tool call received: %s", event.ToolName),
-			Spinner: false,
+			Message:    fmt.Sprintf("Executing tool: %s", event.ToolName),
+			Spinner:    false,
+			StatusType: shared.StatusProcessing,
 		}
 	}
 }
