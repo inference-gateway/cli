@@ -152,24 +152,20 @@ func TestConversationView_ToggleAllToolResultsExpansion(t *testing.T) {
 	}
 	cv.SetConversation(conversation)
 
-	// Initially all should be collapsed
 	if cv.IsToolResultExpanded(0) || cv.IsToolResultExpanded(2) {
 		t.Error("Expected all tool results to be collapsed initially")
 	}
 
-	// Toggle all to expand
 	cv.ToggleAllToolResultsExpansion()
 
 	if !cv.IsToolResultExpanded(0) || !cv.IsToolResultExpanded(2) {
 		t.Error("Expected all tool results to be expanded after first toggle")
 	}
 
-	// User message should not be affected
 	if cv.IsToolResultExpanded(1) {
 		t.Error("Expected non-tool message to remain unaffected")
 	}
 
-	// Toggle all to collapse
 	cv.ToggleAllToolResultsExpansion()
 
 	if cv.IsToolResultExpanded(0) || cv.IsToolResultExpanded(2) {
