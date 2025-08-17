@@ -8,32 +8,46 @@ import (
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/history"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // InputView handles user input with history and autocomplete
 type InputView struct {
-	text         string
-	cursor       int
-	placeholder  string
-	width        int
-	height       int
-	modelService domain.ModelService
-	Autocomplete shared.AutocompleteInterface
+	text           string
+	cursor         int
+	placeholder    string
+	width          int
+	height         int
+	modelService   domain.ModelService
+	Autocomplete   shared.AutocompleteInterface
+	historyManager *history.HistoryManager
+	// Deprecated: keeping for backward compatibility, but using historyManager instead
 	history      []string
 	historyIndex int
 	currentInput string
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
+	// Initialize history manager with shell history integration
+	// In test environments, this might fail, so we gracefully fall back
+	historyManager, err := history.NewHistoryManager(5)
+	if err != nil {
+		// Don't print warning in tests to avoid cluttering test output
+		// fmt.Printf("Warning: Shell history integration failed: %v\n", err)
+		historyManager = nil
+	}
+
 	return &InputView{
-		text:         "",
-		cursor:       0,
-		placeholder:  "Type your message... (Press Enter to send, Alt+Enter for newline)",
-		width:        80,
-		height:       5,
-		modelService: modelService,
-		Autocomplete: nil,
+		text:           "",
+		cursor:         0,
+		placeholder:    "Type your message... (Press Enter to send, Alt+Enter for newline)",
+		width:          80,
+		height:         5,
+		modelService:   modelService,
+		Autocomplete:   nil,
+		historyManager: historyManager,
+		// Fallback to old history system if shell history fails
 		history:      make([]string, 0, 5),
 		historyIndex: -1,
 		currentInput: "",
@@ -47,8 +61,12 @@ func (iv *InputView) GetInput() string {
 func (iv *InputView) ClearInput() {
 	iv.text = ""
 	iv.cursor = 0
-	iv.historyIndex = -1
-	iv.currentInput = ""
+	if iv.historyManager != nil {
+		iv.historyManager.ResetNavigation()
+	} else {
+		iv.historyIndex = -1
+		iv.currentInput = ""
+	}
 	if iv.Autocomplete != nil {
 		iv.Autocomplete.Hide()
 	}
@@ -151,12 +169,28 @@ func (iv *InputView) Render() string {
 	return lipgloss.JoinVertical(lipgloss.Left, components...)
 }
 
-// addToHistory adds a message to the input history, keeping only the last 5
+// addToHistory adds a message to the input history, using shell history if available
 func (iv *InputView) addToHistory(message string) {
 	if message == "" {
 		return
 	}
 
+	// Use shell history integration if available
+	if iv.historyManager != nil {
+		if err := iv.historyManager.AddToHistory(message); err != nil {
+			fmt.Printf("Warning: Failed to add to shell history: %v\n", err)
+			// Fall back to in-memory history
+			iv.addToInMemoryHistory(message)
+		}
+		return
+	}
+
+	// Fallback to old in-memory history system
+	iv.addToInMemoryHistory(message)
+}
+
+// addToInMemoryHistory adds a message to the fallback in-memory history
+func (iv *InputView) addToInMemoryHistory(message string) {
 	if len(iv.history) > 0 && iv.history[len(iv.history)-1] == message {
 		return
 	}
@@ -169,6 +203,15 @@ func (iv *InputView) addToHistory(message string) {
 
 // navigateHistoryUp moves up in history (to older messages)
 func (iv *InputView) navigateHistoryUp() {
+	// Use shell history integration if available
+	if iv.historyManager != nil {
+		newText := iv.historyManager.NavigateUp(iv.text)
+		iv.text = newText
+		iv.cursor = len(iv.text)
+		return
+	}
+
+	// Fallback to old in-memory history system
 	if len(iv.history) == 0 {
 		return
 	}
@@ -188,6 +231,15 @@ func (iv *InputView) navigateHistoryUp() {
 
 // navigateHistoryDown moves down in history (to newer messages)
 func (iv *InputView) navigateHistoryDown() {
+	// Use shell history integration if available
+	if iv.historyManager != nil {
+		newText := iv.historyManager.NavigateDown(iv.text)
+		iv.text = newText
+		iv.cursor = len(iv.text)
+		return
+	}
+
+	// Fallback to old in-memory history system
 	if iv.historyIndex == -1 {
 		return
 	}
@@ -259,8 +311,12 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if keyStr != "up" && keyStr != "down" && keyStr != "left" && keyStr != "right" &&
 		keyStr != "ctrl+a" && keyStr != "ctrl+e" && keyStr != "home" && keyStr != "end" {
-		iv.historyIndex = -1
-		iv.currentInput = ""
+		if iv.historyManager != nil {
+			iv.historyManager.ResetNavigation()
+		} else {
+			iv.historyIndex = -1
+			iv.currentInput = ""
+		}
 	}
 
 	cmd := iv.handleSpecificKeys(key)
@@ -487,6 +543,11 @@ func (iv *InputView) deleteToBeginning() {
 }
 
 // preserveTrailingSpaces wraps text while preserving trailing spaces that might be lost during wrapping
+// DisableShellHistory disables shell history integration for testing
+func (iv *InputView) DisableShellHistory() {
+	iv.historyManager = nil
+}
+
 func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) string {
 	wrappedText := shared.WrapText(text, availableWidth)
 

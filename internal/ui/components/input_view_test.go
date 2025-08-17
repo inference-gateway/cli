@@ -85,6 +85,8 @@ func TestInputView_GetInput(t *testing.T) {
 func TestInputView_ClearInput(t *testing.T) {
 	mockModelService := &mockModelService{}
 	iv := NewInputView(mockModelService)
+	// Disable shell history for consistent testing
+	iv.DisableShellHistory()
 
 	iv.text = "Some text"
 	iv.cursor = 5
@@ -296,6 +298,8 @@ func TestInputView_HandleKey_ArrowKeys(t *testing.T) {
 func TestInputView_History(t *testing.T) {
 	mockModelService := &mockModelService{}
 	iv := NewInputView(mockModelService)
+	// Disable shell history for consistent testing
+	iv.DisableShellHistory()
 
 	iv.history = []string{"first", "second", "third"}
 	iv.historyIndex = -1
