@@ -39,6 +39,7 @@ type ToolsConfig struct {
 	Bash         BashToolConfig      `yaml:"bash"`
 	Read         ReadToolConfig      `yaml:"read"`
 	Write        WriteToolConfig     `yaml:"write"`
+	Edit         EditToolConfig      `yaml:"edit"`
 	Delete       DeleteToolConfig    `yaml:"delete"`
 	Grep         GrepToolConfig      `yaml:"grep"`
 	Tree         TreeToolConfig      `yaml:"tree"`
@@ -64,6 +65,12 @@ type ReadToolConfig struct {
 
 // WriteToolConfig contains write-specific tool settings
 type WriteToolConfig struct {
+	Enabled         bool  `yaml:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty"`
+}
+
+// EditToolConfig contains edit-specific tool settings
+type EditToolConfig struct {
 	Enabled         bool  `yaml:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty"`
 }
@@ -195,6 +202,10 @@ func DefaultConfig() *Config {
 				RequireApproval: &[]bool{false}[0],
 			},
 			Write: WriteToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{true}[0],
+			},
+			Edit: EditToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{true}[0],
 			},
@@ -360,6 +371,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	case "Write":
 		if c.Tools.Write.RequireApproval != nil {
 			return *c.Tools.Write.RequireApproval
+		}
+	case "Edit":
+		if c.Tools.Edit.RequireApproval != nil {
+			return *c.Tools.Edit.RequireApproval
 		}
 	case "Delete":
 		if c.Tools.Delete.RequireApproval != nil {

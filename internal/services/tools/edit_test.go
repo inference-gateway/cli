@@ -1,0 +1,601 @@
+package tools
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+
+	"github.com/inference-gateway/cli/config"
+	"github.com/inference-gateway/cli/internal/domain"
+)
+
+// MockReadToolTracker for testing read tool usage tracking
+type MockReadToolTracker struct {
+	readToolUsed bool
+}
+
+func (m *MockReadToolTracker) IsReadToolUsed() bool {
+	return m.readToolUsed
+}
+
+func (m *MockReadToolTracker) SetReadToolUsed() {
+	m.readToolUsed = true
+}
+
+func TestEditTool_Definition(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Edit: config.EditToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewEditTool(cfg)
+	def := tool.Definition()
+
+	if def.Name != "Edit" {
+		t.Errorf("Expected tool name 'Edit', got %s", def.Name)
+	}
+
+	if def.Description == "" {
+		t.Error("Tool description should not be empty")
+	}
+
+	if def.Parameters == nil {
+		t.Error("Tool parameters should not be nil")
+	}
+
+	// Check required parameters
+	params, ok := def.Parameters.(map[string]interface{})
+	if !ok {
+		t.Fatal("Parameters should be a map")
+	}
+
+	required, ok := params["required"].([]string)
+	if !ok {
+		t.Fatal("Required parameters should be a string slice")
+	}
+
+	expectedRequired := []string{"file_path", "old_string", "new_string"}
+	if len(required) != len(expectedRequired) {
+		t.Errorf("Expected %d required parameters, got %d", len(expectedRequired), len(required))
+	}
+
+	for i, req := range expectedRequired {
+		if required[i] != req {
+			t.Errorf("Expected required parameter %s, got %s", req, required[i])
+		}
+	}
+}
+
+func TestEditTool_IsEnabled(t *testing.T) {
+	tests := []struct {
+		name          string
+		toolsEnabled  bool
+		editEnabled   bool
+		expectedState bool
+	}{
+		{
+			name:          "enabled when both tools and edit enabled",
+			toolsEnabled:  true,
+			editEnabled:   true,
+			expectedState: true,
+		},
+		{
+			name:          "disabled when tools disabled",
+			toolsEnabled:  false,
+			editEnabled:   true,
+			expectedState: false,
+		},
+		{
+			name:          "disabled when edit disabled",
+			toolsEnabled:  true,
+			editEnabled:   false,
+			expectedState: false,
+		},
+		{
+			name:          "disabled when both disabled",
+			toolsEnabled:  false,
+			editEnabled:   false,
+			expectedState: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Tools: config.ToolsConfig{
+					Enabled: tt.toolsEnabled,
+					Edit: config.EditToolConfig{
+						Enabled: tt.editEnabled,
+					},
+				},
+			}
+
+			tool := NewEditTool(cfg)
+			if tool.IsEnabled() != tt.expectedState {
+				t.Errorf("Expected IsEnabled() = %v, got %v", tt.expectedState, tool.IsEnabled())
+			}
+		})
+	}
+}
+
+func TestEditTool_Validate(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Edit: config.EditToolConfig{
+				Enabled: true,
+			},
+			ExcludePaths: []string{
+				".infer/",
+				"*.secret",
+			},
+		},
+	}
+
+	tests := []struct {
+		name         string
+		readUsed     bool
+		args         map[string]interface{}
+		wantError    bool
+		errorMessage string
+	}{
+		{
+			name:     "valid arguments with read tool used",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":  "test.txt",
+				"old_string": "old",
+				"new_string": "new",
+			},
+			wantError: false,
+		},
+		{
+			name:     "valid arguments with replace_all",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":   "test.txt",
+				"old_string":  "old",
+				"new_string":  "new",
+				"replace_all": true,
+			},
+			wantError: false,
+		},
+		{
+			name:     "read tool not used",
+			readUsed: false,
+			args: map[string]interface{}{
+				"file_path":  "test.txt",
+				"old_string": "old",
+				"new_string": "new",
+			},
+			wantError:    true,
+			errorMessage: "edit tool requires that the Read tool has been used at least once in the conversation before editing files",
+		},
+		{
+			name:     "missing file_path",
+			readUsed: true,
+			args: map[string]interface{}{
+				"old_string": "old",
+				"new_string": "new",
+			},
+			wantError:    true,
+			errorMessage: "file_path parameter is required and must be a string",
+		},
+		{
+			name:     "empty file_path",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":  "",
+				"old_string": "old",
+				"new_string": "new",
+			},
+			wantError:    true,
+			errorMessage: "file_path cannot be empty",
+		},
+		{
+			name:     "file_path wrong type",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":  123,
+				"old_string": "old",
+				"new_string": "new",
+			},
+			wantError:    true,
+			errorMessage: "file_path parameter is required and must be a string",
+		},
+		{
+			name:     "missing old_string",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":  "test.txt",
+				"new_string": "new",
+			},
+			wantError:    true,
+			errorMessage: "old_string parameter is required and must be a string",
+		},
+		{
+			name:     "empty old_string",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":  "test.txt",
+				"old_string": "",
+				"new_string": "new",
+			},
+			wantError:    true,
+			errorMessage: "old_string cannot be empty",
+		},
+		{
+			name:     "old_string wrong type",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":  "test.txt",
+				"old_string": 123,
+				"new_string": "new",
+			},
+			wantError:    true,
+			errorMessage: "old_string parameter is required and must be a string",
+		},
+		{
+			name:     "missing new_string",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":  "test.txt",
+				"old_string": "old",
+			},
+			wantError:    true,
+			errorMessage: "new_string parameter is required and must be a string",
+		},
+		{
+			name:     "new_string wrong type",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":  "test.txt",
+				"old_string": "old",
+				"new_string": 123,
+			},
+			wantError:    true,
+			errorMessage: "new_string parameter is required and must be a string",
+		},
+		{
+			name:     "old_string equals new_string",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":  "test.txt",
+				"old_string": "same",
+				"new_string": "same",
+			},
+			wantError:    true,
+			errorMessage: "new_string must be different from old_string",
+		},
+		{
+			name:     "replace_all wrong type",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":   "test.txt",
+				"old_string":  "old",
+				"new_string":  "new",
+				"replace_all": "true",
+			},
+			wantError:    true,
+			errorMessage: "replace_all parameter must be a boolean",
+		},
+		{
+			name:     "excluded path",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":  ".infer/config.yaml",
+				"old_string": "old",
+				"new_string": "new",
+			},
+			wantError:    true,
+			errorMessage: "access to path '.infer/config.yaml' is excluded for security",
+		},
+		{
+			name:     "excluded pattern",
+			readUsed: true,
+			args: map[string]interface{}{
+				"file_path":  "database.secret",
+				"old_string": "old",
+				"new_string": "new",
+			},
+			wantError:    true,
+			errorMessage: "access to path 'database.secret' is excluded for security",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockTracker := &MockReadToolTracker{readToolUsed: tt.readUsed}
+			tool := NewEditToolWithRegistry(cfg, mockTracker)
+
+			err := tool.Validate(tt.args)
+
+			if tt.wantError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				} else if tt.errorMessage != "" && err.Error() != tt.errorMessage {
+					t.Errorf("Expected error message '%s', got '%s'", tt.errorMessage, err.Error())
+				}
+			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestEditTool_Execute_ReadToolNotUsed(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Edit: config.EditToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	mockTracker := &MockReadToolTracker{readToolUsed: false}
+	tool := NewEditToolWithRegistry(cfg, mockTracker)
+
+	args := map[string]interface{}{
+		"file_path":  "test.txt",
+		"old_string": "old",
+		"new_string": "new",
+	}
+
+	result, err := tool.Execute(context.Background(), args)
+
+	if err != nil {
+		t.Errorf("Expected no error, got %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result, got nil")
+	}
+
+	if result.Success {
+		t.Error("Expected execution to fail when Read tool not used")
+	}
+
+	expectedError := "Edit tool requires that the Read tool has been used at least once in the conversation before editing files"
+	if result.Error != expectedError {
+		t.Errorf("Expected error '%s', got '%s'", expectedError, result.Error)
+	}
+}
+
+func TestEditTool_Execute_Success(t *testing.T) {
+	// Create temporary test file
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.txt")
+	originalContent := "Hello world\nThis is a test\nHello again"
+
+	err := os.WriteFile(testFile, []byte(originalContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Edit: config.EditToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tests := []struct {
+		name             string
+		args             map[string]interface{}
+		expectedContent  string
+		expectedReplaced int
+		expectedModified bool
+	}{
+		{
+			name: "single replacement",
+			args: map[string]interface{}{
+				"file_path":  testFile,
+				"old_string": "Hello world",
+				"new_string": "Hi universe",
+			},
+			expectedContent:  "Hi universe\nThis is a test\nHello again",
+			expectedReplaced: 1,
+			expectedModified: true,
+		},
+		{
+			name: "replace all",
+			args: map[string]interface{}{
+				"file_path":   testFile,
+				"old_string":  "Hello",
+				"new_string":  "Hi",
+				"replace_all": true,
+			},
+			expectedContent:  "Hi world\nThis is a test\nHi again",
+			expectedReplaced: 2,
+			expectedModified: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Reset file content
+			err := os.WriteFile(testFile, []byte(originalContent), 0644)
+			if err != nil {
+				t.Fatalf("Failed to reset test file: %v", err)
+			}
+
+			mockTracker := &MockReadToolTracker{readToolUsed: true}
+			tool := NewEditToolWithRegistry(cfg, mockTracker)
+
+			result, err := tool.Execute(context.Background(), tt.args)
+
+			if err != nil {
+				t.Errorf("Unexpected error: %v", err)
+				return
+			}
+
+			if result == nil {
+				t.Fatal("Expected result, got nil")
+			}
+
+			if !result.Success {
+				t.Errorf("Expected successful execution, got error: %s", result.Error)
+				return
+			}
+
+			// Check result data
+			editResult, ok := result.Data.(*domain.EditToolResult)
+			if !ok {
+				t.Fatal("Expected EditToolResult in result data")
+			}
+
+			if editResult.ReplacedCount != tt.expectedReplaced {
+				t.Errorf("Expected %d replacements, got %d", tt.expectedReplaced, editResult.ReplacedCount)
+			}
+
+			if editResult.FileModified != tt.expectedModified {
+				t.Errorf("Expected FileModified = %v, got %v", tt.expectedModified, editResult.FileModified)
+			}
+
+			// Check file content
+			if tt.expectedModified {
+				content, err := os.ReadFile(testFile)
+				if err != nil {
+					t.Fatalf("Failed to read modified file: %v", err)
+				}
+
+				if string(content) != tt.expectedContent {
+					t.Errorf("Expected file content '%s', got '%s'", tt.expectedContent, string(content))
+				}
+			}
+		})
+	}
+}
+
+func TestEditTool_Execute_Errors(t *testing.T) {
+	tempDir := t.TempDir()
+	testFile := filepath.Join(tempDir, "test.txt")
+	originalContent := "Hello world\nHello world\nThis is a test"
+
+	err := os.WriteFile(testFile, []byte(originalContent), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test file: %v", err)
+	}
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Edit: config.EditToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	mockTracker := &MockReadToolTracker{readToolUsed: true}
+	tool := NewEditToolWithRegistry(cfg, mockTracker)
+
+	tests := []struct {
+		name                   string
+		args                   map[string]interface{}
+		expectedErrorSubstring string
+	}{
+		{
+			name: "file does not exist",
+			args: map[string]interface{}{
+				"file_path":  filepath.Join(tempDir, "nonexistent.txt"),
+				"old_string": "old",
+				"new_string": "new",
+			},
+			expectedErrorSubstring: "does not exist. Edit tool only works with existing files",
+		},
+		{
+			name: "directory instead of file",
+			args: map[string]interface{}{
+				"file_path":  tempDir,
+				"old_string": "old",
+				"new_string": "new",
+			},
+			expectedErrorSubstring: "is a directory, not a file",
+		},
+		{
+			name: "old_string not found",
+			args: map[string]interface{}{
+				"file_path":  testFile,
+				"old_string": "nonexistent",
+				"new_string": "new",
+			},
+			expectedErrorSubstring: "old_string not found in file",
+		},
+		{
+			name: "old_string not unique without replace_all",
+			args: map[string]interface{}{
+				"file_path":  testFile,
+				"old_string": "Hello world",
+				"new_string": "Hi universe",
+			},
+			expectedErrorSubstring: "old_string 'Hello world' is not unique in file",
+		},
+		{
+			name: "old_string equals new_string",
+			args: map[string]interface{}{
+				"file_path":  testFile,
+				"old_string": "Hello world",
+				"new_string": "Hello world",
+			},
+			expectedErrorSubstring: "new_string must be different from old_string",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := tool.Execute(context.Background(), tt.args)
+
+			if err != nil {
+				// Some errors are returned as error, others as failed result
+				if tt.expectedErrorSubstring != "" && !strings.Contains(err.Error(), tt.expectedErrorSubstring) {
+					t.Errorf("Expected error message to contain '%s', got '%s'", tt.expectedErrorSubstring, err.Error())
+				}
+			} else if result != nil && !result.Success {
+				// Error in result
+				if tt.expectedErrorSubstring != "" && !strings.Contains(result.Error, tt.expectedErrorSubstring) {
+					t.Errorf("Expected error message to contain '%s', got '%s'", tt.expectedErrorSubstring, result.Error)
+				}
+			} else {
+				t.Error("Expected error but got successful result")
+			}
+		})
+	}
+}
+
+func TestEditTool_Execute_DisabledTool(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: false,
+		},
+	}
+
+	tool := NewEditTool(cfg)
+
+	args := map[string]interface{}{
+		"file_path":  "test.txt",
+		"old_string": "old",
+		"new_string": "new",
+	}
+
+	_, err := tool.Execute(context.Background(), args)
+
+	if err == nil {
+		t.Error("Expected error for disabled tool")
+	}
+
+	expectedError := "edit tool is not enabled"
+	if err.Error() != expectedError {
+		t.Errorf("Expected error '%s', got '%s'", expectedError, err.Error())
+	}
+}

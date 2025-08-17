@@ -228,6 +228,19 @@ type FileWriteToolResult struct {
 	Error        string `json:"error,omitempty"`
 }
 
+// EditToolResult represents the result of an edit operation
+type EditToolResult struct {
+	FilePath        string `json:"file_path"`
+	OldString       string `json:"old_string"`
+	NewString       string `json:"new_string"`
+	ReplacedCount   int    `json:"replaced_count"`
+	ReplaceAll      bool   `json:"replace_all"`
+	FileModified    bool   `json:"file_modified"`
+	OriginalSize    int64  `json:"original_size"`
+	NewSize         int64  `json:"new_size"`
+	BytesDifference int64  `json:"bytes_difference"`
+}
+
 // TreeToolResult represents the result of a tree operation
 type TreeToolResult struct {
 	Path            string   `json:"path"`
