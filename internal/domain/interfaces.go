@@ -253,3 +253,19 @@ type DeleteToolResult struct {
 	WildcardExpanded  bool     `json:"wildcard_expanded"`
 	Errors            []string `json:"errors,omitempty"`
 }
+
+// TodoItem represents a single todo item
+type TodoItem struct {
+	ID      string `json:"id"`
+	Content string `json:"content"`
+	Status  string `json:"status"`
+}
+
+// TodoWriteToolResult represents the result of a TodoWrite operation
+type TodoWriteToolResult struct {
+	Todos          []TodoItem `json:"todos"`
+	TotalTasks     int        `json:"total_tasks"`
+	CompletedTasks int        `json:"completed_tasks"`
+	InProgressTask string     `json:"in_progress_task,omitempty"`
+	ValidationOK   bool       `json:"validation_ok"`
+}

@@ -32,6 +32,7 @@ func (r *Registry) registerTools() {
 	r.tools["Delete"] = NewDeleteTool(r.config)
 	r.tools["Grep"] = NewGrepTool(r.config)
 	r.tools["Tree"] = NewTreeTool(r.config)
+	r.tools["TodoWrite"] = NewTodoWriteTool(r.config)
 
 	if r.config.Tools.Fetch.Enabled {
 		r.tools["Fetch"] = NewFetchTool(r.config)

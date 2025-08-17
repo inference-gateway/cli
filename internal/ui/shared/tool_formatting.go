@@ -104,6 +104,10 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 			domain := getDomainFromURL(fetchResult.URL)
 			preview = fmt.Sprintf("Fetched %d bytes from %s", fetchResult.Size, domain)
 		}
+	case "TodoWrite":
+		if todoResult, ok := result.Data.(*domain.TodoWriteToolResult); ok {
+			preview = fmt.Sprintf("Updated todo list: %d/%d completed", todoResult.CompletedTasks, todoResult.TotalTasks)
+		}
 	default:
 		if result.Success {
 			preview = "Execution completed successfully"
@@ -188,6 +192,8 @@ func formatToolSpecificData(toolName string, data interface{}) string {
 		return formatFetchToolData(data)
 	case "WebSearch":
 		return formatWebSearchToolData(data)
+	case "TodoWrite":
+		return formatTodoWriteToolData(data)
 	}
 
 	if jsonData, err := json.MarshalIndent(data, "", "  "); err == nil {
@@ -334,6 +340,63 @@ func formatWebSearchToolData(data interface{}) string {
 		output.WriteString("\n")
 	}
 	return output.String()
+}
+
+func formatTodoWriteToolData(data interface{}) string {
+	todoResult, ok := data.(*domain.TodoWriteToolResult)
+	if !ok {
+		return ""
+	}
+
+	var output strings.Builder
+
+	output.WriteString(fmt.Sprintf("📋 **Todo List** (%d/%d completed)\n\n", todoResult.CompletedTasks, todoResult.TotalTasks))
+
+	if todoResult.TotalTasks > 0 {
+		progressPercent := (todoResult.CompletedTasks * 100) / todoResult.TotalTasks
+		progressBar := createProgressBar(progressPercent, 20)
+		output.WriteString(fmt.Sprintf("Progress: %s %d%%\n\n", progressBar, progressPercent))
+	}
+
+	for i, todo := range todoResult.Todos {
+		var checkbox, content string
+
+		switch todo.Status {
+		case "completed":
+			checkbox = "✅"
+			content = CreateStrikethroughText(todo.Content)
+		case "in_progress":
+			checkbox = "🔄"
+			content = CreateColoredText(fmt.Sprintf("%s (in progress)", todo.Content), AccentColor) // Colored for in progress
+		default:
+			checkbox = "☐"
+			content = todo.Content
+		}
+
+		output.WriteString(fmt.Sprintf("%d. %s %s\n", i+1, checkbox, content))
+	}
+
+	if todoResult.InProgressTask != "" {
+		output.WriteString(fmt.Sprintf("\n🚧 %s %s\n",
+			CreateColoredText("Currently working on:", StatusColor),
+			CreateColoredText(todoResult.InProgressTask, AccentColor)))
+	}
+
+	return output.String()
+}
+
+// createProgressBar creates a visual progress bar
+func createProgressBar(percent int, width int) string {
+	if percent < 0 {
+		percent = 0
+	}
+	if percent > 100 {
+		percent = 100
+	}
+
+	filled := (percent * width) / 100
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+	return fmt.Sprintf("[%s]", bar)
 }
 
 // Helper functions

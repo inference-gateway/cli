@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
@@ -64,6 +64,8 @@ func (h *ChatMessageHandler) CanHandle(msg tea.Msg) bool {
 		return true
 	case ProcessNextToolCallMsg:
 		return true
+	case TriggerFollowUpLLMCallMsg:
+		return true
 	case domain.ChatStartEvent, domain.ChatChunkEvent, domain.ChatCompleteEvent, domain.ChatErrorEvent:
 		return true
 	default:
@@ -90,6 +92,9 @@ func (h *ChatMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, te
 
 	case ProcessNextToolCallMsg:
 		return h.handleProcessNextToolCall(msg, state)
+
+	case TriggerFollowUpLLMCallMsg:
+		return h.handleTriggerFollowUpLLMCall(msg, state)
 
 	case domain.ChatStartEvent:
 		return h.handleChatStart(msg, state)
@@ -523,6 +528,9 @@ type StoreRemainingToolCallsMsg struct {
 // ProcessNextToolCallMsg triggers processing of the next tool call in the queue
 type ProcessNextToolCallMsg struct{}
 
+// TriggerFollowUpLLMCallMsg triggers the follow-up LLM call after all tools are executed
+type TriggerFollowUpLLMCallMsg struct{}
+
 // SwitchModelMsg indicates that model selection view should be shown
 type SwitchModelMsg struct{}
 
@@ -820,7 +828,13 @@ func (h *ChatMessageHandler) handleProcessNextToolCall(msg ProcessNextToolCallMs
 	remainingCalls, ok := state.Data["remainingToolCalls"].([]sdk.ChatCompletionMessageToolCall)
 	if !ok || len(remainingCalls) == 0 {
 		delete(state.Data, "remainingToolCalls")
-		return nil, h.triggerFollowUpLLMCall()
+
+		return nil, func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message: "All tool calls completed, preparing follow-up request...",
+				Spinner: true,
+			}
+		}
 	}
 
 	nextCall := remainingCalls[0]
@@ -855,10 +869,13 @@ func (h *ChatMessageHandler) handleProcessNextToolCall(msg ProcessNextToolCallMs
 // triggerFollowUpLLMCall sends the conversation with tool results back to the LLM for reasoning
 func (h *ChatMessageHandler) triggerFollowUpLLMCall() tea.Cmd {
 	return func() tea.Msg {
-		// Convert conversation to SDK messages
 		messages := h.conversationToSDKMessages()
 
-		// Start a new chat completion request
 		return h.startChatCompletion(messages)()
 	}
+}
+
+// handleTriggerFollowUpLLMCall handles the trigger for follow-up LLM call
+func (h *ChatMessageHandler) handleTriggerFollowUpLLMCall(msg TriggerFollowUpLLMCallMsg, state *AppState) (tea.Model, tea.Cmd) {
+	return nil, h.triggerFollowUpLLMCall()
 }
