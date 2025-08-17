@@ -101,59 +101,75 @@ func TestHTTPA2AService_ListAgents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				if r.URL.Path != "/v1/a2a/agents" {
-					t.Errorf("Expected path '/v1/a2a/agents', got %q", r.URL.Path)
-				}
-				if r.Method != "GET" {
-					t.Errorf("Expected method GET, got %s", r.Method)
-				}
-
-				w.WriteHeader(tt.statusCode)
-				w.Write([]byte(tt.serverResponse))
-			}))
+			server := createTestServer(t, tt.statusCode, tt.serverResponse)
 			defer server.Close()
 
 			service := NewHTTPA2AService(server.URL, "test-api-key")
 			agents, err := service.ListAgents(context.Background())
 
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if !tt.expectError {
-				if len(agents) != len(tt.expectedAgents) {
-					t.Errorf("Expected %d agents, got %d", len(tt.expectedAgents), len(agents))
-				}
-
-				for i, expected := range tt.expectedAgents {
-					if i >= len(agents) {
-						t.Errorf("Missing agent at index %d", i)
-						continue
-					}
-					actual := agents[i]
-
-					if actual.ID != expected.ID {
-						t.Errorf("Agent %d: expected ID %q, got %q", i, expected.ID, actual.ID)
-					}
-					if actual.Name != expected.Name {
-						t.Errorf("Agent %d: expected name %q, got %q", i, expected.Name, actual.Name)
-					}
-					if actual.Status != expected.Status {
-						t.Errorf("Agent %d: expected status %q, got %q", i, expected.Status, actual.Status)
-					}
-					if actual.Endpoint != expected.Endpoint {
-						t.Errorf("Agent %d: expected endpoint %q, got %q", i, expected.Endpoint, actual.Endpoint)
-					}
-					if actual.Version != expected.Version {
-						t.Errorf("Agent %d: expected version %q, got %q", i, expected.Version, actual.Version)
-					}
-				}
-			}
+			validateTestResult(t, tt.expectError, err, agents, tt.expectedAgents)
 		})
+	}
+}
+
+func createTestServer(t *testing.T, statusCode int, response string) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v1/a2a/agents" {
+			t.Errorf("Expected path '/v1/a2a/agents', got %q", r.URL.Path)
+		}
+		if r.Method != "GET" {
+			t.Errorf("Expected method GET, got %s", r.Method)
+		}
+
+		w.WriteHeader(statusCode)
+		if _, err := w.Write([]byte(response)); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
+	}))
+}
+
+func validateTestResult(t *testing.T, expectError bool, err error, agents []domain.A2AAgent, expectedAgents []domain.A2AAgent) {
+	if expectError {
+		if err == nil {
+			t.Error("Expected error but got none")
+		}
+		return
+	}
+
+	if err != nil {
+		t.Errorf("Unexpected error: %v", err)
+		return
+	}
+
+	if len(agents) != len(expectedAgents) {
+		t.Errorf("Expected %d agents, got %d", len(expectedAgents), len(agents))
+		return
+	}
+
+	for i, expected := range expectedAgents {
+		if i >= len(agents) {
+			t.Errorf("Missing agent at index %d", i)
+			continue
+		}
+		validateAgent(t, i, agents[i], expected)
+	}
+}
+
+func validateAgent(t *testing.T, index int, actual, expected domain.A2AAgent) {
+	if actual.ID != expected.ID {
+		t.Errorf("Agent %d: expected ID %q, got %q", index, expected.ID, actual.ID)
+	}
+	if actual.Name != expected.Name {
+		t.Errorf("Agent %d: expected name %q, got %q", index, expected.Name, actual.Name)
+	}
+	if actual.Status != expected.Status {
+		t.Errorf("Agent %d: expected status %q, got %q", index, expected.Status, actual.Status)
+	}
+	if actual.Endpoint != expected.Endpoint {
+		t.Errorf("Agent %d: expected endpoint %q, got %q", index, expected.Endpoint, actual.Endpoint)
+	}
+	if actual.Version != expected.Version {
+		t.Errorf("Agent %d: expected version %q, got %q", index, expected.Version, actual.Version)
 	}
 }
 
@@ -170,7 +186,9 @@ func TestHTTPA2AService_ListAgents_WithAPIKey(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"data": []}`))
+		if _, err := w.Write([]byte(`{"data": []}`)); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -190,7 +208,9 @@ func TestHTTPA2AService_ListAgents_WithoutAPIKey(t *testing.T) {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"data": []}`))
+		if _, err := w.Write([]byte(`{"data": []}`)); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
@@ -205,7 +225,9 @@ func TestHTTPA2AService_ListAgents_WithoutAPIKey(t *testing.T) {
 func TestHTTPA2AService_ListAgents_InvalidJSON(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`invalid json`))
+		if _, err := w.Write([]byte(`invalid json`)); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	}))
 	defer server.Close()
 
