@@ -223,7 +223,6 @@ func testInvalidTodoWriteValidation(t *testing.T, tool *TodoWriteTool) {
 				"todos": []interface{}{
 					map[string]interface{}{
 						"id": "1",
-						// missing content and status
 					},
 				},
 			},
@@ -237,7 +236,7 @@ func testInvalidTodoWriteValidation(t *testing.T, tool *TodoWriteTool) {
 				t.Error("Expected validation to fail, but it passed")
 				return
 			}
-			
+
 			if tt.errorMsg != "" && err.Error() != tt.errorMsg {
 				t.Errorf("Expected error message '%s', got '%s'", tt.errorMsg, err.Error())
 			}
@@ -259,11 +258,11 @@ func TestTodoWriteTool_Execute(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name          string
-		args          map[string]interface{}
-		wantSuccess   bool
-		expectedTodos int
-		expectedCompleted int
+		name               string
+		args               map[string]interface{}
+		wantSuccess        bool
+		expectedTodos      int
+		expectedCompleted  int
 		expectedInProgress string
 	}{
 		{
@@ -380,7 +379,7 @@ func TestTodoWriteTool_Execute(t *testing.T) {
 func TestTodoWriteTool_Execute_ToolDisabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
-			Enabled: false, // Tools disabled
+			Enabled: false,
 			TodoWrite: config.TodoWriteToolConfig{
 				Enabled: true,
 			},

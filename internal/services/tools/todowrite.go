@@ -82,10 +82,10 @@ NOTE that you should not use this tool if there is only one trivial task to do. 
 
 When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.`,
 		Parameters: map[string]interface{}{
-			"$schema":               "http://json-schema.org/draft-07/schema#",
-			"additionalProperties":  false,
-			"type":                  "object",
-			"required":              []string{"todos"},
+			"$schema":              "http://json-schema.org/draft-07/schema#",
+			"additionalProperties": false,
+			"type":                 "object",
+			"required":             []string{"todos"},
 			"properties": map[string]interface{}{
 				"todos": map[string]interface{}{
 					"description": "The updated todo list",
@@ -173,12 +173,10 @@ func (t *TodoWriteTool) IsEnabled() bool {
 	return t.enabled
 }
 
-
 // executeTodoWrite processes the todo list update
 func (t *TodoWriteTool) executeTodoWrite(todosRaw []interface{}) (*domain.TodoWriteToolResult, error) {
 	var todos []domain.TodoItem
-	
-	// Parse todos from interface{} to TodoItem structs
+
 	for i, todoRaw := range todosRaw {
 		todoMap, ok := todoRaw.(map[string]interface{})
 		if !ok {
@@ -186,19 +184,19 @@ func (t *TodoWriteTool) executeTodoWrite(todosRaw []interface{}) (*domain.TodoWr
 		}
 
 		todo := domain.TodoItem{}
-		
+
 		if id, ok := todoMap["id"].(string); ok {
 			todo.ID = id
 		} else {
 			return nil, fmt.Errorf("todo item at index %d: id is required and must be a string", i)
 		}
-		
+
 		if content, ok := todoMap["content"].(string); ok {
 			todo.Content = content
 		} else {
 			return nil, fmt.Errorf("todo item at index %d: content is required and must be a string", i)
 		}
-		
+
 		if status, ok := todoMap["status"].(string); ok {
 			todo.Status = status
 		} else {
@@ -208,12 +206,10 @@ func (t *TodoWriteTool) executeTodoWrite(todosRaw []interface{}) (*domain.TodoWr
 		todos = append(todos, todo)
 	}
 
-	// Validate the todo list
 	if err := t.validateTodoList(todos); err != nil {
 		return nil, err
 	}
 
-	// Calculate statistics
 	completedCount := 0
 	inProgressTask := ""
 	for _, todo := range todos {
@@ -242,7 +238,6 @@ func (t *TodoWriteTool) validateTodos(todosRaw []interface{}) error {
 		return fmt.Errorf("todos array cannot be empty")
 	}
 
-	// Convert to TodoItem structs for validation
 	var todos []domain.TodoItem
 	for i, todoRaw := range todosRaw {
 		todoMap, ok := todoRaw.(map[string]interface{})
@@ -251,19 +246,19 @@ func (t *TodoWriteTool) validateTodos(todosRaw []interface{}) error {
 		}
 
 		todo := domain.TodoItem{}
-		
+
 		if id, ok := todoMap["id"].(string); ok {
 			todo.ID = id
 		} else {
 			return fmt.Errorf("todo item at index %d: id is required and must be a string", i)
 		}
-		
+
 		if content, ok := todoMap["content"].(string); ok {
 			todo.Content = content
 		} else {
 			return fmt.Errorf("todo item at index %d: content is required and must be a string", i)
 		}
-		
+
 		if status, ok := todoMap["status"].(string); ok {
 			todo.Status = status
 		} else {
@@ -280,34 +275,29 @@ func (t *TodoWriteTool) validateTodos(todosRaw []interface{}) error {
 func (t *TodoWriteTool) validateTodoList(todos []domain.TodoItem) error {
 	idMap := make(map[string]bool)
 	inProgressCount := 0
-	
+
 	for i, todo := range todos {
-		// Check for duplicate IDs
 		if idMap[todo.ID] {
 			return fmt.Errorf("duplicate todo ID '%s' at index %d", todo.ID, i)
 		}
 		idMap[todo.ID] = true
-		
-		// Check content is not empty
+
 		if todo.Content == "" {
 			return fmt.Errorf("todo item at index %d: content cannot be empty", i)
 		}
-		
-		// Check valid status
+
 		if todo.Status != "pending" && todo.Status != "in_progress" && todo.Status != "completed" {
 			return fmt.Errorf("todo item at index %d: status must be one of: pending, in_progress, completed", i)
 		}
-		
-		// Count in_progress tasks
+
 		if todo.Status == "in_progress" {
 			inProgressCount++
 		}
 	}
-	
-	// Enforce single in_progress task invariant
+
 	if inProgressCount > 1 {
 		return fmt.Errorf("only one task can be in_progress at a time, found %d in_progress tasks", inProgressCount)
 	}
-	
+
 	return nil
 }
