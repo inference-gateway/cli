@@ -39,6 +39,18 @@ func NewHistoryManager(maxInMemory int) (*HistoryManager, error) {
 	return hm, nil
 }
 
+// NewMemoryOnlyHistoryManager creates a history manager that only uses in-memory storage
+func NewMemoryOnlyHistoryManager(maxInMemory int) *HistoryManager {
+	return &HistoryManager{
+		shellHistory:    &MemoryOnlyShellHistory{},
+		inMemoryHistory: make([]string, 0, maxInMemory),
+		maxInMemory:     maxInMemory,
+		historyIndex:    -1,
+		currentInput:    "",
+		allHistory:      make([]string, 0),
+	}
+}
+
 // loadCombinedHistory loads history from shell and combines with in-memory history
 func (hm *HistoryManager) loadCombinedHistory() error {
 	shellCommands, err := hm.shellHistory.LoadHistory()
@@ -170,4 +182,19 @@ func removeDuplicates(commands []string) []string {
 	}
 
 	return result
+}
+
+// MemoryOnlyShellHistory provides a no-op shell history provider for testing
+type MemoryOnlyShellHistory struct{}
+
+func (m *MemoryOnlyShellHistory) LoadHistory() ([]string, error) {
+	return []string{}, nil
+}
+
+func (m *MemoryOnlyShellHistory) SaveToHistory(command string) error {
+	return nil
+}
+
+func (m *MemoryOnlyShellHistory) GetHistoryFile() string {
+	return ""
 }
