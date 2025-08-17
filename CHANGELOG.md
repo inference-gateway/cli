@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.24.2](https://github.com/inference-gateway/cli/compare/v0.24.1...v0.24.2) (2025-08-17)
+
+### 🧹 Maintenance
+
+* Rename fetch tool to web_fetch in config files ([c434e92](https://github.com/inference-gateway/cli/commit/c434e9202bd10f5481f3898111ee471bb7b15853))
+
 ## [0.24.1](https://github.com/inference-gateway/cli/compare/v0.24.0...v0.24.1) (2025-08-17)
 
 ### ♻️ Code Refactoring
