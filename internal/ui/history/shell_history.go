@@ -42,7 +42,6 @@ func NewShellHistory() (*ShellHistory, error) {
 
 // detectShell detects the current shell being used
 func detectShell() string {
-	// Check SHELL environment variable
 	if shell := os.Getenv("SHELL"); shell != "" {
 		if strings.Contains(shell, "zsh") {
 			return "zsh"
@@ -52,7 +51,6 @@ func detectShell() string {
 		}
 	}
 
-	// Default to bash if unable to detect
 	return "bash"
 }
 
@@ -60,13 +58,11 @@ func detectShell() string {
 func getHistoryFile(shell, homeDir string) string {
 	switch shell {
 	case "zsh":
-		// Try HISTFILE environment variable first, then default zsh locations
 		if histfile := os.Getenv("HISTFILE"); histfile != "" {
 			return histfile
 		}
 		return filepath.Join(homeDir, ".zsh_history")
 	case "bash":
-		// Try HISTFILE environment variable first, then default bash locations
 		if histfile := os.Getenv("HISTFILE"); histfile != "" {
 			return histfile
 		}
@@ -80,14 +76,13 @@ func getHistoryFile(shell, homeDir string) string {
 func (sh *ShellHistory) LoadHistory() ([]string, error) {
 	file, err := os.Open(sh.historyFile)
 	if err != nil {
-		// If history file doesn't exist, return empty slice (not an error)
 		if os.IsNotExist(err) {
 			return []string{}, nil
 		}
 		return nil, fmt.Errorf("failed to open history file %s: %w", sh.historyFile, err)
 	}
 	defer func() {
-		_ = file.Close() // ignore close error for read operations
+		_ = file.Close()
 	}()
 
 	var commands []string
@@ -99,16 +94,13 @@ func (sh *ShellHistory) LoadHistory() ([]string, error) {
 			continue
 		}
 
-		// Handle zsh extended history format
 		if sh.shell == "zsh" && strings.HasPrefix(line, ":") {
-			// Format: ": timestamp:elapsed;command"
 			parts := strings.SplitN(line, ";", 2)
 			if len(parts) == 2 {
 				line = parts[1]
 			}
 		}
 
-		// Skip duplicate consecutive commands
 		if len(commands) == 0 || commands[len(commands)-1] != line {
 			commands = append(commands, line)
 		}
@@ -127,7 +119,6 @@ func (sh *ShellHistory) SaveToHistory(command string) error {
 		return nil
 	}
 
-	// Create history file directory if it doesn't exist
 	if err := os.MkdirAll(filepath.Dir(sh.historyFile), 0755); err != nil {
 		return fmt.Errorf("failed to create history directory: %w", err)
 	}
@@ -137,16 +128,14 @@ func (sh *ShellHistory) SaveToHistory(command string) error {
 		return fmt.Errorf("failed to open history file for writing: %w", err)
 	}
 	defer func() {
-		_ = file.Close() // ignore close error for write operations
+		_ = file.Close()
 	}()
 
 	var entry string
 	if sh.shell == "zsh" {
-		// Use zsh extended history format with timestamp
 		timestamp := time.Now().Unix()
 		entry = fmt.Sprintf(": %d:0;%s\n", timestamp, command)
 	} else {
-		// Simple bash format
 		entry = command + "\n"
 	}
 
