@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.20.0](https://github.com/inference-gateway/cli/compare/v0.19.0...v0.20.0) (2025-08-17)
+
+### 🚀 Features
+
+* Implement TodoWrite LLM tool for structured task lists ([#58](https://github.com/inference-gateway/cli/issues/58)) ([2770589](https://github.com/inference-gateway/cli/commit/27705897299891dcc411b3d04a528f772a07ceac)), closes [#42](https://github.com/inference-gateway/cli/issues/42)
+
 ## [0.19.0](https://github.com/inference-gateway/cli/compare/v0.18.5...v0.19.0) (2025-08-16)
 
 ### 🚀 Features
