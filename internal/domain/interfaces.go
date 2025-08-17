@@ -274,6 +274,28 @@ type TodoItem struct {
 	Status  string `json:"status"`
 }
 
+// MultiEditToolResult represents the result of a MultiEdit operation
+type MultiEditToolResult struct {
+	FilePath        string                `json:"file_path"`
+	Edits           []EditOperationResult `json:"edits"`
+	TotalEdits      int                   `json:"total_edits"`
+	SuccessfulEdits int                   `json:"successful_edits"`
+	FileModified    bool                  `json:"file_modified"`
+	OriginalSize    int64                 `json:"original_size"`
+	NewSize         int64                 `json:"new_size"`
+	BytesDifference int64                 `json:"bytes_difference"`
+}
+
+// EditOperationResult represents the result of a single edit operation within MultiEdit
+type EditOperationResult struct {
+	OldString     string `json:"old_string"`
+	NewString     string `json:"new_string"`
+	ReplaceAll    bool   `json:"replace_all"`
+	ReplacedCount int    `json:"replaced_count"`
+	Success       bool   `json:"success"`
+	Error         string `json:"error,omitempty"`
+}
+
 // TodoWriteToolResult represents the result of a TodoWrite operation
 type TodoWriteToolResult struct {
 	Todos          []TodoItem `json:"todos"`
