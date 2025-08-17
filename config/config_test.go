@@ -240,7 +240,7 @@ tools:
   enabled: true
   bash:
     enabled: true
-  fetch:
+  web_fetch:
     enabled: false
     whitelisted_domains: []
     github:

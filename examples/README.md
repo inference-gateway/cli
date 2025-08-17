@@ -62,7 +62,7 @@ tools:
   tree:
     enabled: true
     require_approval: false
-  fetch:
+  web_fetch:
     enabled: true
     whitelisted_domains:
       - github.com
