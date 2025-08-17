@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.24.3](https://github.com/inference-gateway/cli/compare/v0.24.2...v0.24.3) (2025-08-17)
+
+### 🧹 Maintenance
+
+* Improve Claude Code quality check ([#72](https://github.com/inference-gateway/cli/issues/72)) ([e82a057](https://github.com/inference-gateway/cli/commit/e82a057d1542afa1a732acab45a97432bf871f0a))
+
 ## [0.24.2](https://github.com/inference-gateway/cli/compare/v0.24.1...v0.24.2) (2025-08-17)
 
 ### 🧹 Maintenance
