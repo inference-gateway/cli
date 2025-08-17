@@ -75,6 +75,10 @@ type FakeConversationRenderer struct {
 	setWidthArgsForCall []struct {
 		arg1 int
 	}
+	ToggleAllToolResultsExpansionStub        func()
+	toggleAllToolResultsExpansionMutex       sync.RWMutex
+	toggleAllToolResultsExpansionArgsForCall []struct {
+	}
 	ToggleToolResultExpansionStub        func(int)
 	toggleToolResultExpansionMutex       sync.RWMutex
 	toggleToolResultExpansionArgsForCall []struct {
@@ -456,6 +460,30 @@ func (fake *FakeConversationRenderer) SetWidthArgsForCall(i int) int {
 	defer fake.setWidthMutex.RUnlock()
 	argsForCall := fake.setWidthArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeConversationRenderer) ToggleAllToolResultsExpansion() {
+	fake.toggleAllToolResultsExpansionMutex.Lock()
+	fake.toggleAllToolResultsExpansionArgsForCall = append(fake.toggleAllToolResultsExpansionArgsForCall, struct {
+	}{})
+	stub := fake.ToggleAllToolResultsExpansionStub
+	fake.recordInvocation("ToggleAllToolResultsExpansion", []interface{}{})
+	fake.toggleAllToolResultsExpansionMutex.Unlock()
+	if stub != nil {
+		fake.ToggleAllToolResultsExpansionStub()
+	}
+}
+
+func (fake *FakeConversationRenderer) ToggleAllToolResultsExpansionCallCount() int {
+	fake.toggleAllToolResultsExpansionMutex.RLock()
+	defer fake.toggleAllToolResultsExpansionMutex.RUnlock()
+	return len(fake.toggleAllToolResultsExpansionArgsForCall)
+}
+
+func (fake *FakeConversationRenderer) ToggleAllToolResultsExpansionCalls(stub func()) {
+	fake.toggleAllToolResultsExpansionMutex.Lock()
+	defer fake.toggleAllToolResultsExpansionMutex.Unlock()
+	fake.ToggleAllToolResultsExpansionStub = stub
 }
 
 func (fake *FakeConversationRenderer) ToggleToolResultExpansion(arg1 int) {
