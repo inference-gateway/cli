@@ -1,17 +1,38 @@
 package tools
 
 import (
+	"bufio"
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/ledongthuc/pdf"
 )
 
-// ReadTool handles file reading operations with optional line range
+// Error constants for consistent error handling
+const (
+	ErrorNotAbsolutePath  = "NOT_ABSOLUTE_PATH"
+	ErrorNotFound         = "NOT_FOUND"
+	ErrorFileEmpty        = "FILE_EMPTY"
+	ErrorPDFParseError    = "PDF_PARSE_ERROR"
+	ErrorUnreadableBinary = "UNREADABLE_BINARY"
+)
+
+// Constants for defaults and limits
+const (
+	DefaultOffset     = 1
+	DefaultLimit      = 2000
+	MaxLineLength     = 2000
+	EmptyFileReminder = "The file exists but is empty."
+)
+
+// ReadTool handles file reading operations with deterministic behavior
 type ReadTool struct {
 	config  *config.Config
 	enabled bool
@@ -28,30 +49,37 @@ func NewReadTool(cfg *config.Config) *ReadTool {
 // Definition returns the tool definition for the LLM
 func (t *ReadTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
-		Name:        "Read",
-		Description: "Read file content from the filesystem with optional line range",
+		Name: "Read",
+		Description: `Reads a file from the local filesystem. You can access any file directly by using this tool.
+Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
+
+Usage:
+- The file_path parameter can be either an absolute path or a relative path (relative paths will be resolved to absolute paths)
+- By default, it reads up to 2000 lines starting from the beginning of the file
+- You can optionally specify a line offset and limit (especially handy for long files), but it's recommended to read the whole file by not providing these parameters
+- Any lines longer than 2000 characters will be truncated
+- Results are returned using cat -n format, with line numbers starting at 1
+- This tool can read PDF files (.pdf). PDFs are processed page by page, extracting both text and visual content for analysis.
+- You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
+- You will regularly be asked to read screenshots. If the user provides a path to a screenshot ALWAYS use this tool to view the file at the path.
+- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.`,
 		Parameters: map[string]interface{}{
-			"type": "object",
+			"type":                 "object",
+			"additionalProperties": false,
 			"properties": map[string]interface{}{
 				"file_path": map[string]interface{}{
 					"type":        "string",
-					"description": "The path to the file to read",
+					"description": "The path to the file to read (can be absolute or relative)",
 				},
-				"start_line": map[string]interface{}{
+				"limit": map[string]interface{}{
 					"type":        "integer",
-					"description": "Starting line number (1-indexed, optional)",
+					"description": "The number of lines to read. Only provide if the file is too large to read at once.",
 					"minimum":     1,
 				},
-				"end_line": map[string]interface{}{
+				"offset": map[string]interface{}{
 					"type":        "integer",
-					"description": "Ending line number (1-indexed, optional)",
+					"description": "The line number to start reading from. Only provide if the file is too large to read at once",
 					"minimum":     1,
-				},
-				"format": map[string]interface{}{
-					"type":        "string",
-					"description": "Output format (text or json)",
-					"enum":        []string{"text", "json"},
-					"default":     "text",
 				},
 			},
 			"required": []string{"file_path"},
@@ -77,17 +105,25 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 		}, nil
 	}
 
-	var startLine, endLine int
-	if startLineFloat, ok := args["start_line"].(float64); ok {
-		startLine = int(startLineFloat)
-	}
-	if endLineFloat, ok := args["end_line"].(float64); ok {
-		endLine = int(endLineFloat)
+	offset := DefaultOffset
+	if offsetFloat, ok := args["offset"].(float64); ok {
+		offset = int(offsetFloat)
 	}
 
-	readResult, err := t.executeRead(filePath, startLine, endLine)
+	limit := DefaultLimit
+	if limitFloat, ok := args["limit"].(float64); ok {
+		limit = int(limitFloat)
+	}
+
+	readResult, err := t.executeRead(filePath, offset, limit)
 	if err != nil {
-		return nil, err
+		return &domain.ToolExecutionResult{
+			ToolName:  "Read",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     err.Error(),
+		}, nil
 	}
 
 	var toolData *domain.FileReadToolResult
@@ -128,19 +164,16 @@ func (t *ReadTool) Validate(args map[string]interface{}) error {
 		return fmt.Errorf("file_path cannot be empty")
 	}
 
-	if err := t.validatePathSecurity(filePath); err != nil {
+	absPath, err := filepath.Abs(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to resolve absolute path for %s: %w", filePath, err)
+	}
+
+	if err := t.validatePathSecurity(absPath); err != nil {
 		return err
 	}
 
-	if format, ok := args["format"].(string); ok {
-		if format != "text" && format != "json" {
-			return fmt.Errorf("format must be 'text' or 'json'")
-		}
-	} else if args["format"] != nil {
-		return fmt.Errorf("format parameter must be a string")
-	}
-
-	return t.validateLineNumbers(args)
+	return t.validateParameters(args)
 }
 
 // IsEnabled returns whether the read tool is enabled
@@ -158,73 +191,203 @@ type FileReadResult struct {
 	Error     string `json:"error,omitempty"`
 }
 
-// executeRead reads a file with optional line range
-func (t *ReadTool) executeRead(filePath string, startLine, endLine int) (*FileReadResult, error) {
-	result := &FileReadResult{
-		FilePath:  filePath,
-		StartLine: startLine,
-		EndLine:   endLine,
-	}
-
-	var content string
-	var err error
-
-	if startLine > 0 || endLine > 0 {
-		content, err = t.readFileLines(filePath, startLine, endLine)
-	} else {
-		content, err = t.readFile(filePath)
-	}
-
+// executeRead reads a file with offset and limit parameters
+func (t *ReadTool) executeRead(filePath string, offset, limit int) (*FileReadResult, error) {
+	absPath, err := filepath.Abs(filePath)
 	if err != nil {
+		return nil, fmt.Errorf("failed to resolve absolute path for %s: %w", filePath, err)
+	}
+
+	result := &FileReadResult{
+		FilePath:  absPath,
+		StartLine: offset,
+		EndLine:   offset + limit - 1,
+	}
+
+	if err := t.validatePathSecurity(absPath); err != nil {
 		return nil, err
 	}
 
-	result.Content = content
-	result.Size = int64(len(content))
+	info, err := os.Stat(absPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, fmt.Errorf("%s", ErrorNotFound)
+		}
+		return nil, fmt.Errorf("cannot access file %s: %w", absPath, err)
+	}
 
-	return result, nil
+	if info.IsDir() {
+		return nil, fmt.Errorf("path %s is a directory, not a file", absPath)
+	}
+
+	if info.Size() == 0 {
+		result.Content = EmptyFileReminder
+		result.Size = int64(len(EmptyFileReminder))
+		result.Error = ErrorFileEmpty
+		return result, nil
+	}
+
+	ext := strings.ToLower(filepath.Ext(absPath))
+	switch ext {
+	case ".pdf":
+		content, err := t.readPDF(absPath, offset, limit)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", ErrorPDFParseError, err)
+		}
+		result.Content = content
+		result.Size = int64(len(content))
+		return result, nil
+	default:
+		content, err := t.readTextFile(absPath, offset, limit)
+		if err != nil {
+			return nil, err
+		}
+		result.Content = content
+		result.Size = int64(len(content))
+		return result, nil
+	}
 }
 
-// validateLineNumbers validates start_line and end_line parameters
-func (t *ReadTool) validateLineNumbers(args map[string]interface{}) error {
-	startLine, hasStartLine, err := t.validateSingleLineNumber(args, "start_line")
+// readTextFile reads a text file with cat -n formatting
+func (t *ReadTool) readTextFile(filePath string, offset, limit int) (string, error) {
+	file, err := os.Open(filePath)
 	if err != nil {
+		return "", fmt.Errorf("failed to open file %s: %w", filePath, err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	if !t.isTextFile(file) {
+		return "", fmt.Errorf("%s", ErrorUnreadableBinary)
+	}
+
+	_, _ = file.Seek(0, 0)
+
+	scanner := bufio.NewScanner(file)
+	var lines []string
+	lineNum := 1
+
+	for scanner.Scan() {
+		if lineNum >= offset && len(lines) < limit {
+			line := scanner.Text()
+
+			if len(line) > MaxLineLength {
+				line = line[:MaxLineLength]
+			}
+
+			formattedLine := fmt.Sprintf("%6d\t%s", lineNum, line)
+			lines = append(lines, formattedLine)
+		}
+		lineNum++
+
+		if len(lines) >= limit {
+			break
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return "", fmt.Errorf("error reading file %s: %w", filePath, err)
+	}
+
+	return strings.Join(lines, "\n"), nil
+}
+
+// readPDF reads a PDF file and extracts text with page headers
+func (t *ReadTool) readPDF(filePath string, offset, limit int) (string, error) {
+	file, reader, err := pdf.Open(filePath)
+	if err != nil {
+		return "", fmt.Errorf("failed to open PDF: %w", err)
+	}
+	defer func() {
+		_ = file.Close()
+	}()
+
+	var lines []string
+	lineNum := 1
+
+	for pageNum := 1; pageNum <= reader.NumPage(); pageNum++ {
+		page := reader.Page(pageNum)
+		if page.V.IsNull() {
+			continue
+		}
+
+		if lineNum >= offset && len(lines) < limit {
+			pageHeader := fmt.Sprintf("=== Page %d ===", pageNum)
+			formattedLine := fmt.Sprintf("%6d\t%s", lineNum, pageHeader)
+			lines = append(lines, formattedLine)
+			lineNum++
+		}
+
+		text, err := page.GetPlainText(nil)
+		if err != nil {
+			continue
+		}
+
+		pageLines := strings.Split(text, "\n")
+		for _, line := range pageLines {
+			if lineNum >= offset && len(lines) < limit {
+				if len(line) > MaxLineLength {
+					line = line[:MaxLineLength]
+				}
+
+				formattedLine := fmt.Sprintf("%6d\t%s", lineNum, line)
+				lines = append(lines, formattedLine)
+			}
+			lineNum++
+
+			if len(lines) >= limit {
+				break
+			}
+		}
+
+		if len(lines) >= limit {
+			break
+		}
+	}
+
+	return strings.Join(lines, "\n"), nil
+}
+
+// isTextFile checks if a file is likely to be text (not binary)
+func (t *ReadTool) isTextFile(file *os.File) bool {
+	buffer := make([]byte, 512)
+	n, err := file.Read(buffer)
+	if err != nil {
+		return false
+	}
+
+	return utf8.Valid(buffer[:n])
+}
+
+// validateParameters validates offset and limit parameters
+func (t *ReadTool) validateParameters(args map[string]interface{}) error {
+	if err := t.validateParameter(args, "offset"); err != nil {
 		return err
 	}
-
-	endLine, hasEndLine, err := t.validateSingleLineNumber(args, "end_line")
-	if err != nil {
+	if err := t.validateParameter(args, "limit"); err != nil {
 		return err
 	}
-
-	if hasStartLine && hasEndLine && endLine < startLine {
-		return fmt.Errorf("end_line must be >= start_line")
-	}
-
 	return nil
 }
 
-// validateSingleLineNumber validates a single line number parameter
-func (t *ReadTool) validateSingleLineNumber(args map[string]interface{}, paramName string) (float64, bool, error) {
-	if args[paramName] == nil {
-		return 0, false, nil
+// validateParameter validates a single numeric parameter
+func (t *ReadTool) validateParameter(args map[string]interface{}, paramName string) error {
+	value, exists := args[paramName]
+	if !exists {
+		return nil
 	}
 
-	if lineFloat, ok := args[paramName].(float64); ok {
-		if lineFloat < 1 {
-			return 0, false, fmt.Errorf("%s must be >= 1", paramName)
-		}
-		return lineFloat, true, nil
+	floatValue, ok := value.(float64)
+	if !ok {
+		return fmt.Errorf("%s must be a number", paramName)
 	}
 
-	if lineInt, ok := args[paramName].(int); ok {
-		if lineInt < 1 {
-			return 0, false, fmt.Errorf("%s must be >= 1", paramName)
-		}
-		return float64(lineInt), true, nil
+	if floatValue < 1 {
+		return fmt.Errorf("%s must be >= 1", paramName)
 	}
 
-	return 0, false, fmt.Errorf("%s must be a number", paramName)
+	return nil
 }
 
 // validatePathSecurity checks if a path is allowed (no file existence check)
@@ -252,62 +415,4 @@ func matchesPattern(path, pattern string) bool {
 		return strings.HasSuffix(path, suffix)
 	}
 	return path == pattern
-}
-
-// validateFile checks if a file path is valid and readable
-func (t *ReadTool) validateFile(path string) error {
-	if err := t.validatePathSecurity(path); err != nil {
-		return err
-	}
-
-	info, err := os.Stat(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return fmt.Errorf("file %s does not exist", path)
-		}
-		return fmt.Errorf("cannot access file %s: %w", path, err)
-	}
-
-	if info.IsDir() {
-		return fmt.Errorf("path %s is a directory, not a file", path)
-	}
-
-	return nil
-}
-
-// readFile reads the entire content of a file
-func (t *ReadTool) readFile(path string) (string, error) {
-	if err := t.validateFile(path); err != nil {
-		return "", err
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return "", fmt.Errorf("failed to read file %s: %w", path, err)
-	}
-
-	return string(data), nil
-}
-
-// readFileLines reads specific lines from a file
-func (t *ReadTool) readFileLines(path string, startLine, endLine int) (string, error) {
-	content, err := t.readFile(path)
-	if err != nil {
-		return "", err
-	}
-
-	lines := strings.Split(content, "\n")
-
-	if startLine < 1 {
-		startLine = 1
-	}
-	if endLine < 1 || endLine > len(lines) {
-		endLine = len(lines)
-	}
-	if startLine > endLine {
-		return "", fmt.Errorf("start line %d is greater than end line %d", startLine, endLine)
-	}
-
-	selectedLines := lines[startLine-1 : endLine]
-	return strings.Join(selectedLines, "\n"), nil
 }
