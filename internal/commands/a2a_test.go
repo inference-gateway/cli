@@ -104,7 +104,6 @@ func TestA2ACommand_Execute_Success(t *testing.T) {
 		t.Errorf("Expected output to contain '3 connected', got: %s", output)
 	}
 
-	// Check for agent names
 	for _, agent := range agents {
 		if !strings.Contains(output, agent.Name) {
 			t.Errorf("Expected output to contain agent name %q, got: %s", agent.Name, output)
@@ -114,7 +113,6 @@ func TestA2ACommand_Execute_Success(t *testing.T) {
 		}
 	}
 
-	// Check for status indicators
 	if !strings.Contains(output, "✅") {
 		t.Errorf("Expected output to contain available status indicator ✅, got: %s", output)
 	}
