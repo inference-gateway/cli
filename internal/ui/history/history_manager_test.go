@@ -3,6 +3,7 @@ package history
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -46,30 +47,25 @@ func TestHistoryManager_AddToHistory(t *testing.T) {
 		historyIndex:    -1,
 	}
 
-	// Load initial history
 	err := hm.loadCombinedHistory()
 	if err != nil {
 		t.Fatalf("Failed to load initial history: %v", err)
 	}
 
-	// Add a new command
 	err = hm.AddToHistory("new command")
 	if err != nil {
 		t.Fatalf("AddToHistory failed: %v", err)
 	}
 
-	// Check that command was added to shell history
 	expectedShellCommands := []string{"existing command", "new command"}
 	if len(mock.commands) != len(expectedShellCommands) {
 		t.Errorf("Expected %d shell commands, got %d", len(expectedShellCommands), len(mock.commands))
 	}
 
-	// Check combined history
 	if len(hm.allHistory) != 2 {
 		t.Errorf("Expected 2 commands in combined history, got %d", len(hm.allHistory))
 	}
 
-	// Navigation should be reset
 	if hm.historyIndex != -1 {
 		t.Errorf("History index should be reset to -1, got %d", hm.historyIndex)
 	}
@@ -88,7 +84,6 @@ func TestHistoryManager_NavigateUp(t *testing.T) {
 		historyIndex:    -1,
 	}
 
-	// Load initial history
 	err := hm.loadCombinedHistory()
 	if err != nil {
 		t.Fatalf("Failed to load initial history: %v", err)
@@ -96,31 +91,26 @@ func TestHistoryManager_NavigateUp(t *testing.T) {
 
 	currentText := "current input"
 
-	// First navigation should go to the newest command
 	result := hm.NavigateUp(currentText)
 	if result != "command3" {
 		t.Errorf("Expected 'command3', got '%s'", result)
 	}
 
-	// Second navigation should go to the previous command
 	result = hm.NavigateUp("")
 	if result != "command2" {
 		t.Errorf("Expected 'command2', got '%s'", result)
 	}
 
-	// Third navigation should go to the oldest command
 	result = hm.NavigateUp("")
 	if result != "command1" {
 		t.Errorf("Expected 'command1', got '%s'", result)
 	}
 
-	// Fourth navigation should stay at oldest command
 	result = hm.NavigateUp("")
 	if result != "command1" {
 		t.Errorf("Expected to stay at 'command1', got '%s'", result)
 	}
 
-	// Verify we're still at the first command
 	if hm.historyIndex != 0 {
 		t.Errorf("Expected historyIndex to be 0 (oldest command), got %d", hm.historyIndex)
 	}
@@ -139,7 +129,6 @@ func TestHistoryManager_NavigateDown(t *testing.T) {
 		historyIndex:    -1,
 	}
 
-	// Load initial history
 	err := hm.loadCombinedHistory()
 	if err != nil {
 		t.Fatalf("Failed to load initial history: %v", err)
@@ -147,12 +136,10 @@ func TestHistoryManager_NavigateDown(t *testing.T) {
 
 	currentText := "current input"
 
-	// Navigate up first to establish history position
-	hm.NavigateUp(currentText) // command3
-	hm.NavigateUp("")          // command2
-	hm.NavigateUp("")          // command1
+	hm.NavigateUp(currentText)
+	hm.NavigateUp("")
+	hm.NavigateUp("")
 
-	// Now navigate down
 	result := hm.NavigateDown("")
 	if result != "command2" {
 		t.Errorf("Expected 'command2', got '%s'", result)
@@ -163,13 +150,11 @@ func TestHistoryManager_NavigateDown(t *testing.T) {
 		t.Errorf("Expected 'command3', got '%s'", result)
 	}
 
-	// Navigate down from newest should return to current input
 	result = hm.NavigateDown("")
 	if result != currentText {
 		t.Errorf("Expected current input '%s', got '%s'", currentText, result)
 	}
 
-	// Further navigation down should return current input (no change)
 	result = hm.NavigateDown("new current")
 	if result != "new current" {
 		t.Errorf("Expected 'new current', got '%s'", result)
@@ -239,7 +224,6 @@ func TestRemoveDuplicates(t *testing.T) {
 }
 
 func TestNewHistoryManager_Integration(t *testing.T) {
-	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "history_manager_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -250,15 +234,22 @@ func TestNewHistoryManager_Integration(t *testing.T) {
 		}
 	}()
 
-	// Create a test history file
-	historyFile := filepath.Join(tempDir, ".bash_history")
-	content := "git status\nls -la\npwd\n"
+	shell := os.Getenv("SHELL")
+	var historyFile string
+	var content string
+
+	if strings.Contains(shell, "zsh") {
+		historyFile = filepath.Join(tempDir, ".zsh_history")
+		content = ": 1234567890:0;git status\n: 1234567891:0;ls -la\n: 1234567892:0;pwd\n"
+	} else {
+		historyFile = filepath.Join(tempDir, ".bash_history")
+		content = "git status\nls -la\npwd\n"
+	}
 
 	if err := os.WriteFile(historyFile, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to write test history file: %v", err)
 	}
 
-	// Temporarily set HOME to our test directory
 	originalHome := os.Getenv("HOME")
 	if err := os.Setenv("HOME", tempDir); err != nil {
 		t.Fatalf("Failed to set HOME environment variable: %v", err)
@@ -269,7 +260,6 @@ func TestNewHistoryManager_Integration(t *testing.T) {
 		}
 	}()
 
-	// Create history manager
 	hm, err := NewHistoryManager(5)
 	if err != nil {
 		t.Fatalf("NewHistoryManager failed: %v", err)
@@ -279,18 +269,16 @@ func TestNewHistoryManager_Integration(t *testing.T) {
 		t.Fatal("History manager should not be nil")
 	}
 
-	// Check that shell history was loaded
-	if hm.GetHistoryCount() == 0 {
-		t.Error("Expected history to be loaded")
+	historyCount := hm.GetHistoryCount()
+	if historyCount == 0 {
+		t.Errorf("Expected history to be loaded, got count: %d, history file: %s", historyCount, hm.GetShellHistoryFile())
 	}
 
-	// Test adding a new command
 	err = hm.AddToHistory("echo test")
 	if err != nil {
 		t.Fatalf("AddToHistory failed: %v", err)
 	}
 
-	// Test navigation
 	result := hm.NavigateUp("current")
 	if result == "current" {
 		t.Error("NavigateUp should return a history command, not current input")

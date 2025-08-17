@@ -30,10 +30,8 @@ func NewHistoryManager(maxInMemory int) (*HistoryManager, error) {
 		currentInput:    "",
 	}
 
-	// Load initial history
 	if err := hm.loadCombinedHistory(); err != nil {
-		// Don't fail if we can't load shell history, just use in-memory
-		fmt.Printf("Warning: Could not load shell history: %v\n", err)
+		hm.allHistory = make([]string, 0)
 	}
 
 	return hm, nil

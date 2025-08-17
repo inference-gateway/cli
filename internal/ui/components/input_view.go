@@ -27,7 +27,6 @@ type InputView struct {
 func NewInputView(modelService domain.ModelService) *InputView {
 	historyManager, err := history.NewHistoryManager(5)
 	if err != nil {
-		// For tests and environments where shell history fails, create a minimal history manager
 		historyManager = history.NewMemoryOnlyHistoryManager(5)
 	}
 
@@ -459,8 +458,6 @@ func (iv *InputView) deleteToBeginning() {
 		iv.cursor = 0
 	}
 }
-
-// preserveTrailingSpaces wraps text while preserving trailing spaces that might be lost during wrapping
 
 func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) string {
 	wrappedText := shared.WrapText(text, availableWidth)

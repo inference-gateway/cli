@@ -288,7 +288,6 @@ func TestInputView_History(t *testing.T) {
 	mockModelService := &mockModelService{}
 	iv := NewInputView(mockModelService)
 
-	// Test that history manager is available
 	if iv.historyManager == nil {
 		t.Error("Expected history manager to be initialized")
 	}
