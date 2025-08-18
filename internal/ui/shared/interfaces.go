@@ -12,3 +12,16 @@ type AutocompleteInterface interface {
 	GetSelectedCommand() string
 	Hide()
 }
+
+// Theme interface for UI theming
+type Theme interface {
+	GetUserColor() string
+	GetAssistantColor() string
+	GetErrorColor() string
+	GetStatusColor() string
+	GetAccentColor() string
+	GetDimColor() string
+	GetBorderColor() string
+	GetDiffAddColor() string
+	GetDiffRemoveColor() string
+}

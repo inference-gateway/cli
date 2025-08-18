@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
@@ -85,6 +85,14 @@ func (sv *StatusView) ShowSpinnerWithType(message string, statusType shared.Stat
 	sv.progress = progress
 }
 
+func (sv *StatusView) UpdateSpinnerMessage(message string, statusType shared.StatusType) {
+	if sv.isSpinner {
+		sv.baseMessage = message
+		sv.message = message
+		sv.statusType = statusType
+	}
+}
+
 func (sv *StatusView) ClearStatus() {
 	sv.message = ""
 	sv.baseMessage = ""
@@ -124,27 +132,11 @@ func (sv *StatusView) Render() string {
 
 	var prefix, color, displayMessage string
 	if sv.isError {
-		prefix = "❌"
-		color = shared.ErrorColor.ANSI
-		displayMessage = sv.message
+		prefix, color, displayMessage = sv.formatErrorStatus()
 	} else if sv.isSpinner {
-		prefix = sv.spinner.View()
-		color = shared.StatusColor.ANSI
-
-		elapsed := time.Since(sv.startTime)
-		seconds := int(elapsed.Seconds())
-
-		// Enhanced status display with type-specific formatting
-		baseMsg := sv.formatStatusWithType(sv.baseMessage)
-		displayMessage = fmt.Sprintf("%s (%ds) - Press ESC to interrupt", baseMsg, seconds)
+		prefix, color, displayMessage = sv.formatSpinnerStatus()
 	} else {
-		prefix = sv.getStatusIcon()
-		color = shared.StatusColor.ANSI
-		displayMessage = sv.formatStatusWithType(sv.message)
-
-		if sv.tokenUsage != "" {
-			displayMessage = fmt.Sprintf("%s (%s)", displayMessage, sv.tokenUsage)
-		}
+		prefix, color, displayMessage = sv.formatNormalStatus()
 	}
 
 	if sv.debugInfo != "" {
@@ -168,6 +160,8 @@ func (sv *StatusView) Render() string {
 // getStatusIcon returns the appropriate icon for the current status type
 func (sv *StatusView) getStatusIcon() string {
 	switch sv.statusType {
+	case shared.StatusThinking:
+		return "🤔"
 	case shared.StatusGenerating:
 		return "🤖"
 	case shared.StatusWorking:
@@ -212,6 +206,38 @@ func (sv *StatusView) createProgressBar() string {
 	return bar
 }
 
+func (sv *StatusView) formatErrorStatus() (string, string, string) {
+	return "❌", shared.ErrorColor.ANSI, sv.message
+}
+
+func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
+	var prefix string
+	if sv.statusType == shared.StatusThinking {
+		prefix = fmt.Sprintf("%s %s", sv.getStatusIcon(), sv.spinner.View())
+	} else {
+		prefix = sv.spinner.View()
+	}
+
+	elapsed := time.Since(sv.startTime)
+	seconds := int(elapsed.Seconds())
+	baseMsg := sv.formatStatusWithType(sv.baseMessage)
+	displayMessage := fmt.Sprintf("%s (%ds) - Press ESC to interrupt", baseMsg, seconds)
+
+	return prefix, shared.StatusColor.ANSI, displayMessage
+}
+
+func (sv *StatusView) formatNormalStatus() (string, string, string) {
+	prefix := sv.getStatusIcon()
+	color := shared.StatusColor.ANSI
+	displayMessage := sv.formatStatusWithType(sv.message)
+
+	if sv.tokenUsage != "" {
+		displayMessage = fmt.Sprintf("%s (%s)", displayMessage, sv.tokenUsage)
+	}
+
+	return prefix, color, displayMessage
+}
+
 // Bubble Tea interface
 func (sv *StatusView) Init() tea.Cmd { return sv.spinner.Tick }
 
@@ -241,6 +267,8 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				sv.SetTokenUsage(msg.TokenUsage)
 			}
 		}
+	case shared.UpdateStatusMsg:
+		sv.UpdateSpinnerMessage(msg.Message, msg.StatusType)
 	case shared.ShowErrorMsg:
 		sv.ShowError(msg.Error)
 	case shared.ClearErrorMsg:

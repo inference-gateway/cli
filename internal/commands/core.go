@@ -150,7 +150,8 @@ Keep the summary concise but informative, using bullet points where appropriate.
 		return "No model selected for summary generation", nil
 	}
 
-	eventChan, err := c.chatService.SendMessage(ctx, currentModel, messages)
+	requestID := fmt.Sprintf("req_%d", time.Now().UnixNano())
+	eventChan, err := c.chatService.SendMessage(ctx, requestID, currentModel, messages)
 	if err != nil {
 		return "", fmt.Errorf("failed to start summary generation: %w", err)
 	}

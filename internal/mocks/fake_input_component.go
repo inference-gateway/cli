@@ -57,6 +57,14 @@ type FakeInputComponent struct {
 		result1 tea.Model
 		result2 tea.Cmd
 	}
+	NavigateHistoryDownStub        func()
+	navigateHistoryDownMutex       sync.RWMutex
+	navigateHistoryDownArgsForCall []struct {
+	}
+	NavigateHistoryUpStub        func()
+	navigateHistoryUpMutex       sync.RWMutex
+	navigateHistoryUpArgsForCall []struct {
+	}
 	RenderStub        func() string
 	renderMutex       sync.RWMutex
 	renderArgsForCall []struct {
@@ -349,6 +357,54 @@ func (fake *FakeInputComponent) HandleKeyReturnsOnCall(i int, result1 tea.Model,
 		result1 tea.Model
 		result2 tea.Cmd
 	}{result1, result2}
+}
+
+func (fake *FakeInputComponent) NavigateHistoryDown() {
+	fake.navigateHistoryDownMutex.Lock()
+	fake.navigateHistoryDownArgsForCall = append(fake.navigateHistoryDownArgsForCall, struct {
+	}{})
+	stub := fake.NavigateHistoryDownStub
+	fake.recordInvocation("NavigateHistoryDown", []interface{}{})
+	fake.navigateHistoryDownMutex.Unlock()
+	if stub != nil {
+		fake.NavigateHistoryDownStub()
+	}
+}
+
+func (fake *FakeInputComponent) NavigateHistoryDownCallCount() int {
+	fake.navigateHistoryDownMutex.RLock()
+	defer fake.navigateHistoryDownMutex.RUnlock()
+	return len(fake.navigateHistoryDownArgsForCall)
+}
+
+func (fake *FakeInputComponent) NavigateHistoryDownCalls(stub func()) {
+	fake.navigateHistoryDownMutex.Lock()
+	defer fake.navigateHistoryDownMutex.Unlock()
+	fake.NavigateHistoryDownStub = stub
+}
+
+func (fake *FakeInputComponent) NavigateHistoryUp() {
+	fake.navigateHistoryUpMutex.Lock()
+	fake.navigateHistoryUpArgsForCall = append(fake.navigateHistoryUpArgsForCall, struct {
+	}{})
+	stub := fake.NavigateHistoryUpStub
+	fake.recordInvocation("NavigateHistoryUp", []interface{}{})
+	fake.navigateHistoryUpMutex.Unlock()
+	if stub != nil {
+		fake.NavigateHistoryUpStub()
+	}
+}
+
+func (fake *FakeInputComponent) NavigateHistoryUpCallCount() int {
+	fake.navigateHistoryUpMutex.RLock()
+	defer fake.navigateHistoryUpMutex.RUnlock()
+	return len(fake.navigateHistoryUpArgsForCall)
+}
+
+func (fake *FakeInputComponent) NavigateHistoryUpCalls(stub func()) {
+	fake.navigateHistoryUpMutex.Lock()
+	defer fake.navigateHistoryUpMutex.Unlock()
+	fake.NavigateHistoryUpStub = stub
 }
 
 func (fake *FakeInputComponent) Render() string {

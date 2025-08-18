@@ -16,6 +16,7 @@ type StatusType int
 
 const (
 	StatusDefault StatusType = iota
+	StatusThinking
 	StatusGenerating
 	StatusWorking
 	StatusProcessing
@@ -29,6 +30,12 @@ type SetStatusMsg struct {
 	TokenUsage string
 	StatusType StatusType
 	Progress   *StatusProgress
+}
+
+// UpdateStatusMsg updates an existing status message without resetting timer
+type UpdateStatusMsg struct {
+	Message    string
+	StatusType StatusType
 }
 
 // StatusProgress represents progress information for status messages
@@ -71,6 +78,11 @@ type FileSelectedMsg struct {
 
 // FileSelectionRequestMsg requests file selection UI
 type FileSelectionRequestMsg struct{}
+
+// SetupFileSelectionMsg sets up file selection state with files
+type SetupFileSelectionMsg struct {
+	Files []string
+}
 
 // ApprovalRequestMsg requests user approval for an action
 type ApprovalRequestMsg struct {

@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/atotto/clipboard"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/history"
@@ -152,15 +151,14 @@ func (iv *InputView) Render() string {
 	return lipgloss.JoinVertical(lipgloss.Left, components...)
 }
 
-// addToHistory adds a message to the input history
-func (iv *InputView) addToHistory(message string) {
-	if message == "" {
-		return
-	}
+// NavigateHistoryUp moves up in history (to older messages) - public method for interface
+func (iv *InputView) NavigateHistoryUp() {
+	iv.navigateHistoryUp()
+}
 
-	if err := iv.historyManager.AddToHistory(message); err != nil {
-		fmt.Printf("Warning: Failed to add to shell history: %v\n", err)
-	}
+// NavigateHistoryDown moves down in history (to newer messages) - public method for interface
+func (iv *InputView) NavigateHistoryDown() {
+	iv.navigateHistoryDown()
 }
 
 // navigateHistoryUp moves up in history (to older messages)
@@ -236,13 +234,10 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		iv.historyManager.ResetNavigation()
 	}
 
-	cmd := iv.handleSpecificKeys(key)
 	if iv.Autocomplete != nil {
-		if iv.Autocomplete != nil {
-			iv.Autocomplete.Update(iv.text, iv.cursor)
-		}
+		iv.Autocomplete.Update(iv.text, iv.cursor)
 	}
-	return iv, cmd
+	return iv, nil
 }
 
 func (iv *InputView) handleAutocomplete(completion string) (tea.Model, tea.Cmd) {
@@ -260,203 +255,49 @@ func (iv *InputView) handleAutocomplete(completion string) (tea.Model, tea.Cmd) 
 	return iv, nil
 }
 
-func (iv *InputView) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
-	keyStr := key.String()
-
-	if key.Type == tea.KeyEnter {
-		return iv.handleSubmit()
-	}
-
-	switch keyStr {
-	case "left":
-		if iv.cursor > 0 {
-			iv.cursor--
-		}
-	case "right":
-		if iv.cursor < len(iv.text) {
-			iv.cursor++
-		}
-	case "backspace":
-		if key.Alt {
-			iv.deleteWordBackward()
-		} else {
-			if iv.cursor > 0 {
-				iv.text = iv.text[:iv.cursor-1] + iv.text[iv.cursor:]
-				iv.cursor--
-			}
-		}
-		return nil
-	case "ctrl+u":
-		iv.deleteToBeginning()
-		return nil
-	case "ctrl+w":
-		iv.deleteWordBackward()
-		return nil
-	case "ctrl+shift+c":
-		iv.handleCopy()
-	case "ctrl+v", "alt+v":
-		iv.handlePaste()
-		return nil
-	case "ctrl+x":
-		iv.handleCut()
-		return nil
-	case "ctrl+a":
-		iv.cursor = 0
-	case "ctrl+e":
-		iv.cursor = len(iv.text)
-	case "?":
-		if len(strings.TrimSpace(iv.text)) == 0 {
-			return func() tea.Msg {
-				return shared.ToggleHelpBarMsg{}
-			}
-		}
-		return iv.handleCharacterInput(key)
-	default:
-		return iv.handleCharacterInput(key)
-	}
-	return nil
-}
-
-func (iv *InputView) handleSubmit() tea.Cmd {
-	if iv.text != "" {
-		input := iv.text
-		iv.addToHistory(input)
-		iv.ClearInput()
-		if iv.Autocomplete != nil {
-			iv.Autocomplete.Hide()
-		}
-		return func() tea.Msg {
-			return shared.UserInputMsg{Content: input}
-		}
-	}
-	return nil
-}
-
-func (iv *InputView) handleCopy() {
-	if iv.text != "" {
-		_ = clipboard.WriteAll(iv.text)
-	}
-}
-
-func (iv *InputView) handlePaste() {
-	clipboardText, err := clipboard.ReadAll()
-	if err != nil {
-		return
-	}
-
-	if clipboardText == "" {
-		return
-	}
-
-	cleanText := strings.ReplaceAll(clipboardText, "\n", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\r", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\t", " ")
-
-	if cleanText != "" {
-		iv.text = iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
-		iv.cursor += len(cleanText)
-	}
-}
-
-func (iv *InputView) handleCut() {
-	if iv.text != "" {
-		_ = clipboard.WriteAll(iv.text)
-		iv.text = ""
-		iv.cursor = 0
-	}
-}
-
-func (iv *InputView) handleCharacterInput(key tea.KeyMsg) tea.Cmd {
-	keyStr := key.String()
-
-	if len(keyStr) > 1 && key.Type == tea.KeyRunes {
-		cleanText := strings.ReplaceAll(keyStr, "\n", " ")
-		cleanText = strings.ReplaceAll(cleanText, "\r", " ")
-		cleanText = strings.ReplaceAll(cleanText, "\t", " ")
-
-		if strings.HasPrefix(cleanText, "[") && strings.HasSuffix(cleanText, "]") {
-			cleanText = cleanText[1 : len(cleanText)-1]
-		}
-
-		if cleanText != "" {
-			iv.text = iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
-			iv.cursor += len(cleanText)
-
-			return func() tea.Msg {
-				return shared.ScrollRequestMsg{
-					ComponentID: "conversation",
-					Direction:   shared.ScrollToBottom,
-					Amount:      0,
-				}
-			}
-		}
-		return nil
-	}
-
-	if len(keyStr) == 1 && keyStr[0] >= 32 {
-		char := keyStr
-		iv.text = iv.text[:iv.cursor] + char + iv.text[iv.cursor:]
-		iv.cursor++
-
-		if char == "@" {
-			return tea.Batch(
-				func() tea.Msg {
-					return shared.ScrollRequestMsg{
-						ComponentID: "conversation",
-						Direction:   shared.ScrollToBottom,
-						Amount:      0,
-					}
-				},
-				func() tea.Msg {
-					return shared.FileSelectionRequestMsg{}
-				},
-			)
-		}
-
-		return tea.Batch(
-			func() tea.Msg {
-				return shared.ScrollRequestMsg{
-					ComponentID: "conversation",
-					Direction:   shared.ScrollToBottom,
-					Amount:      0,
-				}
-			},
-			func() tea.Msg {
-				return shared.HideHelpBarMsg{}
-			},
-		)
-	}
-	return nil
-}
-
 func (iv *InputView) CanHandle(key tea.KeyMsg) bool {
-	return true
-}
+	keyStr := key.String()
 
-// deleteWordBackward deletes the word before the cursor
-func (iv *InputView) deleteWordBackward() {
-	if iv.cursor > 0 {
-		start := iv.cursor
-
-		for start > 0 && (iv.text[start-1] == ' ' || iv.text[start-1] == '\t') {
-			start--
-		}
-
-		for start > 0 && iv.text[start-1] != ' ' && iv.text[start-1] != '\t' {
-			start--
-		}
-
-		iv.text = iv.text[:start] + iv.text[iv.cursor:]
-		iv.cursor = start
+	// Input text keys - all printable characters
+	if len(keyStr) == 1 && keyStr[0] >= ' ' && keyStr[0] <= '~' {
+		return true
 	}
-}
 
-// deleteToBeginning deletes from the cursor to the beginning of the line
-func (iv *InputView) deleteToBeginning() {
-	if iv.cursor > 0 {
-		iv.text = iv.text[iv.cursor:]
-		iv.cursor = 0
+	// Multi-character input keys
+	if keyStr == "space" || keyStr == "tab" {
+		return true
 	}
+
+	// Control keys that input should handle
+	switch keyStr {
+	case "enter", "alt+enter":
+		return true
+	case "backspace", "delete":
+		return true
+	case "up", "down": // History navigation when autocomplete is not active
+		return true
+	case "left", "right": // Cursor movement
+		return true
+	case "ctrl+a", "ctrl+e", "home", "end": // Text navigation
+		return true
+	case "ctrl+u", "ctrl+k": // Text deletion
+		return true
+	case "ctrl+w": // Word deletion
+		return true
+	case "ctrl+z", "ctrl+y": // Undo/redo
+		return true
+	case "ctrl+l": // Clear
+		return true
+	}
+
+	// Don't handle scroll keys - these should go to conversation view
+	if keyStr == "shift+up" || keyStr == "shift+down" ||
+		keyStr == "pgup" || keyStr == "page_up" ||
+		keyStr == "pgdn" || keyStr == "page_down" {
+		return false
+	}
+
+	return false
 }
 
 func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) string {

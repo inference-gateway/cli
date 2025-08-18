@@ -8,17 +8,8 @@ import (
 
 type KeyShortcut = shared.KeyShortcut
 
-type Theme interface {
-	GetUserColor() string
-	GetAssistantColor() string
-	GetErrorColor() string
-	GetStatusColor() string
-	GetAccentColor() string
-	GetDimColor() string
-	GetBorderColor() string
-	GetDiffAddColor() string
-	GetDiffRemoveColor() string
-}
+// Theme is an alias to the shared Theme interface
+type Theme = shared.Theme
 
 type DefaultTheme struct{}
 
@@ -59,6 +50,8 @@ type InputComponent interface {
 	Render() string
 	HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
 	CanHandle(key tea.KeyMsg) bool
+	NavigateHistoryUp()
+	NavigateHistoryDown()
 }
 
 type StatusComponent interface {
@@ -96,4 +89,10 @@ type SelectionComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
 	Render() string
+}
+
+type ApprovalComponent interface {
+	SetWidth(width int)
+	SetHeight(height int)
+	Render(toolExecution *domain.ToolExecutionSession, selectedIndex int) string
 }

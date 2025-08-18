@@ -1,4 +1,11 @@
+# Secrets
 **/.env
-/.task
+
+# Artifacts
 /dist
 flox.*-linux.*
+/.task
+
+# IDE's
+.vscode
+.idea

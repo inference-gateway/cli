@@ -4,134 +4,269 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui"
+	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// ChatMessageHandler handles chat-related messages
-type ChatMessageHandler struct {
+// ChatHandler handles chat-related messages using the new state management system
+type ChatHandler struct {
+	name             string
 	chatService      domain.ChatService
 	conversationRepo domain.ConversationRepository
 	modelService     domain.ModelService
+	configService    domain.ConfigService
+	toolService      domain.ToolService
+	fileService      domain.FileService
 	commandRegistry  *commands.Registry
-	config           *config.Config
+	toolOrchestrator *services.ToolExecutionOrchestrator
+	debugService     *services.DebugService
 }
 
-// NewChatMessageHandler creates a new chat message handler
-func NewChatMessageHandler(
+// NewChatHandler creates a new chat handler
+func NewChatHandler(
 	chatService domain.ChatService,
 	conversationRepo domain.ConversationRepository,
 	modelService domain.ModelService,
+	configService domain.ConfigService,
+	toolService domain.ToolService,
+	fileService domain.FileService,
 	commandRegistry *commands.Registry,
-	config *config.Config,
-) *ChatMessageHandler {
-	return &ChatMessageHandler{
+	toolOrchestrator *services.ToolExecutionOrchestrator,
+	debugService *services.DebugService,
+) *ChatHandler {
+	return &ChatHandler{
+		name:             "ChatHandler",
 		chatService:      chatService,
 		conversationRepo: conversationRepo,
 		modelService:     modelService,
+		configService:    configService,
+		toolService:      toolService,
+		fileService:      fileService,
 		commandRegistry:  commandRegistry,
-		config:           config,
+		toolOrchestrator: toolOrchestrator,
+		debugService:     debugService,
 	}
 }
 
-func (h *ChatMessageHandler) GetPriority() int {
-	return 100
+// GetName returns the handler name
+func (h *ChatHandler) GetName() string {
+	return h.name
 }
 
-func (h *ChatMessageHandler) CanHandle(msg tea.Msg) bool {
+// GetPriority returns the handler priority
+func (h *ChatHandler) GetPriority() int {
+	return 100 // High priority for chat messages
+}
+
+// CanHandle determines if this handler can process the message
+func (h *ChatHandler) CanHandle(msg tea.Msg) bool {
 	switch msg.(type) {
 	case shared.UserInputMsg:
 		return true
-	case ChatStreamStartedMsg:
-		return true
-	case ToolCallDetectedMsg:
-		return true
-	case ToolAutoApproveMsg:
-		return true
-	case StoreRemainingToolCallsMsg:
-		return true
-	case ProcessNextToolCallMsg:
-		return true
-	case TriggerFollowUpLLMCallMsg:
+	case shared.FileSelectionRequestMsg:
 		return true
 	case domain.ChatStartEvent, domain.ChatChunkEvent, domain.ChatCompleteEvent, domain.ChatErrorEvent:
+		return true
+	case domain.ToolCallStartEvent, domain.ToolCallEvent:
+		return true
+	case services.ToolExecutionStartedMsg, services.ToolExecutionProgressMsg, services.ToolExecutionCompletedMsg:
+		return true
+	case services.ToolApprovalRequestMsg, services.ToolApprovalResponseMsg:
 		return true
 	default:
 		return false
 	}
 }
 
-func (h *ChatMessageHandler) Handle(msg tea.Msg, state *AppState) (tea.Model, tea.Cmd) {
+// Handle processes the message using the state manager
+func (h *ChatHandler) Handle(
+	msg tea.Msg,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+
 	switch msg := msg.(type) {
 	case shared.UserInputMsg:
-		return h.handleUserInput(msg, state)
+		return h.handleUserInput(msg, stateManager, debugService)
 
-	case ChatStreamStartedMsg:
-		return h.handleStreamStarted(msg, state)
-
-	case ToolCallDetectedMsg:
-		return h.handleToolCallDetected(msg, state)
-
-	case ToolAutoApproveMsg:
-		return nil, nil
-
-	case StoreRemainingToolCallsMsg:
-		return h.handleStoreRemainingToolCalls(msg, state)
-
-	case ProcessNextToolCallMsg:
-		return h.handleProcessNextToolCall(msg, state)
-
-	case TriggerFollowUpLLMCallMsg:
-		return h.handleTriggerFollowUpLLMCall(msg, state)
+	case shared.FileSelectionRequestMsg:
+		return h.handleFileSelectionRequest(msg, stateManager, debugService)
 
 	case domain.ChatStartEvent:
-		return h.handleChatStart(msg, state)
+		return h.handleChatStart(msg, stateManager, debugService)
 
 	case domain.ChatChunkEvent:
-		return h.handleChatChunk(msg, state)
+		return h.handleChatChunk(msg, stateManager, debugService)
+
+	case domain.ToolCallStartEvent:
+		return h.handleToolCallStart(msg, stateManager, debugService)
+
+	case domain.ToolCallEvent:
+		return h.handleToolCall(msg, stateManager, debugService)
 
 	case domain.ChatCompleteEvent:
-		return h.handleChatComplete(msg, state)
+		return h.handleChatComplete(msg, stateManager, debugService)
 
 	case domain.ChatErrorEvent:
-		return h.handleChatError(msg, state)
+		return h.handleChatError(msg, stateManager, debugService)
+
+	case services.ToolExecutionStartedMsg:
+		return h.handleToolExecutionStarted(msg, stateManager, debugService)
+
+	case services.ToolExecutionProgressMsg:
+		return h.handleToolExecutionProgress(msg, stateManager, debugService)
+
+	case services.ToolExecutionCompletedMsg:
+		return h.handleToolExecutionCompleted(msg, stateManager, debugService)
+
+	case services.ToolApprovalRequestMsg:
+		return h.handleToolApprovalRequest(msg, stateManager, debugService)
+
+	case services.ToolApprovalResponseMsg:
+		return h.handleToolApprovalResponse(msg, stateManager, debugService)
 	}
 
 	return nil, nil
 }
 
-func (h *ChatMessageHandler) handleUserInput(msg shared.UserInputMsg, state *AppState) (tea.Model, tea.Cmd) {
+// handleUserInput processes user input messages
+func (h *ChatHandler) handleUserInput(
+	msg shared.UserInputMsg,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+
+	if debugService != nil {
+		debugService.LogEvent(
+			services.DebugEventTypeMessage,
+			h.name,
+			"Processing user input",
+			map[string]any{
+				"input_length": len(msg.Content),
+				"has_prefix":   strings.HasPrefix(msg.Content, "/") || strings.HasPrefix(msg.Content, "!"),
+			},
+		)
+	}
+
 	if strings.HasPrefix(msg.Content, "/") {
-		return h.handleCommand(msg.Content, state)
+		return h.handleCommand(msg.Content, stateManager, debugService)
 	}
 
 	if strings.HasPrefix(msg.Content, "!") {
-		return h.handleBashCommand(msg.Content, state)
+		return h.handleBashCommand(msg.Content, stateManager, debugService)
 	}
 
-	processedContent := h.processFileReferences(msg.Content)
+	// Expand @filename references before processing
+	expandedContent, err := h.expandFileReferences(msg.Content, debugService)
+	if err != nil {
+		if debugService != nil {
+			debugService.LogError(err, h.name, map[string]any{
+				"operation": "expand_file_references",
+			})
+		}
+		return nil, func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  fmt.Sprintf("Failed to expand file references: %v", err),
+				Sticky: false,
+			}
+		}
+	}
 
+	return h.processChatMessage(expandedContent, stateManager, debugService)
+}
+
+// expandFileReferences expands @filename references with file content
+func (h *ChatHandler) expandFileReferences(content string, debugService *services.DebugService) (string, error) {
+	re := regexp.MustCompile(`@([^\s]+)`)
+	matches := re.FindAllStringSubmatch(content, -1)
+
+	if len(matches) == 0 {
+		return content, nil
+	}
+
+	expandedContent := content
+	for _, match := range matches {
+		fullMatch := match[0]
+		filename := match[1]
+
+		if err := h.fileService.ValidateFile(filename); err != nil {
+			if debugService != nil && debugService.IsEnabled() {
+				debugService.LogEvent(
+					services.DebugEventTypeError,
+					"ChatHandler",
+					"Skipping invalid file reference",
+					map[string]any{
+						"filename": filename,
+						"error":    err.Error(),
+					},
+				)
+			}
+			continue
+		}
+
+		fileContent, err := h.fileService.ReadFile(filename)
+		if err != nil {
+			if debugService != nil && debugService.IsEnabled() {
+				debugService.LogEvent(
+					services.DebugEventTypeError,
+					"ChatHandler",
+					"Failed to read file for expansion",
+					map[string]any{
+						"filename": filename,
+						"error":    err.Error(),
+					},
+				)
+			}
+			continue
+		}
+
+		fileBlock := fmt.Sprintf("File: %s\n```%s\n%s\n```\n", filename, filename, fileContent)
+		expandedContent = strings.Replace(expandedContent, fullMatch, fileBlock, 1)
+
+		if debugService != nil && debugService.IsEnabled() {
+			debugService.LogEvent(
+				services.DebugEventTypeMessage,
+				"ChatHandler",
+				"Expanded file reference",
+				map[string]any{
+					"filename":     filename,
+					"content_size": len(fileContent),
+				},
+			)
+		}
+	}
+
+	return expandedContent, nil
+}
+
+// processChatMessage processes a regular chat message
+func (h *ChatHandler) processChatMessage(
+	content string,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
 	userEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
-			Content: processedContent,
+			Content: content,
 		},
 		Time: time.Now(),
 	}
 
 	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
+		if debugService != nil {
+			debugService.LogError(err, h.name, map[string]any{
+				"operation": "add_user_message",
+			})
+		}
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
@@ -140,95 +275,859 @@ func (h *ChatMessageHandler) handleUserInput(msg shared.UserInputMsg, state *App
 		}
 	}
 
-	messages := h.conversationToSDKMessages()
+	return nil, tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		h.startChatCompletion(stateManager, debugService),
+	)
+}
+
+// startChatCompletion initiates a chat completion request
+func (h *ChatHandler) startChatCompletion(
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		currentModel := h.modelService.GetCurrentModel()
+		if currentModel == "" {
+			return domain.ChatErrorEvent{
+				RequestID: "unknown",
+				Timestamp: time.Now(),
+				Error:     fmt.Errorf("no model selected"),
+			}
+		}
+
+		entries := h.conversationRepo.GetMessages()
+		messages := make([]sdk.Message, len(entries))
+		for i, entry := range entries {
+			messages[i] = entry.Message
+		}
+
+		requestID := generateRequestID()
+
+		eventChan, err := h.chatService.SendMessage(ctx, requestID, currentModel, messages)
+		if err != nil {
+			if debugService != nil {
+				debugService.LogError(err, h.name, map[string]any{
+					"operation": "start_chat_completion",
+					"model":     currentModel,
+				})
+			}
+			return domain.ChatErrorEvent{
+				RequestID: requestID,
+				Timestamp: time.Now(),
+				Error:     err,
+			}
+		}
+
+		_ = stateManager.StartChatSession(requestID, currentModel, eventChan)
+
+		if debugService != nil {
+			debugService.LogEvent(
+				services.DebugEventTypeSDKEvent,
+				h.name,
+				"Chat completion started",
+				map[string]any{
+					"request_id": requestID,
+					"model":      currentModel,
+				},
+			)
+		}
+
+		return h.listenForChatEvents(eventChan)()
+	}
+}
+
+// listenForChatEvents listens for chat events from the SDK
+func (h *ChatHandler) listenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd {
+	return func() tea.Msg {
+		if event, ok := <-eventChan; ok {
+			return event
+		}
+		return nil
+	}
+}
+
+// handleChatStart processes chat start events
+func (h *ChatHandler) handleChatStart(
+	msg domain.ChatStartEvent,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+	_ = stateManager.UpdateChatStatus(domain.ChatStatusStarting)
+
+	if debugService != nil {
+		debugService.LogSDKEvent("ChatStart", msg.RequestID, msg)
+	}
 
 	var cmds []tea.Cmd
-
 	cmds = append(cmds, func() tea.Msg {
-		return shared.UpdateHistoryMsg{
-			History: h.conversationRepo.GetMessages(),
+		return shared.SetStatusMsg{
+			Message:    "Starting response...",
+			Spinner:    true,
+			StatusType: shared.StatusGenerating,
 		}
 	})
 
-	cmds = append(cmds, h.startChatCompletion(messages))
+	if chatSession := stateManager.GetChatSession(); chatSession != nil {
+		cmds = append(cmds, h.listenForChatEvents(chatSession.EventChannel))
+	}
 
 	return nil, tea.Batch(cmds...)
 }
 
-func (h *ChatMessageHandler) handleCommand(commandText string, state *AppState) (tea.Model, tea.Cmd) {
-	commandName := strings.TrimPrefix(commandText, "/")
+// handleChatChunk processes chat chunk events
+func (h *ChatHandler) handleChatChunk(
+	msg domain.ChatChunkEvent,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+	chatSession := stateManager.GetChatSession()
+	if chatSession == nil {
+		return h.handleNoChatSession(msg)
+	}
 
-	cmd, exists := h.commandRegistry.Get(commandName)
-	if !exists || cmd == nil {
+	if msg.Content == "" {
+		return h.handleEmptyContent(chatSession)
+	}
+
+	h.updateConversationHistory(msg, chatSession, debugService)
+
+	cmds := []tea.Cmd{
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+	}
+
+	statusCmds := h.handleStatusUpdate(msg, chatSession, stateManager)
+	cmds = append(cmds, statusCmds...)
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, h.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
+// handleNoChatSession handles the case when there's no active chat session
+func (h *ChatHandler) handleNoChatSession(msg domain.ChatChunkEvent) (tea.Model, tea.Cmd) {
+	if msg.ReasoningContent != "" {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
-				Error:  fmt.Sprintf("Command not found: %s", commandName),
-				Sticky: false,
+			return shared.SetStatusMsg{
+				Message:    "Thinking...",
+				Spinner:    true,
+				StatusType: shared.StatusThinking,
 			}
 		}
 	}
+	return nil, nil
+}
 
-	ctx := context.Background()
-	result, err := cmd.Execute(ctx, []string{})
+// handleEmptyContent handles the case when the message has no content
+func (h *ChatHandler) handleEmptyContent(chatSession *domain.ChatSession) (tea.Model, tea.Cmd) {
+	if chatSession != nil && chatSession.EventChannel != nil {
+		return nil, h.listenForChatEvents(chatSession.EventChannel)
+	}
+	return nil, nil
+}
 
-	if err != nil {
-		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
-				Error:  fmt.Sprintf("Command execution failed: %v", err),
-				Sticky: false,
-			}
+// updateConversationHistory updates the conversation history with the new message
+func (h *ChatHandler) updateConversationHistory(msg domain.ChatChunkEvent, chatSession *domain.ChatSession, debugService *services.DebugService) {
+	messages := h.conversationRepo.GetMessages()
+	shouldUpdateLast := h.shouldUpdateLastMessage(messages, chatSession)
+
+	if shouldUpdateLast {
+		h.updateLastMessage(messages, msg, chatSession, debugService)
+	} else {
+		h.addNewMessage(msg, chatSession, debugService)
+	}
+}
+
+// shouldUpdateLastMessage determines if we should update the last message or add a new one
+func (h *ChatHandler) shouldUpdateLastMessage(messages []domain.ConversationEntry, chatSession *domain.ChatSession) bool {
+	return len(messages) > 0 &&
+		messages[len(messages)-1].Message.Role == sdk.Assistant &&
+		chatSession.RequestID != "" &&
+		chatSession.IsFirstChunk
+}
+
+// updateLastMessage updates the existing last message with new content
+func (h *ChatHandler) updateLastMessage(messages []domain.ConversationEntry, msg domain.ChatChunkEvent, chatSession *domain.ChatSession, debugService *services.DebugService) {
+	existingContent := messages[len(messages)-1].Message.Content
+	newContent := existingContent + msg.Content
+
+	if err := h.conversationRepo.UpdateLastMessage(newContent); err != nil && debugService != nil {
+		debugService.LogError(err, h.name, map[string]any{
+			"operation":  "update_assistant_message",
+			"request_id": chatSession.RequestID,
+		})
+	}
+}
+
+// addNewMessage adds a new assistant message to the conversation
+func (h *ChatHandler) addNewMessage(msg domain.ChatChunkEvent, chatSession *domain.ChatSession, debugService *services.DebugService) {
+	assistantEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: msg.Content,
+		},
+		Model: h.modelService.GetCurrentModel(),
+		Time:  msg.Timestamp,
+	}
+
+	if err := h.conversationRepo.AddMessage(assistantEntry); err != nil && debugService != nil {
+		debugService.LogError(err, h.name, map[string]any{
+			"operation":  "add_assistant_message",
+			"request_id": chatSession.RequestID,
+		})
+	}
+}
+
+// handleStatusUpdate handles updating the chat status and returns appropriate commands
+func (h *ChatHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *domain.ChatSession, stateManager *services.StateManager) []tea.Cmd {
+	newStatus, shouldUpdateStatus := h.determineNewStatus(msg, chatSession.Status, chatSession.IsFirstChunk)
+
+	if !shouldUpdateStatus || (newStatus == chatSession.Status && chatSession.IsFirstChunk) {
+		return nil
+	}
+
+	_ = stateManager.UpdateChatStatus(newStatus)
+
+	if !chatSession.IsFirstChunk {
+		chatSession.IsFirstChunk = true
+		return h.createFirstChunkStatusCmd(newStatus)
+	}
+
+	if newStatus != chatSession.Status {
+		return h.createStatusUpdateCmd(newStatus)
+	}
+
+	return nil
+}
+
+// determineNewStatus determines what the new status should be based on message content
+func (h *ChatHandler) determineNewStatus(msg domain.ChatChunkEvent, currentStatus domain.ChatStatus, isFirstChunk bool) (domain.ChatStatus, bool) {
+	if msg.ReasoningContent != "" {
+		return domain.ChatStatusThinking, true
+	}
+
+	if msg.Content != "" {
+		if currentStatus != domain.ChatStatusThinking || !isFirstChunk {
+			return domain.ChatStatusGenerating, true
 		}
 	}
 
-	switch result.SideEffect {
-	case commands.SideEffectExit:
-		return nil, tea.Quit
-	case commands.SideEffectClearConversation:
+	return currentStatus, false
+}
+
+// createFirstChunkStatusCmd creates status command for the first chunk
+func (h *ChatHandler) createFirstChunkStatusCmd(status domain.ChatStatus) []tea.Cmd {
+	switch status {
+	case domain.ChatStatusThinking:
+		return []tea.Cmd{func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    "Thinking...",
+				Spinner:    true,
+				StatusType: shared.StatusThinking,
+			}
+		}}
+	case domain.ChatStatusGenerating:
+		return []tea.Cmd{func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    "Generating response...",
+				Spinner:    true,
+				StatusType: shared.StatusGenerating,
+			}
+		}}
+	}
+	return nil
+}
+
+// createStatusUpdateCmd creates status update command for status changes
+func (h *ChatHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea.Cmd {
+	switch status {
+	case domain.ChatStatusThinking:
+		return []tea.Cmd{func() tea.Msg {
+			return shared.UpdateStatusMsg{
+				Message:    "Thinking...",
+				StatusType: shared.StatusThinking,
+			}
+		}}
+	case domain.ChatStatusGenerating:
+		return []tea.Cmd{func() tea.Msg {
+			return shared.UpdateStatusMsg{
+				Message:    "Generating response...",
+				StatusType: shared.StatusGenerating,
+			}
+		}}
+	}
+	return nil
+}
+
+// handleChatComplete processes chat completion events
+func (h *ChatHandler) handleChatComplete(
+	msg domain.ChatCompleteEvent,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+
+	if debugService != nil {
+		debugService.LogSDKEvent("ChatComplete", msg.RequestID, map[string]any{
+			"tool_calls_count": len(msg.ToolCalls),
+			"has_metrics":      msg.Metrics != nil,
+		})
+	}
+
+	_ = stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
+
+	stateManager.EndChatSession()
+
+	if len(msg.ToolCalls) > 0 {
+		sessionID, cmd := h.toolOrchestrator.StartToolExecution(msg.RequestID, msg.ToolCalls)
+
+		if debugService != nil {
+			debugService.LogToolExecution("orchestrator", "session_started", map[string]any{
+				"session_id":       sessionID,
+				"tool_calls_count": len(msg.ToolCalls),
+			})
+		}
+
 		return nil, tea.Batch(
 			func() tea.Msg {
 				return shared.UpdateHistoryMsg{
-					History: []domain.ConversationEntry{},
+					History: h.conversationRepo.GetMessages(),
 				}
 			},
-			func() tea.Msg {
-				return shared.SetStatusMsg{
-					Message: result.Output,
-					Spinner: false,
-				}
-			},
+			cmd,
 		)
-	case commands.SideEffectExportConversation:
-		return nil, tea.Batch(
-			func() tea.Msg {
-				return shared.SetStatusMsg{
-					Message: result.Output,
-					Spinner: true,
-				}
-			},
-			h.performExport(cmd, result.Data),
-		)
-	case commands.SideEffectSwitchModel:
-		return nil, func() tea.Msg {
-			return SwitchModelMsg{}
-		}
-	default:
-		return nil, func() tea.Msg {
+	}
+
+	statusMsg := "Response complete"
+	tokenUsage := ""
+	if msg.Metrics != nil {
+		tokenUsage = h.formatMetrics(msg.Metrics)
+	}
+
+	return nil, tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
 			return shared.SetStatusMsg{
-				Message: result.Output,
-				Spinner: false,
+				Message:    statusMsg,
+				Spinner:    false,
+				TokenUsage: tokenUsage,
+				StatusType: shared.StatusDefault,
+			}
+		},
+		tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
+			return shared.ClearErrorMsg{}
+		}),
+	)
+}
+
+// handleChatError processes chat error events
+func (h *ChatHandler) handleChatError(
+	msg domain.ChatErrorEvent,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+
+	if debugService != nil {
+		debugService.LogError(msg.Error, h.name, map[string]any{
+			"request_id": msg.RequestID,
+		})
+	}
+
+	_ = stateManager.UpdateChatStatus(domain.ChatStatusError)
+	stateManager.EndChatSession()
+	stateManager.EndToolExecution()
+
+	_ = stateManager.TransitionToView(domain.ViewStateChat)
+
+	errorMsg := fmt.Sprintf("Chat error: %v", msg.Error)
+	if strings.Contains(msg.Error.Error(), "timed out") {
+		errorMsg = fmt.Sprintf("⏰ %v\n\nSuggestions:\n• Try breaking your request into smaller parts\n• Check if the server is overloaded\n• Verify your network connection", msg.Error)
+	}
+
+	return nil, func() tea.Msg {
+		return shared.ShowErrorMsg{
+			Error:  errorMsg,
+			Sticky: true,
+		}
+	}
+}
+
+// handleToolCallStart processes tool call start events
+func (h *ChatHandler) handleToolCallStart(
+	msg domain.ToolCallStartEvent,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+
+	if debugService != nil {
+		debugService.LogSDKEvent("ToolCallStart", msg.RequestID, map[string]any{
+			"timestamp": msg.Timestamp,
+		})
+	}
+
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		return shared.SetStatusMsg{
+			Message:    "Processing tool calls...",
+			Spinner:    true,
+			StatusType: shared.StatusWorking,
+		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, h.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
+// handleToolCall processes individual tool call events and executes tools immediately when JSON is complete
+func (h *ChatHandler) handleToolCall(
+	msg domain.ToolCallEvent,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+
+	if debugService != nil {
+		debugService.LogSDKEvent("ToolCall", msg.RequestID, map[string]any{
+			"tool_name": msg.ToolName,
+			"args":      msg.Args,
+		})
+	}
+
+	args := strings.TrimSpace(msg.Args)
+	toolName := strings.TrimSpace(msg.ToolName)
+
+	if args != "" && toolName != "" && strings.HasSuffix(args, "}") {
+		var temp any
+		if json.Unmarshal([]byte(args), &temp) == nil {
+			if debugService != nil {
+				debugService.LogEvent(
+					services.DebugEventTypeToolExecution,
+					h.name,
+					fmt.Sprintf("Executing tool immediately: %s", toolName),
+					map[string]any{
+						"request_id": msg.RequestID,
+						"tool_name":  toolName,
+						"args":       args,
+					},
+				)
+			}
+
+			return nil, tea.Batch(
+				func() tea.Msg {
+					return shared.SetStatusMsg{
+						Message:    fmt.Sprintf("Executing tool: %s", toolName),
+						Spinner:    true,
+						StatusType: shared.StatusWorking,
+					}
+				},
+				h.executeToolCall(msg.RequestID, toolName, args, stateManager, debugService),
+			)
+		}
+	}
+
+	return nil, func() tea.Msg {
+		return shared.SetStatusMsg{
+			Message:    fmt.Sprintf("Receiving tool call: %s", toolName),
+			Spinner:    true,
+			StatusType: shared.StatusWorking,
+		}
+	}
+}
+
+func (h *ChatHandler) handleToolExecutionStarted(
+	msg services.ToolExecutionStartedMsg,
+	_ *services.StateManager,
+	_ *services.DebugService,
+) (tea.Model, tea.Cmd) {
+
+	return nil, func() tea.Msg {
+		return shared.SetStatusMsg{
+			Message:    fmt.Sprintf("Starting tool execution (%d tools)", msg.TotalTools),
+			Spinner:    true,
+			StatusType: shared.StatusWorking,
+		}
+	}
+}
+
+func (h *ChatHandler) handleToolExecutionProgress(
+	msg services.ToolExecutionProgressMsg,
+	stateManager *services.StateManager,
+	_ *services.DebugService,
+) (tea.Model, tea.Cmd) {
+
+	if msg.RequiresApproval {
+		_ = stateManager.SetToolApprovalRequired(true)
+	}
+
+	return nil, func() tea.Msg {
+		return shared.SetStatusMsg{
+			Message: fmt.Sprintf("Tool %d/%d: %s (%s)",
+				msg.CurrentTool, msg.TotalTools, msg.ToolName, msg.Status),
+			Spinner:    true,
+			StatusType: shared.StatusWorking,
+		}
+	}
+}
+
+func (h *ChatHandler) handleToolExecutionCompleted(
+	msg services.ToolExecutionCompletedMsg,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+	return nil, tea.Batch(
+		func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message: fmt.Sprintf("Tools completed (%d/%d successful) - preparing response...",
+					msg.SuccessCount, msg.TotalExecuted),
+				Spinner:    true,
+				StatusType: shared.StatusPreparing,
+			}
+		},
+		h.startChatCompletion(stateManager, debugService),
+	)
+}
+
+func (h *ChatHandler) handleToolApprovalRequest(
+	msg services.ToolApprovalRequestMsg,
+	_ *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+	if debugService != nil {
+		debugService.LogToolExecution(msg.ToolCall.Function.Name, "approval_requested", map[string]any{
+			"session_id":  msg.SessionID,
+			"tool_index":  msg.ToolIndex,
+			"total_tools": msg.TotalTools,
+		})
+	}
+
+	return nil, nil
+}
+
+func (h *ChatHandler) handleToolApprovalResponse(
+	msg services.ToolApprovalResponseMsg,
+	_ *services.StateManager,
+	_ *services.DebugService,
+) (tea.Model, tea.Cmd) {
+	return nil, h.toolOrchestrator.HandleApprovalResponse(msg.Approved, msg.ToolIndex)
+}
+
+// executeToolCall executes a single tool call and adds the result to conversation history
+func (h *ChatHandler) executeToolCall(
+	requestID string,
+	toolName string,
+	arguments string,
+	_ *services.StateManager,
+	debugService *services.DebugService,
+) tea.Cmd {
+	return func() tea.Msg {
+		startTime := time.Now()
+
+		// Parse arguments into map
+		var argsMap map[string]any
+		if err := json.Unmarshal([]byte(arguments), &argsMap); err != nil {
+			if debugService != nil {
+				debugService.LogError(err, h.name, map[string]any{
+					"operation":  "parse_tool_arguments",
+					"request_id": requestID,
+					"tool_name":  toolName,
+					"args":       arguments,
+				})
+			}
+
+			return shared.ShowErrorMsg{
+				Error:  fmt.Sprintf("Failed to parse tool arguments for %s: %v", toolName, err),
+				Sticky: false,
+			}
+		}
+
+		toolCall := sdk.ChatCompletionMessageToolCall{
+			Id:   fmt.Sprintf("tool_call_%d", time.Now().UnixNano()),
+			Type: sdk.Function,
+			Function: sdk.ChatCompletionMessageToolCallFunction{
+				Name:      toolName,
+				Arguments: arguments,
+			},
+		}
+
+		assistantEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:      sdk.Assistant,
+				Content:   "",
+				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{toolCall},
+			},
+			Model: h.modelService.GetCurrentModel(),
+			Time:  time.Now(),
+		}
+
+		if err := h.conversationRepo.AddMessage(assistantEntry); err != nil {
+			if debugService != nil {
+				debugService.LogError(err, h.name, map[string]any{
+					"operation":  "add_tool_call_message",
+					"request_id": requestID,
+					"tool_name":  toolName,
+				})
+			}
+		}
+
+		toolCalls := []sdk.ChatCompletionMessageToolCall{toolCall}
+
+		sessionID, cmd := h.toolOrchestrator.StartToolExecution(requestID, toolCalls)
+
+		if debugService != nil {
+			debugService.LogToolExecution(toolName, "immediate_execution_started", map[string]any{
+				"request_id": requestID,
+				"session_id": sessionID,
+				"tool_name":  toolName,
+				"duration":   time.Since(startTime).String(),
+			})
+		}
+
+		return tea.Batch(
+			func() tea.Msg {
+				return shared.UpdateHistoryMsg{
+					History: h.conversationRepo.GetMessages(),
+				}
+			},
+			cmd,
+		)()
+	}
+}
+
+func (h *ChatHandler) handleCommand(
+	commandText string,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+	command := strings.TrimSpace(strings.TrimPrefix(commandText, "/"))
+
+	if command == "" {
+		return nil, func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  "No command provided. Use: /<command>",
+				Sticky: false,
+			}
+		}
+	}
+
+	if debugService != nil {
+		debugService.LogEvent(
+			services.DebugEventTypeCommand,
+			h.name,
+			"Processing command",
+			map[string]any{
+				"command": command,
+			},
+		)
+	}
+
+	parts := strings.Fields(command)
+	if len(parts) == 0 {
+		return nil, func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  "Invalid command format",
+				Sticky: false,
+			}
+		}
+	}
+
+	mainCommand := parts[0]
+	args := parts[1:]
+
+	return nil, h.executeCommand(mainCommand, args, stateManager, debugService)
+}
+
+// executeCommand executes the specific command based on the command type
+// Commands are processed silently without being added to chat history
+func (h *ChatHandler) executeCommand(
+	command string,
+	args []string,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) tea.Cmd {
+	return func() tea.Msg {
+		if registryResult := h.tryExecuteFromRegistry(command, args, stateManager); registryResult != nil {
+			return registryResult
+		}
+
+		switch command {
+		case "clear", "cls":
+			if err := h.conversationRepo.Clear(); err != nil {
+				if debugService != nil {
+					debugService.LogError(err, h.name, map[string]any{
+						"operation": "clear_history",
+					})
+				}
+				return shared.SetStatusMsg{
+					Message:    fmt.Sprintf("Failed to clear conversation: %v", err),
+					Spinner:    false,
+					StatusType: shared.StatusDefault,
+				}
+			}
+			return tea.Batch(
+				func() tea.Msg {
+					return shared.UpdateHistoryMsg{
+						History: h.conversationRepo.GetMessages(),
+					}
+				},
+				func() tea.Msg {
+					return shared.SetStatusMsg{
+						Message:    "Conversation cleared",
+						Spinner:    false,
+						StatusType: shared.StatusDefault,
+					}
+				},
+			)()
+
+		default:
+			return shared.SetStatusMsg{
+				Message:    fmt.Sprintf("Unknown command: %s", command),
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
 			}
 		}
 	}
 }
 
-func (h *ChatMessageHandler) handleBashCommand(commandText string, state *AppState) (tea.Model, tea.Cmd) {
-	bashCommand := strings.TrimPrefix(commandText, "!")
-	bashCommand = strings.TrimSpace(bashCommand)
+// tryExecuteFromRegistry attempts to execute command from the command registry
+func (h *ChatHandler) tryExecuteFromRegistry(command string, args []string, stateManager *services.StateManager) tea.Msg {
+	if h.commandRegistry == nil {
+		return nil
+	}
 
-	if bashCommand == "" {
+	cmd, exists := h.commandRegistry.Get(command)
+	if !exists {
+		return nil
+	}
+
+	if !cmd.CanExecute(args) {
+		return shared.SetStatusMsg{
+			Message:    fmt.Sprintf("Invalid usage. Usage: %s", cmd.GetUsage()),
+			Spinner:    false,
+			StatusType: shared.StatusDefault,
+		}
+	}
+
+	return h.executeRegistryCommand(cmd, args, stateManager)
+}
+
+// executeRegistryCommand executes a command from the registry and handles results
+func (h *ChatHandler) executeRegistryCommand(cmd commands.Command, args []string, stateManager *services.StateManager) tea.Msg {
+	ctx := context.Background()
+	result, err := cmd.Execute(ctx, args)
+	if err != nil {
+		return shared.SetStatusMsg{
+			Message:    fmt.Sprintf("Command failed: %v", err),
+			Spinner:    false,
+			StatusType: shared.StatusDefault,
+		}
+	}
+
+	return h.handleCommandSideEffect(result.SideEffect, stateManager)
+}
+
+// handleCommandSideEffect handles side effects from command execution
+func (h *ChatHandler) handleCommandSideEffect(sideEffect commands.SideEffectType, stateManager *services.StateManager) tea.Msg {
+	switch sideEffect {
+	case commands.SideEffectSwitchModel:
+		return h.handleSwitchModelSideEffect(stateManager)
+	case commands.SideEffectClearConversation:
+		return h.handleClearConversationSideEffect()
+	case commands.SideEffectExit:
+		return tea.Quit()
+	default:
+		return shared.SetStatusMsg{
+			Message:    "Command completed",
+			Spinner:    false,
+			StatusType: shared.StatusDefault,
+		}
+	}
+}
+
+// handleSwitchModelSideEffect handles model switching side effect
+func (h *ChatHandler) handleSwitchModelSideEffect(stateManager *services.StateManager) tea.Msg {
+	_ = stateManager.TransitionToView(domain.ViewStateModelSelection)
+	return shared.SetStatusMsg{
+		Message:    "Select a model from the dropdown",
+		Spinner:    false,
+		StatusType: shared.StatusDefault,
+	}
+}
+
+// handleClearConversationSideEffect handles conversation clearing side effect
+func (h *ChatHandler) handleClearConversationSideEffect() tea.Msg {
+	if err := h.conversationRepo.Clear(); err != nil {
+		return shared.SetStatusMsg{
+			Message:    fmt.Sprintf("Failed to clear conversation: %v", err),
+			Spinner:    false,
+			StatusType: shared.StatusDefault,
+		}
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    "Conversation cleared",
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		},
+	)()
+}
+
+func (h *ChatHandler) handleBashCommand(
+	commandText string,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+	command := strings.TrimSpace(strings.TrimPrefix(commandText, "!"))
+
+	if command == "" {
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
-				Error:  "No command provided after '!'",
+				Error:  "No bash command provided. Use: !<command>",
+				Sticky: false,
+			}
+		}
+	}
+
+	if debugService != nil {
+		debugService.LogEvent(
+			services.DebugEventTypeCommand,
+			h.name,
+			"Processing bash command",
+			map[string]any{
+				"command": command,
+			},
+		)
+	}
+
+	if !h.toolService.IsToolEnabled("Bash") {
+		return nil, func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  "Bash tool is not enabled. Run 'infer config tool bash enable' to enable it.",
 				Sticky: false,
 			}
 		}
@@ -243,6 +1142,11 @@ func (h *ChatMessageHandler) handleBashCommand(commandText string, state *AppSta
 	}
 
 	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
+		if debugService != nil {
+			debugService.LogError(err, h.name, map[string]any{
+				"operation": "add_bash_command_message",
+			})
+		}
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
@@ -251,309 +1155,245 @@ func (h *ChatMessageHandler) handleBashCommand(commandText string, state *AppSta
 		}
 	}
 
-	updateHistoryCmd := func() tea.Msg {
-		return shared.UpdateHistoryMsg{
-			History: h.conversationRepo.GetMessages(),
-		}
-	}
-
-	executeBashCmd := func() tea.Msg {
-		return h.executeBashCommand(bashCommand)
-	}
-
-	return nil, tea.Batch(updateHistoryCmd, executeBashCmd)
-}
-
-func (h *ChatMessageHandler) executeBashCommand(command string) tea.Msg {
-	cmd := exec.Command("sh", "-c", command)
-
-	output, err := cmd.CombinedOutput()
-
-	var content string
-
-	if err != nil {
-		content = fmt.Sprintf("Bash Command: `%s`\n\n❌ **Command failed:**\n```\n%s\n```\n\n**Error:** %v", command, string(output), err)
-	} else {
-		if len(output) == 0 {
-			content = fmt.Sprintf("Bash Command: `%s`\n\n✅ **Command executed successfully** (no output)", command)
-		} else {
-			content = fmt.Sprintf("Bash Command: `%s`\n\n✅ **Output:**\n```\n%s\n```", command, string(output))
-		}
-	}
-
-	bashResultEntry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.User,
-			Content: content,
+	return nil, tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
 		},
-		Time: time.Now(),
-	}
-
-	if saveErr := h.conversationRepo.AddMessage(bashResultEntry); saveErr != nil {
-		return shared.ShowErrorMsg{
-			Error:  fmt.Sprintf("Failed to save bash result: %v", saveErr),
-			Sticky: false,
-		}
-	}
-
-	return shared.UpdateHistoryMsg{
-		History: h.conversationRepo.GetMessages(),
-	}
-}
-
-func (h *ChatMessageHandler) handleStreamStarted(msg ChatStreamStartedMsg, state *AppState) (tea.Model, tea.Cmd) {
-	state.Data["eventChannel"] = msg.EventChannel
-	if msg.RequestID != "" {
-		state.Data["currentRequestID"] = msg.RequestID
-	}
-	return nil, h.listenForChatEvents(msg.EventChannel)
-}
-
-func (h *ChatMessageHandler) handleToolCallDetected(msg ToolCallDetectedMsg, state *AppState) (tea.Model, tea.Cmd) {
-	if !h.config.IsApprovalRequired(msg.ToolCall.Name) {
-		return nil, func() tea.Msg {
-			return ToolAutoApproveMsg(msg)
-		}
-	}
-
-	state.Data["pendingToolCall"] = msg.ToolCall
-	state.Data["toolCallResponse"] = msg.Response
-	state.Data["approvalSelectedIndex"] = int(domain.ApprovalApprove)
-
-	state.CurrentView = ViewApproval
-
-	return nil, func() tea.Msg {
-		return shared.SetStatusMsg{
-			Message: fmt.Sprintf("SWITCHED TO APPROVAL VIEW: %s", msg.ToolCall.String()),
-			Spinner: false,
-		}
-	}
-}
-
-func (h *ChatMessageHandler) handleChatStart(msg domain.ChatStartEvent, state *AppState) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-
-	state.Data["currentRequestID"] = msg.RequestID
-
-	cmds = append(cmds, func() tea.Msg {
-		return shared.SetStatusMsg{
-			Message:    "Thinking and generating response...",
-			Spinner:    true,
-			StatusType: shared.StatusGenerating,
-		}
-	})
-
-	if eventChan, ok := state.Data["eventChannel"].(<-chan domain.ChatEvent); ok {
-		cmds = append(cmds, h.listenForChatEvents(eventChan))
-	}
-
-	return nil, tea.Batch(cmds...)
-}
-
-func (h *ChatMessageHandler) handleChatChunk(msg domain.ChatChunkEvent, state *AppState) (tea.Model, tea.Cmd) {
-	messages := h.conversationRepo.GetMessages()
-
-	if len(messages) > 0 && messages[len(messages)-1].Message.Role == sdk.Assistant {
-		existingContent := messages[len(messages)-1].Message.Content
-		newContent := existingContent + msg.Content
-
-		if err := h.conversationRepo.UpdateLastMessage(newContent); err != nil {
-			return nil, func() tea.Msg {
-				return shared.ShowErrorMsg{
-					Error:  fmt.Sprintf("Failed to update assistant message: %v", err),
-					Sticky: false,
-				}
+		func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    fmt.Sprintf("Executing: %s", command),
+				Spinner:    true,
+				StatusType: shared.StatusWorking,
 			}
-		}
-	} else {
-		assistantEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: msg.Content,
-			},
-			Model: h.modelService.GetCurrentModel(),
-			Time:  msg.Timestamp,
-		}
-
-		if err := h.conversationRepo.AddMessage(assistantEntry); err != nil {
-			return nil, func() tea.Msg {
-				return shared.ShowErrorMsg{
-					Error:  fmt.Sprintf("Failed to save assistant message: %v", err),
-					Sticky: false,
-				}
-			}
-		}
-	}
-
-	var cmds []tea.Cmd
-
-	cmds = append(cmds, func() tea.Msg {
-		return shared.UpdateHistoryMsg{
-			History: h.conversationRepo.GetMessages(),
-		}
-	})
-
-	if eventChan, ok := state.Data["eventChannel"].(<-chan domain.ChatEvent); ok {
-		cmds = append(cmds, h.listenForChatEvents(eventChan))
-	}
-
-	return nil, tea.Batch(cmds...)
+		},
+		h.executeBashCommand(command, stateManager, debugService),
+	)
 }
 
-func (h *ChatMessageHandler) handleChatComplete(msg domain.ChatCompleteEvent, state *AppState) (tea.Model, tea.Cmd) {
-	statusMsg := ui.FormatSuccess("Response complete")
-	tokenUsage := ""
-	if msg.Metrics != nil {
-		statusMsg = ui.FormatSuccess("Response complete")
-		tokenUsage = h.formatMetrics(msg.Metrics)
-	}
-
-	delete(state.Data, "eventChannel")
-	delete(state.Data, "currentRequestID")
-
-	if len(msg.ToolCalls) > 0 {
-		return h.handleToolCalls(msg, statusMsg, tokenUsage)
-	}
-
-	return nil, func() tea.Msg {
-		return shared.SetStatusMsg{
-			Message:    statusMsg,
-			Spinner:    false,
-			TokenUsage: tokenUsage,
-		}
-	}
-}
-
-func (h *ChatMessageHandler) handleChatError(msg domain.ChatErrorEvent, state *AppState) (tea.Model, tea.Cmd) {
-	errorMsg := ui.FormatError(msg.Error.Error())
-
-	if contains(msg.Error.Error(), "timed out") {
-		errorMsg = fmt.Sprintf("⏰ %v\n\nSuggestions:\n• Try breaking your request into smaller parts\n• Check if the server is overloaded\n• Verify your network connection", msg.Error)
-	}
-
-	delete(state.Data, "eventChannel")
-	delete(state.Data, "currentRequestID")
-
-	delete(state.Data, "remainingToolCalls")
-	delete(state.Data, "pendingToolCall")
-	delete(state.Data, "toolCallResponse")
-	delete(state.Data, "approvalSelectedIndex")
-
-	state.CurrentView = ViewChat
-
-	return nil, func() tea.Msg {
-		return shared.ShowErrorMsg{
-			Error:  errorMsg,
-			Sticky: true,
-		}
-	}
-}
-
-func (h *ChatMessageHandler) conversationToSDKMessages() []sdk.Message {
-	entries := h.conversationRepo.GetMessages()
-	messages := make([]sdk.Message, len(entries))
-
-	for i, entry := range entries {
-		messages[i] = entry.Message
-	}
-
-	return messages
-}
-
-func (h *ChatMessageHandler) startChatCompletion(messages []sdk.Message) tea.Cmd {
+// executeBashCommand executes a bash command using the tool service
+func (h *ChatHandler) executeBashCommand(
+	command string,
+	_ *services.StateManager,
+	debugService *services.DebugService,
+) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
+		startTime := time.Now()
 
-		currentModel := h.modelService.GetCurrentModel()
-		if currentModel == "" {
-			return domain.ChatErrorEvent{
-				RequestID: "unknown",
-				Timestamp: time.Now(),
-				Error:     fmt.Errorf("no model selected"),
-			}
+		h.logBashStart(debugService, command)
+
+		args := map[string]any{
+			"command": command,
+			"format":  "text",
 		}
 
-		eventChan, err := h.chatService.SendMessage(ctx, currentModel, messages)
+		if err := h.toolService.ValidateTool("Bash", args); err != nil {
+			return h.handleBashValidationError(debugService, command, err)
+		}
+
+		result, err := h.toolService.ExecuteTool(ctx, "Bash", args)
+		duration := time.Since(startTime)
+
 		if err != nil {
-			return domain.ChatErrorEvent{
-				RequestID: "unknown",
-				Timestamp: time.Now(),
-				Error:     err,
+			return h.handleBashExecutionError(debugService, command, duration, err)
+		}
+
+		h.logBashComplete(debugService, command, result, duration)
+
+		responseContent := h.formatBashResponse(result)
+		h.addBashResponseToHistory(debugService, responseContent)
+
+		return h.createBashUIUpdate(result.Success)
+	}
+}
+
+func (h *ChatHandler) logBashStart(debugService *services.DebugService, command string) {
+	if debugService != nil {
+		debugService.LogToolExecution("Bash", "execution_started", map[string]any{
+			"command": command,
+		})
+	}
+}
+
+func (h *ChatHandler) handleBashValidationError(debugService *services.DebugService, command string, err error) tea.Msg {
+	if debugService != nil {
+		debugService.LogError(err, h.name, map[string]any{
+			"operation": "validate_bash_command",
+			"command":   command,
+		})
+	}
+
+	errorEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: fmt.Sprintf("❌ Error: %v", err),
+		},
+		Model: h.modelService.GetCurrentModel(),
+		Time:  time.Now(),
+	}
+
+	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil && debugService != nil {
+		debugService.LogError(addErr, h.name, map[string]any{
+			"operation": "add_error_message",
+		})
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
 			}
-		}
+		},
+		func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  fmt.Sprintf("Command validation failed: %v", err),
+				Sticky: false,
+			}
+		},
+	)()
+}
 
-		requestID := "unknown"
+func (h *ChatHandler) handleBashExecutionError(debugService *services.DebugService, command string, duration time.Duration, err error) tea.Msg {
+	if debugService != nil {
+		debugService.LogError(err, h.name, map[string]any{
+			"operation": "execute_bash_command",
+			"command":   command,
+			"duration":  duration.String(),
+		})
+	}
 
-		return ChatStreamStartedMsg{
-			EventChannel: eventChan,
-			RequestID:    requestID,
-		}
+	errorEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: fmt.Sprintf("❌ Execution failed: %v", err),
+		},
+		Model: h.modelService.GetCurrentModel(),
+		Time:  time.Now(),
+	}
+
+	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil && debugService != nil {
+		debugService.LogError(addErr, h.name, map[string]any{
+			"operation": "add_error_message",
+		})
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  fmt.Sprintf("Command execution failed: %v", err),
+				Sticky: false,
+			}
+		},
+	)()
+}
+
+func (h *ChatHandler) logBashComplete(debugService *services.DebugService, command string, result *domain.ToolExecutionResult, duration time.Duration) {
+	if debugService != nil {
+		debugService.LogToolExecution("Bash", "execution_completed", map[string]any{
+			"command":  command,
+			"success":  result.Success,
+			"duration": duration.String(),
+		})
 	}
 }
 
-// ChatStreamStartedMsg wraps the event channel for stream processing
-type ChatStreamStartedMsg struct {
-	EventChannel <-chan domain.ChatEvent
-	RequestID    string
+func (h *ChatHandler) formatBashResponse(result *domain.ToolExecutionResult) string {
+	if result.Success {
+		return h.formatSuccessfulBashResponse(result)
+	}
+	return h.formatFailedBashResponse(result)
 }
 
-// ToolCallRequest represents a parsed tool call from LLM response
-type ToolCallRequest struct {
-	ID        string                 `json:"id"`
-	Name      string                 `json:"name"`
-	Arguments map[string]interface{} `json:"arguments"`
-}
-
-// String returns a formatted representation of the tool call
-func (t ToolCallRequest) String() string {
-	return ui.FormatToolCall(t.Name, t.Arguments)
-}
-
-// ToolCallDetectedMsg indicates a tool call was found in the response
-type ToolCallDetectedMsg struct {
-	ToolCall ToolCallRequest
-	Response string
-}
-
-// ToolAutoApproveMsg indicates a tool should be auto-executed without approval
-type ToolAutoApproveMsg struct {
-	ToolCall ToolCallRequest
-	Response string
-}
-
-// StoreRemainingToolCallsMsg stores remaining tool calls for sequential processing
-type StoreRemainingToolCallsMsg struct {
-	RemainingCalls []sdk.ChatCompletionMessageToolCall
-}
-
-// ProcessNextToolCallMsg triggers processing of the next tool call in the queue
-type ProcessNextToolCallMsg struct{}
-
-// TriggerFollowUpLLMCallMsg triggers the follow-up LLM call after all tools are executed
-type TriggerFollowUpLLMCallMsg struct{}
-
-// SwitchModelMsg indicates that model selection view should be shown
-type SwitchModelMsg struct{}
-
-// listenForChatEvents creates a command that listens for the next chat event
-func (h *ChatMessageHandler) listenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd {
-	return func() tea.Msg {
-		if event, ok := <-eventChan; ok {
-			return event
+func (h *ChatHandler) formatSuccessfulBashResponse(result *domain.ToolExecutionResult) string {
+	if bashResult, ok := result.Data.(*domain.BashToolResult); ok {
+		responseContent := fmt.Sprintf("✅ Command executed successfully:\n\n```bash\n$ %s\n```\n\n", bashResult.Command)
+		if bashResult.Output != "" {
+			responseContent += fmt.Sprintf("**Output:**\n```\n%s\n```", strings.TrimSpace(bashResult.Output))
 		}
-		return nil
+		if bashResult.Duration != "" {
+			responseContent += fmt.Sprintf("\n\n*Execution time: %s*", bashResult.Duration)
+		}
+		return responseContent
+	}
+	return "✅ Command executed successfully (no output)"
+}
+
+func (h *ChatHandler) formatFailedBashResponse(result *domain.ToolExecutionResult) string {
+	if bashResult, ok := result.Data.(*domain.BashToolResult); ok {
+		responseContent := fmt.Sprintf("❌ Command failed with exit code %d:\n\n```bash\n$ %s\n```\n\n", bashResult.ExitCode, bashResult.Command)
+		if bashResult.Output != "" {
+			responseContent += fmt.Sprintf("**Output:**\n```\n%s\n```", strings.TrimSpace(bashResult.Output))
+		}
+		if bashResult.Error != "" {
+			responseContent += fmt.Sprintf("\n\n**Error:** %s", bashResult.Error)
+		}
+		return responseContent
+	} else if result.Error != "" {
+		return fmt.Sprintf("❌ Command failed: %s", result.Error)
+	}
+	return "❌ Command failed for unknown reason"
+}
+
+func (h *ChatHandler) addBashResponseToHistory(debugService *services.DebugService, responseContent string) {
+	assistantEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: responseContent,
+		},
+		Model: h.modelService.GetCurrentModel(),
+		Time:  time.Now(),
+	}
+
+	if err := h.conversationRepo.AddMessage(assistantEntry); err != nil && debugService != nil {
+		debugService.LogError(err, h.name, map[string]any{
+			"operation": "add_bash_response_message",
+		})
 	}
 }
 
-func (h *ChatMessageHandler) formatMetrics(metrics *domain.ChatMetrics) string {
+func (h *ChatHandler) createBashUIUpdate(success bool) tea.Msg {
+	statusMsg := "Command completed"
+	if !success {
+		statusMsg = "Command failed"
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    statusMsg,
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		},
+		tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
+			return shared.ClearErrorMsg{}
+		}),
+	)()
+}
+
+func (h *ChatHandler) formatMetrics(metrics *domain.ChatMetrics) string {
 	if metrics == nil {
 		return ""
 	}
 
 	var parts []string
 
-	duration := metrics.Duration.Round(time.Millisecond)
-	parts = append(parts, fmt.Sprintf("Time: %v", duration))
+	if metrics.Duration > 0 {
+		duration := metrics.Duration.Round(time.Millisecond)
+		parts = append(parts, fmt.Sprintf("Time: %v", duration))
+	}
 
 	if metrics.Usage != nil {
 		if metrics.Usage.PromptTokens > 0 {
@@ -567,333 +1407,71 @@ func (h *ChatMessageHandler) formatMetrics(metrics *domain.ChatMetrics) string {
 		}
 	}
 
-	return joinStrings(parts, " | ")
+	return strings.Join(parts, " | ")
 }
 
-// Helper functions
-func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr ||
-		(len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr ||
-			containsAt(s, substr, 1))))
+func generateRequestID() string {
+	return fmt.Sprintf("req_%d", time.Now().UnixNano())
 }
 
-func containsAt(s, substr string, start int) bool {
-	for i := start; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
+// handleFileSelectionRequest handles the file selection request triggered by "@" key
+func (h *ChatHandler) handleFileSelectionRequest(
+	_ shared.FileSelectionRequestMsg,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+	files, err := h.fileService.ListProjectFiles()
+	if err != nil {
+		if debugService != nil && debugService.IsEnabled() {
+			debugService.LogEvent(
+				services.DebugEventTypeError,
+				"ChatHandler",
+				"Failed to list project files",
+				map[string]any{
+					"error": err.Error(),
+				},
+			)
 		}
-	}
-	return false
-}
-
-func joinStrings(strs []string, sep string) string {
-	if len(strs) == 0 {
-		return ""
-	}
-	if len(strs) == 1 {
-		return strs[0]
-	}
-
-	result := strs[0]
-	for _, str := range strs[1:] {
-		result += sep + str
-	}
-	return result
-}
-
-// processFileReferences processes @file references in user input and embeds file contents
-func (h *ChatMessageHandler) processFileReferences(content string) string {
-	fileRefRegex := regexp.MustCompile(`@([a-zA-Z0-9._/\\-]+\.[a-zA-Z0-9]+)`)
-
-	return fileRefRegex.ReplaceAllStringFunc(content, func(match string) string {
-		filename := match[1:]
-		return h.processFileReference(filename)
-	})
-}
-
-func (h *ChatMessageHandler) processFileReference(filename string) string {
-	fullPath, err := h.resolveFilePath(filename)
-	if err != nil {
-		return fmt.Sprintf("\n[Error: Could not determine working directory for file %s: %v]\n", filename, err)
-	}
-
-	content, err := h.readAndValidateFile(fullPath, filename)
-	if err != nil {
-		return fmt.Sprintf("\n[Error: %v]\n", err)
-	}
-
-	language := h.getLanguageFromExtension(filename)
-	return fmt.Sprintf("\n\n📁 **File: %s**\n```%s\n%s\n```\n", filename, language, string(content))
-}
-
-func (h *ChatMessageHandler) resolveFilePath(filename string) (string, error) {
-	if filepath.IsAbs(filename) {
-		return filename, nil
-	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-
-	return filepath.Join(cwd, filename), nil
-}
-
-func (h *ChatMessageHandler) readAndValidateFile(fullPath, filename string) ([]byte, error) {
-	if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("file not found: %s", filename)
-	}
-
-	content, err := os.ReadFile(fullPath)
-	if err != nil {
-		return nil, fmt.Errorf("could not read file %s: %v", filename, err)
-	}
-
-	const maxFileSize = 50 * 1024 // 50KB
-	if len(content) > maxFileSize {
-		return nil, fmt.Errorf("file %s is too large (%d bytes). Maximum size is %d bytes", filename, len(content), maxFileSize)
-	}
-
-	return content, nil
-}
-
-func (h *ChatMessageHandler) getLanguageFromExtension(filename string) string {
-	ext := strings.ToLower(filepath.Ext(filename))
-
-	languageMap := map[string]string{
-		".go":   "go",
-		".js":   "javascript",
-		".jsx":  "javascript",
-		".ts":   "typescript",
-		".tsx":  "typescript",
-		".py":   "python",
-		".java": "java",
-		".c":    "c",
-		".h":    "c",
-		".cpp":  "cpp",
-		".cc":   "cpp",
-		".cxx":  "cpp",
-		".hpp":  "cpp",
-		".rs":   "rust",
-		".rb":   "ruby",
-		".php":  "php",
-		".sh":   "bash",
-		".sql":  "sql",
-		".html": "html",
-		".htm":  "html",
-		".css":  "css",
-		".xml":  "xml",
-		".json": "json",
-		".yaml": "yaml",
-		".yml":  "yaml",
-		".md":   "markdown",
-	}
-
-	if language, exists := languageMap[ext]; exists {
-		return language
-	}
-
-	return "text"
-}
-
-// performExport performs the export operation in background and returns the result
-func (h *ChatMessageHandler) performExport(cmd commands.Command, data interface{}) tea.Cmd {
-	return func() tea.Msg {
-		exportCmd, ok := cmd.(*commands.ExportCommand)
-		if !ok {
+		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
-				Error:  "Invalid export command type",
+				Error:  fmt.Sprintf("Failed to load files: %v", err),
 				Sticky: false,
 			}
 		}
+	}
 
-		ctx, ok := data.(context.Context)
-		if !ok {
-			ctx = context.Background()
-		}
-
-		filePath, err := exportCmd.PerformExport(ctx)
-		if err != nil {
+	if len(files) == 0 {
+		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
-				Error:  fmt.Sprintf("Export failed: %v", err),
-				Sticky: true,
-			}
-		}
-
-		return shared.SetStatusMsg{
-			Message: fmt.Sprintf("📝 Chat exported to %s", filePath),
-			Spinner: false,
-		}
-	}
-}
-
-// handleToolCalls processes tool calls and returns appropriate commands
-func (h *ChatMessageHandler) handleToolCalls(msg domain.ChatCompleteEvent, statusMsg, tokenUsage string) (tea.Model, tea.Cmd) {
-	if err := h.conversationRepo.UpdateLastMessageToolCalls(&msg.ToolCalls); err != nil {
-		if err := h.handleToolCallsUpdateError(msg); err != nil {
-			return nil, func() tea.Msg {
-				return shared.ShowErrorMsg{
-					Error:  fmt.Sprintf("Failed to save assistant message with tool calls: %v", err),
-					Sticky: false,
-				}
+				Error:  "No files found in the current directory",
+				Sticky: false,
 			}
 		}
 	}
 
-	return h.processToolCallsSequentially(msg.ToolCalls, statusMsg, tokenUsage)
-}
-
-// processToolCallsSequentially handles multiple tool calls one by one
-func (h *ChatMessageHandler) processToolCallsSequentially(toolCalls []sdk.ChatCompletionMessageToolCall, statusMsg, tokenUsage string) (tea.Model, tea.Cmd) {
-	if len(toolCalls) == 0 {
-		return nil, func() tea.Msg {
-			return shared.SetStatusMsg{
-				Message:    statusMsg,
-				Spinner:    false,
-				TokenUsage: tokenUsage,
-			}
-		}
-	}
-
-	toolCall := toolCalls[0]
-	args := h.parseToolArguments(toolCall.Function.Arguments)
-
-	toolCallRequest := ToolCallRequest{
-		ID:        toolCall.Id,
-		Name:      toolCall.Function.Name,
-		Arguments: args,
-	}
-
-	return nil, tea.Batch(
-		func() tea.Msg {
-			return shared.SetStatusMsg{
-				Message:    statusMsg,
-				Spinner:    false,
-				TokenUsage: tokenUsage,
-			}
-		},
-		func() tea.Msg {
-			return ToolCallDetectedMsg{
-				ToolCall: toolCallRequest,
-				Response: fmt.Sprintf("Working on tool: %s", toolCallRequest.Name),
-			}
-		},
-		func() tea.Msg {
-			return StoreRemainingToolCallsMsg{
-				RemainingCalls: toolCalls[1:],
-			}
-		},
-	)
-}
-
-// handleToolCallsUpdateError handles the case when updating tool calls fails
-func (h *ChatMessageHandler) handleToolCallsUpdateError(msg domain.ChatCompleteEvent) error {
-	messages := h.conversationRepo.GetMessages()
-
-	if len(messages) == 0 || messages[len(messages)-1].Message.Role != sdk.Assistant {
-		assistantEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:      sdk.Assistant,
-				Content:   msg.Message,
-				ToolCalls: &msg.ToolCalls,
-			},
-			Model: h.modelService.GetCurrentModel(),
-			Time:  time.Now(),
-		}
-
-		return h.conversationRepo.AddMessage(assistantEntry)
-	}
-
-	return nil
-}
-
-// parseToolArguments parses tool function arguments from JSON string
-func (h *ChatMessageHandler) parseToolArguments(arguments string) map[string]interface{} {
-	args := make(map[string]interface{})
-	if arguments != "" {
-		if err := json.Unmarshal([]byte(arguments), &args); err != nil {
-			args = make(map[string]interface{})
-		}
-	}
-	return args
-}
-
-// handleStoreRemainingToolCalls stores remaining tool calls for sequential processing
-func (h *ChatMessageHandler) handleStoreRemainingToolCalls(msg StoreRemainingToolCallsMsg, state *AppState) (tea.Model, tea.Cmd) {
-	state.Data["remainingToolCalls"] = msg.RemainingCalls
-	// Store total tool count for progress tracking if not already stored
-	if _, exists := state.Data["totalToolCalls"]; !exists {
-		state.Data["totalToolCalls"] = len(msg.RemainingCalls) + 1 // +1 for the current one being processed
-	}
-	return nil, nil
-}
-
-// handleProcessNextToolCall processes the next tool call in the queue
-func (h *ChatMessageHandler) handleProcessNextToolCall(msg ProcessNextToolCallMsg, state *AppState) (tea.Model, tea.Cmd) {
-	remainingCalls, ok := state.Data["remainingToolCalls"].([]sdk.ChatCompletionMessageToolCall)
-	if !ok || len(remainingCalls) == 0 {
-		delete(state.Data, "remainingToolCalls")
-		delete(state.Data, "totalToolCalls") // Clean up progress tracking
-
-		return nil, func() tea.Msg {
-			return shared.SetStatusMsg{
-				Message:    "All tools executed, preparing next response...",
-				Spinner:    true,
-				StatusType: shared.StatusPreparing,
-			}
-		}
-	}
-
-	nextCall := remainingCalls[0]
-	state.Data["remainingToolCalls"] = remainingCalls[1:]
-
-	args := h.parseToolArguments(nextCall.Function.Arguments)
-	toolCallRequest := ToolCallRequest{
-		ID:        nextCall.Id,
-		Name:      nextCall.Function.Name,
-		Arguments: args,
-	}
-
-	// Calculate progress using stored total tool count
-	totalTools, _ := state.Data["totalToolCalls"].(int)
-	if totalTools == 0 {
-		totalTools = len(remainingCalls) + 1 // Fallback calculation
-	}
-	currentToolIndex := totalTools - len(remainingCalls)
-
-	statusMessage := fmt.Sprintf("Working on tool: %s", toolCallRequest.Name)
-
-	return nil, tea.Batch(
-		func() tea.Msg {
-			return shared.SetStatusMsg{
-				Message:    statusMessage,
-				Spinner:    false,
-				StatusType: shared.StatusWorking,
-				Progress: &shared.StatusProgress{
-					Current: currentToolIndex,
-					Total:   totalTools,
+	// Transition to file selection view
+	if err := stateManager.TransitionToView(domain.ViewStateFileSelection); err != nil {
+		if debugService != nil && debugService.IsEnabled() {
+			debugService.LogEvent(
+				services.DebugEventTypeError,
+				"ChatHandler",
+				"Failed to transition to file selection view",
+				map[string]any{
+					"error": err.Error(),
 				},
+			)
+		}
+		return nil, func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  "Failed to open file selection",
+				Sticky: false,
 			}
-		},
-		func() tea.Msg {
-			return ToolCallDetectedMsg{
-				ToolCall: toolCallRequest,
-				Response: statusMessage,
-			}
-		},
-	)
-}
-
-// triggerFollowUpLLMCall sends the conversation with tool results back to the LLM for reasoning
-func (h *ChatMessageHandler) triggerFollowUpLLMCall() tea.Cmd {
-	return func() tea.Msg {
-		messages := h.conversationToSDKMessages()
-
-		return h.startChatCompletion(messages)()
+		}
 	}
-}
 
-// handleTriggerFollowUpLLMCall handles the trigger for follow-up LLM call
-func (h *ChatMessageHandler) handleTriggerFollowUpLLMCall(msg TriggerFollowUpLLMCallMsg, state *AppState) (tea.Model, tea.Cmd) {
-	return nil, h.triggerFollowUpLLMCall()
+	return nil, func() tea.Msg {
+		return shared.SetupFileSelectionMsg{
+			Files: files,
+		}
+	}
 }

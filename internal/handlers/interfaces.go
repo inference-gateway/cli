@@ -1,44 +1,14 @@
 package handlers
 
 import (
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/inference-gateway/cli/internal/services"
 )
 
-// MessageHandler interface for handling different types of messages
+// MessageHandler interface for the modern architecture
 type MessageHandler interface {
 	CanHandle(msg tea.Msg) bool
-	Handle(msg tea.Msg, state *AppState) (tea.Model, tea.Cmd)
+	Handle(msg tea.Msg, stateManager *services.StateManager, debugService *services.DebugService) (tea.Model, tea.Cmd)
 	GetPriority() int
+	GetName() string
 }
-
-// AppState represents the application state that handlers can access and modify
-type AppState struct {
-	// Current view state
-	CurrentView ViewType
-
-	// Services (read-only references)
-	ConversationRepo interface{}
-	ModelService     interface{}
-	ChatService      interface{}
-	ToolService      interface{}
-	FileService      interface{}
-
-	// UI state
-	Width  int
-	Height int
-	Error  string
-	Status string
-
-	// Additional state data
-	Data map[string]interface{}
-}
-
-// ViewType represents different application views
-type ViewType int
-
-const (
-	ViewModelSelection ViewType = iota
-	ViewChat
-	ViewFileSelection
-	ViewApproval
-)

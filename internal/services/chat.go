@@ -54,13 +54,12 @@ func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolSer
 	}
 }
 
-func (s *StreamingChatService) SendMessage(ctx context.Context, model string, messages []sdk.Message) (<-chan domain.ChatEvent, error) {
+func (s *StreamingChatService) SendMessage(ctx context.Context, requestID string, model string, messages []sdk.Message) (<-chan domain.ChatEvent, error) {
 	if err := s.validateSendMessageParams(model, messages); err != nil {
 		return nil, err
 	}
 
 	messages = s.addToolsIfAvailable(messages)
-	requestID := generateRequestID()
 	timeoutCtx, cancel := s.setupRequest(ctx, requestID)
 	events := make(chan domain.ChatEvent, 100)
 
@@ -214,6 +213,7 @@ func (s *StreamingChatService) processEventStream(timeoutCtx context.Context, st
 	var toolCalls []sdk.ChatCompletionMessageToolCall
 	toolCallsMap := make(map[string]*sdk.ChatCompletionMessageToolCall)
 	var usage *sdk.CompletionUsage
+	toolCallsStarted := false
 
 	for {
 		select {
@@ -235,7 +235,12 @@ func (s *StreamingChatService) processEventStream(timeoutCtx context.Context, st
 				continue
 			}
 
-			if s.handleStreamEvent(event, events, requestID, &fullMessage, &toolCalls, &usage, toolCallsMap) {
+			if s.handleStreamEvent(event, events, requestID, &fullMessage, &toolCalls, &usage, toolCallsMap, &toolCallsStarted) {
+				finalToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(toolCallsMap))
+				for _, tc := range toolCallsMap {
+					finalToolCalls = append(finalToolCalls, *tc)
+				}
+				s.sendCompleteEvent(events, requestID, startTime, fullMessage.String(), finalToolCalls, usage)
 				return
 			}
 		}
@@ -276,14 +281,14 @@ func (s *StreamingChatService) sendCompleteEvent(events chan<- domain.ChatEvent,
 	}
 }
 
-func (s *StreamingChatService) handleStreamEvent(event sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, fullMessage *strings.Builder, toolCalls *[]sdk.ChatCompletionMessageToolCall, usage **sdk.CompletionUsage, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall) bool {
+func (s *StreamingChatService) handleStreamEvent(event sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, fullMessage *strings.Builder, toolCalls *[]sdk.ChatCompletionMessageToolCall, usage **sdk.CompletionUsage, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall, toolCallsStarted *bool) bool {
 	switch *event.Event {
 	case sdk.ContentDelta:
-		s.handleContentDelta(event, events, requestID, fullMessage, toolCalls, usage, toolCallsMap)
+		s.handleContentDelta(event, events, requestID, fullMessage, toolCalls, usage, toolCallsMap, toolCallsStarted)
 		return false
 
 	case sdk.StreamEnd:
-		return false
+		return true
 
 	case "error":
 		s.handleStreamError(event, events, requestID)
@@ -293,16 +298,28 @@ func (s *StreamingChatService) handleStreamEvent(event sdk.SSEvent, events chan<
 	return false
 }
 
-func (s *StreamingChatService) handleContentDelta(event sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, fullMessage *strings.Builder, toolCalls *[]sdk.ChatCompletionMessageToolCall, usage **sdk.CompletionUsage, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall) {
-	chunk, usageChunk := s.processContentDelta(event, toolCallsMap)
-	if chunk != "" {
-		fullMessage.WriteString(chunk)
-		events <- domain.ChatChunkEvent{
+func (s *StreamingChatService) handleContentDelta(event sdk.SSEvent, events chan<- domain.ChatEvent, requestID string, fullMessage *strings.Builder, toolCalls *[]sdk.ChatCompletionMessageToolCall, usage **sdk.CompletionUsage, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall, toolCallsStarted *bool) {
+	chunk, reasoningChunk, usageChunk, hasToolCalls := s.processContentDelta(event, toolCallsMap, events, requestID)
+
+	if hasToolCalls && !*toolCallsStarted {
+		*toolCallsStarted = true
+		events <- domain.ToolCallStartEvent{
 			RequestID: requestID,
 			Timestamp: time.Now(),
-			Content:   chunk,
-			ToolCalls: nil,
-			Delta:     true,
+		}
+	}
+
+	if chunk != "" || reasoningChunk != "" {
+		if chunk != "" {
+			fullMessage.WriteString(chunk)
+		}
+		events <- domain.ChatChunkEvent{
+			RequestID:        requestID,
+			Timestamp:        time.Now(),
+			Content:          chunk,
+			ReasoningContent: reasoningChunk,
+			ToolCalls:        nil,
+			Delta:            true,
 		}
 	}
 	if usageChunk != nil {
@@ -360,54 +377,159 @@ func (s *StreamingChatService) parseProvider(model string) (string, string, erro
 }
 
 // processContentDelta processes a content delta event and accumulates tool calls
-func (s *StreamingChatService) processContentDelta(event sdk.SSEvent, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall) (string, *sdk.CompletionUsage) {
+func (s *StreamingChatService) processContentDelta(event sdk.SSEvent, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall, events chan<- domain.ChatEvent, requestID string) (string, string, *sdk.CompletionUsage, bool) {
 	if event.Data == nil {
-		return "", nil
+		return "", "", nil, false
 	}
 
 	var streamResponse sdk.CreateChatCompletionStreamResponse
 	if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
-		return "", nil
+		return "", "", nil, false
 	}
 
-	var content string
+	var content, reasoningContent string
+	hasToolCalls := false
 
 	for _, choice := range streamResponse.Choices {
-		if choice.Delta.Content != "" {
-			content += choice.Delta.Content
-		}
-
-		for _, deltaToolCall := range choice.Delta.ToolCalls {
-			key := fmt.Sprintf("%d", deltaToolCall.Index)
-
-			if toolCallsMap[key] == nil {
-				toolCallsMap[key] = &sdk.ChatCompletionMessageToolCall{
-					Id:   deltaToolCall.ID,
-					Type: sdk.Function,
-					Function: sdk.ChatCompletionMessageToolCallFunction{
-						Name:      "",
-						Arguments: "",
-					},
-				}
-			}
-
-			if deltaToolCall.ID != "" {
-				toolCallsMap[key].Id = deltaToolCall.ID
-			}
-
-			if deltaToolCall.Function.Name != "" {
-				toolCallsMap[key].Function.Name += deltaToolCall.Function.Name
-			}
-			if deltaToolCall.Function.Arguments != "" {
-				toolCallsMap[key].Function.Arguments += deltaToolCall.Function.Arguments
-			}
-		}
+		content += choice.Delta.Content
+		reasoningContent += s.extractReasoningContent((*json.RawMessage)(event.Data), choice)
+		hasToolCalls = s.processToolCalls(choice.Delta.ToolCalls, toolCallsMap, events, requestID) || hasToolCalls
 	}
 
-	return content, streamResponse.Usage
+	return content, reasoningContent, streamResponse.Usage, hasToolCalls
+}
+
+// extractReasoningContent extracts reasoning content from choice delta
+func (s *StreamingChatService) extractReasoningContent(eventData *json.RawMessage, choice sdk.ChatCompletionStreamChoice) string {
+	var reasoningContent string
+
+	reasoningContent += s.extractReasoningFromRawData(eventData)
+	reasoningContent += s.extractReasoningFromChoice(choice)
+
+	return reasoningContent
+}
+
+// extractReasoningFromRawData extracts reasoning content from raw event data
+func (s *StreamingChatService) extractReasoningFromRawData(eventData *json.RawMessage) string {
+	var rawData map[string]interface{}
+	if json.Unmarshal(*eventData, &rawData) != nil {
+		return ""
+	}
+
+	choices, ok := rawData["choices"].([]interface{})
+	if !ok || len(choices) == 0 {
+		return ""
+	}
+
+	choice, ok := choices[0].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	delta, ok := choice["delta"].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	reasoning, ok := delta["reasoning_content"].(string)
+	if ok && reasoning != "" {
+		return reasoning
+	}
+
+	return ""
+}
+
+// extractReasoningFromChoice extracts reasoning content from choice delta
+func (s *StreamingChatService) extractReasoningFromChoice(choice sdk.ChatCompletionStreamChoice) string {
+	var reasoningContent string
+
+	if choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
+		reasoningContent += *choice.Delta.ReasoningContent
+	}
+	if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
+		reasoningContent += *choice.Delta.Reasoning
+	}
+
+	return reasoningContent
+}
+
+// processToolCalls processes delta tool calls and returns true if any tool calls were processed
+func (s *StreamingChatService) processToolCalls(deltaToolCalls []sdk.ChatCompletionMessageToolCallChunk, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall, events chan<- domain.ChatEvent, requestID string) bool {
+	if len(deltaToolCalls) == 0 {
+		return false
+	}
+
+	for _, deltaToolCall := range deltaToolCalls {
+		s.processSingleToolCall(deltaToolCall, toolCallsMap, events, requestID)
+	}
+
+	return true
+}
+
+// processSingleToolCall processes a single delta tool call
+func (s *StreamingChatService) processSingleToolCall(deltaToolCall sdk.ChatCompletionMessageToolCallChunk, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall, events chan<- domain.ChatEvent, requestID string) {
+	key := fmt.Sprintf("%d", deltaToolCall.Index)
+
+	s.initializeToolCall(key, deltaToolCall, toolCallsMap)
+	s.updateToolCall(key, deltaToolCall, toolCallsMap)
+	s.emitToolCallEventIfComplete(key, toolCallsMap, events, requestID)
+}
+
+// initializeToolCall creates a new tool call entry if it doesn't exist
+func (s *StreamingChatService) initializeToolCall(key string, deltaToolCall sdk.ChatCompletionMessageToolCallChunk, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall) {
+	if toolCallsMap[key] != nil {
+		return
+	}
+
+	toolCallsMap[key] = &sdk.ChatCompletionMessageToolCall{
+		Id:   deltaToolCall.ID,
+		Type: sdk.Function,
+		Function: sdk.ChatCompletionMessageToolCallFunction{
+			Name:      "",
+			Arguments: "",
+		},
+	}
+}
+
+// updateToolCall updates the tool call with delta information
+func (s *StreamingChatService) updateToolCall(key string, deltaToolCall sdk.ChatCompletionMessageToolCallChunk, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall) {
+	if deltaToolCall.ID != "" {
+		toolCallsMap[key].Id = deltaToolCall.ID
+	}
+
+	if deltaToolCall.Function.Name != "" {
+		toolCallsMap[key].Function.Name += deltaToolCall.Function.Name
+	}
+	if deltaToolCall.Function.Arguments != "" {
+		toolCallsMap[key].Function.Arguments += deltaToolCall.Function.Arguments
+	}
+}
+
+// emitToolCallEventIfComplete emits a tool call event if the tool call is complete
+func (s *StreamingChatService) emitToolCallEventIfComplete(key string, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall, events chan<- domain.ChatEvent, requestID string) {
+	args := strings.TrimSpace(toolCallsMap[key].Function.Arguments)
+	funcName := strings.TrimSpace(toolCallsMap[key].Function.Name)
+
+	if !s.isToolCallComplete(args, funcName) {
+		return
+	}
+
+	events <- domain.ToolCallEvent{
+		RequestID: requestID,
+		Timestamp: time.Now(),
+		ToolName:  funcName,
+		Args:      args,
+	}
+}
+
+// isToolCallComplete checks if a tool call is complete and valid
+func (s *StreamingChatService) isToolCallComplete(args, funcName string) bool {
+	if args == "" || funcName == "" || !strings.HasSuffix(args, "}") {
+		return false
+	}
+
+	var temp interface{}
+	return json.Unmarshal([]byte(args), &temp) == nil
 }
 
 // generateRequestID generates a unique request ID
-func generateRequestID() string {
-	return fmt.Sprintf("req_%d", time.Now().UnixNano())
-}

@@ -101,7 +101,6 @@ func (r *Registry) ParseCommand(input string) (string, []string, error) {
 		return "", nil, fmt.Errorf("commands must start with '/'")
 	}
 
-	// Remove the leading slash
 	input = input[1:]
 
 	parts := strings.Fields(input)
