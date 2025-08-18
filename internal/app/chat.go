@@ -65,7 +65,6 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 		toolOrchestrator: services.GetToolExecutionOrchestrator(),
 	}
 
-	// Initialize the state manager with initial view
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
 		logger.Error("Failed to transition to initial view", "error", err)
 	}
@@ -77,10 +76,7 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 	app.approvalView = ui.CreateApprovalView(services.GetTheme())
 	app.fileSelectionView = components.NewFileSelectionView(services.GetTheme())
 
-	// Initialize key binding manager early
 	app.keyBindingManager = keybinding.NewKeyBindingManager(app)
-
-	// Initialize help bar with actual commands from registry
 	app.updateHelpBarShortcuts()
 
 	app.modelSelector = components.NewModelSelector(models, services.GetModelService(), services.GetTheme())
@@ -91,7 +87,6 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 		app.focusedComponent = nil
 	}
 
-	// Create message router and register handlers
 	app.messageRouter = handlers.NewMessageRouter()
 	app.registerHandlers()
 
