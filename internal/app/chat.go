@@ -20,7 +20,7 @@ import (
 
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
-	// Dependencies (injected)
+	// Dependencies
 	services *container.ServiceContainer
 
 	// State management
@@ -28,7 +28,7 @@ type ChatApplication struct {
 	debugService     *services.DebugService
 	toolOrchestrator *services.ToolExecutionOrchestrator
 
-	// UI components (injected)
+	// UI components
 	conversationView  ui.ConversationRenderer
 	inputView         ui.InputComponent
 	statusView        ui.StatusComponent
