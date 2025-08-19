@@ -69,7 +69,8 @@ This is the final summary.
 End of document.`,
 			expectedSummary: `## Summary
 This is the final summary.
-End of document.`,
+End of document.
+`,
 			expectedFound: true,
 		},
 		{
@@ -215,7 +216,8 @@ func main() {
 Project summary here.
 ---`,
 			expectedSummary: `## Summary
-Project summary here.`,
+Project summary here.
+`,
 			expectedFound: true,
 		},
 		{
@@ -285,7 +287,6 @@ Message content here...`,
 
 **Main Topics:**
 - Introduction and availability for software engineering assistance
-
 `,
 			expectedFound: true,
 		},

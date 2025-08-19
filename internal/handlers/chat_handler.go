@@ -206,7 +206,9 @@ func (h *ChatHandler) extractMarkdownSummary(content string) (string, bool) {
 	}
 
 	if len(summaryLines) > 1 {
-		return strings.Join(summaryLines, "\n"), true
+		result := strings.Join(summaryLines, "\n")
+		result = strings.TrimRight(result, " \t\n") + "\n"
+		return result, true
 	}
 
 	return "", false
