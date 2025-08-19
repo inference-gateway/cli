@@ -29,6 +29,7 @@ and management of inference services.
   - [Verifying Release Binaries](#verifying-release-binaries)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
+  - [`infer init`](#infer-init)
   - [`infer config`](#infer-config)
     - [`infer config init`](#infer-config-init)
     - [`infer config set-model`](#infer-config-set-model)
@@ -175,7 +176,7 @@ go build -o infer .
 1. **Initialize project configuration:**
 
    ```bash
-   infer config init
+   infer init
    ```
 
 2. **Check gateway status:**
@@ -192,6 +193,24 @@ go build -o infer .
 
 ## Commands
 
+### `infer init`
+
+Initialize a new project with Inference Gateway CLI. This creates the `.infer` 
+directory with configuration file and additional setup files like `.gitignore`.
+
+This is the recommended command to start working with Inference Gateway CLI in a new project.
+
+**Options:**
+
+- `--overwrite`: Overwrite existing files if they already exist
+
+**Examples:**
+
+```bash
+infer init
+infer init --overwrite
+```
+
 ### `infer config`
 
 Manage CLI configuration settings including models, system prompts, and tools.
@@ -199,7 +218,9 @@ Manage CLI configuration settings including models, system prompts, and tools.
 ### `infer config init`
 
 Initialize a new `.infer/config.yaml` configuration file in the current
-directory. This creates a local project configuration with default settings.
+directory. This creates only the configuration file with default settings.
+
+For complete project initialization, use `infer init` instead.
 
 **Options:**
 
@@ -598,7 +619,7 @@ official APIs provides better reliability and performance for production use.
 
 ```bash
 # Initialize project configuration
-infer config init
+infer init
 
 # Check if gateway is running
 infer status

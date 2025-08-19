@@ -277,6 +277,9 @@ cat .infer/config.yaml
 # chat:
 #   default_model: "gpt-4-turbo"
 #   system_prompt: "You are a helpful assistant."
+
+# For complete project initialization (config + .gitignore), use:
+infer init
 ```
 
 ### Tool Management
