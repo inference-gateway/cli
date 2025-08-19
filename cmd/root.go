@@ -26,6 +26,8 @@ deployment, monitoring, and management of inference services.`,
 }
 
 func Execute() {
+	defer logger.Close()
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
