@@ -43,7 +43,7 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 	}
 
 	container.initializeDomainServices()
-	container.initializeImprovedServices()
+	container.initializeServices()
 	container.initializeUIComponents()
 	container.initializeExtensibility()
 
@@ -78,26 +78,23 @@ func (c *ServiceContainer) initializeDomainServices() {
 	)
 }
 
-// initializeImprovedServices creates the new improved services
-func (c *ServiceContainer) initializeImprovedServices() {
-	// Initialize state manager with debug mode from config
+// initializeServices creates the new improved services
+func (c *ServiceContainer) initializeServices() {
 	debugMode := c.config.Output.Debug
 	c.stateManager = services.NewStateManager(debugMode)
 
-	// Initialize debug service
 	outputDir := c.config.Compact.OutputDir
 	if outputDir == "" {
 		outputDir = ".infer"
 	}
 	c.debugService = services.NewDebugService(debugMode, c.stateManager, outputDir)
 
-	// Initialize tool execution orchestrator
 	c.toolExecutionOrchestrator = services.NewToolExecutionOrchestrator(
 		c.stateManager,
 		c.debugService,
 		c.toolService,
 		c.conversationRepo,
-		c.config, // Assuming config implements ConfigService interface
+		c.config,
 	)
 }
 
