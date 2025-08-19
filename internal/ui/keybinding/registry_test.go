@@ -20,9 +20,7 @@ type testKeyHandlerContext struct {
 
 func (t *testKeyHandlerContext) GetStateManager() *services.StateManager {
 	if t.stateManager == nil {
-		// Create a minimal state manager for testing
 		t.stateManager = services.NewStateManager(false)
-		// Transition to the desired view
 		_ = t.stateManager.TransitionToView(t.currentView)
 	}
 	return t.stateManager
@@ -72,8 +70,6 @@ func (t *testKeyHandlerContext) ApproveToolCall() tea.Cmd {
 func (t *testKeyHandlerContext) DenyToolCall() tea.Cmd {
 	return nil
 }
-
-// Test implementations of interfaces
 
 type testConversationRenderer struct{}
 
