@@ -629,9 +629,6 @@ func (h *ChatHandler) handleChatComplete(
 				StatusType: shared.StatusDefault,
 			}
 		},
-		tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
-			return shared.ClearErrorMsg{}
-		}),
 	)
 }
 
@@ -1377,9 +1374,6 @@ func (h *ChatHandler) createBashUIUpdate(success bool) tea.Msg {
 				StatusType: shared.StatusDefault,
 			}
 		},
-		tea.Tick(time.Second*2, func(t time.Time) tea.Msg {
-			return shared.ClearErrorMsg{}
-		}),
 	)()
 }
 
