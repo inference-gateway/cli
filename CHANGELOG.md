@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.27.0](https://github.com/inference-gateway/cli/compare/v0.26.0...v0.27.0) (2025-08-19)
+
+### 🚀 Features
+
+* Implement dynamic status indicators with improved visual feedback ([#68](https://github.com/inference-gateway/cli/issues/68)) ([265c781](https://github.com/inference-gateway/cli/commit/265c7815d90beecc66bd3904bae9d75549f3f851)), closes [#67](https://github.com/inference-gateway/cli/issues/67) [#67](https://github.com/inference-gateway/cli/issues/67)
+
 ## [0.26.0](https://github.com/inference-gateway/cli/compare/v0.25.1...v0.26.0) (2025-08-17)
 
 ### 🚀 Features
