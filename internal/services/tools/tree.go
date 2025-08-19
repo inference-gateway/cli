@@ -475,16 +475,7 @@ func (t *TreeTool) shouldExclude(name string, excludePatterns []string) bool {
 
 // validatePathSecurity checks if a path is allowed (no file existence check)
 func (t *TreeTool) validatePathSecurity(path string) error {
-	for _, excludePath := range t.config.Tools.ExcludePaths {
-		if strings.HasPrefix(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
-		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-	}
-	return nil
+	return t.config.ValidatePathInSandbox(path)
 }
 
 // validatePath checks if a path exists and is accessible

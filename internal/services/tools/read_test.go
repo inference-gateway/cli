@@ -131,12 +131,11 @@ func TestReadTool_Validate(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
-			},
-			ExcludePaths: []string{
-				"/.infer/",
-				"*.secret",
 			},
 		},
 	}

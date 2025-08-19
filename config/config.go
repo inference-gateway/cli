@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/inference-gateway/cli/internal/logger"
 	"gopkg.in/yaml.v3"
@@ -35,19 +36,19 @@ type OutputConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled      bool                `yaml:"enabled"`
-	Bash         BashToolConfig      `yaml:"bash"`
-	Read         ReadToolConfig      `yaml:"read"`
-	Write        WriteToolConfig     `yaml:"write"`
-	Edit         EditToolConfig      `yaml:"edit"`
-	Delete       DeleteToolConfig    `yaml:"delete"`
-	Grep         GrepToolConfig      `yaml:"grep"`
-	Tree         TreeToolConfig      `yaml:"tree"`
-	WebFetch     WebFetchToolConfig  `yaml:"web_fetch"`
-	WebSearch    WebSearchToolConfig `yaml:"web_search"`
-	TodoWrite    TodoWriteToolConfig `yaml:"todo_write"`
-	Safety       SafetyConfig        `yaml:"safety"`
-	ExcludePaths []string            `yaml:"exclude_paths"`
+	Enabled   bool                `yaml:"enabled"`
+	Sandbox   SandboxConfig       `yaml:"sandbox"`
+	Bash      BashToolConfig      `yaml:"bash"`
+	Read      ReadToolConfig      `yaml:"read"`
+	Write     WriteToolConfig     `yaml:"write"`
+	Edit      EditToolConfig      `yaml:"edit"`
+	Delete    DeleteToolConfig    `yaml:"delete"`
+	Grep      GrepToolConfig      `yaml:"grep"`
+	Tree      TreeToolConfig      `yaml:"tree"`
+	WebFetch  WebFetchToolConfig  `yaml:"web_fetch"`
+	WebSearch WebSearchToolConfig `yaml:"web_search"`
+	TodoWrite TodoWriteToolConfig `yaml:"todo_write"`
+	Safety    SafetyConfig        `yaml:"safety"`
 }
 
 // BashToolConfig contains bash-specific tool settings
@@ -77,11 +78,9 @@ type EditToolConfig struct {
 
 // DeleteToolConfig contains delete-specific tool settings
 type DeleteToolConfig struct {
-	Enabled           bool     `yaml:"enabled"`
-	RequireApproval   *bool    `yaml:"require_approval,omitempty"`
-	ProtectedPaths    []string `yaml:"protected_paths"`
-	AllowWildcards    bool     `yaml:"allow_wildcards"`
-	RestrictToWorkDir bool     `yaml:"restrict_to_workdir"`
+	Enabled         bool  `yaml:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	AllowWildcards  bool  `yaml:"allow_wildcards"`
 }
 
 // GrepToolConfig contains grep-specific tool settings
@@ -127,6 +126,11 @@ type TodoWriteToolConfig struct {
 type ToolWhitelistConfig struct {
 	Commands []string `yaml:"commands"`
 	Patterns []string `yaml:"patterns"`
+}
+
+// SandboxConfig contains sandbox directory settings
+type SandboxConfig struct {
+	Directories []string `yaml:"directories"`
 }
 
 // SafetyConfig contains safety approval settings
@@ -181,6 +185,9 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		Tools: ToolsConfig{
 			Enabled: true,
+			Sandbox: SandboxConfig{
+				Directories: []string{"."},
+			},
 			Bash: BashToolConfig{
 				Enabled: true,
 				Whitelist: ToolWhitelistConfig{
@@ -210,11 +217,9 @@ func DefaultConfig() *Config { //nolint:funlen
 				RequireApproval: &[]bool{true}[0],
 			},
 			Delete: DeleteToolConfig{
-				Enabled:           true,
-				RequireApproval:   &[]bool{true}[0],
-				ProtectedPaths:    []string{".infer/", ".infer/*", ".git/", ".git/*"},
-				AllowWildcards:    true,
-				RestrictToWorkDir: true,
+				Enabled:         true,
+				RequireApproval: &[]bool{true}[0],
+				AllowWildcards:  true,
 			},
 			Grep: GrepToolConfig{
 				Enabled:         true,
@@ -257,10 +262,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			Safety: SafetyConfig{
 				RequireApproval: true,
-			},
-			ExcludePaths: []string{
-				".infer/",
-				".infer/*",
 			},
 		},
 		Compact: CompactConfig{
@@ -488,4 +489,38 @@ func (c *Config) GetSystemPrompt() string {
 
 func (c *Config) GetDefaultModel() string {
 	return c.Chat.DefaultModel
+}
+
+// ValidatePathInSandbox checks if a path is within the configured sandbox directories
+func (c *Config) ValidatePathInSandbox(path string) error {
+	if len(c.Tools.Sandbox.Directories) == 0 {
+		return fmt.Errorf("no sandbox directories configured")
+	}
+
+	// Get the absolute path for comparison
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+
+	// Check if the path is within any of the sandbox directories
+	for _, sandboxDir := range c.Tools.Sandbox.Directories {
+		absSandboxDir, err := filepath.Abs(sandboxDir)
+		if err != nil {
+			continue // Skip invalid sandbox directories
+		}
+
+		// Check if the path is within this sandbox directory
+		relPath, err := filepath.Rel(absSandboxDir, absPath)
+		if err != nil {
+			continue
+		}
+
+		// If the relative path doesn't start with "..", it's within the sandbox
+		if !strings.HasPrefix(relPath, "..") {
+			return nil // Path is valid
+		}
+	}
+
+	return fmt.Errorf("path '%s' is outside configured sandbox directories", path)
 }

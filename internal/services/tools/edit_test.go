@@ -143,12 +143,11 @@ func getTestConfig() *config.Config {
 	return &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
-			},
-			ExcludePaths: []string{
-				".infer/",
-				"*.secret",
 			},
 		},
 	}

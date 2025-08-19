@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/inference-gateway/cli/config"
@@ -418,7 +419,7 @@ func TestDeleteTool_SecurityRestrictions(t *testing.T) {
 	}
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Delete.RestrictToWorkDir = true
+	cfg.Tools.Sandbox.Directories = []string{tempDir}
 	tool := NewDeleteTool(cfg)
 
 	args := map[string]interface{}{
@@ -440,9 +441,19 @@ func TestDeleteTool_SecurityRestrictions(t *testing.T) {
 	}
 }
 
-func TestDeleteTool_ProtectedPaths(t *testing.T) {
+func TestDeleteTool_SandboxValidation(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "delete-tool-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
 	cfg := config.DefaultConfig()
-	cfg.Tools.Delete.ProtectedPaths = []string{"protected/", "*.secret"}
+	cfg.Tools.Sandbox.Directories = []string{tempDir}
 	tool := NewDeleteTool(cfg)
 
 	tests := []struct {
@@ -450,9 +461,9 @@ func TestDeleteTool_ProtectedPaths(t *testing.T) {
 		path      string
 		expectErr bool
 	}{
-		{"protected directory", "protected/file.txt", true},
-		{"protected pattern", "config.secret", true},
-		{"allowed file", "normal.txt", false},
+		{"path inside sandbox", filepath.Join(tempDir, "file.txt"), false},
+		{"path outside sandbox", "/etc/passwd", true},
+		{"relative path outside", "../outside.txt", true},
 	}
 
 	for _, tt := range tests {

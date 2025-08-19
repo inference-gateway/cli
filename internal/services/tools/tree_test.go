@@ -61,10 +61,12 @@ func TestTreeTool_Validate(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Tree: config.TreeToolConfig{
 				Enabled: true,
 			},
-			ExcludePaths: []string{".infer/"},
 		},
 	}
 
@@ -587,8 +589,10 @@ func TestTreeTool_ValidatePath(t *testing.T) {
 
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
-			Enabled:      true,
-			ExcludePaths: []string{".infer/"},
+			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Tree: config.TreeToolConfig{
 				Enabled: true,
 			},

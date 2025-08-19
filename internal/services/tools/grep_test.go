@@ -402,8 +402,10 @@ func TestGrepTool_Execute(t *testing.T) {
 func TestGrepTool_PathExclusion(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
-			Enabled:      true,
-			ExcludePaths: []string{".git/", ".infer/", "secret/*"},
+			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Grep: config.GrepToolConfig{
 				Enabled: true,
 			},

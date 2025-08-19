@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/inference-gateway/cli/config"
@@ -292,18 +291,9 @@ func (t *WriteTool) createParentDirs(filePath string, createDirs bool, result *d
 	return nil
 }
 
-// validatePathSecurity checks if a path is allowed for writing (no file existence check)
+// validatePathSecurity checks if a path is allowed for writing within the sandbox
 func (t *WriteTool) validatePathSecurity(path string) error {
-	for _, excludePath := range t.config.Tools.ExcludePaths {
-		if strings.HasPrefix(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
-		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-	}
-	return nil
+	return t.config.ValidatePathInSandbox(path)
 }
 
 // executeAppendWrite handles writing in append mode
