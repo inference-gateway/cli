@@ -183,6 +183,35 @@ func (h *ChatHandler) handleUserInput(
 	return h.processChatMessage(expandedContent, stateManager, debugService)
 }
 
+// extractMarkdownSummary extracts the "## Summary" section from markdown content
+func (h *ChatHandler) extractMarkdownSummary(content string) (string, bool) {
+	lines := strings.Split(content, "\n")
+	var summaryLines []string
+	inSummary := false
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "## Summary" {
+			inSummary = true
+			summaryLines = append(summaryLines, line)
+			continue
+		}
+
+		if inSummary {
+			trimmed := strings.TrimSpace(line)
+			if strings.HasPrefix(trimmed, "## ") || trimmed == "---" {
+				break
+			}
+			summaryLines = append(summaryLines, line)
+		}
+	}
+
+	if len(summaryLines) > 1 {
+		return strings.Join(summaryLines, "\n"), true
+	}
+
+	return "", false
+}
+
 // expandFileReferences expands @filename references with file content
 func (h *ChatHandler) expandFileReferences(content string, debugService *services.DebugService) (string, error) {
 	re := regexp.MustCompile(`@([^\s]+)`)
@@ -228,7 +257,26 @@ func (h *ChatHandler) expandFileReferences(content string, debugService *service
 			continue
 		}
 
-		fileBlock := fmt.Sprintf("File: %s\n```%s\n%s\n```\n", filename, filename, fileContent)
+		contentToInclude := fileContent
+		if strings.HasSuffix(strings.ToLower(filename), ".md") {
+			if summaryContent, hasSummary := h.extractMarkdownSummary(fileContent); hasSummary {
+				contentToInclude = summaryContent
+				if debugService != nil && debugService.IsEnabled() {
+					debugService.LogEvent(
+						services.DebugEventTypeMessage,
+						"ChatHandler",
+						"Extracted markdown summary section",
+						map[string]any{
+							"filename":      filename,
+							"summary_size":  len(summaryContent),
+							"original_size": len(fileContent),
+						},
+					)
+				}
+			}
+		}
+
+		fileBlock := fmt.Sprintf("File: %s\n```%s\n%s\n```\n", filename, filename, contentToInclude)
 		expandedContent = strings.Replace(expandedContent, fullMatch, fileBlock, 1)
 
 		if debugService != nil && debugService.IsEnabled() {
