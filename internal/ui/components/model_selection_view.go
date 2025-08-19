@@ -1,4 +1,4 @@
-package ui
+package components
 
 import (
 	"fmt"
@@ -16,7 +16,7 @@ type ModelSelectorImpl struct {
 	selected       int
 	width          int
 	height         int
-	theme          Theme
+	theme          shared.Theme
 	done           bool
 	cancelled      bool
 	modelService   domain.ModelService
@@ -25,7 +25,7 @@ type ModelSelectorImpl struct {
 }
 
 // NewModelSelector creates a new model selector
-func NewModelSelector(models []string, modelService domain.ModelService, theme Theme) *ModelSelectorImpl {
+func NewModelSelector(models []string, modelService domain.ModelService, theme shared.Theme) *ModelSelectorImpl {
 	m := &ModelSelectorImpl{
 		models:         models,
 		filteredModels: make([]string, len(models)),

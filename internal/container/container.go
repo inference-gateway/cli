@@ -4,7 +4,6 @@ import (
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/handlers"
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/services/tools"
 	"github.com/inference-gateway/cli/internal/ui"
@@ -23,12 +22,16 @@ type ServiceContainer struct {
 	fileService      domain.FileService
 	a2aService       domain.A2AService
 
+	// New improved services
+	stateManager              *services.StateManager
+	debugService              *services.DebugService
+	toolExecutionOrchestrator *services.ToolExecutionOrchestrator
+
 	// UI components
 	theme ui.Theme
 
 	// Extensibility
 	commandRegistry *commands.Registry
-	messageRouter   *handlers.MessageRouter
 
 	// Tool registry
 	toolRegistry *tools.Registry
@@ -41,6 +44,7 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 	}
 
 	container.initializeDomainServices()
+	container.initializeServices()
 	container.initializeUIComponents()
 	container.initializeExtensibility()
 
@@ -80,6 +84,26 @@ func (c *ServiceContainer) initializeDomainServices() {
 	)
 }
 
+// initializeServices creates the new improved services
+func (c *ServiceContainer) initializeServices() {
+	debugMode := c.config.Output.Debug
+	c.stateManager = services.NewStateManager(debugMode)
+
+	outputDir := c.config.Compact.OutputDir
+	if outputDir == "" {
+		outputDir = ".infer"
+	}
+	c.debugService = services.NewDebugService(debugMode, c.stateManager, outputDir)
+
+	c.toolExecutionOrchestrator = services.NewToolExecutionOrchestrator(
+		c.stateManager,
+		c.debugService,
+		c.toolService,
+		c.conversationRepo,
+		c.config,
+	)
+}
+
 // initializeUIComponents creates UI components and theme
 func (c *ServiceContainer) initializeUIComponents() {
 	c.theme = ui.NewDefaultTheme()
@@ -89,9 +113,6 @@ func (c *ServiceContainer) initializeUIComponents() {
 func (c *ServiceContainer) initializeExtensibility() {
 	c.commandRegistry = commands.NewRegistry()
 	c.registerDefaultCommands()
-
-	c.messageRouter = handlers.NewMessageRouter()
-	c.registerMessageHandlers()
 }
 
 // registerDefaultCommands registers the built-in commands
@@ -103,25 +124,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.commandRegistry.Register(commands.NewModelsCommand(c.modelService))
 	c.commandRegistry.Register(commands.NewSwitchCommand(c.modelService))
 	c.commandRegistry.Register(commands.NewA2ACommand(c.a2aService))
-}
-
-// registerMessageHandlers registers the message handlers
-func (c *ServiceContainer) registerMessageHandlers() {
-	c.messageRouter.AddHandler(handlers.NewChatMessageHandler(
-		c.chatService,
-		c.conversationRepo,
-		c.modelService,
-		c.commandRegistry,
-		c.config,
-	))
-
-	c.messageRouter.AddHandler(handlers.NewFileMessageHandler(c.fileService))
-
-	if c.config.Tools.Enabled {
-		c.messageRouter.AddHandler(handlers.NewToolMessageHandler(c.toolService))
-	}
-
-	c.messageRouter.AddHandler(handlers.NewUIMessageHandler(c.commandRegistry))
 }
 
 func (c *ServiceContainer) GetConfig() *config.Config {
@@ -164,16 +166,20 @@ func (c *ServiceContainer) GetCommandRegistry() *commands.Registry {
 	return c.commandRegistry
 }
 
-func (c *ServiceContainer) GetMessageRouter() *handlers.MessageRouter {
-	return c.messageRouter
+// New service getters
+func (c *ServiceContainer) GetStateManager() *services.StateManager {
+	return c.stateManager
+}
+
+func (c *ServiceContainer) GetDebugService() *services.DebugService {
+	return c.debugService
+}
+
+func (c *ServiceContainer) GetToolExecutionOrchestrator() *services.ToolExecutionOrchestrator {
+	return c.toolExecutionOrchestrator
 }
 
 // RegisterCommand allows external registration of commands
 func (c *ServiceContainer) RegisterCommand(cmd commands.Command) {
 	c.commandRegistry.Register(cmd)
-}
-
-// RegisterMessageHandler allows external registration of message handlers
-func (c *ServiceContainer) RegisterMessageHandler(handler handlers.MessageHandler) {
-	c.messageRouter.AddHandler(handler)
 }

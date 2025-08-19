@@ -1,0 +1,4 @@
+# Ignore log files and history files
+*.log
+history
+chat_export_*

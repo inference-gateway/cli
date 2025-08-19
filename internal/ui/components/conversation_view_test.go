@@ -23,12 +23,12 @@ func TestNewConversationView(t *testing.T) {
 		t.Errorf("Expected default height 20, got %d", cv.height)
 	}
 
-	if cv.expandedToolResult != -1 {
-		t.Errorf("Expected expandedToolResult to be -1, got %d", cv.expandedToolResult)
+	if cv.expandedToolResults == nil {
+		t.Error("Expected expandedToolResults to be initialized")
 	}
 
-	if cv.isToolExpanded {
-		t.Error("Expected isToolExpanded to be false")
+	if cv.allToolsExpanded {
+		t.Error("Expected allToolsExpanded to be false")
 	}
 
 	if len(cv.conversation) != 0 {
@@ -121,6 +121,55 @@ func TestConversationView_ToggleToolResultExpansion(t *testing.T) {
 
 	if cv.IsToolResultExpanded(0) {
 		t.Error("Expected tool result 0 to be collapsed after second toggle")
+	}
+}
+
+func TestConversationView_ToggleAllToolResultsExpansion(t *testing.T) {
+	cv := NewConversationView()
+
+	conversation := []domain.ConversationEntry{
+		{
+			Message: sdk.Message{
+				Role:    sdk.Tool,
+				Content: "Tool result 1",
+			},
+			Time: time.Now(),
+		},
+		{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: "User message",
+			},
+			Time: time.Now(),
+		},
+		{
+			Message: sdk.Message{
+				Role:    sdk.Tool,
+				Content: "Tool result 2",
+			},
+			Time: time.Now(),
+		},
+	}
+	cv.SetConversation(conversation)
+
+	if cv.IsToolResultExpanded(0) || cv.IsToolResultExpanded(2) {
+		t.Error("Expected all tool results to be collapsed initially")
+	}
+
+	cv.ToggleAllToolResultsExpansion()
+
+	if !cv.IsToolResultExpanded(0) || !cv.IsToolResultExpanded(2) {
+		t.Error("Expected all tool results to be expanded after first toggle")
+	}
+
+	if cv.IsToolResultExpanded(1) {
+		t.Error("Expected non-tool message to remain unaffected")
+	}
+
+	cv.ToggleAllToolResultsExpansion()
+
+	if cv.IsToolResultExpanded(0) || cv.IsToolResultExpanded(2) {
+		t.Error("Expected all tool results to be collapsed after second toggle")
 	}
 }
 

@@ -61,12 +61,8 @@ func TestNewInputView(t *testing.T) {
 		t.Error("Expected model service to be set")
 	}
 
-	if len(iv.history) != 0 {
-		t.Errorf("Expected empty history, got length %d", len(iv.history))
-	}
-
-	if iv.historyIndex != -1 {
-		t.Errorf("Expected historyIndex -1, got %d", iv.historyIndex)
+	if iv.historyManager == nil {
+		t.Error("Expected history manager to be initialized")
 	}
 }
 
@@ -88,7 +84,6 @@ func TestInputView_ClearInput(t *testing.T) {
 
 	iv.text = "Some text"
 	iv.cursor = 5
-	iv.historyIndex = 2
 
 	iv.ClearInput()
 
@@ -98,10 +93,6 @@ func TestInputView_ClearInput(t *testing.T) {
 
 	if iv.cursor != 0 {
 		t.Errorf("Expected cursor at 0 after clear, got %d", iv.cursor)
-	}
-
-	if iv.historyIndex != -1 {
-		t.Errorf("Expected historyIndex -1 after clear, got %d", iv.historyIndex)
 	}
 }
 
@@ -223,112 +214,17 @@ func TestInputView_CanHandle(t *testing.T) {
 	}
 }
 
-func TestInputView_HandleKey_CharacterInput(t *testing.T) {
-	mockModelService := &mockModelService{}
-	iv := NewInputView(mockModelService)
+// Character input is now handled by the key binding registry
 
-	charKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'H'}}
+// Backspace is now handled by the key binding registry
 
-	model, _ := iv.HandleKey(charKey)
-
-	if model == nil {
-		t.Error("Expected HandleKey to return non-nil model")
-	}
-
-	if iv.text != "H" {
-		t.Errorf("Expected text 'H', got '%s'", iv.text)
-	}
-
-	if iv.cursor != 1 {
-		t.Errorf("Expected cursor position 1, got %d", iv.cursor)
-	}
-}
-
-func TestInputView_HandleKey_Backspace(t *testing.T) {
-	mockModelService := &mockModelService{}
-	iv := NewInputView(mockModelService)
-
-	iv.SetText("Hello")
-	iv.SetCursor(len("Hello"))
-
-	backspaceKey := tea.KeyMsg{Type: tea.KeyBackspace}
-	model, _ := iv.HandleKey(backspaceKey)
-
-	if model == nil {
-		t.Error("Expected HandleKey to return non-nil model")
-	}
-
-	if iv.text != "Hell" {
-		t.Errorf("Expected text 'Hell' after backspace, got '%s'", iv.text)
-	}
-
-	if iv.cursor != 4 {
-		t.Errorf("Expected cursor position 4 after backspace, got %d", iv.cursor)
-	}
-}
-
-func TestInputView_HandleKey_ArrowKeys(t *testing.T) {
-	mockModelService := &mockModelService{}
-	iv := NewInputView(mockModelService)
-
-	iv.SetText("Hello")
-	iv.SetCursor(len("Hello"))
-
-	leftKey := tea.KeyMsg{Type: tea.KeyLeft}
-	model, _ := iv.HandleKey(leftKey)
-
-	if model == nil {
-		t.Error("Expected HandleKey to return non-nil model")
-	}
-
-	if iv.cursor != 4 {
-		t.Errorf("Expected cursor position 4 after left arrow, got %d", iv.cursor)
-	}
-
-	rightKey := tea.KeyMsg{Type: tea.KeyRight}
-	iv.HandleKey(rightKey)
-
-	if iv.cursor != 5 {
-		t.Errorf("Expected cursor position 5 after right arrow, got %d", iv.cursor)
-	}
-}
+// Arrow keys are now handled by the key binding registry
 
 func TestInputView_History(t *testing.T) {
 	mockModelService := &mockModelService{}
 	iv := NewInputView(mockModelService)
 
-	iv.history = []string{"first", "second", "third"}
-	iv.historyIndex = -1
-
-	upKey := tea.KeyMsg{Type: tea.KeyUp}
-	iv.HandleKey(upKey)
-
-	if iv.historyIndex != 2 {
-		t.Errorf("Expected historyIndex 2 after up, got %d", iv.historyIndex)
-	}
-
-	if iv.text != "third" {
-		t.Errorf("Expected text 'third' from history, got '%s'", iv.text)
-	}
-
-	iv.HandleKey(upKey)
-
-	if iv.historyIndex != 1 {
-		t.Errorf("Expected historyIndex 1 after second up, got %d", iv.historyIndex)
-	}
-
-	if iv.text != "second" {
-		t.Errorf("Expected text 'second' from history, got '%s'", iv.text)
-	}
-
-	downKey := tea.KeyMsg{Type: tea.KeyDown}
-	iv.HandleKey(downKey)
-
-	if iv.historyIndex != 2 {
-		t.Errorf("Expected historyIndex 2 after down, got %d", iv.historyIndex)
-	}
-
-	if iv.text != "third" {
-		t.Errorf("Expected text 'third' after down, got '%s'", iv.text)
+	if iv.historyManager == nil {
+		t.Error("Expected history manager to be initialized")
 	}
 }

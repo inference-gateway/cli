@@ -12,7 +12,7 @@ type ConversationEntry struct {
 	Message       sdk.Message          `json:"message"`
 	Model         string               `json:"model,omitempty"`
 	Time          time.Time            `json:"time"`
-	ToolExecution *ToolExecutionResult `json:"tool_execution,omitempty"` // For tool result entries
+	ToolExecution *ToolExecutionResult `json:"tool_execution,omitempty"`
 }
 
 // ExportFormat defines the format for exporting conversations
@@ -28,8 +28,8 @@ const (
 type ApprovalAction int
 
 const (
-	ApprovalApprove ApprovalAction = iota // Approve and execute
-	ApprovalReject                        // Deny and cancel
+	ApprovalApprove ApprovalAction = iota
+	ApprovalReject
 )
 
 // ConversationRepository handles conversation storage and retrieval
@@ -61,6 +61,7 @@ const (
 	EventChatComplete
 	EventChatError
 	EventToolCall
+	EventToolCallStart
 	EventCancelled
 )
 
@@ -79,7 +80,7 @@ type ChatMetrics struct {
 
 // ChatService handles chat completion operations
 type ChatService interface {
-	SendMessage(ctx context.Context, model string, messages []sdk.Message) (<-chan ChatEvent, error)
+	SendMessage(ctx context.Context, requestID string, model string, messages []sdk.Message) (<-chan ChatEvent, error)
 	CancelRequest(requestID string) error
 	GetMetrics(requestID string) *ChatMetrics
 }
@@ -292,13 +293,6 @@ type DeleteToolResult struct {
 	Errors            []string `json:"errors,omitempty"`
 }
 
-// TodoItem represents a single todo item
-type TodoItem struct {
-	ID      string `json:"id"`
-	Content string `json:"content"`
-	Status  string `json:"status"`
-}
-
 // MultiEditToolResult represents the result of a MultiEdit operation
 type MultiEditToolResult struct {
 	FilePath        string                `json:"file_path"`
@@ -319,6 +313,13 @@ type EditOperationResult struct {
 	ReplacedCount int    `json:"replaced_count"`
 	Success       bool   `json:"success"`
 	Error         string `json:"error,omitempty"`
+}
+
+// TodoItem represents a single todo item
+type TodoItem struct {
+	ID      string `json:"id"`
+	Content string `json:"content"`
+	Status  string `json:"status"`
 }
 
 // TodoWriteToolResult represents the result of a TodoWrite operation

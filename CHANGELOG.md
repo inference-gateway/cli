@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.27.0](https://github.com/inference-gateway/cli/compare/v0.26.0...v0.27.0) (2025-08-19)
+
+### 🚀 Features
+
+* Implement dynamic status indicators with improved visual feedback ([#68](https://github.com/inference-gateway/cli/issues/68)) ([265c781](https://github.com/inference-gateway/cli/commit/265c7815d90beecc66bd3904bae9d75549f3f851)), closes [#67](https://github.com/inference-gateway/cli/issues/67) [#67](https://github.com/inference-gateway/cli/issues/67)
+
+## [0.26.0](https://github.com/inference-gateway/cli/compare/v0.25.1...v0.26.0) (2025-08-17)
+
+### 🚀 Features
+
+* **chat:** Add Ctrl+R support for expanding/collapsing all tool calls ([#74](https://github.com/inference-gateway/cli/issues/74)) ([7e21b92](https://github.com/inference-gateway/cli/commit/7e21b9251a9da91cbabd1497f237d22709fa7a3c)), closes [#71](https://github.com/inference-gateway/cli/issues/71) [#71](https://github.com/inference-gateway/cli/issues/71)
+
+## [0.25.1](https://github.com/inference-gateway/cli/compare/v0.25.0...v0.25.1) (2025-08-17)
+
+### 🧹 Maintenance
+
+* **history:** Clean up comments ([99810e6](https://github.com/inference-gateway/cli/commit/99810e6a5591e83f229c04783190e1dd2aec7edf))
+
+## [0.25.0](https://github.com/inference-gateway/cli/compare/v0.24.3...v0.25.0) (2025-08-17)
+
+### 🚀 Features
+
+* **chat:** Add shell history integration for chat commands ([#70](https://github.com/inference-gateway/cli/issues/70)) ([4e83b7d](https://github.com/inference-gateway/cli/commit/4e83b7d5dad70289fadf5ead0a98bc81c0de9fc7)), closes [#69](https://github.com/inference-gateway/cli/issues/69)
+
+## [0.24.3](https://github.com/inference-gateway/cli/compare/v0.24.2...v0.24.3) (2025-08-17)
+
+### 🧹 Maintenance
+
+* Improve Claude Code quality check ([#72](https://github.com/inference-gateway/cli/issues/72)) ([e82a057](https://github.com/inference-gateway/cli/commit/e82a057d1542afa1a732acab45a97432bf871f0a))
+
 ## [0.24.2](https://github.com/inference-gateway/cli/compare/v0.24.1...v0.24.2) (2025-08-17)
 
 ### 🧹 Maintenance

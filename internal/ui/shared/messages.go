@@ -11,11 +11,37 @@ type UpdateHistoryMsg struct {
 	History []domain.ConversationEntry
 }
 
+// StatusType represents different types of status messages
+type StatusType int
+
+const (
+	StatusDefault StatusType = iota
+	StatusThinking
+	StatusGenerating
+	StatusWorking
+	StatusProcessing
+	StatusPreparing
+)
+
 // SetStatusMsg sets a status message
 type SetStatusMsg struct {
 	Message    string
 	Spinner    bool
 	TokenUsage string
+	StatusType StatusType
+	Progress   *StatusProgress
+}
+
+// UpdateStatusMsg updates an existing status message without resetting timer
+type UpdateStatusMsg struct {
+	Message    string
+	StatusType StatusType
+}
+
+// StatusProgress represents progress information for status messages
+type StatusProgress struct {
+	Current int
+	Total   int
 }
 
 // ShowErrorMsg displays an error message
@@ -52,6 +78,11 @@ type FileSelectedMsg struct {
 
 // FileSelectionRequestMsg requests file selection UI
 type FileSelectionRequestMsg struct{}
+
+// SetupFileSelectionMsg sets up file selection state with files
+type SetupFileSelectionMsg struct {
+	Files []string
+}
 
 // ApprovalRequestMsg requests user approval for an action
 type ApprovalRequestMsg struct {
