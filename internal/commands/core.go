@@ -179,7 +179,6 @@ func (c *ExportCommand) createCompactMarkdown(summary, fullConversation string) 
 	content.WriteString(fmt.Sprintf("**Generated:** %s\n", time.Now().Format("January 2, 2006 at 3:04 PM")))
 	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n", c.repo.GetMessageCount()))
 
-	// Add session token statistics
 	sessionStats := c.repo.GetSessionTokens()
 	if sessionStats.RequestCount > 0 {
 		content.WriteString(fmt.Sprintf("**Total Input Tokens:** %d\n", sessionStats.TotalInputTokens))

@@ -1511,7 +1511,6 @@ func (h *ChatHandler) formatMetrics(metrics *domain.ChatMetrics) string {
 		}
 	}
 
-	// Add session totals
 	sessionStats := h.conversationRepo.GetSessionTokens()
 	if sessionStats.TotalInputTokens > 0 {
 		parts = append(parts, fmt.Sprintf("Session Input: %d tokens", sessionStats.TotalInputTokens))

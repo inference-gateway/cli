@@ -134,7 +134,6 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 	content.WriteString(fmt.Sprintf("**Date:** %s\n", time.Now().Format("2006-01-02 15:04:05")))
 	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n", len(r.messages)))
 
-	// Add session token statistics
 	if r.sessionStats.RequestCount > 0 {
 		content.WriteString(fmt.Sprintf("**Total Input Tokens:** %d\n", r.sessionStats.TotalInputTokens))
 		content.WriteString(fmt.Sprintf("**Total Output Tokens:** %d\n", r.sessionStats.TotalOutputTokens))

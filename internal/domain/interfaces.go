@@ -49,7 +49,6 @@ type ConversationRepository interface {
 	GetMessageCount() int
 	UpdateLastMessage(content string) error
 	UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error
-	// Session token tracking
 	AddTokenUsage(inputTokens, outputTokens, totalTokens int) error
 	GetSessionTokens() SessionTokenStats
 }
