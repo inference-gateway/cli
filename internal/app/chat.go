@@ -2,11 +2,9 @@ package app
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/container"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/handlers"
@@ -36,6 +34,10 @@ type ChatApplication struct {
 	approvalView      ui.ApprovalComponent
 	modelSelector     *components.ModelSelectorImpl
 	fileSelectionView *components.FileSelectionView
+
+	// Presentation layer
+	applicationViewRenderer *components.ApplicationViewRenderer
+	fileSelectionHandler    *components.FileSelectionHandler
 
 	// Message routing
 	messageRouter *handlers.MessageRouter
@@ -75,6 +77,10 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 	app.helpBar = ui.CreateHelpBar()
 	app.approvalView = ui.CreateApprovalView(services.GetTheme())
 	app.fileSelectionView = components.NewFileSelectionView(services.GetTheme())
+
+	// Initialize presentation layer
+	app.applicationViewRenderer = components.NewApplicationViewRenderer(services.GetTheme())
+	app.fileSelectionHandler = components.NewFileSelectionHandler(services.GetTheme())
 
 	app.keyBindingManager = keybinding.NewKeyBindingManager(app)
 	app.updateHelpBarShortcuts()
@@ -231,13 +237,8 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 func (app *ChatApplication) handleChatViewKeypress(keyMsg tea.KeyMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	if app.hasPendingApproval() {
-		if cmd := app.handleApprovalKeys(keyMsg); cmd != nil {
-			cmds = append(cmds, cmd)
-			return cmds
-		}
-	}
-
+	// All key handling is now done by the keybinding system
+	// which includes approval keys when hasPendingApproval() is true
 	if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -261,13 +262,8 @@ func (app *ChatApplication) handleApprovalView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		cmds = append(cmds, func() tea.Msg {
-			return shared.SetStatusMsg{
-				Message: fmt.Sprintf("Approval view - Key: '%s'", keyMsg.String()),
-				Spinner: false,
-			}
-		})
-		if cmd := app.handleApprovalKeys(keyMsg); cmd != nil {
+		// Approval keys are now handled by the keybinding system
+		if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
@@ -287,13 +283,7 @@ func (app *ChatApplication) View() string {
 	case domain.ViewStateFileSelection:
 		return app.renderFileSelection()
 	case domain.ViewStateToolApproval:
-		approvalContent := app.renderApproval()
-		if app.debugService.IsEnabled() {
-			snapshot := app.stateManager.GetStateSnapshot()
-			return approvalContent + fmt.Sprintf("\n\n[DEBUG: CurrentView=%v, ToolExecution=%v]",
-				snapshot.CurrentView, snapshot.ToolExecution != nil)
-		}
-		return approvalContent
+		return app.renderChatInterface()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -302,90 +292,22 @@ func (app *ChatApplication) View() string {
 func (app *ChatApplication) renderChatInterface() string {
 	width, height := app.stateManager.GetDimensions()
 
-	headerHeight := 3
-	helpBarHeight := 0
-
-	app.helpBar.SetWidth(width)
-	if app.helpBar.IsEnabled() {
-		helpBarHeight = 6
+	data := components.ChatInterfaceData{
+		Width:           width,
+		Height:          height,
+		ToolExecution:   app.stateManager.GetToolExecution(),
+		ApprovalUIState: app.stateManager.GetApprovalUIState(),
+		CurrentView:     app.stateManager.GetCurrentView(),
 	}
 
-	adjustedHeight := height - headerHeight - helpBarHeight
-	conversationHeight := ui.CalculateConversationHeight(adjustedHeight)
-	inputHeight := ui.CalculateInputHeight(adjustedHeight)
-	statusHeight := ui.CalculateStatusHeight(adjustedHeight)
-
-	if conversationHeight < 3 {
-		conversationHeight = 3
-	}
-
-	app.conversationView.SetWidth(width)
-	app.conversationView.SetHeight(conversationHeight)
-	app.inputView.SetWidth(width)
-	app.inputView.SetHeight(inputHeight)
-	app.statusView.SetWidth(width)
-
-	headerStyle := lipgloss.NewStyle().
-		Width(width).
-		Align(lipgloss.Center).
-		Foreground(shared.HeaderColor.GetLipglossColor()).
-		Bold(true).
-		Padding(0, 1)
-
-	header := headerStyle.Render("🚀 Inference Gateway CLI")
-	headerBorder := shared.CreateSeparator(width, "═")
-
-	conversationStyle := lipgloss.NewStyle().
-		Width(width).
-		Height(conversationHeight)
-
-	inputStyle := lipgloss.NewStyle().
-		Width(width)
-
-	conversationArea := conversationStyle.Render(app.conversationView.Render())
-	separator := shared.CreateSeparator(width, "─")
-	inputArea := inputStyle.Render(app.inputView.Render())
-
-	components := []string{header, headerBorder, conversationArea, separator}
-
-	if statusHeight > 0 {
-		statusContent := app.statusView.Render()
-		if statusContent != "" {
-			statusStyle := lipgloss.NewStyle().Width(width)
-			components = append(components, statusStyle.Render(statusContent))
-		}
-	}
-
-	if app.hasPendingApproval() {
-		toolExecution := app.stateManager.GetToolExecution()
-		selectedIndex := int(domain.ApprovalApprove)
-		if approvalState := app.stateManager.GetApprovalUIState(); approvalState != nil {
-			selectedIndex = approvalState.SelectedIndex
-		}
-
-		app.approvalView.SetWidth(width)
-		approvalContent := app.approvalView.Render(toolExecution, selectedIndex)
-		if approvalContent != "" {
-			approvalStyle := lipgloss.NewStyle().Width(width)
-			components = append(components, approvalStyle.Render(approvalContent))
-		}
-	} else {
-		components = append(components, inputArea)
-	}
-
-	app.helpBar.SetWidth(width)
-	helpBarContent := app.helpBar.Render()
-	if helpBarContent != "" {
-		separator := shared.CreateSeparator(width, "─")
-		components = append(components, separator)
-
-		helpBarStyle := lipgloss.NewStyle().
-			Width(width).
-			Padding(1, 1)
-		components = append(components, helpBarStyle.Render(helpBarContent))
-	}
-
-	return lipgloss.JoinVertical(lipgloss.Left, components...)
+	return app.applicationViewRenderer.RenderChatInterface(
+		data,
+		app.conversationView,
+		app.inputView,
+		app.statusView,
+		app.helpBar,
+		app.approvalView,
+	)
 }
 
 // hasPendingApproval checks if there's a pending tool call that requires approval
@@ -404,366 +326,54 @@ func (app *ChatApplication) renderModelSelection() string {
 }
 
 func (app *ChatApplication) renderFileSelection() string {
-	allFiles, searchQuery, selectedIndex := app.getFileSelectionState()
-
-	width, _ := app.stateManager.GetDimensions()
-	app.fileSelectionView.SetWidth(width)
-
-	if allFiles != nil {
-		files := app.filterFiles(allFiles, searchQuery)
-		if selectedIndex >= len(files) {
-			selectedIndex = 0
-			app.stateManager.SetFileSelectedIndex(0)
-		}
-	}
-
-	return app.fileSelectionView.RenderView(allFiles, searchQuery, selectedIndex)
-}
-
-func (app *ChatApplication) renderApproval() string {
-	toolExecution := app.stateManager.GetToolExecution()
-	if toolExecution == nil || !toolExecution.RequiresApproval {
-		return ui.FormatWarning("No pending tool call found")
-	}
-
-	selectedIndex := int(domain.ApprovalApprove)
-
-	var b strings.Builder
-	theme := app.services.GetTheme()
+	fileState := app.stateManager.GetFileSelectionState()
 	width, _ := app.stateManager.GetDimensions()
 
-	b.WriteString("🔧 Tool Execution Approval Required\n")
-	b.WriteString(strings.Repeat("═", width))
-	b.WriteString("\n\n")
-
-	currentTool := toolExecution.CurrentTool
-	if currentTool == nil {
-		return ui.FormatWarning("No current tool call found")
+	if fileState == nil {
+		return shared.FormatWarning("No files available for selection")
 	}
 
-	b.WriteString(fmt.Sprintf("Tool: %s\n", currentTool.Name))
-
-	switch currentTool.Name {
-	case "Edit":
-		b.WriteString(app.renderEditToolArguments(currentTool.Arguments, theme))
-	case "MultiEdit":
-		b.WriteString(app.renderMultiEditToolArguments(currentTool.Arguments, theme))
-	default:
-		b.WriteString("Arguments:\n")
-		if currentTool.Arguments != nil {
-			for key, value := range currentTool.Arguments {
-				b.WriteString(fmt.Sprintf("  • %s: %v\n", key, value))
-			}
-		}
+	data := components.FileSelectionData{
+		Width:         width,
+		Files:         fileState.Files,
+		SearchQuery:   fileState.SearchQuery,
+		SelectedIndex: fileState.SelectedIndex,
 	}
 
-	b.WriteString("\n")
-	b.WriteString("⚠️  This tool will execute on your system. Please review carefully.\n\n")
-
-	options := []string{
-		"✅ Approve and execute",
-		"❌ Deny and cancel",
-	}
-
-	b.WriteString("Please select an action:\n\n")
-
-	for i, option := range options {
-		if i == selectedIndex {
-			b.WriteString(fmt.Sprintf("%s▶ %s%s\n", theme.GetAccentColor(), option, "\033[0m"))
-		} else {
-			b.WriteString(fmt.Sprintf("%s  %s%s\n", theme.GetDimColor(), option, "\033[0m"))
-		}
-	}
-
-	b.WriteString("\n")
-
-	helpText := "Use ↑↓ arrow keys to navigate, SPACE to select, ESC to cancel"
-	b.WriteString(theme.GetDimColor() + helpText + "\033[0m")
-
-	return b.String()
-}
-
-// renderEditToolArguments renders Edit tool arguments with a colored diff preview
-func (app *ChatApplication) renderEditToolArguments(args map[string]any, theme ui.Theme) string {
-	var b strings.Builder
-
-	filePath, _ := args["file_path"].(string)
-	oldString, _ := args["old_string"].(string)
-	newString, _ := args["new_string"].(string)
-	replaceAll, _ := args["replace_all"].(bool)
-
-	b.WriteString("Arguments:\n")
-	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
-	b.WriteString(fmt.Sprintf("  • replace_all: %v\n", replaceAll))
-	b.WriteString("\n")
-
-	b.WriteString("← Test edit for diff verification →\n")
-	b.WriteString(app.renderColoredDiff(oldString, newString, theme))
-
-	return b.String()
-}
-
-// renderColoredDiff creates a colored diff view using the same logic as generateDiff
-func (app *ChatApplication) renderColoredDiff(oldContent, newContent string, theme ui.Theme) string {
-	if oldContent == newContent {
-		return "No changes to display.\n"
-	}
-
-	oldLines := strings.Split(oldContent, "\n")
-	newLines := strings.Split(newContent, "\n")
-
-	var diff strings.Builder
-	maxLines := len(oldLines)
-	if len(newLines) > maxLines {
-		maxLines = len(newLines)
-	}
-
-	firstChanged := -1
-	lastChanged := -1
-	for i := 0; i < maxLines; i++ {
-		oldLine := ""
-		newLine := ""
-		if i < len(oldLines) {
-			oldLine = oldLines[i]
-		}
-		if i < len(newLines) {
-			newLine = newLines[i]
-		}
-
-		if oldLine != newLine {
-			if firstChanged == -1 {
-				firstChanged = i
-			}
-			lastChanged = i
-		}
-	}
-
-	if firstChanged == -1 {
-		return "No changes to display.\n"
-	}
-
-	contextBefore := 3
-	contextAfter := 3
-	startLine := firstChanged - contextBefore
-	if startLine < 0 {
-		startLine = 0
-	}
-	endLine := lastChanged + contextAfter
-	if endLine >= maxLines {
-		endLine = maxLines - 1
-	}
-
-	for i := startLine; i <= endLine; i++ {
-		lineNum := i + 1
-		app.appendDiffLine(&diff, i, lineNum, oldLines, newLines, theme)
-	}
-
-	return diff.String()
-}
-
-func (app *ChatApplication) appendDiffLine(diff *strings.Builder, i, lineNum int, oldLines, newLines []string, theme ui.Theme) {
-	oldExists := i < len(oldLines)
-	newExists := i < len(newLines)
-
-	if oldExists && newExists {
-		app.appendBothLinesDiff(diff, lineNum, oldLines[i], newLines[i], theme)
-		return
-	}
-
-	if oldExists {
-		fmt.Fprintf(diff, "%s-%3d %s\033[0m\n", theme.GetDiffRemoveColor(), lineNum, oldLines[i])
-		return
-	}
-
-	if newExists {
-		fmt.Fprintf(diff, "%s+%3d %s\033[0m\n", theme.GetDiffAddColor(), lineNum, newLines[i])
-	}
-}
-
-func (app *ChatApplication) appendBothLinesDiff(diff *strings.Builder, lineNum int, oldLine, newLine string, theme ui.Theme) {
-	if oldLine != newLine {
-		fmt.Fprintf(diff, "%s-%3d %s\033[0m\n", theme.GetDiffRemoveColor(), lineNum, oldLine)
-		fmt.Fprintf(diff, "%s+%3d %s\033[0m\n", theme.GetDiffAddColor(), lineNum, newLine)
-	} else {
-		fmt.Fprintf(diff, " %3d %s\n", lineNum, oldLine)
-	}
-}
-
-// renderMultiEditToolArguments renders MultiEdit tool arguments with a colored diff preview
-func (app *ChatApplication) renderMultiEditToolArguments(args map[string]any, theme ui.Theme) string {
-	var b strings.Builder
-
-	filePath, _ := args["file_path"].(string)
-	editsInterface := args["edits"]
-
-	b.WriteString("Arguments:\n")
-	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
-
-	editsArray, ok := editsInterface.([]any)
-	if !ok {
-		b.WriteString("  • edits: [invalid format]\n")
-		return b.String()
-	}
-
-	b.WriteString(fmt.Sprintf("  • edits: %d operations\n", len(editsArray)))
-	b.WriteString("\n")
-
-	b.WriteString("Edit Operations:\n")
-	for i, editInterface := range editsArray {
-		editMap, ok := editInterface.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		oldString, _ := editMap["old_string"].(string)
-		newString, _ := editMap["new_string"].(string)
-		replaceAll, _ := editMap["replace_all"].(bool)
-
-		b.WriteString(fmt.Sprintf("  %d. ", i+1))
-		if replaceAll {
-			b.WriteString("[replace_all] ")
-		}
-
-		oldPreview := strings.ReplaceAll(oldString, "\n", "\\n")
-		newPreview := strings.ReplaceAll(newString, "\n", "\\n")
-		if len(oldPreview) > 50 {
-			oldPreview = oldPreview[:47] + "..."
-		}
-		if len(newPreview) > 50 {
-			newPreview = newPreview[:47] + "..."
-		}
-
-		b.WriteString(fmt.Sprintf("%s\"%s\"%s → %s\"%s\"%s\n",
-			theme.GetDiffRemoveColor(), oldPreview, "\033[0m",
-			theme.GetDiffAddColor(), newPreview, "\033[0m"))
-	}
-
-	b.WriteString("\n← Simulated diff preview →\n")
-
-	simulatedDiff := app.simulateMultiEditDiff(filePath, editsArray, theme)
-	b.WriteString(simulatedDiff)
-
-	return b.String()
-}
-
-// simulateMultiEditDiff simulates the multi-edit operation and generates a diff
-func (app *ChatApplication) simulateMultiEditDiff(filePath string, editsArray []any, theme ui.Theme) string {
-	originalContent := ""
-	if content, err := os.ReadFile(filePath); err == nil {
-		originalContent = string(content)
-	}
-
-	currentContent := originalContent
-
-	for _, editInterface := range editsArray {
-		editMap, ok := editInterface.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		oldString, ok1 := editMap["old_string"].(string)
-		newString, ok2 := editMap["new_string"].(string)
-		replaceAll, _ := editMap["replace_all"].(bool)
-
-		if !ok1 || !ok2 {
-			continue
-		}
-
-		if !strings.Contains(currentContent, oldString) {
-			return "⚠️  Edit simulation failed: old_string not found after previous edits\n"
-		}
-
-		if replaceAll {
-			currentContent = strings.ReplaceAll(currentContent, oldString, newString)
-		} else {
-			count := strings.Count(currentContent, oldString)
-			if count > 1 {
-				return fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)\n", count)
-			}
-			currentContent = strings.Replace(currentContent, oldString, newString, 1)
-		}
-	}
-
-	if originalContent == currentContent {
-		return "No changes to display.\n"
-	}
-
-	return app.renderColoredDiff(originalContent, currentContent, theme)
+	return app.fileSelectionHandler.RenderFileSelection(data)
 }
 
 func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
-	allFiles, searchQuery, selectedIndex := app.getFileSelectionState()
-	if allFiles == nil {
-		return nil
-	}
-
-	files := app.filterFiles(allFiles, searchQuery)
-
-	switch keyMsg.String() {
-	case "up":
-		return app.handleFileNavigation(files, selectedIndex, -1)
-	case "down":
-		return app.handleFileNavigation(files, selectedIndex, 1)
-	case "enter", "return":
-		return app.handleFileSelection(files, selectedIndex)
-	case "backspace":
-		return app.handleFileSearchBackspace(searchQuery)
-	case "esc":
-		return app.handleFileSelectionCancel()
-	default:
-		return app.handleFileSearchInput(keyMsg, searchQuery)
-	}
-}
-
-func (app *ChatApplication) getFileSelectionState() ([]string, string, int) {
 	fileState := app.stateManager.GetFileSelectionState()
-	if fileState == nil || len(fileState.Files) == 0 {
-		return nil, "", 0
-	}
-
-	return fileState.Files, fileState.SearchQuery, fileState.SelectedIndex
-}
-
-func (app *ChatApplication) filterFiles(allFiles []string, searchQuery string) []string {
-	if searchQuery == "" {
-		return allFiles
-	}
-
-	var files []string
-	for _, file := range allFiles {
-		if strings.Contains(strings.ToLower(file), strings.ToLower(searchQuery)) {
-			files = append(files, file)
-		}
-	}
-	return files
-}
-
-func (app *ChatApplication) handleFileNavigation(files []string, selectedIndex, direction int) tea.Cmd {
-	if len(files) == 0 {
+	if fileState == nil {
 		return nil
 	}
 
-	newIndex := selectedIndex + direction
-	if newIndex >= 0 && newIndex < len(files) {
-		app.stateManager.SetFileSelectedIndex(newIndex)
-	}
-	return nil
-}
+	newSearchQuery, newSelectedIndex, action, selectedFile := app.fileSelectionHandler.HandleKeyEvent(
+		keyMsg,
+		fileState.Files,
+		fileState.SearchQuery,
+		fileState.SelectedIndex,
+	)
 
-func (app *ChatApplication) handleFileSelection(files []string, selectedIndex int) tea.Cmd {
-	if len(files) == 0 || selectedIndex < 0 || selectedIndex >= len(files) {
+	// Update state based on handler response
+	if newSearchQuery != fileState.SearchQuery {
+		app.stateManager.UpdateFileSearchQuery(newSearchQuery)
+	}
+	if newSelectedIndex != fileState.SelectedIndex {
+		app.stateManager.SetFileSelectedIndex(newSelectedIndex)
+	}
+
+	switch action {
+	case components.FileSelectionActionSelect:
+		app.clearFileSelectionState()
+		app.updateInputWithSelectedFile(selectedFile)
+		return app.fileSelectionHandler.CreateStatusMessage(action, selectedFile)
+	case components.FileSelectionActionCancel:
+		app.clearFileSelectionState()
+		return app.fileSelectionHandler.CreateStatusMessage(action, selectedFile)
+	default:
 		return nil
-	}
-
-	selectedFile := files[selectedIndex]
-	app.clearFileSelectionState()
-	app.updateInputWithSelectedFile(selectedFile)
-
-	return func() tea.Msg {
-		return shared.SetStatusMsg{
-			Message: fmt.Sprintf("📁 File selected: %s", selectedFile),
-			Spinner: false,
-		}
 	}
 }
 
@@ -776,103 +386,10 @@ func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
 	currentInput := app.inputView.GetInput()
 	cursor := app.inputView.GetCursor()
 
-	atIndex := app.findAtSymbolIndex(currentInput, cursor)
-	newInput, newCursor := app.buildInputWithFile(currentInput, cursor, atIndex, selectedFile)
+	newInput, newCursor := app.fileSelectionHandler.UpdateInputWithSelectedFile(currentInput, cursor, selectedFile)
 
 	app.inputView.SetText(newInput)
 	app.inputView.SetCursor(newCursor)
-}
-
-func (app *ChatApplication) findAtSymbolIndex(input string, cursor int) int {
-	for i := cursor - 1; i >= 0; i-- {
-		if input[i] == '@' {
-			return i
-		}
-	}
-	return -1
-}
-
-func (app *ChatApplication) buildInputWithFile(input string, cursor, atIndex int, selectedFile string) (string, int) {
-	replacement := "@" + selectedFile + " "
-
-	if atIndex >= 0 {
-		before := input[:atIndex]
-		after := input[cursor:]
-		return before + replacement + after, atIndex + len(replacement)
-	}
-
-	newInput := input + replacement
-	return newInput, len(newInput)
-}
-
-func (app *ChatApplication) handleFileSearchBackspace(searchQuery string) tea.Cmd {
-	if len(searchQuery) > 0 {
-		app.stateManager.UpdateFileSearchQuery(searchQuery[:len(searchQuery)-1])
-	}
-	return nil
-}
-
-func (app *ChatApplication) handleFileSelectionCancel() tea.Cmd {
-	app.clearFileSelectionState()
-	return func() tea.Msg {
-		return shared.SetStatusMsg{
-			Message: "File selection cancelled",
-			Spinner: false,
-		}
-	}
-}
-
-func (app *ChatApplication) handleFileSearchInput(keyMsg tea.KeyMsg, searchQuery string) tea.Cmd {
-	if len(keyMsg.String()) == 1 && keyMsg.String()[0] >= 32 && keyMsg.String()[0] <= 126 {
-		char := keyMsg.String()
-		app.stateManager.UpdateFileSearchQuery(searchQuery + char)
-	}
-	return nil
-}
-
-func (app *ChatApplication) handleApprovalKeys(keyMsg tea.KeyMsg) tea.Cmd {
-	selectedIndex := int(domain.ApprovalApprove)
-	if approvalState := app.stateManager.GetApprovalUIState(); approvalState != nil {
-		selectedIndex = approvalState.SelectedIndex
-	}
-
-	switch keyMsg.String() {
-	case "up", "left":
-		if selectedIndex > int(domain.ApprovalApprove) {
-			selectedIndex--
-		}
-		app.stateManager.SetApprovalSelectedIndex(selectedIndex)
-		return nil
-
-	case "down", "right":
-		if selectedIndex < int(domain.ApprovalReject) {
-			selectedIndex++
-		}
-		app.stateManager.SetApprovalSelectedIndex(selectedIndex)
-		return nil
-
-	case "enter", "return", "ctrl+m", " ":
-		switch domain.ApprovalAction(selectedIndex) {
-		case domain.ApprovalApprove:
-			return app.approveToolCall()
-		case domain.ApprovalReject:
-			return app.denyToolCall()
-		}
-		return nil
-
-	case "esc":
-		// Cancel tool execution (already in chat view with inline approval)
-		app.stateManager.EndToolExecution()
-		app.stateManager.ClearApprovalUIState()
-		return func() tea.Msg {
-			return shared.SetStatusMsg{
-				Message: "Tool execution cancelled",
-				Spinner: false,
-			}
-		}
-	}
-
-	return nil
 }
 
 func (app *ChatApplication) approveToolCall() tea.Cmd {

@@ -4,22 +4,23 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // ApprovalComponent handles rendering of tool approval requests
 type ApprovalComponent struct {
-	width  int
-	height int
-	theme  shared.Theme
+	width        int
+	height       int
+	theme        shared.Theme
+	diffRenderer *DiffRenderer
 }
 
 // NewApprovalComponent creates a new approval component
 func NewApprovalComponent(theme shared.Theme) *ApprovalComponent {
 	return &ApprovalComponent{
-		theme: theme,
+		theme:        theme,
+		diffRenderer: NewDiffRenderer(theme),
 	}
 }
 
@@ -51,52 +52,44 @@ func (a *ApprovalComponent) Render(toolExecution *domain.ToolExecutionSession, s
 	b.WriteString(strings.Repeat("─", a.width))
 	b.WriteString("\n")
 
-	// Tool info - compact version
-	b.WriteString(fmt.Sprintf("Tool: %s", currentTool.Name))
+	b.WriteString(fmt.Sprintf("Tool: %s\n", currentTool.Name))
 
-	// Show key arguments inline for common tools
+	// Show detailed arguments and previews for different tools
 	switch currentTool.Name {
-	case "Read":
-		if filePath, ok := currentTool.Arguments["file_path"].(string); ok {
-			b.WriteString(fmt.Sprintf(" → %s", filePath))
-		}
 	case "Edit":
-		if filePath, ok := currentTool.Arguments["file_path"].(string); ok {
-			b.WriteString(fmt.Sprintf(" → %s", filePath))
-		}
-	case "Bash":
-		if command, ok := currentTool.Arguments["command"].(string); ok {
-			if len(command) > 50 {
-				command = command[:47] + "..."
+		b.WriteString(a.diffRenderer.RenderEditToolArguments(currentTool.Arguments))
+	case "MultiEdit":
+		b.WriteString(a.diffRenderer.RenderMultiEditToolArguments(currentTool.Arguments))
+	default:
+		b.WriteString("Arguments:\n")
+		if currentTool.Arguments != nil {
+			for key, value := range currentTool.Arguments {
+				b.WriteString(fmt.Sprintf("  • %s: %v\n", key, value))
 			}
-			b.WriteString(fmt.Sprintf(" → %s", command))
-		}
-	case "Write":
-		if filePath, ok := currentTool.Arguments["file_path"].(string); ok {
-			b.WriteString(fmt.Sprintf(" → %s", filePath))
 		}
 	}
-	b.WriteString("\n\n")
 
-	// Options stacked vertically
-	options := []string{"✅ Approve (Enter)", "❌ Deny (Esc)"}
+	b.WriteString("\n")
+	b.WriteString("⚠️  This tool will execute on your system. Please review carefully.\n\n")
+
+	b.WriteString("Please select an action:\n\n")
+
+	options := []string{
+		"✅ Approve and execute",
+		"❌ Deny and cancel",
+	}
 
 	for i, option := range options {
 		if i == selectedIndex {
-			// Highlight selected option with arrow indicator
-			highlightStyle := lipgloss.NewStyle().
-				Background(lipgloss.Color(a.theme.GetAccentColor())).
-				Foreground(lipgloss.Color("#ffffff")).
-				Padding(0, 1)
-			b.WriteString("▶ " + highlightStyle.Render(option))
+			b.WriteString(fmt.Sprintf("%s▶ %s%s\n", a.theme.GetAccentColor(), option, "\033[0m"))
 		} else {
-			b.WriteString("  " + option)
+			b.WriteString(fmt.Sprintf("%s  %s%s\n", a.theme.GetDimColor(), option, "\033[0m"))
 		}
-		b.WriteString("\n")
 	}
 
-	// Help text
-	helpText := "⚠️  This tool will execute on your system. Press Enter to approve, Esc to deny."
+	b.WriteString("\n")
+
+	helpText := "Use ↑↓ arrow keys to navigate, SPACE to select, ESC to cancel"
 	b.WriteString(a.theme.GetDimColor() + helpText + "\033[0m")
 
 	return b.String()
