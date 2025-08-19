@@ -187,7 +187,7 @@ func DefaultConfig() *Config { //nolint:funlen
 					Commands: []string{
 						"ls", "pwd", "echo",
 						"wc", "sort", "uniq",
-						"gh", "task",
+						"gh", "task", "git",
 					},
 					Patterns: []string{
 						"^git status$",

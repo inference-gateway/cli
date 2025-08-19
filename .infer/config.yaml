@@ -20,6 +20,7 @@ tools:
         - uniq
         - gh
         - task
+        - git
       patterns:
         - ^git status$
         - ^git log --oneline -n [0-9]+$
