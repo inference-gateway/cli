@@ -128,7 +128,6 @@ func TestDeleteTool_ValidateDisabled(t *testing.T) {
 }
 
 func TestDeleteTool_Execute_SingleFile(t *testing.T) {
-	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "delete-tool-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -139,7 +138,6 @@ func TestDeleteTool_Execute_SingleFile(t *testing.T) {
 		}
 	}()
 
-	// Change to temp directory
 	oldWd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get working directory: %v", err)
@@ -153,7 +151,6 @@ func TestDeleteTool_Execute_SingleFile(t *testing.T) {
 		t.Fatalf("Failed to change to temp directory: %v", err)
 	}
 
-	// Create a test file
 	testFile := "test.txt"
 	content := "test content"
 	err = os.WriteFile(testFile, []byte(content), 0644)
@@ -177,12 +174,10 @@ func TestDeleteTool_Execute_SingleFile(t *testing.T) {
 		t.Errorf("Expected success, got: %s", result.Error)
 	}
 
-	// Verify file was deleted
 	if _, err := os.Stat(testFile); !os.IsNotExist(err) {
 		t.Error("Expected file to be deleted")
 	}
 
-	// Check result data
 	deleteResult, ok := result.Data.(*domain.DeleteToolResult)
 	if !ok {
 		t.Fatal("Expected DeleteToolResult in result data")
@@ -198,7 +193,6 @@ func TestDeleteTool_Execute_SingleFile(t *testing.T) {
 }
 
 func TestDeleteTool_Execute_Directory(t *testing.T) {
-	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "delete-tool-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -209,7 +203,6 @@ func TestDeleteTool_Execute_Directory(t *testing.T) {
 		}
 	}()
 
-	// Change to temp directory
 	oldWd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get working directory: %v", err)
@@ -223,7 +216,6 @@ func TestDeleteTool_Execute_Directory(t *testing.T) {
 		t.Fatalf("Failed to change to temp directory: %v", err)
 	}
 
-	// Create a test directory
 	testDir := "testdir"
 	err = os.Mkdir(testDir, 0755)
 	if err != nil {
@@ -233,7 +225,6 @@ func TestDeleteTool_Execute_Directory(t *testing.T) {
 	cfg := config.DefaultConfig()
 	tool := NewDeleteTool(cfg)
 
-	// Test without recursive flag (should fail)
 	args := map[string]interface{}{
 		"path": testDir,
 	}
@@ -243,7 +234,6 @@ func TestDeleteTool_Execute_Directory(t *testing.T) {
 		t.Error("Expected error when deleting directory without recursive flag")
 	}
 
-	// Test with recursive flag
 	args["recursive"] = true
 	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
@@ -254,12 +244,10 @@ func TestDeleteTool_Execute_Directory(t *testing.T) {
 		t.Errorf("Expected success, got: %s", result.Error)
 	}
 
-	// Verify directory was deleted
 	if _, err := os.Stat(testDir); !os.IsNotExist(err) {
 		t.Error("Expected directory to be deleted")
 	}
 
-	// Check result data
 	deleteResult, ok := result.Data.(*domain.DeleteToolResult)
 	if !ok {
 		t.Fatal("Expected DeleteToolResult in result data")
@@ -271,7 +259,6 @@ func TestDeleteTool_Execute_Directory(t *testing.T) {
 }
 
 func TestDeleteTool_Execute_Wildcard(t *testing.T) {
-	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "delete-tool-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -282,7 +269,6 @@ func TestDeleteTool_Execute_Wildcard(t *testing.T) {
 		}
 	}()
 
-	// Change to temp directory
 	oldWd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get working directory: %v", err)
@@ -296,7 +282,6 @@ func TestDeleteTool_Execute_Wildcard(t *testing.T) {
 		t.Fatalf("Failed to change to temp directory: %v", err)
 	}
 
-	// Create test files
 	testFiles := []string{"test1.txt", "test2.txt", "other.log"}
 	for _, file := range testFiles {
 		err = os.WriteFile(file, []byte("content"), 0644)
@@ -322,7 +307,6 @@ func TestDeleteTool_Execute_Wildcard(t *testing.T) {
 		t.Errorf("Expected success, got: %s", result.Error)
 	}
 
-	// Verify only .txt files were deleted
 	if _, err := os.Stat("test1.txt"); !os.IsNotExist(err) {
 		t.Error("Expected test1.txt to be deleted")
 	}
@@ -333,7 +317,6 @@ func TestDeleteTool_Execute_Wildcard(t *testing.T) {
 		t.Error("Expected other.log to remain")
 	}
 
-	// Check result data
 	deleteResult, ok := result.Data.(*domain.DeleteToolResult)
 	if !ok {
 		t.Fatal("Expected DeleteToolResult in result data")
@@ -364,7 +347,6 @@ func TestDeleteTool_Execute_WildcardDisabled(t *testing.T) {
 }
 
 func TestDeleteTool_Execute_NonExistentFile(t *testing.T) {
-	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "delete-tool-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -375,7 +357,6 @@ func TestDeleteTool_Execute_NonExistentFile(t *testing.T) {
 		}
 	}()
 
-	// Change to temp directory
 	oldWd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get working directory: %v", err)
@@ -392,7 +373,6 @@ func TestDeleteTool_Execute_NonExistentFile(t *testing.T) {
 	cfg := config.DefaultConfig()
 	tool := NewDeleteTool(cfg)
 
-	// Test without force flag (should fail)
 	args := map[string]interface{}{
 		"path": "nonexistent.txt",
 	}
@@ -402,7 +382,6 @@ func TestDeleteTool_Execute_NonExistentFile(t *testing.T) {
 		t.Error("Expected error when deleting non-existent file without force flag")
 	}
 
-	// Test with force flag (should succeed)
 	args["force"] = true
 	result, err := tool.Execute(context.Background(), args)
 	if err != nil {
@@ -415,7 +394,6 @@ func TestDeleteTool_Execute_NonExistentFile(t *testing.T) {
 }
 
 func TestDeleteTool_SecurityRestrictions(t *testing.T) {
-	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "delete-tool-test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -426,7 +404,6 @@ func TestDeleteTool_SecurityRestrictions(t *testing.T) {
 		}
 	}()
 
-	// Change to temp directory
 	oldWd, err := os.Getwd()
 	if err != nil {
 		t.Fatalf("Failed to get working directory: %v", err)
@@ -444,7 +421,6 @@ func TestDeleteTool_SecurityRestrictions(t *testing.T) {
 	cfg.Tools.Delete.RestrictToWorkDir = true
 	tool := NewDeleteTool(cfg)
 
-	// Test path outside working directory
 	args := map[string]interface{}{
 		"path": "../outside.txt",
 	}
@@ -454,7 +430,6 @@ func TestDeleteTool_SecurityRestrictions(t *testing.T) {
 		t.Error("Expected validation error for path outside working directory")
 	}
 
-	// Test absolute path outside working directory
 	args = map[string]interface{}{
 		"path": "/etc/passwd",
 	}

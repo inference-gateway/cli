@@ -75,7 +75,6 @@ func TestInitializeProject(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create temporary directory
 			tempDir, err := os.MkdirTemp("", "infer-test-*")
 			require.NoError(t, err)
 			defer func() {
@@ -84,7 +83,6 @@ func TestInitializeProject(t *testing.T) {
 				}
 			}()
 
-			// Change to temp directory
 			origDir, err := os.Getwd()
 			require.NoError(t, err)
 			defer func() {
@@ -96,7 +94,6 @@ func TestInitializeProject(t *testing.T) {
 			err = os.Chdir(tempDir)
 			require.NoError(t, err)
 
-			// Create a fresh command for this test
 			testInitCmd := &cobra.Command{
 				Use:   "init",
 				Short: "Initialize a new project with Inference Gateway CLI",
@@ -106,7 +103,6 @@ func TestInitializeProject(t *testing.T) {
 			}
 			testInitCmd.Flags().Bool("overwrite", tc.overwrite, "Overwrite existing files if they already exist")
 
-			// Run initialization
 			err = testInitCmd.RunE(testInitCmd, []string{})
 
 			if tc.wantErr {
@@ -116,20 +112,17 @@ func TestInitializeProject(t *testing.T) {
 
 			require.NoError(t, err)
 
-			// Check that files were created
 			configPath := filepath.Join(tempDir, ".infer", "config.yaml")
 			gitignorePath := filepath.Join(tempDir, ".infer", ".gitignore")
 
 			assert.FileExists(t, configPath)
 			assert.FileExists(t, gitignorePath)
 
-			// Check config file content
 			configData, err := os.ReadFile(configPath)
 			require.NoError(t, err)
 			assert.Contains(t, string(configData), "gateway:")
 			assert.Contains(t, string(configData), "tools:")
 
-			// Check gitignore content
 			gitignoreData, err := os.ReadFile(gitignorePath)
 			require.NoError(t, err)
 			assert.Contains(t, string(gitignoreData), "*.log")
@@ -140,7 +133,6 @@ func TestInitializeProject(t *testing.T) {
 }
 
 func TestInitializeProjectExistingFiles(t *testing.T) {
-	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "infer-test-*")
 	require.NoError(t, err)
 	defer func() {
@@ -149,7 +141,6 @@ func TestInitializeProjectExistingFiles(t *testing.T) {
 		}
 	}()
 
-	// Change to temp directory
 	origDir, err := os.Getwd()
 	require.NoError(t, err)
 	defer func() {
@@ -161,7 +152,6 @@ func TestInitializeProjectExistingFiles(t *testing.T) {
 	err = os.Chdir(tempDir)
 	require.NoError(t, err)
 
-	// Create .infer directory and files
 	err = os.MkdirAll(".infer", 0755)
 	require.NoError(t, err)
 
@@ -169,7 +159,6 @@ func TestInitializeProjectExistingFiles(t *testing.T) {
 	err = os.WriteFile(configPath, []byte("existing config"), 0644)
 	require.NoError(t, err)
 
-	// Create a fresh command without overwrite flag
 	testInitCmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a new project with Inference Gateway CLI",
@@ -179,12 +168,10 @@ func TestInitializeProjectExistingFiles(t *testing.T) {
 	}
 	testInitCmd.Flags().Bool("overwrite", false, "Overwrite existing files if they already exist")
 
-	// Try initialization without overwrite - should fail
 	err = testInitCmd.RunE(testInitCmd, []string{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 
-	// Create a new command with overwrite enabled
 	testInitCmdWithOverwrite := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a new project with Inference Gateway CLI",
@@ -194,7 +181,6 @@ func TestInitializeProjectExistingFiles(t *testing.T) {
 	}
 	testInitCmdWithOverwrite.Flags().Bool("overwrite", true, "Overwrite existing files if they already exist")
 
-	// Try with overwrite - should succeed
 	err = testInitCmdWithOverwrite.RunE(testInitCmdWithOverwrite, []string{})
 	assert.NoError(t, err)
 }

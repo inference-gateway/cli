@@ -32,7 +32,6 @@ func TestConfigInit(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Create temporary directory
 			tempDir, err := os.MkdirTemp("", "infer-config-test-*")
 			require.NoError(t, err)
 			defer func() {
@@ -41,7 +40,6 @@ func TestConfigInit(t *testing.T) {
 				}
 			}()
 
-			// Change to temp directory
 			origDir, err := os.Getwd()
 			require.NoError(t, err)
 			defer func() {
@@ -53,7 +51,6 @@ func TestConfigInit(t *testing.T) {
 			err = os.Chdir(tempDir)
 			require.NoError(t, err)
 
-			// Create a fresh command for this test
 			testConfigInitCmd := &cobra.Command{
 				Use:   "init",
 				Short: "Initialize a new configuration file",
@@ -86,7 +83,6 @@ For complete project initialization, use 'infer init' instead.`,
 			}
 			testConfigInitCmd.Flags().Bool("overwrite", tc.overwrite, "Overwrite existing configuration file")
 
-			// Run config initialization
 			err = testConfigInitCmd.RunE(testConfigInitCmd, []string{})
 
 			if tc.wantErr {
@@ -96,14 +92,12 @@ For complete project initialization, use 'infer init' instead.`,
 
 			require.NoError(t, err)
 
-			// Check that only config file was created (not gitignore)
 			configPath := filepath.Join(tempDir, ".infer", "config.yaml")
 			gitignorePath := filepath.Join(tempDir, ".infer", ".gitignore")
 
 			assert.FileExists(t, configPath)
-			assert.NoFileExists(t, gitignorePath) // Should NOT exist for config init
+			assert.NoFileExists(t, gitignorePath)
 
-			// Check config file content
 			configData, err := os.ReadFile(configPath)
 			require.NoError(t, err)
 			assert.Contains(t, string(configData), "gateway:")
@@ -113,7 +107,6 @@ For complete project initialization, use 'infer init' instead.`,
 }
 
 func TestConfigInitExistingConfig(t *testing.T) {
-	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "infer-config-test-*")
 	require.NoError(t, err)
 	defer func() {
@@ -122,7 +115,6 @@ func TestConfigInitExistingConfig(t *testing.T) {
 		}
 	}()
 
-	// Change to temp directory
 	origDir, err := os.Getwd()
 	require.NoError(t, err)
 	defer func() {
@@ -134,7 +126,6 @@ func TestConfigInitExistingConfig(t *testing.T) {
 	err = os.Chdir(tempDir)
 	require.NoError(t, err)
 
-	// Create .infer directory and config file
 	err = os.MkdirAll(".infer", 0755)
 	require.NoError(t, err)
 
@@ -142,7 +133,6 @@ func TestConfigInitExistingConfig(t *testing.T) {
 	err = os.WriteFile(configPath, []byte("existing config"), 0644)
 	require.NoError(t, err)
 
-	// Create a fresh command without overwrite flag
 	testConfigInitCmd := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a new configuration file",
@@ -171,12 +161,10 @@ func TestConfigInitExistingConfig(t *testing.T) {
 	}
 	testConfigInitCmd.Flags().Bool("overwrite", false, "Overwrite existing configuration file")
 
-	// Try config init without overwrite - should fail
 	err = testConfigInitCmd.RunE(testConfigInitCmd, []string{})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "already exists")
 
-	// Create a new command with overwrite enabled
 	testConfigInitCmdWithOverwrite := &cobra.Command{
 		Use:   "init",
 		Short: "Initialize a new configuration file",
@@ -205,7 +193,6 @@ func TestConfigInitExistingConfig(t *testing.T) {
 	}
 	testConfigInitCmdWithOverwrite.Flags().Bool("overwrite", true, "Overwrite existing configuration file")
 
-	// Try with overwrite - should succeed
 	err = testConfigInitCmdWithOverwrite.RunE(testConfigInitCmdWithOverwrite, []string{})
 	assert.NoError(t, err)
 }
