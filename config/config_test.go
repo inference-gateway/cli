@@ -146,7 +146,7 @@ IMPORTANT: DO NOT provide code examples - instead apply them directly in the cod
 1. Plan with TodoWrite.
 2. Explore code via search.
 3. Implement.
-4. Verify with tests.
+4. Verify with tests (prefer using task test).
 5. Run lint/typecheck (ask if unknown). Suggest documenting.
 6. Commit only if asked.
 
