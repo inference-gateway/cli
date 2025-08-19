@@ -311,9 +311,10 @@ func (app *ChatApplication) renderChatInterface() string {
 // hasPendingApproval checks if there's a pending tool call that requires approval
 func (app *ChatApplication) hasPendingApproval() bool {
 	toolExecution := app.stateManager.GetToolExecution()
+	currentView := app.stateManager.GetCurrentView()
 	return toolExecution != nil &&
 		toolExecution.Status == domain.ToolExecutionStatusWaitingApproval &&
-		app.stateManager.GetCurrentView() == domain.ViewStateChat
+		(currentView == domain.ViewStateChat || currentView == domain.ViewStateToolApproval)
 }
 
 func (app *ChatApplication) renderModelSelection() string {
@@ -402,6 +403,7 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 	}
 
 	app.stateManager.ClearApprovalUIState()
+	_ = app.stateManager.TransitionToView(domain.ViewStateChat)
 
 	return app.toolOrchestrator.HandleApprovalResponse(true, toolExecution.CompletedTools)
 }
@@ -418,6 +420,7 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 	}
 
 	app.stateManager.ClearApprovalUIState()
+	_ = app.stateManager.TransitionToView(domain.ViewStateChat)
 
 	return app.toolOrchestrator.HandleApprovalResponse(false, toolExecution.CompletedTools)
 }

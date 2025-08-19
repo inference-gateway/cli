@@ -20,7 +20,7 @@ func (r *Registry) registerDefaultBindings() {
 	scrollActions := r.createScrollActions()
 	approvalActions := r.createApprovalActions()
 
-	r.registerActionsToLayers(globalActions, chatActions, scrollActions, approvalActions)
+	r.registerActionsToLayers(globalActions, approvalActions, chatActions, scrollActions)
 }
 
 // createGlobalActions creates global key actions available in all views
@@ -437,10 +437,10 @@ func (r *Registry) createApprovalActions() []*KeyAction {
 }
 
 // registerActionsToLayers registers actions to their appropriate layers
-func (r *Registry) registerActionsToLayers(globalActions, chatActions, scrollActions, approvalActions []*KeyAction) {
-	allActions := append(globalActions, chatActions...)
+func (r *Registry) registerActionsToLayers(globalActions, approvalActions, chatActions, scrollActions []*KeyAction) {
+	allActions := append(globalActions, approvalActions...)
+	allActions = append(allActions, chatActions...)
 	allActions = append(allActions, scrollActions...)
-	allActions = append(allActions, approvalActions...)
 
 	for _, action := range allActions {
 		if err := r.Register(action); err != nil {
@@ -452,16 +452,16 @@ func (r *Registry) registerActionsToLayers(globalActions, chatActions, scrollAct
 		_ = r.addActionToLayer("global", action)
 	}
 
+	for _, action := range approvalActions {
+		_ = r.addActionToLayer("approval", action)
+	}
+
 	for _, action := range chatActions {
 		_ = r.addActionToLayer("chat_view", action)
 	}
 
 	for _, action := range scrollActions {
 		_ = r.addActionToLayer("chat_view", action)
-	}
-
-	for _, action := range approvalActions {
-		_ = r.addActionToLayer("approval_view", action)
 	}
 }
 

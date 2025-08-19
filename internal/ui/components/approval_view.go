@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/inference-gateway/cli/internal/domain"
@@ -47,14 +48,12 @@ func (a *ApprovalComponent) Render(toolExecution *domain.ToolExecutionSession, s
 
 	var b strings.Builder
 
-	// Header
 	b.WriteString("🔧 Tool Approval Required\n")
 	b.WriteString(strings.Repeat("─", a.width))
 	b.WriteString("\n")
 
 	b.WriteString(fmt.Sprintf("Tool: %s\n", currentTool.Name))
 
-	// Show detailed arguments and previews for different tools
 	switch currentTool.Name {
 	case "Edit":
 		b.WriteString(a.diffRenderer.RenderEditToolArguments(currentTool.Arguments))
@@ -63,7 +62,14 @@ func (a *ApprovalComponent) Render(toolExecution *domain.ToolExecutionSession, s
 	default:
 		b.WriteString("Arguments:\n")
 		if currentTool.Arguments != nil {
-			for key, value := range currentTool.Arguments {
+			keys := make([]string, 0, len(currentTool.Arguments))
+			for key := range currentTool.Arguments {
+				keys = append(keys, key)
+			}
+			sort.Strings(keys)
+
+			for _, key := range keys {
+				value := currentTool.Arguments[key]
 				b.WriteString(fmt.Sprintf("  • %s: %v\n", key, value))
 			}
 		}

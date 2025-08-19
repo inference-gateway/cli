@@ -158,7 +158,7 @@ func (r *ApplicationViewRenderer) RenderFileSelection(
 func (r *ApplicationViewRenderer) hasPendingApproval(data ChatInterfaceData) bool {
 	return data.ToolExecution != nil &&
 		data.ToolExecution.Status == domain.ToolExecutionStatusWaitingApproval &&
-		data.CurrentView == domain.ViewStateChat
+		(data.CurrentView == domain.ViewStateChat || data.CurrentView == domain.ViewStateToolApproval)
 }
 
 // filterFiles filters files based on search query

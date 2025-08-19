@@ -772,6 +772,8 @@ func (h *ChatHandler) handleToolExecutionProgress(
 
 	if msg.RequiresApproval {
 		_ = stateManager.SetToolApprovalRequired(true)
+		stateManager.SetupApprovalUI()
+		_ = stateManager.TransitionToView(domain.ViewStateToolApproval)
 	}
 
 	return nil, func() tea.Msg {

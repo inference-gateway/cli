@@ -239,7 +239,7 @@ func (r *Registry) initializeLayers() {
 		Priority: 250,
 		Bindings: make(map[string]*KeyAction),
 		Matcher: func(app KeyHandlerContext) bool {
-			return false
+			return app.HasPendingApproval()
 		},
 	})
 
