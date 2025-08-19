@@ -195,7 +195,7 @@ go build -o infer .
 
 ### `infer init`
 
-Initialize a new project with Inference Gateway CLI. This creates the `.infer` 
+Initialize a new project with Inference Gateway CLI. This creates the `.infer`
 directory with configuration file and additional setup files like `.gitignore`.
 
 This is the recommended command to start working with Inference Gateway CLI in a new project.
