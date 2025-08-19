@@ -662,9 +662,8 @@ func (h *ChatHandler) handleChatComplete(
 	statusMsg := "Response complete"
 	tokenUsage := ""
 	if msg.Metrics != nil {
-		tokenUsage = h.formatMetrics(msg.Metrics)
-		// Accumulate token usage in session stats
 		h.addTokenUsageToSession(msg.Metrics, debugService)
+		tokenUsage = h.formatMetrics(msg.Metrics)
 	}
 
 	return nil, tea.Batch(
