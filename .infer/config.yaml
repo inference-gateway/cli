@@ -8,6 +8,15 @@ output:
   debug: false
 tools:
   enabled: true
+  sandbox:
+    directories:
+      - .
+    protected_paths:
+      - .infer/
+      - .infer/*
+      - .git/
+      - .git/*
+      - '*.secret'
   bash:
     enabled: true
     whitelist:
@@ -37,13 +46,6 @@ tools:
   delete:
     enabled: true
     require_approval: true
-    protected_paths:
-      - .infer/
-      - .infer/*
-      - .git/
-      - .git/*
-    allow_wildcards: true
-    restrict_to_workdir: true
   grep:
     enabled: true
     backend: auto
@@ -81,9 +83,6 @@ tools:
     require_approval: false
   safety:
     require_approval: true
-  exclude_paths:
-    - .infer/
-    - .infer/*
 compact:
   output_dir: .infer
 chat:

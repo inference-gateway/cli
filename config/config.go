@@ -80,7 +80,6 @@ type EditToolConfig struct {
 type DeleteToolConfig struct {
 	Enabled         bool  `yaml:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty"`
-	AllowWildcards  bool  `yaml:"allow_wildcards"`
 }
 
 // GrepToolConfig contains grep-specific tool settings
@@ -225,7 +224,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			Delete: DeleteToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{true}[0],
-				AllowWildcards:  true,
 			},
 			Grep: GrepToolConfig{
 				Enabled:         true,

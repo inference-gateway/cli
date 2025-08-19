@@ -189,9 +189,6 @@ func (t *DeleteTool) executeDelete(path string, recursive, force bool) (*DeleteR
 	}
 
 	if t.containsWildcards(path) {
-		if !t.config.Tools.Delete.AllowWildcards {
-			return nil, fmt.Errorf("wildcard patterns are not enabled in the configuration")
-		}
 		result.WildcardExpanded = true
 		return t.executeWildcardDelete(path, recursive, force, result)
 	}

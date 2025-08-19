@@ -292,7 +292,6 @@ func TestDeleteTool_Execute_Wildcard(t *testing.T) {
 	}
 
 	cfg := config.DefaultConfig()
-	cfg.Tools.Delete.AllowWildcards = true
 	tool := NewDeleteTool(cfg)
 
 	args := map[string]interface{}{
@@ -332,20 +331,6 @@ func TestDeleteTool_Execute_Wildcard(t *testing.T) {
 	}
 }
 
-func TestDeleteTool_Execute_WildcardDisabled(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.Tools.Delete.AllowWildcards = false
-	tool := NewDeleteTool(cfg)
-
-	args := map[string]interface{}{
-		"path": "*.txt",
-	}
-
-	_, err := tool.Execute(context.Background(), args)
-	if err == nil {
-		t.Error("Expected error when wildcards are disabled")
-	}
-}
 
 func TestDeleteTool_Execute_NonExistentFile(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "delete-tool-test")
