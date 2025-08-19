@@ -237,8 +237,6 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 func (app *ChatApplication) handleChatViewKeypress(keyMsg tea.KeyMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	// All key handling is now done by the keybinding system
-	// which includes approval keys when hasPendingApproval() is true
 	if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -553,18 +551,6 @@ func (app *ChatApplication) ApproveToolCall() tea.Cmd {
 // DenyToolCall denies the current tool call
 func (app *ChatApplication) DenyToolCall() tea.Cmd {
 	return app.denyToolCall()
-}
-
-// HandleFileNavigation handles file navigation
-func (app *ChatApplication) HandleFileNavigation(direction int) tea.Cmd {
-	// This would implement file navigation logic
-	return nil
-}
-
-// HandleFileSelection handles file selection
-func (app *ChatApplication) HandleFileSelection() tea.Cmd {
-	// This would implement file selection logic
-	return nil
 }
 
 // SendMessage sends the current message

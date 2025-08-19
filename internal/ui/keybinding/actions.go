@@ -1,6 +1,7 @@
 package keybinding
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -789,27 +790,21 @@ func NewKeyBindingManager(app KeyHandlerContext) *KeyBindingManager {
 	}
 }
 
-// ProcessKey processes a key press through the key binding system
+// ProcessKey handles key input and executes the appropriate action
 func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyMsg) tea.Cmd {
-	key := keyMsg.String()
-
-	action := m.registry.Resolve(key, m.app)
-	var handlerName string
-	var cmd tea.Cmd
-
+	action := m.registry.Resolve(keyMsg.String(), m.app)
 	if action != nil {
-		handlerName = action.ID
-		cmd = action.Handler(m.app, keyMsg)
-	} else {
-		handlerName = "character_input_fallback"
-		cmd = handleCharacterInput(m.app, keyMsg)
+		if debugCmd := m.debugKeyBinding(keyMsg, action.ID); debugCmd != nil {
+			return tea.Batch(action.Handler(m.app, keyMsg), debugCmd)
+		}
+		return action.Handler(m.app, keyMsg)
 	}
 
-	if debugCmd := m.debugKeyBinding(keyMsg, handlerName); debugCmd != nil {
-		return tea.Batch(cmd, debugCmd)
+	if debugCmd := m.debugKeyBinding(keyMsg, "character_input"); debugCmd != nil {
+		return tea.Batch(handleCharacterInput(m.app, keyMsg), debugCmd)
 	}
 
-	return cmd
+	return handleCharacterInput(m.app, keyMsg)
 }
 
 // GetHelpShortcuts returns help shortcuts for the current context
@@ -851,8 +846,21 @@ func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, handlerName strin
 func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	keyStr := keyMsg.String()
 
+	if len(keyStr) > 1 && !isKnownKey(keyStr) {
+		return handlePasteEvent(app, keyStr)
+	}
+
+	inputView := app.GetInputView()
+	if inputView != nil {
+		if inputView.CanHandle(keyMsg) {
+			_, cmd := inputView.HandleKey(keyMsg)
+			if cmd != nil {
+				return cmd
+			}
+		}
+	}
+
 	if len(keyStr) == 1 && keyStr[0] >= ' ' && keyStr[0] <= '~' {
-		inputView := app.GetInputView()
 		if inputView != nil {
 			cursor := inputView.GetCursor()
 			text := inputView.GetInput()
@@ -889,5 +897,60 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 			)
 		}
 	}
+	return nil
+}
+
+// isKnownKey checks if a key string represents a known keyboard key combination
+func isKnownKey(keyStr string) bool {
+	knownKeys := []string{
+		"ctrl+a", "ctrl+b", "ctrl+c", "ctrl+d", "ctrl+e", "ctrl+f", "ctrl+g",
+		"ctrl+h", "ctrl+i", "ctrl+j", "ctrl+k", "ctrl+l", "ctrl+m", "ctrl+n",
+		"ctrl+o", "ctrl+p", "ctrl+q", "ctrl+r", "ctrl+s", "ctrl+t", "ctrl+u",
+		"ctrl+v", "ctrl+w", "ctrl+x", "ctrl+y", "ctrl+z",
+		"ctrl+shift+a", "ctrl+shift+b", "ctrl+shift+c", "ctrl+shift+d",
+		"ctrl+shift+e", "ctrl+shift+f", "ctrl+shift+g", "ctrl+shift+h",
+		"ctrl+shift+i", "ctrl+shift+j", "ctrl+shift+k", "ctrl+shift+l",
+		"ctrl+shift+m", "ctrl+shift+n", "ctrl+shift+o", "ctrl+shift+p",
+		"ctrl+shift+q", "ctrl+shift+r", "ctrl+shift+s", "ctrl+shift+t",
+		"ctrl+shift+u", "ctrl+shift+v", "ctrl+shift+w", "ctrl+shift+x",
+		"ctrl+shift+y", "ctrl+shift+z",
+		"alt+a", "alt+b", "alt+c", "alt+d", "alt+e", "alt+f", "alt+g",
+		"alt+h", "alt+i", "alt+j", "alt+k", "alt+l", "alt+m", "alt+n",
+		"alt+o", "alt+p", "alt+q", "alt+r", "alt+s", "alt+t", "alt+u",
+		"alt+v", "alt+w", "alt+x", "alt+y", "alt+z",
+		"alt+enter", "alt+backspace", "alt+delete",
+		"up", "down", "left", "right",
+		"shift+up", "shift+down", "shift+left", "shift+right",
+		"enter", "backspace", "delete", "tab", "space",
+		"home", "end", "pgup", "pgdn", "page_up", "page_down",
+		"f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12",
+		"esc", "escape",
+	}
+
+	return slices.Contains(knownKeys, keyStr)
+}
+
+// handlePasteEvent handles when the terminal sends clipboard content directly
+func handlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
+	inputView := app.GetInputView()
+	if inputView == nil {
+		return nil
+	}
+
+	cleanText := strings.ReplaceAll(pastedText, "\n", " ")
+	cleanText = strings.ReplaceAll(cleanText, "\r", " ")
+	cleanText = strings.ReplaceAll(cleanText, "\t", " ")
+	cleanText = strings.Trim(cleanText, "[]")
+
+	if cleanText != "" {
+		cursor := inputView.GetCursor()
+		text := inputView.GetInput()
+		newText := text[:cursor] + cleanText + text[cursor:]
+		newCursor := cursor + len(cleanText)
+
+		inputView.SetText(newText)
+		inputView.SetCursor(newCursor)
+	}
+
 	return nil
 }
