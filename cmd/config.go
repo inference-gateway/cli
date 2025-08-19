@@ -68,7 +68,7 @@ This creates a local project configuration with default settings.`,
 		}
 
 		gitignoreContent := `# Ignore log files and history files
-*.log
+logs/*.log
 history
 chat_export_*
 `
