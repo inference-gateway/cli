@@ -199,7 +199,7 @@ func (iv *InputView) addModelDisplay(components []string, isBashMode bool) []str
 			modelStyle := lipgloss.NewStyle().
 				Foreground(shared.DimColor.GetLipglossColor()).
 				Width(iv.width)
-			modelDisplay := modelStyle.Render(fmt.Sprintf("Model: %s", currentModel))
+			modelDisplay := modelStyle.Render(fmt.Sprintf("  Model: %s", currentModel))
 			components = append(components, modelDisplay)
 		}
 	}
