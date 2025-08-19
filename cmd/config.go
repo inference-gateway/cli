@@ -52,6 +52,7 @@ var configInitCmd = &cobra.Command{
 This creates a local project configuration with default settings.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configPath := ".infer/config.yaml"
+		gitignorePath := ".infer/.gitignore"
 
 		if _, err := os.Stat(configPath); err == nil {
 			overwrite, _ := cmd.Flags().GetBool("overwrite")
@@ -66,7 +67,17 @@ This creates a local project configuration with default settings.`,
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 
+		gitignoreContent := `# Ignore log files and history files
+*.log
+history
+`
+
+		if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
+			return fmt.Errorf("failed to create .gitignore file: %w", err)
+		}
+
 		fmt.Printf("Successfully created %s\n", configPath)
+		fmt.Printf("Successfully created %s\n", gitignorePath)
 		fmt.Println("You can now customize the configuration for this project.")
 
 		return nil
