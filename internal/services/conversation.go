@@ -14,8 +14,9 @@ import (
 
 // InMemoryConversationRepository implements ConversationRepository using in-memory storage
 type InMemoryConversationRepository struct {
-	messages []domain.ConversationEntry
-	mutex    sync.RWMutex
+	messages     []domain.ConversationEntry
+	mutex        sync.RWMutex
+	sessionStats domain.SessionTokenStats
 }
 
 // NewInMemoryConversationRepository creates a new in-memory conversation repository
@@ -61,6 +62,7 @@ func (r *InMemoryConversationRepository) Clear() error {
 	defer r.mutex.Unlock()
 
 	r.messages = r.messages[:0]
+	r.sessionStats = domain.SessionTokenStats{}
 	return nil
 }
 
@@ -130,8 +132,16 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 
 	content.WriteString("# Chat Session Export\n\n")
 	content.WriteString(fmt.Sprintf("**Date:** %s\n", time.Now().Format("2006-01-02 15:04:05")))
-	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n\n", len(r.messages)))
-	content.WriteString("---\n\n")
+	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n", len(r.messages)))
+
+	// Add session token statistics
+	if r.sessionStats.RequestCount > 0 {
+		content.WriteString(fmt.Sprintf("**Total Input Tokens:** %d\n", r.sessionStats.TotalInputTokens))
+		content.WriteString(fmt.Sprintf("**Total Output Tokens:** %d\n", r.sessionStats.TotalOutputTokens))
+		content.WriteString(fmt.Sprintf("**Total Tokens:** %d\n", r.sessionStats.TotalTokens))
+		content.WriteString(fmt.Sprintf("**API Requests:** %d\n", r.sessionStats.RequestCount))
+	}
+	content.WriteString("\n---\n\n")
 
 	for i, entry := range r.messages {
 		var role string
@@ -215,4 +225,25 @@ func (r *InMemoryConversationRepository) exportText() []byte {
 	}
 
 	return []byte(content.String())
+}
+
+// AddTokenUsage adds token usage from a single API call to session totals
+func (r *InMemoryConversationRepository) AddTokenUsage(inputTokens, outputTokens, totalTokens int) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	r.sessionStats.TotalInputTokens += inputTokens
+	r.sessionStats.TotalOutputTokens += outputTokens
+	r.sessionStats.TotalTokens += totalTokens
+	r.sessionStats.RequestCount++
+
+	return nil
+}
+
+// GetSessionTokens returns the accumulated token statistics for the session
+func (r *InMemoryConversationRepository) GetSessionTokens() domain.SessionTokenStats {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	return r.sessionStats
 }

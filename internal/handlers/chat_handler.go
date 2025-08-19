@@ -663,6 +663,8 @@ func (h *ChatHandler) handleChatComplete(
 	tokenUsage := ""
 	if msg.Metrics != nil {
 		tokenUsage = h.formatMetrics(msg.Metrics)
+		// Accumulate token usage in session stats
+		h.addTokenUsageToSession(msg.Metrics, debugService)
 	}
 
 	return nil, tea.Batch(
@@ -1510,7 +1512,30 @@ func (h *ChatHandler) formatMetrics(metrics *domain.ChatMetrics) string {
 		}
 	}
 
+	// Add session totals
+	sessionStats := h.conversationRepo.GetSessionTokens()
+	if sessionStats.TotalInputTokens > 0 {
+		parts = append(parts, fmt.Sprintf("Session Input: %d tokens", sessionStats.TotalInputTokens))
+	}
+
 	return strings.Join(parts, " | ")
+}
+
+// addTokenUsageToSession accumulates token usage to session totals
+func (h *ChatHandler) addTokenUsageToSession(metrics *domain.ChatMetrics, debugService *services.DebugService) {
+	if metrics == nil || metrics.Usage == nil {
+		return
+	}
+
+	if err := h.conversationRepo.AddTokenUsage(
+		int(metrics.Usage.PromptTokens),
+		int(metrics.Usage.CompletionTokens),
+		int(metrics.Usage.TotalTokens),
+	); err != nil && debugService != nil {
+		debugService.LogError(err, h.name, map[string]any{
+			"operation": "add_token_usage",
+		})
+	}
 }
 
 func generateRequestID() string {

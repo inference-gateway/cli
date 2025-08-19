@@ -32,6 +32,14 @@ const (
 	ApprovalReject
 )
 
+// SessionTokenStats tracks accumulated token usage across a session
+type SessionTokenStats struct {
+	TotalInputTokens  int `json:"total_input_tokens"`
+	TotalOutputTokens int `json:"total_output_tokens"`
+	TotalTokens       int `json:"total_tokens"`
+	RequestCount      int `json:"request_count"`
+}
+
 // ConversationRepository handles conversation storage and retrieval
 type ConversationRepository interface {
 	AddMessage(msg ConversationEntry) error
@@ -41,6 +49,9 @@ type ConversationRepository interface {
 	GetMessageCount() int
 	UpdateLastMessage(content string) error
 	UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error
+	// Session token tracking
+	AddTokenUsage(inputTokens, outputTokens, totalTokens int) error
+	GetSessionTokens() SessionTokenStats
 }
 
 // ModelService handles model selection and information
