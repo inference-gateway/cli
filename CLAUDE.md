@@ -269,10 +269,10 @@ infer chat
 
 ```bash
 # Initialize a new project configuration
-infer config init
+infer init
 
 # Initialize with overwrite existing config
-infer config init --overwrite
+infer init --overwrite
 
 # View current configuration (check .infer/config.yaml)
 cat .infer/config.yaml
