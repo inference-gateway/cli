@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -14,7 +15,6 @@ import (
 )
 
 // ToolExecutionOrchestrator manages the complete tool execution flow
-// and prevents the "stuck" state by providing clear state transitions
 type ToolExecutionOrchestrator struct {
 	stateManager     *StateManager
 	debugService     *DebugService
@@ -156,10 +156,8 @@ func (teo *ToolExecutionOrchestrator) StartToolExecution(
 		EventChannel: make(chan tea.Msg, 100),
 	}
 
-	// Update state manager
 	_ = teo.stateManager.StartToolExecution(toolCalls)
 
-	// Log debug event
 	if teo.debugService != nil {
 		teo.debugService.LogToolExecution("session", "started", map[string]interface{}{
 			"session_id": sessionID,
@@ -168,7 +166,6 @@ func (teo *ToolExecutionOrchestrator) StartToolExecution(
 		})
 	}
 
-	// Start processing
 	return sessionID, tea.Batch(
 		func() tea.Msg {
 			return ToolExecutionStartedMsg{
@@ -195,17 +192,14 @@ func (teo *ToolExecutionOrchestrator) processNextTool() tea.Cmd {
 			}
 		}
 
-		// Check if we've completed all tools
 		if execution.CurrentIndex >= len(execution.ToolCalls) {
 			return teo.completeExecution()()
 		}
 
 		currentTool := execution.ToolCalls[execution.CurrentIndex]
 
-		// Check if approval is required
 		approvalRequired := teo.isApprovalRequired(currentTool.Function.Name)
 
-		// Update status
 		teo.mutex.Lock()
 		if approvalRequired {
 			execution.Status = ToolExecutionStatusWaitingApproval
@@ -214,7 +208,6 @@ func (teo *ToolExecutionOrchestrator) processNextTool() tea.Cmd {
 		}
 		teo.mutex.Unlock()
 
-		// Log progress
 		if teo.debugService != nil {
 			teo.debugService.LogToolExecution(currentTool.Function.Name, "processing", map[string]interface{}{
 				"session_id":        execution.SessionID,
@@ -224,7 +217,6 @@ func (teo *ToolExecutionOrchestrator) processNextTool() tea.Cmd {
 			})
 		}
 
-		// Send progress update
 		progressMsg := ToolExecutionProgressMsg{
 			SessionID:        execution.SessionID,
 			CurrentTool:      execution.CurrentIndex + 1,
@@ -235,7 +227,6 @@ func (teo *ToolExecutionOrchestrator) processNextTool() tea.Cmd {
 		}
 
 		if approvalRequired {
-			// Request approval
 			return tea.Batch(
 				func() tea.Msg { return progressMsg },
 				func() tea.Msg {
@@ -248,7 +239,6 @@ func (teo *ToolExecutionOrchestrator) processNextTool() tea.Cmd {
 				},
 			)()
 		} else {
-			// Execute immediately
 			return tea.Batch(
 				func() tea.Msg { return progressMsg },
 				teo.executeTool(execution.CurrentIndex),
@@ -273,7 +263,6 @@ func (teo *ToolExecutionOrchestrator) HandleApprovalResponse(approved bool, tool
 
 		currentTool := execution.ToolCalls[execution.CurrentIndex]
 
-		// Log approval decision
 		if teo.debugService != nil {
 			teo.debugService.LogToolExecution(currentTool.Function.Name, "approval_response", map[string]interface{}{
 				"session_id": execution.SessionID,
@@ -283,14 +272,12 @@ func (teo *ToolExecutionOrchestrator) HandleApprovalResponse(approved bool, tool
 		}
 
 		if approved {
-			// Execute the tool
 			teo.mutex.Lock()
 			execution.Status = ToolExecutionStatusExecuting
 			teo.mutex.Unlock()
 
 			return teo.executeTool(toolIndex)()
 		} else {
-			// Skip this tool and create a denial result
 			result := &domain.ToolExecutionResult{
 				ToolName:  currentTool.Function.Name,
 				Arguments: parseToolArguments(currentTool.Function.Arguments),
@@ -299,17 +286,14 @@ func (teo *ToolExecutionOrchestrator) HandleApprovalResponse(approved bool, tool
 				Error:     "Denied by user",
 			}
 
-			// Store result and move to next tool
 			teo.mutex.Lock()
 			execution.Results[execution.CurrentIndex] = result
 			execution.CurrentIndex++
 			execution.Status = ToolExecutionStatusProcessing
 			teo.mutex.Unlock()
 
-			// Add denial result to conversation
 			teo.addToolResultToConversation(currentTool, result)
 
-			// Continue with next tool
 			return teo.processNextTool()()
 		}
 	}
@@ -332,7 +316,6 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 		currentTool := execution.ToolCalls[toolIndex]
 		startTime := time.Now()
 
-		// Log execution start
 		if teo.debugService != nil {
 			teo.debugService.LogToolExecution(currentTool.Function.Name, "execution_started", map[string]interface{}{
 				"session_id": execution.SessionID,
@@ -340,16 +323,13 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 			})
 		}
 
-		// Parse arguments
 		args := parseToolArguments(currentTool.Function.Arguments)
 
-		// Execute the tool
 		ctx := context.Background()
 		result, err := teo.toolService.ExecuteTool(ctx, currentTool.Function.Name, args)
 
 		duration := time.Since(startTime)
 
-		// Create execution result
 		var executionResult *domain.ToolExecutionResult
 		if err != nil {
 			executionResult = &domain.ToolExecutionResult{
@@ -363,7 +343,6 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 			executionResult = result
 		}
 
-		// Log execution completion
 		if teo.debugService != nil {
 			teo.debugService.LogToolExecution(currentTool.Function.Name, "execution_completed", map[string]interface{}{
 				"session_id": execution.SessionID,
@@ -373,17 +352,14 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 			})
 		}
 
-		// Store result
 		teo.mutex.Lock()
 		execution.Results[toolIndex] = executionResult
 		execution.CurrentIndex++
 		execution.Status = ToolExecutionStatusProcessing
 		teo.mutex.Unlock()
 
-		// Add result to conversation
 		teo.addToolResultToConversation(currentTool, executionResult)
 
-		// Continue with next tool
 		return teo.processNextTool()()
 	}
 }
@@ -404,7 +380,6 @@ func (teo *ToolExecutionOrchestrator) completeExecution() tea.Cmd {
 		execution := teo.currentExecution
 		execution.Status = ToolExecutionStatusCompleted
 
-		// Calculate statistics
 		successCount := 0
 		failureCount := 0
 		for _, result := range execution.Results {
@@ -417,7 +392,6 @@ func (teo *ToolExecutionOrchestrator) completeExecution() tea.Cmd {
 			}
 		}
 
-		// Log completion
 		if teo.debugService != nil {
 			teo.debugService.LogToolExecution("session", "completed", map[string]interface{}{
 				"session_id":    execution.SessionID,
@@ -428,10 +402,8 @@ func (teo *ToolExecutionOrchestrator) completeExecution() tea.Cmd {
 			})
 		}
 
-		// Update state manager
 		teo.stateManager.EndToolExecution()
 
-		// Clean up
 		sessionID := execution.SessionID
 		results := execution.Results
 		teo.currentExecution = nil
@@ -453,13 +425,12 @@ func (teo *ToolExecutionOrchestrator) CancelExecution(reason string) tea.Cmd {
 		defer teo.mutex.Unlock()
 
 		if teo.currentExecution == nil {
-			return nil // No active execution
+			return nil
 		}
 
 		execution := teo.currentExecution
 		execution.Status = ToolExecutionStatusCancelled
 
-		// Log cancellation
 		if teo.debugService != nil {
 			teo.debugService.LogToolExecution("session", "cancelled", map[string]interface{}{
 				"session_id": execution.SessionID,
@@ -467,10 +438,8 @@ func (teo *ToolExecutionOrchestrator) CancelExecution(reason string) tea.Cmd {
 			})
 		}
 
-		// Update state manager
 		teo.stateManager.EndToolExecution()
 
-		// Clean up
 		teo.currentExecution = nil
 
 		return shared.SetStatusMsg{
@@ -489,21 +458,16 @@ func (teo *ToolExecutionOrchestrator) GetExecutionStatus() (bool, *ToolExecution
 		return false, nil
 	}
 
-	// Return a copy to prevent external modification
 	copy := *teo.currentExecution
 	return true, &copy
 }
 
-// Helper methods
-
 // isApprovalRequired checks if a tool requires approval
 func (teo *ToolExecutionOrchestrator) isApprovalRequired(toolName string) bool {
 	if teo.configService == nil {
-		return true // Default to requiring approval
+		return true
 	}
 
-	// This would integrate with the actual config service
-	// For now, return a simple implementation
 	return teo.configService.IsApprovalRequired(toolName)
 }
 
@@ -516,7 +480,6 @@ func (teo *ToolExecutionOrchestrator) addToolResultToConversation(
 		return
 	}
 
-	// Create tool result message
 	var content string
 	if result.Success {
 		if result.Data != nil {
@@ -545,17 +508,18 @@ func (teo *ToolExecutionOrchestrator) addToolResultToConversation(
 
 // parseToolArguments parses tool arguments from JSON string
 func parseToolArguments(arguments string) map[string]interface{} {
-	// This would be implemented to parse JSON arguments
-	// For now, return empty map
-	return make(map[string]interface{})
+	var args map[string]interface{}
+	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
+		logger.Error("Failed to parse tool arguments", "error", err, "arguments", arguments)
+		return make(map[string]interface{})
+	}
+	return args
 }
 
 // generateSessionID generates a unique session ID
 func generateSessionID() string {
 	return fmt.Sprintf("session_%d", time.Now().UnixNano())
 }
-
-// Recovery and Health Monitoring
 
 // RecoverFromStuckState attempts to recover from a stuck tool execution state
 func (teo *ToolExecutionOrchestrator) RecoverFromStuckState() tea.Cmd {
@@ -564,12 +528,11 @@ func (teo *ToolExecutionOrchestrator) RecoverFromStuckState() tea.Cmd {
 		defer teo.mutex.Unlock()
 
 		if teo.currentExecution == nil {
-			return nil // No active execution
+			return nil
 		}
 
 		execution := teo.currentExecution
 
-		// Check if execution is stuck (no progress for too long)
 		now := time.Now()
 		if now.Sub(execution.StartTime) > 5*time.Minute {
 			logger.Warn("Detected stuck tool execution, attempting recovery",
@@ -578,7 +541,6 @@ func (teo *ToolExecutionOrchestrator) RecoverFromStuckState() tea.Cmd {
 				"status", execution.Status.String(),
 			)
 
-			// Force completion or cancellation
 			execution.Status = ToolExecutionStatusCancelled
 			teo.stateManager.EndToolExecution()
 			teo.currentExecution = nil
@@ -611,7 +573,6 @@ func (teo *ToolExecutionOrchestrator) GetHealthStatus() map[string]interface{} {
 		status["status"] = teo.currentExecution.Status.String()
 		status["duration"] = time.Since(teo.currentExecution.StartTime).String()
 
-		// Check if stuck
 		if time.Since(teo.currentExecution.StartTime) > 5*time.Minute {
 			status["healthy"] = false
 			status["issue"] = "execution_stuck"
