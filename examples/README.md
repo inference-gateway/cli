@@ -126,7 +126,7 @@ infer chat
 
 ```bash
 # Initialize project configuration
-infer config init
+infer init
 
 # Set default model for chat sessions
 infer config set-model anthropic/claude-3.5-sonnet

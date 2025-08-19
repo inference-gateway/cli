@@ -47,12 +47,13 @@ The system prompt provides context and instructions to the AI model about how to
 
 var configInitCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initialize a new project configuration",
+	Short: "Initialize a new configuration file",
 	Long: `Initialize a new .infer/config.yaml configuration file in the current directory.
-This creates a local project configuration with default settings.`,
+This creates only the configuration file with default settings.
+
+For complete project initialization, use 'infer init' instead.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configPath := ".infer/config.yaml"
-		gitignorePath := ".infer/.gitignore"
 
 		if _, err := os.Stat(configPath); err == nil {
 			overwrite, _ := cmd.Flags().GetBool("overwrite")
@@ -67,19 +68,9 @@ This creates a local project configuration with default settings.`,
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 
-		gitignoreContent := `# Ignore log files and history files
-logs/*.log
-history
-chat_export_*
-`
-
-		if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
-			return fmt.Errorf("failed to create .gitignore file: %w", err)
-		}
-
 		fmt.Printf("Successfully created %s\n", configPath)
-		fmt.Printf("Successfully created %s\n", gitignorePath)
 		fmt.Println("You can now customize the configuration for this project.")
+		fmt.Println("Tip: Use 'infer init' for complete project initialization including additional setup files.")
 
 		return nil
 	},
