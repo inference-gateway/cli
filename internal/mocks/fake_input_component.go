@@ -57,6 +57,16 @@ type FakeInputComponent struct {
 		result1 tea.Model
 		result2 tea.Cmd
 	}
+	IsAutocompleteVisibleStub        func() bool
+	isAutocompleteVisibleMutex       sync.RWMutex
+	isAutocompleteVisibleArgsForCall []struct {
+	}
+	isAutocompleteVisibleReturns struct {
+		result1 bool
+	}
+	isAutocompleteVisibleReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	NavigateHistoryDownStub        func()
 	navigateHistoryDownMutex       sync.RWMutex
 	navigateHistoryDownArgsForCall []struct {
@@ -357,6 +367,59 @@ func (fake *FakeInputComponent) HandleKeyReturnsOnCall(i int, result1 tea.Model,
 		result1 tea.Model
 		result2 tea.Cmd
 	}{result1, result2}
+}
+
+func (fake *FakeInputComponent) IsAutocompleteVisible() bool {
+	fake.isAutocompleteVisibleMutex.Lock()
+	ret, specificReturn := fake.isAutocompleteVisibleReturnsOnCall[len(fake.isAutocompleteVisibleArgsForCall)]
+	fake.isAutocompleteVisibleArgsForCall = append(fake.isAutocompleteVisibleArgsForCall, struct {
+	}{})
+	stub := fake.IsAutocompleteVisibleStub
+	fakeReturns := fake.isAutocompleteVisibleReturns
+	fake.recordInvocation("IsAutocompleteVisible", []interface{}{})
+	fake.isAutocompleteVisibleMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeInputComponent) IsAutocompleteVisibleCallCount() int {
+	fake.isAutocompleteVisibleMutex.RLock()
+	defer fake.isAutocompleteVisibleMutex.RUnlock()
+	return len(fake.isAutocompleteVisibleArgsForCall)
+}
+
+func (fake *FakeInputComponent) IsAutocompleteVisibleCalls(stub func() bool) {
+	fake.isAutocompleteVisibleMutex.Lock()
+	defer fake.isAutocompleteVisibleMutex.Unlock()
+	fake.IsAutocompleteVisibleStub = stub
+}
+
+func (fake *FakeInputComponent) IsAutocompleteVisibleReturns(result1 bool) {
+	fake.isAutocompleteVisibleMutex.Lock()
+	defer fake.isAutocompleteVisibleMutex.Unlock()
+	fake.IsAutocompleteVisibleStub = nil
+	fake.isAutocompleteVisibleReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeInputComponent) IsAutocompleteVisibleReturnsOnCall(i int, result1 bool) {
+	fake.isAutocompleteVisibleMutex.Lock()
+	defer fake.isAutocompleteVisibleMutex.Unlock()
+	fake.IsAutocompleteVisibleStub = nil
+	if fake.isAutocompleteVisibleReturnsOnCall == nil {
+		fake.isAutocompleteVisibleReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isAutocompleteVisibleReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
 }
 
 func (fake *FakeInputComponent) NavigateHistoryDown() {

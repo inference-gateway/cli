@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
@@ -66,7 +66,7 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 		a.loadCommands()
 	}
 
-	if strings.HasPrefix(inputText, "/") && cursorPos > 0 {
+	if strings.HasPrefix(inputText, "/") && cursorPos >= 1 {
 		a.query = inputText[1:cursorPos]
 		a.filterSuggestions()
 		a.visible = len(a.filtered) > 0
@@ -191,7 +191,7 @@ func (a *AutocompleteImpl) Render() string {
 
 	helpColor := a.theme.GetDimColor()
 	if len(a.filtered) > 0 {
-		b.WriteString(fmt.Sprintf("\n%sTab/Enter to select, ↑↓ to navigate, Esc to cancel%s",
+		b.WriteString(fmt.Sprintf("\n\n%s  Tab to select, ↑↓ to navigate%s\n",
 			helpColor, shared.Reset()))
 	}
 

@@ -60,6 +60,7 @@ type InputComponent interface {
 	CanHandle(key tea.KeyMsg) bool
 	NavigateHistoryUp()
 	NavigateHistoryDown()
+	IsAutocompleteVisible() bool
 }
 
 // StatusComponent interface for status display

@@ -2,7 +2,6 @@ package components
 
 import (
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -10,6 +9,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/history"
+	"github.com/inference-gateway/cli/internal/ui/keys"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
@@ -265,6 +265,16 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return iv, nil
 	}
 
+	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
+		if handled, completion := iv.Autocomplete.HandleKey(key); handled {
+			return iv.handleAutocomplete(completion)
+		}
+
+		if keyStr == "up" || keyStr == "down" {
+			return iv, nil
+		}
+	}
+
 	if iv.Autocomplete == nil || !iv.Autocomplete.IsVisible() {
 		switch keyStr {
 		case "up":
@@ -279,12 +289,6 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 				iv.Autocomplete.Update(iv.text, iv.cursor)
 			}
 			return iv, nil
-		}
-	}
-
-	if iv.Autocomplete != nil {
-		if handled, completion := iv.Autocomplete.HandleKey(key); handled {
-			return iv.handleAutocomplete(completion)
 		}
 	}
 
@@ -315,21 +319,7 @@ func (iv *InputView) handleAutocomplete(completion string) (tea.Model, tea.Cmd) 
 }
 
 func (iv *InputView) CanHandle(key tea.KeyMsg) bool {
-	keyStr := key.String()
-
-	if len(keyStr) == 1 && keyStr[0] >= ' ' && keyStr[0] <= '~' {
-		return true
-	}
-
-	// Known input keys
-	knownKeys := []string{
-		"space", "tab", "enter", "alt+enter", "backspace", "delete",
-		"up", "down", "left", "right", "home", "end",
-		"ctrl+a", "ctrl+e", "ctrl+u", "ctrl+k", "ctrl+w", "ctrl+l",
-		"ctrl+z", "ctrl+y",
-	}
-
-	return slices.Contains(knownKeys, keyStr)
+	return keys.CanInputHandle(key)
 }
 
 func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) string {
@@ -351,6 +341,11 @@ func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) str
 	}
 
 	return wrappedText
+}
+
+// IsAutocompleteVisible returns whether autocomplete is currently visible
+func (iv *InputView) IsAutocompleteVisible() bool {
+	return iv.Autocomplete != nil && iv.Autocomplete.IsVisible()
 }
 
 // handlePaste handles clipboard paste operations

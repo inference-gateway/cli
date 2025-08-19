@@ -1,13 +1,15 @@
 package keybinding
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/logger"
+	"github.com/inference-gateway/cli/internal/ui"
+	"github.com/inference-gateway/cli/internal/ui/components"
+	"github.com/inference-gateway/cli/internal/ui/keys"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
@@ -469,6 +471,12 @@ func handleQuit(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	// If autocomplete is visible, don't handle the cancel - let autocomplete handle it
+	inputView := app.GetInputView()
+	if inputView != nil && inputView.IsAutocompleteVisible() {
+		return nil
+	}
+
 	if chatSession := app.GetStateManager().GetChatSession(); chatSession != nil {
 		app.GetStateManager().EndChatSession()
 		return func() tea.Msg {
@@ -642,6 +650,10 @@ func handleBackspace(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 func handleHistoryUp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView != nil {
+		if inputView.IsAutocompleteVisible() {
+			_, cmd := inputView.HandleKey(keyMsg)
+			return cmd
+		}
 		inputView.NavigateHistoryUp()
 	}
 	return nil
@@ -650,6 +662,10 @@ func handleHistoryUp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 func handleHistoryDown(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView != nil {
+		if inputView.IsAutocompleteVisible() {
+			_, cmd := inputView.HandleKey(keyMsg)
+			return cmd
+		}
 		inputView.NavigateHistoryDown()
 	}
 	return nil
@@ -846,7 +862,7 @@ func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, handlerName strin
 func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	keyStr := keyMsg.String()
 
-	if len(keyStr) > 1 && !isKnownKey(keyStr) {
+	if len(keyStr) > 1 && !keys.IsKnownKey(keyStr) {
 		return handlePasteEvent(app, keyStr)
 	}
 
@@ -860,74 +876,56 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 
-	if len(keyStr) == 1 && keyStr[0] >= ' ' && keyStr[0] <= '~' {
-		if inputView != nil {
-			cursor := inputView.GetCursor()
-			text := inputView.GetInput()
-			newText := text[:cursor] + keyStr + text[cursor:]
-			inputView.SetText(newText)
-			inputView.SetCursor(cursor + 1)
-
-			if keyStr == "@" {
-				return tea.Batch(
-					func() tea.Msg {
-						return shared.ScrollRequestMsg{
-							ComponentID: "conversation",
-							Direction:   shared.ScrollToBottom,
-							Amount:      0,
-						}
-					},
-					func() tea.Msg {
-						return shared.FileSelectionRequestMsg{}
-					},
-				)
-			}
-
-			return tea.Batch(
-				func() tea.Msg {
-					return shared.ScrollRequestMsg{
-						ComponentID: "conversation",
-						Direction:   shared.ScrollToBottom,
-						Amount:      0,
-					}
-				},
-				func() tea.Msg {
-					return shared.HideHelpBarMsg{}
-				},
-			)
-		}
+	if keys.IsPrintableCharacter(keyStr) {
+		return handlePrintableCharacter(keyStr, inputView)
 	}
 	return nil
 }
 
-// isKnownKey checks if a key string represents a known keyboard key combination
-func isKnownKey(keyStr string) bool {
-	knownKeys := []string{
-		"ctrl+a", "ctrl+b", "ctrl+c", "ctrl+d", "ctrl+e", "ctrl+f", "ctrl+g",
-		"ctrl+h", "ctrl+i", "ctrl+j", "ctrl+k", "ctrl+l", "ctrl+m", "ctrl+n",
-		"ctrl+o", "ctrl+p", "ctrl+q", "ctrl+r", "ctrl+s", "ctrl+t", "ctrl+u",
-		"ctrl+v", "ctrl+w", "ctrl+x", "ctrl+y", "ctrl+z",
-		"ctrl+shift+a", "ctrl+shift+b", "ctrl+shift+c", "ctrl+shift+d",
-		"ctrl+shift+e", "ctrl+shift+f", "ctrl+shift+g", "ctrl+shift+h",
-		"ctrl+shift+i", "ctrl+shift+j", "ctrl+shift+k", "ctrl+shift+l",
-		"ctrl+shift+m", "ctrl+shift+n", "ctrl+shift+o", "ctrl+shift+p",
-		"ctrl+shift+q", "ctrl+shift+r", "ctrl+shift+s", "ctrl+shift+t",
-		"ctrl+shift+u", "ctrl+shift+v", "ctrl+shift+w", "ctrl+shift+x",
-		"ctrl+shift+y", "ctrl+shift+z",
-		"alt+a", "alt+b", "alt+c", "alt+d", "alt+e", "alt+f", "alt+g",
-		"alt+h", "alt+i", "alt+j", "alt+k", "alt+l", "alt+m", "alt+n",
-		"alt+o", "alt+p", "alt+q", "alt+r", "alt+s", "alt+t", "alt+u",
-		"alt+v", "alt+w", "alt+x", "alt+y", "alt+z",
-		"alt+enter", "alt+backspace", "alt+delete",
-		"up", "down", "left", "right",
-		"shift+up", "shift+down", "shift+left", "shift+right",
-		"enter", "backspace", "delete", "tab", "space",
-		"home", "end", "pgup", "pgdn", "page_up", "page_down",
-		"f1", "f2", "f3", "f4", "f5", "f6", "f7", "f8", "f9", "f10", "f11", "f12",
-		"esc", "escape",
+// handlePrintableCharacter processes printable character input
+func handlePrintableCharacter(keyStr string, inputView ui.InputComponent) tea.Cmd {
+	if inputView == nil {
+		return nil
 	}
 
-	return slices.Contains(knownKeys, keyStr)
+	cursor := inputView.GetCursor()
+	text := inputView.GetInput()
+	newText := text[:cursor] + keyStr + text[cursor:]
+	newCursor := cursor + 1
+	inputView.SetText(newText)
+	inputView.SetCursor(newCursor)
+
+	if autocomplete := inputView.(*components.InputView).Autocomplete; autocomplete != nil {
+		autocomplete.Update(newText, newCursor)
+	}
+
+	if keyStr == "@" {
+		return tea.Batch(
+			func() tea.Msg {
+				return shared.ScrollRequestMsg{
+					ComponentID: "conversation",
+					Direction:   shared.ScrollToBottom,
+					Amount:      0,
+				}
+			},
+			func() tea.Msg {
+				return shared.FileSelectionRequestMsg{}
+			},
+		)
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.ScrollRequestMsg{
+				ComponentID: "conversation",
+				Direction:   shared.ScrollToBottom,
+				Amount:      0,
+			}
+		},
+		func() tea.Msg {
+			return shared.HideHelpBarMsg{}
+		},
+	)
 }
 
 // handlePasteEvent handles when the terminal sends clipboard content directly

@@ -1,16 +1,19 @@
 package ui
 
 import (
-	"github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
+// Type aliases to shared interfaces to avoid duplication
 type KeyShortcut = shared.KeyShortcut
-
-// Theme is an alias to the shared Theme interface
 type Theme = shared.Theme
+type ConversationRenderer = shared.ConversationRenderer
+type InputComponent = shared.InputComponent
+type StatusComponent = shared.StatusComponent
+type HelpBarComponent = shared.HelpBarComponent
+type ApprovalComponent = shared.ApprovalComponent
 
+// DefaultTheme provides a concrete implementation of the Theme interface
 type DefaultTheme struct{}
 
 func NewDefaultTheme() *DefaultTheme { return &DefaultTheme{} }
@@ -25,59 +28,10 @@ func (t *DefaultTheme) GetBorderColor() string     { return shared.BorderColor.A
 func (t *DefaultTheme) GetDiffAddColor() string    { return shared.DiffAddColor.ANSI }
 func (t *DefaultTheme) GetDiffRemoveColor() string { return shared.DiffRemoveColor.ANSI }
 
-type ConversationRenderer interface {
-	SetConversation([]domain.ConversationEntry)
-	GetScrollOffset() int
-	CanScrollUp() bool
-	CanScrollDown() bool
-	ToggleToolResultExpansion(index int)
-	ToggleAllToolResultsExpansion()
-	IsToolResultExpanded(index int) bool
-	SetWidth(width int)
-	SetHeight(height int)
-	Render() string
-}
-
-type InputComponent interface {
-	GetInput() string
-	ClearInput()
-	SetPlaceholder(text string)
-	GetCursor() int
-	SetCursor(position int)
-	SetText(text string)
-	SetWidth(width int)
-	SetHeight(height int)
-	Render() string
-	HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd)
-	CanHandle(key tea.KeyMsg) bool
-	NavigateHistoryUp()
-	NavigateHistoryDown()
-}
-
-type StatusComponent interface {
-	ShowStatus(message string)
-	ShowError(message string)
-	ShowSpinner(message string)
-	ClearStatus()
-	IsShowingError() bool
-	IsShowingSpinner() bool
-	SetTokenUsage(usage string)
-	SetWidth(width int)
-	SetHeight(height int)
-	Render() string
-}
-
-type HelpBarComponent interface {
-	SetShortcuts(shortcuts []shared.KeyShortcut)
-	IsEnabled() bool
-	SetEnabled(enabled bool)
-	SetWidth(width int)
-	SetHeight(height int)
-	Render() string
-}
-
+// Compile-time check to ensure AutocompleteImpl implements the interface
 var _ shared.AutocompleteInterface = (*AutocompleteImpl)(nil)
 
+// SelectionComponent is specific to UI layer (not duplicated in shared)
 type SelectionComponent interface {
 	GetOptions() []string
 	SetOptions(options []string)
@@ -89,10 +43,4 @@ type SelectionComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
 	Render() string
-}
-
-type ApprovalComponent interface {
-	SetWidth(width int)
-	SetHeight(height int)
-	Render(toolExecution *domain.ToolExecutionSession, selectedIndex int) string
 }

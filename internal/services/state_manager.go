@@ -191,7 +191,6 @@ func (sm *StateManager) UpdateChatStatus(status domain.ChatStatus) error {
 	}
 
 	if err := sm.state.UpdateChatStatus(status); err != nil {
-		logger.Error("Failed to update chat status", "error", err, "status", status.String())
 		return err
 	}
 

@@ -152,6 +152,10 @@ func (t *testInputComponent) CanHandle(key tea.KeyMsg) bool {
 	return false
 }
 
+func (t *testInputComponent) IsAutocompleteVisible() bool {
+	return false
+}
+
 type testStatusComponent struct{}
 
 func (t *testStatusComponent) ShowStatus(message string) {}
