@@ -1050,6 +1050,8 @@ func (h *ChatHandler) handleCommandSideEffect(sideEffect commands.SideEffectType
 		return h.handleSwitchModelSideEffect(stateManager)
 	case commands.SideEffectClearConversation:
 		return h.handleClearConversationSideEffect()
+	case commands.SideEffectExportConversation:
+		return h.handleExportConversationSideEffect()
 	case commands.SideEffectExit:
 		return tea.Quit()
 	default:
@@ -1095,6 +1097,60 @@ func (h *ChatHandler) handleClearConversationSideEffect() tea.Msg {
 			}
 		},
 	)()
+}
+
+// handleExportConversationSideEffect handles conversation export side effect
+func (h *ChatHandler) handleExportConversationSideEffect() tea.Msg {
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    "📝 Generating summary and exporting conversation...",
+				Spinner:    true,
+				StatusType: shared.StatusWorking,
+			}
+		},
+		h.performExportAsync(),
+	)()
+}
+
+// performExportAsync performs the export operation asynchronously
+func (h *ChatHandler) performExportAsync() tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		cmd, exists := h.commandRegistry.Get("compact")
+		if !exists {
+			return shared.SetStatusMsg{
+				Message:    "Export command not found",
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		}
+
+		exportCmd, ok := cmd.(*commands.ExportCommand)
+		if !ok {
+			return shared.SetStatusMsg{
+				Message:    "Invalid export command type",
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		}
+
+		filePath, err := exportCmd.PerformExport(ctx)
+		if err != nil {
+			return shared.SetStatusMsg{
+				Message:    fmt.Sprintf("Export failed: %v", err),
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		}
+
+		return shared.SetStatusMsg{
+			Message:    fmt.Sprintf("📝 Conversation exported to: %s", filePath),
+			Spinner:    false,
+			StatusType: shared.StatusDefault,
+		}
+	}
 }
 
 func (h *ChatHandler) handleBashCommand(

@@ -70,6 +70,7 @@ This creates a local project configuration with default settings.`,
 		gitignoreContent := `# Ignore log files and history files
 *.log
 history
+chat_export_*
 `
 
 		if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
@@ -744,7 +745,6 @@ func safetyStatus(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Commands execute immediately without approval\n")
 	}
 
-	// Show tool-specific settings
 	fmt.Printf("\nTool-specific Approval Settings:\n")
 	tools := []struct {
 		name    string
@@ -1071,7 +1071,6 @@ func listFetchDomains(cmd *cobra.Command, args []string) error {
 func addFetchDomain(cmd *cobra.Command, args []string) error {
 	domainToAdd := args[0]
 
-	// Basic domain validation
 	if strings.Contains(domainToAdd, "://") {
 		return fmt.Errorf("please provide just the domain (e.g., 'github.com'), not a full URL")
 	}

@@ -268,8 +268,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		Chat: ChatConfig{
 			DefaultModel: "",
-			SystemPrompt: `
-You are an assistant for software engineering tasks.
+			SystemPrompt: `You are an assistant for software engineering tasks.
 
 ## Security
 
@@ -306,6 +305,7 @@ You are an assistant for software engineering tasks.
 * Don't batch completions.
 
 IMPORTANT: DO NOT provide code examples - instead apply them directly in the code using tools.
+IMPORTANT: if the user provide a file with the prefix chat_export_* you only read between the title "## Summary" and "---" - To get an overall overview of what was discussed. Only dive deeper if you absolutely need to.
 
 ## Workflow
 
