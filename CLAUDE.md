@@ -201,6 +201,10 @@ web_search:
   - `chat`: Interactive chat with model selection (or uses default model if configured)
     - Supports scrollable chat history with mouse wheel and keyboard navigation
     - Navigation: ↑↓/k/j (line), Page Up/Down (page), Home/End (top/bottom), Shift+↑↓ (half-page)
+    - **Status Bar Token Tracking**: Shows both current API call tokens and cumulative session totals
+      - Displays: "Input: X tokens | Output: Y tokens | Total: Z tokens | Session Input: W tokens"
+      - Session totals accumulate across all API requests in the current chat session
+      - Token counts are reset when using `/clear` command or starting a new session
   - `config`: Manage CLI configuration
     - `init [--overwrite]`: Initialize local project configuration
     - `set-model [MODEL_NAME]`: Set default model for chat sessions
@@ -281,6 +285,15 @@ cat .infer/config.yaml
 # For complete project initialization (config + .gitignore), use:
 infer init
 ```
+
+### Token Usage Tracking
+
+The CLI automatically tracks token usage across your chat session:
+
+- **Status Bar Display**: Shows current API call tokens and session totals
+- **Session Accumulation**: Tracks total input tokens, output tokens, and request count
+- **Export Integration**: `/compact` command includes session token statistics in exported markdown files
+- **Reset Behavior**: Token counts reset with `/clear` command or new session
 
 ### Tool Management
 

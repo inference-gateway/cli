@@ -177,7 +177,16 @@ func (c *ExportCommand) createCompactMarkdown(summary, fullConversation string) 
 
 	content.WriteString("# Chat Conversation Export\n\n")
 	content.WriteString(fmt.Sprintf("**Generated:** %s\n", time.Now().Format("January 2, 2006 at 3:04 PM")))
-	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n\n", c.repo.GetMessageCount()))
+	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n", c.repo.GetMessageCount()))
+
+	sessionStats := c.repo.GetSessionTokens()
+	if sessionStats.RequestCount > 0 {
+		content.WriteString(fmt.Sprintf("**Total Input Tokens:** %d\n", sessionStats.TotalInputTokens))
+		content.WriteString(fmt.Sprintf("**Total Output Tokens:** %d\n", sessionStats.TotalOutputTokens))
+		content.WriteString(fmt.Sprintf("**Total Tokens:** %d\n", sessionStats.TotalTokens))
+		content.WriteString(fmt.Sprintf("**API Requests:** %d\n", sessionStats.RequestCount))
+	}
+	content.WriteString("\n")
 
 	content.WriteString("---\n\n")
 	content.WriteString("## Summary\n\n")
