@@ -35,12 +35,20 @@ func TestConfigInit(t *testing.T) {
 			// Create temporary directory
 			tempDir, err := os.MkdirTemp("", "infer-config-test-*")
 			require.NoError(t, err)
-			defer os.RemoveAll(tempDir)
+			defer func() {
+				if err := os.RemoveAll(tempDir); err != nil {
+					t.Errorf("Failed to remove temp dir: %v", err)
+				}
+			}()
 
 			// Change to temp directory
 			origDir, err := os.Getwd()
 			require.NoError(t, err)
-			defer os.Chdir(origDir)
+			defer func() {
+				if err := os.Chdir(origDir); err != nil {
+					t.Errorf("Failed to change back to original dir: %v", err)
+				}
+			}()
 
 			err = os.Chdir(tempDir)
 			require.NoError(t, err)
@@ -108,12 +116,20 @@ func TestConfigInitExistingConfig(t *testing.T) {
 	// Create temporary directory
 	tempDir, err := os.MkdirTemp("", "infer-config-test-*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("Failed to remove temp dir: %v", err)
+		}
+	}()
 
 	// Change to temp directory
 	origDir, err := os.Getwd()
 	require.NoError(t, err)
-	defer os.Chdir(origDir)
+	defer func() {
+		if err := os.Chdir(origDir); err != nil {
+			t.Errorf("Failed to change back to original dir: %v", err)
+		}
+	}()
 
 	err = os.Chdir(tempDir)
 	require.NoError(t, err)
