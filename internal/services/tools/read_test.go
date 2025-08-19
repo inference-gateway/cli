@@ -16,6 +16,9 @@ func TestReadTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -340,9 +343,14 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 }
 
 func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
+	tmpDir := t.TempDir()
+
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -351,8 +359,6 @@ func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-
-	tmpDir := t.TempDir()
 
 	t.Run("read entire file with cat -n formatting", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "test.txt")

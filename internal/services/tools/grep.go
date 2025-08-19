@@ -936,6 +936,7 @@ func (t *GrepTool) loadGitignorePatterns() {
 	defaultPatterns := []string{
 		"node_modules",
 		".git",
+		".infer",
 		".DS_Store",
 		"*.log",
 		"dist",
@@ -950,6 +951,7 @@ func (t *GrepTool) loadGitignorePatterns() {
 		".vscode",
 		".idea",
 		".flox",
+		"secret",
 	}
 
 	patterns = append(patterns, defaultPatterns...)

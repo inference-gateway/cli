@@ -28,6 +28,9 @@ func TestEditTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -145,6 +148,13 @@ func getTestConfig() *config.Config {
 			Enabled: true,
 			Sandbox: config.SandboxConfig{
 				Directories: []string{"."},
+				ProtectedPaths: []string{
+					".infer/",
+					".infer/*",
+					".git/",
+					".git/*",
+					"*.secret",
+				},
 			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
@@ -408,6 +418,9 @@ func TestEditTool_Execute_ReadToolNotUsed(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -457,6 +470,9 @@ func TestEditTool_Execute_Success(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tempDir},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -564,6 +580,9 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tempDir},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},

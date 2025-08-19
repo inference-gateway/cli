@@ -130,7 +130,8 @@ type ToolWhitelistConfig struct {
 
 // SandboxConfig contains sandbox directory settings
 type SandboxConfig struct {
-	Directories []string `yaml:"directories"`
+	Directories    []string `yaml:"directories"`
+	ProtectedPaths []string `yaml:"protected_paths"`
 }
 
 // SafetyConfig contains safety approval settings
@@ -187,6 +188,13 @@ func DefaultConfig() *Config { //nolint:funlen
 			Enabled: true,
 			Sandbox: SandboxConfig{
 				Directories: []string{"."},
+				ProtectedPaths: []string{
+					".infer/",
+					".infer/*",
+					".git/",
+					".git/*",
+					"*.secret",
+				},
 			},
 			Bash: BashToolConfig{
 				Enabled: true,
@@ -497,6 +505,11 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		return fmt.Errorf("no sandbox directories configured")
 	}
 
+	// Check if the path matches any protected paths first
+	if err := c.checkProtectedPaths(path); err != nil {
+		return err
+	}
+
 	// Get the absolute path for comparison
 	absPath, err := filepath.Abs(path)
 	if err != nil {
@@ -523,4 +536,42 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	}
 
 	return fmt.Errorf("path '%s' is outside configured sandbox directories", path)
+}
+
+// checkProtectedPaths checks if a path matches any protected path patterns
+func (c *Config) checkProtectedPaths(path string) error {
+	normalizedPath := filepath.ToSlash(filepath.Clean(path))
+
+	for _, protectedPath := range c.Tools.Sandbox.ProtectedPaths {
+		// Handle exact matches
+		if normalizedPath == strings.TrimSuffix(protectedPath, "/") {
+			return fmt.Errorf("access to path '%s' is excluded for security", path)
+		}
+
+		// Handle directory patterns (ending with /)
+		if strings.HasSuffix(protectedPath, "/") {
+			dirPattern := strings.TrimSuffix(protectedPath, "/")
+			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
+		}
+
+		// Handle wildcard patterns (ending with /*)
+		if strings.HasSuffix(protectedPath, "/*") {
+			dirPattern := strings.TrimSuffix(protectedPath, "/*")
+			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
+		}
+
+		// Handle file wildcard patterns (like *.secret)
+		if strings.Contains(protectedPath, "*") {
+			matched, err := filepath.Match(protectedPath, filepath.Base(normalizedPath))
+			if err == nil && matched {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
+		}
+	}
+
+	return nil
 }

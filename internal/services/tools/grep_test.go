@@ -533,6 +533,9 @@ func TestGrepTool_HybridSearch(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Grep: config.GrepToolConfig{
 				Enabled: true,
 			},
