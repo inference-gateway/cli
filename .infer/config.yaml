@@ -5,7 +5,7 @@ gateway:
 output:
   format: text
   quiet: false
-  debug: false
+  debug: true
 tools:
   enabled: true
   bash:

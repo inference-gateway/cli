@@ -61,6 +61,7 @@ type InputComponent interface {
 	NavigateHistoryUp()
 	NavigateHistoryDown()
 	IsAutocompleteVisible() bool
+	AddToHistory(text string) error
 }
 
 // StatusComponent interface for status display

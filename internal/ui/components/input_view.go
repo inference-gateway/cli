@@ -230,6 +230,14 @@ func (iv *InputView) navigateHistoryDown() {
 	iv.cursor = len(iv.text)
 }
 
+// AddToHistory adds the current input to the history
+func (iv *InputView) AddToHistory(text string) error {
+	if text == "" {
+		return nil
+	}
+	return iv.historyManager.AddToHistory(text)
+}
+
 // Bubble Tea interface
 func (iv *InputView) Init() tea.Cmd { return nil }
 

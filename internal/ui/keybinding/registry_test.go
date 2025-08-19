@@ -132,6 +132,11 @@ func (t *testInputComponent) NavigateHistoryDown() {
 	// Test implementation - no-op
 }
 
+func (t *testInputComponent) AddToHistory(text string) error {
+	// Test implementation - no-op
+	return nil
+}
+
 func (t *testInputComponent) ClearInput() {}
 
 func (t *testInputComponent) SetPlaceholder(text string) {}

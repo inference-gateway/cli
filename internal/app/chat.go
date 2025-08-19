@@ -567,6 +567,8 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 		return nil
 	}
 
+	_ = app.inputView.AddToHistory(input)
+
 	app.inputView.ClearInput()
 
 	return func() tea.Msg {

@@ -9,6 +9,17 @@ import (
 )
 
 type FakeInputComponent struct {
+	AddToHistoryStub        func(string) error
+	addToHistoryMutex       sync.RWMutex
+	addToHistoryArgsForCall []struct {
+		arg1 string
+	}
+	addToHistoryReturns struct {
+		result1 error
+	}
+	addToHistoryReturnsOnCall map[int]struct {
+		result1 error
+	}
 	CanHandleStub        func(tea.KeyMsg) bool
 	canHandleMutex       sync.RWMutex
 	canHandleArgsForCall []struct {
@@ -112,6 +123,67 @@ type FakeInputComponent struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeInputComponent) AddToHistory(arg1 string) error {
+	fake.addToHistoryMutex.Lock()
+	ret, specificReturn := fake.addToHistoryReturnsOnCall[len(fake.addToHistoryArgsForCall)]
+	fake.addToHistoryArgsForCall = append(fake.addToHistoryArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.AddToHistoryStub
+	fakeReturns := fake.addToHistoryReturns
+	fake.recordInvocation("AddToHistory", []interface{}{arg1})
+	fake.addToHistoryMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeInputComponent) AddToHistoryCallCount() int {
+	fake.addToHistoryMutex.RLock()
+	defer fake.addToHistoryMutex.RUnlock()
+	return len(fake.addToHistoryArgsForCall)
+}
+
+func (fake *FakeInputComponent) AddToHistoryCalls(stub func(string) error) {
+	fake.addToHistoryMutex.Lock()
+	defer fake.addToHistoryMutex.Unlock()
+	fake.AddToHistoryStub = stub
+}
+
+func (fake *FakeInputComponent) AddToHistoryArgsForCall(i int) string {
+	fake.addToHistoryMutex.RLock()
+	defer fake.addToHistoryMutex.RUnlock()
+	argsForCall := fake.addToHistoryArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeInputComponent) AddToHistoryReturns(result1 error) {
+	fake.addToHistoryMutex.Lock()
+	defer fake.addToHistoryMutex.Unlock()
+	fake.AddToHistoryStub = nil
+	fake.addToHistoryReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeInputComponent) AddToHistoryReturnsOnCall(i int, result1 error) {
+	fake.addToHistoryMutex.Lock()
+	defer fake.addToHistoryMutex.Unlock()
+	fake.AddToHistoryStub = nil
+	if fake.addToHistoryReturnsOnCall == nil {
+		fake.addToHistoryReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.addToHistoryReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeInputComponent) CanHandle(arg1 tea.KeyMsg) bool {
