@@ -681,7 +681,7 @@ func (h *ChatHandler) handleToolCallStart(
 
 	cmds = append(cmds, func() tea.Msg {
 		return shared.SetStatusMsg{
-			Message:    "Processing tool calls...",
+			Message:    "Working...",
 			Spinner:    true,
 			StatusType: shared.StatusWorking,
 		}
