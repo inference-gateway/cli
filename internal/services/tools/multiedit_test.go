@@ -15,6 +15,9 @@ func TestMultiEditTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -41,6 +44,9 @@ func TestMultiEditTool_Execute_RequiresReadTool(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -95,6 +101,9 @@ func TestMultiEditTool_Execute_SuccessfulMultipleEdits(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -202,6 +211,9 @@ func TestMultiEditTool_Execute_SequentialEditsChangeContent(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -268,6 +280,9 @@ func TestMultiEditTool_Execute_AtomicFailure(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -337,6 +352,9 @@ func TestMultiEditTool_Execute_NonUniqueString(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -402,6 +420,9 @@ func TestMultiEditTool_Execute_ReplaceAll(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -468,6 +489,9 @@ func TestMultiEditTool_Execute_NewFileCreation(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -517,6 +541,9 @@ func TestMultiEditTool_Validate_InvalidArgs(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{".", "/tmp"},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -637,6 +664,9 @@ func TestMultiEditTool_IsEnabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},

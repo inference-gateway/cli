@@ -579,7 +579,14 @@ func TestGrepTool_HybridSearch(t *testing.T) {
 
 func TestGrepTool_GoBasedSearch(t *testing.T) {
 	tool := &GrepTool{
-		config:  &config.Config{Tools: config.ToolsConfig{Enabled: true}},
+		config: &config.Config{
+			Tools: config.ToolsConfig{
+				Enabled: true,
+				Sandbox: config.SandboxConfig{
+					Directories: []string{"."},
+				},
+			},
+		},
 		enabled: true,
 	}
 

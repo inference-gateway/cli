@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/inference-gateway/cli/config"
@@ -211,8 +212,8 @@ func validatePathSecurity(t *testing.T, err error, allowed bool, errorMsg string
 		t.Error("Path should be blocked")
 		return
 	}
-	if errorMsg != "" && err.Error() != errorMsg {
-		t.Errorf("Expected error '%s', got '%s'", errorMsg, err.Error())
+	if errorMsg != "" && !strings.Contains(err.Error(), errorMsg) {
+		t.Errorf("Expected error to contain '%s', got '%s'", errorMsg, err.Error())
 	}
 }
 

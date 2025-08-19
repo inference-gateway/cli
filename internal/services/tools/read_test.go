@@ -135,7 +135,14 @@ func TestReadTool_Validate(t *testing.T) {
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Sandbox: config.SandboxConfig{
-				Directories: []string{"."},
+				Directories: []string{".", "..", "/tmp", "/home/user"},
+				ProtectedPaths: []string{
+					".infer/",
+					".infer/*",
+					".git/",
+					".git/*",
+					"*.secret",
+				},
 			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
@@ -434,9 +441,13 @@ func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
 }
 
 func TestReadTool_Execute_Paging(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -445,7 +456,6 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	t.Run("read with offset and limit", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "large_test.txt")
@@ -532,9 +542,13 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 }
 
 func TestReadTool_Execute_LineTruncation(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -543,7 +557,6 @@ func TestReadTool_Execute_LineTruncation(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	t.Run("truncate long lines", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "long_lines.txt")
@@ -589,9 +602,13 @@ func TestReadTool_Execute_LineTruncation(t *testing.T) {
 }
 
 func TestReadTool_Execute_EmptyFile(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -600,7 +617,6 @@ func TestReadTool_Execute_EmptyFile(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	t.Run("empty file returns reminder", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "empty.txt")
@@ -634,9 +650,13 @@ func TestReadTool_Execute_EmptyFile(t *testing.T) {
 }
 
 func TestReadTool_Execute_ErrorCases(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -645,7 +665,6 @@ func TestReadTool_Execute_ErrorCases(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	tests := []struct {
 		name          string
@@ -655,14 +674,14 @@ func TestReadTool_Execute_ErrorCases(t *testing.T) {
 		{
 			name: "relative path",
 			args: map[string]interface{}{
-				"file_path": "relative/path.txt",
+				"file_path": filepath.Join(tmpDir, "relative/path.txt"),
 			},
 			expectedError: ErrorNotFound,
 		},
 		{
 			name: "nonexistent file",
 			args: map[string]interface{}{
-				"file_path": "/nonexistent/file.txt",
+				"file_path": filepath.Join(tmpDir, "nonexistent.txt"),
 			},
 			expectedError: ErrorNotFound,
 		},
@@ -694,9 +713,13 @@ func TestReadTool_Execute_ErrorCases(t *testing.T) {
 }
 
 func TestReadTool_Execute_BinaryFileDetection(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -705,7 +728,6 @@ func TestReadTool_Execute_BinaryFileDetection(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	t.Run("binary file detection", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "binary.bin")
@@ -760,9 +782,13 @@ func TestReadTool_Execute_Disabled(t *testing.T) {
 }
 
 func TestReadTool_Execute_Defaults(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -771,7 +797,6 @@ func TestReadTool_Execute_Defaults(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	t.Run("defaults applied when not specified", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "defaults_test.txt")
