@@ -150,10 +150,9 @@ func getTestConfig() *config.Config {
 				Directories: []string{"."},
 				ProtectedPaths: []string{
 					".infer/",
-					".infer/*",
 					".git/",
-					".git/*",
-					"*.secret",
+					"*.env",
+					"*.env.database",
 				},
 			},
 			Edit: config.EditToolConfig{
@@ -388,12 +387,12 @@ func getValidSecurityTests() []struct {
 			name:     "excluded pattern",
 			readUsed: true,
 			args: map[string]interface{}{
-				"file_path":  "database.secret",
+				"file_path":  ".env.database",
 				"old_string": "old",
 				"new_string": "new",
 			},
 			wantError:    true,
-			errorMessage: "access to path 'database.secret' is excluded for security",
+			errorMessage: "access to path '.env.database' is excluded for security",
 		},
 	}
 }

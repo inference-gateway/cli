@@ -190,10 +190,8 @@ func DefaultConfig() *Config { //nolint:funlen
 				Directories: []string{"."},
 				ProtectedPaths: []string{
 					".infer/",
-					".infer/*",
 					".git/",
-					".git/*",
-					"*.secret",
+					"*.env",
 				},
 			},
 			Bash: BashToolConfig{

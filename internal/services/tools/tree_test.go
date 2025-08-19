@@ -65,10 +65,7 @@ func TestTreeTool_Validate(t *testing.T) {
 				Directories: []string{"."},
 				ProtectedPaths: []string{
 					".infer/",
-					".infer/*",
 					".git/",
-					".git/*",
-					"*.secret",
 				},
 			},
 			Tree: config.TreeToolConfig{
@@ -236,15 +233,12 @@ func setupTestDirectory(t *testing.T) string {
 	return tempDir
 }
 
-func createTestTreeTool(sandboxDirs ...string) *TreeTool {
-	if len(sandboxDirs) == 0 {
-		sandboxDirs = []string{"."}
-	}
+func createTestTreeTool(tempDir string) *TreeTool {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Sandbox: config.SandboxConfig{
-				Directories: sandboxDirs,
+				Directories: []string{tempDir},
 			},
 			Tree: config.TreeToolConfig{
 				Enabled: true,

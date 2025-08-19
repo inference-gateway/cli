@@ -527,13 +527,13 @@ func TestWriteTool_PathSecurity(t *testing.T) {
 			name:     "path outside sandbox",
 			path:     "/etc/passwd",
 			allowed:  false,
-			errorMsg: "outside configured sandbox directories",
+			errorMsg: "is outside configured sandbox directories",
 		},
 		{
 			name:     "relative path outside sandbox",
 			path:     "../outside.txt",
 			allowed:  false,
-			errorMsg: "outside configured sandbox directories",
+			errorMsg: "is outside configured sandbox directories",
 		},
 	}
 

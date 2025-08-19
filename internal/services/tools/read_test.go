@@ -131,17 +131,18 @@ func TestReadTool_IsEnabled(t *testing.T) {
 }
 
 func TestReadTool_Validate(t *testing.T) {
+	wd, _ := os.Getwd()
+	parentDir := filepath.Dir(wd)
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Sandbox: config.SandboxConfig{
-				Directories: []string{".", "..", "/tmp", "/home/user"},
+				Directories: []string{wd, parentDir, "/tmp", "/home/user"},
 				ProtectedPaths: []string{
 					".infer/",
-					".infer/*",
 					".git/",
-					".git/*",
-					"*.secret",
+					"*.env",
+					"*.env.database",
 				},
 			},
 			Read: config.ReadToolConfig{
@@ -256,7 +257,7 @@ func testPathSecurity(t *testing.T, tool *ReadTool) {
 		{
 			name: "excluded pattern",
 			args: map[string]interface{}{
-				"file_path": "/home/user/database.secret",
+				"file_path": "/home/user/.env.database",
 			},
 			wantError: true,
 		},
