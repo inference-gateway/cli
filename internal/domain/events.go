@@ -67,10 +67,11 @@ func (e ChatErrorEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // ToolCallEvent represents a tool call request
 type ToolCallEvent struct {
-	RequestID string
-	Timestamp time.Time
-	ToolName  string
-	Args      string
+	RequestID  string
+	Timestamp  time.Time
+	ToolCallID string
+	ToolName   string
+	Args       string
 }
 
 func (e ToolCallEvent) GetType() ChatEventType  { return EventToolCall }

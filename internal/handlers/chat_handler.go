@@ -735,7 +735,7 @@ func (h *ChatHandler) handleToolCall(
 						StatusType: shared.StatusWorking,
 					}
 				},
-				h.executeToolCall(msg.RequestID, toolName, args, stateManager, debugService),
+				h.executeToolCall(msg.RequestID, msg.ToolCallID, toolName, args, stateManager, debugService),
 			)
 		}
 	}
@@ -831,6 +831,7 @@ func (h *ChatHandler) handleToolApprovalResponse(
 // executeToolCall executes a single tool call and adds the result to conversation history
 func (h *ChatHandler) executeToolCall(
 	requestID string,
+	toolCallID string,
 	toolName string,
 	arguments string,
 	_ *services.StateManager,
@@ -858,7 +859,7 @@ func (h *ChatHandler) executeToolCall(
 		}
 
 		toolCall := sdk.ChatCompletionMessageToolCall{
-			Id:   fmt.Sprintf("tool_call_%d", time.Now().UnixNano()),
+			Id:   toolCallID,
 			Type: sdk.Function,
 			Function: sdk.ChatCompletionMessageToolCallFunction{
 				Name:      toolName,

@@ -515,10 +515,11 @@ func (s *StreamingChatService) emitToolCallEventIfComplete(key string, toolCalls
 	}
 
 	events <- domain.ToolCallEvent{
-		RequestID: requestID,
-		Timestamp: time.Now(),
-		ToolName:  funcName,
-		Args:      args,
+		RequestID:  requestID,
+		Timestamp:  time.Now(),
+		ToolCallID: toolCallsMap[key].Id,
+		ToolName:   funcName,
+		Args:       args,
 	}
 }
 
