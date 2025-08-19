@@ -268,8 +268,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		Chat: ChatConfig{
 			DefaultModel: "",
-			SystemPrompt: `
-You are an assistant for software engineering tasks.
+			SystemPrompt: `You are an assistant for software engineering tasks.
 
 ## Security
 
@@ -306,13 +305,14 @@ You are an assistant for software engineering tasks.
 * Don't batch completions.
 
 IMPORTANT: DO NOT provide code examples - instead apply them directly in the code using tools.
+IMPORTANT: if the user provide a file with the prefix chat_export_* you only read between the title "## Summary" and "---" - To get an overall overview of what was discussed. Only dive deeper if you absolutely need to.
 
 ## Workflow
 
 1. Plan with TodoWrite.
 2. Explore code via search.
 3. Implement.
-4. Verify with tests.
+4. Verify with tests (prefer using task test).
 5. Run lint/typecheck (ask if unknown). Suggest documenting.
 6. Commit only if asked.
 
@@ -409,16 +409,19 @@ func getDefaultConfigPath() string {
 
 // IsApprovalRequired checks if approval is required for a specific tool
 // It returns true if tool-specific approval is set to true, or if global approval is true and tool-specific is not set to false
+// ConfigService interface implementation
 func (c *Config) IsApprovalRequired(toolName string) bool {
 	globalApproval := c.Tools.Safety.RequireApproval
 
 	switch toolName {
 	case "Bash":
 		if c.Tools.Bash.RequireApproval != nil {
+			logger.Debug("Tool approval check", "tool", toolName, "specific", *c.Tools.Bash.RequireApproval, "global", globalApproval)
 			return *c.Tools.Bash.RequireApproval
 		}
 	case "Read":
 		if c.Tools.Read.RequireApproval != nil {
+			logger.Debug("Tool approval check", "tool", toolName, "specific", *c.Tools.Read.RequireApproval, "global", globalApproval)
 			return *c.Tools.Read.RequireApproval
 		}
 	case "Write":
@@ -456,4 +459,33 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	}
 
 	return globalApproval
+}
+
+// Additional ConfigService methods
+func (c *Config) IsDebugMode() bool {
+	return c.Output.Debug
+}
+
+func (c *Config) GetOutputDirectory() string {
+	return c.Compact.OutputDir
+}
+
+func (c *Config) GetGatewayURL() string {
+	return c.Gateway.URL
+}
+
+func (c *Config) GetAPIKey() string {
+	return c.Gateway.APIKey
+}
+
+func (c *Config) GetTimeout() int {
+	return c.Gateway.Timeout
+}
+
+func (c *Config) GetSystemPrompt() string {
+	return c.Chat.SystemPrompt
+}
+
+func (c *Config) GetDefaultModel() string {
+	return c.Chat.DefaultModel
 }

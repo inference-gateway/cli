@@ -9,6 +9,17 @@ import (
 )
 
 type FakeInputComponent struct {
+	AddToHistoryStub        func(string) error
+	addToHistoryMutex       sync.RWMutex
+	addToHistoryArgsForCall []struct {
+		arg1 string
+	}
+	addToHistoryReturns struct {
+		result1 error
+	}
+	addToHistoryReturnsOnCall map[int]struct {
+		result1 error
+	}
 	CanHandleStub        func(tea.KeyMsg) bool
 	canHandleMutex       sync.RWMutex
 	canHandleArgsForCall []struct {
@@ -57,6 +68,24 @@ type FakeInputComponent struct {
 		result1 tea.Model
 		result2 tea.Cmd
 	}
+	IsAutocompleteVisibleStub        func() bool
+	isAutocompleteVisibleMutex       sync.RWMutex
+	isAutocompleteVisibleArgsForCall []struct {
+	}
+	isAutocompleteVisibleReturns struct {
+		result1 bool
+	}
+	isAutocompleteVisibleReturnsOnCall map[int]struct {
+		result1 bool
+	}
+	NavigateHistoryDownStub        func()
+	navigateHistoryDownMutex       sync.RWMutex
+	navigateHistoryDownArgsForCall []struct {
+	}
+	NavigateHistoryUpStub        func()
+	navigateHistoryUpMutex       sync.RWMutex
+	navigateHistoryUpArgsForCall []struct {
+	}
 	RenderStub        func() string
 	renderMutex       sync.RWMutex
 	renderArgsForCall []struct {
@@ -94,6 +123,67 @@ type FakeInputComponent struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeInputComponent) AddToHistory(arg1 string) error {
+	fake.addToHistoryMutex.Lock()
+	ret, specificReturn := fake.addToHistoryReturnsOnCall[len(fake.addToHistoryArgsForCall)]
+	fake.addToHistoryArgsForCall = append(fake.addToHistoryArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.AddToHistoryStub
+	fakeReturns := fake.addToHistoryReturns
+	fake.recordInvocation("AddToHistory", []interface{}{arg1})
+	fake.addToHistoryMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeInputComponent) AddToHistoryCallCount() int {
+	fake.addToHistoryMutex.RLock()
+	defer fake.addToHistoryMutex.RUnlock()
+	return len(fake.addToHistoryArgsForCall)
+}
+
+func (fake *FakeInputComponent) AddToHistoryCalls(stub func(string) error) {
+	fake.addToHistoryMutex.Lock()
+	defer fake.addToHistoryMutex.Unlock()
+	fake.AddToHistoryStub = stub
+}
+
+func (fake *FakeInputComponent) AddToHistoryArgsForCall(i int) string {
+	fake.addToHistoryMutex.RLock()
+	defer fake.addToHistoryMutex.RUnlock()
+	argsForCall := fake.addToHistoryArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeInputComponent) AddToHistoryReturns(result1 error) {
+	fake.addToHistoryMutex.Lock()
+	defer fake.addToHistoryMutex.Unlock()
+	fake.AddToHistoryStub = nil
+	fake.addToHistoryReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeInputComponent) AddToHistoryReturnsOnCall(i int, result1 error) {
+	fake.addToHistoryMutex.Lock()
+	defer fake.addToHistoryMutex.Unlock()
+	fake.AddToHistoryStub = nil
+	if fake.addToHistoryReturnsOnCall == nil {
+		fake.addToHistoryReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.addToHistoryReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeInputComponent) CanHandle(arg1 tea.KeyMsg) bool {
@@ -349,6 +439,107 @@ func (fake *FakeInputComponent) HandleKeyReturnsOnCall(i int, result1 tea.Model,
 		result1 tea.Model
 		result2 tea.Cmd
 	}{result1, result2}
+}
+
+func (fake *FakeInputComponent) IsAutocompleteVisible() bool {
+	fake.isAutocompleteVisibleMutex.Lock()
+	ret, specificReturn := fake.isAutocompleteVisibleReturnsOnCall[len(fake.isAutocompleteVisibleArgsForCall)]
+	fake.isAutocompleteVisibleArgsForCall = append(fake.isAutocompleteVisibleArgsForCall, struct {
+	}{})
+	stub := fake.IsAutocompleteVisibleStub
+	fakeReturns := fake.isAutocompleteVisibleReturns
+	fake.recordInvocation("IsAutocompleteVisible", []interface{}{})
+	fake.isAutocompleteVisibleMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeInputComponent) IsAutocompleteVisibleCallCount() int {
+	fake.isAutocompleteVisibleMutex.RLock()
+	defer fake.isAutocompleteVisibleMutex.RUnlock()
+	return len(fake.isAutocompleteVisibleArgsForCall)
+}
+
+func (fake *FakeInputComponent) IsAutocompleteVisibleCalls(stub func() bool) {
+	fake.isAutocompleteVisibleMutex.Lock()
+	defer fake.isAutocompleteVisibleMutex.Unlock()
+	fake.IsAutocompleteVisibleStub = stub
+}
+
+func (fake *FakeInputComponent) IsAutocompleteVisibleReturns(result1 bool) {
+	fake.isAutocompleteVisibleMutex.Lock()
+	defer fake.isAutocompleteVisibleMutex.Unlock()
+	fake.IsAutocompleteVisibleStub = nil
+	fake.isAutocompleteVisibleReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeInputComponent) IsAutocompleteVisibleReturnsOnCall(i int, result1 bool) {
+	fake.isAutocompleteVisibleMutex.Lock()
+	defer fake.isAutocompleteVisibleMutex.Unlock()
+	fake.IsAutocompleteVisibleStub = nil
+	if fake.isAutocompleteVisibleReturnsOnCall == nil {
+		fake.isAutocompleteVisibleReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isAutocompleteVisibleReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeInputComponent) NavigateHistoryDown() {
+	fake.navigateHistoryDownMutex.Lock()
+	fake.navigateHistoryDownArgsForCall = append(fake.navigateHistoryDownArgsForCall, struct {
+	}{})
+	stub := fake.NavigateHistoryDownStub
+	fake.recordInvocation("NavigateHistoryDown", []interface{}{})
+	fake.navigateHistoryDownMutex.Unlock()
+	if stub != nil {
+		fake.NavigateHistoryDownStub()
+	}
+}
+
+func (fake *FakeInputComponent) NavigateHistoryDownCallCount() int {
+	fake.navigateHistoryDownMutex.RLock()
+	defer fake.navigateHistoryDownMutex.RUnlock()
+	return len(fake.navigateHistoryDownArgsForCall)
+}
+
+func (fake *FakeInputComponent) NavigateHistoryDownCalls(stub func()) {
+	fake.navigateHistoryDownMutex.Lock()
+	defer fake.navigateHistoryDownMutex.Unlock()
+	fake.NavigateHistoryDownStub = stub
+}
+
+func (fake *FakeInputComponent) NavigateHistoryUp() {
+	fake.navigateHistoryUpMutex.Lock()
+	fake.navigateHistoryUpArgsForCall = append(fake.navigateHistoryUpArgsForCall, struct {
+	}{})
+	stub := fake.NavigateHistoryUpStub
+	fake.recordInvocation("NavigateHistoryUp", []interface{}{})
+	fake.navigateHistoryUpMutex.Unlock()
+	if stub != nil {
+		fake.NavigateHistoryUpStub()
+	}
+}
+
+func (fake *FakeInputComponent) NavigateHistoryUpCallCount() int {
+	fake.navigateHistoryUpMutex.RLock()
+	defer fake.navigateHistoryUpMutex.RUnlock()
+	return len(fake.navigateHistoryUpArgsForCall)
+}
+
+func (fake *FakeInputComponent) NavigateHistoryUpCalls(stub func()) {
+	fake.navigateHistoryUpMutex.Lock()
+	defer fake.navigateHistoryUpMutex.Unlock()
+	fake.NavigateHistoryUpStub = stub
 }
 
 func (fake *FakeInputComponent) Render() string {

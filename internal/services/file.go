@@ -64,7 +64,7 @@ func (s *FileServiceImpl) handleDirectory(d os.DirEntry, path, cwd string) error
 		return nil
 	}
 
-	if strings.HasPrefix(d.Name(), ".") && relPath != "." {
+	if strings.HasPrefix(d.Name(), ".") && relPath != "." && d.Name() != ".infer" {
 		return filepath.SkipDir
 	}
 
@@ -72,7 +72,6 @@ func (s *FileServiceImpl) handleDirectory(d os.DirEntry, path, cwd string) error
 		".git":         true,
 		".github":      true,
 		"node_modules": true,
-		".infer":       true,
 		"vendor":       true,
 		".flox":        true,
 		"dist":         true,
@@ -86,6 +85,11 @@ func (s *FileServiceImpl) handleDirectory(d os.DirEntry, path, cwd string) error
 
 	if excludeDirs[d.Name()] {
 		return filepath.SkipDir
+	}
+
+	// Allow walking into .infer directory to find .md files, but we'll filter non-.md files later
+	if d.Name() == ".infer" {
+		return nil // Allow walking into .infer directory
 	}
 
 	depth := strings.Count(relPath, string(filepath.Separator))
@@ -102,7 +106,14 @@ func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool 
 		return false
 	}
 
-	if strings.HasPrefix(d.Name(), ".") {
+	// Allow .md files from .infer directory, but exclude other files from .infer
+	if strings.HasPrefix(relPath, ".infer"+string(filepath.Separator)) || relPath == ".infer" {
+		ext := strings.ToLower(filepath.Ext(relPath))
+		if ext != ".md" {
+			return false
+		}
+		// Continue with the rest of the checks for .md files in .infer
+	} else if strings.HasPrefix(d.Name(), ".") {
 		return false
 	}
 
@@ -121,8 +132,15 @@ func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool 
 		return false
 	}
 
-	if info, err := d.Info(); err == nil && info.Size() > 100*1024 {
-		return false
+	if info, err := d.Info(); err == nil {
+		// Allow larger markdown files since we extract summary sections
+		sizeLimit := int64(100 * 1024) // 100KB
+		if strings.ToLower(filepath.Ext(relPath)) == ".md" {
+			sizeLimit = int64(1024 * 1024) // 1MB for markdown files
+		}
+		if info.Size() > sizeLimit {
+			return false
+		}
 	}
 
 	return true
@@ -186,8 +204,17 @@ func (s *FileServiceImpl) ValidateFile(path string) error {
 		return fmt.Errorf("path is not a regular file: %s", path)
 	}
 
-	if info.Size() > 50*1024 {
-		return fmt.Errorf("file %s is too large (%d bytes), maximum size is 50KB", path, info.Size())
+	sizeLimit := int64(50 * 1024) // 50KB for regular files
+	if strings.ToLower(filepath.Ext(path)) == ".md" {
+		sizeLimit = int64(1024 * 1024) // 1MB for markdown files
+	}
+
+	if info.Size() > sizeLimit {
+		maxSizeStr := "50KB"
+		if strings.ToLower(filepath.Ext(path)) == ".md" {
+			maxSizeStr = "1MB"
+		}
+		return fmt.Errorf("file %s is too large (%d bytes), maximum size is %s", path, info.Size(), maxSizeStr)
 	}
 
 	return nil

@@ -5,10 +5,11 @@ import (
 	"strings"
 
 	"github.com/atotto/clipboard"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/history"
+	"github.com/inference-gateway/cli/internal/ui/keys"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
@@ -85,33 +86,11 @@ func (iv *InputView) SetHeight(height int) {
 }
 
 func (iv *InputView) Render() string {
-	var displayText string
 	isBashMode := strings.HasPrefix(iv.text, "!")
-
-	if iv.text == "" {
-		displayText = lipgloss.NewStyle().
-			Foreground(shared.DimColor.GetLipglossColor()).
-			Render(iv.placeholder)
-	} else {
-		before := iv.text[:iv.cursor]
-		after := iv.text[iv.cursor:]
-
-		availableWidth := iv.width - 8
-		if availableWidth > 0 {
-			wrappedBefore := iv.preserveTrailingSpaces(before, availableWidth)
-			wrappedAfter := shared.WrapText(after, availableWidth)
-			displayText = fmt.Sprintf("%s│%s", wrappedBefore, wrappedAfter)
-		} else {
-			displayText = fmt.Sprintf("%s│%s", before, after)
-		}
-	}
+	displayText := iv.renderDisplayText()
 
 	inputContent := fmt.Sprintf("> %s", displayText)
-
-	borderColor := shared.DimColor.Lipgloss
-	if isBashMode {
-		borderColor = shared.StatusColor.Lipgloss
-	}
+	borderColor := iv.getBorderColor(isBashMode)
 
 	inputStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -122,6 +101,76 @@ func (iv *InputView) Render() string {
 	borderedInput := inputStyle.Render(inputContent)
 	components := []string{borderedInput}
 
+	components = iv.addBashIndicator(components, isBashMode)
+	components = iv.addAutocomplete(components)
+	components = iv.addModelDisplay(components, isBashMode)
+
+	return lipgloss.JoinVertical(lipgloss.Left, components...)
+}
+
+func (iv *InputView) renderDisplayText() string {
+	if iv.text == "" {
+		return iv.renderPlaceholder()
+	}
+	return iv.renderTextWithCursor()
+}
+
+func (iv *InputView) renderPlaceholder() string {
+	return lipgloss.NewStyle().
+		Foreground(shared.DimColor.GetLipglossColor()).
+		Render(iv.placeholder)
+}
+
+func (iv *InputView) renderTextWithCursor() string {
+	before := iv.text[:iv.cursor]
+	after := iv.text[iv.cursor:]
+	availableWidth := iv.width - 8
+
+	if availableWidth > 0 {
+		return iv.renderWrappedText(before, after, availableWidth)
+	}
+	return iv.renderUnwrappedText(before, after)
+}
+
+func (iv *InputView) renderWrappedText(before, after string, availableWidth int) string {
+	wrappedBefore := iv.preserveTrailingSpaces(before, availableWidth)
+	wrappedAfter := shared.WrapText(after, availableWidth)
+	return iv.buildTextWithCursor(wrappedBefore, wrappedAfter)
+}
+
+func (iv *InputView) renderUnwrappedText(before, after string) string {
+	return iv.buildTextWithCursor(before, after)
+}
+
+func (iv *InputView) buildTextWithCursor(before, after string) string {
+	if len(after) == 0 {
+		cursorChar := iv.createCursorChar(" ")
+		return fmt.Sprintf("%s%s", before, cursorChar)
+	}
+
+	cursorChar := iv.createCursorChar(string(after[0]))
+	restAfter := ""
+	if len(after) > 1 {
+		restAfter = after[1:]
+	}
+	return fmt.Sprintf("%s%s%s", before, cursorChar, restAfter)
+}
+
+func (iv *InputView) createCursorChar(char string) string {
+	return lipgloss.NewStyle().
+		Background(lipgloss.Color("#FFFFFF")).
+		Foreground(lipgloss.Color("#000000")).
+		Render(char)
+}
+
+func (iv *InputView) getBorderColor(isBashMode bool) string {
+	if isBashMode {
+		return shared.StatusColor.Lipgloss
+	}
+	return shared.DimColor.Lipgloss
+}
+
+func (iv *InputView) addBashIndicator(components []string, isBashMode bool) []string {
 	if isBashMode && iv.height >= 2 {
 		bashIndicator := lipgloss.NewStyle().
 			Foreground(shared.StatusColor.GetLipglossColor()).
@@ -130,37 +179,41 @@ func (iv *InputView) Render() string {
 			Render("BASH MODE - Command will be executed directly")
 		components = append(components, bashIndicator)
 	}
+	return components
+}
 
+func (iv *InputView) addAutocomplete(components []string) []string {
 	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() && iv.height >= 3 {
 		autocompleteContent := iv.Autocomplete.Render()
 		if autocompleteContent != "" {
 			components = append(components, autocompleteContent)
 		}
 	}
+	return components
+}
 
+func (iv *InputView) addModelDisplay(components []string, isBashMode bool) []string {
 	if iv.modelService != nil {
 		currentModel := iv.modelService.GetCurrentModel()
 		if currentModel != "" && iv.height >= 2 && !isBashMode {
 			modelStyle := lipgloss.NewStyle().
 				Foreground(shared.DimColor.GetLipglossColor()).
 				Width(iv.width)
-			modelDisplay := modelStyle.Render(fmt.Sprintf("Model: %s", currentModel))
+			modelDisplay := modelStyle.Render(fmt.Sprintf("  Model: %s", currentModel))
 			components = append(components, modelDisplay)
 		}
 	}
-
-	return lipgloss.JoinVertical(lipgloss.Left, components...)
+	return components
 }
 
-// addToHistory adds a message to the input history
-func (iv *InputView) addToHistory(message string) {
-	if message == "" {
-		return
-	}
+// NavigateHistoryUp moves up in history (to older messages) - public method for interface
+func (iv *InputView) NavigateHistoryUp() {
+	iv.navigateHistoryUp()
+}
 
-	if err := iv.historyManager.AddToHistory(message); err != nil {
-		fmt.Printf("Warning: Failed to add to shell history: %v\n", err)
-	}
+// NavigateHistoryDown moves down in history (to newer messages) - public method for interface
+func (iv *InputView) NavigateHistoryDown() {
+	iv.navigateHistoryDown()
 }
 
 // navigateHistoryUp moves up in history (to older messages)
@@ -175,6 +228,14 @@ func (iv *InputView) navigateHistoryDown() {
 	newText := iv.historyManager.NavigateDown(iv.text)
 	iv.text = newText
 	iv.cursor = len(iv.text)
+}
+
+// AddToHistory adds the current input to the history
+func (iv *InputView) AddToHistory(text string) error {
+	if text == "" {
+		return nil
+	}
+	return iv.historyManager.AddToHistory(text)
 }
 
 // Bubble Tea interface
@@ -202,10 +263,24 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	keyStr := key.String()
 
+	if keyStr == "ctrl+v" {
+		return iv.handlePaste()
+	}
+
 	if keyStr == "alt+enter" {
 		iv.text = iv.text[:iv.cursor] + "\n" + iv.text[iv.cursor:]
 		iv.cursor++
 		return iv, nil
+	}
+
+	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
+		if handled, completion := iv.Autocomplete.HandleKey(key); handled {
+			return iv.handleAutocomplete(completion)
+		}
+
+		if keyStr == "up" || keyStr == "down" {
+			return iv, nil
+		}
 	}
 
 	if iv.Autocomplete == nil || !iv.Autocomplete.IsVisible() {
@@ -225,24 +300,15 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if iv.Autocomplete != nil {
-		if handled, completion := iv.Autocomplete.HandleKey(key); handled {
-			return iv.handleAutocomplete(completion)
-		}
-	}
-
 	if keyStr != "up" && keyStr != "down" && keyStr != "left" && keyStr != "right" &&
 		keyStr != "ctrl+a" && keyStr != "ctrl+e" && keyStr != "home" && keyStr != "end" {
 		iv.historyManager.ResetNavigation()
 	}
 
-	cmd := iv.handleSpecificKeys(key)
 	if iv.Autocomplete != nil {
-		if iv.Autocomplete != nil {
-			iv.Autocomplete.Update(iv.text, iv.cursor)
-		}
+		iv.Autocomplete.Update(iv.text, iv.cursor)
 	}
-	return iv, cmd
+	return iv, nil
 }
 
 func (iv *InputView) handleAutocomplete(completion string) (tea.Model, tea.Cmd) {
@@ -260,203 +326,8 @@ func (iv *InputView) handleAutocomplete(completion string) (tea.Model, tea.Cmd) 
 	return iv, nil
 }
 
-func (iv *InputView) handleSpecificKeys(key tea.KeyMsg) tea.Cmd {
-	keyStr := key.String()
-
-	if key.Type == tea.KeyEnter {
-		return iv.handleSubmit()
-	}
-
-	switch keyStr {
-	case "left":
-		if iv.cursor > 0 {
-			iv.cursor--
-		}
-	case "right":
-		if iv.cursor < len(iv.text) {
-			iv.cursor++
-		}
-	case "backspace":
-		if key.Alt {
-			iv.deleteWordBackward()
-		} else {
-			if iv.cursor > 0 {
-				iv.text = iv.text[:iv.cursor-1] + iv.text[iv.cursor:]
-				iv.cursor--
-			}
-		}
-		return nil
-	case "ctrl+u":
-		iv.deleteToBeginning()
-		return nil
-	case "ctrl+w":
-		iv.deleteWordBackward()
-		return nil
-	case "ctrl+shift+c":
-		iv.handleCopy()
-	case "ctrl+v", "alt+v":
-		iv.handlePaste()
-		return nil
-	case "ctrl+x":
-		iv.handleCut()
-		return nil
-	case "ctrl+a":
-		iv.cursor = 0
-	case "ctrl+e":
-		iv.cursor = len(iv.text)
-	case "?":
-		if len(strings.TrimSpace(iv.text)) == 0 {
-			return func() tea.Msg {
-				return shared.ToggleHelpBarMsg{}
-			}
-		}
-		return iv.handleCharacterInput(key)
-	default:
-		return iv.handleCharacterInput(key)
-	}
-	return nil
-}
-
-func (iv *InputView) handleSubmit() tea.Cmd {
-	if iv.text != "" {
-		input := iv.text
-		iv.addToHistory(input)
-		iv.ClearInput()
-		if iv.Autocomplete != nil {
-			iv.Autocomplete.Hide()
-		}
-		return func() tea.Msg {
-			return shared.UserInputMsg{Content: input}
-		}
-	}
-	return nil
-}
-
-func (iv *InputView) handleCopy() {
-	if iv.text != "" {
-		_ = clipboard.WriteAll(iv.text)
-	}
-}
-
-func (iv *InputView) handlePaste() {
-	clipboardText, err := clipboard.ReadAll()
-	if err != nil {
-		return
-	}
-
-	if clipboardText == "" {
-		return
-	}
-
-	cleanText := strings.ReplaceAll(clipboardText, "\n", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\r", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\t", " ")
-
-	if cleanText != "" {
-		iv.text = iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
-		iv.cursor += len(cleanText)
-	}
-}
-
-func (iv *InputView) handleCut() {
-	if iv.text != "" {
-		_ = clipboard.WriteAll(iv.text)
-		iv.text = ""
-		iv.cursor = 0
-	}
-}
-
-func (iv *InputView) handleCharacterInput(key tea.KeyMsg) tea.Cmd {
-	keyStr := key.String()
-
-	if len(keyStr) > 1 && key.Type == tea.KeyRunes {
-		cleanText := strings.ReplaceAll(keyStr, "\n", " ")
-		cleanText = strings.ReplaceAll(cleanText, "\r", " ")
-		cleanText = strings.ReplaceAll(cleanText, "\t", " ")
-
-		if strings.HasPrefix(cleanText, "[") && strings.HasSuffix(cleanText, "]") {
-			cleanText = cleanText[1 : len(cleanText)-1]
-		}
-
-		if cleanText != "" {
-			iv.text = iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
-			iv.cursor += len(cleanText)
-
-			return func() tea.Msg {
-				return shared.ScrollRequestMsg{
-					ComponentID: "conversation",
-					Direction:   shared.ScrollToBottom,
-					Amount:      0,
-				}
-			}
-		}
-		return nil
-	}
-
-	if len(keyStr) == 1 && keyStr[0] >= 32 {
-		char := keyStr
-		iv.text = iv.text[:iv.cursor] + char + iv.text[iv.cursor:]
-		iv.cursor++
-
-		if char == "@" {
-			return tea.Batch(
-				func() tea.Msg {
-					return shared.ScrollRequestMsg{
-						ComponentID: "conversation",
-						Direction:   shared.ScrollToBottom,
-						Amount:      0,
-					}
-				},
-				func() tea.Msg {
-					return shared.FileSelectionRequestMsg{}
-				},
-			)
-		}
-
-		return tea.Batch(
-			func() tea.Msg {
-				return shared.ScrollRequestMsg{
-					ComponentID: "conversation",
-					Direction:   shared.ScrollToBottom,
-					Amount:      0,
-				}
-			},
-			func() tea.Msg {
-				return shared.HideHelpBarMsg{}
-			},
-		)
-	}
-	return nil
-}
-
 func (iv *InputView) CanHandle(key tea.KeyMsg) bool {
-	return true
-}
-
-// deleteWordBackward deletes the word before the cursor
-func (iv *InputView) deleteWordBackward() {
-	if iv.cursor > 0 {
-		start := iv.cursor
-
-		for start > 0 && (iv.text[start-1] == ' ' || iv.text[start-1] == '\t') {
-			start--
-		}
-
-		for start > 0 && iv.text[start-1] != ' ' && iv.text[start-1] != '\t' {
-			start--
-		}
-
-		iv.text = iv.text[:start] + iv.text[iv.cursor:]
-		iv.cursor = start
-	}
-}
-
-// deleteToBeginning deletes from the cursor to the beginning of the line
-func (iv *InputView) deleteToBeginning() {
-	if iv.cursor > 0 {
-		iv.text = iv.text[iv.cursor:]
-		iv.cursor = 0
-	}
+	return keys.CanInputHandle(key)
 }
 
 func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) string {
@@ -478,4 +349,35 @@ func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) str
 	}
 
 	return wrappedText
+}
+
+// IsAutocompleteVisible returns whether autocomplete is currently visible
+func (iv *InputView) IsAutocompleteVisible() bool {
+	return iv.Autocomplete != nil && iv.Autocomplete.IsVisible()
+}
+
+// handlePaste handles clipboard paste operations
+func (iv *InputView) handlePaste() (tea.Model, tea.Cmd) {
+	clipboardText, err := clipboard.ReadAll()
+	if err != nil {
+		return iv, nil
+	}
+
+	if clipboardText == "" {
+		return iv, nil
+	}
+
+	cleanText := strings.ReplaceAll(clipboardText, "\n", " ")
+	cleanText = strings.ReplaceAll(cleanText, "\r", " ")
+	cleanText = strings.ReplaceAll(cleanText, "\t", " ")
+
+	if cleanText != "" {
+		newText := iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
+		newCursor := iv.cursor + len(cleanText)
+
+		iv.text = newText
+		iv.cursor = newCursor
+	}
+
+	return iv, nil
 }

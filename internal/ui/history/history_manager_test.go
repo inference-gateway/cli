@@ -3,7 +3,6 @@ package history
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -224,41 +223,38 @@ func TestRemoveDuplicates(t *testing.T) {
 }
 
 func TestNewHistoryManager_Integration(t *testing.T) {
+	originalWd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("Failed to get current directory: %v", err)
+	}
+
 	tempDir, err := os.MkdirTemp("", "history_manager_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() {
+		if err := os.Chdir(originalWd); err != nil {
+			t.Errorf("Failed to restore working directory: %v", err)
+		}
 		if err := os.RemoveAll(tempDir); err != nil {
 			t.Errorf("Failed to clean up temp directory: %v", err)
 		}
 	}()
 
-	shell := os.Getenv("SHELL")
-	var historyFile string
-	var content string
-
-	if strings.Contains(shell, "zsh") {
-		historyFile = filepath.Join(tempDir, ".zsh_history")
-		content = ": 1234567890:0;git status\n: 1234567891:0;ls -la\n: 1234567892:0;pwd\n"
-	} else {
-		historyFile = filepath.Join(tempDir, ".bash_history")
-		content = "git status\nls -la\npwd\n"
+	if err := os.Chdir(tempDir); err != nil {
+		t.Fatalf("Failed to change to temp directory: %v", err)
 	}
 
+	inferDir := ".infer"
+	if err := os.MkdirAll(inferDir, 0755); err != nil {
+		t.Fatalf("Failed to create .infer directory: %v", err)
+	}
+
+	historyFile := filepath.Join(inferDir, "history")
+	content := "git status\nls -la\npwd\n"
 	if err := os.WriteFile(historyFile, []byte(content), 0644); err != nil {
 		t.Fatalf("Failed to write test history file: %v", err)
 	}
-
-	originalHome := os.Getenv("HOME")
-	if err := os.Setenv("HOME", tempDir); err != nil {
-		t.Fatalf("Failed to set HOME environment variable: %v", err)
-	}
-	defer func() {
-		if err := os.Setenv("HOME", originalHome); err != nil {
-			t.Errorf("Failed to restore HOME environment variable: %v", err)
-		}
-	}()
 
 	hm, err := NewHistoryManager(5)
 	if err != nil {

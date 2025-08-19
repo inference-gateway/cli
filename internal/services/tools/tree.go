@@ -97,12 +97,12 @@ func (t *TreeTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 		path = pathArg
 	}
 
-	maxDepth := 3 // Default depth for efficiency
+	maxDepth := 3
 	if maxDepthFloat, ok := args["max_depth"].(float64); ok {
 		maxDepth = int(maxDepthFloat)
 	}
 
-	maxFiles := 100 // Default file limit for efficiency
+	maxFiles := 100
 	if maxFilesFloat, ok := args["max_files"].(float64); ok {
 		maxFiles = int(maxFilesFloat)
 	}
@@ -249,7 +249,6 @@ type TreeResult struct {
 
 // executeTree performs the tree operation
 func (t *TreeTool) executeTree(path string, maxDepth, maxFiles int, excludePatterns []string, showHidden, respectGitignore bool, format string) (*TreeResult, error) {
-	// Merge gitignore patterns if requested
 	if respectGitignore {
 		gitignorePatterns := t.readGitignorePatterns(path)
 		excludePatterns = append(excludePatterns, gitignorePatterns...)
@@ -264,12 +263,10 @@ func (t *TreeTool) executeTree(path string, maxDepth, maxFiles int, excludePatte
 		Format:          format,
 	}
 
-	// Validate the path first
 	if err := t.validatePath(path); err != nil {
 		return nil, err
 	}
 
-	// Try to use native tree command first (only for text format)
 	if format == "text" {
 		if nativeOutput, err := t.tryNativeTree(path, maxDepth, excludePatterns, showHidden); err == nil {
 			result.Output = nativeOutput
@@ -278,7 +275,6 @@ func (t *TreeTool) executeTree(path string, maxDepth, maxFiles int, excludePatte
 		}
 	}
 
-	// Fall back to our own implementation
 	output, files, dirs, truncated, err := t.buildTreeFallback(path, maxDepth, maxFiles, excludePatterns, showHidden, format)
 	if err != nil {
 		return nil, err
@@ -295,24 +291,20 @@ func (t *TreeTool) executeTree(path string, maxDepth, maxFiles int, excludePatte
 
 // tryNativeTree attempts to use the system's tree command
 func (t *TreeTool) tryNativeTree(path string, maxDepth int, excludePatterns []string, showHidden bool) (string, error) {
-	// Check if tree command is available
 	if _, err := exec.LookPath("tree"); err != nil {
 		return "", fmt.Errorf("native tree command not found")
 	}
 
 	args := []string{path}
 
-	// Add depth limit
 	if maxDepth > 0 {
 		args = append(args, "-L", fmt.Sprintf("%d", maxDepth))
 	}
 
-	// Add hidden files option
 	if showHidden {
 		args = append(args, "-a")
 	}
 
-	// Add exclude patterns
 	for _, pattern := range excludePatterns {
 		args = append(args, "-I", pattern)
 	}
@@ -392,17 +384,14 @@ func (t *TreeTool) buildTextTree(dirPath string, maxDepth int, excludePatterns [
 		return "", 0, 0, false, fmt.Errorf("failed to read directory %s: %w", dirPath, err)
 	}
 
-	// Filter entries
 	var filteredEntries []os.DirEntry
 	for _, entry := range entries {
 		name := entry.Name()
 
-		// Skip hidden files if not requested
 		if !showHidden && strings.HasPrefix(name, ".") {
 			continue
 		}
 
-		// Check exclude patterns
 		if t.shouldExclude(name, excludePatterns) {
 			continue
 		}
@@ -523,7 +512,6 @@ func (t *TreeTool) validatePath(path string) error {
 func (t *TreeTool) readGitignorePatterns(rootPath string) []string {
 	var patterns []string
 
-	// Common ignore patterns for efficiency
 	defaultPatterns := []string{
 		"node_modules",
 		".git",
@@ -546,7 +534,7 @@ func (t *TreeTool) readGitignorePatterns(rootPath string) []string {
 	gitignorePath := filepath.Join(rootPath, ".gitignore")
 	file, err := os.Open(gitignorePath)
 	if err != nil {
-		return patterns // Return defaults if no .gitignore
+		return patterns
 	}
 	defer func() { _ = file.Close() }()
 
@@ -557,13 +545,10 @@ func (t *TreeTool) readGitignorePatterns(rootPath string) []string {
 			continue
 		}
 
-		// Remove leading slash and convert to simple patterns
 		pattern := strings.TrimPrefix(line, "/")
 		if pattern != "" && pattern != line {
-			// It was a root-relative pattern, keep as is
 			patterns = append(patterns, pattern)
 		} else if pattern != "" {
-			// Regular pattern
 			patterns = append(patterns, pattern)
 		}
 	}

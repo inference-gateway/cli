@@ -31,6 +31,11 @@ func CreateHelpBar() HelpBarComponent {
 	return components.NewHelpBar()
 }
 
+// CreateApprovalView creates a new approval view component
+func CreateApprovalView(theme Theme) ApprovalComponent {
+	return components.NewApprovalComponent(theme)
+}
+
 // Layout calculations - simplified without interfaces
 func CalculateConversationHeight(totalHeight int) int {
 	inputHeight := CalculateInputHeight(totalHeight)

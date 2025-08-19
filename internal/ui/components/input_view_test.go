@@ -214,75 +214,11 @@ func TestInputView_CanHandle(t *testing.T) {
 	}
 }
 
-func TestInputView_HandleKey_CharacterInput(t *testing.T) {
-	mockModelService := &mockModelService{}
-	iv := NewInputView(mockModelService)
+// Character input is now handled by the key binding registry
 
-	charKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'H'}}
+// Backspace is now handled by the key binding registry
 
-	model, _ := iv.HandleKey(charKey)
-
-	if model == nil {
-		t.Error("Expected HandleKey to return non-nil model")
-	}
-
-	if iv.text != "H" {
-		t.Errorf("Expected text 'H', got '%s'", iv.text)
-	}
-
-	if iv.cursor != 1 {
-		t.Errorf("Expected cursor position 1, got %d", iv.cursor)
-	}
-}
-
-func TestInputView_HandleKey_Backspace(t *testing.T) {
-	mockModelService := &mockModelService{}
-	iv := NewInputView(mockModelService)
-
-	iv.SetText("Hello")
-	iv.SetCursor(len("Hello"))
-
-	backspaceKey := tea.KeyMsg{Type: tea.KeyBackspace}
-	model, _ := iv.HandleKey(backspaceKey)
-
-	if model == nil {
-		t.Error("Expected HandleKey to return non-nil model")
-	}
-
-	if iv.text != "Hell" {
-		t.Errorf("Expected text 'Hell' after backspace, got '%s'", iv.text)
-	}
-
-	if iv.cursor != 4 {
-		t.Errorf("Expected cursor position 4 after backspace, got %d", iv.cursor)
-	}
-}
-
-func TestInputView_HandleKey_ArrowKeys(t *testing.T) {
-	mockModelService := &mockModelService{}
-	iv := NewInputView(mockModelService)
-
-	iv.SetText("Hello")
-	iv.SetCursor(len("Hello"))
-
-	leftKey := tea.KeyMsg{Type: tea.KeyLeft}
-	model, _ := iv.HandleKey(leftKey)
-
-	if model == nil {
-		t.Error("Expected HandleKey to return non-nil model")
-	}
-
-	if iv.cursor != 4 {
-		t.Errorf("Expected cursor position 4 after left arrow, got %d", iv.cursor)
-	}
-
-	rightKey := tea.KeyMsg{Type: tea.KeyRight}
-	iv.HandleKey(rightKey)
-
-	if iv.cursor != 5 {
-		t.Errorf("Expected cursor position 5 after right arrow, got %d", iv.cursor)
-	}
-}
+// Arrow keys are now handled by the key binding registry
 
 func TestInputView_History(t *testing.T) {
 	mockModelService := &mockModelService{}

@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 )
 
 // ShellHistoryProvider interface defines methods for shell history operations
@@ -16,63 +15,21 @@ type ShellHistoryProvider interface {
 	GetHistoryFile() string
 }
 
-// ShellHistory implements shell history integration for bash and zsh
+// ShellHistory implements project-specific history
 type ShellHistory struct {
-	shell       string
 	historyFile string
-	homeDir     string
 }
 
 // NewShellHistory creates a new shell history provider
 func NewShellHistory() (*ShellHistory, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get home directory: %w", err)
-	}
-
-	shell := detectShell()
-	historyFile := getHistoryFile(shell, homeDir)
+	historyFile := filepath.Join(".infer", "history")
 
 	return &ShellHistory{
-		shell:       shell,
 		historyFile: historyFile,
-		homeDir:     homeDir,
 	}, nil
 }
 
-// detectShell detects the current shell being used
-func detectShell() string {
-	if shell := os.Getenv("SHELL"); shell != "" {
-		if strings.Contains(shell, "zsh") {
-			return "zsh"
-		}
-		if strings.Contains(shell, "bash") {
-			return "bash"
-		}
-	}
-
-	return "bash"
-}
-
-// getHistoryFile returns the appropriate history file path for the shell
-func getHistoryFile(shell, homeDir string) string {
-	switch shell {
-	case "zsh":
-		if histfile := os.Getenv("HISTFILE"); histfile != "" {
-			return histfile
-		}
-		return filepath.Join(homeDir, ".zsh_history")
-	case "bash":
-		if histfile := os.Getenv("HISTFILE"); histfile != "" {
-			return histfile
-		}
-		return filepath.Join(homeDir, ".bash_history")
-	default:
-		return filepath.Join(homeDir, ".bash_history")
-	}
-}
-
-// LoadHistory loads commands from shell history file
+// LoadHistory loads commands from history file
 func (sh *ShellHistory) LoadHistory() ([]string, error) {
 	file, err := os.Open(sh.historyFile)
 	if err != nil {
@@ -94,16 +51,7 @@ func (sh *ShellHistory) LoadHistory() ([]string, error) {
 			continue
 		}
 
-		if sh.shell == "zsh" && strings.HasPrefix(line, ":") {
-			parts := strings.SplitN(line, ";", 2)
-			if len(parts) == 2 {
-				line = parts[1]
-			}
-		}
-
-		if len(commands) == 0 || commands[len(commands)-1] != line {
-			commands = append(commands, line)
-		}
+		commands = append(commands, line)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -113,7 +61,7 @@ func (sh *ShellHistory) LoadHistory() ([]string, error) {
 	return commands, nil
 }
 
-// SaveToHistory appends a command to the shell history file
+// SaveToHistory appends a command to the history file
 func (sh *ShellHistory) SaveToHistory(command string) error {
 	if strings.TrimSpace(command) == "" {
 		return nil
@@ -131,13 +79,7 @@ func (sh *ShellHistory) SaveToHistory(command string) error {
 		_ = file.Close()
 	}()
 
-	var entry string
-	if sh.shell == "zsh" {
-		timestamp := time.Now().Unix()
-		entry = fmt.Sprintf(": %d:0;%s\n", timestamp, command)
-	} else {
-		entry = command + "\n"
-	}
+	entry := command + "\n"
 
 	if _, err := file.WriteString(entry); err != nil {
 		return fmt.Errorf("failed to write to history file: %w", err)
@@ -149,9 +91,4 @@ func (sh *ShellHistory) SaveToHistory(command string) error {
 // GetHistoryFile returns the current history file path
 func (sh *ShellHistory) GetHistoryFile() string {
 	return sh.historyFile
-}
-
-// GetShell returns the detected shell type
-func (sh *ShellHistory) GetShell() string {
-	return sh.shell
 }
