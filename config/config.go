@@ -35,20 +35,20 @@ type LoggingConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled     bool                  `yaml:"enabled"`
-	Sandbox     SandboxConfig         `yaml:"sandbox"`
-	Bash        BashToolConfig        `yaml:"bash"`
-	Read        ReadToolConfig        `yaml:"read"`
-	Write       WriteToolConfig       `yaml:"write"`
-	Edit        EditToolConfig        `yaml:"edit"`
-	Delete      DeleteToolConfig      `yaml:"delete"`
-	Grep        GrepToolConfig        `yaml:"grep"`
-	Tree        TreeToolConfig        `yaml:"tree"`
-	WebFetch    WebFetchToolConfig    `yaml:"web_fetch"`
-	WebSearch   WebSearchToolConfig   `yaml:"web_search"`
-	GithubFetch GithubFetchToolConfig `yaml:"github_fetch"`
-	TodoWrite   TodoWriteToolConfig   `yaml:"todo_write"`
-	Safety      SafetyConfig          `yaml:"safety"`
+	Enabled   bool                `yaml:"enabled"`
+	Sandbox   SandboxConfig       `yaml:"sandbox"`
+	Bash      BashToolConfig      `yaml:"bash"`
+	Read      ReadToolConfig      `yaml:"read"`
+	Write     WriteToolConfig     `yaml:"write"`
+	Edit      EditToolConfig      `yaml:"edit"`
+	Delete    DeleteToolConfig    `yaml:"delete"`
+	Grep      GrepToolConfig      `yaml:"grep"`
+	Tree      TreeToolConfig      `yaml:"tree"`
+	WebFetch  WebFetchToolConfig  `yaml:"web_fetch"`
+	WebSearch WebSearchToolConfig `yaml:"web_search"`
+	Github    GithubToolConfig    `yaml:"github"`
+	TodoWrite TodoWriteToolConfig `yaml:"todo_write"`
+	Safety    SafetyConfig        `yaml:"safety"`
 }
 
 // BashToolConfig contains bash-specific tool settings
@@ -120,17 +120,17 @@ type TodoWriteToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty"`
 }
 
-// GithubFetchToolConfig contains GitHub fetch-specific tool settings
-type GithubFetchToolConfig struct {
-	Enabled         bool                    `yaml:"enabled"`
-	Token           string                  `yaml:"token"`
-	BaseURL         string                  `yaml:"base_url"`
-	Safety          GithubFetchSafetyConfig `yaml:"safety"`
-	RequireApproval *bool                   `yaml:"require_approval,omitempty"`
+// GithubToolConfig contains GitHub fetch-specific tool settings
+type GithubToolConfig struct {
+	Enabled         bool               `yaml:"enabled"`
+	Token           string             `yaml:"token"`
+	BaseURL         string             `yaml:"base_url"`
+	Safety          GithubSafetyConfig `yaml:"safety"`
+	RequireApproval *bool              `yaml:"require_approval,omitempty"`
 }
 
-// GithubFetchSafetyConfig contains safety settings for GitHub fetch operations
-type GithubFetchSafetyConfig struct {
+// GithubSafetyConfig contains safety settings for GitHub fetch operations
+type GithubSafetyConfig struct {
 	MaxSize int64 `yaml:"max_size"`
 	Timeout int   `yaml:"timeout"`
 }
@@ -252,7 +252,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			WebFetch: WebFetchToolConfig{
 				Enabled:            true,
-				WhitelistedDomains: []string{"github.com", "golang.org"},
+				WhitelistedDomains: []string{"golang.org"},
 				Safety: FetchSafetyConfig{
 					MaxSize:       8192, // 8KB
 					Timeout:       30,   // 30 seconds
@@ -271,11 +271,11 @@ func DefaultConfig() *Config { //nolint:funlen
 				Engines:       []string{"duckduckgo", "google"},
 				Timeout:       10,
 			},
-			GithubFetch: GithubFetchToolConfig{
+			Github: GithubToolConfig{
 				Enabled: true,
 				Token:   "%GITHUB_TOKEN%",
 				BaseURL: "https://api.github.com",
-				Safety: GithubFetchSafetyConfig{
+				Safety: GithubSafetyConfig{
 					MaxSize: 1048576, // 1MB
 					Timeout: 30,      // 30 seconds
 				},
@@ -442,9 +442,9 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 		if c.Tools.WebSearch.RequireApproval != nil {
 			return *c.Tools.WebSearch.RequireApproval
 		}
-	case "GithubFetch":
-		if c.Tools.GithubFetch.RequireApproval != nil {
-			return *c.Tools.GithubFetch.RequireApproval
+	case "Github":
+		if c.Tools.Github.RequireApproval != nil {
+			return *c.Tools.Github.RequireApproval
 		}
 	case "TodoWrite":
 		if c.Tools.TodoWrite.RequireApproval != nil {
@@ -558,20 +558,16 @@ func ResolveEnvironmentVariables(value string) string {
 		return value
 	}
 
-	// Pattern to match %VAR_NAME% format
 	envVarPattern := regexp.MustCompile(`%([A-Z_][A-Z0-9_]*)%`)
 
 	result := envVarPattern.ReplaceAllStringFunc(value, func(match string) string {
-		// Extract variable name (remove % characters)
 		varName := match[1 : len(match)-1]
 
-		// Get environment variable value
 		if envValue := os.Getenv(varName); envValue != "" {
 			logger.Debug("Resolved environment variable", "var", varName, "value", "[redacted]")
 			return envValue
 		}
 
-		// If environment variable is not set, return empty string
 		logger.Debug("Environment variable not set", "var", varName)
 		return ""
 	})

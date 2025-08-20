@@ -195,10 +195,6 @@ tools:
   web_fetch:
     enabled: false
     whitelisted_domains: []
-    github:
-      enabled: false
-      token: ""
-      base_url: "https://api.github.com"
     safety:
       max_size: 8192
       timeout: 30
@@ -222,7 +218,6 @@ tools:
     patterns: []
   safety:
     require_approval: false
-  exclude_paths: []
 
 compact:
   output_dir: ".infer"

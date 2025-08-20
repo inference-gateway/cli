@@ -46,7 +46,7 @@ func (r *Registry) registerTools() {
 		r.tools["WebSearch"] = NewWebSearchTool(r.config)
 	}
 
-	if r.config.Tools.GithubFetch.Enabled {
+	if r.config.Tools.Github.Enabled {
 		r.tools["Github"] = NewGithubTool(r.config)
 	}
 }

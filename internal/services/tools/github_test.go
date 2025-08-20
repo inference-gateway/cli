@@ -16,7 +16,7 @@ func TestGithubTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			GithubFetch: config.GithubFetchToolConfig{
+			Github: config.GithubToolConfig{
 				Enabled: true,
 			},
 		},
@@ -76,7 +76,7 @@ func TestGithubTool_IsEnabled(t *testing.T) {
 			cfg := &config.Config{
 				Tools: config.ToolsConfig{
 					Enabled: tt.toolsEnabled,
-					GithubFetch: config.GithubFetchToolConfig{
+					Github: config.GithubToolConfig{
 						Enabled: tt.githubEnabled,
 					},
 				},
@@ -94,7 +94,7 @@ func TestGithubTool_Validate_ValidCases(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			GithubFetch: config.GithubFetchToolConfig{
+			Github: config.GithubToolConfig{
 				Enabled: true,
 			},
 		},
@@ -125,6 +125,24 @@ func TestGithubTool_Validate_ValidCases(t *testing.T) {
 				"per_page": float64(10),
 			},
 		},
+		{
+			name: "valid issue fetch with string number",
+			args: map[string]any{
+				"owner":        "testowner",
+				"repo":         "testrepo",
+				"resource":     "issue",
+				"issue_number": "123",
+			},
+		},
+		{
+			name: "valid issue fetch with GitHub reference",
+			args: map[string]any{
+				"owner":        "testowner",
+				"repo":         "testrepo",
+				"resource":     "issue",
+				"issue_number": "#123",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -141,7 +159,7 @@ func TestGithubTool_Validate_InvalidCases(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			GithubFetch: config.GithubFetchToolConfig{
+			Github: config.GithubToolConfig{
 				Enabled: true,
 			},
 		},
@@ -185,6 +203,24 @@ func TestGithubTool_Validate_InvalidCases(t *testing.T) {
 				"per_page": float64(101),
 			},
 		},
+		{
+			name: "invalid issue_number string",
+			args: map[string]any{
+				"owner":        "testowner",
+				"repo":         "testrepo",
+				"resource":     "issue",
+				"issue_number": "not-a-number",
+			},
+		},
+		{
+			name: "invalid issue_number type",
+			args: map[string]any{
+				"owner":        "testowner",
+				"repo":         "testrepo",
+				"resource":     "issue",
+				"issue_number": true,
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -201,7 +237,7 @@ func TestGithubTool_Execute_Disabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: false,
-			GithubFetch: config.GithubFetchToolConfig{
+			Github: config.GithubToolConfig{
 				Enabled: true,
 			},
 		},
@@ -231,7 +267,7 @@ func TestGithubTool_Execute_GithubDisabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			GithubFetch: config.GithubFetchToolConfig{
+			Github: config.GithubToolConfig{
 				Enabled: false,
 			},
 		},
@@ -261,10 +297,10 @@ func TestGithubTool_Execute_InvalidArgs(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			GithubFetch: config.GithubFetchToolConfig{
+			Github: config.GithubToolConfig{
 				Enabled: true,
 				BaseURL: "https://api.github.com",
-				Safety: config.GithubFetchSafetyConfig{
+				Safety: config.GithubSafetyConfig{
 					MaxSize: 1048576,
 					Timeout: 30,
 				},
@@ -366,10 +402,10 @@ func TestGithubTool_Execute_Success(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			GithubFetch: config.GithubFetchToolConfig{
+			Github: config.GithubToolConfig{
 				Enabled: true,
 				BaseURL: server.URL,
-				Safety: config.GithubFetchSafetyConfig{
+				Safety: config.GithubSafetyConfig{
 					MaxSize: 1048576,
 					Timeout: 30,
 				},
@@ -432,10 +468,10 @@ func TestGithubTool_Execute_APIError(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			GithubFetch: config.GithubFetchToolConfig{
+			Github: config.GithubToolConfig{
 				Enabled: true,
 				BaseURL: server.URL,
-				Safety: config.GithubFetchSafetyConfig{
+				Safety: config.GithubSafetyConfig{
 					MaxSize: 1048576,
 					Timeout: 30,
 				},
@@ -503,10 +539,10 @@ func TestGithubTool_Execute_IssuesList(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
-			GithubFetch: config.GithubFetchToolConfig{
+			Github: config.GithubToolConfig{
 				Enabled: true,
 				BaseURL: server.URL,
-				Safety: config.GithubFetchSafetyConfig{
+				Safety: config.GithubSafetyConfig{
 					MaxSize: 1048576,
 					Timeout: 30,
 				},

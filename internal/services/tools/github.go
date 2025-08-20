@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/inference-gateway/cli/config"
@@ -23,9 +25,9 @@ type GithubTool struct {
 func NewGithubTool(cfg *config.Config) *GithubTool {
 	return &GithubTool{
 		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.GithubFetch.Enabled,
+		enabled: cfg.Tools.Enabled && cfg.Tools.Github.Enabled,
 		client: &http.Client{
-			Timeout: time.Duration(cfg.Tools.GithubFetch.Safety.Timeout) * time.Second,
+			Timeout: time.Duration(cfg.Tools.Github.Safety.Timeout) * time.Second,
 		},
 	}
 }
@@ -47,8 +49,8 @@ func (t *GithubTool) Definition() domain.ToolDefinition {
 					"description": "Repository name",
 				},
 				"issue_number": map[string]any{
-					"type":        "integer",
-					"description": "Issue or pull request number",
+					"type":        []string{"integer", "string"},
+					"description": "Issue or pull request number (can be provided as integer or string)",
 				},
 				"resource": map[string]any{
 					"type":        "string",
@@ -77,7 +79,7 @@ func (t *GithubTool) Definition() domain.ToolDefinition {
 // Execute runs the GitHub tool with given arguments
 func (t *GithubTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
-	if !t.config.Tools.Enabled || !t.config.Tools.GithubFetch.Enabled {
+	if !t.config.Tools.Enabled || !t.config.Tools.Github.Enabled {
 		return nil, fmt.Errorf("GitHub tool is not enabled")
 	}
 
@@ -113,8 +115,8 @@ func (t *GithubTool) Execute(ctx context.Context, args map[string]any) (*domain.
 
 	switch resource {
 	case "issue":
-		if issueNum, ok := args["issue_number"].(float64); ok {
-			githubResult, err = t.fetchIssue(ctx, owner, repo, int(issueNum))
+		if issueNum, ok := parseIssueNumber(args["issue_number"]); ok {
+			githubResult, err = t.fetchIssue(ctx, owner, repo, issueNum)
 		} else {
 			return &domain.ToolExecutionResult{
 				ToolName:  "Github",
@@ -135,8 +137,8 @@ func (t *GithubTool) Execute(ctx context.Context, args map[string]any) (*domain.
 		}
 		githubResult, err = t.fetchIssues(ctx, owner, repo, state, perPage)
 	case "pull_request":
-		if prNum, ok := args["issue_number"].(float64); ok {
-			githubResult, err = t.fetchPullRequest(ctx, owner, repo, int(prNum))
+		if prNum, ok := parseIssueNumber(args["issue_number"]); ok {
+			githubResult, err = t.fetchPullRequest(ctx, owner, repo, prNum)
 		} else {
 			return &domain.ToolExecutionResult{
 				ToolName:  "Github",
@@ -147,8 +149,8 @@ func (t *GithubTool) Execute(ctx context.Context, args map[string]any) (*domain.
 			}, nil
 		}
 	case "comments":
-		if issueNum, ok := args["issue_number"].(float64); ok {
-			githubResult, err = t.fetchIssueComments(ctx, owner, repo, int(issueNum))
+		if issueNum, ok := parseIssueNumber(args["issue_number"]); ok {
+			githubResult, err = t.fetchIssueComments(ctx, owner, repo, issueNum)
 		} else {
 			return &domain.ToolExecutionResult{
 				ToolName:  "Github",
@@ -187,7 +189,7 @@ func (t *GithubTool) Execute(ctx context.Context, args map[string]any) (*domain.
 
 // Validate checks if the GitHub tool arguments are valid
 func (t *GithubTool) Validate(args map[string]any) error {
-	if !t.config.Tools.Enabled || !t.config.Tools.GithubFetch.Enabled {
+	if !t.config.Tools.Enabled || !t.config.Tools.Github.Enabled {
 		return fmt.Errorf("GitHub tool is not enabled")
 	}
 
@@ -238,7 +240,7 @@ func (t *GithubTool) IsEnabled() bool {
 
 // fetchIssue fetches a specific issue
 func (t *GithubTool) fetchIssue(ctx context.Context, owner, repo string, issueNumber int) (*domain.GitHubIssue, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/issues/%d", t.config.Tools.GithubFetch.BaseURL, owner, repo, issueNumber)
+	url := fmt.Sprintf("%s/repos/%s/%s/issues/%d", t.config.Tools.Github.BaseURL, owner, repo, issueNumber)
 
 	body, err := t.makeAPIRequest(ctx, url)
 	if err != nil {
@@ -256,7 +258,7 @@ func (t *GithubTool) fetchIssue(ctx context.Context, owner, repo string, issueNu
 // fetchIssues fetches a list of issues
 func (t *GithubTool) fetchIssues(ctx context.Context, owner, repo, state string, perPage int) ([]domain.GitHubIssue, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s/issues?state=%s&per_page=%d",
-		t.config.Tools.GithubFetch.BaseURL, owner, repo, state, perPage)
+		t.config.Tools.Github.BaseURL, owner, repo, state, perPage)
 
 	body, err := t.makeAPIRequest(ctx, url)
 	if err != nil {
@@ -273,7 +275,7 @@ func (t *GithubTool) fetchIssues(ctx context.Context, owner, repo, state string,
 
 // fetchPullRequest fetches a specific pull request
 func (t *GithubTool) fetchPullRequest(ctx context.Context, owner, repo string, prNumber int) (*domain.GitHubPullRequest, error) {
-	url := fmt.Sprintf("%s/repos/%s/%s/pulls/%d", t.config.Tools.GithubFetch.BaseURL, owner, repo, prNumber)
+	url := fmt.Sprintf("%s/repos/%s/%s/pulls/%d", t.config.Tools.Github.BaseURL, owner, repo, prNumber)
 
 	body, err := t.makeAPIRequest(ctx, url)
 	if err != nil {
@@ -291,7 +293,7 @@ func (t *GithubTool) fetchPullRequest(ctx context.Context, owner, repo string, p
 // fetchIssueComments fetches comments for an issue or pull request
 func (t *GithubTool) fetchIssueComments(ctx context.Context, owner, repo string, issueNumber int) ([]domain.GitHubComment, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s/issues/%d/comments",
-		t.config.Tools.GithubFetch.BaseURL, owner, repo, issueNumber)
+		t.config.Tools.Github.BaseURL, owner, repo, issueNumber)
 
 	body, err := t.makeAPIRequest(ctx, url)
 	if err != nil {
@@ -316,7 +318,7 @@ func (t *GithubTool) makeAPIRequest(ctx context.Context, url string) ([]byte, er
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", "inference-gateway-cli")
 
-	token := config.ResolveEnvironmentVariables(t.config.Tools.GithubFetch.Token)
+	token := config.ResolveEnvironmentVariables(t.config.Tools.Github.Token)
 	if token != "" {
 		req.Header.Set("Authorization", "token "+token)
 	}
@@ -327,7 +329,7 @@ func (t *GithubTool) makeAPIRequest(ctx context.Context, url string) ([]byte, er
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	body, err := io.ReadAll(io.LimitReader(resp.Body, t.config.Tools.GithubFetch.Safety.MaxSize))
+	body, err := io.ReadAll(io.LimitReader(resp.Body, t.config.Tools.Github.Safety.MaxSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
@@ -358,10 +360,41 @@ func (t *GithubTool) validateResourceType(resource string, args map[string]any) 
 	}
 
 	if resource == "issue" || resource == "pull_request" || resource == "comments" {
-		if _, ok := args["issue_number"]; !ok {
-			return fmt.Errorf("issue_number parameter is required for resource type '%s'", resource)
+		if err := t.validateIssueNumber(args, resource); err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+// validateIssueNumber validates the issue_number parameter for resources that require it
+func (t *GithubTool) validateIssueNumber(args map[string]any, resource string) error {
+	if issueNum, ok := args["issue_number"]; ok {
+		if _, valid := parseIssueNumber(issueNum); !valid {
+			return fmt.Errorf("issue_number must be a valid number for resource type '%s'", resource)
+		}
+	} else {
+		return fmt.Errorf("issue_number parameter is required for resource type '%s'", resource)
+	}
+	return nil
+}
+
+// parseIssueNumber converts various types to int for issue number
+func parseIssueNumber(value any) (int, bool) {
+	switch v := value.(type) {
+	case float64:
+		return int(v), true
+	case int:
+		return v, true
+	case string:
+		str := strings.TrimSpace(v)
+		str = strings.TrimPrefix(str, "#")
+		if num, err := strconv.Atoi(str); err == nil {
+			return num, true
+		}
+		return 0, false
+	default:
+		return 0, false
+	}
 }

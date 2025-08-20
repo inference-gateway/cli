@@ -463,7 +463,7 @@ Search the web using DuckDuckGo or Google search engines to find information.
 
 ### WebFetch Tool
 
-WebFetch content from whitelisted URLs or GitHub references using the format `github:owner/repo#123`.
+WebFetch content from whitelisted URLs or GitHub references using the format `example.com`.
 
 ### Github Tool
 
@@ -770,12 +770,7 @@ tools:
   web_fetch:
     enabled: true
     whitelisted_domains:
-      - github.com
       - golang.org
-    github:
-      enabled: true
-      token: ""
-      base_url: https://api.github.com
     safety:
       max_size: 8192 # 8KB
       timeout: 30 # 30 seconds

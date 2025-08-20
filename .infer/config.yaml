@@ -53,12 +53,7 @@ tools:
   web_fetch:
     enabled: true
     whitelisted_domains:
-      - github.com
       - golang.org
-    github:
-      enabled: true
-      token: ""
-      base_url: https://api.github.com
     safety:
       max_size: 8192
       timeout: 30
@@ -75,6 +70,14 @@ tools:
       - duckduckgo
       - google
     timeout: 10
+  github:
+    enabled: true
+    token: '%GITHUB_TOKEN%'
+    base_url: https://api.github.com
+    safety:
+      max_size: 1048576
+      timeout: 30
+    require_approval: false
   todo_write:
     enabled: true
     require_approval: false
