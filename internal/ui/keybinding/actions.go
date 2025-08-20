@@ -841,7 +841,7 @@ func (m *KeyBindingManager) GetRegistry() KeyRegistry {
 // debugKeyBinding logs key binding events when debug mode is enabled
 func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, handlerName string) tea.Cmd {
 	config := m.app.GetServices().GetConfig()
-	if config != nil && config.Output.Debug {
+	if config != nil && config.Logging.Debug {
 		logger.Debug("Key binding debug",
 			"key", keyMsg.String(),
 			"handler", handlerName,

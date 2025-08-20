@@ -465,7 +465,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 	fakeTool.DefinitionReturns(domain.ToolDefinition{
 		Name:        "MockTool",
 		Description: "A mocked tool for testing",
-		Parameters:  map[string]interface{}{},
+		Parameters:  map[string]any{},
 	})
 	fakeTool.ValidateReturns(nil)
 	fakeTool.ExecuteReturns(&domain.ToolExecutionResult{
@@ -513,7 +513,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	args := map[string]interface{}{"test": "value"}
+	args := map[string]any{"test": "value"}
 
 	result, err := tool.Execute(ctx, args)
 	if err != nil {

@@ -16,6 +16,9 @@ func TestReadTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -37,7 +40,7 @@ func TestReadTool_Definition(t *testing.T) {
 		t.Error("Tool parameters should not be nil")
 	}
 
-	params := def.Parameters.(map[string]interface{})
+	params := def.Parameters.(map[string]any)
 	if params["type"] != "object" {
 		t.Error("Expected type to be object")
 	}
@@ -46,7 +49,7 @@ func TestReadTool_Definition(t *testing.T) {
 		t.Error("Expected additionalProperties to be false")
 	}
 
-	properties, ok := params["properties"].(map[string]interface{})
+	properties, ok := params["properties"].(map[string]any)
 	if !ok {
 		t.Fatal("Expected properties to be a map")
 	}
@@ -61,14 +64,14 @@ func TestReadTool_Definition(t *testing.T) {
 	}
 
 	if limitParam, exists := properties["limit"]; exists {
-		limitMap := limitParam.(map[string]interface{})
+		limitMap := limitParam.(map[string]any)
 		if limitMap["minimum"] != 1 {
 			t.Error("limit minimum should be 1")
 		}
 	}
 
 	if offsetParam, exists := properties["offset"]; exists {
-		offsetMap := offsetParam.(map[string]interface{})
+		offsetMap := offsetParam.(map[string]any)
 		if offsetMap["minimum"] != 1 {
 			t.Error("offset minimum should be 1")
 		}
@@ -128,15 +131,22 @@ func TestReadTool_IsEnabled(t *testing.T) {
 }
 
 func TestReadTool_Validate(t *testing.T) {
+	wd, _ := os.Getwd()
+	parentDir := filepath.Dir(wd)
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{wd, parentDir, "/tmp", "/home/user"},
+				ProtectedPaths: []string{
+					".infer/",
+					".git/",
+					"*.env",
+					"*.env.database",
+				},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
-			},
-			ExcludePaths: []string{
-				"/.infer/",
-				"*.secret",
 			},
 		},
 	}
@@ -159,20 +169,20 @@ func TestReadTool_Validate(t *testing.T) {
 func testBasicValidation(t *testing.T, tool *ReadTool) {
 	tests := []struct {
 		name      string
-		args      map[string]interface{}
+		args      map[string]any
 		wantError bool
 		errorMsg  string
 	}{
 		{
 			name: "valid absolute file path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 			},
 			wantError: false,
 		},
 		{
 			name: "valid absolute file path with offset and limit",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/home/user/test.txt",
 				"offset":    float64(5),
 				"limit":     float64(100),
@@ -181,13 +191,13 @@ func testBasicValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name:      "missing file_path",
-			args:      map[string]interface{}{},
+			args:      map[string]any{},
 			wantError: true,
 			errorMsg:  "file_path parameter is required and must be a string",
 		},
 		{
 			name: "empty file_path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "",
 			},
 			wantError: true,
@@ -195,7 +205,7 @@ func testBasicValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "file_path wrong type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": 123,
 			},
 			wantError: true,
@@ -203,14 +213,14 @@ func testBasicValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "relative path accepted",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "relative/path.txt",
 			},
 			wantError: false,
 		},
 		{
 			name: "relative path with dots accepted",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "../test.txt",
 			},
 			wantError: false,
@@ -232,22 +242,23 @@ func testBasicValidation(t *testing.T, tool *ReadTool) {
 }
 
 func testPathSecurity(t *testing.T, tool *ReadTool) {
+	wd, _ := os.Getwd()
 	tests := []struct {
 		name      string
-		args      map[string]interface{}
+		args      map[string]any
 		wantError bool
 	}{
 		{
 			name: "excluded path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/.infer/config.yaml",
 			},
 			wantError: true,
 		},
 		{
 			name: "excluded pattern",
-			args: map[string]interface{}{
-				"file_path": "/home/user/database.secret",
+			args: map[string]any{
+				"file_path": filepath.Join(wd, ".env"),
 			},
 			wantError: true,
 		},
@@ -266,13 +277,13 @@ func testPathSecurity(t *testing.T, tool *ReadTool) {
 func testParameterValidation(t *testing.T, tool *ReadTool) {
 	tests := []struct {
 		name      string
-		args      map[string]interface{}
+		args      map[string]any
 		wantError bool
 		errorMsg  string
 	}{
 		{
 			name: "invalid offset - zero",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"offset":    float64(0),
 			},
@@ -281,7 +292,7 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "invalid offset - negative",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"offset":    float64(-1),
 			},
@@ -290,7 +301,7 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "invalid limit - zero",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"limit":     float64(0),
 			},
@@ -299,7 +310,7 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "invalid limit - negative",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"limit":     float64(-5),
 			},
@@ -308,7 +319,7 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "invalid offset type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"offset":    "not_a_number",
 			},
@@ -317,7 +328,7 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "invalid limit type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"limit":     "not_a_number",
 			},
@@ -341,9 +352,14 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 }
 
 func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
+	tmpDir := t.TempDir()
+
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -353,8 +369,6 @@ func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
 
-	tmpDir := t.TempDir()
-
 	t.Run("read entire file with cat -n formatting", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "test.txt")
 		testContent := "Line 1\nLine 2\nLine 3\nLine 4\nLine 5\n"
@@ -363,7 +377,7 @@ func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 		}
 
@@ -429,9 +443,13 @@ func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
 }
 
 func TestReadTool_Execute_Paging(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -440,7 +458,6 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	t.Run("read with offset and limit", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "large_test.txt")
@@ -454,7 +471,7 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 			"offset":    float64(5),
 			"limit":     float64(3),
@@ -504,7 +521,7 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 			"offset":    float64(10),
 			"limit":     float64(5),
@@ -527,9 +544,13 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 }
 
 func TestReadTool_Execute_LineTruncation(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -538,7 +559,6 @@ func TestReadTool_Execute_LineTruncation(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	t.Run("truncate long lines", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "long_lines.txt")
@@ -551,7 +571,7 @@ func TestReadTool_Execute_LineTruncation(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 		}
 
@@ -584,9 +604,13 @@ func TestReadTool_Execute_LineTruncation(t *testing.T) {
 }
 
 func TestReadTool_Execute_EmptyFile(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -595,7 +619,6 @@ func TestReadTool_Execute_EmptyFile(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	t.Run("empty file returns reminder", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "empty.txt")
@@ -604,7 +627,7 @@ func TestReadTool_Execute_EmptyFile(t *testing.T) {
 			t.Fatalf("Failed to create empty test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 		}
 
@@ -629,9 +652,13 @@ func TestReadTool_Execute_EmptyFile(t *testing.T) {
 }
 
 func TestReadTool_Execute_ErrorCases(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -640,30 +667,29 @@ func TestReadTool_Execute_ErrorCases(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	tests := []struct {
 		name          string
-		args          map[string]interface{}
+		args          map[string]any
 		expectedError string
 	}{
 		{
 			name: "relative path",
-			args: map[string]interface{}{
-				"file_path": "relative/path.txt",
+			args: map[string]any{
+				"file_path": filepath.Join(tmpDir, "relative/path.txt"),
 			},
 			expectedError: ErrorNotFound,
 		},
 		{
 			name: "nonexistent file",
-			args: map[string]interface{}{
-				"file_path": "/nonexistent/file.txt",
+			args: map[string]any{
+				"file_path": filepath.Join(tmpDir, "nonexistent.txt"),
 			},
 			expectedError: ErrorNotFound,
 		},
 		{
 			name: "directory instead of file",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": tmpDir,
 			},
 			expectedError: "is a directory, not a file",
@@ -689,9 +715,13 @@ func TestReadTool_Execute_ErrorCases(t *testing.T) {
 }
 
 func TestReadTool_Execute_BinaryFileDetection(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -700,7 +730,6 @@ func TestReadTool_Execute_BinaryFileDetection(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	t.Run("binary file detection", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "binary.bin")
@@ -711,7 +740,7 @@ func TestReadTool_Execute_BinaryFileDetection(t *testing.T) {
 			t.Fatalf("Failed to create binary test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 		}
 
@@ -740,7 +769,7 @@ func TestReadTool_Execute_Disabled(t *testing.T) {
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": "/tmp/test.txt",
 	}
 
@@ -755,9 +784,13 @@ func TestReadTool_Execute_Disabled(t *testing.T) {
 }
 
 func TestReadTool_Execute_Defaults(t *testing.T) {
+	tmpDir := t.TempDir()
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
 			Read: config.ReadToolConfig{
 				Enabled: true,
 			},
@@ -766,7 +799,6 @@ func TestReadTool_Execute_Defaults(t *testing.T) {
 
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
-	tmpDir := t.TempDir()
 
 	t.Run("defaults applied when not specified", func(t *testing.T) {
 		testFile := filepath.Join(tmpDir, "defaults_test.txt")
@@ -781,7 +813,7 @@ func TestReadTool_Execute_Defaults(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 		}
 

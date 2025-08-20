@@ -31,24 +31,24 @@ func (t *DeleteTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Delete",
 		Description: "Delete files or directories from the filesystem. Supports wildcard patterns for batch operations. Restricted to current working directory for security.",
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"path": map[string]interface{}{
+			"properties": map[string]any{
+				"path": map[string]any{
 					"type":        "string",
 					"description": "The path to the file or directory to delete. Supports wildcard patterns like '*.txt' or 'temp/*' when wildcards are enabled.",
 				},
-				"recursive": map[string]interface{}{
+				"recursive": map[string]any{
 					"type":        "boolean",
 					"description": "Whether to delete directories recursively",
 					"default":     false,
 				},
-				"force": map[string]interface{}{
+				"force": map[string]any{
 					"type":        "boolean",
 					"description": "Whether to force deletion (ignore non-existent files)",
 					"default":     false,
 				},
-				"format": map[string]interface{}{
+				"format": map[string]any{
 					"type":        "string",
 					"description": "Output format (text or json)",
 					"enum":        []string{"text", "json"},
@@ -61,7 +61,7 @@ func (t *DeleteTool) Definition() domain.ToolDefinition {
 }
 
 // Execute runs the delete tool with given arguments
-func (t *DeleteTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("delete tool is not enabled")
@@ -122,7 +122,7 @@ func (t *DeleteTool) Execute(ctx context.Context, args map[string]interface{}) (
 }
 
 // Validate checks if the delete tool arguments are valid
-func (t *DeleteTool) Validate(args map[string]interface{}) error {
+func (t *DeleteTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled {
 		return fmt.Errorf("delete tool is not enabled")
 	}
@@ -189,9 +189,6 @@ func (t *DeleteTool) executeDelete(path string, recursive, force bool) (*DeleteR
 	}
 
 	if t.containsWildcards(path) {
-		if !t.config.Tools.Delete.AllowWildcards {
-			return nil, fmt.Errorf("wildcard patterns are not enabled in the configuration")
-		}
 		result.WildcardExpanded = true
 		return t.executeWildcardDelete(path, recursive, force, result)
 	}
@@ -299,43 +296,7 @@ func (t *DeleteTool) deleteFile(path string, result *DeleteResult) error {
 	return nil
 }
 
-// validatePathSecurity checks if a path is allowed for deletion
+// validatePathSecurity checks if a path is allowed for deletion within the sandbox
 func (t *DeleteTool) validatePathSecurity(path string) error {
-	if t.config.Tools.Delete.RestrictToWorkDir {
-		wd, err := os.Getwd()
-		if err != nil {
-			return fmt.Errorf("failed to get current working directory: %w", err)
-		}
-
-		absPath, err := filepath.Abs(path)
-		if err != nil {
-			return fmt.Errorf("failed to resolve absolute path for %s: %w", path, err)
-		}
-
-		if !strings.HasPrefix(absPath, wd) {
-			return fmt.Errorf("path '%s' is outside the current working directory", path)
-		}
-	}
-
-	for _, excludePath := range t.config.Tools.ExcludePaths {
-		if strings.HasPrefix(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
-		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-	}
-
-	for _, protectedPath := range t.config.Tools.Delete.ProtectedPaths {
-		if strings.HasPrefix(path, protectedPath) {
-			return fmt.Errorf("path '%s' is protected from deletion", path)
-		}
-
-		if strings.Contains(protectedPath, "*") && matchesPattern(path, protectedPath) {
-			return fmt.Errorf("path '%s' is protected from deletion", path)
-		}
-	}
-
-	return nil
+	return t.config.ValidatePathInSandbox(path)
 }

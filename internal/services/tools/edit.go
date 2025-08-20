@@ -53,22 +53,22 @@ Usage:
 - Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
 - The edit will FAIL if old_string is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use replace_all to change every instance of old_string.
 - Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.`,
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"file_path": map[string]interface{}{
+			"properties": map[string]any{
+				"file_path": map[string]any{
 					"type":        "string",
 					"description": "The absolute path to the file to modify",
 				},
-				"old_string": map[string]interface{}{
+				"old_string": map[string]any{
 					"type":        "string",
 					"description": "The text to replace",
 				},
-				"new_string": map[string]interface{}{
+				"new_string": map[string]any{
 					"type":        "string",
 					"description": "The text to replace it with (must be different from old_string)",
 				},
-				"replace_all": map[string]interface{}{
+				"replace_all": map[string]any{
 					"type":        "boolean",
 					"description": "Replace all occurrences of old_string (default false)",
 					"default":     false,
@@ -80,7 +80,7 @@ Usage:
 }
 
 // Execute runs the edit tool with given arguments
-func (t *EditTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *EditTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("edit tool is not enabled")
@@ -169,7 +169,7 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 }
 
 // Validate checks if the edit tool arguments are valid
-func (t *EditTool) Validate(args map[string]interface{}) error {
+func (t *EditTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled {
 		return fmt.Errorf("edit tool is not enabled")
 	}
@@ -367,18 +367,9 @@ func appendBothLinesDiff(diff *strings.Builder, lineNum int, oldLine, newLine st
 	}
 }
 
-// validatePathSecurity checks if a path is allowed for editing (reuses the same logic as other tools)
+// validatePathSecurity checks if a path is allowed for editing within the sandbox
 func (t *EditTool) validatePathSecurity(path string) error {
-	for _, excludePath := range t.config.Tools.ExcludePaths {
-		if strings.HasPrefix(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
-		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-	}
-	return nil
+	return t.config.ValidatePathInSandbox(path)
 }
 
 // validateFile checks if a file path is valid and exists (only works with existing files)

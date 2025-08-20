@@ -63,20 +63,20 @@ Usage:
 - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
 - You will regularly be asked to read screenshots. If the user provides a path to a screenshot ALWAYS use this tool to view the file at the path.
 - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.`,
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type":                 "object",
 			"additionalProperties": false,
-			"properties": map[string]interface{}{
-				"file_path": map[string]interface{}{
+			"properties": map[string]any{
+				"file_path": map[string]any{
 					"type":        "string",
 					"description": "The path to the file to read (can be absolute or relative)",
 				},
-				"limit": map[string]interface{}{
+				"limit": map[string]any{
 					"type":        "integer",
 					"description": "The number of lines to read. Only provide if the file is too large to read at once.",
 					"minimum":     1,
 				},
-				"offset": map[string]interface{}{
+				"offset": map[string]any{
 					"type":        "integer",
 					"description": "The line number to start reading from. Only provide if the file is too large to read at once",
 					"minimum":     1,
@@ -88,7 +88,7 @@ Usage:
 }
 
 // Execute runs the read tool with given arguments
-func (t *ReadTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("read tool is not enabled")
@@ -150,7 +150,7 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 }
 
 // Validate checks if the read tool arguments are valid
-func (t *ReadTool) Validate(args map[string]interface{}) error {
+func (t *ReadTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled {
 		return fmt.Errorf("read tool is not enabled")
 	}
@@ -361,7 +361,7 @@ func (t *ReadTool) isTextFile(file *os.File) bool {
 }
 
 // validateParameters validates offset and limit parameters
-func (t *ReadTool) validateParameters(args map[string]interface{}) error {
+func (t *ReadTool) validateParameters(args map[string]any) error {
 	if err := t.validateParameter(args, "offset"); err != nil {
 		return err
 	}
@@ -372,7 +372,7 @@ func (t *ReadTool) validateParameters(args map[string]interface{}) error {
 }
 
 // validateParameter validates a single numeric parameter
-func (t *ReadTool) validateParameter(args map[string]interface{}, paramName string) error {
+func (t *ReadTool) validateParameter(args map[string]any, paramName string) error {
 	value, exists := args[paramName]
 	if !exists {
 		return nil
@@ -390,29 +390,7 @@ func (t *ReadTool) validateParameter(args map[string]interface{}, paramName stri
 	return nil
 }
 
-// validatePathSecurity checks if a path is allowed (no file existence check)
+// validatePathSecurity checks if a path is allowed within the sandbox
 func (t *ReadTool) validatePathSecurity(path string) error {
-	for _, excludePath := range t.config.Tools.ExcludePaths {
-		if strings.HasPrefix(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
-		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-	}
-	return nil
-}
-
-// matchesPattern checks if a path matches a simple glob pattern
-func matchesPattern(path, pattern string) bool {
-	if strings.HasSuffix(pattern, "*") {
-		prefix := strings.TrimSuffix(pattern, "*")
-		return strings.HasPrefix(path, prefix)
-	}
-	if strings.HasPrefix(pattern, "*") {
-		suffix := strings.TrimPrefix(pattern, "*")
-		return strings.HasSuffix(path, suffix)
-	}
-	return path == pattern
+	return t.config.ValidatePathInSandbox(path)
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/inference-gateway/cli/config"
@@ -23,12 +24,12 @@ func TestWriteTool_Definition(t *testing.T) {
 		t.Error("Tool description should not be empty")
 	}
 
-	params, ok := def.Parameters.(map[string]interface{})
+	params, ok := def.Parameters.(map[string]any)
 	if !ok {
 		t.Fatal("Parameters should be a map")
 	}
 
-	props, ok := params["properties"].(map[string]interface{})
+	props, ok := params["properties"].(map[string]any)
 	if !ok {
 		t.Fatal("Properties should be a map")
 	}
@@ -78,13 +79,13 @@ func TestWriteTool_Validate(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		args    map[string]interface{}
+		args    map[string]any
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "valid basic arguments",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "test.txt",
 				"content":   "hello world",
 			},
@@ -92,7 +93,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "valid with all optional arguments",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":   "test.txt",
 				"content":     "hello world",
 				"create_dirs": true,
@@ -103,19 +104,19 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name:    "missing file_path",
-			args:    map[string]interface{}{"content": "hello"},
+			args:    map[string]any{"content": "hello"},
 			wantErr: true,
 			errMsg:  "file_path parameter is required and must be a string",
 		},
 		{
 			name:    "missing content",
-			args:    map[string]interface{}{"file_path": "test.txt"},
+			args:    map[string]any{"file_path": "test.txt"},
 			wantErr: true,
 			errMsg:  "content parameter is required and must be a string",
 		},
 		{
 			name: "empty file_path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "",
 				"content":   "hello",
 			},
@@ -124,7 +125,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid file_path type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": 123,
 				"content":   "hello",
 			},
@@ -133,7 +134,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid content type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "test.txt",
 				"content":   123,
 			},
@@ -142,7 +143,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid create_dirs type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":   "test.txt",
 				"content":     "hello",
 				"create_dirs": "true",
@@ -152,7 +153,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid overwrite type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "test.txt",
 				"content":   "hello",
 				"overwrite": "false",
@@ -162,7 +163,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid format value",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "test.txt",
 				"content":   "hello",
 				"format":    "xml",
@@ -172,7 +173,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid format type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "test.txt",
 				"content":   "hello",
 				"format":    123,
@@ -182,7 +183,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "excluded path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": ".infer/test.txt",
 				"content":   "hello",
 			},
@@ -211,8 +212,8 @@ func validatePathSecurity(t *testing.T, err error, allowed bool, errorMsg string
 		t.Error("Path should be blocked")
 		return
 	}
-	if errorMsg != "" && err.Error() != errorMsg {
-		t.Errorf("Expected error '%s', got '%s'", errorMsg, err.Error())
+	if errorMsg != "" && !strings.Contains(err.Error(), errorMsg) {
+		t.Errorf("Expected error to contain '%s', got '%s'", errorMsg, err.Error())
 	}
 }
 
@@ -238,7 +239,7 @@ func TestWriteTool_ValidateDisabled(t *testing.T) {
 	cfg.Tools.Enabled = false
 	tool := NewWriteTool(cfg)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": "test.txt",
 		"content":   "hello",
 	}
@@ -287,7 +288,7 @@ func testWriteNewFile(t *testing.T, tempDir string, tool *WriteTool, ctx context
 	filePath := filepath.Join(tempDir, "test1.txt")
 	content := "Hello, World!"
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": filePath,
 		"content":   content,
 	}
@@ -340,7 +341,7 @@ func testWriteWithDirCreation(t *testing.T, tempDir string, tool *WriteTool, ctx
 	filePath := filepath.Join(tempDir, "subdir", "test2.txt")
 	content := "Hello, Directory!"
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path":   filePath,
 		"content":     content,
 		"create_dirs": true,
@@ -383,7 +384,7 @@ func testWriteOverwriteExisting(t *testing.T, tempDir string, tool *WriteTool, c
 		t.Fatalf("Failed to create initial file: %v", err)
 	}
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": filePath,
 		"content":   newContent,
 		"overwrite": true,
@@ -430,7 +431,7 @@ func testWriteFailNoOverwrite(t *testing.T, tempDir string, tool *WriteTool, ctx
 		t.Fatalf("Failed to create initial file: %v", err)
 	}
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": filePath,
 		"content":   newContent,
 		"overwrite": false,
@@ -456,7 +457,7 @@ func testWriteFailNoOverwrite(t *testing.T, tempDir string, tool *WriteTool, ctx
 }
 
 func testWriteFailInvalidArgs(t *testing.T, tool *WriteTool, ctx context.Context) {
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": 123,
 		"content":   "hello",
 	}
@@ -480,7 +481,7 @@ func testWriteFailDisabled(t *testing.T, ctx context.Context) {
 	cfg.Tools.Enabled = false
 	disabledTool := NewWriteTool(cfg)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": "test.txt",
 		"content":   "hello",
 	}
@@ -492,8 +493,18 @@ func testWriteFailDisabled(t *testing.T, ctx context.Context) {
 }
 
 func TestWriteTool_PathSecurity(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "write-tool-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
 	cfg := config.DefaultConfig()
-	cfg.Tools.ExcludePaths = []string{".infer/", "*.secret", "/etc/*"}
+	cfg.Tools.Sandbox.Directories = []string{tempDir}
 	tool := NewWriteTool(cfg)
 
 	tests := []struct {
@@ -503,38 +514,32 @@ func TestWriteTool_PathSecurity(t *testing.T) {
 		errorMsg string
 	}{
 		{
-			name:    "allowed path",
-			path:    "test.txt",
+			name:    "allowed path within sandbox",
+			path:    filepath.Join(tempDir, "test.txt"),
 			allowed: true,
 		},
 		{
-			name:    "allowed subdirectory",
-			path:    "subdir/test.txt",
+			name:    "allowed subdirectory within sandbox",
+			path:    filepath.Join(tempDir, "subdir/test.txt"),
 			allowed: true,
 		},
 		{
-			name:     "excluded .infer directory",
-			path:     ".infer/config.yaml",
-			allowed:  false,
-			errorMsg: "access to path '.infer/config.yaml' is excluded for security",
-		},
-		{
-			name:     "excluded pattern *.secret",
-			path:     "database.secret",
-			allowed:  false,
-			errorMsg: "access to path 'database.secret' is excluded for security",
-		},
-		{
-			name:     "excluded pattern /etc/*",
+			name:     "path outside sandbox",
 			path:     "/etc/passwd",
 			allowed:  false,
-			errorMsg: "access to path '/etc/passwd' is excluded for security",
+			errorMsg: "is outside configured sandbox directories",
+		},
+		{
+			name:     "relative path outside sandbox",
+			path:     "../outside.txt",
+			allowed:  false,
+			errorMsg: "is outside configured sandbox directories",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			args := map[string]interface{}{
+			args := map[string]any{
 				"file_path": tt.path,
 				"content":   "test content",
 			}

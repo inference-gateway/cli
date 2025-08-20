@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/spf13/cobra"
 )
@@ -26,6 +27,8 @@ deployment, monitoring, and management of inference services.`,
 }
 
 func Execute() {
+	defer logger.Close()
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
@@ -41,5 +44,9 @@ func init() {
 
 func initConfig() {
 	verbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
-	logger.Init(verbose)
+
+	cfg, err := config.LoadConfig("")
+	debugMode := err == nil && cfg.Logging.Debug
+
+	logger.Init(verbose || debugMode)
 }

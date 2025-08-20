@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -110,7 +111,7 @@ func (s *StreamingChatService) convertToSDKTools() *[]sdk.ChatCompletionTool {
 
 		var parameters *sdk.FunctionParameters
 		if tool.Parameters != nil {
-			if paramMap, ok := tool.Parameters.(map[string]interface{}); ok {
+			if paramMap, ok := tool.Parameters.(map[string]any); ok {
 				fp := sdk.FunctionParameters(paramMap)
 				parameters = &fp
 			}
@@ -392,9 +393,22 @@ func (s *StreamingChatService) processContentDelta(event sdk.SSEvent, toolCallsM
 
 	for _, choice := range streamResponse.Choices {
 		content += choice.Delta.Content
-		reasoningContent += s.extractReasoningContent((*json.RawMessage)(event.Data), choice)
+		extractedReasoning := s.extractReasoningContent((*json.RawMessage)(event.Data), choice)
+		reasoningContent += extractedReasoning
 		hasToolCalls = s.processToolCalls(choice.Delta.ToolCalls, toolCallsMap, events, requestID) || hasToolCalls
+
+		logger.Debug("SDK DELTA received",
+			"content", choice.Delta.Content,
+			"content_length", len(choice.Delta.Content),
+			"reasoning", extractedReasoning,
+			"reasoning_length", len(extractedReasoning))
 	}
+
+	logger.Debug("FINAL RESULT from processContentDelta",
+		"content", content,
+		"content_length", len(content),
+		"reasoning_content", reasoningContent,
+		"reasoning_length", len(reasoningContent))
 
 	return content, reasoningContent, streamResponse.Usage, hasToolCalls
 }
@@ -411,22 +425,22 @@ func (s *StreamingChatService) extractReasoningContent(eventData *json.RawMessag
 
 // extractReasoningFromRawData extracts reasoning content from raw event data
 func (s *StreamingChatService) extractReasoningFromRawData(eventData *json.RawMessage) string {
-	var rawData map[string]interface{}
+	var rawData map[string]any
 	if json.Unmarshal(*eventData, &rawData) != nil {
 		return ""
 	}
 
-	choices, ok := rawData["choices"].([]interface{})
+	choices, ok := rawData["choices"].([]any)
 	if !ok || len(choices) == 0 {
 		return ""
 	}
 
-	choice, ok := choices[0].(map[string]interface{})
+	choice, ok := choices[0].(map[string]any)
 	if !ok {
 		return ""
 	}
 
-	delta, ok := choice["delta"].(map[string]interface{})
+	delta, ok := choice["delta"].(map[string]any)
 	if !ok {
 		return ""
 	}
@@ -529,7 +543,7 @@ func (s *StreamingChatService) isToolCallComplete(args, funcName string) bool {
 		return false
 	}
 
-	var temp interface{}
+	var temp any
 	return json.Unmarshal([]byte(args), &temp) == nil
 }
 

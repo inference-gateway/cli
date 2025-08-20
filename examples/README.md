@@ -31,9 +31,7 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 30
-output:
-  format: text
-  quiet: false
+logging:
   debug: false
 tools:
   enabled: true
@@ -126,7 +124,7 @@ infer chat
 
 ```bash
 # Initialize project configuration
-infer config init
+infer init
 
 # Set default model for chat sessions
 infer config set-model anthropic/claude-3.5-sonnet
@@ -168,9 +166,9 @@ infer config tools safety set websearch disabled
 infer config tools safety unset bash
 
 # Manage excluded paths
-infer config tools exclude-path list
-infer config tools exclude-path add ".github/"
-infer config tools exclude-path remove "test.txt"
+infer config tools sandbox list
+infer config tools sandbox add ".github/"
+infer config tools sandbox remove "test.txt"
 ```
 
 ### Version Information

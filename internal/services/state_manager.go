@@ -228,7 +228,7 @@ func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessage
 
 	tools := make([]domain.ToolCall, len(toolCalls))
 	for i, tc := range toolCalls {
-		args := make(map[string]interface{})
+		args := make(map[string]any)
 		if tc.Function.Arguments != "" {
 			_ = json.Unmarshal([]byte(tc.Function.Arguments), &args)
 		}

@@ -40,7 +40,7 @@ func (s *LLMToolService) ListTools() []domain.ToolDefinition {
 }
 
 // ExecuteTool executes a tool with the given arguments
-func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[string]any) (*domain.ToolExecutionResult, error) {
 	if !s.enabled {
 		return nil, fmt.Errorf("tools are not enabled")
 	}
@@ -68,7 +68,7 @@ func (s *LLMToolService) IsToolEnabled(name string) bool {
 }
 
 // ValidateTool validates tool arguments
-func (s *LLMToolService) ValidateTool(name string, args map[string]interface{}) error {
+func (s *LLMToolService) ValidateTool(name string, args map[string]any) error {
 	if !s.enabled {
 		return fmt.Errorf("tools are not enabled")
 	}
@@ -93,7 +93,7 @@ func (s *NoOpToolService) ListTools() []domain.ToolDefinition {
 	return []domain.ToolDefinition{}
 }
 
-func (s *NoOpToolService) ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (s *NoOpToolService) ExecuteTool(ctx context.Context, name string, args map[string]any) (*domain.ToolExecutionResult, error) {
 	return nil, fmt.Errorf("tools are not enabled")
 }
 
@@ -101,6 +101,6 @@ func (s *NoOpToolService) IsToolEnabled(name string) bool {
 	return false
 }
 
-func (s *NoOpToolService) ValidateTool(name string, args map[string]interface{}) error {
+func (s *NoOpToolService) ValidateTool(name string, args map[string]any) error {
 	return fmt.Errorf("tools are not enabled")
 }

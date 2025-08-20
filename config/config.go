@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/inference-gateway/cli/internal/logger"
 	"gopkg.in/yaml.v3"
@@ -13,7 +14,7 @@ import (
 // Config represents the CLI configuration
 type Config struct {
 	Gateway GatewayConfig `yaml:"gateway"`
-	Output  OutputConfig  `yaml:"output"`
+	Logging LoggingConfig `yaml:"logging"`
 	Tools   ToolsConfig   `yaml:"tools"`
 	Compact CompactConfig `yaml:"compact"`
 	Chat    ChatConfig    `yaml:"chat"`
@@ -26,28 +27,26 @@ type GatewayConfig struct {
 	Timeout int    `yaml:"timeout"`
 }
 
-// OutputConfig contains output formatting settings
-type OutputConfig struct {
-	Format string `yaml:"format"`
-	Quiet  bool   `yaml:"quiet"`
-	Debug  bool   `yaml:"debug"`
+// LoggingConfig contains logging settings
+type LoggingConfig struct {
+	Debug bool `yaml:"debug"`
 }
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled      bool                `yaml:"enabled"`
-	Bash         BashToolConfig      `yaml:"bash"`
-	Read         ReadToolConfig      `yaml:"read"`
-	Write        WriteToolConfig     `yaml:"write"`
-	Edit         EditToolConfig      `yaml:"edit"`
-	Delete       DeleteToolConfig    `yaml:"delete"`
-	Grep         GrepToolConfig      `yaml:"grep"`
-	Tree         TreeToolConfig      `yaml:"tree"`
-	WebFetch     WebFetchToolConfig  `yaml:"web_fetch"`
-	WebSearch    WebSearchToolConfig `yaml:"web_search"`
-	TodoWrite    TodoWriteToolConfig `yaml:"todo_write"`
-	Safety       SafetyConfig        `yaml:"safety"`
-	ExcludePaths []string            `yaml:"exclude_paths"`
+	Enabled   bool                `yaml:"enabled"`
+	Sandbox   SandboxConfig       `yaml:"sandbox"`
+	Bash      BashToolConfig      `yaml:"bash"`
+	Read      ReadToolConfig      `yaml:"read"`
+	Write     WriteToolConfig     `yaml:"write"`
+	Edit      EditToolConfig      `yaml:"edit"`
+	Delete    DeleteToolConfig    `yaml:"delete"`
+	Grep      GrepToolConfig      `yaml:"grep"`
+	Tree      TreeToolConfig      `yaml:"tree"`
+	WebFetch  WebFetchToolConfig  `yaml:"web_fetch"`
+	WebSearch WebSearchToolConfig `yaml:"web_search"`
+	TodoWrite TodoWriteToolConfig `yaml:"todo_write"`
+	Safety    SafetyConfig        `yaml:"safety"`
 }
 
 // BashToolConfig contains bash-specific tool settings
@@ -77,11 +76,8 @@ type EditToolConfig struct {
 
 // DeleteToolConfig contains delete-specific tool settings
 type DeleteToolConfig struct {
-	Enabled           bool     `yaml:"enabled"`
-	RequireApproval   *bool    `yaml:"require_approval,omitempty"`
-	ProtectedPaths    []string `yaml:"protected_paths"`
-	AllowWildcards    bool     `yaml:"allow_wildcards"`
-	RestrictToWorkDir bool     `yaml:"restrict_to_workdir"`
+	Enabled         bool  `yaml:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty"`
 }
 
 // GrepToolConfig contains grep-specific tool settings
@@ -129,6 +125,12 @@ type ToolWhitelistConfig struct {
 	Patterns []string `yaml:"patterns"`
 }
 
+// SandboxConfig contains sandbox directory settings
+type SandboxConfig struct {
+	Directories    []string `yaml:"directories"`
+	ProtectedPaths []string `yaml:"protected_paths"`
+}
+
 // SafetyConfig contains safety approval settings
 type SafetyConfig struct {
 	RequireApproval bool `yaml:"require_approval"`
@@ -174,13 +176,19 @@ func DefaultConfig() *Config { //nolint:funlen
 			APIKey:  "",
 			Timeout: 200,
 		},
-		Output: OutputConfig{
-			Format: "text",
-			Quiet:  false,
-			Debug:  false,
+		Logging: LoggingConfig{
+			Debug: false,
 		},
 		Tools: ToolsConfig{
 			Enabled: true,
+			Sandbox: SandboxConfig{
+				Directories: []string{".", "/tmp"},
+				ProtectedPaths: []string{
+					".infer/",
+					".git/",
+					"*.env",
+				},
+			},
 			Bash: BashToolConfig{
 				Enabled: true,
 				Whitelist: ToolWhitelistConfig{
@@ -210,11 +218,8 @@ func DefaultConfig() *Config { //nolint:funlen
 				RequireApproval: &[]bool{true}[0],
 			},
 			Delete: DeleteToolConfig{
-				Enabled:           true,
-				RequireApproval:   &[]bool{true}[0],
-				ProtectedPaths:    []string{".infer/", ".infer/*", ".git/", ".git/*"},
-				AllowWildcards:    true,
-				RestrictToWorkDir: true,
+				Enabled:         true,
+				RequireApproval: &[]bool{true}[0],
 			},
 			Grep: GrepToolConfig{
 				Enabled:         true,
@@ -257,10 +262,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			Safety: SafetyConfig{
 				RequireApproval: true,
-			},
-			ExcludePaths: []string{
-				".infer/",
-				".infer/*",
 			},
 		},
 		Compact: CompactConfig{
@@ -463,7 +464,7 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 
 // Additional ConfigService methods
 func (c *Config) IsDebugMode() bool {
-	return c.Output.Debug
+	return c.Logging.Debug
 }
 
 func (c *Config) GetOutputDirectory() string {
@@ -488,4 +489,72 @@ func (c *Config) GetSystemPrompt() string {
 
 func (c *Config) GetDefaultModel() string {
 	return c.Chat.DefaultModel
+}
+
+// ValidatePathInSandbox checks if a path is within the configured sandbox directories
+func (c *Config) ValidatePathInSandbox(path string) error {
+	if len(c.Tools.Sandbox.Directories) == 0 {
+		return fmt.Errorf("no sandbox directories configured")
+	}
+
+	if err := c.checkProtectedPaths(path); err != nil {
+		return err
+	}
+
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+
+	for _, sandboxDir := range c.Tools.Sandbox.Directories {
+		absSandboxDir, err := filepath.Abs(sandboxDir)
+		if err != nil {
+			continue
+		}
+
+		relPath, err := filepath.Rel(absSandboxDir, absPath)
+		if err != nil {
+			continue
+		}
+
+		if !strings.HasPrefix(relPath, "..") {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("path '%s' is outside configured sandbox directories", path)
+}
+
+// checkProtectedPaths checks if a path matches any protected path patterns
+func (c *Config) checkProtectedPaths(path string) error {
+	normalizedPath := filepath.ToSlash(filepath.Clean(path))
+
+	for _, protectedPath := range c.Tools.Sandbox.ProtectedPaths {
+		if normalizedPath == strings.TrimSuffix(protectedPath, "/") {
+			return fmt.Errorf("access to path '%s' is excluded for security", path)
+		}
+
+		if strings.HasSuffix(protectedPath, "/") {
+			dirPattern := strings.TrimSuffix(protectedPath, "/")
+			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
+		}
+
+		if strings.HasSuffix(protectedPath, "/*") {
+			dirPattern := strings.TrimSuffix(protectedPath, "/*")
+			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
+		}
+
+		if strings.Contains(protectedPath, "*") {
+			matched, err := filepath.Match(protectedPath, filepath.Base(normalizedPath))
+			if err == nil && matched {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
+		}
+	}
+
+	return nil
 }

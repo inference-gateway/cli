@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/inference-gateway/cli/config"
@@ -31,43 +30,43 @@ func (t *WriteTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Write",
 		Description: "Write content to a file on the filesystem. Supports append mode and chunked writing for large files. Creates parent directories if needed.",
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"file_path": map[string]interface{}{
+			"properties": map[string]any{
+				"file_path": map[string]any{
 					"type":        "string",
 					"description": "The path to the file to write",
 				},
-				"content": map[string]interface{}{
+				"content": map[string]any{
 					"type":        "string",
 					"description": "The content to write to the file",
 				},
-				"append": map[string]interface{}{
+				"append": map[string]any{
 					"type":        "boolean",
 					"description": "Whether to append to the file (true) or overwrite it (false)",
 					"default":     false,
 				},
-				"chunk_index": map[string]interface{}{
+				"chunk_index": map[string]any{
 					"type":        "integer",
 					"description": "The index of this chunk (0-based). Use for ordered chunks in large file writing.",
 					"minimum":     0,
 				},
-				"total_chunks": map[string]interface{}{
+				"total_chunks": map[string]any{
 					"type":        "integer",
 					"description": "The total number of chunks expected. Required when using chunk_index.",
 					"minimum":     1,
 				},
-				"create_dirs": map[string]interface{}{
+				"create_dirs": map[string]any{
 					"type":        "boolean",
 					"description": "Whether to create parent directories if they don't exist",
 					"default":     true,
 				},
-				"overwrite": map[string]interface{}{
+				"overwrite": map[string]any{
 					"type":        "boolean",
 					"description": "Whether to overwrite existing files (ignored when append=true)",
 					"default":     true,
 				},
-				"format": map[string]interface{}{
+				"format": map[string]any{
 					"type":        "string",
 					"description": "Output format (text or json)",
 					"enum":        []string{"text", "json"},
@@ -80,7 +79,7 @@ func (t *WriteTool) Definition() domain.ToolDefinition {
 }
 
 // Execute runs the write tool with given arguments
-func (t *WriteTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *WriteTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("write tool is not enabled")
@@ -158,7 +157,7 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]interface{}) (*
 }
 
 // Validate checks if the write tool arguments are valid
-func (t *WriteTool) Validate(args map[string]interface{}) error {
+func (t *WriteTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled {
 		return fmt.Errorf("write tool is not enabled")
 	}
@@ -292,18 +291,9 @@ func (t *WriteTool) createParentDirs(filePath string, createDirs bool, result *d
 	return nil
 }
 
-// validatePathSecurity checks if a path is allowed for writing (no file existence check)
+// validatePathSecurity checks if a path is allowed for writing within the sandbox
 func (t *WriteTool) validatePathSecurity(path string) error {
-	for _, excludePath := range t.config.Tools.ExcludePaths {
-		if strings.HasPrefix(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
-		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-	}
-	return nil
+	return t.config.ValidatePathInSandbox(path)
 }
 
 // executeAppendWrite handles writing in append mode
@@ -382,7 +372,7 @@ func (t *WriteTool) combineChunks(filePath, tempDir string, totalChunks int) err
 }
 
 // getTotalChunks extracts and validates total_chunks parameter
-func getTotalChunks(args map[string]interface{}, start time.Time) (int, *domain.ToolExecutionResult) {
+func getTotalChunks(args map[string]any, start time.Time) (int, *domain.ToolExecutionResult) {
 	totalChunksVal, exists := args["total_chunks"]
 	if !exists {
 		return 0, &domain.ToolExecutionResult{

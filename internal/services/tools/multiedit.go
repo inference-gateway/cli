@@ -81,29 +81,29 @@ If you want to create a new file, use:
 - A new file path, including dir name if needed
 - First edit: empty old_string and the new file's contents as new_string
 - Subsequent edits: normal edit operations on the created content`,
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"file_path": map[string]interface{}{
+			"properties": map[string]any{
+				"file_path": map[string]any{
 					"type":        "string",
 					"description": "The absolute path to the file to modify",
 				},
-				"edits": map[string]interface{}{
+				"edits": map[string]any{
 					"type":        "array",
 					"description": "Array of edit operations to perform sequentially on the file",
 					"minItems":    1,
-					"items": map[string]interface{}{
+					"items": map[string]any{
 						"type": "object",
-						"properties": map[string]interface{}{
-							"old_string": map[string]interface{}{
+						"properties": map[string]any{
+							"old_string": map[string]any{
 								"type":        "string",
 								"description": "The text to replace",
 							},
-							"new_string": map[string]interface{}{
+							"new_string": map[string]any{
 								"type":        "string",
 								"description": "The text to replace it with",
 							},
-							"replace_all": map[string]interface{}{
+							"replace_all": map[string]any{
 								"type":        "boolean",
 								"description": "Replace all occurences of old_string (default false).",
 								"default":     false,
@@ -119,7 +119,7 @@ If you want to create a new file, use:
 }
 
 // Execute runs the multi-edit tool with given arguments
-func (t *MultiEditTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *MultiEditTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("multi-edit tool is not enabled")
@@ -157,7 +157,7 @@ func (t *MultiEditTool) Execute(ctx context.Context, args map[string]interface{}
 		}, nil
 	}
 
-	editsArray, ok := editsInterface.([]interface{})
+	editsArray, ok := editsInterface.([]any)
 	if !ok {
 		return &domain.ToolExecutionResult{
 			ToolName:  "MultiEdit",
@@ -219,12 +219,12 @@ type EditOperation struct {
 	ReplaceAll bool
 }
 
-// parseEdits converts the interface{} array to EditOperation structs
-func (t *MultiEditTool) parseEdits(editsArray []interface{}) ([]EditOperation, error) {
+// parseEdits converts the any array to EditOperation structs
+func (t *MultiEditTool) parseEdits(editsArray []any) ([]EditOperation, error) {
 	var edits []EditOperation
 
 	for i, editInterface := range editsArray {
-		editMap, ok := editInterface.(map[string]interface{})
+		editMap, ok := editInterface.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("edit at index %d must be an object", i)
 		}
@@ -261,7 +261,7 @@ func (t *MultiEditTool) parseEdits(editsArray []interface{}) ([]EditOperation, e
 }
 
 // Validate checks if the multi-edit tool arguments are valid
-func (t *MultiEditTool) Validate(args map[string]interface{}) error {
+func (t *MultiEditTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled {
 		return fmt.Errorf("multi-edit tool is not enabled")
 	}
@@ -288,7 +288,7 @@ func (t *MultiEditTool) Validate(args map[string]interface{}) error {
 		return fmt.Errorf("edits parameter is required")
 	}
 
-	editsArray, ok := editsInterface.([]interface{})
+	editsArray, ok := editsInterface.([]any)
 	if !ok {
 		return fmt.Errorf("edits parameter must be an array")
 	}
@@ -402,18 +402,9 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 	return result, nil
 }
 
-// validatePathSecurity checks if a path is allowed for editing (reuses the same logic as other tools)
+// validatePathSecurity checks if a path is allowed for editing within the sandbox
 func (t *MultiEditTool) validatePathSecurity(path string) error {
-	for _, excludePath := range t.config.Tools.ExcludePaths {
-		if strings.HasPrefix(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
-		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-	}
-	return nil
+	return t.config.ValidatePathInSandbox(path)
 }
 
 // validateFile checks if a file path is valid - supports both existing files and new file creation

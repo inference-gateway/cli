@@ -47,12 +47,13 @@ The system prompt provides context and instructions to the AI model about how to
 
 var configInitCmd = &cobra.Command{
 	Use:   "init",
-	Short: "Initialize a new project configuration",
+	Short: "Initialize a new configuration file",
 	Long: `Initialize a new .infer/config.yaml configuration file in the current directory.
-This creates a local project configuration with default settings.`,
+This creates only the configuration file with default settings.
+
+For complete project initialization, use 'infer init' instead.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configPath := ".infer/config.yaml"
-		gitignorePath := ".infer/.gitignore"
 
 		if _, err := os.Stat(configPath); err == nil {
 			overwrite, _ := cmd.Flags().GetBool("overwrite")
@@ -67,19 +68,9 @@ This creates a local project configuration with default settings.`,
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 
-		gitignoreContent := `# Ignore log files and history files
-*.log
-history
-chat_export_*
-`
-
-		if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {
-			return fmt.Errorf("failed to create .gitignore file: %w", err)
-		}
-
 		fmt.Printf("Successfully created %s\n", configPath)
-		fmt.Printf("Successfully created %s\n", gitignorePath)
 		fmt.Println("You can now customize the configuration for this project.")
+		fmt.Println("Tip: Use 'infer init' for complete project initialization including additional setup files.")
 
 		return nil
 	},
@@ -193,33 +184,33 @@ var configToolsSafetyUnsetCmd = &cobra.Command{
 	RunE:  unsetToolApproval,
 }
 
-var configToolsExcludePathCmd = &cobra.Command{
-	Use:   "exclude-path",
-	Short: "Manage excluded paths",
-	Long:  `Manage paths that are excluded from tool access for security purposes.`,
+var configToolsSandboxCmd = &cobra.Command{
+	Use:   "sandbox",
+	Short: "Manage sandbox directories",
+	Long:  `Manage the sandbox directories where tools are allowed to operate. Tools can only access files within these directories.`,
 }
 
-var configToolsExcludePathListCmd = &cobra.Command{
+var configToolsSandboxListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List excluded paths",
-	Long:  `Display all paths that are excluded from tool access.`,
-	RunE:  listExcludedPaths,
+	Short: "List sandbox directories",
+	Long:  `Display all directories where tools are allowed to operate.`,
+	RunE:  listSandboxDirectories,
 }
 
-var configToolsExcludePathAddCmd = &cobra.Command{
-	Use:   "add <path>",
-	Short: "Add a path to the exclusion list",
-	Long:  `Add a path to the exclusion list to prevent tools from accessing it.`,
+var configToolsSandboxAddCmd = &cobra.Command{
+	Use:   "add <directory>",
+	Short: "Add a directory to the sandbox",
+	Long:  `Add a directory to the sandbox to allow tools to access it.`,
 	Args:  cobra.ExactArgs(1),
-	RunE:  addExcludedPath,
+	RunE:  addSandboxDirectory,
 }
 
-var configToolsExcludePathRemoveCmd = &cobra.Command{
-	Use:   "remove <path>",
-	Short: "Remove a path from the exclusion list",
-	Long:  `Remove a path from the exclusion list to allow tools to access it again.`,
+var configToolsSandboxRemoveCmd = &cobra.Command{
+	Use:   "remove <directory>",
+	Short: "Remove a directory from the sandbox",
+	Long:  `Remove a directory from the sandbox to prevent tools from accessing it.`,
 	Args:  cobra.ExactArgs(1),
-	RunE:  removeExcludedPath,
+	RunE:  removeSandboxDirectory,
 }
 
 var configToolsBashCmd = &cobra.Command{
@@ -448,7 +439,7 @@ func init() {
 	configToolsCmd.AddCommand(configToolsValidateCmd)
 	configToolsCmd.AddCommand(configToolsExecCmd)
 	configToolsCmd.AddCommand(configToolsSafetyCmd)
-	configToolsCmd.AddCommand(configToolsExcludePathCmd)
+	configToolsCmd.AddCommand(configToolsSandboxCmd)
 	configToolsCmd.AddCommand(configToolsBashCmd)
 	configToolsCmd.AddCommand(configToolsWebSearchCmd)
 	configToolsCmd.AddCommand(configToolsGrepCmd)
@@ -459,9 +450,9 @@ func init() {
 	configToolsSafetyCmd.AddCommand(configToolsSafetySetCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyUnsetCmd)
 
-	configToolsExcludePathCmd.AddCommand(configToolsExcludePathListCmd)
-	configToolsExcludePathCmd.AddCommand(configToolsExcludePathAddCmd)
-	configToolsExcludePathCmd.AddCommand(configToolsExcludePathRemoveCmd)
+	configToolsSandboxCmd.AddCommand(configToolsSandboxListCmd)
+	configToolsSandboxCmd.AddCommand(configToolsSandboxAddCmd)
+	configToolsSandboxCmd.AddCommand(configToolsSandboxRemoveCmd)
 
 	configToolsBashCmd.AddCommand(configToolsBashEnableCmd)
 	configToolsBashCmd.AddCommand(configToolsBashDisableCmd)
@@ -534,30 +525,32 @@ func listTools(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString("format")
 
 	if format == "json" {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"enabled": cfg.Tools.Enabled,
 			"bash": map[string]bool{
 				"enabled": cfg.Tools.Bash.Enabled,
 			},
-			"web_fetch": map[string]interface{}{
+			"web_fetch": map[string]any{
 				"enabled":             cfg.Tools.WebFetch.Enabled,
 				"whitelisted_domains": cfg.Tools.WebFetch.WhitelistedDomains,
-				"github": map[string]interface{}{
+				"github": map[string]any{
 					"enabled":   cfg.Tools.WebFetch.GitHub.Enabled,
 					"base_url":  cfg.Tools.WebFetch.GitHub.BaseURL,
 					"has_token": cfg.Tools.WebFetch.GitHub.Token != "",
 				},
 			},
-			"web_search": map[string]interface{}{
+			"web_search": map[string]any{
 				"enabled":        cfg.Tools.WebSearch.Enabled,
 				"default_engine": cfg.Tools.WebSearch.DefaultEngine,
 				"max_results":    cfg.Tools.WebSearch.MaxResults,
 				"engines":        cfg.Tools.WebSearch.Engines,
 				"timeout":        cfg.Tools.WebSearch.Timeout,
 			},
-			"commands":      cfg.Tools.Bash.Whitelist.Commands,
-			"patterns":      cfg.Tools.Bash.Whitelist.Patterns,
-			"exclude_paths": cfg.Tools.ExcludePaths,
+			"commands": cfg.Tools.Bash.Whitelist.Commands,
+			"patterns": cfg.Tools.Bash.Whitelist.Patterns,
+			"sandbox": map[string]any{
+				"directories": cfg.Tools.Sandbox.Directories,
+			},
 			"safety": map[string]bool{
 				"require_approval": cfg.Tools.Safety.RequireApproval,
 			},
@@ -609,12 +602,12 @@ func listTools(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  • %s\n", pattern)
 	}
 
-	fmt.Printf("\nExcluded Paths (%d):\n", len(cfg.Tools.ExcludePaths))
-	if len(cfg.Tools.ExcludePaths) == 0 {
-		fmt.Printf("  • None\n")
+	fmt.Printf("\nSandbox Directories (%d):\n", len(cfg.Tools.Sandbox.Directories))
+	if len(cfg.Tools.Sandbox.Directories) == 0 {
+		fmt.Printf("  • None configured\n")
 	} else {
-		for _, path := range cfg.Tools.ExcludePaths {
-			fmt.Printf("  • %s\n", path)
+		for _, dir := range cfg.Tools.Sandbox.Directories {
+			fmt.Printf("  • %s\n", dir)
 		}
 	}
 
@@ -643,7 +636,7 @@ func validateTool(cmd *cobra.Command, args []string) error {
 	toolService := services.GetToolService()
 
 	command := args[0]
-	toolArgs := map[string]interface{}{
+	toolArgs := map[string]any{
 		"command": command,
 	}
 
@@ -676,7 +669,7 @@ func execTool(cmd *cobra.Command, args []string) error {
 	}
 
 	toolName := args[0]
-	toolArgs := make(map[string]interface{})
+	toolArgs := make(map[string]any)
 
 	if len(args) > 1 {
 		if err := json.Unmarshal([]byte(args[1]), &toolArgs); err != nil {
@@ -893,53 +886,53 @@ func getConfigPath() string {
 	return configPath
 }
 
-func listExcludedPaths(cmd *cobra.Command, args []string) error {
+func listSandboxDirectories(cmd *cobra.Command, args []string) error {
 	cfg, err := config.LoadConfig("")
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	if len(cfg.Tools.ExcludePaths) == 0 {
-		fmt.Println("No paths are currently excluded.")
+	if len(cfg.Tools.Sandbox.Directories) == 0 {
+		fmt.Println("No sandbox directories are currently configured.")
 		return nil
 	}
 
-	fmt.Printf("Excluded Paths (%d):\n", len(cfg.Tools.ExcludePaths))
-	for _, path := range cfg.Tools.ExcludePaths {
-		fmt.Printf("  • %s\n", path)
+	fmt.Printf("Sandbox Directories (%d):\n", len(cfg.Tools.Sandbox.Directories))
+	for _, dir := range cfg.Tools.Sandbox.Directories {
+		fmt.Printf("  • %s\n", dir)
 	}
 
 	return nil
 }
 
-func addExcludedPath(cmd *cobra.Command, args []string) error {
-	pathToAdd := args[0]
+func addSandboxDirectory(cmd *cobra.Command, args []string) error {
+	dirToAdd := args[0]
 
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for _, existingPath := range c.Tools.ExcludePaths {
-			if existingPath == pathToAdd {
+		for _, existingDir := range c.Tools.Sandbox.Directories {
+			if existingDir == dirToAdd {
 				return
 			}
 		}
-		c.Tools.ExcludePaths = append(c.Tools.ExcludePaths, pathToAdd)
+		c.Tools.Sandbox.Directories = append(c.Tools.Sandbox.Directories, dirToAdd)
 	})
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Added '%s' to excluded paths", pathToAdd)))
-	fmt.Printf("Tools will no longer be able to access this path\n")
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Added '%s' to sandbox directories", dirToAdd)))
+	fmt.Printf("Tools can now access files within this directory\n")
 	return nil
 }
 
-func removeExcludedPath(cmd *cobra.Command, args []string) error {
-	pathToRemove := args[0]
+func removeSandboxDirectory(cmd *cobra.Command, args []string) error {
+	dirToRemove := args[0]
 	var found bool
 
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for i, existingPath := range c.Tools.ExcludePaths {
-			if existingPath == pathToRemove {
-				c.Tools.ExcludePaths = append(c.Tools.ExcludePaths[:i], c.Tools.ExcludePaths[i+1:]...)
+		for i, existingDir := range c.Tools.Sandbox.Directories {
+			if existingDir == dirToRemove {
+				c.Tools.Sandbox.Directories = append(c.Tools.Sandbox.Directories[:i], c.Tools.Sandbox.Directories[i+1:]...)
 				found = true
 				return
 			}
@@ -950,12 +943,12 @@ func removeExcludedPath(cmd *cobra.Command, args []string) error {
 	}
 
 	if !found {
-		fmt.Printf("%s\n", ui.FormatWarning(fmt.Sprintf("Path '%s' was not in the excluded paths list", pathToRemove)))
+		fmt.Printf("%s\n", ui.FormatWarning(fmt.Sprintf("Directory '%s' was not in the sandbox directories list", dirToRemove)))
 		return nil
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed '%s' from excluded paths", pathToRemove)))
-	fmt.Printf("Tools can now access this path again\n")
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed '%s' from sandbox directories", dirToRemove)))
+	fmt.Printf("Tools can no longer access this directory\n")
 	return nil
 }
 
@@ -995,20 +988,20 @@ func listFetchDomains(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString("format")
 
 	if format == "json" {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"enabled":             cfg.Tools.WebFetch.Enabled,
 			"whitelisted_domains": cfg.Tools.WebFetch.WhitelistedDomains,
-			"github": map[string]interface{}{
+			"github": map[string]any{
 				"enabled":   cfg.Tools.WebFetch.GitHub.Enabled,
 				"base_url":  cfg.Tools.WebFetch.GitHub.BaseURL,
 				"has_token": cfg.Tools.WebFetch.GitHub.Token != "",
 			},
-			"safety": map[string]interface{}{
+			"safety": map[string]any{
 				"max_size":       cfg.Tools.WebFetch.Safety.MaxSize,
 				"timeout":        cfg.Tools.WebFetch.Safety.Timeout,
 				"allow_redirect": cfg.Tools.WebFetch.Safety.AllowRedirect,
 			},
-			"cache": map[string]interface{}{
+			"cache": map[string]any{
 				"enabled":  cfg.Tools.WebFetch.Cache.Enabled,
 				"ttl":      cfg.Tools.WebFetch.Cache.TTL,
 				"max_size": cfg.Tools.WebFetch.Cache.MaxSize,

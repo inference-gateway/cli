@@ -32,6 +32,14 @@ const (
 	ApprovalReject
 )
 
+// SessionTokenStats tracks accumulated token usage across a session
+type SessionTokenStats struct {
+	TotalInputTokens  int `json:"total_input_tokens"`
+	TotalOutputTokens int `json:"total_output_tokens"`
+	TotalTokens       int `json:"total_tokens"`
+	RequestCount      int `json:"request_count"`
+}
+
 // ConversationRepository handles conversation storage and retrieval
 type ConversationRepository interface {
 	AddMessage(msg ConversationEntry) error
@@ -41,6 +49,8 @@ type ConversationRepository interface {
 	GetMessageCount() int
 	UpdateLastMessage(content string) error
 	UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error
+	AddTokenUsage(inputTokens, outputTokens, totalTokens int) error
+	GetSessionTokens() SessionTokenStats
 }
 
 // ModelService handles model selection and information
@@ -87,17 +97,17 @@ type ChatService interface {
 
 // ToolDefinition describes an available tool
 type ToolDefinition struct {
-	Name        string      `json:"name"`
-	Description string      `json:"description"`
-	Parameters  interface{} `json:"parameters"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Parameters  any    `json:"parameters"`
 }
 
 // ToolService handles tool execution
 type ToolService interface {
 	ListTools() []ToolDefinition
-	ExecuteTool(ctx context.Context, name string, args map[string]interface{}) (*ToolExecutionResult, error)
+	ExecuteTool(ctx context.Context, name string, args map[string]any) (*ToolExecutionResult, error)
 	IsToolEnabled(name string) bool
-	ValidateTool(name string, args map[string]interface{}) error
+	ValidateTool(name string, args map[string]any) error
 }
 
 // FileService handles file operations
@@ -128,12 +138,12 @@ type FetchResult struct {
 	Warning     string            `json:"warning,omitempty"`
 }
 
-// FetchService handles content fetching operations
-type FetchService interface {
+// WebFetchService handles content fetching operations
+type WebFetchService interface {
 	ValidateURL(url string) error
 	FetchContent(ctx context.Context, target string) (*FetchResult, error)
 	ClearCache()
-	GetCacheStats() map[string]interface{}
+	GetCacheStats() map[string]any
 }
 
 // WebSearchResult represents a single search result
@@ -190,10 +200,10 @@ type Tool interface {
 	Definition() ToolDefinition
 
 	// Execute runs the tool with given arguments
-	Execute(ctx context.Context, args map[string]interface{}) (*ToolExecutionResult, error)
+	Execute(ctx context.Context, args map[string]any) (*ToolExecutionResult, error)
 
 	// Validate checks if the tool arguments are valid
-	Validate(args map[string]interface{}) error
+	Validate(args map[string]any) error
 
 	// IsEnabled returns whether this tool is enabled
 	IsEnabled() bool
@@ -210,14 +220,14 @@ type ToolFactory interface {
 
 // ToolExecutionResult represents the complete result of a tool execution
 type ToolExecutionResult struct {
-	ToolName  string                 `json:"tool_name"`
-	Arguments map[string]interface{} `json:"arguments"`
-	Success   bool                   `json:"success"`
-	Duration  time.Duration          `json:"duration"`
-	Error     string                 `json:"error,omitempty"`
-	Data      interface{}            `json:"data,omitempty"`
-	Metadata  map[string]string      `json:"metadata,omitempty"`
-	Diff      string                 `json:"diff,omitempty"`
+	ToolName  string            `json:"tool_name"`
+	Arguments map[string]any    `json:"arguments"`
+	Success   bool              `json:"success"`
+	Duration  time.Duration     `json:"duration"`
+	Error     string            `json:"error,omitempty"`
+	Data      any               `json:"data,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+	Diff      string            `json:"diff,omitempty"`
 }
 
 // BashToolResult represents the result of a bash command execution

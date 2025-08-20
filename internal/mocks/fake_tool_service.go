@@ -9,12 +9,12 @@ import (
 )
 
 type FakeToolService struct {
-	ExecuteToolStub        func(context.Context, string, map[string]interface{}) (*domain.ToolExecutionResult, error)
+	ExecuteToolStub        func(context.Context, string, map[string]any) (*domain.ToolExecutionResult, error)
 	executeToolMutex       sync.RWMutex
 	executeToolArgsForCall []struct {
 		arg1 context.Context
 		arg2 string
-		arg3 map[string]interface{}
+		arg3 map[string]any
 	}
 	executeToolReturns struct {
 		result1 *domain.ToolExecutionResult
@@ -45,11 +45,11 @@ type FakeToolService struct {
 	listToolsReturnsOnCall map[int]struct {
 		result1 []domain.ToolDefinition
 	}
-	ValidateToolStub        func(string, map[string]interface{}) error
+	ValidateToolStub        func(string, map[string]any) error
 	validateToolMutex       sync.RWMutex
 	validateToolArgsForCall []struct {
 		arg1 string
-		arg2 map[string]interface{}
+		arg2 map[string]any
 	}
 	validateToolReturns struct {
 		result1 error
@@ -61,13 +61,13 @@ type FakeToolService struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeToolService) ExecuteTool(arg1 context.Context, arg2 string, arg3 map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (fake *FakeToolService) ExecuteTool(arg1 context.Context, arg2 string, arg3 map[string]any) (*domain.ToolExecutionResult, error) {
 	fake.executeToolMutex.Lock()
 	ret, specificReturn := fake.executeToolReturnsOnCall[len(fake.executeToolArgsForCall)]
 	fake.executeToolArgsForCall = append(fake.executeToolArgsForCall, struct {
 		arg1 context.Context
 		arg2 string
-		arg3 map[string]interface{}
+		arg3 map[string]any
 	}{arg1, arg2, arg3})
 	stub := fake.ExecuteToolStub
 	fakeReturns := fake.executeToolReturns
@@ -88,13 +88,13 @@ func (fake *FakeToolService) ExecuteToolCallCount() int {
 	return len(fake.executeToolArgsForCall)
 }
 
-func (fake *FakeToolService) ExecuteToolCalls(stub func(context.Context, string, map[string]interface{}) (*domain.ToolExecutionResult, error)) {
+func (fake *FakeToolService) ExecuteToolCalls(stub func(context.Context, string, map[string]any) (*domain.ToolExecutionResult, error)) {
 	fake.executeToolMutex.Lock()
 	defer fake.executeToolMutex.Unlock()
 	fake.ExecuteToolStub = stub
 }
 
-func (fake *FakeToolService) ExecuteToolArgsForCall(i int) (context.Context, string, map[string]interface{}) {
+func (fake *FakeToolService) ExecuteToolArgsForCall(i int) (context.Context, string, map[string]any) {
 	fake.executeToolMutex.RLock()
 	defer fake.executeToolMutex.RUnlock()
 	argsForCall := fake.executeToolArgsForCall[i]
@@ -241,12 +241,12 @@ func (fake *FakeToolService) ListToolsReturnsOnCall(i int, result1 []domain.Tool
 	}{result1}
 }
 
-func (fake *FakeToolService) ValidateTool(arg1 string, arg2 map[string]interface{}) error {
+func (fake *FakeToolService) ValidateTool(arg1 string, arg2 map[string]any) error {
 	fake.validateToolMutex.Lock()
 	ret, specificReturn := fake.validateToolReturnsOnCall[len(fake.validateToolArgsForCall)]
 	fake.validateToolArgsForCall = append(fake.validateToolArgsForCall, struct {
 		arg1 string
-		arg2 map[string]interface{}
+		arg2 map[string]any
 	}{arg1, arg2})
 	stub := fake.ValidateToolStub
 	fakeReturns := fake.validateToolReturns
@@ -267,13 +267,13 @@ func (fake *FakeToolService) ValidateToolCallCount() int {
 	return len(fake.validateToolArgsForCall)
 }
 
-func (fake *FakeToolService) ValidateToolCalls(stub func(string, map[string]interface{}) error) {
+func (fake *FakeToolService) ValidateToolCalls(stub func(string, map[string]any) error) {
 	fake.validateToolMutex.Lock()
 	defer fake.validateToolMutex.Unlock()
 	fake.ValidateToolStub = stub
 }
 
-func (fake *FakeToolService) ValidateToolArgsForCall(i int) (string, map[string]interface{}) {
+func (fake *FakeToolService) ValidateToolArgsForCall(i int) (string, map[string]any) {
 	fake.validateToolMutex.RLock()
 	defer fake.validateToolMutex.RUnlock()
 	argsForCall := fake.validateToolArgsForCall[i]

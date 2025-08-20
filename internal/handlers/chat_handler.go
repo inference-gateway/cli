@@ -442,7 +442,7 @@ func (h *ChatHandler) handleChatChunk(
 		return h.handleNoChatSession(msg)
 	}
 
-	if msg.Content == "" {
+	if msg.Content == "" && msg.ReasoningContent == "" {
 		return h.handleEmptyContent(chatSession)
 	}
 
@@ -564,7 +564,34 @@ func (h *ChatHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession 
 
 // determineNewStatus determines what the new status should be based on message content
 func (h *ChatHandler) determineNewStatus(msg domain.ChatChunkEvent, currentStatus domain.ChatStatus, isFirstChunk bool) (domain.ChatStatus, bool) {
+	// Debug what we're receiving in chunks
+	if h.debugService != nil && h.debugService.IsEnabled() {
+		h.debugService.LogEvent(
+			services.DebugEventTypeMessage,
+			"ChatHandler",
+			"Determining status from chunk",
+			map[string]any{
+				"content_length":           len(msg.Content),
+				"reasoning_content_length": len(msg.ReasoningContent),
+				"current_status":           currentStatus,
+				"is_first_chunk":           isFirstChunk,
+				"content_preview":          msg.Content,
+				"reasoning_preview":        msg.ReasoningContent,
+			},
+		)
+	}
+
 	if msg.ReasoningContent != "" {
+		if h.debugService != nil && h.debugService.IsEnabled() {
+			h.debugService.LogEvent(
+				services.DebugEventTypeMessage,
+				"ChatHandler",
+				"SETTING STATUS TO THINKING",
+				map[string]any{
+					"reasoning_content": msg.ReasoningContent,
+				},
+			)
+		}
 		return domain.ChatStatusThinking, true
 	}
 
@@ -662,6 +689,7 @@ func (h *ChatHandler) handleChatComplete(
 	statusMsg := "Response complete"
 	tokenUsage := ""
 	if msg.Metrics != nil {
+		h.addTokenUsageToSession(msg.Metrics, debugService)
 		tokenUsage = h.formatMetrics(msg.Metrics)
 	}
 
@@ -1510,7 +1538,29 @@ func (h *ChatHandler) formatMetrics(metrics *domain.ChatMetrics) string {
 		}
 	}
 
+	sessionStats := h.conversationRepo.GetSessionTokens()
+	if sessionStats.TotalInputTokens > 0 {
+		parts = append(parts, fmt.Sprintf("Session Input: %d tokens", sessionStats.TotalInputTokens))
+	}
+
 	return strings.Join(parts, " | ")
+}
+
+// addTokenUsageToSession accumulates token usage to session totals
+func (h *ChatHandler) addTokenUsageToSession(metrics *domain.ChatMetrics, debugService *services.DebugService) {
+	if metrics == nil || metrics.Usage == nil {
+		return
+	}
+
+	if err := h.conversationRepo.AddTokenUsage(
+		int(metrics.Usage.PromptTokens),
+		int(metrics.Usage.CompletionTokens),
+		int(metrics.Usage.TotalTokens),
+	); err != nil && debugService != nil {
+		debugService.LogError(err, h.name, map[string]any{
+			"operation": "add_token_usage",
+		})
+	}
 }
 
 func generateRequestID() string {

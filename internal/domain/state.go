@@ -123,13 +123,13 @@ type ToolExecutionSession struct {
 
 // ToolCall represents a tool call with proper typing
 type ToolCall struct {
-	ID        string                 `json:"id"`
-	Name      string                 `json:"name"`
-	Arguments map[string]interface{} `json:"arguments"`
-	Status    ToolCallStatus         `json:"status"`
-	Result    *ToolExecutionResult   `json:"result,omitempty"`
-	StartTime time.Time              `json:"start_time"`
-	EndTime   *time.Time             `json:"end_time,omitempty"`
+	ID        string               `json:"id"`
+	Name      string               `json:"name"`
+	Arguments map[string]any       `json:"arguments"`
+	Status    ToolCallStatus       `json:"status"`
+	Result    *ToolExecutionResult `json:"result,omitempty"`
+	StartTime time.Time            `json:"start_time"`
+	EndTime   *time.Time           `json:"end_time,omitempty"`
 }
 
 // ToolCallStatus represents the status of an individual tool call

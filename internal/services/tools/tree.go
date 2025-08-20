@@ -34,46 +34,46 @@ func (t *TreeTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Tree",
 		Description: "Display directory structure in a tree format, similar to the Unix tree command",
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"path": map[string]interface{}{
+			"properties": map[string]any{
+				"path": map[string]any{
 					"type":        "string",
 					"description": "The path to display tree structure for (defaults to current directory)",
 					"default":     ".",
 				},
-				"max_depth": map[string]interface{}{
+				"max_depth": map[string]any{
 					"type":        "integer",
 					"description": "Maximum depth to traverse (optional, defaults to 3 for efficiency)",
 					"minimum":     1,
 					"maximum":     10,
 					"default":     3,
 				},
-				"max_files": map[string]interface{}{
+				"max_files": map[string]any{
 					"type":        "integer",
 					"description": "Maximum number of files to display (optional, defaults to 100 for efficiency)",
 					"minimum":     1,
 					"maximum":     1000,
 					"default":     100,
 				},
-				"exclude_patterns": map[string]interface{}{
+				"exclude_patterns": map[string]any{
 					"type":        "array",
 					"description": "Array of glob patterns to exclude from the tree (automatically includes .gitignore patterns)",
-					"items": map[string]interface{}{
+					"items": map[string]any{
 						"type": "string",
 					},
 				},
-				"respect_gitignore": map[string]interface{}{
+				"respect_gitignore": map[string]any{
 					"type":        "boolean",
 					"description": "Whether to automatically exclude patterns from .gitignore (defaults to true)",
 					"default":     true,
 				},
-				"show_hidden": map[string]interface{}{
+				"show_hidden": map[string]any{
 					"type":        "boolean",
 					"description": "Whether to show hidden files and directories (defaults to false)",
 					"default":     false,
 				},
-				"format": map[string]interface{}{
+				"format": map[string]any{
 					"type":        "string",
 					"description": "Output format (text or json)",
 					"enum":        []string{"text", "json"},
@@ -86,7 +86,7 @@ func (t *TreeTool) Definition() domain.ToolDefinition {
 }
 
 // Execute runs the tree tool with given arguments
-func (t *TreeTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *TreeTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("tree tool is not enabled")
@@ -108,7 +108,7 @@ func (t *TreeTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 	}
 
 	var excludePatterns []string
-	if excludeArray, ok := args["exclude_patterns"].([]interface{}); ok {
+	if excludeArray, ok := args["exclude_patterns"].([]any); ok {
 		for _, pattern := range excludeArray {
 			if patternStr, ok := pattern.(string); ok {
 				excludePatterns = append(excludePatterns, patternStr)
@@ -165,7 +165,7 @@ func (t *TreeTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 }
 
 // Validate checks if the tree tool arguments are valid
-func (t *TreeTool) Validate(args map[string]interface{}) error {
+func (t *TreeTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled {
 		return fmt.Errorf("tree tool is not enabled")
 	}
@@ -197,7 +197,7 @@ func (t *TreeTool) Validate(args map[string]interface{}) error {
 	}
 
 	if excludePatterns, ok := args["exclude_patterns"]; ok {
-		if _, ok := excludePatterns.([]interface{}); !ok {
+		if _, ok := excludePatterns.([]any); !ok {
 			return fmt.Errorf("exclude_patterns must be an array of strings")
 		}
 	}
@@ -475,16 +475,7 @@ func (t *TreeTool) shouldExclude(name string, excludePatterns []string) bool {
 
 // validatePathSecurity checks if a path is allowed (no file existence check)
 func (t *TreeTool) validatePathSecurity(path string) error {
-	for _, excludePath := range t.config.Tools.ExcludePaths {
-		if strings.HasPrefix(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
-		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-	}
-	return nil
+	return t.config.ValidatePathInSandbox(path)
 }
 
 // validatePath checks if a path exists and is accessible

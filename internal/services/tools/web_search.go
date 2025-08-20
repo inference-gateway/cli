@@ -39,27 +39,27 @@ func (t *WebSearchTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "WebSearch",
 		Description: "Search the web using Google or DuckDuckGo search engines",
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"query": map[string]interface{}{
+			"properties": map[string]any{
+				"query": map[string]any{
 					"type":        "string",
 					"description": "The search query to execute",
 				},
-				"engine": map[string]interface{}{
+				"engine": map[string]any{
 					"type":        "string",
 					"description": fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(t.config.Tools.WebSearch.Engines, " or "), t.config.Tools.WebSearch.DefaultEngine),
 					"enum":        t.config.Tools.WebSearch.Engines,
 					"default":     t.config.Tools.WebSearch.DefaultEngine,
 				},
-				"limit": map[string]interface{}{
+				"limit": map[string]any{
 					"type":        "integer",
 					"description": "Maximum number of search results to return",
 					"minimum":     1,
 					"maximum":     50,
 					"default":     t.config.Tools.WebSearch.MaxResults,
 				},
-				"format": map[string]interface{}{
+				"format": map[string]any{
 					"type":        "string",
 					"description": "Output format (text or json)",
 					"enum":        []string{"text", "json"},
@@ -72,7 +72,7 @@ func (t *WebSearchTool) Definition() domain.ToolDefinition {
 }
 
 // Execute runs the web search tool with given arguments
-func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *WebSearchTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled || !t.config.Tools.WebSearch.Enabled {
 		return nil, fmt.Errorf("web search tool is not enabled")
@@ -138,7 +138,7 @@ func (t *WebSearchTool) Execute(ctx context.Context, args map[string]interface{}
 }
 
 // Validate checks if the web search tool arguments are valid
-func (t *WebSearchTool) Validate(args map[string]interface{}) error {
+func (t *WebSearchTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled || !t.config.Tools.WebSearch.Enabled {
 		return fmt.Errorf("web search tool is not enabled")
 	}
@@ -176,7 +176,7 @@ func (t *WebSearchTool) Validate(args map[string]interface{}) error {
 }
 
 // validateLimit validates the limit parameter
-func (t *WebSearchTool) validateLimit(limit interface{}) error {
+func (t *WebSearchTool) validateLimit(limit any) error {
 	if limitFloat, ok := limit.(float64); ok {
 		limitInt := int(limitFloat)
 		if limitInt < 1 || limitInt > 50 {
@@ -369,7 +369,7 @@ func (t *WebSearchTool) performDuckDuckGoAPI(ctx context.Context, query string, 
 		return nil, fmt.Errorf("failed to read response: %w", err)
 	}
 
-	var ddgResponse map[string]interface{}
+	var ddgResponse map[string]any
 	if err := json.Unmarshal(body, &ddgResponse); err != nil {
 		return t.performDuckDuckGoScraping(ctx, query, limit)
 	}
@@ -414,7 +414,7 @@ func (t *WebSearchTool) parseGoogleSearchResponse(response GoogleSearchResponse)
 }
 
 // parseDuckDuckGoResponse parses the DuckDuckGo API response
-func (t *WebSearchTool) parseDuckDuckGoResponse(response map[string]interface{}, limit int) []domain.WebSearchResult {
+func (t *WebSearchTool) parseDuckDuckGoResponse(response map[string]any, limit int) []domain.WebSearchResult {
 	var results []domain.WebSearchResult
 
 	results = t.parseRelatedTopics(response, limit)
@@ -427,10 +427,10 @@ func (t *WebSearchTool) parseDuckDuckGoResponse(response map[string]interface{},
 }
 
 // parseRelatedTopics extracts search results from DuckDuckGo RelatedTopics
-func (t *WebSearchTool) parseRelatedTopics(response map[string]interface{}, limit int) []domain.WebSearchResult {
+func (t *WebSearchTool) parseRelatedTopics(response map[string]any, limit int) []domain.WebSearchResult {
 	var results []domain.WebSearchResult
 
-	relatedTopics, ok := response["RelatedTopics"].([]interface{})
+	relatedTopics, ok := response["RelatedTopics"].([]any)
 	if !ok {
 		return results
 	}
@@ -441,7 +441,7 @@ func (t *WebSearchTool) parseRelatedTopics(response map[string]interface{}, limi
 			break
 		}
 
-		topicMap, ok := topic.(map[string]interface{})
+		topicMap, ok := topic.(map[string]any)
 		if !ok {
 			continue
 		}
@@ -457,7 +457,7 @@ func (t *WebSearchTool) parseRelatedTopics(response map[string]interface{}, limi
 }
 
 // parseTopicResult extracts a single result from a DuckDuckGo topic
-func (t *WebSearchTool) parseTopicResult(topicMap map[string]interface{}) domain.WebSearchResult {
+func (t *WebSearchTool) parseTopicResult(topicMap map[string]any) domain.WebSearchResult {
 	result := domain.WebSearchResult{}
 
 	if text, ok := topicMap["Text"].(string); ok {
@@ -481,7 +481,7 @@ func (t *WebSearchTool) extractTitleAndSnippet(text string) (string, string) {
 }
 
 // parseAbstract extracts search result from DuckDuckGo Abstract
-func (t *WebSearchTool) parseAbstract(response map[string]interface{}) []domain.WebSearchResult {
+func (t *WebSearchTool) parseAbstract(response map[string]any) []domain.WebSearchResult {
 	var results []domain.WebSearchResult
 
 	abstract, hasAbstract := response["Abstract"].(string)

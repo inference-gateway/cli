@@ -2,12 +2,18 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
-output:
-  format: text
-  quiet: false
-  debug: false
+logging:
+  debug: true
 tools:
   enabled: true
+  sandbox:
+    directories:
+      - .
+      - /tmp
+    protected_paths:
+      - .infer/
+      - .git/
+      - '*.env'
   bash:
     enabled: true
     whitelist:
@@ -37,13 +43,6 @@ tools:
   delete:
     enabled: true
     require_approval: true
-    protected_paths:
-      - .infer/
-      - .infer/*
-      - .git/
-      - .git/*
-    allow_wildcards: true
-    restrict_to_workdir: true
   grep:
     enabled: true
     backend: auto
@@ -81,9 +80,6 @@ tools:
     require_approval: false
   safety:
     require_approval: true
-  exclude_paths:
-    - .infer/
-    - .infer/*
 compact:
   output_dir: .infer
 chat:

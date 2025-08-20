@@ -31,19 +31,18 @@ type DebugService struct {
 
 	// File output
 	outputDir string
-	logFile   *os.File
 }
 
 // DebugEvent represents a debug event in the TUI flow
 type DebugEvent struct {
-	ID         string                 `json:"id"`
-	Timestamp  time.Time              `json:"timestamp"`
-	Type       DebugEventType         `json:"type"`
-	Source     string                 `json:"source"`
-	Message    string                 `json:"message"`
-	Data       map[string]interface{} `json:"data"`
-	StateAfter *domain.StateSnapshot  `json:"state_after,omitempty"`
-	Duration   *time.Duration         `json:"duration,omitempty"`
+	ID         string                `json:"id"`
+	Timestamp  time.Time             `json:"timestamp"`
+	Type       DebugEventType        `json:"type"`
+	Source     string                `json:"source"`
+	Message    string                `json:"message"`
+	Data       map[string]any        `json:"data"`
+	StateAfter *domain.StateSnapshot `json:"state_after,omitempty"`
+	Duration   *time.Duration        `json:"duration,omitempty"`
 }
 
 // DebugEventType represents the type of debug event
@@ -124,25 +123,16 @@ func NewPerformanceMetrics() *PerformanceMetrics {
 	}
 }
 
-// setupLogging sets up file logging for debug events
+// setupLogging sets up the output directory for exports
 func (ds *DebugService) setupLogging() {
 	if ds.outputDir == "" {
-		ds.outputDir = ".infer/debug"
+		ds.outputDir = ".infer/logs"
+	} else {
+		ds.outputDir = filepath.Join(ds.outputDir, "logs")
 	}
 
 	_ = os.MkdirAll(ds.outputDir, 0755)
-
-	logPath := filepath.Join(ds.outputDir, fmt.Sprintf("debug_%s.log",
-		time.Now().Format("20060102_150405")))
-
-	file, err := os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		logger.Error("Failed to open debug log file", "error", err)
-		return
-	}
-
-	ds.logFile = file
-	logger.Debug("Debug logging initialized", "logPath", logPath)
+	logger.Debug("Debug service initialized", "outputDir", ds.outputDir)
 }
 
 // Enable enables debug mode
@@ -166,10 +156,6 @@ func (ds *DebugService) Disable() {
 	if ds.enabled {
 		ds.enabled = false
 		ds.stateManager.RemoveListener(ds)
-		if ds.logFile != nil {
-			_ = ds.logFile.Close()
-			ds.logFile = nil
-		}
 		ds.LogEvent(DebugEventTypeMessage, "DebugService", "Debug mode disabled", nil)
 	}
 }
@@ -182,7 +168,7 @@ func (ds *DebugService) IsEnabled() bool {
 }
 
 // LogEvent logs a debug event
-func (ds *DebugService) LogEvent(eventType DebugEventType, source, message string, data map[string]interface{}) {
+func (ds *DebugService) LogEvent(eventType DebugEventType, source, message string, data map[string]any) {
 	if !ds.enabled {
 		return
 	}
@@ -199,22 +185,18 @@ func (ds *DebugService) LogEvent(eventType DebugEventType, source, message strin
 		Data:      data,
 	}
 
-	// Only capture state for significant events to reduce noise
 	if ds.stateManager != nil && ds.shouldIncludeState(eventType, source) {
 		state := ds.stateManager.GetStateSnapshot()
 		event.StateAfter = &state
 	}
 
-	// Add to events list
 	ds.events = append(ds.events, event)
 	if len(ds.events) > ds.maxEvents {
-		ds.events = ds.events[1:] // Remove oldest
+		ds.events = ds.events[1:]
 	}
 
-	// Write to log file
-	ds.writeToLogFile(event)
+	ds.logEventToLogger(event)
 
-	// Console debug output
 	logger.Debug("Debug event",
 		"id", event.ID,
 		"type", event.Type.String(),
@@ -225,7 +207,7 @@ func (ds *DebugService) LogEvent(eventType DebugEventType, source, message strin
 
 // LogKeyPress logs a key press event
 func (ds *DebugService) LogKeyPress(key string, handler string, view string) {
-	data := map[string]interface{}{
+	data := map[string]any{
 		"key":     key,
 		"handler": handler,
 		"view":    view,
@@ -239,7 +221,6 @@ func (ds *DebugService) LogKeyPress(key string, handler string, view string) {
 func (ds *DebugService) LogMessage(msg tea.Msg, source string) {
 	msgType := fmt.Sprintf("%T", msg)
 
-	// Filter out truly noisy messages
 	if ds.isNoisyMessage(msgType) {
 		return
 	}
@@ -250,7 +231,7 @@ func (ds *DebugService) LogMessage(msg tea.Msg, source string) {
 		msgStr = msgStr[:197] + "..."
 	}
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"message_type": msgType,
 		"message_data": msgStr,
 	}
@@ -301,8 +282,8 @@ func (ds *DebugService) shouldIncludeState(eventType DebugEventType, source stri
 }
 
 // LogCommand logs a command execution
-func (ds *DebugService) LogCommand(command string, args []string, result interface{}, duration time.Duration) {
-	data := map[string]interface{}{
+func (ds *DebugService) LogCommand(command string, args []string, result any, duration time.Duration) {
+	data := map[string]any{
 		"command":  command,
 		"args":     args,
 		"result":   result,
@@ -323,8 +304,8 @@ func (ds *DebugService) LogCommand(command string, args []string, result interfa
 }
 
 // LogError logs an error event
-func (ds *DebugService) LogError(err error, source string, context map[string]interface{}) {
-	data := map[string]interface{}{
+func (ds *DebugService) LogError(err error, source string, context map[string]any) {
+	data := map[string]any{
 		"error":   err.Error(),
 		"context": context,
 	}
@@ -334,8 +315,8 @@ func (ds *DebugService) LogError(err error, source string, context map[string]in
 }
 
 // LogSDKEvent logs an SDK event
-func (ds *DebugService) LogSDKEvent(eventType string, requestID string, data interface{}) {
-	eventData := map[string]interface{}{
+func (ds *DebugService) LogSDKEvent(eventType string, requestID string, data any) {
+	eventData := map[string]any{
 		"event_type": eventType,
 		"request_id": requestID,
 		"event_data": data,
@@ -346,8 +327,8 @@ func (ds *DebugService) LogSDKEvent(eventType string, requestID string, data int
 }
 
 // LogToolExecution logs tool execution events
-func (ds *DebugService) LogToolExecution(toolName string, phase string, data map[string]interface{}) {
-	eventData := map[string]interface{}{
+func (ds *DebugService) LogToolExecution(toolName string, phase string, data map[string]any) {
+	eventData := map[string]any{
 		"tool_name": toolName,
 		"phase":     phase,
 	}
@@ -446,7 +427,7 @@ func (ds *DebugService) OnStateChanged(oldState, newState domain.StateSnapshot) 
 
 	changes := ds.detectStateChanges(oldState, newState)
 	if len(changes) > 0 {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"old_state": oldState,
 			"new_state": newState,
 			"changes":   changes,
@@ -521,17 +502,17 @@ func (ds *DebugService) ExportMetrics(filename string) error {
 }
 
 // generateMetricsSummary generates a summary of performance metrics
-func (ds *DebugService) generateMetricsSummary() map[string]interface{} {
-	summary := make(map[string]interface{})
+func (ds *DebugService) generateMetricsSummary() map[string]any {
+	summary := make(map[string]any)
 
-	msgSummary := make(map[string]interface{})
+	msgSummary := make(map[string]any)
 	for msgType, times := range ds.metrics.MessageProcessingTimes {
 		if len(times) > 0 {
 			avg := calculateAverage(times)
 			max := calculateMax(times)
 			min := calculateMin(times)
 
-			msgSummary[msgType] = map[string]interface{}{
+			msgSummary[msgType] = map[string]any{
 				"count":  len(times),
 				"avg_ms": avg.Milliseconds(),
 				"max_ms": max.Milliseconds(),
@@ -546,7 +527,7 @@ func (ds *DebugService) generateMetricsSummary() map[string]interface{} {
 		max := calculateMax(ds.metrics.UIRenderTimes)
 		min := calculateMin(ds.metrics.UIRenderTimes)
 
-		summary["ui_rendering"] = map[string]interface{}{
+		summary["ui_rendering"] = map[string]any{
 			"count":  len(ds.metrics.UIRenderTimes),
 			"avg_ms": avg.Milliseconds(),
 			"max_ms": max.Milliseconds(),
@@ -559,7 +540,7 @@ func (ds *DebugService) generateMetricsSummary() map[string]interface{} {
 		max := calculateMax(ds.metrics.StateTransitionTimes)
 		min := calculateMin(ds.metrics.StateTransitionTimes)
 
-		summary["state_transitions"] = map[string]interface{}{
+		summary["state_transitions"] = map[string]any{
 			"count":  len(ds.metrics.StateTransitionTimes),
 			"avg_ms": avg.Milliseconds(),
 			"max_ms": max.Milliseconds(),
@@ -567,14 +548,14 @@ func (ds *DebugService) generateMetricsSummary() map[string]interface{} {
 		}
 	}
 
-	sdkSummary := make(map[string]interface{})
+	sdkSummary := make(map[string]any)
 	for operation, times := range ds.metrics.SDKCallTimes {
 		if len(times) > 0 {
 			avg := calculateAverage(times)
 			max := calculateMax(times)
 			min := calculateMin(times)
 
-			sdkSummary[operation] = map[string]interface{}{
+			sdkSummary[operation] = map[string]any{
 				"count":  len(times),
 				"avg_ms": avg.Milliseconds(),
 				"max_ms": max.Milliseconds(),
@@ -616,7 +597,7 @@ func (ds *DebugService) GetEventsByType(eventType DebugEventType) []DebugEvent {
 }
 
 // GetPerformanceSummary returns a performance summary
-func (ds *DebugService) GetPerformanceSummary() map[string]interface{} {
+func (ds *DebugService) GetPerformanceSummary() map[string]any {
 	ds.metrics.mutex.RLock()
 	defer ds.metrics.mutex.RUnlock()
 
@@ -636,11 +617,6 @@ func (ds *DebugService) Cleanup() {
 	_ = ds.ExportEvents(fmt.Sprintf("events_final_%s.json", timestamp))
 	_ = ds.ExportMetrics(fmt.Sprintf("metrics_final_%s.json", timestamp))
 
-	if ds.logFile != nil {
-		_ = ds.logFile.Close()
-		ds.logFile = nil
-	}
-
 	logger.Debug("Debug service cleanup completed")
 }
 
@@ -658,21 +634,35 @@ func (ds *DebugService) addEvent(event DebugEvent) {
 		ds.events = ds.events[1:]
 	}
 
-	ds.writeToLogFile(event)
+	ds.logEventToLogger(event)
 }
 
-func (ds *DebugService) writeToLogFile(event DebugEvent) {
-	if ds.logFile == nil {
-		return
+func (ds *DebugService) logEventToLogger(event DebugEvent) {
+	fields := []any{
+		"event_id", event.ID,
+		"event_type", event.Type.String(),
+		"source", event.Source,
+		"timestamp", event.Timestamp,
 	}
 
-	data, err := json.Marshal(event)
-	if err != nil {
-		return
+	if event.Duration != nil {
+		fields = append(fields, "duration_ms", event.Duration.Milliseconds())
 	}
 
-	_, _ = ds.logFile.WriteString(string(data) + "\n")
-	_ = ds.logFile.Sync()
+	if event.Data != nil {
+		for k, v := range event.Data {
+			fields = append(fields, k, v)
+		}
+	}
+
+	switch event.Type {
+	case DebugEventTypeError:
+		logger.Error(event.Message, fields...)
+	case DebugEventTypePerformance:
+		logger.Info(event.Message, fields...)
+	default:
+		logger.Debug(event.Message, fields...)
+	}
 }
 
 func generateEventID() string {

@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.29.4](https://github.com/inference-gateway/cli/compare/v0.29.3...v0.29.4) (2025-08-20)
+
+### ♻️ Code Refactoring
+
+* Improve / reconcile logging ([5596a1f](https://github.com/inference-gateway/cli/commit/5596a1fd326e55fbb8d0b364c890313dc612f3d5))
+
+## [0.29.3](https://github.com/inference-gateway/cli/compare/v0.29.2...v0.29.3) (2025-08-20)
+
+### 📚 Documentation
+
+* Add new tools and update README documentation for improved functionality ([5f2f080](https://github.com/inference-gateway/cli/commit/5f2f0803293ea75fbfe2c2e5fa9909b2f2b95f20))
+
+## [0.29.2](https://github.com/inference-gateway/cli/compare/v0.29.1...v0.29.2) (2025-08-20)
+
+### ♻️ Code Refactoring
+
+* Refactor tool parameter types from `map[string]interface{}` to `map[string]any` ([28647de](https://github.com/inference-gateway/cli/commit/28647de3e9a772fa14126245a228722ad26b5f5e))
+
+## [0.29.1](https://github.com/inference-gateway/cli/compare/v0.29.0...v0.29.1) (2025-08-20)
+
+### 🧹 Maintenance
+
+* Update input placeholder to include command hint ([11a40d2](https://github.com/inference-gateway/cli/commit/11a40d2bcdd40c741af344ca3112e722235f02b0))
+
+## [0.29.0](https://github.com/inference-gateway/cli/compare/v0.28.1...v0.29.0) (2025-08-20)
+
+### 🚀 Features
+
+* Implement centralized sandbox configuration ([#83](https://github.com/inference-gateway/cli/issues/83)) ([1324205](https://github.com/inference-gateway/cli/commit/1324205d072c7160a98f863ee117326929a92305)), closes [#82](https://github.com/inference-gateway/cli/issues/82)
+
+## [0.28.1](https://github.com/inference-gateway/cli/compare/v0.28.0...v0.28.1) (2025-08-19)
+
+### ♻️ Code Refactoring
+
+* Split config init into separate init command ([#77](https://github.com/inference-gateway/cli/issues/77)) ([fa99c76](https://github.com/inference-gateway/cli/commit/fa99c76d4163ed4b9343389cb0070fd7015910b3)), closes [#75](https://github.com/inference-gateway/cli/issues/75) [#75](https://github.com/inference-gateway/cli/issues/75)
+
+## [0.28.0](https://github.com/inference-gateway/cli/compare/v0.27.0...v0.28.0) (2025-08-19)
+
+### 🚀 Features
+
+* Add total input tokens to Usage Status ([#78](https://github.com/inference-gateway/cli/issues/78)) ([2df6874](https://github.com/inference-gateway/cli/commit/2df6874d8d35a80b6ab30c665d7aa52be0c92d08)), closes [#76](https://github.com/inference-gateway/cli/issues/76) [#76](https://github.com/inference-gateway/cli/issues/76)
+
 ## [0.27.0](https://github.com/inference-gateway/cli/compare/v0.26.0...v0.27.0) (2025-08-19)
 
 ### 🚀 Features
