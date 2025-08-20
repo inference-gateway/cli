@@ -168,9 +168,9 @@ infer config tools safety set websearch disabled
 infer config tools safety unset bash
 
 # Manage excluded paths
-infer config tools exclude-path list
-infer config tools exclude-path add ".github/"
-infer config tools exclude-path remove "test.txt"
+infer config tools sandbox list
+infer config tools sandbox add ".github/"
+infer config tools sandbox remove "test.txt"
 ```
 
 ### Version Information
