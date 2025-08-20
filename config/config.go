@@ -229,7 +229,7 @@ func DefaultConfig() *Config { //nolint:funlen
 						"^git status$",
 						"^git log --oneline -n [0-9]+$",
 						"^git commit -m \".+\"$",
-						"^git push( --set-upstream origin)?( (?!main$|master$)[a-zA-Z0-9/_-]+)?$",
+						"^git push( --set-upstream| origin)?( (?!main$|master$)[a-zA-Z0-9/_-]+)?$",
 					},
 				},
 			},
