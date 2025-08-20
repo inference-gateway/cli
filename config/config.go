@@ -230,8 +230,6 @@ func DefaultConfig() *Config { //nolint:funlen
 						"^git log --oneline -n [0-9]+$",
 						"^git commit -m \".+\"$",
 						"^git push+$",
-						"^docker ps$",
-						"^kubectl get pods$",
 					},
 				},
 			},
