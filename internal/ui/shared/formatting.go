@@ -54,8 +54,8 @@ func GetResponsiveWidth(terminalWidth int) int {
 	return availableWidth
 }
 
-// truncateText truncates text to fit within maxLength, adding "..." if needed
-func truncateText(text string, maxLength int) string {
+// TruncateText truncates text to fit within maxLength, adding "..." if needed
+func TruncateText(text string, maxLength int) string {
 	if len(text) <= maxLength {
 		return text
 	}

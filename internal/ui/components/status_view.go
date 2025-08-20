@@ -171,7 +171,7 @@ func (sv *StatusView) getStatusIcon() string {
 	case shared.StatusPreparing:
 		return "📋"
 	default:
-		return "ℹ️"
+		return "📊"
 	}
 }
 

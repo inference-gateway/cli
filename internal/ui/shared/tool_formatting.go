@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/progress"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -58,7 +59,6 @@ func joinArgs(args []string) string {
 }
 
 // FormatToolResultForUI formats tool execution results specifically for UI display
-// This shows a compact "ToolName(args)" format with 2 lines of preview
 func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
@@ -79,7 +79,7 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 		if searchResult, ok := result.Data.(*domain.WebSearchResponse); ok {
 			if len(searchResult.Results) > 0 {
 				preview = fmt.Sprintf("Found %d results: %s", len(searchResult.Results),
-					truncateText(searchResult.Results[0].Title, 60))
+					TruncateText(searchResult.Results[0].Title, 60))
 			} else {
 				preview = "No results found"
 			}
@@ -87,7 +87,7 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 	case "Bash":
 		if bashResult, ok := result.Data.(*domain.BashToolResult); ok {
 			if bashResult.ExitCode == 0 && bashResult.Output != "" {
-				preview = truncateText(strings.TrimSpace(bashResult.Output), 60)
+				preview = TruncateText(strings.TrimSpace(bashResult.Output), 60)
 			} else if bashResult.ExitCode != 0 {
 				preview = fmt.Sprintf("Exit code: %d", bashResult.ExitCode)
 			} else {
@@ -105,8 +105,8 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 			preview = fmt.Sprintf("Fetched %d bytes from %s", fetchResult.Size, domain)
 		}
 	case "TodoWrite":
-		if todoResult, ok := result.Data.(*domain.TodoWriteToolResult); ok {
-			preview = fmt.Sprintf("Updated todo list: %d/%d completed", todoResult.CompletedTasks, todoResult.TotalTasks)
+		if _, ok := result.Data.(*domain.TodoWriteToolResult); ok {
+			preview = formatTodoWriteToolData(result.Data)
 		}
 	default:
 		if result.Success {
@@ -116,7 +116,11 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 		}
 	}
 
-	return fmt.Sprintf("%s\n%s %s", toolCall, statusIcon, preview)
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
 }
 
 // FormatToolResultExpanded formats a tool execution result with full details
@@ -127,35 +131,39 @@ func FormatToolResultExpanded(result *domain.ToolExecutionResult) string {
 	}
 
 	var output strings.Builder
+	toolCall := FormatToolCall(result.ToolName, result.Arguments)
 
-	output.WriteString(fmt.Sprintf("🔧 Tool: %s\n", result.ToolName))
-	output.WriteString(fmt.Sprintf("⏱️  Duration: %s\n", result.Duration.String()))
-	output.WriteString(fmt.Sprintf("📊 Status: %s\n", getStatusText(result.Success)))
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("├─ ⏱️  Duration: %s\n", result.Duration.String()))
+	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", getStatusText(result.Success)))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("❌ Error: %s\n", result.Error))
+		output.WriteString(fmt.Sprintf("├─ ❌ Error: %s\n", result.Error))
 	}
 
 	if len(result.Arguments) > 0 {
-		output.WriteString("\n📝 Arguments:\n")
+		output.WriteString("├─ 📝 Arguments:\n")
 		keys := make([]string, 0, len(result.Arguments))
 		for key := range result.Arguments {
 			keys = append(keys, key)
 		}
 		sort.Strings(keys)
 
-		for _, key := range keys {
-			output.WriteString(fmt.Sprintf("  %s: %v\n", key, result.Arguments[key]))
+		for i, key := range keys {
+			if i == len(keys)-1 && result.Data == nil && len(result.Metadata) == 0 {
+				output.WriteString(fmt.Sprintf("│  └─ %s: %v\n", key, result.Arguments[key]))
+			} else {
+				output.WriteString(fmt.Sprintf("│  ├─ %s: %v\n", key, result.Arguments[key]))
+			}
 		}
 	}
 
 	if result.Data != nil {
-		output.WriteString("\n📄 Result:\n")
-		output.WriteString(formatToolSpecificData(result.ToolName, result.Data))
+		formatResultData(&output, result)
 	}
 
 	if len(result.Metadata) > 0 {
-		output.WriteString("\n🏷️  Metadata:\n")
+		output.WriteString("└─ 🏷️  Metadata:\n")
 
 		keys := make([]string, 0, len(result.Metadata))
 		for key := range result.Metadata {
@@ -163,12 +171,36 @@ func FormatToolResultExpanded(result *domain.ToolExecutionResult) string {
 		}
 		sort.Strings(keys)
 
-		for _, key := range keys {
-			output.WriteString(fmt.Sprintf("  %s: %s\n", key, result.Metadata[key]))
+		for i, key := range keys {
+			if i == len(keys)-1 {
+				output.WriteString(fmt.Sprintf("   └─ %s: %s\n", key, result.Metadata[key]))
+			} else {
+				output.WriteString(fmt.Sprintf("   ├─ %s: %s\n", key, result.Metadata[key]))
+			}
 		}
 	}
 
 	return output.String()
+}
+
+// formatResultData formats the result data section with proper indentation
+func formatResultData(output *strings.Builder, result *domain.ToolExecutionResult) {
+	hasMetadata := len(result.Metadata) > 0
+	if hasMetadata {
+		output.WriteString("├─ 📄 Result:\n")
+	} else {
+		output.WriteString("└─ 📄 Result:\n")
+	}
+
+	dataContent := formatToolSpecificData(result.ToolName, result.Data)
+	lines := strings.Split(strings.TrimRight(dataContent, "\n"), "\n")
+	for _, line := range lines {
+		if hasMetadata {
+			fmt.Fprintf(output, "│  %s\n", line)
+		} else {
+			fmt.Fprintf(output, "   %s\n", line)
+		}
+	}
 }
 
 // getStatusText returns a human-readable status text
@@ -350,53 +382,53 @@ func formatTodoWriteToolData(data any) string {
 
 	var output strings.Builder
 
-	output.WriteString(fmt.Sprintf("📋 **Todo List** (%d/%d completed)\n\n", todoResult.CompletedTasks, todoResult.TotalTasks))
+	// Header with simplified format
+	output.WriteString(fmt.Sprintf("**Todo List** (%d/%d completed)\n\n", todoResult.CompletedTasks, todoResult.TotalTasks))
 
+	// Progress bar using Bubble Tea's progress component
 	if todoResult.TotalTasks > 0 {
-		progressPercent := (todoResult.CompletedTasks * 100) / todoResult.TotalTasks
-		progressBar := createProgressBar(progressPercent, 20)
-		output.WriteString(fmt.Sprintf("Progress: %s %d%%\n\n", progressBar, progressPercent))
+		progressPercent := float64(todoResult.CompletedTasks) / float64(todoResult.TotalTasks)
+		progressBar := createBubbleTeaProgressBar(progressPercent)
+		output.WriteString(fmt.Sprintf("Progress: %s\n\n", progressBar))
 	}
 
-	for i, todo := range todoResult.Todos {
+	// Todo items with cleaner format
+	for _, todo := range todoResult.Todos {
 		var checkbox, content string
 
 		switch todo.Status {
 		case "completed":
-			checkbox = "✅"
+			checkbox = "☑"
 			content = CreateStrikethroughText(todo.Content)
 		case "in_progress":
-			checkbox = "🔄"
-			content = CreateColoredText(fmt.Sprintf("%s (in progress)", todo.Content), AccentColor) // Colored for in progress
+			checkbox = "☐"
+			content = CreateColoredText(todo.Content, AccentColor) // Highlight current task in color
 		default:
 			checkbox = "☐"
 			content = todo.Content
 		}
 
-		output.WriteString(fmt.Sprintf("%d. %s %s\n", i+1, checkbox, content))
-	}
-
-	if todoResult.InProgressTask != "" {
-		output.WriteString(fmt.Sprintf("\n🚧 %s %s\n",
-			CreateColoredText("Currently working on:", StatusColor),
-			CreateColoredText(todoResult.InProgressTask, AccentColor)))
+		output.WriteString(fmt.Sprintf("%s %s\n", checkbox, content))
 	}
 
 	return output.String()
 }
 
-// createProgressBar creates a visual progress bar
-func createProgressBar(percent int, width int) string {
-	if percent < 0 {
-		percent = 0
-	}
-	if percent > 100 {
-		percent = 100
+// createBubbleTeaProgressBar creates a progress bar using Bubble Tea's progress component
+func createBubbleTeaProgressBar(percent float64) string {
+	prog := progress.New(progress.WithDefaultGradient())
+	prog.Width = 25
+
+	if percent >= 1.0 {
+		prog = progress.New(progress.WithSolidFill("#22C55E"))
+	} else if percent >= 0.5 {
+		prog = progress.New(progress.WithSolidFill("#3B82F6"))
+	} else {
+		prog = progress.New(progress.WithDefaultGradient())
 	}
 
-	filled := (percent * width) / 100
-	bar := strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
-	return fmt.Sprintf("[%s]", bar)
+	prog.Width = 25
+	return prog.ViewAs(percent)
 }
 
 // Helper functions
