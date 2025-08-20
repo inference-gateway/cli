@@ -77,7 +77,8 @@ and management of inference services.
   - **Write**: Write content to files with security controls
   - **Grep**: Fast ripgrep-powered search with regex support and multiple output modes
   - **WebSearch**: Search the web using DuckDuckGo or Google
-  - **WebFetch**: Fetch content from URLs and GitHub
+  - **WebFetch**: Fetch content from whitelisted URLs
+  - **Github**: Interact with GitHub API to fetch issues, pull requests, and create content
   - **Tree**: Display directory structure with polyfill support
   - **Delete**: Delete files and directories with security controls
   - **Edit**: Perform exact string replacements in files
@@ -467,39 +468,52 @@ WebFetch content from whitelisted URLs or GitHub references using the format `ex
 
 ### Github Tool
 
-Interact with GitHub API to fetch issues, pull requests, and other data with authentication support.
+Interact with GitHub API to fetch issues, pull requests, create comments,
+and create pull requests with authentication support. This is a standalone
+tool separate from WebFetch.
 
 **Parameters:**
 
 - `owner` (required): Repository owner (username or organization)
 - `repo` (required): Repository name
-- `resource` (optional): Resource type to fetch (default: "issue")
+- `resource` (optional): Resource type to fetch or create (default: "issue")
   - `issue`: Fetch a specific issue
   - `issues`: Fetch a list of issues
   - `pull_request`: Fetch a specific pull request
   - `comments`: Fetch comments for an issue/PR
-- `issue_number` (required for issue/pull_request/comments): Issue or PR number
+  - `create_comment`: Create a comment on an issue/PR
+  - `create_pull_request`: Create a new pull request
+- `issue_number` (required for issue/pull_request/comments/create_comment): Issue or PR number
+- `comment_body` (required for create_comment): Comment body text
+- `title` (required for create_pull_request): Pull request title
+- `body` (optional for create_pull_request): Pull request body/description
+- `head` (required for create_pull_request): Head branch name
+- `base` (optional for create_pull_request): Base branch name (default: "main")
 - `state` (optional): Filter by state for issues list ("open", "closed", "all", default: "open")
 - `per_page` (optional): Number of items per page for lists (1-100, default: 30)
 
 **Features:**
 
 - **GitHub API Integration**: Direct access to GitHub's REST API v3
-- **Authentication**: Supports GitHub personal access tokens
-- **Multiple Resources**: Fetch issues, pull requests, and comments
+- **Authentication**: Supports GitHub personal access tokens via environment variables
+- **Multiple Resources**: Fetch issues, pull requests, comments, and create new content
 - **Structured Data**: Returns properly typed GitHub data structures
 - **Error Handling**: Comprehensive error handling with GitHub API error messages
 - **Rate Limiting**: Respects GitHub API rate limits
 - **Security**: Configurable timeout and response size limits
+- **Environment Variables**: Supports token resolution via `%GITHUB_TOKEN%` syntax
+- **Security Controls**: Owner validation for secure repository access
 
 **Configuration:**
 
 ```yaml
 tools:
-  github_fetch:
+  github:
     enabled: true
-    token: "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    token: "%GITHUB_TOKEN%"  # Environment variable reference
     base_url: "https://api.github.com"
+    owner: "your-username"  # Default owner for security
+    repo: "your-repo"       # Default repository (optional)
     safety:
       max_size: 1048576  # 1MB
       timeout: 30        # 30 seconds
@@ -512,6 +526,10 @@ tools:
 - List open issues: `owner: "octocat", repo: "Hello-World", resource: "issues", state: "open", per_page: 10`
 - Fetch pull request: `owner: "octocat", repo: "Hello-World", resource: "pull_request", issue_number: 5`
 - Get issue comments: `owner: "octocat", repo: "Hello-World", resource: "comments", issue_number: 1`
+- Create comment: `owner: "octocat", repo: "Hello-World", resource: "create_comment",
+  issue_number: 1, comment_body: "Great work!"`
+- Create pull request: `owner: "octocat", repo: "Hello-World", resource: "create_pull_request",
+  title: "Add feature", body: "New feature implementation", head: "feature-branch", base: "main"`
 
 ### Delete Tool
 
@@ -744,10 +762,16 @@ tools:
         - gh
         - task
       patterns: # Regex patterns for more complex commands
+        - ^git branch( --show-current)?$
+        - ^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$
+        - ^git checkout [a-zA-Z0-9/_-]+
+        - ^git add [a-zA-Z0-9/_.-]+
+        - ^git diff+
+        - ^git remote -v$
         - ^git status$
         - ^git log --oneline -n [0-9]+$
-        - ^docker ps$
-        - ^kubectl get pods$
+        - ^git commit -m ".+"$
+        - ^git push( --set-upstream)?( origin)?( [a-zA-Z0-9/_-]+)?$
   read:
     enabled: true
     require_approval: false
@@ -789,6 +813,15 @@ tools:
     timeout: 10
   todo_write:
     enabled: true
+    require_approval: false
+  github:
+    enabled: true
+    token: "%GITHUB_TOKEN%"
+    base_url: "https://api.github.com"
+    owner: ""
+    safety:
+      max_size: 1048576  # 1MB
+      timeout: 30        # 30 seconds
     require_approval: false
   safety:
     require_approval: true
