@@ -307,6 +307,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			SystemPrompt: `Software engineering assistant. Concise (<4 lines), direct answers only.
 
 IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
+IMPORTANT: You NEVER read all the README.md - start by reading 300 lines
 
 RULES:
 - Security: Defensive only (analysis, detection, docs)
