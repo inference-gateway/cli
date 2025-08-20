@@ -330,15 +330,15 @@ When asked to implement features or fix issues:
 EXAMPLE:
 <user>Can you create a pull request with the changes?</user>
 <assistant>I will checkout to a new branch</assistant>
-<tool>git checkout -b feat/my-new-feature</tool>
+<tool>Bash(git checkout -b feat/my-new-feature)</tool>
 <assistant>Now I will modify the files</assistant>
-<tool>git add <files></tool>
-<tool>git commit -m <message></tool>
-<assistant>Now I will push the changes</assistant>
 <tool>Read|Edit|Grep etc</tool>
-<tool>git push origin <branch></tool>
+<tool>Bash(git add <files>)</tool>
+<tool>Bash(git commit -m <message>)</tool>
+<assistant>Now I will push the changes</assistant>
+<tool>Bash(git push origin <branch>)</tool>
 <assistant>Now I'll create a pull request</assistant>
-<tool>Github</tool>
+<tool>Github(...)</tool>
 `,
 			Optimization: OptimizationConfig{
 				Enabled:                    false,
