@@ -46,12 +46,12 @@ func TestGrepTool_Definition(t *testing.T) {
 		}
 	}
 
-	params, ok := def.Parameters.(map[string]interface{})
+	params, ok := def.Parameters.(map[string]any)
 	if !ok {
 		t.Fatal("Expected parameters to be a map")
 	}
 
-	properties, ok := params["properties"].(map[string]interface{})
+	properties, ok := params["properties"].(map[string]any)
 	if !ok {
 		t.Fatal("Expected properties to be a map")
 	}
@@ -168,7 +168,7 @@ func validateGrepTestResult(t *testing.T, err error, expectError bool, errorMsg 
 
 type grepValidationTestCase struct {
 	name        string
-	args        map[string]interface{}
+	args        map[string]any
 	expectError bool
 	errorMsg    string
 }
@@ -177,13 +177,13 @@ func getPatternTestCases() []grepValidationTestCase {
 	return []grepValidationTestCase{
 		{
 			name:        "missing pattern",
-			args:        map[string]interface{}{},
+			args:        map[string]any{},
 			expectError: true,
 			errorMsg:    "pattern parameter is required",
 		},
 		{
 			name: "empty pattern",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern": "",
 			},
 			expectError: true,
@@ -191,7 +191,7 @@ func getPatternTestCases() []grepValidationTestCase {
 		},
 		{
 			name: "invalid regex pattern",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern": "[",
 			},
 			expectError: true,
@@ -199,7 +199,7 @@ func getPatternTestCases() []grepValidationTestCase {
 		},
 		{
 			name: "valid pattern",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern": "test.*pattern",
 			},
 			expectError: false,
@@ -211,7 +211,7 @@ func getOutputModeTestCases() []grepValidationTestCase {
 	return []grepValidationTestCase{
 		{
 			name: "invalid output_mode",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern":     "test",
 				"output_mode": "invalid",
 			},
@@ -220,7 +220,7 @@ func getOutputModeTestCases() []grepValidationTestCase {
 		},
 		{
 			name: "valid output_mode content",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern":     "test",
 				"output_mode": "content",
 			},
@@ -228,7 +228,7 @@ func getOutputModeTestCases() []grepValidationTestCase {
 		},
 		{
 			name: "valid output_mode files_with_matches",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern":     "test",
 				"output_mode": "files_with_matches",
 			},
@@ -236,7 +236,7 @@ func getOutputModeTestCases() []grepValidationTestCase {
 		},
 		{
 			name: "valid output_mode count",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern":     "test",
 				"output_mode": "count",
 			},
@@ -249,7 +249,7 @@ func getContextFlagsTestCases() []grepValidationTestCase {
 	return []grepValidationTestCase{
 		{
 			name: "negative context value",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern": "test",
 				"-A":      -1.0,
 			},
@@ -258,7 +258,7 @@ func getContextFlagsTestCases() []grepValidationTestCase {
 		},
 		{
 			name: "invalid context type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern": "test",
 				"-B":      "invalid",
 			},
@@ -267,7 +267,7 @@ func getContextFlagsTestCases() []grepValidationTestCase {
 		},
 		{
 			name: "valid context values",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern": "test",
 				"-A":      3.0,
 				"-B":      2.0,
@@ -282,7 +282,7 @@ func getHeadLimitTestCases() []grepValidationTestCase {
 	return []grepValidationTestCase{
 		{
 			name: "invalid head_limit",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern":    "test",
 				"head_limit": 0.0,
 			},
@@ -291,7 +291,7 @@ func getHeadLimitTestCases() []grepValidationTestCase {
 		},
 		{
 			name: "valid head_limit",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern":    "test",
 				"head_limit": 10.0,
 			},
@@ -304,7 +304,7 @@ func getBooleanFlagsTestCases() []grepValidationTestCase {
 	return []grepValidationTestCase{
 		{
 			name: "invalid boolean type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern": "test",
 				"-i":      "not_boolean",
 			},
@@ -313,7 +313,7 @@ func getBooleanFlagsTestCases() []grepValidationTestCase {
 		},
 		{
 			name: "valid boolean flags",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"pattern":   "test",
 				"-i":        true,
 				"-n":        false,
@@ -332,7 +332,7 @@ func TestGrepTool_ValidateDisabled(t *testing.T) {
 	}
 
 	tool := NewGrepTool(cfg)
-	args := map[string]interface{}{
+	args := map[string]any{
 		"pattern": "test",
 	}
 
@@ -360,7 +360,7 @@ func TestGrepTool_Execute(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("missing pattern", func(t *testing.T) {
-		args := map[string]interface{}{}
+		args := map[string]any{}
 		result, err := tool.Execute(ctx, args)
 
 		if err != nil {
@@ -384,7 +384,7 @@ func TestGrepTool_Execute(t *testing.T) {
 		}
 		disabledTool := NewGrepTool(disabledCfg)
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"pattern": "test",
 		}
 
@@ -546,7 +546,7 @@ func TestGrepTool_HybridSearch(t *testing.T) {
 	tool := NewGrepTool(cfg)
 	ctx := context.Background()
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"pattern":     "package",
 		"output_mode": "files_with_matches",
 	}
@@ -597,7 +597,7 @@ func TestGrepTool_GoBasedSearch(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	args := map[string]interface{}{
+	args := map[string]any{
 		"pattern":     "package",
 		"output_mode": "files_with_matches",
 	}
@@ -628,7 +628,7 @@ func BenchmarkGrepTool_SimplePattern(b *testing.B) {
 
 	tool := NewGrepTool(cfg)
 	ctx := context.Background()
-	args := map[string]interface{}{
+	args := map[string]any{
 		"pattern":     "func",
 		"output_mode": "files_with_matches",
 	}
@@ -654,7 +654,7 @@ func BenchmarkGrepTool_ComplexRegex(b *testing.B) {
 
 	tool := NewGrepTool(cfg)
 	ctx := context.Background()
-	args := map[string]interface{}{
+	args := map[string]any{
 		"pattern":     `func\s+\w+\s*\([^)]*\)\s*\{`,
 		"output_mode": "content",
 		"-n":          true,
@@ -681,7 +681,7 @@ func BenchmarkGrepTool_FileTypeFilter(b *testing.B) {
 
 	tool := NewGrepTool(cfg)
 	ctx := context.Background()
-	args := map[string]interface{}{
+	args := map[string]any{
 		"pattern":     "import",
 		"type":        "go",
 		"output_mode": "files_with_matches",
@@ -708,7 +708,7 @@ func BenchmarkGrepTool_GlobPattern(b *testing.B) {
 
 	tool := NewGrepTool(cfg)
 	ctx := context.Background()
-	args := map[string]interface{}{
+	args := map[string]any{
 		"pattern":     "package",
 		"glob":        "*.go",
 		"output_mode": "count",
@@ -735,7 +735,7 @@ func BenchmarkGrepTool_CaseInsensitive(b *testing.B) {
 
 	tool := NewGrepTool(cfg)
 	ctx := context.Background()
-	args := map[string]interface{}{
+	args := map[string]any{
 		"pattern":     "FUNC",
 		"-i":          true,
 		"output_mode": "files_with_matches",
@@ -762,7 +762,7 @@ func BenchmarkGrepTool_WithContext(b *testing.B) {
 
 	tool := NewGrepTool(cfg)
 	ctx := context.Background()
-	args := map[string]interface{}{
+	args := map[string]any{
 		"pattern":     "func",
 		"output_mode": "content",
 		"-n":          true,
@@ -790,7 +790,7 @@ func BenchmarkGrepTool_HeadLimit(b *testing.B) {
 
 	tool := NewGrepTool(cfg)
 	ctx := context.Background()
-	args := map[string]interface{}{
+	args := map[string]any{
 		"pattern":     ".",
 		"output_mode": "files_with_matches",
 		"head_limit":  10.0,
@@ -818,7 +818,7 @@ func BenchmarkRipgrepComparison_SimplePattern(b *testing.B) {
 
 		tool := NewGrepTool(cfg)
 		ctx := context.Background()
-		args := map[string]interface{}{
+		args := map[string]any{
 			"pattern":     "func",
 			"output_mode": "files_with_matches",
 		}
@@ -862,7 +862,7 @@ func BenchmarkRipgrepComparison_ComplexRegex(b *testing.B) {
 
 		tool := NewGrepTool(cfg)
 		ctx := context.Background()
-		args := map[string]interface{}{
+		args := map[string]any{
 			"pattern":     `func\s+\w+\s*\([^)]*\)\s*\{`,
 			"output_mode": "content",
 			"-n":          true,
@@ -907,7 +907,7 @@ func BenchmarkRipgrepComparison_FileTypeFilter(b *testing.B) {
 
 		tool := NewGrepTool(cfg)
 		ctx := context.Background()
-		args := map[string]interface{}{
+		args := map[string]any{
 			"pattern":     "import",
 			"type":        "go",
 			"output_mode": "files_with_matches",
@@ -951,7 +951,7 @@ func BenchmarkGrepTool_MemoryAllocs(b *testing.B) {
 
 	tool := NewGrepTool(cfg)
 	ctx := context.Background()
-	args := map[string]interface{}{
+	args := map[string]any{
 		"pattern":     "func",
 		"output_mode": "files_with_matches",
 	}

@@ -62,7 +62,7 @@ func (r *MessageRouter) Route(
 					services.DebugEventTypeMessage,
 					"MessageRouter",
 					"Message routed to handler: "+handler.GetName(),
-					map[string]interface{}{
+					map[string]any{
 						"message_type": msgType,
 						"handler":      handler.GetName(),
 						"priority":     handler.GetPriority(),
@@ -89,7 +89,7 @@ func (r *MessageRouter) Route(
 			services.DebugEventTypeMessage,
 			"MessageRouter",
 			"No handler found for message",
-			map[string]interface{}{
+			map[string]any{
 				"message_type": msgType,
 			},
 		)

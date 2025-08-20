@@ -53,7 +53,7 @@ func TestEditTool_Definition(t *testing.T) {
 	}
 
 	// Check required parameters
-	params, ok := def.Parameters.(map[string]interface{})
+	params, ok := def.Parameters.(map[string]any)
 	if !ok {
 		t.Fatal("Parameters should be a map")
 	}
@@ -165,14 +165,14 @@ func getTestConfig() *config.Config {
 func getValidationTests() []struct {
 	name         string
 	readUsed     bool
-	args         map[string]interface{}
+	args         map[string]any
 	wantError    bool
 	errorMessage string
 } {
 	tests := []struct {
 		name         string
 		readUsed     bool
-		args         map[string]interface{}
+		args         map[string]any
 		wantError    bool
 		errorMessage string
 	}{}
@@ -187,21 +187,21 @@ func getValidationTests() []struct {
 func getValidSuccessTests() []struct {
 	name         string
 	readUsed     bool
-	args         map[string]interface{}
+	args         map[string]any
 	wantError    bool
 	errorMessage string
 } {
 	return []struct {
 		name         string
 		readUsed     bool
-		args         map[string]interface{}
+		args         map[string]any
 		wantError    bool
 		errorMessage string
 	}{
 		{
 			name:     "valid arguments with read tool used",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  "test.txt",
 				"old_string": "old",
 				"new_string": "new",
@@ -211,7 +211,7 @@ func getValidSuccessTests() []struct {
 		{
 			name:     "valid arguments with replace_all",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":   "test.txt",
 				"old_string":  "old",
 				"new_string":  "new",
@@ -225,21 +225,21 @@ func getValidSuccessTests() []struct {
 func getValidFailureTests() []struct {
 	name         string
 	readUsed     bool
-	args         map[string]interface{}
+	args         map[string]any
 	wantError    bool
 	errorMessage string
 } {
 	return []struct {
 		name         string
 		readUsed     bool
-		args         map[string]interface{}
+		args         map[string]any
 		wantError    bool
 		errorMessage string
 	}{
 		{
 			name:     "read tool not used",
 			readUsed: false,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  "test.txt",
 				"old_string": "old",
 				"new_string": "new",
@@ -250,7 +250,7 @@ func getValidFailureTests() []struct {
 		{
 			name:     "missing file_path",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"old_string": "old",
 				"new_string": "new",
 			},
@@ -260,7 +260,7 @@ func getValidFailureTests() []struct {
 		{
 			name:     "empty file_path",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  "",
 				"old_string": "old",
 				"new_string": "new",
@@ -271,7 +271,7 @@ func getValidFailureTests() []struct {
 		{
 			name:     "file_path wrong type",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  123,
 				"old_string": "old",
 				"new_string": "new",
@@ -282,7 +282,7 @@ func getValidFailureTests() []struct {
 		{
 			name:     "missing old_string",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  "test.txt",
 				"new_string": "new",
 			},
@@ -292,7 +292,7 @@ func getValidFailureTests() []struct {
 		{
 			name:     "empty old_string",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  "test.txt",
 				"old_string": "",
 				"new_string": "new",
@@ -303,7 +303,7 @@ func getValidFailureTests() []struct {
 		{
 			name:     "old_string wrong type",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  "test.txt",
 				"old_string": 123,
 				"new_string": "new",
@@ -314,7 +314,7 @@ func getValidFailureTests() []struct {
 		{
 			name:     "missing new_string",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  "test.txt",
 				"old_string": "old",
 			},
@@ -324,7 +324,7 @@ func getValidFailureTests() []struct {
 		{
 			name:     "new_string wrong type",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  "test.txt",
 				"old_string": "old",
 				"new_string": 123,
@@ -335,7 +335,7 @@ func getValidFailureTests() []struct {
 		{
 			name:     "old_string equals new_string",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  "test.txt",
 				"old_string": "same",
 				"new_string": "same",
@@ -346,7 +346,7 @@ func getValidFailureTests() []struct {
 		{
 			name:     "replace_all wrong type",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":   "test.txt",
 				"old_string":  "old",
 				"new_string":  "new",
@@ -361,21 +361,21 @@ func getValidFailureTests() []struct {
 func getValidSecurityTests() []struct {
 	name         string
 	readUsed     bool
-	args         map[string]interface{}
+	args         map[string]any
 	wantError    bool
 	errorMessage string
 } {
 	return []struct {
 		name         string
 		readUsed     bool
-		args         map[string]interface{}
+		args         map[string]any
 		wantError    bool
 		errorMessage string
 	}{
 		{
 			name:     "excluded path",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  ".infer/config.yaml",
 				"old_string": "old",
 				"new_string": "new",
@@ -386,7 +386,7 @@ func getValidSecurityTests() []struct {
 		{
 			name:     "excluded pattern",
 			readUsed: true,
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  ".env.database",
 				"old_string": "old",
 				"new_string": "new",
@@ -429,7 +429,7 @@ func TestEditTool_Execute_ReadToolNotUsed(t *testing.T) {
 	mockTracker := &MockReadToolTracker{readToolUsed: false}
 	tool := NewEditToolWithRegistry(cfg, mockTracker)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path":  "test.txt",
 		"old_string": "old",
 		"new_string": "new",
@@ -480,14 +480,14 @@ func TestEditTool_Execute_Success(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		args             map[string]interface{}
+		args             map[string]any
 		expectedContent  string
 		expectedReplaced int
 		expectedModified bool
 	}{
 		{
 			name: "single replacement",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  testFile,
 				"old_string": "Hello world",
 				"new_string": "Hi universe",
@@ -498,7 +498,7 @@ func TestEditTool_Execute_Success(t *testing.T) {
 		},
 		{
 			name: "replace all",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":   testFile,
 				"old_string":  "Hello",
 				"new_string":  "Hi",
@@ -593,12 +593,12 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 
 	tests := []struct {
 		name                   string
-		args                   map[string]interface{}
+		args                   map[string]any
 		expectedErrorSubstring string
 	}{
 		{
 			name: "file does not exist",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  filepath.Join(tempDir, "nonexistent.txt"),
 				"old_string": "old",
 				"new_string": "new",
@@ -607,7 +607,7 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 		},
 		{
 			name: "directory instead of file",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  tempDir,
 				"old_string": "old",
 				"new_string": "new",
@@ -616,7 +616,7 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 		},
 		{
 			name: "old_string not found",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  testFile,
 				"old_string": "nonexistent",
 				"new_string": "new",
@@ -625,7 +625,7 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 		},
 		{
 			name: "old_string not unique without replace_all",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  testFile,
 				"old_string": "Hello world",
 				"new_string": "Hi universe",
@@ -634,7 +634,7 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 		},
 		{
 			name: "old_string equals new_string",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":  testFile,
 				"old_string": "Hello world",
 				"new_string": "Hello world",
@@ -652,7 +652,7 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 	}
 }
 
-func checkExecuteErrorResult(t *testing.T, err error, result interface{}, expectedErrorSubstring string) {
+func checkExecuteErrorResult(t *testing.T, err error, result any, expectedErrorSubstring string) {
 	if err != nil {
 		if expectedErrorSubstring != "" && !strings.Contains(err.Error(), expectedErrorSubstring) {
 			t.Errorf("Expected error message to contain '%s', got '%s'", expectedErrorSubstring, err.Error())
@@ -685,7 +685,7 @@ func TestEditTool_Execute_DisabledTool(t *testing.T) {
 
 	tool := NewEditTool(cfg)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path":  "test.txt",
 		"old_string": "old",
 		"new_string": "new",

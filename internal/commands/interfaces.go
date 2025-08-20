@@ -18,7 +18,7 @@ type CommandResult struct {
 	Output     string
 	Success    bool
 	SideEffect SideEffectType
-	Data       interface{} // Additional data for the side effect
+	Data       any // Additional data for the side effect
 }
 
 // SideEffectType defines the types of side effects a command can have

@@ -75,59 +75,59 @@ func (t *GrepTool) detectRipgrep() {
 func (t *GrepTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Grep",
-		Description: "A powerful search tool with configurable backend (ripgrep or Go implementation)\n\n  Usage:\n  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n  - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n  - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n  - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n  - Use Task tool for open-ended searches requiring multiple rounds\n  - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\\{\\}` to find `interface{}` in Go code)\n  - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
-		Parameters: map[string]interface{}{
+		Description: "A powerful search tool with configurable backend (ripgrep or Go implementation)\n\n  Usage:\n  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n  - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n  - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n  - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n  - Use Task tool for open-ended searches requiring multiple rounds\n  - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\\{\\}` to find `any` in Go code)\n  - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
+		Parameters: map[string]any{
 			"$schema": "http://json-schema.org/draft-07/schema#",
 			"type":    "object",
-			"properties": map[string]interface{}{
-				"pattern": map[string]interface{}{
+			"properties": map[string]any{
+				"pattern": map[string]any{
 					"type":        "string",
 					"description": "The regular expression pattern to search for in file contents",
 				},
-				"path": map[string]interface{}{
+				"path": map[string]any{
 					"type":        "string",
 					"description": "File or directory to search in (rg PATH). Defaults to current working directory.",
 				},
-				"glob": map[string]interface{}{
+				"glob": map[string]any{
 					"type":        "string",
 					"description": "Glob pattern to filter files (e.g. \"*.js\", \"*.{ts,tsx}\") - maps to rg --glob",
 				},
-				"type": map[string]interface{}{
+				"type": map[string]any{
 					"type":        "string",
 					"description": "File type to search (rg --type). Common types: js, py, rust, go, java, etc. More efficient than include for standard file types.",
 				},
-				"output_mode": map[string]interface{}{
+				"output_mode": map[string]any{
 					"type":        "string",
 					"description": "Output mode: \"content\" shows matching lines (supports -A/-B/-C context, -n line numbers), \"files_with_matches\" shows file paths (supports head_limit), \"count\" shows match counts (supports head_limit). Defaults to \"files_with_matches\".",
 					"enum":        []string{"content", "files_with_matches", "count"},
 					"default":     "files_with_matches",
 				},
-				"-i": map[string]interface{}{
+				"-i": map[string]any{
 					"type":        "boolean",
 					"description": "Case insensitive search (rg -i)",
 				},
-				"-n": map[string]interface{}{
+				"-n": map[string]any{
 					"type":        "boolean",
 					"description": "Show line numbers in output (rg -n). Requires output_mode: \"content\", ignored otherwise.",
 				},
-				"-A": map[string]interface{}{
+				"-A": map[string]any{
 					"type":        "number",
 					"description": "Number of lines to show after each match (rg -A). Requires output_mode: \"content\", ignored otherwise.",
 				},
-				"-B": map[string]interface{}{
+				"-B": map[string]any{
 					"type":        "number",
 					"description": "Number of lines to show before each match (rg -B). Requires output_mode: \"content\", ignored otherwise.",
 				},
-				"-C": map[string]interface{}{
+				"-C": map[string]any{
 					"type":        "number",
 					"description": "Number of lines to show before and after each match (rg -C). Requires output_mode: \"content\", ignored otherwise.",
 				},
-				"multiline": map[string]interface{}{
+				"multiline": map[string]any{
 					"type":        "boolean",
 					"description": "Enable multiline mode where . matches newlines and patterns can span lines (rg -U --multiline-dotall). Default: false.",
 					"default":     false,
 				},
-				"head_limit": map[string]interface{}{
+				"head_limit": map[string]any{
 					"type":        "number",
 					"description": "Limit output to first N lines/entries, equivalent to \"| head -N\". Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count (limits count entries). When unspecified, shows all results from ripgrep.",
 				},
@@ -138,7 +138,7 @@ func (t *GrepTool) Definition() domain.ToolDefinition {
 }
 
 // Execute runs the grep tool with given arguments
-func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *GrepTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("grep tool is not enabled")
@@ -181,7 +181,7 @@ func (t *GrepTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 }
 
 // Validate checks if the grep tool arguments are valid
-func (t *GrepTool) Validate(args map[string]interface{}) error {
+func (t *GrepTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled {
 		return fmt.Errorf("grep tool is not enabled")
 	}
@@ -206,7 +206,7 @@ func (t *GrepTool) Validate(args map[string]interface{}) error {
 }
 
 // validatePattern validates the pattern parameter
-func (t *GrepTool) validatePattern(args map[string]interface{}) error {
+func (t *GrepTool) validatePattern(args map[string]any) error {
 	pattern, ok := args["pattern"].(string)
 	if !ok {
 		return fmt.Errorf("pattern parameter is required and must be a string")
@@ -224,7 +224,7 @@ func (t *GrepTool) validatePattern(args map[string]interface{}) error {
 }
 
 // validateOutputMode validates the output_mode parameter
-func (t *GrepTool) validateOutputMode(args map[string]interface{}) error {
+func (t *GrepTool) validateOutputMode(args map[string]any) error {
 	outputMode, exists := args["output_mode"]
 	if !exists {
 		return nil
@@ -248,7 +248,7 @@ func (t *GrepTool) validateOutputMode(args map[string]interface{}) error {
 }
 
 // validateContextFlags validates context flags (-A, -B, -C)
-func (t *GrepTool) validateContextFlags(args map[string]interface{}) error {
+func (t *GrepTool) validateContextFlags(args map[string]any) error {
 	for _, flag := range []string{"-A", "-B", "-C"} {
 		value, exists := args[flag]
 		if !exists {
@@ -267,7 +267,7 @@ func (t *GrepTool) validateContextFlags(args map[string]interface{}) error {
 }
 
 // validateHeadLimit validates the head_limit parameter
-func (t *GrepTool) validateHeadLimit(args map[string]interface{}) error {
+func (t *GrepTool) validateHeadLimit(args map[string]any) error {
 	headLimit, exists := args["head_limit"]
 	if !exists {
 		return nil
@@ -285,7 +285,7 @@ func (t *GrepTool) validateHeadLimit(args map[string]interface{}) error {
 }
 
 // validateBooleanFlags validates boolean flags
-func (t *GrepTool) validateBooleanFlags(args map[string]interface{}) error {
+func (t *GrepTool) validateBooleanFlags(args map[string]any) error {
 	for _, flag := range []string{"-i", "-n", "multiline"} {
 		value, exists := args[flag]
 		if !exists {
@@ -331,7 +331,7 @@ type GrepCount struct {
 }
 
 // performRipgrepSearch executes ripgrep-based search with given parameters
-func (t *GrepTool) performRipgrepSearch(ctx context.Context, pattern string, args map[string]interface{}) (*GrepResult, error) {
+func (t *GrepTool) performRipgrepSearch(ctx context.Context, pattern string, args map[string]any) (*GrepResult, error) {
 	start := time.Now()
 
 	outputMode := t.getOutputMode(args)
@@ -352,7 +352,7 @@ func (t *GrepTool) performRipgrepSearch(ctx context.Context, pattern string, arg
 }
 
 // buildRipgrepArgs constructs the ripgrep command arguments
-func (t *GrepTool) buildRipgrepArgs(outputMode string, args map[string]interface{}) []string {
+func (t *GrepTool) buildRipgrepArgs(outputMode string, args map[string]any) []string {
 	var rgArgs []string
 
 	rgArgs = t.addOutputModeArgs(rgArgs, outputMode, args)
@@ -362,7 +362,7 @@ func (t *GrepTool) buildRipgrepArgs(outputMode string, args map[string]interface
 }
 
 // addOutputModeArgs adds output mode specific arguments
-func (t *GrepTool) addOutputModeArgs(rgArgs []string, outputMode string, args map[string]interface{}) []string {
+func (t *GrepTool) addOutputModeArgs(rgArgs []string, outputMode string, args map[string]any) []string {
 	switch outputMode {
 	case "files_with_matches":
 		rgArgs = append(rgArgs, "--files-with-matches")
@@ -376,7 +376,7 @@ func (t *GrepTool) addOutputModeArgs(rgArgs []string, outputMode string, args ma
 }
 
 // addContextArgs adds context-related arguments for content mode
-func (t *GrepTool) addContextArgs(rgArgs []string, args map[string]interface{}) []string {
+func (t *GrepTool) addContextArgs(rgArgs []string, args map[string]any) []string {
 	if showLineNumbers, exists := args["-n"]; exists {
 		if showLineNumbersBool, ok := showLineNumbers.(bool); ok && showLineNumbersBool {
 			rgArgs = append(rgArgs, "--line-number")
@@ -402,7 +402,7 @@ func (t *GrepTool) addContextArgs(rgArgs []string, args map[string]interface{}) 
 }
 
 // addSearchOptions adds general search option arguments
-func (t *GrepTool) addSearchOptions(rgArgs []string, args map[string]interface{}) []string {
+func (t *GrepTool) addSearchOptions(rgArgs []string, args map[string]any) []string {
 	if caseInsensitive, exists := args["-i"]; exists {
 		if caseInsensitiveBool, ok := caseInsensitive.(bool); ok && caseInsensitiveBool {
 			rgArgs = append(rgArgs, "--ignore-case")
@@ -522,7 +522,7 @@ func (t *GrepTool) parseRipgrepOutput(output, outputMode, pattern string) *GrepR
 }
 
 // performGoSearch executes Go-based search with given parameters
-func (t *GrepTool) performGoSearch(ctx context.Context, pattern string, args map[string]interface{}) (*GrepResult, error) {
+func (t *GrepTool) performGoSearch(ctx context.Context, pattern string, args map[string]any) (*GrepResult, error) {
 	start := time.Now()
 
 	outputMode := t.getOutputMode(args)
@@ -564,7 +564,7 @@ type SearchOptions struct {
 }
 
 // getRegexFlags returns regex flags based on arguments
-func (t *GrepTool) getRegexFlags(args map[string]interface{}) string {
+func (t *GrepTool) getRegexFlags(args map[string]any) string {
 	var flags string
 	if caseInsensitive, exists := args["-i"]; exists {
 		if caseInsensitiveBool, ok := caseInsensitive.(bool); ok && caseInsensitiveBool {
@@ -575,7 +575,7 @@ func (t *GrepTool) getRegexFlags(args map[string]interface{}) string {
 }
 
 // buildSearchOptions builds search options from arguments
-func (t *GrepTool) buildSearchOptions(args map[string]interface{}, outputMode string) *SearchOptions {
+func (t *GrepTool) buildSearchOptions(args map[string]any, outputMode string) *SearchOptions {
 	opts := &SearchOptions{}
 
 	if caseInsensitive, exists := args["-i"]; exists {
@@ -624,7 +624,7 @@ func (t *GrepTool) buildSearchOptions(args map[string]interface{}, outputMode st
 }
 
 // setContextOptions sets context line options for content mode
-func (t *GrepTool) setContextOptions(args map[string]interface{}, opts *SearchOptions) {
+func (t *GrepTool) setContextOptions(args map[string]any, opts *SearchOptions) {
 	if contextAfter, exists := args["-A"]; exists {
 		if contextAfterFloat, ok := contextAfter.(float64); ok {
 			opts.ContextAfter = int(contextAfterFloat)
@@ -644,7 +644,7 @@ func (t *GrepTool) setContextOptions(args map[string]interface{}, opts *SearchOp
 }
 
 // getOutputMode extracts output mode from arguments
-func (t *GrepTool) getOutputMode(args map[string]interface{}) string {
+func (t *GrepTool) getOutputMode(args map[string]any) string {
 	outputMode := "files_with_matches"
 	if mode, exists := args["output_mode"]; exists {
 		if modeStr, ok := mode.(string); ok {
@@ -733,7 +733,7 @@ func (t *GrepTool) searchFiles(ctx context.Context, regex *regexp.Regexp, search
 }
 
 // getSearchPath extracts and validates the search path
-func (t *GrepTool) getSearchPath(args map[string]interface{}) (string, error) {
+func (t *GrepTool) getSearchPath(args map[string]any) (string, error) {
 	searchPath := "."
 	if path, exists := args["path"]; exists {
 		if pathStr, ok := path.(string); ok && pathStr != "" {

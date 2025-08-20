@@ -104,13 +104,13 @@ func TestTodoWriteTool_Validate(t *testing.T) {
 func testValidTodoWriteValidation(t *testing.T, tool *TodoWriteTool) {
 	validTests := []struct {
 		name string
-		args map[string]interface{}
+		args map[string]any
 	}{
 		{
 			name: "valid todos",
-			args: map[string]interface{}{
-				"todos": []interface{}{
-					map[string]interface{}{
+			args: map[string]any{
+				"todos": []any{
+					map[string]any{
 						"id":      "1",
 						"content": "Test task",
 						"status":  "pending",
@@ -133,38 +133,38 @@ func testValidTodoWriteValidation(t *testing.T, tool *TodoWriteTool) {
 func testInvalidTodoWriteValidation(t *testing.T, tool *TodoWriteTool) {
 	invalidTests := []struct {
 		name     string
-		args     map[string]interface{}
+		args     map[string]any
 		errorMsg string
 	}{
 		{
 			name:     "missing todos parameter",
-			args:     map[string]interface{}{},
+			args:     map[string]any{},
 			errorMsg: "todos parameter is required and must be an array",
 		},
 		{
 			name: "todos not array",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"todos": "not an array",
 			},
 			errorMsg: "todos parameter is required and must be an array",
 		},
 		{
 			name: "empty todos array",
-			args: map[string]interface{}{
-				"todos": []interface{}{},
+			args: map[string]any{
+				"todos": []any{},
 			},
 			errorMsg: "todos array cannot be empty",
 		},
 		{
 			name: "duplicate IDs",
-			args: map[string]interface{}{
-				"todos": []interface{}{
-					map[string]interface{}{
+			args: map[string]any{
+				"todos": []any{
+					map[string]any{
 						"id":      "1",
 						"content": "Task 1",
 						"status":  "pending",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"id":      "1",
 						"content": "Task 2",
 						"status":  "pending",
@@ -175,14 +175,14 @@ func testInvalidTodoWriteValidation(t *testing.T, tool *TodoWriteTool) {
 		},
 		{
 			name: "multiple in_progress tasks",
-			args: map[string]interface{}{
-				"todos": []interface{}{
-					map[string]interface{}{
+			args: map[string]any{
+				"todos": []any{
+					map[string]any{
 						"id":      "1",
 						"content": "Task 1",
 						"status":  "in_progress",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"id":      "2",
 						"content": "Task 2",
 						"status":  "in_progress",
@@ -193,9 +193,9 @@ func testInvalidTodoWriteValidation(t *testing.T, tool *TodoWriteTool) {
 		},
 		{
 			name: "invalid status",
-			args: map[string]interface{}{
-				"todos": []interface{}{
-					map[string]interface{}{
+			args: map[string]any{
+				"todos": []any{
+					map[string]any{
 						"id":      "1",
 						"content": "Task 1",
 						"status":  "invalid_status",
@@ -206,9 +206,9 @@ func testInvalidTodoWriteValidation(t *testing.T, tool *TodoWriteTool) {
 		},
 		{
 			name: "empty content",
-			args: map[string]interface{}{
-				"todos": []interface{}{
-					map[string]interface{}{
+			args: map[string]any{
+				"todos": []any{
+					map[string]any{
 						"id":      "1",
 						"content": "",
 						"status":  "pending",
@@ -219,9 +219,9 @@ func testInvalidTodoWriteValidation(t *testing.T, tool *TodoWriteTool) {
 		},
 		{
 			name: "missing required fields",
-			args: map[string]interface{}{
-				"todos": []interface{}{
-					map[string]interface{}{
+			args: map[string]any{
+				"todos": []any{
+					map[string]any{
 						"id": "1",
 					},
 				},
@@ -259,7 +259,7 @@ func TestTodoWriteTool_Execute(t *testing.T) {
 
 	tests := []struct {
 		name               string
-		args               map[string]interface{}
+		args               map[string]any
 		wantSuccess        bool
 		expectedTodos      int
 		expectedCompleted  int
@@ -267,19 +267,19 @@ func TestTodoWriteTool_Execute(t *testing.T) {
 	}{
 		{
 			name: "successful execution with mixed statuses",
-			args: map[string]interface{}{
-				"todos": []interface{}{
-					map[string]interface{}{
+			args: map[string]any{
+				"todos": []any{
+					map[string]any{
 						"id":      "1",
 						"content": "Completed task",
 						"status":  "completed",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"id":      "2",
 						"content": "In progress task",
 						"status":  "in_progress",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"id":      "3",
 						"content": "Pending task",
 						"status":  "pending",
@@ -293,14 +293,14 @@ func TestTodoWriteTool_Execute(t *testing.T) {
 		},
 		{
 			name: "successful execution with all completed",
-			args: map[string]interface{}{
-				"todos": []interface{}{
-					map[string]interface{}{
+			args: map[string]any{
+				"todos": []any{
+					map[string]any{
 						"id":      "1",
 						"content": "Done task 1",
 						"status":  "completed",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"id":      "2",
 						"content": "Done task 2",
 						"status":  "completed",
@@ -313,14 +313,14 @@ func TestTodoWriteTool_Execute(t *testing.T) {
 		},
 		{
 			name: "failed execution with invalid data",
-			args: map[string]interface{}{
-				"todos": []interface{}{
-					map[string]interface{}{
+			args: map[string]any{
+				"todos": []any{
+					map[string]any{
 						"id":      "1",
 						"content": "Task 1",
 						"status":  "in_progress",
 					},
-					map[string]interface{}{
+					map[string]any{
 						"id":      "2",
 						"content": "Task 2",
 						"status":  "in_progress", // This should fail - multiple in_progress
@@ -389,9 +389,9 @@ func TestTodoWriteTool_Execute_ToolDisabled(t *testing.T) {
 	tool := NewTodoWriteTool(cfg)
 	ctx := context.Background()
 
-	args := map[string]interface{}{
-		"todos": []interface{}{
-			map[string]interface{}{
+	args := map[string]any{
+		"todos": []any{
+			map[string]any{
 				"id":      "1",
 				"content": "Test task",
 				"status":  "pending",

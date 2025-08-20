@@ -104,19 +104,19 @@ func TestFetchTool_Validate(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		args      map[string]interface{}
+		args      map[string]any
 		wantError bool
 	}{
 		{
 			name: "valid whitelisted URL",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"url": "https://httpbin.org/json",
 			},
 			wantError: false,
 		},
 		{
 			name: "valid URL with format",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"url":    "https://httpbin.org/json",
 				"format": "json",
 			},
@@ -124,40 +124,40 @@ func TestFetchTool_Validate(t *testing.T) {
 		},
 		{
 			name: "valid pattern URL",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"url": "https://github.com/owner/repo/issues/123",
 			},
 			wantError: false,
 		},
 		{
 			name:      "missing URL",
-			args:      map[string]interface{}{},
+			args:      map[string]any{},
 			wantError: true,
 		},
 		{
 			name: "empty URL",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"url": "",
 			},
 			wantError: true,
 		},
 		{
 			name: "URL wrong type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"url": 123,
 			},
 			wantError: true,
 		},
 		{
 			name: "non-whitelisted URL",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"url": "https://example.com/test",
 			},
 			wantError: true,
 		},
 		{
 			name: "invalid format",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"url":    "https://httpbin.org/json",
 				"format": "xml",
 			},
@@ -165,7 +165,7 @@ func TestFetchTool_Validate(t *testing.T) {
 		},
 		{
 			name: "format wrong type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"url":    "https://httpbin.org/json",
 				"format": 123,
 			},
@@ -173,14 +173,14 @@ func TestFetchTool_Validate(t *testing.T) {
 		},
 		{
 			name: "file:// protocol not allowed",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"url": "file:///etc/passwd",
 			},
 			wantError: true,
 		},
 		{
 			name: "ftp:// protocol not allowed",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"url": "ftp://example.com/file.txt",
 			},
 			wantError: true,
@@ -210,7 +210,7 @@ func TestFetchTool_Execute_Disabled(t *testing.T) {
 	tool := NewWebFetchTool(cfg)
 	ctx := context.Background()
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"url": "https://httpbin.org/json",
 	}
 
@@ -237,7 +237,7 @@ func TestFetchTool_Execute_FetchDisabled(t *testing.T) {
 	tool := NewWebFetchTool(cfg)
 	ctx := context.Background()
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"url": "https://httpbin.org/json",
 	}
 

@@ -159,7 +159,7 @@ func (teo *ToolExecutionOrchestrator) StartToolExecution(
 	_ = teo.stateManager.StartToolExecution(toolCalls)
 
 	if teo.debugService != nil {
-		teo.debugService.LogToolExecution("session", "started", map[string]interface{}{
+		teo.debugService.LogToolExecution("session", "started", map[string]any{
 			"session_id": sessionID,
 			"request_id": requestID,
 			"tool_count": len(toolCalls),
@@ -209,7 +209,7 @@ func (teo *ToolExecutionOrchestrator) processNextTool() tea.Cmd {
 		teo.mutex.Unlock()
 
 		if teo.debugService != nil {
-			teo.debugService.LogToolExecution(currentTool.Function.Name, "processing", map[string]interface{}{
+			teo.debugService.LogToolExecution(currentTool.Function.Name, "processing", map[string]any{
 				"session_id":        execution.SessionID,
 				"tool_index":        execution.CurrentIndex,
 				"total_tools":       len(execution.ToolCalls),
@@ -264,7 +264,7 @@ func (teo *ToolExecutionOrchestrator) HandleApprovalResponse(approved bool, tool
 		currentTool := execution.ToolCalls[execution.CurrentIndex]
 
 		if teo.debugService != nil {
-			teo.debugService.LogToolExecution(currentTool.Function.Name, "approval_response", map[string]interface{}{
+			teo.debugService.LogToolExecution(currentTool.Function.Name, "approval_response", map[string]any{
 				"session_id": execution.SessionID,
 				"tool_index": toolIndex,
 				"approved":   approved,
@@ -317,7 +317,7 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 		startTime := time.Now()
 
 		if teo.debugService != nil {
-			teo.debugService.LogToolExecution(currentTool.Function.Name, "execution_started", map[string]interface{}{
+			teo.debugService.LogToolExecution(currentTool.Function.Name, "execution_started", map[string]any{
 				"session_id": execution.SessionID,
 				"tool_index": toolIndex,
 			})
@@ -344,7 +344,7 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 		}
 
 		if teo.debugService != nil {
-			teo.debugService.LogToolExecution(currentTool.Function.Name, "execution_completed", map[string]interface{}{
+			teo.debugService.LogToolExecution(currentTool.Function.Name, "execution_completed", map[string]any{
 				"session_id": execution.SessionID,
 				"tool_index": toolIndex,
 				"success":    executionResult.Success,
@@ -393,7 +393,7 @@ func (teo *ToolExecutionOrchestrator) completeExecution() tea.Cmd {
 		}
 
 		if teo.debugService != nil {
-			teo.debugService.LogToolExecution("session", "completed", map[string]interface{}{
+			teo.debugService.LogToolExecution("session", "completed", map[string]any{
 				"session_id":    execution.SessionID,
 				"total_tools":   len(execution.ToolCalls),
 				"success_count": successCount,
@@ -432,7 +432,7 @@ func (teo *ToolExecutionOrchestrator) CancelExecution(reason string) tea.Cmd {
 		execution.Status = ToolExecutionStatusCancelled
 
 		if teo.debugService != nil {
-			teo.debugService.LogToolExecution("session", "cancelled", map[string]interface{}{
+			teo.debugService.LogToolExecution("session", "cancelled", map[string]any{
 				"session_id": execution.SessionID,
 				"reason":     reason,
 			})
@@ -507,11 +507,11 @@ func (teo *ToolExecutionOrchestrator) addToolResultToConversation(
 }
 
 // parseToolArguments parses tool arguments from JSON string
-func parseToolArguments(arguments string) map[string]interface{} {
-	var args map[string]interface{}
+func parseToolArguments(arguments string) map[string]any {
+	var args map[string]any
 	if err := json.Unmarshal([]byte(arguments), &args); err != nil {
 		logger.Error("Failed to parse tool arguments", "error", err, "arguments", arguments)
-		return make(map[string]interface{})
+		return make(map[string]any)
 	}
 	return args
 }
@@ -556,11 +556,11 @@ func (teo *ToolExecutionOrchestrator) RecoverFromStuckState() tea.Cmd {
 }
 
 // GetHealthStatus returns the health status of the tool execution orchestrator
-func (teo *ToolExecutionOrchestrator) GetHealthStatus() map[string]interface{} {
+func (teo *ToolExecutionOrchestrator) GetHealthStatus() map[string]any {
 	teo.mutex.RLock()
 	defer teo.mutex.RUnlock()
 
-	status := map[string]interface{}{
+	status := map[string]any{
 		"healthy":          true,
 		"active_execution": false,
 	}

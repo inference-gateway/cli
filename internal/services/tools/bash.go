@@ -58,15 +58,15 @@ func (t *BashTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Bash",
 		Description: "Execute whitelisted bash commands securely. Only pre-approved commands from the whitelist can be executed.",
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"command": map[string]interface{}{
+			"properties": map[string]any{
+				"command": map[string]any{
 					"type":        "string",
 					"description": commandDescription,
 					"enum":        allowedCommands,
 				},
-				"format": map[string]interface{}{
+				"format": map[string]any{
 					"type":        "string",
 					"description": "Output format (text or json)",
 					"enum":        []string{"text", "json"},
@@ -79,7 +79,7 @@ func (t *BashTool) Definition() domain.ToolDefinition {
 }
 
 // Execute runs the bash tool with given arguments
-func (t *BashTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	command, ok := args["command"].(string)
 	if !ok {
@@ -119,7 +119,7 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 }
 
 // Validate checks if the bash tool arguments are valid
-func (t *BashTool) Validate(args map[string]interface{}) error {
+func (t *BashTool) Validate(args map[string]any) error {
 	command, ok := args["command"].(string)
 	if !ok {
 		return fmt.Errorf("command parameter is required and must be a string")

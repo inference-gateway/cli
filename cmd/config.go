@@ -525,21 +525,21 @@ func listTools(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString("format")
 
 	if format == "json" {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"enabled": cfg.Tools.Enabled,
 			"bash": map[string]bool{
 				"enabled": cfg.Tools.Bash.Enabled,
 			},
-			"web_fetch": map[string]interface{}{
+			"web_fetch": map[string]any{
 				"enabled":             cfg.Tools.WebFetch.Enabled,
 				"whitelisted_domains": cfg.Tools.WebFetch.WhitelistedDomains,
-				"github": map[string]interface{}{
+				"github": map[string]any{
 					"enabled":   cfg.Tools.WebFetch.GitHub.Enabled,
 					"base_url":  cfg.Tools.WebFetch.GitHub.BaseURL,
 					"has_token": cfg.Tools.WebFetch.GitHub.Token != "",
 				},
 			},
-			"web_search": map[string]interface{}{
+			"web_search": map[string]any{
 				"enabled":        cfg.Tools.WebSearch.Enabled,
 				"default_engine": cfg.Tools.WebSearch.DefaultEngine,
 				"max_results":    cfg.Tools.WebSearch.MaxResults,
@@ -548,7 +548,7 @@ func listTools(cmd *cobra.Command, args []string) error {
 			},
 			"commands": cfg.Tools.Bash.Whitelist.Commands,
 			"patterns": cfg.Tools.Bash.Whitelist.Patterns,
-			"sandbox": map[string]interface{}{
+			"sandbox": map[string]any{
 				"directories": cfg.Tools.Sandbox.Directories,
 			},
 			"safety": map[string]bool{
@@ -636,7 +636,7 @@ func validateTool(cmd *cobra.Command, args []string) error {
 	toolService := services.GetToolService()
 
 	command := args[0]
-	toolArgs := map[string]interface{}{
+	toolArgs := map[string]any{
 		"command": command,
 	}
 
@@ -669,7 +669,7 @@ func execTool(cmd *cobra.Command, args []string) error {
 	}
 
 	toolName := args[0]
-	toolArgs := make(map[string]interface{})
+	toolArgs := make(map[string]any)
 
 	if len(args) > 1 {
 		if err := json.Unmarshal([]byte(args[1]), &toolArgs); err != nil {
@@ -988,20 +988,20 @@ func listFetchDomains(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString("format")
 
 	if format == "json" {
-		data := map[string]interface{}{
+		data := map[string]any{
 			"enabled":             cfg.Tools.WebFetch.Enabled,
 			"whitelisted_domains": cfg.Tools.WebFetch.WhitelistedDomains,
-			"github": map[string]interface{}{
+			"github": map[string]any{
 				"enabled":   cfg.Tools.WebFetch.GitHub.Enabled,
 				"base_url":  cfg.Tools.WebFetch.GitHub.BaseURL,
 				"has_token": cfg.Tools.WebFetch.GitHub.Token != "",
 			},
-			"safety": map[string]interface{}{
+			"safety": map[string]any{
 				"max_size":       cfg.Tools.WebFetch.Safety.MaxSize,
 				"timeout":        cfg.Tools.WebFetch.Safety.Timeout,
 				"allow_redirect": cfg.Tools.WebFetch.Safety.AllowRedirect,
 			},
-			"cache": map[string]interface{}{
+			"cache": map[string]any{
 				"enabled":  cfg.Tools.WebFetch.Cache.Enabled,
 				"ttl":      cfg.Tools.WebFetch.Cache.TTL,
 				"max_size": cfg.Tools.WebFetch.Cache.MaxSize,

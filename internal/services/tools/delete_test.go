@@ -61,47 +61,47 @@ func TestDeleteTool_Validate(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		args      map[string]interface{}
+		args      map[string]any
 		expectErr bool
 	}{
 		{
 			name:      "valid args",
-			args:      map[string]interface{}{"path": "test.txt"},
+			args:      map[string]any{"path": "test.txt"},
 			expectErr: false,
 		},
 		{
 			name:      "missing path",
-			args:      map[string]interface{}{},
+			args:      map[string]any{},
 			expectErr: true,
 		},
 		{
 			name:      "empty path",
-			args:      map[string]interface{}{"path": ""},
+			args:      map[string]any{"path": ""},
 			expectErr: true,
 		},
 		{
 			name:      "invalid recursive type",
-			args:      map[string]interface{}{"path": "test.txt", "recursive": "true"},
+			args:      map[string]any{"path": "test.txt", "recursive": "true"},
 			expectErr: true,
 		},
 		{
 			name:      "invalid force type",
-			args:      map[string]interface{}{"path": "test.txt", "force": "true"},
+			args:      map[string]any{"path": "test.txt", "force": "true"},
 			expectErr: true,
 		},
 		{
 			name:      "invalid format",
-			args:      map[string]interface{}{"path": "test.txt", "format": "xml"},
+			args:      map[string]any{"path": "test.txt", "format": "xml"},
 			expectErr: true,
 		},
 		{
 			name:      "protected path .infer",
-			args:      map[string]interface{}{"path": ".infer/config.yaml"},
+			args:      map[string]any{"path": ".infer/config.yaml"},
 			expectErr: true,
 		},
 		{
 			name:      "protected path .git",
-			args:      map[string]interface{}{"path": ".git/config"},
+			args:      map[string]any{"path": ".git/config"},
 			expectErr: true,
 		},
 	}
@@ -121,7 +121,7 @@ func TestDeleteTool_ValidateDisabled(t *testing.T) {
 	cfg.Tools.Enabled = false
 	tool := NewDeleteTool(cfg)
 
-	args := map[string]interface{}{"path": "test.txt"}
+	args := map[string]any{"path": "test.txt"}
 	err := tool.Validate(args)
 	if err == nil {
 		t.Error("Expected error when tools are disabled")
@@ -162,7 +162,7 @@ func TestDeleteTool_Execute_SingleFile(t *testing.T) {
 	cfg := config.DefaultConfig()
 	tool := NewDeleteTool(cfg)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"path": testFile,
 	}
 
@@ -226,7 +226,7 @@ func TestDeleteTool_Execute_Directory(t *testing.T) {
 	cfg := config.DefaultConfig()
 	tool := NewDeleteTool(cfg)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"path": testDir,
 	}
 
@@ -294,7 +294,7 @@ func TestDeleteTool_Execute_Wildcard(t *testing.T) {
 	cfg := config.DefaultConfig()
 	tool := NewDeleteTool(cfg)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"path": "*.txt",
 	}
 
@@ -358,7 +358,7 @@ func TestDeleteTool_Execute_NonExistentFile(t *testing.T) {
 	cfg := config.DefaultConfig()
 	tool := NewDeleteTool(cfg)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"path": "nonexistent.txt",
 	}
 
@@ -406,7 +406,7 @@ func TestDeleteTool_SecurityRestrictions(t *testing.T) {
 	cfg.Tools.Sandbox.Directories = []string{tempDir}
 	tool := NewDeleteTool(cfg)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"path": "../outside.txt",
 	}
 
@@ -415,7 +415,7 @@ func TestDeleteTool_SecurityRestrictions(t *testing.T) {
 		t.Error("Expected validation error for path outside working directory")
 	}
 
-	args = map[string]interface{}{
+	args = map[string]any{
 		"path": "/etc/passwd",
 	}
 
@@ -452,7 +452,7 @@ func TestDeleteTool_SandboxValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			args := map[string]interface{}{"path": tt.path}
+			args := map[string]any{"path": tt.path}
 			err := tool.Validate(args)
 			if (err != nil) != tt.expectErr {
 				t.Errorf("Expected error: %v, got: %v", tt.expectErr, err)

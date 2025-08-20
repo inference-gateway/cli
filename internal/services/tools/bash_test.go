@@ -85,38 +85,38 @@ func TestBashTool_Validate(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		args      map[string]interface{}
+		args      map[string]any
 		wantError bool
 	}{
 		{
 			name: "valid whitelisted command",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"command": "echo hello",
 			},
 			wantError: false,
 		},
 		{
 			name: "valid pattern command",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"command": "git status",
 			},
 			wantError: false,
 		},
 		{
 			name: "invalid command not whitelisted",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"command": "rm -rf /",
 			},
 			wantError: true,
 		},
 		{
 			name:      "missing command parameter",
-			args:      map[string]interface{}{},
+			args:      map[string]any{},
 			wantError: true,
 		},
 		{
 			name: "command parameter wrong type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"command": 123,
 			},
 			wantError: true,
@@ -149,7 +149,7 @@ func TestBashTool_Execute(t *testing.T) {
 	tool := NewBashTool(cfg)
 	ctx := context.Background()
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"command": "echo hello",
 	}
 

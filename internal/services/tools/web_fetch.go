@@ -35,14 +35,14 @@ func (t *WebFetchTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "WebFetch",
 		Description: "Fetch content from whitelisted URLs references.",
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"url": map[string]interface{}{
+			"properties": map[string]any{
+				"url": map[string]any{
 					"type":        "string",
 					"description": "The URL to fetch content from",
 				},
-				"format": map[string]interface{}{
+				"format": map[string]any{
 					"type":        "string",
 					"description": "Output format (text or json)",
 					"enum":        []string{"text", "json"},
@@ -55,7 +55,7 @@ func (t *WebFetchTool) Definition() domain.ToolDefinition {
 }
 
 // Execute runs the fetch tool with given arguments
-func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled || !t.config.Tools.WebFetch.Enabled {
 		return nil, fmt.Errorf("fetch tool is not enabled")
@@ -92,7 +92,7 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]interface{})
 }
 
 // Validate checks if the fetch tool arguments are valid
-func (t *WebFetchTool) Validate(args map[string]interface{}) error {
+func (t *WebFetchTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled || !t.config.Tools.WebFetch.Enabled {
 		return fmt.Errorf("fetch tool is not enabled")
 	}

@@ -102,19 +102,19 @@ func TestWebSearchTool_Validate(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		args      map[string]interface{}
+		args      map[string]any
 		wantError bool
 	}{
 		{
 			name: "valid query with default engine",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"query": "golang testing",
 			},
 			wantError: false,
 		},
 		{
 			name: "valid query with specified engine",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"query":  "golang testing",
 				"engine": "google",
 			},
@@ -122,7 +122,7 @@ func TestWebSearchTool_Validate(t *testing.T) {
 		},
 		{
 			name: "valid query with limit",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"query": "golang testing",
 				"limit": 5,
 			},
@@ -130,7 +130,7 @@ func TestWebSearchTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid engine",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"query":  "golang testing",
 				"engine": "bing",
 			},
@@ -138,28 +138,28 @@ func TestWebSearchTool_Validate(t *testing.T) {
 		},
 		{
 			name: "missing query",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"engine": "google",
 			},
 			wantError: true,
 		},
 		{
 			name: "empty query",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"query": "",
 			},
 			wantError: true,
 		},
 		{
 			name: "query wrong type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"query": 123,
 			},
 			wantError: true,
 		},
 		{
 			name: "limit too high",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"query": "golang testing",
 				"limit": 100,
 			},
@@ -167,7 +167,7 @@ func TestWebSearchTool_Validate(t *testing.T) {
 		},
 		{
 			name: "limit wrong type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"query": "golang testing",
 				"limit": "5",
 			},
@@ -198,7 +198,7 @@ func TestWebSearchTool_Execute_Disabled(t *testing.T) {
 	tool := NewWebSearchTool(cfg)
 	ctx := context.Background()
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"query": "golang testing",
 	}
 

@@ -158,14 +158,14 @@ func (t *YourTool) Definition() domain.ToolDefinition {
     return domain.ToolDefinition{
         Name:        "YourTool",
         Description: "Description of what your tool does",
-        Parameters: map[string]interface{}{
+        Parameters: map[string]any{
             "type": "object",
-            "properties": map[string]interface{}{
-                "param1": map[string]interface{}{
+            "properties": map[string]any{
+                "param1": map[string]any{
                     "type":        "string",
                     "description": "Description of parameter 1",
                 },
-                "param2": map[string]interface{}{
+                "param2": map[string]any{
                     "type":        "integer",
                     "description": "Description of parameter 2",
                     "minimum":     1,
@@ -177,7 +177,7 @@ func (t *YourTool) Definition() domain.ToolDefinition {
 }
 
 // Execute runs the tool with given arguments
-func (t *YourTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *YourTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
     if !t.enabled {
         return nil, fmt.Errorf("YourTool is not enabled")
     }
@@ -198,7 +198,7 @@ func (t *YourTool) Execute(ctx context.Context, args map[string]interface{}) (*d
 }
 
 // Validate checks if the tool arguments are valid
-func (t *YourTool) Validate(args map[string]interface{}) error {
+func (t *YourTool) Validate(args map[string]any) error {
     // Implement validation logic
     if _, exists := args["param1"]; !exists {
         return fmt.Errorf("param1 is required")
@@ -282,7 +282,7 @@ func TestYourTool_Execute(t *testing.T) {
 
     tool := NewYourTool(cfg)
 
-    args := map[string]interface{}{
+    args := map[string]any{
         "param1": "test value",
     }
 
@@ -300,11 +300,11 @@ func TestYourTool_Validate(t *testing.T) {
     tool := NewYourTool(cfg)
 
     // Test valid args
-    validArgs := map[string]interface{}{"param1": "value"}
+    validArgs := map[string]any{"param1": "value"}
     assert.NoError(t, tool.Validate(validArgs))
 
     // Test invalid args
-    invalidArgs := map[string]interface{}{}
+    invalidArgs := map[string]any{}
     assert.Error(t, tool.Validate(invalidArgs))
 }
 ```

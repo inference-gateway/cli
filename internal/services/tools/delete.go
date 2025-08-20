@@ -31,24 +31,24 @@ func (t *DeleteTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Delete",
 		Description: "Delete files or directories from the filesystem. Supports wildcard patterns for batch operations. Restricted to current working directory for security.",
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"type": "object",
-			"properties": map[string]interface{}{
-				"path": map[string]interface{}{
+			"properties": map[string]any{
+				"path": map[string]any{
 					"type":        "string",
 					"description": "The path to the file or directory to delete. Supports wildcard patterns like '*.txt' or 'temp/*' when wildcards are enabled.",
 				},
-				"recursive": map[string]interface{}{
+				"recursive": map[string]any{
 					"type":        "boolean",
 					"description": "Whether to delete directories recursively",
 					"default":     false,
 				},
-				"force": map[string]interface{}{
+				"force": map[string]any{
 					"type":        "boolean",
 					"description": "Whether to force deletion (ignore non-existent files)",
 					"default":     false,
 				},
-				"format": map[string]interface{}{
+				"format": map[string]any{
 					"type":        "string",
 					"description": "Output format (text or json)",
 					"enum":        []string{"text", "json"},
@@ -61,7 +61,7 @@ func (t *DeleteTool) Definition() domain.ToolDefinition {
 }
 
 // Execute runs the delete tool with given arguments
-func (t *DeleteTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *DeleteTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("delete tool is not enabled")
@@ -122,7 +122,7 @@ func (t *DeleteTool) Execute(ctx context.Context, args map[string]interface{}) (
 }
 
 // Validate checks if the delete tool arguments are valid
-func (t *DeleteTool) Validate(args map[string]interface{}) error {
+func (t *DeleteTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled {
 		return fmt.Errorf("delete tool is not enabled")
 	}

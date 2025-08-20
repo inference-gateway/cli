@@ -78,101 +78,101 @@ func TestTreeTool_Validate(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		args    map[string]interface{}
+		args    map[string]any
 		wantErr bool
 	}{
 		{
 			name:    "valid empty args",
-			args:    map[string]interface{}{},
+			args:    map[string]any{},
 			wantErr: false,
 		},
 		{
 			name: "valid path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"path": ".",
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid max_depth",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"max_depth": float64(3),
 			},
 			wantErr: false,
 		},
 		{
 			name: "invalid max_depth negative",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"max_depth": float64(-1),
 			},
 			wantErr: true,
 		},
 		{
 			name: "invalid max_depth zero",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"max_depth": float64(0),
 			},
 			wantErr: true,
 		},
 		{
 			name: "invalid max_depth type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"max_depth": "invalid",
 			},
 			wantErr: true,
 		},
 		{
 			name: "valid exclude_patterns",
-			args: map[string]interface{}{
-				"exclude_patterns": []interface{}{"*.log", "node_modules"},
+			args: map[string]any{
+				"exclude_patterns": []any{"*.log", "node_modules"},
 			},
 			wantErr: false,
 		},
 		{
 			name: "invalid exclude_patterns type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"exclude_patterns": "not_an_array",
 			},
 			wantErr: true,
 		},
 		{
 			name: "valid show_hidden",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"show_hidden": true,
 			},
 			wantErr: false,
 		},
 		{
 			name: "invalid show_hidden type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"show_hidden": "not_a_bool",
 			},
 			wantErr: true,
 		},
 		{
 			name: "valid format text",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"format": "text",
 			},
 			wantErr: false,
 		},
 		{
 			name: "valid format json",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"format": "json",
 			},
 			wantErr: false,
 		},
 		{
 			name: "invalid format",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"format": "xml",
 			},
 			wantErr: true,
 		},
 		{
 			name: "excluded path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"path": ".infer/test",
 			},
 			wantErr: true,
@@ -200,7 +200,7 @@ func TestTreeTool_ValidateToolDisabled(t *testing.T) {
 	}
 
 	tool := NewTreeTool(cfg)
-	err := tool.Validate(map[string]interface{}{})
+	err := tool.Validate(map[string]any{})
 	if err == nil {
 		t.Error("Expected error when tools are disabled")
 	}
@@ -253,7 +253,7 @@ func TestTreeTool_ExecuteBasic(t *testing.T) {
 	tool := createTestTreeTool(tempDir)
 	ctx := context.Background()
 
-	result, err := tool.Execute(ctx, map[string]interface{}{
+	result, err := tool.Execute(ctx, map[string]any{
 		"path": tempDir,
 	})
 
@@ -291,7 +291,7 @@ func TestTreeTool_ExecuteWithMaxDepth(t *testing.T) {
 	tool := createTestTreeTool(tempDir)
 	ctx := context.Background()
 
-	result, err := tool.Execute(ctx, map[string]interface{}{
+	result, err := tool.Execute(ctx, map[string]any{
 		"path":      tempDir,
 		"max_depth": float64(1),
 	})
@@ -321,9 +321,9 @@ func TestTreeTool_ExecuteWithExcludePatterns(t *testing.T) {
 	tool := createTestTreeTool(tempDir)
 	ctx := context.Background()
 
-	result, err := tool.Execute(ctx, map[string]interface{}{
+	result, err := tool.Execute(ctx, map[string]any{
 		"path":              tempDir,
-		"exclude_patterns":  []interface{}{"*.log"},
+		"exclude_patterns":  []any{"*.log"},
 		"respect_gitignore": false,
 	})
 
@@ -357,7 +357,7 @@ func TestTreeTool_ExecuteWithShowHidden(t *testing.T) {
 	tool := createTestTreeTool(tempDir)
 	ctx := context.Background()
 
-	result, err := tool.Execute(ctx, map[string]interface{}{
+	result, err := tool.Execute(ctx, map[string]any{
 		"path":        tempDir,
 		"show_hidden": true,
 	})
@@ -387,7 +387,7 @@ func TestTreeTool_ExecuteWithJSONFormat(t *testing.T) {
 	tool := createTestTreeTool(tempDir)
 	ctx := context.Background()
 
-	result, err := tool.Execute(ctx, map[string]interface{}{
+	result, err := tool.Execute(ctx, map[string]any{
 		"path":   tempDir,
 		"format": "json",
 	})
@@ -424,17 +424,17 @@ func TestTreeTool_ExecuteErrors(t *testing.T) {
 
 	tests := []struct {
 		name string
-		args map[string]interface{}
+		args map[string]any
 	}{
 		{
 			name: "nonexistent path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"path": "/nonexistent/path",
 			},
 		},
 		{
 			name: "file instead of directory",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"path": filepath.Join(tempDir, "file1.txt"),
 			},
 		},
@@ -463,7 +463,7 @@ func TestTreeTool_ExecuteToolDisabled(t *testing.T) {
 	tool := NewTreeTool(cfg)
 	ctx := context.Background()
 
-	_, err := tool.Execute(ctx, map[string]interface{}{})
+	_, err := tool.Execute(ctx, map[string]any{})
 	if err == nil {
 		t.Error("Expected error when tools are disabled")
 	}

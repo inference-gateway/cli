@@ -8,7 +8,7 @@ import (
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
-type FakeFetchService struct {
+type FakeWebFetchService struct {
 	ClearCacheStub        func()
 	clearCacheMutex       sync.RWMutex
 	clearCacheArgsForCall []struct {
@@ -27,15 +27,15 @@ type FakeFetchService struct {
 		result1 *domain.FetchResult
 		result2 error
 	}
-	GetCacheStatsStub        func() map[string]interface{}
+	GetCacheStatsStub        func() map[string]any
 	getCacheStatsMutex       sync.RWMutex
 	getCacheStatsArgsForCall []struct {
 	}
 	getCacheStatsReturns struct {
-		result1 map[string]interface{}
+		result1 map[string]any
 	}
 	getCacheStatsReturnsOnCall map[int]struct {
-		result1 map[string]interface{}
+		result1 map[string]any
 	}
 	ValidateURLStub        func(string) error
 	validateURLMutex       sync.RWMutex
@@ -52,7 +52,7 @@ type FakeFetchService struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeFetchService) ClearCache() {
+func (fake *FakeWebFetchService) ClearCache() {
 	fake.clearCacheMutex.Lock()
 	fake.clearCacheArgsForCall = append(fake.clearCacheArgsForCall, struct {
 	}{})
@@ -64,19 +64,19 @@ func (fake *FakeFetchService) ClearCache() {
 	}
 }
 
-func (fake *FakeFetchService) ClearCacheCallCount() int {
+func (fake *FakeWebFetchService) ClearCacheCallCount() int {
 	fake.clearCacheMutex.RLock()
 	defer fake.clearCacheMutex.RUnlock()
 	return len(fake.clearCacheArgsForCall)
 }
 
-func (fake *FakeFetchService) ClearCacheCalls(stub func()) {
+func (fake *FakeWebFetchService) ClearCacheCalls(stub func()) {
 	fake.clearCacheMutex.Lock()
 	defer fake.clearCacheMutex.Unlock()
 	fake.ClearCacheStub = stub
 }
 
-func (fake *FakeFetchService) FetchContent(arg1 context.Context, arg2 string) (*domain.FetchResult, error) {
+func (fake *FakeWebFetchService) FetchContent(arg1 context.Context, arg2 string) (*domain.FetchResult, error) {
 	fake.fetchContentMutex.Lock()
 	ret, specificReturn := fake.fetchContentReturnsOnCall[len(fake.fetchContentArgsForCall)]
 	fake.fetchContentArgsForCall = append(fake.fetchContentArgsForCall, struct {
@@ -96,26 +96,26 @@ func (fake *FakeFetchService) FetchContent(arg1 context.Context, arg2 string) (*
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeFetchService) FetchContentCallCount() int {
+func (fake *FakeWebFetchService) FetchContentCallCount() int {
 	fake.fetchContentMutex.RLock()
 	defer fake.fetchContentMutex.RUnlock()
 	return len(fake.fetchContentArgsForCall)
 }
 
-func (fake *FakeFetchService) FetchContentCalls(stub func(context.Context, string) (*domain.FetchResult, error)) {
+func (fake *FakeWebFetchService) FetchContentCalls(stub func(context.Context, string) (*domain.FetchResult, error)) {
 	fake.fetchContentMutex.Lock()
 	defer fake.fetchContentMutex.Unlock()
 	fake.FetchContentStub = stub
 }
 
-func (fake *FakeFetchService) FetchContentArgsForCall(i int) (context.Context, string) {
+func (fake *FakeWebFetchService) FetchContentArgsForCall(i int) (context.Context, string) {
 	fake.fetchContentMutex.RLock()
 	defer fake.fetchContentMutex.RUnlock()
 	argsForCall := fake.fetchContentArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeFetchService) FetchContentReturns(result1 *domain.FetchResult, result2 error) {
+func (fake *FakeWebFetchService) FetchContentReturns(result1 *domain.FetchResult, result2 error) {
 	fake.fetchContentMutex.Lock()
 	defer fake.fetchContentMutex.Unlock()
 	fake.FetchContentStub = nil
@@ -125,7 +125,7 @@ func (fake *FakeFetchService) FetchContentReturns(result1 *domain.FetchResult, r
 	}{result1, result2}
 }
 
-func (fake *FakeFetchService) FetchContentReturnsOnCall(i int, result1 *domain.FetchResult, result2 error) {
+func (fake *FakeWebFetchService) FetchContentReturnsOnCall(i int, result1 *domain.FetchResult, result2 error) {
 	fake.fetchContentMutex.Lock()
 	defer fake.fetchContentMutex.Unlock()
 	fake.FetchContentStub = nil
@@ -141,7 +141,7 @@ func (fake *FakeFetchService) FetchContentReturnsOnCall(i int, result1 *domain.F
 	}{result1, result2}
 }
 
-func (fake *FakeFetchService) GetCacheStats() map[string]interface{} {
+func (fake *FakeWebFetchService) GetCacheStats() map[string]any {
 	fake.getCacheStatsMutex.Lock()
 	ret, specificReturn := fake.getCacheStatsReturnsOnCall[len(fake.getCacheStatsArgsForCall)]
 	fake.getCacheStatsArgsForCall = append(fake.getCacheStatsArgsForCall, struct {
@@ -159,42 +159,42 @@ func (fake *FakeFetchService) GetCacheStats() map[string]interface{} {
 	return fakeReturns.result1
 }
 
-func (fake *FakeFetchService) GetCacheStatsCallCount() int {
+func (fake *FakeWebFetchService) GetCacheStatsCallCount() int {
 	fake.getCacheStatsMutex.RLock()
 	defer fake.getCacheStatsMutex.RUnlock()
 	return len(fake.getCacheStatsArgsForCall)
 }
 
-func (fake *FakeFetchService) GetCacheStatsCalls(stub func() map[string]interface{}) {
+func (fake *FakeWebFetchService) GetCacheStatsCalls(stub func() map[string]any) {
 	fake.getCacheStatsMutex.Lock()
 	defer fake.getCacheStatsMutex.Unlock()
 	fake.GetCacheStatsStub = stub
 }
 
-func (fake *FakeFetchService) GetCacheStatsReturns(result1 map[string]interface{}) {
+func (fake *FakeWebFetchService) GetCacheStatsReturns(result1 map[string]any) {
 	fake.getCacheStatsMutex.Lock()
 	defer fake.getCacheStatsMutex.Unlock()
 	fake.GetCacheStatsStub = nil
 	fake.getCacheStatsReturns = struct {
-		result1 map[string]interface{}
+		result1 map[string]any
 	}{result1}
 }
 
-func (fake *FakeFetchService) GetCacheStatsReturnsOnCall(i int, result1 map[string]interface{}) {
+func (fake *FakeWebFetchService) GetCacheStatsReturnsOnCall(i int, result1 map[string]any) {
 	fake.getCacheStatsMutex.Lock()
 	defer fake.getCacheStatsMutex.Unlock()
 	fake.GetCacheStatsStub = nil
 	if fake.getCacheStatsReturnsOnCall == nil {
 		fake.getCacheStatsReturnsOnCall = make(map[int]struct {
-			result1 map[string]interface{}
+			result1 map[string]any
 		})
 	}
 	fake.getCacheStatsReturnsOnCall[i] = struct {
-		result1 map[string]interface{}
+		result1 map[string]any
 	}{result1}
 }
 
-func (fake *FakeFetchService) ValidateURL(arg1 string) error {
+func (fake *FakeWebFetchService) ValidateURL(arg1 string) error {
 	fake.validateURLMutex.Lock()
 	ret, specificReturn := fake.validateURLReturnsOnCall[len(fake.validateURLArgsForCall)]
 	fake.validateURLArgsForCall = append(fake.validateURLArgsForCall, struct {
@@ -213,26 +213,26 @@ func (fake *FakeFetchService) ValidateURL(arg1 string) error {
 	return fakeReturns.result1
 }
 
-func (fake *FakeFetchService) ValidateURLCallCount() int {
+func (fake *FakeWebFetchService) ValidateURLCallCount() int {
 	fake.validateURLMutex.RLock()
 	defer fake.validateURLMutex.RUnlock()
 	return len(fake.validateURLArgsForCall)
 }
 
-func (fake *FakeFetchService) ValidateURLCalls(stub func(string) error) {
+func (fake *FakeWebFetchService) ValidateURLCalls(stub func(string) error) {
 	fake.validateURLMutex.Lock()
 	defer fake.validateURLMutex.Unlock()
 	fake.ValidateURLStub = stub
 }
 
-func (fake *FakeFetchService) ValidateURLArgsForCall(i int) string {
+func (fake *FakeWebFetchService) ValidateURLArgsForCall(i int) string {
 	fake.validateURLMutex.RLock()
 	defer fake.validateURLMutex.RUnlock()
 	argsForCall := fake.validateURLArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeFetchService) ValidateURLReturns(result1 error) {
+func (fake *FakeWebFetchService) ValidateURLReturns(result1 error) {
 	fake.validateURLMutex.Lock()
 	defer fake.validateURLMutex.Unlock()
 	fake.ValidateURLStub = nil
@@ -241,7 +241,7 @@ func (fake *FakeFetchService) ValidateURLReturns(result1 error) {
 	}{result1}
 }
 
-func (fake *FakeFetchService) ValidateURLReturnsOnCall(i int, result1 error) {
+func (fake *FakeWebFetchService) ValidateURLReturnsOnCall(i int, result1 error) {
 	fake.validateURLMutex.Lock()
 	defer fake.validateURLMutex.Unlock()
 	fake.ValidateURLStub = nil
@@ -255,7 +255,7 @@ func (fake *FakeFetchService) ValidateURLReturnsOnCall(i int, result1 error) {
 	}{result1}
 }
 
-func (fake *FakeFetchService) Invocations() map[string][][]interface{} {
+func (fake *FakeWebFetchService) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
@@ -265,7 +265,7 @@ func (fake *FakeFetchService) Invocations() map[string][][]interface{} {
 	return copiedInvocations
 }
 
-func (fake *FakeFetchService) recordInvocation(key string, args []interface{}) {
+func (fake *FakeWebFetchService) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -277,4 +277,4 @@ func (fake *FakeFetchService) recordInvocation(key string, args []interface{}) {
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ domain.FetchService = new(FakeFetchService)
+var _ domain.WebFetchService = new(FakeWebFetchService)

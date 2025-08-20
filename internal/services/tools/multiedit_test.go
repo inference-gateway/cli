@@ -58,10 +58,10 @@ func TestMultiEditTool_Execute_RequiresReadTool(t *testing.T) {
 	mockTracker := &MockReadToolTracker{readToolUsed: false}
 	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": "/tmp/test.txt",
-		"edits": []interface{}{
-			map[string]interface{}{
+		"edits": []any{
+			map[string]any{
 				"old_string": "hello",
 				"new_string": "hi",
 			},
@@ -115,19 +115,19 @@ func TestMultiEditTool_Execute_SuccessfulMultipleEdits(t *testing.T) {
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
 	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": testFile,
-		"edits": []interface{}{
-			map[string]interface{}{
+		"edits": []any{
+			map[string]any{
 				"old_string": "Hello",
 				"new_string": "Hi",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"old_string":  "world",
 				"new_string":  "universe",
 				"replace_all": true,
 			},
-			map[string]interface{}{
+			map[string]any{
 				"old_string": "test file",
 				"new_string": "example file",
 			},
@@ -226,14 +226,14 @@ func TestMultiEditTool_Execute_SequentialEditsChangeContent(t *testing.T) {
 	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
 
 	// Test that edits apply sequentially - first change "name" to "userName", then "userName" to "username"
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": testFile,
-		"edits": []interface{}{
-			map[string]interface{}{
+		"edits": []any{
+			map[string]any{
 				"old_string": "name",
 				"new_string": "userName",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"old_string": "userName",
 				"new_string": "username",
 			},
@@ -295,14 +295,14 @@ func TestMultiEditTool_Execute_AtomicFailure(t *testing.T) {
 	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
 
 	// First edit will succeed, second edit will fail (nonexistent string)
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": testFile,
-		"edits": []interface{}{
-			map[string]interface{}{
+		"edits": []any{
+			map[string]any{
 				"old_string": "Hello",
 				"new_string": "Hi",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"old_string": "nonexistent",
 				"new_string": "something",
 			},
@@ -366,10 +366,10 @@ func TestMultiEditTool_Execute_NonUniqueString(t *testing.T) {
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
 	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": testFile,
-		"edits": []interface{}{
-			map[string]interface{}{
+		"edits": []any{
+			map[string]any{
 				"old_string":  "test",
 				"new_string":  "example",
 				"replace_all": false, // This should fail because "test" appears multiple times
@@ -434,10 +434,10 @@ func TestMultiEditTool_Execute_ReplaceAll(t *testing.T) {
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
 	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": testFile,
-		"edits": []interface{}{
-			map[string]interface{}{
+		"edits": []any{
+			map[string]any{
 				"old_string":  "test",
 				"new_string":  "example",
 				"replace_all": true,
@@ -504,14 +504,14 @@ func TestMultiEditTool_Execute_NewFileCreation(t *testing.T) {
 	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
 
 	// Create new file with empty old_string and then edit it
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": testFile,
-		"edits": []interface{}{
-			map[string]interface{}{
+		"edits": []any{
+			map[string]any{
 				"old_string": "",
 				"new_string": "Hello world!\nThis is new content.",
 			},
-			map[string]interface{}{
+			map[string]any{
 				"old_string": "world",
 				"new_string": "universe",
 			},
@@ -557,37 +557,37 @@ func TestMultiEditTool_Validate_InvalidArgs(t *testing.T) {
 
 	testCases := []struct {
 		name string
-		args map[string]interface{}
+		args map[string]any
 		want string
 	}{
 		{
 			name: "missing file_path",
-			args: map[string]interface{}{
-				"edits": []interface{}{},
+			args: map[string]any{
+				"edits": []any{},
 			},
 			want: "file_path parameter is required",
 		},
 		{
 			name: "missing edits",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 			},
 			want: "edits parameter is required",
 		},
 		{
 			name: "empty edits array",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
-				"edits":     []interface{}{},
+				"edits":     []any{},
 			},
 			want: "edits array must contain at least one edit operation",
 		},
 		{
 			name: "invalid edit missing old_string",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
-				"edits": []interface{}{
-					map[string]interface{}{
+				"edits": []any{
+					map[string]any{
 						"new_string": "hello",
 					},
 				},
@@ -596,10 +596,10 @@ func TestMultiEditTool_Validate_InvalidArgs(t *testing.T) {
 		},
 		{
 			name: "invalid edit missing new_string",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
-				"edits": []interface{}{
-					map[string]interface{}{
+				"edits": []any{
+					map[string]any{
 						"old_string": "hello",
 					},
 				},
@@ -608,10 +608,10 @@ func TestMultiEditTool_Validate_InvalidArgs(t *testing.T) {
 		},
 		{
 			name: "invalid edit same old and new string",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
-				"edits": []interface{}{
-					map[string]interface{}{
+				"edits": []any{
+					map[string]any{
 						"old_string": "hello",
 						"new_string": "hello",
 					},
@@ -643,10 +643,10 @@ func TestMultiEditTool_Execute_ToolDisabled(t *testing.T) {
 
 	tool := NewMultiEditTool(cfg)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": "/tmp/test.txt",
-		"edits": []interface{}{
-			map[string]interface{}{
+		"edits": []any{
+			map[string]any{
 				"old_string": "hello",
 				"new_string": "hi",
 			},

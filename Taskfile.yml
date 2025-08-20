@@ -160,9 +160,9 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain Tool
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain ToolFactory
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain ToolService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain WebSearchService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain FileService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain FetchService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain WebSearchService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/domain WebFetchService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/ui ConversationRenderer
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/ui InputComponent
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o internal/mocks internal/ui StatusComponent

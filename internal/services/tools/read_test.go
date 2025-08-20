@@ -40,7 +40,7 @@ func TestReadTool_Definition(t *testing.T) {
 		t.Error("Tool parameters should not be nil")
 	}
 
-	params := def.Parameters.(map[string]interface{})
+	params := def.Parameters.(map[string]any)
 	if params["type"] != "object" {
 		t.Error("Expected type to be object")
 	}
@@ -49,7 +49,7 @@ func TestReadTool_Definition(t *testing.T) {
 		t.Error("Expected additionalProperties to be false")
 	}
 
-	properties, ok := params["properties"].(map[string]interface{})
+	properties, ok := params["properties"].(map[string]any)
 	if !ok {
 		t.Fatal("Expected properties to be a map")
 	}
@@ -64,14 +64,14 @@ func TestReadTool_Definition(t *testing.T) {
 	}
 
 	if limitParam, exists := properties["limit"]; exists {
-		limitMap := limitParam.(map[string]interface{})
+		limitMap := limitParam.(map[string]any)
 		if limitMap["minimum"] != 1 {
 			t.Error("limit minimum should be 1")
 		}
 	}
 
 	if offsetParam, exists := properties["offset"]; exists {
-		offsetMap := offsetParam.(map[string]interface{})
+		offsetMap := offsetParam.(map[string]any)
 		if offsetMap["minimum"] != 1 {
 			t.Error("offset minimum should be 1")
 		}
@@ -169,20 +169,20 @@ func TestReadTool_Validate(t *testing.T) {
 func testBasicValidation(t *testing.T, tool *ReadTool) {
 	tests := []struct {
 		name      string
-		args      map[string]interface{}
+		args      map[string]any
 		wantError bool
 		errorMsg  string
 	}{
 		{
 			name: "valid absolute file path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 			},
 			wantError: false,
 		},
 		{
 			name: "valid absolute file path with offset and limit",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/home/user/test.txt",
 				"offset":    float64(5),
 				"limit":     float64(100),
@@ -191,13 +191,13 @@ func testBasicValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name:      "missing file_path",
-			args:      map[string]interface{}{},
+			args:      map[string]any{},
 			wantError: true,
 			errorMsg:  "file_path parameter is required and must be a string",
 		},
 		{
 			name: "empty file_path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "",
 			},
 			wantError: true,
@@ -205,7 +205,7 @@ func testBasicValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "file_path wrong type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": 123,
 			},
 			wantError: true,
@@ -213,14 +213,14 @@ func testBasicValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "relative path accepted",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "relative/path.txt",
 			},
 			wantError: false,
 		},
 		{
 			name: "relative path with dots accepted",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "../test.txt",
 			},
 			wantError: false,
@@ -245,19 +245,19 @@ func testPathSecurity(t *testing.T, tool *ReadTool) {
 	wd, _ := os.Getwd()
 	tests := []struct {
 		name      string
-		args      map[string]interface{}
+		args      map[string]any
 		wantError bool
 	}{
 		{
 			name: "excluded path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/.infer/config.yaml",
 			},
 			wantError: true,
 		},
 		{
 			name: "excluded pattern",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": filepath.Join(wd, ".env"),
 			},
 			wantError: true,
@@ -277,13 +277,13 @@ func testPathSecurity(t *testing.T, tool *ReadTool) {
 func testParameterValidation(t *testing.T, tool *ReadTool) {
 	tests := []struct {
 		name      string
-		args      map[string]interface{}
+		args      map[string]any
 		wantError bool
 		errorMsg  string
 	}{
 		{
 			name: "invalid offset - zero",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"offset":    float64(0),
 			},
@@ -292,7 +292,7 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "invalid offset - negative",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"offset":    float64(-1),
 			},
@@ -301,7 +301,7 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "invalid limit - zero",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"limit":     float64(0),
 			},
@@ -310,7 +310,7 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "invalid limit - negative",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"limit":     float64(-5),
 			},
@@ -319,7 +319,7 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "invalid offset type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"offset":    "not_a_number",
 			},
@@ -328,7 +328,7 @@ func testParameterValidation(t *testing.T, tool *ReadTool) {
 		},
 		{
 			name: "invalid limit type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "/tmp/test.txt",
 				"limit":     "not_a_number",
 			},
@@ -377,7 +377,7 @@ func TestReadTool_Execute_BasicFunctionality(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 		}
 
@@ -471,7 +471,7 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 			"offset":    float64(5),
 			"limit":     float64(3),
@@ -521,7 +521,7 @@ func TestReadTool_Execute_Paging(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 			"offset":    float64(10),
 			"limit":     float64(5),
@@ -571,7 +571,7 @@ func TestReadTool_Execute_LineTruncation(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 		}
 
@@ -627,7 +627,7 @@ func TestReadTool_Execute_EmptyFile(t *testing.T) {
 			t.Fatalf("Failed to create empty test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 		}
 
@@ -670,26 +670,26 @@ func TestReadTool_Execute_ErrorCases(t *testing.T) {
 
 	tests := []struct {
 		name          string
-		args          map[string]interface{}
+		args          map[string]any
 		expectedError string
 	}{
 		{
 			name: "relative path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": filepath.Join(tmpDir, "relative/path.txt"),
 			},
 			expectedError: ErrorNotFound,
 		},
 		{
 			name: "nonexistent file",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": filepath.Join(tmpDir, "nonexistent.txt"),
 			},
 			expectedError: ErrorNotFound,
 		},
 		{
 			name: "directory instead of file",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": tmpDir,
 			},
 			expectedError: "is a directory, not a file",
@@ -740,7 +740,7 @@ func TestReadTool_Execute_BinaryFileDetection(t *testing.T) {
 			t.Fatalf("Failed to create binary test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 		}
 
@@ -769,7 +769,7 @@ func TestReadTool_Execute_Disabled(t *testing.T) {
 	tool := NewReadTool(cfg)
 	ctx := context.Background()
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": "/tmp/test.txt",
 	}
 
@@ -813,7 +813,7 @@ func TestReadTool_Execute_Defaults(t *testing.T) {
 			t.Fatalf("Failed to create test file: %v", err)
 		}
 
-		args := map[string]interface{}{
+		args := map[string]any{
 			"file_path": testFile,
 		}
 

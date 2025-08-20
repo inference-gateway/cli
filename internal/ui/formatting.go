@@ -60,7 +60,7 @@ func FormatErrorCLI(message string) string {
 }
 
 // FormatToolCall formats a tool call for consistent display across the application
-func FormatToolCall(toolName string, args map[string]interface{}) string {
+func FormatToolCall(toolName string, args map[string]any) string {
 	if len(args) == 0 {
 		return fmt.Sprintf("%s()", toolName)
 	}
@@ -227,7 +227,7 @@ func formatResultSummary(result *domain.ToolExecutionResult) string {
 }
 
 // formatToolSpecificData formats the data section based on tool type
-func formatToolSpecificData(toolName string, data interface{}) string {
+func formatToolSpecificData(toolName string, data any) string {
 	switch toolName {
 	case "Bash":
 		return formatBashToolData(data)
@@ -252,7 +252,7 @@ func formatToolSpecificData(toolName string, data interface{}) string {
 	return fmt.Sprintf("%+v", data)
 }
 
-func formatBashToolData(data interface{}) string {
+func formatBashToolData(data any) string {
 	bashResult, ok := data.(*domain.BashToolResult)
 	if !ok {
 		return ""
@@ -270,7 +270,7 @@ func formatBashToolData(data interface{}) string {
 	return output.String()
 }
 
-func formatReadToolData(data interface{}) string {
+func formatReadToolData(data any) string {
 	readResult, ok := data.(*domain.FileReadToolResult)
 	if !ok {
 		return ""
@@ -295,7 +295,7 @@ func formatReadToolData(data interface{}) string {
 	return output.String()
 }
 
-func formatWriteToolData(data interface{}) string {
+func formatWriteToolData(data any) string {
 	writeResult, ok := data.(*domain.FileWriteToolResult)
 	if !ok {
 		return ""
@@ -339,7 +339,7 @@ func formatWriteToolData(data interface{}) string {
 	return output.String()
 }
 
-func formatTreeToolData(data interface{}) string {
+func formatTreeToolData(data any) string {
 	treeResult, ok := data.(*domain.TreeToolResult)
 	if !ok {
 		return ""
@@ -370,7 +370,7 @@ func formatTreeToolData(data interface{}) string {
 	return output.String()
 }
 
-func formatFetchToolData(data interface{}) string {
+func formatFetchToolData(data any) string {
 	fetchResult, ok := data.(*domain.FetchResult)
 	if !ok {
 		return ""
@@ -409,7 +409,7 @@ func formatFetchToolData(data interface{}) string {
 	return output.String()
 }
 
-func formatWebSearchToolData(data interface{}) string {
+func formatWebSearchToolData(data any) string {
 	searchResult, ok := data.(*domain.WebSearchResponse)
 	if !ok {
 		return ""
@@ -435,7 +435,7 @@ func formatWebSearchToolData(data interface{}) string {
 	return output.String()
 }
 
-func formatTodoWriteToolData(data interface{}) string {
+func formatTodoWriteToolData(data any) string {
 	todoResult, ok := data.(*domain.TodoWriteToolResult)
 	if !ok {
 		return ""
@@ -558,7 +558,7 @@ func FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
 	return fmt.Sprintf("Tool execution completed successfully: %+v", result.Data)
 }
 
-func formatBashToolDataForLLM(data interface{}) string {
+func formatBashToolDataForLLM(data any) string {
 	bashResult, ok := data.(*domain.BashToolResult)
 	if !ok {
 		return ""
@@ -576,7 +576,7 @@ func formatBashToolDataForLLM(data interface{}) string {
 	return output.String()
 }
 
-func formatReadToolDataForLLM(data interface{}) string {
+func formatReadToolDataForLLM(data any) string {
 	readResult, ok := data.(*domain.FileReadToolResult)
 	if !ok {
 		return ""
@@ -600,7 +600,7 @@ func formatReadToolDataForLLM(data interface{}) string {
 	return output.String()
 }
 
-func formatFetchToolDataForLLM(data interface{}) string {
+func formatFetchToolDataForLLM(data any) string {
 	fetchResult, ok := data.(*domain.FetchResult)
 	if !ok {
 		return ""
@@ -633,7 +633,7 @@ func formatFetchToolDataForLLM(data interface{}) string {
 	return output.String()
 }
 
-func formatWebSearchToolDataForLLM(data interface{}) string {
+func formatWebSearchToolDataForLLM(data any) string {
 	searchResult, ok := data.(*domain.WebSearchResponse)
 	if !ok {
 		return ""
@@ -660,7 +660,7 @@ func formatWebSearchToolDataForLLM(data interface{}) string {
 	return output.String()
 }
 
-func formatWriteToolDataForLLM(data interface{}) string {
+func formatWriteToolDataForLLM(data any) string {
 	writeResult, ok := data.(*domain.FileWriteToolResult)
 	if !ok {
 		return ""
@@ -698,7 +698,7 @@ func formatWriteToolDataForLLM(data interface{}) string {
 	return output.String()
 }
 
-func formatTodoWriteToolDataForLLM(data interface{}) string {
+func formatTodoWriteToolDataForLLM(data any) string {
 	todoResult, ok := data.(*domain.TodoWriteToolResult)
 	if !ok {
 		return ""

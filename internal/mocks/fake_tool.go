@@ -19,11 +19,11 @@ type FakeTool struct {
 	definitionReturnsOnCall map[int]struct {
 		result1 domain.ToolDefinition
 	}
-	ExecuteStub        func(context.Context, map[string]interface{}) (*domain.ToolExecutionResult, error)
+	ExecuteStub        func(context.Context, map[string]any) (*domain.ToolExecutionResult, error)
 	executeMutex       sync.RWMutex
 	executeArgsForCall []struct {
 		arg1 context.Context
-		arg2 map[string]interface{}
+		arg2 map[string]any
 	}
 	executeReturns struct {
 		result1 *domain.ToolExecutionResult
@@ -43,10 +43,10 @@ type FakeTool struct {
 	isEnabledReturnsOnCall map[int]struct {
 		result1 bool
 	}
-	ValidateStub        func(map[string]interface{}) error
+	ValidateStub        func(map[string]any) error
 	validateMutex       sync.RWMutex
 	validateArgsForCall []struct {
-		arg1 map[string]interface{}
+		arg1 map[string]any
 	}
 	validateReturns struct {
 		result1 error
@@ -111,12 +111,12 @@ func (fake *FakeTool) DefinitionReturnsOnCall(i int, result1 domain.ToolDefiniti
 	}{result1}
 }
 
-func (fake *FakeTool) Execute(arg1 context.Context, arg2 map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (fake *FakeTool) Execute(arg1 context.Context, arg2 map[string]any) (*domain.ToolExecutionResult, error) {
 	fake.executeMutex.Lock()
 	ret, specificReturn := fake.executeReturnsOnCall[len(fake.executeArgsForCall)]
 	fake.executeArgsForCall = append(fake.executeArgsForCall, struct {
 		arg1 context.Context
-		arg2 map[string]interface{}
+		arg2 map[string]any
 	}{arg1, arg2})
 	stub := fake.ExecuteStub
 	fakeReturns := fake.executeReturns
@@ -137,13 +137,13 @@ func (fake *FakeTool) ExecuteCallCount() int {
 	return len(fake.executeArgsForCall)
 }
 
-func (fake *FakeTool) ExecuteCalls(stub func(context.Context, map[string]interface{}) (*domain.ToolExecutionResult, error)) {
+func (fake *FakeTool) ExecuteCalls(stub func(context.Context, map[string]any) (*domain.ToolExecutionResult, error)) {
 	fake.executeMutex.Lock()
 	defer fake.executeMutex.Unlock()
 	fake.ExecuteStub = stub
 }
 
-func (fake *FakeTool) ExecuteArgsForCall(i int) (context.Context, map[string]interface{}) {
+func (fake *FakeTool) ExecuteArgsForCall(i int) (context.Context, map[string]any) {
 	fake.executeMutex.RLock()
 	defer fake.executeMutex.RUnlock()
 	argsForCall := fake.executeArgsForCall[i]
@@ -229,11 +229,11 @@ func (fake *FakeTool) IsEnabledReturnsOnCall(i int, result1 bool) {
 	}{result1}
 }
 
-func (fake *FakeTool) Validate(arg1 map[string]interface{}) error {
+func (fake *FakeTool) Validate(arg1 map[string]any) error {
 	fake.validateMutex.Lock()
 	ret, specificReturn := fake.validateReturnsOnCall[len(fake.validateArgsForCall)]
 	fake.validateArgsForCall = append(fake.validateArgsForCall, struct {
-		arg1 map[string]interface{}
+		arg1 map[string]any
 	}{arg1})
 	stub := fake.ValidateStub
 	fakeReturns := fake.validateReturns
@@ -254,13 +254,13 @@ func (fake *FakeTool) ValidateCallCount() int {
 	return len(fake.validateArgsForCall)
 }
 
-func (fake *FakeTool) ValidateCalls(stub func(map[string]interface{}) error) {
+func (fake *FakeTool) ValidateCalls(stub func(map[string]any) error) {
 	fake.validateMutex.Lock()
 	defer fake.validateMutex.Unlock()
 	fake.ValidateStub = stub
 }
 
-func (fake *FakeTool) ValidateArgsForCall(i int) map[string]interface{} {
+func (fake *FakeTool) ValidateArgsForCall(i int) map[string]any {
 	fake.validateMutex.RLock()
 	defer fake.validateMutex.RUnlock()
 	argsForCall := fake.validateArgsForCall[i]

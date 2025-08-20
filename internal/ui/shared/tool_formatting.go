@@ -22,7 +22,7 @@ func FormatToolResultExpandedResponsive(result *domain.ToolExecutionResult, term
 }
 
 // FormatToolCall formats a tool call for consistent display across the application
-func FormatToolCall(toolName string, args map[string]interface{}) string {
+func FormatToolCall(toolName string, args map[string]any) string {
 	if len(args) == 0 {
 		return fmt.Sprintf("%s()", toolName)
 	}
@@ -180,7 +180,7 @@ func getStatusText(success bool) string {
 }
 
 // formatToolSpecificData formats the data section based on tool type
-func formatToolSpecificData(toolName string, data interface{}) string {
+func formatToolSpecificData(toolName string, data any) string {
 	switch toolName {
 	case "Bash":
 		return formatBashToolData(data)
@@ -203,7 +203,7 @@ func formatToolSpecificData(toolName string, data interface{}) string {
 	return fmt.Sprintf("%+v", data)
 }
 
-func formatBashToolData(data interface{}) string {
+func formatBashToolData(data any) string {
 	bashResult, ok := data.(*domain.BashToolResult)
 	if !ok {
 		return ""
@@ -221,7 +221,7 @@ func formatBashToolData(data interface{}) string {
 	return output.String()
 }
 
-func formatReadToolData(data interface{}) string {
+func formatReadToolData(data any) string {
 	readResult, ok := data.(*domain.FileReadToolResult)
 	if !ok {
 		return ""
@@ -246,7 +246,7 @@ func formatReadToolData(data interface{}) string {
 	return output.String()
 }
 
-func formatTreeToolData(data interface{}) string {
+func formatTreeToolData(data any) string {
 	treeResult, ok := data.(*domain.TreeToolResult)
 	if !ok {
 		return ""
@@ -277,7 +277,7 @@ func formatTreeToolData(data interface{}) string {
 	return output.String()
 }
 
-func formatFetchToolData(data interface{}) string {
+func formatFetchToolData(data any) string {
 	fetchResult, ok := data.(*domain.FetchResult)
 	if !ok {
 		return ""
@@ -316,7 +316,7 @@ func formatFetchToolData(data interface{}) string {
 	return output.String()
 }
 
-func formatWebSearchToolData(data interface{}) string {
+func formatWebSearchToolData(data any) string {
 	searchResult, ok := data.(*domain.WebSearchResponse)
 	if !ok {
 		return ""
@@ -342,7 +342,7 @@ func formatWebSearchToolData(data interface{}) string {
 	return output.String()
 }
 
-func formatTodoWriteToolData(data interface{}) string {
+func formatTodoWriteToolData(data any) string {
 	todoResult, ok := data.(*domain.TodoWriteToolResult)
 	if !ok {
 		return ""

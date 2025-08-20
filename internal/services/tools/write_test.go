@@ -24,12 +24,12 @@ func TestWriteTool_Definition(t *testing.T) {
 		t.Error("Tool description should not be empty")
 	}
 
-	params, ok := def.Parameters.(map[string]interface{})
+	params, ok := def.Parameters.(map[string]any)
 	if !ok {
 		t.Fatal("Parameters should be a map")
 	}
 
-	props, ok := params["properties"].(map[string]interface{})
+	props, ok := params["properties"].(map[string]any)
 	if !ok {
 		t.Fatal("Properties should be a map")
 	}
@@ -79,13 +79,13 @@ func TestWriteTool_Validate(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		args    map[string]interface{}
+		args    map[string]any
 		wantErr bool
 		errMsg  string
 	}{
 		{
 			name: "valid basic arguments",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "test.txt",
 				"content":   "hello world",
 			},
@@ -93,7 +93,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "valid with all optional arguments",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":   "test.txt",
 				"content":     "hello world",
 				"create_dirs": true,
@@ -104,19 +104,19 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name:    "missing file_path",
-			args:    map[string]interface{}{"content": "hello"},
+			args:    map[string]any{"content": "hello"},
 			wantErr: true,
 			errMsg:  "file_path parameter is required and must be a string",
 		},
 		{
 			name:    "missing content",
-			args:    map[string]interface{}{"file_path": "test.txt"},
+			args:    map[string]any{"file_path": "test.txt"},
 			wantErr: true,
 			errMsg:  "content parameter is required and must be a string",
 		},
 		{
 			name: "empty file_path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "",
 				"content":   "hello",
 			},
@@ -125,7 +125,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid file_path type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": 123,
 				"content":   "hello",
 			},
@@ -134,7 +134,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid content type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "test.txt",
 				"content":   123,
 			},
@@ -143,7 +143,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid create_dirs type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path":   "test.txt",
 				"content":     "hello",
 				"create_dirs": "true",
@@ -153,7 +153,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid overwrite type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "test.txt",
 				"content":   "hello",
 				"overwrite": "false",
@@ -163,7 +163,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid format value",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "test.txt",
 				"content":   "hello",
 				"format":    "xml",
@@ -173,7 +173,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "invalid format type",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": "test.txt",
 				"content":   "hello",
 				"format":    123,
@@ -183,7 +183,7 @@ func TestWriteTool_Validate(t *testing.T) {
 		},
 		{
 			name: "excluded path",
-			args: map[string]interface{}{
+			args: map[string]any{
 				"file_path": ".infer/test.txt",
 				"content":   "hello",
 			},
@@ -239,7 +239,7 @@ func TestWriteTool_ValidateDisabled(t *testing.T) {
 	cfg.Tools.Enabled = false
 	tool := NewWriteTool(cfg)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": "test.txt",
 		"content":   "hello",
 	}
@@ -288,7 +288,7 @@ func testWriteNewFile(t *testing.T, tempDir string, tool *WriteTool, ctx context
 	filePath := filepath.Join(tempDir, "test1.txt")
 	content := "Hello, World!"
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": filePath,
 		"content":   content,
 	}
@@ -341,7 +341,7 @@ func testWriteWithDirCreation(t *testing.T, tempDir string, tool *WriteTool, ctx
 	filePath := filepath.Join(tempDir, "subdir", "test2.txt")
 	content := "Hello, Directory!"
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path":   filePath,
 		"content":     content,
 		"create_dirs": true,
@@ -384,7 +384,7 @@ func testWriteOverwriteExisting(t *testing.T, tempDir string, tool *WriteTool, c
 		t.Fatalf("Failed to create initial file: %v", err)
 	}
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": filePath,
 		"content":   newContent,
 		"overwrite": true,
@@ -431,7 +431,7 @@ func testWriteFailNoOverwrite(t *testing.T, tempDir string, tool *WriteTool, ctx
 		t.Fatalf("Failed to create initial file: %v", err)
 	}
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": filePath,
 		"content":   newContent,
 		"overwrite": false,
@@ -457,7 +457,7 @@ func testWriteFailNoOverwrite(t *testing.T, tempDir string, tool *WriteTool, ctx
 }
 
 func testWriteFailInvalidArgs(t *testing.T, tool *WriteTool, ctx context.Context) {
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": 123,
 		"content":   "hello",
 	}
@@ -481,7 +481,7 @@ func testWriteFailDisabled(t *testing.T, ctx context.Context) {
 	cfg.Tools.Enabled = false
 	disabledTool := NewWriteTool(cfg)
 
-	args := map[string]interface{}{
+	args := map[string]any{
 		"file_path": "test.txt",
 		"content":   "hello",
 	}
@@ -539,7 +539,7 @@ func TestWriteTool_PathSecurity(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			args := map[string]interface{}{
+			args := map[string]any{
 				"file_path": tt.path,
 				"content":   "test content",
 			}

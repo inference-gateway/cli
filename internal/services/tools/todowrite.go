@@ -81,28 +81,28 @@ NOTE that you should not use this tool if there is only one trivial task to do. 
    - Use clear, descriptive task names
 
 When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.`,
-		Parameters: map[string]interface{}{
+		Parameters: map[string]any{
 			"$schema":              "http://json-schema.org/draft-07/schema#",
 			"additionalProperties": false,
 			"type":                 "object",
 			"required":             []string{"todos"},
-			"properties": map[string]interface{}{
-				"todos": map[string]interface{}{
+			"properties": map[string]any{
+				"todos": map[string]any{
 					"description": "The updated todo list",
 					"type":        "array",
-					"items": map[string]interface{}{
+					"items": map[string]any{
 						"type":                 "object",
 						"additionalProperties": false,
 						"required":             []string{"content", "status", "id"},
-						"properties": map[string]interface{}{
-							"content": map[string]interface{}{
+						"properties": map[string]any{
+							"content": map[string]any{
 								"type":      "string",
 								"minLength": 1,
 							},
-							"id": map[string]interface{}{
+							"id": map[string]any{
 								"type": "string",
 							},
-							"status": map[string]interface{}{
+							"status": map[string]any{
 								"type": "string",
 								"enum": []string{"pending", "in_progress", "completed"},
 							},
@@ -115,13 +115,13 @@ When in doubt, use this tool. Being proactive with task management demonstrates 
 }
 
 // Execute runs the TodoWrite tool with given arguments
-func (t *TodoWriteTool) Execute(ctx context.Context, args map[string]interface{}) (*domain.ToolExecutionResult, error) {
+func (t *TodoWriteTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
 	if !t.config.Tools.Enabled {
 		return nil, fmt.Errorf("TodoWrite tool is not enabled")
 	}
 
-	todos, ok := args["todos"].([]interface{})
+	todos, ok := args["todos"].([]any)
 	if !ok {
 		return &domain.ToolExecutionResult{
 			ToolName:  "TodoWrite",
@@ -155,12 +155,12 @@ func (t *TodoWriteTool) Execute(ctx context.Context, args map[string]interface{}
 }
 
 // Validate checks if the TodoWrite tool arguments are valid
-func (t *TodoWriteTool) Validate(args map[string]interface{}) error {
+func (t *TodoWriteTool) Validate(args map[string]any) error {
 	if !t.config.Tools.Enabled {
 		return fmt.Errorf("TodoWrite tool is not enabled")
 	}
 
-	todos, ok := args["todos"].([]interface{})
+	todos, ok := args["todos"].([]any)
 	if !ok {
 		return fmt.Errorf("todos parameter is required and must be an array")
 	}
@@ -174,11 +174,11 @@ func (t *TodoWriteTool) IsEnabled() bool {
 }
 
 // executeTodoWrite processes the todo list update
-func (t *TodoWriteTool) executeTodoWrite(todosRaw []interface{}) (*domain.TodoWriteToolResult, error) {
+func (t *TodoWriteTool) executeTodoWrite(todosRaw []any) (*domain.TodoWriteToolResult, error) {
 	var todos []domain.TodoItem
 
 	for i, todoRaw := range todosRaw {
-		todoMap, ok := todoRaw.(map[string]interface{})
+		todoMap, ok := todoRaw.(map[string]any)
 		if !ok {
 			return nil, fmt.Errorf("todo item at index %d must be an object", i)
 		}
@@ -233,14 +233,14 @@ func (t *TodoWriteTool) executeTodoWrite(todosRaw []interface{}) (*domain.TodoWr
 }
 
 // validateTodos validates the raw todos array
-func (t *TodoWriteTool) validateTodos(todosRaw []interface{}) error {
+func (t *TodoWriteTool) validateTodos(todosRaw []any) error {
 	if len(todosRaw) == 0 {
 		return fmt.Errorf("todos array cannot be empty")
 	}
 
 	var todos []domain.TodoItem
 	for i, todoRaw := range todosRaw {
-		todoMap, ok := todoRaw.(map[string]interface{})
+		todoMap, ok := todoRaw.(map[string]any)
 		if !ok {
 			return fmt.Errorf("todo item at index %d must be an object", i)
 		}
