@@ -326,6 +326,18 @@ When asked to implement features or fix issues:
 5. Run lint/format with: task fmt and task lint
 6. Commit changes (only if explicitly asked)
 7. Create a pull request (only if explicitly asked)
+
+EXAMPLE:
+<user>Can you create a pull request with the changes?</user>
+<assistant>I will checkout to a new branch</assistant>
+<tool>git checkout -b feat/my-new-feature</tool>
+<assistant>Now I will modify the files</assistant>
+<tool>git add <files></tool>
+<assistant>Now I will push the changes</assistant>
+<tool>Read|Edit|Grep etc</tool>
+<tool>git push origin <branch></tool>
+<assistant>Now I'll create a pull request</assistant>
+<tool>Github</tool>
 `,
 			Optimization: OptimizationConfig{
 				Enabled:                    false,
