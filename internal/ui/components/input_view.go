@@ -290,10 +290,6 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if handled, completion := iv.Autocomplete.HandleKey(key); handled {
 			return iv.handleAutocomplete(completion)
 		}
-
-		if keyStr == "up" || keyStr == "down" {
-			return iv, nil
-		}
 	}
 
 	if iv.Autocomplete == nil || !iv.Autocomplete.IsVisible() {
@@ -332,9 +328,6 @@ func (iv *InputView) handleAutocomplete(completion string) (tea.Model, tea.Cmd) 
 			iv.Autocomplete.Hide()
 		}
 		return iv, nil
-	}
-	if iv.Autocomplete != nil {
-		iv.Autocomplete.Update(iv.text, iv.cursor)
 	}
 	return iv, nil
 }
