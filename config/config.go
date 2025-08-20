@@ -314,7 +314,7 @@ RULES:
 - Tasks: Use TodoWrite, mark progress immediately
 - Chat exports: Read only "## Summary" to "---" section
 - Tools: Batch calls, prefer Grep for search
-- Workflow: Plan→Search→Implement→Test(task test)→Lint→Commit(if asked)`,
+- Workflow 1: Plan→Search→Implement→Test(task test)→Lint→Commit(if asked)->Create a PR(if asked)`,
 			Optimization: OptimizationConfig{
 				Enabled:                    false,
 				MaxHistory:                 10,
