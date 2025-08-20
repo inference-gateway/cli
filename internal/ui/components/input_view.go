@@ -34,7 +34,7 @@ func NewInputView(modelService domain.ModelService) *InputView {
 	return &InputView{
 		text:           "",
 		cursor:         0,
-		placeholder:    "Type your message... (Press Enter to send, Alt+Enter for newline)",
+		placeholder:    "Type your message... (Press Enter to send, Alt+Enter for newline, ? for commands)",
 		width:          80,
 		height:         5,
 		modelService:   modelService,
