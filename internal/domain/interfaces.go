@@ -105,6 +105,7 @@ type ToolDefinition struct {
 // ToolService handles tool execution
 type ToolService interface {
 	ListTools() []ToolDefinition
+	ListAvailableTools() []string
 	ExecuteTool(ctx context.Context, name string, args map[string]any) (*ToolExecutionResult, error)
 	IsToolEnabled(name string) bool
 	ValidateTool(name string, args map[string]any) error

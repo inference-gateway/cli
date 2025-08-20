@@ -362,12 +362,37 @@ func formatWebSearchToolData(data any) string {
 	if searchResult.Error != "" {
 		output.WriteString(fmt.Sprintf("Error: %s\n", searchResult.Error))
 	}
+
+	if len(searchResult.Results) == 0 {
+		output.WriteString("\nNo results found.")
+		return output.String()
+	}
+
 	output.WriteString("\nResults:\n")
 	for i, result := range searchResult.Results {
-		output.WriteString(fmt.Sprintf("%d. %s\n", i+1, result.Title))
-		output.WriteString(fmt.Sprintf("   %s\n", result.URL))
+		title := result.Title
+		if len(title) > 120 {
+			title = TruncateText(title, 120)
+		}
+		output.WriteString(fmt.Sprintf("%d. %s\n", i+1, title))
+
+		url := result.URL
+		if len(url) > 80 {
+			output.WriteString("   🔗 ")
+			output.WriteString(WrapText(url, 76))
+		} else {
+			output.WriteString(fmt.Sprintf("   🔗 %s", url))
+		}
+		output.WriteString("\n")
+
 		if result.Snippet != "" {
-			output.WriteString(fmt.Sprintf("   %s\n", result.Snippet))
+			snippet := result.Snippet
+			if len(snippet) > 300 {
+				snippet = TruncateText(snippet, 300)
+			}
+			wrappedSnippet := WrapText(snippet, 76)
+			output.WriteString(fmt.Sprintf("   %s", wrappedSnippet))
+			output.WriteString("\n")
 		}
 		output.WriteString("\n")
 	}
@@ -382,17 +407,14 @@ func formatTodoWriteToolData(data any) string {
 
 	var output strings.Builder
 
-	// Header with simplified format
 	output.WriteString(fmt.Sprintf("**Todo List** (%d/%d completed)\n\n", todoResult.CompletedTasks, todoResult.TotalTasks))
 
-	// Progress bar using Bubble Tea's progress component
 	if todoResult.TotalTasks > 0 {
 		progressPercent := float64(todoResult.CompletedTasks) / float64(todoResult.TotalTasks)
 		progressBar := createBubbleTeaProgressBar(progressPercent)
 		output.WriteString(fmt.Sprintf("Progress: %s\n\n", progressBar))
 	}
 
-	// Todo items with cleaner format
 	for _, todo := range todoResult.Todos {
 		var checkbox, content string
 
@@ -402,7 +424,7 @@ func formatTodoWriteToolData(data any) string {
 			content = CreateStrikethroughText(todo.Content)
 		case "in_progress":
 			checkbox = "☐"
-			content = CreateColoredText(todo.Content, AccentColor) // Highlight current task in color
+			content = CreateColoredText(todo.Content, AccentColor)
 		default:
 			checkbox = "☐"
 			content = todo.Content
