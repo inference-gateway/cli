@@ -642,6 +642,10 @@ func handleBackspace(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 			newText := text[:cursor-1] + text[cursor:]
 			inputView.SetText(newText)
 			inputView.SetCursor(cursor - 1)
+
+			if iv, ok := inputView.(*components.InputView); ok && iv.Autocomplete != nil {
+				iv.Autocomplete.Update(newText, cursor-1)
+			}
 		}
 	}
 	return nil
