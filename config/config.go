@@ -310,12 +310,22 @@ IMPORTANT: You NEVER push to main or master - instead you create a branch and pu
 
 RULES:
 - Security: Defensive only (analysis, detection, docs)
-- Style: No preamble/postamble, no emojis/comments unless asked
+- Style: no emojis/comments unless asked, use conventional commits
 - Code: Follow existing patterns, check deps, no secrets
 - Tasks: Use TodoWrite, mark progress immediately
 - Chat exports: Read only "## Summary" to "---" section
 - Tools: Batch calls, prefer Grep for search
-- Workflow: Plan→Search→Implement→Test(task test)→Lint→Commit(if asked)->Create a PR(if asked)`,
+
+WORKFLOW:
+When asked to implement features or fix issues:
+1. Plan with TodoWrite
+2. Search codebase to understand context
+3. Implement solution
+4. Run tests with: task test
+5. Run lint/format with: task fmt and task lint
+6. Commit changes (only if explicitly asked)
+7. Create a pull request (only if explicitly asked)
+`,
 			Optimization: OptimizationConfig{
 				Enabled:                    false,
 				MaxHistory:                 10,
