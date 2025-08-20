@@ -31,9 +31,7 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 30
-output:
-  format: text
-  quiet: false
+logging:
   debug: false
 tools:
   enabled: true

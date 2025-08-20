@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -392,9 +393,22 @@ func (s *StreamingChatService) processContentDelta(event sdk.SSEvent, toolCallsM
 
 	for _, choice := range streamResponse.Choices {
 		content += choice.Delta.Content
-		reasoningContent += s.extractReasoningContent((*json.RawMessage)(event.Data), choice)
+		extractedReasoning := s.extractReasoningContent((*json.RawMessage)(event.Data), choice)
+		reasoningContent += extractedReasoning
 		hasToolCalls = s.processToolCalls(choice.Delta.ToolCalls, toolCallsMap, events, requestID) || hasToolCalls
+
+		logger.Debug("SDK DELTA received",
+			"content", choice.Delta.Content,
+			"content_length", len(choice.Delta.Content),
+			"reasoning", extractedReasoning,
+			"reasoning_length", len(extractedReasoning))
 	}
+
+	logger.Debug("FINAL RESULT from processContentDelta",
+		"content", content,
+		"content_length", len(content),
+		"reasoning_content", reasoningContent,
+		"reasoning_length", len(reasoningContent))
 
 	return content, reasoningContent, streamResponse.Usage, hasToolCalls
 }

@@ -80,7 +80,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 // initializeServices creates the new improved services
 func (c *ServiceContainer) initializeServices() {
-	debugMode := c.config.Output.Debug
+	debugMode := c.config.Logging.Debug
 	c.stateManager = services.NewStateManager(debugMode)
 
 	outputDir := c.config.Compact.OutputDir

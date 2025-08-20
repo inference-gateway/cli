@@ -2,10 +2,8 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
-output:
-  format: text
-  quiet: false
-  debug: false
+logging:
+  debug: true
 tools:
   enabled: true
   sandbox:

@@ -13,8 +13,8 @@ func TestDefaultConfig(t *testing.T) {
 	t.Run("gateway defaults", func(t *testing.T) {
 		testGatewayDefaults(t, cfg)
 	})
-	t.Run("output defaults", func(t *testing.T) {
-		testOutputDefaults(t, cfg)
+	t.Run("logging defaults", func(t *testing.T) {
+		testLoggingDefaults(t, cfg)
 	})
 	t.Run("tools defaults", func(t *testing.T) {
 		testToolsDefaults(t, cfg)
@@ -42,12 +42,9 @@ func testGatewayDefaults(t *testing.T, cfg *Config) {
 	}
 }
 
-func testOutputDefaults(t *testing.T, cfg *Config) {
-	if cfg.Output.Format != "text" {
-		t.Errorf("Expected output format to be 'text', got %q", cfg.Output.Format)
-	}
-	if cfg.Output.Quiet {
-		t.Error("Expected output quiet to be false")
+func testLoggingDefaults(t *testing.T, cfg *Config) {
+	if cfg.Logging.Debug {
+		t.Error("Expected debug to be false by default")
 	}
 }
 
@@ -232,9 +229,8 @@ gateway:
   api_key: "test-key"
   timeout: 30
 
-output:
-  format: "json"
-  quiet: true
+logging:
+  debug: true
 
 tools:
   enabled: true
@@ -288,9 +284,8 @@ gateway:
   api_key: ""
   timeout: 30
 
-output:
-  format: "text"
-  quiet: false
+logging:
+  debug: false
 `
 }
 
@@ -298,11 +293,8 @@ func validateCompleteConfig(t *testing.T, cfg *Config) {
 	if cfg.Gateway.APIKey != "test-key" {
 		t.Errorf("Expected API key to be 'test-key', got %q", cfg.Gateway.APIKey)
 	}
-	if cfg.Output.Format != "json" {
-		t.Errorf("Expected output format to be 'json', got %q", cfg.Output.Format)
-	}
-	if !cfg.Output.Quiet {
-		t.Error("Expected output quiet to be true")
+	if !cfg.Logging.Debug {
+		t.Error("Expected debug to be true in complete config")
 	}
 	if !cfg.Tools.WebSearch.Enabled {
 		t.Error("Expected WebSearch to be enabled")

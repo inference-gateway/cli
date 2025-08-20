@@ -14,7 +14,7 @@ import (
 // Config represents the CLI configuration
 type Config struct {
 	Gateway GatewayConfig `yaml:"gateway"`
-	Output  OutputConfig  `yaml:"output"`
+	Logging LoggingConfig `yaml:"logging"`
 	Tools   ToolsConfig   `yaml:"tools"`
 	Compact CompactConfig `yaml:"compact"`
 	Chat    ChatConfig    `yaml:"chat"`
@@ -27,11 +27,9 @@ type GatewayConfig struct {
 	Timeout int    `yaml:"timeout"`
 }
 
-// OutputConfig contains output formatting settings
-type OutputConfig struct {
-	Format string `yaml:"format"`
-	Quiet  bool   `yaml:"quiet"`
-	Debug  bool   `yaml:"debug"`
+// LoggingConfig contains logging settings
+type LoggingConfig struct {
+	Debug bool `yaml:"debug"`
 }
 
 // ToolsConfig contains tool execution settings
@@ -178,10 +176,8 @@ func DefaultConfig() *Config { //nolint:funlen
 			APIKey:  "",
 			Timeout: 200,
 		},
-		Output: OutputConfig{
-			Format: "text",
-			Quiet:  false,
-			Debug:  false,
+		Logging: LoggingConfig{
+			Debug: false,
 		},
 		Tools: ToolsConfig{
 			Enabled: true,
@@ -468,7 +464,7 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 
 // Additional ConfigService methods
 func (c *Config) IsDebugMode() bool {
-	return c.Output.Debug
+	return c.Logging.Debug
 }
 
 func (c *Config) GetOutputDirectory() string {

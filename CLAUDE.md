@@ -144,9 +144,8 @@ gateway:
   url: "http://localhost:8080"
   api_key: ""
   timeout: 30
-output:
-  format: "text"  # text, json, yaml
-  quiet: false
+logging:
+  debug: false  # Enable debug logging
 tools:
   enabled: true  # Tools are enabled by default with safe read-only commands
   sandbox:

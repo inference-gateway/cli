@@ -3,6 +3,8 @@ package history
 import (
 	"fmt"
 	"strings"
+
+	"github.com/inference-gateway/cli/internal/logger"
 )
 
 // HistoryManager manages both in-memory and shell history
@@ -81,13 +83,13 @@ func (hm *HistoryManager) AddToHistory(command string) error {
 	// Save to shell history
 	if err := hm.shellHistory.SaveToHistory(command); err != nil {
 		// Don't fail the operation if shell history save fails
-		fmt.Printf("Warning: Could not save to shell history: %v\n", err)
+		logger.Warn("Could not save to shell history", "error", err)
 	}
 
 	// Reload combined history to include the new command
 	if err := hm.loadCombinedHistory(); err != nil {
 		// If reload fails, at least we have the in-memory version
-		fmt.Printf("Warning: Could not reload combined history: %v\n", err)
+		logger.Warn("Could not reload combined history", "error", err)
 	}
 
 	// Reset history navigation

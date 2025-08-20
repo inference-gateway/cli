@@ -672,9 +672,7 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
-output:
-  format: text
-  quiet: false
+logging:
   debug: false
 tools:
   enabled: true # Tools are enabled by default with safe read-only commands
@@ -821,10 +819,9 @@ chat:
 - **gateway.api_key**: API key for authentication (if required)
 - **gateway.timeout**: Request timeout in seconds
 
-**Output Settings:**
+**Logging Settings:**
 
-- **output.format**: Default output format (text, json, yaml)
-- **output.quiet**: Suppress non-essential output
+- **logging.debug**: Enable debug logging for verbose output
 
 **Tool Settings:**
 
