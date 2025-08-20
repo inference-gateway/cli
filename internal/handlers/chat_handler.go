@@ -504,8 +504,7 @@ func (h *ChatHandler) updateConversationHistory(msg domain.ChatChunkEvent, chatS
 func (h *ChatHandler) shouldUpdateLastMessage(messages []domain.ConversationEntry, chatSession *domain.ChatSession) bool {
 	return len(messages) > 0 &&
 		messages[len(messages)-1].Message.Role == sdk.Assistant &&
-		chatSession.RequestID != "" &&
-		chatSession.IsFirstChunk
+		chatSession.RequestID != ""
 }
 
 // updateLastMessage updates the existing last message with new content
@@ -544,14 +543,14 @@ func (h *ChatHandler) addNewMessage(msg domain.ChatChunkEvent, chatSession *doma
 func (h *ChatHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *domain.ChatSession, stateManager *services.StateManager) []tea.Cmd {
 	newStatus, shouldUpdateStatus := h.determineNewStatus(msg, chatSession.Status, chatSession.IsFirstChunk)
 
-	if !shouldUpdateStatus || (newStatus == chatSession.Status && chatSession.IsFirstChunk) {
+	if !shouldUpdateStatus {
 		return nil
 	}
 
 	_ = stateManager.UpdateChatStatus(newStatus)
 
-	if !chatSession.IsFirstChunk {
-		chatSession.IsFirstChunk = true
+	if chatSession.IsFirstChunk {
+		chatSession.IsFirstChunk = false
 		return h.createFirstChunkStatusCmd(newStatus)
 	}
 
@@ -564,7 +563,6 @@ func (h *ChatHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession 
 
 // determineNewStatus determines what the new status should be based on message content
 func (h *ChatHandler) determineNewStatus(msg domain.ChatChunkEvent, currentStatus domain.ChatStatus, isFirstChunk bool) (domain.ChatStatus, bool) {
-	// Debug what we're receiving in chunks
 	if h.debugService != nil && h.debugService.IsEnabled() {
 		h.debugService.LogEvent(
 			services.DebugEventTypeMessage,
@@ -596,9 +594,7 @@ func (h *ChatHandler) determineNewStatus(msg domain.ChatChunkEvent, currentStatu
 	}
 
 	if msg.Content != "" {
-		if currentStatus != domain.ChatStatusThinking || !isFirstChunk {
-			return domain.ChatStatusGenerating, true
-		}
+		return domain.ChatStatusGenerating, true
 	}
 
 	return currentStatus, false

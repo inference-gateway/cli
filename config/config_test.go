@@ -101,6 +101,10 @@ func testChatDefaults(t *testing.T, cfg *Config) {
 	}
 	expectedSystemPrompt := `You are an assistant for software engineering tasks.
 
+## Reasoning
+
+When faced with complex problems, think step by step. Break down the problem, consider multiple approaches, and reason through the solution before implementing it. Show your reasoning process.
+
 ## Security
 
 * Defensive security only. No offensive/malicious code.
