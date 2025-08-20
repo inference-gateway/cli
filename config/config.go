@@ -221,9 +221,11 @@ func DefaultConfig() *Config { //nolint:funlen
 					},
 					Patterns: []string{
 						"^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$",
-						"^git checkout [a-zA-Z0-9/_-]+$",
-						"^git add .$",
+						"^git checkout [a-zA-Z0-9/_-]+",
 						"^git add [a-zA-Z0-9/_.-]+$",
+						"^git diff+$",
+						"^git remote -v$",
+						"^git push --set-upstream origin+$",
 						"^git status$",
 						"^git log --oneline -n [0-9]+$",
 						"^git commit -m \".+\"$",

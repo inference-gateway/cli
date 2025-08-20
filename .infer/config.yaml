@@ -27,9 +27,11 @@ tools:
         - task
       patterns:
         - ^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$
-        - ^git checkout [a-zA-Z0-9/_-]+$
-        - ^git add .$
+        - ^git checkout [a-zA-Z0-9/_-]+
         - ^git add [a-zA-Z0-9/_.-]+$
+        - ^git diff+$
+        - ^git remote -v$
+        - ^git push --set-upstream origin+$
         - ^git status$
         - ^git log --oneline -n [0-9]+$
         - ^git commit -m ".+"$
@@ -79,8 +81,7 @@ tools:
     enabled: true
     token: '%GITHUB_TOKEN%'
     base_url: https://api.github.com
-    owner: "inference-gateway"
-    repo: "cli"
+    owner: ""
     safety:
       max_size: 1048576
       timeout: 30
