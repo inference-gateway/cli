@@ -316,8 +316,9 @@ func (t *GithubTool) makeAPIRequest(ctx context.Context, url string) ([]byte, er
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
 	req.Header.Set("User-Agent", "inference-gateway-cli")
 
-	if t.config.Tools.GithubFetch.Token != "" {
-		req.Header.Set("Authorization", "token "+t.config.Tools.GithubFetch.Token)
+	token := config.ResolveEnvironmentVariables(t.config.Tools.GithubFetch.Token)
+	if token != "" {
+		req.Header.Set("Authorization", "token "+token)
 	}
 
 	resp, err := t.client.Do(req)

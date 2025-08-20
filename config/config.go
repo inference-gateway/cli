@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/inference-gateway/cli/internal/logger"
@@ -272,7 +273,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			GithubFetch: GithubFetchToolConfig{
 				Enabled: true,
-				Token:   "",
+				Token:   "%GITHUB_TOKEN%",
 				BaseURL: "https://api.github.com",
 				Safety: GithubFetchSafetyConfig{
 					MaxSize: 1048576, // 1MB
@@ -549,4 +550,31 @@ func (c *Config) checkProtectedPaths(path string) error {
 	}
 
 	return nil
+}
+
+// ResolveEnvironmentVariables resolves environment variable references in the format %VAR_NAME%
+func ResolveEnvironmentVariables(value string) string {
+	if value == "" {
+		return value
+	}
+
+	// Pattern to match %VAR_NAME% format
+	envVarPattern := regexp.MustCompile(`%([A-Z_][A-Z0-9_]*)%`)
+
+	result := envVarPattern.ReplaceAllStringFunc(value, func(match string) string {
+		// Extract variable name (remove % characters)
+		varName := match[1 : len(match)-1]
+
+		// Get environment variable value
+		if envValue := os.Getenv(varName); envValue != "" {
+			logger.Debug("Resolved environment variable", "var", varName, "value", "[redacted]")
+			return envValue
+		}
+
+		// If environment variable is not set, return empty string
+		logger.Debug("Environment variable not set", "var", varName)
+		return ""
+	})
+
+	return result
 }
