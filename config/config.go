@@ -306,7 +306,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			DefaultModel: "",
 			SystemPrompt: `Software engineering assistant. Concise (<4 lines), direct answers only.
 
-IMPORTANT: You NEVER push to main or master - instead you create a branch and push to a branch.
+IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
 
 RULES:
 - Security: Defensive only (analysis, detection, docs)
