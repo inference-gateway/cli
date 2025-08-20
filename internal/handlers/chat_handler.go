@@ -1583,32 +1583,34 @@ func (h *ChatHandler) handleToolExecutionError(debugService *services.DebugServi
 
 // formatToolResponse formats tool execution results for display
 func (h *ChatHandler) formatToolResponse(toolName string, result *domain.ToolExecutionResult) string {
-	if result.Success {
-		responseContent := fmt.Sprintf("✅ Tool '%s' executed successfully", toolName)
-		if result.Data != nil {
-			switch data := result.Data.(type) {
-			case *domain.BashToolResult:
-				responseContent += fmt.Sprintf(":\n\n```bash\n$ %s\n```\n\n", data.Command)
-				if data.Output != "" {
-					responseContent += fmt.Sprintf("**Output:**\n```\n%s\n```", strings.TrimSpace(data.Output))
-				}
-			case *domain.FileReadToolResult:
-				responseContent += fmt.Sprintf(":\n\n**File:** %s\n```\n%s\n```", data.FilePath, data.Content)
-			case *domain.FileWriteToolResult:
-				responseContent += fmt.Sprintf(":\n\n**File:** %s (%d bytes written)", data.FilePath, data.BytesWritten)
-			default:
-				// Add generic data display for other tool types
-				responseContent += fmt.Sprintf(":\n\nTool executed successfully")
-			}
-		}
-		return responseContent
-	} else {
+	if !result.Success {
 		responseContent := fmt.Sprintf("❌ Tool '%s' failed", toolName)
 		if result.Error != "" {
 			responseContent += fmt.Sprintf(": %s", result.Error)
 		}
 		return responseContent
 	}
+
+	responseContent := fmt.Sprintf("✅ Tool '%s' executed successfully", toolName)
+	if result.Data == nil {
+		return responseContent
+	}
+
+	switch data := result.Data.(type) {
+	case *domain.BashToolResult:
+		responseContent += fmt.Sprintf(":\n\n```bash\n$ %s\n```\n\n", data.Command)
+		if data.Output != "" {
+			responseContent += fmt.Sprintf("**Output:**\n```\n%s\n```", strings.TrimSpace(data.Output))
+		}
+	case *domain.FileReadToolResult:
+		responseContent += fmt.Sprintf(":\n\n**File:** %s\n```\n%s\n```", data.FilePath, data.Content)
+	case *domain.FileWriteToolResult:
+		responseContent += fmt.Sprintf(":\n\n**File:** %s (%d bytes written)", data.FilePath, data.BytesWritten)
+	default:
+		// Add generic data display for other tool types
+		responseContent += ":\n\nTool executed successfully"
+	}
+	return responseContent
 }
 
 // addToolResponseToHistory adds tool response to conversation history

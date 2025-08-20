@@ -71,6 +71,7 @@ Access tools directly in chat with `!!` prefix:
 - `!!Grep(pattern="text", path=".")`: Search in files
 
 Features:
+
 - Tab autocompletion for available tools
 - Real-time tool execution in chat context
 - Structured argument parsing: `key="value"` format

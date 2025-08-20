@@ -95,7 +95,8 @@ func (a *AutocompleteImpl) loadTools() {
 
 // Update handles autocomplete logic
 func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
-	if strings.HasPrefix(inputText, "!!") && cursorPos >= 2 {
+	switch {
+	case strings.HasPrefix(inputText, "!!") && cursorPos >= 2:
 		a.loadTools()
 		a.query = inputText[2:cursorPos]
 		a.filterSuggestions()
@@ -103,7 +104,7 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 		if a.selected >= len(a.filtered) {
 			a.selected = 0
 		}
-	} else if strings.HasPrefix(inputText, "/") && cursorPos >= 1 {
+	case strings.HasPrefix(inputText, "/") && cursorPos >= 1:
 		if len(a.suggestions) == 0 || (len(a.suggestions) > 0 && !strings.HasPrefix(a.suggestions[0].Command, "/")) {
 			a.loadCommands()
 		}
@@ -113,7 +114,7 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 		if a.selected >= len(a.filtered) {
 			a.selected = 0
 		}
-	} else {
+	default:
 		a.visible = false
 		a.filtered = []CommandOption{}
 		a.selected = 0
