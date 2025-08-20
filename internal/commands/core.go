@@ -328,48 +328,6 @@ func (c *HistoryCommand) Execute(ctx context.Context, args []string) (CommandRes
 	}, nil
 }
 
-// ModelsCommand shows available models
-type ModelsCommand struct {
-	modelService domain.ModelService
-}
-
-func NewModelsCommand(modelService domain.ModelService) *ModelsCommand {
-	return &ModelsCommand{modelService: modelService}
-}
-
-func (c *ModelsCommand) GetName() string               { return "models" }
-func (c *ModelsCommand) GetDescription() string        { return "Show available models" }
-func (c *ModelsCommand) GetUsage() string              { return "/models" }
-func (c *ModelsCommand) CanExecute(args []string) bool { return len(args) == 0 }
-
-func (c *ModelsCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
-	current := c.modelService.GetCurrentModel()
-	models, err := c.modelService.ListModels(ctx)
-	if err != nil {
-		return CommandResult{
-			Output:  fmt.Sprintf("Failed to fetch models: %v", err),
-			Success: false,
-		}, nil
-	}
-
-	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Current model: %s\n", current))
-	output.WriteString("Available models:\n")
-
-	for _, model := range models {
-		if model == current {
-			output.WriteString(fmt.Sprintf("  • %s (current)\n", model))
-		} else {
-			output.WriteString(fmt.Sprintf("  • %s\n", model))
-		}
-	}
-
-	return CommandResult{
-		Output:  output.String(),
-		Success: true,
-	}, nil
-}
-
 // SwitchCommand switches the active model
 type SwitchCommand struct {
 	modelService domain.ModelService
