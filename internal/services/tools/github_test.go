@@ -136,6 +136,7 @@ func TestGithubTool_Validate_ValidCases(t *testing.T) {
 			Enabled: true,
 			Github: config.GithubToolConfig{
 				Enabled: true,
+				Owner:   "testowner",
 			},
 		},
 	}
@@ -514,6 +515,7 @@ func TestGithubTool_Execute_Success(t *testing.T) {
 			Enabled: true,
 			Github: config.GithubToolConfig{
 				Enabled: true,
+				Owner:   "testowner",
 				BaseURL: server.URL,
 				Safety: config.GithubSafetyConfig{
 					MaxSize: 1048576,
@@ -580,6 +582,7 @@ func TestGithubTool_Execute_APIError(t *testing.T) {
 			Enabled: true,
 			Github: config.GithubToolConfig{
 				Enabled: true,
+				Owner:   "testowner",
 				BaseURL: server.URL,
 				Safety: config.GithubSafetyConfig{
 					MaxSize: 1048576,
@@ -651,6 +654,7 @@ func TestGithubTool_Execute_IssuesList(t *testing.T) {
 			Enabled: true,
 			Github: config.GithubToolConfig{
 				Enabled: true,
+				Owner:   "testowner",
 				BaseURL: server.URL,
 				Safety: config.GithubSafetyConfig{
 					MaxSize: 1048576,
@@ -721,6 +725,7 @@ func TestGithubTool_CreateComment(t *testing.T) {
 			Enabled: true,
 			Github: config.GithubToolConfig{
 				Enabled: true,
+				Owner:   "testowner",
 				BaseURL: server.URL,
 				Safety: config.GithubSafetyConfig{
 					MaxSize: 1048576,
@@ -769,6 +774,7 @@ func TestGithubTool_CreateCommentValidation(t *testing.T) {
 			Enabled: true,
 			Github: config.GithubToolConfig{
 				Enabled: true,
+				Owner:   "testowner",
 				BaseURL: "https://api.github.com",
 			},
 		},
@@ -873,6 +879,7 @@ func TestGithubTool_CreatePullRequest(t *testing.T) {
 			Enabled: true,
 			Github: config.GithubToolConfig{
 				Enabled: true,
+				Owner:   "testowner",
 				BaseURL: server.URL,
 				Safety: config.GithubSafetyConfig{
 					MaxSize: 1048576,
@@ -923,6 +930,7 @@ func TestGithubTool_CreatePullRequestValidation(t *testing.T) {
 			Enabled: true,
 			Github: config.GithubToolConfig{
 				Enabled: true,
+				Owner:   "testowner",
 				BaseURL: "https://api.github.com",
 			},
 		},

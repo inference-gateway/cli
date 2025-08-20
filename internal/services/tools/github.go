@@ -55,9 +55,14 @@ func (t *GithubTool) Definition() domain.ToolDefinition {
 		repoDescription += fmt.Sprintf(" (defaults to: %s)", t.config.Tools.Github.Repo)
 	}
 
+	description := "Interact with GitHub API to fetch issues, pull requests, and other data"
+	if t.config.Tools.Github.Owner != "" {
+		description += fmt.Sprintf(" (configured for owner: %s)", t.config.Tools.Github.Owner)
+	}
+
 	return domain.ToolDefinition{
 		Name:        "Github",
-		Description: "Interact with GitHub API to fetch issues, pull requests, and other data",
+		Description: description,
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
@@ -163,17 +168,13 @@ func (t *GithubTool) validateEnabled() error {
 // extractOwnerAndRepo extracts and validates owner and repo parameters
 func (t *GithubTool) extractOwnerAndRepo(args map[string]any) (string, string, error) {
 	if t.config.Tools.Github.Owner == "" {
-		if owner, ok := args["owner"].(string); !ok || owner == "" {
-			return "", "", fmt.Errorf("GitHub tool requires owner to be configured in settings for security")
-		}
+		return "", "", fmt.Errorf("GitHub tool requires owner to be configured in settings for security")
 	}
 
-	owner, ok := args["owner"].(string)
-	if !ok || owner == "" {
-		if t.config.Tools.Github.Owner != "" {
-			owner = t.config.Tools.Github.Owner
-		} else {
-			return "", "", fmt.Errorf("owner parameter is required and must be a string, or set owner in config")
+	owner := t.config.Tools.Github.Owner
+	if providedOwner, ok := args["owner"].(string); ok && providedOwner != "" {
+		if providedOwner != t.config.Tools.Github.Owner {
+			return "", "", fmt.Errorf("owner parameter (%s) does not match configured owner (%s) for security", providedOwner, t.config.Tools.Github.Owner)
 		}
 	}
 
@@ -334,16 +335,12 @@ func (t *GithubTool) Validate(args map[string]any) error {
 	}
 
 	if t.config.Tools.Github.Owner == "" {
-		owner, ok := args["owner"].(string)
-		if !ok || owner == "" {
-			return fmt.Errorf("GitHub tool requires owner to be configured in settings for security")
-		}
+		return fmt.Errorf("GitHub tool requires owner to be configured in settings for security")
 	}
 
-	owner, ok := args["owner"].(string)
-	if !ok || owner == "" {
-		if t.config.Tools.Github.Owner == "" {
-			return fmt.Errorf("owner parameter is required and must be a string, or set owner in config")
+	if providedOwner, ok := args["owner"].(string); ok && providedOwner != "" {
+		if providedOwner != t.config.Tools.Github.Owner {
+			return fmt.Errorf("owner parameter (%s) does not match configured owner (%s) for security", providedOwner, t.config.Tools.Github.Owner)
 		}
 	}
 
