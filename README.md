@@ -38,12 +38,26 @@ and management of inference services.
   - [`infer status`](#infer-status)
   - [`infer chat`](#infer-chat)
   - [`infer version`](#infer-version)
+- [Available Tools for LLMs](#available-tools-for-llms)
+  - [Bash Tool](#bash-tool)
+  - [Read Tool](#read-tool)
+  - [Write Tool](#write-tool)
+  - [Grep Tool](#grep-tool)
+  - [WebSearch Tool](#websearch-tool)
+  - [WebFetch Tool](#webfetch-tool)
+  - [Tree Tool](#tree-tool)
+  - [Delete Tool](#delete-tool)
+  - [Edit Tool](#edit-tool)
+  - [MultiEdit Tool](#multiedit-tool)
+  - [TodoWrite Tool](#todowrite-tool)
 - [Configuration](#configuration)
   - [Default Configuration](#default-configuration)
   - [Configuration Options](#configuration-options)
   - [Web Search API Setup (Optional)](#web-search-api-setup-optional)
 - [Global Flags](#global-flags)
 - [Examples](#examples)
+  - [Basic Workflow](#basic-workflow)
+  - [Configuration Management](#configuration-management)
 - [Development](#development)
   - [Building](#building)
   - [Testing](#testing)
@@ -63,6 +77,11 @@ and management of inference services.
   - **Grep**: Fast ripgrep-powered search with regex support and multiple output modes
   - **WebSearch**: Search the web using DuckDuckGo or Google
   - **WebFetch**: Fetch content from URLs and GitHub
+  - **Tree**: Display directory structure with polyfill support
+  - **Delete**: Delete files and directories with security controls
+  - **Edit**: Perform exact string replacements in files
+  - **MultiEdit**: Make multiple edits to files in atomic operations
+  - **TodoWrite**: Create and manage structured task lists
 
 ## Installation
 
@@ -118,15 +137,15 @@ following steps:
 ```bash
 # Download binary (replace with your platform)
 curl -L -o infer-darwin-amd64 \
-  https://github.com/inference-gateway/cli/releases/download/v0.12.0/infer-darwin-amd64
+  https://github.com/inference-gateway/cli/releases/download/v0.29.1/infer-darwin-amd64
 
 # Download checksums and signature files
 curl -L -o checksums.txt \
-  https://github.com/inference-gateway/cli/releases/download/v0.12.0/checksums.txt
+  https://github.com/inference-gateway/cli/releases/download/v0.29.1/checksums.txt
 curl -L -o checksums.txt.pem \
-  https://github.com/inference-gateway/cli/releases/download/v0.12.0/checksums.txt.pem
+  https://github.com/inference-gateway/cli/releases/download/v0.29.1/checksums.txt.pem
 curl -L -o checksums.txt.sig \
-  https://github.com/inference-gateway/cli/releases/download/v0.12.0/checksums.txt.sig
+  https://github.com/inference-gateway/cli/releases/download/v0.29.1/checksums.txt.sig
 ```
 
 **2. Verify SHA256 checksum:**
@@ -445,6 +464,196 @@ Search the web using DuckDuckGo or Google search engines to find information.
 
 WebFetch content from whitelisted URLs or GitHub references using the format `github:owner/repo#123`.
 
+### Delete Tool
+
+Delete files or directories from the filesystem with security controls. Supports wildcard patterns for batch operations.
+
+**Parameters:**
+
+- `path` (required): The path to the file or directory to delete
+- `recursive` (optional): Whether to delete directories recursively (default: false)
+- `force` (optional): Whether to force deletion (ignore non-existent files, default: false)
+
+**Features:**
+
+- **Wildcard Support**: Delete multiple files using patterns like `*.txt` or `temp/*`
+- **Recursive Deletion**: Remove directories and their contents
+- **Safety Controls**: Respects configured path exclusions and security restrictions
+- **Validation**: Validates file paths and permissions before deletion
+
+**Security:**
+
+- **Approval Required**: Delete operations require approval by default
+- **Path Exclusions**: Respects configured excluded paths for security
+- **Pattern Matching**: Supports glob patterns for path exclusions
+- **Validation**: Validates file paths and prevents deletion of protected directories
+
+**Examples:**
+
+- Delete single file: `path: "temp.txt"`
+- Delete directory recursively: `path: "temp/", recursive: true`
+- Delete with wildcard: `path: "*.log"`
+- Force delete: `path: "missing.txt", force: true`
+
+### Edit Tool
+
+Perform exact string replacements in files with security validation and preview support.
+
+**Parameters:**
+
+- `file_path` (required): The path to the file to modify
+- `old_string` (required): The text to replace (must match exactly)
+- `new_string` (required): The text to replace it with
+- `replace_all` (optional): Replace all occurrences of old_string (default: false)
+
+**Features:**
+
+- **Exact Matching**: Requires exact string matches for safety
+- **Preview Support**: Shows diff preview before applying changes
+- **Atomic Operations**: Either all changes succeed or none are applied
+- **Security Validation**: Respects path exclusions and file permissions
+
+**Security:**
+
+- **Read Tool Requirement**: Requires Read tool to be used first on the file
+- **Approval Required**: Edit operations require approval by default
+- **Path Exclusions**: Respects configured excluded paths
+- **Validation**: Validates file paths and prevents editing protected files
+
+**Examples:**
+
+- Single replacement: `file_path: "config.txt", old_string: "port: 3000", new_string: "port: 8080"`
+- Replace all occurrences: `file_path: "script.py", old_string: "print", new_string: "logging.info", replace_all: true`
+
+### MultiEdit Tool
+
+Make multiple edits to a single file in atomic operations. All edits succeed or none are applied.
+
+**Parameters:**
+
+- `file_path` (required): The path to the file to modify
+- `edits` (required): Array of edit operations to perform sequentially
+  - `old_string`: The text to replace (must match exactly)
+  - `new_string`: The text to replace it with
+  - `replace_all` (optional): Replace all occurrences (default: false)
+
+**Features:**
+
+- **Atomic Operations**: All edits succeed or none are applied
+- **Sequential Processing**: Edits are applied in the order provided
+- **Preview Support**: Shows comprehensive diff preview
+- **Security Validation**: Respects all security restrictions
+
+**Security:**
+
+- **Read Tool Requirement**: Requires Read tool to be used first on the file
+- **Approval Required**: MultiEdit operations require approval by default
+- **Path Exclusions**: Respects configured excluded paths
+- **Validation**: Validates all edits before execution
+
+**Examples:**
+
+```json
+{
+  "file_path": "config.yaml",
+  "edits": [
+    {
+      "old_string": "port: 3000",
+      "new_string": "port: 8080"
+    },
+    {
+      "old_string": "debug: true",
+      "new_string": "debug: false"
+    }
+  ]
+}
+```
+
+### Grep Tool
+
+A powerful search tool with configurable backend (ripgrep or Go implementation).
+
+**Parameters:**
+
+- `pattern` (required): The regular expression pattern to search for
+- `path` (optional): File or directory to search in (default: current directory)
+- `output_mode` (optional): Output mode - "content", "files_with_matches", or "count" (default: "files_with_matches")
+- `-i` (optional): Case insensitive search
+- `-n` (optional): Show line numbers in output
+- `-A` (optional): Number of lines to show after each match
+- `-B` (optional): Number of lines to show before each match
+- `-C` (optional): Number of lines to show before and after each match
+- `glob` (optional): Glob pattern to filter files (e.g., "*.js", "*.{ts,tsx}")
+- `type` (optional): File type to search (e.g., "js", "py", "rust")
+- `multiline` (optional): Enable multiline mode where patterns can span lines
+- `head_limit` (optional): Limit output to first N results
+
+**Features:**
+
+- **Dual Backend**: Uses ripgrep when available for optimal performance, falls back to Go implementation
+- **Full Regex Support**: Supports complete regex syntax
+- **Multiple Output Modes**: Content matching, file lists, or count results
+- **Context Lines**: Show lines before and after matches
+- **File Filtering**: Filter by glob patterns or file types
+- **Multiline Matching**: Patterns can span multiple lines
+
+**Security:**
+
+- **Path Exclusions**: Respects configured excluded paths
+- **Validation**: Validates search patterns and file access
+- **Performance Limits**: Configurable result limits to prevent overwhelming output
+
+**Examples:**
+
+- Basic search: `pattern: "error", output_mode: "content"`
+- Case insensitive: `pattern: "TODO", -i: true, output_mode: "content"`
+- With context: `pattern: "function", -C: 3, output_mode: "content"`
+- File filtering: `pattern: "interface", glob: "*.go", output_mode: "files_with_matches"`
+- Count results: `pattern: "log.*Error", output_mode: "count"`
+
+### TodoWrite Tool
+
+Create and manage structured task lists for LLM-assisted development workflows.
+
+**Parameters:**
+
+- `todos` (required): Array of todo items with status tracking
+  - `id` (required): Unique identifier for the task
+  - `content` (required): Task description
+  - `status` (required): Task status - "pending", "in_progress", or "completed"
+
+**Features:**
+
+- **Structured Task Management**: Organized task tracking with status
+- **Real-time Updates**: Mark tasks as in_progress/completed during execution
+- **Progress Tracking**: Visual representation of task completion
+- **LLM Integration**: Designed for LLM-assisted development workflows
+
+**Security:**
+
+- **No File System Access**: Pure memory-based operation
+- **Validation**: Validates todo structure and status values
+- **Size Limits**: Configurable limits on todo list size
+
+**Examples:**
+
+```json
+{
+  "todos": [
+    {
+      "id": "1",
+      "content": "Update README with new tool documentation",
+      "status": "in_progress"
+    },
+    {
+      "id": "2",
+      "content": "Add test cases for new features",
+      "status": "pending"
+    }
+  ]
+}
+```
+
 **Security Notes:**
 
 - All tools respect configured safety settings and exclusion patterns
@@ -462,67 +671,146 @@ You can also specify a custom config file using the `--config` flag.
 gateway:
   url: http://localhost:8080
   api_key: ""
-  timeout: 30
+  timeout: 200
 output:
   format: text
   quiet: false
+  debug: false
 tools:
   enabled: true # Tools are enabled by default with safe read-only commands
+  sandbox:
+    directories: [".", "/tmp"] # Allowed directories for tool operations
+    protected_paths: # Paths excluded from tool access for security
+      - .infer/
+      - .git/
+      - *.env
+  bash:
+    enabled: true
+    whitelist:
+      commands: # Exact command matches
+        - ls
+        - pwd
+        - echo
+        - wc
+        - sort
+        - uniq
+        - gh
+        - task
+      patterns: # Regex patterns for more complex commands
+        - ^git status$
+        - ^git log --oneline -n [0-9]+$
+        - ^docker ps$
+        - ^kubectl get pods$
   read:
     enabled: true
     require_approval: false
   write:
     enabled: true
     require_approval: true # Write operations require approval by default for security
-  whitelist:
-    commands: # Exact command matches
-      - ls
-      - pwd
-      - echo
-      - grep
-      - find
-      - wc
-      - sort
-      - uniq
-    patterns: # Regex patterns for more complex commands
-      - ^git status$
-      - ^git log --oneline -n [0-9]+$
-      - ^docker ps$
-      - ^kubectl get pods$
+  edit:
+    enabled: true
+    require_approval: true # Edit operations require approval by default for security
+  delete:
+    enabled: true
+    require_approval: true # Delete operations require approval by default for security
+  grep:
+    enabled: true
+    backend: auto # "auto", "ripgrep", or "go"
+    require_approval: false
+  tree:
+    enabled: true
+    require_approval: false
+  web_fetch:
+    enabled: true
+    whitelisted_domains:
+      - github.com
+      - golang.org
+    github:
+      enabled: true
+      token: ""
+      base_url: https://api.github.com
+    safety:
+      max_size: 8192 # 8KB
+      timeout: 30 # 30 seconds
+      allow_redirect: true
+    cache:
+      enabled: true
+      ttl: 3600 # 1 hour
+      max_size: 52428800 # 50MB
+  web_search:
+    enabled: true
+    default_engine: duckduckgo
+    max_results: 10
+    engines:
+      - duckduckgo
+      - google
+    timeout: 10
+  todo_write:
+    enabled: true
+    require_approval: false
   safety:
     require_approval: true
-  exclude_paths:
-    - .infer/ # Protect infer's own configuration directory
-    - .infer/* # Protect all files in infer's configuration directory
 compact:
   output_dir: .infer # Directory for compact command exports
 chat:
   default_model: "" # Default model for chat sessions (when set, skips model selection)
-  system_prompt: "" # System prompt included with every chat session
-web_search:
-  enabled: true # Enable web search tool for LLMs
-  default_engine: duckduckgo # Default search engine (duckduckgo, google)
-  max_results: 10 # Default maximum number of search results
-  engines: # Available search engines
-    - duckduckgo
-    - google
-  timeout: 10 # Search timeout in seconds
-web_fetch:
-  enabled: false
-  whitelisted_domains:
-    - github.com
-  github:
-    enabled: false
-    token: ""
-    base_url: https://api.github.com
-  safety:
-    max_size: 8192
-    timeout: 30
-    allow_redirect: true
-  cache:
-    enabled: true
-    ttl: 3600
-    max_size: 52428800
+  system_prompt: |
+    You are an assistant for software engineering tasks.
+
+    ## Security
+
+    * Defensive security only. No offensive/malicious code.
+    * Allowed: analysis, detection rules, defensive tools, docs.
+
+    ## URLs
+
+    * Never guess/generate. Use only user-provided or local.
+
+    ## Style
+
+    * Concise (<4 lines).
+    * No pre/postamble. Answer directly.
+    * Prefer one-word/short answers.
+    * Explain bash only if non-trivial.
+    * No emojis unless asked.
+    * No code comments unless asked.
+
+    ## Proactiveness
+
+    * Act only when asked. Don't surprise user.
+
+    ## Code Conventions
+
+    * Follow existing style, libs, idioms.
+    * Never assume deps. Check imports/config.
+    * No secrets in code/logs.
+
+    ## Tasks
+
+    * Always plan with **TodoWrite**.
+    * Mark todos in_progress/completed immediately.
+    * Don't batch completions.
+
+    IMPORTANT: DO NOT provide code examples - instead apply them directly in the code using tools.
+    IMPORTANT: if the user provide a file with the prefix chat_export_* you only read between
+    the title "## Summary" and "---" - To get an overall overview of what was discussed.
+    Only dive deeper if you absolutely need to.
+
+    ## Workflow
+
+    1. Plan with TodoWrite.
+    2. Explore code via search.
+    3. Implement.
+    4. Verify with tests (prefer using task test).
+    5. Run lint/typecheck (ask if unknown). Suggest documenting.
+    6. Commit only if asked.
+
+    ## Tools
+
+    * Prefer Grep tool for search.
+    * Use agents when relevant.
+    * Handle redirects.
+    * Batch tool calls for efficiency.
 ```
 
 ### Configuration Options
@@ -541,12 +829,16 @@ web_fetch:
 **Tool Settings:**
 
 - **tools.enabled**: Enable/disable tool execution for LLMs (default: true)
+- **tools.sandbox.directories**: Allowed directories for tool operations (default: [".", "/tmp"])
+- **tools.sandbox.protected_paths**: Paths excluded from tool access for security
+  (default: [".infer/", ".git/", "*.env"])
 - **tools.whitelist.commands**: List of allowed commands (supports arguments)
 - **tools.whitelist.patterns**: Regex patterns for complex command validation
 - **tools.safety.require_approval**: Prompt user before executing any command
   (default: true)
-- **tools.exclude_paths**: Paths excluded from tool access for security
-  (default: [".infer/", ".infer/*"])
+- **Individual tool settings**: Each tool (Bash, Read, Write, Edit, Delete, Grep, Tree, WebFetch, WebSearch, TodoWrite) has:
+  - **enabled**: Enable/disable the specific tool
+  - **require_approval**: Override global safety setting for this tool (optional)
 
 **Compact Settings:**
 
@@ -646,6 +938,19 @@ infer config set-system "You are a helpful assistant."
 # Enable tool execution with safety approval
 infer config tools enable
 infer config tools safety enable
+
+# Configure sandbox directories for security
+infer config tools sandbox add "/home/user/projects"
+infer config tools sandbox add "/tmp/work"
+
+# Add protected paths to prevent accidental modification
+infer config tools sandbox add ".env"
+infer config tools sandbox add ".git/"
+
+# Configure individual tool safety settings
+infer config tools safety set Read disabled    # Skip approval for Read tool
+infer config tools safety set Write enabled    # Require approval for Write tool
+infer config tools safety set Delete enabled   # Require approval for Delete tool
 ```
 
 ## Development
