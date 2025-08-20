@@ -220,6 +220,7 @@ func DefaultConfig() *Config { //nolint:funlen
 						"task",
 					},
 					Patterns: []string{
+						"^git branch( --show-current)?$",
 						"^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$",
 						"^git checkout [a-zA-Z0-9/_-]+",
 						"^git add [a-zA-Z0-9/_.-]+$",
