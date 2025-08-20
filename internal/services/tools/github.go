@@ -34,6 +34,26 @@ func NewGithubTool(cfg *config.Config) *GithubTool {
 
 // Definition returns the tool definition for the LLM
 func (t *GithubTool) Definition() domain.ToolDefinition {
+	required := []string{}
+
+	if t.config.Tools.Github.Owner == "" {
+		required = append(required, "owner")
+	}
+
+	if t.config.Tools.Github.Repo == "" {
+		required = append(required, "repo")
+	}
+
+	ownerDescription := "Repository owner (username or organization)"
+	repoDescription := "Repository name"
+
+	if t.config.Tools.Github.Owner != "" {
+		ownerDescription += fmt.Sprintf(" (defaults to: %s)", t.config.Tools.Github.Owner)
+	}
+	if t.config.Tools.Github.Repo != "" {
+		repoDescription += fmt.Sprintf(" (defaults to: %s)", t.config.Tools.Github.Repo)
+	}
+
 	return domain.ToolDefinition{
 		Name:        "Github",
 		Description: "Interact with GitHub API to fetch issues, pull requests, and other data",
@@ -42,11 +62,11 @@ func (t *GithubTool) Definition() domain.ToolDefinition {
 			"properties": map[string]any{
 				"owner": map[string]any{
 					"type":        "string",
-					"description": "Repository owner (username or organization)",
+					"description": ownerDescription,
 				},
 				"repo": map[string]any{
 					"type":        "string",
-					"description": "Repository name",
+					"description": repoDescription,
 				},
 				"issue_number": map[string]any{
 					"type":        []string{"integer", "string"},
@@ -71,7 +91,7 @@ func (t *GithubTool) Definition() domain.ToolDefinition {
 					"maximum":     100,
 				},
 			},
-			"required": []string{"owner", "repo"},
+			"required": required,
 		},
 	}
 }
@@ -83,26 +103,46 @@ func (t *GithubTool) Execute(ctx context.Context, args map[string]any) (*domain.
 		return nil, fmt.Errorf("GitHub tool is not enabled")
 	}
 
+	if t.config.Tools.Github.Owner == "" {
+		if owner, ok := args["owner"].(string); !ok || owner == "" {
+			return &domain.ToolExecutionResult{
+				ToolName:  "Github",
+				Arguments: args,
+				Success:   false,
+				Duration:  time.Since(start),
+				Error:     "GitHub tool requires owner to be configured in settings for security",
+			}, nil
+		}
+	}
+
 	owner, ok := args["owner"].(string)
 	if !ok || owner == "" {
-		return &domain.ToolExecutionResult{
-			ToolName:  "Github",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     "owner parameter is required and must be a string",
-		}, nil
+		if t.config.Tools.Github.Owner != "" {
+			owner = t.config.Tools.Github.Owner
+		} else {
+			return &domain.ToolExecutionResult{
+				ToolName:  "Github",
+				Arguments: args,
+				Success:   false,
+				Duration:  time.Since(start),
+				Error:     "owner parameter is required and must be a string, or set owner in config",
+			}, nil
+		}
 	}
 
 	repo, ok := args["repo"].(string)
 	if !ok || repo == "" {
-		return &domain.ToolExecutionResult{
-			ToolName:  "Github",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     "repo parameter is required and must be a string",
-		}, nil
+		if t.config.Tools.Github.Repo != "" {
+			repo = t.config.Tools.Github.Repo
+		} else {
+			return &domain.ToolExecutionResult{
+				ToolName:  "Github",
+				Arguments: args,
+				Success:   false,
+				Duration:  time.Since(start),
+				Error:     "repo parameter is required and must be a string, or set repo in config",
+			}, nil
+		}
 	}
 
 	resource := "issue"
@@ -193,14 +233,25 @@ func (t *GithubTool) Validate(args map[string]any) error {
 		return fmt.Errorf("GitHub tool is not enabled")
 	}
 
+	if t.config.Tools.Github.Owner == "" {
+		owner, ok := args["owner"].(string)
+		if !ok || owner == "" {
+			return fmt.Errorf("GitHub tool requires owner to be configured in settings for security")
+		}
+	}
+
 	owner, ok := args["owner"].(string)
 	if !ok || owner == "" {
-		return fmt.Errorf("owner parameter is required and must be a string")
+		if t.config.Tools.Github.Owner == "" {
+			return fmt.Errorf("owner parameter is required and must be a string, or set owner in config")
+		}
 	}
 
 	repo, ok := args["repo"].(string)
 	if !ok || repo == "" {
-		return fmt.Errorf("repo parameter is required and must be a string")
+		if t.config.Tools.Github.Repo == "" {
+			return fmt.Errorf("repo parameter is required and must be a string, or set repo in config")
+		}
 	}
 
 	resource, hasResource := args["resource"].(string)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -35,6 +36,44 @@ func TestGithubTool_Definition(t *testing.T) {
 
 	if def.Parameters == nil {
 		t.Error("Tool parameters should not be nil")
+	}
+}
+
+func TestGithubTool_DefinitionWithDefaults(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				Owner:   "testowner",
+				Repo:    "testrepo",
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg)
+	def := tool.Definition()
+
+	params := def.Parameters.(map[string]any)
+	required := params["required"].([]string)
+
+	if len(required) != 0 {
+		t.Errorf("Expected no required parameters when defaults are set, got %v", required)
+	}
+
+	props := params["properties"].(map[string]any)
+	ownerProp := props["owner"].(map[string]any)
+	repoProp := props["repo"].(map[string]any)
+
+	ownerDesc := ownerProp["description"].(string)
+	repoDesc := repoProp["description"].(string)
+
+	if !strings.Contains(ownerDesc, "testowner") {
+		t.Errorf("Expected owner description to contain default 'testowner', got %s", ownerDesc)
+	}
+
+	if !strings.Contains(repoDesc, "testrepo") {
+		t.Errorf("Expected repo description to contain default 'testrepo', got %s", repoDesc)
 	}
 }
 
@@ -230,6 +269,54 @@ func TestGithubTool_Validate_InvalidCases(t *testing.T) {
 				t.Errorf("Validate() expected error but got none")
 			}
 		})
+	}
+}
+
+func TestGithubTool_Validate_SecurityRequirement(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg)
+
+	args := map[string]any{
+		"repo": "testrepo",
+	}
+
+	err := tool.Validate(args)
+	if err == nil {
+		t.Error("Expected validation error when no owner configured and no owner provided")
+	}
+
+	expectedErrMsg := "GitHub tool requires owner to be configured in settings for security"
+	if !strings.Contains(err.Error(), expectedErrMsg) {
+		t.Errorf("Expected error to contain '%s', got '%s'", expectedErrMsg, err.Error())
+	}
+
+	cfgWithDefaults := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				Owner:   "secureowner",
+				Repo:    "securerepo",
+			},
+		},
+	}
+
+	toolWithDefaults := NewGithubTool(cfgWithDefaults)
+	argsWithoutOwner := map[string]any{
+		"resource": "issues",
+	}
+
+	err = toolWithDefaults.Validate(argsWithoutOwner)
+	if err != nil {
+		t.Errorf("Expected no validation error when defaults configured, got %v", err)
 	}
 }
 

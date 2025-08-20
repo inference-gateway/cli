@@ -74,10 +74,10 @@ tools:
     enabled: true
     token: '%GITHUB_TOKEN%'
     base_url: https://api.github.com
+    owner: ""
     safety:
       max_size: 1048576
       timeout: 30
-    require_approval: false
   todo_write:
     enabled: true
     require_approval: false

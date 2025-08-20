@@ -125,6 +125,8 @@ type GithubToolConfig struct {
 	Enabled         bool               `yaml:"enabled"`
 	Token           string             `yaml:"token"`
 	BaseURL         string             `yaml:"base_url"`
+	Owner           string             `yaml:"owner"`
+	Repo            string             `yaml:"repo,omitempty"`
 	Safety          GithubSafetyConfig `yaml:"safety"`
 	RequireApproval *bool              `yaml:"require_approval,omitempty"`
 }
@@ -279,7 +281,8 @@ func DefaultConfig() *Config { //nolint:funlen
 					MaxSize: 1048576, // 1MB
 					Timeout: 30,      // 30 seconds
 				},
-				RequireApproval: &[]bool{false}[0],
+				Owner: "",
+				Repo:  "",
 			},
 			TodoWrite: TodoWriteToolConfig{
 				Enabled:         true,
