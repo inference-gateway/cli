@@ -273,10 +273,10 @@ managing whitelists, and security settings.
   - `enable`: Enable safety approval prompts
   - `disable`: Disable safety approval prompts
   - `status`: Show current safety approval status
-- `exclude-path`: Manage excluded paths for security
-  - `list`: List all excluded paths
-  - `add <path>`: Add a path to the exclusion list
-  - `remove <path>`: Remove a path from the exclusion list
+- `sandbox`: Manage sandbox directories for security
+  - `list`: List all sandbox directories
+  - `add <path>`: Add a protected path to the sandbox
+  - `remove <path>`: Remove a protected path from the sandbox
 
 **Examples:**
 
@@ -304,9 +304,9 @@ infer config tools safety set WebSearch disabled  # Skip approval for WebSearch 
 infer config tools safety unset Bash              # Remove tool-specific setting (use global)
 
 # Manage excluded paths
-infer config tools exclude-path list
-infer config tools exclude-path add ".github/"
-infer config tools exclude-path remove "test.txt"
+infer config tools sandbox list
+infer config tools sandbox add ".github/"
+infer config tools sandbox remove "test.txt"
 ```
 
 ### `infer status`

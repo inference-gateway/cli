@@ -184,33 +184,33 @@ var configToolsSafetyUnsetCmd = &cobra.Command{
 	RunE:  unsetToolApproval,
 }
 
-var configToolsExcludePathCmd = &cobra.Command{
-	Use:   "exclude-path",
-	Short: "Manage excluded paths",
-	Long:  `Manage paths that are excluded from tool access for security purposes.`,
+var configToolsSandboxCmd = &cobra.Command{
+	Use:   "sandbox",
+	Short: "Manage sandbox directories",
+	Long:  `Manage the sandbox directories where tools are allowed to operate. Tools can only access files within these directories.`,
 }
 
-var configToolsExcludePathListCmd = &cobra.Command{
+var configToolsSandboxListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List excluded paths",
-	Long:  `Display all paths that are excluded from tool access.`,
-	RunE:  listExcludedPaths,
+	Short: "List sandbox directories",
+	Long:  `Display all directories where tools are allowed to operate.`,
+	RunE:  listSandboxDirectories,
 }
 
-var configToolsExcludePathAddCmd = &cobra.Command{
-	Use:   "add <path>",
-	Short: "Add a path to the exclusion list",
-	Long:  `Add a path to the exclusion list to prevent tools from accessing it.`,
+var configToolsSandboxAddCmd = &cobra.Command{
+	Use:   "add <directory>",
+	Short: "Add a directory to the sandbox",
+	Long:  `Add a directory to the sandbox to allow tools to access it.`,
 	Args:  cobra.ExactArgs(1),
-	RunE:  addExcludedPath,
+	RunE:  addSandboxDirectory,
 }
 
-var configToolsExcludePathRemoveCmd = &cobra.Command{
-	Use:   "remove <path>",
-	Short: "Remove a path from the exclusion list",
-	Long:  `Remove a path from the exclusion list to allow tools to access it again.`,
+var configToolsSandboxRemoveCmd = &cobra.Command{
+	Use:   "remove <directory>",
+	Short: "Remove a directory from the sandbox",
+	Long:  `Remove a directory from the sandbox to prevent tools from accessing it.`,
 	Args:  cobra.ExactArgs(1),
-	RunE:  removeExcludedPath,
+	RunE:  removeSandboxDirectory,
 }
 
 var configToolsBashCmd = &cobra.Command{
@@ -439,7 +439,7 @@ func init() {
 	configToolsCmd.AddCommand(configToolsValidateCmd)
 	configToolsCmd.AddCommand(configToolsExecCmd)
 	configToolsCmd.AddCommand(configToolsSafetyCmd)
-	configToolsCmd.AddCommand(configToolsExcludePathCmd)
+	configToolsCmd.AddCommand(configToolsSandboxCmd)
 	configToolsCmd.AddCommand(configToolsBashCmd)
 	configToolsCmd.AddCommand(configToolsWebSearchCmd)
 	configToolsCmd.AddCommand(configToolsGrepCmd)
@@ -450,9 +450,9 @@ func init() {
 	configToolsSafetyCmd.AddCommand(configToolsSafetySetCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyUnsetCmd)
 
-	configToolsExcludePathCmd.AddCommand(configToolsExcludePathListCmd)
-	configToolsExcludePathCmd.AddCommand(configToolsExcludePathAddCmd)
-	configToolsExcludePathCmd.AddCommand(configToolsExcludePathRemoveCmd)
+	configToolsSandboxCmd.AddCommand(configToolsSandboxListCmd)
+	configToolsSandboxCmd.AddCommand(configToolsSandboxAddCmd)
+	configToolsSandboxCmd.AddCommand(configToolsSandboxRemoveCmd)
 
 	configToolsBashCmd.AddCommand(configToolsBashEnableCmd)
 	configToolsBashCmd.AddCommand(configToolsBashDisableCmd)
@@ -546,9 +546,11 @@ func listTools(cmd *cobra.Command, args []string) error {
 				"engines":        cfg.Tools.WebSearch.Engines,
 				"timeout":        cfg.Tools.WebSearch.Timeout,
 			},
-			"commands":      cfg.Tools.Bash.Whitelist.Commands,
-			"patterns":      cfg.Tools.Bash.Whitelist.Patterns,
-			"exclude_paths": cfg.Tools.ExcludePaths,
+			"commands": cfg.Tools.Bash.Whitelist.Commands,
+			"patterns": cfg.Tools.Bash.Whitelist.Patterns,
+			"sandbox": map[string]interface{}{
+				"directories": cfg.Tools.Sandbox.Directories,
+			},
 			"safety": map[string]bool{
 				"require_approval": cfg.Tools.Safety.RequireApproval,
 			},
@@ -600,12 +602,12 @@ func listTools(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  • %s\n", pattern)
 	}
 
-	fmt.Printf("\nExcluded Paths (%d):\n", len(cfg.Tools.ExcludePaths))
-	if len(cfg.Tools.ExcludePaths) == 0 {
-		fmt.Printf("  • None\n")
+	fmt.Printf("\nSandbox Directories (%d):\n", len(cfg.Tools.Sandbox.Directories))
+	if len(cfg.Tools.Sandbox.Directories) == 0 {
+		fmt.Printf("  • None configured\n")
 	} else {
-		for _, path := range cfg.Tools.ExcludePaths {
-			fmt.Printf("  • %s\n", path)
+		for _, dir := range cfg.Tools.Sandbox.Directories {
+			fmt.Printf("  • %s\n", dir)
 		}
 	}
 
@@ -884,53 +886,53 @@ func getConfigPath() string {
 	return configPath
 }
 
-func listExcludedPaths(cmd *cobra.Command, args []string) error {
+func listSandboxDirectories(cmd *cobra.Command, args []string) error {
 	cfg, err := config.LoadConfig("")
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	if len(cfg.Tools.ExcludePaths) == 0 {
-		fmt.Println("No paths are currently excluded.")
+	if len(cfg.Tools.Sandbox.Directories) == 0 {
+		fmt.Println("No sandbox directories are currently configured.")
 		return nil
 	}
 
-	fmt.Printf("Excluded Paths (%d):\n", len(cfg.Tools.ExcludePaths))
-	for _, path := range cfg.Tools.ExcludePaths {
-		fmt.Printf("  • %s\n", path)
+	fmt.Printf("Sandbox Directories (%d):\n", len(cfg.Tools.Sandbox.Directories))
+	for _, dir := range cfg.Tools.Sandbox.Directories {
+		fmt.Printf("  • %s\n", dir)
 	}
 
 	return nil
 }
 
-func addExcludedPath(cmd *cobra.Command, args []string) error {
-	pathToAdd := args[0]
+func addSandboxDirectory(cmd *cobra.Command, args []string) error {
+	dirToAdd := args[0]
 
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for _, existingPath := range c.Tools.ExcludePaths {
-			if existingPath == pathToAdd {
+		for _, existingDir := range c.Tools.Sandbox.Directories {
+			if existingDir == dirToAdd {
 				return
 			}
 		}
-		c.Tools.ExcludePaths = append(c.Tools.ExcludePaths, pathToAdd)
+		c.Tools.Sandbox.Directories = append(c.Tools.Sandbox.Directories, dirToAdd)
 	})
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Added '%s' to excluded paths", pathToAdd)))
-	fmt.Printf("Tools will no longer be able to access this path\n")
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Added '%s' to sandbox directories", dirToAdd)))
+	fmt.Printf("Tools can now access files within this directory\n")
 	return nil
 }
 
-func removeExcludedPath(cmd *cobra.Command, args []string) error {
-	pathToRemove := args[0]
+func removeSandboxDirectory(cmd *cobra.Command, args []string) error {
+	dirToRemove := args[0]
 	var found bool
 
 	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for i, existingPath := range c.Tools.ExcludePaths {
-			if existingPath == pathToRemove {
-				c.Tools.ExcludePaths = append(c.Tools.ExcludePaths[:i], c.Tools.ExcludePaths[i+1:]...)
+		for i, existingDir := range c.Tools.Sandbox.Directories {
+			if existingDir == dirToRemove {
+				c.Tools.Sandbox.Directories = append(c.Tools.Sandbox.Directories[:i], c.Tools.Sandbox.Directories[i+1:]...)
 				found = true
 				return
 			}
@@ -941,12 +943,12 @@ func removeExcludedPath(cmd *cobra.Command, args []string) error {
 	}
 
 	if !found {
-		fmt.Printf("%s\n", ui.FormatWarning(fmt.Sprintf("Path '%s' was not in the excluded paths list", pathToRemove)))
+		fmt.Printf("%s\n", ui.FormatWarning(fmt.Sprintf("Directory '%s' was not in the sandbox directories list", dirToRemove)))
 		return nil
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed '%s' from excluded paths", pathToRemove)))
-	fmt.Printf("Tools can now access this path again\n")
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed '%s' from sandbox directories", dirToRemove)))
+	fmt.Printf("Tools can no longer access this directory\n")
 	return nil
 }
 

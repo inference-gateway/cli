@@ -28,6 +28,9 @@ func TestEditTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -143,12 +146,17 @@ func getTestConfig() *config.Config {
 	return &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+				ProtectedPaths: []string{
+					".infer/",
+					".git/",
+					"*.env",
+					"*.env.database",
+				},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
-			},
-			ExcludePaths: []string{
-				".infer/",
-				"*.secret",
 			},
 		},
 	}
@@ -379,12 +387,12 @@ func getValidSecurityTests() []struct {
 			name:     "excluded pattern",
 			readUsed: true,
 			args: map[string]interface{}{
-				"file_path":  "database.secret",
+				"file_path":  ".env.database",
 				"old_string": "old",
 				"new_string": "new",
 			},
 			wantError:    true,
-			errorMessage: "access to path 'database.secret' is excluded for security",
+			errorMessage: "access to path '.env.database' is excluded for security",
 		},
 	}
 }
@@ -409,6 +417,9 @@ func TestEditTool_Execute_ReadToolNotUsed(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -458,6 +469,9 @@ func TestEditTool_Execute_Success(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tempDir},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},
@@ -565,6 +579,9 @@ func TestEditTool_Execute_Errors(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tempDir},
+			},
 			Edit: config.EditToolConfig{
 				Enabled: true,
 			},

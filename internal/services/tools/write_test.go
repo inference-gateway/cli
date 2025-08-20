@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/inference-gateway/cli/config"
@@ -211,8 +212,8 @@ func validatePathSecurity(t *testing.T, err error, allowed bool, errorMsg string
 		t.Error("Path should be blocked")
 		return
 	}
-	if errorMsg != "" && err.Error() != errorMsg {
-		t.Errorf("Expected error '%s', got '%s'", errorMsg, err.Error())
+	if errorMsg != "" && !strings.Contains(err.Error(), errorMsg) {
+		t.Errorf("Expected error to contain '%s', got '%s'", errorMsg, err.Error())
 	}
 }
 
@@ -492,8 +493,18 @@ func testWriteFailDisabled(t *testing.T, ctx context.Context) {
 }
 
 func TestWriteTool_PathSecurity(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "write-tool-test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
 	cfg := config.DefaultConfig()
-	cfg.Tools.ExcludePaths = []string{".infer/", "*.secret", "/etc/*"}
+	cfg.Tools.Sandbox.Directories = []string{tempDir}
 	tool := NewWriteTool(cfg)
 
 	tests := []struct {
@@ -503,32 +514,26 @@ func TestWriteTool_PathSecurity(t *testing.T) {
 		errorMsg string
 	}{
 		{
-			name:    "allowed path",
-			path:    "test.txt",
+			name:    "allowed path within sandbox",
+			path:    filepath.Join(tempDir, "test.txt"),
 			allowed: true,
 		},
 		{
-			name:    "allowed subdirectory",
-			path:    "subdir/test.txt",
+			name:    "allowed subdirectory within sandbox",
+			path:    filepath.Join(tempDir, "subdir/test.txt"),
 			allowed: true,
 		},
 		{
-			name:     "excluded .infer directory",
-			path:     ".infer/config.yaml",
-			allowed:  false,
-			errorMsg: "access to path '.infer/config.yaml' is excluded for security",
-		},
-		{
-			name:     "excluded pattern *.secret",
-			path:     "database.secret",
-			allowed:  false,
-			errorMsg: "access to path 'database.secret' is excluded for security",
-		},
-		{
-			name:     "excluded pattern /etc/*",
+			name:     "path outside sandbox",
 			path:     "/etc/passwd",
 			allowed:  false,
-			errorMsg: "access to path '/etc/passwd' is excluded for security",
+			errorMsg: "is outside configured sandbox directories",
+		},
+		{
+			name:     "relative path outside sandbox",
+			path:     "../outside.txt",
+			allowed:  false,
+			errorMsg: "is outside configured sandbox directories",
 		},
 	}
 

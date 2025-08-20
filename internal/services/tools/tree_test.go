@@ -61,10 +61,16 @@ func TestTreeTool_Validate(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{"."},
+				ProtectedPaths: []string{
+					".infer/",
+					".git/",
+				},
+			},
 			Tree: config.TreeToolConfig{
 				Enabled: true,
 			},
-			ExcludePaths: []string{".infer/"},
 		},
 	}
 
@@ -227,10 +233,13 @@ func setupTestDirectory(t *testing.T) string {
 	return tempDir
 }
 
-func createTestTreeTool() *TreeTool {
+func createTestTreeTool(tempDir string) *TreeTool {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
 			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tempDir},
+			},
 			Tree: config.TreeToolConfig{
 				Enabled: true,
 			},
@@ -241,7 +250,7 @@ func createTestTreeTool() *TreeTool {
 
 func TestTreeTool_ExecuteBasic(t *testing.T) {
 	tempDir := setupTestDirectory(t)
-	tool := createTestTreeTool()
+	tool := createTestTreeTool(tempDir)
 	ctx := context.Background()
 
 	result, err := tool.Execute(ctx, map[string]interface{}{
@@ -279,7 +288,7 @@ func TestTreeTool_ExecuteBasic(t *testing.T) {
 
 func TestTreeTool_ExecuteWithMaxDepth(t *testing.T) {
 	tempDir := setupTestDirectory(t)
-	tool := createTestTreeTool()
+	tool := createTestTreeTool(tempDir)
 	ctx := context.Background()
 
 	result, err := tool.Execute(ctx, map[string]interface{}{
@@ -309,7 +318,7 @@ func TestTreeTool_ExecuteWithMaxDepth(t *testing.T) {
 
 func TestTreeTool_ExecuteWithExcludePatterns(t *testing.T) {
 	tempDir := setupTestDirectory(t)
-	tool := createTestTreeTool()
+	tool := createTestTreeTool(tempDir)
 	ctx := context.Background()
 
 	result, err := tool.Execute(ctx, map[string]interface{}{
@@ -345,7 +354,7 @@ func TestTreeTool_ExecuteWithExcludePatterns(t *testing.T) {
 
 func TestTreeTool_ExecuteWithShowHidden(t *testing.T) {
 	tempDir := setupTestDirectory(t)
-	tool := createTestTreeTool()
+	tool := createTestTreeTool(tempDir)
 	ctx := context.Background()
 
 	result, err := tool.Execute(ctx, map[string]interface{}{
@@ -375,7 +384,7 @@ func TestTreeTool_ExecuteWithShowHidden(t *testing.T) {
 
 func TestTreeTool_ExecuteWithJSONFormat(t *testing.T) {
 	tempDir := setupTestDirectory(t)
-	tool := createTestTreeTool()
+	tool := createTestTreeTool(tempDir)
 	ctx := context.Background()
 
 	result, err := tool.Execute(ctx, map[string]interface{}{
@@ -410,7 +419,7 @@ func TestTreeTool_ExecuteWithJSONFormat(t *testing.T) {
 
 func TestTreeTool_ExecuteErrors(t *testing.T) {
 	tempDir := setupTestDirectory(t)
-	tool := createTestTreeTool()
+	tool := createTestTreeTool(tempDir)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -587,8 +596,10 @@ func TestTreeTool_ValidatePath(t *testing.T) {
 
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
-			Enabled:      true,
-			ExcludePaths: []string{".infer/"},
+			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tempDir},
+			},
 			Tree: config.TreeToolConfig{
 				Enabled: true,
 			},

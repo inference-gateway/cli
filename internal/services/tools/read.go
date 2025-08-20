@@ -390,29 +390,7 @@ func (t *ReadTool) validateParameter(args map[string]interface{}, paramName stri
 	return nil
 }
 
-// validatePathSecurity checks if a path is allowed (no file existence check)
+// validatePathSecurity checks if a path is allowed within the sandbox
 func (t *ReadTool) validatePathSecurity(path string) error {
-	for _, excludePath := range t.config.Tools.ExcludePaths {
-		if strings.HasPrefix(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
-		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-	}
-	return nil
-}
-
-// matchesPattern checks if a path matches a simple glob pattern
-func matchesPattern(path, pattern string) bool {
-	if strings.HasSuffix(pattern, "*") {
-		prefix := strings.TrimSuffix(pattern, "*")
-		return strings.HasPrefix(path, prefix)
-	}
-	if strings.HasPrefix(pattern, "*") {
-		suffix := strings.TrimPrefix(pattern, "*")
-		return strings.HasSuffix(path, suffix)
-	}
-	return path == pattern
+	return t.config.ValidatePathInSandbox(path)
 }

@@ -149,34 +149,33 @@ output:
   quiet: false
 tools:
   enabled: true  # Tools are enabled by default with safe read-only commands
-  whitelist:
-    commands:  # Exact command matches
-      - "pwd"
-      - "echo"
-      - "grep"
-      - "wc"
-      - "sort"
-      - "uniq"
-    patterns:  # Regex patterns for more complex commands
-      - "^git status$"
-      - "^git log --oneline -n [0-9]+$"
-      - "^docker ps$"
-      - "^kubectl get pods$"
+  sandbox:
+    directories:  # Directories where tools are allowed to operate
+      - "."  # Current directory (default)
+    protected_paths:  # Paths protected from tool access for security
+      - ".infer/"     # Protect infer's own configuration directory
+      - ".git/"       # Protect git repository
+      - "*.env"       # Protect environment files
+  bash:
+    enabled: true
+    whitelist:
+      commands:  # Exact command matches
+        - "pwd"
+        - "echo"
+        - "grep"
+        - "wc"
+        - "sort"
+        - "uniq"
+      patterns:  # Regex patterns for more complex commands
+        - "^git status$"
+        - "^git log --oneline -n [0-9]+$"
+        - "^docker ps$"
+        - "^kubectl get pods$"
   delete:
     enabled: true  # Enable delete tool for file/directory deletion
-    allow_wildcards: true  # Enable wildcard patterns like *.txt
-    restrict_to_workdir: true  # Only allow deletion within current working directory
-    protected_paths:  # Additional paths protected from deletion
-      - ".infer/"     # Protect infer's configuration directory
-      - ".infer/*"    # Protect all files in infer's configuration directory
-      - ".git/"       # Protect git repository
-      - ".git/*"      # Protect all git files
     require_approval: true  # Require user approval before deletion
   safety:
     require_approval: true  # Prompt user before executing any command
-  exclude_paths:  # Paths excluded from tool access for security
-    - ".infer/"     # Protect infer's own configuration directory
-    - ".infer/*"    # Protect all files in infer's configuration directory
 compact:
   output_dir: ".infer"  # Directory for compact command exports (default: project root/.infer)
 chat:
@@ -219,10 +218,10 @@ web_search:
         - `enable`: Enable safety approval prompts
         - `disable`: Disable safety approval prompts
         - `status`: Show current safety approval status
-      - `exclude-path`: Manage excluded paths for security
-        - `list`: List all excluded paths
-        - `add <path>`: Add a path to the exclusion list
-        - `remove <path>`: Remove a path from the exclusion list
+      - `sandbox`: Manage sandbox directories where tools can operate
+        - `list`: List all sandbox directories
+        - `add <directory>`: Add a directory to the sandbox
+        - `remove <directory>`: Remove a directory from the sandbox
   - `version`: Version information
 
 ## Dependencies
@@ -327,7 +326,8 @@ The tool system includes multiple security layers:
 
 1. **Approval Prompts**: User confirmation before executing any tool
 2. **Command Whitelisting**: Only pre-approved commands can be executed
-3. **Path Exclusions**: Protect sensitive directories from tool access
+3. **Sandbox Directories**: Tools can only operate within configured directories
+4. **Protected Paths**: Specific paths are blocked from tool access
 
 ```bash
 # Manage global safety settings (approval prompts)
@@ -340,10 +340,10 @@ infer config tools safety set Bash enabled        # Require approval for Bash to
 infer config tools safety set WebSearch disabled  # Skip approval for WebSearch tool
 infer config tools safety unset Bash              # Remove tool-specific setting (use global)
 
-# Manage excluded paths for security (tool-level protection)
-infer config tools exclude-path list               # List all excluded paths
-infer config tools exclude-path add ".github/"     # Add a path to the exclusion list
-infer config tools exclude-path remove "test.txt"  # Remove a path from the exclusion list
+# Manage sandbox directories (tool access control)
+infer config tools sandbox list                    # List all sandbox directories
+infer config tools sandbox add "./src/"            # Add a directory to the sandbox
+infer config tools sandbox remove "./temp/"        # Remove a directory from the sandbox
 ```
 
 #### Security Features
@@ -351,7 +351,8 @@ infer config tools exclude-path remove "test.txt"  # Remove a path from the excl
 - **Global Approval Prompts**: When enabled, prompts user before executing any tool command
 - **Tool-Specific Safety**: Configure approval requirements per tool (Bash, Read, Grep, WebSearch)
 - **Command Whitelist**: Only commands in the whitelist can be executed by tools
-- **Path Exclusions**: Specific paths are blocked from tool access (e.g., `.infer/` directory)
+- **Sandbox Directories**: Tools can only access files within configured sandbox directories
+- **Protected Paths**: Specific paths are blocked from tool access (e.g., `.infer/` directory, `.git/`, `*.env`)
 - **Safe Defaults**: Tools are enabled with read-only commands and approval prompts by default
 
 ### Web Search Tool
@@ -433,26 +434,31 @@ The Delete Tool implements multiple layers of security to prevent accidental or 
 1. **Working Directory Restriction**: By default, only allows deletion within the current working directory
 2. **Protected Paths**: Configurable list of paths that are completely protected from deletion
 3. **Approval Prompts**: Requires user confirmation before executing any deletion operation
-4. **Path Exclusions**: Respects the global tool exclusion paths
+4. **Sandbox Restrictions**: Respects the global sandbox directory and protected path restrictions
 
 #### Default Protected Paths
 
 - `.infer/` - Protects the CLI's configuration directory
 - `.git/` - Protects Git repository files and metadata
+- `.env` - Protects environment variables and sensitive information
 
 #### Configuration Options
 
 ```yaml
 tools:
+  sandbox:
+    directories:                    # Directories where tools can operate
+      - "."                        # Current directory
+      - "/tmp"                   # Tmp directory
+    protected_paths:                # Paths protected from all tool access
+      - ".infer/"                  # CLI configuration
+      - ".git/"                    # Git repository
+      - "*.env"                    # Environment files
+      - "important/"               # Important directories
+      - "*.config"                 # Config files
   delete:
-    enabled: true                    # Enable/disable the delete tool
-    allow_wildcards: true           # Enable wildcard patterns (*.txt, temp/*)
-    restrict_to_workdir: true       # Restrict deletions to current working directory
+    enabled: true                   # Enable/disable the delete tool
     require_approval: true          # Require user approval before deletion
-    protected_paths:                # Additional paths to protect
-      - "important/"
-      - "*.config"
-      - "backups/*"
 ```
 
 #### Delete Tool Usage Examples
@@ -504,10 +510,10 @@ When the LLM uses the Delete tool, it can specify:
 #### Safety Considerations
 
 - Always requires approval by default for destructive operations
-- Cannot delete outside the current working directory when `restrict_to_workdir` is true
-- Protected paths cannot be deleted even with wildcard patterns
-- Wildcard support can be disabled for additional safety
+- Can only operate within configured sandbox directories
+- Protected paths cannot be deleted even within sandbox directories
 - Comprehensive validation prevents path traversal attacks
+- Respects global tool safety settings and approval requirements
 
 ## Code Style Guidelines
 

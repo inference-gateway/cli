@@ -921,34 +921,9 @@ func (t *GrepTool) isPathExcluded(path string) bool {
 		return true
 	}
 
-	cleanPath := filepath.Clean(path)
-	normalizedPath := filepath.ToSlash(cleanPath)
-
-	for _, excludePattern := range t.config.Tools.ExcludePaths {
-		cleanPattern := filepath.Clean(excludePattern)
-		normalizedPattern := filepath.ToSlash(cleanPattern)
-
-		if normalizedPath == normalizedPattern {
-			return true
-		}
-
-		if strings.HasSuffix(normalizedPattern, "/*") {
-			dirPattern := strings.TrimSuffix(normalizedPattern, "/*")
-			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
-				return true
-			}
-		}
-
-		if strings.HasSuffix(normalizedPattern, "/") {
-			dirPattern := strings.TrimSuffix(normalizedPattern, "/")
-			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
-				return true
-			}
-		}
-
-		if strings.HasPrefix(normalizedPath, normalizedPattern) {
-			return true
-		}
+	// Check if path is outside sandbox directories
+	if err := t.config.ValidatePathInSandbox(path); err != nil {
+		return true
 	}
 
 	return false
@@ -961,6 +936,7 @@ func (t *GrepTool) loadGitignorePatterns() {
 	defaultPatterns := []string{
 		"node_modules",
 		".git",
+		".infer",
 		".DS_Store",
 		"*.log",
 		"dist",
@@ -975,6 +951,7 @@ func (t *GrepTool) loadGitignorePatterns() {
 		".vscode",
 		".idea",
 		".flox",
+		"secret",
 	}
 
 	patterns = append(patterns, defaultPatterns...)

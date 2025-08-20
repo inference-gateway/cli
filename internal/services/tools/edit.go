@@ -367,18 +367,9 @@ func appendBothLinesDiff(diff *strings.Builder, lineNum int, oldLine, newLine st
 	}
 }
 
-// validatePathSecurity checks if a path is allowed for editing (reuses the same logic as other tools)
+// validatePathSecurity checks if a path is allowed for editing within the sandbox
 func (t *EditTool) validatePathSecurity(path string) error {
-	for _, excludePath := range t.config.Tools.ExcludePaths {
-		if strings.HasPrefix(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
-		if strings.Contains(excludePath, "*") && matchesPattern(path, excludePath) {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-	}
-	return nil
+	return t.config.ValidatePathInSandbox(path)
 }
 
 // validateFile checks if a file path is valid and exists (only works with existing files)
