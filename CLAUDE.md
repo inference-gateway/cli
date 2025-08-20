@@ -440,6 +440,7 @@ The Delete Tool implements multiple layers of security to prevent accidental or 
 
 - `.infer/` - Protects the CLI's configuration directory
 - `.git/` - Protects Git repository files and metadata
+- `.env` - Protects environment variables and sensitive information
 
 #### Configuration Options
 
@@ -448,7 +449,7 @@ tools:
   sandbox:
     directories:                    # Directories where tools can operate
       - "."                        # Current directory
-      - "./src/"                   # Source directory
+      - "/tmp"                   # Tmp directory
     protected_paths:                # Paths protected from all tool access
       - ".infer/"                  # CLI configuration
       - ".git/"                    # Git repository

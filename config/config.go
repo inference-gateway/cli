@@ -186,7 +186,7 @@ func DefaultConfig() *Config { //nolint:funlen
 		Tools: ToolsConfig{
 			Enabled: true,
 			Sandbox: SandboxConfig{
-				Directories: []string{"."},
+				Directories: []string{".", "/tmp"},
 				ProtectedPaths: []string{
 					".infer/",
 					".git/",

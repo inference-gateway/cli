@@ -11,6 +11,7 @@ tools:
   sandbox:
     directories:
       - .
+      - /tmp
     protected_paths:
       - .infer/
       - .git/
