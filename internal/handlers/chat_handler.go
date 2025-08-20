@@ -1493,8 +1493,7 @@ func (h *ChatHandler) executeToolDirectly(
 			})
 		}
 
-		responseContent := h.formatToolResponse(toolName, result)
-		h.addToolResponseToHistory(debugService, responseContent)
+		h.addToolExecutionToHistory(debugService, result)
 
 		return h.createToolUIUpdate(result.Success, toolName)
 	}
@@ -1579,51 +1578,21 @@ func (h *ChatHandler) handleToolExecutionError(debugService *services.DebugServi
 	)()
 }
 
-// formatToolResponse formats tool execution results for display
-func (h *ChatHandler) formatToolResponse(toolName string, result *domain.ToolExecutionResult) string {
-	if !result.Success {
-		responseContent := fmt.Sprintf("❌ Tool '%s' failed", toolName)
-		if result.Error != "" {
-			responseContent += fmt.Sprintf(": %s", result.Error)
-		}
-		return responseContent
-	}
-
-	responseContent := fmt.Sprintf("✅ Tool '%s' executed successfully", toolName)
-	if result.Data == nil {
-		return responseContent
-	}
-
-	switch data := result.Data.(type) {
-	case *domain.BashToolResult:
-		responseContent += fmt.Sprintf(":\n\n```bash\n$ %s\n```\n\n", data.Command)
-		if data.Output != "" {
-			responseContent += fmt.Sprintf("**Output:**\n```\n%s\n```", strings.TrimSpace(data.Output))
-		}
-	case *domain.FileReadToolResult:
-		responseContent += fmt.Sprintf(":\n\n**File:** %s\n```\n%s\n```", data.FilePath, data.Content)
-	case *domain.FileWriteToolResult:
-		responseContent += fmt.Sprintf(":\n\n**File:** %s (%d bytes written)", data.FilePath, data.BytesWritten)
-	default:
-		responseContent += ":\n\nTool executed successfully"
-	}
-	return responseContent
-}
-
-// addToolResponseToHistory adds tool response to conversation history
-func (h *ChatHandler) addToolResponseToHistory(debugService *services.DebugService, responseContent string) {
+// addToolExecutionToHistory adds tool execution result to conversation history
+func (h *ChatHandler) addToolExecutionToHistory(debugService *services.DebugService, result *domain.ToolExecutionResult) {
 	assistantEntry := domain.ConversationEntry{
 		Message: sdk.Message{
-			Role:    sdk.Assistant,
-			Content: responseContent,
+			Role:    sdk.Tool,
+			Content: fmt.Sprintf("Tool '%s' executed successfully", result.ToolName),
 		},
-		Model: h.modelService.GetCurrentModel(),
-		Time:  time.Now(),
+		Model:         h.modelService.GetCurrentModel(),
+		Time:          time.Now(),
+		ToolExecution: result,
 	}
 
 	if err := h.conversationRepo.AddMessage(assistantEntry); err != nil && debugService != nil {
 		debugService.LogError(err, h.name, map[string]any{
-			"operation": "add_tool_response_message",
+			"operation": "add_tool_execution_message",
 		})
 	}
 }
