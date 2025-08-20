@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -657,7 +658,6 @@ func TestGithubTool_Execute_IssuesList(t *testing.T) {
 		t.Errorf("Expected Success = true, got false with error: %s", result.Error)
 	}
 
-	// Verify the result data
 	issues, ok := result.Data.([]domain.GitHubIssue)
 	if !ok {
 		t.Error("Expected data to be a slice of GitHubIssue")
@@ -665,5 +665,141 @@ func TestGithubTool_Execute_IssuesList(t *testing.T) {
 		if len(issues) != 2 {
 			t.Errorf("Expected 2 issues, got %d", len(issues))
 		}
+	}
+}
+
+func TestGithubTool_CreateComment(t *testing.T) {
+	mockComment := domain.GitHubComment{
+		ID:   123,
+		Body: "This is a test comment",
+		User: domain.GitHubUser{Login: "testuser"},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" && r.URL.Path == "/repos/testowner/testrepo/issues/1/comments" {
+			var requestData map[string]string
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &requestData)
+
+			if requestData["body"] != "This is a test comment" {
+				t.Errorf("Expected comment body 'This is a test comment', got '%s'", requestData["body"])
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(mockComment)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				BaseURL: server.URL,
+				Safety: config.GithubSafetyConfig{
+					MaxSize: 1048576,
+					Timeout: 30,
+				},
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg)
+	ctx := context.Background()
+
+	args := map[string]any{
+		"owner":        "testowner",
+		"repo":         "testrepo",
+		"resource":     "create_comment",
+		"issue_number": 1,
+		"comment_body": "This is a test comment",
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected Success = true, got false with error: %s", result.Error)
+	}
+
+	comment, ok := result.Data.(*domain.GitHubComment)
+	if !ok {
+		t.Error("Expected data to be a GitHubComment pointer")
+	} else {
+		if comment.ID != 123 {
+			t.Errorf("Expected comment ID 123, got %d", comment.ID)
+		}
+		if comment.Body != "This is a test comment" {
+			t.Errorf("Expected comment body 'This is a test comment', got '%s'", comment.Body)
+		}
+	}
+}
+
+func TestGithubTool_CreateCommentValidation(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				BaseURL: "https://api.github.com",
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg)
+
+	tests := []struct {
+		name    string
+		args    map[string]any
+		wantErr string
+	}{
+		{
+			name: "missing comment_body",
+			args: map[string]any{
+				"owner":        "testowner",
+				"repo":         "testrepo",
+				"resource":     "create_comment",
+				"issue_number": 1,
+			},
+			wantErr: "comment_body parameter is required for create_comment resource",
+		},
+		{
+			name: "empty comment_body",
+			args: map[string]any{
+				"owner":        "testowner",
+				"repo":         "testrepo",
+				"resource":     "create_comment",
+				"issue_number": 1,
+				"comment_body": "",
+			},
+			wantErr: "comment_body parameter is required for create_comment resource",
+		},
+		{
+			name: "missing issue_number",
+			args: map[string]any{
+				"owner":        "testowner",
+				"repo":         "testrepo",
+				"resource":     "create_comment",
+				"comment_body": "Test comment",
+			},
+			wantErr: "issue_number parameter is required for resource type 'create_comment'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tool.Validate(tt.args)
+			if err == nil {
+				t.Errorf("Expected validation error, got nil")
+			} else if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Expected error containing '%s', got '%s'", tt.wantErr, err.Error())
+			}
+		})
 	}
 }
