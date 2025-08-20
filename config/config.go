@@ -229,7 +229,7 @@ func DefaultConfig() *Config { //nolint:funlen
 						"^git status$",
 						"^git log --oneline -n [0-9]+$",
 						"^git commit -m \".+\"$",
-						"^git push( --set-upstream| origin)?( (?!main$|master$)[a-zA-Z0-9/_-]+)?$",
+						"^git push( --set-upstream)?( origin)?( [a-zA-Z0-9/_-]+)?$",
 					},
 				},
 			},
@@ -333,6 +333,7 @@ EXAMPLE:
 <tool>git checkout -b feat/my-new-feature</tool>
 <assistant>Now I will modify the files</assistant>
 <tool>git add <files></tool>
+<tool>git commit -m <message></tool>
 <assistant>Now I will push the changes</assistant>
 <tool>Read|Edit|Grep etc</tool>
 <tool>git push origin <branch></tool>
