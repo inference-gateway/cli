@@ -39,6 +39,14 @@ func (s *LLMToolService) ListTools() []domain.ToolDefinition {
 	return s.registry.GetToolDefinitions()
 }
 
+// ListAvailableTools returns names of all enabled tools
+func (s *LLMToolService) ListAvailableTools() []string {
+	if !s.enabled {
+		return []string{}
+	}
+	return s.registry.ListAvailableTools()
+}
+
 // ExecuteTool executes a tool with the given arguments
 func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[string]any) (*domain.ToolExecutionResult, error) {
 	if !s.enabled {
@@ -91,6 +99,10 @@ func NewNoOpToolService() *NoOpToolService {
 
 func (s *NoOpToolService) ListTools() []domain.ToolDefinition {
 	return []domain.ToolDefinition{}
+}
+
+func (s *NoOpToolService) ListAvailableTools() []string {
+	return []string{}
 }
 
 func (s *NoOpToolService) ExecuteTool(ctx context.Context, name string, args map[string]any) (*domain.ToolExecutionResult, error) {

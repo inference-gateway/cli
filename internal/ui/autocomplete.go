@@ -15,6 +15,11 @@ type CommandOption struct {
 	Description string
 }
 
+// CommandRegistry interface for dependency injection
+type CommandRegistry interface {
+	GetAll() []commands.Command
+}
+
 // AutocompleteImpl implements inline autocomplete functionality
 type AutocompleteImpl struct {
 	suggestions     []CommandOption
@@ -25,11 +30,14 @@ type AutocompleteImpl struct {
 	theme           Theme
 	width           int
 	maxVisible      int
-	commandRegistry *commands.Registry
+	commandRegistry CommandRegistry
+	toolService     interface {
+		ListAvailableTools() []string
+	}
 }
 
 // NewAutocomplete creates a new autocomplete component
-func NewAutocomplete(theme Theme, commandRegistry *commands.Registry) *AutocompleteImpl {
+func NewAutocomplete(theme Theme, commandRegistry CommandRegistry) *AutocompleteImpl {
 	return &AutocompleteImpl{
 		suggestions:     []CommandOption{},
 		filtered:        []CommandOption{},
@@ -40,7 +48,15 @@ func NewAutocomplete(theme Theme, commandRegistry *commands.Registry) *Autocompl
 		width:           80,
 		maxVisible:      5,
 		commandRegistry: commandRegistry,
+		toolService:     nil,
 	}
+}
+
+// SetToolService sets the tool service for tool autocomplete
+func (a *AutocompleteImpl) SetToolService(toolService interface {
+	ListAvailableTools() []string
+}) {
+	a.toolService = toolService
 }
 
 // loadCommands loads commands from the registry
@@ -60,13 +76,37 @@ func (a *AutocompleteImpl) loadCommands() {
 	}
 }
 
-// Update handles autocomplete logic
-func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
-	if len(a.suggestions) == 0 {
-		a.loadCommands()
+// loadTools loads tools from the tool service
+func (a *AutocompleteImpl) loadTools() {
+	if a.toolService == nil {
+		return
 	}
 
-	if strings.HasPrefix(inputText, "/") && cursorPos >= 1 {
+	a.suggestions = []CommandOption{}
+	tools := a.toolService.ListAvailableTools()
+
+	for _, tool := range tools {
+		a.suggestions = append(a.suggestions, CommandOption{
+			Command:     "!!" + tool + "(",
+			Description: "Execute " + tool + " tool directly",
+		})
+	}
+}
+
+// Update handles autocomplete logic
+func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
+	if strings.HasPrefix(inputText, "!!") && cursorPos >= 2 {
+		a.loadTools()
+		a.query = inputText[2:cursorPos]
+		a.filterSuggestions()
+		a.visible = len(a.filtered) > 0
+		if a.selected >= len(a.filtered) {
+			a.selected = 0
+		}
+	} else if strings.HasPrefix(inputText, "/") && cursorPos >= 1 {
+		if len(a.suggestions) == 0 || (len(a.suggestions) > 0 && !strings.HasPrefix(a.suggestions[0].Command, "/")) {
+			a.loadCommands()
+		}
 		a.query = inputText[1:cursorPos]
 		a.filterSuggestions()
 		a.visible = len(a.filtered) > 0
@@ -90,7 +130,14 @@ func (a *AutocompleteImpl) filterSuggestions() {
 	}
 
 	for _, cmd := range a.suggestions {
-		commandName := strings.TrimPrefix(cmd.Command, "/")
+		var commandName string
+		if strings.HasPrefix(cmd.Command, "!!") {
+			commandName = strings.TrimPrefix(cmd.Command, "!!")
+			commandName = strings.TrimSuffix(commandName, "(")
+		} else {
+			commandName = strings.TrimPrefix(cmd.Command, "/")
+		}
+
 		if strings.HasPrefix(strings.ToLower(commandName), strings.ToLower(a.query)) {
 			a.filtered = append(a.filtered, cmd)
 		}

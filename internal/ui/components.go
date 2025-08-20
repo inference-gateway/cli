@@ -21,6 +21,20 @@ func CreateInputView(modelService domain.ModelService, commandRegistry *commands
 	return iv
 }
 
+// CreateInputViewWithToolService creates a new input view component with tool service
+func CreateInputViewWithToolService(modelService domain.ModelService, commandRegistry *commands.Registry, toolService domain.ToolService) InputComponent {
+	iv := components.NewInputView(modelService)
+
+	if commandRegistry != nil {
+		autocomplete := NewAutocomplete(NewDefaultTheme(), commandRegistry)
+		if toolService != nil {
+			autocomplete.SetToolService(toolService)
+		}
+		iv.Autocomplete = autocomplete
+	}
+	return iv
+}
+
 // CreateStatusView creates a new status view component
 func CreateStatusView() StatusComponent {
 	return components.NewStatusView()

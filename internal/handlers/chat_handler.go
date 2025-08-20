@@ -160,6 +160,10 @@ func (h *ChatHandler) handleUserInput(
 		return h.handleCommand(msg.Content, stateManager, debugService)
 	}
 
+	if strings.HasPrefix(msg.Content, "!!") {
+		return h.handleToolCommand(msg.Content, stateManager, debugService)
+	}
+
 	if strings.HasPrefix(msg.Content, "!") {
 		return h.handleBashCommand(msg.Content, stateManager, debugService)
 	}
@@ -1300,6 +1304,352 @@ func (h *ChatHandler) handleBashCommand(
 		},
 		h.executeBashCommand(command, stateManager, debugService),
 	)
+}
+
+// handleToolCommand processes tool commands starting with !!
+func (h *ChatHandler) handleToolCommand(
+	commandText string,
+	stateManager *services.StateManager,
+	debugService *services.DebugService,
+) (tea.Model, tea.Cmd) {
+	command := strings.TrimSpace(strings.TrimPrefix(commandText, "!!"))
+
+	if command == "" {
+		return nil, func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  "No tool command provided. Use: !!ToolName(arg=\"value\")",
+				Sticky: false,
+			}
+		}
+	}
+
+	if debugService != nil {
+		debugService.LogEvent(
+			services.DebugEventTypeCommand,
+			h.name,
+			"Processing tool command",
+			map[string]any{
+				"command": command,
+			},
+		)
+	}
+
+	toolName, args, err := h.parseToolCall(command)
+	if err != nil {
+		return nil, func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  fmt.Sprintf("Invalid tool syntax: %v. Use: !!ToolName(arg=\"value\")", err),
+				Sticky: false,
+			}
+		}
+	}
+
+	if !h.toolService.IsToolEnabled(toolName) {
+		return nil, func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  fmt.Sprintf("Tool '%s' is not enabled. Check 'infer config tools list' for available tools.", toolName),
+				Sticky: false,
+			}
+		}
+	}
+
+	userEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: commandText,
+		},
+		Time: time.Now(),
+	}
+
+	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
+		if debugService != nil {
+			debugService.LogError(err, h.name, map[string]any{
+				"operation": "add_tool_command_message",
+			})
+		}
+		return nil, func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  fmt.Sprintf("Failed to save message: %v", err),
+				Sticky: false,
+			}
+		}
+	}
+
+	return nil, tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    fmt.Sprintf("Executing tool: %s", toolName),
+				Spinner:    true,
+				StatusType: shared.StatusWorking,
+			}
+		},
+		h.executeToolDirectly(toolName, args, stateManager, debugService),
+	)
+}
+
+// parseToolCall parses a tool call in the format ToolName(arg="value", arg2="value2")
+func (h *ChatHandler) parseToolCall(input string) (string, map[string]any, error) {
+	// Find the opening parenthesis to separate tool name from arguments
+	parenIndex := strings.Index(input, "(")
+	if parenIndex == -1 {
+		return "", nil, fmt.Errorf("missing opening parenthesis")
+	}
+
+	toolName := strings.TrimSpace(input[:parenIndex])
+	if toolName == "" {
+		return "", nil, fmt.Errorf("missing tool name")
+	}
+
+	argsStr := strings.TrimSpace(input[parenIndex+1:])
+	if !strings.HasSuffix(argsStr, ")") {
+		return "", nil, fmt.Errorf("missing closing parenthesis")
+	}
+
+	argsStr = strings.TrimSuffix(argsStr, ")")
+	argsStr = strings.TrimSpace(argsStr)
+
+	args := make(map[string]any)
+	if argsStr == "" {
+		return toolName, args, nil
+	}
+
+	parsedArgs, err := h.parseArguments(argsStr)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to parse arguments: %v", err)
+	}
+
+	return toolName, parsedArgs, nil
+}
+
+// parseArguments parses function arguments in the format key="value", key2="value2"
+func (h *ChatHandler) parseArguments(argsStr string) (map[string]any, error) {
+	args := make(map[string]any)
+
+	if argsStr == "" {
+		return args, nil
+	}
+
+	// Simple regex-based parser for key="value" format
+	argPattern := regexp.MustCompile(`(\w+)=("[^"]*"|'[^']*'|\w+)`)
+	matches := argPattern.FindAllStringSubmatch(argsStr, -1)
+
+	for _, match := range matches {
+		if len(match) != 3 {
+			continue
+		}
+
+		key := match[1]
+		value := match[2]
+
+		// Remove quotes if present
+		if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) ||
+			(strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
+			value = value[1 : len(value)-1]
+		}
+
+		args[key] = value
+	}
+
+	return args, nil
+}
+
+// executeToolDirectly executes a tool directly and adds the result to conversation history
+func (h *ChatHandler) executeToolDirectly(
+	toolName string,
+	args map[string]any,
+	_ *services.StateManager,
+	debugService *services.DebugService,
+) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+		startTime := time.Now()
+
+		if debugService != nil {
+			debugService.LogToolExecution(toolName, "direct_execution_started", map[string]any{
+				"tool_name": toolName,
+				"args":      args,
+			})
+		}
+
+		if err := h.toolService.ValidateTool(toolName, args); err != nil {
+			return h.handleToolValidationError(debugService, toolName, err)
+		}
+
+		result, err := h.toolService.ExecuteTool(ctx, toolName, args)
+		duration := time.Since(startTime)
+
+		if err != nil {
+			return h.handleToolExecutionError(debugService, toolName, duration, err)
+		}
+
+		if debugService != nil {
+			debugService.LogToolExecution(toolName, "direct_execution_completed", map[string]any{
+				"tool_name": toolName,
+				"success":   result.Success,
+				"duration":  duration.String(),
+			})
+		}
+
+		responseContent := h.formatToolResponse(toolName, result)
+		h.addToolResponseToHistory(debugService, responseContent)
+
+		return h.createToolUIUpdate(result.Success, toolName)
+	}
+}
+
+// handleToolValidationError handles tool validation errors
+func (h *ChatHandler) handleToolValidationError(debugService *services.DebugService, toolName string, err error) tea.Msg {
+	if debugService != nil {
+		debugService.LogError(err, h.name, map[string]any{
+			"operation": "validate_tool_command",
+			"tool_name": toolName,
+		})
+	}
+
+	errorEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: fmt.Sprintf("❌ Tool validation error: %v", err),
+		},
+		Model: h.modelService.GetCurrentModel(),
+		Time:  time.Now(),
+	}
+
+	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil && debugService != nil {
+		debugService.LogError(addErr, h.name, map[string]any{
+			"operation": "add_error_message",
+		})
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  fmt.Sprintf("Tool validation failed: %v", err),
+				Sticky: false,
+			}
+		},
+	)()
+}
+
+// handleToolExecutionError handles tool execution errors
+func (h *ChatHandler) handleToolExecutionError(debugService *services.DebugService, toolName string, duration time.Duration, err error) tea.Msg {
+	if debugService != nil {
+		debugService.LogError(err, h.name, map[string]any{
+			"operation": "execute_tool_command",
+			"tool_name": toolName,
+			"duration":  duration.String(),
+		})
+	}
+
+	errorEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: fmt.Sprintf("❌ Tool execution failed: %v", err),
+		},
+		Model: h.modelService.GetCurrentModel(),
+		Time:  time.Now(),
+	}
+
+	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil && debugService != nil {
+		debugService.LogError(addErr, h.name, map[string]any{
+			"operation": "add_error_message",
+		})
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error:  fmt.Sprintf("Tool execution failed: %v", err),
+				Sticky: false,
+			}
+		},
+	)()
+}
+
+// formatToolResponse formats tool execution results for display
+func (h *ChatHandler) formatToolResponse(toolName string, result *domain.ToolExecutionResult) string {
+	if result.Success {
+		responseContent := fmt.Sprintf("✅ Tool '%s' executed successfully", toolName)
+		if result.Data != nil {
+			switch data := result.Data.(type) {
+			case *domain.BashToolResult:
+				responseContent += fmt.Sprintf(":\n\n```bash\n$ %s\n```\n\n", data.Command)
+				if data.Output != "" {
+					responseContent += fmt.Sprintf("**Output:**\n```\n%s\n```", strings.TrimSpace(data.Output))
+				}
+			case *domain.FileReadToolResult:
+				responseContent += fmt.Sprintf(":\n\n**File:** %s\n```\n%s\n```", data.FilePath, data.Content)
+			case *domain.FileWriteToolResult:
+				responseContent += fmt.Sprintf(":\n\n**File:** %s (%d bytes written)", data.FilePath, data.BytesWritten)
+			default:
+				// Add generic data display for other tool types
+				responseContent += fmt.Sprintf(":\n\nTool executed successfully")
+			}
+		}
+		return responseContent
+	} else {
+		responseContent := fmt.Sprintf("❌ Tool '%s' failed", toolName)
+		if result.Error != "" {
+			responseContent += fmt.Sprintf(": %s", result.Error)
+		}
+		return responseContent
+	}
+}
+
+// addToolResponseToHistory adds tool response to conversation history
+func (h *ChatHandler) addToolResponseToHistory(debugService *services.DebugService, responseContent string) {
+	assistantEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: responseContent,
+		},
+		Model: h.modelService.GetCurrentModel(),
+		Time:  time.Now(),
+	}
+
+	if err := h.conversationRepo.AddMessage(assistantEntry); err != nil && debugService != nil {
+		debugService.LogError(err, h.name, map[string]any{
+			"operation": "add_tool_response_message",
+		})
+	}
+}
+
+// createToolUIUpdate creates UI update for tool execution
+func (h *ChatHandler) createToolUIUpdate(success bool, toolName string) tea.Msg {
+	statusMsg := fmt.Sprintf("Tool '%s' completed", toolName)
+	if !success {
+		statusMsg = fmt.Sprintf("Tool '%s' failed", toolName)
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    statusMsg,
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		},
+	)()
 }
 
 // executeBashCommand executes a bash command using the tool service

@@ -56,6 +56,25 @@ internal/:
 - Scrollable history (↑↓/k/j, PgUp/PgDn, Home/End)
 - Token tracking (per-request & session totals)
 - Commands: `/clear`, `/compact`, `/exit`
+- Bash mode: `!command` for direct shell execution
+- Tools mode: `!!ToolName(arg="value")` for direct tool execution
+
+## Tools Mode
+
+Access tools directly in chat with `!!` prefix:
+
+- `!!Read(file_path="path/to/file")`: Read file contents
+- `!!Write(file_path="path", content="text")`: Write to file
+- `!!Bash(command="ls -la")`: Execute bash command
+- `!!WebSearch(query="search term")`: Search the web
+- `!!Tree()`: Show directory tree
+- `!!Grep(pattern="text", path=".")`: Search in files
+
+Features:
+- Tab autocompletion for available tools
+- Real-time tool execution in chat context
+- Structured argument parsing: `key="value"` format
+- Error handling and validation
 
 ## Security
 

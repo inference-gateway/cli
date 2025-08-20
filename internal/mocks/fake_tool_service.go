@@ -45,6 +45,16 @@ type FakeToolService struct {
 	listToolsReturnsOnCall map[int]struct {
 		result1 []domain.ToolDefinition
 	}
+	ListAvailableToolsStub        func() []string
+	listAvailableToolsMutex       sync.RWMutex
+	listAvailableToolsArgsForCall []struct {
+	}
+	listAvailableToolsReturns struct {
+		result1 []string
+	}
+	listAvailableToolsReturnsOnCall map[int]struct {
+		result1 []string
+	}
 	ValidateToolStub        func(string, map[string]any) error
 	validateToolMutex       sync.RWMutex
 	validateToolArgsForCall []struct {
@@ -238,6 +248,59 @@ func (fake *FakeToolService) ListToolsReturnsOnCall(i int, result1 []domain.Tool
 	}
 	fake.listToolsReturnsOnCall[i] = struct {
 		result1 []domain.ToolDefinition
+	}{result1}
+}
+
+func (fake *FakeToolService) ListAvailableTools() []string {
+	fake.listAvailableToolsMutex.Lock()
+	ret, specificReturn := fake.listAvailableToolsReturnsOnCall[len(fake.listAvailableToolsArgsForCall)]
+	fake.listAvailableToolsArgsForCall = append(fake.listAvailableToolsArgsForCall, struct {
+	}{})
+	stub := fake.ListAvailableToolsStub
+	fakeReturns := fake.listAvailableToolsReturns
+	fake.recordInvocation("ListAvailableTools", []interface{}{})
+	fake.listAvailableToolsMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeToolService) ListAvailableToolsCallCount() int {
+	fake.listAvailableToolsMutex.RLock()
+	defer fake.listAvailableToolsMutex.RUnlock()
+	return len(fake.listAvailableToolsArgsForCall)
+}
+
+func (fake *FakeToolService) ListAvailableToolsCalls(stub func() []string) {
+	fake.listAvailableToolsMutex.Lock()
+	defer fake.listAvailableToolsMutex.Unlock()
+	fake.ListAvailableToolsStub = stub
+}
+
+func (fake *FakeToolService) ListAvailableToolsReturns(result1 []string) {
+	fake.listAvailableToolsMutex.Lock()
+	defer fake.listAvailableToolsMutex.Unlock()
+	fake.ListAvailableToolsStub = nil
+	fake.listAvailableToolsReturns = struct {
+		result1 []string
+	}{result1}
+}
+
+func (fake *FakeToolService) ListAvailableToolsReturnsOnCall(i int, result1 []string) {
+	fake.listAvailableToolsMutex.Lock()
+	defer fake.listAvailableToolsMutex.Unlock()
+	fake.ListAvailableToolsStub = nil
+	if fake.listAvailableToolsReturnsOnCall == nil {
+		fake.listAvailableToolsReturnsOnCall = make(map[int]struct {
+			result1 []string
+		})
+	}
+	fake.listAvailableToolsReturnsOnCall[i] = struct {
+		result1 []string
 	}{result1}
 }
 
