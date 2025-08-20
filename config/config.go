@@ -226,6 +226,8 @@ func DefaultConfig() *Config { //nolint:funlen
 						"^git add [a-zA-Z0-9/_.-]+$",
 						"^git status$",
 						"^git log --oneline -n [0-9]+$",
+						"^git commit -m \".+\"$",
+						"^git push$",
 						"^docker ps$",
 						"^kubectl get pods$",
 					},
