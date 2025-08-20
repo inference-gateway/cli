@@ -331,7 +331,6 @@ func TestDeleteTool_Execute_Wildcard(t *testing.T) {
 	}
 }
 
-
 func TestDeleteTool_Execute_NonExistentFile(t *testing.T) {
 	tempDir, err := os.MkdirTemp("", "delete-tool-test")
 	if err != nil {

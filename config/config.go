@@ -501,33 +501,28 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 		return fmt.Errorf("no sandbox directories configured")
 	}
 
-	// Check if the path matches any protected paths first
 	if err := c.checkProtectedPaths(path); err != nil {
 		return err
 	}
 
-	// Get the absolute path for comparison
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
 	}
 
-	// Check if the path is within any of the sandbox directories
 	for _, sandboxDir := range c.Tools.Sandbox.Directories {
 		absSandboxDir, err := filepath.Abs(sandboxDir)
 		if err != nil {
-			continue // Skip invalid sandbox directories
+			continue
 		}
 
-		// Check if the path is within this sandbox directory
 		relPath, err := filepath.Rel(absSandboxDir, absPath)
 		if err != nil {
 			continue
 		}
 
-		// If the relative path doesn't start with "..", it's within the sandbox
 		if !strings.HasPrefix(relPath, "..") {
-			return nil // Path is valid
+			return nil
 		}
 	}
 
@@ -539,12 +534,10 @@ func (c *Config) checkProtectedPaths(path string) error {
 	normalizedPath := filepath.ToSlash(filepath.Clean(path))
 
 	for _, protectedPath := range c.Tools.Sandbox.ProtectedPaths {
-		// Handle exact matches
 		if normalizedPath == strings.TrimSuffix(protectedPath, "/") {
 			return fmt.Errorf("access to path '%s' is excluded for security", path)
 		}
 
-		// Handle directory patterns (ending with /)
 		if strings.HasSuffix(protectedPath, "/") {
 			dirPattern := strings.TrimSuffix(protectedPath, "/")
 			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
@@ -552,7 +545,6 @@ func (c *Config) checkProtectedPaths(path string) error {
 			}
 		}
 
-		// Handle wildcard patterns (ending with /*)
 		if strings.HasSuffix(protectedPath, "/*") {
 			dirPattern := strings.TrimSuffix(protectedPath, "/*")
 			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
@@ -560,7 +552,6 @@ func (c *Config) checkProtectedPaths(path string) error {
 			}
 		}
 
-		// Handle file wildcard patterns (like *.secret)
 		if strings.Contains(protectedPath, "*") {
 			matched, err := filepath.Match(protectedPath, filepath.Base(normalizedPath))
 			if err == nil && matched {

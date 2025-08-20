@@ -242,6 +242,7 @@ func testBasicValidation(t *testing.T, tool *ReadTool) {
 }
 
 func testPathSecurity(t *testing.T, tool *ReadTool) {
+	wd, _ := os.Getwd()
 	tests := []struct {
 		name      string
 		args      map[string]interface{}
@@ -257,7 +258,7 @@ func testPathSecurity(t *testing.T, tool *ReadTool) {
 		{
 			name: "excluded pattern",
 			args: map[string]interface{}{
-				"file_path": "/home/user/.env.database",
+				"file_path": filepath.Join(wd, ".env"),
 			},
 			wantError: true,
 		},

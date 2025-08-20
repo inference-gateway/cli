@@ -13,10 +13,8 @@ tools:
       - .
     protected_paths:
       - .infer/
-      - .infer/*
       - .git/
-      - .git/*
-      - '*.secret'
+      - '*.env'
   bash:
     enabled: true
     whitelist:
