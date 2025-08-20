@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/commands"
+	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
@@ -33,6 +34,7 @@ type AutocompleteImpl struct {
 	commandRegistry CommandRegistry
 	toolService     interface {
 		ListAvailableTools() []string
+		ListTools() []domain.ToolDefinition
 	}
 }
 
@@ -55,6 +57,7 @@ func NewAutocomplete(theme Theme, commandRegistry CommandRegistry) *Autocomplete
 // SetToolService sets the tool service for tool autocomplete
 func (a *AutocompleteImpl) SetToolService(toolService interface {
 	ListAvailableTools() []string
+	ListTools() []domain.ToolDefinition
 }) {
 	a.toolService = toolService
 }
@@ -76,21 +79,121 @@ func (a *AutocompleteImpl) loadCommands() {
 	}
 }
 
-// loadTools loads tools from the tool service
+// loadTools loads tools from the tool service with their required parameters
 func (a *AutocompleteImpl) loadTools() {
 	if a.toolService == nil {
 		return
 	}
 
 	a.suggestions = []CommandOption{}
-	tools := a.toolService.ListAvailableTools()
 
-	for _, tool := range tools {
+	availableTools := a.toolService.ListAvailableTools()
+	toolDefinitions := a.toolService.ListTools()
+
+	toolDefMap := make(map[string]domain.ToolDefinition)
+	for _, toolDef := range toolDefinitions {
+		toolDefMap[toolDef.Name] = toolDef
+	}
+
+	for _, toolName := range availableTools {
+		var template string
+		if toolDef, exists := toolDefMap[toolName]; exists {
+			template = a.generateToolTemplate(toolDef)
+		} else {
+			template = "!!" + toolName + "("
+		}
+
 		a.suggestions = append(a.suggestions, CommandOption{
-			Command:     "!!" + tool + "(",
-			Description: "Execute " + tool + " tool directly",
+			Command:     template,
+			Description: "Execute " + toolName + " tool directly",
 		})
 	}
+}
+
+// generateToolTemplate creates a complete tool template with required arguments
+func (a *AutocompleteImpl) generateToolTemplate(toolDef domain.ToolDefinition) string {
+	template := "!!" + toolDef.Name + "("
+
+	if params, ok := toolDef.Parameters.(map[string]any); ok {
+		requiredArgs := a.extractRequiredArguments(params)
+		if len(requiredArgs) > 0 {
+			template += strings.Join(requiredArgs, ", ")
+		}
+	}
+
+	template += ")"
+	return template
+}
+
+// extractRequiredArguments extracts required arguments from parameters
+func (a *AutocompleteImpl) extractRequiredArguments(params map[string]any) []string {
+	var requiredArgs []string
+
+	var properties map[string]any
+	if props, ok := params["properties"].(map[string]any); ok {
+		properties = props
+	}
+
+	if requiredRaw, exists := params["required"]; exists {
+		switch required := requiredRaw.(type) {
+		case []any:
+			requiredArgs = a.processAnySlice(required, properties)
+		case []string:
+			requiredArgs = a.processStringSlice(required, properties)
+		}
+	}
+
+	return requiredArgs
+}
+
+// processAnySlice processes a slice of any type for required arguments
+func (a *AutocompleteImpl) processAnySlice(required []any, properties map[string]any) []string {
+	var args []string
+	for _, req := range required {
+		if reqStr, ok := req.(string); ok {
+			argTemplate := a.generateArgumentTemplate(reqStr, properties)
+			if argTemplate != "" {
+				args = append(args, argTemplate)
+			}
+		}
+	}
+	return args
+}
+
+// processStringSlice processes a slice of strings for required arguments
+func (a *AutocompleteImpl) processStringSlice(required []string, properties map[string]any) []string {
+	var args []string
+	for _, req := range required {
+		argTemplate := a.generateArgumentTemplate(req, properties)
+		if argTemplate != "" {
+			args = append(args, argTemplate)
+		}
+	}
+	return args
+}
+
+// generateArgumentTemplate creates the appropriate template for a parameter based on its type
+func (a *AutocompleteImpl) generateArgumentTemplate(paramName string, properties map[string]any) string {
+	if properties == nil {
+		return paramName + "=\"\""
+	}
+
+	if paramDef, ok := properties[paramName].(map[string]any); ok {
+		if paramType, ok := paramDef["type"].(string); ok {
+			switch paramType {
+			case "string":
+				return paramName + "=\"\""
+			case "integer", "number":
+				return ""
+			case "boolean":
+				return paramName + "=false"
+			default:
+				return paramName + "=\"\""
+			}
+		}
+	}
+
+	return paramName + "=\"\""
 }
 
 // Update handles autocomplete logic
@@ -132,9 +235,11 @@ func (a *AutocompleteImpl) filterSuggestions() {
 
 	for _, cmd := range a.suggestions {
 		var commandName string
-		if strings.HasPrefix(cmd.Command, "!!") {
-			commandName = strings.TrimPrefix(cmd.Command, "!!")
-			commandName = strings.TrimSuffix(commandName, "(")
+		if name, found := strings.CutPrefix(cmd.Command, "!!"); found {
+			commandName = name
+			if idx := strings.Index(commandName, "("); idx != -1 {
+				commandName = commandName[:idx]
+			}
 		} else {
 			commandName = strings.TrimPrefix(cmd.Command, "/")
 		}

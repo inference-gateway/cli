@@ -5,19 +5,10 @@ import (
 	"testing"
 
 	"github.com/inference-gateway/cli/internal/commands"
+	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
-
-// MockToolService implements the ToolService interface for testing
-type MockToolService struct {
-	mock.Mock
-}
-
-func (m *MockToolService) ListAvailableTools() []string {
-	args := m.Called()
-	return args.Get(0).([]string)
-}
 
 // MockCommandRegistry implements the CommandRegistry interface for testing
 type MockCommandRegistry struct {
@@ -67,6 +58,37 @@ func (m MockTheme) GetDimColor() string        { return "#808080" }
 func (m MockTheme) GetBorderColor() string     { return "#FFFFFF" }
 func (m MockTheme) GetDiffAddColor() string    { return "#00FF00" }
 func (m MockTheme) GetDiffRemoveColor() string { return "#FF0000" }
+
+// MockToolService implements the ToolService interface for testing
+type MockToolService struct {
+	availableTools []string
+	tools          []domain.ToolDefinition
+}
+
+func (m *MockToolService) ListAvailableTools() []string {
+	return m.availableTools
+}
+
+func (m *MockToolService) ListTools() []domain.ToolDefinition {
+	return m.tools
+}
+
+func (m *MockToolService) ListAvailableToolsReturns(tools []string) {
+	m.availableTools = tools
+}
+
+func (m *MockToolService) ListToolsReturns(tools []domain.ToolDefinition) {
+	m.tools = tools
+}
+
+// Add other required methods to satisfy the interface
+func (m *MockToolService) GetTool(name string) (domain.Tool, error) { return nil, nil }
+func (m *MockToolService) ExecuteTool(ctx context.Context, name string, input map[string]any) (*domain.ToolExecutionResult, error) {
+	return nil, nil
+}
+func (m *MockToolService) IsToolEnabled(name string) bool                 { return true }
+func (m *MockToolService) SetToolEnabled(name string, enabled bool) error { return nil }
+func (m *MockToolService) ValidateToolsConfig() error                     { return nil }
 
 func TestAutocomplete_CommandMode(t *testing.T) {
 	mockRegistry := &MockCommandRegistry{}
@@ -133,9 +155,56 @@ func TestAutocomplete_CommandMode(t *testing.T) {
 func TestAutocomplete_ToolsMode(t *testing.T) {
 	mockRegistry := &MockCommandRegistry{}
 	mockToolService := &MockToolService{}
-
-	mockToolService.On("ListAvailableTools").Return([]string{
+	mockToolService.ListAvailableToolsReturns([]string{
 		"Read", "Write", "Bash", "WebSearch", "Tree",
+	})
+	mockToolService.ListToolsReturns([]domain.ToolDefinition{
+		{
+			Name:        "Read",
+			Description: "Read files",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"file_path": map[string]any{
+						"type":        "string",
+						"description": "The path to the file to read",
+					},
+				},
+				"required": []string{"file_path"},
+			},
+		},
+		{
+			Name:        "Write",
+			Description: "Write files",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"file_path": map[string]any{
+						"type":        "string",
+						"description": "The path to the file to write",
+					},
+					"content": map[string]any{
+						"type":        "string",
+						"description": "The content to write",
+					},
+				},
+				"required": []string{"file_path", "content"},
+			},
+		},
+		{
+			Name:        "Bash",
+			Description: "Execute bash commands",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"command": map[string]any{
+						"type":        "string",
+						"description": "The command to execute",
+					},
+				},
+				"required": []string{"command"},
+			},
+		},
 	})
 
 	theme := MockTheme{}
@@ -156,7 +225,7 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 			cursorPos:       2,
 			expectedVisible: true,
 			expectedCount:   5,
-			expectedTools:   []string{"!!Read(", "!!Write(", "!!Bash(", "!!WebSearch(", "!!Tree("},
+			expectedTools:   []string{"!!Read(file_path=\"\")", "!!Write(file_path=\"\", content=\"\")", "!!Bash(command=\"\")", "!!WebSearch(", "!!Tree("},
 		},
 		{
 			name:            "Partial tool match",
@@ -164,7 +233,7 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 			cursorPos:       4,
 			expectedVisible: true,
 			expectedCount:   1, // Read
-			expectedTools:   []string{"!!Read("},
+			expectedTools:   []string{"!!Read(file_path=\"\")"},
 		},
 		{
 			name:            "Case insensitive tool match",
@@ -208,12 +277,9 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 		})
 	}
 
-	mockToolService.AssertExpectations(t)
 }
 
 func TestAutocomplete_KeyHandling(t *testing.T) {
-	// Note: Key handling tests are simplified due to tea.KeyMsg complexity
-	// Focus on testing the core autocomplete logic instead
 	mockRegistry := &MockCommandRegistry{}
 	mockRegistry.On("GetAll").Return([]commands.Command{
 		MockCommand{name: "help", description: "Show help"},
@@ -223,16 +289,13 @@ func TestAutocomplete_KeyHandling(t *testing.T) {
 	theme := MockTheme{}
 	autocomplete := NewAutocomplete(theme, mockRegistry)
 
-	// Test basic visibility and selection state
 	autocomplete.Update("/", 1)
 	assert.True(t, autocomplete.IsVisible())
-	assert.Equal(t, 0, autocomplete.selected) // First item selected by default
+	assert.Equal(t, 0, autocomplete.selected)
 
-	// Test that GetSelectedCommand works
 	selectedCmd := autocomplete.GetSelectedCommand()
 	assert.Equal(t, "/help", selectedCmd)
 
-	// Test Hide functionality
 	autocomplete.Hide()
 	assert.False(t, autocomplete.IsVisible())
 
@@ -240,10 +303,8 @@ func TestAutocomplete_KeyHandling(t *testing.T) {
 }
 
 func TestAutocomplete_FilterSuggestions(t *testing.T) {
-	// Test the tool vs command filtering logic
 	autocomplete := &AutocompleteImpl{}
 
-	// Test command filtering
 	autocomplete.suggestions = []CommandOption{
 		{Command: "/help", Description: "Show help"},
 		{Command: "/clear", Description: "Clear screen"},
@@ -254,7 +315,6 @@ func TestAutocomplete_FilterSuggestions(t *testing.T) {
 	assert.Equal(t, 1, len(autocomplete.filtered))
 	assert.Equal(t, "/help", autocomplete.filtered[0].Command)
 
-	// Test tool filtering
 	autocomplete.suggestions = []CommandOption{
 		{Command: "!!Read(", Description: "Execute Read tool directly"},
 		{Command: "!!WebSearch(", Description: "Execute WebSearch tool directly"},

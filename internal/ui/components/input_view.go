@@ -323,13 +323,26 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (iv *InputView) handleAutocomplete(completion string) (tea.Model, tea.Cmd) {
 	if completion != "" {
 		iv.text = completion
-		iv.cursor = len(completion)
+		iv.setCursorPosition(completion)
 		if iv.Autocomplete != nil {
 			iv.Autocomplete.Hide()
 		}
 		return iv, nil
 	}
 	return iv, nil
+}
+
+// setCursorPosition sets the appropriate cursor position based on completion content
+func (iv *InputView) setCursorPosition(completion string) {
+	if strings.Contains(completion, `=""`) {
+		if idx := strings.Index(completion, `=""`); idx != -1 {
+			iv.cursor = idx + 2
+		} else {
+			iv.cursor = len(completion)
+		}
+	} else {
+		iv.cursor = len(completion)
+	}
 }
 
 func (iv *InputView) CanHandle(key tea.KeyMsg) bool {

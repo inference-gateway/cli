@@ -1434,7 +1434,6 @@ func (h *ChatHandler) parseArguments(argsStr string) (map[string]any, error) {
 		return args, nil
 	}
 
-	// Simple regex-based parser for key="value" format
 	argPattern := regexp.MustCompile(`(\w+)=("[^"]*"|'[^']*'|\w+)`)
 	matches := argPattern.FindAllStringSubmatch(argsStr, -1)
 
@@ -1446,7 +1445,6 @@ func (h *ChatHandler) parseArguments(argsStr string) (map[string]any, error) {
 		key := match[1]
 		value := match[2]
 
-		// Remove quotes if present
 		if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) ||
 			(strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
 			value = value[1 : len(value)-1]
@@ -1607,7 +1605,6 @@ func (h *ChatHandler) formatToolResponse(toolName string, result *domain.ToolExe
 	case *domain.FileWriteToolResult:
 		responseContent += fmt.Sprintf(":\n\n**File:** %s (%d bytes written)", data.FilePath, data.BytesWritten)
 	default:
-		// Add generic data display for other tool types
 		responseContent += ":\n\nTool executed successfully"
 	}
 	return responseContent
@@ -1950,7 +1947,6 @@ func (h *ChatHandler) handleFileSelectionRequest(
 		}
 	}
 
-	// Transition to file selection view
 	if err := stateManager.TransitionToView(domain.ViewStateFileSelection); err != nil {
 		if debugService != nil && debugService.IsEnabled() {
 			debugService.LogEvent(

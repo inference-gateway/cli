@@ -35,16 +35,6 @@ type FakeToolService struct {
 	isToolEnabledReturnsOnCall map[int]struct {
 		result1 bool
 	}
-	ListToolsStub        func() []domain.ToolDefinition
-	listToolsMutex       sync.RWMutex
-	listToolsArgsForCall []struct {
-	}
-	listToolsReturns struct {
-		result1 []domain.ToolDefinition
-	}
-	listToolsReturnsOnCall map[int]struct {
-		result1 []domain.ToolDefinition
-	}
 	ListAvailableToolsStub        func() []string
 	listAvailableToolsMutex       sync.RWMutex
 	listAvailableToolsArgsForCall []struct {
@@ -54,6 +44,16 @@ type FakeToolService struct {
 	}
 	listAvailableToolsReturnsOnCall map[int]struct {
 		result1 []string
+	}
+	ListToolsStub        func() []domain.ToolDefinition
+	listToolsMutex       sync.RWMutex
+	listToolsArgsForCall []struct {
+	}
+	listToolsReturns struct {
+		result1 []domain.ToolDefinition
+	}
+	listToolsReturnsOnCall map[int]struct {
+		result1 []domain.ToolDefinition
 	}
 	ValidateToolStub        func(string, map[string]any) error
 	validateToolMutex       sync.RWMutex
@@ -198,59 +198,6 @@ func (fake *FakeToolService) IsToolEnabledReturnsOnCall(i int, result1 bool) {
 	}{result1}
 }
 
-func (fake *FakeToolService) ListTools() []domain.ToolDefinition {
-	fake.listToolsMutex.Lock()
-	ret, specificReturn := fake.listToolsReturnsOnCall[len(fake.listToolsArgsForCall)]
-	fake.listToolsArgsForCall = append(fake.listToolsArgsForCall, struct {
-	}{})
-	stub := fake.ListToolsStub
-	fakeReturns := fake.listToolsReturns
-	fake.recordInvocation("ListTools", []interface{}{})
-	fake.listToolsMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeToolService) ListToolsCallCount() int {
-	fake.listToolsMutex.RLock()
-	defer fake.listToolsMutex.RUnlock()
-	return len(fake.listToolsArgsForCall)
-}
-
-func (fake *FakeToolService) ListToolsCalls(stub func() []domain.ToolDefinition) {
-	fake.listToolsMutex.Lock()
-	defer fake.listToolsMutex.Unlock()
-	fake.ListToolsStub = stub
-}
-
-func (fake *FakeToolService) ListToolsReturns(result1 []domain.ToolDefinition) {
-	fake.listToolsMutex.Lock()
-	defer fake.listToolsMutex.Unlock()
-	fake.ListToolsStub = nil
-	fake.listToolsReturns = struct {
-		result1 []domain.ToolDefinition
-	}{result1}
-}
-
-func (fake *FakeToolService) ListToolsReturnsOnCall(i int, result1 []domain.ToolDefinition) {
-	fake.listToolsMutex.Lock()
-	defer fake.listToolsMutex.Unlock()
-	fake.ListToolsStub = nil
-	if fake.listToolsReturnsOnCall == nil {
-		fake.listToolsReturnsOnCall = make(map[int]struct {
-			result1 []domain.ToolDefinition
-		})
-	}
-	fake.listToolsReturnsOnCall[i] = struct {
-		result1 []domain.ToolDefinition
-	}{result1}
-}
-
 func (fake *FakeToolService) ListAvailableTools() []string {
 	fake.listAvailableToolsMutex.Lock()
 	ret, specificReturn := fake.listAvailableToolsReturnsOnCall[len(fake.listAvailableToolsArgsForCall)]
@@ -301,6 +248,59 @@ func (fake *FakeToolService) ListAvailableToolsReturnsOnCall(i int, result1 []st
 	}
 	fake.listAvailableToolsReturnsOnCall[i] = struct {
 		result1 []string
+	}{result1}
+}
+
+func (fake *FakeToolService) ListTools() []domain.ToolDefinition {
+	fake.listToolsMutex.Lock()
+	ret, specificReturn := fake.listToolsReturnsOnCall[len(fake.listToolsArgsForCall)]
+	fake.listToolsArgsForCall = append(fake.listToolsArgsForCall, struct {
+	}{})
+	stub := fake.ListToolsStub
+	fakeReturns := fake.listToolsReturns
+	fake.recordInvocation("ListTools", []interface{}{})
+	fake.listToolsMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeToolService) ListToolsCallCount() int {
+	fake.listToolsMutex.RLock()
+	defer fake.listToolsMutex.RUnlock()
+	return len(fake.listToolsArgsForCall)
+}
+
+func (fake *FakeToolService) ListToolsCalls(stub func() []domain.ToolDefinition) {
+	fake.listToolsMutex.Lock()
+	defer fake.listToolsMutex.Unlock()
+	fake.ListToolsStub = stub
+}
+
+func (fake *FakeToolService) ListToolsReturns(result1 []domain.ToolDefinition) {
+	fake.listToolsMutex.Lock()
+	defer fake.listToolsMutex.Unlock()
+	fake.ListToolsStub = nil
+	fake.listToolsReturns = struct {
+		result1 []domain.ToolDefinition
+	}{result1}
+}
+
+func (fake *FakeToolService) ListToolsReturnsOnCall(i int, result1 []domain.ToolDefinition) {
+	fake.listToolsMutex.Lock()
+	defer fake.listToolsMutex.Unlock()
+	fake.ListToolsStub = nil
+	if fake.listToolsReturnsOnCall == nil {
+		fake.listToolsReturnsOnCall = make(map[int]struct {
+			result1 []domain.ToolDefinition
+		})
+	}
+	fake.listToolsReturnsOnCall[i] = struct {
+		result1 []domain.ToolDefinition
 	}{result1}
 }
 
