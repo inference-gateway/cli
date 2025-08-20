@@ -217,9 +217,13 @@ func DefaultConfig() *Config { //nolint:funlen
 					Commands: []string{
 						"ls", "pwd", "echo",
 						"wc", "sort", "uniq",
-						"gh", "task",
+						"task",
 					},
 					Patterns: []string{
+						"^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$",
+						"^git checkout [a-zA-Z0-9/_-]+",
+						"^git add .$",
+						"^git add [a-zA-Z0-9/_.-]+$",
 						"^git status$",
 						"^git log --oneline -n [0-9]+$",
 						"^docker ps$",

@@ -24,9 +24,12 @@ tools:
         - wc
         - sort
         - uniq
-        - gh
         - task
       patterns:
+        - ^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$
+        - ^git checkout [a-zA-Z0-9/_-]+
+        - ^git add .$
+        - ^git add [a-zA-Z0-9/_.-]+$
         - ^git status$
         - ^git log --oneline -n [0-9]+$
         - ^docker ps$
