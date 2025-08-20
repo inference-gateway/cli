@@ -31,11 +31,10 @@ tools:
         - ^git add [a-zA-Z0-9/_.-]+$
         - ^git diff+$
         - ^git remote -v$
-        - ^git push --set-upstream origin+$
         - ^git status$
         - ^git log --oneline -n [0-9]+$
         - ^git commit -m ".+"$
-        - ^git push+$
+        - ^git push( --set-upstream origin)?( (?!main$|master$)[a-zA-Z0-9/_-]+)?$
   read:
     enabled: true
     require_approval: false
