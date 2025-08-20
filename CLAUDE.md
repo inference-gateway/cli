@@ -1,545 +1,84 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project: Inference Gateway CLI (`infer`)
 
-## Project Overview
+Go CLI for ML inference services with TUI chat, status monitoring, and config management.
 
-This is the Inference Gateway CLI (`infer`), a Go-based command-line tool for managing and interacting with
-machine learning inference services. The CLI provides functionality for status monitoring, interactive chat, and
-configuration management.
+## Dev Commands
 
-## Development Commands
+All commands: `flox activate -- task <command>`
 
-**Note: All commands should be run with `flox activate -- <command>` to ensure the proper development environment is activated.**
-
-**IMPORTANT: Always run `task setup` first when working with a fresh checkout of the repository to ensure all
-dependencies are properly installed.**
-
-### Setup Development Environment
-
-```bash
-flox activate -- task setup
-```
-
-### Building
-
-```bash
-flox activate -- task build
-```
-
-### Testing
-
-```bash
-# Run all tests
-flox activate -- task test
-
-# Run tests with verbose output
-flox activate -- task test:verbose
-
-# Run tests with coverage report
-flox activate -- task test:coverage
-```
-
-### Running locally
-
-```bash
-# Run the CLI with arguments
-flox activate -- task run -- [command]
-
-# Run specific commands
-flox activate -- task run:status
-flox activate -- task run:version
-flox activate -- task run:help
-```
-
-### Installing from source
-
-```bash
-flox activate -- task install
-```
-
-### Code Quality
-
-```bash
-# Format code
-flox activate -- task fmt
-
-# Run linter
-flox activate -- task lint
-
-# Run go vet
-flox activate -- task vet
-
-# Run all quality checks
-flox activate -- task check
-```
-
-### Module Management
-
-```bash
-# Tidy modules
-flox activate -- task mod:tidy
-
-# Download modules
-flox activate -- task mod:download
-```
-
-### Development Workflow
-
-```bash
-# Complete development workflow (format, build, test)
-flox activate -- task dev
-```
-
-### Release
-
-```bash
-# Build release binaries for multiple platforms
-flox activate -- task release:build
-
-# Clean release artifacts
-flox activate -- task clean:release
-```
-
-### Cleanup
-
-```bash
-flox activate -- task clean
-```
-
-### Available Tasks
-
-```bash
-# Show all available tasks
-flox activate -- task --list
-```
+**Setup**: `task setup` (run first)
+**Build**: `task build`
+**Test**: `task test` / `test:verbose` / `test:coverage`
+**Run**: `task run -- [args]` / `run:status` / `run:version`
+**Quality**: `task fmt` / `lint` / `vet` / `check` / `dev`
+**Modules**: `task mod:tidy` / `mod:download`
+**Release**: `task release:build` / `clean:release`
 
 ## Architecture
 
-The project follows a modern SOLID architecture using Bubble Tea for the TUI and dependency injection:
-
-- `main.go`: Entry point that calls `cmd.Execute()`
-- `cmd/`: Contains all CLI command implementations using Cobra
-  - `root.go`: Root command setup with global flags (`--config`, `--verbose`)
-  - `config.go`: Configuration management (`infer config`)
-  - `status.go`: Status monitoring (`infer status`)
-  - `chat.go`: Interactive chat (`infer chat`)
-  - `version.go`: Version information (`infer version`)
-- `config/config.go`: Configuration management with YAML support
-- `internal/`: Internal application architecture
-  - `app/`: Application layer with Bubble Tea models
-  - `handlers/`: Request handlers and routing
-  - `services/`: Business logic services
-  - `ui/`: UI components and interfaces
-  - `domain/`: Domain models and interfaces
-  - `container/`: Dependency injection container
-
-### Configuration System
-
-The CLI uses a project-based YAML configuration file at `.infer/config.yaml` in the current directory with the
-following structure:
-
-```yaml
-gateway:
-  url: "http://localhost:8080"
-  api_key: ""
-  timeout: 30
-logging:
-  debug: false  # Enable debug logging
-tools:
-  enabled: true  # Tools are enabled by default with safe read-only commands
-  sandbox:
-    directories:  # Directories where tools are allowed to operate
-      - "."  # Current directory (default)
-    protected_paths:  # Paths protected from tool access for security
-      - ".infer/"     # Protect infer's own configuration directory
-      - ".git/"       # Protect git repository
-      - "*.env"       # Protect environment files
-  bash:
-    enabled: true
-    whitelist:
-      commands:  # Exact command matches
-        - "pwd"
-        - "echo"
-        - "grep"
-        - "wc"
-        - "sort"
-        - "uniq"
-      patterns:  # Regex patterns for more complex commands
-        - "^git status$"
-        - "^git log --oneline -n [0-9]+$"
-        - "^docker ps$"
-        - "^kubectl get pods$"
-  delete:
-    enabled: true  # Enable delete tool for file/directory deletion
-    require_approval: true  # Require user approval before deletion
-  safety:
-    require_approval: true  # Prompt user before executing any command
-compact:
-  output_dir: ".infer"  # Directory for compact command exports (default: project root/.infer)
-chat:
-  default_model: ""  # Default model for chat sessions (when set, skips model selection)
-  system_prompt: ""  # System prompt included with every chat session
-web_search:
-  enabled: true  # Enable web search tool for LLMs
-  default_engine: "duckduckgo"  # Default search engine (duckduckgo, google)
-  max_results: 10  # Default maximum number of search results
-  engines:  # Available search engines
-    - "duckduckgo"
-    - "google"
-  timeout: 10  # Search timeout in seconds
+```go
+main.go → cmd/Execute()
+cmd/: CLI commands (root, config, status, chat, version)
+config/: YAML configuration
+internal/:
+  app/: Bubble Tea models
+  handlers/: Request handlers
+  services/: Business logic
+  ui/: UI components
+  domain/: Models & interfaces
+  container/: Dependency injection
 ```
 
-### Command Structure
+## Config (.infer/config.yaml)
 
-- Root command: `infer`
-- Global flags: `--config`, `--verbose`
-- Subcommands:
-  - `status`: Gateway status
-  - `chat`: Interactive chat with model selection (or uses default model if configured)
-    - Supports scrollable chat history with mouse wheel and keyboard navigation
-    - Navigation: ↑↓/k/j (line), Page Up/Down (page), Home/End (top/bottom), Shift+↑↓ (half-page)
-    - **Status Bar Token Tracking**: Shows both current API call tokens and cumulative session totals
-      - Displays: "Input: X tokens | Output: Y tokens | Total: Z tokens | Session Input: W tokens"
-      - Session totals accumulate across all API requests in the current chat session
-      - Token counts are reset when using `/clear` command or starting a new session
-  - `config`: Manage CLI configuration
-    - `init [--overwrite]`: Initialize local project configuration
-    - `set-model [MODEL_NAME]`: Set default model for chat sessions
-    - `set-system [SYSTEM_PROMPT]`: Set system prompt for chat sessions
-    - `tools`: Manage tool execution settings
-      - `enable`: Enable tool execution for LLMs
-      - `disable`: Disable tool execution for LLMs
-      - `list [--format text|json]`: List whitelisted commands and patterns
-      - `validate <command>`: Validate if a command is whitelisted
-      - `exec <command> [--format text|json]`: Execute a whitelisted command directly
-      - `safety`: Manage safety approval settings
-        - `enable`: Enable safety approval prompts
-        - `disable`: Disable safety approval prompts
-        - `status`: Show current safety approval status
-      - `sandbox`: Manage sandbox directories where tools can operate
-        - `list`: List all sandbox directories
-        - `add <directory>`: Add a directory to the sandbox
-        - `remove <directory>`: Remove a directory from the sandbox
-  - `version`: Version information
+- **gateway**: url, api_key, timeout
+- **chat**: default_model, system_prompt
+- **tools**: enabled, sandbox dirs, protected paths, safety settings
+- **compact**: output_dir
+- **web_search**: enabled, engine, max_results
+
+## Commands
+
+- `infer init [--overwrite]`: Initialize config
+- `infer config set-model MODEL`: Set default model
+- `infer config set-system PROMPT`: Set system prompt
+- `infer config tools [enable|disable|list|validate|exec]`
+- `infer config tools safety [enable|disable|status|set|unset]`
+- `infer config tools sandbox [list|add|remove]`
+- `infer chat`: Interactive chat (with token tracking)
+- `infer status`: Gateway status
+
+## Chat Features
+
+- Model selection (or uses default if configured)
+- Scrollable history (↑↓/k/j, PgUp/PgDn, Home/End)
+- Token tracking (per-request & session totals)
+- Commands: `/clear`, `/compact`, `/exit`
+
+## Security
+
+- Tool approval prompts (configurable)
+- Command whitelisting
+- Sandbox directories
+- Protected paths (.infer/, .git/, *.env)
+
+## Code Style
+
+- No inline comments unless necessary
+- Follow existing patterns
+- Check deps before using
+- Commit format: `type: Capitalize description`
+- Never use "enhance" in commits
 
 ## Dependencies
 
-- **Cobra** (`github.com/spf13/cobra`): CLI framework for command structure
-- **Bubble Tea** (`github.com/charmbracelet/bubbletea`): TUI framework for interactive chat
-- **YAML v3** (`gopkg.in/yaml.v3`): Configuration file parsing
-- Go 1.24+ required
+Cobra, Bubble Tea, YAML v3, Go 1.24+
 
-## Implementation Notes
+## Token Optimization
 
-- The chat command uses Bubble Tea for interactive TUI experience
-- Architecture follows SOLID principles with dependency injection
-- Configuration loading handles missing config files gracefully by returning defaults
-- The project uses modern Go project structure with `internal/` for private packages
-- Default model configuration allows skipping model selection in chat sessions when a preferred model is set
-
-## Usage Examples
-
-### Setting a Default Model
-
-```bash
-# Set a default model for chat sessions (use provider/model format)
-infer config set-model anthropic/claude-3.5-sonnet
-infer config set-model openai/gpt-4
-infer config set-model google/gemini-pro
-
-# Now chat will automatically use this model without showing selection
-infer chat
-```
-
-### Setting a System Prompt
-
-```bash
-# Set a system prompt for chat sessions
-infer config set-system "You are a helpful assistant."
-
-# The system prompt will now be included with every chat session
-# providing context and instructions to the AI model
-infer chat
-```
-
-### Configuration Management
-
-```bash
-# Initialize a new project configuration
-infer init
-
-# Initialize with overwrite existing config
-infer init --overwrite
-
-# View current configuration (check .infer/config.yaml)
-cat .infer/config.yaml
-
-# The default model and system prompt will be saved in the chat section:
-# chat:
-#   default_model: "gpt-4-turbo"
-#   system_prompt: "You are a helpful assistant."
-
-# For complete project initialization (config + .gitignore), use:
-infer init
-```
-
-### Token Usage Tracking
-
-The CLI automatically tracks token usage across your chat session:
-
-- **Status Bar Display**: Shows current API call tokens and session totals
-- **Session Accumulation**: Tracks total input tokens, output tokens, and request count
-- **Export Integration**: `/compact` command includes session token statistics in exported markdown files
-- **Reset Behavior**: Token counts reset with `/clear` command or new session
-
-### Tool Management
-
-The CLI provides comprehensive tool execution management with multiple layers of security:
-
-#### Basic Tool Control
-
-```bash
-# Enable tool execution for LLMs
-infer config tools enable
-
-# Disable tool execution for LLMs
-infer config tools disable
-
-# List whitelisted commands and patterns
-infer config tools list
-
-# List in JSON format
-infer config tools list --format json
-
-# Validate if a command is whitelisted
-infer config tools validate "ls -la"
-
-# Execute a whitelisted command directly
-infer config tools exec "git status"
-```
-
-#### Safety and Security Controls
-
-The tool system includes multiple security layers:
-
-1. **Approval Prompts**: User confirmation before executing any tool
-2. **Command Whitelisting**: Only pre-approved commands can be executed
-3. **Sandbox Directories**: Tools can only operate within configured directories
-4. **Protected Paths**: Specific paths are blocked from tool access
-
-```bash
-# Manage global safety settings (approval prompts)
-infer config tools safety enable   # Enable approval prompts for all tool execution
-infer config tools safety disable  # Disable approval prompts (execute tools immediately)
-infer config tools safety status   # Show current safety approval status
-
-# Manage tool-specific safety settings (granular control)
-infer config tools safety set Bash enabled        # Require approval for Bash tool only
-infer config tools safety set WebSearch disabled  # Skip approval for WebSearch tool
-infer config tools safety unset Bash              # Remove tool-specific setting (use global)
-
-# Manage sandbox directories (tool access control)
-infer config tools sandbox list                    # List all sandbox directories
-infer config tools sandbox add "./src/"            # Add a directory to the sandbox
-infer config tools sandbox remove "./temp/"        # Remove a directory from the sandbox
-```
-
-#### Security Features
-
-- **Global Approval Prompts**: When enabled, prompts user before executing any tool command
-- **Tool-Specific Safety**: Configure approval requirements per tool (Bash, Read, Grep, WebSearch)
-- **Command Whitelist**: Only commands in the whitelist can be executed by tools
-- **Sandbox Directories**: Tools can only access files within configured sandbox directories
-- **Protected Paths**: Specific paths are blocked from tool access (e.g., `.infer/` directory, `.git/`, `*.env`)
-- **Safe Defaults**: Tools are enabled with read-only commands and approval prompts by default
-
-### Web Search Tool
-
-The CLI includes a web search tool that allows LLMs to search the web using DuckDuckGo or Google search
-engines. DuckDuckGo is the default engine and works reliably out of the box.
-
-#### Recommended Setup
-
-For production use and reliable search results, configure API keys:
-
-**Google Search**:
-
-```bash
-export GOOGLE_SEARCH_API_KEY="your_api_key"
-export GOOGLE_SEARCH_ENGINE_ID="your_engine_id"
-```
-
-**DuckDuckGo** (optional):
-
-```bash
-export DUCKDUCKGO_SEARCH_API_KEY="your_api_key"
-```
-
-Both engines work without API keys using built-in fallback methods, but API integration provides better
-reliability and performance.
-
-#### Features
-
-- **Multiple Search Engines**: Supports DuckDuckGo (default) and Google
-- **Result Limiting**: Configure maximum number of results (default: 10)
-- **Format Options**: Return results in text or JSON format
-- **API Integration**: Best performance with official search APIs
-- **Configurable**: Enable/disable and customize through configuration
-
-#### Tool Parameters
-
-When the LLM uses the WebSearch tool, it can specify:
-
-- `query` (required): The search query string
-- `engine` (optional): Search engine to use ("duckduckgo" or "google")
-- `limit` (optional): Maximum number of results (1-50)
-- `format` (optional): Output format ("text" or "json")
-
-#### Example LLM Usage
-
-```json
-{
-  "name": "WebSearch",
-  "parameters": {
-    "query": "golang web development tutorial",
-    "engine": "duckduckgo",
-    "limit": 5,
-    "format": "text"
-  }
-}
-```
-
-#### Setup Instructions
-
-1. **Google Custom Search API** (recommended for Google):
-   - Get API key from [Google Cloud Console](https://console.cloud.google.com/)
-   - Create a Custom Search Engine at [Google Programmable Search](https://programmablesearchengine.google.com/)
-   - Set environment variables `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_ENGINE_ID`
-
-2. **DuckDuckGo**: Optionally set `DUCKDUCKGO_SEARCH_API_KEY` environment variable, or use built-in fallback (no setup required)
-
-Results include title, URL, and snippet for each search result.
-
-### Delete Tool
-
-The CLI includes a delete tool that allows LLMs to safely delete files and directories with
-comprehensive security restrictions and wildcard support.
-
-#### Delete Tool Security Features
-
-The Delete Tool implements multiple layers of security to prevent accidental or malicious deletions:
-
-1. **Working Directory Restriction**: By default, only allows deletion within the current working directory
-2. **Protected Paths**: Configurable list of paths that are completely protected from deletion
-3. **Approval Prompts**: Requires user confirmation before executing any deletion operation
-4. **Sandbox Restrictions**: Respects the global sandbox directory and protected path restrictions
-
-#### Default Protected Paths
-
-- `.infer/` - Protects the CLI's configuration directory
-- `.git/` - Protects Git repository files and metadata
-- `.env` - Protects environment variables and sensitive information
-
-#### Configuration Options
-
-```yaml
-tools:
-  sandbox:
-    directories:                    # Directories where tools can operate
-      - "."                        # Current directory
-      - "/tmp"                   # Tmp directory
-    protected_paths:                # Paths protected from all tool access
-      - ".infer/"                  # CLI configuration
-      - ".git/"                    # Git repository
-      - "*.env"                    # Environment files
-      - "important/"               # Important directories
-      - "*.config"                 # Config files
-  delete:
-    enabled: true                   # Enable/disable the delete tool
-    require_approval: true          # Require user approval before deletion
-```
-
-#### Delete Tool Usage Examples
-
-**Single File Deletion:**
-
-```json
-{
-  "name": "Delete",
-  "parameters": {
-    "path": "temp.txt"
-  }
-}
-```
-
-**Directory Deletion (Recursive):**
-
-```json
-{
-  "name": "Delete",
-  "parameters": {
-    "path": "temp_folder",
-    "recursive": true
-  }
-}
-```
-
-**Wildcard Pattern Deletion:**
-
-```json
-{
-  "name": "Delete",
-  "parameters": {
-    "path": "*.log",
-    "force": true
-  }
-}
-```
-
-#### Delete Tool Parameters
-
-When the LLM uses the Delete tool, it can specify:
-
-- `path` (required): File or directory path to delete. Supports wildcards when enabled.
-- `recursive` (optional): Whether to delete directories recursively (default: false)
-- `force` (optional): Ignore non-existent files without error (default: false)
-- `format` (optional): Output format ("text" or "json", default: "text")
-
-#### Safety Considerations
-
-- Always requires approval by default for destructive operations
-- Can only operate within configured sandbox directories
-- Protected paths cannot be deleted even within sandbox directories
-- Comprehensive validation prevents path traversal attacks
-- Respects global tool safety settings and approval requirements
-
-## Code Style Guidelines
-
-- **Inline Comments**: Do not write inline comments unless the code is genuinely unclear or requires specific explanation.
-- **Comment Policy**: Only add comments for:
-  - Complex business logic that isn't immediately clear
-  - External API interactions or protocol specifications
-  - Workarounds for specific issues
-  - Public package-level documentation
-- **Removed Comment Types**:
-  - Obvious explanatory comments (e.g., "// Get flags")
-  - TODO comments for unimplemented features
-  - Comments describing the next line of code
-  - Function descriptions that don't add value beyond the function signature
-
-## Commit Message Guidelines
-
-Follow conventional commit format with proper capitalization:
-
-- **Format**: `type: Capitalize the first letter of the description`
-- **Word Choice**: Never use the word "enhance" - use "improve", "update", "refine", or similar alternatives instead
-- **Examples**:
-  - `feat: Add new chat command with interactive mode`
-  - `fix: Resolve configuration loading error on Windows`
-  - `docs: Improve README with installation instructions`
-  - `chore: Update dependencies to latest versions`
-- **Types**: feat, fix, docs, style, refactor, test, chore, perf, ci, build, revert
-- **Scope**: Optional, use when changes affect specific components (e.g., `feat(cli): Add new command`)
-- **Body**: Use bullet points for multiple changes, maintain proper capitalization
-- **Breaking Changes**: Use `BREAKING CHANGE:` footer when introducing breaking changes
+- Use chat_export_* files: Read only "## Summary" to "---" section
+- Apply code directly with tools (no examples in responses)
+- Plan with TodoWrite, mark progress immediately
+- Batch tool calls for efficiency

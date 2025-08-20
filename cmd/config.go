@@ -432,6 +432,8 @@ func init() {
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configToolsCmd)
 	configCmd.AddCommand(configFetchCmd)
+	configCmd.AddCommand(configOptimizationCmd)
+	configCmd.AddCommand(configCompactCmd)
 
 	configToolsCmd.AddCommand(configToolsEnableCmd)
 	configToolsCmd.AddCommand(configToolsDisableCmd)

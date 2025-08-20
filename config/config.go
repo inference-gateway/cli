@@ -138,13 +138,24 @@ type SafetyConfig struct {
 
 // CompactConfig contains settings for compact command
 type CompactConfig struct {
-	OutputDir string `yaml:"output_dir"`
+	OutputDir    string `yaml:"output_dir"`
+	SummaryModel string `yaml:"summary_model"`
+}
+
+// OptimizationConfig contains token optimization settings
+type OptimizationConfig struct {
+	Enabled                     bool `yaml:"enabled"`
+	MaxHistory                  int  `yaml:"max_history"`
+	CompactThreshold            int  `yaml:"compact_threshold"`
+	TruncateLargeOutputs        bool `yaml:"truncate_large_outputs"`
+	SkipRedundantConfirmations  bool `yaml:"skip_redundant_confirmations"`
 }
 
 // ChatConfig contains chat-related settings
 type ChatConfig struct {
-	DefaultModel string `yaml:"default_model"`
-	SystemPrompt string `yaml:"system_prompt"`
+	DefaultModel string             `yaml:"default_model"`
+	SystemPrompt string             `yaml:"system_prompt"`
+	Optimization OptimizationConfig `yaml:"optimization"`
 }
 
 // GitHubFetchConfig contains GitHub-specific fetch settings
@@ -265,68 +276,28 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Compact: CompactConfig{
-			OutputDir: ".infer",
+			OutputDir:    ".infer",
+			SummaryModel: "",
 		},
 		Chat: ChatConfig{
 			DefaultModel: "",
-			SystemPrompt: `You are an assistant for software engineering tasks.
+			SystemPrompt: `Software engineering assistant. Concise (<4 lines), direct answers only.
 
-## Reasoning
-
-When faced with complex problems, think step by step. Break down the problem, consider multiple approaches, and reason through the solution before implementing it. Show your reasoning process.
-
-## Security
-
-* Defensive security only. No offensive/malicious code.
-* Allowed: analysis, detection rules, defensive tools, docs.
-
-## URLs
-
-* Never guess/generate. Use only user-provided or local.
-
-## Style
-
-* Concise (<4 lines).
-* No pre/postamble. Answer directly.
-* Prefer one-word/short answers.
-* Explain bash only if non-trivial.
-* No emojis unless asked.
-* No code comments unless asked.
-
-## Proactiveness
-
-* Act only when asked. Don't surprise user.
-
-## Code Conventions
-
-* Follow existing style, libs, idioms.
-* Never assume deps. Check imports/config.
-* No secrets in code/logs.
-
-## Tasks
-
-* Always plan with **TodoWrite**.
-* Mark todos in_progress/completed immediately.
-* Don't batch completions.
-
-IMPORTANT: DO NOT provide code examples - instead apply them directly in the code using tools.
-IMPORTANT: if the user provide a file with the prefix chat_export_* you only read between the title "## Summary" and "---" - To get an overall overview of what was discussed. Only dive deeper if you absolutely need to.
-
-## Workflow
-
-1. Plan with TodoWrite.
-2. Explore code via search.
-3. Implement.
-4. Verify with tests (prefer using task test).
-5. Run lint/typecheck (ask if unknown). Suggest documenting.
-6. Commit only if asked.
-
-## Tools
-
-* Prefer Grep tool for search.
-* Use agents when relevant.
-* Handle redirects.
-* Batch tool calls for efficiency.`,
+RULES:
+- Security: Defensive only (analysis, detection, docs)
+- Style: No preamble/postamble, no emojis/comments unless asked
+- Code: Follow existing patterns, check deps, no secrets
+- Tasks: Use TodoWrite, mark progress immediately
+- Chat exports: Read only "## Summary" to "---" section
+- Tools: Batch calls, prefer Grep for search
+- Workflow: Plan→Search→Implement→Test(task test)→Lint→Commit(if asked)`,
+			Optimization: OptimizationConfig{
+				Enabled:                    false,
+				MaxHistory:                 10,
+				CompactThreshold:           20,
+				TruncateLargeOutputs:       true,
+				SkipRedundantConfirmations: true,
+			},
 		},
 	}
 }

@@ -145,13 +145,16 @@ Keep the summary concise but informative, using bullet points where appropriate.
 		Content: "Please provide a summary of our conversation above.",
 	})
 
-	currentModel := c.modelService.GetCurrentModel()
-	if currentModel == "" {
-		return "No model selected for summary generation", nil
+	summaryModel := c.config.Compact.SummaryModel
+	if summaryModel == "" {
+		summaryModel = c.modelService.GetCurrentModel()
+		if summaryModel == "" {
+			return "No model selected for summary generation", nil
+		}
 	}
 
 	requestID := fmt.Sprintf("req_%d", time.Now().UnixNano())
-	eventChan, err := c.chatService.SendMessage(ctx, requestID, currentModel, messages)
+	eventChan, err := c.chatService.SendMessage(ctx, requestID, summaryModel, messages)
 	if err != nil {
 		return "", fmt.Errorf("failed to start summary generation: %w", err)
 	}
