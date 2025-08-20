@@ -34,19 +34,20 @@ type LoggingConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled   bool                `yaml:"enabled"`
-	Sandbox   SandboxConfig       `yaml:"sandbox"`
-	Bash      BashToolConfig      `yaml:"bash"`
-	Read      ReadToolConfig      `yaml:"read"`
-	Write     WriteToolConfig     `yaml:"write"`
-	Edit      EditToolConfig      `yaml:"edit"`
-	Delete    DeleteToolConfig    `yaml:"delete"`
-	Grep      GrepToolConfig      `yaml:"grep"`
-	Tree      TreeToolConfig      `yaml:"tree"`
-	WebFetch  WebFetchToolConfig  `yaml:"web_fetch"`
-	WebSearch WebSearchToolConfig `yaml:"web_search"`
-	TodoWrite TodoWriteToolConfig `yaml:"todo_write"`
-	Safety    SafetyConfig        `yaml:"safety"`
+	Enabled     bool                  `yaml:"enabled"`
+	Sandbox     SandboxConfig         `yaml:"sandbox"`
+	Bash        BashToolConfig        `yaml:"bash"`
+	Read        ReadToolConfig        `yaml:"read"`
+	Write       WriteToolConfig       `yaml:"write"`
+	Edit        EditToolConfig        `yaml:"edit"`
+	Delete      DeleteToolConfig      `yaml:"delete"`
+	Grep        GrepToolConfig        `yaml:"grep"`
+	Tree        TreeToolConfig        `yaml:"tree"`
+	WebFetch    WebFetchToolConfig    `yaml:"web_fetch"`
+	WebSearch   WebSearchToolConfig   `yaml:"web_search"`
+	GithubFetch GithubFetchToolConfig `yaml:"github_fetch"`
+	TodoWrite   TodoWriteToolConfig   `yaml:"todo_write"`
+	Safety      SafetyConfig          `yaml:"safety"`
 }
 
 // BashToolConfig contains bash-specific tool settings
@@ -97,7 +98,6 @@ type TreeToolConfig struct {
 type WebFetchToolConfig struct {
 	Enabled            bool              `yaml:"enabled"`
 	WhitelistedDomains []string          `yaml:"whitelisted_domains"`
-	GitHub             GitHubFetchConfig `yaml:"github"`
 	Safety             FetchSafetyConfig `yaml:"safety"`
 	Cache              FetchCacheConfig  `yaml:"cache"`
 	RequireApproval    *bool             `yaml:"require_approval,omitempty"`
@@ -117,6 +117,21 @@ type WebSearchToolConfig struct {
 type TodoWriteToolConfig struct {
 	Enabled         bool  `yaml:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty"`
+}
+
+// GithubFetchToolConfig contains GitHub fetch-specific tool settings
+type GithubFetchToolConfig struct {
+	Enabled         bool                    `yaml:"enabled"`
+	Token           string                  `yaml:"token"`
+	BaseURL         string                  `yaml:"base_url"`
+	Safety          GithubFetchSafetyConfig `yaml:"safety"`
+	RequireApproval *bool                   `yaml:"require_approval,omitempty"`
+}
+
+// GithubFetchSafetyConfig contains safety settings for GitHub fetch operations
+type GithubFetchSafetyConfig struct {
+	MaxSize int64 `yaml:"max_size"`
+	Timeout int   `yaml:"timeout"`
 }
 
 // ToolWhitelistConfig contains whitelisted commands and patterns
@@ -144,11 +159,11 @@ type CompactConfig struct {
 
 // OptimizationConfig contains token optimization settings
 type OptimizationConfig struct {
-	Enabled                     bool `yaml:"enabled"`
-	MaxHistory                  int  `yaml:"max_history"`
-	CompactThreshold            int  `yaml:"compact_threshold"`
-	TruncateLargeOutputs        bool `yaml:"truncate_large_outputs"`
-	SkipRedundantConfirmations  bool `yaml:"skip_redundant_confirmations"`
+	Enabled                    bool `yaml:"enabled"`
+	MaxHistory                 int  `yaml:"max_history"`
+	CompactThreshold           int  `yaml:"compact_threshold"`
+	TruncateLargeOutputs       bool `yaml:"truncate_large_outputs"`
+	SkipRedundantConfirmations bool `yaml:"skip_redundant_confirmations"`
 }
 
 // ChatConfig contains chat-related settings
@@ -156,13 +171,6 @@ type ChatConfig struct {
 	DefaultModel string             `yaml:"default_model"`
 	SystemPrompt string             `yaml:"system_prompt"`
 	Optimization OptimizationConfig `yaml:"optimization"`
-}
-
-// GitHubFetchConfig contains GitHub-specific fetch settings
-type GitHubFetchConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Token   string `yaml:"token"`
-	BaseURL string `yaml:"base_url"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -244,11 +252,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			WebFetch: WebFetchToolConfig{
 				Enabled:            true,
 				WhitelistedDomains: []string{"github.com", "golang.org"},
-				GitHub: GitHubFetchConfig{
-					Enabled: true,
-					Token:   "",
-					BaseURL: "https://api.github.com",
-				},
 				Safety: FetchSafetyConfig{
 					MaxSize:       8192, // 8KB
 					Timeout:       30,   // 30 seconds
@@ -266,6 +269,16 @@ func DefaultConfig() *Config { //nolint:funlen
 				MaxResults:    10,
 				Engines:       []string{"duckduckgo", "google"},
 				Timeout:       10,
+			},
+			GithubFetch: GithubFetchToolConfig{
+				Enabled: true,
+				Token:   "",
+				BaseURL: "https://api.github.com",
+				Safety: GithubFetchSafetyConfig{
+					MaxSize: 1048576, // 1MB
+					Timeout: 30,      // 30 seconds
+				},
+				RequireApproval: &[]bool{false}[0],
 			},
 			TodoWrite: TodoWriteToolConfig{
 				Enabled:         true,
@@ -427,6 +440,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	case "WebSearch":
 		if c.Tools.WebSearch.RequireApproval != nil {
 			return *c.Tools.WebSearch.RequireApproval
+		}
+	case "GithubFetch":
+		if c.Tools.GithubFetch.RequireApproval != nil {
+			return *c.Tools.GithubFetch.RequireApproval
 		}
 	case "TodoWrite":
 		if c.Tools.TodoWrite.RequireApproval != nil {

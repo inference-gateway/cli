@@ -317,3 +317,121 @@ type TodoWriteToolResult struct {
 	InProgressTask string     `json:"in_progress_task,omitempty"`
 	ValidationOK   bool       `json:"validation_ok"`
 }
+
+// GitHubUser represents a GitHub user
+type GitHubUser struct {
+	ID        int    `json:"id"`
+	Login     string `json:"login"`
+	AvatarURL string `json:"avatar_url"`
+	HTMLURL   string `json:"html_url"`
+	Type      string `json:"type"`
+}
+
+// GitHubLabel represents a GitHub label
+type GitHubLabel struct {
+	ID          int    `json:"id"`
+	Name        string `json:"name"`
+	Color       string `json:"color"`
+	Description string `json:"description,omitempty"`
+}
+
+// GitHubMilestone represents a GitHub milestone
+type GitHubMilestone struct {
+	ID          int        `json:"id"`
+	Number      int        `json:"number"`
+	Title       string     `json:"title"`
+	Description string     `json:"description,omitempty"`
+	State       string     `json:"state"`
+	DueOn       *time.Time `json:"due_on,omitempty"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+// GitHubIssue represents a GitHub issue
+type GitHubIssue struct {
+	ID          int              `json:"id"`
+	Number      int              `json:"number"`
+	Title       string           `json:"title"`
+	Body        string           `json:"body"`
+	State       string           `json:"state"`
+	User        GitHubUser       `json:"user"`
+	Assignees   []GitHubUser     `json:"assignees,omitempty"`
+	Labels      []GitHubLabel    `json:"labels,omitempty"`
+	Milestone   *GitHubMilestone `json:"milestone,omitempty"`
+	Comments    int              `json:"comments"`
+	CreatedAt   time.Time        `json:"created_at"`
+	UpdatedAt   time.Time        `json:"updated_at"`
+	ClosedAt    *time.Time       `json:"closed_at,omitempty"`
+	HTMLURL     string           `json:"html_url"`
+	PullRequest *struct {
+		URL      string `json:"url"`
+		HTMLURL  string `json:"html_url"`
+		DiffURL  string `json:"diff_url"`
+		PatchURL string `json:"patch_url"`
+	} `json:"pull_request,omitempty"`
+}
+
+// GitHubPullRequest represents a GitHub pull request
+type GitHubPullRequest struct {
+	ID           int              `json:"id"`
+	Number       int              `json:"number"`
+	Title        string           `json:"title"`
+	Body         string           `json:"body"`
+	State        string           `json:"state"`
+	User         GitHubUser       `json:"user"`
+	Assignees    []GitHubUser     `json:"assignees,omitempty"`
+	Labels       []GitHubLabel    `json:"labels,omitempty"`
+	Milestone    *GitHubMilestone `json:"milestone,omitempty"`
+	Comments     int              `json:"comments"`
+	Commits      int              `json:"commits"`
+	Additions    int              `json:"additions"`
+	Deletions    int              `json:"deletions"`
+	ChangedFiles int              `json:"changed_files"`
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
+	ClosedAt     *time.Time       `json:"closed_at,omitempty"`
+	MergedAt     *time.Time       `json:"merged_at,omitempty"`
+	Merged       bool             `json:"merged"`
+	Mergeable    *bool            `json:"mergeable,omitempty"`
+	Head         GitHubBranch     `json:"head"`
+	Base         GitHubBranch     `json:"base"`
+	HTMLURL      string           `json:"html_url"`
+	DiffURL      string           `json:"diff_url"`
+	PatchURL     string           `json:"patch_url"`
+}
+
+// GitHubBranch represents a branch reference in a pull request
+type GitHubBranch struct {
+	Label string           `json:"label"`
+	Ref   string           `json:"ref"`
+	SHA   string           `json:"sha"`
+	User  GitHubUser       `json:"user"`
+	Repo  GitHubRepository `json:"repo"`
+}
+
+// GitHubRepository represents a GitHub repository
+type GitHubRepository struct {
+	ID       int        `json:"id"`
+	Name     string     `json:"name"`
+	FullName string     `json:"full_name"`
+	Owner    GitHubUser `json:"owner"`
+	Private  bool       `json:"private"`
+	HTMLURL  string     `json:"html_url"`
+	CloneURL string     `json:"clone_url"`
+}
+
+// GitHubComment represents a GitHub comment
+type GitHubComment struct {
+	ID        int        `json:"id"`
+	Body      string     `json:"body"`
+	User      GitHubUser `json:"user"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+	HTMLURL   string     `json:"html_url"`
+}
+
+// GitHubError represents a GitHub API error response
+type GitHubError struct {
+	Message          string `json:"message"`
+	DocumentationURL string `json:"documentation_url,omitempty"`
+}

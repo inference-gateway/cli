@@ -45,6 +45,7 @@ and management of inference services.
   - [Grep Tool](#grep-tool)
   - [WebSearch Tool](#websearch-tool)
   - [WebFetch Tool](#webfetch-tool)
+  - [GithubFetch Tool](#githubfetch-tool)
   - [Tree Tool](#tree-tool)
   - [Delete Tool](#delete-tool)
   - [Edit Tool](#edit-tool)
@@ -463,6 +464,54 @@ Search the web using DuckDuckGo or Google search engines to find information.
 ### WebFetch Tool
 
 WebFetch content from whitelisted URLs or GitHub references using the format `github:owner/repo#123`.
+
+### GithubFetch Tool
+
+Fetch GitHub issues, pull requests, and other data directly using the GitHub API with authentication support.
+
+**Parameters:**
+
+- `owner` (required): Repository owner (username or organization)
+- `repo` (required): Repository name
+- `resource` (optional): Resource type to fetch (default: "issue")
+  - `issue`: Fetch a specific issue
+  - `issues`: Fetch a list of issues
+  - `pull_request`: Fetch a specific pull request
+  - `comments`: Fetch comments for an issue/PR
+- `issue_number` (required for issue/pull_request/comments): Issue or PR number
+- `state` (optional): Filter by state for issues list ("open", "closed", "all", default: "open")
+- `per_page` (optional): Number of items per page for lists (1-100, default: 30)
+
+**Features:**
+
+- **GitHub API Integration**: Direct access to GitHub's REST API v3
+- **Authentication**: Supports GitHub personal access tokens
+- **Multiple Resources**: Fetch issues, pull requests, and comments
+- **Structured Data**: Returns properly typed GitHub data structures
+- **Error Handling**: Comprehensive error handling with GitHub API error messages
+- **Rate Limiting**: Respects GitHub API rate limits
+- **Security**: Configurable timeout and response size limits
+
+**Configuration:**
+
+```yaml
+tools:
+  github_fetch:
+    enabled: true
+    token: "ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    base_url: "https://api.github.com"
+    safety:
+      max_size: 1048576  # 1MB
+      timeout: 30        # 30 seconds
+    require_approval: false
+```
+
+**Examples:**
+
+- Fetch specific issue: `owner: "octocat", repo: "Hello-World", resource: "issue", issue_number: 1`
+- List open issues: `owner: "octocat", repo: "Hello-World", resource: "issues", state: "open", per_page: 10`
+- Fetch pull request: `owner: "octocat", repo: "Hello-World", resource: "pull_request", issue_number: 5`
+- Get issue comments: `owner: "octocat", repo: "Hello-World", resource: "comments", issue_number: 1`
 
 ### Delete Tool
 
