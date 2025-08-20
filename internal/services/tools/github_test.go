@@ -183,6 +183,28 @@ func TestGithubTool_Validate_ValidCases(t *testing.T) {
 				"issue_number": "#123",
 			},
 		},
+		{
+			name: "valid pull request creation",
+			args: map[string]any{
+				"owner":    "testowner",
+				"repo":     "testrepo",
+				"resource": "create_pull_request",
+				"title":    "Add new feature",
+				"body":     "This PR adds a new feature",
+				"head":     "feature-branch",
+				"base":     "main",
+			},
+		},
+		{
+			name: "valid pull request creation minimal",
+			args: map[string]any{
+				"owner":    "testowner",
+				"repo":     "testrepo",
+				"resource": "create_pull_request",
+				"title":    "Add new feature",
+				"head":     "feature-branch",
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -789,6 +811,171 @@ func TestGithubTool_CreateCommentValidation(t *testing.T) {
 				"comment_body": "Test comment",
 			},
 			wantErr: "issue_number parameter is required for resource type 'create_comment'",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tool.Validate(tt.args)
+			if err == nil {
+				t.Errorf("Expected validation error, got nil")
+			} else if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Expected error containing '%s', got '%s'", tt.wantErr, err.Error())
+			}
+		})
+	}
+}
+
+func TestGithubTool_CreatePullRequest(t *testing.T) {
+	mockPR := domain.GitHubPullRequest{
+		ID:     456,
+		Number: 42,
+		Title:  "Add new feature",
+		Body:   "This PR adds a new feature",
+		State:  "open",
+		User:   domain.GitHubUser{Login: "testuser"},
+		Head: domain.GitHubBranch{
+			Ref: "feature-branch",
+		},
+		Base: domain.GitHubBranch{
+			Ref: "main",
+		},
+		HTMLURL: "https://github.com/testowner/testrepo/pull/42",
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "POST" && r.URL.Path == "/repos/testowner/testrepo/pulls" {
+			var requestData map[string]string
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &requestData)
+
+			if requestData["title"] != "Add new feature" {
+				t.Errorf("Expected PR title 'Add new feature', got '%s'", requestData["title"])
+			}
+			if requestData["head"] != "feature-branch" {
+				t.Errorf("Expected head 'feature-branch', got '%s'", requestData["head"])
+			}
+			if requestData["base"] != "main" {
+				t.Errorf("Expected base 'main', got '%s'", requestData["base"])
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(mockPR)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				BaseURL: server.URL,
+				Safety: config.GithubSafetyConfig{
+					MaxSize: 1048576,
+					Timeout: 30,
+				},
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg)
+	ctx := context.Background()
+
+	args := map[string]any{
+		"owner":    "testowner",
+		"repo":     "testrepo",
+		"resource": "create_pull_request",
+		"title":    "Add new feature",
+		"body":     "This PR adds a new feature",
+		"head":     "feature-branch",
+		"base":     "main",
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected Success = true, got false with error: %s", result.Error)
+	}
+
+	pr, ok := result.Data.(*domain.GitHubPullRequest)
+	if !ok {
+		t.Error("Expected data to be a GitHubPullRequest pointer")
+	} else {
+		if pr.Number != 42 {
+			t.Errorf("Expected PR number 42, got %d", pr.Number)
+		}
+		if pr.Title != "Add new feature" {
+			t.Errorf("Expected PR title 'Add new feature', got '%s'", pr.Title)
+		}
+	}
+}
+
+func TestGithubTool_CreatePullRequestValidation(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				BaseURL: "https://api.github.com",
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg)
+
+	tests := []struct {
+		name    string
+		args    map[string]any
+		wantErr string
+	}{
+		{
+			name: "missing title",
+			args: map[string]any{
+				"owner":    "testowner",
+				"repo":     "testrepo",
+				"resource": "create_pull_request",
+				"head":     "feature-branch",
+			},
+			wantErr: "title parameter is required for create_pull_request resource",
+		},
+		{
+			name: "empty title",
+			args: map[string]any{
+				"owner":    "testowner",
+				"repo":     "testrepo",
+				"resource": "create_pull_request",
+				"title":    "",
+				"head":     "feature-branch",
+			},
+			wantErr: "title parameter is required for create_pull_request resource",
+		},
+		{
+			name: "missing head",
+			args: map[string]any{
+				"owner":    "testowner",
+				"repo":     "testrepo",
+				"resource": "create_pull_request",
+				"title":    "Test PR",
+			},
+			wantErr: "head parameter is required for create_pull_request resource",
+		},
+		{
+			name: "empty head",
+			args: map[string]any{
+				"owner":    "testowner",
+				"repo":     "testrepo",
+				"resource": "create_pull_request",
+				"title":    "Test PR",
+				"head":     "",
+			},
+			wantErr: "head parameter is required for create_pull_request resource",
 		},
 	}
 

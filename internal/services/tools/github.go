@@ -76,7 +76,7 @@ func (t *GithubTool) Definition() domain.ToolDefinition {
 				"resource": map[string]any{
 					"type":        "string",
 					"description": "Resource type to fetch or create",
-					"enum":        []string{"issue", "issues", "pull_request", "comments", "create_comment"},
+					"enum":        []string{"issue", "issues", "pull_request", "comments", "create_comment", "create_pull_request"},
 					"default":     "issue",
 				},
 				"comment_body": map[string]any{
@@ -94,6 +94,23 @@ func (t *GithubTool) Definition() domain.ToolDefinition {
 					"description": "Number of items per page (max 100)",
 					"default":     30,
 					"maximum":     100,
+				},
+				"title": map[string]any{
+					"type":        "string",
+					"description": "Pull request title (required for create_pull_request resource)",
+				},
+				"body": map[string]any{
+					"type":        "string",
+					"description": "Pull request body/description (optional for create_pull_request resource)",
+				},
+				"head": map[string]any{
+					"type":        "string",
+					"description": "Head branch name (required for create_pull_request resource)",
+				},
+				"base": map[string]any{
+					"type":        "string",
+					"description": "Base branch name (required for create_pull_request resource)",
+					"default":     "main",
 				},
 			},
 			"required": required,
@@ -194,6 +211,8 @@ func (t *GithubTool) executeResource(ctx context.Context, resource, owner, repo 
 		return t.handleCommentsResource(ctx, owner, repo, args)
 	case "create_comment":
 		return t.handleCreateCommentResource(ctx, owner, repo, args)
+	case "create_pull_request":
+		return t.handleCreatePullRequestResource(ctx, owner, repo, args)
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", resource)
 	}
@@ -252,6 +271,31 @@ func (t *GithubTool) handleCreateCommentResource(ctx context.Context, owner, rep
 	}
 
 	return t.createIssueComment(ctx, owner, repo, issueNum, commentBody)
+}
+
+// handleCreatePullRequestResource handles creating a pull request
+func (t *GithubTool) handleCreatePullRequestResource(ctx context.Context, owner, repo string, args map[string]any) (any, error) {
+	title, ok := args["title"].(string)
+	if !ok || title == "" {
+		return nil, &ToolExecutionError{"title parameter is required for creating a pull request"}
+	}
+
+	head, ok := args["head"].(string)
+	if !ok || head == "" {
+		return nil, &ToolExecutionError{"head parameter is required for creating a pull request"}
+	}
+
+	base, ok := args["base"].(string)
+	if !ok || base == "" {
+		base = "main"
+	}
+
+	body := ""
+	if b, ok := args["body"].(string); ok {
+		body = b
+	}
+
+	return t.createPullRequest(ctx, owner, repo, title, body, head, base)
 }
 
 // createResult creates a ToolExecutionResult
@@ -442,6 +486,35 @@ func (t *GithubTool) createIssueComment(ctx context.Context, owner, repo string,
 	return &comment, nil
 }
 
+// createPullRequest creates a pull request
+func (t *GithubTool) createPullRequest(ctx context.Context, owner, repo, title, body, head, base string) (*domain.GitHubPullRequest, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/pulls", t.config.Tools.Github.BaseURL, owner, repo)
+
+	prData := map[string]string{
+		"title": title,
+		"body":  body,
+		"head":  head,
+		"base":  base,
+	}
+
+	jsonData, err := json.Marshal(prData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal pull request data: %w", err)
+	}
+
+	respBody, err := t.makeAPIRequest(ctx, "POST", url, jsonData)
+	if err != nil {
+		return nil, err
+	}
+
+	var pr domain.GitHubPullRequest
+	if err := json.Unmarshal(respBody, &pr); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal pull request response: %w", err)
+	}
+
+	return &pr, nil
+}
+
 // makeAPIRequest makes an API request to GitHub and returns the response body
 func (t *GithubTool) makeAPIRequest(ctx context.Context, method, url string, body []byte) ([]byte, error) {
 	var reqBody io.Reader
@@ -490,7 +563,7 @@ func (t *GithubTool) makeAPIRequest(ctx context.Context, method, url string, bod
 
 // validateResourceType validates the resource type and its requirements
 func (t *GithubTool) validateResourceType(resource string, args map[string]any) error {
-	validResources := []string{"issue", "issues", "pull_request", "comments", "create_comment"}
+	validResources := []string{"issue", "issues", "pull_request", "comments", "create_comment", "create_pull_request"}
 	valid := false
 	for _, validRes := range validResources {
 		if resource == validRes {
@@ -511,6 +584,15 @@ func (t *GithubTool) validateResourceType(resource string, args map[string]any) 
 	if resource == "create_comment" {
 		if commentBody, ok := args["comment_body"].(string); !ok || commentBody == "" {
 			return fmt.Errorf("comment_body parameter is required for create_comment resource")
+		}
+	}
+
+	if resource == "create_pull_request" {
+		if title, ok := args["title"].(string); !ok || title == "" {
+			return fmt.Errorf("title parameter is required for create_pull_request resource")
+		}
+		if head, ok := args["head"].(string); !ok || head == "" {
+			return fmt.Errorf("head parameter is required for create_pull_request resource")
 		}
 	}
 
