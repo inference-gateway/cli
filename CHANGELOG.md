@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.29.2](https://github.com/inference-gateway/cli/compare/v0.29.1...v0.29.2) (2025-08-20)
+
+### ♻️ Code Refactoring
+
+* Refactor tool parameter types from `map[string]interface{}` to `map[string]any` ([28647de](https://github.com/inference-gateway/cli/commit/28647de3e9a772fa14126245a228722ad26b5f5e))
+
 ## [0.29.1](https://github.com/inference-gateway/cli/compare/v0.29.0...v0.29.1) (2025-08-20)
 
 ### 🧹 Maintenance
