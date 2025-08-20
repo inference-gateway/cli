@@ -45,7 +45,7 @@ and management of inference services.
   - [Grep Tool](#grep-tool)
   - [WebSearch Tool](#websearch-tool)
   - [WebFetch Tool](#webfetch-tool)
-  - [GithubFetch Tool](#githubfetch-tool)
+  - [Github Tool](#github-tool)
   - [Tree Tool](#tree-tool)
   - [Delete Tool](#delete-tool)
   - [Edit Tool](#edit-tool)
@@ -465,9 +465,9 @@ Search the web using DuckDuckGo or Google search engines to find information.
 
 WebFetch content from whitelisted URLs or GitHub references using the format `github:owner/repo#123`.
 
-### GithubFetch Tool
+### Github Tool
 
-Fetch GitHub issues, pull requests, and other data directly using the GitHub API with authentication support.
+Interact with GitHub API to fetch issues, pull requests, and other data with authentication support.
 
 **Parameters:**
 

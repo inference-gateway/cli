@@ -47,7 +47,7 @@ func (r *Registry) registerTools() {
 	}
 
 	if r.config.Tools.GithubFetch.Enabled {
-		r.tools["GithubFetch"] = NewGithubFetchTool(r.config)
+		r.tools["Github"] = NewGithubTool(r.config)
 	}
 }
 
