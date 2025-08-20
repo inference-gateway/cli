@@ -79,7 +79,8 @@ tools:
     enabled: true
     token: '%GITHUB_TOKEN%'
     base_url: https://api.github.com
-    owner: ""
+    owner: "inference-gateway"
+    repo: "cli"
     safety:
       max_size: 1048576
       timeout: 30
