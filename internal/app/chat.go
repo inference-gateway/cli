@@ -479,32 +479,23 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	// Only process certain message types to avoid double processing
 	switch msg.(type) {
 	case tea.WindowSizeMsg, tea.MouseMsg:
-		// UI events should always be handled by components
 		return app.updateUIComponents(msg)
 	case tea.KeyMsg:
-		// Key events need to be handled by UI components for input/navigation
 		return app.updateUIComponents(msg)
 	case shared.UpdateHistoryMsg, shared.SetStatusMsg, shared.UpdateStatusMsg,
 		shared.ShowErrorMsg, shared.ClearErrorMsg, shared.ClearInputMsg, shared.SetInputMsg,
 		shared.ToggleHelpBarMsg, shared.HideHelpBarMsg, shared.DebugKeyMsg, shared.SetupFileSelectionMsg,
 		shared.ScrollRequestMsg:
-		// These are UI update messages sent by handlers - components need to process them
 		return app.updateUIComponents(msg)
 	case shared.UserInputMsg:
-		// UserInputMsg should NOT be sent to UI components - it's handled by the router
-		// This prevents double processing
 		return cmds
 	default:
-		// Check if this might be a spinner tick message or other UI-related message
 		msgType := fmt.Sprintf("%T", msg)
 		if strings.Contains(msgType, "spinner.TickMsg") || strings.Contains(msgType, "Tick") {
-			// Spinner tick messages should go to UI components
 			return app.updateUIComponents(msg)
 		}
-		// For other business logic messages, don't send to UI components
 		return cmds
 	}
 }
