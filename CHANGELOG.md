@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.33.7](https://github.com/inference-gateway/cli/compare/v0.33.6...v0.33.7) (2025-08-21)
+
+### 🐛 Bug Fixes
+
+* Add FormatArgumentsForApproval method for detailed argument display ([f8add97](https://github.com/inference-gateway/cli/commit/f8add9722374b16380e25e1479fba840558d9622))
+* Handle nil grepResult in FormatPreview and formatGrepData methods ([98e3a28](https://github.com/inference-gateway/cli/commit/98e3a2852ee8597b3071136ad1d146651492e8b2))
+
 ## [0.33.6](https://github.com/inference-gateway/cli/compare/v0.33.5...v0.33.6) (2025-08-21)
 
 ### ♻️ Code Refactoring
