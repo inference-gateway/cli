@@ -2,6 +2,8 @@ package components
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -109,7 +111,26 @@ func (cv *ConversationView) updateViewportContent() {
 }
 
 func (cv *ConversationView) renderWelcome() string {
-	return shared.StatusColor.ANSI + "🤖 Chat session ready! Type your message below." + shared.Reset() + "\n"
+	wd, err := os.Getwd()
+	if err != nil {
+		wd = "unknown"
+	} else {
+		wd = filepath.Base(wd)
+	}
+
+	headerLine := shared.StatusColor.ANSI + "✨ Inference Gateway CLI" + shared.Reset()
+	readyLine := shared.SuccessColor.ANSI + "🚀 Ready to chat!" + shared.Reset()
+	workingLine := shared.DimColor.ANSI + "📂 Working in: " + shared.Reset() + shared.HeaderColor.ANSI + wd + shared.Reset()
+	helpLine := shared.DimColor.ANSI + "Type your message or try commands like /help" + shared.Reset()
+
+	content := headerLine + "\n" + readyLine + "\n" + workingLine + "\n" + helpLine
+
+	style := shared.NewCommonStyles().Border.
+		Border(shared.RoundedBorder(), true).
+		BorderForeground(shared.AccentColor.GetLipglossColor()).
+		Padding(0, 1)
+
+	return style.Render(content)
 }
 
 func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
@@ -118,20 +139,29 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 	switch string(entry.Message.Role) {
 	case "user":
 		color = shared.UserColor.ANSI
-		role = "👤 You"
+		role = "> You"
 	case "assistant":
 		color = shared.AssistantColor.ANSI
 		if entry.Model != "" {
-			role = fmt.Sprintf("🤖 %s", entry.Model)
+			role = fmt.Sprintf("⏺ %s", entry.Model)
 		} else {
-			role = "🤖 Assistant"
+			role = "⏺ Assistant"
 		}
 	case "system":
 		color = shared.DimColor.ANSI
 		role = "⚙️ System"
 	case "tool":
-		color = shared.AccentColor.ANSI
-		role = "🔧 Tool"
+		// Determine tool color based on success/failure
+		if entry.ToolExecution != nil && !entry.ToolExecution.Success {
+			color = shared.ErrorColor.ANSI
+			role = "🔧 Tool"
+		} else if entry.ToolExecution != nil && entry.ToolExecution.Success {
+			color = shared.SuccessColor.ANSI
+			role = "🔧 Tool"
+		} else {
+			color = shared.AccentColor.ANSI
+			role = "🔧 Tool"
+		}
 		return cv.renderToolEntry(entry, index, color, role)
 	default:
 		color = shared.DimColor.ANSI

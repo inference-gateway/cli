@@ -159,8 +159,8 @@ func (iv *InputView) buildTextWithCursor(before, after string) string {
 
 func (iv *InputView) createCursorChar(char string) string {
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color("#FFFFFF")).
-		Foreground(lipgloss.Color("#000000")).
+		Background(shared.AssistantColor.GetLipglossColor()).
+		Foreground(lipgloss.Color("#1a1b26")).
 		Render(char)
 }
 

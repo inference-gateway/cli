@@ -193,8 +193,7 @@ func formatResultData(output *strings.Builder, result *domain.ToolExecutionResul
 	}
 
 	dataContent := formatToolSpecificData(result.ToolName, result.Data)
-	lines := strings.Split(strings.TrimRight(dataContent, "\n"), "\n")
-	for _, line := range lines {
+	for line := range strings.SplitSeq(strings.TrimRight(dataContent, "\n"), "\n") {
 		if hasMetadata {
 			fmt.Fprintf(output, "│  %s\n", line)
 		} else {
@@ -442,9 +441,9 @@ func createBubbleTeaProgressBar(percent float64) string {
 	prog.Width = 25
 
 	if percent >= 1.0 {
-		prog = progress.New(progress.WithSolidFill("#22C55E"))
+		prog = progress.New(progress.WithSolidFill(LipglossGreen))
 	} else if percent >= 0.5 {
-		prog = progress.New(progress.WithSolidFill("#3B82F6"))
+		prog = progress.New(progress.WithSolidFill(LipglossBlue))
 	} else {
 		prog = progress.New(progress.WithDefaultGradient())
 	}

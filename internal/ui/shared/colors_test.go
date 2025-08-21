@@ -31,13 +31,13 @@ func TestPredefinedColors(t *testing.T) {
 		color    Color
 		expected string
 	}{
-		{"UserColor", UserColor, ColorCyan},
-		{"AssistantColor", AssistantColor, ColorGreen},
+		{"UserColor", UserColor, ColorBlue},
+		{"AssistantColor", AssistantColor, ColorWhite},
 		{"ErrorColor", ErrorColor, ColorRed},
-		{"StatusColor", StatusColor, ColorBlue},
-		{"AccentColor", AccentColor, ColorMagenta},
+		{"StatusColor", StatusColor, ColorMagenta},
+		{"AccentColor", AccentColor, ColorBlue},
 		{"DimColor", DimColor, ColorGray},
-		{"BorderColor", BorderColor, ColorWhite},
+		{"BorderColor", BorderColor, ColorGray},
 	}
 
 	for _, tc := range testCases {

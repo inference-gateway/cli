@@ -38,38 +38,38 @@ type approvalStyles struct {
 func NewApprovalComponent(theme shared.Theme) *ApprovalComponent {
 	styles := &approvalStyles{
 		title: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("39")).
+			Foreground(shared.HeaderColor.GetLipglossColor()).
 			Bold(true),
 		border: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")),
+			Foreground(shared.BorderColor.GetLipglossColor()),
 		toolName: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("205")).
+			Foreground(shared.AccentColor.GetLipglossColor()).
 			Bold(true),
 		argumentKey: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("36")).
+			Foreground(shared.AccentColor.GetLipglossColor()).
 			Bold(true),
 		argumentValue: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("253")),
+			Foreground(shared.AssistantColor.GetLipglossColor()),
 		warning: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("214")).
+			Foreground(shared.WarningColor.GetLipglossColor()).
 			Bold(true),
 		prompt: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("255")).
+			Foreground(shared.AssistantColor.GetLipglossColor()).
 			Bold(true),
 		selectedOption: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("46")).
+			Foreground(shared.SuccessColor.GetLipglossColor()).
 			Bold(true).
-			Background(lipgloss.Color("235")).
+			Background(lipgloss.Color("#1f2335")).
 			Padding(0, 1),
 		unselectedOption: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("245")).
+			Foreground(shared.DimColor.GetLipglossColor()).
 			Padding(0, 1),
 		helpText: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("240")).
+			Foreground(shared.DimColor.GetLipglossColor()).
 			Italic(true),
 		container: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(lipgloss.Color("240")).
+			BorderForeground(shared.BorderColor.GetLipglossColor()).
 			Padding(0, 1),
 	}
 
@@ -101,6 +101,15 @@ func (a *ApprovalComponent) Render(toolExecution *domain.ToolExecutionSession, s
 		return ""
 	}
 
+	headerContent := a.renderHeader(currentTool)
+	toolContent := a.renderToolContent(currentTool)
+	footerContent := a.renderFooter(selectedIndex)
+
+	return a.assembleContent(headerContent, toolContent, footerContent)
+}
+
+// renderHeader renders the title and tool name section
+func (a *ApprovalComponent) renderHeader(currentTool *domain.ToolCall) string {
 	var content strings.Builder
 
 	titleText := a.styles.title.Render("🔧 Tool Approval Required")
@@ -113,65 +122,73 @@ func (a *ApprovalComponent) Render(toolExecution *domain.ToolExecutionSession, s
 	content.WriteString(toolSection)
 	content.WriteString("\n")
 
+	return content.String()
+}
+
+// renderToolContent renders the tool-specific content based on tool type
+func (a *ApprovalComponent) renderToolContent(currentTool *domain.ToolCall) string {
 	switch currentTool.Name {
 	case "Edit":
-		content.WriteString(a.diffRenderer.RenderEditToolArguments(currentTool.Arguments))
+		return a.diffRenderer.RenderEditToolArguments(currentTool.Arguments)
 	case "MultiEdit":
-		content.WriteString(a.diffRenderer.RenderMultiEditToolArguments(currentTool.Arguments))
+		return a.diffRenderer.RenderMultiEditToolArguments(currentTool.Arguments)
 	default:
-		if len(currentTool.Arguments) > 0 {
-			content.WriteString(a.styles.prompt.Render("Arguments:"))
-			content.WriteString("\n")
+		return a.renderDefaultArguments(currentTool.Arguments)
+	}
+}
 
-			keys := make([]string, 0, len(currentTool.Arguments))
-			for key := range currentTool.Arguments {
-				keys = append(keys, key)
-			}
-			sort.Strings(keys)
-
-			argBoxWidth := a.width - 14
-			if argBoxWidth < 30 {
-				argBoxWidth = 30
-			}
-			argsBox := lipgloss.NewStyle().
-				Border(lipgloss.NormalBorder()).
-				BorderForeground(lipgloss.Color("238")).
-				Padding(0, 1).
-				Width(argBoxWidth)
-
-			var argsContent strings.Builder
-			for i, key := range keys {
-				value := currentTool.Arguments[key]
-				keyStr := a.styles.argumentKey.Render(key + ":")
-
-				valueStr := fmt.Sprintf("%v", value)
-				if len(valueStr) > 60 {
-					valueStr = valueStr[:57] + "..."
-				}
-				valueRendered := a.styles.argumentValue.Render(valueStr)
-
-				argsContent.WriteString(fmt.Sprintf("%s %s", keyStr, valueRendered))
-				if i < len(keys)-1 {
-					argsContent.WriteString("\n")
-				}
-			}
-			content.WriteString(argsBox.Render(argsContent.String()))
-		}
+// renderDefaultArguments renders tool arguments for non-edit tools
+func (a *ApprovalComponent) renderDefaultArguments(arguments map[string]interface{}) string {
+	if len(arguments) == 0 {
+		return ""
 	}
 
+	var content strings.Builder
+	content.WriteString(a.styles.prompt.Render("Arguments:"))
 	content.WriteString("\n")
 
-	warningTextOnly := "This tool will execute on your system. Please review carefully."
-
-	textWidth := a.width - 12
-	if textWidth < 40 {
-		textWidth = 40
+	keys := make([]string, 0, len(arguments))
+	for key := range arguments {
+		keys = append(keys, key)
 	}
+	sort.Strings(keys)
 
+	argBoxWidth := max(a.width-14, 30)
+	argsBox := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(shared.BorderColor.GetLipglossColor()).
+		Padding(0, 1).
+		Width(argBoxWidth)
+
+	var argsContent strings.Builder
+	for i, key := range keys {
+		value := arguments[key]
+		keyStr := a.styles.argumentKey.Render(key + ":")
+
+		valueStr := fmt.Sprintf("%v", value)
+		if len(valueStr) > 60 {
+			valueStr = valueStr[:57] + "..."
+		}
+		valueRendered := a.styles.argumentValue.Render(valueStr)
+
+		argsContent.WriteString(fmt.Sprintf("%s %s", keyStr, valueRendered))
+		if i < len(keys)-1 {
+			argsContent.WriteString("\n")
+		}
+	}
+	content.WriteString(argsBox.Render(argsContent.String()))
+
+	return content.String()
+}
+
+// renderFooter renders the warning, options, and help text
+func (a *ApprovalComponent) renderFooter(selectedIndex int) string {
+	var content strings.Builder
+
+	warningTextOnly := "This tool will execute on your system. Please review carefully."
+	textWidth := max(a.width-12, 40)
 	wrappedText := wordwrap.String(warningTextOnly, textWidth)
-	lines := strings.Split(wrappedText, "\n")
-
-	for _, line := range lines {
+	for line := range strings.SplitSeq(wrappedText, "\n") {
 		warningMsg := a.styles.warning.Render(line)
 		content.WriteString(warningMsg)
 		content.WriteString("\n")
@@ -208,14 +225,41 @@ func (a *ApprovalComponent) Render(toolExecution *domain.ToolExecutionSession, s
 	helpMsg := a.styles.helpText.Render("↑↓ Navigate  •  SPACE Select  •  ESC Cancel")
 	content.WriteString(helpMsg)
 
-	contentStr := content.String()
+	return content.String()
+}
 
-	containerWidth := a.width - 6
-	if containerWidth < 40 {
-		containerWidth = 40
+// assembleContent combines header, tool content, and footer with height management
+func (a *ApprovalComponent) assembleContent(headerStr, toolStr, footerStr string) string {
+	containerWidth := max(a.width-6, 40)
+
+	headerLines := len(strings.Split(headerStr, "\n"))
+	footerLines := len(strings.Split(footerStr, "\n"))
+
+	fixedLines := headerLines + footerLines + 1
+	availableHeight := max(a.height-8, 6)
+	maxToolHeight := max(availableHeight-fixedLines, 3)
+
+	var finalContent strings.Builder
+	finalContent.WriteString(headerStr)
+
+	if toolStr != "" {
+		finalContent.WriteString("\n")
+
+		toolLines := strings.Split(toolStr, "\n")
+		if len(toolLines) > maxToolHeight {
+			truncatedLines := toolLines[:maxToolHeight-1]
+			finalContent.WriteString(strings.Join(truncatedLines, "\n"))
+			finalContent.WriteString("\n")
+			finalContent.WriteString(a.styles.helpText.Render("... (content truncated) ..."))
+		} else {
+			finalContent.WriteString(toolStr)
+		}
 	}
 
-	contentLines := strings.Split(contentStr, "\n")
+	finalContent.WriteString("\n")
+	finalContent.WriteString(footerStr)
+
+	contentLines := strings.Split(finalContent.String(), "\n")
 	var wrappedContent strings.Builder
 	for i, line := range contentLines {
 		if len(line) > containerWidth-4 {
@@ -229,10 +273,7 @@ func (a *ApprovalComponent) Render(toolExecution *domain.ToolExecutionSession, s
 		}
 	}
 
-	finalContent := a.styles.container.
+	return a.styles.container.
 		Width(containerWidth).
-		MaxHeight(15).
 		Render(wrappedContent.String())
-
-	return finalContent
 }

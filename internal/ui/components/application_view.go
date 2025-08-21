@@ -69,8 +69,8 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		Bold(true).
 		Padding(0, 1)
 
-	header := headerStyle.Render("🚀 Inference Gateway CLI")
-	headerBorder := shared.CreateSeparator(width, "═")
+	header := headerStyle.Render("")
+	headerBorder := ""
 
 	conversationStyle := lipgloss.NewStyle().
 		Width(width).
@@ -93,7 +93,6 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		}
 	}
 
-	// Check for pending approval
 	if r.hasPendingApproval(data) {
 		toolExecution := data.ToolExecution
 		selectedIndex := int(domain.ApprovalApprove)
@@ -102,6 +101,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		}
 
 		approvalView.SetWidth(width)
+		approvalView.SetHeight(height)
 		approvalContent := approvalView.Render(toolExecution, selectedIndex)
 		if approvalContent != "" {
 			approvalStyle := lipgloss.NewStyle().Width(width)

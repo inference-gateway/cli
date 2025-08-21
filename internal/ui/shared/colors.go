@@ -6,27 +6,32 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
-// ANSI Color Codes
+// ANSI Color Codes - Tokyo Night Theme
 const (
 	ColorReset         = "\033[0m"
-	ColorRed           = "\033[31m"
-	ColorGreen         = "\033[32m"
-	ColorBlue          = "\033[34m"
-	ColorCyan          = "\033[36m"
-	ColorMagenta       = "\033[35m"
-	ColorWhite         = "\033[37m"
-	ColorGray          = "\033[90m"
-	ColorBrightRed     = "\033[91m"
+	ColorRed           = "\033[38;2;247;118;142m" // #f7768e - soft red for errors
+	ColorGreen         = "\033[38;2;158;206;106m" // #9ece6a - green for success
+	ColorBlue          = "\033[38;2;122;162;247m" // #7aa2f7 - blue for accent
+	ColorCyan          = "\033[38;2;125;207;255m" // #7dcfff - cyan variant
+	ColorMagenta       = "\033[38;2;187;154;247m" // #bb9af7 - purple for secondary
+	ColorWhite         = "\033[38;2;169;177;214m" // #a9b1d6 - light gray-blue for primary text
+	ColorGray          = "\033[38;2;86;95;137m"   // #565f89 - dim gray
+	ColorAmber         = "\033[38;2;224;175;104m" // #e0af68 - amber for warnings
+	ColorBrightRed     = "\033[38;2;247;118;142m" // Same as ColorRed
 	ColorStrikethrough = "\033[9m"
 	ColorDim           = "\033[2m"
 )
 
-// Lipgloss Color Names
+// Lipgloss Color Names - Tokyo Night Theme Hex Values
 const (
-	LipglossBlue    = "34"
-	LipglossGray    = "240"
-	LipglossCyan    = "39"
-	LipglossMagenta = "205"
+	LipglossRed     = "#f7768e"
+	LipglossGreen   = "#9ece6a"
+	LipglossBlue    = "#7aa2f7"
+	LipglossCyan    = "#7dcfff"
+	LipglossMagenta = "#bb9af7"
+	LipglossWhite   = "#a9b1d6"
+	LipglossGray    = "#565f89"
+	LipglossAmber   = "#e0af68"
 )
 
 // Color represents a color that can be used in both ANSI and Lipgloss contexts
@@ -35,19 +40,21 @@ type Color struct {
 	Lipgloss string
 }
 
-// Predefined colors for consistent theming
+// Predefined colors for consistent theming - Tokyo Night Theme
 var (
-	UserColor       = Color{ANSI: ColorCyan, Lipgloss: "36"}
-	AssistantColor  = Color{ANSI: ColorGreen, Lipgloss: "32"}
-	ErrorColor      = Color{ANSI: ColorRed, Lipgloss: "31"}
-	StatusColor     = Color{ANSI: ColorBlue, Lipgloss: LipglossBlue}
-	AccentColor     = Color{ANSI: ColorMagenta, Lipgloss: "35"}
-	DimColor        = Color{ANSI: ColorGray, Lipgloss: LipglossGray}
-	BorderColor     = Color{ANSI: ColorWhite, Lipgloss: "37"}
-	HeaderColor     = Color{ANSI: ColorCyan, Lipgloss: LipglossCyan}
-	SpinnerColor    = Color{ANSI: ColorMagenta, Lipgloss: LipglossMagenta}
-	DiffAddColor    = Color{ANSI: ColorGreen, Lipgloss: "32"}
-	DiffRemoveColor = Color{ANSI: ColorRed, Lipgloss: "31"}
+	UserColor       = Color{ANSI: ColorBlue, Lipgloss: LipglossBlue}       // Blue for user prompts
+	AssistantColor  = Color{ANSI: ColorWhite, Lipgloss: LipglossWhite}     // Light gray-blue for assistant
+	ErrorColor      = Color{ANSI: ColorRed, Lipgloss: LipglossRed}         // Soft red for errors
+	SuccessColor    = Color{ANSI: ColorGreen, Lipgloss: LipglossGreen}     // Green for success
+	StatusColor     = Color{ANSI: ColorMagenta, Lipgloss: LipglossMagenta} // Purple for status/info
+	AccentColor     = Color{ANSI: ColorBlue, Lipgloss: LipglossBlue}       // Blue for accents
+	DimColor        = Color{ANSI: ColorGray, Lipgloss: LipglossGray}       // Dim gray
+	BorderColor     = Color{ANSI: ColorGray, Lipgloss: LipglossGray}       // Gray for borders
+	HeaderColor     = Color{ANSI: ColorBlue, Lipgloss: LipglossBlue}       // Blue for headers
+	SpinnerColor    = Color{ANSI: ColorMagenta, Lipgloss: LipglossMagenta} // Purple for spinners
+	DiffAddColor    = Color{ANSI: ColorGreen, Lipgloss: LipglossGreen}     // Green for additions
+	DiffRemoveColor = Color{ANSI: ColorRed, Lipgloss: LipglossRed}         // Red for removals
+	WarningColor    = Color{ANSI: ColorAmber, Lipgloss: LipglossAmber}     // Amber for warnings
 )
 
 // GetLipglossColor returns a lipgloss color for the given Color
@@ -129,4 +136,9 @@ func CreateStrikethroughText(text string) string {
 // CreateDimText creates text with dim/faint styling
 func CreateDimText(text string) string {
 	return ColorDim + text + Reset()
+}
+
+// RoundedBorder returns a rounded border style for lipgloss
+func RoundedBorder() lipgloss.Border {
+	return lipgloss.RoundedBorder()
 }
