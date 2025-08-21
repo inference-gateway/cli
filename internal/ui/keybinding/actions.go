@@ -471,7 +471,6 @@ func handleQuit(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	// If autocomplete is visible, don't handle the cancel - let autocomplete handle it
 	inputView := app.GetInputView()
 	if inputView != nil && inputView.IsAutocompleteVisible() {
 		return nil
