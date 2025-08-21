@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.33.6](https://github.com/inference-gateway/cli/compare/v0.33.5...v0.33.6) (2025-08-21)
+
+### ♻️ Code Refactoring
+
+* Remove unused filepath import from conversation view ([72bf989](https://github.com/inference-gateway/cli/commit/72bf989603cf1bdcb386100821cd5fc41e7792a7))
+
 ## [0.33.5](https://github.com/inference-gateway/cli/compare/v0.33.4...v0.33.5) (2025-08-21)
 
 ### ♻️ Code Refactoring
