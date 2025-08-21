@@ -197,38 +197,6 @@ func (f BaseFormatter) TruncateText(text string, maxLength int) string {
 	return text[:maxLength-3] + "..."
 }
 
-// WrapText wraps text to specified width (simplified implementation)
-func (f BaseFormatter) WrapText(text string, width int) string {
-	if len(text) <= width {
-		return text
-	}
-
-	words := strings.Fields(text)
-	if len(words) == 0 {
-		return text
-	}
-
-	var lines []string
-	currentLine := ""
-
-	for _, word := range words {
-		if len(currentLine) == 0 {
-			currentLine = word
-		} else if len(currentLine)+1+len(word) <= width {
-			currentLine += " " + word
-		} else {
-			lines = append(lines, currentLine)
-			currentLine = word
-		}
-	}
-
-	if currentLine != "" {
-		lines = append(lines, currentLine)
-	}
-
-	return strings.Join(lines, "\n   ")
-}
-
 // Private helper methods
 func (f BaseFormatter) collapseArgValue(value any, maxLength int) string {
 	str := fmt.Sprintf("%v", value)

@@ -53,18 +53,18 @@ type ChatApplication struct {
 }
 
 // NewChatApplication creates a new chat application with all dependencies injected
-func NewChatApplication(services *container.ServiceContainer, models []string, defaultModel string) *ChatApplication {
+func NewChatApplication(serviceContainer *container.ServiceContainer, models []string, defaultModel string) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
 	if defaultModel != "" {
 		initialView = domain.ViewStateChat
 	}
 
 	app := &ChatApplication{
-		services:         services,
+		services:         serviceContainer,
 		availableModels:  models,
-		stateManager:     services.GetStateManager(),
-		debugService:     services.GetDebugService(),
-		toolOrchestrator: services.GetToolExecutionOrchestrator(),
+		stateManager:     serviceContainer.GetStateManager(),
+		debugService:     serviceContainer.GetDebugService(),
+		toolOrchestrator: serviceContainer.GetToolExecutionOrchestrator(),
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -72,20 +72,23 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 	}
 
 	app.conversationView = ui.CreateConversationView()
-	app.inputView = ui.CreateInputViewWithToolService(services.GetModelService(), services.GetCommandRegistry(), services.GetToolService())
+	toolFormatterService := services.NewToolFormatterService(serviceContainer.GetToolRegistry())
+	if cv, ok := app.conversationView.(*components.ConversationView); ok {
+		cv.SetToolFormatter(toolFormatterService)
+	}
+	app.inputView = ui.CreateInputViewWithToolService(serviceContainer.GetModelService(), serviceContainer.GetCommandRegistry(), serviceContainer.GetToolService())
 	app.statusView = ui.CreateStatusView()
 	app.helpBar = ui.CreateHelpBar()
-	app.approvalView = ui.CreateApprovalView(services.GetTheme())
-	app.fileSelectionView = components.NewFileSelectionView(services.GetTheme())
+	app.approvalView = ui.CreateApprovalView(serviceContainer.GetTheme())
+	app.fileSelectionView = components.NewFileSelectionView(serviceContainer.GetTheme())
 
-	// Initialize presentation layer
-	app.applicationViewRenderer = components.NewApplicationViewRenderer(services.GetTheme())
-	app.fileSelectionHandler = components.NewFileSelectionHandler(services.GetTheme())
+	app.applicationViewRenderer = components.NewApplicationViewRenderer(serviceContainer.GetTheme())
+	app.fileSelectionHandler = components.NewFileSelectionHandler(serviceContainer.GetTheme())
 
 	app.keyBindingManager = keybinding.NewKeyBindingManager(app)
 	app.updateHelpBarShortcuts()
 
-	app.modelSelector = components.NewModelSelector(models, services.GetModelService(), services.GetTheme())
+	app.modelSelector = components.NewModelSelector(models, serviceContainer.GetModelService(), serviceContainer.GetTheme())
 
 	if initialView == domain.ViewStateChat {
 		app.focusedComponent = app.inputView
