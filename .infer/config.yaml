@@ -35,7 +35,10 @@ tools:
         - ^git status$
         - ^git log --oneline -n [0-9]+$
         - ^git commit -m ".+"$
-        - ^git push( --set-upstream)?( origin)?( [a-zA-Z0-9/_-]+)?$
+        - ^git push( --set-upstream)?( origin)? (feature|fix|bugfix|hotfix|chore|docs|test|refactor|build|ci|perf|style)/[a-zA-Z0-9/_.-]+$
+        - ^git push( --set-upstream)?( origin)? develop$
+        - ^git push( --set-upstream)?( origin)? staging$
+        - ^git push( --set-upstream)?( origin)? release/[a-zA-Z0-9._-]+$
   read:
     enabled: true
     require_approval: false
