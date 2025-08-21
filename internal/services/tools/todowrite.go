@@ -8,6 +8,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // TodoWriteTool handles structured task list management for coding sessions
@@ -328,23 +329,23 @@ func (t *TodoWriteTool) FormatPreview(result *domain.ToolExecutionResult) string
 	todoResult, ok := result.Data.(*domain.TodoWriteToolResult)
 	if !ok {
 		if result.Success {
-			return "Todo list updated successfully"
+			return "📋 Todo list updated successfully"
 		}
-		return "Todo list update failed"
+		return "❌ Todo list update failed"
 	}
 
 	if todoResult.TotalTasks == 0 {
-		return "Todo list is empty"
+		return "📋 Todo list is empty"
 	}
 
-	// Create a progress bar
 	progressBar := t.formatProgressBar(todoResult.CompletedTasks, todoResult.TotalTasks)
+	percentage := int(float64(todoResult.CompletedTasks) / float64(todoResult.TotalTasks) * 100)
 
-	status := fmt.Sprintf("%s %d/%d tasks", progressBar, todoResult.CompletedTasks, todoResult.TotalTasks)
+	status := fmt.Sprintf("📋 %s %d/%d tasks (%d%%)", progressBar, todoResult.CompletedTasks, todoResult.TotalTasks, percentage)
 
 	if todoResult.InProgressTask != "" {
 		taskPreview := t.formatter.TruncateText(todoResult.InProgressTask, 30)
-		status += fmt.Sprintf(" (working on: %s)", taskPreview)
+		status += fmt.Sprintf(" 🔄 %s", taskPreview)
 	}
 
 	return status
@@ -397,32 +398,35 @@ func (t *TodoWriteTool) formatTodoData(data any) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Total Tasks: %d\n", todoResult.TotalTasks))
-	output.WriteString(fmt.Sprintf("Completed Tasks: %d\n", todoResult.CompletedTasks))
-	output.WriteString(fmt.Sprintf("Validation OK: %t\n", todoResult.ValidationOK))
 
-	if todoResult.InProgressTask != "" {
-		output.WriteString(fmt.Sprintf("In Progress Task: %s\n", todoResult.InProgressTask))
-	}
+	header := shared.CreateColoredText("📋 **Todo List**", shared.AccentColor)
+	completionText := shared.CreateColoredText(fmt.Sprintf("(%d/%d completed)", todoResult.CompletedTasks, todoResult.TotalTasks), shared.DimColor)
+	output.WriteString(fmt.Sprintf("%s %s\n\n", header, completionText))
 
 	if todoResult.TotalTasks > 0 {
-		progressBar := t.formatProgressBar(todoResult.CompletedTasks, todoResult.TotalTasks)
+		progressBar := t.formatColoredProgressBar(todoResult.CompletedTasks, todoResult.TotalTasks)
 		percentage := int(float64(todoResult.CompletedTasks) / float64(todoResult.TotalTasks) * 100)
-		output.WriteString(fmt.Sprintf("Progress: %s %d%%\n", progressBar, percentage))
+		progressText := shared.CreateColoredText(fmt.Sprintf("Progress: %s %d%%", progressBar, percentage), shared.AccentColor)
+		output.WriteString(fmt.Sprintf("%s\n\n", progressText))
 	}
 
 	if len(todoResult.Todos) > 0 {
-		output.WriteString("\nTasks:\n")
-		for i, todo := range todoResult.Todos {
-			statusIcon := t.getStatusIcon(todo.Status)
-			output.WriteString(fmt.Sprintf("  %d. %s %s\n", i+1, statusIcon, todo.Content))
+		for _, todo := range todoResult.Todos {
+			checkbox, content := t.formatTodoItem(todo)
+			output.WriteString(fmt.Sprintf("%s %s\n", checkbox, content))
 		}
+	}
+
+	if todoResult.InProgressTask != "" {
+		workingText := shared.CreateColoredText("🚧 Currently working on:", shared.AccentColor)
+		taskText := shared.CreateColoredText(todoResult.InProgressTask, shared.SuccessColor)
+		output.WriteString(fmt.Sprintf("\n%s %s\n", workingText, taskText))
 	}
 
 	return output.String()
 }
 
-// formatProgressBar creates a visual progress bar
+// formatProgressBar creates a visual progress bar (simple version for preview)
 func (t *TodoWriteTool) formatProgressBar(completed, total int) string {
 	if total == 0 {
 		return "[----------] 0%"
@@ -445,16 +449,44 @@ func (t *TodoWriteTool) formatProgressBar(completed, total int) string {
 	return bar.String()
 }
 
-// getStatusIcon returns an icon for the task status
-func (t *TodoWriteTool) getStatusIcon(status string) string {
-	switch status {
-	case "completed":
-		return "✓"
-	case "in_progress":
-		return "⚠"
-	case "pending":
-		return "○"
-	default:
-		return "?"
+// formatColoredProgressBar creates a beautiful colored progress bar
+func (t *TodoWriteTool) formatColoredProgressBar(completed, total int) string {
+	if total == 0 {
+		return "[░░░░░░░░░░]"
 	}
+
+	barLength := 20
+	progress := int(float64(completed) / float64(total) * float64(barLength))
+
+	var bar strings.Builder
+	bar.WriteString("[")
+	for i := 0; i < barLength; i++ {
+		if i < progress {
+			bar.WriteString("█")
+		} else {
+			bar.WriteString("░")
+		}
+	}
+	bar.WriteString("]")
+
+	return bar.String()
+}
+
+// formatTodoItem formats a single todo item with appropriate colors and icons
+func (t *TodoWriteTool) formatTodoItem(todo domain.TodoItem) (string, string) {
+	var checkbox, content string
+
+	switch todo.Status {
+	case "completed":
+		checkbox = "✅"
+		content = shared.CreateStrikethroughText(todo.Content)
+	case "in_progress":
+		checkbox = "🔄"
+		content = shared.CreateColoredText(fmt.Sprintf("%s (in progress)", todo.Content), shared.AccentColor)
+	default:
+		checkbox = "☐"
+		content = todo.Content
+	}
+
+	return checkbox, content
 }
