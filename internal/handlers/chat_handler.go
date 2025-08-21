@@ -9,6 +9,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/services"
@@ -18,16 +19,17 @@ import (
 
 // ChatHandler handles chat-related messages using the new state management system
 type ChatHandler struct {
-	name             string
-	chatService      domain.ChatService
-	conversationRepo domain.ConversationRepository
-	modelService     domain.ModelService
-	configService    domain.ConfigService
-	toolService      domain.ToolService
-	fileService      domain.FileService
-	commandRegistry  *commands.Registry
-	toolOrchestrator *services.ToolExecutionOrchestrator
-	debugService     *services.DebugService
+	name                    string
+	chatService             domain.ChatService
+	conversationRepo        domain.ConversationRepository
+	modelService            domain.ModelService
+	configService           domain.ConfigService
+	toolService             domain.ToolService
+	fileService             domain.FileService
+	commandRegistry         *commands.Registry
+	toolOrchestrator        *services.ToolExecutionOrchestrator
+	debugService            *services.DebugService
+	assistantMessageCounter int
 }
 
 // NewChatHandler creates a new chat handler
@@ -693,7 +695,9 @@ func (h *ChatHandler) handleChatComplete(
 		tokenUsage = h.formatMetrics(msg.Metrics)
 	}
 
-	return nil, tea.Batch(
+	h.assistantMessageCounter++
+
+	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return shared.UpdateHistoryMsg{
 				History: h.conversationRepo.GetMessages(),
@@ -707,7 +711,13 @@ func (h *ChatHandler) handleChatComplete(
 				StatusType: shared.StatusDefault,
 			}
 		},
-	)
+	}
+
+	if h.shouldInjectSystemReminder() {
+		cmds = append(cmds, h.injectSystemReminder(debugService))
+	}
+
+	return nil, tea.Batch(cmds...)
 }
 
 // handleChatError processes chat error events
@@ -1896,6 +1906,76 @@ func (h *ChatHandler) addTokenUsageToSession(metrics *domain.ChatMetrics, debugS
 
 func generateRequestID() string {
 	return fmt.Sprintf("req_%d", time.Now().UnixNano())
+}
+
+// shouldInjectSystemReminder checks if a system reminder should be injected
+func (h *ChatHandler) shouldInjectSystemReminder() bool {
+	config, ok := h.configService.(*config.Config)
+	if !ok {
+		return false
+	}
+
+	if !config.Chat.SystemReminders.Enabled {
+		return false
+	}
+
+	interval := config.Chat.SystemReminders.Interval
+	if interval <= 0 {
+		interval = 4
+	}
+
+	return h.assistantMessageCounter%interval == 0
+}
+
+// injectSystemReminder injects a system reminder message into the conversation
+func (h *ChatHandler) injectSystemReminder(debugService *services.DebugService) tea.Cmd {
+	return func() tea.Msg {
+		config, ok := h.configService.(*config.Config)
+		if !ok {
+			return nil
+		}
+
+		reminderText := config.Chat.SystemReminders.ReminderText
+		if reminderText == "" {
+			reminderText = `<system-reminder>
+This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>`
+		}
+
+		systemReminderEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: reminderText,
+			},
+			Time:             time.Now(),
+			IsSystemReminder: true,
+		}
+
+		if err := h.conversationRepo.AddMessage(systemReminderEntry); err != nil {
+			if debugService != nil {
+				debugService.LogError(err, h.name, map[string]any{
+					"operation": "inject_system_reminder",
+				})
+			}
+			return nil
+		}
+
+		if debugService != nil {
+			debugService.LogEvent(
+				services.DebugEventTypeMessage,
+				h.name,
+				"Injected system reminder",
+				map[string]any{
+					"counter":  h.assistantMessageCounter,
+					"interval": config.Chat.SystemReminders.Interval,
+				},
+			)
+		}
+
+		return shared.UpdateHistoryMsg{
+			History: h.conversationRepo.GetMessages(),
+		}
+	}
 }
 
 // handleFileSelectionRequest handles the file selection request triggered by "@" key
