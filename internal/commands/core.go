@@ -274,60 +274,6 @@ func (c *ExitCommand) Execute(ctx context.Context, args []string) (CommandResult
 	}, nil
 }
 
-// HistoryCommand shows conversation history
-type HistoryCommand struct {
-	repo domain.ConversationRepository
-}
-
-func NewHistoryCommand(repo domain.ConversationRepository) *HistoryCommand {
-	return &HistoryCommand{repo: repo}
-}
-
-func (c *HistoryCommand) GetName() string               { return "history" }
-func (c *HistoryCommand) GetDescription() string        { return "Show conversation history" }
-func (c *HistoryCommand) GetUsage() string              { return "/history" }
-func (c *HistoryCommand) CanExecute(args []string) bool { return len(args) == 0 }
-
-func (c *HistoryCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
-	messages := c.repo.GetMessages()
-	if len(messages) == 0 {
-		return CommandResult{
-			Output:  "💬 Conversation history is empty",
-			Success: true,
-		}, nil
-	}
-
-	var output strings.Builder
-	output.WriteString("💬 Conversation History:\n")
-
-	for i, entry := range messages {
-		var role string
-		switch entry.Message.Role {
-		case "user":
-			role = "You"
-		case "assistant":
-			if entry.Model != "" {
-				role = fmt.Sprintf("Assistant (%s)", entry.Model)
-			} else {
-				role = "Assistant"
-			}
-		case "system":
-			role = "System"
-		case "tool":
-			role = "Tool"
-		default:
-			role = string(entry.Message.Role)
-		}
-		output.WriteString(fmt.Sprintf("  %d. %s: %s\n", i+1, role, entry.Message.Content))
-	}
-
-	return CommandResult{
-		Output:     output.String(),
-		Success:    true,
-		SideEffect: SideEffectShowHistory,
-	}, nil
-}
-
 // SwitchCommand switches the active model
 type SwitchCommand struct {
 	modelService domain.ModelService

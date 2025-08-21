@@ -114,7 +114,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.commandRegistry.Register(commands.NewClearCommand(c.conversationRepo))
 	c.commandRegistry.Register(commands.NewExportCommand(c.conversationRepo, c.chatService, c.modelService, c.config))
 	c.commandRegistry.Register(commands.NewExitCommand())
-	c.commandRegistry.Register(commands.NewHistoryCommand(c.conversationRepo))
 	c.commandRegistry.Register(commands.NewSwitchCommand(c.modelService))
 }
 
