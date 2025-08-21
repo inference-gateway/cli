@@ -97,7 +97,8 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 	case "Read":
 		if readResult, ok := result.Data.(*domain.FileReadToolResult); ok {
 			fileName := getFileName(readResult.FilePath)
-			preview = fmt.Sprintf("Read %d bytes from %s", readResult.Size, fileName)
+			lineCount := strings.Count(readResult.Content, "\n") + 1
+			preview = fmt.Sprintf("Read %d lines from %s", lineCount, fileName)
 		}
 	case "WebFetch":
 		if fetchResult, ok := result.Data.(*domain.FetchResult); ok {
@@ -260,6 +261,12 @@ func formatReadToolData(data any) string {
 
 	var output strings.Builder
 	output.WriteString(fmt.Sprintf("File: %s\n", readResult.FilePath))
+
+	lineCount := 0
+	if readResult.Content != "" {
+		lineCount = strings.Count(readResult.Content, "\n") + 1
+	}
+
 	if readResult.StartLine > 0 {
 		output.WriteString(fmt.Sprintf("Lines: %d", readResult.StartLine))
 		if readResult.EndLine > 0 && readResult.EndLine != readResult.StartLine {
@@ -267,7 +274,10 @@ func formatReadToolData(data any) string {
 		}
 		output.WriteString("\n")
 	}
+
+	output.WriteString(fmt.Sprintf("Lines: %d\n", lineCount))
 	output.WriteString(fmt.Sprintf("Size: %d bytes\n", readResult.Size))
+
 	if readResult.Error != "" {
 		output.WriteString(fmt.Sprintf("Error: %s\n", readResult.Error))
 	}

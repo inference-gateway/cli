@@ -200,7 +200,8 @@ func formatResultSummary(result *domain.ToolExecutionResult) string {
 		}
 	case "Read":
 		if readResult, ok := result.Data.(*domain.FileReadToolResult); ok {
-			return fmt.Sprintf("Read %d bytes from %s", readResult.Size, getFileName(readResult.FilePath))
+			lineCount := countLines(readResult.Content)
+			return fmt.Sprintf("Read %d lines from %s", lineCount, getFileName(readResult.FilePath))
 		}
 	case "WebFetch":
 		if fetchResult, ok := result.Data.(*domain.FetchResult); ok {
@@ -522,6 +523,14 @@ func getDomainFromURL(url string) string {
 	return url
 }
 
+// countLines counts the number of lines in a string content
+func countLines(content string) int {
+	if content == "" {
+		return 0
+	}
+	return strings.Count(content, "\n") + 1
+}
+
 // FormatToolResultForLLM formats tool execution results specifically for LLM consumption
 // This returns the actual tool data in a format the LLM can understand and use
 func FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
@@ -788,7 +797,8 @@ func FormatToolResultForUI(result *domain.ToolExecutionResult) string {
 	case "Read":
 		if readResult, ok := result.Data.(*domain.FileReadToolResult); ok {
 			fileName := getFileName(readResult.FilePath)
-			preview = fmt.Sprintf("Read %d bytes from %s", readResult.Size, fileName)
+			lineCount := countLines(readResult.Content)
+			preview = fmt.Sprintf("Read %d lines from %s", lineCount, fileName)
 		}
 	case "Write":
 		if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
