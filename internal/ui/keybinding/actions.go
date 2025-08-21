@@ -477,17 +477,6 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	if chatSession := app.GetStateManager().GetChatSession(); chatSession != nil {
-		app.GetStateManager().EndChatSession()
-		return func() tea.Msg {
-			return shared.SetStatusMsg{
-				Message:    "Response cancelled",
-				Spinner:    false,
-				TokenUsage: getCurrentTokenUsage(app),
-			}
-		}
-	}
-
 	app.GetStateManager().EndChatSession()
 	app.GetStateManager().EndToolExecution()
 	_ = app.GetStateManager().TransitionToView(domain.ViewStateChat)
