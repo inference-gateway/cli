@@ -33,6 +33,29 @@ type FakeTool struct {
 		result1 *domain.ToolExecutionResult
 		result2 error
 	}
+	FormatPreviewStub        func(*domain.ToolExecutionResult) string
+	formatPreviewMutex       sync.RWMutex
+	formatPreviewArgsForCall []struct {
+		arg1 *domain.ToolExecutionResult
+	}
+	formatPreviewReturns struct {
+		result1 string
+	}
+	formatPreviewReturnsOnCall map[int]struct {
+		result1 string
+	}
+	FormatResultStub        func(*domain.ToolExecutionResult, domain.FormatterType) string
+	formatResultMutex       sync.RWMutex
+	formatResultArgsForCall []struct {
+		arg1 *domain.ToolExecutionResult
+		arg2 domain.FormatterType
+	}
+	formatResultReturns struct {
+		result1 string
+	}
+	formatResultReturnsOnCall map[int]struct {
+		result1 string
+	}
 	IsEnabledStub        func() bool
 	isEnabledMutex       sync.RWMutex
 	isEnabledArgsForCall []struct {
@@ -174,6 +197,129 @@ func (fake *FakeTool) ExecuteReturnsOnCall(i int, result1 *domain.ToolExecutionR
 		result1 *domain.ToolExecutionResult
 		result2 error
 	}{result1, result2}
+}
+
+func (fake *FakeTool) FormatPreview(arg1 *domain.ToolExecutionResult) string {
+	fake.formatPreviewMutex.Lock()
+	ret, specificReturn := fake.formatPreviewReturnsOnCall[len(fake.formatPreviewArgsForCall)]
+	fake.formatPreviewArgsForCall = append(fake.formatPreviewArgsForCall, struct {
+		arg1 *domain.ToolExecutionResult
+	}{arg1})
+	stub := fake.FormatPreviewStub
+	fakeReturns := fake.formatPreviewReturns
+	fake.recordInvocation("FormatPreview", []interface{}{arg1})
+	fake.formatPreviewMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeTool) FormatPreviewCallCount() int {
+	fake.formatPreviewMutex.RLock()
+	defer fake.formatPreviewMutex.RUnlock()
+	return len(fake.formatPreviewArgsForCall)
+}
+
+func (fake *FakeTool) FormatPreviewCalls(stub func(*domain.ToolExecutionResult) string) {
+	fake.formatPreviewMutex.Lock()
+	defer fake.formatPreviewMutex.Unlock()
+	fake.FormatPreviewStub = stub
+}
+
+func (fake *FakeTool) FormatPreviewArgsForCall(i int) *domain.ToolExecutionResult {
+	fake.formatPreviewMutex.RLock()
+	defer fake.formatPreviewMutex.RUnlock()
+	argsForCall := fake.formatPreviewArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeTool) FormatPreviewReturns(result1 string) {
+	fake.formatPreviewMutex.Lock()
+	defer fake.formatPreviewMutex.Unlock()
+	fake.FormatPreviewStub = nil
+	fake.formatPreviewReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeTool) FormatPreviewReturnsOnCall(i int, result1 string) {
+	fake.formatPreviewMutex.Lock()
+	defer fake.formatPreviewMutex.Unlock()
+	fake.FormatPreviewStub = nil
+	if fake.formatPreviewReturnsOnCall == nil {
+		fake.formatPreviewReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.formatPreviewReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeTool) FormatResult(arg1 *domain.ToolExecutionResult, arg2 domain.FormatterType) string {
+	fake.formatResultMutex.Lock()
+	ret, specificReturn := fake.formatResultReturnsOnCall[len(fake.formatResultArgsForCall)]
+	fake.formatResultArgsForCall = append(fake.formatResultArgsForCall, struct {
+		arg1 *domain.ToolExecutionResult
+		arg2 domain.FormatterType
+	}{arg1, arg2})
+	stub := fake.FormatResultStub
+	fakeReturns := fake.formatResultReturns
+	fake.recordInvocation("FormatResult", []interface{}{arg1, arg2})
+	fake.formatResultMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeTool) FormatResultCallCount() int {
+	fake.formatResultMutex.RLock()
+	defer fake.formatResultMutex.RUnlock()
+	return len(fake.formatResultArgsForCall)
+}
+
+func (fake *FakeTool) FormatResultCalls(stub func(*domain.ToolExecutionResult, domain.FormatterType) string) {
+	fake.formatResultMutex.Lock()
+	defer fake.formatResultMutex.Unlock()
+	fake.FormatResultStub = stub
+}
+
+func (fake *FakeTool) FormatResultArgsForCall(i int) (*domain.ToolExecutionResult, domain.FormatterType) {
+	fake.formatResultMutex.RLock()
+	defer fake.formatResultMutex.RUnlock()
+	argsForCall := fake.formatResultArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeTool) FormatResultReturns(result1 string) {
+	fake.formatResultMutex.Lock()
+	defer fake.formatResultMutex.Unlock()
+	fake.FormatResultStub = nil
+	fake.formatResultReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeTool) FormatResultReturnsOnCall(i int, result1 string) {
+	fake.formatResultMutex.Lock()
+	defer fake.formatResultMutex.Unlock()
+	fake.FormatResultStub = nil
+	if fake.formatResultReturnsOnCall == nil {
+		fake.formatResultReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.formatResultReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
 }
 
 func (fake *FakeTool) IsEnabled() bool {
