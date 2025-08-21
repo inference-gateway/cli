@@ -6,6 +6,48 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.32.2](https://github.com/inference-gateway/cli/compare/v0.32.1...v0.32.2) (2025-08-21)
+
+### ♻️ Code Refactoring
+
+* Remove HistoryCommand and its registration from the service container ([4bf5a16](https://github.com/inference-gateway/cli/commit/4bf5a167b792d16d75459495c2902297915ce541))
+
+## [0.32.1](https://github.com/inference-gateway/cli/compare/v0.32.0...v0.32.1) (2025-08-20)
+
+### ♻️ Code Refactoring
+
+* Remove ModelsCommand and its registration from the service container ([3a71240](https://github.com/inference-gateway/cli/commit/3a712404d6c88c4278d7330bb5c72254276cbd23))
+
+## [0.32.0](https://github.com/inference-gateway/cli/compare/v0.31.0...v0.32.0) (2025-08-20)
+
+### 🚀 Features
+
+* Add Tools mode with !! prefix for direct tool execution ([#90](https://github.com/inference-gateway/cli/issues/90)) ([1d56cf2](https://github.com/inference-gateway/cli/commit/1d56cf2e3255c84a1f2ffe2e67a44f6cc3d0ebce)), closes [#88](https://github.com/inference-gateway/cli/issues/88) [#88](https://github.com/inference-gateway/cli/issues/88)
+
+## [0.31.0](https://github.com/inference-gateway/cli/compare/v0.30.0...v0.31.0) (2025-08-20)
+
+### 🚀 Features
+
+* Implement Github Tool ([#86](https://github.com/inference-gateway/cli/issues/86)) ([b8dc12b](https://github.com/inference-gateway/cli/commit/b8dc12b23613f99cd416673ebd8d55100493381f)), closes [#85](https://github.com/inference-gateway/cli/issues/85)
+
+## [0.30.0](https://github.com/inference-gateway/cli/compare/v0.29.6...v0.30.0) (2025-08-20)
+
+### 🚀 Features
+
+* Add optimization and compact command configurations ([977755f](https://github.com/inference-gateway/cli/commit/977755f0cef3f9e73eedc8d78df65c3f40032f44))
+
+## [0.29.6](https://github.com/inference-gateway/cli/compare/v0.29.5...v0.29.6) (2025-08-20)
+
+### 💄 Styles
+
+* Add harmonica dependency and improve todo tool result formatting ([943a05b](https://github.com/inference-gateway/cli/commit/943a05b62ba90ff396f12225e6fdfc745b6a418c))
+
+## [0.29.5](https://github.com/inference-gateway/cli/compare/v0.29.4...v0.29.5) (2025-08-20)
+
+### 🧹 Maintenance
+
+* Update configuration and improve chat session handling ([b598d14](https://github.com/inference-gateway/cli/commit/b598d147b972b1ef406d654669a38f71a75f4305))
+
 ## [0.29.4](https://github.com/inference-gateway/cli/compare/v0.29.3...v0.29.4) (2025-08-20)
 
 ### ♻️ Code Refactoring

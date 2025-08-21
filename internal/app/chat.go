@@ -72,7 +72,7 @@ func NewChatApplication(services *container.ServiceContainer, models []string, d
 	}
 
 	app.conversationView = ui.CreateConversationView()
-	app.inputView = ui.CreateInputView(services.GetModelService(), services.GetCommandRegistry())
+	app.inputView = ui.CreateInputViewWithToolService(services.GetModelService(), services.GetCommandRegistry(), services.GetToolService())
 	app.statusView = ui.CreateStatusView()
 	app.helpBar = ui.CreateHelpBar()
 	app.approvalView = ui.CreateApprovalView(services.GetTheme())
@@ -125,6 +125,7 @@ func (app *ChatApplication) updateHelpBarShortcuts() {
 	}
 
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "!", Description: "for bash mode"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "!!", Description: "for tools mode"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "/", Description: "for commands"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "@", Description: "for file paths"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "#", Description: "to memorize(not implemented)"})

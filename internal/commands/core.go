@@ -145,13 +145,16 @@ Keep the summary concise but informative, using bullet points where appropriate.
 		Content: "Please provide a summary of our conversation above.",
 	})
 
-	currentModel := c.modelService.GetCurrentModel()
-	if currentModel == "" {
-		return "No model selected for summary generation", nil
+	summaryModel := c.config.Compact.SummaryModel
+	if summaryModel == "" {
+		summaryModel = c.modelService.GetCurrentModel()
+		if summaryModel == "" {
+			return "No model selected for summary generation", nil
+		}
 	}
 
 	requestID := fmt.Sprintf("req_%d", time.Now().UnixNano())
-	eventChan, err := c.chatService.SendMessage(ctx, requestID, currentModel, messages)
+	eventChan, err := c.chatService.SendMessage(ctx, requestID, summaryModel, messages)
 	if err != nil {
 		return "", fmt.Errorf("failed to start summary generation: %w", err)
 	}
@@ -268,102 +271,6 @@ func (c *ExitCommand) Execute(ctx context.Context, args []string) (CommandResult
 		Output:     "👋 Chat session ended!",
 		Success:    true,
 		SideEffect: SideEffectExit,
-	}, nil
-}
-
-// HistoryCommand shows conversation history
-type HistoryCommand struct {
-	repo domain.ConversationRepository
-}
-
-func NewHistoryCommand(repo domain.ConversationRepository) *HistoryCommand {
-	return &HistoryCommand{repo: repo}
-}
-
-func (c *HistoryCommand) GetName() string               { return "history" }
-func (c *HistoryCommand) GetDescription() string        { return "Show conversation history" }
-func (c *HistoryCommand) GetUsage() string              { return "/history" }
-func (c *HistoryCommand) CanExecute(args []string) bool { return len(args) == 0 }
-
-func (c *HistoryCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
-	messages := c.repo.GetMessages()
-	if len(messages) == 0 {
-		return CommandResult{
-			Output:  "💬 Conversation history is empty",
-			Success: true,
-		}, nil
-	}
-
-	var output strings.Builder
-	output.WriteString("💬 Conversation History:\n")
-
-	for i, entry := range messages {
-		var role string
-		switch entry.Message.Role {
-		case "user":
-			role = "You"
-		case "assistant":
-			if entry.Model != "" {
-				role = fmt.Sprintf("Assistant (%s)", entry.Model)
-			} else {
-				role = "Assistant"
-			}
-		case "system":
-			role = "System"
-		case "tool":
-			role = "Tool"
-		default:
-			role = string(entry.Message.Role)
-		}
-		output.WriteString(fmt.Sprintf("  %d. %s: %s\n", i+1, role, entry.Message.Content))
-	}
-
-	return CommandResult{
-		Output:     output.String(),
-		Success:    true,
-		SideEffect: SideEffectShowHistory,
-	}, nil
-}
-
-// ModelsCommand shows available models
-type ModelsCommand struct {
-	modelService domain.ModelService
-}
-
-func NewModelsCommand(modelService domain.ModelService) *ModelsCommand {
-	return &ModelsCommand{modelService: modelService}
-}
-
-func (c *ModelsCommand) GetName() string               { return "models" }
-func (c *ModelsCommand) GetDescription() string        { return "Show available models" }
-func (c *ModelsCommand) GetUsage() string              { return "/models" }
-func (c *ModelsCommand) CanExecute(args []string) bool { return len(args) == 0 }
-
-func (c *ModelsCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
-	current := c.modelService.GetCurrentModel()
-	models, err := c.modelService.ListModels(ctx)
-	if err != nil {
-		return CommandResult{
-			Output:  fmt.Sprintf("Failed to fetch models: %v", err),
-			Success: false,
-		}, nil
-	}
-
-	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Current model: %s\n", current))
-	output.WriteString("Available models:\n")
-
-	for _, model := range models {
-		if model == current {
-			output.WriteString(fmt.Sprintf("  • %s (current)\n", model))
-		} else {
-			output.WriteString(fmt.Sprintf("  • %s\n", model))
-		}
-	}
-
-	return CommandResult{
-		Output:  output.String(),
-		Success: true,
 	}, nil
 }
 

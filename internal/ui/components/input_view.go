@@ -86,11 +86,12 @@ func (iv *InputView) SetHeight(height int) {
 }
 
 func (iv *InputView) Render() string {
-	isBashMode := strings.HasPrefix(iv.text, "!")
+	isToolsMode := strings.HasPrefix(iv.text, "!!")
+	isBashMode := strings.HasPrefix(iv.text, "!") && !isToolsMode
 	displayText := iv.renderDisplayText()
 
 	inputContent := fmt.Sprintf("> %s", displayText)
-	borderColor := iv.getBorderColor(isBashMode)
+	borderColor := iv.getBorderColor(isBashMode, isToolsMode)
 
 	inputStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
@@ -101,9 +102,9 @@ func (iv *InputView) Render() string {
 	borderedInput := inputStyle.Render(inputContent)
 	components := []string{borderedInput}
 
-	components = iv.addBashIndicator(components, isBashMode)
+	components = iv.addModeIndicator(components, isBashMode, isToolsMode)
 	components = iv.addAutocomplete(components)
-	components = iv.addModelDisplay(components, isBashMode)
+	components = iv.addModelDisplay(components, isBashMode, isToolsMode)
 
 	return lipgloss.JoinVertical(lipgloss.Left, components...)
 }
@@ -163,21 +164,33 @@ func (iv *InputView) createCursorChar(char string) string {
 		Render(char)
 }
 
-func (iv *InputView) getBorderColor(isBashMode bool) string {
+func (iv *InputView) getBorderColor(isBashMode bool, isToolsMode bool) string {
 	if isBashMode {
 		return shared.StatusColor.Lipgloss
+	}
+	if isToolsMode {
+		return shared.AccentColor.Lipgloss
 	}
 	return shared.DimColor.Lipgloss
 }
 
-func (iv *InputView) addBashIndicator(components []string, isBashMode bool) []string {
-	if isBashMode && iv.height >= 2 {
-		bashIndicator := lipgloss.NewStyle().
-			Foreground(shared.StatusColor.GetLipglossColor()).
-			Bold(true).
-			Width(iv.width).
-			Render("BASH MODE - Command will be executed directly")
-		components = append(components, bashIndicator)
+func (iv *InputView) addModeIndicator(components []string, isBashMode bool, isToolsMode bool) []string {
+	if iv.height >= 2 {
+		if isBashMode {
+			bashIndicator := lipgloss.NewStyle().
+				Foreground(shared.StatusColor.GetLipglossColor()).
+				Bold(true).
+				Width(iv.width).
+				Render("BASH MODE - Command will be executed directly")
+			components = append(components, bashIndicator)
+		} else if isToolsMode {
+			toolsIndicator := lipgloss.NewStyle().
+				Foreground(shared.AccentColor.GetLipglossColor()).
+				Bold(true).
+				Width(iv.width).
+				Render("TOOLS MODE - !!ToolName(arg=\"value\") - Tab for autocomplete")
+			components = append(components, toolsIndicator)
+		}
 	}
 	return components
 }
@@ -192,10 +205,10 @@ func (iv *InputView) addAutocomplete(components []string) []string {
 	return components
 }
 
-func (iv *InputView) addModelDisplay(components []string, isBashMode bool) []string {
+func (iv *InputView) addModelDisplay(components []string, isBashMode bool, isToolsMode bool) []string {
 	if iv.modelService != nil {
 		currentModel := iv.modelService.GetCurrentModel()
-		if currentModel != "" && iv.height >= 2 && !isBashMode {
+		if currentModel != "" && iv.height >= 2 && !isBashMode && !isToolsMode {
 			modelStyle := lipgloss.NewStyle().
 				Foreground(shared.DimColor.GetLipglossColor()).
 				Width(iv.width)
@@ -277,10 +290,6 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if handled, completion := iv.Autocomplete.HandleKey(key); handled {
 			return iv.handleAutocomplete(completion)
 		}
-
-		if keyStr == "up" || keyStr == "down" {
-			return iv, nil
-		}
 	}
 
 	if iv.Autocomplete == nil || !iv.Autocomplete.IsVisible() {
@@ -314,16 +323,26 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 func (iv *InputView) handleAutocomplete(completion string) (tea.Model, tea.Cmd) {
 	if completion != "" {
 		iv.text = completion
-		iv.cursor = len(completion)
+		iv.setCursorPosition(completion)
 		if iv.Autocomplete != nil {
 			iv.Autocomplete.Hide()
 		}
 		return iv, nil
 	}
-	if iv.Autocomplete != nil {
-		iv.Autocomplete.Update(iv.text, iv.cursor)
-	}
 	return iv, nil
+}
+
+// setCursorPosition sets the appropriate cursor position based on completion content
+func (iv *InputView) setCursorPosition(completion string) {
+	if strings.Contains(completion, `=""`) {
+		if idx := strings.Index(completion, `=""`); idx != -1 {
+			iv.cursor = idx + 2
+		} else {
+			iv.cursor = len(completion)
+		}
+	} else {
+		iv.cursor = len(completion)
+	}
 }
 
 func (iv *InputView) CanHandle(key tea.KeyMsg) bool {

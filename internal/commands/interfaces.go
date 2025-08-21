@@ -30,6 +30,5 @@ const (
 	SideEffectExportConversation
 	SideEffectExit
 	SideEffectSwitchModel
-	SideEffectShowHistory
 	SideEffectShowHelp
 )

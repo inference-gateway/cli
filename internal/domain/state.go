@@ -287,7 +287,7 @@ func (s *ApplicationState) StartChatSession(requestID, model string, eventChan <
 		StartTime:       time.Now(),
 		Model:           model,
 		EventChannel:    eventChan,
-		IsFirstChunk:    false,
+		IsFirstChunk:    true,
 		HasToolCalls:    false,
 		PendingMessages: make([]sdk.Message, 0),
 		LastActivity:    time.Now(),

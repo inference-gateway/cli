@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/inference-gateway/cli/internal/logger"
@@ -45,6 +46,7 @@ type ToolsConfig struct {
 	Tree      TreeToolConfig      `yaml:"tree"`
 	WebFetch  WebFetchToolConfig  `yaml:"web_fetch"`
 	WebSearch WebSearchToolConfig `yaml:"web_search"`
+	Github    GithubToolConfig    `yaml:"github"`
 	TodoWrite TodoWriteToolConfig `yaml:"todo_write"`
 	Safety    SafetyConfig        `yaml:"safety"`
 }
@@ -97,7 +99,6 @@ type TreeToolConfig struct {
 type WebFetchToolConfig struct {
 	Enabled            bool              `yaml:"enabled"`
 	WhitelistedDomains []string          `yaml:"whitelisted_domains"`
-	GitHub             GitHubFetchConfig `yaml:"github"`
 	Safety             FetchSafetyConfig `yaml:"safety"`
 	Cache              FetchCacheConfig  `yaml:"cache"`
 	RequireApproval    *bool             `yaml:"require_approval,omitempty"`
@@ -119,6 +120,23 @@ type TodoWriteToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty"`
 }
 
+// GithubToolConfig contains GitHub fetch-specific tool settings
+type GithubToolConfig struct {
+	Enabled         bool               `yaml:"enabled"`
+	Token           string             `yaml:"token"`
+	BaseURL         string             `yaml:"base_url"`
+	Owner           string             `yaml:"owner"`
+	Repo            string             `yaml:"repo,omitempty"`
+	Safety          GithubSafetyConfig `yaml:"safety"`
+	RequireApproval *bool              `yaml:"require_approval,omitempty"`
+}
+
+// GithubSafetyConfig contains safety settings for GitHub fetch operations
+type GithubSafetyConfig struct {
+	MaxSize int64 `yaml:"max_size"`
+	Timeout int   `yaml:"timeout"`
+}
+
 // ToolWhitelistConfig contains whitelisted commands and patterns
 type ToolWhitelistConfig struct {
 	Commands []string `yaml:"commands"`
@@ -138,20 +156,24 @@ type SafetyConfig struct {
 
 // CompactConfig contains settings for compact command
 type CompactConfig struct {
-	OutputDir string `yaml:"output_dir"`
+	OutputDir    string `yaml:"output_dir"`
+	SummaryModel string `yaml:"summary_model"`
+}
+
+// OptimizationConfig contains token optimization settings
+type OptimizationConfig struct {
+	Enabled                    bool `yaml:"enabled"`
+	MaxHistory                 int  `yaml:"max_history"`
+	CompactThreshold           int  `yaml:"compact_threshold"`
+	TruncateLargeOutputs       bool `yaml:"truncate_large_outputs"`
+	SkipRedundantConfirmations bool `yaml:"skip_redundant_confirmations"`
 }
 
 // ChatConfig contains chat-related settings
 type ChatConfig struct {
-	DefaultModel string `yaml:"default_model"`
-	SystemPrompt string `yaml:"system_prompt"`
-}
-
-// GitHubFetchConfig contains GitHub-specific fetch settings
-type GitHubFetchConfig struct {
-	Enabled bool   `yaml:"enabled"`
-	Token   string `yaml:"token"`
-	BaseURL string `yaml:"base_url"`
+	DefaultModel string             `yaml:"default_model"`
+	SystemPrompt string             `yaml:"system_prompt"`
+	Optimization OptimizationConfig `yaml:"optimization"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -195,13 +217,19 @@ func DefaultConfig() *Config { //nolint:funlen
 					Commands: []string{
 						"ls", "pwd", "echo",
 						"wc", "sort", "uniq",
-						"gh", "task",
+						"task",
 					},
 					Patterns: []string{
+						"^git branch( --show-current)?$",
+						"^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$",
+						"^git checkout [a-zA-Z0-9/_-]+",
+						"^git add [a-zA-Z0-9/_.-]+",
+						"^git diff+",
+						"^git remote -v$",
 						"^git status$",
 						"^git log --oneline -n [0-9]+$",
-						"^docker ps$",
-						"^kubectl get pods$",
+						"^git commit -m \".+\"$",
+						"^git push( --set-upstream)?( origin)?( [a-zA-Z0-9/_-]+)?$",
 					},
 				},
 			},
@@ -232,12 +260,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			WebFetch: WebFetchToolConfig{
 				Enabled:            true,
-				WhitelistedDomains: []string{"github.com", "golang.org"},
-				GitHub: GitHubFetchConfig{
-					Enabled: true,
-					Token:   "",
-					BaseURL: "https://api.github.com",
-				},
+				WhitelistedDomains: []string{"golang.org"},
 				Safety: FetchSafetyConfig{
 					MaxSize:       8192, // 8KB
 					Timeout:       30,   // 30 seconds
@@ -256,6 +279,17 @@ func DefaultConfig() *Config { //nolint:funlen
 				Engines:       []string{"duckduckgo", "google"},
 				Timeout:       10,
 			},
+			Github: GithubToolConfig{
+				Enabled: true,
+				Token:   "%GITHUB_TOKEN%",
+				BaseURL: "https://api.github.com",
+				Safety: GithubSafetyConfig{
+					MaxSize: 1048576, // 1MB
+					Timeout: 30,      // 30 seconds
+				},
+				Owner: "",
+				Repo:  "",
+			},
 			TodoWrite: TodoWriteToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
@@ -265,64 +299,54 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Compact: CompactConfig{
-			OutputDir: ".infer",
+			OutputDir:    ".infer",
+			SummaryModel: "",
 		},
 		Chat: ChatConfig{
 			DefaultModel: "",
-			SystemPrompt: `You are an assistant for software engineering tasks.
+			SystemPrompt: `Software engineering assistant. Concise (<4 lines), direct answers only.
 
-## Security
+IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
+IMPORTANT: You NEVER read all the README.md - start by reading 300 lines
 
-* Defensive security only. No offensive/malicious code.
-* Allowed: analysis, detection rules, defensive tools, docs.
+RULES:
+- Security: Defensive only (analysis, detection, docs)
+- Style: no emojis/comments unless asked, use conventional commits
+- Code: Follow existing patterns, check deps, no secrets
+- Tasks: Use TodoWrite, mark progress immediately
+- Chat exports: Read only "## Summary" to "---" section
+- Tools: Batch calls, prefer Grep for search
 
-## URLs
+WORKFLOW:
+When asked to implement features or fix issues:
+1. Plan with TodoWrite
+2. Search codebase to understand context
+3. Implement solution
+4. Run tests with: task test
+5. Run lint/format with: task fmt and task lint
+6. Commit changes (only if explicitly asked)
+7. Create a pull request (only if explicitly asked)
 
-* Never guess/generate. Use only user-provided or local.
-
-## Style
-
-* Concise (<4 lines).
-* No pre/postamble. Answer directly.
-* Prefer one-word/short answers.
-* Explain bash only if non-trivial.
-* No emojis unless asked.
-* No code comments unless asked.
-
-## Proactiveness
-
-* Act only when asked. Don't surprise user.
-
-## Code Conventions
-
-* Follow existing style, libs, idioms.
-* Never assume deps. Check imports/config.
-* No secrets in code/logs.
-
-## Tasks
-
-* Always plan with **TodoWrite**.
-* Mark todos in_progress/completed immediately.
-* Don't batch completions.
-
-IMPORTANT: DO NOT provide code examples - instead apply them directly in the code using tools.
-IMPORTANT: if the user provide a file with the prefix chat_export_* you only read between the title "## Summary" and "---" - To get an overall overview of what was discussed. Only dive deeper if you absolutely need to.
-
-## Workflow
-
-1. Plan with TodoWrite.
-2. Explore code via search.
-3. Implement.
-4. Verify with tests (prefer using task test).
-5. Run lint/typecheck (ask if unknown). Suggest documenting.
-6. Commit only if asked.
-
-## Tools
-
-* Prefer Grep tool for search.
-* Use agents when relevant.
-* Handle redirects.
-* Batch tool calls for efficiency.`,
+EXAMPLE:
+<user>Can you create a pull request with the changes?</user>
+<assistant>I will checkout to a new branch</assistant>
+<tool>Bash(git checkout -b feat/my-new-feature)</tool>
+<assistant>Now I will modify the files</assistant>
+<tool>Read|Edit|Grep etc</tool>
+<tool>Bash(git add <files>)</tool>
+<tool>Bash(git commit -m <message>)</tool>
+<assistant>Now I will push the changes</assistant>
+<tool>Bash(git push origin <branch>)</tool>
+<assistant>Now I'll create a pull request</assistant>
+<tool>Github(...)</tool>
+`,
+			Optimization: OptimizationConfig{
+				Enabled:                    false,
+				MaxHistory:                 10,
+				CompactThreshold:           20,
+				TruncateLargeOutputs:       true,
+				SkipRedundantConfirmations: true,
+			},
 		},
 	}
 }
@@ -453,6 +477,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 		if c.Tools.WebSearch.RequireApproval != nil {
 			return *c.Tools.WebSearch.RequireApproval
 		}
+	case "Github":
+		if c.Tools.Github.RequireApproval != nil {
+			return *c.Tools.Github.RequireApproval
+		}
 	case "TodoWrite":
 		if c.Tools.TodoWrite.RequireApproval != nil {
 			return *c.Tools.TodoWrite.RequireApproval
@@ -557,4 +585,27 @@ func (c *Config) checkProtectedPaths(path string) error {
 	}
 
 	return nil
+}
+
+// ResolveEnvironmentVariables resolves environment variable references in the format %VAR_NAME%
+func ResolveEnvironmentVariables(value string) string {
+	if value == "" {
+		return value
+	}
+
+	envVarPattern := regexp.MustCompile(`%([A-Z_][A-Z0-9_]*)%`)
+
+	result := envVarPattern.ReplaceAllStringFunc(value, func(match string) string {
+		varName := match[1 : len(match)-1]
+
+		if envValue := os.Getenv(varName); envValue != "" {
+			logger.Debug("Resolved environment variable", "var", varName, "value", "[redacted]")
+			return envValue
+		}
+
+		logger.Debug("Environment variable not set", "var", varName)
+		return ""
+	})
+
+	return result
 }

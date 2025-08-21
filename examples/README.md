@@ -63,12 +63,7 @@ tools:
   web_fetch:
     enabled: true
     whitelisted_domains:
-      - github.com
       - golang.org
-    github:
-      enabled: true
-      token: ""
-      base_url: https://api.github.com
     safety:
       max_size: 8192
       timeout: 30
@@ -87,9 +82,6 @@ tools:
     timeout: 10
   safety:
     require_approval: true
-  exclude_paths:
-    - .infer/
-    - .infer/*
 compact:
   output_dir: .infer
 chat:
