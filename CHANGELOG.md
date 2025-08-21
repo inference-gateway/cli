@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.33.5](https://github.com/inference-gateway/cli/compare/v0.33.4...v0.33.5) (2025-08-21)
+
+### ♻️ Code Refactoring
+
+* Remove hardcoded tool names from approval view ([#99](https://github.com/inference-gateway/cli/issues/99)) ([6540ff0](https://github.com/inference-gateway/cli/commit/6540ff0ff4684e0eb6e00bcfec272a39219cfdb9)), closes [#96](https://github.com/inference-gateway/cli/issues/96)
+
 ## [0.33.4](https://github.com/inference-gateway/cli/compare/v0.33.3...v0.33.4) (2025-08-21)
 
 ### ♻️ Code Refactoring
