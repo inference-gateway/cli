@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.33.3](https://github.com/inference-gateway/cli/compare/v0.33.2...v0.33.3) (2025-08-21)
+
+### 🐛 Bug Fixes
+
+* **approval:** Implement scrolling functionality in ApprovalComponent and update keybindings ([67f8e77](https://github.com/inference-gateway/cli/commit/67f8e778701131ab4d8f74e32aa5a98a229fd678))
+* **edit:** Improve string matching by cleaning input and providing detailed error suggestions ([8de9db4](https://github.com/inference-gateway/cli/commit/8de9db41b58e5a5f26c6ad467f564e590bd20182))
+* **formatting:** Improve tool call formatting by collapsing Edit arguments and adding truncation ([c3f8f81](https://github.com/inference-gateway/cli/commit/c3f8f81ccae9356454e7aa75a27558026e6473ec))
+* **formatting:** Refactor argument collapsing logic for tool calls to support multiple tools ([a9bc882](https://github.com/inference-gateway/cli/commit/a9bc88260acc639cb75d6f5c454fdd0c5a7dd6c4))
+* **formatting:** Update read result messages to display line counts instead of byte sizes ([6ab33a4](https://github.com/inference-gateway/cli/commit/6ab33a4b1a954c93bd95a9964592142c5712ee10))
+
 ## [0.33.2](https://github.com/inference-gateway/cli/compare/v0.33.1...v0.33.2) (2025-08-21)
 
 ### 🐛 Bug Fixes
