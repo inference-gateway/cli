@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.34.0](https://github.com/inference-gateway/cli/compare/v0.33.7...v0.34.0) (2025-08-21)
+
+### 🚀 Features
+
+* Add GitHub tool management commands for configuration and status ([874cda5](https://github.com/inference-gateway/cli/commit/874cda56ed1c2739f681435b1bcd54743044508e))
+
 ## [0.33.7](https://github.com/inference-gateway/cli/compare/v0.33.6...v0.33.7) (2025-08-21)
 
 ### 🐛 Bug Fixes
