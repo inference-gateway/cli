@@ -1013,7 +1013,7 @@ func (t *GrepTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	}
 
 	grepResult, ok := result.Data.(*GrepResult)
-	if !ok {
+	if !ok || grepResult == nil {
 		if result.Success {
 			return "Search completed successfully"
 		}
@@ -1076,7 +1076,7 @@ func (t *GrepTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 // formatGrepData formats grep-specific data
 func (t *GrepTool) formatGrepData(data any) string {
 	grepResult, ok := data.(*GrepResult)
-	if !ok {
+	if !ok || grepResult == nil {
 		return t.formatter.FormatAsJSON(data)
 	}
 
