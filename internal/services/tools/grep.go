@@ -24,13 +24,15 @@ type GrepTool struct {
 	gitignorePatterns []string
 	ripgrepPath       string
 	useRipgrep        bool
+	formatter         domain.BaseFormatter
 }
 
 // NewGrepTool creates a new grep tool
 func NewGrepTool(cfg *config.Config) *GrepTool {
 	tool := &GrepTool{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.Grep.Enabled,
+		config:    cfg,
+		enabled:   cfg.Tools.Enabled && cfg.Tools.Grep.Enabled,
+		formatter: domain.NewBaseFormatter("Grep"),
 	}
 	tool.loadGitignorePatterns()
 	tool.detectRipgrep()
@@ -988,4 +990,142 @@ func (t *GrepTool) matchesGitignorePattern(path string) bool {
 	}
 
 	return false
+}
+
+// FormatResult formats tool execution results for different contexts
+func (t *GrepTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
+	case domain.FormatterLLM:
+		return t.FormatForLLM(result)
+	case domain.FormatterShort:
+		return t.FormatPreview(result)
+	default:
+		return t.FormatForUI(result)
+	}
+}
+
+// FormatPreview returns a short preview of the result for UI display
+func (t *GrepTool) FormatPreview(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	grepResult, ok := result.Data.(*GrepResult)
+	if !ok {
+		if result.Success {
+			return "Search completed successfully"
+		}
+		return "Search failed"
+	}
+
+	if grepResult.Total == 0 {
+		return fmt.Sprintf("No matches found for '%s'", grepResult.Pattern)
+	}
+
+	switch grepResult.OutputMode {
+	case "count":
+		return fmt.Sprintf("Found %d matches in %d files for '%s'", grepResult.Total, len(grepResult.Counts), grepResult.Pattern)
+	case "files_with_matches":
+		return fmt.Sprintf("Found matches in %d files for '%s'", len(grepResult.Files), grepResult.Pattern)
+	default: // content
+		return fmt.Sprintf("Found %d matches for '%s'", grepResult.Total, grepResult.Pattern)
+	}
+}
+
+// FormatForUI formats the result for UI display
+func (t *GrepTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
+}
+
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *GrepTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	var output strings.Builder
+
+	// Header with tool call and metadata
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+
+	// Data section
+	if result.Data != nil {
+		dataContent := t.formatGrepData(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+	}
+
+	// Footer with metadata
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+
+	return output.String()
+}
+
+// formatGrepData formats grep-specific data
+func (t *GrepTool) formatGrepData(data any) string {
+	grepResult, ok := data.(*GrepResult)
+	if !ok {
+		return t.formatter.FormatAsJSON(data)
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Pattern: %s\n", grepResult.Pattern))
+	output.WriteString(fmt.Sprintf("Output Mode: %s\n", grepResult.OutputMode))
+	output.WriteString(fmt.Sprintf("Total Matches: %d\n", grepResult.Total))
+	output.WriteString(fmt.Sprintf("Duration: %s\n", grepResult.Duration))
+
+	if grepResult.Truncated {
+		output.WriteString("Results: Truncated (showing first results only)\n")
+	}
+
+	if grepResult.Error != "" {
+		output.WriteString(fmt.Sprintf("Error: %s\n", grepResult.Error))
+	}
+
+	// Show data based on output mode
+	switch grepResult.OutputMode {
+	case "count":
+		if len(grepResult.Counts) > 0 {
+			output.WriteString("\nMatch Counts by File:\n")
+			for _, count := range grepResult.Counts {
+				fileName := t.formatter.GetFileName(count.File)
+				output.WriteString(fmt.Sprintf("  %s: %d\n", fileName, count.Count))
+			}
+		}
+
+	case "files_with_matches":
+		if len(grepResult.Files) > 0 {
+			output.WriteString("\nFiles with Matches:\n")
+			for _, file := range grepResult.Files {
+				fileName := t.formatter.GetFileName(file)
+				output.WriteString(fmt.Sprintf("  %s\n", fileName))
+			}
+		}
+
+	default: // content
+		if len(grepResult.Matches) > 0 {
+			output.WriteString("\nMatches:\n")
+			for _, match := range grepResult.Matches {
+				fileName := t.formatter.GetFileName(match.File)
+				output.WriteString(fmt.Sprintf("  %s:%d  %s\n", fileName, match.Line, match.Text))
+			}
+		}
+	}
+
+	return output.String()
 }

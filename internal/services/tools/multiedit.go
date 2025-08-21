@@ -13,25 +13,28 @@ import (
 
 // MultiEditTool handles multiple exact string replacements in a single file atomically
 type MultiEditTool struct {
-	config   *config.Config
-	enabled  bool
-	registry ReadToolTracker
+	config    *config.Config
+	enabled   bool
+	registry  ReadToolTracker
+	formatter domain.BaseFormatter
 }
 
 // NewMultiEditTool creates a new multi-edit tool
 func NewMultiEditTool(cfg *config.Config) *MultiEditTool {
 	return &MultiEditTool{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		config:    cfg,
+		enabled:   cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		formatter: domain.NewBaseFormatter("MultiEdit"),
 	}
 }
 
 // NewMultiEditToolWithRegistry creates a new multi-edit tool with a registry for read tracking
 func NewMultiEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *MultiEditTool {
 	return &MultiEditTool{
-		config:   cfg,
-		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		registry: registry,
+		config:    cfg,
+		enabled:   cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		registry:  registry,
+		formatter: domain.NewBaseFormatter("MultiEdit"),
 	}
 }
 
@@ -535,4 +538,128 @@ func (t *MultiEditTool) createSuggestion(lines, searchLines []string, startLine 
 
 	context := strings.Join(lines[start:end], "\n")
 	return fmt.Sprintf("Near line %d:\n%s", start+1, context)
+}
+
+// FormatResult formats tool execution results for different contexts
+func (t *MultiEditTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
+	case domain.FormatterLLM:
+		return t.FormatForLLM(result)
+	case domain.FormatterShort:
+		return t.FormatPreview(result)
+	default:
+		return t.FormatForUI(result)
+	}
+}
+
+// FormatPreview returns a short preview of the result for UI display
+func (t *MultiEditTool) FormatPreview(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
+	if !ok {
+		if result.Success {
+			return "Multi-edit completed successfully"
+		}
+		return "Multi-edit failed"
+	}
+
+	fileName := t.formatter.GetFileName(multiEditResult.FilePath)
+
+	if multiEditResult.FileModified {
+		return fmt.Sprintf("Applied %d/%d edits to %s (%d bytes difference)",
+			multiEditResult.SuccessfulEdits, multiEditResult.TotalEdits, fileName, multiEditResult.BytesDifference)
+	}
+
+	return fmt.Sprintf("No changes needed in %s", fileName)
+}
+
+// FormatForUI formats the result for UI display
+func (t *MultiEditTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
+}
+
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	var output strings.Builder
+
+	// Header with tool call and metadata
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+
+	// Data section
+	if result.Data != nil {
+		dataContent := t.formatMultiEditData(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+	}
+
+	// Footer with metadata
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+
+	return output.String()
+}
+
+// formatMultiEditData formats multi-edit-specific data
+func (t *MultiEditTool) formatMultiEditData(data any) string {
+	multiEditResult, ok := data.(*domain.MultiEditToolResult)
+	if !ok {
+		return t.formatter.FormatAsJSON(data)
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("File: %s\n", multiEditResult.FilePath))
+	output.WriteString(fmt.Sprintf("Total Edits: %d\n", multiEditResult.TotalEdits))
+	output.WriteString(fmt.Sprintf("Successful Edits: %d\n", multiEditResult.SuccessfulEdits))
+	output.WriteString(fmt.Sprintf("File Modified: %t\n", multiEditResult.FileModified))
+	output.WriteString(fmt.Sprintf("Original Size: %d bytes\n", multiEditResult.OriginalSize))
+	output.WriteString(fmt.Sprintf("New Size: %d bytes\n", multiEditResult.NewSize))
+	output.WriteString(fmt.Sprintf("Bytes Difference: %+d\n", multiEditResult.BytesDifference))
+
+	if len(multiEditResult.Edits) > 0 {
+		output.WriteString("\nEdit Operations:\n")
+		for i, edit := range multiEditResult.Edits {
+			status := "✓"
+			if !edit.Success {
+				status = "✗"
+			}
+
+			oldPreview := t.formatter.TruncateText(edit.OldString, 30)
+			newPreview := t.formatter.TruncateText(edit.NewString, 30)
+
+			output.WriteString(fmt.Sprintf("  %d. %s %s → %s", i+1, status, oldPreview, newPreview))
+
+			if edit.ReplacedCount > 0 {
+				output.WriteString(fmt.Sprintf(" (%d replacements)", edit.ReplacedCount))
+			}
+
+			if edit.Error != "" {
+				output.WriteString(fmt.Sprintf(" [Error: %s]", edit.Error))
+			}
+
+			output.WriteString("\n")
+		}
+	}
+
+	return output.String()
 }

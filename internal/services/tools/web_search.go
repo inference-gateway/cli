@@ -18,9 +18,10 @@ import (
 
 // WebSearchTool handles web search operations
 type WebSearchTool struct {
-	config  *config.Config
-	client  *http.Client
-	enabled bool
+	config    *config.Config
+	client    *http.Client
+	enabled   bool
+	formatter domain.BaseFormatter
 }
 
 // NewWebSearchTool creates a new web search tool
@@ -30,7 +31,8 @@ func NewWebSearchTool(cfg *config.Config) *WebSearchTool {
 		client: &http.Client{
 			Timeout: time.Duration(cfg.Tools.WebSearch.Timeout) * time.Second,
 		},
-		enabled: cfg.Tools.Enabled && cfg.Tools.WebSearch.Enabled,
+		enabled:   cfg.Tools.Enabled && cfg.Tools.WebSearch.Enabled,
+		formatter: domain.NewBaseFormatter("WebSearch"),
 	}
 }
 
@@ -568,4 +570,136 @@ func (t *WebSearchTool) generateMockResults(query string, limit int, engine stri
 	}
 
 	return results
+}
+
+// FormatResult formats tool execution results for different contexts
+func (t *WebSearchTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
+	case domain.FormatterLLM:
+		return t.FormatForLLM(result)
+	case domain.FormatterShort:
+		return t.FormatPreview(result)
+	default:
+		return t.FormatForUI(result)
+	}
+}
+
+// FormatPreview returns a short preview of the result for UI display
+func (t *WebSearchTool) FormatPreview(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	searchResponse, ok := result.Data.(*domain.WebSearchResponse)
+	if !ok {
+		if result.Success {
+			return "Web search completed successfully"
+		}
+		return "Web search failed"
+	}
+
+	if searchResponse.Error != "" {
+		return fmt.Sprintf("Search failed: %s", searchResponse.Error)
+	}
+
+	if searchResponse.Total == 0 {
+		return fmt.Sprintf("No results found for '%s'", searchResponse.Query)
+	}
+
+	return fmt.Sprintf("Found %d results for '%s' via %s (%v)",
+		searchResponse.Total, searchResponse.Query, searchResponse.Engine, searchResponse.Time)
+}
+
+// FormatForUI formats the result for UI display
+func (t *WebSearchTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
+}
+
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *WebSearchTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	var output strings.Builder
+
+	// Header with tool call and metadata
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+
+	// Data section
+	if result.Data != nil {
+		dataContent := t.formatSearchData(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+	}
+
+	// Footer with metadata
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+
+	return output.String()
+}
+
+// formatSearchData formats web search-specific data
+func (t *WebSearchTool) formatSearchData(data any) string {
+	searchResponse, ok := data.(*domain.WebSearchResponse)
+	if !ok {
+		return t.formatter.FormatAsJSON(data)
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Query: %s\n", searchResponse.Query))
+	output.WriteString(fmt.Sprintf("Engine: %s\n", searchResponse.Engine))
+	output.WriteString(fmt.Sprintf("Total Results: %d\n", searchResponse.Total))
+	output.WriteString(fmt.Sprintf("Search Time: %v\n", searchResponse.Time))
+
+	if searchResponse.Error != "" {
+		output.WriteString(fmt.Sprintf("Error: %s\n", searchResponse.Error))
+	}
+
+	// Search results
+	if len(searchResponse.Results) > 0 {
+		output.WriteString("\nSearch Results:\n")
+		for i, result := range searchResponse.Results {
+			domain := t.extractDomainFromURL(result.URL)
+			output.WriteString(fmt.Sprintf("  %d. %s\n", i+1, result.Title))
+			output.WriteString(fmt.Sprintf("     %s [%s]\n", result.URL, domain))
+			if result.Snippet != "" {
+				snippetPreview := t.formatter.TruncateText(result.Snippet, 150)
+				output.WriteString(fmt.Sprintf("     %s\n", snippetPreview))
+			}
+			output.WriteString("\n")
+		}
+	}
+
+	return output.String()
+}
+
+// extractDomainFromURL extracts domain from URL for display
+func (t *WebSearchTool) extractDomainFromURL(urlStr string) string {
+	if strings.HasPrefix(urlStr, "http://") {
+		urlStr = urlStr[7:]
+	} else if strings.HasPrefix(urlStr, "https://") {
+		urlStr = urlStr[8:]
+	}
+
+	if idx := strings.Index(urlStr, "/"); idx != -1 {
+		urlStr = urlStr[:idx]
+	}
+
+	return urlStr
 }

@@ -13,9 +13,10 @@ import (
 
 // EditTool handles exact string replacements in files with strict safety rules
 type EditTool struct {
-	config   *config.Config
-	enabled  bool
-	registry ReadToolTracker
+	config    *config.Config
+	enabled   bool
+	registry  ReadToolTracker
+	formatter domain.BaseFormatter
 }
 
 // ReadToolTracker interface for tracking read tool usage
@@ -26,17 +27,19 @@ type ReadToolTracker interface {
 // NewEditTool creates a new edit tool
 func NewEditTool(cfg *config.Config) *EditTool {
 	return &EditTool{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		config:    cfg,
+		enabled:   cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		formatter: domain.NewBaseFormatter("Edit"),
 	}
 }
 
 // NewEditToolWithRegistry creates a new edit tool with a registry for read tracking
 func NewEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *EditTool {
 	return &EditTool{
-		config:   cfg,
-		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		registry: registry,
+		config:    cfg,
+		enabled:   cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		registry:  registry,
+		formatter: domain.NewBaseFormatter("Edit"),
 	}
 }
 
@@ -503,4 +506,116 @@ func (t *EditTool) validateFile(path string) error {
 	}
 
 	return nil
+}
+
+// FormatResult formats tool execution results for different contexts
+func (t *EditTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
+	case domain.FormatterLLM:
+		return t.FormatForLLM(result)
+	case domain.FormatterShort:
+		return t.FormatPreview(result)
+	default:
+		return t.FormatForUI(result)
+	}
+}
+
+// FormatPreview returns a short preview of the result for UI display
+func (t *EditTool) FormatPreview(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	editResult, ok := result.Data.(*domain.EditToolResult)
+	if !ok {
+		if result.Success {
+			return "Edit completed successfully"
+		}
+		return "Edit failed"
+	}
+
+	fileName := t.formatter.GetFileName(editResult.FilePath)
+
+	if editResult.ReplaceAll {
+		return fmt.Sprintf("Replaced %d occurrences in %s", editResult.ReplacedCount, fileName)
+	}
+
+	if editResult.FileModified {
+		return fmt.Sprintf("Updated %s (%d bytes difference)", fileName, editResult.BytesDifference)
+	}
+
+	return fmt.Sprintf("No changes needed in %s", fileName)
+}
+
+// FormatForUI formats the result for UI display
+func (t *EditTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
+}
+
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	var output strings.Builder
+
+	// Header with tool call and metadata
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+
+	// Data section
+	if result.Data != nil {
+		dataContent := t.formatEditData(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+	}
+
+	// Footer with metadata
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+
+	return output.String()
+}
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *EditTool) ShouldCollapseArg(key string) bool {
+	// Collapse old_string and new_string arguments as they can be very long
+	return key == "old_string" || key == "new_string"
+}
+
+// formatEditData formats edit-specific data
+func (t *EditTool) formatEditData(data any) string {
+	editResult, ok := data.(*domain.EditToolResult)
+	if !ok {
+		return t.formatter.FormatAsJSON(data)
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("File: %s\n", editResult.FilePath))
+	output.WriteString(fmt.Sprintf("Replaced Count: %d\n", editResult.ReplacedCount))
+	output.WriteString(fmt.Sprintf("Replace All: %t\n", editResult.ReplaceAll))
+	output.WriteString(fmt.Sprintf("File Modified: %t\n", editResult.FileModified))
+	output.WriteString(fmt.Sprintf("Original Size: %d bytes\n", editResult.OriginalSize))
+	output.WriteString(fmt.Sprintf("New Size: %d bytes\n", editResult.NewSize))
+	output.WriteString(fmt.Sprintf("Bytes Difference: %+d\n", editResult.BytesDifference))
+
+	if editResult.Diff != "" {
+		output.WriteString(fmt.Sprintf("Diff:\n%s\n", editResult.Diff))
+	}
+
+	return output.String()
 }

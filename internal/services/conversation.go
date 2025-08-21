@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui"
 	"github.com/inference-gateway/sdk"
 )
 
@@ -33,7 +32,9 @@ func formatToolCall(toolCall sdk.ChatCompletionMessageToolCall) string {
 		return fmt.Sprintf("%s()", toolCall.Function.Name)
 	}
 
-	return ui.FormatToolCall(toolCall.Function.Name, args)
+	// Use the domain formatter for consistent formatting
+	formatter := domain.NewBaseFormatter(toolCall.Function.Name)
+	return formatter.FormatToolCall(args, false)
 }
 
 func (r *InMemoryConversationRepository) AddMessage(msg domain.ConversationEntry) error {

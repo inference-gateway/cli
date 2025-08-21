@@ -12,6 +12,12 @@ import (
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
+// ToolFormatter interface for formatting tool results
+type ToolFormatter interface {
+	FormatToolResultForUIResponsive(result *domain.ToolExecutionResult, terminalWidth int) string
+	FormatToolResultExpandedResponsive(result *domain.ToolExecutionResult, terminalWidth int) string
+}
+
 // ConversationView handles the chat conversation display
 type ConversationView struct {
 	conversation        []domain.ConversationEntry
@@ -20,6 +26,7 @@ type ConversationView struct {
 	height              int
 	expandedToolResults map[int]bool
 	allToolsExpanded    bool
+	toolFormatter       ToolFormatter
 }
 
 func NewConversationView() *ConversationView {
@@ -33,6 +40,11 @@ func NewConversationView() *ConversationView {
 		expandedToolResults: make(map[int]bool),
 		allToolsExpanded:    false,
 	}
+}
+
+// SetToolFormatter sets the tool formatter for this conversation view
+func (cv *ConversationView) SetToolFormatter(formatter ToolFormatter) {
+	cv.toolFormatter = formatter
 }
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
@@ -195,7 +207,12 @@ func (cv *ConversationView) formatEntryContent(entry domain.ConversationEntry, i
 
 func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
-		content := shared.FormatToolResultExpandedResponsive(entry.ToolExecution, cv.width)
+		var content string
+		if cv.toolFormatter != nil {
+			content = cv.toolFormatter.FormatToolResultExpandedResponsive(entry.ToolExecution, cv.width)
+		} else {
+			content = shared.FormatToolResultExpandedResponsive(entry.ToolExecution, cv.width)
+		}
 		return content + "\n\n💡 Press Ctrl+R to collapse all tool calls"
 	}
 	wrappedContent := shared.FormatResponsiveMessage(entry.Message.Content, cv.width)
@@ -204,7 +221,12 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 
 func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
-		content := shared.FormatToolResultForUIResponsive(entry.ToolExecution, cv.width)
+		var content string
+		if cv.toolFormatter != nil {
+			content = cv.toolFormatter.FormatToolResultForUIResponsive(entry.ToolExecution, cv.width)
+		} else {
+			content = shared.FormatToolResultForUIResponsive(entry.ToolExecution, cv.width)
+		}
 		return content + "\n💡 Press Ctrl+R to expand all tool calls"
 	}
 	content := cv.formatToolContentCompact(entry.Message.Content)

@@ -17,9 +17,10 @@ import (
 
 // GithubTool handles GitHub API operations
 type GithubTool struct {
-	config  *config.Config
-	enabled bool
-	client  *http.Client
+	config    *config.Config
+	enabled   bool
+	client    *http.Client
+	formatter domain.BaseFormatter
 }
 
 // NewGithubTool creates a new GitHub tool
@@ -30,6 +31,7 @@ func NewGithubTool(cfg *config.Config) *GithubTool {
 		client: &http.Client{
 			Timeout: time.Duration(cfg.Tools.Github.Safety.Timeout) * time.Second,
 		},
+		formatter: domain.NewBaseFormatter("GitHub"),
 	}
 }
 
@@ -625,4 +627,246 @@ func parseIssueNumber(value any) (int, bool) {
 	default:
 		return 0, false
 	}
+}
+
+// FormatResult formats tool execution results for different contexts
+func (t *GithubTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
+	case domain.FormatterLLM:
+		return t.FormatForLLM(result)
+	case domain.FormatterShort:
+		return t.FormatPreview(result)
+	default:
+		return t.FormatForUI(result)
+	}
+}
+
+// FormatPreview returns a short preview of the result for UI display
+func (t *GithubTool) FormatPreview(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	if !result.Success {
+		return "GitHub operation failed"
+	}
+
+	if result.Data == nil {
+		return "GitHub operation completed successfully"
+	}
+
+	// Try to identify the type of GitHub object and format accordingly
+	switch data := result.Data.(type) {
+	case *domain.GitHubIssue:
+		return fmt.Sprintf("Issue #%d: %s [%s]", data.Number, t.formatter.TruncateText(data.Title, 40), data.State)
+
+	case *domain.GitHubPullRequest:
+		return fmt.Sprintf("PR #%d: %s [%s]", data.Number, t.formatter.TruncateText(data.Title, 40), data.State)
+
+	case *domain.GitHubComment:
+		return fmt.Sprintf("Comment created by %s", data.User.Login)
+
+	case []any:
+		if len(data) == 0 {
+			return "No GitHub items found"
+		}
+		return fmt.Sprintf("Retrieved %d GitHub items", len(data))
+
+	default:
+		return "GitHub operation completed successfully"
+	}
+}
+
+// FormatForUI formats the result for UI display
+func (t *GithubTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
+}
+
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *GithubTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	var output strings.Builder
+
+	// Header with tool call and metadata
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+
+	// Data section
+	if result.Data != nil {
+		dataContent := t.formatGithubData(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+	}
+
+	// Footer with metadata
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+
+	return output.String()
+}
+
+// formatGithubData formats GitHub-specific data based on type
+func (t *GithubTool) formatGithubData(data any) string {
+	switch item := data.(type) {
+	case *domain.GitHubIssue:
+		return t.formatIssue(item)
+	case *domain.GitHubPullRequest:
+		return t.formatPullRequest(item)
+	case *domain.GitHubComment:
+		return t.formatComment(item)
+	case []any:
+		return t.formatList(item)
+	default:
+		return t.formatter.FormatAsJSON(data)
+	}
+}
+
+// formatIssue formats a GitHub issue
+func (t *GithubTool) formatIssue(issue *domain.GitHubIssue) string {
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Issue #%d: %s\n", issue.Number, issue.Title))
+	output.WriteString(fmt.Sprintf("State: %s\n", issue.State))
+	output.WriteString(fmt.Sprintf("Author: %s\n", issue.User.Login))
+
+	if len(issue.Assignees) > 0 {
+		var assigneeNames []string
+		for _, assignee := range issue.Assignees {
+			assigneeNames = append(assigneeNames, assignee.Login)
+		}
+		output.WriteString(fmt.Sprintf("Assignees: %s\n", strings.Join(assigneeNames, ", ")))
+	}
+
+	if len(issue.Labels) > 0 {
+		var labelNames []string
+		for _, label := range issue.Labels {
+			labelNames = append(labelNames, label.Name)
+		}
+		output.WriteString(fmt.Sprintf("Labels: %s\n", strings.Join(labelNames, ", ")))
+	}
+
+	if issue.Milestone != nil {
+		output.WriteString(fmt.Sprintf("Milestone: %s\n", issue.Milestone.Title))
+	}
+
+	output.WriteString(fmt.Sprintf("Created: %s\n", issue.CreatedAt.Format("2006-01-02 15:04:05")))
+	output.WriteString(fmt.Sprintf("Updated: %s\n", issue.UpdatedAt.Format("2006-01-02 15:04:05")))
+	output.WriteString(fmt.Sprintf("URL: %s\n", issue.HTMLURL))
+
+	if issue.Body != "" {
+		bodyPreview := t.formatter.TruncateText(issue.Body, 300)
+		output.WriteString(fmt.Sprintf("Body:\n%s\n", bodyPreview))
+	}
+
+	return output.String()
+}
+
+// formatPullRequest formats a GitHub pull request
+func (t *GithubTool) formatPullRequest(pr *domain.GitHubPullRequest) string {
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Pull Request #%d: %s\n", pr.Number, pr.Title))
+	output.WriteString(fmt.Sprintf("State: %s\n", pr.State))
+	output.WriteString(fmt.Sprintf("Author: %s\n", pr.User.Login))
+
+	if len(pr.Assignees) > 0 {
+		var assigneeNames []string
+		for _, assignee := range pr.Assignees {
+			assigneeNames = append(assigneeNames, assignee.Login)
+		}
+		output.WriteString(fmt.Sprintf("Assignees: %s\n", strings.Join(assigneeNames, ", ")))
+	}
+
+	output.WriteString(fmt.Sprintf("Base: %s\n", pr.Base.Ref))
+	output.WriteString(fmt.Sprintf("Head: %s\n", pr.Head.Ref))
+
+	if len(pr.Labels) > 0 {
+		var labelNames []string
+		for _, label := range pr.Labels {
+			labelNames = append(labelNames, label.Name)
+		}
+		output.WriteString(fmt.Sprintf("Labels: %s\n", strings.Join(labelNames, ", ")))
+	}
+
+	if pr.Milestone != nil {
+		output.WriteString(fmt.Sprintf("Milestone: %s\n", pr.Milestone.Title))
+	}
+
+	output.WriteString(fmt.Sprintf("Created: %s\n", pr.CreatedAt.Format("2006-01-02 15:04:05")))
+	output.WriteString(fmt.Sprintf("Updated: %s\n", pr.UpdatedAt.Format("2006-01-02 15:04:05")))
+	output.WriteString(fmt.Sprintf("URL: %s\n", pr.HTMLURL))
+
+	if pr.Body != "" {
+		bodyPreview := t.formatter.TruncateText(pr.Body, 300)
+		output.WriteString(fmt.Sprintf("Body:\n%s\n", bodyPreview))
+	}
+
+	return output.String()
+}
+
+// formatComment formats a GitHub comment
+func (t *GithubTool) formatComment(comment *domain.GitHubComment) string {
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Comment ID: %d\n", comment.ID))
+	output.WriteString(fmt.Sprintf("Author: %s\n", comment.User.Login))
+	output.WriteString(fmt.Sprintf("Created: %s\n", comment.CreatedAt.Format("2006-01-02 15:04:05")))
+	output.WriteString(fmt.Sprintf("Updated: %s\n", comment.UpdatedAt.Format("2006-01-02 15:04:05")))
+	output.WriteString(fmt.Sprintf("URL: %s\n", comment.HTMLURL))
+
+	if comment.Body != "" {
+		bodyPreview := t.formatter.TruncateText(comment.Body, 300)
+		output.WriteString(fmt.Sprintf("Body:\n%s\n", bodyPreview))
+	}
+
+	return output.String()
+}
+
+// formatList formats a list of GitHub objects
+func (t *GithubTool) formatList(items []any) string {
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Count: %d items\n", len(items)))
+
+	if len(items) == 0 {
+		return output.String()
+	}
+
+	output.WriteString("\nItems:\n")
+	for i, item := range items {
+		// Limit display to first 5 items to avoid overwhelming output
+		if i >= 5 {
+			remaining := len(items) - i
+			output.WriteString(fmt.Sprintf("... and %d more items\n", remaining))
+			break
+		}
+
+		switch typedItem := item.(type) {
+		case *domain.GitHubIssue:
+			output.WriteString(fmt.Sprintf("  %d. Issue #%d: %s [%s]\n",
+				i+1, typedItem.Number, t.formatter.TruncateText(typedItem.Title, 50), typedItem.State))
+		case *domain.GitHubPullRequest:
+			output.WriteString(fmt.Sprintf("  %d. PR #%d: %s [%s]\n",
+				i+1, typedItem.Number, t.formatter.TruncateText(typedItem.Title, 50), typedItem.State))
+		case *domain.GitHubComment:
+			output.WriteString(fmt.Sprintf("  %d. Comment by %s\n",
+				i+1, typedItem.User.Login))
+		default:
+			output.WriteString(fmt.Sprintf("  %d. GitHub item (type: %T)\n", i+1, typedItem))
+		}
+	}
+
+	return output.String()
 }

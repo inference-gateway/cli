@@ -185,6 +185,36 @@ type Tool interface {
 
 	// IsEnabled returns whether this tool is enabled
 	IsEnabled() bool
+
+	// FormatResult formats tool execution results for different contexts
+	FormatResult(result *ToolExecutionResult, formatType FormatterType) string
+
+	// FormatPreview returns a short preview of the result for UI display
+	FormatPreview(result *ToolExecutionResult) string
+}
+
+// FormatterType defines the context for formatting tool results
+type FormatterType string
+
+const (
+	FormatterUI    FormatterType = "ui"    // Compact display for UI
+	FormatterLLM   FormatterType = "llm"   // Formatted for LLM consumption
+	FormatterShort FormatterType = "short" // Brief summary format
+)
+
+// ToolFormatter provides formatting capabilities for tool results
+type ToolFormatter interface {
+	// FormatForUI formats the result for UI display
+	FormatForUI(result *ToolExecutionResult) string
+
+	// FormatForLLM formats the result for LLM consumption
+	FormatForLLM(result *ToolExecutionResult) string
+
+	// FormatPreview returns a short preview of the result
+	FormatPreview(result *ToolExecutionResult) string
+
+	// ShouldCollapseArg determines if an argument should be collapsed in display
+	ShouldCollapseArg(key string) bool
 }
 
 // ToolFactory creates tool instances

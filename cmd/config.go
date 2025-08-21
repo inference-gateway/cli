@@ -11,6 +11,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/container"
+	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -625,8 +626,9 @@ func execTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("tools are not enabled")
 	}
 
-	services := container.NewServiceContainer(cfg)
-	toolService := services.GetToolService()
+	serviceContainer := container.NewServiceContainer(cfg)
+	toolService := serviceContainer.GetToolService()
+	toolRegistry := serviceContainer.GetToolRegistry()
 
 	if len(args) == 0 {
 		return fmt.Errorf("tool name is required")
@@ -657,7 +659,10 @@ func execTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("tool execution failed: %w", err)
 	}
 
-	fmt.Print(ui.FormatToolResultExpanded(result))
+	// Create formatter service
+	formatterService := services.NewToolFormatterService(toolRegistry)
+
+	fmt.Print(formatterService.FormatToolResultExpanded(result))
 	return nil
 }
 

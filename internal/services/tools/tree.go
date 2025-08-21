@@ -17,15 +17,17 @@ import (
 
 // TreeTool handles directory tree visualization operations
 type TreeTool struct {
-	config  *config.Config
-	enabled bool
+	config    *config.Config
+	enabled   bool
+	formatter domain.BaseFormatter
 }
 
 // NewTreeTool creates a new tree tool
 func NewTreeTool(cfg *config.Config) *TreeTool {
 	return &TreeTool{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.Tree.Enabled,
+		config:    cfg,
+		enabled:   cfg.Tools.Enabled && cfg.Tools.Tree.Enabled,
+		formatter: domain.NewBaseFormatter("Tree"),
 	}
 }
 
@@ -545,4 +547,125 @@ func (t *TreeTool) readGitignorePatterns(rootPath string) []string {
 	}
 
 	return patterns
+}
+
+// FormatResult formats tool execution results for different contexts
+func (t *TreeTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
+	case domain.FormatterLLM:
+		return t.FormatForLLM(result)
+	case domain.FormatterShort:
+		return t.FormatPreview(result)
+	default:
+		return t.FormatForUI(result)
+	}
+}
+
+// FormatPreview returns a short preview of the result for UI display
+func (t *TreeTool) FormatPreview(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	treeResult, ok := result.Data.(*domain.TreeToolResult)
+	if !ok {
+		if result.Success {
+			return "Directory tree generated successfully"
+		}
+		return "Directory tree generation failed"
+	}
+
+	pathName := t.formatter.GetFileName(treeResult.Path)
+
+	var parts []string
+	if treeResult.TotalDirs > 0 {
+		parts = append(parts, fmt.Sprintf("%d directories", treeResult.TotalDirs))
+	}
+	if treeResult.TotalFiles > 0 {
+		parts = append(parts, fmt.Sprintf("%d files", treeResult.TotalFiles))
+	}
+
+	status := fmt.Sprintf("Tree of %s", pathName)
+	if len(parts) > 0 {
+		status += fmt.Sprintf(" (%s)", strings.Join(parts, ", "))
+	}
+
+	if treeResult.Truncated {
+		status += " [truncated]"
+	}
+
+	return status
+}
+
+// FormatForUI formats the result for UI display
+func (t *TreeTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
+}
+
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *TreeTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	var output strings.Builder
+
+	// Header with tool call and metadata
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+
+	// Data section
+	if result.Data != nil {
+		dataContent := t.formatTreeData(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+	}
+
+	// Footer with metadata
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+
+	return output.String()
+}
+
+// formatTreeData formats tree-specific data
+func (t *TreeTool) formatTreeData(data any) string {
+	treeResult, ok := data.(*domain.TreeToolResult)
+	if !ok {
+		return t.formatter.FormatAsJSON(data)
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Path: %s\n", treeResult.Path))
+	output.WriteString(fmt.Sprintf("Total Files: %d\n", treeResult.TotalFiles))
+	output.WriteString(fmt.Sprintf("Total Directories: %d\n", treeResult.TotalDirs))
+	output.WriteString(fmt.Sprintf("Max Depth: %d\n", treeResult.MaxDepth))
+	output.WriteString(fmt.Sprintf("Max Files: %d\n", treeResult.MaxFiles))
+	output.WriteString(fmt.Sprintf("Format: %s\n", treeResult.Format))
+	output.WriteString(fmt.Sprintf("Show Hidden: %t\n", treeResult.ShowHidden))
+	output.WriteString(fmt.Sprintf("Using Native Tree: %t\n", treeResult.UsingNativeTree))
+	output.WriteString(fmt.Sprintf("Truncated: %t\n", treeResult.Truncated))
+
+	if len(treeResult.ExcludePatterns) > 0 {
+		output.WriteString(fmt.Sprintf("Exclude Patterns: %s\n", strings.Join(treeResult.ExcludePatterns, ", ")))
+	}
+
+	if treeResult.Output != "" {
+		output.WriteString(fmt.Sprintf("\nTree Output:\n%s\n", treeResult.Output))
+	}
+
+	return output.String()
 }
