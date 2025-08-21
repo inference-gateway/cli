@@ -308,7 +308,7 @@ func (r *Registry) createScrollActions() []*KeyAction {
 			Priority:    120,
 			Enabled:     true,
 			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
+				Views: []domain.ViewState{domain.ViewStateChat, domain.ViewStateToolApproval},
 			},
 		},
 		{
@@ -320,7 +320,7 @@ func (r *Registry) createScrollActions() []*KeyAction {
 			Priority:    120,
 			Enabled:     true,
 			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
+				Views: []domain.ViewState{domain.ViewStateChat, domain.ViewStateToolApproval},
 			},
 		},
 		{
@@ -573,8 +573,12 @@ func handleScrollToBottom(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
+		componentID := "conversation"
+		if app.HasPendingApproval() {
+			componentID = "approval"
+		}
 		return shared.ScrollRequestMsg{
-			ComponentID: "conversation",
+			ComponentID: componentID,
 			Direction:   shared.ScrollUp,
 			Amount:      10,
 		}
@@ -583,8 +587,12 @@ func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleScrollDownHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
+		componentID := "conversation"
+		if app.HasPendingApproval() {
+			componentID = "approval"
+		}
 		return shared.ScrollRequestMsg{
-			ComponentID: "conversation",
+			ComponentID: componentID,
 			Direction:   shared.ScrollDown,
 			Amount:      10,
 		}
@@ -849,11 +857,6 @@ func getCurrentTokenUsage(app KeyHandlerContext) string {
 
 	conversationRepo := services.GetConversationRepository()
 	if conversationRepo == nil {
-		return ""
-	}
-
-	messages := conversationRepo.GetMessages()
-	if len(messages) == 0 {
 		return ""
 	}
 
