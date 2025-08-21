@@ -24,6 +24,11 @@ func FormatToolResultExpandedResponsive(result *domain.ToolExecutionResult, term
 
 // FormatToolCall formats a tool call for consistent display across the application
 func FormatToolCall(toolName string, args map[string]any) string {
+	return FormatToolCallWithOptions(toolName, args, false)
+}
+
+// FormatToolCallWithOptions formats a tool call with options for expansion
+func FormatToolCallWithOptions(toolName string, args map[string]any, expanded bool) string {
 	if len(args) == 0 {
 		return fmt.Sprintf("%s()", toolName)
 	}
@@ -36,10 +41,31 @@ func FormatToolCall(toolName string, args map[string]any) string {
 
 	argPairs := make([]string, 0, len(args))
 	for _, key := range keys {
-		argPairs = append(argPairs, fmt.Sprintf("%s=%v", key, args[key]))
+		value := args[key]
+		if !expanded && toolName == "Edit" && shouldCollapseEditArg(key) {
+			value = collapseArgValue(value, 50)
+		}
+		argPairs = append(argPairs, fmt.Sprintf("%s=%v", key, value))
 	}
 
 	return fmt.Sprintf("%s(%s)", toolName, joinArgs(argPairs))
+}
+
+// shouldCollapseEditArg determines if an Edit tool argument should be collapsed
+func shouldCollapseEditArg(key string) bool {
+	return key == "old_string" || key == "new_string"
+}
+
+// collapseArgValue truncates a value to the specified length with ellipsis
+func collapseArgValue(value any, maxLength int) string {
+	str := fmt.Sprintf("%v", value)
+	if len(str) <= maxLength {
+		return str
+	}
+	if maxLength <= 3 {
+		return "..."
+	}
+	return str[:maxLength-3] + "..."
 }
 
 // joinArgs joins argument pairs with commas, handling long argument lists
@@ -132,7 +158,7 @@ func FormatToolResultExpanded(result *domain.ToolExecutionResult) string {
 	}
 
 	var output strings.Builder
-	toolCall := FormatToolCall(result.ToolName, result.Arguments)
+	toolCall := FormatToolCallWithOptions(result.ToolName, result.Arguments, true)
 
 	output.WriteString(fmt.Sprintf("%s\n", toolCall))
 	output.WriteString(fmt.Sprintf("├─ ⏱️  Duration: %s\n", result.Duration.String()))
