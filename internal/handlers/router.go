@@ -22,8 +22,6 @@ func NewMessageRouter() *MessageRouter {
 // AddHandler adds a message handler to the router
 func (r *MessageRouter) AddHandler(handler MessageHandler) {
 	r.handlers = append(r.handlers, handler)
-
-	// Sort handlers by priority (highest priority first)
 	sort.Slice(r.handlers, func(i, j int) bool {
 		return r.handlers[i].GetPriority() > r.handlers[j].GetPriority()
 	})
@@ -44,10 +42,8 @@ func (r *MessageRouter) Route(
 	msg tea.Msg,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
-	// Find the first handler that can handle this message
 	for _, handler := range r.handlers {
 		if handler.CanHandle(msg) {
-			// Handle the message
 			model, cmd := handler.Handle(msg, stateManager)
 			return model, cmd
 		}
@@ -58,7 +54,6 @@ func (r *MessageRouter) Route(
 
 // GetHandlers returns all registered handlers
 func (r *MessageRouter) GetHandlers() []MessageHandler {
-	// Return a copy to prevent external modification
 	handlers := make([]MessageHandler, len(r.handlers))
 	copy(handlers, r.handlers)
 	return handlers
