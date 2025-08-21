@@ -31,7 +31,6 @@ func (s *ToolFormatterService) FormatToolCall(toolName string, args map[string]a
 		return fmt.Sprintf("%s()", toolName)
 	}
 
-	// Use the base formatter helper for consistency
 	formatter := domain.NewBaseFormatter(toolName)
 	return formatter.FormatToolCall(args, false)
 }
@@ -42,7 +41,6 @@ func (s *ToolFormatterService) FormatToolCallExpanded(toolName string, args map[
 		return fmt.Sprintf("%s()", toolName)
 	}
 
-	// Use the base formatter helper for consistency
 	formatter := domain.NewBaseFormatter(toolName)
 	return formatter.FormatToolCall(args, true)
 }

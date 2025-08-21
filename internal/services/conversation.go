@@ -32,7 +32,6 @@ func formatToolCall(toolCall sdk.ChatCompletionMessageToolCall) string {
 		return fmt.Sprintf("%s()", toolCall.Function.Name)
 	}
 
-	// Use the domain formatter for consistent formatting
 	formatter := domain.NewBaseFormatter(toolCall.Function.Name)
 	return formatter.FormatToolCall(args, false)
 }
