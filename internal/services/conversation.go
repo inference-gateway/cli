@@ -8,32 +8,38 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui"
+	"github.com/inference-gateway/cli/internal/ui/shared"
 	"github.com/inference-gateway/sdk"
 )
 
 // InMemoryConversationRepository implements ConversationRepository using in-memory storage
 type InMemoryConversationRepository struct {
-	messages     []domain.ConversationEntry
-	mutex        sync.RWMutex
-	sessionStats domain.SessionTokenStats
+	messages         []domain.ConversationEntry
+	mutex            sync.RWMutex
+	sessionStats     domain.SessionTokenStats
+	formatterService *ToolFormatterService
 }
 
 // NewInMemoryConversationRepository creates a new in-memory conversation repository
-func NewInMemoryConversationRepository() *InMemoryConversationRepository {
+func NewInMemoryConversationRepository(formatterService *ToolFormatterService) *InMemoryConversationRepository {
 	return &InMemoryConversationRepository{
-		messages: make([]domain.ConversationEntry, 0),
+		messages:         make([]domain.ConversationEntry, 0),
+		formatterService: formatterService,
 	}
 }
 
-// formatToolCall formats a tool call for display
-func formatToolCall(toolCall sdk.ChatCompletionMessageToolCall) string {
+// formatToolCall formats a tool call for display using the formatter service
+func (r *InMemoryConversationRepository) formatToolCall(toolCall sdk.ChatCompletionMessageToolCall) string {
 	var args map[string]any
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 		return fmt.Sprintf("%s()", toolCall.Function.Name)
 	}
 
-	return ui.FormatToolCall(toolCall.Function.Name, args)
+	if r.formatterService != nil {
+		return r.formatterService.FormatToolCall(toolCall.Function.Name, args)
+	}
+
+	return shared.FormatToolCall(toolCall.Function.Name, args)
 }
 
 func (r *InMemoryConversationRepository) AddMessage(msg domain.ConversationEntry) error {
@@ -172,7 +178,7 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
 			content.WriteString("### Tool Calls\n\n")
 			for _, toolCall := range *entry.Message.ToolCalls {
-				content.WriteString(fmt.Sprintf("**Tool:** %s\n\n", formatToolCall(toolCall)))
+				content.WriteString(fmt.Sprintf("**Tool:** %s\n\n", r.formatToolCall(toolCall)))
 				if toolCall.Function.Arguments != "" {
 					content.WriteString("**Arguments:**\n```json\n")
 					content.WriteString(toolCall.Function.Arguments)

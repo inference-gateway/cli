@@ -14,15 +14,17 @@ import (
 
 // DeleteTool handles file and directory deletion operations
 type DeleteTool struct {
-	config  *config.Config
-	enabled bool
+	config    *config.Config
+	enabled   bool
+	formatter domain.BaseFormatter
 }
 
 // NewDeleteTool creates a new delete tool
 func NewDeleteTool(cfg *config.Config) *DeleteTool {
 	return &DeleteTool{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.Delete.Enabled,
+		config:    cfg,
+		enabled:   cfg.Tools.Enabled && cfg.Tools.Delete.Enabled,
+		formatter: domain.NewBaseFormatter("Delete"),
 	}
 }
 
@@ -299,4 +301,154 @@ func (t *DeleteTool) deleteFile(path string, result *DeleteResult) error {
 // validatePathSecurity checks if a path is allowed for deletion within the sandbox
 func (t *DeleteTool) validatePathSecurity(path string) error {
 	return t.config.ValidatePathInSandbox(path)
+}
+
+// FormatResult formats tool execution results for different contexts
+func (t *DeleteTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
+	case domain.FormatterLLM:
+		return t.FormatForLLM(result)
+	case domain.FormatterShort:
+		return t.FormatPreview(result)
+	default:
+		return t.FormatForUI(result)
+	}
+}
+
+// FormatPreview returns a short preview of the result for UI display
+func (t *DeleteTool) FormatPreview(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	deleteResult, ok := result.Data.(*domain.DeleteToolResult)
+	if !ok {
+		if result.Success {
+			return "Deletion completed successfully"
+		}
+		return "Deletion failed"
+	}
+
+	totalItems := deleteResult.TotalFilesDeleted + deleteResult.TotalDirsDeleted
+	if totalItems == 0 {
+		return "No items to delete"
+	}
+
+	var parts []string
+	if deleteResult.TotalFilesDeleted > 0 {
+		parts = append(parts, fmt.Sprintf("%d file%s", deleteResult.TotalFilesDeleted,
+			t.pluralize(deleteResult.TotalFilesDeleted)))
+	}
+	if deleteResult.TotalDirsDeleted > 0 {
+		parts = append(parts, fmt.Sprintf("%d director%s", deleteResult.TotalDirsDeleted,
+			t.pluralizeDir(deleteResult.TotalDirsDeleted)))
+	}
+
+	action := "Deleted"
+	if deleteResult.WildcardExpanded {
+		action = "Deleted (wildcard)"
+	}
+
+	return fmt.Sprintf("%s %s", action, strings.Join(parts, " and "))
+}
+
+// FormatForUI formats the result for UI display
+func (t *DeleteTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
+}
+
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *DeleteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	var output strings.Builder
+
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+
+	if result.Data != nil {
+		dataContent := t.formatDeleteData(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+	}
+
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+
+	return output.String()
+}
+
+// formatDeleteData formats delete-specific data
+func (t *DeleteTool) formatDeleteData(data any) string {
+	deleteResult, ok := data.(*domain.DeleteToolResult)
+	if !ok {
+		return t.formatter.FormatAsJSON(data)
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("Path: %s\n", deleteResult.Path))
+	output.WriteString(fmt.Sprintf("Total Files Deleted: %d\n", deleteResult.TotalFilesDeleted))
+	output.WriteString(fmt.Sprintf("Total Directories Deleted: %d\n", deleteResult.TotalDirsDeleted))
+	output.WriteString(fmt.Sprintf("Wildcard Expanded: %t\n", deleteResult.WildcardExpanded))
+
+	if len(deleteResult.DeletedFiles) > 0 {
+		output.WriteString("\nDeleted Files:\n")
+		for _, file := range deleteResult.DeletedFiles {
+			fileName := t.formatter.GetFileName(file)
+			output.WriteString(fmt.Sprintf("  - %s\n", fileName))
+		}
+	}
+
+	if len(deleteResult.DeletedDirs) > 0 {
+		output.WriteString("\nDeleted Directories:\n")
+		for _, dir := range deleteResult.DeletedDirs {
+			dirName := t.formatter.GetFileName(dir)
+			output.WriteString(fmt.Sprintf("  - %s/\n", dirName))
+		}
+	}
+
+	if len(deleteResult.Errors) > 0 {
+		output.WriteString("\nErrors:\n")
+		for _, err := range deleteResult.Errors {
+			output.WriteString(fmt.Sprintf("  - %s\n", err))
+		}
+	}
+
+	return output.String()
+}
+
+// pluralize returns "s" for plural file count
+func (t *DeleteTool) pluralize(count int) string {
+	if count == 1 {
+		return ""
+	}
+	return "s"
+}
+
+// pluralizeDir returns "y" or "ies" for directory count
+func (t *DeleteTool) pluralizeDir(count int) string {
+	if count == 1 {
+		return "y"
+	}
+	return "ies"
+}
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *DeleteTool) ShouldCollapseArg(key string) bool {
+	return false
 }

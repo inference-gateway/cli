@@ -3,23 +3,27 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // TodoWriteTool handles structured task list management for coding sessions
 type TodoWriteTool struct {
-	config  *config.Config
-	enabled bool
+	config    *config.Config
+	enabled   bool
+	formatter domain.BaseFormatter
 }
 
 // NewTodoWriteTool creates a new TodoWrite tool
 func NewTodoWriteTool(cfg *config.Config) *TodoWriteTool {
 	return &TodoWriteTool{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.TodoWrite.Enabled,
+		config:    cfg,
+		enabled:   cfg.Tools.Enabled && cfg.Tools.TodoWrite.Enabled,
+		formatter: domain.NewBaseFormatter("TodoWrite"),
 	}
 }
 
@@ -300,4 +304,194 @@ func (t *TodoWriteTool) validateTodoList(todos []domain.TodoItem) error {
 	}
 
 	return nil
+}
+
+// FormatResult formats tool execution results for different contexts
+func (t *TodoWriteTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
+	case domain.FormatterLLM:
+		return t.FormatForLLM(result)
+	case domain.FormatterShort:
+		return t.FormatPreview(result)
+	default:
+		return t.FormatForUI(result)
+	}
+}
+
+// FormatPreview returns a short preview of the result for UI display
+func (t *TodoWriteTool) FormatPreview(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	todoResult, ok := result.Data.(*domain.TodoWriteToolResult)
+	if !ok {
+		if result.Success {
+			return "📋 Todo list updated successfully"
+		}
+		return "❌ Todo list update failed"
+	}
+
+	if todoResult.TotalTasks == 0 {
+		return "📋 Todo list is empty"
+	}
+
+	progressBar := t.formatProgressBar(todoResult.CompletedTasks, todoResult.TotalTasks)
+	percentage := int(float64(todoResult.CompletedTasks) / float64(todoResult.TotalTasks) * 100)
+
+	status := fmt.Sprintf("📋 %s %d/%d tasks (%d%%)", progressBar, todoResult.CompletedTasks, todoResult.TotalTasks, percentage)
+
+	if todoResult.InProgressTask != "" {
+		taskPreview := t.formatter.TruncateText(todoResult.InProgressTask, 30)
+		status += fmt.Sprintf(" 🔄 %s", taskPreview)
+	}
+
+	return status
+}
+
+// FormatForUI formats the result for UI display
+func (t *TodoWriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
+}
+
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *TodoWriteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	var output strings.Builder
+
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+
+	if result.Data != nil {
+		dataContent := t.formatTodoData(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+	}
+
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+
+	return output.String()
+}
+
+// formatTodoData formats todo-specific data with progress visualization
+func (t *TodoWriteTool) formatTodoData(data any) string {
+	todoResult, ok := data.(*domain.TodoWriteToolResult)
+	if !ok {
+		return t.formatter.FormatAsJSON(data)
+	}
+
+	var output strings.Builder
+
+	header := shared.CreateColoredText("📋 **Todo List**", shared.AccentColor)
+	completionText := shared.CreateColoredText(fmt.Sprintf("(%d/%d completed)", todoResult.CompletedTasks, todoResult.TotalTasks), shared.DimColor)
+	output.WriteString(fmt.Sprintf("%s %s\n\n", header, completionText))
+
+	if todoResult.TotalTasks > 0 {
+		progressBar := t.formatColoredProgressBar(todoResult.CompletedTasks, todoResult.TotalTasks)
+		percentage := int(float64(todoResult.CompletedTasks) / float64(todoResult.TotalTasks) * 100)
+		progressText := shared.CreateColoredText(fmt.Sprintf("Progress: %s %d%%", progressBar, percentage), shared.AccentColor)
+		output.WriteString(fmt.Sprintf("%s\n\n", progressText))
+	}
+
+	if len(todoResult.Todos) > 0 {
+		for _, todo := range todoResult.Todos {
+			checkbox, content := t.formatTodoItem(todo)
+			output.WriteString(fmt.Sprintf("%s %s\n", checkbox, content))
+		}
+	}
+
+	if todoResult.InProgressTask != "" {
+		workingText := shared.CreateColoredText("🚧 Currently working on:", shared.AccentColor)
+		taskText := shared.CreateColoredText(todoResult.InProgressTask, shared.SuccessColor)
+		output.WriteString(fmt.Sprintf("\n%s %s\n", workingText, taskText))
+	}
+
+	return output.String()
+}
+
+// formatProgressBar creates a visual progress bar (simple version for preview)
+func (t *TodoWriteTool) formatProgressBar(completed, total int) string {
+	if total == 0 {
+		return "[----------] 0%"
+	}
+
+	barLength := 10
+	progress := int(float64(completed) / float64(total) * float64(barLength))
+
+	var bar strings.Builder
+	bar.WriteString("[")
+	for i := 0; i < barLength; i++ {
+		if i < progress {
+			bar.WriteString("█")
+		} else {
+			bar.WriteString("-")
+		}
+	}
+	bar.WriteString("]")
+
+	return bar.String()
+}
+
+// formatColoredProgressBar creates a beautiful colored progress bar
+func (t *TodoWriteTool) formatColoredProgressBar(completed, total int) string {
+	if total == 0 {
+		return "[░░░░░░░░░░]"
+	}
+
+	barLength := 20
+	progress := int(float64(completed) / float64(total) * float64(barLength))
+
+	var bar strings.Builder
+	bar.WriteString("[")
+	for i := 0; i < barLength; i++ {
+		if i < progress {
+			bar.WriteString("█")
+		} else {
+			bar.WriteString("░")
+		}
+	}
+	bar.WriteString("]")
+
+	return bar.String()
+}
+
+// formatTodoItem formats a single todo item with appropriate colors and icons
+func (t *TodoWriteTool) formatTodoItem(todo domain.TodoItem) (string, string) {
+	var checkbox, content string
+
+	switch todo.Status {
+	case "completed":
+		checkbox = "✅"
+		content = shared.CreateStrikethroughText(todo.Content)
+	case "in_progress":
+		checkbox = "🔄"
+		content = shared.CreateColoredText(fmt.Sprintf("%s (in progress)", todo.Content), shared.AccentColor)
+	default:
+		checkbox = "☐"
+		content = todo.Content
+	}
+
+	return checkbox, content
+}
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *TodoWriteTool) ShouldCollapseArg(key string) bool {
+	return false
 }

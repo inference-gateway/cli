@@ -471,21 +471,9 @@ func handleQuit(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	// If autocomplete is visible, don't handle the cancel - let autocomplete handle it
 	inputView := app.GetInputView()
 	if inputView != nil && inputView.IsAutocompleteVisible() {
 		return nil
-	}
-
-	if chatSession := app.GetStateManager().GetChatSession(); chatSession != nil {
-		app.GetStateManager().EndChatSession()
-		return func() tea.Msg {
-			return shared.SetStatusMsg{
-				Message:    "Response cancelled",
-				Spinner:    false,
-				TokenUsage: getCurrentTokenUsage(app),
-			}
-		}
 	}
 
 	app.GetStateManager().EndChatSession()

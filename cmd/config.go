@@ -11,6 +11,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/container"
+	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/ui"
 	"github.com/spf13/cobra"
 )
@@ -527,60 +528,74 @@ func listTools(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Printf("Tools Status: ")
+	fmt.Printf("TOOLS STATUS\n")
+	fmt.Printf("────────────\n")
 	if cfg.Tools.Enabled {
-		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+		fmt.Printf("Overall: %s\n", ui.FormatEnabled())
 	} else {
-		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+		fmt.Printf("Overall: %s\n", ui.FormatDisabled())
 	}
 
-	fmt.Printf("\nIndividual Tools:\n")
-	fmt.Printf("  Bash: ")
-	if cfg.Tools.Bash.Enabled {
-		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+	fmt.Printf("\nINDIVIDUAL TOOLS\n")
+	fmt.Printf("────────────────\n")
+
+	fmt.Printf("File Operations:\n")
+	fmt.Printf("  Read      : %s\n", formatToolStatus(cfg.Tools.Read.Enabled))
+	fmt.Printf("  Write     : %s\n", formatToolStatus(cfg.Tools.Write.Enabled))
+	fmt.Printf("  Edit      : %s\n", formatToolStatus(cfg.Tools.Edit.Enabled))
+	fmt.Printf("  Delete    : %s\n", formatToolStatus(cfg.Tools.Delete.Enabled))
+
+	fmt.Printf("\nSearch & Analysis:\n")
+	fmt.Printf("  Grep      : %s\n", formatToolStatus(cfg.Tools.Grep.Enabled))
+	fmt.Printf("  Tree      : %s\n", formatToolStatus(cfg.Tools.Tree.Enabled))
+
+	fmt.Printf("\nSystem Operations:\n")
+	fmt.Printf("  Bash      : %s\n", formatToolStatus(cfg.Tools.Bash.Enabled))
+
+	fmt.Printf("\nWeb Operations:\n")
+	fmt.Printf("  WebFetch  : %s\n", formatToolStatus(cfg.Tools.WebFetch.Enabled))
+	fmt.Printf("  WebSearch : %s\n", formatToolStatus(cfg.Tools.WebSearch.Enabled))
+
+	fmt.Printf("\nExternal Services:\n")
+	fmt.Printf("  GitHub    : %s\n", formatToolStatus(cfg.Tools.Github.Enabled))
+
+	fmt.Printf("\nTask Management:\n")
+	fmt.Printf("  TodoWrite : %s\n", formatToolStatus(cfg.Tools.TodoWrite.Enabled))
+
+	fmt.Printf("\nBASH CONFIGURATION\n")
+	fmt.Printf("──────────────────\n")
+	fmt.Printf("Whitelisted Commands (%d):\n", len(cfg.Tools.Bash.Whitelist.Commands))
+	if len(cfg.Tools.Bash.Whitelist.Commands) == 0 {
+		fmt.Printf("  None configured\n")
 	} else {
-		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
-	}
-
-	fmt.Printf("  WebFetch: ")
-	if cfg.Tools.WebFetch.Enabled {
-		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
-	} else {
-		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
-	}
-
-	fmt.Printf("  WebSearch: ")
-	if cfg.Tools.WebSearch.Enabled {
-		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
-	} else {
-		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
-	}
-
-	fmt.Printf("\nWhitelisted Commands (%d):\n", len(cfg.Tools.Bash.Whitelist.Commands))
-	for _, cmd := range cfg.Tools.Bash.Whitelist.Commands {
-		fmt.Printf("  • %s\n", cmd)
-	}
-
-	fmt.Printf("\nWhitelisted Patterns (%d):\n", len(cfg.Tools.Bash.Whitelist.Patterns))
-	for _, pattern := range cfg.Tools.Bash.Whitelist.Patterns {
-		fmt.Printf("  • %s\n", pattern)
-	}
-
-	fmt.Printf("\nSandbox Directories (%d):\n", len(cfg.Tools.Sandbox.Directories))
-	if len(cfg.Tools.Sandbox.Directories) == 0 {
-		fmt.Printf("  • None configured\n")
-	} else {
-		for _, dir := range cfg.Tools.Sandbox.Directories {
-			fmt.Printf("  • %s\n", dir)
+		for _, cmd := range cfg.Tools.Bash.Whitelist.Commands {
+			fmt.Printf("  %s\n", cmd)
 		}
 	}
 
-	fmt.Printf("\nSafety Settings:\n")
-	if cfg.Tools.Safety.RequireApproval {
-		fmt.Printf("  • Approval required: %s\n", ui.FormatSuccess("Enabled"))
+	fmt.Printf("\nWhitelisted Patterns (%d):\n", len(cfg.Tools.Bash.Whitelist.Patterns))
+	if len(cfg.Tools.Bash.Whitelist.Patterns) == 0 {
+		fmt.Printf("  None configured\n")
 	} else {
-		fmt.Printf("  • Approval required: %s\n", ui.FormatErrorCLI("Disabled"))
+		for _, pattern := range cfg.Tools.Bash.Whitelist.Patterns {
+			fmt.Printf("  %s\n", pattern)
+		}
 	}
+
+	fmt.Printf("\nSANDBOX CONFIGURATION\n")
+	fmt.Printf("─────────────────────\n")
+	fmt.Printf("Directories (%d):\n", len(cfg.Tools.Sandbox.Directories))
+	if len(cfg.Tools.Sandbox.Directories) == 0 {
+		fmt.Printf("  None configured\n")
+	} else {
+		for _, dir := range cfg.Tools.Sandbox.Directories {
+			fmt.Printf("  %s\n", dir)
+		}
+	}
+
+	fmt.Printf("\nSAFETY CONFIGURATION\n")
+	fmt.Printf("────────────────────\n")
+	fmt.Printf("Approval Required: %s\n", formatToolStatus(cfg.Tools.Safety.RequireApproval))
 
 	return nil
 }
@@ -625,8 +640,9 @@ func execTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("tools are not enabled")
 	}
 
-	services := container.NewServiceContainer(cfg)
-	toolService := services.GetToolService()
+	serviceContainer := container.NewServiceContainer(cfg)
+	toolService := serviceContainer.GetToolService()
+	toolRegistry := serviceContainer.GetToolRegistry()
 
 	if len(args) == 0 {
 		return fmt.Errorf("tool name is required")
@@ -657,7 +673,9 @@ func execTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("tool execution failed: %w", err)
 	}
 
-	fmt.Print(ui.FormatToolResultExpanded(result))
+	formatterService := services.NewToolFormatterService(toolRegistry)
+
+	fmt.Print(formatterService.FormatToolResultExpanded(result, 80))
 	return nil
 }
 
@@ -1259,4 +1277,12 @@ func grepStatus(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// formatToolStatus formats a tool's enabled/disabled status
+func formatToolStatus(enabled bool) string {
+	if enabled {
+		return ui.FormatEnabled()
+	}
+	return ui.FormatDisabled()
 }

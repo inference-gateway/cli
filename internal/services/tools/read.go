@@ -34,15 +34,17 @@ const (
 
 // ReadTool handles file reading operations with deterministic behavior
 type ReadTool struct {
-	config  *config.Config
-	enabled bool
+	config    *config.Config
+	enabled   bool
+	formatter domain.BaseFormatter
 }
 
 // NewReadTool creates a new read tool
 func NewReadTool(cfg *config.Config) *ReadTool {
 	return &ReadTool{
-		config:  cfg,
-		enabled: cfg.Tools.Enabled && cfg.Tools.Read.Enabled,
+		config:    cfg,
+		enabled:   cfg.Tools.Enabled && cfg.Tools.Read.Enabled,
+		formatter: domain.NewBaseFormatter("Read"),
 	}
 }
 
@@ -393,4 +395,119 @@ func (t *ReadTool) validateParameter(args map[string]any, paramName string) erro
 // validatePathSecurity checks if a path is allowed within the sandbox
 func (t *ReadTool) validatePathSecurity(path string) error {
 	return t.config.ValidatePathInSandbox(path)
+}
+
+// FormatResult formats tool execution results for different contexts
+func (t *ReadTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
+	case domain.FormatterLLM:
+		return t.FormatForLLM(result)
+	case domain.FormatterShort:
+		return t.FormatPreview(result)
+	default:
+		return t.FormatForUI(result)
+	}
+}
+
+// FormatPreview returns a short preview of the result for UI display
+func (t *ReadTool) FormatPreview(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	readResult, ok := result.Data.(*domain.FileReadToolResult)
+	if !ok {
+		if result.Success {
+			return "File read completed successfully"
+		}
+		return "File read failed"
+	}
+
+	fileName := t.formatter.GetFileName(readResult.FilePath)
+	if readResult.Content != "" {
+		lineCount := strings.Count(readResult.Content, "\n") + 1
+		return fmt.Sprintf("Read %d lines from %s", lineCount, fileName)
+	}
+	return fmt.Sprintf("Read %s", fileName)
+}
+
+// FormatForUI formats the result for UI display
+func (t *ReadTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
+}
+
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *ReadTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	var output strings.Builder
+
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+
+	if result.Data != nil {
+		dataContent := t.formatReadData(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+	}
+
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+
+	return output.String()
+}
+
+// formatReadData formats read-specific data
+func (t *ReadTool) formatReadData(data any) string {
+	readResult, ok := data.(*domain.FileReadToolResult)
+	if !ok {
+		return t.formatter.FormatAsJSON(data)
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("File: %s\n", readResult.FilePath))
+
+	lineCount := 0
+	if readResult.Content != "" {
+		lineCount = strings.Count(readResult.Content, "\n") + 1
+	}
+
+	if readResult.StartLine > 0 {
+		output.WriteString(fmt.Sprintf("Lines: %d", readResult.StartLine))
+		if readResult.EndLine > 0 && readResult.EndLine != readResult.StartLine {
+			output.WriteString(fmt.Sprintf("-%d", readResult.EndLine))
+		}
+		output.WriteString("\n")
+	}
+
+	output.WriteString(fmt.Sprintf("Lines: %d\n", lineCount))
+	output.WriteString(fmt.Sprintf("Size: %d bytes\n", readResult.Size))
+
+	if readResult.Error != "" {
+		output.WriteString(fmt.Sprintf("Error: %s\n", readResult.Error))
+	}
+	if readResult.Content != "" {
+		output.WriteString(fmt.Sprintf("Content:\n%s\n", readResult.Content))
+	}
+	return output.String()
+}
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *ReadTool) ShouldCollapseArg(key string) bool {
+	return false
 }

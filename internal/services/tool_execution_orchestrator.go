@@ -288,13 +288,18 @@ func (teo *ToolExecutionOrchestrator) HandleApprovalResponse(approved bool, tool
 
 			teo.mutex.Lock()
 			execution.Results[execution.CurrentIndex] = result
-			execution.CurrentIndex++
-			execution.Status = ToolExecutionStatusProcessing
+			execution.Status = ToolExecutionStatusCancelled
 			teo.mutex.Unlock()
 
 			teo.addToolResultToConversation(currentTool, result)
+			teo.stateManager.EndToolExecution()
 
-			return teo.processNextTool()()
+			teo.currentExecution = nil
+
+			return shared.SetStatusMsg{
+				Message: "Tool execution cancelled due to user denial",
+				Spinner: false,
+			}
 		}
 	}
 }

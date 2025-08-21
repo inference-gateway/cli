@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/inference-gateway/cli/config"
@@ -13,8 +14,9 @@ import (
 
 // WriteTool handles file writing operations to the filesystem
 type WriteTool struct {
-	config  *config.Config
-	enabled bool
+	config    *config.Config
+	enabled   bool
+	formatter domain.CustomFormatter
 }
 
 // NewWriteTool creates a new write tool
@@ -22,6 +24,9 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 	return &WriteTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Write.Enabled,
+		formatter: domain.NewCustomFormatter("Write", func(key string) bool {
+			return key == "content"
+		}),
 	}
 }
 
@@ -267,6 +272,7 @@ func (t *WriteTool) executeWrite(filePath, content string, append bool, chunkInd
 	}
 
 	result.BytesWritten = int64(len(content))
+	result.LinesWritten = countLines(content)
 	return result, nil
 }
 
@@ -312,6 +318,7 @@ func (t *WriteTool) executeAppendWrite(filePath, content string, result *domain.
 	}
 
 	result.BytesWritten = int64(bytesWritten)
+	result.LinesWritten = countLines(content)
 	result.Appended = true
 	return result, nil
 }
@@ -330,6 +337,7 @@ func (t *WriteTool) executeChunkedWrite(filePath, content string, chunkIndex, to
 	}
 
 	result.BytesWritten = int64(len(content))
+	result.LinesWritten = countLines(content)
 	result.IsComplete = false
 
 	if chunkIndex == totalChunks-1 {
@@ -396,4 +404,151 @@ func getTotalChunks(args map[string]any, start time.Time) (int, *domain.ToolExec
 	}
 
 	return int(val), nil
+}
+
+// FormatResult formats tool execution results for different contexts
+func (t *WriteTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
+	case domain.FormatterLLM:
+		return t.FormatForLLM(result)
+	case domain.FormatterShort:
+		return t.FormatPreview(result)
+	default:
+		return t.FormatForUI(result)
+	}
+}
+
+// FormatPreview returns a short preview of the result for UI display
+func (t *WriteTool) FormatPreview(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	writeResult, ok := result.Data.(*domain.FileWriteToolResult)
+	if !ok {
+		if result.Success {
+			return "File write completed successfully"
+		}
+		return "File write failed"
+	}
+
+	fileName := t.formatter.GetFileName(writeResult.FilePath)
+	status := ""
+	if writeResult.Created {
+		status = "Created"
+	} else if writeResult.Overwritten {
+		status = "Overwritten"
+	} else if writeResult.Appended {
+		status = "Appended to"
+	} else {
+		status = "Updated"
+	}
+
+	if writeResult.TotalChunks > 0 {
+		if writeResult.IsComplete {
+			return fmt.Sprintf("%s %s (%d chunks combined)", status, fileName, writeResult.TotalChunks)
+		}
+		return fmt.Sprintf("Chunk %d/%d written to %s", writeResult.ChunkIndex+1, writeResult.TotalChunks, fileName)
+	}
+
+	return fmt.Sprintf("%s %s (%d lines)", status, fileName, writeResult.LinesWritten)
+}
+
+// FormatForUI formats the result for UI display
+func (t *WriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
+}
+
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *WriteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	var output strings.Builder
+
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+
+	if result.Data != nil {
+		dataContent := t.formatWriteData(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+	}
+
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+
+	return output.String()
+}
+
+// formatWriteData formats write-specific data
+func (t *WriteTool) formatWriteData(data any) string {
+	writeResult, ok := data.(*domain.FileWriteToolResult)
+	if !ok {
+		return t.formatter.FormatAsJSON(data)
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("File: %s\n", writeResult.FilePath))
+	output.WriteString(fmt.Sprintf("Written lines: %d\n", writeResult.LinesWritten))
+
+	var operations []string
+	if writeResult.Created {
+		operations = append(operations, "created")
+	}
+	if writeResult.Overwritten {
+		operations = append(operations, "overwritten")
+	}
+	if writeResult.Appended {
+		operations = append(operations, "appended")
+	}
+	if writeResult.DirsCreated {
+		operations = append(operations, "directories created")
+	}
+
+	if len(operations) > 0 {
+		output.WriteString(fmt.Sprintf("Operations: %s\n", strings.Join(operations, ", ")))
+	}
+
+	if writeResult.TotalChunks > 0 {
+		output.WriteString(fmt.Sprintf("Chunk: %d/%d\n", writeResult.ChunkIndex+1, writeResult.TotalChunks))
+		output.WriteString(fmt.Sprintf("Complete: %t\n", writeResult.IsComplete))
+	}
+
+	if writeResult.Error != "" {
+		output.WriteString(fmt.Sprintf("Error: %s\n", writeResult.Error))
+	}
+
+	return output.String()
+}
+
+// countLines counts the number of lines in the given content
+func countLines(content string) int {
+	if content == "" {
+		return 0
+	}
+	lines := strings.Count(content, "\n")
+	if !strings.HasSuffix(content, "\n") {
+		lines++
+	}
+	return lines
+}
+
+// ShouldCollapseArg delegates to the formatter's collapse logic
+func (t *WriteTool) ShouldCollapseArg(key string) bool {
+	return t.formatter.ShouldCollapseArg(key)
 }

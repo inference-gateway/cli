@@ -185,6 +185,39 @@ type Tool interface {
 
 	// IsEnabled returns whether this tool is enabled
 	IsEnabled() bool
+
+	// FormatResult formats tool execution results for different contexts
+	FormatResult(result *ToolExecutionResult, formatType FormatterType) string
+
+	// FormatPreview returns a short preview of the result for UI display
+	FormatPreview(result *ToolExecutionResult) string
+
+	// ShouldCollapseArg determines if an argument should be collapsed in display
+	ShouldCollapseArg(key string) bool
+}
+
+// FormatterType defines the context for formatting tool results
+type FormatterType string
+
+const (
+	FormatterUI    FormatterType = "ui"    // Compact display for UI
+	FormatterLLM   FormatterType = "llm"   // Formatted for LLM consumption
+	FormatterShort FormatterType = "short" // Brief summary format
+)
+
+// ToolFormatter provides formatting capabilities for tool results
+type ToolFormatter interface {
+	// FormatToolCall formats a tool call for consistent display
+	FormatToolCall(toolName string, args map[string]any) string
+
+	// FormatToolResultForUI formats tool execution results for UI display
+	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
+
+	// FormatToolResultExpanded formats expanded tool execution results
+	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
+
+	// FormatToolResultForLLM formats tool execution results for LLM consumption
+	FormatToolResultForLLM(result *ToolExecutionResult) string
 }
 
 // ToolFactory creates tool instances
@@ -231,6 +264,7 @@ type FileReadToolResult struct {
 type FileWriteToolResult struct {
 	FilePath     string `json:"file_path"`
 	BytesWritten int64  `json:"bytes_written"`
+	LinesWritten int    `json:"lines_written"`
 	Created      bool   `json:"created"`
 	Overwritten  bool   `json:"overwritten"`
 	DirsCreated  bool   `json:"dirs_created"`

@@ -52,16 +52,17 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
-	c.conversationRepo = services.NewInMemoryConversationRepository()
+	c.fileService = services.NewFileService()
+
+	c.toolRegistry = tools.NewRegistry(c.config)
+
+	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
+	c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService)
 
 	c.modelService = services.NewHTTPModelService(
 		c.config.Gateway.URL,
 		c.config.Gateway.APIKey,
 	)
-
-	c.fileService = services.NewFileService()
-
-	c.toolRegistry = tools.NewRegistry(c.config)
 
 	if c.config.Tools.Enabled {
 		c.toolService = services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)

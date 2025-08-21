@@ -11,7 +11,7 @@ import (
 )
 
 func TestFormatMetricsWithSessionTokens(t *testing.T) {
-	conversationRepo := services.NewInMemoryConversationRepository()
+	conversationRepo := services.NewInMemoryConversationRepository(nil)
 
 	handler := &ChatHandler{
 		conversationRepo: conversationRepo,
