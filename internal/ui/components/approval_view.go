@@ -22,12 +22,12 @@ func min(a, b int) int {
 
 // ApprovalComponent handles rendering of tool approval requests
 type ApprovalComponent struct {
-	width        int
-	height       int
-	theme        shared.Theme
-	diffRenderer *DiffRenderer
-	styles       *approvalStyles
-	scrollOffset int
+	width         int
+	height        int
+	theme         shared.Theme
+	toolFormatter domain.ToolFormatter
+	styles        *approvalStyles
+	scrollOffset  int
 }
 
 type approvalStyles struct {
@@ -84,9 +84,8 @@ func NewApprovalComponent(theme shared.Theme) *ApprovalComponent {
 	}
 
 	return &ApprovalComponent{
-		theme:        theme,
-		diffRenderer: NewDiffRenderer(theme),
-		styles:       styles,
+		theme:  theme,
+		styles: styles,
 	}
 }
 
@@ -98,6 +97,11 @@ func (a *ApprovalComponent) SetWidth(width int) {
 // SetHeight sets the component height
 func (a *ApprovalComponent) SetHeight(height int) {
 	a.height = height
+}
+
+// SetToolFormatter sets the tool formatter for this approval component
+func (a *ApprovalComponent) SetToolFormatter(formatter domain.ToolFormatter) {
+	a.toolFormatter = formatter
 }
 
 // Init implements the Bubble Tea Model interface
@@ -179,14 +183,11 @@ func (a *ApprovalComponent) renderHeader(currentTool *domain.ToolCall) string {
 
 // renderToolContent renders the tool-specific content based on tool type
 func (a *ApprovalComponent) renderToolContent(currentTool *domain.ToolCall) string {
-	switch currentTool.Name {
-	case "Edit":
-		return a.diffRenderer.RenderEditToolArguments(currentTool.Arguments)
-	case "MultiEdit":
-		return a.diffRenderer.RenderMultiEditToolArguments(currentTool.Arguments)
-	default:
-		return a.renderDefaultArguments(currentTool.Arguments)
+	if a.toolFormatter != nil {
+		return a.toolFormatter.FormatToolArgumentsForApproval(currentTool.Name, currentTool.Arguments)
 	}
+
+	return a.renderDefaultArguments(currentTool.Arguments)
 }
 
 // renderDefaultArguments renders tool arguments for non-edit tools

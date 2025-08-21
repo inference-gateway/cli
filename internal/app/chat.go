@@ -80,6 +80,9 @@ func NewChatApplication(serviceContainer *container.ServiceContainer, models []s
 	app.statusView = ui.CreateStatusView()
 	app.helpBar = ui.CreateHelpBar()
 	app.approvalView = ui.CreateApprovalView(serviceContainer.GetTheme())
+	if av, ok := app.approvalView.(*components.ApprovalComponent); ok {
+		av.SetToolFormatter(toolFormatterService)
+	}
 	app.fileSelectionView = components.NewFileSelectionView(serviceContainer.GetTheme())
 
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(serviceContainer.GetTheme())

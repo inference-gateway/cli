@@ -210,6 +210,9 @@ type ToolFormatter interface {
 	// FormatToolCall formats a tool call for consistent display
 	FormatToolCall(toolName string, args map[string]any) string
 
+	// FormatToolArgumentsForApproval formats tool arguments for approval display
+	FormatToolArgumentsForApproval(toolName string, args map[string]any) string
+
 	// FormatToolResultForUI formats tool execution results for UI display
 	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
 

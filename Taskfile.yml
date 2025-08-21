@@ -52,8 +52,6 @@ tasks:
     desc: Run tests with coverage report
     cmds:
       - go test -cover ./...
-      - go test -coverprofile=coverage.out ./...
-      - go tool cover -html=coverage.out -o coverage.html
 
   lint:
     desc: Run linter (requires golangci-lint)
