@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
@@ -258,7 +258,6 @@ type ToolCallInfo struct {
 
 // parseToolCallFromLine parses a tool call from a line like "Tool: Write(content="...", file_path="...")"
 func (cv *ConversationView) parseToolCallFromLine(line string) *ToolCallInfo {
-	// Match pattern: Tool: ToolName(args...)
 	toolCallPattern := regexp.MustCompile(`^Tool:\s+([A-Za-z]+)\((.*)?\)$`)
 	matches := toolCallPattern.FindStringSubmatch(line)
 	if len(matches) != 3 {
@@ -268,7 +267,6 @@ func (cv *ConversationView) parseToolCallFromLine(line string) *ToolCallInfo {
 	toolName := matches[1]
 	argsString := matches[2]
 
-	// Parse arguments - simple key="value" parsing
 	args := make(map[string]any)
 	if argsString != "" {
 		argPattern := regexp.MustCompile(`([a-zA-Z_][a-zA-Z0-9_]*)=("[^"]*"|[^,]+)`)
