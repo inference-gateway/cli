@@ -552,3 +552,41 @@ func countLines(content string) int {
 func (t *WriteTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
 }
+
+// FormatArgumentsForApproval formats arguments for approval display with full content preview
+func (t *WriteTool) FormatArgumentsForApproval(args map[string]any) string {
+	var b strings.Builder
+
+	filePath, _ := args["file_path"].(string)
+	content, _ := args["content"].(string)
+	append, _ := args["append"].(bool)
+	chunkIndex, _ := args["chunk_index"].(float64)
+	totalChunks, _ := args["total_chunks"].(float64)
+	createDirs, _ := args["create_dirs"].(bool)
+	overwrite, _ := args["overwrite"].(bool)
+
+	b.WriteString("Arguments:\n")
+	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
+	b.WriteString(fmt.Sprintf("  • append: %v\n", append))
+	b.WriteString(fmt.Sprintf("  • create_dirs: %v\n", createDirs))
+	b.WriteString(fmt.Sprintf("  • overwrite: %v\n", overwrite))
+
+	if totalChunks > 0 {
+		b.WriteString(fmt.Sprintf("  • chunk_index: %d\n", int(chunkIndex)))
+		b.WriteString(fmt.Sprintf("  • total_chunks: %d\n", int(totalChunks)))
+	}
+
+	b.WriteString("\n")
+	b.WriteString("← Content to be written →\n")
+
+	if content != "" {
+		b.WriteString(content)
+		if !strings.HasSuffix(content, "\n") {
+			b.WriteString("\n")
+		}
+	} else {
+		b.WriteString("(empty content)\n")
+	}
+
+	return b.String()
+}
