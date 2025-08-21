@@ -481,8 +481,9 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		app.GetStateManager().EndChatSession()
 		return func() tea.Msg {
 			return shared.SetStatusMsg{
-				Message: "Response cancelled",
-				Spinner: false,
+				Message:    "Response cancelled",
+				Spinner:    false,
+				TokenUsage: getCurrentTokenUsage(app),
 			}
 		}
 	}
@@ -493,8 +494,9 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	return func() tea.Msg {
 		return shared.SetStatusMsg{
-			Message: "Operation cancelled",
-			Spinner: false,
+			Message:    "Operation cancelled",
+			Spinner:    false,
+			TokenUsage: getCurrentTokenUsage(app),
 		}
 	}
 }
@@ -790,8 +792,9 @@ func handleApprovalCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	stateManager.ClearApprovalUIState()
 	return func() tea.Msg {
 		return shared.SetStatusMsg{
-			Message: "Tool execution cancelled",
-			Spinner: false,
+			Message:    "Tool execution cancelled",
+			Spinner:    false,
+			TokenUsage: getCurrentTokenUsage(app),
 		}
 	}
 }
@@ -835,6 +838,26 @@ func (m *KeyBindingManager) GetHelpShortcuts() []HelpShortcut {
 // RegisterCustomAction registers a new custom key action
 func (m *KeyBindingManager) RegisterCustomAction(action *KeyAction) error {
 	return m.registry.Register(action)
+}
+
+// getCurrentTokenUsage returns current session token usage string
+func getCurrentTokenUsage(app KeyHandlerContext) string {
+	services := app.GetServices()
+	if services == nil {
+		return ""
+	}
+
+	conversationRepo := services.GetConversationRepository()
+	if conversationRepo == nil {
+		return ""
+	}
+
+	messages := conversationRepo.GetMessages()
+	if len(messages) == 0 {
+		return ""
+	}
+
+	return shared.FormatCurrentTokenUsage(conversationRepo)
 }
 
 // GetRegistry returns the underlying registry (for advanced usage)

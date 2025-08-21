@@ -1114,6 +1114,7 @@ func (h *ChatHandler) executeRegistryCommand(cmd commands.Command, args []string
 		return shared.SetStatusMsg{
 			Message:    fmt.Sprintf("Command failed: %v", err),
 			Spinner:    false,
+			TokenUsage: h.getCurrentTokenUsage(),
 			StatusType: shared.StatusDefault,
 		}
 	}
@@ -1136,6 +1137,7 @@ func (h *ChatHandler) handleCommandSideEffect(sideEffect commands.SideEffectType
 		return shared.SetStatusMsg{
 			Message:    "Command completed",
 			Spinner:    false,
+			TokenUsage: h.getCurrentTokenUsage(),
 			StatusType: shared.StatusDefault,
 		}
 	}
@@ -1147,6 +1149,7 @@ func (h *ChatHandler) handleSwitchModelSideEffect(stateManager *services.StateMa
 	return shared.SetStatusMsg{
 		Message:    "Select a model from the dropdown",
 		Spinner:    false,
+		TokenUsage: h.getCurrentTokenUsage(),
 		StatusType: shared.StatusDefault,
 	}
 }
@@ -1157,6 +1160,7 @@ func (h *ChatHandler) handleClearConversationSideEffect() tea.Msg {
 		return shared.SetStatusMsg{
 			Message:    fmt.Sprintf("Failed to clear conversation: %v", err),
 			Spinner:    false,
+			TokenUsage: h.getCurrentTokenUsage(),
 			StatusType: shared.StatusDefault,
 		}
 	}
@@ -1171,6 +1175,7 @@ func (h *ChatHandler) handleClearConversationSideEffect() tea.Msg {
 			return shared.SetStatusMsg{
 				Message:    "Conversation cleared",
 				Spinner:    false,
+				TokenUsage: h.getCurrentTokenUsage(),
 				StatusType: shared.StatusDefault,
 			}
 		},
@@ -1614,6 +1619,7 @@ func (h *ChatHandler) createToolUIUpdate(success bool, toolName string) tea.Msg 
 			return shared.SetStatusMsg{
 				Message:    statusMsg,
 				Spinner:    false,
+				TokenUsage: h.getCurrentTokenUsage(),
 				StatusType: shared.StatusDefault,
 			}
 		},
@@ -1822,6 +1828,7 @@ func (h *ChatHandler) createBashUIUpdate(success bool) tea.Msg {
 			return shared.SetStatusMsg{
 				Message:    statusMsg,
 				Spinner:    false,
+				TokenUsage: h.getCurrentTokenUsage(),
 				StatusType: shared.StatusDefault,
 			}
 		},
@@ -1858,6 +1865,16 @@ func (h *ChatHandler) formatMetrics(metrics *domain.ChatMetrics) string {
 	}
 
 	return strings.Join(parts, " | ")
+}
+
+// getCurrentTokenUsage returns current session token usage string
+func (h *ChatHandler) getCurrentTokenUsage() string {
+	messages := h.conversationRepo.GetMessages()
+	if len(messages) == 0 {
+		return ""
+	}
+
+	return shared.FormatCurrentTokenUsage(h.conversationRepo)
 }
 
 // addTokenUsageToSession accumulates token usage to session totals
