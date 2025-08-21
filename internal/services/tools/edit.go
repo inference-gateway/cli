@@ -692,7 +692,8 @@ func (t *EditTool) generateColoredDiff(oldContent, newContent string) string {
 		oldExists := i < len(oldLines)
 		newExists := i < len(newLines)
 
-		if oldExists && newExists {
+		switch {
+		case oldExists && newExists:
 			oldLine := oldLines[i]
 			newLine := newLines[i]
 			if oldLine != newLine {
@@ -701,9 +702,9 @@ func (t *EditTool) generateColoredDiff(oldContent, newContent string) string {
 			} else {
 				diff.WriteString(fmt.Sprintf(" %3d %s\n", lineNum, oldLine))
 			}
-		} else if oldExists {
+		case oldExists:
 			diff.WriteString(fmt.Sprintf("\033[31m-%3d %s\033[0m\n", lineNum, oldLines[i]))
-		} else if newExists {
+		case newExists:
 			diff.WriteString(fmt.Sprintf("\033[32m+%3d %s\033[0m\n", lineNum, newLines[i]))
 		}
 	}

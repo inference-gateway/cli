@@ -187,7 +187,6 @@ func (a *ApprovalComponent) renderToolContent(currentTool *domain.ToolCall) stri
 		return a.toolFormatter.FormatToolArgumentsForApproval(currentTool.Name, currentTool.Arguments)
 	}
 
-	// Fallback to default rendering if no tool formatter is set
 	return a.renderDefaultArguments(currentTool.Arguments)
 }
 

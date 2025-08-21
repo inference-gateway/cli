@@ -219,16 +219,13 @@ func (s *ToolFormatterService) wrapText(text string, width int) string {
 func (s *ToolFormatterService) FormatToolArgumentsForApproval(toolName string, args map[string]any) string {
 	tool, err := s.toolRegistry.GetTool(toolName)
 	if err != nil {
-		// Fallback to generic argument formatting
 		return s.formatGenericArguments(args)
 	}
 
-	// Check if the tool supports custom approval formatting
 	if approvalFormatter, ok := tool.(ApprovalArgumentFormatter); ok {
 		return approvalFormatter.FormatArgumentsForApproval(args)
 	}
 
-	// Fallback to generic argument formatting
 	return s.formatGenericArguments(args)
 }
 
