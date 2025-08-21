@@ -616,3 +616,97 @@ func (t *EditTool) formatEditData(data any) string {
 
 	return output.String()
 }
+
+// FormatArgumentsForApproval formats arguments for approval display with diff preview
+func (t *EditTool) FormatArgumentsForApproval(args map[string]any) string {
+	var b strings.Builder
+
+	filePath, _ := args["file_path"].(string)
+	oldString, _ := args["old_string"].(string)
+	newString, _ := args["new_string"].(string)
+	replaceAll, _ := args["replace_all"].(bool)
+
+	b.WriteString("Arguments:\n")
+	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
+	b.WriteString(fmt.Sprintf("  • replace_all: %v\n", replaceAll))
+	b.WriteString("\n")
+
+	b.WriteString("← Test edit for diff verification →\n")
+	b.WriteString(t.generateColoredDiff(oldString, newString))
+
+	return b.String()
+}
+
+// generateColoredDiff creates a colored diff view for approval
+func (t *EditTool) generateColoredDiff(oldContent, newContent string) string {
+	if oldContent == newContent {
+		return "No changes to display.\n"
+	}
+
+	oldLines := strings.Split(oldContent, "\n")
+	newLines := strings.Split(newContent, "\n")
+
+	var diff strings.Builder
+	maxLines := len(oldLines)
+	if len(newLines) > maxLines {
+		maxLines = len(newLines)
+	}
+
+	firstChanged := -1
+	lastChanged := -1
+	for i := 0; i < maxLines; i++ {
+		oldLine := ""
+		newLine := ""
+		if i < len(oldLines) {
+			oldLine = oldLines[i]
+		}
+		if i < len(newLines) {
+			newLine = newLines[i]
+		}
+
+		if oldLine != newLine {
+			if firstChanged == -1 {
+				firstChanged = i
+			}
+			lastChanged = i
+		}
+	}
+
+	if firstChanged == -1 {
+		return "No changes to display.\n"
+	}
+
+	contextBefore := 3
+	contextAfter := 3
+	startLine := firstChanged - contextBefore
+	if startLine < 0 {
+		startLine = 0
+	}
+	endLine := lastChanged + contextAfter
+	if endLine >= maxLines {
+		endLine = maxLines - 1
+	}
+
+	for i := startLine; i <= endLine; i++ {
+		lineNum := i + 1
+		oldExists := i < len(oldLines)
+		newExists := i < len(newLines)
+
+		if oldExists && newExists {
+			oldLine := oldLines[i]
+			newLine := newLines[i]
+			if oldLine != newLine {
+				diff.WriteString(fmt.Sprintf("\033[31m-%3d %s\033[0m\n", lineNum, oldLine))
+				diff.WriteString(fmt.Sprintf("\033[32m+%3d %s\033[0m\n", lineNum, newLine))
+			} else {
+				diff.WriteString(fmt.Sprintf(" %3d %s\n", lineNum, oldLine))
+			}
+		} else if oldExists {
+			diff.WriteString(fmt.Sprintf("\033[31m-%3d %s\033[0m\n", lineNum, oldLines[i]))
+		} else if newExists {
+			diff.WriteString(fmt.Sprintf("\033[32m+%3d %s\033[0m\n", lineNum, newLines[i]))
+		}
+	}
+
+	return diff.String()
+}

@@ -213,3 +213,52 @@ func (s *ToolFormatterService) wrapText(text string, width int) string {
 
 	return strings.Join(lines, "\n")
 }
+
+// FormatToolArgumentsForApproval formats tool arguments for approval display
+// This delegates to individual tools if they have special formatting needs
+func (s *ToolFormatterService) FormatToolArgumentsForApproval(toolName string, args map[string]any) string {
+	tool, err := s.toolRegistry.GetTool(toolName)
+	if err != nil {
+		// Fallback to generic argument formatting
+		return s.formatGenericArguments(args)
+	}
+
+	// Check if the tool supports custom approval formatting
+	if approvalFormatter, ok := tool.(ApprovalArgumentFormatter); ok {
+		return approvalFormatter.FormatArgumentsForApproval(args)
+	}
+
+	// Fallback to generic argument formatting
+	return s.formatGenericArguments(args)
+}
+
+// ApprovalArgumentFormatter interface for tools that need custom approval argument formatting
+type ApprovalArgumentFormatter interface {
+	FormatArgumentsForApproval(args map[string]any) string
+}
+
+// formatGenericArguments provides the default argument formatting for approval view
+func (s *ToolFormatterService) formatGenericArguments(args map[string]any) string {
+	if len(args) == 0 {
+		return ""
+	}
+
+	var result strings.Builder
+	result.WriteString("Arguments:\n")
+
+	keys := make([]string, 0, len(args))
+	for key := range args {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	for i, key := range keys {
+		value := args[key]
+		result.WriteString(fmt.Sprintf("  • %s: %v", key, value))
+		if i < len(keys)-1 {
+			result.WriteString("\n")
+		}
+	}
+
+	return result.String()
+}
