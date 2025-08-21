@@ -3,7 +3,6 @@ package components
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -121,8 +120,6 @@ func (cv *ConversationView) renderWelcome() string {
 	wd, err := os.Getwd()
 	if err != nil {
 		wd = "unknown"
-	} else {
-		wd = filepath.Base(wd)
 	}
 
 	headerLine := shared.StatusColor.ANSI + "✨ Inference Gateway CLI" + shared.Reset()
