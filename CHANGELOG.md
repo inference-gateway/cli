@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.35.0](https://github.com/inference-gateway/cli/compare/v0.34.0...v0.35.0) (2025-08-21)
+
+### 🚀 Features
+
+* **system-reminders:** Add dynamic system reminders feature ([#100](https://github.com/inference-gateway/cli/issues/100)) ([ea2ebea](https://github.com/inference-gateway/cli/commit/ea2ebea6107234a3d14c7a95b0a60d9e8a4a77d5)), closes [#79](https://github.com/inference-gateway/cli/issues/79)
+
 ## [0.34.0](https://github.com/inference-gateway/cli/compare/v0.33.7...v0.34.0) (2025-08-21)
 
 ### 🚀 Features
