@@ -270,6 +270,7 @@ func (t *WriteTool) executeWrite(filePath, content string, append bool, chunkInd
 	}
 
 	result.BytesWritten = int64(len(content))
+	result.LinesWritten = countLines(content)
 	return result, nil
 }
 
@@ -315,6 +316,7 @@ func (t *WriteTool) executeAppendWrite(filePath, content string, result *domain.
 	}
 
 	result.BytesWritten = int64(bytesWritten)
+	result.LinesWritten = countLines(content)
 	result.Appended = true
 	return result, nil
 }
@@ -333,6 +335,7 @@ func (t *WriteTool) executeChunkedWrite(filePath, content string, chunkIndex, to
 	}
 
 	result.BytesWritten = int64(len(content))
+	result.LinesWritten = countLines(content)
 	result.IsComplete = false
 
 	if chunkIndex == totalChunks-1 {
@@ -448,7 +451,7 @@ func (t *WriteTool) FormatPreview(result *domain.ToolExecutionResult) string {
 		return fmt.Sprintf("Chunk %d/%d written to %s", writeResult.ChunkIndex+1, writeResult.TotalChunks, fileName)
 	}
 
-	return fmt.Sprintf("%s %s (%d bytes)", status, fileName, writeResult.BytesWritten)
+	return fmt.Sprintf("%s %s (%d lines)", status, fileName, writeResult.LinesWritten)
 }
 
 // FormatForUI formats the result for UI display
@@ -529,4 +532,16 @@ func (t *WriteTool) formatWriteData(data any) string {
 	}
 
 	return output.String()
+}
+
+// countLines counts the number of lines in the given content
+func countLines(content string) int {
+	if content == "" {
+		return 0
+	}
+	lines := strings.Count(content, "\n")
+	if !strings.HasSuffix(content, "\n") {
+		lines++
+	}
+	return lines
 }

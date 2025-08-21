@@ -43,17 +43,27 @@ func FormatError(message string) string {
 
 // FormatSuccess creates a properly formatted success message
 func FormatSuccess(message string) string {
-	return fmt.Sprintf("✅ %s", message)
+	return fmt.Sprintf("\033[32m%s\033[0m", message)
 }
 
 // FormatWarning creates a properly formatted warning message
 func FormatWarning(message string) string {
-	return fmt.Sprintf("⚠️ %s", message)
+	return fmt.Sprintf("\033[33m%s\033[0m", message)
 }
 
-// FormatErrorCLI creates an error message with ❌ prefix for CLI output
+// FormatErrorCLI creates an error message with red color for CLI output
 func FormatErrorCLI(message string) string {
-	return fmt.Sprintf("❌ %s", message)
+	return fmt.Sprintf("\033[31m%s\033[0m", message)
+}
+
+// FormatEnabled formats an enabled status
+func FormatEnabled() string {
+	return FormatSuccess("ENABLED")
+}
+
+// FormatDisabled formats a disabled status
+func FormatDisabled() string {
+	return FormatErrorCLI("DISABLED")
 }
 
 var WrapText = shared.WrapText

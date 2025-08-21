@@ -261,6 +261,7 @@ type FileReadToolResult struct {
 type FileWriteToolResult struct {
 	FilePath     string `json:"file_path"`
 	BytesWritten int64  `json:"bytes_written"`
+	LinesWritten int    `json:"lines_written"`
 	Created      bool   `json:"created"`
 	Overwritten  bool   `json:"overwritten"`
 	DirsCreated  bool   `json:"dirs_created"`
