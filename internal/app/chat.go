@@ -23,7 +23,6 @@ type ChatApplication struct {
 
 	// State management
 	stateManager     *services.StateManager
-	debugService     *services.DebugService
 	toolOrchestrator *services.ToolExecutionOrchestrator
 
 	// UI components
@@ -63,7 +62,6 @@ func NewChatApplication(serviceContainer *container.ServiceContainer, models []s
 		services:         serviceContainer,
 		availableModels:  models,
 		stateManager:     serviceContainer.GetStateManager(),
-		debugService:     serviceContainer.GetDebugService(),
 		toolOrchestrator: serviceContainer.GetToolExecutionOrchestrator(),
 	}
 
@@ -116,7 +114,6 @@ func (app *ChatApplication) registerHandlers() {
 		app.services.GetFileService(),
 		app.services.GetCommandRegistry(),
 		app.toolOrchestrator,
-		app.debugService,
 	)
 	app.messageRouter.AddHandler(chatHandler)
 }
@@ -177,7 +174,7 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
 	}
 
-	if _, cmd := app.messageRouter.Route(msg, app.stateManager, app.debugService); cmd != nil {
+	if _, cmd := app.messageRouter.Route(msg, app.stateManager); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 

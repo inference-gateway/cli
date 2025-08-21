@@ -61,6 +61,13 @@ func (s *StreamingChatService) SendMessage(ctx context.Context, requestID string
 	}
 
 	messages = s.addToolsIfAvailable(messages)
+
+	// Log the request being sent to the LLM
+	logger.Info("LLM Request",
+		"request_id", requestID,
+		"model", model,
+		"messages", messages)
+
 	timeoutCtx, cancel := s.setupRequest(ctx, requestID)
 	events := make(chan domain.ChatEvent, 100)
 
@@ -397,18 +404,10 @@ func (s *StreamingChatService) processContentDelta(event sdk.SSEvent, toolCallsM
 		reasoningContent += extractedReasoning
 		hasToolCalls = s.processToolCalls(choice.Delta.ToolCalls, toolCallsMap, events, requestID) || hasToolCalls
 
-		logger.Debug("SDK DELTA received",
-			"content", choice.Delta.Content,
-			"content_length", len(choice.Delta.Content),
-			"reasoning", extractedReasoning,
-			"reasoning_length", len(extractedReasoning))
+		// Remove verbose delta logging
 	}
 
-	logger.Debug("FINAL RESULT from processContentDelta",
-		"content", content,
-		"content_length", len(content),
-		"reasoning_content", reasoningContent,
-		"reasoning_length", len(reasoningContent))
+	// Remove response logging
 
 	return content, reasoningContent, streamResponse.Usage, hasToolCalls
 }

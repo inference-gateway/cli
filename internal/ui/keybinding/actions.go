@@ -6,7 +6,6 @@ import (
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/ui"
 	"github.com/inference-gateway/cli/internal/ui/components"
 	"github.com/inference-gateway/cli/internal/ui/keys"
@@ -860,13 +859,6 @@ func (m *KeyBindingManager) GetRegistry() KeyRegistry {
 func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, handlerName string) tea.Cmd {
 	config := m.app.GetServices().GetConfig()
 	if config != nil && config.Logging.Debug {
-		logger.Debug("Key binding debug",
-			"key", keyMsg.String(),
-			"handler", handlerName,
-			"type", keyMsg.Type,
-			"alt", keyMsg.Alt,
-			"runes", string(keyMsg.Runes))
-
 		return func() tea.Msg {
 			return shared.DebugKeyMsg{
 				Key:     keyMsg.String(),

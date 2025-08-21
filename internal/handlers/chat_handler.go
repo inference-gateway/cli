@@ -9,8 +9,10 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 	sdk "github.com/inference-gateway/sdk"
@@ -18,16 +20,16 @@ import (
 
 // ChatHandler handles chat-related messages using the new state management system
 type ChatHandler struct {
-	name             string
-	chatService      domain.ChatService
-	conversationRepo domain.ConversationRepository
-	modelService     domain.ModelService
-	configService    domain.ConfigService
-	toolService      domain.ToolService
-	fileService      domain.FileService
-	commandRegistry  *commands.Registry
-	toolOrchestrator *services.ToolExecutionOrchestrator
-	debugService     *services.DebugService
+	name                    string
+	chatService             domain.ChatService
+	conversationRepo        domain.ConversationRepository
+	modelService            domain.ModelService
+	configService           domain.ConfigService
+	toolService             domain.ToolService
+	fileService             domain.FileService
+	commandRegistry         *commands.Registry
+	toolOrchestrator        *services.ToolExecutionOrchestrator
+	assistantMessageCounter int
 }
 
 // NewChatHandler creates a new chat handler
@@ -40,7 +42,6 @@ func NewChatHandler(
 	fileService domain.FileService,
 	commandRegistry *commands.Registry,
 	toolOrchestrator *services.ToolExecutionOrchestrator,
-	debugService *services.DebugService,
 ) *ChatHandler {
 	return &ChatHandler{
 		name:             "ChatHandler",
@@ -52,7 +53,6 @@ func NewChatHandler(
 		fileService:      fileService,
 		commandRegistry:  commandRegistry,
 		toolOrchestrator: toolOrchestrator,
-		debugService:     debugService,
 	}
 }
 
@@ -90,48 +90,47 @@ func (h *ChatHandler) CanHandle(msg tea.Msg) bool {
 func (h *ChatHandler) Handle(
 	msg tea.Msg,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case shared.UserInputMsg:
-		return h.handleUserInput(msg, stateManager, debugService)
+		return h.handleUserInput(msg, stateManager)
 
 	case shared.FileSelectionRequestMsg:
-		return h.handleFileSelectionRequest(msg, stateManager, debugService)
+		return h.handleFileSelectionRequest(msg, stateManager)
 
 	case domain.ChatStartEvent:
-		return h.handleChatStart(msg, stateManager, debugService)
+		return h.handleChatStart(msg, stateManager)
 
 	case domain.ChatChunkEvent:
-		return h.handleChatChunk(msg, stateManager, debugService)
+		return h.handleChatChunk(msg, stateManager)
 
 	case domain.ToolCallStartEvent:
-		return h.handleToolCallStart(msg, stateManager, debugService)
+		return h.handleToolCallStart(msg, stateManager)
 
 	case domain.ToolCallEvent:
-		return h.handleToolCall(msg, stateManager, debugService)
+		return h.handleToolCall(msg, stateManager)
 
 	case domain.ChatCompleteEvent:
-		return h.handleChatComplete(msg, stateManager, debugService)
+		return h.handleChatComplete(msg, stateManager)
 
 	case domain.ChatErrorEvent:
-		return h.handleChatError(msg, stateManager, debugService)
+		return h.handleChatError(msg, stateManager)
 
 	case services.ToolExecutionStartedMsg:
-		return h.handleToolExecutionStarted(msg, stateManager, debugService)
+		return h.handleToolExecutionStarted(msg, stateManager)
 
 	case services.ToolExecutionProgressMsg:
-		return h.handleToolExecutionProgress(msg, stateManager, debugService)
+		return h.handleToolExecutionProgress(msg, stateManager)
 
 	case services.ToolExecutionCompletedMsg:
-		return h.handleToolExecutionCompleted(msg, stateManager, debugService)
+		return h.handleToolExecutionCompleted(msg, stateManager)
 
 	case services.ToolApprovalRequestMsg:
-		return h.handleToolApprovalRequest(msg, stateManager, debugService)
+		return h.handleToolApprovalRequest(msg, stateManager)
 
 	case services.ToolApprovalResponseMsg:
-		return h.handleToolApprovalResponse(msg, stateManager, debugService)
+		return h.handleToolApprovalResponse(msg, stateManager)
 	}
 
 	return nil, nil
@@ -141,41 +140,21 @@ func (h *ChatHandler) Handle(
 func (h *ChatHandler) handleUserInput(
 	msg shared.UserInputMsg,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
-
-	if debugService != nil {
-		debugService.LogEvent(
-			services.DebugEventTypeMessage,
-			h.name,
-			"Processing user input",
-			map[string]any{
-				"input_length": len(msg.Content),
-				"has_prefix":   strings.HasPrefix(msg.Content, "/") || strings.HasPrefix(msg.Content, "!"),
-			},
-		)
-	}
-
 	if strings.HasPrefix(msg.Content, "/") {
-		return h.handleCommand(msg.Content, stateManager, debugService)
+		return h.handleCommand(msg.Content, stateManager)
 	}
 
 	if strings.HasPrefix(msg.Content, "!!") {
-		return h.handleToolCommand(msg.Content, stateManager, debugService)
+		return h.handleToolCommand(msg.Content, stateManager)
 	}
 
 	if strings.HasPrefix(msg.Content, "!") {
-		return h.handleBashCommand(msg.Content, stateManager, debugService)
+		return h.handleBashCommand(msg.Content, stateManager)
 	}
 
-	// Expand @filename references before processing
-	expandedContent, err := h.expandFileReferences(msg.Content, debugService)
+	expandedContent, err := h.expandFileReferences(msg.Content)
 	if err != nil {
-		if debugService != nil {
-			debugService.LogError(err, h.name, map[string]any{
-				"operation": "expand_file_references",
-			})
-		}
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to expand file references: %v", err),
@@ -184,7 +163,7 @@ func (h *ChatHandler) handleUserInput(
 		}
 	}
 
-	return h.processChatMessage(expandedContent, stateManager, debugService)
+	return h.processChatMessage(expandedContent, stateManager)
 }
 
 // extractMarkdownSummary extracts the "## Summary" section from markdown content
@@ -219,7 +198,7 @@ func (h *ChatHandler) extractMarkdownSummary(content string) (string, bool) {
 }
 
 // expandFileReferences expands @filename references with file content
-func (h *ChatHandler) expandFileReferences(content string, debugService *services.DebugService) (string, error) {
+func (h *ChatHandler) expandFileReferences(content string) (string, error) {
 	re := regexp.MustCompile(`@([^\s]+)`)
 	matches := re.FindAllStringSubmatch(content, -1)
 
@@ -233,33 +212,11 @@ func (h *ChatHandler) expandFileReferences(content string, debugService *service
 		filename := match[1]
 
 		if err := h.fileService.ValidateFile(filename); err != nil {
-			if debugService != nil && debugService.IsEnabled() {
-				debugService.LogEvent(
-					services.DebugEventTypeError,
-					"ChatHandler",
-					"Skipping invalid file reference",
-					map[string]any{
-						"filename": filename,
-						"error":    err.Error(),
-					},
-				)
-			}
 			continue
 		}
 
 		fileContent, err := h.fileService.ReadFile(filename)
 		if err != nil {
-			if debugService != nil && debugService.IsEnabled() {
-				debugService.LogEvent(
-					services.DebugEventTypeError,
-					"ChatHandler",
-					"Failed to read file for expansion",
-					map[string]any{
-						"filename": filename,
-						"error":    err.Error(),
-					},
-				)
-			}
 			continue
 		}
 
@@ -267,35 +224,11 @@ func (h *ChatHandler) expandFileReferences(content string, debugService *service
 		if strings.HasSuffix(strings.ToLower(filename), ".md") {
 			if summaryContent, hasSummary := h.extractMarkdownSummary(fileContent); hasSummary {
 				contentToInclude = summaryContent
-				if debugService != nil && debugService.IsEnabled() {
-					debugService.LogEvent(
-						services.DebugEventTypeMessage,
-						"ChatHandler",
-						"Extracted markdown summary section",
-						map[string]any{
-							"filename":      filename,
-							"summary_size":  len(summaryContent),
-							"original_size": len(fileContent),
-						},
-					)
-				}
 			}
 		}
 
 		fileBlock := fmt.Sprintf("File: %s\n```%s\n%s\n```\n", filename, filename, contentToInclude)
 		expandedContent = strings.Replace(expandedContent, fullMatch, fileBlock, 1)
-
-		if debugService != nil && debugService.IsEnabled() {
-			debugService.LogEvent(
-				services.DebugEventTypeMessage,
-				"ChatHandler",
-				"Expanded file reference",
-				map[string]any{
-					"filename":     filename,
-					"content_size": len(fileContent),
-				},
-			)
-		}
 	}
 
 	return expandedContent, nil
@@ -305,7 +238,6 @@ func (h *ChatHandler) expandFileReferences(content string, debugService *service
 func (h *ChatHandler) processChatMessage(
 	content string,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 	userEntry := domain.ConversationEntry{
 		Message: sdk.Message{
@@ -316,11 +248,6 @@ func (h *ChatHandler) processChatMessage(
 	}
 
 	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
-		if debugService != nil {
-			debugService.LogError(err, h.name, map[string]any{
-				"operation": "add_user_message",
-			})
-		}
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
@@ -335,14 +262,13 @@ func (h *ChatHandler) processChatMessage(
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
-		h.startChatCompletion(stateManager, debugService),
+		h.startChatCompletion(stateManager),
 	)
 }
 
 // startChatCompletion initiates a chat completion request
 func (h *ChatHandler) startChatCompletion(
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
@@ -366,12 +292,6 @@ func (h *ChatHandler) startChatCompletion(
 
 		eventChan, err := h.chatService.SendMessage(ctx, requestID, currentModel, messages)
 		if err != nil {
-			if debugService != nil {
-				debugService.LogError(err, h.name, map[string]any{
-					"operation": "start_chat_completion",
-					"model":     currentModel,
-				})
-			}
 			return domain.ChatErrorEvent{
 				RequestID: requestID,
 				Timestamp: time.Now(),
@@ -380,18 +300,6 @@ func (h *ChatHandler) startChatCompletion(
 		}
 
 		_ = stateManager.StartChatSession(requestID, currentModel, eventChan)
-
-		if debugService != nil {
-			debugService.LogEvent(
-				services.DebugEventTypeSDKEvent,
-				h.name,
-				"Chat completion started",
-				map[string]any{
-					"request_id": requestID,
-					"model":      currentModel,
-				},
-			)
-		}
 
 		return h.listenForChatEvents(eventChan)()
 	}
@@ -409,15 +317,10 @@ func (h *ChatHandler) listenForChatEvents(eventChan <-chan domain.ChatEvent) tea
 
 // handleChatStart processes chat start events
 func (h *ChatHandler) handleChatStart(
-	msg domain.ChatStartEvent,
+	_ domain.ChatStartEvent,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 	_ = stateManager.UpdateChatStatus(domain.ChatStatusStarting)
-
-	if debugService != nil {
-		debugService.LogSDKEvent("ChatStart", msg.RequestID, msg)
-	}
 
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
@@ -439,7 +342,6 @@ func (h *ChatHandler) handleChatStart(
 func (h *ChatHandler) handleChatChunk(
 	msg domain.ChatChunkEvent,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 	chatSession := stateManager.GetChatSession()
 	if chatSession == nil {
@@ -450,7 +352,7 @@ func (h *ChatHandler) handleChatChunk(
 		return h.handleEmptyContent(chatSession)
 	}
 
-	h.updateConversationHistory(msg, chatSession, debugService)
+	h.updateConversationHistory(msg, chatSession)
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
@@ -493,14 +395,14 @@ func (h *ChatHandler) handleEmptyContent(chatSession *domain.ChatSession) (tea.M
 }
 
 // updateConversationHistory updates the conversation history with the new message
-func (h *ChatHandler) updateConversationHistory(msg domain.ChatChunkEvent, chatSession *domain.ChatSession, debugService *services.DebugService) {
+func (h *ChatHandler) updateConversationHistory(msg domain.ChatChunkEvent, chatSession *domain.ChatSession) {
 	messages := h.conversationRepo.GetMessages()
 	shouldUpdateLast := h.shouldUpdateLastMessage(messages, chatSession)
 
 	if shouldUpdateLast {
-		h.updateLastMessage(messages, msg, chatSession, debugService)
+		h.updateLastMessage(messages, msg, chatSession)
 	} else {
-		h.addNewMessage(msg, chatSession, debugService)
+		h.addNewMessage(msg, chatSession)
 	}
 }
 
@@ -512,20 +414,17 @@ func (h *ChatHandler) shouldUpdateLastMessage(messages []domain.ConversationEntr
 }
 
 // updateLastMessage updates the existing last message with new content
-func (h *ChatHandler) updateLastMessage(messages []domain.ConversationEntry, msg domain.ChatChunkEvent, chatSession *domain.ChatSession, debugService *services.DebugService) {
+func (h *ChatHandler) updateLastMessage(messages []domain.ConversationEntry, msg domain.ChatChunkEvent, _ *domain.ChatSession) {
 	existingContent := messages[len(messages)-1].Message.Content
 	newContent := existingContent + msg.Content
 
-	if err := h.conversationRepo.UpdateLastMessage(newContent); err != nil && debugService != nil {
-		debugService.LogError(err, h.name, map[string]any{
-			"operation":  "update_assistant_message",
-			"request_id": chatSession.RequestID,
-		})
+	if err := h.conversationRepo.UpdateLastMessage(newContent); err != nil {
+		logger.Error("failed to update last message", "error", err)
 	}
 }
 
 // addNewMessage adds a new assistant message to the conversation
-func (h *ChatHandler) addNewMessage(msg domain.ChatChunkEvent, chatSession *domain.ChatSession, debugService *services.DebugService) {
+func (h *ChatHandler) addNewMessage(msg domain.ChatChunkEvent, _ *domain.ChatSession) {
 	assistantEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
@@ -535,11 +434,8 @@ func (h *ChatHandler) addNewMessage(msg domain.ChatChunkEvent, chatSession *doma
 		Time:  msg.Timestamp,
 	}
 
-	if err := h.conversationRepo.AddMessage(assistantEntry); err != nil && debugService != nil {
-		debugService.LogError(err, h.name, map[string]any{
-			"operation":  "add_assistant_message",
-			"request_id": chatSession.RequestID,
-		})
+	if err := h.conversationRepo.AddMessage(assistantEntry); err != nil {
+		logger.Error("failed to add assistant message", "error", err)
 	}
 }
 
@@ -566,34 +462,8 @@ func (h *ChatHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession 
 }
 
 // determineNewStatus determines what the new status should be based on message content
-func (h *ChatHandler) determineNewStatus(msg domain.ChatChunkEvent, currentStatus domain.ChatStatus, isFirstChunk bool) (domain.ChatStatus, bool) {
-	if h.debugService != nil && h.debugService.IsEnabled() {
-		h.debugService.LogEvent(
-			services.DebugEventTypeMessage,
-			"ChatHandler",
-			"Determining status from chunk",
-			map[string]any{
-				"content_length":           len(msg.Content),
-				"reasoning_content_length": len(msg.ReasoningContent),
-				"current_status":           currentStatus,
-				"is_first_chunk":           isFirstChunk,
-				"content_preview":          msg.Content,
-				"reasoning_preview":        msg.ReasoningContent,
-			},
-		)
-	}
-
+func (h *ChatHandler) determineNewStatus(msg domain.ChatChunkEvent, currentStatus domain.ChatStatus, _ bool) (domain.ChatStatus, bool) {
 	if msg.ReasoningContent != "" {
-		if h.debugService != nil && h.debugService.IsEnabled() {
-			h.debugService.LogEvent(
-				services.DebugEventTypeMessage,
-				"ChatHandler",
-				"SETTING STATUS TO THINKING",
-				map[string]any{
-					"reasoning_content": msg.ReasoningContent,
-				},
-			)
-		}
 		return domain.ChatStatusThinking, true
 	}
 
@@ -652,29 +522,13 @@ func (h *ChatHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea.Cmd 
 func (h *ChatHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
-
-	if debugService != nil {
-		debugService.LogSDKEvent("ChatComplete", msg.RequestID, map[string]any{
-			"tool_calls_count": len(msg.ToolCalls),
-			"has_metrics":      msg.Metrics != nil,
-		})
-	}
-
 	_ = stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
 
 	stateManager.EndChatSession()
 
 	if len(msg.ToolCalls) > 0 {
-		sessionID, cmd := h.toolOrchestrator.StartToolExecution(msg.RequestID, msg.ToolCalls)
-
-		if debugService != nil {
-			debugService.LogToolExecution("orchestrator", "session_started", map[string]any{
-				"session_id":       sessionID,
-				"tool_calls_count": len(msg.ToolCalls),
-			})
-		}
+		_, cmd := h.toolOrchestrator.StartToolExecution(msg.RequestID, msg.ToolCalls)
 
 		return nil, tea.Batch(
 			func() tea.Msg {
@@ -689,11 +543,13 @@ func (h *ChatHandler) handleChatComplete(
 	statusMsg := "Response complete"
 	tokenUsage := ""
 	if msg.Metrics != nil {
-		h.addTokenUsageToSession(msg.Metrics, debugService)
+		h.addTokenUsageToSession(msg.Metrics)
 		tokenUsage = h.formatMetrics(msg.Metrics)
 	}
 
-	return nil, tea.Batch(
+	h.assistantMessageCounter++
+
+	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return shared.UpdateHistoryMsg{
 				History: h.conversationRepo.GetMessages(),
@@ -707,22 +563,20 @@ func (h *ChatHandler) handleChatComplete(
 				StatusType: shared.StatusDefault,
 			}
 		},
-	)
+	}
+
+	if h.shouldInjectSystemReminder() {
+		cmds = append(cmds, h.injectSystemReminder())
+	}
+
+	return nil, tea.Batch(cmds...)
 }
 
 // handleChatError processes chat error events
 func (h *ChatHandler) handleChatError(
 	msg domain.ChatErrorEvent,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
-
-	if debugService != nil {
-		debugService.LogError(msg.Error, h.name, map[string]any{
-			"request_id": msg.RequestID,
-		})
-	}
-
 	_ = stateManager.UpdateChatStatus(domain.ChatStatusError)
 	stateManager.EndChatSession()
 	stateManager.EndToolExecution()
@@ -744,17 +598,9 @@ func (h *ChatHandler) handleChatError(
 
 // handleToolCallStart processes tool call start events
 func (h *ChatHandler) handleToolCallStart(
-	msg domain.ToolCallStartEvent,
+	_ domain.ToolCallStartEvent,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
-
-	if debugService != nil {
-		debugService.LogSDKEvent("ToolCallStart", msg.RequestID, map[string]any{
-			"timestamp": msg.Timestamp,
-		})
-	}
-
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
@@ -776,35 +622,13 @@ func (h *ChatHandler) handleToolCallStart(
 func (h *ChatHandler) handleToolCall(
 	msg domain.ToolCallEvent,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
-
-	if debugService != nil {
-		debugService.LogSDKEvent("ToolCall", msg.RequestID, map[string]any{
-			"tool_name": msg.ToolName,
-			"args":      msg.Args,
-		})
-	}
-
 	args := strings.TrimSpace(msg.Args)
 	toolName := strings.TrimSpace(msg.ToolName)
 
 	if args != "" && toolName != "" && strings.HasSuffix(args, "}") {
 		var temp any
 		if json.Unmarshal([]byte(args), &temp) == nil {
-			if debugService != nil {
-				debugService.LogEvent(
-					services.DebugEventTypeToolExecution,
-					h.name,
-					fmt.Sprintf("Executing tool immediately: %s", toolName),
-					map[string]any{
-						"request_id": msg.RequestID,
-						"tool_name":  toolName,
-						"args":       args,
-					},
-				)
-			}
-
 			return nil, tea.Batch(
 				func() tea.Msg {
 					return shared.SetStatusMsg{
@@ -813,7 +637,7 @@ func (h *ChatHandler) handleToolCall(
 						StatusType: shared.StatusWorking,
 					}
 				},
-				h.executeToolCall(msg.RequestID, msg.ToolCallID, toolName, args, stateManager, debugService),
+				h.executeToolCall(msg.RequestID, msg.ToolCallID, toolName, args, stateManager),
 			)
 		}
 	}
@@ -830,7 +654,6 @@ func (h *ChatHandler) handleToolCall(
 func (h *ChatHandler) handleToolExecutionStarted(
 	msg services.ToolExecutionStartedMsg,
 	_ *services.StateManager,
-	_ *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 
 	return nil, func() tea.Msg {
@@ -845,7 +668,6 @@ func (h *ChatHandler) handleToolExecutionStarted(
 func (h *ChatHandler) handleToolExecutionProgress(
 	msg services.ToolExecutionProgressMsg,
 	stateManager *services.StateManager,
-	_ *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 
 	if msg.RequiresApproval {
@@ -867,7 +689,6 @@ func (h *ChatHandler) handleToolExecutionProgress(
 func (h *ChatHandler) handleToolExecutionCompleted(
 	msg services.ToolExecutionCompletedMsg,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 	return nil, tea.Batch(
 		func() tea.Msg {
@@ -878,30 +699,20 @@ func (h *ChatHandler) handleToolExecutionCompleted(
 				StatusType: shared.StatusPreparing,
 			}
 		},
-		h.startChatCompletion(stateManager, debugService),
+		h.startChatCompletion(stateManager),
 	)
 }
 
 func (h *ChatHandler) handleToolApprovalRequest(
-	msg services.ToolApprovalRequestMsg,
+	_ services.ToolApprovalRequestMsg,
 	_ *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
-	if debugService != nil {
-		debugService.LogToolExecution(msg.ToolCall.Function.Name, "approval_requested", map[string]any{
-			"session_id":  msg.SessionID,
-			"tool_index":  msg.ToolIndex,
-			"total_tools": msg.TotalTools,
-		})
-	}
-
 	return nil, nil
 }
 
 func (h *ChatHandler) handleToolApprovalResponse(
 	msg services.ToolApprovalResponseMsg,
 	_ *services.StateManager,
-	_ *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 	return nil, h.toolOrchestrator.HandleApprovalResponse(msg.Approved, msg.ToolIndex)
 }
@@ -913,23 +724,10 @@ func (h *ChatHandler) executeToolCall(
 	toolName string,
 	arguments string,
 	_ *services.StateManager,
-	debugService *services.DebugService,
 ) tea.Cmd {
 	return func() tea.Msg {
-		startTime := time.Now()
-
-		// Parse arguments into map
 		var argsMap map[string]any
 		if err := json.Unmarshal([]byte(arguments), &argsMap); err != nil {
-			if debugService != nil {
-				debugService.LogError(err, h.name, map[string]any{
-					"operation":  "parse_tool_arguments",
-					"request_id": requestID,
-					"tool_name":  toolName,
-					"args":       arguments,
-				})
-			}
-
 			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to parse tool arguments for %s: %v", toolName, err),
 				Sticky: false,
@@ -956,28 +754,12 @@ func (h *ChatHandler) executeToolCall(
 		}
 
 		if err := h.conversationRepo.AddMessage(assistantEntry); err != nil {
-			if debugService != nil {
-				debugService.LogError(err, h.name, map[string]any{
-					"operation":  "add_tool_call_message",
-					"request_id": requestID,
-					"tool_name":  toolName,
-				})
-			}
+			logger.Error("failed to add assistant message with tool call", "error", err)
 		}
 
 		toolCalls := []sdk.ChatCompletionMessageToolCall{toolCall}
 
-		sessionID, cmd := h.toolOrchestrator.StartToolExecution(requestID, toolCalls)
-
-		if debugService != nil {
-			debugService.LogToolExecution(toolName, "immediate_execution_started", map[string]any{
-				"request_id": requestID,
-				"session_id": sessionID,
-				"tool_name":  toolName,
-				"duration":   time.Since(startTime).String(),
-			})
-		}
-
+		_, cmd := h.toolOrchestrator.StartToolExecution(requestID, toolCalls)
 		return tea.Batch(
 			func() tea.Msg {
 				return shared.UpdateHistoryMsg{
@@ -992,7 +774,6 @@ func (h *ChatHandler) executeToolCall(
 func (h *ChatHandler) handleCommand(
 	commandText string,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 	command := strings.TrimSpace(strings.TrimPrefix(commandText, "/"))
 
@@ -1003,17 +784,6 @@ func (h *ChatHandler) handleCommand(
 				Sticky: false,
 			}
 		}
-	}
-
-	if debugService != nil {
-		debugService.LogEvent(
-			services.DebugEventTypeCommand,
-			h.name,
-			"Processing command",
-			map[string]any{
-				"command": command,
-			},
-		)
 	}
 
 	parts := strings.Fields(command)
@@ -1029,7 +799,7 @@ func (h *ChatHandler) handleCommand(
 	mainCommand := parts[0]
 	args := parts[1:]
 
-	return nil, h.executeCommand(mainCommand, args, stateManager, debugService)
+	return nil, h.executeCommand(mainCommand, args, stateManager)
 }
 
 // executeCommand executes the specific command based on the command type
@@ -1038,7 +808,6 @@ func (h *ChatHandler) executeCommand(
 	command string,
 	args []string,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) tea.Cmd {
 	return func() tea.Msg {
 		if registryResult := h.tryExecuteFromRegistry(command, args, stateManager); registryResult != nil {
@@ -1048,11 +817,6 @@ func (h *ChatHandler) executeCommand(
 		switch command {
 		case "clear", "cls":
 			if err := h.conversationRepo.Clear(); err != nil {
-				if debugService != nil {
-					debugService.LogError(err, h.name, map[string]any{
-						"operation": "clear_history",
-					})
-				}
 				return shared.SetStatusMsg{
 					Message:    fmt.Sprintf("Failed to clear conversation: %v", err),
 					Spinner:    false,
@@ -1239,7 +1003,6 @@ func (h *ChatHandler) performExportAsync() tea.Cmd {
 func (h *ChatHandler) handleBashCommand(
 	commandText string,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 	command := strings.TrimSpace(strings.TrimPrefix(commandText, "!"))
 
@@ -1250,17 +1013,6 @@ func (h *ChatHandler) handleBashCommand(
 				Sticky: false,
 			}
 		}
-	}
-
-	if debugService != nil {
-		debugService.LogEvent(
-			services.DebugEventTypeCommand,
-			h.name,
-			"Processing bash command",
-			map[string]any{
-				"command": command,
-			},
-		)
 	}
 
 	if !h.toolService.IsToolEnabled("Bash") {
@@ -1281,11 +1033,7 @@ func (h *ChatHandler) handleBashCommand(
 	}
 
 	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
-		if debugService != nil {
-			debugService.LogError(err, h.name, map[string]any{
-				"operation": "add_bash_command_message",
-			})
-		}
+		logger.Error("failed to add user message", "error", err)
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
@@ -1307,7 +1055,7 @@ func (h *ChatHandler) handleBashCommand(
 				StatusType: shared.StatusWorking,
 			}
 		},
-		h.executeBashCommand(command, stateManager, debugService),
+		h.executeBashCommand(command, stateManager),
 	)
 }
 
@@ -1315,7 +1063,6 @@ func (h *ChatHandler) handleBashCommand(
 func (h *ChatHandler) handleToolCommand(
 	commandText string,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 	command := strings.TrimSpace(strings.TrimPrefix(commandText, "!!"))
 
@@ -1326,17 +1073,6 @@ func (h *ChatHandler) handleToolCommand(
 				Sticky: false,
 			}
 		}
-	}
-
-	if debugService != nil {
-		debugService.LogEvent(
-			services.DebugEventTypeCommand,
-			h.name,
-			"Processing tool command",
-			map[string]any{
-				"command": command,
-			},
-		)
 	}
 
 	toolName, args, err := h.parseToolCall(command)
@@ -1367,11 +1103,6 @@ func (h *ChatHandler) handleToolCommand(
 	}
 
 	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
-		if debugService != nil {
-			debugService.LogError(err, h.name, map[string]any{
-				"operation": "add_tool_command_message",
-			})
-		}
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
@@ -1393,7 +1124,7 @@ func (h *ChatHandler) handleToolCommand(
 				StatusType: shared.StatusWorking,
 			}
 		},
-		h.executeToolDirectly(toolName, args, stateManager, debugService),
+		h.executeToolDirectly(toolName, args, stateManager),
 	)
 }
 
@@ -1466,53 +1197,30 @@ func (h *ChatHandler) executeToolDirectly(
 	toolName string,
 	args map[string]any,
 	_ *services.StateManager,
-	debugService *services.DebugService,
 ) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 		startTime := time.Now()
 
-		if debugService != nil {
-			debugService.LogToolExecution(toolName, "direct_execution_started", map[string]any{
-				"tool_name": toolName,
-				"args":      args,
-			})
-		}
-
 		if err := h.toolService.ValidateTool(toolName, args); err != nil {
-			return h.handleToolValidationError(debugService, toolName, err)
+			return h.handleToolValidationError(toolName, err)
 		}
 
 		result, err := h.toolService.ExecuteTool(ctx, toolName, args)
 		duration := time.Since(startTime)
 
 		if err != nil {
-			return h.handleToolExecutionError(debugService, toolName, duration, err)
+			return h.handleToolExecutionError(toolName, duration, err)
 		}
 
-		if debugService != nil {
-			debugService.LogToolExecution(toolName, "direct_execution_completed", map[string]any{
-				"tool_name": toolName,
-				"success":   result.Success,
-				"duration":  duration.String(),
-			})
-		}
-
-		h.addToolExecutionToHistory(debugService, result)
+		h.addToolExecutionToHistory(result)
 
 		return h.createToolUIUpdate(result.Success, toolName)
 	}
 }
 
 // handleToolValidationError handles tool validation errors
-func (h *ChatHandler) handleToolValidationError(debugService *services.DebugService, toolName string, err error) tea.Msg {
-	if debugService != nil {
-		debugService.LogError(err, h.name, map[string]any{
-			"operation": "validate_tool_command",
-			"tool_name": toolName,
-		})
-	}
-
+func (h *ChatHandler) handleToolValidationError(_ string, err error) tea.Msg {
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
@@ -1522,10 +1230,8 @@ func (h *ChatHandler) handleToolValidationError(debugService *services.DebugServ
 		Time:  time.Now(),
 	}
 
-	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil && debugService != nil {
-		debugService.LogError(addErr, h.name, map[string]any{
-			"operation": "add_error_message",
-		})
+	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil {
+		logger.Error("failed to add error message to conversation", "error", addErr)
 	}
 
 	return tea.Batch(
@@ -1544,15 +1250,7 @@ func (h *ChatHandler) handleToolValidationError(debugService *services.DebugServ
 }
 
 // handleToolExecutionError handles tool execution errors
-func (h *ChatHandler) handleToolExecutionError(debugService *services.DebugService, toolName string, duration time.Duration, err error) tea.Msg {
-	if debugService != nil {
-		debugService.LogError(err, h.name, map[string]any{
-			"operation": "execute_tool_command",
-			"tool_name": toolName,
-			"duration":  duration.String(),
-		})
-	}
-
+func (h *ChatHandler) handleToolExecutionError(_ string, _ time.Duration, err error) tea.Msg {
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
@@ -1562,10 +1260,8 @@ func (h *ChatHandler) handleToolExecutionError(debugService *services.DebugServi
 		Time:  time.Now(),
 	}
 
-	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil && debugService != nil {
-		debugService.LogError(addErr, h.name, map[string]any{
-			"operation": "add_error_message",
-		})
+	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil {
+		logger.Error("failed to add error message to conversation", "error", addErr)
 	}
 
 	return tea.Batch(
@@ -1584,7 +1280,7 @@ func (h *ChatHandler) handleToolExecutionError(debugService *services.DebugServi
 }
 
 // addToolExecutionToHistory adds tool execution result to conversation history
-func (h *ChatHandler) addToolExecutionToHistory(debugService *services.DebugService, result *domain.ToolExecutionResult) {
+func (h *ChatHandler) addToolExecutionToHistory(result *domain.ToolExecutionResult) {
 	assistantEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Tool,
@@ -1595,10 +1291,8 @@ func (h *ChatHandler) addToolExecutionToHistory(debugService *services.DebugServ
 		ToolExecution: result,
 	}
 
-	if err := h.conversationRepo.AddMessage(assistantEntry); err != nil && debugService != nil {
-		debugService.LogError(err, h.name, map[string]any{
-			"operation": "add_tool_execution_message",
-		})
+	if err := h.conversationRepo.AddMessage(assistantEntry); err != nil {
+		logger.Error("failed to add assistant message with tool result", "error", err)
 	}
 }
 
@@ -1630,13 +1324,10 @@ func (h *ChatHandler) createToolUIUpdate(success bool, toolName string) tea.Msg 
 func (h *ChatHandler) executeBashCommand(
 	command string,
 	_ *services.StateManager,
-	debugService *services.DebugService,
 ) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 		startTime := time.Now()
-
-		h.logBashStart(debugService, command)
 
 		args := map[string]any{
 			"command": command,
@@ -1644,41 +1335,24 @@ func (h *ChatHandler) executeBashCommand(
 		}
 
 		if err := h.toolService.ValidateTool("Bash", args); err != nil {
-			return h.handleBashValidationError(debugService, command, err)
+			return h.handleBashValidationError(command, err)
 		}
 
 		result, err := h.toolService.ExecuteTool(ctx, "Bash", args)
 		duration := time.Since(startTime)
 
 		if err != nil {
-			return h.handleBashExecutionError(debugService, command, duration, err)
+			return h.handleBashExecutionError(command, duration, err)
 		}
 
-		h.logBashComplete(debugService, command, result, duration)
-
 		responseContent := h.formatBashResponse(result)
-		h.addBashResponseToHistory(debugService, responseContent)
+		h.addBashResponseToHistory(responseContent)
 
 		return h.createBashUIUpdate(result.Success)
 	}
 }
 
-func (h *ChatHandler) logBashStart(debugService *services.DebugService, command string) {
-	if debugService != nil {
-		debugService.LogToolExecution("Bash", "execution_started", map[string]any{
-			"command": command,
-		})
-	}
-}
-
-func (h *ChatHandler) handleBashValidationError(debugService *services.DebugService, command string, err error) tea.Msg {
-	if debugService != nil {
-		debugService.LogError(err, h.name, map[string]any{
-			"operation": "validate_bash_command",
-			"command":   command,
-		})
-	}
-
+func (h *ChatHandler) handleBashValidationError(_ string, err error) tea.Msg {
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
@@ -1688,10 +1362,8 @@ func (h *ChatHandler) handleBashValidationError(debugService *services.DebugServ
 		Time:  time.Now(),
 	}
 
-	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil && debugService != nil {
-		debugService.LogError(addErr, h.name, map[string]any{
-			"operation": "add_error_message",
-		})
+	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil {
+		logger.Error("failed to add error message to conversation", "error", addErr)
 	}
 
 	return tea.Batch(
@@ -1709,15 +1381,7 @@ func (h *ChatHandler) handleBashValidationError(debugService *services.DebugServ
 	)()
 }
 
-func (h *ChatHandler) handleBashExecutionError(debugService *services.DebugService, command string, duration time.Duration, err error) tea.Msg {
-	if debugService != nil {
-		debugService.LogError(err, h.name, map[string]any{
-			"operation": "execute_bash_command",
-			"command":   command,
-			"duration":  duration.String(),
-		})
-	}
-
+func (h *ChatHandler) handleBashExecutionError(_ string, _ time.Duration, err error) tea.Msg {
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
@@ -1727,10 +1391,8 @@ func (h *ChatHandler) handleBashExecutionError(debugService *services.DebugServi
 		Time:  time.Now(),
 	}
 
-	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil && debugService != nil {
-		debugService.LogError(addErr, h.name, map[string]any{
-			"operation": "add_error_message",
-		})
+	if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil {
+		logger.Error("failed to add error message to conversation", "error", addErr)
 	}
 
 	return tea.Batch(
@@ -1746,16 +1408,6 @@ func (h *ChatHandler) handleBashExecutionError(debugService *services.DebugServi
 			}
 		},
 	)()
-}
-
-func (h *ChatHandler) logBashComplete(debugService *services.DebugService, command string, result *domain.ToolExecutionResult, duration time.Duration) {
-	if debugService != nil {
-		debugService.LogToolExecution("Bash", "execution_completed", map[string]any{
-			"command":  command,
-			"success":  result.Success,
-			"duration": duration.String(),
-		})
-	}
 }
 
 func (h *ChatHandler) formatBashResponse(result *domain.ToolExecutionResult) string {
@@ -1795,7 +1447,7 @@ func (h *ChatHandler) formatFailedBashResponse(result *domain.ToolExecutionResul
 	return "❌ Command failed for unknown reason"
 }
 
-func (h *ChatHandler) addBashResponseToHistory(debugService *services.DebugService, responseContent string) {
+func (h *ChatHandler) addBashResponseToHistory(responseContent string) {
 	assistantEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
@@ -1805,10 +1457,8 @@ func (h *ChatHandler) addBashResponseToHistory(debugService *services.DebugServi
 		Time:  time.Now(),
 	}
 
-	if err := h.conversationRepo.AddMessage(assistantEntry); err != nil && debugService != nil {
-		debugService.LogError(err, h.name, map[string]any{
-			"operation": "add_bash_response_message",
-		})
+	if err := h.conversationRepo.AddMessage(assistantEntry); err != nil {
+		logger.Error("failed to add final assistant message", "error", err)
 	}
 }
 
@@ -1878,7 +1528,7 @@ func (h *ChatHandler) getCurrentTokenUsage() string {
 }
 
 // addTokenUsageToSession accumulates token usage to session totals
-func (h *ChatHandler) addTokenUsageToSession(metrics *domain.ChatMetrics, debugService *services.DebugService) {
+func (h *ChatHandler) addTokenUsageToSession(metrics *domain.ChatMetrics) {
 	if metrics == nil || metrics.Usage == nil {
 		return
 	}
@@ -1887,10 +1537,8 @@ func (h *ChatHandler) addTokenUsageToSession(metrics *domain.ChatMetrics, debugS
 		int(metrics.Usage.PromptTokens),
 		int(metrics.Usage.CompletionTokens),
 		int(metrics.Usage.TotalTokens),
-	); err != nil && debugService != nil {
-		debugService.LogError(err, h.name, map[string]any{
-			"operation": "add_token_usage",
-		})
+	); err != nil {
+		logger.Error("failed to add token usage", "error", err)
 	}
 }
 
@@ -1898,24 +1546,67 @@ func generateRequestID() string {
 	return fmt.Sprintf("req_%d", time.Now().UnixNano())
 }
 
+// shouldInjectSystemReminder checks if a system reminder should be injected
+func (h *ChatHandler) shouldInjectSystemReminder() bool {
+	config, ok := h.configService.(*config.Config)
+	if !ok {
+		return false
+	}
+
+	if !config.Chat.SystemReminders.Enabled {
+		return false
+	}
+
+	interval := config.Chat.SystemReminders.Interval
+	if interval <= 0 {
+		interval = 4
+	}
+
+	return h.assistantMessageCounter > 0 && h.assistantMessageCounter%interval == 0
+}
+
+// injectSystemReminder injects a system reminder message into the conversation
+func (h *ChatHandler) injectSystemReminder() tea.Cmd {
+	return func() tea.Msg {
+		config, ok := h.configService.(*config.Config)
+		if !ok {
+			return nil
+		}
+
+		reminderText := config.Chat.SystemReminders.ReminderText
+		if reminderText == "" {
+			reminderText = `<system-reminder>
+This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>`
+		}
+
+		systemReminderEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: reminderText,
+			},
+			Time:             time.Now(),
+			IsSystemReminder: true,
+		}
+
+		if err := h.conversationRepo.AddMessage(systemReminderEntry); err != nil {
+			logger.Error("failed to add system reminder message", "error", err)
+			return nil
+		}
+
+		return shared.UpdateHistoryMsg{
+			History: h.conversationRepo.GetMessages(),
+		}
+	}
+}
+
 // handleFileSelectionRequest handles the file selection request triggered by "@" key
 func (h *ChatHandler) handleFileSelectionRequest(
 	_ shared.FileSelectionRequestMsg,
 	stateManager *services.StateManager,
-	debugService *services.DebugService,
 ) (tea.Model, tea.Cmd) {
 	files, err := h.fileService.ListProjectFiles()
 	if err != nil {
-		if debugService != nil && debugService.IsEnabled() {
-			debugService.LogEvent(
-				services.DebugEventTypeError,
-				"ChatHandler",
-				"Failed to list project files",
-				map[string]any{
-					"error": err.Error(),
-				},
-			)
-		}
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
 				Error:  fmt.Sprintf("Failed to load files: %v", err),
@@ -1934,16 +1625,6 @@ func (h *ChatHandler) handleFileSelectionRequest(
 	}
 
 	if err := stateManager.TransitionToView(domain.ViewStateFileSelection); err != nil {
-		if debugService != nil && debugService.IsEnabled() {
-			debugService.LogEvent(
-				services.DebugEventTypeError,
-				"ChatHandler",
-				"Failed to transition to file selection view",
-				map[string]any{
-					"error": err.Error(),
-				},
-			)
-		}
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
 				Error:  "Failed to open file selection",

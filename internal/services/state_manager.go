@@ -105,17 +105,7 @@ func (sm *StateManager) notifyListeners(oldState, newState domain.StateSnapshot)
 func (sm *StateManager) captureStateChange(changeType StateChangeType, oldState domain.StateSnapshot) {
 	newState := sm.state.GetStateSnapshot()
 
-	if sm.debugMode {
-		logger.Debug("State change detected",
-			"type", changeType.String(),
-			"oldView", oldState.CurrentView,
-			"newView", newState.CurrentView,
-			"oldChatStatus", sm.getChatStatus(oldState),
-			"newChatStatus", sm.getChatStatus(newState),
-			"oldToolStatus", sm.getToolStatus(oldState),
-			"newToolStatus", sm.getToolStatus(newState),
-		)
-	}
+	// State change detection removed - too verbose
 
 	sm.stateHistory = append(sm.stateHistory, newState)
 	if len(sm.stateHistory) > sm.maxHistorySize {
@@ -123,21 +113,6 @@ func (sm *StateManager) captureStateChange(changeType StateChangeType, oldState 
 	}
 
 	sm.notifyListeners(oldState, newState)
-}
-
-// Helper functions for debugging
-func (sm *StateManager) getChatStatus(snapshot domain.StateSnapshot) string {
-	if snapshot.ChatSession != nil {
-		return snapshot.ChatSession.Status
-	}
-	return "None"
-}
-
-func (sm *StateManager) getToolStatus(snapshot domain.StateSnapshot) string {
-	if snapshot.ToolExecution != nil {
-		return snapshot.ToolExecution.Status
-	}
-	return "None"
 }
 
 // GetCurrentView returns the current view state
@@ -160,7 +135,7 @@ func (sm *StateManager) TransitionToView(newView domain.ViewState) error {
 	}
 
 	sm.captureStateChange(StateChangeTypeViewTransition, oldState)
-	logger.Debug("View transition successful", "newView", newView.String())
+	// View transition successful
 	return nil
 }
 
@@ -194,7 +169,6 @@ func (sm *StateManager) UpdateChatStatus(status domain.ChatStatus) error {
 		return err
 	}
 
-	logger.Debug("Chat status updated", "status", status.String())
 	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
 	return nil
 }
@@ -207,7 +181,6 @@ func (sm *StateManager) EndChatSession() {
 	oldState := sm.state.GetStateSnapshot()
 
 	sm.state.EndChatSession()
-	logger.Debug("Chat session ended")
 
 	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
 }
@@ -243,7 +216,6 @@ func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessage
 	}
 
 	sm.state.StartToolExecution(tools)
-	logger.Debug("Tool execution session started", "toolCount", len(tools))
 
 	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 	return nil
@@ -260,7 +232,6 @@ func (sm *StateManager) SetToolApprovalRequired(required bool) error {
 		return err
 	}
 
-	logger.Debug("Tool approval requirement set", "required", required)
 	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 	return nil
 }
@@ -276,7 +247,6 @@ func (sm *StateManager) ApproveCurrentTool() error {
 		return err
 	}
 
-	logger.Debug("Current tool approved")
 	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 	return nil
 }
@@ -292,7 +262,6 @@ func (sm *StateManager) DenyCurrentTool() error {
 		return err
 	}
 
-	logger.Debug("Current tool denied")
 	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 	return nil
 }
@@ -308,7 +277,6 @@ func (sm *StateManager) CompleteCurrentTool(result *domain.ToolExecutionResult) 
 		return err
 	}
 
-	logger.Debug("Current tool completed", "success", result.Success)
 	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 	return nil
 }
@@ -337,7 +305,6 @@ func (sm *StateManager) EndToolExecution() {
 	oldState := sm.state.GetStateSnapshot()
 
 	sm.state.EndToolExecution()
-	logger.Debug("Tool execution session ended")
 
 	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 }
@@ -516,7 +483,6 @@ func (sm *StateManager) ClearApprovalUIState() {
 	defer sm.mutex.Unlock()
 
 	sm.state.ClearApprovalUIState()
-	logger.Debug("Approval UI state cleared")
 }
 
 // RecoverFromInconsistentState attempts to recover from an inconsistent state

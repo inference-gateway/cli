@@ -362,6 +362,16 @@ conversational interface where you can select models and have conversations.
 - **Shift+↑/Shift+↓**: Half-page scrolling
 - **Ctrl+R**: Toggle expanded view of tool results
 
+**System Reminders:**
+
+The chat interface supports configurable system reminders that can provide periodic contextual information to the AI
+model during conversations. These reminders help maintain context and provide relevant guidance throughout the session.
+
+- **Customizable interval**: Set how often reminders appear (in number of messages)
+- **Dynamic content**: Reminders can contain contextual information based on the current state
+- **Non-intrusive**: Reminders are sent to the AI model but don't interrupt the user experience
+- **Configurable**: Enable/disable and customize reminder content through configuration
+
 **Examples:**
 
 ```bash
@@ -886,6 +896,11 @@ chat:
     * Use agents when relevant.
     * Handle redirects.
     * Batch tool calls for efficiency.
+  system_reminders:
+    enabled: true # Enable system reminders during chat sessions
+    interval: 10 # Send reminder every N messages (default: 10)
+    text: | # Custom reminder text (optional)
+      Remember to follow the established patterns and check existing code before implementing new features.
 ```
 
 ### Configuration Options
@@ -924,6 +939,9 @@ chat:
 - **chat.default_model**: Default model for chat sessions (skips model
   selection when set)
 - **chat.system_prompt**: System prompt included with every chat session
+- **chat.system_reminders.enabled**: Enable/disable system reminders (default: true)
+- **chat.system_reminders.interval**: Number of messages between reminders (default: 10)
+- **chat.system_reminders.text**: Custom reminder text to provide contextual guidance
 
 **Web Search Settings:**
 

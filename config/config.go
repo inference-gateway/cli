@@ -169,11 +169,19 @@ type OptimizationConfig struct {
 	SkipRedundantConfirmations bool `yaml:"skip_redundant_confirmations"`
 }
 
+// SystemRemindersConfig contains settings for dynamic system reminders
+type SystemRemindersConfig struct {
+	Enabled      bool   `yaml:"enabled"`
+	Interval     int    `yaml:"interval"`
+	ReminderText string `yaml:"reminder_text"`
+}
+
 // ChatConfig contains chat-related settings
 type ChatConfig struct {
-	DefaultModel string             `yaml:"default_model"`
-	SystemPrompt string             `yaml:"system_prompt"`
-	Optimization OptimizationConfig `yaml:"optimization"`
+	DefaultModel    string                `yaml:"default_model"`
+	SystemPrompt    string                `yaml:"system_prompt"`
+	Optimization    OptimizationConfig    `yaml:"optimization"`
+	SystemReminders SystemRemindersConfig `yaml:"system_reminders"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -350,6 +358,13 @@ EXAMPLE:
 				TruncateLargeOutputs:       true,
 				SkipRedundantConfirmations: true,
 			},
+			SystemReminders: SystemRemindersConfig{
+				Enabled:  true,
+				Interval: 4,
+				ReminderText: `<system-reminder>
+This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
+</system-reminder>`,
+			},
 		},
 	}
 }
@@ -444,12 +459,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	switch toolName {
 	case "Bash":
 		if c.Tools.Bash.RequireApproval != nil {
-			logger.Debug("Tool approval check", "tool", toolName, "specific", *c.Tools.Bash.RequireApproval, "global", globalApproval)
 			return *c.Tools.Bash.RequireApproval
 		}
 	case "Read":
 		if c.Tools.Read.RequireApproval != nil {
-			logger.Debug("Tool approval check", "tool", toolName, "specific", *c.Tools.Read.RequireApproval, "global", globalApproval)
 			return *c.Tools.Read.RequireApproval
 		}
 	case "Write":

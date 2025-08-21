@@ -103,9 +103,14 @@ func (cv *ConversationView) Render() string {
 func (cv *ConversationView) updateViewportContent() {
 	var b strings.Builder
 
+	displayIndex := 0
 	for i, entry := range cv.conversation {
+		if entry.IsSystemReminder {
+			continue
+		}
 		b.WriteString(cv.renderEntryWithIndex(entry, i))
 		b.WriteString("\n")
+		displayIndex++
 	}
 
 	wasAtBottom := cv.Viewport.AtBottom()

@@ -78,7 +78,8 @@ func (r *InMemoryConversationRepository) Export(format domain.ExportFormat) ([]b
 
 	switch format {
 	case domain.ExportJSON:
-		return json.MarshalIndent(r.messages, "", "  ")
+		filteredMessages := r.filterSystemReminders()
+		return json.MarshalIndent(filteredMessages, "", "  ")
 
 	case domain.ExportMarkdown:
 		return r.exportMarkdown(), nil
@@ -136,9 +137,11 @@ func (r *InMemoryConversationRepository) UpdateLastMessageToolCalls(toolCalls *[
 func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 	var content strings.Builder
 
+	filteredMessages := r.filterSystemReminders()
+
 	content.WriteString("# Chat Session Export\n\n")
 	content.WriteString(fmt.Sprintf("**Date:** %s\n", time.Now().Format("2006-01-02 15:04:05")))
-	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n", len(r.messages)))
+	content.WriteString(fmt.Sprintf("**Total Messages:** %d\n", len(filteredMessages)))
 
 	if r.sessionStats.RequestCount > 0 {
 		content.WriteString(fmt.Sprintf("**Total Input Tokens:** %d\n", r.sessionStats.TotalInputTokens))
@@ -148,7 +151,7 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 	}
 	content.WriteString("\n---\n\n")
 
-	for i, entry := range r.messages {
+	for i, entry := range filteredMessages {
 		var role string
 		switch entry.Message.Role {
 		case sdk.User:
@@ -203,10 +206,12 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 func (r *InMemoryConversationRepository) exportText() []byte {
 	var content strings.Builder
 
+	filteredMessages := r.filterSystemReminders()
+
 	content.WriteString("Chat Session Export\n")
 	content.WriteString("===================\n\n")
 
-	for _, entry := range r.messages {
+	for _, entry := range filteredMessages {
 		var role string
 		switch entry.Message.Role {
 		case sdk.User:
@@ -230,6 +235,17 @@ func (r *InMemoryConversationRepository) exportText() []byte {
 	}
 
 	return []byte(content.String())
+}
+
+// filterSystemReminders returns a copy of messages with system reminders filtered out
+func (r *InMemoryConversationRepository) filterSystemReminders() []domain.ConversationEntry {
+	filtered := make([]domain.ConversationEntry, 0, len(r.messages))
+	for _, entry := range r.messages {
+		if !entry.IsSystemReminder {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }
 
 // AddTokenUsage adds token usage from a single API call to session totals
