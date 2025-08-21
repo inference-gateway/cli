@@ -9,6 +9,7 @@ Go CLI for ML inference services with TUI chat, status monitoring, and config ma
 All commands: `flox activate -- task <command>`
 
 **Setup**: `task setup` (run first)
+**Config**: `task run -- config init --overwrite` (generate .infer/config.yaml)
 **Build**: `task build`
 **Test**: `task test` / `test:verbose` / `test:coverage`
 **Run**: `task run -- [args]` / `run:status` / `run:version`
