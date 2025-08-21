@@ -237,8 +237,9 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 	originalContentStr := string(originalContent)
 	originalSize := int64(len(originalContent))
 
+	oldString = t.cleanString(oldString)
 	if !strings.Contains(originalContentStr, oldString) {
-		return nil, fmt.Errorf("old_string not found in file %s", filePath)
+		return nil, t.createMatchError(originalContentStr, oldString, filePath)
 	}
 
 	var newContent string
@@ -285,6 +286,118 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 	return result, nil
 }
 
+// cleanString removes common artifacts from Read tool output like line number prefixes
+func (t *EditTool) cleanString(s string) string {
+	lines := strings.Split(s, "\n")
+	var cleanedLines []string
+
+	for _, line := range lines {
+		if t.isLineNumberPrefix(line) {
+			if cleanedLine, shouldSkip := t.extractContentAfterLineNumber(line); shouldSkip {
+				cleanedLines = append(cleanedLines, cleanedLine)
+				continue
+			}
+		}
+		cleanedLines = append(cleanedLines, line)
+	}
+
+	return strings.Join(cleanedLines, "\n")
+}
+
+// isLineNumberPrefix checks if a line starts with a line number prefix pattern
+func (t *EditTool) isLineNumberPrefix(line string) bool {
+	return len(line) > 0 && (line[0] == ' ' || (line[0] >= '0' && line[0] <= '9'))
+}
+
+// extractContentAfterLineNumber extracts content after line number prefix if present
+func (t *EditTool) extractContentAfterLineNumber(line string) (string, bool) {
+	tabIndex := strings.Index(line, "\t")
+	if tabIndex <= 0 {
+		return "", false
+	}
+
+	prefix := line[:tabIndex]
+	if t.isValidLineNumberPrefix(prefix) {
+		return line[tabIndex+1:], true
+	}
+
+	return "", false
+}
+
+// isValidLineNumberPrefix validates if a prefix contains only spaces and digits
+func (t *EditTool) isValidLineNumberPrefix(prefix string) bool {
+	hasDigit := false
+
+	for _, r := range prefix {
+		if r >= '0' && r <= '9' {
+			hasDigit = true
+		} else if r != ' ' && r != '→' {
+			return false
+		}
+	}
+
+	return hasDigit
+}
+
+// createMatchError provides detailed error information when string matching fails
+func (t *EditTool) createMatchError(content, searchString, filePath string) error {
+	lines := strings.Split(content, "\n")
+	searchLines := strings.Split(searchString, "\n")
+
+	suggestions := t.findPotentialMatches(lines, searchLines)
+	errorMsg := fmt.Sprintf("old_string not found in file %s", filePath)
+
+	if len(suggestions) > 0 {
+		errorMsg += "\n\nPossible matches found:"
+		for _, suggestion := range suggestions {
+			errorMsg += "\n\n" + suggestion
+		}
+		errorMsg += "\n\nHint: Ensure exact whitespace and indentation match. Use the Read tool to see the current file content."
+	} else {
+		errorMsg += "\n\nNo similar content found. Please verify the content exists and matches exactly (including whitespace)."
+	}
+
+	return fmt.Errorf("%s", errorMsg)
+}
+
+// findPotentialMatches searches for potential matches in the content
+func (t *EditTool) findPotentialMatches(lines, searchLines []string) []string {
+	var suggestions []string
+
+	if len(searchLines) == 0 {
+		return suggestions
+	}
+
+	firstSearchLine := strings.TrimSpace(searchLines[0])
+	if len(firstSearchLine) <= 10 {
+		return suggestions
+	}
+
+	for i, line := range lines {
+		if strings.Contains(strings.TrimSpace(line), firstSearchLine) {
+			suggestions = append(suggestions, t.createSuggestion(lines, searchLines, i))
+
+			if len(suggestions) >= 3 {
+				break
+			}
+		}
+	}
+
+	return suggestions
+}
+
+// createSuggestion creates a context suggestion for a potential match
+func (t *EditTool) createSuggestion(lines, searchLines []string, startLine int) string {
+	start := startLine
+	end := startLine + len(searchLines)
+	if end > len(lines) {
+		end = len(lines)
+	}
+
+	context := strings.Join(lines[start:end], "\n")
+	return fmt.Sprintf("Near line %d:\n%s", start+1, context)
+}
+
 func generateDiff(oldContent, newContent string) string {
 	oldLines := strings.Split(oldContent, "\n")
 	newLines := strings.Split(newContent, "\n")
@@ -295,7 +408,6 @@ func generateDiff(oldContent, newContent string) string {
 		maxLines = len(newLines)
 	}
 
-	// Find the range of changed lines for context
 	firstChanged := -1
 	lastChanged := -1
 	for i := 0; i < maxLines; i++ {

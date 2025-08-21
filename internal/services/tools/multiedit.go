@@ -340,35 +340,32 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 	var editResults []domain.EditOperationResult
 	successfulEdits := 0
 
-	// Apply edits sequentially, rolling back if any fail
 	for i, edit := range edits {
-		if !strings.Contains(currentContent, edit.OldString) {
-			// Rollback - don't modify the file and return error
-			return nil, fmt.Errorf("edit %d failed: old_string '%s' not found in file %s (after previous edits)", i+1, edit.OldString, filePath)
+		cleanedOldString := t.cleanString(edit.OldString)
+		if !strings.Contains(currentContent, cleanedOldString) {
+			return nil, t.createMultiEditMatchError(currentContent, cleanedOldString, filePath, i+1)
 		}
 
 		var newContent string
 		var replacedCount int
 
 		if edit.ReplaceAll {
-			newContent = strings.ReplaceAll(currentContent, edit.OldString, edit.NewString)
-			replacedCount = strings.Count(currentContent, edit.OldString)
+			newContent = strings.ReplaceAll(currentContent, cleanedOldString, edit.NewString)
+			replacedCount = strings.Count(currentContent, cleanedOldString)
 		} else {
-			count := strings.Count(currentContent, edit.OldString)
+			count := strings.Count(currentContent, cleanedOldString)
 			if count > 1 {
-				// Rollback - don't modify the file and return error
-				return nil, fmt.Errorf("edit %d failed: old_string '%s' is not unique in file %s (found %d occurrences after previous edits). Use replace_all=true to replace all occurrences or provide a larger string with more surrounding context to make it unique", i+1, edit.OldString, filePath, count)
+				return nil, fmt.Errorf("edit %d failed: old_string '%s' is not unique in file %s (found %d occurrences after previous edits). Use replace_all=true to replace all occurrences or provide a larger string with more surrounding context to make it unique", i+1, cleanedOldString, filePath, count)
 			}
-			newContent = strings.Replace(currentContent, edit.OldString, edit.NewString, 1)
+			newContent = strings.Replace(currentContent, cleanedOldString, edit.NewString, 1)
 			replacedCount = 1
 		}
 
-		// Update content for next iteration
 		currentContent = newContent
 		successfulEdits++
 
 		editResults = append(editResults, domain.EditOperationResult{
-			OldString:     edit.OldString,
+			OldString:     cleanedOldString,
 			NewString:     edit.NewString,
 			ReplaceAll:    edit.ReplaceAll,
 			ReplacedCount: replacedCount,
@@ -376,7 +373,6 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 		})
 	}
 
-	// All edits succeeded, write the file
 	fileModified := false
 	if currentContent != originalContentStr {
 		if err := os.WriteFile(filePath, []byte(currentContent), 0644); err != nil {
@@ -427,4 +423,116 @@ func (t *MultiEditTool) validateFile(path string) error {
 	}
 
 	return nil
+}
+
+// cleanString removes common artifacts from Read tool output like line number prefixes
+func (t *MultiEditTool) cleanString(s string) string {
+	lines := strings.Split(s, "\n")
+	var cleanedLines []string
+
+	for _, line := range lines {
+		if t.isLineNumberPrefix(line) {
+			if cleanedLine, shouldSkip := t.extractContentAfterLineNumber(line); shouldSkip {
+				cleanedLines = append(cleanedLines, cleanedLine)
+				continue
+			}
+		}
+		cleanedLines = append(cleanedLines, line)
+	}
+
+	return strings.Join(cleanedLines, "\n")
+}
+
+// isLineNumberPrefix checks if a line starts with a line number prefix pattern
+func (t *MultiEditTool) isLineNumberPrefix(line string) bool {
+	return len(line) > 0 && (line[0] == ' ' || (line[0] >= '0' && line[0] <= '9'))
+}
+
+// extractContentAfterLineNumber extracts content after line number prefix if present
+func (t *MultiEditTool) extractContentAfterLineNumber(line string) (string, bool) {
+	tabIndex := strings.Index(line, "\t")
+	if tabIndex <= 0 {
+		return "", false
+	}
+
+	prefix := line[:tabIndex]
+	if t.isValidLineNumberPrefix(prefix) {
+		return line[tabIndex+1:], true
+	}
+
+	return "", false
+}
+
+// isValidLineNumberPrefix validates if a prefix contains only spaces and digits
+func (t *MultiEditTool) isValidLineNumberPrefix(prefix string) bool {
+	hasDigit := false
+
+	for _, r := range prefix {
+		if r >= '0' && r <= '9' {
+			hasDigit = true
+		} else if r != ' ' && r != '→' {
+			return false
+		}
+	}
+
+	return hasDigit
+}
+
+// createMultiEditMatchError provides detailed error information when string matching fails in MultiEdit
+func (t *MultiEditTool) createMultiEditMatchError(content, searchString, filePath string, editIndex int) error {
+	lines := strings.Split(content, "\n")
+	searchLines := strings.Split(searchString, "\n")
+
+	suggestions := t.findPotentialMatches(lines, searchLines)
+	errorMsg := fmt.Sprintf("edit %d failed: old_string not found in file %s (after previous edits)", editIndex, filePath)
+
+	if len(suggestions) > 0 {
+		errorMsg += "\n\nPossible matches found:"
+		for _, suggestion := range suggestions {
+			errorMsg += "\n\n" + suggestion
+		}
+		errorMsg += "\n\nHint: Earlier edits may have changed the content. Ensure the text still matches exactly after previous modifications."
+	} else {
+		errorMsg += "\n\nNo similar content found. Previous edits may have modified the content you're trying to match."
+	}
+
+	return fmt.Errorf("%s", errorMsg)
+}
+
+// findPotentialMatches searches for potential matches in the content (MultiEdit version)
+func (t *MultiEditTool) findPotentialMatches(lines, searchLines []string) []string {
+	var suggestions []string
+
+	if len(searchLines) == 0 {
+		return suggestions
+	}
+
+	firstSearchLine := strings.TrimSpace(searchLines[0])
+	if len(firstSearchLine) <= 10 {
+		return suggestions
+	}
+
+	for i, line := range lines {
+		if strings.Contains(strings.TrimSpace(line), firstSearchLine) {
+			suggestions = append(suggestions, t.createSuggestion(lines, searchLines, i))
+
+			if len(suggestions) >= 3 {
+				break
+			}
+		}
+	}
+
+	return suggestions
+}
+
+// createSuggestion creates a context suggestion for a potential match (MultiEdit version)
+func (t *MultiEditTool) createSuggestion(lines, searchLines []string, startLine int) string {
+	start := startLine
+	end := startLine + len(searchLines)
+	if end > len(lines) {
+		end = len(lines)
+	}
+
+	context := strings.Join(lines[start:end], "\n")
+	return fmt.Sprintf("Near line %d:\n%s", start+1, context)
 }
