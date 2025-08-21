@@ -17,7 +17,6 @@ import (
 // ToolExecutionOrchestrator manages the complete tool execution flow
 type ToolExecutionOrchestrator struct {
 	stateManager     *StateManager
-	debugService     *DebugService
 	toolService      domain.ToolService
 	conversationRepo domain.ConversationRepository
 	configService    domain.ConfigService
@@ -121,14 +120,12 @@ type ToolApprovalResponseMsg struct {
 // NewToolExecutionOrchestrator creates a new tool execution orchestrator
 func NewToolExecutionOrchestrator(
 	stateManager *StateManager,
-	debugService *DebugService,
 	toolService domain.ToolService,
 	conversationRepo domain.ConversationRepository,
 	configService domain.ConfigService,
 ) *ToolExecutionOrchestrator {
 	return &ToolExecutionOrchestrator{
 		stateManager:     stateManager,
-		debugService:     debugService,
 		toolService:      toolService,
 		conversationRepo: conversationRepo,
 		configService:    configService,
@@ -158,13 +155,11 @@ func (teo *ToolExecutionOrchestrator) StartToolExecution(
 
 	_ = teo.stateManager.StartToolExecution(toolCalls)
 
-	if teo.debugService != nil {
-		teo.debugService.LogToolExecution("session", "started", map[string]any{
-			"session_id": sessionID,
-			"request_id": requestID,
-			"tool_count": len(toolCalls),
-		})
-	}
+	logger.Info("Starting tool execution session",
+		"session_id", sessionID,
+		"request_id", requestID,
+		"tool_count", len(toolCalls),
+	)
 
 	return sessionID, tea.Batch(
 		func() tea.Msg {
@@ -207,15 +202,6 @@ func (teo *ToolExecutionOrchestrator) processNextTool() tea.Cmd {
 			execution.Status = ToolExecutionStatusProcessing
 		}
 		teo.mutex.Unlock()
-
-		if teo.debugService != nil {
-			teo.debugService.LogToolExecution(currentTool.Function.Name, "processing", map[string]any{
-				"session_id":        execution.SessionID,
-				"tool_index":        execution.CurrentIndex,
-				"total_tools":       len(execution.ToolCalls),
-				"approval_required": approvalRequired,
-			})
-		}
 
 		progressMsg := ToolExecutionProgressMsg{
 			SessionID:        execution.SessionID,
@@ -262,14 +248,6 @@ func (teo *ToolExecutionOrchestrator) HandleApprovalResponse(approved bool, tool
 		}
 
 		currentTool := execution.ToolCalls[execution.CurrentIndex]
-
-		if teo.debugService != nil {
-			teo.debugService.LogToolExecution(currentTool.Function.Name, "approval_response", map[string]any{
-				"session_id": execution.SessionID,
-				"tool_index": toolIndex,
-				"approved":   approved,
-			})
-		}
 
 		if approved {
 			teo.mutex.Lock()
@@ -321,13 +299,6 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 		currentTool := execution.ToolCalls[toolIndex]
 		startTime := time.Now()
 
-		if teo.debugService != nil {
-			teo.debugService.LogToolExecution(currentTool.Function.Name, "execution_started", map[string]any{
-				"session_id": execution.SessionID,
-				"tool_index": toolIndex,
-			})
-		}
-
 		args := parseToolArguments(currentTool.Function.Arguments)
 
 		ctx := context.Background()
@@ -346,15 +317,6 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 			}
 		} else {
 			executionResult = result
-		}
-
-		if teo.debugService != nil {
-			teo.debugService.LogToolExecution(currentTool.Function.Name, "execution_completed", map[string]any{
-				"session_id": execution.SessionID,
-				"tool_index": toolIndex,
-				"success":    executionResult.Success,
-				"duration":   duration.String(),
-			})
 		}
 
 		teo.mutex.Lock()
@@ -397,15 +359,13 @@ func (teo *ToolExecutionOrchestrator) completeExecution() tea.Cmd {
 			}
 		}
 
-		if teo.debugService != nil {
-			teo.debugService.LogToolExecution("session", "completed", map[string]any{
-				"session_id":    execution.SessionID,
-				"total_tools":   len(execution.ToolCalls),
-				"success_count": successCount,
-				"failure_count": failureCount,
-				"duration":      time.Since(execution.StartTime).String(),
-			})
-		}
+		logger.Info("Tool execution session completed",
+			"session_id", execution.SessionID,
+			"total_tools", len(execution.ToolCalls),
+			"success_count", successCount,
+			"failure_count", failureCount,
+			"duration", time.Since(execution.StartTime).String(),
+		)
 
 		teo.stateManager.EndToolExecution()
 
@@ -435,13 +395,6 @@ func (teo *ToolExecutionOrchestrator) CancelExecution(reason string) tea.Cmd {
 
 		execution := teo.currentExecution
 		execution.Status = ToolExecutionStatusCancelled
-
-		if teo.debugService != nil {
-			teo.debugService.LogToolExecution("session", "cancelled", map[string]any{
-				"session_id": execution.SessionID,
-				"reason":     reason,
-			})
-		}
 
 		teo.stateManager.EndToolExecution()
 

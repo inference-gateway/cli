@@ -459,12 +459,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	switch toolName {
 	case "Bash":
 		if c.Tools.Bash.RequireApproval != nil {
-			logger.Debug("Tool approval check", "tool", toolName, "specific", *c.Tools.Bash.RequireApproval, "global", globalApproval)
 			return *c.Tools.Bash.RequireApproval
 		}
 	case "Read":
 		if c.Tools.Read.RequireApproval != nil {
-			logger.Debug("Tool approval check", "tool", toolName, "specific", *c.Tools.Read.RequireApproval, "global", globalApproval)
 			return *c.Tools.Read.RequireApproval
 		}
 	case "Write":

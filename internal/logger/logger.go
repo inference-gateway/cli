@@ -91,7 +91,7 @@ func Init(verbose bool) {
 
 	core := zapcore.NewTee(cores...)
 
-	logger = zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel))
+	logger = zap.New(core, zap.AddCaller(), zap.AddCallerSkip(1), zap.AddStacktrace(zapcore.ErrorLevel))
 	sugar = logger.Sugar()
 
 	zap.ReplaceGlobals(logger)

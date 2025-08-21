@@ -23,7 +23,6 @@ type ServiceContainer struct {
 
 	// New improved services
 	stateManager              *services.StateManager
-	debugService              *services.DebugService
 	toolExecutionOrchestrator *services.ToolExecutionOrchestrator
 
 	// UI components
@@ -84,15 +83,8 @@ func (c *ServiceContainer) initializeServices() {
 	debugMode := c.config.Logging.Debug
 	c.stateManager = services.NewStateManager(debugMode)
 
-	outputDir := c.config.Compact.OutputDir
-	if outputDir == "" {
-		outputDir = ".infer"
-	}
-	c.debugService = services.NewDebugService(debugMode, c.stateManager, outputDir)
-
 	c.toolExecutionOrchestrator = services.NewToolExecutionOrchestrator(
 		c.stateManager,
-		c.debugService,
 		c.toolService,
 		c.conversationRepo,
 		c.config,
@@ -157,10 +149,6 @@ func (c *ServiceContainer) GetCommandRegistry() *commands.Registry {
 // New service getters
 func (c *ServiceContainer) GetStateManager() *services.StateManager {
 	return c.stateManager
-}
-
-func (c *ServiceContainer) GetDebugService() *services.DebugService {
-	return c.debugService
 }
 
 func (c *ServiceContainer) GetToolExecutionOrchestrator() *services.ToolExecutionOrchestrator {
