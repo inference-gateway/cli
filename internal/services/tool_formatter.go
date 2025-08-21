@@ -152,42 +152,58 @@ func (s *ToolFormatterService) formatResponsive(content string, terminalWidth in
 		if len(line) <= terminalWidth {
 			wrappedLines = append(wrappedLines, line)
 		} else {
-			// Simple word wrapping
-			words := strings.Fields(line)
-			if len(words) == 0 {
-				wrappedLines = append(wrappedLines, line)
-				continue
-			}
-
-			currentLine := ""
-			indent := ""
-
-			// Detect and preserve indentation
-			if len(line) > 0 && (line[0] == ' ' || line[0] == '\t') {
-				for i, char := range line {
-					if char != ' ' && char != '\t' {
-						indent = line[:i]
-						break
-					}
-				}
-			}
-
-			for _, word := range words {
-				if len(currentLine) == 0 {
-					currentLine = indent + word
-				} else if len(currentLine)+1+len(word) <= terminalWidth {
-					currentLine += " " + word
-				} else {
-					wrappedLines = append(wrappedLines, currentLine)
-					currentLine = indent + word
-				}
-			}
-
-			if currentLine != "" {
-				wrappedLines = append(wrappedLines, currentLine)
-			}
+			wrapped := s.wrapLongLine(line, terminalWidth)
+			wrappedLines = append(wrappedLines, wrapped...)
 		}
 	}
 
 	return strings.Join(wrappedLines, "\n")
+}
+
+// wrapLongLine handles wrapping of a single long line
+func (s *ToolFormatterService) wrapLongLine(line string, terminalWidth int) []string {
+	words := strings.Fields(line)
+	if len(words) == 0 {
+		return []string{line}
+	}
+
+	indent := s.extractIndentation(line)
+	var wrappedLines []string
+	currentLine := ""
+
+	for _, word := range words {
+		if len(currentLine) == 0 {
+			currentLine = indent + word
+		} else if len(currentLine)+1+len(word) <= terminalWidth {
+			currentLine += " " + word
+		} else {
+			wrappedLines = append(wrappedLines, currentLine)
+			currentLine = indent + word
+		}
+	}
+
+	if currentLine != "" {
+		wrappedLines = append(wrappedLines, currentLine)
+	}
+
+	return wrappedLines
+}
+
+// extractIndentation detects and preserves indentation from the original line
+func (s *ToolFormatterService) extractIndentation(line string) string {
+	if len(line) == 0 {
+		return ""
+	}
+
+	if line[0] != ' ' && line[0] != '\t' {
+		return ""
+	}
+
+	for i, char := range line {
+		if char != ' ' && char != '\t' {
+			return line[:i]
+		}
+	}
+
+	return ""
 }
