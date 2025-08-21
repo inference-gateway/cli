@@ -138,3 +138,10 @@ chat:
     compact_threshold: 20
     truncate_large_outputs: true
     skip_redundant_confirmations: true
+  system_reminders:
+    enabled: true
+    interval: 4
+    reminder_text: |-
+      <system-reminder>
+      This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
+      </system-reminder>

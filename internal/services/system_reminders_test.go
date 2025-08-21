@@ -11,14 +11,15 @@ import (
 func TestFilterSystemReminders(t *testing.T) {
 	repo := NewInMemoryConversationRepository(nil)
 
-	// Add regular messages
 	userMessage := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: "Hello, how are you?",
 		},
 	}
-	repo.AddMessage(userMessage)
+	if err := repo.AddMessage(userMessage); err != nil {
+		t.Fatalf("Failed to add user message: %v", err)
+	}
 
 	assistantMessage := domain.ConversationEntry{
 		Message: sdk.Message{
@@ -26,9 +27,10 @@ func TestFilterSystemReminders(t *testing.T) {
 			Content: "I'm doing well, thank you!",
 		},
 	}
-	repo.AddMessage(assistantMessage)
+	if err := repo.AddMessage(assistantMessage); err != nil {
+		t.Fatalf("Failed to add assistant message: %v", err)
+	}
 
-	// Add system reminder
 	systemReminder := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
@@ -36,24 +38,25 @@ func TestFilterSystemReminders(t *testing.T) {
 		},
 		IsSystemReminder: true,
 	}
-	repo.AddMessage(systemReminder)
+	if err := repo.AddMessage(systemReminder); err != nil {
+		t.Fatalf("Failed to add system reminder: %v", err)
+	}
 
-	// Add another regular message
 	userMessage2 := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
 			Content: "What's the weather like?",
 		},
 	}
-	repo.AddMessage(userMessage2)
+	if err := repo.AddMessage(userMessage2); err != nil {
+		t.Fatalf("Failed to add user message 2: %v", err)
+	}
 
-	// Test that all messages are present before filtering
 	allMessages := repo.GetMessages()
 	if len(allMessages) != 4 {
 		t.Errorf("Expected 4 total messages, got %d", len(allMessages))
 	}
 
-	// Test JSON export filters system reminders
 	jsonData, err := repo.Export(domain.ExportJSON)
 	if err != nil {
 		t.Fatalf("Failed to export JSON: %v", err)
@@ -68,7 +71,6 @@ func TestFilterSystemReminders(t *testing.T) {
 		t.Errorf("Expected 3 exported messages (system reminder filtered), got %d", len(exportedMessages))
 	}
 
-	// Verify system reminder is not in exported messages
 	for _, msg := range exportedMessages {
 		if msg.IsSystemReminder {
 			t.Error("System reminder found in exported messages, should be filtered out")
@@ -78,7 +80,6 @@ func TestFilterSystemReminders(t *testing.T) {
 		}
 	}
 
-	// Test markdown export filters system reminders
 	markdownData, err := repo.Export(domain.ExportMarkdown)
 	if err != nil {
 		t.Fatalf("Failed to export markdown: %v", err)
@@ -89,12 +90,10 @@ func TestFilterSystemReminders(t *testing.T) {
 		t.Error("Markdown export is empty")
 	}
 
-	// System reminder should not appear in markdown
 	if contains(markdownContent, "<system-reminder>This is a reminder</system-reminder>") {
 		t.Error("System reminder content found in markdown export")
 	}
 
-	// Test text export filters system reminders
 	textData, err := repo.Export(domain.ExportText)
 	if err != nil {
 		t.Fatalf("Failed to export text: %v", err)
@@ -105,7 +104,6 @@ func TestFilterSystemReminders(t *testing.T) {
 		t.Error("Text export is empty")
 	}
 
-	// System reminder should not appear in text
 	if contains(textContent, "<system-reminder>This is a reminder</system-reminder>") {
 		t.Error("System reminder content found in text export")
 	}
@@ -114,7 +112,6 @@ func TestFilterSystemReminders(t *testing.T) {
 func TestFilterSystemRemindersEmpty(t *testing.T) {
 	repo := NewInMemoryConversationRepository(nil)
 
-	// Test with only system reminders
 	systemReminder1 := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
@@ -122,7 +119,9 @@ func TestFilterSystemRemindersEmpty(t *testing.T) {
 		},
 		IsSystemReminder: true,
 	}
-	repo.AddMessage(systemReminder1)
+	if err := repo.AddMessage(systemReminder1); err != nil {
+		t.Fatalf("Failed to add system reminder 1: %v", err)
+	}
 
 	systemReminder2 := domain.ConversationEntry{
 		Message: sdk.Message{
@@ -131,9 +130,10 @@ func TestFilterSystemRemindersEmpty(t *testing.T) {
 		},
 		IsSystemReminder: true,
 	}
-	repo.AddMessage(systemReminder2)
+	if err := repo.AddMessage(systemReminder2); err != nil {
+		t.Fatalf("Failed to add system reminder 2: %v", err)
+	}
 
-	// Test that filtering results in empty slice
 	jsonData, err := repo.Export(domain.ExportJSON)
 	if err != nil {
 		t.Fatalf("Failed to export JSON: %v", err)
@@ -152,7 +152,6 @@ func TestFilterSystemRemindersEmpty(t *testing.T) {
 func TestFilterSystemRemindersWithEmptyRepo(t *testing.T) {
 	repo := NewInMemoryConversationRepository(nil)
 
-	// Test with empty repository
 	jsonData, err := repo.Export(domain.ExportJSON)
 	if err != nil {
 		t.Fatalf("Failed to export JSON: %v", err)
