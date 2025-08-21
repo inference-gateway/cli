@@ -300,6 +300,57 @@ var configToolsGrepStatusCmd = &cobra.Command{
 	RunE:  grepStatus,
 }
 
+var configToolsGithubCmd = &cobra.Command{
+	Use:   "github",
+	Short: "Manage GitHub tool settings",
+	Long:  `Manage GitHub-specific tool execution settings including authentication and repository configuration.`,
+}
+
+var configToolsGithubEnableCmd = &cobra.Command{
+	Use:   "enable",
+	Short: "Enable GitHub tool",
+	Long:  `Enable the GitHub tool for repository operations.`,
+	RunE:  enableGithubTool,
+}
+
+var configToolsGithubDisableCmd = &cobra.Command{
+	Use:   "disable",
+	Short: "Disable GitHub tool",
+	Long:  `Disable the GitHub tool to prevent repository operations.`,
+	RunE:  disableGithubTool,
+}
+
+var configToolsGithubStatusCmd = &cobra.Command{
+	Use:   "status",
+	Short: "Show GitHub tool status and configuration",
+	Long:  `Display current GitHub tool status, authentication, and repository settings.`,
+	RunE:  githubStatus,
+}
+
+var configToolsGithubSetTokenCmd = &cobra.Command{
+	Use:   "set-token <token>",
+	Short: "Set GitHub authentication token",
+	Long:  `Set the GitHub personal access token for API authentication.`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  setGithubToken,
+}
+
+var configToolsGithubSetOwnerCmd = &cobra.Command{
+	Use:   "set-owner <owner>",
+	Short: "Set default GitHub repository owner",
+	Long:  `Set the default GitHub repository owner/organization name.`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  setGithubOwner,
+}
+
+var configToolsGithubSetRepoCmd = &cobra.Command{
+	Use:   "set-repo <repo>",
+	Short: "Set default GitHub repository name",
+	Long:  `Set the default GitHub repository name (optional, can be overridden per operation).`,
+	Args:  cobra.ExactArgs(1),
+	RunE:  setGithubRepo,
+}
+
 var configFetchCmd = &cobra.Command{
 	Use:   "web-fetch",
 	Short: "Manage web fetch tool settings",
@@ -418,6 +469,7 @@ func init() {
 	configToolsCmd.AddCommand(configToolsBashCmd)
 	configToolsCmd.AddCommand(configToolsWebSearchCmd)
 	configToolsCmd.AddCommand(configToolsGrepCmd)
+	configToolsCmd.AddCommand(configToolsGithubCmd)
 
 	configToolsSafetyCmd.AddCommand(configToolsSafetyEnableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyDisableCmd)
@@ -439,6 +491,13 @@ func init() {
 	configToolsGrepCmd.AddCommand(configToolsGrepDisableCmd)
 	configToolsGrepCmd.AddCommand(configToolsGrepBackendCmd)
 	configToolsGrepCmd.AddCommand(configToolsGrepStatusCmd)
+
+	configToolsGithubCmd.AddCommand(configToolsGithubEnableCmd)
+	configToolsGithubCmd.AddCommand(configToolsGithubDisableCmd)
+	configToolsGithubCmd.AddCommand(configToolsGithubStatusCmd)
+	configToolsGithubCmd.AddCommand(configToolsGithubSetTokenCmd)
+	configToolsGithubCmd.AddCommand(configToolsGithubSetOwnerCmd)
+	configToolsGithubCmd.AddCommand(configToolsGithubSetRepoCmd)
 
 	configFetchCmd.AddCommand(configFetchEnableCmd)
 	configFetchCmd.AddCommand(configFetchDisableCmd)
@@ -1276,6 +1335,145 @@ func grepStatus(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	return nil
+}
+
+// formatToolStatus formats a tool's enabled/disabled status
+func enableGithubTool(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Github.Enabled = true
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess("GitHub tool enabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("LLMs can now perform GitHub operations\n")
+	return nil
+}
+
+func disableGithubTool(cmd *cobra.Command, args []string) error {
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Github.Enabled = false
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatErrorCLI("GitHub tool disabled successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("LLMs can no longer perform GitHub operations\n")
+	return nil
+}
+
+func githubStatus(cmd *cobra.Command, args []string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	fmt.Printf("GitHub Tool Status: ")
+	if cfg.Tools.Github.Enabled {
+		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+	} else {
+		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+	}
+
+	fmt.Printf("\nConfiguration:\n")
+	fmt.Printf("  • Base URL: %s\n", cfg.Tools.Github.BaseURL)
+	fmt.Printf("  • Owner: ")
+	if cfg.Tools.Github.Owner != "" {
+		fmt.Printf("%s\n", cfg.Tools.Github.Owner)
+	} else {
+		fmt.Printf("(not set)\n")
+	}
+
+	fmt.Printf("  • Repository: ")
+	if cfg.Tools.Github.Repo != "" {
+		fmt.Printf("%s\n", cfg.Tools.Github.Repo)
+	} else {
+		fmt.Printf("(not set)\n")
+	}
+
+	fmt.Printf("  • Token: ")
+	resolvedToken := config.ResolveEnvironmentVariables(cfg.Tools.Github.Token)
+	if resolvedToken != "" && resolvedToken != "%GITHUB_TOKEN%" {
+		fmt.Printf("✅ configured\n")
+	} else if cfg.Tools.Github.Token == "%GITHUB_TOKEN%" {
+		fmt.Printf("❌ environment variable GITHUB_TOKEN not set\n")
+	} else {
+		fmt.Printf("❌ not configured\n")
+	}
+
+	fmt.Printf("\nSafety Settings:\n")
+	fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", cfg.Tools.Github.Safety.MaxSize, float64(cfg.Tools.Github.Safety.MaxSize)/(1024*1024))
+	fmt.Printf("  • Timeout: %d seconds\n", cfg.Tools.Github.Safety.Timeout)
+
+	fmt.Printf("  • Require approval: ")
+	if cfg.Tools.Github.RequireApproval != nil {
+		status := "disabled"
+		color := ui.FormatErrorCLI
+		if *cfg.Tools.Github.RequireApproval {
+			status = "enabled"
+			color = ui.FormatSuccess
+		}
+		fmt.Printf("%s\n", color(status))
+	} else {
+		status := "disabled"
+		if cfg.Tools.Safety.RequireApproval {
+			status = "enabled"
+		}
+		fmt.Printf("using global setting (%s)\n", status)
+	}
+
+	return nil
+}
+
+func setGithubToken(cmd *cobra.Command, args []string) error {
+	token := args[0]
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Github.Token = token
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess("GitHub token set successfully"))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Note: For security, consider using environment variables (%%GITHUB_TOKEN%%)\n")
+	return nil
+}
+
+func setGithubOwner(cmd *cobra.Command, args []string) error {
+	owner := args[0]
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Github.Owner = owner
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("GitHub default owner set to: %s", owner)))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	return nil
+}
+
+func setGithubRepo(cmd *cobra.Command, args []string) error {
+	repo := args[0]
+
+	_, err := loadAndUpdateConfig(func(c *config.Config) {
+		c.Tools.Github.Repo = repo
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("GitHub default repository set to: %s", repo)))
+	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Note: This can be overridden per operation\n")
 	return nil
 }
 
