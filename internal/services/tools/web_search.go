@@ -700,3 +700,8 @@ func (t *WebSearchTool) extractDomainFromURL(urlStr string) string {
 
 	return urlStr
 }
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *WebSearchTool) ShouldCollapseArg(key string) bool {
+	return false
+}

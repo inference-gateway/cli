@@ -490,3 +490,8 @@ func (t *TodoWriteTool) formatTodoItem(todo domain.TodoItem) (string, string) {
 
 	return checkbox, content
 }
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *TodoWriteTool) ShouldCollapseArg(key string) bool {
+	return false
+}

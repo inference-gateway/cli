@@ -506,3 +506,8 @@ func (t *ReadTool) formatReadData(data any) string {
 	}
 	return output.String()
 }
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *ReadTool) ShouldCollapseArg(key string) bool {
+	return false
+}

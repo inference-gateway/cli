@@ -666,3 +666,8 @@ func (t *TreeTool) formatTreeData(data any) string {
 
 	return output.String()
 }
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *TreeTool) ShouldCollapseArg(key string) bool {
+	return false
+}

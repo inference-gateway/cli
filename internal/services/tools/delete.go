@@ -447,3 +447,8 @@ func (t *DeleteTool) pluralizeDir(count int) string {
 	}
 	return "ies"
 }
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *DeleteTool) ShouldCollapseArg(key string) bool {
+	return false
+}

@@ -7,7 +7,7 @@ import (
 )
 
 func TestSessionTokenTracking(t *testing.T) {
-	repo := NewInMemoryConversationRepository()
+	repo := NewInMemoryConversationRepository(nil)
 
 	stats := repo.GetSessionTokens()
 	if stats.TotalInputTokens != 0 || stats.TotalOutputTokens != 0 || stats.TotalTokens != 0 || stats.RequestCount != 0 {
@@ -64,7 +64,7 @@ func TestSessionTokenTracking(t *testing.T) {
 }
 
 func TestSessionTokensWithZeroValues(t *testing.T) {
-	repo := NewInMemoryConversationRepository()
+	repo := NewInMemoryConversationRepository(nil)
 
 	err := repo.AddTokenUsage(0, 0, 0)
 	if err != nil {

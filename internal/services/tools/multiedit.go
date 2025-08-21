@@ -16,25 +16,29 @@ type MultiEditTool struct {
 	config    *config.Config
 	enabled   bool
 	registry  ReadToolTracker
-	formatter domain.BaseFormatter
+	formatter domain.CustomFormatter
 }
 
 // NewMultiEditTool creates a new multi-edit tool
 func NewMultiEditTool(cfg *config.Config) *MultiEditTool {
 	return &MultiEditTool{
-		config:    cfg,
-		enabled:   cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: domain.NewBaseFormatter("MultiEdit"),
+		config:  cfg,
+		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		formatter: domain.NewCustomFormatter("MultiEdit", func(key string) bool {
+			return key == "edits"
+		}),
 	}
 }
 
 // NewMultiEditToolWithRegistry creates a new multi-edit tool with a registry for read tracking
 func NewMultiEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *MultiEditTool {
 	return &MultiEditTool{
-		config:    cfg,
-		enabled:   cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		registry:  registry,
-		formatter: domain.NewBaseFormatter("MultiEdit"),
+		config:   cfg,
+		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		registry: registry,
+		formatter: domain.NewCustomFormatter("MultiEdit", func(key string) bool {
+			return key == "edits"
+		}),
 	}
 }
 
@@ -659,4 +663,9 @@ func (t *MultiEditTool) formatMultiEditData(data any) string {
 	}
 
 	return output.String()
+}
+
+// ShouldCollapseArg delegates to the formatter's collapse logic
+func (t *MultiEditTool) ShouldCollapseArg(key string) bool {
+	return t.formatter.ShouldCollapseArg(key)
 }

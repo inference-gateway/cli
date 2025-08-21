@@ -12,10 +12,24 @@ type BaseFormatter struct {
 	toolName string
 }
 
+// CustomFormatter extends BaseFormatter with customizable collapse behavior
+type CustomFormatter struct {
+	BaseFormatter
+	collapseFunc func(string) bool
+}
+
 // NewBaseFormatter creates a new base formatter for a tool
 func NewBaseFormatter(toolName string) BaseFormatter {
 	return BaseFormatter{
 		toolName: toolName,
+	}
+}
+
+// NewCustomFormatter creates a formatter with custom collapse logic
+func NewCustomFormatter(toolName string, collapseFunc func(string) bool) CustomFormatter {
+	return CustomFormatter{
+		BaseFormatter: NewBaseFormatter(toolName),
+		collapseFunc:  collapseFunc,
 	}
 }
 
@@ -67,7 +81,7 @@ func (f BaseFormatter) FormatDuration(result *ToolExecutionResult) string {
 // FormatExpandedHeader formats the expanded view header with tool call and metadata
 func (f BaseFormatter) FormatExpandedHeader(result *ToolExecutionResult) string {
 	var output strings.Builder
-	toolCall := f.FormatToolCall(result.Arguments, true)
+	toolCall := f.FormatToolCall(result.Arguments, false)
 
 	output.WriteString(fmt.Sprintf("%s\n", toolCall))
 	output.WriteString(fmt.Sprintf("├─ ⏱️  Duration: %s\n", f.FormatDuration(result)))
@@ -163,6 +177,73 @@ func (f BaseFormatter) FormatAsJSON(data any) string {
 // ShouldCollapseArg provides default collapse behavior (can be overridden by tools)
 func (f BaseFormatter) ShouldCollapseArg(key string) bool {
 	return false
+}
+
+// ShouldCollapseArg uses the custom collapse function if provided
+func (f CustomFormatter) ShouldCollapseArg(key string) bool {
+	if f.collapseFunc != nil {
+		return f.collapseFunc(key)
+	}
+	return f.BaseFormatter.ShouldCollapseArg(key)
+}
+
+// FormatToolCall overrides BaseFormatter to use custom collapse logic
+func (f CustomFormatter) FormatToolCall(args map[string]any, expanded bool) string {
+	if len(args) == 0 {
+		return fmt.Sprintf("%s()", f.toolName)
+	}
+
+	keys := make([]string, 0, len(args))
+	for key := range args {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	argPairs := make([]string, 0, len(args))
+	for _, key := range keys {
+		value := args[key]
+		if !expanded && f.ShouldCollapseArg(key) {
+			value = "..."
+		}
+		argPairs = append(argPairs, fmt.Sprintf("%s=%v", key, value))
+	}
+
+	return fmt.Sprintf("%s(%s)", f.toolName, f.joinArgs(argPairs))
+}
+
+// FormatExpandedHeader overrides BaseFormatter to use custom collapse logic
+func (f CustomFormatter) FormatExpandedHeader(result *ToolExecutionResult) string {
+	var output strings.Builder
+	toolCall := f.FormatToolCall(result.Arguments, false)
+
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("├─ ⏱️  Duration: %s\n", f.FormatDuration(result)))
+	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", f.FormatStatus(result.Success)))
+
+	if result.Error != "" {
+		output.WriteString(fmt.Sprintf("├─ ❌ Error: %s\n", result.Error))
+	}
+
+	if len(result.Arguments) > 0 {
+		output.WriteString("├─ 📝 Arguments:\n")
+		keys := make([]string, 0, len(result.Arguments))
+		for key := range result.Arguments {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		for i, key := range keys {
+			value := result.Arguments[key]
+			isLast := i == len(keys)-1
+			prefix := "│ ├─"
+			if isLast {
+				prefix = "│ └─"
+			}
+			output.WriteString(fmt.Sprintf("%s %s: %v\n", prefix, key, value))
+		}
+	}
+
+	return output.String()
 }
 
 // GetFileName extracts filename from a path

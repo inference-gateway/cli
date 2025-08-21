@@ -295,3 +295,8 @@ func (t *BashTool) formatBashData(data any) string {
 	}
 	return output.String()
 }
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *BashTool) ShouldCollapseArg(key string) bool {
+	return false
+}

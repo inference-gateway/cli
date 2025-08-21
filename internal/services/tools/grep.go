@@ -1126,3 +1126,8 @@ func (t *GrepTool) formatGrepData(data any) string {
 
 	return output.String()
 }
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *GrepTool) ShouldCollapseArg(key string) bool {
+	return false
+}

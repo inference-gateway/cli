@@ -2,6 +2,7 @@ package services
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/inference-gateway/cli/internal/domain"
@@ -31,46 +32,81 @@ func (s *ToolFormatterService) FormatToolCall(toolName string, args map[string]a
 		return fmt.Sprintf("%s()", toolName)
 	}
 
-	formatter := domain.NewBaseFormatter(toolName)
-	return formatter.FormatToolCall(args, false)
-}
+	keys := make([]string, 0, len(args))
+	for key := range args {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
 
-// FormatToolCallExpanded formats a tool call with full argument expansion
-func (s *ToolFormatterService) FormatToolCallExpanded(toolName string, args map[string]any) string {
-	if len(args) == 0 {
-		return fmt.Sprintf("%s()", toolName)
+	var shouldCollapseFunc func(string) bool
+	tool, err := s.toolRegistry.GetTool(toolName)
+	if err == nil {
+		shouldCollapseFunc = tool.ShouldCollapseArg
+	} else {
+		shouldCollapseFunc = func(string) bool { return false }
 	}
 
-	formatter := domain.NewBaseFormatter(toolName)
-	return formatter.FormatToolCall(args, true)
+	argPairs := make([]string, 0, len(args))
+	for _, key := range keys {
+		value := args[key]
+		var formattedValue string
+		if shouldCollapseFunc(key) {
+			formattedValue = `"..."`
+		} else {
+			formattedValue = fmt.Sprintf("%v", value)
+		}
+		argPairs = append(argPairs, fmt.Sprintf("%s=%s", key, formattedValue))
+	}
+
+	return fmt.Sprintf("%s(%s)", toolName, s.joinArgs(argPairs))
+}
+
+// joinArgs joins argument pairs with commas, handling long argument lists
+func (s *ToolFormatterService) joinArgs(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+	if len(args) == 1 {
+		return args[0]
+	}
+
+	result := args[0]
+	for i := 1; i < len(args); i++ {
+		result += ", " + args[i]
+	}
+	return result
 }
 
 // FormatToolResultForUI formats tool execution results for UI display
-func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutionResult) string {
+func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutionResult, terminalWidth int) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
 	tool, err := s.toolRegistry.GetTool(result.ToolName)
 	if err != nil {
-		return s.formatFallback(result, domain.FormatterUI)
+		content := s.formatFallback(result, domain.FormatterUI)
+		return s.formatResponsive(content, terminalWidth)
 	}
 
-	return tool.FormatResult(result, domain.FormatterUI)
+	content := tool.FormatResult(result, domain.FormatterUI)
+	return s.formatResponsive(content, terminalWidth)
 }
 
-// FormatToolResultExpanded formats tool execution results with full details
-func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecutionResult) string {
+// FormatToolResultExpanded formats expanded tool execution results
+func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecutionResult, terminalWidth int) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
 	tool, err := s.toolRegistry.GetTool(result.ToolName)
 	if err != nil {
-		return s.formatFallback(result, domain.FormatterLLM)
+		content := s.formatFallback(result, domain.FormatterLLM)
+		return s.formatResponsive(content, terminalWidth)
 	}
 
-	return tool.FormatResult(result, domain.FormatterLLM)
+	content := tool.FormatResult(result, domain.FormatterLLM)
+	return s.formatResponsive(content, terminalWidth)
 }
 
 // FormatToolResultForLLM formats tool execution results for LLM consumption
@@ -85,18 +121,6 @@ func (s *ToolFormatterService) FormatToolResultForLLM(result *domain.ToolExecuti
 	}
 
 	return tool.FormatResult(result, domain.FormatterLLM)
-}
-
-// FormatToolResultForUIResponsive formats with responsive width
-func (s *ToolFormatterService) FormatToolResultForUIResponsive(result *domain.ToolExecutionResult, terminalWidth int) string {
-	content := s.FormatToolResultForUI(result)
-	return s.formatResponsive(content, terminalWidth)
-}
-
-// FormatToolResultExpandedResponsive formats expanded results with responsive width
-func (s *ToolFormatterService) FormatToolResultExpandedResponsive(result *domain.ToolExecutionResult, terminalWidth int) string {
-	content := s.FormatToolResultExpanded(result)
-	return s.formatResponsive(content, terminalWidth)
 }
 
 // formatFallback provides fallback formatting when tool is not available
@@ -150,7 +174,6 @@ func (s *ToolFormatterService) formatResponsive(content string, terminalWidth in
 		if len(line) <= terminalWidth {
 			result = append(result, line)
 		} else {
-			// Use the shared WrapText function for consistency
 			wrapped := s.wrapText(line, terminalWidth)
 			result = append(result, wrapped)
 		}

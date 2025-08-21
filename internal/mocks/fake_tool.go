@@ -66,6 +66,17 @@ type FakeTool struct {
 	isEnabledReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	ShouldCollapseArgStub        func(string) bool
+	shouldCollapseArgMutex       sync.RWMutex
+	shouldCollapseArgArgsForCall []struct {
+		arg1 string
+	}
+	shouldCollapseArgReturns struct {
+		result1 bool
+	}
+	shouldCollapseArgReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	ValidateStub        func(map[string]any) error
 	validateMutex       sync.RWMutex
 	validateArgsForCall []struct {
@@ -371,6 +382,67 @@ func (fake *FakeTool) IsEnabledReturnsOnCall(i int, result1 bool) {
 		})
 	}
 	fake.isEnabledReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeTool) ShouldCollapseArg(arg1 string) bool {
+	fake.shouldCollapseArgMutex.Lock()
+	ret, specificReturn := fake.shouldCollapseArgReturnsOnCall[len(fake.shouldCollapseArgArgsForCall)]
+	fake.shouldCollapseArgArgsForCall = append(fake.shouldCollapseArgArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.ShouldCollapseArgStub
+	fakeReturns := fake.shouldCollapseArgReturns
+	fake.recordInvocation("ShouldCollapseArg", []interface{}{arg1})
+	fake.shouldCollapseArgMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeTool) ShouldCollapseArgCallCount() int {
+	fake.shouldCollapseArgMutex.RLock()
+	defer fake.shouldCollapseArgMutex.RUnlock()
+	return len(fake.shouldCollapseArgArgsForCall)
+}
+
+func (fake *FakeTool) ShouldCollapseArgCalls(stub func(string) bool) {
+	fake.shouldCollapseArgMutex.Lock()
+	defer fake.shouldCollapseArgMutex.Unlock()
+	fake.ShouldCollapseArgStub = stub
+}
+
+func (fake *FakeTool) ShouldCollapseArgArgsForCall(i int) string {
+	fake.shouldCollapseArgMutex.RLock()
+	defer fake.shouldCollapseArgMutex.RUnlock()
+	argsForCall := fake.shouldCollapseArgArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeTool) ShouldCollapseArgReturns(result1 bool) {
+	fake.shouldCollapseArgMutex.Lock()
+	defer fake.shouldCollapseArgMutex.Unlock()
+	fake.ShouldCollapseArgStub = nil
+	fake.shouldCollapseArgReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeTool) ShouldCollapseArgReturnsOnCall(i int, result1 bool) {
+	fake.shouldCollapseArgMutex.Lock()
+	defer fake.shouldCollapseArgMutex.Unlock()
+	fake.ShouldCollapseArgStub = nil
+	if fake.shouldCollapseArgReturnsOnCall == nil {
+		fake.shouldCollapseArgReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.shouldCollapseArgReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }

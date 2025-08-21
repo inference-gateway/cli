@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -11,12 +12,6 @@ import (
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
-
-// ToolFormatter interface for formatting tool results
-type ToolFormatter interface {
-	FormatToolResultForUIResponsive(result *domain.ToolExecutionResult, terminalWidth int) string
-	FormatToolResultExpandedResponsive(result *domain.ToolExecutionResult, terminalWidth int) string
-}
 
 // ConversationView handles the chat conversation display
 type ConversationView struct {
@@ -26,7 +21,7 @@ type ConversationView struct {
 	height              int
 	expandedToolResults map[int]bool
 	allToolsExpanded    bool
-	toolFormatter       ToolFormatter
+	toolFormatter       domain.ToolFormatter
 }
 
 func NewConversationView() *ConversationView {
@@ -43,7 +38,7 @@ func NewConversationView() *ConversationView {
 }
 
 // SetToolFormatter sets the tool formatter for this conversation view
-func (cv *ConversationView) SetToolFormatter(formatter ToolFormatter) {
+func (cv *ConversationView) SetToolFormatter(formatter domain.ToolFormatter) {
 	cv.toolFormatter = formatter
 }
 
@@ -207,12 +202,7 @@ func (cv *ConversationView) formatEntryContent(entry domain.ConversationEntry, i
 
 func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
-		var content string
-		if cv.toolFormatter != nil {
-			content = cv.toolFormatter.FormatToolResultExpandedResponsive(entry.ToolExecution, cv.width)
-		} else {
-			content = shared.FormatToolResultExpandedResponsive(entry.ToolExecution, cv.width)
-		}
+		content := cv.toolFormatter.FormatToolResultExpanded(entry.ToolExecution, cv.width)
 		return content + "\n\n💡 Press Ctrl+R to collapse all tool calls"
 	}
 	wrappedContent := shared.FormatResponsiveMessage(entry.Message.Content, cv.width)
@@ -221,12 +211,7 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 
 func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
-		var content string
-		if cv.toolFormatter != nil {
-			content = cv.toolFormatter.FormatToolResultForUIResponsive(entry.ToolExecution, cv.width)
-		} else {
-			content = shared.FormatToolResultForUIResponsive(entry.ToolExecution, cv.width)
-		}
+		content := cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
 		return content + "\n💡 Press Ctrl+R to expand all tool calls"
 	}
 	content := cv.formatToolContentCompact(entry.Message.Content)
@@ -235,11 +220,73 @@ func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry)
 }
 
 func (cv *ConversationView) formatToolContentCompact(content string) string {
-	lines := strings.Split(content, "\n")
-	if len(lines) <= 3 {
-		return content
+	if cv.toolFormatter == nil {
+		// Fallback to original truncation logic
+		lines := strings.Split(content, "\n")
+		if len(lines) <= 3 {
+			return content
+		}
+		return strings.Join(lines[:3], "\n") + "\n... (truncated)"
 	}
-	return strings.Join(lines[:3], "\n") + "\n... (truncated)"
+
+	// Parse tool calls from content and format them properly
+	lines := strings.Split(content, "\n")
+	var result []string
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if toolCall := cv.parseToolCallFromLine(trimmed); toolCall != nil {
+			// Use the proper formatter for collapsed display
+			formattedCall := cv.toolFormatter.FormatToolCall(toolCall.Name, toolCall.Args)
+			result = append(result, "Tool: "+formattedCall)
+		} else {
+			result = append(result, line)
+		}
+	}
+
+	// Apply original truncation logic if needed
+	if len(result) <= 3 {
+		return strings.Join(result, "\n")
+	}
+	return strings.Join(result[:3], "\n") + "\n... (truncated)"
+}
+
+type ToolCallInfo struct {
+	Name string
+	Args map[string]any
+}
+
+// parseToolCallFromLine parses a tool call from a line like "Tool: Write(content="...", file_path="...")"
+func (cv *ConversationView) parseToolCallFromLine(line string) *ToolCallInfo {
+	// Match pattern: Tool: ToolName(args...)
+	toolCallPattern := regexp.MustCompile(`^Tool:\s+([A-Za-z]+)\((.*)?\)$`)
+	matches := toolCallPattern.FindStringSubmatch(line)
+	if len(matches) != 3 {
+		return nil
+	}
+
+	toolName := matches[1]
+	argsString := matches[2]
+
+	// Parse arguments - simple key="value" parsing
+	args := make(map[string]any)
+	if argsString != "" {
+		argPattern := regexp.MustCompile(`([a-zA-Z_][a-zA-Z0-9_]*)=("[^"]*"|[^,]+)`)
+		argMatches := argPattern.FindAllStringSubmatch(argsString, -1)
+
+		for _, argMatch := range argMatches {
+			if len(argMatch) == 3 {
+				key := argMatch[1]
+				value := strings.Trim(argMatch[2], `"`)
+				args[key] = value
+			}
+		}
+	}
+
+	return &ToolCallInfo{
+		Name: toolName,
+		Args: args,
+	}
 }
 
 // Bubble Tea interface

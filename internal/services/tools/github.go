@@ -867,3 +867,8 @@ func (t *GithubTool) formatList(items []any) string {
 
 	return output.String()
 }
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *GithubTool) ShouldCollapseArg(key string) bool {
+	return false
+}

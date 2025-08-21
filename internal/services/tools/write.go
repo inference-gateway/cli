@@ -16,15 +16,17 @@ import (
 type WriteTool struct {
 	config    *config.Config
 	enabled   bool
-	formatter domain.BaseFormatter
+	formatter domain.CustomFormatter
 }
 
 // NewWriteTool creates a new write tool
 func NewWriteTool(cfg *config.Config) *WriteTool {
 	return &WriteTool{
-		config:    cfg,
-		enabled:   cfg.Tools.Enabled && cfg.Tools.Write.Enabled,
-		formatter: domain.NewBaseFormatter("Write"),
+		config:  cfg,
+		enabled: cfg.Tools.Enabled && cfg.Tools.Write.Enabled,
+		formatter: domain.NewCustomFormatter("Write", func(key string) bool {
+			return key == "content"
+		}),
 	}
 }
 
@@ -502,7 +504,7 @@ func (t *WriteTool) formatWriteData(data any) string {
 
 	var output strings.Builder
 	output.WriteString(fmt.Sprintf("File: %s\n", writeResult.FilePath))
-	output.WriteString(fmt.Sprintf("Bytes Written: %d\n", writeResult.BytesWritten))
+	output.WriteString(fmt.Sprintf("Written lines: %d\n", writeResult.LinesWritten))
 
 	var operations []string
 	if writeResult.Created {
@@ -544,4 +546,9 @@ func countLines(content string) int {
 		lines++
 	}
 	return lines
+}
+
+// ShouldCollapseArg delegates to the formatter's collapse logic
+func (t *WriteTool) ShouldCollapseArg(key string) bool {
+	return t.formatter.ShouldCollapseArg(key)
 }

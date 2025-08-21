@@ -355,3 +355,8 @@ func (t *WebFetchTool) formatSize(size int64) string {
 	}
 	return fmt.Sprintf("%.1f GB", float64(size)/(1024*1024*1024))
 }
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *WebFetchTool) ShouldCollapseArg(key string) bool {
+	return false
+}

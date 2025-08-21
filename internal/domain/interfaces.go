@@ -191,6 +191,9 @@ type Tool interface {
 
 	// FormatPreview returns a short preview of the result for UI display
 	FormatPreview(result *ToolExecutionResult) string
+
+	// ShouldCollapseArg determines if an argument should be collapsed in display
+	ShouldCollapseArg(key string) bool
 }
 
 // FormatterType defines the context for formatting tool results
@@ -204,17 +207,17 @@ const (
 
 // ToolFormatter provides formatting capabilities for tool results
 type ToolFormatter interface {
-	// FormatForUI formats the result for UI display
-	FormatForUI(result *ToolExecutionResult) string
+	// FormatToolCall formats a tool call for consistent display
+	FormatToolCall(toolName string, args map[string]any) string
 
-	// FormatForLLM formats the result for LLM consumption
-	FormatForLLM(result *ToolExecutionResult) string
+	// FormatToolResultForUI formats tool execution results for UI display
+	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
 
-	// FormatPreview returns a short preview of the result
-	FormatPreview(result *ToolExecutionResult) string
+	// FormatToolResultExpanded formats expanded tool execution results
+	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
 
-	// ShouldCollapseArg determines if an argument should be collapsed in display
-	ShouldCollapseArg(key string) bool
+	// FormatToolResultForLLM formats tool execution results for LLM consumption
+	FormatToolResultForLLM(result *ToolExecutionResult) string
 }
 
 // ToolFactory creates tool instances
