@@ -42,7 +42,7 @@ func FormatToolCallWithOptions(toolName string, args map[string]any, expanded bo
 	argPairs := make([]string, 0, len(args))
 	for _, key := range keys {
 		value := args[key]
-		if !expanded && toolName == "Edit" && shouldCollapseEditArg(key) {
+		if !expanded && shouldCollapseArg(toolName, key) {
 			value = collapseArgValue(value, 50)
 		}
 		argPairs = append(argPairs, fmt.Sprintf("%s=%v", key, value))
@@ -51,9 +51,16 @@ func FormatToolCallWithOptions(toolName string, args map[string]any, expanded bo
 	return fmt.Sprintf("%s(%s)", toolName, joinArgs(argPairs))
 }
 
-// shouldCollapseEditArg determines if an Edit tool argument should be collapsed
-func shouldCollapseEditArg(key string) bool {
-	return key == "old_string" || key == "new_string"
+// shouldCollapseArg determines if a tool argument should be collapsed
+func shouldCollapseArg(toolName, key string) bool {
+	switch toolName {
+	case "Edit":
+		return key == "old_string" || key == "new_string"
+	case "Write":
+		return key == "content"
+	default:
+		return false
+	}
 }
 
 // collapseArgValue truncates a value to the specified length with ellipsis
