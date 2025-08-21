@@ -675,7 +675,6 @@ func execTool(cmd *cobra.Command, args []string) error {
 
 	formatterService := services.NewToolFormatterService(toolRegistry)
 
-	// Use a default terminal width for CLI output
 	fmt.Print(formatterService.FormatToolResultExpanded(result, 80))
 	return nil
 }
