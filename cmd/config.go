@@ -659,7 +659,6 @@ func execTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("tool execution failed: %w", err)
 	}
 
-	// Create formatter service
 	formatterService := services.NewToolFormatterService(toolRegistry)
 
 	fmt.Print(formatterService.FormatToolResultExpanded(result))

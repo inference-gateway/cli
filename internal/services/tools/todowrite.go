@@ -375,17 +375,14 @@ func (t *TodoWriteTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 
 	var output strings.Builder
 
-	// Header with tool call and metadata
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	// Data section
 	if result.Data != nil {
 		dataContent := t.formatTodoData(result.Data)
 		hasMetadata := len(result.Metadata) > 0
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
-	// Footer with metadata
 	hasDataSection := result.Data != nil
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
@@ -408,14 +405,12 @@ func (t *TodoWriteTool) formatTodoData(data any) string {
 		output.WriteString(fmt.Sprintf("In Progress Task: %s\n", todoResult.InProgressTask))
 	}
 
-	// Progress bar
 	if todoResult.TotalTasks > 0 {
 		progressBar := t.formatProgressBar(todoResult.CompletedTasks, todoResult.TotalTasks)
 		percentage := int(float64(todoResult.CompletedTasks) / float64(todoResult.TotalTasks) * 100)
 		output.WriteString(fmt.Sprintf("Progress: %s %d%%\n", progressBar, percentage))
 	}
 
-	// Task list
 	if len(todoResult.Todos) > 0 {
 		output.WriteString("\nTasks:\n")
 		for i, todo := range todoResult.Todos {

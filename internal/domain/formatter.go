@@ -162,7 +162,6 @@ func (f BaseFormatter) FormatAsJSON(data any) string {
 
 // ShouldCollapseArg provides default collapse behavior (can be overridden by tools)
 func (f BaseFormatter) ShouldCollapseArg(key string) bool {
-	// Most tools don't need argument collapsing by default
 	return false
 }
 

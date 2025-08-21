@@ -476,17 +476,14 @@ func (t *WriteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 	var output strings.Builder
 
-	// Header with tool call and metadata
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	// Data section
 	if result.Data != nil {
 		dataContent := t.formatWriteData(result.Data)
 		hasMetadata := len(result.Metadata) > 0
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
-	// Footer with metadata
 	hasDataSection := result.Data != nil
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
