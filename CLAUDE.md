@@ -49,6 +49,7 @@ internal/:
 - `infer config tools safety [enable|disable|status|set|unset]`
 - `infer config tools sandbox [list|add|remove]`
 - `infer chat`: Interactive chat (with token tracking)
+- `infer prompt "text"`: Background mode for one-off tasks (JSON output)
 - `infer status`: Gateway status
 
 ## Chat Features
@@ -77,6 +78,24 @@ Features:
 - Real-time tool execution in chat context
 - Structured argument parsing: `key="value"` format
 - Error handling and validation
+
+## Background Mode (Prompt Command)
+
+The `infer prompt` command runs in background mode to iteratively solve tasks:
+
+- **Usage**: `infer prompt "Please fix the github issue 38"`
+- **Output**: JSON conversation format showing all interactions
+- **Features**: Automatic tool execution, iterative problem solving
+- **SCM Integration**: Recognizes GitHub issue references and works to resolution
+- **Token Tracking**: Displays usage metrics throughout execution
+- **Completion Detection**: Automatically detects when task is complete
+
+Example JSON output format:
+```json
+{"role": "user", "content": "Please fix the github issue 38", "timestamp": "..."}
+{"role": "assistant", "content": "I'll check the issue first", "tool_calls": [...]}
+{"role": "tool", "content": "Result of tool call: ...", "tool_call_id": "..."}
+```
 
 ## Security
 
