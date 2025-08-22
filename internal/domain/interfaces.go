@@ -89,9 +89,19 @@ type ChatMetrics struct {
 	Usage    *sdk.CompletionUsage
 }
 
+// ChatSyncResponse represents a synchronous chat completion response
+type ChatSyncResponse struct {
+	RequestID string                              `json:"request_id"`
+	Content   string                              `json:"content"`
+	ToolCalls []sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
+	Usage     *sdk.CompletionUsage                `json:"usage,omitempty"`
+	Duration  time.Duration                       `json:"duration"`
+}
+
 // ChatService handles chat completion operations
 type ChatService interface {
 	SendMessage(ctx context.Context, requestID string, model string, messages []sdk.Message) (<-chan ChatEvent, error)
+	SendMessageSync(ctx context.Context, requestID string, model string, messages []sdk.Message) (*ChatSyncResponse, error)
 	CancelRequest(requestID string) error
 	GetMetrics(requestID string) *ChatMetrics
 }

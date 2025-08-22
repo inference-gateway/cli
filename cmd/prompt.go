@@ -25,11 +25,12 @@ until the task is considered complete. Particularly useful for SCM tickets like 
 
 Examples:
   infer prompt "Please fix the github issue 38"
-  infer prompt "Implement the feature described in issue #42"
+  infer prompt --model "openai/gpt-4" "Implement the feature described in issue #42"
   infer prompt "Debug the failing test in PR 15"`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runPromptCommand(args[0])
+		model, _ := cmd.Flags().GetString("model")
+		return runPromptCommand(args[0], model)
 	},
 }
 
@@ -54,7 +55,7 @@ type PromptSession struct {
 	completedTurns int
 }
 
-func runPromptCommand(promptText string) error {
+func runPromptCommand(promptText string, modelFlag string) error {
 	cfg, err := config.LoadConfig("")
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -74,20 +75,20 @@ func runPromptCommand(promptText string) error {
 		return fmt.Errorf("no models available from inference gateway")
 	}
 
-	defaultModel := cfg.Chat.DefaultModel
-	if defaultModel == "" || !isModelAvailable(models, defaultModel) {
-		defaultModel = models[0]
+	selectedModel, err := selectModel(models, modelFlag, cfg.Chat.DefaultModel)
+	if err != nil {
+		return err
 	}
 
 	session := &PromptSession{
 		services:     services,
-		model:        defaultModel,
+		model:        selectedModel,
 		sessionID:    uuid.New().String(),
 		maxTurns:     20,
 		conversation: []ConversationMessage{},
 	}
 
-	logger.Info("Starting prompt session", "session_id", session.sessionID, "model", defaultModel)
+	logger.Info("Starting prompt session", "session_id", session.sessionID, "model", selectedModel)
 
 	return session.execute(promptText)
 }
@@ -128,12 +129,12 @@ func (s *PromptSession) executeTurn() error {
 
 	messages := s.buildSDKMessages()
 
-	events, err := s.services.GetChatService().SendMessage(ctx, requestID, s.model, messages)
+	response, err := s.services.GetChatService().SendMessageSync(ctx, requestID, s.model, messages)
 	if err != nil {
 		return fmt.Errorf("failed to send message: %w", err)
 	}
 
-	return s.processEvents(events, requestID)
+	return s.processSyncResponse(response, requestID)
 }
 
 func (s *PromptSession) buildSDKMessages() []sdk.Message {
@@ -173,79 +174,44 @@ func (s *PromptSession) buildSDKMessages() []sdk.Message {
 	return messages
 }
 
-func (s *PromptSession) processEvents(events <-chan domain.ChatEvent, requestID string) error {
-	var assistantMessage ConversationMessage
-	var toolCalls []sdk.ChatCompletionMessageToolCall
-	var content strings.Builder
-
-	assistantMessage = ConversationMessage{
-		Role:      "assistant",
-		RequestID: requestID,
-		Timestamp: time.Now(),
+func (s *PromptSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
+	if response.Content != "" {
+		assistantMsg := ConversationMessage{
+			Role:       "assistant",
+			Content:    response.Content,
+			TokenUsage: response.Usage,
+			Timestamp:  time.Now(),
+			RequestID:  requestID,
+		}
+		s.addMessage(assistantMsg)
+		s.outputMessage(assistantMsg)
 	}
 
-	for event := range events {
-		switch e := event.(type) {
-		case domain.ChatChunkEvent:
-			if e.Content != "" {
-				content.WriteString(e.Content)
-			}
-
-		case domain.ToolCallEvent:
-			toolCall := sdk.ChatCompletionMessageToolCall{
-				Id:   e.ToolCallID,
-				Type: sdk.Function,
-				Function: sdk.ChatCompletionMessageToolCallFunction{
-					Name:      e.ToolName,
-					Arguments: e.Args,
-				},
-			}
-			toolCalls = append(toolCalls, toolCall)
-
-			toolCallMsg := ConversationMessage{
-				Role:      "assistant",
-				Content:   "",
-				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{toolCall},
-				Timestamp: time.Now(),
-				RequestID: requestID,
-			}
-
-			s.addMessage(toolCallMsg)
-			s.outputMessage(toolCallMsg)
-
-			result, err := s.executeToolCall(e.ToolName, e.Args)
-			if err != nil {
-				logger.Error("Tool execution failed", "tool", e.ToolName, "error", err)
-				continue
-			}
-
-			toolResultMsg := ConversationMessage{
-				Role:       "tool",
-				Content:    s.formatToolResult(result),
-				ToolCallID: e.ToolCallID,
-				Timestamp:  time.Now(),
-			}
-
-			s.addMessage(toolResultMsg)
-			s.outputMessage(toolResultMsg)
-
-		case domain.ChatCompleteEvent:
-			assistantMessage.Content = content.String()
-			if len(toolCalls) > 0 {
-				assistantMessage.ToolCalls = &toolCalls
-			}
-			if e.Metrics != nil && e.Metrics.Usage != nil {
-				assistantMessage.TokenUsage = e.Metrics.Usage
-			}
-
-			if assistantMessage.Content != "" || assistantMessage.ToolCalls != nil {
-				s.addMessage(assistantMessage)
-				s.outputMessage(assistantMessage)
-			}
-
-		case domain.ChatErrorEvent:
-			return fmt.Errorf("chat error: %v", e.Error)
+	for _, toolCall := range response.ToolCalls {
+		toolCallMsg := ConversationMessage{
+			Role:      "assistant",
+			Content:   "",
+			ToolCalls: &[]sdk.ChatCompletionMessageToolCall{toolCall},
+			Timestamp: time.Now(),
+			RequestID: requestID,
 		}
+		s.addMessage(toolCallMsg)
+		s.outputMessage(toolCallMsg)
+
+		result, err := s.executeToolCall(toolCall.Function.Name, toolCall.Function.Arguments)
+		if err != nil {
+			logger.Error("Tool execution failed", "tool", toolCall.Function.Name, "error", err)
+			continue
+		}
+
+		toolResultMsg := ConversationMessage{
+			Role:       "tool",
+			Content:    s.formatToolResult(result),
+			ToolCallID: toolCall.Id,
+			Timestamp:  time.Now(),
+		}
+		s.addMessage(toolResultMsg)
+		s.outputMessage(toolResultMsg)
 	}
 
 	return nil
@@ -351,6 +317,24 @@ func (s *PromptSession) isTaskComplete() bool {
 	return false
 }
 
+func selectModel(models []string, modelFlag, defaultModel string) (string, error) {
+	if modelFlag != "" {
+		if !isModelAvailable(models, modelFlag) {
+			return "", fmt.Errorf("model '%s' is not available. Available models: %v", modelFlag, models)
+		}
+		return modelFlag, nil
+	}
+
+	if defaultModel != "" {
+		if !isModelAvailable(models, defaultModel) {
+			return "", fmt.Errorf("default model '%s' is not available. Available models: %v", defaultModel, models)
+		}
+		return defaultModel, nil
+	}
+
+	return "", fmt.Errorf("no model specified. Please use --model flag or set a default model with 'infer config set-model <model>'")
+}
+
 func isModelAvailable(models []string, targetModel string) bool {
 	for _, model := range models {
 		if model == targetModel {
@@ -361,5 +345,6 @@ func isModelAvailable(models []string, targetModel string) bool {
 }
 
 func init() {
+	promptCmd.Flags().StringP("model", "m", "", "Model to use for the prompt (e.g., openai/gpt-4)")
 	rootCmd.AddCommand(promptCmd)
 }

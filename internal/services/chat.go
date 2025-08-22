@@ -76,6 +76,51 @@ func (s *StreamingChatService) SendMessage(ctx context.Context, requestID string
 	return events, nil
 }
 
+func (s *StreamingChatService) SendMessageSync(ctx context.Context, requestID string, model string, messages []sdk.Message) (*domain.ChatSyncResponse, error) {
+	if err := s.validateSendMessageParams(model, messages); err != nil {
+		return nil, err
+	}
+
+	messages = s.addToolsIfAvailable(messages)
+
+	logger.Info("LLM Request (Sync)",
+		"request_id", requestID,
+		"model", model,
+		"messages", messages)
+
+	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
+	defer cancel()
+
+	startTime := time.Now()
+
+	response, err := s.generateContentSync(timeoutCtx, model, messages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate content: %w", err)
+	}
+
+	duration := time.Since(startTime)
+
+	var content string
+	var toolCalls []sdk.ChatCompletionMessageToolCall
+
+	if len(response.Choices) > 0 {
+		choice := response.Choices[0]
+		content = choice.Message.Content
+
+		if choice.Message.ToolCalls != nil {
+			toolCalls = *choice.Message.ToolCalls
+		}
+	}
+
+	return &domain.ChatSyncResponse{
+		RequestID: requestID,
+		Content:   content,
+		ToolCalls: toolCalls,
+		Usage:     response.Usage,
+		Duration:  duration,
+	}, nil
+}
+
 func (s *StreamingChatService) validateSendMessageParams(model string, messages []sdk.Message) error {
 	if len(messages) == 0 {
 		return fmt.Errorf("no messages provided")
@@ -206,6 +251,27 @@ func (s *StreamingChatService) createContentStream(timeoutCtx context.Context, m
 	}
 
 	return stream, nil
+}
+
+func (s *StreamingChatService) generateContentSync(timeoutCtx context.Context, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
+	provider, modelName, err := s.parseProvider(model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
+	}
+
+	providerType := sdk.Provider(provider)
+
+	clientWithTools := s.client
+	if tools := s.convertToSDKTools(); tools != nil {
+		clientWithTools = s.client.WithTools(tools)
+	}
+
+	response, err := clientWithTools.GenerateContent(timeoutCtx, providerType, modelName, messages)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate content: %w", err)
+	}
+
+	return response, nil
 }
 
 func (s *StreamingChatService) sendErrorEvent(events chan<- domain.ChatEvent, requestID string, err error) {
@@ -403,11 +469,7 @@ func (s *StreamingChatService) processContentDelta(event sdk.SSEvent, toolCallsM
 		extractedReasoning := s.extractReasoningContent((*json.RawMessage)(event.Data), choice)
 		reasoningContent += extractedReasoning
 		hasToolCalls = s.processToolCalls(choice.Delta.ToolCalls, toolCallsMap, events, requestID) || hasToolCalls
-
-		// Remove verbose delta logging
 	}
-
-	// Remove response logging
 
 	return content, reasoningContent, streamResponse.Usage, hasToolCalls
 }
@@ -545,5 +607,3 @@ func (s *StreamingChatService) isToolCallComplete(args, funcName string) bool {
 	var temp any
 	return json.Unmarshal([]byte(args), &temp) == nil
 }
-
-// generateRequestID generates a unique request ID
