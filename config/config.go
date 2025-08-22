@@ -577,12 +577,12 @@ func (c *Config) GetDefaultModel() string {
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories
 func (c *Config) ValidatePathInSandbox(path string) error {
-	if len(c.Tools.Sandbox.Directories) == 0 {
-		return fmt.Errorf("no sandbox directories configured")
-	}
-
 	if err := c.checkProtectedPaths(path); err != nil {
 		return err
+	}
+
+	if len(c.Tools.Sandbox.Directories) == 0 {
+		return nil
 	}
 
 	absPath, err := filepath.Abs(path)
@@ -614,29 +614,36 @@ func (c *Config) checkProtectedPaths(path string) error {
 	normalizedPath := filepath.ToSlash(filepath.Clean(path))
 
 	for _, protectedPath := range c.Tools.Sandbox.ProtectedPaths {
-		if normalizedPath == strings.TrimSuffix(protectedPath, "/") {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
 		if strings.HasSuffix(protectedPath, "/") {
 			dirPattern := strings.TrimSuffix(protectedPath, "/")
+			if strings.Contains(normalizedPath, "/"+dirPattern+"/") || strings.HasSuffix(normalizedPath, "/"+dirPattern) {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
 			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
+		}
+
+		if strings.Contains(protectedPath, "*") && !strings.HasSuffix(protectedPath, "/*") {
+			matched, err := filepath.Match(protectedPath, filepath.Base(normalizedPath))
+			if err == nil && matched {
 				return fmt.Errorf("access to path '%s' is excluded for security", path)
 			}
 		}
 
 		if strings.HasSuffix(protectedPath, "/*") {
 			dirPattern := strings.TrimSuffix(protectedPath, "/*")
+			if strings.Contains(normalizedPath, "/"+dirPattern+"/") || strings.HasSuffix(normalizedPath, "/"+dirPattern) {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
 			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
 				return fmt.Errorf("access to path '%s' is excluded for security", path)
 			}
 		}
 
-		if strings.Contains(protectedPath, "*") {
-			matched, err := filepath.Match(protectedPath, filepath.Base(normalizedPath))
-			if err == nil && matched {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
+		cleanProtectedPath := strings.TrimSuffix(protectedPath, "/")
+		if normalizedPath == cleanProtectedPath || strings.HasSuffix(normalizedPath, "/"+cleanProtectedPath) {
+			return fmt.Errorf("access to path '%s' is excluded for security", path)
 		}
 	}
 
