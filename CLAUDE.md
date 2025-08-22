@@ -91,6 +91,7 @@ The `infer prompt` command runs in background mode to iteratively solve tasks:
 - **Completion Detection**: Automatically detects when task is complete
 
 Example JSON output format:
+
 ```json
 {"role": "user", "content": "Please fix the github issue 38", "timestamp": "..."}
 {"role": "assistant", "content": "I'll check the issue first", "tool_calls": [...]}
