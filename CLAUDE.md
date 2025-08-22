@@ -49,7 +49,7 @@ internal/:
 - `infer config tools safety [enable|disable|status|set|unset]`
 - `infer config tools sandbox [list|add|remove]`
 - `infer chat`: Interactive chat (with token tracking)
-- `infer prompt "text"`: Background mode for one-off tasks (JSON output)
+- `infer agent "text"`: Background mode for one-off tasks (JSON output)
 - `infer status`: Gateway status
 
 ## Chat Features
@@ -79,11 +79,11 @@ Features:
 - Structured argument parsing: `key="value"` format
 - Error handling and validation
 
-## Background Mode (Prompt Command)
+## Background Mode (Agent Command)
 
-The `infer prompt` command runs in background mode to iteratively solve tasks:
+The `infer agent` command runs in background mode to iteratively solve tasks:
 
-- **Usage**: `infer prompt "Please fix the github issue 38"`
+- **Usage**: `infer agent "Please fix the github issue 38"`
 - **Output**: JSON conversation format showing all interactions
 - **Features**: Automatic tool execution, iterative problem solving
 - **SCM Integration**: Recognizes GitHub issue references and works to resolution
