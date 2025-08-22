@@ -22,6 +22,7 @@ type StreamingChatService struct {
 	client         sdk.Client
 	toolService    domain.ToolService
 	systemPrompt   string
+	retryConfig    *sdk.RetryConfig
 
 	// Request tracking
 	activeRequests map[string]context.CancelFunc
@@ -33,7 +34,7 @@ type StreamingChatService struct {
 }
 
 // NewStreamingChatService creates a new streaming chat service
-func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolService domain.ToolService, systemPrompt string, retryConfig RetryConfig) *StreamingChatService {
+func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolService domain.ToolService, systemPrompt string, retryConfig *sdk.RetryConfig) *StreamingChatService {
 	if !strings.HasSuffix(baseURL, "/v1") {
 		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
 	}
@@ -41,6 +42,7 @@ func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolSer
 	client := sdk.NewClient(&sdk.ClientOptions{
 		BaseURL: baseURL,
 		APIKey:  apiKey,
+		RetryConfig: retryConfig,
 	})
 
 	return &StreamingChatService{
@@ -50,6 +52,7 @@ func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolSer
 		client:         client,
 		toolService:    toolService,
 		systemPrompt:   systemPrompt,
+		retryConfig:    retryConfig,
 		activeRequests: make(map[string]context.CancelFunc),
 		metrics:        make(map[string]*domain.ChatMetrics),
 	}

@@ -7,6 +7,7 @@ import (
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/services/tools"
 	"github.com/inference-gateway/cli/internal/ui"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // ServiceContainer manages all application dependencies
@@ -62,7 +63,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.URL,
 		c.config.Gateway.APIKey,
 		c.config.Gateway.Timeout,
-		services.RetryConfig{
+		&sdk.RetryConfig{
 			Enabled:           c.config.Gateway.Retry.Enabled,
 			MaxAttempts:       c.config.Gateway.Retry.MaxAttempts,
 			InitialBackoffSec: c.config.Gateway.Retry.InitialBackoffSec,
@@ -83,7 +84,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.Timeout,
 		c.toolService,
 		c.config.Chat.SystemPrompt,
-		services.RetryConfig{
+		&sdk.RetryConfig{
 			Enabled:           c.config.Gateway.Retry.Enabled,
 			MaxAttempts:       c.config.Gateway.Retry.MaxAttempts,
 			InitialBackoffSec: c.config.Gateway.Retry.InitialBackoffSec,
