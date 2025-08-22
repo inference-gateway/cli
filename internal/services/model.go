@@ -22,7 +22,6 @@ type HTTPModelService struct {
 	cacheTTL  time.Duration
 }
 
-
 // NewHTTPModelService creates a new HTTP-based model service
 func NewHTTPModelService(baseURL, apiKey string, timeoutSeconds int, retryConfig *sdk.RetryConfig) *HTTPModelService {
 	if !strings.HasSuffix(baseURL, "/v1") {
@@ -30,8 +29,8 @@ func NewHTTPModelService(baseURL, apiKey string, timeoutSeconds int, retryConfig
 	}
 
 	client := sdk.NewClient(&sdk.ClientOptions{
-		BaseURL: baseURL,
-		APIKey:  apiKey,
+		BaseURL:     baseURL,
+		APIKey:      apiKey,
 		RetryConfig: retryConfig,
 	})
 

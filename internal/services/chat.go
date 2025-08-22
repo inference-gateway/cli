@@ -40,8 +40,8 @@ func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolSer
 	}
 
 	client := sdk.NewClient(&sdk.ClientOptions{
-		BaseURL: baseURL,
-		APIKey:  apiKey,
+		BaseURL:     baseURL,
+		APIKey:      apiKey,
 		RetryConfig: retryConfig,
 	})
 
