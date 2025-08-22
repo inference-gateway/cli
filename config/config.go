@@ -196,7 +196,6 @@ type SystemRemindersConfig struct {
 
 // ChatConfig contains chat-related settings
 type ChatConfig struct {
-	Optimization OptimizationConfig `yaml:"optimization"`
 }
 
 // AgentConfig contains agent command-specific settings
@@ -205,6 +204,7 @@ type AgentConfig struct {
 	SystemPrompt    string                `yaml:"system_prompt"`
 	SystemReminders SystemRemindersConfig `yaml:"system_reminders"`
 	VerboseTools    bool                  `yaml:"verbose_tools"`
+	Optimization    OptimizationConfig    `yaml:"optimization"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -347,15 +347,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			OutputDir:    ".infer",
 			SummaryModel: "",
 		},
-		Chat: ChatConfig{
-			Optimization: OptimizationConfig{
-				Enabled:                    false,
-				MaxHistory:                 10,
-				CompactThreshold:           20,
-				TruncateLargeOutputs:       true,
-				SkipRedundantConfirmations: true,
-			},
-		},
+		Chat: ChatConfig{},
 		Agent: AgentConfig{
 			Model: "",
 			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion.
@@ -402,6 +394,13 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 </system-reminder>`,
 			},
 			VerboseTools: false,
+			Optimization: OptimizationConfig{
+				Enabled:                    false,
+				MaxHistory:                 10,
+				CompactThreshold:           20,
+				TruncateLargeOutputs:       true,
+				SkipRedundantConfirmations: true,
+			},
 		},
 	}
 }
