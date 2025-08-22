@@ -192,6 +192,12 @@ type ChatConfig struct {
 	SystemPrompt    string                `yaml:"system_prompt"`
 	Optimization    OptimizationConfig    `yaml:"optimization"`
 	SystemReminders SystemRemindersConfig `yaml:"system_reminders"`
+	Prompt          PromptConfig          `yaml:"prompt"`
+}
+
+// PromptConfig contains prompt command-specific settings
+type PromptConfig struct {
+	VerboseTools bool `yaml:"verbose_tools"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -381,6 +387,9 @@ EXAMPLE:
 				ReminderText: `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>`,
+			},
+			Prompt: PromptConfig{
+				VerboseTools: false,
 			},
 		},
 	}

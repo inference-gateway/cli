@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"regexp"
-	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -39,10 +37,12 @@ type ConversationMessage struct {
 	Role       string                               `json:"role"`
 	Content    string                               `json:"content"`
 	ToolCalls  *[]sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
+	Tools      []string                             `json:"tools,omitempty"`
 	ToolCallID string                               `json:"tool_call_id,omitempty"`
 	TokenUsage *sdk.CompletionUsage                 `json:"token_usage,omitempty"`
 	Timestamp  time.Time                            `json:"timestamp"`
 	RequestID  string                               `json:"request_id,omitempty"`
+	Internal   bool                                 `json:"-"` // Internal messages are not output to JSON
 }
 
 // PromptSession manages the background execution session
@@ -53,6 +53,7 @@ type PromptSession struct {
 	sessionID      string
 	maxTurns       int
 	completedTurns int
+	config         *config.Config
 }
 
 func runPromptCommand(promptText string, modelFlag string) error {
@@ -86,6 +87,7 @@ func runPromptCommand(promptText string, modelFlag string) error {
 		sessionID:    uuid.New().String(),
 		maxTurns:     20,
 		conversation: []ConversationMessage{},
+		config:       cfg,
 	}
 
 	logger.Info("Starting prompt session", "session_id", session.sessionID, "model", selectedModel)
@@ -102,6 +104,8 @@ func (s *PromptSession) execute(promptText string) error {
 
 	s.outputMessage(s.conversation[len(s.conversation)-1])
 
+	consecutiveNoToolCalls := 0
+
 	for s.completedTurns < s.maxTurns {
 		if err := s.executeTurn(); err != nil {
 			logger.Error("Turn execution failed", "error", err, "turn", s.completedTurns)
@@ -110,9 +114,23 @@ func (s *PromptSession) execute(promptText string) error {
 
 		s.completedTurns++
 
-		if s.isTaskComplete() {
-			logger.Info("Task appears to be complete", "turns", s.completedTurns)
-			break
+		if s.lastResponseHadNoToolCalls() {
+			consecutiveNoToolCalls++
+
+			if consecutiveNoToolCalls >= 2 {
+				logger.Info("Task appears complete (no more tool calls)", "turns", s.completedTurns)
+				break
+			}
+
+			verifyMsg := ConversationMessage{
+				Role:      "user",
+				Content:   "Is there anything else that needs to be done to complete this task? If not, simply confirm the task is complete. If there is more work, please continue.",
+				Timestamp: time.Now(),
+				Internal:  true,
+			}
+			s.addMessage(verifyMsg)
+		} else {
+			consecutiveNoToolCalls = 0
 		}
 	}
 
@@ -249,7 +267,22 @@ func (s *PromptSession) addMessage(msg ConversationMessage) {
 }
 
 func (s *PromptSession) outputMessage(msg ConversationMessage) {
-	output, err := json.Marshal(msg)
+	if msg.Role == "system" || msg.Internal {
+		return
+	}
+
+	logMsg := msg
+
+	if !s.config.Chat.Prompt.VerboseTools && msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
+		toolNames := make([]string, len(*msg.ToolCalls))
+		for i, toolCall := range *msg.ToolCalls {
+			toolNames[i] = toolCall.Function.Name
+		}
+		logMsg.ToolCalls = nil
+		logMsg.Tools = toolNames
+	}
+
+	output, err := json.Marshal(logMsg)
 	if err != nil {
 		logger.Error("Failed to marshal message", "error", err)
 		return
@@ -258,59 +291,15 @@ func (s *PromptSession) outputMessage(msg ConversationMessage) {
 	fmt.Println(string(output))
 }
 
-func (s *PromptSession) isTaskComplete() bool {
+func (s *PromptSession) lastResponseHadNoToolCalls() bool {
 	if len(s.conversation) < 2 {
 		return false
 	}
 
-	lastMsg := s.conversation[len(s.conversation)-1]
-	if lastMsg.Role != "assistant" {
-		return false
-	}
-
-	content := strings.ToLower(lastMsg.Content)
-
-	completionIndicators := []string{
-		"task complete",
-		"task is complete",
-		"issue has been fixed",
-		"issue is fixed",
-		"problem has been resolved",
-		"problem is resolved",
-		"implementation complete",
-		"implementation is complete",
-		"fix has been applied",
-		"fix applied",
-		"successfully implemented",
-		"successfully fixed",
-		"done",
-		"finished",
-		"completed",
-	}
-
-	for _, indicator := range completionIndicators {
-		if strings.Contains(content, indicator) {
-			return true
-		}
-	}
-
-	githubIssuePattern := regexp.MustCompile(`(?i)(issue\s+#?\d+|github\s+issue\s+#?\d+).*(?:fixed|resolved|completed|closed|done)`)
-	if githubIssuePattern.MatchString(content) {
-		return true
-	}
-
-	if s.completedTurns > 3 && lastMsg.ToolCalls == nil {
-		noActionIndicators := []string{
-			"no further action",
-			"no additional steps",
-			"nothing more to do",
-			"task appears complete",
-		}
-
-		for _, indicator := range noActionIndicators {
-			if strings.Contains(content, indicator) {
-				return true
-			}
+	for i := len(s.conversation) - 1; i >= 0; i-- {
+		msg := s.conversation[i]
+		if msg.Role == "assistant" {
+			return msg.ToolCalls == nil || len(*msg.ToolCalls) == 0
 		}
 	}
 

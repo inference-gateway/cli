@@ -450,6 +450,42 @@ func setSystemPrompt(systemPrompt string) error {
 	return nil
 }
 
+var configPromptCmd = &cobra.Command{
+	Use:   "prompt",
+	Short: "Configure prompt command settings",
+	Long:  "Configure settings specific to the prompt command",
+}
+
+var configPromptVerboseToolsCmd = &cobra.Command{
+	Use:   "verbose-tools [enable|disable]",
+	Short: "Enable or disable verbose tool output in prompt logs",
+	Long:  "Control whether the prompt command shows full tool details or just tool names in the output",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := config.LoadConfig("")
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		switch args[0] {
+		case "enable":
+			cfg.Chat.Prompt.VerboseTools = true
+			fmt.Println("✅ Verbose tools output enabled for prompt command")
+		case "disable":
+			cfg.Chat.Prompt.VerboseTools = false
+			fmt.Println("✅ Verbose tools output disabled for prompt command (will show tool names only)")
+		default:
+			return fmt.Errorf("invalid argument: %s. Use 'enable' or 'disable'", args[0])
+		}
+
+		if err := cfg.SaveConfig(""); err != nil {
+			return fmt.Errorf("failed to save config: %w", err)
+		}
+
+		return nil
+	},
+}
+
 func init() {
 	configCmd.AddCommand(setModelCmd)
 	configCmd.AddCommand(setSystemCmd)
@@ -458,6 +494,7 @@ func init() {
 	configCmd.AddCommand(configFetchCmd)
 	configCmd.AddCommand(configOptimizationCmd)
 	configCmd.AddCommand(configCompactCmd)
+	configCmd.AddCommand(configPromptCmd)
 
 	configToolsCmd.AddCommand(configToolsEnableCmd)
 	configToolsCmd.AddCommand(configToolsDisableCmd)
@@ -513,6 +550,8 @@ func init() {
 	configToolsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	configToolsExecCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	configFetchListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+
+	configPromptCmd.AddCommand(configPromptVerboseToolsCmd)
 
 	rootCmd.AddCommand(configCmd)
 }

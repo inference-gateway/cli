@@ -77,56 +77,6 @@ func TestBuildSDKMessages(t *testing.T) {
 	}
 }
 
-func TestIsTaskComplete(t *testing.T) {
-	tests := []struct {
-		name         string
-		conversation []ConversationMessage
-		expected     bool
-	}{
-		{
-			name: "Task completed - direct indicator",
-			conversation: []ConversationMessage{
-				{Role: "user", Content: "Fix issue 38"},
-				{Role: "assistant", Content: "The task is complete and the issue has been fixed."},
-			},
-			expected: true,
-		},
-		{
-			name: "Task not completed - no indicators",
-			conversation: []ConversationMessage{
-				{Role: "user", Content: "Fix issue 38"},
-				{Role: "assistant", Content: "I'm working on this issue."},
-			},
-			expected: false,
-		},
-		{
-			name:         "Empty conversation",
-			conversation: []ConversationMessage{},
-			expected:     false,
-		},
-		{
-			name: "Last message is not assistant",
-			conversation: []ConversationMessage{
-				{Role: "user", Content: "Fix issue 38"},
-				{Role: "tool", Content: "Some tool result"},
-			},
-			expected: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			session := &PromptSession{
-				conversation: tt.conversation,
-			}
-
-			result := session.isTaskComplete()
-			if result != tt.expected {
-				t.Errorf("isTaskComplete() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
 
 func mockTime() time.Time {
 	return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
