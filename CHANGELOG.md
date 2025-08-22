@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.36.0](https://github.com/inference-gateway/cli/compare/v0.35.0...v0.36.0) (2025-08-22)
+
+### 🚀 Features
+
+* Implement one-off prompt background mode ([#101](https://github.com/inference-gateway/cli/issues/101)) ([3c26706](https://github.com/inference-gateway/cli/commit/3c26706520f293ebe289eae6986333c0c5683743)), closes [#22](https://github.com/inference-gateway/cli/issues/22)
+
+### 🧹 Maintenance
+
+* Update inference-gateway/sdk dependency to v1.12.0 ([debc905](https://github.com/inference-gateway/cli/commit/debc905ea7bd3f93872732a6e93512d44fbfff03))
+
 ## [0.35.0](https://github.com/inference-gateway/cli/compare/v0.34.0...v0.35.0) (2025-08-21)
 
 ### 🚀 Features
