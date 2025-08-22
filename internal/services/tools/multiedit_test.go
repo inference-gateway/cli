@@ -695,3 +695,395 @@ func TestMultiEditTool_IsEnabled(t *testing.T) {
 		t.Error("Tool should be disabled when edit tool is disabled")
 	}
 }
+
+func TestMultiEditTool_Execute_WithLineNumbers(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "multiedit_linenum_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
+	testFile := filepath.Join(tmpDir, "test.go")
+	originalContent := `package main
+
+import "fmt"
+
+func oldFunction() {
+	fmt.Println("This is the old function")
+}
+
+func anotherFunction() {
+	fmt.Println("Another function here")
+	oldFunction()
+}
+
+var oldVariable = "old value"
+
+func main() {
+	fmt.Println("Starting program")
+	oldFunction()
+	fmt.Println(oldVariable)
+}`
+
+	err = os.WriteFile(testFile, []byte(originalContent), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
+			Edit: config.EditToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	mockTracker := &MockReadToolTracker{readToolUsed: true}
+	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+
+	args := map[string]any{
+		"file_path": testFile,
+		"edits": []any{
+			map[string]any{
+				"old_string": "     5\tfunc oldFunction() {",
+				"new_string": "func newFunction() {",
+			},
+		},
+	}
+
+	result, err := tool.Execute(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Execute should not return error: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Execute should succeed with line number cleaning, got error: %s", result.Error)
+	}
+
+	newContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedContent := `package main
+
+import "fmt"
+
+func newFunction() {
+	fmt.Println("This is the old function")
+}
+
+func anotherFunction() {
+	fmt.Println("Another function here")
+	oldFunction()
+}
+
+var oldVariable = "old value"
+
+func main() {
+	fmt.Println("Starting program")
+	oldFunction()
+	fmt.Println(oldVariable)
+}`
+
+	if string(newContent) != expectedContent {
+		t.Errorf("Expected content:\n%s\nGot:\n%s", expectedContent, string(newContent))
+	}
+}
+
+func TestMultiEditTool_Execute_UserReportedCase(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "multiedit_user_case_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
+	testFile := filepath.Join(tmpDir, "test.go")
+	originalContent := `package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("Hello, World!")
+}`
+
+	err = os.WriteFile(testFile, []byte(originalContent), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
+			Edit: config.EditToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	mockTracker := &MockReadToolTracker{readToolUsed: true}
+	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+
+	args := map[string]any{
+		"file_path": testFile,
+		"edits": []any{
+			map[string]any{
+				"old_string": "package main\n\nimport \"fmt\"\n\nfunc main() {",
+				"new_string": "package main\n\nimport \"fmt\"\n\n// This is a test comment\nfunc main() {",
+			},
+			map[string]any{
+				"old_string": "\tfmt.Println(\"Hello, World!\")",
+				"new_string": "\tfmt.Println(\"Hello, MultiEdit!\")",
+			},
+		},
+	}
+
+	result, err := tool.Execute(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Execute should not return error: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Execute should succeed with the improved MultiEdit tool, got error: %s", result.Error)
+	}
+
+	currentContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedContent := `package main
+
+import "fmt"
+
+// This is a test comment
+func main() {
+	fmt.Println("Hello, MultiEdit!")
+}`
+
+	if string(currentContent) != expectedContent {
+		t.Errorf("Expected content:\n%s\nGot:\n%s", expectedContent, string(currentContent))
+	}
+}
+
+func TestMultiEditTool_Execute_UserCaseCorrected(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "multiedit_user_case_corrected_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
+	testFile := filepath.Join(tmpDir, "test.go")
+	originalContent := `package main
+
+import "fmt"
+
+func main() {
+	fmt.Println("Hello, World!")
+}`
+
+	err = os.WriteFile(testFile, []byte(originalContent), 0644)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
+			Edit: config.EditToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	mockTracker := &MockReadToolTracker{readToolUsed: true}
+	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+
+	args := map[string]any{
+		"file_path": testFile,
+		"edits": []any{
+			map[string]any{
+				"old_string": "import \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"Hello, World!\")\n}",
+				"new_string": "import \"fmt\"\n\n// This is a test comment\nfunc main() {\n\tfmt.Println(\"Hello, MultiEdit!\")\n}",
+			},
+		},
+	}
+
+	result, err := tool.Execute(context.Background(), args)
+	if err != nil {
+		t.Fatalf("Execute should not return error: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Execute should succeed with corrected approach, got error: %s", result.Error)
+	}
+
+	newContent, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expectedContent := `package main
+
+import "fmt"
+
+// This is a test comment
+func main() {
+	fmt.Println("Hello, MultiEdit!")
+}`
+
+	if string(newContent) != expectedContent {
+		t.Errorf("Expected content:\n%s\nGot:\n%s", expectedContent, string(newContent))
+	}
+}
+
+func TestMultiEditTool_EdgeCases(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "multiedit_edge_cases_test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.RemoveAll(tmpDir); err != nil {
+			t.Logf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Sandbox: config.SandboxConfig{
+				Directories: []string{tmpDir},
+			},
+			Edit: config.EditToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	mockTracker := &MockReadToolTracker{readToolUsed: true}
+	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
+
+	t.Run("Sequential edits with dependencies fail gracefully", func(t *testing.T) {
+		testFile := filepath.Join(tmpDir, "deps.go")
+		content := "func oldName() {}\nvar x = oldName"
+		err := os.WriteFile(testFile, []byte(content), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		args := map[string]any{
+			"file_path": testFile,
+			"edits": []any{
+				map[string]any{
+					"old_string":  "oldName",
+					"new_string":  "newName",
+					"replace_all": true,
+				},
+				map[string]any{
+					"old_string": "oldName",
+					"new_string": "anotherName",
+				},
+			},
+		}
+
+		result, err := tool.Execute(context.Background(), args)
+		if err != nil {
+			t.Fatalf("Execute should not return error: %v", err)
+		}
+
+		if result.Success {
+			t.Error("Execute should fail when later edits reference already-changed content")
+		}
+
+		if !strings.Contains(result.Error, "old_string not found") {
+			t.Errorf("Error should mention old_string not found, got: %s", result.Error)
+		}
+	})
+
+	t.Run("Multiple line edit with proper indentation", func(t *testing.T) {
+		testFile := filepath.Join(tmpDir, "multiline.go")
+		content := `func example() {
+	if true {
+		doSomething()
+	}
+}`
+		err := os.WriteFile(testFile, []byte(content), 0644)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		args := map[string]any{
+			"file_path": testFile,
+			"edits": []any{
+				map[string]any{
+					"old_string": "if true {\n\t\tdoSomething()\n\t}",
+					"new_string": "if false {\n\t\tdoNothing()\n\t}",
+				},
+			},
+		}
+
+		result, err := tool.Execute(context.Background(), args)
+		if err != nil {
+			t.Fatalf("Execute should not return error: %v", err)
+		}
+
+		if !result.Success {
+			t.Errorf("Execute should succeed with proper multiline edit, got error: %s", result.Error)
+		}
+	})
+
+	t.Run("Empty old_string for file creation", func(t *testing.T) {
+		testFile := filepath.Join(tmpDir, "new.go")
+
+		args := map[string]any{
+			"file_path": testFile,
+			"edits": []any{
+				map[string]any{
+					"old_string": "",
+					"new_string": "package main\n\nfunc main() {}",
+				},
+			},
+		}
+
+		result, err := tool.Execute(context.Background(), args)
+		if err != nil {
+			t.Fatalf("Execute should not return error: %v", err)
+		}
+
+		if !result.Success {
+			t.Errorf("Execute should succeed for new file creation, got error: %s", result.Error)
+		}
+
+		content, err := os.ReadFile(testFile)
+		if err != nil {
+			t.Fatal("New file should be created")
+		}
+
+		expected := "package main\n\nfunc main() {}"
+		if string(content) != expected {
+			t.Errorf("Expected: %s, Got: %s", expected, string(content))
+		}
+	})
+}

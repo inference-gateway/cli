@@ -47,7 +47,7 @@ func initializeProject(cmd *cobra.Command) error {
 	}
 
 	gitignoreContent := `# Ignore log files and history files
-*.log
+logs/*.log
 history
 chat_export_*
 `

@@ -553,6 +553,11 @@ func (t *WriteTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
 }
 
+// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+func (t *WriteTool) ShouldAlwaysExpand() bool {
+	return false
+}
+
 // FormatArgumentsForApproval formats arguments for approval display with full content preview
 func (t *WriteTool) FormatArgumentsForApproval(args map[string]any) string {
 	var b strings.Builder

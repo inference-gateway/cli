@@ -594,6 +594,11 @@ func (t *EditTool) ShouldCollapseArg(key string) bool {
 	return key == "old_string" || key == "new_string"
 }
 
+// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+func (t *EditTool) ShouldAlwaysExpand() bool {
+	return false
+}
+
 // formatEditData formats edit-specific data
 func (t *EditTool) formatEditData(data any) string {
 	editResult, ok := data.(*domain.EditToolResult)

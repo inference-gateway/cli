@@ -2,20 +2,17 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
+
+	sdk "github.com/inference-gateway/sdk"
 )
 
-// HTTPModelService implements ModelService using HTTP API calls
+// HTTPModelService implements ModelService using SDK client
 type HTTPModelService struct {
-	baseURL   string
-	apiKey    string
-	client    *http.Client
+	client    sdk.Client
 	current   string
 	models    []string
 	modelsMux sync.RWMutex
@@ -23,21 +20,11 @@ type HTTPModelService struct {
 	cacheTTL  time.Duration
 }
 
-// ModelsResponse represents the API response for listing models
-type ModelsResponse struct {
-	Data []struct {
-		ID     string `json:"id"`
-		Object string `json:"object"`
-	} `json:"data"`
-}
-
-// NewHTTPModelService creates a new HTTP-based model service
-func NewHTTPModelService(baseURL, apiKey string) *HTTPModelService {
+// NewHTTPModelService creates a new HTTP-based model service with pre-configured client
+func NewHTTPModelService(client sdk.Client) *HTTPModelService {
 	return &HTTPModelService{
-		baseURL:  strings.TrimSuffix(baseURL, "/"),
-		apiKey:   apiKey,
-		client:   &http.Client{Timeout: 30 * time.Second},
-		cacheTTL: 5 * time.Minute, // Cache models for 5 minutes
+		client:   client,
+		cacheTTL: 5 * time.Minute,
 	}
 }
 
@@ -51,36 +38,18 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 	}
 	s.modelsMux.RUnlock()
 
-	url := fmt.Sprintf("%s/v1/models", s.baseURL)
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	if s.apiKey != "" {
-		req.Header.Set("Authorization", "Bearer "+s.apiKey)
-	}
-	req.Header.Set("Content-Type", "application/json")
-
-	resp, err := s.client.Do(req)
+	resp, err := s.client.ListModels(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch models: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("API error %d: %s", resp.StatusCode, string(body))
+	if resp == nil || resp.Data == nil {
+		return nil, fmt.Errorf("empty response from models API")
 	}
 
-	var modelsResp ModelsResponse
-	if err := json.NewDecoder(resp.Body).Decode(&modelsResp); err != nil {
-		return nil, fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	models := make([]string, len(modelsResp.Data))
-	for i, model := range modelsResp.Data {
-		models[i] = model.ID
+	models := make([]string, len(resp.Data))
+	for i, model := range resp.Data {
+		models[i] = model.Id
 	}
 
 	s.modelsMux.Lock()
@@ -144,7 +113,7 @@ func (s *HTTPModelService) validateAgainstCachedModels(modelID string, models []
 }
 
 func (s *HTTPModelService) validateAgainstFetchedModels(modelID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	models, err := s.ListModels(ctx)

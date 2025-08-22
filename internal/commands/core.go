@@ -45,15 +45,15 @@ func (c *ClearCommand) Execute(ctx context.Context, args []string) (CommandResul
 // ExportCommand exports the conversation
 type ExportCommand struct {
 	repo         domain.ConversationRepository
-	chatService  domain.ChatService
+	agentService domain.AgentService
 	modelService domain.ModelService
 	config       *config.Config
 }
 
-func NewExportCommand(repo domain.ConversationRepository, chatService domain.ChatService, modelService domain.ModelService, config *config.Config) *ExportCommand {
+func NewExportCommand(repo domain.ConversationRepository, agentService domain.AgentService, modelService domain.ModelService, config *config.Config) *ExportCommand {
 	return &ExportCommand{
 		repo:         repo,
-		chatService:  chatService,
+		agentService: agentService,
 		modelService: modelService,
 		config:       config,
 	}
@@ -154,7 +154,14 @@ Keep the summary concise but informative, using bullet points where appropriate.
 	}
 
 	requestID := fmt.Sprintf("req_%d", time.Now().UnixNano())
-	eventChan, err := c.chatService.SendMessage(ctx, requestID, summaryModel, messages)
+
+	req := &domain.AgentRequest{
+		RequestID: requestID,
+		Model:     summaryModel,
+		Messages:  messages,
+	}
+
+	eventChan, err := c.agentService.RunWithStream(ctx, req)
 	if err != nil {
 		return "", fmt.Errorf("failed to start summary generation: %w", err)
 	}

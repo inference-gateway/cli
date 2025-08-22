@@ -182,9 +182,43 @@ func (s *ToolFormatterService) formatResponsive(content string, terminalWidth in
 	return strings.Join(result, "\n")
 }
 
-// wrapText wraps text using word wrapping
+// isFormattedLineNumberText checks if text appears to be formatted with line numbers
+func (s *ToolFormatterService) isFormattedLineNumberText(text string) bool {
+	if !strings.Contains(text, "\t") || len(text) == 0 {
+		return false
+	}
+
+	if text[0] != ' ' && (text[0] < '0' || text[0] > '9') {
+		return false
+	}
+
+	trimmed := strings.TrimLeft(text, " ")
+	if len(trimmed) == 0 {
+		return false
+	}
+
+	tabIndex := strings.Index(trimmed, "\t")
+	if tabIndex <= 0 {
+		return false
+	}
+
+	prefix := trimmed[:tabIndex]
+	for _, r := range prefix {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+
+	return true
+}
+
+// wrapText wraps text using word wrapping, but preserves formatted content like line numbers
 func (s *ToolFormatterService) wrapText(text string, width int) string {
 	if width <= 0 {
+		return text
+	}
+
+	if s.isFormattedLineNumberText(text) {
 		return text
 	}
 
@@ -258,4 +292,13 @@ func (s *ToolFormatterService) formatGenericArguments(args map[string]any) strin
 	}
 
 	return result.String()
+}
+
+// ShouldAlwaysExpandTool checks if a tool result should always be expanded
+func (s *ToolFormatterService) ShouldAlwaysExpandTool(toolName string) bool {
+	tool, err := s.toolRegistry.GetTool(toolName)
+	if err != nil {
+		return false
+	}
+	return tool.ShouldAlwaysExpand()
 }

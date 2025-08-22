@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -21,7 +22,7 @@ import (
 // ChatHandler handles chat-related messages using the new state management system
 type ChatHandler struct {
 	name                    string
-	chatService             domain.ChatService
+	agentService            domain.AgentService
 	conversationRepo        domain.ConversationRepository
 	modelService            domain.ModelService
 	configService           domain.ConfigService
@@ -34,7 +35,7 @@ type ChatHandler struct {
 
 // NewChatHandler creates a new chat handler
 func NewChatHandler(
-	chatService domain.ChatService,
+	agentService domain.AgentService,
 	conversationRepo domain.ConversationRepository,
 	modelService domain.ModelService,
 	configService domain.ConfigService,
@@ -45,7 +46,7 @@ func NewChatHandler(
 ) *ChatHandler {
 	return &ChatHandler{
 		name:             "ChatHandler",
-		chatService:      chatService,
+		agentService:     agentService,
 		conversationRepo: conversationRepo,
 		modelService:     modelService,
 		configService:    configService,
@@ -256,14 +257,27 @@ func (h *ChatHandler) processChatMessage(
 		}
 	}
 
-	return nil, tea.Batch(
+	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return shared.UpdateHistoryMsg{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
-		h.startChatCompletion(stateManager),
-	)
+	}
+
+	if len(h.conversationRepo.GetMessages()) > 10 {
+		cmds = append(cmds, func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    fmt.Sprintf("Optimizing conversation history (%d messages)...", len(h.conversationRepo.GetMessages())),
+				Spinner:    true,
+				StatusType: shared.StatusPreparing,
+			}
+		})
+	}
+
+	cmds = append(cmds, h.startChatCompletion(stateManager))
+
+	return nil, tea.Batch(cmds...)
 }
 
 // startChatCompletion initiates a chat completion request
@@ -283,14 +297,21 @@ func (h *ChatHandler) startChatCompletion(
 		}
 
 		entries := h.conversationRepo.GetMessages()
-		messages := make([]sdk.Message, len(entries))
+		originalCount := len(entries)
+		messages := make([]sdk.Message, originalCount)
 		for i, entry := range entries {
 			messages[i] = entry.Message
 		}
 
 		requestID := generateRequestID()
 
-		eventChan, err := h.chatService.SendMessage(ctx, requestID, currentModel, messages)
+		req := &domain.AgentRequest{
+			RequestID: requestID,
+			Model:     currentModel,
+			Messages:  messages,
+		}
+
+		eventChan, err := h.agentService.RunWithStream(ctx, req)
 		if err != nil {
 			return domain.ChatErrorEvent{
 				RequestID: requestID,
@@ -1186,7 +1207,11 @@ func (h *ChatHandler) parseArguments(argsStr string) (map[string]any, error) {
 			value = value[1 : len(value)-1]
 		}
 
-		args[key] = value
+		if numValue, err := strconv.ParseFloat(value, 64); err == nil {
+			args[key] = numValue
+		} else {
+			args[key] = value
+		}
 	}
 
 	return args, nil
@@ -1553,11 +1578,11 @@ func (h *ChatHandler) shouldInjectSystemReminder() bool {
 		return false
 	}
 
-	if !config.Chat.SystemReminders.Enabled {
+	if !config.Agent.SystemReminders.Enabled {
 		return false
 	}
 
-	interval := config.Chat.SystemReminders.Interval
+	interval := config.Agent.SystemReminders.Interval
 	if interval <= 0 {
 		interval = 4
 	}
@@ -1573,7 +1598,7 @@ func (h *ChatHandler) injectSystemReminder() tea.Cmd {
 			return nil
 		}
 
-		reminderText := config.Chat.SystemReminders.ReminderText
+		reminderText := config.Agent.SystemReminders.ReminderText
 		if reminderText == "" {
 			reminderText = `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.

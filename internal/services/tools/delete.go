@@ -452,3 +452,8 @@ func (t *DeleteTool) pluralizeDir(count int) string {
 func (t *DeleteTool) ShouldCollapseArg(key string) bool {
 	return false
 }
+
+// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+func (t *DeleteTool) ShouldAlwaysExpand() bool {
+	return false
+}

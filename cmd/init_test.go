@@ -34,7 +34,7 @@ func testInitializeProject(cmd *cobra.Command) error {
 	}
 
 	gitignoreContent := `# Ignore log files and history files
-*.log
+logs/*.log
 history
 chat_export_*
 `
@@ -125,7 +125,7 @@ func TestInitializeProject(t *testing.T) {
 
 			gitignoreData, err := os.ReadFile(gitignorePath)
 			require.NoError(t, err)
-			assert.Contains(t, string(gitignoreData), "*.log")
+			assert.Contains(t, string(gitignoreData), "logs/*.log")
 			assert.Contains(t, string(gitignoreData), "history")
 			assert.Contains(t, string(gitignoreData), "chat_export_*")
 		})

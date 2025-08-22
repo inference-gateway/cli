@@ -96,10 +96,10 @@ func testCompactDefaults(t *testing.T, cfg *Config) {
 }
 
 func testChatDefaults(t *testing.T, cfg *Config) {
-	if cfg.Chat.DefaultModel != "" {
-		t.Errorf("Expected default model to be empty, got %q", cfg.Chat.DefaultModel)
+	if cfg.Agent.Model != "" {
+		t.Errorf("Expected default model to be empty, got %q", cfg.Agent.Model)
 	}
-	expectedSystemPrompt := `Software engineering assistant. Concise (<4 lines), direct answers only.
+	expectedSystemPrompt := `Autonomous software engineering agent. Execute tasks iteratively until completion.
 
 IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
 IMPORTANT: You NEVER read all the README.md - start by reading 300 lines
@@ -135,8 +135,8 @@ EXAMPLE:
 <assistant>Now I'll create a pull request</assistant>
 <tool>Github(...)</tool>
 `
-	if cfg.Chat.SystemPrompt != expectedSystemPrompt {
-		t.Errorf("Expected system prompt to match default, got %q", cfg.Chat.SystemPrompt)
+	if cfg.Agent.SystemPrompt != expectedSystemPrompt {
+		t.Errorf("Expected system prompt to match default, got %q", cfg.Agent.SystemPrompt)
 	}
 }
 
@@ -249,7 +249,10 @@ compact:
   output_dir: ".infer"
 
 chat:
-  default_model: "gpt-4"
+  optimization:
+    enabled: false
+agent:
+  model: "openai/gpt-4"
   system_prompt: "You are a helpful assistant"
 `
 }
@@ -289,8 +292,8 @@ func validateCompleteConfig(t *testing.T, cfg *Config) {
 	if !reflect.DeepEqual(cfg.Tools.WebSearch.Engines, expectedEngines) {
 		t.Errorf("Expected engines to be %v, got %v", expectedEngines, cfg.Tools.WebSearch.Engines)
 	}
-	if cfg.Chat.DefaultModel != "gpt-4" {
-		t.Errorf("Expected default model to be 'gpt-4', got %q", cfg.Chat.DefaultModel)
+	if cfg.Agent.Model != "openai/gpt-4" {
+		t.Errorf("Expected default model to be 'openai/gpt-4', got %q", cfg.Agent.Model)
 	}
 }
 
@@ -343,16 +346,16 @@ func TestSaveConfig(t *testing.T) {
 		{
 			name: "save chat config",
 			setupFunc: func(cfg *Config) {
-				cfg.Chat.DefaultModel = "claude-3"
-				cfg.Chat.SystemPrompt = "Be helpful"
+				cfg.Agent.Model = "anthropic/claude-3"
+				cfg.Agent.SystemPrompt = "Be helpful"
 				cfg.Gateway.APIKey = "secret-key"
 			},
 			validator: func(t *testing.T, cfg *Config) {
-				if cfg.Chat.DefaultModel != "claude-3" {
-					t.Errorf("Expected default model to be 'claude-3', got %q", cfg.Chat.DefaultModel)
+				if cfg.Agent.Model != "anthropic/claude-3" {
+					t.Errorf("Expected default model to be 'anthropic/claude-3', got %q", cfg.Agent.Model)
 				}
-				if cfg.Chat.SystemPrompt != "Be helpful" {
-					t.Errorf("Expected system prompt to be 'Be helpful', got %q", cfg.Chat.SystemPrompt)
+				if cfg.Agent.SystemPrompt != "Be helpful" {
+					t.Errorf("Expected system prompt to be 'Be helpful', got %q", cfg.Agent.SystemPrompt)
 				}
 				if cfg.Gateway.APIKey != "secret-key" {
 					t.Errorf("Expected API key to be 'secret-key', got %q", cfg.Gateway.APIKey)

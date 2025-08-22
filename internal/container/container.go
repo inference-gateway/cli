@@ -1,12 +1,17 @@
 package container
 
 import (
+	"strings"
+	"time"
+
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/services/tools"
 	"github.com/inference-gateway/cli/internal/ui"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // ServiceContainer manages all application dependencies
@@ -18,10 +23,11 @@ type ServiceContainer struct {
 	conversationRepo domain.ConversationRepository
 	modelService     domain.ModelService
 	chatService      domain.ChatService
+	agentService     domain.AgentService
 	toolService      domain.ToolService
 	fileService      domain.FileService
 
-	// New improved services
+	// Services
 	stateManager              *services.StateManager
 	toolExecutionOrchestrator *services.ToolExecutionOrchestrator
 
@@ -58,10 +64,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
 	c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService)
 
-	c.modelService = services.NewHTTPModelService(
-		c.config.Gateway.URL,
-		c.config.Gateway.APIKey,
-	)
+	modelClient := c.createSDKClient()
+	c.modelService = services.NewHTTPModelService(modelClient)
 
 	if c.config.Tools.Enabled {
 		c.toolService = services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
@@ -69,13 +73,32 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.toolService = services.NewNoOpToolService()
 	}
 
-	c.chatService = services.NewStreamingChatService(
-		c.config.Gateway.URL,
-		c.config.Gateway.APIKey,
-		c.config.Gateway.Timeout,
+	var optimizer *services.ConversationOptimizer
+	if c.config.Agent.Optimization.Enabled {
+		summaryClient := c.createSDKClient()
+		optimizer = services.NewConversationOptimizer(services.OptimizerConfig{
+			Enabled:                    c.config.Agent.Optimization.Enabled,
+			MaxHistory:                 c.config.Agent.Optimization.MaxHistory,
+			CompactThreshold:           c.config.Agent.Optimization.CompactThreshold,
+			TruncateLargeOutputs:       c.config.Agent.Optimization.TruncateLargeOutputs,
+			SkipRedundantConfirmations: c.config.Agent.Optimization.SkipRedundantConfirmations,
+			Client:                     summaryClient,
+			ModelService:               c.modelService,
+			Config:                     c.config,
+		})
+	}
+
+	agentClient := c.createSDKClient()
+	c.agentService = services.NewAgentService(
+		agentClient,
 		c.toolService,
-		c.config.Chat.SystemPrompt,
+		c.config.Agent.SystemPrompt,
+		c.config.Gateway.Timeout,
+		c.config.Agent.MaxTokens,
+		optimizer,
 	)
+
+	c.chatService = services.NewStreamingChatService(c.agentService)
 }
 
 // initializeServices creates the new improved services
@@ -105,7 +128,7 @@ func (c *ServiceContainer) initializeExtensibility() {
 // registerDefaultCommands registers the built-in commands
 func (c *ServiceContainer) registerDefaultCommands() {
 	c.commandRegistry.Register(commands.NewClearCommand(c.conversationRepo))
-	c.commandRegistry.Register(commands.NewExportCommand(c.conversationRepo, c.chatService, c.modelService, c.config))
+	c.commandRegistry.Register(commands.NewExportCommand(c.conversationRepo, c.agentService, c.modelService, c.config))
 	c.commandRegistry.Register(commands.NewExitCommand())
 	c.commandRegistry.Register(commands.NewSwitchCommand(c.modelService))
 }
@@ -153,6 +176,52 @@ func (c *ServiceContainer) GetStateManager() *services.StateManager {
 
 func (c *ServiceContainer) GetToolExecutionOrchestrator() *services.ToolExecutionOrchestrator {
 	return c.toolExecutionOrchestrator
+}
+
+func (c *ServiceContainer) GetAgentService() domain.AgentService {
+	return c.agentService
+}
+
+// createRetryConfig creates a retry config with logging callback
+func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
+	retryConfig := &sdk.RetryConfig{
+		Enabled:              c.config.Client.Retry.Enabled,
+		MaxAttempts:          c.config.Client.Retry.MaxAttempts,
+		InitialBackoffSec:    c.config.Client.Retry.InitialBackoffSec,
+		MaxBackoffSec:        c.config.Client.Retry.MaxBackoffSec,
+		BackoffMultiplier:    c.config.Client.Retry.BackoffMultiplier,
+		RetryableStatusCodes: c.config.Client.Retry.RetryableStatusCodes,
+	}
+
+	if retryConfig.Enabled {
+		originalOnRetry := retryConfig.OnRetry
+		retryConfig.OnRetry = func(attempt int, err error, delay time.Duration) {
+			logger.Info("Retrying HTTP request",
+				"attempt", attempt,
+				"error", err.Error(),
+				"delay", delay.String())
+			if originalOnRetry != nil {
+				originalOnRetry(attempt, err, delay)
+			}
+		}
+	}
+
+	return retryConfig
+}
+
+// createSDKClient creates a configured SDK client with retry and timeout settings
+func (c *ServiceContainer) createSDKClient() sdk.Client {
+	baseURL := c.config.Gateway.URL
+	if !strings.HasSuffix(baseURL, "/v1") {
+		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
+	}
+
+	return sdk.NewClient(&sdk.ClientOptions{
+		BaseURL:     baseURL,
+		APIKey:      c.config.Gateway.APIKey,
+		Timeout:     time.Duration(c.config.Client.Timeout) * time.Second,
+		RetryConfig: c.createRetryConfig(),
+	})
 }
 
 // RegisterCommand allows external registration of commands

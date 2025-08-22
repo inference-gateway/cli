@@ -705,3 +705,8 @@ func (t *WebSearchTool) extractDomainFromURL(urlStr string) string {
 func (t *WebSearchTool) ShouldCollapseArg(key string) bool {
 	return false
 }
+
+// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+func (t *WebSearchTool) ShouldAlwaysExpand() bool {
+	return false
+}

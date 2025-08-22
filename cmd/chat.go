@@ -5,10 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/app"
 	"github.com/inference-gateway/cli/internal/container"
+	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/spf13/cobra"
 )
 
@@ -31,7 +32,7 @@ func startChatSession() error {
 
 	services := container.NewServiceContainer(cfg)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()
 
 	models, err := services.GetModelService().ListModels(ctx)
@@ -43,12 +44,38 @@ func startChatSession() error {
 		return fmt.Errorf("no models available from inference gateway")
 	}
 
-	defaultModel := cfg.Chat.DefaultModel
+	defaultModel := cfg.Agent.Model
 	if defaultModel != "" {
-		defaultModel = validateAndSetDefaultModel(services, models, defaultModel)
+		defaultModel = validateAndSetDefaultModel(services.GetModelService(), models, defaultModel)
 	}
 
-	application := app.NewChatApplication(services, models, defaultModel)
+	agentService := services.GetAgentService()
+	conversationRepo := services.GetConversationRepository()
+	modelService := services.GetModelService()
+	config := services.GetConfig()
+	toolService := services.GetToolService()
+	fileService := services.GetFileService()
+	commandRegistry := services.GetCommandRegistry()
+	stateManager := services.GetStateManager()
+	toolOrchestrator := services.GetToolExecutionOrchestrator()
+	theme := services.GetTheme()
+	toolRegistry := services.GetToolRegistry()
+
+	application := app.NewChatApplication(
+		models,
+		defaultModel,
+		agentService,
+		conversationRepo,
+		modelService,
+		config,
+		toolService,
+		fileService,
+		commandRegistry,
+		stateManager,
+		toolOrchestrator,
+		theme,
+		toolRegistry,
+	)
 
 	program := tea.NewProgram(application)
 
@@ -60,7 +87,7 @@ func startChatSession() error {
 	return nil
 }
 
-func validateAndSetDefaultModel(services *container.ServiceContainer, models []string, defaultModel string) string {
+func validateAndSetDefaultModel(modelService domain.ModelService, models []string, defaultModel string) string {
 	modelFound := false
 	for _, model := range models {
 		if model == defaultModel {
@@ -74,7 +101,7 @@ func validateAndSetDefaultModel(services *container.ServiceContainer, models []s
 		return ""
 	}
 
-	if err := services.GetModelService().SelectModel(defaultModel); err != nil {
+	if err := modelService.SelectModel(defaultModel); err != nil {
 		fmt.Printf("⚠️  Failed to set default model: %v, showing model selection...\n", err)
 		return ""
 	}

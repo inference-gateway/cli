@@ -37,6 +37,7 @@ and management of inference services.
     - [`infer config tools`](#infer-config-tools)
   - [`infer status`](#infer-status)
   - [`infer chat`](#infer-chat)
+  - [`infer agent`](#infer-agent)
   - [`infer version`](#infer-version)
 - [Available Tools for LLMs](#available-tools-for-llms)
   - [Bash Tool](#bash-tool)
@@ -182,7 +183,7 @@ chmod +x infer-darwin-amd64
 sudo mv infer-darwin-amd64 /usr/local/bin/infer
 ```
 
-> **Note**: Replace `v0.12.0` with the desired release version and `infer-darwin-amd64` with your platform's binary name.
+> **Note**: Replace `v0.29.1` with the desired release version and `infer-darwin-amd64` with your platform's binary name.
 
 ### Build from Source
 
@@ -376,6 +377,40 @@ model during conversations. These reminders help maintain context and provide re
 
 ```bash
 infer chat
+```
+
+### `infer agent`
+
+Execute a task using an autonomous agent in background mode. The CLI will work iteratively
+until the task is considered complete. Particularly useful for SCM tickets like GitHub issues.
+
+**Features:**
+
+- **Autonomous execution**: Agent works independently to complete tasks
+- **Iterative processing**: Continues until task completion criteria are met
+- **Tool integration**: Full access to all available tools (Bash, Read, Write, etc.)
+- **Background operation**: Runs without interactive user input
+- **Task completion detection**: Automatically detects when tasks are complete
+- **JSON output**: Structured JSON output for easy parsing and integration
+
+**Options:**
+
+- `-m, --model`: Model to use for the agent (e.g., openai/gpt-4)
+
+**Examples:**
+
+```bash
+# Execute a task described in a GitHub issue
+infer agent "Please fix the github issue 38"
+
+# Use a specific model for the agent
+infer agent --model "openai/gpt-4" "Implement the feature described in issue #42"
+
+# Debug a failing test
+infer agent "Debug the failing test in PR 15"
+
+# Refactor code
+infer agent "Refactor the authentication module to use JWT tokens"
 ```
 
 ### `infer version`
@@ -749,6 +784,15 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
+client:
+  timeout: 200
+  retry:
+    enabled: true
+    max_attempts: 3
+    initial_backoff_sec: 5
+    max_backoff_sec: 60
+    backoff_multiplier: 2
+    retryable_status_codes: [400, 408, 429, 500, 502, 503, 504]
 logging:
   debug: false
 tools:
@@ -806,7 +850,7 @@ tools:
     whitelisted_domains:
       - golang.org
     safety:
-      max_size: 8192 # 8KB
+      max_size: 4096 # 4KB
       timeout: 30 # 30 seconds
       allow_redirect: true
     cache:
@@ -837,6 +881,7 @@ tools:
     require_approval: true
 compact:
   output_dir: .infer # Directory for compact command exports
+  summary_model: "" # Model to use for summarization (optional)
 chat:
   default_model: "" # Default model for chat sessions (when set, skips model selection)
   system_prompt: |
@@ -901,6 +946,45 @@ chat:
     interval: 10 # Send reminder every N messages (default: 10)
     text: | # Custom reminder text (optional)
       Remember to follow the established patterns and check existing code before implementing new features.
+agent:
+  model: "" # Default model for agent operations
+  system_prompt: | # System prompt for agent sessions
+    Autonomous software engineering agent. Execute tasks iteratively until completion.
+
+    IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
+    IMPORTANT: You NEVER read all the README.md - start by reading 300 lines
+
+    RULES:
+    - Security: Defensive only (analysis, detection, docs)
+    - Style: no emojis/comments unless asked, use conventional commits
+    - Code: Follow existing patterns, check deps, no secrets
+    - Tasks: Use TodoWrite, mark progress immediately
+    - Chat exports: Read only "## Summary" to "---" section
+    - Tools: Batch calls, prefer Grep for search
+
+    WORKFLOW:
+    When asked to implement features or fix issues:
+    1. Plan with TodoWrite
+    2. Search codebase to understand context
+    3. Implement solution
+    4. Run tests with: task test
+    5. Run lint/format with: task fmt and task lint
+    6. Commit changes (only if explicitly asked)
+    7. Create a pull request (only if explicitly asked)
+  system_reminders:
+    enabled: true
+    interval: 4
+    reminder_text: |
+      System reminder text for maintaining context
+  verbose_tools: false
+  max_turns: 50 # Maximum number of turns for agent sessions
+  max_tokens: 4096 # The maximum number of tokens that can be generated per request
+  optimization:
+    enabled: false
+    max_history: 10
+    compact_threshold: 20
+    truncate_large_outputs: true
+    skip_redundant_confirmations: true
 ```
 
 ### Configuration Options
@@ -910,6 +994,16 @@ chat:
 - **gateway.url**: The URL of the inference gateway
 - **gateway.api_key**: API key for authentication (if required)
 - **gateway.timeout**: Request timeout in seconds
+
+**Client Settings:**
+
+- **client.timeout**: HTTP client timeout in seconds
+- **client.retry.enabled**: Enable automatic retries for failed requests
+- **client.retry.max_attempts**: Maximum number of retry attempts
+- **client.retry.initial_backoff_sec**: Initial delay between retries in seconds
+- **client.retry.max_backoff_sec**: Maximum delay between retries in seconds
+- **client.retry.backoff_multiplier**: Backoff multiplier for exponential delay
+- **client.retry.retryable_status_codes**: HTTP status codes that trigger retries (e.g., [400, 408, 429, 500, 502, 503, 504])
 
 **Logging Settings:**
 
@@ -942,6 +1036,22 @@ chat:
 - **chat.system_reminders.enabled**: Enable/disable system reminders (default: true)
 - **chat.system_reminders.interval**: Number of messages between reminders (default: 10)
 - **chat.system_reminders.text**: Custom reminder text to provide contextual guidance
+
+**Agent Settings:**
+
+- **agent.model**: Default model for agent operations
+- **agent.system_prompt**: System prompt for agent sessions
+- **agent.system_reminders.enabled**: Enable system reminders during agent sessions
+- **agent.system_reminders.interval**: Number of messages between reminders (default: 4)
+- **agent.system_reminders.reminder_text**: Custom reminder text for agent context
+- **agent.verbose_tools**: Enable verbose tool output (default: false)
+- **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
+- **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
+- **agent.optimization.enabled**: Enable optimization features (default: false)
+- **agent.optimization.max_history**: Maximum conversation history to maintain (default: 10)
+- **agent.optimization.compact_threshold**: Threshold for compacting conversation (default: 20)
+- **agent.optimization.truncate_large_outputs**: Truncate large tool outputs (default: true)
+- **agent.optimization.skip_redundant_confirmations**: Skip redundant confirmation messages (default: true)
 
 **Web Search Settings:**
 

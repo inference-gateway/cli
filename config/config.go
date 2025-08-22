@@ -15,10 +15,12 @@ import (
 // Config represents the CLI configuration
 type Config struct {
 	Gateway GatewayConfig `yaml:"gateway"`
+	Client  ClientConfig  `yaml:"client"`
 	Logging LoggingConfig `yaml:"logging"`
 	Tools   ToolsConfig   `yaml:"tools"`
 	Compact CompactConfig `yaml:"compact"`
 	Chat    ChatConfig    `yaml:"chat"`
+	Agent   AgentConfig   `yaml:"agent"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -26,6 +28,22 @@ type GatewayConfig struct {
 	URL     string `yaml:"url"`
 	APIKey  string `yaml:"api_key"`
 	Timeout int    `yaml:"timeout"`
+}
+
+// ClientConfig contains HTTP client settings
+type ClientConfig struct {
+	Timeout int         `yaml:"timeout"`
+	Retry   RetryConfig `yaml:"retry"`
+}
+
+// RetryConfig contains retry logic settings
+type RetryConfig struct {
+	Enabled              bool  `yaml:"enabled"`
+	MaxAttempts          int   `yaml:"max_attempts"`
+	InitialBackoffSec    int   `yaml:"initial_backoff_sec"`
+	MaxBackoffSec        int   `yaml:"max_backoff_sec"`
+	BackoffMultiplier    int   `yaml:"backoff_multiplier"`
+	RetryableStatusCodes []int `yaml:"retryable_status_codes"`
 }
 
 // LoggingConfig contains logging settings
@@ -178,10 +196,17 @@ type SystemRemindersConfig struct {
 
 // ChatConfig contains chat-related settings
 type ChatConfig struct {
-	DefaultModel    string                `yaml:"default_model"`
+}
+
+// AgentConfig contains agent command-specific settings
+type AgentConfig struct {
+	Model           string                `yaml:"model"`
 	SystemPrompt    string                `yaml:"system_prompt"`
-	Optimization    OptimizationConfig    `yaml:"optimization"`
 	SystemReminders SystemRemindersConfig `yaml:"system_reminders"`
+	VerboseTools    bool                  `yaml:"verbose_tools"`
+	MaxTurns        int                   `yaml:"max_turns"`
+	MaxTokens       int                   `yaml:"max_tokens"`
+	Optimization    OptimizationConfig    `yaml:"optimization"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -205,6 +230,17 @@ func DefaultConfig() *Config { //nolint:funlen
 			URL:     "http://localhost:8080",
 			APIKey:  "",
 			Timeout: 200,
+		},
+		Client: ClientConfig{
+			Timeout: 200,
+			Retry: RetryConfig{
+				Enabled:              true,
+				MaxAttempts:          3,
+				InitialBackoffSec:    5,
+				MaxBackoffSec:        60,
+				BackoffMultiplier:    2,
+				RetryableStatusCodes: []int{400, 408, 429, 500, 502, 503, 504},
+			},
 		},
 		Logging: LoggingConfig{
 			Debug: false,
@@ -313,9 +349,10 @@ func DefaultConfig() *Config { //nolint:funlen
 			OutputDir:    ".infer",
 			SummaryModel: "",
 		},
-		Chat: ChatConfig{
-			DefaultModel: "",
-			SystemPrompt: `Software engineering assistant. Concise (<4 lines), direct answers only.
+		Chat: ChatConfig{},
+		Agent: AgentConfig{
+			Model: "",
+			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion.
 
 IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
 IMPORTANT: You NEVER read all the README.md - start by reading 300 lines
@@ -351,19 +388,22 @@ EXAMPLE:
 <assistant>Now I'll create a pull request</assistant>
 <tool>Github(...)</tool>
 `,
-			Optimization: OptimizationConfig{
-				Enabled:                    false,
-				MaxHistory:                 10,
-				CompactThreshold:           20,
-				TruncateLargeOutputs:       true,
-				SkipRedundantConfirmations: true,
-			},
 			SystemReminders: SystemRemindersConfig{
 				Enabled:  true,
 				Interval: 4,
 				ReminderText: `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>`,
+			},
+			VerboseTools: false,
+			MaxTurns:     50,
+			MaxTokens:    4096,
+			Optimization: OptimizationConfig{
+				Enabled:                    false,
+				MaxHistory:                 10,
+				CompactThreshold:           20,
+				TruncateLargeOutputs:       true,
+				SkipRedundantConfirmations: true,
 			},
 		},
 	}
@@ -528,21 +568,21 @@ func (c *Config) GetTimeout() int {
 }
 
 func (c *Config) GetSystemPrompt() string {
-	return c.Chat.SystemPrompt
+	return c.Agent.SystemPrompt
 }
 
 func (c *Config) GetDefaultModel() string {
-	return c.Chat.DefaultModel
+	return c.Agent.Model
 }
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories
 func (c *Config) ValidatePathInSandbox(path string) error {
-	if len(c.Tools.Sandbox.Directories) == 0 {
-		return fmt.Errorf("no sandbox directories configured")
-	}
-
 	if err := c.checkProtectedPaths(path); err != nil {
 		return err
+	}
+
+	if len(c.Tools.Sandbox.Directories) == 0 {
+		return nil
 	}
 
 	absPath, err := filepath.Abs(path)
@@ -574,29 +614,36 @@ func (c *Config) checkProtectedPaths(path string) error {
 	normalizedPath := filepath.ToSlash(filepath.Clean(path))
 
 	for _, protectedPath := range c.Tools.Sandbox.ProtectedPaths {
-		if normalizedPath == strings.TrimSuffix(protectedPath, "/") {
-			return fmt.Errorf("access to path '%s' is excluded for security", path)
-		}
-
 		if strings.HasSuffix(protectedPath, "/") {
 			dirPattern := strings.TrimSuffix(protectedPath, "/")
+			if strings.Contains(normalizedPath, "/"+dirPattern+"/") || strings.HasSuffix(normalizedPath, "/"+dirPattern) {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
 			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
+		}
+
+		if strings.Contains(protectedPath, "*") && !strings.HasSuffix(protectedPath, "/*") {
+			matched, err := filepath.Match(protectedPath, filepath.Base(normalizedPath))
+			if err == nil && matched {
 				return fmt.Errorf("access to path '%s' is excluded for security", path)
 			}
 		}
 
 		if strings.HasSuffix(protectedPath, "/*") {
 			dirPattern := strings.TrimSuffix(protectedPath, "/*")
+			if strings.Contains(normalizedPath, "/"+dirPattern+"/") || strings.HasSuffix(normalizedPath, "/"+dirPattern) {
+				return fmt.Errorf("access to path '%s' is excluded for security", path)
+			}
 			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
 				return fmt.Errorf("access to path '%s' is excluded for security", path)
 			}
 		}
 
-		if strings.Contains(protectedPath, "*") {
-			matched, err := filepath.Match(protectedPath, filepath.Base(normalizedPath))
-			if err == nil && matched {
-				return fmt.Errorf("access to path '%s' is excluded for security", path)
-			}
+		cleanProtectedPath := strings.TrimSuffix(protectedPath, "/")
+		if normalizedPath == cleanProtectedPath || strings.HasSuffix(normalizedPath, "/"+cleanProtectedPath) {
+			return fmt.Errorf("access to path '%s' is excluded for security", path)
 		}
 	}
 

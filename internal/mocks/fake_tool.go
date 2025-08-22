@@ -66,6 +66,16 @@ type FakeTool struct {
 	isEnabledReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	ShouldAlwaysExpandStub        func() bool
+	shouldAlwaysExpandMutex       sync.RWMutex
+	shouldAlwaysExpandArgsForCall []struct {
+	}
+	shouldAlwaysExpandReturns struct {
+		result1 bool
+	}
+	shouldAlwaysExpandReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	ShouldCollapseArgStub        func(string) bool
 	shouldCollapseArgMutex       sync.RWMutex
 	shouldCollapseArgArgsForCall []struct {
@@ -382,6 +392,59 @@ func (fake *FakeTool) IsEnabledReturnsOnCall(i int, result1 bool) {
 		})
 	}
 	fake.isEnabledReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeTool) ShouldAlwaysExpand() bool {
+	fake.shouldAlwaysExpandMutex.Lock()
+	ret, specificReturn := fake.shouldAlwaysExpandReturnsOnCall[len(fake.shouldAlwaysExpandArgsForCall)]
+	fake.shouldAlwaysExpandArgsForCall = append(fake.shouldAlwaysExpandArgsForCall, struct {
+	}{})
+	stub := fake.ShouldAlwaysExpandStub
+	fakeReturns := fake.shouldAlwaysExpandReturns
+	fake.recordInvocation("ShouldAlwaysExpand", []interface{}{})
+	fake.shouldAlwaysExpandMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeTool) ShouldAlwaysExpandCallCount() int {
+	fake.shouldAlwaysExpandMutex.RLock()
+	defer fake.shouldAlwaysExpandMutex.RUnlock()
+	return len(fake.shouldAlwaysExpandArgsForCall)
+}
+
+func (fake *FakeTool) ShouldAlwaysExpandCalls(stub func() bool) {
+	fake.shouldAlwaysExpandMutex.Lock()
+	defer fake.shouldAlwaysExpandMutex.Unlock()
+	fake.ShouldAlwaysExpandStub = stub
+}
+
+func (fake *FakeTool) ShouldAlwaysExpandReturns(result1 bool) {
+	fake.shouldAlwaysExpandMutex.Lock()
+	defer fake.shouldAlwaysExpandMutex.Unlock()
+	fake.ShouldAlwaysExpandStub = nil
+	fake.shouldAlwaysExpandReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeTool) ShouldAlwaysExpandReturnsOnCall(i int, result1 bool) {
+	fake.shouldAlwaysExpandMutex.Lock()
+	defer fake.shouldAlwaysExpandMutex.Unlock()
+	fake.ShouldAlwaysExpandStub = nil
+	if fake.shouldAlwaysExpandReturnsOnCall == nil {
+		fake.shouldAlwaysExpandReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.shouldAlwaysExpandReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }

@@ -2,7 +2,7 @@ package keybinding
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/container"
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/ui"
@@ -16,7 +16,8 @@ type KeyHandler func(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 type KeyHandlerContext interface {
 	// State management
 	GetStateManager() *services.StateManager
-	GetServices() *container.ServiceContainer
+	GetConversationRepository() domain.ConversationRepository
+	GetConfig() *config.Config
 
 	// UI components
 	GetConversationView() ui.ConversationRenderer

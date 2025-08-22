@@ -872,3 +872,8 @@ func (t *GithubTool) formatList(items []any) string {
 func (t *GithubTool) ShouldCollapseArg(key string) bool {
 	return false
 }
+
+// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+func (t *GithubTool) ShouldAlwaysExpand() bool {
+	return false
+}
