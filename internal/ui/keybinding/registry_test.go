@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/container"
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/ui"
@@ -26,7 +26,11 @@ func (t *testKeyHandlerContext) GetStateManager() *services.StateManager {
 	return t.stateManager
 }
 
-func (t *testKeyHandlerContext) GetServices() *container.ServiceContainer {
+func (t *testKeyHandlerContext) GetConversationRepository() domain.ConversationRepository {
+	return nil
+}
+
+func (t *testKeyHandlerContext) GetConfig() *config.Config {
 	return nil
 }
 

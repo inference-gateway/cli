@@ -100,8 +100,6 @@ type ChatSyncResponse struct {
 
 // ChatService handles chat completion operations
 type ChatService interface {
-	SendMessage(ctx context.Context, requestID string, model string, messages []sdk.Message) (<-chan ChatEvent, error)
-	SendMessageSync(ctx context.Context, requestID string, model string, messages []sdk.Message) (*ChatSyncResponse, error)
 	CancelRequest(requestID string) error
 	GetMetrics(requestID string) *ChatMetrics
 }

@@ -5,11 +5,13 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/container"
+	"github.com/inference-gateway/cli/config"
+	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/handlers"
 	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/services"
+	"github.com/inference-gateway/cli/internal/services/tools"
 	"github.com/inference-gateway/cli/internal/ui"
 	"github.com/inference-gateway/cli/internal/ui/components"
 	"github.com/inference-gateway/cli/internal/ui/keybinding"
@@ -19,7 +21,15 @@ import (
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
 	// Dependencies
-	services *container.ServiceContainer
+	configService    *config.Config
+	agentService     domain.AgentService
+	conversationRepo domain.ConversationRepository
+	modelService     domain.ModelService
+	toolService      domain.ToolService
+	fileService      domain.FileService
+	commandRegistry  *commands.Registry
+	theme            ui.Theme
+	toolRegistry     *tools.Registry
 
 	// State management
 	stateManager     *services.StateManager
@@ -51,18 +61,40 @@ type ChatApplication struct {
 	availableModels []string
 }
 
-// NewChatApplication creates a new chat application with all dependencies injected
-func NewChatApplication(serviceContainer *container.ServiceContainer, models []string, defaultModel string) *ChatApplication {
+// NewChatApplication creates a new chat application
+func NewChatApplication(
+	models []string,
+	defaultModel string,
+	agentService domain.AgentService,
+	conversationRepo domain.ConversationRepository,
+	modelService domain.ModelService,
+	configService *config.Config,
+	toolService domain.ToolService,
+	fileService domain.FileService,
+	commandRegistry *commands.Registry,
+	stateManager *services.StateManager,
+	toolOrchestrator *services.ToolExecutionOrchestrator,
+	theme ui.Theme,
+	toolRegistry *tools.Registry,
+) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
 	if defaultModel != "" {
 		initialView = domain.ViewStateChat
 	}
 
 	app := &ChatApplication{
-		services:         serviceContainer,
+		agentService:     agentService,
+		conversationRepo: conversationRepo,
+		modelService:     modelService,
+		configService:    configService,
+		toolService:      toolService,
+		fileService:      fileService,
+		commandRegistry:  commandRegistry,
+		theme:            theme,
+		toolRegistry:     toolRegistry,
 		availableModels:  models,
-		stateManager:     serviceContainer.GetStateManager(),
-		toolOrchestrator: serviceContainer.GetToolExecutionOrchestrator(),
+		stateManager:     stateManager,
+		toolOrchestrator: toolOrchestrator,
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -70,26 +102,26 @@ func NewChatApplication(serviceContainer *container.ServiceContainer, models []s
 	}
 
 	app.conversationView = ui.CreateConversationView()
-	toolFormatterService := services.NewToolFormatterService(serviceContainer.GetToolRegistry())
+	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
 	}
-	app.inputView = ui.CreateInputViewWithToolService(serviceContainer.GetModelService(), serviceContainer.GetCommandRegistry(), serviceContainer.GetToolService())
+	app.inputView = ui.CreateInputViewWithToolService(app.modelService, app.commandRegistry, app.toolService)
 	app.statusView = ui.CreateStatusView()
 	app.helpBar = ui.CreateHelpBar()
-	app.approvalView = ui.CreateApprovalView(serviceContainer.GetTheme())
+	app.approvalView = ui.CreateApprovalView(app.theme)
 	if av, ok := app.approvalView.(*components.ApprovalComponent); ok {
 		av.SetToolFormatter(toolFormatterService)
 	}
-	app.fileSelectionView = components.NewFileSelectionView(serviceContainer.GetTheme())
+	app.fileSelectionView = components.NewFileSelectionView(app.theme)
 
-	app.applicationViewRenderer = components.NewApplicationViewRenderer(serviceContainer.GetTheme())
-	app.fileSelectionHandler = components.NewFileSelectionHandler(serviceContainer.GetTheme())
+	app.applicationViewRenderer = components.NewApplicationViewRenderer(app.theme)
+	app.fileSelectionHandler = components.NewFileSelectionHandler(app.theme)
 
 	app.keyBindingManager = keybinding.NewKeyBindingManager(app)
 	app.updateHelpBarShortcuts()
 
-	app.modelSelector = components.NewModelSelector(models, serviceContainer.GetModelService(), serviceContainer.GetTheme())
+	app.modelSelector = components.NewModelSelector(models, app.modelService, app.theme)
 
 	if initialView == domain.ViewStateChat {
 		app.focusedComponent = app.inputView
@@ -106,13 +138,13 @@ func NewChatApplication(serviceContainer *container.ServiceContainer, models []s
 // registerHandlers registers all message handlers
 func (app *ChatApplication) registerHandlers() {
 	chatHandler := handlers.NewChatHandler(
-		app.services.GetChatService(),
-		app.services.GetConversationRepository(),
-		app.services.GetModelService(),
-		app.services.GetConfig(),
-		app.services.GetToolService(),
-		app.services.GetFileService(),
-		app.services.GetCommandRegistry(),
+		app.agentService,
+		app.conversationRepo,
+		app.modelService,
+		app.configService,
+		app.toolService,
+		app.fileService,
+		app.commandRegistry,
 		app.toolOrchestrator,
 	)
 	app.messageRouter.AddHandler(chatHandler)
@@ -511,12 +543,17 @@ func (app *ChatApplication) toggleToolResultExpansion() {
 	app.conversationView.ToggleAllToolResultsExpansion()
 }
 
-// GetServices returns the service container (for testing or extensions)
-func (app *ChatApplication) GetServices() *container.ServiceContainer {
-	return app.services
+// GetServices returns the service container
+func (app *ChatApplication) GetConversationRepository() domain.ConversationRepository {
+	return app.conversationRepo
 }
 
-// GetStateManager returns the current state manager (for testing or extensions)
+// GetConfig returns the configuration for keybinding context
+func (app *ChatApplication) GetConfig() *config.Config {
+	return app.configService
+}
+
+// GetStateManager returns the current state manager
 func (app *ChatApplication) GetStateManager() *services.StateManager {
 	return app.stateManager
 }

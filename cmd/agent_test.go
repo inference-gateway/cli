@@ -43,7 +43,7 @@ func TestIsModelAvailable(t *testing.T) {
 }
 
 func TestBuildSDKMessages(t *testing.T) {
-	session := &PromptSession{
+	session := &AgentSession{
 		conversation: []ConversationMessage{
 			{
 				Role:      "user",

@@ -7,14 +7,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // HTTPModelService implements ModelService using SDK client
 type HTTPModelService struct {
-	baseURL   string
-	apiKey    string
 	client    sdk.Client
 	current   string
 	models    []string
@@ -23,34 +20,9 @@ type HTTPModelService struct {
 	cacheTTL  time.Duration
 }
 
-// NewHTTPModelService creates a new HTTP-based model service
-func NewHTTPModelService(baseURL, apiKey string, timeoutSeconds int, retryConfig *sdk.RetryConfig) *HTTPModelService {
-	if !strings.HasSuffix(baseURL, "/v1") {
-		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
-	}
-
-	if retryConfig != nil && retryConfig.Enabled {
-		originalOnRetry := retryConfig.OnRetry
-		retryConfig.OnRetry = func(attempt int, err error, delay time.Duration) {
-			logger.Info("Retrying HTTP request",
-				"attempt", attempt,
-				"error", err.Error(),
-				"delay", delay.String())
-			if originalOnRetry != nil {
-				originalOnRetry(attempt, err, delay)
-			}
-		}
-	}
-
-	client := sdk.NewClient(&sdk.ClientOptions{
-		BaseURL:     baseURL,
-		APIKey:      apiKey,
-		RetryConfig: retryConfig,
-	})
-
+// NewHTTPModelService creates a new HTTP-based model service with pre-configured client
+func NewHTTPModelService(client sdk.Client) *HTTPModelService {
 	return &HTTPModelService{
-		baseURL:  baseURL,
-		apiKey:   apiKey,
 		client:   client,
 		cacheTTL: 5 * time.Minute,
 	}

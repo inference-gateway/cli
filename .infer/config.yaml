@@ -2,6 +2,8 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
+client:
+  timeout: 200
   retry:
     enabled: true
     max_attempts: 3
@@ -109,9 +111,16 @@ compact:
   output_dir: .infer
   summary_model: ""
 chat:
-  default_model: ""
+  optimization:
+    enabled: false
+    max_history: 10
+    compact_threshold: 20
+    truncate_large_outputs: true
+    skip_redundant_confirmations: true
+agent:
+  model: ""
   system_prompt: |
-    Software engineering assistant. Concise (<4 lines), direct answers only.
+    Autonomous software engineering agent. Execute tasks iteratively until completion.
 
     IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
     IMPORTANT: You NEVER read all the README.md - start by reading 300 lines
@@ -146,12 +155,6 @@ chat:
     <tool>Bash(git push origin <branch>)</tool>
     <assistant>Now I'll create a pull request</assistant>
     <tool>Github(...)</tool>
-  optimization:
-    enabled: false
-    max_history: 10
-    compact_threshold: 20
-    truncate_large_outputs: true
-    skip_redundant_confirmations: true
   system_reminders:
     enabled: true
     interval: 4
@@ -159,5 +162,4 @@ chat:
       <system-reminder>
       This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
       </system-reminder>
-  prompt:
-    verbose_tools: false
+  verbose_tools: false

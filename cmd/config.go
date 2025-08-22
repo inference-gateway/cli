@@ -421,7 +421,7 @@ func setDefaultModel(modelName string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	cfg.Chat.DefaultModel = modelName
+	cfg.Agent.Model = modelName
 
 	if err := cfg.SaveConfig(""); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
@@ -438,7 +438,7 @@ func setSystemPrompt(systemPrompt string) error {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	cfg.Chat.SystemPrompt = systemPrompt
+	cfg.Agent.SystemPrompt = systemPrompt
 
 	if err := cfg.SaveConfig(""); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
@@ -469,11 +469,11 @@ var configPromptVerboseToolsCmd = &cobra.Command{
 
 		switch args[0] {
 		case "enable":
-			cfg.Chat.Prompt.VerboseTools = true
-			fmt.Println("✅ Verbose tools output enabled for prompt command")
+			cfg.Agent.VerboseTools = true
+			fmt.Println("✅ Verbose tools output enabled for agent command")
 		case "disable":
-			cfg.Chat.Prompt.VerboseTools = false
-			fmt.Println("✅ Verbose tools output disabled for prompt command (will show tool names only)")
+			cfg.Agent.VerboseTools = false
+			fmt.Println("✅ Verbose tools output disabled for agent command (will show tool names only)")
 		default:
 			return fmt.Errorf("invalid argument: %s. Use 'enable' or 'disable'", args[0])
 		}

@@ -837,12 +837,7 @@ func (m *KeyBindingManager) RegisterCustomAction(action *KeyAction) error {
 
 // getCurrentTokenUsage returns current session token usage string
 func getCurrentTokenUsage(app KeyHandlerContext) string {
-	services := app.GetServices()
-	if services == nil {
-		return ""
-	}
-
-	conversationRepo := services.GetConversationRepository()
+	conversationRepo := app.GetConversationRepository()
 	if conversationRepo == nil {
 		return ""
 	}
@@ -857,7 +852,7 @@ func (m *KeyBindingManager) GetRegistry() KeyRegistry {
 
 // debugKeyBinding logs key binding events when debug mode is enabled
 func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, handlerName string) tea.Cmd {
-	config := m.app.GetServices().GetConfig()
+	config := m.app.GetConfig()
 	if config != nil && config.Logging.Debug {
 		return func() tea.Msg {
 			return shared.DebugKeyMsg{

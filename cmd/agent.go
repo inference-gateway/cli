@@ -15,20 +15,20 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var promptCmd = &cobra.Command{
-	Use:   "prompt [prompt text]",
-	Short: "Execute a one-off prompt task in background mode",
-	Long: `Execute a one-off prompt task in background mode. The CLI will work iteratively
+var agentCmd = &cobra.Command{
+	Use:   "agent [task description]",
+	Short: "Execute a task using an autonomous agent in background mode",
+	Long: `Execute a task using an autonomous agent in background mode. The CLI will work iteratively
 until the task is considered complete. Particularly useful for SCM tickets like GitHub issues.
 
 Examples:
-  infer prompt "Please fix the github issue 38"
-  infer prompt --model "openai/gpt-4" "Implement the feature described in issue #42"
-  infer prompt "Debug the failing test in PR 15"`,
+  infer agent "Please fix the github issue 38"
+  infer agent --model "openai/gpt-4" "Implement the feature described in issue #42"
+  infer agent "Debug the failing test in PR 15"`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		model, _ := cmd.Flags().GetString("model")
-		return runPromptCommand(args[0], model)
+		return runAgentCommand(args[0], model)
 	},
 }
 
@@ -42,12 +42,13 @@ type ConversationMessage struct {
 	TokenUsage *sdk.CompletionUsage                 `json:"token_usage,omitempty"`
 	Timestamp  time.Time                            `json:"timestamp"`
 	RequestID  string                               `json:"request_id,omitempty"`
-	Internal   bool                                 `json:"-"` // Internal messages are not output to JSON
+	Internal   bool                                 `json:"-"`
 }
 
-// PromptSession manages the background execution session
-type PromptSession struct {
-	services       *container.ServiceContainer
+// AgentSession manages the background execution session
+type AgentSession struct {
+	agentService   domain.AgentService
+	toolService    domain.ToolService
 	model          string
 	conversation   []ConversationMessage
 	sessionID      string
@@ -56,7 +57,7 @@ type PromptSession struct {
 	config         *config.Config
 }
 
-func runPromptCommand(promptText string, modelFlag string) error {
+func runAgentCommand(taskDescription string, modelFlag string) error {
 	cfg, err := config.LoadConfig("")
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -76,13 +77,17 @@ func runPromptCommand(promptText string, modelFlag string) error {
 		return fmt.Errorf("no models available from inference gateway")
 	}
 
-	selectedModel, err := selectModel(models, modelFlag, cfg.Chat.DefaultModel)
+	selectedModel, err := selectModel(models, modelFlag, cfg.Agent.Model)
 	if err != nil {
 		return err
 	}
 
-	session := &PromptSession{
-		services:     services,
+	agentService := services.GetAgentService()
+	toolService := services.GetToolService()
+
+	session := &AgentSession{
+		agentService: agentService,
+		toolService:  toolService,
 		model:        selectedModel,
 		sessionID:    uuid.New().String(),
 		maxTurns:     20,
@@ -90,15 +95,15 @@ func runPromptCommand(promptText string, modelFlag string) error {
 		config:       cfg,
 	}
 
-	logger.Info("Starting prompt session", "session_id", session.sessionID, "model", selectedModel)
+	logger.Info("Starting agent session", "session_id", session.sessionID, "model", selectedModel)
 
-	return session.execute(promptText)
+	return session.execute(taskDescription)
 }
 
-func (s *PromptSession) execute(promptText string) error {
+func (s *AgentSession) execute(taskDescription string) error {
 	s.addMessage(ConversationMessage{
 		Role:      "user",
-		Content:   promptText,
+		Content:   taskDescription,
 		Timestamp: time.Now(),
 	})
 
@@ -141,13 +146,19 @@ func (s *PromptSession) execute(promptText string) error {
 	return nil
 }
 
-func (s *PromptSession) executeTurn() error {
+func (s *AgentSession) executeTurn() error {
 	ctx := context.Background()
 	requestID := uuid.New().String()
 
 	messages := s.buildSDKMessages()
 
-	response, err := s.services.GetChatService().SendMessageSync(ctx, requestID, s.model, messages)
+	req := &domain.AgentRequest{
+		RequestID: requestID,
+		Model:     s.model,
+		Messages:  messages,
+	}
+
+	response, err := s.agentService.Run(ctx, req)
 	if err != nil {
 		return fmt.Errorf("failed to send message: %w", err)
 	}
@@ -155,7 +166,7 @@ func (s *PromptSession) executeTurn() error {
 	return s.processSyncResponse(response, requestID)
 }
 
-func (s *PromptSession) buildSDKMessages() []sdk.Message {
+func (s *AgentSession) buildSDKMessages() []sdk.Message {
 	var messages []sdk.Message
 
 	for _, msg := range s.conversation {
@@ -192,7 +203,7 @@ func (s *PromptSession) buildSDKMessages() []sdk.Message {
 	return messages
 }
 
-func (s *PromptSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
+func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
 	if response.Content != "" {
 		assistantMsg := ConversationMessage{
 			Role:       "assistant",
@@ -235,17 +246,17 @@ func (s *PromptSession) processSyncResponse(response *domain.ChatSyncResponse, r
 	return nil
 }
 
-func (s *PromptSession) executeToolCall(toolName, args string) (*domain.ToolExecutionResult, error) {
+func (s *AgentSession) executeToolCall(toolName, args string) (*domain.ToolExecutionResult, error) {
 	var argsMap map[string]any
 	if err := json.Unmarshal([]byte(args), &argsMap); err != nil {
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
 	ctx := context.Background()
-	return s.services.GetToolService().ExecuteTool(ctx, toolName, argsMap)
+	return s.toolService.ExecuteTool(ctx, toolName, argsMap)
 }
 
-func (s *PromptSession) formatToolResult(result *domain.ToolExecutionResult) string {
+func (s *AgentSession) formatToolResult(result *domain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -262,18 +273,18 @@ func (s *PromptSession) formatToolResult(result *domain.ToolExecutionResult) str
 	return fmt.Sprintf("Result of tool call: %s", string(resultBytes))
 }
 
-func (s *PromptSession) addMessage(msg ConversationMessage) {
+func (s *AgentSession) addMessage(msg ConversationMessage) {
 	s.conversation = append(s.conversation, msg)
 }
 
-func (s *PromptSession) outputMessage(msg ConversationMessage) {
+func (s *AgentSession) outputMessage(msg ConversationMessage) {
 	if msg.Role == "system" || msg.Internal {
 		return
 	}
 
 	logMsg := msg
 
-	if !s.config.Chat.Prompt.VerboseTools && msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
+	if !s.config.Agent.VerboseTools && msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
 		toolNames := make([]string, len(*msg.ToolCalls))
 		for i, toolCall := range *msg.ToolCalls {
 			toolNames[i] = toolCall.Function.Name
@@ -291,7 +302,7 @@ func (s *PromptSession) outputMessage(msg ConversationMessage) {
 	fmt.Println(string(output))
 }
 
-func (s *PromptSession) lastResponseHadNoToolCalls() bool {
+func (s *AgentSession) lastResponseHadNoToolCalls() bool {
 	if len(s.conversation) < 2 {
 		return false
 	}
@@ -334,6 +345,6 @@ func isModelAvailable(models []string, targetModel string) bool {
 }
 
 func init() {
-	promptCmd.Flags().StringP("model", "m", "", "Model to use for the prompt (e.g., openai/gpt-4)")
-	rootCmd.AddCommand(promptCmd)
+	agentCmd.Flags().StringP("model", "m", "", "Model to use for the agent (e.g., openai/gpt-4)")
+	rootCmd.AddCommand(agentCmd)
 }

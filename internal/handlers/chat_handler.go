@@ -21,7 +21,7 @@ import (
 // ChatHandler handles chat-related messages using the new state management system
 type ChatHandler struct {
 	name                    string
-	chatService             domain.ChatService
+	agentService            domain.AgentService
 	conversationRepo        domain.ConversationRepository
 	modelService            domain.ModelService
 	configService           domain.ConfigService
@@ -34,7 +34,7 @@ type ChatHandler struct {
 
 // NewChatHandler creates a new chat handler
 func NewChatHandler(
-	chatService domain.ChatService,
+	agentService domain.AgentService,
 	conversationRepo domain.ConversationRepository,
 	modelService domain.ModelService,
 	configService domain.ConfigService,
@@ -45,7 +45,7 @@ func NewChatHandler(
 ) *ChatHandler {
 	return &ChatHandler{
 		name:             "ChatHandler",
-		chatService:      chatService,
+		agentService:     agentService,
 		conversationRepo: conversationRepo,
 		modelService:     modelService,
 		configService:    configService,
@@ -290,7 +290,13 @@ func (h *ChatHandler) startChatCompletion(
 
 		requestID := generateRequestID()
 
-		eventChan, err := h.chatService.SendMessage(ctx, requestID, currentModel, messages)
+		req := &domain.AgentRequest{
+			RequestID: requestID,
+			Model:     currentModel,
+			Messages:  messages,
+		}
+
+		eventChan, err := h.agentService.RunWithStream(ctx, req)
 		if err != nil {
 			return domain.ChatErrorEvent{
 				RequestID: requestID,
@@ -1553,11 +1559,11 @@ func (h *ChatHandler) shouldInjectSystemReminder() bool {
 		return false
 	}
 
-	if !config.Chat.SystemReminders.Enabled {
+	if !config.Agent.SystemReminders.Enabled {
 		return false
 	}
 
-	interval := config.Chat.SystemReminders.Interval
+	interval := config.Agent.SystemReminders.Interval
 	if interval <= 0 {
 		interval = 4
 	}
@@ -1573,7 +1579,7 @@ func (h *ChatHandler) injectSystemReminder() tea.Cmd {
 			return nil
 		}
 
-		reminderText := config.Chat.SystemReminders.ReminderText
+		reminderText := config.Agent.SystemReminders.ReminderText
 		if reminderText == "" {
 			reminderText = `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
