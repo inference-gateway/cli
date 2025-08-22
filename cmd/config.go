@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 	"time"
 
@@ -43,6 +44,18 @@ The system prompt provides context and instructions to the AI model about how to
 	RunE: func(cmd *cobra.Command, args []string) error {
 		systemPrompt := args[0]
 		return setSystemPrompt(systemPrompt)
+	},
+}
+
+var setMaxTurnsCmd = &cobra.Command{
+	Use:   "set-max-turns [NUMBER]",
+	Short: "Set the maximum number of turns for agent sessions",
+	Long: `Set the maximum number of conversation turns for agent sessions.
+This limits how long an agent can run to prevent infinite loops or excessive token usage.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		maxTurns := args[0]
+		return setMaxTurns(maxTurns)
 	},
 }
 
@@ -450,6 +463,32 @@ func setSystemPrompt(systemPrompt string) error {
 	return nil
 }
 
+func setMaxTurns(maxTurnsStr string) error {
+	cfg, err := config.LoadConfig("")
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
+	}
+
+	maxTurns, err := strconv.Atoi(maxTurnsStr)
+	if err != nil {
+		return fmt.Errorf("invalid max turns value '%s': must be a positive integer", maxTurnsStr)
+	}
+
+	if maxTurns < 1 {
+		return fmt.Errorf("max turns must be at least 1, got %d", maxTurns)
+	}
+
+	cfg.Agent.MaxTurns = maxTurns
+
+	if err := cfg.SaveConfig(""); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	fmt.Printf("✅ Maximum turns set to: %d\n", maxTurns)
+	fmt.Println("Agent sessions will now be limited to this number of conversation turns.")
+	return nil
+}
+
 var configPromptCmd = &cobra.Command{
 	Use:   "prompt",
 	Short: "Configure prompt command settings",
@@ -489,6 +528,7 @@ var configPromptVerboseToolsCmd = &cobra.Command{
 func init() {
 	configCmd.AddCommand(setModelCmd)
 	configCmd.AddCommand(setSystemCmd)
+	configCmd.AddCommand(setMaxTurnsCmd)
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configToolsCmd)
 	configCmd.AddCommand(configFetchCmd)

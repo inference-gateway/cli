@@ -90,7 +90,7 @@ func runAgentCommand(taskDescription string, modelFlag string) error {
 		toolService:  toolService,
 		model:        selectedModel,
 		sessionID:    uuid.New().String(),
-		maxTurns:     20,
+		maxTurns:     cfg.Agent.MaxTurns,
 		conversation: []ConversationMessage{},
 		config:       cfg,
 	}
