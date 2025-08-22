@@ -31,11 +31,12 @@ type GatewayConfig struct {
 
 // RetryConfig contains retry logic settings
 type RetryConfig struct {
-	Enabled           bool `yaml:"enabled"`
-	MaxAttempts       int  `yaml:"max_attempts"`
-	InitialBackoffSec int  `yaml:"initial_backoff_sec"`
-	MaxBackoffSec     int  `yaml:"max_backoff_sec"`
-	BackoffMultiplier int  `yaml:"backoff_multiplier"`
+	Enabled              bool  `yaml:"enabled"`
+	MaxAttempts          int   `yaml:"max_attempts"`
+	InitialBackoffSec    int   `yaml:"initial_backoff_sec"`
+	MaxBackoffSec        int   `yaml:"max_backoff_sec"`
+	BackoffMultiplier    int   `yaml:"backoff_multiplier"`
+	RetryableStatusCodes []int `yaml:"retryable_status_codes"`
 }
 
 // LoggingConfig contains logging settings
@@ -222,11 +223,12 @@ func DefaultConfig() *Config { //nolint:funlen
 			APIKey:  "",
 			Timeout: 200,
 			Retry: RetryConfig{
-				Enabled:           true,
-				MaxAttempts:       3,
-				InitialBackoffSec: 5,
-				MaxBackoffSec:     60,
-				BackoffMultiplier: 2,
+				Enabled:              true,
+				MaxAttempts:          3,
+				InitialBackoffSec:    5,
+				MaxBackoffSec:        60,
+				BackoffMultiplier:    2,
+				RetryableStatusCodes: []int{400, 408, 429, 500, 502, 503, 504},
 			},
 		},
 		Logging: LoggingConfig{

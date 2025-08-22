@@ -8,6 +8,14 @@ gateway:
     initial_backoff_sec: 5
     max_backoff_sec: 60
     backoff_multiplier: 2
+    retryable_status_codes:
+      - 400
+      - 408
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
 logging:
   debug: false
 tools:

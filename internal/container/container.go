@@ -69,7 +69,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 			InitialBackoffSec:    c.config.Gateway.Retry.InitialBackoffSec,
 			MaxBackoffSec:        c.config.Gateway.Retry.MaxBackoffSec,
 			BackoffMultiplier:    c.config.Gateway.Retry.BackoffMultiplier,
-			RetryableStatusCodes: []int{400, 408, 429, 500, 502, 503, 504},
+			RetryableStatusCodes: c.config.Gateway.Retry.RetryableStatusCodes,
 		},
 	)
 
@@ -91,7 +91,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 			InitialBackoffSec:    c.config.Gateway.Retry.InitialBackoffSec,
 			MaxBackoffSec:        c.config.Gateway.Retry.MaxBackoffSec,
 			BackoffMultiplier:    c.config.Gateway.Retry.BackoffMultiplier,
-			RetryableStatusCodes: []int{400, 408, 429, 500, 502, 503, 504},
+			RetryableStatusCodes: c.config.Gateway.Retry.RetryableStatusCodes,
 		},
 	)
 }
