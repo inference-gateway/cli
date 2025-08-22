@@ -978,7 +978,7 @@ agent:
       System reminder text for maintaining context
   verbose_tools: false
   max_turns: 50 # Maximum number of turns for agent sessions
-  max_tokens: 4096 # Maximum tokens per agent request
+  max_tokens: 4096 # The maximum number of tokens that can be generated per request
   optimization:
     enabled: false
     max_history: 10
