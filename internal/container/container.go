@@ -61,6 +61,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.modelService = services.NewHTTPModelService(
 		c.config.Gateway.URL,
 		c.config.Gateway.APIKey,
+		c.config.Gateway.Timeout,
 	)
 
 	if c.config.Tools.Enabled {

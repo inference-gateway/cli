@@ -31,7 +31,7 @@ func startChatSession() error {
 
 	services := container.NewServiceContainer(cfg)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()
 
 	models, err := services.GetModelService().ListModels(ctx)

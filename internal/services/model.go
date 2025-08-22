@@ -32,11 +32,11 @@ type ModelsResponse struct {
 }
 
 // NewHTTPModelService creates a new HTTP-based model service
-func NewHTTPModelService(baseURL, apiKey string) *HTTPModelService {
+func NewHTTPModelService(baseURL, apiKey string, timeoutSeconds int) *HTTPModelService {
 	return &HTTPModelService{
 		baseURL:  strings.TrimSuffix(baseURL, "/"),
 		apiKey:   apiKey,
-		client:   &http.Client{Timeout: 30 * time.Second},
+		client:   &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
 		cacheTTL: 5 * time.Minute, // Cache models for 5 minutes
 	}
 }
@@ -144,7 +144,7 @@ func (s *HTTPModelService) validateAgainstCachedModels(modelID string, models []
 }
 
 func (s *HTTPModelService) validateAgainstFetchedModels(modelID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), s.client.Timeout)
 	defer cancel()
 
 	models, err := s.ListModels(ctx)
