@@ -15,7 +15,7 @@ import (
 type HTTPModelService struct {
 	baseURL   string
 	apiKey    string
-	client    *http.Client
+	client    *RetryableHTTPClient
 	current   string
 	models    []string
 	modelsMux sync.RWMutex
@@ -32,11 +32,11 @@ type ModelsResponse struct {
 }
 
 // NewHTTPModelService creates a new HTTP-based model service
-func NewHTTPModelService(baseURL, apiKey string, timeoutSeconds int) *HTTPModelService {
+func NewHTTPModelService(baseURL, apiKey string, timeoutSeconds int, retryConfig RetryConfig) *HTTPModelService {
 	return &HTTPModelService{
 		baseURL:  strings.TrimSuffix(baseURL, "/"),
 		apiKey:   apiKey,
-		client:   &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
+		client:   NewRetryableHTTPClient(time.Duration(timeoutSeconds)*time.Second, retryConfig),
 		cacheTTL: 5 * time.Minute,
 	}
 }
@@ -144,7 +144,7 @@ func (s *HTTPModelService) validateAgainstCachedModels(modelID string, models []
 }
 
 func (s *HTTPModelService) validateAgainstFetchedModels(modelID string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), s.client.Timeout)
+	ctx, cancel := context.WithTimeout(context.Background(), s.client.client.Timeout)
 	defer cancel()
 
 	models, err := s.ListModels(ctx)

@@ -2,6 +2,12 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
+  retry:
+    enabled: true
+    max_attempts: 3
+    initial_backoff_sec: 5
+    max_backoff_sec: 60
+    backoff_multiplier: 2
 logging:
   debug: false
 tools:

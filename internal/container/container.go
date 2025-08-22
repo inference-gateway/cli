@@ -62,6 +62,13 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.URL,
 		c.config.Gateway.APIKey,
 		c.config.Gateway.Timeout,
+		services.RetryConfig{
+			Enabled:           c.config.Gateway.Retry.Enabled,
+			MaxAttempts:       c.config.Gateway.Retry.MaxAttempts,
+			InitialBackoffSec: c.config.Gateway.Retry.InitialBackoffSec,
+			MaxBackoffSec:     c.config.Gateway.Retry.MaxBackoffSec,
+			BackoffMultiplier: c.config.Gateway.Retry.BackoffMultiplier,
+		},
 	)
 
 	if c.config.Tools.Enabled {
@@ -76,6 +83,13 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.Timeout,
 		c.toolService,
 		c.config.Chat.SystemPrompt,
+		services.RetryConfig{
+			Enabled:           c.config.Gateway.Retry.Enabled,
+			MaxAttempts:       c.config.Gateway.Retry.MaxAttempts,
+			InitialBackoffSec: c.config.Gateway.Retry.InitialBackoffSec,
+			MaxBackoffSec:     c.config.Gateway.Retry.MaxBackoffSec,
+			BackoffMultiplier: c.config.Gateway.Retry.BackoffMultiplier,
+		},
 	)
 }
 

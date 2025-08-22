@@ -33,7 +33,7 @@ type StreamingChatService struct {
 }
 
 // NewStreamingChatService creates a new streaming chat service
-func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolService domain.ToolService, systemPrompt string) *StreamingChatService {
+func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolService domain.ToolService, systemPrompt string, retryConfig RetryConfig) *StreamingChatService {
 	if !strings.HasSuffix(baseURL, "/v1") {
 		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
 	}

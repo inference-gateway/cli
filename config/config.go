@@ -23,9 +23,19 @@ type Config struct {
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL     string `yaml:"url"`
-	APIKey  string `yaml:"api_key"`
-	Timeout int    `yaml:"timeout"`
+	URL     string      `yaml:"url"`
+	APIKey  string      `yaml:"api_key"`
+	Timeout int         `yaml:"timeout"`
+	Retry   RetryConfig `yaml:"retry"`
+}
+
+// RetryConfig contains retry logic settings
+type RetryConfig struct {
+	Enabled           bool `yaml:"enabled"`
+	MaxAttempts       int  `yaml:"max_attempts"`
+	InitialBackoffSec int  `yaml:"initial_backoff_sec"`
+	MaxBackoffSec     int  `yaml:"max_backoff_sec"`
+	BackoffMultiplier int  `yaml:"backoff_multiplier"`
 }
 
 // LoggingConfig contains logging settings
@@ -205,6 +215,13 @@ func DefaultConfig() *Config { //nolint:funlen
 			URL:     "http://localhost:8080",
 			APIKey:  "",
 			Timeout: 200,
+			Retry: RetryConfig{
+				Enabled:           true,
+				MaxAttempts:       3,
+				InitialBackoffSec: 5,
+				MaxBackoffSec:     60,
+				BackoffMultiplier: 2,
+			},
 		},
 		Logging: LoggingConfig{
 			Debug: false,
