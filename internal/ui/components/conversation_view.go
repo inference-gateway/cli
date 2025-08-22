@@ -188,6 +188,12 @@ func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, inde
 	var isExpanded bool
 	if index >= 0 {
 		isExpanded = cv.IsToolResultExpanded(index)
+
+		if entry.ToolExecution != nil && cv.toolFormatter != nil {
+			if cv.toolFormatter.ShouldAlwaysExpandTool(entry.ToolExecution.ToolName) {
+				isExpanded = true
+			}
+		}
 	}
 
 	content := cv.formatEntryContent(entry, isExpanded)
@@ -205,7 +211,15 @@ func (cv *ConversationView) formatEntryContent(entry domain.ConversationEntry, i
 func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
 		content := cv.toolFormatter.FormatToolResultExpanded(entry.ToolExecution, cv.width)
-		return content + "\n\n💡 Press Ctrl+R to collapse all tool calls"
+
+		var helpText string
+		if cv.toolFormatter != nil && cv.toolFormatter.ShouldAlwaysExpandTool(entry.ToolExecution.ToolName) {
+			helpText = ""
+		} else {
+			helpText = "\n💡 Press Ctrl+R to collapse all tool calls"
+		}
+
+		return content + helpText
 	}
 	wrappedContent := shared.FormatResponsiveMessage(entry.Message.Content, cv.width)
 	return wrappedContent + "\n\n💡 Press Ctrl+R to collapse all tool calls"

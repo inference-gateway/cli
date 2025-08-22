@@ -293,3 +293,12 @@ func (s *ToolFormatterService) formatGenericArguments(args map[string]any) strin
 
 	return result.String()
 }
+
+// ShouldAlwaysExpandTool checks if a tool result should always be expanded
+func (s *ToolFormatterService) ShouldAlwaysExpandTool(toolName string) bool {
+	tool, err := s.toolRegistry.GetTool(toolName)
+	if err != nil {
+		return false
+	}
+	return tool.ShouldAlwaysExpand()
+}

@@ -511,3 +511,8 @@ func (t *ReadTool) formatReadData(data any) string {
 func (t *ReadTool) ShouldCollapseArg(key string) bool {
 	return false
 }
+
+// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+func (t *ReadTool) ShouldAlwaysExpand() bool {
+	return false
+}

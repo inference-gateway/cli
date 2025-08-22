@@ -203,6 +203,9 @@ type Tool interface {
 
 	// ShouldCollapseArg determines if an argument should be collapsed in display
 	ShouldCollapseArg(key string) bool
+
+	// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+	ShouldAlwaysExpand() bool
 }
 
 // FormatterType defines the context for formatting tool results
@@ -230,6 +233,9 @@ type ToolFormatter interface {
 
 	// FormatToolResultForLLM formats tool execution results for LLM consumption
 	FormatToolResultForLLM(result *ToolExecutionResult) string
+
+	// ShouldAlwaysExpandTool checks if a tool result should always be expanded
+	ShouldAlwaysExpandTool(toolName string) bool
 }
 
 // ToolFactory creates tool instances

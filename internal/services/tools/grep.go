@@ -1131,3 +1131,8 @@ func (t *GrepTool) formatGrepData(data any) string {
 func (t *GrepTool) ShouldCollapseArg(key string) bool {
 	return false
 }
+
+// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+func (t *GrepTool) ShouldAlwaysExpand() bool {
+	return false
+}

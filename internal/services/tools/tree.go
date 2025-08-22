@@ -671,3 +671,8 @@ func (t *TreeTool) formatTreeData(data any) string {
 func (t *TreeTool) ShouldCollapseArg(key string) bool {
 	return false
 }
+
+// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+func (t *TreeTool) ShouldAlwaysExpand() bool {
+	return false
+}

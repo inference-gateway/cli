@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -376,7 +377,7 @@ func (t *TodoWriteTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 
 	var output strings.Builder
 
-	output.WriteString(t.formatter.FormatExpandedHeader(result))
+	output.WriteString(t.formatExpandedHeader(result))
 
 	if result.Data != nil {
 		dataContent := t.formatTodoData(result.Data)
@@ -388,6 +389,68 @@ func (t *TodoWriteTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
 	return output.String()
+}
+
+// formatExpandedHeader formats the expanded view header with TodoWrite-specific collapse logic
+func (t *TodoWriteTool) formatExpandedHeader(result *domain.ToolExecutionResult) string {
+	var output strings.Builder
+	toolCall := t.formatToolCallWithCollapse(result.Arguments)
+
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("├─ ⏱️  Duration: %s\n", t.formatter.FormatDuration(result)))
+	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", t.formatter.FormatStatus(result.Success)))
+
+	if result.Error != "" {
+		output.WriteString(fmt.Sprintf("├─ ❌ Error: %s\n", result.Error))
+	}
+
+	if len(result.Arguments) > 0 {
+		output.WriteString("├─ 📝 Arguments:\n")
+		keys := make([]string, 0, len(result.Arguments))
+		for key := range result.Arguments {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+
+		for i, key := range keys {
+			value := result.Arguments[key]
+			if t.ShouldCollapseArg(key) {
+				value = "..."
+			}
+			hasMore := i < len(keys)-1 || result.Data != nil || len(result.Metadata) > 0
+			if hasMore {
+				output.WriteString(fmt.Sprintf("│  ├─ %s: %v\n", key, value))
+			} else {
+				output.WriteString(fmt.Sprintf("│  └─ %s: %v\n", key, value))
+			}
+		}
+	}
+
+	return output.String()
+}
+
+// formatToolCallWithCollapse formats a tool call with TodoWrite-specific collapse logic
+func (t *TodoWriteTool) formatToolCallWithCollapse(args map[string]any) string {
+	if len(args) == 0 {
+		return "TodoWrite()"
+	}
+
+	keys := make([]string, 0, len(args))
+	for key := range args {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+
+	argPairs := make([]string, 0, len(args))
+	for _, key := range keys {
+		value := args[key]
+		if t.ShouldCollapseArg(key) {
+			value = `"..."`
+		}
+		argPairs = append(argPairs, fmt.Sprintf("%s=%v", key, value))
+	}
+
+	return fmt.Sprintf("TodoWrite(%s)", strings.Join(argPairs, ", "))
 }
 
 // formatTodoData formats todo-specific data with progress visualization
@@ -478,10 +541,10 @@ func (t *TodoWriteTool) formatTodoItem(todo domain.TodoItem) (string, string) {
 
 	switch todo.Status {
 	case "completed":
-		checkbox = "✅"
+		checkbox = shared.CreateColoredText("☐", shared.SuccessColor)
 		content = shared.CreateStrikethroughText(todo.Content)
 	case "in_progress":
-		checkbox = "🔄"
+		checkbox = shared.CreateColoredText("☐", shared.AccentColor)
 		content = shared.CreateColoredText(fmt.Sprintf("%s (in progress)", todo.Content), shared.AccentColor)
 	default:
 		checkbox = "☐"
@@ -493,5 +556,10 @@ func (t *TodoWriteTool) formatTodoItem(todo domain.TodoItem) (string, string) {
 
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *TodoWriteTool) ShouldCollapseArg(key string) bool {
-	return false
+	return key == "todos"
+}
+
+// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+func (t *TodoWriteTool) ShouldAlwaysExpand() bool {
+	return true
 }

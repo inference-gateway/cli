@@ -748,6 +748,11 @@ func (t *MultiEditTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
 }
 
+// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+func (t *MultiEditTool) ShouldAlwaysExpand() bool {
+	return false
+}
+
 // FormatArgumentsForApproval formats arguments for approval display with diff preview
 func (t *MultiEditTool) FormatArgumentsForApproval(args map[string]any) string {
 	var b strings.Builder
