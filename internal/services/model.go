@@ -37,7 +37,7 @@ func NewHTTPModelService(baseURL, apiKey string, timeoutSeconds int) *HTTPModelS
 		baseURL:  strings.TrimSuffix(baseURL, "/"),
 		apiKey:   apiKey,
 		client:   &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
-		cacheTTL: 5 * time.Minute, // Cache models for 5 minutes
+		cacheTTL: 5 * time.Minute,
 	}
 }
 
