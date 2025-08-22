@@ -158,6 +158,7 @@ agent:
       </system-reminder>
   verbose_tools: false
   max_turns: 50
+  max_tokens: 4096
   optimization:
     enabled: false
     max_history: 10

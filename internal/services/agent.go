@@ -17,6 +17,7 @@ type AgentServiceImpl struct {
 	toolService    domain.ToolService
 	systemPrompt   string
 	timeoutSeconds int
+	maxTokens      int
 
 	// Request tracking
 	activeRequests map[string]context.CancelFunc
@@ -28,12 +29,13 @@ type AgentServiceImpl struct {
 }
 
 // NewAgentService creates a new agent service with pre-configured client
-func NewAgentService(client sdk.Client, toolService domain.ToolService, systemPrompt string, timeoutSeconds int) *AgentServiceImpl {
+func NewAgentService(client sdk.Client, toolService domain.ToolService, systemPrompt string, timeoutSeconds int, maxTokens int) *AgentServiceImpl {
 	return &AgentServiceImpl{
 		client:         client,
 		toolService:    toolService,
 		systemPrompt:   systemPrompt,
 		timeoutSeconds: timeoutSeconds,
+		maxTokens:      maxTokens,
 		activeRequests: make(map[string]context.CancelFunc),
 		metrics:        make(map[string]*domain.ChatMetrics),
 	}

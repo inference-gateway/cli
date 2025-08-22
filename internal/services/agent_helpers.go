@@ -100,10 +100,17 @@ func (s *AgentServiceImpl) generateContentSync(timeoutCtx context.Context, model
 		clientWithTools = s.client.WithTools(tools)
 	}
 
-	response, err := clientWithTools.WithMiddlewareOptions(&sdk.MiddlewareOptions{
-		SkipMCP: true,
-		SkipA2A: true,
-	}).GenerateContent(timeoutCtx, providerType, modelName, messages)
+	options := &sdk.CreateChatCompletionRequest{
+		MaxTokens: &s.maxTokens,
+	}
+
+	response, err := clientWithTools.
+		WithOptions(options).
+		WithMiddlewareOptions(&sdk.MiddlewareOptions{
+			SkipMCP: true,
+			SkipA2A: true,
+		}).
+		GenerateContent(timeoutCtx, providerType, modelName, messages)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
@@ -178,7 +185,17 @@ func (s *AgentServiceImpl) createContentStream(timeoutCtx context.Context, model
 		clientWithTools = s.client.WithTools(tools)
 	}
 
-	stream, err := clientWithTools.GenerateContentStream(timeoutCtx, providerType, modelName, messages)
+	options := &sdk.CreateChatCompletionRequest{
+		MaxTokens: &s.maxTokens,
+	}
+
+	stream, err := clientWithTools.
+		WithOptions(options).
+		WithMiddlewareOptions(&sdk.MiddlewareOptions{
+			SkipMCP: true,
+			SkipA2A: true,
+		}).
+		GenerateContentStream(timeoutCtx, providerType, modelName, messages)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content stream: %w", err)
 	}

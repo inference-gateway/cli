@@ -205,6 +205,7 @@ type AgentConfig struct {
 	SystemReminders SystemRemindersConfig `yaml:"system_reminders"`
 	VerboseTools    bool                  `yaml:"verbose_tools"`
 	MaxTurns        int                   `yaml:"max_turns"`
+	MaxTokens       int                   `yaml:"max_tokens"`
 	Optimization    OptimizationConfig    `yaml:"optimization"`
 }
 
@@ -396,6 +397,7 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 			},
 			VerboseTools: false,
 			MaxTurns:     50,
+			MaxTokens:    4096,
 			Optimization: OptimizationConfig{
 				Enabled:                    false,
 				MaxHistory:                 10,

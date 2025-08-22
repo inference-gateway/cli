@@ -79,6 +79,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.toolService,
 		c.config.Agent.SystemPrompt,
 		c.config.Gateway.Timeout,
+		c.config.Agent.MaxTokens,
 	)
 
 	c.chatService = services.NewStreamingChatService(c.agentService)
