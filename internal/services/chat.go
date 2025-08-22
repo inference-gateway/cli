@@ -266,7 +266,10 @@ func (s *StreamingChatService) generateContentSync(timeoutCtx context.Context, m
 		clientWithTools = s.client.WithTools(tools)
 	}
 
-	response, err := clientWithTools.GenerateContent(timeoutCtx, providerType, modelName, messages)
+	response, err := clientWithTools.WithMiddlewareOptions(&sdk.MiddlewareOptions{
+		SkipMCP: true,
+		SkipA2A: true,
+	}).GenerateContent(timeoutCtx, providerType, modelName, messages)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
