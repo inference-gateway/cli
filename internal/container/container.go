@@ -73,6 +73,21 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.toolService = services.NewNoOpToolService()
 	}
 
+	var optimizer *services.ConversationOptimizer
+	if c.config.Agent.Optimization.Enabled {
+		summaryClient := c.createSDKClient()
+		optimizer = services.NewConversationOptimizer(services.OptimizerConfig{
+			Enabled:                    c.config.Agent.Optimization.Enabled,
+			MaxHistory:                 c.config.Agent.Optimization.MaxHistory,
+			CompactThreshold:           c.config.Agent.Optimization.CompactThreshold,
+			TruncateLargeOutputs:       c.config.Agent.Optimization.TruncateLargeOutputs,
+			SkipRedundantConfirmations: c.config.Agent.Optimization.SkipRedundantConfirmations,
+			Client:                     summaryClient,
+			ModelService:               c.modelService,
+			Config:                     c.config,
+		})
+	}
+
 	agentClient := c.createSDKClient()
 	c.agentService = services.NewAgentService(
 		agentClient,
@@ -80,6 +95,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Agent.SystemPrompt,
 		c.config.Gateway.Timeout,
 		c.config.Agent.MaxTokens,
+		optimizer,
 	)
 
 	c.chatService = services.NewStreamingChatService(c.agentService)

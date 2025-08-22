@@ -395,7 +395,7 @@ func TestChatHandler_parseToolCall(t *testing.T) {
 			name:        "Tool call with mixed quotes",
 			input:       `WebSearch(query="golang testing", max_results=10)`,
 			expectTool:  "WebSearch",
-			expectArgs:  map[string]any{"query": "golang testing", "max_results": "10"},
+			expectArgs:  map[string]any{"query": "golang testing", "max_results": float64(10)},
 			expectError: false,
 		},
 		{
@@ -481,7 +481,13 @@ func TestChatHandler_parseArguments(t *testing.T) {
 		{
 			name:        "Unquoted argument",
 			input:       `count=10`,
-			expectArgs:  map[string]any{"count": "10"},
+			expectArgs:  map[string]any{"count": float64(10)},
+			expectError: false,
+		},
+		{
+			name:        "Quoted number argument",
+			input:       `limit="51"`,
+			expectArgs:  map[string]any{"limit": float64(51)},
 			expectError: false,
 		},
 		{

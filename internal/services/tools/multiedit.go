@@ -499,8 +499,17 @@ func (t *MultiEditTool) createMultiEditMatchError(content, searchString, filePat
 			errorMsg += "\n\n" + suggestion
 		}
 		errorMsg += "\n\nHint: Earlier edits may have changed the content. Ensure the text still matches exactly after previous modifications."
+		errorMsg += "\n\nTips for fixing this:"
+		errorMsg += "\n1. Copy the exact content from the current file state (after previous edits)"
+		errorMsg += "\n2. Use larger context blocks to make matches more unique"
+		errorMsg += "\n3. Consider using replace_all=true if the change should apply to all occurrences"
+		errorMsg += "\n4. Structure edits to avoid dependencies - edit independent sections first"
 	} else {
 		errorMsg += "\n\nNo similar content found. Previous edits may have modified the content you're trying to match."
+		errorMsg += "\n\nThis often happens when:"
+		errorMsg += "\n1. Earlier edits changed variable/function names referenced in later edits"
+		errorMsg += "\n2. Earlier edits changed indentation or whitespace"
+		errorMsg += "\n3. The old_string contains line numbers from Read tool output that don't match the file"
 	}
 
 	return fmt.Errorf("%s", errorMsg)
@@ -514,22 +523,91 @@ func (t *MultiEditTool) findPotentialMatches(lines, searchLines []string) []stri
 		return suggestions
 	}
 
-	firstSearchLine := strings.TrimSpace(searchLines[0])
-	if len(firstSearchLine) <= 10 {
+	firstSearchLine := strings.TrimSpace(t.cleanLineFromNumbers(searchLines[0]))
+	if len(firstSearchLine) <= 3 {
 		return suggestions
 	}
 
 	for i, line := range lines {
-		if strings.Contains(strings.TrimSpace(line), firstSearchLine) {
-			suggestions = append(suggestions, t.createSuggestion(lines, searchLines, i))
+		trimmedLine := strings.TrimSpace(line)
 
-			if len(suggestions) >= 3 {
+		if strings.Contains(trimmedLine, firstSearchLine) {
+			suggestions = append(suggestions, t.createSuggestion(lines, searchLines, i))
+			if len(suggestions) >= 2 {
 				break
+			}
+			continue
+		}
+
+		if len(firstSearchLine) > 10 {
+			if t.isSimilarLine(trimmedLine, firstSearchLine, 0.7) {
+				suggestions = append(suggestions, t.createSuggestion(lines, searchLines, i))
+				if len(suggestions) >= 3 {
+					break
+				}
 			}
 		}
 	}
 
 	return suggestions
+}
+
+// cleanLineFromNumbers removes line number prefixes from a single line
+func (t *MultiEditTool) cleanLineFromNumbers(line string) string {
+	if cleanedLine, shouldClean := t.extractContentAfterLineNumber(line); shouldClean {
+		return cleanedLine
+	}
+	return line
+}
+
+// isSimilarLine checks if two lines are similar enough based on a threshold
+func (t *MultiEditTool) isSimilarLine(line1, line2 string, threshold float64) bool {
+	if len(line1) == 0 || len(line2) == 0 {
+		return false
+	}
+
+	clean1 := t.normalizeForComparison(line1)
+	clean2 := t.normalizeForComparison(line2)
+
+	if len(clean2) < 10 {
+		return strings.Contains(clean1, clean2)
+	}
+
+	commonWords := 0
+	totalWords := 0
+	words2 := strings.Fields(clean2)
+
+	for _, word := range words2 {
+		if len(word) > 2 {
+			totalWords++
+			if strings.Contains(clean1, word) {
+				commonWords++
+			}
+		}
+	}
+
+	if totalWords == 0 {
+		return false
+	}
+
+	return float64(commonWords)/float64(totalWords) >= threshold
+}
+
+// normalizeForComparison removes common syntax elements to focus on meaningful content
+func (t *MultiEditTool) normalizeForComparison(line string) string {
+	normalized := strings.TrimSpace(line)
+
+	replacements := []string{
+		"\t", " ",
+		"  ", " ",
+		"   ", " ",
+	}
+
+	for i := 0; i < len(replacements); i += 2 {
+		normalized = strings.ReplaceAll(normalized, replacements[i], replacements[i+1])
+	}
+
+	return normalized
 }
 
 // createSuggestion creates a context suggestion for a potential match (MultiEdit version)

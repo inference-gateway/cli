@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -256,14 +257,27 @@ func (h *ChatHandler) processChatMessage(
 		}
 	}
 
-	return nil, tea.Batch(
+	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return shared.UpdateHistoryMsg{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
-		h.startChatCompletion(stateManager),
-	)
+	}
+
+	if len(h.conversationRepo.GetMessages()) > 10 {
+		cmds = append(cmds, func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    fmt.Sprintf("Optimizing conversation history (%d messages)...", len(h.conversationRepo.GetMessages())),
+				Spinner:    true,
+				StatusType: shared.StatusPreparing,
+			}
+		})
+	}
+
+	cmds = append(cmds, h.startChatCompletion(stateManager))
+
+	return nil, tea.Batch(cmds...)
 }
 
 // startChatCompletion initiates a chat completion request
@@ -283,7 +297,8 @@ func (h *ChatHandler) startChatCompletion(
 		}
 
 		entries := h.conversationRepo.GetMessages()
-		messages := make([]sdk.Message, len(entries))
+		originalCount := len(entries)
+		messages := make([]sdk.Message, originalCount)
 		for i, entry := range entries {
 			messages[i] = entry.Message
 		}
@@ -1192,7 +1207,11 @@ func (h *ChatHandler) parseArguments(argsStr string) (map[string]any, error) {
 			value = value[1 : len(value)-1]
 		}
 
-		args[key] = value
+		if numValue, err := strconv.ParseFloat(value, 64); err == nil {
+			args[key] = numValue
+		} else {
+			args[key] = value
+		}
 	}
 
 	return args, nil

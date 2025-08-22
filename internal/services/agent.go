@@ -18,6 +18,7 @@ type AgentServiceImpl struct {
 	systemPrompt   string
 	timeoutSeconds int
 	maxTokens      int
+	optimizer      *ConversationOptimizer
 
 	// Request tracking
 	activeRequests map[string]context.CancelFunc
@@ -29,13 +30,14 @@ type AgentServiceImpl struct {
 }
 
 // NewAgentService creates a new agent service with pre-configured client
-func NewAgentService(client sdk.Client, toolService domain.ToolService, systemPrompt string, timeoutSeconds int, maxTokens int) *AgentServiceImpl {
+func NewAgentService(client sdk.Client, toolService domain.ToolService, systemPrompt string, timeoutSeconds int, maxTokens int, optimizer *ConversationOptimizer) *AgentServiceImpl {
 	return &AgentServiceImpl{
 		client:         client,
 		toolService:    toolService,
 		systemPrompt:   systemPrompt,
 		timeoutSeconds: timeoutSeconds,
 		maxTokens:      maxTokens,
+		optimizer:      optimizer,
 		activeRequests: make(map[string]context.CancelFunc),
 		metrics:        make(map[string]*domain.ChatMetrics),
 	}
@@ -47,7 +49,15 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 		return nil, err
 	}
 
-	messages := s.addToolsIfAvailable(req.Messages)
+	optimizedMessages := req.Messages
+	if s.optimizer != nil {
+		optimizedMessages = s.optimizer.OptimizeMessages(req.Messages)
+		logger.Debug("Message optimization applied",
+			"original_count", len(req.Messages),
+			"optimized_count", len(optimizedMessages))
+	}
+
+	messages := s.addToolsIfAvailable(optimizedMessages)
 
 	logger.Info("LLM Request (Sync)",
 		"request_id", req.RequestID,
@@ -93,7 +103,15 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		return nil, err
 	}
 
-	messages := s.addToolsIfAvailable(req.Messages)
+	optimizedMessages := req.Messages
+	if s.optimizer != nil {
+		optimizedMessages = s.optimizer.OptimizeMessages(req.Messages)
+		logger.Debug("Message optimization applied",
+			"original_count", len(req.Messages),
+			"optimized_count", len(optimizedMessages))
+	}
+
+	messages := s.addToolsIfAvailable(optimizedMessages)
 
 	logger.Info("LLM Request",
 		"request_id", req.RequestID,
