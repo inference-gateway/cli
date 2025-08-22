@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -26,6 +27,19 @@ type HTTPModelService struct {
 func NewHTTPModelService(baseURL, apiKey string, timeoutSeconds int, retryConfig *sdk.RetryConfig) *HTTPModelService {
 	if !strings.HasSuffix(baseURL, "/v1") {
 		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
+	}
+
+	if retryConfig != nil && retryConfig.Enabled {
+		originalOnRetry := retryConfig.OnRetry
+		retryConfig.OnRetry = func(attempt int, err error, delay time.Duration) {
+			logger.Info("Retrying HTTP request",
+				"attempt", attempt,
+				"error", err.Error(),
+				"delay", delay.String())
+			if originalOnRetry != nil {
+				originalOnRetry(attempt, err, delay)
+			}
+		}
 	}
 
 	client := sdk.NewClient(&sdk.ClientOptions{

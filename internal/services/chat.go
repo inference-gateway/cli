@@ -39,6 +39,19 @@ func NewStreamingChatService(baseURL, apiKey string, timeoutSeconds int, toolSer
 		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
 	}
 
+	if retryConfig != nil && retryConfig.Enabled {
+		originalOnRetry := retryConfig.OnRetry
+		retryConfig.OnRetry = func(attempt int, err error, delay time.Duration) {
+			logger.Info("Retrying HTTP request",
+				"attempt", attempt,
+				"error", err.Error(),
+				"delay", delay.String())
+			if originalOnRetry != nil {
+				originalOnRetry(attempt, err, delay)
+			}
+		}
+	}
+
 	client := sdk.NewClient(&sdk.ClientOptions{
 		BaseURL:     baseURL,
 		APIKey:      apiKey,
@@ -65,7 +78,6 @@ func (s *StreamingChatService) SendMessage(ctx context.Context, requestID string
 
 	messages = s.addToolsIfAvailable(messages)
 
-	// Log the request being sent to the LLM
 	logger.Info("LLM Request",
 		"request_id", requestID,
 		"model", model,
