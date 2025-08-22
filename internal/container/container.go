@@ -64,11 +64,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config.Gateway.APIKey,
 		c.config.Gateway.Timeout,
 		&sdk.RetryConfig{
-			Enabled:           c.config.Gateway.Retry.Enabled,
-			MaxAttempts:       c.config.Gateway.Retry.MaxAttempts,
-			InitialBackoffSec: c.config.Gateway.Retry.InitialBackoffSec,
-			MaxBackoffSec:     c.config.Gateway.Retry.MaxBackoffSec,
-			BackoffMultiplier: c.config.Gateway.Retry.BackoffMultiplier,
+			Enabled:              c.config.Gateway.Retry.Enabled,
+			MaxAttempts:          c.config.Gateway.Retry.MaxAttempts,
+			InitialBackoffSec:    c.config.Gateway.Retry.InitialBackoffSec,
+			MaxBackoffSec:        c.config.Gateway.Retry.MaxBackoffSec,
+			BackoffMultiplier:    c.config.Gateway.Retry.BackoffMultiplier,
+			RetryableStatusCodes: []int{400, 408, 429, 500, 502, 503, 504},
 		},
 	)
 
@@ -85,11 +86,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.toolService,
 		c.config.Chat.SystemPrompt,
 		&sdk.RetryConfig{
-			Enabled:           c.config.Gateway.Retry.Enabled,
-			MaxAttempts:       c.config.Gateway.Retry.MaxAttempts,
-			InitialBackoffSec: c.config.Gateway.Retry.InitialBackoffSec,
-			MaxBackoffSec:     c.config.Gateway.Retry.MaxBackoffSec,
-			BackoffMultiplier: c.config.Gateway.Retry.BackoffMultiplier,
+			Enabled:              c.config.Gateway.Retry.Enabled,
+			MaxAttempts:          c.config.Gateway.Retry.MaxAttempts,
+			InitialBackoffSec:    c.config.Gateway.Retry.InitialBackoffSec,
+			MaxBackoffSec:        c.config.Gateway.Retry.MaxBackoffSec,
+			BackoffMultiplier:    c.config.Gateway.Retry.BackoffMultiplier,
+			RetryableStatusCodes: []int{400, 408, 429, 500, 502, 503, 504},
 		},
 	)
 }
