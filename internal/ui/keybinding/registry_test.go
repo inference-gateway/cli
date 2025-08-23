@@ -165,6 +165,14 @@ func (t *testInputComponent) IsAutocompleteVisible() bool {
 	return false
 }
 
+func (t *testInputComponent) SetTextSelectionMode(enabled bool) {
+	// Test implementation - no-op
+}
+
+func (t *testInputComponent) IsTextSelectionMode() bool {
+	return false
+}
+
 type testStatusComponent struct{}
 
 func (t *testStatusComponent) ShowStatus(message string) {}
@@ -191,6 +199,16 @@ func (t *testStatusComponent) SetHeight(height int) {}
 
 func (t *testStatusComponent) Render() string {
 	return ""
+}
+
+func (t *testStatusComponent) SaveCurrentState() {}
+
+func (t *testStatusComponent) RestoreSavedState() bool {
+	return false
+}
+
+func (t *testStatusComponent) HasSavedState() bool {
+	return false
 }
 
 func TestRegistryCreation(t *testing.T) {

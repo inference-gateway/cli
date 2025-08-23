@@ -12,6 +12,16 @@ type FakeStatusComponent struct {
 	clearStatusMutex       sync.RWMutex
 	clearStatusArgsForCall []struct {
 	}
+	HasSavedStateStub        func() bool
+	hasSavedStateMutex       sync.RWMutex
+	hasSavedStateArgsForCall []struct {
+	}
+	hasSavedStateReturns struct {
+		result1 bool
+	}
+	hasSavedStateReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	IsShowingErrorStub        func() bool
 	isShowingErrorMutex       sync.RWMutex
 	isShowingErrorArgsForCall []struct {
@@ -41,6 +51,20 @@ type FakeStatusComponent struct {
 	}
 	renderReturnsOnCall map[int]struct {
 		result1 string
+	}
+	RestoreSavedStateStub        func() bool
+	restoreSavedStateMutex       sync.RWMutex
+	restoreSavedStateArgsForCall []struct {
+	}
+	restoreSavedStateReturns struct {
+		result1 bool
+	}
+	restoreSavedStateReturnsOnCall map[int]struct {
+		result1 bool
+	}
+	SaveCurrentStateStub        func()
+	saveCurrentStateMutex       sync.RWMutex
+	saveCurrentStateArgsForCall []struct {
 	}
 	SetHeightStub        func(int)
 	setHeightMutex       sync.RWMutex
@@ -98,6 +122,59 @@ func (fake *FakeStatusComponent) ClearStatusCalls(stub func()) {
 	fake.clearStatusMutex.Lock()
 	defer fake.clearStatusMutex.Unlock()
 	fake.ClearStatusStub = stub
+}
+
+func (fake *FakeStatusComponent) HasSavedState() bool {
+	fake.hasSavedStateMutex.Lock()
+	ret, specificReturn := fake.hasSavedStateReturnsOnCall[len(fake.hasSavedStateArgsForCall)]
+	fake.hasSavedStateArgsForCall = append(fake.hasSavedStateArgsForCall, struct {
+	}{})
+	stub := fake.HasSavedStateStub
+	fakeReturns := fake.hasSavedStateReturns
+	fake.recordInvocation("HasSavedState", []interface{}{})
+	fake.hasSavedStateMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStatusComponent) HasSavedStateCallCount() int {
+	fake.hasSavedStateMutex.RLock()
+	defer fake.hasSavedStateMutex.RUnlock()
+	return len(fake.hasSavedStateArgsForCall)
+}
+
+func (fake *FakeStatusComponent) HasSavedStateCalls(stub func() bool) {
+	fake.hasSavedStateMutex.Lock()
+	defer fake.hasSavedStateMutex.Unlock()
+	fake.HasSavedStateStub = stub
+}
+
+func (fake *FakeStatusComponent) HasSavedStateReturns(result1 bool) {
+	fake.hasSavedStateMutex.Lock()
+	defer fake.hasSavedStateMutex.Unlock()
+	fake.HasSavedStateStub = nil
+	fake.hasSavedStateReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStatusComponent) HasSavedStateReturnsOnCall(i int, result1 bool) {
+	fake.hasSavedStateMutex.Lock()
+	defer fake.hasSavedStateMutex.Unlock()
+	fake.HasSavedStateStub = nil
+	if fake.hasSavedStateReturnsOnCall == nil {
+		fake.hasSavedStateReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.hasSavedStateReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
 }
 
 func (fake *FakeStatusComponent) IsShowingError() bool {
@@ -257,6 +334,83 @@ func (fake *FakeStatusComponent) RenderReturnsOnCall(i int, result1 string) {
 	fake.renderReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
+}
+
+func (fake *FakeStatusComponent) RestoreSavedState() bool {
+	fake.restoreSavedStateMutex.Lock()
+	ret, specificReturn := fake.restoreSavedStateReturnsOnCall[len(fake.restoreSavedStateArgsForCall)]
+	fake.restoreSavedStateArgsForCall = append(fake.restoreSavedStateArgsForCall, struct {
+	}{})
+	stub := fake.RestoreSavedStateStub
+	fakeReturns := fake.restoreSavedStateReturns
+	fake.recordInvocation("RestoreSavedState", []interface{}{})
+	fake.restoreSavedStateMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStatusComponent) RestoreSavedStateCallCount() int {
+	fake.restoreSavedStateMutex.RLock()
+	defer fake.restoreSavedStateMutex.RUnlock()
+	return len(fake.restoreSavedStateArgsForCall)
+}
+
+func (fake *FakeStatusComponent) RestoreSavedStateCalls(stub func() bool) {
+	fake.restoreSavedStateMutex.Lock()
+	defer fake.restoreSavedStateMutex.Unlock()
+	fake.RestoreSavedStateStub = stub
+}
+
+func (fake *FakeStatusComponent) RestoreSavedStateReturns(result1 bool) {
+	fake.restoreSavedStateMutex.Lock()
+	defer fake.restoreSavedStateMutex.Unlock()
+	fake.RestoreSavedStateStub = nil
+	fake.restoreSavedStateReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStatusComponent) RestoreSavedStateReturnsOnCall(i int, result1 bool) {
+	fake.restoreSavedStateMutex.Lock()
+	defer fake.restoreSavedStateMutex.Unlock()
+	fake.RestoreSavedStateStub = nil
+	if fake.restoreSavedStateReturnsOnCall == nil {
+		fake.restoreSavedStateReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.restoreSavedStateReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStatusComponent) SaveCurrentState() {
+	fake.saveCurrentStateMutex.Lock()
+	fake.saveCurrentStateArgsForCall = append(fake.saveCurrentStateArgsForCall, struct {
+	}{})
+	stub := fake.SaveCurrentStateStub
+	fake.recordInvocation("SaveCurrentState", []interface{}{})
+	fake.saveCurrentStateMutex.Unlock()
+	if stub != nil {
+		fake.SaveCurrentStateStub()
+	}
+}
+
+func (fake *FakeStatusComponent) SaveCurrentStateCallCount() int {
+	fake.saveCurrentStateMutex.RLock()
+	defer fake.saveCurrentStateMutex.RUnlock()
+	return len(fake.saveCurrentStateArgsForCall)
+}
+
+func (fake *FakeStatusComponent) SaveCurrentStateCalls(stub func()) {
+	fake.saveCurrentStateMutex.Lock()
+	defer fake.saveCurrentStateMutex.Unlock()
+	fake.SaveCurrentStateStub = stub
 }
 
 func (fake *FakeStatusComponent) SetHeight(arg1 int) {

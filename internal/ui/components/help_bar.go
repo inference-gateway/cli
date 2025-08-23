@@ -1,10 +1,9 @@
 package components
 
 import (
-	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
@@ -58,7 +57,7 @@ func (hb *HelpBar) renderResponsiveTable() string {
 		return ""
 	}
 
-	const rows = 4
+	const rows = 11
 	const cols = 3
 
 	colWidth := (hb.width - 6) / cols
@@ -66,15 +65,16 @@ func (hb *HelpBar) renderResponsiveTable() string {
 		colWidth = 20
 	}
 
-	grid := make([][]string, rows)
+	// Create grid of shortcuts (not formatted text yet)
+	grid := make([][]shared.KeyShortcut, rows)
 	for i := range grid {
-		grid[i] = make([]string, cols)
+		grid[i] = make([]shared.KeyShortcut, cols)
 	}
 
 	var firstColumnKeys []shared.KeyShortcut
 	var otherKeys []shared.KeyShortcut
 
-	priorityKeys := []string{"!", "/", "@", "#"}
+	priorityKeys := []string{"!", "/", "@", "#", "ctrl+s", "shift+down", "shift+up", "pgdn/page_down", "pgup/page_up"}
 	for _, shortcut := range hb.shortcuts {
 		isPriority := false
 		for _, priority := range priorityKeys {
@@ -93,14 +93,7 @@ func (hb *HelpBar) renderResponsiveTable() string {
 		if i >= rows {
 			break
 		}
-
-		shortcutText := fmt.Sprintf("%s %s", shortcut.Key, shortcut.Description)
-
-		if len(shortcutText) > colWidth-2 {
-			shortcutText = shortcutText[:colWidth-5] + "..."
-		}
-
-		grid[i][0] = shortcutText
+		grid[i][0] = shortcut
 	}
 
 	cellIndex := 0
@@ -114,13 +107,7 @@ func (hb *HelpBar) renderResponsiveTable() string {
 				continue
 			}
 
-			shortcutText := fmt.Sprintf("%s %s", shortcut.Key, shortcut.Description)
-
-			if len(shortcutText) > colWidth-2 {
-				shortcutText = shortcutText[:colWidth-5] + "..."
-			}
-
-			grid[row][col] = shortcutText
+			grid[row][col] = shortcut
 			cellIndex++
 			break
 		}
@@ -130,14 +117,40 @@ func (hb *HelpBar) renderResponsiveTable() string {
 		}
 	}
 
+	colKeyWidths := make([]int, cols)
+	for col := 0; col < cols; col++ {
+		maxKeyWidth := 0
+		for row := 0; row < rows; row++ {
+			if grid[row][col].Key != "" {
+				if len(grid[row][col].Key) > maxKeyWidth {
+					maxKeyWidth = len(grid[row][col].Key)
+				}
+			}
+		}
+		colKeyWidths[col] = maxKeyWidth + 1
+	}
+
 	var tableRows []string
-	for _, row := range grid {
+	for row := 0; row < rows; row++ {
 		var cells []string
-		for _, cell := range row {
+		for col := 0; col < cols; col++ {
+			shortcut := grid[row][col]
+			var cellText string
+
+			if shortcut.Key != "" {
+				keyWidth := colKeyWidths[col]
+				padding := keyWidth - len(shortcut.Key)
+				cellText = shortcut.Key + strings.Repeat(" ", padding) + shortcut.Description
+
+				if len(cellText) > colWidth-2 {
+					cellText = cellText[:colWidth-5] + "..."
+				}
+			}
+
 			cellStyle := lipgloss.NewStyle().
 				Width(colWidth).
 				Align(lipgloss.Left)
-			cells = append(cells, cellStyle.Render(cell))
+			cells = append(cells, cellStyle.Render(cellText))
 		}
 		tableRows = append(tableRows, lipgloss.JoinHorizontal(lipgloss.Left, cells...))
 	}

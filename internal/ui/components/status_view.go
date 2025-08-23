@@ -23,6 +23,19 @@ type StatusView struct {
 	width       int
 	statusType  shared.StatusType
 	progress    *shared.StatusProgress
+	savedState  *StatusState
+}
+
+// StatusState represents a saved status state
+type StatusState struct {
+	message     string
+	isError     bool
+	isSpinner   bool
+	startTime   time.Time
+	tokenUsage  string
+	baseMessage string
+	statusType  shared.StatusType
+	progress    *shared.StatusProgress
 }
 
 func NewStatusView() *StatusView {
@@ -103,6 +116,45 @@ func (sv *StatusView) ClearStatus() {
 	sv.debugInfo = ""
 	sv.statusType = shared.StatusDefault
 	sv.progress = nil
+}
+
+// SaveCurrentState saves the current status state for later restoration
+func (sv *StatusView) SaveCurrentState() {
+	sv.savedState = &StatusState{
+		message:     sv.message,
+		isError:     sv.isError,
+		isSpinner:   sv.isSpinner,
+		startTime:   sv.startTime,
+		tokenUsage:  sv.tokenUsage,
+		baseMessage: sv.baseMessage,
+		statusType:  sv.statusType,
+		progress:    sv.progress,
+	}
+}
+
+// RestoreSavedState restores the previously saved status state
+func (sv *StatusView) RestoreSavedState() bool {
+	if sv.savedState == nil {
+		return false
+	}
+
+	sv.message = sv.savedState.message
+	sv.isError = sv.savedState.isError
+	sv.isSpinner = sv.savedState.isSpinner
+	sv.startTime = sv.savedState.startTime
+	sv.tokenUsage = sv.savedState.tokenUsage
+	sv.baseMessage = sv.savedState.baseMessage
+	sv.statusType = sv.savedState.statusType
+	sv.progress = sv.savedState.progress
+
+	// Clear the saved state after restoration
+	sv.savedState = nil
+	return true
+}
+
+// HasSavedState returns true if there's a saved state that can be restored
+func (sv *StatusView) HasSavedState() bool {
+	return sv.savedState != nil
 }
 
 func (sv *StatusView) IsShowingError() bool {

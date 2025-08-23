@@ -73,7 +73,6 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	headerBorder := ""
 
 	conversationStyle := lipgloss.NewStyle().
-		Width(width).
 		Height(conversationHeight)
 
 	inputStyle := lipgloss.NewStyle().
@@ -88,8 +87,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	if statusHeight > 0 {
 		statusContent := statusView.Render()
 		if statusContent != "" {
-			statusStyle := lipgloss.NewStyle().Width(width)
-			components = append(components, statusStyle.Render(statusContent))
+			components = append(components, statusContent)
 		}
 	}
 
@@ -104,8 +102,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		approvalView.SetHeight(height)
 		approvalContent := approvalView.Render(toolExecution, selectedIndex)
 		if approvalContent != "" {
-			approvalStyle := lipgloss.NewStyle().Width(width)
-			components = append(components, approvalStyle.Render(approvalContent))
+			components = append(components, approvalContent)
 		}
 	} else {
 		components = append(components, inputArea)

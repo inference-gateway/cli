@@ -21,6 +21,8 @@ type ConversationView struct {
 	expandedToolResults map[int]bool
 	allToolsExpanded    bool
 	toolFormatter       domain.ToolFormatter
+	lineFormatter       *shared.ConversationLineFormatter
+	plainTextLines      []string
 }
 
 func NewConversationView() *ConversationView {
@@ -33,16 +35,20 @@ func NewConversationView() *ConversationView {
 		height:              20,
 		expandedToolResults: make(map[int]bool),
 		allToolsExpanded:    false,
+		lineFormatter:       shared.NewConversationLineFormatter(80, nil),
+		plainTextLines:      []string{},
 	}
 }
 
 // SetToolFormatter sets the tool formatter for this conversation view
 func (cv *ConversationView) SetToolFormatter(formatter domain.ToolFormatter) {
 	cv.toolFormatter = formatter
+	cv.lineFormatter = shared.NewConversationLineFormatter(cv.width, formatter)
 }
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
 	cv.conversation = conversation
+	cv.updatePlainTextLines()
 	cv.updateViewportContent()
 }
 
@@ -81,9 +87,24 @@ func (cv *ConversationView) IsToolResultExpanded(index int) bool {
 	return false
 }
 
+// GetPlainTextLines returns the conversation as plain text lines for selection mode
+func (cv *ConversationView) GetPlainTextLines() []string {
+	return cv.plainTextLines
+}
+
+// updatePlainTextLines updates the plain text representation of the conversation
+func (cv *ConversationView) updatePlainTextLines() {
+	if cv.lineFormatter != nil {
+		cv.plainTextLines = cv.lineFormatter.FormatConversationToLines(cv.conversation)
+	}
+}
+
 func (cv *ConversationView) SetWidth(width int) {
 	cv.width = width
 	cv.Viewport.Width = width
+	if cv.lineFormatter != nil {
+		cv.lineFormatter.SetWidth(width)
+	}
 }
 
 func (cv *ConversationView) SetHeight(height int) {
@@ -97,7 +118,13 @@ func (cv *ConversationView) Render() string {
 	} else {
 		cv.updateViewportContent()
 	}
-	return cv.Viewport.View()
+
+	viewportContent := cv.Viewport.View()
+	lines := strings.Split(viewportContent, "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " ")
+	}
+	return strings.Join(lines, "\n")
 }
 
 func (cv *ConversationView) updateViewportContent() {

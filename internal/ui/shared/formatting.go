@@ -28,7 +28,11 @@ func FormatResponsiveMessage(content string, width int) string {
 			result = append(result, line)
 		} else {
 			wrapped := WrapText(line, width)
-			result = append(result, wrapped)
+			wrappedLines := strings.Split(wrapped, "\n")
+			for i, wl := range wrappedLines {
+				wrappedLines[i] = strings.TrimRight(wl, " ")
+			}
+			result = append(result, strings.Join(wrappedLines, "\n"))
 		}
 	}
 

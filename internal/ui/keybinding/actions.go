@@ -1,6 +1,7 @@
 package keybinding
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/atotto/clipboard"
@@ -61,6 +62,18 @@ func (r *Registry) createChatActions() []*KeyAction {
 			Description: "expand/collapse tool results",
 			Category:    "tools",
 			Handler:     handleToggleToolExpansion,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
+			ID:          "enter_selection_mode",
+			Keys:        []string{"ctrl+s"},
+			Description: "enter text selection mode",
+			Category:    "selection",
+			Handler:     handleEnterSelectionMode,
 			Priority:    150,
 			Enabled:     true,
 			Context: KeyContext{
@@ -154,6 +167,30 @@ func (r *Registry) createClipboardActions() []*KeyAction {
 // createTextEditingActions creates text editing key actions
 func (r *Registry) createTextEditingActions() []*KeyAction {
 	return []*KeyAction{
+		{
+			ID:          "insert_newline_alt",
+			Keys:        []string{"alt+enter"},
+			Description: "insert newline",
+			Category:    "text_editing",
+			Handler:     handleInsertNewline,
+			Priority:    200,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
+			ID:          "insert_newline_ctrl",
+			Keys:        []string{"ctrl+j"},
+			Description: "insert newline",
+			Category:    "text_editing",
+			Handler:     handleInsertNewline,
+			Priority:    200,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
 		{
 			ID:          "move_cursor_left",
 			Keys:        []string{"left"},
@@ -729,10 +766,50 @@ func handleMoveToEnd(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
+func handleInsertNewline(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	inputView := app.GetInputView()
+	if inputView != nil {
+		cursor := inputView.GetCursor()
+		text := inputView.GetInput()
+		newText := text[:cursor] + "\n" + text[cursor:]
+		inputView.SetText(newText)
+		inputView.SetCursor(cursor + 1)
+	}
+	return nil
+}
+
 func handleToggleHelp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
 		return shared.ToggleHelpBarMsg{}
 	}
+}
+
+func handleEnterSelectionMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+
+	statusView := app.GetStatusView()
+	statusView.SaveCurrentState()
+
+	err := stateManager.TransitionToView(domain.ViewStateTextSelection)
+	if err != nil {
+		return func() tea.Msg {
+			return shared.ShowErrorMsg{
+				Error: "Failed to enter selection mode: " + err.Error(),
+			}
+		}
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.InitializeTextSelectionMsg{}
+		},
+		func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message: "Entered text selection mode - use vim keys to navigate",
+				Spinner: false,
+			}
+		},
+	)
 }
 
 // Approval handler functions
@@ -812,19 +889,40 @@ func NewKeyBindingManager(app KeyHandlerContext) *KeyBindingManager {
 
 // ProcessKey handles key input and executes the appropriate action
 func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyMsg) tea.Cmd {
-	action := m.registry.Resolve(keyMsg.String(), m.app)
-	if action != nil {
-		if debugCmd := m.debugKeyBinding(keyMsg, action.ID); debugCmd != nil {
-			return tea.Batch(action.Handler(m.app, keyMsg), debugCmd)
+	keyStr := keyMsg.String()
+	var cmds []tea.Cmd
+
+	// Debug: Log all key presses if debug mode is enabled
+	config := m.app.GetConfig()
+	if config != nil && config.Logging.Debug {
+		// Log detailed key information for debugging
+		debugInfo := fmt.Sprintf("%q", keyStr)
+		if len(keyStr) == 1 {
+			debugInfo = fmt.Sprintf("%q (char: 0x%02X)", keyStr, keyStr[0])
 		}
-		return action.Handler(m.app, keyMsg)
+		if debugCmd := m.debugKeyBinding(keyMsg, debugInfo); debugCmd != nil {
+			cmds = append(cmds, debugCmd)
+		}
 	}
 
-	if debugCmd := m.debugKeyBinding(keyMsg, "character_input"); debugCmd != nil {
-		return tea.Batch(handleCharacterInput(m.app, keyMsg), debugCmd)
+	// Check if there's a registered action for this key
+	action := m.registry.Resolve(keyStr, m.app)
+	if action != nil {
+		actionCmd := action.Handler(m.app, keyMsg)
+		if len(cmds) > 0 {
+			cmds = append(cmds, actionCmd)
+			return tea.Batch(cmds...)
+		}
+		return actionCmd
 	}
 
-	return handleCharacterInput(m.app, keyMsg)
+	// Handle regular character input
+	charCmd := handleCharacterInput(m.app, keyMsg)
+	if len(cmds) > 0 {
+		cmds = append(cmds, charCmd)
+		return tea.Batch(cmds...)
+	}
+	return charCmd
 }
 
 // GetHelpShortcuts returns help shortcuts for the current context
@@ -853,13 +951,13 @@ func (m *KeyBindingManager) GetRegistry() KeyRegistry {
 }
 
 // debugKeyBinding logs key binding events when debug mode is enabled
-func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, handlerName string) tea.Cmd {
+func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, info string) tea.Cmd {
 	config := m.app.GetConfig()
 	if config != nil && config.Logging.Debug {
 		return func() tea.Msg {
 			return shared.DebugKeyMsg{
 				Key:     keyMsg.String(),
-				Handler: handlerName,
+				Handler: info,
 			}
 		}
 	}
@@ -868,6 +966,11 @@ func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, handlerName strin
 
 func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	keyStr := keyMsg.String()
+
+	if strings.Contains(keyStr, "???") ||
+		keyStr == "ctrl+?" || keyStr == "ctrl+shift+/" || keyStr == "ctrl+_" {
+		return nil
+	}
 
 	if len(keyStr) > 1 && !keys.IsKnownKey(keyStr) {
 		return handlePasteEvent(app, keyStr)

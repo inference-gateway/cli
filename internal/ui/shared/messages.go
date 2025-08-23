@@ -125,3 +125,9 @@ type ToggleHelpBarMsg struct{}
 
 // HideHelpBarMsg hides the help bar when typing other characters
 type HideHelpBarMsg struct{}
+
+// ExitSelectionModeMsg exits text selection mode
+type ExitSelectionModeMsg struct{}
+
+// InitializeTextSelectionMsg initializes text selection mode with current conversation
+type InitializeTextSelectionMsg struct{}
