@@ -4,37 +4,98 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/components"
+	"github.com/inference-gateway/cli/internal/domain/filewriter"
+	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 )
 
-// WriteTool handles file writing operations to the filesystem
+const (
+	ToolName      = "Write"
+	DefaultFormat = "text"
+	JSONFormat    = "json"
+)
+
+var (
+	// Success styles
+	successStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("10")).
+			Bold(true)
+
+	successIconStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("10"))
+
+	// Error styles
+	errorStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("9")).
+			Bold(true)
+
+	errorIconStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("9"))
+
+	// Path and file info styles
+	pathStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("12")).
+			Bold(true)
+
+	fileInfoStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("8"))
+
+	// Status styles
+	createdStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("10")).
+			Bold(true)
+
+	updatedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("11")).
+			Bold(true)
+
+	appendedStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("14")).
+			Bold(true)
+
+	// Metric styles
+	metricStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("6"))
+)
+
+// WriteTool implements a refactored WriteTool with clean architecture
 type WriteTool struct {
 	config    *config.Config
 	enabled   bool
 	formatter domain.CustomFormatter
+	writer    filewriter.FileWriter
+	chunks    filewriter.ChunkManager
+	extractor *ParameterExtractor
 }
 
-// NewWriteTool creates a new write tool
+// NewWriteTool creates a new write tool with clean architecture
 func NewWriteTool(cfg *config.Config) *WriteTool {
+	pathValidator := filewriterservice.NewPathValidator(cfg)
+	backupManager := filewriterservice.NewBackupManager(".")
+	fileWriter := filewriterservice.NewSafeFileWriter(pathValidator, backupManager)
+	chunkManager := filewriterservice.NewStreamingChunkManager("./.infer/tmp", fileWriter)
+	paramExtractor := NewParameterExtractor()
+
 	return &WriteTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Write.Enabled,
 		formatter: domain.NewCustomFormatter("Write", func(key string) bool {
 			return key == "content"
 		}),
+		writer:    fileWriter,
+		chunks:    chunkManager,
+		extractor: paramExtractor,
 	}
 }
 
 // Definition returns the tool definition for the LLM
 func (t *WriteTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
-		Name:        "Write",
+		Name:        ToolName,
 		Description: "Write content to a file on the filesystem. Supports append mode and chunked writing for large files. Creates parent directories if needed.",
 		Parameters: map[string]any{
 			"type": "object",
@@ -52,6 +113,16 @@ func (t *WriteTool) Definition() domain.ToolDefinition {
 					"description": "Whether to append to the file (true) or overwrite it (false)",
 					"default":     false,
 				},
+				"overwrite": map[string]any{
+					"type":        "boolean",
+					"description": "Whether to overwrite existing files",
+					"default":     true,
+				},
+				"backup": map[string]any{
+					"type":        "boolean",
+					"description": "Whether to create a backup of existing files before overwriting",
+					"default":     false,
+				},
 				"chunk_index": map[string]any{
 					"type":        "integer",
 					"description": "The index of this chunk (0-based). Use for ordered chunks in large file writing.",
@@ -62,21 +133,15 @@ func (t *WriteTool) Definition() domain.ToolDefinition {
 					"description": "The total number of chunks expected. Required when using chunk_index.",
 					"minimum":     1,
 				},
-				"create_dirs": map[string]any{
-					"type":        "boolean",
-					"description": "Whether to create parent directories if they don't exist",
-					"default":     true,
-				},
-				"overwrite": map[string]any{
-					"type":        "boolean",
-					"description": "Whether to overwrite existing files (ignored when append=true)",
-					"default":     true,
+				"session_id": map[string]any{
+					"type":        "string",
+					"description": "Session ID for chunked operations to group related chunks together.",
 				},
 				"format": map[string]any{
 					"type":        "string",
 					"description": "Output format (text or json)",
-					"enum":        []string{"text", "json"},
-					"default":     "text",
+					"enum":        []string{DefaultFormat, JSONFormat},
+					"default":     DefaultFormat,
 				},
 			},
 			"required": []string{"file_path", "content"},
@@ -87,324 +152,64 @@ func (t *WriteTool) Definition() domain.ToolDefinition {
 // Execute runs the write tool with given arguments
 func (t *WriteTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
-	if !t.config.Tools.Enabled {
-		return nil, fmt.Errorf("write tool is not enabled")
-	}
 
-	filePath, ok := args["file_path"].(string)
-	if !ok {
+	if !t.enabled {
 		return &domain.ToolExecutionResult{
-			ToolName:  "Write",
+			ToolName:  ToolName,
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
-			Error:     "file_path parameter is required and must be a string",
+			Error:     "write tool is not enabled",
 		}, nil
 	}
 
-	content, ok := args["content"].(string)
-	if !ok {
-		return &domain.ToolExecutionResult{
-			ToolName:  "Write",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     "content parameter is required and must be a string",
-		}, nil
-	}
-
-	append := false
-	if appendVal, exists := args["append"]; exists {
-		if val, ok := appendVal.(bool); ok {
-			append = val
-		}
-	}
-
-	var chunkIndex, totalChunks int
-	if chunkIndexVal, exists := args["chunk_index"]; exists {
-		if val, ok := chunkIndexVal.(float64); ok {
-			chunkIndex = int(val)
-			var err *domain.ToolExecutionResult
-			totalChunks, err = getTotalChunks(args, start)
-			if err != nil {
-				return err, nil
-			}
-		}
-	}
-
-	createDirs := true
-	if createDirsVal, exists := args["create_dirs"]; exists {
-		if val, ok := createDirsVal.(bool); ok {
-			createDirs = val
-		}
-	}
-
-	overwrite := true
-	if overwriteVal, exists := args["overwrite"]; exists {
-		if val, ok := overwriteVal.(bool); ok {
-			overwrite = val
-		}
-	}
-
-	writeResult, err := t.executeWrite(filePath, content, append, chunkIndex, totalChunks, createDirs, overwrite)
+	params, err := t.extractor.ExtractWriteParams(args)
 	if err != nil {
-		return nil, err
+		return &domain.ToolExecutionResult{
+			ToolName:  ToolName,
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     fmt.Sprintf("parameter extraction failed: %v", err),
+		}, nil
 	}
 
-	result := &domain.ToolExecutionResult{
-		ToolName:  "Write",
-		Arguments: args,
-		Success:   true,
-		Duration:  time.Since(start),
-		Data:      writeResult,
+	format := t.extractFormat(args)
+
+	var result *domain.ToolExecutionResult
+	if params.IsChunked {
+		result = t.executeChunked(ctx, params, args, start)
+	} else if params.Append {
+		result = t.executeAppend(ctx, params, args, start)
+	} else {
+		result = t.executeWrite(ctx, params, args, start)
+	}
+
+	if format == JSONFormat {
+		result = t.formatAsJSON(result)
 	}
 
 	return result, nil
 }
 
-// Validate checks if the write tool arguments are valid
-func (t *WriteTool) Validate(args map[string]any) error {
-	if !t.config.Tools.Enabled {
-		return fmt.Errorf("write tool is not enabled")
-	}
-
-	filePath, ok := args["file_path"].(string)
-	if !ok {
-		return fmt.Errorf("file_path parameter is required and must be a string")
-	}
-
-	if filePath == "" {
-		return fmt.Errorf("file_path cannot be empty")
-	}
-
-	if err := t.validatePathSecurity(filePath); err != nil {
-		return err
-	}
-
-	if _, ok := args["content"].(string); !ok {
-		return fmt.Errorf("content parameter is required and must be a string")
-	}
-
-	if append, exists := args["append"]; exists {
-		if _, ok := append.(bool); !ok {
-			return fmt.Errorf("append parameter must be a boolean")
-		}
-	}
-
-	if chunkIndex, exists := args["chunk_index"]; exists {
-		if _, ok := chunkIndex.(float64); !ok {
-			return fmt.Errorf("chunk_index parameter must be a number")
-		}
-		if _, exists := args["total_chunks"]; !exists {
-			return fmt.Errorf("total_chunks parameter is required when using chunk_index")
-		}
-	}
-
-	if totalChunks, exists := args["total_chunks"]; exists {
-		if _, ok := totalChunks.(float64); !ok {
-			return fmt.Errorf("total_chunks parameter must be a number")
-		}
-		if _, exists := args["chunk_index"]; !exists {
-			return fmt.Errorf("chunk_index parameter is required when using total_chunks")
-		}
-	}
-
-	if createDirs, exists := args["create_dirs"]; exists {
-		if _, ok := createDirs.(bool); !ok {
-			return fmt.Errorf("create_dirs parameter must be a boolean")
-		}
-	}
-
-	if overwrite, exists := args["overwrite"]; exists {
-		if _, ok := overwrite.(bool); !ok {
-			return fmt.Errorf("overwrite parameter must be a boolean")
-		}
-	}
-
-	if format, ok := args["format"].(string); ok {
-		if format != "text" && format != "json" {
-			return fmt.Errorf("format must be 'text' or 'json'")
-		}
-	} else if args["format"] != nil {
-		return fmt.Errorf("format parameter must be a string")
-	}
-
-	return nil
+// Enabled returns whether the tool is enabled
+func (t *WriteTool) Enabled() bool {
+	return t.enabled
 }
 
-// IsEnabled returns whether the write tool is enabled
+// IsEnabled returns whether the tool is enabled (interface compliance)
 func (t *WriteTool) IsEnabled() bool {
 	return t.enabled
 }
 
-// executeWrite writes content to a file with support for append and chunked writing
-func (t *WriteTool) executeWrite(filePath, content string, append bool, chunkIndex, totalChunks int, createDirs, overwrite bool) (*domain.FileWriteToolResult, error) {
-	result := &domain.FileWriteToolResult{
-		FilePath:    filePath,
-		Appended:    append,
-		ChunkIndex:  chunkIndex,
-		TotalChunks: totalChunks,
-		IsComplete:  true,
+// Validate checks if the write tool arguments are valid
+func (t *WriteTool) Validate(args map[string]any) error {
+	if !t.config.Tools.Enabled || !t.config.Tools.Write.Enabled {
+		return fmt.Errorf("write tool is not enabled")
 	}
 
-	_, err := os.Stat(filePath)
-	fileExists := err == nil
-	result.Created = !fileExists
-
-	if err := t.createParentDirs(filePath, createDirs, result); err != nil {
-		return nil, err
-	}
-
-	if totalChunks > 0 {
-		return t.executeChunkedWrite(filePath, content, chunkIndex, totalChunks, result)
-	}
-
-	if append {
-		return t.executeAppendWrite(filePath, content, result)
-	}
-
-	result.Overwritten = fileExists && overwrite
-	if fileExists && !overwrite {
-		return nil, fmt.Errorf("file %s already exists and overwrite is false", filePath)
-	}
-
-	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-		return nil, fmt.Errorf("failed to write file %s: %w", filePath, err)
-	}
-
-	result.BytesWritten = int64(len(content))
-	result.LinesWritten = countLines(content)
-	return result, nil
-}
-
-// createParentDirs creates parent directories if needed and allowed
-func (t *WriteTool) createParentDirs(filePath string, createDirs bool, result *domain.FileWriteToolResult) error {
-	if !createDirs {
-		return nil
-	}
-
-	dir := filepath.Dir(filePath)
-	if dir == "." || dir == "/" {
-		return nil
-	}
-
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create parent directories for %s: %w", filePath, err)
-		}
-		result.DirsCreated = true
-	}
-
-	return nil
-}
-
-// validatePathSecurity checks if a path is allowed for writing within the sandbox
-func (t *WriteTool) validatePathSecurity(path string) error {
-	return t.config.ValidatePathInSandbox(path)
-}
-
-// executeAppendWrite handles writing in append mode
-func (t *WriteTool) executeAppendWrite(filePath, content string, result *domain.FileWriteToolResult) (*domain.FileWriteToolResult, error) {
-	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open file %s for appending: %w", filePath, err)
-	}
-	defer func() {
-		_ = file.Close()
-	}()
-
-	bytesWritten, err := file.WriteString(content)
-	if err != nil {
-		return nil, fmt.Errorf("failed to append to file %s: %w", filePath, err)
-	}
-
-	result.BytesWritten = int64(bytesWritten)
-	result.LinesWritten = countLines(content)
-	result.Appended = true
-	return result, nil
-}
-
-// executeChunkedWrite handles writing in chunked mode using temporary files
-func (t *WriteTool) executeChunkedWrite(filePath, content string, chunkIndex, totalChunks int, result *domain.FileWriteToolResult) (*domain.FileWriteToolResult, error) {
-	tempDir := filepath.Join(filepath.Dir(filePath), ".infer_chunks_"+filepath.Base(filePath))
-	chunkFile := filepath.Join(tempDir, fmt.Sprintf("chunk_%d", chunkIndex))
-
-	if err := os.MkdirAll(tempDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create temp directory %s: %w", tempDir, err)
-	}
-
-	if err := os.WriteFile(chunkFile, []byte(content), 0644); err != nil {
-		return nil, fmt.Errorf("failed to write chunk file %s: %w", chunkFile, err)
-	}
-
-	result.BytesWritten = int64(len(content))
-	result.LinesWritten = countLines(content)
-	result.IsComplete = false
-
-	if chunkIndex == totalChunks-1 {
-		if err := t.combineChunks(filePath, tempDir, totalChunks); err != nil {
-			return nil, fmt.Errorf("failed to combine chunks: %w", err)
-		}
-
-		if err := os.RemoveAll(tempDir); err != nil {
-			return nil, fmt.Errorf("failed to clean up temp directory %s: %w", tempDir, err)
-		}
-		result.IsComplete = true
-	}
-
-	return result, nil
-}
-
-// combineChunks combines all chunk files into the final file
-func (t *WriteTool) combineChunks(filePath, tempDir string, totalChunks int) error {
-	finalFile, err := os.Create(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to create final file %s: %w", filePath, err)
-	}
-	defer func() {
-		_ = finalFile.Close()
-	}()
-
-	for i := 0; i < totalChunks; i++ {
-		chunkFile := filepath.Join(tempDir, fmt.Sprintf("chunk_%d", i))
-		chunkContent, err := os.ReadFile(chunkFile)
-		if err != nil {
-			return fmt.Errorf("failed to read chunk file %s: %w", chunkFile, err)
-		}
-
-		if _, err := finalFile.Write(chunkContent); err != nil {
-			return fmt.Errorf("failed to write chunk %d to final file: %w", i, err)
-		}
-	}
-
-	return nil
-}
-
-// getTotalChunks extracts and validates total_chunks parameter
-func getTotalChunks(args map[string]any, start time.Time) (int, *domain.ToolExecutionResult) {
-	totalChunksVal, exists := args["total_chunks"]
-	if !exists {
-		return 0, &domain.ToolExecutionResult{
-			ToolName:  "Write",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     "total_chunks parameter is required when using chunk_index",
-		}
-	}
-
-	val, ok := totalChunksVal.(float64)
-	if !ok {
-		return 0, &domain.ToolExecutionResult{
-			ToolName:  "Write",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     "total_chunks parameter is required when using chunk_index",
-		}
-	}
-
-	return int(val), nil
+	_, err := t.extractor.ExtractWriteParams(args)
+	return err
 }
 
 // FormatResult formats tool execution results for different contexts
@@ -424,151 +229,119 @@ func (t *WriteTool) FormatResult(result *domain.ToolExecutionResult, formatType 
 // FormatPreview returns a short preview of the result for UI display
 func (t *WriteTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	if result == nil {
-		return "Tool execution result unavailable"
+		return fileInfoStyle.Render("Write operation result unavailable")
 	}
 
-	writeResult, ok := result.Data.(*domain.FileWriteToolResult)
-	if !ok {
-		if result.Success {
-			return "File write completed successfully"
+	if !result.Success {
+		return errorStyle.Render("Write operation failed")
+	}
+
+	if result.Data == nil {
+		return successStyle.Render("Write operation completed successfully")
+	}
+
+	// Format based on the actual result
+	if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
+		fileName := pathStyle.Render(t.formatter.GetFileName(writeResult.FilePath))
+		bytes := metricStyle.Render(fmt.Sprintf("%d bytes", writeResult.BytesWritten))
+
+		if writeResult.Created {
+			return fmt.Sprintf("%s %s (%s)",
+				createdStyle.Render("Created"), fileName, bytes)
+		} else if writeResult.Appended {
+			return fmt.Sprintf("%s %s (%s)",
+				appendedStyle.Render("Appended to"), fileName, bytes)
+		} else {
+			return fmt.Sprintf("%s %s (%s)",
+				updatedStyle.Render("Updated"), fileName, bytes)
 		}
-		return "File write failed"
 	}
 
-	fileName := t.formatter.GetFileName(writeResult.FilePath)
-	status := ""
-	if writeResult.Created {
-		status = "Created"
-	} else if writeResult.Overwritten {
-		status = "Overwritten"
-	} else if writeResult.Appended {
-		status = "Appended to"
-	} else {
-		status = "Updated"
-	}
-
-	if writeResult.TotalChunks > 0 {
-		if writeResult.IsComplete {
-			return fmt.Sprintf("%s %s (%d chunks combined)", status, fileName, writeResult.TotalChunks)
-		}
-		return fmt.Sprintf("Chunk %d/%d written to %s", writeResult.ChunkIndex+1, writeResult.TotalChunks, fileName)
-	}
-
-	return fmt.Sprintf("%s %s (%d lines)", status, fileName, writeResult.LinesWritten)
+	return successStyle.Render("Write operation completed")
 }
 
 // FormatForUI formats the result for UI display
 func (t *WriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	if result == nil {
-		return "Tool execution result unavailable"
+		return errorStyle.Render("No result to display")
 	}
 
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
-	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
+	if !result.Success {
+		return fmt.Sprintf("%s %s",
+			errorIconStyle.Render("✗"),
+			errorStyle.Render(fmt.Sprintf("Write failed: %s", result.Error)))
+	}
 
-	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+	if result.Data == nil {
+		return fmt.Sprintf("%s %s",
+			successIconStyle.Render("✓"),
+			successStyle.Render("Write completed successfully"))
+	}
 
-	return output.String()
+	if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
+		var statusText string
+		var statusStyle lipgloss.Style
+
+		if writeResult.Created {
+			statusText = "Created"
+			statusStyle = createdStyle
+		} else if writeResult.Appended {
+			statusText = "Appended to"
+			statusStyle = appendedStyle
+		} else {
+			statusText = "Updated"
+			statusStyle = updatedStyle
+		}
+
+		icon := successIconStyle.Render("✓")
+		status := statusStyle.Render(statusText)
+		path := pathStyle.Render(writeResult.FilePath)
+
+		metrics := fmt.Sprintf("(%s, %s)",
+			metricStyle.Render(fmt.Sprintf("%d bytes", writeResult.BytesWritten)),
+			metricStyle.Render(fmt.Sprintf("%d lines", writeResult.LinesWritten)))
+
+		return fmt.Sprintf("%s %s %s %s", icon, status, path, fileInfoStyle.Render(metrics))
+	}
+
+	return fmt.Sprintf("%s %s",
+		successIconStyle.Render("✓"),
+		successStyle.Render("Write operation completed"))
 }
 
-// FormatForLLM formats the result for LLM consumption with detailed information
+// FormatForLLM formats the result for LLM consumption
 func (t *WriteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	if result == nil {
-		return "Tool execution result unavailable"
+		return "Write operation result unavailable"
 	}
 
-	var output strings.Builder
-
-	output.WriteString(t.formatter.FormatExpandedHeader(result))
-
-	// Show the content with git diff formatting in expanded view
-	showGitDiff := result.Success && result.Arguments != nil
-	if showGitDiff {
-		output.WriteString("\n")
-		diffRenderer := components.NewToolDiffRenderer()
-		diffInfo := t.GetDiffInfo(result.Arguments)
-		// Update title for past tense (content already written)
-		diffInfo.Title = "← Content written →"
-		output.WriteString(diffRenderer.RenderDiff(diffInfo))
-		output.WriteString("\n")
+	if !result.Success {
+		return fmt.Sprintf("Write operation failed: %s", result.Error)
 	}
 
-	// Only show data section if not showing git diff to avoid duplication
-	if !showGitDiff && result.Data != nil {
-		dataContent := t.formatWriteData(result.Data)
-		hasMetadata := len(result.Metadata) > 0
-		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+	if result.Data == nil {
+		return "Write operation completed successfully"
 	}
 
-	hasDataSection := !showGitDiff && result.Data != nil
-	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+	if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
+		action := "updated"
+		if writeResult.Created {
+			action = "created"
+		} else if writeResult.Appended {
+			action = "appended to"
+		}
 
-	return output.String()
+		return fmt.Sprintf("Successfully %s file %s (%d bytes written, %d lines)",
+			action,
+			writeResult.FilePath,
+			writeResult.BytesWritten,
+			writeResult.LinesWritten)
+	}
+
+	return "Write operation completed successfully"
 }
 
-// formatWriteData formats write-specific data
-func (t *WriteTool) formatWriteData(data any) string {
-	writeResult, ok := data.(*domain.FileWriteToolResult)
-	if !ok {
-		return t.formatter.FormatAsJSON(data)
-	}
-
-	var output strings.Builder
-	output.WriteString(fmt.Sprintf("File: %s\n", writeResult.FilePath))
-	output.WriteString(fmt.Sprintf("Written lines: %d\n", writeResult.LinesWritten))
-
-	var operations []string
-	if writeResult.Created {
-		operations = append(operations, "created")
-	}
-	if writeResult.Overwritten {
-		operations = append(operations, "overwritten")
-	}
-	if writeResult.Appended {
-		operations = append(operations, "appended")
-	}
-	if writeResult.DirsCreated {
-		operations = append(operations, "directories created")
-	}
-
-	if len(operations) > 0 {
-		output.WriteString(fmt.Sprintf("Operations: %s\n", strings.Join(operations, ", ")))
-	}
-
-	if writeResult.TotalChunks > 0 {
-		output.WriteString(fmt.Sprintf("Chunk: %d/%d\n", writeResult.ChunkIndex+1, writeResult.TotalChunks))
-		output.WriteString(fmt.Sprintf("Complete: %t\n", writeResult.IsComplete))
-	}
-
-	if writeResult.Error != "" {
-		output.WriteString(fmt.Sprintf("Error: %s\n", writeResult.Error))
-	}
-
-	return output.String()
-}
-
-// countLines counts the number of lines in the given content
-func countLines(content string) int {
-	if content == "" {
-		return 1
-	}
-
-	lines := strings.Split(content, "\n")
-	if strings.HasSuffix(content, "\n") && len(lines) > 0 {
-		lines = lines[:len(lines)-1]
-	}
-
-	if len(lines) == 0 {
-		return 1
-	}
-
-	return len(lines)
-}
-
-// ShouldCollapseArg delegates to the formatter's collapse logic
+// ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *WriteTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
 }
@@ -578,47 +351,165 @@ func (t *WriteTool) ShouldAlwaysExpand() bool {
 	return false
 }
 
-// GetDiffInfo implements the DiffFormatter interface
-func (t *WriteTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
-	filePath, _ := args["file_path"].(string)
-	content, _ := args["content"].(string)
+// executeWrite handles regular file write operations
+func (t *WriteTool) executeWrite(ctx context.Context, params *WriteParams, args map[string]any, start time.Time) *domain.ToolExecutionResult {
+	writeReq := t.extractor.ToWriteRequest(params)
 
-	return &components.DiffInfo{
-		Type:       components.DiffTypeNew,
-		FilePath:   filePath,
-		NewContent: content,
-		Title:      "← Content to be written →",
+	writeResult, err := t.writer.Write(ctx, writeReq)
+	if err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  ToolName,
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     err.Error(),
+		}
+	}
+
+	domainResult := &domain.FileWriteToolResult{
+		FilePath:     writeResult.Path,
+		BytesWritten: writeResult.BytesWritten,
+		LinesWritten: countNewLines(params.Content),
+		Created:      writeResult.Created,
+		Overwritten:  !writeResult.Created && params.Overwrite,
+		IsComplete:   true,
+	}
+
+	return &domain.ToolExecutionResult{
+		ToolName:  ToolName,
+		Arguments: args,
+		Success:   true,
+		Duration:  time.Since(start),
+		Data:      domainResult,
 	}
 }
 
-// FormatArgumentsForApproval formats arguments for approval display with line numbers and git-style coloring
-func (t *WriteTool) FormatArgumentsForApproval(args map[string]any) string {
-	var b strings.Builder
-
-	filePath, _ := args["file_path"].(string)
-	append, _ := args["append"].(bool)
-	chunkIndex, _ := args["chunk_index"].(float64)
-	totalChunks, _ := args["total_chunks"].(float64)
-	createDirs, _ := args["create_dirs"].(bool)
-	overwrite, _ := args["overwrite"].(bool)
-
-	b.WriteString("Arguments:\n")
-	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
-	b.WriteString(fmt.Sprintf("  • append: %v\n", append))
-	b.WriteString(fmt.Sprintf("  • create_dirs: %v\n", createDirs))
-	b.WriteString(fmt.Sprintf("  • overwrite: %v\n", overwrite))
-
-	if totalChunks > 0 {
-		b.WriteString(fmt.Sprintf("  • chunk_index: %d\n", int(chunkIndex)))
-		b.WriteString(fmt.Sprintf("  • total_chunks: %d\n", int(totalChunks)))
+// executeAppend handles append operations
+func (t *WriteTool) executeAppend(ctx context.Context, params *WriteParams, args map[string]any, start time.Time) *domain.ToolExecutionResult {
+	existingContent := ""
+	if _, err := os.Stat(params.FilePath); err == nil {
+		if data, err := os.ReadFile(params.FilePath); err == nil {
+			existingContent = string(data)
+		}
 	}
 
-	b.WriteString("\n")
+	combinedContent := existingContent + params.Content
 
-	// Use the diff component for consistent rendering
-	diffRenderer := components.NewToolDiffRenderer()
-	diffInfo := t.GetDiffInfo(args)
-	b.WriteString(diffRenderer.RenderDiff(diffInfo))
+	writeReq := filewriter.WriteRequest{
+		Path:      params.FilePath,
+		Content:   combinedContent,
+		Overwrite: true,
+		Backup:    params.Backup,
+	}
 
-	return b.String()
+	writeResult, err := t.writer.Write(ctx, writeReq)
+	if err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  ToolName,
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     err.Error(),
+		}
+	}
+
+	domainResult := &domain.FileWriteToolResult{
+		FilePath:     writeResult.Path,
+		BytesWritten: int64(len(params.Content)),
+		LinesWritten: countNewLines(params.Content),
+		Created:      writeResult.Created,
+		Appended:     true,
+		IsComplete:   true,
+	}
+
+	return &domain.ToolExecutionResult{
+		ToolName:  ToolName,
+		Arguments: args,
+		Success:   true,
+		Duration:  time.Since(start),
+		Data:      domainResult,
+	}
+}
+
+// executeChunked handles chunked write operations
+func (t *WriteTool) executeChunked(ctx context.Context, params *WriteParams, args map[string]any, start time.Time) *domain.ToolExecutionResult {
+	chunkReq := t.extractor.ToChunkWriteRequest(params)
+
+	if err := t.chunks.WriteChunk(ctx, chunkReq); err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "Write",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     err.Error(),
+		}
+	}
+
+	isComplete := chunkReq.IsLast
+
+	var writeResult *filewriter.WriteResult
+	if isComplete {
+		var err error
+		writeResult, err = t.chunks.FinalizeChunks(ctx, params.SessionID, params.FilePath)
+		if err != nil {
+			return &domain.ToolExecutionResult{
+				ToolName:  "Write",
+				Arguments: args,
+				Success:   false,
+				Duration:  time.Since(start),
+				Error:     err.Error(),
+			}
+		}
+	}
+
+	domainResult := &domain.FileWriteToolResult{
+		BytesWritten: int64(len(params.Content)),
+		LinesWritten: countNewLines(params.Content),
+		IsComplete:   isComplete,
+		ChunkIndex:   params.ChunkIndex,
+		TotalChunks:  params.TotalChunks,
+	}
+
+	if writeResult != nil {
+		domainResult.FilePath = writeResult.Path
+		domainResult.Created = writeResult.Created
+		domainResult.BytesWritten = writeResult.BytesWritten
+	}
+
+	return &domain.ToolExecutionResult{
+		ToolName:  ToolName,
+		Arguments: args,
+		Success:   true,
+		Duration:  time.Since(start),
+		Data:      domainResult,
+	}
+}
+
+// extractFormat extracts the output format from arguments
+func (t *WriteTool) extractFormat(args map[string]any) string {
+	if format, ok := args["format"].(string); ok {
+		return format
+	}
+	return DefaultFormat
+}
+
+// formatAsJSON converts result to JSON format
+func (t *WriteTool) formatAsJSON(result *domain.ToolExecutionResult) *domain.ToolExecutionResult {
+	// This would format the result as JSON - simplified for now
+	return result
+}
+
+// countNewLines counts the number of lines in content (renamed to avoid conflict)
+func countNewLines(content string) int {
+	if content == "" {
+		return 0
+	}
+
+	lines := 1
+	for _, char := range content {
+		if char == '\n' {
+			lines++
+		}
+	}
+	return lines
 }

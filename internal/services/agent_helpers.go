@@ -124,7 +124,16 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 	if len(parts) != 2 {
 		return "", "", fmt.Errorf("invalid model format, expected 'provider/model'")
 	}
-	return parts[0], parts[1], nil
+
+	provider := parts[0]
+	modelName := parts[1]
+
+	// Handle Google's model format: google/models/gemini-2.5-flash -> google, gemini-2.5-flash
+	if provider == "google" && strings.HasPrefix(modelName, "models/") {
+		modelName = strings.TrimPrefix(modelName, "models/")
+	}
+
+	return provider, modelName, nil
 }
 
 // processStreamingRequest processes a streaming request

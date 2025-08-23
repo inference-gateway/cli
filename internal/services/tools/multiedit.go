@@ -692,11 +692,11 @@ func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 	showGitDiff := result.Success && result.Arguments != nil
 	if showGitDiff {
 		output.WriteString("\n")
-		diffRenderer := components.NewToolDiffRenderer()
+		diffRenderer := components.NewDiffRenderer(nil)
 		diffInfo := t.GetDiffInfo(result.Arguments)
 		// Update title for past tense (multi-edits already applied)
 		diffInfo.Title = "← Multi-edits applied →"
-		output.WriteString(diffRenderer.RenderDiff(diffInfo))
+		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
 		output.WriteString("\n")
 	}
 
@@ -775,7 +775,6 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 	editsArray, ok := editsInterface.([]any)
 	if !ok {
 		return &components.DiffInfo{
-			Type:       components.DiffTypeEdit,
 			FilePath:   filePath,
 			OldContent: "",
 			NewContent: "Invalid edits format",
@@ -807,7 +806,6 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 		if !strings.Contains(currentContent, oldString) {
 			// Return error state
 			return &components.DiffInfo{
-				Type:       components.DiffTypeEdit,
 				FilePath:   filePath,
 				OldContent: originalContent,
 				NewContent: "⚠️  Edit simulation failed: old_string not found after previous edits",
@@ -821,7 +819,6 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 			count := strings.Count(currentContent, oldString)
 			if count > 1 {
 				return &components.DiffInfo{
-					Type:       components.DiffTypeEdit,
 					FilePath:   filePath,
 					OldContent: originalContent,
 					NewContent: fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)", count),
@@ -833,7 +830,6 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 	}
 
 	return &components.DiffInfo{
-		Type:       components.DiffTypeEdit,
 		FilePath:   filePath,
 		OldContent: originalContent,
 		NewContent: currentContent,
@@ -843,58 +839,7 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 
 // FormatArgumentsForApproval formats arguments for approval display with diff preview
 func (t *MultiEditTool) FormatArgumentsForApproval(args map[string]any) string {
-	var b strings.Builder
-
-	filePath, _ := args["file_path"].(string)
-	editsInterface := args["edits"]
-
-	b.WriteString("Arguments:\n")
-	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
-
-	editsArray, ok := editsInterface.([]any)
-	if !ok {
-		b.WriteString("  • edits: [invalid format]\n")
-		return b.String()
-	}
-
-	b.WriteString(fmt.Sprintf("  • edits: %d operations\n", len(editsArray)))
-	b.WriteString("\n")
-
-	b.WriteString("Edit Operations:\n")
-	for i, editInterface := range editsArray {
-		editMap, ok := editInterface.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		oldString, _ := editMap["old_string"].(string)
-		newString, _ := editMap["new_string"].(string)
-		replaceAll, _ := editMap["replace_all"].(bool)
-
-		b.WriteString(fmt.Sprintf("  %d. ", i+1))
-		if replaceAll {
-			b.WriteString("[replace_all] ")
-		}
-
-		oldPreview := strings.ReplaceAll(oldString, "\n", "\\n")
-		newPreview := strings.ReplaceAll(newString, "\n", "\\n")
-		if len(oldPreview) > 50 {
-			oldPreview = oldPreview[:47] + "..."
-		}
-		if len(newPreview) > 50 {
-			newPreview = newPreview[:47] + "..."
-		}
-
-		b.WriteString(fmt.Sprintf("\033[31m\"%s\"\033[0m → \033[32m\"%s\"\033[0m\n",
-			oldPreview, newPreview))
-	}
-
-	b.WriteString("\n")
-
-	// Use the diff component for consistent rendering
+	// Use colored diff renderer
 	diffRenderer := components.NewToolDiffRenderer()
-	diffInfo := t.GetDiffInfo(args)
-	b.WriteString(diffRenderer.RenderDiff(diffInfo))
-
-	return b.String()
+	return diffRenderer.RenderMultiEditToolArguments(args)
 }

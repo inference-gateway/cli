@@ -577,15 +577,15 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	// Show the content with git diff formatting in expanded view
+	// Show the content with glamour diff formatting in expanded view
 	showGitDiff := result.Success && result.Arguments != nil
 	if showGitDiff {
 		output.WriteString("\n")
-		diffRenderer := components.NewToolDiffRenderer()
+		diffRenderer := components.NewDiffRenderer(nil)
 		diffInfo := t.GetDiffInfo(result.Arguments)
 		// Update title for past tense (edits already applied)
 		diffInfo.Title = "← Edits applied →"
-		output.WriteString(diffRenderer.RenderDiff(diffInfo))
+		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
 		output.WriteString("\n")
 	}
 
@@ -643,7 +643,6 @@ func (t *EditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 	filePath, _ := args["file_path"].(string)
 
 	return &components.DiffInfo{
-		Type:       components.DiffTypeEdit,
 		FilePath:   filePath,
 		OldContent: oldString,
 		NewContent: newString,
@@ -653,20 +652,7 @@ func (t *EditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 
 // FormatArgumentsForApproval formats arguments for approval display with diff preview
 func (t *EditTool) FormatArgumentsForApproval(args map[string]any) string {
-	var b strings.Builder
-
-	filePath, _ := args["file_path"].(string)
-	replaceAll, _ := args["replace_all"].(bool)
-
-	b.WriteString("Arguments:\n")
-	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
-	b.WriteString(fmt.Sprintf("  • replace_all: %v\n", replaceAll))
-	b.WriteString("\n")
-
-	// Use the diff component for consistent rendering
+	// Use colored diff renderer
 	diffRenderer := components.NewToolDiffRenderer()
-	diffInfo := t.GetDiffInfo(args)
-	b.WriteString(diffRenderer.RenderDiff(diffInfo))
-
-	return b.String()
+	return diffRenderer.RenderEditToolArguments(args)
 }

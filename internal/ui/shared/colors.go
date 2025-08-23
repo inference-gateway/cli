@@ -21,6 +21,8 @@ const (
 	ColorBrightRed     = "\033[38;2;247;118;142m" // Same as ColorRed
 	ColorStrikethrough = "\033[9m"
 	ColorDim           = "\033[2m"
+	ColorLightGreenBg  = "\033[48;2;34;139;34m" // More vibrant green background for diff overlays
+	ColorLightRedBg    = "\033[48;2;220;20;60m" // More vibrant red background for diff overlays
 )
 
 // Lipgloss Color Names - Tokyo Night Theme Hex Values
@@ -148,17 +150,27 @@ func RoundedBorder() lipgloss.Border {
 
 // CreateDiffAddedLine creates a diff line for added content with line number
 func CreateDiffAddedLine(lineNum int, content string) string {
-	return DiffAddColor.ANSI + "+" + formatLineNumber(lineNum) + "\t" + content + Reset()
+	return createDiffLineWithBg("+", lineNum, content, ColorLightGreenBg)
 }
 
 // CreateDiffRemovedLine creates a diff line for removed content with line number
 func CreateDiffRemovedLine(lineNum int, content string) string {
-	return DiffRemoveColor.ANSI + "-" + formatLineNumber(lineNum) + "\t" + content + Reset()
+	return createDiffLineWithBg("-", lineNum, content, ColorLightRedBg)
+}
+
+// createDiffLineWithBg creates a diff line with background only covering content
+func createDiffLineWithBg(prefix string, lineNum int, content string, bgColor string) string {
+	lineNumStr := ColorGray + formatLineNumber(lineNum) + Reset()
+
+	brightWhite := "\033[1;37m\033[38;2;255;255;255m"
+	contentPart := brightWhite + prefix + " " + content
+
+	return lineNumStr + " " + bgColor + contentPart + Reset()
 }
 
 // CreateDiffUnchangedLine creates a diff line for unchanged content with line number
 func CreateDiffUnchangedLine(lineNum int, content string) string {
-	return " " + formatLineNumber(lineNum) + "\t" + content
+	return ColorGray + formatLineNumber(lineNum) + Reset() + "  " + content
 }
 
 // formatLineNumber formats a line number to a 3-character right-aligned string

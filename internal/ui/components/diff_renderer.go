@@ -2,66 +2,84 @@ package components
 
 import (
 	"fmt"
-	"os"
 	"strings"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
-// DiffRenderer handles rendering colored diffs for tool previews
+// DiffRenderer provides high-performance diff rendering with colors
 type DiffRenderer struct {
-	theme shared.Theme
+	theme         shared.Theme
+	additionStyle lipgloss.Style
+	deletionStyle lipgloss.Style
+	headerStyle   lipgloss.Style
+	fileStyle     lipgloss.Style
+	contextStyle  lipgloss.Style
+	lineNumStyle  lipgloss.Style
+	chunkStyle    lipgloss.Style
 }
 
-// NewDiffRenderer creates a new diff renderer
+// NewDiffRenderer creates a new diff renderer with colored output
 func NewDiffRenderer(theme shared.Theme) *DiffRenderer {
 	return &DiffRenderer{
-		theme: theme,
+		theme:         theme,
+		additionStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("2")),   // Green for additions
+		deletionStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("1")),   // Red for deletions
+		headerStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("6")),   // Cyan for headers
+		fileStyle:     lipgloss.NewStyle().Foreground(lipgloss.Color("4")),   // Blue for file paths
+		contextStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("240")), // Gray for context
+		lineNumStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("245")), // Dark gray for line numbers
+		chunkStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color("5")),   // Magenta for chunk headers
 	}
 }
 
-// RenderEditToolArguments renders Edit tool arguments with a colored diff preview
-func (r *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
-	var b strings.Builder
-
+// RenderEditToolArguments renders Edit tool arguments with diff preview
+func (d *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
 	filePath, _ := args["file_path"].(string)
 	oldString, _ := args["old_string"].(string)
 	newString, _ := args["new_string"].(string)
 	replaceAll, _ := args["replace_all"].(bool)
 
-	// Header in vim diff style
-	b.WriteString(fmt.Sprintf("--- a/%s\n", filePath))
-	b.WriteString(fmt.Sprintf("+++ b/%s\n", filePath))
+	var result strings.Builder
+
+	result.WriteString(d.fileStyle.Render(fmt.Sprintf("File: %s", filePath)))
+	result.WriteString("\n")
 	if replaceAll {
-		b.WriteString("@@ replace_all: true @@\n")
+		result.WriteString(d.contextStyle.Render("Mode: Replace all occurrences"))
+		result.WriteString("\n")
 	}
-	b.WriteString(strings.Repeat("─", 60) + "\n")
+	result.WriteString("\n")
 
-	b.WriteString(r.RenderColoredDiff(oldString, newString))
+	result.WriteString(d.headerStyle.Render(fmt.Sprintf("--- a/%s", filePath)))
+	result.WriteString("\n")
+	result.WriteString(d.headerStyle.Render(fmt.Sprintf("+++ b/%s", filePath)))
+	result.WriteString("\n")
 
-	return b.String()
+	result.WriteString(d.renderUnifiedDiff(oldString, newString, 1))
+
+	return result.String()
 }
 
-// RenderMultiEditToolArguments renders MultiEdit tool arguments with a colored diff preview
-func (r *DiffRenderer) RenderMultiEditToolArguments(args map[string]any) string {
-	var b strings.Builder
-
+// RenderMultiEditToolArguments renders MultiEdit tool arguments
+func (d *DiffRenderer) RenderMultiEditToolArguments(args map[string]any) string {
 	filePath, _ := args["file_path"].(string)
 	editsInterface := args["edits"]
 
-	b.WriteString("Arguments:\n")
-	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
+	var result strings.Builder
+
+	result.WriteString(d.fileStyle.Render(fmt.Sprintf("File: %s", filePath)))
+	result.WriteString("\n\n")
 
 	editsArray, ok := editsInterface.([]any)
 	if !ok {
-		b.WriteString("  • edits: [invalid format]\n")
-		return b.String()
+		result.WriteString("Invalid edits format\n")
+		return result.String()
 	}
 
-	b.WriteString(fmt.Sprintf("  • edits: %d operations\n", len(editsArray)))
-	b.WriteString("\n")
+	result.WriteString(d.contextStyle.Render(fmt.Sprintf("Operations: %d edits", len(editsArray))))
+	result.WriteString("\n\n")
 
-	b.WriteString("Edit Operations:\n")
 	for i, editInterface := range editsArray {
 		editMap, ok := editInterface.(map[string]any)
 		if !ok {
@@ -72,53 +90,141 @@ func (r *DiffRenderer) RenderMultiEditToolArguments(args map[string]any) string 
 		newString, _ := editMap["new_string"].(string)
 		replaceAll, _ := editMap["replace_all"].(bool)
 
-		b.WriteString(fmt.Sprintf("  %d. ", i+1))
+		result.WriteString(d.headerStyle.Render(fmt.Sprintf("Edit %d:", i+1)))
+		result.WriteString("\n")
 		if replaceAll {
-			b.WriteString("[replace_all] ")
+			result.WriteString(d.contextStyle.Render("Replace all occurrences"))
+			result.WriteString("\n")
 		}
-
-		oldPreview := strings.ReplaceAll(oldString, "\n", "\\n")
-		newPreview := strings.ReplaceAll(newString, "\n", "\\n")
-		if len(oldPreview) > 50 {
-			oldPreview = oldPreview[:47] + "..."
-		}
-		if len(newPreview) > 50 {
-			newPreview = newPreview[:47] + "..."
-		}
-
-		b.WriteString(fmt.Sprintf("%s\"%s\"%s → %s\"%s\"%s\n",
-			r.theme.GetDiffRemoveColor(), oldPreview, "\033[0m",
-			r.theme.GetDiffAddColor(), newPreview, "\033[0m"))
+		result.WriteString(d.renderUnifiedDiff(oldString, newString, 1))
+		result.WriteString("\n")
 	}
 
-	b.WriteString("\n← Simulated diff preview →\n")
-
-	simulatedDiff := r.simulateMultiEditDiff(filePath, editsArray)
-	b.WriteString(simulatedDiff)
-
-	return b.String()
+	return result.String()
 }
 
-// RenderColoredDiff creates a colored diff view
-func (r *DiffRenderer) RenderColoredDiff(oldContent, newContent string) string {
-	if oldContent == newContent {
-		return "No changes to display.\n"
+// RenderWriteToolArguments renders Write tool arguments
+func (d *DiffRenderer) RenderWriteToolArguments(args map[string]any) string {
+	filePath, _ := args["file_path"].(string)
+	content, _ := args["content"].(string)
+
+	var result strings.Builder
+
+	result.WriteString(d.fileStyle.Render(fmt.Sprintf("File: %s", filePath)))
+	result.WriteString("\n\n")
+	result.WriteString(d.contextStyle.Render("Content:"))
+	result.WriteString("\n")
+	result.WriteString(content)
+	if !strings.HasSuffix(content, "\n") {
+		result.WriteString("\n")
 	}
 
+	return result.String()
+}
+
+// RenderDiff renders a unified diff with colors
+func (d *DiffRenderer) RenderDiff(diffInfo DiffInfo) string {
+	var result strings.Builder
+
+	if diffInfo.Title != "" {
+		result.WriteString(d.headerStyle.Render(fmt.Sprintf("## %s", diffInfo.Title)))
+		result.WriteString("\n\n")
+	}
+
+	result.WriteString(d.fileStyle.Render(fmt.Sprintf("File: %s", diffInfo.FilePath)))
+	result.WriteString("\n\n")
+
+	result.WriteString(d.headerStyle.Render(fmt.Sprintf("--- a/%s", diffInfo.FilePath)))
+	result.WriteString("\n")
+	result.WriteString(d.headerStyle.Render(fmt.Sprintf("+++ b/%s", diffInfo.FilePath)))
+	result.WriteString("\n")
+
+	if diffInfo.OldContent == "" && diffInfo.NewContent != "" {
+		newLines := strings.Split(diffInfo.NewContent, "\n")
+		chunkHeader := fmt.Sprintf("@@ -0,0 +1,%d @@", len(newLines))
+		result.WriteString(d.chunkStyle.Render(chunkHeader))
+		result.WriteString("\n")
+
+		for _, line := range newLines {
+			result.WriteString(d.additionStyle.Render(fmt.Sprintf("+%s", line)))
+			result.WriteString("\n")
+		}
+	} else if diffInfo.OldContent != "" && diffInfo.NewContent == "" {
+		oldLines := strings.Split(diffInfo.OldContent, "\n")
+		chunkHeader := fmt.Sprintf("@@ -1,%d +0,0 @@", len(oldLines))
+		result.WriteString(d.chunkStyle.Render(chunkHeader))
+		result.WriteString("\n")
+
+		for _, line := range oldLines {
+			result.WriteString(d.deletionStyle.Render(fmt.Sprintf("-%s", line)))
+			result.WriteString("\n")
+		}
+	} else {
+		result.WriteString(d.renderUnifiedDiff(diffInfo.OldContent, diffInfo.NewContent, 1))
+	}
+
+	return result.String()
+}
+
+// DiffInfo contains information needed to render a diff
+type DiffInfo struct {
+	FilePath   string
+	OldContent string
+	NewContent string
+	Title      string
+}
+
+// NewToolDiffRenderer creates a tool diff renderer (alias for DiffRenderer)
+func NewToolDiffRenderer() *DiffRenderer {
+	return &DiffRenderer{
+		theme:         nil,
+		additionStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("2")),   // Green
+		deletionStyle: lipgloss.NewStyle().Foreground(lipgloss.Color("1")),   // Red
+		headerStyle:   lipgloss.NewStyle().Foreground(lipgloss.Color("6")),   // Cyan
+		fileStyle:     lipgloss.NewStyle().Foreground(lipgloss.Color("4")),   // Blue
+		contextStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("240")), // Gray
+		lineNumStyle:  lipgloss.NewStyle().Foreground(lipgloss.Color("245")), // Dark gray
+		chunkStyle:    lipgloss.NewStyle().Foreground(lipgloss.Color("5")),   // Magenta
+	}
+}
+
+// RenderColoredDiff renders a simple diff between old and new content (for compatibility)
+func (d *DiffRenderer) RenderColoredDiff(oldContent, newContent string) string {
+	diffInfo := DiffInfo{
+		FilePath:   "test-file",
+		OldContent: oldContent,
+		NewContent: newContent,
+		Title:      "Diff Test",
+	}
+	return d.RenderDiff(diffInfo)
+}
+
+// renderUnifiedDiff generates a unified diff with line numbers and chunk headers
+func (d *DiffRenderer) renderUnifiedDiff(oldContent, newContent string, startLine int) string {
+	if oldContent == newContent {
+		return ""
+	}
+
+	var result strings.Builder
 	oldLines := strings.Split(oldContent, "\n")
 	newLines := strings.Split(newContent, "\n")
 
-	var diff strings.Builder
-	maxLines := len(oldLines)
-	if len(newLines) > maxLines {
-		maxLines = len(newLines)
+	oldCount := len(oldLines)
+	newCount := len(newLines)
+
+	chunkHeader := fmt.Sprintf("@@ -%d,%d +%d,%d @@", startLine, oldCount, startLine, newCount)
+	result.WriteString(d.chunkStyle.Render(chunkHeader))
+	result.WriteString("\n")
+
+	maxLines := oldCount
+	if newCount > maxLines {
+		maxLines = newCount
 	}
 
-	firstChanged := -1
-	lastChanged := -1
 	for i := 0; i < maxLines; i++ {
 		oldLine := ""
 		newLine := ""
+
 		if i < len(oldLines) {
 			oldLine = oldLines[i]
 		}
@@ -126,108 +232,20 @@ func (r *DiffRenderer) RenderColoredDiff(oldContent, newContent string) string {
 			newLine = newLines[i]
 		}
 
-		if oldLine != newLine {
-			if firstChanged == -1 {
-				firstChanged = i
-			}
-			lastChanged = i
-		}
-	}
-
-	if firstChanged == -1 {
-		return "No changes to display.\n"
-	}
-
-	contextBefore := 3
-	contextAfter := 3
-	startLine := firstChanged - contextBefore
-	if startLine < 0 {
-		startLine = 0
-	}
-	endLine := lastChanged + contextAfter
-	if endLine >= maxLines {
-		endLine = maxLines - 1
-	}
-
-	for i := startLine; i <= endLine; i++ {
-		lineNum := i + 1
-		r.appendDiffLine(&diff, i, lineNum, oldLines, newLines)
-	}
-
-	return diff.String()
-}
-
-// appendDiffLine appends a single line to the diff output
-func (r *DiffRenderer) appendDiffLine(diff *strings.Builder, i, lineNum int, oldLines, newLines []string) {
-	oldExists := i < len(oldLines)
-	newExists := i < len(newLines)
-
-	if oldExists && newExists {
-		r.appendBothLinesDiff(diff, lineNum, oldLines[i], newLines[i])
-		return
-	}
-
-	if oldExists {
-		fmt.Fprintf(diff, "%s-%4d │ %s\033[0m\n", r.theme.GetDiffRemoveColor(), lineNum, oldLines[i])
-		return
-	}
-
-	if newExists {
-		fmt.Fprintf(diff, "%s+%4d │ %s\033[0m\n", r.theme.GetDiffAddColor(), lineNum, newLines[i])
-	}
-}
-
-// appendBothLinesDiff appends diff lines when both old and new lines exist
-func (r *DiffRenderer) appendBothLinesDiff(diff *strings.Builder, lineNum int, oldLine, newLine string) {
-	if oldLine != newLine {
-		fmt.Fprintf(diff, "%s-%4d │ %s\033[0m\n", r.theme.GetDiffRemoveColor(), lineNum, oldLine)
-		fmt.Fprintf(diff, "%s+%4d │ %s\033[0m\n", r.theme.GetDiffAddColor(), lineNum, newLine)
-	} else {
-		fmt.Fprintf(diff, " %4d │ %s\n", lineNum, oldLine)
-	}
-}
-
-// simulateMultiEditDiff simulates the multi-edit operation and generates a diff
-func (r *DiffRenderer) simulateMultiEditDiff(filePath string, editsArray []any) string {
-	originalContent := ""
-	if content, err := os.ReadFile(filePath); err == nil {
-		originalContent = string(content)
-	}
-
-	currentContent := originalContent
-
-	for _, editInterface := range editsArray {
-		editMap, ok := editInterface.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		oldString, ok1 := editMap["old_string"].(string)
-		newString, ok2 := editMap["new_string"].(string)
-		replaceAll, _ := editMap["replace_all"].(bool)
-
-		if !ok1 || !ok2 {
-			continue
-		}
-
-		if !strings.Contains(currentContent, oldString) {
-			return "⚠️  Edit simulation failed: old_string not found after previous edits\n"
-		}
-
-		if replaceAll {
-			currentContent = strings.ReplaceAll(currentContent, oldString, newString)
+		if oldLine == newLine {
+			result.WriteString(d.contextStyle.Render(fmt.Sprintf(" %s", oldLine)))
+			result.WriteString("\n")
 		} else {
-			count := strings.Count(currentContent, oldString)
-			if count > 1 {
-				return fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)\n", count)
+			if i < len(oldLines) {
+				result.WriteString(d.deletionStyle.Render(fmt.Sprintf("-%s", oldLine)))
+				result.WriteString("\n")
 			}
-			currentContent = strings.Replace(currentContent, oldString, newString, 1)
+			if i < len(newLines) {
+				result.WriteString(d.additionStyle.Render(fmt.Sprintf("+%s", newLine)))
+				result.WriteString("\n")
+			}
 		}
 	}
 
-	if originalContent == currentContent {
-		return "No changes to display.\n"
-	}
-
-	return r.RenderColoredDiff(originalContent, currentContent)
+	return result.String()
 }
