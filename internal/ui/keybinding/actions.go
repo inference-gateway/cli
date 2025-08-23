@@ -489,6 +489,7 @@ func (r *Registry) registerActionsToLayers(globalActions, approvalActions, chatA
 
 	for _, action := range scrollActions {
 		_ = r.addActionToLayer("chat_view", action)
+		_ = r.addActionToLayer("approval", action)
 	}
 }
 

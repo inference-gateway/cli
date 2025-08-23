@@ -29,12 +29,14 @@ func (r *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
 	newString, _ := args["new_string"].(string)
 	replaceAll, _ := args["replace_all"].(bool)
 
-	b.WriteString("Arguments:\n")
-	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
-	b.WriteString(fmt.Sprintf("  • replace_all: %v\n", replaceAll))
-	b.WriteString("\n")
+	// Header in vim diff style
+	b.WriteString(fmt.Sprintf("--- a/%s\n", filePath))
+	b.WriteString(fmt.Sprintf("+++ b/%s\n", filePath))
+	if replaceAll {
+		b.WriteString("@@ replace_all: true @@\n")
+	}
+	b.WriteString(strings.Repeat("─", 60) + "\n")
 
-	b.WriteString("← Test edit for diff verification →\n")
 	b.WriteString(r.RenderColoredDiff(oldString, newString))
 
 	return b.String()
@@ -166,22 +168,22 @@ func (r *DiffRenderer) appendDiffLine(diff *strings.Builder, i, lineNum int, old
 	}
 
 	if oldExists {
-		fmt.Fprintf(diff, "%s-%3d %s\033[0m\n", r.theme.GetDiffRemoveColor(), lineNum, oldLines[i])
+		fmt.Fprintf(diff, "%s-%4d │ %s\033[0m\n", r.theme.GetDiffRemoveColor(), lineNum, oldLines[i])
 		return
 	}
 
 	if newExists {
-		fmt.Fprintf(diff, "%s+%3d %s\033[0m\n", r.theme.GetDiffAddColor(), lineNum, newLines[i])
+		fmt.Fprintf(diff, "%s+%4d │ %s\033[0m\n", r.theme.GetDiffAddColor(), lineNum, newLines[i])
 	}
 }
 
 // appendBothLinesDiff appends diff lines when both old and new lines exist
 func (r *DiffRenderer) appendBothLinesDiff(diff *strings.Builder, lineNum int, oldLine, newLine string) {
 	if oldLine != newLine {
-		fmt.Fprintf(diff, "%s-%3d %s\033[0m\n", r.theme.GetDiffRemoveColor(), lineNum, oldLine)
-		fmt.Fprintf(diff, "%s+%3d %s\033[0m\n", r.theme.GetDiffAddColor(), lineNum, newLine)
+		fmt.Fprintf(diff, "%s-%4d │ %s\033[0m\n", r.theme.GetDiffRemoveColor(), lineNum, oldLine)
+		fmt.Fprintf(diff, "%s+%4d │ %s\033[0m\n", r.theme.GetDiffAddColor(), lineNum, newLine)
 	} else {
-		fmt.Fprintf(diff, " %3d %s\n", lineNum, oldLine)
+		fmt.Fprintf(diff, " %4d │ %s\n", lineNum, oldLine)
 	}
 }
 

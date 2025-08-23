@@ -22,12 +22,13 @@ func min(a, b int) int {
 
 // ApprovalComponent handles rendering of tool approval requests
 type ApprovalComponent struct {
-	width         int
-	height        int
-	theme         shared.Theme
-	toolFormatter domain.ToolFormatter
-	styles        *approvalStyles
-	scrollOffset  int
+	width           int
+	height          int
+	theme           shared.Theme
+	toolFormatter   domain.ToolFormatter
+	styles          *approvalStyles
+	scrollOffset    int
+	maxScrollOffset int
 }
 
 type approvalStyles struct {
@@ -136,12 +137,14 @@ func (a *ApprovalComponent) handleScrollRequest(msg shared.ScrollRequestMsg) (te
 		}
 	case shared.ScrollDown:
 		for i := 0; i < msg.Amount; i++ {
-			a.scrollOffset++
+			if a.scrollOffset < a.maxScrollOffset {
+				a.scrollOffset++
+			}
 		}
 	case shared.ScrollToTop:
 		a.scrollOffset = 0
 	case shared.ScrollToBottom:
-		a.scrollOffset = 1000
+		a.scrollOffset = a.maxScrollOffset
 	}
 	return a, nil
 }
@@ -281,7 +284,8 @@ func (a *ApprovalComponent) renderFooter(selectedIndex int) string {
 
 // assembleContent combines header, tool content, and footer with height management
 func (a *ApprovalComponent) assembleContent(headerStr, toolStr, footerStr string) string {
-	containerWidth := max(a.width-6, 40)
+	// Calculate content width accounting for border padding
+	contentWidth := max(a.width-8, 40) // Account for rounded border + padding
 
 	headerLines := len(strings.Split(headerStr, "\n"))
 	footerLines := len(strings.Split(footerStr, "\n"))
@@ -290,68 +294,86 @@ func (a *ApprovalComponent) assembleContent(headerStr, toolStr, footerStr string
 	availableHeight := max(int(float64(a.height)*0.8), 10+fixedLines)
 	maxToolHeight := max(availableHeight-fixedLines, 10)
 
+	// Build content with proper width constraints
 	var finalContent strings.Builder
-	finalContent.WriteString(headerStr)
+	finalContent.WriteString(a.wrapContentToWidth(headerStr, contentWidth))
 
 	if toolStr != "" {
 		finalContent.WriteString("\n")
-		a.renderToolContentWithScrolling(&finalContent, toolStr, maxToolHeight)
+		a.renderToolContentWithScrolling(&finalContent, toolStr, maxToolHeight, contentWidth)
 	}
 
 	finalContent.WriteString("\n")
-	finalContent.WriteString(footerStr)
+	finalContent.WriteString(a.wrapContentToWidth(footerStr, contentWidth))
 
-	contentLines := strings.Split(finalContent.String(), "\n")
+	// Apply container style with proper width
+	containerStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(shared.BorderColor.GetLipglossColor()).
+		Padding(1, 2).
+		Width(contentWidth + 4). // Add padding to total width
+		MaxWidth(a.width)
+
+	return containerStyle.Render(finalContent.String())
+}
+
+// wrapContentToWidth wraps content lines to fit within specified width
+func (a *ApprovalComponent) wrapContentToWidth(content string, width int) string {
+	if content == "" {
+		return content
+	}
+
+	lines := strings.Split(content, "\n")
 	var wrappedContent strings.Builder
-	for i, line := range contentLines {
-		if len(line) > containerWidth-4 {
-			wrapped := wordwrap.String(line, containerWidth-4)
+
+	for i, line := range lines {
+		// Remove any existing ANSI codes for length calculation
+		plainLine := lipgloss.NewStyle().Render(line)
+		if lipgloss.Width(plainLine) > width {
+			wrapped := wordwrap.String(line, width)
 			wrappedContent.WriteString(wrapped)
 		} else {
 			wrappedContent.WriteString(line)
 		}
-		if i < len(contentLines)-1 {
+
+		if i < len(lines)-1 {
 			wrappedContent.WriteString("\n")
 		}
 	}
 
-	return a.styles.container.
-		Width(containerWidth).
-		Render(wrappedContent.String())
+	return wrappedContent.String()
 }
 
 // renderToolContentWithScrolling renders the tool content with scrolling support
-func (a *ApprovalComponent) renderToolContentWithScrolling(finalContent *strings.Builder, toolStr string, maxToolHeight int) {
-	toolLines := strings.Split(toolStr, "\n")
+func (a *ApprovalComponent) renderToolContentWithScrolling(finalContent *strings.Builder, toolStr string, maxToolHeight int, contentWidth int) {
+	// Pre-wrap the tool content to the container width
+	wrappedToolStr := a.wrapContentToWidth(toolStr, contentWidth)
+	toolLines := strings.Split(wrappedToolStr, "\n")
 	totalLines := len(toolLines)
 
+	// Update max scroll offset based on content
 	if totalLines <= maxToolHeight {
-		finalContent.WriteString(toolStr)
+		a.maxScrollOffset = 0
+		finalContent.WriteString(wrappedToolStr)
 		return
+	}
+
+	// Calculate maximum valid scroll offset
+	a.maxScrollOffset = max(0, totalLines-maxToolHeight)
+
+	// Ensure current scroll offset is within bounds
+	if a.scrollOffset > a.maxScrollOffset {
+		a.scrollOffset = a.maxScrollOffset
 	}
 
 	startLine := a.scrollOffset
-	endLine := min(startLine+maxToolHeight-1, totalLines)
-
-	if startLine >= totalLines {
-		startLine = max(0, totalLines-maxToolHeight+1)
-		a.scrollOffset = startLine
-	}
-
-	if endLine > totalLines {
-		endLine = totalLines
-	}
-
-	if startLine >= endLine {
-		finalContent.WriteString(a.styles.helpText.Render("... (content scrolled) ..."))
-		return
-	}
+	endLine := min(startLine+maxToolHeight, totalLines)
 
 	visibleLines := toolLines[startLine:endLine]
 	finalContent.WriteString(strings.Join(visibleLines, "\n"))
 	finalContent.WriteString("\n")
 
-	scrollInfo := fmt.Sprintf("... (line %d-%d of %d, shift+↑↓ to scroll) ...",
+	scrollInfo := fmt.Sprintf("... (display line %d-%d of %d, shift+↑↓ to scroll) ...",
 		startLine+1, endLine, totalLines)
 	finalContent.WriteString(a.styles.helpText.Render(scrollInfo))
 }

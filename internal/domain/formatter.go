@@ -100,11 +100,15 @@ func (f BaseFormatter) FormatExpandedHeader(result *ToolExecutionResult) string 
 		sort.Strings(keys)
 
 		for i, key := range keys {
+			value := result.Arguments[key]
+			if f.ShouldCollapseArg(key) {
+				value = f.collapseArgValue(value, 50)
+			}
 			hasMore := i < len(keys)-1 || result.Data != nil || len(result.Metadata) > 0
 			if hasMore {
-				output.WriteString(fmt.Sprintf("│  ├─ %s: %v\n", key, result.Arguments[key]))
+				output.WriteString(fmt.Sprintf("│  ├─ %s: %v\n", key, value))
 			} else {
-				output.WriteString(fmt.Sprintf("│  └─ %s: %v\n", key, result.Arguments[key]))
+				output.WriteString(fmt.Sprintf("│  └─ %s: %v\n", key, value))
 			}
 		}
 	}
@@ -234,6 +238,9 @@ func (f CustomFormatter) FormatExpandedHeader(result *ToolExecutionResult) strin
 
 		for i, key := range keys {
 			value := result.Arguments[key]
+			if f.ShouldCollapseArg(key) {
+				value = "..."
+			}
 			isLast := i == len(keys)-1
 			prefix := "│ ├─"
 			if isLast {

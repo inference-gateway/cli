@@ -10,6 +10,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/components"
 )
 
 // WriteTool handles file writing operations to the filesystem
@@ -483,13 +484,26 @@ func (t *WriteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	if result.Data != nil {
+	// Show the content with git diff formatting in expanded view
+	showGitDiff := result.Success && result.Arguments != nil
+	if showGitDiff {
+		output.WriteString("\n")
+		diffRenderer := components.NewToolDiffRenderer()
+		diffInfo := t.GetDiffInfo(result.Arguments)
+		// Update title for past tense (content already written)
+		diffInfo.Title = "← Content written →"
+		output.WriteString(diffRenderer.RenderDiff(diffInfo))
+		output.WriteString("\n")
+	}
+
+	// Only show data section if not showing git diff to avoid duplication
+	if !showGitDiff && result.Data != nil {
 		dataContent := t.formatWriteData(result.Data)
 		hasMetadata := len(result.Metadata) > 0
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
-	hasDataSection := result.Data != nil
+	hasDataSection := !showGitDiff && result.Data != nil
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
 	return output.String()
@@ -539,13 +553,19 @@ func (t *WriteTool) formatWriteData(data any) string {
 // countLines counts the number of lines in the given content
 func countLines(content string) int {
 	if content == "" {
-		return 0
+		return 1
 	}
-	lines := strings.Count(content, "\n")
-	if !strings.HasSuffix(content, "\n") {
-		lines++
+
+	lines := strings.Split(content, "\n")
+	if strings.HasSuffix(content, "\n") && len(lines) > 0 {
+		lines = lines[:len(lines)-1]
 	}
-	return lines
+
+	if len(lines) == 0 {
+		return 1
+	}
+
+	return len(lines)
 }
 
 // ShouldCollapseArg delegates to the formatter's collapse logic
@@ -558,12 +578,24 @@ func (t *WriteTool) ShouldAlwaysExpand() bool {
 	return false
 }
 
-// FormatArgumentsForApproval formats arguments for approval display with full content preview
+// GetDiffInfo implements the DiffFormatter interface
+func (t *WriteTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
+	filePath, _ := args["file_path"].(string)
+	content, _ := args["content"].(string)
+
+	return &components.DiffInfo{
+		Type:       components.DiffTypeNew,
+		FilePath:   filePath,
+		NewContent: content,
+		Title:      "← Content to be written →",
+	}
+}
+
+// FormatArgumentsForApproval formats arguments for approval display with line numbers and git-style coloring
 func (t *WriteTool) FormatArgumentsForApproval(args map[string]any) string {
 	var b strings.Builder
 
 	filePath, _ := args["file_path"].(string)
-	content, _ := args["content"].(string)
 	append, _ := args["append"].(bool)
 	chunkIndex, _ := args["chunk_index"].(float64)
 	totalChunks, _ := args["total_chunks"].(float64)
@@ -582,16 +614,11 @@ func (t *WriteTool) FormatArgumentsForApproval(args map[string]any) string {
 	}
 
 	b.WriteString("\n")
-	b.WriteString("← Content to be written →\n")
 
-	if content != "" {
-		b.WriteString(content)
-		if !strings.HasSuffix(content, "\n") {
-			b.WriteString("\n")
-		}
-	} else {
-		b.WriteString("(empty content)\n")
-	}
+	// Use the diff component for consistent rendering
+	diffRenderer := components.NewToolDiffRenderer()
+	diffInfo := t.GetDiffInfo(args)
+	b.WriteString(diffRenderer.RenderDiff(diffInfo))
 
 	return b.String()
 }

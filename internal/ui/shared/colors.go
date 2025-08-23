@@ -1,6 +1,7 @@
 package shared
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -141,4 +142,26 @@ func CreateDimText(text string) string {
 // RoundedBorder returns a rounded border style for lipgloss
 func RoundedBorder() lipgloss.Border {
 	return lipgloss.RoundedBorder()
+}
+
+// Diff formatting helpers
+
+// CreateDiffAddedLine creates a diff line for added content with line number
+func CreateDiffAddedLine(lineNum int, content string) string {
+	return DiffAddColor.ANSI + "+" + formatLineNumber(lineNum) + "\t" + content + Reset()
+}
+
+// CreateDiffRemovedLine creates a diff line for removed content with line number
+func CreateDiffRemovedLine(lineNum int, content string) string {
+	return DiffRemoveColor.ANSI + "-" + formatLineNumber(lineNum) + "\t" + content + Reset()
+}
+
+// CreateDiffUnchangedLine creates a diff line for unchanged content with line number
+func CreateDiffUnchangedLine(lineNum int, content string) string {
+	return " " + formatLineNumber(lineNum) + "\t" + content
+}
+
+// formatLineNumber formats a line number to a 3-character right-aligned string
+func formatLineNumber(lineNum int) string {
+	return fmt.Sprintf("%3d", lineNum)
 }

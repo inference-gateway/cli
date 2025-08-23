@@ -9,6 +9,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/components"
 )
 
 // EditTool handles exact string replacements in files with strict safety rules
@@ -576,13 +577,26 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	if result.Data != nil {
+	// Show the content with git diff formatting in expanded view
+	showGitDiff := result.Success && result.Arguments != nil
+	if showGitDiff {
+		output.WriteString("\n")
+		diffRenderer := components.NewToolDiffRenderer()
+		diffInfo := t.GetDiffInfo(result.Arguments)
+		// Update title for past tense (edits already applied)
+		diffInfo.Title = "← Edits applied →"
+		output.WriteString(diffRenderer.RenderDiff(diffInfo))
+		output.WriteString("\n")
+	}
+
+	// Only show data section if not showing git diff to avoid duplication
+	if !showGitDiff && result.Data != nil {
 		dataContent := t.formatEditData(result.Data)
 		hasMetadata := len(result.Metadata) > 0
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
-	hasDataSection := result.Data != nil
+	hasDataSection := !showGitDiff && result.Data != nil
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
 	return output.String()
@@ -622,13 +636,26 @@ func (t *EditTool) formatEditData(data any) string {
 	return output.String()
 }
 
+// GetDiffInfo implements the DiffFormatter interface
+func (t *EditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
+	oldString, _ := args["old_string"].(string)
+	newString, _ := args["new_string"].(string)
+	filePath, _ := args["file_path"].(string)
+
+	return &components.DiffInfo{
+		Type:       components.DiffTypeEdit,
+		FilePath:   filePath,
+		OldContent: oldString,
+		NewContent: newString,
+		Title:      "← Test edit for diff verification →",
+	}
+}
+
 // FormatArgumentsForApproval formats arguments for approval display with diff preview
 func (t *EditTool) FormatArgumentsForApproval(args map[string]any) string {
 	var b strings.Builder
 
 	filePath, _ := args["file_path"].(string)
-	oldString, _ := args["old_string"].(string)
-	newString, _ := args["new_string"].(string)
 	replaceAll, _ := args["replace_all"].(bool)
 
 	b.WriteString("Arguments:\n")
@@ -636,83 +663,10 @@ func (t *EditTool) FormatArgumentsForApproval(args map[string]any) string {
 	b.WriteString(fmt.Sprintf("  • replace_all: %v\n", replaceAll))
 	b.WriteString("\n")
 
-	b.WriteString("← Test edit for diff verification →\n")
-	b.WriteString(t.generateColoredDiff(oldString, newString))
+	// Use the diff component for consistent rendering
+	diffRenderer := components.NewToolDiffRenderer()
+	diffInfo := t.GetDiffInfo(args)
+	b.WriteString(diffRenderer.RenderDiff(diffInfo))
 
 	return b.String()
-}
-
-// generateColoredDiff creates a colored diff view for approval
-func (t *EditTool) generateColoredDiff(oldContent, newContent string) string {
-	if oldContent == newContent {
-		return "No changes to display.\n"
-	}
-
-	oldLines := strings.Split(oldContent, "\n")
-	newLines := strings.Split(newContent, "\n")
-
-	var diff strings.Builder
-	maxLines := len(oldLines)
-	if len(newLines) > maxLines {
-		maxLines = len(newLines)
-	}
-
-	firstChanged := -1
-	lastChanged := -1
-	for i := 0; i < maxLines; i++ {
-		oldLine := ""
-		newLine := ""
-		if i < len(oldLines) {
-			oldLine = oldLines[i]
-		}
-		if i < len(newLines) {
-			newLine = newLines[i]
-		}
-
-		if oldLine != newLine {
-			if firstChanged == -1 {
-				firstChanged = i
-			}
-			lastChanged = i
-		}
-	}
-
-	if firstChanged == -1 {
-		return "No changes to display.\n"
-	}
-
-	contextBefore := 3
-	contextAfter := 3
-	startLine := firstChanged - contextBefore
-	if startLine < 0 {
-		startLine = 0
-	}
-	endLine := lastChanged + contextAfter
-	if endLine >= maxLines {
-		endLine = maxLines - 1
-	}
-
-	for i := startLine; i <= endLine; i++ {
-		lineNum := i + 1
-		oldExists := i < len(oldLines)
-		newExists := i < len(newLines)
-
-		switch {
-		case oldExists && newExists:
-			oldLine := oldLines[i]
-			newLine := newLines[i]
-			if oldLine != newLine {
-				diff.WriteString(fmt.Sprintf("\033[31m-%3d %s\033[0m\n", lineNum, oldLine))
-				diff.WriteString(fmt.Sprintf("\033[32m+%3d %s\033[0m\n", lineNum, newLine))
-			} else {
-				diff.WriteString(fmt.Sprintf(" %3d %s\n", lineNum, oldLine))
-			}
-		case oldExists:
-			diff.WriteString(fmt.Sprintf("\033[31m-%3d %s\033[0m\n", lineNum, oldLines[i]))
-		case newExists:
-			diff.WriteString(fmt.Sprintf("\033[32m+%3d %s\033[0m\n", lineNum, newLines[i]))
-		}
-	}
-
-	return diff.String()
 }
