@@ -448,15 +448,27 @@ func (app *ChatApplication) renderTextSelection() string {
 	}
 	adjustedHeight := height - 3 - helpBarHeight
 	conversationHeight := ui.CalculateConversationHeight(adjustedHeight)
+	statusHeight := ui.CalculateStatusHeight(adjustedHeight)
 
 	app.textSelectionView.SetWidth(width)
 	app.textSelectionView.SetHeight(conversationHeight)
+	app.statusView.SetWidth(width)
 
 	textSelectionContent := app.textSelectionView.Render()
-
 	inputContent := app.inputView.Render()
 
-	return textSelectionContent + "\n" + inputContent
+	components := []string{textSelectionContent}
+
+	if statusHeight > 0 {
+		statusContent := app.statusView.Render()
+		if statusContent != "" {
+			components = append(components, statusContent)
+		}
+	}
+
+	components = append(components, inputContent)
+
+	return strings.Join(components, "\n")
 }
 
 func (app *ChatApplication) handleExitSelectionMode(cmds []tea.Cmd) []tea.Cmd {

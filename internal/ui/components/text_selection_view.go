@@ -279,8 +279,9 @@ func (v *TextSelectionView) yankSelection() tea.Cmd {
 			_ = clipboard.WriteAll(text)
 			return func() tea.Msg {
 				return shared.SetStatusMsg{
-					Message: "Yanked 1 line",
-					Spinner: false,
+					Message:    "📋 Yanked 1 line",
+					Spinner:    false,
+					StatusType: shared.StatusDefault,
 				}
 			}
 		}
@@ -291,13 +292,19 @@ func (v *TextSelectionView) yankSelection() tea.Cmd {
 	v.copiedText = text
 	_ = clipboard.WriteAll(text)
 
-	lineCount := v.selectionEnd.Line - v.selectionStart.Line + 1
-	msg := fmt.Sprintf("Yanked %d line(s)", lineCount)
+	start := v.selectionStart
+	end := v.selectionEnd
+	if start.Line > end.Line || (start.Line == end.Line && start.Col > end.Col) {
+		start, end = end, start
+	}
+	lineCount := end.Line - start.Line + 1
+	msg := fmt.Sprintf("📋 Yanked %d line(s)", lineCount)
 
 	return func() tea.Msg {
 		return shared.SetStatusMsg{
-			Message: msg,
-			Spinner: false,
+			Message:    msg,
+			Spinner:    false,
+			StatusType: shared.StatusDefault,
 		}
 	}
 }
