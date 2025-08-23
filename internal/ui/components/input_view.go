@@ -388,10 +388,8 @@ func (iv *InputView) handlePaste() (tea.Model, tea.Cmd) {
 		return iv, nil
 	}
 
-	// Preserve linebreaks and only normalize carriage returns
 	cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
 	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
-	// Keep tabs as they might be meaningful in code
 
 	if cleanText != "" {
 		newText := iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]

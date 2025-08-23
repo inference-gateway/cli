@@ -544,10 +544,8 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	// Preserve linebreaks and only normalize carriage returns
 	cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
 	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
-	// Keep tabs as they might be meaningful in code
 
 	if cleanText != "" {
 		inputView := app.GetInputView()
@@ -570,7 +568,6 @@ func handleCopy(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	if inputView != nil {
 		text := inputView.GetInput()
 		if text != "" {
-			// Copy the text as-is, preserving any linebreaks
 			_ = clipboard.WriteAll(text)
 		}
 	}
@@ -892,10 +889,8 @@ func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyMsg) tea.Cmd {
 	keyStr := keyMsg.String()
 	var cmds []tea.Cmd
 
-	// Debug: Log all key presses if debug mode is enabled
 	config := m.app.GetConfig()
 	if config != nil && config.Logging.Debug {
-		// Log detailed key information for debugging
 		debugInfo := fmt.Sprintf("%q", keyStr)
 		if len(keyStr) == 1 {
 			debugInfo = fmt.Sprintf("%q (char: 0x%02X)", keyStr, keyStr[0])
@@ -905,7 +900,6 @@ func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 
-	// Check if there's a registered action for this key
 	action := m.registry.Resolve(keyStr, m.app)
 	if action != nil {
 		actionCmd := action.Handler(m.app, keyMsg)
@@ -916,7 +910,6 @@ func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyMsg) tea.Cmd {
 		return actionCmd
 	}
 
-	// Handle regular character input
 	charCmd := handleCharacterInput(m.app, keyMsg)
 	if len(cmds) > 0 {
 		cmds = append(cmds, charCmd)
@@ -1045,10 +1038,8 @@ func handlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
 		return nil
 	}
 
-	// Preserve linebreaks and only normalize carriage returns
 	cleanText := strings.ReplaceAll(pastedText, "\r\n", "\n")
 	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
-	// Keep tabs as they might be meaningful in code
 	cleanText = strings.Trim(cleanText, "[]")
 
 	if cleanText != "" {
