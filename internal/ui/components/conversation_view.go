@@ -157,9 +157,8 @@ func (cv *ConversationView) renderWelcome() string {
 	headerLine := shared.StatusColor.ANSI + "✨ Inference Gateway CLI" + shared.Reset()
 	readyLine := shared.SuccessColor.ANSI + "🚀 Ready to chat!" + shared.Reset()
 	workingLine := shared.DimColor.ANSI + "📂 Working in: " + shared.Reset() + shared.HeaderColor.ANSI + wd + shared.Reset()
-	helpLine := shared.DimColor.ANSI + "Type your message or try commands like /help" + shared.Reset()
 
-	content := headerLine + "\n" + readyLine + "\n" + workingLine + "\n" + helpLine
+	content := headerLine + "\n" + readyLine + "\n" + workingLine
 
 	style := shared.NewCommonStyles().Border.
 		Border(shared.RoundedBorder(), true).
