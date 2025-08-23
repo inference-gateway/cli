@@ -203,8 +203,8 @@ func (t *testStatusComponent) Render() string {
 
 func (t *testStatusComponent) SaveCurrentState() {}
 
-func (t *testStatusComponent) RestoreSavedState() bool {
-	return false
+func (t *testStatusComponent) RestoreSavedState() tea.Cmd {
+	return nil
 }
 
 func (t *testStatusComponent) HasSavedState() bool {

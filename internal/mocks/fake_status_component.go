@@ -4,6 +4,7 @@ package mocks
 import (
 	"sync"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 
@@ -52,15 +53,15 @@ type FakeStatusComponent struct {
 	renderReturnsOnCall map[int]struct {
 		result1 string
 	}
-	RestoreSavedStateStub        func() bool
+	RestoreSavedStateStub        func() tea.Cmd
 	restoreSavedStateMutex       sync.RWMutex
 	restoreSavedStateArgsForCall []struct {
 	}
 	restoreSavedStateReturns struct {
-		result1 bool
+		result1 tea.Cmd
 	}
 	restoreSavedStateReturnsOnCall map[int]struct {
-		result1 bool
+		result1 tea.Cmd
 	}
 	SaveCurrentStateStub        func()
 	saveCurrentStateMutex       sync.RWMutex
@@ -336,7 +337,7 @@ func (fake *FakeStatusComponent) RenderReturnsOnCall(i int, result1 string) {
 	}{result1}
 }
 
-func (fake *FakeStatusComponent) RestoreSavedState() bool {
+func (fake *FakeStatusComponent) RestoreSavedState() tea.Cmd {
 	fake.restoreSavedStateMutex.Lock()
 	ret, specificReturn := fake.restoreSavedStateReturnsOnCall[len(fake.restoreSavedStateArgsForCall)]
 	fake.restoreSavedStateArgsForCall = append(fake.restoreSavedStateArgsForCall, struct {
@@ -360,32 +361,32 @@ func (fake *FakeStatusComponent) RestoreSavedStateCallCount() int {
 	return len(fake.restoreSavedStateArgsForCall)
 }
 
-func (fake *FakeStatusComponent) RestoreSavedStateCalls(stub func() bool) {
+func (fake *FakeStatusComponent) RestoreSavedStateCalls(stub func() tea.Cmd) {
 	fake.restoreSavedStateMutex.Lock()
 	defer fake.restoreSavedStateMutex.Unlock()
 	fake.RestoreSavedStateStub = stub
 }
 
-func (fake *FakeStatusComponent) RestoreSavedStateReturns(result1 bool) {
+func (fake *FakeStatusComponent) RestoreSavedStateReturns(result1 tea.Cmd) {
 	fake.restoreSavedStateMutex.Lock()
 	defer fake.restoreSavedStateMutex.Unlock()
 	fake.RestoreSavedStateStub = nil
 	fake.restoreSavedStateReturns = struct {
-		result1 bool
+		result1 tea.Cmd
 	}{result1}
 }
 
-func (fake *FakeStatusComponent) RestoreSavedStateReturnsOnCall(i int, result1 bool) {
+func (fake *FakeStatusComponent) RestoreSavedStateReturnsOnCall(i int, result1 tea.Cmd) {
 	fake.restoreSavedStateMutex.Lock()
 	defer fake.restoreSavedStateMutex.Unlock()
 	fake.RestoreSavedStateStub = nil
 	if fake.restoreSavedStateReturnsOnCall == nil {
 		fake.restoreSavedStateReturnsOnCall = make(map[int]struct {
-			result1 bool
+			result1 tea.Cmd
 		})
 	}
 	fake.restoreSavedStateReturnsOnCall[i] = struct {
-		result1 bool
+		result1 tea.Cmd
 	}{result1}
 }
 

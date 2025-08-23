@@ -361,10 +361,12 @@ func (v *TextSelectionView) getLineTextForSelection(lineIdx int, line string, st
 
 // updateScrollOffset updates the scroll offset to keep cursor visible
 func (v *TextSelectionView) updateScrollOffset() {
+	visibleLines := max(1, v.height-4)
+
 	if v.cursorLine < v.scrollOffset {
 		v.scrollOffset = v.cursorLine
-	} else if v.cursorLine >= v.scrollOffset+v.height {
-		v.scrollOffset = v.cursorLine - v.height + 1
+	} else if v.cursorLine >= v.scrollOffset+visibleLines {
+		v.scrollOffset = v.cursorLine - visibleLines + 1
 	}
 }
 
@@ -390,7 +392,7 @@ func (v *TextSelectionView) Render() string {
 	b.WriteString(header)
 	b.WriteString("\n")
 
-	visibleLines := v.height - 2
+	visibleLines := max(1, v.height-4)
 	for i := 0; i < visibleLines && v.scrollOffset+i < len(v.lines); i++ {
 		lineIdx := v.scrollOffset + i
 		line := v.lines[lineIdx]

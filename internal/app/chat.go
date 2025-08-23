@@ -332,23 +332,7 @@ func (app *ChatApplication) handleTextSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if _, ok := msg.(shared.ExitSelectionModeMsg); ok {
-		app.inputView.SetTextSelectionMode(false)
-
-		app.updateHelpBarShortcuts()
-
-		cmds = append(cmds, func() tea.Msg {
-			return shared.HideHelpBarMsg{}
-		})
-
-		if app.statusView.HasSavedState() {
-			app.statusView.RestoreSavedState()
-		}
-
-		err := app.stateManager.TransitionToView(domain.ViewStateChat)
-		if err != nil {
-			logger.Error("Failed to transition back to chat view", "error", err)
-		}
-		return cmds
+		return app.handleExitSelectionMode(cmds)
 	}
 
 	if _, ok := msg.(shared.InitializeTextSelectionMsg); ok {
@@ -452,36 +436,49 @@ func (app *ChatApplication) renderFileSelection() string {
 }
 
 func (app *ChatApplication) renderTextSelection() string {
-	// Enable text selection mode in input view
 	app.inputView.SetTextSelectionMode(true)
 
-	// Update help bar with vim navigation instructions
 	app.updateHelpBarShortcutsForTextSelection()
 
-	// Get dimensions
 	width, height := app.stateManager.GetDimensions()
 
-	// Calculate proper height using existing layout functions
-	// Account for help bar (which will be shown) and other UI elements
 	helpBarHeight := 0
 	if app.helpBar.IsEnabled() {
 		helpBarHeight = 6
 	}
-	adjustedHeight := height - 3 - helpBarHeight // 3 for header/separator
+	adjustedHeight := height - 3 - helpBarHeight
 	conversationHeight := ui.CalculateConversationHeight(adjustedHeight)
 
-	// Set dimensions for text selection view
 	app.textSelectionView.SetWidth(width)
 	app.textSelectionView.SetHeight(conversationHeight)
 
-	// Get text selection view content
 	textSelectionContent := app.textSelectionView.Render()
 
-	// Render input view separately
 	inputContent := app.inputView.Render()
 
-	// Combine text selection view with input view at bottom
 	return textSelectionContent + "\n" + inputContent
+}
+
+func (app *ChatApplication) handleExitSelectionMode(cmds []tea.Cmd) []tea.Cmd {
+	app.inputView.SetTextSelectionMode(false)
+	app.updateHelpBarShortcuts()
+
+	cmds = append(cmds, func() tea.Msg {
+		return shared.HideHelpBarMsg{}
+	})
+
+	if app.statusView.HasSavedState() {
+		if cmd := app.statusView.RestoreSavedState(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	err := app.stateManager.TransitionToView(domain.ViewStateChat)
+	if err != nil {
+		logger.Error("Failed to transition back to chat view", "error", err)
+	}
+
+	return cmds
 }
 
 func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {

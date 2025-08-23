@@ -133,11 +133,12 @@ func (sv *StatusView) SaveCurrentState() {
 }
 
 // RestoreSavedState restores the previously saved status state
-func (sv *StatusView) RestoreSavedState() bool {
+func (sv *StatusView) RestoreSavedState() tea.Cmd {
 	if sv.savedState == nil {
-		return false
+		return nil
 	}
 
+	wasSpinner := sv.savedState.isSpinner
 	sv.message = sv.savedState.message
 	sv.isError = sv.savedState.isError
 	sv.isSpinner = sv.savedState.isSpinner
@@ -147,9 +148,13 @@ func (sv *StatusView) RestoreSavedState() bool {
 	sv.statusType = sv.savedState.statusType
 	sv.progress = sv.savedState.progress
 
-	// Clear the saved state after restoration
 	sv.savedState = nil
-	return true
+
+	if wasSpinner {
+		return sv.spinner.Tick
+	}
+
+	return nil
 }
 
 // HasSavedState returns true if there's a saved state that can be restored
