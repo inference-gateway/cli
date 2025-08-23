@@ -349,11 +349,13 @@ Study the existing tools for implementation patterns:
 
 ## Testing UI Components
 
-The CLI includes a specialized `test-view` command for testing and iterating on UI components directly in the terminal, without needing to enter chat mode.
+The CLI includes a specialized `test-view` command for testing and iterating on UI components directly in the
+terminal, without needing to enter chat mode.
 
 ### Available Components
 
 #### Approval View Component
+
 Test the tool approval UI that appears when tools require user approval:
 
 ```bash
@@ -365,12 +367,14 @@ flox activate -- ./infer test-view approval --width 120 --height 40
 ```
 
 This renders the approval component with:
+
 - Sample Edit tool data showing a diff preview
 - Different selection states (approve/deny options)
 - Proper styling with Tokyo Night theme
 - Scrollable content for long tool arguments
 
 #### Diff Renderer Component
+
 Test the colored diff renderer used in Edit and MultiEdit tool previews:
 
 ```bash
@@ -382,6 +386,7 @@ flox activate -- ./infer test-view diff --old "original code" --new "modified co
 ```
 
 This renders:
+
 - Edit tool argument formatting with colored diffs
 - MultiEdit tool with multiple operations
 - Pure diff rendering with context lines
@@ -413,6 +418,7 @@ To add a new component to the test-view command:
 4. **Update Help**: Add your component to the command description and help text
 
 Example structure:
+
 ```go
 func testMyComponent(theme shared.Theme) {
     fmt.Println("🎨 Testing My Component")
