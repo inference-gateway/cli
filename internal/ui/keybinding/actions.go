@@ -81,24 +81,15 @@ func (r *Registry) createChatActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "send_message",
+			ID:          "enter_key_handler",
 			Keys:        []string{"enter"},
-			Description: "send message",
+			Description: "send message or insert newline",
 			Category:    "chat",
-			Handler:     handleSendMessage,
+			Handler:     handleEnterKey,
 			Priority:    150,
 			Enabled:     true,
 			Context: KeyContext{
 				Views: []domain.ViewState{domain.ViewStateChat},
-				Conditions: []ContextCondition{
-					{
-						Name: "input_has_content",
-						Check: func(app KeyHandlerContext) bool {
-							input := app.GetInputView().GetInput()
-							return len(input) > 0
-						},
-					},
-				},
 			},
 		},
 		{
@@ -530,7 +521,26 @@ func handleToggleToolExpansion(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 	return nil
 }
 
-func handleSendMessage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	inputView := app.GetInputView()
+	if inputView == nil {
+		return nil
+	}
+
+	input := inputView.GetInput()
+	cursor := inputView.GetCursor()
+
+	if len(input) == 0 {
+		return nil
+	}
+
+	if cursor == len(input) && cursor > 0 && input[cursor-1] == '\\' {
+		if cursor > 1 && input[cursor-2] == '\\' {
+			return app.SendMessage()
+		}
+		return handleInsertNewline(app, keyMsg)
+	}
+
 	return app.SendMessage()
 }
 
@@ -891,9 +901,9 @@ func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyMsg) tea.Cmd {
 
 	config := m.app.GetConfig()
 	if config != nil && config.Logging.Debug {
-		debugInfo := fmt.Sprintf("%q", keyStr)
+		debugInfo := keyStr
 		if len(keyStr) == 1 {
-			debugInfo = fmt.Sprintf("%q (char: 0x%02X)", keyStr, keyStr[0])
+			debugInfo = fmt.Sprintf("%s (char: 0x%02X)", keyStr, keyStr[0])
 		}
 		if debugCmd := m.debugKeyBinding(keyMsg, debugInfo); debugCmd != nil {
 			cmds = append(cmds, debugCmd)

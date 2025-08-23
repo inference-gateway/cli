@@ -381,8 +381,11 @@ func TestConditionalKeyBindings(t *testing.T) {
 		inputText:   "",
 	}
 	action := registry.Resolve("enter", emptyInputContext)
-	if action != nil {
-		t.Error("Expected enter key to not resolve to send_message when input is empty")
+	if action == nil {
+		t.Fatal("Expected enter key to resolve to enter_key_handler even when input is empty")
+	}
+	if action.ID != "enter_key_handler" {
+		t.Errorf("Expected enter to resolve to 'enter_key_handler', got %s", action.ID)
 	}
 
 	nonEmptyInputContext := &testKeyHandlerContext{
@@ -391,10 +394,10 @@ func TestConditionalKeyBindings(t *testing.T) {
 	}
 	action = registry.Resolve("enter", nonEmptyInputContext)
 	if action == nil {
-		t.Fatal("Expected enter key to resolve to send_message when input has content")
+		t.Fatal("Expected enter key to resolve to enter_key_handler when input has content")
 	}
-	if action.ID != "send_message" {
-		t.Errorf("Expected enter to resolve to 'send_message', got %s", action.ID)
+	if action.ID != "enter_key_handler" {
+		t.Errorf("Expected enter to resolve to 'enter_key_handler', got %s", action.ID)
 	}
 }
 
