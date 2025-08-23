@@ -61,7 +61,7 @@ chat_export_*
 	fmt.Printf("   Created: %s\n", gitignorePath)
 	fmt.Println("")
 	fmt.Println("You can now customize the configuration for this project:")
-	fmt.Println("  • Set default model: infer config set-model <model-name>")
+	fmt.Println("  • Set default model: infer config agent set-model <model-name>")
 	fmt.Println("  • Configure tools: infer config tools --help")
 	fmt.Println("  • Start chatting: infer chat")
 
