@@ -174,6 +174,7 @@ func (app *ChatApplication) updateHelpBarShortcuts() {
 
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+v", Description: "paste text"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+shift+c", Description: "copy text"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "shift+enter", Description: "new line"})
 
 	app.helpBar.SetShortcuts(shortcuts)
 }

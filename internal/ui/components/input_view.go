@@ -34,7 +34,7 @@ func NewInputView(modelService domain.ModelService) *InputView {
 	return &InputView{
 		text:           "",
 		cursor:         0,
-		placeholder:    "Type your message... (Press Enter to send, Alt+Enter for newline, ? for commands)",
+		placeholder:    "Type your message... (Press Enter to send, Shift+Enter for newline, ? for commands)",
 		width:          80,
 		height:         5,
 		modelService:   modelService,
@@ -280,7 +280,7 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return iv.handlePaste()
 	}
 
-	if keyStr == "alt+enter" {
+	if keyStr == "alt+enter" || keyStr == "shift+enter" {
 		iv.text = iv.text[:iv.cursor] + "\n" + iv.text[iv.cursor:]
 		iv.cursor++
 		return iv, nil
@@ -386,9 +386,10 @@ func (iv *InputView) handlePaste() (tea.Model, tea.Cmd) {
 		return iv, nil
 	}
 
-	cleanText := strings.ReplaceAll(clipboardText, "\n", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\r", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\t", " ")
+	// Preserve linebreaks and only normalize carriage returns
+	cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
+	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
+	// Keep tabs as they might be meaningful in code
 
 	if cleanText != "" {
 		newText := iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]

@@ -8,7 +8,7 @@ import (
 
 // InputHandlerKeys are keys that can be handled by text input components
 var InputHandlerKeys = []string{
-	"space", "tab", "enter", "alt+enter", "backspace", "delete",
+	"space", "tab", "enter", "alt+enter", "shift+enter", "backspace", "delete",
 	"up", "down", "left", "right", "home", "end",
 	"ctrl+a", "ctrl+e", "ctrl+u", "ctrl+k", "ctrl+w", "ctrl+l",
 	"ctrl+z", "ctrl+y",
@@ -19,7 +19,7 @@ var AllKnownKeys = []string{
 	// Basic navigation and editing
 	"up", "down", "left", "right",
 	"shift+up", "shift+down", "shift+left", "shift+right",
-	"enter", "backspace", "delete", "tab", "space",
+	"enter", "shift+enter", "backspace", "delete", "tab", "space",
 	"home", "end", "pgup", "pgdn", "page_up", "page_down",
 	"esc", "escape",
 

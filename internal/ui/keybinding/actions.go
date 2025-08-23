@@ -507,9 +507,10 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	cleanText := strings.ReplaceAll(clipboardText, "\n", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\r", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\t", " ")
+	// Preserve linebreaks and only normalize carriage returns
+	cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
+	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
+	// Keep tabs as they might be meaningful in code
 
 	if cleanText != "" {
 		inputView := app.GetInputView()
@@ -532,6 +533,7 @@ func handleCopy(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	if inputView != nil {
 		text := inputView.GetInput()
 		if text != "" {
+			// Copy the text as-is, preserving any linebreaks
 			_ = clipboard.WriteAll(text)
 		}
 	}
@@ -940,9 +942,10 @@ func handlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
 		return nil
 	}
 
-	cleanText := strings.ReplaceAll(pastedText, "\n", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\r", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\t", " ")
+	// Preserve linebreaks and only normalize carriage returns
+	cleanText := strings.ReplaceAll(pastedText, "\r\n", "\n")
+	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
+	// Keep tabs as they might be meaningful in code
 	cleanText = strings.Trim(cleanText, "[]")
 
 	if cleanText != "" {
