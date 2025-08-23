@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.37.0](https://github.com/inference-gateway/cli/compare/v0.36.1...v0.37.0) (2025-08-23)
+
+### 🚀 Features
+
+* **input:** Add multi-line support and preserve linebreaks in clipboard operations ([#106](https://github.com/inference-gateway/cli/issues/106)) ([6a2220d](https://github.com/inference-gateway/cli/commit/6a2220d369ed18f1bf92e7fff74863f126fb137e)), closes [#104](https://github.com/inference-gateway/cli/issues/104) [#104](https://github.com/inference-gateway/cli/issues/104)
+
 ## [0.36.1](https://github.com/inference-gateway/cli/compare/v0.36.0...v0.36.1) (2025-08-23)
 
 ### ♻️ Code Refactoring
