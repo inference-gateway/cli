@@ -23,11 +23,11 @@ var configCmd = &cobra.Command{
 	Long:  `Manage the Inference Gateway CLI configuration settings.`,
 }
 
-var setModelCmd = &cobra.Command{
+var configAgentSetModelCmd = &cobra.Command{
 	Use:   "set-model [MODEL_NAME]",
-	Short: "Set the default model for chat sessions",
-	Long: `Set the default model for chat sessions. When a default model is configured,
-the chat command will skip the model selection view and use the configured model directly.`,
+	Short: "Set the default model for agent sessions",
+	Long: `Set the default model for agent sessions. When a default model is configured,
+the agent command will use this model directly without requiring selection.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		modelName := args[0]
@@ -35,10 +35,10 @@ the chat command will skip the model selection view and use the configured model
 	},
 }
 
-var setSystemCmd = &cobra.Command{
+var configAgentSetSystemCmd = &cobra.Command{
 	Use:   "set-system [SYSTEM_PROMPT]",
-	Short: "Set the system prompt for chat sessions",
-	Long: `Set the system prompt that will be included with every chat session.
+	Short: "Set the system prompt for agent sessions",
+	Long: `Set the system prompt that will be included with every agent session.
 The system prompt provides context and instructions to the AI model about how to behave.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -47,7 +47,7 @@ The system prompt provides context and instructions to the AI model about how to
 	},
 }
 
-var setMaxTurnsCmd = &cobra.Command{
+var configAgentSetMaxTurnsCmd = &cobra.Command{
 	Use:   "set-max-turns [NUMBER]",
 	Short: "Set the maximum number of turns for agent sessions",
 	Long: `Set the maximum number of conversation turns for agent sessions.
@@ -364,35 +364,35 @@ var configToolsGithubSetRepoCmd = &cobra.Command{
 	RunE:  setGithubRepo,
 }
 
-var configFetchCmd = &cobra.Command{
+var configToolsWebFetchCmd = &cobra.Command{
 	Use:   "web-fetch",
 	Short: "Manage web fetch tool settings",
 	Long: `Manage the web fetch tool that allows LLMs to retrieve content from whitelisted URLs.
 The web fetch tool supports GitHub integration and URL pattern matching for secure content retrieval.`,
 }
 
-var configFetchEnableCmd = &cobra.Command{
+var configToolsWebFetchEnableCmd = &cobra.Command{
 	Use:   "enable",
 	Short: "Enable the web fetch tool",
 	Long:  `Enable the web fetch tool to allow LLMs to retrieve content from whitelisted sources.`,
 	RunE:  enableFetch,
 }
 
-var configFetchDisableCmd = &cobra.Command{
+var configToolsWebFetchDisableCmd = &cobra.Command{
 	Use:   "disable",
 	Short: "Disable the web fetch tool",
 	Long:  `Disable the web fetch tool to prevent LLMs from retrieving any external content.`,
 	RunE:  disableFetch,
 }
 
-var configFetchListCmd = &cobra.Command{
+var configToolsWebFetchListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List whitelisted domains",
 	Long:  `Display all whitelisted domains that can be fetched by LLMs.`,
 	RunE:  listFetchDomains,
 }
 
-var configFetchAddDomainCmd = &cobra.Command{
+var configToolsWebFetchAddDomainCmd = &cobra.Command{
 	Use:   "add-domain <domain>",
 	Short: "Add a domain to the whitelist",
 	Long:  `Add a domain to the whitelist of allowed web fetch sources (e.g., github.com, example.org).`,
@@ -400,7 +400,7 @@ var configFetchAddDomainCmd = &cobra.Command{
 	RunE:  addFetchDomain,
 }
 
-var configFetchRemoveDomainCmd = &cobra.Command{
+var configToolsWebFetchRemoveDomainCmd = &cobra.Command{
 	Use:   "remove-domain <domain>",
 	Short: "Remove a domain from the whitelist",
 	Long:  `Remove a domain from the whitelist of allowed web fetch sources.`,
@@ -408,20 +408,20 @@ var configFetchRemoveDomainCmd = &cobra.Command{
 	RunE:  removeFetchDomain,
 }
 
-var configFetchCacheCmd = &cobra.Command{
+var configToolsWebFetchCacheCmd = &cobra.Command{
 	Use:   "cache",
 	Short: "Manage web fetch cache settings",
 	Long:  `Manage caching settings for fetched content to improve performance.`,
 }
 
-var configFetchCacheStatusCmd = &cobra.Command{
+var configToolsWebFetchCacheStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show cache status and statistics",
 	Long:  `Display current cache status, statistics, and configuration.`,
 	RunE:  fetchCacheStatus,
 }
 
-var configFetchCacheClearCmd = &cobra.Command{
+var configToolsWebFetchCacheClearCmd = &cobra.Command{
 	Use:   "clear",
 	Short: "Clear the web fetch cache",
 	Long:  `Clear all cached content to free up memory and force fresh fetches.`,
@@ -441,7 +441,7 @@ func setDefaultModel(modelName string) error {
 	}
 
 	fmt.Printf("✅ Default model set to: %s\n", modelName)
-	fmt.Println("The chat command will now use this model by default and skip model selection.")
+	fmt.Println("The agent command will now use this model by default.")
 	return nil
 }
 
@@ -459,7 +459,7 @@ func setSystemPrompt(systemPrompt string) error {
 
 	fmt.Printf("✅ System prompt set successfully\n")
 	fmt.Printf("System prompt: %s\n", systemPrompt)
-	fmt.Println("This prompt will be included with every chat session.")
+	fmt.Println("This prompt will be included with every agent session.")
 	return nil
 }
 
@@ -489,16 +489,16 @@ func setMaxTurns(maxTurnsStr string) error {
 	return nil
 }
 
-var configPromptCmd = &cobra.Command{
-	Use:   "prompt",
-	Short: "Configure prompt command settings",
-	Long:  "Configure settings specific to the prompt command",
+var configAgentCmd = &cobra.Command{
+	Use:   "agent",
+	Short: "Configure agent command settings",
+	Long:  "Configure settings specific to the agent command",
 }
 
-var configPromptVerboseToolsCmd = &cobra.Command{
+var configAgentVerboseToolsCmd = &cobra.Command{
 	Use:   "verbose-tools [enable|disable]",
-	Short: "Enable or disable verbose tool output in prompt logs",
-	Long:  "Control whether the prompt command shows full tool details or just tool names in the output",
+	Short: "Enable or disable verbose tool output in agent logs",
+	Long:  "Control whether the agent command shows full tool details or just tool names in the output",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := config.LoadConfig("")
@@ -526,14 +526,11 @@ var configPromptVerboseToolsCmd = &cobra.Command{
 }
 
 func init() {
-	configCmd.AddCommand(setModelCmd)
-	configCmd.AddCommand(setSystemCmd)
-	configCmd.AddCommand(setMaxTurnsCmd)
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configToolsCmd)
 	configCmd.AddCommand(configOptimizationCmd)
 	configCmd.AddCommand(configCompactCmd)
-	configCmd.AddCommand(configPromptCmd)
+	configCmd.AddCommand(configAgentCmd)
 
 	configToolsCmd.AddCommand(configToolsEnableCmd)
 	configToolsCmd.AddCommand(configToolsDisableCmd)
@@ -543,10 +540,10 @@ func init() {
 	configToolsCmd.AddCommand(configToolsSafetyCmd)
 	configToolsCmd.AddCommand(configToolsSandboxCmd)
 	configToolsCmd.AddCommand(configToolsBashCmd)
-	configToolsCmd.AddCommand(configToolsWebSearchCmd)
 	configToolsCmd.AddCommand(configToolsGrepCmd)
 	configToolsCmd.AddCommand(configToolsGithubCmd)
-	configToolsCmd.AddCommand(configFetchCmd)
+	configToolsCmd.AddCommand(configToolsWebSearchCmd)
+	configToolsCmd.AddCommand(configToolsWebFetchCmd)
 
 	configToolsSafetyCmd.AddCommand(configToolsSafetyEnableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyDisableCmd)
@@ -576,22 +573,25 @@ func init() {
 	configToolsGithubCmd.AddCommand(configToolsGithubSetOwnerCmd)
 	configToolsGithubCmd.AddCommand(configToolsGithubSetRepoCmd)
 
-	configFetchCmd.AddCommand(configFetchEnableCmd)
-	configFetchCmd.AddCommand(configFetchDisableCmd)
-	configFetchCmd.AddCommand(configFetchListCmd)
-	configFetchCmd.AddCommand(configFetchAddDomainCmd)
-	configFetchCmd.AddCommand(configFetchRemoveDomainCmd)
-	configFetchCmd.AddCommand(configFetchCacheCmd)
+	configToolsWebFetchCmd.AddCommand(configToolsWebFetchEnableCmd)
+	configToolsWebFetchCmd.AddCommand(configToolsWebFetchDisableCmd)
+	configToolsWebFetchCmd.AddCommand(configToolsWebFetchListCmd)
+	configToolsWebFetchCmd.AddCommand(configToolsWebFetchAddDomainCmd)
+	configToolsWebFetchCmd.AddCommand(configToolsWebFetchRemoveDomainCmd)
+	configToolsWebFetchCmd.AddCommand(configToolsWebFetchCacheCmd)
 
-	configFetchCacheCmd.AddCommand(configFetchCacheStatusCmd)
-	configFetchCacheCmd.AddCommand(configFetchCacheClearCmd)
+	configToolsWebFetchCacheCmd.AddCommand(configToolsWebFetchCacheStatusCmd)
+	configToolsWebFetchCacheCmd.AddCommand(configToolsWebFetchCacheClearCmd)
 
 	configInitCmd.Flags().Bool("overwrite", false, "Overwrite existing configuration file")
 	configToolsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	configToolsExecCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
-	configFetchListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
+	configToolsWebFetchListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 
-	configPromptCmd.AddCommand(configPromptVerboseToolsCmd)
+	configAgentCmd.AddCommand(configAgentSetModelCmd)
+	configAgentCmd.AddCommand(configAgentSetSystemCmd)
+	configAgentCmd.AddCommand(configAgentSetMaxTurnsCmd)
+	configAgentCmd.AddCommand(configAgentVerboseToolsCmd)
 
 	rootCmd.AddCommand(configCmd)
 }
