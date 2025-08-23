@@ -22,7 +22,7 @@ const (
 func FormatMessage(msgType MessageType, message string) string {
 	switch msgType {
 	case MessageSuccess:
-		return fmt.Sprintf("✅ %s", message)
+		return fmt.Sprintf("%s %s", shared.CheckMarkStyle.Render(shared.CheckMark), message)
 	case MessageError:
 		return message
 	case MessageWarning:

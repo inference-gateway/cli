@@ -60,17 +60,17 @@ func (f BaseFormatter) FormatToolCall(args map[string]any, expanded bool) string
 // FormatStatus returns a formatted status with icon
 func (f BaseFormatter) FormatStatus(success bool) string {
 	if success {
-		return "✅ Success"
+		return "✓ Success"
 	}
-	return "❌ Failed"
+	return "✗ Failed"
 }
 
 // FormatStatusIcon returns just the status icon
 func (f BaseFormatter) FormatStatusIcon(success bool) string {
 	if success {
-		return "✅"
+		return "✓"
 	}
-	return "❌"
+	return "✗"
 }
 
 // FormatDuration formats a duration for display
@@ -88,7 +88,7 @@ func (f BaseFormatter) FormatExpandedHeader(result *ToolExecutionResult) string 
 	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", f.FormatStatus(result.Success)))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("├─ ❌ Error: %s\n", result.Error))
+		output.WriteString(fmt.Sprintf("├─ ✗ Error: %s\n", result.Error))
 	}
 
 	if len(result.Arguments) > 0 {
@@ -225,7 +225,7 @@ func (f CustomFormatter) FormatExpandedHeader(result *ToolExecutionResult) strin
 	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", f.FormatStatus(result.Success)))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("├─ ❌ Error: %s\n", result.Error))
+		output.WriteString(fmt.Sprintf("├─ ✗ Error: %s\n", result.Error))
 	}
 
 	if len(result.Arguments) > 0 {

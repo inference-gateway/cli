@@ -264,7 +264,7 @@ func (sv *StatusView) createProgressBar() string {
 }
 
 func (sv *StatusView) formatErrorStatus() (string, string, string) {
-	return "❌", shared.ErrorColor.ANSI, sv.message
+	return shared.CrossMarkStyle.Render(shared.CrossMark), shared.ErrorColor.ANSI, sv.message
 }
 
 func (sv *StatusView) formatSpinnerStatus() (string, string, string) {

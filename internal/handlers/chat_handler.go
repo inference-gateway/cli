@@ -1249,7 +1249,7 @@ func (h *ChatHandler) handleToolValidationError(_ string, err error) tea.Msg {
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
-			Content: fmt.Sprintf("❌ Tool validation error: %v", err),
+			Content: fmt.Sprintf("%s Tool validation error: %v", shared.CrossMarkStyle.Render(shared.CrossMark), err),
 		},
 		Model: h.modelService.GetCurrentModel(),
 		Time:  time.Now(),
@@ -1279,7 +1279,7 @@ func (h *ChatHandler) handleToolExecutionError(_ string, _ time.Duration, err er
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
-			Content: fmt.Sprintf("❌ Tool execution failed: %v", err),
+			Content: fmt.Sprintf("%s Tool execution failed: %v", shared.CrossMarkStyle.Render(shared.CrossMark), err),
 		},
 		Model: h.modelService.GetCurrentModel(),
 		Time:  time.Now(),
@@ -1381,7 +1381,7 @@ func (h *ChatHandler) handleBashValidationError(_ string, err error) tea.Msg {
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
-			Content: fmt.Sprintf("❌ Error: %v", err),
+			Content: fmt.Sprintf("%s Error: %v", shared.CrossMarkStyle.Render(shared.CrossMark), err),
 		},
 		Model: h.modelService.GetCurrentModel(),
 		Time:  time.Now(),
@@ -1410,7 +1410,7 @@ func (h *ChatHandler) handleBashExecutionError(_ string, _ time.Duration, err er
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
-			Content: fmt.Sprintf("❌ Execution failed: %v", err),
+			Content: fmt.Sprintf("%s Execution failed: %v", shared.CrossMarkStyle.Render(shared.CrossMark), err),
 		},
 		Model: h.modelService.GetCurrentModel(),
 		Time:  time.Now(),
@@ -1444,7 +1444,7 @@ func (h *ChatHandler) formatBashResponse(result *domain.ToolExecutionResult) str
 
 func (h *ChatHandler) formatSuccessfulBashResponse(result *domain.ToolExecutionResult) string {
 	if bashResult, ok := result.Data.(*domain.BashToolResult); ok {
-		responseContent := fmt.Sprintf("✅ Command executed successfully:\n\n```bash\n$ %s\n```\n\n", bashResult.Command)
+		responseContent := fmt.Sprintf("%s Command executed successfully:\n\n```bash\n$ %s\n```\n\n", shared.CheckMarkStyle.Render(shared.CheckMark), bashResult.Command)
 		if bashResult.Output != "" {
 			responseContent += fmt.Sprintf("**Output:**\n```\n%s\n```", strings.TrimSpace(bashResult.Output))
 		}
@@ -1453,12 +1453,12 @@ func (h *ChatHandler) formatSuccessfulBashResponse(result *domain.ToolExecutionR
 		}
 		return responseContent
 	}
-	return "✅ Command executed successfully (no output)"
+	return fmt.Sprintf("%s Command executed successfully (no output)", shared.CheckMarkStyle.Render(shared.CheckMark))
 }
 
 func (h *ChatHandler) formatFailedBashResponse(result *domain.ToolExecutionResult) string {
 	if bashResult, ok := result.Data.(*domain.BashToolResult); ok {
-		responseContent := fmt.Sprintf("❌ Command failed with exit code %d:\n\n```bash\n$ %s\n```\n\n", bashResult.ExitCode, bashResult.Command)
+		responseContent := fmt.Sprintf("%s Command failed with exit code %d:\n\n```bash\n$ %s\n```\n\n", shared.CrossMarkStyle.Render(shared.CrossMark), bashResult.ExitCode, bashResult.Command)
 		if bashResult.Output != "" {
 			responseContent += fmt.Sprintf("**Output:**\n```\n%s\n```", strings.TrimSpace(bashResult.Output))
 		}
@@ -1467,9 +1467,9 @@ func (h *ChatHandler) formatFailedBashResponse(result *domain.ToolExecutionResul
 		}
 		return responseContent
 	} else if result.Error != "" {
-		return fmt.Sprintf("❌ Command failed: %s", result.Error)
+		return fmt.Sprintf("%s Command failed: %s", shared.CrossMarkStyle.Render(shared.CrossMark), result.Error)
 	}
-	return "❌ Command failed for unknown reason"
+	return fmt.Sprintf("%s Command failed for unknown reason", shared.CrossMarkStyle.Render(shared.CrossMark))
 }
 
 func (h *ChatHandler) addBashResponseToHistory(responseContent string) {

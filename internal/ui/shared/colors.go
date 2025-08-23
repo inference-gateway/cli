@@ -114,6 +114,18 @@ func NewCommonStyles() *CommonStyles {
 	}
 }
 
+// Icons and symbols
+const (
+	CheckMark = "✓"
+	CrossMark = "✗"
+)
+
+// Icon styles
+var (
+	CheckMarkStyle = lipgloss.NewStyle().Foreground(SuccessColor.GetLipglossColor()).Bold(true)
+	CrossMarkStyle = lipgloss.NewStyle().Foreground(ErrorColor.GetLipglossColor()).Bold(true)
+)
+
 // Helper functions for common styling patterns
 
 // CreateSeparator creates a separator line with the given width and character

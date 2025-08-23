@@ -332,7 +332,7 @@ func (t *TodoWriteTool) FormatPreview(result *domain.ToolExecutionResult) string
 		if result.Success {
 			return "📋 Todo list updated successfully"
 		}
-		return "❌ Todo list update failed"
+		return fmt.Sprintf("%s Todo list update failed", shared.CrossMarkStyle.Render(shared.CrossMark))
 	}
 
 	if todoResult.TotalTasks == 0 {
@@ -401,7 +401,7 @@ func (t *TodoWriteTool) formatExpandedHeader(result *domain.ToolExecutionResult)
 	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", t.formatter.FormatStatus(result.Success)))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("├─ ❌ Error: %s\n", result.Error))
+		output.WriteString(fmt.Sprintf("├─ %s Error: %s\n", shared.CrossMarkStyle.Render(shared.CrossMark), result.Error))
 	}
 
 	if len(result.Arguments) > 0 {

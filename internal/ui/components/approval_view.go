@@ -68,13 +68,14 @@ func NewApprovalComponent(theme shared.Theme) *ApprovalComponent {
 			Foreground(shared.AssistantColor.GetLipglossColor()).
 			Bold(true),
 		selectedOption: lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#000000")).
+			Foreground(shared.AccentColor.GetLipglossColor()).
 			Bold(true).
-			Background(shared.SuccessColor.GetLipglossColor()).
-			Padding(0, 1),
+			Border(lipgloss.NormalBorder(), false, false, false, true).
+			BorderForeground(shared.AccentColor.GetLipglossColor()).
+			PaddingLeft(1),
 		unselectedOption: lipgloss.NewStyle().
 			Foreground(shared.DimColor.GetLipglossColor()).
-			Padding(0, 1),
+			PaddingLeft(2),
 		helpText: lipgloss.NewStyle().
 			Foreground(shared.DimColor.GetLipglossColor()).
 			Italic(true),
@@ -173,7 +174,7 @@ func (a *ApprovalComponent) renderHeader(currentTool *domain.ToolCall) string {
 
 	titleText := a.styles.title.Render("🔧 Tool Approval Required")
 	content.WriteString(titleText)
-	content.WriteString("\n")
+	content.WriteString("\n\n")
 
 	toolSection := fmt.Sprintf("%s %s",
 		a.styles.prompt.Render("Tool:"),
@@ -241,12 +242,16 @@ func (a *ApprovalComponent) renderFooter(selectedIndex int) string {
 	warningTextOnly := "This tool will execute on your system. Please review carefully."
 	textWidth := max(a.width-12, 40)
 	wrappedText := wordwrap.String(warningTextOnly, textWidth)
-	lines := strings.Split(wrappedText, "\n")
-	for _, line := range lines {
-		warningMsg := a.styles.warning.Render(line)
-		content.WriteString(warningMsg)
-		content.WriteString("\n")
-	}
+
+	warningBox := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(shared.WarningColor.GetLipglossColor()).
+		Padding(0, 1).
+		Foreground(shared.WarningColor.GetLipglossColor()).
+		Bold(true)
+
+	content.WriteString(warningBox.Render(wrappedText))
+	content.WriteString("\n\n")
 
 	promptMsg := a.styles.prompt.Render("Select an action:")
 	content.WriteString(promptMsg)
@@ -256,23 +261,24 @@ func (a *ApprovalComponent) renderFooter(selectedIndex int) string {
 		icon string
 		text string
 	}{
-		{"✅", "Approve and execute"},
-		{"❌", "Deny and cancel"},
+		{shared.CheckMarkStyle.Render(shared.CheckMark), "Approve and execute"},
+		{shared.CrossMarkStyle.Render(shared.CrossMark), "Deny and cancel"},
 	}
 
 	for i, opt := range options {
 		optionText := fmt.Sprintf("%s %s", opt.icon, opt.text)
 		if i == selectedIndex {
-			content.WriteString("  " + a.styles.selectedOption.Render("▶ "+optionText))
+			indicator := shared.AccentColor.ANSI + "▶" + shared.Reset()
+			content.WriteString(" " + indicator + " " + a.styles.selectedOption.Render(optionText))
 		} else {
-			content.WriteString("  " + a.styles.unselectedOption.Render("  "+optionText))
+			content.WriteString("   " + a.styles.unselectedOption.Render(optionText))
 		}
 		if i < len(options)-1 {
 			content.WriteString("\n")
 		}
 	}
 
-	content.WriteString("\n")
+	content.WriteString("\n\n")
 
 	content.WriteString(a.styles.helpText.Render("↑↓ Navigate  •  SHIFT+↑↓ Scroll  •  SPACE Select  •  ESC Cancel"))
 
