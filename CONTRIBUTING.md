@@ -347,6 +347,87 @@ Study the existing tools for implementation patterns:
 - **GrepTool** (`grep.go`): Shows complex parameter handling with ripgrep integration
 - **WebSearchTool** (`websearch.go`): Shows integration with external services
 
+## Testing UI Components
+
+The CLI includes a specialized `test-view` command for testing and iterating on UI components directly in the terminal, without needing to enter chat mode.
+
+### Available Components
+
+#### Approval View Component
+Test the tool approval UI that appears when tools require user approval:
+
+```bash
+# Test approval view with default sample data
+flox activate -- ./infer test-view approval
+
+# Test with custom dimensions
+flox activate -- ./infer test-view approval --width 120 --height 40
+```
+
+This renders the approval component with:
+- Sample Edit tool data showing a diff preview
+- Different selection states (approve/deny options)
+- Proper styling with Tokyo Night theme
+- Scrollable content for long tool arguments
+
+#### Diff Renderer Component
+Test the colored diff renderer used in Edit and MultiEdit tool previews:
+
+```bash
+# Test diff renderer with default sample data
+flox activate -- ./infer test-view diff
+
+# Test with custom content
+flox activate -- ./infer test-view diff --old "original code" --new "modified code"
+```
+
+This renders:
+- Edit tool argument formatting with colored diffs
+- MultiEdit tool with multiple operations
+- Pure diff rendering with context lines
+- Proper ANSI color codes for additions/removals
+
+### Customization Options
+
+All components support customization through CLI flags:
+
+- `--width INT`: Set component width (default: 100)
+- `--height INT`: Set component height (default: 30)
+- `--old TEXT`: Custom old content for diff testing
+- `--new TEXT`: Custom new content for diff testing
+
+### Use Cases
+
+**UI Development**: Rapidly iterate on component styling and layout without entering chat mode
+**Design Testing**: Test components at different terminal sizes and with various content lengths
+**Color Verification**: Ensure proper color rendering across different terminal environments
+**Accessibility**: Test readability and contrast of UI elements
+
+### Adding New Testable Components
+
+To add a new component to the test-view command:
+
+1. **Implement the Component**: Create your component in `internal/ui/components/`
+2. **Add Test Case**: Add a new case to `cmd/test_view.go` in the `runTestView` function
+3. **Create Test Function**: Implement a `test[ComponentName]` function following existing patterns
+4. **Update Help**: Add your component to the command description and help text
+
+Example structure:
+```go
+func testMyComponent(theme shared.Theme) {
+    fmt.Println("🎨 Testing My Component")
+    fmt.Println(shared.CreateSeparator(50, "─"))
+    
+    component := components.NewMyComponent(theme)
+    component.SetWidth(componentWidth)
+    component.SetHeight(componentHeight)
+    
+    // Render with sample data
+    output := component.Render(sampleData)
+    fmt.Println(output)
+}
+```
+
 ## Release Process
 
 Releases are automated using semantic-release:
