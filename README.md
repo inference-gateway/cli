@@ -32,8 +32,8 @@ and management of inference services.
   - [`infer init`](#infer-init)
   - [`infer config`](#infer-config)
     - [`infer config init`](#infer-config-init)
-    - [`infer config set-model`](#infer-config-set-model)
-    - [`infer config set-system`](#infer-config-set-system)
+    - [`infer config agent set-model`](#infer-config-agent-set-model)
+    - [`infer config agent set-system`](#infer-config-agent-set-system)
     - [`infer config tools`](#infer-config-tools)
   - [`infer status`](#infer-status)
   - [`infer chat`](#infer-chat)
@@ -255,7 +255,7 @@ infer config init
 infer config init --overwrite
 ```
 
-### `infer config set-model`
+### `infer config agent set-model`
 
 Set the default model for chat sessions. When set, chat sessions will
 automatically use this model without showing the model selection prompt.
@@ -263,11 +263,11 @@ automatically use this model without showing the model selection prompt.
 **Examples:**
 
 ```bash
-infer config set-model openai/gpt-4-turbo
-infer config set-model anthropic/claude-opus-4-1-20250805
+infer config agent set-model openai/gpt-4-turbo
+infer config agent set-model anthropic/claude-opus-4-1-20250805
 ```
 
-### `infer config set-system`
+### `infer config agent set-system`
 
 Set a system prompt that will be included with every chat session, providing
 context and instructions to the AI model.
@@ -275,8 +275,13 @@ context and instructions to the AI model.
 **Examples:**
 
 ```bash
-infer config set-system "You are a helpful assistant."
-infer config set-system "You are a Go programming expert."
+infer config agent set-system "You are a helpful assistant."
+infer config agent set-system "You are a Go programming expert."
+```
+
+```bash
+infer config agent set-system "You are a helpful assistant."
+infer config agent set-system "You are a Go programming expert."
 ```
 
 ### `infer config tools`
@@ -1132,10 +1137,10 @@ infer --config ./my-config.yaml status
 infer --verbose status
 
 # Set default model for chat sessions
-infer config set-model openai/gpt-4-turbo
+infer config agent set-model openai/gpt-4-turbo
 
 # Set system prompt
-infer config set-system "You are a helpful assistant."
+infer config agent set-system "You are a helpful assistant."
 
 # Enable tool execution with safety approval
 infer config tools enable

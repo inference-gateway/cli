@@ -332,7 +332,7 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 		return defaultModel, nil
 	}
 
-	return "", fmt.Errorf("no model specified. Please use --model flag or set a default model with 'infer config set-model <model>'")
+	return "", fmt.Errorf("no model specified. Please use --model flag or set a default model with 'infer config agent set-model <model>'")
 }
 
 func isModelAvailable(models []string, targetModel string) bool {

@@ -43,8 +43,8 @@ internal/:
 ## Commands
 
 - `infer init [--overwrite]`: Initialize config
-- `infer config set-model MODEL`: Set default model
-- `infer config set-system PROMPT`: Set system prompt
+- `infer config agent set-model MODEL`: Set default model
+- `infer config agent set-system PROMPT`: Set system prompt
 - `infer config tools [enable|disable|list|validate|exec]`
 - `infer config tools safety [enable|disable|status|set|unset]`
 - `infer config tools sandbox [list|add|remove]`

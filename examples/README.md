@@ -108,7 +108,7 @@ infer status --format json
 infer chat
 
 # Set a default model to skip selection
-infer config set-model anthropic/claude-3.5-sonnet
+infer config agent set-model anthropic/claude-3.5-sonnet
 infer chat
 ```
 
@@ -119,12 +119,12 @@ infer chat
 infer init
 
 # Set default model for chat sessions
-infer config set-model anthropic/claude-3.5-sonnet
-infer config set-model openai/gpt-4
-infer config set-model google/gemini-pro
+infer config agent set-model anthropic/claude-3.5-sonnet
+infer config agent set-model openai/gpt-4
+infer config agent set-model google/gemini-pro
 
 # Set system prompt for all chat sessions
-infer config set-system "You are a helpful assistant."
+infer config agent set-system "You are a helpful assistant."
 ```
 
 ### Tool Management
