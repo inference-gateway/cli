@@ -15,14 +15,15 @@ import (
 
 // InputView handles user input with history and autocomplete
 type InputView struct {
-	text           string
-	cursor         int
-	placeholder    string
-	width          int
-	height         int
-	modelService   domain.ModelService
-	Autocomplete   shared.AutocompleteInterface
-	historyManager *history.HistoryManager
+	text                string
+	cursor              int
+	placeholder         string
+	width               int
+	height              int
+	modelService        domain.ModelService
+	Autocomplete        shared.AutocompleteInterface
+	historyManager      *history.HistoryManager
+	isTextSelectionMode bool
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -32,14 +33,15 @@ func NewInputView(modelService domain.ModelService) *InputView {
 	}
 
 	return &InputView{
-		text:           "",
-		cursor:         0,
-		placeholder:    "Type your message... (Press Enter to send, Alt+Enter for newline, ? for commands)",
-		width:          80,
-		height:         5,
-		modelService:   modelService,
-		Autocomplete:   nil,
-		historyManager: historyManager,
+		text:                "",
+		cursor:              0,
+		placeholder:         "Type your message... (Press Enter to send, Alt+Enter or Ctrl+J for newline, ? for commands)",
+		width:               80,
+		height:              5,
+		modelService:        modelService,
+		Autocomplete:        nil,
+		historyManager:      historyManager,
+		isTextSelectionMode: false,
 	}
 }
 
@@ -176,7 +178,14 @@ func (iv *InputView) getBorderColor(isBashMode bool, isToolsMode bool) string {
 
 func (iv *InputView) addModeIndicator(components []string, isBashMode bool, isToolsMode bool) []string {
 	if iv.height >= 2 {
-		if isBashMode {
+		if iv.isTextSelectionMode {
+			textSelectionIndicator := lipgloss.NewStyle().
+				Foreground(shared.AccentColor.GetLipglossColor()).
+				Bold(true).
+				Width(iv.width).
+				Render("TEXT SELECTION MODE - Use vim keys to navigate and select text (Escape to exit)")
+			components = append(components, textSelectionIndicator)
+		} else if isBashMode {
 			bashIndicator := lipgloss.NewStyle().
 				Foreground(shared.StatusColor.GetLipglossColor()).
 				Bold(true).
@@ -194,7 +203,6 @@ func (iv *InputView) addModeIndicator(components []string, isBashMode bool, isTo
 	}
 	return components
 }
-
 func (iv *InputView) addAutocomplete(components []string) []string {
 	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() && iv.height >= 3 {
 		autocompleteContent := iv.Autocomplete.Render()
@@ -278,12 +286,6 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	if keyStr == "ctrl+v" {
 		return iv.handlePaste()
-	}
-
-	if keyStr == "alt+enter" {
-		iv.text = iv.text[:iv.cursor] + "\n" + iv.text[iv.cursor:]
-		iv.cursor++
-		return iv, nil
 	}
 
 	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
@@ -386,9 +388,8 @@ func (iv *InputView) handlePaste() (tea.Model, tea.Cmd) {
 		return iv, nil
 	}
 
-	cleanText := strings.ReplaceAll(clipboardText, "\n", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\r", " ")
-	cleanText = strings.ReplaceAll(cleanText, "\t", " ")
+	cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
+	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
 
 	if cleanText != "" {
 		newText := iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
@@ -399,4 +400,12 @@ func (iv *InputView) handlePaste() (tea.Model, tea.Cmd) {
 	}
 
 	return iv, nil
+}
+
+func (iv *InputView) SetTextSelectionMode(enabled bool) {
+	iv.isTextSelectionMode = enabled
+}
+
+func (iv *InputView) IsTextSelectionMode() bool {
+	return iv.isTextSelectionMode
 }

@@ -62,6 +62,8 @@ type InputComponent interface {
 	NavigateHistoryDown()
 	IsAutocompleteVisible() bool
 	AddToHistory(text string) error
+	SetTextSelectionMode(enabled bool)
+	IsTextSelectionMode() bool
 }
 
 // StatusComponent interface for status display
@@ -76,6 +78,9 @@ type StatusComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
 	Render() string
+	SaveCurrentState()
+	RestoreSavedState() tea.Cmd
+	HasSavedState() bool
 }
 
 // HelpBarComponent interface for help bar

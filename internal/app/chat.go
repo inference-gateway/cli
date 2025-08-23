@@ -43,6 +43,7 @@ type ChatApplication struct {
 	approvalView      ui.ApprovalComponent
 	modelSelector     *components.ModelSelectorImpl
 	fileSelectionView *components.FileSelectionView
+	textSelectionView *components.TextSelectionView
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -114,6 +115,7 @@ func NewChatApplication(
 		av.SetToolFormatter(toolFormatterService)
 	}
 	app.fileSelectionView = components.NewFileSelectionView(app.theme)
+	app.textSelectionView = components.NewTextSelectionView()
 
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(app.theme)
 	app.fileSelectionHandler = components.NewFileSelectionHandler(app.theme)
@@ -174,7 +176,26 @@ func (app *ChatApplication) updateHelpBarShortcuts() {
 
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+v", Description: "paste text"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+shift+c", Description: "copy text"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "alt+enter/ctrl+j", Description: "new line"})
 
+	app.helpBar.SetShortcuts(shortcuts)
+}
+
+// updateHelpBarShortcutsForTextSelection updates help bar with vim navigation instructions
+func (app *ChatApplication) updateHelpBarShortcutsForTextSelection() {
+	var shortcuts []ui.KeyShortcut
+
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "h/j/k/l", Description: "navigate"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "w/b", Description: "word jump"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "0/$", Description: "line start/end"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "g/G", Description: "document start/end"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "v", Description: "visual mode"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "V", Description: "visual line"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "y", Description: "copy"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+c", Description: "copy & exit"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "esc/q", Description: "exit"})
+
+	app.helpBar.SetEnabled(true)
 	app.helpBar.SetShortcuts(shortcuts)
 }
 
@@ -229,6 +250,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleFileSelectionView(msg)
 	case domain.ViewStateToolApproval:
 		return app.handleApprovalView(msg)
+	case domain.ViewStateTextSelection:
+		return app.handleTextSelectionView(msg)
 	default:
 		return nil
 	}
@@ -305,6 +328,35 @@ func (app *ChatApplication) handleApprovalView(msg tea.Msg) []tea.Cmd {
 	return cmds
 }
 
+func (app *ChatApplication) handleTextSelectionView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if _, ok := msg.(shared.ExitSelectionModeMsg); ok {
+		return app.handleExitSelectionMode(cmds)
+	}
+
+	if _, ok := msg.(shared.InitializeTextSelectionMsg); ok {
+		if conversationView, ok := app.conversationView.(*components.ConversationView); ok {
+			lines := conversationView.GetPlainTextLines()
+			app.textSelectionView.SetLines(lines)
+		}
+		return cmds
+	}
+
+	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		app.textSelectionView.SetWidth(windowMsg.Width)
+		app.textSelectionView.SetHeight(windowMsg.Height - 5)
+	}
+
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		if cmd := app.textSelectionView.HandleKey(keyMsg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	return cmds
+}
+
 // View renders the current application view using state management
 func (app *ChatApplication) View() string {
 	currentView := app.stateManager.GetCurrentView()
@@ -318,14 +370,19 @@ func (app *ChatApplication) View() string {
 		return app.renderFileSelection()
 	case domain.ViewStateToolApproval:
 		return app.renderChatInterface()
+	case domain.ViewStateTextSelection:
+		return app.renderTextSelection()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
 }
 
 func (app *ChatApplication) renderChatInterface() string {
-	width, height := app.stateManager.GetDimensions()
+	app.inputView.SetTextSelectionMode(false)
 
+	app.updateHelpBarShortcuts()
+
+	width, height := app.stateManager.GetDimensions()
 	data := components.ChatInterfaceData{
 		Width:           width,
 		Height:          height,
@@ -376,6 +433,64 @@ func (app *ChatApplication) renderFileSelection() string {
 	}
 
 	return app.fileSelectionHandler.RenderFileSelection(data)
+}
+
+func (app *ChatApplication) renderTextSelection() string {
+	app.inputView.SetTextSelectionMode(true)
+
+	app.updateHelpBarShortcutsForTextSelection()
+
+	width, height := app.stateManager.GetDimensions()
+
+	helpBarHeight := 0
+	if app.helpBar.IsEnabled() {
+		helpBarHeight = 6
+	}
+	adjustedHeight := height - 3 - helpBarHeight
+	conversationHeight := ui.CalculateConversationHeight(adjustedHeight)
+	statusHeight := ui.CalculateStatusHeight(adjustedHeight)
+
+	app.textSelectionView.SetWidth(width)
+	app.textSelectionView.SetHeight(conversationHeight)
+	app.statusView.SetWidth(width)
+
+	textSelectionContent := app.textSelectionView.Render()
+	inputContent := app.inputView.Render()
+
+	components := []string{textSelectionContent}
+
+	if statusHeight > 0 {
+		statusContent := app.statusView.Render()
+		if statusContent != "" {
+			components = append(components, statusContent)
+		}
+	}
+
+	components = append(components, inputContent)
+
+	return strings.Join(components, "\n")
+}
+
+func (app *ChatApplication) handleExitSelectionMode(cmds []tea.Cmd) []tea.Cmd {
+	app.inputView.SetTextSelectionMode(false)
+	app.updateHelpBarShortcuts()
+
+	cmds = append(cmds, func() tea.Msg {
+		return shared.HideHelpBarMsg{}
+	})
+
+	if app.statusView.HasSavedState() {
+		if cmd := app.statusView.RestoreSavedState(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	err := app.stateManager.TransitionToView(domain.ViewStateChat)
+	if err != nil {
+		logger.Error("Failed to transition back to chat view", "error", err)
+	}
+
+	return cmds
 }
 
 func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
