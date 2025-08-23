@@ -531,7 +531,6 @@ func init() {
 	configCmd.AddCommand(setMaxTurnsCmd)
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configToolsCmd)
-	configCmd.AddCommand(configFetchCmd)
 	configCmd.AddCommand(configOptimizationCmd)
 	configCmd.AddCommand(configCompactCmd)
 	configCmd.AddCommand(configPromptCmd)
@@ -547,6 +546,7 @@ func init() {
 	configToolsCmd.AddCommand(configToolsWebSearchCmd)
 	configToolsCmd.AddCommand(configToolsGrepCmd)
 	configToolsCmd.AddCommand(configToolsGithubCmd)
+	configToolsCmd.AddCommand(configFetchCmd)
 
 	configToolsSafetyCmd.AddCommand(configToolsSafetyEnableCmd)
 	configToolsSafetyCmd.AddCommand(configToolsSafetyDisableCmd)
@@ -1082,7 +1082,7 @@ func enableFetch(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("%s\n", ui.FormatSuccess("Web fetch tool enabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
-	fmt.Println("You can now configure whitelisted sources with 'infer config web-fetch add-domain <domain>'")
+	fmt.Println("You can now configure whitelisted sources with 'infer config tools web-fetch add-domain <domain>'")
 	return nil
 }
 
