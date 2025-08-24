@@ -15,10 +15,10 @@ type WriteRequest struct {
 
 // WriteResult represents the result of a file write operation
 type WriteResult struct {
-	Path       string
+	Path         string
 	BytesWritten int64
-	BackupPath string
-	Created    bool
+	BackupPath   string
+	Created      bool
 }
 
 // ChunkWriteRequest represents a chunk write operation
@@ -45,11 +45,11 @@ type ChunkManager interface {
 
 // ChunkSessionInfo provides information about an active chunk session
 type ChunkSessionInfo struct {
-	SessionID    string
-	TotalChunks  int
+	SessionID      string
+	TotalChunks    int
 	ReceivedChunks int
-	TempPath     string
-	Created      bool
+	TempPath       string
+	Created        bool
 }
 
 // PathValidator validates file paths for security and accessibility
