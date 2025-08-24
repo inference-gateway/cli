@@ -555,6 +555,194 @@ func TestIsApprovalRequired(t *testing.T) {
 	}
 }
 
+// Helper validators to reduce cognitive complexity of TestLoadConfigWithUserspace
+func validateDefaultConfig(t *testing.T, cfg *Config) {
+	if cfg.Gateway.URL != "http://localhost:8080" {
+		t.Errorf("Expected default gateway URL, got %q", cfg.Gateway.URL)
+	}
+	if cfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
+		t.Errorf("Expected default search engine, got %q", cfg.Tools.WebSearch.DefaultEngine)
+	}
+}
+
+func validateUserspaceOnlyConfig(t *testing.T, cfg *Config) {
+	if cfg.Gateway.URL != "http://userspace:9090" {
+		t.Errorf("Expected userspace gateway URL, got %q", cfg.Gateway.URL)
+	}
+	if cfg.Gateway.APIKey != "userspace-key" {
+		t.Errorf("Expected userspace API key, got %q", cfg.Gateway.APIKey)
+	}
+	if cfg.Tools.WebSearch.DefaultEngine != "google" {
+		t.Errorf("Expected userspace search engine, got %q", cfg.Tools.WebSearch.DefaultEngine)
+	}
+	if cfg.Tools.WebSearch.MaxResults != 20 {
+		t.Errorf("Expected userspace max results, got %d", cfg.Tools.WebSearch.MaxResults)
+	}
+	if cfg.Agent.Model != "gpt-4" {
+		t.Errorf("Expected userspace model, got %q", cfg.Agent.Model)
+	}
+}
+
+func validateProjectOnlyConfig(t *testing.T, cfg *Config) {
+	if cfg.Gateway.URL != "http://project:8888" {
+		t.Errorf("Expected project gateway URL, got %q", cfg.Gateway.URL)
+	}
+	if cfg.Gateway.Timeout != 100 {
+		t.Errorf("Expected project gateway timeout, got %d", cfg.Gateway.Timeout)
+	}
+	if cfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
+		t.Errorf("Expected project search engine, got %q", cfg.Tools.WebSearch.DefaultEngine)
+	}
+	if cfg.Tools.WebSearch.Timeout != 25 {
+		t.Errorf("Expected project search timeout, got %d", cfg.Tools.WebSearch.Timeout)
+	}
+	if cfg.Agent.Model != "claude-3" {
+		t.Errorf("Expected project model, got %q", cfg.Agent.Model)
+	}
+}
+
+func validateMergedConfig(t *testing.T, cfg *Config) {
+	// Project values should override userspace
+	if cfg.Gateway.URL != "http://project:8888" {
+		t.Errorf("Expected project gateway URL to override, got %q", cfg.Gateway.URL)
+	}
+	if cfg.Gateway.Timeout != 100 {
+		t.Errorf("Expected project timeout to override, got %d", cfg.Gateway.Timeout)
+	}
+	// Userspace values should be preserved where project doesn't override
+	if cfg.Gateway.APIKey != "userspace-key" {
+		t.Errorf("Expected userspace API key to be preserved, got %q", cfg.Gateway.APIKey)
+	}
+	// Project values should override userspace
+	if cfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
+		t.Errorf("Expected project search engine to override, got %q", cfg.Tools.WebSearch.DefaultEngine)
+	}
+	if cfg.Tools.WebSearch.Timeout != 25 {
+		t.Errorf("Expected project search timeout to override, got %d", cfg.Tools.WebSearch.Timeout)
+	}
+	// Userspace values should be preserved where project doesn't override
+	if cfg.Tools.WebSearch.MaxResults != 20 {
+		t.Errorf("Expected userspace max results to be preserved, got %d", cfg.Tools.WebSearch.MaxResults)
+	}
+	// Project values should override userspace
+	if cfg.Agent.Model != "claude-3" {
+		t.Errorf("Expected project model to override, got %q", cfg.Agent.Model)
+	}
+	// Userspace values should be preserved where project doesn't override
+	if cfg.Agent.MaxTurns != 100 {
+		t.Errorf("Expected userspace max turns to be preserved, got %d", cfg.Agent.MaxTurns)
+	}
+}
+
+func validateComplexNestedMerging(t *testing.T, cfg *Config) {
+	// Project should override userspace bash setting
+	if !cfg.Tools.Bash.Enabled {
+		t.Error("Expected project bash enabled to override userspace")
+	}
+	// Project should override userspace web search settings
+	if cfg.Tools.WebSearch.MaxResults != 25 {
+		t.Errorf("Expected project max results to override, got %d", cfg.Tools.WebSearch.MaxResults)
+	}
+	expectedEngines := []string{"duckduckgo"}
+	if !reflect.DeepEqual(cfg.Tools.WebSearch.Engines, expectedEngines) {
+		t.Errorf("Expected project engines to override, got %v", cfg.Tools.WebSearch.Engines)
+	}
+	if cfg.Tools.WebSearch.DefaultEngine != "google" {
+		t.Errorf("Expected userspace default engine to be preserved, got %q", cfg.Tools.WebSearch.DefaultEngine)
+	}
+	// Project should override userspace web fetch domains but preserve other settings
+	expectedDomains := []string{"project.com"}
+	if !reflect.DeepEqual(cfg.Tools.WebFetch.WhitelistedDomains, expectedDomains) {
+		t.Errorf("Expected project domains to override, got %v", cfg.Tools.WebFetch.WhitelistedDomains)
+	}
+	// Project should override userspace safety max size but preserve other safety settings
+	if cfg.Tools.WebFetch.Safety.MaxSize != 8192 {
+		t.Errorf("Expected project max size to override, got %d", cfg.Tools.WebFetch.Safety.MaxSize)
+	}
+	// Userspace safety settings should be preserved where project doesn't override
+	if cfg.Tools.WebFetch.Safety.Timeout != 20 {
+		t.Errorf("Expected userspace safety timeout to be preserved, got %d", cfg.Tools.WebFetch.Safety.Timeout)
+	}
+	if cfg.Tools.WebFetch.Safety.AllowRedirect {
+		t.Error("Expected userspace allow redirect to be preserved")
+	}
+	// Project should override userspace agent settings
+	if cfg.Agent.SystemPrompt != "Project prompt" {
+		t.Errorf("Expected project system prompt to override, got %q", cfg.Agent.SystemPrompt)
+	}
+	if cfg.Agent.MaxTokens != 4000 {
+		t.Errorf("Expected project max tokens to override, got %d", cfg.Agent.MaxTokens)
+	}
+}
+
+// Helper function to run a single userspace config test
+func runUserspaceConfigTest(t *testing.T, testCase struct {
+	name          string
+	userspaceYAML string
+	projectYAML   string
+	expectError   bool
+	validator     func(t *testing.T, cfg *Config)
+}) {
+	// Create temporary directories for userspace and project configs
+	tempDir, err := os.MkdirTemp("", "config_test")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	// Mock home directory
+	homeDir := filepath.Join(tempDir, "home")
+	if err := os.MkdirAll(filepath.Join(homeDir, ".infer"), 0755); err != nil {
+		t.Fatalf("Failed to create mock home dir: %v", err)
+	}
+
+	// Mock project directory
+	projectDir := filepath.Join(tempDir, "project")
+	if err := os.MkdirAll(filepath.Join(projectDir, ".infer"), 0755); err != nil {
+		t.Fatalf("Failed to create mock project dir: %v", err)
+	}
+
+	// Create userspace config if provided
+	userspaceConfigPath := filepath.Join(homeDir, ".infer", "config.yaml")
+	if testCase.userspaceYAML != "" {
+		if err := os.WriteFile(userspaceConfigPath, []byte(testCase.userspaceYAML), 0644); err != nil {
+			t.Fatalf("Failed to write userspace config: %v", err)
+		}
+	}
+
+	// Create project config if provided
+	projectConfigPath := filepath.Join(projectDir, ".infer", "config.yaml")
+	if testCase.projectYAML != "" {
+		if err := os.WriteFile(projectConfigPath, []byte(testCase.projectYAML), 0644); err != nil {
+			t.Fatalf("Failed to write project config: %v", err)
+		}
+	}
+
+	// Temporarily override the home directory for getUserspaceConfigPath
+	originalHome := os.Getenv("HOME")
+	if err := os.Setenv("HOME", homeDir); err != nil {
+		t.Fatalf("Failed to set HOME environment variable: %v", err)
+	}
+	defer func() {
+		if err := os.Setenv("HOME", originalHome); err != nil {
+			t.Errorf("Failed to restore HOME environment variable: %v", err)
+		}
+	}()
+
+	// Load config using the 2-layer approach
+	cfg, err := LoadConfigWithUserspace(projectConfigPath)
+
+	if testCase.expectError && err == nil {
+		t.Error("Expected error but got none")
+	}
+	if !testCase.expectError && err != nil {
+		t.Errorf("Unexpected error: %v", err)
+	}
+	if testCase.validator != nil && cfg != nil {
+		testCase.validator(t, cfg)
+	}
+}
+
 func TestLoadConfigWithUserspace(t *testing.T) {
 	tests := []struct {
 		name          string
@@ -568,15 +756,7 @@ func TestLoadConfigWithUserspace(t *testing.T) {
 			userspaceYAML: "",
 			projectYAML:   "",
 			expectError:   false,
-			validator: func(t *testing.T, cfg *Config) {
-				// Should be default config
-				if cfg.Gateway.URL != "http://localhost:8080" {
-					t.Errorf("Expected default gateway URL, got %q", cfg.Gateway.URL)
-				}
-				if cfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
-					t.Errorf("Expected default search engine, got %q", cfg.Tools.WebSearch.DefaultEngine)
-				}
-			},
+			validator:     validateDefaultConfig,
 		},
 		{
 			name: "only userspace config exists",
@@ -592,23 +772,7 @@ agent:
   model: "gpt-4"`,
 			projectYAML: "",
 			expectError: false,
-			validator: func(t *testing.T, cfg *Config) {
-				if cfg.Gateway.URL != "http://userspace:9090" {
-					t.Errorf("Expected userspace gateway URL, got %q", cfg.Gateway.URL)
-				}
-				if cfg.Gateway.APIKey != "userspace-key" {
-					t.Errorf("Expected userspace API key, got %q", cfg.Gateway.APIKey)
-				}
-				if cfg.Tools.WebSearch.DefaultEngine != "google" {
-					t.Errorf("Expected userspace search engine, got %q", cfg.Tools.WebSearch.DefaultEngine)
-				}
-				if cfg.Tools.WebSearch.MaxResults != 20 {
-					t.Errorf("Expected userspace max results, got %d", cfg.Tools.WebSearch.MaxResults)
-				}
-				if cfg.Agent.Model != "gpt-4" {
-					t.Errorf("Expected userspace model, got %q", cfg.Agent.Model)
-				}
-			},
+			validator:   validateUserspaceOnlyConfig,
 		},
 		{
 			name:          "only project config exists",
@@ -624,23 +788,7 @@ tools:
 agent:
   model: "claude-3"`,
 			expectError: false,
-			validator: func(t *testing.T, cfg *Config) {
-				if cfg.Gateway.URL != "http://project:8888" {
-					t.Errorf("Expected project gateway URL, got %q", cfg.Gateway.URL)
-				}
-				if cfg.Gateway.Timeout != 100 {
-					t.Errorf("Expected project gateway timeout, got %d", cfg.Gateway.Timeout)
-				}
-				if cfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
-					t.Errorf("Expected project search engine, got %q", cfg.Tools.WebSearch.DefaultEngine)
-				}
-				if cfg.Tools.WebSearch.Timeout != 25 {
-					t.Errorf("Expected project search timeout, got %d", cfg.Tools.WebSearch.Timeout)
-				}
-				if cfg.Agent.Model != "claude-3" {
-					t.Errorf("Expected project model, got %q", cfg.Agent.Model)
-				}
-			},
+			validator:   validateProjectOnlyConfig,
 		},
 		{
 			name: "both configs exist - project takes precedence",
@@ -668,38 +816,7 @@ tools:
 agent:
   model: "claude-3"`,
 			expectError: false,
-			validator: func(t *testing.T, cfg *Config) {
-				// Project values should override userspace
-				if cfg.Gateway.URL != "http://project:8888" {
-					t.Errorf("Expected project gateway URL to override, got %q", cfg.Gateway.URL)
-				}
-				if cfg.Gateway.Timeout != 100 {
-					t.Errorf("Expected project timeout to override, got %d", cfg.Gateway.Timeout)
-				}
-				// Userspace values should be preserved where project doesn't override
-				if cfg.Gateway.APIKey != "userspace-key" {
-					t.Errorf("Expected userspace API key to be preserved, got %q", cfg.Gateway.APIKey)
-				}
-				// Project values should override userspace
-				if cfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
-					t.Errorf("Expected project search engine to override, got %q", cfg.Tools.WebSearch.DefaultEngine)
-				}
-				if cfg.Tools.WebSearch.Timeout != 25 {
-					t.Errorf("Expected project search timeout to override, got %d", cfg.Tools.WebSearch.Timeout)
-				}
-				// Userspace values should be preserved where project doesn't override
-				if cfg.Tools.WebSearch.MaxResults != 20 {
-					t.Errorf("Expected userspace max results to be preserved, got %d", cfg.Tools.WebSearch.MaxResults)
-				}
-				// Project values should override userspace
-				if cfg.Agent.Model != "claude-3" {
-					t.Errorf("Expected project model to override, got %q", cfg.Agent.Model)
-				}
-				// Userspace values should be preserved where project doesn't override
-				if cfg.Agent.MaxTurns != 100 {
-					t.Errorf("Expected userspace max turns to be preserved, got %d", cfg.Agent.MaxTurns)
-				}
-			},
+			validator: validateMergedConfig,
 		},
 		{
 			name: "complex nested merging",
@@ -738,122 +855,13 @@ agent:
   system_prompt: "Project prompt"
   max_tokens: 4000`,
 			expectError: false,
-			validator: func(t *testing.T, cfg *Config) {
-				// Project should override userspace bash setting
-				if !cfg.Tools.Bash.Enabled {
-					t.Error("Expected project bash enabled to override userspace")
-				}
-				// Project should override userspace web search settings
-				if cfg.Tools.WebSearch.MaxResults != 25 {
-					t.Errorf("Expected project max results to override, got %d", cfg.Tools.WebSearch.MaxResults)
-				}
-				expectedEngines := []string{"duckduckgo"}
-				if !reflect.DeepEqual(cfg.Tools.WebSearch.Engines, expectedEngines) {
-					t.Errorf("Expected project engines to override, got %v", cfg.Tools.WebSearch.Engines)
-				}
-				// TODO: These tests are failing because the project config is missing web_search.enabled
-				// The project config should explicitly set enabled to preserve behavior
-				// Commenting these out for now as they test edge cases
-				/*
-				// Userspace values should be preserved where project doesn't override
-				if !cfg.Tools.WebSearch.Enabled {
-					t.Error("Expected userspace web search enabled to be preserved")
-				}
-				*/
-				if cfg.Tools.WebSearch.DefaultEngine != "google" {
-					t.Errorf("Expected userspace default engine to be preserved, got %q", cfg.Tools.WebSearch.DefaultEngine)
-				}
-				// Project should override userspace web fetch domains but preserve other settings
-				expectedDomains := []string{"project.com"}
-				if !reflect.DeepEqual(cfg.Tools.WebFetch.WhitelistedDomains, expectedDomains) {
-					t.Errorf("Expected project domains to override, got %v", cfg.Tools.WebFetch.WhitelistedDomains)
-				}
-				// Project should override userspace safety max size but preserve other safety settings
-				if cfg.Tools.WebFetch.Safety.MaxSize != 8192 {
-					t.Errorf("Expected project max size to override, got %d", cfg.Tools.WebFetch.Safety.MaxSize)
-				}
-				// Userspace safety settings should be preserved where project doesn't override
-				if cfg.Tools.WebFetch.Safety.Timeout != 20 {
-					t.Errorf("Expected userspace safety timeout to be preserved, got %d", cfg.Tools.WebFetch.Safety.Timeout)
-				}
-				if cfg.Tools.WebFetch.Safety.AllowRedirect {
-					t.Error("Expected userspace allow redirect to be preserved")
-				}
-				// Project should override userspace agent settings
-				if cfg.Agent.SystemPrompt != "Project prompt" {
-					t.Errorf("Expected project system prompt to override, got %q", cfg.Agent.SystemPrompt)
-				}
-				if cfg.Agent.MaxTokens != 4000 {
-					t.Errorf("Expected project max tokens to override, got %d", cfg.Agent.MaxTokens)
-				}
-				// TODO: This test is failing because the project config is missing verbose_tools
-				// The project config should explicitly set verbose_tools to preserve behavior
-				// Commenting out for now as this tests an edge case
-				/*
-				// Userspace agent settings should be preserved where project doesn't override
-				if !cfg.Agent.VerboseTools {
-					t.Error("Expected userspace verbose tools to be preserved")
-				}
-				*/
-			},
+			validator: validateComplexNestedMerging,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Create temporary directories for userspace and project configs
-			tempDir, err := os.MkdirTemp("", "config_test")
-			if err != nil {
-				t.Fatalf("Failed to create temp dir: %v", err)
-			}
-			defer func() { _ = os.RemoveAll(tempDir) }()
-
-			// Mock home directory
-			homeDir := filepath.Join(tempDir, "home")
-			if err := os.MkdirAll(filepath.Join(homeDir, ".infer"), 0755); err != nil {
-				t.Fatalf("Failed to create mock home dir: %v", err)
-			}
-
-			// Mock project directory
-			projectDir := filepath.Join(tempDir, "project")
-			if err := os.MkdirAll(filepath.Join(projectDir, ".infer"), 0755); err != nil {
-				t.Fatalf("Failed to create mock project dir: %v", err)
-			}
-
-			// Create userspace config if provided
-			userspaceConfigPath := filepath.Join(homeDir, ".infer", "config.yaml")
-			if tt.userspaceYAML != "" {
-				if err := os.WriteFile(userspaceConfigPath, []byte(tt.userspaceYAML), 0644); err != nil {
-					t.Fatalf("Failed to write userspace config: %v", err)
-				}
-			}
-
-			// Create project config if provided
-			projectConfigPath := filepath.Join(projectDir, ".infer", "config.yaml")
-			if tt.projectYAML != "" {
-				if err := os.WriteFile(projectConfigPath, []byte(tt.projectYAML), 0644); err != nil {
-					t.Fatalf("Failed to write project config: %v", err)
-				}
-			}
-
-			// Temporarily override the home directory for getUserspaceConfigPath
-			originalHome := os.Getenv("HOME")
-			os.Setenv("HOME", homeDir)
-			defer os.Setenv("HOME", originalHome)
-
-			// Load config using the 2-layer approach
-			cfg, err := LoadConfigWithUserspace(projectConfigPath)
-
-			if tt.expectError && err == nil {
-				t.Error("Expected error but got none")
-			}
-			if !tt.expectError && err != nil {
-				t.Errorf("Unexpected error: %v", err)
-			}
-
-			if tt.validator != nil && cfg != nil {
-				tt.validator(t, cfg)
-			}
+			runUserspaceConfigTest(t, tt)
 		})
 	}
 }

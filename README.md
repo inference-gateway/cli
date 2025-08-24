@@ -789,7 +789,8 @@ Create and manage structured task lists for LLM-assisted development workflows.
 
 ## Configuration
 
-The CLI supports a **2-layer configuration system** that allows for both user-level and project-level configuration with proper precedence handling.
+The CLI supports a **2-layer configuration system** that allows for both user-level and project-level
+configuration with proper precedence handling.
 
 ### Configuration Layers
 
@@ -808,10 +809,13 @@ The CLI supports a **2-layer configuration system** that allows for both user-le
 Configuration values are merged with the following precedence (highest to lowest):
 
 1. **Project-level config** (`.infer/config.yaml`) - **Highest Priority**
-2. **Userspace config** (`~/.infer/config.yaml`) 
+2. **Userspace config** (`~/.infer/config.yaml`)
 3. **Built-in defaults** - **Lowest Priority**
 
-**Example**: If your userspace config sets `agent.model: "gpt-4"` and your project config sets `agent.model: "claude-3"`, the project config wins and `claude-3` will be used. However, if the project config doesn't specify a model but does specify other settings, the userspace model will be preserved while project settings take precedence for their specific values.
+**Example**: If your userspace config sets `agent.model: "gpt-4"` and your project config sets
+`agent.model: "claude-3"`, the project config wins and `claude-3` will be used. However, if the project
+config doesn't specify a model but does specify other settings, the userspace model will be preserved
+while project settings take precedence for their specific values.
 
 ### Usage Examples
 
