@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -102,15 +103,17 @@ func writeConfigAsYAMLWithIndent(filename string, indent int) error {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
-	yamlEncoder := yaml.NewEncoder(nil)
+	var buf bytes.Buffer
+	yamlEncoder := yaml.NewEncoder(&buf)
 	yamlEncoder.SetIndent(indent)
 
-	var buf []byte
-	if data, err := yaml.Marshal(allSettings); err != nil {
+	if err := yamlEncoder.Encode(allSettings); err != nil {
 		return fmt.Errorf("failed to marshal config to YAML: %w", err)
-	} else {
-		buf = data
 	}
 
-	return os.WriteFile(filename, buf, 0644)
+	if err := yamlEncoder.Close(); err != nil {
+		return fmt.Errorf("failed to close YAML encoder: %w", err)
+	}
+
+	return os.WriteFile(filename, buf.Bytes(), 0644)
 }

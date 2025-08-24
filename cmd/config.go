@@ -102,7 +102,7 @@ For complete project initialization, use 'infer init' instead.`,
 			scopeDesc = "userspace "
 		}
 
-		fmt.Printf("Successfully created %sconfiguration: %s\n", scopeDesc, V.ConfigFileUsed())
+		fmt.Printf("Successfully created %sconfiguration: %s\n", scopeDesc, configPath)
 		if userspace {
 			fmt.Println("This userspace configuration will be used as a fallback for all projects.")
 			fmt.Println("Project-level configurations will take precedence when present.")
