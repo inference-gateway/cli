@@ -5,12 +5,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/components"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
-	"github.com/spf13/cobra"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	components "github.com/inference-gateway/cli/internal/ui/components"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	cobra "github.com/spf13/cobra"
 )
 
 var testViewCmd = &cobra.Command{

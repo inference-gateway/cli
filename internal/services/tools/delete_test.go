@@ -96,7 +96,7 @@ func TestDeleteTool_Validate(t *testing.T) {
 		},
 		{
 			name:      "protected path .infer",
-			args:      map[string]any{"path": ".infer/config.yaml"},
+			args:      map[string]any{"path": config.DefaultConfigPath},
 			expectErr: true,
 		},
 		{

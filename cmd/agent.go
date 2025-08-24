@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/container"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
+	uuid "github.com/google/uuid"
+	config "github.com/inference-gateway/cli/config"
+	container "github.com/inference-gateway/cli/internal/container"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
-	"github.com/spf13/cobra"
+	cobra "github.com/spf13/cobra"
 )
 
 var agentCmd = &cobra.Command{
@@ -58,7 +58,8 @@ type AgentSession struct {
 }
 
 func runAgentCommand(taskDescription string, modelFlag string) error {
-	cfg, err := config.LoadConfig("")
+	configPath := config.GetConfigPath(false)
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}

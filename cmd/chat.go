@@ -6,11 +6,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/app"
-	"github.com/inference-gateway/cli/internal/container"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	app "github.com/inference-gateway/cli/internal/app"
+	container "github.com/inference-gateway/cli/internal/container"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	cobra "github.com/spf13/cobra"
 )
 
 var chatCmd = &cobra.Command{
@@ -23,10 +23,10 @@ and have a conversational interface with the inference gateway.`,
 	},
 }
 
-// startChatSession starts a chat session using the SOLID architecture
+// startChatSession starts a chat session
 func startChatSession() error {
-	configPath := config.GetConfigPath("")
-	cfg, err := config.LoadConfig("")
+	configPath := config.GetConfigPath(false)
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}

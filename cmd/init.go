@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	cobra "github.com/spf13/cobra"
 )
 
 var initCmd = &cobra.Command{
@@ -39,11 +39,11 @@ func initializeProject(cmd *cobra.Command) error {
 		if err != nil {
 			return fmt.Errorf("failed to get user home directory: %w", err)
 		}
-		configPath = filepath.Join(homeDir, ".infer", "config.yaml")
-		gitignorePath = filepath.Join(homeDir, ".infer", ".gitignore")
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+		gitignorePath = filepath.Join(homeDir, config.ConfigDirName, config.GitignoreFileName)
 	} else {
-		configPath = ".infer/config.yaml"
-		gitignorePath = ".infer/.gitignore"
+		configPath = config.DefaultConfigPath
+		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
 	}
 
 	if !overwrite {
@@ -56,8 +56,9 @@ func initializeProject(cmd *cobra.Command) error {
 	}
 
 	cfg := config.DefaultConfig()
+	cfg.Path = configPath
 
-	if err := cfg.SaveConfig(configPath); err != nil {
+	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 

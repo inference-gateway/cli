@@ -423,7 +423,7 @@ func TestGrepTool_PathExclusion(t *testing.T) {
 		{"git directory", ".git/", true},
 		{"git file", ".git/config", true},
 		{"infer directory", ".infer/", true},
-		{"infer file", ".infer/config.yaml", true},
+		{"infer file", config.DefaultConfigPath, true},
 		{"secret directory", "secret/", true},
 		{"secret file", "secret/key.txt", true},
 		{"allowed directory", "src/", false},

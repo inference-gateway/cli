@@ -1,19 +1,29 @@
 package config
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
-	"github.com/inference-gateway/cli/internal/logger"
-	"gopkg.in/yaml.v3"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	yaml "gopkg.in/yaml.v3"
+)
+
+const (
+	ConfigDirName     = ".infer"
+	ConfigFileName    = "config.yaml"
+	GitignoreFileName = ".gitignore"
+	LogsDirName       = "logs"
+
+	DefaultConfigPath = ConfigDirName + "/" + ConfigFileName
+	DefaultLogsPath   = ConfigDirName + "/" + LogsDirName
 )
 
 // Config represents the CLI configuration
 type Config struct {
+	Path    string        `yaml:"-"`
 	Gateway GatewayConfig `yaml:"gateway"`
 	Client  ClientConfig  `yaml:"client"`
 	Logging LoggingConfig `yaml:"logging"`
@@ -48,7 +58,8 @@ type RetryConfig struct {
 
 // LoggingConfig contains logging settings
 type LoggingConfig struct {
-	Debug bool `yaml:"debug"`
+	Debug bool   `yaml:"debug"`
+	Dir   string `yaml:"dir"`
 }
 
 // ToolsConfig contains tool execution settings
@@ -244,13 +255,14 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		Logging: LoggingConfig{
 			Debug: false,
+			Dir:   "",
 		},
 		Tools: ToolsConfig{
 			Enabled: true,
 			Sandbox: SandboxConfig{
 				Directories: []string{".", "/tmp"},
 				ProtectedPaths: []string{
-					".infer/",
+					ConfigDirName + "/",
 					".git/",
 					"*.env",
 				},
@@ -346,7 +358,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Compact: CompactConfig{
-			OutputDir:    ".infer",
+			OutputDir:    ConfigDirName,
 			SummaryModel: "",
 		},
 		Chat: ChatConfig{},
@@ -410,249 +422,91 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 }
 
 // LoadConfig loads configuration from file
-func LoadConfig(configPath string) (*Config, error) {
-	if configPath == "" {
-		configPath = getDefaultConfigPath()
-		logger.Debug("Using default config path", "path", configPath)
-	} else {
-		logger.Debug("Using custom config path", "path", configPath)
-	}
-
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		logger.Debug("Config file not found, using default configuration", "path", configPath)
-		return DefaultConfig(), nil
-	}
-
-	logger.Debug("Loading config file", "path", configPath)
+func (cfg *Config) Load(configPath string) (*Config, error) {
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		logger.Error("Failed to read config file", "path", configPath, "error", err)
 		return nil, fmt.Errorf("failed to read config file: %w", err)
 	}
 
 	var config Config
 	if err := yaml.Unmarshal(data, &config); err != nil {
-		logger.Error("Failed to parse config file", "path", configPath, "error", err)
 		return nil, fmt.Errorf("failed to parse config file: %w", err)
 	}
+
+	config.Path = configPath
 
 	logger.Debug("Successfully loaded config", "path", configPath, "gateway_url", config.Gateway.URL)
 	return &config, nil
 }
 
-// LoadConfigWithUserspace loads configuration using 2-layer approach: userspace + project
-// Project config takes precedence over userspace config, both override defaults
-func LoadConfigWithUserspace(configPath string) (*Config, error) {
-	if configPath == "" {
-		configPath = getDefaultConfigPath()
-		logger.Debug("Using default config path", "path", configPath)
-	} else {
-		logger.Debug("Using custom config path", "path", configPath)
-	}
-
-	baseConfig := DefaultConfig()
-
-	userspaceConfigPath := getUserspaceConfigPath()
-	if _, err := os.Stat(userspaceConfigPath); err == nil {
-		logger.Debug("Loading userspace config", "path", userspaceConfigPath)
-		userspaceConfig, err := loadConfigFromFile(userspaceConfigPath)
+// GetConfigPath returns the config path that would be used
+// If userspace is true, always returns the home directory path
+// Otherwise checks current directory first, then falls back to home directory
+func GetConfigPath(userspace bool) string {
+	if userspace {
+		homeDir, err := os.UserHomeDir()
 		if err != nil {
-			logger.Error("Failed to load userspace config", "path", userspaceConfigPath, "error", err)
-			return nil, fmt.Errorf("failed to load userspace config: %w", err)
+			logger.Error("Failed to get user home directory", "error", err)
+			return DefaultConfigPath
 		}
-
-		mergedConfig, err := mergeConfigsViaYAML(baseConfig, userspaceConfig)
-		if err != nil {
-			logger.Error("Failed to merge userspace config", "error", err)
-			return nil, fmt.Errorf("failed to merge userspace config: %w", err)
-		}
-		baseConfig = mergedConfig
-		logger.Debug("Successfully merged userspace config")
-	} else {
-		logger.Debug("No userspace config found", "path", userspaceConfigPath)
+		return filepath.Join(homeDir, ConfigDirName, ConfigFileName)
 	}
 
-	if _, err := os.Stat(configPath); err == nil {
-		logger.Debug("Loading project config", "path", configPath)
-		projectConfig, err := loadConfigFromFile(configPath)
-		if err != nil {
-			logger.Error("Failed to load project config", "path", configPath, "error", err)
-			return nil, fmt.Errorf("failed to load project config: %w", err)
-		}
-
-		mergedConfig, err := mergeConfigsViaYAML(baseConfig, projectConfig)
-		if err != nil {
-			logger.Error("Failed to merge project config", "error", err)
-			return nil, fmt.Errorf("failed to merge project config: %w", err)
-		}
-		baseConfig = mergedConfig
-		logger.Debug("Successfully merged project config")
-	} else {
-		logger.Debug("No project config found", "path", configPath)
+	localConfig := DefaultConfigPath
+	if _, err := os.Stat(localConfig); err == nil {
+		return localConfig
 	}
 
-	logger.Debug("Successfully loaded 2-layer config", "project_path", configPath, "userspace_path", userspaceConfigPath)
-	return baseConfig, nil
-}
-
-// loadConfigFromFile loads a config from a specific file path
-func loadConfigFromFile(configPath string) (*Config, error) {
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
-	}
-
-	return &config, nil
-}
-
-// mergeConfigsViaYAML merges two configs using YAML marshalling/unmarshalling
-// This approach only overrides explicitly set values, preserving defaults
-func mergeConfigsViaYAML(base, override *Config) (*Config, error) {
-	result := *base
-
-	overrideYAML, err := yaml.Marshal(override)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal override config: %w", err)
-	}
-
-	var overrideMap map[string]interface{}
-	if err := yaml.Unmarshal(overrideYAML, &overrideMap); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal override YAML: %w", err)
-	}
-
-	cleanOverrideMap := removeZeroValues(overrideMap)
-
-	if len(cleanOverrideMap) == 0 {
-		return &result, nil
-	}
-
-	cleanOverrideYAML, err := yaml.Marshal(cleanOverrideMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal clean override: %w", err)
-	}
-
-	if err := yaml.Unmarshal(cleanOverrideYAML, &result); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal override onto result: %w", err)
-	}
-
-	return &result, nil
-}
-
-// removeZeroValues recursively removes zero/empty values from a map
-// This helps distinguish between explicitly set values and default zero values
-func removeZeroValues(m map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
-
-	for k, v := range m {
-		switch val := v.(type) {
-		case map[string]interface{}:
-			cleaned := removeZeroValues(val)
-			if len(cleaned) > 0 {
-				result[k] = cleaned
-			}
-		case string:
-			if val != "" {
-				result[k] = val
-			}
-		case int:
-			if val != 0 {
-				result[k] = val
-			}
-		case bool:
-			result[k] = val
-		case []interface{}:
-			if len(val) > 0 {
-				result[k] = val
-			}
-		case []string:
-			if len(val) > 0 {
-				result[k] = val
-			}
-		case []int:
-			if len(val) > 0 {
-				result[k] = val
-			}
-		default:
-			if val != nil {
-				result[k] = val
-			}
-		}
-	}
-
-	return result
-}
-
-// getUserspaceConfigPath returns the path to the userspace config file
-func getUserspaceConfigPath() string {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		logger.Error("Failed to get user home directory", "error", err)
-		return ""
+		return localConfig
 	}
-	return filepath.Join(homeDir, ".infer", "config.yaml")
+
+	return filepath.Join(homeDir, ConfigDirName, ConfigFileName)
 }
 
-// SaveConfig saves configuration to file
-func (c *Config) SaveConfig(configPath string) error {
-	if configPath == "" {
-		configPath = getDefaultConfigPath()
-		logger.Debug("Using default config path for save", "path", configPath)
-	} else {
-		logger.Debug("Using custom config path for save", "path", configPath)
+// Load is a standalone function to load configuration from a file path
+func Load(configPath string) (*Config, error) {
+	cfg := &Config{}
+	return cfg.Load(configPath)
+}
+
+// LoadConfig is an alias for Load for backward compatibility
+func LoadConfig(configPath string) (*Config, error) {
+	return Load(configPath)
+}
+
+// Save saves configuration to file
+func (cfg *Config) Save() error {
+	if cfg.Path == "" {
+		logger.Fatal("Could not load the config path for saving")
 	}
 
-	dir := filepath.Dir(configPath)
-	logger.Debug("Creating config directory", "dir", dir)
+	var buf strings.Builder
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+	err := encoder.Encode(cfg)
+	if closeErr := encoder.Close(); closeErr != nil {
+		return fmt.Errorf("failed to close YAML encoder: %w", closeErr)
+	}
+	if err != nil {
+		return fmt.Errorf("failed to marshal config to YAML: %w", err)
+	}
+	data := []byte(buf.String())
+
+	dir := filepath.Dir(cfg.Path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
-		logger.Error("Failed to create config directory", "dir", dir, "error", err)
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	var buf bytes.Buffer
-	encoder := yaml.NewEncoder(&buf)
-	encoder.SetIndent(2)
-	defer func() {
-		if err := encoder.Close(); err != nil {
-			logger.Error("Failed to close YAML encoder", "error", err)
-		}
-	}()
-
-	if err := encoder.Encode(c); err != nil {
-		logger.Error("Failed to marshal config", "error", err)
-		return fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	data := buf.Bytes()
-
-	logger.Debug("Writing config file", "path", configPath, "size", len(data))
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
-		logger.Error("Failed to write config file", "path", configPath, "error", err)
+	// Write to file with proper permissions
+	if err := os.WriteFile(cfg.Path, data, 0644); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	logger.Debug("Successfully saved config", "path", configPath)
+	logger.Debug("Successfully saved config", "path", cfg.Path)
 	return nil
-}
-
-func getDefaultConfigPath() string {
-	wd, err := os.Getwd()
-	if err != nil {
-		return ".infer/config.yaml"
-	}
-	return filepath.Join(wd, ".infer/config.yaml")
-}
-
-// GetConfigPath returns the config path that would be used, either default or provided
-func GetConfigPath(configPath string) string {
-	if configPath == "" {
-		return getDefaultConfigPath()
-	}
-	return configPath
 }
 
 // IsApprovalRequired checks if approval is required for a specific tool
@@ -738,6 +592,19 @@ func (c *Config) GetSystemPrompt() string {
 
 func (c *Config) GetDefaultModel() string {
 	return c.Agent.Model
+}
+
+// GetLogDir returns the logging directory, defaulting to config directory/logs if not set
+func (c *Config) GetLogDir() string {
+	if c.Logging.Dir != "" {
+		return c.Logging.Dir
+	}
+
+	if c.Path != "" {
+		return filepath.Join(filepath.Dir(c.Path), LogsDirName)
+	}
+
+	return DefaultLogsPath
 }
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories

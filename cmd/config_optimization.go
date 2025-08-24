@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	cobra "github.com/spf13/cobra"
 )
 
 var configOptimizationCmd = &cobra.Command{
@@ -21,7 +21,7 @@ var optimizationEnableCmd = &cobra.Command{
 	Short: "Enable token optimization",
 	Long:  `Enable token optimization to reduce API costs through intelligent message management.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return setOptimizationEnabled(true)
+		return setOptimizationEnabled(cmd, true)
 	},
 }
 
@@ -30,7 +30,7 @@ var optimizationDisableCmd = &cobra.Command{
 	Short: "Disable token optimization",
 	Long:  `Disable token optimization (use full conversation history).`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return setOptimizationEnabled(false)
+		return setOptimizationEnabled(cmd, false)
 	},
 }
 
@@ -39,7 +39,7 @@ var optimizationStatusCmd = &cobra.Command{
 	Short: "Show token optimization status",
 	Long:  `Display current token optimization settings and configuration.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return showOptimizationStatus()
+		return showOptimizationStatus(cmd)
 	},
 }
 
@@ -53,7 +53,7 @@ var optimizationSetCmd = &cobra.Command{
   - skip-confirmations: Skip redundant assistant confirmations (true/false)`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return setOptimizationParameter(args[0], args[1])
+		return setOptimizationParameter(cmd, args[0], args[1])
 	},
 }
 
@@ -64,15 +64,16 @@ func init() {
 	configOptimizationCmd.AddCommand(optimizationSetCmd)
 }
 
-func setOptimizationEnabled(enabled bool) error {
-	cfg, err := config.LoadConfig("")
+func setOptimizationEnabled(cmd *cobra.Command, enabled bool) error {
+	configPath := config.GetConfigPath(GetUserspaceFlag(cmd))
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	cfg.Agent.Optimization.Enabled = enabled
 
-	if err := cfg.SaveConfig(""); err != nil {
+	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
@@ -93,8 +94,9 @@ func setOptimizationEnabled(enabled bool) error {
 	return nil
 }
 
-func showOptimizationStatus() error {
-	cfg, err := config.LoadConfig("")
+func showOptimizationStatus(cmd *cobra.Command) error {
+	configPath := config.GetConfigPath(GetUserspaceFlag(cmd))
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -123,8 +125,9 @@ func showOptimizationStatus() error {
 	return nil
 }
 
-func setOptimizationParameter(param, value string) error {
-	cfg, err := config.LoadConfig("")
+func setOptimizationParameter(cmd *cobra.Command, param, value string) error {
+	configPath := config.GetConfigPath(GetUserspaceFlag(cmd))
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -162,7 +165,7 @@ func setOptimizationParameter(param, value string) error {
 		return fmt.Errorf("unknown parameter: %s", param)
 	}
 
-	if err := cfg.SaveConfig(""); err != nil {
+	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 

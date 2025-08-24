@@ -6,18 +6,18 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
-	"github.com/spf13/cobra"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	config "github.com/inference-gateway/cli/config"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	cobra "github.com/spf13/cobra"
+	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 )
 
 func testInitializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 
-	configPath := ".infer/config.yaml"
-	gitignorePath := ".infer/.gitignore"
+	configPath := config.DefaultConfigPath
+	gitignorePath := config.ConfigDirName + "/.gitignore"
 
 	if !overwrite {
 		if _, err := os.Stat(configPath); err == nil {
@@ -29,8 +29,8 @@ func testInitializeProject(cmd *cobra.Command) error {
 	}
 
 	cfg := config.DefaultConfig()
-
-	if err := cfg.SaveConfig(configPath); err != nil {
+	cfg.Path = configPath
+	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/logger"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	cobra "github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
@@ -36,7 +36,7 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("config", "c", "", "config file (default is ./.infer/config.yaml)")
+	rootCmd.PersistentFlags().StringP("config", "c", "", fmt.Sprintf("config file (default is %s)", config.DefaultConfigPath))
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 
 	cobra.OnInitialize(initConfig)
@@ -45,8 +45,12 @@ func init() {
 func initConfig() {
 	verbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
 
-	cfg, err := config.LoadConfig("")
-	debugMode := err == nil && cfg.Logging.Debug
+	configPath := config.GetConfigPath(false)
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to load config from %s: %v\n", configPath, err)
+		os.Exit(1)
+	}
 
-	logger.Init(verbose || debugMode)
+	logger.Init(verbose, cfg)
 }

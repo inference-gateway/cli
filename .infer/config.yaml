@@ -20,6 +20,7 @@ client:
       - 504
 logging:
   debug: false
+  dir: ""
 tools:
   enabled: true
   sandbox:

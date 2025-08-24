@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	cobra "github.com/spf13/cobra"
 )
 
 var configCompactCmd = &cobra.Command{
@@ -31,7 +31,7 @@ Examples:
 		if len(args) > 0 {
 			modelName = args[0]
 		}
-		return setCompactModel(modelName)
+		return setCompactModel(cmd, modelName)
 	},
 }
 
@@ -40,7 +40,7 @@ var showCompactConfigCmd = &cobra.Command{
 	Short: "Show compact command configuration",
 	Long:  `Display current configuration for the compact command.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return showCompactConfig()
+		return showCompactConfig(cmd)
 	},
 }
 
@@ -49,15 +49,16 @@ func init() {
 	configCompactCmd.AddCommand(showCompactConfigCmd)
 }
 
-func setCompactModel(modelName string) error {
-	cfg, err := config.LoadConfig("")
+func setCompactModel(cmd *cobra.Command, modelName string) error {
+	configPath := config.GetConfigPath(GetUserspaceFlag(cmd))
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	cfg.Compact.SummaryModel = modelName
 
-	if err := cfg.SaveConfig(""); err != nil {
+	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
@@ -70,8 +71,9 @@ func setCompactModel(modelName string) error {
 	return nil
 }
 
-func showCompactConfig() error {
-	cfg, err := config.LoadConfig("")
+func showCompactConfig(cmd *cobra.Command) error {
+	configPath := config.GetConfigPath(GetUserspaceFlag(cmd))
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}

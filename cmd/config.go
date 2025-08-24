@@ -11,12 +11,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/container"
-	"github.com/inference-gateway/cli/internal/services"
-	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	container "github.com/inference-gateway/cli/internal/container"
+	services "github.com/inference-gateway/cli/internal/services"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	cobra "github.com/spf13/cobra"
 )
 
 var configCmd = &cobra.Command{
@@ -69,7 +69,7 @@ This creates only the configuration file with default settings.
 
 For complete project initialization, use 'infer init' instead.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		userspace := getUserspaceFlag(cmd)
+		userspace := GetUserspaceFlag(cmd)
 		overwrite, _ := cmd.Flags().GetBool("overwrite")
 
 		var configPath string
@@ -78,9 +78,9 @@ For complete project initialization, use 'infer init' instead.`,
 			if err != nil {
 				return fmt.Errorf("failed to get user home directory: %w", err)
 			}
-			configPath = filepath.Join(homeDir, ".infer", "config.yaml")
+			configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
 		} else {
-			configPath = ".infer/config.yaml"
+			configPath = config.DefaultConfigPath
 		}
 
 		if _, err := os.Stat(configPath); err == nil {
@@ -90,8 +90,9 @@ For complete project initialization, use 'infer init' instead.`,
 		}
 
 		cfg := config.DefaultConfig()
+		cfg.Path = configPath
 
-		if err := cfg.SaveConfig(configPath); err != nil {
+		if err := cfg.Save(); err != nil {
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 
@@ -451,14 +452,12 @@ var configToolsWebFetchCacheClearCmd = &cobra.Command{
 	RunE:  fetchCacheClear,
 }
 
-// getUserspaceFlag checks for --userspace flag on the current command or parent commands
-func getUserspaceFlag(cmd *cobra.Command) bool {
-	// First check the current command
+// GetUserspaceFlag checks for --userspace flag on the current command or parent commands
+func GetUserspaceFlag(cmd *cobra.Command) bool {
 	if userspace, err := cmd.Flags().GetBool("userspace"); err == nil && userspace {
 		return true
 	}
-	
-	// Then check parent commands (for global flag inheritance)
+
 	parent := cmd.Parent()
 	for parent != nil {
 		if userspace, err := parent.Flags().GetBool("userspace"); err == nil && userspace {
@@ -466,108 +465,76 @@ func getUserspaceFlag(cmd *cobra.Command) bool {
 		}
 		parent = parent.Parent()
 	}
-	
+
 	return false
 }
 
 func setDefaultModel(cmd *cobra.Command, modelName string) error {
-	userspace := getUserspaceFlag(cmd)
-
-	var cfg *config.Config
-	var err error
 	var configPath string
-
-	if userspace {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get user home directory: %w", err)
-		}
-		configPath = filepath.Join(homeDir, ".infer", "config.yaml")
-		cfg, err = config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load userspace config: %w", err)
-		}
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
 	} else {
-		cfg, err = config.LoadConfig("")
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-		configPath = ""
+		configPath = config.DefaultConfigPath
+	}
+
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	cfg.Agent.Model = modelName
 
-	if err := cfg.SaveConfig(configPath); err != nil {
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	} else {
+		configPath = getConfigPath()
+	}
+	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	var scopeDesc string
-	if userspace {
-		scopeDesc = "userspace "
-	}
-
 	fmt.Printf("%s Default model set to: %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), modelName)
-	fmt.Printf("Configuration saved to %s%s\n", scopeDesc, func() string {
-		if configPath != "" {
-			return configPath
-		}
-		return ".infer/config.yaml"
-	}())
+	fmt.Printf("Configuration saved to %s\n", configPath)
 	fmt.Println("The agent command will now use this model by default.")
 	return nil
 }
 
 func setSystemPrompt(cmd *cobra.Command, systemPrompt string) error {
-	userspace := getUserspaceFlag(cmd)
-
-	var cfg *config.Config
-	var err error
 	var configPath string
-
-	if userspace {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get user home directory: %w", err)
-		}
-		configPath = filepath.Join(homeDir, ".infer", "config.yaml")
-		cfg, err = config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load userspace config: %w", err)
-		}
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
 	} else {
-		cfg, err = config.LoadConfig("")
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-		configPath = ""
+		configPath = config.DefaultConfigPath
+	}
+
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	cfg.Agent.SystemPrompt = systemPrompt
 
-	if err := cfg.SaveConfig(configPath); err != nil {
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	} else {
+		configPath = getConfigPath()
+	}
+	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	var scopeDesc string
-	if userspace {
-		scopeDesc = "userspace "
-	}
-
 	fmt.Printf("%s System prompt set successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark))
-	fmt.Printf("Configuration saved to %s%s\n", scopeDesc, func() string {
-		if configPath != "" {
-			return configPath
-		}
-		return ".infer/config.yaml"
-	}())
+	fmt.Printf("Configuration saved to %s\n", configPath)
 	fmt.Printf("System prompt: %s\n", systemPrompt)
 	fmt.Println("This prompt will be included with every agent session.")
 	return nil
 }
 
 func setMaxTurns(cmd *cobra.Command, maxTurnsStr string) error {
-	userspace := getUserspaceFlag(cmd)
-
 	maxTurns, err := strconv.Atoi(maxTurnsStr)
 	if err != nil {
 		return fmt.Errorf("invalid max turns value '%s': must be a positive integer", maxTurnsStr)
@@ -577,45 +544,33 @@ func setMaxTurns(cmd *cobra.Command, maxTurnsStr string) error {
 		return fmt.Errorf("max turns must be at least 1, got %d", maxTurns)
 	}
 
-	var cfg *config.Config
 	var configPath string
-
-	if userspace {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("failed to get user home directory: %w", err)
-		}
-		configPath = filepath.Join(homeDir, ".infer", "config.yaml")
-		cfg, err = config.LoadConfig(configPath)
-		if err != nil {
-			return fmt.Errorf("failed to load userspace config: %w", err)
-		}
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
 	} else {
-		cfg, err = config.LoadConfig("")
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-		configPath = ""
+		configPath = config.DefaultConfigPath
+	}
+
+	cfg, err := config.Load(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to load config: %w", err)
 	}
 
 	cfg.Agent.MaxTurns = maxTurns
 
-	if err := cfg.SaveConfig(configPath); err != nil {
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	} else {
+		configPath = getConfigPath()
+	}
+	if err := cfg.Save(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	var scopeDesc string
-	if userspace {
-		scopeDesc = "userspace "
-	}
-
 	fmt.Printf("%s Maximum turns set to: %d\n", icons.CheckMarkStyle.Render(icons.CheckMark), maxTurns)
-	fmt.Printf("Configuration saved to %s%s\n", scopeDesc, func() string {
-		if configPath != "" {
-			return configPath
-		}
-		return ".infer/config.yaml"
-	}())
+	fmt.Printf("Configuration saved to %s\n", configPath)
 	fmt.Println("Agent sessions will now be limited to this number of conversation turns.")
 	return nil
 }
@@ -632,28 +587,17 @@ var configAgentVerboseToolsCmd = &cobra.Command{
 	Long:  "Control whether the agent command shows full tool details or just tool names in the output",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		userspace := getUserspaceFlag(cmd)
-
-		var cfg *config.Config
-		var err error
 		var configPath string
-
-		if userspace {
-			homeDir, err := os.UserHomeDir()
-			if err != nil {
-				return fmt.Errorf("failed to get user home directory: %w", err)
-			}
-			configPath = filepath.Join(homeDir, ".infer", "config.yaml")
-			cfg, err = config.LoadConfig(configPath)
-			if err != nil {
-				return fmt.Errorf("failed to load userspace config: %w", err)
-			}
+		if GetUserspaceFlag(cmd) {
+			homeDir, _ := os.UserHomeDir()
+			configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
 		} else {
-			cfg, err = config.LoadConfig("")
-			if err != nil {
-				return fmt.Errorf("failed to load config: %w", err)
-			}
-			configPath = ""
+			configPath = config.DefaultConfigPath
+		}
+
+		cfg, err := config.Load(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
 		}
 
 		var statusMsg string
@@ -668,22 +612,18 @@ var configAgentVerboseToolsCmd = &cobra.Command{
 			return fmt.Errorf("invalid argument: %s. Use 'enable' or 'disable'", args[0])
 		}
 
-		if err := cfg.SaveConfig(configPath); err != nil {
+		if GetUserspaceFlag(cmd) {
+			homeDir, _ := os.UserHomeDir()
+			configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+		} else {
+			configPath = getConfigPath()
+		}
+		if err := cfg.Save(); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
 
-		var scopeDesc string
-		if userspace {
-			scopeDesc = "userspace "
-		}
-
 		fmt.Printf("%s %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), statusMsg)
-		fmt.Printf("Configuration saved to %s%s\n", scopeDesc, func() string {
-			if configPath != "" {
-				return configPath
-			}
-			return ".infer/config.yaml"
-		}())
+		fmt.Printf("Configuration saved to %s\n", configPath)
 
 		return nil
 	},
@@ -748,7 +688,6 @@ func init() {
 	configToolsWebFetchCacheCmd.AddCommand(configToolsWebFetchCacheClearCmd)
 
 	configInitCmd.Flags().Bool("overwrite", false, "Overwrite existing configuration file")
-	configInitCmd.Flags().Bool("userspace", false, "Initialize configuration in user home directory (~/.infer/)")
 	configToolsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	configToolsExecCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	configToolsWebFetchListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
@@ -757,11 +696,6 @@ func init() {
 	configAgentCmd.AddCommand(configAgentSetSystemCmd)
 	configAgentCmd.AddCommand(configAgentSetMaxTurnsCmd)
 	configAgentCmd.AddCommand(configAgentVerboseToolsCmd)
-
-	configAgentSetModelCmd.Flags().Bool("userspace", false, "Set configuration in user home directory (~/.infer/)")
-	configAgentSetSystemCmd.Flags().Bool("userspace", false, "Set configuration in user home directory (~/.infer/)")
-	configAgentSetMaxTurnsCmd.Flags().Bool("userspace", false, "Set configuration in user home directory (~/.infer/)")
-	configAgentVerboseToolsCmd.Flags().Bool("userspace", false, "Set configuration in user home directory (~/.infer/)")
 
 	// Add global --userspace flag to the main config command
 	configCmd.PersistentFlags().Bool("userspace", false, "Apply to userspace configuration (~/.infer/) instead of project configuration")
@@ -798,7 +732,15 @@ func disableTools(cmd *cobra.Command, args []string) error {
 }
 
 func listTools(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	var configPath string
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	} else {
+		configPath = config.DefaultConfigPath
+	}
+
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -912,7 +854,15 @@ func listTools(cmd *cobra.Command, args []string) error {
 }
 
 func validateTool(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	var configPath string
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	} else {
+		configPath = config.DefaultConfigPath
+	}
+
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -942,7 +892,15 @@ func validateTool(cmd *cobra.Command, args []string) error {
 }
 
 func execTool(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	var configPath string
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	} else {
+		configPath = config.DefaultConfigPath
+	}
+
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -1017,7 +975,15 @@ func disableSafety(cmd *cobra.Command, args []string) error {
 }
 
 func safetyStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	var configPath string
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	} else {
+		configPath = config.DefaultConfigPath
+	}
+
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -1156,14 +1122,14 @@ func unsetToolApproval(cmd *cobra.Command, args []string) error {
 
 func loadAndUpdateConfig(updateFn func(*config.Config)) (*config.Config, error) {
 	configPath := getConfigPath()
-	cfg, err := config.LoadConfig("")
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
 	}
 
 	updateFn(cfg)
 
-	err = cfg.SaveConfig(configPath)
+	err = cfg.Save()
 	if err != nil {
 		return nil, fmt.Errorf("failed to save config: %w", err)
 	}
@@ -1172,7 +1138,7 @@ func loadAndUpdateConfig(updateFn func(*config.Config)) (*config.Config, error) 
 }
 
 func getConfigPath() string {
-	configPath := ".infer/config.yaml"
+	configPath := config.DefaultConfigPath
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		configPath = ".infer.yaml"
 	}
@@ -1180,7 +1146,15 @@ func getConfigPath() string {
 }
 
 func listSandboxDirectories(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	var configPath string
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	} else {
+		configPath = config.DefaultConfigPath
+	}
+
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -1273,7 +1247,15 @@ func disableFetch(cmd *cobra.Command, args []string) error {
 }
 
 func listFetchDomains(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	var configPath string
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	} else {
+		configPath = config.DefaultConfigPath
+	}
+
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -1388,7 +1370,15 @@ func removeFetchDomain(cmd *cobra.Command, args []string) error {
 }
 
 func fetchCacheStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	var configPath string
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	} else {
+		configPath = config.DefaultConfigPath
+	}
+
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -1536,7 +1526,15 @@ func setGrepBackend(cmd *cobra.Command, args []string) error {
 }
 
 func grepStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	var configPath string
+	if GetUserspaceFlag(cmd) {
+		homeDir, _ := os.UserHomeDir()
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+	} else {
+		configPath = config.DefaultConfigPath
+	}
+
+	cfg, err := config.Load(configPath)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -1620,7 +1618,8 @@ func disableGithubTool(cmd *cobra.Command, args []string) error {
 }
 
 func githubStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	path := config.GetConfigPath(GetUserspaceFlag(cmd))
+	cfg, err := config.Load(path)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}

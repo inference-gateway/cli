@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/container"
-	"github.com/inference-gateway/cli/internal/logger"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	container "github.com/inference-gateway/cli/internal/container"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	cobra "github.com/spf13/cobra"
 )
 
 var statusCmd = &cobra.Command{
@@ -23,12 +23,13 @@ var statusCmd = &cobra.Command{
 		logger.Debug("Starting status command")
 		fmt.Println("Checking inference gateway status...")
 
-		configPath, _ := cmd.Flags().GetString("config")
+		_, _ = cmd.Flags().GetString("config")
 		format, _ := cmd.Flags().GetString("format")
 
+		configPath := config.GetConfigPath(false)
 		logger.Debug("Status command flags", "config_path", configPath, "format", format)
 
-		cfg, err := config.LoadConfig(configPath)
+		cfg, err := config.Load(configPath)
 		if err != nil {
 			logger.Error("Failed to load config in status command", "error", err)
 			return fmt.Errorf("failed to load config: %w", err)

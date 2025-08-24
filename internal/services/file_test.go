@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/inference-gateway/cli/config"
 )
 
 func TestFileServiceImpl_ListProjectFiles(t *testing.T) {
@@ -20,7 +22,7 @@ func TestFileServiceImpl_ListProjectFiles(t *testing.T) {
 		{".git/config", "[core]", false},
 		{".github/workflows/ci.yml", "name: CI", false},
 		{".infer/chat_export.md", "## Summary\nTest export", false},
-		{".infer/config.yaml", "gateway:", false},
+		{config.DefaultConfigPath, "gateway:", false},
 		{".infer/debug.log", "debug info", false},
 		{"src/file.go", "package src", false},
 		{"node_modules/package/index.js", "module.exports = {}", false},
@@ -87,7 +89,7 @@ func TestFileServiceImpl_ListProjectFiles(t *testing.T) {
 		".gitignore",                    // Hidden files are excluded
 		".git/config",                   // .git directory is excluded
 		".github/workflows/ci.yml",      // .github directory is excluded
-		".infer/config.yaml",            // Only .md files from .infer are included
+		config.DefaultConfigPath,        // Only .md files from .infer are included
 		".infer/debug.log",              // Only .md files from .infer are included
 		"node_modules/package/index.js", // node_modules is excluded
 		"large_file.txt",                // Files over 100KB are excluded
@@ -296,7 +298,7 @@ func TestFileServiceImpl_InferDirectoryHandling(t *testing.T) {
 
 	expectedFound := []string{".infer/chat_export.md"}
 	expectedNotFound := []string{
-		".infer/config.yaml",
+		config.DefaultConfigPath,
 		".infer/debug.log",
 		".infer/history",
 	}
