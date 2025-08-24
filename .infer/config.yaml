@@ -111,7 +111,6 @@ tools:
 compact:
   output_dir: .infer
   summary_model: ""
-chat: {}
 agent:
   model: ""
   system_prompt: |
