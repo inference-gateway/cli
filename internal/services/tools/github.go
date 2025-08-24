@@ -77,7 +77,10 @@ func (t *GithubTool) Definition() domain.ToolDefinition {
 					"description": repoDescription,
 				},
 				"issue_number": map[string]any{
-					"type":        []string{"integer", "string"},
+					"oneOf": []map[string]any{
+						{"type": "integer"},
+						{"type": "string"},
+					},
 					"description": "Issue or pull request number (can be provided as integer or string)",
 				},
 				"resource": map[string]any{

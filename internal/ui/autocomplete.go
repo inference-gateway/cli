@@ -7,7 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // CommandOption represents a command option for autocomplete
@@ -326,7 +326,7 @@ func (a *AutocompleteImpl) Render() string {
 		prefix := "  "
 
 		if i == a.selected {
-			prefix = fmt.Sprintf("%s▶ %s", a.theme.GetAccentColor(), shared.Reset())
+			prefix = fmt.Sprintf("%s▶ %s", a.theme.GetAccentColor(), colors.Reset)
 		}
 
 		line := fmt.Sprintf("%s %-12s %s%s%s",
@@ -334,7 +334,7 @@ func (a *AutocompleteImpl) Render() string {
 			cmd.Command,
 			a.theme.GetDimColor(),
 			cmd.Description,
-			shared.Reset())
+			colors.Reset)
 
 		b.WriteString(line)
 		if i < end-1 {
@@ -345,7 +345,7 @@ func (a *AutocompleteImpl) Render() string {
 	helpColor := a.theme.GetDimColor()
 	if len(a.filtered) > 0 {
 		b.WriteString(fmt.Sprintf("\n\n%s  Tab to select, ↑↓ to navigate%s\n",
-			helpColor, shared.Reset()))
+			helpColor, colors.Reset))
 	}
 
 	return b.String()

@@ -9,6 +9,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/components"
 )
 
 // MultiEditTool handles multiple exact string replacements in a single file atomically
@@ -458,13 +459,19 @@ func (t *MultiEditTool) isLineNumberPrefix(line string) bool {
 // extractContentAfterLineNumber extracts content after line number prefix if present
 func (t *MultiEditTool) extractContentAfterLineNumber(line string) (string, bool) {
 	tabIndex := strings.Index(line, "\t")
-	if tabIndex <= 0 {
-		return "", false
+	if tabIndex > 0 {
+		prefix := line[:tabIndex]
+		if t.isValidLineNumberPrefix(prefix) {
+			return line[tabIndex+1:], true
+		}
 	}
 
-	prefix := line[:tabIndex]
-	if t.isValidLineNumberPrefix(prefix) {
-		return line[tabIndex+1:], true
+	arrowIndex := strings.Index(line, "→")
+	if arrowIndex > 0 {
+		prefix := line[:arrowIndex]
+		if t.isValidLineNumberPrefix(prefix) {
+			return line[arrowIndex+len("→"):], true
+		}
 	}
 
 	return "", false
@@ -666,12 +673,22 @@ func (t *MultiEditTool) FormatForUI(result *domain.ToolExecutionResult) string {
 		return "Tool execution result unavailable"
 	}
 
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	filePath, _ := result.Arguments["file_path"].(string)
+	editsInterface := result.Arguments["edits"]
+
+	var toolCallDisplay string
+	if editsArray, ok := editsInterface.([]any); ok && len(editsArray) > 0 {
+		fileName := t.formatter.GetFileName(filePath)
+		toolCallDisplay = fmt.Sprintf("MultiEdit(file=%s, %d edits)", fileName, len(editsArray))
+	} else {
+		toolCallDisplay = t.formatter.FormatToolCall(result.Arguments, false)
+	}
+
 	statusIcon := t.formatter.FormatStatusIcon(result.Success)
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("%s\n", toolCallDisplay))
 	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
 
 	return output.String()
@@ -687,13 +704,29 @@ func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	if result.Data != nil {
+	// For successful executions, show actual diff based on execution results
+	if result.Success && result.Arguments != nil && result.Data != nil {
+		output.WriteString("\n")
+		diffRenderer := components.NewDiffRenderer(nil)
+		diffInfo := t.getActualDiffInfo(result)
+		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
+		output.WriteString("\n")
+	} else if !result.Success && result.Arguments != nil {
+		// For failed executions, show the simulated diff to help debug
+		output.WriteString("\n")
+		diffRenderer := components.NewDiffRenderer(nil)
+		diffInfo := t.GetDiffInfo(result.Arguments)
+		diffInfo.Title = "← Simulated diff preview →"
+		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
+		output.WriteString("\n")
+	} else if result.Data != nil {
+		// Fallback to execution data if no arguments available
 		dataContent := t.formatMultiEditData(result.Data)
 		hasMetadata := len(result.Metadata) > 0
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
-	hasDataSection := result.Data != nil
+	hasDataSection := result.Success && result.Data != nil
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
 	return output.String()
@@ -753,71 +786,60 @@ func (t *MultiEditTool) ShouldAlwaysExpand() bool {
 	return false
 }
 
-// FormatArgumentsForApproval formats arguments for approval display with diff preview
-func (t *MultiEditTool) FormatArgumentsForApproval(args map[string]any) string {
-	var b strings.Builder
+// getActualDiffInfo creates a clean summary view for successful executions
+func (t *MultiEditTool) getActualDiffInfo(result *domain.ToolExecutionResult) *components.DiffInfo {
+	filePath, _ := result.Arguments["file_path"].(string)
 
+	multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
+	if !ok {
+		return &components.DiffInfo{
+			FilePath:   filePath,
+			OldContent: "",
+			NewContent: "Multi-edit completed successfully",
+			Title:      "Multi-Edit Applied",
+		}
+	}
+
+	var summary strings.Builder
+
+	summary.WriteString(fmt.Sprintf("Successfully applied %d edits", multiEditResult.SuccessfulEdits))
+	if multiEditResult.BytesDifference != 0 {
+		if multiEditResult.BytesDifference > 0 {
+			summary.WriteString(fmt.Sprintf(" (+%d bytes)", multiEditResult.BytesDifference))
+		} else {
+			summary.WriteString(fmt.Sprintf(" (%d bytes)", multiEditResult.BytesDifference))
+		}
+	}
+
+	return &components.DiffInfo{
+		FilePath:   filePath,
+		OldContent: "",
+		NewContent: strings.TrimSpace(summary.String()),
+		Title:      "Multi-Edit Applied",
+	}
+}
+
+// GetDiffInfo implements the DiffFormatter interface
+func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 	filePath, _ := args["file_path"].(string)
 	editsInterface := args["edits"]
 
-	b.WriteString("Arguments:\n")
-	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
-
 	editsArray, ok := editsInterface.([]any)
 	if !ok {
-		b.WriteString("  • edits: [invalid format]\n")
-		return b.String()
+		return &components.DiffInfo{
+			FilePath:   filePath,
+			OldContent: "",
+			NewContent: "Invalid edits format",
+			Title:      "← Simulated diff preview →",
+		}
 	}
 
-	b.WriteString(fmt.Sprintf("  • edits: %d operations\n", len(editsArray)))
-	b.WriteString("\n")
-
-	b.WriteString("Edit Operations:\n")
-	for i, editInterface := range editsArray {
-		editMap, ok := editInterface.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		oldString, _ := editMap["old_string"].(string)
-		newString, _ := editMap["new_string"].(string)
-		replaceAll, _ := editMap["replace_all"].(bool)
-
-		b.WriteString(fmt.Sprintf("  %d. ", i+1))
-		if replaceAll {
-			b.WriteString("[replace_all] ")
-		}
-
-		oldPreview := strings.ReplaceAll(oldString, "\n", "\\n")
-		newPreview := strings.ReplaceAll(newString, "\n", "\\n")
-		if len(oldPreview) > 50 {
-			oldPreview = oldPreview[:47] + "..."
-		}
-		if len(newPreview) > 50 {
-			newPreview = newPreview[:47] + "..."
-		}
-
-		b.WriteString(fmt.Sprintf("\033[31m\"%s\"\033[0m → \033[32m\"%s\"\033[0m\n",
-			oldPreview, newPreview))
-	}
-
-	b.WriteString("\n← Simulated diff preview →\n")
-
-	simulatedDiff := t.simulateMultiEditDiff(filePath, editsArray)
-	b.WriteString(simulatedDiff)
-
-	return b.String()
-}
-
-// simulateMultiEditDiff simulates the multi-edit operation and generates a diff
-func (t *MultiEditTool) simulateMultiEditDiff(filePath string, editsArray []any) string {
 	originalContent := ""
 	if content, err := os.ReadFile(filePath); err == nil {
 		originalContent = string(content)
 	}
 
 	currentContent := originalContent
-
 	for _, editInterface := range editsArray {
 		editMap, ok := editInterface.(map[string]any)
 		if !ok {
@@ -832,99 +854,42 @@ func (t *MultiEditTool) simulateMultiEditDiff(filePath string, editsArray []any)
 			continue
 		}
 
-		if !strings.Contains(currentContent, oldString) {
-			return "⚠️  Edit simulation failed: old_string not found after previous edits\n"
+		cleanedOldString := t.cleanString(oldString)
+		if !strings.Contains(currentContent, cleanedOldString) {
+			return &components.DiffInfo{
+				FilePath:   filePath,
+				OldContent: originalContent,
+				NewContent: "⚠️  Edit simulation failed: old_string not found after previous edits",
+				Title:      "← Simulated diff preview →",
+			}
 		}
 
 		if replaceAll {
-			currentContent = strings.ReplaceAll(currentContent, oldString, newString)
+			currentContent = strings.ReplaceAll(currentContent, cleanedOldString, newString)
 		} else {
-			count := strings.Count(currentContent, oldString)
+			count := strings.Count(currentContent, cleanedOldString)
 			if count > 1 {
-				return fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)\n", count)
+				return &components.DiffInfo{
+					FilePath:   filePath,
+					OldContent: originalContent,
+					NewContent: fmt.Sprintf("⚠️  Edit simulation failed: old_string not unique (%d occurrences)", count),
+					Title:      "← Simulated diff preview →",
+				}
 			}
-			currentContent = strings.Replace(currentContent, oldString, newString, 1)
+			currentContent = strings.Replace(currentContent, cleanedOldString, newString, 1)
 		}
 	}
 
-	if originalContent == currentContent {
-		return "No changes to display.\n"
+	return &components.DiffInfo{
+		FilePath:   filePath,
+		OldContent: originalContent,
+		NewContent: currentContent,
+		Title:      "← Simulated diff preview →",
 	}
-
-	return t.generateColoredDiff(originalContent, currentContent)
 }
 
-// generateColoredDiff creates a colored diff view for approval
-func (t *MultiEditTool) generateColoredDiff(oldContent, newContent string) string {
-	if oldContent == newContent {
-		return "No changes to display.\n"
-	}
-
-	oldLines := strings.Split(oldContent, "\n")
-	newLines := strings.Split(newContent, "\n")
-
-	var diff strings.Builder
-	maxLines := len(oldLines)
-	if len(newLines) > maxLines {
-		maxLines = len(newLines)
-	}
-
-	firstChanged := -1
-	lastChanged := -1
-	for i := 0; i < maxLines; i++ {
-		oldLine := ""
-		newLine := ""
-		if i < len(oldLines) {
-			oldLine = oldLines[i]
-		}
-		if i < len(newLines) {
-			newLine = newLines[i]
-		}
-
-		if oldLine != newLine {
-			if firstChanged == -1 {
-				firstChanged = i
-			}
-			lastChanged = i
-		}
-	}
-
-	if firstChanged == -1 {
-		return "No changes to display.\n"
-	}
-
-	contextBefore := 3
-	contextAfter := 3
-	startLine := firstChanged - contextBefore
-	if startLine < 0 {
-		startLine = 0
-	}
-	endLine := lastChanged + contextAfter
-	if endLine >= maxLines {
-		endLine = maxLines - 1
-	}
-
-	for i := startLine; i <= endLine; i++ {
-		lineNum := i + 1
-		oldExists := i < len(oldLines)
-		newExists := i < len(newLines)
-
-		switch {
-		case oldExists && newExists:
-			oldLine := oldLines[i]
-			newLine := newLines[i]
-			if oldLine != newLine {
-				diff.WriteString(fmt.Sprintf("\033[31m-%3d %s\033[0m\n", lineNum, oldLine))
-				diff.WriteString(fmt.Sprintf("\033[32m+%3d %s\033[0m\n", lineNum, newLine))
-			} else {
-				diff.WriteString(fmt.Sprintf(" %3d %s\n", lineNum, oldLine))
-			}
-		case oldExists:
-			diff.WriteString(fmt.Sprintf("\033[31m-%3d %s\033[0m\n", lineNum, oldLines[i]))
-		case newExists:
-			diff.WriteString(fmt.Sprintf("\033[32m+%3d %s\033[0m\n", lineNum, newLines[i]))
-		}
-	}
-
-	return diff.String()
+// FormatArgumentsForApproval formats arguments for approval display with diff preview
+func (t *MultiEditTool) FormatArgumentsForApproval(args map[string]any) string {
+	diffRenderer := components.NewToolDiffRenderer()
+	return diffRenderer.RenderMultiEditToolArguments(args)
 }

@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // BaseFormatter provides common formatting functionality that tools can embed
@@ -60,17 +63,17 @@ func (f BaseFormatter) FormatToolCall(args map[string]any, expanded bool) string
 // FormatStatus returns a formatted status with icon
 func (f BaseFormatter) FormatStatus(success bool) string {
 	if success {
-		return "✅ Success"
+		return colors.CreateColoredTextSimple(icons.CheckMark+" Success", colors.Green)
 	}
-	return "❌ Failed"
+	return colors.CreateColoredTextSimple(icons.CrossMark+" Failed", colors.Red)
 }
 
 // FormatStatusIcon returns just the status icon
 func (f BaseFormatter) FormatStatusIcon(success bool) string {
 	if success {
-		return "✅"
+		return icons.CheckMark
 	}
-	return "❌"
+	return icons.CrossMark
 }
 
 // FormatDuration formats a duration for display
@@ -88,7 +91,7 @@ func (f BaseFormatter) FormatExpandedHeader(result *ToolExecutionResult) string 
 	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", f.FormatStatus(result.Success)))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("├─ ❌ Error: %s\n", result.Error))
+		output.WriteString(fmt.Sprintf("├─ ✗ Error: %s\n", result.Error))
 	}
 
 	if len(result.Arguments) > 0 {
@@ -100,11 +103,15 @@ func (f BaseFormatter) FormatExpandedHeader(result *ToolExecutionResult) string 
 		sort.Strings(keys)
 
 		for i, key := range keys {
+			value := result.Arguments[key]
+			if f.ShouldCollapseArg(key) {
+				value = f.collapseArgValue(value, 50)
+			}
 			hasMore := i < len(keys)-1 || result.Data != nil || len(result.Metadata) > 0
 			if hasMore {
-				output.WriteString(fmt.Sprintf("│  ├─ %s: %v\n", key, result.Arguments[key]))
+				output.WriteString(fmt.Sprintf("│  ├─ %s: %v\n", key, value))
 			} else {
-				output.WriteString(fmt.Sprintf("│  └─ %s: %v\n", key, result.Arguments[key]))
+				output.WriteString(fmt.Sprintf("│  └─ %s: %v\n", key, value))
 			}
 		}
 	}
@@ -221,7 +228,7 @@ func (f CustomFormatter) FormatExpandedHeader(result *ToolExecutionResult) strin
 	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", f.FormatStatus(result.Success)))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("├─ ❌ Error: %s\n", result.Error))
+		output.WriteString(fmt.Sprintf("├─ ✗ Error: %s\n", result.Error))
 	}
 
 	if len(result.Arguments) > 0 {
@@ -234,6 +241,9 @@ func (f CustomFormatter) FormatExpandedHeader(result *ToolExecutionResult) strin
 
 		for i, key := range keys {
 			value := result.Arguments[key]
+			if f.ShouldCollapseArg(key) {
+				value = "..."
+			}
 			isLast := i == len(keys)-1
 			prefix := "│ ├─"
 			if isLast {

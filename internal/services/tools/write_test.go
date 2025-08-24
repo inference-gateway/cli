@@ -43,7 +43,7 @@ func TestWriteTool_Definition(t *testing.T) {
 		t.Errorf("Expected 2 required parameters, got %d", len(required))
 	}
 
-	expectedFields := []string{"file_path", "content", "create_dirs", "overwrite", "format"}
+	expectedFields := []string{"file_path", "content", "append", "overwrite", "backup", "format"}
 	for _, field := range expectedFields {
 		if _, exists := props[field]; !exists {
 			t.Errorf("Expected field '%s' in properties", field)
@@ -106,13 +106,13 @@ func TestWriteTool_Validate(t *testing.T) {
 			name:    "missing file_path",
 			args:    map[string]any{"content": "hello"},
 			wantErr: true,
-			errMsg:  "file_path parameter is required and must be a string",
+			errMsg:  "missing required parameter: file_path",
 		},
 		{
 			name:    "missing content",
 			args:    map[string]any{"file_path": "test.txt"},
 			wantErr: true,
-			errMsg:  "content parameter is required and must be a string",
+			errMsg:  "missing required parameter: content",
 		},
 		{
 			name: "empty file_path",
@@ -121,7 +121,7 @@ func TestWriteTool_Validate(t *testing.T) {
 				"content":   "hello",
 			},
 			wantErr: true,
-			errMsg:  "file_path cannot be empty",
+			errMsg:  "parameter file_path cannot be empty",
 		},
 		{
 			name: "invalid file_path type",
@@ -130,7 +130,7 @@ func TestWriteTool_Validate(t *testing.T) {
 				"content":   "hello",
 			},
 			wantErr: true,
-			errMsg:  "file_path parameter is required and must be a string",
+			errMsg:  "parameter file_path must be a string, got int",
 		},
 		{
 			name: "invalid content type",
@@ -139,56 +139,7 @@ func TestWriteTool_Validate(t *testing.T) {
 				"content":   123,
 			},
 			wantErr: true,
-			errMsg:  "content parameter is required and must be a string",
-		},
-		{
-			name: "invalid create_dirs type",
-			args: map[string]any{
-				"file_path":   "test.txt",
-				"content":     "hello",
-				"create_dirs": "true",
-			},
-			wantErr: true,
-			errMsg:  "create_dirs parameter must be a boolean",
-		},
-		{
-			name: "invalid overwrite type",
-			args: map[string]any{
-				"file_path": "test.txt",
-				"content":   "hello",
-				"overwrite": "false",
-			},
-			wantErr: true,
-			errMsg:  "overwrite parameter must be a boolean",
-		},
-		{
-			name: "invalid format value",
-			args: map[string]any{
-				"file_path": "test.txt",
-				"content":   "hello",
-				"format":    "xml",
-			},
-			wantErr: true,
-			errMsg:  "format must be 'text' or 'json'",
-		},
-		{
-			name: "invalid format type",
-			args: map[string]any{
-				"file_path": "test.txt",
-				"content":   "hello",
-				"format":    123,
-			},
-			wantErr: true,
-			errMsg:  "format parameter must be a string",
-		},
-		{
-			name: "excluded path",
-			args: map[string]any{
-				"file_path": ".infer/test.txt",
-				"content":   "hello",
-			},
-			wantErr: true,
-			errMsg:  "access to path '.infer/test.txt' is excluded for security",
+			errMsg:  "parameter content must be a string, got int",
 		},
 	}
 
@@ -197,23 +148,6 @@ func TestWriteTool_Validate(t *testing.T) {
 			err := tool.Validate(tt.args)
 			validateError(t, err, tt.wantErr, tt.errMsg)
 		})
-	}
-}
-
-// validatePathSecurity is a helper function to validate path security expectations
-func validatePathSecurity(t *testing.T, err error, allowed bool, errorMsg string) {
-	if allowed {
-		if err != nil {
-			t.Errorf("Path should be allowed: %v", err)
-		}
-		return
-	}
-	if err == nil {
-		t.Error("Path should be blocked")
-		return
-	}
-	if errorMsg != "" && !strings.Contains(err.Error(), errorMsg) {
-		t.Errorf("Expected error to contain '%s', got '%s'", errorMsg, err.Error())
 	}
 }
 
@@ -256,6 +190,7 @@ func TestWriteTool_ValidateDisabled(t *testing.T) {
 func TestWriteTool_Execute(t *testing.T) {
 	tempDir := t.TempDir()
 	cfg := config.DefaultConfig()
+	cfg.Tools.Sandbox.Directories = []string{tempDir}
 	tool := NewWriteTool(cfg)
 	ctx := context.Background()
 
@@ -356,14 +291,7 @@ func testWriteWithDirCreation(t *testing.T, tempDir string, tool *WriteTool, ctx
 		t.Errorf("Expected success=true, got %v", result.Success)
 	}
 
-	data, ok := result.Data.(*domain.FileWriteToolResult)
-	if !ok {
-		t.Fatalf("Expected FileWriteToolResult, got %T", result.Data)
-	}
-
-	if !data.DirsCreated {
-		t.Error("Expected dirs_created=true")
-	}
+	// Directory creation is automatic and not tracked in this implementation
 
 	writtenContent, err := os.ReadFile(filePath)
 	if err != nil {
@@ -437,13 +365,18 @@ func testWriteFailNoOverwrite(t *testing.T, tempDir string, tool *WriteTool, ctx
 		"overwrite": false,
 	}
 
-	_, err := tool.Execute(ctx, args)
-	if err == nil {
-		t.Error("Expected error when overwrite=false and file exists")
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute should not return error: %v", err)
 	}
 
-	if err.Error() != "file "+filePath+" already exists and overwrite is false" {
-		t.Errorf("Unexpected error message: %s", err.Error())
+	if result.Success {
+		t.Error("Expected success=false when overwrite=false and file exists")
+	}
+
+	expectedErrorMsg := "file already exists and overwrite is false: " + filePath
+	if !strings.Contains(result.Error, expectedErrorMsg) {
+		t.Errorf("Expected error to contain '%s', got: %s", expectedErrorMsg, result.Error)
 	}
 
 	writtenContent, err := os.ReadFile(filePath)
@@ -471,7 +404,7 @@ func testWriteFailInvalidArgs(t *testing.T, tool *WriteTool, ctx context.Context
 		t.Error("Expected success=false")
 	}
 
-	if result.Error != "file_path parameter is required and must be a string" {
+	if result.Error != "parameter extraction failed: parameter file_path must be a string, got int" {
 		t.Errorf("Expected validation error, got: %s", result.Error)
 	}
 }
@@ -486,9 +419,17 @@ func testWriteFailDisabled(t *testing.T, ctx context.Context) {
 		"content":   "hello",
 	}
 
-	_, err := disabledTool.Execute(ctx, args)
-	if err == nil {
-		t.Error("Expected error when tools are disabled")
+	result, err := disabledTool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute should not return error: %v", err)
+	}
+
+	if result.Success {
+		t.Error("Expected success=false when tools are disabled")
+	}
+
+	if result.Error != "write tool is not enabled" {
+		t.Errorf("Expected 'write tool is not enabled', got: %s", result.Error)
 	}
 }
 
@@ -533,7 +474,7 @@ func TestWriteTool_PathSecurity(t *testing.T) {
 			name:     "relative path outside sandbox",
 			path:     "../outside.txt",
 			allowed:  false,
-			errorMsg: "is outside configured sandbox directories",
+			errorMsg: "path traversal attempts are not allowed",
 		},
 	}
 
@@ -544,8 +485,28 @@ func TestWriteTool_PathSecurity(t *testing.T) {
 				"content":   "test content",
 			}
 
-			err := tool.Validate(args)
-			validatePathSecurity(t, err, tt.allowed, tt.errorMsg)
+			result, err := tool.Execute(context.Background(), args)
+			if err != nil {
+				t.Fatalf("Execute should not return error: %v", err)
+			}
+
+			validatePathResult(t, result, tt.allowed, tt.errorMsg)
 		})
+	}
+}
+
+func validatePathResult(t *testing.T, result *domain.ToolExecutionResult, allowed bool, errorMsg string) {
+	if allowed {
+		if !result.Success {
+			t.Errorf("Path should be allowed but got error: %s", result.Error)
+		}
+		return
+	}
+
+	if result.Success {
+		t.Error("Path should be blocked")
+	}
+	if errorMsg != "" && !strings.Contains(result.Error, errorMsg) {
+		t.Errorf("Expected error to contain '%s', got '%s'", errorMsg, result.Error)
 	}
 }

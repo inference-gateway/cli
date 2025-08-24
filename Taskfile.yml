@@ -191,3 +191,41 @@ tasks:
     desc: Clean generated mock files
     cmds:
       - rm -rf internal/mocks/
+
+  test:ui:snapshots:
+    desc: Generate UI component snapshots for regression testing
+    deps:
+      - build
+    cmds:
+      - mkdir -p test/snapshots/ui
+      - ./{{.BINARY_NAME}} test-view approval --snapshot > test/snapshots/ui/approval.snapshot
+      - ./{{.BINARY_NAME}} test-view diff --snapshot > test/snapshots/ui/diff.snapshot
+      - ./{{.BINARY_NAME}} test-view multiedit --snapshot > test/snapshots/ui/multiedit.snapshot
+      - ./{{.BINARY_NAME}} test-view large-file --snapshot > test/snapshots/ui/large-file.snapshot
+      - echo "UI snapshots generated in test/snapshots/ui/"
+
+  test:ui:verify:
+    desc: Verify UI component snapshots match current output
+    deps:
+      - build
+    cmds:
+      - mkdir -p test/snapshots/ui/current
+      - ./{{.BINARY_NAME}} test-view approval --snapshot > test/snapshots/ui/current/approval.snapshot
+      - ./{{.BINARY_NAME}} test-view diff --snapshot > test/snapshots/ui/current/diff.snapshot
+      - ./{{.BINARY_NAME}} test-view multiedit --snapshot > test/snapshots/ui/current/multiedit.snapshot
+      - ./{{.BINARY_NAME}} test-view large-file --snapshot > test/snapshots/ui/current/large-file.snapshot
+      - sh -c 'if ! diff -r test/snapshots/ui test/snapshots/ui/current --exclude=current; then echo "❌ UI snapshot verification failed - components have changed"; echo "Run \"task test:ui:snapshots\" to update snapshots or check the differences above"; exit 1; else echo "✅ UI snapshots verified - all components match"; fi'
+      - rm -rf test/snapshots/ui/current
+
+  test:ui:interactive:
+    desc: Run interactive UI component testing
+    deps:
+      - build
+    cmds:
+      - echo "🎨 Testing UI Components Interactively"
+      - echo "Available components approval, diff, multiedit, large-file"
+      - echo "Example usage"
+      - echo "  ./{{.BINARY_NAME}} test-view approval --width 120 --height 40"
+      - echo "  ./{{.BINARY_NAME}} test-view diff --old Hello --new Hi"
+      - echo "  ./{{.BINARY_NAME}} test-view multiedit"
+      - echo "  ./{{.BINARY_NAME}} test-view large-file"

@@ -11,6 +11,7 @@ import (
 	"github.com/inference-gateway/cli/internal/ui/history"
 	"github.com/inference-gateway/cli/internal/ui/keys"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // InputView handles user input with history and autocomplete
@@ -120,7 +121,7 @@ func (iv *InputView) renderDisplayText() string {
 
 func (iv *InputView) renderPlaceholder() string {
 	return lipgloss.NewStyle().
-		Foreground(shared.DimColor.GetLipglossColor()).
+		Foreground(colors.DimColor.GetLipglossColor()).
 		Render(iv.placeholder)
 }
 
@@ -161,40 +162,40 @@ func (iv *InputView) buildTextWithCursor(before, after string) string {
 
 func (iv *InputView) createCursorChar(char string) string {
 	return lipgloss.NewStyle().
-		Background(shared.AssistantColor.GetLipglossColor()).
+		Background(colors.AssistantColor.GetLipglossColor()).
 		Foreground(lipgloss.Color("#1a1b26")).
 		Render(char)
 }
 
 func (iv *InputView) getBorderColor(isBashMode bool, isToolsMode bool) string {
 	if isBashMode {
-		return shared.StatusColor.Lipgloss
+		return colors.StatusColor.Lipgloss
 	}
 	if isToolsMode {
-		return shared.AccentColor.Lipgloss
+		return colors.AccentColor.Lipgloss
 	}
-	return shared.DimColor.Lipgloss
+	return colors.DimColor.Lipgloss
 }
 
 func (iv *InputView) addModeIndicator(components []string, isBashMode bool, isToolsMode bool) []string {
 	if iv.height >= 2 {
 		if iv.isTextSelectionMode {
 			textSelectionIndicator := lipgloss.NewStyle().
-				Foreground(shared.AccentColor.GetLipglossColor()).
+				Foreground(colors.AccentColor.GetLipglossColor()).
 				Bold(true).
 				Width(iv.width).
 				Render("TEXT SELECTION MODE - Use vim keys to navigate and select text (Escape to exit)")
 			components = append(components, textSelectionIndicator)
 		} else if isBashMode {
 			bashIndicator := lipgloss.NewStyle().
-				Foreground(shared.StatusColor.GetLipglossColor()).
+				Foreground(colors.StatusColor.GetLipglossColor()).
 				Bold(true).
 				Width(iv.width).
 				Render("BASH MODE - Command will be executed directly")
 			components = append(components, bashIndicator)
 		} else if isToolsMode {
 			toolsIndicator := lipgloss.NewStyle().
-				Foreground(shared.AccentColor.GetLipglossColor()).
+				Foreground(colors.AccentColor.GetLipglossColor()).
 				Bold(true).
 				Width(iv.width).
 				Render("TOOLS MODE - !!ToolName(arg=\"value\") - Tab for autocomplete")
@@ -218,7 +219,7 @@ func (iv *InputView) addModelDisplay(components []string, isBashMode bool, isToo
 		currentModel := iv.modelService.GetCurrentModel()
 		if currentModel != "" && iv.height >= 2 && !isBashMode && !isToolsMode {
 			modelStyle := lipgloss.NewStyle().
-				Foreground(shared.DimColor.GetLipglossColor()).
+				Foreground(colors.DimColor.GetLipglossColor()).
 				Width(iv.width)
 			modelDisplay := modelStyle.Render(fmt.Sprintf("  Model: %s", currentModel))
 			components = append(components, modelDisplay)

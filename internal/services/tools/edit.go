@@ -9,6 +9,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/ui/components"
 )
 
 // EditTool handles exact string replacements in files with strict safety rules
@@ -16,7 +17,7 @@ type EditTool struct {
 	config    *config.Config
 	enabled   bool
 	registry  ReadToolTracker
-	formatter domain.BaseFormatter
+	formatter domain.CustomFormatter
 }
 
 // ReadToolTracker interface for tracking read tool usage
@@ -27,19 +28,23 @@ type ReadToolTracker interface {
 // NewEditTool creates a new edit tool
 func NewEditTool(cfg *config.Config) *EditTool {
 	return &EditTool{
-		config:    cfg,
-		enabled:   cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: domain.NewBaseFormatter("Edit"),
+		config:  cfg,
+		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		formatter: domain.NewCustomFormatter("Edit", func(key string) bool {
+			return key == "old_string" || key == "new_string"
+		}),
 	}
 }
 
 // NewEditToolWithRegistry creates a new edit tool with a registry for read tracking
 func NewEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *EditTool {
 	return &EditTool{
-		config:    cfg,
-		enabled:   cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		registry:  registry,
-		formatter: domain.NewBaseFormatter("Edit"),
+		config:   cfg,
+		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		registry: registry,
+		formatter: domain.NewCustomFormatter("Edit", func(key string) bool {
+			return key == "old_string" || key == "new_string"
+		}),
 	}
 }
 
@@ -315,13 +320,19 @@ func (t *EditTool) isLineNumberPrefix(line string) bool {
 // extractContentAfterLineNumber extracts content after line number prefix if present
 func (t *EditTool) extractContentAfterLineNumber(line string) (string, bool) {
 	tabIndex := strings.Index(line, "\t")
-	if tabIndex <= 0 {
-		return "", false
+	if tabIndex > 0 {
+		prefix := line[:tabIndex]
+		if t.isValidLineNumberPrefix(prefix) {
+			return line[tabIndex+1:], true
+		}
 	}
 
-	prefix := line[:tabIndex]
-	if t.isValidLineNumberPrefix(prefix) {
-		return line[tabIndex+1:], true
+	arrowIndex := strings.Index(line, "→")
+	if arrowIndex > 0 {
+		prefix := line[:arrowIndex]
+		if t.isValidLineNumberPrefix(prefix) {
+			return line[arrowIndex+len("→"):], true
+		}
 	}
 
 	return "", false
@@ -576,13 +587,26 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	if result.Data != nil {
+	// Show the content with glamour diff formatting in expanded view
+	showGitDiff := result.Success && result.Arguments != nil
+	if showGitDiff {
+		output.WriteString("\n")
+		diffRenderer := components.NewDiffRenderer(nil)
+		diffInfo := t.GetDiffInfo(result.Arguments)
+		// Update title for past tense (edits already applied)
+		diffInfo.Title = "← Edits applied →"
+		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
+		output.WriteString("\n")
+	}
+
+	// Only show data section if not showing git diff to avoid duplication
+	if !showGitDiff && result.Data != nil {
 		dataContent := t.formatEditData(result.Data)
 		hasMetadata := len(result.Metadata) > 0
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
-	hasDataSection := result.Data != nil
+	hasDataSection := !showGitDiff && result.Data != nil
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
 	return output.String()
@@ -590,8 +614,7 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *EditTool) ShouldCollapseArg(key string) bool {
-	// Collapse old_string and new_string arguments as they can be very long
-	return key == "old_string" || key == "new_string"
+	return t.formatter.ShouldCollapseArg(key)
 }
 
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
@@ -622,97 +645,23 @@ func (t *EditTool) formatEditData(data any) string {
 	return output.String()
 }
 
-// FormatArgumentsForApproval formats arguments for approval display with diff preview
-func (t *EditTool) FormatArgumentsForApproval(args map[string]any) string {
-	var b strings.Builder
-
-	filePath, _ := args["file_path"].(string)
+// GetDiffInfo implements the DiffFormatter interface
+func (t *EditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 	oldString, _ := args["old_string"].(string)
 	newString, _ := args["new_string"].(string)
-	replaceAll, _ := args["replace_all"].(bool)
+	filePath, _ := args["file_path"].(string)
 
-	b.WriteString("Arguments:\n")
-	b.WriteString(fmt.Sprintf("  • file_path: %s\n", filePath))
-	b.WriteString(fmt.Sprintf("  • replace_all: %v\n", replaceAll))
-	b.WriteString("\n")
-
-	b.WriteString("← Test edit for diff verification →\n")
-	b.WriteString(t.generateColoredDiff(oldString, newString))
-
-	return b.String()
+	return &components.DiffInfo{
+		FilePath:   filePath,
+		OldContent: oldString,
+		NewContent: newString,
+		Title:      "← Test edit for diff verification →",
+	}
 }
 
-// generateColoredDiff creates a colored diff view for approval
-func (t *EditTool) generateColoredDiff(oldContent, newContent string) string {
-	if oldContent == newContent {
-		return "No changes to display.\n"
-	}
-
-	oldLines := strings.Split(oldContent, "\n")
-	newLines := strings.Split(newContent, "\n")
-
-	var diff strings.Builder
-	maxLines := len(oldLines)
-	if len(newLines) > maxLines {
-		maxLines = len(newLines)
-	}
-
-	firstChanged := -1
-	lastChanged := -1
-	for i := 0; i < maxLines; i++ {
-		oldLine := ""
-		newLine := ""
-		if i < len(oldLines) {
-			oldLine = oldLines[i]
-		}
-		if i < len(newLines) {
-			newLine = newLines[i]
-		}
-
-		if oldLine != newLine {
-			if firstChanged == -1 {
-				firstChanged = i
-			}
-			lastChanged = i
-		}
-	}
-
-	if firstChanged == -1 {
-		return "No changes to display.\n"
-	}
-
-	contextBefore := 3
-	contextAfter := 3
-	startLine := firstChanged - contextBefore
-	if startLine < 0 {
-		startLine = 0
-	}
-	endLine := lastChanged + contextAfter
-	if endLine >= maxLines {
-		endLine = maxLines - 1
-	}
-
-	for i := startLine; i <= endLine; i++ {
-		lineNum := i + 1
-		oldExists := i < len(oldLines)
-		newExists := i < len(newLines)
-
-		switch {
-		case oldExists && newExists:
-			oldLine := oldLines[i]
-			newLine := newLines[i]
-			if oldLine != newLine {
-				diff.WriteString(fmt.Sprintf("\033[31m-%3d %s\033[0m\n", lineNum, oldLine))
-				diff.WriteString(fmt.Sprintf("\033[32m+%3d %s\033[0m\n", lineNum, newLine))
-			} else {
-				diff.WriteString(fmt.Sprintf(" %3d %s\n", lineNum, oldLine))
-			}
-		case oldExists:
-			diff.WriteString(fmt.Sprintf("\033[31m-%3d %s\033[0m\n", lineNum, oldLines[i]))
-		case newExists:
-			diff.WriteString(fmt.Sprintf("\033[32m+%3d %s\033[0m\n", lineNum, newLines[i]))
-		}
-	}
-
-	return diff.String()
+// FormatArgumentsForApproval formats arguments for approval display with diff preview
+func (t *EditTool) FormatArgumentsForApproval(args map[string]any) string {
+	// Use colored diff renderer
+	diffRenderer := components.NewToolDiffRenderer()
+	return diffRenderer.RenderEditToolArguments(args)
 }

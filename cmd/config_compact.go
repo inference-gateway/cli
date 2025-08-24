@@ -5,6 +5,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/ui"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 	"github.com/spf13/cobra"
 )
 
@@ -61,9 +62,9 @@ func setCompactModel(modelName string) error {
 	}
 
 	if modelName == "" {
-		fmt.Println("✅ Compact will use the current chat model for summaries")
+		fmt.Printf("%s Compact will use the current chat model for summaries\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 	} else {
-		fmt.Printf("✅ Set compact summary model to %s\n", ui.FormatSuccess(modelName))
+		fmt.Printf("%s Set compact summary model to %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), ui.FormatSuccess(modelName))
 	}
 
 	return nil

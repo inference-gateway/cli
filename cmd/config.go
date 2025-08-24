@@ -14,6 +14,7 @@ import (
 	"github.com/inference-gateway/cli/internal/container"
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/ui"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 	"github.com/spf13/cobra"
 )
 
@@ -440,7 +441,7 @@ func setDefaultModel(modelName string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("✅ Default model set to: %s\n", modelName)
+	fmt.Printf("%s Default model set to: %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), modelName)
 	fmt.Println("The agent command will now use this model by default.")
 	return nil
 }
@@ -457,7 +458,7 @@ func setSystemPrompt(systemPrompt string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("✅ System prompt set successfully\n")
+	fmt.Printf("%s System prompt set successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 	fmt.Printf("System prompt: %s\n", systemPrompt)
 	fmt.Println("This prompt will be included with every agent session.")
 	return nil
@@ -484,7 +485,7 @@ func setMaxTurns(maxTurnsStr string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("✅ Maximum turns set to: %d\n", maxTurns)
+	fmt.Printf("%s Maximum turns set to: %d\n", icons.CheckMarkStyle.Render(icons.CheckMark), maxTurns)
 	fmt.Println("Agent sessions will now be limited to this number of conversation turns.")
 	return nil
 }
@@ -509,10 +510,10 @@ var configAgentVerboseToolsCmd = &cobra.Command{
 		switch args[0] {
 		case "enable":
 			cfg.Agent.VerboseTools = true
-			fmt.Println("✅ Verbose tools output enabled for agent command")
+			fmt.Printf("%s Verbose tools output enabled for agent command\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 		case "disable":
 			cfg.Agent.VerboseTools = false
-			fmt.Println("✅ Verbose tools output disabled for agent command (will show tool names only)")
+			fmt.Printf("%s Verbose tools output disabled for agent command (will show tool names only)\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 		default:
 			return fmt.Errorf("invalid argument: %s. Use 'enable' or 'disable'", args[0])
 		}
@@ -1478,11 +1479,11 @@ func githubStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  • Token: ")
 	resolvedToken := config.ResolveEnvironmentVariables(cfg.Tools.Github.Token)
 	if resolvedToken != "" && resolvedToken != "%GITHUB_TOKEN%" {
-		fmt.Printf("✅ configured\n")
+		fmt.Printf("%s configured\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 	} else if cfg.Tools.Github.Token == "%GITHUB_TOKEN%" {
-		fmt.Printf("❌ environment variable GITHUB_TOKEN not set\n")
+		fmt.Printf("%s environment variable GITHUB_TOKEN not set\n", icons.CrossMarkStyle.Render(icons.CrossMark))
 	} else {
-		fmt.Printf("❌ not configured\n")
+		fmt.Printf("%s not configured\n", icons.CrossMarkStyle.Render(icons.CrossMark))
 	}
 
 	fmt.Printf("\nSafety Settings:\n")

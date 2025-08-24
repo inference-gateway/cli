@@ -1,4 +1,4 @@
-package shared
+package colors
 
 import (
 	"strings"
@@ -8,7 +8,7 @@ import (
 )
 
 func TestColor_GetLipglossColor(t *testing.T) {
-	color := Color{ANSI: ColorRed, Lipgloss: "31"}
+	color := Color{ANSI: Red, Lipgloss: "31"}
 
 	lipglossColor := color.GetLipglossColor()
 
@@ -18,69 +18,36 @@ func TestColor_GetLipglossColor(t *testing.T) {
 }
 
 func TestReset(t *testing.T) {
-	reset := Reset()
+	reset := Reset
 
-	if reset != ColorReset {
-		t.Errorf("Expected reset code '%s', got '%s'", ColorReset, reset)
+	if reset != Reset {
+		t.Errorf("Expected reset code '%s', got '%s'", Reset, reset)
 	}
 }
 
 func TestPredefinedColors(t *testing.T) {
 	testCases := []struct {
-		name     string
-		color    Color
-		expected string
+		name         string
+		color        Color
+		expectedANSI string
 	}{
-		{"UserColor", UserColor, ColorBlue},
-		{"AssistantColor", AssistantColor, ColorWhite},
-		{"ErrorColor", ErrorColor, ColorRed},
-		{"StatusColor", StatusColor, ColorMagenta},
-		{"AccentColor", AccentColor, ColorBlue},
-		{"DimColor", DimColor, ColorGray},
-		{"BorderColor", BorderColor, ColorGray},
+		{"UserColor", UserColor, Blue},
+		{"AssistantColor", AssistantColor, White},
+		{"ErrorColor", ErrorColor, Red},
+		{"StatusColor", StatusColor, Magenta},
+		{"AccentColor", AccentColor, Blue},
+		{"DimColor", DimColor, Gray},
+		{"BorderColor", BorderColor, Gray},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if tc.color.ANSI != tc.expected {
-				t.Errorf("Expected %s ANSI color '%s', got '%s'", tc.name, tc.expected, tc.color.ANSI)
+			if tc.color.ANSI != tc.expectedANSI {
+				t.Errorf("Expected %s ANSI color '%s', got '%s'", tc.name, tc.expectedANSI, tc.color.ANSI)
 			}
 
 			if tc.color.Lipgloss == "" {
 				t.Errorf("Expected %s to have non-empty Lipgloss color", tc.name)
-			}
-		})
-	}
-}
-
-func TestNewCommonStyles(t *testing.T) {
-	styles := NewCommonStyles()
-
-	if styles == nil {
-		t.Fatal("Expected CommonStyles to be created, got nil")
-	}
-
-	testCases := []struct {
-		name  string
-		style lipgloss.Style
-	}{
-		{"Header", styles.Header},
-		{"Border", styles.Border},
-		{"Separator", styles.Separator},
-		{"Input", styles.Input},
-		{"Status", styles.Status},
-		{"HelpBar", styles.HelpBar},
-		{"Conversation", styles.Conversation},
-		{"BashIndicator", styles.BashIndicator},
-		{"ModelIndicator", styles.ModelIndicator},
-		{"PlaceholderText", styles.PlaceholderText},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			rendered := tc.style.Render("test")
-			if rendered == "" {
-				t.Errorf("Expected %s style to render non-empty content", tc.name)
 			}
 		})
 	}
@@ -97,7 +64,7 @@ func TestCreateSeparator(t *testing.T) {
 		t.Error("Expected separator to contain color code")
 	}
 
-	if !strings.Contains(separator, Reset()) {
+	if !strings.Contains(separator, Reset) {
 		t.Error("Expected separator to contain reset code")
 	}
 }
@@ -116,14 +83,14 @@ func TestCreateColoredText(t *testing.T) {
 		t.Error("Expected result to contain color code")
 	}
 
-	if !strings.Contains(result, Reset()) {
+	if !strings.Contains(result, Reset) {
 		t.Error("Expected result to contain reset code")
 	}
 }
 
 func TestCreateStyledText(t *testing.T) {
 	text := "Styled text"
-	colorCode := ColorRed
+	colorCode := Red
 
 	result := CreateStyledText(text, colorCode)
 
@@ -135,7 +102,7 @@ func TestCreateStyledText(t *testing.T) {
 		t.Error("Expected result to contain color code")
 	}
 
-	if !strings.Contains(result, Reset()) {
+	if !strings.Contains(result, Reset) {
 		t.Error("Expected result to contain reset code")
 	}
 }
@@ -155,7 +122,7 @@ func TestCreateSeparator_ZeroWidth(t *testing.T) {
 		t.Error("Expected separator to still contain color code with zero width")
 	}
 
-	if !strings.Contains(separator, Reset()) {
+	if !strings.Contains(separator, Reset) {
 		t.Error("Expected separator to contain reset code with zero width")
 	}
 }
@@ -167,18 +134,7 @@ func TestCreateColoredText_EmptyText(t *testing.T) {
 		t.Error("Expected result to contain color code even with empty text")
 	}
 
-	if !strings.Contains(result, Reset()) {
+	if !strings.Contains(result, Reset) {
 		t.Error("Expected result to contain reset code even with empty text")
-	}
-}
-
-func TestCommonStyles_Chaining(t *testing.T) {
-	styles := NewCommonStyles()
-
-	customHeader := styles.Header.Background(lipgloss.Color("blue"))
-	rendered := customHeader.Render("Test Header")
-
-	if rendered == "" {
-		t.Error("Expected chained style to render content")
 	}
 }

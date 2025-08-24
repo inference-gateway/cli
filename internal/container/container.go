@@ -7,8 +7,10 @@ import (
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/commands"
 	"github.com/inference-gateway/cli/internal/domain"
+	filewriterdomain "github.com/inference-gateway/cli/internal/domain/filewriter"
 	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/services"
+	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 	"github.com/inference-gateway/cli/internal/services/tools"
 	"github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
@@ -39,6 +41,13 @@ type ServiceContainer struct {
 
 	// Tool registry
 	toolRegistry *tools.Registry
+
+	// File writing services
+	pathValidator  filewriterdomain.PathValidator
+	backupManager  filewriterdomain.BackupManager
+	fileWriter     filewriterdomain.FileWriter
+	chunkManager   filewriterdomain.ChunkManager
+	paramExtractor *tools.ParameterExtractor
 }
 
 // NewServiceContainer creates a new service container with all dependencies
@@ -47,12 +56,22 @@ func NewServiceContainer(cfg *config.Config) *ServiceContainer {
 		config: cfg,
 	}
 
+	container.initializeFileWriterServices()
 	container.initializeDomainServices()
 	container.initializeServices()
 	container.initializeUIComponents()
 	container.initializeExtensibility()
 
 	return container
+}
+
+// initializeFileWriterServices creates the new file writer architecture services
+func (c *ServiceContainer) initializeFileWriterServices() {
+	c.pathValidator = filewriterservice.NewPathValidator(c.config)
+	c.backupManager = filewriterservice.NewBackupManager(".")
+	c.fileWriter = filewriterservice.NewSafeFileWriter(c.pathValidator, c.backupManager)
+	c.chunkManager = filewriterservice.NewStreamingChunkManager("./.infer/tmp", c.fileWriter)
+	c.paramExtractor = tools.NewParameterExtractor()
 }
 
 // initializeDomainServices creates and wires domain service implementations
@@ -227,4 +246,25 @@ func (c *ServiceContainer) createSDKClient() sdk.Client {
 // RegisterCommand allows external registration of commands
 func (c *ServiceContainer) RegisterCommand(cmd commands.Command) {
 	c.commandRegistry.Register(cmd)
+}
+
+// File writer service getters
+func (c *ServiceContainer) GetPathValidator() filewriterdomain.PathValidator {
+	return c.pathValidator
+}
+
+func (c *ServiceContainer) GetBackupManager() filewriterdomain.BackupManager {
+	return c.backupManager
+}
+
+func (c *ServiceContainer) GetFileWriter() filewriterdomain.FileWriter {
+	return c.fileWriter
+}
+
+func (c *ServiceContainer) GetChunkManager() filewriterdomain.ChunkManager {
+	return c.chunkManager
+}
+
+func (c *ServiceContainer) GetParameterExtractor() *tools.ParameterExtractor {
+	return c.paramExtractor
 }

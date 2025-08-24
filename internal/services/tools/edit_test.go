@@ -702,3 +702,36 @@ func TestEditTool_Execute_DisabledTool(t *testing.T) {
 		t.Errorf("Expected error '%s', got '%s'", expectedError, err.Error())
 	}
 }
+
+func TestEditTool_ShouldCollapseArg(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Edit: config.EditToolConfig{
+				Enabled: true,
+			},
+		},
+	}
+
+	tool := NewEditTool(cfg)
+
+	tests := []struct {
+		arg      string
+		expected bool
+	}{
+		{"old_string", true},
+		{"new_string", true},
+		{"file_path", false},
+		{"replace_all", false},
+		{"other_param", false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.arg, func(t *testing.T) {
+			result := tool.ShouldCollapseArg(tt.arg)
+			if result != tt.expected {
+				t.Errorf("ShouldCollapseArg(%s) = %v, expected %v", tt.arg, result, tt.expected)
+			}
+		})
+	}
+}

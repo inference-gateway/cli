@@ -611,10 +611,12 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 		}
 	}
 
-	if model, cmd := app.approvalView.(tea.Model).Update(msg); cmd != nil {
-		cmds = append(cmds, cmd)
-		if approvalModel, ok := model.(ui.ApprovalComponent); ok {
-			app.approvalView = approvalModel
+	if app.hasPendingApproval() {
+		if model, cmd := app.approvalView.(tea.Model).Update(msg); cmd != nil {
+			cmds = append(cmds, cmd)
+			if approvalModel, ok := model.(ui.ApprovalComponent); ok {
+				app.approvalView = approvalModel
+			}
 		}
 	}
 

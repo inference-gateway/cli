@@ -8,6 +8,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // StatusView handles status messages, errors, and loading spinners
@@ -41,7 +43,7 @@ type StatusState struct {
 func NewStatusView() *StatusView {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(shared.SpinnerColor.GetLipglossColor())
+	s.Style = lipgloss.NewStyle().Foreground(colors.SpinnerColor.GetLipglossColor())
 	return &StatusView{
 		message:   "",
 		isError:   false,
@@ -211,7 +213,7 @@ func (sv *StatusView) Render() string {
 		}
 	}
 
-	return fmt.Sprintf("%s%s %s%s", color, prefix, displayMessage, shared.Reset())
+	return fmt.Sprintf("%s%s %s%s", color, prefix, displayMessage, colors.Reset)
 }
 
 // getStatusIcon returns the appropriate icon for the current status type
@@ -264,7 +266,7 @@ func (sv *StatusView) createProgressBar() string {
 }
 
 func (sv *StatusView) formatErrorStatus() (string, string, string) {
-	return "❌", shared.ErrorColor.ANSI, sv.message
+	return icons.CrossMarkStyle.Render(icons.CrossMark), colors.ErrorColor.ANSI, sv.message
 }
 
 func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
@@ -280,12 +282,12 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 	baseMsg := sv.formatStatusWithType(sv.baseMessage)
 	displayMessage := fmt.Sprintf("%s (%ds) - Press ESC to interrupt", baseMsg, seconds)
 
-	return prefix, shared.StatusColor.ANSI, displayMessage
+	return prefix, colors.StatusColor.ANSI, displayMessage
 }
 
 func (sv *StatusView) formatNormalStatus() (string, string, string) {
 	prefix := sv.getStatusIcon()
-	color := shared.StatusColor.ANSI
+	color := colors.StatusColor.ANSI
 	displayMessage := sv.formatStatusWithType(sv.message)
 
 	if sv.tokenUsage != "" {

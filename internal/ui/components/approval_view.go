@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 	"github.com/muesli/reflow/wordwrap"
 )
 
@@ -22,12 +24,13 @@ func min(a, b int) int {
 
 // ApprovalComponent handles rendering of tool approval requests
 type ApprovalComponent struct {
-	width         int
-	height        int
-	theme         shared.Theme
-	toolFormatter domain.ToolFormatter
-	styles        *approvalStyles
-	scrollOffset  int
+	width           int
+	height          int
+	theme           shared.Theme
+	toolFormatter   domain.ToolFormatter
+	styles          *approvalStyles
+	scrollOffset    int
+	maxScrollOffset int
 }
 
 type approvalStyles struct {
@@ -48,38 +51,39 @@ type approvalStyles struct {
 func NewApprovalComponent(theme shared.Theme) *ApprovalComponent {
 	styles := &approvalStyles{
 		title: lipgloss.NewStyle().
-			Foreground(shared.HeaderColor.GetLipglossColor()).
+			Foreground(colors.HeaderColor.GetLipglossColor()).
 			Bold(true),
 		border: lipgloss.NewStyle().
-			Foreground(shared.BorderColor.GetLipglossColor()),
+			Foreground(colors.BorderColor.GetLipglossColor()),
 		toolName: lipgloss.NewStyle().
-			Foreground(shared.AccentColor.GetLipglossColor()).
+			Foreground(colors.AccentColor.GetLipglossColor()).
 			Bold(true),
 		argumentKey: lipgloss.NewStyle().
-			Foreground(shared.AccentColor.GetLipglossColor()).
+			Foreground(colors.AccentColor.GetLipglossColor()).
 			Bold(true),
 		argumentValue: lipgloss.NewStyle().
-			Foreground(shared.AssistantColor.GetLipglossColor()),
+			Foreground(colors.AssistantColor.GetLipglossColor()),
 		warning: lipgloss.NewStyle().
-			Foreground(shared.WarningColor.GetLipglossColor()).
+			Foreground(colors.WarningColor.GetLipglossColor()).
 			Bold(true),
 		prompt: lipgloss.NewStyle().
-			Foreground(shared.AssistantColor.GetLipglossColor()).
+			Foreground(colors.AssistantColor.GetLipglossColor()).
 			Bold(true),
 		selectedOption: lipgloss.NewStyle().
-			Foreground(shared.SuccessColor.GetLipglossColor()).
+			Foreground(colors.AccentColor.GetLipglossColor()).
 			Bold(true).
-			Background(lipgloss.Color("#1f2335")).
-			Padding(0, 1),
+			Border(lipgloss.NormalBorder(), false, false, false, true).
+			BorderForeground(colors.AccentColor.GetLipglossColor()).
+			PaddingLeft(1),
 		unselectedOption: lipgloss.NewStyle().
-			Foreground(shared.DimColor.GetLipglossColor()).
-			Padding(0, 1),
+			Foreground(colors.DimColor.GetLipglossColor()).
+			PaddingLeft(2),
 		helpText: lipgloss.NewStyle().
-			Foreground(shared.DimColor.GetLipglossColor()).
+			Foreground(colors.DimColor.GetLipglossColor()).
 			Italic(true),
 		container: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(shared.BorderColor.GetLipglossColor()).
+			BorderForeground(colors.BorderColor.GetLipglossColor()).
 			Padding(0, 1),
 	}
 
@@ -136,12 +140,14 @@ func (a *ApprovalComponent) handleScrollRequest(msg shared.ScrollRequestMsg) (te
 		}
 	case shared.ScrollDown:
 		for i := 0; i < msg.Amount; i++ {
-			a.scrollOffset++
+			if a.scrollOffset < a.maxScrollOffset {
+				a.scrollOffset++
+			}
 		}
 	case shared.ScrollToTop:
 		a.scrollOffset = 0
 	case shared.ScrollToBottom:
-		a.scrollOffset = 1000
+		a.scrollOffset = a.maxScrollOffset
 	}
 	return a, nil
 }
@@ -170,7 +176,7 @@ func (a *ApprovalComponent) renderHeader(currentTool *domain.ToolCall) string {
 
 	titleText := a.styles.title.Render("🔧 Tool Approval Required")
 	content.WriteString(titleText)
-	content.WriteString("\n")
+	content.WriteString("\n\n")
 
 	toolSection := fmt.Sprintf("%s %s",
 		a.styles.prompt.Render("Tool:"),
@@ -209,7 +215,7 @@ func (a *ApprovalComponent) renderDefaultArguments(arguments map[string]interfac
 	argBoxWidth := max(a.width-14, 30)
 	argsBox := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(shared.BorderColor.GetLipglossColor()).
+		BorderForeground(colors.BorderColor.GetLipglossColor()).
 		Padding(0, 1).
 		Width(argBoxWidth)
 
@@ -219,7 +225,6 @@ func (a *ApprovalComponent) renderDefaultArguments(arguments map[string]interfac
 		keyStr := a.styles.argumentKey.Render(key + ":")
 
 		valueStr := fmt.Sprintf("%v", value)
-		// Don't truncate content in the approval view - let scrolling handle large content
 		valueRendered := a.styles.argumentValue.Render(valueStr)
 
 		argsContent.WriteString(fmt.Sprintf("%s %s", keyStr, valueRendered))
@@ -239,11 +244,16 @@ func (a *ApprovalComponent) renderFooter(selectedIndex int) string {
 	warningTextOnly := "This tool will execute on your system. Please review carefully."
 	textWidth := max(a.width-12, 40)
 	wrappedText := wordwrap.String(warningTextOnly, textWidth)
-	for line := range strings.SplitSeq(wrappedText, "\n") {
-		warningMsg := a.styles.warning.Render(line)
-		content.WriteString(warningMsg)
-		content.WriteString("\n")
-	}
+
+	warningBox := lipgloss.NewStyle().
+		Border(lipgloss.NormalBorder()).
+		BorderForeground(colors.WarningColor.GetLipglossColor()).
+		Padding(0, 1).
+		Foreground(colors.WarningColor.GetLipglossColor()).
+		Bold(true)
+
+	content.WriteString(warningBox.Render(wrappedText))
+	content.WriteString("\n\n")
 
 	promptMsg := a.styles.prompt.Render("Select an action:")
 	content.WriteString(promptMsg)
@@ -253,35 +263,33 @@ func (a *ApprovalComponent) renderFooter(selectedIndex int) string {
 		icon string
 		text string
 	}{
-		{"✅", "Approve and execute"},
-		{"❌", "Deny and cancel"},
+		{icons.CheckMarkStyle.Render(icons.CheckMark), "Approve and execute"},
+		{icons.CrossMarkStyle.Render(icons.CrossMark), "Deny and cancel"},
 	}
 
 	for i, opt := range options {
 		optionText := fmt.Sprintf("%s %s", opt.icon, opt.text)
 		if i == selectedIndex {
-			content.WriteString("  ")
-			content.WriteString(a.styles.selectedOption.Render("▶ " + optionText))
+			indicator := colors.AccentColor.ANSI + "▶" + colors.Reset
+			content.WriteString(" " + indicator + " " + a.styles.selectedOption.Render(optionText))
 		} else {
-			content.WriteString("  ")
-			content.WriteString(a.styles.unselectedOption.Render("  " + optionText))
+			content.WriteString("   " + a.styles.unselectedOption.Render(optionText))
 		}
 		if i < len(options)-1 {
 			content.WriteString("\n")
 		}
 	}
 
-	content.WriteString("\n")
+	content.WriteString("\n\n")
 
-	helpMsg := a.styles.helpText.Render("↑↓ Navigate  •  SHIFT+↑↓ Scroll  •  SPACE Select  •  ESC Cancel")
-	content.WriteString(helpMsg)
+	content.WriteString(a.styles.helpText.Render("↑↓ Navigate  •  SHIFT+↑↓ Scroll  •  SPACE Select  •  ESC Cancel"))
 
 	return content.String()
 }
 
 // assembleContent combines header, tool content, and footer with height management
 func (a *ApprovalComponent) assembleContent(headerStr, toolStr, footerStr string) string {
-	containerWidth := max(a.width-6, 40)
+	contentWidth := max(a.width-8, 40)
 
 	headerLines := len(strings.Split(headerStr, "\n"))
 	footerLines := len(strings.Split(footerStr, "\n"))
@@ -291,67 +299,78 @@ func (a *ApprovalComponent) assembleContent(headerStr, toolStr, footerStr string
 	maxToolHeight := max(availableHeight-fixedLines, 10)
 
 	var finalContent strings.Builder
-	finalContent.WriteString(headerStr)
+	finalContent.WriteString(a.wrapContentToWidth(headerStr, contentWidth))
 
 	if toolStr != "" {
 		finalContent.WriteString("\n")
-		a.renderToolContentWithScrolling(&finalContent, toolStr, maxToolHeight)
+		a.renderToolContentWithScrolling(&finalContent, toolStr, maxToolHeight, contentWidth)
 	}
 
 	finalContent.WriteString("\n")
-	finalContent.WriteString(footerStr)
+	finalContent.WriteString(a.wrapContentToWidth(footerStr, contentWidth))
 
-	contentLines := strings.Split(finalContent.String(), "\n")
+	containerStyle := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(colors.BorderColor.GetLipglossColor()).
+		Padding(1, 2).
+		Width(contentWidth + 4).
+		MaxWidth(a.width)
+
+	return containerStyle.Render(finalContent.String())
+}
+
+// wrapContentToWidth wraps content lines to fit within specified width
+func (a *ApprovalComponent) wrapContentToWidth(content string, width int) string {
+	if content == "" {
+		return content
+	}
+
+	lines := strings.Split(content, "\n")
 	var wrappedContent strings.Builder
-	for i, line := range contentLines {
-		if len(line) > containerWidth-4 {
-			wrapped := wordwrap.String(line, containerWidth-4)
+
+	for i, line := range lines {
+		plainLine := lipgloss.NewStyle().Render(line)
+		if lipgloss.Width(plainLine) > width {
+			wrapped := wordwrap.String(line, width)
 			wrappedContent.WriteString(wrapped)
 		} else {
 			wrappedContent.WriteString(line)
 		}
-		if i < len(contentLines)-1 {
+
+		if i < len(lines)-1 {
 			wrappedContent.WriteString("\n")
 		}
 	}
 
-	return a.styles.container.
-		Width(containerWidth).
-		Render(wrappedContent.String())
+	return wrappedContent.String()
 }
 
 // renderToolContentWithScrolling renders the tool content with scrolling support
-func (a *ApprovalComponent) renderToolContentWithScrolling(finalContent *strings.Builder, toolStr string, maxToolHeight int) {
-	toolLines := strings.Split(toolStr, "\n")
+func (a *ApprovalComponent) renderToolContentWithScrolling(finalContent *strings.Builder, toolStr string, maxToolHeight int, contentWidth int) {
+	wrappedToolStr := a.wrapContentToWidth(toolStr, contentWidth)
+	toolLines := strings.Split(wrappedToolStr, "\n")
 	totalLines := len(toolLines)
 
 	if totalLines <= maxToolHeight {
-		finalContent.WriteString(toolStr)
+		a.maxScrollOffset = 0
+		finalContent.WriteString(wrappedToolStr)
 		return
+	}
+
+	a.maxScrollOffset = max(0, totalLines-maxToolHeight)
+
+	if a.scrollOffset > a.maxScrollOffset {
+		a.scrollOffset = a.maxScrollOffset
 	}
 
 	startLine := a.scrollOffset
-	endLine := min(startLine+maxToolHeight-1, totalLines)
-
-	if startLine >= totalLines {
-		startLine = max(0, totalLines-maxToolHeight+1)
-		a.scrollOffset = startLine
-	}
-
-	if endLine > totalLines {
-		endLine = totalLines
-	}
-
-	if startLine >= endLine {
-		finalContent.WriteString(a.styles.helpText.Render("... (content scrolled) ..."))
-		return
-	}
+	endLine := min(startLine+maxToolHeight, totalLines)
 
 	visibleLines := toolLines[startLine:endLine]
 	finalContent.WriteString(strings.Join(visibleLines, "\n"))
 	finalContent.WriteString("\n")
 
-	scrollInfo := fmt.Sprintf("... (line %d-%d of %d, shift+↑↓ to scroll) ...",
+	scrollInfo := fmt.Sprintf("... (display line %d-%d of %d, shift+↑↓ to scroll) ...",
 		startLine+1, endLine, totalLines)
 	finalContent.WriteString(a.styles.helpText.Render(scrollInfo))
 }

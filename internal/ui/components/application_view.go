@@ -6,6 +6,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // ApplicationViewRenderer handles rendering of different application views
@@ -65,7 +66,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	headerStyle := lipgloss.NewStyle().
 		Width(width).
 		Align(lipgloss.Center).
-		Foreground(shared.HeaderColor.GetLipglossColor()).
+		Foreground(colors.HeaderColor.GetLipglossColor()).
 		Bold(true).
 		Padding(0, 1)
 
@@ -79,7 +80,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		Width(width)
 
 	conversationArea := conversationStyle.Render(conversationView.Render())
-	separator := shared.CreateSeparator(width, "─")
+	separator := colors.CreateSeparator(width, "─")
 	inputArea := inputStyle.Render(inputView.Render())
 
 	components := []string{header, headerBorder, conversationArea, separator}
@@ -111,7 +112,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	helpBar.SetWidth(width)
 	helpBarContent := helpBar.Render()
 	if helpBarContent != "" {
-		separator := shared.CreateSeparator(width, "─")
+		separator := colors.CreateSeparator(width, "─")
 		components = append(components, separator)
 
 		helpBarStyle := lipgloss.NewStyle().
