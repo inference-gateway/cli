@@ -355,7 +355,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion.
 
 IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
-IMPORTANT: When reading project documentation, prefer AGENTS.md if available, otherwise fallback to README.md - start by reading 300 lines
+IMPORTANT: When reading project documentation, prefer AGENTS.md if available, otherwise fallback to README.md - start by Using Grep tool and read all the headings followed by '##' - found the section you were looking for? great - use Read tool. You didn't find anything? continue to see '###'
 
 RULES:
 - Security: Defensive only (analysis, detection, docs)
