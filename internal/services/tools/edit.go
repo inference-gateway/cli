@@ -316,13 +316,19 @@ func (t *EditTool) isLineNumberPrefix(line string) bool {
 // extractContentAfterLineNumber extracts content after line number prefix if present
 func (t *EditTool) extractContentAfterLineNumber(line string) (string, bool) {
 	tabIndex := strings.Index(line, "\t")
-	if tabIndex <= 0 {
-		return "", false
+	if tabIndex > 0 {
+		prefix := line[:tabIndex]
+		if t.isValidLineNumberPrefix(prefix) {
+			return line[tabIndex+1:], true
+		}
 	}
 
-	prefix := line[:tabIndex]
-	if t.isValidLineNumberPrefix(prefix) {
-		return line[tabIndex+1:], true
+	arrowIndex := strings.Index(line, "→")
+	if arrowIndex > 0 {
+		prefix := line[:arrowIndex]
+		if t.isValidLineNumberPrefix(prefix) {
+			return line[arrowIndex+len("→"):], true
+		}
 	}
 
 	return "", false

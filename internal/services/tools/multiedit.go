@@ -459,13 +459,19 @@ func (t *MultiEditTool) isLineNumberPrefix(line string) bool {
 // extractContentAfterLineNumber extracts content after line number prefix if present
 func (t *MultiEditTool) extractContentAfterLineNumber(line string) (string, bool) {
 	tabIndex := strings.Index(line, "\t")
-	if tabIndex <= 0 {
-		return "", false
+	if tabIndex > 0 {
+		prefix := line[:tabIndex]
+		if t.isValidLineNumberPrefix(prefix) {
+			return line[tabIndex+1:], true
+		}
 	}
 
-	prefix := line[:tabIndex]
-	if t.isValidLineNumberPrefix(prefix) {
-		return line[tabIndex+1:], true
+	arrowIndex := strings.Index(line, "→")
+	if arrowIndex > 0 {
+		prefix := line[:arrowIndex]
+		if t.isValidLineNumberPrefix(prefix) {
+			return line[arrowIndex+len("→"):], true
+		}
 	}
 
 	return "", false
@@ -698,23 +704,29 @@ func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	showGitDiff := result.Success && result.Arguments != nil
-	if showGitDiff {
+	// For successful executions, show actual diff based on execution results
+	if result.Success && result.Arguments != nil && result.Data != nil {
+		output.WriteString("\n")
+		diffRenderer := components.NewDiffRenderer(nil)
+		diffInfo := t.getActualDiffInfo(result)
+		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
+		output.WriteString("\n")
+	} else if !result.Success && result.Arguments != nil {
+		// For failed executions, show the simulated diff to help debug
 		output.WriteString("\n")
 		diffRenderer := components.NewDiffRenderer(nil)
 		diffInfo := t.GetDiffInfo(result.Arguments)
-		diffInfo.Title = "← Multi-edits applied →"
+		diffInfo.Title = "← Simulated diff preview →"
 		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
 		output.WriteString("\n")
-	}
-
-	if !showGitDiff && result.Data != nil {
+	} else if result.Data != nil {
+		// Fallback to execution data if no arguments available
 		dataContent := t.formatMultiEditData(result.Data)
 		hasMetadata := len(result.Metadata) > 0
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
-	hasDataSection := !showGitDiff && result.Data != nil
+	hasDataSection := result.Success && result.Data != nil
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
 	return output.String()
@@ -774,6 +786,39 @@ func (t *MultiEditTool) ShouldAlwaysExpand() bool {
 	return false
 }
 
+// getActualDiffInfo creates a clean summary view for successful executions
+func (t *MultiEditTool) getActualDiffInfo(result *domain.ToolExecutionResult) *components.DiffInfo {
+	filePath, _ := result.Arguments["file_path"].(string)
+
+	multiEditResult, ok := result.Data.(*domain.MultiEditToolResult)
+	if !ok {
+		return &components.DiffInfo{
+			FilePath:   filePath,
+			OldContent: "",
+			NewContent: "Multi-edit completed successfully",
+			Title:      "Multi-Edit Applied",
+		}
+	}
+
+	var summary strings.Builder
+
+	summary.WriteString(fmt.Sprintf("Successfully applied %d edits", multiEditResult.SuccessfulEdits))
+	if multiEditResult.BytesDifference != 0 {
+		if multiEditResult.BytesDifference > 0 {
+			summary.WriteString(fmt.Sprintf(" (+%d bytes)", multiEditResult.BytesDifference))
+		} else {
+			summary.WriteString(fmt.Sprintf(" (%d bytes)", multiEditResult.BytesDifference))
+		}
+	}
+
+	return &components.DiffInfo{
+		FilePath:   filePath,
+		OldContent: "",
+		NewContent: strings.TrimSpace(summary.String()),
+		Title:      "Multi-Edit Applied",
+	}
+}
+
 // GetDiffInfo implements the DiffFormatter interface
 func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 	filePath, _ := args["file_path"].(string)
@@ -809,7 +854,8 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 			continue
 		}
 
-		if !strings.Contains(currentContent, oldString) {
+		cleanedOldString := t.cleanString(oldString)
+		if !strings.Contains(currentContent, cleanedOldString) {
 			return &components.DiffInfo{
 				FilePath:   filePath,
 				OldContent: originalContent,
@@ -819,9 +865,9 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 		}
 
 		if replaceAll {
-			currentContent = strings.ReplaceAll(currentContent, oldString, newString)
+			currentContent = strings.ReplaceAll(currentContent, cleanedOldString, newString)
 		} else {
-			count := strings.Count(currentContent, oldString)
+			count := strings.Count(currentContent, cleanedOldString)
 			if count > 1 {
 				return &components.DiffInfo{
 					FilePath:   filePath,
@@ -830,7 +876,7 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 					Title:      "← Simulated diff preview →",
 				}
 			}
-			currentContent = strings.Replace(currentContent, oldString, newString, 1)
+			currentContent = strings.Replace(currentContent, cleanedOldString, newString, 1)
 		}
 	}
 
