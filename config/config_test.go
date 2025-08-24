@@ -102,7 +102,9 @@ func testChatDefaults(t *testing.T, cfg *Config) {
 	expectedSystemPrompt := `Autonomous software engineering agent. Execute tasks iteratively until completion.
 
 IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
-IMPORTANT: When reading project documentation, prefer AGENTS.md if available, otherwise fallback to README.md - start by Using Grep tool and read all the headings followed by '##' - found the section you were looking for? great - use Read tool. You didn't find anything? continue to see '###'
+IMPORTANT: You ALWAYS prefer to search for specific matches in a file rather than reading it all - prefer to use Grep tool over Read tool for efficiency.
+IMPORTANT: You ALWAYS prefer to see AGENTS.md before README.md files.
+IMPORTANT: When reading project documentation, prefer AGENTS.md if available, otherwise fallback to README.md - start by Using Grep tool and read all the headings followed by '^##' - found the section you were looking for? great - use Read tool. You didn't find anything? continue to see '^###'
 
 RULES:
 - Security: Defensive only (analysis, detection, docs)
