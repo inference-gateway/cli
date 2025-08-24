@@ -47,12 +47,12 @@ type ClientConfig struct {
 
 // RetryConfig contains retry logic settings
 type RetryConfig struct {
-	Enabled              bool  `yaml:"enabled"`
-	MaxAttempts          int   `yaml:"max_attempts"`
-	InitialBackoffSec    int   `yaml:"initial_backoff_sec"`
-	MaxBackoffSec        int   `yaml:"max_backoff_sec"`
-	BackoffMultiplier    int   `yaml:"backoff_multiplier"`
-	RetryableStatusCodes []int `yaml:"retryable_status_codes"`
+	Enabled              bool  `yaml:"enabled" mapstructure:"enabled"`
+	MaxAttempts          int   `yaml:"max_attempts" mapstructure:"max_attempts"`
+	InitialBackoffSec    int   `yaml:"initial_backoff_sec" mapstructure:"initial_backoff_sec"`
+	MaxBackoffSec        int   `yaml:"max_backoff_sec" mapstructure:"max_backoff_sec"`
+	BackoffMultiplier    int   `yaml:"backoff_multiplier" mapstructure:"backoff_multiplier"`
+	RetryableStatusCodes []int `yaml:"retryable_status_codes" mapstructure:"retryable_status_codes"`
 }
 
 // LoggingConfig contains logging settings
@@ -81,55 +81,55 @@ type ToolsConfig struct {
 
 // BashToolConfig contains bash-specific tool settings
 type BashToolConfig struct {
-	Enabled         bool                `yaml:"enabled"`
-	Whitelist       ToolWhitelistConfig `yaml:"whitelist"`
-	RequireApproval *bool               `yaml:"require_approval,omitempty"`
+	Enabled         bool                `yaml:"enabled" mapstructure:"enabled"`
+	Whitelist       ToolWhitelistConfig `yaml:"whitelist" mapstructure:"whitelist"`
+	RequireApproval *bool               `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // ReadToolConfig contains read-specific tool settings
 type ReadToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // WriteToolConfig contains write-specific tool settings
 type WriteToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // EditToolConfig contains edit-specific tool settings
 type EditToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // DeleteToolConfig contains delete-specific tool settings
 type DeleteToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // GrepToolConfig contains grep-specific tool settings
 type GrepToolConfig struct {
-	Enabled         bool   `yaml:"enabled"`
-	Backend         string `yaml:"backend"`
-	RequireApproval *bool  `yaml:"require_approval,omitempty"`
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Backend         string `yaml:"backend" mapstructure:"backend"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // TreeToolConfig contains tree-specific tool settings
 type TreeToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // WebFetchToolConfig contains fetch-specific tool settings
 type WebFetchToolConfig struct {
-	Enabled            bool              `yaml:"enabled"`
-	WhitelistedDomains []string          `yaml:"whitelisted_domains"`
-	Safety             FetchSafetyConfig `yaml:"safety"`
-	Cache              FetchCacheConfig  `yaml:"cache"`
-	RequireApproval    *bool             `yaml:"require_approval,omitempty"`
+	Enabled            bool              `yaml:"enabled" mapstructure:"enabled"`
+	WhitelistedDomains []string          `yaml:"whitelisted_domains" mapstructure:"whitelisted_domains"`
+	Safety             FetchSafetyConfig `yaml:"safety" mapstructure:"safety"`
+	Cache              FetchCacheConfig  `yaml:"cache" mapstructure:"cache"`
+	RequireApproval    *bool             `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // WebSearchToolConfig contains web search-specific tool settings
@@ -144,64 +144,64 @@ type WebSearchToolConfig struct {
 
 // TodoWriteToolConfig contains TodoWrite-specific tool settings
 type TodoWriteToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // GithubToolConfig contains GitHub fetch-specific tool settings
 type GithubToolConfig struct {
-	Enabled         bool               `yaml:"enabled"`
-	Token           string             `yaml:"token"`
-	BaseURL         string             `yaml:"base_url"`
-	Owner           string             `yaml:"owner"`
-	Repo            string             `yaml:"repo,omitempty"`
-	Safety          GithubSafetyConfig `yaml:"safety"`
-	RequireApproval *bool              `yaml:"require_approval,omitempty"`
+	Enabled         bool               `yaml:"enabled" mapstructure:"enabled"`
+	Token           string             `yaml:"token" mapstructure:"token"`
+	BaseURL         string             `yaml:"base_url" mapstructure:"base_url"`
+	Owner           string             `yaml:"owner" mapstructure:"owner"`
+	Repo            string             `yaml:"repo,omitempty" mapstructure:"repo,omitempty"`
+	Safety          GithubSafetyConfig `yaml:"safety" mapstructure:"safety"`
+	RequireApproval *bool              `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // GithubSafetyConfig contains safety settings for GitHub fetch operations
 type GithubSafetyConfig struct {
-	MaxSize int64 `yaml:"max_size"`
-	Timeout int   `yaml:"timeout"`
+	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
+	Timeout int   `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // ToolWhitelistConfig contains whitelisted commands and patterns
 type ToolWhitelistConfig struct {
-	Commands []string `yaml:"commands"`
-	Patterns []string `yaml:"patterns"`
+	Commands []string `yaml:"commands" mapstructure:"commands"`
+	Patterns []string `yaml:"patterns" mapstructure:"patterns"`
 }
 
 // SandboxConfig contains sandbox directory settings
 type SandboxConfig struct {
-	Directories    []string `yaml:"directories"`
-	ProtectedPaths []string `yaml:"protected_paths"`
+	Directories    []string `yaml:"directories" mapstructure:"directories"`
+	ProtectedPaths []string `yaml:"protected_paths" mapstructure:"protected_paths"`
 }
 
 // SafetyConfig contains safety approval settings
 type SafetyConfig struct {
-	RequireApproval bool `yaml:"require_approval"`
+	RequireApproval bool `yaml:"require_approval" mapstructure:"require_approval"`
 }
 
 // CompactConfig contains settings for compact command
 type CompactConfig struct {
-	OutputDir    string `yaml:"output_dir"`
-	SummaryModel string `yaml:"summary_model"`
+	OutputDir    string `yaml:"output_dir" mapstructure:"output_dir"`
+	SummaryModel string `yaml:"summary_model" mapstructure:"summary_model"`
 }
 
 // OptimizationConfig contains token optimization settings
 type OptimizationConfig struct {
-	Enabled                    bool `yaml:"enabled"`
-	MaxHistory                 int  `yaml:"max_history"`
-	CompactThreshold           int  `yaml:"compact_threshold"`
-	TruncateLargeOutputs       bool `yaml:"truncate_large_outputs"`
-	SkipRedundantConfirmations bool `yaml:"skip_redundant_confirmations"`
+	Enabled                    bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxHistory                 int  `yaml:"max_history" mapstructure:"max_history"`
+	CompactThreshold           int  `yaml:"compact_threshold" mapstructure:"compact_threshold"`
+	TruncateLargeOutputs       bool `yaml:"truncate_large_outputs" mapstructure:"truncate_large_outputs"`
+	SkipRedundantConfirmations bool `yaml:"skip_redundant_confirmations" mapstructure:"skip_redundant_confirmations"`
 }
 
 // SystemRemindersConfig contains settings for dynamic system reminders
 type SystemRemindersConfig struct {
-	Enabled      bool   `yaml:"enabled"`
-	Interval     int    `yaml:"interval"`
-	ReminderText string `yaml:"reminder_text"`
+	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
+	Interval     int    `yaml:"interval" mapstructure:"interval"`
+	ReminderText string `yaml:"reminder_text" mapstructure:"reminder_text"`
 }
 
 // ChatConfig contains chat-related settings
@@ -221,16 +221,16 @@ type AgentConfig struct {
 
 // FetchSafetyConfig contains safety settings for fetch operations
 type FetchSafetyConfig struct {
-	MaxSize       int64 `yaml:"max_size"`
-	Timeout       int   `yaml:"timeout"`
-	AllowRedirect bool  `yaml:"allow_redirect"`
+	MaxSize       int64 `yaml:"max_size" mapstructure:"max_size"`
+	Timeout       int   `yaml:"timeout" mapstructure:"timeout"`
+	AllowRedirect bool  `yaml:"allow_redirect" mapstructure:"allow_redirect"`
 }
 
 // FetchCacheConfig contains cache settings for fetch operations
 type FetchCacheConfig struct {
-	Enabled bool  `yaml:"enabled"`
-	TTL     int   `yaml:"ttl"`
-	MaxSize int64 `yaml:"max_size"`
+	Enabled bool  `yaml:"enabled" mapstructure:"enabled"`
+	TTL     int   `yaml:"ttl" mapstructure:"ttl"`
+	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
 }
 
 // DefaultConfig returns a default configuration

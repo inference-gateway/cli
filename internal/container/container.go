@@ -230,15 +230,28 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 
 // createSDKClient creates a configured SDK client with retry and timeout settings
 func (c *ServiceContainer) createSDKClient() sdk.Client {
+	if c.config == nil {
+		panic("ServiceContainer: config is nil when creating SDK client")
+	}
+
 	baseURL := c.config.Gateway.URL
+	if baseURL == "" {
+		baseURL = "http://localhost:8080"
+	}
+
 	if !strings.HasSuffix(baseURL, "/v1") {
 		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
+	}
+
+	timeout := c.config.Client.Timeout
+	if timeout == 0 {
+		timeout = 200
 	}
 
 	return sdk.NewClient(&sdk.ClientOptions{
 		BaseURL:     baseURL,
 		APIKey:      c.config.Gateway.APIKey,
-		Timeout:     time.Duration(c.config.Client.Timeout) * time.Second,
+		Timeout:     time.Duration(timeout) * time.Second,
 		RetryConfig: c.createRetryConfig(),
 	})
 }
