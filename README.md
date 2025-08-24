@@ -224,7 +224,7 @@ This is the recommended command to start working with Inference Gateway CLI in a
 
 **Options:**
 
-- `--overwrite`: Overwrite existing files if they already exist  
+- `--overwrite`: Overwrite existing files if they already exist
 - `--userspace`: Initialize configuration in user home directory (`~/.infer/`)
 
 **Examples:**
@@ -234,7 +234,7 @@ This is the recommended command to start working with Inference Gateway CLI in a
 infer init
 infer init --overwrite
 
-# Initialize userspace configuration (global fallback)  
+# Initialize userspace configuration (global fallback)
 infer init --userspace
 ```
 
@@ -812,9 +812,9 @@ Configuration values are merged with the following precedence (highest to lowest
 2. **Userspace config** (`~/.infer/config.yaml`)
 3. **Built-in defaults** - **Lowest Priority**
 
-**Example**: If your userspace config sets `agent.model: "gpt-4"` and your project config sets
-`agent.model: "deepseek/deepseek-chat"`, the project config wins and `deepseek/deepseek-chat` will be used. However, if the project
-config doesn't specify a model but does specify other settings, the userspace model will be preserved
+**Example**: If your userspace config sets `agent.model: "anthropic/claude-4"` and your project config sets
+`agent.model: "deepseek/deepseek-chat"`, the project config wins and `deepseek/deepseek-chat` will be used.
+However, if the project config doesn't specify a model but does specify other settings, the userspace model will be preserved
 while project settings take precedence for their specific values.
 
 ### Usage Examples
@@ -823,7 +823,7 @@ while project settings take precedence for their specific values.
 # Create userspace configuration (global fallback)
 infer init --userspace
 
-# Create project configuration (takes precedence)  
+# Create project configuration (takes precedence)
 infer init
 
 # Both configurations will be automatically merged when commands are run

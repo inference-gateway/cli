@@ -253,7 +253,7 @@ chat:
   optimization:
     enabled: false
 agent:
-  model: "openai/gpt-4"
+  model: "openai/gpt-5"
   system_prompt: "You are a helpful assistant"
 `
 }
@@ -293,8 +293,8 @@ func validateCompleteConfig(t *testing.T, cfg *Config) {
 	if !reflect.DeepEqual(cfg.Tools.WebSearch.Engines, expectedEngines) {
 		t.Errorf("Expected engines to be %v, got %v", expectedEngines, cfg.Tools.WebSearch.Engines)
 	}
-	if cfg.Agent.Model != "openai/gpt-4" {
-		t.Errorf("Expected default model to be 'openai/gpt-4', got %q", cfg.Agent.Model)
+	if cfg.Agent.Model != "openai/gpt-5" {
+		t.Errorf("Expected default model to be 'openai/gpt-5', got %q", cfg.Agent.Model)
 	}
 }
 
@@ -347,13 +347,13 @@ func TestSaveConfig(t *testing.T) {
 		{
 			name: "save chat config",
 			setupFunc: func(cfg *Config) {
-				cfg.Agent.Model = "anthropic/claude-3"
+				cfg.Agent.Model = "anthropic/claude-4"
 				cfg.Agent.SystemPrompt = "Be helpful"
 				cfg.Gateway.APIKey = "secret-key"
 			},
 			validator: func(t *testing.T, cfg *Config) {
-				if cfg.Agent.Model != "anthropic/claude-3" {
-					t.Errorf("Expected default model to be 'anthropic/claude-3', got %q", cfg.Agent.Model)
+				if cfg.Agent.Model != "anthropic/claude-4" {
+					t.Errorf("Expected default model to be 'anthropic/claude-4', got %q", cfg.Agent.Model)
 				}
 				if cfg.Agent.SystemPrompt != "Be helpful" {
 					t.Errorf("Expected system prompt to be 'Be helpful', got %q", cfg.Agent.SystemPrompt)
@@ -578,7 +578,7 @@ func validateUserspaceOnlyConfig(t *testing.T, cfg *Config) {
 	if cfg.Tools.WebSearch.MaxResults != 20 {
 		t.Errorf("Expected userspace max results, got %d", cfg.Tools.WebSearch.MaxResults)
 	}
-	if cfg.Agent.Model != "gpt-4" {
+	if cfg.Agent.Model != "openai/gpt-5" {
 		t.Errorf("Expected userspace model, got %q", cfg.Agent.Model)
 	}
 }
@@ -596,50 +596,49 @@ func validateProjectOnlyConfig(t *testing.T, cfg *Config) {
 	if cfg.Tools.WebSearch.Timeout != 25 {
 		t.Errorf("Expected project search timeout, got %d", cfg.Tools.WebSearch.Timeout)
 	}
-	if cfg.Agent.Model != "claude-3" {
+	if cfg.Agent.Model != "anthropic/claude-4" {
 		t.Errorf("Expected project model, got %q", cfg.Agent.Model)
 	}
 }
 
 func validateMergedConfig(t *testing.T, cfg *Config) {
-	// Project values should override userspace
 	if cfg.Gateway.URL != "http://project:8888" {
 		t.Errorf("Expected project gateway URL to override, got %q", cfg.Gateway.URL)
 	}
 	if cfg.Gateway.Timeout != 100 {
 		t.Errorf("Expected project timeout to override, got %d", cfg.Gateway.Timeout)
 	}
-	// Userspace values should be preserved where project doesn't override
+
 	if cfg.Gateway.APIKey != "userspace-key" {
 		t.Errorf("Expected userspace API key to be preserved, got %q", cfg.Gateway.APIKey)
 	}
-	// Project values should override userspace
+
 	if cfg.Tools.WebSearch.DefaultEngine != "duckduckgo" {
 		t.Errorf("Expected project search engine to override, got %q", cfg.Tools.WebSearch.DefaultEngine)
 	}
 	if cfg.Tools.WebSearch.Timeout != 25 {
 		t.Errorf("Expected project search timeout to override, got %d", cfg.Tools.WebSearch.Timeout)
 	}
-	// Userspace values should be preserved where project doesn't override
+
 	if cfg.Tools.WebSearch.MaxResults != 20 {
 		t.Errorf("Expected userspace max results to be preserved, got %d", cfg.Tools.WebSearch.MaxResults)
 	}
-	// Project values should override userspace
-	if cfg.Agent.Model != "claude-3" {
+
+	if cfg.Agent.Model != "anthropic/claude-4" {
 		t.Errorf("Expected project model to override, got %q", cfg.Agent.Model)
 	}
-	// Userspace values should be preserved where project doesn't override
+
 	if cfg.Agent.MaxTurns != 100 {
 		t.Errorf("Expected userspace max turns to be preserved, got %d", cfg.Agent.MaxTurns)
 	}
 }
 
 func validateComplexNestedMerging(t *testing.T, cfg *Config) {
-	// Project should override userspace bash setting
+
 	if !cfg.Tools.Bash.Enabled {
 		t.Error("Expected project bash enabled to override userspace")
 	}
-	// Project should override userspace web search settings
+
 	if cfg.Tools.WebSearch.MaxResults != 25 {
 		t.Errorf("Expected project max results to override, got %d", cfg.Tools.WebSearch.MaxResults)
 	}
@@ -650,23 +649,23 @@ func validateComplexNestedMerging(t *testing.T, cfg *Config) {
 	if cfg.Tools.WebSearch.DefaultEngine != "google" {
 		t.Errorf("Expected userspace default engine to be preserved, got %q", cfg.Tools.WebSearch.DefaultEngine)
 	}
-	// Project should override userspace web fetch domains but preserve other settings
+
 	expectedDomains := []string{"project.com"}
 	if !reflect.DeepEqual(cfg.Tools.WebFetch.WhitelistedDomains, expectedDomains) {
 		t.Errorf("Expected project domains to override, got %v", cfg.Tools.WebFetch.WhitelistedDomains)
 	}
-	// Project should override userspace safety max size but preserve other safety settings
+
 	if cfg.Tools.WebFetch.Safety.MaxSize != 8192 {
 		t.Errorf("Expected project max size to override, got %d", cfg.Tools.WebFetch.Safety.MaxSize)
 	}
-	// Userspace safety settings should be preserved where project doesn't override
+
 	if cfg.Tools.WebFetch.Safety.Timeout != 20 {
 		t.Errorf("Expected userspace safety timeout to be preserved, got %d", cfg.Tools.WebFetch.Safety.Timeout)
 	}
 	if cfg.Tools.WebFetch.Safety.AllowRedirect {
 		t.Error("Expected userspace allow redirect to be preserved")
 	}
-	// Project should override userspace agent settings
+
 	if cfg.Agent.SystemPrompt != "Project prompt" {
 		t.Errorf("Expected project system prompt to override, got %q", cfg.Agent.SystemPrompt)
 	}
@@ -683,26 +682,23 @@ func runUserspaceConfigTest(t *testing.T, testCase struct {
 	expectError   bool
 	validator     func(t *testing.T, cfg *Config)
 }) {
-	// Create temporary directories for userspace and project configs
+
 	tempDir, err := os.MkdirTemp("", "config_test")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
-	// Mock home directory
 	homeDir := filepath.Join(tempDir, "home")
 	if err := os.MkdirAll(filepath.Join(homeDir, ".infer"), 0755); err != nil {
 		t.Fatalf("Failed to create mock home dir: %v", err)
 	}
 
-	// Mock project directory
 	projectDir := filepath.Join(tempDir, "project")
 	if err := os.MkdirAll(filepath.Join(projectDir, ".infer"), 0755); err != nil {
 		t.Fatalf("Failed to create mock project dir: %v", err)
 	}
 
-	// Create userspace config if provided
 	userspaceConfigPath := filepath.Join(homeDir, ".infer", "config.yaml")
 	if testCase.userspaceYAML != "" {
 		if err := os.WriteFile(userspaceConfigPath, []byte(testCase.userspaceYAML), 0644); err != nil {
@@ -710,7 +706,6 @@ func runUserspaceConfigTest(t *testing.T, testCase struct {
 		}
 	}
 
-	// Create project config if provided
 	projectConfigPath := filepath.Join(projectDir, ".infer", "config.yaml")
 	if testCase.projectYAML != "" {
 		if err := os.WriteFile(projectConfigPath, []byte(testCase.projectYAML), 0644); err != nil {
@@ -718,7 +713,6 @@ func runUserspaceConfigTest(t *testing.T, testCase struct {
 		}
 	}
 
-	// Temporarily override the home directory for getUserspaceConfigPath
 	originalHome := os.Getenv("HOME")
 	if err := os.Setenv("HOME", homeDir); err != nil {
 		t.Fatalf("Failed to set HOME environment variable: %v", err)
@@ -729,7 +723,6 @@ func runUserspaceConfigTest(t *testing.T, testCase struct {
 		}
 	}()
 
-	// Load config using the 2-layer approach
 	cfg, err := LoadConfigWithUserspace(projectConfigPath)
 
 	if testCase.expectError && err == nil {
@@ -769,7 +762,7 @@ tools:
     default_engine: "google"
     max_results: 20
 agent:
-  model: "gpt-4"`,
+  model: "openai/gpt-5"`,
 			projectYAML: "",
 			expectError: false,
 			validator:   validateUserspaceOnlyConfig,
@@ -786,7 +779,7 @@ tools:
     default_engine: "duckduckgo"
     timeout: 25
 agent:
-  model: "claude-3"`,
+  model: "anthropic/claude-4"`,
 			expectError: false,
 			validator:   validateProjectOnlyConfig,
 		},
@@ -803,7 +796,7 @@ tools:
     max_results: 20
     timeout: 15
 agent:
-  model: "gpt-4"
+  model: "openai/gpt-5"
   max_turns: 100`,
 			projectYAML: `
 gateway:
@@ -814,9 +807,9 @@ tools:
     default_engine: "duckduckgo"
     timeout: 25
 agent:
-  model: "claude-3"`,
+  model: "anthropic/claude-4"`,
 			expectError: false,
-			validator: validateMergedConfig,
+			validator:   validateMergedConfig,
 		},
 		{
 			name: "complex nested merging",
@@ -855,7 +848,7 @@ agent:
   system_prompt: "Project prompt"
   max_tokens: 4000`,
 			expectError: false,
-			validator: validateComplexNestedMerging,
+			validator:   validateComplexNestedMerging,
 		},
 	}
 

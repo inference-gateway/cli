@@ -547,7 +547,7 @@ func mergeConfigsViaYAML(base, override *Config) (*Config, error) {
 // This helps distinguish between explicitly set values and default zero values
 func removeZeroValues(m map[string]interface{}) map[string]interface{} {
 	result := make(map[string]interface{})
-	
+
 	for k, v := range m {
 		switch val := v.(type) {
 		case map[string]interface{}:
@@ -583,7 +583,7 @@ func removeZeroValues(m map[string]interface{}) map[string]interface{} {
 			}
 		}
 	}
-	
+
 	return result
 }
 
