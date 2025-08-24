@@ -429,3 +429,166 @@ func TestConfigAgentSetMaxTurnsWithUserspace(t *testing.T) {
 		})
 	}
 }
+
+func TestConfigGlobalUserspaceFlag(t *testing.T) {
+	testCases := []struct {
+		name              string
+		globalUserspace   bool
+		subcommandArgs    []string
+		expectedUserspace bool
+	}{
+		{
+			name:              "global userspace flag on agent set-model",
+			globalUserspace:   true,
+			subcommandArgs:    []string{"agent", "set-model", "test-model"},
+			expectedUserspace: true,
+		},
+		{
+			name:              "no global userspace flag",
+			globalUserspace:   false,
+			subcommandArgs:    []string{"agent", "set-model", "test-model"},
+			expectedUserspace: false,
+		},
+		{
+			name:              "global userspace flag on agent set-system",
+			globalUserspace:   true,
+			subcommandArgs:    []string{"agent", "set-system", "test prompt"},
+			expectedUserspace: true,
+		},
+		{
+			name:              "global userspace flag on agent set-max-turns",
+			globalUserspace:   true,
+			subcommandArgs:    []string{"agent", "set-max-turns", "10"},
+			expectedUserspace: true,
+		},
+		{
+			name:              "global userspace flag on agent verbose-tools",
+			globalUserspace:   true,
+			subcommandArgs:    []string{"agent", "verbose-tools", "enable"},
+			expectedUserspace: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Create temp directory for testing
+			tempDir, err := os.MkdirTemp("", "infer-config-global-test-*")
+			require.NoError(t, err)
+			defer func() {
+				if err := os.RemoveAll(tempDir); err != nil {
+					t.Errorf("Failed to remove temp dir: %v", err)
+				}
+			}()
+
+			// Set up HOME environment for userspace testing
+			origHome := os.Getenv("HOME")
+			defer func() {
+				if err := os.Setenv("HOME", origHome); err != nil {
+					t.Errorf("Failed to restore HOME: %v", err)
+				}
+			}()
+			if err := os.Setenv("HOME", tempDir); err != nil {
+				t.Fatalf("Failed to set HOME: %v", err)
+			}
+
+			// Set working directory for project config
+			origDir, err := os.Getwd()
+			require.NoError(t, err)
+			defer func() {
+				if err := os.Chdir(origDir); err != nil {
+					t.Errorf("Failed to change back to original dir: %v", err)
+				}
+			}()
+
+			// Create project directory and cd into it for project config
+			projectWorkingDir := filepath.Join(tempDir, "project")
+			require.NoError(t, os.MkdirAll(projectWorkingDir, 0755))
+			
+			if err := os.Chdir(projectWorkingDir); err != nil {
+				t.Fatalf("Failed to change to project dir: %v", err)
+			}
+
+			// Create initial configs for both project and userspace
+			projectDir := filepath.Join(tempDir, "project", ".infer")
+			userspaceDir := filepath.Join(tempDir, ".infer")
+			
+			require.NoError(t, os.MkdirAll(projectDir, 0755))
+			require.NoError(t, os.MkdirAll(userspaceDir, 0755))
+
+			projectConfigPath := filepath.Join(projectDir, "config.yaml")
+			userspaceConfigPath := filepath.Join(userspaceDir, "config.yaml")
+
+			// Create initial configs
+			defaultConfig := config.DefaultConfig()
+			require.NoError(t, defaultConfig.SaveConfig(projectConfigPath))
+			require.NoError(t, defaultConfig.SaveConfig(userspaceConfigPath))
+
+			// Build command args
+			args := []string{"config"}
+			if tc.globalUserspace {
+				args = append(args, "--userspace")
+			}
+			args = append(args, tc.subcommandArgs...)
+
+			// Create and execute command
+			cmd := &cobra.Command{Use: "test-root"}
+			cmd.AddCommand(configCmd)
+			cmd.SetArgs(args)
+
+			err = cmd.Execute()
+			require.NoError(t, err)
+
+			// Verify the config was written to the expected location
+			var expectedPath string
+			if tc.expectedUserspace {
+				expectedPath = userspaceConfigPath
+			} else {
+				expectedPath = projectConfigPath
+			}
+
+			// Check if the config file was modified (has recent modification time)
+			stat, err := os.Stat(expectedPath)
+			require.NoError(t, err)
+			
+			// Load the config and verify it was actually changed
+			cfg, err := config.LoadConfig(expectedPath)
+			require.NoError(t, err)
+
+			// Verify the change was made based on the subcommand
+			switch tc.subcommandArgs[1] {
+			case "set-model":
+				assert.Equal(t, "test-model", cfg.Agent.Model)
+			case "set-system":
+				assert.Equal(t, "test prompt", cfg.Agent.SystemPrompt)
+			case "set-max-turns":
+				assert.Equal(t, 10, cfg.Agent.MaxTurns)
+			case "verbose-tools":
+				assert.Equal(t, true, cfg.Agent.VerboseTools)
+			}
+
+			// Verify the other config file wasn't changed (still has default values)
+			var otherPath string
+			if tc.expectedUserspace {
+				otherPath = projectConfigPath
+			} else {
+				otherPath = userspaceConfigPath
+			}
+
+			otherCfg, err := config.LoadConfig(otherPath)
+			require.NoError(t, err)
+			
+			switch tc.subcommandArgs[1] {
+			case "set-model":
+				assert.NotEqual(t, "test-model", otherCfg.Agent.Model)
+			case "set-system":
+				assert.NotEqual(t, "test prompt", otherCfg.Agent.SystemPrompt)
+			case "set-max-turns":
+				assert.NotEqual(t, 10, otherCfg.Agent.MaxTurns)
+			case "verbose-tools":
+				assert.NotEqual(t, true, otherCfg.Agent.VerboseTools)
+			}
+
+			_ = stat // Suppress unused variable warning
+		})
+	}
+}

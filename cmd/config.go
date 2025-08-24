@@ -69,7 +69,7 @@ This creates only the configuration file with default settings.
 
 For complete project initialization, use 'infer init' instead.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		userspace, _ := cmd.Flags().GetBool("userspace")
+		userspace := getUserspaceFlag(cmd)
 		overwrite, _ := cmd.Flags().GetBool("overwrite")
 
 		var configPath string
@@ -451,8 +451,27 @@ var configToolsWebFetchCacheClearCmd = &cobra.Command{
 	RunE:  fetchCacheClear,
 }
 
+// getUserspaceFlag checks for --userspace flag on the current command or parent commands
+func getUserspaceFlag(cmd *cobra.Command) bool {
+	// First check the current command
+	if userspace, err := cmd.Flags().GetBool("userspace"); err == nil && userspace {
+		return true
+	}
+	
+	// Then check parent commands (for global flag inheritance)
+	parent := cmd.Parent()
+	for parent != nil {
+		if userspace, err := parent.Flags().GetBool("userspace"); err == nil && userspace {
+			return true
+		}
+		parent = parent.Parent()
+	}
+	
+	return false
+}
+
 func setDefaultModel(cmd *cobra.Command, modelName string) error {
-	userspace, _ := cmd.Flags().GetBool("userspace")
+	userspace := getUserspaceFlag(cmd)
 
 	var cfg *config.Config
 	var err error
@@ -499,7 +518,7 @@ func setDefaultModel(cmd *cobra.Command, modelName string) error {
 }
 
 func setSystemPrompt(cmd *cobra.Command, systemPrompt string) error {
-	userspace, _ := cmd.Flags().GetBool("userspace")
+	userspace := getUserspaceFlag(cmd)
 
 	var cfg *config.Config
 	var err error
@@ -547,7 +566,7 @@ func setSystemPrompt(cmd *cobra.Command, systemPrompt string) error {
 }
 
 func setMaxTurns(cmd *cobra.Command, maxTurnsStr string) error {
-	userspace, _ := cmd.Flags().GetBool("userspace")
+	userspace := getUserspaceFlag(cmd)
 
 	maxTurns, err := strconv.Atoi(maxTurnsStr)
 	if err != nil {
@@ -613,7 +632,7 @@ var configAgentVerboseToolsCmd = &cobra.Command{
 	Long:  "Control whether the agent command shows full tool details or just tool names in the output",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		userspace, _ := cmd.Flags().GetBool("userspace")
+		userspace := getUserspaceFlag(cmd)
 
 		var cfg *config.Config
 		var err error
@@ -743,6 +762,9 @@ func init() {
 	configAgentSetSystemCmd.Flags().Bool("userspace", false, "Set configuration in user home directory (~/.infer/)")
 	configAgentSetMaxTurnsCmd.Flags().Bool("userspace", false, "Set configuration in user home directory (~/.infer/)")
 	configAgentVerboseToolsCmd.Flags().Bool("userspace", false, "Set configuration in user home directory (~/.infer/)")
+
+	// Add global --userspace flag to the main config command
+	configCmd.PersistentFlags().Bool("userspace", false, "Apply to userspace configuration (~/.infer/) instead of project configuration")
 
 	rootCmd.AddCommand(configCmd)
 }
