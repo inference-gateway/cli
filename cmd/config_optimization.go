@@ -111,7 +111,7 @@ func showOptimizationStatus(_ *cobra.Command) error {
 	return nil
 }
 
-func setOptimizationParameter(cmd *cobra.Command, param, value string) error {
+func setOptimizationParameter(_ *cobra.Command, param, value string) error {
 	switch param {
 	case "max-history":
 		intVal, err := strconv.Atoi(value)

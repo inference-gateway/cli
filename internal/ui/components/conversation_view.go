@@ -169,7 +169,7 @@ func (cv *ConversationView) renderWelcome() string {
 
 	configLine := cv.buildConfigLine()
 
-	content := headerLine + "\n" + readyLine + "\n" + workingLine + configLine
+	content := headerLine + "\n\n" + readyLine + "\n\n" + workingLine + "\n\n" + configLine
 
 	style := styles.NewCommonStyles().Border.
 		Border(styles.RoundedBorder(), true).
@@ -344,7 +344,7 @@ func (cv *ConversationView) buildConfigLine() string {
 	configType := cv.getConfigType()
 	displayPath := cv.shortenPath(cv.configPath)
 
-	return "\n" + colors.DimColor.ANSI + "⚙  Config: " + colors.Reset + colors.AccentColor.ANSI + displayPath + colors.Reset + colors.DimColor.ANSI + " (" + configType + ")" + colors.Reset
+	return colors.DimColor.ANSI + "⚙  Config: " + colors.Reset + colors.AccentColor.ANSI + displayPath + colors.Reset + colors.DimColor.ANSI + " (" + configType + ")" + colors.Reset
 }
 
 // getConfigType determines if the config is project-level or userspace

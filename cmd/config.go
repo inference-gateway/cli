@@ -492,7 +492,7 @@ func GetUserspaceFlag(cmd *cobra.Command) bool {
 	return false
 }
 
-func setDefaultModel(cmd *cobra.Command, modelName string) error {
+func setDefaultModel(_ *cobra.Command, modelName string) error {
 	V.Set("agent.model", modelName)
 	if err := V.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
@@ -504,7 +504,7 @@ func setDefaultModel(cmd *cobra.Command, modelName string) error {
 	return nil
 }
 
-func setSystemPrompt(cmd *cobra.Command, systemPrompt string) error {
+func setSystemPrompt(_ *cobra.Command, systemPrompt string) error {
 	V.Set("agent.system_prompt", systemPrompt)
 	if err := V.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
@@ -517,7 +517,7 @@ func setSystemPrompt(cmd *cobra.Command, systemPrompt string) error {
 	return nil
 }
 
-func setMaxTurns(cmd *cobra.Command, maxTurnsStr string) error {
+func setMaxTurns(_ *cobra.Command, maxTurnsStr string) error {
 	maxTurns, err := strconv.Atoi(maxTurnsStr)
 	if err != nil {
 		return fmt.Errorf("invalid max turns value '%s': must be a positive integer", maxTurnsStr)
