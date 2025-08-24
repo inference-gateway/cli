@@ -25,6 +25,7 @@ and have a conversational interface with the inference gateway.`,
 
 // startChatSession starts a chat session using the SOLID architecture
 func startChatSession() error {
+	configPath := config.GetConfigPath("")
 	cfg, err := config.LoadConfig("")
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
@@ -75,6 +76,7 @@ func startChatSession() error {
 		toolOrchestrator,
 		theme,
 		toolRegistry,
+		configPath,
 	)
 
 	program := tea.NewProgram(application)

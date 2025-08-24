@@ -77,6 +77,7 @@ func NewChatApplication(
 	toolOrchestrator *services.ToolExecutionOrchestrator,
 	theme ui.Theme,
 	toolRegistry *tools.Registry,
+	configPath string,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
 	if defaultModel != "" {
@@ -106,6 +107,7 @@ func NewChatApplication(
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
+		cv.SetConfigPath(configPath)
 	}
 	app.inputView = ui.CreateInputViewWithToolService(app.modelService, app.commandRegistry, app.toolService)
 	app.statusView = ui.CreateStatusView()

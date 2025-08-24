@@ -25,6 +25,7 @@ type ConversationView struct {
 	toolFormatter       domain.ToolFormatter
 	lineFormatter       *shared.ConversationLineFormatter
 	plainTextLines      []string
+	configPath          string
 }
 
 func NewConversationView() *ConversationView {
@@ -46,6 +47,11 @@ func NewConversationView() *ConversationView {
 func (cv *ConversationView) SetToolFormatter(formatter domain.ToolFormatter) {
 	cv.toolFormatter = formatter
 	cv.lineFormatter = shared.NewConversationLineFormatter(cv.width, formatter)
+}
+
+// SetConfigPath sets the config path for the welcome message
+func (cv *ConversationView) SetConfigPath(configPath string) {
+	cv.configPath = configPath
 }
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
@@ -160,7 +166,12 @@ func (cv *ConversationView) renderWelcome() string {
 	readyLine := colors.SuccessColor.ANSI + "🚀 Ready to chat!" + colors.Reset
 	workingLine := colors.DimColor.ANSI + "📂 Working in: " + colors.Reset + colors.HeaderColor.ANSI + wd + colors.Reset
 
-	content := headerLine + "\n" + readyLine + "\n" + workingLine
+	configLine := ""
+	if cv.configPath != "" {
+		configLine = "\n" + colors.DimColor.ANSI + "⚙️ Config: " + colors.Reset + colors.AccentColor.ANSI + cv.configPath + colors.Reset
+	}
+
+	content := headerLine + "\n" + readyLine + "\n" + workingLine + configLine
 
 	style := styles.NewCommonStyles().Border.
 		Border(styles.RoundedBorder(), true).
