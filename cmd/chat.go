@@ -18,17 +18,17 @@ var chatCmd = &cobra.Command{
 	Short: "Start an interactive chat session with model selection",
 	Long: `Start an interactive chat session where you can select a model from a dropdown
 and have a conversational interface with the inference gateway.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(_ *cobra.Command, args []string) error {
 		cfg, err := getConfigFromViper()
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		return startChatSession(cfg)
+		return StartChatSession(cfg)
 	},
 }
 
 // startChatSession starts a chat session
-func startChatSession(cfg *config.Config) error {
+func StartChatSession(cfg *config.Config) error {
 	services := container.NewServiceContainer(cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)

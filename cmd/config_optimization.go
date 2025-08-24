@@ -63,7 +63,7 @@ func init() {
 	configOptimizationCmd.AddCommand(optimizationSetCmd)
 }
 
-func setOptimizationEnabled(cmd *cobra.Command, enabled bool) error {
+func setOptimizationEnabled(_ *cobra.Command, enabled bool) error {
 	V.Set("agent.optimization.enabled", enabled)
 	if err := V.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
@@ -86,7 +86,7 @@ func setOptimizationEnabled(cmd *cobra.Command, enabled bool) error {
 	return nil
 }
 
-func showOptimizationStatus(cmd *cobra.Command) error {
+func showOptimizationStatus(_ *cobra.Command) error {
 	fmt.Println("Token Optimization Settings:")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━")
 

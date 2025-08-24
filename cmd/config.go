@@ -93,7 +93,7 @@ For complete project initialization, use 'infer init' instead.`,
 			return fmt.Errorf("failed to create config directory: %w", err)
 		}
 
-		if err := V.WriteConfigAs(configPath); err != nil {
+		if err := writeConfigAsYAMLWithIndent(configPath, 2); err != nil {
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 

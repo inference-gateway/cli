@@ -8,6 +8,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	cobra "github.com/spf13/cobra"
+	yaml "gopkg.in/yaml.v3"
 )
 
 var initCmd = &cobra.Command{
@@ -55,7 +56,7 @@ func initializeProject(cmd *cobra.Command) error {
 		}
 	}
 
-	if err := V.WriteConfigAs(configPath); err != nil {
+	if err := writeConfigAsYAMLWithIndent(configPath, 2); err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 
@@ -91,4 +92,25 @@ chat_export_*
 	fmt.Println("  • Start chatting: infer chat")
 
 	return nil
+}
+
+// writeConfigAsYAMLWithIndent writes the current Viper configuration to a YAML file with specified indentation
+func writeConfigAsYAMLWithIndent(filename string, indent int) error {
+	allSettings := V.AllSettings()
+
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	yamlEncoder := yaml.NewEncoder(nil)
+	yamlEncoder.SetIndent(indent)
+
+	var buf []byte
+	if data, err := yaml.Marshal(allSettings); err != nil {
+		return fmt.Errorf("failed to marshal config to YAML: %w", err)
+	} else {
+		buf = data
+	}
+
+	return os.WriteFile(filename, buf, 0644)
 }

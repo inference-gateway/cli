@@ -48,7 +48,7 @@ func init() {
 	configCompactCmd.AddCommand(showCompactConfigCmd)
 }
 
-func setCompactModel(cmd *cobra.Command, modelName string) error {
+func setCompactModel(_ *cobra.Command, modelName string) error {
 	V.Set("compact.summary_model", modelName)
 	if err := V.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
@@ -63,14 +63,14 @@ func setCompactModel(cmd *cobra.Command, modelName string) error {
 	return nil
 }
 
-func showCompactConfig(cmd *cobra.Command) error {
+func showCompactConfig(_ *cobra.Command) error {
 	fmt.Println("Compact Command Configuration:")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 	fmt.Printf("Output directory: %s\n", V.GetString("compact.output_dir"))
 
 	summaryModel := V.GetString("compact.summary_model")
 	if summaryModel == "" {
-		fmt.Printf("Summary model: %s\n", "(uses current chat model)")
+		fmt.Printf("Summary model: %s\n", "not configured (uses current chat model)")
 	} else {
 		fmt.Printf("Summary model: %s\n", ui.FormatSuccess(summaryModel))
 	}
