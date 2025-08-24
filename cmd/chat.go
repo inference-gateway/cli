@@ -19,18 +19,16 @@ var chatCmd = &cobra.Command{
 	Long: `Start an interactive chat session where you can select a model from a dropdown
 and have a conversational interface with the inference gateway.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return startChatSession()
+		cfg, err := getConfigFromViper()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+		return startChatSession(cfg)
 	},
 }
 
 // startChatSession starts a chat session
-func startChatSession() error {
-	configPath := config.GetConfigPath(false)
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
+func startChatSession(cfg *config.Config) error {
 	services := container.NewServiceContainer(cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
@@ -76,7 +74,7 @@ func startChatSession() error {
 		toolOrchestrator,
 		theme,
 		toolRegistry,
-		configPath,
+		V.ConfigFileUsed(),
 	)
 
 	program := tea.NewProgram(application)

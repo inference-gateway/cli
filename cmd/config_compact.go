@@ -3,7 +3,6 @@ package cmd
 import (
 	"fmt"
 
-	config "github.com/inference-gateway/cli/config"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	cobra "github.com/spf13/cobra"
@@ -50,15 +49,8 @@ func init() {
 }
 
 func setCompactModel(cmd *cobra.Command, modelName string) error {
-	configPath := config.GetConfigPath(GetUserspaceFlag(cmd))
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	cfg.Compact.SummaryModel = modelName
-
-	if err := cfg.Save(); err != nil {
+	V.Set("compact.summary_model", modelName)
+	if err := V.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
@@ -72,20 +64,15 @@ func setCompactModel(cmd *cobra.Command, modelName string) error {
 }
 
 func showCompactConfig(cmd *cobra.Command) error {
-	configPath := config.GetConfigPath(GetUserspaceFlag(cmd))
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
 	fmt.Println("Compact Command Configuration:")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Printf("Output directory: %s\n", cfg.Compact.OutputDir)
+	fmt.Printf("Output directory: %s\n", V.GetString("compact.output_dir"))
 
-	if cfg.Compact.SummaryModel == "" {
+	summaryModel := V.GetString("compact.summary_model")
+	if summaryModel == "" {
 		fmt.Printf("Summary model: %s\n", "(uses current chat model)")
 	} else {
-		fmt.Printf("Summary model: %s\n", ui.FormatSuccess(cfg.Compact.SummaryModel))
+		fmt.Printf("Summary model: %s\n", ui.FormatSuccess(summaryModel))
 	}
 
 	fmt.Println("\n💡 Use 'infer config compact set-model [MODEL]' to change the summary model")

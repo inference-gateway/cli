@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strconv"
 
-	config "github.com/inference-gateway/cli/config"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	cobra "github.com/spf13/cobra"
@@ -65,15 +64,8 @@ func init() {
 }
 
 func setOptimizationEnabled(cmd *cobra.Command, enabled bool) error {
-	configPath := config.GetConfigPath(GetUserspaceFlag(cmd))
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	cfg.Agent.Optimization.Enabled = enabled
-
-	if err := cfg.Save(); err != nil {
+	V.Set("agent.optimization.enabled", enabled)
+	if err := V.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
@@ -85,38 +77,32 @@ func setOptimizationEnabled(cmd *cobra.Command, enabled bool) error {
 
 	if enabled {
 		fmt.Println("\nOptimization settings:")
-		fmt.Printf("  • Max history: %d messages\n", cfg.Agent.Optimization.MaxHistory)
-		fmt.Printf("  • Compact threshold: %d messages\n", cfg.Agent.Optimization.CompactThreshold)
-		fmt.Printf("  • Truncate large outputs: %v\n", cfg.Agent.Optimization.TruncateLargeOutputs)
-		fmt.Printf("  • Skip redundant confirmations: %v\n", cfg.Agent.Optimization.SkipRedundantConfirmations)
+		fmt.Printf("  • Max history: %d messages\n", V.GetInt("agent.optimization.max_history"))
+		fmt.Printf("  • Compact threshold: %d messages\n", V.GetInt("agent.optimization.compact_threshold"))
+		fmt.Printf("  • Truncate large outputs: %v\n", V.GetBool("agent.optimization.truncate_large_outputs"))
+		fmt.Printf("  • Skip redundant confirmations: %v\n", V.GetBool("agent.optimization.skip_redundant_confirmations"))
 	}
 
 	return nil
 }
 
 func showOptimizationStatus(cmd *cobra.Command) error {
-	configPath := config.GetConfigPath(GetUserspaceFlag(cmd))
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
 	fmt.Println("Token Optimization Settings:")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
 	status := ui.FormatError("disabled")
-	if cfg.Agent.Optimization.Enabled {
+	if V.GetBool("agent.optimization.enabled") {
 		status = ui.FormatSuccess("enabled")
 	}
 	fmt.Printf("Status: %s\n", status)
 
 	fmt.Printf("\nParameters:\n")
-	fmt.Printf("  • Max history: %d messages\n", cfg.Agent.Optimization.MaxHistory)
-	fmt.Printf("  • Compact threshold: %d messages\n", cfg.Agent.Optimization.CompactThreshold)
-	fmt.Printf("  • Truncate large outputs: %v\n", cfg.Agent.Optimization.TruncateLargeOutputs)
-	fmt.Printf("  • Skip redundant confirmations: %v\n", cfg.Agent.Optimization.SkipRedundantConfirmations)
+	fmt.Printf("  • Max history: %d messages\n", V.GetInt("agent.optimization.max_history"))
+	fmt.Printf("  • Compact threshold: %d messages\n", V.GetInt("agent.optimization.compact_threshold"))
+	fmt.Printf("  • Truncate large outputs: %v\n", V.GetBool("agent.optimization.truncate_large_outputs"))
+	fmt.Printf("  • Skip redundant confirmations: %v\n", V.GetBool("agent.optimization.skip_redundant_confirmations"))
 
-	if cfg.Agent.Optimization.Enabled {
+	if V.GetBool("agent.optimization.enabled") {
 		fmt.Println("\n💡 Optimization is active. Conversation history will be managed to reduce token usage.")
 	} else {
 		fmt.Println("\n💡 Optimization is disabled. Full conversation history will be sent with each request.")
@@ -126,46 +112,40 @@ func showOptimizationStatus(cmd *cobra.Command) error {
 }
 
 func setOptimizationParameter(cmd *cobra.Command, param, value string) error {
-	configPath := config.GetConfigPath(GetUserspaceFlag(cmd))
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
 	switch param {
 	case "max-history":
 		intVal, err := strconv.Atoi(value)
 		if err != nil || intVal < 1 {
 			return fmt.Errorf("max-history must be a positive integer")
 		}
-		cfg.Agent.Optimization.MaxHistory = intVal
+		V.Set("agent.optimization.max_history", intVal)
 
 	case "compact-threshold":
 		intVal, err := strconv.Atoi(value)
 		if err != nil || intVal < 1 {
 			return fmt.Errorf("compact-threshold must be a positive integer")
 		}
-		cfg.Agent.Optimization.CompactThreshold = intVal
+		V.Set("agent.optimization.compact_threshold", intVal)
 
 	case "truncate-outputs":
 		boolVal, err := strconv.ParseBool(value)
 		if err != nil {
 			return fmt.Errorf("truncate-outputs must be true or false")
 		}
-		cfg.Agent.Optimization.TruncateLargeOutputs = boolVal
+		V.Set("agent.optimization.truncate_large_outputs", boolVal)
 
 	case "skip-confirmations":
 		boolVal, err := strconv.ParseBool(value)
 		if err != nil {
 			return fmt.Errorf("skip-confirmations must be true or false")
 		}
-		cfg.Agent.Optimization.SkipRedundantConfirmations = boolVal
+		V.Set("agent.optimization.skip_redundant_confirmations", boolVal)
 
 	default:
 		return fmt.Errorf("unknown parameter: %s", param)
 	}
 
-	if err := cfg.Save(); err != nil {
+	if err := V.WriteConfig(); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 

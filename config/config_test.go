@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/spf13/viper"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -191,7 +193,10 @@ func runLoadConfigTest(t *testing.T, configYAML string, validator func(t *testin
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 
-	cfg, err := LoadConfig(configPath)
+	// Create a new Viper instance for this test
+	v := viper.New()
+	v.SetConfigFile(configPath)
+	err = v.ReadInConfig()
 	if expectError && err == nil {
 		t.Error("Expected error but got none")
 	}
@@ -199,7 +204,11 @@ func runLoadConfigTest(t *testing.T, configYAML string, validator func(t *testin
 		t.Errorf("Unexpected error: %v", err)
 	}
 
-	if validator != nil && cfg != nil {
+	if validator != nil && err == nil {
+		cfg := &Config{}
+		if err := v.Unmarshal(cfg); err != nil {
+			t.Fatalf("Failed to unmarshal config: %v", err)
+		}
 		validator(t, cfg)
 	}
 }
@@ -381,16 +390,41 @@ func runSaveConfigTest(t *testing.T, setupFunc func(*Config), validator func(t *
 	configPath := filepath.Join(tempDir, "config.yaml")
 
 	cfg := DefaultConfig()
-	cfg.Path = configPath
 	setupFunc(cfg)
 
-	if err := cfg.Save(); err != nil {
+	// Create a new Viper instance for this test
+	v := viper.New()
+	v.SetConfigFile(configPath)
+
+	// Set all config values in Viper
+	v.Set("gateway.url", cfg.Gateway.URL)
+	v.Set("gateway.api_key", cfg.Gateway.APIKey)
+	v.Set("gateway.timeout", cfg.Gateway.Timeout)
+	v.Set("client.timeout", cfg.Client.Timeout)
+	v.Set("logging.debug", cfg.Logging.Debug)
+	v.Set("tools.enabled", cfg.Tools.Enabled)
+	v.Set("tools.web_search.enabled", cfg.Tools.WebSearch.Enabled)
+	v.Set("tools.web_search.default_engine", cfg.Tools.WebSearch.DefaultEngine)
+	v.Set("tools.web_search.max_results", cfg.Tools.WebSearch.MaxResults)
+	v.Set("tools.web_search.timeout", cfg.Tools.WebSearch.Timeout)
+	v.Set("tools.web_search.engines", cfg.Tools.WebSearch.Engines)
+	v.Set("agent.model", cfg.Agent.Model)
+	v.Set("agent.system_prompt", cfg.Agent.SystemPrompt)
+
+	if err := v.WriteConfig(); err != nil {
 		t.Fatalf("Failed to save config: %v", err)
 	}
 
-	loadedCfg, err := LoadConfig(configPath)
-	if err != nil {
+	// Load the saved config back
+	loadV := viper.New()
+	loadV.SetConfigFile(configPath)
+	if err := loadV.ReadInConfig(); err != nil {
 		t.Fatalf("Failed to load saved config: %v", err)
+	}
+
+	loadedCfg := DefaultConfig()
+	if err := loadV.Unmarshal(loadedCfg); err != nil {
+		t.Fatalf("Failed to unmarshal saved config: %v", err)
 	}
 
 	validator(t, loadedCfg)

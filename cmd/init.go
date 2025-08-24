@@ -55,10 +55,7 @@ func initializeProject(cmd *cobra.Command) error {
 		}
 	}
 
-	cfg := config.DefaultConfig()
-	cfg.Path = configPath
-
-	if err := cfg.Save(); err != nil {
+	if err := V.WriteConfigAs(configPath); err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 

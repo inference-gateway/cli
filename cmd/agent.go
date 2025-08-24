@@ -28,7 +28,11 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		model, _ := cmd.Flags().GetString("model")
-		return runAgentCommand(args[0], model)
+		cfg, err := getConfigFromViper()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+		return runAgentCommand(cfg, args[0], model)
 	},
 }
 
@@ -57,13 +61,7 @@ type AgentSession struct {
 	config         *config.Config
 }
 
-func runAgentCommand(taskDescription string, modelFlag string) error {
-	configPath := config.GetConfigPath(false)
-	cfg, err := config.Load(configPath)
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
+func runAgentCommand(cfg *config.Config, taskDescription string, modelFlag string) error {
 	services := container.NewServiceContainer(cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)

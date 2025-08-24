@@ -26,16 +26,18 @@ var statusCmd = &cobra.Command{
 		_, _ = cmd.Flags().GetString("config")
 		format, _ := cmd.Flags().GetString("format")
 
-		configPath := config.GetConfigPath(false)
-		logger.Debug("Status command flags", "config_path", configPath, "format", format)
+		gatewayURL := V.GetString("gateway.url")
+		logger.Debug("Status command flags", "gateway_url", gatewayURL, "format", format)
 
-		cfg, err := config.Load(configPath)
-		if err != nil {
-			logger.Error("Failed to load config in status command", "error", err)
-			return fmt.Errorf("failed to load config: %w", err)
+		logger.Debug("Fetching models from gateway", "gateway_url", gatewayURL)
+
+		cfg := &config.Config{
+			Gateway: config.GatewayConfig{
+				URL:     gatewayURL,
+				APIKey:  V.GetString("gateway.api_key"),
+				Timeout: V.GetInt("gateway.timeout"),
+			},
 		}
-
-		logger.Debug("Fetching models from gateway", "gateway_url", cfg.Gateway.URL)
 		modelsResp, err := fetchModels(cfg)
 		if err != nil {
 			logger.Warn("Gateway unreachable", "error", err)

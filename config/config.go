@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	logger "github.com/inference-gateway/cli/internal/logger"
-	yaml "gopkg.in/yaml.v3"
 )
 
 const (
@@ -23,27 +22,27 @@ const (
 
 // Config represents the CLI configuration
 type Config struct {
-	Path    string        `yaml:"-"`
-	Gateway GatewayConfig `yaml:"gateway"`
-	Client  ClientConfig  `yaml:"client"`
-	Logging LoggingConfig `yaml:"logging"`
-	Tools   ToolsConfig   `yaml:"tools"`
-	Compact CompactConfig `yaml:"compact"`
-	Chat    ChatConfig    `yaml:"chat"`
-	Agent   AgentConfig   `yaml:"agent"`
+	Path    string        `yaml:"-" mapstructure:"-"`
+	Gateway GatewayConfig `yaml:"gateway" mapstructure:"gateway"`
+	Client  ClientConfig  `yaml:"client" mapstructure:"client"`
+	Logging LoggingConfig `yaml:"logging" mapstructure:"logging"`
+	Tools   ToolsConfig   `yaml:"tools" mapstructure:"tools"`
+	Compact CompactConfig `yaml:"compact" mapstructure:"compact"`
+	Chat    ChatConfig    `yaml:"chat" mapstructure:"chat"`
+	Agent   AgentConfig   `yaml:"agent" mapstructure:"agent"`
 }
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL     string `yaml:"url"`
-	APIKey  string `yaml:"api_key"`
-	Timeout int    `yaml:"timeout"`
+	URL     string `yaml:"url" mapstructure:"url"`
+	APIKey  string `yaml:"api_key" mapstructure:"api_key"`
+	Timeout int    `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // ClientConfig contains HTTP client settings
 type ClientConfig struct {
-	Timeout int         `yaml:"timeout"`
-	Retry   RetryConfig `yaml:"retry"`
+	Timeout int         `yaml:"timeout" mapstructure:"timeout"`
+	Retry   RetryConfig `yaml:"retry" mapstructure:"retry"`
 }
 
 // RetryConfig contains retry logic settings
@@ -58,26 +57,26 @@ type RetryConfig struct {
 
 // LoggingConfig contains logging settings
 type LoggingConfig struct {
-	Debug bool   `yaml:"debug"`
-	Dir   string `yaml:"dir"`
+	Debug bool   `yaml:"debug" mapstructure:"debug"`
+	Dir   string `yaml:"dir" mapstructure:"dir"`
 }
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled   bool                `yaml:"enabled"`
-	Sandbox   SandboxConfig       `yaml:"sandbox"`
-	Bash      BashToolConfig      `yaml:"bash"`
-	Read      ReadToolConfig      `yaml:"read"`
-	Write     WriteToolConfig     `yaml:"write"`
-	Edit      EditToolConfig      `yaml:"edit"`
-	Delete    DeleteToolConfig    `yaml:"delete"`
-	Grep      GrepToolConfig      `yaml:"grep"`
-	Tree      TreeToolConfig      `yaml:"tree"`
-	WebFetch  WebFetchToolConfig  `yaml:"web_fetch"`
-	WebSearch WebSearchToolConfig `yaml:"web_search"`
-	Github    GithubToolConfig    `yaml:"github"`
-	TodoWrite TodoWriteToolConfig `yaml:"todo_write"`
-	Safety    SafetyConfig        `yaml:"safety"`
+	Enabled   bool                `yaml:"enabled" mapstructure:"enabled"`
+	Sandbox   SandboxConfig       `yaml:"sandbox" mapstructure:"sandbox"`
+	Bash      BashToolConfig      `yaml:"bash" mapstructure:"bash"`
+	Read      ReadToolConfig      `yaml:"read" mapstructure:"read"`
+	Write     WriteToolConfig     `yaml:"write" mapstructure:"write"`
+	Edit      EditToolConfig      `yaml:"edit" mapstructure:"edit"`
+	Delete    DeleteToolConfig    `yaml:"delete" mapstructure:"delete"`
+	Grep      GrepToolConfig      `yaml:"grep" mapstructure:"grep"`
+	Tree      TreeToolConfig      `yaml:"tree" mapstructure:"tree"`
+	WebFetch  WebFetchToolConfig  `yaml:"web_fetch" mapstructure:"web_fetch"`
+	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
+	Github    GithubToolConfig    `yaml:"github" mapstructure:"github"`
+	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
+	Safety    SafetyConfig        `yaml:"safety" mapstructure:"safety"`
 }
 
 // BashToolConfig contains bash-specific tool settings
@@ -135,12 +134,12 @@ type WebFetchToolConfig struct {
 
 // WebSearchToolConfig contains web search-specific tool settings
 type WebSearchToolConfig struct {
-	Enabled         bool     `yaml:"enabled"`
-	DefaultEngine   string   `yaml:"default_engine"`
-	MaxResults      int      `yaml:"max_results"`
-	Engines         []string `yaml:"engines"`
-	Timeout         int      `yaml:"timeout"`
-	RequireApproval *bool    `yaml:"require_approval,omitempty"`
+	Enabled         bool     `yaml:"enabled" mapstructure:"enabled"`
+	DefaultEngine   string   `yaml:"default_engine" mapstructure:"default_engine"`
+	MaxResults      int      `yaml:"max_results" mapstructure:"max_results"`
+	Engines         []string `yaml:"engines" mapstructure:"engines"`
+	Timeout         int      `yaml:"timeout" mapstructure:"timeout"`
+	RequireApproval *bool    `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // TodoWriteToolConfig contains TodoWrite-specific tool settings
@@ -211,13 +210,13 @@ type ChatConfig struct {
 
 // AgentConfig contains agent command-specific settings
 type AgentConfig struct {
-	Model           string                `yaml:"model"`
-	SystemPrompt    string                `yaml:"system_prompt"`
-	SystemReminders SystemRemindersConfig `yaml:"system_reminders"`
-	VerboseTools    bool                  `yaml:"verbose_tools"`
-	MaxTurns        int                   `yaml:"max_turns"`
-	MaxTokens       int                   `yaml:"max_tokens"`
-	Optimization    OptimizationConfig    `yaml:"optimization"`
+	Model           string                `yaml:"model" mapstructure:"model"`
+	SystemPrompt    string                `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemReminders SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
+	VerboseTools    bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
+	MaxTurns        int                   `yaml:"max_turns" mapstructure:"max_turns"`
+	MaxTokens       int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
+	Optimization    OptimizationConfig    `yaml:"optimization" mapstructure:"optimization"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -419,94 +418,6 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 			},
 		},
 	}
-}
-
-// LoadConfig loads configuration from file
-func (cfg *Config) Load(configPath string) (*Config, error) {
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
-	}
-
-	config.Path = configPath
-
-	logger.Debug("Successfully loaded config", "path", configPath, "gateway_url", config.Gateway.URL)
-	return &config, nil
-}
-
-// GetConfigPath returns the config path that would be used
-// If userspace is true, always returns the home directory path
-// Otherwise checks current directory first, then falls back to home directory
-func GetConfigPath(userspace bool) string {
-	if userspace {
-		homeDir, err := os.UserHomeDir()
-		if err != nil {
-			logger.Error("Failed to get user home directory", "error", err)
-			return DefaultConfigPath
-		}
-		return filepath.Join(homeDir, ConfigDirName, ConfigFileName)
-	}
-
-	localConfig := DefaultConfigPath
-	if _, err := os.Stat(localConfig); err == nil {
-		return localConfig
-	}
-
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		logger.Error("Failed to get user home directory", "error", err)
-		return localConfig
-	}
-
-	return filepath.Join(homeDir, ConfigDirName, ConfigFileName)
-}
-
-// Load is a standalone function to load configuration from a file path
-func Load(configPath string) (*Config, error) {
-	cfg := &Config{}
-	return cfg.Load(configPath)
-}
-
-// LoadConfig is an alias for Load for backward compatibility
-func LoadConfig(configPath string) (*Config, error) {
-	return Load(configPath)
-}
-
-// Save saves configuration to file
-func (cfg *Config) Save() error {
-	if cfg.Path == "" {
-		logger.Fatal("Could not load the config path for saving")
-	}
-
-	var buf strings.Builder
-	encoder := yaml.NewEncoder(&buf)
-	encoder.SetIndent(2)
-	err := encoder.Encode(cfg)
-	if closeErr := encoder.Close(); closeErr != nil {
-		return fmt.Errorf("failed to close YAML encoder: %w", closeErr)
-	}
-	if err != nil {
-		return fmt.Errorf("failed to marshal config to YAML: %w", err)
-	}
-	data := []byte(buf.String())
-
-	dir := filepath.Dir(cfg.Path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	// Write to file with proper permissions
-	if err := os.WriteFile(cfg.Path, data, 0644); err != nil {
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	logger.Debug("Successfully saved config", "path", cfg.Path)
-	return nil
 }
 
 // IsApprovalRequired checks if approval is required for a specific tool
