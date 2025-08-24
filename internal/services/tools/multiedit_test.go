@@ -160,7 +160,6 @@ func TestMultiEditTool_Execute_SuccessfulMultipleEdits(t *testing.T) {
 		t.Error("File should be marked as modified")
 	}
 
-	// Verify file content
 	newContent, err := os.ReadFile(testFile)
 	if err != nil {
 		t.Fatal(err)
@@ -171,22 +170,18 @@ func TestMultiEditTool_Execute_SuccessfulMultipleEdits(t *testing.T) {
 		t.Errorf("Expected content:\n%s\nGot:\n%s", expectedContent, string(newContent))
 	}
 
-	// Verify edit results
 	if len(multiEditResult.Edits) != 3 {
 		t.Errorf("Expected 3 edit results, got %d", len(multiEditResult.Edits))
 	}
 
-	// First edit: Hello -> Hi
 	if multiEditResult.Edits[0].ReplacedCount != 1 {
 		t.Errorf("First edit should replace 1 occurrence, got %d", multiEditResult.Edits[0].ReplacedCount)
 	}
 
-	// Second edit: world -> universe (replace_all)
 	if multiEditResult.Edits[1].ReplacedCount != 2 {
 		t.Errorf("Second edit should replace 2 occurrences, got %d", multiEditResult.Edits[1].ReplacedCount)
 	}
 
-	// Third edit: test file -> example file
 	if multiEditResult.Edits[2].ReplacedCount != 1 {
 		t.Errorf("Third edit should replace 1 occurrence, got %d", multiEditResult.Edits[2].ReplacedCount)
 	}
@@ -225,7 +220,6 @@ func TestMultiEditTool_Execute_SequentialEditsChangeContent(t *testing.T) {
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
 	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
 
-	// Test that edits apply sequentially - first change "name" to "userName", then "userName" to "username"
 	args := map[string]any{
 		"file_path": testFile,
 		"edits": []any{
@@ -249,7 +243,6 @@ func TestMultiEditTool_Execute_SequentialEditsChangeContent(t *testing.T) {
 		t.Errorf("Execute should succeed, got error: %s", result.Error)
 	}
 
-	// Verify file content
 	newContent, err := os.ReadFile(testFile)
 	if err != nil {
 		t.Fatal(err)
@@ -294,7 +287,6 @@ func TestMultiEditTool_Execute_AtomicFailure(t *testing.T) {
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
 	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
 
-	// First edit will succeed, second edit will fail (nonexistent string)
 	args := map[string]any{
 		"file_path": testFile,
 		"edits": []any{
@@ -322,7 +314,6 @@ func TestMultiEditTool_Execute_AtomicFailure(t *testing.T) {
 		t.Errorf("Error should mention string not found, got: %s", result.Error)
 	}
 
-	// Verify file was not modified (atomic behavior)
 	currentContent, err := os.ReadFile(testFile)
 	if err != nil {
 		t.Fatal(err)
@@ -372,7 +363,7 @@ func TestMultiEditTool_Execute_NonUniqueString(t *testing.T) {
 			map[string]any{
 				"old_string":  "test",
 				"new_string":  "example",
-				"replace_all": false, // This should fail because "test" appears multiple times
+				"replace_all": false,
 			},
 		},
 	}
@@ -390,7 +381,6 @@ func TestMultiEditTool_Execute_NonUniqueString(t *testing.T) {
 		t.Errorf("Error should mention string not unique, got: %s", result.Error)
 	}
 
-	// Verify file was not modified
 	currentContent, err := os.ReadFile(testFile)
 	if err != nil {
 		t.Fatal(err)
@@ -503,7 +493,6 @@ func TestMultiEditTool_Execute_NewFileCreation(t *testing.T) {
 	mockTracker := &MockReadToolTracker{readToolUsed: true}
 	tool := NewMultiEditToolWithRegistry(cfg, mockTracker)
 
-	// Create new file with empty old_string and then edit it
 	args := map[string]any{
 		"file_path": testFile,
 		"edits": []any{
@@ -957,6 +946,115 @@ func main() {
 	if string(newContent) != expectedContent {
 		t.Errorf("Expected content:\n%s\nGot:\n%s", expectedContent, string(newContent))
 	}
+}
+
+func TestMultiEditTool_FormatForUI(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+		},
+	}
+
+	tool := NewMultiEditTool(cfg)
+
+	t.Run("Successful multi-edit with collapsed view", func(t *testing.T) {
+		result := &domain.ToolExecutionResult{
+			ToolName: "MultiEdit",
+			Success:  true,
+			Arguments: map[string]any{
+				"file_path": "/path/to/test.go",
+				"edits": []any{
+					map[string]any{
+						"old_string": "old1",
+						"new_string": "new1",
+					},
+					map[string]any{
+						"old_string": "old2",
+						"new_string": "new2",
+					},
+					map[string]any{
+						"old_string": "old3",
+						"new_string": "new3",
+					},
+				},
+			},
+			Data: &domain.MultiEditToolResult{
+				FilePath:        "/path/to/test.go",
+				TotalEdits:      3,
+				SuccessfulEdits: 3,
+				FileModified:    true,
+				OriginalSize:    100,
+				NewSize:         105,
+				BytesDifference: 5,
+			},
+		}
+
+		output := tool.FormatForUI(result)
+
+		if !strings.Contains(output, "MultiEdit(file=test.go, 3 edits)") {
+			t.Errorf("Expected collapsed view to show 'MultiEdit(file=test.go, 3 edits)', got:\n%s", output)
+		}
+
+		if !strings.Contains(output, "✓") {
+			t.Errorf("Expected success icon in output, got:\n%s", output)
+		}
+
+		if !strings.Contains(output, "Applied 3/3 edits") {
+			t.Errorf("Expected 'Applied 3/3 edits' in preview, got:\n%s", output)
+		}
+	})
+
+	t.Run("Failed multi-edit", func(t *testing.T) {
+		result := &domain.ToolExecutionResult{
+			ToolName: "MultiEdit",
+			Success:  false,
+			Error:    "old_string not found",
+			Arguments: map[string]any{
+				"file_path": "/path/to/test.go",
+				"edits": []any{
+					map[string]any{
+						"old_string": "old1",
+						"new_string": "new1",
+					},
+				},
+			},
+		}
+
+		output := tool.FormatForUI(result)
+
+		if !strings.Contains(output, "MultiEdit(file=test.go, 1 edits)") {
+			t.Errorf("Expected collapsed view to show 'MultiEdit(file=test.go, 1 edits)', got:\n%s", output)
+		}
+
+		if !strings.Contains(output, "✗") {
+			t.Errorf("Expected failure icon in output, got:\n%s", output)
+		}
+	})
+
+	t.Run("Empty edits array", func(t *testing.T) {
+		result := &domain.ToolExecutionResult{
+			ToolName: "MultiEdit",
+			Success:  false,
+			Arguments: map[string]any{
+				"file_path": "/path/to/test.go",
+				"edits":     []any{},
+			},
+		}
+
+		output := tool.FormatForUI(result)
+
+		if !strings.Contains(output, "MultiEdit(") {
+			t.Errorf("Expected MultiEdit in output, got:\n%s", output)
+		}
+	})
+
+	t.Run("Nil result", func(t *testing.T) {
+		output := tool.FormatForUI(nil)
+
+		if output != "Tool execution result unavailable" {
+			t.Errorf("Expected 'Tool execution result unavailable', got: %s", output)
+		}
+	})
 }
 
 func TestMultiEditTool_EdgeCases(t *testing.T) {

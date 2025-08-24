@@ -667,12 +667,22 @@ func (t *MultiEditTool) FormatForUI(result *domain.ToolExecutionResult) string {
 		return "Tool execution result unavailable"
 	}
 
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	filePath, _ := result.Arguments["file_path"].(string)
+	editsInterface := result.Arguments["edits"]
+
+	var toolCallDisplay string
+	if editsArray, ok := editsInterface.([]any); ok && len(editsArray) > 0 {
+		fileName := t.formatter.GetFileName(filePath)
+		toolCallDisplay = fmt.Sprintf("MultiEdit(file=%s, %d edits)", fileName, len(editsArray))
+	} else {
+		toolCallDisplay = t.formatter.FormatToolCall(result.Arguments, false)
+	}
+
 	statusIcon := t.formatter.FormatStatusIcon(result.Success)
 	preview := t.FormatPreview(result)
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("%s\n", toolCallDisplay))
 	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
 
 	return output.String()
@@ -688,19 +698,16 @@ func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	// Show the content with git diff formatting in expanded view
 	showGitDiff := result.Success && result.Arguments != nil
 	if showGitDiff {
 		output.WriteString("\n")
 		diffRenderer := components.NewDiffRenderer(nil)
 		diffInfo := t.GetDiffInfo(result.Arguments)
-		// Update title for past tense (multi-edits already applied)
 		diffInfo.Title = "← Multi-edits applied →"
 		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
 		output.WriteString("\n")
 	}
 
-	// Only show data section if not showing git diff to avoid duplication
 	if !showGitDiff && result.Data != nil {
 		dataContent := t.formatMultiEditData(result.Data)
 		hasMetadata := len(result.Metadata) > 0
@@ -782,7 +789,6 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 		}
 	}
 
-	// Simulate the edits to get before/after content
 	originalContent := ""
 	if content, err := os.ReadFile(filePath); err == nil {
 		originalContent = string(content)
@@ -804,7 +810,6 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 		}
 
 		if !strings.Contains(currentContent, oldString) {
-			// Return error state
 			return &components.DiffInfo{
 				FilePath:   filePath,
 				OldContent: originalContent,
@@ -839,7 +844,6 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 
 // FormatArgumentsForApproval formats arguments for approval display with diff preview
 func (t *MultiEditTool) FormatArgumentsForApproval(args map[string]any) string {
-	// Use colored diff renderer
 	diffRenderer := components.NewToolDiffRenderer()
 	return diffRenderer.RenderMultiEditToolArguments(args)
 }

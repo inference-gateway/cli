@@ -1,0 +1,2 @@
+MultiEdit(file=demo.go, 3 edits)
+└─ ✓ Applied 3/3 edits to demo.go (45 bytes difference)
