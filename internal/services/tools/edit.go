@@ -17,7 +17,7 @@ type EditTool struct {
 	config    *config.Config
 	enabled   bool
 	registry  ReadToolTracker
-	formatter domain.BaseFormatter
+	formatter domain.CustomFormatter
 }
 
 // ReadToolTracker interface for tracking read tool usage
@@ -28,19 +28,23 @@ type ReadToolTracker interface {
 // NewEditTool creates a new edit tool
 func NewEditTool(cfg *config.Config) *EditTool {
 	return &EditTool{
-		config:    cfg,
-		enabled:   cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		formatter: domain.NewBaseFormatter("Edit"),
+		config:  cfg,
+		enabled: cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		formatter: domain.NewCustomFormatter("Edit", func(key string) bool {
+			return key == "old_string" || key == "new_string"
+		}),
 	}
 }
 
 // NewEditToolWithRegistry creates a new edit tool with a registry for read tracking
 func NewEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *EditTool {
 	return &EditTool{
-		config:    cfg,
-		enabled:   cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
-		registry:  registry,
-		formatter: domain.NewBaseFormatter("Edit"),
+		config:   cfg,
+		enabled:  cfg.Tools.Enabled && cfg.Tools.Edit.Enabled,
+		registry: registry,
+		formatter: domain.NewCustomFormatter("Edit", func(key string) bool {
+			return key == "old_string" || key == "new_string"
+		}),
 	}
 }
 
@@ -610,8 +614,7 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *EditTool) ShouldCollapseArg(key string) bool {
-	// Collapse old_string and new_string arguments as they can be very long
-	return key == "old_string" || key == "new_string"
+	return t.formatter.ShouldCollapseArg(key)
 }
 
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
