@@ -33,7 +33,7 @@ the agent command will use this model directly without requiring selection.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		modelName := args[0]
-		return setDefaultModel(modelName)
+		return setDefaultModel(cmd, modelName)
 	},
 }
 
@@ -45,7 +45,7 @@ The system prompt provides context and instructions to the AI model about how to
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		systemPrompt := args[0]
-		return setSystemPrompt(systemPrompt)
+		return setSystemPrompt(cmd, systemPrompt)
 	},
 }
 
@@ -57,7 +57,7 @@ This limits how long an agent can run to prevent infinite loops or excessive tok
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		maxTurns := args[0]
-		return setMaxTurns(maxTurns)
+		return setMaxTurns(cmd, maxTurns)
 	},
 }
 
@@ -451,46 +451,103 @@ var configToolsWebFetchCacheClearCmd = &cobra.Command{
 	RunE:  fetchCacheClear,
 }
 
-func setDefaultModel(modelName string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+func setDefaultModel(cmd *cobra.Command, modelName string) error {
+	userspace, _ := cmd.Flags().GetBool("userspace")
+
+	var cfg *config.Config
+	var err error
+	var configPath string
+
+	if userspace {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		configPath = filepath.Join(homeDir, ".infer", "config.yaml")
+		cfg, err = config.LoadConfig(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load userspace config: %w", err)
+		}
+	} else {
+		cfg, err = config.LoadConfig("")
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+		configPath = ""
 	}
 
 	cfg.Agent.Model = modelName
 
-	if err := cfg.SaveConfig(""); err != nil {
+	if err := cfg.SaveConfig(configPath); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
+	var scopeDesc string
+	if userspace {
+		scopeDesc = "userspace "
+	}
+
 	fmt.Printf("%s Default model set to: %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), modelName)
+	fmt.Printf("Configuration saved to %s%s\n", scopeDesc, func() string {
+		if configPath != "" {
+			return configPath
+		}
+		return ".infer/config.yaml"
+	}())
 	fmt.Println("The agent command will now use this model by default.")
 	return nil
 }
 
-func setSystemPrompt(systemPrompt string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+func setSystemPrompt(cmd *cobra.Command, systemPrompt string) error {
+	userspace, _ := cmd.Flags().GetBool("userspace")
+
+	var cfg *config.Config
+	var err error
+	var configPath string
+
+	if userspace {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		configPath = filepath.Join(homeDir, ".infer", "config.yaml")
+		cfg, err = config.LoadConfig(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load userspace config: %w", err)
+		}
+	} else {
+		cfg, err = config.LoadConfig("")
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+		configPath = ""
 	}
 
 	cfg.Agent.SystemPrompt = systemPrompt
 
-	if err := cfg.SaveConfig(""); err != nil {
+	if err := cfg.SaveConfig(configPath); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
+	var scopeDesc string
+	if userspace {
+		scopeDesc = "userspace "
+	}
+
 	fmt.Printf("%s System prompt set successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+	fmt.Printf("Configuration saved to %s%s\n", scopeDesc, func() string {
+		if configPath != "" {
+			return configPath
+		}
+		return ".infer/config.yaml"
+	}())
 	fmt.Printf("System prompt: %s\n", systemPrompt)
 	fmt.Println("This prompt will be included with every agent session.")
 	return nil
 }
 
-func setMaxTurns(maxTurnsStr string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
+func setMaxTurns(cmd *cobra.Command, maxTurnsStr string) error {
+	userspace, _ := cmd.Flags().GetBool("userspace")
 
 	maxTurns, err := strconv.Atoi(maxTurnsStr)
 	if err != nil {
@@ -501,13 +558,45 @@ func setMaxTurns(maxTurnsStr string) error {
 		return fmt.Errorf("max turns must be at least 1, got %d", maxTurns)
 	}
 
+	var cfg *config.Config
+	var configPath string
+
+	if userspace {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		configPath = filepath.Join(homeDir, ".infer", "config.yaml")
+		cfg, err = config.LoadConfig(configPath)
+		if err != nil {
+			return fmt.Errorf("failed to load userspace config: %w", err)
+		}
+	} else {
+		cfg, err = config.LoadConfig("")
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+		configPath = ""
+	}
+
 	cfg.Agent.MaxTurns = maxTurns
 
-	if err := cfg.SaveConfig(""); err != nil {
+	if err := cfg.SaveConfig(configPath); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
+	var scopeDesc string
+	if userspace {
+		scopeDesc = "userspace "
+	}
+
 	fmt.Printf("%s Maximum turns set to: %d\n", icons.CheckMarkStyle.Render(icons.CheckMark), maxTurns)
+	fmt.Printf("Configuration saved to %s%s\n", scopeDesc, func() string {
+		if configPath != "" {
+			return configPath
+		}
+		return ".infer/config.yaml"
+	}())
 	fmt.Println("Agent sessions will now be limited to this number of conversation turns.")
 	return nil
 }
@@ -524,25 +613,58 @@ var configAgentVerboseToolsCmd = &cobra.Command{
 	Long:  "Control whether the agent command shows full tool details or just tool names in the output",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadConfig("")
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
+		userspace, _ := cmd.Flags().GetBool("userspace")
+
+		var cfg *config.Config
+		var err error
+		var configPath string
+
+		if userspace {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("failed to get user home directory: %w", err)
+			}
+			configPath = filepath.Join(homeDir, ".infer", "config.yaml")
+			cfg, err = config.LoadConfig(configPath)
+			if err != nil {
+				return fmt.Errorf("failed to load userspace config: %w", err)
+			}
+		} else {
+			cfg, err = config.LoadConfig("")
+			if err != nil {
+				return fmt.Errorf("failed to load config: %w", err)
+			}
+			configPath = ""
 		}
 
+		var statusMsg string
 		switch args[0] {
 		case "enable":
 			cfg.Agent.VerboseTools = true
-			fmt.Printf("%s Verbose tools output enabled for agent command\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+			statusMsg = "Verbose tools output enabled for agent command"
 		case "disable":
 			cfg.Agent.VerboseTools = false
-			fmt.Printf("%s Verbose tools output disabled for agent command (will show tool names only)\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+			statusMsg = "Verbose tools output disabled for agent command (will show tool names only)"
 		default:
 			return fmt.Errorf("invalid argument: %s. Use 'enable' or 'disable'", args[0])
 		}
 
-		if err := cfg.SaveConfig(""); err != nil {
+		if err := cfg.SaveConfig(configPath); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
+
+		var scopeDesc string
+		if userspace {
+			scopeDesc = "userspace "
+		}
+
+		fmt.Printf("%s %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), statusMsg)
+		fmt.Printf("Configuration saved to %s%s\n", scopeDesc, func() string {
+			if configPath != "" {
+				return configPath
+			}
+			return ".infer/config.yaml"
+		}())
 
 		return nil
 	},
@@ -616,6 +738,11 @@ func init() {
 	configAgentCmd.AddCommand(configAgentSetSystemCmd)
 	configAgentCmd.AddCommand(configAgentSetMaxTurnsCmd)
 	configAgentCmd.AddCommand(configAgentVerboseToolsCmd)
+
+	configAgentSetModelCmd.Flags().Bool("userspace", false, "Set configuration in user home directory (~/.infer/)")
+	configAgentSetSystemCmd.Flags().Bool("userspace", false, "Set configuration in user home directory (~/.infer/)")
+	configAgentSetMaxTurnsCmd.Flags().Bool("userspace", false, "Set configuration in user home directory (~/.infer/)")
+	configAgentVerboseToolsCmd.Flags().Bool("userspace", false, "Set configuration in user home directory (~/.infer/)")
 
 	rootCmd.AddCommand(configCmd)
 }

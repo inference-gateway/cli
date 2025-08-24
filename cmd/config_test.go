@@ -196,3 +196,236 @@ func TestConfigInitExistingConfig(t *testing.T) {
 	err = testConfigInitCmdWithOverwrite.RunE(testConfigInitCmdWithOverwrite, []string{})
 	assert.NoError(t, err)
 }
+
+func TestConfigAgentSetModelWithUserspace(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "infer-config-test-*")
+	require.NoError(t, err)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
+	// Test both userspace and project-level config setting
+	testCases := []struct {
+		name      string
+		userspace bool
+		model     string
+	}{
+		{
+			name:      "set model in project config",
+			userspace: false,
+			model:     "gpt-4o-mini",
+		},
+		{
+			name:      "set model in userspace config",
+			userspace: true,
+			model:     "claude-3-sonnet",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Mock home directory for userspace config
+			if tc.userspace {
+				origHome := os.Getenv("HOME")
+				defer func() {
+					if err := os.Setenv("HOME", origHome); err != nil {
+						t.Errorf("Failed to restore HOME: %v", err)
+					}
+				}()
+				if err := os.Setenv("HOME", tempDir); err != nil {
+					t.Fatalf("Failed to set HOME: %v", err)
+				}
+			}
+
+			// Set working directory for project config
+			origDir, err := os.Getwd()
+			require.NoError(t, err)
+			defer func() {
+				if err := os.Chdir(origDir); err != nil {
+					t.Errorf("Failed to change back to original dir: %v", err)
+				}
+			}()
+			err = os.Chdir(tempDir)
+			require.NoError(t, err)
+
+			// Create test command with the userspace flag
+			testCmd := &cobra.Command{Use: "test"}
+			testCmd.Flags().Bool("userspace", tc.userspace, "Set configuration in user home directory")
+
+			// Call the function
+			err = setDefaultModel(testCmd, tc.model)
+			require.NoError(t, err)
+
+			// Verify the config was saved to the correct location
+			var expectedPath string
+			if tc.userspace {
+				expectedPath = filepath.Join(tempDir, ".infer", "config.yaml")
+			} else {
+				expectedPath = filepath.Join(tempDir, ".infer", "config.yaml")
+			}
+
+			// Load the config and verify the model was set
+			cfg, err := config.LoadConfig(expectedPath)
+			require.NoError(t, err)
+			assert.Equal(t, tc.model, cfg.Agent.Model)
+		})
+	}
+}
+
+func TestConfigAgentSetSystemWithUserspace(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "infer-config-test-*")
+	require.NoError(t, err)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
+	testSystemPrompt := "You are a helpful assistant."
+
+	// Test both userspace and project-level config setting
+	testCases := []struct {
+		name      string
+		userspace bool
+	}{
+		{
+			name:      "set system prompt in project config",
+			userspace: false,
+		},
+		{
+			name:      "set system prompt in userspace config",
+			userspace: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Mock home directory for userspace config
+			if tc.userspace {
+				origHome := os.Getenv("HOME")
+				defer func() {
+					if err := os.Setenv("HOME", origHome); err != nil {
+						t.Errorf("Failed to restore HOME: %v", err)
+					}
+				}()
+				if err := os.Setenv("HOME", tempDir); err != nil {
+					t.Fatalf("Failed to set HOME: %v", err)
+				}
+			}
+
+			// Set working directory for project config
+			origDir, err := os.Getwd()
+			require.NoError(t, err)
+			defer func() {
+				if err := os.Chdir(origDir); err != nil {
+					t.Errorf("Failed to change back to original dir: %v", err)
+				}
+			}()
+			err = os.Chdir(tempDir)
+			require.NoError(t, err)
+
+			// Create test command with the userspace flag
+			testCmd := &cobra.Command{Use: "test"}
+			testCmd.Flags().Bool("userspace", tc.userspace, "Set configuration in user home directory")
+
+			// Call the function
+			err = setSystemPrompt(testCmd, testSystemPrompt)
+			require.NoError(t, err)
+
+			// Verify the config was saved to the correct location
+			var expectedPath string
+			if tc.userspace {
+				expectedPath = filepath.Join(tempDir, ".infer", "config.yaml")
+			} else {
+				expectedPath = filepath.Join(tempDir, ".infer", "config.yaml")
+			}
+
+			// Load the config and verify the system prompt was set
+			cfg, err := config.LoadConfig(expectedPath)
+			require.NoError(t, err)
+			assert.Equal(t, testSystemPrompt, cfg.Agent.SystemPrompt)
+		})
+	}
+}
+
+func TestConfigAgentSetMaxTurnsWithUserspace(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "infer-config-test-*")
+	require.NoError(t, err)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Errorf("Failed to remove temp dir: %v", err)
+		}
+	}()
+
+	// Test both userspace and project-level config setting
+	testCases := []struct {
+		name      string
+		userspace bool
+		maxTurns  string
+		expected  int
+	}{
+		{
+			name:      "set max turns in project config",
+			userspace: false,
+			maxTurns:  "25",
+			expected:  25,
+		},
+		{
+			name:      "set max turns in userspace config",
+			userspace: true,
+			maxTurns:  "100",
+			expected:  100,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Mock home directory for userspace config
+			if tc.userspace {
+				origHome := os.Getenv("HOME")
+				defer func() {
+					if err := os.Setenv("HOME", origHome); err != nil {
+						t.Errorf("Failed to restore HOME: %v", err)
+					}
+				}()
+				if err := os.Setenv("HOME", tempDir); err != nil {
+					t.Fatalf("Failed to set HOME: %v", err)
+				}
+			}
+
+			// Set working directory for project config
+			origDir, err := os.Getwd()
+			require.NoError(t, err)
+			defer func() {
+				if err := os.Chdir(origDir); err != nil {
+					t.Errorf("Failed to change back to original dir: %v", err)
+				}
+			}()
+			err = os.Chdir(tempDir)
+			require.NoError(t, err)
+
+			// Create test command with the userspace flag
+			testCmd := &cobra.Command{Use: "test"}
+			testCmd.Flags().Bool("userspace", tc.userspace, "Set configuration in user home directory")
+
+			// Call the function
+			err = setMaxTurns(testCmd, tc.maxTurns)
+			require.NoError(t, err)
+
+			// Verify the config was saved to the correct location
+			var expectedPath string
+			if tc.userspace {
+				expectedPath = filepath.Join(tempDir, ".infer", "config.yaml")
+			} else {
+				expectedPath = filepath.Join(tempDir, ".infer", "config.yaml")
+			}
+
+			// Load the config and verify the max turns was set
+			cfg, err := config.LoadConfig(expectedPath)
+			require.NoError(t, err)
+			assert.Equal(t, tc.expected, cfg.Agent.MaxTurns)
+		})
+	}
+}
