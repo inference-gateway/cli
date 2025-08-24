@@ -6,7 +6,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 	"github.com/spf13/cobra"
 )
 
@@ -80,7 +80,7 @@ func setOptimizationEnabled(enabled bool) error {
 	if enabled {
 		status = ui.FormatSuccess("enabled")
 	}
-	fmt.Printf("%s Token optimization %s\n", shared.CheckMarkStyle.Render(shared.CheckMark), status)
+	fmt.Printf("%s Token optimization %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), status)
 
 	if enabled {
 		fmt.Println("\nOptimization settings:")
@@ -166,6 +166,6 @@ func setOptimizationParameter(param, value string) error {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
-	fmt.Printf("%s Set %s to %s\n", shared.CheckMarkStyle.Render(shared.CheckMark), param, ui.FormatSuccess(value))
+	fmt.Printf("%s Set %s to %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), param, ui.FormatSuccess(value))
 	return nil
 }

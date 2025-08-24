@@ -6,6 +6,7 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // DiffRenderer provides high-performance diff rendering with colors
@@ -24,13 +25,13 @@ type DiffRenderer struct {
 func NewDiffRenderer(theme shared.Theme) *DiffRenderer {
 	return &DiffRenderer{
 		theme:         theme,
-		additionStyle: lipgloss.NewStyle().Foreground(shared.DiffAddColor.GetLipglossColor()),
-		deletionStyle: lipgloss.NewStyle().Foreground(shared.DiffRemoveColor.GetLipglossColor()),
-		headerStyle:   lipgloss.NewStyle().Foreground(shared.HeaderColor.GetLipglossColor()),
-		fileStyle:     lipgloss.NewStyle().Foreground(shared.AccentColor.GetLipglossColor()).Bold(true),
-		contextStyle:  lipgloss.NewStyle().Foreground(shared.DimColor.GetLipglossColor()),
-		lineNumStyle:  lipgloss.NewStyle().Foreground(shared.DimColor.GetLipglossColor()),
-		chunkStyle:    lipgloss.NewStyle().Foreground(shared.StatusColor.GetLipglossColor()).Bold(true),
+		additionStyle: lipgloss.NewStyle().Foreground(colors.DiffAddColor.GetLipglossColor()),
+		deletionStyle: lipgloss.NewStyle().Foreground(colors.DiffRemoveColor.GetLipglossColor()),
+		headerStyle:   lipgloss.NewStyle().Foreground(colors.HeaderColor.GetLipglossColor()),
+		fileStyle:     lipgloss.NewStyle().Foreground(colors.AccentColor.GetLipglossColor()).Bold(true),
+		contextStyle:  lipgloss.NewStyle().Foreground(colors.DimColor.GetLipglossColor()),
+		lineNumStyle:  lipgloss.NewStyle().Foreground(colors.DimColor.GetLipglossColor()),
+		chunkStyle:    lipgloss.NewStyle().Foreground(colors.StatusColor.GetLipglossColor()).Bold(true),
 	}
 }
 
@@ -165,13 +166,13 @@ type DiffInfo struct {
 func NewToolDiffRenderer() *DiffRenderer {
 	return &DiffRenderer{
 		theme:         nil,
-		additionStyle: lipgloss.NewStyle().Foreground(shared.DiffAddColor.GetLipglossColor()),
-		deletionStyle: lipgloss.NewStyle().Foreground(shared.DiffRemoveColor.GetLipglossColor()),
-		headerStyle:   lipgloss.NewStyle().Foreground(shared.HeaderColor.GetLipglossColor()),
-		fileStyle:     lipgloss.NewStyle().Foreground(shared.AccentColor.GetLipglossColor()).Bold(true),
-		contextStyle:  lipgloss.NewStyle().Foreground(shared.DimColor.GetLipglossColor()),
-		lineNumStyle:  lipgloss.NewStyle().Foreground(shared.DimColor.GetLipglossColor()),
-		chunkStyle:    lipgloss.NewStyle().Foreground(shared.StatusColor.GetLipglossColor()).Bold(true),
+		additionStyle: lipgloss.NewStyle().Foreground(colors.DiffAddColor.GetLipglossColor()),
+		deletionStyle: lipgloss.NewStyle().Foreground(colors.DiffRemoveColor.GetLipglossColor()),
+		headerStyle:   lipgloss.NewStyle().Foreground(colors.HeaderColor.GetLipglossColor()),
+		fileStyle:     lipgloss.NewStyle().Foreground(colors.AccentColor.GetLipglossColor()).Bold(true),
+		contextStyle:  lipgloss.NewStyle().Foreground(colors.DimColor.GetLipglossColor()),
+		lineNumStyle:  lipgloss.NewStyle().Foreground(colors.DimColor.GetLipglossColor()),
+		chunkStyle:    lipgloss.NewStyle().Foreground(colors.StatusColor.GetLipglossColor()).Bold(true),
 	}
 }
 

@@ -10,6 +10,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // ConversationView handles the chat conversation display
@@ -154,15 +156,15 @@ func (cv *ConversationView) renderWelcome() string {
 		wd = "unknown"
 	}
 
-	headerLine := shared.StatusColor.ANSI + "✨ Inference Gateway CLI" + shared.Reset()
-	readyLine := shared.SuccessColor.ANSI + "🚀 Ready to chat!" + shared.Reset()
-	workingLine := shared.DimColor.ANSI + "📂 Working in: " + shared.Reset() + shared.HeaderColor.ANSI + wd + shared.Reset()
+	headerLine := colors.StatusColor.ANSI + "✨ Inference Gateway CLI" + colors.Reset
+	readyLine := colors.SuccessColor.ANSI + "🚀 Ready to chat!" + colors.Reset
+	workingLine := colors.DimColor.ANSI + "📂 Working in: " + colors.Reset + colors.HeaderColor.ANSI + wd + colors.Reset
 
 	content := headerLine + "\n" + readyLine + "\n" + workingLine
 
-	style := shared.NewCommonStyles().Border.
-		Border(shared.RoundedBorder(), true).
-		BorderForeground(shared.AccentColor.GetLipglossColor()).
+	style := styles.NewCommonStyles().Border.
+		Border(styles.RoundedBorder(), true).
+		BorderForeground(colors.AccentColor.GetLipglossColor()).
 		Padding(0, 1)
 
 	return style.Render(content)
@@ -173,39 +175,39 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 
 	switch string(entry.Message.Role) {
 	case "user":
-		color = shared.UserColor.ANSI
+		color = colors.UserColor.ANSI
 		role = "> You"
 	case "assistant":
-		color = shared.AssistantColor.ANSI
+		color = colors.AssistantColor.ANSI
 		if entry.Model != "" {
 			role = fmt.Sprintf("⏺ %s", entry.Model)
 		} else {
 			role = "⏺ Assistant"
 		}
 	case "system":
-		color = shared.DimColor.ANSI
+		color = colors.DimColor.ANSI
 		role = "⚙️ System"
 	case "tool":
 		// Determine tool color based on success/failure
 		if entry.ToolExecution != nil && !entry.ToolExecution.Success {
-			color = shared.ErrorColor.ANSI
+			color = colors.ErrorColor.ANSI
 			role = "🔧 Tool"
 		} else if entry.ToolExecution != nil && entry.ToolExecution.Success {
-			color = shared.SuccessColor.ANSI
+			color = colors.SuccessColor.ANSI
 			role = "🔧 Tool"
 		} else {
-			color = shared.AccentColor.ANSI
+			color = colors.AccentColor.ANSI
 			role = "🔧 Tool"
 		}
 		return cv.renderToolEntry(entry, index, color, role)
 	default:
-		color = shared.DimColor.ANSI
+		color = colors.DimColor.ANSI
 		role = string(entry.Message.Role)
 	}
 
 	content := entry.Message.Content
 	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
-	message := fmt.Sprintf("%s%s:%s %s", color, role, shared.Reset(), wrappedContent)
+	message := fmt.Sprintf("%s%s:%s %s", color, role, colors.Reset, wrappedContent)
 
 	return message + "\n"
 }
@@ -223,7 +225,7 @@ func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, inde
 	}
 
 	content := cv.formatEntryContent(entry, isExpanded)
-	message := fmt.Sprintf("%s%s:%s %s", color, role, shared.Reset(), content)
+	message := fmt.Sprintf("%s%s:%s %s", color, role, colors.Reset, content)
 	return message + "\n"
 }
 

@@ -9,6 +9,8 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 	"github.com/muesli/reflow/wordwrap"
 )
 
@@ -49,39 +51,39 @@ type approvalStyles struct {
 func NewApprovalComponent(theme shared.Theme) *ApprovalComponent {
 	styles := &approvalStyles{
 		title: lipgloss.NewStyle().
-			Foreground(shared.HeaderColor.GetLipglossColor()).
+			Foreground(colors.HeaderColor.GetLipglossColor()).
 			Bold(true),
 		border: lipgloss.NewStyle().
-			Foreground(shared.BorderColor.GetLipglossColor()),
+			Foreground(colors.BorderColor.GetLipglossColor()),
 		toolName: lipgloss.NewStyle().
-			Foreground(shared.AccentColor.GetLipglossColor()).
+			Foreground(colors.AccentColor.GetLipglossColor()).
 			Bold(true),
 		argumentKey: lipgloss.NewStyle().
-			Foreground(shared.AccentColor.GetLipglossColor()).
+			Foreground(colors.AccentColor.GetLipglossColor()).
 			Bold(true),
 		argumentValue: lipgloss.NewStyle().
-			Foreground(shared.AssistantColor.GetLipglossColor()),
+			Foreground(colors.AssistantColor.GetLipglossColor()),
 		warning: lipgloss.NewStyle().
-			Foreground(shared.WarningColor.GetLipglossColor()).
+			Foreground(colors.WarningColor.GetLipglossColor()).
 			Bold(true),
 		prompt: lipgloss.NewStyle().
-			Foreground(shared.AssistantColor.GetLipglossColor()).
+			Foreground(colors.AssistantColor.GetLipglossColor()).
 			Bold(true),
 		selectedOption: lipgloss.NewStyle().
-			Foreground(shared.AccentColor.GetLipglossColor()).
+			Foreground(colors.AccentColor.GetLipglossColor()).
 			Bold(true).
 			Border(lipgloss.NormalBorder(), false, false, false, true).
-			BorderForeground(shared.AccentColor.GetLipglossColor()).
+			BorderForeground(colors.AccentColor.GetLipglossColor()).
 			PaddingLeft(1),
 		unselectedOption: lipgloss.NewStyle().
-			Foreground(shared.DimColor.GetLipglossColor()).
+			Foreground(colors.DimColor.GetLipglossColor()).
 			PaddingLeft(2),
 		helpText: lipgloss.NewStyle().
-			Foreground(shared.DimColor.GetLipglossColor()).
+			Foreground(colors.DimColor.GetLipglossColor()).
 			Italic(true),
 		container: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
-			BorderForeground(shared.BorderColor.GetLipglossColor()).
+			BorderForeground(colors.BorderColor.GetLipglossColor()).
 			Padding(0, 1),
 	}
 
@@ -213,7 +215,7 @@ func (a *ApprovalComponent) renderDefaultArguments(arguments map[string]interfac
 	argBoxWidth := max(a.width-14, 30)
 	argsBox := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(shared.BorderColor.GetLipglossColor()).
+		BorderForeground(colors.BorderColor.GetLipglossColor()).
 		Padding(0, 1).
 		Width(argBoxWidth)
 
@@ -245,9 +247,9 @@ func (a *ApprovalComponent) renderFooter(selectedIndex int) string {
 
 	warningBox := lipgloss.NewStyle().
 		Border(lipgloss.NormalBorder()).
-		BorderForeground(shared.WarningColor.GetLipglossColor()).
+		BorderForeground(colors.WarningColor.GetLipglossColor()).
 		Padding(0, 1).
-		Foreground(shared.WarningColor.GetLipglossColor()).
+		Foreground(colors.WarningColor.GetLipglossColor()).
 		Bold(true)
 
 	content.WriteString(warningBox.Render(wrappedText))
@@ -261,14 +263,14 @@ func (a *ApprovalComponent) renderFooter(selectedIndex int) string {
 		icon string
 		text string
 	}{
-		{shared.CheckMarkStyle.Render(shared.CheckMark), "Approve and execute"},
-		{shared.CrossMarkStyle.Render(shared.CrossMark), "Deny and cancel"},
+		{icons.CheckMarkStyle.Render(icons.CheckMark), "Approve and execute"},
+		{icons.CrossMarkStyle.Render(icons.CrossMark), "Deny and cancel"},
 	}
 
 	for i, opt := range options {
 		optionText := fmt.Sprintf("%s %s", opt.icon, opt.text)
 		if i == selectedIndex {
-			indicator := shared.AccentColor.ANSI + "▶" + shared.Reset()
+			indicator := colors.AccentColor.ANSI + "▶" + colors.Reset
 			content.WriteString(" " + indicator + " " + a.styles.selectedOption.Render(optionText))
 		} else {
 			content.WriteString("   " + a.styles.unselectedOption.Render(optionText))
@@ -309,7 +311,7 @@ func (a *ApprovalComponent) assembleContent(headerStr, toolStr, footerStr string
 
 	containerStyle := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(shared.BorderColor.GetLipglossColor()).
+		BorderForeground(colors.BorderColor.GetLipglossColor()).
 		Padding(1, 2).
 		Width(contentWidth + 4).
 		MaxWidth(a.width)

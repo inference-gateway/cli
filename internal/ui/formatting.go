@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // MessageType represents different types of messages
@@ -22,7 +23,7 @@ const (
 func FormatMessage(msgType MessageType, message string) string {
 	switch msgType {
 	case MessageSuccess:
-		return fmt.Sprintf("%s %s", shared.CheckMarkStyle.Render(shared.CheckMark), message)
+		return fmt.Sprintf("%s %s", icons.CheckMarkStyle.Render(icons.CheckMark), message)
 	case MessageError:
 		return message
 	case MessageWarning:

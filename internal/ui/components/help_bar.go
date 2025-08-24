@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // HelpBar displays keyboard shortcuts at the bottom of the screen
@@ -156,7 +157,7 @@ func (hb *HelpBar) renderResponsiveTable() string {
 	}
 
 	tableStyle := lipgloss.NewStyle().
-		Foreground(shared.DimColor.GetLipglossColor()).
+		Foreground(colors.DimColor.GetLipglossColor()).
 		Width(hb.width)
 
 	return tableStyle.Render(strings.Join(tableRows, "\n"))

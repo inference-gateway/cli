@@ -8,6 +8,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // TextSelectionView provides vim-like text selection mode
@@ -385,7 +386,7 @@ func (v *TextSelectionView) Render() string {
 	var b strings.Builder
 
 	headerStyle := lipgloss.NewStyle().
-		Foreground(shared.AccentColor.GetLipglossColor()).
+		Foreground(colors.AccentColor.GetLipglossColor()).
 		Bold(true)
 
 	mode := "SELECTION MODE"
@@ -413,7 +414,7 @@ func (v *TextSelectionView) Render() string {
 	}
 
 	posStyle := lipgloss.NewStyle().
-		Foreground(shared.DimColor.GetLipglossColor()).
+		Foreground(colors.DimColor.GetLipglossColor()).
 		Italic(true)
 
 	debugInfo := ""
@@ -462,7 +463,7 @@ func (v *TextSelectionView) renderLineWithSelection(lineIdx int, line string) st
 	}
 
 	highlightStyle := lipgloss.NewStyle().
-		Background(shared.AccentColor.GetLipglossColor()).
+		Background(colors.AccentColor.GetLipglossColor()).
 		Foreground(lipgloss.Color("#000000"))
 
 	if lineIdx < start.Line || lineIdx > end.Line {
@@ -526,7 +527,7 @@ func (v *TextSelectionView) renderDisplayLine(lineIdx int, line string, isSelect
 
 	if v.visualLineMode {
 		highlightStyle := lipgloss.NewStyle().
-			Background(shared.AccentColor.GetLipglossColor()).
+			Background(colors.AccentColor.GetLipglossColor()).
 			Foreground(lipgloss.Color("#000000"))
 		return highlightStyle.Render(line)
 	}
@@ -580,7 +581,7 @@ func (v *TextSelectionView) renderLineWithCursor(lineIdx int, line string, isSel
 		Foreground(lipgloss.Color("#000000"))
 
 	highlightStyle := lipgloss.NewStyle().
-		Background(shared.AccentColor.GetLipglossColor()).
+		Background(colors.AccentColor.GetLipglossColor()).
 		Foreground(lipgloss.Color("#000000"))
 
 	lineLen := len(line)

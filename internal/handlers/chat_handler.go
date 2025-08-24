@@ -16,6 +16,7 @@ import (
 	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -1249,7 +1250,7 @@ func (h *ChatHandler) handleToolValidationError(_ string, err error) tea.Msg {
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
-			Content: fmt.Sprintf("%s Tool validation error: %v", shared.CrossMarkStyle.Render(shared.CrossMark), err),
+			Content: fmt.Sprintf("%s Tool validation error: %v", icons.CrossMarkStyle.Render(icons.CrossMark), err),
 		},
 		Model: h.modelService.GetCurrentModel(),
 		Time:  time.Now(),
@@ -1279,7 +1280,7 @@ func (h *ChatHandler) handleToolExecutionError(_ string, _ time.Duration, err er
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
-			Content: fmt.Sprintf("%s Tool execution failed: %v", shared.CrossMarkStyle.Render(shared.CrossMark), err),
+			Content: fmt.Sprintf("%s Tool execution failed: %v", icons.CrossMarkStyle.Render(icons.CrossMark), err),
 		},
 		Model: h.modelService.GetCurrentModel(),
 		Time:  time.Now(),
@@ -1381,7 +1382,7 @@ func (h *ChatHandler) handleBashValidationError(_ string, err error) tea.Msg {
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
-			Content: fmt.Sprintf("%s Error: %v", shared.CrossMarkStyle.Render(shared.CrossMark), err),
+			Content: fmt.Sprintf("%s Error: %v", icons.CrossMarkStyle.Render(icons.CrossMark), err),
 		},
 		Model: h.modelService.GetCurrentModel(),
 		Time:  time.Now(),
@@ -1410,7 +1411,7 @@ func (h *ChatHandler) handleBashExecutionError(_ string, _ time.Duration, err er
 	errorEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
-			Content: fmt.Sprintf("%s Execution failed: %v", shared.CrossMarkStyle.Render(shared.CrossMark), err),
+			Content: fmt.Sprintf("%s Execution failed: %v", icons.CrossMarkStyle.Render(icons.CrossMark), err),
 		},
 		Model: h.modelService.GetCurrentModel(),
 		Time:  time.Now(),
@@ -1444,7 +1445,7 @@ func (h *ChatHandler) formatBashResponse(result *domain.ToolExecutionResult) str
 
 func (h *ChatHandler) formatSuccessfulBashResponse(result *domain.ToolExecutionResult) string {
 	if bashResult, ok := result.Data.(*domain.BashToolResult); ok {
-		responseContent := fmt.Sprintf("%s Command executed successfully:\n\n```bash\n$ %s\n```\n\n", shared.CheckMarkStyle.Render(shared.CheckMark), bashResult.Command)
+		responseContent := fmt.Sprintf("%s Command executed successfully:\n\n```bash\n$ %s\n```\n\n", icons.CheckMarkStyle.Render(icons.CheckMark), bashResult.Command)
 		if bashResult.Output != "" {
 			responseContent += fmt.Sprintf("**Output:**\n```\n%s\n```", strings.TrimSpace(bashResult.Output))
 		}
@@ -1453,12 +1454,12 @@ func (h *ChatHandler) formatSuccessfulBashResponse(result *domain.ToolExecutionR
 		}
 		return responseContent
 	}
-	return fmt.Sprintf("%s Command executed successfully (no output)", shared.CheckMarkStyle.Render(shared.CheckMark))
+	return fmt.Sprintf("%s Command executed successfully (no output)", icons.CheckMarkStyle.Render(icons.CheckMark))
 }
 
 func (h *ChatHandler) formatFailedBashResponse(result *domain.ToolExecutionResult) string {
 	if bashResult, ok := result.Data.(*domain.BashToolResult); ok {
-		responseContent := fmt.Sprintf("%s Command failed with exit code %d:\n\n```bash\n$ %s\n```\n\n", shared.CrossMarkStyle.Render(shared.CrossMark), bashResult.ExitCode, bashResult.Command)
+		responseContent := fmt.Sprintf("%s Command failed with exit code %d:\n\n```bash\n$ %s\n```\n\n", icons.CrossMarkStyle.Render(icons.CrossMark), bashResult.ExitCode, bashResult.Command)
 		if bashResult.Output != "" {
 			responseContent += fmt.Sprintf("**Output:**\n```\n%s\n```", strings.TrimSpace(bashResult.Output))
 		}
@@ -1467,9 +1468,9 @@ func (h *ChatHandler) formatFailedBashResponse(result *domain.ToolExecutionResul
 		}
 		return responseContent
 	} else if result.Error != "" {
-		return fmt.Sprintf("%s Command failed: %s", shared.CrossMarkStyle.Render(shared.CrossMark), result.Error)
+		return fmt.Sprintf("%s Command failed: %s", icons.CrossMarkStyle.Render(icons.CrossMark), result.Error)
 	}
-	return fmt.Sprintf("%s Command failed for unknown reason", shared.CrossMarkStyle.Render(shared.CrossMark))
+	return fmt.Sprintf("%s Command failed for unknown reason", icons.CrossMarkStyle.Render(icons.CrossMark))
 }
 
 func (h *ChatHandler) addBashResponseToHistory(responseContent string) {

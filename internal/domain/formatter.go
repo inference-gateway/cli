@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // BaseFormatter provides common formatting functionality that tools can embed
@@ -60,17 +63,17 @@ func (f BaseFormatter) FormatToolCall(args map[string]any, expanded bool) string
 // FormatStatus returns a formatted status with icon
 func (f BaseFormatter) FormatStatus(success bool) string {
 	if success {
-		return "✓ Success"
+		return colors.CreateColoredTextSimple(icons.CheckMark+" Success", colors.Green)
 	}
-	return "✗ Failed"
+	return colors.CreateColoredTextSimple(icons.CrossMark+" Failed", colors.Red)
 }
 
 // FormatStatusIcon returns just the status icon
 func (f BaseFormatter) FormatStatusIcon(success bool) string {
 	if success {
-		return "✓"
+		return icons.CheckMark
 	}
-	return "✗"
+	return icons.CrossMark
 }
 
 // FormatDuration formats a duration for display

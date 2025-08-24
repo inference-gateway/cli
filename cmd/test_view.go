@@ -9,6 +9,7 @@ import (
 	"github.com/inference-gateway/cli/internal/ui"
 	"github.com/inference-gateway/cli/internal/ui/components"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 	"github.com/spf13/cobra"
 )
 
@@ -66,7 +67,7 @@ func createTestTheme() shared.Theme {
 
 func testApprovalView(theme shared.Theme) {
 	fmt.Println("🔧 Testing Approval View Component")
-	fmt.Println(shared.CreateSeparator(50, "─"))
+	fmt.Println(colors.CreateSeparator(50, "─"))
 
 	approvalComponent := components.NewApprovalComponent(theme)
 	approvalComponent.SetWidth(componentWidth)
@@ -109,7 +110,7 @@ func testMultiEditView(theme shared.Theme) {
 	}
 
 	fmt.Println("✏️  Testing MultiEdit Tool Collapsed View")
-	fmt.Println(shared.CreateSeparator(50, "─"))
+	fmt.Println(colors.CreateSeparator(50, "─"))
 
 	// Simulate a MultiEdit tool result for collapsed display
 	fmt.Println("\n--- Test Case 1: Collapsed View (Success) ---")
@@ -178,7 +179,7 @@ func testMultiEditView(theme shared.Theme) {
 
 func testDiffRenderer(theme shared.Theme) {
 	fmt.Println("🎨 Testing Diff Renderer Component")
-	fmt.Println(shared.CreateSeparator(50, "─"))
+	fmt.Println(colors.CreateSeparator(50, "─"))
 
 	diffRenderer := components.NewDiffRenderer(theme)
 
@@ -254,7 +255,7 @@ func testDiffRenderer(theme shared.Theme) {
 
 func testLargeFileView(theme shared.Theme) {
 	fmt.Println("📁 Testing Large File Edit/Write View Component")
-	fmt.Println(shared.CreateSeparator(80, "─"))
+	fmt.Println(colors.CreateSeparator(80, "─"))
 
 	largeOldContent := generateLargeFileContent("OLD", 100)
 	largeNewContent := generateLargeFileContent("NEW", 100)
@@ -273,7 +274,7 @@ func testLargeFileView(theme shared.Theme) {
 	for _, size := range screenSizes {
 		fmt.Printf("\n=== %s ===\n", size.name)
 		fmt.Printf("Testing responsiveness at %dx%d\n", size.width, size.height)
-		fmt.Println(shared.CreateSeparator(size.width/2, "─"))
+		fmt.Println(colors.CreateSeparator(size.width/2, "─"))
 
 		approvalComponent := components.NewApprovalComponent(theme)
 		approvalComponent.SetWidth(size.width)
@@ -329,7 +330,7 @@ func testLargeFileView(theme shared.Theme) {
 	}
 
 	fmt.Printf("\n=== Testing Write Tool with Large Content ===\n")
-	fmt.Println(shared.CreateSeparator(80, "─"))
+	fmt.Println(colors.CreateSeparator(80, "─"))
 
 	writeToolCall := &domain.ToolCall{
 		Name: "Write",

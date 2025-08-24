@@ -9,7 +9,8 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // TodoWriteTool handles structured task list management for coding sessions
@@ -332,7 +333,7 @@ func (t *TodoWriteTool) FormatPreview(result *domain.ToolExecutionResult) string
 		if result.Success {
 			return "📋 Todo list updated successfully"
 		}
-		return fmt.Sprintf("%s Todo list update failed", shared.CrossMarkStyle.Render(shared.CrossMark))
+		return fmt.Sprintf("%s Todo list update failed", icons.CrossMarkStyle.Render(icons.CrossMark))
 	}
 
 	if todoResult.TotalTasks == 0 {
@@ -401,7 +402,7 @@ func (t *TodoWriteTool) formatExpandedHeader(result *domain.ToolExecutionResult)
 	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", t.formatter.FormatStatus(result.Success)))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("├─ %s Error: %s\n", shared.CrossMarkStyle.Render(shared.CrossMark), result.Error))
+		output.WriteString(fmt.Sprintf("├─ %s Error: %s\n", icons.CrossMarkStyle.Render(icons.CrossMark), result.Error))
 	}
 
 	if len(result.Arguments) > 0 {
@@ -462,14 +463,14 @@ func (t *TodoWriteTool) formatTodoData(data any) string {
 
 	var output strings.Builder
 
-	header := shared.CreateColoredText("📋 **Todo List**", shared.AccentColor)
-	completionText := shared.CreateColoredText(fmt.Sprintf("(%d/%d completed)", todoResult.CompletedTasks, todoResult.TotalTasks), shared.DimColor)
+	header := colors.CreateColoredText("📋 **Todo List**", colors.AccentColor)
+	completionText := colors.CreateColoredText(fmt.Sprintf("(%d/%d completed)", todoResult.CompletedTasks, todoResult.TotalTasks), colors.DimColor)
 	output.WriteString(fmt.Sprintf("%s %s\n\n", header, completionText))
 
 	if todoResult.TotalTasks > 0 {
 		progressBar := t.formatColoredProgressBar(todoResult.CompletedTasks, todoResult.TotalTasks)
 		percentage := int(float64(todoResult.CompletedTasks) / float64(todoResult.TotalTasks) * 100)
-		progressText := shared.CreateColoredText(fmt.Sprintf("Progress: %s %d%%", progressBar, percentage), shared.AccentColor)
+		progressText := colors.CreateColoredText(fmt.Sprintf("Progress: %s %d%%", progressBar, percentage), colors.AccentColor)
 		output.WriteString(fmt.Sprintf("%s\n\n", progressText))
 	}
 
@@ -481,8 +482,8 @@ func (t *TodoWriteTool) formatTodoData(data any) string {
 	}
 
 	if todoResult.InProgressTask != "" {
-		workingText := shared.CreateColoredText("🚧 Currently working on:", shared.AccentColor)
-		taskText := shared.CreateColoredText(todoResult.InProgressTask, shared.SuccessColor)
+		workingText := colors.CreateColoredText("🚧 Currently working on:", colors.AccentColor)
+		taskText := colors.CreateColoredText(todoResult.InProgressTask, colors.SuccessColor)
 		output.WriteString(fmt.Sprintf("\n%s %s\n", workingText, taskText))
 	}
 
@@ -541,11 +542,11 @@ func (t *TodoWriteTool) formatTodoItem(todo domain.TodoItem) (string, string) {
 
 	switch todo.Status {
 	case "completed":
-		checkbox = shared.CreateColoredText("☐", shared.SuccessColor)
-		content = shared.CreateStrikethroughText(todo.Content)
+		checkbox = colors.CreateColoredText("☐", colors.SuccessColor)
+		content = colors.CreateStrikethroughText(todo.Content)
 	case "in_progress":
-		checkbox = shared.CreateColoredText("☐", shared.AccentColor)
-		content = shared.CreateColoredText(fmt.Sprintf("%s (in progress)", todo.Content), shared.AccentColor)
+		checkbox = colors.CreateColoredText("☐", colors.AccentColor)
+		content = colors.CreateColoredText(fmt.Sprintf("%s (in progress)", todo.Content), colors.AccentColor)
 	default:
 		checkbox = "☐"
 		content = todo.Content

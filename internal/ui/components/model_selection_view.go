@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // ModelSelectorImpl implements model selection UI
@@ -147,23 +148,23 @@ func (m *ModelSelectorImpl) View() string {
 	var b strings.Builder
 
 	b.WriteString(fmt.Sprintf("%s🤖 Select a Model%s\n\n",
-		m.theme.GetAccentColor(), shared.Reset()))
+		m.theme.GetAccentColor(), colors.Reset))
 
 	if m.searchMode {
 		b.WriteString(fmt.Sprintf("%sSearch: %s%s│%s\n\n",
-			m.theme.GetStatusColor(), m.searchQuery, m.theme.GetAccentColor(), shared.Reset()))
+			m.theme.GetStatusColor(), m.searchQuery, m.theme.GetAccentColor(), colors.Reset))
 	} else {
 		b.WriteString(fmt.Sprintf("%sPress / to search • %d models available%s\n\n",
-			m.theme.GetDimColor(), len(m.models), shared.Reset()))
+			m.theme.GetDimColor(), len(m.models), colors.Reset))
 	}
 
 	if len(m.filteredModels) == 0 {
 		if m.searchQuery != "" {
 			b.WriteString(fmt.Sprintf("%sNo models match '%s'%s\n",
-				m.theme.GetErrorColor(), m.searchQuery, shared.Reset()))
+				m.theme.GetErrorColor(), m.searchQuery, colors.Reset))
 		} else {
 			b.WriteString(fmt.Sprintf("%sNo models available%s\n",
-				m.theme.GetErrorColor(), shared.Reset()))
+				m.theme.GetErrorColor(), colors.Reset))
 		}
 		return b.String()
 	}
@@ -183,7 +184,7 @@ func (m *ModelSelectorImpl) View() string {
 
 		if i == m.selected {
 			b.WriteString(fmt.Sprintf("%s▶ %s%s\n",
-				m.theme.GetAccentColor(), model, shared.Reset()))
+				m.theme.GetAccentColor(), model, colors.Reset))
 		} else {
 			b.WriteString(fmt.Sprintf("  %s\n", model))
 		}
@@ -191,18 +192,18 @@ func (m *ModelSelectorImpl) View() string {
 
 	if len(m.filteredModels) > maxVisible {
 		b.WriteString(fmt.Sprintf("\n%sShowing %d-%d of %d models%s\n",
-			m.theme.GetDimColor(), start+1, start+maxVisible, len(m.filteredModels), shared.Reset()))
+			m.theme.GetDimColor(), start+1, start+maxVisible, len(m.filteredModels), colors.Reset))
 	}
 
 	b.WriteString("\n")
-	b.WriteString(shared.CreateSeparator(m.width, "─"))
+	b.WriteString(colors.CreateSeparator(m.width, "─"))
 	b.WriteString("\n")
 	if m.searchMode {
 		b.WriteString(fmt.Sprintf("%sType to search, ↑↓ to navigate, Enter to select, Esc to clear search%s",
-			m.theme.GetDimColor(), shared.Reset()))
+			m.theme.GetDimColor(), colors.Reset))
 	} else {
 		b.WriteString(fmt.Sprintf("%sUse ↑↓ arrows to navigate, Enter to select, / to search, Esc/Ctrl+C to cancel%s",
-			m.theme.GetDimColor(), shared.Reset()))
+			m.theme.GetDimColor(), colors.Reset))
 	}
 
 	return b.String()

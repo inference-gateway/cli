@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 	"github.com/spf13/cobra"
 )
 
@@ -57,7 +57,7 @@ chat_export_*
 		return fmt.Errorf("failed to create .gitignore file: %w", err)
 	}
 
-	fmt.Printf("%s Successfully initialized Inference Gateway CLI project\n", shared.CheckMarkStyle.Render(shared.CheckMark))
+	fmt.Printf("%s Successfully initialized Inference Gateway CLI project\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 	fmt.Printf("   Created: %s\n", configPath)
 	fmt.Printf("   Created: %s\n", gitignorePath)
 	fmt.Println("")
