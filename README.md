@@ -813,7 +813,7 @@ Configuration values are merged with the following precedence (highest to lowest
 3. **Built-in defaults** - **Lowest Priority**
 
 **Example**: If your userspace config sets `agent.model: "gpt-4"` and your project config sets
-`agent.model: "claude-3"`, the project config wins and `claude-3` will be used. However, if the project
+`agent.model: "deepseek/deepseek-chat"`, the project config wins and `deepseek/deepseek-chat` will be used. However, if the project
 config doesn't specify a model but does specify other settings, the userspace model will be preserved
 while project settings take precedence for their specific values.
 

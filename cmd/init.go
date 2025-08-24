@@ -35,7 +35,6 @@ func initializeProject(cmd *cobra.Command) error {
 	var configPath, gitignorePath string
 
 	if userspace {
-		// Initialize in user home directory
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
 			return fmt.Errorf("failed to get user home directory: %w", err)
@@ -43,7 +42,6 @@ func initializeProject(cmd *cobra.Command) error {
 		configPath = filepath.Join(homeDir, ".infer", "config.yaml")
 		gitignorePath = filepath.Join(homeDir, ".infer", ".gitignore")
 	} else {
-		// Initialize in current directory (default behavior)
 		configPath = ".infer/config.yaml"
 		gitignorePath = ".infer/.gitignore"
 	}
