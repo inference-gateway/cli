@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.38.0](https://github.com/inference-gateway/cli/compare/v0.37.0...v0.38.0) (2025-08-24)
+
+### 🚀 Features
+
+* Add test-view command for UI component testing ([#111](https://github.com/inference-gateway/cli/issues/111)) ([c5c3913](https://github.com/inference-gateway/cli/commit/c5c3913794d07e164678fb8ba9b84d6355e18324)), closes [#108](https://github.com/inference-gateway/cli/issues/108)
+
 ## [0.37.0](https://github.com/inference-gateway/cli/compare/v0.36.1...v0.37.0) (2025-08-23)
 
 ### 🚀 Features
