@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.40.0](https://github.com/inference-gateway/cli/compare/v0.39.0...v0.40.0) (2025-08-24)
+
+### 🚀 Features
+
+* **config:** Prefer AGENTS.md over README.md in system prompt ([#113](https://github.com/inference-gateway/cli/issues/113)) ([1ea1f1e](https://github.com/inference-gateway/cli/commit/1ea1f1e79389bb78b6016f695900f1c37e2159ae)), closes [#110](https://github.com/inference-gateway/cli/issues/110)
+
 ## [0.39.0](https://github.com/inference-gateway/cli/compare/v0.38.0...v0.39.0) (2025-08-24)
 
 ### 🚀 Features
