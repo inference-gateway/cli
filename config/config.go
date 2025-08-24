@@ -490,6 +490,14 @@ func getDefaultConfigPath() string {
 	return filepath.Join(wd, ".infer/config.yaml")
 }
 
+// GetConfigPath returns the config path that would be used, either default or provided
+func GetConfigPath(configPath string) string {
+	if configPath == "" {
+		return getDefaultConfigPath()
+	}
+	return configPath
+}
+
 // IsApprovalRequired checks if approval is required for a specific tool
 // It returns true if tool-specific approval is set to true, or if global approval is true and tool-specific is not set to false
 // ConfigService interface implementation
