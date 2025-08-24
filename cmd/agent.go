@@ -32,7 +32,7 @@ Examples:
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		return runAgentCommand(cfg, args[0], model)
+		return RunAgentCommand(cfg, model, args[0])
 	},
 }
 
@@ -61,7 +61,7 @@ type AgentSession struct {
 	config         *config.Config
 }
 
-func runAgentCommand(cfg *config.Config, taskDescription string, modelFlag string) error {
+func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string) error {
 	services := container.NewServiceContainer(cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
