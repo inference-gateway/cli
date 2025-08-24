@@ -215,7 +215,7 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 	if retryConfig.Enabled {
 		originalOnRetry := retryConfig.OnRetry
 		retryConfig.OnRetry = func(attempt int, err error, delay time.Duration) {
-			logger.Info("Retrying HTTP request",
+			logger.Error("Retrying HTTP request",
 				"attempt", attempt,
 				"error", err.Error(),
 				"delay", delay.String())
