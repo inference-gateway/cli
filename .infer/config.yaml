@@ -1,13 +1,119 @@
+gateway:
+  url: http://localhost:8080
+  api_key: ""
+  timeout: 200
+client:
+  timeout: 200
+  retry:
+    enabled: true
+    max_attempts: 3
+    initial_backoff_sec: 5
+    max_backoff_sec: 60
+    backoff_multiplier: 2
+    retryable_status_codes:
+      - 400
+      - 408
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
+logging:
+  debug: false
+  dir: ""
+tools:
+  enabled: true
+  sandbox:
+    directories:
+      - .
+      - /tmp
+    protected_paths:
+      - .infer/
+      - .git/
+      - '*.env'
+  bash:
+    enabled: true
+    whitelist:
+      commands:
+        - ls
+        - pwd
+        - echo
+        - wc
+        - sort
+        - uniq
+        - task
+      patterns:
+        - ^git branch( --show-current)?$
+        - ^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$
+        - ^git checkout [a-zA-Z0-9/_-]+
+        - ^git add [a-zA-Z0-9/_.-]+
+        - ^git diff+
+        - ^git remote -v$
+        - ^git status$
+        - ^git log --oneline -n [0-9]+$
+        - ^git commit -m ".+"$
+        - ^git push( --set-upstream)?( origin)? (feature|fix|bugfix|hotfix|chore|docs|test|refactor|build|ci|perf|style)/[a-zA-Z0-9/_.-]+$
+        - ^git push( --set-upstream)?( origin)? develop$
+        - ^git push( --set-upstream)?( origin)? staging$
+        - ^git push( --set-upstream)?( origin)? release/[a-zA-Z0-9._-]+$
+  read:
+    enabled: true
+    require_approval: false
+  write:
+    enabled: true
+    require_approval: true
+  edit:
+    enabled: true
+    require_approval: true
+  delete:
+    enabled: true
+    require_approval: true
+  grep:
+    enabled: true
+    backend: auto
+    require_approval: false
+  tree:
+    enabled: true
+    require_approval: false
+  web_fetch:
+    enabled: true
+    whitelisted_domains:
+      - golang.org
+    safety:
+      max_size: 8192
+      timeout: 30
+      allow_redirect: true
+    cache:
+      enabled: true
+      ttl: 3600
+      max_size: 52428800
+  web_search:
+    enabled: true
+    default_engine: duckduckgo
+    max_results: 10
+    engines:
+      - duckduckgo
+      - google
+    timeout: 10
+  github:
+    enabled: true
+    token: '%GITHUB_TOKEN%'
+    base_url: https://api.github.com
+    owner: ""
+    safety:
+      max_size: 1048576
+      timeout: 30
+  todo_write:
+    enabled: true
+    require_approval: false
+  safety:
+    require_approval: true
+compact:
+  output_dir: .infer
+  summary_model: ""
+chat: {}
 agent:
-  max_tokens: 4096
-  max_turns: 50
   model: ""
-  optimization:
-    compact_threshold: 20
-    enabled: false
-    max_history: 10
-    skip_redundant_confirmations: true
-    truncate_large_outputs: true
   system_prompt: |
     Autonomous software engineering agent. Execute tasks iteratively until completion.
 
@@ -52,117 +158,11 @@ agent:
       This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
       </system-reminder>
   verbose_tools: false
-client:
-  retry:
-    backoff_multiplier: 2
-    enabled: true
-    initial_backoff_sec: 5
-    max_attempts: 3
-    max_backoff_sec: 60
-    retryable_status_codes:
-      - 400
-      - 408
-      - 429
-      - 500
-      - 502
-      - 503
-      - 504
-  timeout: 200
-compact:
-  output_dir: .infer
-  summary_model: ""
-gateway:
-  api_key: ""
-  timeout: 200
-  url: http://localhost:8080
-logging:
-  debug: false
-  dir: ""
-tools:
-  bash:
-    enabled: true
-    whitelist:
-      commands:
-        - ls
-        - pwd
-        - echo
-        - wc
-        - sort
-        - uniq
-        - task
-      patterns:
-        - ^git branch( --show-current)?$
-        - ^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$
-        - ^git checkout [a-zA-Z0-9/_-]+
-        - ^git add [a-zA-Z0-9/_.-]+
-        - ^git diff+
-        - ^git remote -v$
-        - ^git status$
-        - ^git log --oneline -n [0-9]+$
-        - ^git commit -m ".+"$
-        - ^git push( --set-upstream)?( origin)? (feature|fix|bugfix|hotfix|chore|docs|test|refactor|build|ci|perf|style)/[a-zA-Z0-9/_.-]+$
-        - ^git push( --set-upstream)?( origin)? develop$
-        - ^git push( --set-upstream)?( origin)? staging$
-        - ^git push( --set-upstream)?( origin)? release/[a-zA-Z0-9._-]+$
-  delete:
-    enabled: true
-    require_approval: true
-  edit:
-    enabled: true
-    require_approval: true
-  enabled: true
-  github:
-    base_url: https://api.github.com
-    enabled: true
-    owner: ""
-    safety:
-      max_size: 1048576
-      timeout: 30
-    token: '%GITHUB_TOKEN%'
-  grep:
-    backend: auto
-    enabled: true
-    require_approval: false
-  read:
-    enabled: true
-    require_approval: false
-  safety:
-    require_approval: true
-  sandbox:
-    directories:
-      - .
-      - /tmp
-    protected_paths:
-      - .infer/
-      - .git/
-      - '*.env'
-  todo_write:
-    enabled: true
-    require_approval: false
-  tree:
-    enabled: true
-    require_approval: false
-  web_fetch:
-    cache:
-      enabled: true
-      max_size: 52428800
-      ttl: 3600
-    enabled: true
-    safety:
-      allow_redirect: true
-      max_size: 8192
-      timeout: 30
-    whitelisted_domains:
-      - golang.org
-  web_search:
-    default_engine: duckduckgo
-    enabled: true
-    engines:
-      - duckduckgo
-      - google
-    max_results: 10
-    timeout: 10
-  write:
-    enabled: true
-    require_approval: true
-verbose: false
+  max_turns: 50
+  max_tokens: 4096
+  optimization:
+    enabled: false
+    max_history: 10
+    compact_threshold: 20
+    truncate_large_outputs: true
+    skip_redundant_confirmations: true

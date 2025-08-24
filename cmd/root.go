@@ -51,24 +51,11 @@ func initConfig() {
 	v := V
 
 	defaults := config.DefaultConfig()
-	v.SetDefault("gateway.url", defaults.Gateway.URL)
-	v.SetDefault("gateway.api_key", defaults.Gateway.APIKey)
-	v.SetDefault("gateway.timeout", defaults.Gateway.Timeout)
-	v.SetDefault("logging.debug", defaults.Logging.Debug)
-	v.SetDefault("logging.dir", defaults.Logging.Dir)
-	v.SetDefault("client.timeout", defaults.Client.Timeout)
-	v.SetDefault("client.retry.enabled", defaults.Client.Retry.Enabled)
-	v.SetDefault("client.retry.max_attempts", defaults.Client.Retry.MaxAttempts)
-	v.SetDefault("client.retry.initial_backoff_sec", defaults.Client.Retry.InitialBackoffSec)
-	v.SetDefault("client.retry.max_backoff_sec", defaults.Client.Retry.MaxBackoffSec)
-	v.SetDefault("client.retry.backoff_multiplier", defaults.Client.Retry.BackoffMultiplier)
-	v.SetDefault("client.retry.retryable_status_codes", defaults.Client.Retry.RetryableStatusCodes)
-	v.SetDefault("tools.enabled", defaults.Tools.Enabled)
-	v.SetDefault("agent.model", defaults.Agent.Model)
-	v.SetDefault("agent.system_prompt", defaults.Agent.SystemPrompt)
-	v.SetDefault("agent.max_turns", defaults.Agent.MaxTurns)
-	v.SetDefault("agent.max_tokens", defaults.Agent.MaxTokens)
-	v.SetDefault("agent.verbose_tools", defaults.Agent.VerboseTools)
+	v.SetDefault("gateway", defaults.Gateway)
+	v.SetDefault("logging", defaults.Logging)
+	v.SetDefault("client", defaults.Client)
+	v.SetDefault("tools", defaults.Tools)
+	v.SetDefault("agent", defaults.Agent)
 
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")
@@ -90,13 +77,8 @@ func initConfig() {
 		}
 	}
 
-	cfg := &config.Config{
-		Logging: config.LoggingConfig{
-			Debug: v.GetBool("logging.debug"),
-			Dir:   v.GetString("logging.dir"),
-		},
-	}
-
 	verbose := v.GetBool("verbose")
-	logger.Init(verbose, cfg)
+	debug := v.GetBool("debug")
+	logDir := v.GetString("logging.dir")
+	logger.Init(verbose, debug, logDir)
 }

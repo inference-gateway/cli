@@ -13,23 +13,16 @@ import (
 var (
 	logger *zap.Logger
 	sugar  *zap.SugaredLogger
-	logDir string
 )
 
-// ConfigProvider interface for getting configuration values
-type ConfigProvider interface {
-	GetLogDir() string
-	IsDebugMode() bool
-}
-
 // Init initializes the logger with the specified verbose level and config
-func Init(verbose bool, cfg ConfigProvider) {
-	if cfg != nil {
-		logDir = cfg.GetLogDir()
-		verbose = verbose || cfg.IsDebugMode()
-	} else {
+func Init(verbose, debug bool, logDir string) {
+	verbose = verbose || debug
+
+	if logDir == "" {
 		logDir = ".infer/logs"
 	}
+
 	if err := os.MkdirAll(logDir, 0755); err != nil {
 		logger = zap.NewNop()
 		sugar = logger.Sugar()

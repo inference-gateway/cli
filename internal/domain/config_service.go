@@ -6,7 +6,6 @@ type ConfigService interface {
 	IsApprovalRequired(toolName string) bool
 
 	// Debug and output configuration
-	IsDebugMode() bool
 	GetOutputDirectory() string
 
 	// Gateway configuration

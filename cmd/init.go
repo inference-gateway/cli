@@ -95,9 +95,9 @@ chat_export_*
 	return nil
 }
 
-// writeConfigAsYAMLWithIndent writes the current Viper configuration to a YAML file with specified indentation
+// writeConfigAsYAMLWithIndent writes the default configuration to a YAML file with specified indentation
 func writeConfigAsYAMLWithIndent(filename string, indent int) error {
-	allSettings := V.AllSettings()
+	defaultConfig := config.DefaultConfig()
 
 	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
@@ -107,7 +107,7 @@ func writeConfigAsYAMLWithIndent(filename string, indent int) error {
 	yamlEncoder := yaml.NewEncoder(&buf)
 	yamlEncoder.SetIndent(indent)
 
-	if err := yamlEncoder.Encode(allSettings); err != nil {
+	if err := yamlEncoder.Encode(defaultConfig); err != nil {
 		return fmt.Errorf("failed to marshal config to YAML: %w", err)
 	}
 

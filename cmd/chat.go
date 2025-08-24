@@ -3,6 +3,8 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -74,7 +76,7 @@ func StartChatSession(cfg *config.Config) error {
 		toolOrchestrator,
 		theme,
 		toolRegistry,
-		V.ConfigFileUsed(),
+		getEffectiveConfigPath(),
 	)
 
 	program := tea.NewProgram(application)
@@ -108,6 +110,31 @@ func validateAndSetDefaultModel(modelService domain.ModelService, models []strin
 
 	fmt.Printf("🤖 Using default model: %s\n", defaultModel)
 	return defaultModel
+}
+
+// getEffectiveConfigPath returns the actual config file path that should be displayed
+// It follows Viper's search order and returns the first existing config file
+func getEffectiveConfigPath() string {
+	searchPaths := []string{
+		".infer/config.yaml",
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, ".infer", "config.yaml")
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	if configFile := V.ConfigFileUsed(); configFile != "" {
+		return configFile
+	}
+
+	return ".infer/config.yaml"
 }
 
 func init() {

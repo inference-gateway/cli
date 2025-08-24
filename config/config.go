@@ -22,13 +22,11 @@ const (
 
 // Config represents the CLI configuration
 type Config struct {
-	Path    string        `yaml:"-" mapstructure:"-"`
 	Gateway GatewayConfig `yaml:"gateway" mapstructure:"gateway"`
 	Client  ClientConfig  `yaml:"client" mapstructure:"client"`
 	Logging LoggingConfig `yaml:"logging" mapstructure:"logging"`
 	Tools   ToolsConfig   `yaml:"tools" mapstructure:"tools"`
 	Compact CompactConfig `yaml:"compact" mapstructure:"compact"`
-	Chat    ChatConfig    `yaml:"chat" mapstructure:"chat"`
 	Agent   AgentConfig   `yaml:"agent" mapstructure:"agent"`
 }
 
@@ -204,10 +202,6 @@ type SystemRemindersConfig struct {
 	ReminderText string `yaml:"reminder_text" mapstructure:"reminder_text"`
 }
 
-// ChatConfig contains chat-related settings
-type ChatConfig struct {
-}
-
 // AgentConfig contains agent command-specific settings
 type AgentConfig struct {
 	Model           string                `yaml:"model" mapstructure:"model"`
@@ -360,7 +354,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			OutputDir:    ConfigDirName,
 			SummaryModel: "",
 		},
-		Chat: ChatConfig{},
 		Agent: AgentConfig{
 			Model: "",
 			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion.
@@ -476,11 +469,6 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	return globalApproval
 }
 
-// Additional ConfigService methods
-func (c *Config) IsDebugMode() bool {
-	return c.Logging.Debug
-}
-
 func (c *Config) GetOutputDirectory() string {
 	return c.Compact.OutputDir
 }
@@ -503,19 +491,6 @@ func (c *Config) GetSystemPrompt() string {
 
 func (c *Config) GetDefaultModel() string {
 	return c.Agent.Model
-}
-
-// GetLogDir returns the logging directory, defaulting to config directory/logs if not set
-func (c *Config) GetLogDir() string {
-	if c.Logging.Dir != "" {
-		return c.Logging.Dir
-	}
-
-	if c.Path != "" {
-		return filepath.Join(filepath.Dir(c.Path), LogsDirName)
-	}
-
-	return DefaultLogsPath
 }
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories
