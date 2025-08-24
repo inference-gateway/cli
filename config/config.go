@@ -440,6 +440,183 @@ func LoadConfig(configPath string) (*Config, error) {
 	return &config, nil
 }
 
+// LoadConfigWithUserspace loads configuration using 2-layer approach: userspace + project
+// Project config takes precedence over userspace config, both override defaults
+func LoadConfigWithUserspace(configPath string) (*Config, error) {
+	if configPath == "" {
+		configPath = getDefaultConfigPath()
+		logger.Debug("Using default config path", "path", configPath)
+	} else {
+		logger.Debug("Using custom config path", "path", configPath)
+	}
+
+	// Start with default configuration
+	baseConfig := DefaultConfig()
+
+	// Try to load userspace config first
+	userspaceConfigPath := getUserspaceConfigPath()
+	if _, err := os.Stat(userspaceConfigPath); err == nil {
+		logger.Debug("Loading userspace config", "path", userspaceConfigPath)
+		userspaceConfig, err := loadConfigFromFile(userspaceConfigPath)
+		if err != nil {
+			logger.Error("Failed to load userspace config", "path", userspaceConfigPath, "error", err)
+			return nil, fmt.Errorf("failed to load userspace config: %w", err)
+		}
+
+		// Merge userspace config into base config
+		mergedConfig, err := mergeConfigsViaYAML(baseConfig, userspaceConfig)
+		if err != nil {
+			logger.Error("Failed to merge userspace config", "error", err)
+			return nil, fmt.Errorf("failed to merge userspace config: %w", err)
+		}
+		baseConfig = mergedConfig
+		logger.Debug("Successfully merged userspace config")
+	} else {
+		logger.Debug("No userspace config found", "path", userspaceConfigPath)
+	}
+
+	// Try to load project config (takes precedence)
+	if _, err := os.Stat(configPath); err == nil {
+		logger.Debug("Loading project config", "path", configPath)
+		projectConfig, err := loadConfigFromFile(configPath)
+		if err != nil {
+			logger.Error("Failed to load project config", "path", configPath, "error", err)
+			return nil, fmt.Errorf("failed to load project config: %w", err)
+		}
+
+		// Merge project config into base config (project takes precedence)
+		mergedConfig, err := mergeConfigsViaYAML(baseConfig, projectConfig)
+		if err != nil {
+			logger.Error("Failed to merge project config", "error", err)
+			return nil, fmt.Errorf("failed to merge project config: %w", err)
+		}
+		baseConfig = mergedConfig
+		logger.Debug("Successfully merged project config")
+	} else {
+		logger.Debug("No project config found", "path", configPath)
+	}
+
+	logger.Debug("Successfully loaded 2-layer config", "project_path", configPath, "userspace_path", userspaceConfigPath)
+	return baseConfig, nil
+}
+
+// loadConfigFromFile loads a config from a specific file path
+func loadConfigFromFile(configPath string) (*Config, error) {
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	var config Config
+	if err := yaml.Unmarshal(data, &config); err != nil {
+		return nil, fmt.Errorf("failed to parse config file: %w", err)
+	}
+
+	return &config, nil
+}
+
+// mergeConfigsViaYAML merges two configs using YAML marshalling/unmarshalling
+// This approach only overrides explicitly set values, preserving defaults
+func mergeConfigsViaYAML(base, override *Config) (*Config, error) {
+	// Start with the base config as foundation
+	result := *base
+
+	// Marshal override config to YAML to only get explicitly set values
+	overrideYAML, err := yaml.Marshal(override)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal override config: %w", err)
+	}
+
+	// Parse override as generic map to see what was explicitly set
+	var overrideMap map[string]interface{}
+	if err := yaml.Unmarshal(overrideYAML, &overrideMap); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal override YAML: %w", err)
+	}
+
+	// Remove zero values from override map (these weren't explicitly set)
+	cleanOverrideMap := removeZeroValues(overrideMap)
+
+	// If nothing to merge, return base
+	if len(cleanOverrideMap) == 0 {
+		return &result, nil
+	}
+
+	// Marshal the cleaned override map back to YAML
+	cleanOverrideYAML, err := yaml.Marshal(cleanOverrideMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal clean override: %w", err)
+	}
+
+	// Unmarshal the override onto our result, which will only override explicitly set values
+	if err := yaml.Unmarshal(cleanOverrideYAML, &result); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal override onto result: %w", err)
+	}
+
+	return &result, nil
+}
+
+// removeZeroValues recursively removes zero/empty values from a map
+// This helps distinguish between explicitly set values and default zero values
+func removeZeroValues(m map[string]interface{}) map[string]interface{} {
+	result := make(map[string]interface{})
+	
+	for k, v := range m {
+		switch val := v.(type) {
+		case map[string]interface{}:
+			// Recursively clean nested maps
+			cleaned := removeZeroValues(val)
+			if len(cleaned) > 0 {
+				result[k] = cleaned
+			}
+		case string:
+			// Keep non-empty strings
+			if val != "" {
+				result[k] = val
+			}
+		case int:
+			// Keep non-zero ints
+			if val != 0 {
+				result[k] = val
+			}
+		case bool:
+			// Always keep bools since false might be intentionally set
+			result[k] = val
+		case []interface{}:
+			// Keep non-empty slices
+			if len(val) > 0 {
+				result[k] = val
+			}
+		case []string:
+			// Keep non-empty string slices
+			if len(val) > 0 {
+				result[k] = val
+			}
+		case []int:
+			// Keep non-empty int slices
+			if len(val) > 0 {
+				result[k] = val
+			}
+		default:
+			// Keep other types as-is (including pointers)
+			if val != nil {
+				result[k] = val
+			}
+		}
+	}
+	
+	return result
+}
+
+// getUserspaceConfigPath returns the path to the userspace config file
+func getUserspaceConfigPath() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		logger.Error("Failed to get user home directory", "error", err)
+		return ""
+	}
+	return filepath.Join(homeDir, ".infer", "config.yaml")
+}
+
 // SaveConfig saves configuration to file
 func (c *Config) SaveConfig(configPath string) error {
 	if configPath == "" {

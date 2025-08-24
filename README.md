@@ -224,13 +224,18 @@ This is the recommended command to start working with Inference Gateway CLI in a
 
 **Options:**
 
-- `--overwrite`: Overwrite existing files if they already exist
+- `--overwrite`: Overwrite existing files if they already exist  
+- `--userspace`: Initialize configuration in user home directory (`~/.infer/`)
 
 **Examples:**
 
 ```bash
+# Initialize project-level configuration (default)
 infer init
 infer init --overwrite
+
+# Initialize userspace configuration (global fallback)  
+infer init --userspace
 ```
 
 ### `infer config`
@@ -247,12 +252,17 @@ For complete project initialization, use `infer init` instead.
 **Options:**
 
 - `--overwrite`: Overwrite existing configuration file
+- `--userspace`: Initialize configuration in user home directory (`~/.infer/`)
 
 **Examples:**
 
 ```bash
+# Initialize project-level configuration (default)
 infer config init
 infer config init --overwrite
+
+# Initialize userspace configuration (global fallback)
+infer config init --userspace
 ```
 
 ### `infer config agent set-model`
@@ -779,8 +789,43 @@ Create and manage structured task lists for LLM-assisted development workflows.
 
 ## Configuration
 
-The CLI uses a YAML configuration file located at `.infer/config.yaml`.
-You can also specify a custom config file using the `--config` flag.
+The CLI supports a **2-layer configuration system** that allows for both user-level and project-level configuration with proper precedence handling.
+
+### Configuration Layers
+
+1. **Userspace Configuration** (`~/.infer/config.yaml`)
+   - Global configuration for the user across all projects
+   - Used as a fallback when no project-level configuration exists
+   - Can be created with: `infer init --userspace` or `infer config init --userspace`
+
+2. **Project Configuration** (`.infer/config.yaml` in current directory)
+   - Project-specific configuration that takes precedence over userspace config
+   - Default location for most commands
+   - Can be created with: `infer init` or `infer config init`
+
+### Configuration Precedence
+
+Configuration values are merged with the following precedence (highest to lowest):
+
+1. **Project-level config** (`.infer/config.yaml`) - **Highest Priority**
+2. **Userspace config** (`~/.infer/config.yaml`) 
+3. **Built-in defaults** - **Lowest Priority**
+
+**Example**: If your userspace config sets `agent.model: "gpt-4"` and your project config sets `agent.model: "claude-3"`, the project config wins and `claude-3` will be used. However, if the project config doesn't specify a model but does specify other settings, the userspace model will be preserved while project settings take precedence for their specific values.
+
+### Usage Examples
+
+```bash
+# Create userspace configuration (global fallback)
+infer init --userspace
+
+# Create project configuration (takes precedence)  
+infer init
+
+# Both configurations will be automatically merged when commands are run
+```
+
+You can also specify a custom config file using the `--config` flag which will override the automatic 2-layer loading.
 
 ### Default Configuration
 

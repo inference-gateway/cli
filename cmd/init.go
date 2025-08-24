@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/ui/styles/icons"
@@ -23,14 +24,29 @@ This is the recommended command to start working with Inference Gateway CLI in a
 
 func init() {
 	initCmd.Flags().Bool("overwrite", false, "Overwrite existing files if they already exist")
+	initCmd.Flags().Bool("userspace", false, "Initialize configuration in user home directory (~/.infer/)")
 	rootCmd.AddCommand(initCmd)
 }
 
 func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
+	userspace, _ := cmd.Flags().GetBool("userspace")
 
-	configPath := ".infer/config.yaml"
-	gitignorePath := ".infer/.gitignore"
+	var configPath, gitignorePath string
+
+	if userspace {
+		// Initialize in user home directory
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		configPath = filepath.Join(homeDir, ".infer", "config.yaml")
+		gitignorePath = filepath.Join(homeDir, ".infer", ".gitignore")
+	} else {
+		// Initialize in current directory (default behavior)
+		configPath = ".infer/config.yaml"
+		gitignorePath = ".infer/.gitignore"
+	}
 
 	if !overwrite {
 		if _, err := os.Stat(configPath); err == nil {
@@ -57,11 +73,23 @@ chat_export_*
 		return fmt.Errorf("failed to create .gitignore file: %w", err)
 	}
 
-	fmt.Printf("%s Successfully initialized Inference Gateway CLI project\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+	var scopeDesc string
+	if userspace {
+		scopeDesc = "userspace"
+	} else {
+		scopeDesc = "project"
+	}
+
+	fmt.Printf("%s Successfully initialized Inference Gateway CLI %s configuration\n", icons.CheckMarkStyle.Render(icons.CheckMark), scopeDesc)
 	fmt.Printf("   Created: %s\n", configPath)
 	fmt.Printf("   Created: %s\n", gitignorePath)
 	fmt.Println("")
-	fmt.Println("You can now customize the configuration for this project:")
+	if userspace {
+		fmt.Println("This userspace configuration will be used as a fallback for all projects.")
+		fmt.Println("Project-level configurations will take precedence when present.")
+		fmt.Println("")
+	}
+	fmt.Println("You can now customize the configuration:")
 	fmt.Println("  • Set default model: infer config agent set-model <model-name>")
 	fmt.Println("  • Configure tools: infer config tools --help")
 	fmt.Println("  • Start chatting: infer chat")

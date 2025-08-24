@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -68,10 +69,21 @@ This creates only the configuration file with default settings.
 
 For complete project initialization, use 'infer init' instead.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath := ".infer/config.yaml"
+		userspace, _ := cmd.Flags().GetBool("userspace")
+		overwrite, _ := cmd.Flags().GetBool("overwrite")
+
+		var configPath string
+		if userspace {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("failed to get user home directory: %w", err)
+			}
+			configPath = filepath.Join(homeDir, ".infer", "config.yaml")
+		} else {
+			configPath = ".infer/config.yaml"
+		}
 
 		if _, err := os.Stat(configPath); err == nil {
-			overwrite, _ := cmd.Flags().GetBool("overwrite")
 			if !overwrite {
 				return fmt.Errorf("configuration file %s already exists (use --overwrite to replace)", configPath)
 			}
@@ -83,8 +95,18 @@ For complete project initialization, use 'infer init' instead.`,
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 
-		fmt.Printf("Successfully created %s\n", configPath)
-		fmt.Println("You can now customize the configuration for this project.")
+		var scopeDesc string
+		if userspace {
+			scopeDesc = "userspace "
+		}
+
+		fmt.Printf("Successfully created %sconfiguration: %s\n", scopeDesc, configPath)
+		if userspace {
+			fmt.Println("This userspace configuration will be used as a fallback for all projects.")
+			fmt.Println("Project-level configurations will take precedence when present.")
+		} else {
+			fmt.Println("You can now customize the configuration for this project.")
+		}
 		fmt.Println("Tip: Use 'infer init' for complete project initialization including additional setup files.")
 
 		return nil
@@ -585,6 +607,7 @@ func init() {
 	configToolsWebFetchCacheCmd.AddCommand(configToolsWebFetchCacheClearCmd)
 
 	configInitCmd.Flags().Bool("overwrite", false, "Overwrite existing configuration file")
+	configInitCmd.Flags().Bool("userspace", false, "Initialize configuration in user home directory (~/.infer/)")
 	configToolsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	configToolsExecCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	configToolsWebFetchListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
