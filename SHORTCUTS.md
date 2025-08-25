@@ -1,10 +1,12 @@
 # Extensible Shortcuts System
 
-The CLI provides an extensible shortcuts system that allows you to quickly execute common commands with `/shortcut-name` syntax.
+The CLI provides an extensible shortcuts system that allows you to quickly execute common commands with
+`/shortcut-name` syntax.
 
 ## Built-in Shortcuts
 
 ### Core Shortcuts
+
 - `/clear` - Clear conversation history
 - `/exit` - Exit the chat session  
 - `/help [shortcut]` - Show available shortcuts or specific shortcut help
@@ -13,6 +15,7 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 - `/compact [format]` - Export conversation to markdown
 
 ### Git Shortcuts
+
 - `/git <command> [args...]` - Execute git commands (supports commit, push, status, etc.)
 - `/git commit [flags]` - **NEW**: Commit staged changes with AI-generated message
 - `/git push [remote] [branch] [flags]` - **NEW**: Push commits to remote repository
@@ -63,6 +66,7 @@ With the configuration above, you can use:
 - `/lint` - Runs `golangci-lint run`
 
 You can also pass additional arguments:
+
 - `/tests -v` - Runs `go test ./... -v`
 - `/build --race` - Runs `go build -o infer . --race`
 
@@ -71,6 +75,7 @@ You can also pass additional arguments:
 Here are some useful shortcuts you might want to add:
 
 ### Development Shortcuts (`custom-dev.yaml`)
+
 ```yaml
 shortcuts:
   - name: "fmt"
@@ -90,6 +95,7 @@ shortcuts:
 ```
 
 ### Docker Shortcuts (`custom-docker.yaml`)
+
 ```yaml
 shortcuts:
   - name: "docker build"
@@ -104,6 +110,7 @@ shortcuts:
 ```
 
 ### Project-Specific Shortcuts (`custom-project.yaml`)
+
 ```yaml
 shortcuts:
   - name: "migrate"
