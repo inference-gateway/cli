@@ -1771,9 +1771,8 @@ func (h *ChatHandler) performCommitGeneration(data any, stateManager *services.S
 		ctx, ok1 := dataMap["context"].(context.Context)
 		args, ok2 := dataMap["args"].([]string)
 		diff, ok3 := dataMap["diff"].(string)
-		gitShortcut, ok4 := dataMap["gitShortcut"].(*shortcuts.GitShortcut)
 
-		if !ok1 || !ok2 || !ok3 || !ok4 {
+		if !ok1 || !ok2 || !ok3 {
 			return shared.SetStatusMsg{
 				Message:    "❌ Missing commit data",
 				Spinner:    false,
@@ -1781,7 +1780,21 @@ func (h *ChatHandler) performCommitGeneration(data any, stateManager *services.S
 			}
 		}
 
-		result, err := gitShortcut.PerformCommit(ctx, args, diff)
+		// Try both GitShortcut and GitCommitShortcut types
+		var result string
+		var err error
+
+		if gitShortcut, ok := dataMap["gitShortcut"].(*shortcuts.GitShortcut); ok {
+			result, err = gitShortcut.PerformCommit(ctx, args, diff)
+		} else if gitCommitShortcut, ok := dataMap["gitCommitShortcut"].(*shortcuts.GitCommitShortcut); ok {
+			result, err = gitCommitShortcut.PerformCommit(ctx, args, diff)
+		} else {
+			return shared.SetStatusMsg{
+				Message:    "❌ Missing or invalid commit shortcut data",
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		}
 		if err != nil {
 			errorEntry := domain.ConversationEntry{
 				Message: sdk.Message{
