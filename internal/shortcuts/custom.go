@@ -84,11 +84,11 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 	}, nil
 }
 
-// LoadCustomShortcuts loads user-defined shortcuts from .infer/shortcuts/ directory
+// LoadCustomShortcuts loads user-defined shortcuts from shortcuts/ directory within the specified base directory
 func LoadCustomShortcuts(baseDir string) ([]Shortcut, error) {
 	shortcuts := make([]Shortcut, 0)
 
-	shortcutsDir := filepath.Join(baseDir, ".infer", "shortcuts")
+	shortcutsDir := filepath.Join(baseDir, "shortcuts")
 
 	if _, err := os.Stat(shortcutsDir); os.IsNotExist(err) {
 		return shortcuts, nil

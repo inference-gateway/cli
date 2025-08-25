@@ -1,6 +1,7 @@
 package container
 
 import (
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -169,9 +170,21 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, nil, nil))
 	}
 
-	if err := c.shortcutRegistry.LoadCustomShortcuts("."); err != nil {
-		logger.Error("Failed to load custom shortcuts", "error", err)
+	configDir := c.determineConfigDirectory()
+	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir); err != nil {
+		logger.Error("Failed to load custom shortcuts", "error", err, "config_dir", configDir)
 	}
+}
+
+// determineConfigDirectory returns the directory where configuration and related files should be stored
+func (c *ServiceContainer) determineConfigDirectory() string {
+	configDir := ".infer"
+	if c.viper != nil {
+		if configFile := c.viper.ConfigFileUsed(); configFile != "" {
+			configDir = filepath.Dir(configFile)
+		}
+	}
+	return configDir
 }
 
 func (c *ServiceContainer) GetConfig() *config.Config {
