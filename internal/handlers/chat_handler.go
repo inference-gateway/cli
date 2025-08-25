@@ -1739,7 +1739,7 @@ func (h *ChatHandler) handleGenerateCommitSideEffect(data any, stateManager *ser
 		},
 		func() tea.Msg {
 			return shared.SetStatusMsg{
-				Message:    "🤖 Generating AI commit message...",
+				Message:    "Generating AI commit message...",
 				Spinner:    true,
 				StatusType: shared.StatusWorking,
 			}
@@ -1804,7 +1804,7 @@ func (h *ChatHandler) performCommitGeneration(data any, stateManager *services.S
 				},
 				func() tea.Msg {
 					return shared.SetStatusMsg{
-						Message:    fmt.Sprintf("❌ Commit failed: %v", err),
+						Message:    fmt.Sprintf("%s Commit failed: %v", icons.CrossMark, err),
 						Spinner:    false,
 						StatusType: shared.StatusDefault,
 					}
@@ -1833,7 +1833,7 @@ func (h *ChatHandler) performCommitGeneration(data any, stateManager *services.S
 			},
 			func() tea.Msg {
 				return shared.SetStatusMsg{
-					Message:    "✅ AI commit completed successfully",
+					Message:    fmt.Sprintf("%s AI commit completed successfully", icons.CheckMark),
 					Spinner:    false,
 					StatusType: shared.StatusDefault,
 				}

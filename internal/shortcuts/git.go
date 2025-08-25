@@ -7,6 +7,8 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -83,7 +85,7 @@ func (g *GitShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 		return g.formatLogOutput(outputStr), nil
 	default:
 		return ShortcutResult{
-			Output:  fmt.Sprintf("✅ Git %s completed successfully\n\n%s", command, outputStr),
+			Output:  fmt.Sprintf("%s %sGit %s completed successfully%s\n\n%s", icons.CheckMark, colors.Green, command, colors.Reset, outputStr),
 			Success: true,
 		}, nil
 	}
@@ -92,13 +94,13 @@ func (g *GitShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 func (g *GitShortcut) formatStatusOutput(output string) ShortcutResult {
 	if output == "" {
 		return ShortcutResult{
-			Output:  "✅ Working tree clean - no changes to commit",
+			Output:  fmt.Sprintf("%s %sWorking tree clean - no changes to commit%s", icons.CheckMark, colors.Green, colors.Reset),
 			Success: true,
 		}
 	}
 
 	return ShortcutResult{
-		Output:  fmt.Sprintf("📋 **Git Status**\n\n```\n%s\n```", output),
+		Output:  fmt.Sprintf("%s**Git Status**%s\n\n```\n%s\n```", colors.Blue, colors.Reset, output),
 		Success: true,
 	}
 }
@@ -106,13 +108,13 @@ func (g *GitShortcut) formatStatusOutput(output string) ShortcutResult {
 func (g *GitShortcut) formatCommitOutput(output string) ShortcutResult {
 	if strings.Contains(output, "nothing to commit") {
 		return ShortcutResult{
-			Output:  "ℹ️ Nothing to commit - working tree clean",
+			Output:  fmt.Sprintf("%sNothing to commit - working tree clean%s", colors.Gray, colors.Reset),
 			Success: true,
 		}
 	}
 
 	return ShortcutResult{
-		Output:  fmt.Sprintf("✅ **Commit Created**\n\n```\n%s\n```", output),
+		Output:  fmt.Sprintf("%s %s**Commit Created**%s\n\n```\n%s\n```", icons.CheckMark, colors.Green, colors.Reset, output),
 		Success: true,
 	}
 }
@@ -120,34 +122,34 @@ func (g *GitShortcut) formatCommitOutput(output string) ShortcutResult {
 func (g *GitShortcut) formatPushOutput(output string) ShortcutResult {
 	if output == "" {
 		return ShortcutResult{
-			Output:  "✅ Successfully pushed to remote repository",
+			Output:  fmt.Sprintf("%s %sSuccessfully pushed to remote repository%s", icons.CheckMark, colors.Green, colors.Reset),
 			Success: true,
 		}
 	}
 
 	return ShortcutResult{
-		Output:  fmt.Sprintf("✅ **Push Completed**\n\n```\n%s\n```", output),
-		Success: true,
+		Output:  fmt.Sprintf("%s %s**Push Completed**%s\n\n```\n%s\n```", icons.CheckMark, colors.Green, colors.Reset, output),
+			Success: true,
 	}
 }
 
 func (g *GitShortcut) formatPullOutput(output string) ShortcutResult {
 	if strings.Contains(output, "Already up to date") {
 		return ShortcutResult{
-			Output:  "✅ Repository is already up to date",
+			Output:  fmt.Sprintf("%s %sRepository is already up to date%s", icons.CheckMark, colors.Green, colors.Reset),
 			Success: true,
 		}
 	}
 
 	return ShortcutResult{
-		Output:  fmt.Sprintf("✅ **Pull Completed**\n\n```\n%s\n```", output),
-		Success: true,
+		Output:  fmt.Sprintf("%s %s**Pull Completed**%s\n\n```\n%s\n```", icons.CheckMark, colors.Green, colors.Reset, output),
+			Success: true,
 	}
 }
 
 func (g *GitShortcut) formatLogOutput(output string) ShortcutResult {
 	return ShortcutResult{
-		Output:  fmt.Sprintf("📜 **Git Log**\n\n```\n%s\n```", output),
+		Output:  fmt.Sprintf("%s**Git Log**%s\n\n```\n%s\n```", colors.Blue, colors.Reset, output),
 		Success: true,
 	}
 }
@@ -178,7 +180,7 @@ func (g *GitShortcut) handleSmartCommit(ctx context.Context, args []string) (Sho
 
 	if len(strings.TrimSpace(string(statusOutput))) == 0 {
 		return ShortcutResult{
-			Output:  "ℹ️ No changes staged for commit. Use `git add` to stage changes first.",
+			Output:  fmt.Sprintf("%sNo changes staged for commit. Use `git add` to stage changes first.%s", colors.Amber, colors.Reset),
 			Success: false,
 		}, nil
 	}
@@ -194,14 +196,14 @@ func (g *GitShortcut) handleSmartCommit(ctx context.Context, args []string) (Sho
 
 	if len(strings.TrimSpace(string(diffOutput))) == 0 {
 		return ShortcutResult{
-			Output:  "ℹ️ No staged changes found. Use `git add` to stage changes first.",
+			Output:  fmt.Sprintf("%sNo staged changes found. Use `git add` to stage changes first.%s", colors.Amber, colors.Reset),
 			Success: false,
 		}, nil
 	}
 
 	// Show user feedback before starting generation
 	return ShortcutResult{
-		Output:     "🤖 Generating AI commit message from staged changes...",
+		Output:     fmt.Sprintf("%sGenerating AI commit message from staged changes...%s", colors.Magenta, colors.Reset),
 		Success:    true,
 		SideEffect: SideEffectGenerateCommit,
 		Data: map[string]interface{}{
@@ -295,5 +297,5 @@ func (g *GitShortcut) PerformCommit(ctx context.Context, args []string, diff str
 		return "", fmt.Errorf("commit failed: %v\n\nOutput:\n%s\n\nGenerated message was: %s", err, string(commitOutput), commitMessage)
 	}
 
-	return fmt.Sprintf("✅ **AI-Generated Commit Created**\n\n**Message:** %s\n\n```\n%s\n```", commitMessage, strings.TrimSpace(string(commitOutput))), nil
+	return fmt.Sprintf("%s %s**AI-Generated Commit Created**%s\n\n%s**Message:**%s %s\n\n```\n%s\n```", icons.CheckMark, colors.Green, colors.Reset, colors.Blue, colors.Reset, commitMessage, strings.TrimSpace(string(commitOutput))), nil
 }
