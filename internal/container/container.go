@@ -160,15 +160,9 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 
-	// Generic git shortcut (status, pull, log, etc.)
-	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(c.config))
-
-	// Dedicated commit shortcut with AI integration
+	// Unified git shortcut (status, pull, log, commit, push, etc.)
 	gitCommitClient := c.createSDKClient()
-
-	// Register individual git shortcuts
-	c.shortcutRegistry.Register(shortcuts.NewGitCommitShortcut(gitCommitClient, c.config))
-	c.shortcutRegistry.Register(shortcuts.NewGitPushShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
 
 	if c.configService != nil {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService))

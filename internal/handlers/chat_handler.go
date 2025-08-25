@@ -1749,7 +1749,7 @@ func (h *ChatHandler) handleGenerateCommitSideEffect(data any, stateManager *ser
 }
 
 // performCommitGeneration performs the AI commit generation asynchronously
-func (h *ChatHandler) performCommitGeneration(data any, stateManager *services.StateManager) tea.Cmd {
+func (h *ChatHandler) performCommitGeneration(data any, _ *services.StateManager) tea.Cmd {
 	return func() tea.Msg {
 		if data == nil {
 			return shared.SetStatusMsg{
@@ -1759,7 +1759,7 @@ func (h *ChatHandler) performCommitGeneration(data any, stateManager *services.S
 			}
 		}
 
-		dataMap, ok := data.(map[string]interface{})
+		dataMap, ok := data.(map[string]any)
 		if !ok {
 			return shared.SetStatusMsg{
 				Message:    "❌ Invalid side effect data format",
@@ -1780,15 +1780,15 @@ func (h *ChatHandler) performCommitGeneration(data any, stateManager *services.S
 			}
 		}
 
-		// Only handle GitCommitShortcut type (GitShortcut no longer supports commits)
+		// Handle unified GitShortcut
 		var result string
 		var err error
 
-		if gitCommitShortcut, ok := dataMap["gitCommitShortcut"].(*shortcuts.GitCommitShortcut); ok {
-			result, err = gitCommitShortcut.PerformCommit(ctx, args, diff)
+		if gitShortcut, ok := dataMap["gitShortcut"].(*shortcuts.GitShortcut); ok {
+			result, err = gitShortcut.PerformCommit(ctx, args, diff)
 		} else {
 			return shared.SetStatusMsg{
-				Message:    "❌ Missing or invalid commit shortcut data",
+				Message:    "❌ Missing or invalid git shortcut data",
 				Spinner:    false,
 				StatusType: shared.StatusDefault,
 			}
