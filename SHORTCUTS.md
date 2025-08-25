@@ -8,7 +8,7 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 ### Core Shortcuts
 
 - `/clear` - Clear conversation history
-- `/exit` - Exit the chat session  
+- `/exit` - Exit the chat session
 - `/help [shortcut]` - Show available shortcuts or specific shortcut help
 - `/switch [model]` - Switch to a different model
 - `/config <show|get|set|reload> [key] [value]` - Manage configuration settings
@@ -34,7 +34,7 @@ Create files named `custom-*.yaml` (e.g., `custom-1.yaml`, `custom-dev.yaml`) in
 shortcuts:
   - name: "tests"
     description: "Run all tests in the project"
-    command: "go" 
+    command: "go"
     args: ["test", "./..."]
     working_dir: "."  # Optional: set working directory
 
@@ -44,7 +44,7 @@ shortcuts:
     args: ["build", "-o", "infer", "."]
 
   - name: "lint"
-    description: "Run linter on the codebase" 
+    description: "Run linter on the codebase"
     command: "golangci-lint"
     args: ["run"]
 ```
@@ -90,7 +90,7 @@ shortcuts:
 
   - name: "version"
     description: "Show current version"
-    command: "git" 
+    command: "git"
     args: ["describe", "--tags", "--always", "--dirty"]
 ```
 

@@ -129,7 +129,7 @@ func (g *GitShortcut) formatPushOutput(output string) ShortcutResult {
 
 	return ShortcutResult{
 		Output:  fmt.Sprintf("%s %s**Push Completed**%s\n\n```\n%s\n```", icons.CheckMark, colors.Green, colors.Reset, output),
-			Success: true,
+		Success: true,
 	}
 }
 
@@ -143,7 +143,7 @@ func (g *GitShortcut) formatPullOutput(output string) ShortcutResult {
 
 	return ShortcutResult{
 		Output:  fmt.Sprintf("%s %s**Pull Completed**%s\n\n```\n%s\n```", icons.CheckMark, colors.Green, colors.Reset, output),
-			Success: true,
+		Success: true,
 	}
 }
 
