@@ -57,7 +57,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	config := services.GetConfig()
 	toolService := services.GetToolService()
 	fileService := services.GetFileService()
-	commandRegistry := services.GetCommandRegistry()
+	shortcutRegistry := services.GetShortcutRegistry()
 	stateManager := services.GetStateManager()
 	toolOrchestrator := services.GetToolExecutionOrchestrator()
 	theme := services.GetTheme()
@@ -72,7 +72,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		config,
 		toolService,
 		fileService,
-		commandRegistry,
+		shortcutRegistry,
 		stateManager,
 		toolOrchestrator,
 		theme,

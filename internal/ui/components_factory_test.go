@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/commands"
+	"github.com/inference-gateway/cli/internal/shortcuts"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 

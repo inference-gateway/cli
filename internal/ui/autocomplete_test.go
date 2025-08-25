@@ -4,45 +4,45 @@ import (
 	"context"
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/commands"
+	"github.com/inference-gateway/cli/internal/shortcuts"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
 
-// MockCommandRegistry implements the CommandRegistry interface for testing
-type MockCommandRegistry struct {
+// MockShortcutRegistry implements the ShortcutRegistry interface for testing
+type MockShortcutRegistry struct {
 	mock.Mock
 }
 
-func (m *MockCommandRegistry) GetAll() []commands.Command {
+func (m *MockShortcutRegistry) GetAll() []shortcuts.Shortcut {
 	args := m.Called()
-	return args.Get(0).([]commands.Command)
+	return args.Get(0).([]shortcuts.Shortcut)
 }
 
-// MockCommand implements the Command interface for testing
-type MockCommand struct {
+// MockShortcut implements the Shortcut interface for testing
+type MockShortcut struct {
 	name        string
 	description string
 }
 
-func (m MockCommand) GetName() string {
+func (m MockShortcut) GetName() string {
 	return m.name
 }
 
-func (m MockCommand) GetDescription() string {
+func (m MockShortcut) GetDescription() string {
 	return m.description
 }
 
-func (m MockCommand) GetUsage() string {
+func (m MockShortcut) GetUsage() string {
 	return ""
 }
 
-func (m MockCommand) Execute(ctx context.Context, args []string) (commands.CommandResult, error) {
-	return commands.CommandResult{}, nil
+func (m MockShortcut) Execute(ctx context.Context, args []string) (shortcuts.ShortcutResult, error) {
+	return shortcuts.ShortcutResult{}, nil
 }
 
-func (m MockCommand) CanExecute(args []string) bool {
+func (m MockShortcut) CanExecute(args []string) bool {
 	return true
 }
 
@@ -91,11 +91,11 @@ func (m *MockToolService) SetToolEnabled(name string, enabled bool) error { retu
 func (m *MockToolService) ValidateToolsConfig() error                     { return nil }
 
 func TestAutocomplete_CommandMode(t *testing.T) {
-	mockRegistry := &MockCommandRegistry{}
-	mockRegistry.On("GetAll").Return([]commands.Command{
-		MockCommand{name: "help", description: "Show help"},
-		MockCommand{name: "clear", description: "Clear screen"},
-		MockCommand{name: "exit", description: "Exit application"},
+	mockRegistry := &MockShortcutRegistry{}
+	mockRegistry.On("GetAll").Return([]shortcuts.Shortcut{
+		MockShortcut{name: "help", description: "Show help"},
+		MockShortcut{name: "clear", description: "Clear screen"},
+		MockShortcut{name: "exit", description: "Exit application"},
 	})
 
 	theme := MockTheme{}
@@ -153,7 +153,7 @@ func TestAutocomplete_CommandMode(t *testing.T) {
 }
 
 func TestAutocomplete_ToolsMode(t *testing.T) {
-	mockRegistry := &MockCommandRegistry{}
+	mockRegistry := &MockShortcutRegistry{}
 	mockToolService := &MockToolService{}
 	mockToolService.ListAvailableToolsReturns([]string{
 		"Read", "Write", "Bash", "WebSearch", "Tree",
@@ -280,10 +280,10 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 }
 
 func TestAutocomplete_KeyHandling(t *testing.T) {
-	mockRegistry := &MockCommandRegistry{}
-	mockRegistry.On("GetAll").Return([]commands.Command{
-		MockCommand{name: "help", description: "Show help"},
-		MockCommand{name: "clear", description: "Clear screen"},
+	mockRegistry := &MockShortcutRegistry{}
+	mockRegistry.On("GetAll").Return([]shortcuts.Shortcut{
+		MockShortcut{name: "help", description: "Show help"},
+		MockShortcut{name: "clear", description: "Clear screen"},
 	})
 
 	theme := MockTheme{}
@@ -293,7 +293,7 @@ func TestAutocomplete_KeyHandling(t *testing.T) {
 	assert.True(t, autocomplete.IsVisible())
 	assert.Equal(t, 0, autocomplete.selected)
 
-	selectedCmd := autocomplete.GetSelectedCommand()
+	selectedCmd := autocomplete.GetSelectedShortcut()
 	assert.Equal(t, "/help", selectedCmd)
 
 	autocomplete.Hide()
