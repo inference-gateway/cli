@@ -65,7 +65,7 @@ func TestGrepTool_Definition(t *testing.T) {
 		t.Errorf("Expected required to be ['pattern'], got %v", required)
 	}
 
-	essentialParams := []string{"pattern", "output_mode", "glob", "type", "-i", "-n", "-A", "-B", "-C", "multiline", "head_limit"}
+	essentialParams := []string{"pattern", "output_mode", "glob", "type", "-i", "-n", "-A", "-B", "-C", "multiline", "head_limit", "excluded_patterns"}
 	for _, param := range essentialParams {
 		if _, exists := properties[param]; !exists {
 			t.Errorf("Expected parameter '%s' to exist", param)
@@ -137,6 +137,10 @@ func TestGrepTool_Validate(t *testing.T) {
 
 	t.Run("boolean flags validation", func(t *testing.T) {
 		testGrepValidationCases(t, tool, getBooleanFlagsTestCases())
+	})
+
+	t.Run("excluded patterns validation", func(t *testing.T) {
+		testGrepValidationCases(t, tool, getExcludedPatternsTestCases())
 	})
 }
 
@@ -318,6 +322,45 @@ func getBooleanFlagsTestCases() []grepValidationTestCase {
 				"-i":        true,
 				"-n":        false,
 				"multiline": true,
+			},
+			expectError: false,
+		},
+	}
+}
+
+func getExcludedPatternsTestCases() []grepValidationTestCase {
+	return []grepValidationTestCase{
+		{
+			name: "invalid excluded_patterns type",
+			args: map[string]any{
+				"pattern":           "test",
+				"excluded_patterns": "not_array",
+			},
+			expectError: true,
+			errorMsg:    "excluded_patterns must be an array",
+		},
+		{
+			name: "invalid pattern in array",
+			args: map[string]any{
+				"pattern":           "test",
+				"excluded_patterns": []interface{}{"valid", 123},
+			},
+			expectError: true,
+			errorMsg:    "excluded_patterns[1] must be a string",
+		},
+		{
+			name: "valid excluded_patterns",
+			args: map[string]any{
+				"pattern":           "test",
+				"excluded_patterns": []interface{}{"*.tmp", "build/*", "node_modules"},
+			},
+			expectError: false,
+		},
+		{
+			name: "empty excluded_patterns",
+			args: map[string]any{
+				"pattern":           "test",
+				"excluded_patterns": []interface{}{},
 			},
 			expectError: false,
 		},
