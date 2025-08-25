@@ -378,6 +378,14 @@ func (iv *InputView) IsAutocompleteVisible() bool {
 	return iv.Autocomplete != nil && iv.Autocomplete.IsVisible()
 }
 
+// TryHandleAutocomplete attempts to handle autocomplete key input
+func (iv *InputView) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string) {
+	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
+		return iv.Autocomplete.HandleKey(key)
+	}
+	return false, ""
+}
+
 // handlePaste handles clipboard paste operations
 func (iv *InputView) handlePaste() (tea.Model, tea.Cmd) {
 	clipboardText, err := clipboard.ReadAll()

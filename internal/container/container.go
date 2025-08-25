@@ -14,12 +14,14 @@ import (
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
+	viper "github.com/spf13/viper"
 )
 
 // ServiceContainer manages all application dependencies
 type ServiceContainer struct {
 	// Configuration
-	config *config.Config
+	config        *config.Config
+	configService *services.ConfigService
 
 	// Domain services
 	conversationRepo domain.ConversationRepository
@@ -51,9 +53,13 @@ type ServiceContainer struct {
 }
 
 // NewServiceContainer creates a new service container with all dependencies
-func NewServiceContainer(cfg *config.Config) *ServiceContainer {
+func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContainer {
 	container := &ServiceContainer{
 		config: cfg,
+	}
+
+	if len(v) > 0 && v[0] != nil {
+		container.configService = services.NewConfigService(v[0], cfg)
 	}
 
 	container.initializeFileWriterServices()
@@ -150,6 +156,13 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.commandRegistry.Register(commands.NewExportCommand(c.conversationRepo, c.agentService, c.modelService, c.config))
 	c.commandRegistry.Register(commands.NewExitCommand())
 	c.commandRegistry.Register(commands.NewSwitchCommand(c.modelService))
+	c.commandRegistry.Register(commands.NewHelpCommand(c.commandRegistry))
+
+	if c.configService != nil {
+		c.commandRegistry.Register(commands.NewConfigCommand(c.config, c.configService.Reload, c.configService))
+	} else {
+		c.commandRegistry.Register(commands.NewConfigCommand(c.config, nil, nil))
+	}
 }
 
 func (c *ServiceContainer) GetConfig() *config.Config {

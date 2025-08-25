@@ -1,12 +1,15 @@
 package config
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
 
 	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -193,7 +196,6 @@ func runLoadConfigTest(t *testing.T, configYAML string, validator func(t *testin
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 
-	// Create a new Viper instance for this test
 	v := viper.New()
 	v.SetConfigFile(configPath)
 	err = v.ReadInConfig()
@@ -411,7 +413,7 @@ func runSaveConfigTest(t *testing.T, setupFunc func(*Config), validator func(t *
 	v.Set("agent.model", cfg.Agent.Model)
 	v.Set("agent.system_prompt", cfg.Agent.SystemPrompt)
 
-	if err := v.WriteConfig(); err != nil {
+	if err := writeViperConfigForTest(v, 2); err != nil {
 		t.Fatalf("Failed to save config: %v", err)
 	}
 
@@ -587,4 +589,40 @@ func TestIsApprovalRequired(t *testing.T) {
 			}
 		})
 	}
+}
+
+// writeViperConfigForTest is a test helper to write viper config without circular import
+func writeViperConfigForTest(v *viper.Viper, indent int) error {
+	filename := v.ConfigFileUsed()
+	if filename == "" {
+		return fmt.Errorf("no config file is currently being used")
+	}
+
+	cfg := DefaultConfig()
+
+	if err := v.Unmarshal(cfg); err != nil {
+		return fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	var buf bytes.Buffer
+	yamlEncoder := yaml.NewEncoder(&buf)
+	yamlEncoder.SetIndent(indent)
+
+	if err := yamlEncoder.Encode(cfg); err != nil {
+		return fmt.Errorf("failed to marshal config to YAML: %w", err)
+	}
+
+	if err := yamlEncoder.Close(); err != nil {
+		return fmt.Errorf("failed to close YAML encoder: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	if err := os.WriteFile(filename, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
 }

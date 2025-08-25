@@ -16,6 +16,7 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	utils "github.com/inference-gateway/cli/internal/utils"
 	cobra "github.com/spf13/cobra"
 )
 
@@ -494,7 +495,7 @@ func GetUserspaceFlag(cmd *cobra.Command) bool {
 
 func setDefaultModel(_ *cobra.Command, modelName string) error {
 	V.Set("agent.model", modelName)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
@@ -506,7 +507,7 @@ func setDefaultModel(_ *cobra.Command, modelName string) error {
 
 func setSystemPrompt(_ *cobra.Command, systemPrompt string) error {
 	V.Set("agent.system_prompt", systemPrompt)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
@@ -528,7 +529,7 @@ func setMaxTurns(_ *cobra.Command, maxTurnsStr string) error {
 	}
 
 	V.Set("agent.max_turns", maxTurns)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
@@ -562,7 +563,7 @@ var configAgentVerboseToolsCmd = &cobra.Command{
 			return fmt.Errorf("invalid argument: %s. Use 'enable' or 'disable'", args[0])
 		}
 
-		if err := V.WriteConfig(); err != nil {
+		if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
 
@@ -648,7 +649,7 @@ func init() {
 
 func enableTools(cmd *cobra.Command, args []string) error {
 	V.Set("tools.enabled", true)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -659,7 +660,7 @@ func enableTools(cmd *cobra.Command, args []string) error {
 
 func disableTools(cmd *cobra.Command, args []string) error {
 	V.Set("tools.enabled", false)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -851,7 +852,7 @@ func ExecTool(cfg *config.Config, args []string, format string) error {
 
 func enableSafety(cmd *cobra.Command, args []string) error {
 	V.Set("tools.safety.require_approval", true)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -862,7 +863,7 @@ func enableSafety(cmd *cobra.Command, args []string) error {
 
 func disableSafety(cmd *cobra.Command, args []string) error {
 	V.Set("tools.safety.require_approval", false)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -956,7 +957,7 @@ func setToolApproval(cmd *cobra.Command, args []string) error {
 	case "websearch":
 		V.Set("tools.web_search.require_approval", enabled)
 	}
-	err = V.WriteConfig()
+	err = utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -998,7 +999,7 @@ func unsetToolApproval(cmd *cobra.Command, args []string) error {
 	case "websearch":
 		V.Set("tools.web_search.require_approval", nil)
 	}
-	err = V.WriteConfig()
+	err = utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -1048,7 +1049,7 @@ func addSandboxDirectory(cmd *cobra.Command, args []string) error {
 	// Add the new directory
 	updatedDirs := append(existingDirs, dirToAdd)
 	V.Set("tools.sandbox.directories", updatedDirs)
-	err := V.WriteConfig()
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -1067,7 +1068,7 @@ func removeSandboxDirectory(cmd *cobra.Command, args []string) error {
 		if existingDir == dirToRemove {
 			updatedDirs := append(existingDirs[:i], existingDirs[i+1:]...)
 			V.Set("tools.sandbox.directories", updatedDirs)
-			if err := V.WriteConfig(); err != nil {
+			if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 				return err
 			}
 			found = true
@@ -1087,7 +1088,7 @@ func removeSandboxDirectory(cmd *cobra.Command, args []string) error {
 
 func enableFetch(cmd *cobra.Command, args []string) error {
 	V.Set("tools.web_fetch.enabled", true)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -1099,7 +1100,7 @@ func enableFetch(cmd *cobra.Command, args []string) error {
 
 func disableFetch(cmd *cobra.Command, args []string) error {
 	V.Set("tools.web_fetch.enabled", false)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -1190,7 +1191,7 @@ func addFetchDomain(cmd *cobra.Command, args []string) error {
 	// Add the new domain
 	updatedDomains := append(existingDomains, domainToAdd)
 	V.Set("tools.web_fetch.whitelisted_domains", updatedDomains)
-	err := V.WriteConfig()
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -1211,7 +1212,7 @@ func removeFetchDomain(cmd *cobra.Command, args []string) error {
 			// Remove the domain from the slice
 			updatedDomains := append(existingDomains[:i], existingDomains[i+1:]...)
 			V.Set("tools.web_fetch.whitelisted_domains", updatedDomains)
-			if err := V.WriteConfig(); err != nil {
+			if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 				return err
 			}
 			found = true
@@ -1257,7 +1258,7 @@ func fetchCacheClear(cmd *cobra.Command, args []string) error {
 
 func enableBashTool(cmd *cobra.Command, args []string) error {
 	V.Set("tools.bash.enabled", true)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -1269,7 +1270,7 @@ func enableBashTool(cmd *cobra.Command, args []string) error {
 
 func disableBashTool(cmd *cobra.Command, args []string) error {
 	V.Set("tools.bash.enabled", false)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -1281,7 +1282,7 @@ func disableBashTool(cmd *cobra.Command, args []string) error {
 
 func enableWebSearchTool(cmd *cobra.Command, args []string) error {
 	V.Set("tools.web_search.enabled", true)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -1293,7 +1294,7 @@ func enableWebSearchTool(cmd *cobra.Command, args []string) error {
 
 func disableWebSearchTool(cmd *cobra.Command, args []string) error {
 	V.Set("tools.web_search.enabled", false)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -1305,7 +1306,7 @@ func disableWebSearchTool(cmd *cobra.Command, args []string) error {
 
 func enableGrepTool(cmd *cobra.Command, args []string) error {
 	V.Set("tools.grep.enabled", true)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -1317,7 +1318,7 @@ func enableGrepTool(cmd *cobra.Command, args []string) error {
 
 func disableGrepTool(cmd *cobra.Command, args []string) error {
 	V.Set("tools.grep.enabled", false)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -1344,7 +1345,7 @@ func setGrepBackend(cmd *cobra.Command, args []string) error {
 	}
 
 	V.Set("tools.grep.backend", normalizedBackend)
-	err := V.WriteConfig()
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -1422,7 +1423,7 @@ func grepStatus(cmd *cobra.Command, args []string) error {
 // formatToolStatus formats a tool's enabled/disabled status
 func enableGithubTool(cmd *cobra.Command, args []string) error {
 	V.Set("tools.github.enabled", true)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -1434,7 +1435,7 @@ func enableGithubTool(cmd *cobra.Command, args []string) error {
 
 func disableGithubTool(cmd *cobra.Command, args []string) error {
 	V.Set("tools.github.enabled", false)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -1508,7 +1509,7 @@ func setGithubToken(cmd *cobra.Command, args []string) error {
 	token := args[0]
 
 	V.Set("tools.github.token", token)
-	err := V.WriteConfig()
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -1523,7 +1524,7 @@ func setGithubOwner(cmd *cobra.Command, args []string) error {
 	owner := args[0]
 
 	V.Set("tools.github.owner", owner)
-	err := V.WriteConfig()
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -1537,7 +1538,7 @@ func setGithubRepo(cmd *cobra.Command, args []string) error {
 	repo := args[0]
 
 	V.Set("tools.github.repo", repo)
-	err := V.WriteConfig()
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 
 	ui "github.com/inference-gateway/cli/internal/ui"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	utils "github.com/inference-gateway/cli/internal/utils"
 	cobra "github.com/spf13/cobra"
 )
 
@@ -65,7 +66,7 @@ func init() {
 
 func setOptimizationEnabled(_ *cobra.Command, enabled bool) error {
 	V.Set("agent.optimization.enabled", enabled)
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
@@ -145,7 +146,7 @@ func setOptimizationParameter(_ *cobra.Command, param, value string) error {
 		return fmt.Errorf("unknown parameter: %s", param)
 	}
 
-	if err := V.WriteConfig(); err != nil {
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 

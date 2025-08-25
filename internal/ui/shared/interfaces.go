@@ -61,6 +61,7 @@ type InputComponent interface {
 	NavigateHistoryUp()
 	NavigateHistoryDown()
 	IsAutocompleteVisible() bool
+	TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string)
 	AddToHistory(text string) error
 	SetTextSelectionMode(enabled bool)
 	IsTextSelectionMode() bool

@@ -13,6 +13,7 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	cobra "github.com/spf13/cobra"
+	viper "github.com/spf13/viper"
 )
 
 var chatCmd = &cobra.Command{
@@ -25,13 +26,13 @@ and have a conversational interface with the inference gateway.`,
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		return StartChatSession(cfg)
+		return StartChatSession(cfg, V)
 	},
 }
 
-// startChatSession starts a chat session
-func StartChatSession(cfg *config.Config) error {
-	services := container.NewServiceContainer(cfg)
+// StartChatSession starts a chat session
+func StartChatSession(cfg *config.Config, v *viper.Viper) error {
+	services := container.NewServiceContainer(cfg, v)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()

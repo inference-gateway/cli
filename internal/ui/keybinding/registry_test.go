@@ -173,6 +173,10 @@ func (t *testInputComponent) IsTextSelectionMode() bool {
 	return false
 }
 
+func (t *testInputComponent) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string) {
+	return false, ""
+}
+
 type testStatusComponent struct{}
 
 func (t *testStatusComponent) ShowStatus(message string) {}
