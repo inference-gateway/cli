@@ -44,7 +44,7 @@ func NewInputViewWithConfigDir(modelService domain.ModelService, configDir strin
 	return &InputView{
 		text:                "",
 		cursor:              0,
-		placeholder:         "Type your message... (Press Enter to send, Alt+Enter or Ctrl+J for newline, ? for commands)",
+		placeholder:         "Type your message... (Press Enter to send, Alt+Enter or Ctrl+J for newline, ? for help)",
 		width:               80,
 		height:              5,
 		modelService:        modelService,
