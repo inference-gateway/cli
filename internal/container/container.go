@@ -163,10 +163,20 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	gitCommitClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
 
+	// Register individual git shortcuts
+	c.shortcutRegistry.Register(shortcuts.NewGitCommitShortcut(gitCommitClient, c.config))
+	c.shortcutRegistry.Register(shortcuts.NewGitPushShortcut())
+
 	if c.configService != nil {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService))
 	} else {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, nil, nil))
+	}
+
+	// Load user-defined shortcuts
+	if err := c.shortcutRegistry.LoadCustomShortcuts("."); err != nil {
+		// Log the error but don't fail the initialization
+		logger.Error("Failed to load custom shortcuts", "error", err)
 	}
 }
 

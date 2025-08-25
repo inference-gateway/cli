@@ -21,6 +21,23 @@ func NewRegistry() *Registry {
 	}
 }
 
+// LoadCustomShortcuts loads user-defined shortcuts from the specified base directory
+func (r *Registry) LoadCustomShortcuts(baseDir string) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	customShortcuts, err := LoadCustomShortcuts(baseDir)
+	if err != nil {
+		return fmt.Errorf("failed to load custom shortcuts: %w", err)
+	}
+
+	for _, shortcut := range customShortcuts {
+		r.shortcuts[shortcut.GetName()] = shortcut
+	}
+
+	return nil
+}
+
 // Register adds a shortcut to the registry
 func (r *Registry) Register(shortcut Shortcut) {
 	r.mutex.Lock()
