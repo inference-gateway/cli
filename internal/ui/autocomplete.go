@@ -14,6 +14,7 @@ import (
 type ShortcutOption struct {
 	Shortcut    string
 	Description string
+	Usage       string
 }
 
 // ShortcutRegistry interface for dependency injection
@@ -75,6 +76,7 @@ func (a *AutocompleteImpl) loadShortcuts() {
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    "/" + shortcut.GetName(),
 			Description: shortcut.GetDescription(),
+			Usage:       shortcut.GetUsage(),
 		})
 	}
 }
@@ -106,6 +108,7 @@ func (a *AutocompleteImpl) loadTools() {
 		a.suggestions = append(a.suggestions, ShortcutOption{
 			Shortcut:    template,
 			Description: "Execute " + toolName + " tool directly",
+			Usage:       "",
 		})
 	}
 }
@@ -329,12 +332,32 @@ func (a *AutocompleteImpl) Render() string {
 			prefix = fmt.Sprintf("%s▶ %s", a.theme.GetAccentColor(), colors.Reset)
 		}
 
-		line := fmt.Sprintf("%s %-12s %s%s%s",
-			prefix,
-			cmd.Shortcut,
-			a.theme.GetDimColor(),
-			cmd.Description,
-			colors.Reset)
+		var line string
+		if cmd.Usage != "" && cmd.Usage != cmd.Shortcut {
+			parts := strings.SplitN(cmd.Usage, " ", 2)
+			shortcutName := parts[0]
+			usageArgs := ""
+			if len(parts) > 1 {
+				usageArgs = " " + parts[1]
+			}
+
+			line = fmt.Sprintf("%s %-12s %s%s%s %s%s%s",
+				prefix,
+				shortcutName,
+				a.theme.GetDimColor(),
+				usageArgs,
+				colors.Reset,
+				a.theme.GetDimColor(),
+				cmd.Description,
+				colors.Reset)
+		} else {
+			line = fmt.Sprintf("%s %-12s %s%s%s",
+				prefix,
+				cmd.Shortcut,
+				a.theme.GetDimColor(),
+				cmd.Description,
+				colors.Reset)
+		}
 
 		b.WriteString(line)
 		if i < end-1 {
