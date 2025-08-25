@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/shortcuts"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/shortcuts"
 )
 
 func TestCreateConversationView(t *testing.T) {
@@ -50,8 +50,8 @@ func TestCreateInputView(t *testing.T) {
 		t.Fatal("Expected CreateInputView to return non-nil component")
 	}
 
-	commandRegistry := &commands.Registry{}
-	iv2 := CreateInputView(mockModelService, commandRegistry)
+	shortcutRegistry := &shortcuts.Registry{}
+	iv2 := CreateInputView(mockModelService, shortcutRegistry)
 
 	if iv2 == nil {
 		t.Fatal("Expected CreateInputView to return non-nil component with command registry")

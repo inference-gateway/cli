@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/shortcuts"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/shortcuts"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -270,7 +270,7 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 				// Check that the expected tools are present
 				for i, expectedTool := range tt.expectedTools {
 					if i < len(autocomplete.filtered) {
-						assert.Equal(t, expectedTool, autocomplete.filtered[i].Command)
+						assert.Equal(t, expectedTool, autocomplete.filtered[i].Shortcut)
 					}
 				}
 			}
@@ -305,23 +305,23 @@ func TestAutocomplete_KeyHandling(t *testing.T) {
 func TestAutocomplete_FilterSuggestions(t *testing.T) {
 	autocomplete := &AutocompleteImpl{}
 
-	autocomplete.suggestions = []CommandOption{
-		{Command: "/help", Description: "Show help"},
-		{Command: "/clear", Description: "Clear screen"},
+	autocomplete.suggestions = []ShortcutOption{
+		{Shortcut: "/help", Description: "Show help"},
+		{Shortcut: "/clear", Description: "Clear screen"},
 	}
 	autocomplete.query = "he"
 	autocomplete.filterSuggestions()
 
 	assert.Equal(t, 1, len(autocomplete.filtered))
-	assert.Equal(t, "/help", autocomplete.filtered[0].Command)
+	assert.Equal(t, "/help", autocomplete.filtered[0].Shortcut)
 
-	autocomplete.suggestions = []CommandOption{
-		{Command: "!!Read(", Description: "Execute Read tool directly"},
-		{Command: "!!WebSearch(", Description: "Execute WebSearch tool directly"},
+	autocomplete.suggestions = []ShortcutOption{
+		{Shortcut: "!!Read(", Description: "Execute Read tool directly"},
+		{Shortcut: "!!WebSearch(", Description: "Execute WebSearch tool directly"},
 	}
 	autocomplete.query = "web"
 	autocomplete.filterSuggestions()
 
 	assert.Equal(t, 1, len(autocomplete.filtered))
-	assert.Equal(t, "!!WebSearch(", autocomplete.filtered[0].Command)
+	assert.Equal(t, "!!WebSearch(", autocomplete.filtered[0].Shortcut)
 }
