@@ -1780,13 +1780,11 @@ func (h *ChatHandler) performCommitGeneration(data any, stateManager *services.S
 			}
 		}
 
-		// Try both GitShortcut and GitCommitShortcut types
+		// Only handle GitCommitShortcut type (GitShortcut no longer supports commits)
 		var result string
 		var err error
 
-		if gitShortcut, ok := dataMap["gitShortcut"].(*shortcuts.GitShortcut); ok {
-			result, err = gitShortcut.PerformCommit(ctx, args, diff)
-		} else if gitCommitShortcut, ok := dataMap["gitCommitShortcut"].(*shortcuts.GitCommitShortcut); ok {
+		if gitCommitShortcut, ok := dataMap["gitCommitShortcut"].(*shortcuts.GitCommitShortcut); ok {
 			result, err = gitCommitShortcut.PerformCommit(ctx, args, diff)
 		} else {
 			return shared.SetStatusMsg{
