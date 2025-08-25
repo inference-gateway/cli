@@ -790,7 +790,7 @@ Create and manage structured task lists for LLM-assisted development workflows.
 ## Configuration
 
 The CLI supports a **2-layer configuration system** that allows for both user-level and project-level
-configuration with proper precedence handling.
+configuration with proper precedence handling. For detailed configuration documentation and examples, see [CONFIG.md](CONFIG.md).
 
 ### Configuration Layers
 
