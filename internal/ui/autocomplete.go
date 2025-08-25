@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/shortcuts"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // ShortcutOption represents a shortcut option for autocomplete
@@ -23,16 +23,16 @@ type ShortcutRegistry interface {
 
 // AutocompleteImpl implements inline autocomplete functionality
 type AutocompleteImpl struct {
-	suggestions     []ShortcutOption
-	filtered        []ShortcutOption
-	selected        int
-	visible         bool
-	query           string
-	theme           Theme
-	width           int
-	maxVisible      int
+	suggestions      []ShortcutOption
+	filtered         []ShortcutOption
+	selected         int
+	visible          bool
+	query            string
+	theme            Theme
+	width            int
+	maxVisible       int
 	shortcutRegistry ShortcutRegistry
-	toolService     interface {
+	toolService      interface {
 		ListAvailableTools() []string
 		ListTools() []domain.ToolDefinition
 	}
@@ -41,16 +41,16 @@ type AutocompleteImpl struct {
 // NewAutocomplete creates a new autocomplete component
 func NewAutocomplete(theme Theme, shortcutRegistry ShortcutRegistry) *AutocompleteImpl {
 	return &AutocompleteImpl{
-		suggestions:     []ShortcutOption{},
-		filtered:        []ShortcutOption{},
-		selected:        0,
-		visible:         false,
-		query:           "",
-		theme:           theme,
-		width:           80,
-		maxVisible:      5,
+		suggestions:      []ShortcutOption{},
+		filtered:         []ShortcutOption{},
+		selected:         0,
+		visible:          false,
+		query:            "",
+		theme:            theme,
+		width:            80,
+		maxVisible:       5,
 		shortcutRegistry: shortcutRegistry,
-		toolService:     nil,
+		toolService:      nil,
 	}
 }
 
@@ -104,7 +104,7 @@ func (a *AutocompleteImpl) loadTools() {
 		}
 
 		a.suggestions = append(a.suggestions, ShortcutOption{
-			Shortcut:     template,
+			Shortcut:    template,
 			Description: "Execute " + toolName + " tool directly",
 		})
 	}

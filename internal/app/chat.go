@@ -6,17 +6,17 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/shortcuts"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/handlers"
-	"github.com/inference-gateway/cli/internal/logger"
-	"github.com/inference-gateway/cli/internal/services"
-	"github.com/inference-gateway/cli/internal/services/tools"
-	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/components"
-	"github.com/inference-gateway/cli/internal/ui/keybinding"
-	"github.com/inference-gateway/cli/internal/ui/shared"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	handlers "github.com/inference-gateway/cli/internal/handlers"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	services "github.com/inference-gateway/cli/internal/services"
+	tools "github.com/inference-gateway/cli/internal/services/tools"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	components "github.com/inference-gateway/cli/internal/ui/components"
+	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // ChatApplication represents the main application model using state management

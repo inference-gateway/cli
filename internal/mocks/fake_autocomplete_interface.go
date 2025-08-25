@@ -9,8 +9,8 @@ import (
 )
 
 type FakeAutocompleteInterface struct {
-	GetSelectedShortcutStub       func() string
-	getSelectedShortcutMutex      sync.RWMutex
+	GetSelectedShortcutStub        func() string
+	getSelectedShortcutMutex       sync.RWMutex
 	getSelectedShortcutArgsForCall []struct {
 	}
 	getSelectedShortcutReturns struct {

@@ -1,9 +1,9 @@
 package ui
 
 import (
-	"github.com/inference-gateway/cli/internal/shortcuts"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/components"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	components "github.com/inference-gateway/cli/internal/ui/components"
 )
 
 // CreateConversationView creates a new conversation view component
