@@ -77,7 +77,7 @@ func (t *GrepTool) detectRipgrep() {
 func (t *GrepTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Grep",
-		Description: "A powerful search tool with configurable backend (ripgrep or Go implementation)\n\n  Usage:\n  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n  - Automatically respects .gitignore patterns and common exclusions (node_modules, .git, etc.)\n  - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n  - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n  - Add custom exclusions with excluded_patterns parameter (e.g., [\"*.tmp\", \"build/*\"])\n  - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n  - Use Task tool for open-ended searches requiring multiple rounds\n  - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\\{\\}` to find `any` in Go code)\n  - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
+		Description: "A powerful search tool with configurable backend (ripgrep or Go implementation)\n\n Usage:\n - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n - Use Task tool for open-ended searches requiring multiple rounds\n - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\\{\\}` to find `any` in Go code)\n - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
 		Parameters: map[string]any{
 			"$schema": "http://json-schema.org/draft-07/schema#",
 			"type":    "object",
@@ -132,11 +132,6 @@ func (t *GrepTool) Definition() domain.ToolDefinition {
 				"head_limit": map[string]any{
 					"type":        "number",
 					"description": "Limit output to first N lines/entries, equivalent to \"| head -N\". Works across all output modes: content (limits output lines), files_with_matches (limits file paths), count (limits count entries). When unspecified, shows all results from ripgrep.",
-				},
-				"excluded_patterns": map[string]any{
-					"type":        "array",
-					"items":       map[string]any{"type": "string"},
-					"description": "Additional glob patterns to exclude from search results (in addition to .gitignore patterns). Examples: ['*.tmp', 'build/*', 'node_modules'].",
 				},
 			},
 			"required": []string{"pattern"},
@@ -206,9 +201,6 @@ func (t *GrepTool) Validate(args map[string]any) error {
 		return err
 	}
 	if err := t.validateBooleanFlags(args); err != nil {
-		return err
-	}
-	if err := t.validateExcludedPatterns(args); err != nil {
 		return err
 	}
 
@@ -309,27 +301,6 @@ func (t *GrepTool) validateBooleanFlags(args map[string]any) error {
 	return nil
 }
 
-// validateExcludedPatterns validates the excluded_patterns parameter
-func (t *GrepTool) validateExcludedPatterns(args map[string]any) error {
-	excludedPatterns, exists := args["excluded_patterns"]
-	if !exists {
-		return nil
-	}
-
-	patternsSlice, ok := excludedPatterns.([]interface{})
-	if !ok {
-		return fmt.Errorf("excluded_patterns must be an array")
-	}
-
-	for i, pattern := range patternsSlice {
-		if _, ok := pattern.(string); !ok {
-			return fmt.Errorf("excluded_patterns[%d] must be a string", i)
-		}
-	}
-
-	return nil
-}
-
 // IsEnabled returns whether the grep tool is enabled
 func (t *GrepTool) IsEnabled() bool {
 	return t.enabled
@@ -371,8 +342,7 @@ func (t *GrepTool) performRipgrepSearch(ctx context.Context, pattern string, arg
 		return nil, err
 	}
 
-	excludedPatterns := t.extractExcludedPatterns(args)
-	rgArgs := t.buildRipgrepArgs(outputMode, args, excludedPatterns)
+	rgArgs := t.buildRipgrepArgs(outputMode, args)
 	rgArgs = append(rgArgs, pattern, searchPath)
 
 	result, err := t.executeRipgrep(ctx, rgArgs, outputMode, pattern, start)
@@ -384,31 +354,23 @@ func (t *GrepTool) performRipgrepSearch(ctx context.Context, pattern string, arg
 }
 
 // buildRipgrepArgs constructs the ripgrep command arguments
-func (t *GrepTool) buildRipgrepArgs(outputMode string, args map[string]any, excludedPatterns []string) []string {
+func (t *GrepTool) buildRipgrepArgs(outputMode string, args map[string]any) []string {
 	var rgArgs []string
 
 	rgArgs = t.addOutputModeArgs(rgArgs, outputMode, args)
 	rgArgs = t.addSearchOptions(rgArgs, args)
-	rgArgs = t.addExclusionArgs(rgArgs, excludedPatterns)
+	rgArgs = t.addExclusionArgs(rgArgs)
 
 	return rgArgs
 }
 
 // addExclusionArgs adds exclusion arguments for excluded patterns
-func (t *GrepTool) addExclusionArgs(rgArgs []string, excludedPatterns []string) []string {
-	// Add gitignore and configured excluded patterns to ripgrep
+func (t *GrepTool) addExclusionArgs(rgArgs []string) []string {
 	if len(t.gitignorePatterns) > 0 {
 		for _, pattern := range t.gitignorePatterns {
 			if pattern != "" {
 				rgArgs = append(rgArgs, "--glob", "!"+pattern)
 			}
-		}
-	}
-
-	// Add runtime excluded patterns
-	for _, pattern := range excludedPatterns {
-		if pattern != "" {
-			rgArgs = append(rgArgs, "--glob", "!"+pattern)
 		}
 	}
 
@@ -593,8 +555,7 @@ func (t *GrepTool) performGoSearch(ctx context.Context, pattern string, args map
 
 	opts := t.buildSearchOptions(args, outputMode)
 
-	excludedPatterns := t.extractExcludedPatterns(args)
-	result, err := t.searchFiles(ctx, regex, searchPath, opts, outputMode, excludedPatterns)
+	result, err := t.searchFiles(ctx, regex, searchPath, opts, outputMode)
 	if err != nil {
 		return nil, err
 	}
@@ -709,23 +670,8 @@ func (t *GrepTool) getOutputMode(args map[string]any) string {
 	return outputMode
 }
 
-// extractExcludedPatterns extracts excluded patterns from arguments
-func (t *GrepTool) extractExcludedPatterns(args map[string]any) []string {
-	var excludedPatterns []string
-	if patterns, exists := args["excluded_patterns"]; exists {
-		if patternsSlice, ok := patterns.([]interface{}); ok {
-			for _, pattern := range patternsSlice {
-				if patternStr, ok := pattern.(string); ok {
-					excludedPatterns = append(excludedPatterns, patternStr)
-				}
-			}
-		}
-	}
-	return excludedPatterns
-}
-
 // searchFiles performs the actual file search
-func (t *GrepTool) searchFiles(ctx context.Context, regex *regexp.Regexp, searchPath string, opts *SearchOptions, outputMode string, excludedPatterns []string) (*GrepResult, error) {
+func (t *GrepTool) searchFiles(ctx context.Context, regex *regexp.Regexp, searchPath string, opts *SearchOptions, outputMode string) (*GrepResult, error) {
 	result := &GrepResult{
 		Files:   []string{},
 		Matches: []GrepMatch{},
@@ -748,7 +694,7 @@ func (t *GrepTool) searchFiles(ctx context.Context, regex *regexp.Regexp, search
 			return nil
 		}
 
-		if t.isPathExcludedWithExtraPatterns(path, excludedPatterns) {
+		if t.isPathExcluded(path) {
 			return nil
 		}
 
@@ -983,11 +929,6 @@ func (t *GrepTool) addContextToMatch(match GrepMatch, contextLines []string, sca
 
 // isPathExcluded checks if a file path should be excluded based on configuration
 func (t *GrepTool) isPathExcluded(path string) bool {
-	return t.isPathExcludedWithExtraPatterns(path, nil)
-}
-
-// isPathExcludedWithExtraPatterns checks if a file path should be excluded based on configuration and extra patterns
-func (t *GrepTool) isPathExcludedWithExtraPatterns(path string, extraPatterns []string) bool {
 	if t.config == nil {
 		return false
 	}
@@ -996,12 +937,6 @@ func (t *GrepTool) isPathExcludedWithExtraPatterns(path string, extraPatterns []
 		return true
 	}
 
-	// Check against extra patterns (from excluded_patterns parameter)
-	if t.matchesExtraPatterns(path, extraPatterns) {
-		return true
-	}
-
-	// Check if path is outside sandbox directories
 	if err := t.config.ValidatePathInSandbox(path); err != nil {
 		return true
 	}
@@ -1031,16 +966,18 @@ func (t *GrepTool) loadGitignorePatterns() {
 		".vscode",
 		".idea",
 		".flox",
-		"secret",
+		".tox",
+		".ruff_cache",
+		".mypy_cache",
+		".pytest_cache",
+		"_pycache_",
 	}
 
 	patterns = append(patterns, defaultPatterns...)
 
-	// Read .gitignore files from current directory
 	gitignorePatterns := t.readGitignoreFile(".")
 	patterns = append(patterns, gitignorePatterns...)
 
-	// Add user-configured excluded patterns
 	if t.config != nil && len(t.config.Tools.Grep.ExcludedPatterns) > 0 {
 		patterns = append(patterns, t.config.Tools.Grep.ExcludedPatterns...)
 	}
@@ -1055,7 +992,7 @@ func (t *GrepTool) readGitignoreFile(rootPath string) []string {
 	gitignorePath := filepath.Join(rootPath, ".gitignore")
 	file, err := os.Open(gitignorePath)
 	if err != nil {
-		return patterns // Return empty slice if .gitignore doesn't exist
+		return patterns
 	}
 	defer func() { _ = file.Close() }()
 
@@ -1063,9 +1000,9 @@ func (t *GrepTool) readGitignoreFile(rootPath string) []string {
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
-			continue // Skip empty lines and comments
+			continue
 		}
-		// Remove leading slash if present (git ignores leading slashes in some contexts)
+
 		pattern := strings.TrimPrefix(line, "/")
 		if pattern != "" {
 			patterns = append(patterns, pattern)
@@ -1098,50 +1035,6 @@ func (t *GrepTool) matchesGitignorePattern(path string) bool {
 			}
 		} else {
 			if normalizedPath == pattern || strings.HasPrefix(normalizedPath, pattern+"/") {
-				return true
-			}
-		}
-	}
-
-	return false
-}
-
-// matchesExtraPatterns checks if a path matches any of the provided extra patterns
-func (t *GrepTool) matchesExtraPatterns(path string, extraPatterns []string) bool {
-	if len(extraPatterns) == 0 {
-		return false
-	}
-
-	normalizedPath := filepath.ToSlash(filepath.Clean(path))
-
-	for _, pattern := range extraPatterns {
-		// Handle glob patterns
-		if strings.Contains(pattern, "*") || strings.Contains(pattern, "?") || strings.Contains(pattern, "[") {
-			matched, err := filepath.Match(pattern, filepath.Base(normalizedPath))
-			if err == nil && matched {
-				return true
-			}
-			// Also try matching the full path
-			matched, err = filepath.Match(pattern, normalizedPath)
-			if err == nil && matched {
-				return true
-			}
-			continue
-		}
-
-		// Handle directory patterns
-		if strings.HasSuffix(pattern, "/") {
-			dirPattern := strings.TrimSuffix(pattern, "/")
-			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
-				return true
-			}
-		} else {
-			// Handle exact matches and prefix matches
-			if normalizedPath == pattern || strings.HasPrefix(normalizedPath, pattern+"/") {
-				return true
-			}
-			// Also check if the pattern matches the filename
-			if strings.Contains(normalizedPath, "/"+pattern) || strings.HasSuffix(normalizedPath, pattern) {
 				return true
 			}
 		}
@@ -1187,7 +1080,7 @@ func (t *GrepTool) FormatPreview(result *domain.ToolExecutionResult) string {
 		return fmt.Sprintf("Found %d matches in %d files for '%s'", grepResult.Total, len(grepResult.Counts), grepResult.Pattern)
 	case "files_with_matches":
 		return fmt.Sprintf("Found matches in %d files for '%s'", len(grepResult.Files), grepResult.Pattern)
-	default: // content
+	default:
 		return fmt.Sprintf("Found %d matches for '%s'", grepResult.Total, grepResult.Pattern)
 	}
 }
@@ -1252,7 +1145,6 @@ func (t *GrepTool) formatGrepData(data any) string {
 		output.WriteString(fmt.Sprintf("Error: %s\n", grepResult.Error))
 	}
 
-	// Show data based on output mode
 	switch grepResult.OutputMode {
 	case "count":
 		if len(grepResult.Counts) > 0 {
@@ -1272,7 +1164,7 @@ func (t *GrepTool) formatGrepData(data any) string {
 			}
 		}
 
-	default: // content
+	default:
 		if len(grepResult.Matches) > 0 {
 			output.WriteString("\nMatches:\n")
 			for _, match := range grepResult.Matches {

@@ -65,7 +65,7 @@ func TestGrepTool_Definition(t *testing.T) {
 		t.Errorf("Expected required to be ['pattern'], got %v", required)
 	}
 
-	essentialParams := []string{"pattern", "output_mode", "glob", "type", "-i", "-n", "-A", "-B", "-C", "multiline", "head_limit", "excluded_patterns"}
+	essentialParams := []string{"pattern", "output_mode", "glob", "type", "-i", "-n", "-A", "-B", "-C", "multiline", "head_limit"}
 	for _, param := range essentialParams {
 		if _, exists := properties[param]; !exists {
 			t.Errorf("Expected parameter '%s' to exist", param)
@@ -137,10 +137,6 @@ func TestGrepTool_Validate(t *testing.T) {
 
 	t.Run("boolean flags validation", func(t *testing.T) {
 		testGrepValidationCases(t, tool, getBooleanFlagsTestCases())
-	})
-
-	t.Run("excluded patterns validation", func(t *testing.T) {
-		testGrepValidationCases(t, tool, getExcludedPatternsTestCases())
 	})
 }
 
@@ -328,45 +324,6 @@ func getBooleanFlagsTestCases() []grepValidationTestCase {
 	}
 }
 
-func getExcludedPatternsTestCases() []grepValidationTestCase {
-	return []grepValidationTestCase{
-		{
-			name: "invalid excluded_patterns type",
-			args: map[string]any{
-				"pattern":           "test",
-				"excluded_patterns": "not_array",
-			},
-			expectError: true,
-			errorMsg:    "excluded_patterns must be an array",
-		},
-		{
-			name: "invalid pattern in array",
-			args: map[string]any{
-				"pattern":           "test",
-				"excluded_patterns": []interface{}{"valid", 123},
-			},
-			expectError: true,
-			errorMsg:    "excluded_patterns[1] must be a string",
-		},
-		{
-			name: "valid excluded_patterns",
-			args: map[string]any{
-				"pattern":           "test",
-				"excluded_patterns": []interface{}{"*.tmp", "build/*", "node_modules"},
-			},
-			expectError: false,
-		},
-		{
-			name: "empty excluded_patterns",
-			args: map[string]any{
-				"pattern":           "test",
-				"excluded_patterns": []interface{}{},
-			},
-			expectError: false,
-		},
-	}
-}
-
 func TestGrepTool_ValidateDisabled(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
@@ -467,8 +424,6 @@ func TestGrepTool_PathExclusion(t *testing.T) {
 		{"git file", ".git/config", true},
 		{"infer directory", ".infer/", true},
 		{"infer file", config.DefaultConfigPath, true},
-		{"secret directory", "secret/", true},
-		{"secret file", "secret/key.txt", true},
 		{"allowed directory", "src/", false},
 		{"allowed file", "main.go", false},
 		{"current directory", ".", false},
@@ -562,7 +517,6 @@ func TestGrepTool_RipgrepDetection(t *testing.T) {
 
 	tool := NewGrepTool(cfg)
 
-	// Skip test if ripgrep is not available (common in CI environments)
 	if !tool.useRipgrep {
 		t.Skip("Ripgrep not detected, skipping test (common in CI environments)")
 	}
