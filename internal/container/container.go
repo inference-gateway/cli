@@ -160,7 +160,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 
-	// Unified git shortcut (status, pull, log, commit, push, etc.)
 	gitCommitClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
 
@@ -170,9 +169,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, nil, nil))
 	}
 
-	// Load user-defined shortcuts
 	if err := c.shortcutRegistry.LoadCustomShortcuts("."); err != nil {
-		// Log the error but don't fail the initialization
 		logger.Error("Failed to load custom shortcuts", "error", err)
 	}
 }
