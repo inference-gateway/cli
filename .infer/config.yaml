@@ -20,6 +20,7 @@ client:
       - 504
 logging:
   debug: false
+  dir: ""
 tools:
   enabled: true
   sandbox:
@@ -110,7 +111,6 @@ tools:
 compact:
   output_dir: .infer
   summary_model: ""
-chat: {}
 agent:
   model: ""
   system_prompt: |

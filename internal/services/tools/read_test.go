@@ -251,7 +251,7 @@ func testPathSecurity(t *testing.T, tool *ReadTool) {
 		{
 			name: "excluded path",
 			args: map[string]any{
-				"file_path": "/.infer/config.yaml",
+				"file_path": config.DefaultConfigPath,
 			},
 			wantError: true,
 		},

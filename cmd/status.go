@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/container"
-	"github.com/inference-gateway/cli/internal/logger"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	container "github.com/inference-gateway/cli/internal/container"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	cobra "github.com/spf13/cobra"
 )
 
 var statusCmd = &cobra.Command{
@@ -23,18 +23,21 @@ var statusCmd = &cobra.Command{
 		logger.Debug("Starting status command")
 		fmt.Println("Checking inference gateway status...")
 
-		configPath, _ := cmd.Flags().GetString("config")
+		_, _ = cmd.Flags().GetString("config")
 		format, _ := cmd.Flags().GetString("format")
 
-		logger.Debug("Status command flags", "config_path", configPath, "format", format)
+		gatewayURL := V.GetString("gateway.url")
+		logger.Debug("Status command flags", "gateway_url", gatewayURL, "format", format)
 
-		cfg, err := config.LoadConfig(configPath)
-		if err != nil {
-			logger.Error("Failed to load config in status command", "error", err)
-			return fmt.Errorf("failed to load config: %w", err)
+		logger.Debug("Fetching models from gateway", "gateway_url", gatewayURL)
+
+		cfg := &config.Config{
+			Gateway: config.GatewayConfig{
+				URL:     gatewayURL,
+				APIKey:  V.GetString("gateway.api_key"),
+				Timeout: V.GetInt("gateway.timeout"),
+			},
 		}
-
-		logger.Debug("Fetching models from gateway", "gateway_url", cfg.Gateway.URL)
 		modelsResp, err := fetchModels(cfg)
 		if err != nil {
 			logger.Warn("Gateway unreachable", "error", err)

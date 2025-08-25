@@ -1,10 +1,15 @@
 package config
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
+
+	"github.com/spf13/viper"
+	"gopkg.in/yaml.v3"
 )
 
 func TestDefaultConfig(t *testing.T) {
@@ -193,7 +198,9 @@ func runLoadConfigTest(t *testing.T, configYAML string, validator func(t *testin
 		t.Fatalf("Failed to write config file: %v", err)
 	}
 
-	cfg, err := LoadConfig(configPath)
+	v := viper.New()
+	v.SetConfigFile(configPath)
+	err = v.ReadInConfig()
 	if expectError && err == nil {
 		t.Error("Expected error but got none")
 	}
@@ -201,7 +208,11 @@ func runLoadConfigTest(t *testing.T, configYAML string, validator func(t *testin
 		t.Errorf("Unexpected error: %v", err)
 	}
 
-	if validator != nil && cfg != nil {
+	if validator != nil && err == nil {
+		cfg := &Config{}
+		if err := v.Unmarshal(cfg); err != nil {
+			t.Fatalf("Failed to unmarshal config: %v", err)
+		}
 		validator(t, cfg)
 	}
 }
@@ -254,7 +265,7 @@ chat:
   optimization:
     enabled: false
 agent:
-  model: "openai/gpt-4"
+  model: "openai/gpt-5"
   system_prompt: "You are a helpful assistant"
 `
 }
@@ -294,8 +305,8 @@ func validateCompleteConfig(t *testing.T, cfg *Config) {
 	if !reflect.DeepEqual(cfg.Tools.WebSearch.Engines, expectedEngines) {
 		t.Errorf("Expected engines to be %v, got %v", expectedEngines, cfg.Tools.WebSearch.Engines)
 	}
-	if cfg.Agent.Model != "openai/gpt-4" {
-		t.Errorf("Expected default model to be 'openai/gpt-4', got %q", cfg.Agent.Model)
+	if cfg.Agent.Model != "openai/gpt-5" {
+		t.Errorf("Expected default model to be 'openai/gpt-5', got %q", cfg.Agent.Model)
 	}
 }
 
@@ -348,13 +359,13 @@ func TestSaveConfig(t *testing.T) {
 		{
 			name: "save chat config",
 			setupFunc: func(cfg *Config) {
-				cfg.Agent.Model = "anthropic/claude-3"
+				cfg.Agent.Model = "anthropic/claude-4"
 				cfg.Agent.SystemPrompt = "Be helpful"
 				cfg.Gateway.APIKey = "secret-key"
 			},
 			validator: func(t *testing.T, cfg *Config) {
-				if cfg.Agent.Model != "anthropic/claude-3" {
-					t.Errorf("Expected default model to be 'anthropic/claude-3', got %q", cfg.Agent.Model)
+				if cfg.Agent.Model != "anthropic/claude-4" {
+					t.Errorf("Expected default model to be 'anthropic/claude-4', got %q", cfg.Agent.Model)
 				}
 				if cfg.Agent.SystemPrompt != "Be helpful" {
 					t.Errorf("Expected system prompt to be 'Be helpful', got %q", cfg.Agent.SystemPrompt)
@@ -385,13 +396,39 @@ func runSaveConfigTest(t *testing.T, setupFunc func(*Config), validator func(t *
 	cfg := DefaultConfig()
 	setupFunc(cfg)
 
-	if err := cfg.SaveConfig(configPath); err != nil {
+	// Create a new Viper instance for this test
+	v := viper.New()
+	v.SetConfigFile(configPath)
+
+	// Set all config values in Viper
+	v.Set("gateway.url", cfg.Gateway.URL)
+	v.Set("gateway.api_key", cfg.Gateway.APIKey)
+	v.Set("gateway.timeout", cfg.Gateway.Timeout)
+	v.Set("client.timeout", cfg.Client.Timeout)
+	v.Set("logging.debug", cfg.Logging.Debug)
+	v.Set("tools.enabled", cfg.Tools.Enabled)
+	v.Set("tools.web_search.enabled", cfg.Tools.WebSearch.Enabled)
+	v.Set("tools.web_search.default_engine", cfg.Tools.WebSearch.DefaultEngine)
+	v.Set("tools.web_search.max_results", cfg.Tools.WebSearch.MaxResults)
+	v.Set("tools.web_search.timeout", cfg.Tools.WebSearch.Timeout)
+	v.Set("tools.web_search.engines", cfg.Tools.WebSearch.Engines)
+	v.Set("agent.model", cfg.Agent.Model)
+	v.Set("agent.system_prompt", cfg.Agent.SystemPrompt)
+
+	if err := writeViperConfigForTest(v, 2); err != nil {
 		t.Fatalf("Failed to save config: %v", err)
 	}
 
-	loadedCfg, err := LoadConfig(configPath)
-	if err != nil {
+	// Load the saved config back
+	loadV := viper.New()
+	loadV.SetConfigFile(configPath)
+	if err := loadV.ReadInConfig(); err != nil {
 		t.Fatalf("Failed to load saved config: %v", err)
+	}
+
+	loadedCfg := DefaultConfig()
+	if err := loadV.Unmarshal(loadedCfg); err != nil {
+		t.Fatalf("Failed to unmarshal saved config: %v", err)
 	}
 
 	validator(t, loadedCfg)
@@ -554,4 +591,40 @@ func TestIsApprovalRequired(t *testing.T) {
 			}
 		})
 	}
+}
+
+// writeViperConfigForTest is a test helper to write viper config without circular import
+func writeViperConfigForTest(v *viper.Viper, indent int) error {
+	filename := v.ConfigFileUsed()
+	if filename == "" {
+		return fmt.Errorf("no config file is currently being used")
+	}
+
+	cfg := DefaultConfig()
+
+	if err := v.Unmarshal(cfg); err != nil {
+		return fmt.Errorf("failed to unmarshal config: %w", err)
+	}
+
+	var buf bytes.Buffer
+	yamlEncoder := yaml.NewEncoder(&buf)
+	yamlEncoder.SetIndent(indent)
+
+	if err := yamlEncoder.Encode(cfg); err != nil {
+		return fmt.Errorf("failed to marshal config to YAML: %w", err)
+	}
+
+	if err := yamlEncoder.Close(); err != nil {
+		return fmt.Errorf("failed to close YAML encoder: %w", err)
+	}
+
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	if err := os.WriteFile(filename, buf.Bytes(), 0644); err != nil {
+		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	return nil
 }

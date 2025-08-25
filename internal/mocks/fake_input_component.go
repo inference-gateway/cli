@@ -136,6 +136,19 @@ type FakeInputComponent struct {
 	setWidthArgsForCall []struct {
 		arg1 int
 	}
+	TryHandleAutocompleteStub        func(tea.KeyMsg) (bool, string)
+	tryHandleAutocompleteMutex       sync.RWMutex
+	tryHandleAutocompleteArgsForCall []struct {
+		arg1 tea.KeyMsg
+	}
+	tryHandleAutocompleteReturns struct {
+		result1 bool
+		result2 string
+	}
+	tryHandleAutocompleteReturnsOnCall map[int]struct {
+		result1 bool
+		result2 string
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -853,6 +866,70 @@ func (fake *FakeInputComponent) SetWidthArgsForCall(i int) int {
 	defer fake.setWidthMutex.RUnlock()
 	argsForCall := fake.setWidthArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeInputComponent) TryHandleAutocomplete(arg1 tea.KeyMsg) (bool, string) {
+	fake.tryHandleAutocompleteMutex.Lock()
+	ret, specificReturn := fake.tryHandleAutocompleteReturnsOnCall[len(fake.tryHandleAutocompleteArgsForCall)]
+	fake.tryHandleAutocompleteArgsForCall = append(fake.tryHandleAutocompleteArgsForCall, struct {
+		arg1 tea.KeyMsg
+	}{arg1})
+	stub := fake.TryHandleAutocompleteStub
+	fakeReturns := fake.tryHandleAutocompleteReturns
+	fake.recordInvocation("TryHandleAutocomplete", []interface{}{arg1})
+	fake.tryHandleAutocompleteMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeInputComponent) TryHandleAutocompleteCallCount() int {
+	fake.tryHandleAutocompleteMutex.RLock()
+	defer fake.tryHandleAutocompleteMutex.RUnlock()
+	return len(fake.tryHandleAutocompleteArgsForCall)
+}
+
+func (fake *FakeInputComponent) TryHandleAutocompleteCalls(stub func(tea.KeyMsg) (bool, string)) {
+	fake.tryHandleAutocompleteMutex.Lock()
+	defer fake.tryHandleAutocompleteMutex.Unlock()
+	fake.TryHandleAutocompleteStub = stub
+}
+
+func (fake *FakeInputComponent) TryHandleAutocompleteArgsForCall(i int) tea.KeyMsg {
+	fake.tryHandleAutocompleteMutex.RLock()
+	defer fake.tryHandleAutocompleteMutex.RUnlock()
+	argsForCall := fake.tryHandleAutocompleteArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeInputComponent) TryHandleAutocompleteReturns(result1 bool, result2 string) {
+	fake.tryHandleAutocompleteMutex.Lock()
+	defer fake.tryHandleAutocompleteMutex.Unlock()
+	fake.TryHandleAutocompleteStub = nil
+	fake.tryHandleAutocompleteReturns = struct {
+		result1 bool
+		result2 string
+	}{result1, result2}
+}
+
+func (fake *FakeInputComponent) TryHandleAutocompleteReturnsOnCall(i int, result1 bool, result2 string) {
+	fake.tryHandleAutocompleteMutex.Lock()
+	defer fake.tryHandleAutocompleteMutex.Unlock()
+	fake.TryHandleAutocompleteStub = nil
+	if fake.tryHandleAutocompleteReturnsOnCall == nil {
+		fake.tryHandleAutocompleteReturnsOnCall = make(map[int]struct {
+			result1 bool
+			result2 string
+		})
+	}
+	fake.tryHandleAutocompleteReturnsOnCall[i] = struct {
+		result1 bool
+		result2 string
+	}{result1, result2}
 }
 
 func (fake *FakeInputComponent) Invocations() map[string][][]interface{} {

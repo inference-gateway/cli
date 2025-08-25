@@ -245,14 +245,14 @@ func (c *HelpCommand) Execute(ctx context.Context, args []string) (CommandResult
 	}
 
 	var output strings.Builder
-	output.WriteString("Available commands:\n")
+	output.WriteString("## Available Commands\n\n")
 
 	commands := c.registry.GetAll()
 	for _, cmd := range commands {
-		output.WriteString(fmt.Sprintf("  /%s - %s\n", cmd.GetName(), cmd.GetDescription()))
+		output.WriteString(fmt.Sprintf("• **`/%s`** - %s\n", cmd.GetName(), cmd.GetDescription()))
 	}
 
-	output.WriteString("\nType /help <command> for detailed usage information.")
+	output.WriteString("\n💡 *Type `/help <command>` for detailed usage information.*")
 
 	return CommandResult{
 		Output:     output.String(),

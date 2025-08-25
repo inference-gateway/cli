@@ -1,226 +1,230 @@
 package config
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
-	"github.com/inference-gateway/cli/internal/logger"
-	"gopkg.in/yaml.v3"
+	logger "github.com/inference-gateway/cli/internal/logger"
+)
+
+const (
+	ConfigDirName     = ".infer"
+	ConfigFileName    = "config.yaml"
+	GitignoreFileName = ".gitignore"
+	LogsDirName       = "logs"
+
+	DefaultConfigPath = ConfigDirName + "/" + ConfigFileName
+	DefaultLogsPath   = ConfigDirName + "/" + LogsDirName
 )
 
 // Config represents the CLI configuration
 type Config struct {
-	Gateway GatewayConfig `yaml:"gateway"`
-	Client  ClientConfig  `yaml:"client"`
-	Logging LoggingConfig `yaml:"logging"`
-	Tools   ToolsConfig   `yaml:"tools"`
-	Compact CompactConfig `yaml:"compact"`
-	Chat    ChatConfig    `yaml:"chat"`
-	Agent   AgentConfig   `yaml:"agent"`
+	Gateway GatewayConfig `yaml:"gateway" mapstructure:"gateway"`
+	Client  ClientConfig  `yaml:"client" mapstructure:"client"`
+	Logging LoggingConfig `yaml:"logging" mapstructure:"logging"`
+	Tools   ToolsConfig   `yaml:"tools" mapstructure:"tools"`
+	Compact CompactConfig `yaml:"compact" mapstructure:"compact"`
+	Agent   AgentConfig   `yaml:"agent" mapstructure:"agent"`
 }
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL     string `yaml:"url"`
-	APIKey  string `yaml:"api_key"`
-	Timeout int    `yaml:"timeout"`
+	URL     string `yaml:"url" mapstructure:"url"`
+	APIKey  string `yaml:"api_key" mapstructure:"api_key"`
+	Timeout int    `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // ClientConfig contains HTTP client settings
 type ClientConfig struct {
-	Timeout int         `yaml:"timeout"`
-	Retry   RetryConfig `yaml:"retry"`
+	Timeout int         `yaml:"timeout" mapstructure:"timeout"`
+	Retry   RetryConfig `yaml:"retry" mapstructure:"retry"`
 }
 
 // RetryConfig contains retry logic settings
 type RetryConfig struct {
-	Enabled              bool  `yaml:"enabled"`
-	MaxAttempts          int   `yaml:"max_attempts"`
-	InitialBackoffSec    int   `yaml:"initial_backoff_sec"`
-	MaxBackoffSec        int   `yaml:"max_backoff_sec"`
-	BackoffMultiplier    int   `yaml:"backoff_multiplier"`
-	RetryableStatusCodes []int `yaml:"retryable_status_codes"`
+	Enabled              bool  `yaml:"enabled" mapstructure:"enabled"`
+	MaxAttempts          int   `yaml:"max_attempts" mapstructure:"max_attempts"`
+	InitialBackoffSec    int   `yaml:"initial_backoff_sec" mapstructure:"initial_backoff_sec"`
+	MaxBackoffSec        int   `yaml:"max_backoff_sec" mapstructure:"max_backoff_sec"`
+	BackoffMultiplier    int   `yaml:"backoff_multiplier" mapstructure:"backoff_multiplier"`
+	RetryableStatusCodes []int `yaml:"retryable_status_codes" mapstructure:"retryable_status_codes"`
 }
 
 // LoggingConfig contains logging settings
 type LoggingConfig struct {
-	Debug bool `yaml:"debug"`
+	Debug bool   `yaml:"debug" mapstructure:"debug"`
+	Dir   string `yaml:"dir" mapstructure:"dir"`
 }
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled   bool                `yaml:"enabled"`
-	Sandbox   SandboxConfig       `yaml:"sandbox"`
-	Bash      BashToolConfig      `yaml:"bash"`
-	Read      ReadToolConfig      `yaml:"read"`
-	Write     WriteToolConfig     `yaml:"write"`
-	Edit      EditToolConfig      `yaml:"edit"`
-	Delete    DeleteToolConfig    `yaml:"delete"`
-	Grep      GrepToolConfig      `yaml:"grep"`
-	Tree      TreeToolConfig      `yaml:"tree"`
-	WebFetch  WebFetchToolConfig  `yaml:"web_fetch"`
-	WebSearch WebSearchToolConfig `yaml:"web_search"`
-	Github    GithubToolConfig    `yaml:"github"`
-	TodoWrite TodoWriteToolConfig `yaml:"todo_write"`
-	Safety    SafetyConfig        `yaml:"safety"`
+	Enabled   bool                `yaml:"enabled" mapstructure:"enabled"`
+	Sandbox   SandboxConfig       `yaml:"sandbox" mapstructure:"sandbox"`
+	Bash      BashToolConfig      `yaml:"bash" mapstructure:"bash"`
+	Read      ReadToolConfig      `yaml:"read" mapstructure:"read"`
+	Write     WriteToolConfig     `yaml:"write" mapstructure:"write"`
+	Edit      EditToolConfig      `yaml:"edit" mapstructure:"edit"`
+	Delete    DeleteToolConfig    `yaml:"delete" mapstructure:"delete"`
+	Grep      GrepToolConfig      `yaml:"grep" mapstructure:"grep"`
+	Tree      TreeToolConfig      `yaml:"tree" mapstructure:"tree"`
+	WebFetch  WebFetchToolConfig  `yaml:"web_fetch" mapstructure:"web_fetch"`
+	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
+	Github    GithubToolConfig    `yaml:"github" mapstructure:"github"`
+	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
+	Safety    SafetyConfig        `yaml:"safety" mapstructure:"safety"`
 }
 
 // BashToolConfig contains bash-specific tool settings
 type BashToolConfig struct {
-	Enabled         bool                `yaml:"enabled"`
-	Whitelist       ToolWhitelistConfig `yaml:"whitelist"`
-	RequireApproval *bool               `yaml:"require_approval,omitempty"`
+	Enabled         bool                `yaml:"enabled" mapstructure:"enabled"`
+	Whitelist       ToolWhitelistConfig `yaml:"whitelist" mapstructure:"whitelist"`
+	RequireApproval *bool               `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // ReadToolConfig contains read-specific tool settings
 type ReadToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // WriteToolConfig contains write-specific tool settings
 type WriteToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // EditToolConfig contains edit-specific tool settings
 type EditToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // DeleteToolConfig contains delete-specific tool settings
 type DeleteToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // GrepToolConfig contains grep-specific tool settings
 type GrepToolConfig struct {
-	Enabled         bool   `yaml:"enabled"`
-	Backend         string `yaml:"backend"`
-	RequireApproval *bool  `yaml:"require_approval,omitempty"`
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Backend         string `yaml:"backend" mapstructure:"backend"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // TreeToolConfig contains tree-specific tool settings
 type TreeToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // WebFetchToolConfig contains fetch-specific tool settings
 type WebFetchToolConfig struct {
-	Enabled            bool              `yaml:"enabled"`
-	WhitelistedDomains []string          `yaml:"whitelisted_domains"`
-	Safety             FetchSafetyConfig `yaml:"safety"`
-	Cache              FetchCacheConfig  `yaml:"cache"`
-	RequireApproval    *bool             `yaml:"require_approval,omitempty"`
+	Enabled            bool              `yaml:"enabled" mapstructure:"enabled"`
+	WhitelistedDomains []string          `yaml:"whitelisted_domains" mapstructure:"whitelisted_domains"`
+	Safety             FetchSafetyConfig `yaml:"safety" mapstructure:"safety"`
+	Cache              FetchCacheConfig  `yaml:"cache" mapstructure:"cache"`
+	RequireApproval    *bool             `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // WebSearchToolConfig contains web search-specific tool settings
 type WebSearchToolConfig struct {
-	Enabled         bool     `yaml:"enabled"`
-	DefaultEngine   string   `yaml:"default_engine"`
-	MaxResults      int      `yaml:"max_results"`
-	Engines         []string `yaml:"engines"`
-	Timeout         int      `yaml:"timeout"`
-	RequireApproval *bool    `yaml:"require_approval,omitempty"`
+	Enabled         bool     `yaml:"enabled" mapstructure:"enabled"`
+	DefaultEngine   string   `yaml:"default_engine" mapstructure:"default_engine"`
+	MaxResults      int      `yaml:"max_results" mapstructure:"max_results"`
+	Engines         []string `yaml:"engines" mapstructure:"engines"`
+	Timeout         int      `yaml:"timeout" mapstructure:"timeout"`
+	RequireApproval *bool    `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // TodoWriteToolConfig contains TodoWrite-specific tool settings
 type TodoWriteToolConfig struct {
-	Enabled         bool  `yaml:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty"`
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // GithubToolConfig contains GitHub fetch-specific tool settings
 type GithubToolConfig struct {
-	Enabled         bool               `yaml:"enabled"`
-	Token           string             `yaml:"token"`
-	BaseURL         string             `yaml:"base_url"`
-	Owner           string             `yaml:"owner"`
-	Repo            string             `yaml:"repo,omitempty"`
-	Safety          GithubSafetyConfig `yaml:"safety"`
-	RequireApproval *bool              `yaml:"require_approval,omitempty"`
+	Enabled         bool               `yaml:"enabled" mapstructure:"enabled"`
+	Token           string             `yaml:"token" mapstructure:"token"`
+	BaseURL         string             `yaml:"base_url" mapstructure:"base_url"`
+	Owner           string             `yaml:"owner" mapstructure:"owner"`
+	Repo            string             `yaml:"repo,omitempty" mapstructure:"repo,omitempty"`
+	Safety          GithubSafetyConfig `yaml:"safety" mapstructure:"safety"`
+	RequireApproval *bool              `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // GithubSafetyConfig contains safety settings for GitHub fetch operations
 type GithubSafetyConfig struct {
-	MaxSize int64 `yaml:"max_size"`
-	Timeout int   `yaml:"timeout"`
+	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
+	Timeout int   `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // ToolWhitelistConfig contains whitelisted commands and patterns
 type ToolWhitelistConfig struct {
-	Commands []string `yaml:"commands"`
-	Patterns []string `yaml:"patterns"`
+	Commands []string `yaml:"commands" mapstructure:"commands"`
+	Patterns []string `yaml:"patterns" mapstructure:"patterns"`
 }
 
 // SandboxConfig contains sandbox directory settings
 type SandboxConfig struct {
-	Directories    []string `yaml:"directories"`
-	ProtectedPaths []string `yaml:"protected_paths"`
+	Directories    []string `yaml:"directories" mapstructure:"directories"`
+	ProtectedPaths []string `yaml:"protected_paths" mapstructure:"protected_paths"`
 }
 
 // SafetyConfig contains safety approval settings
 type SafetyConfig struct {
-	RequireApproval bool `yaml:"require_approval"`
+	RequireApproval bool `yaml:"require_approval" mapstructure:"require_approval"`
 }
 
 // CompactConfig contains settings for compact command
 type CompactConfig struct {
-	OutputDir    string `yaml:"output_dir"`
-	SummaryModel string `yaml:"summary_model"`
+	OutputDir    string `yaml:"output_dir" mapstructure:"output_dir"`
+	SummaryModel string `yaml:"summary_model" mapstructure:"summary_model"`
 }
 
 // OptimizationConfig contains token optimization settings
 type OptimizationConfig struct {
-	Enabled                    bool `yaml:"enabled"`
-	MaxHistory                 int  `yaml:"max_history"`
-	CompactThreshold           int  `yaml:"compact_threshold"`
-	TruncateLargeOutputs       bool `yaml:"truncate_large_outputs"`
-	SkipRedundantConfirmations bool `yaml:"skip_redundant_confirmations"`
+	Enabled                    bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxHistory                 int  `yaml:"max_history" mapstructure:"max_history"`
+	CompactThreshold           int  `yaml:"compact_threshold" mapstructure:"compact_threshold"`
+	TruncateLargeOutputs       bool `yaml:"truncate_large_outputs" mapstructure:"truncate_large_outputs"`
+	SkipRedundantConfirmations bool `yaml:"skip_redundant_confirmations" mapstructure:"skip_redundant_confirmations"`
 }
 
 // SystemRemindersConfig contains settings for dynamic system reminders
 type SystemRemindersConfig struct {
-	Enabled      bool   `yaml:"enabled"`
-	Interval     int    `yaml:"interval"`
-	ReminderText string `yaml:"reminder_text"`
-}
-
-// ChatConfig contains chat-related settings
-type ChatConfig struct {
+	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
+	Interval     int    `yaml:"interval" mapstructure:"interval"`
+	ReminderText string `yaml:"reminder_text" mapstructure:"reminder_text"`
 }
 
 // AgentConfig contains agent command-specific settings
 type AgentConfig struct {
-	Model           string                `yaml:"model"`
-	SystemPrompt    string                `yaml:"system_prompt"`
-	SystemReminders SystemRemindersConfig `yaml:"system_reminders"`
-	VerboseTools    bool                  `yaml:"verbose_tools"`
-	MaxTurns        int                   `yaml:"max_turns"`
-	MaxTokens       int                   `yaml:"max_tokens"`
-	Optimization    OptimizationConfig    `yaml:"optimization"`
+	Model           string                `yaml:"model" mapstructure:"model"`
+	SystemPrompt    string                `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemReminders SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
+	VerboseTools    bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
+	MaxTurns        int                   `yaml:"max_turns" mapstructure:"max_turns"`
+	MaxTokens       int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
+	Optimization    OptimizationConfig    `yaml:"optimization" mapstructure:"optimization"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
 type FetchSafetyConfig struct {
-	MaxSize       int64 `yaml:"max_size"`
-	Timeout       int   `yaml:"timeout"`
-	AllowRedirect bool  `yaml:"allow_redirect"`
+	MaxSize       int64 `yaml:"max_size" mapstructure:"max_size"`
+	Timeout       int   `yaml:"timeout" mapstructure:"timeout"`
+	AllowRedirect bool  `yaml:"allow_redirect" mapstructure:"allow_redirect"`
 }
 
 // FetchCacheConfig contains cache settings for fetch operations
 type FetchCacheConfig struct {
-	Enabled bool  `yaml:"enabled"`
-	TTL     int   `yaml:"ttl"`
-	MaxSize int64 `yaml:"max_size"`
+	Enabled bool  `yaml:"enabled" mapstructure:"enabled"`
+	TTL     int   `yaml:"ttl" mapstructure:"ttl"`
+	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
 }
 
 // DefaultConfig returns a default configuration
@@ -244,13 +248,14 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		Logging: LoggingConfig{
 			Debug: false,
+			Dir:   "",
 		},
 		Tools: ToolsConfig{
 			Enabled: true,
 			Sandbox: SandboxConfig{
 				Directories: []string{".", "/tmp"},
 				ProtectedPaths: []string{
-					".infer/",
+					ConfigDirName + "/",
 					".git/",
 					"*.env",
 				},
@@ -346,10 +351,9 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Compact: CompactConfig{
-			OutputDir:    ".infer",
+			OutputDir:    ConfigDirName,
 			SummaryModel: "",
 		},
-		Chat: ChatConfig{},
 		Agent: AgentConfig{
 			Model: "",
 			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion.
@@ -411,95 +415,6 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 	}
 }
 
-// LoadConfig loads configuration from file
-func LoadConfig(configPath string) (*Config, error) {
-	if configPath == "" {
-		configPath = getDefaultConfigPath()
-		logger.Debug("Using default config path", "path", configPath)
-	} else {
-		logger.Debug("Using custom config path", "path", configPath)
-	}
-
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
-		logger.Debug("Config file not found, using default configuration", "path", configPath)
-		return DefaultConfig(), nil
-	}
-
-	logger.Debug("Loading config file", "path", configPath)
-	data, err := os.ReadFile(configPath)
-	if err != nil {
-		logger.Error("Failed to read config file", "path", configPath, "error", err)
-		return nil, fmt.Errorf("failed to read config file: %w", err)
-	}
-
-	var config Config
-	if err := yaml.Unmarshal(data, &config); err != nil {
-		logger.Error("Failed to parse config file", "path", configPath, "error", err)
-		return nil, fmt.Errorf("failed to parse config file: %w", err)
-	}
-
-	logger.Debug("Successfully loaded config", "path", configPath, "gateway_url", config.Gateway.URL)
-	return &config, nil
-}
-
-// SaveConfig saves configuration to file
-func (c *Config) SaveConfig(configPath string) error {
-	if configPath == "" {
-		configPath = getDefaultConfigPath()
-		logger.Debug("Using default config path for save", "path", configPath)
-	} else {
-		logger.Debug("Using custom config path for save", "path", configPath)
-	}
-
-	dir := filepath.Dir(configPath)
-	logger.Debug("Creating config directory", "dir", dir)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		logger.Error("Failed to create config directory", "dir", dir, "error", err)
-		return fmt.Errorf("failed to create config directory: %w", err)
-	}
-
-	var buf bytes.Buffer
-	encoder := yaml.NewEncoder(&buf)
-	encoder.SetIndent(2)
-	defer func() {
-		if err := encoder.Close(); err != nil {
-			logger.Error("Failed to close YAML encoder", "error", err)
-		}
-	}()
-
-	if err := encoder.Encode(c); err != nil {
-		logger.Error("Failed to marshal config", "error", err)
-		return fmt.Errorf("failed to marshal config: %w", err)
-	}
-
-	data := buf.Bytes()
-
-	logger.Debug("Writing config file", "path", configPath, "size", len(data))
-	if err := os.WriteFile(configPath, data, 0644); err != nil {
-		logger.Error("Failed to write config file", "path", configPath, "error", err)
-		return fmt.Errorf("failed to write config file: %w", err)
-	}
-
-	logger.Debug("Successfully saved config", "path", configPath)
-	return nil
-}
-
-func getDefaultConfigPath() string {
-	wd, err := os.Getwd()
-	if err != nil {
-		return ".infer/config.yaml"
-	}
-	return filepath.Join(wd, ".infer/config.yaml")
-}
-
-// GetConfigPath returns the config path that would be used, either default or provided
-func GetConfigPath(configPath string) string {
-	if configPath == "" {
-		return getDefaultConfigPath()
-	}
-	return configPath
-}
-
 // IsApprovalRequired checks if approval is required for a specific tool
 // It returns true if tool-specific approval is set to true, or if global approval is true and tool-specific is not set to false
 // ConfigService interface implementation
@@ -554,11 +469,6 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	}
 
 	return globalApproval
-}
-
-// Additional ConfigService methods
-func (c *Config) IsDebugMode() bool {
-	return c.Logging.Debug
 }
 
 func (c *Config) GetOutputDirectory() string {

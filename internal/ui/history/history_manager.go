@@ -14,12 +14,17 @@ type HistoryManager struct {
 	maxInMemory     int
 	historyIndex    int
 	currentInput    string
-	allHistory      []string // Combined shell + in-memory history
+	allHistory      []string
 }
 
 // NewHistoryManager creates a new history manager
 func NewHistoryManager(maxInMemory int) (*HistoryManager, error) {
-	shellHistory, err := NewShellHistory()
+	return NewHistoryManagerWithDir(maxInMemory, ".infer")
+}
+
+// NewHistoryManagerWithDir creates a new history manager with a custom config directory
+func NewHistoryManagerWithDir(maxInMemory int, configDir string) (*HistoryManager, error) {
+	shellHistory, err := NewShellHistoryWithDir(configDir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to initialize shell history: %w", err)
 	}

@@ -4,22 +4,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/commands"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	commands "github.com/inference-gateway/cli/internal/commands"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriterdomain "github.com/inference-gateway/cli/internal/domain/filewriter"
-	"github.com/inference-gateway/cli/internal/logger"
-	"github.com/inference-gateway/cli/internal/services"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	services "github.com/inference-gateway/cli/internal/services"
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
-	"github.com/inference-gateway/cli/internal/services/tools"
-	"github.com/inference-gateway/cli/internal/ui"
+	tools "github.com/inference-gateway/cli/internal/services/tools"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
+	viper "github.com/spf13/viper"
 )
 
 // ServiceContainer manages all application dependencies
 type ServiceContainer struct {
 	// Configuration
-	config *config.Config
+	viper         *viper.Viper
+	config        *config.Config
+	configService *services.ConfigService
 
 	// Domain services
 	conversationRepo domain.ConversationRepository
@@ -51,9 +54,14 @@ type ServiceContainer struct {
 }
 
 // NewServiceContainer creates a new service container with all dependencies
-func NewServiceContainer(cfg *config.Config) *ServiceContainer {
+func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContainer {
 	container := &ServiceContainer{
 		config: cfg,
+	}
+
+	if len(v) > 0 && v[0] != nil {
+		container.viper = v[0]
+		container.configService = services.NewConfigService(v[0], cfg)
 	}
 
 	container.initializeFileWriterServices()
@@ -150,6 +158,13 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.commandRegistry.Register(commands.NewExportCommand(c.conversationRepo, c.agentService, c.modelService, c.config))
 	c.commandRegistry.Register(commands.NewExitCommand())
 	c.commandRegistry.Register(commands.NewSwitchCommand(c.modelService))
+	c.commandRegistry.Register(commands.NewHelpCommand(c.commandRegistry))
+
+	if c.configService != nil {
+		c.commandRegistry.Register(commands.NewConfigCommand(c.config, c.configService.Reload, c.configService))
+	} else {
+		c.commandRegistry.Register(commands.NewConfigCommand(c.config, nil, nil))
+	}
 }
 
 func (c *ServiceContainer) GetConfig() *config.Config {
@@ -215,7 +230,7 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 	if retryConfig.Enabled {
 		originalOnRetry := retryConfig.OnRetry
 		retryConfig.OnRetry = func(attempt int, err error, delay time.Duration) {
-			logger.Info("Retrying HTTP request",
+			logger.Error("Retrying HTTP request",
 				"attempt", attempt,
 				"error", err.Error(),
 				"delay", delay.String())
@@ -230,15 +245,28 @@ func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 
 // createSDKClient creates a configured SDK client with retry and timeout settings
 func (c *ServiceContainer) createSDKClient() sdk.Client {
+	if c.config == nil {
+		panic("ServiceContainer: config is nil when creating SDK client")
+	}
+
 	baseURL := c.config.Gateway.URL
+	if baseURL == "" {
+		baseURL = "http://localhost:8080"
+	}
+
 	if !strings.HasSuffix(baseURL, "/v1") {
 		baseURL = strings.TrimSuffix(baseURL, "/") + "/v1"
+	}
+
+	timeout := c.config.Client.Timeout
+	if timeout == 0 {
+		timeout = 200
 	}
 
 	return sdk.NewClient(&sdk.ClientOptions{
 		BaseURL:     baseURL,
 		APIKey:      c.config.Gateway.APIKey,
-		Timeout:     time.Duration(c.config.Client.Timeout) * time.Second,
+		Timeout:     time.Duration(timeout) * time.Second,
 		RetryConfig: c.createRetryConfig(),
 	})
 }
@@ -267,4 +295,14 @@ func (c *ServiceContainer) GetChunkManager() filewriterdomain.ChunkManager {
 
 func (c *ServiceContainer) GetParameterExtractor() *tools.ParameterExtractor {
 	return c.paramExtractor
+}
+
+// GetViper returns the Viper instance
+func (c *ServiceContainer) GetViper() *viper.Viper {
+	return c.viper
+}
+
+// GetConfigService returns the config service
+func (c *ServiceContainer) GetConfigService() *services.ConfigService {
+	return c.configService
 }

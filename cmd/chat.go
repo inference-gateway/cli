@@ -3,14 +3,17 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/app"
-	"github.com/inference-gateway/cli/internal/container"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	app "github.com/inference-gateway/cli/internal/app"
+	container "github.com/inference-gateway/cli/internal/container"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	cobra "github.com/spf13/cobra"
+	viper "github.com/spf13/viper"
 )
 
 var chatCmd = &cobra.Command{
@@ -18,20 +21,18 @@ var chatCmd = &cobra.Command{
 	Short: "Start an interactive chat session with model selection",
 	Long: `Start an interactive chat session where you can select a model from a dropdown
 and have a conversational interface with the inference gateway.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
-		return startChatSession()
+	RunE: func(_ *cobra.Command, args []string) error {
+		cfg, err := getConfigFromViper()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+		return StartChatSession(cfg, V)
 	},
 }
 
-// startChatSession starts a chat session using the SOLID architecture
-func startChatSession() error {
-	configPath := config.GetConfigPath("")
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	services := container.NewServiceContainer(cfg)
+// StartChatSession starts a chat session
+func StartChatSession(cfg *config.Config, v *viper.Viper) error {
+	services := container.NewServiceContainer(cfg, v)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()
@@ -76,7 +77,7 @@ func startChatSession() error {
 		toolOrchestrator,
 		theme,
 		toolRegistry,
-		configPath,
+		getEffectiveConfigPath(),
 	)
 
 	program := tea.NewProgram(application)
@@ -110,6 +111,31 @@ func validateAndSetDefaultModel(modelService domain.ModelService, models []strin
 
 	fmt.Printf("🤖 Using default model: %s\n", defaultModel)
 	return defaultModel
+}
+
+// getEffectiveConfigPath returns the actual config file path that should be displayed
+// It follows Viper's search order and returns the first existing config file
+func getEffectiveConfigPath() string {
+	searchPaths := []string{
+		".infer/config.yaml",
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, ".infer", "config.yaml")
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	if configFile := V.ConfigFileUsed(); configFile != "" {
+		return configFile
+	}
+
+	return ".infer/config.yaml"
 }
 
 func init() {

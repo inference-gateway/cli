@@ -6,16 +6,18 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/container"
-	"github.com/inference-gateway/cli/internal/services"
-	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	container "github.com/inference-gateway/cli/internal/container"
+	services "github.com/inference-gateway/cli/internal/services"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	utils "github.com/inference-gateway/cli/internal/utils"
+	cobra "github.com/spf13/cobra"
 )
 
 var configCmd = &cobra.Command{
@@ -32,7 +34,7 @@ the agent command will use this model directly without requiring selection.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		modelName := args[0]
-		return setDefaultModel(modelName)
+		return setDefaultModel(cmd, modelName)
 	},
 }
 
@@ -44,7 +46,7 @@ The system prompt provides context and instructions to the AI model about how to
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		systemPrompt := args[0]
-		return setSystemPrompt(systemPrompt)
+		return setSystemPrompt(cmd, systemPrompt)
 	},
 }
 
@@ -56,7 +58,7 @@ This limits how long an agent can run to prevent infinite loops or excessive tok
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		maxTurns := args[0]
-		return setMaxTurns(maxTurns)
+		return setMaxTurns(cmd, maxTurns)
 	},
 }
 
@@ -68,23 +70,46 @@ This creates only the configuration file with default settings.
 
 For complete project initialization, use 'infer init' instead.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		configPath := ".infer/config.yaml"
+		userspace := GetUserspaceFlag(cmd)
+		overwrite, _ := cmd.Flags().GetBool("overwrite")
+
+		var configPath string
+		if userspace {
+			homeDir, err := os.UserHomeDir()
+			if err != nil {
+				return fmt.Errorf("failed to get user home directory: %w", err)
+			}
+			configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+		} else {
+			configPath = config.DefaultConfigPath
+		}
 
 		if _, err := os.Stat(configPath); err == nil {
-			overwrite, _ := cmd.Flags().GetBool("overwrite")
 			if !overwrite {
 				return fmt.Errorf("configuration file %s already exists (use --overwrite to replace)", configPath)
 			}
 		}
 
-		cfg := config.DefaultConfig()
+		if err := os.MkdirAll(filepath.Dir(configPath), 0755); err != nil {
+			return fmt.Errorf("failed to create config directory: %w", err)
+		}
 
-		if err := cfg.SaveConfig(configPath); err != nil {
+		if err := writeConfigAsYAMLWithIndent(configPath, 2); err != nil {
 			return fmt.Errorf("failed to create config file: %w", err)
 		}
 
-		fmt.Printf("Successfully created %s\n", configPath)
-		fmt.Println("You can now customize the configuration for this project.")
+		var scopeDesc string
+		if userspace {
+			scopeDesc = "userspace "
+		}
+
+		fmt.Printf("Successfully created %sconfiguration: %s\n", scopeDesc, configPath)
+		if userspace {
+			fmt.Println("This userspace configuration will be used as a fallback for all projects.")
+			fmt.Println("Project-level configurations will take precedence when present.")
+		} else {
+			fmt.Println("You can now customize the configuration for this project.")
+		}
 		fmt.Println("Tip: Use 'infer init' for complete project initialization including additional setup files.")
 
 		return nil
@@ -124,7 +149,13 @@ var configToolsValidateCmd = &cobra.Command{
 	Short: "Validate if a command is whitelisted",
 	Long:  `Check if a specific command would be allowed to execute without actually running it.`,
 	Args:  cobra.ExactArgs(1),
-	RunE:  validateTool,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := getConfigFromViper()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+		return ValidateTool(cfg, args[0])
+	},
 }
 
 var configToolsExecCmd = &cobra.Command{
@@ -153,7 +184,14 @@ Examples:
 
 This uses the exact same argument parsing as LLMs, ensuring consistency.`,
 	Args: cobra.MinimumNArgs(1),
-	RunE: execTool,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := getConfigFromViper()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+		format, _ := cmd.Flags().GetString("format")
+		return ExecTool(cfg, args, format)
+	},
 }
 
 var configToolsSafetyCmd = &cobra.Command{
@@ -429,47 +467,65 @@ var configToolsWebFetchCacheClearCmd = &cobra.Command{
 	RunE:  fetchCacheClear,
 }
 
-func setDefaultModel(modelName string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+// getConfigFromViper creates a config object from current Viper settings
+func getConfigFromViper() (*config.Config, error) {
+	cfg := &config.Config{}
+	if err := V.Unmarshal(cfg); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal config from Viper: %w", err)
 	}
 
-	cfg.Agent.Model = modelName
+	// Viper's Unmarshal doesn't always respect env vars for nested structs when config file has empty values
+	// So we need to explicitly get the value which properly checks env vars through Viper's AutomaticEnv
+	if model := V.GetString("agent.model"); model != "" {
+		cfg.Agent.Model = model
+	}
 
-	if err := cfg.SaveConfig(""); err != nil {
+	return cfg, nil
+}
+
+// GetUserspaceFlag checks for --userspace flag on the current command or parent commands
+func GetUserspaceFlag(cmd *cobra.Command) bool {
+	if userspace, err := cmd.Flags().GetBool("userspace"); err == nil && userspace {
+		return true
+	}
+
+	parent := cmd.Parent()
+	for parent != nil {
+		if userspace, err := parent.Flags().GetBool("userspace"); err == nil && userspace {
+			return true
+		}
+		parent = parent.Parent()
+	}
+
+	return false
+}
+
+func setDefaultModel(_ *cobra.Command, modelName string) error {
+	V.Set("agent.model", modelName)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	fmt.Printf("%s Default model set to: %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), modelName)
+	fmt.Printf("Configuration saved to %s\n", V.ConfigFileUsed())
 	fmt.Println("The agent command will now use this model by default.")
 	return nil
 }
 
-func setSystemPrompt(systemPrompt string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	cfg.Agent.SystemPrompt = systemPrompt
-
-	if err := cfg.SaveConfig(""); err != nil {
+func setSystemPrompt(_ *cobra.Command, systemPrompt string) error {
+	V.Set("agent.system_prompt", systemPrompt)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	fmt.Printf("%s System prompt set successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+	fmt.Printf("Configuration saved to %s\n", V.ConfigFileUsed())
 	fmt.Printf("System prompt: %s\n", systemPrompt)
 	fmt.Println("This prompt will be included with every agent session.")
 	return nil
 }
 
-func setMaxTurns(maxTurnsStr string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
+func setMaxTurns(_ *cobra.Command, maxTurnsStr string) error {
 	maxTurns, err := strconv.Atoi(maxTurnsStr)
 	if err != nil {
 		return fmt.Errorf("invalid max turns value '%s': must be a positive integer", maxTurnsStr)
@@ -479,13 +535,13 @@ func setMaxTurns(maxTurnsStr string) error {
 		return fmt.Errorf("max turns must be at least 1, got %d", maxTurns)
 	}
 
-	cfg.Agent.MaxTurns = maxTurns
-
-	if err := cfg.SaveConfig(""); err != nil {
+	V.Set("agent.max_turns", maxTurns)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
 	fmt.Printf("%s Maximum turns set to: %d\n", icons.CheckMarkStyle.Render(icons.CheckMark), maxTurns)
+	fmt.Printf("Configuration saved to %s\n", V.ConfigFileUsed())
 	fmt.Println("Agent sessions will now be limited to this number of conversation turns.")
 	return nil
 }
@@ -502,25 +558,24 @@ var configAgentVerboseToolsCmd = &cobra.Command{
 	Long:  "Control whether the agent command shows full tool details or just tool names in the output",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		cfg, err := config.LoadConfig("")
-		if err != nil {
-			return fmt.Errorf("failed to load config: %w", err)
-		}
-
+		var statusMsg string
 		switch args[0] {
 		case "enable":
-			cfg.Agent.VerboseTools = true
-			fmt.Printf("%s Verbose tools output enabled for agent command\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+			V.Set("agent.verbose_tools", true)
+			statusMsg = "Verbose tools output enabled for agent command"
 		case "disable":
-			cfg.Agent.VerboseTools = false
-			fmt.Printf("%s Verbose tools output disabled for agent command (will show tool names only)\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+			V.Set("agent.verbose_tools", false)
+			statusMsg = "Verbose tools output disabled for agent command (will show tool names only)"
 		default:
 			return fmt.Errorf("invalid argument: %s. Use 'enable' or 'disable'", args[0])
 		}
 
-		if err := cfg.SaveConfig(""); err != nil {
+		if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 			return fmt.Errorf("failed to save config: %w", err)
 		}
+
+		fmt.Printf("%s %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), statusMsg)
+		fmt.Printf("Configuration saved to %s\n", V.ConfigFileUsed())
 
 		return nil
 	},
@@ -594,69 +649,60 @@ func init() {
 	configAgentCmd.AddCommand(configAgentSetMaxTurnsCmd)
 	configAgentCmd.AddCommand(configAgentVerboseToolsCmd)
 
+	configCmd.PersistentFlags().Bool("userspace", false, "Apply to userspace configuration (~/.infer/) instead of project configuration")
+
 	rootCmd.AddCommand(configCmd)
 }
 
 func enableTools(cmd *cobra.Command, args []string) error {
-	cfg, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Enabled = true
-	})
-	if err != nil {
+	V.Set("tools.enabled", true)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatSuccess("Tools enabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
-	fmt.Printf("Whitelisted commands: %d\n", len(cfg.Tools.Bash.Whitelist.Commands))
-	fmt.Printf("Whitelisted patterns: %d\n", len(cfg.Tools.Bash.Whitelist.Patterns))
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	return nil
 }
 
 func disableTools(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Enabled = false
-	})
-	if err != nil {
+	V.Set("tools.enabled", false)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatErrorCLI("Tools disabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	return nil
 }
 
 func listTools(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
 	format, _ := cmd.Flags().GetString("format")
 
 	if format == "json" {
 		data := map[string]any{
-			"enabled": cfg.Tools.Enabled,
+			"enabled": V.GetBool("tools.enabled"),
 			"bash": map[string]bool{
-				"enabled": cfg.Tools.Bash.Enabled,
+				"enabled": V.GetBool("tools.bash.enabled"),
 			},
 			"web_fetch": map[string]any{
-				"enabled":             cfg.Tools.WebFetch.Enabled,
-				"whitelisted_domains": cfg.Tools.WebFetch.WhitelistedDomains,
+				"enabled":             V.GetBool("tools.web_fetch.enabled"),
+				"whitelisted_domains": V.GetStringSlice("tools.web_fetch.whitelisted_domains"),
 			},
 			"web_search": map[string]any{
-				"enabled":        cfg.Tools.WebSearch.Enabled,
-				"default_engine": cfg.Tools.WebSearch.DefaultEngine,
-				"max_results":    cfg.Tools.WebSearch.MaxResults,
-				"engines":        cfg.Tools.WebSearch.Engines,
-				"timeout":        cfg.Tools.WebSearch.Timeout,
+				"enabled":        V.GetBool("tools.web_search.enabled"),
+				"default_engine": V.GetString("tools.web_search.default_engine"),
+				"max_results":    V.GetInt("tools.web_search.max_results"),
+				"engines":        V.GetStringSlice("tools.web_search.engines"),
+				"timeout":        V.GetInt("tools.web_search.timeout"),
 			},
-			"commands": cfg.Tools.Bash.Whitelist.Commands,
-			"patterns": cfg.Tools.Bash.Whitelist.Patterns,
+			"commands": V.GetStringSlice("tools.bash.whitelist.commands"),
+			"patterns": V.GetStringSlice("tools.bash.whitelist.patterns"),
 			"sandbox": map[string]any{
-				"directories": cfg.Tools.Sandbox.Directories,
+				"directories": V.GetStringSlice("tools.sandbox.directories"),
 			},
 			"safety": map[string]bool{
-				"require_approval": cfg.Tools.Safety.RequireApproval,
+				"require_approval": V.GetBool("tools.safety.require_approval"),
 			},
 		}
 		jsonOutput, err := json.MarshalIndent(data, "", "  ")
@@ -669,7 +715,7 @@ func listTools(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("TOOLS STATUS\n")
 	fmt.Printf("────────────\n")
-	if cfg.Tools.Enabled {
+	if V.GetBool("tools.enabled") {
 		fmt.Printf("Overall: %s\n", ui.FormatEnabled())
 	} else {
 		fmt.Printf("Overall: %s\n", ui.FormatDisabled())
@@ -679,72 +725,71 @@ func listTools(cmd *cobra.Command, args []string) error {
 	fmt.Printf("────────────────\n")
 
 	fmt.Printf("File Operations:\n")
-	fmt.Printf("  Read      : %s\n", formatToolStatus(cfg.Tools.Read.Enabled))
-	fmt.Printf("  Write     : %s\n", formatToolStatus(cfg.Tools.Write.Enabled))
-	fmt.Printf("  Edit      : %s\n", formatToolStatus(cfg.Tools.Edit.Enabled))
-	fmt.Printf("  Delete    : %s\n", formatToolStatus(cfg.Tools.Delete.Enabled))
+	fmt.Printf("  Read      : %s\n", formatToolStatus(V.GetBool("tools.read.enabled")))
+	fmt.Printf("  Write     : %s\n", formatToolStatus(V.GetBool("tools.write.enabled")))
+	fmt.Printf("  Edit      : %s\n", formatToolStatus(V.GetBool("tools.edit.enabled")))
+	fmt.Printf("  Delete    : %s\n", formatToolStatus(V.GetBool("tools.delete.enabled")))
 
 	fmt.Printf("\nSearch & Analysis:\n")
-	fmt.Printf("  Grep      : %s\n", formatToolStatus(cfg.Tools.Grep.Enabled))
-	fmt.Printf("  Tree      : %s\n", formatToolStatus(cfg.Tools.Tree.Enabled))
+	fmt.Printf("  Grep      : %s\n", formatToolStatus(V.GetBool("tools.grep.enabled")))
+	fmt.Printf("  Tree      : %s\n", formatToolStatus(V.GetBool("tools.tree.enabled")))
 
 	fmt.Printf("\nSystem Operations:\n")
-	fmt.Printf("  Bash      : %s\n", formatToolStatus(cfg.Tools.Bash.Enabled))
+	fmt.Printf("  Bash      : %s\n", formatToolStatus(V.GetBool("tools.bash.enabled")))
 
 	fmt.Printf("\nWeb Operations:\n")
-	fmt.Printf("  WebFetch  : %s\n", formatToolStatus(cfg.Tools.WebFetch.Enabled))
-	fmt.Printf("  WebSearch : %s\n", formatToolStatus(cfg.Tools.WebSearch.Enabled))
+	fmt.Printf("  WebFetch  : %s\n", formatToolStatus(V.GetBool("tools.web_fetch.enabled")))
+	fmt.Printf("  WebSearch : %s\n", formatToolStatus(V.GetBool("tools.web_search.enabled")))
 
 	fmt.Printf("\nExternal Services:\n")
-	fmt.Printf("  GitHub    : %s\n", formatToolStatus(cfg.Tools.Github.Enabled))
+	fmt.Printf("  GitHub    : %s\n", formatToolStatus(V.GetBool("tools.github.enabled")))
 
 	fmt.Printf("\nTask Management:\n")
-	fmt.Printf("  TodoWrite : %s\n", formatToolStatus(cfg.Tools.TodoWrite.Enabled))
+	fmt.Printf("  TodoWrite : %s\n", formatToolStatus(V.GetBool("tools.todo_write.enabled")))
 
 	fmt.Printf("\nBASH CONFIGURATION\n")
 	fmt.Printf("──────────────────\n")
-	fmt.Printf("Whitelisted Commands (%d):\n", len(cfg.Tools.Bash.Whitelist.Commands))
-	if len(cfg.Tools.Bash.Whitelist.Commands) == 0 {
+	commands := V.GetStringSlice("tools.bash.whitelist.commands")
+	fmt.Printf("Whitelisted Commands (%d):\n", len(commands))
+	if len(commands) == 0 {
 		fmt.Printf("  None configured\n")
 	} else {
-		for _, cmd := range cfg.Tools.Bash.Whitelist.Commands {
+		for _, cmd := range commands {
 			fmt.Printf("  %s\n", cmd)
 		}
 	}
 
-	fmt.Printf("\nWhitelisted Patterns (%d):\n", len(cfg.Tools.Bash.Whitelist.Patterns))
-	if len(cfg.Tools.Bash.Whitelist.Patterns) == 0 {
+	patterns := V.GetStringSlice("tools.bash.whitelist.patterns")
+	fmt.Printf("\nWhitelisted Patterns (%d):\n", len(patterns))
+	if len(patterns) == 0 {
 		fmt.Printf("  None configured\n")
 	} else {
-		for _, pattern := range cfg.Tools.Bash.Whitelist.Patterns {
+		for _, pattern := range patterns {
 			fmt.Printf("  %s\n", pattern)
 		}
 	}
 
 	fmt.Printf("\nSANDBOX CONFIGURATION\n")
 	fmt.Printf("─────────────────────\n")
-	fmt.Printf("Directories (%d):\n", len(cfg.Tools.Sandbox.Directories))
-	if len(cfg.Tools.Sandbox.Directories) == 0 {
+	directories := V.GetStringSlice("tools.sandbox.directories")
+	fmt.Printf("Directories (%d):\n", len(directories))
+	if len(directories) == 0 {
 		fmt.Printf("  None configured\n")
 	} else {
-		for _, dir := range cfg.Tools.Sandbox.Directories {
+		for _, dir := range directories {
 			fmt.Printf("  %s\n", dir)
 		}
 	}
 
 	fmt.Printf("\nSAFETY CONFIGURATION\n")
 	fmt.Printf("────────────────────\n")
-	fmt.Printf("Approval Required: %s\n", formatToolStatus(cfg.Tools.Safety.RequireApproval))
+	fmt.Printf("Approval Required: %s\n", formatToolStatus(V.GetBool("tools.safety.require_approval")))
 
 	return nil
 }
 
-func validateTool(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
+// ValidateTool validates if a command is whitelisted for execution
+func ValidateTool(cfg *config.Config, command string) error {
 	if !cfg.Tools.Enabled {
 		fmt.Printf("%s\n", ui.FormatErrorCLI("Tools are disabled"))
 		return nil
@@ -752,13 +797,11 @@ func validateTool(cmd *cobra.Command, args []string) error {
 
 	services := container.NewServiceContainer(cfg)
 	toolService := services.GetToolService()
-
-	command := args[0]
 	toolArgs := map[string]any{
 		"command": command,
 	}
 
-	err = toolService.ValidateTool("Bash", toolArgs)
+	err := toolService.ValidateTool("Bash", toolArgs)
 	if err != nil {
 		fmt.Printf("%s\n", ui.FormatErrorCLI(fmt.Sprintf("Command not allowed: %s", command)))
 		fmt.Printf("Reason: %s\n", err.Error())
@@ -769,12 +812,8 @@ func validateTool(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func execTool(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
+// ExecTool executes a tool with the given arguments
+func ExecTool(cfg *config.Config, args []string, format string) error {
 	if !cfg.Tools.Enabled {
 		return fmt.Errorf("tools are not enabled")
 	}
@@ -796,7 +835,7 @@ func execTool(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if format, _ := cmd.Flags().GetString("format"); format != "" {
+	if format != "" {
 		toolArgs["format"] = format
 	}
 
@@ -819,10 +858,8 @@ func execTool(cmd *cobra.Command, args []string) error {
 }
 
 func enableSafety(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Safety.RequireApproval = true
-	})
-	if err != nil {
+	V.Set("tools.safety.require_approval", true)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -832,10 +869,8 @@ func enableSafety(cmd *cobra.Command, args []string) error {
 }
 
 func disableSafety(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Safety.RequireApproval = false
-	})
-	if err != nil {
+	V.Set("tools.safety.require_approval", false)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
@@ -845,13 +880,10 @@ func disableSafety(cmd *cobra.Command, args []string) error {
 }
 
 func safetyStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
+	globalApproval := V.GetBool("tools.safety.require_approval")
 
 	fmt.Printf("Safety Approval Status: ")
-	if cfg.Tools.Safety.RequireApproval {
+	if globalApproval {
 		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
 		fmt.Printf("Commands require approval before execution\n")
 	} else {
@@ -861,27 +893,28 @@ func safetyStatus(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\nTool-specific Approval Settings:\n")
 	tools := []struct {
-		name    string
-		setting *bool
+		name string
+		key  string
 	}{
-		{"Bash", cfg.Tools.Bash.RequireApproval},
-		{"Read", cfg.Tools.Read.RequireApproval},
-		{"Grep", cfg.Tools.Grep.RequireApproval},
-		{"WebFetch", cfg.Tools.WebFetch.RequireApproval},
-		{"WebSearch", cfg.Tools.WebSearch.RequireApproval},
+		{"Bash", "tools.bash.require_approval"},
+		{"Read", "tools.read.require_approval"},
+		{"Grep", "tools.grep.require_approval"},
+		{"WebFetch", "tools.web_fetch.require_approval"},
+		{"WebSearch", "tools.web_search.require_approval"},
 	}
 
 	for _, tool := range tools {
 		fmt.Printf("  %s: ", tool.name)
-		if tool.setting == nil {
-			fmt.Printf("using global setting (%s)\n",
-				func() string {
-					if cfg.Tools.Safety.RequireApproval {
-						return "enabled"
-					}
-					return "disabled"
-				}())
-		} else if *tool.setting {
+		if !V.IsSet(tool.key) {
+			status := "disabled"
+			if globalApproval {
+				status = "enabled"
+			}
+			fmt.Printf("using global setting (%s)\n", status)
+			continue
+		}
+
+		if V.GetBool(tool.key) {
 			fmt.Printf("%s\n", ui.FormatSuccess("enabled"))
 		} else {
 			fmt.Printf("%s\n", ui.FormatErrorCLI("disabled"))
@@ -918,20 +951,20 @@ func setToolApproval(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid tool '%s', must be one of: %s", toolName, strings.Join(validTools, ", "))
 	}
 
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		switch toolLower {
-		case "bash":
-			c.Tools.Bash.RequireApproval = &enabled
-		case "read":
-			c.Tools.Read.RequireApproval = &enabled
-		case "grep":
-			c.Tools.Grep.RequireApproval = &enabled
-		case "webfetch":
-			c.Tools.WebFetch.RequireApproval = &enabled
-		case "websearch":
-			c.Tools.WebSearch.RequireApproval = &enabled
-		}
-	})
+	var err error
+	switch toolLower {
+	case "bash":
+		V.Set("tools.bash.require_approval", enabled)
+	case "read":
+		V.Set("tools.read.require_approval", enabled)
+	case "grep":
+		V.Set("tools.grep.require_approval", enabled)
+	case "webfetch":
+		V.Set("tools.web_fetch.require_approval", enabled)
+	case "websearch":
+		V.Set("tools.web_search.require_approval", enabled)
+	}
+	err = utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -960,20 +993,20 @@ func unsetToolApproval(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid tool '%s', must be one of: %s", toolName, strings.Join(validTools, ", "))
 	}
 
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		switch toolLower {
-		case "bash":
-			c.Tools.Bash.RequireApproval = nil
-		case "read":
-			c.Tools.Read.RequireApproval = nil
-		case "grep":
-			c.Tools.Grep.RequireApproval = nil
-		case "webfetch":
-			c.Tools.WebFetch.RequireApproval = nil
-		case "websearch":
-			c.Tools.WebSearch.RequireApproval = nil
-		}
-	})
+	var err error
+	switch toolLower {
+	case "bash":
+		V.Set("tools.bash.require_approval", nil)
+	case "read":
+		V.Set("tools.read.require_approval", nil)
+	case "grep":
+		V.Set("tools.grep.require_approval", nil)
+	case "webfetch":
+		V.Set("tools.web_fetch.require_approval", nil)
+	case "websearch":
+		V.Set("tools.web_search.require_approval", nil)
+	}
+	err = utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -982,25 +1015,8 @@ func unsetToolApproval(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func loadAndUpdateConfig(updateFn func(*config.Config)) (*config.Config, error) {
-	configPath := getConfigPath()
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return nil, fmt.Errorf("failed to load config: %w", err)
-	}
-
-	updateFn(cfg)
-
-	err = cfg.SaveConfig(configPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to save config: %w", err)
-	}
-
-	return cfg, nil
-}
-
 func getConfigPath() string {
-	configPath := ".infer/config.yaml"
+	configPath := config.DefaultConfigPath
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		configPath = ".infer.yaml"
 	}
@@ -1008,9 +1024,9 @@ func getConfigPath() string {
 }
 
 func listSandboxDirectories(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	cfg, err := getConfigFromViper()
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return err
 	}
 
 	if len(cfg.Tools.Sandbox.Directories) == 0 {
@@ -1029,14 +1045,18 @@ func listSandboxDirectories(cmd *cobra.Command, args []string) error {
 func addSandboxDirectory(cmd *cobra.Command, args []string) error {
 	dirToAdd := args[0]
 
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for _, existingDir := range c.Tools.Sandbox.Directories {
-			if existingDir == dirToAdd {
-				return
-			}
+	// Get existing directories and check for duplicates
+	existingDirs := V.GetStringSlice("tools.sandbox.directories")
+	for _, existingDir := range existingDirs {
+		if existingDir == dirToAdd {
+			return nil // Already exists, no error
 		}
-		c.Tools.Sandbox.Directories = append(c.Tools.Sandbox.Directories, dirToAdd)
-	})
+	}
+
+	// Add the new directory
+	updatedDirs := append(existingDirs, dirToAdd)
+	V.Set("tools.sandbox.directories", updatedDirs)
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -1050,17 +1070,17 @@ func removeSandboxDirectory(cmd *cobra.Command, args []string) error {
 	dirToRemove := args[0]
 	var found bool
 
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for i, existingDir := range c.Tools.Sandbox.Directories {
-			if existingDir == dirToRemove {
-				c.Tools.Sandbox.Directories = append(c.Tools.Sandbox.Directories[:i], c.Tools.Sandbox.Directories[i+1:]...)
-				found = true
-				return
+	existingDirs := V.GetStringSlice("tools.sandbox.directories")
+	for i, existingDir := range existingDirs {
+		if existingDir == dirToRemove {
+			updatedDirs := append(existingDirs[:i], existingDirs[i+1:]...)
+			V.Set("tools.sandbox.directories", updatedDirs)
+			if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
+				return err
 			}
+			found = true
+			break
 		}
-	})
-	if err != nil {
-		return err
 	}
 
 	if !found {
@@ -1074,36 +1094,32 @@ func removeSandboxDirectory(cmd *cobra.Command, args []string) error {
 }
 
 func enableFetch(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.WebFetch.Enabled = true
-	})
-	if err != nil {
+	V.Set("tools.web_fetch.enabled", true)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatSuccess("Web fetch tool enabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Println("You can now configure whitelisted sources with 'infer config tools web-fetch add-domain <domain>'")
 	return nil
 }
 
 func disableFetch(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.WebFetch.Enabled = false
-	})
-	if err != nil {
+	V.Set("tools.web_fetch.enabled", false)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatErrorCLI("Web fetch tool disabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	return nil
 }
 
 func listFetchDomains(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	cfg, err := getConfigFromViper()
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return err
 	}
 
 	format, _ := cmd.Flags().GetString("format")
@@ -1171,14 +1187,18 @@ func addFetchDomain(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("please provide just the domain (e.g., 'github.com'), not a full URL")
 	}
 
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for _, existingDomain := range c.Tools.WebFetch.WhitelistedDomains {
-			if existingDomain == domainToAdd {
-				return
-			}
+	// Get existing domains and check for duplicates
+	existingDomains := V.GetStringSlice("tools.web_fetch.whitelisted_domains")
+	for _, existingDomain := range existingDomains {
+		if existingDomain == domainToAdd {
+			return nil // Already exists, no error
 		}
-		c.Tools.WebFetch.WhitelistedDomains = append(c.Tools.WebFetch.WhitelistedDomains, domainToAdd)
-	})
+	}
+
+	// Add the new domain
+	updatedDomains := append(existingDomains, domainToAdd)
+	V.Set("tools.web_fetch.whitelisted_domains", updatedDomains)
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -1192,17 +1212,19 @@ func removeFetchDomain(cmd *cobra.Command, args []string) error {
 	domainToRemove := args[0]
 	var found bool
 
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		for i, existingDomain := range c.Tools.WebFetch.WhitelistedDomains {
-			if existingDomain == domainToRemove {
-				c.Tools.WebFetch.WhitelistedDomains = append(c.Tools.WebFetch.WhitelistedDomains[:i], c.Tools.WebFetch.WhitelistedDomains[i+1:]...)
-				found = true
-				return
+	// Get existing domains and find the one to remove
+	existingDomains := V.GetStringSlice("tools.web_fetch.whitelisted_domains")
+	for i, existingDomain := range existingDomains {
+		if existingDomain == domainToRemove {
+			// Remove the domain from the slice
+			updatedDomains := append(existingDomains[:i], existingDomains[i+1:]...)
+			V.Set("tools.web_fetch.whitelisted_domains", updatedDomains)
+			if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
+				return err
 			}
+			found = true
+			break
 		}
-	})
-	if err != nil {
-		return err
 	}
 
 	if !found {
@@ -1216,9 +1238,9 @@ func removeFetchDomain(cmd *cobra.Command, args []string) error {
 }
 
 func fetchCacheStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	cfg, err := getConfigFromViper()
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return err
 	}
 
 	fmt.Printf("Cache Status: ")
@@ -1242,85 +1264,73 @@ func fetchCacheClear(cmd *cobra.Command, args []string) error {
 }
 
 func enableBashTool(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Bash.Enabled = true
-	})
-	if err != nil {
+	V.Set("tools.bash.enabled", true)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatSuccess("Bash tool enabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can now execute whitelisted bash commands\n")
 	return nil
 }
 
 func disableBashTool(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Bash.Enabled = false
-	})
-	if err != nil {
+	V.Set("tools.bash.enabled", false)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatErrorCLI("Bash tool disabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can no longer execute bash commands\n")
 	return nil
 }
 
 func enableWebSearchTool(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.WebSearch.Enabled = true
-	})
-	if err != nil {
+	V.Set("tools.web_search.enabled", true)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatSuccess("Web search tool enabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can now perform web searches using %s\n", "DuckDuckGo and Google")
 	return nil
 }
 
 func disableWebSearchTool(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.WebSearch.Enabled = false
-	})
-	if err != nil {
+	V.Set("tools.web_search.enabled", false)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatErrorCLI("Web search tool disabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can no longer perform web searches\n")
 	return nil
 }
 
 func enableGrepTool(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Grep.Enabled = true
-	})
-	if err != nil {
+	V.Set("tools.grep.enabled", true)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatSuccess("Grep tool enabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can now search file contents using grep\n")
 	return nil
 }
 
 func disableGrepTool(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Grep.Enabled = false
-	})
-	if err != nil {
+	V.Set("tools.grep.enabled", false)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatErrorCLI("Grep tool disabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can no longer search file contents\n")
 	return nil
 }
@@ -1341,9 +1351,8 @@ func setGrepBackend(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("invalid backend '%s', must be one of: auto, ripgrep, rg, go, native", backend)
 	}
 
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Grep.Backend = normalizedBackend
-	})
+	V.Set("tools.grep.backend", normalizedBackend)
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -1364,9 +1373,9 @@ func setGrepBackend(cmd *cobra.Command, args []string) error {
 }
 
 func grepStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
+	cfg, err := getConfigFromViper()
 	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
+		return err
 	}
 
 	fmt.Printf("Grep Tool Status: ")
@@ -1420,88 +1429,81 @@ func grepStatus(cmd *cobra.Command, args []string) error {
 
 // formatToolStatus formats a tool's enabled/disabled status
 func enableGithubTool(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Github.Enabled = true
-	})
-	if err != nil {
+	V.Set("tools.github.enabled", true)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatSuccess("GitHub tool enabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can now perform GitHub operations\n")
 	return nil
 }
 
 func disableGithubTool(cmd *cobra.Command, args []string) error {
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Github.Enabled = false
-	})
-	if err != nil {
+	V.Set("tools.github.enabled", false)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return err
 	}
 
 	fmt.Printf("%s\n", ui.FormatErrorCLI("GitHub tool disabled successfully"))
-	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
+	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can no longer perform GitHub operations\n")
 	return nil
 }
 
 func githubStatus(cmd *cobra.Command, args []string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
 	fmt.Printf("GitHub Tool Status: ")
-	if cfg.Tools.Github.Enabled {
+	if V.GetBool("tools.github.enabled") {
 		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
 	} else {
 		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
 	}
 
 	fmt.Printf("\nConfiguration:\n")
-	fmt.Printf("  • Base URL: %s\n", cfg.Tools.Github.BaseURL)
+	fmt.Printf("  • Base URL: %s\n", V.GetString("tools.github.base_url"))
 	fmt.Printf("  • Owner: ")
-	if cfg.Tools.Github.Owner != "" {
-		fmt.Printf("%s\n", cfg.Tools.Github.Owner)
+	if owner := V.GetString("tools.github.owner"); owner != "" {
+		fmt.Printf("%s\n", owner)
 	} else {
 		fmt.Printf("(not set)\n")
 	}
 
 	fmt.Printf("  • Repository: ")
-	if cfg.Tools.Github.Repo != "" {
-		fmt.Printf("%s\n", cfg.Tools.Github.Repo)
+	if repo := V.GetString("tools.github.repo"); repo != "" {
+		fmt.Printf("%s\n", repo)
 	} else {
 		fmt.Printf("(not set)\n")
 	}
 
 	fmt.Printf("  • Token: ")
-	resolvedToken := config.ResolveEnvironmentVariables(cfg.Tools.Github.Token)
+	token := V.GetString("tools.github.token")
+	resolvedToken := config.ResolveEnvironmentVariables(token)
 	if resolvedToken != "" && resolvedToken != "%GITHUB_TOKEN%" {
 		fmt.Printf("%s configured\n", icons.CheckMarkStyle.Render(icons.CheckMark))
-	} else if cfg.Tools.Github.Token == "%GITHUB_TOKEN%" {
+	} else if token == "%GITHUB_TOKEN%" {
 		fmt.Printf("%s environment variable GITHUB_TOKEN not set\n", icons.CrossMarkStyle.Render(icons.CrossMark))
 	} else {
 		fmt.Printf("%s not configured\n", icons.CrossMarkStyle.Render(icons.CrossMark))
 	}
 
 	fmt.Printf("\nSafety Settings:\n")
-	fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", cfg.Tools.Github.Safety.MaxSize, float64(cfg.Tools.Github.Safety.MaxSize)/(1024*1024))
-	fmt.Printf("  • Timeout: %d seconds\n", cfg.Tools.Github.Safety.Timeout)
+	maxSize := V.GetInt("tools.github.safety.max_size")
+	fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", maxSize, float64(maxSize)/(1024*1024))
+	fmt.Printf("  • Timeout: %d seconds\n", V.GetInt("tools.github.safety.timeout"))
 
 	fmt.Printf("  • Require approval: ")
-	if cfg.Tools.Github.RequireApproval != nil {
+	if V.IsSet("tools.github.require_approval") {
 		status := "disabled"
 		color := ui.FormatErrorCLI
-		if *cfg.Tools.Github.RequireApproval {
+		if V.GetBool("tools.github.require_approval") {
 			status = "enabled"
 			color = ui.FormatSuccess
 		}
 		fmt.Printf("%s\n", color(status))
 	} else {
 		status := "disabled"
-		if cfg.Tools.Safety.RequireApproval {
+		if V.GetBool("tools.safety.require_approval") {
 			status = "enabled"
 		}
 		fmt.Printf("using global setting (%s)\n", status)
@@ -1513,9 +1515,8 @@ func githubStatus(cmd *cobra.Command, args []string) error {
 func setGithubToken(cmd *cobra.Command, args []string) error {
 	token := args[0]
 
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Github.Token = token
-	})
+	V.Set("tools.github.token", token)
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -1529,9 +1530,8 @@ func setGithubToken(cmd *cobra.Command, args []string) error {
 func setGithubOwner(cmd *cobra.Command, args []string) error {
 	owner := args[0]
 
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Github.Owner = owner
-	})
+	V.Set("tools.github.owner", owner)
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}
@@ -1544,9 +1544,8 @@ func setGithubOwner(cmd *cobra.Command, args []string) error {
 func setGithubRepo(cmd *cobra.Command, args []string) error {
 	repo := args[0]
 
-	_, err := loadAndUpdateConfig(func(c *config.Config) {
-		c.Tools.Github.Repo = repo
-	})
+	V.Set("tools.github.repo", repo)
+	err := utils.WriteViperConfigWithIndent(V, 2)
 	if err != nil {
 		return err
 	}

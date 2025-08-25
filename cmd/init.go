@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
+	"path/filepath"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	cobra "github.com/spf13/cobra"
+	yaml "gopkg.in/yaml.v3"
 )
 
 var initCmd = &cobra.Command{
@@ -23,14 +26,27 @@ This is the recommended command to start working with Inference Gateway CLI in a
 
 func init() {
 	initCmd.Flags().Bool("overwrite", false, "Overwrite existing files if they already exist")
+	initCmd.Flags().Bool("userspace", false, "Initialize configuration in user home directory (~/.infer/)")
 	rootCmd.AddCommand(initCmd)
 }
 
 func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
+	userspace, _ := cmd.Flags().GetBool("userspace")
 
-	configPath := ".infer/config.yaml"
-	gitignorePath := ".infer/.gitignore"
+	var configPath, gitignorePath string
+
+	if userspace {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return fmt.Errorf("failed to get user home directory: %w", err)
+		}
+		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
+		gitignorePath = filepath.Join(homeDir, config.ConfigDirName, config.GitignoreFileName)
+	} else {
+		configPath = config.DefaultConfigPath
+		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
+	}
 
 	if !overwrite {
 		if _, err := os.Stat(configPath); err == nil {
@@ -41,9 +57,7 @@ func initializeProject(cmd *cobra.Command) error {
 		}
 	}
 
-	cfg := config.DefaultConfig()
-
-	if err := cfg.SaveConfig(configPath); err != nil {
+	if err := writeConfigAsYAMLWithIndent(configPath, 2); err != nil {
 		return fmt.Errorf("failed to create config file: %w", err)
 	}
 
@@ -57,14 +71,49 @@ chat_export_*
 		return fmt.Errorf("failed to create .gitignore file: %w", err)
 	}
 
-	fmt.Printf("%s Successfully initialized Inference Gateway CLI project\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+	var scopeDesc string
+	if userspace {
+		scopeDesc = "userspace"
+	} else {
+		scopeDesc = "project"
+	}
+
+	fmt.Printf("%s Successfully initialized Inference Gateway CLI %s configuration\n", icons.CheckMarkStyle.Render(icons.CheckMark), scopeDesc)
 	fmt.Printf("   Created: %s\n", configPath)
 	fmt.Printf("   Created: %s\n", gitignorePath)
 	fmt.Println("")
-	fmt.Println("You can now customize the configuration for this project:")
+	if userspace {
+		fmt.Println("This userspace configuration will be used as a fallback for all projects.")
+		fmt.Println("Project-level configurations will take precedence when present.")
+		fmt.Println("")
+	}
+	fmt.Println("You can now customize the configuration:")
 	fmt.Println("  • Set default model: infer config agent set-model <model-name>")
 	fmt.Println("  • Configure tools: infer config tools --help")
 	fmt.Println("  • Start chatting: infer chat")
 
 	return nil
+}
+
+// writeConfigAsYAMLWithIndent writes the default configuration to a YAML file with specified indentation
+func writeConfigAsYAMLWithIndent(filename string, indent int) error {
+	defaultConfig := config.DefaultConfig()
+
+	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	var buf bytes.Buffer
+	yamlEncoder := yaml.NewEncoder(&buf)
+	yamlEncoder.SetIndent(indent)
+
+	if err := yamlEncoder.Encode(defaultConfig); err != nil {
+		return fmt.Errorf("failed to marshal config to YAML: %w", err)
+	}
+
+	if err := yamlEncoder.Close(); err != nil {
+		return fmt.Errorf("failed to close YAML encoder: %w", err)
+	}
+
+	return os.WriteFile(filename, buf.Bytes(), 0644)
 }

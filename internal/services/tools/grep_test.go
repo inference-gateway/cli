@@ -423,7 +423,7 @@ func TestGrepTool_PathExclusion(t *testing.T) {
 		{"git directory", ".git/", true},
 		{"git file", ".git/config", true},
 		{"infer directory", ".infer/", true},
-		{"infer file", ".infer/config.yaml", true},
+		{"infer file", config.DefaultConfigPath, true},
 		{"secret directory", "secret/", true},
 		{"secret file", "secret/key.txt", true},
 		{"allowed directory", "src/", false},
@@ -519,12 +519,13 @@ func TestGrepTool_RipgrepDetection(t *testing.T) {
 
 	tool := NewGrepTool(cfg)
 
+	// Skip test if ripgrep is not available (common in CI environments)
 	if !tool.useRipgrep {
-		t.Error("Expected ripgrep to be detected and enabled")
+		t.Skip("Ripgrep not detected, skipping test (common in CI environments)")
 	}
 
 	if tool.ripgrepPath == "" {
-		t.Error("Expected ripgrep path to be set")
+		t.Error("Expected ripgrep path to be set when ripgrep is detected")
 	}
 
 	t.Logf("Ripgrep detected at: %s", tool.ripgrepPath)

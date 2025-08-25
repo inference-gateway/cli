@@ -528,6 +528,16 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
+	if inputView.IsAutocompleteVisible() {
+		if handled, completion := inputView.TryHandleAutocomplete(keyMsg); handled {
+			if completion != "" {
+				inputView.SetText(completion)
+				inputView.SetCursor(len(completion))
+			}
+			return nil
+		}
+	}
+
 	input := inputView.GetInput()
 	cursor := inputView.GetCursor()
 
