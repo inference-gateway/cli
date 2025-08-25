@@ -39,16 +39,14 @@ func (g *GitCommitShortcut) GetUsage() string {
 }
 
 func (g *GitCommitShortcut) CanExecute(args []string) bool {
-	return true // Accept any arguments
+	return true
 }
 
 func (g *GitCommitShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	// Check if commit message is already provided
 	if g.hasCommitMessage(args) {
 		return g.executeCommitWithMessage(ctx, args)
 	}
 
-	// Generate AI commit message
 	return g.handleSmartCommit(ctx, args)
 }
 
@@ -85,7 +83,6 @@ func (g *GitCommitShortcut) executeCommitWithMessage(ctx context.Context, args [
 
 // handleSmartCommit generates an AI commit message and commits
 func (g *GitCommitShortcut) handleSmartCommit(ctx context.Context, args []string) (ShortcutResult, error) {
-	// Check for staged changes
 	statusCmd := exec.CommandContext(ctx, "git", "status", "--porcelain")
 	statusOutput, err := statusCmd.Output()
 	if err != nil {
@@ -102,7 +99,6 @@ func (g *GitCommitShortcut) handleSmartCommit(ctx context.Context, args []string
 		}, nil
 	}
 
-	// Get staged diff
 	diffCmd := exec.CommandContext(ctx, "git", "diff", "--cached")
 	diffOutput, err := diffCmd.Output()
 	if err != nil {

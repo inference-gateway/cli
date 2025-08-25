@@ -50,17 +50,14 @@ func (g *GitShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 		}, nil
 	}
 
-	// Handle special cases before executing command
 	command := args[0]
 	if command == "commit" && !g.hasCommitMessage(args) {
 		return g.handleSmartCommit(ctx, args)
 	}
 
-	// Build the git command
 	gitArgs := append([]string{"git"}, args...)
 	cmd := exec.CommandContext(ctx, gitArgs[0], gitArgs[1:]...)
 
-	// Execute the command
 	output, err := cmd.CombinedOutput()
 	outputStr := strings.TrimSpace(string(output))
 
@@ -71,7 +68,6 @@ func (g *GitShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 		}, nil
 	}
 
-	// Format output based on the git command
 	switch command {
 	case "status":
 		return g.formatStatusOutput(outputStr), nil
@@ -201,7 +197,6 @@ func (g *GitShortcut) handleSmartCommit(ctx context.Context, args []string) (Sho
 		}, nil
 	}
 
-	// Show user feedback before starting generation
 	return ShortcutResult{
 		Output:     fmt.Sprintf("%sGenerating AI commit message from staged changes...%s", colors.Magenta, colors.Reset),
 		Success:    true,

@@ -55,23 +55,19 @@ func (c *CustomShortcut) GetUsage() string {
 }
 
 func (c *CustomShortcut) CanExecute(args []string) bool {
-	return true // Custom shortcuts can accept any arguments
+	return true
 }
 
 func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	// Prepare the command
 	command := c.config.Command
 	cmdArgs := append(c.config.Args, args...)
 
-	// Create the command
 	cmd := exec.CommandContext(ctx, command, cmdArgs...)
 
-	// Set working directory if specified
 	if c.config.WorkingDir != "" {
 		cmd.Dir = c.config.WorkingDir
 	}
 
-	// Execute the command
 	output, err := cmd.CombinedOutput()
 	outputStr := strings.TrimSpace(string(output))
 
@@ -82,7 +78,6 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		}, nil
 	}
 
-	// Format successful output
 	return ShortcutResult{
 		Output:  fmt.Sprintf("%s %s**%s completed**%s\n\n```\n%s\n```", icons.CheckMark, colors.Green, c.config.Name, colors.Reset, outputStr),
 		Success: true,
@@ -95,14 +90,11 @@ func LoadCustomShortcuts(baseDir string) ([]Shortcut, error) {
 
 	shortcutsDir := filepath.Join(baseDir, ".infer", "shortcuts")
 
-	// Check if shortcuts directory exists
 	if _, err := os.Stat(shortcutsDir); os.IsNotExist(err) {
-		// Directory doesn't exist, return empty list (not an error)
 		return shortcuts, nil
 	}
 
-	// Read all custom-*.yaml files
-	files, err := filepath.Glob(filepath.Join(shortcutsDir, "custom-*.yaml"))
+	files, err := filepath.Glob(filepath.Join(shortcutsDir, "*.yaml"))
 	if err != nil {
 		return nil, fmt.Errorf("failed to glob custom shortcut files: %w", err)
 	}
@@ -110,7 +102,6 @@ func LoadCustomShortcuts(baseDir string) ([]Shortcut, error) {
 	for _, file := range files {
 		shortcutsFromFile, err := loadShortcutsFromFile(file)
 		if err != nil {
-			// Log error but continue with other files
 			fmt.Printf("Warning: failed to load shortcuts from %s: %v\n", file, err)
 			continue
 		}
@@ -134,7 +125,6 @@ func loadShortcutsFromFile(filename string) ([]Shortcut, error) {
 
 	shortcuts := make([]Shortcut, 0, len(config.Shortcuts))
 	for _, shortcutConfig := range config.Shortcuts {
-		// Validate required fields
 		if shortcutConfig.Name == "" {
 			fmt.Printf("Warning: shortcut without name found in %s, skipping\n", filename)
 			continue

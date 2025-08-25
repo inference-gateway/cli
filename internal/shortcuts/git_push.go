@@ -35,11 +35,9 @@ func (g *GitPushShortcut) CanExecute(args []string) bool {
 }
 
 func (g *GitPushShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	// Build the git push command
 	gitArgs := append([]string{"git", "push"}, args...)
 	cmd := exec.CommandContext(ctx, gitArgs[0], gitArgs[1:]...)
 
-	// Execute the command
 	output, err := cmd.CombinedOutput()
 	outputStr := strings.TrimSpace(string(output))
 
