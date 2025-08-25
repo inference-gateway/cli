@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
@@ -80,5 +81,14 @@ func initConfig() {
 	verbose := v.GetBool("verbose")
 	debug := v.GetBool("logging.debug")
 	logDir := v.GetString("logging.dir")
+
+	if logDir == "" {
+		configFile := v.ConfigFileUsed()
+		if configFile != "" {
+			configDir := filepath.Dir(configFile)
+			logDir = filepath.Join(configDir, "logs")
+		}
+	}
+
 	logger.Init(verbose, debug, logDir)
 }

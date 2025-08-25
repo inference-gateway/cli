@@ -2,6 +2,7 @@ package app
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -109,7 +110,13 @@ func NewChatApplication(
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
 	}
-	app.inputView = ui.CreateInputViewWithToolService(app.modelService, app.commandRegistry, app.toolService)
+
+	configDir := ".infer"
+	if configPath != "" {
+		configDir = filepath.Dir(configPath)
+	}
+
+	app.inputView = ui.CreateInputViewWithToolServiceAndConfigDir(app.modelService, app.commandRegistry, app.toolService, configDir)
 	app.statusView = ui.CreateStatusView()
 	app.helpBar = ui.CreateHelpBar()
 	app.approvalView = ui.CreateApprovalView(app.theme)

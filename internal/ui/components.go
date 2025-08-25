@@ -23,7 +23,12 @@ func CreateInputView(modelService domain.ModelService, commandRegistry *commands
 
 // CreateInputViewWithToolService creates a new input view component with tool service
 func CreateInputViewWithToolService(modelService domain.ModelService, commandRegistry *commands.Registry, toolService domain.ToolService) InputComponent {
-	iv := components.NewInputView(modelService)
+	return CreateInputViewWithToolServiceAndConfigDir(modelService, commandRegistry, toolService, "")
+}
+
+// CreateInputViewWithToolServiceAndConfigDir creates a new input view component with tool service and config directory
+func CreateInputViewWithToolServiceAndConfigDir(modelService domain.ModelService, commandRegistry *commands.Registry, toolService domain.ToolService, configDir string) InputComponent {
+	iv := components.NewInputViewWithConfigDir(modelService, configDir)
 
 	if commandRegistry != nil {
 		autocomplete := NewAutocomplete(NewDefaultTheme(), commandRegistry)
