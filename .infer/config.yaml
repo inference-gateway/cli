@@ -71,6 +71,7 @@ tools:
   grep:
     enabled: true
     backend: auto
+    excluded_patterns: []
     require_approval: false
   tree:
     enabled: true

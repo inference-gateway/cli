@@ -723,10 +723,35 @@ A powerful search tool with configurable backend (ripgrep or Go implementation).
 - **Context Lines**: Show lines before and after matches
 - **File Filtering**: Filter by glob patterns or file types
 - **Multiline Matching**: Patterns can span multiple lines
+- **Automatic Exclusions**: Automatically excludes common directories and files (.git, node_modules, .infer, etc.)
+- **Gitignore Support**: Respects .gitignore patterns in your repository
+- **User-Configurable Exclusions**: Additional exclusion patterns can be configured by users (not by the LLM)
 
-**Security:**
+**Security & Exclusions:**
 
-- **Path Exclusions**: Respects configured excluded paths
+- **Path Exclusions**: Respects configured excluded paths and patterns
+- **Automatic Exclusions**: The tool automatically excludes:
+  - Version control directories (.git, .svn, etc.)
+  - Dependency directories (node_modules, vendor, etc.)
+  - Build artifacts (dist, build, target, etc.)
+  - Cache and temp files (.cache, \*.tmp, \*.log, etc.)
+  - Security-sensitive files (.env, secrets, etc.)
+- **Gitignore Integration**: Automatically reads and respects .gitignore patterns
+- **User Configuration**: Users can add custom exclusion patterns in the configuration file:
+
+  ```yaml
+  tools:
+    grep:
+      enabled: true
+      backend: auto  # "auto", "ripgrep", or "go"
+      excluded_patterns:  # Additional patterns to exclude (user-configured only)
+        - "*.generated.go"
+        - "test_data/*"
+        - "vendor/*"
+  ```
+
+  **Note**: The `excluded_patterns` configuration is only available to users via the config file.
+  The LLM cannot set exclusion patterns at runtime for security reasons.
 - **Validation**: Validates search patterns and file access
 - **Performance Limits**: Configurable result limits to prevent overwhelming output
 
@@ -895,6 +920,7 @@ tools:
   grep:
     enabled: true
     backend: auto # "auto", "ripgrep", or "go"
+    excluded_patterns: [] # User-configured exclusion patterns (not settable by LLM)
     require_approval: false
   tree:
     enabled: true
