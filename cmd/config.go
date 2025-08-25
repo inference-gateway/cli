@@ -473,6 +473,13 @@ func getConfigFromViper() (*config.Config, error) {
 	if err := V.Unmarshal(cfg); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal config from Viper: %w", err)
 	}
+
+	// Viper's Unmarshal doesn't always respect env vars for nested structs when config file has empty values
+	// So we need to explicitly get the value which properly checks env vars through Viper's AutomaticEnv
+	if model := V.GetString("agent.model"); model != "" {
+		cfg.Agent.Model = model
+	}
+
 	return cfg, nil
 }
 
