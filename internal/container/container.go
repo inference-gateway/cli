@@ -20,6 +20,7 @@ import (
 // ServiceContainer manages all application dependencies
 type ServiceContainer struct {
 	// Configuration
+	viper         *viper.Viper
 	config        *config.Config
 	configService *services.ConfigService
 
@@ -59,6 +60,7 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 	}
 
 	if len(v) > 0 && v[0] != nil {
+		container.viper = v[0]
 		container.configService = services.NewConfigService(v[0], cfg)
 	}
 
@@ -293,4 +295,14 @@ func (c *ServiceContainer) GetChunkManager() filewriterdomain.ChunkManager {
 
 func (c *ServiceContainer) GetParameterExtractor() *tools.ParameterExtractor {
 	return c.paramExtractor
+}
+
+// GetViper returns the Viper instance
+func (c *ServiceContainer) GetViper() *viper.Viper {
+	return c.viper
+}
+
+// GetConfigService returns the config service
+func (c *ServiceContainer) GetConfigService() *services.ConfigService {
+	return c.configService
 }
