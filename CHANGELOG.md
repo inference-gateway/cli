@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.42.0](https://github.com/inference-gateway/cli/compare/v0.41.1...v0.42.0) (2025-08-25)
+
+### 🚀 Features
+
+* Rename commands to shortcuts and add common git shortcuts ([#118](https://github.com/inference-gateway/cli/issues/118)) ([9958afc](https://github.com/inference-gateway/cli/commit/9958afc4c2cd5df2d77de08b033d6e36435526f7)), closes [#116](https://github.com/inference-gateway/cli/issues/116)
+
 ## [0.41.1](https://github.com/inference-gateway/cli/compare/v0.41.0...v0.41.1) (2025-08-25)
 
 ### 🧹 Maintenance
