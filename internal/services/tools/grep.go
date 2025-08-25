@@ -77,7 +77,7 @@ func (t *GrepTool) detectRipgrep() {
 func (t *GrepTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
 		Name:        "Grep",
-		Description: "A powerful search tool with configurable backend (ripgrep or Go implementation)\n\n  Usage:\n  - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n  - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n  - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n  - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n  - Use Task tool for open-ended searches requiring multiple rounds\n  - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\\{\\}` to find `any` in Go code)\n  - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
+		Description: "A powerful search tool with configurable backend (ripgrep or Go implementation)\n\n Usage:\n - ALWAYS use Grep for search tasks. NEVER invoke `grep` or `rg` as a Bash command. The Grep tool has been optimized for correct permissions and access.\n - Supports full regex syntax (e.g., \"log.*Error\", \"function\\s+\\w+\")\n - Filter files with glob parameter (e.g., \"*.js\", \"**/*.tsx\") or type parameter (e.g., \"js\", \"py\", \"rust\")\n - Output modes: \"content\" shows matching lines, \"files_with_matches\" shows only file paths (default), \"count\" shows match counts\n - Use Task tool for open-ended searches requiring multiple rounds\n - Pattern syntax: When using ripgrep backend - literal braces need escaping (use `interface\\{\\}` to find `any` in Go code)\n - Multiline matching: By default patterns match within single lines only. For cross-line patterns like `struct \\{[\\s\\S]*?field`, use `multiline: true`\n",
 		Parameters: map[string]any{
 			"$schema": "http://json-schema.org/draft-07/schema#",
 			"type":    "object",
@@ -359,6 +359,20 @@ func (t *GrepTool) buildRipgrepArgs(outputMode string, args map[string]any) []st
 
 	rgArgs = t.addOutputModeArgs(rgArgs, outputMode, args)
 	rgArgs = t.addSearchOptions(rgArgs, args)
+	rgArgs = t.addExclusionArgs(rgArgs)
+
+	return rgArgs
+}
+
+// addExclusionArgs adds exclusion arguments for excluded patterns
+func (t *GrepTool) addExclusionArgs(rgArgs []string) []string {
+	if len(t.gitignorePatterns) > 0 {
+		for _, pattern := range t.gitignorePatterns {
+			if pattern != "" {
+				rgArgs = append(rgArgs, "--glob", "!"+pattern)
+			}
+		}
+	}
 
 	return rgArgs
 }
@@ -923,7 +937,6 @@ func (t *GrepTool) isPathExcluded(path string) bool {
 		return true
 	}
 
-	// Check if path is outside sandbox directories
 	if err := t.config.ValidatePathInSandbox(path); err != nil {
 		return true
 	}
@@ -953,12 +966,50 @@ func (t *GrepTool) loadGitignorePatterns() {
 		".vscode",
 		".idea",
 		".flox",
-		"secret",
+		".tox",
+		".ruff_cache",
+		".mypy_cache",
+		".pytest_cache",
+		"_pycache_",
 	}
 
 	patterns = append(patterns, defaultPatterns...)
 
+	gitignorePatterns := t.readGitignoreFile(".")
+	patterns = append(patterns, gitignorePatterns...)
+
+	if t.config != nil && len(t.config.Tools.Grep.ExcludedPatterns) > 0 {
+		patterns = append(patterns, t.config.Tools.Grep.ExcludedPatterns...)
+	}
+
 	t.gitignorePatterns = patterns
+}
+
+// readGitignoreFile reads and parses a .gitignore file from the specified directory
+func (t *GrepTool) readGitignoreFile(rootPath string) []string {
+	var patterns []string
+
+	gitignorePath := filepath.Join(rootPath, ".gitignore")
+	file, err := os.Open(gitignorePath)
+	if err != nil {
+		return patterns
+	}
+	defer func() { _ = file.Close() }()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		pattern := strings.TrimPrefix(line, "/")
+		if pattern != "" {
+			patterns = append(patterns, pattern)
+		}
+	}
+
+	return patterns
 }
 
 // matchesGitignorePattern checks if a path matches any gitignore pattern
@@ -1029,7 +1080,7 @@ func (t *GrepTool) FormatPreview(result *domain.ToolExecutionResult) string {
 		return fmt.Sprintf("Found %d matches in %d files for '%s'", grepResult.Total, len(grepResult.Counts), grepResult.Pattern)
 	case "files_with_matches":
 		return fmt.Sprintf("Found matches in %d files for '%s'", len(grepResult.Files), grepResult.Pattern)
-	default: // content
+	default:
 		return fmt.Sprintf("Found %d matches for '%s'", grepResult.Total, grepResult.Pattern)
 	}
 }
@@ -1094,7 +1145,6 @@ func (t *GrepTool) formatGrepData(data any) string {
 		output.WriteString(fmt.Sprintf("Error: %s\n", grepResult.Error))
 	}
 
-	// Show data based on output mode
 	switch grepResult.OutputMode {
 	case "count":
 		if len(grepResult.Counts) > 0 {
@@ -1114,7 +1164,7 @@ func (t *GrepTool) formatGrepData(data any) string {
 			}
 		}
 
-	default: // content
+	default:
 		if len(grepResult.Matches) > 0 {
 			output.WriteString("\nMatches:\n")
 			for _, match := range grepResult.Matches {
