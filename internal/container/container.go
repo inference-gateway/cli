@@ -5,13 +5,13 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	commands "github.com/inference-gateway/cli/internal/commands"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriterdomain "github.com/inference-gateway/cli/internal/domain/filewriter"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
 	viper "github.com/spf13/viper"
@@ -40,7 +40,7 @@ type ServiceContainer struct {
 	theme ui.Theme
 
 	// Extensibility
-	commandRegistry *commands.Registry
+	shortcutRegistry *shortcuts.Registry
 
 	// Tool registry
 	toolRegistry *tools.Registry
@@ -148,22 +148,25 @@ func (c *ServiceContainer) initializeUIComponents() {
 
 // initializeExtensibility sets up extensible systems
 func (c *ServiceContainer) initializeExtensibility() {
-	c.commandRegistry = commands.NewRegistry()
+	c.shortcutRegistry = shortcuts.NewRegistry()
 	c.registerDefaultCommands()
 }
 
 // registerDefaultCommands registers the built-in commands
 func (c *ServiceContainer) registerDefaultCommands() {
-	c.commandRegistry.Register(commands.NewClearCommand(c.conversationRepo))
-	c.commandRegistry.Register(commands.NewExportCommand(c.conversationRepo, c.agentService, c.modelService, c.config))
-	c.commandRegistry.Register(commands.NewExitCommand())
-	c.commandRegistry.Register(commands.NewSwitchCommand(c.modelService))
-	c.commandRegistry.Register(commands.NewHelpCommand(c.commandRegistry))
+	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo))
+	c.shortcutRegistry.Register(shortcuts.NewExportShortcut(c.conversationRepo, c.agentService, c.modelService, c.config))
+	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
+	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
+	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
+
+	gitCommitClient := c.createSDKClient()
+	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
 
 	if c.configService != nil {
-		c.commandRegistry.Register(commands.NewConfigCommand(c.config, c.configService.Reload, c.configService))
+		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService))
 	} else {
-		c.commandRegistry.Register(commands.NewConfigCommand(c.config, nil, nil))
+		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, nil, nil))
 	}
 }
 
@@ -199,8 +202,8 @@ func (c *ServiceContainer) GetTheme() ui.Theme {
 	return c.theme
 }
 
-func (c *ServiceContainer) GetCommandRegistry() *commands.Registry {
-	return c.commandRegistry
+func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
+	return c.shortcutRegistry
 }
 
 // New service getters
@@ -272,8 +275,8 @@ func (c *ServiceContainer) createSDKClient() sdk.Client {
 }
 
 // RegisterCommand allows external registration of commands
-func (c *ServiceContainer) RegisterCommand(cmd commands.Command) {
-	c.commandRegistry.Register(cmd)
+func (c *ServiceContainer) RegisterShortcut(shortcut shortcuts.Shortcut) {
+	c.shortcutRegistry.Register(shortcut)
 }
 
 // File writer service getters

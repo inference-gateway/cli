@@ -1,4 +1,4 @@
-package commands
+package shortcuts
 
 import (
 	"context"
@@ -8,50 +8,50 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// ClearCommand clears the conversation history
-type ClearCommand struct {
+// ClearShortcut clears the conversation history
+type ClearShortcut struct {
 	repo domain.ConversationRepository
 }
 
-func NewClearCommand(repo domain.ConversationRepository) *ClearCommand {
-	return &ClearCommand{repo: repo}
+func NewClearShortcut(repo domain.ConversationRepository) *ClearShortcut {
+	return &ClearShortcut{repo: repo}
 }
 
-func (c *ClearCommand) GetName() string               { return "clear" }
-func (c *ClearCommand) GetDescription() string        { return "Clear conversation history" }
-func (c *ClearCommand) GetUsage() string              { return "/clear" }
-func (c *ClearCommand) CanExecute(args []string) bool { return len(args) == 0 }
+func (c *ClearShortcut) GetName() string               { return "clear" }
+func (c *ClearShortcut) GetDescription() string        { return "Clear conversation history" }
+func (c *ClearShortcut) GetUsage() string              { return "/clear" }
+func (c *ClearShortcut) CanExecute(args []string) bool { return len(args) == 0 }
 
-func (c *ClearCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
+func (c *ClearShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	if err := c.repo.Clear(); err != nil {
-		return CommandResult{
+		return ShortcutResult{
 			Output:  fmt.Sprintf("Failed to clear conversation: %v", err),
 			Success: false,
 		}, nil
 	}
 
-	return CommandResult{
+	return ShortcutResult{
 		Output:     "🧹 Conversation history cleared!",
 		Success:    true,
 		SideEffect: SideEffectClearConversation,
 	}, nil
 }
 
-// ExportCommand exports the conversation
-type ExportCommand struct {
+// ExportShortcut exports the conversation
+type ExportShortcut struct {
 	repo         domain.ConversationRepository
 	agentService domain.AgentService
 	modelService domain.ModelService
 	config       *config.Config
 }
 
-func NewExportCommand(repo domain.ConversationRepository, agentService domain.AgentService, modelService domain.ModelService, config *config.Config) *ExportCommand {
-	return &ExportCommand{
+func NewExportShortcut(repo domain.ConversationRepository, agentService domain.AgentService, modelService domain.ModelService, config *config.Config) *ExportShortcut {
+	return &ExportShortcut{
 		repo:         repo,
 		agentService: agentService,
 		modelService: modelService,
@@ -59,20 +59,20 @@ func NewExportCommand(repo domain.ConversationRepository, agentService domain.Ag
 	}
 }
 
-func (c *ExportCommand) GetName() string               { return "compact" }
-func (c *ExportCommand) GetDescription() string        { return "Export conversation to markdown" }
-func (c *ExportCommand) GetUsage() string              { return "/compact [format]" }
-func (c *ExportCommand) CanExecute(args []string) bool { return len(args) <= 1 }
+func (c *ExportShortcut) GetName() string               { return "compact" }
+func (c *ExportShortcut) GetDescription() string        { return "Export conversation to markdown" }
+func (c *ExportShortcut) GetUsage() string              { return "/compact [format]" }
+func (c *ExportShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
 
-func (c *ExportCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
+func (c *ExportShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	if c.repo.GetMessageCount() == 0 {
-		return CommandResult{
+		return ShortcutResult{
 			Output:  "📝 No conversation to export - conversation history is empty",
 			Success: true,
 		}, nil
 	}
 
-	return CommandResult{
+	return ShortcutResult{
 		Output:     "🔄 Generating summary and exporting conversation...",
 		Success:    true,
 		SideEffect: SideEffectExportConversation,
@@ -81,7 +81,7 @@ func (c *ExportCommand) Execute(ctx context.Context, args []string) (CommandResu
 }
 
 // PerformExport performs the actual export operation (called by side effect handler)
-func (c *ExportCommand) PerformExport(ctx context.Context) (string, error) {
+func (c *ExportShortcut) PerformExport(ctx context.Context) (string, error) {
 	filename := fmt.Sprintf("chat_export_%s.md", time.Now().Format("20060102_150405"))
 
 	outputDir := c.config.Compact.OutputDir
@@ -115,7 +115,7 @@ func (c *ExportCommand) PerformExport(ctx context.Context) (string, error) {
 }
 
 // generateSummary uses the LLM to generate a summary of the conversation
-func (c *ExportCommand) generateSummary(ctx context.Context) (string, error) {
+func (c *ExportShortcut) generateSummary(ctx context.Context) (string, error) {
 	entries := c.repo.GetMessages()
 	if len(entries) == 0 {
 		return "No conversation to summarize", nil
@@ -182,7 +182,7 @@ Keep the summary concise but informative, using bullet points where appropriate.
 }
 
 // createCompactMarkdown creates the final markdown content with summary and full conversation
-func (c *ExportCommand) createCompactMarkdown(summary, fullConversation string) string {
+func (c *ExportShortcut) createCompactMarkdown(summary, fullConversation string) string {
 	var content strings.Builder
 
 	content.WriteString("# Chat Conversation Export\n\n")
@@ -210,94 +210,94 @@ func (c *ExportCommand) createCompactMarkdown(summary, fullConversation string) 
 	return content.String()
 }
 
-// HelpCommand shows available commands
-type HelpCommand struct {
+// HelpShortcut shows available shortcuts
+type HelpShortcut struct {
 	registry *Registry
 }
 
-func NewHelpCommand(registry *Registry) *HelpCommand {
-	return &HelpCommand{registry: registry}
+func NewHelpShortcut(registry *Registry) *HelpShortcut {
+	return &HelpShortcut{registry: registry}
 }
 
-func (c *HelpCommand) GetName() string               { return "help" }
-func (c *HelpCommand) GetDescription() string        { return "Show available commands" }
-func (c *HelpCommand) GetUsage() string              { return "/help [command]" }
-func (c *HelpCommand) CanExecute(args []string) bool { return len(args) <= 1 }
+func (c *HelpShortcut) GetName() string               { return "help" }
+func (c *HelpShortcut) GetDescription() string        { return "Show available shortcuts" }
+func (c *HelpShortcut) GetUsage() string              { return "/help [shortcut]" }
+func (c *HelpShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
 
-func (c *HelpCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
+func (c *HelpShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	if len(args) == 1 {
-		cmdName := args[0]
-		cmd, exists := c.registry.Get(cmdName)
+		shortcutName := args[0]
+		shortcut, exists := c.registry.Get(shortcutName)
 		if !exists {
-			return CommandResult{
-				Output:  fmt.Sprintf("Unknown command: %s", cmdName),
+			return ShortcutResult{
+				Output:  fmt.Sprintf("Unknown shortcut: %s", shortcutName),
 				Success: false,
 			}, nil
 		}
 
-		output := fmt.Sprintf("Command: %s\nDescription: %s\nUsage: %s",
-			cmd.GetName(), cmd.GetDescription(), cmd.GetUsage())
+		output := fmt.Sprintf("Shortcut: %s\nDescription: %s\nUsage: %s",
+			shortcut.GetName(), shortcut.GetDescription(), shortcut.GetUsage())
 
-		return CommandResult{
+		return ShortcutResult{
 			Output:  output,
 			Success: true,
 		}, nil
 	}
 
 	var output strings.Builder
-	output.WriteString("## Available Commands\n\n")
+	output.WriteString("## Available Shortcuts\n\n")
 
-	commands := c.registry.GetAll()
-	for _, cmd := range commands {
-		output.WriteString(fmt.Sprintf("• **`/%s`** - %s\n", cmd.GetName(), cmd.GetDescription()))
+	shortcuts := c.registry.GetAll()
+	for _, shortcut := range shortcuts {
+		output.WriteString(fmt.Sprintf("• **`/%s`** - %s\n", shortcut.GetName(), shortcut.GetDescription()))
 	}
 
-	output.WriteString("\n💡 *Type `/help <command>` for detailed usage information.*")
+	output.WriteString("\n💡 *Type `/help <shortcut>` for detailed usage information.*")
 
-	return CommandResult{
+	return ShortcutResult{
 		Output:     output.String(),
 		Success:    true,
 		SideEffect: SideEffectShowHelp,
 	}, nil
 }
 
-// ExitCommand exits the application
-type ExitCommand struct{}
+// ExitShortcut exits the application
+type ExitShortcut struct{}
 
-func NewExitCommand() *ExitCommand {
-	return &ExitCommand{}
+func NewExitShortcut() *ExitShortcut {
+	return &ExitShortcut{}
 }
 
-func (c *ExitCommand) GetName() string               { return "exit" }
-func (c *ExitCommand) GetDescription() string        { return "Exit the chat session" }
-func (c *ExitCommand) GetUsage() string              { return "/exit" }
-func (c *ExitCommand) CanExecute(args []string) bool { return len(args) == 0 }
+func (c *ExitShortcut) GetName() string               { return "exit" }
+func (c *ExitShortcut) GetDescription() string        { return "Exit the chat session" }
+func (c *ExitShortcut) GetUsage() string              { return "/exit" }
+func (c *ExitShortcut) CanExecute(args []string) bool { return len(args) == 0 }
 
-func (c *ExitCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
-	return CommandResult{
+func (c *ExitShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+	return ShortcutResult{
 		Output:     "👋 Chat session ended!",
 		Success:    true,
 		SideEffect: SideEffectExit,
 	}, nil
 }
 
-// SwitchCommand switches the active model
-type SwitchCommand struct {
+// SwitchShortcut switches the active model
+type SwitchShortcut struct {
 	modelService domain.ModelService
 }
 
-func NewSwitchCommand(modelService domain.ModelService) *SwitchCommand {
-	return &SwitchCommand{modelService: modelService}
+func NewSwitchShortcut(modelService domain.ModelService) *SwitchShortcut {
+	return &SwitchShortcut{modelService: modelService}
 }
 
-func (c *SwitchCommand) GetName() string               { return "switch" }
-func (c *SwitchCommand) GetDescription() string        { return "Switch to a different model" }
-func (c *SwitchCommand) GetUsage() string              { return "/switch [model]" }
-func (c *SwitchCommand) CanExecute(args []string) bool { return len(args) <= 1 }
+func (c *SwitchShortcut) GetName() string               { return "switch" }
+func (c *SwitchShortcut) GetDescription() string        { return "Switch to a different model" }
+func (c *SwitchShortcut) GetUsage() string              { return "/switch [model]" }
+func (c *SwitchShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
 
-func (c *SwitchCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
+func (c *SwitchShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	if len(args) == 0 {
-		return CommandResult{
+		return ShortcutResult{
 			Output:     "Select a model from the dropdown",
 			Success:    true,
 			SideEffect: SideEffectSwitchModel,
@@ -306,13 +306,13 @@ func (c *SwitchCommand) Execute(ctx context.Context, args []string) (CommandResu
 
 	modelID := args[0]
 	if err := c.modelService.SelectModel(modelID); err != nil {
-		return CommandResult{
+		return ShortcutResult{
 			Output:  fmt.Sprintf("Failed to switch model: %v", err),
 			Success: false,
 		}, nil
 	}
 
-	return CommandResult{
+	return ShortcutResult{
 		Output:     fmt.Sprintf("Switched to model: %s", modelID),
 		Success:    true,
 		SideEffect: SideEffectSwitchModel,

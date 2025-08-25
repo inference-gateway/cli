@@ -10,13 +10,13 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/commands"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
-	"github.com/inference-gateway/cli/internal/services"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	services "github.com/inference-gateway/cli/internal/services"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -29,7 +29,7 @@ type ChatHandler struct {
 	configService           domain.ConfigService
 	toolService             domain.ToolService
 	fileService             domain.FileService
-	commandRegistry         *commands.Registry
+	shortcutRegistry        *shortcuts.Registry
 	toolOrchestrator        *services.ToolExecutionOrchestrator
 	assistantMessageCounter int
 }
@@ -42,7 +42,7 @@ func NewChatHandler(
 	configService domain.ConfigService,
 	toolService domain.ToolService,
 	fileService domain.FileService,
-	commandRegistry *commands.Registry,
+	shortcutRegistry *shortcuts.Registry,
 	toolOrchestrator *services.ToolExecutionOrchestrator,
 ) *ChatHandler {
 	return &ChatHandler{
@@ -53,7 +53,7 @@ func NewChatHandler(
 		configService:    configService,
 		toolService:      toolService,
 		fileService:      fileService,
-		commandRegistry:  commandRegistry,
+		shortcutRegistry: shortcutRegistry,
 		toolOrchestrator: toolOrchestrator,
 	}
 }
@@ -797,41 +797,41 @@ func (h *ChatHandler) handleCommand(
 	commandText string,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
-	if h.commandRegistry == nil {
+	if h.shortcutRegistry == nil {
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
-				Error:  "Command registry not available",
+				Error:  "Shortcut registry not available",
 				Sticky: false,
 			}
 		}
 	}
 
-	mainCommand, args, err := h.commandRegistry.ParseCommand(commandText)
+	mainShortcut, args, err := h.shortcutRegistry.ParseShortcut(commandText)
 	if err != nil {
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
-				Error:  fmt.Sprintf("Invalid command format: %v", err),
+				Error:  fmt.Sprintf("Invalid shortcut format: %v", err),
 				Sticky: false,
 			}
 		}
 	}
 
-	return nil, h.executeCommand(mainCommand, args, stateManager)
+	return nil, h.executeShortcut(mainShortcut, args, stateManager)
 }
 
-// executeCommand executes the specific command based on the command type
-// Commands are processed silently without being added to chat history
-func (h *ChatHandler) executeCommand(
-	command string,
+// executeShortcut executes the specific shortcut based on the shortcut type
+// Shortcuts are processed silently without being added to chat history
+func (h *ChatHandler) executeShortcut(
+	shortcut string,
 	args []string,
 	stateManager *services.StateManager,
 ) tea.Cmd {
 	return func() tea.Msg {
-		if registryResult := h.tryExecuteFromRegistry(command, args, stateManager); registryResult != nil {
+		if registryResult := h.tryExecuteFromRegistry(shortcut, args, stateManager); registryResult != nil {
 			return registryResult
 		}
 
-		switch command {
+		switch shortcut {
 		case "clear", "cls":
 			if err := h.conversationRepo.Clear(); err != nil {
 				return shared.SetStatusMsg{
@@ -857,7 +857,7 @@ func (h *ChatHandler) executeCommand(
 
 		default:
 			return shared.SetStatusMsg{
-				Message:    fmt.Sprintf("Unknown command: %s", command),
+				Message:    fmt.Sprintf("Unknown shortcut: %s", shortcut),
 				Spinner:    false,
 				StatusType: shared.StatusDefault,
 			}
@@ -865,32 +865,32 @@ func (h *ChatHandler) executeCommand(
 	}
 }
 
-// tryExecuteFromRegistry attempts to execute command from the command registry
-func (h *ChatHandler) tryExecuteFromRegistry(command string, args []string, stateManager *services.StateManager) tea.Msg {
-	if h.commandRegistry == nil {
+// tryExecuteFromRegistry attempts to execute shortcut from the shortcut registry
+func (h *ChatHandler) tryExecuteFromRegistry(shortcut string, args []string, stateManager *services.StateManager) tea.Msg {
+	if h.shortcutRegistry == nil {
 		return nil
 	}
 
-	cmd, exists := h.commandRegistry.Get(command)
+	shortcutInstance, exists := h.shortcutRegistry.Get(shortcut)
 	if !exists {
 		return nil
 	}
 
-	if !cmd.CanExecute(args) {
+	if !shortcutInstance.CanExecute(args) {
 		return shared.SetStatusMsg{
-			Message:    fmt.Sprintf("Invalid usage. Usage: %s", cmd.GetUsage()),
+			Message:    fmt.Sprintf("Invalid usage. Usage: %s", shortcutInstance.GetUsage()),
 			Spinner:    false,
 			StatusType: shared.StatusDefault,
 		}
 	}
 
-	return h.executeRegistryCommand(cmd, args, stateManager)
+	return h.executeRegistryShortcut(shortcutInstance, args, stateManager)
 }
 
-// executeRegistryCommand executes a command from the registry and handles results
-func (h *ChatHandler) executeRegistryCommand(cmd commands.Command, args []string, stateManager *services.StateManager) tea.Msg {
+// executeRegistryShortcut executes a shortcut from the registry and handles results
+func (h *ChatHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args []string, stateManager *services.StateManager) tea.Msg {
 	ctx := context.Background()
-	result, err := cmd.Execute(ctx, args)
+	result, err := shortcut.Execute(ctx, args)
 	if err != nil {
 		return shared.SetStatusMsg{
 			Message:    fmt.Sprintf("Command failed: %v", err),
@@ -900,24 +900,21 @@ func (h *ChatHandler) executeRegistryCommand(cmd commands.Command, args []string
 		}
 	}
 
-	// If there's output, display it as a message (regardless of side effect for most commands)
 	if result.Output != "" {
-		// Add the command output as an assistant message to the conversation
 		assistantEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
 				Content: result.Output,
 			},
-			Model: "", // Don't show model name for command results
+			Model: "",
 			Time:  time.Now(),
 		}
 
 		if addErr := h.conversationRepo.AddMessage(assistantEntry); addErr != nil {
-			logger.Error("failed to add command result message", "error", addErr)
+			logger.Error("failed to add shortcut result message", "error", addErr)
 		}
 
-		// If no side effect, return UI update here
-		if result.SideEffect == commands.SideEffectNone {
+		if result.SideEffect == shortcuts.SideEffectNone {
 			return tea.Batch(
 				func() tea.Msg {
 					return shared.UpdateHistoryMsg{
@@ -926,7 +923,7 @@ func (h *ChatHandler) executeRegistryCommand(cmd commands.Command, args []string
 				},
 				func() tea.Msg {
 					return shared.SetStatusMsg{
-						Message:    "Command completed",
+						Message:    "Shortcut action completed",
 						Spinner:    false,
 						TokenUsage: h.getCurrentTokenUsage(),
 						StatusType: shared.StatusDefault,
@@ -936,27 +933,29 @@ func (h *ChatHandler) executeRegistryCommand(cmd commands.Command, args []string
 		}
 	}
 
-	return h.handleCommandSideEffect(result.SideEffect, stateManager)
+	return h.handleShortcutSideEffect(result.SideEffect, result.Data, stateManager)
 }
 
-// handleCommandSideEffect handles side effects from command execution
-func (h *ChatHandler) handleCommandSideEffect(sideEffect commands.SideEffectType, stateManager *services.StateManager) tea.Msg {
+// handleShortcutSideEffect handles side effects from shortcut execution
+func (h *ChatHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectType, data any, stateManager *services.StateManager) tea.Msg {
 	switch sideEffect {
-	case commands.SideEffectSwitchModel:
+	case shortcuts.SideEffectSwitchModel:
 		return h.handleSwitchModelSideEffect(stateManager)
-	case commands.SideEffectClearConversation:
+	case shortcuts.SideEffectClearConversation:
 		return h.handleClearConversationSideEffect()
-	case commands.SideEffectExportConversation:
+	case shortcuts.SideEffectExportConversation:
 		return h.handleExportConversationSideEffect()
-	case commands.SideEffectReloadConfig:
+	case shortcuts.SideEffectReloadConfig:
 		return h.handleReloadConfigSideEffect()
-	case commands.SideEffectShowHelp:
+	case shortcuts.SideEffectShowHelp:
 		return h.handleShowHelpSideEffect()
-	case commands.SideEffectExit:
+	case shortcuts.SideEffectExit:
 		return tea.Quit()
+	case shortcuts.SideEffectGenerateCommit:
+		return h.handleGenerateCommitSideEffect(data, stateManager)
 	default:
 		return shared.SetStatusMsg{
-			Message:    "Command completed",
+			Message:    "Shortcut completed",
 			Spinner:    false,
 			TokenUsage: h.getCurrentTokenUsage(),
 			StatusType: shared.StatusDefault,
@@ -1022,7 +1021,7 @@ func (h *ChatHandler) performExportAsync() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		cmd, exists := h.commandRegistry.Get("compact")
+		shortcut, exists := h.shortcutRegistry.Get("compact")
 		if !exists {
 			return shared.SetStatusMsg{
 				Message:    "Export command not found",
@@ -1031,7 +1030,7 @@ func (h *ChatHandler) performExportAsync() tea.Cmd {
 			}
 		}
 
-		exportCmd, ok := cmd.(*commands.ExportCommand)
+		exportShortcut, ok := shortcut.(*shortcuts.ExportShortcut)
 		if !ok {
 			return shared.SetStatusMsg{
 				Message:    "Invalid export command type",
@@ -1040,7 +1039,7 @@ func (h *ChatHandler) performExportAsync() tea.Cmd {
 			}
 		}
 
-		filePath, err := exportCmd.PerformExport(ctx)
+		filePath, err := exportShortcut.PerformExport(ctx)
 		if err != nil {
 			return shared.SetStatusMsg{
 				Message:    fmt.Sprintf("Export failed: %v", err),
@@ -1728,4 +1727,117 @@ func (h *ChatHandler) handleShowHelpSideEffect() tea.Msg {
 			}
 		},
 	)()
+}
+
+// handleGenerateCommitSideEffect handles AI commit generation side effect
+func (h *ChatHandler) handleGenerateCommitSideEffect(data any, stateManager *services.StateManager) tea.Msg {
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    "Generating AI commit message...",
+				Spinner:    true,
+				StatusType: shared.StatusWorking,
+			}
+		},
+		h.performCommitGeneration(data, stateManager),
+	)()
+}
+
+// performCommitGeneration performs the AI commit generation asynchronously
+func (h *ChatHandler) performCommitGeneration(data any, stateManager *services.StateManager) tea.Cmd {
+	return func() tea.Msg {
+		if data == nil {
+			return shared.SetStatusMsg{
+				Message:    "❌ No side effect data available",
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		}
+
+		dataMap, ok := data.(map[string]interface{})
+		if !ok {
+			return shared.SetStatusMsg{
+				Message:    "❌ Invalid side effect data format",
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		}
+
+		ctx, ok1 := dataMap["context"].(context.Context)
+		args, ok2 := dataMap["args"].([]string)
+		diff, ok3 := dataMap["diff"].(string)
+		gitShortcut, ok4 := dataMap["gitShortcut"].(*shortcuts.GitShortcut)
+
+		if !ok1 || !ok2 || !ok3 || !ok4 {
+			return shared.SetStatusMsg{
+				Message:    "❌ Missing commit data",
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		}
+
+		result, err := gitShortcut.PerformCommit(ctx, args, diff)
+		if err != nil {
+			errorEntry := domain.ConversationEntry{
+				Message: sdk.Message{
+					Role:    sdk.Assistant,
+					Content: fmt.Sprintf("❌ **Commit Failed**\n\n%v", err),
+				},
+				Model: "",
+				Time:  time.Now(),
+			}
+
+			if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil {
+				logger.Error("failed to add commit error message", "error", addErr)
+			}
+
+			return tea.Batch(
+				func() tea.Msg {
+					return shared.UpdateHistoryMsg{
+						History: h.conversationRepo.GetMessages(),
+					}
+				},
+				func() tea.Msg {
+					return shared.SetStatusMsg{
+						Message:    fmt.Sprintf("%s Commit failed: %v", icons.CrossMark, err),
+						Spinner:    false,
+						StatusType: shared.StatusDefault,
+					}
+				},
+			)()
+		}
+
+		successEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: result,
+			},
+			Model: "",
+			Time:  time.Now(),
+		}
+
+		if addErr := h.conversationRepo.AddMessage(successEntry); addErr != nil {
+			logger.Error("failed to add commit success message", "error", addErr)
+		}
+
+		return tea.Batch(
+			func() tea.Msg {
+				return shared.UpdateHistoryMsg{
+					History: h.conversationRepo.GetMessages(),
+				}
+			},
+			func() tea.Msg {
+				return shared.SetStatusMsg{
+					Message:    fmt.Sprintf("%s AI commit completed successfully", icons.CheckMark),
+					Spinner:    false,
+					StatusType: shared.StatusDefault,
+				}
+			},
+		)()
+	}
 }

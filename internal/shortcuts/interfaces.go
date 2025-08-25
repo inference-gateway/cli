@@ -1,27 +1,27 @@
-package commands
+package shortcuts
 
 import (
 	"context"
 )
 
-// Command interface represents a chat command that can be executed
-type Command interface {
+// Shortcut interface represents a chat shortcut that can be executed
+type Shortcut interface {
 	GetName() string
 	GetDescription() string
 	GetUsage() string
-	Execute(ctx context.Context, args []string) (CommandResult, error)
+	Execute(ctx context.Context, args []string) (ShortcutResult, error)
 	CanExecute(args []string) bool
 }
 
-// CommandResult represents the result of a command execution
-type CommandResult struct {
+// ShortcutResult represents the result of a shortcut execution
+type ShortcutResult struct {
 	Output     string
 	Success    bool
 	SideEffect SideEffectType
-	Data       any // Additional data for the side effect
+	Data       any
 }
 
-// SideEffectType defines the types of side effects a command can have
+// SideEffectType defines the types of side effects a shortcut can have
 type SideEffectType int
 
 const (
@@ -32,4 +32,5 @@ const (
 	SideEffectSwitchModel
 	SideEffectShowHelp
 	SideEffectReloadConfig
+	SideEffectGenerateCommit
 )

@@ -14,7 +14,7 @@ type AutocompleteInterface interface {
 	IsVisible() bool
 	SetWidth(width int)
 	Render() string
-	GetSelectedCommand() string
+	GetSelectedShortcut() string
 	Hide()
 }
 

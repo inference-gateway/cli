@@ -6,17 +6,17 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/commands"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/handlers"
-	"github.com/inference-gateway/cli/internal/logger"
-	"github.com/inference-gateway/cli/internal/services"
-	"github.com/inference-gateway/cli/internal/services/tools"
-	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/components"
-	"github.com/inference-gateway/cli/internal/ui/keybinding"
-	"github.com/inference-gateway/cli/internal/ui/shared"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	handlers "github.com/inference-gateway/cli/internal/handlers"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	services "github.com/inference-gateway/cli/internal/services"
+	tools "github.com/inference-gateway/cli/internal/services/tools"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	components "github.com/inference-gateway/cli/internal/ui/components"
+	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // ChatApplication represents the main application model using state management
@@ -28,7 +28,7 @@ type ChatApplication struct {
 	modelService     domain.ModelService
 	toolService      domain.ToolService
 	fileService      domain.FileService
-	commandRegistry  *commands.Registry
+	shortcutRegistry *shortcuts.Registry
 	theme            ui.Theme
 	toolRegistry     *tools.Registry
 
@@ -73,7 +73,7 @@ func NewChatApplication(
 	configService *config.Config,
 	toolService domain.ToolService,
 	fileService domain.FileService,
-	commandRegistry *commands.Registry,
+	shortcutRegistry *shortcuts.Registry,
 	stateManager *services.StateManager,
 	toolOrchestrator *services.ToolExecutionOrchestrator,
 	theme ui.Theme,
@@ -92,7 +92,7 @@ func NewChatApplication(
 		configService:    configService,
 		toolService:      toolService,
 		fileService:      fileService,
-		commandRegistry:  commandRegistry,
+		shortcutRegistry: shortcutRegistry,
 		theme:            theme,
 		toolRegistry:     toolRegistry,
 		availableModels:  models,
@@ -116,7 +116,7 @@ func NewChatApplication(
 		configDir = filepath.Dir(configPath)
 	}
 
-	app.inputView = ui.CreateInputViewWithToolServiceAndConfigDir(app.modelService, app.commandRegistry, app.toolService, configDir)
+	app.inputView = ui.CreateInputViewWithToolServiceAndConfigDir(app.modelService, app.shortcutRegistry, app.toolService, configDir)
 	app.statusView = ui.CreateStatusView()
 	app.helpBar = ui.CreateHelpBar()
 	app.approvalView = ui.CreateApprovalView(app.theme)
@@ -155,7 +155,7 @@ func (app *ChatApplication) registerHandlers() {
 		app.configService,
 		app.toolService,
 		app.fileService,
-		app.commandRegistry,
+		app.shortcutRegistry,
 		app.toolOrchestrator,
 	)
 	app.messageRouter.AddHandler(chatHandler)
@@ -172,7 +172,7 @@ func (app *ChatApplication) updateHelpBarShortcuts() {
 
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "!", Description: "for bash mode"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "!!", Description: "for tools mode"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "/", Description: "for commands"})
+	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "/", Description: "for shortcuts"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "@", Description: "for file paths"})
 	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "#", Description: "to memorize(not implemented)"})
 

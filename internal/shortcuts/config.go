@@ -1,4 +1,4 @@
-package commands
+package shortcuts
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
-// ConfigCommand allows runtime configuration management
-type ConfigCommand struct {
+// ConfigShortcut allows runtime configuration management
+type ConfigShortcut struct {
 	config        *config.Config
 	reloadFunc    func() (*config.Config, error)
 	configService interface {
@@ -19,24 +19,24 @@ type ConfigCommand struct {
 	}
 }
 
-// NewConfigCommand creates a new config command
-func NewConfigCommand(cfg *config.Config, reloadFunc func() (*config.Config, error), configService interface {
+// NewConfigShortcut creates a new config shortcut
+func NewConfigShortcut(cfg *config.Config, reloadFunc func() (*config.Config, error), configService interface {
 	SetValue(key, value string) error
-}) *ConfigCommand {
-	return &ConfigCommand{
+}) *ConfigShortcut {
+	return &ConfigShortcut{
 		config:        cfg,
 		reloadFunc:    reloadFunc,
 		configService: configService,
 	}
 }
 
-func (c *ConfigCommand) GetName() string        { return "config" }
-func (c *ConfigCommand) GetDescription() string { return "Manage configuration settings" }
-func (c *ConfigCommand) GetUsage() string {
+func (c *ConfigShortcut) GetName() string        { return "config" }
+func (c *ConfigShortcut) GetDescription() string { return "Manage configuration settings" }
+func (c *ConfigShortcut) GetUsage() string {
 	return "/config <show|get|set|reload> [key] [value]"
 }
 
-func (c *ConfigCommand) CanExecute(args []string) bool {
+func (c *ConfigShortcut) CanExecute(args []string) bool {
 	if len(args) == 0 {
 		return false
 	}
@@ -56,7 +56,7 @@ func (c *ConfigCommand) CanExecute(args []string) bool {
 	}
 }
 
-func (c *ConfigCommand) Execute(ctx context.Context, args []string) (CommandResult, error) {
+func (c *ConfigShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	subcommand := args[0]
 
 	switch subcommand {
@@ -69,14 +69,14 @@ func (c *ConfigCommand) Execute(ctx context.Context, args []string) (CommandResu
 	case "reload":
 		return c.executeReload()
 	default:
-		return CommandResult{
+		return ShortcutResult{
 			Output:  fmt.Sprintf("Unknown subcommand: %s. Use show, get, set, or reload", subcommand),
 			Success: false,
 		}, nil
 	}
 }
 
-func (c *ConfigCommand) executeShow() (CommandResult, error) {
+func (c *ConfigShortcut) executeShow() (ShortcutResult, error) {
 	var output strings.Builder
 	output.WriteString("## Current Configuration\n\n")
 
@@ -127,52 +127,52 @@ func (c *ConfigCommand) executeShow() (CommandResult, error) {
 		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.CrossMark))
 	}
 
-	return CommandResult{
+	return ShortcutResult{
 		Output:  output.String(),
 		Success: true,
 	}, nil
 }
 
-func (c *ConfigCommand) executeGet(key string) (CommandResult, error) {
+func (c *ConfigShortcut) executeGet(key string) (ShortcutResult, error) {
 	value, err := c.getConfigValue(key)
 	if err != nil {
-		return CommandResult{
+		return ShortcutResult{
 			Output:  fmt.Sprintf("Error getting config value: %v", err),
 			Success: false,
 		}, nil
 	}
 
-	return CommandResult{
+	return ShortcutResult{
 		Output:  fmt.Sprintf("%s: %v", key, value),
 		Success: true,
 	}, nil
 }
 
-func (c *ConfigCommand) executeSet(key, value string) (CommandResult, error) {
+func (c *ConfigShortcut) executeSet(key, value string) (ShortcutResult, error) {
 	if c.configService == nil {
-		return CommandResult{
+		return ShortcutResult{
 			Output:  "⚠️  Config setting not available - please exit chat mode and use CLI commands like 'infer config agent set-model <model>' to make changes.",
 			Success: false,
 		}, nil
 	}
 
 	if err := c.configService.SetValue(key, value); err != nil {
-		return CommandResult{
+		return ShortcutResult{
 			Output:  fmt.Sprintf("%s Failed to set config value: %v", icons.CrossMark, err),
 			Success: false,
 		}, nil
 	}
 
-	return CommandResult{
+	return ShortcutResult{
 		Output:     fmt.Sprintf("%s Successfully set **%s** = `%s`", icons.CheckMark, key, value),
 		Success:    true,
 		SideEffect: SideEffectReloadConfig,
 	}, nil
 }
 
-func (c *ConfigCommand) executeReload() (CommandResult, error) {
+func (c *ConfigShortcut) executeReload() (ShortcutResult, error) {
 	if c.reloadFunc == nil {
-		return CommandResult{
+		return ShortcutResult{
 			Output:  fmt.Sprintf("%s Config reload not supported - please exit and restart chat mode to apply config changes", icons.CrossMark),
 			Success: false,
 		}, nil
@@ -180,7 +180,7 @@ func (c *ConfigCommand) executeReload() (CommandResult, error) {
 
 	newConfig, err := c.reloadFunc()
 	if err != nil {
-		return CommandResult{
+		return ShortcutResult{
 			Output:  fmt.Sprintf("%s Failed to reload config: %v", icons.CrossMark, err),
 			Success: false,
 		}, nil
@@ -189,7 +189,7 @@ func (c *ConfigCommand) executeReload() (CommandResult, error) {
 	// Update the config reference
 	*c.config = *newConfig
 
-	return CommandResult{
+	return ShortcutResult{
 		Output:     fmt.Sprintf("%s Configuration reloaded successfully from disk", icons.CheckMark),
 		Success:    true,
 		SideEffect: SideEffectReloadConfig,
@@ -198,7 +198,7 @@ func (c *ConfigCommand) executeReload() (CommandResult, error) {
 }
 
 // getConfigValue retrieves a config value using dot notation (e.g., "agent.model")
-func (c *ConfigCommand) getConfigValue(key string) (interface{}, error) {
+func (c *ConfigShortcut) getConfigValue(key string) (interface{}, error) {
 	parts := strings.Split(key, ".")
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("empty key")
@@ -232,7 +232,7 @@ func (c *ConfigCommand) getConfigValue(key string) (interface{}, error) {
 }
 
 // findField finds a field in a struct by checking field name, yaml tag, and mapstructure tag
-func (c *ConfigCommand) findField(structValue reflect.Value, fieldName string) reflect.Value {
+func (c *ConfigShortcut) findField(structValue reflect.Value, fieldName string) reflect.Value {
 	structType := structValue.Type()
 
 	for i := 0; i < structValue.NumField(); i++ {
@@ -262,7 +262,7 @@ func (c *ConfigCommand) findField(structValue reflect.Value, fieldName string) r
 }
 
 // formatValue formats a reflect.Value for display
-func (c *ConfigCommand) formatValue(value reflect.Value) interface{} {
+func (c *ConfigShortcut) formatValue(value reflect.Value) interface{} {
 	switch value.Kind() {
 	case reflect.String:
 		return value.String()
@@ -287,7 +287,7 @@ func (c *ConfigCommand) formatValue(value reflect.Value) interface{} {
 }
 
 // formatSlice formats a slice for better readability
-func (c *ConfigCommand) formatSlice(value reflect.Value) string {
+func (c *ConfigShortcut) formatSlice(value reflect.Value) string {
 	var items []string
 	for i := 0; i < value.Len(); i++ {
 		item := c.formatValue(value.Index(i))
@@ -297,7 +297,7 @@ func (c *ConfigCommand) formatSlice(value reflect.Value) string {
 }
 
 // formatStruct formats a struct for better readability
-func (c *ConfigCommand) formatStruct(value reflect.Value) string {
+func (c *ConfigShortcut) formatStruct(value reflect.Value) string {
 	var output strings.Builder
 	structType := value.Type()
 

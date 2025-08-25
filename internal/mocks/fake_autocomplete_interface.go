@@ -9,14 +9,14 @@ import (
 )
 
 type FakeAutocompleteInterface struct {
-	GetSelectedCommandStub        func() string
-	getSelectedCommandMutex       sync.RWMutex
-	getSelectedCommandArgsForCall []struct {
+	GetSelectedShortcutStub        func() string
+	getSelectedShortcutMutex       sync.RWMutex
+	getSelectedShortcutArgsForCall []struct {
 	}
-	getSelectedCommandReturns struct {
+	getSelectedShortcutReturns struct {
 		result1 string
 	}
-	getSelectedCommandReturnsOnCall map[int]struct {
+	getSelectedShortcutReturnsOnCall map[int]struct {
 		result1 string
 	}
 	HandleKeyStub        func(tea.KeyMsg) (bool, string)
@@ -71,15 +71,15 @@ type FakeAutocompleteInterface struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeAutocompleteInterface) GetSelectedCommand() string {
-	fake.getSelectedCommandMutex.Lock()
-	ret, specificReturn := fake.getSelectedCommandReturnsOnCall[len(fake.getSelectedCommandArgsForCall)]
-	fake.getSelectedCommandArgsForCall = append(fake.getSelectedCommandArgsForCall, struct {
+func (fake *FakeAutocompleteInterface) GetSelectedShortcut() string {
+	fake.getSelectedShortcutMutex.Lock()
+	ret, specificReturn := fake.getSelectedShortcutReturnsOnCall[len(fake.getSelectedShortcutArgsForCall)]
+	fake.getSelectedShortcutArgsForCall = append(fake.getSelectedShortcutArgsForCall, struct {
 	}{})
-	stub := fake.GetSelectedCommandStub
-	fakeReturns := fake.getSelectedCommandReturns
-	fake.recordInvocation("GetSelectedCommand", []interface{}{})
-	fake.getSelectedCommandMutex.Unlock()
+	stub := fake.GetSelectedShortcutStub
+	fakeReturns := fake.getSelectedShortcutReturns
+	fake.recordInvocation("GetSelectedShortcut", []interface{}{})
+	fake.getSelectedShortcutMutex.Unlock()
 	if stub != nil {
 		return stub()
 	}
@@ -89,37 +89,37 @@ func (fake *FakeAutocompleteInterface) GetSelectedCommand() string {
 	return fakeReturns.result1
 }
 
-func (fake *FakeAutocompleteInterface) GetSelectedCommandCallCount() int {
-	fake.getSelectedCommandMutex.RLock()
-	defer fake.getSelectedCommandMutex.RUnlock()
-	return len(fake.getSelectedCommandArgsForCall)
+func (fake *FakeAutocompleteInterface) GetSelectedShortcutCallCount() int {
+	fake.getSelectedShortcutMutex.RLock()
+	defer fake.getSelectedShortcutMutex.RUnlock()
+	return len(fake.getSelectedShortcutArgsForCall)
 }
 
-func (fake *FakeAutocompleteInterface) GetSelectedCommandCalls(stub func() string) {
-	fake.getSelectedCommandMutex.Lock()
-	defer fake.getSelectedCommandMutex.Unlock()
-	fake.GetSelectedCommandStub = stub
+func (fake *FakeAutocompleteInterface) GetSelectedShortcutCalls(stub func() string) {
+	fake.getSelectedShortcutMutex.Lock()
+	defer fake.getSelectedShortcutMutex.Unlock()
+	fake.GetSelectedShortcutStub = stub
 }
 
-func (fake *FakeAutocompleteInterface) GetSelectedCommandReturns(result1 string) {
-	fake.getSelectedCommandMutex.Lock()
-	defer fake.getSelectedCommandMutex.Unlock()
-	fake.GetSelectedCommandStub = nil
-	fake.getSelectedCommandReturns = struct {
+func (fake *FakeAutocompleteInterface) GetSelectedShortcutReturns(result1 string) {
+	fake.getSelectedShortcutMutex.Lock()
+	defer fake.getSelectedShortcutMutex.Unlock()
+	fake.GetSelectedShortcutStub = nil
+	fake.getSelectedShortcutReturns = struct {
 		result1 string
 	}{result1}
 }
 
-func (fake *FakeAutocompleteInterface) GetSelectedCommandReturnsOnCall(i int, result1 string) {
-	fake.getSelectedCommandMutex.Lock()
-	defer fake.getSelectedCommandMutex.Unlock()
-	fake.GetSelectedCommandStub = nil
-	if fake.getSelectedCommandReturnsOnCall == nil {
-		fake.getSelectedCommandReturnsOnCall = make(map[int]struct {
+func (fake *FakeAutocompleteInterface) GetSelectedShortcutReturnsOnCall(i int, result1 string) {
+	fake.getSelectedShortcutMutex.Lock()
+	defer fake.getSelectedShortcutMutex.Unlock()
+	fake.GetSelectedShortcutStub = nil
+	if fake.getSelectedShortcutReturnsOnCall == nil {
+		fake.getSelectedShortcutReturnsOnCall = make(map[int]struct {
 			result1 string
 		})
 	}
-	fake.getSelectedCommandReturnsOnCall[i] = struct {
+	fake.getSelectedShortcutReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
 }
@@ -386,6 +386,20 @@ func (fake *FakeAutocompleteInterface) UpdateArgsForCall(i int) (string, int) {
 func (fake *FakeAutocompleteInterface) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
+	fake.getSelectedShortcutMutex.RLock()
+	defer fake.getSelectedShortcutMutex.RUnlock()
+	fake.handleKeyMutex.RLock()
+	defer fake.handleKeyMutex.RUnlock()
+	fake.hideMutex.RLock()
+	defer fake.hideMutex.RUnlock()
+	fake.isVisibleMutex.RLock()
+	defer fake.isVisibleMutex.RUnlock()
+	fake.renderMutex.RLock()
+	defer fake.renderMutex.RUnlock()
+	fake.setWidthMutex.RLock()
+	defer fake.setWidthMutex.RUnlock()
+	fake.updateMutex.RLock()
+	defer fake.updateMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value
@@ -398,9 +412,6 @@ func (fake *FakeAutocompleteInterface) recordInvocation(key string, args []inter
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
-	}
-	if fake.invocations[key] == nil {
-		fake.invocations[key] = [][]interface{}{}
 	}
 	fake.invocations[key] = append(fake.invocations[key], args)
 }

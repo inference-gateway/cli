@@ -5,52 +5,53 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/commands"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
-// CommandOption represents a command option for autocomplete
-type CommandOption struct {
-	Command     string
+// ShortcutOption represents a shortcut option for autocomplete
+type ShortcutOption struct {
+	Shortcut    string
 	Description string
+	Usage       string
 }
 
-// CommandRegistry interface for dependency injection
-type CommandRegistry interface {
-	GetAll() []commands.Command
+// ShortcutRegistry interface for dependency injection
+type ShortcutRegistry interface {
+	GetAll() []shortcuts.Shortcut
 }
 
 // AutocompleteImpl implements inline autocomplete functionality
 type AutocompleteImpl struct {
-	suggestions     []CommandOption
-	filtered        []CommandOption
-	selected        int
-	visible         bool
-	query           string
-	theme           Theme
-	width           int
-	maxVisible      int
-	commandRegistry CommandRegistry
-	toolService     interface {
+	suggestions      []ShortcutOption
+	filtered         []ShortcutOption
+	selected         int
+	visible          bool
+	query            string
+	theme            Theme
+	width            int
+	maxVisible       int
+	shortcutRegistry ShortcutRegistry
+	toolService      interface {
 		ListAvailableTools() []string
 		ListTools() []domain.ToolDefinition
 	}
 }
 
 // NewAutocomplete creates a new autocomplete component
-func NewAutocomplete(theme Theme, commandRegistry CommandRegistry) *AutocompleteImpl {
+func NewAutocomplete(theme Theme, shortcutRegistry ShortcutRegistry) *AutocompleteImpl {
 	return &AutocompleteImpl{
-		suggestions:     []CommandOption{},
-		filtered:        []CommandOption{},
-		selected:        0,
-		visible:         false,
-		query:           "",
-		theme:           theme,
-		width:           80,
-		maxVisible:      5,
-		commandRegistry: commandRegistry,
-		toolService:     nil,
+		suggestions:      []ShortcutOption{},
+		filtered:         []ShortcutOption{},
+		selected:         0,
+		visible:          false,
+		query:            "",
+		theme:            theme,
+		width:            80,
+		maxVisible:       5,
+		shortcutRegistry: shortcutRegistry,
+		toolService:      nil,
 	}
 }
 
@@ -62,19 +63,20 @@ func (a *AutocompleteImpl) SetToolService(toolService interface {
 	a.toolService = toolService
 }
 
-// loadCommands loads commands from the registry
-func (a *AutocompleteImpl) loadCommands() {
-	if a.commandRegistry == nil {
+// loadShortcuts loads shortcuts from the registry
+func (a *AutocompleteImpl) loadShortcuts() {
+	if a.shortcutRegistry == nil {
 		return
 	}
 
-	a.suggestions = []CommandOption{}
-	commands := a.commandRegistry.GetAll()
+	a.suggestions = []ShortcutOption{}
+	shortcuts := a.shortcutRegistry.GetAll()
 
-	for _, cmd := range commands {
-		a.suggestions = append(a.suggestions, CommandOption{
-			Command:     "/" + cmd.GetName(),
-			Description: cmd.GetDescription(),
+	for _, shortcut := range shortcuts {
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    "/" + shortcut.GetName(),
+			Description: shortcut.GetDescription(),
+			Usage:       shortcut.GetUsage(),
 		})
 	}
 }
@@ -85,7 +87,7 @@ func (a *AutocompleteImpl) loadTools() {
 		return
 	}
 
-	a.suggestions = []CommandOption{}
+	a.suggestions = []ShortcutOption{}
 
 	availableTools := a.toolService.ListAvailableTools()
 	toolDefinitions := a.toolService.ListTools()
@@ -103,9 +105,10 @@ func (a *AutocompleteImpl) loadTools() {
 			template = "!!" + toolName + "("
 		}
 
-		a.suggestions = append(a.suggestions, CommandOption{
-			Command:     template,
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    template,
 			Description: "Execute " + toolName + " tool directly",
+			Usage:       "",
 		})
 	}
 }
@@ -208,8 +211,8 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 			a.selected = 0
 		}
 	case strings.HasPrefix(inputText, "/") && cursorPos >= 1:
-		if len(a.suggestions) == 0 || (len(a.suggestions) > 0 && !strings.HasPrefix(a.suggestions[0].Command, "/")) {
-			a.loadCommands()
+		if len(a.suggestions) == 0 || (len(a.suggestions) > 0 && !strings.HasPrefix(a.suggestions[0].Shortcut, "/")) {
+			a.loadShortcuts()
 		}
 		a.query = inputText[1:cursorPos]
 		a.filterSuggestions()
@@ -219,14 +222,14 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 		}
 	default:
 		a.visible = false
-		a.filtered = []CommandOption{}
+		a.filtered = []ShortcutOption{}
 		a.selected = 0
 	}
 }
 
 // filterSuggestions filters commands based on current query
 func (a *AutocompleteImpl) filterSuggestions() {
-	a.filtered = []CommandOption{}
+	a.filtered = []ShortcutOption{}
 
 	if a.query == "" {
 		a.filtered = a.suggestions
@@ -235,13 +238,13 @@ func (a *AutocompleteImpl) filterSuggestions() {
 
 	for _, cmd := range a.suggestions {
 		var commandName string
-		if name, found := strings.CutPrefix(cmd.Command, "!!"); found {
+		if name, found := strings.CutPrefix(cmd.Shortcut, "!!"); found {
 			commandName = name
 			if idx := strings.Index(commandName, "("); idx != -1 {
 				commandName = commandName[:idx]
 			}
 		} else {
-			commandName = strings.TrimPrefix(cmd.Command, "/")
+			commandName = strings.TrimPrefix(cmd.Shortcut, "/")
 		}
 
 		if strings.HasPrefix(strings.ToLower(commandName), strings.ToLower(a.query)) {
@@ -275,7 +278,7 @@ func (a *AutocompleteImpl) HandleKey(key tea.KeyMsg) (bool, string) {
 
 	case "tab", "enter":
 		if a.selected < len(a.filtered) {
-			selected := a.filtered[a.selected].Command
+			selected := a.filtered[a.selected].Shortcut
 			a.visible = false
 			return true, selected
 		}
@@ -329,12 +332,32 @@ func (a *AutocompleteImpl) Render() string {
 			prefix = fmt.Sprintf("%s▶ %s", a.theme.GetAccentColor(), colors.Reset)
 		}
 
-		line := fmt.Sprintf("%s %-12s %s%s%s",
-			prefix,
-			cmd.Command,
-			a.theme.GetDimColor(),
-			cmd.Description,
-			colors.Reset)
+		var line string
+		if cmd.Usage != "" && cmd.Usage != cmd.Shortcut {
+			parts := strings.SplitN(cmd.Usage, " ", 2)
+			shortcutName := parts[0]
+			usageArgs := ""
+			if len(parts) > 1 {
+				usageArgs = " " + parts[1]
+			}
+
+			line = fmt.Sprintf("%s %-12s %s%s%s %s%s%s",
+				prefix,
+				shortcutName,
+				a.theme.GetDimColor(),
+				usageArgs,
+				colors.Reset,
+				a.theme.GetDimColor(),
+				cmd.Description,
+				colors.Reset)
+		} else {
+			line = fmt.Sprintf("%s %-12s %s%s%s",
+				prefix,
+				cmd.Shortcut,
+				a.theme.GetDimColor(),
+				cmd.Description,
+				colors.Reset)
+		}
 
 		b.WriteString(line)
 		if i < end-1 {
@@ -351,10 +374,10 @@ func (a *AutocompleteImpl) Render() string {
 	return b.String()
 }
 
-// GetSelectedCommand returns the currently selected command
-func (a *AutocompleteImpl) GetSelectedCommand() string {
+// GetSelectedShortcut returns the currently selected shortcut
+func (a *AutocompleteImpl) GetSelectedShortcut() string {
 	if a.visible && a.selected < len(a.filtered) {
-		return a.filtered[a.selected].Command
+		return a.filtered[a.selected].Shortcut
 	}
 	return ""
 }

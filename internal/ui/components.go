@@ -1,9 +1,9 @@
 package ui
 
 import (
-	"github.com/inference-gateway/cli/internal/commands"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/components"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	components "github.com/inference-gateway/cli/internal/ui/components"
 )
 
 // CreateConversationView creates a new conversation view component
@@ -12,26 +12,26 @@ func CreateConversationView() ConversationRenderer {
 }
 
 // CreateInputView creates a new input view component
-func CreateInputView(modelService domain.ModelService, commandRegistry *commands.Registry) InputComponent {
+func CreateInputView(modelService domain.ModelService, shortcutRegistry *shortcuts.Registry) InputComponent {
 	iv := components.NewInputView(modelService)
 
-	if commandRegistry != nil {
-		iv.Autocomplete = NewAutocomplete(NewDefaultTheme(), commandRegistry)
+	if shortcutRegistry != nil {
+		iv.Autocomplete = NewAutocomplete(NewDefaultTheme(), shortcutRegistry)
 	}
 	return iv
 }
 
 // CreateInputViewWithToolService creates a new input view component with tool service
-func CreateInputViewWithToolService(modelService domain.ModelService, commandRegistry *commands.Registry, toolService domain.ToolService) InputComponent {
-	return CreateInputViewWithToolServiceAndConfigDir(modelService, commandRegistry, toolService, "")
+func CreateInputViewWithToolService(modelService domain.ModelService, shortcutRegistry *shortcuts.Registry, toolService domain.ToolService) InputComponent {
+	return CreateInputViewWithToolServiceAndConfigDir(modelService, shortcutRegistry, toolService, "")
 }
 
 // CreateInputViewWithToolServiceAndConfigDir creates a new input view component with tool service and config directory
-func CreateInputViewWithToolServiceAndConfigDir(modelService domain.ModelService, commandRegistry *commands.Registry, toolService domain.ToolService, configDir string) InputComponent {
+func CreateInputViewWithToolServiceAndConfigDir(modelService domain.ModelService, shortcutRegistry *shortcuts.Registry, toolService domain.ToolService, configDir string) InputComponent {
 	iv := components.NewInputViewWithConfigDir(modelService, configDir)
 
-	if commandRegistry != nil {
-		autocomplete := NewAutocomplete(NewDefaultTheme(), commandRegistry)
+	if shortcutRegistry != nil {
+		autocomplete := NewAutocomplete(NewDefaultTheme(), shortcutRegistry)
 		if toolService != nil {
 			autocomplete.SetToolService(toolService)
 		}
