@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.44.0](https://github.com/inference-gateway/cli/compare/v0.43.0...v0.44.0) (2025-08-25)
+
+### 🚀 Features
+
+* Implement extensible shortcuts system ([#119](https://github.com/inference-gateway/cli/issues/119)) ([68af7d3](https://github.com/inference-gateway/cli/commit/68af7d3f7861ae1892612c80233e6b4d4a2249b0)), closes [#117](https://github.com/inference-gateway/cli/issues/117) [#117](https://github.com/inference-gateway/cli/issues/117)
+
 ## [0.43.0](https://github.com/inference-gateway/cli/compare/v0.42.0...v0.43.0) (2025-08-25)
 
 ### 🚀 Features
