@@ -78,7 +78,7 @@ func initConfig() {
 	}
 
 	verbose := v.GetBool("verbose")
-	debug := v.GetBool("debug")
+	debug := v.GetBool("logging.debug")
 	logDir := v.GetString("logging.dir")
 	logger.Init(verbose, debug, logDir)
 }
