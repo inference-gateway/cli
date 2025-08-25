@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.41.1](https://github.com/inference-gateway/cli/compare/v0.41.0...v0.41.1) (2025-08-25)
+
+### 🧹 Maintenance
+
+* **deps:** bump github.com/stretchr/testify from 1.10.0 to 1.11.0 ([#115](https://github.com/inference-gateway/cli/issues/115)) ([3ba3f48](https://github.com/inference-gateway/cli/commit/3ba3f4889f589d4fefe5927a748744bf7f7b5ae8))
+
 ## [0.41.0](https://github.com/inference-gateway/cli/compare/v0.40.1...v0.41.0) (2025-08-25)
 
 ### 🚀 Features
