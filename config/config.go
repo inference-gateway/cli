@@ -28,6 +28,7 @@ type Config struct {
 	Tools   ToolsConfig   `yaml:"tools" mapstructure:"tools"`
 	Compact CompactConfig `yaml:"compact" mapstructure:"compact"`
 	Agent   AgentConfig   `yaml:"agent" mapstructure:"agent"`
+	Git     GitConfig     `yaml:"git" mapstructure:"git"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -211,6 +212,17 @@ type AgentConfig struct {
 	MaxTurns        int                   `yaml:"max_turns" mapstructure:"max_turns"`
 	MaxTokens       int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
 	Optimization    OptimizationConfig    `yaml:"optimization" mapstructure:"optimization"`
+}
+
+// GitConfig contains git shortcut-specific settings
+type GitConfig struct {
+	CommitMessage GitCommitMessageConfig `yaml:"commit_message" mapstructure:"commit_message"`
+}
+
+// GitCommitMessageConfig contains settings for AI-generated commit messages
+type GitCommitMessageConfig struct {
+	Model        string `yaml:"model" mapstructure:"model"`
+	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -410,6 +422,26 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 				CompactThreshold:           20,
 				TruncateLargeOutputs:       true,
 				SkipRedundantConfirmations: true,
+			},
+		},
+		Git: GitConfig{
+			CommitMessage: GitCommitMessageConfig{
+				Model: "",
+				SystemPrompt: `Generate a concise git commit message following conventional commit format.
+
+REQUIREMENTS:
+- MUST use format: "type: Brief description"
+- MUST be under 50 characters total
+- MUST use imperative mood (e.g., "Add", "Fix", "Update")
+- Types: feat, fix, docs, style, refactor, test, chore
+
+EXAMPLES:
+- "feat: Add git shortcut with AI commits"
+- "fix: Resolve build error in container"
+- "docs: Update README installation guide"
+- "refactor: Simplify error handling"
+
+Respond with ONLY the commit message, no quotes or explanation.`,
 			},
 		},
 	}

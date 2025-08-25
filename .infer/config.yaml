@@ -167,3 +167,22 @@ agent:
     compact_threshold: 20
     truncate_large_outputs: true
     skip_redundant_confirmations: true
+git:
+  commit_message:
+    model: ""
+    system_prompt: |-
+      Generate a concise git commit message following conventional commit format.
+
+      REQUIREMENTS:
+      - MUST use format: "type: Brief description"
+      - MUST be under 50 characters total
+      - MUST use imperative mood (e.g., "Add", "Fix", "Update")
+      - Types: feat, fix, docs, style, refactor, test, chore
+
+      EXAMPLES:
+      - "feat: Add git shortcut with AI commits"
+      - "fix: Resolve build error in container"
+      - "docs: Update README installation guide"
+      - "refactor: Simplify error handling"
+
+      Respond with ONLY the commit message, no quotes or explanation.

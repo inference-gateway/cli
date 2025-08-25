@@ -936,11 +936,11 @@ func (h *ChatHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args 
 		}
 	}
 
-	return h.handleShortcutSideEffect(result.SideEffect, stateManager)
+	return h.handleShortcutSideEffect(result.SideEffect, result.Data, stateManager)
 }
 
 // handleShortcutSideEffect handles side effects from shortcut execution
-func (h *ChatHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectType, stateManager *services.StateManager) tea.Msg {
+func (h *ChatHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectType, data any, stateManager *services.StateManager) tea.Msg {
 	switch sideEffect {
 	case shortcuts.SideEffectSwitchModel:
 		return h.handleSwitchModelSideEffect(stateManager)
@@ -954,6 +954,8 @@ func (h *ChatHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectTy
 		return h.handleShowHelpSideEffect()
 	case shortcuts.SideEffectExit:
 		return tea.Quit()
+	case shortcuts.SideEffectGenerateCommit:
+		return h.handleGenerateCommitSideEffect(data, stateManager)
 	default:
 		return shared.SetStatusMsg{
 			Message:    "Command completed",
@@ -1728,4 +1730,117 @@ func (h *ChatHandler) handleShowHelpSideEffect() tea.Msg {
 			}
 		},
 	)()
+}
+
+// handleGenerateCommitSideEffect handles AI commit generation side effect
+func (h *ChatHandler) handleGenerateCommitSideEffect(data any, stateManager *services.StateManager) tea.Msg {
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    "🤖 Generating AI commit message...",
+				Spinner:    true,
+				StatusType: shared.StatusWorking,
+			}
+		},
+		h.performCommitGeneration(data, stateManager),
+	)()
+}
+
+// performCommitGeneration performs the AI commit generation asynchronously
+func (h *ChatHandler) performCommitGeneration(data any, stateManager *services.StateManager) tea.Cmd {
+	return func() tea.Msg {
+		if data == nil {
+			return shared.SetStatusMsg{
+				Message:    "❌ No side effect data available",
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		}
+
+		dataMap, ok := data.(map[string]interface{})
+		if !ok {
+			return shared.SetStatusMsg{
+				Message:    "❌ Invalid side effect data format",
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		}
+
+		ctx, ok1 := dataMap["context"].(context.Context)
+		args, ok2 := dataMap["args"].([]string)
+		diff, ok3 := dataMap["diff"].(string)
+		gitShortcut, ok4 := dataMap["gitShortcut"].(*shortcuts.GitShortcut)
+
+		if !ok1 || !ok2 || !ok3 || !ok4 {
+			return shared.SetStatusMsg{
+				Message:    "❌ Missing commit data",
+				Spinner:    false,
+				StatusType: shared.StatusDefault,
+			}
+		}
+
+		result, err := gitShortcut.PerformCommit(ctx, args, diff)
+		if err != nil {
+			errorEntry := domain.ConversationEntry{
+				Message: sdk.Message{
+					Role:    sdk.Assistant,
+					Content: fmt.Sprintf("❌ **Commit Failed**\n\n%v", err),
+				},
+				Model: "",
+				Time:  time.Now(),
+			}
+
+			if addErr := h.conversationRepo.AddMessage(errorEntry); addErr != nil {
+				logger.Error("failed to add commit error message", "error", addErr)
+			}
+
+			return tea.Batch(
+				func() tea.Msg {
+					return shared.UpdateHistoryMsg{
+						History: h.conversationRepo.GetMessages(),
+					}
+				},
+				func() tea.Msg {
+					return shared.SetStatusMsg{
+						Message:    fmt.Sprintf("❌ Commit failed: %v", err),
+						Spinner:    false,
+						StatusType: shared.StatusDefault,
+					}
+				},
+			)()
+		}
+
+		successEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: result,
+			},
+			Model: "",
+			Time:  time.Now(),
+		}
+
+		if addErr := h.conversationRepo.AddMessage(successEntry); addErr != nil {
+			logger.Error("failed to add commit success message", "error", addErr)
+		}
+
+		return tea.Batch(
+			func() tea.Msg {
+				return shared.UpdateHistoryMsg{
+					History: h.conversationRepo.GetMessages(),
+				}
+			},
+			func() tea.Msg {
+				return shared.SetStatusMsg{
+					Message:    "✅ AI commit completed successfully",
+					Spinner:    false,
+					StatusType: shared.StatusDefault,
+				}
+			},
+		)()
+	}
 }

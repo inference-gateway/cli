@@ -160,6 +160,9 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 
+	gitCommitClient := c.createSDKClient()
+	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
+
 	if c.configService != nil {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService))
 	} else {

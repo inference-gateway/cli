@@ -18,7 +18,7 @@ type ShortcutResult struct {
 	Output     string
 	Success    bool
 	SideEffect SideEffectType
-	Data       any // Additional data for the side effect
+	Data       any
 }
 
 // SideEffectType defines the types of side effects a shortcut can have
@@ -32,4 +32,5 @@ const (
 	SideEffectSwitchModel
 	SideEffectShowHelp
 	SideEffectReloadConfig
+	SideEffectGenerateCommit
 )
