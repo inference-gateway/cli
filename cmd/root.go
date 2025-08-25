@@ -3,11 +3,17 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/logger"
-	"github.com/spf13/cobra"
+	config "github.com/inference-gateway/cli/config"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	cobra "github.com/spf13/cobra"
+	viper "github.com/spf13/viper"
 )
+
+// Global Viper instance for commands to use
+var V *viper.Viper
 
 var rootCmd = &cobra.Command{
 	Use:   "infer",
@@ -36,17 +42,53 @@ func Execute() {
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringP("config", "c", "", "config file (default is ./.infer/config.yaml)")
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
 
 	cobra.OnInitialize(initConfig)
 }
 
 func initConfig() {
-	verbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
+	V = viper.New()
+	v := V
 
-	cfg, err := config.LoadConfig("")
-	debugMode := err == nil && cfg.Logging.Debug
+	defaults := config.DefaultConfig()
+	v.SetDefault("gateway", defaults.Gateway)
+	v.SetDefault("logging", defaults.Logging)
+	v.SetDefault("client", defaults.Client)
+	v.SetDefault("tools", defaults.Tools)
+	v.SetDefault("agent", defaults.Agent)
 
-	logger.Init(verbose || debugMode)
+	v.SetConfigName("config")
+	v.SetConfigType("yaml")
+	v.AddConfigPath(".")
+	v.AddConfigPath("./.infer")
+	v.AddConfigPath("$HOME/.infer")
+	v.SetEnvPrefix("INFER")
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
+		fmt.Fprintf(os.Stderr, "Error binding verbose flag: %v\n", err)
+	}
+
+	if err := v.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			fmt.Fprintf(os.Stderr, "Error reading config: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	verbose := v.GetBool("verbose")
+	debug := v.GetBool("logging.debug")
+	logDir := v.GetString("logging.dir")
+
+	if logDir == "" {
+		configFile := v.ConfigFileUsed()
+		if configFile != "" {
+			configDir := filepath.Dir(configFile)
+			logDir = filepath.Join(configDir, "logs")
+		}
+	}
+
+	logger.Init(verbose, debug, logDir)
 }

@@ -3,6 +3,7 @@ package components
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -166,17 +167,14 @@ func (cv *ConversationView) renderWelcome() string {
 	readyLine := colors.SuccessColor.ANSI + "🚀 Ready to chat!" + colors.Reset
 	workingLine := colors.DimColor.ANSI + "📂 Working in: " + colors.Reset + colors.HeaderColor.ANSI + wd + colors.Reset
 
-	configLine := ""
-	if cv.configPath != "" {
-		configLine = "\n" + colors.DimColor.ANSI + "⚙️ Config: " + colors.Reset + colors.AccentColor.ANSI + cv.configPath + colors.Reset
-	}
+	configLine := cv.buildConfigLine()
 
-	content := headerLine + "\n" + readyLine + "\n" + workingLine + configLine
+	content := headerLine + "\n\n" + readyLine + "\n\n" + workingLine + "\n\n" + configLine
 
 	style := styles.NewCommonStyles().Border.
 		Border(styles.RoundedBorder(), true).
 		BorderForeground(colors.AccentColor.GetLipglossColor()).
-		Padding(0, 1)
+		Padding(1, 1)
 
 	return style.Render(content)
 }
@@ -199,7 +197,6 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 		color = colors.DimColor.ANSI
 		role = "⚙️ System"
 	case "tool":
-		// Determine tool color based on success/failure
 		if entry.ToolExecution != nil && !entry.ToolExecution.Success {
 			color = colors.ErrorColor.ANSI
 			role = "🔧 Tool"
@@ -276,7 +273,6 @@ func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry)
 
 func (cv *ConversationView) formatToolContentCompact(content string) string {
 	if cv.toolFormatter == nil {
-		// Fallback to original truncation logic
 		lines := strings.Split(content, "\n")
 		if len(lines) <= 3 {
 			return content
@@ -284,14 +280,12 @@ func (cv *ConversationView) formatToolContentCompact(content string) string {
 		return strings.Join(lines[:3], "\n") + "\n... (truncated)"
 	}
 
-	// Parse tool calls from content and format them properly
 	lines := strings.Split(content, "\n")
 	var result []string
 
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if toolCall := cv.parseToolCallFromLine(trimmed); toolCall != nil {
-			// Use the proper formatter for collapsed display
 			formattedCall := cv.toolFormatter.FormatToolCall(toolCall.Name, toolCall.Args)
 			result = append(result, "Tool: "+formattedCall)
 		} else {
@@ -299,7 +293,6 @@ func (cv *ConversationView) formatToolContentCompact(content string) string {
 		}
 	}
 
-	// Apply original truncation logic if needed
 	if len(result) <= 3 {
 		return strings.Join(result, "\n")
 	}
@@ -340,6 +333,46 @@ func (cv *ConversationView) parseToolCallFromLine(line string) *ToolCallInfo {
 		Name: toolName,
 		Args: args,
 	}
+}
+
+// buildConfigLine constructs the configuration line for the welcome screen
+func (cv *ConversationView) buildConfigLine() string {
+	if cv.configPath == "" {
+		return ""
+	}
+
+	configType := cv.getConfigType()
+	displayPath := cv.shortenPath(cv.configPath)
+
+	return colors.DimColor.ANSI + "⚙  Config: " + colors.Reset + colors.AccentColor.ANSI + displayPath + colors.Reset + colors.DimColor.ANSI + " (" + configType + ")" + colors.Reset
+}
+
+// getConfigType determines if the config is project-level or userspace
+func (cv *ConversationView) getConfigType() string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "project"
+	}
+
+	homePath := filepath.Join(homeDir, ".infer")
+	if strings.Contains(cv.configPath, homePath) {
+		return "userspace"
+	}
+	return "project"
+}
+
+// shortenPath shortens very long paths for display
+func (cv *ConversationView) shortenPath(path string) string {
+	if len(path) <= 50 {
+		return path
+	}
+
+	parts := strings.Split(path, string(filepath.Separator))
+	if len(parts) <= 2 {
+		return path
+	}
+
+	return "..." + string(filepath.Separator) + parts[len(parts)-2] + string(filepath.Separator) + parts[len(parts)-1]
 }
 
 // Bubble Tea interface

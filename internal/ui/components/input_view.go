@@ -28,7 +28,15 @@ type InputView struct {
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
-	historyManager, err := history.NewHistoryManager(5)
+	return NewInputViewWithConfigDir(modelService, "")
+}
+
+func NewInputViewWithConfigDir(modelService domain.ModelService, configDir string) *InputView {
+	if configDir == "" {
+		configDir = ".infer"
+	}
+
+	historyManager, err := history.NewHistoryManagerWithDir(5, configDir)
 	if err != nil {
 		historyManager = history.NewMemoryOnlyHistoryManager(5)
 	}
@@ -376,6 +384,14 @@ func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) str
 // IsAutocompleteVisible returns whether autocomplete is currently visible
 func (iv *InputView) IsAutocompleteVisible() bool {
 	return iv.Autocomplete != nil && iv.Autocomplete.IsVisible()
+}
+
+// TryHandleAutocomplete attempts to handle autocomplete key input
+func (iv *InputView) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string) {
+	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
+		return iv.Autocomplete.HandleKey(key)
+	}
+	return false, ""
 }
 
 // handlePaste handles clipboard paste operations

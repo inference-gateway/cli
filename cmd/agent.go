@@ -6,13 +6,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/container"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
+	uuid "github.com/google/uuid"
+	config "github.com/inference-gateway/cli/config"
+	container "github.com/inference-gateway/cli/internal/container"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
-	"github.com/spf13/cobra"
+	cobra "github.com/spf13/cobra"
 )
 
 var agentCmd = &cobra.Command{
@@ -28,7 +28,11 @@ Examples:
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		model, _ := cmd.Flags().GetString("model")
-		return runAgentCommand(args[0], model)
+		cfg, err := getConfigFromViper()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+		return RunAgentCommand(cfg, model, args[0])
 	},
 }
 
@@ -57,12 +61,7 @@ type AgentSession struct {
 	config         *config.Config
 }
 
-func runAgentCommand(taskDescription string, modelFlag string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
+func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string) error {
 	services := container.NewServiceContainer(cfg)
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)

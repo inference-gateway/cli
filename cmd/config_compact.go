@@ -3,10 +3,10 @@ package cmd
 import (
 	"fmt"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
-	"github.com/spf13/cobra"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	utils "github.com/inference-gateway/cli/internal/utils"
+	cobra "github.com/spf13/cobra"
 )
 
 var configCompactCmd = &cobra.Command{
@@ -31,7 +31,7 @@ Examples:
 		if len(args) > 0 {
 			modelName = args[0]
 		}
-		return setCompactModel(modelName)
+		return setCompactModel(cmd, modelName)
 	},
 }
 
@@ -40,7 +40,7 @@ var showCompactConfigCmd = &cobra.Command{
 	Short: "Show compact command configuration",
 	Long:  `Display current configuration for the compact command.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return showCompactConfig()
+		return showCompactConfig(cmd)
 	},
 }
 
@@ -49,15 +49,9 @@ func init() {
 	configCompactCmd.AddCommand(showCompactConfigCmd)
 }
 
-func setCompactModel(modelName string) error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
-	cfg.Compact.SummaryModel = modelName
-
-	if err := cfg.SaveConfig(""); err != nil {
+func setCompactModel(_ *cobra.Command, modelName string) error {
+	V.Set("compact.summary_model", modelName)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
 		return fmt.Errorf("failed to save config: %w", err)
 	}
 
@@ -70,20 +64,16 @@ func setCompactModel(modelName string) error {
 	return nil
 }
 
-func showCompactConfig() error {
-	cfg, err := config.LoadConfig("")
-	if err != nil {
-		return fmt.Errorf("failed to load config: %w", err)
-	}
-
+func showCompactConfig(_ *cobra.Command) error {
 	fmt.Println("Compact Command Configuration:")
 	fmt.Println("━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-	fmt.Printf("Output directory: %s\n", cfg.Compact.OutputDir)
+	fmt.Printf("Output directory: %s\n", V.GetString("compact.output_dir"))
 
-	if cfg.Compact.SummaryModel == "" {
-		fmt.Printf("Summary model: %s\n", "(uses current chat model)")
+	summaryModel := V.GetString("compact.summary_model")
+	if summaryModel == "" {
+		fmt.Printf("Summary model: %s\n", "not configured (uses current chat model)")
 	} else {
-		fmt.Printf("Summary model: %s\n", ui.FormatSuccess(cfg.Compact.SummaryModel))
+		fmt.Printf("Summary model: %s\n", ui.FormatSuccess(summaryModel))
 	}
 
 	fmt.Println("\n💡 Use 'infer config compact set-model [MODEL]' to change the summary model")

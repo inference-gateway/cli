@@ -95,6 +95,7 @@ func (r *Registry) Execute(ctx context.Context, name string, args []string) (Com
 }
 
 // ParseCommand parses a command line input into command name and arguments
+// Handles quoted strings properly
 func (r *Registry) ParseCommand(input string) (string, []string, error) {
 	input = strings.TrimSpace(input)
 	if !strings.HasPrefix(input, "/") {
@@ -103,7 +104,11 @@ func (r *Registry) ParseCommand(input string) (string, []string, error) {
 
 	input = input[1:]
 
-	parts := strings.Fields(input)
+	parts, err := parseCommandLine(input)
+	if err != nil {
+		return "", nil, err
+	}
+
 	if len(parts) == 0 {
 		return "", nil, fmt.Errorf("empty command")
 	}
@@ -112,6 +117,58 @@ func (r *Registry) ParseCommand(input string) (string, []string, error) {
 	args := parts[1:]
 
 	return command, args, nil
+}
+
+// parseCommandLine parses a command line string into arguments, handling quoted strings
+func parseCommandLine(input string) ([]string, error) {
+	var args []string
+	var current strings.Builder
+	inQuotes := false
+	quoteChar := byte(0)
+
+	for i := 0; i < len(input); i++ {
+		char := input[i]
+
+		switch {
+		case !inQuotes && (char == '"' || char == '\''):
+			inQuotes = true
+			quoteChar = char
+		case inQuotes && char == quoteChar:
+			inQuotes = false
+			quoteChar = 0
+		case !inQuotes && (char == ' ' || char == '\t'):
+			if current.Len() > 0 {
+				arg := current.String()
+				args = append(args, arg)
+				current.Reset()
+			}
+
+			for i+1 < len(input) && (input[i+1] == ' ' || input[i+1] == '\t') {
+				i++
+			}
+		case inQuotes && char == '\\' && i+1 < len(input):
+			next := input[i+1]
+			if next == quoteChar || next == '\\' {
+				current.WriteByte(next)
+				i++
+			} else {
+				current.WriteByte(char)
+			}
+		default:
+			current.WriteByte(char)
+		}
+	}
+
+	if current.Len() > 0 {
+		arg := current.String()
+		args = append(args, arg)
+	}
+
+	if inQuotes {
+		return nil, fmt.Errorf("unclosed quote in command")
+	}
+
+	return args, nil
 }
 
 // GetCommands returns a map of command names to descriptions

@@ -797,29 +797,24 @@ func (h *ChatHandler) handleCommand(
 	commandText string,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
-	command := strings.TrimSpace(strings.TrimPrefix(commandText, "/"))
-
-	if command == "" {
+	if h.commandRegistry == nil {
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
-				Error:  "No command provided. Use: /<command>",
+				Error:  "Command registry not available",
 				Sticky: false,
 			}
 		}
 	}
 
-	parts := strings.Fields(command)
-	if len(parts) == 0 {
+	mainCommand, args, err := h.commandRegistry.ParseCommand(commandText)
+	if err != nil {
 		return nil, func() tea.Msg {
 			return shared.ShowErrorMsg{
-				Error:  "Invalid command format",
+				Error:  fmt.Sprintf("Invalid command format: %v", err),
 				Sticky: false,
 			}
 		}
 	}
-
-	mainCommand := parts[0]
-	args := parts[1:]
 
 	return nil, h.executeCommand(mainCommand, args, stateManager)
 }
@@ -905,6 +900,42 @@ func (h *ChatHandler) executeRegistryCommand(cmd commands.Command, args []string
 		}
 	}
 
+	// If there's output, display it as a message (regardless of side effect for most commands)
+	if result.Output != "" {
+		// Add the command output as an assistant message to the conversation
+		assistantEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: result.Output,
+			},
+			Model: "", // Don't show model name for command results
+			Time:  time.Now(),
+		}
+
+		if addErr := h.conversationRepo.AddMessage(assistantEntry); addErr != nil {
+			logger.Error("failed to add command result message", "error", addErr)
+		}
+
+		// If no side effect, return UI update here
+		if result.SideEffect == commands.SideEffectNone {
+			return tea.Batch(
+				func() tea.Msg {
+					return shared.UpdateHistoryMsg{
+						History: h.conversationRepo.GetMessages(),
+					}
+				},
+				func() tea.Msg {
+					return shared.SetStatusMsg{
+						Message:    "Command completed",
+						Spinner:    false,
+						TokenUsage: h.getCurrentTokenUsage(),
+						StatusType: shared.StatusDefault,
+					}
+				},
+			)()
+		}
+	}
+
 	return h.handleCommandSideEffect(result.SideEffect, stateManager)
 }
 
@@ -917,6 +948,10 @@ func (h *ChatHandler) handleCommandSideEffect(sideEffect commands.SideEffectType
 		return h.handleClearConversationSideEffect()
 	case commands.SideEffectExportConversation:
 		return h.handleExportConversationSideEffect()
+	case commands.SideEffectReloadConfig:
+		return h.handleReloadConfigSideEffect()
+	case commands.SideEffectShowHelp:
+		return h.handleShowHelpSideEffect()
 	case commands.SideEffectExit:
 		return tea.Quit()
 	default:
@@ -1664,4 +1699,33 @@ func (h *ChatHandler) handleFileSelectionRequest(
 			Files: files,
 		}
 	}
+}
+
+// handleReloadConfigSideEffect handles config reload side effect
+func (h *ChatHandler) handleReloadConfigSideEffect() tea.Msg {
+	return shared.SetStatusMsg{
+		Message:    "Configuration reloaded successfully",
+		Spinner:    false,
+		TokenUsage: h.getCurrentTokenUsage(),
+		StatusType: shared.StatusDefault,
+	}
+}
+
+// handleShowHelpSideEffect handles help command side effect
+func (h *ChatHandler) handleShowHelpSideEffect() tea.Msg {
+	return tea.Batch(
+		func() tea.Msg {
+			return shared.UpdateHistoryMsg{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return shared.SetStatusMsg{
+				Message:    "Help displayed",
+				Spinner:    false,
+				TokenUsage: h.getCurrentTokenUsage(),
+				StatusType: shared.StatusDefault,
+			}
+		},
+	)()
 }

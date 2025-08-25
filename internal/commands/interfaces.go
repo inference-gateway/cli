@@ -31,4 +31,5 @@ const (
 	SideEffectExit
 	SideEffectSwitchModel
 	SideEffectShowHelp
+	SideEffectReloadConfig
 )

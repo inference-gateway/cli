@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -376,12 +377,12 @@ func getValidSecurityTests() []struct {
 			name:     "excluded path",
 			readUsed: true,
 			args: map[string]any{
-				"file_path":  ".infer/config.yaml",
+				"file_path":  config.DefaultConfigPath,
 				"old_string": "old",
 				"new_string": "new",
 			},
 			wantError:    true,
-			errorMessage: "access to path '.infer/config.yaml' is excluded for security",
+			errorMessage: fmt.Sprintf("access to path '%s' is excluded for security", config.DefaultConfigPath),
 		},
 		{
 			name:     "excluded pattern",

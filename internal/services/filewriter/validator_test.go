@@ -70,7 +70,7 @@ func TestPathValidator_Validate(t *testing.T) {
 		},
 		{
 			name:      "protected .infer directory",
-			path:      filepath.Join(tempDir, ".infer/config.yaml"),
+			path:      filepath.Join(tempDir, config.DefaultConfigPath),
 			wantError: true,
 			errorMsg:  "path is protected",
 		},

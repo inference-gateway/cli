@@ -38,6 +38,10 @@ func (s *HTTPModelService) ListModels(ctx context.Context) ([]string, error) {
 	}
 	s.modelsMux.RUnlock()
 
+	if s.client == nil {
+		return nil, fmt.Errorf("SDK client is not initialized")
+	}
+
 	resp, err := s.client.ListModels(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch models: %w", err)

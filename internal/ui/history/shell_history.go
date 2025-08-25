@@ -22,7 +22,12 @@ type ShellHistory struct {
 
 // NewShellHistory creates a new shell history provider
 func NewShellHistory() (*ShellHistory, error) {
-	historyFile := filepath.Join(".infer", "history")
+	return NewShellHistoryWithDir(".infer")
+}
+
+// NewShellHistoryWithDir creates a new shell history provider with a custom directory
+func NewShellHistoryWithDir(configDir string) (*ShellHistory, error) {
+	historyFile := filepath.Join(configDir, "history")
 
 	return &ShellHistory{
 		historyFile: historyFile,
