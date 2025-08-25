@@ -1,6 +1,7 @@
 # Configuration System
 
-The Inference Gateway CLI uses a powerful 2-layer configuration system built on [Viper](https://github.com/spf13/viper), supporting multiple configuration sources with proper precedence handling.
+The Inference Gateway CLI uses a powerful 2-layer configuration system built on
+[Viper](https://github.com/spf13/viper), supporting multiple configuration sources with proper precedence handling.
 
 ## Configuration Precedence
 
@@ -15,11 +16,13 @@ Configuration values are resolved in the following order (highest to lowest prio
 ## Configuration Locations
 
 ### Project-Level Configuration
+
 - **Path**: `.infer/config.yaml` (relative to your project directory)
 - **Purpose**: Project-specific settings that should be version-controlled
 - **Priority**: Higher than userspace config
 
-### Userspace Configuration  
+### Userspace Configuration
+
 - **Path**: `~/.infer/config.yaml` (user's home directory)
 - **Purpose**: Personal global settings that apply across all projects
 - **Priority**: Fallback when project config doesn't specify a value
@@ -193,11 +196,13 @@ This allows sensitive values to be stored as environment variables while keeping
 ## Best Practices
 
 ### Security
+
 - **Never commit sensitive data** (API keys, tokens) to configuration files
 - Use environment variable substitution (`%VAR_NAME%`) for sensitive values
 - Use environment variables (`INFER_*`) for CI/CD environments
 
 ### Organization
+
 - Use **project config** (`.infer/config.yaml`) for project-specific settings
 - Use **userspace config** (`~/.infer/config.yaml`) for personal preferences
 - Commit project configs to version control, exclude userspace configs
@@ -205,18 +210,21 @@ This allows sensitive values to be stored as environment variables while keeping
 ### Example Workflow
 
 1. **Setup userspace defaults**:
+
 ```bash
 infer config --userspace agent set-model "anthropic/claude-4.1"
 infer config --userspace agent set-system "You are a helpful assistant"
 ```
 
 2. **Project-specific overrides**:
+
 ```bash
 infer config agent set-model "deepseek/deepseek-chat"  # Project-specific model
 infer config tools bash enable  # Enable bash tools for this project
 ```
 
 3. **Runtime overrides**:
+
 ```bash
 INFER_AGENT_VERBOSE_TOOLS=true infer chat  # Temporary verbose mode
 ```
@@ -232,7 +240,8 @@ The CLI validates configuration on startup and provides helpful error messages:
 
 ## Migration from Legacy Config
 
-If you have an existing configuration, the CLI automatically migrates to the new Viper-based system while preserving all settings and maintaining backward compatibility.
+If you have an existing configuration, the CLI automatically migrates to the new Viper-based
+system while preserving all settings and maintaining backward compatibility.
 
 ## Troubleshooting
 
