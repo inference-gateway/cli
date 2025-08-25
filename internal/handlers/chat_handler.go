@@ -900,15 +900,13 @@ func (h *ChatHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args 
 		}
 	}
 
-	// If there's output, display it as a message (regardless of side effect for most commands)
 	if result.Output != "" {
-		// Add the shortcut output as an assistant message to the conversation
 		assistantEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
 				Content: result.Output,
 			},
-			Model: "", // Don't show model name for command results
+			Model: "",
 			Time:  time.Now(),
 		}
 
@@ -916,7 +914,6 @@ func (h *ChatHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args 
 			logger.Error("failed to add shortcut result message", "error", addErr)
 		}
 
-		// If no side effect, return UI update here
 		if result.SideEffect == shortcuts.SideEffectNone {
 			return tea.Batch(
 				func() tea.Msg {
@@ -926,7 +923,7 @@ func (h *ChatHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args 
 				},
 				func() tea.Msg {
 					return shared.SetStatusMsg{
-						Message:    "Command completed",
+						Message:    "Shortcut action completed",
 						Spinner:    false,
 						TokenUsage: h.getCurrentTokenUsage(),
 						StatusType: shared.StatusDefault,
@@ -958,7 +955,7 @@ func (h *ChatHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectTy
 		return h.handleGenerateCommitSideEffect(data, stateManager)
 	default:
 		return shared.SetStatusMsg{
-			Message:    "Command completed",
+			Message:    "Shortcut completed",
 			Spinner:    false,
 			TokenUsage: h.getCurrentTokenUsage(),
 			StatusType: shared.StatusDefault,
