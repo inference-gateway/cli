@@ -1,6 +1,7 @@
 # Conversation Storage
 
-The CLI now supports persistent conversation storage, allowing you to save, resume, and manage your chat sessions across different invocations.
+The CLI now supports persistent conversation storage, allowing you to save, resume, and manage your chat
+sessions across different invocations.
 
 ## Overview
 
@@ -25,12 +26,14 @@ storage:
 ```
 
 **Pros:**
+
 - No external dependencies
 - Fast local access
 - Automatic schema management
 - Perfect for single-user scenarios
 
 **Cons:**
+
 - Not suitable for multi-user environments
 - Limited concurrent access
 
@@ -51,12 +54,14 @@ storage:
 ```
 
 **Pros:**
+
 - Multi-user support
 - ACID compliance
 - Advanced indexing and search
 - JSON/JSONB support for metadata
 
 **Cons:**
+
 - Requires PostgreSQL server
 - More complex setup
 
@@ -77,12 +82,14 @@ storage:
 ```
 
 **Pros:**
+
 - Extremely fast access
 - Built-in expiration (TTL)
 - Scalable clustering support
 - Great for temporary conversations
 
 **Cons:**
+
 - Requires Redis server
 - Memory-based (can be expensive for large datasets)
 - Data loss risk if not properly configured for persistence
@@ -95,11 +102,11 @@ Add storage configuration to your `.infer/config.yaml`:
 # Storage configuration
 storage:
   type: sqlite  # sqlite, postgres, or redis
-  
+
   # SQLite configuration
   sqlite:
     path: ~/.infer/conversations.db
-  
+
   # PostgreSQL configuration (if type: postgres)
   postgres:
     host: localhost
@@ -108,7 +115,7 @@ storage:
     username: infer_user
     password: your_password
     ssl_mode: require
-  
+
   # Redis configuration (if type: redis)
   redis:
     host: localhost
@@ -155,7 +162,8 @@ List recent conversations:
 ```
 
 This shows:
-```
+
+```text
 ## Recent Conversations
 
 **1.** Planning the Q4 Product Roadmap
@@ -245,7 +253,7 @@ CREATE TABLE conversation_entries (
 
 ### Redis
 
-```
+```text
 # Conversation metadata
 conversation:{id} -> JSON metadata
 
@@ -286,14 +294,16 @@ conversations:index -> sorted set (score: timestamp, member: conversation_id)
 
 ### Common Issues
 
-**SQLite Permission Errors**
+#### SQLite Permission Errors
+
 ```bash
 # Ensure directory exists and is writable
 mkdir -p ~/.infer
 chmod 755 ~/.infer
 ```
 
-**PostgreSQL Connection Issues**
+#### PostgreSQL Connection Issues
+
 ```yaml
 # Check connection parameters
 storage:
@@ -304,7 +314,8 @@ storage:
     ssl_mode: disable  # Try without SSL first
 ```
 
-**Redis Connection Issues**
+#### Redis Connection Issues
+
 ```yaml
 # Verify Redis is running
 redis:
@@ -316,7 +327,8 @@ redis:
 
 ### Migration
 
-When switching storage backends, you'll need to export/import conversations manually. The CLI provides export functionality that can help with migration:
+When switching storage backends, you'll need to export/import conversations manually. The CLI provides export
+functionality that can help with migration:
 
 ```bash
 /compact  # Exports current conversation to markdown
@@ -328,11 +340,14 @@ When switching storage backends, you'll need to export/import conversations manu
 
 ```go
 type ConversationStorage interface {
-    SaveConversation(ctx context.Context, conversationID string, entries []domain.ConversationEntry, metadata ConversationMetadata) error
-    LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error)
+    SaveConversation(ctx context.Context, conversationID string,
+        entries []domain.ConversationEntry, metadata ConversationMetadata) error
+    LoadConversation(ctx context.Context, conversationID string) (
+        []domain.ConversationEntry, ConversationMetadata, error)
     ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error)
     DeleteConversation(ctx context.Context, conversationID string) error
-    UpdateConversationMetadata(ctx context.Context, conversationID string, metadata ConversationMetadata) error
+    UpdateConversationMetadata(ctx context.Context, conversationID string,
+        metadata ConversationMetadata) error
     Close() error
     Health(ctx context.Context) error
 }

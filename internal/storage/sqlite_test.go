@@ -13,11 +13,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSQLiteStorage(t *testing.T) {
+func setupTestStorage(t *testing.T) (*SQLiteStorage, func()) {
 	// Create temp directory for test database
 	tempDir, err := os.MkdirTemp("", "sqlite_test_*")
 	require.NoError(t, err)
-	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 
@@ -27,7 +26,18 @@ func TestSQLiteStorage(t *testing.T) {
 
 	storage, err := NewSQLiteStorage(config)
 	require.NoError(t, err)
-	defer func() { _ = storage.Close() }()
+
+	cleanup := func() {
+		_ = storage.Close()
+		_ = os.RemoveAll(tempDir)
+	}
+
+	return storage, cleanup
+}
+
+func TestSQLiteStorage_BasicOperations(t *testing.T) {
+	storage, cleanup := setupTestStorage(t)
+	defer cleanup()
 
 	ctx := context.Background()
 
@@ -103,6 +113,13 @@ func TestSQLiteStorage(t *testing.T) {
 		assert.Len(t, loadedEntries, len(entries))
 		assert.Equal(t, "Updated response", loadedEntries[len(loadedEntries)-1].Message.Content)
 	})
+}
+
+func TestSQLiteStorage_ConversationManagement(t *testing.T) {
+	storage, cleanup := setupTestStorage(t)
+	defer cleanup()
+
+	ctx := context.Background()
 
 	t.Run("List Conversations", func(t *testing.T) {
 		// Create multiple conversations
@@ -180,6 +197,13 @@ func TestSQLiteStorage(t *testing.T) {
 		assert.Equal(t, []string{"updated", "test"}, loadedMetadata.Tags)
 		assert.Equal(t, "Updated summary", loadedMetadata.Summary)
 	})
+}
+
+func TestSQLiteStorage_ErrorCases(t *testing.T) {
+	storage, cleanup := setupTestStorage(t)
+	defer cleanup()
+
+	ctx := context.Background()
 
 	t.Run("Load Non-existent Conversation", func(t *testing.T) {
 		_, _, err := storage.LoadConversation(ctx, "non-existent")

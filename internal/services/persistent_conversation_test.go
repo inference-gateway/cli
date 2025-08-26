@@ -14,11 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestPersistentConversationRepository(t *testing.T) {
-	// Create temp directory for test database
+func setupTestRepository(t *testing.T) (*PersistentConversationRepository, func()) {
 	tempDir, err := os.MkdirTemp("", "persistent_test_*")
 	require.NoError(t, err)
-	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 
@@ -28,12 +26,22 @@ func TestPersistentConversationRepository(t *testing.T) {
 
 	storageBackend, err := storage.NewSQLiteStorage(config)
 	require.NoError(t, err)
-	defer func() { _ = storageBackend.Close() }()
 
-	// Create repository with mock formatter service
-	formatterService := &ToolFormatterService{} // Using empty service for test
+	formatterService := &ToolFormatterService{}
 	repo := NewPersistentConversationRepository(formatterService, storageBackend)
-	defer func() { _ = repo.Close() }()
+
+	cleanup := func() {
+		_ = repo.Close()
+		_ = storageBackend.Close()
+		_ = os.RemoveAll(tempDir)
+	}
+
+	return repo, cleanup
+}
+
+func TestPersistentConversationRepository_BasicOperations(t *testing.T) {
+	repo, cleanup := setupTestRepository(t)
+	defer cleanup()
 
 	ctx := context.Background()
 
@@ -51,10 +59,8 @@ func TestPersistentConversationRepository(t *testing.T) {
 	})
 
 	t.Run("Add Messages and Auto Save", func(t *testing.T) {
-		// Disable auto-save for controlled testing
 		repo.SetAutoSave(false)
 
-		// Add a message
 		entry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -73,7 +79,6 @@ func TestPersistentConversationRepository(t *testing.T) {
 	t.Run("Save and Load Conversation", func(t *testing.T) {
 		conversationID := repo.GetCurrentConversationID()
 
-		// Add another message
 		entry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
@@ -86,16 +91,13 @@ func TestPersistentConversationRepository(t *testing.T) {
 		err := repo.AddMessage(entry)
 		assert.NoError(t, err)
 
-		// Save conversation
 		err = repo.SaveConversation(ctx)
 		assert.NoError(t, err)
 
-		// Clear current conversation and load it back
 		err = repo.Clear()
 		assert.NoError(t, err)
 		assert.Equal(t, 0, repo.GetMessageCount())
 
-		// Load conversation
 		err = repo.LoadConversation(ctx, conversationID)
 		assert.NoError(t, err)
 
@@ -107,9 +109,32 @@ func TestPersistentConversationRepository(t *testing.T) {
 		assert.Equal(t, "Hello, test!", messages[0].Message.Content)
 		assert.Equal(t, "Hello! How can I help you?", messages[1].Message.Content)
 	})
+}
+
+func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
+	repo, cleanup := setupTestRepository(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	err := repo.StartNewConversation("Test Conversation")
+	require.NoError(t, err)
+
+	entry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: "Initial message",
+		},
+		Time:  time.Now(),
+		Model: "claude-3",
+	}
+	err = repo.AddMessage(entry)
+	require.NoError(t, err)
+
+	err = repo.SaveConversation(ctx)
+	require.NoError(t, err)
 
 	t.Run("List Saved Conversations", func(t *testing.T) {
-		// Create another conversation
 		err := repo.StartNewConversation("Another Test")
 		assert.NoError(t, err)
 
@@ -127,12 +152,10 @@ func TestPersistentConversationRepository(t *testing.T) {
 		err = repo.SaveConversation(ctx)
 		assert.NoError(t, err)
 
-		// List conversations
 		conversations, err := repo.ListSavedConversations(ctx, 10, 0)
 		assert.NoError(t, err)
 		assert.GreaterOrEqual(t, len(conversations), 2)
 
-		// Find our conversations
 		titles := make([]string, len(conversations))
 		for i, conv := range conversations {
 			titles[i] = conv.Title
@@ -144,7 +167,6 @@ func TestPersistentConversationRepository(t *testing.T) {
 	t.Run("Update Conversation Title and Tags", func(t *testing.T) {
 		originalTitle := repo.GetCurrentConversationMetadata().Title
 
-		// Update title and tags
 		repo.SetConversationTitle("Updated Title")
 		repo.SetConversationTags([]string{"test", "updated"})
 
@@ -152,13 +174,11 @@ func TestPersistentConversationRepository(t *testing.T) {
 		assert.Equal(t, "Updated Title", metadata.Title)
 		assert.Equal(t, []string{"test", "updated"}, metadata.Tags)
 
-		// Save and verify persistence
 		err := repo.SaveConversation(ctx)
 		assert.NoError(t, err)
 
 		conversationID := repo.GetCurrentConversationID()
 
-		// Clear and reload
 		err = repo.Clear()
 		assert.NoError(t, err)
 
@@ -171,8 +191,26 @@ func TestPersistentConversationRepository(t *testing.T) {
 		assert.NotEqual(t, originalTitle, metadata.Title)
 	})
 
+	t.Run("Delete Saved Conversation", func(t *testing.T) {
+		conversationID := repo.GetCurrentConversationID()
+
+		err := repo.DeleteSavedConversation(ctx, conversationID)
+		assert.NoError(t, err)
+
+		err = repo.LoadConversation(ctx, conversationID)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "conversation not found")
+	})
+}
+
+func TestPersistentConversationRepository_TokenTracking(t *testing.T) {
+	repo, cleanup := setupTestRepository(t)
+	defer cleanup()
+
+	err := repo.StartNewConversation("Token Test")
+	require.NoError(t, err)
+
 	t.Run("Token Usage Tracking", func(t *testing.T) {
-		// Add token usage
 		err := repo.AddTokenUsage(50, 75, 125)
 		assert.NoError(t, err)
 
@@ -182,7 +220,6 @@ func TestPersistentConversationRepository(t *testing.T) {
 		assert.Equal(t, 125, stats.TotalTokens)
 		assert.Equal(t, 1, stats.RequestCount)
 
-		// Add more usage
 		err = repo.AddTokenUsage(30, 45, 75)
 		assert.NoError(t, err)
 
@@ -192,33 +229,24 @@ func TestPersistentConversationRepository(t *testing.T) {
 		assert.Equal(t, 200, stats.TotalTokens)
 		assert.Equal(t, 2, stats.RequestCount)
 
-		// Verify metadata reflects the stats
 		metadata := repo.GetCurrentConversationMetadata()
 		assert.Equal(t, stats, metadata.TokenStats)
 	})
+}
 
-	t.Run("Delete Saved Conversation", func(t *testing.T) {
-		conversationID := repo.GetCurrentConversationID()
+func TestPersistentConversationRepository_AutoSave(t *testing.T) {
+	repo, cleanup := setupTestRepository(t)
+	defer cleanup()
 
-		// Delete conversation
-		err := repo.DeleteSavedConversation(ctx, conversationID)
-		assert.NoError(t, err)
-
-		// Try to load deleted conversation
-		err = repo.LoadConversation(ctx, conversationID)
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "conversation not found")
-	})
+	ctx := context.Background()
 
 	t.Run("Auto Save Functionality", func(t *testing.T) {
-		// Start new conversation with auto-save enabled
 		repo.SetAutoSave(true)
 		err := repo.StartNewConversation("Auto Save Test")
 		assert.NoError(t, err)
 
 		conversationID := repo.GetCurrentConversationID()
 
-		// Add a message (should trigger auto-save)
 		entry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
@@ -231,10 +259,8 @@ func TestPersistentConversationRepository(t *testing.T) {
 		err = repo.AddMessage(entry)
 		assert.NoError(t, err)
 
-		// Give auto-save goroutine time to complete
 		time.Sleep(100 * time.Millisecond)
 
-		// Clear and reload to verify auto-save worked
 		err = repo.Clear()
 		assert.NoError(t, err)
 
@@ -245,6 +271,13 @@ func TestPersistentConversationRepository(t *testing.T) {
 		assert.Len(t, messages, 1)
 		assert.Equal(t, "Auto save message", messages[0].Message.Content)
 	})
+}
+
+func TestPersistentConversationRepository_ErrorCases(t *testing.T) {
+	repo, cleanup := setupTestRepository(t)
+	defer cleanup()
+
+	ctx := context.Background()
 
 	t.Run("Load Non-existent Conversation", func(t *testing.T) {
 		err := repo.LoadConversation(ctx, "non-existent-id")
@@ -253,11 +286,9 @@ func TestPersistentConversationRepository(t *testing.T) {
 	})
 
 	t.Run("Save Without Active Conversation", func(t *testing.T) {
-		// Clear conversation
 		err := repo.Clear()
 		assert.NoError(t, err)
 
-		// Try to save without active conversation
 		err = repo.SaveConversation(ctx)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "no active conversation to save")

@@ -27,7 +27,7 @@ func NewPersistentConversationRepository(formatterService *ToolFormatterService,
 	return &PersistentConversationRepository{
 		InMemoryConversationRepository: inMemory,
 		storage:                        storageBackend,
-		conversationID:                 "", // Will be set when starting a new conversation
+		conversationID:                 "",
 		autoSave:                       true,
 		metadata: storage.ConversationMetadata{
 			Title:        "New Conversation",
@@ -42,10 +42,8 @@ func NewPersistentConversationRepository(formatterService *ToolFormatterService,
 
 // StartNewConversation begins a new conversation with a unique ID
 func (r *PersistentConversationRepository) StartNewConversation(title string) error {
-	// Generate unique conversation ID
 	r.conversationID = uuid.New().String()
 
-	// Initialize metadata
 	now := time.Now()
 	r.metadata = storage.ConversationMetadata{
 		ID:           r.conversationID,
@@ -57,7 +55,6 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 		Tags:         []string{},
 	}
 
-	// Clear in-memory conversation
 	return r.InMemoryConversationRepository.Clear()
 }
 
@@ -68,23 +65,19 @@ func (r *PersistentConversationRepository) LoadConversation(ctx context.Context,
 		return fmt.Errorf("failed to load conversation %s: %w", conversationID, err)
 	}
 
-	// Clear current conversation
 	if err := r.InMemoryConversationRepository.Clear(); err != nil {
 		return fmt.Errorf("failed to clear current conversation: %w", err)
 	}
 
-	// Load entries into in-memory storage
 	for _, entry := range entries {
 		if err := r.InMemoryConversationRepository.AddMessage(entry); err != nil {
 			return fmt.Errorf("failed to add message to in-memory storage: %w", err)
 		}
 	}
 
-	// Update current conversation metadata
 	r.conversationID = conversationID
 	r.metadata = metadata
 
-	// Restore session stats
 	r.sessionStats = metadata.TokenStats
 
 	return nil
@@ -98,7 +91,6 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 
 	entries := r.GetMessages()
 
-	// Update metadata
 	r.metadata.UpdatedAt = time.Now()
 	r.metadata.MessageCount = len(entries)
 	r.metadata.TokenStats = r.GetSessionTokens()
@@ -135,7 +127,6 @@ func (r *PersistentConversationRepository) GetCurrentConversationID() string {
 
 // GetCurrentConversationMetadata returns the current conversation metadata
 func (r *PersistentConversationRepository) GetCurrentConversationMetadata() storage.ConversationMetadata {
-	// Update real-time stats
 	r.metadata.MessageCount = r.GetMessageCount()
 	r.metadata.TokenStats = r.GetSessionTokens()
 	return r.metadata
@@ -153,14 +144,11 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 	}
 
 	if r.autoSave && r.conversationID != "" {
-		// Auto-save in background to avoid blocking
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
 			if err := r.SaveConversation(ctx); err != nil {
-				// Log error but don't fail the operation
-				// In a real implementation, you might want to use a proper logger
 				fmt.Printf("Warning: failed to auto-save conversation: %v\n", err)
 			}
 		}()
@@ -175,7 +163,6 @@ func (r *PersistentConversationRepository) Clear() error {
 		return err
 	}
 
-	// Reset conversation state
 	r.conversationID = ""
 	now := time.Now()
 	r.metadata = storage.ConversationMetadata{
@@ -197,7 +184,6 @@ func (r *PersistentConversationRepository) AddTokenUsage(inputTokens, outputToke
 	}
 
 	if r.autoSave && r.conversationID != "" {
-		// Auto-save in background
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
