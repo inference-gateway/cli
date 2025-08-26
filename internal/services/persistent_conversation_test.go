@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/storage"
+	"github.com/inference-gateway/cli/internal/infra/storage"
 	sdk "github.com/inference-gateway/sdk"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

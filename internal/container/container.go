@@ -8,12 +8,13 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriterdomain "github.com/inference-gateway/cli/internal/domain/filewriter"
+	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	storage "github.com/inference-gateway/cli/internal/storage"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
 	viper "github.com/spf13/viper"
@@ -179,7 +180,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 
 	if c.config.Storage.Enabled && c.config.Storage.Type != "memory" {
 		if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
-			adapter := NewPersistentConversationAdapter(persistentRepo)
+			adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
 			c.shortcutRegistry.Register(shortcuts.NewSaveShortcut(adapter))
 			c.shortcutRegistry.Register(shortcuts.NewResumeShortcut(adapter))
 			c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(adapter))

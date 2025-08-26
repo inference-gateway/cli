@@ -8,7 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/logger"
-	"github.com/inference-gateway/cli/internal/storage"
+	"github.com/inference-gateway/cli/internal/infra/storage"
 )
 
 // PersistentConversationRepository wraps the InMemoryConversationRepository

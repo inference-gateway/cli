@@ -170,8 +170,8 @@ func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID str
 
 	// Load conversation entries
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT entry_data FROM conversation_entries 
-		WHERE conversation_id = ? 
+		SELECT entry_data FROM conversation_entries
+		WHERE conversation_id = ?
 		ORDER BY sequence_number ASC
 	`, conversationID)
 	if err != nil {
@@ -201,8 +201,8 @@ func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID str
 func (s *SQLiteStorage) ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, title, created_at, updated_at, message_count, model, tags, summary, token_stats
-		FROM conversations 
-		ORDER BY updated_at DESC 
+		FROM conversations
+		ORDER BY updated_at DESC
 		LIMIT ? OFFSET ?
 	`, limit, offset)
 	if err != nil {
@@ -270,7 +270,7 @@ func (s *SQLiteStorage) UpdateConversationMetadata(ctx context.Context, conversa
 	}
 
 	result, err := s.db.ExecContext(ctx, `
-		UPDATE conversations 
+		UPDATE conversations
 		SET title = ?, updated_at = ?, model = ?, tags = ?, summary = ?, token_stats = ?
 		WHERE id = ?
 	`, metadata.Title, metadata.UpdatedAt, metadata.Model, string(tagsJSON), metadata.Summary, string(tokenStatsJSON), conversationID)

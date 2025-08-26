@@ -1,13 +1,13 @@
 package app
 
 import (
-	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
+	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -19,83 +19,6 @@ import (
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
-
-// persistentConversationAdapter adapts services.PersistentConversationRepository to shortcuts.PersistentConversationRepository
-type persistentConversationAdapter struct {
-	repo *services.PersistentConversationRepository
-}
-
-func newPersistentConversationAdapter(repo *services.PersistentConversationRepository) *persistentConversationAdapter {
-	return &persistentConversationAdapter{repo: repo}
-}
-
-func (a *persistentConversationAdapter) ListSavedConversations(ctx context.Context, limit, offset int) ([]shortcuts.ConversationSummary, error) {
-	storageConversations, err := a.repo.ListSavedConversations(ctx, limit, offset)
-	if err != nil {
-		return nil, err
-	}
-
-	result := make([]shortcuts.ConversationSummary, len(storageConversations))
-	for i, conv := range storageConversations {
-		result[i] = shortcuts.ConversationSummary{
-			ID:           conv.ID,
-			Title:        conv.Title,
-			CreatedAt:    conv.CreatedAt.Format("2006-01-02 15:04:05"),
-			UpdatedAt:    conv.UpdatedAt.Format("2006-01-02 15:04:05"),
-			MessageCount: conv.MessageCount,
-			TokenStats: shortcuts.TokenStats{
-				TotalInputTokens:  conv.TokenStats.TotalInputTokens,
-				TotalOutputTokens: conv.TokenStats.TotalOutputTokens,
-				TotalTokens:       conv.TokenStats.TotalTokens,
-				RequestCount:      conv.TokenStats.RequestCount,
-			},
-			Model:   conv.Model,
-			Tags:    conv.Tags,
-			Summary: conv.Summary,
-		}
-	}
-	return result, nil
-}
-
-func (a *persistentConversationAdapter) LoadConversation(ctx context.Context, conversationID string) error {
-	return a.repo.LoadConversation(ctx, conversationID)
-}
-
-func (a *persistentConversationAdapter) GetCurrentConversationMetadata() shortcuts.ConversationMetadata {
-	metadata := a.repo.GetCurrentConversationMetadata()
-	return shortcuts.ConversationMetadata{
-		ID:           metadata.ID,
-		Title:        metadata.Title,
-		CreatedAt:    metadata.CreatedAt.Format("2006-01-02 15:04:05"),
-		UpdatedAt:    metadata.UpdatedAt.Format("2006-01-02 15:04:05"),
-		MessageCount: metadata.MessageCount,
-		TokenStats: shortcuts.TokenStats{
-			TotalInputTokens:  metadata.TokenStats.TotalInputTokens,
-			TotalOutputTokens: metadata.TokenStats.TotalOutputTokens,
-			TotalTokens:       metadata.TokenStats.TotalTokens,
-			RequestCount:      metadata.TokenStats.RequestCount,
-		},
-		Model:   metadata.Model,
-		Tags:    metadata.Tags,
-		Summary: metadata.Summary,
-	}
-}
-
-func (a *persistentConversationAdapter) SaveConversation(ctx context.Context) error {
-	return a.repo.SaveConversation(ctx)
-}
-
-func (a *persistentConversationAdapter) StartNewConversation(title string) error {
-	return a.repo.StartNewConversation(title)
-}
-
-func (a *persistentConversationAdapter) GetCurrentConversationID() string {
-	return a.repo.GetCurrentConversationID()
-}
-
-func (a *persistentConversationAdapter) SetConversationTitle(title string) {
-	a.repo.SetConversationTitle(title)
-}
 
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
@@ -214,8 +137,7 @@ func NewChatApplication(
 	app.modelSelector = components.NewModelSelector(models, app.modelService, app.theme)
 
 	if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
-		// Create adapter to bridge between different interfaces
-		adapter := newPersistentConversationAdapter(persistentRepo)
+		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
 		app.conversationSelector = components.NewConversationSelector(adapter, app.theme)
 	} else {
 		app.conversationSelector = nil

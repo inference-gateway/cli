@@ -172,8 +172,8 @@ func (s *PostgresStorage) LoadConversation(ctx context.Context, conversationID s
 
 	// Load conversation entries
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT entry_data FROM conversation_entries 
-		WHERE conversation_id = $1 
+		SELECT entry_data FROM conversation_entries
+		WHERE conversation_id = $1
 		ORDER BY sequence_number ASC
 	`, conversationID)
 	if err != nil {
@@ -203,8 +203,8 @@ func (s *PostgresStorage) LoadConversation(ctx context.Context, conversationID s
 func (s *PostgresStorage) ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, title, created_at, updated_at, message_count, model, tags, summary, token_stats
-		FROM conversations 
-		ORDER BY updated_at DESC 
+		FROM conversations
+		ORDER BY updated_at DESC
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
 	if err != nil {
@@ -272,7 +272,7 @@ func (s *PostgresStorage) UpdateConversationMetadata(ctx context.Context, conver
 	}
 
 	result, err := s.db.ExecContext(ctx, `
-		UPDATE conversations 
+		UPDATE conversations
 		SET title = $1, updated_at = $2, model = $3, tags = $4, summary = $5, token_stats = $6
 		WHERE id = $7
 	`, metadata.Title, metadata.UpdatedAt, metadata.Model, string(tagsJSON), metadata.Summary, string(tokenStatsJSON), conversationID)
