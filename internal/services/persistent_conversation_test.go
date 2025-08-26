@@ -18,7 +18,7 @@ func TestPersistentConversationRepository(t *testing.T) {
 	// Create temp directory for test database
 	tempDir, err := os.MkdirTemp("", "persistent_test_*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 
@@ -28,12 +28,12 @@ func TestPersistentConversationRepository(t *testing.T) {
 
 	storageBackend, err := storage.NewSQLiteStorage(config)
 	require.NoError(t, err)
-	defer storageBackend.Close()
+	defer func() { _ = storageBackend.Close() }()
 
 	// Create repository with mock formatter service
 	formatterService := &ToolFormatterService{} // Using empty service for test
 	repo := NewPersistentConversationRepository(formatterService, storageBackend)
-	defer repo.Close()
+	defer func() { _ = repo.Close() }()
 
 	ctx := context.Background()
 

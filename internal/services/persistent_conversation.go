@@ -85,7 +85,7 @@ func (r *PersistentConversationRepository) LoadConversation(ctx context.Context,
 	r.metadata = metadata
 
 	// Restore session stats
-	r.InMemoryConversationRepository.sessionStats = metadata.TokenStats
+	r.sessionStats = metadata.TokenStats
 
 	return nil
 }
@@ -96,12 +96,12 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 		return fmt.Errorf("no active conversation to save")
 	}
 
-	entries := r.InMemoryConversationRepository.GetMessages()
+	entries := r.GetMessages()
 
 	// Update metadata
 	r.metadata.UpdatedAt = time.Now()
 	r.metadata.MessageCount = len(entries)
-	r.metadata.TokenStats = r.InMemoryConversationRepository.GetSessionTokens()
+	r.metadata.TokenStats = r.GetSessionTokens()
 
 	return r.storage.SaveConversation(ctx, r.conversationID, entries, r.metadata)
 }
@@ -136,8 +136,8 @@ func (r *PersistentConversationRepository) GetCurrentConversationID() string {
 // GetCurrentConversationMetadata returns the current conversation metadata
 func (r *PersistentConversationRepository) GetCurrentConversationMetadata() storage.ConversationMetadata {
 	// Update real-time stats
-	r.metadata.MessageCount = r.InMemoryConversationRepository.GetMessageCount()
-	r.metadata.TokenStats = r.InMemoryConversationRepository.GetSessionTokens()
+	r.metadata.MessageCount = r.GetMessageCount()
+	r.metadata.TokenStats = r.GetSessionTokens()
 	return r.metadata
 }
 

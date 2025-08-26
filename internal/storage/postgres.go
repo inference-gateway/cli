@@ -31,14 +31,14 @@ func NewPostgresStorage(config PostgresConfig) (*PostgresStorage, error) {
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to ping PostgreSQL: %w", err)
 	}
 
 	storage := &PostgresStorage{db: db}
 
 	if err := storage.createTables(ctx); err != nil {
-		db.Close()
+		_ = db.Close()
 		return nil, fmt.Errorf("failed to create tables: %w", err)
 	}
 
@@ -86,7 +86,7 @@ func (s *PostgresStorage) SaveConversation(ctx context.Context, conversationID s
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Serialize metadata
 	tokenStatsJSON, err := json.Marshal(metadata.TokenStats)
@@ -179,7 +179,7 @@ func (s *PostgresStorage) LoadConversation(ctx context.Context, conversationID s
 	if err != nil {
 		return nil, metadata, fmt.Errorf("failed to query entries: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var entries []domain.ConversationEntry
 	for rows.Next() {
@@ -210,7 +210,7 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, limit, offset i
 	if err != nil {
 		return nil, fmt.Errorf("failed to query conversations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var summaries []ConversationSummary
 	for rows.Next() {

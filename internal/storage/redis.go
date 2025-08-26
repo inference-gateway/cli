@@ -202,17 +202,7 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 			return nil, fmt.Errorf("failed to unmarshal metadata for conversation %s: %w", conversationIDs[i], err)
 		}
 
-		summary := ConversationSummary{
-			ID:           metadata.ID,
-			Title:        metadata.Title,
-			CreatedAt:    metadata.CreatedAt,
-			UpdatedAt:    metadata.UpdatedAt,
-			MessageCount: metadata.MessageCount,
-			TokenStats:   metadata.TokenStats,
-			Model:        metadata.Model,
-			Tags:         metadata.Tags,
-			Summary:      metadata.Summary,
-		}
+		summary := ConversationSummary(metadata)
 
 		summaries = append(summaries, summary)
 	}
@@ -306,12 +296,12 @@ func (s *RedisStorage) Close() error {
 // Health checks if Redis is reachable and functional
 func (s *RedisStorage) Health(ctx context.Context) error {
 	if s.client == nil {
-		return fmt.Errorf("Redis client is nil")
+		return fmt.Errorf("redis client is nil")
 	}
 
 	// Ping Redis
 	if err := s.client.Ping(ctx).Err(); err != nil {
-		return fmt.Errorf("Redis ping failed: %w", err)
+		return fmt.Errorf("redis ping failed: %w", err)
 	}
 
 	// Test basic operations
@@ -320,17 +310,17 @@ func (s *RedisStorage) Health(ctx context.Context) error {
 
 	// Set a test value
 	if err := s.client.Set(ctx, testKey, testValue, time.Second*10).Err(); err != nil {
-		return fmt.Errorf("Redis set test failed: %w", err)
+		return fmt.Errorf("redis set test failed: %w", err)
 	}
 
 	// Get the test value
 	result, err := s.client.Get(ctx, testKey).Result()
 	if err != nil {
-		return fmt.Errorf("Redis get test failed: %w", err)
+		return fmt.Errorf("redis get test failed: %w", err)
 	}
 
 	if result != testValue {
-		return fmt.Errorf("Redis test value mismatch: expected %s, got %s", testValue, result)
+		return fmt.Errorf("redis test value mismatch: expected %s, got %s", testValue, result)
 	}
 
 	// Clean up test key

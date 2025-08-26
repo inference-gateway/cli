@@ -17,7 +17,7 @@ func TestSQLiteStorage(t *testing.T) {
 	// Create temp directory for test database
 	tempDir, err := os.MkdirTemp("", "sqlite_test_*")
 	require.NoError(t, err)
-	defer os.RemoveAll(tempDir)
+	defer func() { _ = os.RemoveAll(tempDir) }()
 
 	dbPath := filepath.Join(tempDir, "test.db")
 
@@ -27,7 +27,7 @@ func TestSQLiteStorage(t *testing.T) {
 
 	storage, err := NewSQLiteStorage(config)
 	require.NoError(t, err)
-	defer storage.Close()
+	defer func() { _ = storage.Close() }()
 
 	ctx := context.Background()
 
