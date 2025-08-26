@@ -106,7 +106,6 @@ func (t *TreeTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 		maxFiles = int(maxFilesFloat)
 	}
 
-
 	showHidden := false
 	if showHiddenArg, ok := args["show_hidden"].(bool); ok {
 		showHidden = showHiddenArg
@@ -186,7 +185,6 @@ func (t *TreeTool) Validate(args map[string]any) error {
 		}
 	}
 
-
 	if showHidden, ok := args["show_hidden"]; ok {
 		if _, ok := showHidden.(bool); !ok {
 			return fmt.Errorf("show_hidden must be a boolean")
@@ -219,16 +217,16 @@ func (t *TreeTool) IsEnabled() bool {
 
 // TreeResult represents the internal result of a tree operation
 type TreeResult struct {
-	Path            string   `json:"path"`
-	Output          string   `json:"output"`
-	TotalFiles      int      `json:"total_files"`
-	TotalDirs       int      `json:"total_dirs"`
-	MaxDepth        int      `json:"max_depth"`
-	MaxFiles        int      `json:"max_files"`
-	ShowHidden      bool     `json:"show_hidden"`
-	Format          string   `json:"format"`
-	UsingNativeTree bool     `json:"using_native_tree"`
-	Truncated       bool     `json:"truncated"`
+	Path            string `json:"path"`
+	Output          string `json:"output"`
+	TotalFiles      int    `json:"total_files"`
+	TotalDirs       int    `json:"total_dirs"`
+	MaxDepth        int    `json:"max_depth"`
+	MaxFiles        int    `json:"max_files"`
+	ShowHidden      bool   `json:"show_hidden"`
+	Format          string `json:"format"`
+	UsingNativeTree bool   `json:"using_native_tree"`
+	Truncated       bool   `json:"truncated"`
 }
 
 // executeTree performs the tree operation
@@ -499,7 +497,6 @@ func (t *TreeTool) getOrLoadDirGitignore(dirPath string) *ignore.GitIgnore {
 	return nil
 }
 
-
 // FormatResult formats tool execution results for different contexts
 func (t *TreeTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
 	switch formatType {
@@ -606,7 +603,6 @@ func (t *TreeTool) formatTreeData(data any) string {
 	output.WriteString(fmt.Sprintf("Show Hidden: %t\n", treeResult.ShowHidden))
 	output.WriteString(fmt.Sprintf("Using Native Tree: %t\n", treeResult.UsingNativeTree))
 	output.WriteString(fmt.Sprintf("Truncated: %t\n", treeResult.Truncated))
-
 
 	if treeResult.Output != "" {
 		output.WriteString(fmt.Sprintf("\nTree Output:\n%s\n", treeResult.Output))

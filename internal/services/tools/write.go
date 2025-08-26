@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/charmbracelet/lipgloss"
@@ -53,10 +52,6 @@ var (
 			Foreground(lipgloss.Color("11")).
 			Bold(true)
 
-	appendedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("14")).
-			Bold(true)
-
 	// Metric styles
 	metricStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("6"))
@@ -95,53 +90,24 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 // Definition returns the tool definition for the LLM
 func (t *WriteTool) Definition() domain.ToolDefinition {
 	return domain.ToolDefinition{
-		Name:        ToolName,
-		Description: "Write content to a file on the filesystem. Supports append mode and chunked writing for large files. Creates parent directories if needed.",
+		Name: ToolName,
+		Description: `Writes a file to the local filesystem.
+Usage:
+- This tool will overwrite the existing file if there is one at the provided path.
+- If this is an existing file, you MUST use the Read tool first to read the file's contents. This tool will fail if you did not read the file first.
+- ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
+- NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
+- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.`,
 		Parameters: map[string]any{
 			"type": "object",
 			"properties": map[string]any{
 				"file_path": map[string]any{
 					"type":        "string",
-					"description": "The path to the file to write",
+					"description": "The absolute path to the file to write (must be absolute, not relative)",
 				},
 				"content": map[string]any{
 					"type":        "string",
 					"description": "The content to write to the file",
-				},
-				"append": map[string]any{
-					"type":        "boolean",
-					"description": "Whether to append to the file (true) or overwrite it (false)",
-					"default":     false,
-				},
-				"overwrite": map[string]any{
-					"type":        "boolean",
-					"description": "Whether to overwrite existing files",
-					"default":     true,
-				},
-				"backup": map[string]any{
-					"type":        "boolean",
-					"description": "Whether to create a backup of existing files before overwriting",
-					"default":     false,
-				},
-				"chunk_index": map[string]any{
-					"type":        "integer",
-					"description": "The index of this chunk (0-based). Use for ordered chunks in large file writing.",
-					"minimum":     0,
-				},
-				"total_chunks": map[string]any{
-					"type":        "integer",
-					"description": "The total number of chunks expected. Required when using chunk_index.",
-					"minimum":     1,
-				},
-				"session_id": map[string]any{
-					"type":        "string",
-					"description": "Session ID for chunked operations to group related chunks together.",
-				},
-				"format": map[string]any{
-					"type":        "string",
-					"description": "Output format (text or json)",
-					"enum":        []string{DefaultFormat, JSONFormat},
-					"default":     DefaultFormat,
 				},
 			},
 			"required": []string{"file_path", "content"},
@@ -174,17 +140,9 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]any) (*domain.T
 		}, nil
 	}
 
+	result := t.executeWrite(ctx, params, args, start)
+
 	format := t.extractFormat(args)
-
-	var result *domain.ToolExecutionResult
-	if params.IsChunked {
-		result = t.executeChunked(ctx, params, args, start)
-	} else if params.Append {
-		result = t.executeAppend(ctx, params, args, start)
-	} else {
-		result = t.executeWrite(ctx, params, args, start)
-	}
-
 	if format == JSONFormat {
 		result = t.formatAsJSON(result)
 	}
@@ -240,7 +198,6 @@ func (t *WriteTool) FormatPreview(result *domain.ToolExecutionResult) string {
 		return successStyle.Render("Write operation completed successfully")
 	}
 
-	// Format based on the actual result
 	if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
 		fileName := pathStyle.Render(t.formatter.GetFileName(writeResult.FilePath))
 		bytes := metricStyle.Render(fmt.Sprintf("%d bytes", writeResult.BytesWritten))
@@ -248,9 +205,6 @@ func (t *WriteTool) FormatPreview(result *domain.ToolExecutionResult) string {
 		if writeResult.Created {
 			return fmt.Sprintf("%s %s (%s)",
 				createdStyle.Render("Created"), fileName, bytes)
-		} else if writeResult.Appended {
-			return fmt.Sprintf("%s %s (%s)",
-				appendedStyle.Render("Appended to"), fileName, bytes)
 		} else {
 			return fmt.Sprintf("%s %s (%s)",
 				updatedStyle.Render("Updated"), fileName, bytes)
@@ -285,9 +239,6 @@ func (t *WriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 		if writeResult.Created {
 			statusText = "Created"
 			statusStyle = createdStyle
-		} else if writeResult.Appended {
-			statusText = "Appended to"
-			statusStyle = appendedStyle
 		} else {
 			statusText = "Updated"
 			statusStyle = updatedStyle
@@ -327,8 +278,6 @@ func (t *WriteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 		action := "updated"
 		if writeResult.Created {
 			action = "created"
-		} else if writeResult.Appended {
-			action = "appended to"
 		}
 
 		return fmt.Sprintf("Successfully %s file %s (%d bytes written, %d lines)",
@@ -371,109 +320,8 @@ func (t *WriteTool) executeWrite(ctx context.Context, params *WriteParams, args 
 		BytesWritten: writeResult.BytesWritten,
 		LinesWritten: countNewLines(params.Content),
 		Created:      writeResult.Created,
-		Overwritten:  !writeResult.Created && params.Overwrite,
+		Overwritten:  !writeResult.Created,
 		IsComplete:   true,
-	}
-
-	return &domain.ToolExecutionResult{
-		ToolName:  ToolName,
-		Arguments: args,
-		Success:   true,
-		Duration:  time.Since(start),
-		Data:      domainResult,
-	}
-}
-
-// executeAppend handles append operations
-func (t *WriteTool) executeAppend(ctx context.Context, params *WriteParams, args map[string]any, start time.Time) *domain.ToolExecutionResult {
-	existingContent := ""
-	if _, err := os.Stat(params.FilePath); err == nil {
-		if data, err := os.ReadFile(params.FilePath); err == nil {
-			existingContent = string(data)
-		}
-	}
-
-	combinedContent := existingContent + params.Content
-
-	writeReq := filewriter.WriteRequest{
-		Path:      params.FilePath,
-		Content:   combinedContent,
-		Overwrite: true,
-		Backup:    params.Backup,
-	}
-
-	writeResult, err := t.writer.Write(ctx, writeReq)
-	if err != nil {
-		return &domain.ToolExecutionResult{
-			ToolName:  ToolName,
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     err.Error(),
-		}
-	}
-
-	domainResult := &domain.FileWriteToolResult{
-		FilePath:     writeResult.Path,
-		BytesWritten: int64(len(params.Content)),
-		LinesWritten: countNewLines(params.Content),
-		Created:      writeResult.Created,
-		Appended:     true,
-		IsComplete:   true,
-	}
-
-	return &domain.ToolExecutionResult{
-		ToolName:  ToolName,
-		Arguments: args,
-		Success:   true,
-		Duration:  time.Since(start),
-		Data:      domainResult,
-	}
-}
-
-// executeChunked handles chunked write operations
-func (t *WriteTool) executeChunked(ctx context.Context, params *WriteParams, args map[string]any, start time.Time) *domain.ToolExecutionResult {
-	chunkReq := t.extractor.ToChunkWriteRequest(params)
-
-	if err := t.chunks.WriteChunk(ctx, chunkReq); err != nil {
-		return &domain.ToolExecutionResult{
-			ToolName:  "Write",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     err.Error(),
-		}
-	}
-
-	isComplete := chunkReq.IsLast
-
-	var writeResult *filewriter.WriteResult
-	if isComplete {
-		var err error
-		writeResult, err = t.chunks.FinalizeChunks(ctx, params.SessionID, params.FilePath)
-		if err != nil {
-			return &domain.ToolExecutionResult{
-				ToolName:  "Write",
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(start),
-				Error:     err.Error(),
-			}
-		}
-	}
-
-	domainResult := &domain.FileWriteToolResult{
-		BytesWritten: int64(len(params.Content)),
-		LinesWritten: countNewLines(params.Content),
-		IsComplete:   isComplete,
-		ChunkIndex:   params.ChunkIndex,
-		TotalChunks:  params.TotalChunks,
-	}
-
-	if writeResult != nil {
-		domainResult.FilePath = writeResult.Path
-		domainResult.Created = writeResult.Created
-		domainResult.BytesWritten = writeResult.BytesWritten
 	}
 
 	return &domain.ToolExecutionResult{
