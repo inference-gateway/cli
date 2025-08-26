@@ -180,8 +180,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	if c.config.Storage.Enabled && c.config.Storage.Type != "memory" {
 		if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
 			adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
-			c.shortcutRegistry.Register(shortcuts.NewSaveShortcut(adapter))
-			c.shortcutRegistry.Register(shortcuts.NewResumeShortcut(adapter))
 			c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(adapter))
 			logger.Info("registered persistent conversation shortcuts")
 		} else {

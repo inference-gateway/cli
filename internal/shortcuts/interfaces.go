@@ -33,7 +33,52 @@ const (
 	SideEffectShowHelp
 	SideEffectReloadConfig
 	SideEffectGenerateCommit
-	SideEffectResumeConversation
 	SideEffectSaveConversation
 	SideEffectShowConversationSelection
 )
+
+// PersistentConversationRepository interface for conversation persistence
+type PersistentConversationRepository interface {
+	ListSavedConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error)
+	LoadConversation(ctx context.Context, conversationID string) error
+	GetCurrentConversationMetadata() ConversationMetadata
+	SaveConversation(ctx context.Context) error
+	StartNewConversation(title string) error
+	GetCurrentConversationID() string
+	SetConversationTitle(title string)
+	DeleteSavedConversation(ctx context.Context, conversationID string) error
+}
+
+// ConversationSummary represents a saved conversation summary
+type ConversationSummary struct {
+	ID           string
+	Title        string
+	CreatedAt    string
+	UpdatedAt    string
+	MessageCount int
+	TokenStats   TokenStats
+	Model        string
+	Tags         []string
+	Summary      string
+}
+
+// ConversationMetadata represents conversation metadata
+type ConversationMetadata struct {
+	ID           string
+	Title        string
+	CreatedAt    string
+	UpdatedAt    string
+	MessageCount int
+	TokenStats   TokenStats
+	Model        string
+	Tags         []string
+	Summary      string
+}
+
+// TokenStats represents token usage statistics
+type TokenStats struct {
+	TotalInputTokens  int
+	TotalOutputTokens int
+	TotalTokens       int
+	RequestCount      int
+}

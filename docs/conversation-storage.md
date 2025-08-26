@@ -9,8 +9,7 @@ persistent storage using SQLite, PostgreSQL, or Redis.
 The conversation storage system provides:
 
 - **Configurable Storage**: Choose between in-memory (default), SQLite, PostgreSQL, or Redis
-- **Resume Functionality**: Continue previous conversations using `/resume` (when persistent storage is enabled)
-- **Conversation Management**: List, save, and delete conversations
+- **Conversation Management**: List, save, load, and delete conversations using `/conversations`
 - **Unified Interface**: Consistent API across all storage backends
 
 ## Storage Backends
@@ -198,9 +197,7 @@ Save your current conversation:
 List recent conversations:
 
 ```bash
-/resume
-# or
-/resume list
+/conversations
 ```
 
 This shows:
@@ -222,11 +219,8 @@ This shows:
 Resume by number or ID:
 
 ```bash
-# Resume by number (from the list)
-/resume 1
-
-# Resume by conversation ID
-/resume a1b2c3d4-e5f6-7890-abcd-ef1234567890
+# Use /conversations to select and load a conversation interactively
+/conversations
 ```
 
 ### Managing Conversations
@@ -234,8 +228,8 @@ Resume by number or ID:
 Delete a conversation:
 
 ```bash
-# Note: This requires direct access to storage
-# Use the conversation ID from /resume list
+# Use /conversations to select a conversation and press 'd' to delete it
+/conversations
 ```
 
 ## Data Structure

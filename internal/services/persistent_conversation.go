@@ -3,12 +3,14 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/google/uuid"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/infra/storage"
-	"github.com/inference-gateway/cli/internal/logger"
+	uuid "github.com/google/uuid"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // PersistentConversationRepository wraps the InMemoryConversationRepository
@@ -138,14 +140,44 @@ func (r *PersistentConversationRepository) SetAutoSave(enabled bool) {
 	r.autoSave = enabled
 }
 
+// generateTitleFromMessage creates a short title from message content
+func generateTitleFromMessage(content string) string {
+	content = strings.TrimSpace(content)
+
+	words := strings.Fields(content)
+
+	if len(words) == 0 {
+		return "New Conversation"
+	}
+
+	maxWords := 10
+	if len(words) < maxWords {
+		maxWords = len(words)
+	}
+
+	title := strings.Join(words[:maxWords], " ")
+
+	if len(title) > 80 {
+		title = title[:77] + "..."
+	}
+
+	return title
+}
+
 // Override AddMessage to trigger auto-save
 func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEntry) error {
 	if r.autoSave && r.conversationID == "" {
 		r.conversationID = uuid.New().String()
 		now := time.Now()
+
+		title := "New Conversation"
+		if msg.Message.Role == sdk.User {
+			title = generateTitleFromMessage(msg.Message.Content)
+		}
+
 		r.metadata = storage.ConversationMetadata{
 			ID:           r.conversationID,
-			Title:        "Auto-saved Conversation",
+			Title:        title,
 			CreatedAt:    now,
 			UpdatedAt:    now,
 			MessageCount: 0,
@@ -197,9 +229,19 @@ func (r *PersistentConversationRepository) AddTokenUsage(inputTokens, outputToke
 	if r.autoSave && r.conversationID == "" {
 		r.conversationID = uuid.New().String()
 		now := time.Now()
+
+		title := "New Conversation"
+		messages := r.GetMessages()
+		for _, entry := range messages {
+			if entry.Message.Role == sdk.User {
+				title = generateTitleFromMessage(entry.Message.Content)
+				break
+			}
+		}
+
 		r.metadata = storage.ConversationMetadata{
 			ID:           r.conversationID,
-			Title:        "Auto-saved Conversation",
+			Title:        title,
 			CreatedAt:    now,
 			UpdatedAt:    now,
 			MessageCount: 0,

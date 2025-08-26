@@ -120,6 +120,10 @@ func (m *mockPersistentConversationRepository) GetCurrentConversationID() string
 func (m *mockPersistentConversationRepository) SetConversationTitle(title string) {
 }
 
+func (m *mockPersistentConversationRepository) DeleteSavedConversation(ctx context.Context, conversationID string) error {
+	return nil
+}
+
 // Mock theme for testing
 type mockTheme struct{}
 

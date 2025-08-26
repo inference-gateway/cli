@@ -92,3 +92,8 @@ func (a *PersistentConversationAdapter) GetCurrentConversationID() string {
 func (a *PersistentConversationAdapter) SetConversationTitle(title string) {
 	a.repo.SetConversationTitle(title)
 }
+
+// DeleteSavedConversation delegates to the underlying repository
+func (a *PersistentConversationAdapter) DeleteSavedConversation(ctx context.Context, conversationID string) error {
+	return a.repo.DeleteSavedConversation(ctx, conversationID)
+}

@@ -958,8 +958,6 @@ func (h *ChatHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectTy
 		return tea.Quit()
 	case shortcuts.SideEffectGenerateCommit:
 		return h.handleGenerateCommitSideEffect(data, stateManager)
-	case shortcuts.SideEffectResumeConversation:
-		return h.handleResumeConversationSideEffect()
 	case shortcuts.SideEffectSaveConversation:
 		return h.handleSaveConversationSideEffect()
 	case shortcuts.SideEffectShowConversationSelection:
@@ -1861,25 +1859,6 @@ func (h *ChatHandler) performCommitGeneration(data any, _ *services.StateManager
 			},
 		)()
 	}
-}
-
-// handleResumeConversationSideEffect handles conversation resume side effect
-func (h *ChatHandler) handleResumeConversationSideEffect() tea.Msg {
-	return tea.Batch(
-		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
-				History: h.conversationRepo.GetMessages(),
-			}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Conversation resumed and loaded",
-				Spinner:    false,
-				TokenUsage: h.getCurrentTokenUsage(),
-				StatusType: domain.StatusDefault,
-			}
-		},
-	)()
 }
 
 // handleSaveConversationSideEffect handles conversation save side effect

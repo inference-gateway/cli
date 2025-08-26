@@ -29,6 +29,8 @@ type ConversationSelectorImpl struct {
 	searchMode            bool
 	loading               bool
 	loadError             error
+	confirmDelete         bool
+	deleteError           error
 }
 
 // NewConversationSelector creates a new conversation selector
@@ -125,6 +127,10 @@ func (c *ConversationSelectorImpl) handleWindowResize(msg tea.WindowSizeMsg) (te
 }
 
 func (c *ConversationSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if c.confirmDelete {
+		return c.handleDeleteConfirmation(msg)
+	}
+
 	switch msg.String() {
 	case "ctrl+c", "esc":
 		if c.searchMode {
@@ -137,6 +143,11 @@ func (c *ConversationSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, te
 		return c.handleNavigationDown()
 	case "enter", " ":
 		return c.handleSelection()
+	case "d", "delete":
+		if !c.searchMode && len(c.filteredConversations) > 0 {
+			return c.handleDeleteRequest()
+		}
+		return c, nil
 	case "/":
 		if !c.searchMode {
 			return c.handleSearchToggle()
@@ -226,6 +237,14 @@ func (c *ConversationSelectorImpl) View() string {
 		return c.writeErrorView(&b)
 	}
 
+	if c.confirmDelete {
+		return c.writeDeleteConfirmation(&b)
+	}
+
+	if c.deleteError != nil {
+		c.writeDeleteError(&b)
+	}
+
 	c.writeSearchInfo(&b)
 
 	if len(c.filteredConversations) == 0 {
@@ -255,6 +274,65 @@ func (c *ConversationSelectorImpl) filterConversations() {
 			c.filteredConversations = append(c.filteredConversations, conv)
 		}
 	}
+}
+
+func (c *ConversationSelectorImpl) handleDeleteRequest() (tea.Model, tea.Cmd) {
+	if len(c.filteredConversations) == 0 || c.selected >= len(c.filteredConversations) {
+		return c, nil
+	}
+
+	c.confirmDelete = true
+	c.deleteError = nil
+	return c, nil
+}
+
+func (c *ConversationSelectorImpl) handleDeleteConfirmation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	switch msg.String() {
+	case "y", "Y":
+		return c.performDelete()
+	case "n", "N", "esc":
+		c.confirmDelete = false
+		c.deleteError = nil
+		return c, nil
+	default:
+		return c, nil
+	}
+}
+
+func (c *ConversationSelectorImpl) performDelete() (tea.Model, tea.Cmd) {
+	if c.selected >= len(c.filteredConversations) {
+		c.confirmDelete = false
+		return c, nil
+	}
+
+	conv := c.filteredConversations[c.selected]
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := c.repo.DeleteSavedConversation(ctx, conv.ID); err != nil {
+		c.deleteError = err
+		c.confirmDelete = false
+		logger.Error("Failed to delete conversation", "error", err, "id", conv.ID)
+		return c, nil
+	}
+
+	for i, origConv := range c.conversations {
+		if origConv.ID == conv.ID {
+			c.conversations = append(c.conversations[:i], c.conversations[i+1:]...)
+			break
+		}
+	}
+
+	c.filteredConversations = append(c.filteredConversations[:c.selected], c.filteredConversations[c.selected+1:]...)
+
+	if c.selected >= len(c.filteredConversations) && c.selected > 0 {
+		c.selected--
+	}
+
+	c.confirmDelete = false
+	c.deleteError = nil
+	return c, nil
 }
 
 // IsSelected returns true if a conversation was selected
@@ -300,7 +378,7 @@ func (c *ConversationSelectorImpl) Reset() {
 
 // writeHeader writes the header section of the view
 func (c *ConversationSelectorImpl) writeHeader(b *strings.Builder) {
-	fmt.Fprintf(b, "%s💬 Select a Conversation%s\n\n",
+	fmt.Fprintf(b, "%sSelect a Conversation%s\n\n",
 		c.theme.GetAccentColor(), colors.Reset)
 }
 
@@ -361,7 +439,7 @@ func (c *ConversationSelectorImpl) writeConversationList(b *strings.Builder) {
 
 // writeTableHeader writes the table header
 func (c *ConversationSelectorImpl) writeTableHeader(b *strings.Builder) {
-	fmt.Fprintf(b, "%s%-8s │ %-30s │ %-16s │ %-8s%s\n",
+	fmt.Fprintf(b, "%s%-22s │ %-40s │ %-20s │ %-10s%s\n",
 		c.theme.GetDimColor(), "ID", "Summary", "Updated", "Messages", colors.Reset)
 	fmt.Fprintf(b, "%s%s%s\n",
 		c.theme.GetDimColor(), strings.Repeat("─", c.width-4), colors.Reset)
@@ -399,16 +477,16 @@ func (c *ConversationSelectorImpl) calculatePagination() paginationInfo {
 
 // writeConversationRow writes a single conversation row
 func (c *ConversationSelectorImpl) writeConversationRow(b *strings.Builder, conv shortcuts.ConversationSummary, index int) {
-	shortID := c.truncateString(conv.ID, 8)
-	summary := c.truncateString(conv.Title, 30)
+	shortID := c.truncateString(conv.ID, 20)
+	summary := c.truncateString(conv.Title, 40)
 	updatedAt := c.formatUpdatedAt(conv.UpdatedAt)
 	msgCount := fmt.Sprintf("%d", conv.MessageCount)
 
 	if index == c.selected {
-		fmt.Fprintf(b, "%s▶ %-6s │ %-30s │ %-16s │ %-8s%s\n",
+		fmt.Fprintf(b, "%s▶ %-20s │ %-40s │ %-20s │ %-10s%s\n",
 			c.theme.GetAccentColor(), shortID, summary, updatedAt, msgCount, colors.Reset)
 	} else {
-		fmt.Fprintf(b, "  %-6s │ %-30s │ %-16s │ %-8s\n",
+		fmt.Fprintf(b, "  %-20s │ %-40s │ %-20s │ %-10s\n",
 			shortID, summary, updatedAt, msgCount)
 	}
 }
@@ -426,13 +504,13 @@ func (c *ConversationSelectorImpl) truncateString(s string, maxLen int) string {
 
 // formatUpdatedAt formats the updatedAt timestamp
 func (c *ConversationSelectorImpl) formatUpdatedAt(updatedAt string) string {
-	if len(updatedAt) <= 16 {
+	if len(updatedAt) <= 20 {
 		return updatedAt
 	}
 
 	formatted := c.formatDateTimeParts(updatedAt)
-	if len(formatted) > 16 {
-		formatted = formatted[:16]
+	if len(formatted) > 20 {
+		formatted = formatted[:20]
 	}
 	return formatted
 }
@@ -473,7 +551,41 @@ func (c *ConversationSelectorImpl) writeFooter(b *strings.Builder) {
 		fmt.Fprintf(b, "%sType to search, ↑↓ to navigate, Enter to select, Esc to clear search%s",
 			c.theme.GetDimColor(), colors.Reset)
 	} else {
-		fmt.Fprintf(b, "%sUse ↑↓ arrows to navigate, Enter to select, / to search, Esc/Ctrl+C to cancel%s",
+		fmt.Fprintf(b, "%sUse ↑↓ arrows to navigate, Enter to select, d to delete, / to search, Esc/Ctrl+C to cancel%s",
 			c.theme.GetDimColor(), colors.Reset)
 	}
+}
+
+// writeDeleteConfirmation writes the delete confirmation dialog
+func (c *ConversationSelectorImpl) writeDeleteConfirmation(b *strings.Builder) string {
+	if c.selected >= len(c.filteredConversations) {
+		return b.String()
+	}
+
+	conv := c.filteredConversations[c.selected]
+
+	c.writeSearchInfo(b)
+	c.writeConversationList(b)
+
+	b.WriteString("\n")
+	b.WriteString(colors.CreateSeparator(c.width, "─"))
+	b.WriteString("\n\n")
+
+	fmt.Fprintf(b, "%s⚠ Delete Confirmation%s\n\n",
+		c.theme.GetErrorColor(), colors.Reset)
+
+	fmt.Fprintf(b, "Are you sure you want to delete this conversation?\n\n")
+	fmt.Fprintf(b, "%sID: %s%s\n", c.theme.GetDimColor(), conv.ID, colors.Reset)
+	fmt.Fprintf(b, "%sTitle: %s%s\n\n", c.theme.GetDimColor(), conv.Title, colors.Reset)
+
+	fmt.Fprintf(b, "%sPress Y to confirm, N or Esc to cancel%s",
+		c.theme.GetAccentColor(), colors.Reset)
+
+	return b.String()
+}
+
+// writeDeleteError writes the delete error message
+func (c *ConversationSelectorImpl) writeDeleteError(b *strings.Builder) {
+	fmt.Fprintf(b, "%sError deleting conversation: %v%s\n\n",
+		c.theme.GetErrorColor(), c.deleteError, colors.Reset)
 }

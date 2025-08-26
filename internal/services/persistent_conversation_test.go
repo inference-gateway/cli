@@ -39,6 +39,52 @@ func setupTestRepository(t *testing.T) (*PersistentConversationRepository, func(
 	return repo, cleanup
 }
 
+func TestGenerateTitleFromMessage(t *testing.T) {
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "Empty message",
+			input:    "",
+			expected: "New Conversation",
+		},
+		{
+			name:     "Short message",
+			input:    "Hello world",
+			expected: "Hello world",
+		},
+		{
+			name:     "10 word message",
+			input:    "This is a test message with exactly ten words here",
+			expected: "This is a test message with exactly ten words here",
+		},
+		{
+			name:     "Long message gets truncated to 10 words",
+			input:    "This is a very long message that contains more than ten words so it should be truncated",
+			expected: "This is a very long message that contains more than",
+		},
+		{
+			name:     "Message with extra spaces",
+			input:    "   Hello    world   with    spaces   ",
+			expected: "Hello world with spaces",
+		},
+		{
+			name:     "Very long single word",
+			input:    "ThisIsAVeryLongSingleWordThatExceedsTheCharacterLimitAndShouldBeTruncatedWithEllipsis1234567890",
+			expected: "ThisIsAVeryLongSingleWordThatExceedsTheCharacterLimitAndShouldBeTruncatedWith...",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := generateTitleFromMessage(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 func TestPersistentConversationRepository_BasicOperations(t *testing.T) {
 	repo, cleanup := setupTestRepository(t)
 	defer cleanup()
@@ -108,6 +154,31 @@ func TestPersistentConversationRepository_BasicOperations(t *testing.T) {
 		assert.Len(t, messages, 2)
 		assert.Equal(t, "Hello, test!", messages[0].Message.Content)
 		assert.Equal(t, "Hello! How can I help you?", messages[1].Message.Content)
+	})
+}
+
+func TestPersistentConversationRepository_AutoSaveTitle(t *testing.T) {
+	repo, cleanup := setupTestRepository(t)
+	defer cleanup()
+
+	t.Run("Auto-save with user message creates title from content", func(t *testing.T) {
+		repo.SetAutoSave(true)
+
+		entry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: "How do I implement a binary search tree in Go?",
+			},
+			Time:  time.Now(),
+			Model: "claude-3",
+		}
+		err := repo.AddMessage(entry)
+		assert.NoError(t, err)
+
+		time.Sleep(100 * time.Millisecond)
+
+		metadata := repo.GetCurrentConversationMetadata()
+		assert.Equal(t, "How do I implement a binary search tree in Go?", metadata.Title)
 	})
 }
 
@@ -296,7 +367,7 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 		assert.NotEmpty(t, conversationID)
 
 		metadata := newRepo.GetCurrentConversationMetadata()
-		assert.Equal(t, "Auto-saved Conversation", metadata.Title)
+		assert.Equal(t, "First message that should auto-start conversation", metadata.Title)
 
 		messageCount := newRepo.GetMessageCount()
 		assert.Equal(t, 1, messageCount, "Message should be added to in-memory store")
