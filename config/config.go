@@ -22,14 +22,14 @@ const (
 
 // Config represents the CLI configuration
 type Config struct {
-	Gateway GatewayConfig  `yaml:"gateway" mapstructure:"gateway"`
-	Client  ClientConfig   `yaml:"client" mapstructure:"client"`
-	Logging LoggingConfig  `yaml:"logging" mapstructure:"logging"`
-	Tools   ToolsConfig    `yaml:"tools" mapstructure:"tools"`
-	Compact CompactConfig  `yaml:"compact" mapstructure:"compact"`
-	Agent   AgentConfig    `yaml:"agent" mapstructure:"agent"`
-	Git     GitConfig      `yaml:"git" mapstructure:"git"`
-	Storage StorageConfig  `yaml:"storage" mapstructure:"storage"`
+	Gateway GatewayConfig `yaml:"gateway" mapstructure:"gateway"`
+	Client  ClientConfig  `yaml:"client" mapstructure:"client"`
+	Logging LoggingConfig `yaml:"logging" mapstructure:"logging"`
+	Tools   ToolsConfig   `yaml:"tools" mapstructure:"tools"`
+	Compact CompactConfig `yaml:"compact" mapstructure:"compact"`
+	Agent   AgentConfig   `yaml:"agent" mapstructure:"agent"`
+	Git     GitConfig     `yaml:"git" mapstructure:"git"`
+	Storage StorageConfig `yaml:"storage" mapstructure:"storage"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -242,11 +242,11 @@ type FetchCacheConfig struct {
 
 // StorageConfig contains storage backend configuration
 type StorageConfig struct {
-	Enabled  bool                `yaml:"enabled" mapstructure:"enabled"`
-	Type     string              `yaml:"type" mapstructure:"type"` // "memory", "sqlite", "postgres", "redis"
-	SQLite   SQLiteStorageConfig `yaml:"sqlite,omitempty" mapstructure:"sqlite,omitempty"`
+	Enabled  bool                  `yaml:"enabled" mapstructure:"enabled"`
+	Type     string                `yaml:"type" mapstructure:"type"` // "memory", "sqlite", "postgres", "redis"
+	SQLite   SQLiteStorageConfig   `yaml:"sqlite,omitempty" mapstructure:"sqlite,omitempty"`
 	Postgres PostgresStorageConfig `yaml:"postgres,omitempty" mapstructure:"postgres,omitempty"`
-	Redis    RedisStorageConfig  `yaml:"redis,omitempty" mapstructure:"redis,omitempty"`
+	Redis    RedisStorageConfig    `yaml:"redis,omitempty" mapstructure:"redis,omitempty"`
 }
 
 // SQLiteStorageConfig contains SQLite-specific configuration

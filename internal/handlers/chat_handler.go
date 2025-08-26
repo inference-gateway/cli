@@ -1791,7 +1791,6 @@ func (h *ChatHandler) performCommitGeneration(data any, _ *services.StateManager
 			}
 		}
 
-		// Handle unified GitShortcut
 		var result string
 		var err error
 
@@ -1898,7 +1897,6 @@ func (h *ChatHandler) handleConversationSelected(
 	msg domain.ConversationSelectedEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
-	// Check if we have persistent conversation repository
 	persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository)
 	if !ok {
 		return nil, func() tea.Msg {
@@ -1909,7 +1907,6 @@ func (h *ChatHandler) handleConversationSelected(
 		}
 	}
 
-	// Load the selected conversation
 	ctx := context.Background()
 	if err := persistentRepo.LoadConversation(ctx, msg.ConversationID); err != nil {
 		return nil, func() tea.Msg {
@@ -1920,7 +1917,6 @@ func (h *ChatHandler) handleConversationSelected(
 		}
 	}
 
-	// Return the same response as the resume shortcut to update UI
 	return nil, tea.Batch(
 		func() tea.Msg {
 			return domain.UpdateHistoryEvent{
@@ -1942,25 +1938,22 @@ func (h *ChatHandler) handleConversationSelected(
 
 // handleShowConversationSelectionSideEffect handles showing conversation selection dropdown
 func (h *ChatHandler) handleShowConversationSelectionSideEffect(stateManager *services.StateManager) tea.Msg {
-	// Transition to conversation selection view
+	logger.Debug("handleShowConversationSelectionSideEffect called")
+
 	if err := stateManager.TransitionToView(domain.ViewStateConversationSelection); err != nil {
+		logger.Error("Failed to transition to conversation selection view", "error", err)
 		return domain.ShowErrorEvent{
 			Error:  fmt.Sprintf("Failed to show conversation selection: %v", err),
 			Sticky: false,
 		}
 	}
 
-	return tea.Batch(
-		func() tea.Msg {
-			return domain.InitializeConversationSelectionEvent{}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Select a conversation from the dropdown",
-				Spinner:    false,
-				TokenUsage: h.getCurrentTokenUsage(),
-				StatusType: domain.StatusDefault,
-			}
-		},
-	)
+	logger.Debug("Successfully transitioned to conversation selection view")
+
+	return domain.SetStatusEvent{
+		Message:    "Select a conversation from the dropdown",
+		Spinner:    false,
+		TokenUsage: h.getCurrentTokenUsage(),
+		StatusType: domain.StatusDefault,
+	}
 }

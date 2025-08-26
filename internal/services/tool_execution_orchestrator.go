@@ -74,7 +74,6 @@ func (t ToolExecutionStatus) String() string {
 	}
 }
 
-
 // NewToolExecutionOrchestrator creates a new tool execution orchestrator
 func NewToolExecutionOrchestrator(
 	stateManager *StateManager,

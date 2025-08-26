@@ -508,7 +508,6 @@ type StatusProgress struct {
 	Total   int
 }
 
-
 // UIEvent interface for all UI-related events
 type UIEvent interface {
 	GetType() UIEventType

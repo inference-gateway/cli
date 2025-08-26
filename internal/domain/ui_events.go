@@ -120,7 +120,6 @@ type ApprovalResponseEvent struct {
 
 func (e ApprovalResponseEvent) GetType() UIEventType { return UIEventApprovalResponse }
 
-
 // ScrollRequestEvent requests scrolling in a component
 type ScrollRequestEvent struct {
 	ComponentID string

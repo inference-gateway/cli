@@ -7,9 +7,9 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
-	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
+	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
@@ -416,10 +416,13 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 		return cmds
 	}
 
-	if _, ok := msg.(domain.InitializeConversationSelectionEvent); ok {
+	// Auto-reset if selector is in completed state (reuse scenario)
+	if app.conversationSelector.IsSelected() && !app.conversationSelector.IsCancelled() {
+		app.conversationSelector.Reset()
 		if cmd := app.conversationSelector.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+		// Don't process the current message after reset, return early
 		return cmds
 	}
 

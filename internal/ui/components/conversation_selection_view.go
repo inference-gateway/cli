@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/shortcuts"
 	"github.com/inference-gateway/cli/internal/ui/shared"
 	"github.com/inference-gateway/cli/internal/ui/styles/colors"
@@ -58,6 +59,8 @@ func (c *ConversationSelectorImpl) loadConversationsCmd() tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
+		time.Sleep(10 * time.Millisecond)
+
 		conversations, err := c.repo.ListSavedConversations(ctx, 50, 0)
 
 		interfaceConversations := make([]interface{}, len(conversations))
@@ -79,6 +82,10 @@ func (c *ConversationSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		return c.handleWindowResize(msg)
 	case tea.KeyMsg:
+		// Don't handle key input while loading
+		if c.loading {
+			return c, nil
+		}
 		return c.handleKeyInput(msg)
 	}
 
@@ -104,6 +111,8 @@ func (c *ConversationSelectorImpl) handleConversationsLoaded(msg domain.Conversa
 		if len(c.filteredConversations) > 0 {
 			c.selected = 0
 		}
+	} else {
+		logger.Error("ConversationSelector failed to load conversations", "error", msg.Error)
 	}
 
 	return c, nil
@@ -250,7 +259,7 @@ func (c *ConversationSelectorImpl) filterConversations() {
 
 // IsSelected returns true if a conversation was selected
 func (c *ConversationSelectorImpl) IsSelected() bool {
-	return c.done && !c.cancelled
+	return c.done && !c.cancelled && !c.loading && len(c.filteredConversations) > 0
 }
 
 // IsCancelled returns true if selection was cancelled
@@ -274,6 +283,19 @@ func (c *ConversationSelectorImpl) SetWidth(width int) {
 // SetHeight sets the height of the conversation selector
 func (c *ConversationSelectorImpl) SetHeight(height int) {
 	c.height = height
+}
+
+// Reset resets the conversation selector state for reuse
+func (c *ConversationSelectorImpl) Reset() {
+	c.done = false
+	c.cancelled = false
+	c.selected = 0
+	c.searchQuery = ""
+	c.searchMode = false
+	c.loading = true
+	c.loadError = nil
+	c.conversations = make([]shortcuts.ConversationSummary, 0)
+	c.filteredConversations = make([]shortcuts.ConversationSummary, 0)
 }
 
 // writeHeader writes the header section of the view
