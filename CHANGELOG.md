@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.45.0](https://github.com/inference-gateway/cli/compare/v0.44.2...v0.45.0) (2025-08-26)
+
+### 🚀 Features
+
+* Add conversation storage interface with SQLite, Redis, and PostgreSQL support ([#128](https://github.com/inference-gateway/cli/issues/128)) ([1d42cdf](https://github.com/inference-gateway/cli/commit/1d42cdf8db7a9c72e93b75d99516c25a3fef07ac)), closes [#124](https://github.com/inference-gateway/cli/issues/124)
+
 ## [0.44.2](https://github.com/inference-gateway/cli/compare/v0.44.1...v0.44.2) (2025-08-26)
 
 ### ♻️ Code Refactoring
