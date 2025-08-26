@@ -203,17 +203,18 @@ List recent conversations:
 This shows:
 
 ```text
-## Recent Conversations
+Select a Conversation
 
-**1.** Planning the Q4 Product Roadmap
-   📅 Jan 15, 2024 2:30 PM • 💬 12 messages • 🔤 1,245 tokens
-   🤖 claude-3 • 🏷️ planning, roadmap
-   📋 ID: `a1b2c3d4-e5f6-7890-abcd-ef1234567890`
+Press / to search • 4 conversations available
 
-**2.** Discussion about API Design
-   📅 Jan 14, 2024 4:15 PM • 💬 8 messages • 🔤 892 tokens
-   🤖 claude-3 • 🏷️ api, design
-   📋 ID: `b2c3d4e5-f6g7-8901-bcde-f23456789012`
+ID                     │ Summary                                  │ Updated              │ Messages
+─────────────────────────────────────────────────────────────────────────────────────────────────────
+▶ fdd90f83-0b84-486... │ Implementing Redis cache layer           │ 2025-08-27 00:55:29  │ 2
+  22de96f6-577d-4df... │ Debugging API authentication flow        │ 2025-08-27 00:32:25  │ 12
+  b199fae0-b0cd-418... │ Setting up PostgreSQL migrations         │ 2025-08-27 00:27:20  │ 6
+  ca79a501-ef90-4e0... │ Refactoring conversation storage         │ 2025-08-26 23:52:59  │ 4
+
+─────────────────────────────────────────────────────────────────────────────────────────────────────
 ```
 
 Resume by number or ID:
