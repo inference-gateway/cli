@@ -29,6 +29,7 @@ type Config struct {
 	Compact CompactConfig `yaml:"compact" mapstructure:"compact"`
 	Agent   AgentConfig   `yaml:"agent" mapstructure:"agent"`
 	Git     GitConfig     `yaml:"git" mapstructure:"git"`
+	Storage StorageConfig `yaml:"storage" mapstructure:"storage"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -239,6 +240,48 @@ type FetchCacheConfig struct {
 	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
 }
 
+// StorageType represents the type of storage backend
+type StorageType string
+
+const (
+	StorageTypeMemory   StorageType = "memory"
+	StorageTypeSQLite   StorageType = "sqlite"
+	StorageTypePostgres StorageType = "postgres"
+	StorageTypeRedis    StorageType = "redis"
+)
+
+// StorageConfig contains storage backend configuration
+type StorageConfig struct {
+	Enabled  bool                  `yaml:"enabled" mapstructure:"enabled"`
+	Type     StorageType           `yaml:"type" mapstructure:"type"`
+	SQLite   SQLiteStorageConfig   `yaml:"sqlite,omitempty" mapstructure:"sqlite,omitempty"`
+	Postgres PostgresStorageConfig `yaml:"postgres,omitempty" mapstructure:"postgres,omitempty"`
+	Redis    RedisStorageConfig    `yaml:"redis,omitempty" mapstructure:"redis,omitempty"`
+}
+
+// SQLiteStorageConfig contains SQLite-specific configuration
+type SQLiteStorageConfig struct {
+	Path string `yaml:"path" mapstructure:"path"`
+}
+
+// PostgresStorageConfig contains Postgres-specific configuration
+type PostgresStorageConfig struct {
+	Host     string `yaml:"host" mapstructure:"host"`
+	Port     int    `yaml:"port" mapstructure:"port"`
+	Database string `yaml:"database" mapstructure:"database"`
+	Username string `yaml:"username" mapstructure:"username"`
+	Password string `yaml:"password" mapstructure:"password"`
+	SSLMode  string `yaml:"ssl_mode" mapstructure:"ssl_mode"`
+}
+
+// RedisStorageConfig contains Redis-specific configuration
+type RedisStorageConfig struct {
+	Host     string `yaml:"host" mapstructure:"host"`
+	Port     int    `yaml:"port" mapstructure:"port"`
+	Password string `yaml:"password" mapstructure:"password"`
+	DB       int    `yaml:"db" mapstructure:"db"`
+}
+
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config { //nolint:funlen
 	return &Config{
@@ -442,6 +485,27 @@ EXAMPLES:
 - "refactor: Simplify error handling"
 
 Respond with ONLY the commit message, no quotes or explanation.`,
+			},
+		},
+		Storage: StorageConfig{
+			Enabled: false,
+			Type:    "memory",
+			SQLite: SQLiteStorageConfig{
+				Path: ConfigDirName + "/conversations.db",
+			},
+			Postgres: PostgresStorageConfig{
+				Host:     "localhost",
+				Port:     5432,
+				Database: "infer_conversations",
+				Username: "",
+				Password: "",
+				SSLMode:  "prefer",
+			},
+			Redis: RedisStorageConfig{
+				Host:     "localhost",
+				Port:     6379,
+				Password: "",
+				DB:       0,
 			},
 		},
 	}

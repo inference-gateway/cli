@@ -186,3 +186,20 @@ git:
       - "refactor: Simplify error handling"
 
       Respond with ONLY the commit message, no quotes or explanation.
+storage:
+  enabled: false
+  type: memory
+  sqlite:
+    path: .infer/conversations.db
+  postgres:
+    host: localhost
+    port: 5432
+    database: infer_conversations
+    username: ""
+    password: ""
+    ssl_mode: prefer
+  redis:
+    host: localhost
+    port: 6379
+    password: ""
+    db: 0

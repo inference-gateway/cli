@@ -10,7 +10,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/logger"
-	"github.com/inference-gateway/cli/internal/ui/shared"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -75,48 +74,6 @@ func (t ToolExecutionStatus) String() string {
 	}
 }
 
-// ToolExecutionEvents for communication with the UI
-
-// ToolExecutionStartedMsg indicates tool execution has started
-type ToolExecutionStartedMsg struct {
-	SessionID  string
-	TotalTools int
-}
-
-// ToolExecutionProgressMsg indicates progress in tool execution
-type ToolExecutionProgressMsg struct {
-	SessionID        string
-	CurrentTool      int
-	TotalTools       int
-	ToolName         string
-	Status           string
-	RequiresApproval bool
-}
-
-// ToolExecutionCompletedMsg indicates tool execution is complete
-type ToolExecutionCompletedMsg struct {
-	SessionID     string
-	TotalExecuted int
-	SuccessCount  int
-	FailureCount  int
-	Results       []*domain.ToolExecutionResult
-}
-
-// ToolApprovalRequestMsg requests approval for a specific tool
-type ToolApprovalRequestMsg struct {
-	SessionID  string
-	ToolCall   sdk.ChatCompletionMessageToolCall
-	ToolIndex  int
-	TotalTools int
-}
-
-// ToolApprovalResponseMsg provides the approval response
-type ToolApprovalResponseMsg struct {
-	SessionID string
-	Approved  bool
-	ToolIndex int
-}
-
 // NewToolExecutionOrchestrator creates a new tool execution orchestrator
 func NewToolExecutionOrchestrator(
 	stateManager *StateManager,
@@ -163,7 +120,7 @@ func (teo *ToolExecutionOrchestrator) StartToolExecution(
 
 	return sessionID, tea.Batch(
 		func() tea.Msg {
-			return ToolExecutionStartedMsg{
+			return domain.ToolExecutionStartedEvent{
 				SessionID:  sessionID,
 				TotalTools: len(toolCalls),
 			}
@@ -181,7 +138,7 @@ func (teo *ToolExecutionOrchestrator) processNextTool() tea.Cmd {
 
 		if execution == nil {
 			logger.Error("No active tool execution context")
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "Internal error: no active tool execution context",
 				Sticky: false,
 			}
@@ -203,7 +160,7 @@ func (teo *ToolExecutionOrchestrator) processNextTool() tea.Cmd {
 		}
 		teo.mutex.Unlock()
 
-		progressMsg := ToolExecutionProgressMsg{
+		progressMsg := domain.ToolExecutionProgressEvent{
 			SessionID:        execution.SessionID,
 			CurrentTool:      execution.CurrentIndex + 1,
 			TotalTools:       len(execution.ToolCalls),
@@ -216,7 +173,7 @@ func (teo *ToolExecutionOrchestrator) processNextTool() tea.Cmd {
 			return tea.Batch(
 				func() tea.Msg { return progressMsg },
 				func() tea.Msg {
-					return ToolApprovalRequestMsg{
+					return domain.ToolApprovalRequestEvent{
 						SessionID:  execution.SessionID,
 						ToolCall:   currentTool,
 						ToolIndex:  execution.CurrentIndex,
@@ -241,7 +198,7 @@ func (teo *ToolExecutionOrchestrator) HandleApprovalResponse(approved bool, tool
 		teo.mutex.RUnlock()
 
 		if execution == nil || execution.CurrentIndex != toolIndex {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "Invalid approval response: no matching tool execution",
 				Sticky: false,
 			}
@@ -274,7 +231,7 @@ func (teo *ToolExecutionOrchestrator) HandleApprovalResponse(approved bool, tool
 
 			teo.currentExecution = nil
 
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message: "Tool execution cancelled due to user denial",
 				Spinner: false,
 			}
@@ -290,7 +247,7 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 		teo.mutex.RUnlock()
 
 		if execution == nil || toolIndex >= len(execution.ToolCalls) {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "Invalid tool execution request",
 				Sticky: false,
 			}
@@ -338,7 +295,7 @@ func (teo *ToolExecutionOrchestrator) completeExecution() tea.Cmd {
 		defer teo.mutex.Unlock()
 
 		if teo.currentExecution == nil {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "No active execution to complete",
 				Sticky: false,
 			}
@@ -373,7 +330,7 @@ func (teo *ToolExecutionOrchestrator) completeExecution() tea.Cmd {
 		results := execution.Results
 		teo.currentExecution = nil
 
-		return ToolExecutionCompletedMsg{
+		return domain.ToolExecutionCompletedEvent{
 			SessionID:     sessionID,
 			TotalExecuted: len(execution.ToolCalls),
 			SuccessCount:  successCount,
@@ -400,7 +357,7 @@ func (teo *ToolExecutionOrchestrator) CancelExecution(reason string) tea.Cmd {
 
 		teo.currentExecution = nil
 
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message: fmt.Sprintf("Tool execution cancelled: %s", reason),
 			Spinner: false,
 		}
@@ -503,7 +460,7 @@ func (teo *ToolExecutionOrchestrator) RecoverFromStuckState() tea.Cmd {
 			teo.stateManager.EndToolExecution()
 			teo.currentExecution = nil
 
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message: "Recovered from stuck tool execution",
 				Spinner: false,
 			}

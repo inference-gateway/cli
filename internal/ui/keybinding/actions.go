@@ -509,7 +509,7 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	_ = app.GetStateManager().TransitionToView(domain.ViewStateChat)
 
 	return func() tea.Msg {
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    "Operation cancelled",
 			Spinner:    false,
 			TokenUsage: getCurrentTokenUsage(app),
@@ -597,9 +597,9 @@ func handleCopy(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleScrollToTop(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		return shared.ScrollRequestMsg{
+		return domain.ScrollRequestEvent{
 			ComponentID: "conversation",
-			Direction:   shared.ScrollToTop,
+			Direction:   domain.ScrollToTop,
 			Amount:      0,
 		}
 	}
@@ -607,9 +607,9 @@ func handleScrollToTop(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleScrollToBottom(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		return shared.ScrollRequestMsg{
+		return domain.ScrollRequestEvent{
 			ComponentID: "conversation",
-			Direction:   shared.ScrollToBottom,
+			Direction:   domain.ScrollToBottom,
 			Amount:      0,
 		}
 	}
@@ -621,9 +621,9 @@ func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		if app.HasPendingApproval() {
 			componentID = "approval"
 		}
-		return shared.ScrollRequestMsg{
+		return domain.ScrollRequestEvent{
 			ComponentID: componentID,
-			Direction:   shared.ScrollUp,
+			Direction:   domain.ScrollUp,
 			Amount:      10,
 		}
 	}
@@ -635,9 +635,9 @@ func handleScrollDownHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 		if app.HasPendingApproval() {
 			componentID = "approval"
 		}
-		return shared.ScrollRequestMsg{
+		return domain.ScrollRequestEvent{
 			ComponentID: componentID,
-			Direction:   shared.ScrollDown,
+			Direction:   domain.ScrollDown,
 			Amount:      10,
 		}
 	}
@@ -645,9 +645,9 @@ func handleScrollDownHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 
 func handlePageUp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		return shared.ScrollRequestMsg{
+		return domain.ScrollRequestEvent{
 			ComponentID: "conversation",
-			Direction:   shared.ScrollUp,
+			Direction:   domain.ScrollUp,
 			Amount:      20,
 		}
 	}
@@ -655,9 +655,9 @@ func handlePageUp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handlePageDown(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		return shared.ScrollRequestMsg{
+		return domain.ScrollRequestEvent{
 			ComponentID: "conversation",
-			Direction:   shared.ScrollDown,
+			Direction:   domain.ScrollDown,
 			Amount:      20,
 		}
 	}
@@ -798,7 +798,7 @@ func handleInsertNewline(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleToggleHelp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		return shared.ToggleHelpBarMsg{}
+		return domain.ToggleHelpBarEvent{}
 	}
 }
 
@@ -811,7 +811,7 @@ func handleEnterSelectionMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 	err := stateManager.TransitionToView(domain.ViewStateTextSelection)
 	if err != nil {
 		return func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error: "Failed to enter selection mode: " + err.Error(),
 			}
 		}
@@ -819,10 +819,10 @@ func handleEnterSelectionMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.InitializeTextSelectionMsg{}
+			return domain.InitializeTextSelectionEvent{}
 		},
 		func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message: "Entered text selection mode - use vim keys to navigate",
 				Spinner: false,
 			}
@@ -883,7 +883,7 @@ func handleApprovalCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	stateManager.EndToolExecution()
 	stateManager.ClearApprovalUIState()
 	return func() tea.Msg {
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    "Tool execution cancelled",
 			Spinner:    false,
 			TokenUsage: getCurrentTokenUsage(app),
@@ -969,7 +969,7 @@ func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, info string) tea.
 	config := m.app.GetConfig()
 	if config != nil && config.Logging.Debug {
 		return func() tea.Msg {
-			return shared.DebugKeyMsg{
+			return domain.DebugKeyEvent{
 				Key:     keyMsg.String(),
 				Handler: info,
 			}
@@ -1026,28 +1026,28 @@ func handlePrintableCharacter(keyStr string, inputView ui.InputComponent) tea.Cm
 	if keyStr == "@" {
 		return tea.Batch(
 			func() tea.Msg {
-				return shared.ScrollRequestMsg{
+				return domain.ScrollRequestEvent{
 					ComponentID: "conversation",
-					Direction:   shared.ScrollToBottom,
+					Direction:   domain.ScrollToBottom,
 					Amount:      0,
 				}
 			},
 			func() tea.Msg {
-				return shared.FileSelectionRequestMsg{}
+				return domain.FileSelectionRequestEvent{}
 			},
 		)
 	}
 
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.ScrollRequestMsg{
+			return domain.ScrollRequestEvent{
 				ComponentID: "conversation",
-				Direction:   shared.ScrollToBottom,
+				Direction:   domain.ScrollToBottom,
 				Amount:      0,
 			}
 		},
 		func() tea.Msg {
-			return shared.HideHelpBarMsg{}
+			return domain.HideHelpBarEvent{}
 		},
 	)
 }

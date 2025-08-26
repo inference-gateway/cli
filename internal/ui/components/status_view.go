@@ -4,12 +4,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
+	spinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
+	lipgloss "github.com/charmbracelet/lipgloss"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // StatusView handles status messages, errors, and loading spinners
@@ -23,8 +24,8 @@ type StatusView struct {
 	baseMessage string
 	debugInfo   string
 	width       int
-	statusType  shared.StatusType
-	progress    *shared.StatusProgress
+	statusType  domain.StatusType
+	progress    *domain.StatusProgress
 	savedState  *StatusState
 }
 
@@ -36,8 +37,8 @@ type StatusState struct {
 	startTime   time.Time
 	tokenUsage  string
 	baseMessage string
-	statusType  shared.StatusType
-	progress    *shared.StatusProgress
+	statusType  domain.StatusType
+	progress    *domain.StatusProgress
 }
 
 func NewStatusView() *StatusView {
@@ -58,11 +59,11 @@ func (sv *StatusView) ShowStatus(message string) {
 	sv.isError = false
 	sv.isSpinner = false
 	sv.tokenUsage = ""
-	sv.statusType = shared.StatusDefault
+	sv.statusType = domain.StatusDefault
 	sv.progress = nil
 }
 
-func (sv *StatusView) ShowStatusWithType(message string, statusType shared.StatusType, progress *shared.StatusProgress) {
+func (sv *StatusView) ShowStatusWithType(message string, statusType domain.StatusType, progress *domain.StatusProgress) {
 	sv.message = message
 	sv.baseMessage = message
 	sv.isError = false
@@ -85,11 +86,11 @@ func (sv *StatusView) ShowSpinner(message string) {
 	sv.isSpinner = true
 	sv.startTime = time.Now()
 	sv.tokenUsage = ""
-	sv.statusType = shared.StatusDefault
+	sv.statusType = domain.StatusDefault
 	sv.progress = nil
 }
 
-func (sv *StatusView) ShowSpinnerWithType(message string, statusType shared.StatusType, progress *shared.StatusProgress) {
+func (sv *StatusView) ShowSpinnerWithType(message string, statusType domain.StatusType, progress *domain.StatusProgress) {
 	sv.baseMessage = message
 	sv.message = message
 	sv.isError = false
@@ -100,7 +101,7 @@ func (sv *StatusView) ShowSpinnerWithType(message string, statusType shared.Stat
 	sv.progress = progress
 }
 
-func (sv *StatusView) UpdateSpinnerMessage(message string, statusType shared.StatusType) {
+func (sv *StatusView) UpdateSpinnerMessage(message string, statusType domain.StatusType) {
 	if sv.isSpinner {
 		sv.baseMessage = message
 		sv.message = message
@@ -116,7 +117,7 @@ func (sv *StatusView) ClearStatus() {
 	sv.tokenUsage = ""
 	sv.startTime = time.Time{}
 	sv.debugInfo = ""
-	sv.statusType = shared.StatusDefault
+	sv.statusType = domain.StatusDefault
 	sv.progress = nil
 }
 
@@ -219,15 +220,15 @@ func (sv *StatusView) Render() string {
 // getStatusIcon returns the appropriate icon for the current status type
 func (sv *StatusView) getStatusIcon() string {
 	switch sv.statusType {
-	case shared.StatusThinking:
+	case domain.StatusThinking:
 		return "🤔"
-	case shared.StatusGenerating:
+	case domain.StatusGenerating:
 		return "🤖"
-	case shared.StatusWorking:
+	case domain.StatusWorking:
 		return "⚡"
-	case shared.StatusProcessing:
+	case domain.StatusProcessing:
 		return "🔄"
-	case shared.StatusPreparing:
+	case domain.StatusPreparing:
 		return "📋"
 	default:
 		return "📊"
@@ -271,7 +272,7 @@ func (sv *StatusView) formatErrorStatus() (string, string, string) {
 
 func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 	var prefix string
-	if sv.statusType == shared.StatusThinking {
+	if sv.statusType == domain.StatusThinking {
 		prefix = fmt.Sprintf("%s %s", sv.getStatusIcon(), sv.spinner.View())
 	} else {
 		prefix = sv.spinner.View()
@@ -314,7 +315,7 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case shared.SetStatusMsg:
+	case domain.SetStatusEvent:
 		if msg.Spinner {
 			sv.ShowSpinnerWithType(msg.Message, msg.StatusType, msg.Progress)
 			if cmd == nil {
@@ -326,13 +327,13 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				sv.SetTokenUsage(msg.TokenUsage)
 			}
 		}
-	case shared.UpdateStatusMsg:
+	case domain.UpdateStatusEvent:
 		sv.UpdateSpinnerMessage(msg.Message, msg.StatusType)
-	case shared.ShowErrorMsg:
+	case domain.ShowErrorEvent:
 		sv.ShowError(msg.Error)
-	case shared.ClearErrorMsg:
+	case domain.ClearErrorEvent:
 		sv.ClearStatus()
-	case shared.DebugKeyMsg:
+	case domain.DebugKeyEvent:
 		sv.debugInfo = fmt.Sprintf("DEBUG: %s -> %s", msg.Key, msg.Handler)
 	}
 

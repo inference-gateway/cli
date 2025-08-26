@@ -71,17 +71,19 @@ func (h *ChatHandler) GetPriority() int {
 // CanHandle determines if this handler can process the message
 func (h *ChatHandler) CanHandle(msg tea.Msg) bool {
 	switch msg.(type) {
-	case shared.UserInputMsg:
+	case domain.UserInputEvent:
 		return true
-	case shared.FileSelectionRequestMsg:
+	case domain.FileSelectionRequestEvent:
+		return true
+	case domain.ConversationSelectedEvent:
 		return true
 	case domain.ChatStartEvent, domain.ChatChunkEvent, domain.ChatCompleteEvent, domain.ChatErrorEvent:
 		return true
 	case domain.ToolCallStartEvent, domain.ToolCallEvent:
 		return true
-	case services.ToolExecutionStartedMsg, services.ToolExecutionProgressMsg, services.ToolExecutionCompletedMsg:
+	case domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent:
 		return true
-	case services.ToolApprovalRequestMsg, services.ToolApprovalResponseMsg:
+	case domain.ToolApprovalRequestEvent, domain.ToolApprovalResponseEvent:
 		return true
 	default:
 		return false
@@ -95,11 +97,14 @@ func (h *ChatHandler) Handle(
 ) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
-	case shared.UserInputMsg:
+	case domain.UserInputEvent:
 		return h.handleUserInput(msg, stateManager)
 
-	case shared.FileSelectionRequestMsg:
+	case domain.FileSelectionRequestEvent:
 		return h.handleFileSelectionRequest(msg, stateManager)
+
+	case domain.ConversationSelectedEvent:
+		return h.handleConversationSelected(msg, stateManager)
 
 	case domain.ChatStartEvent:
 		return h.handleChatStart(msg, stateManager)
@@ -119,19 +124,19 @@ func (h *ChatHandler) Handle(
 	case domain.ChatErrorEvent:
 		return h.handleChatError(msg, stateManager)
 
-	case services.ToolExecutionStartedMsg:
+	case domain.ToolExecutionStartedEvent:
 		return h.handleToolExecutionStarted(msg, stateManager)
 
-	case services.ToolExecutionProgressMsg:
+	case domain.ToolExecutionProgressEvent:
 		return h.handleToolExecutionProgress(msg, stateManager)
 
-	case services.ToolExecutionCompletedMsg:
+	case domain.ToolExecutionCompletedEvent:
 		return h.handleToolExecutionCompleted(msg, stateManager)
 
-	case services.ToolApprovalRequestMsg:
+	case domain.ToolApprovalRequestEvent:
 		return h.handleToolApprovalRequest(msg, stateManager)
 
-	case services.ToolApprovalResponseMsg:
+	case domain.ToolApprovalResponseEvent:
 		return h.handleToolApprovalResponse(msg, stateManager)
 	}
 
@@ -140,7 +145,7 @@ func (h *ChatHandler) Handle(
 
 // handleUserInput processes user input messages
 func (h *ChatHandler) handleUserInput(
-	msg shared.UserInputMsg,
+	msg domain.UserInputEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
 	if strings.HasPrefix(msg.Content, "/") {
@@ -158,7 +163,7 @@ func (h *ChatHandler) handleUserInput(
 	expandedContent, err := h.expandFileReferences(msg.Content)
 	if err != nil {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to expand file references: %v", err),
 				Sticky: false,
 			}
@@ -251,7 +256,7 @@ func (h *ChatHandler) processChatMessage(
 
 	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
 				Sticky: false,
 			}
@@ -260,7 +265,7 @@ func (h *ChatHandler) processChatMessage(
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
@@ -268,10 +273,10 @@ func (h *ChatHandler) processChatMessage(
 
 	if len(h.conversationRepo.GetMessages()) > 10 {
 		cmds = append(cmds, func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("Optimizing conversation history (%d messages)...", len(h.conversationRepo.GetMessages())),
 				Spinner:    true,
-				StatusType: shared.StatusPreparing,
+				StatusType: domain.StatusPreparing,
 			}
 		})
 	}
@@ -346,10 +351,10 @@ func (h *ChatHandler) handleChatStart(
 
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    "Starting response...",
 			Spinner:    true,
-			StatusType: shared.StatusGenerating,
+			StatusType: domain.StatusGenerating,
 		}
 	})
 
@@ -378,7 +383,7 @@ func (h *ChatHandler) handleChatChunk(
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
@@ -398,10 +403,10 @@ func (h *ChatHandler) handleChatChunk(
 func (h *ChatHandler) handleNoChatSession(msg domain.ChatChunkEvent) (tea.Model, tea.Cmd) {
 	if msg.ReasoningContent != "" {
 		return nil, func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "Thinking...",
 				Spinner:    true,
-				StatusType: shared.StatusThinking,
+				StatusType: domain.StatusThinking,
 			}
 		}
 	}
@@ -501,18 +506,18 @@ func (h *ChatHandler) createFirstChunkStatusCmd(status domain.ChatStatus) []tea.
 	switch status {
 	case domain.ChatStatusThinking:
 		return []tea.Cmd{func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "Thinking...",
 				Spinner:    true,
-				StatusType: shared.StatusThinking,
+				StatusType: domain.StatusThinking,
 			}
 		}}
 	case domain.ChatStatusGenerating:
 		return []tea.Cmd{func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "Generating response...",
 				Spinner:    true,
-				StatusType: shared.StatusGenerating,
+				StatusType: domain.StatusGenerating,
 			}
 		}}
 	}
@@ -524,16 +529,16 @@ func (h *ChatHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea.Cmd 
 	switch status {
 	case domain.ChatStatusThinking:
 		return []tea.Cmd{func() tea.Msg {
-			return shared.UpdateStatusMsg{
+			return domain.UpdateStatusEvent{
 				Message:    "Thinking...",
-				StatusType: shared.StatusThinking,
+				StatusType: domain.StatusThinking,
 			}
 		}}
 	case domain.ChatStatusGenerating:
 		return []tea.Cmd{func() tea.Msg {
-			return shared.UpdateStatusMsg{
+			return domain.UpdateStatusEvent{
 				Message:    "Generating response...",
-				StatusType: shared.StatusGenerating,
+				StatusType: domain.StatusGenerating,
 			}
 		}}
 	}
@@ -554,7 +559,7 @@ func (h *ChatHandler) handleChatComplete(
 
 		return nil, tea.Batch(
 			func() tea.Msg {
-				return shared.UpdateHistoryMsg{
+				return domain.UpdateHistoryEvent{
 					History: h.conversationRepo.GetMessages(),
 				}
 			},
@@ -573,16 +578,16 @@ func (h *ChatHandler) handleChatComplete(
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    statusMsg,
 				Spinner:    false,
 				TokenUsage: tokenUsage,
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		},
 	}
@@ -611,7 +616,7 @@ func (h *ChatHandler) handleChatError(
 	}
 
 	return nil, func() tea.Msg {
-		return shared.ShowErrorMsg{
+		return domain.ShowErrorEvent{
 			Error:  errorMsg,
 			Sticky: true,
 		}
@@ -626,10 +631,10 @@ func (h *ChatHandler) handleToolCallStart(
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    "Working...",
 			Spinner:    true,
-			StatusType: shared.StatusWorking,
+			StatusType: domain.StatusWorking,
 		}
 	})
 
@@ -653,10 +658,10 @@ func (h *ChatHandler) handleToolCall(
 		if json.Unmarshal([]byte(args), &temp) == nil {
 			return nil, tea.Batch(
 				func() tea.Msg {
-					return shared.SetStatusMsg{
+					return domain.SetStatusEvent{
 						Message:    fmt.Sprintf("Executing tool: %s", toolName),
 						Spinner:    true,
-						StatusType: shared.StatusWorking,
+						StatusType: domain.StatusWorking,
 					}
 				},
 				h.executeToolCall(msg.RequestID, msg.ToolCallID, toolName, args, stateManager),
@@ -665,30 +670,30 @@ func (h *ChatHandler) handleToolCall(
 	}
 
 	return nil, func() tea.Msg {
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Receiving tool call: %s", toolName),
 			Spinner:    true,
-			StatusType: shared.StatusWorking,
+			StatusType: domain.StatusWorking,
 		}
 	}
 }
 
 func (h *ChatHandler) handleToolExecutionStarted(
-	msg services.ToolExecutionStartedMsg,
+	msg domain.ToolExecutionStartedEvent,
 	_ *services.StateManager,
 ) (tea.Model, tea.Cmd) {
 
 	return nil, func() tea.Msg {
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Starting tool execution (%d tools)", msg.TotalTools),
 			Spinner:    true,
-			StatusType: shared.StatusWorking,
+			StatusType: domain.StatusWorking,
 		}
 	}
 }
 
 func (h *ChatHandler) handleToolExecutionProgress(
-	msg services.ToolExecutionProgressMsg,
+	msg domain.ToolExecutionProgressEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
 
@@ -699,26 +704,26 @@ func (h *ChatHandler) handleToolExecutionProgress(
 	}
 
 	return nil, func() tea.Msg {
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message: fmt.Sprintf("Tool %d/%d: %s (%s)",
 				msg.CurrentTool, msg.TotalTools, msg.ToolName, msg.Status),
 			Spinner:    true,
-			StatusType: shared.StatusWorking,
+			StatusType: domain.StatusWorking,
 		}
 	}
 }
 
 func (h *ChatHandler) handleToolExecutionCompleted(
-	msg services.ToolExecutionCompletedMsg,
+	msg domain.ToolExecutionCompletedEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return nil, tea.Batch(
 		func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message: fmt.Sprintf("Tools completed (%d/%d successful) - preparing response...",
 					msg.SuccessCount, msg.TotalExecuted),
 				Spinner:    true,
-				StatusType: shared.StatusPreparing,
+				StatusType: domain.StatusPreparing,
 			}
 		},
 		h.startChatCompletion(stateManager),
@@ -726,14 +731,14 @@ func (h *ChatHandler) handleToolExecutionCompleted(
 }
 
 func (h *ChatHandler) handleToolApprovalRequest(
-	_ services.ToolApprovalRequestMsg,
+	_ domain.ToolApprovalRequestEvent,
 	_ *services.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return nil, nil
 }
 
 func (h *ChatHandler) handleToolApprovalResponse(
-	msg services.ToolApprovalResponseMsg,
+	msg domain.ToolApprovalResponseEvent,
 	_ *services.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return nil, h.toolOrchestrator.HandleApprovalResponse(msg.Approved, msg.ToolIndex)
@@ -750,7 +755,7 @@ func (h *ChatHandler) executeToolCall(
 	return func() tea.Msg {
 		var argsMap map[string]any
 		if err := json.Unmarshal([]byte(arguments), &argsMap); err != nil {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to parse tool arguments for %s: %v", toolName, err),
 				Sticky: false,
 			}
@@ -784,7 +789,7 @@ func (h *ChatHandler) executeToolCall(
 		_, cmd := h.toolOrchestrator.StartToolExecution(requestID, toolCalls)
 		return tea.Batch(
 			func() tea.Msg {
-				return shared.UpdateHistoryMsg{
+				return domain.UpdateHistoryEvent{
 					History: h.conversationRepo.GetMessages(),
 				}
 			},
@@ -799,7 +804,7 @@ func (h *ChatHandler) handleCommand(
 ) (tea.Model, tea.Cmd) {
 	if h.shortcutRegistry == nil {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "Shortcut registry not available",
 				Sticky: false,
 			}
@@ -809,7 +814,7 @@ func (h *ChatHandler) handleCommand(
 	mainShortcut, args, err := h.shortcutRegistry.ParseShortcut(commandText)
 	if err != nil {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Invalid shortcut format: %v", err),
 				Sticky: false,
 			}
@@ -834,32 +839,32 @@ func (h *ChatHandler) executeShortcut(
 		switch shortcut {
 		case "clear", "cls":
 			if err := h.conversationRepo.Clear(); err != nil {
-				return shared.SetStatusMsg{
+				return domain.SetStatusEvent{
 					Message:    fmt.Sprintf("Failed to clear conversation: %v", err),
 					Spinner:    false,
-					StatusType: shared.StatusDefault,
+					StatusType: domain.StatusDefault,
 				}
 			}
 			return tea.Batch(
 				func() tea.Msg {
-					return shared.UpdateHistoryMsg{
+					return domain.UpdateHistoryEvent{
 						History: h.conversationRepo.GetMessages(),
 					}
 				},
 				func() tea.Msg {
-					return shared.SetStatusMsg{
+					return domain.SetStatusEvent{
 						Message:    "Conversation cleared",
 						Spinner:    false,
-						StatusType: shared.StatusDefault,
+						StatusType: domain.StatusDefault,
 					}
 				},
 			)()
 
 		default:
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("Unknown shortcut: %s", shortcut),
 				Spinner:    false,
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		}
 	}
@@ -877,10 +882,10 @@ func (h *ChatHandler) tryExecuteFromRegistry(shortcut string, args []string, sta
 	}
 
 	if !shortcutInstance.CanExecute(args) {
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Invalid usage. Usage: %s", shortcutInstance.GetUsage()),
 			Spinner:    false,
-			StatusType: shared.StatusDefault,
+			StatusType: domain.StatusDefault,
 		}
 	}
 
@@ -892,11 +897,11 @@ func (h *ChatHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args 
 	ctx := context.Background()
 	result, err := shortcut.Execute(ctx, args)
 	if err != nil {
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Command failed: %v", err),
 			Spinner:    false,
 			TokenUsage: h.getCurrentTokenUsage(),
-			StatusType: shared.StatusDefault,
+			StatusType: domain.StatusDefault,
 		}
 	}
 
@@ -917,16 +922,16 @@ func (h *ChatHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args 
 		if result.SideEffect == shortcuts.SideEffectNone {
 			return tea.Batch(
 				func() tea.Msg {
-					return shared.UpdateHistoryMsg{
+					return domain.UpdateHistoryEvent{
 						History: h.conversationRepo.GetMessages(),
 					}
 				},
 				func() tea.Msg {
-					return shared.SetStatusMsg{
+					return domain.SetStatusEvent{
 						Message:    "Shortcut action completed",
 						Spinner:    false,
 						TokenUsage: h.getCurrentTokenUsage(),
-						StatusType: shared.StatusDefault,
+						StatusType: domain.StatusDefault,
 					}
 				},
 			)()
@@ -953,12 +958,16 @@ func (h *ChatHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectTy
 		return tea.Quit()
 	case shortcuts.SideEffectGenerateCommit:
 		return h.handleGenerateCommitSideEffect(data, stateManager)
+	case shortcuts.SideEffectSaveConversation:
+		return h.handleSaveConversationSideEffect()
+	case shortcuts.SideEffectShowConversationSelection:
+		return h.handleShowConversationSelectionSideEffect(stateManager)
 	default:
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
 			Spinner:    false,
 			TokenUsage: h.getCurrentTokenUsage(),
-			StatusType: shared.StatusDefault,
+			StatusType: domain.StatusDefault,
 		}
 	}
 }
@@ -966,37 +975,37 @@ func (h *ChatHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectTy
 // handleSwitchModelSideEffect handles model switching side effect
 func (h *ChatHandler) handleSwitchModelSideEffect(stateManager *services.StateManager) tea.Msg {
 	_ = stateManager.TransitionToView(domain.ViewStateModelSelection)
-	return shared.SetStatusMsg{
+	return domain.SetStatusEvent{
 		Message:    "Select a model from the dropdown",
 		Spinner:    false,
 		TokenUsage: h.getCurrentTokenUsage(),
-		StatusType: shared.StatusDefault,
+		StatusType: domain.StatusDefault,
 	}
 }
 
 // handleClearConversationSideEffect handles conversation clearing side effect
 func (h *ChatHandler) handleClearConversationSideEffect() tea.Msg {
 	if err := h.conversationRepo.Clear(); err != nil {
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Failed to clear conversation: %v", err),
 			Spinner:    false,
 			TokenUsage: h.getCurrentTokenUsage(),
-			StatusType: shared.StatusDefault,
+			StatusType: domain.StatusDefault,
 		}
 	}
 
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "Conversation cleared",
 				Spinner:    false,
 				TokenUsage: h.getCurrentTokenUsage(),
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		},
 	)()
@@ -1006,10 +1015,10 @@ func (h *ChatHandler) handleClearConversationSideEffect() tea.Msg {
 func (h *ChatHandler) handleExportConversationSideEffect() tea.Msg {
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "📝 Generating summary and exporting conversation...",
 				Spinner:    true,
-				StatusType: shared.StatusWorking,
+				StatusType: domain.StatusWorking,
 			}
 		},
 		h.performExportAsync(),
@@ -1023,35 +1032,35 @@ func (h *ChatHandler) performExportAsync() tea.Cmd {
 
 		shortcut, exists := h.shortcutRegistry.Get("compact")
 		if !exists {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "Export command not found",
 				Spinner:    false,
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		}
 
 		exportShortcut, ok := shortcut.(*shortcuts.ExportShortcut)
 		if !ok {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "Invalid export command type",
 				Spinner:    false,
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		}
 
 		filePath, err := exportShortcut.PerformExport(ctx)
 		if err != nil {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("Export failed: %v", err),
 				Spinner:    false,
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		}
 
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("📝 Conversation exported to: %s", filePath),
 			Spinner:    false,
-			StatusType: shared.StatusDefault,
+			StatusType: domain.StatusDefault,
 		}
 	}
 }
@@ -1064,7 +1073,7 @@ func (h *ChatHandler) handleBashCommand(
 
 	if command == "" {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "No bash command provided. Use: !<command>",
 				Sticky: false,
 			}
@@ -1073,7 +1082,7 @@ func (h *ChatHandler) handleBashCommand(
 
 	if !h.toolService.IsToolEnabled("Bash") {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "Bash tool is not enabled. Run 'infer config tool bash enable' to enable it.",
 				Sticky: false,
 			}
@@ -1091,7 +1100,7 @@ func (h *ChatHandler) handleBashCommand(
 	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
 		logger.Error("failed to add user message", "error", err)
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
 				Sticky: false,
 			}
@@ -1100,15 +1109,15 @@ func (h *ChatHandler) handleBashCommand(
 
 	return nil, tea.Batch(
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("Executing: %s", command),
 				Spinner:    true,
-				StatusType: shared.StatusWorking,
+				StatusType: domain.StatusWorking,
 			}
 		},
 		h.executeBashCommand(command, stateManager),
@@ -1124,7 +1133,7 @@ func (h *ChatHandler) handleToolCommand(
 
 	if command == "" {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "No tool command provided. Use: !!ToolName(arg=\"value\")",
 				Sticky: false,
 			}
@@ -1134,7 +1143,7 @@ func (h *ChatHandler) handleToolCommand(
 	toolName, args, err := h.parseToolCall(command)
 	if err != nil {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Invalid tool syntax: %v. Use: !!ToolName(arg=\"value\")", err),
 				Sticky: false,
 			}
@@ -1143,7 +1152,7 @@ func (h *ChatHandler) handleToolCommand(
 
 	if !h.toolService.IsToolEnabled(toolName) {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Tool '%s' is not enabled. Check 'infer config tools list' for available tools.", toolName),
 				Sticky: false,
 			}
@@ -1160,7 +1169,7 @@ func (h *ChatHandler) handleToolCommand(
 
 	if err := h.conversationRepo.AddMessage(userEntry); err != nil {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
 				Sticky: false,
 			}
@@ -1169,15 +1178,15 @@ func (h *ChatHandler) handleToolCommand(
 
 	return nil, tea.Batch(
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("Executing tool: %s", toolName),
 				Spinner:    true,
-				StatusType: shared.StatusWorking,
+				StatusType: domain.StatusWorking,
 			}
 		},
 		h.executeToolDirectly(toolName, args, stateManager),
@@ -1296,12 +1305,12 @@ func (h *ChatHandler) handleToolValidationError(_ string, err error) tea.Msg {
 
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Tool validation failed: %v", err),
 				Sticky: false,
 			}
@@ -1326,12 +1335,12 @@ func (h *ChatHandler) handleToolExecutionError(_ string, _ time.Duration, err er
 
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Tool execution failed: %v", err),
 				Sticky: false,
 			}
@@ -1365,16 +1374,16 @@ func (h *ChatHandler) createToolUIUpdate(success bool, toolName string) tea.Msg 
 
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    statusMsg,
 				Spinner:    false,
 				TokenUsage: h.getCurrentTokenUsage(),
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		},
 	)()
@@ -1428,12 +1437,12 @@ func (h *ChatHandler) handleBashValidationError(_ string, err error) tea.Msg {
 
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Command validation failed: %v", err),
 				Sticky: false,
 			}
@@ -1457,12 +1466,12 @@ func (h *ChatHandler) handleBashExecutionError(_ string, _ time.Duration, err er
 
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Command execution failed: %v", err),
 				Sticky: false,
 			}
@@ -1530,16 +1539,16 @@ func (h *ChatHandler) createBashUIUpdate(success bool) tea.Msg {
 
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    statusMsg,
 				Spinner:    false,
 				TokenUsage: h.getCurrentTokenUsage(),
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		},
 	)()
@@ -1654,7 +1663,7 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 			return nil
 		}
 
-		return shared.UpdateHistoryMsg{
+		return domain.UpdateHistoryEvent{
 			History: h.conversationRepo.GetMessages(),
 		}
 	}
@@ -1662,13 +1671,13 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 
 // handleFileSelectionRequest handles the file selection request triggered by "@" key
 func (h *ChatHandler) handleFileSelectionRequest(
-	_ shared.FileSelectionRequestMsg,
+	_ domain.FileSelectionRequestEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
 	files, err := h.fileService.ListProjectFiles()
 	if err != nil {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to load files: %v", err),
 				Sticky: false,
 			}
@@ -1677,7 +1686,7 @@ func (h *ChatHandler) handleFileSelectionRequest(
 
 	if len(files) == 0 {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "No files found in the current directory",
 				Sticky: false,
 			}
@@ -1686,7 +1695,7 @@ func (h *ChatHandler) handleFileSelectionRequest(
 
 	if err := stateManager.TransitionToView(domain.ViewStateFileSelection); err != nil {
 		return nil, func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "Failed to open file selection",
 				Sticky: false,
 			}
@@ -1694,7 +1703,7 @@ func (h *ChatHandler) handleFileSelectionRequest(
 	}
 
 	return nil, func() tea.Msg {
-		return shared.SetupFileSelectionMsg{
+		return domain.SetupFileSelectionEvent{
 			Files: files,
 		}
 	}
@@ -1702,11 +1711,11 @@ func (h *ChatHandler) handleFileSelectionRequest(
 
 // handleReloadConfigSideEffect handles config reload side effect
 func (h *ChatHandler) handleReloadConfigSideEffect() tea.Msg {
-	return shared.SetStatusMsg{
+	return domain.SetStatusEvent{
 		Message:    "Configuration reloaded successfully",
 		Spinner:    false,
 		TokenUsage: h.getCurrentTokenUsage(),
-		StatusType: shared.StatusDefault,
+		StatusType: domain.StatusDefault,
 	}
 }
 
@@ -1714,16 +1723,16 @@ func (h *ChatHandler) handleReloadConfigSideEffect() tea.Msg {
 func (h *ChatHandler) handleShowHelpSideEffect() tea.Msg {
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "Help displayed",
 				Spinner:    false,
 				TokenUsage: h.getCurrentTokenUsage(),
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		},
 	)()
@@ -1733,15 +1742,15 @@ func (h *ChatHandler) handleShowHelpSideEffect() tea.Msg {
 func (h *ChatHandler) handleGenerateCommitSideEffect(data any, stateManager *services.StateManager) tea.Msg {
 	return tea.Batch(
 		func() tea.Msg {
-			return shared.UpdateHistoryMsg{
+			return domain.UpdateHistoryEvent{
 				History: h.conversationRepo.GetMessages(),
 			}
 		},
 		func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "Generating AI commit message...",
 				Spinner:    true,
-				StatusType: shared.StatusWorking,
+				StatusType: domain.StatusWorking,
 			}
 		},
 		h.performCommitGeneration(data, stateManager),
@@ -1752,19 +1761,19 @@ func (h *ChatHandler) handleGenerateCommitSideEffect(data any, stateManager *ser
 func (h *ChatHandler) performCommitGeneration(data any, _ *services.StateManager) tea.Cmd {
 	return func() tea.Msg {
 		if data == nil {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "❌ No side effect data available",
 				Spinner:    false,
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		}
 
 		dataMap, ok := data.(map[string]any)
 		if !ok {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "❌ Invalid side effect data format",
 				Spinner:    false,
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		}
 
@@ -1773,24 +1782,23 @@ func (h *ChatHandler) performCommitGeneration(data any, _ *services.StateManager
 		diff, ok3 := dataMap["diff"].(string)
 
 		if !ok1 || !ok2 || !ok3 {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "❌ Missing commit data",
 				Spinner:    false,
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		}
 
-		// Handle unified GitShortcut
 		var result string
 		var err error
 
 		if gitShortcut, ok := dataMap["gitShortcut"].(*shortcuts.GitShortcut); ok {
 			result, err = gitShortcut.PerformCommit(ctx, args, diff)
 		} else {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message:    "❌ Missing or invalid git shortcut data",
 				Spinner:    false,
-				StatusType: shared.StatusDefault,
+				StatusType: domain.StatusDefault,
 			}
 		}
 		if err != nil {
@@ -1809,15 +1817,15 @@ func (h *ChatHandler) performCommitGeneration(data any, _ *services.StateManager
 
 			return tea.Batch(
 				func() tea.Msg {
-					return shared.UpdateHistoryMsg{
+					return domain.UpdateHistoryEvent{
 						History: h.conversationRepo.GetMessages(),
 					}
 				},
 				func() tea.Msg {
-					return shared.SetStatusMsg{
+					return domain.SetStatusEvent{
 						Message:    fmt.Sprintf("%s Commit failed: %v", icons.CrossMark, err),
 						Spinner:    false,
-						StatusType: shared.StatusDefault,
+						StatusType: domain.StatusDefault,
 					}
 				},
 			)()
@@ -1838,17 +1846,93 @@ func (h *ChatHandler) performCommitGeneration(data any, _ *services.StateManager
 
 		return tea.Batch(
 			func() tea.Msg {
-				return shared.UpdateHistoryMsg{
+				return domain.UpdateHistoryEvent{
 					History: h.conversationRepo.GetMessages(),
 				}
 			},
 			func() tea.Msg {
-				return shared.SetStatusMsg{
+				return domain.SetStatusEvent{
 					Message:    fmt.Sprintf("%s AI commit completed successfully", icons.CheckMark),
 					Spinner:    false,
-					StatusType: shared.StatusDefault,
+					StatusType: domain.StatusDefault,
 				}
 			},
 		)()
+	}
+}
+
+// handleSaveConversationSideEffect handles conversation save side effect
+func (h *ChatHandler) handleSaveConversationSideEffect() tea.Msg {
+	return domain.SetStatusEvent{
+		Message:    "Conversation saved successfully",
+		Spinner:    false,
+		TokenUsage: h.getCurrentTokenUsage(),
+		StatusType: domain.StatusDefault,
+	}
+}
+
+// handleConversationSelected handles conversation selection from dropdown
+func (h *ChatHandler) handleConversationSelected(
+	msg domain.ConversationSelectedEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository)
+	if !ok {
+		return nil, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  "Conversation selection requires persistent storage",
+				Sticky: false,
+			}
+		}
+	}
+
+	ctx := context.Background()
+	if err := persistentRepo.LoadConversation(ctx, msg.ConversationID); err != nil {
+		return nil, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to load conversation: %v", err),
+				Sticky: false,
+			}
+		}
+	}
+
+	return nil, tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			metadata := persistentRepo.GetCurrentConversationMetadata()
+			return domain.SetStatusEvent{
+				Message: fmt.Sprintf("🔄 Loaded conversation: %s (%d messages)",
+					metadata.Title, metadata.MessageCount),
+				Spinner:    false,
+				TokenUsage: h.getCurrentTokenUsage(),
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)
+}
+
+// handleShowConversationSelectionSideEffect handles showing conversation selection dropdown
+func (h *ChatHandler) handleShowConversationSelectionSideEffect(stateManager *services.StateManager) tea.Msg {
+	logger.Debug("handleShowConversationSelectionSideEffect called")
+
+	if err := stateManager.TransitionToView(domain.ViewStateConversationSelection); err != nil {
+		logger.Error("Failed to transition to conversation selection view", "error", err)
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to show conversation selection: %v", err),
+			Sticky: false,
+		}
+	}
+
+	logger.Debug("Successfully transitioned to conversation selection view")
+
+	return domain.SetStatusEvent{
+		Message:    "Select a conversation from the dropdown",
+		Spinner:    false,
+		TokenUsage: h.getCurrentTokenUsage(),
+		StatusType: domain.StatusDefault,
 	}
 }

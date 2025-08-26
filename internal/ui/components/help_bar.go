@@ -4,9 +4,10 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	lipgloss "github.com/charmbracelet/lipgloss"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // HelpBar displays keyboard shortcuts at the bottom of the screen
@@ -172,9 +173,9 @@ func (hb *HelpBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		hb.SetWidth(msg.Width)
-	case shared.ToggleHelpBarMsg:
+	case domain.ToggleHelpBarEvent:
 		hb.enabled = !hb.enabled
-	case shared.HideHelpBarMsg:
+	case domain.HideHelpBarEvent:
 		hb.enabled = false
 	}
 	return hb, nil
