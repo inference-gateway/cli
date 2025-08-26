@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.44.1](https://github.com/inference-gateway/cli/compare/v0.44.0...v0.44.1) (2025-08-26)
+
+### ♻️ Code Refactoring
+
+* **gitignore:** Integrate gitignore support in GrepTool and TreeTool ([#125](https://github.com/inference-gateway/cli/issues/125)) ([7941bfa](https://github.com/inference-gateway/cli/commit/7941bfaec9de96d7df67196ffa3839d32645b075)), closes [#123](https://github.com/inference-gateway/cli/issues/123)
+
 ## [0.44.0](https://github.com/inference-gateway/cli/compare/v0.43.0...v0.44.0) (2025-08-25)
 
 ### 🚀 Features
