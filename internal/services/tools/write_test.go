@@ -43,7 +43,7 @@ func TestWriteTool_Definition(t *testing.T) {
 		t.Errorf("Expected 2 required parameters, got %d", len(required))
 	}
 
-	expectedFields := []string{"file_path", "content", "append", "overwrite", "backup", "format"}
+	expectedFields := []string{"file_path", "content"}
 	for _, field := range expectedFields {
 		if _, exists := props[field]; !exists {
 			t.Errorf("Expected field '%s' in properties", field)
@@ -362,7 +362,6 @@ func testWriteFailNoOverwrite(t *testing.T, tempDir string, tool *WriteTool, ctx
 	args := map[string]any{
 		"file_path": filePath,
 		"content":   newContent,
-		"overwrite": false,
 	}
 
 	result, err := tool.Execute(ctx, args)
@@ -370,22 +369,17 @@ func testWriteFailNoOverwrite(t *testing.T, tempDir string, tool *WriteTool, ctx
 		t.Fatalf("Execute should not return error: %v", err)
 	}
 
-	if result.Success {
-		t.Error("Expected success=false when overwrite=false and file exists")
-	}
-
-	expectedErrorMsg := "file already exists and overwrite is false: " + filePath
-	if !strings.Contains(result.Error, expectedErrorMsg) {
-		t.Errorf("Expected error to contain '%s', got: %s", expectedErrorMsg, result.Error)
+	if !result.Success {
+		t.Errorf("Expected successful overwrite, got error: %s", result.Error)
 	}
 
 	writtenContent, err := os.ReadFile(filePath)
 	if err != nil {
-		t.Fatalf("Failed to read original file: %v", err)
+		t.Fatalf("Failed to read written file: %v", err)
 	}
 
-	if string(writtenContent) != originalContent {
-		t.Error("Original file should not have been modified")
+	if string(writtenContent) != newContent {
+		t.Errorf("Expected file content '%s', got '%s'", newContent, string(writtenContent))
 	}
 }
 

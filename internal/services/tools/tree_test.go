@@ -301,7 +301,6 @@ func TestTreeTool_ExecuteWithMaxDepth(t *testing.T) {
 	}
 }
 
-
 func TestTreeTool_ExecuteWithShowHidden(t *testing.T) {
 	tempDir := setupTestDirectory(t)
 	tool := createTestTreeTool(tempDir)
