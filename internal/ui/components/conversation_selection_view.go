@@ -152,7 +152,7 @@ func (c *ConversationSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, te
 func (c *ConversationSelectorImpl) handleCancel() (tea.Model, tea.Cmd) {
 	c.cancelled = true
 	c.done = true
-	return c, tea.Quit
+	return c, nil
 }
 
 func (c *ConversationSelectorImpl) handleNavigationUp() (tea.Model, tea.Cmd) {
