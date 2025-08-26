@@ -27,9 +27,12 @@ func (s *AgentServiceImpl) addToolsIfAvailable(messages []sdk.Message) []sdk.Mes
 	var systemMessages []sdk.Message
 
 	if s.systemPrompt != "" {
+		currentTime := time.Now().Format("Monday, January 2, 2006 at 3:04 PM MST")
+		systemPromptWithTime := fmt.Sprintf("%s\n\nCurrent date and time: %s", s.systemPrompt, currentTime)
+
 		systemMessages = append(systemMessages, sdk.Message{
 			Role:    sdk.System,
-			Content: s.systemPrompt,
+			Content: systemPromptWithTime,
 		})
 	}
 
