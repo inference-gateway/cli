@@ -111,10 +111,9 @@ type DeleteToolConfig struct {
 
 // GrepToolConfig contains grep-specific tool settings
 type GrepToolConfig struct {
-	Enabled          bool     `yaml:"enabled" mapstructure:"enabled"`
-	Backend          string   `yaml:"backend" mapstructure:"backend"`
-	ExcludedPatterns []string `yaml:"excluded_patterns" mapstructure:"excluded_patterns"`
-	RequireApproval  *bool    `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	Backend         string `yaml:"backend" mapstructure:"backend"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // TreeToolConfig contains tree-specific tool settings
