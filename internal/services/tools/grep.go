@@ -15,26 +15,29 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
+	ignore "github.com/sabhiram/go-gitignore"
 )
 
 // GrepTool handles search operations with ripgrep fallback to Go implementation
 type GrepTool struct {
-	config            *config.Config
-	enabled           bool
-	gitignorePatterns []string
-	ripgrepPath       string
-	useRipgrep        bool
-	formatter         domain.BaseFormatter
+	config         *config.Config
+	enabled        bool
+	gitignore      *ignore.GitIgnore
+	gitignoreCache map[string]*ignore.GitIgnore
+	ripgrepPath    string
+	useRipgrep     bool
+	formatter      domain.BaseFormatter
 }
 
 // NewGrepTool creates a new grep tool
 func NewGrepTool(cfg *config.Config) *GrepTool {
 	tool := &GrepTool{
-		config:    cfg,
-		enabled:   cfg.Tools.Enabled && cfg.Tools.Grep.Enabled,
-		formatter: domain.NewBaseFormatter("Grep"),
+		config:         cfg,
+		enabled:        cfg.Tools.Enabled && cfg.Tools.Grep.Enabled,
+		formatter:      domain.NewBaseFormatter("Grep"),
+		gitignoreCache: make(map[string]*ignore.GitIgnore),
 	}
-	tool.loadGitignorePatterns()
+	tool.loadGitignore()
 	tool.detectRipgrep()
 	return tool
 }
@@ -359,20 +362,6 @@ func (t *GrepTool) buildRipgrepArgs(outputMode string, args map[string]any) []st
 
 	rgArgs = t.addOutputModeArgs(rgArgs, outputMode, args)
 	rgArgs = t.addSearchOptions(rgArgs, args)
-	rgArgs = t.addExclusionArgs(rgArgs)
-
-	return rgArgs
-}
-
-// addExclusionArgs adds exclusion arguments for excluded patterns
-func (t *GrepTool) addExclusionArgs(rgArgs []string) []string {
-	if len(t.gitignorePatterns) > 0 {
-		for _, pattern := range t.gitignorePatterns {
-			if pattern != "" {
-				rgArgs = append(rgArgs, "--glob", "!"+pattern)
-			}
-		}
-	}
 
 	return rgArgs
 }
@@ -927,120 +916,73 @@ func (t *GrepTool) addContextToMatch(match GrepMatch, contextLines []string, sca
 	return match
 }
 
-// isPathExcluded checks if a file path should be excluded based on configuration
+// isPathExcluded checks if a file path should be excluded based on gitignore
 func (t *GrepTool) isPathExcluded(path string) bool {
 	if t.config == nil {
 		return false
-	}
-
-	if t.matchesGitignorePattern(path) {
-		return true
 	}
 
 	if err := t.config.ValidatePathInSandbox(path); err != nil {
 		return true
 	}
 
+	if t.gitignore != nil && t.gitignore.MatchesPath(path) {
+		return true
+	}
+
+	dirPath := filepath.Dir(path)
+	for dirPath != "." && dirPath != "/" {
+		if dirIgnore := t.getOrLoadDirGitignore(dirPath); dirIgnore != nil {
+			relPath, err := filepath.Rel(dirPath, path)
+			if err == nil && dirIgnore.MatchesPath(relPath) {
+				return true
+			}
+		}
+
+		parentDir := filepath.Dir(dirPath)
+		if parentDir == dirPath {
+			break
+		}
+		dirPath = parentDir
+	}
+
 	return false
 }
 
-// loadGitignorePatterns reads and caches gitignore patterns from current directory and subdirectories
-func (t *GrepTool) loadGitignorePatterns() {
-	var patterns []string
-
-	defaultPatterns := []string{
-		"node_modules",
-		".git",
-		".infer",
+// loadGitignore loads .gitignore patterns using the gitignore library
+func (t *GrepTool) loadGitignore() {
+	gitignore, err := ignore.CompileIgnoreFileAndLines(".gitignore",
+		".git/",
 		".DS_Store",
-		"*.log",
-		"dist",
-		"build",
-		"target",
-		".cache",
-		"coverage",
-		".nyc_output",
-		"*.tmp",
-		"*.temp",
-		".env",
-		".vscode",
-		".idea",
-		".flox",
-		".tox",
-		".ruff_cache",
-		".mypy_cache",
-		".pytest_cache",
-		"_pycache_",
-	}
-
-	patterns = append(patterns, defaultPatterns...)
-
-	gitignorePatterns := t.readGitignoreFile(".")
-	patterns = append(patterns, gitignorePatterns...)
-
-	if t.config != nil && len(t.config.Tools.Grep.ExcludedPatterns) > 0 {
-		patterns = append(patterns, t.config.Tools.Grep.ExcludedPatterns...)
-	}
-
-	t.gitignorePatterns = patterns
-}
-
-// readGitignoreFile reads and parses a .gitignore file from the specified directory
-func (t *GrepTool) readGitignoreFile(rootPath string) []string {
-	var patterns []string
-
-	gitignorePath := filepath.Join(rootPath, ".gitignore")
-	file, err := os.Open(gitignorePath)
+		".infer/",
+	)
 	if err != nil {
-		return patterns
+		gitignore = ignore.CompileIgnoreLines(
+			".git/",
+			".DS_Store",
+			".infer/",
+		)
 	}
-	defer func() { _ = file.Close() }()
-
-	scanner := bufio.NewScanner(file)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") {
-			continue
-		}
-
-		pattern := strings.TrimPrefix(line, "/")
-		if pattern != "" {
-			patterns = append(patterns, pattern)
-		}
-	}
-
-	return patterns
+	t.gitignore = gitignore
 }
 
-// matchesGitignorePattern checks if a path matches any gitignore pattern
-func (t *GrepTool) matchesGitignorePattern(path string) bool {
-	normalizedPath := filepath.ToSlash(filepath.Clean(path))
+// getOrLoadDirGitignore loads and caches .gitignore for a specific directory
+func (t *GrepTool) getOrLoadDirGitignore(dirPath string) *ignore.GitIgnore {
+	if cached, exists := t.gitignoreCache[dirPath]; exists {
+		return cached
+	}
 
-	for _, pattern := range t.gitignorePatterns {
-		if strings.Contains(normalizedPath, pattern) {
-			return true
-		}
-
-		if strings.Contains(pattern, "*") {
-			matched, err := filepath.Match(pattern, filepath.Base(normalizedPath))
-			if err == nil && matched {
-				return true
-			}
-		}
-
-		if strings.HasSuffix(pattern, "/") {
-			dirPattern := strings.TrimSuffix(pattern, "/")
-			if strings.HasPrefix(normalizedPath, dirPattern+"/") || normalizedPath == dirPattern {
-				return true
-			}
-		} else {
-			if normalizedPath == pattern || strings.HasPrefix(normalizedPath, pattern+"/") {
-				return true
-			}
+	gitignorePath := filepath.Join(dirPath, ".gitignore")
+	if _, err := os.Stat(gitignorePath); err == nil {
+		gitignore, err := ignore.CompileIgnoreFile(gitignorePath)
+		if err == nil {
+			t.gitignoreCache[dirPath] = gitignore
+			return gitignore
 		}
 	}
 
-	return false
+	t.gitignoreCache[dirPath] = nil
+	return nil
 }
 
 // FormatResult formats tool execution results for different contexts

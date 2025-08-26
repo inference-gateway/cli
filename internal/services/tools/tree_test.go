@@ -209,7 +209,6 @@ func TestTreeTool_ValidateToolDisabled(t *testing.T) {
 func setupTestDirectory(t *testing.T) string {
 	tempDir := t.TempDir()
 
-	// Create test files and directories
 	testFiles := []string{
 		"file1.txt",
 		"file2.log",
@@ -346,7 +345,6 @@ func TestTreeTool_ExecuteWithExcludePatterns(t *testing.T) {
 		t.Errorf("Expected exclude patterns [*.log], got %v", treeResult.ExcludePatterns)
 	}
 
-	// Output should not contain .log files
 	if strings.Contains(treeResult.Output, "file2.log") {
 		t.Error("Output should not contain excluded .log files")
 	}
@@ -411,7 +409,6 @@ func TestTreeTool_ExecuteWithJSONFormat(t *testing.T) {
 		t.Errorf("Expected format json, got %s", treeResult.Format)
 	}
 
-	// JSON output should contain tree data
 	if !strings.Contains(treeResult.Output, "tree") {
 		t.Errorf("JSON output should contain tree data, got: %s", treeResult.Output)
 	}
@@ -579,9 +576,56 @@ func TestTreeTool_ShouldExclude(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tool.shouldExclude(tt.filename, tt.patterns)
+			fullPath := "/test/path/" + tt.filename
+			result := tool.shouldExclude(fullPath, tt.filename, tt.patterns, true)
 			if result != tt.expected {
-				t.Errorf("shouldExclude(%s, %v) = %v, want %v", tt.filename, tt.patterns, result, tt.expected)
+				t.Errorf("shouldExclude(%s, %s, %v) = %v, want %v", fullPath, tt.filename, tt.patterns, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestTreeTool_RespectGitignore(t *testing.T) {
+	tests := []struct {
+		name             string
+		respectGitignore bool
+		expectGitignored bool
+	}{
+		{
+			name:             "with respect_gitignore=true should exclude gitignored files",
+			respectGitignore: true,
+			expectGitignored: true,
+		},
+		{
+			name:             "with respect_gitignore=false should include gitignored files",
+			respectGitignore: false,
+			expectGitignored: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				Tools: config.ToolsConfig{
+					Enabled: true,
+					Tree: config.TreeToolConfig{
+						Enabled: true,
+					},
+				},
+			}
+
+			tool := NewTreeTool(cfg)
+
+			fullPath := "/test/.git/config"
+			fileName := "config"
+			excludePatterns := []string{}
+
+			result := tool.shouldExclude(fullPath, fileName, excludePatterns, tt.respectGitignore)
+
+			if tt.expectGitignored && !result {
+				t.Errorf("Expected gitignored file to be excluded when respectGitignore=true, but it wasn't")
+			} else if !tt.expectGitignored && result {
+				t.Errorf("Expected gitignored file to be included when respectGitignore=false, but it was excluded")
 			}
 		})
 	}

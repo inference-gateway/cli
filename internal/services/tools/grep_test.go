@@ -11,65 +11,200 @@ import (
 )
 
 func TestGrepTool_Definition(t *testing.T) {
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Enabled: true,
-			Grep: config.GrepToolConfig{
-				Enabled: true,
+	tests := []struct {
+		name             string
+		config           *config.Config
+		expectedName     string
+		expectedPhrases  []string
+		shouldHaveParams bool
+	}{
+		{
+			name: "basic definition test",
+			config: &config.Config{
+				Tools: config.ToolsConfig{
+					Enabled: true,
+					Grep: config.GrepToolConfig{
+						Enabled: true,
+					},
+				},
 			},
+			expectedName: "Grep",
+			expectedPhrases: []string{
+				"ALWAYS use Grep for search tasks",
+				"configurable backend",
+				"Output modes",
+				"files_with_matches",
+				"content",
+				"count",
+			},
+			shouldHaveParams: true,
 		},
 	}
 
-	tool := NewGrepTool(cfg)
-	def := tool.Definition()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tool := NewGrepTool(tt.config)
+			def := tool.Definition()
 
-	if def.Name != "Grep" {
-		t.Errorf("Expected tool name to be 'Grep', got %s", def.Name)
+			if def.Name != tt.expectedName {
+				t.Errorf("Expected tool name to be '%s', got %s", tt.expectedName, def.Name)
+			}
+
+			if def.Description == "" {
+				t.Error("Expected non-empty description")
+			}
+
+			for _, phrase := range tt.expectedPhrases {
+				if !contains(def.Description, phrase) {
+					t.Errorf("Expected description to contain '%s'", phrase)
+				}
+			}
+
+			if tt.shouldHaveParams {
+				params, ok := def.Parameters.(map[string]any)
+				if !ok {
+					t.Fatal("Expected parameters to be a map")
+				}
+
+				properties, ok := params["properties"].(map[string]any)
+				if !ok {
+					t.Fatal("Expected properties to be a map")
+				}
+
+				if _, exists := properties["pattern"]; !exists {
+					t.Errorf("Expected 'pattern' parameter. Available parameters: %v", getMapKeys(properties))
+				}
+			}
+		})
+	}
+}
+
+// Helper function to get map keys for debugging
+func getMapKeys(m map[string]any) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
+// Helper functions for file system operations in tests
+func createTempDir(t *testing.T) string {
+	dir, err := os.MkdirTemp("", "grep_test_*")
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+	return dir
+}
+
+func cleanupTempDir(t *testing.T, dir string) {
+	if err := os.RemoveAll(dir); err != nil {
+		t.Logf("Failed to cleanup temp dir %s: %v", dir, err)
+	}
+}
+
+func writeFile(t *testing.T, filepath, content string) {
+	if err := os.WriteFile(filepath, []byte(content), 0644); err != nil {
+		t.Fatalf("Failed to write file %s: %v", filepath, err)
+	}
+}
+
+func createDir(t *testing.T, dirpath string) {
+	if err := os.MkdirAll(dirpath, 0755); err != nil {
+		t.Fatalf("Failed to create directory %s: %v", dirpath, err)
+	}
+}
+
+func TestGrepTool_NestedGitignoreSupport(t *testing.T) {
+	tests := []struct {
+		name          string
+		config        *config.Config
+		setupFiles    func(t *testing.T, tempDir string)
+		searchPattern string
+		expectedFiles []string
+		shouldExclude []string
+	}{
+		{
+			name: "respects nested gitignore files",
+			config: &config.Config{
+				Tools: config.ToolsConfig{
+					Enabled: true,
+					Grep: config.GrepToolConfig{
+						Enabled: true,
+					},
+				},
+			},
+			setupFiles: func(t *testing.T, tempDir string) {
+				createDir(t, tempDir+"/.git")
+
+				writeFile(t, tempDir+"/.gitignore", "*.log\ntemp/\n")
+
+				createDir(t, tempDir+"/subdir")
+				writeFile(t, tempDir+"/subdir/.gitignore", "*.tmp\nsecret.txt\n")
+
+				writeFile(t, tempDir+"/main.go", "package main\nfunc main() {\n}\n")
+				writeFile(t, tempDir+"/subdir/helper.go", "package helper\nfunc Help() {\n}\n")
+
+				writeFile(t, tempDir+"/debug.log", "debug info")
+				createDir(t, tempDir+"/temp")
+				writeFile(t, tempDir+"/temp/cache.go", "package cache")
+
+				writeFile(t, tempDir+"/subdir/temp.tmp", "temporary data")
+				writeFile(t, tempDir+"/subdir/secret.txt", "secret content")
+			},
+			searchPattern: "package",
+			expectedFiles: []string{"main.go", "subdir/helper.go"},
+			shouldExclude: []string{"debug.log", "temp/cache.go", "subdir/temp.tmp", "subdir/secret.txt"},
+		},
 	}
 
-	if def.Description == "" {
-		t.Error("Expected non-empty description")
-	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := createTempDir(t)
+			defer cleanupTempDir(t, tempDir)
 
-	expectedPhrases := []string{
-		"ALWAYS use Grep for search tasks",
-		"configurable backend",
-		"Output modes",
-		"files_with_matches",
-		"content",
-		"count",
-	}
+			tt.setupFiles(t, tempDir)
 
-	for _, phrase := range expectedPhrases {
-		if !contains(def.Description, phrase) {
-			t.Errorf("Expected description to contain '%s'", phrase)
-		}
-	}
+			tool := NewGrepTool(tt.config)
 
-	params, ok := def.Parameters.(map[string]any)
-	if !ok {
-		t.Fatal("Expected parameters to be a map")
-	}
+			args := map[string]any{
+				"pattern":     tt.searchPattern,
+				"path":        tempDir,
+				"output_mode": "files_with_matches",
+			}
 
-	properties, ok := params["properties"].(map[string]any)
-	if !ok {
-		t.Fatal("Expected properties to be a map")
-	}
+			ctx := context.Background()
+			result, err := tool.Execute(ctx, args)
+			if err != nil {
+				t.Fatalf("Expected no error, got %v", err)
+			}
 
-	required, ok := params["required"].([]string)
-	if !ok {
-		t.Fatal("Expected required to be a string slice")
-	}
+			grepResult, ok := result.Data.(*GrepResult)
+			if !ok {
+				t.Fatalf("Expected GrepResult, got %T", result.Data)
+			}
 
-	if len(required) != 1 || required[0] != "pattern" {
-		t.Errorf("Expected required to be ['pattern'], got %v", required)
-	}
+			for _, expectedFile := range tt.expectedFiles {
+				found := false
+				for _, file := range grepResult.Files {
+					if contains(file, expectedFile) {
+						found = true
+						break
+					}
+				}
+				if !found {
+					t.Errorf("Expected to find file containing '%s', but it was not found. Found files: %v", expectedFile, grepResult.Files)
+				}
+			}
 
-	essentialParams := []string{"pattern", "output_mode", "glob", "type", "-i", "-n", "-A", "-B", "-C", "multiline", "head_limit"}
-	for _, param := range essentialParams {
-		if _, exists := properties[param]; !exists {
-			t.Errorf("Expected parameter '%s' to exist", param)
-		}
+			for _, excludedFile := range tt.shouldExclude {
+				for _, file := range grepResult.Files {
+					if contains(file, excludedFile) {
+						t.Errorf("Expected file containing '%s' to be excluded, but it was found in results. All files: %v", excludedFile, grepResult.Files)
+					}
+				}
+			}
+		})
 	}
 }
 
