@@ -26,7 +26,6 @@ func NewPostgresStorage(config PostgresConfig) (*PostgresStorage, error) {
 		return nil, fmt.Errorf("failed to open PostgreSQL connection: %w", err)
 	}
 
-	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -88,7 +87,6 @@ func (s *PostgresStorage) SaveConversation(ctx context.Context, conversationID s
 	}
 	defer func() { _ = tx.Rollback() }()
 
-	// Serialize metadata
 	tokenStatsJSON, err := json.Marshal(metadata.TokenStats)
 	if err != nil {
 		return fmt.Errorf("failed to marshal token stats: %w", err)
@@ -99,7 +97,6 @@ func (s *PostgresStorage) SaveConversation(ctx context.Context, conversationID s
 		return fmt.Errorf("failed to marshal tags: %w", err)
 	}
 
-	// Upsert conversation metadata
 	_, err = tx.ExecContext(ctx, `
 		INSERT INTO conversations (id, title, created_at, updated_at, message_count, model, tags, summary, token_stats)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -116,13 +113,11 @@ func (s *PostgresStorage) SaveConversation(ctx context.Context, conversationID s
 		return fmt.Errorf("failed to save conversation metadata: %w", err)
 	}
 
-	// Delete existing entries for this conversation
 	_, err = tx.ExecContext(ctx, "DELETE FROM conversation_entries WHERE conversation_id = $1", conversationID)
 	if err != nil {
 		return fmt.Errorf("failed to delete existing entries: %w", err)
 	}
 
-	// Insert new entries
 	for i, entry := range entries {
 		entryJSON, err := json.Marshal(entry)
 		if err != nil {
@@ -146,7 +141,6 @@ func (s *PostgresStorage) LoadConversation(ctx context.Context, conversationID s
 	var metadata ConversationMetadata
 	var tokenStatsJSON, tagsJSON string
 
-	// Load conversation metadata
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, title, created_at, updated_at, message_count, model, tags, summary, token_stats
 		FROM conversations WHERE id = $1
@@ -161,7 +155,6 @@ func (s *PostgresStorage) LoadConversation(ctx context.Context, conversationID s
 		return nil, metadata, fmt.Errorf("failed to load conversation metadata: %w", err)
 	}
 
-	// Unmarshal metadata
 	if err := json.Unmarshal([]byte(tokenStatsJSON), &metadata.TokenStats); err != nil {
 		return nil, metadata, fmt.Errorf("failed to unmarshal token stats: %w", err)
 	}
@@ -170,7 +163,6 @@ func (s *PostgresStorage) LoadConversation(ctx context.Context, conversationID s
 		return nil, metadata, fmt.Errorf("failed to unmarshal tags: %w", err)
 	}
 
-	// Load conversation entries
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT entry_data FROM conversation_entries
 		WHERE conversation_id = $1
@@ -225,7 +217,6 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, limit, offset i
 			return nil, fmt.Errorf("failed to scan conversation: %w", err)
 		}
 
-		// Unmarshal JSON fields
 		if err := json.Unmarshal([]byte(tokenStatsJSON), &summary.TokenStats); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal token stats: %w", err)
 		}
@@ -306,12 +297,10 @@ func (s *PostgresStorage) Health(ctx context.Context) error {
 		return fmt.Errorf("database connection is nil")
 	}
 
-	// Simple ping test
 	if err := s.db.PingContext(ctx); err != nil {
 		return fmt.Errorf("database ping failed: %w", err)
 	}
 
-	// Test basic query
 	var result int
 	if err := s.db.QueryRowContext(ctx, "SELECT 1").Scan(&result); err != nil {
 		return fmt.Errorf("database query test failed: %w", err)
