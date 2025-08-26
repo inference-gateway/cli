@@ -7,15 +7,24 @@ import (
 
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/services"
+	"github.com/inference-gateway/cli/internal/shortcuts"
 	"github.com/inference-gateway/sdk"
 )
 
 func TestFormatMetricsWithSessionTokens(t *testing.T) {
 	conversationRepo := services.NewInMemoryConversationRepository(nil)
+	shortcutRegistry := shortcuts.NewRegistry()
 
-	handler := &ChatHandler{
-		conversationRepo: conversationRepo,
-	}
+	handler := NewChatHandler(
+		nil, // agentService
+		conversationRepo,
+		nil, // modelService
+		nil, // configService
+		nil, // toolService
+		nil, // fileService
+		shortcutRegistry,
+		nil, // toolOrchestrator
+	)
 
 	err := conversationRepo.AddTokenUsage(100, 50, 150)
 	if err != nil {
@@ -31,7 +40,7 @@ func TestFormatMetricsWithSessionTokens(t *testing.T) {
 		},
 	}
 
-	result := handler.formatMetrics(metrics)
+	result := handler.FormatMetrics(metrics)
 
 	if !strings.Contains(result, "Input: 25 tokens") {
 		t.Errorf("Expected current input tokens in result, got: %s", result)
