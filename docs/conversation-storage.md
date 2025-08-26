@@ -1,14 +1,15 @@
 # Conversation Storage
 
-The CLI now supports persistent conversation storage, allowing you to save, resume, and manage your chat
-sessions across different invocations.
+The CLI supports configurable conversation storage, allowing you to save, resume, and manage your chat
+sessions across different invocations. By default, conversations are stored in memory, but you can enable
+persistent storage using SQLite, PostgreSQL, or Redis.
 
 ## Overview
 
 The conversation storage system provides:
 
-- **Persistent Storage**: Save conversations to SQLite, PostgreSQL, or Redis
-- **Resume Functionality**: Continue previous conversations using `/resume`
+- **Configurable Storage**: Choose between in-memory (default), SQLite, PostgreSQL, or Redis
+- **Resume Functionality**: Continue previous conversations using `/resume` (when persistent storage is enabled)
 - **Conversation Management**: List, save, and delete conversations
 - **Unified Interface**: Consistent API across all storage backends
 
@@ -101,30 +102,71 @@ Add storage configuration to your `.infer/config.yaml`:
 ```yaml
 # Storage configuration
 storage:
-  type: sqlite  # sqlite, postgres, or redis
+  enabled: false  # Set to true to enable persistent storage
+  type: memory    # Options: memory (default), sqlite, postgres, or redis
 
-  # SQLite configuration
+  # SQLite configuration (used when type: sqlite)
   sqlite:
-    path: ~/.infer/conversations.db
+    path: conversations.db  # Relative to .infer directory or absolute path
 
-  # PostgreSQL configuration (if type: postgres)
+  # PostgreSQL configuration (used when type: postgres)
   postgres:
     host: localhost
     port: 5432
     database: infer_conversations
-    username: infer_user
-    password: your_password
-    ssl_mode: require
+    username: "%POSTGRES_USER%"     # Can use environment variables
+    password: "%POSTGRES_PASSWORD%" # Can use environment variables
+    ssl_mode: prefer
 
-  # Redis configuration (if type: redis)
+  # Redis configuration (used when type: redis)
   redis:
     host: localhost
     port: 6379
-    database: 0
-    password: ""
-    username: ""
-    ttl: 2592000  # 30 days
+    password: "%REDIS_PASSWORD%"  # Can use environment variables
+    db: 0  # Redis database number
 ```
+
+### Enabling Storage
+
+1. **For in-memory storage (default)**:
+   - No configuration needed, or set `enabled: false`
+   - Conversations are lost when the CLI exits
+
+2. **For SQLite storage**:
+
+   ```yaml
+   storage:
+     enabled: true
+     type: sqlite
+     sqlite:
+       path: conversations.db
+   ```
+
+3. **For PostgreSQL storage**:
+
+   ```yaml
+   storage:
+     enabled: true
+     type: postgres
+     postgres:
+       host: your-postgres-host
+       port: 5432
+       database: infer_conversations
+       username: "%POSTGRES_USER%"
+       password: "%POSTGRES_PASSWORD%"
+   ```
+
+4. **For Redis storage**:
+
+   ```yaml
+   storage:
+     enabled: true
+     type: redis
+     redis:
+       host: your-redis-host
+       port: 6379
+       password: "%REDIS_PASSWORD%"
+   ```
 
 ## Usage
 

@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,83 @@ import (
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
+
+// persistentConversationAdapter adapts services.PersistentConversationRepository to shortcuts.PersistentConversationRepository
+type persistentConversationAdapter struct {
+	repo *services.PersistentConversationRepository
+}
+
+func newPersistentConversationAdapter(repo *services.PersistentConversationRepository) *persistentConversationAdapter {
+	return &persistentConversationAdapter{repo: repo}
+}
+
+func (a *persistentConversationAdapter) ListSavedConversations(ctx context.Context, limit, offset int) ([]shortcuts.ConversationSummary, error) {
+	storageConversations, err := a.repo.ListSavedConversations(ctx, limit, offset)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]shortcuts.ConversationSummary, len(storageConversations))
+	for i, conv := range storageConversations {
+		result[i] = shortcuts.ConversationSummary{
+			ID:           conv.ID,
+			Title:        conv.Title,
+			CreatedAt:    conv.CreatedAt.Format("2006-01-02 15:04:05"),
+			UpdatedAt:    conv.UpdatedAt.Format("2006-01-02 15:04:05"),
+			MessageCount: conv.MessageCount,
+			TokenStats: shortcuts.TokenStats{
+				TotalInputTokens:  conv.TokenStats.TotalInputTokens,
+				TotalOutputTokens: conv.TokenStats.TotalOutputTokens,
+				TotalTokens:       conv.TokenStats.TotalTokens,
+				RequestCount:      conv.TokenStats.RequestCount,
+			},
+			Model:   conv.Model,
+			Tags:    conv.Tags,
+			Summary: conv.Summary,
+		}
+	}
+	return result, nil
+}
+
+func (a *persistentConversationAdapter) LoadConversation(ctx context.Context, conversationID string) error {
+	return a.repo.LoadConversation(ctx, conversationID)
+}
+
+func (a *persistentConversationAdapter) GetCurrentConversationMetadata() shortcuts.ConversationMetadata {
+	metadata := a.repo.GetCurrentConversationMetadata()
+	return shortcuts.ConversationMetadata{
+		ID:           metadata.ID,
+		Title:        metadata.Title,
+		CreatedAt:    metadata.CreatedAt.Format("2006-01-02 15:04:05"),
+		UpdatedAt:    metadata.UpdatedAt.Format("2006-01-02 15:04:05"),
+		MessageCount: metadata.MessageCount,
+		TokenStats: shortcuts.TokenStats{
+			TotalInputTokens:  metadata.TokenStats.TotalInputTokens,
+			TotalOutputTokens: metadata.TokenStats.TotalOutputTokens,
+			TotalTokens:       metadata.TokenStats.TotalTokens,
+			RequestCount:      metadata.TokenStats.RequestCount,
+		},
+		Model:   metadata.Model,
+		Tags:    metadata.Tags,
+		Summary: metadata.Summary,
+	}
+}
+
+func (a *persistentConversationAdapter) SaveConversation(ctx context.Context) error {
+	return a.repo.SaveConversation(ctx)
+}
+
+func (a *persistentConversationAdapter) StartNewConversation(title string) error {
+	return a.repo.StartNewConversation(title)
+}
+
+func (a *persistentConversationAdapter) GetCurrentConversationID() string {
+	return a.repo.GetCurrentConversationID()
+}
+
+func (a *persistentConversationAdapter) SetConversationTitle(title string) {
+	a.repo.SetConversationTitle(title)
+}
 
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
@@ -37,14 +115,15 @@ type ChatApplication struct {
 	toolOrchestrator *services.ToolExecutionOrchestrator
 
 	// UI components
-	conversationView  ui.ConversationRenderer
-	inputView         ui.InputComponent
-	statusView        ui.StatusComponent
-	helpBar           ui.HelpBarComponent
-	approvalView      ui.ApprovalComponent
-	modelSelector     *components.ModelSelectorImpl
-	fileSelectionView *components.FileSelectionView
-	textSelectionView *components.TextSelectionView
+	conversationView     ui.ConversationRenderer
+	inputView            ui.InputComponent
+	statusView           ui.StatusComponent
+	helpBar              ui.HelpBarComponent
+	approvalView         ui.ApprovalComponent
+	modelSelector        *components.ModelSelectorImpl
+	conversationSelector *components.ConversationSelectorImpl
+	fileSelectionView    *components.FileSelectionView
+	textSelectionView    *components.TextSelectionView
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -133,6 +212,14 @@ func NewChatApplication(
 	app.updateHelpBarShortcuts()
 
 	app.modelSelector = components.NewModelSelector(models, app.modelService, app.theme)
+
+	if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
+		// Create adapter to bridge between different interfaces
+		adapter := newPersistentConversationAdapter(persistentRepo)
+		app.conversationSelector = components.NewConversationSelector(adapter, app.theme)
+	} else {
+		app.conversationSelector = nil
+	}
 
 	if initialView == domain.ViewStateChat {
 		app.focusedComponent = app.inputView
@@ -224,6 +311,11 @@ func (app *ChatApplication) Init() tea.Cmd {
 	if cmd := app.modelSelector.Init(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
+	if app.conversationSelector != nil {
+		if cmd := app.conversationSelector.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
 
 	return tea.Batch(cmds...)
 }
@@ -261,6 +353,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleApprovalView(msg)
 	case domain.ViewStateTextSelection:
 		return app.handleTextSelectionView(msg)
+	case domain.ViewStateConversationSelection:
+		return app.handleConversationSelectionView(msg)
 	default:
 		return nil
 	}
@@ -328,7 +422,6 @@ func (app *ChatApplication) handleApprovalView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		// Approval keys are now handled by the keybinding system
 		if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -340,11 +433,11 @@ func (app *ChatApplication) handleApprovalView(msg tea.Msg) []tea.Cmd {
 func (app *ChatApplication) handleTextSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	if _, ok := msg.(shared.ExitSelectionModeMsg); ok {
+	if _, ok := msg.(domain.ExitSelectionModeEvent); ok {
 		return app.handleExitSelectionMode(cmds)
 	}
 
-	if _, ok := msg.(shared.InitializeTextSelectionMsg); ok {
+	if _, ok := msg.(domain.InitializeTextSelectionEvent); ok {
 		if conversationView, ok := app.conversationView.(*components.ConversationView); ok {
 			lines := conversationView.GetPlainTextLines()
 			app.textSelectionView.SetLines(lines)
@@ -381,9 +474,89 @@ func (app *ChatApplication) View() string {
 		return app.renderChatInterface()
 	case domain.ViewStateTextSelection:
 		return app.renderTextSelection()
+	case domain.ViewStateConversationSelection:
+		return app.renderConversationSelection()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
+}
+
+func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.conversationSelector == nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  "Conversation selection requires persistent storage (SQLite). Current storage type not supported.",
+				Sticky: true,
+			}
+		})
+		return cmds
+	}
+
+	if _, ok := msg.(domain.InitializeConversationSelectionEvent); ok {
+		if cmd := app.conversationSelector.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return cmds
+	}
+
+	model, cmd := app.conversationSelector.Update(msg)
+	app.conversationSelector = model.(*components.ConversationSelectorImpl)
+
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return app.handleConversationSelection(cmds)
+}
+
+func (app *ChatApplication) handleConversationSelection(cmds []tea.Cmd) []tea.Cmd {
+	if app.conversationSelector.IsSelected() {
+		return app.handleConversationSelected(cmds)
+	}
+
+	if app.conversationSelector.IsCancelled() {
+		return app.handleConversationCancelled(cmds)
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) handleConversationSelected(cmds []tea.Cmd) []tea.Cmd {
+	selectedConv := app.conversationSelector.GetSelected()
+	if selectedConv.ID != "" {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ConversationSelectedEvent{ConversationID: selectedConv.ID}
+		})
+	}
+
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		return []tea.Cmd{tea.Quit}
+	}
+
+	app.focusedComponent = app.inputView
+	return cmds
+}
+
+func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cmd {
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		return []tea.Cmd{tea.Quit}
+	}
+
+	app.focusedComponent = app.inputView
+	return cmds
+}
+
+func (app *ChatApplication) renderConversationSelection() string {
+	if app.conversationSelector == nil {
+		return "Conversation selection requires persistent storage to be enabled."
+	}
+
+	width, height := app.stateManager.GetDimensions()
+	app.conversationSelector.SetWidth(width)
+	app.conversationSelector.SetHeight(height)
+	return app.conversationSelector.View()
 }
 
 func (app *ChatApplication) renderChatInterface() string {
@@ -485,7 +658,7 @@ func (app *ChatApplication) handleExitSelectionMode(cmds []tea.Cmd) []tea.Cmd {
 	app.updateHelpBarShortcuts()
 
 	cmds = append(cmds, func() tea.Msg {
-		return shared.HideHelpBarMsg{}
+		return domain.HideHelpBarEvent{}
 	})
 
 	if app.statusView.HasSavedState() {
@@ -515,7 +688,6 @@ func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
 		fileState.SelectedIndex,
 	)
 
-	// Update state based on handler response
 	if newSearchQuery != fileState.SearchQuery {
 		app.stateManager.UpdateFileSearchQuery(newSearchQuery)
 	}
@@ -555,7 +727,7 @@ func (app *ChatApplication) approveToolCall() tea.Cmd {
 	toolExecution := app.stateManager.GetToolExecution()
 	if toolExecution == nil || toolExecution.CurrentTool == nil {
 		return func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "No pending tool call found",
 				Sticky: false,
 			}
@@ -572,7 +744,7 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 	toolExecution := app.stateManager.GetToolExecution()
 	if toolExecution == nil || toolExecution.CurrentTool == nil {
 		return func() tea.Msg {
-			return shared.ShowErrorMsg{
+			return domain.ShowErrorEvent{
 				Error:  "No pending tool call found",
 				Sticky: false,
 			}
@@ -587,7 +759,7 @@ func (app *ChatApplication) denyToolCall() tea.Cmd {
 
 func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
-	if setupMsg, ok := msg.(shared.SetupFileSelectionMsg); ok {
+	if setupMsg, ok := msg.(domain.SetupFileSelectionEvent); ok {
 		app.stateManager.SetupFileSelection(setupMsg.Files)
 		return cmds
 	}
@@ -629,6 +801,19 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 		}
 	}
 
+	if app.conversationSelector != nil {
+		switch msg.(type) {
+		case domain.ConversationsLoadedEvent:
+			model, cmd := app.conversationSelector.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			if convSelectorModel, ok := model.(*components.ConversationSelectorImpl); ok {
+				app.conversationSelector = convSelectorModel
+			}
+		}
+	}
+
 	return cmds
 }
 
@@ -642,12 +827,14 @@ func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.C
 		return app.updateUIComponents(msg)
 	case tea.KeyMsg:
 		return app.updateUIComponents(msg)
-	case shared.UpdateHistoryMsg, shared.SetStatusMsg, shared.UpdateStatusMsg,
-		shared.ShowErrorMsg, shared.ClearErrorMsg, shared.ClearInputMsg, shared.SetInputMsg,
-		shared.ToggleHelpBarMsg, shared.HideHelpBarMsg, shared.DebugKeyMsg, shared.SetupFileSelectionMsg,
-		shared.ScrollRequestMsg:
+	case domain.UpdateHistoryEvent, domain.SetStatusEvent, domain.UpdateStatusEvent,
+		domain.ShowErrorEvent, domain.ClearErrorEvent, domain.ClearInputEvent, domain.SetInputEvent,
+		domain.ToggleHelpBarEvent, domain.HideHelpBarEvent, domain.DebugKeyEvent, domain.SetupFileSelectionEvent,
+		domain.ScrollRequestEvent, domain.ConversationsLoadedEvent, domain.ModelSelectedEvent,
+		domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent,
+		domain.ToolApprovalRequestEvent, domain.ToolApprovalResponseEvent:
 		return app.updateUIComponents(msg)
-	case shared.UserInputMsg:
+	case domain.UserInputEvent:
 		return cmds
 	default:
 		msgType := fmt.Sprintf("%T", msg)
@@ -737,7 +924,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	app.inputView.ClearInput()
 
 	return func() tea.Msg {
-		return shared.UserInputMsg{
+		return domain.UserInputEvent{
 			Content: input,
 		}
 	}

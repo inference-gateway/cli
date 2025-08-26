@@ -487,3 +487,77 @@ type GitHubError struct {
 	Message          string `json:"message"`
 	DocumentationURL string `json:"documentation_url,omitempty"`
 }
+
+// UI Event Types for application state management
+
+// StatusType represents different types of status messages
+type StatusType int
+
+const (
+	StatusDefault StatusType = iota
+	StatusThinking
+	StatusGenerating
+	StatusWorking
+	StatusProcessing
+	StatusPreparing
+)
+
+// StatusProgress represents progress information for status messages
+type StatusProgress struct {
+	Current int
+	Total   int
+}
+
+
+// UIEvent interface for all UI-related events
+type UIEvent interface {
+	GetType() UIEventType
+}
+
+// UIEventType defines types of UI events
+type UIEventType int
+
+const (
+	UIEventUpdateHistory UIEventType = iota
+	UIEventSetStatus
+	UIEventUpdateStatus
+	UIEventShowError
+	UIEventClearError
+	UIEventClearInput
+	UIEventSetInput
+	UIEventUserInput
+	UIEventModelSelected
+	UIEventConversationSelected
+	UIEventInitializeConversationSelection
+	UIEventFileSelected
+	UIEventFileSelectionRequest
+	UIEventSetupFileSelection
+	UIEventApprovalRequest
+	UIEventApprovalResponse
+	UIEventScrollRequest
+	UIEventFocusRequest
+	UIEventResize
+	UIEventDebugKey
+	UIEventToggleHelpBar
+	UIEventHideHelpBar
+	UIEventExitSelectionMode
+	UIEventInitializeTextSelection
+	UIEventConversationsLoaded
+	UIEventToolExecutionStarted
+	UIEventToolExecutionProgress
+	UIEventToolExecutionCompleted
+	UIEventToolApprovalRequest
+	UIEventToolApprovalResponse
+)
+
+// ScrollDirection defines scroll direction
+type ScrollDirection int
+
+const (
+	ScrollUp ScrollDirection = iota
+	ScrollDown
+	ScrollLeft
+	ScrollRight
+	ScrollToTop
+	ScrollToBottom
+)

@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/atotto/clipboard"
+	clipboard "github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	lipgloss "github.com/charmbracelet/lipgloss"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // TextSelectionView provides vim-like text selection mode
@@ -95,7 +95,7 @@ func (v *TextSelectionView) HandleKey(msg tea.KeyMsg) tea.Cmd {
 	case "esc", "q":
 		v.clearSelection()
 		return func() tea.Msg {
-			return shared.ExitSelectionModeMsg{}
+			return domain.ExitSelectionModeEvent{}
 		}
 	case "ctrl+c":
 		cmd := v.yankSelection()
@@ -103,7 +103,7 @@ func (v *TextSelectionView) HandleKey(msg tea.KeyMsg) tea.Cmd {
 		return tea.Batch(
 			cmd,
 			func() tea.Msg {
-				return shared.ExitSelectionModeMsg{}
+				return domain.ExitSelectionModeEvent{}
 			},
 		)
 	}
@@ -279,10 +279,10 @@ func (v *TextSelectionView) yankSelection() tea.Cmd {
 			v.copiedText = text
 			_ = clipboard.WriteAll(text)
 			return func() tea.Msg {
-				return shared.SetStatusMsg{
+				return domain.SetStatusEvent{
 					Message:    "📋 Yanked 1 line",
 					Spinner:    false,
-					StatusType: shared.StatusDefault,
+					StatusType: domain.StatusDefault,
 				}
 			}
 		}
@@ -302,10 +302,10 @@ func (v *TextSelectionView) yankSelection() tea.Cmd {
 	msg := fmt.Sprintf("📋 Yanked %d line(s)", lineCount)
 
 	return func() tea.Msg {
-		return shared.SetStatusMsg{
+		return domain.SetStatusEvent{
 			Message:    msg,
 			Spinner:    false,
-			StatusType: shared.StatusDefault,
+			StatusType: domain.StatusDefault,
 		}
 	}
 }

@@ -320,6 +320,8 @@ func (r *Registry) determineTargetLayer(views []domain.ViewState) string {
 			return "file_selection"
 		case domain.ViewStateModelSelection:
 			return "model_selection"
+		case domain.ViewStateConversationSelection:
+			return "conversation_selection"
 		case domain.ViewStateChat:
 			return "chat_view"
 		default:

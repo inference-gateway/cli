@@ -279,10 +279,10 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case shared.ClearInputMsg:
+	case domain.ClearInputEvent:
 		iv.ClearInput()
 		return iv, nil
-	case shared.SetInputMsg:
+	case domain.SetInputEvent:
 		iv.SetText(msg.Text)
 		iv.SetCursor(len(msg.Text))
 		return iv, nil

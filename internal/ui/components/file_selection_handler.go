@@ -5,7 +5,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/ui/shared"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // FileSelectionHandler handles file selection logic and state management
@@ -138,14 +139,14 @@ func (h *FileSelectionHandler) CreateStatusMessage(action FileSelectionAction, s
 	switch action {
 	case FileSelectionActionSelect:
 		return func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message: fmt.Sprintf("📁 File selected: %s", selectedFile),
 				Spinner: false,
 			}
 		}
 	case FileSelectionActionCancel:
 		return func() tea.Msg {
-			return shared.SetStatusMsg{
+			return domain.SetStatusEvent{
 				Message: "File selection cancelled",
 				Spinner: false,
 			}

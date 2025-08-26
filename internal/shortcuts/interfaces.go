@@ -35,4 +35,5 @@ const (
 	SideEffectGenerateCommit
 	SideEffectResumeConversation
 	SideEffectSaveConversation
+	SideEffectShowConversationSelection
 )

@@ -116,7 +116,7 @@ func (a *ApprovalComponent) Init() tea.Cmd {
 // Update handles Bubble Tea messages including scroll requests
 func (a *ApprovalComponent) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case shared.ScrollRequestMsg:
+	case domain.ScrollRequestEvent:
 		if msg.ComponentID == "approval" {
 			return a.handleScrollRequest(msg)
 		}
@@ -130,23 +130,23 @@ func (a *ApprovalComponent) View() string {
 }
 
 // handleScrollRequest processes scroll requests for the approval component
-func (a *ApprovalComponent) handleScrollRequest(msg shared.ScrollRequestMsg) (tea.Model, tea.Cmd) {
+func (a *ApprovalComponent) handleScrollRequest(msg domain.ScrollRequestEvent) (tea.Model, tea.Cmd) {
 	switch msg.Direction {
-	case shared.ScrollUp:
+	case domain.ScrollUp:
 		for i := 0; i < msg.Amount; i++ {
 			if a.scrollOffset > 0 {
 				a.scrollOffset--
 			}
 		}
-	case shared.ScrollDown:
+	case domain.ScrollDown:
 		for i := 0; i < msg.Amount; i++ {
 			if a.scrollOffset < a.maxScrollOffset {
 				a.scrollOffset++
 			}
 		}
-	case shared.ScrollToTop:
+	case domain.ScrollToTop:
 		a.scrollOffset = 0
-	case shared.ScrollToBottom:
+	case domain.ScrollToBottom:
 		a.scrollOffset = a.maxScrollOffset
 	}
 	return a, nil

@@ -7,6 +7,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/storage"
 )
 
@@ -139,6 +140,20 @@ func (r *PersistentConversationRepository) SetAutoSave(enabled bool) {
 
 // Override AddMessage to trigger auto-save
 func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEntry) error {
+	if r.autoSave && r.conversationID == "" {
+		r.conversationID = uuid.New().String()
+		now := time.Now()
+		r.metadata = storage.ConversationMetadata{
+			ID:           r.conversationID,
+			Title:        "Auto-saved Conversation",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+			MessageCount: 0,
+			TokenStats:   domain.SessionTokenStats{},
+			Tags:         []string{},
+		}
+	}
+
 	if err := r.InMemoryConversationRepository.AddMessage(msg); err != nil {
 		return err
 	}
@@ -149,7 +164,7 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 			defer cancel()
 
 			if err := r.SaveConversation(ctx); err != nil {
-				fmt.Printf("Warning: failed to auto-save conversation: %v\n", err)
+				logger.Warn("Failed to auto-save conversation", "error", err)
 			}
 		}()
 	}
@@ -179,6 +194,20 @@ func (r *PersistentConversationRepository) Clear() error {
 
 // Override AddTokenUsage to trigger auto-save
 func (r *PersistentConversationRepository) AddTokenUsage(inputTokens, outputTokens, totalTokens int) error {
+	if r.autoSave && r.conversationID == "" {
+		r.conversationID = uuid.New().String()
+		now := time.Now()
+		r.metadata = storage.ConversationMetadata{
+			ID:           r.conversationID,
+			Title:        "Auto-saved Conversation",
+			CreatedAt:    now,
+			UpdatedAt:    now,
+			MessageCount: 0,
+			TokenStats:   domain.SessionTokenStats{},
+			Tags:         []string{},
+		}
+	}
+
 	if err := r.InMemoryConversationRepository.AddTokenUsage(inputTokens, outputTokens, totalTokens); err != nil {
 		return err
 	}
@@ -189,7 +218,7 @@ func (r *PersistentConversationRepository) AddTokenUsage(inputTokens, outputToke
 			defer cancel()
 
 			if err := r.SaveConversation(ctx); err != nil {
-				fmt.Printf("Warning: failed to auto-save conversation after token usage: %v\n", err)
+				logger.Warn("Failed to auto-save conversation after token usage", "error", err)
 			}
 		}()
 	}

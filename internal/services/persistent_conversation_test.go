@@ -271,6 +271,48 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 		assert.Len(t, messages, 1)
 		assert.Equal(t, "Auto save message", messages[0].Message.Content)
 	})
+
+	t.Run("Auto Start New Conversation", func(t *testing.T) {
+		newRepo, cleanup := setupTestRepository(t)
+		defer cleanup()
+
+		newRepo.SetAutoSave(true)
+
+		assert.Empty(t, newRepo.GetCurrentConversationID())
+
+		entry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: "First message that should auto-start conversation",
+			},
+			Time:  time.Now(),
+			Model: "claude-3",
+		}
+
+		err := newRepo.AddMessage(entry)
+		assert.NoError(t, err)
+
+		conversationID := newRepo.GetCurrentConversationID()
+		assert.NotEmpty(t, conversationID)
+
+		metadata := newRepo.GetCurrentConversationMetadata()
+		assert.Equal(t, "Auto-saved Conversation", metadata.Title)
+
+		messageCount := newRepo.GetMessageCount()
+		assert.Equal(t, 1, messageCount, "Message should be added to in-memory store")
+
+		time.Sleep(200 * time.Millisecond)
+
+		err = newRepo.Clear()
+		assert.NoError(t, err)
+
+		err = newRepo.LoadConversation(ctx, conversationID)
+		assert.NoError(t, err)
+
+		messages := newRepo.GetMessages()
+		assert.Len(t, messages, 1)
+		assert.Equal(t, "First message that should auto-start conversation", messages[0].Message.Content)
+	})
 }
 
 func TestPersistentConversationRepository_ErrorCases(t *testing.T) {

@@ -19,10 +19,10 @@ client:
       - 503
       - 504
 logging:
-  debug: false
+  debug: true
   dir: ""
 tools:
-  enabled: true
+  enabled: false
   sandbox:
     directories:
       - .
@@ -186,3 +186,20 @@ git:
       - "refactor: Simplify error handling"
 
       Respond with ONLY the commit message, no quotes or explanation.
+storage:
+  enabled: true
+  type: sqlite
+  sqlite:
+    path: .infer/conversations.db
+  postgres:
+    host: localhost
+    port: 5432
+    database: infer_conversations
+    username: ""
+    password: ""
+    ssl_mode: prefer
+  redis:
+    host: localhost
+    port: 6379
+    password: ""
+    db: 0

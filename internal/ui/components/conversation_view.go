@@ -403,10 +403,10 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
-	case shared.UpdateHistoryMsg:
+	case domain.UpdateHistoryEvent:
 		cv.SetConversation(msg.History)
 		return cv, cmd
-	case shared.ScrollRequestMsg:
+	case domain.ScrollRequestEvent:
 		if msg.ComponentID == "conversation" {
 			return cv.handleScrollRequest(msg)
 		}
@@ -419,19 +419,19 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return cv, cmd
 }
 
-func (cv *ConversationView) handleScrollRequest(msg shared.ScrollRequestMsg) (tea.Model, tea.Cmd) {
+func (cv *ConversationView) handleScrollRequest(msg domain.ScrollRequestEvent) (tea.Model, tea.Cmd) {
 	switch msg.Direction {
-	case shared.ScrollUp:
+	case domain.ScrollUp:
 		for i := 0; i < msg.Amount; i++ {
 			cv.Viewport.ScrollUp(1)
 		}
-	case shared.ScrollDown:
+	case domain.ScrollDown:
 		for i := 0; i < msg.Amount; i++ {
 			cv.Viewport.ScrollDown(1)
 		}
-	case shared.ScrollToTop:
+	case domain.ScrollToTop:
 		cv.Viewport.GotoTop()
-	case shared.ScrollToBottom:
+	case domain.ScrollToBottom:
 		cv.Viewport.GotoBottom()
 	}
 	return cv, nil

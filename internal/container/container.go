@@ -13,6 +13,7 @@ import (
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	storage "github.com/inference-gateway/cli/internal/storage"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
 	viper "github.com/spf13/viper"
@@ -90,7 +91,22 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.toolRegistry = tools.NewRegistry(c.config)
 
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
-	c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService)
+
+	// Initialize conversation repository based on storage configuration
+	if c.config.Storage.Enabled && c.config.Storage.Type != "memory" {
+		storageConfig := c.createStorageConfig()
+		storageBackend, err := storage.NewStorage(storageConfig)
+		if err != nil {
+			logger.Warn("Failed to initialize persistent storage, falling back to in-memory", "error", err)
+			c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService)
+		} else {
+			c.conversationRepo = services.NewPersistentConversationRepository(toolFormatterService, storageBackend)
+			logger.Info("Initialized persistent storage", "type", c.config.Storage.Type)
+		}
+	} else {
+		c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService)
+		logger.Debug("Using in-memory conversation storage")
+	}
 
 	modelClient := c.createSDKClient()
 	c.modelService = services.NewHTTPModelService(modelClient)
@@ -161,6 +177,18 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 
+	if c.config.Storage.Enabled && c.config.Storage.Type != "memory" {
+		if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
+			adapter := NewPersistentConversationAdapter(persistentRepo)
+			c.shortcutRegistry.Register(shortcuts.NewSaveShortcut(adapter))
+			c.shortcutRegistry.Register(shortcuts.NewResumeShortcut(adapter))
+			c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(adapter))
+			logger.Info("registered persistent conversation shortcuts")
+		} else {
+			logger.Warn("storage is enabled but conversation repository is not persistent")
+		}
+	}
+
 	gitCommitClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
 
@@ -185,6 +213,58 @@ func (c *ServiceContainer) determineConfigDirectory() string {
 		}
 	}
 	return configDir
+}
+
+// createStorageConfig creates a storage configuration based on the app config
+func (c *ServiceContainer) createStorageConfig() storage.StorageConfig {
+	storageType := c.config.Storage.Type
+
+	// Resolve environment variables in storage configuration
+	switch storageType {
+	case "sqlite":
+		path := c.config.Storage.SQLite.Path
+		if !filepath.IsAbs(path) {
+			// Make relative paths absolute based on current working directory
+			absPath, err := filepath.Abs(path)
+			if err == nil {
+				path = absPath
+			}
+		}
+		return storage.StorageConfig{
+			Type: "sqlite",
+			SQLite: storage.SQLiteConfig{
+				Path: path,
+			},
+		}
+	case "postgres":
+		return storage.StorageConfig{
+			Type: "postgres",
+			Postgres: storage.PostgresConfig{
+				Host:     c.config.Storage.Postgres.Host,
+				Port:     c.config.Storage.Postgres.Port,
+				Database: c.config.Storage.Postgres.Database,
+				Username: config.ResolveEnvironmentVariables(c.config.Storage.Postgres.Username),
+				Password: config.ResolveEnvironmentVariables(c.config.Storage.Postgres.Password),
+				SSLMode:  c.config.Storage.Postgres.SSLMode,
+			},
+		}
+	case "redis":
+		return storage.StorageConfig{
+			Type: "redis",
+			Redis: storage.RedisConfig{
+				Host:     c.config.Storage.Redis.Host,
+				Port:     c.config.Storage.Redis.Port,
+				Password: config.ResolveEnvironmentVariables(c.config.Storage.Redis.Password),
+				Database: c.config.Storage.Redis.DB,
+			},
+		}
+	default:
+		// This shouldn't happen if config is validated properly
+		logger.Warn("Unknown storage type, using memory", "type", storageType)
+		return storage.StorageConfig{
+			Type: "memory",
+		}
+	}
 }
 
 func (c *ServiceContainer) GetConfig() *config.Config {

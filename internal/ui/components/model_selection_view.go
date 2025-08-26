@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	tea "github.com/charmbracelet/bubbletea"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // ModelSelectorImpl implements model selection UI
@@ -111,7 +111,7 @@ func (m *ModelSelectorImpl) handleSelection() (tea.Model, tea.Cmd) {
 		if err := m.modelService.SelectModel(selectedModel); err == nil {
 			m.done = true
 			return m, func() tea.Msg {
-				return shared.ModelSelectedMsg{Model: selectedModel}
+				return domain.ModelSelectedEvent{Model: selectedModel}
 			}
 		}
 	}
