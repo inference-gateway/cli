@@ -9,12 +9,12 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriterdomain "github.com/inference-gateway/cli/internal/domain/filewriter"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
 	viper "github.com/spf13/viper"
@@ -93,7 +93,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
 
-	// Initialize conversation repository based on storage configuration
 	if c.config.Storage.Enabled && c.config.Storage.Type != "memory" {
 		storageConfig := c.createStorageConfig()
 		storageBackend, err := storage.NewStorage(storageConfig)
@@ -220,12 +219,10 @@ func (c *ServiceContainer) determineConfigDirectory() string {
 func (c *ServiceContainer) createStorageConfig() storage.StorageConfig {
 	storageType := c.config.Storage.Type
 
-	// Resolve environment variables in storage configuration
 	switch storageType {
 	case "sqlite":
 		path := c.config.Storage.SQLite.Path
 		if !filepath.IsAbs(path) {
-			// Make relative paths absolute based on current working directory
 			absPath, err := filepath.Abs(path)
 			if err == nil {
 				path = absPath
@@ -260,7 +257,6 @@ func (c *ServiceContainer) createStorageConfig() storage.StorageConfig {
 			},
 		}
 	default:
-		// This shouldn't happen if config is validated properly
 		logger.Warn("Unknown storage type, using memory", "type", storageType)
 		return storage.StorageConfig{
 			Type: "memory",
