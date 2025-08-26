@@ -19,10 +19,10 @@ client:
       - 503
       - 504
 logging:
-  debug: true
+  debug: false
   dir: ""
 tools:
-  enabled: false
+  enabled: true
   sandbox:
     directories:
       - .
