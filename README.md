@@ -452,16 +452,16 @@ implementation when the native `tree` command is unavailable.
 
 - `path` (optional): Directory path to display tree structure for (default: current directory)
 - `max_depth` (optional): Maximum depth to traverse (unlimited by default)
-- `exclude_patterns` (optional): Array of glob patterns to exclude from the tree (e.g., `["*.log", "node_modules"]`)
 - `show_hidden` (optional): Whether to show hidden files and directories (default: false)
+- `respect_gitignore` (optional): Whether to exclude patterns from .gitignore (default: true)
 - `format` (optional): Output format - "text" or "json" (default: "text")
 
 **Examples:**
 
 - Basic tree: Uses current directory with default settings
 - Tree with depth limit: `max_depth: 2` - Shows only 2 levels deep
-- Tree excluding patterns: `exclude_patterns: ["*.log", "node_modules", ".git"]`
 - Tree with hidden files: `show_hidden: true`
+- Tree ignoring gitignore: `respect_gitignore: false` - Shows all files including those in .gitignore
 - JSON output: `format: "json"` - Returns structured data
 
 **Features:**
@@ -738,21 +738,6 @@ A powerful search tool with configurable backend (ripgrep or Go implementation).
   - Cache and temp files (.cache, \*.tmp, \*.log, etc.)
   - Security-sensitive files (.env, secrets, etc.)
 - **Gitignore Integration**: Automatically reads and respects .gitignore patterns
-- **User Configuration**: Users can add custom exclusion patterns in the configuration file:
-
-  ```yaml
-  tools:
-    grep:
-      enabled: true
-      backend: auto  # "auto", "ripgrep", or "go"
-      excluded_patterns:  # Additional patterns to exclude (user-configured only)
-        - "*.generated.go"
-        - "test_data/*"
-        - "vendor/*"
-  ```
-
-  **Note**: The `excluded_patterns` configuration is only available to users via the config file.
-  The LLM cannot set exclusion patterns at runtime for security reasons.
 - **Validation**: Validates search patterns and file access
 - **Performance Limits**: Configurable result limits to prevent overwhelming output
 
@@ -921,7 +906,6 @@ tools:
   grep:
     enabled: true
     backend: auto # "auto", "ripgrep", or "go"
-    excluded_patterns: [] # User-configured exclusion patterns (not settable by LLM)
     require_approval: false
   tree:
     enabled: true

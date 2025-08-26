@@ -386,20 +386,6 @@ func (fake *FakeAutocompleteInterface) UpdateArgsForCall(i int) (string, int) {
 func (fake *FakeAutocompleteInterface) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
-	fake.getSelectedShortcutMutex.RLock()
-	defer fake.getSelectedShortcutMutex.RUnlock()
-	fake.handleKeyMutex.RLock()
-	defer fake.handleKeyMutex.RUnlock()
-	fake.hideMutex.RLock()
-	defer fake.hideMutex.RUnlock()
-	fake.isVisibleMutex.RLock()
-	defer fake.isVisibleMutex.RUnlock()
-	fake.renderMutex.RLock()
-	defer fake.renderMutex.RUnlock()
-	fake.setWidthMutex.RLock()
-	defer fake.setWidthMutex.RUnlock()
-	fake.updateMutex.RLock()
-	defer fake.updateMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
 	for key, value := range fake.invocations {
 		copiedInvocations[key] = value
@@ -412,6 +398,9 @@ func (fake *FakeAutocompleteInterface) recordInvocation(key string, args []inter
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
 		fake.invocations = map[string][][]interface{}{}
+	}
+	if fake.invocations[key] == nil {
+		fake.invocations[key] = [][]interface{}{}
 	}
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
