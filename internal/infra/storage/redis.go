@@ -29,7 +29,6 @@ func NewRedisStorage(config RedisConfig) (*RedisStorage, error) {
 
 	client := redis.NewClient(options)
 
-	// Test connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -67,7 +66,6 @@ func (s *RedisStorage) conversationIndexKey() string {
 func (s *RedisStorage) SaveConversation(ctx context.Context, conversationID string, entries []domain.ConversationEntry, metadata ConversationMetadata) error {
 	pipe := s.client.Pipeline()
 
-	// Serialize and save conversation metadata
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
@@ -80,7 +78,6 @@ func (s *RedisStorage) SaveConversation(ctx context.Context, conversationID stri
 		pipe.Set(ctx, convKey, metadataJSON, 0)
 	}
 
-	// Serialize and save conversation entries
 	entriesJSON, err := json.Marshal(entries)
 	if err != nil {
 		return fmt.Errorf("failed to marshal entries: %w", err)
@@ -93,7 +90,6 @@ func (s *RedisStorage) SaveConversation(ctx context.Context, conversationID stri
 		pipe.Set(ctx, entriesKey, entriesJSON, 0)
 	}
 
-	// Add to conversation index (sorted set by updated_at timestamp)
 	indexKey := s.conversationIndexKey()
 	score := float64(metadata.UpdatedAt.Unix())
 	pipe.ZAdd(ctx, indexKey, &redis.Z{
@@ -101,7 +97,6 @@ func (s *RedisStorage) SaveConversation(ctx context.Context, conversationID stri
 		Member: conversationID,
 	})
 
-	// Execute pipeline
 	_, err = pipe.Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to save conversation: %w", err)
@@ -115,7 +110,6 @@ func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID stri
 	var metadata ConversationMetadata
 	var entries []domain.ConversationEntry
 
-	// Load metadata and entries in parallel
 	pipe := s.client.Pipeline()
 	metadataCmd := pipe.Get(ctx, s.conversationKey(conversationID))
 	entriesCmd := pipe.Get(ctx, s.conversationEntriesKey(conversationID))
@@ -128,7 +122,6 @@ func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID stri
 		return nil, metadata, fmt.Errorf("failed to load conversation: %w", err)
 	}
 
-	// Parse metadata
 	metadataJSON, err := metadataCmd.Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -141,7 +134,6 @@ func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID stri
 		return nil, metadata, fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}
 
-	// Parse entries
 	entriesJSON, err := entriesCmd.Result()
 	if err != nil {
 		if err == redis.Nil {
@@ -161,7 +153,6 @@ func (s *RedisStorage) LoadConversation(ctx context.Context, conversationID stri
 func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error) {
 	indexKey := s.conversationIndexKey()
 
-	// Get conversation IDs from sorted set (reverse order - most recent first)
 	conversationIDs, err := s.client.ZRevRange(ctx, indexKey, int64(offset), int64(offset+limit-1)).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get conversation index: %w", err)
@@ -171,7 +162,6 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 		return []ConversationSummary{}, nil
 	}
 
-	// Get metadata for all conversations
 	pipe := s.client.Pipeline()
 	var metadataCmds []*redis.StringCmd
 
@@ -185,13 +175,11 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 		return nil, fmt.Errorf("failed to load conversation metadata: %w", err)
 	}
 
-	// Parse results
 	var summaries []ConversationSummary
 	for i, cmd := range metadataCmds {
 		metadataJSON, err := cmd.Result()
 		if err != nil {
 			if err == redis.Nil {
-				// Conversation may have been deleted, skip it
 				continue
 			}
 			return nil, fmt.Errorf("failed to get metadata for conversation %s: %w", conversationIDs[i], err)
@@ -207,7 +195,6 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 		summaries = append(summaries, summary)
 	}
 
-	// Sort by UpdatedAt in case Redis sorted set got out of sync
 	sort.Slice(summaries, func(i, j int) bool {
 		return summaries[i].UpdatedAt.After(summaries[j].UpdatedAt)
 	})
@@ -219,13 +206,10 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 func (s *RedisStorage) DeleteConversation(ctx context.Context, conversationID string) error {
 	pipe := s.client.Pipeline()
 
-	// Delete conversation metadata
 	pipe.Del(ctx, s.conversationKey(conversationID))
 
-	// Delete conversation entries
 	pipe.Del(ctx, s.conversationEntriesKey(conversationID))
 
-	// Remove from index
 	pipe.ZRem(ctx, s.conversationIndexKey(), conversationID)
 
 	results, err := pipe.Exec(ctx)
@@ -233,7 +217,6 @@ func (s *RedisStorage) DeleteConversation(ctx context.Context, conversationID st
 		return fmt.Errorf("failed to delete conversation: %w", err)
 	}
 
-	// Check if conversation existed
 	deletedCount := results[0].(*redis.IntCmd).Val() + results[1].(*redis.IntCmd).Val()
 	if deletedCount == 0 {
 		return fmt.Errorf("conversation not found: %s", conversationID)
@@ -244,7 +227,6 @@ func (s *RedisStorage) DeleteConversation(ctx context.Context, conversationID st
 
 // UpdateConversationMetadata updates metadata for a conversation
 func (s *RedisStorage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata ConversationMetadata) error {
-	// Check if conversation exists
 	exists, err := s.client.Exists(ctx, s.conversationKey(conversationID)).Result()
 	if err != nil {
 		return fmt.Errorf("failed to check conversation existence: %w", err)
@@ -254,7 +236,6 @@ func (s *RedisStorage) UpdateConversationMetadata(ctx context.Context, conversat
 		return fmt.Errorf("conversation not found: %s", conversationID)
 	}
 
-	// Update metadata
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
@@ -269,7 +250,6 @@ func (s *RedisStorage) UpdateConversationMetadata(ctx context.Context, conversat
 		pipe.Set(ctx, convKey, metadataJSON, 0)
 	}
 
-	// Update index with new timestamp
 	indexKey := s.conversationIndexKey()
 	score := float64(metadata.UpdatedAt.Unix())
 	pipe.ZAdd(ctx, indexKey, &redis.Z{
@@ -299,21 +279,17 @@ func (s *RedisStorage) Health(ctx context.Context) error {
 		return fmt.Errorf("redis client is nil")
 	}
 
-	// Ping Redis
 	if err := s.client.Ping(ctx).Err(); err != nil {
 		return fmt.Errorf("redis ping failed: %w", err)
 	}
 
-	// Test basic operations
 	testKey := "health_check_" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	testValue := "ok"
 
-	// Set a test value
 	if err := s.client.Set(ctx, testKey, testValue, time.Second*10).Err(); err != nil {
 		return fmt.Errorf("redis set test failed: %w", err)
 	}
 
-	// Get the test value
 	result, err := s.client.Get(ctx, testKey).Result()
 	if err != nil {
 		return fmt.Errorf("redis get test failed: %w", err)
@@ -323,7 +299,6 @@ func (s *RedisStorage) Health(ctx context.Context) error {
 		return fmt.Errorf("redis test value mismatch: expected %s, got %s", testValue, result)
 	}
 
-	// Clean up test key
 	s.client.Del(ctx, testKey)
 
 	return nil

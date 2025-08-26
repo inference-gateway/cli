@@ -33,7 +33,6 @@ func TestStorageFactory(t *testing.T) {
 			},
 		}
 
-		// This should fail since we can't connect to invalid-host
 		_, err := NewStorage(config)
 		assert.Error(t, err)
 	})
@@ -51,7 +50,6 @@ func TestStorageFactory(t *testing.T) {
 			},
 		}
 
-		// This should fail since we can't connect to invalid-host
 		_, err := NewStorage(config)
 		assert.Error(t, err)
 	})
