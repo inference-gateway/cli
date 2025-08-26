@@ -187,8 +187,8 @@ git:
 
       Respond with ONLY the commit message, no quotes or explanation.
 storage:
-  enabled: true
-  type: sqlite
+  enabled: false
+  type: memory
   sqlite:
     path: .infer/conversations.db
   postgres:

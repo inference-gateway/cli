@@ -240,10 +240,20 @@ type FetchCacheConfig struct {
 	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
 }
 
+// StorageType represents the type of storage backend
+type StorageType string
+
+const (
+	StorageTypeMemory   StorageType = "memory"
+	StorageTypeSQLite   StorageType = "sqlite"
+	StorageTypePostgres StorageType = "postgres"
+	StorageTypeRedis    StorageType = "redis"
+)
+
 // StorageConfig contains storage backend configuration
 type StorageConfig struct {
 	Enabled  bool                  `yaml:"enabled" mapstructure:"enabled"`
-	Type     string                `yaml:"type" mapstructure:"type"` // "memory", "sqlite", "postgres", "redis"
+	Type     StorageType           `yaml:"type" mapstructure:"type"`
 	SQLite   SQLiteStorageConfig   `yaml:"sqlite,omitempty" mapstructure:"sqlite,omitempty"`
 	Postgres PostgresStorageConfig `yaml:"postgres,omitempty" mapstructure:"postgres,omitempty"`
 	Redis    RedisStorageConfig    `yaml:"redis,omitempty" mapstructure:"redis,omitempty"`
