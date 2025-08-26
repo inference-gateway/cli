@@ -33,4 +33,6 @@ const (
 	SideEffectShowHelp
 	SideEffectReloadConfig
 	SideEffectGenerateCommit
+	SideEffectResumeConversation
+	SideEffectSaveConversation
 )
