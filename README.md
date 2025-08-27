@@ -1231,8 +1231,48 @@ go build -o infer .
 
 ### Testing
 
+The project uses Go's built-in testing framework with additional tools for mocking and UI testing.
+
 ```bash
+# Run all tests
 go test ./...
+
+# Run tests with coverage
+flox activate -- task test:coverage
+
+# Run tests with verbose output
+flox activate -- task test:verbose
+```
+
+#### Test Organization
+
+- **Unit tests**: Located alongside source code (Go convention) - e.g., `cmd/agent_test.go`
+- **Test artifacts**: Organized in dedicated `tests/` directory:
+  - `tests/mocks/generated/` - Generated mocks using counterfeiter
+  - `tests/snapshots/ui/` - UI component test snapshots
+
+#### Mocking
+
+Generate mocks for interfaces using counterfeiter:
+
+```bash
+# Generate all mocks
+flox activate -- task generate:mocks
+```
+
+#### UI Component Testing
+
+Test UI components with snapshot-based testing:
+
+```bash
+# Generate baseline snapshots
+flox activate -- task test:ui:snapshots
+
+# Verify current output matches snapshots
+flox activate -- task test:ui:verify
+
+# Interactive testing examples
+flox activate -- task test:ui:interactive
 ```
 
 ### Dependencies

@@ -507,6 +507,80 @@ func testMyComponent(theme shared.Theme) {
 }
 ```
 
+## Test Organization
+
+This project follows Go testing conventions while maintaining a clean directory structure to minimize noise in the main codebase.
+
+### Directory Structure
+
+```text
+├── cmd/
+│   ├── agent.go
+│   └── agent_test.go          # Unit tests stay with source code (Go requirement)
+├── internal/
+│   ├── services/
+│   │   ├── chat.go
+│   │   └── chat_test.go       # Unit tests access unexported functions
+│   └── handlers/
+│       ├── chat_handler.go
+│       └── chat_handler_test.go
+├── tests/                     # Dedicated directory for test artifacts
+│   ├── mocks/
+│   │   └── generated/         # Generated mocks using counterfeiter
+│   │       ├── fake_agent_service.go
+│   │       └── fake_config_service.go
+│   └── snapshots/
+│       └── ui/                # UI component test snapshots
+│           ├── approval.snapshot
+│           └── diff.snapshot
+```
+
+### Why This Organization?
+
+1. **Unit Tests with Source Code**: Go testing conventions require test files to be in the same package as the source code they test. This allows tests to:
+   - Access unexported functions and types
+   - Test internal implementation details
+   - Maintain proper package boundaries
+
+2. **Test Artifacts in Dedicated Directory**: The `tests/` directory contains:
+   - **Generated mocks**: Created using counterfeiter (never hand-written)
+   - **UI snapshots**: Test baselines for UI component rendering
+   - **Test fixtures**: Shared test data and utilities
+
+3. **Noise Reduction**: This structure achieves the goal of reducing main directory noise by:
+   - Keeping only essential source files and their paired tests in main directories
+   - Isolating all generated and auxiliary test files in the dedicated `tests/` directory
+
+### Mock Generation
+
+We use [counterfeiter](https://github.com/maxbrunsfeld/counterfeiter) to generate mocks:
+
+```bash
+# Generate mocks for all interfaces
+flox activate -- task generate:mocks
+
+# Generated mocks are placed in tests/mocks/generated/
+```
+
+**Important**: Never create custom mocks manually. Always use counterfeiter to maintain consistency.
+
+### UI Component Testing
+
+UI components have dedicated snapshot testing:
+
+```bash
+# Generate UI snapshots
+flox activate -- task test:ui:snapshots
+
+# Verify snapshots match current output
+flox activate -- task test:ui:verify
+
+# Interactive testing help
+flox activate -- task test:ui:interactive
+```
+
+Snapshots are stored in `tests/snapshots/ui/` for version control tracking.
+
 ## Release Process
 
 Releases are automated using semantic-release:
