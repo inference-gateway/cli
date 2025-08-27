@@ -3,7 +3,6 @@ package services
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -34,12 +33,14 @@ func NewPersistentConversationRepository(formatterService *ToolFormatterService,
 		conversationID:                 "",
 		autoSave:                       true,
 		metadata: storage.ConversationMetadata{
-			Title:        "New Conversation",
-			CreatedAt:    time.Now(),
-			UpdatedAt:    time.Now(),
-			MessageCount: 0,
-			TokenStats:   domain.SessionTokenStats{},
-			Tags:         []string{},
+			Title:            "New Conversation",
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
+			MessageCount:     0,
+			TokenStats:       domain.SessionTokenStats{},
+			Tags:             []string{},
+			TitleGenerated:   false,
+			TitleInvalidated: false,
 		},
 	}
 }
@@ -55,13 +56,15 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 
 	now := time.Now()
 	r.metadata = storage.ConversationMetadata{
-		ID:           r.conversationID,
-		Title:        title,
-		CreatedAt:    now,
-		UpdatedAt:    now,
-		MessageCount: 0,
-		TokenStats:   domain.SessionTokenStats{},
-		Tags:         []string{},
+		ID:               r.conversationID,
+		Title:            title,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		MessageCount:     0,
+		TokenStats:       domain.SessionTokenStats{},
+		Tags:             []string{},
+		TitleGenerated:   false,
+		TitleInvalidated: false,
 	}
 
 	return r.InMemoryConversationRepository.Clear()
@@ -146,30 +149,6 @@ func (r *PersistentConversationRepository) SetAutoSave(enabled bool) {
 	r.autoSave = enabled
 }
 
-// generateTitleFromMessage creates a short title from message content
-func generateTitleFromMessage(content string) string {
-	content = strings.TrimSpace(content)
-
-	words := strings.Fields(content)
-
-	if len(words) == 0 {
-		return "New Conversation"
-	}
-
-	maxWords := 10
-	if len(words) < maxWords {
-		maxWords = len(words)
-	}
-
-	title := strings.Join(words[:maxWords], " ")
-
-	if len(title) > 80 {
-		title = title[:77] + "..."
-	}
-
-	return title
-}
-
 // Override AddMessage to trigger auto-save
 func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEntry) error {
 	wasExistingConversation := r.conversationID != ""
@@ -180,17 +159,19 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 
 		title := "New Conversation"
 		if msg.Message.Role == sdk.User {
-			title = generateTitleFromMessage(msg.Message.Content)
+			title = domain.CreateTitleFromMessage(msg.Message.Content)
 		}
 
 		r.metadata = storage.ConversationMetadata{
-			ID:           r.conversationID,
-			Title:        title,
-			CreatedAt:    now,
-			UpdatedAt:    now,
-			MessageCount: 0,
-			TokenStats:   domain.SessionTokenStats{},
-			Tags:         []string{},
+			ID:               r.conversationID,
+			Title:            title,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+			MessageCount:     0,
+			TokenStats:       domain.SessionTokenStats{},
+			Tags:             []string{},
+			TitleGenerated:   false,
+			TitleInvalidated: false,
 		}
 	}
 
@@ -232,12 +213,14 @@ func (r *PersistentConversationRepository) Clear() error {
 	r.conversationID = ""
 	now := time.Now()
 	r.metadata = storage.ConversationMetadata{
-		Title:        "New Conversation",
-		CreatedAt:    now,
-		UpdatedAt:    now,
-		MessageCount: 0,
-		TokenStats:   domain.SessionTokenStats{},
-		Tags:         []string{},
+		Title:            "New Conversation",
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		MessageCount:     0,
+		TokenStats:       domain.SessionTokenStats{},
+		Tags:             []string{},
+		TitleGenerated:   false,
+		TitleInvalidated: false,
 	}
 
 	return nil
@@ -253,19 +236,21 @@ func (r *PersistentConversationRepository) AddTokenUsage(inputTokens, outputToke
 		messages := r.GetMessages()
 		for _, entry := range messages {
 			if entry.Message.Role == sdk.User {
-				title = generateTitleFromMessage(entry.Message.Content)
+				title = domain.CreateTitleFromMessage(entry.Message.Content)
 				break
 			}
 		}
 
 		r.metadata = storage.ConversationMetadata{
-			ID:           r.conversationID,
-			Title:        title,
-			CreatedAt:    now,
-			UpdatedAt:    now,
-			MessageCount: 0,
-			TokenStats:   domain.SessionTokenStats{},
-			Tags:         []string{},
+			ID:               r.conversationID,
+			Title:            title,
+			CreatedAt:        now,
+			UpdatedAt:        now,
+			MessageCount:     0,
+			TokenStats:       domain.SessionTokenStats{},
+			Tags:             []string{},
+			TitleGenerated:   false,
+			TitleInvalidated: false,
 		}
 	}
 

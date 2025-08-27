@@ -23,7 +23,7 @@ func (c *ConversationSelectShortcut) CanExecute(args []string) bool { return len
 
 func (c *ConversationSelectShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	return ShortcutResult{
-		Output:     "Opening conversation selection...",
+		Output:     "",
 		Success:    true,
 		SideEffect: SideEffectShowConversationSelection,
 	}, nil

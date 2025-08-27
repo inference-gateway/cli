@@ -35,6 +35,7 @@ const (
 	SideEffectGenerateCommit
 	SideEffectSaveConversation
 	SideEffectShowConversationSelection
+	SideEffectStartNewConversation
 )
 
 // PersistentConversationRepository interface for conversation persistence

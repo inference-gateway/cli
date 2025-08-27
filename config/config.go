@@ -503,8 +503,8 @@ Respond with ONLY the commit message, no quotes or explanation.`,
 			},
 		},
 		Storage: StorageConfig{
-			Enabled: false,
-			Type:    "memory",
+			Enabled: true,
+			Type:    "sqlite",
 			SQLite: SQLiteStorageConfig{
 				Path: ConfigDirName + "/conversations.db",
 			},

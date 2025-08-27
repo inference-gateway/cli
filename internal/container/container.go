@@ -188,6 +188,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(adapter))
+		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter))
 		logger.Debug("registered conversation shortcuts")
 	}
 

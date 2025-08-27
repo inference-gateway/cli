@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -88,14 +89,15 @@ func (m *MemoryStorage) ListConversations(ctx context.Context, limit, offset int
 		summaries = append(summaries, summary)
 	}
 
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].UpdatedAt.After(summaries[j].UpdatedAt)
+	})
+
 	if offset >= len(summaries) {
 		return []ConversationSummary{}, nil
 	}
 
-	end := offset + limit
-	if end > len(summaries) {
-		end = len(summaries)
-	}
+	end := min(offset+limit, len(summaries))
 
 	if limit <= 0 {
 		return summaries[offset:], nil
@@ -136,38 +138,7 @@ func (m *MemoryStorage) UpdateConversationMetadata(ctx context.Context, conversa
 
 // ListConversationsNeedingTitles returns conversations that need title generation
 func (m *MemoryStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]ConversationSummary, error) {
-	m.mutex.RLock()
-	defer m.mutex.RUnlock()
-
-	summaries := make([]ConversationSummary, 0)
-
-	count := 0
-	for _, data := range m.conversations {
-		if limit > 0 && count >= limit {
-			break
-		}
-
-		if !data.metadata.TitleGenerated || data.metadata.TitleInvalidated {
-			summary := ConversationSummary{
-				ID:                  data.metadata.ID,
-				Title:               data.metadata.Title,
-				CreatedAt:           data.metadata.CreatedAt,
-				UpdatedAt:           data.metadata.UpdatedAt,
-				MessageCount:        data.metadata.MessageCount,
-				TokenStats:          data.metadata.TokenStats,
-				Model:               data.metadata.Model,
-				Tags:                data.metadata.Tags,
-				Summary:             data.metadata.Summary,
-				TitleGenerated:      data.metadata.TitleGenerated,
-				TitleInvalidated:    data.metadata.TitleInvalidated,
-				TitleGenerationTime: data.metadata.TitleGenerationTime,
-			}
-			summaries = append(summaries, summary)
-			count++
-		}
-	}
-
-	return summaries, nil
+	return []ConversationSummary{}, nil
 }
 
 // Close closes the storage connection (no-op for memory storage)

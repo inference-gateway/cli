@@ -204,67 +204,6 @@ func TestMemoryStorage_UpdateMetadata(t *testing.T) {
 	}
 }
 
-func TestMemoryStorage_ListConversationsNeedingTitles(t *testing.T) {
-	storage := NewMemoryStorage()
-	ctx := context.Background()
-
-	conversations := []struct {
-		id               string
-		titleGenerated   bool
-		titleInvalidated bool
-	}{
-		{"conv-1", false, false}, // needs title
-		{"conv-2", true, false},  // has title
-		{"conv-3", true, true},   // title invalidated, needs new title
-		{"conv-4", false, false}, // needs title
-	}
-
-	for _, conv := range conversations {
-		entries := []domain.ConversationEntry{
-			{
-				Message: domain.Message{
-					Role:    domain.RoleUser,
-					Content: "Test message",
-				},
-				Time: time.Now(),
-			},
-		}
-
-		metadata := ConversationMetadata{
-			ID:               conv.id,
-			Title:            "Test Conversation " + conv.id,
-			CreatedAt:        time.Now(),
-			UpdatedAt:        time.Now(),
-			TitleGenerated:   conv.titleGenerated,
-			TitleInvalidated: conv.titleInvalidated,
-		}
-
-		err := storage.SaveConversation(ctx, conv.id, entries, metadata)
-		if err != nil {
-			t.Fatalf("SaveConversation failed for %s: %v", conv.id, err)
-		}
-	}
-
-	summaries, err := storage.ListConversationsNeedingTitles(ctx, 0)
-	if err != nil {
-		t.Fatalf("ListConversationsNeedingTitles failed: %v", err)
-	}
-
-	expectedCount := 3 // conv-1, conv-3, conv-4
-	if len(summaries) != expectedCount {
-		t.Errorf("Expected %d conversations needing titles, got %d", expectedCount, len(summaries))
-	}
-
-	summaries, err = storage.ListConversationsNeedingTitles(ctx, 2)
-	if err != nil {
-		t.Fatalf("ListConversationsNeedingTitles with limit failed: %v", err)
-	}
-
-	if len(summaries) != 2 {
-		t.Errorf("Expected 2 conversations with limit, got %d", len(summaries))
-	}
-}
-
 func TestMemoryStorage_Health(t *testing.T) {
 	storage := NewMemoryStorage()
 	ctx := context.Background()

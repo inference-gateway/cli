@@ -73,7 +73,7 @@ func TestGenerateTitleFromMessage(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := generateTitleFromMessage(tc.input)
+			result := domain.CreateTitleFromMessage(tc.input)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
