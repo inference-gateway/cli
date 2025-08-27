@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -258,22 +259,30 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 
 		args := parseToolArguments(currentTool.Function.Arguments)
 
-		ctx := context.Background()
-		result, err := teo.toolService.ExecuteTool(ctx, currentTool.Function.Name, args)
-
-		duration := time.Since(startTime)
-
 		var executionResult *domain.ToolExecutionResult
-		if err != nil {
-			executionResult = &domain.ToolExecutionResult{
-				ToolName:  currentTool.Function.Name,
-				Arguments: args,
-				Success:   false,
-				Duration:  duration,
-				Error:     err.Error(),
-			}
+
+		// Check if this is an A2A or MCP tool call that should be skipped
+		if teo.shouldSkipToolExecution(currentTool.Function.Name) {
+			duration := time.Since(startTime)
+			executionResult = teo.createSkippedToolResult(currentTool.Function.Name, args, duration)
 		} else {
-			executionResult = result
+			// Execute the tool normally
+			ctx := context.Background()
+			result, err := teo.toolService.ExecuteTool(ctx, currentTool.Function.Name, args)
+
+			duration := time.Since(startTime)
+
+			if err != nil {
+				executionResult = &domain.ToolExecutionResult{
+					ToolName:  currentTool.Function.Name,
+					Arguments: args,
+					Success:   false,
+					Duration:  duration,
+					Error:     err.Error(),
+				}
+			} else {
+				executionResult = result
+			}
 		}
 
 		teo.mutex.Lock()
@@ -495,4 +504,37 @@ func (teo *ToolExecutionOrchestrator) GetHealthStatus() map[string]any {
 	}
 
 	return status
+}
+
+// shouldSkipToolExecution determines if a tool should be skipped for execution
+// A2A and MCP tools are executed on the Gateway, not on clients
+func (teo *ToolExecutionOrchestrator) shouldSkipToolExecution(toolName string) bool {
+	return strings.HasPrefix(toolName, "a2a_") || strings.HasPrefix(toolName, "mcp_")
+}
+
+// createSkippedToolResult creates a result for tools that are skipped for visualization
+func (teo *ToolExecutionOrchestrator) createSkippedToolResult(toolName string, args map[string]any, duration time.Duration) *domain.ToolExecutionResult {
+	var toolType string
+	if strings.HasPrefix(toolName, "a2a_") {
+		toolType = "A2A"
+	} else if strings.HasPrefix(toolName, "mcp_") {
+		toolType = "MCP"
+	}
+
+	return &domain.ToolExecutionResult{
+		ToolName:  toolName,
+		Arguments: args,
+		Success:   true,
+		Duration:  duration,
+		Data: map[string]any{
+			"type":        toolType,
+			"status":      "executed_on_gateway",
+			"description": fmt.Sprintf("%s tool call was executed on the Gateway middleware", toolType),
+		},
+		Metadata: map[string]string{
+			"execution_location": "gateway",
+			"tool_type":          toolType,
+			"skipped_reason":     "client_visualization_only",
+		},
+	}
 }
