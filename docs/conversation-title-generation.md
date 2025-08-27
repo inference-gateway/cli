@@ -1,6 +1,7 @@
 # Conversation Title Generation
 
-The CLI includes an AI-powered conversation title generation system that automatically creates meaningful titles for your conversations. This helps you organize and find conversations more easily.
+The CLI includes an AI-powered conversation title generation system that automatically creates meaningful titles
+for your conversations. This helps you organize and find conversations more easily.
 
 ## Overview
 
@@ -25,20 +26,20 @@ conversation:
     batch_size: 10                   # Number of conversations to process per batch
     system_prompt: |                 # Custom system prompt (optional)
       Generate a concise conversation title based on the messages provided.
-      
+
       REQUIREMENTS:
       - MUST be under 50 characters total
       - MUST be descriptive and capture the main topic
       - MUST use title case
       - NO quotes, colons, or special characters
       - Focus on the primary subject or task discussed
-      
+
       EXAMPLES:
       - "React Component Testing"
-      - "Database Migration Setup"  
+      - "Database Migration Setup"
       - "API Error Handling"
       - "Docker Configuration"
-      
+
       Respond with ONLY the title, no quotes or explanation.
 ```
 
@@ -54,8 +55,10 @@ conversation:
 ### Automatic Title Generation
 
 1. **New Conversations**: When a new conversation is created, it starts with a basic title derived from the first user message
-2. **Background Processing**: A background service periodically scans for conversations that need AI-generated titles
-3. **AI Generation**: The system sends the conversation content to the configured AI model with instructions to create a concise title
+2. **Background Processing**: A background service periodically scans for conversations that need
+   AI-generated titles
+3. **AI Generation**: The system sends the conversation content to the configured AI model with instructions
+   to create a concise title
 4. **Title Updates**: Generated titles are saved to the conversation metadata
 
 ### Title Invalidation
@@ -85,6 +88,7 @@ infer conversation-title generate
 ```
 
 This command will:
+
 - Find all conversations that need titles (new or invalidated)
 - Process them individually using the configured AI model
 - Update the conversation metadata with generated titles
@@ -99,6 +103,7 @@ infer conversation-title status
 ```
 
 This shows:
+
 - Current configuration settings
 - Whether background jobs are running
 - Number of conversations pending title generation
@@ -117,6 +122,7 @@ The title generation system adds the following fields to conversation metadata:
 ### Background Jobs
 
 The background job system:
+
 - Runs every 5 minutes when persistent storage is enabled
 - Processes conversations in batches according to `batch_size` setting
 - Handles each conversation individually to prevent batch failures
@@ -134,7 +140,7 @@ The background job system:
 Title generation works with all supported storage backends:
 
 - **SQLite**: Full support with database schema migration
-- **PostgreSQL**: Full support with database schema migration  
+- **PostgreSQL**: Full support with database schema migration
 - **Redis**: Full support using JSON metadata storage
 - **In-Memory**: Not supported (titles would be lost on restart)
 

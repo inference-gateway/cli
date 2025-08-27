@@ -1,1 +1,2 @@
 install.sh linguist-vendored=true
+tests/mocks/generated/ linguist-generated=true

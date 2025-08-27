@@ -13,15 +13,43 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
+// sdkClientWrapper wraps the actual SDK client
+type sdkClientWrapper struct {
+	client sdk.Client
+}
+
+func (w *sdkClientWrapper) WithOptions(opts *sdk.CreateChatCompletionRequest) domain.SDKClient {
+	w.client = w.client.WithOptions(opts)
+	return w
+}
+
+func (w *sdkClientWrapper) WithMiddlewareOptions(opts *sdk.MiddlewareOptions) domain.SDKClient {
+	w.client = w.client.WithMiddlewareOptions(opts)
+	return w
+}
+
+func (w *sdkClientWrapper) GenerateContent(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
+	return w.client.GenerateContent(ctx, provider, model, messages)
+}
+
 // ConversationTitleGenerator generates titles for conversations using AI
 type ConversationTitleGenerator struct {
-	client  sdk.Client
+	client  domain.SDKClient
 	storage storage.ConversationStorage
 	config  *config.Config
 }
 
 // NewConversationTitleGenerator creates a new conversation title generator
 func NewConversationTitleGenerator(client sdk.Client, storage storage.ConversationStorage, config *config.Config) *ConversationTitleGenerator {
+	return &ConversationTitleGenerator{
+		client:  &sdkClientWrapper{client: client},
+		storage: storage,
+		config:  config,
+	}
+}
+
+// NewConversationTitleGeneratorWithSDKClient creates a new conversation title generator with a custom SDKClient (for testing)
+func NewConversationTitleGeneratorWithSDKClient(client domain.SDKClient, storage storage.ConversationStorage, config *config.Config) *ConversationTitleGenerator {
 	return &ConversationTitleGenerator{
 		client:  client,
 		storage: storage,
@@ -243,32 +271,37 @@ func (g *ConversationTitleGenerator) fallbackTitle(entries []domain.Conversation
 		}
 
 		if entry.Message.Role == sdk.User && strings.TrimSpace(entry.Message.Content) != "" {
-			words := strings.Fields(strings.TrimSpace(entry.Message.Content))
-			if len(words) == 0 {
-				continue
-			}
-
-			title := ""
-			for i, word := range words {
-				if i >= 10 {
-					break
-				}
-				if title != "" {
-					title += " "
-				}
-				title += word
-			}
-
-			if len(title) > 50 {
-				title = title[:50]
-				if lastSpace := strings.LastIndex(title, " "); lastSpace > 30 {
-					title = title[:lastSpace]
-				}
-			}
-
-			return title
+			return g.createTitleFromContent(entry.Message.Content)
 		}
 	}
 
 	return "Conversation"
+}
+
+// createTitleFromContent creates a title from message content using first 10 words
+func (g *ConversationTitleGenerator) createTitleFromContent(content string) string {
+	words := strings.Fields(strings.TrimSpace(content))
+	if len(words) == 0 {
+		return "Conversation"
+	}
+
+	title := ""
+	for i, word := range words {
+		if i >= 10 {
+			break
+		}
+		if title != "" {
+			title += " "
+		}
+		title += word
+	}
+
+	if len(title) > 50 {
+		title = title[:50]
+		if lastSpace := strings.LastIndex(title, " "); lastSpace > 30 {
+			title = title[:lastSpace]
+		}
+	}
+
+	return title
 }

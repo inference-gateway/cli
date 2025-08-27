@@ -6,6 +6,13 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
+// SDKClient is our interface wrapper for the SDK client to make it testable
+type SDKClient interface {
+	WithOptions(opts *sdk.CreateChatCompletionRequest) SDKClient
+	WithMiddlewareOptions(opts *sdk.MiddlewareOptions) SDKClient
+	GenerateContent(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error)
+}
+
 // AgentRequest represents a request to the agent service
 type AgentRequest struct {
 	RequestID string        `json:"request_id"`

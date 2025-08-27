@@ -538,7 +538,7 @@ REQUIREMENTS:
 
 EXAMPLES:
 - "React Component Testing"
-- "Database Migration Setup"  
+- "Database Migration Setup"
 - "API Error Handling"
 - "Docker Configuration"
 

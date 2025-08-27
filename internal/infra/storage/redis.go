@@ -243,7 +243,7 @@ func (s *RedisStorage) ListConversationsNeedingTitles(ctx context.Context, limit
 			return nil, fmt.Errorf("failed to unmarshal metadata for conversation %s: %w", conversationIDs[i], err)
 		}
 
-		if (metadata.TitleGenerated == false || metadata.TitleInvalidated == true) && metadata.MessageCount > 0 {
+		if (!metadata.TitleGenerated || metadata.TitleInvalidated) && metadata.MessageCount > 0 {
 			summary := ConversationSummary(metadata)
 			summaries = append(summaries, summary)
 

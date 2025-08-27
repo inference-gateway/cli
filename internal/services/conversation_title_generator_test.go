@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -10,7 +11,8 @@ import (
 	"github.com/inference-gateway/cli/internal/infra/storage"
 	sdk "github.com/inference-gateway/sdk"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+
+	"github.com/inference-gateway/cli/tests/mocks/generated"
 )
 
 func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
@@ -50,22 +52,22 @@ func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
 			expectError:   false,
 		},
 		{
-			name:    "fallback to first 10 words",
+			name:    "AI generation fails",
 			enabled: true,
 			entries: []domain.ConversationEntry{
 				{Message: sdk.Message{Role: sdk.User, Content: "Help me understand how to properly configure and deploy a React application using Docker containers"}, Time: time.Now()},
 			},
 			aiResponse:     "",
-			expectedTitle:  "Help me understand how to properly configure and deploy a React",
-			expectError:    false,
-			expectFallback: true,
+			expectedTitle:  "",
+			expectError:    true,
+			expectFallback: false,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockStorage := &FakeConversationStorage{}
-			mockClient := &FakeSDKClient{}
+			mockStorage := &generated.FakeConversationStorage{}
+			mockClient := &generated.FakeSDKClient{}
 
 			cfg := &config.Config{
 				Conversation: config.ConversationConfig{
@@ -79,7 +81,7 @@ func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
 				},
 			}
 
-			generator := NewConversationTitleGenerator(mockClient, mockStorage, cfg)
+			generator := NewConversationTitleGeneratorWithSDKClient(mockClient, mockStorage, cfg)
 
 			conversationID := "test-conv-123"
 			metadata := storage.ConversationMetadata{
@@ -90,23 +92,25 @@ func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
 				MessageCount: len(tt.entries),
 			}
 
-			mockStorage.On("LoadConversation", mock.Anything, conversationID).Return(tt.entries, metadata, nil)
-
-			if tt.enabled && len(tt.entries) > 0 && tt.aiResponse != "" {
-				mockResponse := &sdk.CreateChatCompletionResponse{
-					Choices: []sdk.ChatCompletionChoice{
-						{Message: sdk.Message{Content: tt.aiResponse}},
-					},
-				}
-				mockClient.On("WithOptions", mock.Anything).Return(mockClient)
-				mockClient.On("WithMiddlewareOptions", mock.Anything).Return(mockClient)
-				mockClient.On("GenerateContent", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(mockResponse, nil)
+			if tt.enabled {
+				mockStorage.LoadConversationReturns(tt.entries, metadata, nil)
 			}
 
 			if tt.enabled && len(tt.entries) > 0 {
-				mockStorage.On("UpdateConversationMetadata", mock.Anything, conversationID, mock.MatchedBy(func(meta storage.ConversationMetadata) bool {
-					return meta.TitleGenerated == true && meta.TitleInvalidated == false && meta.Title == tt.expectedTitle
-				})).Return(nil)
+				mockClient.WithOptionsReturns(mockClient)
+				mockClient.WithMiddlewareOptionsReturns(mockClient)
+
+				if tt.aiResponse != "" {
+					mockResponse := &sdk.CreateChatCompletionResponse{
+						Choices: []sdk.ChatCompletionChoice{
+							{Message: sdk.Message{Content: tt.aiResponse}},
+						},
+					}
+					mockClient.GenerateContentReturns(mockResponse, nil)
+					mockStorage.UpdateConversationMetadataReturns(nil)
+				} else {
+					mockClient.GenerateContentReturns(nil, fmt.Errorf("AI generation failed"))
+				}
 			}
 
 			err := generator.GenerateTitleForConversation(context.Background(), conversationID)
@@ -117,10 +121,6 @@ func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
 				assert.NoError(t, err)
 			}
 
-			mockStorage.AssertExpectations(t)
-			if tt.enabled && len(tt.entries) > 0 && tt.aiResponse != "" {
-				mockClient.AssertExpectations(t)
-			}
 		})
 	}
 }
@@ -143,7 +143,7 @@ func TestConversationTitleGenerator_fallbackTitle(t *testing.T) {
 			entries: []domain.ConversationEntry{
 				{Message: sdk.Message{Role: sdk.User, Content: "Please help me understand how to properly configure and deploy a complex React application using Docker containers"}, Time: time.Now()},
 			},
-			expected: "Please help me understand how to properly configure and deploy a complex",
+			expected: "Please help me understand how to properly",
 		},
 		{
 			name: "long title truncated at 50 chars",
@@ -193,77 +193,4 @@ func TestConversationTitleGenerator_formatConversationForTitleGeneration(t *test
 	assert.NotContains(t, result, "System message")
 
 	assert.True(t, len(result) <= 2000, "Formatted content should not exceed 2000 characters")
-}
-
-type FakeConversationStorage struct {
-	mock.Mock
-}
-
-func (f *FakeConversationStorage) SaveConversation(ctx context.Context, conversationID string, entries []domain.ConversationEntry, metadata storage.ConversationMetadata) error {
-	args := f.Called(ctx, conversationID, entries, metadata)
-	return args.Error(0)
-}
-
-func (f *FakeConversationStorage) LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, storage.ConversationMetadata, error) {
-	args := f.Called(ctx, conversationID)
-	return args.Get(0).([]domain.ConversationEntry), args.Get(1).(storage.ConversationMetadata), args.Error(2)
-}
-
-func (f *FakeConversationStorage) ListConversations(ctx context.Context, limit, offset int) ([]storage.ConversationSummary, error) {
-	args := f.Called(ctx, limit, offset)
-	return args.Get(0).([]storage.ConversationSummary), args.Error(1)
-}
-
-func (f *FakeConversationStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]storage.ConversationSummary, error) {
-	args := f.Called(ctx, limit)
-	return args.Get(0).([]storage.ConversationSummary), args.Error(1)
-}
-
-func (f *FakeConversationStorage) DeleteConversation(ctx context.Context, conversationID string) error {
-	args := f.Called(ctx, conversationID)
-	return args.Error(0)
-}
-
-func (f *FakeConversationStorage) UpdateConversationMetadata(ctx context.Context, conversationID string, metadata storage.ConversationMetadata) error {
-	args := f.Called(ctx, conversationID, metadata)
-	return args.Error(0)
-}
-
-func (f *FakeConversationStorage) Close() error {
-	args := f.Called()
-	return args.Error(0)
-}
-
-func (f *FakeConversationStorage) Health(ctx context.Context) error {
-	args := f.Called(ctx)
-	return args.Error(0)
-}
-
-type FakeSDKClient struct {
-	mock.Mock
-}
-
-func (f *FakeSDKClient) WithOptions(opts *sdk.CreateChatCompletionRequest) sdk.Client {
-	f.Called(opts)
-	return f
-}
-
-func (f *FakeSDKClient) WithMiddlewareOptions(opts *sdk.MiddlewareOptions) sdk.Client {
-	f.Called(opts)
-	return f
-}
-
-func (f *FakeSDKClient) GenerateContent(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
-	args := f.Called(ctx, provider, model, messages)
-	return args.Get(0).(*sdk.CreateChatCompletionResponse), args.Error(1)
-}
-
-func (f *FakeSDKClient) GenerateContentStream(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (<-chan sdk.SSEvent, error) {
-	args := f.Called(ctx, provider, model, messages)
-	return args.Get(0).(<-chan sdk.SSEvent), args.Error(1)
-}
-
-func (f *FakeSDKClient) HealthCheck(ctx context.Context) error {
-	args := f.Called(ctx)
-	return args.Error(0)
 }

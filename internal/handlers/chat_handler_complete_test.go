@@ -5,12 +5,12 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/mocks"
-	"github.com/inference-gateway/cli/internal/services"
-	"github.com/inference-gateway/cli/internal/shortcuts"
-	"github.com/inference-gateway/sdk"
-	"github.com/stretchr/testify/assert"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
+	sdk "github.com/inference-gateway/sdk"
+	assert "github.com/stretchr/testify/assert"
 )
 
 func TestChatHandler_Handle(t *testing.T) {

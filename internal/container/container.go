@@ -431,4 +431,3 @@ func (c *ServiceContainer) GetBackgroundJobManager() *services.BackgroundJobMana
 func (c *ServiceContainer) GetStorage() storage.ConversationStorage {
 	return c.storage
 }
-

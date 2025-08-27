@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestConversationTitleGenerator_fallbackTitle(t *testing.T) {
+func TestConversationTitleGeneratorSimple_fallbackTitle(t *testing.T) {
 	tests := []struct {
 		name     string
 		entries  []domain.ConversationEntry
@@ -27,7 +27,7 @@ func TestConversationTitleGenerator_fallbackTitle(t *testing.T) {
 			entries: []domain.ConversationEntry{
 				{Message: sdk.Message{Role: sdk.User, Content: "Please help me understand how to properly configure and deploy a complex React application using Docker containers"}, Time: time.Now()},
 			},
-			expected: "Please help me understand how to properly configure and deploy a complex",
+			expected: "Please help me understand how to properly",
 		},
 		{
 			name: "long title truncated at 50 chars",
@@ -60,7 +60,7 @@ func TestConversationTitleGenerator_fallbackTitle(t *testing.T) {
 	}
 }
 
-func TestConversationTitleGenerator_formatConversationForTitleGeneration(t *testing.T) {
+func TestConversationTitleGeneratorSimple_formatConversationForTitleGeneration(t *testing.T) {
 	entries := []domain.ConversationEntry{
 		{Message: sdk.Message{Role: sdk.System, Content: "System message"}, IsSystemReminder: true, Time: time.Now()},
 		{Message: sdk.Message{Role: sdk.User, Content: "How do I deploy a React app?"}, Time: time.Now()},

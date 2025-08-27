@@ -6,7 +6,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/mocks"
+	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
 )
 
 func createTestRegistry() *Registry {
