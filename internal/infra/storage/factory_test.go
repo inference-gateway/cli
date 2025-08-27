@@ -54,6 +54,19 @@ func TestStorageFactory(t *testing.T) {
 		assert.Error(t, err)
 	})
 
+	t.Run("Memory Storage", func(t *testing.T) {
+		config := StorageConfig{
+			Type: "memory",
+		}
+
+		storage, err := NewStorage(config)
+		require.NoError(t, err)
+		assert.IsType(t, &MemoryStorage{}, storage)
+
+		err = storage.Close()
+		assert.NoError(t, err)
+	})
+
 	t.Run("Unsupported Storage Type", func(t *testing.T) {
 		config := StorageConfig{
 			Type: "unsupported",

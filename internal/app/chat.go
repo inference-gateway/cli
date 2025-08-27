@@ -315,10 +315,10 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
-	return app.handleChatViewKeypress(keyMsg)
+	return app.handleChatViewKeyPress(keyMsg)
 }
 
-func (app *ChatApplication) handleChatViewKeypress(keyMsg tea.KeyMsg) []tea.Cmd {
+func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
@@ -416,14 +416,12 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 		return cmds
 	}
 
-	// Auto-reset if selector is in completed state (reuse scenario)
-	if app.conversationSelector.IsSelected() && !app.conversationSelector.IsCancelled() {
+	// Auto-reset if selector is in any completed state (selected or cancelled) for reuse
+	if app.conversationSelector.IsSelected() || app.conversationSelector.IsCancelled() {
 		app.conversationSelector.Reset()
 		if cmd := app.conversationSelector.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
-		// Don't process the current message after reset, return early
-		return cmds
 	}
 
 	model, cmd := app.conversationSelector.Update(msg)
