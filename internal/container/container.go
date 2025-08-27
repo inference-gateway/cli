@@ -39,6 +39,11 @@ type ServiceContainer struct {
 	stateManager              *services.StateManager
 	toolExecutionOrchestrator *services.ToolExecutionOrchestrator
 
+	// Background services
+	titleGenerator       *services.ConversationTitleGenerator
+	backgroundJobManager *services.BackgroundJobManager
+	storage              storage.ConversationStorage
+
 	// UI components
 	theme ui.Theme
 
@@ -100,8 +105,18 @@ func (c *ServiceContainer) initializeDomainServices() {
 			logger.Warn("Failed to initialize persistent storage, falling back to in-memory", "error", err)
 			c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService)
 		} else {
-			c.conversationRepo = services.NewPersistentConversationRepository(toolFormatterService, storageBackend)
+			c.storage = storageBackend
+			persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, storageBackend)
+			c.conversationRepo = persistentRepo
 			logger.Info("Initialized persistent storage", "type", c.config.Storage.Type)
+
+			// Initialize title generation services if storage is available
+			titleClient := c.createSDKClient()
+			c.titleGenerator = services.NewConversationTitleGenerator(titleClient, storageBackend, c.config)
+			c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator)
+
+			// Connect title generator to persistent repository
+			persistentRepo.SetTitleGenerator(c.titleGenerator)
 		}
 	} else {
 		c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService)
@@ -401,3 +416,19 @@ func (c *ServiceContainer) GetViper() *viper.Viper {
 func (c *ServiceContainer) GetConfigService() *services.ConfigService {
 	return c.configService
 }
+
+// GetTitleGenerator returns the conversation title generator
+func (c *ServiceContainer) GetTitleGenerator() *services.ConversationTitleGenerator {
+	return c.titleGenerator
+}
+
+// GetBackgroundJobManager returns the background job manager
+func (c *ServiceContainer) GetBackgroundJobManager() *services.BackgroundJobManager {
+	return c.backgroundJobManager
+}
+
+// GetStorage returns the conversation storage
+func (c *ServiceContainer) GetStorage() storage.ConversationStorage {
+	return c.storage
+}
+

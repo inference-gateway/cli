@@ -1,0 +1,274 @@
+package services
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	config "github.com/inference-gateway/cli/config"
+	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/infra/storage"
+	"github.com/inference-gateway/cli/internal/logger"
+	sdk "github.com/inference-gateway/sdk"
+)
+
+// ConversationTitleGenerator generates titles for conversations using AI
+type ConversationTitleGenerator struct {
+	client  sdk.Client
+	storage storage.ConversationStorage
+	config  *config.Config
+}
+
+// NewConversationTitleGenerator creates a new conversation title generator
+func NewConversationTitleGenerator(client sdk.Client, storage storage.ConversationStorage, config *config.Config) *ConversationTitleGenerator {
+	return &ConversationTitleGenerator{
+		client:  client,
+		storage: storage,
+		config:  config,
+	}
+}
+
+// GenerateTitleForConversation generates a title for a specific conversation
+func (g *ConversationTitleGenerator) GenerateTitleForConversation(ctx context.Context, conversationID string) error {
+	if !g.config.Conversation.TitleGeneration.Enabled {
+		logger.Debug("Conversation title generation is disabled")
+		return nil
+	}
+
+	entries, metadata, err := g.storage.LoadConversation(ctx, conversationID)
+	if err != nil {
+		return fmt.Errorf("failed to load conversation %s: %w", conversationID, err)
+	}
+
+	if len(entries) == 0 {
+		logger.Debug("Skipping title generation for empty conversation", "id", conversationID)
+		return nil
+	}
+
+	title, err := g.generateTitle(ctx, entries)
+	if err != nil {
+		return fmt.Errorf("failed to generate title for conversation %s: %w", conversationID, err)
+	}
+
+	if strings.TrimSpace(title) == "" {
+		title = g.fallbackTitle(entries)
+		logger.Debug("Using fallback title", "id", conversationID, "title", title)
+	}
+
+	now := time.Now()
+	metadata.Title = title
+	metadata.TitleGenerated = true
+	metadata.TitleInvalidated = false
+	metadata.TitleGenerationTime = &now
+	metadata.UpdatedAt = now
+
+	if err := g.storage.UpdateConversationMetadata(ctx, conversationID, metadata); err != nil {
+		return fmt.Errorf("failed to update conversation metadata: %w", err)
+	}
+
+	logger.Info("Generated title for conversation", "id", conversationID, "title", title)
+	return nil
+}
+
+// ProcessPendingTitles processes a batch of conversations that need title generation
+func (g *ConversationTitleGenerator) ProcessPendingTitles(ctx context.Context) error {
+	if !g.config.Conversation.TitleGeneration.Enabled {
+		logger.Debug("Conversation title generation is disabled")
+		return nil
+	}
+
+	batchSize := g.config.Conversation.TitleGeneration.BatchSize
+	if batchSize <= 0 {
+		batchSize = 10
+	}
+
+	conversations, err := g.storage.ListConversationsNeedingTitles(ctx, batchSize)
+	if err != nil {
+		return fmt.Errorf("failed to list conversations needing titles: %w", err)
+	}
+
+	if len(conversations) == 0 {
+		logger.Debug("No conversations need title generation")
+		return nil
+	}
+
+	logger.Info("Processing conversations for title generation", "count", len(conversations))
+
+	for _, conv := range conversations {
+		if err := g.GenerateTitleForConversation(ctx, conv.ID); err != nil {
+			logger.Error("Failed to generate title for conversation", "id", conv.ID, "error", err)
+			continue
+		}
+
+		select {
+		case <-ctx.Done():
+			logger.Info("Title generation cancelled", "processed", conv.ID)
+			return ctx.Err()
+		default:
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	return nil
+}
+
+// InvalidateTitle marks a conversation title as needing regeneration
+func (g *ConversationTitleGenerator) InvalidateTitle(ctx context.Context, conversationID string) error {
+	_, metadata, err := g.storage.LoadConversation(ctx, conversationID)
+	if err != nil {
+		return fmt.Errorf("failed to load conversation %s: %w", conversationID, err)
+	}
+
+	metadata.TitleInvalidated = true
+	metadata.UpdatedAt = time.Now()
+
+	if err := g.storage.UpdateConversationMetadata(ctx, conversationID, metadata); err != nil {
+		return fmt.Errorf("failed to invalidate conversation title: %w", err)
+	}
+
+	logger.Debug("Invalidated title for conversation", "id", conversationID)
+	return nil
+}
+
+// generateTitle uses AI to generate a conversation title
+func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries []domain.ConversationEntry) (string, error) {
+	if g.client == nil {
+		return "", fmt.Errorf("AI client not available")
+	}
+
+	model := g.config.Conversation.TitleGeneration.Model
+	if model == "" {
+		model = g.config.Agent.Model
+	}
+	if model == "" {
+		return "", fmt.Errorf("no model configured for conversation titles")
+	}
+
+	systemPrompt := g.config.Conversation.TitleGeneration.SystemPrompt
+
+	conversationText := g.formatConversationForTitleGeneration(entries)
+	if conversationText == "" {
+		return "", fmt.Errorf("no conversation content available for title generation")
+	}
+
+	messages := []sdk.Message{
+		{Role: sdk.System, Content: systemPrompt},
+		{Role: sdk.User, Content: fmt.Sprintf("Generate a title for this conversation:\n\n%s", conversationText)},
+	}
+
+	slashIndex := strings.Index(model, "/")
+	if slashIndex == -1 {
+		return "", fmt.Errorf("invalid model format, expected 'provider/model'")
+	}
+
+	provider := model[:slashIndex]
+	modelName := strings.TrimPrefix(model, provider+"/")
+	providerType := sdk.Provider(provider)
+
+	response, err := g.client.
+		WithOptions(&sdk.CreateChatCompletionRequest{
+			MaxTokens: &[]int{50}[0],
+		}).
+		WithMiddlewareOptions(&sdk.MiddlewareOptions{
+			SkipMCP: true,
+			SkipA2A: true,
+		}).
+		GenerateContent(ctx, providerType, modelName, messages)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate conversation title: %w", err)
+	}
+
+	if len(response.Choices) == 0 {
+		return "", fmt.Errorf("no conversation title generated")
+	}
+
+	title := strings.TrimSpace(response.Choices[0].Message.Content)
+	title = strings.Trim(title, `"'`)
+
+	if len(title) > 50 {
+		title = title[:50]
+		if lastSpace := strings.LastIndex(title, " "); lastSpace > 30 {
+			title = title[:lastSpace]
+		}
+	}
+
+	return title, nil
+}
+
+// formatConversationForTitleGeneration formats conversation entries for AI processing
+func (g *ConversationTitleGenerator) formatConversationForTitleGeneration(entries []domain.ConversationEntry) string {
+	var content strings.Builder
+	maxLength := 2000
+
+	for _, entry := range entries {
+		if entry.IsSystemReminder {
+			continue
+		}
+
+		var role string
+		switch entry.Message.Role {
+		case sdk.User:
+			role = "User"
+		case sdk.Assistant:
+			role = "Assistant"
+		default:
+			continue
+		}
+
+		messageText := strings.TrimSpace(entry.Message.Content)
+		if messageText == "" {
+			continue
+		}
+
+		if len(messageText) > 200 {
+			messageText = messageText[:200] + "..."
+		}
+
+		line := fmt.Sprintf("%s: %s\n", role, messageText)
+		if content.Len()+len(line) > maxLength {
+			break
+		}
+		content.WriteString(line)
+	}
+
+	return strings.TrimSpace(content.String())
+}
+
+// fallbackTitle creates a fallback title from the first 10 words of the conversation
+func (g *ConversationTitleGenerator) fallbackTitle(entries []domain.ConversationEntry) string {
+	for _, entry := range entries {
+		if entry.IsSystemReminder {
+			continue
+		}
+
+		if entry.Message.Role == sdk.User && strings.TrimSpace(entry.Message.Content) != "" {
+			words := strings.Fields(strings.TrimSpace(entry.Message.Content))
+			if len(words) == 0 {
+				continue
+			}
+
+			title := ""
+			for i, word := range words {
+				if i >= 10 {
+					break
+				}
+				if title != "" {
+					title += " "
+				}
+				title += word
+			}
+
+			if len(title) > 50 {
+				title = title[:50]
+				if lastSpace := strings.LastIndex(title, " "); lastSpace > 30 {
+					title = title[:lastSpace]
+				}
+			}
+
+			return title
+		}
+	}
+
+	return "Conversation"
+}

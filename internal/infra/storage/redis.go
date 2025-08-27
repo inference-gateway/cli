@@ -202,6 +202,64 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 	return summaries, nil
 }
 
+// ListConversationsNeedingTitles returns conversations that need title generation
+func (s *RedisStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]ConversationSummary, error) {
+	indexKey := s.conversationIndexKey()
+
+	conversationIDs, err := s.client.ZRevRange(ctx, indexKey, 0, int64(limit*2-1)).Result()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get conversation index: %w", err)
+	}
+
+	if len(conversationIDs) == 0 {
+		return []ConversationSummary{}, nil
+	}
+
+	pipe := s.client.Pipeline()
+	var metadataCmds []*redis.StringCmd
+
+	for _, conversationID := range conversationIDs {
+		cmd := pipe.Get(ctx, s.conversationKey(conversationID))
+		metadataCmds = append(metadataCmds, cmd)
+	}
+
+	_, err = pipe.Exec(ctx)
+	if err != nil && err != redis.Nil {
+		return nil, fmt.Errorf("failed to load conversation metadata: %w", err)
+	}
+
+	var summaries []ConversationSummary
+	for i, cmd := range metadataCmds {
+		metadataJSON, err := cmd.Result()
+		if err != nil {
+			if err == redis.Nil {
+				continue
+			}
+			return nil, fmt.Errorf("failed to get metadata for conversation %s: %w", conversationIDs[i], err)
+		}
+
+		var metadata ConversationMetadata
+		if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal metadata for conversation %s: %w", conversationIDs[i], err)
+		}
+
+		if (metadata.TitleGenerated == false || metadata.TitleInvalidated == true) && metadata.MessageCount > 0 {
+			summary := ConversationSummary(metadata)
+			summaries = append(summaries, summary)
+
+			if len(summaries) >= limit {
+				break
+			}
+		}
+	}
+
+	sort.Slice(summaries, func(i, j int) bool {
+		return summaries[i].UpdatedAt.After(summaries[j].UpdatedAt)
+	})
+
+	return summaries, nil
+}
+
 // DeleteConversation removes a conversation by its ID
 func (s *RedisStorage) DeleteConversation(ctx context.Context, conversationID string) error {
 	pipe := s.client.Pipeline()

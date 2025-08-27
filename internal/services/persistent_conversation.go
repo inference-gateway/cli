@@ -21,6 +21,7 @@ type PersistentConversationRepository struct {
 	conversationID string
 	metadata       storage.ConversationMetadata
 	autoSave       bool
+	titleGenerator *ConversationTitleGenerator
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
@@ -41,6 +42,11 @@ func NewPersistentConversationRepository(formatterService *ToolFormatterService,
 			Tags:         []string{},
 		},
 	}
+}
+
+// SetTitleGenerator sets the title generator for automatic title invalidation
+func (r *PersistentConversationRepository) SetTitleGenerator(titleGenerator *ConversationTitleGenerator) {
+	r.titleGenerator = titleGenerator
 }
 
 // StartNewConversation begins a new conversation with a unique ID
@@ -166,6 +172,8 @@ func generateTitleFromMessage(content string) string {
 
 // Override AddMessage to trigger auto-save
 func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEntry) error {
+	wasExistingConversation := r.conversationID != ""
+
 	if r.autoSave && r.conversationID == "" {
 		r.conversationID = uuid.New().String()
 		now := time.Now()
@@ -188,6 +196,17 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 
 	if err := r.InMemoryConversationRepository.AddMessage(msg); err != nil {
 		return err
+	}
+
+	if wasExistingConversation && r.metadata.TitleGenerated && r.titleGenerator != nil {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+
+			if err := r.titleGenerator.InvalidateTitle(ctx, r.conversationID); err != nil {
+				logger.Warn("Failed to invalidate conversation title", "error", err, "conversationID", r.conversationID)
+			}
+		}()
 	}
 
 	if r.autoSave && r.conversationID != "" {
