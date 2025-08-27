@@ -192,6 +192,27 @@ type WebSearchService interface {
 	SetEnabled(enabled bool)
 }
 
+// ThemeService handles theme management
+type ThemeService interface {
+	ListThemes() []string
+	GetCurrentTheme() Theme
+	GetCurrentThemeName() string
+	SetTheme(themeName string) error
+}
+
+// Theme interface for theming support
+type Theme interface {
+	GetUserColor() string
+	GetAssistantColor() string
+	GetErrorColor() string
+	GetStatusColor() string
+	GetAccentColor() string
+	GetDimColor() string
+	GetBorderColor() string
+	GetDiffAddColor() string
+	GetDiffRemoveColor() string
+}
+
 // Tool represents a single tool with its definition, handler, and validator
 type Tool interface {
 	// Definition returns the tool definition for the LLM
@@ -537,6 +558,7 @@ const (
 	UIEventSetInput
 	UIEventUserInput
 	UIEventModelSelected
+	UIEventThemeSelected
 	UIEventConversationSelected
 	UIEventInitializeConversationSelection
 	UIEventFileSelected

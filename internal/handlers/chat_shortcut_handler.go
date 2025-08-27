@@ -147,6 +147,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 	switch sideEffect {
 	case shortcuts.SideEffectSwitchModel:
 		return s.handleSwitchModelSideEffect(stateManager)
+	case shortcuts.SideEffectSwitchTheme:
+		return s.handleSwitchThemeSideEffect(stateManager)
 	case shortcuts.SideEffectClearConversation:
 		return s.handleClearConversationSideEffect()
 	case shortcuts.SideEffectExportConversation:
@@ -180,6 +182,16 @@ func (s *ChatShortcutHandler) handleSwitchModelSideEffect(stateManager *services
 	_ = stateManager.TransitionToView(domain.ViewStateModelSelection)
 	return domain.SetStatusEvent{
 		Message:    "Select a model from the dropdown",
+		Spinner:    false,
+		TokenUsage: s.handler.getCurrentTokenUsage(),
+		StatusType: domain.StatusDefault,
+	}
+}
+
+func (s *ChatShortcutHandler) handleSwitchThemeSideEffect(stateManager *services.StateManager) tea.Msg {
+	_ = stateManager.TransitionToView(domain.ViewStateThemeSelection)
+	return domain.SetStatusEvent{
+		Message:    "🎨 Select a theme from the dropdown",
 		Spinner:    false,
 		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,

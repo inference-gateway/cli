@@ -87,7 +87,7 @@ func (g *GitShortcut) executeGenericGitCommand(ctx context.Context, args []strin
 		return g.formatLogOutput(outputStr), nil
 	default:
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s %sGit %s completed successfully%s\n\n%s", icons.CheckMark, colors.Green, command, colors.Reset, outputStr),
+			Output:  fmt.Sprintf("%s Git %s completed successfully\n\n%s", icons.StyledCheckMark(), command, outputStr),
 			Success: true,
 		}, nil
 	}
@@ -218,7 +218,7 @@ func (g *GitShortcut) PerformCommit(ctx context.Context, args []string, diff str
 	}
 
 	return fmt.Sprintf("%s %s**AI-Generated Commit Created**%s\n\n%s**Message:**%s %s\n\n```\n%s\n```",
-		icons.CheckMark, colors.Green, colors.Reset, colors.Blue, colors.Reset, commitMessage, strings.TrimSpace(string(commitOutput))), nil
+		icons.StyledCheckMark(), colors.Blue, colors.Reset, commitMessage, strings.TrimSpace(string(commitOutput))), nil
 }
 
 // generateCommitMessage uses AI to generate a commit message from the diff
@@ -288,7 +288,7 @@ Respond with ONLY the commit message, no quotes or explanation.`
 func (g *GitShortcut) formatStatusOutput(output string) ShortcutResult {
 	if output == "" {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s %sWorking tree clean - no changes to commit%s", icons.CheckMark, colors.Green, colors.Reset),
+			Output:  fmt.Sprintf("%s Working tree clean - no changes to commit", icons.StyledCheckMark()),
 			Success: true,
 		}
 	}
@@ -302,13 +302,13 @@ func (g *GitShortcut) formatStatusOutput(output string) ShortcutResult {
 func (g *GitShortcut) formatPullOutput(output string) ShortcutResult {
 	if strings.Contains(output, "Already up to date") {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s %sRepository is already up to date%s", icons.CheckMark, colors.Green, colors.Reset),
+			Output:  fmt.Sprintf("%s Repository is already up to date", icons.StyledCheckMark()),
 			Success: true,
 		}
 	}
 
 	return ShortcutResult{
-		Output:  fmt.Sprintf("%s %s**Pull Completed**%s\n\n```\n%s\n```", icons.CheckMark, colors.Green, colors.Reset, output),
+		Output:  fmt.Sprintf("%s **Pull Completed**\n\n```\n%s\n```", icons.StyledCheckMark(), output),
 		Success: true,
 	}
 }
@@ -329,7 +329,7 @@ func (g *GitShortcut) formatCommitOutput(output string) ShortcutResult {
 	}
 
 	return ShortcutResult{
-		Output:  fmt.Sprintf("%s %s**Commit Created**%s\n\n```\n%s\n```", icons.CheckMark, colors.Green, colors.Reset, output),
+		Output:  fmt.Sprintf("%s **Commit Created**\n\n```\n%s\n```", icons.StyledCheckMark(), output),
 		Success: true,
 	}
 }
@@ -337,13 +337,13 @@ func (g *GitShortcut) formatCommitOutput(output string) ShortcutResult {
 func (g *GitShortcut) formatPushOutput(output string) ShortcutResult {
 	if output == "" {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s %sSuccessfully pushed to remote repository%s", icons.CheckMark, colors.Green, colors.Reset),
+			Output:  fmt.Sprintf("%s Successfully pushed to remote repository", icons.StyledCheckMark()),
 			Success: true,
 		}
 	}
 
 	return ShortcutResult{
-		Output:  fmt.Sprintf("%s %s**Push Completed**%s\n\n```\n%s\n```", icons.CheckMark, colors.Green, colors.Reset, output),
+		Output:  fmt.Sprintf("%s **Push Completed**\n\n```\n%s\n```", icons.StyledCheckMark(), output),
 		Success: true,
 	}
 }

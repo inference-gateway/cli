@@ -73,13 +73,13 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 
 	if err != nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Command failed: %s\n\nOutput:\n%s", icons.CrossMark, err.Error(), outputStr),
+			Output:  fmt.Sprintf("%s Command failed: %s\n\nOutput:\n%s", icons.StyledCrossMark(), err.Error(), outputStr),
 			Success: false,
 		}, nil
 	}
 
 	return ShortcutResult{
-		Output:  fmt.Sprintf("%s %s**%s completed**%s\n\n```\n%s\n```", icons.CheckMark, colors.Green, c.config.Name, colors.Reset, outputStr),
+		Output:  fmt.Sprintf("%s **%s completed**\n\n```\n%s\n```", icons.StyledCheckMark(), c.config.Name, outputStr),
 		Success: true,
 	}, nil
 }

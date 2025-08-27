@@ -61,6 +61,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	stateManager := services.GetStateManager()
 	toolOrchestrator := services.GetToolExecutionOrchestrator()
 	theme := services.GetTheme()
+	themeProvider := services.GetThemeProvider()
 	toolRegistry := services.GetToolRegistry()
 
 	application := app.NewChatApplication(
@@ -76,6 +77,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		stateManager,
 		toolOrchestrator,
 		theme,
+		themeProvider,
 		toolRegistry,
 		getEffectiveConfigPath(),
 	)

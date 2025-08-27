@@ -45,7 +45,7 @@ type ServiceContainer struct {
 	storage              storage.ConversationStorage
 
 	// UI components
-	theme ui.Theme
+	themeProvider *ui.ThemeProvider
 
 	// Extensibility
 	shortcutRegistry *shortcuts.Registry
@@ -168,7 +168,7 @@ func (c *ServiceContainer) initializeServices() {
 
 // initializeUIComponents creates UI components and theme
 func (c *ServiceContainer) initializeUIComponents() {
-	c.theme = ui.NewDefaultTheme()
+	c.themeProvider = ui.NewThemeProvider()
 }
 
 // initializeExtensibility sets up extensible systems
@@ -183,6 +183,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewExportShortcut(c.conversationRepo, c.agentService, c.modelService, c.config))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
+	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeProvider))
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 
 	if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
@@ -247,7 +248,11 @@ func (c *ServiceContainer) GetFileService() domain.FileService {
 }
 
 func (c *ServiceContainer) GetTheme() ui.Theme {
-	return c.theme
+	return c.themeProvider.GetCurrentTheme()
+}
+
+func (c *ServiceContainer) GetThemeProvider() *ui.ThemeProvider {
+	return c.themeProvider
 }
 
 func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {

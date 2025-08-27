@@ -10,6 +10,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -345,5 +346,44 @@ func (c *SwitchShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		Success:    true,
 		SideEffect: SideEffectSwitchModel,
 		Data:       modelID,
+	}, nil
+}
+
+// ThemeShortcut switches the active theme
+type ThemeShortcut struct {
+	themeProvider *ui.ThemeProvider
+}
+
+func NewThemeShortcut(themeProvider *ui.ThemeProvider) *ThemeShortcut {
+	return &ThemeShortcut{themeProvider: themeProvider}
+}
+
+func (c *ThemeShortcut) GetName() string               { return "theme" }
+func (c *ThemeShortcut) GetDescription() string        { return "Switch to a different theme" }
+func (c *ThemeShortcut) GetUsage() string              { return "/theme [theme-name]" }
+func (c *ThemeShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
+
+func (c *ThemeShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+	if len(args) == 0 {
+		return ShortcutResult{
+			Output:     "🎨 Select a theme from the dropdown",
+			Success:    true,
+			SideEffect: SideEffectSwitchTheme,
+		}, nil
+	}
+
+	themeName := args[0]
+	if err := c.themeProvider.SetCurrentTheme(themeName); err != nil {
+		return ShortcutResult{
+			Output:  fmt.Sprintf("❌ Failed to switch theme: %v", err),
+			Success: false,
+		}, nil
+	}
+
+	return ShortcutResult{
+		Output:     fmt.Sprintf("🎨 Switched to theme: **%s**", themeName),
+		Success:    true,
+		SideEffect: SideEffectSwitchTheme,
+		Data:       themeName,
 	}, nil
 }

@@ -30,6 +30,7 @@ const (
 	SideEffectExportConversation
 	SideEffectExit
 	SideEffectSwitchModel
+	SideEffectSwitchTheme
 	SideEffectShowHelp
 	SideEffectReloadConfig
 	SideEffectGenerateCommit
