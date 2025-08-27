@@ -37,8 +37,8 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 				Host:     cfg.Storage.Postgres.Host,
 				Port:     cfg.Storage.Postgres.Port,
 				Database: cfg.Storage.Postgres.Database,
-				Username: config.ResolveEnvironmentVariables(cfg.Storage.Postgres.Username),
-				Password: config.ResolveEnvironmentVariables(cfg.Storage.Postgres.Password),
+				Username: cfg.Storage.Postgres.Username,
+				Password: cfg.Storage.Postgres.Password,
 				SSLMode:  cfg.Storage.Postgres.SSLMode,
 			},
 		}
@@ -48,7 +48,7 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 			Redis: RedisConfig{
 				Host:     cfg.Storage.Redis.Host,
 				Port:     cfg.Storage.Redis.Port,
-				Password: config.ResolveEnvironmentVariables(cfg.Storage.Redis.Password),
+				Password: cfg.Storage.Redis.Password,
 				Database: cfg.Storage.Redis.DB,
 			},
 		}
