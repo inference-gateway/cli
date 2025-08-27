@@ -49,6 +49,10 @@ export INFER_TOOLS_SAFETY_REQUIRE_APPROVAL=false
 # Nested configuration using underscores
 export INFER_TOOLS_BASH_ENABLED=true
 export INFER_TOOLS_WEB_FETCH_ENABLED=false
+
+# Storage configuration (for database passwords)
+export INFER_STORAGE_POSTGRES_PASSWORD="your-postgres-password"
+export INFER_STORAGE_REDIS_PASSWORD="your-redis-password"
 ```
 
 ### Conversion Rules
@@ -68,7 +72,7 @@ gateway:
   api_key: "%GITHUB_TOKEN%"  # Environment variable substitution
   timeout: 200
 
-# HTTP client settings  
+# HTTP client settings
 client:
   timeout: 200
   retry:
@@ -104,7 +108,7 @@ tools:
   sandbox:
     directories: [".", "/tmp"]
     protected_paths: [".infer/", ".git/", "*.env"]
-  
+
   # Individual tool settings
   bash:
     enabled: true
@@ -112,17 +116,17 @@ tools:
     whitelist:
       commands: ["ls", "pwd", "echo", "git"]
       patterns: ["^git status$", "^git diff.*"]
-  
+
   read:
     enabled: true
     require_approval: false
-    
+
   write:
     enabled: true
     require_approval: true
-    
+
   # ... other tools
-  
+
   safety:
     require_approval: true  # Global approval setting
 
@@ -130,6 +134,28 @@ tools:
 compact:
   output_dir: ".infer"
   summary_model: ""
+
+# Storage configuration (for conversation history)
+storage:
+  enabled: true
+  type: "sqlite"  # Options: memory, sqlite, postgres, redis
+
+  sqlite:
+    path: ".infer/conversations.db"
+
+  postgres:
+    host: "localhost"
+    port: 5432
+    database: "infer_conversations"
+    username: ""
+    password: ""  # Use INFER_STORAGE_POSTGRES_PASSWORD env var
+    ssl_mode: "prefer"
+
+  redis:
+    host: "localhost"
+    port: 6379
+    password: ""  # Use INFER_STORAGE_REDIS_PASSWORD env var
+    db: 0
 ```
 
 ## Command Usage
@@ -149,7 +175,7 @@ infer config show
 # Set agent model (project config)
 infer config agent set-model "anthropic/claude-4.1"
 
-# Set agent model (userspace config)  
+# Set agent model (userspace config)
 infer config agent set-model --userspace "anthropic/claude-4.1"
 
 # Set system prompt
@@ -185,7 +211,7 @@ Configuration values support environment variable substitution using the `%VAR_N
 ```yaml
 gateway:
   api_key: "%INFER_API_KEY%"
-  
+
 tools:
   github:
     token: "%GITHUB_TOKEN%"
@@ -234,7 +260,7 @@ INFER_AGENT_VERBOSE_TOOLS=true infer chat  # Temporary verbose mode
 The CLI validates configuration on startup and provides helpful error messages:
 
 - Invalid YAML syntax
-- Unknown configuration keys  
+- Unknown configuration keys
 - Invalid value types (string vs boolean vs integer)
 - Missing required values
 
@@ -257,7 +283,7 @@ system while preserving all settings and maintaining backward compatibility.
 # Enable verbose logging
 infer -v config show
 
-# Enable debug logging  
+# Enable debug logging
 INFER_LOGGING_DEBUG=true infer config show
 
 # Check which config file is being used

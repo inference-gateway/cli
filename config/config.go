@@ -22,14 +22,15 @@ const (
 
 // Config represents the CLI configuration
 type Config struct {
-	Gateway GatewayConfig `yaml:"gateway" mapstructure:"gateway"`
-	Client  ClientConfig  `yaml:"client" mapstructure:"client"`
-	Logging LoggingConfig `yaml:"logging" mapstructure:"logging"`
-	Tools   ToolsConfig   `yaml:"tools" mapstructure:"tools"`
-	Compact CompactConfig `yaml:"compact" mapstructure:"compact"`
-	Agent   AgentConfig   `yaml:"agent" mapstructure:"agent"`
-	Git     GitConfig     `yaml:"git" mapstructure:"git"`
-	Storage StorageConfig `yaml:"storage" mapstructure:"storage"`
+	Gateway      GatewayConfig      `yaml:"gateway" mapstructure:"gateway"`
+	Client       ClientConfig       `yaml:"client" mapstructure:"client"`
+	Logging      LoggingConfig      `yaml:"logging" mapstructure:"logging"`
+	Tools        ToolsConfig        `yaml:"tools" mapstructure:"tools"`
+	Compact      CompactConfig      `yaml:"compact" mapstructure:"compact"`
+	Agent        AgentConfig        `yaml:"agent" mapstructure:"agent"`
+	Git          GitConfig          `yaml:"git" mapstructure:"git"`
+	Storage      StorageConfig      `yaml:"storage" mapstructure:"storage"`
+	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -220,10 +221,24 @@ type GitConfig struct {
 	CommitMessage GitCommitMessageConfig `yaml:"commit_message" mapstructure:"commit_message"`
 }
 
+// ConversationConfig contains conversation-specific settings
+type ConversationConfig struct {
+	TitleGeneration ConversationTitleConfig `yaml:"title_generation" mapstructure:"title_generation"`
+}
+
 // GitCommitMessageConfig contains settings for AI-generated commit messages
 type GitCommitMessageConfig struct {
 	Model        string `yaml:"model" mapstructure:"model"`
 	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
+}
+
+// ConversationTitleConfig contains settings for AI-generated conversation titles
+type ConversationTitleConfig struct {
+	Enabled      bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model        string `yaml:"model" mapstructure:"model"`
+	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
+	BatchSize    int    `yaml:"batch_size" mapstructure:"batch_size"`
+	Interval     int    `yaml:"interval" mapstructure:"interval"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -488,8 +503,8 @@ Respond with ONLY the commit message, no quotes or explanation.`,
 			},
 		},
 		Storage: StorageConfig{
-			Enabled: false,
-			Type:    "memory",
+			Enabled: true,
+			Type:    "sqlite",
 			SQLite: SQLiteStorageConfig{
 				Path: ConfigDirName + "/conversations.db",
 			},
@@ -506,6 +521,29 @@ Respond with ONLY the commit message, no quotes or explanation.`,
 				Port:     6379,
 				Password: "",
 				DB:       0,
+			},
+		},
+		Conversation: ConversationConfig{
+			TitleGeneration: ConversationTitleConfig{
+				Enabled:   true,
+				Model:     "",
+				BatchSize: 10,
+				SystemPrompt: `Generate a concise conversation title based on the messages provided.
+
+REQUIREMENTS:
+- MUST be under 50 characters total
+- MUST be descriptive and capture the main topic
+- MUST use title case
+- NO quotes, colons, or special characters
+- Focus on the primary subject or task discussed
+
+EXAMPLES:
+- "React Component Testing"
+- "Database Migration Setup"
+- "API Error Handling"
+- "Docker Configuration"
+
+Respond with ONLY the title, no quotes or explanation.`,
 			},
 		},
 	}

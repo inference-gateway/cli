@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/mocks"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
 )
 
 func createTestRegistry() *Registry {

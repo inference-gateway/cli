@@ -210,6 +210,34 @@ func (c *ExportShortcut) createCompactMarkdown(summary, fullConversation string)
 	return content.String()
 }
 
+// NewShortcut starts a new conversation
+type NewShortcut struct {
+	repo PersistentConversationRepository
+}
+
+func NewNewShortcut(repo PersistentConversationRepository) *NewShortcut {
+	return &NewShortcut{repo: repo}
+}
+
+func (c *NewShortcut) GetName() string               { return "new" }
+func (c *NewShortcut) GetDescription() string        { return "Start a new conversation" }
+func (c *NewShortcut) GetUsage() string              { return "/new [title]" }
+func (c *NewShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
+
+func (c *NewShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+	title := "New Conversation"
+	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
+		title = strings.TrimSpace(args[0])
+	}
+
+	return ShortcutResult{
+		Output:     fmt.Sprintf("🆕 Starting new conversation: %s", title),
+		Success:    true,
+		SideEffect: SideEffectStartNewConversation,
+		Data:       title,
+	}, nil
+}
+
 // HelpShortcut shows available shortcuts
 type HelpShortcut struct {
 	registry *Registry

@@ -2,14 +2,16 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/infra/storage"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	generated "github.com/inference-gateway/cli/tests/mocks/generated"
 	sdk "github.com/inference-gateway/sdk"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 )
 
 func setupTestRepository(t *testing.T) (*PersistentConversationRepository, func()) {
@@ -71,7 +73,7 @@ func TestGenerateTitleFromMessage(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := generateTitleFromMessage(tc.input)
+			result := domain.CreateTitleFromMessage(tc.input)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -175,45 +177,18 @@ func TestPersistentConversationRepository_AutoSaveTitle(t *testing.T) {
 }
 
 func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
-	repo, cleanup := setupTestRepository(t)
-	defer cleanup()
+	mockStorage := &generated.FakeConversationStorage{}
+	formatterService := &ToolFormatterService{}
+	repo := NewPersistentConversationRepository(formatterService, mockStorage)
 
 	ctx := context.Background()
 
-	err := repo.StartNewConversation("Test Conversation")
-	require.NoError(t, err)
-
-	entry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.User,
-			Content: "Initial message",
-		},
-		Time:  time.Now(),
-		Model: "claude-3",
-	}
-	err = repo.AddMessage(entry)
-	require.NoError(t, err)
-
-	err = repo.SaveConversation(ctx)
-	require.NoError(t, err)
-
 	t.Run("List Saved Conversations", func(t *testing.T) {
-		err := repo.StartNewConversation("Another Test")
-		assert.NoError(t, err)
-
-		entry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.User,
-				Content: "Another message",
-			},
-			Time:  time.Now(),
-			Model: "claude-3",
+		expectedConversations := []storage.ConversationSummary{
+			{ID: "conv1", Title: "Test Conversation", MessageCount: 1},
+			{ID: "conv2", Title: "Another Test", MessageCount: 1},
 		}
-		err = repo.AddMessage(entry)
-		assert.NoError(t, err)
-
-		err = repo.SaveConversation(ctx)
-		assert.NoError(t, err)
+		mockStorage.ListConversationsReturns(expectedConversations, nil)
 
 		conversations, err := repo.ListSavedConversations(ctx, 10, 0)
 		assert.NoError(t, err)
@@ -225,10 +200,23 @@ func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 		}
 		assert.Contains(t, titles, "Test Conversation")
 		assert.Contains(t, titles, "Another Test")
+
+		// Verify the mock was called with correct parameters
+		assert.Equal(t, 1, mockStorage.ListConversationsCallCount())
+		ctxArg, limitArg, offsetArg := mockStorage.ListConversationsArgsForCall(0)
+		assert.Equal(t, ctx, ctxArg)
+		assert.Equal(t, 10, limitArg)
+		assert.Equal(t, 0, offsetArg)
 	})
 
 	t.Run("Update Conversation Title and Tags", func(t *testing.T) {
-		originalTitle := repo.GetCurrentConversationMetadata().Title
+		conversationID := "test-conv-id"
+
+		err := repo.StartNewConversation("Original Title")
+		require.NoError(t, err)
+		repo.conversationID = conversationID
+
+		mockStorage.SaveConversationReturns(nil)
 
 		repo.SetConversationTitle("Updated Title")
 		repo.SetConversationTags([]string{"test", "updated"})
@@ -237,28 +225,29 @@ func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 		assert.Equal(t, "Updated Title", metadata.Title)
 		assert.Equal(t, []string{"test", "updated"}, metadata.Tags)
 
-		err := repo.SaveConversation(ctx)
+		err = repo.SaveConversation(ctx)
 		assert.NoError(t, err)
 
-		conversationID := repo.GetCurrentConversationID()
-
-		err = repo.Clear()
-		assert.NoError(t, err)
-
-		err = repo.LoadConversation(ctx, conversationID)
-		assert.NoError(t, err)
-
-		metadata = repo.GetCurrentConversationMetadata()
-		assert.Equal(t, "Updated Title", metadata.Title)
-		assert.Equal(t, []string{"test", "updated"}, metadata.Tags)
-		assert.NotEqual(t, originalTitle, metadata.Title)
+		assert.Equal(t, 1, mockStorage.SaveConversationCallCount())
+		_, idArg, _, metadataArg := mockStorage.SaveConversationArgsForCall(0)
+		assert.Equal(t, conversationID, idArg)
+		assert.Equal(t, "Updated Title", metadataArg.Title)
+		assert.Equal(t, []string{"test", "updated"}, metadataArg.Tags)
 	})
 
 	t.Run("Delete Saved Conversation", func(t *testing.T) {
-		conversationID := repo.GetCurrentConversationID()
+		conversationID := "test-conv-id"
+
+		mockStorage.DeleteConversationReturns(nil)
+		mockStorage.LoadConversationReturns(nil, storage.ConversationMetadata{}, fmt.Errorf("conversation not found"))
 
 		err := repo.DeleteSavedConversation(ctx, conversationID)
 		assert.NoError(t, err)
+
+		assert.Equal(t, 1, mockStorage.DeleteConversationCallCount())
+		ctxArg, idArg := mockStorage.DeleteConversationArgsForCall(0)
+		assert.Equal(t, ctx, ctxArg)
+		assert.Equal(t, conversationID, idArg)
 
 		err = repo.LoadConversation(ctx, conversationID)
 		assert.Error(t, err)

@@ -4,11 +4,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/mocks"
-	"github.com/inference-gateway/cli/internal/services"
-	"github.com/inference-gateway/cli/internal/shortcuts"
-	"github.com/stretchr/testify/assert"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
+	assert "github.com/stretchr/testify/assert"
 )
 
 func TestChatMessageProcessor_handleUserInput(t *testing.T) {

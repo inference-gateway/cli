@@ -163,6 +163,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleSaveConversationSideEffect()
 	case shortcuts.SideEffectShowConversationSelection:
 		return s.handleShowConversationSelectionSideEffect(stateManager)
+	case shortcuts.SideEffectStartNewConversation:
+		return s.handleStartNewConversationSideEffect(data)
 	default:
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
@@ -439,4 +441,53 @@ func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect(stateMan
 		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,
 	}
+}
+
+func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea.Msg {
+	title, ok := data.(string)
+	if !ok {
+		title = "New Conversation"
+	}
+
+	// Check if we have a persistent conversation repository
+	persistentRepo, ok := s.handler.conversationRepo.(*services.PersistentConversationRepository)
+	if !ok {
+		return domain.SetStatusEvent{
+			Message:    "New conversation feature requires persistent storage to be enabled",
+			Spinner:    false,
+			TokenUsage: s.handler.getCurrentTokenUsage(),
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	// Start new conversation
+	if err := persistentRepo.StartNewConversation(title); err != nil {
+		return domain.SetStatusEvent{
+			Message:    fmt.Sprintf("Failed to start new conversation: %v", err),
+			Spinner:    false,
+			TokenUsage: s.handler.getCurrentTokenUsage(),
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	// Clear the current conversation history in the UI
+	if err := s.handler.conversationRepo.Clear(); err != nil {
+		logger.Error("failed to clear conversation UI after starting new", "error", err)
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("🆕 Started new conversation: %s", title),
+				Spinner:    false,
+				TokenUsage: s.handler.getCurrentTokenUsage(),
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)()
 }
