@@ -7,9 +7,20 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
+// Assistant message
+type Message = sdk.Message
+
+// Common role constants
+const (
+	RoleUser      = sdk.User
+	RoleAssistant = sdk.Assistant
+	RoleTool      = sdk.Tool
+	RoleSystem    = sdk.System
+)
+
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
-	Message          sdk.Message          `json:"message"`
+	Message          Message              `json:"message"`
 	Model            string               `json:"model,omitempty"`
 	Time             time.Time            `json:"time"`
 	ToolExecution    *ToolExecutionResult `json:"tool_execution,omitempty"`

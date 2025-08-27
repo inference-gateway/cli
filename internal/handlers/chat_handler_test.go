@@ -106,7 +106,7 @@ Content here.`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			summary, found := handler.extractMarkdownSummary(tt.content)
+			summary, found := handler.ExtractMarkdownSummary(tt.content)
 
 			assert.Equal(t, tt.expectedFound, found, "Found flag should match expected")
 			if tt.expectedFound {
@@ -239,7 +239,7 @@ Project summary here.
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			summary, found := handler.extractMarkdownSummary(tt.content)
+			summary, found := handler.ExtractMarkdownSummary(tt.content)
 
 			assert.Equal(t, tt.expectedFound, found, "Found flag should match expected")
 			if tt.expectedFound {
@@ -294,7 +294,7 @@ Message content here...`,
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			summary, found := handler.extractMarkdownSummary(tt.content)
+			summary, found := handler.ExtractMarkdownSummary(tt.content)
 
 			assert.Equal(t, tt.expectedFound, found, "Found flag should match expected")
 			if tt.expectedFound {
@@ -317,7 +317,7 @@ func TestChatHandler_extractMarkdownSummary_EdgeCases(t *testing.T) {
 		}
 		largeContent += "\n## Next Section\nOther content."
 
-		summary, found := handler.extractMarkdownSummary(largeContent)
+		summary, found := handler.ExtractMarkdownSummary(largeContent)
 
 		assert.True(t, found)
 		assert.Contains(t, summary, "## Summary")
@@ -333,7 +333,7 @@ Emojis work too! ✨
 ## Details
 More content.`
 
-		summary, found := handler.extractMarkdownSummary(content)
+		summary, found := handler.ExtractMarkdownSummary(content)
 
 		assert.True(t, found)
 		assert.Contains(t, summary, "Special chars: !@#$%^&*()")
@@ -345,7 +345,7 @@ More content.`
 	t.Run("Mixed line endings", func(t *testing.T) {
 		content := "## Summary\r\nWindows line ending content.\nUnix line ending.\r\n\r\n## Next Section\r\nMore content."
 
-		summary, found := handler.extractMarkdownSummary(content)
+		summary, found := handler.ExtractMarkdownSummary(content)
 
 		assert.True(t, found)
 		assert.Contains(t, summary, "Windows line ending content.")
@@ -437,7 +437,7 @@ func TestChatHandler_parseToolCall(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			toolName, args, err := handler.parseToolCall(tt.input)
+			toolName, args, err := handler.ParseToolCall(tt.input)
 
 			if tt.expectError {
 				assert.Error(t, err)
@@ -512,7 +512,7 @@ func TestChatHandler_parseArguments(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			args, err := handler.parseArguments(tt.input)
+			args, err := handler.ParseArguments(tt.input)
 
 			if tt.expectError {
 				assert.Error(t, err)
