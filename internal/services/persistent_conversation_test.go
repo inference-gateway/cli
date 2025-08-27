@@ -2,8 +2,6 @@ package services
 
 import (
 	"context"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -15,13 +13,8 @@ import (
 )
 
 func setupTestRepository(t *testing.T) (*PersistentConversationRepository, func()) {
-	tempDir, err := os.MkdirTemp("", "persistent_test_*")
-	require.NoError(t, err)
-
-	dbPath := filepath.Join(tempDir, "test.db")
-
 	config := storage.SQLiteConfig{
-		Path: dbPath,
+		Path: ":memory:",
 	}
 
 	storageBackend, err := storage.NewSQLiteStorage(config)
@@ -33,7 +26,6 @@ func setupTestRepository(t *testing.T) (*PersistentConversationRepository, func(
 	cleanup := func() {
 		_ = repo.Close()
 		_ = storageBackend.Close()
-		_ = os.RemoveAll(tempDir)
 	}
 
 	return repo, cleanup
