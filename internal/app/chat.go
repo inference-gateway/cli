@@ -107,12 +107,11 @@ func NewChatApplication(
 		logger.Error("Failed to transition to initial view", "error", err)
 	}
 
-	app.conversationView = ui.CreateConversationView()
+	app.conversationView = ui.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
-		cv.SetTheme(app.themeService.GetCurrentTheme())
 	}
 
 	configDir := ".infer"
@@ -124,14 +123,8 @@ func NewChatApplication(
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)
 	}
-	app.statusView = ui.CreateStatusView()
-	if sv, ok := app.statusView.(*components.StatusView); ok {
-		sv.SetTheme(app.themeService.GetCurrentTheme())
-	}
-	app.helpBar = ui.CreateHelpBar()
-	if hb, ok := app.helpBar.(*components.HelpBar); ok {
-		hb.SetTheme(app.themeService.GetCurrentTheme())
-	}
+	app.statusView = ui.CreateStatusView(app.themeService)
+	app.helpBar = ui.CreateHelpBar(app.themeService)
 	app.approvalView = ui.CreateApprovalView(app.themeService)
 	if av, ok := app.approvalView.(*components.ApprovalComponent); ok {
 		av.SetToolFormatter(toolFormatterService)
@@ -547,18 +540,7 @@ func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
 }
 
 func (app *ChatApplication) updateAllComponentsWithNewTheme() {
-	theme := app.themeService.GetCurrentTheme()
-
 	// Update existing theme-aware components with the new theme
-	if convView, ok := app.conversationView.(*components.ConversationView); ok {
-		convView.SetTheme(theme)
-	}
-	if statusView, ok := app.statusView.(*components.StatusView); ok {
-		statusView.SetTheme(theme)
-	}
-	if helpBar, ok := app.helpBar.(*components.HelpBar); ok {
-		helpBar.SetTheme(theme)
-	}
 	if inputView, ok := app.inputView.(*components.InputView); ok {
 		inputView.SetThemeService(app.themeService)
 	}

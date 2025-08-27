@@ -12,24 +12,19 @@ import (
 
 // HelpBar displays keyboard shortcuts at the bottom of the screen
 type HelpBar struct {
-	enabled   bool
-	width     int
-	shortcuts []shared.KeyShortcut
-	theme     shared.Theme
+	enabled      bool
+	width        int
+	shortcuts    []shared.KeyShortcut
+	themeService domain.ThemeService
 }
 
-func NewHelpBar() *HelpBar {
+func NewHelpBar(themeService domain.ThemeService) *HelpBar {
 	return &HelpBar{
-		enabled:   false,
-		width:     80,
-		shortcuts: make([]shared.KeyShortcut, 0),
-		theme:     nil,
+		enabled:      false,
+		width:        80,
+		shortcuts:    make([]shared.KeyShortcut, 0),
+		themeService: themeService,
 	}
-}
-
-// SetTheme sets the theme for this help bar
-func (hb *HelpBar) SetTheme(theme shared.Theme) {
-	hb.theme = theme
 }
 
 func (hb *HelpBar) SetShortcuts(shortcuts []shared.KeyShortcut) {
@@ -191,8 +186,8 @@ func (hb *HelpBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // Helper method to get theme colors with fallback
 func (hb *HelpBar) getDimColor() string {
-	if hb.theme != nil {
-		return hb.theme.GetDimColor()
+	if hb.themeService != nil {
+		return hb.themeService.GetCurrentTheme().GetDimColor()
 	}
 	return colors.DimColor.Lipgloss
 }

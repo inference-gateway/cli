@@ -28,10 +28,10 @@ type ConversationView struct {
 	lineFormatter       *shared.ConversationLineFormatter
 	plainTextLines      []string
 	configPath          string
-	theme               shared.Theme
+	themeService        domain.ThemeService
 }
 
-func NewConversationView() *ConversationView {
+func NewConversationView(themeService domain.ThemeService) *ConversationView {
 	vp := viewport.New(80, 20)
 	vp.SetContent("")
 	return &ConversationView{
@@ -43,13 +43,8 @@ func NewConversationView() *ConversationView {
 		allToolsExpanded:    false,
 		lineFormatter:       shared.NewConversationLineFormatter(80, nil),
 		plainTextLines:      []string{},
-		theme:               nil,
+		themeService:        themeService,
 	}
-}
-
-// SetTheme sets the theme for this conversation view
-func (cv *ConversationView) SetTheme(theme shared.Theme) {
-	cv.theme = theme
 }
 
 // SetToolFormatter sets the tool formatter for this conversation view
@@ -455,64 +450,64 @@ func (cv *ConversationView) handleScrollRequest(msg domain.ScrollRequestEvent) (
 
 // Helper methods to get theme colors with fallbacks
 func (cv *ConversationView) getUserColor() string {
-	if cv.theme != nil {
-		return cv.theme.GetUserColor()
+	if cv.themeService != nil {
+		return cv.themeService.GetCurrentTheme().GetUserColor()
 	}
 	return colors.UserColor.ANSI
 }
 
 func (cv *ConversationView) getAssistantColor() string {
-	if cv.theme != nil {
-		return cv.theme.GetAssistantColor()
+	if cv.themeService != nil {
+		return cv.themeService.GetCurrentTheme().GetAssistantColor()
 	}
 	return colors.AssistantColor.ANSI
 }
 
 func (cv *ConversationView) getErrorColor() string {
-	if cv.theme != nil {
-		return cv.theme.GetErrorColor()
+	if cv.themeService != nil {
+		return cv.themeService.GetCurrentTheme().GetErrorColor()
 	}
 	return colors.ErrorColor.ANSI
 }
 
 func (cv *ConversationView) getStatusColor() string {
-	if cv.theme != nil {
-		return cv.theme.GetStatusColor()
+	if cv.themeService != nil {
+		return cv.themeService.GetCurrentTheme().GetStatusColor()
 	}
 	return colors.StatusColor.ANSI
 }
 
 func (cv *ConversationView) getSuccessColor() string {
-	if cv.theme != nil {
-		return cv.theme.GetStatusColor() // Success uses status color in themes
+	if cv.themeService != nil {
+		return cv.themeService.GetCurrentTheme().GetStatusColor() // Success uses status color in themes
 	}
 	return colors.SuccessColor.ANSI
 }
 
 func (cv *ConversationView) getAccentColor() string {
-	if cv.theme != nil {
-		return cv.theme.GetAccentColor()
+	if cv.themeService != nil {
+		return cv.themeService.GetCurrentTheme().GetAccentColor()
 	}
 	return colors.AccentColor.ANSI
 }
 
 func (cv *ConversationView) getDimColor() string {
-	if cv.theme != nil {
-		return cv.theme.GetDimColor()
+	if cv.themeService != nil {
+		return cv.themeService.GetCurrentTheme().GetDimColor()
 	}
 	return colors.DimColor.ANSI
 }
 
 func (cv *ConversationView) getHeaderColor() string {
-	if cv.theme != nil {
-		return cv.theme.GetAccentColor() // Header uses accent color in themes
+	if cv.themeService != nil {
+		return cv.themeService.GetCurrentTheme().GetAccentColor()
 	}
 	return colors.HeaderColor.ANSI
 }
 
 func (cv *ConversationView) getAccentColorLipgloss() string {
-	if cv.theme != nil {
-		return cv.theme.GetAccentColor()
+	if cv.themeService != nil {
+		return cv.themeService.GetCurrentTheme().GetAccentColor()
 	}
 	return colors.AccentColor.Lipgloss
 }

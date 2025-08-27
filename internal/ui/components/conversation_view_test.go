@@ -4,12 +4,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 func TestNewConversationView(t *testing.T) {
-	cv := NewConversationView()
+	cv := NewConversationView(nil)
 
 	if cv == nil {
 		t.Fatal("Expected ConversationView to be created, got nil")
@@ -37,7 +37,7 @@ func TestNewConversationView(t *testing.T) {
 }
 
 func TestConversationView_SetConversation(t *testing.T) {
-	cv := NewConversationView()
+	cv := NewConversationView(nil)
 
 	conversation := []domain.ConversationEntry{
 		{
@@ -72,7 +72,7 @@ func TestConversationView_SetConversation(t *testing.T) {
 }
 
 func TestConversationView_GetScrollOffset(t *testing.T) {
-	cv := NewConversationView()
+	cv := NewConversationView(nil)
 
 	offset := cv.GetScrollOffset()
 
@@ -82,7 +82,7 @@ func TestConversationView_GetScrollOffset(t *testing.T) {
 }
 
 func TestConversationView_CanScrollUp(t *testing.T) {
-	cv := NewConversationView()
+	cv := NewConversationView(nil)
 
 	if cv.CanScrollUp() {
 		t.Error("Expected CanScrollUp to be false when at top")
@@ -90,7 +90,7 @@ func TestConversationView_CanScrollUp(t *testing.T) {
 }
 
 func TestConversationView_CanScrollDown(t *testing.T) {
-	cv := NewConversationView()
+	cv := NewConversationView(nil)
 
 	if cv.CanScrollDown() {
 		t.Error("Expected CanScrollDown to be false with no content")
@@ -98,7 +98,7 @@ func TestConversationView_CanScrollDown(t *testing.T) {
 }
 
 func TestConversationView_ToggleToolResultExpansion(t *testing.T) {
-	cv := NewConversationView()
+	cv := NewConversationView(nil)
 
 	conversation := []domain.ConversationEntry{
 		{
@@ -125,7 +125,7 @@ func TestConversationView_ToggleToolResultExpansion(t *testing.T) {
 }
 
 func TestConversationView_ToggleAllToolResultsExpansion(t *testing.T) {
-	cv := NewConversationView()
+	cv := NewConversationView(nil)
 
 	conversation := []domain.ConversationEntry{
 		{
@@ -174,7 +174,7 @@ func TestConversationView_ToggleAllToolResultsExpansion(t *testing.T) {
 }
 
 func TestConversationView_IsToolResultExpanded(t *testing.T) {
-	cv := NewConversationView()
+	cv := NewConversationView(nil)
 
 	if cv.IsToolResultExpanded(0) {
 		t.Error("Expected tool result 0 to not be expanded initially")
@@ -186,7 +186,7 @@ func TestConversationView_IsToolResultExpanded(t *testing.T) {
 }
 
 func TestConversationView_SetWidth(t *testing.T) {
-	cv := NewConversationView()
+	cv := NewConversationView(nil)
 
 	cv.SetWidth(120)
 
@@ -200,7 +200,7 @@ func TestConversationView_SetWidth(t *testing.T) {
 }
 
 func TestConversationView_SetHeight(t *testing.T) {
-	cv := NewConversationView()
+	cv := NewConversationView(nil)
 
 	cv.SetHeight(30)
 
@@ -214,7 +214,7 @@ func TestConversationView_SetHeight(t *testing.T) {
 }
 
 func TestConversationView_Render(t *testing.T) {
-	cv := NewConversationView()
+	cv := NewConversationView(nil)
 
 	output := cv.Render()
 

@@ -15,19 +15,19 @@ import (
 
 // StatusView handles status messages, errors, and loading spinners
 type StatusView struct {
-	message     string
-	isError     bool
-	isSpinner   bool
-	spinner     spinner.Model
-	startTime   time.Time
-	tokenUsage  string
-	baseMessage string
-	debugInfo   string
-	width       int
-	statusType  domain.StatusType
-	progress    *domain.StatusProgress
-	savedState  *StatusState
-	theme       shared.Theme
+	message      string
+	isError      bool
+	isSpinner    bool
+	spinner      spinner.Model
+	startTime    time.Time
+	tokenUsage   string
+	baseMessage  string
+	debugInfo    string
+	width        int
+	statusType   domain.StatusType
+	progress     *domain.StatusProgress
+	savedState   *StatusState
+	themeService domain.ThemeService
 }
 
 // StatusState represents a saved status state
@@ -42,22 +42,17 @@ type StatusState struct {
 	progress    *domain.StatusProgress
 }
 
-func NewStatusView() *StatusView {
+func NewStatusView(themeService domain.ThemeService) *StatusView {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(colors.SpinnerColor.GetLipglossColor())
 	return &StatusView{
-		message:   "",
-		isError:   false,
-		isSpinner: false,
-		spinner:   s,
-		theme:     nil,
+		message:      "",
+		isError:      false,
+		isSpinner:    false,
+		spinner:      s,
+		themeService: themeService,
 	}
-}
-
-// SetTheme sets the theme for this status view
-func (sv *StatusView) SetTheme(theme shared.Theme) {
-	sv.theme = theme
 }
 
 func (sv *StatusView) ShowStatus(message string) {
@@ -351,15 +346,15 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // Helper methods to get theme colors with fallbacks
 func (sv *StatusView) getErrorColor() string {
-	if sv.theme != nil {
-		return sv.theme.GetErrorColor()
+	if sv.themeService != nil {
+		return sv.themeService.GetCurrentTheme().GetErrorColor()
 	}
 	return colors.ErrorColor.ANSI
 }
 
 func (sv *StatusView) getStatusColor() string {
-	if sv.theme != nil {
-		return sv.theme.GetStatusColor()
+	if sv.themeService != nil {
+		return sv.themeService.GetCurrentTheme().GetStatusColor()
 	}
 	return colors.StatusColor.ANSI
 }
