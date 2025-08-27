@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.45.3](https://github.com/inference-gateway/cli/compare/v0.45.2...v0.45.3) (2025-08-27)
+
+### ♻️ Code Refactoring
+
+* **system-prompt:** Improve agent service with sandbox configuration and dynamic system prompt ([d6d0ed4](https://github.com/inference-gateway/cli/commit/d6d0ed4fac28a280da857fb5aa3f48718c25aa2f))
+
+### 🧹 Maintenance
+
+* Include current date and time in system prompt messages ([4ae395b](https://github.com/inference-gateway/cli/commit/4ae395b22a5cccc56fd1277ea6c1f002f66a7cd6))
+
 ## [0.45.2](https://github.com/inference-gateway/cli/compare/v0.45.1...v0.45.2) (2025-08-26)
 
 ### ♻️ Code Refactoring
