@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
 )
 

@@ -212,15 +212,12 @@ func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 	t.Run("Update Conversation Title and Tags", func(t *testing.T) {
 		conversationID := "test-conv-id"
 
-		// Setup in-memory repo state
 		err := repo.StartNewConversation("Original Title")
 		require.NoError(t, err)
 		repo.conversationID = conversationID
 
-		// Mock SaveConversation to succeed
 		mockStorage.SaveConversationReturns(nil)
 
-		// Update title and tags
 		repo.SetConversationTitle("Updated Title")
 		repo.SetConversationTags([]string{"test", "updated"})
 
@@ -231,7 +228,6 @@ func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 		err = repo.SaveConversation(ctx)
 		assert.NoError(t, err)
 
-		// Verify SaveConversation was called
 		assert.Equal(t, 1, mockStorage.SaveConversationCallCount())
 		_, idArg, _, metadataArg := mockStorage.SaveConversationArgsForCall(0)
 		assert.Equal(t, conversationID, idArg)
@@ -242,21 +238,17 @@ func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 	t.Run("Delete Saved Conversation", func(t *testing.T) {
 		conversationID := "test-conv-id"
 
-		// Mock successful deletion
 		mockStorage.DeleteConversationReturns(nil)
-		// Mock LoadConversation to return error after deletion
 		mockStorage.LoadConversationReturns(nil, storage.ConversationMetadata{}, fmt.Errorf("conversation not found"))
 
 		err := repo.DeleteSavedConversation(ctx, conversationID)
 		assert.NoError(t, err)
 
-		// Verify delete was called
 		assert.Equal(t, 1, mockStorage.DeleteConversationCallCount())
 		ctxArg, idArg := mockStorage.DeleteConversationArgsForCall(0)
 		assert.Equal(t, ctx, ctxArg)
 		assert.Equal(t, conversationID, idArg)
 
-		// Verify conversation can no longer be loaded
 		err = repo.LoadConversation(ctx, conversationID)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "conversation not found")

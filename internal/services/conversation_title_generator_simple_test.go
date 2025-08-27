@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
-	"github.com/stretchr/testify/assert"
+	assert "github.com/stretchr/testify/assert"
 )
 
 func TestConversationTitleGeneratorSimple_fallbackTitle(t *testing.T) {

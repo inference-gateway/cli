@@ -7,12 +7,12 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/infra/storage"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	sdk "github.com/inference-gateway/sdk"
-	"github.com/stretchr/testify/assert"
+	assert "github.com/stretchr/testify/assert"
 
-	"github.com/inference-gateway/cli/tests/mocks/generated"
+	generated "github.com/inference-gateway/cli/tests/mocks/generated"
 )
 
 func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
