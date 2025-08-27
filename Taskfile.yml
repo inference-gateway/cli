@@ -197,25 +197,25 @@ tasks:
     deps:
       - build
     cmds:
-      - mkdir -p test/snapshots/ui
-      - ./{{.BINARY_NAME}} test-view approval --snapshot > test/snapshots/ui/approval.snapshot
-      - ./{{.BINARY_NAME}} test-view diff --snapshot > test/snapshots/ui/diff.snapshot
-      - ./{{.BINARY_NAME}} test-view multiedit --snapshot > test/snapshots/ui/multiedit.snapshot
-      - ./{{.BINARY_NAME}} test-view large-file --snapshot > test/snapshots/ui/large-file.snapshot
-      - echo "UI snapshots generated in test/snapshots/ui/"
+      - mkdir -p tests/snapshots/ui
+      - ./{{.BINARY_NAME}} test-view approval --snapshot > tests/snapshots/ui/approval.snapshot
+      - ./{{.BINARY_NAME}} test-view diff --snapshot > tests/snapshots/ui/diff.snapshot
+      - ./{{.BINARY_NAME}} test-view multiedit --snapshot > tests/snapshots/ui/multiedit.snapshot
+      - ./{{.BINARY_NAME}} test-view large-file --snapshot > tests/snapshots/ui/large-file.snapshot
+      - echo "UI snapshots generated in tests/snapshots/ui/"
 
   test:ui:verify:
     desc: Verify UI component snapshots match current output
     deps:
       - build
     cmds:
-      - mkdir -p test/snapshots/ui/current
-      - ./{{.BINARY_NAME}} test-view approval --snapshot > test/snapshots/ui/current/approval.snapshot
-      - ./{{.BINARY_NAME}} test-view diff --snapshot > test/snapshots/ui/current/diff.snapshot
-      - ./{{.BINARY_NAME}} test-view multiedit --snapshot > test/snapshots/ui/current/multiedit.snapshot
-      - ./{{.BINARY_NAME}} test-view large-file --snapshot > test/snapshots/ui/current/large-file.snapshot
-      - sh -c 'if ! diff -r test/snapshots/ui test/snapshots/ui/current --exclude=current; then echo "❌ UI snapshot verification failed - components have changed"; echo "Run \"task test:ui:snapshots\" to update snapshots or check the differences above"; exit 1; else echo "✅ UI snapshots verified - all components match"; fi'
-      - rm -rf test/snapshots/ui/current
+      - mkdir -p tests/snapshots/ui/current
+      - ./{{.BINARY_NAME}} test-view approval --snapshot > tests/snapshots/ui/current/approval.snapshot
+      - ./{{.BINARY_NAME}} test-view diff --snapshot > tests/snapshots/ui/current/diff.snapshot
+      - ./{{.BINARY_NAME}} test-view multiedit --snapshot > tests/snapshots/ui/current/multiedit.snapshot
+      - ./{{.BINARY_NAME}} test-view large-file --snapshot > tests/snapshots/ui/current/large-file.snapshot
+      - sh -c 'if ! diff -r tests/snapshots/ui tests/snapshots/ui/current --exclude=current; then echo "❌ UI snapshot verification failed - components have changed"; echo "Run \"task test:ui:snapshots\" to update snapshots or check the differences above"; exit 1; else echo "✅ UI snapshots verified - all components match"; fi'
+      - rm -rf tests/snapshots/ui/current
 
   test:ui:interactive:
     desc: Run interactive UI component testing

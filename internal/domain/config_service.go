@@ -16,4 +16,8 @@ type ConfigService interface {
 	// Chat configuration
 	GetSystemPrompt() string
 	GetDefaultModel() string
+
+	// Sandbox configuration
+	GetSandboxDirectories() []string
+	GetProtectedPaths() []string
 }

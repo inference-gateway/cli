@@ -15,7 +15,7 @@ import (
 type AgentServiceImpl struct {
 	client         sdk.Client
 	toolService    domain.ToolService
-	systemPrompt   string
+	config         domain.ConfigService
 	timeoutSeconds int
 	maxTokens      int
 	optimizer      *ConversationOptimizer
@@ -30,11 +30,11 @@ type AgentServiceImpl struct {
 }
 
 // NewAgentService creates a new agent service with pre-configured client
-func NewAgentService(client sdk.Client, toolService domain.ToolService, systemPrompt string, timeoutSeconds int, maxTokens int, optimizer *ConversationOptimizer) *AgentServiceImpl {
+func NewAgentService(client sdk.Client, toolService domain.ToolService, config domain.ConfigService, timeoutSeconds int, maxTokens int, optimizer *ConversationOptimizer) *AgentServiceImpl {
 	return &AgentServiceImpl{
 		client:         client,
 		toolService:    toolService,
-		systemPrompt:   systemPrompt,
+		config:         config,
 		timeoutSeconds: timeoutSeconds,
 		maxTokens:      maxTokens,
 		optimizer:      optimizer,
@@ -57,7 +57,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 			"optimized_count", len(optimizedMessages))
 	}
 
-	messages := s.addToolsIfAvailable(optimizedMessages)
+	messages := s.addSystemPrompt(optimizedMessages)
 
 	logger.Info("LLM Request (Sync)",
 		"request_id", req.RequestID,
@@ -111,7 +111,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			"optimized_count", len(optimizedMessages))
 	}
 
-	messages := s.addToolsIfAvailable(optimizedMessages)
+	messages := s.addSystemPrompt(optimizedMessages)
 
 	logger.Info("LLM Request",
 		"request_id", req.RequestID,

@@ -136,7 +136,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.agentService = services.NewAgentService(
 		agentClient,
 		c.toolService,
-		c.config.Agent.SystemPrompt,
+		c.config,
 		c.config.Gateway.Timeout,
 		c.config.Agent.MaxTokens,
 		optimizer,
