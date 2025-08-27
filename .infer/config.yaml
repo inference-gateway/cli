@@ -203,3 +203,26 @@ storage:
     port: 6379
     password: ""
     db: 0
+conversation:
+  title_generation:
+    enabled: true
+    model: ""
+    system_prompt: |-
+      Generate a concise conversation title based on the messages provided.
+
+      REQUIREMENTS:
+      - MUST be under 50 characters total
+      - MUST be descriptive and capture the main topic
+      - MUST use title case
+      - NO quotes, colons, or special characters
+      - Focus on the primary subject or task discussed
+
+      EXAMPLES:
+      - "React Component Testing"
+      - "Database Migration Setup"
+      - "API Error Handling"
+      - "Docker Configuration"
+
+      Respond with ONLY the title, no quotes or explanation.
+    batch_size: 10
+    interval: 0

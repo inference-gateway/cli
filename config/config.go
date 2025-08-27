@@ -238,6 +238,7 @@ type ConversationTitleConfig struct {
 	Model        string `yaml:"model" mapstructure:"model"`
 	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
 	BatchSize    int    `yaml:"batch_size" mapstructure:"batch_size"`
+	Interval     int    `yaml:"interval" mapstructure:"interval"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations

@@ -24,6 +24,7 @@ conversation:
     enabled: true                    # Enable/disable title generation
     model: "anthropic/claude-3-haiku" # AI model for title generation
     batch_size: 10                   # Number of conversations to process per batch
+    interval: 300                    # Background job interval in seconds (default: 300 = 5 minutes)
     system_prompt: |                 # Custom system prompt (optional)
       Generate a concise conversation title based on the messages provided.
 
@@ -48,6 +49,7 @@ conversation:
 - **enabled**: Enable or disable automatic title generation (default: true)
 - **model**: AI model to use for title generation. Falls back to `agent.model` if not specified
 - **batch_size**: Number of conversations to process in each background job run (default: 10)
+- **interval**: Background job interval in seconds (default: 300 = 5 minutes)
 - **system_prompt**: Custom prompt for title generation. Uses default if not specified
 
 ## How It Works
@@ -123,7 +125,7 @@ The title generation system adds the following fields to conversation metadata:
 
 The background job system:
 
-- Runs every 5 minutes when persistent storage is enabled
+- Runs at configurable intervals when persistent storage is enabled (default: 5 minutes)
 - Processes conversations in batches according to `batch_size` setting
 - Handles each conversation individually to prevent batch failures
 - Includes error handling and logging for failed title generations

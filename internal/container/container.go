@@ -110,12 +110,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 			c.conversationRepo = persistentRepo
 			logger.Info("Initialized persistent storage", "type", c.config.Storage.Type)
 
-			// Initialize title generation services if storage is available
 			titleClient := c.createSDKClient()
 			c.titleGenerator = services.NewConversationTitleGenerator(titleClient, storageBackend, c.config)
-			c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator)
+			c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
 
-			// Connect title generator to persistent repository
 			persistentRepo.SetTitleGenerator(c.titleGenerator)
 		}
 	} else {

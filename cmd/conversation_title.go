@@ -3,6 +3,9 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	"github.com/inference-gateway/cli/internal/container"
@@ -13,14 +16,14 @@ import (
 var conversationTitleCmd = &cobra.Command{
 	Use:   "conversation-title",
 	Short: "Manage conversation title generation",
-	Long: `Manage conversation title generation including triggering manual title generation 
+	Long: `Manage conversation title generation including triggering manual title generation
 for all conversations that need it.`,
 }
 
 var generateTitlesCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate titles for conversations that need them",
-	Long: `Generate AI-powered titles for conversations that either don't have generated titles 
+	Long: `Generate AI-powered titles for conversations that either don't have generated titles
 or have invalidated titles due to being resumed or modified.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := getConfigFromViper()
@@ -106,8 +109,53 @@ var statusTitlesCmd = &cobra.Command{
 	},
 }
 
+var daemonCmd = &cobra.Command{
+	Use:   "daemon",
+	Short: "Run conversation title generation daemon",
+	Long:  `Run the background job manager as a daemon to continuously generate titles for conversations.`,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		cfg, err := getConfigFromViper()
+		if err != nil {
+			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		services := container.NewServiceContainer(cfg, V)
+		backgroundJobManager := services.GetBackgroundJobManager()
+
+		if backgroundJobManager == nil {
+			return fmt.Errorf("background job manager not available - enable persistent storage to use title generation")
+		}
+
+		if backgroundJobManager.IsRunning() {
+			fmt.Println("⚠️  Background job manager is already running")
+			return nil
+		}
+
+		fmt.Println("🚀 Starting conversation title generation daemon...")
+		fmt.Println("📝 Press Ctrl+C to stop")
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		sigChan := make(chan os.Signal, 1)
+		signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+		backgroundJobManager.Start(ctx)
+
+		<-sigChan
+		fmt.Println("\n🛑 Shutting down daemon...")
+		cancel()
+
+		backgroundJobManager.Stop()
+		fmt.Println("✅ Daemon stopped successfully")
+
+		return nil
+	},
+}
+
 func init() {
 	conversationTitleCmd.AddCommand(generateTitlesCmd)
 	conversationTitleCmd.AddCommand(statusTitlesCmd)
+	conversationTitleCmd.AddCommand(daemonCmd)
 	rootCmd.AddCommand(conversationTitleCmd)
 }

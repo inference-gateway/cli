@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -16,6 +17,7 @@ type TitleGenerator interface {
 // BackgroundJobManager manages background tasks
 type BackgroundJobManager struct {
 	titleGenerator TitleGenerator
+	config         *config.Config
 	running        bool
 	stopChan       chan struct{}
 	wg             sync.WaitGroup
@@ -23,9 +25,10 @@ type BackgroundJobManager struct {
 }
 
 // NewBackgroundJobManager creates a new background job manager
-func NewBackgroundJobManager(titleGenerator TitleGenerator) *BackgroundJobManager {
+func NewBackgroundJobManager(titleGenerator TitleGenerator, config *config.Config) *BackgroundJobManager {
 	return &BackgroundJobManager{
 		titleGenerator: titleGenerator,
+		config:         config,
 		stopChan:       make(chan struct{}),
 	}
 }
@@ -84,7 +87,8 @@ func (m *BackgroundJobManager) IsRunning() bool {
 func (m *BackgroundJobManager) runTitleGenerationWorker(ctx context.Context) {
 	defer m.wg.Done()
 
-	ticker := time.NewTicker(5 * time.Minute)
+	interval := m.getJobInterval()
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	logger.Debug("Title generation worker started")
@@ -115,4 +119,12 @@ func (m *BackgroundJobManager) TriggerTitleGeneration(ctx context.Context) error
 
 	logger.Debug("Manually triggering title generation")
 	return m.titleGenerator.ProcessPendingTitles(ctx)
+}
+
+// getJobInterval returns the configured interval for background jobs
+func (m *BackgroundJobManager) getJobInterval() time.Duration {
+	if m.config != nil && m.config.Conversation.TitleGeneration.Interval > 0 {
+		return time.Duration(m.config.Conversation.TitleGeneration.Interval) * time.Second
+	}
+	return 5 * time.Minute
 }
