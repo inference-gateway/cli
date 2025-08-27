@@ -39,13 +39,13 @@ const (
 	LipglossWhiteBg = "#FFFFFF"
 
 	// GitHub Light Theme Colors
-	GithubBlue       = "#0366d6"
-	GithubDarkGray   = "#24292e"
-	GithubRed        = "#d73a49"
-	GithubPurple     = "#8250df"
-	GithubGray       = "#586069"
-	GithubLightGray  = "#d0d7de"
-	GithubGreen      = "#28a745"
+	GithubBlue      = "#0366d6"
+	GithubDarkGray  = "#24292e"
+	GithubRed       = "#d73a49"
+	GithubPurple    = "#8250df"
+	GithubGray      = "#586069"
+	GithubLightGray = "#d0d7de"
+	GithubGreen     = "#28a745"
 
 	// Dracula Theme Colors
 	DraculaCyan       = "#8be9fd"
@@ -66,20 +66,20 @@ type Color struct {
 
 // Predefined colors for consistent theming - Tokyo Night Theme
 var (
-	UserColor       = Color{ANSI: Blue, Lipgloss: LipglossBlue}       // Blue for user prompts
-	AssistantColor  = Color{ANSI: White, Lipgloss: LipglossWhite}     // Light gray-blue for assistant
-	ErrorColor      = Color{ANSI: Red, Lipgloss: LipglossRed}         // Soft red for errors
-	SuccessColor    = Color{ANSI: Green, Lipgloss: LipglossGreen}     // Green for success
-	StatusColor     = Color{ANSI: Magenta, Lipgloss: LipglossMagenta} // Purple for status/info
-	AccentColor     = Color{ANSI: Blue, Lipgloss: LipglossBlue}       // Blue for accents
-	DimColor        = Color{ANSI: Gray, Lipgloss: LipglossGray}       // Dim gray
-	BorderColor     = Color{ANSI: Gray, Lipgloss: LipglossGray}       // Gray for borders
-	HeaderColor     = Color{ANSI: Blue, Lipgloss: LipglossBlue}       // Blue for headers
-	SpinnerColor    = Color{ANSI: Magenta, Lipgloss: LipglossMagenta} // Purple for spinners
-	DiffAddColor    = Color{ANSI: Green, Lipgloss: LipglossGreen}     // Green for additions
-	DiffRemoveColor = Color{ANSI: Red, Lipgloss: LipglossRed}         // Red for removals
-	WarningColor    = Color{ANSI: Amber, Lipgloss: LipglossAmber}     // Amber for warnings
-	TextSelectionForeground = Color{ANSI: "\033[38;2;0;0;0m", Lipgloss: LipglossBlack} // Black for text selection foreground
+	UserColor               = Color{ANSI: Blue, Lipgloss: LipglossBlue}                        // Blue for user prompts
+	AssistantColor          = Color{ANSI: White, Lipgloss: LipglossWhite}                      // Light gray-blue for assistant
+	ErrorColor              = Color{ANSI: Red, Lipgloss: LipglossRed}                          // Soft red for errors
+	SuccessColor            = Color{ANSI: Green, Lipgloss: LipglossGreen}                      // Green for success
+	StatusColor             = Color{ANSI: Magenta, Lipgloss: LipglossMagenta}                  // Purple for status/info
+	AccentColor             = Color{ANSI: Blue, Lipgloss: LipglossBlue}                        // Blue for accents
+	DimColor                = Color{ANSI: Gray, Lipgloss: LipglossGray}                        // Dim gray
+	BorderColor             = Color{ANSI: Gray, Lipgloss: LipglossGray}                        // Gray for borders
+	HeaderColor             = Color{ANSI: Blue, Lipgloss: LipglossBlue}                        // Blue for headers
+	SpinnerColor            = Color{ANSI: Magenta, Lipgloss: LipglossMagenta}                  // Purple for spinners
+	DiffAddColor            = Color{ANSI: Green, Lipgloss: LipglossGreen}                      // Green for additions
+	DiffRemoveColor         = Color{ANSI: Red, Lipgloss: LipglossRed}                          // Red for removals
+	WarningColor            = Color{ANSI: Amber, Lipgloss: LipglossAmber}                      // Amber for warnings
+	TextSelectionForeground = Color{ANSI: "\033[38;2;0;0;0m", Lipgloss: LipglossBlack}         // Black for text selection foreground
 	TextSelectionCursor     = Color{ANSI: "\033[48;2;255;255;255m", Lipgloss: LipglossWhiteBg} // White background for text selection cursor
 
 	// GitHub Light Theme Colors

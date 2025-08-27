@@ -12,17 +12,17 @@ import (
 
 // ThemeSelectorImpl implements theme selection UI
 type ThemeSelectorImpl struct {
-	themes          []string
-	filteredThemes  []string
-	selected        int
-	width           int
-	height          int
-	theme           shared.Theme
-	done            bool
-	cancelled       bool
-	themeService    domain.ThemeService
-	searchQuery     string
-	searchMode      bool
+	themes         []string
+	filteredThemes []string
+	selected       int
+	width          int
+	height         int
+	theme          shared.Theme
+	done           bool
+	cancelled      bool
+	themeService   domain.ThemeService
+	searchQuery    string
+	searchMode     bool
 }
 
 // NewThemeSelector creates a new theme selector
@@ -40,8 +40,7 @@ func NewThemeSelector(themeService domain.ThemeService, theme shared.Theme) *The
 		searchMode:     false,
 	}
 	copy(m.filteredThemes, themes)
-	
-	// Set selected to current theme
+
 	currentTheme := themeService.GetCurrentThemeName()
 	for i, themeName := range themes {
 		if themeName == currentTheme {
@@ -49,7 +48,7 @@ func NewThemeSelector(themeService domain.ThemeService, theme shared.Theme) *The
 			break
 		}
 	}
-	
+
 	return m
 }
 
@@ -201,19 +200,19 @@ func (m *ThemeSelectorImpl) View() string {
 		prefix := "  "
 		suffix := ""
 		color := ""
-		
+
 		if i == m.selected {
 			prefix = "▶ "
 			color = m.theme.GetAccentColor()
 		}
-		
+
 		if themeName == currentTheme {
 			suffix = " ✓"
 			if i != m.selected {
 				color = m.theme.GetStatusColor()
 			}
 		}
-		
+
 		b.WriteString(fmt.Sprintf("%s%s%s%s%s\n", color, prefix, themeName, suffix, colors.Reset))
 	}
 
