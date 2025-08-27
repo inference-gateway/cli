@@ -206,7 +206,6 @@ tasks:
     desc: Clean generated mock files
     cmds:
       - rm -rf tests/mocks/generated/
-      - rm -rf internal/mocks/
 
   test:ui:snapshots:
     desc: Generate UI component snapshots for regression testing
