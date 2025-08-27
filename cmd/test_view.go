@@ -61,15 +61,41 @@ func runTestView(cmd *cobra.Command, args []string) {
 	}
 }
 
+// testThemeService implements domain.ThemeService for testing
+type testThemeService struct {
+	theme shared.Theme
+}
+
+func (t *testThemeService) GetCurrentTheme() domain.Theme {
+	return t.theme
+}
+
+func (t *testThemeService) SetTheme(name string) error {
+	return nil
+}
+
+func (t *testThemeService) GetCurrentThemeName() string {
+	return "default"
+}
+
+func (t *testThemeService) ListThemes() []string {
+	return []string{"default"}
+}
+
 func createTestTheme() shared.Theme {
 	return ui.NewDefaultTheme()
+}
+
+func createTestThemeService() domain.ThemeService {
+	return &testThemeService{theme: ui.NewDefaultTheme()}
 }
 
 func testApprovalView(theme shared.Theme) {
 	fmt.Println("🔧 Testing Approval View Component")
 	fmt.Println(colors.CreateSeparator(50, "─"))
 
-	approvalComponent := components.NewApprovalComponent(theme)
+	themeService := createTestThemeService()
+	approvalComponent := components.NewApprovalComponent(themeService)
 	approvalComponent.SetWidth(componentWidth)
 	approvalComponent.SetHeight(componentHeight)
 
@@ -276,7 +302,8 @@ func testLargeFileView(theme shared.Theme) {
 		fmt.Printf("Testing responsiveness at %dx%d\n", size.width, size.height)
 		fmt.Println(colors.CreateSeparator(size.width/2, "─"))
 
-		approvalComponent := components.NewApprovalComponent(theme)
+		themeService := createTestThemeService()
+		approvalComponent := components.NewApprovalComponent(themeService)
 		approvalComponent.SetWidth(size.width)
 		approvalComponent.SetHeight(size.height)
 
@@ -345,7 +372,8 @@ func testLargeFileView(theme shared.Theme) {
 		CurrentTool:      writeToolCall,
 	}
 
-	approvalComponent := components.NewApprovalComponent(theme)
+	themeService := createTestThemeService()
+	approvalComponent := components.NewApprovalComponent(themeService)
 	approvalComponent.SetWidth(120)
 	approvalComponent.SetHeight(30)
 

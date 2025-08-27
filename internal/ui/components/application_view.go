@@ -3,21 +3,21 @@ package components
 import (
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	lipgloss "github.com/charmbracelet/lipgloss"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // ApplicationViewRenderer handles rendering of different application views
 type ApplicationViewRenderer struct {
-	theme shared.Theme
+	themeService domain.ThemeService
 }
 
 // NewApplicationViewRenderer creates a new application view renderer
-func NewApplicationViewRenderer(theme shared.Theme) *ApplicationViewRenderer {
+func NewApplicationViewRenderer(themeService domain.ThemeService) *ApplicationViewRenderer {
 	return &ApplicationViewRenderer{
-		theme: theme,
+		themeService: themeService,
 	}
 }
 
@@ -66,7 +66,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	headerStyle := lipgloss.NewStyle().
 		Width(width).
 		Align(lipgloss.Center).
-		Foreground(lipgloss.Color(r.theme.GetAccentColor())).
+		Foreground(lipgloss.Color(r.themeService.GetCurrentTheme().GetAccentColor())).
 		Bold(true).
 		Padding(0, 1)
 

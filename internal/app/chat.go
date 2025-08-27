@@ -30,7 +30,6 @@ type ChatApplication struct {
 	toolService      domain.ToolService
 	fileService      domain.FileService
 	shortcutRegistry *shortcuts.Registry
-	theme            ui.Theme
 	themeService     domain.ThemeService
 	toolRegistry     *tools.Registry
 
@@ -80,7 +79,6 @@ func NewChatApplication(
 	shortcutRegistry *shortcuts.Registry,
 	stateManager *services.StateManager,
 	toolOrchestrator *services.ToolExecutionOrchestrator,
-	theme ui.Theme,
 	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
 	configPath string,
@@ -98,7 +96,6 @@ func NewChatApplication(
 		toolService:      toolService,
 		fileService:      fileService,
 		shortcutRegistry: shortcutRegistry,
-		theme:            theme,
 		themeService:     themeService,
 		toolRegistry:     toolRegistry,
 		availableModels:  models,
@@ -115,7 +112,7 @@ func NewChatApplication(
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
-		cv.SetTheme(app.theme)
+		cv.SetTheme(app.themeService.GetCurrentTheme())
 	}
 
 	configDir := ".infer"
@@ -129,31 +126,31 @@ func NewChatApplication(
 	}
 	app.statusView = ui.CreateStatusView()
 	if sv, ok := app.statusView.(*components.StatusView); ok {
-		sv.SetTheme(app.theme)
+		sv.SetTheme(app.themeService.GetCurrentTheme())
 	}
 	app.helpBar = ui.CreateHelpBar()
 	if hb, ok := app.helpBar.(*components.HelpBar); ok {
-		hb.SetTheme(app.theme)
+		hb.SetTheme(app.themeService.GetCurrentTheme())
 	}
-	app.approvalView = ui.CreateApprovalView(app.theme)
+	app.approvalView = ui.CreateApprovalView(app.themeService)
 	if av, ok := app.approvalView.(*components.ApprovalComponent); ok {
 		av.SetToolFormatter(toolFormatterService)
 	}
-	app.fileSelectionView = components.NewFileSelectionView(app.theme)
+	app.fileSelectionView = components.NewFileSelectionView(app.themeService)
 	app.textSelectionView = components.NewTextSelectionView()
 
-	app.applicationViewRenderer = components.NewApplicationViewRenderer(app.theme)
-	app.fileSelectionHandler = components.NewFileSelectionHandler(app.theme)
+	app.applicationViewRenderer = components.NewApplicationViewRenderer(app.themeService)
+	app.fileSelectionHandler = components.NewFileSelectionHandler(app.themeService)
 
 	app.keyBindingManager = keybinding.NewKeyBindingManager(app)
 	app.updateHelpBarShortcuts()
 
-	app.modelSelector = components.NewModelSelector(models, app.modelService, app.theme)
-	app.themeSelector = components.NewThemeSelector(app.themeService, app.theme)
+	app.modelSelector = components.NewModelSelector(models, app.modelService, app.themeService)
+	app.themeSelector = components.NewThemeSelector(app.themeService)
 
 	if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
-		app.conversationSelector = components.NewConversationSelector(adapter, app.theme)
+		app.conversationSelector = components.NewConversationSelector(adapter, app.themeService)
 	} else {
 		app.conversationSelector = nil
 	}
@@ -518,7 +515,6 @@ func (app *ChatApplication) handleThemeSelection(cmds []tea.Cmd) []tea.Cmd {
 func (app *ChatApplication) handleThemeSelected(cmds []tea.Cmd) []tea.Cmd {
 	selectedTheme := app.themeSelector.GetSelected()
 	if selectedTheme != "" {
-		app.theme = app.themeService.GetCurrentTheme()
 		app.updateAllComponentsWithNewTheme()
 
 		cmds = append(cmds, func() tea.Msg {
@@ -551,29 +547,25 @@ func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
 }
 
 func (app *ChatApplication) updateAllComponentsWithNewTheme() {
-	app.theme = app.themeService.GetCurrentTheme()
+	theme := app.themeService.GetCurrentTheme()
 
 	// Update existing theme-aware components with the new theme
 	if convView, ok := app.conversationView.(*components.ConversationView); ok {
-		convView.SetTheme(app.theme)
+		convView.SetTheme(theme)
 	}
 	if statusView, ok := app.statusView.(*components.StatusView); ok {
-		statusView.SetTheme(app.theme)
+		statusView.SetTheme(theme)
 	}
 	if helpBar, ok := app.helpBar.(*components.HelpBar); ok {
-		helpBar.SetTheme(app.theme)
+		helpBar.SetTheme(theme)
 	}
 	if inputView, ok := app.inputView.(*components.InputView); ok {
 		inputView.SetThemeService(app.themeService)
 	}
 
 	// Recreate theme-aware components with the new theme
-	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.theme)
-	app.themeSelector = components.NewThemeSelector(app.themeService, app.theme)
-
-	if app.conversationSelector != nil {
-		app.conversationSelector.SetTheme(app.theme)
-	}
+	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.themeService)
+	app.themeSelector = components.NewThemeSelector(app.themeService)
 }
 
 func (app *ChatApplication) renderThemeSelection() string {

@@ -6,7 +6,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
@@ -17,7 +16,6 @@ type ThemeSelectorImpl struct {
 	selected       int
 	width          int
 	height         int
-	theme          shared.Theme
 	done           bool
 	cancelled      bool
 	themeService   domain.ThemeService
@@ -26,7 +24,7 @@ type ThemeSelectorImpl struct {
 }
 
 // NewThemeSelector creates a new theme selector
-func NewThemeSelector(themeService domain.ThemeService, theme shared.Theme) *ThemeSelectorImpl {
+func NewThemeSelector(themeService domain.ThemeService) *ThemeSelectorImpl {
 	themes := themeService.ListThemes()
 	m := &ThemeSelectorImpl{
 		themes:         themes,
@@ -34,7 +32,6 @@ func NewThemeSelector(themeService domain.ThemeService, theme shared.Theme) *The
 		selected:       0,
 		width:          80,
 		height:         24,
-		theme:          theme,
 		themeService:   themeService,
 		searchQuery:    "",
 		searchMode:     false,
@@ -160,23 +157,23 @@ func (m *ThemeSelectorImpl) View() string {
 	var b strings.Builder
 
 	b.WriteString(fmt.Sprintf("%s🎨 Select a Theme%s\n\n",
-		m.theme.GetAccentColor(), colors.Reset))
+		m.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset))
 
 	if m.searchMode {
 		b.WriteString(fmt.Sprintf("%sSearch: %s%s│%s\n\n",
-			m.theme.GetStatusColor(), m.searchQuery, m.theme.GetAccentColor(), colors.Reset))
+			m.themeService.GetCurrentTheme().GetStatusColor(), m.searchQuery, m.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset))
 	} else {
 		b.WriteString(fmt.Sprintf("%sPress / to search • %d themes available%s\n\n",
-			m.theme.GetDimColor(), len(m.themes), colors.Reset))
+			m.themeService.GetCurrentTheme().GetDimColor(), len(m.themes), colors.Reset))
 	}
 
 	if len(m.filteredThemes) == 0 {
 		if m.searchQuery != "" {
 			b.WriteString(fmt.Sprintf("%sNo themes match '%s'%s\n",
-				m.theme.GetErrorColor(), m.searchQuery, colors.Reset))
+				m.themeService.GetCurrentTheme().GetErrorColor(), m.searchQuery, colors.Reset))
 		} else {
 			b.WriteString(fmt.Sprintf("%sNo themes available%s\n",
-				m.theme.GetErrorColor(), colors.Reset))
+				m.themeService.GetCurrentTheme().GetErrorColor(), colors.Reset))
 		}
 		return b.String()
 	}
@@ -203,13 +200,13 @@ func (m *ThemeSelectorImpl) View() string {
 
 		if i == m.selected {
 			prefix = "▶ "
-			color = m.theme.GetAccentColor()
+			color = m.themeService.GetCurrentTheme().GetAccentColor()
 		}
 
 		if themeName == currentTheme {
 			suffix = " ✓"
 			if i != m.selected {
-				color = m.theme.GetStatusColor()
+				color = m.themeService.GetCurrentTheme().GetStatusColor()
 			}
 		}
 
@@ -218,7 +215,7 @@ func (m *ThemeSelectorImpl) View() string {
 
 	if len(m.filteredThemes) > maxVisible {
 		b.WriteString(fmt.Sprintf("\n%sShowing %d-%d of %d themes%s\n",
-			m.theme.GetDimColor(), start+1, start+maxVisible, len(m.filteredThemes), colors.Reset))
+			m.themeService.GetCurrentTheme().GetDimColor(), start+1, start+maxVisible, len(m.filteredThemes), colors.Reset))
 	}
 
 	b.WriteString("\n")
@@ -226,10 +223,10 @@ func (m *ThemeSelectorImpl) View() string {
 	b.WriteString("\n")
 	if m.searchMode {
 		b.WriteString(fmt.Sprintf("%sType to search, ↑↓ to navigate, Enter to select, Esc to clear search%s",
-			m.theme.GetDimColor(), colors.Reset))
+			m.themeService.GetCurrentTheme().GetDimColor(), colors.Reset))
 	} else {
 		b.WriteString(fmt.Sprintf("%sUse ↑↓ arrows to navigate, Enter to select, / to search, Esc/Ctrl+C to cancel%s",
-			m.theme.GetDimColor(), colors.Reset))
+			m.themeService.GetCurrentTheme().GetDimColor(), colors.Reset))
 	}
 
 	return b.String()

@@ -51,8 +51,8 @@ func CreateHelpBar() HelpBarComponent {
 }
 
 // CreateApprovalView creates a new approval view component
-func CreateApprovalView(theme Theme) ApprovalComponent {
-	return components.NewApprovalComponent(theme)
+func CreateApprovalView(themeService domain.ThemeService) ApprovalComponent {
+	return components.NewApprovalComponent(themeService)
 }
 
 // Layout calculations - simplified without interfaces

@@ -7,11 +7,10 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
-	"github.com/inference-gateway/cli/internal/shortcuts"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // ConversationSelectorImpl implements conversation selection UI
@@ -21,7 +20,7 @@ type ConversationSelectorImpl struct {
 	selected              int
 	width                 int
 	height                int
-	theme                 shared.Theme
+	themeService          domain.ThemeService
 	done                  bool
 	cancelled             bool
 	repo                  shortcuts.PersistentConversationRepository
@@ -34,14 +33,14 @@ type ConversationSelectorImpl struct {
 }
 
 // NewConversationSelector creates a new conversation selector
-func NewConversationSelector(repo shortcuts.PersistentConversationRepository, theme shared.Theme) *ConversationSelectorImpl {
+func NewConversationSelector(repo shortcuts.PersistentConversationRepository, themeService domain.ThemeService) *ConversationSelectorImpl {
 	c := &ConversationSelectorImpl{
 		conversations:         make([]shortcuts.ConversationSummary, 0),
 		filteredConversations: make([]shortcuts.ConversationSummary, 0),
 		selected:              0,
 		width:                 80,
 		height:                24,
-		theme:                 theme,
+		themeService:          themeService,
 		repo:                  repo,
 		searchQuery:           "",
 		searchMode:            false,
@@ -50,11 +49,6 @@ func NewConversationSelector(repo shortcuts.PersistentConversationRepository, th
 	}
 
 	return c
-}
-
-// SetTheme sets the theme for this conversation selector
-func (c *ConversationSelectorImpl) SetTheme(theme shared.Theme) {
-	c.theme = theme
 }
 
 func (c *ConversationSelectorImpl) Init() tea.Cmd {
@@ -384,20 +378,20 @@ func (c *ConversationSelectorImpl) Reset() {
 // writeHeader writes the header section of the view
 func (c *ConversationSelectorImpl) writeHeader(b *strings.Builder) {
 	fmt.Fprintf(b, "%sSelect a Conversation%s\n\n",
-		c.theme.GetAccentColor(), colors.Reset)
+		c.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
 }
 
 // writeLoadingView writes the loading view and returns the complete string
 func (c *ConversationSelectorImpl) writeLoadingView(b *strings.Builder) string {
 	fmt.Fprintf(b, "%sLoading conversations...%s\n",
-		c.theme.GetStatusColor(), colors.Reset)
+		c.themeService.GetCurrentTheme().GetStatusColor(), colors.Reset)
 	return b.String()
 }
 
 // writeErrorView writes the error view and returns the complete string
 func (c *ConversationSelectorImpl) writeErrorView(b *strings.Builder) string {
 	fmt.Fprintf(b, "%sError loading conversations: %v%s\n",
-		c.theme.GetErrorColor(), c.loadError, colors.Reset)
+		c.themeService.GetCurrentTheme().GetErrorColor(), c.loadError, colors.Reset)
 	return b.String()
 }
 
@@ -405,10 +399,10 @@ func (c *ConversationSelectorImpl) writeErrorView(b *strings.Builder) string {
 func (c *ConversationSelectorImpl) writeSearchInfo(b *strings.Builder) {
 	if c.searchMode {
 		fmt.Fprintf(b, "%sSearch: %s%s│%s\n\n",
-			c.theme.GetStatusColor(), c.searchQuery, c.theme.GetAccentColor(), colors.Reset)
+			c.themeService.GetCurrentTheme().GetStatusColor(), c.searchQuery, c.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
 	} else {
 		fmt.Fprintf(b, "%sPress / to search • %d conversations available%s\n\n",
-			c.theme.GetDimColor(), len(c.conversations), colors.Reset)
+			c.themeService.GetCurrentTheme().GetDimColor(), len(c.conversations), colors.Reset)
 	}
 }
 
@@ -416,10 +410,10 @@ func (c *ConversationSelectorImpl) writeSearchInfo(b *strings.Builder) {
 func (c *ConversationSelectorImpl) writeEmptyView(b *strings.Builder) string {
 	if c.searchQuery != "" {
 		fmt.Fprintf(b, "%sNo conversations match '%s'%s\n",
-			c.theme.GetErrorColor(), c.searchQuery, colors.Reset)
+			c.themeService.GetCurrentTheme().GetErrorColor(), c.searchQuery, colors.Reset)
 	} else if len(c.conversations) == 0 {
 		fmt.Fprintf(b, "%sNo saved conversations found. Start chatting to create your first conversation!%s\n",
-			c.theme.GetErrorColor(), colors.Reset)
+			c.themeService.GetCurrentTheme().GetErrorColor(), colors.Reset)
 	}
 	return b.String()
 }
@@ -437,7 +431,7 @@ func (c *ConversationSelectorImpl) writeConversationList(b *strings.Builder) {
 
 	if len(c.filteredConversations) > pagination.maxVisible {
 		fmt.Fprintf(b, "%sShowing %d-%d of %d conversations%s\n",
-			c.theme.GetDimColor(), pagination.start+1, pagination.start+pagination.maxVisible,
+			c.themeService.GetCurrentTheme().GetDimColor(), pagination.start+1, pagination.start+pagination.maxVisible,
 			len(c.filteredConversations), colors.Reset)
 	}
 }
@@ -445,9 +439,9 @@ func (c *ConversationSelectorImpl) writeConversationList(b *strings.Builder) {
 // writeTableHeader writes the table header
 func (c *ConversationSelectorImpl) writeTableHeader(b *strings.Builder) {
 	fmt.Fprintf(b, "%s%-22s │ %-40s │ %-20s │ %-10s%s\n",
-		c.theme.GetDimColor(), "ID", "Summary", "Updated", "Messages", colors.Reset)
+		c.themeService.GetCurrentTheme().GetDimColor(), "ID", "Summary", "Updated", "Messages", colors.Reset)
 	fmt.Fprintf(b, "%s%s%s\n",
-		c.theme.GetDimColor(), strings.Repeat("─", c.width-4), colors.Reset)
+		c.themeService.GetCurrentTheme().GetDimColor(), strings.Repeat("─", c.width-4), colors.Reset)
 }
 
 // paginationInfo holds pagination calculation results
@@ -489,7 +483,7 @@ func (c *ConversationSelectorImpl) writeConversationRow(b *strings.Builder, conv
 
 	if index == c.selected {
 		fmt.Fprintf(b, "%s▶ %-20s │ %-40s │ %-20s │ %-10s%s\n",
-			c.theme.GetAccentColor(), shortID, summary, updatedAt, msgCount, colors.Reset)
+			c.themeService.GetCurrentTheme().GetAccentColor(), shortID, summary, updatedAt, msgCount, colors.Reset)
 	} else {
 		fmt.Fprintf(b, "  %-20s │ %-40s │ %-20s │ %-10s\n",
 			shortID, summary, updatedAt, msgCount)
@@ -554,10 +548,10 @@ func (c *ConversationSelectorImpl) writeFooter(b *strings.Builder) {
 
 	if c.searchMode {
 		fmt.Fprintf(b, "%sType to search, ↑↓ to navigate, Enter to select, Esc to clear search%s",
-			c.theme.GetDimColor(), colors.Reset)
+			c.themeService.GetCurrentTheme().GetDimColor(), colors.Reset)
 	} else {
 		fmt.Fprintf(b, "%sUse ↑↓ arrows to navigate, Enter to select, d to delete, / to search, Esc/Ctrl+C to cancel%s",
-			c.theme.GetDimColor(), colors.Reset)
+			c.themeService.GetCurrentTheme().GetDimColor(), colors.Reset)
 	}
 }
 
@@ -577,14 +571,14 @@ func (c *ConversationSelectorImpl) writeDeleteConfirmation(b *strings.Builder) s
 	b.WriteString("\n\n")
 
 	fmt.Fprintf(b, "%s⚠ Delete Confirmation%s\n\n",
-		c.theme.GetErrorColor(), colors.Reset)
+		c.themeService.GetCurrentTheme().GetErrorColor(), colors.Reset)
 
 	fmt.Fprintf(b, "Are you sure you want to delete this conversation?\n\n")
-	fmt.Fprintf(b, "%sID: %s%s\n", c.theme.GetDimColor(), conv.ID, colors.Reset)
-	fmt.Fprintf(b, "%sTitle: %s%s\n\n", c.theme.GetDimColor(), conv.Title, colors.Reset)
+	fmt.Fprintf(b, "%sID: %s%s\n", c.themeService.GetCurrentTheme().GetDimColor(), conv.ID, colors.Reset)
+	fmt.Fprintf(b, "%sTitle: %s%s\n\n", c.themeService.GetCurrentTheme().GetDimColor(), conv.Title, colors.Reset)
 
 	fmt.Fprintf(b, "%sPress Y to confirm, N or Esc to cancel%s",
-		c.theme.GetAccentColor(), colors.Reset)
+		c.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
 
 	return b.String()
 }
@@ -592,5 +586,5 @@ func (c *ConversationSelectorImpl) writeDeleteConfirmation(b *strings.Builder) s
 // writeDeleteError writes the delete error message
 func (c *ConversationSelectorImpl) writeDeleteError(b *strings.Builder) {
 	fmt.Fprintf(b, "%sError deleting conversation: %v%s\n\n",
-		c.theme.GetErrorColor(), c.deleteError, colors.Reset)
+		c.themeService.GetCurrentTheme().GetErrorColor(), c.deleteError, colors.Reset)
 }
