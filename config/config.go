@@ -591,6 +591,14 @@ func (c *Config) GetDefaultModel() string {
 	return c.Agent.Model
 }
 
+func (c *Config) GetSandboxDirectories() []string {
+	return c.Tools.Sandbox.Directories
+}
+
+func (c *Config) GetProtectedPaths() []string {
+	return c.Tools.Sandbox.ProtectedPaths
+}
+
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories
 func (c *Config) ValidatePathInSandbox(path string) error {
 	if err := c.checkProtectedPaths(path); err != nil {

@@ -22,17 +22,22 @@ func (s *AgentServiceImpl) validateRequest(req *domain.AgentRequest) error {
 	return nil
 }
 
-// addToolsIfAvailable adds system prompt and returns messages
-func (s *AgentServiceImpl) addToolsIfAvailable(messages []sdk.Message) []sdk.Message {
+// addSystemPrompt adds system prompt with dynamic sandbox info and returns messages
+func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
 	var systemMessages []sdk.Message
 
-	if s.systemPrompt != "" {
+	baseSystemPrompt := s.config.GetSystemPrompt()
+	if baseSystemPrompt != "" {
 		currentTime := time.Now().Format("Monday, January 2, 2006 at 3:04 PM MST")
-		systemPromptWithTime := fmt.Sprintf("%s\n\nCurrent date and time: %s", s.systemPrompt, currentTime)
+
+		sandboxInfo := s.buildSandboxInfo()
+
+		systemPromptWithSandbox := fmt.Sprintf("%s\n\n%s\n\nCurrent date and time: %s",
+			baseSystemPrompt, sandboxInfo, currentTime)
 
 		systemMessages = append(systemMessages, sdk.Message{
 			Role:    sdk.System,
-			Content: systemPromptWithTime,
+			Content: systemPromptWithSandbox,
 		})
 	}
 
@@ -40,6 +45,32 @@ func (s *AgentServiceImpl) addToolsIfAvailable(messages []sdk.Message) []sdk.Mes
 		messages = append(systemMessages, messages...)
 	}
 	return messages
+}
+
+// buildSandboxInfo creates dynamic sandbox information for the system prompt
+func (s *AgentServiceImpl) buildSandboxInfo() string {
+	sandboxDirs := s.config.GetSandboxDirectories()
+	protectedPaths := s.config.GetProtectedPaths()
+
+	var sandboxInfo strings.Builder
+	sandboxInfo.WriteString("SANDBOX RESTRICTIONS:\n")
+
+	if len(sandboxDirs) > 0 {
+		sandboxInfo.WriteString("You are restricted to work within these allowed directories:\n")
+		for _, dir := range sandboxDirs {
+			sandboxInfo.WriteString(fmt.Sprintf("- %s\n", dir))
+		}
+		sandboxInfo.WriteString("\n")
+	}
+
+	if len(protectedPaths) > 0 {
+		sandboxInfo.WriteString("You MUST NOT attempt to access these protected paths:\n")
+		for _, path := range protectedPaths {
+			sandboxInfo.WriteString(fmt.Sprintf("- %s\n", path))
+		}
+	}
+
+	return sandboxInfo.String()
 }
 
 // convertToSDKTools converts tool service tools to SDK tools
