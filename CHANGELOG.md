@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.46.1](https://github.com/inference-gateway/cli/compare/v0.46.0...v0.46.1) (2025-08-27)
+
+### 📚 Documentation
+
+* **claude:** Improve CLAUDE.md with comprehensive project overview and development guidelines ([f8973c5](https://github.com/inference-gateway/cli/commit/f8973c5fb973b8ae8b817a999b9ee2da7b7078b1))
+
 ## [0.46.0](https://github.com/inference-gateway/cli/compare/v0.45.4...v0.46.0) (2025-08-27)
 
 ### 🚀 Features
