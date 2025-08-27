@@ -217,7 +217,7 @@ func (g *GitShortcut) PerformCommit(ctx context.Context, args []string, diff str
 		return "", fmt.Errorf("commit failed: %v\n\nOutput:\n%s\n\nGenerated message was: %s", err, string(commitOutput), commitMessage)
 	}
 
-	return fmt.Sprintf("%s %s**AI-Generated Commit Created**%s\n\n%s**Message:**%s %s\n\n```\n%s\n```",
+	return fmt.Sprintf("%s %s**AI-Generated Commit Created**%s\n\n**Message:** %s\n\n```\n%s\n```",
 		icons.StyledCheckMark(), colors.Blue, colors.Reset, commitMessage, strings.TrimSpace(string(commitOutput))), nil
 }
 

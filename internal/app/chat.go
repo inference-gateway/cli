@@ -31,7 +31,7 @@ type ChatApplication struct {
 	fileService      domain.FileService
 	shortcutRegistry *shortcuts.Registry
 	theme            ui.Theme
-	themeProvider    *ui.ThemeProvider
+	themeService     domain.ThemeService
 	toolRegistry     *tools.Registry
 
 	// State management
@@ -81,7 +81,7 @@ func NewChatApplication(
 	stateManager *services.StateManager,
 	toolOrchestrator *services.ToolExecutionOrchestrator,
 	theme ui.Theme,
-	themeProvider *ui.ThemeProvider,
+	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
 	configPath string,
 ) *ChatApplication {
@@ -99,7 +99,7 @@ func NewChatApplication(
 		fileService:      fileService,
 		shortcutRegistry: shortcutRegistry,
 		theme:            theme,
-		themeProvider:    themeProvider,
+		themeService:     themeService,
 		toolRegistry:     toolRegistry,
 		availableModels:  models,
 		stateManager:     stateManager,
@@ -139,7 +139,7 @@ func NewChatApplication(
 	app.updateHelpBarShortcuts()
 
 	app.modelSelector = components.NewModelSelector(models, app.modelService, app.theme)
-	app.themeSelector = components.NewThemeSelector(app.themeProvider, app.theme)
+	app.themeSelector = components.NewThemeSelector(app.themeService, app.theme)
 
 	if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
@@ -508,7 +508,7 @@ func (app *ChatApplication) handleThemeSelection(cmds []tea.Cmd) []tea.Cmd {
 func (app *ChatApplication) handleThemeSelected(cmds []tea.Cmd) []tea.Cmd {
 	selectedTheme := app.themeSelector.GetSelected()
 	if selectedTheme != "" {
-		app.theme = app.themeProvider.GetCurrentTheme()
+		app.theme = app.themeService.GetCurrentTheme()
 		app.updateAllComponentsWithNewTheme()
 
 		cmds = append(cmds, func() tea.Msg {
@@ -541,23 +541,11 @@ func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
 }
 
 func (app *ChatApplication) updateAllComponentsWithNewTheme() {
-	app.theme = app.themeProvider.GetCurrentTheme()
+	app.theme = app.themeService.GetCurrentTheme()
 
-	if av, ok := app.approvalView.(*components.ApprovalComponent); ok {
-		av.UpdateTheme(app.theme)
-	}
-	if fs, ok := app.fileSelectionView.(*components.FileSelectionView); ok {
-		fs.UpdateTheme(app.theme)
-	}
-	if av, ok := app.applicationViewRenderer.(*components.ApplicationViewRenderer); ok {
-		av.UpdateTheme(app.theme)
-	}
-	if fsh, ok := app.fileSelectionHandler.(*components.FileSelectionHandler); ok {
-		fsh.UpdateTheme(app.theme)
-	}
-
+	// Recreate theme-aware components with the new theme
 	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.theme)
-	app.themeSelector = components.NewThemeSelector(app.themeProvider, app.theme)
+	app.themeSelector = components.NewThemeSelector(app.themeService, app.theme)
 
 	if app.conversationSelector != nil {
 		if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {

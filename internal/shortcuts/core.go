@@ -10,7 +10,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -351,11 +350,11 @@ func (c *SwitchShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 
 // ThemeShortcut switches the active theme
 type ThemeShortcut struct {
-	themeProvider *ui.ThemeProvider
+	themeService domain.ThemeService
 }
 
-func NewThemeShortcut(themeProvider *ui.ThemeProvider) *ThemeShortcut {
-	return &ThemeShortcut{themeProvider: themeProvider}
+func NewThemeShortcut(themeService domain.ThemeService) *ThemeShortcut {
+	return &ThemeShortcut{themeService: themeService}
 }
 
 func (c *ThemeShortcut) GetName() string               { return "theme" }
@@ -373,7 +372,7 @@ func (c *ThemeShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 	}
 
 	themeName := args[0]
-	if err := c.themeProvider.SetCurrentTheme(themeName); err != nil {
+	if err := c.themeService.SetTheme(themeName); err != nil {
 		return ShortcutResult{
 			Output:  fmt.Sprintf("❌ Failed to switch theme: %v", err),
 			Success: false,

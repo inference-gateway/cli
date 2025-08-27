@@ -10,7 +10,6 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 

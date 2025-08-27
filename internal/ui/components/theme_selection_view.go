@@ -8,7 +8,6 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
-	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 // ThemeSelectorImpl implements theme selection UI
@@ -21,14 +20,14 @@ type ThemeSelectorImpl struct {
 	theme           shared.Theme
 	done            bool
 	cancelled       bool
-	themeProvider   *ui.ThemeProvider
+	themeService    domain.ThemeService
 	searchQuery     string
 	searchMode      bool
 }
 
 // NewThemeSelector creates a new theme selector
-func NewThemeSelector(themeProvider *ui.ThemeProvider, theme shared.Theme) *ThemeSelectorImpl {
-	themes := themeProvider.ListThemes()
+func NewThemeSelector(themeService domain.ThemeService, theme shared.Theme) *ThemeSelectorImpl {
+	themes := themeService.ListThemes()
 	m := &ThemeSelectorImpl{
 		themes:         themes,
 		filteredThemes: make([]string, len(themes)),
@@ -36,14 +35,14 @@ func NewThemeSelector(themeProvider *ui.ThemeProvider, theme shared.Theme) *Them
 		width:          80,
 		height:         24,
 		theme:          theme,
-		themeProvider:  themeProvider,
+		themeService:   themeService,
 		searchQuery:    "",
 		searchMode:     false,
 	}
 	copy(m.filteredThemes, themes)
 	
 	// Set selected to current theme
-	currentTheme := themeProvider.GetCurrentThemeName()
+	currentTheme := themeService.GetCurrentThemeName()
 	for i, themeName := range themes {
 		if themeName == currentTheme {
 			m.selected = i
@@ -120,7 +119,7 @@ func (m *ThemeSelectorImpl) handleNavigationDown() (tea.Model, tea.Cmd) {
 func (m *ThemeSelectorImpl) handleSelection() (tea.Model, tea.Cmd) {
 	if len(m.filteredThemes) > 0 {
 		selectedTheme := m.filteredThemes[m.selected]
-		if err := m.themeProvider.SetCurrentTheme(selectedTheme); err == nil {
+		if err := m.themeService.SetTheme(selectedTheme); err == nil {
 			m.done = true
 			return m, func() tea.Msg {
 				return domain.ThemeSelectedEvent{Theme: selectedTheme}
@@ -193,27 +192,29 @@ func (m *ThemeSelectorImpl) View() string {
 		start = m.selected - maxVisible + 1
 	}
 
-	currentTheme := m.themeProvider.GetCurrentThemeName()
+	currentTheme := m.themeService.GetCurrentThemeName()
 
 	for i := start; i < start+maxVisible && i < len(m.filteredThemes); i++ {
 		themeName := m.filteredThemes[i]
 
+		// Format the theme item based on selection and current theme
+		prefix := "  "
+		suffix := ""
+		color := ""
+		
 		if i == m.selected {
-			if themeName == currentTheme {
-				b.WriteString(fmt.Sprintf("%s▶ %s ✓%s\n",
-					m.theme.GetAccentColor(), themeName, colors.Reset))
-			} else {
-				b.WriteString(fmt.Sprintf("%s▶ %s%s\n",
-					m.theme.GetAccentColor(), themeName, colors.Reset))
-			}
-		} else {
-			if themeName == currentTheme {
-				b.WriteString(fmt.Sprintf("  %s%s ✓%s\n",
-					m.theme.GetStatusColor(), themeName, colors.Reset))
-			} else {
-				b.WriteString(fmt.Sprintf("  %s\n", themeName))
+			prefix = "▶ "
+			color = m.theme.GetAccentColor()
+		}
+		
+		if themeName == currentTheme {
+			suffix = " ✓"
+			if i != m.selected {
+				color = m.theme.GetStatusColor()
 			}
 		}
+		
+		b.WriteString(fmt.Sprintf("%s%s%s%s%s\n", color, prefix, themeName, suffix, colors.Reset))
 	}
 
 	if len(m.filteredThemes) > maxVisible {
