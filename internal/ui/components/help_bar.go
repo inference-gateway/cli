@@ -15,6 +15,7 @@ type HelpBar struct {
 	enabled   bool
 	width     int
 	shortcuts []shared.KeyShortcut
+	theme     shared.Theme
 }
 
 func NewHelpBar() *HelpBar {
@@ -22,7 +23,13 @@ func NewHelpBar() *HelpBar {
 		enabled:   false,
 		width:     80,
 		shortcuts: make([]shared.KeyShortcut, 0),
+		theme:     nil,
 	}
+}
+
+// SetTheme sets the theme for this help bar
+func (hb *HelpBar) SetTheme(theme shared.Theme) {
+	hb.theme = theme
 }
 
 func (hb *HelpBar) SetShortcuts(shortcuts []shared.KeyShortcut) {
@@ -157,8 +164,9 @@ func (hb *HelpBar) renderResponsiveTable() string {
 		tableRows = append(tableRows, lipgloss.JoinHorizontal(lipgloss.Left, cells...))
 	}
 
+	dimColor := hb.getDimColor()
 	tableStyle := lipgloss.NewStyle().
-		Foreground(colors.DimColor.GetLipglossColor()).
+		Foreground(lipgloss.Color(dimColor)).
 		Width(hb.width)
 
 	return tableStyle.Render(strings.Join(tableRows, "\n"))
@@ -179,4 +187,12 @@ func (hb *HelpBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		hb.enabled = false
 	}
 	return hb, nil
+}
+
+// Helper method to get theme colors with fallback
+func (hb *HelpBar) getDimColor() string {
+	if hb.theme != nil {
+		return hb.theme.GetDimColor()
+	}
+	return colors.DimColor.Lipgloss
 }

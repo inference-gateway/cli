@@ -25,6 +25,7 @@ type InputView struct {
 	Autocomplete        shared.AutocompleteInterface
 	historyManager      *history.HistoryManager
 	isTextSelectionMode bool
+	themeService        domain.ThemeService
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -51,7 +52,13 @@ func NewInputViewWithConfigDir(modelService domain.ModelService, configDir strin
 		Autocomplete:        nil,
 		historyManager:      historyManager,
 		isTextSelectionMode: false,
+		themeService:        nil,
 	}
+}
+
+// SetThemeService sets the theme service for this input view
+func (iv *InputView) SetThemeService(themeService domain.ThemeService) {
+	iv.themeService = themeService
 }
 
 func (iv *InputView) GetInput() string {
@@ -128,8 +135,9 @@ func (iv *InputView) renderDisplayText() string {
 }
 
 func (iv *InputView) renderPlaceholder() string {
+	dimColor := iv.getDimColor()
 	return lipgloss.NewStyle().
-		Foreground(colors.DimColor.GetLipglossColor()).
+		Foreground(lipgloss.Color(dimColor)).
 		Render(iv.placeholder)
 }
 
@@ -169,41 +177,46 @@ func (iv *InputView) buildTextWithCursor(before, after string) string {
 }
 
 func (iv *InputView) createCursorChar(char string) string {
+	assistantColor := iv.getAssistantColor()
+	dimColor := iv.getDimColor()
 	return lipgloss.NewStyle().
-		Background(colors.AssistantColor.GetLipglossColor()).
-		Foreground(lipgloss.Color("#1a1b26")).
+		Background(lipgloss.Color(assistantColor)).
+		Foreground(lipgloss.Color(dimColor)).
 		Render(char)
 }
 
 func (iv *InputView) getBorderColor(isBashMode bool, isToolsMode bool) string {
 	if isBashMode {
-		return colors.StatusColor.Lipgloss
+		return iv.getStatusColor()
 	}
 	if isToolsMode {
-		return colors.AccentColor.Lipgloss
+		return iv.getAccentColor()
 	}
-	return colors.DimColor.Lipgloss
+	return iv.getDimColor()
 }
 
 func (iv *InputView) addModeIndicator(components []string, isBashMode bool, isToolsMode bool) []string {
 	if iv.height >= 2 {
 		if iv.isTextSelectionMode {
+			accentColor := iv.getAccentColor()
 			textSelectionIndicator := lipgloss.NewStyle().
-				Foreground(colors.AccentColor.GetLipglossColor()).
+				Foreground(lipgloss.Color(accentColor)).
 				Bold(true).
 				Width(iv.width).
 				Render("TEXT SELECTION MODE - Use vim keys to navigate and select text (Escape to exit)")
 			components = append(components, textSelectionIndicator)
 		} else if isBashMode {
+			statusColor := iv.getStatusColor()
 			bashIndicator := lipgloss.NewStyle().
-				Foreground(colors.StatusColor.GetLipglossColor()).
+				Foreground(lipgloss.Color(statusColor)).
 				Bold(true).
 				Width(iv.width).
 				Render("BASH MODE - Command will be executed directly")
 			components = append(components, bashIndicator)
 		} else if isToolsMode {
+			accentColor := iv.getAccentColor()
 			toolsIndicator := lipgloss.NewStyle().
-				Foreground(colors.AccentColor.GetLipglossColor()).
+				Foreground(lipgloss.Color(accentColor)).
 				Bold(true).
 				Width(iv.width).
 				Render("TOOLS MODE - !!ToolName(arg=\"value\") - Tab for autocomplete")
@@ -226,10 +239,19 @@ func (iv *InputView) addModelDisplay(components []string, isBashMode bool, isToo
 	if iv.modelService != nil {
 		currentModel := iv.modelService.GetCurrentModel()
 		if currentModel != "" && iv.height >= 2 && !isBashMode && !isToolsMode {
+			dimColor := iv.getDimColor()
 			modelStyle := lipgloss.NewStyle().
-				Foreground(colors.DimColor.GetLipglossColor()).
+				Foreground(lipgloss.Color(dimColor)).
 				Width(iv.width)
-			modelDisplay := modelStyle.Render(fmt.Sprintf("  Model: %s", currentModel))
+
+			displayText := fmt.Sprintf("  Model: %s", currentModel)
+
+			if iv.themeService != nil {
+				currentTheme := iv.themeService.GetCurrentThemeName()
+				displayText = fmt.Sprintf("  Model: %s • Theme: %s", currentModel, currentTheme)
+			}
+
+			modelDisplay := modelStyle.Render(displayText)
 			components = append(components, modelDisplay)
 		}
 	}
@@ -425,4 +447,33 @@ func (iv *InputView) SetTextSelectionMode(enabled bool) {
 
 func (iv *InputView) IsTextSelectionMode() bool {
 	return iv.isTextSelectionMode
+}
+
+// Helper methods to get theme colors with fallbacks
+func (iv *InputView) getDimColor() string {
+	if iv.themeService != nil {
+		return iv.themeService.GetCurrentTheme().GetDimColor()
+	}
+	return colors.DimColor.Lipgloss
+}
+
+func (iv *InputView) getAccentColor() string {
+	if iv.themeService != nil {
+		return iv.themeService.GetCurrentTheme().GetAccentColor()
+	}
+	return colors.AccentColor.Lipgloss
+}
+
+func (iv *InputView) getStatusColor() string {
+	if iv.themeService != nil {
+		return iv.themeService.GetCurrentTheme().GetStatusColor()
+	}
+	return colors.StatusColor.Lipgloss
+}
+
+func (iv *InputView) getAssistantColor() string {
+	if iv.themeService != nil {
+		return iv.themeService.GetCurrentTheme().GetAssistantColor()
+	}
+	return colors.AssistantColor.Lipgloss
 }

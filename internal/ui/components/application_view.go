@@ -66,7 +66,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	headerStyle := lipgloss.NewStyle().
 		Width(width).
 		Align(lipgloss.Center).
-		Foreground(colors.HeaderColor.GetLipglossColor()).
+		Foreground(lipgloss.Color(r.theme.GetAccentColor())).
 		Bold(true).
 		Padding(0, 1)
 

@@ -98,15 +98,15 @@ func NewGithubLightTheme() *GithubLightTheme {
 	return &GithubLightTheme{}
 }
 
-func (t *GithubLightTheme) GetUserColor() string       { return "\033[38;2;3;102;214m" }   // GitHub blue
-func (t *GithubLightTheme) GetAssistantColor() string  { return "\033[38;2;36;41;46m" }    // Dark gray
-func (t *GithubLightTheme) GetErrorColor() string      { return "\033[38;2;207;34;46m" }   // GitHub red
-func (t *GithubLightTheme) GetStatusColor() string     { return "\033[38;2;130;80;223m" }  // GitHub purple
-func (t *GithubLightTheme) GetAccentColor() string     { return "\033[38;2;3;102;214m" }   // GitHub blue
-func (t *GithubLightTheme) GetDimColor() string        { return "\033[38;2;101;109;118m" } // GitHub gray
-func (t *GithubLightTheme) GetBorderColor() string     { return "\033[38;2;208;215;222m" } // Light gray border
-func (t *GithubLightTheme) GetDiffAddColor() string    { return "\033[38;2;40;167;69m" }   // GitHub green
-func (t *GithubLightTheme) GetDiffRemoveColor() string { return "\033[38;2;207;34;46m" }   // GitHub red
+func (t *GithubLightTheme) GetUserColor() string       { return colors.GithubUserColor.Lipgloss }
+func (t *GithubLightTheme) GetAssistantColor() string  { return colors.GithubAssistantColor.Lipgloss }
+func (t *GithubLightTheme) GetErrorColor() string      { return colors.GithubErrorColor.Lipgloss }
+func (t *GithubLightTheme) GetStatusColor() string     { return colors.GithubStatusColor.Lipgloss }
+func (t *GithubLightTheme) GetAccentColor() string     { return colors.GithubAccentColor.Lipgloss }
+func (t *GithubLightTheme) GetDimColor() string        { return colors.GithubDimColor.Lipgloss }
+func (t *GithubLightTheme) GetBorderColor() string     { return colors.GithubBorderColor.Lipgloss }
+func (t *GithubLightTheme) GetDiffAddColor() string    { return colors.GithubDiffAddColor.Lipgloss }
+func (t *GithubLightTheme) GetDiffRemoveColor() string { return colors.GithubDiffRemoveColor.Lipgloss }
 
 // DraculaTheme provides the popular Dracula color scheme
 type DraculaTheme struct{}
@@ -115,12 +115,12 @@ func NewDraculaTheme() *DraculaTheme {
 	return &DraculaTheme{}
 }
 
-func (t *DraculaTheme) GetUserColor() string       { return "\033[38;2;139;233;253m" } // Cyan
-func (t *DraculaTheme) GetAssistantColor() string  { return "\033[38;2;248;248;242m" } // Foreground
-func (t *DraculaTheme) GetErrorColor() string      { return "\033[38;2;255;85;85m" }   // Red
-func (t *DraculaTheme) GetStatusColor() string     { return "\033[38;2;189;147;249m" } // Purple
-func (t *DraculaTheme) GetAccentColor() string     { return "\033[38;2;255;121;198m" } // Pink
-func (t *DraculaTheme) GetDimColor() string        { return "\033[38;2;98;114;164m" }  // Comment
-func (t *DraculaTheme) GetBorderColor() string     { return "\033[38;2;68;71;90m" }    // Selection
-func (t *DraculaTheme) GetDiffAddColor() string    { return "\033[38;2;80;250;123m" }  // Green
-func (t *DraculaTheme) GetDiffRemoveColor() string { return "\033[38;2;255;85;85m" }   // Red
+func (t *DraculaTheme) GetUserColor() string       { return colors.DraculaUserColor.Lipgloss }
+func (t *DraculaTheme) GetAssistantColor() string  { return colors.DraculaAssistantColor.Lipgloss }
+func (t *DraculaTheme) GetErrorColor() string      { return colors.DraculaErrorColor.Lipgloss }
+func (t *DraculaTheme) GetStatusColor() string     { return colors.DraculaStatusColor.Lipgloss }
+func (t *DraculaTheme) GetAccentColor() string     { return colors.DraculaAccentColor.Lipgloss }
+func (t *DraculaTheme) GetDimColor() string        { return colors.DraculaDimColor.Lipgloss }
+func (t *DraculaTheme) GetBorderColor() string     { return colors.DraculaBorderColor.Lipgloss }
+func (t *DraculaTheme) GetDiffAddColor() string    { return colors.DraculaDiffAddColor.Lipgloss }
+func (t *DraculaTheme) GetDiffRemoveColor() string { return colors.DraculaDiffRemoveColor.Lipgloss }

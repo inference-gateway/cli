@@ -365,7 +365,7 @@ func (c *ThemeShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
 func (c *ThemeShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	if len(args) == 0 {
 		return ShortcutResult{
-			Output:     "🎨 Select a theme from the dropdown",
+			Output:     "",
 			Success:    true,
 			SideEffect: SideEffectSwitchTheme,
 		}, nil

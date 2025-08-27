@@ -7,12 +7,13 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/charmbracelet/bubbles/viewport"
+	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	lipgloss "github.com/charmbracelet/lipgloss"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // ConversationView handles the chat conversation display
@@ -27,6 +28,7 @@ type ConversationView struct {
 	lineFormatter       *shared.ConversationLineFormatter
 	plainTextLines      []string
 	configPath          string
+	theme               shared.Theme
 }
 
 func NewConversationView() *ConversationView {
@@ -41,7 +43,13 @@ func NewConversationView() *ConversationView {
 		allToolsExpanded:    false,
 		lineFormatter:       shared.NewConversationLineFormatter(80, nil),
 		plainTextLines:      []string{},
+		theme:               nil,
 	}
+}
+
+// SetTheme sets the theme for this conversation view
+func (cv *ConversationView) SetTheme(theme shared.Theme) {
+	cv.theme = theme
 }
 
 // SetToolFormatter sets the tool formatter for this conversation view
@@ -163,9 +171,14 @@ func (cv *ConversationView) renderWelcome() string {
 		wd = "unknown"
 	}
 
-	headerLine := colors.StatusColor.ANSI + "✨ Inference Gateway CLI" + colors.Reset
-	readyLine := colors.SuccessColor.ANSI + "🚀 Ready to chat!" + colors.Reset
-	workingLine := colors.DimColor.ANSI + "📂 Working in: " + colors.Reset + colors.HeaderColor.ANSI + wd + colors.Reset
+	statusColor := cv.getStatusColor()
+	successColor := cv.getSuccessColor()
+	dimColor := cv.getDimColor()
+	headerColor := cv.getHeaderColor()
+
+	headerLine := statusColor + "✨ Inference Gateway CLI" + colors.Reset
+	readyLine := successColor + "🚀 Ready to chat!" + colors.Reset
+	workingLine := dimColor + "📂 Working in: " + colors.Reset + headerColor + wd + colors.Reset
 
 	configLine := cv.buildConfigLine()
 
@@ -173,7 +186,7 @@ func (cv *ConversationView) renderWelcome() string {
 
 	style := styles.NewCommonStyles().Border.
 		Border(styles.RoundedBorder(), true).
-		BorderForeground(colors.AccentColor.GetLipglossColor()).
+		BorderForeground(lipgloss.Color(cv.getAccentColorLipgloss())).
 		Padding(1, 1)
 
 	return style.Render(content)
@@ -184,32 +197,32 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 
 	switch string(entry.Message.Role) {
 	case "user":
-		color = colors.UserColor.ANSI
+		color = cv.getUserColor()
 		role = "> You"
 	case "assistant":
-		color = colors.AssistantColor.ANSI
+		color = cv.getAssistantColor()
 		if entry.Model != "" {
 			role = fmt.Sprintf("⏺ %s", entry.Model)
 		} else {
 			role = "⏺ Assistant"
 		}
 	case "system":
-		color = colors.DimColor.ANSI
+		color = cv.getDimColor()
 		role = "⚙️ System"
 	case "tool":
 		if entry.ToolExecution != nil && !entry.ToolExecution.Success {
-			color = colors.ErrorColor.ANSI
+			color = cv.getErrorColor()
 			role = "🔧 Tool"
 		} else if entry.ToolExecution != nil && entry.ToolExecution.Success {
-			color = colors.SuccessColor.ANSI
+			color = cv.getSuccessColor()
 			role = "🔧 Tool"
 		} else {
-			color = colors.AccentColor.ANSI
+			color = cv.getAccentColor()
 			role = "🔧 Tool"
 		}
 		return cv.renderToolEntry(entry, index, color, role)
 	default:
-		color = colors.DimColor.ANSI
+		color = cv.getDimColor()
 		role = string(entry.Message.Role)
 	}
 
@@ -344,7 +357,10 @@ func (cv *ConversationView) buildConfigLine() string {
 	configType := cv.getConfigType()
 	displayPath := cv.shortenPath(cv.configPath)
 
-	return colors.DimColor.ANSI + "⚙  Config: " + colors.Reset + colors.AccentColor.ANSI + displayPath + colors.Reset + colors.DimColor.ANSI + " (" + configType + ")" + colors.Reset
+	dimColor := cv.getDimColor()
+	accentColor := cv.getAccentColor()
+
+	return dimColor + "⚙  Config: " + colors.Reset + accentColor + displayPath + colors.Reset + dimColor + " (" + configType + ")" + colors.Reset
 }
 
 // getConfigType determines if the config is project-level or userspace
@@ -435,4 +451,68 @@ func (cv *ConversationView) handleScrollRequest(msg domain.ScrollRequestEvent) (
 		cv.Viewport.GotoBottom()
 	}
 	return cv, nil
+}
+
+// Helper methods to get theme colors with fallbacks
+func (cv *ConversationView) getUserColor() string {
+	if cv.theme != nil {
+		return cv.theme.GetUserColor()
+	}
+	return colors.UserColor.ANSI
+}
+
+func (cv *ConversationView) getAssistantColor() string {
+	if cv.theme != nil {
+		return cv.theme.GetAssistantColor()
+	}
+	return colors.AssistantColor.ANSI
+}
+
+func (cv *ConversationView) getErrorColor() string {
+	if cv.theme != nil {
+		return cv.theme.GetErrorColor()
+	}
+	return colors.ErrorColor.ANSI
+}
+
+func (cv *ConversationView) getStatusColor() string {
+	if cv.theme != nil {
+		return cv.theme.GetStatusColor()
+	}
+	return colors.StatusColor.ANSI
+}
+
+func (cv *ConversationView) getSuccessColor() string {
+	if cv.theme != nil {
+		return cv.theme.GetStatusColor() // Success uses status color in themes
+	}
+	return colors.SuccessColor.ANSI
+}
+
+func (cv *ConversationView) getAccentColor() string {
+	if cv.theme != nil {
+		return cv.theme.GetAccentColor()
+	}
+	return colors.AccentColor.ANSI
+}
+
+func (cv *ConversationView) getDimColor() string {
+	if cv.theme != nil {
+		return cv.theme.GetDimColor()
+	}
+	return colors.DimColor.ANSI
+}
+
+func (cv *ConversationView) getHeaderColor() string {
+	if cv.theme != nil {
+		return cv.theme.GetAccentColor() // Header uses accent color in themes
+	}
+	return colors.HeaderColor.ANSI
+}
+
+func (cv *ConversationView) getAccentColorLipgloss() string {
+	if cv.theme != nil {
+		return cv.theme.GetAccentColor()
+	}
+	return colors.AccentColor.Lipgloss
 }

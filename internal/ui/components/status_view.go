@@ -27,6 +27,7 @@ type StatusView struct {
 	statusType  domain.StatusType
 	progress    *domain.StatusProgress
 	savedState  *StatusState
+	theme       shared.Theme
 }
 
 // StatusState represents a saved status state
@@ -50,7 +51,13 @@ func NewStatusView() *StatusView {
 		isError:   false,
 		isSpinner: false,
 		spinner:   s,
+		theme:     nil,
 	}
+}
+
+// SetTheme sets the theme for this status view
+func (sv *StatusView) SetTheme(theme shared.Theme) {
+	sv.theme = theme
 }
 
 func (sv *StatusView) ShowStatus(message string) {
@@ -267,7 +274,8 @@ func (sv *StatusView) createProgressBar() string {
 }
 
 func (sv *StatusView) formatErrorStatus() (string, string, string) {
-	return icons.CrossMarkStyle.Render(icons.CrossMark), colors.ErrorColor.ANSI, sv.message
+	errorColor := sv.getErrorColor()
+	return icons.CrossMarkStyle.Render(icons.CrossMark), errorColor, sv.message
 }
 
 func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
@@ -283,19 +291,20 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 	baseMsg := sv.formatStatusWithType(sv.baseMessage)
 	displayMessage := fmt.Sprintf("%s (%ds) - Press ESC to interrupt", baseMsg, seconds)
 
-	return prefix, colors.StatusColor.ANSI, displayMessage
+	statusColor := sv.getStatusColor()
+	return prefix, statusColor, displayMessage
 }
 
 func (sv *StatusView) formatNormalStatus() (string, string, string) {
 	prefix := sv.getStatusIcon()
-	color := colors.StatusColor.ANSI
+	statusColor := sv.getStatusColor()
 	displayMessage := sv.formatStatusWithType(sv.message)
 
 	if sv.tokenUsage != "" {
 		displayMessage = fmt.Sprintf("%s (%s)", displayMessage, sv.tokenUsage)
 	}
 
-	return prefix, color, displayMessage
+	return prefix, statusColor, displayMessage
 }
 
 // Bubble Tea interface
@@ -338,4 +347,19 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return sv, cmd
+}
+
+// Helper methods to get theme colors with fallbacks
+func (sv *StatusView) getErrorColor() string {
+	if sv.theme != nil {
+		return sv.theme.GetErrorColor()
+	}
+	return colors.ErrorColor.ANSI
+}
+
+func (sv *StatusView) getStatusColor() string {
+	if sv.theme != nil {
+		return sv.theme.GetStatusColor()
+	}
+	return colors.StatusColor.ANSI
 }

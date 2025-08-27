@@ -115,6 +115,7 @@ func NewChatApplication(
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
+		cv.SetTheme(app.theme)
 	}
 
 	configDir := ".infer"
@@ -123,8 +124,17 @@ func NewChatApplication(
 	}
 
 	app.inputView = ui.CreateInputViewWithToolServiceAndConfigDir(app.modelService, app.shortcutRegistry, app.toolService, configDir)
+	if iv, ok := app.inputView.(*components.InputView); ok {
+		iv.SetThemeService(app.themeService)
+	}
 	app.statusView = ui.CreateStatusView()
+	if sv, ok := app.statusView.(*components.StatusView); ok {
+		sv.SetTheme(app.theme)
+	}
 	app.helpBar = ui.CreateHelpBar()
+	if hb, ok := app.helpBar.(*components.HelpBar); ok {
+		hb.SetTheme(app.theme)
+	}
 	app.approvalView = ui.CreateApprovalView(app.theme)
 	if av, ok := app.approvalView.(*components.ApprovalComponent); ok {
 		av.SetToolFormatter(toolFormatterService)
@@ -543,15 +553,26 @@ func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
 func (app *ChatApplication) updateAllComponentsWithNewTheme() {
 	app.theme = app.themeService.GetCurrentTheme()
 
+	// Update existing theme-aware components with the new theme
+	if convView, ok := app.conversationView.(*components.ConversationView); ok {
+		convView.SetTheme(app.theme)
+	}
+	if statusView, ok := app.statusView.(*components.StatusView); ok {
+		statusView.SetTheme(app.theme)
+	}
+	if helpBar, ok := app.helpBar.(*components.HelpBar); ok {
+		helpBar.SetTheme(app.theme)
+	}
+	if inputView, ok := app.inputView.(*components.InputView); ok {
+		inputView.SetThemeService(app.themeService)
+	}
+
 	// Recreate theme-aware components with the new theme
 	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.theme)
 	app.themeSelector = components.NewThemeSelector(app.themeService, app.theme)
 
 	if app.conversationSelector != nil {
-		if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
-			adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
-			app.conversationSelector = components.NewConversationSelector(adapter, app.theme)
-		}
+		app.conversationSelector.SetTheme(app.theme)
 	}
 }
 

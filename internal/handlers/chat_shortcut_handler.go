@@ -191,7 +191,7 @@ func (s *ChatShortcutHandler) handleSwitchModelSideEffect(stateManager *services
 func (s *ChatShortcutHandler) handleSwitchThemeSideEffect(stateManager *services.StateManager) tea.Msg {
 	_ = stateManager.TransitionToView(domain.ViewStateThemeSelection)
 	return domain.SetStatusEvent{
-		Message:    "🎨 Select a theme from the dropdown",
+		Message:    "",
 		Spinner:    false,
 		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,

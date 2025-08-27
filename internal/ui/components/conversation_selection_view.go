@@ -52,6 +52,11 @@ func NewConversationSelector(repo shortcuts.PersistentConversationRepository, th
 	return c
 }
 
+// SetTheme sets the theme for this conversation selector
+func (c *ConversationSelectorImpl) SetTheme(theme shared.Theme) {
+	c.theme = theme
+}
+
 func (c *ConversationSelectorImpl) Init() tea.Cmd {
 	return c.loadConversationsCmd()
 }

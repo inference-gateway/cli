@@ -464,7 +464,7 @@ func (v *TextSelectionView) renderLineWithSelection(lineIdx int, line string) st
 
 	highlightStyle := lipgloss.NewStyle().
 		Background(colors.AccentColor.GetLipglossColor()).
-		Foreground(lipgloss.Color("#000000"))
+		Foreground(colors.TextSelectionForeground.GetLipglossColor())
 
 	if lineIdx < start.Line || lineIdx > end.Line {
 		return line
@@ -577,12 +577,12 @@ func (v *TextSelectionView) renderLineWithCursor(lineIdx int, line string, isSel
 	var result strings.Builder
 
 	cursorStyle := lipgloss.NewStyle().
-		Background(lipgloss.Color("#FFFFFF")).
-		Foreground(lipgloss.Color("#000000"))
+		Background(colors.TextSelectionCursor.GetLipglossColor()).
+		Foreground(colors.TextSelectionForeground.GetLipglossColor())
 
 	highlightStyle := lipgloss.NewStyle().
 		Background(colors.AccentColor.GetLipglossColor()).
-		Foreground(lipgloss.Color("#000000"))
+		Foreground(colors.TextSelectionForeground.GetLipglossColor())
 
 	lineLen := len(line)
 	displayCursorCol := v.cursorCol
