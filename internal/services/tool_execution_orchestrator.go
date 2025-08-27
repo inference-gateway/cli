@@ -507,9 +507,21 @@ func (teo *ToolExecutionOrchestrator) GetHealthStatus() map[string]any {
 }
 
 // shouldSkipToolExecution determines if a tool should be skipped for execution
-// A2A and MCP tools are executed on the Gateway, not on clients
+// A2A and MCP tools are executed on the Gateway, not on clients when skip is enabled
 func (teo *ToolExecutionOrchestrator) shouldSkipToolExecution(toolName string) bool {
-	return strings.HasPrefix(toolName, "a2a_") || strings.HasPrefix(toolName, "mcp_")
+	if teo.configService == nil {
+		return strings.HasPrefix(toolName, "a2a_") || strings.HasPrefix(toolName, "mcp_")
+	}
+
+	if strings.HasPrefix(toolName, "a2a_") {
+		return teo.configService.ShouldSkipA2AToolOnClient()
+	}
+
+	if strings.HasPrefix(toolName, "mcp_") {
+		return teo.configService.ShouldSkipMCPToolOnClient()
+	}
+
+	return false
 }
 
 // createSkippedToolResult creates a result for tools that are skipped for visualization

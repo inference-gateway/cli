@@ -20,4 +20,8 @@ type ConfigService interface {
 	// Sandbox configuration
 	GetSandboxDirectories() []string
 	GetProtectedPaths() []string
+
+	// Gateway middleware configuration
+	ShouldSkipA2AToolOnClient() bool
+	ShouldSkipMCPToolOnClient() bool
 }

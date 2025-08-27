@@ -3,75 +3,151 @@ package services
 import (
 	"testing"
 	"time"
+
+	"github.com/inference-gateway/cli/tests/mocks/generated"
 )
 
 func TestToolExecutionOrchestrator_shouldSkipToolExecution(t *testing.T) {
 	tests := []struct {
-		name     string
-		toolName string
-		expected bool
+		name                      string
+		toolName                  string
+		configService             *generated.FakeConfigService
+		setupConfigServiceReturns func(*generated.FakeConfigService)
+		expected                  bool
 	}{
 		{
-			name:     "a2a tool should be skipped",
+			name:     "nil config service - a2a tool should be skipped (fallback behavior)",
 			toolName: "a2a_connect",
 			expected: true,
 		},
 		{
-			name:     "a2a prefixed tool should be skipped",
-			toolName: "a2a_send_message",
-			expected: true,
-		},
-		{
-			name:     "mcp tool should be skipped",
+			name:     "nil config service - mcp tool should be skipped (fallback behavior)",
 			toolName: "mcp_list_tools",
 			expected: true,
 		},
 		{
-			name:     "mcp prefixed tool should be skipped",
-			toolName: "mcp_execute_command",
-			expected: true,
-		},
-		{
-			name:     "regular tool should not be skipped",
+			name:     "nil config service - regular tool should not be skipped",
 			toolName: "Read",
 			expected: false,
 		},
 		{
-			name:     "bash tool should not be skipped",
-			toolName: "Bash",
+			name:          "a2a tool with skip enabled should be skipped",
+			toolName:      "a2a_connect",
+			configService: &generated.FakeConfigService{},
+			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
+				fake.ShouldSkipA2AToolOnClientReturns(true)
+			},
+			expected: true,
+		},
+		{
+			name:          "a2a tool with skip disabled should not be skipped",
+			toolName:      "a2a_send_message",
+			configService: &generated.FakeConfigService{},
+			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
+				fake.ShouldSkipA2AToolOnClientReturns(false)
+			},
 			expected: false,
 		},
 		{
-			name:     "tool with a2a in middle should not be skipped",
-			toolName: "some_a2a_tool",
+			name:          "mcp tool with skip enabled should be skipped",
+			toolName:      "mcp_list_tools",
+			configService: &generated.FakeConfigService{},
+			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
+				fake.ShouldSkipMCPToolOnClientReturns(true)
+			},
+			expected: true,
+		},
+		{
+			name:          "mcp tool with skip disabled should not be skipped",
+			toolName:      "mcp_execute_command",
+			configService: &generated.FakeConfigService{},
+			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
+				fake.ShouldSkipMCPToolOnClientReturns(false)
+			},
 			expected: false,
 		},
 		{
-			name:     "tool with mcp in middle should not be skipped",
-			toolName: "some_mcp_tool",
+			name:          "regular tool should not be skipped regardless of config",
+			toolName:      "Read",
+			configService: &generated.FakeConfigService{},
+			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
+				fake.ShouldSkipA2AToolOnClientReturns(true)
+				fake.ShouldSkipMCPToolOnClientReturns(true)
+			},
 			expected: false,
 		},
 		{
-			name:     "empty tool name should not be skipped",
-			toolName: "",
+			name:          "bash tool should not be skipped regardless of config",
+			toolName:      "Bash",
+			configService: &generated.FakeConfigService{},
+			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
+				fake.ShouldSkipA2AToolOnClientReturns(true)
+				fake.ShouldSkipMCPToolOnClientReturns(true)
+			},
 			expected: false,
 		},
 		{
-			name:     "tool starting with A2A caps should not be skipped",
-			toolName: "A2A_tool",
+			name:          "tool with a2a in middle should not be skipped",
+			toolName:      "some_a2a_tool",
+			configService: &generated.FakeConfigService{},
+			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
+				fake.ShouldSkipA2AToolOnClientReturns(true)
+			},
 			expected: false,
 		},
 		{
-			name:     "tool starting with MCP caps should not be skipped",
-			toolName: "MCP_tool",
+			name:          "tool with mcp in middle should not be skipped",
+			toolName:      "some_mcp_tool",
+			configService: &generated.FakeConfigService{},
+			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
+				fake.ShouldSkipMCPToolOnClientReturns(true)
+			},
+			expected: false,
+		},
+		{
+			name:          "empty tool name should not be skipped",
+			toolName:      "",
+			configService: &generated.FakeConfigService{},
+			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
+				fake.ShouldSkipA2AToolOnClientReturns(true)
+				fake.ShouldSkipMCPToolOnClientReturns(true)
+			},
+			expected: false,
+		},
+		{
+			name:          "tool starting with A2A caps should not be skipped",
+			toolName:      "A2A_tool",
+			configService: &generated.FakeConfigService{},
+			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
+				fake.ShouldSkipA2AToolOnClientReturns(true)
+			},
+			expected: false,
+		},
+		{
+			name:          "tool starting with MCP caps should not be skipped",
+			toolName:      "MCP_tool",
+			configService: &generated.FakeConfigService{},
+			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
+				fake.ShouldSkipMCPToolOnClientReturns(true)
+			},
 			expected: false,
 		},
 	}
 
-	teo := &ToolExecutionOrchestrator{}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			var teo *ToolExecutionOrchestrator
+			if tt.configService != nil {
+				teo = &ToolExecutionOrchestrator{
+					configService: tt.configService,
+				}
+				if tt.setupConfigServiceReturns != nil {
+					tt.setupConfigServiceReturns(tt.configService)
+				}
+			} else {
+				teo = &ToolExecutionOrchestrator{}
+			}
+
 			result := teo.shouldSkipToolExecution(tt.toolName)
 			if result != tt.expected {
 				t.Errorf("shouldSkipToolExecution(%q) = %v, expected %v", tt.toolName, result, tt.expected)

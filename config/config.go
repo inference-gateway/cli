@@ -35,9 +35,10 @@ type Config struct {
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL     string `yaml:"url" mapstructure:"url"`
-	APIKey  string `yaml:"api_key" mapstructure:"api_key"`
-	Timeout int    `yaml:"timeout" mapstructure:"timeout"`
+	URL         string            `yaml:"url" mapstructure:"url"`
+	APIKey      string            `yaml:"api_key" mapstructure:"api_key"`
+	Timeout     int               `yaml:"timeout" mapstructure:"timeout"`
+	Middlewares MiddlewaresConfig `yaml:"middlewares" mapstructure:"middlewares"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -241,6 +242,22 @@ type ConversationTitleConfig struct {
 	Interval     int    `yaml:"interval" mapstructure:"interval"`
 }
 
+// MiddlewaresConfig contains middleware-specific settings
+type MiddlewaresConfig struct {
+	A2A A2AConfig `yaml:"a2a" mapstructure:"a2a"`
+	MCP MCPConfig `yaml:"mcp" mapstructure:"mcp"`
+}
+
+// A2AConfig contains A2A middleware settings
+type A2AConfig struct {
+	SkipOnClient bool `yaml:"skip_on_client" mapstructure:"skip_on_client"`
+}
+
+// MCPConfig contains MCP middleware settings
+type MCPConfig struct {
+	SkipOnClient bool `yaml:"skip_on_client" mapstructure:"skip_on_client"`
+}
+
 // FetchSafetyConfig contains safety settings for fetch operations
 type FetchSafetyConfig struct {
 	MaxSize       int64 `yaml:"max_size" mapstructure:"max_size"`
@@ -304,6 +321,14 @@ func DefaultConfig() *Config { //nolint:funlen
 			URL:     "http://localhost:8080",
 			APIKey:  "",
 			Timeout: 200,
+			Middlewares: MiddlewaresConfig{
+				A2A: A2AConfig{
+					SkipOnClient: true,
+				},
+				MCP: MCPConfig{
+					SkipOnClient: true,
+				},
+			},
 		},
 		Client: ClientConfig{
 			Timeout: 200,
@@ -635,6 +660,14 @@ func (c *Config) GetSandboxDirectories() []string {
 
 func (c *Config) GetProtectedPaths() []string {
 	return c.Tools.Sandbox.ProtectedPaths
+}
+
+func (c *Config) ShouldSkipA2AToolOnClient() bool {
+	return c.Gateway.Middlewares.A2A.SkipOnClient
+}
+
+func (c *Config) ShouldSkipMCPToolOnClient() bool {
+	return c.Gateway.Middlewares.MCP.SkipOnClient
 }
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories

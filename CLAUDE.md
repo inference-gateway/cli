@@ -255,12 +255,13 @@ task mocks:generate         # Regenerate mocks
 
 #### A2A and MCP Tool Call Handling
 
-Tools prefixed with `a2a_*` or `mcp_*` receive special handling:
+Tools prefixed with `a2a_*` or `mcp_*` receive special handling based on configuration:
 
-- **Chat Mode**: Tools are visualized but execution is skipped (Gateway handles execution)
+- **Chat Mode**: Tools are visualized but execution is skipped when `gateway.middlewares.{a2a|mcp}.skip_on_client` is `true` (default)
 - **Agent Mode**: Tools are executed normally (main agent has full access)
 - **Visualization**: Skipped tools show as "executed on Gateway" with appropriate metadata
-- **Purpose**: Maintains simple clients while centralizing operations on Gateway
+- **Configuration**: Skipping behavior is configurable via `gateway.middlewares.a2a.skip_on_client` and `gateway.middlewares.mcp.skip_on_client`
+- **Purpose**: Maintains simple clients while centralizing operations on Gateway, with flexibility to disable skipping when needed
 
 ## Agent System
 
