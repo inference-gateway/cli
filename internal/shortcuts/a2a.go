@@ -31,7 +31,15 @@ func (a *A2AShortcut) CanExecute(args []string) bool {
 }
 
 func (a *A2AShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	if len(args) == 0 || (len(args) == 1 && args[0] == "list") {
+	if len(args) == 1 && args[0] == "list" {
+		return ShortcutResult{
+			Output:     "Opening A2A servers view...",
+			Success:    true,
+			SideEffect: SideEffectShowA2AServers,
+		}, nil
+	}
+
+	if len(args) == 0 {
 		return a.listAgents(ctx)
 	}
 

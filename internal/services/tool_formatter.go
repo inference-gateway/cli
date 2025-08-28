@@ -129,6 +129,11 @@ func (s *ToolFormatterService) formatFallback(result *domain.ToolExecutionResult
 
 	switch formatType {
 	case domain.FormatterUI:
+		// Check if this is an enhanced Gateway tool visualization
+		if s.isGatewayToolWithEnhancedVisualization(result) {
+			return s.formatEnhancedGatewayTool(result, &formatter)
+		}
+
 		toolCall := formatter.FormatToolCall(result.Arguments, false)
 		statusIcon := formatter.FormatStatusIcon(result.Success)
 		preview := "Execution completed"
@@ -301,4 +306,36 @@ func (s *ToolFormatterService) ShouldAlwaysExpandTool(toolName string) bool {
 		return false
 	}
 	return tool.ShouldAlwaysExpand()
+}
+
+// isGatewayToolWithEnhancedVisualization checks if this is a Gateway tool with enhanced visualization
+func (s *ToolFormatterService) isGatewayToolWithEnhancedVisualization(result *domain.ToolExecutionResult) bool {
+	if result.Data == nil {
+		return false
+	}
+
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		return false
+	}
+
+	friendlyFormat, exists := data["friendly_format"]
+	if !exists {
+		return false
+	}
+
+	return friendlyFormat == true
+}
+
+// formatEnhancedGatewayTool formats Gateway tools with enhanced user-friendly visualization
+func (s *ToolFormatterService) formatEnhancedGatewayTool(result *domain.ToolExecutionResult, formatter *domain.BaseFormatter) string {
+	data := result.Data.(map[string]any)
+	visualDisplay := data["visual_display"].(string)
+	statusIcon := formatter.FormatStatusIcon(result.Success)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", visualDisplay))
+	output.WriteString(fmt.Sprintf("└─ %s Executed on Gateway", statusIcon))
+
+	return output.String()
 }
