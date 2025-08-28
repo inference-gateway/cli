@@ -261,12 +261,10 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 
 		var executionResult *domain.ToolExecutionResult
 
-		// Check if this is an A2A or MCP tool call that should be skipped
 		if teo.shouldSkipToolExecution(currentTool.Function.Name) {
 			duration := time.Since(startTime)
 			executionResult = teo.createSkippedToolResult(currentTool.Function.Name, args, duration)
 		} else {
-			// Execute the tool normally
 			ctx := context.Background()
 			result, err := teo.toolService.ExecuteTool(ctx, currentTool.Function.Name, args)
 
