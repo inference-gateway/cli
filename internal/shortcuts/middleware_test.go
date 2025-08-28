@@ -36,7 +36,7 @@ func TestA2AShortcut_GetUsage(t *testing.T) {
 	mockConfig := &config.Config{}
 	shortcut := NewA2AShortcut(mockConfig, nil)
 
-	expected := "/a2a"
+	expected := "/a2a [list]"
 	actual := shortcut.GetUsage()
 
 	if actual != expected {
@@ -56,8 +56,13 @@ func TestA2AShortcut_CanExecute(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "one argument not allowed",
-			args:     []string{"arg1"},
+			name:     "list argument allowed",
+			args:     []string{"list"},
+			expected: true,
+		},
+		{
+			name:     "other argument not allowed",
+			args:     []string{"other"},
 			expected: false,
 		},
 		{
@@ -84,12 +89,13 @@ func TestA2AShortcut_Execute(t *testing.T) {
 	tests := []struct {
 		name               string
 		config             *config.Config
+		args               []string
 		expectedSuccess    bool
 		expectedContains   []string
 		expectedNotContain []string
 	}{
 		{
-			name: "gateway configured with A2A enabled",
+			name: "no args defaults to list - no client configured",
 			config: &config.Config{
 				Gateway: config.GatewayConfig{
 					URL:     "http://localhost:8080",
@@ -100,94 +106,36 @@ func TestA2AShortcut_Execute(t *testing.T) {
 					},
 				},
 			},
-			expectedSuccess: true,
-			expectedContains: []string{
-				"A2A Server Status",
-				"Gateway URL:** http://localhost:8080",
-				"A2A Middleware:** Enabled",
-				"API Key:** Configured",
-				"Connection Timeout:** 30 seconds",
-				"Agent-to-Agent",
-			},
-			expectedNotContain: []string{
-				"Gateway URL not configured",
-				"A2A Middleware:** Disabled",
-				"API Key:** Not configured",
-			},
-		},
-		{
-			name: "gateway configured with A2A disabled",
-			config: &config.Config{
-				Gateway: config.GatewayConfig{
-					URL:     "http://localhost:8080",
-					APIKey:  "test-api-key",
-					Timeout: 30,
-					Middlewares: config.MiddlewaresConfig{
-						A2A: false,
-					},
-				},
-			},
-			expectedSuccess: true,
-			expectedContains: []string{
-				"A2A Server Status",
-				"Gateway URL:** http://localhost:8080",
-				"A2A Middleware:** Disabled",
-				"API Key:** Configured",
-				"Connection Timeout:** 30 seconds",
-			},
-			expectedNotContain: []string{
-				"Gateway URL not configured",
-				"A2A Middleware:** Enabled",
-				"API Key:** Not configured",
-			},
-		},
-		{
-			name: "gateway not configured",
-			config: &config.Config{
-				Gateway: config.GatewayConfig{
-					URL:     "",
-					APIKey:  "",
-					Timeout: 30,
-					Middlewares: config.MiddlewaresConfig{
-						A2A: true,
-					},
-				},
-			},
+			args:            []string{},
 			expectedSuccess: false,
 			expectedContains: []string{
-				"Gateway URL not configured",
-				"Configure the gateway URL in your config",
-				"gateway:",
-				"url: http://your-gateway-url:8080",
+				"A2A Agents",
+				"Error:** SDK client not configured",
 			},
 			expectedNotContain: []string{
-				"Gateway URL:**",
-				"A2A Middleware:**",
+				"A2A Server Status",
 			},
 		},
 		{
-			name: "gateway configured without API key",
+			name: "explicit list argument - no client configured",
 			config: &config.Config{
 				Gateway: config.GatewayConfig{
 					URL:     "http://localhost:8080",
-					APIKey:  "",
-					Timeout: 60,
+					APIKey:  "test-api-key",
+					Timeout: 30,
 					Middlewares: config.MiddlewaresConfig{
 						A2A: true,
 					},
 				},
 			},
-			expectedSuccess: true,
+			args:            []string{"list"},
+			expectedSuccess: false,
 			expectedContains: []string{
-				"A2A Server Status",
-				"Gateway URL:** http://localhost:8080",
-				"A2A Middleware:** Enabled",
-				"API Key:** Not configured - connection may fail",
-				"Connection Timeout:** 60 seconds",
+				"A2A Agents",
+				"Error:** SDK client not configured",
 			},
 			expectedNotContain: []string{
-				"Gateway URL not configured",
-				"API Key:** Configured",
+				"A2A Server Status",
 			},
 		},
 	}
@@ -196,7 +144,7 @@ func TestA2AShortcut_Execute(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			shortcut := NewA2AShortcut(tt.config, nil)
 
-			result, err := shortcut.Execute(context.Background(), []string{})
+			result, err := shortcut.Execute(context.Background(), tt.args)
 
 			if err != nil {
 				t.Errorf("Unexpected error: %v", err)
