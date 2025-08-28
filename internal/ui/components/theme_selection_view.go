@@ -72,8 +72,10 @@ func (m *ThemeSelectorImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model
 
 func (m *ThemeSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "ctrl+c", "esc":
+	case "ctrl+c":
 		return m.handleCancel()
+	case "esc":
+		return m.handleEscape()
 	case "up":
 		return m.handleNavigationUp()
 	case "down":
@@ -92,10 +94,20 @@ func (m *ThemeSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 	}
 }
 
+func (m *ThemeSelectorImpl) handleEscape() (tea.Model, tea.Cmd) {
+	if m.searchMode {
+		m.searchMode = false
+		m.searchQuery = ""
+		m.updateSearch()
+		return m, nil
+	}
+	return m.handleCancel()
+}
+
 func (m *ThemeSelectorImpl) handleCancel() (tea.Model, tea.Cmd) {
 	m.cancelled = true
 	m.done = true
-	return m, tea.Quit
+	return m, nil
 }
 
 func (m *ThemeSelectorImpl) handleNavigationUp() (tea.Model, tea.Cmd) {
@@ -276,4 +288,23 @@ func (m *ThemeSelectorImpl) SetWidth(width int) {
 // SetHeight sets the height of the theme selector
 func (m *ThemeSelectorImpl) SetHeight(height int) {
 	m.height = height
+}
+
+// Reset resets the theme selector to its initial state
+func (m *ThemeSelectorImpl) Reset() {
+	m.done = false
+	m.cancelled = false
+	m.searchQuery = ""
+	m.searchMode = false
+	m.selected = 0
+	m.updateSearch()
+
+	// Reset to current theme selection
+	currentTheme := m.themeService.GetCurrentThemeName()
+	for i, themeName := range m.themes {
+		if themeName == currentTheme {
+			m.selected = i
+			break
+		}
+	}
 }

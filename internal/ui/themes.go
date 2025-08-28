@@ -10,6 +10,7 @@ import (
 // ThemeProvider manages available themes
 type ThemeProvider struct {
 	themes      map[string]shared.Theme
+	themeNames  []string // Ordered list of theme names for consistent iteration
 	currentName string
 }
 
@@ -17,6 +18,7 @@ type ThemeProvider struct {
 func NewThemeProvider() *ThemeProvider {
 	provider := &ThemeProvider{
 		themes:      make(map[string]shared.Theme),
+		themeNames:  make([]string, 0),
 		currentName: "tokyo-night",
 	}
 
@@ -26,9 +28,19 @@ func NewThemeProvider() *ThemeProvider {
 
 // registerDefaultThemes registers all built-in themes
 func (tp *ThemeProvider) registerDefaultThemes() {
-	tp.themes["tokyo-night"] = NewTokyoNightTheme()
-	tp.themes["github-light"] = NewGithubLightTheme()
-	tp.themes["dracula"] = NewDraculaTheme()
+	themeList := []struct {
+		name  string
+		theme shared.Theme
+	}{
+		{"dracula", NewDraculaTheme()},
+		{"github-light", NewGithubLightTheme()},
+		{"tokyo-night", NewTokyoNightTheme()},
+	}
+
+	for _, t := range themeList {
+		tp.themes[t.name] = t.theme
+		tp.themeNames = append(tp.themeNames, t.name)
+	}
 }
 
 // GetTheme returns the theme by name, or the current theme if name is empty
@@ -65,12 +77,10 @@ func (tp *ThemeProvider) GetCurrentThemeName() string {
 	return tp.currentName
 }
 
-// ListThemes returns all available theme names
+// ListThemes returns all available theme names in consistent order
 func (tp *ThemeProvider) ListThemes() []string {
-	names := make([]string, 0, len(tp.themes))
-	for name := range tp.themes {
-		names = append(names, name)
-	}
+	names := make([]string, len(tp.themeNames))
+	copy(names, tp.themeNames)
 	return names
 }
 

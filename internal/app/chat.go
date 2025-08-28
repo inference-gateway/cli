@@ -483,14 +483,21 @@ func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cm
 func (app *ChatApplication) handleThemeSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	if model, cmd := app.themeSelector.Update(msg); cmd != nil {
-		cmds = append(cmds, cmd)
-		app.themeSelector = model.(*components.ThemeSelectorImpl)
-
-		return app.handleThemeSelection(cmds)
+	if app.themeSelector.IsSelected() || app.themeSelector.IsCancelled() {
+		app.themeSelector.Reset()
+		if cmd := app.themeSelector.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
 	}
 
-	return cmds
+	model, cmd := app.themeSelector.Update(msg)
+	app.themeSelector = model.(*components.ThemeSelectorImpl)
+
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return app.handleThemeSelection(cmds)
 }
 
 func (app *ChatApplication) handleThemeSelection(cmds []tea.Cmd) []tea.Cmd {
@@ -540,14 +547,11 @@ func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
 }
 
 func (app *ChatApplication) updateAllComponentsWithNewTheme() {
-	// Update existing theme-aware components with the new theme
 	if inputView, ok := app.inputView.(*components.InputView); ok {
 		inputView.SetThemeService(app.themeService)
 	}
 
-	// Recreate theme-aware components with the new theme
 	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.themeService)
-	app.themeSelector = components.NewThemeSelector(app.themeService)
 }
 
 func (app *ChatApplication) renderThemeSelection() string {
