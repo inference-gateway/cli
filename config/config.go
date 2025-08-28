@@ -244,18 +244,8 @@ type ConversationTitleConfig struct {
 
 // MiddlewaresConfig contains middleware-specific settings
 type MiddlewaresConfig struct {
-	A2A A2AConfig `yaml:"a2a" mapstructure:"a2a"`
-	MCP MCPConfig `yaml:"mcp" mapstructure:"mcp"`
-}
-
-// A2AConfig contains A2A middleware settings
-type A2AConfig struct {
-	SkipOnClient bool `yaml:"skip_on_client" mapstructure:"skip_on_client"`
-}
-
-// MCPConfig contains MCP middleware settings
-type MCPConfig struct {
-	SkipOnClient bool `yaml:"skip_on_client" mapstructure:"skip_on_client"`
+	A2A bool `yaml:"a2a" mapstructure:"a2a"`
+	MCP bool `yaml:"mcp" mapstructure:"mcp"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -322,12 +312,8 @@ func DefaultConfig() *Config { //nolint:funlen
 			APIKey:  "",
 			Timeout: 200,
 			Middlewares: MiddlewaresConfig{
-				A2A: A2AConfig{
-					SkipOnClient: true,
-				},
-				MCP: MCPConfig{
-					SkipOnClient: true,
-				},
+				A2A: true,
+				MCP: true,
 			},
 		},
 		Client: ClientConfig{
@@ -663,11 +649,11 @@ func (c *Config) GetProtectedPaths() []string {
 }
 
 func (c *Config) ShouldSkipA2AToolOnClient() bool {
-	return c.Gateway.Middlewares.A2A.SkipOnClient
+	return !c.Gateway.Middlewares.A2A
 }
 
 func (c *Config) ShouldSkipMCPToolOnClient() bool {
-	return c.Gateway.Middlewares.MCP.SkipOnClient
+	return !c.Gateway.Middlewares.MCP
 }
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories
