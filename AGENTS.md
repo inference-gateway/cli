@@ -64,7 +64,7 @@ Interactive chat mode supports agent-like behaviors:
 Configure agent behavior through `.infer/config.yaml`:
 
 ```yaml
-chat:
+agent:
   default_model: "anthropic/claude-4.1"
   system_prompt: "You are a helpful coding assistant..."
 
