@@ -12,16 +12,18 @@ import (
 
 // HelpBar displays keyboard shortcuts at the bottom of the screen
 type HelpBar struct {
-	enabled   bool
-	width     int
-	shortcuts []shared.KeyShortcut
+	enabled      bool
+	width        int
+	shortcuts    []shared.KeyShortcut
+	themeService domain.ThemeService
 }
 
-func NewHelpBar() *HelpBar {
+func NewHelpBar(themeService domain.ThemeService) *HelpBar {
 	return &HelpBar{
-		enabled:   false,
-		width:     80,
-		shortcuts: make([]shared.KeyShortcut, 0),
+		enabled:      false,
+		width:        80,
+		shortcuts:    make([]shared.KeyShortcut, 0),
+		themeService: themeService,
 	}
 }
 
@@ -157,8 +159,9 @@ func (hb *HelpBar) renderResponsiveTable() string {
 		tableRows = append(tableRows, lipgloss.JoinHorizontal(lipgloss.Left, cells...))
 	}
 
+	dimColor := hb.getDimColor()
 	tableStyle := lipgloss.NewStyle().
-		Foreground(colors.DimColor.GetLipglossColor()).
+		Foreground(lipgloss.Color(dimColor)).
 		Width(hb.width)
 
 	return tableStyle.Render(strings.Join(tableRows, "\n"))
@@ -179,4 +182,12 @@ func (hb *HelpBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		hb.enabled = false
 	}
 	return hb, nil
+}
+
+// Helper method to get theme colors with fallback
+func (hb *HelpBar) getDimColor() string {
+	if hb.themeService != nil {
+		return hb.themeService.GetCurrentTheme().GetDimColor()
+	}
+	return colors.DimColor.Lipgloss
 }

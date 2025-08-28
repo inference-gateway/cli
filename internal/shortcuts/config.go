@@ -104,7 +104,7 @@ func (c *ConfigShortcut) executeShow() (ShortcutResult, error) {
 	// Tools settings
 	output.WriteString("\n### 🔧 Tools\n")
 	if c.config.Tools.Enabled {
-		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.CheckMark))
+		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.StyledCheckMark()))
 		output.WriteString("• **Individual Tools**:\n")
 		output.WriteString(fmt.Sprintf("  - **Bash**: %s\n", formatBool(c.config.Tools.Bash.Enabled)))
 		output.WriteString(fmt.Sprintf("  - **Read**: %s\n", formatBool(c.config.Tools.Read.Enabled)))
@@ -114,17 +114,17 @@ func (c *ConfigShortcut) executeShow() (ShortcutResult, error) {
 		output.WriteString(fmt.Sprintf("  - **Web Fetch**: %s\n", formatBool(c.config.Tools.WebFetch.Enabled)))
 		output.WriteString(fmt.Sprintf("  - **Web Search**: %s\n", formatBool(c.config.Tools.WebSearch.Enabled)))
 	} else {
-		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.CrossMark))
+		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.StyledCrossMark()))
 	}
 
 	// Optimization settings
 	output.WriteString("\n### ⚡ Optimization\n")
 	if c.config.Agent.Optimization.Enabled {
-		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.CheckMark))
+		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.StyledCheckMark()))
 		output.WriteString(fmt.Sprintf("• **Max History**: `%d`\n", c.config.Agent.Optimization.MaxHistory))
 		output.WriteString(fmt.Sprintf("• **Compact Threshold**: `%d`\n", c.config.Agent.Optimization.CompactThreshold))
 	} else {
-		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.CrossMark))
+		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.StyledCrossMark()))
 	}
 
 	return ShortcutResult{
@@ -158,13 +158,13 @@ func (c *ConfigShortcut) executeSet(key, value string) (ShortcutResult, error) {
 
 	if err := c.configService.SetValue(key, value); err != nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Failed to set config value: %v", icons.CrossMark, err),
+			Output:  fmt.Sprintf("%s Failed to set config value: %v", icons.StyledCrossMark(), err),
 			Success: false,
 		}, nil
 	}
 
 	return ShortcutResult{
-		Output:     fmt.Sprintf("%s Successfully set **%s** = `%s`", icons.CheckMark, key, value),
+		Output:     fmt.Sprintf("%s Successfully set **%s** = `%s`", icons.StyledCheckMark(), key, value),
 		Success:    true,
 		SideEffect: SideEffectReloadConfig,
 	}, nil
@@ -173,7 +173,7 @@ func (c *ConfigShortcut) executeSet(key, value string) (ShortcutResult, error) {
 func (c *ConfigShortcut) executeReload() (ShortcutResult, error) {
 	if c.reloadFunc == nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Config reload not supported - please exit and restart chat mode to apply config changes", icons.CrossMark),
+			Output:  fmt.Sprintf("%s Config reload not supported - please exit and restart chat mode to apply config changes", icons.StyledCrossMark()),
 			Success: false,
 		}, nil
 	}
@@ -181,7 +181,7 @@ func (c *ConfigShortcut) executeReload() (ShortcutResult, error) {
 	newConfig, err := c.reloadFunc()
 	if err != nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Failed to reload config: %v", icons.CrossMark, err),
+			Output:  fmt.Sprintf("%s Failed to reload config: %v", icons.StyledCrossMark(), err),
 			Success: false,
 		}, nil
 	}
@@ -190,7 +190,7 @@ func (c *ConfigShortcut) executeReload() (ShortcutResult, error) {
 	*c.config = *newConfig
 
 	return ShortcutResult{
-		Output:     fmt.Sprintf("%s Configuration reloaded successfully from disk", icons.CheckMark),
+		Output:     fmt.Sprintf("%s Configuration reloaded successfully from disk", icons.StyledCheckMark()),
 		Success:    true,
 		SideEffect: SideEffectReloadConfig,
 		Data:       newConfig,

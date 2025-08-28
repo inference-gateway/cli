@@ -15,18 +15,19 @@ import (
 
 // StatusView handles status messages, errors, and loading spinners
 type StatusView struct {
-	message     string
-	isError     bool
-	isSpinner   bool
-	spinner     spinner.Model
-	startTime   time.Time
-	tokenUsage  string
-	baseMessage string
-	debugInfo   string
-	width       int
-	statusType  domain.StatusType
-	progress    *domain.StatusProgress
-	savedState  *StatusState
+	message      string
+	isError      bool
+	isSpinner    bool
+	spinner      spinner.Model
+	startTime    time.Time
+	tokenUsage   string
+	baseMessage  string
+	debugInfo    string
+	width        int
+	statusType   domain.StatusType
+	progress     *domain.StatusProgress
+	savedState   *StatusState
+	themeService domain.ThemeService
 }
 
 // StatusState represents a saved status state
@@ -41,15 +42,16 @@ type StatusState struct {
 	progress    *domain.StatusProgress
 }
 
-func NewStatusView() *StatusView {
+func NewStatusView(themeService domain.ThemeService) *StatusView {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
 	s.Style = lipgloss.NewStyle().Foreground(colors.SpinnerColor.GetLipglossColor())
 	return &StatusView{
-		message:   "",
-		isError:   false,
-		isSpinner: false,
-		spinner:   s,
+		message:      "",
+		isError:      false,
+		isSpinner:    false,
+		spinner:      s,
+		themeService: themeService,
 	}
 }
 
@@ -267,7 +269,8 @@ func (sv *StatusView) createProgressBar() string {
 }
 
 func (sv *StatusView) formatErrorStatus() (string, string, string) {
-	return icons.CrossMarkStyle.Render(icons.CrossMark), colors.ErrorColor.ANSI, sv.message
+	errorColor := sv.getErrorColor()
+	return icons.CrossMarkStyle.Render(icons.CrossMark), errorColor, sv.message
 }
 
 func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
@@ -283,19 +286,20 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 	baseMsg := sv.formatStatusWithType(sv.baseMessage)
 	displayMessage := fmt.Sprintf("%s (%ds) - Press ESC to interrupt", baseMsg, seconds)
 
-	return prefix, colors.StatusColor.ANSI, displayMessage
+	statusColor := sv.getStatusColor()
+	return prefix, statusColor, displayMessage
 }
 
 func (sv *StatusView) formatNormalStatus() (string, string, string) {
 	prefix := sv.getStatusIcon()
-	color := colors.StatusColor.ANSI
+	statusColor := sv.getStatusColor()
 	displayMessage := sv.formatStatusWithType(sv.message)
 
 	if sv.tokenUsage != "" {
 		displayMessage = fmt.Sprintf("%s (%s)", displayMessage, sv.tokenUsage)
 	}
 
-	return prefix, color, displayMessage
+	return prefix, statusColor, displayMessage
 }
 
 // Bubble Tea interface
@@ -338,4 +342,19 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return sv, cmd
+}
+
+// Helper methods to get theme colors with fallbacks
+func (sv *StatusView) getErrorColor() string {
+	if sv.themeService != nil {
+		return sv.themeService.GetCurrentTheme().GetErrorColor()
+	}
+	return colors.ErrorColor.ANSI
+}
+
+func (sv *StatusView) getStatusColor() string {
+	if sv.themeService != nil {
+		return sv.themeService.GetCurrentTheme().GetStatusColor()
+	}
+	return colors.StatusColor.ANSI
 }

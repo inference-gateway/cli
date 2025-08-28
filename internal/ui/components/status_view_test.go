@@ -6,7 +6,7 @@ import (
 )
 
 func TestNewStatusView(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	if sv == nil {
 		t.Fatal("Expected StatusView to be created, got nil")
@@ -30,7 +30,7 @@ func TestNewStatusView(t *testing.T) {
 }
 
 func TestStatusView_ShowStatus(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	testMessage := "Processing request..."
 	sv.ShowStatus(testMessage)
@@ -49,7 +49,7 @@ func TestStatusView_ShowStatus(t *testing.T) {
 }
 
 func TestStatusView_ShowError(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	testError := "Connection failed"
 	sv.ShowError(testError)
@@ -68,7 +68,7 @@ func TestStatusView_ShowError(t *testing.T) {
 }
 
 func TestStatusView_ShowSpinner(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	testMessage := "Loading..."
 	sv.ShowSpinner(testMessage)
@@ -87,7 +87,7 @@ func TestStatusView_ShowSpinner(t *testing.T) {
 }
 
 func TestStatusView_ClearStatus(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	sv.ShowError("Some error")
 	sv.SetTokenUsage("100 tokens")
@@ -112,7 +112,7 @@ func TestStatusView_ClearStatus(t *testing.T) {
 }
 
 func TestStatusView_IsShowingError(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	if sv.IsShowingError() {
 		t.Error("Expected IsShowingError to be false initially")
@@ -132,7 +132,7 @@ func TestStatusView_IsShowingError(t *testing.T) {
 }
 
 func TestStatusView_IsShowingSpinner(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	if sv.IsShowingSpinner() {
 		t.Error("Expected IsShowingSpinner to be false initially")
@@ -152,7 +152,7 @@ func TestStatusView_IsShowingSpinner(t *testing.T) {
 }
 
 func TestStatusView_SetTokenUsage(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	testUsage := "150 tokens used"
 	sv.SetTokenUsage(testUsage)
@@ -163,7 +163,7 @@ func TestStatusView_SetTokenUsage(t *testing.T) {
 }
 
 func TestStatusView_SetWidth(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	sv.SetWidth(120)
 
@@ -173,13 +173,13 @@ func TestStatusView_SetWidth(t *testing.T) {
 }
 
 func TestStatusView_SetHeight(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	sv.SetHeight(4)
 }
 
 func TestStatusView_Render(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	output := sv.Render()
 	if output != "" {
@@ -217,7 +217,7 @@ func TestStatusView_Render(t *testing.T) {
 }
 
 func TestStatusView_StateTransitions(t *testing.T) {
-	sv := NewStatusView()
+	sv := NewStatusView(nil)
 
 	sv.ShowStatus("Normal")
 	sv.ShowError("Error occurred")

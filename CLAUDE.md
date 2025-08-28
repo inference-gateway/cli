@@ -18,6 +18,8 @@ ALWAYS review Taskfile.yml for available developer tasks.
 
 ALWAYS use named imports for nonstandard library packages.
 
+ALWAYS delete old code, backward compatibility is not a priority.
+
 Please refer to AGENTS.md for more information.
 
 ## Project Overview

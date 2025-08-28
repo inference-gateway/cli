@@ -71,6 +71,13 @@ type ModelSelectedEvent struct {
 
 func (e ModelSelectedEvent) GetType() UIEventType { return UIEventModelSelected }
 
+// ThemeSelectedEvent indicates theme selection
+type ThemeSelectedEvent struct {
+	Theme string
+}
+
+func (e ThemeSelectedEvent) GetType() UIEventType { return UIEventThemeSelected }
+
 // ConversationSelectedEvent indicates conversation selection
 type ConversationSelectedEvent struct {
 	ConversationID string

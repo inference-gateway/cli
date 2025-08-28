@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.47.0](https://github.com/inference-gateway/cli/compare/v0.46.1...v0.47.0) (2025-08-28)
+
+### 🚀 Features
+
+* Implement /theme shortcut for theme selection ([#138](https://github.com/inference-gateway/cli/issues/138)) ([d21605f](https://github.com/inference-gateway/cli/commit/d21605f237783c75bc3a90670e7f40fd1ce593bb)), closes [#127](https://github.com/inference-gateway/cli/issues/127)
+
 ## [0.46.1](https://github.com/inference-gateway/cli/compare/v0.46.0...v0.46.1) (2025-08-27)
 
 ### 📚 Documentation

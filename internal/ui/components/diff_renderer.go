@@ -4,14 +4,14 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	lipgloss "github.com/charmbracelet/lipgloss"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // DiffRenderer provides high-performance diff rendering with colors
 type DiffRenderer struct {
-	theme         shared.Theme
+	themeService  domain.ThemeService
 	additionStyle lipgloss.Style
 	deletionStyle lipgloss.Style
 	headerStyle   lipgloss.Style
@@ -22,9 +22,9 @@ type DiffRenderer struct {
 }
 
 // NewDiffRenderer creates a new diff renderer with colored output
-func NewDiffRenderer(theme shared.Theme) *DiffRenderer {
+func NewDiffRenderer(themeService domain.ThemeService) *DiffRenderer {
 	return &DiffRenderer{
-		theme:         theme,
+		themeService:  themeService,
 		additionStyle: lipgloss.NewStyle().Foreground(colors.DiffAddColor.GetLipglossColor()),
 		deletionStyle: lipgloss.NewStyle().Foreground(colors.DiffRemoveColor.GetLipglossColor()),
 		headerStyle:   lipgloss.NewStyle().Foreground(colors.HeaderColor.GetLipglossColor()),
@@ -165,7 +165,7 @@ type DiffInfo struct {
 // NewToolDiffRenderer creates a tool diff renderer (alias for DiffRenderer)
 func NewToolDiffRenderer() *DiffRenderer {
 	return &DiffRenderer{
-		theme:         nil,
+		themeService:  nil,
 		additionStyle: lipgloss.NewStyle().Foreground(colors.DiffAddColor.GetLipglossColor()),
 		deletionStyle: lipgloss.NewStyle().Foreground(colors.DiffRemoveColor.GetLipglossColor()),
 		headerStyle:   lipgloss.NewStyle().Foreground(colors.HeaderColor.GetLipglossColor()),

@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/shortcuts"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 )
 
 func TestCreateConversationView(t *testing.T) {
-	cv := CreateConversationView()
+	cv := CreateConversationView(nil)
 
 	if cv == nil {
 		t.Fatal("Expected CreateConversationView to return non-nil component")
@@ -59,7 +59,7 @@ func TestCreateInputView(t *testing.T) {
 }
 
 func TestCreateStatusView(t *testing.T) {
-	sv := CreateStatusView()
+	sv := CreateStatusView(nil)
 
 	if sv == nil {
 		t.Fatal("Expected CreateStatusView to return non-nil component")
@@ -67,7 +67,7 @@ func TestCreateStatusView(t *testing.T) {
 }
 
 func TestCreateHelpBar(t *testing.T) {
-	hb := CreateHelpBar()
+	hb := CreateHelpBar(nil)
 
 	if hb == nil {
 		t.Fatal("Expected CreateHelpBar to return non-nil component")

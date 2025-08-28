@@ -226,3 +226,5 @@ conversation:
       Respond with ONLY the title, no quotes or explanation.
     batch_size: 10
     interval: 0
+chat:
+  theme: dracula

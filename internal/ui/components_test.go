@@ -4,12 +4,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 func TestConversationViewBasic(t *testing.T) {
-	cv := CreateConversationView()
+	cv := CreateConversationView(nil)
 	cv.SetWidth(80)
 	cv.SetHeight(5)
 
@@ -60,7 +60,7 @@ func TestInputViewBasic(t *testing.T) {
 }
 
 func TestStatusViewBasic(t *testing.T) {
-	sv := CreateStatusView()
+	sv := CreateStatusView(nil)
 	sv.SetWidth(80)
 
 	sv.ShowStatus("Test status")
@@ -91,7 +91,7 @@ func TestStatusViewBasic(t *testing.T) {
 }
 
 func TestHelpBarBasic(t *testing.T) {
-	hb := CreateHelpBar()
+	hb := CreateHelpBar(nil)
 	hb.SetWidth(80)
 
 	shortcuts := []KeyShortcut{

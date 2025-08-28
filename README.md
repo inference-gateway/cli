@@ -948,70 +948,6 @@ tools:
 compact:
   output_dir: .infer # Directory for compact command exports
   summary_model: "" # Model to use for summarization (optional)
-chat:
-  default_model: "" # Default model for chat sessions (when set, skips model selection)
-  system_prompt: |
-    You are an assistant for software engineering tasks.
-
-    ## Security
-
-    * Defensive security only. No offensive/malicious code.
-    * Allowed: analysis, detection rules, defensive tools, docs.
-
-    ## URLs
-
-    * Never guess/generate. Use only user-provided or local.
-
-    ## Style
-
-    * Concise (<4 lines).
-    * No pre/postamble. Answer directly.
-    * Prefer one-word/short answers.
-    * Explain bash only if non-trivial.
-    * No emojis unless asked.
-    * No code comments unless asked.
-
-    ## Proactiveness
-
-    * Act only when asked. Don't surprise user.
-
-    ## Code Conventions
-
-    * Follow existing style, libs, idioms.
-    * Never assume deps. Check imports/config.
-    * No secrets in code/logs.
-
-    ## Tasks
-
-    * Always plan with **TodoWrite**.
-    * Mark todos in_progress/completed immediately.
-    * Don't batch completions.
-
-    IMPORTANT: DO NOT provide code examples - instead apply them directly in the code using tools.
-    IMPORTANT: if the user provide a file with the prefix chat_export_* you only read between
-    the title "## Summary" and "---" - To get an overall overview of what was discussed.
-    Only dive deeper if you absolutely need to.
-
-    ## Workflow
-
-    1. Plan with TodoWrite.
-    2. Explore code via search.
-    3. Implement.
-    4. Verify with tests (prefer using task test).
-    5. Run lint/typecheck (ask if unknown). Suggest documenting.
-    6. Commit only if asked.
-
-    ## Tools
-
-    * Prefer Grep tool for search.
-    * Use agents when relevant.
-    * Handle redirects.
-    * Batch tool calls for efficiency.
-  system_reminders:
-    enabled: true # Enable system reminders during chat sessions
-    interval: 10 # Send reminder every N messages (default: 10)
-    text: | # Custom reminder text (optional)
-      Remember to follow the established patterns and check existing code before implementing new features.
 agent:
   model: "" # Default model for agent operations
   system_prompt: | # System prompt for agent sessions
@@ -1051,6 +987,8 @@ agent:
     compact_threshold: 20
     truncate_large_outputs: true
     skip_redundant_confirmations: true
+chat:
+  theme: tokyo-night
 ```
 
 ### Configuration Options
@@ -1126,6 +1064,13 @@ agent:
 - **web_search.max_results**: Maximum number of search results to return (1-50, default: 10)
 - **web_search.engines**: List of available search engines
 - **web_search.timeout**: Search timeout in seconds (default: 10)
+
+**Chat Interface Settings:**
+
+- **chat.theme**: Chat interface theme name (default: "tokyo-night")
+  - Available themes: `tokyo-night`, `github-light`, `dracula`
+  - Can be changed during chat using `/theme [theme-name]` shortcut
+  - Affects colors and styling of the chat interface
 
 #### Web Search API Setup (Optional)
 
@@ -1253,6 +1198,7 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 - `/exit` - Exit the chat session
 - `/help [shortcut]` - Show available shortcuts or specific shortcut help
 - `/switch [model]` - Switch to a different model
+- `/theme [theme-name]` - Switch chat interface theme or list available themes
 - `/config <show|get|set|reload> [key] [value]` - Manage configuration settings
 - `/compact [format]` - Export conversation to markdown
 
