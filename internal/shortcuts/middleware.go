@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/inference-gateway/cli/config"
+	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	"github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -29,11 +31,13 @@ func (a *A2AShortcut) CanExecute(args []string) bool { return len(args) == 0 }
 
 func (a *A2AShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	var output strings.Builder
-	output.WriteString("## A2A Server Status\n\n")
+	header := colors.CreateColoredText("## A2A Server Status\n\n", colors.HeaderColor)
+	output.WriteString(header)
 
 	gatewayURL := a.config.Gateway.URL
 	if gatewayURL == "" {
-		output.WriteString("❌ **Gateway URL not configured**\n\n")
+		errorIcon := icons.StyledCrossMark()
+		output.WriteString(fmt.Sprintf("%s **Gateway URL not configured**\n\n", errorIcon))
 		output.WriteString("Configure the gateway URL in your config:\n")
 		output.WriteString("```yaml\n")
 		output.WriteString("gateway:\n")
@@ -46,27 +50,35 @@ func (a *A2AShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 		}, nil
 	}
 
-	output.WriteString(fmt.Sprintf("🌐 **Gateway URL:** %s\n", gatewayURL))
+	networkLabel := colors.CreateColoredText("🌐", colors.AccentColor)
+	output.WriteString(fmt.Sprintf("%s **Gateway URL:** %s\n", networkLabel, gatewayURL))
 
 	if a.config.Gateway.Middlewares.A2A {
-		output.WriteString("✅ **A2A Middleware:** Enabled (tools execute on Gateway)\n")
+		successIcon := icons.StyledCheckMark()
+		output.WriteString(fmt.Sprintf("%s **A2A Middleware:** Enabled (tools execute on Gateway)\n", successIcon))
 	} else {
-		output.WriteString("❌ **A2A Middleware:** Disabled (tools execute on client)\n")
+		errorIcon := icons.StyledCrossMark()
+		output.WriteString(fmt.Sprintf("%s **A2A Middleware:** Disabled (tools execute on client)\n", errorIcon))
 	}
 
-	output.WriteString("\n### A2A Server Information\n")
+	subheader := colors.CreateColoredText("\n### A2A Server Information\n", colors.StatusColor)
+	output.WriteString(subheader)
 	output.WriteString("A2A (Agent-to-Agent) middleware is configured to handle tool execution on the Gateway.\n")
 	output.WriteString("When enabled, A2A tools are centralized for shared access across all clients.\n\n")
 
 	apiKey := a.config.Gateway.APIKey
+	keyLabel := colors.CreateColoredText("🔑", colors.WarningColor)
 	if apiKey == "" {
-		output.WriteString("⚠️  **API Key:** Not configured - connection may fail\n")
+		warningIcon := colors.CreateColoredText("⚠️", colors.WarningColor)
+		output.WriteString(fmt.Sprintf("%s %s **API Key:** Not configured - connection may fail\n", warningIcon, keyLabel))
 	} else {
-		output.WriteString("🔑 **API Key:** Configured\n")
+		successIcon := icons.StyledCheckMark()
+		output.WriteString(fmt.Sprintf("%s %s **API Key:** Configured\n", successIcon, keyLabel))
 	}
 
 	timeout := a.config.Gateway.Timeout
-	output.WriteString(fmt.Sprintf("⏱️  **Connection Timeout:** %d seconds\n", timeout))
+	timeLabel := colors.CreateColoredText("⏱️", colors.DimColor)
+	output.WriteString(fmt.Sprintf("%s **Connection Timeout:** %d seconds\n", timeLabel, timeout))
 
 	return ShortcutResult{
 		Output:  output.String(),
@@ -94,11 +106,13 @@ func (m *MCPShortcut) CanExecute(args []string) bool { return len(args) == 0 }
 
 func (m *MCPShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	var output strings.Builder
-	output.WriteString("## MCP Server Status\n\n")
+	header := colors.CreateColoredText("## MCP Server Status\n\n", colors.HeaderColor)
+	output.WriteString(header)
 
 	gatewayURL := m.config.Gateway.URL
 	if gatewayURL == "" {
-		output.WriteString("❌ **Gateway URL not configured**\n\n")
+		errorIcon := icons.StyledCrossMark()
+		output.WriteString(fmt.Sprintf("%s **Gateway URL not configured**\n\n", errorIcon))
 		output.WriteString("Configure the gateway URL in your config:\n")
 		output.WriteString("```yaml\n")
 		output.WriteString("gateway:\n")
@@ -111,27 +125,35 @@ func (m *MCPShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 		}, nil
 	}
 
-	output.WriteString(fmt.Sprintf("🌐 **Gateway URL:** %s\n", gatewayURL))
+	networkLabel := colors.CreateColoredText("🌐", colors.AccentColor)
+	output.WriteString(fmt.Sprintf("%s **Gateway URL:** %s\n", networkLabel, gatewayURL))
 
 	if m.config.Gateway.Middlewares.MCP {
-		output.WriteString("✅ **MCP Middleware:** Enabled (tools execute on Gateway)\n")
+		successIcon := icons.StyledCheckMark()
+		output.WriteString(fmt.Sprintf("%s **MCP Middleware:** Enabled (tools execute on Gateway)\n", successIcon))
 	} else {
-		output.WriteString("❌ **MCP Middleware:** Disabled (tools execute on client)\n")
+		errorIcon := icons.StyledCrossMark()
+		output.WriteString(fmt.Sprintf("%s **MCP Middleware:** Disabled (tools execute on client)\n", errorIcon))
 	}
 
-	output.WriteString("\n### MCP Server Information\n")
+	subheader := colors.CreateColoredText("\n### MCP Server Information\n", colors.StatusColor)
+	output.WriteString(subheader)
 	output.WriteString("MCP (Model Context Protocol) middleware provides centralized tool and resource management.\n")
 	output.WriteString("When enabled, MCP tools are shared across all clients with unified configurations.\n\n")
 
 	apiKey := m.config.Gateway.APIKey
+	keyLabel := colors.CreateColoredText("🔑", colors.WarningColor)
 	if apiKey == "" {
-		output.WriteString("⚠️  **API Key:** Not configured - connection may fail\n")
+		warningIcon := colors.CreateColoredText("⚠️", colors.WarningColor)
+		output.WriteString(fmt.Sprintf("%s %s **API Key:** Not configured - connection may fail\n", warningIcon, keyLabel))
 	} else {
-		output.WriteString("🔑 **API Key:** Configured\n")
+		successIcon := icons.StyledCheckMark()
+		output.WriteString(fmt.Sprintf("%s %s **API Key:** Configured\n", successIcon, keyLabel))
 	}
 
 	timeout := m.config.Gateway.Timeout
-	output.WriteString(fmt.Sprintf("⏱️  **Connection Timeout:** %d seconds\n", timeout))
+	timeLabel := colors.CreateColoredText("⏱️", colors.DimColor)
+	output.WriteString(fmt.Sprintf("%s **Connection Timeout:** %d seconds\n", timeLabel, timeout))
 
 	return ShortcutResult{
 		Output:  output.String(),
