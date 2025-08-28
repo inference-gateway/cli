@@ -30,7 +30,7 @@ type ChatApplication struct {
 	toolService      domain.ToolService
 	fileService      domain.FileService
 	shortcutRegistry *shortcuts.Registry
-	theme            ui.Theme
+	themeService     domain.ThemeService
 	toolRegistry     *tools.Registry
 
 	// State management
@@ -44,6 +44,7 @@ type ChatApplication struct {
 	helpBar              ui.HelpBarComponent
 	approvalView         ui.ApprovalComponent
 	modelSelector        *components.ModelSelectorImpl
+	themeSelector        *components.ThemeSelectorImpl
 	conversationSelector *components.ConversationSelectorImpl
 	fileSelectionView    *components.FileSelectionView
 	textSelectionView    *components.TextSelectionView
@@ -78,7 +79,7 @@ func NewChatApplication(
 	shortcutRegistry *shortcuts.Registry,
 	stateManager *services.StateManager,
 	toolOrchestrator *services.ToolExecutionOrchestrator,
-	theme ui.Theme,
+	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
 	configPath string,
 ) *ChatApplication {
@@ -95,7 +96,7 @@ func NewChatApplication(
 		toolService:      toolService,
 		fileService:      fileService,
 		shortcutRegistry: shortcutRegistry,
-		theme:            theme,
+		themeService:     themeService,
 		toolRegistry:     toolRegistry,
 		availableModels:  models,
 		stateManager:     stateManager,
@@ -106,7 +107,7 @@ func NewChatApplication(
 		logger.Error("Failed to transition to initial view", "error", err)
 	}
 
-	app.conversationView = ui.CreateConversationView()
+	app.conversationView = ui.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
@@ -119,26 +120,30 @@ func NewChatApplication(
 	}
 
 	app.inputView = ui.CreateInputViewWithToolServiceAndConfigDir(app.modelService, app.shortcutRegistry, app.toolService, configDir)
-	app.statusView = ui.CreateStatusView()
-	app.helpBar = ui.CreateHelpBar()
-	app.approvalView = ui.CreateApprovalView(app.theme)
+	if iv, ok := app.inputView.(*components.InputView); ok {
+		iv.SetThemeService(app.themeService)
+	}
+	app.statusView = ui.CreateStatusView(app.themeService)
+	app.helpBar = ui.CreateHelpBar(app.themeService)
+	app.approvalView = ui.CreateApprovalView(app.themeService)
 	if av, ok := app.approvalView.(*components.ApprovalComponent); ok {
 		av.SetToolFormatter(toolFormatterService)
 	}
-	app.fileSelectionView = components.NewFileSelectionView(app.theme)
+	app.fileSelectionView = components.NewFileSelectionView(app.themeService)
 	app.textSelectionView = components.NewTextSelectionView()
 
-	app.applicationViewRenderer = components.NewApplicationViewRenderer(app.theme)
-	app.fileSelectionHandler = components.NewFileSelectionHandler(app.theme)
+	app.applicationViewRenderer = components.NewApplicationViewRenderer(app.themeService)
+	app.fileSelectionHandler = components.NewFileSelectionHandler(app.themeService)
 
 	app.keyBindingManager = keybinding.NewKeyBindingManager(app)
 	app.updateHelpBarShortcuts()
 
-	app.modelSelector = components.NewModelSelector(models, app.modelService, app.theme)
+	app.modelSelector = components.NewModelSelector(models, app.modelService, app.themeService)
+	app.themeSelector = components.NewThemeSelector(app.themeService)
 
 	if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
-		app.conversationSelector = components.NewConversationSelector(adapter, app.theme)
+		app.conversationSelector = components.NewConversationSelector(adapter, app.themeService)
 	} else {
 		app.conversationSelector = nil
 	}
@@ -277,6 +282,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleTextSelectionView(msg)
 	case domain.ViewStateConversationSelection:
 		return app.handleConversationSelectionView(msg)
+	case domain.ViewStateThemeSelection:
+		return app.handleThemeSelectionView(msg)
 	default:
 		return nil
 	}
@@ -398,6 +405,8 @@ func (app *ChatApplication) View() string {
 		return app.renderTextSelection()
 	case domain.ViewStateConversationSelection:
 		return app.renderConversationSelection()
+	case domain.ViewStateThemeSelection:
+		return app.renderThemeSelection()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -469,6 +478,87 @@ func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cm
 
 	app.focusedComponent = app.inputView
 	return cmds
+}
+
+func (app *ChatApplication) handleThemeSelectionView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.themeSelector.IsSelected() || app.themeSelector.IsCancelled() {
+		app.themeSelector.Reset()
+		if cmd := app.themeSelector.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	model, cmd := app.themeSelector.Update(msg)
+	app.themeSelector = model.(*components.ThemeSelectorImpl)
+
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return app.handleThemeSelection(cmds)
+}
+
+func (app *ChatApplication) handleThemeSelection(cmds []tea.Cmd) []tea.Cmd {
+	if app.themeSelector.IsSelected() {
+		return app.handleThemeSelected(cmds)
+	}
+
+	if app.themeSelector.IsCancelled() {
+		return app.handleThemeCancelled(cmds)
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) handleThemeSelected(cmds []tea.Cmd) []tea.Cmd {
+	selectedTheme := app.themeSelector.GetSelected()
+	if selectedTheme != "" {
+		app.updateAllComponentsWithNewTheme()
+
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ThemeSelectedEvent{Theme: selectedTheme}
+		})
+	}
+
+	return app.handleThemeCancelled(cmds)
+}
+
+func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to return to chat: %v", err),
+				Sticky: false,
+			}
+		})
+	}
+
+	app.focusedComponent = app.inputView
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent{
+			History: app.conversationRepo.GetMessages(),
+		}
+	})
+
+	return cmds
+}
+
+func (app *ChatApplication) updateAllComponentsWithNewTheme() {
+	if inputView, ok := app.inputView.(*components.InputView); ok {
+		inputView.SetThemeService(app.themeService)
+	}
+
+	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.themeService)
+}
+
+func (app *ChatApplication) renderThemeSelection() string {
+	width, height := app.stateManager.GetDimensions()
+	app.themeSelector.SetWidth(width)
+	app.themeSelector.SetHeight(height)
+	return app.themeSelector.View()
 }
 
 func (app *ChatApplication) renderConversationSelection() string {

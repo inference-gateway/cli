@@ -164,6 +164,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain AgentService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ModelService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ConfigService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ThemeService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ConversationRepository
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain SDKClient
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/infra/storage ConversationStorage
@@ -191,6 +192,7 @@ tasks:
       - "tests/mocks/generated/fake_agent_service.go"
       - "tests/mocks/generated/fake_model_service.go"
       - "tests/mocks/generated/fake_config_service.go"
+      - "tests/mocks/generated/fake_theme_service.go"
       - "tests/mocks/generated/fake_conversation_repository.go"
       - "tests/mocks/generated/fake_conversation_storage.go"
       - "tests/mocks/generated/fake_conversation_renderer.go"

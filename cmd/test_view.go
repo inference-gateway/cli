@@ -10,6 +10,7 @@ import (
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	generated "github.com/inference-gateway/cli/tests/mocks/generated"
 	cobra "github.com/spf13/cobra"
 )
 
@@ -65,15 +66,23 @@ func createTestTheme() shared.Theme {
 	return ui.NewDefaultTheme()
 }
 
+func createTestThemeService() domain.ThemeService {
+	fakeThemeService := &generated.FakeThemeService{}
+	fakeThemeService.GetCurrentThemeReturns(ui.NewDefaultTheme())
+	fakeThemeService.GetCurrentThemeNameReturns("default")
+	fakeThemeService.ListThemesReturns([]string{"default"})
+	return fakeThemeService
+}
+
 func testApprovalView(theme shared.Theme) {
 	fmt.Println("🔧 Testing Approval View Component")
 	fmt.Println(colors.CreateSeparator(50, "─"))
 
-	approvalComponent := components.NewApprovalComponent(theme)
+	themeService := createTestThemeService()
+	approvalComponent := components.NewApprovalComponent(themeService)
 	approvalComponent.SetWidth(componentWidth)
 	approvalComponent.SetHeight(componentHeight)
 
-	// Create sample tool execution session
 	toolCall := &domain.ToolCall{
 		Name: "Edit",
 		Arguments: map[string]interface{}{
@@ -89,12 +98,10 @@ func testApprovalView(theme shared.Theme) {
 		CurrentTool:      toolCall,
 	}
 
-	// Test with different formatter if Edit tool needs special formatting
-	diffRenderer := components.NewDiffRenderer(theme)
+	diffRenderer := components.NewDiffRenderer(createTestThemeService())
 	toolFormatter := &MockToolFormatter{diffRenderer: diffRenderer}
 	approvalComponent.SetToolFormatter(toolFormatter)
 
-	// Test with different selected indices
 	selectedIndices := []int{0, 1}
 	for i, selectedIndex := range selectedIndices {
 		fmt.Printf("\n--- Test Case %d: Selected Index %d ---\n", i+1, selectedIndex)
@@ -112,7 +119,6 @@ func testMultiEditView(theme shared.Theme) {
 	fmt.Println("✏️  Testing MultiEdit Tool Collapsed View")
 	fmt.Println(colors.CreateSeparator(50, "─"))
 
-	// Simulate a MultiEdit tool result for collapsed display
 	fmt.Println("\n--- Test Case 1: Collapsed View (Success) ---")
 	fmt.Println("Simulating: MultiEdit(file=demo.go, 3 edits)")
 	fmt.Println("└─ ✓ Applied 3/3 edits to demo.go (45 bytes difference)")
@@ -122,7 +128,7 @@ func testMultiEditView(theme shared.Theme) {
 	fmt.Println("└─ ✗ Multi-edit failed")
 
 	fmt.Println("\n--- Test Case 3: Expanded MultiEdit Diff ---")
-	diffRenderer := components.NewDiffRenderer(theme)
+	diffRenderer := components.NewDiffRenderer(createTestThemeService())
 	multiEditArgs := map[string]any{
 		"file_path": "/Users/example/demo.go",
 		"edits": []any{
@@ -141,7 +147,6 @@ func testMultiEditView(theme shared.Theme) {
 		},
 	}
 
-	// Show what the expanded view would look like
 	expandedOutput := diffRenderer.RenderMultiEditToolArguments(multiEditArgs)
 	fmt.Println(expandedOutput)
 
@@ -151,7 +156,6 @@ func testMultiEditView(theme shared.Theme) {
 		"edits":     make([]any, 0),
 	}
 
-	// Generate many edits
 	edits := largeEditArgs["edits"].([]any)
 	for i := 1; i <= 10; i++ {
 		edits = append(edits, map[string]any{
@@ -167,7 +171,7 @@ func testMultiEditView(theme shared.Theme) {
 	fmt.Println("└─ ✓ Applied 10/10 edits to large_refactor.go (350 bytes difference)")
 
 	fmt.Println("\nExpanded view preview (first 3 edits):")
-	// Show only first 3 edits for brevity
+
 	previewArgs := map[string]any{
 		"file_path": largeEditArgs["file_path"],
 		"edits":     edits[:3],
@@ -181,9 +185,8 @@ func testDiffRenderer(theme shared.Theme) {
 	fmt.Println("🎨 Testing Diff Renderer Component")
 	fmt.Println(colors.CreateSeparator(50, "─"))
 
-	diffRenderer := components.NewDiffRenderer(theme)
+	diffRenderer := components.NewDiffRenderer(createTestThemeService())
 
-	// Test 1: Edit tool arguments
 	fmt.Println("\n--- Test Case 1: Edit Tool Arguments ---")
 	editArgs := map[string]any{
 		"file_path":   "internal/ui/components/approval_view.go",
@@ -194,7 +197,6 @@ func testDiffRenderer(theme shared.Theme) {
 	editOutput := diffRenderer.RenderEditToolArguments(editArgs)
 	fmt.Println(editOutput)
 
-	// Test 2: MultiEdit tool arguments with multiple edits
 	fmt.Println("\n--- Test Case 2: MultiEdit Tool Arguments (3 edits) ---")
 	multiEditArgs := map[string]any{
 		"file_path": "internal/ui/components/test_component.go",
@@ -219,7 +221,6 @@ func testDiffRenderer(theme shared.Theme) {
 	multiEditOutput := diffRenderer.RenderMultiEditToolArguments(multiEditArgs)
 	fmt.Println(multiEditOutput)
 
-	// Test 3: New file creation diff
 	fmt.Println("\n--- Test Case 3: New File Creation ---")
 	newFileDiff := components.DiffInfo{
 		FilePath:   "new_file.go",
@@ -230,7 +231,6 @@ func testDiffRenderer(theme shared.Theme) {
 	newFileOutput := diffRenderer.RenderDiff(newFileDiff)
 	fmt.Println(newFileOutput)
 
-	// Test 4: File deletion diff
 	fmt.Println("\n--- Test Case 4: File Deletion ---")
 	deletionDiff := components.DiffInfo{
 		FilePath:   "old_file.go",
@@ -241,7 +241,6 @@ func testDiffRenderer(theme shared.Theme) {
 	deletionOutput := diffRenderer.RenderDiff(deletionDiff)
 	fmt.Println(deletionOutput)
 
-	// Test 5: Regular modification diff
 	fmt.Println("\n--- Test Case 5: Regular Modification ---")
 	modificationDiff := components.DiffInfo{
 		FilePath:   "modified_file.go",
@@ -276,7 +275,8 @@ func testLargeFileView(theme shared.Theme) {
 		fmt.Printf("Testing responsiveness at %dx%d\n", size.width, size.height)
 		fmt.Println(colors.CreateSeparator(size.width/2, "─"))
 
-		approvalComponent := components.NewApprovalComponent(theme)
+		themeService := createTestThemeService()
+		approvalComponent := components.NewApprovalComponent(themeService)
 		approvalComponent.SetWidth(size.width)
 		approvalComponent.SetHeight(size.height)
 
@@ -295,7 +295,7 @@ func testLargeFileView(theme shared.Theme) {
 			CurrentTool:      toolCall,
 		}
 
-		diffRenderer := components.NewDiffRenderer(theme)
+		diffRenderer := components.NewDiffRenderer(createTestThemeService())
 		toolFormatter := &MockToolFormatter{diffRenderer: diffRenderer}
 		approvalComponent.SetToolFormatter(toolFormatter)
 
@@ -345,11 +345,12 @@ func testLargeFileView(theme shared.Theme) {
 		CurrentTool:      writeToolCall,
 	}
 
-	approvalComponent := components.NewApprovalComponent(theme)
+	themeService := createTestThemeService()
+	approvalComponent := components.NewApprovalComponent(themeService)
 	approvalComponent.SetWidth(120)
 	approvalComponent.SetHeight(30)
 
-	diffRenderer := components.NewDiffRenderer(theme)
+	diffRenderer := components.NewDiffRenderer(createTestThemeService())
 	toolFormatter := &MockToolFormatter{diffRenderer: diffRenderer}
 	approvalComponent.SetToolFormatter(toolFormatter)
 

@@ -4,11 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/ui/shared"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 func TestNewHelpBar(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 
 	if hb == nil {
 		t.Fatal("Expected HelpBar to be created, got nil")
@@ -28,7 +28,7 @@ func TestNewHelpBar(t *testing.T) {
 }
 
 func TestHelpBar_SetShortcuts(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 
 	shortcuts := []shared.KeyShortcut{
 		{Key: "Enter", Description: "Send message"},
@@ -52,7 +52,7 @@ func TestHelpBar_SetShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_IsEnabled(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 
 	if hb.IsEnabled() {
 		t.Error("Expected help bar to be disabled by default")
@@ -60,7 +60,7 @@ func TestHelpBar_IsEnabled(t *testing.T) {
 }
 
 func TestHelpBar_SetEnabled(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 
 	hb.SetEnabled(false)
 	if hb.IsEnabled() {
@@ -74,7 +74,7 @@ func TestHelpBar_SetEnabled(t *testing.T) {
 }
 
 func TestHelpBar_SetWidth(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 
 	hb.SetWidth(120)
 
@@ -84,13 +84,13 @@ func TestHelpBar_SetWidth(t *testing.T) {
 }
 
 func TestHelpBar_SetHeight(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 
 	hb.SetHeight(2)
 }
 
 func TestHelpBar_Render_Disabled(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 	hb.SetEnabled(false)
 
 	output := hb.Render()
@@ -101,7 +101,7 @@ func TestHelpBar_Render_Disabled(t *testing.T) {
 }
 
 func TestHelpBar_Render_NoShortcuts(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 	hb.SetEnabled(true)
 
 	output := hb.Render()
@@ -112,7 +112,7 @@ func TestHelpBar_Render_NoShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_Render_WithShortcuts(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 	hb.SetEnabled(true)
 
 	shortcuts := []shared.KeyShortcut{
@@ -142,7 +142,7 @@ func TestHelpBar_Render_WithShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_Render_LongShortcuts(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 	hb.SetEnabled(true)
 	hb.SetWidth(20)
 
@@ -164,7 +164,7 @@ func TestHelpBar_Render_LongShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_Render_EmptyShortcuts(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 	hb.SetEnabled(true)
 
 	hb.SetShortcuts([]shared.KeyShortcut{})
@@ -176,7 +176,7 @@ func TestHelpBar_Render_EmptyShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_Render_SingleShortcut(t *testing.T) {
-	hb := NewHelpBar()
+	hb := NewHelpBar(nil)
 	hb.SetEnabled(true)
 
 	shortcuts := []shared.KeyShortcut{

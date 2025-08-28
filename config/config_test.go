@@ -261,12 +261,12 @@ tools:
 compact:
   output_dir: ".infer"
 
-chat:
-  optimization:
-    enabled: false
 agent:
   model: "openai/gpt-5"
   system_prompt: "You are a helpful assistant"
+
+chat:
+  theme: dracula
 `
 }
 

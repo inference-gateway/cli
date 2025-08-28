@@ -4,14 +4,15 @@ import (
 	"context"
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/shortcuts"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 )
 
 func TestConversationSelectorImpl_Reset(t *testing.T) {
 	mockRepo := &mockPersistentConversationRepository{}
-	theme := &mockTheme{}
+	themeService := &mockThemeService{}
 
-	selector := NewConversationSelector(mockRepo, theme)
+	selector := NewConversationSelector(mockRepo, themeService)
 
 	selector.done = true
 	selector.cancelled = true
@@ -58,9 +59,9 @@ func TestConversationSelectorImpl_Reset(t *testing.T) {
 
 func TestConversationSelectorImpl_ResetAllowsReuse(t *testing.T) {
 	mockRepo := &mockPersistentConversationRepository{}
-	theme := &mockTheme{}
+	themeService := &mockThemeService{}
 
-	selector := NewConversationSelector(mockRepo, theme)
+	selector := NewConversationSelector(mockRepo, themeService)
 
 	selector.cancelled = true
 	selector.done = true
@@ -136,3 +137,22 @@ func (t *mockTheme) GetDimColor() string        { return "" }
 func (t *mockTheme) GetBorderColor() string     { return "" }
 func (t *mockTheme) GetDiffAddColor() string    { return "" }
 func (t *mockTheme) GetDiffRemoveColor() string { return "" }
+
+// Mock theme service for testing
+type mockThemeService struct{}
+
+func (s *mockThemeService) GetCurrentTheme() domain.Theme {
+	return &mockTheme{}
+}
+
+func (s *mockThemeService) SetTheme(theme string) error {
+	return nil
+}
+
+func (s *mockThemeService) GetCurrentThemeName() string {
+	return "test-theme"
+}
+
+func (s *mockThemeService) ListThemes() []string {
+	return []string{"test-theme"}
+}

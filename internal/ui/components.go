@@ -7,8 +7,8 @@ import (
 )
 
 // CreateConversationView creates a new conversation view component
-func CreateConversationView() ConversationRenderer {
-	return components.NewConversationView()
+func CreateConversationView(themeService domain.ThemeService) ConversationRenderer {
+	return components.NewConversationView(themeService)
 }
 
 // CreateInputView creates a new input view component
@@ -41,18 +41,18 @@ func CreateInputViewWithToolServiceAndConfigDir(modelService domain.ModelService
 }
 
 // CreateStatusView creates a new status view component
-func CreateStatusView() StatusComponent {
-	return components.NewStatusView()
+func CreateStatusView(themeService domain.ThemeService) StatusComponent {
+	return components.NewStatusView(themeService)
 }
 
 // CreateHelpBar creates a new help bar component
-func CreateHelpBar() HelpBarComponent {
-	return components.NewHelpBar()
+func CreateHelpBar(themeService domain.ThemeService) HelpBarComponent {
+	return components.NewHelpBar(themeService)
 }
 
 // CreateApprovalView creates a new approval view component
-func CreateApprovalView(theme Theme) ApprovalComponent {
-	return components.NewApprovalComponent(theme)
+func CreateApprovalView(themeService domain.ThemeService) ApprovalComponent {
+	return components.NewApprovalComponent(themeService)
 }
 
 // Layout calculations - simplified without interfaces

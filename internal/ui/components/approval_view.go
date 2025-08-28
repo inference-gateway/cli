@@ -6,12 +6,11 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
-	"github.com/muesli/reflow/wordwrap"
+	lipgloss "github.com/charmbracelet/lipgloss"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	wordwrap "github.com/muesli/reflow/wordwrap"
 )
 
 // min returns the smaller of two integers
@@ -26,7 +25,7 @@ func min(a, b int) int {
 type ApprovalComponent struct {
 	width           int
 	height          int
-	theme           shared.Theme
+	themeService    domain.ThemeService
 	toolFormatter   domain.ToolFormatter
 	styles          *approvalStyles
 	scrollOffset    int
@@ -48,7 +47,7 @@ type approvalStyles struct {
 }
 
 // NewApprovalComponent creates a new approval component
-func NewApprovalComponent(theme shared.Theme) *ApprovalComponent {
+func NewApprovalComponent(themeService domain.ThemeService) *ApprovalComponent {
 	styles := &approvalStyles{
 		title: lipgloss.NewStyle().
 			Foreground(colors.HeaderColor.GetLipglossColor()).
@@ -88,8 +87,8 @@ func NewApprovalComponent(theme shared.Theme) *ApprovalComponent {
 	}
 
 	return &ApprovalComponent{
-		theme:  theme,
-		styles: styles,
+		themeService: themeService,
+		styles:       styles,
 	}
 }
 

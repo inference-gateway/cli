@@ -84,9 +84,11 @@ tools:
     require_approval: true
 compact:
   output_dir: .infer
-chat:
+agent:
   default_model: ""
   system_prompt: ""
+chat:
+  theme: tokyo-night
 ```
 
 ## Basic Usage Examples

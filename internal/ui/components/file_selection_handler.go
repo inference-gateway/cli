@@ -15,9 +15,9 @@ type FileSelectionHandler struct {
 }
 
 // NewFileSelectionHandler creates a new file selection handler
-func NewFileSelectionHandler(theme shared.Theme) *FileSelectionHandler {
+func NewFileSelectionHandler(themeService domain.ThemeService) *FileSelectionHandler {
 	return &FileSelectionHandler{
-		view: NewFileSelectionView(theme),
+		view: NewFileSelectionView(themeService),
 	}
 }
 

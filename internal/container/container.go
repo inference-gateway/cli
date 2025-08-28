@@ -15,7 +15,6 @@ import (
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	sdk "github.com/inference-gateway/sdk"
 	viper "github.com/spf13/viper"
 )
@@ -45,7 +44,7 @@ type ServiceContainer struct {
 	storage              storage.ConversationStorage
 
 	// UI components
-	theme ui.Theme
+	themeService domain.ThemeService
 
 	// Extensibility
 	shortcutRegistry *shortcuts.Registry
@@ -168,7 +167,15 @@ func (c *ServiceContainer) initializeServices() {
 
 // initializeUIComponents creates UI components and theme
 func (c *ServiceContainer) initializeUIComponents() {
-	c.theme = ui.NewDefaultTheme()
+	themeProvider := domain.NewThemeProvider()
+
+	if configuredTheme := c.config.GetTheme(); configuredTheme != "" {
+		if err := themeProvider.SetTheme(configuredTheme); err != nil {
+			logger.Warn("failed to set configured theme, using default", "theme", configuredTheme, "error", err)
+		}
+	}
+
+	c.themeService = themeProvider
 }
 
 // initializeExtensibility sets up extensible systems
@@ -183,6 +190,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewExportShortcut(c.conversationRepo, c.agentService, c.modelService, c.config))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
+	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeService))
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 
 	if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
@@ -246,8 +254,12 @@ func (c *ServiceContainer) GetFileService() domain.FileService {
 	return c.fileService
 }
 
-func (c *ServiceContainer) GetTheme() ui.Theme {
-	return c.theme
+func (c *ServiceContainer) GetTheme() domain.Theme {
+	return c.themeService.GetCurrentTheme()
+}
+
+func (c *ServiceContainer) GetThemeService() domain.ThemeService {
+	return c.themeService
 }
 
 func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
