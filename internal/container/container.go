@@ -167,7 +167,15 @@ func (c *ServiceContainer) initializeServices() {
 
 // initializeUIComponents creates UI components and theme
 func (c *ServiceContainer) initializeUIComponents() {
-	c.themeService = domain.NewThemeProvider()
+	themeProvider := domain.NewThemeProvider()
+
+	if configuredTheme := c.config.GetTheme(); configuredTheme != "" {
+		if err := themeProvider.SetTheme(configuredTheme); err != nil {
+			logger.Warn("failed to set configured theme, using default", "theme", configuredTheme, "error", err)
+		}
+	}
+
+	c.themeService = themeProvider
 }
 
 // initializeExtensibility sets up extensible systems

@@ -31,6 +31,7 @@ type Config struct {
 	Git          GitConfig          `yaml:"git" mapstructure:"git"`
 	Storage      StorageConfig      `yaml:"storage" mapstructure:"storage"`
 	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
+	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -239,6 +240,11 @@ type ConversationTitleConfig struct {
 	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
 	BatchSize    int    `yaml:"batch_size" mapstructure:"batch_size"`
 	Interval     int    `yaml:"interval" mapstructure:"interval"`
+}
+
+// ChatConfig contains chat interface settings
+type ChatConfig struct {
+	Theme string `yaml:"theme" mapstructure:"theme"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -546,6 +552,9 @@ EXAMPLES:
 Respond with ONLY the title, no quotes or explanation.`,
 			},
 		},
+		Chat: ChatConfig{
+			Theme: "tokyo-night",
+		},
 	}
 }
 
@@ -635,6 +644,10 @@ func (c *Config) GetSandboxDirectories() []string {
 
 func (c *Config) GetProtectedPaths() []string {
 	return c.Tools.Sandbox.ProtectedPaths
+}
+
+func (c *Config) GetTheme() string {
+	return c.Chat.Theme
 }
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories
