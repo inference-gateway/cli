@@ -339,8 +339,6 @@ func (s *AgentServiceImpl) handleStreamEvent(event sdk.SSEvent, events chan<- do
 		return false
 
 	case sdk.StreamEnd:
-		// Only terminate if this is truly the final completion (finish_reason: "stop")
-		// For A2A workflows, continue streaming until we get the final response
 		if s.shouldTerminateStream(event) {
 			return true
 		}
