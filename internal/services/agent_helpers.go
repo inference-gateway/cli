@@ -141,8 +141,8 @@ func (s *AgentServiceImpl) generateContentSync(timeoutCtx context.Context, model
 	response, err := clientWithTools.
 		WithOptions(options).
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
-			SkipMCP: true,
-			SkipA2A: true,
+			SkipMCP: s.config.ShouldSkipMCPToolOnClient(),
+			SkipA2A: s.config.ShouldSkipA2AToolOnClient(),
 		}).
 		GenerateContent(timeoutCtx, providerType, modelName, messages)
 	if err != nil {
@@ -235,8 +235,8 @@ func (s *AgentServiceImpl) createContentStream(timeoutCtx context.Context, model
 	stream, err := clientWithTools.
 		WithOptions(options).
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
-			SkipMCP: true,
-			SkipA2A: true,
+			SkipMCP: s.config.ShouldSkipMCPToolOnClient(),
+			SkipA2A: s.config.ShouldSkipA2AToolOnClient(),
 		}).
 		GenerateContentStream(timeoutCtx, providerType, modelName, messages)
 	if err != nil {
@@ -339,7 +339,12 @@ func (s *AgentServiceImpl) handleStreamEvent(event sdk.SSEvent, events chan<- do
 		return false
 
 	case sdk.StreamEnd:
-		return true
+		// Only terminate if this is truly the final completion (finish_reason: "stop")
+		// For A2A workflows, continue streaming until we get the final response
+		if s.shouldTerminateStream(event) {
+			return true
+		}
+		return false
 
 	case "error":
 		s.handleStreamError(event, events, requestID)
@@ -485,6 +490,33 @@ func (s *AgentServiceImpl) processToolCalls(deltaToolCalls []sdk.ChatCompletionM
 	return true
 }
 
+// shouldTerminateStream determines if the stream should terminate based on the event
+func (s *AgentServiceImpl) shouldTerminateStream(event sdk.SSEvent) bool {
+	if event.Data != nil {
+		dataStr := string(*event.Data)
+		if dataStr == "[DONE]" {
+			return true
+		}
+	}
+
+	if event.Data == nil {
+		return false
+	}
+
+	var streamResponse sdk.CreateChatCompletionStreamResponse
+	if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
+		return false
+	}
+
+	for _, choice := range streamResponse.Choices {
+		if choice.FinishReason == "tool_calls" || choice.FinishReason == "stop" {
+			return false
+		}
+	}
+
+	return false
+}
+
 // processSingleToolCall processes a single delta tool call
 func (s *AgentServiceImpl) processSingleToolCall(deltaToolCall sdk.ChatCompletionMessageToolCallChunk, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall, events chan<- domain.ChatEvent, requestID string) {
 	key := fmt.Sprintf("%d", deltaToolCall.Index)
@@ -530,6 +562,13 @@ func (s *AgentServiceImpl) emitToolCallEventIfComplete(key string, toolCallsMap 
 	funcName := strings.TrimSpace(toolCallsMap[key].Function.Name)
 
 	if !s.isToolCallComplete(args, funcName) {
+		return
+	}
+
+	if strings.HasPrefix(funcName, "a2a_") && s.config.ShouldSkipA2AToolOnClient() {
+		return
+	}
+	if strings.HasPrefix(funcName, "mcp_") && s.config.ShouldSkipMCPToolOnClient() {
 		return
 	}
 

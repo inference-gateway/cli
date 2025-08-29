@@ -95,7 +95,7 @@ func TestA2AShortcut_Execute(t *testing.T) {
 		expectedNotContain []string
 	}{
 		{
-			name: "no args defaults to list - no client configured",
+			name: "no args opens A2A servers view",
 			config: &config.Config{
 				Gateway: config.GatewayConfig{
 					URL:     "http://localhost:8080",
@@ -107,17 +107,17 @@ func TestA2AShortcut_Execute(t *testing.T) {
 				},
 			},
 			args:            []string{},
-			expectedSuccess: false,
+			expectedSuccess: true,
 			expectedContains: []string{
-				"A2A Agents",
-				"Error:** SDK client not configured",
+				"Opening A2A servers view",
 			},
 			expectedNotContain: []string{
-				"A2A Server Status",
+				"A2A Agents",
+				"Error:",
 			},
 		},
 		{
-			name: "explicit list argument - no client configured",
+			name: "explicit list argument opens A2A servers view",
 			config: &config.Config{
 				Gateway: config.GatewayConfig{
 					URL:     "http://localhost:8080",
@@ -129,13 +129,13 @@ func TestA2AShortcut_Execute(t *testing.T) {
 				},
 			},
 			args:            []string{"list"},
-			expectedSuccess: false,
+			expectedSuccess: true,
 			expectedContains: []string{
-				"A2A Agents",
-				"Error:** SDK client not configured",
+				"Opening A2A servers view",
 			},
 			expectedNotContain: []string{
-				"A2A Server Status",
+				"A2A Agents",
+				"Error:",
 			},
 		},
 	}

@@ -333,9 +333,19 @@ func (s *ToolFormatterService) formatEnhancedGatewayTool(result *domain.ToolExec
 	visualDisplay := data["visual_display"].(string)
 	statusIcon := formatter.FormatStatusIcon(result.Success)
 
+	toolType, _ := data["type"].(string)
+
 	var output strings.Builder
 	output.WriteString(fmt.Sprintf("%s\n", visualDisplay))
-	output.WriteString(fmt.Sprintf("└─ %s Executed on Gateway", statusIcon))
+
+	switch toolType {
+	case "A2A":
+		output.WriteString(fmt.Sprintf("└─ %s 🔗 Delegated to A2A Agent on Gateway", statusIcon))
+	case "MCP":
+		output.WriteString(fmt.Sprintf("└─ %s 🔧 Executed via MCP on Gateway", statusIcon))
+	default:
+		output.WriteString(fmt.Sprintf("└─ %s Executed on Gateway", statusIcon))
+	}
 
 	return output.String()
 }

@@ -42,6 +42,7 @@ const (
 	ViewStateTextSelection
 	ViewStateConversationSelection
 	ViewStateThemeSelection
+	ViewStateA2AServers
 )
 
 func (v ViewState) String() string {
@@ -60,6 +61,8 @@ func (v ViewState) String() string {
 		return "ConversationSelection"
 	case ViewStateThemeSelection:
 		return "ThemeSelection"
+	case ViewStateA2AServers:
+		return "A2AServers"
 	default:
 		return "Unknown"
 	}
@@ -273,12 +276,14 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateTextSelection,
 			ViewStateConversationSelection,
 			ViewStateThemeSelection,
+			ViewStateA2AServers,
 		},
 		ViewStateFileSelection:         {ViewStateChat},
 		ViewStateToolApproval:          {ViewStateChat},
 		ViewStateTextSelection:         {ViewStateChat},
 		ViewStateConversationSelection: {ViewStateChat},
 		ViewStateThemeSelection:        {ViewStateChat},
+		ViewStateA2AServers:            {ViewStateChat},
 	}
 
 	allowed, exists := validTransitions[from]

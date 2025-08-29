@@ -59,10 +59,10 @@ func (v *A2AServersView) SetHeight(height int) {
 }
 
 func (v *A2AServersView) LoadServers(ctx context.Context) tea.Cmd {
-	return func() tea.Msg {
-		v.isLoading = true
-		v.error = ""
+	v.isLoading = true
+	v.error = ""
 
+	return func() tea.Msg {
 		if v.client == nil {
 			return A2AServersLoadedMsg{
 				servers: []A2AServerInfo{},
@@ -259,11 +259,11 @@ func (v *A2AServersView) renderConnectionInfo() string {
 
 	if v.config.Gateway.Middlewares.A2A {
 		successIcon := icons.StyledCheckMark()
-		content.WriteString(fmt.Sprintf("%s A2A Middleware: Enabled\n", successIcon))
-	} else {
-		errorIcon := icons.StyledCrossMark()
-		content.WriteString(fmt.Sprintf("%s A2A Middleware: Disabled\n", errorIcon))
+		content.WriteString(fmt.Sprintf("%s A2A Middleware: Enabled (tools execute on Gateway)\n", successIcon))
 	}
+
+	content.WriteString("\n")
+	content.WriteString(fmt.Sprintf("%sPress ESC to return to chat%s", dimColor, colors.Reset))
 
 	return content.String()
 }

@@ -390,6 +390,16 @@ func (teo *ToolExecutionOrchestrator) isApprovalRequired(toolName string) bool {
 		return true
 	}
 
+	// TODO - need to implement some notification for approval
+	if strings.HasPrefix(toolName, "a2a_") {
+		return false
+	}
+
+	// TODO - need to implement some notification for approval
+	if strings.HasPrefix(toolName, "mcp_") {
+		return false
+	}
+
 	return teo.configService.IsApprovalRequired(toolName)
 }
 
@@ -505,18 +515,11 @@ func (teo *ToolExecutionOrchestrator) GetHealthStatus() map[string]any {
 }
 
 // shouldSkipToolExecution determines if a tool should be skipped for execution
-// A2A and MCP tools are executed on the Gateway, not on clients when skip is enabled
+// A2A and MCP tools are executed on the Gateway, not on clients - always skip them
 func (teo *ToolExecutionOrchestrator) shouldSkipToolExecution(toolName string) bool {
-	if teo.configService == nil {
-		return strings.HasPrefix(toolName, "a2a_") || strings.HasPrefix(toolName, "mcp_")
-	}
-
-	if strings.HasPrefix(toolName, "a2a_") {
-		return teo.configService.ShouldSkipA2AToolOnClient()
-	}
-
-	if strings.HasPrefix(toolName, "mcp_") {
-		return teo.configService.ShouldSkipMCPToolOnClient()
+	// A2A and MCP tools are always executed on Gateway, never on client
+	if strings.HasPrefix(toolName, "a2a_") || strings.HasPrefix(toolName, "mcp_") {
+		return true
 	}
 
 	return false
@@ -575,7 +578,10 @@ func (teo *ToolExecutionOrchestrator) createA2AVisualization(toolName string, ar
 
 	switch {
 	case strings.Contains(toolName, "query_agent") || strings.Contains(toolName, "get_agent"):
-		return fmt.Sprintf("Task(agent=\"%s\", action=\"get_agent_card\")", agentName)
+		if agentName != "" {
+			return fmt.Sprintf("🤖 Querying agent \"%s\" for capabilities", agentName)
+		}
+		return "🤖 Querying agent for capabilities"
 
 	case strings.Contains(toolName, "submit_task") || strings.Contains(toolName, "send_task"):
 		content := teo.extractStringArg(args, "task")
@@ -593,17 +599,22 @@ func (teo *ToolExecutionOrchestrator) createA2AVisualization(toolName string, ar
 			content = content[:47] + "..."
 		}
 
-		return fmt.Sprintf("Task(agent=\"%s\", action=\"submit_task\", content=\"%s\")", agentName, content)
+		if agentName != "" && content != "" {
+			return fmt.Sprintf("🤖 Delegating task to \"%s\": %s", agentName, content)
+		} else if agentName != "" {
+			return fmt.Sprintf("🤖 Delegating task to \"%s\"", agentName)
+		}
+		return fmt.Sprintf("🤖 Delegating task: %s", content)
 
 	case strings.Contains(toolName, "list_agents") || strings.Contains(toolName, "get_agents"):
-		return "Task(action=\"list_agents\")"
+		return "🤖 Listing available A2A agents"
 
 	default:
 		action := strings.TrimPrefix(toolName, "a2a_")
 		if agentName != "" {
-			return fmt.Sprintf("Task(agent=\"%s\", action=\"%s\")", agentName, action)
+			return fmt.Sprintf("🤖 Delegating \"%s\" to agent \"%s\"", action, agentName)
 		}
-		return fmt.Sprintf("Task(action=\"%s\")", action)
+		return fmt.Sprintf("🤖 Performing A2A action: %s", action)
 	}
 }
 
@@ -635,7 +646,7 @@ func (teo *ToolExecutionOrchestrator) createMCPVisualization(toolName string, ar
 		} else if toolNameArg != "" {
 			return fmt.Sprintf("MCP(action=\"execute_tool\", tool=\"%s\")", toolNameArg)
 		}
-		return fmt.Sprintf("MCP(action=\"execute_tool\")")
+		return "MCP(action=\"execute_tool\")"
 
 	case strings.Contains(toolName, "list_servers"):
 		return "MCP(action=\"list_servers\")"

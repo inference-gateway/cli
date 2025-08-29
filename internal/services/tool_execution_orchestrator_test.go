@@ -40,13 +40,13 @@ func TestToolExecutionOrchestrator_shouldSkipToolExecution(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:          "a2a tool with skip disabled should not be skipped",
+			name:          "a2a tool should always be skipped regardless of config",
 			toolName:      "a2a_send_message",
 			configService: &generated.FakeConfigService{},
 			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
 				fake.ShouldSkipA2AToolOnClientReturns(false)
 			},
-			expected: false,
+			expected: true,
 		},
 		{
 			name:          "mcp tool with skip enabled should be skipped",
@@ -58,13 +58,13 @@ func TestToolExecutionOrchestrator_shouldSkipToolExecution(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:          "mcp tool with skip disabled should not be skipped",
+			name:          "mcp tool should always be skipped regardless of config",
 			toolName:      "mcp_execute_command",
 			configService: &generated.FakeConfigService{},
 			setupConfigServiceReturns: func(fake *generated.FakeConfigService) {
 				fake.ShouldSkipMCPToolOnClientReturns(false)
 			},
-			expected: false,
+			expected: true,
 		},
 		{
 			name:          "regular tool should not be skipped regardless of config",

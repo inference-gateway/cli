@@ -167,6 +167,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowConversationSelectionSideEffect(stateManager)
 	case shortcuts.SideEffectStartNewConversation:
 		return s.handleStartNewConversationSideEffect(data)
+	case shortcuts.SideEffectShowA2AServers:
+		return s.handleShowA2AServersSideEffect(stateManager)
 	default:
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
@@ -452,6 +454,16 @@ func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect(stateMan
 		Spinner:    false,
 		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,
+	}
+}
+
+func (s *ChatShortcutHandler) handleShowA2AServersSideEffect(stateManager *services.StateManager) tea.Msg {
+	_ = stateManager.TransitionToView(domain.ViewStateA2AServers)
+	return domain.SetStatusEvent{
+		Message:    "Loading A2A servers...",
+		Spinner:    true,
+		TokenUsage: s.handler.getCurrentTokenUsage(),
+		StatusType: domain.StatusWorking,
 	}
 }
 
