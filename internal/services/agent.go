@@ -22,6 +22,7 @@ type streamState struct {
 	toolCallsMap     map[string]*sdk.ChatCompletionMessageToolCall
 	toolCallsStarted bool
 	usage            *sdk.CompletionUsage
+	hasA2ATools      bool
 }
 
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
@@ -122,10 +123,56 @@ func (s *AgentServiceImpl) resetStreamState(reqID string, startTime time.Time) *
 }
 
 // processToolCallDelta efficiently processes tool call deltas with real-time UI updates
-func (s *AgentServiceImpl) processToolCallDelta(deltaToolCall sdk.ChatCompletionMessageToolCallChunk, state *streamState, events chan domain.ChatEvent) {
-	key := fmt.Sprintf("%d", deltaToolCall.Index)
+func (s *AgentServiceImpl) processToolCallDelta(deltaToolCall sdk.ChatCompletionMessageToolCallChunk, state *streamState, events chan domain.ChatEvent) { //nolint:funlen,gocyclo,cyclop
+	var key string
+	var toolCall *sdk.ChatCompletionMessageToolCall
+	var exists bool
 
-	toolCall, exists := state.toolCallsMap[key]
+	if deltaToolCall.ID != "" { //nolint:nestif
+		for existingKey, existingTool := range state.toolCallsMap {
+			if existingTool.Id == deltaToolCall.ID {
+				key = existingKey
+				toolCall = existingTool
+				exists = true
+				break
+			}
+		}
+		if !exists {
+			key = fmt.Sprintf("%d_%s", deltaToolCall.Index, deltaToolCall.ID)
+		}
+	} else {
+		indexKey := fmt.Sprintf("%d", deltaToolCall.Index)
+		if existingTool, found := state.toolCallsMap[indexKey]; found {
+			key = indexKey
+			toolCall = existingTool
+			exists = true
+		} else {
+			var candidateKey string
+			var candidateTool *sdk.ChatCompletionMessageToolCall
+			for existingKey, existingTool := range state.toolCallsMap {
+				if strings.HasPrefix(existingKey, indexKey+"_") {
+					args := strings.TrimSpace(existingTool.Function.Arguments)
+					if args == "" || !strings.HasSuffix(args, "}") {
+						candidateKey = existingKey
+						candidateTool = existingTool
+						break
+					}
+					if candidateKey == "" {
+						candidateKey = existingKey
+						candidateTool = existingTool
+					}
+				}
+			}
+			if candidateKey != "" {
+				key = candidateKey
+				toolCall = candidateTool
+				exists = true
+			} else {
+				key = indexKey
+			}
+		}
+	}
+
 	wasNew := false
 	if !exists {
 		wasNew = true
@@ -140,6 +187,18 @@ func (s *AgentServiceImpl) processToolCallDelta(deltaToolCall sdk.ChatCompletion
 		state.toolCallsMap[key] = toolCall
 	}
 
+	logger.Debug("Processing tool call delta",
+		"index", deltaToolCall.Index,
+		"key", key,
+		"id", deltaToolCall.ID,
+		"name", deltaToolCall.Function.Name,
+		"args", deltaToolCall.Function.Arguments,
+		"args_length", len(deltaToolCall.Function.Arguments),
+		"wasNew", wasNew,
+		"existing_args", toolCall.Function.Arguments,
+		"existing_id", toolCall.Id,
+		"existing_name", toolCall.Function.Name)
+
 	nameChanged := false
 	argsChanged := false
 	idChanged := false
@@ -149,10 +208,19 @@ func (s *AgentServiceImpl) processToolCallDelta(deltaToolCall sdk.ChatCompletion
 		idChanged = true
 	}
 	if deltaToolCall.Function.Name != "" {
-		toolCall.Function.Name += deltaToolCall.Function.Name
+		toolCall.Function.Name = deltaToolCall.Function.Name
 		nameChanged = true
+
+		if strings.HasPrefix(deltaToolCall.Function.Name, "a2a_") || strings.HasPrefix(deltaToolCall.Function.Name, "mcp_") {
+			state.hasA2ATools = true
+		}
 	}
 	if deltaToolCall.Function.Arguments != "" {
+		logger.Debug("Concatenating arguments",
+			"index", deltaToolCall.Index,
+			"existing", toolCall.Function.Arguments,
+			"delta", deltaToolCall.Function.Arguments,
+			"result_will_be", toolCall.Function.Arguments+deltaToolCall.Function.Arguments)
 		toolCall.Function.Arguments += deltaToolCall.Function.Arguments
 		argsChanged = true
 	}
@@ -160,12 +228,9 @@ func (s *AgentServiceImpl) processToolCallDelta(deltaToolCall sdk.ChatCompletion
 	args := strings.TrimSpace(toolCall.Function.Arguments)
 	funcName := strings.TrimSpace(toolCall.Function.Name)
 
-	if (strings.HasPrefix(funcName, "a2a_") && s.config.ShouldSkipA2AToolOnClient()) ||
-		(strings.HasPrefix(funcName, "mcp_") && s.config.ShouldSkipMCPToolOnClient()) {
-		return
-	}
-
 	if wasNew && funcName != "" {
+		state.toolCallsStarted = true
+
 		logger.Debug("Sending ToolCallPreviewEvent",
 			"tool_name", funcName,
 			"tool_call_id", toolCall.Id)
@@ -396,7 +461,11 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 						for _, choice := range streamResponse.Choices {
 							if choice.Delta.Content != "" {
 								iterationBuilder.WriteString(choice.Delta.Content)
-								state.contentBuilder.WriteString(choice.Delta.Content)
+
+								if !state.hasA2ATools || !state.toolCallsStarted {
+									state.contentBuilder.WriteString(choice.Delta.Content)
+								}
+
 								events <- domain.ChatChunkEvent{
 									RequestID:        req.RequestID,
 									Timestamp:        time.Now(),
@@ -537,7 +606,12 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			}
 
 			finalToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(state.toolCallsMap))
-			for _, tc := range state.toolCallsMap {
+			for mapKey, tc := range state.toolCallsMap {
+				logger.Debug("Final tool call being sent",
+					"mapKey", mapKey,
+					"id", tc.Id,
+					"name", tc.Function.Name,
+					"args", tc.Function.Arguments)
 				finalToolCalls = append(finalToolCalls, *tc)
 			}
 

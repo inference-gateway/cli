@@ -261,26 +261,21 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 
 		var executionResult *domain.ToolExecutionResult
 
-		if teo.shouldSkipToolExecution(currentTool.Function.Name) {
-			duration := time.Since(startTime)
-			executionResult = teo.createSkippedToolResult(currentTool.Function.Name, args, duration)
-		} else {
-			ctx := context.Background()
-			result, err := teo.toolService.ExecuteTool(ctx, currentTool.Function.Name, args)
+		ctx := context.Background()
+		result, err := teo.toolService.ExecuteTool(ctx, currentTool.Function.Name, args)
 
-			duration := time.Since(startTime)
+		duration := time.Since(startTime)
 
-			if err != nil {
-				executionResult = &domain.ToolExecutionResult{
-					ToolName:  currentTool.Function.Name,
-					Arguments: args,
-					Success:   false,
-					Duration:  duration,
-					Error:     err.Error(),
-				}
-			} else {
-				executionResult = result
+		if err != nil {
+			executionResult = &domain.ToolExecutionResult{
+				ToolName:  currentTool.Function.Name,
+				Arguments: args,
+				Success:   false,
+				Duration:  duration,
+				Error:     err.Error(),
 			}
+		} else {
+			executionResult = result
 		}
 
 		teo.mutex.Lock()
@@ -289,7 +284,9 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 		execution.Status = ToolExecutionStatusProcessing
 		teo.mutex.Unlock()
 
-		teo.addToolResultToConversation(currentTool, executionResult)
+		if !strings.HasPrefix(currentTool.Function.Name, "a2a_") && !strings.HasPrefix(currentTool.Function.Name, "mcp_") {
+			teo.addToolResultToConversation(currentTool, executionResult)
+		}
 
 		return teo.processNextTool()()
 	}
@@ -523,32 +520,4 @@ func (teo *ToolExecutionOrchestrator) GetHealthStatus() map[string]any {
 	}
 
 	return status
-}
-
-// shouldSkipToolExecution determines if a tool should be skipped for execution
-// A2A and MCP tools are executed on the Gateway, not on clients - always skip them for visualization only
-func (teo *ToolExecutionOrchestrator) shouldSkipToolExecution(toolName string) bool {
-	if strings.HasPrefix(toolName, "a2a_") || strings.HasPrefix(toolName, "mcp_") {
-		return true
-	}
-
-	return false
-}
-
-// createSkippedToolResult creates a result for tools that are skipped for visualization
-func (teo *ToolExecutionOrchestrator) createSkippedToolResult(toolName string, args map[string]any, duration time.Duration) *domain.ToolExecutionResult {
-	var toolType string
-	if strings.HasPrefix(toolName, "a2a_") {
-		toolType = "A2A"
-	} else if strings.HasPrefix(toolName, "mcp_") {
-		toolType = "MCP"
-	}
-
-	return &domain.ToolExecutionResult{
-		ToolName:  toolName,
-		Arguments: args,
-		Success:   true,
-		Duration:  duration,
-		Data:      fmt.Sprintf("Executed on Gateway (%s)", toolType),
-	}
 }

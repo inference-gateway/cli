@@ -9,18 +9,21 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
+	components "github.com/inference-gateway/cli/internal/ui/components"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // ChatEventHandler handles chat events
 type ChatEventHandler struct {
-	handler *ChatHandler
+	handler          *ChatHandler
+	toolCallRenderer *components.ToolCallRenderer
 }
 
 // NewChatEventHandler creates a new event handler
 func NewChatEventHandler(handler *ChatHandler) *ChatEventHandler {
 	return &ChatEventHandler{
-		handler: handler,
+		handler:          handler,
+		toolCallRenderer: components.NewToolCallRenderer(),
 	}
 }
 
@@ -367,12 +370,33 @@ func (e *ChatEventHandler) handleToolCallPreview(
 		"status", msg.Status)
 
 	var cmds []tea.Cmd
-	cmds = append(cmds, func() tea.Msg {
-		return domain.UpdateStatusEvent{
-			Message:    fmt.Sprintf("Preparing %s...", msg.ToolName),
-			StatusType: domain.StatusWorking,
+
+	// For A2A/MCP tools, just show status (will add to conversation when complete)
+	if strings.HasPrefix(msg.ToolName, "a2a_") || strings.HasPrefix(msg.ToolName, "mcp_") {
+		displayName := msg.ToolName
+		if name, found := strings.CutPrefix(msg.ToolName, "a2a_"); found {
+			displayName = fmt.Sprintf("A2A: %s", name)
+		} else if name, found := strings.CutPrefix(msg.ToolName, "mcp_"); found {
+			displayName = fmt.Sprintf("MCP: %s", name)
 		}
-	})
+
+		statusMsg := fmt.Sprintf("Executing %s on Gateway...", displayName)
+		cmds = append(cmds, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    statusMsg,
+				Spinner:    true,
+				StatusType: domain.StatusWorking,
+			}
+		})
+	} else {
+		statusMsg := fmt.Sprintf("Preparing %s...", msg.ToolName)
+		cmds = append(cmds, func() tea.Msg {
+			return domain.UpdateStatusEvent{
+				Message:    statusMsg,
+				StatusType: domain.StatusWorking,
+			}
+		})
+	}
 
 	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
@@ -381,32 +405,63 @@ func (e *ChatEventHandler) handleToolCallPreview(
 	return nil, tea.Batch(cmds...)
 }
 
+// addCompletedA2AToolToConversation adds completed A2A/MCP tools to conversation
+func (e *ChatEventHandler) addCompletedA2AToolToConversation(msg domain.ToolCallUpdateEvent) {
+	content := e.toolCallRenderer.RenderA2AToolCall(msg.ToolName, msg.Arguments, "executed")
+
+	toolEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:       sdk.Tool,
+			Content:    content,
+			ToolCallId: &msg.ToolCallID,
+		},
+		Model: e.handler.modelService.GetCurrentModel(),
+		Time:  msg.Timestamp,
+	}
+
+	if err := e.handler.conversationRepo.AddMessage(toolEntry); err != nil {
+		logger.Error("failed to add A2A/MCP tool completion to conversation", "error", err, "tool", msg.ToolName)
+	}
+}
+
 // handleToolCallUpdate processes streaming updates to tool calls
 func (e *ChatEventHandler) handleToolCallUpdate(
 	msg domain.ToolCallUpdateEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
-	statusMsg := fmt.Sprintf("Streaming %s...", msg.ToolName)
-	if msg.Status == domain.ToolCallStreamStatusComplete {
-		statusMsg = fmt.Sprintf("Completed %s", msg.ToolName)
-	}
-
 	var cmds []tea.Cmd
-	if msg.Status == domain.ToolCallStreamStatusStreaming {
-		cmds = append(cmds, func() tea.Msg {
-			return domain.UpdateStatusEvent{
-				Message:    statusMsg,
-				StatusType: domain.StatusWorking,
-			}
-		})
+
+	if strings.HasPrefix(msg.ToolName, "a2a_") || strings.HasPrefix(msg.ToolName, "mcp_") { //nolint:nestif
+		if msg.Status == domain.ToolCallStreamStatusComplete {
+			e.addCompletedA2AToolToConversation(msg)
+			cmds = append(cmds, func() tea.Msg {
+				return domain.UpdateHistoryEvent{
+					History: e.handler.conversationRepo.GetMessages(),
+				}
+			})
+		}
 	} else {
-		cmds = append(cmds, func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    statusMsg,
-				Spinner:    false,
-				StatusType: domain.StatusWorking,
-			}
-		})
+		statusMsg := fmt.Sprintf("Streaming %s...", msg.ToolName)
+		if msg.Status == domain.ToolCallStreamStatusComplete {
+			statusMsg = fmt.Sprintf("Completed %s", msg.ToolName)
+		}
+
+		if msg.Status == domain.ToolCallStreamStatusStreaming {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.UpdateStatusEvent{
+					Message:    statusMsg,
+					StatusType: domain.StatusWorking,
+				}
+			})
+		} else {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    statusMsg,
+					Spinner:    false,
+					StatusType: domain.StatusWorking,
+				}
+			})
+		}
 	}
 
 	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
