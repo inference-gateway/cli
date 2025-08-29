@@ -517,7 +517,6 @@ func (teo *ToolExecutionOrchestrator) GetHealthStatus() map[string]any {
 // shouldSkipToolExecution determines if a tool should be skipped for execution
 // A2A and MCP tools are executed on the Gateway, not on clients - always skip them
 func (teo *ToolExecutionOrchestrator) shouldSkipToolExecution(toolName string) bool {
-	// A2A and MCP tools are always executed on Gateway, never on client
 	if strings.HasPrefix(toolName, "a2a_") || strings.HasPrefix(toolName, "mcp_") {
 		return true
 	}
