@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -237,6 +236,8 @@ func (e *ChatEventHandler) handleChatComplete(
 
 	stateManager.EndChatSession()
 
+	e.ensureCompleteMessageInHistory(msg)
+
 	if len(msg.ToolCalls) > 0 {
 		_, cmd := e.handler.toolOrchestrator.StartToolExecution(msg.RequestID, msg.ToolCalls)
 
@@ -280,6 +281,33 @@ func (e *ChatEventHandler) handleChatComplete(
 	}
 
 	return nil, tea.Batch(cmds...)
+}
+
+// ensureCompleteMessageInHistory ensures the complete final message is stored in conversation history
+func (e *ChatEventHandler) ensureCompleteMessageInHistory(msg domain.ChatCompleteEvent) {
+	if msg.Message == "" {
+		return
+	}
+
+	messages := e.handler.conversationRepo.GetMessages()
+
+	if len(messages) > 0 && messages[len(messages)-1].Message.Role == sdk.Assistant {
+		if err := e.handler.conversationRepo.UpdateLastMessage(msg.Message); err != nil {
+			logger.Error("failed to update last message with complete content", "error", err)
+		}
+	} else {
+		assistantEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: msg.Message,
+			},
+			Model: e.handler.modelService.GetCurrentModel(),
+			Time:  msg.Timestamp,
+		}
+		if err := e.handler.conversationRepo.AddMessage(assistantEntry); err != nil {
+			logger.Error("failed to add complete assistant message", "error", err)
+		}
+	}
 }
 
 // handleChatError processes chat error events
@@ -328,91 +356,106 @@ func (e *ChatEventHandler) handleToolCallStart(
 	return nil, tea.Batch(cmds...)
 }
 
-// handleToolCall processes individual tool call events and executes tools immediately when JSON is complete
-func (e *ChatEventHandler) handleToolCall(
-	msg domain.ToolCallEvent,
+// handleToolCallPreview processes initial tool call preview events
+func (e *ChatEventHandler) handleToolCallPreview(
+	msg domain.ToolCallPreviewEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
-	args := strings.TrimSpace(msg.Args)
-	toolName := strings.TrimSpace(msg.ToolName)
+	logger.Debug("Tool call preview received",
+		"tool_call_id", msg.ToolCallID,
+		"tool_name", msg.ToolName,
+		"status", msg.Status)
 
-	if args != "" && toolName != "" && strings.HasSuffix(args, "}") {
-		var temp any
-		if json.Unmarshal([]byte(args), &temp) == nil {
-			return nil, tea.Batch(
-				func() tea.Msg {
-					return domain.SetStatusEvent{
-						Message:    fmt.Sprintf("Executing tool: %s", toolName),
-						Spinner:    true,
-						StatusType: domain.StatusWorking,
-					}
-				},
-				e.executeToolCall(msg.RequestID, msg.ToolCallID, toolName, args, stateManager),
-			)
-		}
-	}
-
-	return nil, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    fmt.Sprintf("Receiving tool call: %s", toolName),
-			Spinner:    true,
+	var cmds []tea.Cmd
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateStatusEvent{
+			Message:    fmt.Sprintf("Preparing %s...", msg.ToolName),
 			StatusType: domain.StatusWorking,
 		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
+
+	return nil, tea.Batch(cmds...)
 }
 
-// executeToolCall executes a single tool call and adds the result to conversation history
-func (e *ChatEventHandler) executeToolCall(
-	requestID string,
-	toolCallID string,
-	toolName string,
-	arguments string,
-	_ *services.StateManager,
-) tea.Cmd {
-	return func() tea.Msg {
-		var argsMap map[string]any
-		if err := json.Unmarshal([]byte(arguments), &argsMap); err != nil {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to parse tool arguments for %s: %v", toolName, err),
-				Sticky: false,
-			}
-		}
-
-		toolCall := sdk.ChatCompletionMessageToolCall{
-			Id:   toolCallID,
-			Type: sdk.Function,
-			Function: sdk.ChatCompletionMessageToolCallFunction{
-				Name:      toolName,
-				Arguments: arguments,
-			},
-		}
-
-		assistantEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:      sdk.Assistant,
-				Content:   "",
-				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{toolCall},
-			},
-			Model: e.handler.modelService.GetCurrentModel(),
-			Time:  time.Now(),
-		}
-
-		if err := e.handler.conversationRepo.AddMessage(assistantEntry); err != nil {
-			logger.Error("failed to add assistant message with tool call", "error", err)
-		}
-
-		toolCalls := []sdk.ChatCompletionMessageToolCall{toolCall}
-
-		_, cmd := e.handler.toolOrchestrator.StartToolExecution(requestID, toolCalls)
-		return tea.Batch(
-			func() tea.Msg {
-				return domain.UpdateHistoryEvent{
-					History: e.handler.conversationRepo.GetMessages(),
-				}
-			},
-			cmd,
-		)()
+// handleToolCallUpdate processes streaming updates to tool calls
+func (e *ChatEventHandler) handleToolCallUpdate(
+	msg domain.ToolCallUpdateEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	statusMsg := fmt.Sprintf("Streaming %s...", msg.ToolName)
+	if msg.Status == domain.ToolCallStreamStatusComplete {
+		statusMsg = fmt.Sprintf("Completed %s", msg.ToolName)
 	}
+
+	var cmds []tea.Cmd
+	if msg.Status == domain.ToolCallStreamStatusStreaming {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.UpdateStatusEvent{
+				Message:    statusMsg,
+				StatusType: domain.StatusWorking,
+			}
+		})
+	} else {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    statusMsg,
+				Spinner:    false,
+				StatusType: domain.StatusWorking,
+			}
+		})
+	}
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
+// handleToolCallReady processes when all tool calls are ready for execution
+func (e *ChatEventHandler) handleToolCallReady(
+	msg domain.ToolCallReadyEvent,
+	_ *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	logger.Info("Tool calls ready for execution",
+		"request_id", msg.RequestID,
+		"tool_count", len(msg.ToolCalls))
+
+	assistantEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:      sdk.Assistant,
+			Content:   "",
+			ToolCalls: &msg.ToolCalls,
+		},
+		Model: e.handler.modelService.GetCurrentModel(),
+		Time:  msg.Timestamp,
+	}
+
+	if err := e.handler.conversationRepo.AddMessage(assistantEntry); err != nil {
+		logger.Error("failed to add assistant message with tool calls", "error", err)
+	}
+
+	_, cmd := e.handler.toolOrchestrator.StartToolExecution(msg.RequestID, msg.ToolCalls)
+
+	return nil, tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: e.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Tools ready for approval",
+				Spinner:    false,
+				StatusType: domain.StatusPreparing,
+			}
+		},
+		cmd,
+	)
 }
 
 func (e *ChatEventHandler) handleToolExecutionStarted(
@@ -441,10 +484,9 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 	}
 
 	return nil, func() tea.Msg {
-		return domain.SetStatusEvent{
+		return domain.UpdateStatusEvent{
 			Message: fmt.Sprintf("Tool %d/%d: %s (%s)",
 				msg.CurrentTool, msg.TotalTools, msg.ToolName, msg.Status),
-			Spinner:    true,
 			StatusType: domain.StatusWorking,
 		}
 	}
@@ -488,9 +530,15 @@ func (e *ChatEventHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 
 	var parts []string
 
-	if metrics.Duration > 0 {
-		duration := metrics.Duration.Round(time.Millisecond)
-		parts = append(parts, fmt.Sprintf("Time: %v", duration))
+	messages := e.handler.conversationRepo.GetMessages()
+	if len(messages) > 0 {
+		for i := len(messages) - 1; i >= 0; i-- {
+			if messages[i].Message.Role == sdk.User {
+				actualDuration := time.Since(messages[i].Time).Round(time.Millisecond)
+				parts = append(parts, fmt.Sprintf("Time: %v", actualDuration))
+				break
+			}
+		}
 	}
 
 	if metrics.Usage != nil {

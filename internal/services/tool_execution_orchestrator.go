@@ -360,6 +360,17 @@ func (teo *ToolExecutionOrchestrator) CancelExecution(reason string) tea.Cmd {
 		execution := teo.currentExecution
 		execution.Status = ToolExecutionStatusCancelled
 
+		for _, toolCall := range execution.ToolCalls {
+			result := &domain.ToolExecutionResult{
+				ToolName:  toolCall.Function.Name,
+				Arguments: parseToolArguments(toolCall.Function.Arguments),
+				Success:   false,
+				Duration:  0,
+				Error:     fmt.Sprintf("Cancelled: %s", reason),
+			}
+			teo.addToolResultToConversation(toolCall, result)
+		}
+
 		teo.stateManager.EndToolExecution()
 
 		teo.currentExecution = nil
@@ -515,7 +526,7 @@ func (teo *ToolExecutionOrchestrator) GetHealthStatus() map[string]any {
 }
 
 // shouldSkipToolExecution determines if a tool should be skipped for execution
-// A2A and MCP tools are executed on the Gateway, not on clients - always skip them
+// A2A and MCP tools are executed on the Gateway, not on clients - always skip them for visualization only
 func (teo *ToolExecutionOrchestrator) shouldSkipToolExecution(toolName string) bool {
 	if strings.HasPrefix(toolName, "a2a_") || strings.HasPrefix(toolName, "mcp_") {
 		return true
@@ -533,160 +544,11 @@ func (teo *ToolExecutionOrchestrator) createSkippedToolResult(toolName string, a
 		toolType = "MCP"
 	}
 
-	visualDisplay := teo.createUserFriendlyVisualization(toolName, args, toolType)
-
 	return &domain.ToolExecutionResult{
 		ToolName:  toolName,
 		Arguments: args,
 		Success:   true,
 		Duration:  duration,
-		Data: map[string]any{
-			"type":            toolType,
-			"status":          "executed_on_gateway",
-			"description":     fmt.Sprintf("%s tool call was executed on the Gateway middleware", toolType),
-			"visual_display":  visualDisplay,
-			"friendly_format": true,
-		},
-		Metadata: map[string]string{
-			"execution_location": "gateway",
-			"tool_type":          toolType,
-			"skipped_reason":     "client_visualization_only",
-		},
+		Data:      fmt.Sprintf("Executed on Gateway (%s)", toolType),
 	}
-}
-
-// createUserFriendlyVisualization creates user-friendly visualization for Gateway tool calls
-func (teo *ToolExecutionOrchestrator) createUserFriendlyVisualization(toolName string, args map[string]any, toolType string) string {
-	if strings.HasPrefix(toolName, "a2a_") {
-		return teo.createA2AVisualization(toolName, args)
-	} else if strings.HasPrefix(toolName, "mcp_") {
-		return teo.createMCPVisualization(toolName, args)
-	}
-	return fmt.Sprintf("%s(%s)", toolName, teo.formatArgsForDisplay(args))
-}
-
-// createA2AVisualization creates A2A-specific user-friendly visualization
-func (teo *ToolExecutionOrchestrator) createA2AVisualization(toolName string, args map[string]any) string {
-	agentName := teo.extractStringArg(args, "agent")
-	if agentName == "" {
-		agentName = teo.extractStringArg(args, "agent_id")
-	}
-	if agentName == "" {
-		agentName = teo.extractStringArg(args, "target_agent")
-	}
-
-	switch {
-	case strings.Contains(toolName, "query_agent") || strings.Contains(toolName, "get_agent"):
-		if agentName != "" {
-			return fmt.Sprintf("🤖 Querying agent \"%s\" for capabilities", agentName)
-		}
-		return "🤖 Querying agent for capabilities"
-
-	case strings.Contains(toolName, "submit_task") || strings.Contains(toolName, "send_task"):
-		content := teo.extractStringArg(args, "task")
-		if content == "" {
-			content = teo.extractStringArg(args, "message")
-		}
-		if content == "" {
-			content = teo.extractStringArg(args, "content")
-		}
-		if content == "" {
-			content = teo.extractStringArg(args, "prompt")
-		}
-
-		if len(content) > 50 {
-			content = content[:47] + "..."
-		}
-
-		if agentName != "" && content != "" {
-			return fmt.Sprintf("🤖 Delegating task to \"%s\": %s", agentName, content)
-		} else if agentName != "" {
-			return fmt.Sprintf("🤖 Delegating task to \"%s\"", agentName)
-		}
-		return fmt.Sprintf("🤖 Delegating task: %s", content)
-
-	case strings.Contains(toolName, "list_agents") || strings.Contains(toolName, "get_agents"):
-		return "🤖 Listing available A2A agents"
-
-	default:
-		action := strings.TrimPrefix(toolName, "a2a_")
-		if agentName != "" {
-			return fmt.Sprintf("🤖 Delegating \"%s\" to agent \"%s\"", action, agentName)
-		}
-		return fmt.Sprintf("🤖 Performing A2A action: %s", action)
-	}
-}
-
-// createMCPVisualization creates MCP-specific user-friendly visualization
-func (teo *ToolExecutionOrchestrator) createMCPVisualization(toolName string, args map[string]any) string {
-	serverName := teo.extractStringArg(args, "server")
-	if serverName == "" {
-		serverName = teo.extractStringArg(args, "server_id")
-	}
-	if serverName == "" {
-		serverName = teo.extractStringArg(args, "server_name")
-	}
-
-	switch {
-	case strings.Contains(toolName, "list_tools"):
-		if serverName != "" {
-			return fmt.Sprintf("MCP(server=\"%s\", action=\"list_tools\")", serverName)
-		}
-		return "MCP(action=\"list_tools\")"
-
-	case strings.Contains(toolName, "execute_tool") || strings.Contains(toolName, "call_tool"):
-		toolNameArg := teo.extractStringArg(args, "tool_name")
-		if toolNameArg == "" {
-			toolNameArg = teo.extractStringArg(args, "name")
-		}
-
-		if serverName != "" && toolNameArg != "" {
-			return fmt.Sprintf("MCP(server=\"%s\", action=\"execute_tool\", tool=\"%s\")", serverName, toolNameArg)
-		} else if toolNameArg != "" {
-			return fmt.Sprintf("MCP(action=\"execute_tool\", tool=\"%s\")", toolNameArg)
-		}
-		return "MCP(action=\"execute_tool\")"
-
-	case strings.Contains(toolName, "list_servers"):
-		return "MCP(action=\"list_servers\")"
-
-	default:
-		action := strings.TrimPrefix(toolName, "mcp_")
-		if serverName != "" {
-			return fmt.Sprintf("MCP(server=\"%s\", action=\"%s\")", serverName, action)
-		}
-		return fmt.Sprintf("MCP(action=\"%s\")", action)
-	}
-}
-
-// extractStringArg safely extracts a string argument from the args map
-func (teo *ToolExecutionOrchestrator) extractStringArg(args map[string]any, key string) string {
-	if value, exists := args[key]; exists {
-		if str, ok := value.(string); ok {
-			return str
-		}
-	}
-	return ""
-}
-
-// formatArgsForDisplay formats arguments for display in a compact way
-func (teo *ToolExecutionOrchestrator) formatArgsForDisplay(args map[string]any) string {
-	if len(args) == 0 {
-		return ""
-	}
-
-	var pairs []string
-	for key, value := range args {
-		if str, ok := value.(string); ok && len(str) > 30 {
-			pairs = append(pairs, fmt.Sprintf("%s=\"%s...\"", key, str[:27]))
-		} else {
-			pairs = append(pairs, fmt.Sprintf("%s=%v", key, value))
-		}
-	}
-
-	result := strings.Join(pairs, ", ")
-	if len(result) > 100 {
-		return result[:97] + "..."
-	}
-	return result
 }

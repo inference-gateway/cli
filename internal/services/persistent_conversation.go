@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -21,6 +22,7 @@ type PersistentConversationRepository struct {
 	metadata       storage.ConversationMetadata
 	autoSave       bool
 	titleGenerator *ConversationTitleGenerator
+	autoSaveMutex  sync.Mutex
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
@@ -192,6 +194,9 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 
 	if r.autoSave && r.conversationID != "" {
 		go func() {
+			r.autoSaveMutex.Lock()
+			defer r.autoSaveMutex.Unlock()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
@@ -260,6 +265,9 @@ func (r *PersistentConversationRepository) AddTokenUsage(inputTokens, outputToke
 
 	if r.autoSave && r.conversationID != "" {
 		go func() {
+			r.autoSaveMutex.Lock()
+			defer r.autoSaveMutex.Unlock()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 

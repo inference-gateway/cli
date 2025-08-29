@@ -1,6 +1,7 @@
 package services
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -237,39 +238,14 @@ func TestToolExecutionOrchestrator_createSkippedToolResult(t *testing.T) {
 				t.Errorf("Arguments length = %d, expected %d", len(result.Arguments), len(tt.args))
 			}
 
-			data, ok := result.Data.(map[string]any)
+			dataStr, ok := result.Data.(string)
 			if !ok {
-				t.Fatal("Data is not map[string]any")
+				t.Fatal("Data is not string")
 			}
 
-			if dataType, exists := data["type"]; !exists || dataType != tt.expectedDataType {
-				t.Errorf("Data type = %v, expected %q", dataType, tt.expectedDataType)
-			}
-
-			if status, exists := data["status"]; !exists || status != "executed_on_gateway" {
-				t.Errorf("Data status = %v, expected 'executed_on_gateway'", status)
-			}
-
-			if description, exists := data["description"]; !exists {
-				t.Error("Data description missing")
-			} else if desc, ok := description.(string); !ok || desc == "" {
-				t.Error("Data description is empty or not string")
-			}
-
-			if result.Metadata == nil {
-				t.Fatal("Metadata is nil")
-			}
-
-			if toolType := result.Metadata["tool_type"]; toolType != tt.expectedMetadataType {
-				t.Errorf("Metadata tool_type = %q, expected %q", toolType, tt.expectedMetadataType)
-			}
-
-			if location := result.Metadata["execution_location"]; location != "gateway" {
-				t.Errorf("Metadata execution_location = %q, expected 'gateway'", location)
-			}
-
-			if reason := result.Metadata["skipped_reason"]; reason != "client_visualization_only" {
-				t.Errorf("Metadata skipped_reason = %q, expected 'client_visualization_only'", reason)
+			expectedDataStr := fmt.Sprintf("Executed on Gateway (%s)", tt.expectedDataType)
+			if dataStr != expectedDataStr {
+				t.Errorf("Data = %q, expected %q", dataStr, expectedDataStr)
 			}
 		})
 	}

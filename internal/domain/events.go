@@ -6,6 +6,15 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
+// ToolCallStreamStatus represents the status of a tool call during streaming
+type ToolCallStreamStatus string
+
+const (
+	ToolCallStreamStatusStreaming ToolCallStreamStatus = "streaming"
+	ToolCallStreamStatusComplete  ToolCallStreamStatus = "complete"
+	ToolCallStreamStatusReady     ToolCallStreamStatus = "ready"
+)
+
 // ChatStartEvent indicates a chat request has started
 type ChatStartEvent struct {
 	RequestID string
@@ -65,18 +74,45 @@ func (e ChatErrorEvent) GetType() ChatEventType  { return EventChatError }
 func (e ChatErrorEvent) GetRequestID() string    { return e.RequestID }
 func (e ChatErrorEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ToolCallEvent represents a tool call request
-type ToolCallEvent struct {
+// ToolCallPreviewEvent shows a tool call as it's being streamed (before execution)
+type ToolCallPreviewEvent struct {
 	RequestID  string
 	Timestamp  time.Time
 	ToolCallID string
 	ToolName   string
-	Args       string
+	Arguments  string
+	Status     ToolCallStreamStatus
+	IsComplete bool
 }
 
-func (e ToolCallEvent) GetType() ChatEventType  { return EventToolCall }
-func (e ToolCallEvent) GetRequestID() string    { return e.RequestID }
-func (e ToolCallEvent) GetTimestamp() time.Time { return e.Timestamp }
+func (e ToolCallPreviewEvent) GetType() ChatEventType  { return EventToolCallPreview }
+func (e ToolCallPreviewEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCallPreviewEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolCallUpdateEvent updates a streaming tool call with new content
+type ToolCallUpdateEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	ToolCallID string
+	ToolName   string
+	Arguments  string
+	Status     ToolCallStreamStatus
+}
+
+func (e ToolCallUpdateEvent) GetType() ChatEventType  { return EventToolCallUpdate }
+func (e ToolCallUpdateEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCallUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolCallReadyEvent indicates all tool calls are ready for approval/execution
+type ToolCallReadyEvent struct {
+	RequestID string
+	Timestamp time.Time
+	ToolCalls []sdk.ChatCompletionMessageToolCall
+}
+
+func (e ToolCallReadyEvent) GetType() ChatEventType  { return EventToolCallReady }
+func (e ToolCallReadyEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCallReadyEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // CancelledEvent indicates a request was cancelled
 type CancelledEvent struct {

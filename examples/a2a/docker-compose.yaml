@@ -1,7 +1,7 @@
 ---
 services:
   inference-gateway:
-    image: ghcr.io/inference-gateway/inference-gateway:latest
+    image: ghcr.io/inference-gateway/inference-gateway:0.19.2-rc.2
     pull_policy: always
     ports:
       - "8080:8080"
@@ -22,6 +22,8 @@ services:
       INFER_GATEWAY_MIDDLEWARES_A2A: true
       INFER_TOOLS_ENABLED: false
       INFER_AGENT_MODEL: deepseek/deepseek-chat
+      INFER_AGENT_SYSTEM_PROMPT: |
+        You are an helpful assistant. You submit the tasks to calendar agent when a request related to calendar is asked.
     command:
       - go
       - run
