@@ -85,7 +85,7 @@ tools:
 compact:
   output_dir: .infer
 agent:
-  default_model: ""
+  model: ""
   system_prompt: ""
 chat:
   theme: tokyo-night

@@ -177,11 +177,9 @@ func (iv *InputView) buildTextWithCursor(before, after string) string {
 }
 
 func (iv *InputView) createCursorChar(char string) string {
-	assistantColor := iv.getAssistantColor()
-	dimColor := iv.getDimColor()
 	return lipgloss.NewStyle().
-		Background(lipgloss.Color(assistantColor)).
-		Foreground(lipgloss.Color(dimColor)).
+		Background(lipgloss.Color(colors.LipglossWhiteBg)).
+		Foreground(lipgloss.Color(colors.LipglossBlack)).
 		Render(char)
 }
 
@@ -469,11 +467,4 @@ func (iv *InputView) getStatusColor() string {
 		return iv.themeService.GetCurrentTheme().GetStatusColor()
 	}
 	return colors.StatusColor.Lipgloss
-}
-
-func (iv *InputView) getAssistantColor() string {
-	if iv.themeService != nil {
-		return iv.themeService.GetCurrentTheme().GetAssistantColor()
-	}
-	return colors.AssistantColor.Lipgloss
 }

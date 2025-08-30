@@ -36,9 +36,10 @@ type Config struct {
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL     string `yaml:"url" mapstructure:"url"`
-	APIKey  string `yaml:"api_key" mapstructure:"api_key"`
-	Timeout int    `yaml:"timeout" mapstructure:"timeout"`
+	URL         string            `yaml:"url" mapstructure:"url"`
+	APIKey      string            `yaml:"api_key" mapstructure:"api_key"`
+	Timeout     int               `yaml:"timeout" mapstructure:"timeout"`
+	Middlewares MiddlewaresConfig `yaml:"middlewares" mapstructure:"middlewares"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -242,6 +243,12 @@ type ConversationTitleConfig struct {
 	Interval     int    `yaml:"interval" mapstructure:"interval"`
 }
 
+// MiddlewaresConfig contains middleware-specific settings
+type MiddlewaresConfig struct {
+	A2A bool `yaml:"a2a" mapstructure:"a2a"`
+	MCP bool `yaml:"mcp" mapstructure:"mcp"`
+}
+
 // ChatConfig contains chat interface settings
 type ChatConfig struct {
 	Theme string `yaml:"theme" mapstructure:"theme"`
@@ -310,6 +317,10 @@ func DefaultConfig() *Config { //nolint:funlen
 			URL:     "http://localhost:8080",
 			APIKey:  "",
 			Timeout: 200,
+			Middlewares: MiddlewaresConfig{
+				A2A: true,
+				MCP: true,
+			},
 		},
 		Client: ClientConfig{
 			Timeout: 200,
@@ -644,6 +655,14 @@ func (c *Config) GetSandboxDirectories() []string {
 
 func (c *Config) GetProtectedPaths() []string {
 	return c.Tools.Sandbox.ProtectedPaths
+}
+
+func (c *Config) ShouldSkipA2AToolOnClient() bool {
+	return !c.Gateway.Middlewares.A2A
+}
+
+func (c *Config) ShouldSkipMCPToolOnClient() bool {
+	return !c.Gateway.Middlewares.MCP
 }
 
 func (c *Config) GetTheme() string {

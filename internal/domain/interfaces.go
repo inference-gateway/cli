@@ -82,8 +82,10 @@ const (
 	EventChatChunk
 	EventChatComplete
 	EventChatError
-	EventToolCall
 	EventToolCallStart
+	EventToolCallPreview
+	EventToolCallUpdate
+	EventToolCallReady
 	EventCancelled
 )
 

@@ -99,6 +99,26 @@ type FakeConfigService struct {
 	isApprovalRequiredReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	ShouldSkipA2AToolOnClientStub        func() bool
+	shouldSkipA2AToolOnClientMutex       sync.RWMutex
+	shouldSkipA2AToolOnClientArgsForCall []struct {
+	}
+	shouldSkipA2AToolOnClientReturns struct {
+		result1 bool
+	}
+	shouldSkipA2AToolOnClientReturnsOnCall map[int]struct {
+		result1 bool
+	}
+	ShouldSkipMCPToolOnClientStub        func() bool
+	shouldSkipMCPToolOnClientMutex       sync.RWMutex
+	shouldSkipMCPToolOnClientArgsForCall []struct {
+	}
+	shouldSkipMCPToolOnClientReturns struct {
+		result1 bool
+	}
+	shouldSkipMCPToolOnClientReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -584,6 +604,112 @@ func (fake *FakeConfigService) IsApprovalRequiredReturnsOnCall(i int, result1 bo
 		})
 	}
 	fake.isApprovalRequiredReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeConfigService) ShouldSkipA2AToolOnClient() bool {
+	fake.shouldSkipA2AToolOnClientMutex.Lock()
+	ret, specificReturn := fake.shouldSkipA2AToolOnClientReturnsOnCall[len(fake.shouldSkipA2AToolOnClientArgsForCall)]
+	fake.shouldSkipA2AToolOnClientArgsForCall = append(fake.shouldSkipA2AToolOnClientArgsForCall, struct {
+	}{})
+	stub := fake.ShouldSkipA2AToolOnClientStub
+	fakeReturns := fake.shouldSkipA2AToolOnClientReturns
+	fake.recordInvocation("ShouldSkipA2AToolOnClient", []interface{}{})
+	fake.shouldSkipA2AToolOnClientMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConfigService) ShouldSkipA2AToolOnClientCallCount() int {
+	fake.shouldSkipA2AToolOnClientMutex.RLock()
+	defer fake.shouldSkipA2AToolOnClientMutex.RUnlock()
+	return len(fake.shouldSkipA2AToolOnClientArgsForCall)
+}
+
+func (fake *FakeConfigService) ShouldSkipA2AToolOnClientCalls(stub func() bool) {
+	fake.shouldSkipA2AToolOnClientMutex.Lock()
+	defer fake.shouldSkipA2AToolOnClientMutex.Unlock()
+	fake.ShouldSkipA2AToolOnClientStub = stub
+}
+
+func (fake *FakeConfigService) ShouldSkipA2AToolOnClientReturns(result1 bool) {
+	fake.shouldSkipA2AToolOnClientMutex.Lock()
+	defer fake.shouldSkipA2AToolOnClientMutex.Unlock()
+	fake.ShouldSkipA2AToolOnClientStub = nil
+	fake.shouldSkipA2AToolOnClientReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeConfigService) ShouldSkipA2AToolOnClientReturnsOnCall(i int, result1 bool) {
+	fake.shouldSkipA2AToolOnClientMutex.Lock()
+	defer fake.shouldSkipA2AToolOnClientMutex.Unlock()
+	fake.ShouldSkipA2AToolOnClientStub = nil
+	if fake.shouldSkipA2AToolOnClientReturnsOnCall == nil {
+		fake.shouldSkipA2AToolOnClientReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.shouldSkipA2AToolOnClientReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeConfigService) ShouldSkipMCPToolOnClient() bool {
+	fake.shouldSkipMCPToolOnClientMutex.Lock()
+	ret, specificReturn := fake.shouldSkipMCPToolOnClientReturnsOnCall[len(fake.shouldSkipMCPToolOnClientArgsForCall)]
+	fake.shouldSkipMCPToolOnClientArgsForCall = append(fake.shouldSkipMCPToolOnClientArgsForCall, struct {
+	}{})
+	stub := fake.ShouldSkipMCPToolOnClientStub
+	fakeReturns := fake.shouldSkipMCPToolOnClientReturns
+	fake.recordInvocation("ShouldSkipMCPToolOnClient", []interface{}{})
+	fake.shouldSkipMCPToolOnClientMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConfigService) ShouldSkipMCPToolOnClientCallCount() int {
+	fake.shouldSkipMCPToolOnClientMutex.RLock()
+	defer fake.shouldSkipMCPToolOnClientMutex.RUnlock()
+	return len(fake.shouldSkipMCPToolOnClientArgsForCall)
+}
+
+func (fake *FakeConfigService) ShouldSkipMCPToolOnClientCalls(stub func() bool) {
+	fake.shouldSkipMCPToolOnClientMutex.Lock()
+	defer fake.shouldSkipMCPToolOnClientMutex.Unlock()
+	fake.ShouldSkipMCPToolOnClientStub = stub
+}
+
+func (fake *FakeConfigService) ShouldSkipMCPToolOnClientReturns(result1 bool) {
+	fake.shouldSkipMCPToolOnClientMutex.Lock()
+	defer fake.shouldSkipMCPToolOnClientMutex.Unlock()
+	fake.ShouldSkipMCPToolOnClientStub = nil
+	fake.shouldSkipMCPToolOnClientReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeConfigService) ShouldSkipMCPToolOnClientReturnsOnCall(i int, result1 bool) {
+	fake.shouldSkipMCPToolOnClientMutex.Lock()
+	defer fake.shouldSkipMCPToolOnClientMutex.Unlock()
+	fake.ShouldSkipMCPToolOnClientStub = nil
+	if fake.shouldSkipMCPToolOnClientReturnsOnCall == nil {
+		fake.shouldSkipMCPToolOnClientReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.shouldSkipMCPToolOnClientReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }

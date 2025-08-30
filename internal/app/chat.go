@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // ChatApplication represents the main application model using state management
@@ -48,6 +50,7 @@ type ChatApplication struct {
 	conversationSelector *components.ConversationSelectorImpl
 	fileSelectionView    *components.FileSelectionView
 	textSelectionView    *components.TextSelectionView
+	a2aServersView       *components.A2AServersView
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -284,6 +287,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleConversationSelectionView(msg)
 	case domain.ViewStateThemeSelection:
 		return app.handleThemeSelectionView(msg)
+	case domain.ViewStateA2AServers:
+		return app.handleA2AServersView(msg)
 	default:
 		return nil
 	}
@@ -407,6 +412,8 @@ func (app *ChatApplication) View() string {
 		return app.renderConversationSelection()
 	case domain.ViewStateThemeSelection:
 		return app.renderThemeSelection()
+	case domain.ViewStateA2AServers:
+		return app.renderA2AServers()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -477,6 +484,51 @@ func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cm
 	}
 
 	app.focusedComponent = app.inputView
+	return cmds
+}
+
+func (app *ChatApplication) handleA2AServersView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.a2aServersView != nil {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "esc":
+				_ = app.stateManager.TransitionToView(domain.ViewStateChat)
+				cmds = append(cmds, func() tea.Msg {
+					return domain.SetStatusEvent{
+						Message:    "Returned to chat",
+						Spinner:    false,
+						StatusType: domain.StatusDefault,
+					}
+				})
+			}
+		}
+
+		if app.a2aServersView != nil {
+			model, cmd := app.a2aServersView.Update(msg)
+			app.a2aServersView = model.(*components.A2AServersView)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return cmds
+	}
+
+	var sdkClient sdk.Client
+	if a2aShortcut, exists := app.shortcutRegistry.Get("a2a"); exists {
+		if a2a, ok := a2aShortcut.(*shortcuts.A2AShortcut); ok {
+			sdkClient = a2a.GetClient()
+		}
+	}
+	app.a2aServersView = components.NewA2AServersView(app.configService, sdkClient, app.themeService)
+
+	ctx := context.Background()
+	if cmd := app.a2aServersView.LoadServers(ctx); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
 	return cmds
 }
 
@@ -559,6 +611,25 @@ func (app *ChatApplication) renderThemeSelection() string {
 	app.themeSelector.SetWidth(width)
 	app.themeSelector.SetHeight(height)
 	return app.themeSelector.View()
+}
+
+func (app *ChatApplication) renderA2AServers() string {
+	if app.a2aServersView == nil {
+		// Initialize A2A servers view lazily
+		var sdkClient sdk.Client
+		if a2aShortcut, exists := app.shortcutRegistry.Get("a2a"); exists {
+			if a2a, ok := a2aShortcut.(*shortcuts.A2AShortcut); ok {
+				// Get the client from the A2A shortcut
+				sdkClient = a2a.GetClient()
+			}
+		}
+		app.a2aServersView = components.NewA2AServersView(app.configService, sdkClient, app.themeService)
+	}
+
+	width, height := app.stateManager.GetDimensions()
+	app.a2aServersView.SetWidth(width)
+	app.a2aServersView.SetHeight(height)
+	return app.a2aServersView.View()
 }
 
 func (app *ChatApplication) renderConversationSelection() string {

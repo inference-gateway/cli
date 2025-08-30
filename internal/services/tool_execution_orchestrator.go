@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -258,12 +259,13 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 
 		args := parseToolArguments(currentTool.Function.Arguments)
 
+		var executionResult *domain.ToolExecutionResult
+
 		ctx := context.Background()
 		result, err := teo.toolService.ExecuteTool(ctx, currentTool.Function.Name, args)
 
 		duration := time.Since(startTime)
 
-		var executionResult *domain.ToolExecutionResult
 		if err != nil {
 			executionResult = &domain.ToolExecutionResult{
 				ToolName:  currentTool.Function.Name,
@@ -282,7 +284,9 @@ func (teo *ToolExecutionOrchestrator) executeTool(toolIndex int) tea.Cmd {
 		execution.Status = ToolExecutionStatusProcessing
 		teo.mutex.Unlock()
 
-		teo.addToolResultToConversation(currentTool, executionResult)
+		if !strings.HasPrefix(currentTool.Function.Name, "a2a_") && !strings.HasPrefix(currentTool.Function.Name, "mcp_") {
+			teo.addToolResultToConversation(currentTool, executionResult)
+		}
 
 		return teo.processNextTool()()
 	}
@@ -353,6 +357,17 @@ func (teo *ToolExecutionOrchestrator) CancelExecution(reason string) tea.Cmd {
 		execution := teo.currentExecution
 		execution.Status = ToolExecutionStatusCancelled
 
+		for _, toolCall := range execution.ToolCalls {
+			result := &domain.ToolExecutionResult{
+				ToolName:  toolCall.Function.Name,
+				Arguments: parseToolArguments(toolCall.Function.Arguments),
+				Success:   false,
+				Duration:  0,
+				Error:     fmt.Sprintf("Cancelled: %s", reason),
+			}
+			teo.addToolResultToConversation(toolCall, result)
+		}
+
 		teo.stateManager.EndToolExecution()
 
 		teo.currentExecution = nil
@@ -381,6 +396,16 @@ func (teo *ToolExecutionOrchestrator) GetExecutionStatus() (bool, *ToolExecution
 func (teo *ToolExecutionOrchestrator) isApprovalRequired(toolName string) bool {
 	if teo.configService == nil {
 		return true
+	}
+
+	// TODO - need to implement some notification for approval
+	if strings.HasPrefix(toolName, "a2a_") {
+		return false
+	}
+
+	// TODO - need to implement some notification for approval
+	if strings.HasPrefix(toolName, "mcp_") {
+		return false
 	}
 
 	return teo.configService.IsApprovalRequired(toolName)
