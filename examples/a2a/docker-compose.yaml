@@ -34,6 +34,8 @@ services:
       - chat
     networks:
       - a2a-network
+    profiles:
+      - manual
 
   google-calendar-agent:
     image: ghcr.io/inference-gateway/google-calendar-agent:latest
