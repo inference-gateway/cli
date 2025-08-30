@@ -58,7 +58,6 @@ func NewChatHandler(
 		toolOrchestrator: toolOrchestrator,
 	}
 
-	// Initialize embedded handlers
 	handler.messageProcessor = NewChatMessageProcessor(handler)
 	handler.commandHandler = NewChatCommandHandler(handler)
 	handler.eventHandler = NewChatEventHandler(handler)
