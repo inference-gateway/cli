@@ -18,6 +18,7 @@ import (
 	ui "github.com/inference-gateway/cli/internal/ui"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	utils "github.com/inference-gateway/cli/internal/utils"
+	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
 )
 
@@ -912,7 +913,12 @@ func ExecTool(cfg *config.Config, args []string, format string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
 
-	result, err := toolService.ExecuteTool(ctx, toolName, toolArgs)
+	argsJSON, _ := json.Marshal(toolArgs)
+	toolCall := sdk.ChatCompletionMessageToolCallFunction{
+		Name:      toolName,
+		Arguments: string(argsJSON),
+	}
+	result, err := toolService.ExecuteTool(ctx, toolCall)
 	if err != nil {
 		return fmt.Errorf("tool execution failed: %w", err)
 	}

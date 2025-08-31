@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -127,7 +128,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 }
 
 // RunWithStream executes an agent task with streaming (for interactive chat)
-func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) {
+func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) { // nolint:gocognit
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
 	}
@@ -136,13 +137,11 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 	chatEvents := make(chan domain.ChatEvent, 100)
 
-	// Step 1 - Add system prompt
 	systemPrompt := s.config.GetAgentConfig().SystemPrompt
 	if systemPrompt == "" {
 		systemPrompt = "You are an helpful assistant."
 	}
 
-	// Step 2 - Create an SDK client and add tools if enabled
 	client := sdk.NewClient(&sdk.ClientOptions{}).
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
 			SkipMCP: true,
@@ -152,18 +151,17 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	if len(availableTools) > 0 {
 		client = client.WithTools(&availableTools)
 	}
-	// Step 3 - Prepare a request to the LLM with the user's intent
+
 	conversation := []sdk.Message{
 		{Role: "system", Content: systemPrompt},
 	}
 	conversation = append(conversation, req.Messages...)
 
-	// Step 4 - Parse the provider and the model
 	provider, model, err := s.parseProvider(req.Model)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
 	}
-	// Step 5 - Start agent event loop with max iteration from the config:
+
 	turns := 0
 	maxTurns := s.config.GetAgentConfig().MaxTurns
 	toolcalls := []sdk.ChatCompletionMessageToolCall{}
@@ -171,7 +169,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		conversation = s.optimizeConversation(ctx, req, conversation, chatEvents)
 		//// EVENT LOOP START
 		for maxTurns > turns {
-			// Step 1 - Inject User's System reminder into the conversation as a hidden message and store it in the database
 			if s.shouldInjectSystemReminder(turns) {
 				systemReminderMsg := s.getSystemReminderMessage()
 				conversation = append(conversation, systemReminderMsg)
@@ -187,18 +184,46 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 			}
 
-			_, err := client.GenerateContentStream(ctx, sdk.Provider(provider), model, conversation)
+			events, err := client.GenerateContentStream(ctx, sdk.Provider(provider), model, conversation)
 			if err != nil {
 				logger.Error("failed to create a stream, %w", err)
 			}
-			// Step 2 - When there are tool calls, call tcs := accumulateToolCalls to collect the full definitions
-			// Step 3 - Pass the return value from err := s.toolService.ExecuteTool(ctx, tc.ChatCompletionMessageToolCall)
-			// Step 4 - Handle error for each tool call
-			// Step 5 - Before processing a tool_call - store it to the conversations database and submit an event to the UI about tool call starting
-			// Step 6 - When the tool call is complete successfully or with errors - store it to the conversations database and submit an event to the UI about tool call completed
-			// Step 7 - When there is Reasoning or ReasoningContent - submit an event to the UI
-			// Step 8 - When there is standard content delta and tool_calls == empty(we check at the beginning and continue if there are tool calls) - submit a content delta event to the UI and store the final message in the database
-			// Step 9 - Save the token usage per iteration to the database
+			////// STREAM ITERATION START
+			for event := range events {
+				if event.Event == nil {
+					logger.Error("event is nil")
+					continue
+				}
+
+				if *event.Event != sdk.ContentDelta && event.Data == nil {
+					logger.Error("event has no delta")
+				}
+
+				var streamResponse sdk.CreateChatCompletionStreamResponse
+				if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
+					logger.Error("failed to unmarshal chat completion steam response")
+					continue
+				}
+
+				for _, choice := range streamResponse.Choices {
+					if len(choice.Delta.ToolCalls) == 0 {
+						continue
+					}
+
+					toolCallsMap := s.accumulateToolCalls(choice.Delta.ToolCalls)
+					for _, tc := range toolCallsMap {
+						err := s.executeToolCall(ctx, *tc, req.RequestID, chatEvents)
+						if err != nil {
+							logger.Error("failed to execute tool: %w", err)
+						}
+					}
+
+					// Step 6 - When there is Reasoning or ReasoningContent - submit an event to the UI
+					// Step 7 - When there is standard content delta and tool_calls == empty(we check at the beginning and continue if there are tool calls) - submit a content delta event to the UI and store the final message in the database
+					// Step 8 - Save the token usage per iteration to the database
+				}
+			}
+			////// STREAM ITERATION FINISHED
 			if len(toolcalls) == 0 {
 				// The agent after responding to the user intent doesn't want to call any tools - meaning it's finished processing
 
@@ -299,4 +324,141 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 	}
 
 	return conversation
+}
+
+func (s *AgentServiceImpl) executeToolCall(ctx context.Context, tc sdk.ChatCompletionMessageToolCall, requestID string, chatEvents chan<- domain.ChatEvent) error {
+	startTime := time.Now()
+
+	chatEvents <- domain.ToolCallStartEvent{
+		RequestID:     requestID,
+		Timestamp:     startTime,
+		ToolName:      tc.Function.Name,
+		ToolArguments: tc.Function.Arguments,
+	}
+
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		logger.Error("failed to parse tool arguments", "tool", tc.Function.Name, "error", err)
+
+		errorEntry := domain.ConversationEntry{
+			Message: domain.Message{
+				Role:    "assistant",
+				Content: fmt.Sprintf("Tool call failed: %s - invalid arguments", tc.Function.Name),
+			},
+			Time: time.Now(),
+			ToolExecution: &domain.ToolExecutionResult{
+				ToolName:  tc.Function.Name,
+				Arguments: args,
+				Success:   false,
+				Duration:  time.Since(startTime),
+				Error:     fmt.Sprintf("invalid tool arguments: %v", err),
+			},
+		}
+		if err := s.conversationRepo.AddMessage(errorEntry); err != nil {
+			logger.Error("failed to store tool error in conversation", "error", err)
+		}
+
+		chatEvents <- domain.ToolCallErrorEvent{
+			RequestID:  requestID,
+			Timestamp:  time.Now(),
+			ToolCallID: tc.Id,
+			ToolName:   tc.Function.Name,
+			Error:      fmt.Errorf("invalid tool arguments: %w", err),
+		}
+		return fmt.Errorf("failed to parse tool arguments: %w", err)
+	}
+
+	if err := s.toolService.ValidateTool(tc.Function.Name, args); err != nil {
+		logger.Error("tool validation failed", "tool", tc.Function.Name, "error", err)
+
+		errorEntry := domain.ConversationEntry{
+			Message: domain.Message{
+				Role:    "assistant",
+				Content: fmt.Sprintf("Tool validation failed: %s", tc.Function.Name),
+			},
+			Time: time.Now(),
+			ToolExecution: &domain.ToolExecutionResult{
+				ToolName:  tc.Function.Name,
+				Arguments: args,
+				Success:   false,
+				Duration:  time.Since(startTime),
+				Error:     err.Error(),
+			},
+		}
+		if err := s.conversationRepo.AddMessage(errorEntry); err != nil {
+			logger.Error("failed to store tool validation error in conversation", "error", err)
+		}
+
+		chatEvents <- domain.ToolCallErrorEvent{
+			RequestID:  requestID,
+			Timestamp:  time.Now(),
+			ToolCallID: tc.Id,
+			ToolName:   tc.Function.Name,
+			Error:      err,
+		}
+		return fmt.Errorf("tool validation failed: %w", err)
+	}
+
+	tcResult, err := s.toolService.ExecuteTool(ctx, tc.Function)
+	if err != nil {
+		logger.Error("failed to execute %s with %s", tc.Function.Name, tc.Function.Arguments)
+
+		errorEntry := domain.ConversationEntry{
+			Message: domain.Message{
+				Role:    "assistant",
+				Content: fmt.Sprintf("Tool execution failed: %s", tc.Function.Name),
+			},
+			Time: time.Now(),
+			ToolExecution: &domain.ToolExecutionResult{
+				ToolName:  tc.Function.Name,
+				Arguments: args,
+				Success:   false,
+				Duration:  time.Since(startTime),
+				Error:     err.Error(),
+			},
+		}
+		if err := s.conversationRepo.AddMessage(errorEntry); err != nil {
+			logger.Error("failed to store tool execution error in conversation", "error", err)
+		}
+
+		chatEvents <- domain.ToolCallErrorEvent{
+			RequestID:  requestID,
+			Timestamp:  time.Now(),
+			ToolCallID: tc.Id,
+			ToolName:   tc.Function.Name,
+			Error:      err,
+		}
+		return err
+	}
+
+	successEntry := domain.ConversationEntry{
+		Message: domain.Message{
+			Role:    "tool",
+			Content: fmt.Sprintf("Tool %s executed successfully", tcResult.ToolName),
+		},
+		Time: time.Now(),
+		ToolExecution: &domain.ToolExecutionResult{
+			ToolName:  tcResult.ToolName,
+			Arguments: args,
+			Success:   tcResult.Success,
+			Duration:  time.Since(startTime),
+			Data:      tcResult.Data,
+			Metadata:  tcResult.Metadata,
+			Diff:      tcResult.Diff,
+		},
+	}
+	if err := s.conversationRepo.AddMessage(successEntry); err != nil {
+		logger.Error("failed to store tool execution success in conversation", "error", err)
+	}
+
+	chatEvents <- domain.ToolCallCompleteEvent{
+		RequestID:  requestID,
+		Timestamp:  time.Now(),
+		Success:    tcResult.Success,
+		ToolCallID: tc.Id,
+		ToolName:   tcResult.ToolName,
+		Result:     tcResult.Data,
+	}
+
+	return nil
 }

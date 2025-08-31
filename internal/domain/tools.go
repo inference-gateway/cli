@@ -10,7 +10,7 @@ import (
 type ToolService interface {
 	ListTools() []sdk.ChatCompletionTool
 	ListAvailableTools() []string
-	ExecuteTool(ctx context.Context, name string, args map[string]any) (*ToolExecutionResult, error)
+	ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*ToolExecutionResult, error)
 	IsToolEnabled(name string) bool
 	ValidateTool(name string, args map[string]any) error
 }

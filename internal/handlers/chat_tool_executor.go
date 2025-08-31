@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -40,7 +41,12 @@ func (t *ChatToolExecutor) executeToolDirectly(
 			return t.handleToolValidationError(toolName, err)
 		}
 
-		result, err := t.handler.toolService.ExecuteTool(ctx, toolName, args)
+		argsJSON, _ := json.Marshal(args)
+		toolCall := sdk.ChatCompletionMessageToolCallFunction{
+			Name:      toolName,
+			Arguments: string(argsJSON),
+		}
+		result, err := t.handler.toolService.ExecuteTool(ctx, toolCall)
 		duration := time.Since(startTime)
 
 		if err != nil {
@@ -172,7 +178,12 @@ func (t *ChatToolExecutor) executeBashCommand(
 			return t.handleBashValidationError(command, err)
 		}
 
-		result, err := t.handler.toolService.ExecuteTool(ctx, "Bash", args)
+		argsJSON, _ := json.Marshal(args)
+		toolCall := sdk.ChatCompletionMessageToolCallFunction{
+			Name:      "Bash",
+			Arguments: string(argsJSON),
+		}
+		result, err := t.handler.toolService.ExecuteTool(ctx, toolCall)
 		duration := time.Since(startTime)
 
 		if err != nil {

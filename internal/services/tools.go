@@ -2,12 +2,13 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/services/tools"
-	"github.com/inference-gateway/sdk"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	tools "github.com/inference-gateway/cli/internal/services/tools"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // LLMToolService implements ToolService with the new tools package architecture
@@ -49,19 +50,24 @@ func (s *LLMToolService) ListAvailableTools() []string {
 }
 
 // ExecuteTool executes a tool with the given arguments
-func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	if !s.enabled {
 		return nil, fmt.Errorf("tools are not enabled")
 	}
 
-	tool, err := s.registry.GetTool(name)
+	var args map[string]any
+	if err := json.Unmarshal([]byte(toolCall.Arguments), &args); err != nil {
+		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
+	}
+
+	tool, err := s.registry.GetTool(toolCall.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	result, err := tool.Execute(ctx, args)
 
-	if name == "Read" && err == nil && result != nil && result.Success {
+	if toolCall.Name == "Read" && err == nil && result != nil && result.Success {
 		s.registry.SetReadToolUsed()
 	}
 
@@ -106,7 +112,7 @@ func (s *NoOpToolService) ListAvailableTools() []string {
 	return []string{}
 }
 
-func (s *NoOpToolService) ExecuteTool(ctx context.Context, name string, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (s *NoOpToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	return nil, fmt.Errorf("tools are not enabled")
 }
 

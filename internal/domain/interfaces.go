@@ -79,6 +79,7 @@ const (
 	EventToolCallUpdate
 	EventToolCallReady
 	EventToolCallComplete
+	EventToolCallError
 	EventCancelled
 	EventOptimizationStatus
 )
@@ -509,6 +510,7 @@ const (
 	StatusWorking
 	StatusProcessing
 	StatusPreparing
+	StatusError
 )
 
 // StatusProgress represents progress information for status messages

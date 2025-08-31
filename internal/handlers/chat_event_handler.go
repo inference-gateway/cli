@@ -491,6 +491,30 @@ func (e *ChatEventHandler) handleToolCallComplete(
 	return nil, tea.Batch(cmds...)
 }
 
+func (e *ChatEventHandler) handleToolCallError(
+	msg domain.ToolCallErrorEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	statusMsg := fmt.Sprintf("Failed %s: %v", msg.ToolName, msg.Error)
+
+	cmds := []tea.Cmd{
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: e.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    statusMsg,
+				Spinner:    false,
+				StatusType: domain.StatusError,
+			}
+		},
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
 func (e *ChatEventHandler) handleToolExecutionStarted(
 	msg domain.ToolExecutionStartedEvent,
 	_ *services.StateManager,

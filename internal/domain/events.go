@@ -43,8 +43,10 @@ func (e ChatChunkEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // ToolCallStartEvent indicates tool calls have started being received
 type ToolCallStartEvent struct {
-	RequestID string
-	Timestamp time.Time
+	RequestID     string
+	Timestamp     time.Time
+	ToolName      string
+	ToolArguments string
 }
 
 func (e ToolCallStartEvent) GetType() ChatEventType  { return EventToolCallStart }
@@ -121,13 +123,26 @@ type ToolCallCompleteEvent struct {
 	Timestamp  time.Time
 	ToolCallID string
 	ToolName   string
-	Result     string
+	Result     any
 	Success    bool
 }
 
 func (e ToolCallCompleteEvent) GetType() ChatEventType  { return EventToolCallComplete }
 func (e ToolCallCompleteEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolCallCompleteEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolCallErrorEvent indicates a tool call failed during execution
+type ToolCallErrorEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	ToolCallID string
+	ToolName   string
+	Error      error
+}
+
+func (e ToolCallErrorEvent) GetType() ChatEventType  { return EventToolCallError }
+func (e ToolCallErrorEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCallErrorEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // CancelledEvent indicates a request was cancelled
 type CancelledEvent struct {

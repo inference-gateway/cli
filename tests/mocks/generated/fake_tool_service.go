@@ -10,12 +10,11 @@ import (
 )
 
 type FakeToolService struct {
-	ExecuteToolStub        func(context.Context, string, map[string]any) (*domain.ToolExecutionResult, error)
+	ExecuteToolStub        func(context.Context, sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error)
 	executeToolMutex       sync.RWMutex
 	executeToolArgsForCall []struct {
 		arg1 context.Context
-		arg2 string
-		arg3 map[string]any
+		arg2 sdk.ChatCompletionMessageToolCallFunction
 	}
 	executeToolReturns struct {
 		result1 *domain.ToolExecutionResult
@@ -72,20 +71,19 @@ type FakeToolService struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeToolService) ExecuteTool(arg1 context.Context, arg2 string, arg3 map[string]any) (*domain.ToolExecutionResult, error) {
+func (fake *FakeToolService) ExecuteTool(arg1 context.Context, arg2 sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	fake.executeToolMutex.Lock()
 	ret, specificReturn := fake.executeToolReturnsOnCall[len(fake.executeToolArgsForCall)]
 	fake.executeToolArgsForCall = append(fake.executeToolArgsForCall, struct {
 		arg1 context.Context
-		arg2 string
-		arg3 map[string]any
-	}{arg1, arg2, arg3})
+		arg2 sdk.ChatCompletionMessageToolCallFunction
+	}{arg1, arg2})
 	stub := fake.ExecuteToolStub
 	fakeReturns := fake.executeToolReturns
-	fake.recordInvocation("ExecuteTool", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("ExecuteTool", []interface{}{arg1, arg2})
 	fake.executeToolMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2, arg3)
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1, ret.result2
@@ -99,17 +97,17 @@ func (fake *FakeToolService) ExecuteToolCallCount() int {
 	return len(fake.executeToolArgsForCall)
 }
 
-func (fake *FakeToolService) ExecuteToolCalls(stub func(context.Context, string, map[string]any) (*domain.ToolExecutionResult, error)) {
+func (fake *FakeToolService) ExecuteToolCalls(stub func(context.Context, sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error)) {
 	fake.executeToolMutex.Lock()
 	defer fake.executeToolMutex.Unlock()
 	fake.ExecuteToolStub = stub
 }
 
-func (fake *FakeToolService) ExecuteToolArgsForCall(i int) (context.Context, string, map[string]any) {
+func (fake *FakeToolService) ExecuteToolArgsForCall(i int) (context.Context, sdk.ChatCompletionMessageToolCallFunction) {
 	fake.executeToolMutex.RLock()
 	defer fake.executeToolMutex.RUnlock()
 	argsForCall := fake.executeToolArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeToolService) ExecuteToolReturns(result1 *domain.ToolExecutionResult, result2 error) {

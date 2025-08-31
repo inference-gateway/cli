@@ -84,7 +84,7 @@ func (h *ChatHandler) CanHandle(msg tea.Msg) bool {
 		return true
 	case domain.OptimizationStatusEvent:
 		return true
-	case domain.ToolCallStartEvent, domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent, domain.ToolCallCompleteEvent:
+	case domain.ToolCallStartEvent, domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent, domain.ToolCallCompleteEvent, domain.ToolCallErrorEvent:
 		return true
 	case domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent:
 		return true
@@ -129,6 +129,9 @@ func (h *ChatHandler) Handle(
 
 	case domain.ToolCallCompleteEvent:
 		return h.eventHandler.handleToolCallComplete(msg, stateManager)
+
+	case domain.ToolCallErrorEvent:
+		return h.eventHandler.handleToolCallError(msg, stateManager)
 
 	case domain.ChatCompleteEvent:
 		return h.eventHandler.handleChatComplete(msg, stateManager)
