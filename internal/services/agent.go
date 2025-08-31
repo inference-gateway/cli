@@ -162,9 +162,10 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	if s.optimizer != nil {
 		conversation = s.optimizer.OptimizeMessages(conversation)
 		logger.Debug("optimized conversation", "original_count", len(req.Messages)+1, "optimized_count", len(conversation))
-		// TODO - ensure optimizer is only executed when enabled
-		// TODO - improve the optimizer to take the first 10x (configured) messages after the user intent / root context, summarize it with a one-off LLM request
+		// TODO 1 - ensure optimizer is only executed when enabled
+		// TODO 2 - improve the optimizer to take the first 10x (configured) messages after the user intent / root context, summarize it with a one-off LLM request
 		// and place it right after the root context - must ensure there are at least +3 buffer messages to perform it on 10x configurations root-context and last 2x messages are the ones which remain immutable
+		// TODO 3 - store the optimized conversation in the database on a separate column - UI will still see all the conversation related to the session but the optimized conversation will be sent to the LLM
 	}
 
 	provider, model, err := s.parseProvider(req.Model)
