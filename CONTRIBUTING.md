@@ -134,6 +134,7 @@ import (
 
     "github.com/inference-gateway/cli/config"
     "github.com/inference-gateway/cli/internal/domain"
+    "github.com/inference-gateway/sdk"
 )
 
 // YourTool handles your specific functionality
@@ -159,24 +160,30 @@ Your tool must implement the `Tool` interface defined in `interfaces.go`:
 
 ```go
 // Definition returns the tool definition for the LLM
-func (t *YourTool) Definition() domain.ToolDefinition {
-    return domain.ToolDefinition{
-        Name:        "YourTool",
-        Description: "Description of what your tool does",
-        Parameters: map[string]any{
-            "type": "object",
-            "properties": map[string]any{
-                "param1": map[string]any{
-                    "type":        "string",
-                    "description": "Description of parameter 1",
-                },
-                "param2": map[string]any{
-                    "type":        "integer",
-                    "description": "Description of parameter 2",
-                    "minimum":     1,
-                },
+func (t *YourTool) Definition() sdk.ChatCompletionTool {
+    description := "Description of what your tool does"
+    parameters := sdk.FunctionParameters(map[string]any{
+        "type": "object",
+        "properties": map[string]any{
+            "param1": map[string]any{
+                "type":        "string",
+                "description": "Description of parameter 1",
             },
-            "required": []string{"param1"},
+            "param2": map[string]any{
+                "type":        "integer",
+                "description": "Description of parameter 2",
+                "minimum":     1,
+            },
+        },
+        "required": []string{"param1"},
+    })
+
+    return sdk.ChatCompletionTool{
+        Type: sdk.Function,
+        Function: sdk.FunctionObject{
+            Name:        "YourTool",
+            Description: &description,
+            Parameters:  &parameters,
         },
     }
 }
@@ -276,8 +283,8 @@ func TestYourTool_Definition(t *testing.T) {
     tool := NewYourTool(cfg)
     def := tool.Definition()
 
-    assert.Equal(t, "YourTool", def.Name)
-    assert.Contains(t, def.Description, "your tool")
+    assert.Equal(t, "YourTool", def.Function.Name)
+    assert.Contains(t, *def.Function.Description, "your tool")
 }
 
 func TestYourTool_Execute(t *testing.T) {

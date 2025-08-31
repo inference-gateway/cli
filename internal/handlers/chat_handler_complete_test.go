@@ -212,12 +212,11 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 		{
 			name: "ToolExecutionProgressEvent",
 			msg: domain.ToolExecutionProgressEvent{
-				SessionID:        "test-123",
-				CurrentTool:      1,
-				TotalTools:       2,
-				ToolName:         "Read",
-				Status:           "executing",
-				RequiresApproval: false,
+				SessionID:   "test-123",
+				CurrentTool: 1,
+				TotalTools:  2,
+				ToolName:    "Read",
+				Status:      "executing",
 			},
 			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, config *mocks.FakeConfigService) {
 			},
@@ -257,13 +256,6 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 
 	conversationRepo := services.NewInMemoryConversationRepository(nil)
 	shortcutRegistry := shortcuts.NewRegistry()
-	stateManager := services.NewStateManager(false)
-	toolOrchestrator := services.NewToolExecutionOrchestrator(
-		stateManager,
-		mockTool,
-		conversationRepo,
-		mockConfig,
-	)
 
 	return NewChatHandler(
 		mockAgent,
@@ -273,7 +265,6 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		mockTool,
 		mockFile,
 		shortcutRegistry,
-		toolOrchestrator,
 	)
 }
 
@@ -356,8 +347,7 @@ func TestChatHandler_shouldInjectSystemReminder(t *testing.T) {
 			mockConfig := &mocks.FakeConfigService{}
 
 			_ = &ChatHandler{
-				assistantMessageCounter: tt.assistantMessageCounter,
-				configService:           mockConfig,
+				configService: mockConfig,
 			}
 		})
 	}
@@ -421,7 +411,6 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Setup
 			mockAgent := &mocks.FakeAgentService{}
 			mockModel := &mocks.FakeModelService{}
 			mockConfig := &mocks.FakeConfigService{}
@@ -431,12 +420,6 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 			conversationRepo := services.NewInMemoryConversationRepository(nil)
 			stateManager := services.NewStateManager(false)
 			shortcutRegistry := shortcuts.NewRegistry()
-			toolOrchestrator := services.NewToolExecutionOrchestrator(
-				stateManager,
-				mockTool,
-				conversationRepo,
-				mockConfig,
-			)
 
 			handler := NewChatHandler(
 				mockAgent,
@@ -446,7 +429,6 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 				mockTool,
 				mockFile,
 				shortcutRegistry,
-				toolOrchestrator,
 			)
 
 			_, cmd := handler.eventHandler.handleChatComplete(tt.msg, stateManager)
@@ -559,12 +541,6 @@ func TestMessageRouter_Routing(t *testing.T) {
 			conversationRepo := services.NewInMemoryConversationRepository(nil)
 			stateManager := services.NewStateManager(false)
 			shortcutRegistry := shortcuts.NewRegistry()
-			toolOrchestrator := services.NewToolExecutionOrchestrator(
-				stateManager,
-				mockTool,
-				conversationRepo,
-				mockConfig,
-			)
 
 			handler := NewChatHandler(
 				mockAgent,
@@ -574,7 +550,6 @@ func TestMessageRouter_Routing(t *testing.T) {
 				mockTool,
 				mockFile,
 				shortcutRegistry,
-				toolOrchestrator,
 			)
 
 			router := NewMessageRouter()

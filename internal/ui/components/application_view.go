@@ -23,10 +23,9 @@ func NewApplicationViewRenderer(themeService domain.ThemeService) *ApplicationVi
 
 // ChatInterfaceData holds the data needed to render the chat interface
 type ChatInterfaceData struct {
-	Width, Height   int
-	ToolExecution   *domain.ToolExecutionSession
-	ApprovalUIState *domain.ApprovalUIState
-	CurrentView     domain.ViewState
+	Width, Height int
+	ToolExecution *domain.ToolExecutionSession
+	CurrentView   domain.ViewState
 }
 
 // RenderChatInterface renders the main chat interface
@@ -36,7 +35,6 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	inputView shared.InputComponent,
 	statusView shared.StatusComponent,
 	helpBar shared.HelpBarComponent,
-	approvalView shared.ApprovalComponent,
 ) string {
 	width, height := data.Width, data.Height
 
@@ -92,22 +90,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		}
 	}
 
-	if r.hasPendingApproval(data) {
-		toolExecution := data.ToolExecution
-		selectedIndex := int(domain.ApprovalApprove)
-		if data.ApprovalUIState != nil {
-			selectedIndex = data.ApprovalUIState.SelectedIndex
-		}
-
-		approvalView.SetWidth(width)
-		approvalView.SetHeight(height)
-		approvalContent := approvalView.Render(toolExecution, selectedIndex)
-		if approvalContent != "" {
-			components = append(components, approvalContent)
-		}
-	} else {
-		components = append(components, inputArea)
-	}
+	components = append(components, inputArea)
 
 	helpBar.SetWidth(width)
 	helpBarContent := helpBar.Render()
@@ -150,13 +133,6 @@ func (r *ApplicationViewRenderer) RenderFileSelection(
 	}
 
 	return fileSelectionView.RenderView(data.Files, data.SearchQuery, selectedIndex)
-}
-
-// hasPendingApproval checks if there's a pending tool call that requires approval
-func (r *ApplicationViewRenderer) hasPendingApproval(data ChatInterfaceData) bool {
-	return data.ToolExecution != nil &&
-		data.ToolExecution.Status == domain.ToolExecutionStatusWaitingApproval &&
-		(data.CurrentView == domain.ViewStateChat || data.CurrentView == domain.ViewStateToolApproval)
 }
 
 // filterFiles filters files based on search query

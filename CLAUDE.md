@@ -74,6 +74,31 @@ task test:ui:verify     # Verify UI snapshots match
 task test:ui:interactive # Interactive UI component testing
 ```
 
+## Testing Interactive Chat
+
+```bash
+echo "Hi" | INFER_LOGGING_DEBUG=true INFER_AGENT_MODEL=deepseek/deepseek-chat INFER_TOOLS_ENABLED=false go run . chat
+```
+
+## Testing Database Entries and Conversation flows
+
+Get the latest conversation messages:
+
+```bash
+sqlite3 .infer/conversations.db -json "
+  SELECT json(messages) AS messages
+  FROM conversations
+  ORDER BY created_at DESC
+  LIMIT 1;
+" | jq -r '.[0].messages | fromjson'
+```
+
+Check the logs:
+
+```bash
+tail -n 100 .infer/logs/debug-*.log
+```
+
 ## Code Architecture
 
 ### Directory Structure

@@ -7,10 +7,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // TodoWriteTool handles structured task list management for coding sessions
@@ -30,10 +31,8 @@ func NewTodoWriteTool(cfg *config.Config) *TodoWriteTool {
 }
 
 // Definition returns the tool definition for the LLM
-func (t *TodoWriteTool) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{
-		Name: "TodoWrite",
-		Description: `Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
+func (t *TodoWriteTool) Definition() sdk.ChatCompletionTool {
+	description := `Use this tool to create and manage a structured task list for your current coding session. This helps you track progress, organize complex tasks, and demonstrate thoroughness to the user.
 It also helps the user understand the progress of the task and overall progress of their requests.
 
 ## When to Use This Tool
@@ -86,31 +85,37 @@ NOTE that you should not use this tool if there is only one trivial task to do. 
    - Break complex tasks into smaller, manageable steps
    - Use clear, descriptive task names
 
-When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.`,
-		Parameters: map[string]any{
-			"$schema":              "http://json-schema.org/draft-07/schema#",
-			"additionalProperties": false,
-			"type":                 "object",
-			"required":             []string{"todos"},
-			"properties": map[string]any{
-				"todos": map[string]any{
-					"description": "The updated todo list",
-					"type":        "array",
-					"items": map[string]any{
-						"type":                 "object",
-						"additionalProperties": false,
-						"required":             []string{"content", "status", "id"},
-						"properties": map[string]any{
-							"content": map[string]any{
-								"type":      "string",
-								"minLength": 1,
-							},
-							"id": map[string]any{
-								"type": "string",
-							},
-							"status": map[string]any{
-								"type": "string",
-								"enum": []string{"pending", "in_progress", "completed"},
+When in doubt, use this tool. Being proactive with task management demonstrates attentiveness and ensures you complete all requirements successfully.`
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "TodoWrite",
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"$schema":              "http://json-schema.org/draft-07/schema#",
+				"additionalProperties": false,
+				"type":                 "object",
+				"required":             []string{"todos"},
+				"properties": map[string]any{
+					"todos": map[string]any{
+						"description": "The updated todo list",
+						"type":        "array",
+						"items": map[string]any{
+							"type":                 "object",
+							"additionalProperties": false,
+							"required":             []string{"content", "status", "id"},
+							"properties": map[string]any{
+								"content": map[string]any{
+									"type":      "string",
+									"minLength": 1,
+								},
+								"id": map[string]any{
+									"type": "string",
+								},
+								"status": map[string]any{
+									"type": "string",
+									"enum": []string{"pending", "in_progress", "completed"},
+								},
 							},
 						},
 					},

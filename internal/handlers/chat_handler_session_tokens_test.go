@@ -23,7 +23,6 @@ func TestFormatMetricsWithSessionTokens(t *testing.T) {
 		nil, // toolService
 		nil, // fileService
 		shortcutRegistry,
-		nil, // toolOrchestrator
 	)
 
 	err := conversationRepo.AddTokenUsage(100, 50, 150)

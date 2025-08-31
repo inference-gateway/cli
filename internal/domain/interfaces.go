@@ -20,11 +20,11 @@ const (
 
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
-	Message          Message              `json:"message"`
-	Model            string               `json:"model,omitempty"`
-	Time             time.Time            `json:"time"`
-	ToolExecution    *ToolExecutionResult `json:"tool_execution,omitempty"`
-	IsSystemReminder bool                 `json:"is_system_reminder,omitempty"`
+	Message       Message              `json:"message"`
+	Model         string               `json:"model,omitempty"`
+	Time          time.Time            `json:"time"`
+	ToolExecution *ToolExecutionResult `json:"tool_execution,omitempty"`
+	Hidden        bool                 `json:"hidden,omitempty"`
 }
 
 // ExportFormat defines the format for exporting conversations
@@ -34,14 +34,6 @@ const (
 	ExportMarkdown ExportFormat = "markdown"
 	ExportJSON     ExportFormat = "json"
 	ExportText     ExportFormat = "text"
-)
-
-// ApprovalAction defines the possible approval actions for tool calls
-type ApprovalAction int
-
-const (
-	ApprovalApprove ApprovalAction = iota
-	ApprovalReject
 )
 
 // SessionTokenStats tracks accumulated token usage across a session
@@ -86,6 +78,7 @@ const (
 	EventToolCallPreview
 	EventToolCallUpdate
 	EventToolCallReady
+	EventToolCallComplete
 	EventCancelled
 )
 
@@ -115,22 +108,6 @@ type ChatSyncResponse struct {
 type ChatService interface {
 	CancelRequest(requestID string) error
 	GetMetrics(requestID string) *ChatMetrics
-}
-
-// ToolDefinition describes an available tool
-type ToolDefinition struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Parameters  any    `json:"parameters"`
-}
-
-// ToolService handles tool execution
-type ToolService interface {
-	ListTools() []ToolDefinition
-	ListAvailableTools() []string
-	ExecuteTool(ctx context.Context, name string, args map[string]any) (*ToolExecutionResult, error)
-	IsToolEnabled(name string) bool
-	ValidateTool(name string, args map[string]any) error
 }
 
 // FileService handles file operations
@@ -218,7 +195,7 @@ type Theme interface {
 // Tool represents a single tool with its definition, handler, and validator
 type Tool interface {
 	// Definition returns the tool definition for the LLM
-	Definition() ToolDefinition
+	Definition() sdk.ChatCompletionTool
 
 	// Execute runs the tool with given arguments
 	Execute(ctx context.Context, args map[string]any) (*ToolExecutionResult, error)
@@ -255,9 +232,6 @@ const (
 type ToolFormatter interface {
 	// FormatToolCall formats a tool call for consistent display
 	FormatToolCall(toolName string, args map[string]any) string
-
-	// FormatToolArgumentsForApproval formats tool arguments for approval display
-	FormatToolArgumentsForApproval(toolName string, args map[string]any) string
 
 	// FormatToolResultForUI formats tool execution results for UI display
 	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
@@ -552,6 +526,7 @@ type UIEventType int
 
 const (
 	UIEventUpdateHistory UIEventType = iota
+	UIEventStreamingContent
 	UIEventSetStatus
 	UIEventUpdateStatus
 	UIEventShowError
@@ -566,8 +541,6 @@ const (
 	UIEventFileSelected
 	UIEventFileSelectionRequest
 	UIEventSetupFileSelection
-	UIEventApprovalRequest
-	UIEventApprovalResponse
 	UIEventScrollRequest
 	UIEventFocusRequest
 	UIEventResize
@@ -580,8 +553,6 @@ const (
 	UIEventToolExecutionStarted
 	UIEventToolExecutionProgress
 	UIEventToolExecutionCompleted
-	UIEventToolApprovalRequest
-	UIEventToolApprovalResponse
 )
 
 // ScrollDirection defines scroll direction

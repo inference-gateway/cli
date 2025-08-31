@@ -27,10 +27,7 @@ type KeyHandlerContext interface {
 	// Actions
 	ToggleToolResultExpansion()
 	SendMessage() tea.Cmd
-	HasPendingApproval() bool
 	GetPageSize() int
-	ApproveToolCall() tea.Cmd
-	DenyToolCall() tea.Cmd
 }
 
 // Theme is an alias to the shared Theme interface

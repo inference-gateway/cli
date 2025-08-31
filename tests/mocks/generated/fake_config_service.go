@@ -4,6 +4,7 @@ package generated
 import (
 	"sync"
 
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -18,15 +19,15 @@ type FakeConfigService struct {
 	getAPIKeyReturnsOnCall map[int]struct {
 		result1 string
 	}
-	GetDefaultModelStub        func() string
-	getDefaultModelMutex       sync.RWMutex
-	getDefaultModelArgsForCall []struct {
+	GetAgentConfigStub        func() *config.AgentConfig
+	getAgentConfigMutex       sync.RWMutex
+	getAgentConfigArgsForCall []struct {
 	}
-	getDefaultModelReturns struct {
-		result1 string
+	getAgentConfigReturns struct {
+		result1 *config.AgentConfig
 	}
-	getDefaultModelReturnsOnCall map[int]struct {
-		result1 string
+	getAgentConfigReturnsOnCall map[int]struct {
+		result1 *config.AgentConfig
 	}
 	GetGatewayURLStub        func() string
 	getGatewayURLMutex       sync.RWMutex
@@ -67,16 +68,6 @@ type FakeConfigService struct {
 	}
 	getSandboxDirectoriesReturnsOnCall map[int]struct {
 		result1 []string
-	}
-	GetSystemPromptStub        func() string
-	getSystemPromptMutex       sync.RWMutex
-	getSystemPromptArgsForCall []struct {
-	}
-	getSystemPromptReturns struct {
-		result1 string
-	}
-	getSystemPromptReturnsOnCall map[int]struct {
-		result1 string
 	}
 	GetTimeoutStub        func() int
 	getTimeoutMutex       sync.RWMutex
@@ -176,15 +167,15 @@ func (fake *FakeConfigService) GetAPIKeyReturnsOnCall(i int, result1 string) {
 	}{result1}
 }
 
-func (fake *FakeConfigService) GetDefaultModel() string {
-	fake.getDefaultModelMutex.Lock()
-	ret, specificReturn := fake.getDefaultModelReturnsOnCall[len(fake.getDefaultModelArgsForCall)]
-	fake.getDefaultModelArgsForCall = append(fake.getDefaultModelArgsForCall, struct {
+func (fake *FakeConfigService) GetAgentConfig() *config.AgentConfig {
+	fake.getAgentConfigMutex.Lock()
+	ret, specificReturn := fake.getAgentConfigReturnsOnCall[len(fake.getAgentConfigArgsForCall)]
+	fake.getAgentConfigArgsForCall = append(fake.getAgentConfigArgsForCall, struct {
 	}{})
-	stub := fake.GetDefaultModelStub
-	fakeReturns := fake.getDefaultModelReturns
-	fake.recordInvocation("GetDefaultModel", []interface{}{})
-	fake.getDefaultModelMutex.Unlock()
+	stub := fake.GetAgentConfigStub
+	fakeReturns := fake.getAgentConfigReturns
+	fake.recordInvocation("GetAgentConfig", []interface{}{})
+	fake.getAgentConfigMutex.Unlock()
 	if stub != nil {
 		return stub()
 	}
@@ -194,38 +185,38 @@ func (fake *FakeConfigService) GetDefaultModel() string {
 	return fakeReturns.result1
 }
 
-func (fake *FakeConfigService) GetDefaultModelCallCount() int {
-	fake.getDefaultModelMutex.RLock()
-	defer fake.getDefaultModelMutex.RUnlock()
-	return len(fake.getDefaultModelArgsForCall)
+func (fake *FakeConfigService) GetAgentConfigCallCount() int {
+	fake.getAgentConfigMutex.RLock()
+	defer fake.getAgentConfigMutex.RUnlock()
+	return len(fake.getAgentConfigArgsForCall)
 }
 
-func (fake *FakeConfigService) GetDefaultModelCalls(stub func() string) {
-	fake.getDefaultModelMutex.Lock()
-	defer fake.getDefaultModelMutex.Unlock()
-	fake.GetDefaultModelStub = stub
+func (fake *FakeConfigService) GetAgentConfigCalls(stub func() *config.AgentConfig) {
+	fake.getAgentConfigMutex.Lock()
+	defer fake.getAgentConfigMutex.Unlock()
+	fake.GetAgentConfigStub = stub
 }
 
-func (fake *FakeConfigService) GetDefaultModelReturns(result1 string) {
-	fake.getDefaultModelMutex.Lock()
-	defer fake.getDefaultModelMutex.Unlock()
-	fake.GetDefaultModelStub = nil
-	fake.getDefaultModelReturns = struct {
-		result1 string
+func (fake *FakeConfigService) GetAgentConfigReturns(result1 *config.AgentConfig) {
+	fake.getAgentConfigMutex.Lock()
+	defer fake.getAgentConfigMutex.Unlock()
+	fake.GetAgentConfigStub = nil
+	fake.getAgentConfigReturns = struct {
+		result1 *config.AgentConfig
 	}{result1}
 }
 
-func (fake *FakeConfigService) GetDefaultModelReturnsOnCall(i int, result1 string) {
-	fake.getDefaultModelMutex.Lock()
-	defer fake.getDefaultModelMutex.Unlock()
-	fake.GetDefaultModelStub = nil
-	if fake.getDefaultModelReturnsOnCall == nil {
-		fake.getDefaultModelReturnsOnCall = make(map[int]struct {
-			result1 string
+func (fake *FakeConfigService) GetAgentConfigReturnsOnCall(i int, result1 *config.AgentConfig) {
+	fake.getAgentConfigMutex.Lock()
+	defer fake.getAgentConfigMutex.Unlock()
+	fake.GetAgentConfigStub = nil
+	if fake.getAgentConfigReturnsOnCall == nil {
+		fake.getAgentConfigReturnsOnCall = make(map[int]struct {
+			result1 *config.AgentConfig
 		})
 	}
-	fake.getDefaultModelReturnsOnCall[i] = struct {
-		result1 string
+	fake.getAgentConfigReturnsOnCall[i] = struct {
+		result1 *config.AgentConfig
 	}{result1}
 }
 
@@ -438,59 +429,6 @@ func (fake *FakeConfigService) GetSandboxDirectoriesReturnsOnCall(i int, result1
 	}
 	fake.getSandboxDirectoriesReturnsOnCall[i] = struct {
 		result1 []string
-	}{result1}
-}
-
-func (fake *FakeConfigService) GetSystemPrompt() string {
-	fake.getSystemPromptMutex.Lock()
-	ret, specificReturn := fake.getSystemPromptReturnsOnCall[len(fake.getSystemPromptArgsForCall)]
-	fake.getSystemPromptArgsForCall = append(fake.getSystemPromptArgsForCall, struct {
-	}{})
-	stub := fake.GetSystemPromptStub
-	fakeReturns := fake.getSystemPromptReturns
-	fake.recordInvocation("GetSystemPrompt", []interface{}{})
-	fake.getSystemPromptMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeConfigService) GetSystemPromptCallCount() int {
-	fake.getSystemPromptMutex.RLock()
-	defer fake.getSystemPromptMutex.RUnlock()
-	return len(fake.getSystemPromptArgsForCall)
-}
-
-func (fake *FakeConfigService) GetSystemPromptCalls(stub func() string) {
-	fake.getSystemPromptMutex.Lock()
-	defer fake.getSystemPromptMutex.Unlock()
-	fake.GetSystemPromptStub = stub
-}
-
-func (fake *FakeConfigService) GetSystemPromptReturns(result1 string) {
-	fake.getSystemPromptMutex.Lock()
-	defer fake.getSystemPromptMutex.Unlock()
-	fake.GetSystemPromptStub = nil
-	fake.getSystemPromptReturns = struct {
-		result1 string
-	}{result1}
-}
-
-func (fake *FakeConfigService) GetSystemPromptReturnsOnCall(i int, result1 string) {
-	fake.getSystemPromptMutex.Lock()
-	defer fake.getSystemPromptMutex.Unlock()
-	fake.GetSystemPromptStub = nil
-	if fake.getSystemPromptReturnsOnCall == nil {
-		fake.getSystemPromptReturnsOnCall = make(map[int]struct {
-			result1 string
-		})
-	}
-	fake.getSystemPromptReturnsOnCall[i] = struct {
-		result1 string
 	}{result1}
 }
 

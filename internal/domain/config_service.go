@@ -1,5 +1,7 @@
 package domain
 
+import "github.com/inference-gateway/cli/config"
+
 // ConfigService provides configuration-related functionality
 type ConfigService interface {
 	// Tool approval configuration
@@ -14,8 +16,7 @@ type ConfigService interface {
 	GetTimeout() int
 
 	// Chat configuration
-	GetSystemPrompt() string
-	GetDefaultModel() string
+	GetAgentConfig() *config.AgentConfig
 
 	// Sandbox configuration
 	GetSandboxDirectories() []string

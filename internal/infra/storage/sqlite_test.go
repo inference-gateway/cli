@@ -14,7 +14,6 @@ import (
 )
 
 func setupTestStorage(t *testing.T) (*SQLiteStorage, func()) {
-	// Create temp directory for test database
 	tempDir, err := os.MkdirTemp("", "sqlite_test_*")
 	require.NoError(t, err)
 
@@ -47,33 +46,28 @@ func TestSQLiteStorage_BasicOperations(t *testing.T) {
 	})
 
 	t.Run("Save and Load Conversation", func(t *testing.T) {
-		// Create test conversation
 		conversationID := "test-conversation-1"
 		entries := createTestEntries()
 		metadata := createTestMetadata(conversationID)
 
-		// Save conversation
 		err := storage.SaveConversation(ctx, conversationID, entries, metadata)
 		assert.NoError(t, err)
 
-		// Load conversation
 		loadedEntries, loadedMetadata, err := storage.LoadConversation(ctx, conversationID)
 		assert.NoError(t, err)
 
-		// Verify metadata
 		assert.Equal(t, metadata.ID, loadedMetadata.ID)
 		assert.Equal(t, metadata.Title, loadedMetadata.Title)
 		assert.Equal(t, len(entries), loadedMetadata.MessageCount)
 		assert.Equal(t, metadata.TokenStats, loadedMetadata.TokenStats)
 		assert.Equal(t, metadata.Tags, loadedMetadata.Tags)
 
-		// Verify entries
 		assert.Len(t, loadedEntries, len(entries))
 		for i, entry := range entries {
 			assert.Equal(t, entry.Message.Content, loadedEntries[i].Message.Content)
 			assert.Equal(t, entry.Message.Role, loadedEntries[i].Message.Role)
 			assert.Equal(t, entry.Model, loadedEntries[i].Model)
-			assert.Equal(t, entry.IsSystemReminder, loadedEntries[i].IsSystemReminder)
+			assert.Equal(t, entry.Hidden, loadedEntries[i].Hidden)
 		}
 	})
 
@@ -82,11 +76,9 @@ func TestSQLiteStorage_BasicOperations(t *testing.T) {
 		entries := createTestEntries()
 		metadata := createTestMetadata(conversationID)
 
-		// Save initial version
 		err := storage.SaveConversation(ctx, conversationID, entries, metadata)
 		assert.NoError(t, err)
 
-		// Add more entries and update metadata
 		newEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
@@ -101,11 +93,9 @@ func TestSQLiteStorage_BasicOperations(t *testing.T) {
 		metadata.UpdatedAt = time.Now()
 		metadata.MessageCount = len(entries)
 
-		// Save updated version
 		err = storage.SaveConversation(ctx, conversationID, entries, metadata)
 		assert.NoError(t, err)
 
-		// Load and verify
 		loadedEntries, loadedMetadata, err := storage.LoadConversation(ctx, conversationID)
 		assert.NoError(t, err)
 

@@ -35,8 +35,7 @@ type ServiceContainer struct {
 	fileService      domain.FileService
 
 	// Services
-	stateManager              *services.StateManager
-	toolExecutionOrchestrator *services.ToolExecutionOrchestrator
+	stateManager *services.StateManager
 
 	// Background services
 	titleGenerator       *services.ConversationTitleGenerator
@@ -144,8 +143,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 		agentClient,
 		c.toolService,
 		c.config,
+		c.conversationRepo,
 		c.config.Gateway.Timeout,
-		c.config.Agent.MaxTokens,
 		optimizer,
 	)
 
@@ -156,13 +155,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 func (c *ServiceContainer) initializeServices() {
 	debugMode := c.config.Logging.Debug
 	c.stateManager = services.NewStateManager(debugMode)
-
-	c.toolExecutionOrchestrator = services.NewToolExecutionOrchestrator(
-		c.stateManager,
-		c.toolService,
-		c.conversationRepo,
-		c.config,
-	)
 }
 
 // initializeUIComponents creates UI components and theme
@@ -273,10 +265,6 @@ func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
 // New service getters
 func (c *ServiceContainer) GetStateManager() *services.StateManager {
 	return c.stateManager
-}
-
-func (c *ServiceContainer) GetToolExecutionOrchestrator() *services.ToolExecutionOrchestrator {
-	return c.toolExecutionOrchestrator
 }
 
 func (c *ServiceContainer) GetAgentService() domain.AgentService {

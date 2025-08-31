@@ -625,6 +625,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	return globalApproval
 }
 
+func (c *Config) GetAgentConfig() *AgentConfig {
+	return &c.Agent
+}
+
 func (c *Config) GetOutputDirectory() string {
 	return c.Compact.OutputDir
 }

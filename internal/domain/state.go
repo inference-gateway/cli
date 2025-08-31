@@ -25,7 +25,6 @@ type ApplicationState struct {
 
 	// UI State
 	fileSelectionState *FileSelectionState
-	approvalUIState    *ApprovalUIState
 
 	// Debugging
 	debugMode bool
@@ -38,7 +37,6 @@ const (
 	ViewStateModelSelection ViewState = iota
 	ViewStateChat
 	ViewStateFileSelection
-	ViewStateToolApproval
 	ViewStateTextSelection
 	ViewStateConversationSelection
 	ViewStateThemeSelection
@@ -53,8 +51,6 @@ func (v ViewState) String() string {
 		return "Chat"
 	case ViewStateFileSelection:
 		return "FileSelection"
-	case ViewStateToolApproval:
-		return "ToolApproval"
 	case ViewStateTextSelection:
 		return "TextSelection"
 	case ViewStateConversationSelection:
@@ -123,14 +119,12 @@ func (c ChatStatus) String() string {
 
 // ToolExecutionSession represents an active tool execution session
 type ToolExecutionSession struct {
-	CurrentTool      *ToolCall
-	RemainingTools   []ToolCall
-	TotalTools       int
-	CompletedTools   int
-	Status           ToolExecutionStatus
-	RequiresApproval bool
-	ApprovalChoice   ApprovalAction
-	StartTime        time.Time
+	CurrentTool    *ToolCall
+	RemainingTools []ToolCall
+	TotalTools     int
+	CompletedTools int
+	Status         ToolExecutionStatus
+	StartTime      time.Time
 }
 
 // ToolCall represents a tool call with proper typing
@@ -149,7 +143,6 @@ type ToolCallStatus int
 
 const (
 	ToolCallStatusPending ToolCallStatus = iota
-	ToolCallStatusWaitingApproval
 	ToolCallStatusExecuting
 	ToolCallStatusCompleted
 	ToolCallStatusFailed
@@ -161,8 +154,6 @@ func (t ToolCallStatus) String() string {
 	switch t {
 	case ToolCallStatusPending:
 		return "Pending"
-	case ToolCallStatusWaitingApproval:
-		return "WaitingApproval"
 	case ToolCallStatusExecuting:
 		return "Executing"
 	case ToolCallStatusCompleted:
@@ -184,7 +175,6 @@ type ToolExecutionStatus int
 const (
 	ToolExecutionStatusIdle ToolExecutionStatus = iota
 	ToolExecutionStatusProcessing
-	ToolExecutionStatusWaitingApproval
 	ToolExecutionStatusExecuting
 	ToolExecutionStatusCompleted
 	ToolExecutionStatusFailed
@@ -196,25 +186,12 @@ func (t ToolExecutionStatus) String() string {
 		return "Idle"
 	case ToolExecutionStatusProcessing:
 		return "Processing"
-	case ToolExecutionStatusWaitingApproval:
-		return "WaitingApproval"
 	case ToolExecutionStatusExecuting:
 		return "Executing"
 	case ToolExecutionStatusCompleted:
 		return "Completed"
 	case ToolExecutionStatusFailed:
 		return "Failed"
-	default:
-		return "Unknown"
-	}
-}
-
-func (a ApprovalAction) String() string {
-	switch a {
-	case ApprovalApprove:
-		return "Approve"
-	case ApprovalReject:
-		return "Reject"
 	default:
 		return "Unknown"
 	}
@@ -227,11 +204,6 @@ type FileSelectionState struct {
 	SelectedIndex int      `json:"selected_index"`
 }
 
-// ApprovalUIState represents the state of approval UI
-type ApprovalUIState struct {
-	SelectedIndex int `json:"selected_index"`
-}
-
 // NewApplicationState creates a new application state
 func NewApplicationState() *ApplicationState {
 	return &ApplicationState{
@@ -240,7 +212,6 @@ func NewApplicationState() *ApplicationState {
 		chatSession:        nil,
 		toolExecution:      nil,
 		fileSelectionState: nil,
-		approvalUIState:    nil,
 		debugMode:          false,
 	}
 }
@@ -272,14 +243,12 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateChat: {
 			ViewStateModelSelection,
 			ViewStateFileSelection,
-			ViewStateToolApproval,
 			ViewStateTextSelection,
 			ViewStateConversationSelection,
 			ViewStateThemeSelection,
 			ViewStateA2AServers,
 		},
 		ViewStateFileSelection:         {ViewStateChat},
-		ViewStateToolApproval:          {ViewStateChat},
 		ViewStateTextSelection:         {ViewStateChat},
 		ViewStateConversationSelection: {ViewStateChat},
 		ViewStateThemeSelection:        {ViewStateChat},
@@ -404,51 +373,13 @@ func (s *ApplicationState) StartToolExecution(tools []ToolCall) {
 	}
 
 	s.toolExecution = &ToolExecutionSession{
-		CurrentTool:      &tools[0],
-		RemainingTools:   tools[1:],
-		TotalTools:       len(tools),
-		CompletedTools:   0,
-		Status:           ToolExecutionStatusProcessing,
-		RequiresApproval: false,
-		StartTime:        time.Now(),
+		CurrentTool:    &tools[0],
+		RemainingTools: tools[1:],
+		TotalTools:     len(tools),
+		CompletedTools: 0,
+		Status:         ToolExecutionStatusProcessing,
+		StartTime:      time.Now(),
 	}
-}
-
-// SetToolApprovalRequired marks the current tool as requiring approval
-func (s *ApplicationState) SetToolApprovalRequired(required bool) error {
-	if s.toolExecution == nil {
-		return fmt.Errorf("no active tool execution session")
-	}
-
-	s.toolExecution.RequiresApproval = required
-	if required {
-		s.toolExecution.Status = ToolExecutionStatusWaitingApproval
-		s.toolExecution.CurrentTool.Status = ToolCallStatusWaitingApproval
-	}
-	return nil
-}
-
-// ApproveCurrentTool approves the current tool for execution
-func (s *ApplicationState) ApproveCurrentTool() error {
-	if s.toolExecution == nil || s.toolExecution.CurrentTool == nil {
-		return fmt.Errorf("no current tool to approve")
-	}
-
-	s.toolExecution.ApprovalChoice = ApprovalApprove
-	s.toolExecution.Status = ToolExecutionStatusExecuting
-	s.toolExecution.CurrentTool.Status = ToolCallStatusExecuting
-	return nil
-}
-
-// DenyCurrentTool denies the current tool execution
-func (s *ApplicationState) DenyCurrentTool() error {
-	if s.toolExecution == nil || s.toolExecution.CurrentTool == nil {
-		return fmt.Errorf("no current tool to deny")
-	}
-
-	s.toolExecution.ApprovalChoice = ApprovalReject
-	s.toolExecution.CurrentTool.Status = ToolCallStatusDenied
-	return s.moveToNextTool()
 }
 
 // CompleteCurrentTool marks the current tool as completed and moves to next
@@ -552,11 +483,10 @@ func (s *ApplicationState) GetStateSnapshot() StateSnapshot {
 
 	if s.toolExecution != nil {
 		snapshot.ToolExecution = &ToolExecutionSnapshot{
-			Status:           s.toolExecution.Status.String(),
-			TotalTools:       s.toolExecution.TotalTools,
-			CompletedTools:   s.toolExecution.CompletedTools,
-			RequiresApproval: s.toolExecution.RequiresApproval,
-			StartTime:        s.toolExecution.StartTime,
+			Status:         s.toolExecution.Status.String(),
+			TotalTools:     s.toolExecution.TotalTools,
+			CompletedTools: s.toolExecution.CompletedTools,
+			StartTime:      s.toolExecution.StartTime,
 		}
 
 		if s.toolExecution.CurrentTool != nil {
@@ -608,32 +538,6 @@ func (s *ApplicationState) ClearFileSelectionState() {
 	s.fileSelectionState = nil
 }
 
-// Approval UI State Management
-
-// SetupApprovalUI initializes approval UI state
-func (s *ApplicationState) SetupApprovalUI() {
-	s.approvalUIState = &ApprovalUIState{
-		SelectedIndex: int(ApprovalApprove), // Default to approve
-	}
-}
-
-// GetApprovalUIState returns the current approval UI state
-func (s *ApplicationState) GetApprovalUIState() *ApprovalUIState {
-	return s.approvalUIState
-}
-
-// SetApprovalSelectedIndex sets the approval selection index
-func (s *ApplicationState) SetApprovalSelectedIndex(index int) {
-	if s.approvalUIState != nil {
-		s.approvalUIState.SelectedIndex = index
-	}
-}
-
-// ClearApprovalUIState clears the approval UI state
-func (s *ApplicationState) ClearApprovalUIState() {
-	s.approvalUIState = nil
-}
-
 // StateSnapshot represents a point-in-time snapshot of application state
 type StateSnapshot struct {
 	CurrentView   string                 `json:"current_view"`
@@ -659,12 +563,11 @@ type ChatSessionSnapshot struct {
 
 // ToolExecutionSnapshot represents a snapshot of tool execution state
 type ToolExecutionSnapshot struct {
-	Status           string            `json:"status"`
-	TotalTools       int               `json:"total_tools"`
-	CompletedTools   int               `json:"completed_tools"`
-	RequiresApproval bool              `json:"requires_approval"`
-	StartTime        time.Time         `json:"start_time"`
-	CurrentTool      *ToolCallSnapshot `json:"current_tool,omitempty"`
+	Status         string            `json:"status"`
+	TotalTools     int               `json:"total_tools"`
+	CompletedTools int               `json:"completed_tools"`
+	StartTime      time.Time         `json:"start_time"`
+	CurrentTool    *ToolCallSnapshot `json:"current_tool,omitempty"`
 }
 
 // ToolCallSnapshot represents a snapshot of tool call state

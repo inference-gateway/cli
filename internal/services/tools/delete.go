@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // DeleteTool handles file and directory deletion operations
@@ -29,35 +30,39 @@ func NewDeleteTool(cfg *config.Config) *DeleteTool {
 }
 
 // Definition returns the tool definition for the LLM
-func (t *DeleteTool) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{
-		Name:        "Delete",
-		Description: "Delete files or directories from the filesystem. Supports wildcard patterns for batch operations. Restricted to current working directory for security.",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"path": map[string]any{
-					"type":        "string",
-					"description": "The path to the file or directory to delete. Supports wildcard patterns like '*.txt' or 'temp/*' when wildcards are enabled.",
+func (t *DeleteTool) Definition() sdk.ChatCompletionTool {
+	description := "Delete files or directories from the filesystem. Supports wildcard patterns for batch operations. Restricted to current working directory for security."
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "Delete",
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{
+						"type":        "string",
+						"description": "The path to the file or directory to delete. Supports wildcard patterns like '*.txt' or 'temp/*' when wildcards are enabled.",
+					},
+					"recursive": map[string]any{
+						"type":        "boolean",
+						"description": "Whether to delete directories recursively",
+						"default":     false,
+					},
+					"force": map[string]any{
+						"type":        "boolean",
+						"description": "Whether to force deletion (ignore non-existent files)",
+						"default":     false,
+					},
+					"format": map[string]any{
+						"type":        "string",
+						"description": "Output format (text or json)",
+						"enum":        []string{"text", "json"},
+						"default":     "text",
+					},
 				},
-				"recursive": map[string]any{
-					"type":        "boolean",
-					"description": "Whether to delete directories recursively",
-					"default":     false,
-				},
-				"force": map[string]any{
-					"type":        "boolean",
-					"description": "Whether to force deletion (ignore non-existent files)",
-					"default":     false,
-				},
-				"format": map[string]any{
-					"type":        "string",
-					"description": "Output format (text or json)",
-					"enum":        []string{"text", "json"},
-					"default":     "text",
-				},
+				"required": []string{"path"},
 			},
-			"required": []string{"path"},
 		},
 	}
 }

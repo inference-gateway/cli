@@ -2,37 +2,24 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// streamState manages the state of a streaming request (simplified)
-type streamState struct {
-	reqID            string
-	startTime        time.Time
-	contentBuilder   strings.Builder
-	reasoningBuilder strings.Builder
-	toolCallsMap     map[string]*sdk.ChatCompletionMessageToolCall
-	toolCallsStarted bool
-	usage            *sdk.CompletionUsage
-	hasA2ATools      bool
-}
-
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
 type AgentServiceImpl struct {
-	client         sdk.Client
-	toolService    domain.ToolService
-	config         domain.ConfigService
-	timeoutSeconds int
-	maxTokens      int
-	optimizer      *ConversationOptimizer
+	client           sdk.Client
+	toolService      domain.ToolService
+	config           domain.ConfigService
+	conversationRepo domain.ConversationRepository
+	timeoutSeconds   int
+	maxTokens        int
+	optimizer        *ConversationOptimizer
 
 	// Request tracking
 	activeRequests map[string]context.CancelFunc
@@ -44,16 +31,24 @@ type AgentServiceImpl struct {
 }
 
 // NewAgentService creates a new agent service with pre-configured client
-func NewAgentService(client sdk.Client, toolService domain.ToolService, config domain.ConfigService, timeoutSeconds int, maxTokens int, optimizer *ConversationOptimizer) *AgentServiceImpl {
+func NewAgentService(
+	client sdk.Client,
+	toolService domain.ToolService,
+	config domain.ConfigService,
+	conversationRepo domain.ConversationRepository,
+	timeoutSeconds int,
+	optimizer *ConversationOptimizer,
+) *AgentServiceImpl {
 	return &AgentServiceImpl{
-		client:         client,
-		toolService:    toolService,
-		config:         config,
-		timeoutSeconds: timeoutSeconds,
-		maxTokens:      maxTokens,
-		optimizer:      optimizer,
-		activeRequests: make(map[string]context.CancelFunc),
-		metrics:        make(map[string]*domain.ChatMetrics),
+		client:           client,
+		toolService:      toolService,
+		config:           config,
+		conversationRepo: conversationRepo,
+		timeoutSeconds:   timeoutSeconds,
+		maxTokens:        config.GetAgentConfig().MaxTokens,
+		optimizer:        optimizer,
+		activeRequests:   make(map[string]context.CancelFunc),
+		metrics:          make(map[string]*domain.ChatMetrics),
 	}
 }
 
@@ -66,24 +61,44 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 	optimizedMessages := req.Messages
 	if s.optimizer != nil {
 		optimizedMessages = s.optimizer.OptimizeMessages(req.Messages)
-		logger.Debug("Message optimization applied",
-			"original_count", len(req.Messages),
-			"optimized_count", len(optimizedMessages))
 	}
 
 	messages := s.addSystemPrompt(optimizedMessages)
-
-	logger.Info("LLM Request (Sync)",
-		"request_id", req.RequestID,
-		"model", req.Model,
-		"messages", messages)
 
 	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
 	defer cancel()
 
 	startTime := time.Now()
 
-	response, err := s.generateContentSync(timeoutCtx, req.Model, messages)
+	response, err := func(timeoutCtx context.Context, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
+		provider, modelName, err := s.parseProvider(model)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
+		}
+
+		providerType := sdk.Provider(provider)
+
+		client := s.client.WithOptions(&sdk.CreateChatCompletionRequest{
+			MaxTokens: &s.maxTokens,
+		}).
+			WithMiddlewareOptions(&sdk.MiddlewareOptions{
+				SkipMCP: s.config.ShouldSkipMCPToolOnClient(),
+				SkipA2A: s.config.ShouldSkipA2AToolOnClient(),
+			})
+		if s.toolService != nil { // nolint:nestif
+			availableTools := s.toolService.ListTools()
+			if len(availableTools) > 0 {
+				client = s.client.WithTools(&availableTools)
+			}
+		}
+
+		response, err := client.GenerateContent(timeoutCtx, providerType, modelName, messages)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate content: %w", err)
+		}
+
+		return response, nil
+	}(timeoutCtx, req.Model, messages)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate content: %w", err)
 	}
@@ -111,546 +126,64 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 	}, nil
 }
 
-// resetStreamState creates and returns a new stream state (simplified)
-func (s *AgentServiceImpl) resetStreamState(reqID string, startTime time.Time) *streamState {
-	return &streamState{
-		reqID:            reqID,
-		startTime:        startTime,
-		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
-		toolCallsStarted: false,
-		usage:            nil,
-	}
-}
-
-// processToolCallDelta efficiently processes tool call deltas with real-time UI updates
-func (s *AgentServiceImpl) processToolCallDelta(deltaToolCall sdk.ChatCompletionMessageToolCallChunk, state *streamState, events chan domain.ChatEvent) { //nolint:funlen,gocyclo,cyclop
-	var key string
-	var toolCall *sdk.ChatCompletionMessageToolCall
-	var exists bool
-
-	if deltaToolCall.ID != "" { //nolint:nestif
-		for existingKey, existingTool := range state.toolCallsMap {
-			if existingTool.Id == deltaToolCall.ID {
-				key = existingKey
-				toolCall = existingTool
-				exists = true
-				break
-			}
-		}
-		if !exists {
-			key = fmt.Sprintf("%d_%s", deltaToolCall.Index, deltaToolCall.ID)
-		}
-	} else {
-		indexKey := fmt.Sprintf("%d", deltaToolCall.Index)
-		if existingTool, found := state.toolCallsMap[indexKey]; found {
-			key = indexKey
-			toolCall = existingTool
-			exists = true
-		} else {
-			var candidateKey string
-			var candidateTool *sdk.ChatCompletionMessageToolCall
-			for existingKey, existingTool := range state.toolCallsMap {
-				if strings.HasPrefix(existingKey, indexKey+"_") {
-					args := strings.TrimSpace(existingTool.Function.Arguments)
-					if args == "" || !strings.HasSuffix(args, "}") {
-						candidateKey = existingKey
-						candidateTool = existingTool
-						break
-					}
-					if candidateKey == "" {
-						candidateKey = existingKey
-						candidateTool = existingTool
-					}
-				}
-			}
-			if candidateKey != "" {
-				key = candidateKey
-				toolCall = candidateTool
-				exists = true
-			} else {
-				key = indexKey
-			}
-		}
-	}
-
-	wasNew := false
-	if !exists {
-		wasNew = true
-		toolCall = &sdk.ChatCompletionMessageToolCall{
-			Id:   deltaToolCall.ID,
-			Type: sdk.Function,
-			Function: sdk.ChatCompletionMessageToolCallFunction{
-				Name:      "",
-				Arguments: "",
-			},
-		}
-		state.toolCallsMap[key] = toolCall
-	}
-
-	logger.Debug("Processing tool call delta",
-		"index", deltaToolCall.Index,
-		"key", key,
-		"id", deltaToolCall.ID,
-		"name", deltaToolCall.Function.Name,
-		"args", deltaToolCall.Function.Arguments,
-		"args_length", len(deltaToolCall.Function.Arguments),
-		"wasNew", wasNew,
-		"existing_args", toolCall.Function.Arguments,
-		"existing_id", toolCall.Id,
-		"existing_name", toolCall.Function.Name)
-
-	nameChanged := false
-	argsChanged := false
-	idChanged := false
-
-	if deltaToolCall.ID != "" && toolCall.Id != deltaToolCall.ID {
-		toolCall.Id = deltaToolCall.ID
-		idChanged = true
-	}
-	if deltaToolCall.Function.Name != "" {
-		toolCall.Function.Name = deltaToolCall.Function.Name
-		nameChanged = true
-
-		if strings.HasPrefix(deltaToolCall.Function.Name, "a2a_") || strings.HasPrefix(deltaToolCall.Function.Name, "mcp_") {
-			state.hasA2ATools = true
-		}
-	}
-	if deltaToolCall.Function.Arguments != "" {
-		logger.Debug("Concatenating arguments",
-			"index", deltaToolCall.Index,
-			"existing", toolCall.Function.Arguments,
-			"delta", deltaToolCall.Function.Arguments,
-			"result_will_be", toolCall.Function.Arguments+deltaToolCall.Function.Arguments)
-		toolCall.Function.Arguments += deltaToolCall.Function.Arguments
-		argsChanged = true
-	}
-
-	args := strings.TrimSpace(toolCall.Function.Arguments)
-	funcName := strings.TrimSpace(toolCall.Function.Name)
-
-	if wasNew && funcName != "" {
-		state.toolCallsStarted = true
-
-		logger.Debug("Sending ToolCallPreviewEvent",
-			"tool_name", funcName,
-			"tool_call_id", toolCall.Id)
-		events <- domain.ToolCallPreviewEvent{
-			RequestID:  state.reqID,
-			Timestamp:  time.Now(),
-			ToolCallID: toolCall.Id,
-			ToolName:   funcName,
-			Arguments:  args,
-			Status:     domain.ToolCallStreamStatusStreaming,
-			IsComplete: false,
-		}
-		return
-	}
-
-	if (nameChanged || argsChanged || idChanged) && funcName != "" { //nolint:nestif
-		status := domain.ToolCallStreamStatusStreaming
-
-		if args != "" && strings.HasSuffix(args, "}") {
-			var temp any
-			if json.Unmarshal([]byte(args), &temp) == nil {
-				status = domain.ToolCallStreamStatusComplete
-				logger.Debug("Tool call JSON complete",
-					"tool_name", funcName,
-					"args", args)
-			}
-		}
-
-		events <- domain.ToolCallUpdateEvent{
-			RequestID:  state.reqID,
-			Timestamp:  time.Now(),
-			ToolCallID: toolCall.Id,
-			ToolName:   funcName,
-			Arguments:  args,
-			Status:     status,
-		}
-	} else {
-		logger.Debug("Skipping ToolCallUpdateEvent",
-			"nameChanged", nameChanged,
-			"argsChanged", argsChanged,
-			"idChanged", idChanged,
-			"funcName", funcName)
-	}
-}
-
 // RunWithStream executes an agent task with streaming (for interactive chat)
-func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) { //nolint:funlen,gocognit,gocyclo,cyclop
+func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) {
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
 	}
 
-	optimizedMessages := req.Messages
-	if s.optimizer != nil {
-		optimizedMessages = s.optimizer.OptimizeMessages(req.Messages)
-		logger.Debug("Message optimization applied",
-			"original_count", len(req.Messages),
-			"optimized_count", len(optimizedMessages))
+	_ = time.Now()
+
+	chatEvents := make(chan domain.ChatEvent, 100) // nolint:unused
+
+	// Step 1 - Add system prompt
+	systemPrompt := s.config.GetAgentConfig().SystemPrompt
+	if systemPrompt == "" {
+		systemPrompt = "You are an helpful assistant."
 	}
 
-	messages := s.addSystemPrompt(optimizedMessages)
-
-	logger.Info("LLM Request",
-		"request_id", req.RequestID,
-		"model", req.Model,
-		"messages", messages)
-
-	timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
-
-	s.requestsMux.Lock()
-	s.activeRequests[req.RequestID] = cancel
-	s.requestsMux.Unlock()
-
-	channelSize := 200
-	if s.toolService != nil {
-		toolCount := len(s.toolService.ListTools())
-		channelSize = max(200, toolCount*10)
+	// Step 2 - Create an SDK client and add tools if enabled
+	client := sdk.NewClient(&sdk.ClientOptions{}).
+		WithMiddlewareOptions(&sdk.MiddlewareOptions{
+			SkipMCP: true,
+			SkipA2A: true,
+		})
+	availableTools := s.toolService.ListTools()
+	if len(availableTools) > 0 {
+		client = client.WithTools(&availableTools)
 	}
-	events := make(chan domain.ChatEvent, channelSize)
+	// Step 3 - Send a request to the LLM with the user's intent
+	conversation := []sdk.Message{
+		{Role: "system", Content: systemPrompt},
+	}
+	provider, model, err := s.parseProvider(req.Model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
+	}
+	_, err = client.GenerateContentStream(ctx, sdk.Provider(provider), model, conversation)
+	if err != nil {
+		logger.Error("failed to create a stream, %w", err)
+	}
+	// Step 4 - Start agent event loop with max iteration from the config:
+	turns := 0
+	//// EVENT LOOP START
+	for s.config.GetAgentConfig().MaxTurns < turns {
+		// Step 1 - Optimize conversations using the optimizer (based on the message count and the configurations)
+		// Step 2 - Inject User's System reminder into the conversation as a hidden message and store it in the database
+		// Step 3 - When there are tool calls, call tcs := accumulateToolCalls to collect the full definitions
+		// Step 4 - Pass the return value from err := s.toolService.ExecuteTool(ctx, tc.ChatCompletionMessageToolCall)
+		// Step 5 - Handle error for each tool call
+		// Step 6 - Before processing a tool_call - store it to the conversations database and submit an event to the UI about tool call starting
+		// Step 7 - When the tool call is complete successfully or with errors - store it to the conversations database and submit an event to the UI about tool call completed
+		// Step 8 - When there is Reasoning or ReasoningContent - submit an event to the UI
+		// Step 9 - When there is standard content delta and tool_calls == empty(we check at the beginning and continue if there are tool calls) - submit a content delta event to the UI and store the final message in the database
+		// Step 10 - Save the token usage per iteration to the database
+		// Step 11 - Send the conversation back to the LLM
+		turns++
+	}
+	//// EVENT LOOP FINISHED
 
-	go func() {
-		defer close(events)
-		defer cancel()
-		defer func() {
-			s.requestsMux.Lock()
-			delete(s.activeRequests, req.RequestID)
-			s.requestsMux.Unlock()
-		}()
-
-		startTime := time.Now()
-		state := s.resetStreamState(req.RequestID, startTime)
-
-		events <- domain.ChatStartEvent{
-			RequestID: req.RequestID,
-			Timestamp: startTime,
-			Model:     req.Model,
-		}
-
-		s.metricsMux.Lock()
-		s.metrics[req.RequestID] = &domain.ChatMetrics{
-			Duration: 0,
-			Usage:    nil,
-		}
-		s.metricsMux.Unlock()
-
-		slashIndex := strings.Index(req.Model, "/")
-		if slashIndex == -1 {
-			s.sendErrorEvent(events, req.RequestID, fmt.Errorf("invalid model format, expected 'provider/model'"))
-			return
-		}
-
-		provider := req.Model[:slashIndex]
-		modelName := req.Model[slashIndex+1:]
-		providerType := sdk.Provider(provider)
-
-		clientWithTools := s.client
-		if s.toolService != nil { //nolint:nestif
-			availableTools := s.toolService.ListTools()
-			if len(availableTools) > 0 {
-				sdkTools := make([]sdk.ChatCompletionTool, len(availableTools))
-				for i, tool := range availableTools {
-					description := tool.Description
-					var parameters *sdk.FunctionParameters
-					if tool.Parameters != nil {
-						if paramMap, ok := tool.Parameters.(map[string]any); ok {
-							fp := sdk.FunctionParameters(paramMap)
-							parameters = &fp
-						}
-					}
-					sdkTools[i] = sdk.ChatCompletionTool{
-						Type: sdk.Function,
-						Function: sdk.FunctionObject{
-							Name:        tool.Name,
-							Description: &description,
-							Parameters:  parameters,
-						},
-					}
-				}
-				clientWithTools = s.client.WithTools(&sdkTools)
-			}
-		}
-
-		options := &sdk.CreateChatCompletionRequest{
-			MaxTokens: &s.maxTokens,
-		}
-
-		middlewareOptions := &sdk.MiddlewareOptions{
-			SkipMCP: s.config.ShouldSkipMCPToolOnClient(),
-			SkipA2A: s.config.ShouldSkipA2AToolOnClient(),
-		}
-
-		currentMessages := make([]sdk.Message, len(messages))
-		copy(currentMessages, messages)
-
-		for {
-
-			select {
-			case <-timeoutCtx.Done():
-				var errorMsg string
-				if timeoutCtx.Err() == context.DeadlineExceeded {
-					errorMsg = fmt.Sprintf("request timed out after %d seconds", s.timeoutSeconds)
-				} else {
-					errorMsg = "request cancelled by user"
-				}
-				events <- domain.ChatErrorEvent{
-					RequestID: req.RequestID,
-					Timestamp: time.Now(),
-					Error:     fmt.Errorf("%s", errorMsg),
-				}
-				return
-			default:
-			}
-
-			stream, err := clientWithTools.
-				WithOptions(options).
-				WithMiddlewareOptions(middlewareOptions).
-				GenerateContentStream(timeoutCtx, providerType, modelName, currentMessages)
-			if err != nil {
-				events <- domain.ChatErrorEvent{
-					RequestID: req.RequestID,
-					Timestamp: time.Now(),
-					Error:     fmt.Errorf("failed to generate content stream: %w", err),
-				}
-				return
-			}
-
-			var iterationBuilder strings.Builder
-			iterationToolCallsMap := make(map[string]*sdk.ChatCompletionMessageToolCall)
-			hasToolCalls := false
-			streamComplete := false
-
-			for !streamComplete {
-				select {
-				case <-timeoutCtx.Done():
-					var errorMsg string
-					if timeoutCtx.Err() == context.DeadlineExceeded {
-						errorMsg = fmt.Sprintf("request timed out after %d seconds", s.timeoutSeconds)
-					} else {
-						errorMsg = "request cancelled by user"
-					}
-					events <- domain.ChatErrorEvent{
-						RequestID: req.RequestID,
-						Timestamp: time.Now(),
-						Error:     fmt.Errorf("%s", errorMsg),
-					}
-					return
-
-				case event, ok := <-stream:
-					if !ok {
-						streamComplete = true
-						break
-					}
-
-					if event.Event == nil {
-						continue
-					}
-
-					switch *event.Event {
-					case sdk.ContentDelta:
-						if event.Data == nil {
-							continue
-						}
-
-						var streamResponse sdk.CreateChatCompletionStreamResponse
-						if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
-							continue
-						}
-
-						for _, choice := range streamResponse.Choices {
-							if choice.Delta.Content != "" {
-								iterationBuilder.WriteString(choice.Delta.Content)
-
-								if !state.hasA2ATools || !state.toolCallsStarted {
-									state.contentBuilder.WriteString(choice.Delta.Content)
-								}
-
-								events <- domain.ChatChunkEvent{
-									RequestID:        req.RequestID,
-									Timestamp:        time.Now(),
-									Content:          choice.Delta.Content,
-									ReasoningContent: "",
-									ToolCalls:        nil,
-									Delta:            true,
-								}
-							}
-
-							var extractedReasoning string
-							if choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
-								extractedReasoning = *choice.Delta.ReasoningContent
-							}
-							if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
-								extractedReasoning += *choice.Delta.Reasoning
-							}
-
-							if extractedReasoning != "" {
-								state.reasoningBuilder.WriteString(extractedReasoning)
-								events <- domain.ChatChunkEvent{
-									RequestID:        req.RequestID,
-									Timestamp:        time.Now(),
-									Content:          "",
-									ReasoningContent: extractedReasoning,
-									ToolCalls:        nil,
-									Delta:            true,
-								}
-							}
-
-							if len(choice.Delta.ToolCalls) > 0 { //nolint:nestif
-								hasToolCalls = true
-								if !state.toolCallsStarted {
-									state.toolCallsStarted = true
-									events <- domain.ToolCallStartEvent{
-										RequestID: req.RequestID,
-										Timestamp: time.Now(),
-									}
-								}
-
-								for _, deltaToolCall := range choice.Delta.ToolCalls {
-									key := fmt.Sprintf("%d", deltaToolCall.Index)
-									if iterationToolCallsMap[key] == nil {
-										iterationToolCallsMap[key] = &sdk.ChatCompletionMessageToolCall{
-											Id:   deltaToolCall.ID,
-											Type: sdk.Function,
-											Function: sdk.ChatCompletionMessageToolCallFunction{
-												Name:      "",
-												Arguments: "",
-											},
-										}
-									}
-									if deltaToolCall.ID != "" {
-										iterationToolCallsMap[key].Id = deltaToolCall.ID
-									}
-									if deltaToolCall.Function.Name != "" {
-										iterationToolCallsMap[key].Function.Name += deltaToolCall.Function.Name
-									}
-									if deltaToolCall.Function.Arguments != "" {
-										iterationToolCallsMap[key].Function.Arguments += deltaToolCall.Function.Arguments
-									}
-
-									s.processToolCallDelta(deltaToolCall, state, events)
-								}
-							}
-						}
-
-						if streamResponse.Usage != nil {
-							state.usage = streamResponse.Usage
-						}
-
-					case sdk.StreamEnd:
-						if event.Data != nil { //nolint:nestif
-							dataStr := string(*event.Data)
-							if dataStr == "[DONE]" {
-								streamComplete = true
-								break
-							}
-							var streamResponse sdk.CreateChatCompletionStreamResponse
-							if json.Unmarshal(*event.Data, &streamResponse) == nil {
-								for _, choice := range streamResponse.Choices {
-									if choice.FinishReason == "tool_calls" || choice.FinishReason == "stop" {
-										streamComplete = true
-										break
-									}
-								}
-							}
-						}
-
-					case "error":
-						var errResp struct {
-							Error string `json:"error"`
-						}
-						if event.Data != nil {
-							_ = json.Unmarshal(*event.Data, &errResp)
-						}
-						events <- domain.ChatErrorEvent{
-							RequestID: req.RequestID,
-							Timestamp: time.Now(),
-							Error:     fmt.Errorf("stream error: %s", errResp.Error),
-						}
-						return
-					}
-				}
-			}
-
-			hasGlobalToolCalls := len(state.toolCallsMap) > 0
-
-			logger.Debug("Stream iteration complete",
-				"hasToolCalls", hasToolCalls,
-				"hasGlobalToolCalls", hasGlobalToolCalls,
-				"iterationToolCallsCount", len(iterationToolCallsMap),
-				"globalToolCallsCount", len(state.toolCallsMap))
-
-			if !hasToolCalls && !hasGlobalToolCalls {
-				finalToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(state.toolCallsMap))
-				for _, tc := range state.toolCallsMap {
-					finalToolCalls = append(finalToolCalls, *tc)
-				}
-
-				duration := time.Since(startTime)
-
-				s.metricsMux.Lock()
-				if metrics, exists := s.metrics[req.RequestID]; exists {
-					metrics.Duration = duration
-					metrics.Usage = state.usage
-				}
-				s.metricsMux.Unlock()
-
-				events <- domain.ChatCompleteEvent{
-					RequestID: req.RequestID,
-					Timestamp: time.Now(),
-					Message:   state.contentBuilder.String(),
-					ToolCalls: finalToolCalls,
-					Metrics:   s.metrics[req.RequestID],
-				}
-				return
-			}
-
-			finalToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(state.toolCallsMap))
-			for mapKey, tc := range state.toolCallsMap {
-				logger.Debug("Final tool call being sent",
-					"mapKey", mapKey,
-					"id", tc.Id,
-					"name", tc.Function.Name,
-					"args", tc.Function.Arguments)
-				finalToolCalls = append(finalToolCalls, *tc)
-			}
-
-			logger.Debug("Sending ToolCallReadyEvent",
-				"toolCallsCount", len(finalToolCalls))
-
-			events <- domain.ToolCallReadyEvent{
-				RequestID: req.RequestID,
-				Timestamp: time.Now(),
-				ToolCalls: finalToolCalls,
-			}
-
-			break
-		}
-
-		finalToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(state.toolCallsMap))
-		for _, tc := range state.toolCallsMap {
-			finalToolCalls = append(finalToolCalls, *tc)
-		}
-
-		duration := time.Since(startTime)
-
-		s.metricsMux.Lock()
-		if metrics, exists := s.metrics[req.RequestID]; exists {
-			metrics.Duration = duration
-			metrics.Usage = state.usage
-		}
-		s.metricsMux.Unlock()
-
-		events <- domain.ChatCompleteEvent{
-			RequestID: req.RequestID,
-			Timestamp: time.Now(),
-			Message:   state.contentBuilder.String(),
-			ToolCalls: finalToolCalls,
-			Metrics:   s.metrics[req.RequestID],
-		}
-	}()
-
-	return events, nil
+	return chatEvents, nil
 }
 
 // CancelRequest cancels an active request
@@ -663,7 +196,7 @@ func (s *AgentServiceImpl) CancelRequest(requestID string) error {
 		return fmt.Errorf("request %s not found or already completed", requestID)
 	}
 
-	cancel()
+	defer cancel()
 	return nil
 }
 

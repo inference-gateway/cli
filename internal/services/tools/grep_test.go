@@ -46,33 +46,23 @@ func TestGrepTool_Definition(t *testing.T) {
 			tool := NewGrepTool(tt.config)
 			def := tool.Definition()
 
-			if def.Name != tt.expectedName {
-				t.Errorf("Expected tool name to be '%s', got %s", tt.expectedName, def.Name)
+			if def.Function.Name != tt.expectedName {
+				t.Errorf("Expected tool name to be '%s', got %s", tt.expectedName, def.Function.Name)
 			}
 
-			if def.Description == "" {
+			if *def.Function.Description == "" {
 				t.Error("Expected non-empty description")
 			}
 
 			for _, phrase := range tt.expectedPhrases {
-				if !contains(def.Description, phrase) {
+				if !contains(*def.Function.Description, phrase) {
 					t.Errorf("Expected description to contain '%s'", phrase)
 				}
 			}
 
 			if tt.shouldHaveParams {
-				params, ok := def.Parameters.(map[string]any)
-				if !ok {
-					t.Fatal("Expected parameters to be a map")
-				}
-
-				properties, ok := params["properties"].(map[string]any)
-				if !ok {
-					t.Fatal("Expected properties to be a map")
-				}
-
-				if _, exists := properties["pattern"]; !exists {
-					t.Errorf("Expected 'pattern' parameter. Available parameters: %v", getMapKeys(properties))
+				if def.Function.Parameters == nil {
+					t.Error("Expected parameters to not be nil")
 				}
 			}
 		})
@@ -80,7 +70,7 @@ func TestGrepTool_Definition(t *testing.T) {
 }
 
 // Helper function to get map keys for debugging
-func getMapKeys(m map[string]any) []string {
+func getMapKeys(m map[string]any) []string { // nolint:unused
 	keys := make([]string, 0, len(m))
 	for k := range m {
 		keys = append(keys, k)

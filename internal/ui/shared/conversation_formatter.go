@@ -31,7 +31,7 @@ func (f *ConversationLineFormatter) FormatConversationToLines(conversation []dom
 	var lines []string
 
 	for _, entry := range conversation {
-		if entry.IsSystemReminder {
+		if entry.Hidden {
 			continue
 		}
 

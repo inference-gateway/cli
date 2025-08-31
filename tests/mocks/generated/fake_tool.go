@@ -6,18 +6,19 @@ import (
 	"sync"
 
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/sdk"
 )
 
 type FakeTool struct {
-	DefinitionStub        func() domain.ToolDefinition
+	DefinitionStub        func() sdk.ChatCompletionTool
 	definitionMutex       sync.RWMutex
 	definitionArgsForCall []struct {
 	}
 	definitionReturns struct {
-		result1 domain.ToolDefinition
+		result1 sdk.ChatCompletionTool
 	}
 	definitionReturnsOnCall map[int]struct {
-		result1 domain.ToolDefinition
+		result1 sdk.ChatCompletionTool
 	}
 	ExecuteStub        func(context.Context, map[string]any) (*domain.ToolExecutionResult, error)
 	executeMutex       sync.RWMutex
@@ -102,7 +103,7 @@ type FakeTool struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeTool) Definition() domain.ToolDefinition {
+func (fake *FakeTool) Definition() sdk.ChatCompletionTool {
 	fake.definitionMutex.Lock()
 	ret, specificReturn := fake.definitionReturnsOnCall[len(fake.definitionArgsForCall)]
 	fake.definitionArgsForCall = append(fake.definitionArgsForCall, struct {
@@ -126,32 +127,32 @@ func (fake *FakeTool) DefinitionCallCount() int {
 	return len(fake.definitionArgsForCall)
 }
 
-func (fake *FakeTool) DefinitionCalls(stub func() domain.ToolDefinition) {
+func (fake *FakeTool) DefinitionCalls(stub func() sdk.ChatCompletionTool) {
 	fake.definitionMutex.Lock()
 	defer fake.definitionMutex.Unlock()
 	fake.DefinitionStub = stub
 }
 
-func (fake *FakeTool) DefinitionReturns(result1 domain.ToolDefinition) {
+func (fake *FakeTool) DefinitionReturns(result1 sdk.ChatCompletionTool) {
 	fake.definitionMutex.Lock()
 	defer fake.definitionMutex.Unlock()
 	fake.DefinitionStub = nil
 	fake.definitionReturns = struct {
-		result1 domain.ToolDefinition
+		result1 sdk.ChatCompletionTool
 	}{result1}
 }
 
-func (fake *FakeTool) DefinitionReturnsOnCall(i int, result1 domain.ToolDefinition) {
+func (fake *FakeTool) DefinitionReturnsOnCall(i int, result1 sdk.ChatCompletionTool) {
 	fake.definitionMutex.Lock()
 	defer fake.definitionMutex.Unlock()
 	fake.DefinitionStub = nil
 	if fake.definitionReturnsOnCall == nil {
 		fake.definitionReturnsOnCall = make(map[int]struct {
-			result1 domain.ToolDefinition
+			result1 sdk.ChatCompletionTool
 		})
 	}
 	fake.definitionReturnsOnCall[i] = struct {
-		result1 domain.ToolDefinition
+		result1 sdk.ChatCompletionTool
 	}{result1}
 }
 

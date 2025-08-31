@@ -78,7 +78,7 @@ func (r *InMemoryConversationRepository) Export(format domain.ExportFormat) ([]b
 
 	switch format {
 	case domain.ExportJSON:
-		filteredMessages := r.filterSystemReminders()
+		filteredMessages := r.filterHiddenMessages()
 		return json.MarshalIndent(filteredMessages, "", "  ")
 
 	case domain.ExportMarkdown:
@@ -137,7 +137,7 @@ func (r *InMemoryConversationRepository) UpdateLastMessageToolCalls(toolCalls *[
 func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 	var content strings.Builder
 
-	filteredMessages := r.filterSystemReminders()
+	filteredMessages := r.filterHiddenMessages()
 
 	content.WriteString("# Chat Session Export\n\n")
 	content.WriteString(fmt.Sprintf("**Date:** %s\n", time.Now().Format("2006-01-02 15:04:05")))
@@ -206,7 +206,7 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 func (r *InMemoryConversationRepository) exportText() []byte {
 	var content strings.Builder
 
-	filteredMessages := r.filterSystemReminders()
+	filteredMessages := r.filterHiddenMessages()
 
 	content.WriteString("Chat Session Export\n")
 	content.WriteString("===================\n\n")
@@ -237,11 +237,11 @@ func (r *InMemoryConversationRepository) exportText() []byte {
 	return []byte(content.String())
 }
 
-// filterSystemReminders returns a copy of messages with system reminders filtered out
-func (r *InMemoryConversationRepository) filterSystemReminders() []domain.ConversationEntry {
+// filterHiddenMessages returns a copy of messages with hidden messages filtered out
+func (r *InMemoryConversationRepository) filterHiddenMessages() []domain.ConversationEntry {
 	filtered := make([]domain.ConversationEntry, 0, len(r.messages))
 	for _, entry := range r.messages {
-		if !entry.IsSystemReminder {
+		if !entry.Hidden {
 			filtered = append(filtered, entry)
 		}
 	}

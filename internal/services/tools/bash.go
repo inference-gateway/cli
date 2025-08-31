@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // BashTool handles bash command execution with security validation
@@ -29,7 +30,7 @@ func NewBashTool(cfg *config.Config) *BashTool {
 }
 
 // Definition returns the tool definition for the LLM
-func (t *BashTool) Definition() domain.ToolDefinition {
+func (t *BashTool) Definition() sdk.ChatCompletionTool {
 	var allowedCommands []string
 
 	for _, cmd := range t.config.Tools.Bash.Whitelist.Commands {
@@ -57,25 +58,29 @@ func (t *BashTool) Definition() domain.ToolDefinition {
 		commandDescription += " Available commands include: " + strings.Join(allowedCommands, ", ")
 	}
 
-	return domain.ToolDefinition{
-		Name:        "Bash",
-		Description: "Execute whitelisted bash commands securely. Only pre-approved commands from the whitelist can be executed.",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"command": map[string]any{
-					"type":        "string",
-					"description": commandDescription,
-					"enum":        allowedCommands,
+	description := "Execute whitelisted bash commands securely. Only pre-approved commands from the whitelist can be executed."
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "Bash",
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"command": map[string]any{
+						"type":        "string",
+						"description": commandDescription,
+						"enum":        allowedCommands,
+					},
+					"format": map[string]any{
+						"type":        "string",
+						"description": "Output format (text or json)",
+						"enum":        []string{"text", "json"},
+						"default":     "text",
+					},
 				},
-				"format": map[string]any{
-					"type":        "string",
-					"description": "Output format (text or json)",
-					"enum":        []string{"text", "json"},
-					"default":     "text",
-				},
+				"required": []string{"command"},
 			},
-			"required": []string{"command"},
 		},
 	}
 }

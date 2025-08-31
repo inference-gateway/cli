@@ -28,8 +28,17 @@ func (w *sdkClientWrapper) WithMiddlewareOptions(opts *sdk.MiddlewareOptions) do
 	return w
 }
 
+func (w *sdkClientWrapper) WithTools(tools *[]sdk.ChatCompletionTool) domain.SDKClient {
+	w.client = w.client.WithTools(tools)
+	return w
+}
+
 func (w *sdkClientWrapper) GenerateContent(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
 	return w.client.GenerateContent(ctx, provider, model, messages)
+}
+
+func (w *sdkClientWrapper) GenerateContentStream(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (<-chan sdk.SSEvent, error) {
+	return w.client.GenerateContentStream(ctx, provider, model, messages)
 }
 
 // ConversationTitleGenerator generates titles for conversations using AI
@@ -230,7 +239,7 @@ func (g *ConversationTitleGenerator) formatConversationForTitleGeneration(entrie
 	maxLength := 2000
 
 	for _, entry := range entries {
-		if entry.IsSystemReminder {
+		if entry.Hidden {
 			continue
 		}
 
@@ -266,7 +275,7 @@ func (g *ConversationTitleGenerator) formatConversationForTitleGeneration(entrie
 // fallbackTitle creates a fallback title from the first 10 words of the conversation
 func (g *ConversationTitleGenerator) fallbackTitle(entries []domain.ConversationEntry) string {
 	for _, entry := range entries {
-		if entry.IsSystemReminder {
+		if entry.Hidden {
 			continue
 		}
 

@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/sdk"
 )
 
 type FakeToolService struct {
@@ -45,15 +46,15 @@ type FakeToolService struct {
 	listAvailableToolsReturnsOnCall map[int]struct {
 		result1 []string
 	}
-	ListToolsStub        func() []domain.ToolDefinition
+	ListToolsStub        func() []sdk.ChatCompletionTool
 	listToolsMutex       sync.RWMutex
 	listToolsArgsForCall []struct {
 	}
 	listToolsReturns struct {
-		result1 []domain.ToolDefinition
+		result1 []sdk.ChatCompletionTool
 	}
 	listToolsReturnsOnCall map[int]struct {
-		result1 []domain.ToolDefinition
+		result1 []sdk.ChatCompletionTool
 	}
 	ValidateToolStub        func(string, map[string]any) error
 	validateToolMutex       sync.RWMutex
@@ -251,7 +252,7 @@ func (fake *FakeToolService) ListAvailableToolsReturnsOnCall(i int, result1 []st
 	}{result1}
 }
 
-func (fake *FakeToolService) ListTools() []domain.ToolDefinition {
+func (fake *FakeToolService) ListTools() []sdk.ChatCompletionTool {
 	fake.listToolsMutex.Lock()
 	ret, specificReturn := fake.listToolsReturnsOnCall[len(fake.listToolsArgsForCall)]
 	fake.listToolsArgsForCall = append(fake.listToolsArgsForCall, struct {
@@ -275,32 +276,32 @@ func (fake *FakeToolService) ListToolsCallCount() int {
 	return len(fake.listToolsArgsForCall)
 }
 
-func (fake *FakeToolService) ListToolsCalls(stub func() []domain.ToolDefinition) {
+func (fake *FakeToolService) ListToolsCalls(stub func() []sdk.ChatCompletionTool) {
 	fake.listToolsMutex.Lock()
 	defer fake.listToolsMutex.Unlock()
 	fake.ListToolsStub = stub
 }
 
-func (fake *FakeToolService) ListToolsReturns(result1 []domain.ToolDefinition) {
+func (fake *FakeToolService) ListToolsReturns(result1 []sdk.ChatCompletionTool) {
 	fake.listToolsMutex.Lock()
 	defer fake.listToolsMutex.Unlock()
 	fake.ListToolsStub = nil
 	fake.listToolsReturns = struct {
-		result1 []domain.ToolDefinition
+		result1 []sdk.ChatCompletionTool
 	}{result1}
 }
 
-func (fake *FakeToolService) ListToolsReturnsOnCall(i int, result1 []domain.ToolDefinition) {
+func (fake *FakeToolService) ListToolsReturnsOnCall(i int, result1 []sdk.ChatCompletionTool) {
 	fake.listToolsMutex.Lock()
 	defer fake.listToolsMutex.Unlock()
 	fake.ListToolsStub = nil
 	if fake.listToolsReturnsOnCall == nil {
 		fake.listToolsReturnsOnCall = make(map[int]struct {
-			result1 []domain.ToolDefinition
+			result1 []sdk.ChatCompletionTool
 		})
 	}
 	fake.listToolsReturnsOnCall[i] = struct {
-		result1 []domain.ToolDefinition
+		result1 []sdk.ChatCompletionTool
 	}{result1}
 }
 

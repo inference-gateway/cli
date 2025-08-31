@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,6 +15,7 @@ import (
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // ConversationView handles the chat conversation display
@@ -144,7 +146,7 @@ func (cv *ConversationView) updateViewportContent() {
 
 	displayIndex := 0
 	for i, entry := range cv.conversation {
-		if entry.IsSystemReminder {
+		if entry.Hidden {
 			continue
 		}
 		b.WriteString(cv.renderEntryWithIndex(entry, i))
@@ -201,6 +203,10 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 		} else {
 			role = "⏺ Assistant"
 		}
+		// Check if assistant message has tool calls
+		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
+			return cv.renderAssistantWithToolCalls(entry, index, color, role)
+		}
 	case "system":
 		color = cv.getDimColor()
 		role = "⚙️ System"
@@ -226,6 +232,43 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 	message := fmt.Sprintf("%s%s:%s %s", color, role, colors.Reset, wrappedContent)
 
 	return message + "\n"
+}
+
+func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, _ int, color, role string) string {
+	var result strings.Builder
+
+	if entry.Message.Content != "" {
+		wrappedContent := shared.FormatResponsiveMessage(entry.Message.Content, cv.width)
+		result.WriteString(fmt.Sprintf("%s%s:%s %s\n", color, role, colors.Reset, wrappedContent))
+	} else {
+		result.WriteString(fmt.Sprintf("%s%s:%s\n", color, role, colors.Reset))
+	}
+
+	if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 { // nolint:nestif
+		toolCallsColor := cv.getAccentColor()
+		result.WriteString(fmt.Sprintf("\n%s🔧 Tool Calls:%s\n", toolCallsColor, colors.Reset))
+
+		for _, toolCall := range *entry.Message.ToolCalls {
+			toolName := toolCall.Function.Name
+			toolArgs := toolCall.Function.Arguments
+
+			var argsDisplay string
+			if toolArgs != "" && toolArgs != "{}" {
+				if len(toolArgs) > 100 {
+					argsDisplay = toolArgs[:97] + "..."
+				} else {
+					argsDisplay = toolArgs
+				}
+				result.WriteString(fmt.Sprintf("  • %s%s%s: %s\n",
+					toolCallsColor, toolName, colors.Reset, argsDisplay))
+			} else {
+				result.WriteString(fmt.Sprintf("  • %s%s%s\n",
+					toolCallsColor, toolName, colors.Reset))
+			}
+		}
+	}
+
+	return result.String() + "\n"
 }
 
 func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, index int, color, role string) string {
@@ -417,6 +460,9 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case domain.UpdateHistoryEvent:
 		cv.SetConversation(msg.History)
 		return cv, cmd
+	case domain.StreamingContentEvent:
+		cv.appendStreamingContent(msg.Content)
+		return cv, cmd
 	case domain.ScrollRequestEvent:
 		if msg.ComponentID == "conversation" {
 			return cv.handleScrollRequest(msg)
@@ -479,7 +525,7 @@ func (cv *ConversationView) getStatusColor() string {
 
 func (cv *ConversationView) getSuccessColor() string {
 	if cv.themeService != nil {
-		return cv.themeService.GetCurrentTheme().GetStatusColor() // Success uses status color in themes
+		return cv.themeService.GetCurrentTheme().GetStatusColor()
 	}
 	return colors.SuccessColor.ANSI
 }
@@ -510,4 +556,24 @@ func (cv *ConversationView) getAccentColorLipgloss() string {
 		return cv.themeService.GetCurrentTheme().GetAccentColor()
 	}
 	return colors.AccentColor.Lipgloss
+}
+
+// appendStreamingContent appends streaming content to the last assistant message
+func (cv *ConversationView) appendStreamingContent(content string) {
+	if len(cv.conversation) == 0 || cv.conversation[len(cv.conversation)-1].Message.Role != sdk.Assistant {
+		streamingEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: content,
+			},
+			Time: time.Now(),
+		}
+		cv.conversation = append(cv.conversation, streamingEntry)
+	} else {
+		lastIdx := len(cv.conversation) - 1
+		cv.conversation[lastIdx].Message.Content += content
+	}
+
+	cv.updatePlainTextLines()
+	cv.updateViewportContent()
 }

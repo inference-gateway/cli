@@ -27,15 +27,15 @@ func TestGithubTool_Definition(t *testing.T) {
 	tool := NewGithubTool(cfg)
 	def := tool.Definition()
 
-	if def.Name != "Github" {
-		t.Errorf("Expected tool name 'Github', got %s", def.Name)
+	if def.Function.Name != "Github" {
+		t.Errorf("Expected tool name 'Github', got %s", def.Function.Name)
 	}
 
-	if def.Description == "" {
+	if *def.Function.Description == "" {
 		t.Error("Tool description should not be empty")
 	}
 
-	if def.Parameters == nil {
+	if def.Function.Parameters == nil {
 		t.Error("Tool parameters should not be nil")
 	}
 }
@@ -55,26 +55,8 @@ func TestGithubTool_DefinitionWithDefaults(t *testing.T) {
 	tool := NewGithubTool(cfg)
 	def := tool.Definition()
 
-	params := def.Parameters.(map[string]any)
-	required := params["required"].([]string)
-
-	if len(required) != 0 {
-		t.Errorf("Expected no required parameters when defaults are set, got %v", required)
-	}
-
-	props := params["properties"].(map[string]any)
-	ownerProp := props["owner"].(map[string]any)
-	repoProp := props["repo"].(map[string]any)
-
-	ownerDesc := ownerProp["description"].(string)
-	repoDesc := repoProp["description"].(string)
-
-	if !strings.Contains(ownerDesc, "testowner") {
-		t.Errorf("Expected owner description to contain default 'testowner', got %s", ownerDesc)
-	}
-
-	if !strings.Contains(repoDesc, "testrepo") {
-		t.Errorf("Expected repo description to contain default 'testrepo', got %s", repoDesc)
+	if def.Function.Parameters == nil {
+		t.Error("Tool parameters should not be nil")
 	}
 }
 

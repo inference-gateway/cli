@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/components"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	components "github.com/inference-gateway/cli/internal/ui/components"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // MultiEditTool handles multiple exact string replacements in a single file atomically
@@ -44,10 +45,8 @@ func NewMultiEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) 
 }
 
 // Definition returns the tool definition for the LLM
-func (t *MultiEditTool) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{
-		Name: "MultiEdit",
-		Description: `This is a tool for making multiple edits to a single file in one operation. It is built on top of the Edit tool and allows you to perform multiple find-and-replace operations efficiently. Prefer this tool over the Edit tool when you need to make multiple edits to the same file.
+func (t *MultiEditTool) Definition() sdk.ChatCompletionTool {
+	description := `This is a tool for making multiple edits to a single file in one operation. It is built on top of the Edit tool and allows you to perform multiple find-and-replace operations efficiently. Prefer this tool over the Edit tool when you need to make multiple edits to the same file.
 
 Before using this tool:
 
@@ -88,40 +87,46 @@ When making edits:
 If you want to create a new file, use:
 - A new file path, including dir name if needed
 - First edit: empty old_string and the new file's contents as new_string
-- Subsequent edits: normal edit operations on the created content`,
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"file_path": map[string]any{
-					"type":        "string",
-					"description": "The absolute path to the file to modify",
-				},
-				"edits": map[string]any{
-					"type":        "array",
-					"description": "Array of edit operations to perform sequentially on the file",
-					"minItems":    1,
-					"items": map[string]any{
-						"type": "object",
-						"properties": map[string]any{
-							"old_string": map[string]any{
-								"type":        "string",
-								"description": "The text to replace",
+- Subsequent edits: normal edit operations on the created content`
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "MultiEdit",
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"file_path": map[string]any{
+						"type":        "string",
+						"description": "The absolute path to the file to modify",
+					},
+					"edits": map[string]any{
+						"type":        "array",
+						"description": "Array of edit operations to perform sequentially on the file",
+						"minItems":    1,
+						"items": map[string]any{
+							"type": "object",
+							"properties": map[string]any{
+								"old_string": map[string]any{
+									"type":        "string",
+									"description": "The text to replace",
+								},
+								"new_string": map[string]any{
+									"type":        "string",
+									"description": "The text to replace it with",
+								},
+								"replace_all": map[string]any{
+									"type":        "boolean",
+									"description": "Replace all occurences of old_string (default false).",
+									"default":     false,
+								},
 							},
-							"new_string": map[string]any{
-								"type":        "string",
-								"description": "The text to replace it with",
-							},
-							"replace_all": map[string]any{
-								"type":        "boolean",
-								"description": "Replace all occurences of old_string (default false).",
-								"default":     false,
-							},
+							"required": []string{"old_string", "new_string"},
 						},
-						"required": []string{"old_string", "new_string"},
 					},
 				},
+				"required": []string{"file_path", "edits"},
 			},
-			"required": []string{"file_path", "edits"},
 		},
 	}
 }

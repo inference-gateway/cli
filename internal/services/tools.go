@@ -7,6 +7,7 @@ import (
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/services/tools"
+	"github.com/inference-gateway/sdk"
 )
 
 // LLMToolService implements ToolService with the new tools package architecture
@@ -32,9 +33,9 @@ func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry)
 }
 
 // ListTools returns definitions for all enabled tools
-func (s *LLMToolService) ListTools() []domain.ToolDefinition {
+func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
 	if !s.enabled {
-		return []domain.ToolDefinition{}
+		return []sdk.ChatCompletionTool{}
 	}
 	return s.registry.GetToolDefinitions()
 }
@@ -97,8 +98,8 @@ func NewNoOpToolService() *NoOpToolService {
 	return &NoOpToolService{}
 }
 
-func (s *NoOpToolService) ListTools() []domain.ToolDefinition {
-	return []domain.ToolDefinition{}
+func (s *NoOpToolService) ListTools() []sdk.ChatCompletionTool {
+	return []sdk.ChatCompletionTool{}
 }
 
 func (s *NoOpToolService) ListAvailableTools() []string {

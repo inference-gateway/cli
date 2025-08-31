@@ -34,6 +34,7 @@ type ChatChunkEvent struct {
 	ReasoningContent string
 	ToolCalls        []sdk.ChatCompletionMessageToolCall
 	Delta            bool
+	Usage            *sdk.CompletionUsage // Live token usage during streaming
 }
 
 func (e ChatChunkEvent) GetType() ChatEventType  { return EventChatChunk }
@@ -113,6 +114,20 @@ type ToolCallReadyEvent struct {
 func (e ToolCallReadyEvent) GetType() ChatEventType  { return EventToolCallReady }
 func (e ToolCallReadyEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolCallReadyEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolCallCompleteEvent indicates a single tool call has completed execution
+type ToolCallCompleteEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	ToolCallID string
+	ToolName   string
+	Result     string
+	Success    bool
+}
+
+func (e ToolCallCompleteEvent) GetType() ChatEventType  { return EventToolCallComplete }
+func (e ToolCallCompleteEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCallCompleteEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // CancelledEvent indicates a request was cancelled
 type CancelledEvent struct {

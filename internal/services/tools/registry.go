@@ -5,6 +5,7 @@ import (
 
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/sdk"
 )
 
 // Registry manages all available tools
@@ -72,8 +73,8 @@ func (r *Registry) ListAvailableTools() []string {
 }
 
 // GetToolDefinitions returns definitions for all enabled tools
-func (r *Registry) GetToolDefinitions() []domain.ToolDefinition {
-	var definitions []domain.ToolDefinition
+func (r *Registry) GetToolDefinitions() []sdk.ChatCompletionTool {
+	var definitions []sdk.ChatCompletionTool
 	for _, tool := range r.tools {
 		if tool.IsEnabled() {
 			definitions = append(definitions, tool.Definition())
