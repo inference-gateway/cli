@@ -32,7 +32,7 @@ type ChatChunkEvent struct {
 	Timestamp        time.Time
 	Content          string
 	ReasoningContent string
-	ToolCalls        []sdk.ChatCompletionMessageToolCall
+	ToolCalls        []sdk.ChatCompletionMessageToolCallChunk
 	Delta            bool
 	Usage            *sdk.CompletionUsage // Live token usage during streaming
 }

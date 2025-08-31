@@ -133,7 +133,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 }
 
 // RunWithStream executes an agent task with streaming (for interactive chat)
-func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) { // nolint:gocognit
+func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
 	}
@@ -195,7 +195,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				logger.Error("failed to create a stream, %w", err)
 			}
 
-			var allDeltas []sdk.ChatCompletionMessageToolCallChunk
+			var allToolCallDeltas []sdk.ChatCompletionMessageToolCallChunk
+			var message sdk.Message
 			////// STREAM ITERATION START
 			for event := range events {
 				if event.Event == nil {
@@ -214,18 +215,41 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 
 				for _, choice := range streamResponse.Choices {
-					// Step 6 - When there is Reasoning or ReasoningContent - submit an event to the UI
-					// Step 7 - When there is standard content - submit a content delta event to the UI and store the final message in the database
-					// Step 8 - Save the token usage per iteration to the database
+					if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
+						*message.Reasoning += *choice.Delta.Reasoning
+					}
+					if choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
+						*message.ReasoningContent += *choice.Delta.ReasoningContent
+					}
+					if choice.Delta.Content != "" {
+						message.Content += choice.Delta.Content
+					}
+
+					reasoning := ""
+					if message.Reasoning != nil && *message.Reasoning != "" {
+						reasoning = *message.Reasoning
+					} else if message.ReasoningContent != nil && *message.ReasoningContent != "" {
+						reasoning = *message.ReasoningContent
+					}
+					event := domain.ChatChunkEvent{
+						RequestID:        req.RequestID,
+						Timestamp:        time.Now(),
+						ReasoningContent: reasoning,
+						Content:          message.Content,
+						Delta:            true,
+					}
 
 					if len(choice.Delta.ToolCalls) > 0 {
-						allDeltas = append(allDeltas, choice.Delta.ToolCalls...)
+						allToolCallDeltas = append(allToolCallDeltas, choice.Delta.ToolCalls...)
+						event.ToolCalls = choice.Delta.ToolCalls
 					}
+
+					chatEvents <- event
 				}
 			}
 			////// STREAM ITERATION FINISHED
 
-			s.accumulateToolCalls(allDeltas)
+			s.accumulateToolCalls(allToolCallDeltas)
 			toolCalls := s.getAccumulatedToolCalls()
 			for _, tc := range toolCalls {
 				err := s.executeToolCall(ctx, *tc, req.RequestID, chatEvents)
@@ -233,6 +257,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					logger.Error("failed to execute tool: %w", err)
 				}
 			}
+
+			// Step 8 - Save the token usage per iteration to the database
 
 			if len(toolCalls) == 0 {
 				// The agent after responding to the user intent doesn't want to call any tools - meaning it's finished processing
