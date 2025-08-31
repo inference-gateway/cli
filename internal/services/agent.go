@@ -168,41 +168,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	maxTurns := s.config.GetAgentConfig().MaxTurns
 	toolcalls := []sdk.ChatCompletionMessageToolCall{}
 	go func() {
-		// Optimize conversations using the optimizer (based on the message count and the configurations)
-		if s.optimizer != nil && s.config.GetAgentConfig().Optimization.Enabled {
-			originalCount := len(conversation)
-
-			chatEvents <- domain.OptimizationStatusEvent{
-				RequestID:      req.RequestID,
-				Timestamp:      time.Now(),
-				Message:        "Optimizing conversation history...",
-				IsActive:       true,
-				OriginalCount:  originalCount,
-				OptimizedCount: originalCount,
-			}
-
-			conversation = s.optimizer.OptimizeMessagesWithModel(conversation, req.Model)
-			optimizedCount := len(conversation)
-
-			var message string
-			if originalCount != optimizedCount {
-				logger.Debug("optimized conversation", "original_count", originalCount, "optimized_count", optimizedCount)
-				message = fmt.Sprintf("Conversation optimized (%d → %d messages)", originalCount, optimizedCount)
-			} else {
-				message = "Conversation optimization completed"
-			}
-
-			chatEvents <- domain.OptimizationStatusEvent{
-				RequestID:      req.RequestID,
-				Timestamp:      time.Now(),
-				Message:        message,
-				IsActive:       false,
-				OriginalCount:  originalCount,
-				OptimizedCount: optimizedCount,
-			}
-
-			// TODO 3 - store the optimized conversation in the database on a separate column - UI will stillWI see all the conversation related to the session but the optimized conversation will be sent to the LLM
-		}
+		conversation = s.optimizeConversation(ctx, req, conversation, chatEvents)
 		//// EVENT LOOP START
 		for maxTurns > turns {
 			_, err := client.GenerateContentStream(ctx, sdk.Provider(provider), model, conversation)
@@ -259,4 +225,63 @@ func (s *AgentServiceImpl) GetMetrics(requestID string) *domain.ChatMetrics {
 		}
 	}
 	return nil
+}
+
+func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain.AgentRequest, conversation []sdk.Message, chatEvents chan<- domain.ChatEvent) []sdk.Message {
+	if s.optimizer == nil || !s.config.GetAgentConfig().Optimization.Enabled {
+		return conversation
+	}
+
+	originalCount := len(conversation)
+
+	persistentRepo, isPersistent := s.conversationRepo.(*PersistentConversationRepository)
+	if isPersistent {
+		if cachedMessages := persistentRepo.GetOptimizedMessages(); len(cachedMessages) > 0 {
+			if len(conversation) <= len(cachedMessages) {
+				logger.Debug("using cached optimized conversation from database", "conversation_id", persistentRepo.GetCurrentConversationID(), "cached_count", len(cachedMessages))
+				return cachedMessages
+			}
+			logger.Debug("new messages detected, re-optimizing with cached messages as base", "conversation_id", persistentRepo.GetCurrentConversationID(), "cached_count", len(cachedMessages), "current_count", len(conversation))
+			conversation = append(cachedMessages, conversation[len(cachedMessages):]...)
+		}
+	}
+
+	chatEvents <- domain.OptimizationStatusEvent{
+		RequestID:      req.RequestID,
+		Timestamp:      time.Now(),
+		Message:        "Optimizing conversation history...",
+		IsActive:       true,
+		OriginalCount:  originalCount,
+		OptimizedCount: originalCount,
+	}
+
+	conversation = s.optimizer.OptimizeMessagesWithModel(conversation, req.Model)
+	optimizedCount := len(conversation)
+
+	var message string
+	if originalCount != optimizedCount {
+		logger.Debug("optimized conversation", "original_count", originalCount, "optimized_count", optimizedCount)
+		message = fmt.Sprintf("Conversation optimized (%d → %d messages)", originalCount, optimizedCount)
+	} else {
+		message = "Conversation optimization completed"
+	}
+
+	chatEvents <- domain.OptimizationStatusEvent{
+		RequestID:      req.RequestID,
+		Timestamp:      time.Now(),
+		Message:        message,
+		IsActive:       false,
+		OriginalCount:  originalCount,
+		OptimizedCount: optimizedCount,
+	}
+
+	if isPersistent {
+		if err := persistentRepo.SetOptimizedMessages(ctx, conversation); err != nil {
+			logger.Warn("Failed to save optimized conversation", "error", err)
+		} else {
+			logger.Debug("Optimized conversation saved to database", "conversation_id", persistentRepo.GetCurrentConversationID(), "optimized_count", optimizedCount)
+		}
+	}
+
+	return conversation
 }

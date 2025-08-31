@@ -74,6 +74,7 @@ func (s *SQLiteStorage) createTables() error {
 		title TEXT NOT NULL,               -- Conversation title
 		count INTEGER NOT NULL DEFAULT 0,  -- Message count
 		messages TEXT NOT NULL,            -- JSON array of all messages
+		optimized_messages TEXT,           -- JSON array of optimized messages
 		total_input_tokens INTEGER NOT NULL DEFAULT 0,   -- Total input tokens used
 		total_output_tokens INTEGER NOT NULL DEFAULT 0,  -- Total output tokens used
 		models TEXT DEFAULT '[]',          -- JSON array of models used
@@ -94,14 +95,15 @@ func (s *SQLiteStorage) createTables() error {
 	}
 
 	migrationQuery := `
-	INSERT OR IGNORE INTO conversations_new (id, title, count, messages, total_input_tokens, total_output_tokens, created_at, updated_at)
+	INSERT OR IGNORE INTO conversations_new (id, title, count, messages, optimized_messages, total_input_tokens, total_output_tokens, created_at, updated_at)
 	SELECT
 		c.id,
 		c.title,
 		c.message_count,
 		'[' || GROUP_CONCAT(ce.entry_data) || ']' as messages,
-		0 as total_input_tokens,  -- Start with 0 for migrated data
-		0 as total_output_tokens, -- Start with 0 for migrated data
+		NULL as optimized_messages,  -- No optimized messages for migrated data
+		0 as total_input_tokens,     -- Start with 0 for migrated data
+		0 as total_output_tokens,    -- Start with 0 for migrated data
 		c.created_at,
 		c.updated_at
 	FROM conversations c
@@ -170,18 +172,55 @@ func (s *SQLiteStorage) SaveConversation(ctx context.Context, conversationID str
 		return fmt.Errorf("failed to marshal tags: %w", err)
 	}
 
+	var optimizedMessagesJSON []byte
+	if len(metadata.OptimizedMessages) > 0 { //nolint:nestif
+		optimizedMessages := make([]map[string]any, 0, len(metadata.OptimizedMessages))
+		for _, entry := range metadata.OptimizedMessages {
+			message := map[string]any{
+				"role":    entry.Message.Role,
+				"content": entry.Message.Content,
+			}
+
+			if entry.Model != "" {
+				message["model"] = entry.Model
+			}
+
+			if entry.Message.ToolCalls != nil {
+				message["tool_calls"] = entry.Message.ToolCalls
+			}
+
+			if entry.Message.ToolCallId != nil {
+				message["tool_call_id"] = *entry.Message.ToolCallId
+			}
+
+			optimizedMessages = append(optimizedMessages, message)
+		}
+
+		optimizedMessagesJSON, err = json.Marshal(optimizedMessages)
+		if err != nil {
+			return fmt.Errorf("failed to marshal optimized messages: %w", err)
+		}
+	}
+
 	totalInputTokens := metadata.TokenStats.TotalInputTokens
 	totalOutputTokens := metadata.TokenStats.TotalOutputTokens
 
+	var optimizedMessagesStr *string
+	if len(optimizedMessagesJSON) > 0 {
+		str := string(optimizedMessagesJSON)
+		optimizedMessagesStr = &str
+	}
+
 	_, err = s.db.ExecContext(ctx, `
-		INSERT INTO conversations (id, title, count, messages, total_input_tokens, total_output_tokens,
+		INSERT INTO conversations (id, title, count, messages, optimized_messages, total_input_tokens, total_output_tokens,
 		                          models, tags, summary, title_generated, title_invalidated, title_generation_time,
 		                          created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			title = excluded.title,
 			count = excluded.count,
 			messages = excluded.messages,
+			optimized_messages = excluded.optimized_messages,
 			total_input_tokens = excluded.total_input_tokens,
 			total_output_tokens = excluded.total_output_tokens,
 			models = excluded.models,
@@ -191,7 +230,7 @@ func (s *SQLiteStorage) SaveConversation(ctx context.Context, conversationID str
 			title_invalidated = excluded.title_invalidated,
 			title_generation_time = excluded.title_generation_time,
 			updated_at = excluded.updated_at
-	`, conversationID, metadata.Title, len(entries), string(messagesJSON), totalInputTokens, totalOutputTokens,
+	`, conversationID, metadata.Title, len(entries), string(messagesJSON), optimizedMessagesStr, totalInputTokens, totalOutputTokens,
 		string(modelsJSON), string(tagsJSON), metadata.Summary, metadata.TitleGenerated, metadata.TitleInvalidated,
 		metadata.TitleGenerationTime, metadata.CreatedAt.Format(time.RFC3339), metadata.UpdatedAt.Format(time.RFC3339))
 	if err != nil {
@@ -202,20 +241,21 @@ func (s *SQLiteStorage) SaveConversation(ctx context.Context, conversationID str
 }
 
 // LoadConversation loads a conversation by its ID using simplified schema
-func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error) {
+func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error) { // nolint:gocognit,gocyclo,cyclop
 	var metadata ConversationMetadata
 	var messagesJSON, modelsJSON, tagsJSON string
+	var optimizedMessagesJSON sql.NullString
 	var totalInputTokens, totalOutputTokens int
 	var titleGenerationTime sql.NullTime
 
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, title, count, messages, total_input_tokens, total_output_tokens,
+		SELECT id, title, count, messages, optimized_messages, total_input_tokens, total_output_tokens,
 		       models, tags, summary, title_generated, title_invalidated, title_generation_time,
 		       created_at, updated_at
 		FROM conversations WHERE id = ?
 	`, conversationID).Scan(
 		&metadata.ID, &metadata.Title, &metadata.MessageCount,
-		&messagesJSON, &totalInputTokens, &totalOutputTokens,
+		&messagesJSON, &optimizedMessagesJSON, &totalInputTokens, &totalOutputTokens,
 		&modelsJSON, &tagsJSON, &metadata.Summary,
 		&metadata.TitleGenerated, &metadata.TitleInvalidated, &titleGenerationTime,
 		&metadata.CreatedAt, &metadata.UpdatedAt,
@@ -247,6 +287,45 @@ func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID str
 
 	if titleGenerationTime.Valid {
 		metadata.TitleGenerationTime = &titleGenerationTime.Time
+	}
+
+	if optimizedMessagesJSON.Valid && optimizedMessagesJSON.String != "" { //nolint:nestif
+		var optimizedMessages []map[string]any
+		if err := json.Unmarshal([]byte(optimizedMessagesJSON.String), &optimizedMessages); err == nil {
+			metadata.OptimizedMessages = make([]domain.ConversationEntry, 0, len(optimizedMessages))
+			for _, msg := range optimizedMessages {
+				entry := domain.ConversationEntry{
+					Message: domain.Message{
+						Role:    sdk.MessageRole(msg["role"].(string)),
+						Content: msg["content"].(string),
+					},
+					Time: metadata.UpdatedAt,
+				}
+
+				if model, ok := msg["model"]; ok && model != nil {
+					if modelStr, ok := model.(string); ok {
+						entry.Model = modelStr
+					}
+				}
+
+				if toolCalls, ok := msg["tool_calls"]; ok && toolCalls != nil {
+					if toolCallsData, err := json.Marshal(toolCalls); err == nil {
+						var parsedToolCalls []sdk.ChatCompletionMessageToolCall
+						if json.Unmarshal(toolCallsData, &parsedToolCalls) == nil {
+							entry.Message.ToolCalls = &parsedToolCalls
+						}
+					}
+				}
+
+				if toolCallID, ok := msg["tool_call_id"]; ok && toolCallID != nil {
+					if id, ok := toolCallID.(string); ok {
+						entry.Message.ToolCallId = &id
+					}
+				}
+
+				metadata.OptimizedMessages = append(metadata.OptimizedMessages, entry)
+			}
+		}
 	}
 
 	var messages []map[string]any
