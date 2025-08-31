@@ -167,7 +167,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	// Step 4 - Start agent event loop with max iteration from the config:
 	turns := 0
 	//// EVENT LOOP START
-	for s.config.GetAgentConfig().MaxTurns < turns {
+	for s.config.GetAgentConfig().MaxTurns > turns {
 		// Step 1 - Optimize conversations using the optimizer (based on the message count and the configurations)
 		// Step 2 - Inject User's System reminder into the conversation as a hidden message and store it in the database
 		// Step 3 - When there are tool calls, call tcs := accumulateToolCalls to collect the full definitions
