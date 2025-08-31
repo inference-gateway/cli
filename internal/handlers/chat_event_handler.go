@@ -106,6 +106,30 @@ func (e *ChatEventHandler) handleChatChunk(
 	return nil, tea.Batch(cmds...)
 }
 
+// handleOptimizationStatus processes optimization status events
+func (e *ChatEventHandler) handleOptimizationStatus(
+	event domain.OptimizationStatusEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	if event.IsActive {
+		return nil, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    event.Message,
+				Spinner:    true,
+				StatusType: domain.StatusProcessing,
+			}
+		}
+	}
+
+	return nil, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    event.Message,
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+}
+
 // handleNoChatSession handles the case when there's no active chat session
 func (e *ChatEventHandler) handleNoChatSession(msg domain.ChatChunkEvent) (tea.Model, tea.Cmd) {
 	if msg.ReasoningContent != "" {

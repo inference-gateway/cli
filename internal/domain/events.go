@@ -139,3 +139,17 @@ type CancelledEvent struct {
 func (e CancelledEvent) GetType() ChatEventType  { return EventCancelled }
 func (e CancelledEvent) GetRequestID() string    { return e.RequestID }
 func (e CancelledEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// OptimizationStatusEvent indicates conversation optimization status
+type OptimizationStatusEvent struct {
+	RequestID      string
+	Timestamp      time.Time
+	Message        string
+	IsActive       bool
+	OriginalCount  int
+	OptimizedCount int
+}
+
+func (e OptimizationStatusEvent) GetType() ChatEventType  { return EventOptimizationStatus }
+func (e OptimizationStatusEvent) GetRequestID() string    { return e.RequestID }
+func (e OptimizationStatusEvent) GetTimestamp() time.Time { return e.Timestamp }

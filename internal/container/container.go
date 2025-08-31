@@ -127,14 +127,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 	if c.config.Agent.Optimization.Enabled {
 		summaryClient := c.createSDKClient()
 		optimizer = services.NewConversationOptimizer(services.OptimizerConfig{
-			Enabled:                    c.config.Agent.Optimization.Enabled,
-			MaxHistory:                 c.config.Agent.Optimization.MaxHistory,
-			CompactThreshold:           c.config.Agent.Optimization.CompactThreshold,
-			TruncateLargeOutputs:       c.config.Agent.Optimization.TruncateLargeOutputs,
-			SkipRedundantConfirmations: c.config.Agent.Optimization.SkipRedundantConfirmations,
-			Client:                     summaryClient,
-			ModelService:               c.modelService,
-			Config:                     c.config,
+			Enabled:     c.config.Agent.Optimization.Enabled,
+			Model:       c.config.Agent.Optimization.Model,
+			MinMessages: c.config.Agent.Optimization.MinMessages,
+			BufferSize:  c.config.Agent.Optimization.BufferSize,
+			Client:      summaryClient,
+			Config:      c.config,
 		})
 	}
 

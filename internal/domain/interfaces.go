@@ -80,6 +80,7 @@ const (
 	EventToolCallReady
 	EventToolCallComplete
 	EventCancelled
+	EventOptimizationStatus
 )
 
 // ChatEvent represents events during chat operations

@@ -193,11 +193,10 @@ type CompactConfig struct {
 
 // OptimizationConfig contains token optimization settings
 type OptimizationConfig struct {
-	Enabled                    bool `yaml:"enabled" mapstructure:"enabled"`
-	MaxHistory                 int  `yaml:"max_history" mapstructure:"max_history"`
-	CompactThreshold           int  `yaml:"compact_threshold" mapstructure:"compact_threshold"`
-	TruncateLargeOutputs       bool `yaml:"truncate_large_outputs" mapstructure:"truncate_large_outputs"`
-	SkipRedundantConfirmations bool `yaml:"skip_redundant_confirmations" mapstructure:"skip_redundant_confirmations"`
+	Enabled     bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model       string `yaml:"model" mapstructure:"model"`
+	MinMessages int    `yaml:"min_messages" mapstructure:"min_messages"`
+	BufferSize  int    `yaml:"buffer_size" mapstructure:"buffer_size"`
 }
 
 // SystemRemindersConfig contains settings for dynamic system reminders
@@ -318,8 +317,8 @@ func DefaultConfig() *Config { //nolint:funlen
 			APIKey:  "",
 			Timeout: 200,
 			Middlewares: MiddlewaresConfig{
-				A2A: true,
-				MCP: true,
+				A2A: false,
+				MCP: false,
 			},
 		},
 		Client: ClientConfig{
@@ -492,11 +491,10 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 			MaxTurns:     50,
 			MaxTokens:    4096,
 			Optimization: OptimizationConfig{
-				Enabled:                    false,
-				MaxHistory:                 10,
-				CompactThreshold:           20,
-				TruncateLargeOutputs:       true,
-				SkipRedundantConfirmations: true,
+				Enabled:     false,
+				Model:       "",
+				MinMessages: 10,
+				BufferSize:  2,
 			},
 		},
 		Git: GitConfig{

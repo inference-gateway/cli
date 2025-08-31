@@ -60,7 +60,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 	optimizedMessages := req.Messages
 	if s.optimizer != nil && s.config.GetAgentConfig().Optimization.Enabled {
-		optimizedMessages = s.optimizer.OptimizeMessages(req.Messages)
+		optimizedMessages = s.optimizer.OptimizeMessagesWithModel(req.Messages, req.Model)
 	}
 
 	messages := s.addSystemPrompt(optimizedMessages)
@@ -158,19 +158,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	}
 	conversation = append(conversation, req.Messages...)
 
-	// Step 4 - Optimize conversations using the optimizer (based on the message count and the configurations)
-	if s.optimizer != nil && s.config.GetAgentConfig().Optimization.Enabled {
-		originalCount := len(conversation)
-		conversation = s.optimizer.OptimizeMessages(conversation)
-		optimizedCount := len(conversation)
-		if originalCount != optimizedCount {
-			logger.Debug("optimized conversation", "original_count", originalCount, "optimized_count", optimizedCount)
-		}
-		// TODO 2 - improve the optimizer to take the first 10x (configured) messages after the user intent / root context, summarize it with a one-off LLM request
-		// and place it right after the root context - must ensure there are at least +3 buffer messages to perform it on 10x configurations root-context and last 2x messages are the ones which remain immutable
-		// TODO 3 - store the optimized conversation in the database on a separate column - UI will still see all the conversation related to the session but the optimized conversation will be sent to the LLM
-	}
-
+	// Step 4 - Parse the provider and the model
 	provider, model, err := s.parseProvider(req.Model)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
@@ -180,6 +168,41 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	maxTurns := s.config.GetAgentConfig().MaxTurns
 	toolcalls := []sdk.ChatCompletionMessageToolCall{}
 	go func() {
+		// Optimize conversations using the optimizer (based on the message count and the configurations)
+		if s.optimizer != nil && s.config.GetAgentConfig().Optimization.Enabled {
+			originalCount := len(conversation)
+
+			chatEvents <- domain.OptimizationStatusEvent{
+				RequestID:      req.RequestID,
+				Timestamp:      time.Now(),
+				Message:        "Optimizing conversation history...",
+				IsActive:       true,
+				OriginalCount:  originalCount,
+				OptimizedCount: originalCount,
+			}
+
+			conversation = s.optimizer.OptimizeMessagesWithModel(conversation, req.Model)
+			optimizedCount := len(conversation)
+
+			var message string
+			if originalCount != optimizedCount {
+				logger.Debug("optimized conversation", "original_count", originalCount, "optimized_count", optimizedCount)
+				message = fmt.Sprintf("Conversation optimized (%d → %d messages)", originalCount, optimizedCount)
+			} else {
+				message = "Conversation optimization completed"
+			}
+
+			chatEvents <- domain.OptimizationStatusEvent{
+				RequestID:      req.RequestID,
+				Timestamp:      time.Now(),
+				Message:        message,
+				IsActive:       false,
+				OriginalCount:  originalCount,
+				OptimizedCount: optimizedCount,
+			}
+
+			// TODO 3 - store the optimized conversation in the database on a separate column - UI will stillWI see all the conversation related to the session but the optimized conversation will be sent to the LLM
+		}
 		//// EVENT LOOP START
 		for maxTurns > turns {
 			_, err := client.GenerateContentStream(ctx, sdk.Provider(provider), model, conversation)
