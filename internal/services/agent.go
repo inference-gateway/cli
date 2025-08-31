@@ -134,7 +134,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 	_ = time.Now()
 
-	chatEvents := make(chan domain.ChatEvent, 100) // nolint:unused
+	chatEvents := make(chan domain.ChatEvent, 100)
 
 	// Step 1 - Add system prompt
 	systemPrompt := s.config.GetAgentConfig().SystemPrompt
