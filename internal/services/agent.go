@@ -161,10 +161,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
 	}
-	_, err = client.GenerateContentStream(ctx, sdk.Provider(provider), model, conversation)
-	if err != nil {
-		logger.Error("failed to create a stream, %w", err)
-	}
 	// Step 4 - Start agent event loop with max iteration from the config:
 	turns := 0
 	maxTurns := s.config.GetAgentConfig().MaxTurns
@@ -172,10 +168,9 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	go func() {
 		//// EVENT LOOP START
 		for maxTurns > turns {
-			if turns != 0 && len(toolcalls) == 0 {
-				// The agent after responding to the user intent doesn't want to call any tools - meaning it's finished processing
-				// TODO - inject final message to ensure the agent done before it's returning
-				break
+			_, err := client.GenerateContentStream(ctx, sdk.Provider(provider), model, conversation)
+			if err != nil {
+				logger.Error("failed to create a stream, %w", err)
 			}
 			// Step 1 - Optimize conversations using the optimizer (based on the message count and the configurations)
 			// Step 2 - Inject User's System reminder into the conversation as a hidden message and store it in the database
@@ -187,7 +182,12 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			// Step 8 - When there is Reasoning or ReasoningContent - submit an event to the UI
 			// Step 9 - When there is standard content delta and tool_calls == empty(we check at the beginning and continue if there are tool calls) - submit a content delta event to the UI and store the final message in the database
 			// Step 10 - Save the token usage per iteration to the database
-			// Step 11 - Send the conversation back to the LLM
+			if turns != 0 && len(toolcalls) == 0 {
+				// The agent after responding to the user intent doesn't want to call any tools - meaning it's finished processing
+
+				// TODO - implement retries to ensure the agent is done - inject final message to ensure the agent and continue max configured retries
+				break
+			}
 			turns++
 		}
 		//// EVENT LOOP FINISHED
