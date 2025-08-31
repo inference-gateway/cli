@@ -185,7 +185,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			if len(toolcalls) == 0 {
 				// The agent after responding to the user intent doesn't want to call any tools - meaning it's finished processing
 
-				// TODO - implement retries to ensure the agent is done - inject final message to ensure the agent and continue max configured retries
+				// TODO - implement retries to ensure the agent is done - inject final message and continue until max configured retries
 				break
 			}
 			turns++
