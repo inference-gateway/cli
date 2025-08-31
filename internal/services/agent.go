@@ -169,8 +169,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	turns := 0
 	maxTurns := s.config.GetAgentConfig().MaxTurns
 	toolcalls := []sdk.ChatCompletionMessageToolCall{}
-	//// EVENT LOOP START
 	go func() {
+		//// EVENT LOOP START
 		for maxTurns > turns {
 			if turns != 0 && len(toolcalls) == 0 {
 				// The agent after responding to the user intent doesn't want to call any tools - meaning it's finished processing
@@ -190,9 +190,9 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			// Step 11 - Send the conversation back to the LLM
 			turns++
 		}
+		//// EVENT LOOP FINISHED
 		close(chatEvents)
 	}()
-	//// EVENT LOOP FINISHED
 
 	return chatEvents, nil
 }
