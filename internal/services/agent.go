@@ -171,11 +171,26 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		conversation = s.optimizeConversation(ctx, req, conversation, chatEvents)
 		//// EVENT LOOP START
 		for maxTurns > turns {
+			// Step 1 - Inject User's System reminder into the conversation as a hidden message and store it in the database
+			if s.shouldInjectSystemReminder(turns) {
+				systemReminderMsg := s.getSystemReminderMessage()
+				conversation = append(conversation, systemReminderMsg)
+
+				reminderEntry := domain.ConversationEntry{
+					Message: systemReminderMsg,
+					Time:    time.Now(),
+					Hidden:  true,
+				}
+
+				if err := s.conversationRepo.AddMessage(reminderEntry); err != nil {
+					logger.Error("failed to store system reminder message", "error", err)
+				}
+			}
+
 			_, err := client.GenerateContentStream(ctx, sdk.Provider(provider), model, conversation)
 			if err != nil {
 				logger.Error("failed to create a stream, %w", err)
 			}
-			// Step 1 - Inject User's System reminder into the conversation as a hidden message and store it in the database
 			// Step 2 - When there are tool calls, call tcs := accumulateToolCalls to collect the full definitions
 			// Step 3 - Pass the return value from err := s.toolService.ExecuteTool(ctx, tc.ChatCompletionMessageToolCall)
 			// Step 4 - Handle error for each tool call

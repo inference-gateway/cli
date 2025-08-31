@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
@@ -158,33 +157,26 @@ func (s *AgentServiceImpl) sendErrorEvent(events chan<- domain.ChatEvent, reques
 }
 
 // shouldInjectSystemReminder checks if a system reminder should be injected
-func (s *AgentServiceImpl) shouldInjectSystemReminder() bool { // nolint:unused
-	// cfg, ok := s.config.(*config.Config)
-	// if !ok {
-	// 	return false
-	// }
+func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool { // nolint:unused
+	cfg := s.config.GetAgentConfig()
 
-	// if !cfg.Agent.SystemReminders.Enabled {
-	// 	return false
-	// }
+	if !cfg.SystemReminders.Enabled {
+		return false
+	}
 
-	// interval := cfg.Agent.SystemReminders.Interval
-	// if interval <= 0 {
-	// 	interval = 4
-	// }
+	interval := cfg.SystemReminders.Interval
+	if interval <= 0 {
+		interval = 4
+	}
 
-	// return s.assistantMessageCounter > 0 && s.assistantMessageCounter%interval == 0
-	return false // TODO - refactor this
+	return turns > 0 && turns%interval == 0
 }
 
 // getSystemReminderMessage returns the system reminder message to inject
 func (s *AgentServiceImpl) getSystemReminderMessage() sdk.Message { // nolint:unused
-	cfg, ok := s.config.(*config.Config)
-	if !ok {
-		return sdk.Message{}
-	}
+	cfg := s.config.GetAgentConfig()
 
-	reminderText := cfg.Agent.SystemReminders.ReminderText
+	reminderText := cfg.SystemReminders.ReminderText
 	if reminderText == "" {
 		reminderText = `<system-reminder>
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
