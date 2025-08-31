@@ -182,7 +182,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			// Step 8 - When there is Reasoning or ReasoningContent - submit an event to the UI
 			// Step 9 - When there is standard content delta and tool_calls == empty(we check at the beginning and continue if there are tool calls) - submit a content delta event to the UI and store the final message in the database
 			// Step 10 - Save the token usage per iteration to the database
-			if turns != 0 && len(toolcalls) == 0 {
+			if len(toolcalls) == 0 {
 				// The agent after responding to the user intent doesn't want to call any tools - meaning it's finished processing
 
 				// TODO - implement retries to ensure the agent is done - inject final message to ensure the agent and continue max configured retries
