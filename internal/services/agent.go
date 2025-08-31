@@ -29,6 +29,10 @@ type AgentServiceImpl struct {
 	// Metrics tracking
 	metrics    map[string]*domain.ChatMetrics
 	metricsMux sync.RWMutex
+
+	// Tool call accumulation
+	toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall
+	toolCallsMux sync.RWMutex
 }
 
 // NewAgentService creates a new agent service with pre-configured client
@@ -50,6 +54,7 @@ func NewAgentService(
 		optimizer:        optimizer,
 		activeRequests:   make(map[string]context.CancelFunc),
 		metrics:          make(map[string]*domain.ChatMetrics),
+		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
 }
 
@@ -164,11 +169,12 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 	turns := 0
 	maxTurns := s.config.GetAgentConfig().MaxTurns
-	toolcalls := []sdk.ChatCompletionMessageToolCall{}
 	go func() {
 		conversation = s.optimizeConversation(ctx, req, conversation, chatEvents)
 		//// EVENT LOOP START
 		for maxTurns > turns {
+			s.clearToolCallsMap()
+
 			if s.shouldInjectSystemReminder(turns) {
 				systemReminderMsg := s.getSystemReminderMessage()
 				conversation = append(conversation, systemReminderMsg)
@@ -188,6 +194,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			if err != nil {
 				logger.Error("failed to create a stream, %w", err)
 			}
+
+			var allDeltas []sdk.ChatCompletionMessageToolCallChunk
 			////// STREAM ITERATION START
 			for event := range events {
 				if event.Event == nil {
@@ -206,25 +214,27 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 
 				for _, choice := range streamResponse.Choices {
-					if len(choice.Delta.ToolCalls) == 0 {
-						continue
-					}
-
-					toolCallsMap := s.accumulateToolCalls(choice.Delta.ToolCalls)
-					for _, tc := range toolCallsMap {
-						err := s.executeToolCall(ctx, *tc, req.RequestID, chatEvents)
-						if err != nil {
-							logger.Error("failed to execute tool: %w", err)
-						}
-					}
-
 					// Step 6 - When there is Reasoning or ReasoningContent - submit an event to the UI
-					// Step 7 - When there is standard content delta and tool_calls == empty(we check at the beginning and continue if there are tool calls) - submit a content delta event to the UI and store the final message in the database
+					// Step 7 - When there is standard content - submit a content delta event to the UI and store the final message in the database
 					// Step 8 - Save the token usage per iteration to the database
+
+					if len(choice.Delta.ToolCalls) > 0 {
+						allDeltas = append(allDeltas, choice.Delta.ToolCalls...)
+					}
 				}
 			}
 			////// STREAM ITERATION FINISHED
-			if len(toolcalls) == 0 {
+
+			s.accumulateToolCalls(allDeltas)
+			toolCalls := s.getAccumulatedToolCalls()
+			for _, tc := range toolCalls {
+				err := s.executeToolCall(ctx, *tc, req.RequestID, chatEvents)
+				if err != nil {
+					logger.Error("failed to execute tool: %w", err)
+				}
+			}
+
+			if len(toolCalls) == 0 {
 				// The agent after responding to the user intent doesn't want to call any tools - meaning it's finished processing
 
 				// TODO - implement retries to ensure the agent is done - inject final message and continue until max configured retries

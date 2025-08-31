@@ -10,15 +10,17 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// processToolCallDeltas processes a list of tool call deltas
-func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessageToolCallChunk) map[string]*sdk.ChatCompletionMessageToolCall { // nolint:unused
-	iterationToolCallsMap := make(map[string]*sdk.ChatCompletionMessageToolCall, 5)
-	for _, deltaToolCall := range deltas {
-		key := fmt.Sprintf("%d", deltaToolCall.Index)
+// accumulateToolCalls processes multiple tool call deltas and stores them in the agent's toolCallsMap
+func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessageToolCallChunk) {
+	s.toolCallsMux.Lock()
+	defer s.toolCallsMux.Unlock()
 
-		if iterationToolCallsMap[key] == nil {
-			iterationToolCallsMap[key] = &sdk.ChatCompletionMessageToolCall{
-				Id:   deltaToolCall.ID,
+	for _, delta := range deltas {
+		key := fmt.Sprintf("%d", delta.Index)
+
+		if s.toolCallsMap[key] == nil {
+			s.toolCallsMap[key] = &sdk.ChatCompletionMessageToolCall{
+				Id:   delta.ID,
 				Type: sdk.Function,
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "",
@@ -27,19 +29,39 @@ func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessag
 			}
 		}
 
-		toolCall := iterationToolCallsMap[key]
-		if deltaToolCall.ID != "" {
-			toolCall.Id = deltaToolCall.ID
+		toolCall := s.toolCallsMap[key]
+		if delta.ID != "" {
+			toolCall.Id = delta.ID
 		}
-		if deltaToolCall.Function.Name != "" {
-			toolCall.Function.Name += deltaToolCall.Function.Name
+		if delta.Function.Name != "" {
+			toolCall.Function.Name += delta.Function.Name
 		}
-		if deltaToolCall.Function.Arguments != "" {
-			toolCall.Function.Arguments += deltaToolCall.Function.Arguments
+		if delta.Function.Arguments != "" {
+			toolCall.Function.Arguments += delta.Function.Arguments
 		}
 	}
+}
 
-	return iterationToolCallsMap
+// getAccumulatedToolCalls returns a copy of all accumulated tool calls and clears the map
+func (s *AgentServiceImpl) getAccumulatedToolCalls() map[string]*sdk.ChatCompletionMessageToolCall {
+	s.toolCallsMux.Lock()
+	defer s.toolCallsMux.Unlock()
+
+	result := make(map[string]*sdk.ChatCompletionMessageToolCall)
+	for k, v := range s.toolCallsMap {
+		result[k] = v
+	}
+
+	s.toolCallsMap = make(map[string]*sdk.ChatCompletionMessageToolCall)
+	return result
+}
+
+// clearToolCallsMap resets the tool calls map for the next iteration
+func (s *AgentServiceImpl) clearToolCallsMap() {
+	s.toolCallsMux.Lock()
+	defer s.toolCallsMux.Unlock()
+
+	s.toolCallsMap = make(map[string]*sdk.ChatCompletionMessageToolCall)
 }
 
 // storeAssistantMessage stores an assistant message to conversation history
@@ -147,17 +169,8 @@ func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-// sendErrorEvent sends an error event
-func (s *AgentServiceImpl) sendErrorEvent(events chan<- domain.ChatEvent, requestID string, err error) { // nolint:unused
-	events <- domain.ChatErrorEvent{
-		RequestID: requestID,
-		Timestamp: time.Now(),
-		Error:     err,
-	}
-}
-
 // shouldInjectSystemReminder checks if a system reminder should be injected
-func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool { // nolint:unused
+func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool {
 	cfg := s.config.GetAgentConfig()
 
 	if !cfg.SystemReminders.Enabled {
@@ -173,7 +186,7 @@ func (s *AgentServiceImpl) shouldInjectSystemReminder(turns int) bool { // nolin
 }
 
 // getSystemReminderMessage returns the system reminder message to inject
-func (s *AgentServiceImpl) getSystemReminderMessage() sdk.Message { // nolint:unused
+func (s *AgentServiceImpl) getSystemReminderMessage() sdk.Message {
 	cfg := s.config.GetAgentConfig()
 
 	reminderText := cfg.SystemReminders.ReminderText
