@@ -152,16 +152,25 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	if len(availableTools) > 0 {
 		client = client.WithTools(&availableTools)
 	}
-	// Step 3 - Send a request to the LLM with the user's intent
+	// Step 3 - Prepare a request to the LLM with the user's intent
 	conversation := []sdk.Message{
 		{Role: "system", Content: systemPrompt},
 	}
 	conversation = append(conversation, req.Messages...)
+
+	// Step 4 - Optimize conversations using the optimizer (based on the message count and the configurations)
+	if s.optimizer != nil {
+		conversation = s.optimizer.OptimizeMessages(conversation)
+		logger.Debug("optimized conversation", "original_count", len(req.Messages)+1, "optimized_count", len(conversation))
+		// TODO - improve the optimizer to take the first 10x (configured) messages after the user intent / root context, summarize it with a one-off LLM request
+		// and place it right after the root context
+	}
+
 	provider, model, err := s.parseProvider(req.Model)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
 	}
-	// Step 4 - Start agent event loop with max iteration from the config:
+	// Step 5 - Start agent event loop with max iteration from the config:
 	turns := 0
 	maxTurns := s.config.GetAgentConfig().MaxTurns
 	toolcalls := []sdk.ChatCompletionMessageToolCall{}
@@ -172,16 +181,15 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			if err != nil {
 				logger.Error("failed to create a stream, %w", err)
 			}
-			// Step 1 - Optimize conversations using the optimizer (based on the message count and the configurations)
-			// Step 2 - Inject User's System reminder into the conversation as a hidden message and store it in the database
-			// Step 3 - When there are tool calls, call tcs := accumulateToolCalls to collect the full definitions
-			// Step 4 - Pass the return value from err := s.toolService.ExecuteTool(ctx, tc.ChatCompletionMessageToolCall)
-			// Step 5 - Handle error for each tool call
-			// Step 6 - Before processing a tool_call - store it to the conversations database and submit an event to the UI about tool call starting
-			// Step 7 - When the tool call is complete successfully or with errors - store it to the conversations database and submit an event to the UI about tool call completed
-			// Step 8 - When there is Reasoning or ReasoningContent - submit an event to the UI
-			// Step 9 - When there is standard content delta and tool_calls == empty(we check at the beginning and continue if there are tool calls) - submit a content delta event to the UI and store the final message in the database
-			// Step 10 - Save the token usage per iteration to the database
+			// Step 1 - Inject User's System reminder into the conversation as a hidden message and store it in the database
+			// Step 2 - When there are tool calls, call tcs := accumulateToolCalls to collect the full definitions
+			// Step 3 - Pass the return value from err := s.toolService.ExecuteTool(ctx, tc.ChatCompletionMessageToolCall)
+			// Step 4 - Handle error for each tool call
+			// Step 5 - Before processing a tool_call - store it to the conversations database and submit an event to the UI about tool call starting
+			// Step 6 - When the tool call is complete successfully or with errors - store it to the conversations database and submit an event to the UI about tool call completed
+			// Step 7 - When there is Reasoning or ReasoningContent - submit an event to the UI
+			// Step 8 - When there is standard content delta and tool_calls == empty(we check at the beginning and continue if there are tool calls) - submit a content delta event to the UI and store the final message in the database
+			// Step 9 - Save the token usage per iteration to the database
 			if len(toolcalls) == 0 {
 				// The agent after responding to the user intent doesn't want to call any tools - meaning it's finished processing
 
