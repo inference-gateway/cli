@@ -359,7 +359,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			}
 
 			for _, tc := range toolCalls {
-				if s.isA2ATool(tc.Function.Name) && s.config.ShouldSkipA2AToolOnClient() {
+				if s.isA2ATool(tc.Function.Name) {
 					s.a2aTasksMux.Lock()
 					alreadyExecuted := s.executedA2ATasks[tc.Id]
 					if !alreadyExecuted {
@@ -372,7 +372,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 					toolResult := sdk.Message{
 						Role:       sdk.Tool,
-						Content:    fmt.Sprintf("Tool %s executed on Gateway", tc.Function.Name),
+						Content:    fmt.Sprintf("%s executed on Gateway successfully", tc.Function.Name),
 						ToolCallId: &tc.Id,
 					}
 					conversation = append(conversation, toolResult)
@@ -595,13 +595,13 @@ func (s *AgentServiceImpl) handleA2AToolCall(tc sdk.ChatCompletionMessageToolCal
 		ToolName:          tc.Function.Name,
 		Arguments:         tc.Function.Arguments,
 		ExecutedOnGateway: true,
-		TaskID:            tc.Id, // Use tool call ID as task ID for now
+		TaskID:            tc.Id,
 	}
 
 	a2aEntry := domain.ConversationEntry{
 		Message: domain.Message{
 			Role:       "tool",
-			Content:    fmt.Sprintf("Tool %s executed on Gateway", tc.Function.Name),
+			Content:    fmt.Sprintf("%s executed on Gateway", tc.Function.Name),
 			ToolCallId: &tc.Id,
 		},
 		Time: time.Now(),

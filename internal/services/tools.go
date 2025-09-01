@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -86,6 +87,10 @@ func (s *LLMToolService) IsToolEnabled(name string) bool {
 func (s *LLMToolService) ValidateTool(name string, args map[string]any) error {
 	if !s.enabled {
 		return fmt.Errorf("tools are not enabled")
+	}
+
+	if strings.HasPrefix(name, "a2a_") {
+		return nil
 	}
 
 	tool, err := s.registry.GetTool(name)

@@ -464,6 +464,7 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case domain.UpdateHistoryEvent:
+		cv.isStreaming = false
 		cv.SetConversation(msg.History)
 		return cv, cmd
 	case domain.StreamingContentEvent:
