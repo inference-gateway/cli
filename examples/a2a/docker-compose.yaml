@@ -20,7 +20,6 @@ services:
       - go-modules:/go/pkg/mod
       - go-build-cache:/root/.cache/go-build
     environment:
-      INFER_LOGGING_DEBUG: true
       INFER_GATEWAY_URL: http://inference-gateway:8080
       INFER_GATEWAY_MIDDLEWARES_A2A: true
       INFER_TOOLS_ENABLED: true
