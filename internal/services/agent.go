@@ -562,8 +562,9 @@ func (s *AgentServiceImpl) executeToolCall(ctx context.Context, tc sdk.ChatCompl
 
 	successEntry := domain.ConversationEntry{
 		Message: domain.Message{
-			Role:    "tool",
-			Content: formattedContent,
+			Role:       "tool",
+			Content:    formattedContent,
+			ToolCallId: &tc.Id,
 		},
 		Time: time.Now(),
 		ToolExecution: &domain.ToolExecutionResult{
