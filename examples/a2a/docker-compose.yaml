@@ -23,7 +23,7 @@ services:
       INFER_LOGGING_DEBUG: true
       INFER_GATEWAY_URL: http://inference-gateway:8080
       INFER_GATEWAY_MIDDLEWARES_A2A: true
-      INFER_TOOLS_ENABLED: false
+      INFER_TOOLS_ENABLED: true
       INFER_AGENT_MODEL: deepseek/deepseek-chat
       INFER_AGENT_SYSTEM_PROMPT: |
         You are an helpful assistant. You submit the tasks to calendar agent when a request related to calendar is asked.
