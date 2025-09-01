@@ -138,7 +138,11 @@ func TestPlanShortcut_validatePRDFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("failed to cleanup temp dir: %v", err)
+		}
+	}()
 
 	validFile := filepath.Join(tempDir, "valid.md")
 	if err := os.WriteFile(validFile, []byte("# PRD Content"), 0644); err != nil {
@@ -212,7 +216,11 @@ func TestPlanShortcut_readPRDFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("failed to cleanup temp dir: %v", err)
+		}
+	}()
 
 	content := "# Test PRD\n\nThis is test content."
 	validFile := filepath.Join(tempDir, "test.md")
@@ -334,25 +342,28 @@ func TestPlanShortcut_parseIssuesFromResponse(t *testing.T) {
 				t.Errorf("PlanShortcut.parseIssuesFromResponse() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			if !tt.wantErr {
-				if len(got) != len(tt.want) {
-					t.Errorf("PlanShortcut.parseIssuesFromResponse() length = %v, want %v", len(got), len(tt.want))
-					return
+			if tt.wantErr {
+				return
+			}
+
+			if len(got) != len(tt.want) {
+				t.Errorf("PlanShortcut.parseIssuesFromResponse() length = %v, want %v", len(got), len(tt.want))
+				return
+			}
+
+			for i, issue := range got {
+				if issue.Title != tt.want[i].Title ||
+					issue.Description != tt.want[i].Description ||
+					issue.Priority != tt.want[i].Priority ||
+					issue.Effort != tt.want[i].Effort {
+					t.Errorf("PlanShortcut.parseIssuesFromResponse() issue %d = %v, want %v", i, issue, tt.want[i])
 				}
-				for i, issue := range got {
-					if issue.Title != tt.want[i].Title ||
-						issue.Description != tt.want[i].Description ||
-						issue.Priority != tt.want[i].Priority ||
-						issue.Effort != tt.want[i].Effort {
-						t.Errorf("PlanShortcut.parseIssuesFromResponse() issue %d = %v, want %v", i, issue, tt.want[i])
-					}
-					if len(issue.Labels) != len(tt.want[i].Labels) {
-						t.Errorf("PlanShortcut.parseIssuesFromResponse() issue %d labels length = %v, want %v", i, len(issue.Labels), len(tt.want[i].Labels))
-					}
-					for j, label := range issue.Labels {
-						if j < len(tt.want[i].Labels) && label != tt.want[i].Labels[j] {
-							t.Errorf("PlanShortcut.parseIssuesFromResponse() issue %d label %d = %v, want %v", i, j, label, tt.want[i].Labels[j])
-						}
+				if len(issue.Labels) != len(tt.want[i].Labels) {
+					t.Errorf("PlanShortcut.parseIssuesFromResponse() issue %d labels length = %v, want %v", i, len(issue.Labels), len(tt.want[i].Labels))
+				}
+				for j, label := range issue.Labels {
+					if j < len(tt.want[i].Labels) && label != tt.want[i].Labels[j] {
+						t.Errorf("PlanShortcut.parseIssuesFromResponse() issue %d label %d = %v, want %v", i, j, label, tt.want[i].Labels[j])
 					}
 				}
 			}
@@ -463,7 +474,11 @@ func TestPlanShortcut_Execute(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			t.Logf("failed to cleanup temp dir: %v", err)
+		}
+	}()
 
 	validFile := filepath.Join(tempDir, "valid.md")
 	if err := os.WriteFile(validFile, []byte("# Test PRD\n\nFeature requirements"), 0644); err != nil {
@@ -577,6 +592,7 @@ func TestNewPlanShortcut(t *testing.T) {
 
 			if got == nil {
 				t.Errorf("NewPlanShortcut() returned nil")
+				return
 			}
 			if got.agentService != agentService {
 				t.Errorf("NewPlanShortcut() agent service not set correctly")

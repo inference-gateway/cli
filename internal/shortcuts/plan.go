@@ -291,9 +291,10 @@ func (p *PlanShortcut) splitJSONObjects(content string) []string {
 		}
 
 		if !inString {
-			if char == '{' {
+			switch char {
+			case '{':
 				braceCount++
-			} else if char == '}' {
+			case '}':
 				braceCount--
 			}
 		}
@@ -352,98 +353,136 @@ func (p *PlanShortcut) parseIssueObject(objStr string) (PlannedIssue, error) {
 
 // parseJSONFields parses JSON object content into field map
 func (p *PlanShortcut) parseJSONFields(content string) map[string]string {
-	fields := make(map[string]string)
+	parser := &jsonFieldParser{
+		fields: make(map[string]string),
+		inKey:  true,
+		parent: p,
+	}
+	return parser.parse(content)
+}
 
-	var key, value strings.Builder
-	inKey := true
-	inString := false
-	escaped := false
-	bracketCount := 0
-	braceCount := 0
+// jsonFieldParser handles JSON field parsing with reduced complexity
+type jsonFieldParser struct {
+	fields       map[string]string
+	key, value   strings.Builder
+	inKey        bool
+	inString     bool
+	escaped      bool
+	bracketCount int
+	braceCount   int
+	parent       *PlanShortcut
+}
 
+// parse processes the JSON content character by character
+func (parser *jsonFieldParser) parse(content string) map[string]string {
 	for _, char := range content {
-		if escaped {
-			if inKey {
-				key.WriteRune(char)
-			} else {
-				value.WriteRune(char)
-			}
-			escaped = false
+		if parser.handleEscapedChar(char) {
 			continue
 		}
-
-		if char == '\\' {
-			escaped = true
-			if inKey {
-				key.WriteRune(char)
-			} else {
-				value.WriteRune(char)
-			}
+		if parser.handleStringDelimiter(char) {
 			continue
 		}
-
-		if char == '"' {
-			inString = !inString
-			if inKey {
-				key.WriteRune(char)
-			} else {
-				value.WriteRune(char)
-			}
+		if parser.inString {
+			parser.writeChar(char)
 			continue
 		}
-
-		if inString {
-			if inKey {
-				key.WriteRune(char)
-			} else {
-				value.WriteRune(char)
-			}
+		if parser.handleStructuralChars(char) {
 			continue
 		}
+		parser.writeChar(char)
+	}
+	parser.finalizePair()
+	return parser.fields
+}
 
-		if char == '[' {
-			bracketCount++
-		} else if char == ']' {
-			bracketCount--
-		} else if char == '{' {
-			braceCount++
-		} else if char == '}' {
-			braceCount--
+// handleEscapedChar processes escape sequences
+func (parser *jsonFieldParser) handleEscapedChar(char rune) bool {
+	if parser.escaped {
+		parser.writeChar(char)
+		parser.escaped = false
+		return true
+	}
+	if char == '\\' {
+		parser.escaped = true
+		parser.writeChar(char)
+		return true
+	}
+	return false
+}
+
+// handleStringDelimiter processes quote characters
+func (parser *jsonFieldParser) handleStringDelimiter(char rune) bool {
+	if char == '"' {
+		parser.inString = !parser.inString
+		parser.writeChar(char)
+		return true
+	}
+	return false
+}
+
+// handleStructuralChars processes JSON structural characters
+func (parser *jsonFieldParser) handleStructuralChars(char rune) bool {
+	switch char {
+	case '[':
+		parser.bracketCount++
+	case ']':
+		parser.bracketCount--
+	case '{':
+		parser.braceCount++
+	case '}':
+		parser.braceCount--
+	case ':':
+		if parser.inKey && parser.isAtTopLevel() {
+			parser.inKey = false
+			return true
 		}
-
-		if char == ':' && inKey && bracketCount == 0 && braceCount == 0 {
-			inKey = false
-			continue
-		}
-
-		if char == ',' && !inKey && bracketCount == 0 && braceCount == 0 {
-			keyStr := strings.TrimSpace(key.String())
-			valueStr := strings.TrimSpace(value.String())
-
-			if keyStr != "" && valueStr != "" {
-				fields[p.unquoteString(keyStr)] = valueStr
-			}
-
-			key.Reset()
-			value.Reset()
-			inKey = true
-			continue
-		}
-
-		if inKey {
-			key.WriteRune(char)
-		} else {
-			value.WriteRune(char)
+	case ',':
+		if !parser.inKey && parser.isAtTopLevel() {
+			parser.savePair()
+			return true
 		}
 	}
+	return false
+}
 
-	keyStr := strings.TrimSpace(key.String())
-	valueStr := strings.TrimSpace(value.String())
+// writeChar writes character to appropriate builder
+func (parser *jsonFieldParser) writeChar(char rune) {
+	if parser.inKey {
+		parser.key.WriteRune(char)
+	} else {
+		parser.value.WriteRune(char)
+	}
+}
+
+// isAtTopLevel checks if parser is at JSON object top level
+func (parser *jsonFieldParser) isAtTopLevel() bool {
+	return parser.bracketCount == 0 && parser.braceCount == 0
+}
+
+// savePair saves current key-value pair and resets for next
+func (parser *jsonFieldParser) savePair() {
+	keyStr := strings.TrimSpace(parser.key.String())
+	valueStr := strings.TrimSpace(parser.value.String())
 	if keyStr != "" && valueStr != "" {
-		fields[p.unquoteString(keyStr)] = valueStr
+		parser.fields[parser.parent.unquoteString(keyStr)] = valueStr
 	}
+	parser.resetPair()
+}
 
-	return fields
+// resetPair resets builders for next key-value pair
+func (parser *jsonFieldParser) resetPair() {
+	parser.key.Reset()
+	parser.value.Reset()
+	parser.inKey = true
+}
+
+// finalizePair saves the final key-value pair
+func (parser *jsonFieldParser) finalizePair() {
+	keyStr := strings.TrimSpace(parser.key.String())
+	valueStr := strings.TrimSpace(parser.value.String())
+	if keyStr != "" && valueStr != "" {
+		parser.fields[parser.parent.unquoteString(keyStr)] = valueStr
+	}
 }
 
 // unquoteString removes quotes from a JSON string

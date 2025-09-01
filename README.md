@@ -1214,7 +1214,9 @@ The git shortcuts provide intelligent commit message generation using AI when no
 
 - `/plan <prd_file_path>` - **NEW**: Process PRD file and create GitHub issues from requirements
 
-The plan shortcut analyzes Product Requirements Documents (PRD) and breaks them down into manageable GitHub issues using AI. It reads the specified PRD file, sends it to the configured agent model for analysis, and generates structured issues with titles, descriptions, acceptance criteria, labels, and effort estimates.
+The plan shortcut analyzes Product Requirements Documents (PRD) and breaks them down into manageable GitHub issues
+using AI. It reads the specified PRD file, sends it to the configured agent model for analysis, and generates
+structured issues with titles, descriptions, acceptance criteria, labels, and effort estimates.
 
 ## User-Defined Shortcuts
 
