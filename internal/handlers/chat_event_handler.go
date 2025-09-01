@@ -249,7 +249,6 @@ func (e *ChatEventHandler) handleChatComplete(
 	statusMsg := "Response complete"
 	tokenUsage := ""
 	if msg.Metrics != nil {
-		e.handler.addTokenUsageToSession(msg.Metrics)
 		tokenUsage = e.FormatMetrics(msg.Metrics)
 	}
 
@@ -541,9 +540,8 @@ func (e *ChatEventHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 	}
 
 	sessionStats := e.handler.conversationRepo.GetSessionTokens()
-	if sessionStats.TotalInputTokens > 0 {
-		parts = append(parts, fmt.Sprintf("Session Input: %d tokens", sessionStats.TotalInputTokens))
-	}
+	parts = append(parts, fmt.Sprintf("Session Input: %d tokens", sessionStats.TotalInputTokens))
+	parts = append(parts, fmt.Sprintf("Session Output: %d tokens", sessionStats.TotalOutputTokens))
 
 	return strings.Join(parts, " | ")
 }

@@ -7,7 +7,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
@@ -236,21 +235,6 @@ func (h *ChatHandler) ParseToolCall(input string) (string, map[string]any, error
 // ParseArguments parses function arguments (exposed for testing)
 func (h *ChatHandler) ParseArguments(argsStr string) (map[string]any, error) {
 	return h.commandHandler.ParseArguments(argsStr)
-}
-
-// addTokenUsageToSession accumulates token usage to session totals
-func (h *ChatHandler) addTokenUsageToSession(metrics *domain.ChatMetrics) {
-	if metrics == nil || metrics.Usage == nil {
-		return
-	}
-
-	if err := h.conversationRepo.AddTokenUsage(
-		int(metrics.Usage.PromptTokens),
-		int(metrics.Usage.CompletionTokens),
-		int(metrics.Usage.TotalTokens),
-	); err != nil {
-		logger.Error("failed to add token usage", "error", err)
-	}
 }
 
 func generateRequestID() string {

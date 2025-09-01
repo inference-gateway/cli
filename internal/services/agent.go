@@ -138,8 +138,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		return nil, err
 	}
 
-	_ = time.Now()
-
 	chatEvents := make(chan domain.ChatEvent, 100)
 
 	systemPrompt := s.config.GetAgentConfig().SystemPrompt
@@ -175,6 +173,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		//// EVENT LOOP START
 		for maxTurns > turns {
 			s.clearToolCallsMap()
+			iterationStartTime := time.Now()
 
 			if turns > 0 {
 				time.Sleep(100 * time.Millisecond)
@@ -207,6 +206,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 			var allToolCallDeltas []sdk.ChatCompletionMessageToolCallChunk
 			var message sdk.Message
+			var streamUsage *sdk.CompletionUsage
 			////// STREAM ITERATION START
 			for event := range events {
 				if event.Event == nil {
@@ -267,6 +267,10 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 						}
 
 						chatEvents <- event
+					}
+
+					if streamResponse.Usage != nil {
+						streamUsage = streamResponse.Usage
 					}
 				}
 			}
@@ -350,18 +354,16 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				conversation = append(conversation, toolResult)
 			}
 
-			// Emit chat complete event after tools are executed so UI includes tool results
+			s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
+
 			chatEvents <- domain.ChatCompleteEvent{
 				RequestID: req.RequestID,
 				Timestamp: time.Now(),
 				ToolCalls: completeToolCalls,
+				Metrics:   s.GetMetrics(req.RequestID),
 			}
 
-			// Step 8 - Save the token usage per iteration to the database
-
 			if len(toolCalls) == 0 {
-				// The agent after responding to the user intent doesn't want to call any tools - meaning it's finished processing
-
 				// TODO - implement retries to ensure the agent is done - inject final message and continue until max configured retries
 				break
 			}
@@ -400,6 +402,30 @@ func (s *AgentServiceImpl) GetMetrics(requestID string) *domain.ChatMetrics {
 		}
 	}
 	return nil
+}
+
+// storeIterationMetrics stores metrics for the current iteration and accumulates session tokens
+func (s *AgentServiceImpl) storeIterationMetrics(requestID string, startTime time.Time, usage *sdk.CompletionUsage) {
+	if usage == nil {
+		return
+	}
+
+	metrics := &domain.ChatMetrics{
+		Duration: time.Since(startTime),
+		Usage:    usage,
+	}
+
+	s.metricsMux.Lock()
+	s.metrics[requestID] = metrics
+	s.metricsMux.Unlock()
+
+	if err := s.conversationRepo.AddTokenUsage(
+		int(usage.PromptTokens),
+		int(usage.CompletionTokens),
+		int(usage.TotalTokens),
+	); err != nil {
+		logger.Error("failed to add token usage to session", "error", err)
+	}
 }
 
 func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain.AgentRequest, conversation []sdk.Message, chatEvents chan<- domain.ChatEvent) []sdk.Message {

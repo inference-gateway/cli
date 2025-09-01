@@ -56,4 +56,8 @@ func TestFormatMetricsWithSessionTokens(t *testing.T) {
 	if !strings.Contains(result, "Session Input: 100 tokens") {
 		t.Errorf("Expected session input tokens in result, got: %s", result)
 	}
+
+	if !strings.Contains(result, "Session Output: 50 tokens") {
+		t.Errorf("Expected session output tokens in result, got: %s", result)
+	}
 }
