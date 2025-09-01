@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.5](https://github.com/inference-gateway/cli/compare/v0.48.4...v0.48.5) (2025-09-01)
+
+### 🧹 Maintenance
+
+* **deps:** Bump github.com/inference-gateway/sdk from 1.12.0 to 1.13.0 ([#143](https://github.com/inference-gateway/cli/issues/143)) ([a0c8b2f](https://github.com/inference-gateway/cli/commit/a0c8b2f8454f49b952e865fab993ec634aeb8ed1))
+* **deps:** bump github.com/stretchr/testify from 1.11.0 to 1.11.1 ([#142](https://github.com/inference-gateway/cli/issues/142)) ([80bd1b8](https://github.com/inference-gateway/cli/commit/80bd1b8423cb0c3851a913dc766ca612684e31ee))
+
 ## [0.48.4](https://github.com/inference-gateway/cli/compare/v0.48.3...v0.48.4) (2025-09-01)
 
 ### 🐛 Bug Fixes
