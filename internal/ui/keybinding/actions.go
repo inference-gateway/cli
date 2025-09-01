@@ -326,6 +326,30 @@ func (r *Registry) createScrollActions() []*KeyAction {
 			},
 		},
 		{
+			ID:          "scroll_up_half_page",
+			Keys:        []string{"shift+up"},
+			Description: "scroll up half page",
+			Category:    "navigation",
+			Handler:     handleScrollUpHalfPage,
+			Priority:    120,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
+			ID:          "scroll_down_half_page",
+			Keys:        []string{"shift+down"},
+			Description: "scroll down half page",
+			Category:    "navigation",
+			Handler:     handleScrollDownHalfPage,
+			Priority:    120,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
 			ID:          "page_up",
 			Keys:        []string{"pgup", "page_up"},
 			Description: "page up",
@@ -498,26 +522,20 @@ func handleScrollToBottom(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 }
 
-// TODO - fix this
-func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd { // nolint:unused
+func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		componentID := "conversation"
-
 		return domain.ScrollRequestEvent{
-			ComponentID: componentID,
+			ComponentID: "conversation",
 			Direction:   domain.ScrollUp,
 			Amount:      10,
 		}
 	}
 }
 
-// TODO - fix this
-func handleScrollDownHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd { // nolint:unused
+func handleScrollDownHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		componentID := "conversation"
-
 		return domain.ScrollRequestEvent{
-			ComponentID: componentID,
+			ComponentID: "conversation",
 			Direction:   domain.ScrollDown,
 			Amount:      10,
 		}
