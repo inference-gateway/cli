@@ -177,6 +177,7 @@ type A2AToolCallExecutedEvent struct {
 	ToolName          string
 	Arguments         string
 	ExecutedOnGateway bool
+	TaskID            string
 }
 
 func (e A2AToolCallExecutedEvent) GetType() ChatEventType  { return EventA2AToolCallExecuted }

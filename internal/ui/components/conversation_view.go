@@ -31,6 +31,7 @@ type ConversationView struct {
 	plainTextLines      []string
 	configPath          string
 	themeService        domain.ThemeService
+	isStreaming         bool
 }
 
 func NewConversationView(themeService domain.ThemeService) *ConversationView {
@@ -61,9 +62,14 @@ func (cv *ConversationView) SetConfigPath(configPath string) {
 }
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
+	wasAtBottom := cv.Viewport.AtBottom()
 	cv.conversation = conversation
+	cv.isStreaming = false
 	cv.updatePlainTextLines()
 	cv.updateViewportContent()
+	if wasAtBottom {
+		cv.Viewport.GotoBottom()
+	}
 }
 
 func (cv *ConversationView) GetScrollOffset() int {
@@ -560,6 +566,10 @@ func (cv *ConversationView) getAccentColorLipgloss() string {
 
 // appendStreamingContent appends streaming content to the last assistant message
 func (cv *ConversationView) appendStreamingContent(content string) {
+	if !cv.isStreaming {
+		cv.isStreaming = true
+	}
+
 	if len(cv.conversation) == 0 || cv.conversation[len(cv.conversation)-1].Message.Role != sdk.Assistant {
 		streamingEntry := domain.ConversationEntry{
 			Message: sdk.Message{

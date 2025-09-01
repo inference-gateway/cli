@@ -38,6 +38,10 @@ type AgentServiceImpl struct {
 	// Tool call accumulation
 	toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall
 	toolCallsMux sync.RWMutex
+
+	// A2A task tracking to prevent duplicate processing
+	executedA2ATasks map[string]bool
+	a2aTasksMux      sync.RWMutex
 }
 
 // NewAgentService creates a new agent service with pre-configured client
@@ -61,6 +65,7 @@ func NewAgentService(
 		cancelChannels:   make(map[string]chan struct{}),
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
+		executedA2ATasks: make(map[string]bool),
 	}
 }
 
@@ -164,8 +169,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 	client := s.client.
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
-			SkipMCP: !s.config.ShouldSkipMCPToolOnClient(),
-			SkipA2A: !s.config.ShouldSkipA2AToolOnClient(),
+			SkipMCP: s.config.ShouldSkipMCPToolOnClient(),
+			SkipA2A: s.config.ShouldSkipA2AToolOnClient(),
 		})
 	availableTools := s.toolService.ListTools()
 	if len(availableTools) > 0 {
@@ -355,7 +360,15 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 			for _, tc := range toolCalls {
 				if s.isA2ATool(tc.Function.Name) && s.config.ShouldSkipA2AToolOnClient() {
-					s.handleA2AToolCall(*tc, req.RequestID, chatEvents)
+					s.a2aTasksMux.Lock()
+					alreadyExecuted := s.executedA2ATasks[tc.Id]
+					if !alreadyExecuted {
+						s.executedA2ATasks[tc.Id] = true
+						s.a2aTasksMux.Unlock()
+						s.handleA2AToolCall(*tc, req.RequestID, chatEvents)
+					} else {
+						s.a2aTasksMux.Unlock()
+					}
 
 					toolResult := sdk.Message{
 						Role:       sdk.Tool,
@@ -582,6 +595,7 @@ func (s *AgentServiceImpl) handleA2AToolCall(tc sdk.ChatCompletionMessageToolCal
 		ToolName:          tc.Function.Name,
 		Arguments:         tc.Function.Arguments,
 		ExecutedOnGateway: true,
+		TaskID:            tc.Id, // Use tool call ID as task ID for now
 	}
 
 	a2aEntry := domain.ConversationEntry{
