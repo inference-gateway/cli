@@ -29,7 +29,6 @@ type ChatHandler struct {
 	messageProcessor *ChatMessageProcessor
 	commandHandler   *ChatCommandHandler
 	eventHandler     *ChatEventHandler
-	toolExecutor     *ChatToolExecutor
 }
 
 // NewChatHandler creates a new chat handler
@@ -56,7 +55,6 @@ func NewChatHandler(
 	handler.messageProcessor = NewChatMessageProcessor(handler)
 	handler.commandHandler = NewChatCommandHandler(handler)
 	handler.eventHandler = NewChatEventHandler(handler)
-	handler.toolExecutor = NewChatToolExecutor(handler)
 
 	return handler
 }
@@ -98,7 +96,6 @@ func (h *ChatHandler) Handle(
 	msg tea.Msg,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case domain.UserInputEvent:
 		return h.messageProcessor.handleUserInput(msg, stateManager)

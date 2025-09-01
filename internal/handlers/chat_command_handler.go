@@ -104,14 +104,7 @@ func (c *ChatCommandHandler) handleBashCommand(
 				History: c.handler.conversationRepo.GetMessages(),
 			}
 		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Executing: %s", command),
-				Spinner:    true,
-				StatusType: domain.StatusWorking,
-			}
-		},
-		c.handler.toolExecutor.executeBashCommand(command, stateManager),
+		c.handler.startChatCompletion(stateManager),
 	)
 }
 
@@ -131,7 +124,7 @@ func (c *ChatCommandHandler) handleToolCommand(
 		}
 	}
 
-	toolName, args, err := c.ParseToolCall(command)
+	toolName, _, err := c.ParseToolCall(command)
 	if err != nil {
 		return nil, func() tea.Msg {
 			return domain.ShowErrorEvent{
@@ -173,14 +166,7 @@ func (c *ChatCommandHandler) handleToolCommand(
 				History: c.handler.conversationRepo.GetMessages(),
 			}
 		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Executing tool: %s", toolName),
-				Spinner:    true,
-				StatusType: domain.StatusWorking,
-			}
-		},
-		c.handler.toolExecutor.executeToolDirectly(toolName, args, stateManager),
+		c.handler.startChatCompletion(stateManager),
 	)
 }
 

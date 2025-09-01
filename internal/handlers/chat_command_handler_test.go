@@ -111,12 +111,6 @@ func TestChatCommandHandler_handleBashCommand(t *testing.T) {
 			handler := &ChatHandler{
 				toolService:      mockTool,
 				conversationRepo: conversationRepo,
-				toolExecutor: &ChatToolExecutor{
-					handler: &ChatHandler{
-						toolService:      mockTool,
-						conversationRepo: conversationRepo,
-					},
-				},
 			}
 
 			commandHandler := NewChatCommandHandler(handler)
@@ -182,12 +176,6 @@ func TestChatCommandHandler_handleToolCommand(t *testing.T) {
 			handler := &ChatHandler{
 				toolService:      mockTool,
 				conversationRepo: conversationRepo,
-				toolExecutor: &ChatToolExecutor{
-					handler: &ChatHandler{
-						toolService:      mockTool,
-						conversationRepo: conversationRepo,
-					},
-				},
 			}
 
 			commandHandler := NewChatCommandHandler(handler)

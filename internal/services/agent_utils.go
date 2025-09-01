@@ -6,7 +6,6 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -62,33 +61,6 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 	defer s.toolCallsMux.Unlock()
 
 	s.toolCallsMap = make(map[string]*sdk.ChatCompletionMessageToolCall)
-}
-
-// storeAssistantMessage stores an assistant message to conversation history
-func (s *AgentServiceImpl) storeAssistantMessage(requestID, content string, toolCalls []sdk.ChatCompletionMessageToolCall, timestamp time.Time) { // nolint:unused
-	if s.conversationRepo == nil {
-		return
-	}
-
-	message := sdk.Message{
-		Role:    sdk.Assistant,
-		Content: content,
-	}
-
-	if len(toolCalls) > 0 {
-		message.ToolCalls = &toolCalls
-	}
-
-	entry := domain.ConversationEntry{
-		Message: message,
-		Model:   "",
-		Time:    timestamp,
-	}
-
-	if err := s.conversationRepo.AddMessage(entry); err != nil {
-		logger.Error("failed to store assistant message", "error", err)
-	}
-
 }
 
 // addSystemPrompt adds system prompt with dynamic sandbox info and returns messages

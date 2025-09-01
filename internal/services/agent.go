@@ -133,7 +133,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 }
 
 // RunWithStream executes an agent task with streaming (for interactive chat)
-func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop
+func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop,funlen
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
 	}
@@ -147,10 +147,10 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		systemPrompt = "You are an helpful assistant."
 	}
 
-	client := sdk.NewClient(&sdk.ClientOptions{}).
+	client := s.client.
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
-			SkipMCP: true,
-			SkipA2A: true,
+			SkipMCP: !s.config.ShouldSkipMCPToolOnClient(),
+			SkipA2A: !s.config.ShouldSkipA2AToolOnClient(),
 		})
 	availableTools := s.toolService.ListTools()
 	if len(availableTools) > 0 {
@@ -171,9 +171,19 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	maxTurns := s.config.GetAgentConfig().MaxTurns
 	go func() {
 		conversation = s.optimizeConversation(ctx, req, conversation, chatEvents)
+
 		//// EVENT LOOP START
 		for maxTurns > turns {
 			s.clearToolCallsMap()
+
+			if turns > 0 {
+				time.Sleep(100 * time.Millisecond)
+			}
+
+			chatEvents <- domain.ChatStartEvent{
+				RequestID: req.RequestID,
+				Timestamp: time.Now(),
+			}
 
 			if s.shouldInjectSystemReminder(turns) {
 				systemReminderMsg := s.getSystemReminderMessage()
@@ -204,8 +214,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					continue
 				}
 
-				if *event.Event != sdk.ContentDelta && event.Data == nil {
-					logger.Error("event has no delta")
+				if event.Data == nil {
+					continue
 				}
 
 				var streamResponse sdk.CreateChatCompletionStreamResponse
@@ -216,13 +226,20 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 				for _, choice := range streamResponse.Choices {
 					if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
+						if message.Reasoning == nil {
+							message.Reasoning = new(string)
+						}
 						*message.Reasoning += *choice.Delta.Reasoning
 					}
 					if choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
+						if message.ReasoningContent == nil {
+							message.ReasoningContent = new(string)
+						}
 						*message.ReasoningContent += *choice.Delta.ReasoningContent
 					}
-					if choice.Delta.Content != "" {
-						message.Content += choice.Delta.Content
+					deltaContent := choice.Delta.Content
+					if deltaContent != "" {
+						message.Content += deltaContent
 					}
 
 					reasoning := ""
@@ -231,31 +248,100 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					} else if message.ReasoningContent != nil && *message.ReasoningContent != "" {
 						reasoning = *message.ReasoningContent
 					}
-					event := domain.ChatChunkEvent{
-						RequestID:        req.RequestID,
-						Timestamp:        time.Now(),
-						ReasoningContent: reasoning,
-						Content:          message.Content,
-						Delta:            true,
-					}
 
 					if len(choice.Delta.ToolCalls) > 0 {
 						allToolCallDeltas = append(allToolCallDeltas, choice.Delta.ToolCalls...)
-						event.ToolCalls = choice.Delta.ToolCalls
 					}
 
-					chatEvents <- event
+					if deltaContent != "" || reasoning != "" || len(choice.Delta.ToolCalls) > 0 {
+						event := domain.ChatChunkEvent{
+							RequestID:        req.RequestID,
+							Timestamp:        time.Now(),
+							ReasoningContent: reasoning,
+							Content:          deltaContent,
+							Delta:            true,
+						}
+
+						if len(choice.Delta.ToolCalls) > 0 {
+							event.ToolCalls = choice.Delta.ToolCalls
+						}
+
+						chatEvents <- event
+					}
 				}
 			}
 			////// STREAM ITERATION FINISHED
 
 			s.accumulateToolCalls(allToolCallDeltas)
 			toolCalls := s.getAccumulatedToolCalls()
+
+			assistantMessage := sdk.Message{
+				Role:    sdk.Assistant,
+				Content: message.Content,
+			}
+
+			if len(toolCalls) > 0 {
+				assistantToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
+				for _, tc := range toolCalls {
+					assistantToolCalls = append(assistantToolCalls, *tc)
+				}
+				assistantMessage.ToolCalls = &assistantToolCalls
+			}
+
+			conversation = append(conversation, assistantMessage)
+
+			assistantEntry := domain.ConversationEntry{
+				Message: assistantMessage,
+				Time:    time.Now(),
+			}
+
+			if err := s.conversationRepo.AddMessage(assistantEntry); err != nil {
+				logger.Error("failed to store assistant message", "error", err)
+			}
+
+			var completeToolCalls []sdk.ChatCompletionMessageToolCall
+			if len(toolCalls) > 0 {
+				completeToolCalls = make([]sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
+				for _, tc := range toolCalls {
+					completeToolCalls = append(completeToolCalls, *tc)
+				}
+			}
+
+			chatEvents <- domain.ChatCompleteEvent{
+				RequestID: req.RequestID,
+				Timestamp: time.Now(),
+				ToolCalls: completeToolCalls,
+			}
+
 			for _, tc := range toolCalls {
 				err := s.executeToolCall(ctx, *tc, req.RequestID, chatEvents)
 				if err != nil {
 					logger.Error("failed to execute tool: %w", err)
+					errorResult := sdk.Message{
+						Role:       sdk.Tool,
+						Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
+						ToolCallId: &tc.Id,
+					}
+					conversation = append(conversation, errorResult)
+					continue
 				}
+
+				messages := s.conversationRepo.GetMessages()
+				if len(messages) == 0 {
+					continue
+				}
+
+				lastMessage := messages[len(messages)-1]
+				if lastMessage.Message.Role != sdk.Tool {
+					continue
+				}
+
+				toolResult := sdk.Message{
+					Role:       sdk.Tool,
+					Content:    lastMessage.Message.Content,
+					ToolCallId: &tc.Id,
+				}
+				conversation = append(conversation, toolResult)
 			}
 
 			// Step 8 - Save the token usage per iteration to the database
@@ -314,10 +400,8 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 	if isPersistent {
 		if cachedMessages := persistentRepo.GetOptimizedMessages(); len(cachedMessages) > 0 {
 			if len(conversation) <= len(cachedMessages) {
-				logger.Debug("using cached optimized conversation from database", "conversation_id", persistentRepo.GetCurrentConversationID(), "cached_count", len(cachedMessages))
 				return cachedMessages
 			}
-			logger.Debug("new messages detected, re-optimizing with cached messages as base", "conversation_id", persistentRepo.GetCurrentConversationID(), "cached_count", len(cachedMessages), "current_count", len(conversation))
 			conversation = append(cachedMessages, conversation[len(cachedMessages):]...)
 		}
 	}
@@ -336,7 +420,6 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 
 	var message string
 	if originalCount != optimizedCount {
-		logger.Debug("optimized conversation", "original_count", originalCount, "optimized_count", optimizedCount)
 		message = fmt.Sprintf("Conversation optimized (%d → %d messages)", originalCount, optimizedCount)
 	} else {
 		message = "Conversation optimization completed"
@@ -353,9 +436,7 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 
 	if isPersistent {
 		if err := persistentRepo.SetOptimizedMessages(ctx, conversation); err != nil {
-			logger.Warn("Failed to save optimized conversation", "error", err)
-		} else {
-			logger.Debug("Optimized conversation saved to database", "conversation_id", persistentRepo.GetCurrentConversationID(), "optimized_count", optimizedCount)
+			logger.Error("Failed to save optimized conversation", "error", err)
 		}
 	}
 
@@ -467,10 +548,22 @@ func (s *AgentServiceImpl) executeToolCall(ctx context.Context, tc sdk.ChatCompl
 		return err
 	}
 
+	toolExecutionResult := &domain.ToolExecutionResult{
+		ToolName:  tcResult.ToolName,
+		Arguments: args,
+		Success:   tcResult.Success,
+		Duration:  time.Since(startTime),
+		Data:      tcResult.Data,
+		Metadata:  tcResult.Metadata,
+		Diff:      tcResult.Diff,
+	}
+
+	formattedContent := s.conversationRepo.FormatToolResultForLLM(toolExecutionResult)
+
 	successEntry := domain.ConversationEntry{
 		Message: domain.Message{
 			Role:    "tool",
-			Content: fmt.Sprintf("Tool %s executed successfully", tcResult.ToolName),
+			Content: formattedContent,
 		},
 		Time: time.Now(),
 		ToolExecution: &domain.ToolExecutionResult{

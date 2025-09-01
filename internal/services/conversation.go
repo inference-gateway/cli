@@ -268,3 +268,36 @@ func (r *InMemoryConversationRepository) GetSessionTokens() domain.SessionTokenS
 
 	return r.sessionStats
 }
+
+// FormatToolResultForLLM formats tool execution results for LLM consumption
+func (r *InMemoryConversationRepository) FormatToolResultForLLM(result *domain.ToolExecutionResult) string {
+	if r.formatterService != nil {
+		return r.formatterService.FormatToolResultForLLM(result)
+	}
+	if result.Success {
+		return "Tool executed successfully"
+	}
+	return "Tool execution failed"
+}
+
+// FormatToolResultForUI formats tool execution results for UI display
+func (r *InMemoryConversationRepository) FormatToolResultForUI(result *domain.ToolExecutionResult, terminalWidth int) string {
+	if r.formatterService != nil {
+		return r.formatterService.FormatToolResultForUI(result, terminalWidth)
+	}
+	if result.Success {
+		return "Tool executed successfully"
+	}
+	return "Tool execution failed"
+}
+
+// FormatToolResultExpanded formats expanded tool execution results
+func (r *InMemoryConversationRepository) FormatToolResultExpanded(result *domain.ToolExecutionResult, terminalWidth int) string {
+	if r.formatterService != nil {
+		return r.formatterService.FormatToolResultExpanded(result, terminalWidth)
+	}
+	if result.Success {
+		return "Tool executed successfully"
+	}
+	return "Tool execution failed"
+}

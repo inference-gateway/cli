@@ -437,8 +437,6 @@ func (s *ChatShortcutHandler) handleSaveConversationSideEffect() tea.Msg {
 }
 
 func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect(stateManager *services.StateManager) tea.Msg {
-	logger.Debug("handleShowConversationSelectionSideEffect called")
-
 	if err := stateManager.TransitionToView(domain.ViewStateConversationSelection); err != nil {
 		logger.Error("Failed to transition to conversation selection view", "error", err)
 		return domain.ShowErrorEvent{
@@ -446,8 +444,6 @@ func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect(stateMan
 			Sticky: false,
 		}
 	}
-
-	logger.Debug("Successfully transitioned to conversation selection view")
 
 	return domain.SetStatusEvent{
 		Message:    "Select a conversation from the dropdown",

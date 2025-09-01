@@ -187,7 +187,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(adapter))
 		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter))
-		logger.Debug("registered conversation shortcuts")
 	}
 
 	gitCommitClient := c.createSDKClient()

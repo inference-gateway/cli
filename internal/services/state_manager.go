@@ -147,7 +147,6 @@ func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-ch
 	oldState := sm.state.GetStateSnapshot()
 
 	sm.state.StartChatSession(requestID, model, eventChan)
-	logger.Debug("Chat session started", "requestID", requestID, "model", model)
 
 	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
 	return nil
@@ -247,7 +246,6 @@ func (sm *StateManager) FailCurrentTool(result *domain.ToolExecutionResult) erro
 		return err
 	}
 
-	logger.Debug("Current tool failed", "error", result.Error)
 	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 	return nil
 }
@@ -323,7 +321,6 @@ func (sm *StateManager) SetDebugMode(enabled bool) {
 
 	sm.debugMode = enabled
 	sm.state.SetDebugMode(enabled)
-	logger.Debug("Debug mode changed", "enabled", enabled)
 }
 
 // IsDebugMode returns whether debug mode is enabled
@@ -373,7 +370,6 @@ func (sm *StateManager) SetupFileSelection(files []string) {
 	defer sm.mutex.Unlock()
 
 	sm.state.SetupFileSelection(files)
-	logger.Debug("File selection state setup", "fileCount", len(files))
 }
 
 // GetFileSelectionState returns the current file selection state
@@ -405,7 +401,6 @@ func (sm *StateManager) ClearFileSelectionState() {
 	defer sm.mutex.Unlock()
 
 	sm.state.ClearFileSelectionState()
-	logger.Debug("File selection state cleared")
 }
 
 // RecoverFromInconsistentState attempts to recover from an inconsistent state

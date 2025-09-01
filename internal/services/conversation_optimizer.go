@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/sdk"
 )
 
@@ -158,7 +157,6 @@ func (co *ConversationOptimizer) generateSmartSummary(messages []sdk.Message) st
 
 	summary, err := co.generateLLMSummary(messages)
 	if err != nil {
-		logger.Debug("LLM summarization failed, falling back to basic summary", "error", err)
 		return co.createBasicSummary(messages)
 	}
 

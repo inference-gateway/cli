@@ -55,6 +55,9 @@ type ConversationRepository interface {
 	UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error
 	AddTokenUsage(inputTokens, outputTokens, totalTokens int) error
 	GetSessionTokens() SessionTokenStats
+	FormatToolResultForLLM(result *ToolExecutionResult) string
+	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
+	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
 }
 
 // ModelService handles model selection and information

@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 const (
@@ -758,11 +756,9 @@ func ResolveEnvironmentVariables(value string) string {
 		varName := match[1 : len(match)-1]
 
 		if envValue := os.Getenv(varName); envValue != "" {
-			logger.Debug("Resolved environment variable", "var", varName, "value", "[redacted]")
 			return envValue
 		}
 
-		logger.Debug("Environment variable not set", "var", varName)
 		return ""
 	})
 

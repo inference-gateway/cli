@@ -22,7 +22,7 @@ client:
       - 503
       - 504
 logging:
-  debug: false
+  debug: true
   dir: ""
 tools:
   enabled: true
