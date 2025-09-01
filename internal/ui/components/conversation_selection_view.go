@@ -438,8 +438,8 @@ func (c *ConversationSelectorImpl) writeConversationList(b *strings.Builder) {
 
 // writeTableHeader writes the table header
 func (c *ConversationSelectorImpl) writeTableHeader(b *strings.Builder) {
-	fmt.Fprintf(b, "%s%-22s │ %-40s │ %-20s │ %-10s%s\n",
-		c.themeService.GetCurrentTheme().GetDimColor(), "ID", "Summary", "Updated", "Messages", colors.Reset)
+	fmt.Fprintf(b, "%s%-38s │ %-25s │ %-20s │ %-10s │ %-12s%s\n",
+		c.themeService.GetCurrentTheme().GetDimColor(), "ID", "Summary", "Updated", "Messages", "Input Tokens", colors.Reset)
 	fmt.Fprintf(b, "%s%s%s\n",
 		c.themeService.GetCurrentTheme().GetDimColor(), strings.Repeat("─", c.width-4), colors.Reset)
 }
@@ -476,17 +476,18 @@ func (c *ConversationSelectorImpl) calculatePagination() paginationInfo {
 
 // writeConversationRow writes a single conversation row
 func (c *ConversationSelectorImpl) writeConversationRow(b *strings.Builder, conv shortcuts.ConversationSummary, index int) {
-	shortID := c.truncateString(conv.ID, 20)
-	summary := c.truncateString(conv.Title, 40)
+	fullID := conv.ID
+	summary := c.truncateString(conv.Title, 25)
 	updatedAt := c.formatUpdatedAt(conv.UpdatedAt)
 	msgCount := fmt.Sprintf("%d", conv.MessageCount)
+	inputTokens := fmt.Sprintf("%d", conv.TokenStats.TotalInputTokens)
 
 	if index == c.selected {
-		fmt.Fprintf(b, "%s▶ %-20s │ %-40s │ %-20s │ %-10s%s\n",
-			c.themeService.GetCurrentTheme().GetAccentColor(), shortID, summary, updatedAt, msgCount, colors.Reset)
+		fmt.Fprintf(b, "%s▶ %-36s │ %-25s │ %-20s │ %-10s │ %-12s%s\n",
+			c.themeService.GetCurrentTheme().GetAccentColor(), fullID, summary, updatedAt, msgCount, inputTokens, colors.Reset)
 	} else {
-		fmt.Fprintf(b, "  %-20s │ %-40s │ %-20s │ %-10s\n",
-			shortID, summary, updatedAt, msgCount)
+		fmt.Fprintf(b, "  %-36s │ %-25s │ %-20s │ %-10s │ %-12s\n",
+			fullID, summary, updatedAt, msgCount, inputTokens)
 	}
 }
 
