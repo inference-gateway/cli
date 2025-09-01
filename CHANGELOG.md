@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.1](https://github.com/inference-gateway/cli/compare/v0.48.0...v0.48.1) (2025-09-01)
+
+### 🧹 Maintenance
+
+* **a2a-debugger:** Add 'manual' profile to a2a-debugger service ([464b41e](https://github.com/inference-gateway/cli/commit/464b41e261a91803947219336f61625b151b7a05))
+
 ## [0.48.0](https://github.com/inference-gateway/cli/compare/v0.47.0...v0.48.0) (2025-09-01)
 
 ### 🚀 Features
