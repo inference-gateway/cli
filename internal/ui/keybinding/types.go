@@ -19,6 +19,9 @@ type KeyHandlerContext interface {
 	GetConversationRepository() domain.ConversationRepository
 	GetConfig() *config.Config
 
+	// Services
+	GetAgentService() domain.AgentService
+
 	// UI components
 	GetConversationView() ui.ConversationRenderer
 	GetInputView() ui.InputComponent
@@ -27,10 +30,7 @@ type KeyHandlerContext interface {
 	// Actions
 	ToggleToolResultExpansion()
 	SendMessage() tea.Cmd
-	HasPendingApproval() bool
 	GetPageSize() int
-	ApproveToolCall() tea.Cmd
-	DenyToolCall() tea.Cmd
 }
 
 // Theme is an alias to the shared Theme interface

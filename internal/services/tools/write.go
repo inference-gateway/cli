@@ -5,11 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/charmbracelet/lipgloss"
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/domain/filewriter"
+	lipgloss "github.com/charmbracelet/lipgloss"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	filewriter "github.com/inference-gateway/cli/internal/domain/filewriter"
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 const (
@@ -88,29 +89,33 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 }
 
 // Definition returns the tool definition for the LLM
-func (t *WriteTool) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{
-		Name: ToolName,
-		Description: `Writes a file to the local filesystem.
+func (t *WriteTool) Definition() sdk.ChatCompletionTool {
+	description := `Writes a file to the local filesystem.
 Usage:
 - This tool will overwrite the existing file if there is one at the provided path.
 - If this is an existing file, you MUST use the Read tool first to read the file's contents. This tool will fail if you did not read the file first.
 - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 - NEVER proactively create documentation files (*.md) or README files. Only create documentation files if explicitly requested by the User.
-- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.`,
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"file_path": map[string]any{
-					"type":        "string",
-					"description": "The absolute path to the file to write (must be absolute, not relative)",
+- Only use emojis if the user explicitly requests it. Avoid writing emojis to files unless asked.`
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        ToolName,
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"file_path": map[string]any{
+						"type":        "string",
+						"description": "The absolute path to the file to write (must be absolute, not relative)",
+					},
+					"content": map[string]any{
+						"type":        "string",
+						"description": "The content to write to the file",
+					},
 				},
-				"content": map[string]any{
-					"type":        "string",
-					"description": "The content to write to the file",
-				},
+				"required": []string{"file_path", "content"},
 			},
-			"required": []string{"file_path", "content"},
 		},
 	}
 }

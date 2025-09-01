@@ -12,8 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // WebSearchTool handles web search operations
@@ -37,38 +38,42 @@ func NewWebSearchTool(cfg *config.Config) *WebSearchTool {
 }
 
 // Definition returns the tool definition for the LLM
-func (t *WebSearchTool) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{
-		Name:        "WebSearch",
-		Description: "Search the web using Google or DuckDuckGo search engines",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"query": map[string]any{
-					"type":        "string",
-					"description": "The search query to execute",
+func (t *WebSearchTool) Definition() sdk.ChatCompletionTool {
+	description := "Search the web using Google or DuckDuckGo search engines"
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "WebSearch",
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"query": map[string]any{
+						"type":        "string",
+						"description": "The search query to execute",
+					},
+					"engine": map[string]any{
+						"type":        "string",
+						"description": fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(t.config.Tools.WebSearch.Engines, " or "), t.config.Tools.WebSearch.DefaultEngine),
+						"enum":        t.config.Tools.WebSearch.Engines,
+						"default":     t.config.Tools.WebSearch.DefaultEngine,
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "Maximum number of search results to return",
+						"minimum":     1,
+						"maximum":     50,
+						"default":     t.config.Tools.WebSearch.MaxResults,
+					},
+					"format": map[string]any{
+						"type":        "string",
+						"description": "Output format (text or json)",
+						"enum":        []string{"text", "json"},
+						"default":     "text",
+					},
 				},
-				"engine": map[string]any{
-					"type":        "string",
-					"description": fmt.Sprintf("The search engine to use (%s). %s is recommended for reliable results.", strings.Join(t.config.Tools.WebSearch.Engines, " or "), t.config.Tools.WebSearch.DefaultEngine),
-					"enum":        t.config.Tools.WebSearch.Engines,
-					"default":     t.config.Tools.WebSearch.DefaultEngine,
-				},
-				"limit": map[string]any{
-					"type":        "integer",
-					"description": "Maximum number of search results to return",
-					"minimum":     1,
-					"maximum":     50,
-					"default":     t.config.Tools.WebSearch.MaxResults,
-				},
-				"format": map[string]any{
-					"type":        "string",
-					"description": "Output format (text or json)",
-					"enum":        []string{"text", "json"},
-					"default":     "text",
-				},
+				"required": []string{"query"},
 			},
-			"required": []string{"query"},
 		},
 	}
 }

@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -9,7 +11,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -80,39 +81,45 @@ func (c *ChatCommandHandler) handleBashCommand(
 		}
 	}
 
-	userEntry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.User,
-			Content: commandText,
-		},
-		Time: time.Now(),
-	}
+	return nil, func() tea.Msg {
+		toolCall := sdk.ChatCompletionMessageToolCallFunction{
+			Name:      "Bash",
+			Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
+		}
 
-	if err := c.handler.conversationRepo.AddMessage(userEntry); err != nil {
-		logger.Error("failed to add user message", "error", err)
-		return nil, func() tea.Msg {
+		result, err := c.handler.toolService.ExecuteTool(context.Background(), toolCall)
+
+		if err != nil {
 			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to save message: %v", err),
+				Error:  fmt.Sprintf("Failed to execute command: %v", err),
 				Sticky: false,
 			}
 		}
-	}
 
-	return nil, tea.Batch(
-		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
-				History: c.handler.conversationRepo.GetMessages(),
-			}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Executing: %s", command),
-				Spinner:    true,
-				StatusType: domain.StatusWorking,
-			}
-		},
-		c.handler.toolExecutor.executeBashCommand(command, stateManager),
-	)
+		userEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: commandText,
+			},
+			Time: time.Now(),
+		}
+		_ = c.handler.conversationRepo.AddMessage(userEntry)
+
+		responseContent := c.handler.conversationRepo.FormatToolResultForLLM(result)
+
+		assistantEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: responseContent,
+			},
+			Time: time.Now(),
+		}
+		_ = c.handler.conversationRepo.AddMessage(assistantEntry)
+
+		return domain.UpdateHistoryEvent{
+			History: c.handler.conversationRepo.GetMessages(),
+		}
+	}
 }
 
 // handleToolCommand processes tool commands starting with !!
@@ -150,38 +157,52 @@ func (c *ChatCommandHandler) handleToolCommand(
 		}
 	}
 
-	userEntry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.User,
-			Content: commandText,
-		},
-		Time: time.Now(),
-	}
-
-	if err := c.handler.conversationRepo.AddMessage(userEntry); err != nil {
-		return nil, func() tea.Msg {
+	return nil, func() tea.Msg {
+		argsJSON, err := json.Marshal(args)
+		if err != nil {
 			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to save message: %v", err),
+				Error:  fmt.Sprintf("Failed to marshal arguments: %v", err),
 				Sticky: false,
 			}
 		}
-	}
 
-	return nil, tea.Batch(
-		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
-				History: c.handler.conversationRepo.GetMessages(),
+		toolCall := sdk.ChatCompletionMessageToolCallFunction{
+			Name:      toolName,
+			Arguments: string(argsJSON),
+		}
+
+		result, err := c.handler.toolService.ExecuteTool(context.Background(), toolCall)
+		if err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to execute tool: %v", err),
+				Sticky: false,
 			}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Executing tool: %s", toolName),
-				Spinner:    true,
-				StatusType: domain.StatusWorking,
-			}
-		},
-		c.handler.toolExecutor.executeToolDirectly(toolName, args, stateManager),
-	)
+		}
+
+		userEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: commandText,
+			},
+			Time: time.Now(),
+		}
+		_ = c.handler.conversationRepo.AddMessage(userEntry)
+
+		responseContent := c.handler.conversationRepo.FormatToolResultForLLM(result)
+
+		assistantEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: responseContent,
+			},
+			Time: time.Now(),
+		}
+		_ = c.handler.conversationRepo.AddMessage(assistantEntry)
+
+		return domain.UpdateHistoryEvent{
+			History: c.handler.conversationRepo.GetMessages(),
+		}
+	}
 }
 
 // ParseToolCall parses a tool call in the format ToolName(arg="value", arg2="value2") (exposed for testing)

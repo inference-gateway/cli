@@ -147,7 +147,6 @@ func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-ch
 	oldState := sm.state.GetStateSnapshot()
 
 	sm.state.StartChatSession(requestID, model, eventChan)
-	logger.Debug("Chat session started", "requestID", requestID, "model", model)
 
 	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
 	return nil
@@ -221,51 +220,6 @@ func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessage
 	return nil
 }
 
-// SetToolApprovalRequired marks the current tool as requiring approval
-func (sm *StateManager) SetToolApprovalRequired(required bool) error {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	oldState := sm.state.GetStateSnapshot()
-
-	if err := sm.state.SetToolApprovalRequired(required); err != nil {
-		return err
-	}
-
-	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
-	return nil
-}
-
-// ApproveCurrentTool approves the current tool for execution
-func (sm *StateManager) ApproveCurrentTool() error {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	oldState := sm.state.GetStateSnapshot()
-
-	if err := sm.state.ApproveCurrentTool(); err != nil {
-		return err
-	}
-
-	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
-	return nil
-}
-
-// DenyCurrentTool denies the current tool execution
-func (sm *StateManager) DenyCurrentTool() error {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	oldState := sm.state.GetStateSnapshot()
-
-	if err := sm.state.DenyCurrentTool(); err != nil {
-		return err
-	}
-
-	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
-	return nil
-}
-
 // CompleteCurrentTool marks the current tool as completed
 func (sm *StateManager) CompleteCurrentTool(result *domain.ToolExecutionResult) error {
 	sm.mutex.Lock()
@@ -292,7 +246,6 @@ func (sm *StateManager) FailCurrentTool(result *domain.ToolExecutionResult) erro
 		return err
 	}
 
-	logger.Debug("Current tool failed", "error", result.Error)
 	sm.captureStateChange(StateChangeTypeToolExecution, oldState)
 	return nil
 }
@@ -368,7 +321,6 @@ func (sm *StateManager) SetDebugMode(enabled bool) {
 
 	sm.debugMode = enabled
 	sm.state.SetDebugMode(enabled)
-	logger.Debug("Debug mode changed", "enabled", enabled)
 }
 
 // IsDebugMode returns whether debug mode is enabled
@@ -418,7 +370,6 @@ func (sm *StateManager) SetupFileSelection(files []string) {
 	defer sm.mutex.Unlock()
 
 	sm.state.SetupFileSelection(files)
-	logger.Debug("File selection state setup", "fileCount", len(files))
 }
 
 // GetFileSelectionState returns the current file selection state
@@ -450,39 +401,6 @@ func (sm *StateManager) ClearFileSelectionState() {
 	defer sm.mutex.Unlock()
 
 	sm.state.ClearFileSelectionState()
-	logger.Debug("File selection state cleared")
-}
-
-// SetupApprovalUI initializes approval UI state
-func (sm *StateManager) SetupApprovalUI() {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.SetupApprovalUI()
-	logger.Debug("Approval UI state setup")
-}
-
-// GetApprovalUIState returns the current approval UI state
-func (sm *StateManager) GetApprovalUIState() *domain.ApprovalUIState {
-	sm.mutex.RLock()
-	defer sm.mutex.RUnlock()
-	return sm.state.GetApprovalUIState()
-}
-
-// SetApprovalSelectedIndex sets the approval selection index
-func (sm *StateManager) SetApprovalSelectedIndex(index int) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.SetApprovalSelectedIndex(index)
-}
-
-// ClearApprovalUIState clears the approval UI state
-func (sm *StateManager) ClearApprovalUIState() {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
-
-	sm.state.ClearApprovalUIState()
 }
 
 // RecoverFromInconsistentState attempts to recover from an inconsistent state

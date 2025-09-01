@@ -1,5 +1,6 @@
 # Secrets
-**/.env
+**/.env*
+!**/.env*.example
 
 # Artifacts
 /dist

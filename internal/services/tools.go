@@ -2,11 +2,14 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/services/tools"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	tools "github.com/inference-gateway/cli/internal/services/tools"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // LLMToolService implements ToolService with the new tools package architecture
@@ -32,9 +35,9 @@ func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry)
 }
 
 // ListTools returns definitions for all enabled tools
-func (s *LLMToolService) ListTools() []domain.ToolDefinition {
+func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
 	if !s.enabled {
-		return []domain.ToolDefinition{}
+		return []sdk.ChatCompletionTool{}
 	}
 	return s.registry.GetToolDefinitions()
 }
@@ -48,19 +51,24 @@ func (s *LLMToolService) ListAvailableTools() []string {
 }
 
 // ExecuteTool executes a tool with the given arguments
-func (s *LLMToolService) ExecuteTool(ctx context.Context, name string, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	if !s.enabled {
 		return nil, fmt.Errorf("tools are not enabled")
 	}
 
-	tool, err := s.registry.GetTool(name)
+	var args map[string]any
+	if err := json.Unmarshal([]byte(toolCall.Arguments), &args); err != nil {
+		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
+	}
+
+	tool, err := s.registry.GetTool(toolCall.Name)
 	if err != nil {
 		return nil, err
 	}
 
 	result, err := tool.Execute(ctx, args)
 
-	if name == "Read" && err == nil && result != nil && result.Success {
+	if toolCall.Name == "Read" && err == nil && result != nil && result.Success {
 		s.registry.SetReadToolUsed()
 	}
 
@@ -81,6 +89,10 @@ func (s *LLMToolService) ValidateTool(name string, args map[string]any) error {
 		return fmt.Errorf("tools are not enabled")
 	}
 
+	if strings.HasPrefix(name, "a2a_") {
+		return nil
+	}
+
 	tool, err := s.registry.GetTool(name)
 	if err != nil {
 		return fmt.Errorf("tool '%s' is not available", name)
@@ -97,15 +109,15 @@ func NewNoOpToolService() *NoOpToolService {
 	return &NoOpToolService{}
 }
 
-func (s *NoOpToolService) ListTools() []domain.ToolDefinition {
-	return []domain.ToolDefinition{}
+func (s *NoOpToolService) ListTools() []sdk.ChatCompletionTool {
+	return []sdk.ChatCompletionTool{}
 }
 
 func (s *NoOpToolService) ListAvailableTools() []string {
 	return []string{}
 }
 
-func (s *NoOpToolService) ExecuteTool(ctx context.Context, name string, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (s *NoOpToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	return nil, fmt.Errorf("tools are not enabled")
 }
 

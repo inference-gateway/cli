@@ -91,15 +91,11 @@ func (m *BackgroundJobManager) runTitleGenerationWorker(ctx context.Context) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
-	logger.Debug("Title generation worker started")
-
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Debug("Title generation worker stopped by context")
 			return
 		case <-m.stopChan:
-			logger.Debug("Title generation worker stopped by signal")
 			return
 		case <-ticker.C:
 			if m.titleGenerator != nil {
@@ -117,7 +113,6 @@ func (m *BackgroundJobManager) TriggerTitleGeneration(ctx context.Context) error
 		return nil
 	}
 
-	logger.Debug("Manually triggering title generation")
 	return m.titleGenerator.ProcessPendingTitles(ctx)
 }
 

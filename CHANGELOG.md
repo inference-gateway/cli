@@ -6,6 +6,36 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.4](https://github.com/inference-gateway/cli/compare/v0.48.3...v0.48.4) (2025-09-01)
+
+### 🐛 Bug Fixes
+
+* **chat:** Bring back command handling and error reporting for Bash and tool commands ([4957eca](https://github.com/inference-gateway/cli/commit/4957eca4254f0f23f3c5104a66e5933553aed0cb))
+
+## [0.48.3](https://github.com/inference-gateway/cli/compare/v0.48.2...v0.48.3) (2025-09-01)
+
+### 🧹 Maintenance
+
+* **config:** Disable debug logging in configuration ([69a7bc2](https://github.com/inference-gateway/cli/commit/69a7bc2ae77cc6077485d97fd94a288e41ffa069))
+
+## [0.48.2](https://github.com/inference-gateway/cli/compare/v0.48.1...v0.48.2) (2025-09-01)
+
+### 🧹 Maintenance
+
+* **docker-compose:** Remove INFER_LOGGING_DEBUG environment variable ([b185629](https://github.com/inference-gateway/cli/commit/b1856294bf3f09a56411509c00b454b65336c6d3))
+
+## [0.48.1](https://github.com/inference-gateway/cli/compare/v0.48.0...v0.48.1) (2025-09-01)
+
+### 🧹 Maintenance
+
+* **a2a-debugger:** Add 'manual' profile to a2a-debugger service ([464b41e](https://github.com/inference-gateway/cli/commit/464b41e261a91803947219336f61625b151b7a05))
+
+## [0.48.0](https://github.com/inference-gateway/cli/compare/v0.47.0...v0.48.0) (2025-09-01)
+
+### 🚀 Features
+
+* **tools:** Implement A2A tool call visualization ([#139](https://github.com/inference-gateway/cli/issues/139)) ([18c78d4](https://github.com/inference-gateway/cli/commit/18c78d4f3f7a956d9f7dd6d6c6a2f34b2c77eeac)), closes [#135](https://github.com/inference-gateway/cli/issues/135)
+
 ## [0.47.0](https://github.com/inference-gateway/cli/compare/v0.46.1...v0.47.0) (2025-08-28)
 
 ### 🚀 Features

@@ -8,8 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // WebFetchTool handles content fetching operations
@@ -33,25 +34,29 @@ func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
 }
 
 // Definition returns the tool definition for the LLM
-func (t *WebFetchTool) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{
-		Name:        "WebFetch",
-		Description: "Fetch content from whitelisted URLs references.",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"url": map[string]any{
-					"type":        "string",
-					"description": "The URL to fetch content from",
+func (t *WebFetchTool) Definition() sdk.ChatCompletionTool {
+	description := "Fetch content from whitelisted URLs references."
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "WebFetch",
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"url": map[string]any{
+						"type":        "string",
+						"description": "The URL to fetch content from",
+					},
+					"format": map[string]any{
+						"type":        "string",
+						"description": "Output format (text or json)",
+						"enum":        []string{"text", "json"},
+						"default":     "text",
+					},
 				},
-				"format": map[string]any{
-					"type":        "string",
-					"description": "Output format (text or json)",
-					"enum":        []string{"text", "json"},
-					"default":     "text",
-				},
+				"required": []string{"url"},
 			},
-			"required": []string{"url"},
 		},
 	}
 }

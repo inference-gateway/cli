@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -21,6 +22,7 @@ type PersistentConversationRepository struct {
 	metadata       storage.ConversationMetadata
 	autoSave       bool
 	titleGenerator *ConversationTitleGenerator
+	autoSaveMutex  sync.Mutex
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
@@ -192,6 +194,9 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 
 	if r.autoSave && r.conversationID != "" {
 		go func() {
+			r.autoSaveMutex.Lock()
+			defer r.autoSaveMutex.Unlock()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
@@ -260,6 +265,9 @@ func (r *PersistentConversationRepository) AddTokenUsage(inputTokens, outputToke
 
 	if r.autoSave && r.conversationID != "" {
 		go func() {
+			r.autoSaveMutex.Lock()
+			defer r.autoSaveMutex.Unlock()
+
 			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 			defer cancel()
 
@@ -270,6 +278,52 @@ func (r *PersistentConversationRepository) AddTokenUsage(inputTokens, outputToke
 	}
 
 	return nil
+}
+
+// GetOptimizedMessages retrieves the stored optimized conversation messages
+func (r *PersistentConversationRepository) GetOptimizedMessages() []sdk.Message {
+	if len(r.metadata.OptimizedMessages) == 0 {
+		return nil
+	}
+
+	optimizedMessages := make([]sdk.Message, 0, len(r.metadata.OptimizedMessages))
+	for _, entry := range r.metadata.OptimizedMessages {
+		optimizedMessages = append(optimizedMessages, sdk.Message{
+			Role:       entry.Message.Role,
+			Content:    entry.Message.Content,
+			ToolCalls:  entry.Message.ToolCalls,
+			ToolCallId: entry.Message.ToolCallId,
+		})
+	}
+	return optimizedMessages
+}
+
+// SetOptimizedMessages stores the optimized conversation messages
+func (r *PersistentConversationRepository) SetOptimizedMessages(ctx context.Context, optimizedMessages []sdk.Message) error {
+	if r.conversationID == "" {
+		return fmt.Errorf("no active conversation to store optimized messages")
+	}
+
+	conversationEntries := make([]domain.ConversationEntry, 0, len(optimizedMessages))
+	now := time.Now()
+
+	for _, msg := range optimizedMessages {
+		entry := domain.ConversationEntry{
+			Message: domain.Message{
+				Role:       msg.Role,
+				Content:    msg.Content,
+				ToolCalls:  msg.ToolCalls,
+				ToolCallId: msg.ToolCallId,
+			},
+			Time: now,
+		}
+		conversationEntries = append(conversationEntries, entry)
+	}
+
+	r.metadata.OptimizedMessages = conversationEntries
+	r.metadata.UpdatedAt = now
+
+	return r.storage.UpdateConversationMetadata(ctx, r.conversationID, r.metadata)
 }
 
 // Close closes the storage connection

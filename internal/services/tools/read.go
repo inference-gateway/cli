@@ -10,8 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 	"github.com/ledongthuc/pdf"
 )
 
@@ -49,10 +50,8 @@ func NewReadTool(cfg *config.Config) *ReadTool {
 }
 
 // Definition returns the tool definition for the LLM
-func (t *ReadTool) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{
-		Name: "Read",
-		Description: `Reads a file from the local filesystem. You can access any file directly by using this tool.
+func (t *ReadTool) Definition() sdk.ChatCompletionTool {
+	description := `Reads a file from the local filesystem. You can access any file directly by using this tool.
 Assume this tool is able to read all files on the machine. If the User provides a path to a file assume that path is valid. It is okay to read a file that does not exist; an error will be returned.
 
 Usage:
@@ -64,27 +63,33 @@ Usage:
 - This tool can read PDF files (.pdf). PDFs are processed page by page, extracting both text and visual content for analysis.
 - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
 - You will regularly be asked to read screenshots. If the user provides a path to a screenshot ALWAYS use this tool to view the file at the path.
-- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.`,
-		Parameters: map[string]any{
-			"type":                 "object",
-			"additionalProperties": false,
-			"properties": map[string]any{
-				"file_path": map[string]any{
-					"type":        "string",
-					"description": "The path to the file to read (can be absolute or relative)",
+- If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.`
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "Read",
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"type":                 "object",
+				"additionalProperties": false,
+				"properties": map[string]any{
+					"file_path": map[string]any{
+						"type":        "string",
+						"description": "The path to the file to read (can be absolute or relative)",
+					},
+					"limit": map[string]any{
+						"type":        "integer",
+						"description": "The number of lines to read. Only provide if the file is too large to read at once.",
+						"minimum":     1,
+					},
+					"offset": map[string]any{
+						"type":        "integer",
+						"description": "The line number to start reading from. Only provide if the file is too large to read at once",
+						"minimum":     1,
+					},
 				},
-				"limit": map[string]any{
-					"type":        "integer",
-					"description": "The number of lines to read. Only provide if the file is too large to read at once.",
-					"minimum":     1,
-				},
-				"offset": map[string]any{
-					"type":        "integer",
-					"description": "The line number to start reading from. Only provide if the file is too large to read at once",
-					"minimum":     1,
-				},
+				"required": []string{"file_path"},
 			},
-			"required": []string{"file_path"},
 		},
 	}
 }

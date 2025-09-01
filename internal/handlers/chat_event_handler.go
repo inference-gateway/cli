@@ -1,33 +1,34 @@
 package handlers
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
+	components "github.com/inference-gateway/cli/internal/ui/components"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // ChatEventHandler handles chat events
 type ChatEventHandler struct {
-	handler *ChatHandler
+	handler          *ChatHandler
+	toolCallRenderer *components.ToolCallRenderer
 }
 
 // NewChatEventHandler creates a new event handler
 func NewChatEventHandler(handler *ChatHandler) *ChatEventHandler {
 	return &ChatEventHandler{
-		handler: handler,
+		handler:          handler,
+		toolCallRenderer: components.NewToolCallRenderer(),
 	}
 }
 
 // handleChatStart processes chat start events
 func (e *ChatEventHandler) handleChatStart(
-	_ domain.ChatStartEvent,
+	event domain.ChatStartEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
 	_ = stateManager.UpdateChatStatus(domain.ChatStatusStarting)
@@ -66,10 +67,27 @@ func (e *ChatEventHandler) handleChatChunk(
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
-				History: e.handler.conversationRepo.GetMessages(),
+			return domain.StreamingContentEvent{
+				RequestID: msg.RequestID,
+				Content:   msg.Content,
+				Delta:     true,
 			}
 		},
+	}
+
+	// Add live token usage updates during streaming when available
+	if msg.Usage != nil {
+		tokenUsage := e.formatLiveTokenUsage(msg.Usage)
+		if tokenUsage != "" {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    "Streaming response...",
+					Spinner:    true,
+					TokenUsage: tokenUsage,
+					StatusType: domain.StatusGenerating,
+				}
+			})
+		}
 	}
 
 	statusCmds := e.handleStatusUpdate(msg, chatSession, stateManager)
@@ -80,6 +98,30 @@ func (e *ChatEventHandler) handleChatChunk(
 	}
 
 	return nil, tea.Batch(cmds...)
+}
+
+// handleOptimizationStatus processes optimization status events
+func (e *ChatEventHandler) handleOptimizationStatus(
+	event domain.OptimizationStatusEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	if event.IsActive {
+		return nil, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    event.Message,
+				Spinner:    true,
+				StatusType: domain.StatusProcessing,
+			}
+		}
+	}
+
+	return nil, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    event.Message,
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
 }
 
 // handleNoChatSession handles the case when there's no active chat session
@@ -104,49 +146,10 @@ func (e *ChatEventHandler) handleEmptyContent(chatSession *domain.ChatSession) (
 	return nil, nil
 }
 
-// updateConversationHistory updates the conversation history with the new message
+// updateConversationHistory handles streaming content for UI display only (no database writes)
 func (e *ChatEventHandler) updateConversationHistory(msg domain.ChatChunkEvent, chatSession *domain.ChatSession) {
-	messages := e.handler.conversationRepo.GetMessages()
-	shouldUpdateLast := e.shouldUpdateLastMessage(messages, chatSession)
-
-	if shouldUpdateLast {
-		e.updateLastMessage(messages, msg, chatSession)
-	} else {
-		e.addNewMessage(msg, chatSession)
-	}
-}
-
-// shouldUpdateLastMessage determines if we should update the last message or add a new one
-func (e *ChatEventHandler) shouldUpdateLastMessage(messages []domain.ConversationEntry, chatSession *domain.ChatSession) bool {
-	return len(messages) > 0 &&
-		messages[len(messages)-1].Message.Role == sdk.Assistant &&
-		chatSession.RequestID != ""
-}
-
-// updateLastMessage updates the existing last message with new content
-func (e *ChatEventHandler) updateLastMessage(messages []domain.ConversationEntry, msg domain.ChatChunkEvent, _ *domain.ChatSession) {
-	existingContent := messages[len(messages)-1].Message.Content
-	newContent := existingContent + msg.Content
-
-	if err := e.handler.conversationRepo.UpdateLastMessage(newContent); err != nil {
-		logger.Error("failed to update last message", "error", err)
-	}
-}
-
-// addNewMessage adds a new assistant message to the conversation
-func (e *ChatEventHandler) addNewMessage(msg domain.ChatChunkEvent, _ *domain.ChatSession) {
-	assistantEntry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.Assistant,
-			Content: msg.Content,
-		},
-		Model: e.handler.modelService.GetCurrentModel(),
-		Time:  msg.Timestamp,
-	}
-
-	if err := e.handler.conversationRepo.AddMessage(assistantEntry); err != nil {
-		logger.Error("failed to add assistant message", "error", err)
-	}
+	// During streaming, we don't update the database - agent handles that at completion
+	// Just accumulate content in the chat session for UI display
 }
 
 // handleStatusUpdate handles updating the chat status and returns appropriate commands
@@ -235,48 +238,31 @@ func (e *ChatEventHandler) handleChatComplete(
 ) (tea.Model, tea.Cmd) {
 	_ = stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
 
-	stateManager.EndChatSession()
+	var cmds []tea.Cmd
 
-	if len(msg.ToolCalls) > 0 {
-		_, cmd := e.handler.toolOrchestrator.StartToolExecution(msg.RequestID, msg.ToolCalls)
-
-		return nil, tea.Batch(
-			func() tea.Msg {
-				return domain.UpdateHistoryEvent{
-					History: e.handler.conversationRepo.GetMessages(),
-				}
-			},
-			cmd,
-		)
-	}
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent{
+			History: e.handler.conversationRepo.GetMessages(),
+		}
+	})
 
 	statusMsg := "Response complete"
 	tokenUsage := ""
 	if msg.Metrics != nil {
-		e.handler.addTokenUsageToSession(msg.Metrics)
 		tokenUsage = e.FormatMetrics(msg.Metrics)
 	}
 
-	e.handler.assistantMessageCounter++
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    statusMsg,
+			Spinner:    false,
+			TokenUsage: tokenUsage,
+			StatusType: domain.StatusDefault,
+		}
+	})
 
-	cmds := []tea.Cmd{
-		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
-				History: e.handler.conversationRepo.GetMessages(),
-			}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    statusMsg,
-				Spinner:    false,
-				TokenUsage: tokenUsage,
-				StatusType: domain.StatusDefault,
-			}
-		},
-	}
-
-	if e.handler.shouldInjectSystemReminder() {
-		cmds = append(cmds, e.handler.injectSystemReminder())
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
 	return nil, tea.Batch(cmds...)
@@ -308,14 +294,19 @@ func (e *ChatEventHandler) handleChatError(
 
 // handleToolCallStart processes tool call start events
 func (e *ChatEventHandler) handleToolCallStart(
-	_ domain.ToolCallStartEvent,
+	event domain.ToolCallStartEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	statusMsg := "Working..."
+	if strings.HasPrefix(event.ToolName, "a2a_") {
+		statusMsg = "Calling agent..."
+	}
+
 	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message:    "Working...",
+			Message:    statusMsg,
 			Spinner:    true,
 			StatusType: domain.StatusWorking,
 		}
@@ -328,91 +319,150 @@ func (e *ChatEventHandler) handleToolCallStart(
 	return nil, tea.Batch(cmds...)
 }
 
-// handleToolCall processes individual tool call events and executes tools immediately when JSON is complete
-func (e *ChatEventHandler) handleToolCall(
-	msg domain.ToolCallEvent,
+// handleToolCallPreview processes initial tool call preview events
+func (e *ChatEventHandler) handleToolCallPreview(
+	msg domain.ToolCallPreviewEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
-	args := strings.TrimSpace(msg.Args)
-	toolName := strings.TrimSpace(msg.ToolName)
+	var cmds []tea.Cmd
 
-	if args != "" && toolName != "" && strings.HasSuffix(args, "}") {
-		var temp any
-		if json.Unmarshal([]byte(args), &temp) == nil {
-			return nil, tea.Batch(
-				func() tea.Msg {
-					return domain.SetStatusEvent{
-						Message:    fmt.Sprintf("Executing tool: %s", toolName),
-						Spinner:    true,
-						StatusType: domain.StatusWorking,
-					}
-				},
-				e.executeToolCall(msg.RequestID, msg.ToolCallID, toolName, args, stateManager),
-			)
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent{
+			History: e.handler.conversationRepo.GetMessages(),
 		}
-	}
+	})
 
-	return nil, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    fmt.Sprintf("Receiving tool call: %s", toolName),
-			Spinner:    true,
+	statusMsg := fmt.Sprintf("Preparing %s...", msg.ToolName)
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateStatusEvent{
+			Message:    statusMsg,
 			StatusType: domain.StatusWorking,
 		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
+
+	return nil, tea.Batch(cmds...)
 }
 
-// executeToolCall executes a single tool call and adds the result to conversation history
-func (e *ChatEventHandler) executeToolCall(
-	requestID string,
-	toolCallID string,
-	toolName string,
-	arguments string,
-	_ *services.StateManager,
-) tea.Cmd {
-	return func() tea.Msg {
-		var argsMap map[string]any
-		if err := json.Unmarshal([]byte(arguments), &argsMap); err != nil {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to parse tool arguments for %s: %v", toolName, err),
-				Sticky: false,
+// handleToolCallUpdate processes streaming updates to tool calls
+func (e *ChatEventHandler) handleToolCallUpdate(
+	msg domain.ToolCallUpdateEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	// Reload conversation from database to show latest state
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent{
+			History: e.handler.conversationRepo.GetMessages(),
+		}
+	})
+
+	// Update status based on tool call status
+	statusMsg := e.formatToolCallStatusMessage(msg.ToolName, msg.Status)
+
+	switch msg.Status {
+	case domain.ToolCallStreamStatusStreaming:
+		cmds = append(cmds, func() tea.Msg {
+			return domain.UpdateStatusEvent{
+				Message:    statusMsg,
+				StatusType: domain.StatusWorking,
 			}
-		}
-
-		toolCall := sdk.ChatCompletionMessageToolCall{
-			Id:   toolCallID,
-			Type: sdk.Function,
-			Function: sdk.ChatCompletionMessageToolCallFunction{
-				Name:      toolName,
-				Arguments: arguments,
-			},
-		}
-
-		assistantEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:      sdk.Assistant,
-				Content:   "",
-				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{toolCall},
-			},
-			Model: e.handler.modelService.GetCurrentModel(),
-			Time:  time.Now(),
-		}
-
-		if err := e.handler.conversationRepo.AddMessage(assistantEntry); err != nil {
-			logger.Error("failed to add assistant message with tool call", "error", err)
-		}
-
-		toolCalls := []sdk.ChatCompletionMessageToolCall{toolCall}
-
-		_, cmd := e.handler.toolOrchestrator.StartToolExecution(requestID, toolCalls)
-		return tea.Batch(
-			func() tea.Msg {
-				return domain.UpdateHistoryEvent{
-					History: e.handler.conversationRepo.GetMessages(),
-				}
-			},
-			cmd,
-		)()
+		})
+	default:
+		cmds = append(cmds, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    statusMsg,
+				Spinner:    false,
+				StatusType: domain.StatusWorking,
+			}
+		})
 	}
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
+// handleToolCallReady is no longer used since tools are handled directly in agent
+func (e *ChatEventHandler) handleToolCallReady(
+	msg domain.ToolCallReadyEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	cmds := []tea.Cmd{
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: e.handler.conversationRepo.GetMessages(),
+			}
+		},
+	}
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
+func (e *ChatEventHandler) handleToolCallComplete(
+	msg domain.ToolCallCompleteEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	statusMsg := e.formatToolCallCompleteMessage(msg.ToolName, msg.Success)
+
+	cmds := []tea.Cmd{
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: e.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    statusMsg,
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	}
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
+func (e *ChatEventHandler) handleToolCallError(
+	msg domain.ToolCallErrorEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	statusMsg := fmt.Sprintf("Failed %s: %v", msg.ToolName, msg.Error)
+
+	cmds := []tea.Cmd{
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: e.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    statusMsg,
+				Spinner:    false,
+				StatusType: domain.StatusError,
+			}
+		},
+	}
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolExecutionStarted(
@@ -433,18 +483,10 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 	msg domain.ToolExecutionProgressEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
-
-	if msg.RequiresApproval {
-		_ = stateManager.SetToolApprovalRequired(true)
-		stateManager.SetupApprovalUI()
-		_ = stateManager.TransitionToView(domain.ViewStateToolApproval)
-	}
-
 	return nil, func() tea.Msg {
-		return domain.SetStatusEvent{
+		return domain.UpdateStatusEvent{
 			Message: fmt.Sprintf("Tool %d/%d: %s (%s)",
 				msg.CurrentTool, msg.TotalTools, msg.ToolName, msg.Status),
-			Spinner:    true,
 			StatusType: domain.StatusWorking,
 		}
 	}
@@ -467,20 +509,6 @@ func (e *ChatEventHandler) handleToolExecutionCompleted(
 	)
 }
 
-func (e *ChatEventHandler) handleToolApprovalRequest(
-	_ domain.ToolApprovalRequestEvent,
-	_ *services.StateManager,
-) (tea.Model, tea.Cmd) {
-	return nil, nil
-}
-
-func (e *ChatEventHandler) handleToolApprovalResponse(
-	msg domain.ToolApprovalResponseEvent,
-	_ *services.StateManager,
-) (tea.Model, tea.Cmd) {
-	return nil, e.handler.toolOrchestrator.HandleApprovalResponse(msg.Approved, msg.ToolIndex)
-}
-
 func (e *ChatEventHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 	if metrics == nil {
 		return ""
@@ -488,9 +516,15 @@ func (e *ChatEventHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 
 	var parts []string
 
-	if metrics.Duration > 0 {
-		duration := metrics.Duration.Round(time.Millisecond)
-		parts = append(parts, fmt.Sprintf("Time: %v", duration))
+	messages := e.handler.conversationRepo.GetMessages()
+	if len(messages) > 0 {
+		for i := len(messages) - 1; i >= 0; i-- {
+			if messages[i].Message.Role == sdk.User {
+				actualDuration := time.Since(messages[i].Time).Round(time.Millisecond)
+				parts = append(parts, fmt.Sprintf("Time: %v", actualDuration))
+				break
+			}
+		}
 	}
 
 	if metrics.Usage != nil {
@@ -506,9 +540,98 @@ func (e *ChatEventHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 	}
 
 	sessionStats := e.handler.conversationRepo.GetSessionTokens()
-	if sessionStats.TotalInputTokens > 0 {
-		parts = append(parts, fmt.Sprintf("Session Input: %d tokens", sessionStats.TotalInputTokens))
-	}
+	parts = append(parts, fmt.Sprintf("Session Input: %d tokens", sessionStats.TotalInputTokens))
+	parts = append(parts, fmt.Sprintf("Session Output: %d tokens", sessionStats.TotalOutputTokens))
 
 	return strings.Join(parts, " | ")
+}
+
+// handleA2AToolCallExecuted processes A2A tool call executed events
+func (e *ChatEventHandler) handleA2AToolCallExecuted(
+	msg domain.A2AToolCallExecutedEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent{
+			History: e.handler.conversationRepo.GetMessages(),
+		}
+	})
+
+	statusMsg := fmt.Sprintf("Agent %s completed, generating response...", strings.TrimPrefix(msg.ToolName, "a2a_"))
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    statusMsg,
+			Spinner:    true,
+			StatusType: domain.StatusGenerating,
+		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
+// formatLiveTokenUsage formats token usage during streaming
+func (e *ChatEventHandler) formatLiveTokenUsage(usage *sdk.CompletionUsage) string {
+	if usage == nil {
+		return ""
+	}
+
+	var parts []string
+	if usage.PromptTokens > 0 {
+		parts = append(parts, fmt.Sprintf("Input: %d tokens", usage.PromptTokens))
+	}
+	if usage.CompletionTokens > 0 {
+		parts = append(parts, fmt.Sprintf("Output: %d tokens", usage.CompletionTokens))
+	}
+	if usage.TotalTokens > 0 {
+		parts = append(parts, fmt.Sprintf("Total: %d tokens", usage.TotalTokens))
+	}
+
+	if len(parts) > 0 {
+		return strings.Join(parts, " | ")
+	}
+
+	return ""
+}
+
+// formatToolCallStatusMessage formats status messages for tool calls based on tool type and status
+func (e *ChatEventHandler) formatToolCallStatusMessage(toolName string, status domain.ToolCallStreamStatus) string {
+	isA2ATool := strings.HasPrefix(toolName, "a2a_")
+
+	switch status {
+	case domain.ToolCallStreamStatusStreaming:
+		if isA2ATool {
+			return fmt.Sprintf("Agent %s processing...", strings.TrimPrefix(toolName, "a2a_"))
+		}
+		return fmt.Sprintf("Streaming %s...", toolName)
+	case domain.ToolCallStreamStatusComplete:
+		if isA2ATool {
+			return fmt.Sprintf("Agent %s completed", strings.TrimPrefix(toolName, "a2a_"))
+		}
+		return fmt.Sprintf("Completed %s", toolName)
+	default:
+		return ""
+	}
+}
+
+// formatToolCallCompleteMessage formats completion messages for tool calls based on tool type and success
+func (e *ChatEventHandler) formatToolCallCompleteMessage(toolName string, success bool) string {
+	isA2ATool := strings.HasPrefix(toolName, "a2a_")
+
+	if success {
+		if isA2ATool {
+			return fmt.Sprintf("Agent %s completed", strings.TrimPrefix(toolName, "a2a_"))
+		}
+		return fmt.Sprintf("Completed %s", toolName)
+	}
+
+	if isA2ATool {
+		return fmt.Sprintf("Agent %s failed", strings.TrimPrefix(toolName, "a2a_"))
+	}
+	return fmt.Sprintf("Failed %s", toolName)
 }

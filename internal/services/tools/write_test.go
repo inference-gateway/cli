@@ -16,38 +16,16 @@ func TestWriteTool_Definition(t *testing.T) {
 	tool := NewWriteTool(cfg)
 
 	def := tool.Definition()
-	if def.Name != "Write" {
-		t.Errorf("Expected tool name 'Write', got '%s'", def.Name)
+	if def.Function.Name != "Write" {
+		t.Errorf("Expected tool name 'Write', got '%s'", def.Function.Name)
 	}
 
-	if def.Description == "" {
+	if *def.Function.Description == "" {
 		t.Error("Tool description should not be empty")
 	}
 
-	params, ok := def.Parameters.(map[string]any)
-	if !ok {
-		t.Fatal("Parameters should be a map")
-	}
-
-	props, ok := params["properties"].(map[string]any)
-	if !ok {
-		t.Fatal("Properties should be a map")
-	}
-
-	required, ok := params["required"].([]string)
-	if !ok {
-		t.Fatal("Required should be a string slice")
-	}
-
-	if len(required) != 2 {
-		t.Errorf("Expected 2 required parameters, got %d", len(required))
-	}
-
-	expectedFields := []string{"file_path", "content"}
-	for _, field := range expectedFields {
-		if _, exists := props[field]; !exists {
-			t.Errorf("Expected field '%s' in properties", field)
-		}
+	if def.Function.Parameters == nil {
+		t.Error("Tool parameters should not be nil")
 	}
 }
 

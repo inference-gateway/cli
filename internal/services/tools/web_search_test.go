@@ -20,15 +20,15 @@ func TestWebSearchTool_Definition(t *testing.T) {
 	tool := NewWebSearchTool(cfg)
 	def := tool.Definition()
 
-	if def.Name != "WebSearch" {
-		t.Errorf("Expected tool name 'WebSearch', got %s", def.Name)
+	if def.Function.Name != "WebSearch" {
+		t.Errorf("Expected tool name 'WebSearch', got %s", def.Function.Name)
 	}
 
-	if def.Description == "" {
+	if *def.Function.Description == "" {
 		t.Error("Tool description should not be empty")
 	}
 
-	if def.Parameters == nil {
+	if def.Function.Parameters == nil {
 		t.Error("Tool parameters should not be nil")
 	}
 }

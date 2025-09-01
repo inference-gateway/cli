@@ -5,9 +5,9 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	domain "github.com/inference-gateway/cli/internal/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // ShortcutOption represents a shortcut option for autocomplete
@@ -35,7 +35,7 @@ type AutocompleteImpl struct {
 	shortcutRegistry ShortcutRegistry
 	toolService      interface {
 		ListAvailableTools() []string
-		ListTools() []domain.ToolDefinition
+		ListTools() []sdk.ChatCompletionTool
 	}
 }
 
@@ -58,7 +58,7 @@ func NewAutocomplete(theme Theme, shortcutRegistry ShortcutRegistry) *Autocomple
 // SetToolService sets the tool service for tool autocomplete
 func (a *AutocompleteImpl) SetToolService(toolService interface {
 	ListAvailableTools() []string
-	ListTools() []domain.ToolDefinition
+	ListTools() []sdk.ChatCompletionTool
 }) {
 	a.toolService = toolService
 }
@@ -92,9 +92,9 @@ func (a *AutocompleteImpl) loadTools() {
 	availableTools := a.toolService.ListAvailableTools()
 	toolDefinitions := a.toolService.ListTools()
 
-	toolDefMap := make(map[string]domain.ToolDefinition)
+	toolDefMap := make(map[string]sdk.ChatCompletionTool)
 	for _, toolDef := range toolDefinitions {
-		toolDefMap[toolDef.Name] = toolDef
+		toolDefMap[toolDef.Function.Name] = toolDef
 	}
 
 	for _, toolName := range availableTools {
@@ -114,10 +114,11 @@ func (a *AutocompleteImpl) loadTools() {
 }
 
 // generateToolTemplate creates a complete tool template with required arguments
-func (a *AutocompleteImpl) generateToolTemplate(toolDef domain.ToolDefinition) string {
-	template := "!!" + toolDef.Name + "("
+func (a *AutocompleteImpl) generateToolTemplate(toolDef sdk.ChatCompletionTool) string {
+	template := "!!" + toolDef.Function.Name + "("
 
-	if params, ok := toolDef.Parameters.(map[string]any); ok {
+	if toolDef.Function.Parameters != nil {
+		params := map[string]any(*toolDef.Function.Parameters)
 		requiredArgs := a.extractRequiredArguments(params)
 		if len(requiredArgs) > 0 {
 			template += strings.Join(requiredArgs, ", ")

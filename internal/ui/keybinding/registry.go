@@ -235,15 +235,6 @@ func (r *Registry) initializeLayers() {
 	})
 
 	r.AddLayer(&KeyLayer{
-		Name:     "approval",
-		Priority: 250,
-		Bindings: make(map[string]*KeyAction),
-		Matcher: func(app KeyHandlerContext) bool {
-			return app.HasPendingApproval()
-		},
-	})
-
-	r.AddLayer(&KeyLayer{
 		Name:     "file_selection",
 		Priority: 200,
 		Bindings: make(map[string]*KeyAction),
@@ -314,8 +305,6 @@ func (r *Registry) addActionToAppropriateLayer(action *KeyAction) {
 func (r *Registry) determineTargetLayer(views []domain.ViewState) string {
 	for _, view := range views {
 		switch view {
-		case domain.ViewStateToolApproval:
-			return "approval"
 		case domain.ViewStateFileSelection:
 			return "file_selection"
 		case domain.ViewStateModelSelection:

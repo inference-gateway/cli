@@ -28,8 +28,17 @@ func (w *sdkClientWrapper) WithMiddlewareOptions(opts *sdk.MiddlewareOptions) do
 	return w
 }
 
+func (w *sdkClientWrapper) WithTools(tools *[]sdk.ChatCompletionTool) domain.SDKClient {
+	w.client = w.client.WithTools(tools)
+	return w
+}
+
 func (w *sdkClientWrapper) GenerateContent(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (*sdk.CreateChatCompletionResponse, error) {
 	return w.client.GenerateContent(ctx, provider, model, messages)
+}
+
+func (w *sdkClientWrapper) GenerateContentStream(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (<-chan sdk.SSEvent, error) {
+	return w.client.GenerateContentStream(ctx, provider, model, messages)
 }
 
 // ConversationTitleGenerator generates titles for conversations using AI
@@ -60,7 +69,6 @@ func NewConversationTitleGeneratorWithSDKClient(client domain.SDKClient, storage
 // GenerateTitleForConversation generates a title for a specific conversation
 func (g *ConversationTitleGenerator) GenerateTitleForConversation(ctx context.Context, conversationID string) error {
 	if !g.config.Conversation.TitleGeneration.Enabled {
-		logger.Debug("Conversation title generation is disabled")
 		return nil
 	}
 
@@ -70,7 +78,6 @@ func (g *ConversationTitleGenerator) GenerateTitleForConversation(ctx context.Co
 	}
 
 	if len(entries) == 0 {
-		logger.Debug("Skipping title generation for empty conversation", "id", conversationID)
 		return nil
 	}
 
@@ -81,7 +88,6 @@ func (g *ConversationTitleGenerator) GenerateTitleForConversation(ctx context.Co
 
 	if strings.TrimSpace(title) == "" {
 		title = g.fallbackTitle(entries)
-		logger.Debug("Using fallback title", "id", conversationID, "title", title)
 	}
 
 	now := time.Now()
@@ -102,7 +108,6 @@ func (g *ConversationTitleGenerator) GenerateTitleForConversation(ctx context.Co
 // ProcessPendingTitles processes a batch of conversations that need title generation
 func (g *ConversationTitleGenerator) ProcessPendingTitles(ctx context.Context) error {
 	if !g.config.Conversation.TitleGeneration.Enabled {
-		logger.Debug("Conversation title generation is disabled")
 		return nil
 	}
 
@@ -117,7 +122,6 @@ func (g *ConversationTitleGenerator) ProcessPendingTitles(ctx context.Context) e
 	}
 
 	if len(conversations) == 0 {
-		logger.Debug("No conversations need title generation")
 		return nil
 	}
 
@@ -155,7 +159,6 @@ func (g *ConversationTitleGenerator) InvalidateTitle(ctx context.Context, conver
 		return fmt.Errorf("failed to invalidate conversation title: %w", err)
 	}
 
-	logger.Debug("Invalidated title for conversation", "id", conversationID)
 	return nil
 }
 
@@ -230,7 +233,7 @@ func (g *ConversationTitleGenerator) formatConversationForTitleGeneration(entrie
 	maxLength := 2000
 
 	for _, entry := range entries {
-		if entry.IsSystemReminder {
+		if entry.Hidden {
 			continue
 		}
 
@@ -266,7 +269,7 @@ func (g *ConversationTitleGenerator) formatConversationForTitleGeneration(entrie
 // fallbackTitle creates a fallback title from the first 10 words of the conversation
 func (g *ConversationTitleGenerator) fallbackTitle(entries []domain.ConversationEntry) string {
 	for _, entry := range entries {
-		if entry.IsSystemReminder {
+		if entry.Hidden {
 			continue
 		}
 
