@@ -55,6 +55,8 @@ services:
       - http://google-calendar-agent:8080
     networks:
       - a2a-network
+    profiles:
+      - manual
 
 networks:
   a2a-network:
