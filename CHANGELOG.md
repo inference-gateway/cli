@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.2](https://github.com/inference-gateway/cli/compare/v0.48.1...v0.48.2) (2025-09-01)
+
+### 🧹 Maintenance
+
+* **docker-compose:** Remove INFER_LOGGING_DEBUG environment variable ([b185629](https://github.com/inference-gateway/cli/commit/b1856294bf3f09a56411509c00b454b65336c6d3))
+
 ## [0.48.1](https://github.com/inference-gateway/cli/compare/v0.48.0...v0.48.1) (2025-09-01)
 
 ### 🧹 Maintenance
