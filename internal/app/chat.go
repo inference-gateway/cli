@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // ChatApplication represents the main application model using state management
@@ -34,20 +36,19 @@ type ChatApplication struct {
 	toolRegistry     *tools.Registry
 
 	// State management
-	stateManager     *services.StateManager
-	toolOrchestrator *services.ToolExecutionOrchestrator
+	stateManager *services.StateManager
 
 	// UI components
 	conversationView     ui.ConversationRenderer
 	inputView            ui.InputComponent
 	statusView           ui.StatusComponent
 	helpBar              ui.HelpBarComponent
-	approvalView         ui.ApprovalComponent
 	modelSelector        *components.ModelSelectorImpl
 	themeSelector        *components.ThemeSelectorImpl
 	conversationSelector *components.ConversationSelectorImpl
 	fileSelectionView    *components.FileSelectionView
 	textSelectionView    *components.TextSelectionView
+	a2aServersView       *components.A2AServersView
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -78,7 +79,6 @@ func NewChatApplication(
 	fileService domain.FileService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager *services.StateManager,
-	toolOrchestrator *services.ToolExecutionOrchestrator,
 	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
 	configPath string,
@@ -100,7 +100,6 @@ func NewChatApplication(
 		toolRegistry:     toolRegistry,
 		availableModels:  models,
 		stateManager:     stateManager,
-		toolOrchestrator: toolOrchestrator,
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -125,10 +124,7 @@ func NewChatApplication(
 	}
 	app.statusView = ui.CreateStatusView(app.themeService)
 	app.helpBar = ui.CreateHelpBar(app.themeService)
-	app.approvalView = ui.CreateApprovalView(app.themeService)
-	if av, ok := app.approvalView.(*components.ApprovalComponent); ok {
-		av.SetToolFormatter(toolFormatterService)
-	}
+
 	app.fileSelectionView = components.NewFileSelectionView(app.themeService)
 	app.textSelectionView = components.NewTextSelectionView()
 
@@ -170,7 +166,6 @@ func (app *ChatApplication) registerHandlers() {
 		app.toolService,
 		app.fileService,
 		app.shortcutRegistry,
-		app.toolOrchestrator,
 	)
 	app.messageRouter.AddHandler(chatHandler)
 }
@@ -276,14 +271,14 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleChatView(msg)
 	case domain.ViewStateFileSelection:
 		return app.handleFileSelectionView(msg)
-	case domain.ViewStateToolApproval:
-		return app.handleApprovalView(msg)
 	case domain.ViewStateTextSelection:
 		return app.handleTextSelectionView(msg)
 	case domain.ViewStateConversationSelection:
 		return app.handleConversationSelectionView(msg)
 	case domain.ViewStateThemeSelection:
 		return app.handleThemeSelectionView(msg)
+	case domain.ViewStateA2AServers:
+		return app.handleA2AServersView(msg)
 	default:
 		return nil
 	}
@@ -347,18 +342,6 @@ func (app *ChatApplication) handleFileSelectionView(msg tea.Msg) []tea.Cmd {
 	return cmds
 }
 
-func (app *ChatApplication) handleApprovalView(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	return cmds
-}
-
 func (app *ChatApplication) handleTextSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
@@ -399,14 +382,14 @@ func (app *ChatApplication) View() string {
 		return app.renderChatInterface()
 	case domain.ViewStateFileSelection:
 		return app.renderFileSelection()
-	case domain.ViewStateToolApproval:
-		return app.renderChatInterface()
 	case domain.ViewStateTextSelection:
 		return app.renderTextSelection()
 	case domain.ViewStateConversationSelection:
 		return app.renderConversationSelection()
 	case domain.ViewStateThemeSelection:
 		return app.renderThemeSelection()
+	case domain.ViewStateA2AServers:
+		return app.renderA2AServers()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -477,6 +460,51 @@ func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cm
 	}
 
 	app.focusedComponent = app.inputView
+	return cmds
+}
+
+func (app *ChatApplication) handleA2AServersView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.a2aServersView != nil {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch msg.String() {
+			case "esc":
+				_ = app.stateManager.TransitionToView(domain.ViewStateChat)
+				cmds = append(cmds, func() tea.Msg {
+					return domain.SetStatusEvent{
+						Message:    "Returned to chat",
+						Spinner:    false,
+						StatusType: domain.StatusDefault,
+					}
+				})
+			}
+		}
+
+		if app.a2aServersView != nil {
+			model, cmd := app.a2aServersView.Update(msg)
+			app.a2aServersView = model.(*components.A2AServersView)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return cmds
+	}
+
+	var sdkClient sdk.Client
+	if a2aShortcut, exists := app.shortcutRegistry.Get("a2a"); exists {
+		if a2a, ok := a2aShortcut.(*shortcuts.A2AShortcut); ok {
+			sdkClient = a2a.GetClient()
+		}
+	}
+	app.a2aServersView = components.NewA2AServersView(app.configService, sdkClient, app.themeService)
+
+	ctx := context.Background()
+	if cmd := app.a2aServersView.LoadServers(ctx); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
 	return cmds
 }
 
@@ -561,6 +589,23 @@ func (app *ChatApplication) renderThemeSelection() string {
 	return app.themeSelector.View()
 }
 
+func (app *ChatApplication) renderA2AServers() string {
+	if app.a2aServersView == nil {
+		var sdkClient sdk.Client
+		if a2aShortcut, exists := app.shortcutRegistry.Get("a2a"); exists {
+			if a2a, ok := a2aShortcut.(*shortcuts.A2AShortcut); ok {
+				sdkClient = a2a.GetClient()
+			}
+		}
+		app.a2aServersView = components.NewA2AServersView(app.configService, sdkClient, app.themeService)
+	}
+
+	width, height := app.stateManager.GetDimensions()
+	app.a2aServersView.SetWidth(width)
+	app.a2aServersView.SetHeight(height)
+	return app.a2aServersView.View()
+}
+
 func (app *ChatApplication) renderConversationSelection() string {
 	if app.conversationSelector == nil {
 		return "Conversation selection requires persistent storage to be enabled."
@@ -579,11 +624,10 @@ func (app *ChatApplication) renderChatInterface() string {
 
 	width, height := app.stateManager.GetDimensions()
 	data := components.ChatInterfaceData{
-		Width:           width,
-		Height:          height,
-		ToolExecution:   app.stateManager.GetToolExecution(),
-		ApprovalUIState: app.stateManager.GetApprovalUIState(),
-		CurrentView:     app.stateManager.GetCurrentView(),
+		Width:         width,
+		Height:        height,
+		ToolExecution: app.stateManager.GetToolExecution(),
+		CurrentView:   app.stateManager.GetCurrentView(),
 	}
 
 	return app.applicationViewRenderer.RenderChatInterface(
@@ -592,17 +636,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		app.inputView,
 		app.statusView,
 		app.helpBar,
-		app.approvalView,
 	)
-}
-
-// hasPendingApproval checks if there's a pending tool call that requires approval
-func (app *ChatApplication) hasPendingApproval() bool {
-	toolExecution := app.stateManager.GetToolExecution()
-	currentView := app.stateManager.GetCurrentView()
-	return toolExecution != nil &&
-		toolExecution.Status == domain.ToolExecutionStatusWaitingApproval &&
-		(currentView == domain.ViewStateChat || currentView == domain.ViewStateToolApproval)
 }
 
 func (app *ChatApplication) renderModelSelection() string {
@@ -736,40 +770,6 @@ func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
 	app.inputView.SetCursor(newCursor)
 }
 
-func (app *ChatApplication) approveToolCall() tea.Cmd {
-	toolExecution := app.stateManager.GetToolExecution()
-	if toolExecution == nil || toolExecution.CurrentTool == nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "No pending tool call found",
-				Sticky: false,
-			}
-		}
-	}
-
-	app.stateManager.ClearApprovalUIState()
-	_ = app.stateManager.TransitionToView(domain.ViewStateChat)
-
-	return app.toolOrchestrator.HandleApprovalResponse(true, toolExecution.CompletedTools)
-}
-
-func (app *ChatApplication) denyToolCall() tea.Cmd {
-	toolExecution := app.stateManager.GetToolExecution()
-	if toolExecution == nil || toolExecution.CurrentTool == nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "No pending tool call found",
-				Sticky: false,
-			}
-		}
-	}
-
-	app.stateManager.ClearApprovalUIState()
-	_ = app.stateManager.TransitionToView(domain.ViewStateChat)
-
-	return app.toolOrchestrator.HandleApprovalResponse(false, toolExecution.CompletedTools)
-}
-
 func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 	if setupMsg, ok := msg.(domain.SetupFileSelectionEvent); ok {
@@ -805,15 +805,6 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 		}
 	}
 
-	if app.hasPendingApproval() {
-		if model, cmd := app.approvalView.(tea.Model).Update(msg); cmd != nil {
-			cmds = append(cmds, cmd)
-			if approvalModel, ok := model.(ui.ApprovalComponent); ok {
-				app.approvalView = approvalModel
-			}
-		}
-	}
-
 	if app.conversationSelector != nil {
 		switch msg.(type) {
 		case domain.ConversationsLoadedEvent:
@@ -840,12 +831,11 @@ func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.C
 		return app.updateUIComponents(msg)
 	case tea.KeyMsg:
 		return app.updateUIComponents(msg)
-	case domain.UpdateHistoryEvent, domain.SetStatusEvent, domain.UpdateStatusEvent,
+	case domain.UpdateHistoryEvent, domain.StreamingContentEvent, domain.SetStatusEvent, domain.UpdateStatusEvent,
 		domain.ShowErrorEvent, domain.ClearErrorEvent, domain.ClearInputEvent, domain.SetInputEvent,
 		domain.ToggleHelpBarEvent, domain.HideHelpBarEvent, domain.DebugKeyEvent, domain.SetupFileSelectionEvent,
 		domain.ScrollRequestEvent, domain.ConversationsLoadedEvent, domain.ModelSelectedEvent,
-		domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent,
-		domain.ToolApprovalRequestEvent, domain.ToolApprovalResponseEvent:
+		domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent:
 		return app.updateUIComponents(msg)
 	case domain.UserInputEvent:
 		return cmds
@@ -872,6 +862,11 @@ func (app *ChatApplication) toggleToolResultExpansion() {
 // GetServices returns the service container
 func (app *ChatApplication) GetConversationRepository() domain.ConversationRepository {
 	return app.conversationRepo
+}
+
+// GetAgentService returns the agent service
+func (app *ChatApplication) GetAgentService() domain.AgentService {
+	return app.agentService
 }
 
 // GetConfig returns the configuration for keybinding context
@@ -901,24 +896,9 @@ func (app *ChatApplication) GetStatusView() ui.StatusComponent {
 	return app.statusView
 }
 
-// HasPendingApproval checks if there's a pending approval
-func (app *ChatApplication) HasPendingApproval() bool {
-	return app.hasPendingApproval()
-}
-
 // GetPageSize returns the current page size for scrolling
 func (app *ChatApplication) GetPageSize() int {
 	return app.getPageSize()
-}
-
-// ApproveToolCall approves the current tool call
-func (app *ChatApplication) ApproveToolCall() tea.Cmd {
-	return app.approveToolCall()
-}
-
-// DenyToolCall denies the current tool call
-func (app *ChatApplication) DenyToolCall() tea.Cmd {
-	return app.denyToolCall()
 }
 
 // SendMessage sends the current message

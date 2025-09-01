@@ -28,15 +28,15 @@ func TestMultiEditTool_Definition(t *testing.T) {
 	tool := NewMultiEditTool(cfg)
 	def := tool.Definition()
 
-	if def.Name != "MultiEdit" {
-		t.Errorf("Expected tool name 'MultiEdit', got %s", def.Name)
+	if def.Function.Name != "MultiEdit" {
+		t.Errorf("Expected tool name 'MultiEdit', got %s", def.Function.Name)
 	}
 
-	if def.Description == "" {
+	if *def.Function.Description == "" {
 		t.Error("Tool description should not be empty")
 	}
 
-	if def.Parameters == nil {
+	if def.Function.Parameters == nil {
 		t.Error("Tool parameters should not be nil")
 	}
 }

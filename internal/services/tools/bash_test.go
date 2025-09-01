@@ -17,15 +17,15 @@ func TestBashTool_Definition(t *testing.T) {
 	tool := NewBashTool(cfg)
 	def := tool.Definition()
 
-	if def.Name != "Bash" {
-		t.Errorf("Expected tool name 'Bash', got %s", def.Name)
+	if def.Function.Name != "Bash" {
+		t.Errorf("Expected tool name 'Bash', got %s", def.Function.Name)
 	}
 
-	if def.Description == "" {
+	if *def.Function.Description == "" {
 		t.Error("Tool description should not be empty")
 	}
 
-	if def.Parameters == nil {
+	if def.Function.Parameters == nil {
 		t.Error("Tool parameters should not be nil")
 	}
 }

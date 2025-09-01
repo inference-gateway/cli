@@ -190,7 +190,20 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 			return nil, fmt.Errorf("failed to unmarshal metadata for conversation %s: %w", conversationIDs[i], err)
 		}
 
-		summary := ConversationSummary(metadata)
+		summary := ConversationSummary{
+			ID:                  metadata.ID,
+			Title:               metadata.Title,
+			CreatedAt:           metadata.CreatedAt,
+			UpdatedAt:           metadata.UpdatedAt,
+			MessageCount:        metadata.MessageCount,
+			TokenStats:          metadata.TokenStats,
+			Model:               metadata.Model,
+			Tags:                metadata.Tags,
+			Summary:             metadata.Summary,
+			TitleGenerated:      metadata.TitleGenerated,
+			TitleInvalidated:    metadata.TitleInvalidated,
+			TitleGenerationTime: metadata.TitleGenerationTime,
+		}
 
 		summaries = append(summaries, summary)
 	}
@@ -244,7 +257,20 @@ func (s *RedisStorage) ListConversationsNeedingTitles(ctx context.Context, limit
 		}
 
 		if (!metadata.TitleGenerated || metadata.TitleInvalidated) && metadata.MessageCount > 0 {
-			summary := ConversationSummary(metadata)
+			summary := ConversationSummary{
+				ID:                  metadata.ID,
+				Title:               metadata.Title,
+				CreatedAt:           metadata.CreatedAt,
+				UpdatedAt:           metadata.UpdatedAt,
+				MessageCount:        metadata.MessageCount,
+				TokenStats:          metadata.TokenStats,
+				Model:               metadata.Model,
+				Tags:                metadata.Tags,
+				Summary:             metadata.Summary,
+				TitleGenerated:      metadata.TitleGenerated,
+				TitleInvalidated:    metadata.TitleInvalidated,
+				TitleGenerationTime: metadata.TitleGenerationTime,
+			}
 			summaries = append(summaries, summary)
 
 			if len(summaries) >= limit {

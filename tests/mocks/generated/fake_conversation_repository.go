@@ -56,6 +56,41 @@ type FakeConversationRepository struct {
 		result1 []byte
 		result2 error
 	}
+	FormatToolResultExpandedStub        func(*domain.ToolExecutionResult, int) string
+	formatToolResultExpandedMutex       sync.RWMutex
+	formatToolResultExpandedArgsForCall []struct {
+		arg1 *domain.ToolExecutionResult
+		arg2 int
+	}
+	formatToolResultExpandedReturns struct {
+		result1 string
+	}
+	formatToolResultExpandedReturnsOnCall map[int]struct {
+		result1 string
+	}
+	FormatToolResultForLLMStub        func(*domain.ToolExecutionResult) string
+	formatToolResultForLLMMutex       sync.RWMutex
+	formatToolResultForLLMArgsForCall []struct {
+		arg1 *domain.ToolExecutionResult
+	}
+	formatToolResultForLLMReturns struct {
+		result1 string
+	}
+	formatToolResultForLLMReturnsOnCall map[int]struct {
+		result1 string
+	}
+	FormatToolResultForUIStub        func(*domain.ToolExecutionResult, int) string
+	formatToolResultForUIMutex       sync.RWMutex
+	formatToolResultForUIArgsForCall []struct {
+		arg1 *domain.ToolExecutionResult
+		arg2 int
+	}
+	formatToolResultForUIReturns struct {
+		result1 string
+	}
+	formatToolResultForUIReturnsOnCall map[int]struct {
+		result1 string
+	}
 	GetMessageCountStub        func() int
 	getMessageCountMutex       sync.RWMutex
 	getMessageCountArgsForCall []struct {
@@ -351,6 +386,191 @@ func (fake *FakeConversationRepository) ExportReturnsOnCall(i int, result1 []byt
 		result1 []byte
 		result2 error
 	}{result1, result2}
+}
+
+func (fake *FakeConversationRepository) FormatToolResultExpanded(arg1 *domain.ToolExecutionResult, arg2 int) string {
+	fake.formatToolResultExpandedMutex.Lock()
+	ret, specificReturn := fake.formatToolResultExpandedReturnsOnCall[len(fake.formatToolResultExpandedArgsForCall)]
+	fake.formatToolResultExpandedArgsForCall = append(fake.formatToolResultExpandedArgsForCall, struct {
+		arg1 *domain.ToolExecutionResult
+		arg2 int
+	}{arg1, arg2})
+	stub := fake.FormatToolResultExpandedStub
+	fakeReturns := fake.formatToolResultExpandedReturns
+	fake.recordInvocation("FormatToolResultExpanded", []interface{}{arg1, arg2})
+	fake.formatToolResultExpandedMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) FormatToolResultExpandedCallCount() int {
+	fake.formatToolResultExpandedMutex.RLock()
+	defer fake.formatToolResultExpandedMutex.RUnlock()
+	return len(fake.formatToolResultExpandedArgsForCall)
+}
+
+func (fake *FakeConversationRepository) FormatToolResultExpandedCalls(stub func(*domain.ToolExecutionResult, int) string) {
+	fake.formatToolResultExpandedMutex.Lock()
+	defer fake.formatToolResultExpandedMutex.Unlock()
+	fake.FormatToolResultExpandedStub = stub
+}
+
+func (fake *FakeConversationRepository) FormatToolResultExpandedArgsForCall(i int) (*domain.ToolExecutionResult, int) {
+	fake.formatToolResultExpandedMutex.RLock()
+	defer fake.formatToolResultExpandedMutex.RUnlock()
+	argsForCall := fake.formatToolResultExpandedArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeConversationRepository) FormatToolResultExpandedReturns(result1 string) {
+	fake.formatToolResultExpandedMutex.Lock()
+	defer fake.formatToolResultExpandedMutex.Unlock()
+	fake.FormatToolResultExpandedStub = nil
+	fake.formatToolResultExpandedReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) FormatToolResultExpandedReturnsOnCall(i int, result1 string) {
+	fake.formatToolResultExpandedMutex.Lock()
+	defer fake.formatToolResultExpandedMutex.Unlock()
+	fake.FormatToolResultExpandedStub = nil
+	if fake.formatToolResultExpandedReturnsOnCall == nil {
+		fake.formatToolResultExpandedReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.formatToolResultExpandedReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForLLM(arg1 *domain.ToolExecutionResult) string {
+	fake.formatToolResultForLLMMutex.Lock()
+	ret, specificReturn := fake.formatToolResultForLLMReturnsOnCall[len(fake.formatToolResultForLLMArgsForCall)]
+	fake.formatToolResultForLLMArgsForCall = append(fake.formatToolResultForLLMArgsForCall, struct {
+		arg1 *domain.ToolExecutionResult
+	}{arg1})
+	stub := fake.FormatToolResultForLLMStub
+	fakeReturns := fake.formatToolResultForLLMReturns
+	fake.recordInvocation("FormatToolResultForLLM", []interface{}{arg1})
+	fake.formatToolResultForLLMMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForLLMCallCount() int {
+	fake.formatToolResultForLLMMutex.RLock()
+	defer fake.formatToolResultForLLMMutex.RUnlock()
+	return len(fake.formatToolResultForLLMArgsForCall)
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForLLMCalls(stub func(*domain.ToolExecutionResult) string) {
+	fake.formatToolResultForLLMMutex.Lock()
+	defer fake.formatToolResultForLLMMutex.Unlock()
+	fake.FormatToolResultForLLMStub = stub
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForLLMArgsForCall(i int) *domain.ToolExecutionResult {
+	fake.formatToolResultForLLMMutex.RLock()
+	defer fake.formatToolResultForLLMMutex.RUnlock()
+	argsForCall := fake.formatToolResultForLLMArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForLLMReturns(result1 string) {
+	fake.formatToolResultForLLMMutex.Lock()
+	defer fake.formatToolResultForLLMMutex.Unlock()
+	fake.FormatToolResultForLLMStub = nil
+	fake.formatToolResultForLLMReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForLLMReturnsOnCall(i int, result1 string) {
+	fake.formatToolResultForLLMMutex.Lock()
+	defer fake.formatToolResultForLLMMutex.Unlock()
+	fake.FormatToolResultForLLMStub = nil
+	if fake.formatToolResultForLLMReturnsOnCall == nil {
+		fake.formatToolResultForLLMReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.formatToolResultForLLMReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForUI(arg1 *domain.ToolExecutionResult, arg2 int) string {
+	fake.formatToolResultForUIMutex.Lock()
+	ret, specificReturn := fake.formatToolResultForUIReturnsOnCall[len(fake.formatToolResultForUIArgsForCall)]
+	fake.formatToolResultForUIArgsForCall = append(fake.formatToolResultForUIArgsForCall, struct {
+		arg1 *domain.ToolExecutionResult
+		arg2 int
+	}{arg1, arg2})
+	stub := fake.FormatToolResultForUIStub
+	fakeReturns := fake.formatToolResultForUIReturns
+	fake.recordInvocation("FormatToolResultForUI", []interface{}{arg1, arg2})
+	fake.formatToolResultForUIMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForUICallCount() int {
+	fake.formatToolResultForUIMutex.RLock()
+	defer fake.formatToolResultForUIMutex.RUnlock()
+	return len(fake.formatToolResultForUIArgsForCall)
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForUICalls(stub func(*domain.ToolExecutionResult, int) string) {
+	fake.formatToolResultForUIMutex.Lock()
+	defer fake.formatToolResultForUIMutex.Unlock()
+	fake.FormatToolResultForUIStub = stub
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForUIArgsForCall(i int) (*domain.ToolExecutionResult, int) {
+	fake.formatToolResultForUIMutex.RLock()
+	defer fake.formatToolResultForUIMutex.RUnlock()
+	argsForCall := fake.formatToolResultForUIArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForUIReturns(result1 string) {
+	fake.formatToolResultForUIMutex.Lock()
+	defer fake.formatToolResultForUIMutex.Unlock()
+	fake.FormatToolResultForUIStub = nil
+	fake.formatToolResultForUIReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) FormatToolResultForUIReturnsOnCall(i int, result1 string) {
+	fake.formatToolResultForUIMutex.Lock()
+	defer fake.formatToolResultForUIMutex.Unlock()
+	fake.FormatToolResultForUIStub = nil
+	if fake.formatToolResultForUIReturnsOnCall == nil {
+		fake.formatToolResultForUIReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.formatToolResultForUIReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
 }
 
 func (fake *FakeConversationRepository) GetMessageCount() int {

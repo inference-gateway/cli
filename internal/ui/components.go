@@ -50,11 +50,6 @@ func CreateHelpBar(themeService domain.ThemeService) HelpBarComponent {
 	return components.NewHelpBar(themeService)
 }
 
-// CreateApprovalView creates a new approval view component
-func CreateApprovalView(themeService domain.ThemeService) ApprovalComponent {
-	return components.NewApprovalComponent(themeService)
-}
-
 // Layout calculations - simplified without interfaces
 func CalculateConversationHeight(totalHeight int) int {
 	inputHeight := CalculateInputHeight(totalHeight)

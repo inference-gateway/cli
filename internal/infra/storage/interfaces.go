@@ -36,18 +36,19 @@ type ConversationStorage interface {
 
 // ConversationMetadata contains metadata about a conversation
 type ConversationMetadata struct {
-	ID                  string                   `json:"id"`
-	Title               string                   `json:"title"`
-	CreatedAt           time.Time                `json:"created_at"`
-	UpdatedAt           time.Time                `json:"updated_at"`
-	MessageCount        int                      `json:"message_count"`
-	TokenStats          domain.SessionTokenStats `json:"token_stats"`
-	Model               string                   `json:"model,omitempty"`
-	Tags                []string                 `json:"tags,omitempty"`
-	Summary             string                   `json:"summary,omitempty"`
-	TitleGenerated      bool                     `json:"title_generated,omitempty"`
-	TitleInvalidated    bool                     `json:"title_invalidated,omitempty"`
-	TitleGenerationTime *time.Time               `json:"title_generation_time,omitempty"`
+	ID                  string                     `json:"id"`
+	Title               string                     `json:"title"`
+	CreatedAt           time.Time                  `json:"created_at"`
+	UpdatedAt           time.Time                  `json:"updated_at"`
+	MessageCount        int                        `json:"message_count"`
+	TokenStats          domain.SessionTokenStats   `json:"token_stats"`
+	Model               string                     `json:"model,omitempty"`
+	Tags                []string                   `json:"tags,omitempty"`
+	Summary             string                     `json:"summary,omitempty"`
+	OptimizedMessages   []domain.ConversationEntry `json:"optimized_messages,omitempty"`
+	TitleGenerated      bool                       `json:"title_generated,omitempty"`
+	TitleInvalidated    bool                       `json:"title_invalidated,omitempty"`
+	TitleGenerationTime *time.Time                 `json:"title_generation_time,omitempty"`
 }
 
 // ConversationSummary contains summary information about a conversation

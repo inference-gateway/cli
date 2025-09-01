@@ -35,8 +35,7 @@ type ServiceContainer struct {
 	fileService      domain.FileService
 
 	// Services
-	stateManager              *services.StateManager
-	toolExecutionOrchestrator *services.ToolExecutionOrchestrator
+	stateManager *services.StateManager
 
 	// Background services
 	titleGenerator       *services.ConversationTitleGenerator
@@ -128,14 +127,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 	if c.config.Agent.Optimization.Enabled {
 		summaryClient := c.createSDKClient()
 		optimizer = services.NewConversationOptimizer(services.OptimizerConfig{
-			Enabled:                    c.config.Agent.Optimization.Enabled,
-			MaxHistory:                 c.config.Agent.Optimization.MaxHistory,
-			CompactThreshold:           c.config.Agent.Optimization.CompactThreshold,
-			TruncateLargeOutputs:       c.config.Agent.Optimization.TruncateLargeOutputs,
-			SkipRedundantConfirmations: c.config.Agent.Optimization.SkipRedundantConfirmations,
-			Client:                     summaryClient,
-			ModelService:               c.modelService,
-			Config:                     c.config,
+			Enabled:     c.config.Agent.Optimization.Enabled,
+			Model:       c.config.Agent.Optimization.Model,
+			MinMessages: c.config.Agent.Optimization.MinMessages,
+			BufferSize:  c.config.Agent.Optimization.BufferSize,
+			Client:      summaryClient,
+			Config:      c.config,
 		})
 	}
 
@@ -144,8 +141,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 		agentClient,
 		c.toolService,
 		c.config,
+		c.conversationRepo,
 		c.config.Gateway.Timeout,
-		c.config.Agent.MaxTokens,
 		optimizer,
 	)
 
@@ -156,13 +153,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 func (c *ServiceContainer) initializeServices() {
 	debugMode := c.config.Logging.Debug
 	c.stateManager = services.NewStateManager(debugMode)
-
-	c.toolExecutionOrchestrator = services.NewToolExecutionOrchestrator(
-		c.stateManager,
-		c.toolService,
-		c.conversationRepo,
-		c.config,
-	)
 }
 
 // initializeUIComponents creates UI components and theme
@@ -197,11 +187,14 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(adapter))
 		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter))
-		logger.Debug("registered conversation shortcuts")
 	}
 
 	gitCommitClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
+
+	middlewareClient := c.createSDKClient()
+	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, middlewareClient))
+	c.shortcutRegistry.Register(shortcuts.NewMCPShortcut(c.config, middlewareClient))
 
 	if c.configService != nil {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService))
@@ -269,10 +262,6 @@ func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
 // New service getters
 func (c *ServiceContainer) GetStateManager() *services.StateManager {
 	return c.stateManager
-}
-
-func (c *ServiceContainer) GetToolExecutionOrchestrator() *services.ToolExecutionOrchestrator {
-	return c.toolExecutionOrchestrator
 }
 
 func (c *ServiceContainer) GetAgentService() domain.AgentService {

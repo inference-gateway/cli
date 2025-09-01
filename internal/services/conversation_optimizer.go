@@ -7,59 +7,56 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/sdk"
 )
 
 // ConversationOptimizer provides methods to optimize conversation history for token efficiency
 type ConversationOptimizer struct {
-	enabled                    bool
-	maxHistorySize             int
-	compactThreshold           int
-	truncateLargeOutputs       bool
-	skipRedundantConfirmations bool
-	client                     sdk.Client
-	modelService               domain.ModelService
-	config                     *config.Config
+	enabled     bool
+	model       string
+	minMessages int
+	bufferSize  int
+	client      sdk.Client
+	config      *config.Config
 }
 
 // OptimizerConfig represents configuration for the conversation optimizer
 type OptimizerConfig struct {
-	Enabled                    bool
-	MaxHistory                 int
-	CompactThreshold           int
-	TruncateLargeOutputs       bool
-	SkipRedundantConfirmations bool
-	Client                     sdk.Client
-	ModelService               domain.ModelService
-	Config                     *config.Config
+	Enabled     bool
+	Model       string
+	MinMessages int
+	BufferSize  int
+	Client      sdk.Client
+	Config      *config.Config
 }
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration
 func NewConversationOptimizer(config OptimizerConfig) *ConversationOptimizer {
-	if config.MaxHistory <= 0 {
-		config.MaxHistory = 10
+	if config.MinMessages <= 0 {
+		config.MinMessages = 10
 	}
-	if config.CompactThreshold <= 0 {
-		config.CompactThreshold = 20
+	if config.BufferSize <= 0 {
+		config.BufferSize = 2
 	}
 
 	return &ConversationOptimizer{
-		enabled:                    config.Enabled,
-		maxHistorySize:             config.MaxHistory,
-		compactThreshold:           config.CompactThreshold,
-		truncateLargeOutputs:       config.TruncateLargeOutputs,
-		skipRedundantConfirmations: config.SkipRedundantConfirmations,
-		client:                     config.Client,
-		modelService:               config.ModelService,
-		config:                     config.Config,
+		enabled:     config.Enabled,
+		model:       config.Model,
+		minMessages: config.MinMessages,
+		bufferSize:  config.BufferSize,
+		client:      config.Client,
+		config:      config.Config,
 	}
 }
 
 // OptimizeMessages reduces token usage by intelligently managing conversation history
 func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message) []sdk.Message {
-	if !co.enabled || len(messages) <= co.maxHistorySize {
+	return co.OptimizeMessagesWithModel(messages, "")
+}
+
+// OptimizeMessagesWithModel reduces token usage with optional current model for fallback
+func (co *ConversationOptimizer) OptimizeMessagesWithModel(messages []sdk.Message, currentModel string) []sdk.Message {
+	if !co.enabled || len(messages) < co.minMessages {
 		return messages
 	}
 
@@ -74,37 +71,53 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message) []sdk.
 		}
 	}
 
-	if len(conversationMessages) > co.maxHistorySize {
-		optimized := co.preserveToolCallPairs(conversationMessages)
+	if len(conversationMessages) >= co.minMessages {
+		originalModel := co.model
+		if co.model == "" && currentModel != "" {
+			co.model = currentModel
+		}
+
+		optimized := co.smartOptimize(conversationMessages)
 		conversationMessages = optimized
+
+		co.model = originalModel
 	}
 
 	return append(systemMessages, conversationMessages...)
 }
 
-// preserveToolCallPairs ensures tool messages always follow their corresponding tool_calls
-func (co *ConversationOptimizer) preserveToolCallPairs(messages []sdk.Message) []sdk.Message {
-	if len(messages) <= co.maxHistorySize {
+// smartOptimize implements the smart optimization strategy
+// It keeps the first user message (root context), summarizes the middle, and preserves recent context
+func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message) []sdk.Message {
+	if len(messages) < co.minMessages {
 		return messages
 	}
 
-	result := []sdk.Message{}
-	if len(messages) > 0 && messages[0].Role == "user" {
-		result = append(result, messages[0])
+	var result []sdk.Message
+	var firstUserIndex = -1
+	for i, msg := range messages {
+		if msg.Role == "user" {
+			firstUserIndex = i
+			result = append(result, msg)
+			break
+		}
 	}
 
-	recentCount := co.maxHistorySize - len(result) - 1
-	if recentCount <= 0 {
-		return result
+	if firstUserIndex == -1 {
+		return messages
 	}
 
-	cutoffIndex := len(messages) - recentCount
+	if len(messages) <= co.bufferSize+1 {
+		return messages
+	}
 
-	for i := cutoffIndex; i < len(messages); i++ {
+	lastMessagesStart := len(messages) - co.bufferSize
+
+	for i := lastMessagesStart; i < len(messages); i++ {
 		if messages[i].Role == "tool" {
 			for j := i - 1; j >= 0; j-- {
 				if messages[j].Role == "assistant" && messages[j].ToolCalls != nil && len(*messages[j].ToolCalls) > 0 {
-					cutoffIndex = j
+					lastMessagesStart = j
 					break
 				}
 			}
@@ -112,36 +125,46 @@ func (co *ConversationOptimizer) preserveToolCallPairs(messages []sdk.Message) [
 		}
 	}
 
-	if cutoffIndex > 1 {
-		summary := co.createHistorySummary(messages[1:cutoffIndex])
-		if summary != "" {
-			summaryMsg := sdk.Message{
-				Role:    "assistant",
-				Content: summary,
-			}
-			result = append(result, summaryMsg)
-		}
+	if lastMessagesStart <= firstUserIndex+1 {
+		return messages
 	}
 
-	result = append(result, messages[cutoffIndex:]...)
+	messagesToSummarize := messages[firstUserIndex+1 : lastMessagesStart]
+
+	summary := co.generateSmartSummary(messagesToSummarize)
+	if summary != "" {
+		summaryMsg := sdk.Message{
+			Role:    "assistant",
+			Content: fmt.Sprintf("[Context Summary: %s]", summary),
+		}
+		result = append(result, summaryMsg)
+	}
+
+	result = append(result, messages[lastMessagesStart:]...)
 
 	return result
 }
 
-// createHistorySummary creates a summary of messages that will be omitted using LLM
-func (co *ConversationOptimizer) createHistorySummary(messages []sdk.Message) string {
+// generateSmartSummary creates an intelligent summary using LLM
+func (co *ConversationOptimizer) generateSmartSummary(messages []sdk.Message) string {
 	if len(messages) == 0 {
 		return ""
 	}
 
-	if co.client != nil && co.modelService != nil && co.config != nil {
-		if summary, err := co.generateLLMSummary(messages); err == nil && summary != "" {
-			return fmt.Sprintf("[Previous conversation summary: %s]", strings.TrimSpace(summary))
-		} else {
-			logger.Debug("LLM summarization failed, falling back to basic summary", "error", err)
-		}
+	if co.client == nil || co.model == "" {
+		return co.createBasicSummary(messages)
 	}
 
+	summary, err := co.generateLLMSummary(messages)
+	if err != nil {
+		return co.createBasicSummary(messages)
+	}
+
+	return strings.TrimSpace(summary)
+}
+
+// createBasicSummary creates a simple summary without LLM
+func (co *ConversationOptimizer) createBasicSummary(messages []sdk.Message) string {
 	userCount := 0
 	assistantCount := 0
 	toolCount := 0
@@ -157,7 +180,7 @@ func (co *ConversationOptimizer) createHistorySummary(messages []sdk.Message) st
 		}
 	}
 
-	return fmt.Sprintf("[Previous conversation context: %d user messages, %d assistant responses, %d tool executions. The conversation history has been optimized to reduce token usage while preserving recent context.]",
+	return fmt.Sprintf("%d user messages, %d assistant responses, %d tool executions were exchanged discussing the task progress.",
 		userCount, assistantCount, toolCount)
 }
 
@@ -170,16 +193,20 @@ func (co *ConversationOptimizer) generateLLMSummary(messages []sdk.Message) (str
 
 	summaryMessages = append(summaryMessages, sdk.Message{
 		Role: sdk.System,
-		Content: `You are a helpful assistant that creates very concise summaries of chat conversations for token optimization. Create a brief 1-2 sentence summary that captures:
-- Main topics or tasks discussed
-- Key decisions or conclusions reached
-- Current context that would be important for continuing the conversation
+		Content: `You are a conversation summarizer. Create a concise summary that preserves the essential context and progress made in the conversation.
 
-Keep it extremely concise - this summary will be inserted into an ongoing conversation to preserve context.`,
+Focus on:
+- Key tasks completed or in progress
+- Important decisions or findings
+- Critical context needed to continue the conversation
+- Any unresolved issues or next steps
+
+Keep the summary brief but informative (2-3 sentences max).`,
 	})
 
 	for _, msg := range messages {
-		if msg.Role == sdk.User || msg.Role == sdk.Assistant {
+		switch msg.Role {
+		case sdk.User, sdk.Assistant:
 			content := msg.Content
 			if len(content) > 2000 {
 				content = content[:2000] + "... [truncated]"
@@ -189,31 +216,33 @@ Keep it extremely concise - this summary will be inserted into an ongoing conver
 				Role:    msg.Role,
 				Content: content,
 			})
+		case "tool":
+			content := msg.Content
+			if len(content) > 500 {
+				content = content[:500] + "... [tool output truncated]"
+			}
+			summaryMessages = append(summaryMessages, sdk.Message{
+				Role:    "assistant",
+				Content: fmt.Sprintf("[Tool result: %s]", content),
+			})
 		}
 	}
 
 	summaryMessages = append(summaryMessages, sdk.Message{
 		Role:    sdk.User,
-		Content: "Please provide a very brief summary of the above conversation in 1-2 sentences.",
+		Content: "Provide a concise summary of the conversation above, focusing on key progress and context needed to continue.",
 	})
 
-	summaryModel := ""
-	if co.config.Compact.SummaryModel != "" {
-		summaryModel = co.config.Compact.SummaryModel
-	} else {
-		summaryModel = co.modelService.GetCurrentModel()
+	if co.model == "" {
+		return "", fmt.Errorf("no model configured for summarization")
 	}
 
-	if summaryModel == "" {
-		return "", fmt.Errorf("no model available for summary generation")
-	}
-
-	slashIndex := strings.Index(summaryModel, "/")
+	slashIndex := strings.Index(co.model, "/")
 	if slashIndex == -1 {
 		return "", fmt.Errorf("invalid model format, expected 'provider/model'")
 	}
-	provider := summaryModel[:slashIndex]
-	modelName := summaryModel[slashIndex+1:]
+	provider := co.model[:slashIndex]
+	modelName := co.model[slashIndex+1:]
 
 	maxTokens := 200
 	options := &sdk.CreateChatCompletionRequest{
@@ -237,106 +266,4 @@ Keep it extremely concise - this summary will be inserted into an ongoing conver
 	}
 
 	return strings.TrimSpace(response.Choices[0].Message.Content), nil
-}
-
-// CompactToolCalls reduces the verbosity of tool call results
-func (co *ConversationOptimizer) CompactToolCalls(message sdk.Message) sdk.Message {
-	if !co.enabled || !co.truncateLargeOutputs || message.Role != "tool" || len(message.Content) < 1000 {
-		return message
-	}
-
-	lines := strings.Split(message.Content, "\n")
-	if len(lines) > 50 {
-		compacted := append(lines[:20], fmt.Sprintf("\n... (%d lines omitted) ...\n", len(lines)-30))
-		compacted = append(compacted, lines[len(lines)-10:]...)
-		message.Content = strings.Join(compacted, "\n")
-	}
-
-	return message
-}
-
-// SummarizeOldMessages creates a summary of older messages to reduce tokens
-func (co *ConversationOptimizer) SummarizeOldMessages(messages []domain.ConversationEntry) string {
-	if !co.enabled || len(messages) <= co.compactThreshold {
-		return ""
-	}
-
-	oldMessages := messages[:len(messages)-co.compactThreshold]
-	userCount := 0
-	assistantCount := 0
-	toolCount := 0
-
-	for _, msg := range oldMessages {
-		switch msg.Message.Role {
-		case "user":
-			userCount++
-		case "assistant":
-			assistantCount++
-		case "tool":
-			toolCount++
-		}
-	}
-
-	return fmt.Sprintf("[Previous context: %d user messages, %d assistant responses, %d tool executions]",
-		userCount, assistantCount, toolCount)
-}
-
-// OptimizeForExport prepares messages for export with token optimization
-func (co *ConversationOptimizer) OptimizeForExport(entries []domain.ConversationEntry) []domain.ConversationEntry {
-	if !co.enabled {
-		return entries
-	}
-
-	optimized := make([]domain.ConversationEntry, 0, len(entries))
-
-	for _, entry := range entries {
-		if co.skipRedundantConfirmations && entry.Message.Role == "assistant" && strings.Contains(entry.Message.Content, "I'll use the") {
-			continue
-		}
-
-		if co.truncateLargeOutputs && len(entry.Message.Content) > 5000 {
-			entry.Message.Content = entry.Message.Content[:2000] + "\n\n[... content truncated ...]\n\n" + entry.Message.Content[len(entry.Message.Content)-1000:]
-		}
-
-		optimized = append(optimized, entry)
-	}
-
-	return optimized
-}
-
-// EstimateTokens provides rough token estimation (4 chars ≈ 1 token)
-func (co *ConversationOptimizer) EstimateTokens(content string) int {
-	return len(content) / 4
-}
-
-// GetOptimizationStats returns statistics about potential token savings
-func (co *ConversationOptimizer) GetOptimizationStats(messages []sdk.Message) map[string]int {
-	originalTokens := 0
-	optimizedTokens := 0
-
-	for _, msg := range messages {
-		originalTokens += co.EstimateTokens(msg.Content)
-		if msg.ToolCalls != nil {
-			for _, tc := range *msg.ToolCalls {
-				originalTokens += co.EstimateTokens(tc.Function.Arguments)
-			}
-		}
-	}
-
-	optimized := co.OptimizeMessages(messages)
-	for _, msg := range optimized {
-		optimizedTokens += co.EstimateTokens(msg.Content)
-		if msg.ToolCalls != nil {
-			for _, tc := range *msg.ToolCalls {
-				optimizedTokens += co.EstimateTokens(tc.Function.Arguments)
-			}
-		}
-	}
-
-	return map[string]int{
-		"original_tokens":  originalTokens,
-		"optimized_tokens": optimizedTokens,
-		"saved_tokens":     originalTokens - optimizedTokens,
-		"saved_percent":    (originalTokens - optimizedTokens) * 100 / originalTokens,
-	}
 }

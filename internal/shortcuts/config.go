@@ -121,8 +121,9 @@ func (c *ConfigShortcut) executeShow() (ShortcutResult, error) {
 	output.WriteString("\n### ⚡ Optimization\n")
 	if c.config.Agent.Optimization.Enabled {
 		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.StyledCheckMark()))
-		output.WriteString(fmt.Sprintf("• **Max History**: `%d`\n", c.config.Agent.Optimization.MaxHistory))
-		output.WriteString(fmt.Sprintf("• **Compact Threshold**: `%d`\n", c.config.Agent.Optimization.CompactThreshold))
+		output.WriteString(fmt.Sprintf("• **Model**: `%s`\n", c.config.Agent.Optimization.Model))
+		output.WriteString(fmt.Sprintf("• **Min Messages**: `%d`\n", c.config.Agent.Optimization.MinMessages))
+		output.WriteString(fmt.Sprintf("• **Buffer Size**: `%d`\n", c.config.Agent.Optimization.BufferSize))
 	} else {
 		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.StyledCrossMark()))
 	}

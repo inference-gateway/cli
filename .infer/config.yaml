@@ -2,6 +2,9 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
+  middlewares:
+    a2a: false
+    mcp: false
 client:
   timeout: 200
   retry:
@@ -163,10 +166,9 @@ agent:
   max_tokens: 4096
   optimization:
     enabled: false
-    max_history: 10
-    compact_threshold: 20
-    truncate_large_outputs: true
-    skip_redundant_confirmations: true
+    model: ""
+    min_messages: 10
+    buffer_size: 2
 git:
   commit_message:
     model: ""
@@ -227,4 +229,4 @@ conversation:
     batch_size: 10
     interval: 0
 chat:
-  theme: dracula
+  theme: tokyo-night

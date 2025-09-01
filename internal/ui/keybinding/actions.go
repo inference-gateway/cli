@@ -18,9 +18,8 @@ func (r *Registry) registerDefaultBindings() {
 	globalActions := r.createGlobalActions()
 	chatActions := r.createChatActions()
 	scrollActions := r.createScrollActions()
-	approvalActions := r.createApprovalActions()
 
-	r.registerActionsToLayers(globalActions, approvalActions, chatActions, scrollActions)
+	r.registerActionsToLayers(globalActions, chatActions, scrollActions)
 }
 
 // createGlobalActions creates global key actions available in all views
@@ -335,7 +334,7 @@ func (r *Registry) createScrollActions() []*KeyAction {
 			Priority:    120,
 			Enabled:     true,
 			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat, domain.ViewStateToolApproval},
+				Views: []domain.ViewState{domain.ViewStateChat},
 			},
 		},
 		{
@@ -347,7 +346,7 @@ func (r *Registry) createScrollActions() []*KeyAction {
 			Priority:    120,
 			Enabled:     true,
 			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat, domain.ViewStateToolApproval},
+				Views: []domain.ViewState{domain.ViewStateChat},
 			},
 		},
 		{
@@ -377,96 +376,9 @@ func (r *Registry) createScrollActions() []*KeyAction {
 	}
 }
 
-// createApprovalActions creates key actions specific to approval view
-func (r *Registry) createApprovalActions() []*KeyAction {
-	return []*KeyAction{
-		{
-			ID:          "approval_navigate_up",
-			Keys:        []string{"up", "left"},
-			Description: "navigate approval options up",
-			Category:    "approval",
-			Handler:     handleApprovalUp,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat, domain.ViewStateToolApproval},
-				Conditions: []ContextCondition{
-					{
-						Name: "has_pending_approval",
-						Check: func(app KeyHandlerContext) bool {
-							return app.HasPendingApproval()
-						},
-					},
-				},
-			},
-		},
-		{
-			ID:          "approval_navigate_down",
-			Keys:        []string{"down", "right"},
-			Description: "navigate approval options down",
-			Category:    "approval",
-			Handler:     handleApprovalDown,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat, domain.ViewStateToolApproval},
-				Conditions: []ContextCondition{
-					{
-						Name: "has_pending_approval",
-						Check: func(app KeyHandlerContext) bool {
-							return app.HasPendingApproval()
-						},
-					},
-				},
-			},
-		},
-		{
-			ID:          "approval_approve",
-			Keys:        []string{"enter", "return", "ctrl+m", " "},
-			Description: "approve/select current option",
-			Category:    "approval",
-			Handler:     handleApprovalSelect,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat, domain.ViewStateToolApproval},
-				Conditions: []ContextCondition{
-					{
-						Name: "has_pending_approval",
-						Check: func(app KeyHandlerContext) bool {
-							return app.HasPendingApproval()
-						},
-					},
-				},
-			},
-		},
-		{
-			ID:          "approval_cancel",
-			Keys:        []string{"esc"},
-			Description: "cancel tool execution",
-			Category:    "approval",
-			Handler:     handleApprovalCancel,
-			Priority:    200,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat, domain.ViewStateToolApproval},
-				Conditions: []ContextCondition{
-					{
-						Name: "has_pending_approval",
-						Check: func(app KeyHandlerContext) bool {
-							return app.HasPendingApproval()
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
 // registerActionsToLayers registers actions to their appropriate layers
-func (r *Registry) registerActionsToLayers(globalActions, approvalActions, chatActions, scrollActions []*KeyAction) {
-	allActions := append(globalActions, approvalActions...)
-	allActions = append(allActions, chatActions...)
+func (r *Registry) registerActionsToLayers(globalActions, chatActions, scrollActions []*KeyAction) {
+	allActions := append(globalActions, chatActions...)
 	allActions = append(allActions, scrollActions...)
 
 	for _, action := range allActions {
@@ -479,17 +391,12 @@ func (r *Registry) registerActionsToLayers(globalActions, approvalActions, chatA
 		_ = r.addActionToLayer("global", action)
 	}
 
-	for _, action := range approvalActions {
-		_ = r.addActionToLayer("approval", action)
-	}
-
 	for _, action := range chatActions {
 		_ = r.addActionToLayer("chat_view", action)
 	}
 
 	for _, action := range scrollActions {
 		_ = r.addActionToLayer("chat_view", action)
-		_ = r.addActionToLayer("approval", action)
 	}
 }
 
@@ -504,9 +411,17 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	app.GetStateManager().EndChatSession()
-	app.GetStateManager().EndToolExecution()
-	_ = app.GetStateManager().TransitionToView(domain.ViewStateChat)
+	stateManager := app.GetStateManager()
+	if chatSession := stateManager.GetChatSession(); chatSession != nil {
+		agentService := app.GetAgentService()
+		if agentService != nil {
+			_ = agentService.CancelRequest(chatSession.RequestID)
+		}
+	}
+
+	stateManager.EndChatSession()
+	stateManager.EndToolExecution()
+	_ = stateManager.TransitionToView(domain.ViewStateChat)
 
 	return func() tea.Msg {
 		return domain.SetStatusEvent{
@@ -617,12 +532,8 @@ func handleScrollToBottom(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		componentID := "conversation"
-		if app.HasPendingApproval() {
-			componentID = "approval"
-		}
 		return domain.ScrollRequestEvent{
-			ComponentID: componentID,
+			ComponentID: "conversation",
 			Direction:   domain.ScrollUp,
 			Amount:      10,
 		}
@@ -631,12 +542,8 @@ func handleScrollUpHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleScrollDownHalfPage(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		componentID := "conversation"
-		if app.HasPendingApproval() {
-			componentID = "approval"
-		}
 		return domain.ScrollRequestEvent{
-			ComponentID: componentID,
+			ComponentID: "conversation",
 			Direction:   domain.ScrollDown,
 			Amount:      10,
 		}
@@ -828,67 +735,6 @@ func handleEnterSelectionMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 			}
 		},
 	)
-}
-
-// Approval handler functions
-func handleApprovalUp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
-	approvalState := stateManager.GetApprovalUIState()
-	selectedIndex := int(domain.ApprovalApprove)
-	if approvalState != nil {
-		selectedIndex = approvalState.SelectedIndex
-	}
-
-	if selectedIndex > int(domain.ApprovalApprove) {
-		selectedIndex--
-	}
-	stateManager.SetApprovalSelectedIndex(selectedIndex)
-	return nil
-}
-
-func handleApprovalDown(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
-	approvalState := stateManager.GetApprovalUIState()
-	selectedIndex := int(domain.ApprovalApprove)
-	if approvalState != nil {
-		selectedIndex = approvalState.SelectedIndex
-	}
-
-	if selectedIndex < int(domain.ApprovalReject) {
-		selectedIndex++
-	}
-	stateManager.SetApprovalSelectedIndex(selectedIndex)
-	return nil
-}
-
-func handleApprovalSelect(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
-	approvalState := stateManager.GetApprovalUIState()
-	selectedIndex := int(domain.ApprovalApprove)
-	if approvalState != nil {
-		selectedIndex = approvalState.SelectedIndex
-	}
-
-	switch domain.ApprovalAction(selectedIndex) {
-	case domain.ApprovalApprove:
-		return app.ApproveToolCall()
-	case domain.ApprovalReject:
-		return app.DenyToolCall()
-	}
-	return nil
-}
-
-func handleApprovalCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
-	stateManager.EndToolExecution()
-	stateManager.ClearApprovalUIState()
-	return func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    "Tool execution cancelled",
-			Spinner:    false,
-			TokenUsage: getCurrentTokenUsage(app),
-		}
-	}
 }
 
 // KeyBindingManager manages the key binding system for ChatApplication

@@ -3,8 +3,8 @@ package adapters
 import (
 	"context"
 
-	"github.com/inference-gateway/cli/internal/services"
-	"github.com/inference-gateway/cli/internal/shortcuts"
+	services "github.com/inference-gateway/cli/internal/services"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 )
 
 // PersistentConversationAdapter adapts services.PersistentConversationRepository to shortcuts.PersistentConversationRepository

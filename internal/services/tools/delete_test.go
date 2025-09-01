@@ -15,15 +15,15 @@ func TestDeleteTool_Definition(t *testing.T) {
 	tool := NewDeleteTool(cfg)
 
 	def := tool.Definition()
-	if def.Name != "Delete" {
-		t.Errorf("Expected tool name 'Delete', got '%s'", def.Name)
+	if def.Function.Name != "Delete" {
+		t.Errorf("Expected tool name 'Delete', got '%s'", def.Function.Name)
 	}
 
-	if def.Description == "" {
+	if *def.Function.Description == "" {
 		t.Error("Expected non-empty description")
 	}
 
-	if def.Parameters == nil {
+	if def.Function.Parameters == nil {
 		t.Error("Expected non-nil parameters")
 	}
 }

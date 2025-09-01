@@ -74,6 +74,31 @@ task test:ui:verify     # Verify UI snapshots match
 task test:ui:interactive # Interactive UI component testing
 ```
 
+## Testing Interactive Chat
+
+```bash
+echo "Hi" | INFER_LOGGING_DEBUG=true INFER_AGENT_MODEL=deepseek/deepseek-chat INFER_TOOLS_ENABLED=false go run . chat
+```
+
+## Testing Database Entries and Conversation flows
+
+Get the latest conversation messages:
+
+```bash
+sqlite3 .infer/conversations.db -json "
+  SELECT json(messages) AS messages
+  FROM conversations
+  ORDER BY created_at DESC
+  LIMIT 1;
+" | jq -r '.[0].messages | fromjson'
+```
+
+Check the logs:
+
+```bash
+tail -n 100 .infer/logs/debug-*.log
+```
+
 ## Code Architecture
 
 ### Directory Structure
@@ -253,6 +278,20 @@ task mocks:generate         # Regenerate mocks
 - **WebSearch/WebFetch**: Web integration with domain whitelisting
 - **GitHub**: GitHub API integration
 - **TodoWrite**: Task management for LLM workflows
+- **A2A/MCP Tools**: Gateway middleware tools with client-side visualization
+
+#### A2A and MCP Tool Call Handling
+
+Tools prefixed with `a2a_*` or `mcp_*` receive special handling based on configuration:
+
+- **Chat Mode**: Tools are visualized but execution is skipped when `gateway.middlewares.a2a` or
+  `gateway.middlewares.mcp` is `true` (default)
+- **Agent Mode**: Tools are executed normally (main agent has full access)
+- **Visualization**: Skipped tools show as "executed on Gateway" with appropriate metadata
+- **Configuration**: Execution behavior is configurable via `gateway.middlewares.a2a` and
+  `gateway.middlewares.mcp` (when `true`, tools execute on Gateway; when `false`, tools execute on client)
+- **Purpose**: Maintains simple clients while centralizing operations on Gateway, with flexibility to
+  enable client execution when needed
 
 ## Agent System
 

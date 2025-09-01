@@ -1,9 +1,5 @@
 package domain
 
-import (
-	sdk "github.com/inference-gateway/sdk"
-)
-
 // UI Events for application state management
 
 // UpdateHistoryEvent updates the conversation history display
@@ -12,6 +8,15 @@ type UpdateHistoryEvent struct {
 }
 
 func (e UpdateHistoryEvent) GetType() UIEventType { return UIEventUpdateHistory }
+
+// StreamingContentEvent delivers live streaming content for immediate UI display
+type StreamingContentEvent struct {
+	RequestID string
+	Content   string
+	Delta     bool
+}
+
+func (e StreamingContentEvent) GetType() UIEventType { return UIEventStreamingContent }
 
 // SetStatusEvent sets a status message
 type SetStatusEvent struct {
@@ -111,22 +116,6 @@ type SetupFileSelectionEvent struct {
 
 func (e SetupFileSelectionEvent) GetType() UIEventType { return UIEventSetupFileSelection }
 
-// ApprovalRequestEvent requests user approval for an action
-type ApprovalRequestEvent struct {
-	Action      string
-	Description string
-}
-
-func (e ApprovalRequestEvent) GetType() UIEventType { return UIEventApprovalRequest }
-
-// ApprovalResponseEvent provides approval response
-type ApprovalResponseEvent struct {
-	Approved   bool
-	ApproveAll bool
-}
-
-func (e ApprovalResponseEvent) GetType() UIEventType { return UIEventApprovalResponse }
-
 // ScrollRequestEvent requests scrolling in a component
 type ScrollRequestEvent struct {
 	ComponentID string
@@ -181,7 +170,7 @@ func (e InitializeTextSelectionEvent) GetType() UIEventType { return UIEventInit
 
 // ConversationsLoadedEvent indicates conversations have been loaded
 type ConversationsLoadedEvent struct {
-	Conversations []interface{} // Will be cast to ConversationSummary in component
+	Conversations []interface{}
 	Error         error
 }
 
@@ -199,12 +188,11 @@ func (e ToolExecutionStartedEvent) GetType() UIEventType { return UIEventToolExe
 
 // ToolExecutionProgressEvent indicates progress in tool execution
 type ToolExecutionProgressEvent struct {
-	SessionID        string
-	CurrentTool      int
-	TotalTools       int
-	ToolName         string
-	Status           string
-	RequiresApproval bool
+	SessionID   string
+	CurrentTool int
+	TotalTools  int
+	ToolName    string
+	Status      string
 }
 
 func (e ToolExecutionProgressEvent) GetType() UIEventType { return UIEventToolExecutionProgress }
@@ -219,22 +207,3 @@ type ToolExecutionCompletedEvent struct {
 }
 
 func (e ToolExecutionCompletedEvent) GetType() UIEventType { return UIEventToolExecutionCompleted }
-
-// ToolApprovalRequestEvent requests approval for a specific tool
-type ToolApprovalRequestEvent struct {
-	SessionID  string
-	ToolCall   sdk.ChatCompletionMessageToolCall
-	ToolIndex  int
-	TotalTools int
-}
-
-func (e ToolApprovalRequestEvent) GetType() UIEventType { return UIEventToolApprovalRequest }
-
-// ToolApprovalResponseEvent provides the approval response
-type ToolApprovalResponseEvent struct {
-	SessionID string
-	Approved  bool
-	ToolIndex int
-}
-
-func (e ToolApprovalResponseEvent) GetType() UIEventType { return UIEventToolApprovalResponse }

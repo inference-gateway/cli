@@ -6,6 +6,15 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
+// ToolCallStreamStatus represents the status of a tool call during streaming
+type ToolCallStreamStatus string
+
+const (
+	ToolCallStreamStatusStreaming ToolCallStreamStatus = "streaming"
+	ToolCallStreamStatusComplete  ToolCallStreamStatus = "complete"
+	ToolCallStreamStatusReady     ToolCallStreamStatus = "ready"
+)
+
 // ChatStartEvent indicates a chat request has started
 type ChatStartEvent struct {
 	RequestID string
@@ -23,8 +32,9 @@ type ChatChunkEvent struct {
 	Timestamp        time.Time
 	Content          string
 	ReasoningContent string
-	ToolCalls        []sdk.ChatCompletionMessageToolCall
+	ToolCalls        []sdk.ChatCompletionMessageToolCallChunk
 	Delta            bool
+	Usage            *sdk.CompletionUsage // Live token usage during streaming
 }
 
 func (e ChatChunkEvent) GetType() ChatEventType  { return EventChatChunk }
@@ -33,8 +43,10 @@ func (e ChatChunkEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // ToolCallStartEvent indicates tool calls have started being received
 type ToolCallStartEvent struct {
-	RequestID string
-	Timestamp time.Time
+	RequestID     string
+	Timestamp     time.Time
+	ToolName      string
+	ToolArguments string
 }
 
 func (e ToolCallStartEvent) GetType() ChatEventType  { return EventToolCallStart }
@@ -65,18 +77,72 @@ func (e ChatErrorEvent) GetType() ChatEventType  { return EventChatError }
 func (e ChatErrorEvent) GetRequestID() string    { return e.RequestID }
 func (e ChatErrorEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ToolCallEvent represents a tool call request
-type ToolCallEvent struct {
+// ToolCallPreviewEvent shows a tool call as it's being streamed (before execution)
+type ToolCallPreviewEvent struct {
 	RequestID  string
 	Timestamp  time.Time
 	ToolCallID string
 	ToolName   string
-	Args       string
+	Arguments  string
+	Status     ToolCallStreamStatus
+	IsComplete bool
 }
 
-func (e ToolCallEvent) GetType() ChatEventType  { return EventToolCall }
-func (e ToolCallEvent) GetRequestID() string    { return e.RequestID }
-func (e ToolCallEvent) GetTimestamp() time.Time { return e.Timestamp }
+func (e ToolCallPreviewEvent) GetType() ChatEventType  { return EventToolCallPreview }
+func (e ToolCallPreviewEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCallPreviewEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolCallUpdateEvent updates a streaming tool call with new content
+type ToolCallUpdateEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	ToolCallID string
+	ToolName   string
+	Arguments  string
+	Status     ToolCallStreamStatus
+}
+
+func (e ToolCallUpdateEvent) GetType() ChatEventType  { return EventToolCallUpdate }
+func (e ToolCallUpdateEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCallUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolCallReadyEvent indicates all tool calls are ready for approval/execution
+type ToolCallReadyEvent struct {
+	RequestID string
+	Timestamp time.Time
+	ToolCalls []sdk.ChatCompletionMessageToolCall
+}
+
+func (e ToolCallReadyEvent) GetType() ChatEventType  { return EventToolCallReady }
+func (e ToolCallReadyEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCallReadyEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolCallCompleteEvent indicates a single tool call has completed execution
+type ToolCallCompleteEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	ToolCallID string
+	ToolName   string
+	Result     any
+	Success    bool
+}
+
+func (e ToolCallCompleteEvent) GetType() ChatEventType  { return EventToolCallComplete }
+func (e ToolCallCompleteEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCallCompleteEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolCallErrorEvent indicates a tool call failed during execution
+type ToolCallErrorEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	ToolCallID string
+	ToolName   string
+	Error      error
+}
+
+func (e ToolCallErrorEvent) GetType() ChatEventType  { return EventToolCallError }
+func (e ToolCallErrorEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolCallErrorEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // CancelledEvent indicates a request was cancelled
 type CancelledEvent struct {
@@ -88,3 +154,32 @@ type CancelledEvent struct {
 func (e CancelledEvent) GetType() ChatEventType  { return EventCancelled }
 func (e CancelledEvent) GetRequestID() string    { return e.RequestID }
 func (e CancelledEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// OptimizationStatusEvent indicates conversation optimization status
+type OptimizationStatusEvent struct {
+	RequestID      string
+	Timestamp      time.Time
+	Message        string
+	IsActive       bool
+	OriginalCount  int
+	OptimizedCount int
+}
+
+func (e OptimizationStatusEvent) GetType() ChatEventType  { return EventOptimizationStatus }
+func (e OptimizationStatusEvent) GetRequestID() string    { return e.RequestID }
+func (e OptimizationStatusEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// A2AToolCallExecutedEvent indicates an A2A tool call was executed on the gateway
+type A2AToolCallExecutedEvent struct {
+	RequestID         string
+	Timestamp         time.Time
+	ToolCallID        string
+	ToolName          string
+	Arguments         string
+	ExecutedOnGateway bool
+	TaskID            string
+}
+
+func (e A2AToolCallExecutedEvent) GetType() ChatEventType  { return EventA2AToolCallExecuted }
+func (e A2AToolCallExecutedEvent) GetRequestID() string    { return e.RequestID }
+func (e A2AToolCallExecutedEvent) GetTimestamp() time.Time { return e.Timestamp }
