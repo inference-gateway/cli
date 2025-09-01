@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,6 +26,10 @@ type AgentServiceImpl struct {
 	// Request tracking
 	activeRequests map[string]context.CancelFunc
 	requestsMux    sync.RWMutex
+
+	// Cancel channels for graceful stopping of agent event loops
+	cancelChannels map[string]chan struct{}
+	cancelMux      sync.RWMutex
 
 	// Metrics tracking
 	metrics    map[string]*domain.ChatMetrics
@@ -53,6 +58,7 @@ func NewAgentService(
 		maxTokens:        config.GetAgentConfig().MaxTokens,
 		optimizer:        optimizer,
 		activeRequests:   make(map[string]context.CancelFunc),
+		cancelChannels:   make(map[string]chan struct{}),
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
@@ -140,6 +146,17 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 	chatEvents := make(chan domain.ChatEvent, 100)
 
+	cancelChan := make(chan struct{}, 1)
+	s.cancelMux.Lock()
+	s.cancelChannels[req.RequestID] = cancelChan
+	s.cancelMux.Unlock()
+
+	defer func() {
+		s.cancelMux.Lock()
+		delete(s.cancelChannels, req.RequestID)
+		s.cancelMux.Unlock()
+	}()
+
 	systemPrompt := s.config.GetAgentConfig().SystemPrompt
 	if systemPrompt == "" {
 		systemPrompt = "You are an helpful assistant."
@@ -172,12 +189,37 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 		//// EVENT LOOP START
 		for maxTurns > turns {
+			select {
+			case <-cancelChan:
+				chatEvents <- domain.ChatCompleteEvent{
+					RequestID: req.RequestID,
+					Timestamp: time.Now(),
+					ToolCalls: []sdk.ChatCompletionMessageToolCall{},
+					Metrics:   s.GetMetrics(req.RequestID),
+				}
+				close(chatEvents)
+				return
+			default:
+			}
+
 			s.clearToolCallsMap()
 			iterationStartTime := time.Now()
 
 			if turns > 0 {
 				time.Sleep(100 * time.Millisecond)
 			}
+
+			requestCtx, requestCancel := context.WithCancel(ctx)
+
+			s.requestsMux.Lock()
+			s.activeRequests[req.RequestID] = requestCancel
+			s.requestsMux.Unlock()
+
+			defer func() {
+				s.requestsMux.Lock()
+				delete(s.activeRequests, req.RequestID)
+				s.requestsMux.Unlock()
+			}()
 
 			chatEvents <- domain.ChatStartEvent{
 				RequestID: req.RequestID,
@@ -199,7 +241,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 			}
 
-			events, err := client.GenerateContentStream(ctx, sdk.Provider(provider), model, conversation)
+			events, err := client.GenerateContentStream(requestCtx, sdk.Provider(provider), model, conversation)
 			if err != nil {
 				logger.Error("failed to create a stream, %w", err)
 			}
@@ -312,6 +354,18 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			}
 
 			for _, tc := range toolCalls {
+				if s.isA2ATool(tc.Function.Name) && s.config.ShouldSkipA2AToolOnClient() {
+					s.handleA2AToolCall(*tc, req.RequestID, chatEvents)
+
+					toolResult := sdk.Message{
+						Role:       sdk.Tool,
+						Content:    fmt.Sprintf("Tool %s executed on Gateway", tc.Function.Name),
+						ToolCallId: &tc.Id,
+					}
+					conversation = append(conversation, toolResult)
+					continue
+				}
+
 				err := s.executeToolCall(ctx, *tc, req.RequestID, chatEvents)
 				if err != nil {
 					logger.Error("failed to execute tool: %w", err)
@@ -379,14 +433,28 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 // CancelRequest cancels an active request
 func (s *AgentServiceImpl) CancelRequest(requestID string) error {
 	s.requestsMux.RLock()
-	cancel, exists := s.activeRequests[requestID]
+	cancel, contextExists := s.activeRequests[requestID]
 	s.requestsMux.RUnlock()
 
-	if !exists {
+	s.cancelMux.RLock()
+	cancelChan, chanExists := s.cancelChannels[requestID]
+	s.cancelMux.RUnlock()
+
+	if !contextExists && !chanExists {
 		return fmt.Errorf("request %s not found or already completed", requestID)
 	}
 
-	defer cancel()
+	if contextExists {
+		cancel()
+	}
+
+	if chanExists {
+		select {
+		case cancelChan <- struct{}{}:
+		default:
+		}
+	}
+
 	return nil
 }
 
@@ -480,6 +548,72 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 	}
 
 	return conversation
+}
+
+func (s *AgentServiceImpl) isA2ATool(toolName string) bool {
+	return strings.HasPrefix(toolName, "a2a_")
+}
+
+func (s *AgentServiceImpl) handleA2AToolCall(tc sdk.ChatCompletionMessageToolCall, requestID string, chatEvents chan<- domain.ChatEvent) {
+	startTime := time.Now()
+
+	// Enhanced status indicator for A2A tool calls
+	chatEvents <- domain.ToolCallStartEvent{
+		RequestID:     requestID,
+		Timestamp:     startTime,
+		ToolName:      tc.Function.Name,
+		ToolArguments: tc.Function.Arguments,
+	}
+
+	// Show intermediate status that agent is processing
+	chatEvents <- domain.ToolCallUpdateEvent{
+		RequestID:  requestID,
+		Timestamp:  time.Now(),
+		ToolCallID: tc.Id,
+		ToolName:   tc.Function.Name,
+		Arguments:  tc.Function.Arguments,
+		Status:     domain.ToolCallStreamStatusStreaming,
+	}
+
+	chatEvents <- domain.A2AToolCallExecutedEvent{
+		RequestID:         requestID,
+		Timestamp:         time.Now(),
+		ToolCallID:        tc.Id,
+		ToolName:          tc.Function.Name,
+		Arguments:         tc.Function.Arguments,
+		ExecutedOnGateway: true,
+	}
+
+	a2aEntry := domain.ConversationEntry{
+		Message: domain.Message{
+			Role:       "tool",
+			Content:    fmt.Sprintf("Tool %s executed on Gateway", tc.Function.Name),
+			ToolCallId: &tc.Id,
+		},
+		Time: time.Now(),
+		ToolExecution: &domain.ToolExecutionResult{
+			ToolName:  tc.Function.Name,
+			Arguments: make(map[string]any),
+			Success:   true,
+			Duration:  time.Since(startTime),
+			Metadata: map[string]string{
+				"executed_on_gateway": "true",
+			},
+		},
+	}
+
+	if err := s.conversationRepo.AddMessage(a2aEntry); err != nil {
+		logger.Error("failed to store A2A tool execution in conversation", "error", err)
+	}
+
+	chatEvents <- domain.ToolCallCompleteEvent{
+		RequestID:  requestID,
+		Timestamp:  time.Now(),
+		Success:    true,
+		ToolCallID: tc.Id,
+		ToolName:   tc.Function.Name,
+		Result:     "executed on gateway",
+	}
 }
 
 func (s *AgentServiceImpl) executeToolCall(ctx context.Context, tc sdk.ChatCompletionMessageToolCall, requestID string, chatEvents chan<- domain.ChatEvent) error {

@@ -168,3 +168,17 @@ type OptimizationStatusEvent struct {
 func (e OptimizationStatusEvent) GetType() ChatEventType  { return EventOptimizationStatus }
 func (e OptimizationStatusEvent) GetRequestID() string    { return e.RequestID }
 func (e OptimizationStatusEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// A2AToolCallExecutedEvent indicates an A2A tool call was executed on the gateway
+type A2AToolCallExecutedEvent struct {
+	RequestID         string
+	Timestamp         time.Time
+	ToolCallID        string
+	ToolName          string
+	Arguments         string
+	ExecutedOnGateway bool
+}
+
+func (e A2AToolCallExecutedEvent) GetType() ChatEventType  { return EventA2AToolCallExecuted }
+func (e A2AToolCallExecutedEvent) GetRequestID() string    { return e.RequestID }
+func (e A2AToolCallExecutedEvent) GetTimestamp() time.Time { return e.Timestamp }

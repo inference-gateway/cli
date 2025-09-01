@@ -85,6 +85,7 @@ const (
 	EventToolCallError
 	EventCancelled
 	EventOptimizationStatus
+	EventA2AToolCallExecuted
 )
 
 // ChatEvent represents events during chat operations

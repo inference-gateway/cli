@@ -1,6 +1,7 @@
 package services
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -32,10 +33,22 @@ func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessag
 		if delta.ID != "" {
 			toolCall.Id = delta.ID
 		}
-		if delta.Function.Name != "" {
-			toolCall.Function.Name += delta.Function.Name
+		if delta.Function.Name != "" && toolCall.Function.Name == "" {
+			toolCall.Function.Name = delta.Function.Name
 		}
 		if delta.Function.Arguments != "" {
+			// First delta sets the arguments
+			if toolCall.Function.Arguments == "" {
+				toolCall.Function.Arguments = delta.Function.Arguments
+				continue
+			}
+
+			// Skip concatenation if we already have complete JSON
+			if isCompleteJSON(toolCall.Function.Arguments) {
+				continue
+			}
+
+			// Otherwise concatenate for streaming JSON
 			toolCall.Function.Arguments += delta.Function.Arguments
 		}
 	}
@@ -172,4 +185,15 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 		Role:    sdk.User,
 		Content: reminderText,
 	}
+}
+
+// isCompleteJSON checks if a string is a complete, valid JSON
+func isCompleteJSON(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+
+	var js interface{}
+	return json.Unmarshal([]byte(s), &js) == nil
 }

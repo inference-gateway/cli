@@ -19,6 +19,9 @@ type KeyHandlerContext interface {
 	GetConversationRepository() domain.ConversationRepository
 	GetConfig() *config.Config
 
+	// Services
+	GetAgentService() domain.AgentService
+
 	// UI components
 	GetConversationView() ui.ConversationRenderer
 	GetInputView() ui.InputComponent

@@ -864,6 +864,11 @@ func (app *ChatApplication) GetConversationRepository() domain.ConversationRepos
 	return app.conversationRepo
 }
 
+// GetAgentService returns the agent service
+func (app *ChatApplication) GetAgentService() domain.AgentService {
+	return app.agentService
+}
+
 // GetConfig returns the configuration for keybinding context
 func (app *ChatApplication) GetConfig() *config.Config {
 	return app.configService

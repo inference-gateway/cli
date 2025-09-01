@@ -592,3 +592,45 @@ func TestAgentServiceImpl_A2AContentBuilderReset(t *testing.T) {
 		})
 	}
 }
+
+func TestAgentServiceImpl_isA2ATool(t *testing.T) {
+	tests := []struct {
+		name     string
+		toolName string
+		expected bool
+	}{
+		{
+			name:     "a2a_prefixed_tool",
+			toolName: "a2a_example_tool",
+			expected: true,
+		},
+		{
+			name:     "normal_tool",
+			toolName: "Read",
+			expected: false,
+		},
+		{
+			name:     "mcp_prefixed_tool",
+			toolName: "mcp_example_tool",
+			expected: false,
+		},
+		{
+			name:     "empty_tool_name",
+			toolName: "",
+			expected: false,
+		},
+		{
+			name:     "a2a_only",
+			toolName: "a2a_",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			service := &AgentServiceImpl{}
+			result := service.isA2ATool(tt.toolName)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}

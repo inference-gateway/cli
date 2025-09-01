@@ -294,14 +294,19 @@ func (e *ChatEventHandler) handleChatError(
 
 // handleToolCallStart processes tool call start events
 func (e *ChatEventHandler) handleToolCallStart(
-	_ domain.ToolCallStartEvent,
+	event domain.ToolCallStartEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	statusMsg := "Working..."
+	if strings.HasPrefix(event.ToolName, "a2a_") {
+		statusMsg = "Calling agent..."
+	}
+
 	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message:    "Working...",
+			Message:    statusMsg,
 			Spinner:    true,
 			StatusType: domain.StatusWorking,
 		}
@@ -357,19 +362,17 @@ func (e *ChatEventHandler) handleToolCallUpdate(
 	})
 
 	// Update status based on tool call status
-	statusMsg := fmt.Sprintf("Streaming %s...", msg.ToolName)
-	if msg.Status == domain.ToolCallStreamStatusComplete {
-		statusMsg = fmt.Sprintf("Completed %s", msg.ToolName)
-	}
+	statusMsg := e.formatToolCallStatusMessage(msg.ToolName, msg.Status)
 
-	if msg.Status == domain.ToolCallStreamStatusStreaming {
+	switch msg.Status {
+	case domain.ToolCallStreamStatusStreaming:
 		cmds = append(cmds, func() tea.Msg {
 			return domain.UpdateStatusEvent{
 				Message:    statusMsg,
 				StatusType: domain.StatusWorking,
 			}
 		})
-	} else {
+	default:
 		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    statusMsg,
@@ -410,10 +413,7 @@ func (e *ChatEventHandler) handleToolCallComplete(
 	msg domain.ToolCallCompleteEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
-	statusMsg := fmt.Sprintf("Completed %s", msg.ToolName)
-	if !msg.Success {
-		statusMsg = fmt.Sprintf("Failed %s", msg.ToolName)
-	}
+	statusMsg := e.formatToolCallCompleteMessage(msg.ToolName, msg.Success)
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
@@ -546,6 +546,35 @@ func (e *ChatEventHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 	return strings.Join(parts, " | ")
 }
 
+// handleA2AToolCallExecuted processes A2A tool call executed events
+func (e *ChatEventHandler) handleA2AToolCallExecuted(
+	msg domain.A2AToolCallExecutedEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent{
+			History: e.handler.conversationRepo.GetMessages(),
+		}
+	})
+
+	statusMsg := fmt.Sprintf("Agent %s completed, generating response...", strings.TrimPrefix(msg.ToolName, "a2a_"))
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    statusMsg,
+			Spinner:    true,
+			StatusType: domain.StatusGenerating,
+		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
 // formatLiveTokenUsage formats token usage during streaming
 func (e *ChatEventHandler) formatLiveTokenUsage(usage *sdk.CompletionUsage) string {
 	if usage == nil {
@@ -568,4 +597,41 @@ func (e *ChatEventHandler) formatLiveTokenUsage(usage *sdk.CompletionUsage) stri
 	}
 
 	return ""
+}
+
+// formatToolCallStatusMessage formats status messages for tool calls based on tool type and status
+func (e *ChatEventHandler) formatToolCallStatusMessage(toolName string, status domain.ToolCallStreamStatus) string {
+	isA2ATool := strings.HasPrefix(toolName, "a2a_")
+
+	switch status {
+	case domain.ToolCallStreamStatusStreaming:
+		if isA2ATool {
+			return fmt.Sprintf("Agent %s processing...", strings.TrimPrefix(toolName, "a2a_"))
+		}
+		return fmt.Sprintf("Streaming %s...", toolName)
+	case domain.ToolCallStreamStatusComplete:
+		if isA2ATool {
+			return fmt.Sprintf("Agent %s completed", strings.TrimPrefix(toolName, "a2a_"))
+		}
+		return fmt.Sprintf("Completed %s", toolName)
+	default:
+		return ""
+	}
+}
+
+// formatToolCallCompleteMessage formats completion messages for tool calls based on tool type and success
+func (e *ChatEventHandler) formatToolCallCompleteMessage(toolName string, success bool) string {
+	isA2ATool := strings.HasPrefix(toolName, "a2a_")
+
+	if success {
+		if isA2ATool {
+			return fmt.Sprintf("Agent %s completed", strings.TrimPrefix(toolName, "a2a_"))
+		}
+		return fmt.Sprintf("Completed %s", toolName)
+	}
+
+	if isA2ATool {
+		return fmt.Sprintf("Agent %s failed", strings.TrimPrefix(toolName, "a2a_"))
+	}
+	return fmt.Sprintf("Failed %s", toolName)
 }

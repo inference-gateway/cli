@@ -411,9 +411,17 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	app.GetStateManager().EndChatSession()
-	app.GetStateManager().EndToolExecution()
-	_ = app.GetStateManager().TransitionToView(domain.ViewStateChat)
+	stateManager := app.GetStateManager()
+	if chatSession := stateManager.GetChatSession(); chatSession != nil {
+		agentService := app.GetAgentService()
+		if agentService != nil {
+			_ = agentService.CancelRequest(chatSession.RequestID)
+		}
+	}
+
+	stateManager.EndChatSession()
+	stateManager.EndToolExecution()
+	_ = stateManager.TransitionToView(domain.ViewStateChat)
 
 	return func() tea.Msg {
 		return domain.SetStatusEvent{
