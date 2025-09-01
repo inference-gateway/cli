@@ -26,6 +26,22 @@ type FakeSDKClient struct {
 		result1 *sdk.CreateChatCompletionResponse
 		result2 error
 	}
+	GenerateContentStreamStub        func(context.Context, sdk.Provider, string, []sdk.Message) (<-chan sdk.SSEvent, error)
+	generateContentStreamMutex       sync.RWMutex
+	generateContentStreamArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 string
+		arg4 []sdk.Message
+	}
+	generateContentStreamReturns struct {
+		result1 <-chan sdk.SSEvent
+		result2 error
+	}
+	generateContentStreamReturnsOnCall map[int]struct {
+		result1 <-chan sdk.SSEvent
+		result2 error
+	}
 	WithMiddlewareOptionsStub        func(*sdk.MiddlewareOptions) domain.SDKClient
 	withMiddlewareOptionsMutex       sync.RWMutex
 	withMiddlewareOptionsArgsForCall []struct {
@@ -46,6 +62,17 @@ type FakeSDKClient struct {
 		result1 domain.SDKClient
 	}
 	withOptionsReturnsOnCall map[int]struct {
+		result1 domain.SDKClient
+	}
+	WithToolsStub        func(*[]sdk.ChatCompletionTool) domain.SDKClient
+	withToolsMutex       sync.RWMutex
+	withToolsArgsForCall []struct {
+		arg1 *[]sdk.ChatCompletionTool
+	}
+	withToolsReturns struct {
+		result1 domain.SDKClient
+	}
+	withToolsReturnsOnCall map[int]struct {
 		result1 domain.SDKClient
 	}
 	invocations      map[string][][]interface{}
@@ -120,6 +147,78 @@ func (fake *FakeSDKClient) GenerateContentReturnsOnCall(i int, result1 *sdk.Crea
 	}
 	fake.generateContentReturnsOnCall[i] = struct {
 		result1 *sdk.CreateChatCompletionResponse
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeSDKClient) GenerateContentStream(arg1 context.Context, arg2 sdk.Provider, arg3 string, arg4 []sdk.Message) (<-chan sdk.SSEvent, error) {
+	var arg4Copy []sdk.Message
+	if arg4 != nil {
+		arg4Copy = make([]sdk.Message, len(arg4))
+		copy(arg4Copy, arg4)
+	}
+	fake.generateContentStreamMutex.Lock()
+	ret, specificReturn := fake.generateContentStreamReturnsOnCall[len(fake.generateContentStreamArgsForCall)]
+	fake.generateContentStreamArgsForCall = append(fake.generateContentStreamArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.Provider
+		arg3 string
+		arg4 []sdk.Message
+	}{arg1, arg2, arg3, arg4Copy})
+	stub := fake.GenerateContentStreamStub
+	fakeReturns := fake.generateContentStreamReturns
+	fake.recordInvocation("GenerateContentStream", []interface{}{arg1, arg2, arg3, arg4Copy})
+	fake.generateContentStreamMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2, arg3, arg4)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeSDKClient) GenerateContentStreamCallCount() int {
+	fake.generateContentStreamMutex.RLock()
+	defer fake.generateContentStreamMutex.RUnlock()
+	return len(fake.generateContentStreamArgsForCall)
+}
+
+func (fake *FakeSDKClient) GenerateContentStreamCalls(stub func(context.Context, sdk.Provider, string, []sdk.Message) (<-chan sdk.SSEvent, error)) {
+	fake.generateContentStreamMutex.Lock()
+	defer fake.generateContentStreamMutex.Unlock()
+	fake.GenerateContentStreamStub = stub
+}
+
+func (fake *FakeSDKClient) GenerateContentStreamArgsForCall(i int) (context.Context, sdk.Provider, string, []sdk.Message) {
+	fake.generateContentStreamMutex.RLock()
+	defer fake.generateContentStreamMutex.RUnlock()
+	argsForCall := fake.generateContentStreamArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
+}
+
+func (fake *FakeSDKClient) GenerateContentStreamReturns(result1 <-chan sdk.SSEvent, result2 error) {
+	fake.generateContentStreamMutex.Lock()
+	defer fake.generateContentStreamMutex.Unlock()
+	fake.GenerateContentStreamStub = nil
+	fake.generateContentStreamReturns = struct {
+		result1 <-chan sdk.SSEvent
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeSDKClient) GenerateContentStreamReturnsOnCall(i int, result1 <-chan sdk.SSEvent, result2 error) {
+	fake.generateContentStreamMutex.Lock()
+	defer fake.generateContentStreamMutex.Unlock()
+	fake.GenerateContentStreamStub = nil
+	if fake.generateContentStreamReturnsOnCall == nil {
+		fake.generateContentStreamReturnsOnCall = make(map[int]struct {
+			result1 <-chan sdk.SSEvent
+			result2 error
+		})
+	}
+	fake.generateContentStreamReturnsOnCall[i] = struct {
+		result1 <-chan sdk.SSEvent
 		result2 error
 	}{result1, result2}
 }
@@ -242,6 +341,67 @@ func (fake *FakeSDKClient) WithOptionsReturnsOnCall(i int, result1 domain.SDKCli
 		})
 	}
 	fake.withOptionsReturnsOnCall[i] = struct {
+		result1 domain.SDKClient
+	}{result1}
+}
+
+func (fake *FakeSDKClient) WithTools(arg1 *[]sdk.ChatCompletionTool) domain.SDKClient {
+	fake.withToolsMutex.Lock()
+	ret, specificReturn := fake.withToolsReturnsOnCall[len(fake.withToolsArgsForCall)]
+	fake.withToolsArgsForCall = append(fake.withToolsArgsForCall, struct {
+		arg1 *[]sdk.ChatCompletionTool
+	}{arg1})
+	stub := fake.WithToolsStub
+	fakeReturns := fake.withToolsReturns
+	fake.recordInvocation("WithTools", []interface{}{arg1})
+	fake.withToolsMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeSDKClient) WithToolsCallCount() int {
+	fake.withToolsMutex.RLock()
+	defer fake.withToolsMutex.RUnlock()
+	return len(fake.withToolsArgsForCall)
+}
+
+func (fake *FakeSDKClient) WithToolsCalls(stub func(*[]sdk.ChatCompletionTool) domain.SDKClient) {
+	fake.withToolsMutex.Lock()
+	defer fake.withToolsMutex.Unlock()
+	fake.WithToolsStub = stub
+}
+
+func (fake *FakeSDKClient) WithToolsArgsForCall(i int) *[]sdk.ChatCompletionTool {
+	fake.withToolsMutex.RLock()
+	defer fake.withToolsMutex.RUnlock()
+	argsForCall := fake.withToolsArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeSDKClient) WithToolsReturns(result1 domain.SDKClient) {
+	fake.withToolsMutex.Lock()
+	defer fake.withToolsMutex.Unlock()
+	fake.WithToolsStub = nil
+	fake.withToolsReturns = struct {
+		result1 domain.SDKClient
+	}{result1}
+}
+
+func (fake *FakeSDKClient) WithToolsReturnsOnCall(i int, result1 domain.SDKClient) {
+	fake.withToolsMutex.Lock()
+	defer fake.withToolsMutex.Unlock()
+	fake.WithToolsStub = nil
+	if fake.withToolsReturnsOnCall == nil {
+		fake.withToolsReturnsOnCall = make(map[int]struct {
+			result1 domain.SDKClient
+		})
+	}
+	fake.withToolsReturnsOnCall[i] = struct {
 		result1 domain.SDKClient
 	}{result1}
 }

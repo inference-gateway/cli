@@ -92,12 +92,6 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 			conversationRepo := services.NewInMemoryConversationRepository(nil)
 			shortcutRegistry := shortcuts.NewRegistry()
 			stateManager := services.NewStateManager(false)
-			toolOrchestrator := services.NewToolExecutionOrchestrator(
-				stateManager,
-				mockTool,
-				conversationRepo,
-				mockConfig,
-			)
 
 			handler := NewChatHandler(
 				mockAgent,
@@ -107,7 +101,6 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				mockTool,
 				mockFile,
 				shortcutRegistry,
-				toolOrchestrator,
 			)
 
 			processor := NewChatMessageProcessor(handler)

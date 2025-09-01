@@ -7,9 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/components"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	components "github.com/inference-gateway/cli/internal/ui/components"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // EditTool handles exact string replacements in files with strict safety rules
@@ -49,10 +50,8 @@ func NewEditToolWithRegistry(cfg *config.Config, registry ReadToolTracker) *Edit
 }
 
 // Definition returns the tool definition for the LLM
-func (t *EditTool) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{
-		Name: "Edit",
-		Description: `Performs exact string replacements in files.
+func (t *EditTool) Definition() sdk.ChatCompletionTool {
+	description := `Performs exact string replacements in files.
 
 Usage:
 - You must use your Read tool at least once in the conversation before editing. This tool will error if you attempt an edit without reading the file.
@@ -60,29 +59,35 @@ Usage:
 - ALWAYS prefer editing existing files in the codebase. NEVER write new files unless explicitly required.
 - Only use emojis if the user explicitly requests it. Avoid adding emojis to files unless asked.
 - The edit will FAIL if old_string is not unique in the file. Either provide a larger string with more surrounding context to make it unique or use replace_all to change every instance of old_string.
-- Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.`,
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"file_path": map[string]any{
-					"type":        "string",
-					"description": "The absolute path to the file to modify",
+- Use replace_all for replacing and renaming strings across the file. This parameter is useful if you want to rename a variable for instance.`
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "Edit",
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"file_path": map[string]any{
+						"type":        "string",
+						"description": "The absolute path to the file to modify",
+					},
+					"old_string": map[string]any{
+						"type":        "string",
+						"description": "The text to replace",
+					},
+					"new_string": map[string]any{
+						"type":        "string",
+						"description": "The text to replace it with (must be different from old_string)",
+					},
+					"replace_all": map[string]any{
+						"type":        "boolean",
+						"description": "Replace all occurrences of old_string (default false)",
+						"default":     false,
+					},
 				},
-				"old_string": map[string]any{
-					"type":        "string",
-					"description": "The text to replace",
-				},
-				"new_string": map[string]any{
-					"type":        "string",
-					"description": "The text to replace it with (must be different from old_string)",
-				},
-				"replace_all": map[string]any{
-					"type":        "boolean",
-					"description": "Replace all occurrences of old_string (default false)",
-					"default":     false,
-				},
+				"required": []string{"file_path", "old_string", "new_string"},
 			},
-			"required": []string{"file_path", "old_string", "new_string"},
 		},
 	}
 }

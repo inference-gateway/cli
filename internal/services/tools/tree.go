@@ -11,6 +11,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 	ignore "github.com/sabhiram/go-gitignore"
 )
 
@@ -36,50 +37,54 @@ func NewTreeTool(cfg *config.Config) *TreeTool {
 }
 
 // Definition returns the tool definition for the LLM
-func (t *TreeTool) Definition() domain.ToolDefinition {
-	return domain.ToolDefinition{
-		Name:        "Tree",
-		Description: "Display directory structure in a tree format, similar to the Unix tree command",
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"path": map[string]any{
-					"type":        "string",
-					"description": "The path to display tree structure for (defaults to current directory)",
-					"default":     ".",
+func (t *TreeTool) Definition() sdk.ChatCompletionTool {
+	description := "Display directory structure in a tree format, similar to the Unix tree command"
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "Tree",
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"path": map[string]any{
+						"type":        "string",
+						"description": "The path to display tree structure for (defaults to current directory)",
+						"default":     ".",
+					},
+					"max_depth": map[string]any{
+						"type":        "integer",
+						"description": "Maximum depth to traverse (optional, defaults to 3 for efficiency)",
+						"minimum":     1,
+						"maximum":     10,
+						"default":     3,
+					},
+					"max_files": map[string]any{
+						"type":        "integer",
+						"description": "Maximum number of files to display (optional, defaults to 100 for efficiency)",
+						"minimum":     1,
+						"maximum":     1000,
+						"default":     100,
+					},
+					"respect_gitignore": map[string]any{
+						"type":        "boolean",
+						"description": "Whether to automatically exclude patterns from .gitignore (defaults to true)",
+						"default":     true,
+					},
+					"show_hidden": map[string]any{
+						"type":        "boolean",
+						"description": "Whether to show hidden files and directories (defaults to false)",
+						"default":     false,
+					},
+					"format": map[string]any{
+						"type":        "string",
+						"description": "Output format (text or json)",
+						"enum":        []string{"text", "json"},
+						"default":     "text",
+					},
 				},
-				"max_depth": map[string]any{
-					"type":        "integer",
-					"description": "Maximum depth to traverse (optional, defaults to 3 for efficiency)",
-					"minimum":     1,
-					"maximum":     10,
-					"default":     3,
-				},
-				"max_files": map[string]any{
-					"type":        "integer",
-					"description": "Maximum number of files to display (optional, defaults to 100 for efficiency)",
-					"minimum":     1,
-					"maximum":     1000,
-					"default":     100,
-				},
-				"respect_gitignore": map[string]any{
-					"type":        "boolean",
-					"description": "Whether to automatically exclude patterns from .gitignore (defaults to true)",
-					"default":     true,
-				},
-				"show_hidden": map[string]any{
-					"type":        "boolean",
-					"description": "Whether to show hidden files and directories (defaults to false)",
-					"default":     false,
-				},
-				"format": map[string]any{
-					"type":        "string",
-					"description": "Output format (text or json)",
-					"enum":        []string{"text", "json"},
-					"default":     "text",
-				},
+				"required": []string{},
 			},
-			"required": []string{},
 		},
 	}
 }

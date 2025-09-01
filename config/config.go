@@ -6,8 +6,6 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-
-	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 const (
@@ -36,9 +34,10 @@ type Config struct {
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL     string `yaml:"url" mapstructure:"url"`
-	APIKey  string `yaml:"api_key" mapstructure:"api_key"`
-	Timeout int    `yaml:"timeout" mapstructure:"timeout"`
+	URL         string            `yaml:"url" mapstructure:"url"`
+	APIKey      string            `yaml:"api_key" mapstructure:"api_key"`
+	Timeout     int               `yaml:"timeout" mapstructure:"timeout"`
+	Middlewares MiddlewaresConfig `yaml:"middlewares" mapstructure:"middlewares"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -192,11 +191,10 @@ type CompactConfig struct {
 
 // OptimizationConfig contains token optimization settings
 type OptimizationConfig struct {
-	Enabled                    bool `yaml:"enabled" mapstructure:"enabled"`
-	MaxHistory                 int  `yaml:"max_history" mapstructure:"max_history"`
-	CompactThreshold           int  `yaml:"compact_threshold" mapstructure:"compact_threshold"`
-	TruncateLargeOutputs       bool `yaml:"truncate_large_outputs" mapstructure:"truncate_large_outputs"`
-	SkipRedundantConfirmations bool `yaml:"skip_redundant_confirmations" mapstructure:"skip_redundant_confirmations"`
+	Enabled     bool   `yaml:"enabled" mapstructure:"enabled"`
+	Model       string `yaml:"model" mapstructure:"model"`
+	MinMessages int    `yaml:"min_messages" mapstructure:"min_messages"`
+	BufferSize  int    `yaml:"buffer_size" mapstructure:"buffer_size"`
 }
 
 // SystemRemindersConfig contains settings for dynamic system reminders
@@ -240,6 +238,12 @@ type ConversationTitleConfig struct {
 	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
 	BatchSize    int    `yaml:"batch_size" mapstructure:"batch_size"`
 	Interval     int    `yaml:"interval" mapstructure:"interval"`
+}
+
+// MiddlewaresConfig contains middleware-specific settings
+type MiddlewaresConfig struct {
+	A2A bool `yaml:"a2a" mapstructure:"a2a"`
+	MCP bool `yaml:"mcp" mapstructure:"mcp"`
 }
 
 // ChatConfig contains chat interface settings
@@ -310,6 +314,10 @@ func DefaultConfig() *Config { //nolint:funlen
 			URL:     "http://localhost:8080",
 			APIKey:  "",
 			Timeout: 200,
+			Middlewares: MiddlewaresConfig{
+				A2A: false,
+				MCP: false,
+			},
 		},
 		Client: ClientConfig{
 			Timeout: 200,
@@ -481,11 +489,10 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 			MaxTurns:     50,
 			MaxTokens:    4096,
 			Optimization: OptimizationConfig{
-				Enabled:                    false,
-				MaxHistory:                 10,
-				CompactThreshold:           20,
-				TruncateLargeOutputs:       true,
-				SkipRedundantConfirmations: true,
+				Enabled:     false,
+				Model:       "",
+				MinMessages: 10,
+				BufferSize:  2,
 			},
 		},
 		Git: GitConfig{
@@ -614,6 +621,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	return globalApproval
 }
 
+func (c *Config) GetAgentConfig() *AgentConfig {
+	return &c.Agent
+}
+
 func (c *Config) GetOutputDirectory() string {
 	return c.Compact.OutputDir
 }
@@ -644,6 +655,14 @@ func (c *Config) GetSandboxDirectories() []string {
 
 func (c *Config) GetProtectedPaths() []string {
 	return c.Tools.Sandbox.ProtectedPaths
+}
+
+func (c *Config) ShouldSkipA2AToolOnClient() bool {
+	return !c.Gateway.Middlewares.A2A
+}
+
+func (c *Config) ShouldSkipMCPToolOnClient() bool {
+	return !c.Gateway.Middlewares.MCP
 }
 
 func (c *Config) GetTheme() string {
@@ -737,11 +756,9 @@ func ResolveEnvironmentVariables(value string) string {
 		varName := match[1 : len(match)-1]
 
 		if envValue := os.Getenv(varName); envValue != "" {
-			logger.Debug("Resolved environment variable", "var", varName, "value", "[redacted]")
 			return envValue
 		}
 
-		logger.Debug("Environment variable not set", "var", varName)
 		return ""
 	})
 

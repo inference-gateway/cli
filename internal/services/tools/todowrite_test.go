@@ -21,15 +21,15 @@ func TestTodoWriteTool_Definition(t *testing.T) {
 	tool := NewTodoWriteTool(cfg)
 	def := tool.Definition()
 
-	if def.Name != "TodoWrite" {
-		t.Errorf("Expected tool name 'TodoWrite', got %s", def.Name)
+	if def.Function.Name != "TodoWrite" {
+		t.Errorf("Expected tool name 'TodoWrite', got %s", def.Function.Name)
 	}
 
-	if def.Description == "" {
+	if *def.Function.Description == "" {
 		t.Error("Tool description should not be empty")
 	}
 
-	if def.Parameters == nil {
+	if def.Function.Parameters == nil {
 		t.Error("Tool parameters should not be nil")
 	}
 }
