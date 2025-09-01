@@ -44,15 +44,15 @@ func TestTreeTool_Definition(t *testing.T) {
 	tool := NewTreeTool(cfg)
 	def := tool.Definition()
 
-	if def.Name != "Tree" {
-		t.Errorf("Expected tool name 'Tree', got '%s'", def.Name)
+	if def.Function.Name != "Tree" {
+		t.Errorf("Expected tool name 'Tree', got '%s'", def.Function.Name)
 	}
 
-	if def.Description == "" {
+	if *def.Function.Description == "" {
 		t.Error("Tool description should not be empty")
 	}
 
-	if def.Parameters == nil {
+	if def.Function.Parameters == nil {
 		t.Error("Tool parameters should not be nil")
 	}
 }

@@ -4,10 +4,11 @@ import (
 	"context"
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/shortcuts"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	sdk "github.com/inference-gateway/sdk"
+	assert "github.com/stretchr/testify/assert"
+	mock "github.com/stretchr/testify/mock"
 )
 
 // MockShortcutRegistry implements the ShortcutRegistry interface for testing
@@ -62,14 +63,14 @@ func (m MockTheme) GetDiffRemoveColor() string { return "#FF0000" }
 // MockToolService implements the ToolService interface for testing
 type MockToolService struct {
 	availableTools []string
-	tools          []domain.ToolDefinition
+	tools          []sdk.ChatCompletionTool
 }
 
 func (m *MockToolService) ListAvailableTools() []string {
 	return m.availableTools
 }
 
-func (m *MockToolService) ListTools() []domain.ToolDefinition {
+func (m *MockToolService) ListTools() []sdk.ChatCompletionTool {
 	return m.tools
 }
 
@@ -77,7 +78,7 @@ func (m *MockToolService) ListAvailableToolsReturns(tools []string) {
 	m.availableTools = tools
 }
 
-func (m *MockToolService) ListToolsReturns(tools []domain.ToolDefinition) {
+func (m *MockToolService) ListToolsReturns(tools []sdk.ChatCompletionTool) {
 	m.tools = tools
 }
 
@@ -158,51 +159,70 @@ func TestAutocomplete_ToolsMode(t *testing.T) {
 	mockToolService.ListAvailableToolsReturns([]string{
 		"Read", "Write", "Bash", "WebSearch", "Tree",
 	})
-	mockToolService.ListToolsReturns([]domain.ToolDefinition{
+	readDesc := "Read files"
+	writeDesc := "Write files"
+	bashDesc := "Execute bash commands"
+
+	readParams := sdk.FunctionParameters(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"file_path": map[string]any{
+				"type":        "string",
+				"description": "The path to the file to read",
+			},
+		},
+		"required": []string{"file_path"},
+	})
+
+	writeParams := sdk.FunctionParameters(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"file_path": map[string]any{
+				"type":        "string",
+				"description": "The path to the file to write",
+			},
+			"content": map[string]any{
+				"type":        "string",
+				"description": "The content to write",
+			},
+		},
+		"required": []string{"file_path", "content"},
+	})
+
+	bashParams := sdk.FunctionParameters(map[string]any{
+		"type": "object",
+		"properties": map[string]any{
+			"command": map[string]any{
+				"type":        "string",
+				"description": "The command to execute",
+			},
+		},
+		"required": []string{"command"},
+	})
+
+	mockToolService.ListToolsReturns([]sdk.ChatCompletionTool{
 		{
-			Name:        "Read",
-			Description: "Read files",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"file_path": map[string]any{
-						"type":        "string",
-						"description": "The path to the file to read",
-					},
-				},
-				"required": []string{"file_path"},
+			Type: sdk.Function,
+			Function: sdk.FunctionObject{
+				Name:        "Read",
+				Description: &readDesc,
+				Parameters:  &readParams,
 			},
 		},
 		{
-			Name:        "Write",
-			Description: "Write files",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"file_path": map[string]any{
-						"type":        "string",
-						"description": "The path to the file to write",
-					},
-					"content": map[string]any{
-						"type":        "string",
-						"description": "The content to write",
-					},
-				},
-				"required": []string{"file_path", "content"},
+			Type: sdk.Function,
+			Function: sdk.FunctionObject{
+				Name:        "Write",
+				Description: &writeDesc,
+				Parameters:  &writeParams,
 			},
 		},
 		{
-			Name:        "Bash",
-			Description: "Execute bash commands",
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"command": map[string]any{
-						"type":        "string",
-						"description": "The command to execute",
-					},
-				},
-				"required": []string{"command"},
+			Type: sdk.Function,
+			Function: sdk.FunctionObject{
+				Name:        "Bash",
+				Description: &bashDesc,
+				Parameters:  &bashParams,
 			},
 		},
 	})

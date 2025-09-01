@@ -252,7 +252,11 @@ func (s *AgentSession) executeToolCall(toolName, args string) (*domain.ToolExecu
 	}
 
 	ctx := context.Background()
-	return s.toolService.ExecuteTool(ctx, toolName, argsMap)
+	toolCall := sdk.ChatCompletionMessageToolCallFunction{
+		Name:      toolName,
+		Arguments: args,
+	}
+	return s.toolService.ExecuteTool(ctx, toolCall)
 }
 
 func (s *AgentSession) formatToolResult(result *domain.ToolExecutionResult) string {

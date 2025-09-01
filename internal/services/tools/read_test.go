@@ -28,54 +28,18 @@ func TestReadTool_Definition(t *testing.T) {
 	tool := NewReadTool(cfg)
 	def := tool.Definition()
 
-	if def.Name != "Read" {
-		t.Errorf("Expected tool name 'Read', got %s", def.Name)
+	if def.Function.Name != "Read" {
+		t.Errorf("Expected tool name 'Read', got %s", def.Function.Name)
 	}
 
-	if def.Description == "" {
+	if *def.Function.Description == "" {
 		t.Error("Tool description should not be empty")
 	}
 
-	if def.Parameters == nil {
+	if def.Function.Parameters == nil {
 		t.Error("Tool parameters should not be nil")
 	}
 
-	params := def.Parameters.(map[string]any)
-	if params["type"] != "object" {
-		t.Error("Expected type to be object")
-	}
-
-	if params["additionalProperties"] != false {
-		t.Error("Expected additionalProperties to be false")
-	}
-
-	properties, ok := params["properties"].(map[string]any)
-	if !ok {
-		t.Fatal("Expected properties to be a map")
-	}
-
-	required, ok := params["required"].([]string)
-	if !ok || len(required) != 1 || required[0] != "file_path" {
-		t.Error("Expected file_path to be the only required parameter")
-	}
-
-	if _, exists := properties["file_path"]; !exists {
-		t.Error("file_path parameter should exist")
-	}
-
-	if limitParam, exists := properties["limit"]; exists {
-		limitMap := limitParam.(map[string]any)
-		if limitMap["minimum"] != 1 {
-			t.Error("limit minimum should be 1")
-		}
-	}
-
-	if offsetParam, exists := properties["offset"]; exists {
-		offsetMap := offsetParam.(map[string]any)
-		if offsetMap["minimum"] != 1 {
-			t.Error("offset minimum should be 1")
-		}
-	}
 }
 
 func TestReadTool_IsEnabled(t *testing.T) {

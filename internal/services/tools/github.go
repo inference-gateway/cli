@@ -11,8 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // GithubTool handles GitHub API operations
@@ -36,7 +37,7 @@ func NewGithubTool(cfg *config.Config) *GithubTool {
 }
 
 // Definition returns the tool definition for the LLM
-func (t *GithubTool) Definition() domain.ToolDefinition {
+func (t *GithubTool) Definition() sdk.ChatCompletionTool {
 	required := []string{}
 
 	if t.config.Tools.Github.Owner == "" {
@@ -62,68 +63,71 @@ func (t *GithubTool) Definition() domain.ToolDefinition {
 		description += fmt.Sprintf(" (configured for owner: %s)", t.config.Tools.Github.Owner)
 	}
 
-	return domain.ToolDefinition{
-		Name:        "Github",
-		Description: description,
-		Parameters: map[string]any{
-			"type": "object",
-			"properties": map[string]any{
-				"owner": map[string]any{
-					"type":        "string",
-					"description": ownerDescription,
-				},
-				"repo": map[string]any{
-					"type":        "string",
-					"description": repoDescription,
-				},
-				"issue_number": map[string]any{
-					"oneOf": []map[string]any{
-						{"type": "integer"},
-						{"type": "string"},
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "Github",
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"owner": map[string]any{
+						"type":        "string",
+						"description": ownerDescription,
 					},
-					"description": "Issue or pull request number (can be provided as integer or string)",
+					"repo": map[string]any{
+						"type":        "string",
+						"description": repoDescription,
+					},
+					"issue_number": map[string]any{
+						"oneOf": []map[string]any{
+							{"type": "integer"},
+							{"type": "string"},
+						},
+						"description": "Issue or pull request number (can be provided as integer or string)",
+					},
+					"resource": map[string]any{
+						"type":        "string",
+						"description": "Resource type to fetch or create",
+						"enum":        []string{"issue", "issues", "pull_request", "comments", "create_comment", "create_pull_request"},
+						"default":     "issue",
+					},
+					"comment_body": map[string]any{
+						"type":        "string",
+						"description": "Comment body text (required for create_comment resource)",
+					},
+					"state": map[string]any{
+						"type":        "string",
+						"description": "Filter by state (for issues/PRs list)",
+						"enum":        []string{"open", "closed", "all"},
+						"default":     "open",
+					},
+					"per_page": map[string]any{
+						"type":        "integer",
+						"description": "Number of items per page (max 100)",
+						"default":     30,
+						"maximum":     100,
+					},
+					"title": map[string]any{
+						"type":        "string",
+						"description": "Pull request title (required for create_pull_request resource)",
+					},
+					"body": map[string]any{
+						"type":        "string",
+						"description": "Pull request body/description (optional for create_pull_request resource)",
+					},
+					"head": map[string]any{
+						"type":        "string",
+						"description": "Head branch name (required for create_pull_request resource)",
+					},
+					"base": map[string]any{
+						"type":        "string",
+						"description": "Base branch name (required for create_pull_request resource)",
+						"default":     "main",
+					},
 				},
-				"resource": map[string]any{
-					"type":        "string",
-					"description": "Resource type to fetch or create",
-					"enum":        []string{"issue", "issues", "pull_request", "comments", "create_comment", "create_pull_request"},
-					"default":     "issue",
-				},
-				"comment_body": map[string]any{
-					"type":        "string",
-					"description": "Comment body text (required for create_comment resource)",
-				},
-				"state": map[string]any{
-					"type":        "string",
-					"description": "Filter by state (for issues/PRs list)",
-					"enum":        []string{"open", "closed", "all"},
-					"default":     "open",
-				},
-				"per_page": map[string]any{
-					"type":        "integer",
-					"description": "Number of items per page (max 100)",
-					"default":     30,
-					"maximum":     100,
-				},
-				"title": map[string]any{
-					"type":        "string",
-					"description": "Pull request title (required for create_pull_request resource)",
-				},
-				"body": map[string]any{
-					"type":        "string",
-					"description": "Pull request body/description (optional for create_pull_request resource)",
-				},
-				"head": map[string]any{
-					"type":        "string",
-					"description": "Head branch name (required for create_pull_request resource)",
-				},
-				"base": map[string]any{
-					"type":        "string",
-					"description": "Base branch name (required for create_pull_request resource)",
-					"default":     "main",
-				},
+				"required": required,
 			},
-			"required": required,
 		},
 	}
 }

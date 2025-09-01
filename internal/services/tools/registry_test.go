@@ -7,6 +7,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
+	"github.com/inference-gateway/sdk"
 )
 
 func createTestRegistry() *Registry {
@@ -364,15 +365,15 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 
 	definitionNames := make(map[string]bool)
 	for _, def := range definitions {
-		definitionNames[def.Name] = true
+		definitionNames[def.Function.Name] = true
 
-		if def.Name == "" {
+		if def.Function.Name == "" {
 			t.Error("Tool definition should have a name")
 		}
-		if def.Description == "" {
+		if *def.Function.Description == "" {
 			t.Error("Tool definition should have a description")
 		}
-		if def.Parameters == nil {
+		if def.Function.Parameters == nil {
 			t.Error("Tool definition should have parameters")
 		}
 	}
@@ -462,10 +463,15 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 
 	fakeTool := &mocks.FakeTool{}
 	fakeTool.IsEnabledReturns(true)
-	fakeTool.DefinitionReturns(domain.ToolDefinition{
-		Name:        "MockTool",
-		Description: "A mocked tool for testing",
-		Parameters:  map[string]any{},
+	mockDesc := "A mocked tool for testing"
+	mockParams := sdk.FunctionParameters(map[string]any{})
+	fakeTool.DefinitionReturns(sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "MockTool",
+			Description: &mockDesc,
+			Parameters:  &mockParams,
+		},
 	})
 	fakeTool.ValidateReturns(nil)
 	fakeTool.ExecuteReturns(&domain.ToolExecutionResult{
@@ -503,7 +509,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 	definitions := registry.GetToolDefinitions()
 	foundDefinition := false
 	for _, def := range definitions {
-		if def.Name == "MockTool" {
+		if def.Function.Name == "MockTool" {
 			foundDefinition = true
 			break
 		}

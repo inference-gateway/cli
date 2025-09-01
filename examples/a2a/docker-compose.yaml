@@ -1,0 +1,65 @@
+---
+services:
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:0.19.2-rc.2
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env.gateway
+    restart: unless-stopped
+    networks:
+      - a2a-network
+
+  infer-cli:
+    image: golang:1.24.6
+    tty: true
+    working_dir: /go/src
+    volumes:
+      - ../..:/go/src
+      - go-modules:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
+    environment:
+      INFER_LOGGING_DEBUG: true
+      INFER_GATEWAY_URL: http://inference-gateway:8080
+      INFER_GATEWAY_MIDDLEWARES_A2A: true
+      INFER_TOOLS_ENABLED: true
+      INFER_AGENT_MODEL: deepseek/deepseek-chat
+      INFER_AGENT_SYSTEM_PROMPT: |
+        You are an helpful assistant. You submit the tasks to calendar agent when a request related to calendar is asked.
+    command:
+      - go
+      - run
+      - .
+      - chat
+    networks:
+      - a2a-network
+    profiles:
+      - manual
+
+  google-calendar-agent:
+    image: ghcr.io/inference-gateway/google-calendar-agent:latest
+    pull_policy: always
+    env_file:
+      - .env.agent
+    restart: unless-stopped
+    networks:
+      - a2a-network
+
+  a2a-debugger:
+    image: ghcr.io/inference-gateway/a2a-debugger:latest
+    pull_policy: always
+    entrypoint:
+      - /a2a
+      - --server-url
+      - http://google-calendar-agent:8080
+    networks:
+      - a2a-network
+
+networks:
+  a2a-network:
+    driver: bridge
+
+volumes:
+  go-modules:
+  go-build-cache:

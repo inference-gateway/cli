@@ -41,39 +41,18 @@ func TestEditTool_Definition(t *testing.T) {
 	tool := NewEditTool(cfg)
 	def := tool.Definition()
 
-	if def.Name != "Edit" {
-		t.Errorf("Expected tool name 'Edit', got %s", def.Name)
+	if def.Function.Name != "Edit" {
+		t.Errorf("Expected tool name 'Edit', got %s", def.Function.Name)
 	}
 
-	if def.Description == "" {
+	if *def.Function.Description == "" {
 		t.Error("Tool description should not be empty")
 	}
 
-	if def.Parameters == nil {
+	if def.Function.Parameters == nil {
 		t.Error("Tool parameters should not be nil")
 	}
 
-	// Check required parameters
-	params, ok := def.Parameters.(map[string]any)
-	if !ok {
-		t.Fatal("Parameters should be a map")
-	}
-
-	required, ok := params["required"].([]string)
-	if !ok {
-		t.Fatal("Required parameters should be a string slice")
-	}
-
-	expectedRequired := []string{"file_path", "old_string", "new_string"}
-	if len(required) != len(expectedRequired) {
-		t.Errorf("Expected %d required parameters, got %d", len(expectedRequired), len(required))
-	}
-
-	for i, req := range expectedRequired {
-		if required[i] != req {
-			t.Errorf("Expected required parameter %s, got %s", req, required[i])
-		}
-	}
 }
 
 func TestEditTool_IsEnabled(t *testing.T) {

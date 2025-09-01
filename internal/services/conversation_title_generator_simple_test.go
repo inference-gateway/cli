@@ -44,7 +44,7 @@ func TestConversationTitleGeneratorSimple_fallbackTitle(t *testing.T) {
 		{
 			name: "system reminder ignored",
 			entries: []domain.ConversationEntry{
-				{Message: sdk.Message{Role: sdk.System, Content: "System reminder"}, IsSystemReminder: true, Time: time.Now()},
+				{Message: sdk.Message{Role: sdk.System, Content: "System reminder"}, Hidden: true, Time: time.Now()},
 				{Message: sdk.Message{Role: sdk.User, Content: "Real user message"}, Time: time.Now()},
 			},
 			expected: "Real user message",
@@ -62,7 +62,7 @@ func TestConversationTitleGeneratorSimple_fallbackTitle(t *testing.T) {
 
 func TestConversationTitleGeneratorSimple_formatConversationForTitleGeneration(t *testing.T) {
 	entries := []domain.ConversationEntry{
-		{Message: sdk.Message{Role: sdk.System, Content: "System message"}, IsSystemReminder: true, Time: time.Now()},
+		{Message: sdk.Message{Role: sdk.System, Content: "System message"}, Hidden: true, Time: time.Now()},
 		{Message: sdk.Message{Role: sdk.User, Content: "How do I deploy a React app?"}, Time: time.Now()},
 		{Message: sdk.Message{Role: sdk.Assistant, Content: "I'll help you deploy your React application. There are several approaches..."}, Time: time.Now()},
 		{Message: sdk.Message{Role: sdk.User, Content: "What about using Docker?"}, Time: time.Now()},

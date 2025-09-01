@@ -6,9 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
@@ -17,22 +15,19 @@ import (
 
 // ChatHandler handles chat-related messages using the new state management system
 type ChatHandler struct {
-	name                    string
-	agentService            domain.AgentService
-	conversationRepo        domain.ConversationRepository
-	modelService            domain.ModelService
-	configService           domain.ConfigService
-	toolService             domain.ToolService
-	fileService             domain.FileService
-	shortcutRegistry        *shortcuts.Registry
-	toolOrchestrator        *services.ToolExecutionOrchestrator
-	assistantMessageCounter int
+	name             string
+	agentService     domain.AgentService
+	conversationRepo domain.ConversationRepository
+	modelService     domain.ModelService
+	configService    domain.ConfigService
+	toolService      domain.ToolService
+	fileService      domain.FileService
+	shortcutRegistry *shortcuts.Registry
 
 	// Embedded handlers for different concerns
 	messageProcessor *ChatMessageProcessor
 	commandHandler   *ChatCommandHandler
 	eventHandler     *ChatEventHandler
-	toolExecutor     *ChatToolExecutor
 }
 
 // NewChatHandler creates a new chat handler
@@ -44,7 +39,6 @@ func NewChatHandler(
 	toolService domain.ToolService,
 	fileService domain.FileService,
 	shortcutRegistry *shortcuts.Registry,
-	toolOrchestrator *services.ToolExecutionOrchestrator,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		name:             "ChatHandler",
@@ -55,14 +49,11 @@ func NewChatHandler(
 		toolService:      toolService,
 		fileService:      fileService,
 		shortcutRegistry: shortcutRegistry,
-		toolOrchestrator: toolOrchestrator,
 	}
 
-	// Initialize embedded handlers
 	handler.messageProcessor = NewChatMessageProcessor(handler)
 	handler.commandHandler = NewChatCommandHandler(handler)
 	handler.eventHandler = NewChatEventHandler(handler)
-	handler.toolExecutor = NewChatToolExecutor(handler)
 
 	return handler
 }
@@ -88,11 +79,13 @@ func (h *ChatHandler) CanHandle(msg tea.Msg) bool {
 		return true
 	case domain.ChatStartEvent, domain.ChatChunkEvent, domain.ChatCompleteEvent, domain.ChatErrorEvent:
 		return true
-	case domain.ToolCallStartEvent, domain.ToolCallEvent:
+	case domain.OptimizationStatusEvent:
+		return true
+	case domain.ToolCallStartEvent, domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent, domain.ToolCallCompleteEvent, domain.ToolCallErrorEvent:
+		return true
+	case domain.A2AToolCallExecutedEvent:
 		return true
 	case domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent:
-		return true
-	case domain.ToolApprovalRequestEvent, domain.ToolApprovalResponseEvent:
 		return true
 	default:
 		return false
@@ -104,7 +97,6 @@ func (h *ChatHandler) Handle(
 	msg tea.Msg,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
-
 	switch msg := msg.(type) {
 	case domain.UserInputEvent:
 		return h.messageProcessor.handleUserInput(msg, stateManager)
@@ -124,14 +116,32 @@ func (h *ChatHandler) Handle(
 	case domain.ToolCallStartEvent:
 		return h.eventHandler.handleToolCallStart(msg, stateManager)
 
-	case domain.ToolCallEvent:
-		return h.eventHandler.handleToolCall(msg, stateManager)
+	case domain.ToolCallPreviewEvent:
+		return h.eventHandler.handleToolCallPreview(msg, stateManager)
+
+	case domain.ToolCallUpdateEvent:
+		return h.eventHandler.handleToolCallUpdate(msg, stateManager)
+
+	case domain.ToolCallReadyEvent:
+		return h.eventHandler.handleToolCallReady(msg, stateManager)
+
+	case domain.ToolCallCompleteEvent:
+		return h.eventHandler.handleToolCallComplete(msg, stateManager)
+
+	case domain.ToolCallErrorEvent:
+		return h.eventHandler.handleToolCallError(msg, stateManager)
+
+	case domain.A2AToolCallExecutedEvent:
+		return h.eventHandler.handleA2AToolCallExecuted(msg, stateManager)
 
 	case domain.ChatCompleteEvent:
 		return h.eventHandler.handleChatComplete(msg, stateManager)
 
 	case domain.ChatErrorEvent:
 		return h.eventHandler.handleChatError(msg, stateManager)
+
+	case domain.OptimizationStatusEvent:
+		return h.eventHandler.handleOptimizationStatus(msg, stateManager)
 
 	case domain.ToolExecutionStartedEvent:
 		return h.eventHandler.handleToolExecutionStarted(msg, stateManager)
@@ -142,13 +152,7 @@ func (h *ChatHandler) Handle(
 	case domain.ToolExecutionCompletedEvent:
 		return h.eventHandler.handleToolExecutionCompleted(msg, stateManager)
 
-	case domain.ToolApprovalRequestEvent:
-		return h.eventHandler.handleToolApprovalRequest(msg, stateManager)
-
-	case domain.ToolApprovalResponseEvent:
-		return h.eventHandler.handleToolApprovalResponse(msg, stateManager)
 	}
-
 	return nil, nil
 }
 
@@ -238,77 +242,8 @@ func (h *ChatHandler) ParseArguments(argsStr string) (map[string]any, error) {
 	return h.commandHandler.ParseArguments(argsStr)
 }
 
-// addTokenUsageToSession accumulates token usage to session totals
-func (h *ChatHandler) addTokenUsageToSession(metrics *domain.ChatMetrics) {
-	if metrics == nil || metrics.Usage == nil {
-		return
-	}
-
-	if err := h.conversationRepo.AddTokenUsage(
-		int(metrics.Usage.PromptTokens),
-		int(metrics.Usage.CompletionTokens),
-		int(metrics.Usage.TotalTokens),
-	); err != nil {
-		logger.Error("failed to add token usage", "error", err)
-	}
-}
-
 func generateRequestID() string {
 	return fmt.Sprintf("req_%d", time.Now().UnixNano())
-}
-
-// shouldInjectSystemReminder checks if a system reminder should be injected
-func (h *ChatHandler) shouldInjectSystemReminder() bool {
-	config, ok := h.configService.(*config.Config)
-	if !ok {
-		return false
-	}
-
-	if !config.Agent.SystemReminders.Enabled {
-		return false
-	}
-
-	interval := config.Agent.SystemReminders.Interval
-	if interval <= 0 {
-		interval = 4
-	}
-
-	return h.assistantMessageCounter > 0 && h.assistantMessageCounter%interval == 0
-}
-
-// injectSystemReminder injects a system reminder message into the conversation
-func (h *ChatHandler) injectSystemReminder() tea.Cmd {
-	return func() tea.Msg {
-		config, ok := h.configService.(*config.Config)
-		if !ok {
-			return nil
-		}
-
-		reminderText := config.Agent.SystemReminders.ReminderText
-		if reminderText == "" {
-			reminderText = `<system-reminder>
-This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
-</system-reminder>`
-		}
-
-		systemReminderEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.User,
-				Content: reminderText,
-			},
-			Time:             time.Now(),
-			IsSystemReminder: true,
-		}
-
-		if err := h.conversationRepo.AddMessage(systemReminderEntry); err != nil {
-			logger.Error("failed to add system reminder message", "error", err)
-			return nil
-		}
-
-		return domain.UpdateHistoryEvent{
-			History: h.conversationRepo.GetMessages(),
-		}
-	}
 }
 
 // handleFileSelectionRequest handles the file selection request triggered by "@" key

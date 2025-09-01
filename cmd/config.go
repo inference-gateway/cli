@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -17,6 +18,7 @@ import (
 	ui "github.com/inference-gateway/cli/internal/ui"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	utils "github.com/inference-gateway/cli/internal/utils"
+	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
 )
 
@@ -467,6 +469,75 @@ var configToolsWebFetchCacheClearCmd = &cobra.Command{
 	RunE:  fetchCacheClear,
 }
 
+// resolveViperEnvironmentVariables recursively resolves environment variables for all string fields using Viper
+func resolveViperEnvironmentVariables(cfg interface{}, keyPrefix string) {
+	rv := reflect.ValueOf(cfg)
+	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+		return
+	}
+	rv = rv.Elem()
+
+	if rv.Kind() != reflect.Struct {
+		return
+	}
+
+	rt := rv.Type()
+
+	for i := 0; i < rv.NumField(); i++ {
+		field := rv.Field(i)
+		fieldType := rt.Field(i)
+
+		if !field.CanSet() {
+			continue
+		}
+
+		tag := fieldType.Tag.Get("mapstructure")
+		if tag == "" {
+			tag = strings.ToLower(fieldType.Name)
+		}
+
+		var key string
+		if keyPrefix == "" {
+			key = tag
+		} else {
+			key = keyPrefix + "." + tag
+		}
+
+		switch field.Kind() {
+		case reflect.String:
+			if V.IsSet(key) {
+				field.SetString(V.GetString(key))
+			}
+		case reflect.Bool:
+			if V.IsSet(key) {
+				field.SetBool(V.GetBool(key))
+			}
+		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+			if V.IsSet(key) {
+				field.SetInt(V.GetInt64(key))
+			}
+		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			if V.IsSet(key) {
+				field.SetUint(V.GetUint64(key))
+			}
+		case reflect.Float32, reflect.Float64:
+			if V.IsSet(key) {
+				field.SetFloat(V.GetFloat64(key))
+			}
+		case reflect.Slice:
+			if V.IsSet(key) && field.Type().Elem().Kind() == reflect.String {
+				field.Set(reflect.ValueOf(V.GetStringSlice(key)))
+			}
+		case reflect.Ptr:
+			if !field.IsNil() && field.Elem().Kind() == reflect.Struct {
+				resolveViperEnvironmentVariables(field.Interface(), key)
+			}
+		case reflect.Struct:
+			resolveViperEnvironmentVariables(field.Addr().Interface(), key)
+		}
+	}
+}
+
 // getConfigFromViper creates a config object from current Viper settings
 func getConfigFromViper() (*config.Config, error) {
 	cfg := &config.Config{}
@@ -474,11 +545,7 @@ func getConfigFromViper() (*config.Config, error) {
 		return nil, fmt.Errorf("failed to unmarshal config from Viper: %w", err)
 	}
 
-	// Viper's Unmarshal doesn't always respect env vars for nested structs when config file has empty values
-	// So we need to explicitly get the value which properly checks env vars through Viper's AutomaticEnv
-	if model := V.GetString("agent.model"); model != "" {
-		cfg.Agent.Model = model
-	}
+	resolveViperEnvironmentVariables(cfg, "")
 
 	return cfg, nil
 }
@@ -846,7 +913,12 @@ func ExecTool(cfg *config.Config, args []string, format string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
 	defer cancel()
 
-	result, err := toolService.ExecuteTool(ctx, toolName, toolArgs)
+	argsJSON, _ := json.Marshal(toolArgs)
+	toolCall := sdk.ChatCompletionMessageToolCallFunction{
+		Name:      toolName,
+		Arguments: string(argsJSON),
+	}
+	result, err := toolService.ExecuteTool(ctx, toolCall)
 	if err != nil {
 		return fmt.Errorf("tool execution failed: %w", err)
 	}

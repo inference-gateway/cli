@@ -34,6 +34,10 @@ func (t *testKeyHandlerContext) GetConfig() *config.Config {
 	return nil
 }
 
+func (t *testKeyHandlerContext) GetAgentService() domain.AgentService {
+	return nil
+}
+
 func (t *testKeyHandlerContext) GetConversationView() ui.ConversationRenderer {
 	return &testConversationRenderer{}
 }
