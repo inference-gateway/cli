@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.3](https://github.com/inference-gateway/cli/compare/v0.48.2...v0.48.3) (2025-09-01)
+
+### 🧹 Maintenance
+
+* **config:** Disable debug logging in configuration ([69a7bc2](https://github.com/inference-gateway/cli/commit/69a7bc2ae77cc6077485d97fd94a288e41ffa069))
+
 ## [0.48.2](https://github.com/inference-gateway/cli/compare/v0.48.1...v0.48.2) (2025-09-01)
 
 ### 🧹 Maintenance
