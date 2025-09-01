@@ -459,6 +459,10 @@ func (e *ChatEventHandler) handleToolCallError(
 		},
 	}
 
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
 	return nil, tea.Batch(cmds...)
 }
 

@@ -307,12 +307,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 			}
 
-			chatEvents <- domain.ChatCompleteEvent{
-				RequestID: req.RequestID,
-				Timestamp: time.Now(),
-				ToolCalls: completeToolCalls,
-			}
-
 			for _, tc := range toolCalls {
 				err := s.executeToolCall(ctx, *tc, req.RequestID, chatEvents)
 				if err != nil {
@@ -328,11 +322,23 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 				messages := s.conversationRepo.GetMessages()
 				if len(messages) == 0 {
+					errorResult := sdk.Message{
+						Role:       sdk.Tool,
+						Content:    "Tool execution completed but no result was stored",
+						ToolCallId: &tc.Id,
+					}
+					conversation = append(conversation, errorResult)
 					continue
 				}
 
 				lastMessage := messages[len(messages)-1]
 				if lastMessage.Message.Role != sdk.Tool {
+					errorResult := sdk.Message{
+						Role:       sdk.Tool,
+						Content:    "Tool execution completed but result format is unexpected",
+						ToolCallId: &tc.Id,
+					}
+					conversation = append(conversation, errorResult)
 					continue
 				}
 
@@ -342,6 +348,13 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					ToolCallId: &tc.Id,
 				}
 				conversation = append(conversation, toolResult)
+			}
+
+			// Emit chat complete event after tools are executed so UI includes tool results
+			chatEvents <- domain.ChatCompleteEvent{
+				RequestID: req.RequestID,
+				Timestamp: time.Now(),
+				ToolCalls: completeToolCalls,
 			}
 
 			// Step 8 - Save the token usage per iteration to the database
@@ -459,8 +472,9 @@ func (s *AgentServiceImpl) executeToolCall(ctx context.Context, tc sdk.ChatCompl
 
 		errorEntry := domain.ConversationEntry{
 			Message: domain.Message{
-				Role:    "assistant",
-				Content: fmt.Sprintf("Tool call failed: %s - invalid arguments", tc.Function.Name),
+				Role:       "tool",
+				Content:    fmt.Sprintf("Tool call failed: %s - invalid arguments: %v", tc.Function.Name, err),
+				ToolCallId: &tc.Id,
 			},
 			Time: time.Now(),
 			ToolExecution: &domain.ToolExecutionResult{
@@ -490,8 +504,9 @@ func (s *AgentServiceImpl) executeToolCall(ctx context.Context, tc sdk.ChatCompl
 
 		errorEntry := domain.ConversationEntry{
 			Message: domain.Message{
-				Role:    "assistant",
-				Content: fmt.Sprintf("Tool validation failed: %s", tc.Function.Name),
+				Role:       "tool",
+				Content:    fmt.Sprintf("Tool validation failed: %s - %s", tc.Function.Name, err.Error()),
+				ToolCallId: &tc.Id,
 			},
 			Time: time.Now(),
 			ToolExecution: &domain.ToolExecutionResult{
@@ -522,8 +537,9 @@ func (s *AgentServiceImpl) executeToolCall(ctx context.Context, tc sdk.ChatCompl
 
 		errorEntry := domain.ConversationEntry{
 			Message: domain.Message{
-				Role:    "assistant",
-				Content: fmt.Sprintf("Tool execution failed: %s", tc.Function.Name),
+				Role:       "tool",
+				Content:    fmt.Sprintf("Tool execution failed: %s - %s", tc.Function.Name, err.Error()),
+				ToolCallId: &tc.Id,
 			},
 			Time: time.Now(),
 			ToolExecution: &domain.ToolExecutionResult{
