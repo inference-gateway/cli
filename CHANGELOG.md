@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.7](https://github.com/inference-gateway/cli/compare/v0.48.6...v0.48.7) (2025-09-02)
+
+### ♻️ Code Refactoring
+
+* **agent:** Add eventPublisher utility to reduce repetitive UI event code ([#146](https://github.com/inference-gateway/cli/issues/146)) ([b52bebc](https://github.com/inference-gateway/cli/commit/b52bebc20aeb75bad59ec388af5f93fb75cfbbc9)), closes [#145](https://github.com/inference-gateway/cli/issues/145) [#145](https://github.com/inference-gateway/cli/issues/145)
+
+### 🧹 Maintenance
+
+* **docker-compose:** Update inference-gateway image to latest version ([31b25c5](https://github.com/inference-gateway/cli/commit/31b25c541971ea91a25ce47a9818af5ffb407d11))
+
 ## [0.48.6](https://github.com/inference-gateway/cli/compare/v0.48.5...v0.48.6) (2025-09-01)
 
 ### 🧹 Maintenance
