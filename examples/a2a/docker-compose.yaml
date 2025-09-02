@@ -1,7 +1,7 @@
 ---
 services:
   inference-gateway:
-    image: ghcr.io/inference-gateway/inference-gateway:0.19.2-rc.2
+    image: ghcr.io/inference-gateway/inference-gateway:latest
     pull_policy: always
     ports:
       - "8080:8080"
