@@ -45,6 +45,15 @@ services:
     networks:
       - a2a-network
 
+  documentation-agent:
+    image: ghcr.io/inference-gateway/documentation-agent:latest
+    pull_policy: always
+    env_file:
+      - .env.documentation
+    restart: unless-stopped
+    networks:
+      - a2a-network
+
   a2a-debugger:
     image: ghcr.io/inference-gateway/a2a-debugger:latest
     pull_policy: always
