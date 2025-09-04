@@ -72,6 +72,8 @@ and management of inference services.
 - **Status Monitoring**: Check gateway health and resource usage
 - **Interactive Chat**: Chat with models using an interactive interface
 - **Conversation History**: Store and retrieve past conversations with multiple storage backends
+  - [Conversation Storage](docs/conversation-storage.md) - Detailed storage backend documentation
+  - [Conversation Title Generation](docs/conversation-title-generation.md) - AI-powered title generation system
 - **Configuration Management**: Manage gateway settings via YAML config
 - **Project Initialization**: Set up local project configurations
 - **Tool Execution**: LLMs can execute whitelisted commands and tools including:
