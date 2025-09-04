@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.9](https://github.com/inference-gateway/cli/compare/v0.48.8...v0.48.9) (2025-09-04)
+
+### 📚 Documentation
+
+* **README:** Add conversation storage and title generation features to the documentation ([e9b7661](https://github.com/inference-gateway/cli/commit/e9b7661ab15d9cd75a9d2836b253dd0023ae637a))
+
 ## [0.48.8](https://github.com/inference-gateway/cli/compare/v0.48.7...v0.48.8) (2025-09-03)
 
 ### 📚 Documentation
