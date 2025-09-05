@@ -59,13 +59,13 @@ func TestInitializeProject(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to create temp dir: %v", err)
 			}
-			defer os.RemoveAll(tmpDir)
+			defer func() { _ = os.RemoveAll(tmpDir) }()
 
 			oldWd, err := os.Getwd()
 			if err != nil {
 				t.Fatalf("failed to get working directory: %v", err)
 			}
-			defer os.Chdir(oldWd)
+			defer func() { _ = os.Chdir(oldWd) }()
 
 			if err := os.Chdir(tmpDir); err != nil {
 				t.Fatalf("failed to change to temp dir: %v", err)
@@ -74,7 +74,7 @@ func TestInitializeProject(t *testing.T) {
 			cmd := &cobra.Command{}
 			for flag, value := range tt.flags {
 				cmd.Flags().Bool(flag, value, "")
-				cmd.Flag(flag).Value.Set(strconv.FormatBool(value))
+				_ = cmd.Flag(flag).Value.Set(strconv.FormatBool(value))
 			}
 
 			err = initializeProject(cmd)
@@ -129,13 +129,13 @@ func TestGenerateAgentsMD(t *testing.T) {
 			if err != nil {
 				t.Fatalf("failed to create temp dir: %v", err)
 			}
-			defer os.RemoveAll(tmpDir)
+			defer func() { _ = os.RemoveAll(tmpDir) }()
 
 			oldWd, err := os.Getwd()
 			if err != nil {
 				t.Fatalf("failed to get working directory: %v", err)
 			}
-			defer os.Chdir(oldWd)
+			defer func() { _ = os.Chdir(oldWd) }()
 
 			if err := os.Chdir(tmpDir); err != nil {
 				t.Fatalf("failed to change to temp dir: %v", err)
@@ -150,26 +150,28 @@ func TestGenerateAgentsMD(t *testing.T) {
 				return
 			}
 
-			if tt.expectExists {
-				if _, err := os.Stat(agentsMDPath); os.IsNotExist(err) {
-					t.Errorf("expected AGENTS.md to be created, but it wasn't")
-					return
-				}
+			if !tt.expectExists {
+				return
+			}
 
-				content, err := os.ReadFile(agentsMDPath)
-				if err != nil {
-					t.Errorf("failed to read AGENTS.md: %v", err)
-					return
-				}
+			if _, err := os.Stat(agentsMDPath); os.IsNotExist(err) {
+				t.Errorf("expected AGENTS.md to be created, but it wasn't")
+				return
+			}
 
-				contentStr := string(content)
-				if !strings.Contains(contentStr, "# AGENTS.md") {
-					t.Errorf("AGENTS.md does not contain expected header")
-				}
+			content, err := os.ReadFile(agentsMDPath)
+			if err != nil {
+				t.Errorf("failed to read AGENTS.md: %v", err)
+				return
+			}
 
-				if !strings.Contains(contentStr, "## Project Overview") {
-					t.Errorf("AGENTS.md does not contain expected Project Overview section")
-				}
+			contentStr := string(content)
+			if !strings.Contains(contentStr, "# AGENTS.md") {
+				t.Errorf("AGENTS.md does not contain expected header")
+			}
+
+			if !strings.Contains(contentStr, "## Project Overview") {
+				t.Errorf("AGENTS.md does not contain expected Project Overview section")
 			}
 		})
 	}
@@ -221,10 +223,10 @@ func TestGetProjectAnalysisModel(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.envValue != "" {
-				os.Setenv("INFER_AGENT_MODEL", tt.envValue)
-				defer os.Unsetenv("INFER_AGENT_MODEL")
+				_ = os.Setenv("INFER_AGENT_MODEL", tt.envValue)
+				defer func() { _ = os.Unsetenv("INFER_AGENT_MODEL") }()
 			} else {
-				os.Unsetenv("INFER_AGENT_MODEL")
+				_ = os.Unsetenv("INFER_AGENT_MODEL")
 			}
 
 			result := getProjectAnalysisModel()

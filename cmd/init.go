@@ -58,16 +58,8 @@ func initializeProject(cmd *cobra.Command) error {
 	}
 
 	if !overwrite {
-		if _, err := os.Stat(configPath); err == nil {
-			return fmt.Errorf("configuration file %s already exists (use --overwrite to replace)", configPath)
-		}
-		if _, err := os.Stat(gitignorePath); err == nil {
-			return fmt.Errorf(".gitignore file %s already exists (use --overwrite to replace)", gitignorePath)
-		}
-		if !skipAgentsMD {
-			if _, err := os.Stat(agentsMDPath); err == nil {
-				return fmt.Errorf("AGENTS.md file %s already exists (use --overwrite to replace)", agentsMDPath)
-			}
+		if err := validateFilesNotExist(configPath, gitignorePath, agentsMDPath, skipAgentsMD); err != nil {
+			return err
 		}
 	}
 
@@ -292,6 +284,28 @@ func analyzeProjectForAgents(projectDir string, userspace bool) (string, error) 
 	}
 
 	return response.Content, nil
+}
+
+// checkFileExists checks if a file exists and returns an error if it does
+func checkFileExists(path, description string) error {
+	if _, err := os.Stat(path); err == nil {
+		return fmt.Errorf("%s %s already exists (use --overwrite to replace)", description, path)
+	}
+	return nil
+}
+
+// validateFilesNotExist validates that required files do not exist
+func validateFilesNotExist(configPath, gitignorePath, agentsMDPath string, skipAgentsMD bool) error {
+	if err := checkFileExists(configPath, "configuration file"); err != nil {
+		return err
+	}
+	if err := checkFileExists(gitignorePath, ".gitignore file"); err != nil {
+		return err
+	}
+	if !skipAgentsMD {
+		return checkFileExists(agentsMDPath, "AGENTS.md file")
+	}
+	return nil
 }
 
 // getProjectAnalysisModel returns the model to use for project analysis
