@@ -115,7 +115,7 @@ compact:
   output_dir: .infer
   summary_model: ""
 agent:
-  model: "deepseek/deepseek-chat"
+  model: ""
   system_prompt: |
     Autonomous software engineering agent. Execute tasks iteratively until completion.
 

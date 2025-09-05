@@ -3,11 +3,13 @@ package cmd
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
+	uuid "github.com/google/uuid"
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -23,6 +25,9 @@ var initCmd = &cobra.Command{
 	Long: `Initialize a new project directory with Inference Gateway CLI configuration.
 This creates the .infer directory with configuration file and additional setup files like .gitignore.
 
+By default, generates a basic AGENTS.md file. Use --model <provider>/<model> to generate an
+AI-analyzed project-specific AGENTS.md file.
+
 This is the recommended command to start working with Inference Gateway CLI in a new project.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return initializeProject(cmd)
@@ -33,6 +38,7 @@ func init() {
 	initCmd.Flags().Bool("overwrite", false, "Overwrite existing files if they already exist")
 	initCmd.Flags().Bool("userspace", false, "Initialize configuration in user home directory (~/.infer/)")
 	initCmd.Flags().Bool("skip-agents-md", false, "Skip generating AGENTS.md file during initialization")
+	initCmd.Flags().String("model", "", "LLM model to use for generating AGENTS.md file (if not specified, generates default AGENTS.md)")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -40,6 +46,7 @@ func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
 	skipAgentsMD, _ := cmd.Flags().GetBool("skip-agents-md")
+	model, _ := cmd.Flags().GetString("model")
 
 	var configPath, gitignorePath, agentsMDPath string
 
@@ -79,7 +86,7 @@ conversations.db
 	}
 
 	if !skipAgentsMD {
-		if err := generateAgentsMD(agentsMDPath, userspace); err != nil {
+		if err := generateAgentsMD(agentsMDPath, userspace, model); err != nil {
 			return fmt.Errorf("failed to create AGENTS.md file: %w", err)
 		}
 	}
@@ -96,6 +103,9 @@ conversations.db
 	fmt.Printf("   Created: %s\n", gitignorePath)
 	if !skipAgentsMD {
 		fmt.Printf("   Created: %s\n", agentsMDPath)
+		if model == "" && !userspace {
+			fmt.Printf("   ⚠️  Generated default AGENTS.md (use --model <provider>/<model> for AI-generated content)\n")
+		}
 	}
 	fmt.Println("")
 	if userspace {
@@ -135,13 +145,13 @@ func writeConfigAsYAMLWithIndent(filename string, indent int) error {
 }
 
 // generateAgentsMD creates an AGENTS.md file based on project analysis
-func generateAgentsMD(agentsMDPath string, userspace bool) error {
+func generateAgentsMD(agentsMDPath string, userspace bool, model string) error {
 	wd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	content, err := analyzeProjectForAgents(wd, userspace)
+	content, err := analyzeProjectForAgents(wd, userspace, model)
 	if err != nil {
 		return fmt.Errorf("failed to analyze project: %w", err)
 	}
@@ -182,7 +192,7 @@ Key directories, modules, and architectural patterns used.
 
 ## Development Workflow
 - Build commands and processes
-- Testing procedures and commands  
+- Testing procedures and commands
 - Code quality tools (linting, formatting)
 - Git workflow and branching strategy
 
@@ -233,8 +243,12 @@ Your analysis should help other agents quickly understand how to work with this 
 }
 
 // analyzeProjectForAgents analyzes the current project and generates AGENTS.md content
-func analyzeProjectForAgents(projectDir string, userspace bool) (string, error) {
+func analyzeProjectForAgents(projectDir string, userspace bool, model string) (string, error) {
 	if userspace {
+		return getDefaultAgentsMDContent(), nil
+	}
+
+	if model == "" {
 		return getDefaultAgentsMDContent(), nil
 	}
 
@@ -251,39 +265,48 @@ func analyzeProjectForAgents(projectDir string, userspace bool) (string, error) 
 		return getDefaultAgentsMDContent(), nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-	defer cancel()
-
 	cfgCopy := *cfg
 	cfgCopy.Agent.SystemPrompt = projectResearchSystemPrompt()
 
 	services := container.NewServiceContainer(&cfgCopy, V)
-	agentService := services.GetAgentService()
-	if agentService == nil {
-		return getDefaultAgentsMDContent(), nil
-	}
 
-	request := &domain.AgentRequest{
-		RequestID: fmt.Sprintf("agents-md-%d", time.Now().Unix()),
-		Model:     getProjectAnalysisModel(),
-		Messages: []sdk.Message{
-			{
-				Role:    "user",
-				Content: fmt.Sprintf("Please analyze the project in directory '%s' and generate a comprehensive AGENTS.md file. Use your available tools to examine the project structure, configuration files, documentation, build systems, and development workflow. Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project.", projectDir),
-			},
-		},
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfgCopy.Gateway.Timeout)*time.Second)
+	defer cancel()
 
-	response, err := agentService.Run(ctx, request)
+	models, err := services.GetModelService().ListModels(ctx)
 	if err != nil {
 		return getDefaultAgentsMDContent(), nil
 	}
 
-	if response == nil || response.Content == "" {
+	if len(models) == 0 {
 		return getDefaultAgentsMDContent(), nil
 	}
 
-	return response.Content, nil
+	if !isModelAvailable(models, model) {
+		return getDefaultAgentsMDContent(), nil
+	}
+
+	agentService := services.GetAgentService()
+	toolService := services.GetToolService()
+	if agentService == nil || toolService == nil {
+		return getDefaultAgentsMDContent(), nil
+	}
+
+	session := &ProjectAnalysisSession{
+		agentService: agentService,
+		toolService:  toolService,
+		model:        model,
+		config:       &cfgCopy,
+		conversation: []InitConversationMessage{},
+		maxTurns:     cfgCopy.Agent.MaxTurns,
+	}
+
+	result, err := session.analyze(fmt.Sprintf("Please analyze the project in directory '%s' and generate a comprehensive AGENTS.md file. Use your available tools to examine the project structure, configuration files, documentation, build systems, and development workflow. Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project.", projectDir))
+	if err != nil {
+		return getDefaultAgentsMDContent(), nil
+	}
+
+	return result, nil
 }
 
 // checkFileExists checks if a file exists and returns an error if it does
@@ -337,7 +360,7 @@ This project uses the Inference Gateway CLI for AI-powered development workflows
 ## Key Commands
 Check the following files for project-specific commands:
 - package.json scripts
-- Makefile targets  
+- Makefile targets
 - Taskfile.yml tasks
 - README.md instructions
 
@@ -360,4 +383,233 @@ Check the following files for project-specific commands:
 
 *This AGENTS.md was generated automatically. For more specific project information, examine the codebase directly or refer to project documentation.*
 `
+}
+
+// InitConversationMessage represents a message in the analysis conversation
+type InitConversationMessage struct {
+	Role       string                               `json:"role"`
+	Content    string                               `json:"content"`
+	ToolCalls  *[]sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
+	Tools      []string                             `json:"tools,omitempty"`
+	ToolCallID string                               `json:"tool_call_id,omitempty"`
+	TokenUsage *sdk.CompletionUsage                 `json:"token_usage,omitempty"`
+	Timestamp  time.Time                            `json:"timestamp"`
+	RequestID  string                               `json:"request_id,omitempty"`
+	Internal   bool                                 `json:"-"`
+}
+
+// ProjectAnalysisSession manages the iterative analysis session for generating AGENTS.md
+type ProjectAnalysisSession struct {
+	agentService   domain.AgentService
+	toolService    domain.ToolService
+	model          string
+	conversation   []InitConversationMessage
+	maxTurns       int
+	completedTurns int
+	config         *config.Config
+}
+
+func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error) {
+	s.addMessage(InitConversationMessage{
+		Role:      "user",
+		Content:   taskDescription,
+		Timestamp: time.Now(),
+	})
+
+	consecutiveNoToolCalls := 0
+	var lastAssistantResponse string
+
+	for s.completedTurns < s.maxTurns {
+		if err := s.executeTurn(); err != nil {
+			return getDefaultAgentsMDContent(), err
+		}
+
+		s.completedTurns++
+
+		if s.lastResponseHadNoToolCalls() {
+			consecutiveNoToolCalls++
+
+			if consecutiveNoToolCalls >= 2 {
+				break
+			}
+
+			verifyMsg := InitConversationMessage{
+				Role:      "user",
+				Content:   "Please provide the final AGENTS.md content based on your analysis. The content should be the complete markdown file ready for use.",
+				Timestamp: time.Now(),
+				Internal:  true,
+			}
+			s.addMessage(verifyMsg)
+		} else {
+			consecutiveNoToolCalls = 0
+		}
+
+		lastAssistantResponse = s.getLastAssistantContent()
+	}
+
+	if lastAssistantResponse == "" {
+		return getDefaultAgentsMDContent(), nil
+	}
+
+	return lastAssistantResponse, nil
+}
+
+func (s *ProjectAnalysisSession) executeTurn() error {
+	ctx := context.Background()
+	requestID := uuid.New().String()
+
+	messages := s.buildSDKMessages()
+
+	req := &domain.AgentRequest{
+		RequestID: requestID,
+		Model:     s.model,
+		Messages:  messages,
+	}
+
+	response, err := s.agentService.Run(ctx, req)
+	if err != nil {
+		return fmt.Errorf("failed to send message: %w", err)
+	}
+
+	return s.processSyncResponse(response, requestID)
+}
+
+func (s *ProjectAnalysisSession) buildSDKMessages() []sdk.Message {
+	var messages []sdk.Message
+
+	for _, msg := range s.conversation {
+		if msg.Internal {
+			continue
+		}
+
+		var role sdk.MessageRole
+		switch msg.Role {
+		case "user":
+			role = sdk.User
+		case "assistant":
+			role = sdk.Assistant
+		case "tool":
+			role = sdk.Tool
+		case "system":
+			role = sdk.System
+		default:
+			role = sdk.User
+		}
+
+		sdkMsg := sdk.Message{
+			Role:    role,
+			Content: msg.Content,
+		}
+
+		if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
+			sdkMsg.ToolCalls = msg.ToolCalls
+		}
+
+		if msg.ToolCallID != "" {
+			sdkMsg.ToolCallId = &msg.ToolCallID
+		}
+
+		messages = append(messages, sdkMsg)
+	}
+
+	return messages
+}
+
+func (s *ProjectAnalysisSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
+	if response.Content != "" {
+		assistantMsg := InitConversationMessage{
+			Role:       "assistant",
+			Content:    response.Content,
+			TokenUsage: response.Usage,
+			Timestamp:  time.Now(),
+			RequestID:  requestID,
+		}
+		s.addMessage(assistantMsg)
+	}
+
+	for _, toolCall := range response.ToolCalls {
+		toolCallMsg := InitConversationMessage{
+			Role:      "assistant",
+			Content:   "",
+			ToolCalls: &[]sdk.ChatCompletionMessageToolCall{toolCall},
+			Timestamp: time.Now(),
+			RequestID: requestID,
+		}
+		s.addMessage(toolCallMsg)
+
+		result, err := s.executeToolCall(toolCall.Function.Name, toolCall.Function.Arguments)
+		if err != nil {
+			continue
+		}
+
+		toolResultMsg := InitConversationMessage{
+			Role:       "tool",
+			Content:    s.formatToolResult(result),
+			ToolCallID: toolCall.Id,
+			Timestamp:  time.Now(),
+		}
+		s.addMessage(toolResultMsg)
+	}
+
+	return nil
+}
+
+func (s *ProjectAnalysisSession) executeToolCall(toolName, args string) (*domain.ToolExecutionResult, error) {
+	var argsMap map[string]any
+	if err := json.Unmarshal([]byte(args), &argsMap); err != nil {
+		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
+	}
+
+	ctx := context.Background()
+	toolCall := sdk.ChatCompletionMessageToolCallFunction{
+		Name:      toolName,
+		Arguments: args,
+	}
+	return s.toolService.ExecuteTool(ctx, toolCall)
+}
+
+func (s *ProjectAnalysisSession) formatToolResult(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	if !result.Success {
+		return fmt.Sprintf("Tool execution failed: %s", result.Error)
+	}
+
+	resultBytes, err := json.Marshal(result)
+	if err != nil {
+		return fmt.Sprintf("Result of tool call: %v", result.Data)
+	}
+
+	return fmt.Sprintf("Result of tool call: %s", string(resultBytes))
+}
+
+func (s *ProjectAnalysisSession) addMessage(msg InitConversationMessage) {
+	s.conversation = append(s.conversation, msg)
+}
+
+func (s *ProjectAnalysisSession) lastResponseHadNoToolCalls() bool {
+	if len(s.conversation) < 2 {
+		return false
+	}
+
+	for i := len(s.conversation) - 1; i >= 0; i-- {
+		msg := s.conversation[i]
+		if msg.Role == "assistant" {
+			return msg.ToolCalls == nil || len(*msg.ToolCalls) == 0
+		}
+	}
+
+	return false
+}
+
+func (s *ProjectAnalysisSession) getLastAssistantContent() string {
+	for i := len(s.conversation) - 1; i >= 0; i-- {
+		msg := s.conversation[i]
+		if msg.Role == "assistant" && msg.Content != "" {
+			return msg.Content
+		}
+	}
+	return ""
 }

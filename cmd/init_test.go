@@ -143,7 +143,7 @@ func TestGenerateAgentsMD(t *testing.T) {
 
 			agentsMDPath := filepath.Join(tmpDir, "AGENTS.md")
 
-			err = generateAgentsMD(agentsMDPath, tt.userspace)
+			err = generateAgentsMD(agentsMDPath, tt.userspace, "")
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("generateAgentsMD() error = %v, wantErr %v", err, tt.wantErr)
