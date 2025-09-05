@@ -1,5 +1,4 @@
-version: '3.8'
-
+---
 services:
   inference-gateway:
     image: ghcr.io/inference-gateway/inference-gateway:latest
