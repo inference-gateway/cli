@@ -1,107 +1,124 @@
 # AGENTS.md
 
-## Agent Patterns for Inference Gateway CLI
+## Project Overview
 
-This document outlines agent patterns and best practices for the `infer` CLI tool.
+The Inference Gateway CLI is a powerful command-line interface for managing and interacting with the
+Inference Gateway. It provides tools for configuration, monitoring, and management of inference
+services. It is developed in Go and is in an early development stage, with breaking changes expected
+until a stable version is reached.
 
-## Agent Command (`infer agent`)
+## Architecture & Structure
 
-The agent command runs in background mode for autonomous task completion:
+The project primarily uses Go and follows a typical Go project structure.
 
-- **Syntax**: `infer agent "task description"`
-- **Output**: JSON conversation stream
-- **Mode**: Iterative problem solving with tool execution
-- **Integration**: GitHub issue recognition and SCM workflows
+- **cmd**: Contains the main application entry point and CLI commands.
+- **config**: Likely holds configuration related code and defaults.
+- **docs**: Project documentation.
+- **examples**: Example usage of the CLI.
+- **internal**: Internal packages and modules, not intended for external use. This is where most of
+  the core logic and domain interfaces reside.
+- **tests**: Contains project tests and generated mocks.
+- **.infer**: This directory is created by the `infer init` command and holds project-level
+  configuration files (e.g., `config.yaml`) and custom shortcuts (`shortcuts/custom-*.yaml`).
 
-### Usage Examples
+## Development Environment
 
-```bash
-# GitHub issue resolution
-infer agent "Fix GitHub issue #38"
+- **Setup instructions and dependencies**:
+  - Go version 1.24.5 or higher.
+  - `golangci-lint` for linting.
+  - `pre-commit` for Git hooks.
+  - `counterfeiter/v6` for mock generation.
+- **Required tools and versions**: Go (1.24.5+), `golangci-lint`, `pre-commit`, `counterfeiter/v6`.
+- **Environment variables and configuration**:
+  - Configuration is managed through a 2-layer system: userspace (`~/.infer/config.yaml`) and
+    project-level (`.infer/config.yaml`). Project-level configuration takes precedence.
+  - `GOOGLE_SEARCH_API_KEY` and `GOOGLE_SEARCH_ENGINE_ID` for Google Custom Search.
+  - `DUCKDUCKGO_SEARCH_API_KEY` for DuckDuckGo (optional).
+  - `GITHUB_TOKEN` for GitHub API interactions.
 
-# Code improvements
-infer agent "Optimize the status command performance"
+## Development Workflow
 
-# Feature implementation
-infer agent "Add websocket support to the gateway client"
-```
+- **Build commands and processes**:
+  - `task build`: Builds the CLI binary with version, commit, and date information embedded.
+  - `go build -o infer .`: Basic Go build.
+  - `task install`: Installs the CLI binary to `$(go env GOPATH)/bin/infer`.
+  - `task release:build`: Builds release binaries for multiple platforms (darwin-amd64,
+    darwin-arm64, linux-amd64, linux-arm64) and generates checksums and Cosign signatures.
+- **Testing procedures and commands**:
+  - `task test`: Runs all Go tests in the project (`go test ./...`).
+  - `task test:verbose`: Runs tests with verbose output (`go test -v ./...`).
+  - `task test:coverage`: Runs tests with coverage report (`go test -cover ./...`).
+- **Code quality tools (linting, formatting)**:
+  - `task lint`: Runs `golangci-lint` and `markdownlint`.
+  - `task fmt`: Formats Go code using `go fmt ./...`.
+  - `task vet`: Runs `go vet ./...`.
+  - `task precommit:run`: Runs pre-commit hooks on all files.
+- **Git workflow and branching strategy**: Not explicitly defined, but pre-commit hooks and a
+  release workflow are present. The agent system prompt indicates a preference for branching and
+  PRs: "You NEVER push to main or master or to the current branch - instead you create a branch
+  and push to a branch."
 
-### Agent Workflow
+## Key Commands
 
-1. **Task Analysis**: Parse and understand the request
-2. **Planning**: Break down complex tasks into steps
-3. **Execution**: Use tools iteratively to solve problems
-4. **Validation**: Test and verify solutions
-5. **Completion**: Detect when task objectives are met
+- Build: `task build` or `go build -o infer .`
+- Test: `task test` or `go test ./...`
+- Lint: `task lint`
+- Format: `task fmt`
+- Run: `task run` or `go run .`
+- Setup Dev Environment: `task setup`
+- Generate Mocks: `task mocks:generate`
+- Initialize Project: `infer init`
+- Check Status: `infer status`
+- Start Chat: `infer chat`
+- Run Agent: `infer agent "your task description"`
 
-### JSON Output Format
+## Testing Instructions
 
-```json
-{"role": "user", "content": "task description", "timestamp": "2024-01-01T00:00:00Z"}
-{"role": "assistant", "content": "analysis", "tool_calls": [...]}
-{"role": "tool", "content": "tool result", "tool_call_id": "call_123"}
-{"role": "assistant", "content": "next step"}
-```
+- **How to run tests**:
+  - To run all tests: `go test ./...` or `task test`
+  - To run tests with verbose output: `go test -v ./...` or `task test:verbose`
+  - To run tests with coverage: `go test -cover ./...` or `task test:coverage`
+- **Test organization and patterns**: Tests are located in the `tests/` directory. Mock interfaces
+  are generated using `counterfeiter` into `tests/mocks/generated/`.
+- **Coverage requirements**: Not explicitly stated, but coverage can be generated using
+  `task test:coverage`.
 
-## Chat Mode Agents
+## Deployment & Release
 
-Interactive chat mode supports agent-like behaviors:
+- **Deployment processes**: Binaries are released on GitHub. Installation can be done via
+  `go install`, an `install.sh` script, or manual download.
+- **Release procedures**:
+  - `task release:build`: Creates multi-platform binaries, SHA256 checksums, and Cosign signatures.
+  - Release binaries are signed with Cosign for supply chain security.
+- **CI/CD pipeline information**: The `README.md` mentions a GitHub Actions workflow `ci.yml` for
+  build status, and `release.yml` for Cosign verification during releases.
 
-### Tool Execution
+## Project Conventions
 
-- Direct tool calls: `!!ToolName(arg="value")`
-- Bash commands: `!command`
-- Auto-completion and validation
+- **Coding standards and style guides**: Go standards, enforced by `go fmt` and `golangci-lint`.
+- **Naming conventions**: Not explicitly defined beyond Go's standard practices.
+- **File organization patterns**: Standard Go project layout with `cmd`, `internal`, `config`,
+  `docs`, `tests` directories. Configuration files are in `.infer/config.yaml`. Custom shortcuts
+  are in `.infer/shortcuts/custom-*.yaml`.
+- **Commit message formats**: The agent's system prompt specifies "use conventional commits".
 
-### Context Management
+## Important Files & Configurations
 
-- Token tracking per request and session
-- History navigation and search
-- Model switching mid-conversation
-
-## Agent Configuration
-
-Configure agent behavior through `.infer/config.yaml`:
-
-```yaml
-agent:
-  default_model: "anthropic/claude-4.1"
-  system_prompt: "You are a helpful coding assistant..."
-
-tools:
-  enabled: true
-  approval_required: false
-  sandbox_directories: ["./workspace", "./tmp"]
-
-safety:
-  protected_paths: [".infer/", ".git/", "*.env"]
-  command_whitelist: ["git", "npm", "go"]
-```
-
-## Best Practices
-
-1. **Task Decomposition**: Break complex tasks into manageable steps
-2. **Tool Selection**: Choose the right tools for each subtask
-3. **Error Handling**: Gracefully handle failures and retry strategies
-4. **Token Efficiency**: Optimize prompts and responses for cost
-5. **Security**: Validate inputs and respect safety boundaries
-
-## Integration Patterns
-
-### GitHub Integration
-
-- Issue parsing and context extraction
-- Branch creation and PR workflows
-- Commit message generation
-
-### Development Workflow
-
-- Code analysis and refactoring
-- Test generation and execution
-- Documentation updates
-
-### Monitoring and Status
-
-- Gateway health checks
-- Performance analysis
-- Log investigation
+- `go.mod`: Go module definition and dependencies.
+- `go.sum`: Go module checksums.
+- `Taskfile.yml`: Defines various development tasks using Task.
+- `README.md`: Project overview, installation, commands, available tools, configuration, and development information.
+- `.infer/config.yaml`: Project-level configuration.
+- `~/.infer/config.yaml`: User-level (global) configuration.
+- `.infer/shortcuts/custom-*.yaml`: User-defined CLI shortcuts.
+- `.golangci.yml`: Configuration for `golangci-lint`.
+- `.pre-commit-config.yaml`: Configuration for pre-commit hooks.
+- `.env.example`: Example environment variables.
+- `install.sh`: Script for installing the CLI.
+- `LICENSE`: Project license (MIT).
+- `.github/workflows/ci.yml`: GitHub Actions workflow for continuous integration.
+- `.github/workflows/release.yml`: GitHub Actions workflow for releases and Cosign signing.
+- `.gitignore`: Specifies files and directories to be ignored by Git.
+- `.editorconfig`: Defines coding styles for various editors.
+- `.commitlintrc.json`: Configuration for commit message linting.
+- `.releaserc.json`: Configuration for semantic release.

@@ -13,6 +13,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
@@ -239,6 +240,12 @@ IMPORTANT GUIDELINES:
 - Use clear, direct language without unnecessary elaboration
 - If information is missing or unclear, acknowledge it rather than guessing
 
+TOOL USAGE:
+- Use available tools to explore the project (Tree, Read, Grep, etc.)
+- When you have gathered enough information, use the Write tool to create the AGENTS.md file
+- Write the file content directly without code fences or API calls
+- The Write tool expects: Write(file_path="/path/to/file", content="file content here")
+
 Your analysis should help other agents quickly understand how to work with this project effectively.`
 }
 
@@ -293,16 +300,23 @@ func analyzeProjectForAgents(projectDir string, userspace bool, model string) (s
 	}
 
 	session := &ProjectAnalysisSession{
-		agentService: agentService,
-		toolService:  toolService,
-		model:        model,
-		config:       &cfgCopy,
-		conversation: []InitConversationMessage{},
-		maxTurns:     cfgCopy.Agent.MaxTurns,
+		agentService:   agentService,
+		toolService:    toolService,
+		model:          model,
+		config:         &cfgCopy,
+		conversation:   []InitConversationMessage{},
+		maxTurns:       cfgCopy.Agent.MaxTurns,
+		startTime:      time.Now(),
+		timeoutSeconds: 30,
 	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "%s\n", `{"content":"Initializing project analysis session...","timestamp":"`+time.Now().Format("15:04:05")+`","elapsed":"0.0s","tokens":{"input":0,"output":0,"total":0}}`)
+	_ = os.Stdout.Sync()
 
 	result, err := session.analyze(fmt.Sprintf("Please analyze the project in directory '%s' and generate a comprehensive AGENTS.md file. Use your available tools to examine the project structure, configuration files, documentation, build systems, and development workflow. Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project.", projectDir))
 	if err != nil {
+		_, _ = fmt.Fprintf(os.Stdout, "%s\n", `{"role":"error","content":"Analysis failed, using default content","timestamp":"`+time.Now().Format("15:04:05")+`","elapsed":"0.0s","tokens":{"input":0,"output":0,"total":0}}`)
+		_ = os.Stdout.Sync()
 		return getDefaultAgentsMDContent(), nil
 	}
 
@@ -400,16 +414,27 @@ type InitConversationMessage struct {
 
 // ProjectAnalysisSession manages the iterative analysis session for generating AGENTS.md
 type ProjectAnalysisSession struct {
-	agentService   domain.AgentService
-	toolService    domain.ToolService
-	model          string
-	conversation   []InitConversationMessage
-	maxTurns       int
-	completedTurns int
-	config         *config.Config
+	agentService        domain.AgentService
+	toolService         domain.ToolService
+	model               string
+	conversation        []InitConversationMessage
+	maxTurns            int
+	completedTurns      int
+	config              *config.Config
+	startTime           time.Time
+	timeoutSeconds      int
+	totalInputTokens    int64
+	totalOutputTokens   int64
+	timeoutMessageCount int
 }
 
 func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error) {
+	logger.Info("starting project analysis session",
+		"model", s.model,
+		"timeout_seconds", s.timeoutSeconds,
+		"max_turns", s.maxTurns)
+	s.outputProgress("session_start", "Starting project analysis...", "")
+
 	s.addMessage(InitConversationMessage{
 		Role:      "user",
 		Content:   taskDescription,
@@ -418,6 +443,7 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 
 	consecutiveNoToolCalls := 0
 	var lastAssistantResponse string
+	timeoutReached := false
 
 	for s.completedTurns < s.maxTurns {
 		if err := s.executeTurn(); err != nil {
@@ -426,13 +452,63 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 
 		s.completedTurns++
 
+		if s.hasTimedOut() {
+			if !timeoutReached {
+				elapsed := time.Since(s.startTime).Seconds()
+				logger.Debug("initial timeout reached, injecting Write tool instruction",
+					"elapsed_seconds", elapsed,
+					"timeout_seconds", s.timeoutSeconds)
+				s.outputProgress("timeout", "Timeout reached, requesting final output...", "")
+				timeoutReached = true
+				s.timeoutMessageCount = 1
+
+				timeoutMsg := InitConversationMessage{
+					Role:      "user",
+					Content:   "TIME LIMIT REACHED. You must now complete the task immediately. Use the Write tool to create the AGENTS.md file with all the information you have gathered during your analysis. IMPORTANT: Write the content directly without any markdown code fences (```markdown) at the beginning or end - just write the raw markdown content. If you have been tracking todos, include any remaining incomplete tasks in a 'Future Work' or 'TODO' section so future agents know what still needs to be explored. After writing the file, do NOT make any more tool calls. Write a comprehensive AGENTS.md file based on your exploration so far.",
+					Timestamp: time.Now(),
+					Internal:  false,
+				}
+				s.addMessage(timeoutMsg)
+			} else if s.completedTurns%2 == 0 && s.timeoutMessageCount < 3 {
+				s.timeoutMessageCount++
+				elapsed := time.Since(s.startTime).Seconds()
+				logger.Debug("re-injecting timeout message",
+					"attempt", s.timeoutMessageCount,
+					"elapsed_seconds", elapsed,
+					"completed_turns", s.completedTurns)
+				s.outputProgress("timeout_repeat", fmt.Sprintf("Timeout reminder %d - use Write tool now!", s.timeoutMessageCount), "")
+
+				timeoutMsg := InitConversationMessage{
+					Role:      "user",
+					Content:   "TIME LIMIT REACHED. You must now complete the task immediately. Use the Write tool to create the AGENTS.md file with all the information you have gathered during your analysis. IMPORTANT: Write the content directly without any markdown code fences (```markdown) at the beginning or end - just write the raw markdown content. If you have been tracking todos, include any remaining incomplete tasks in a 'Future Work' or 'TODO' section so future agents know what still needs to be explored. After writing the file, do NOT make any more tool calls. Write a comprehensive AGENTS.md file based on your exploration so far.",
+					Timestamp: time.Now(),
+					Internal:  false,
+				}
+				s.addMessage(timeoutMsg)
+			}
+		}
+
+		if timeoutReached && s.timeoutMessageCount >= 3 && s.completedTurns > 6 {
+			elapsed := time.Since(s.startTime).Seconds()
+			logger.Debug("forcing session end due to ignored timeout messages",
+				"timeout_messages_sent", s.timeoutMessageCount,
+				"completed_turns", s.completedTurns,
+				"elapsed_seconds", elapsed)
+			s.outputProgress("forced_exit", "Agent ignored timeout instructions, ending session", "")
+			break
+		}
+
 		if s.lastResponseHadNoToolCalls() {
 			consecutiveNoToolCalls++
 
-			if consecutiveNoToolCalls >= 2 {
+			if consecutiveNoToolCalls >= 2 || timeoutReached {
 				break
 			}
 
+			logger.Debug("adding fallback completion message",
+				"reason", "no tool calls detected",
+				"consecutive_no_tool_calls", consecutiveNoToolCalls,
+				"timeout_reached", timeoutReached)
 			verifyMsg := InitConversationMessage{
 				Role:      "user",
 				Content:   "Please provide the final AGENTS.md content based on your analysis. The content should be the complete markdown file ready for use.",
@@ -448,9 +524,20 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 	}
 
 	if lastAssistantResponse == "" {
+		logger.Warn("no assistant response generated, using default AGENTS.md content",
+			"completed_turns", s.completedTurns,
+			"elapsed_seconds", time.Since(s.startTime).Seconds())
+		s.outputProgress("complete", "No response generated, using default content", "")
 		return getDefaultAgentsMDContent(), nil
 	}
 
+	logger.Info("project analysis session completed successfully",
+		"completed_turns", s.completedTurns,
+		"elapsed_seconds", time.Since(s.startTime).Seconds(),
+		"total_input_tokens", s.totalInputTokens,
+		"total_output_tokens", s.totalOutputTokens,
+		"timeout_messages_sent", s.timeoutMessageCount)
+	s.outputProgress("complete", "Analysis complete, AGENTS.md generated", "")
 	return lastAssistantResponse, nil
 }
 
@@ -516,6 +603,11 @@ func (s *ProjectAnalysisSession) buildSDKMessages() []sdk.Message {
 }
 
 func (s *ProjectAnalysisSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
+	if response.Usage != nil {
+		s.totalOutputTokens += response.Usage.CompletionTokens
+		s.totalInputTokens = response.Usage.PromptTokens
+	}
+
 	if response.Content != "" {
 		assistantMsg := InitConversationMessage{
 			Role:       "assistant",
@@ -525,9 +617,14 @@ func (s *ProjectAnalysisSession) processSyncResponse(response *domain.ChatSyncRe
 			RequestID:  requestID,
 		}
 		s.addMessage(assistantMsg)
+		s.outputAssistantProgress(response.Content)
 	}
 
-	for _, toolCall := range response.ToolCalls {
+	for i, toolCall := range response.ToolCalls {
+		if toolCall.Id == "" {
+			toolCall.Id = fmt.Sprintf("call_%d_%d", time.Now().UnixNano(), i)
+		}
+
 		toolCallMsg := InitConversationMessage{
 			Role:      "assistant",
 			Content:   "",
@@ -537,10 +634,17 @@ func (s *ProjectAnalysisSession) processSyncResponse(response *domain.ChatSyncRe
 		}
 		s.addMessage(toolCallMsg)
 
+		var argsMap map[string]any
+		_ = json.Unmarshal([]byte(toolCall.Function.Arguments), &argsMap)
+		s.outputToolCallProgress(toolCall.Function.Name, argsMap)
+
 		result, err := s.executeToolCall(toolCall.Function.Name, toolCall.Function.Arguments)
 		if err != nil {
+			s.outputProgress("tool_error", fmt.Sprintf("Tool %s failed: %s", toolCall.Function.Name, err.Error()), "")
 			continue
 		}
+
+		s.outputToolResultProgress(toolCall.Function.Name, result)
 
 		toolResultMsg := InitConversationMessage{
 			Role:       "tool",
@@ -616,4 +720,62 @@ func (s *ProjectAnalysisSession) getLastAssistantContent() string {
 		}
 	}
 	return ""
+}
+
+func (s *ProjectAnalysisSession) hasTimedOut() bool {
+	return time.Since(s.startTime) > time.Duration(s.timeoutSeconds)*time.Second
+}
+
+func (s *ProjectAnalysisSession) outputAssistantProgress(content string) {
+	s.outputProgress("assistant", s.truncateContent(content, 150), "")
+}
+
+func (s *ProjectAnalysisSession) outputToolCallProgress(toolName string, args map[string]any) {
+	argsStr := ""
+	if len(args) > 0 {
+		argBytes, _ := json.Marshal(args)
+		argsStr = s.truncateContent(string(argBytes), 100)
+	}
+	s.outputProgress("tool_call", fmt.Sprintf("Executing %s", toolName), argsStr)
+}
+
+func (s *ProjectAnalysisSession) outputToolResultProgress(toolName string, result *domain.ToolExecutionResult) {
+	status := "failed"
+	if result != nil && result.Success {
+		status = "success"
+	}
+	s.outputProgress("tool_result", fmt.Sprintf("Tool %s completed: %s", toolName, status), "")
+}
+
+func (s *ProjectAnalysisSession) outputProgress(role, content, extra string) {
+	progressData := map[string]any{
+		"role":      role,
+		"content":   content,
+		"timestamp": time.Now().Format("15:04:05"),
+		"elapsed":   fmt.Sprintf("%.1fs", time.Since(s.startTime).Seconds()),
+		"tokens": map[string]any{
+			"input":  s.totalInputTokens,
+			"output": s.totalOutputTokens,
+			"total":  s.totalInputTokens + s.totalOutputTokens,
+		},
+	}
+
+	if extra != "" {
+		progressData["extra"] = extra
+	}
+
+	jsonBytes, err := json.Marshal(progressData)
+	if err != nil {
+		return
+	}
+
+	_, _ = fmt.Fprintf(os.Stdout, "%s\n", string(jsonBytes))
+	_ = os.Stdout.Sync()
+}
+
+func (s *ProjectAnalysisSession) truncateContent(content string, maxLength int) string {
+	if len(content) <= maxLength {
+		return content
+	}
+	return content[:maxLength] + "..."
 }
