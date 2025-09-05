@@ -1,0 +1,25 @@
+---
+services:
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    restart: unless-stopped
+
+  # Optional: Ollama for local models
+  ollama:
+    image: ollama/ollama:latest
+    pull_policy: always
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama
+    restart: unless-stopped
+    profiles:
+      - local-models
+
+volumes:
+  ollama_models:
