@@ -560,6 +560,10 @@ func (s *ProjectAnalysisSession) executeToolCall(toolName, args string) (*domain
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
 	}
 
+	if err := s.toolService.ValidateTool(toolName, argsMap); err != nil {
+		return nil, fmt.Errorf("tool validation failed: %w", err)
+	}
+
 	ctx := context.Background()
 	toolCall := sdk.ChatCompletionMessageToolCallFunction{
 		Name:      toolName,
