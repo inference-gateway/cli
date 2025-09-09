@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.16](https://github.com/inference-gateway/cli/compare/v0.48.15...v0.48.16) (2025-09-09)
+
+### 🐛 Bug Fixes
+
+* Add 'packages' permission to release job in workflow ([6f26d9b](https://github.com/inference-gateway/cli/commit/6f26d9b39df4a881016a2904b534620e1e8e12f3))
+
 ## [0.48.15](https://github.com/inference-gateway/cli/compare/v0.48.14...v0.48.15) (2025-09-09)
 
 ### 🐛 Bug Fixes
