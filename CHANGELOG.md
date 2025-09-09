@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.15](https://github.com/inference-gateway/cli/compare/v0.48.14...v0.48.15) (2025-09-09)
+
+### 🐛 Bug Fixes
+
+* Update GitHub Container Registry login to use the standard token ([fce3780](https://github.com/inference-gateway/cli/commit/fce37807bacc4ee3249228033d35f0f2472d3c91))
+
 ## [0.48.14](https://github.com/inference-gateway/cli/compare/v0.48.13...v0.48.14) (2025-09-09)
 
 ### 🐛 Bug Fixes
