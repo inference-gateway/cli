@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.12](https://github.com/inference-gateway/cli/compare/v0.48.11...v0.48.12) (2025-09-09)
+
+### 📚 Documentation
+
+* **examples:** Add n8n agent configuration and update assistant prompt in docker-compose ([7bc361e](https://github.com/inference-gateway/cli/commit/7bc361e2011a19d53fed3ea293d28b24a837518b))
+
 ## [0.48.11](https://github.com/inference-gateway/cli/compare/v0.48.10...v0.48.11) (2025-09-09)
 
 ### 🧹 Maintenance
