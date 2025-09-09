@@ -26,7 +26,7 @@ jobs:
           private-key: ${{ secrets.BOT_GH_APP_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: |
-            cli
+            ${{ github.event.repository.name }}
 
       - name: Checkout
         uses: actions/checkout@v4.2.2
