@@ -18,36 +18,26 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  ci:
+  prepare:
     runs-on: ubuntu-24.04
-
     steps:
     - name: Checkout code
       uses: actions/checkout@v4.2.2
 
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-
+
     - name: Install Flox
       uses: flox/install-flox-action@v2
 
-    - name: Activate Flox environment
-      run: flox activate
-
-    - name: Run mod tidy
-      run: flox activate -- task mod:tidy
-
-    - name: Run linter
-      run: flox activate -- task lint
-
-    - name: Run vet
-      run: flox activate -- task vet
-
-    - name: Build project
-      run: flox activate -- task build
-
-    - name: Run tests
-      run: flox activate -- task test
-
-    - name: Clean build artifacts
-      run: flox activate -- task clean
+    - name: Prepare project
+      run: |
+        flox activate -- task mod:tidy
+        flox activate -- task fmt
 
     - name: Check for dirty project
       run: |
@@ -58,3 +48,86 @@ jobs:
           exit 1
         fi
         echo "Project is clean"
+
+  lint:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.2.2
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-
+
+    - name: Install Flox
+      uses: flox/install-flox-action@v2
+
+    - name: Run linter
+      run: flox activate -- task lint
+
+  vet:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.2.2
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-
+
+    - name: Install Flox
+      uses: flox/install-flox-action@v2
+
+    - name: Run vet
+      run: flox activate -- task vet
+
+  test:
+    needs: prepare
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.2.2
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-
+
+    - name: Install Flox
+      uses: flox/install-flox-action@v2
+
+    - name: Run tests
+      run: flox activate -- task test
+
+  build:
+    needs:
+      - lint
+      - vet
+      - test
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4.2.2
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: ${{ runner.os }}-go-
+
+    - name: Install Flox
+      uses: flox/install-flox-action@v2
+
+    - name: Build project
+      run: flox activate -- task build
