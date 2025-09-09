@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.11](https://github.com/inference-gateway/cli/compare/v0.48.10...v0.48.11) (2025-09-09)
+
+### 🧹 Maintenance
+
+* **deps:** Bump github.com/charmbracelet/bubbletea from 1.3.6 to 1.3.7 ([#149](https://github.com/inference-gateway/cli/issues/149)) ([7d03bfe](https://github.com/inference-gateway/cli/commit/7d03bfe20f90e143dac18d1fbc26eae1a8b4951d))
+
 ## [0.48.10](https://github.com/inference-gateway/cli/compare/v0.48.9...v0.48.10) (2025-09-08)
 
 ### 🧹 Maintenance
