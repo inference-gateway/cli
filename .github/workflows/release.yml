@@ -16,6 +16,7 @@ jobs:
       issues: write
       pull-requests: write
       id-token: write
+      packages: write
     steps:
       - name: Create GitHub App Token
         uses: actions/create-github-app-token@v2.0.6
