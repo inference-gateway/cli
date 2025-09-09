@@ -64,14 +64,14 @@
       "@semantic-release/exec",
       {
         "prepareCmd": "VERSION=v${nextRelease.version} COMMIT=$(git rev-parse --short HEAD) DATE=$(date -u +\"%Y-%m-%dT%H:%M:%SZ\") flox activate -- task release:build",
-        "publishCmd": "echo 'Binaries built successfully'"
+        "publishCmd": "VERSION=${nextRelease.version} flox activate -- task container:push"
       }
     ],
     [
       "@semantic-release/github",
       {
         "releaseNameTemplate": "🚀 Version ${nextRelease.version}",
-        "releaseBodyTemplate": "## What's Changed\n\n${nextRelease.notes}\n\n---\n\n**Full Changelog**: https://github.com/${env.GITHUB_REPOSITORY}/compare/${lastRelease.gitTag}...${nextRelease.gitTag}",
+        "releaseBodyTemplate": "## What's Changed\n\n${nextRelease.notes}\n\n## 📦 Installation\n\n### Binary Download\nDownload the appropriate binary for your platform from the assets below.\n\n### Container Image\n```bash\ndocker run --rm -it ghcr.io/inference-gateway/cli:${nextRelease.version}\n```\n\n---\n\n**Full Changelog**: https://github.com/${env.GITHUB_REPOSITORY}/compare/${lastRelease.gitTag}...${nextRelease.gitTag}",
         "discussionCategoryName": false,
         "assets": [
           {
