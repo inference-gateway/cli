@@ -557,7 +557,8 @@ type A2ADirectService interface {
 	GetAgentCard(ctx context.Context, agentName string) (*adk.AgentCard, error)
 }
 
-// A2ATask represents a task to be submitted to an A2A agent
+// A2ATaskSubmission represents a task to be submitted to an A2A agent
+// This is for job submission, distinct from ADK's conversational Task structure
 type A2ATask struct {
 	ID          string                 `json:"id"`
 	Type        string                 `json:"type"`
@@ -565,23 +566,26 @@ type A2ATask struct {
 	Parameters  map[string]interface{} `json:"parameters"`
 	Priority    int                    `json:"priority,omitempty"`
 	Timeout     int                    `json:"timeout,omitempty"`
+	// Can optionally link to an ADK Task for full conversation context
+	AdkTask *adk.Task `json:"adk_task,omitempty"`
 }
 
-// A2ATaskStatusEnum represents the possible status values for an A2A task
-type A2ATaskStatusEnum string
+// Use ADK TaskState enum instead of custom status enum
+type A2ATaskStatusEnum = adk.TaskState
 
 const (
-	A2ATaskStatusPending       A2ATaskStatusEnum = "pending"
-	A2ATaskStatusWorking       A2ATaskStatusEnum = "working"
-	A2ATaskStatusCompleted     A2ATaskStatusEnum = "completed"
-	A2ATaskStatusFailed        A2ATaskStatusEnum = "failed"
-	A2ATaskStatusInputRequired A2ATaskStatusEnum = "input_required"
+	A2ATaskStatusPending       = adk.TaskStateSubmitted
+	A2ATaskStatusWorking       = adk.TaskStateWorking
+	A2ATaskStatusCompleted     = adk.TaskStateCompleted
+	A2ATaskStatusFailed        = adk.TaskStateFailed
+	A2ATaskStatusInputRequired = adk.TaskStateInputRequired
 )
 
 // A2ATaskStatus represents the status of an A2A task
+// Enhanced with additional tracking fields while using ADK TaskStatus for core status
 type A2ATaskStatus struct {
 	TaskID       string            `json:"task_id"`
-	Status       A2ATaskStatusEnum `json:"status"`
+	Status       A2ATaskStatusEnum `json:"status"` // Uses ADK TaskState
 	Progress     float64           `json:"progress,omitempty"`
 	Message      string            `json:"message,omitempty"`
 	CreatedAt    time.Time         `json:"created_at"`
@@ -600,10 +604,12 @@ type A2AInputRequest struct {
 }
 
 // A2ATaskResult represents the result of a completed A2A task
+// Enhanced result structure that can contain ADK Task data
 type A2ATaskResult struct {
 	TaskID      string            `json:"task_id"`
 	Success     bool              `json:"success"`
-	Result      interface{}       `json:"result,omitempty"`
+	Task        *adk.Task         `json:"task,omitempty"`   // ADK Task with full context
+	Result      interface{}       `json:"result,omitempty"` // Raw result data
 	Error       string            `json:"error,omitempty"`
 	Duration    time.Duration     `json:"duration"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
@@ -612,6 +618,7 @@ type A2ATaskResult struct {
 }
 
 // A2AAgentInfo contains information about a direct A2A agent connection
+// Contains connection details and can optionally include the full AgentCard
 type A2AAgentInfo struct {
 	Name        string            `json:"name"`
 	URL         string            `json:"url"`
@@ -620,6 +627,7 @@ type A2AAgentInfo struct {
 	Timeout     int               `json:"timeout"`
 	Enabled     bool              `json:"enabled"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
+	Card        *adk.AgentCard    `json:"card,omitempty"` // ADK AgentCard for full capabilities
 }
 
 // UIEventType defines types of UI events
