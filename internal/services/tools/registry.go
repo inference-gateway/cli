@@ -111,5 +111,5 @@ func (r *Registry) IsReadToolUsed() bool {
 // SetA2ADirectService sets the A2A direct service and re-registers tools
 func (r *Registry) SetA2ADirectService(service domain.A2ADirectService) {
 	r.a2aDirectService = service
-	r.registerTools() // Re-register tools to include A2A task tool
+	r.registerTools()
 }
