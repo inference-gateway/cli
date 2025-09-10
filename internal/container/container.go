@@ -149,10 +149,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.chatService = services.NewStreamingChatService(c.agentService)
 
-	// Initialize A2A direct service if enabled
 	if c.config.IsA2ADirectEnabled() {
 		c.a2aDirectService = services.NewA2ADirectService(c.config)
-		// Set the A2A service in the tool registry to enable A2A task tool
 		c.toolRegistry.SetA2ADirectService(c.a2aDirectService)
 	}
 }
