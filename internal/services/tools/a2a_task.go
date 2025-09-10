@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
@@ -90,7 +89,6 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 
 	adkTask := adk.Task{
-		ID:   uuid.New().String(),
 		Kind: "query",
 		Metadata: map[string]any{
 			"description": taskDescription,
@@ -111,10 +109,8 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	adkClient := client.NewClient(agentURL)
 	msgParams := adk.MessageSendParams{
 		Message: adk.Message{
-			Kind:      "message",
-			MessageID: adkTask.ID,
-			Role:      "user",
-			TaskID:    &adkTask.ID,
+			Kind: "message",
+			Role: "user",
 			Parts: []adk.Part{
 				map[string]any{
 					"kind": "text",
