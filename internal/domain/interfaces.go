@@ -568,7 +568,7 @@ type A2ATaskStatusEnum string
 
 const (
 	A2ATaskStatusPending       A2ATaskStatusEnum = "pending"
-	A2ATaskStatusRunning       A2ATaskStatusEnum = "running"
+	A2ATaskStatusWorking       A2ATaskStatusEnum = "working"
 	A2ATaskStatusCompleted     A2ATaskStatusEnum = "completed"
 	A2ATaskStatusFailed        A2ATaskStatusEnum = "failed"
 	A2ATaskStatusInputRequired A2ATaskStatusEnum = "input_required"

@@ -149,7 +149,7 @@ func (s *A2ADirectServiceImpl) submitTaskAsync(ctx context.Context, agent config
 		return
 	}
 
-	s.updateTaskStatus(tracker.TaskID, domain.A2ATaskStatusRunning, 10, "Task submitted successfully")
+	s.updateTaskStatus(tracker.TaskID, domain.A2ATaskStatusWorking, 10, "Task submitted successfully")
 
 	// Start status polling
 	s.startStatusPolling(ctx, agent, tracker.TaskID)

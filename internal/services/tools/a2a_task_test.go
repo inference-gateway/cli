@@ -353,7 +353,7 @@ func TestA2ATaskTool_Execute_Status(t *testing.T) {
 			mockSetup: func(m *MockA2ADirectService) {
 				status := &domain.A2ATaskStatus{
 					TaskID:    "test-task",
-					Status:    domain.A2ATaskStatusRunning,
+					Status:    domain.A2ATaskStatusWorking,
 					Progress:  75.0,
 					Message:   "Task in progress",
 					CreatedAt: time.Now(),
@@ -362,7 +362,7 @@ func TestA2ATaskTool_Execute_Status(t *testing.T) {
 				m.On("GetTaskStatus", mock.Anything, "test-task").Return(status, nil)
 			},
 			expectSuccess:  true,
-			expectedStatus: domain.A2ATaskStatusRunning,
+			expectedStatus: domain.A2ATaskStatusWorking,
 		},
 	}
 

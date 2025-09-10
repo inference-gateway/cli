@@ -153,7 +153,7 @@ func TestA2ADirectServiceImpl_GetTaskStatus(t *testing.T) {
 					AgentName: "test-agent",
 					Status: &domain.A2ATaskStatus{
 						TaskID:    "test-task",
-						Status:    domain.A2ATaskStatusRunning,
+						Status:    domain.A2ATaskStatusWorking,
 						Progress:  50.0,
 						Message:   "Task in progress",
 						CreatedAt: time.Now(),
@@ -314,7 +314,7 @@ func TestA2ADirectServiceImpl_updateTaskStatus(t *testing.T) {
 					AgentName: "test-agent",
 					Status: &domain.A2ATaskStatus{
 						TaskID:    "test-task",
-						Status:    domain.A2ATaskStatusRunning,
+						Status:    domain.A2ATaskStatusWorking,
 						Progress:  50.0,
 						Message:   "Task in progress",
 						CreatedAt: time.Now(),
