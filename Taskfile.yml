@@ -127,7 +127,18 @@ tasks:
   container:push:
     desc: Push pre-built container images to registry
     cmds:
-      - docker buildx build --platform linux/amd64,linux/arm64 --push -t ghcr.io/inference-gateway/cli:{{.VERSION}} -t ghcr.io/inference-gateway/cli:latest --build-context binaries=dist/ -f Dockerfile .
+      - |
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --push \
+          -t ghcr.io/inference-gateway/cli:{{.VERSION}} \
+          -t ghcr.io/inference-gateway/cli:latest \
+          --build-context binaries=dist/ \
+          --build-arg VERSION={{.VERSION}} \
+          --build-arg REVISION={{.COMMIT}} \
+          --build-arg BUILD_DATE={{.DATE}} \
+          -f Dockerfile \
+          .
     deps:
       - release:build
 
