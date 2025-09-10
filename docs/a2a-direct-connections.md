@@ -39,32 +39,6 @@ Add the following to your `.infer/config.yaml`:
 ```yaml
 a2a:
   enabled: true
-  agents:
-    code-review-agent:
-      name: "Code Review Agent"
-      url: "http://code-review.internal:8081"
-      description: "Performs automated code reviews"
-      timeout: 60
-      enabled: true
-      metadata:
-        team: "platform"
-        version: "v1.2.0"
-
-    deployment-agent:
-      name: "Deployment Agent"
-      url: "http://deploy.internal:8082"
-      description: "Handles deployment tasks"
-      timeout: 120
-      enabled: true
-      metadata:
-        environment: "production"
-        region: "us-west-2"
-
-  tasks:
-    max_concurrent: 3
-    timeout_seconds: 300
-    retry_count: 2
-    status_poll_seconds: 5
 ```
 
 ## Usage
