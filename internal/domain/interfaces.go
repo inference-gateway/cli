@@ -86,6 +86,10 @@ const (
 	EventCancelled
 	EventOptimizationStatus
 	EventA2AToolCallExecuted
+	EventA2ATaskSubmitted
+	EventA2ATaskStatusUpdate
+	EventA2ATaskCompleted
+	EventA2ATaskInputRequired
 )
 
 // ChatEvent represents events during chat operations
@@ -528,6 +532,81 @@ type UIEvent interface {
 	GetType() UIEventType
 }
 
+// A2ADirectService handles direct agent-to-agent communication
+type A2ADirectService interface {
+	// SubmitTask submits a task to a specific A2A agent in the background
+	SubmitTask(ctx context.Context, agentName string, task A2ATask) (string, error)
+
+	// GetTaskStatus retrieves the current status of a task
+	GetTaskStatus(ctx context.Context, taskID string) (*A2ATaskStatus, error)
+
+	// CollectResults collects completed task results
+	CollectResults(ctx context.Context, taskID string) (*A2ATaskResult, error)
+
+	// CancelTask cancels a running task
+	CancelTask(ctx context.Context, taskID string) error
+
+	// ListActiveAgents returns all currently active A2A agents
+	ListActiveAgents() (map[string]A2AAgentInfo, error)
+
+	// TestConnection tests connectivity to a specific agent
+	TestConnection(ctx context.Context, agentName string) error
+}
+
+// A2ATask represents a task to be submitted to an A2A agent
+type A2ATask struct {
+	ID          string                 `json:"id"`
+	Type        string                 `json:"type"`
+	Description string                 `json:"description"`
+	Parameters  map[string]interface{} `json:"parameters"`
+	Priority    int                    `json:"priority,omitempty"`
+	Timeout     int                    `json:"timeout,omitempty"`
+}
+
+// A2ATaskStatus represents the status of an A2A task
+type A2ATaskStatus struct {
+	TaskID       string           `json:"task_id"`
+	Status       string           `json:"status"` // pending, running, completed, failed, input_required
+	Progress     float64          `json:"progress,omitempty"`
+	Message      string           `json:"message,omitempty"`
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
+	CompletedAt  *time.Time       `json:"completed_at,omitempty"`
+	InputRequest *A2AInputRequest `json:"input_request,omitempty"`
+}
+
+// A2AInputRequest represents a request for user input during task execution
+type A2AInputRequest struct {
+	Type     string      `json:"type"`
+	Message  string      `json:"message"`
+	Options  []string    `json:"options,omitempty"`
+	Required bool        `json:"required"`
+	Default  interface{} `json:"default,omitempty"`
+}
+
+// A2ATaskResult represents the result of a completed A2A task
+type A2ATaskResult struct {
+	TaskID      string            `json:"task_id"`
+	Success     bool              `json:"success"`
+	Result      interface{}       `json:"result,omitempty"`
+	Error       string            `json:"error,omitempty"`
+	Duration    time.Duration     `json:"duration"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+	CreatedAt   time.Time         `json:"created_at"`
+	CompletedAt time.Time         `json:"completed_at"`
+}
+
+// A2AAgentInfo contains information about a direct A2A agent connection
+type A2AAgentInfo struct {
+	Name        string            `json:"name"`
+	URL         string            `json:"url"`
+	APIKey      string            `json:"api_key"`
+	Description string            `json:"description,omitempty"`
+	Timeout     int               `json:"timeout"`
+	Enabled     bool              `json:"enabled"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+}
+
 // UIEventType defines types of UI events
 type UIEventType int
 
@@ -560,6 +639,10 @@ const (
 	UIEventToolExecutionStarted
 	UIEventToolExecutionProgress
 	UIEventToolExecutionCompleted
+	UIEventA2ATaskSubmitted
+	UIEventA2ATaskStatusUpdate
+	UIEventA2ATaskCompleted
+	UIEventA2ATaskInputRequired
 )
 
 // ScrollDirection defines scroll direction

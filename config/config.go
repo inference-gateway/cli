@@ -30,6 +30,7 @@ type Config struct {
 	Storage      StorageConfig      `yaml:"storage" mapstructure:"storage"`
 	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
 	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
+	A2A          A2AConfig          `yaml:"a2a" mapstructure:"a2a"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -307,6 +308,32 @@ type RedisStorageConfig struct {
 	DB       int    `yaml:"db" mapstructure:"db"`
 }
 
+// A2AConfig contains Agent-to-Agent direct connection configuration
+type A2AConfig struct {
+	Enabled bool                    `yaml:"enabled" mapstructure:"enabled"`
+	Agents  map[string]A2AAgentInfo `yaml:"agents" mapstructure:"agents"`
+	Tasks   A2ATaskConfig           `yaml:"tasks" mapstructure:"tasks"`
+}
+
+// A2AAgentInfo contains information about a direct A2A agent connection
+type A2AAgentInfo struct {
+	Name        string            `yaml:"name" mapstructure:"name"`
+	URL         string            `yaml:"url" mapstructure:"url"`
+	APIKey      string            `yaml:"api_key" mapstructure:"api_key"`
+	Description string            `yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Timeout     int               `yaml:"timeout" mapstructure:"timeout"`
+	Enabled     bool              `yaml:"enabled" mapstructure:"enabled"`
+	Metadata    map[string]string `yaml:"metadata,omitempty" mapstructure:"metadata,omitempty"`
+}
+
+// A2ATaskConfig contains configuration for A2A task processing
+type A2ATaskConfig struct {
+	MaxConcurrent     int `yaml:"max_concurrent" mapstructure:"max_concurrent"`
+	TimeoutSeconds    int `yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
+	RetryCount        int `yaml:"retry_count" mapstructure:"retry_count"`
+	StatusPollSeconds int `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
+}
+
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config { //nolint:funlen
 	return &Config{
@@ -562,6 +589,16 @@ Respond with ONLY the title, no quotes or explanation.`,
 		Chat: ChatConfig{
 			Theme: "tokyo-night",
 		},
+		A2A: A2AConfig{
+			Enabled: false,
+			Agents:  make(map[string]A2AAgentInfo),
+			Tasks: A2ATaskConfig{
+				MaxConcurrent:     3,
+				TimeoutSeconds:    300,
+				RetryCount:        2,
+				StatusPollSeconds: 5,
+			},
+		},
 	}
 }
 
@@ -763,4 +800,33 @@ func ResolveEnvironmentVariables(value string) string {
 	})
 
 	return result
+}
+
+// A2A Configuration Methods
+
+func (c *Config) IsA2ADirectEnabled() bool {
+	return c.A2A.Enabled
+}
+
+func (c *Config) GetA2AAgents() map[string]A2AAgentInfo {
+	return c.A2A.Agents
+}
+
+func (c *Config) GetA2AAgent(name string) (A2AAgentInfo, bool) {
+	agent, exists := c.A2A.Agents[name]
+	return agent, exists
+}
+
+func (c *Config) GetEnabledA2AAgents() map[string]A2AAgentInfo {
+	enabledAgents := make(map[string]A2AAgentInfo)
+	for name, agent := range c.A2A.Agents {
+		if agent.Enabled {
+			enabledAgents[name] = agent
+		}
+	}
+	return enabledAgents
+}
+
+func (c *Config) GetA2ATaskConfig() A2ATaskConfig {
+	return c.A2A.Tasks
 }
