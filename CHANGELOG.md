@@ -6,6 +6,30 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.17](https://github.com/inference-gateway/cli/compare/v0.48.16...v0.48.17) (2025-09-10)
+
+### 🐛 Bug Fixes
+
+* **ci:** Update restore-keys formatting for Go module caching ([223c303](https://github.com/inference-gateway/cli/commit/223c303dcae67c46bb58a1fc9e40ca9df3107f23))
+
+### ♻️ Code Refactoring
+
+* **ci:** Improve readability of build command in CI workflow ([0af01bc](https://github.com/inference-gateway/cli/commit/0af01bc8aefbeed29d15b652309451d789cb827f))
+* **ci:** Replace Flox with native Go commands in CI workflow ([e7514ac](https://github.com/inference-gateway/cli/commit/e7514ac86a1b39b0ab0b873ebb2746bb614c7e52))
+* Update repository name reference in GitHub App token step ([6148cdf](https://github.com/inference-gateway/cli/commit/6148cdfda1bd0b064325a2cd18988bf3212e74c7))
+
+### 👷 CI/CD
+
+* Restructure CI workflow to improve job organization and add project cleanliness checks ([ca3fac5](https://github.com/inference-gateway/cli/commit/ca3fac517aa79bfdde4af5fcd02540c4f39040ce))
+
+### 🧹 Maintenance
+
+* Make the release workflow only on workflow dispatch ([a32eb03](https://github.com/inference-gateway/cli/commit/a32eb03b4b35fb4fdce478eccf0f8acc6e9d3c8c))
+* **ci:** Remove redundant caching steps and streamline Go setup ([32e3a87](https://github.com/inference-gateway/cli/commit/32e3a875917af76997933e03abf704c8b3ee5e98))
+* Update actions/checkout to v5 in CI and release workflows ([4a3ab56](https://github.com/inference-gateway/cli/commit/4a3ab56ea8c2cb013cf14189f113ce6f917e0a9d))
+* Update package versions and group assignments in manifest.toml ([afa7526](https://github.com/inference-gateway/cli/commit/afa7526c71d9328a78a6ae1e06e11aeb74e62b71))
+* **ci:** Update runner version to ubuntu-24.04 and GitHub App Token action to v2.1.1 ([925ffff](https://github.com/inference-gateway/cli/commit/925ffffaf5e3db0d66b4dd5ba05827c0d1dbfeaf))
+
 ## [0.48.16](https://github.com/inference-gateway/cli/compare/v0.48.15...v0.48.16) (2025-09-09)
 
 ### 🐛 Bug Fixes
