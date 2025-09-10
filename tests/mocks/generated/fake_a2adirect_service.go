@@ -10,176 +10,50 @@ import (
 )
 
 type FakeA2ADirectService struct {
-	CancelTaskStub        func(context.Context, string) error
-	cancelTaskMutex       sync.RWMutex
-	cancelTaskArgsForCall []struct {
+	QueryStub        func(context.Context, string) (*types.AgentCard, error)
+	queryMutex       sync.RWMutex
+	queryArgsForCall []struct {
 		arg1 context.Context
 		arg2 string
 	}
-	cancelTaskReturns struct {
-		result1 error
-	}
-	cancelTaskReturnsOnCall map[int]struct {
-		result1 error
-	}
-	CollectResultsStub        func(context.Context, string) (*domain.A2ATaskResult, error)
-	collectResultsMutex       sync.RWMutex
-	collectResultsArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	collectResultsReturns struct {
-		result1 *domain.A2ATaskResult
-		result2 error
-	}
-	collectResultsReturnsOnCall map[int]struct {
-		result1 *domain.A2ATaskResult
-		result2 error
-	}
-	GetAgentCardStub        func(context.Context, string) (*types.AgentCard, error)
-	getAgentCardMutex       sync.RWMutex
-	getAgentCardArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	getAgentCardReturns struct {
+	queryReturns struct {
 		result1 *types.AgentCard
 		result2 error
 	}
-	getAgentCardReturnsOnCall map[int]struct {
+	queryReturnsOnCall map[int]struct {
 		result1 *types.AgentCard
 		result2 error
 	}
-	GetTaskStatusStub        func(context.Context, string) (*domain.A2ATaskStatus, error)
-	getTaskStatusMutex       sync.RWMutex
-	getTaskStatusArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	getTaskStatusReturns struct {
-		result1 *domain.A2ATaskStatus
-		result2 error
-	}
-	getTaskStatusReturnsOnCall map[int]struct {
-		result1 *domain.A2ATaskStatus
-		result2 error
-	}
-	ListActiveAgentsStub        func() (map[string]domain.A2AAgentInfo, error)
-	listActiveAgentsMutex       sync.RWMutex
-	listActiveAgentsArgsForCall []struct {
-	}
-	listActiveAgentsReturns struct {
-		result1 map[string]domain.A2AAgentInfo
-		result2 error
-	}
-	listActiveAgentsReturnsOnCall map[int]struct {
-		result1 map[string]domain.A2AAgentInfo
-		result2 error
-	}
-	SubmitTaskStub        func(context.Context, string, domain.A2ATask) (string, error)
+	SubmitTaskStub        func(context.Context, string, types.Task) (*types.Task, error)
 	submitTaskMutex       sync.RWMutex
 	submitTaskArgsForCall []struct {
 		arg1 context.Context
 		arg2 string
-		arg3 domain.A2ATask
+		arg3 types.Task
 	}
 	submitTaskReturns struct {
-		result1 string
+		result1 *types.Task
 		result2 error
 	}
 	submitTaskReturnsOnCall map[int]struct {
-		result1 string
+		result1 *types.Task
 		result2 error
-	}
-	TestConnectionStub        func(context.Context, string) error
-	testConnectionMutex       sync.RWMutex
-	testConnectionArgsForCall []struct {
-		arg1 context.Context
-		arg2 string
-	}
-	testConnectionReturns struct {
-		result1 error
-	}
-	testConnectionReturnsOnCall map[int]struct {
-		result1 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeA2ADirectService) CancelTask(arg1 context.Context, arg2 string) error {
-	fake.cancelTaskMutex.Lock()
-	ret, specificReturn := fake.cancelTaskReturnsOnCall[len(fake.cancelTaskArgsForCall)]
-	fake.cancelTaskArgsForCall = append(fake.cancelTaskArgsForCall, struct {
+func (fake *FakeA2ADirectService) Query(arg1 context.Context, arg2 string) (*types.AgentCard, error) {
+	fake.queryMutex.Lock()
+	ret, specificReturn := fake.queryReturnsOnCall[len(fake.queryArgsForCall)]
+	fake.queryArgsForCall = append(fake.queryArgsForCall, struct {
 		arg1 context.Context
 		arg2 string
 	}{arg1, arg2})
-	stub := fake.CancelTaskStub
-	fakeReturns := fake.cancelTaskReturns
-	fake.recordInvocation("CancelTask", []interface{}{arg1, arg2})
-	fake.cancelTaskMutex.Unlock()
-	if stub != nil {
-		return stub(arg1, arg2)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeA2ADirectService) CancelTaskCallCount() int {
-	fake.cancelTaskMutex.RLock()
-	defer fake.cancelTaskMutex.RUnlock()
-	return len(fake.cancelTaskArgsForCall)
-}
-
-func (fake *FakeA2ADirectService) CancelTaskCalls(stub func(context.Context, string) error) {
-	fake.cancelTaskMutex.Lock()
-	defer fake.cancelTaskMutex.Unlock()
-	fake.CancelTaskStub = stub
-}
-
-func (fake *FakeA2ADirectService) CancelTaskArgsForCall(i int) (context.Context, string) {
-	fake.cancelTaskMutex.RLock()
-	defer fake.cancelTaskMutex.RUnlock()
-	argsForCall := fake.cancelTaskArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
-}
-
-func (fake *FakeA2ADirectService) CancelTaskReturns(result1 error) {
-	fake.cancelTaskMutex.Lock()
-	defer fake.cancelTaskMutex.Unlock()
-	fake.CancelTaskStub = nil
-	fake.cancelTaskReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeA2ADirectService) CancelTaskReturnsOnCall(i int, result1 error) {
-	fake.cancelTaskMutex.Lock()
-	defer fake.cancelTaskMutex.Unlock()
-	fake.CancelTaskStub = nil
-	if fake.cancelTaskReturnsOnCall == nil {
-		fake.cancelTaskReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.cancelTaskReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeA2ADirectService) CollectResults(arg1 context.Context, arg2 string) (*domain.A2ATaskResult, error) {
-	fake.collectResultsMutex.Lock()
-	ret, specificReturn := fake.collectResultsReturnsOnCall[len(fake.collectResultsArgsForCall)]
-	fake.collectResultsArgsForCall = append(fake.collectResultsArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
-	stub := fake.CollectResultsStub
-	fakeReturns := fake.collectResultsReturns
-	fake.recordInvocation("CollectResults", []interface{}{arg1, arg2})
-	fake.collectResultsMutex.Unlock()
+	stub := fake.QueryStub
+	fakeReturns := fake.queryReturns
+	fake.recordInvocation("Query", []interface{}{arg1, arg2})
+	fake.queryMutex.Unlock()
 	if stub != nil {
 		return stub(arg1, arg2)
 	}
@@ -189,244 +63,58 @@ func (fake *FakeA2ADirectService) CollectResults(arg1 context.Context, arg2 stri
 	return fakeReturns.result1, fakeReturns.result2
 }
 
-func (fake *FakeA2ADirectService) CollectResultsCallCount() int {
-	fake.collectResultsMutex.RLock()
-	defer fake.collectResultsMutex.RUnlock()
-	return len(fake.collectResultsArgsForCall)
+func (fake *FakeA2ADirectService) QueryCallCount() int {
+	fake.queryMutex.RLock()
+	defer fake.queryMutex.RUnlock()
+	return len(fake.queryArgsForCall)
 }
 
-func (fake *FakeA2ADirectService) CollectResultsCalls(stub func(context.Context, string) (*domain.A2ATaskResult, error)) {
-	fake.collectResultsMutex.Lock()
-	defer fake.collectResultsMutex.Unlock()
-	fake.CollectResultsStub = stub
+func (fake *FakeA2ADirectService) QueryCalls(stub func(context.Context, string) (*types.AgentCard, error)) {
+	fake.queryMutex.Lock()
+	defer fake.queryMutex.Unlock()
+	fake.QueryStub = stub
 }
 
-func (fake *FakeA2ADirectService) CollectResultsArgsForCall(i int) (context.Context, string) {
-	fake.collectResultsMutex.RLock()
-	defer fake.collectResultsMutex.RUnlock()
-	argsForCall := fake.collectResultsArgsForCall[i]
+func (fake *FakeA2ADirectService) QueryArgsForCall(i int) (context.Context, string) {
+	fake.queryMutex.RLock()
+	defer fake.queryMutex.RUnlock()
+	argsForCall := fake.queryArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
 }
 
-func (fake *FakeA2ADirectService) CollectResultsReturns(result1 *domain.A2ATaskResult, result2 error) {
-	fake.collectResultsMutex.Lock()
-	defer fake.collectResultsMutex.Unlock()
-	fake.CollectResultsStub = nil
-	fake.collectResultsReturns = struct {
-		result1 *domain.A2ATaskResult
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeA2ADirectService) CollectResultsReturnsOnCall(i int, result1 *domain.A2ATaskResult, result2 error) {
-	fake.collectResultsMutex.Lock()
-	defer fake.collectResultsMutex.Unlock()
-	fake.CollectResultsStub = nil
-	if fake.collectResultsReturnsOnCall == nil {
-		fake.collectResultsReturnsOnCall = make(map[int]struct {
-			result1 *domain.A2ATaskResult
-			result2 error
-		})
-	}
-	fake.collectResultsReturnsOnCall[i] = struct {
-		result1 *domain.A2ATaskResult
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeA2ADirectService) GetAgentCard(arg1 context.Context, arg2 string) (*types.AgentCard, error) {
-	fake.getAgentCardMutex.Lock()
-	ret, specificReturn := fake.getAgentCardReturnsOnCall[len(fake.getAgentCardArgsForCall)]
-	fake.getAgentCardArgsForCall = append(fake.getAgentCardArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
-	stub := fake.GetAgentCardStub
-	fakeReturns := fake.getAgentCardReturns
-	fake.recordInvocation("GetAgentCard", []interface{}{arg1, arg2})
-	fake.getAgentCardMutex.Unlock()
-	if stub != nil {
-		return stub(arg1, arg2)
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fakeReturns.result1, fakeReturns.result2
-}
-
-func (fake *FakeA2ADirectService) GetAgentCardCallCount() int {
-	fake.getAgentCardMutex.RLock()
-	defer fake.getAgentCardMutex.RUnlock()
-	return len(fake.getAgentCardArgsForCall)
-}
-
-func (fake *FakeA2ADirectService) GetAgentCardCalls(stub func(context.Context, string) (*types.AgentCard, error)) {
-	fake.getAgentCardMutex.Lock()
-	defer fake.getAgentCardMutex.Unlock()
-	fake.GetAgentCardStub = stub
-}
-
-func (fake *FakeA2ADirectService) GetAgentCardArgsForCall(i int) (context.Context, string) {
-	fake.getAgentCardMutex.RLock()
-	defer fake.getAgentCardMutex.RUnlock()
-	argsForCall := fake.getAgentCardArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
-}
-
-func (fake *FakeA2ADirectService) GetAgentCardReturns(result1 *types.AgentCard, result2 error) {
-	fake.getAgentCardMutex.Lock()
-	defer fake.getAgentCardMutex.Unlock()
-	fake.GetAgentCardStub = nil
-	fake.getAgentCardReturns = struct {
+func (fake *FakeA2ADirectService) QueryReturns(result1 *types.AgentCard, result2 error) {
+	fake.queryMutex.Lock()
+	defer fake.queryMutex.Unlock()
+	fake.QueryStub = nil
+	fake.queryReturns = struct {
 		result1 *types.AgentCard
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeA2ADirectService) GetAgentCardReturnsOnCall(i int, result1 *types.AgentCard, result2 error) {
-	fake.getAgentCardMutex.Lock()
-	defer fake.getAgentCardMutex.Unlock()
-	fake.GetAgentCardStub = nil
-	if fake.getAgentCardReturnsOnCall == nil {
-		fake.getAgentCardReturnsOnCall = make(map[int]struct {
+func (fake *FakeA2ADirectService) QueryReturnsOnCall(i int, result1 *types.AgentCard, result2 error) {
+	fake.queryMutex.Lock()
+	defer fake.queryMutex.Unlock()
+	fake.QueryStub = nil
+	if fake.queryReturnsOnCall == nil {
+		fake.queryReturnsOnCall = make(map[int]struct {
 			result1 *types.AgentCard
 			result2 error
 		})
 	}
-	fake.getAgentCardReturnsOnCall[i] = struct {
+	fake.queryReturnsOnCall[i] = struct {
 		result1 *types.AgentCard
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeA2ADirectService) GetTaskStatus(arg1 context.Context, arg2 string) (*domain.A2ATaskStatus, error) {
-	fake.getTaskStatusMutex.Lock()
-	ret, specificReturn := fake.getTaskStatusReturnsOnCall[len(fake.getTaskStatusArgsForCall)]
-	fake.getTaskStatusArgsForCall = append(fake.getTaskStatusArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
-	stub := fake.GetTaskStatusStub
-	fakeReturns := fake.getTaskStatusReturns
-	fake.recordInvocation("GetTaskStatus", []interface{}{arg1, arg2})
-	fake.getTaskStatusMutex.Unlock()
-	if stub != nil {
-		return stub(arg1, arg2)
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fakeReturns.result1, fakeReturns.result2
-}
-
-func (fake *FakeA2ADirectService) GetTaskStatusCallCount() int {
-	fake.getTaskStatusMutex.RLock()
-	defer fake.getTaskStatusMutex.RUnlock()
-	return len(fake.getTaskStatusArgsForCall)
-}
-
-func (fake *FakeA2ADirectService) GetTaskStatusCalls(stub func(context.Context, string) (*domain.A2ATaskStatus, error)) {
-	fake.getTaskStatusMutex.Lock()
-	defer fake.getTaskStatusMutex.Unlock()
-	fake.GetTaskStatusStub = stub
-}
-
-func (fake *FakeA2ADirectService) GetTaskStatusArgsForCall(i int) (context.Context, string) {
-	fake.getTaskStatusMutex.RLock()
-	defer fake.getTaskStatusMutex.RUnlock()
-	argsForCall := fake.getTaskStatusArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
-}
-
-func (fake *FakeA2ADirectService) GetTaskStatusReturns(result1 *domain.A2ATaskStatus, result2 error) {
-	fake.getTaskStatusMutex.Lock()
-	defer fake.getTaskStatusMutex.Unlock()
-	fake.GetTaskStatusStub = nil
-	fake.getTaskStatusReturns = struct {
-		result1 *domain.A2ATaskStatus
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeA2ADirectService) GetTaskStatusReturnsOnCall(i int, result1 *domain.A2ATaskStatus, result2 error) {
-	fake.getTaskStatusMutex.Lock()
-	defer fake.getTaskStatusMutex.Unlock()
-	fake.GetTaskStatusStub = nil
-	if fake.getTaskStatusReturnsOnCall == nil {
-		fake.getTaskStatusReturnsOnCall = make(map[int]struct {
-			result1 *domain.A2ATaskStatus
-			result2 error
-		})
-	}
-	fake.getTaskStatusReturnsOnCall[i] = struct {
-		result1 *domain.A2ATaskStatus
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeA2ADirectService) ListActiveAgents() (map[string]domain.A2AAgentInfo, error) {
-	fake.listActiveAgentsMutex.Lock()
-	ret, specificReturn := fake.listActiveAgentsReturnsOnCall[len(fake.listActiveAgentsArgsForCall)]
-	fake.listActiveAgentsArgsForCall = append(fake.listActiveAgentsArgsForCall, struct {
-	}{})
-	stub := fake.ListActiveAgentsStub
-	fakeReturns := fake.listActiveAgentsReturns
-	fake.recordInvocation("ListActiveAgents", []interface{}{})
-	fake.listActiveAgentsMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1, ret.result2
-	}
-	return fakeReturns.result1, fakeReturns.result2
-}
-
-func (fake *FakeA2ADirectService) ListActiveAgentsCallCount() int {
-	fake.listActiveAgentsMutex.RLock()
-	defer fake.listActiveAgentsMutex.RUnlock()
-	return len(fake.listActiveAgentsArgsForCall)
-}
-
-func (fake *FakeA2ADirectService) ListActiveAgentsCalls(stub func() (map[string]domain.A2AAgentInfo, error)) {
-	fake.listActiveAgentsMutex.Lock()
-	defer fake.listActiveAgentsMutex.Unlock()
-	fake.ListActiveAgentsStub = stub
-}
-
-func (fake *FakeA2ADirectService) ListActiveAgentsReturns(result1 map[string]domain.A2AAgentInfo, result2 error) {
-	fake.listActiveAgentsMutex.Lock()
-	defer fake.listActiveAgentsMutex.Unlock()
-	fake.ListActiveAgentsStub = nil
-	fake.listActiveAgentsReturns = struct {
-		result1 map[string]domain.A2AAgentInfo
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeA2ADirectService) ListActiveAgentsReturnsOnCall(i int, result1 map[string]domain.A2AAgentInfo, result2 error) {
-	fake.listActiveAgentsMutex.Lock()
-	defer fake.listActiveAgentsMutex.Unlock()
-	fake.ListActiveAgentsStub = nil
-	if fake.listActiveAgentsReturnsOnCall == nil {
-		fake.listActiveAgentsReturnsOnCall = make(map[int]struct {
-			result1 map[string]domain.A2AAgentInfo
-			result2 error
-		})
-	}
-	fake.listActiveAgentsReturnsOnCall[i] = struct {
-		result1 map[string]domain.A2AAgentInfo
-		result2 error
-	}{result1, result2}
-}
-
-func (fake *FakeA2ADirectService) SubmitTask(arg1 context.Context, arg2 string, arg3 domain.A2ATask) (string, error) {
+func (fake *FakeA2ADirectService) SubmitTask(arg1 context.Context, arg2 string, arg3 types.Task) (*types.Task, error) {
 	fake.submitTaskMutex.Lock()
 	ret, specificReturn := fake.submitTaskReturnsOnCall[len(fake.submitTaskArgsForCall)]
 	fake.submitTaskArgsForCall = append(fake.submitTaskArgsForCall, struct {
 		arg1 context.Context
 		arg2 string
-		arg3 domain.A2ATask
+		arg3 types.Task
 	}{arg1, arg2, arg3})
 	stub := fake.SubmitTaskStub
 	fakeReturns := fake.submitTaskReturns
@@ -447,105 +135,43 @@ func (fake *FakeA2ADirectService) SubmitTaskCallCount() int {
 	return len(fake.submitTaskArgsForCall)
 }
 
-func (fake *FakeA2ADirectService) SubmitTaskCalls(stub func(context.Context, string, domain.A2ATask) (string, error)) {
+func (fake *FakeA2ADirectService) SubmitTaskCalls(stub func(context.Context, string, types.Task) (*types.Task, error)) {
 	fake.submitTaskMutex.Lock()
 	defer fake.submitTaskMutex.Unlock()
 	fake.SubmitTaskStub = stub
 }
 
-func (fake *FakeA2ADirectService) SubmitTaskArgsForCall(i int) (context.Context, string, domain.A2ATask) {
+func (fake *FakeA2ADirectService) SubmitTaskArgsForCall(i int) (context.Context, string, types.Task) {
 	fake.submitTaskMutex.RLock()
 	defer fake.submitTaskMutex.RUnlock()
 	argsForCall := fake.submitTaskArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
-func (fake *FakeA2ADirectService) SubmitTaskReturns(result1 string, result2 error) {
+func (fake *FakeA2ADirectService) SubmitTaskReturns(result1 *types.Task, result2 error) {
 	fake.submitTaskMutex.Lock()
 	defer fake.submitTaskMutex.Unlock()
 	fake.SubmitTaskStub = nil
 	fake.submitTaskReturns = struct {
-		result1 string
+		result1 *types.Task
 		result2 error
 	}{result1, result2}
 }
 
-func (fake *FakeA2ADirectService) SubmitTaskReturnsOnCall(i int, result1 string, result2 error) {
+func (fake *FakeA2ADirectService) SubmitTaskReturnsOnCall(i int, result1 *types.Task, result2 error) {
 	fake.submitTaskMutex.Lock()
 	defer fake.submitTaskMutex.Unlock()
 	fake.SubmitTaskStub = nil
 	if fake.submitTaskReturnsOnCall == nil {
 		fake.submitTaskReturnsOnCall = make(map[int]struct {
-			result1 string
+			result1 *types.Task
 			result2 error
 		})
 	}
 	fake.submitTaskReturnsOnCall[i] = struct {
-		result1 string
+		result1 *types.Task
 		result2 error
 	}{result1, result2}
-}
-
-func (fake *FakeA2ADirectService) TestConnection(arg1 context.Context, arg2 string) error {
-	fake.testConnectionMutex.Lock()
-	ret, specificReturn := fake.testConnectionReturnsOnCall[len(fake.testConnectionArgsForCall)]
-	fake.testConnectionArgsForCall = append(fake.testConnectionArgsForCall, struct {
-		arg1 context.Context
-		arg2 string
-	}{arg1, arg2})
-	stub := fake.TestConnectionStub
-	fakeReturns := fake.testConnectionReturns
-	fake.recordInvocation("TestConnection", []interface{}{arg1, arg2})
-	fake.testConnectionMutex.Unlock()
-	if stub != nil {
-		return stub(arg1, arg2)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeA2ADirectService) TestConnectionCallCount() int {
-	fake.testConnectionMutex.RLock()
-	defer fake.testConnectionMutex.RUnlock()
-	return len(fake.testConnectionArgsForCall)
-}
-
-func (fake *FakeA2ADirectService) TestConnectionCalls(stub func(context.Context, string) error) {
-	fake.testConnectionMutex.Lock()
-	defer fake.testConnectionMutex.Unlock()
-	fake.TestConnectionStub = stub
-}
-
-func (fake *FakeA2ADirectService) TestConnectionArgsForCall(i int) (context.Context, string) {
-	fake.testConnectionMutex.RLock()
-	defer fake.testConnectionMutex.RUnlock()
-	argsForCall := fake.testConnectionArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
-}
-
-func (fake *FakeA2ADirectService) TestConnectionReturns(result1 error) {
-	fake.testConnectionMutex.Lock()
-	defer fake.testConnectionMutex.Unlock()
-	fake.TestConnectionStub = nil
-	fake.testConnectionReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeA2ADirectService) TestConnectionReturnsOnCall(i int, result1 error) {
-	fake.testConnectionMutex.Lock()
-	defer fake.testConnectionMutex.Unlock()
-	fake.TestConnectionStub = nil
-	if fake.testConnectionReturnsOnCall == nil {
-		fake.testConnectionReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.testConnectionReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
 }
 
 func (fake *FakeA2ADirectService) Invocations() map[string][][]interface{} {

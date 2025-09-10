@@ -54,7 +54,7 @@ func (r *Registry) registerTools() {
 
 	if r.config.IsA2ADirectEnabled() && r.a2aDirectService != nil {
 		r.tools["Task"] = NewA2ATaskTool(r.config, r.a2aDirectService)
-		r.tools["AgentCard"] = NewAgentCardTool(r.config, r.a2aDirectService)
+		r.tools["Query"] = NewA2AQueryTool(r.config, r.a2aDirectService)
 	}
 }
 

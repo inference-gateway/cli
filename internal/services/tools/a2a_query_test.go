@@ -2,103 +2,42 @@ package tools
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/tests/mocks/generated"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	generated "github.com/inference-gateway/cli/tests/mocks/generated"
+	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 )
 
-func TestA2ATaskTool_Definition(t *testing.T) {
+func TestA2AQueryTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
 		},
 	}
 	mockService := &generated.FakeA2ADirectService{}
-	tool := NewA2ATaskTool(cfg, mockService)
+	tool := NewA2AQueryTool(cfg, mockService)
 
 	def := tool.Definition()
 
-	assert.Equal(t, "Task", def.Function.Name)
+	assert.Equal(t, "Query", def.Function.Name)
 	assert.NotNil(t, def.Function.Description)
 	assert.Contains(t, *def.Function.Description, "Agent-to-Agent")
 }
 
-func TestA2ATaskTool_Execute_DisabledA2A(t *testing.T) {
+func TestA2AQueryTool_Execute_DisabledA2A(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: false,
 		},
 	}
 	mockService := &generated.FakeA2ADirectService{}
-	tool := NewA2ATaskTool(cfg, mockService)
-
-	args := map[string]any{
-		"agent_url":        "http://test-agent.example.com",
-		"task_description": "Test task",
-	}
-
-	result, err := tool.Execute(context.Background(), args)
-
-	require.NoError(t, err)
-	assert.False(t, result.Success)
-	assert.Contains(t, result.Error, "A2A direct connections are disabled")
-}
-
-func TestA2ATaskTool_Execute_NoService(t *testing.T) {
-	cfg := &config.Config{
-		A2A: config.A2AConfig{
-			Enabled: true,
-		},
-	}
-	tool := NewA2ATaskTool(cfg, nil)
-
-	args := map[string]any{
-		"agent_url":        "http://test-agent.example.com",
-		"task_description": "Test task",
-	}
-
-	result, err := tool.Execute(context.Background(), args)
-
-	require.NoError(t, err)
-	assert.False(t, result.Success)
-	assert.Contains(t, result.Error, "A2A direct service not available")
-}
-
-func TestA2ATaskTool_Execute_MissingAgentURL(t *testing.T) {
-	cfg := &config.Config{
-		A2A: config.A2AConfig{
-			Enabled: true,
-		},
-	}
-	mockService := &generated.FakeA2ADirectService{}
-	tool := NewA2ATaskTool(cfg, mockService)
-
-	args := map[string]any{
-		"task_description": "Test task",
-	}
-
-	result, err := tool.Execute(context.Background(), args)
-
-	require.NoError(t, err)
-	assert.False(t, result.Success)
-	assert.Contains(t, result.Error, "agent_url parameter is required")
-}
-
-func TestA2ATaskTool_Execute_MissingTaskDescription(t *testing.T) {
-	cfg := &config.Config{
-		A2A: config.A2AConfig{
-			Enabled: true,
-		},
-	}
-	mockService := &generated.FakeA2ADirectService{}
-	tool := NewA2ATaskTool(cfg, mockService)
+	tool := NewA2AQueryTool(cfg, mockService)
 
 	args := map[string]any{
 		"agent_url": "http://test-agent.example.com",
@@ -108,10 +47,47 @@ func TestA2ATaskTool_Execute_MissingTaskDescription(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.False(t, result.Success)
-	assert.Contains(t, result.Error, "task_description parameter is required")
+	assert.Contains(t, result.Error, "A2A direct connections are disabled")
 }
 
-func TestA2ATaskTool_Execute_SuccessfulSubmit(t *testing.T) {
+func TestA2AQueryTool_Execute_NoService(t *testing.T) {
+	cfg := &config.Config{
+		A2A: config.A2AConfig{
+			Enabled: true,
+		},
+	}
+	tool := NewA2AQueryTool(cfg, nil)
+
+	args := map[string]any{
+		"agent_url": "http://test-agent.example.com",
+	}
+
+	result, err := tool.Execute(context.Background(), args)
+
+	require.NoError(t, err)
+	assert.False(t, result.Success)
+	assert.Contains(t, result.Error, "A2A direct service not available")
+}
+
+func TestA2AQueryTool_Execute_MissingAgentURL(t *testing.T) {
+	cfg := &config.Config{
+		A2A: config.A2AConfig{
+			Enabled: true,
+		},
+	}
+	mockService := &generated.FakeA2ADirectService{}
+	tool := NewA2AQueryTool(cfg, mockService)
+
+	args := map[string]any{}
+
+	result, err := tool.Execute(context.Background(), args)
+
+	require.NoError(t, err)
+	assert.False(t, result.Success)
+	assert.Contains(t, result.Error, "agent_url parameter is required")
+}
+
+func TestA2AQueryTool_Execute_SuccessfulQuery(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
@@ -119,43 +95,63 @@ func TestA2ATaskTool_Execute_SuccessfulSubmit(t *testing.T) {
 	}
 	mockService := &generated.FakeA2ADirectService{}
 
-	submittedTask := &adk.Task{
-		ID:   uuid.New().String(),
-		Kind: "test",
-		Status: adk.TaskStatus{
-			State: adk.TaskStateSubmitted,
-		},
+	expectedResponse := &adk.AgentCard{
+		Name:        "test-agent",
+		Description: "Test agent description",
 	}
-	mockService.SubmitTaskReturns(submittedTask, nil)
+	mockService.QueryReturns(expectedResponse, nil)
 
-	tool := NewA2ATaskTool(cfg, mockService)
+	tool := NewA2AQueryTool(cfg, mockService)
 
 	args := map[string]any{
-		"agent_url":        "http://test-agent.example.com",
-		"task_description": "Test task",
+		"agent_url": "http://test-agent.example.com",
 	}
 
 	result, err := tool.Execute(context.Background(), args)
 
 	require.NoError(t, err)
 	assert.True(t, result.Success)
-	assert.Equal(t, "Task", result.ToolName)
+	assert.Equal(t, "Query", result.ToolName)
 
-	data, ok := result.Data.(A2ATaskResult)
+	data, ok := result.Data.(A2AQueryResult)
 	require.True(t, ok)
 	assert.True(t, data.Success)
 	assert.Equal(t, "http://test-agent.example.com", data.AgentName)
-	assert.Equal(t, submittedTask, data.Task)
+	assert.Equal(t, "card", data.Query)
+	assert.Equal(t, expectedResponse, data.Response)
 	assert.Contains(t, data.Message, "http://test-agent.example.com")
-	assert.Contains(t, data.Message, submittedTask.ID)
 
-	assert.Equal(t, 1, mockService.SubmitTaskCallCount())
+	assert.Equal(t, 1, mockService.QueryCallCount())
 }
 
-func TestA2ATaskTool_Validate(t *testing.T) {
+func TestA2AQueryTool_Execute_ServiceError(t *testing.T) {
+	cfg := &config.Config{
+		A2A: config.A2AConfig{
+			Enabled: true,
+		},
+	}
+	mockService := &generated.FakeA2ADirectService{}
+
+	mockService.QueryReturns(nil, fmt.Errorf("connection failed"))
+
+	tool := NewA2AQueryTool(cfg, mockService)
+
+	args := map[string]any{
+		"agent_url": "http://test-agent.example.com",
+	}
+
+	result, err := tool.Execute(context.Background(), args)
+
+	require.NoError(t, err)
+	assert.False(t, result.Success)
+	assert.Contains(t, result.Error, "Failed to query agent")
+	assert.Contains(t, result.Error, "connection failed")
+}
+
+func TestA2AQueryTool_Validate(t *testing.T) {
 	cfg := &config.Config{}
 	mockService := &generated.FakeA2ADirectService{}
-	tool := NewA2ATaskTool(cfg, mockService)
+	tool := NewA2AQueryTool(cfg, mockService)
 
 	tests := []struct {
 		name    string
@@ -166,26 +162,15 @@ func TestA2ATaskTool_Validate(t *testing.T) {
 		{
 			name: "valid args",
 			args: map[string]any{
-				"agent_url":        "http://test-agent.example.com",
-				"task_description": "Test task",
+				"agent_url": "http://test-agent.example.com",
 			},
 			wantErr: false,
 		},
 		{
-			name: "missing agent_url",
-			args: map[string]any{
-				"task_description": "Test task",
-			},
+			name:    "missing agent_url",
+			args:    map[string]any{},
 			wantErr: true,
 			errMsg:  "agent_url parameter is required",
-		},
-		{
-			name: "missing task_description",
-			args: map[string]any{
-				"agent_url": "http://test-agent.example.com",
-			},
-			wantErr: true,
-			errMsg:  "task_description parameter is required",
 		},
 	}
 
@@ -203,7 +188,7 @@ func TestA2ATaskTool_Validate(t *testing.T) {
 	}
 }
 
-func TestA2ATaskTool_IsEnabled(t *testing.T) {
+func TestA2AQueryTool_IsEnabled(t *testing.T) {
 	tests := []struct {
 		name     string
 		enabled  bool
@@ -229,33 +214,31 @@ func TestA2ATaskTool_IsEnabled(t *testing.T) {
 				},
 			}
 			mockService := &generated.FakeA2ADirectService{}
-			tool := NewA2ATaskTool(cfg, mockService)
+			tool := NewA2AQueryTool(cfg, mockService)
 
 			assert.Equal(t, tt.expected, tool.IsEnabled())
 		})
 	}
 }
 
-func TestA2ATaskTool_FormatResult(t *testing.T) {
+func TestA2AQueryTool_FormatResult(t *testing.T) {
 	cfg := &config.Config{}
 	mockService := &generated.FakeA2ADirectService{}
-	tool := NewA2ATaskTool(cfg, mockService)
+	tool := NewA2AQueryTool(cfg, mockService)
 
-	taskResult := A2ATaskResult{
+	queryResult := A2AQueryResult{
 		AgentName: "test-agent",
-		Task: &adk.Task{
-			ID:   "task-123",
-			Kind: "test",
-		},
-		Success:  true,
-		Message:  "Task submitted successfully",
-		Duration: time.Second,
+		Query:     "card",
+		Response:  &adk.AgentCard{Name: "test-agent", Description: "Test agent"},
+		Success:   true,
+		Message:   "Query sent successfully",
+		Duration:  time.Second,
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "Task",
+		ToolName: "Query",
 		Success:  true,
-		Data:     taskResult,
+		Data:     queryResult,
 	}
 
 	tests := []struct {
@@ -266,17 +249,17 @@ func TestA2ATaskTool_FormatResult(t *testing.T) {
 		{
 			name:       "LLM format",
 			formatType: domain.FormatterLLM,
-			contains:   []string{"A2A Task", "Task submitted successfully", "task-123"},
+			contains:   []string{"A2A Query to test-agent", "Query sent successfully", "Name:test-agent"},
 		},
 		{
 			name:       "UI format",
 			formatType: domain.FormatterUI,
-			contains:   []string{"**A2A Task**", "test-agent", "task-123", "test"},
+			contains:   []string{"**A2A Query**", "test-agent", "card", "Name:test-agent"},
 		},
 		{
 			name:       "Short format",
 			formatType: domain.FormatterShort,
-			contains:   []string{"Task submitted successfully"},
+			contains:   []string{"Query sent successfully"},
 		},
 	}
 
@@ -290,41 +273,39 @@ func TestA2ATaskTool_FormatResult(t *testing.T) {
 	}
 }
 
-func TestA2ATaskTool_FormatPreview(t *testing.T) {
+func TestA2AQueryTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{}
 	mockService := &generated.FakeA2ADirectService{}
-	tool := NewA2ATaskTool(cfg, mockService)
+	tool := NewA2AQueryTool(cfg, mockService)
 
-	taskResult := A2ATaskResult{
+	queryResult := A2AQueryResult{
 		Success: true,
-		Message: "Task submitted successfully",
+		Message: "Query sent successfully",
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "Task",
+		ToolName: "Query",
 		Success:  true,
-		Data:     taskResult,
+		Data:     queryResult,
 	}
 
 	preview := tool.FormatPreview(result)
-	assert.Contains(t, preview, "A2A Task")
-	assert.Contains(t, preview, "Task submitted successfully")
+	assert.Contains(t, preview, "A2A Query")
+	assert.Contains(t, preview, "Query sent successfully")
 }
 
-func TestA2ATaskTool_ShouldCollapseArg(t *testing.T) {
+func TestA2AQueryTool_ShouldCollapseArg(t *testing.T) {
 	cfg := &config.Config{}
 	mockService := &generated.FakeA2ADirectService{}
-	tool := NewA2ATaskTool(cfg, mockService)
+	tool := NewA2AQueryTool(cfg, mockService)
 
-	assert.True(t, tool.ShouldCollapseArg("metadata"))
 	assert.False(t, tool.ShouldCollapseArg("agent_url"))
-	assert.False(t, tool.ShouldCollapseArg("task_description"))
 }
 
-func TestA2ATaskTool_ShouldAlwaysExpand(t *testing.T) {
+func TestA2AQueryTool_ShouldAlwaysExpand(t *testing.T) {
 	cfg := &config.Config{}
 	mockService := &generated.FakeA2ADirectService{}
-	tool := NewA2ATaskTool(cfg, mockService)
+	tool := NewA2AQueryTool(cfg, mockService)
 
 	assert.False(t, tool.ShouldAlwaysExpand())
 }

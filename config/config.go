@@ -310,9 +310,7 @@ type RedisStorageConfig struct {
 
 // A2AConfig contains Agent-to-Agent direct connection configuration
 type A2AConfig struct {
-	Enabled bool                    `yaml:"enabled" mapstructure:"enabled"`
-	Agents  map[string]A2AAgentInfo `yaml:"agents" mapstructure:"agents"`
-	Tasks   A2ATaskConfig           `yaml:"tasks" mapstructure:"tasks"`
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 }
 
 // A2AAgentInfo contains information about a direct A2A agent connection
@@ -591,13 +589,6 @@ Respond with ONLY the title, no quotes or explanation.`,
 		},
 		A2A: A2AConfig{
 			Enabled: false,
-			Agents:  make(map[string]A2AAgentInfo),
-			Tasks: A2ATaskConfig{
-				MaxConcurrent:     3,
-				TimeoutSeconds:    300,
-				RetryCount:        2,
-				StatusPollSeconds: 5,
-			},
 		},
 	}
 }
@@ -806,27 +797,4 @@ func ResolveEnvironmentVariables(value string) string {
 
 func (c *Config) IsA2ADirectEnabled() bool {
 	return c.A2A.Enabled
-}
-
-func (c *Config) GetA2AAgents() map[string]A2AAgentInfo {
-	return c.A2A.Agents
-}
-
-func (c *Config) GetA2AAgent(name string) (A2AAgentInfo, bool) {
-	agent, exists := c.A2A.Agents[name]
-	return agent, exists
-}
-
-func (c *Config) GetEnabledA2AAgents() map[string]A2AAgentInfo {
-	enabledAgents := make(map[string]A2AAgentInfo)
-	for name, agent := range c.A2A.Agents {
-		if agent.Enabled {
-			enabledAgents[name] = agent
-		}
-	}
-	return enabledAgents
-}
-
-func (c *Config) GetA2ATaskConfig() A2ATaskConfig {
-	return c.A2A.Tasks
 }

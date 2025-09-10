@@ -1,0 +1,223 @@
+package tools
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	adk "github.com/inference-gateway/adk/types"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	sdk "github.com/inference-gateway/sdk"
+)
+
+// A2AQueryTool handles A2A agent queries
+type A2AQueryTool struct {
+	config           *config.Config
+	a2aDirectService domain.A2ADirectService
+}
+
+// A2AQueryResult represents the result of an A2A query operation
+type A2AQueryResult struct {
+	AgentName string         `json:"agent_name"`
+	Query     string         `json:"query"`
+	Response  *adk.AgentCard `json:"response"`
+	Success   bool           `json:"success"`
+	Message   string         `json:"message"`
+	Duration  time.Duration  `json:"duration"`
+}
+
+// NewA2AQueryTool creates a new A2A query tool
+func NewA2AQueryTool(cfg *config.Config, a2aDirectService domain.A2ADirectService) *A2AQueryTool {
+	return &A2AQueryTool{
+		config:           cfg,
+		a2aDirectService: a2aDirectService,
+	}
+}
+
+// Definition returns the tool definition for the LLM
+func (t *A2AQueryTool) Definition() sdk.ChatCompletionTool {
+	description := "Send a query to an Agent-to-Agent (A2A) server and get a response."
+	return sdk.ChatCompletionTool{
+		Type: sdk.Function,
+		Function: sdk.FunctionObject{
+			Name:        "Query",
+			Description: &description,
+			Parameters: &sdk.FunctionParameters{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"agent_url": map[string]interface{}{
+						"type":        "string",
+						"description": "URL of the A2A agent to query",
+					},
+				},
+				"required": []string{"agent_url"},
+			},
+		},
+	}
+}
+
+// Execute runs the tool with given arguments
+func (t *A2AQueryTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+	startTime := time.Now()
+
+	if !t.config.IsA2ADirectEnabled() {
+		return &domain.ToolExecutionResult{
+			ToolName:  "Query",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(startTime),
+			Error:     "A2A direct connections are disabled in configuration",
+			Data: A2AQueryResult{
+				Success: false,
+				Message: "A2A direct connections are disabled",
+			},
+		}, nil
+	}
+
+	if t.a2aDirectService == nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "Query",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(startTime),
+			Error:     "A2A direct service not available",
+			Data: A2AQueryResult{
+				Success: false,
+				Message: "A2A direct service not initialized",
+			},
+		}, nil
+	}
+
+	agentURL, ok := args["agent_url"].(string)
+	if !ok {
+		return t.errorResult(args, startTime, "agent_url parameter is required and must be a string")
+	}
+
+	response, err := t.a2aDirectService.Query(ctx, agentURL)
+	if err != nil {
+		return t.errorResult(args, startTime, fmt.Sprintf("Failed to query agent: %v", err))
+	}
+
+	logger.Debug("A2A query executed via tool", "agent_url", agentURL)
+
+	return &domain.ToolExecutionResult{
+		ToolName:  "Query",
+		Arguments: args,
+		Success:   true,
+		Duration:  time.Since(startTime),
+		Data: A2AQueryResult{
+			AgentName: agentURL,
+			Query:     "card",
+			Response:  response,
+			Success:   true,
+			Message:   fmt.Sprintf("Query sent to agent at %s successfully", agentURL),
+			Duration:  time.Since(startTime),
+		},
+	}, nil
+}
+
+// errorResult creates an error result
+func (t *A2AQueryTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
+	return &domain.ToolExecutionResult{
+		ToolName:  "Query",
+		Arguments: args,
+		Success:   false,
+		Duration:  time.Since(startTime),
+		Error:     errorMsg,
+		Data: A2AQueryResult{
+			Success: false,
+			Message: errorMsg,
+		},
+	}, nil
+}
+
+// Validate checks if the tool arguments are valid
+func (t *A2AQueryTool) Validate(args map[string]any) error {
+	if _, ok := args["agent_url"].(string); !ok {
+		return fmt.Errorf("agent_url parameter is required and must be a string")
+	}
+	return nil
+}
+
+// IsEnabled returns whether this tool is enabled
+func (t *A2AQueryTool) IsEnabled() bool {
+	return t.config.IsA2ADirectEnabled()
+}
+
+// FormatResult formats tool execution results for different contexts
+func (t *A2AQueryTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+	if result.Data == nil {
+		return result.Error
+	}
+
+	data, ok := result.Data.(A2AQueryResult)
+	if !ok {
+		return "Invalid A2A query result format"
+	}
+
+	switch formatType {
+	case domain.FormatterLLM:
+		return t.formatForLLM(data)
+	case domain.FormatterShort:
+		return data.Message
+	default:
+		return t.formatForUI(data)
+	}
+}
+
+// formatForLLM formats the result for LLM consumption
+func (t *A2AQueryTool) formatForLLM(data A2AQueryResult) string {
+	result := fmt.Sprintf("A2A Query to %s: %s", data.AgentName, data.Message)
+	if data.Response != nil {
+		result += fmt.Sprintf(" Response: %+v", data.Response)
+	}
+	return result
+}
+
+// formatForUI formats the result for UI display
+func (t *A2AQueryTool) formatForUI(data A2AQueryResult) string {
+	result := fmt.Sprintf("**A2A Query**: %s", data.Message)
+
+	if data.AgentName != "" {
+		result += fmt.Sprintf("\n🤖 **Agent**: %s", data.AgentName)
+	}
+
+	if data.Query != "" {
+		result += fmt.Sprintf("\n❓ **Query**: %s", data.Query)
+	}
+
+	if data.Response != nil {
+		result += fmt.Sprintf("\n💬 **Response**: %+v", data.Response)
+	}
+
+	if data.Duration > 0 {
+		result += fmt.Sprintf("\n⏱️ **Duration**: %v", data.Duration)
+	}
+
+	return result
+}
+
+// FormatPreview returns a short preview of the result for UI display
+func (t *A2AQueryTool) FormatPreview(result *domain.ToolExecutionResult) string {
+	if result.Data == nil {
+		return result.Error
+	}
+
+	if data, ok := result.Data.(A2AQueryResult); ok {
+		return fmt.Sprintf("A2A Query: %s", data.Message)
+	}
+
+	return "A2A query operation completed"
+}
+
+// ShouldCollapseArg determines if an argument should be collapsed in display
+func (t *A2AQueryTool) ShouldCollapseArg(key string) bool {
+	return false
+}
+
+// ShouldAlwaysExpand determines if tool results should always be expanded in UI
+func (t *A2AQueryTool) ShouldAlwaysExpand() bool {
+	return false
+}

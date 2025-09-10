@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -22,17 +21,11 @@ type A2ATaskTool struct {
 
 // A2ATaskResult represents the result of an A2A task operation
 type A2ATaskResult struct {
-	Operation   string                   `json:"operation"`
-	TaskID      string                   `json:"task_id,omitempty"`
-	Status      domain.A2ATaskStatusEnum `json:"status,omitempty"`
-	AgentName   string                   `json:"agent_name,omitempty"`
-	Message     string                   `json:"message"`
-	Result      interface{}              `json:"result,omitempty"`
-	Metadata    map[string]string        `json:"metadata,omitempty"`
-	Success     bool                     `json:"success"`
-	Duration    time.Duration            `json:"duration,omitempty"`
-	CreatedAt   time.Time                `json:"created_at,omitempty"`
-	CompletedAt *time.Time               `json:"completed_at,omitempty"`
+	AgentName string        `json:"agent_name"`
+	Task      *adk.Task     `json:"task"`
+	Success   bool          `json:"success"`
+	Message   string        `json:"message"`
+	Duration  time.Duration `json:"duration"`
 }
 
 // NewA2ATaskTool creates a new A2A task tool
@@ -45,7 +38,7 @@ func NewA2ATaskTool(cfg *config.Config, a2aDirectService domain.A2ADirectService
 
 // Definition returns the tool definition for the LLM
 func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
-	description := "Submit tasks to Agent-to-Agent (A2A) servers for background execution. Supports task submission, status checking, and result collection."
+	description := "Submit a task to an Agent-to-Agent (A2A) server for execution."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
@@ -54,44 +47,16 @@ func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
 			Parameters: &sdk.FunctionParameters{
 				"type": "object",
 				"properties": map[string]interface{}{
-					"operation": map[string]interface{}{
+					"agent_url": map[string]interface{}{
 						"type":        "string",
-						"description": "The operation to perform",
-						"enum":        []string{"submit", "status", "collect", "cancel", "list_agents", "test_connection"},
-					},
-					"agent_name": map[string]interface{}{
-						"type":        "string",
-						"description": "Name of the A2A agent (required for submit, test_connection)",
-					},
-					"task_id": map[string]interface{}{
-						"type":        "string",
-						"description": "Task ID (required for status, collect, cancel)",
-					},
-					"task_type": map[string]interface{}{
-						"type":        "string",
-						"description": "Type of task to submit (required for submit)",
+						"description": "URL of the A2A agent",
 					},
 					"task_description": map[string]interface{}{
 						"type":        "string",
-						"description": "Description of the task (required for submit)",
-					},
-					"parameters": map[string]interface{}{
-						"type":                 "object",
-						"description":          "Task parameters (optional for submit)",
-						"additionalProperties": true,
-					},
-					"priority": map[string]interface{}{
-						"type":        "integer",
-						"description": "Task priority (1-10, optional for submit)",
-						"minimum":     1,
-						"maximum":     10,
-					},
-					"timeout": map[string]interface{}{
-						"type":        "integer",
-						"description": "Task timeout in seconds (optional for submit)",
+						"description": "Description of the task",
 					},
 				},
-				"required": []string{"operation"},
+				"required": []string{"agent_url", "task_description"},
 			},
 		},
 	}
@@ -109,9 +74,8 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 			Duration:  time.Since(startTime),
 			Error:     "A2A direct connections are disabled in configuration",
 			Data: A2ATaskResult{
-				Operation: "error",
-				Success:   false,
-				Message:   "A2A direct connections are disabled",
+				Success: false,
+				Message: "A2A direct connections are disabled",
 			},
 		}, nil
 	}
@@ -124,79 +88,26 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 			Duration:  time.Since(startTime),
 			Error:     "A2A direct service not available",
 			Data: A2ATaskResult{
-				Operation: "error",
-				Success:   false,
-				Message:   "A2A direct service not initialized",
+				Success: false,
+				Message: "A2A direct service not initialized",
 			},
 		}, nil
 	}
 
-	operation, ok := args["operation"].(string)
+	agentURL, ok := args["agent_url"].(string)
 	if !ok {
-		return &domain.ToolExecutionResult{
-			ToolName:  "Task",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(startTime),
-			Error:     "operation parameter is required and must be a string",
-			Data: A2ATaskResult{
-				Operation: "error",
-				Success:   false,
-				Message:   "Invalid operation parameter",
-			},
-		}, nil
-	}
-
-	switch operation {
-	case "submit":
-		return t.handleSubmitTask(ctx, args, startTime)
-	case "status":
-		return t.handleGetTaskStatus(ctx, args, startTime)
-	case "collect":
-		return t.handleCollectResults(ctx, args, startTime)
-	case "cancel":
-		return t.handleCancelTask(ctx, args, startTime)
-	case "list_agents":
-		return t.handleListAgents(ctx, args, startTime)
-	case "test_connection":
-		return t.handleTestConnection(ctx, args, startTime)
-	default:
-		return &domain.ToolExecutionResult{
-			ToolName:  "Task",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(startTime),
-			Error:     fmt.Sprintf("unknown operation: %s", operation),
-			Data: A2ATaskResult{
-				Operation: operation,
-				Success:   false,
-				Message:   fmt.Sprintf("Unknown operation: %s", operation),
-			},
-		}, nil
-	}
-}
-
-// handleSubmitTask handles task submission
-func (t *A2ATaskTool) handleSubmitTask(ctx context.Context, args map[string]any, startTime time.Time) (*domain.ToolExecutionResult, error) {
-	agentName, ok := args["agent_name"].(string)
-	if !ok {
-		return t.errorResult(args, startTime, "agent_name parameter is required for submit operation", "submit")
-	}
-
-	taskType, ok := args["task_type"].(string)
-	if !ok {
-		return t.errorResult(args, startTime, "task_type parameter is required for submit operation", "submit")
+		return t.errorResult(args, startTime, "agent_url parameter is required and must be a string")
 	}
 
 	taskDescription, ok := args["task_description"].(string)
 	if !ok {
-		return t.errorResult(args, startTime, "task_description parameter is required for submit operation", "submit")
+		return t.errorResult(args, startTime, "task_description parameter is required and must be a string")
 	}
 
 	// Create ADK Task structure
 	adkTask := adk.Task{
 		ID:   uuid.New().String(),
-		Kind: taskType,
+		Kind: "query", // Default kind for A2A tasks
 		Metadata: map[string]any{
 			"description": taskDescription,
 		},
@@ -205,117 +116,21 @@ func (t *A2ATaskTool) handleSubmitTask(ctx context.Context, args map[string]any,
 		},
 	}
 
-	// Create A2A Task Request
-	task := domain.A2ATask{
-		Task:      adkTask,
-		JobType:   taskType,
-		JobParams: make(map[string]interface{}),
-	}
-
-	if params, exists := args["parameters"]; exists {
-		if paramMap, ok := params.(map[string]interface{}); ok {
-			task.JobParams = paramMap
-		}
-	}
-
-	if priority, exists := args["priority"]; exists {
-		if p, ok := priority.(float64); ok {
-			task.Priority = int(p)
-		}
-	}
-
-	if timeout, exists := args["timeout"]; exists {
-		if t, ok := timeout.(float64); ok {
-			task.Timeout = int(t)
-		}
-	}
-
-	taskID, err := t.a2aDirectService.SubmitTask(ctx, agentName, task)
-	if err != nil {
-		return t.errorResult(args, startTime, fmt.Sprintf("Failed to submit task: %v", err), "submit")
-	}
-
-	logger.Debug("A2A task submitted via tool", "task_id", taskID, "agent", agentName, "type", taskType)
-
-	return &domain.ToolExecutionResult{
-		ToolName:  "Task",
-		Arguments: args,
-		Success:   true,
-		Duration:  time.Since(startTime),
-		Data: A2ATaskResult{
-			Operation: "submit",
-			TaskID:    taskID,
-			Status:    "submitted",
-			AgentName: agentName,
-			Success:   true,
-			Message:   fmt.Sprintf("Task submitted to agent '%s' with ID: %s", agentName, taskID),
-			CreatedAt: time.Now(),
-		},
-	}, nil
-}
-
-// handleGetTaskStatus handles task status retrieval
-func (t *A2ATaskTool) handleGetTaskStatus(ctx context.Context, args map[string]any, startTime time.Time) (*domain.ToolExecutionResult, error) {
-	taskID, ok := args["task_id"].(string)
-	if !ok {
-		return t.errorResult(args, startTime, "task_id parameter is required for status operation", "status")
-	}
-
-	status, err := t.a2aDirectService.GetTaskStatus(ctx, taskID)
-	if err != nil {
-		return t.errorResult(args, startTime, fmt.Sprintf("Failed to get task status: %v", err), "status")
-	}
-
-	return &domain.ToolExecutionResult{
-		ToolName:  "Task",
-		Arguments: args,
-		Success:   true,
-		Duration:  time.Since(startTime),
-		Data: A2ATaskResult{
-			Operation:   "status",
-			TaskID:      taskID,
-			Status:      status.Status(),
-			Success:     true,
-			Message:     fmt.Sprintf("Task %s status: %s (%.1f%% complete)", taskID, status.Status(), status.Progress),
-			CreatedAt:   status.CreatedAt,
-			CompletedAt: status.CompletedAt,
-			Metadata: map[string]string{
-				"progress": fmt.Sprintf("%.1f", status.Progress),
-				"message":  getStatusMessage(status),
-			},
-		},
-	}, nil
-}
-
-// getStatusMessage extracts the message from A2ATaskStatus
-func getStatusMessage(status *domain.A2ATaskStatus) string {
-	if status.TaskStatus.Message != nil {
-		// Try to extract text content from ADK Message
-		for _, part := range status.TaskStatus.Message.Parts {
-			if textPart, ok := part.(*adk.TextPart); ok {
-				return textPart.Text
+	// Add optional metadata
+	if metadata, exists := args["metadata"]; exists {
+		if metadataMap, ok := metadata.(map[string]interface{}); ok {
+			for k, v := range metadataMap {
+				adkTask.Metadata[k] = v
 			}
 		}
 	}
-	return ""
-}
 
-// handleCollectResults handles result collection
-func (t *A2ATaskTool) handleCollectResults(ctx context.Context, args map[string]any, startTime time.Time) (*domain.ToolExecutionResult, error) {
-	taskID, ok := args["task_id"].(string)
-	if !ok {
-		return t.errorResult(args, startTime, "task_id parameter is required for collect operation", "collect")
-	}
-
-	result, err := t.a2aDirectService.CollectResults(ctx, taskID)
+	resultTask, err := t.a2aDirectService.SubmitTask(ctx, agentURL, adkTask)
 	if err != nil {
-		return t.errorResult(args, startTime, fmt.Sprintf("Failed to collect results: %v", err), "collect")
+		return t.errorResult(args, startTime, fmt.Sprintf("Failed to submit task: %v", err))
 	}
 
-	message := fmt.Sprintf("Results collected for task %s", taskID)
-	if !result.Success {
-		message = fmt.Sprintf("Task %s failed: %s", taskID, result.Error)
-	}
+	logger.Debug("A2A task submitted via tool", "task_id", resultTask.ID, "agent_url", agentURL)
 
 	return &domain.ToolExecutionResult{
 		ToolName:  "Task",
@@ -323,107 +138,17 @@ func (t *A2ATaskTool) handleCollectResults(ctx context.Context, args map[string]
 		Success:   true,
 		Duration:  time.Since(startTime),
 		Data: A2ATaskResult{
-			Operation:   "collect",
-			TaskID:      taskID,
-			Status:      "collected",
-			Success:     result.Success,
-			Message:     message,
-			Result:      result.Result,
-			Duration:    result.Duration,
-			CreatedAt:   result.CreatedAt,
-			CompletedAt: &result.CompletedAt,
-			Metadata:    result.Metadata,
-		},
-	}, nil
-}
-
-// handleCancelTask handles task cancellation
-func (t *A2ATaskTool) handleCancelTask(ctx context.Context, args map[string]any, startTime time.Time) (*domain.ToolExecutionResult, error) {
-	taskID, ok := args["task_id"].(string)
-	if !ok {
-		return t.errorResult(args, startTime, "task_id parameter is required for cancel operation", "cancel")
-	}
-
-	err := t.a2aDirectService.CancelTask(ctx, taskID)
-	if err != nil {
-		return t.errorResult(args, startTime, fmt.Sprintf("Failed to cancel task: %v", err), "cancel")
-	}
-
-	return &domain.ToolExecutionResult{
-		ToolName:  "Task",
-		Arguments: args,
-		Success:   true,
-		Duration:  time.Since(startTime),
-		Data: A2ATaskResult{
-			Operation: "cancel",
-			TaskID:    taskID,
-			Status:    "cancelled",
+			AgentName: agentURL,
+			Task:      resultTask,
 			Success:   true,
-			Message:   fmt.Sprintf("Task %s has been cancelled", taskID),
-		},
-	}, nil
-}
-
-// handleListAgents handles listing active agents
-func (t *A2ATaskTool) handleListAgents(ctx context.Context, args map[string]any, startTime time.Time) (*domain.ToolExecutionResult, error) {
-	agents, err := t.a2aDirectService.ListActiveAgents()
-	if err != nil {
-		return t.errorResult(args, startTime, fmt.Sprintf("Failed to list agents: %v", err), "list_agents")
-	}
-
-	agentList := make([]map[string]interface{}, 0, len(agents))
-	for name, agent := range agents {
-		agentList = append(agentList, map[string]interface{}{
-			"name":        name,
-			"url":         agent.URL,
-			"description": agent.Description,
-			"enabled":     agent.Enabled,
-			"metadata":    agent.Metadata,
-		})
-	}
-
-	return &domain.ToolExecutionResult{
-		ToolName:  "Task",
-		Arguments: args,
-		Success:   true,
-		Duration:  time.Since(startTime),
-		Data: A2ATaskResult{
-			Operation: "list_agents",
-			Success:   true,
-			Message:   fmt.Sprintf("Found %d active A2A agents", len(agents)),
-			Result:    agentList,
-		},
-	}, nil
-}
-
-// handleTestConnection handles connection testing
-func (t *A2ATaskTool) handleTestConnection(ctx context.Context, args map[string]any, startTime time.Time) (*domain.ToolExecutionResult, error) {
-	agentName, ok := args["agent_name"].(string)
-	if !ok {
-		return t.errorResult(args, startTime, "agent_name parameter is required for test_connection operation", "test_connection")
-	}
-
-	err := t.a2aDirectService.TestConnection(ctx, agentName)
-	if err != nil {
-		return t.errorResult(args, startTime, fmt.Sprintf("Connection test failed: %v", err), "test_connection")
-	}
-
-	return &domain.ToolExecutionResult{
-		ToolName:  "Task",
-		Arguments: args,
-		Success:   true,
-		Duration:  time.Since(startTime),
-		Data: A2ATaskResult{
-			Operation: "test_connection",
-			AgentName: agentName,
-			Success:   true,
-			Message:   fmt.Sprintf("Connection to agent '%s' successful", agentName),
+			Message:   fmt.Sprintf("Task submitted to agent at %s with ID: %s", agentURL, resultTask.ID),
+			Duration:  time.Since(startTime),
 		},
 	}, nil
 }
 
 // errorResult creates an error result
-func (t *A2ATaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg, operation string) (*domain.ToolExecutionResult, error) {
+func (t *A2ATaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
 	return &domain.ToolExecutionResult{
 		ToolName:  "Task",
 		Arguments: args,
@@ -431,45 +156,20 @@ func (t *A2ATaskTool) errorResult(args map[string]any, startTime time.Time, erro
 		Duration:  time.Since(startTime),
 		Error:     errorMsg,
 		Data: A2ATaskResult{
-			Operation: operation,
-			Success:   false,
-			Message:   errorMsg,
+			Success: false,
+			Message: errorMsg,
 		},
 	}, nil
 }
 
 // Validate checks if the tool arguments are valid
 func (t *A2ATaskTool) Validate(args map[string]any) error {
-	operation, ok := args["operation"].(string)
-	if !ok {
-		return fmt.Errorf("operation parameter is required and must be a string")
+	if _, ok := args["agent_url"].(string); !ok {
+		return fmt.Errorf("agent_url parameter is required and must be a string")
 	}
-
-	switch operation {
-	case "submit":
-		if _, ok := args["agent_name"].(string); !ok {
-			return fmt.Errorf("agent_name parameter is required for submit operation")
-		}
-		if _, ok := args["task_type"].(string); !ok {
-			return fmt.Errorf("task_type parameter is required for submit operation")
-		}
-		if _, ok := args["task_description"].(string); !ok {
-			return fmt.Errorf("task_description parameter is required for submit operation")
-		}
-	case "status", "collect", "cancel":
-		if _, ok := args["task_id"].(string); !ok {
-			return fmt.Errorf("task_id parameter is required for %s operation", operation)
-		}
-	case "test_connection":
-		if _, ok := args["agent_name"].(string); !ok {
-			return fmt.Errorf("agent_name parameter is required for test_connection operation")
-		}
-	case "list_agents":
-		// No additional validation needed
-	default:
-		return fmt.Errorf("unknown operation: %s", operation)
+	if _, ok := args["task_description"].(string); !ok {
+		return fmt.Errorf("task_description parameter is required and must be a string")
 	}
-
 	return nil
 }
 
@@ -501,16 +201,10 @@ func (t *A2ATaskTool) FormatResult(result *domain.ToolExecutionResult, formatTyp
 
 // formatForLLM formats the result for LLM consumption
 func (t *A2ATaskTool) formatForLLM(data A2ATaskResult) string {
-	result := fmt.Sprintf("A2A Task %s: %s", data.Operation, data.Message)
+	result := fmt.Sprintf("A2A Task: %s", data.Message)
 
-	if data.TaskID != "" {
-		result += fmt.Sprintf(" (Task ID: %s)", data.TaskID)
-	}
-
-	if data.Result != nil {
-		if jsonData, err := json.Marshal(data.Result); err == nil {
-			result += fmt.Sprintf(" Result: %s", string(jsonData))
-		}
+	if data.Task != nil {
+		result += fmt.Sprintf(" (Task ID: %s)", data.Task.ID)
 	}
 
 	return result
@@ -518,28 +212,19 @@ func (t *A2ATaskTool) formatForLLM(data A2ATaskResult) string {
 
 // formatForUI formats the result for UI display
 func (t *A2ATaskTool) formatForUI(data A2ATaskResult) string {
-	result := fmt.Sprintf("**A2A %s**: %s", data.Operation, data.Message)
+	result := fmt.Sprintf("**A2A Task**: %s", data.Message)
 
-	if data.TaskID != "" {
-		result += fmt.Sprintf("\n📋 **Task ID**: `%s`", data.TaskID)
+	if data.Task != nil {
+		result += fmt.Sprintf("\n📋 **Task ID**: `%s`", data.Task.ID)
+		result += fmt.Sprintf("\n📝 **Kind**: %s", data.Task.Kind)
 	}
 
 	if data.AgentName != "" {
 		result += fmt.Sprintf("\n🤖 **Agent**: %s", data.AgentName)
 	}
 
-	if data.Status != "" {
-		result += fmt.Sprintf("\n📊 **Status**: %s", data.Status)
-	}
-
 	if data.Duration > 0 {
 		result += fmt.Sprintf("\n⏱️ **Duration**: %v", data.Duration)
-	}
-
-	if data.Result != nil && data.Operation == "collect" {
-		if jsonData, err := json.Marshal(data.Result); err == nil {
-			result += fmt.Sprintf("\n📄 **Result**: ```json\n%s\n```", string(jsonData))
-		}
 	}
 
 	return result
@@ -552,7 +237,7 @@ func (t *A2ATaskTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	}
 
 	if data, ok := result.Data.(A2ATaskResult); ok {
-		return fmt.Sprintf("A2A %s: %s", data.Operation, data.Message)
+		return fmt.Sprintf("A2A Task: %s", data.Message)
 	}
 
 	return "A2A task operation completed"
@@ -560,7 +245,7 @@ func (t *A2ATaskTool) FormatPreview(result *domain.ToolExecutionResult) string {
 
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *A2ATaskTool) ShouldCollapseArg(key string) bool {
-	return key == "parameters"
+	return key == "metadata"
 }
 
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI

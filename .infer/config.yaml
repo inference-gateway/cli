@@ -232,9 +232,3 @@ chat:
   theme: tokyo-night
 a2a:
   enabled: false
-  agents: {}
-  tasks:
-    max_concurrent: 3
-    timeout_seconds: 300
-    retry_count: 2
-    status_poll_seconds: 5

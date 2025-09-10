@@ -227,10 +227,11 @@ func (e A2ATaskCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // A2ATaskInputRequiredEvent indicates an A2A task requires user input
 type A2ATaskInputRequiredEvent struct {
-	RequestID    string
-	Timestamp    time.Time
-	TaskID       string
-	InputRequest *A2AInputRequest
+	RequestID string
+	Timestamp time.Time
+	TaskID    string
+	Message   string
+	Required  bool
 }
 
 func (e A2ATaskInputRequiredEvent) GetType() ChatEventType  { return EventA2ATaskInputRequired }
