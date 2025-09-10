@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.19](https://github.com/inference-gateway/cli/compare/v0.48.18...v0.48.19) (2025-09-10)
+
+### ♻️ Code Refactoring
+
+* Improve Docker build command in Taskfile for better versioning and metadata ([60ab5e6](https://github.com/inference-gateway/cli/commit/60ab5e62a91a5d3ad37a85d7c3a3efe91dbc91d0))
+* Update release name and body templates to use Loadash Template syntax for dynamic values ([ae66500](https://github.com/inference-gateway/cli/commit/ae66500fd37a8dba1c303c44a270f54239beff96))
+
 ## [0.48.18](https://github.com/inference-gateway/cli/compare/v0.48.17...v0.48.18) (2025-09-10)
 
 ### ♻️ Code Refactoring
