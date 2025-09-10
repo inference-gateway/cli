@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.18](https://github.com/inference-gateway/cli/compare/v0.48.17...v0.48.18) (2025-09-10)
+
+### ♻️ Code Refactoring
+
+* Change releaserc from JSON to YAML ([4e4be8c](https://github.com/inference-gateway/cli/commit/4e4be8c1ba5d6fd0b16c239c5fe0f5d3baf37303))
+
 ## [0.48.17](https://github.com/inference-gateway/cli/compare/v0.48.16...v0.48.17) (2025-09-10)
 
 ### 🐛 Bug Fixes
