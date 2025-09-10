@@ -47,7 +47,7 @@ func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
-			Name:        "a2a_task",
+			Name:        "Task",
 			Description: &description,
 			Parameters: &sdk.FunctionParameters{
 				"type": "object",
@@ -101,7 +101,7 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 
 	if !t.config.IsA2ADirectEnabled() {
 		return &domain.ToolExecutionResult{
-			ToolName:  "a2a_task",
+			ToolName:  "Task",
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
@@ -116,7 +116,7 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 
 	if t.a2aDirectService == nil {
 		return &domain.ToolExecutionResult{
-			ToolName:  "a2a_task",
+			ToolName:  "Task",
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
@@ -132,7 +132,7 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	operation, ok := args["operation"].(string)
 	if !ok {
 		return &domain.ToolExecutionResult{
-			ToolName:  "a2a_task",
+			ToolName:  "Task",
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
@@ -160,7 +160,7 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 		return t.handleTestConnection(ctx, args, startTime)
 	default:
 		return &domain.ToolExecutionResult{
-			ToolName:  "a2a_task",
+			ToolName:  "Task",
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
@@ -223,7 +223,7 @@ func (t *A2ATaskTool) handleSubmitTask(ctx context.Context, args map[string]any,
 	logger.Debug("A2A task submitted via tool", "task_id", taskID, "agent", agentName, "type", taskType)
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "a2a_task",
+		ToolName:  "Task",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
@@ -252,7 +252,7 @@ func (t *A2ATaskTool) handleGetTaskStatus(ctx context.Context, args map[string]a
 	}
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "a2a_task",
+		ToolName:  "Task",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
@@ -290,7 +290,7 @@ func (t *A2ATaskTool) handleCollectResults(ctx context.Context, args map[string]
 	}
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "a2a_task",
+		ToolName:  "Task",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
@@ -322,7 +322,7 @@ func (t *A2ATaskTool) handleCancelTask(ctx context.Context, args map[string]any,
 	}
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "a2a_task",
+		ToolName:  "Task",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
@@ -355,7 +355,7 @@ func (t *A2ATaskTool) handleListAgents(ctx context.Context, args map[string]any,
 	}
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "a2a_task",
+		ToolName:  "Task",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
@@ -381,7 +381,7 @@ func (t *A2ATaskTool) handleTestConnection(ctx context.Context, args map[string]
 	}
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "a2a_task",
+		ToolName:  "Task",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
@@ -397,7 +397,7 @@ func (t *A2ATaskTool) handleTestConnection(ctx context.Context, args map[string]
 // errorResult creates an error result
 func (t *A2ATaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg, operation string) (*domain.ToolExecutionResult, error) {
 	return &domain.ToolExecutionResult{
-		ToolName:  "a2a_task",
+		ToolName:  "Task",
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(startTime),

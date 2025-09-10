@@ -71,7 +71,7 @@ a2a:
 
 ### Using the A2A Task Tool
 
-The A2A functionality is exposed through the `a2a_task` tool that can be used in conversations:
+The A2A functionality is exposed through the `Task` tool that can be used in conversations:
 
 #### Submit a Task
 
@@ -79,7 +79,7 @@ The A2A functionality is exposed through the `a2a_task` tool that can be used in
 Submit a code review task to the code-review-agent for the current pull request
 ```
 
-The LLM will use the `a2a_task` tool:
+The LLM will use the `Task` tool:
 
 ```json
 {

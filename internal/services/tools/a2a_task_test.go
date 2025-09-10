@@ -100,7 +100,7 @@ func TestA2ATaskTool_Definition(t *testing.T) {
 
 			def := tool.Definition()
 
-			assert.Equal(t, "a2a_task", def.Function.Name)
+			assert.Equal(t, "Task", def.Function.Name)
 			assert.NotNil(t, def.Function.Description)
 			assert.NotNil(t, def.Function.Parameters)
 		})
@@ -317,7 +317,7 @@ func TestA2ATaskTool_Execute_Submit(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, result)
-			assert.Equal(t, "a2a_task", result.ToolName)
+			assert.Equal(t, "Task", result.ToolName)
 			assert.Equal(t, tt.expectSuccess, result.Success)
 
 			if tt.expectSuccess {
