@@ -6,17 +6,17 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // A2ATaskTool handles A2A task submission and management
 type A2ATaskTool struct {
-	config           *config.Config
-	a2aDirectService domain.A2ADirectService
+	config *config.Config
 }
 
 // A2ATaskResult represents the result of an A2A task operation
@@ -29,10 +29,9 @@ type A2ATaskResult struct {
 }
 
 // NewA2ATaskTool creates a new A2A task tool
-func NewA2ATaskTool(cfg *config.Config, a2aDirectService domain.A2ADirectService) *A2ATaskTool {
+func NewA2ATaskTool(cfg *config.Config) *A2ATaskTool {
 	return &A2ATaskTool{
-		config:           cfg,
-		a2aDirectService: a2aDirectService,
+		config: cfg,
 	}
 }
 
@@ -80,20 +79,6 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 		}, nil
 	}
 
-	if t.a2aDirectService == nil {
-		return &domain.ToolExecutionResult{
-			ToolName:  "Task",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(startTime),
-			Error:     "A2A direct service not available",
-			Data: A2ATaskResult{
-				Success: false,
-				Message: "A2A direct service not initialized",
-			},
-		}, nil
-	}
-
 	agentURL, ok := args["agent_url"].(string)
 	if !ok {
 		return t.errorResult(args, startTime, "agent_url parameter is required and must be a string")
@@ -104,10 +89,9 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 		return t.errorResult(args, startTime, "task_description parameter is required and must be a string")
 	}
 
-	// Create ADK Task structure
 	adkTask := adk.Task{
 		ID:   uuid.New().String(),
-		Kind: "query", // Default kind for A2A tasks
+		Kind: "query",
 		Metadata: map[string]any{
 			"description": taskDescription,
 		},
@@ -116,7 +100,6 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 		},
 	}
 
-	// Add optional metadata
 	if metadata, exists := args["metadata"]; exists {
 		if metadataMap, ok := metadata.(map[string]interface{}); ok {
 			for k, v := range metadataMap {
@@ -125,10 +108,67 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 		}
 	}
 
-	resultTask, err := t.a2aDirectService.SubmitTask(ctx, agentURL, adkTask)
-	if err != nil {
-		return t.errorResult(args, startTime, fmt.Sprintf("Failed to submit task: %v", err))
+	adkClient := client.NewClient(agentURL)
+	msgParams := adk.MessageSendParams{
+		Message: adk.Message{
+			Kind:      "message",
+			MessageID: adkTask.ID,
+			Role:      "user",
+			TaskID:    &adkTask.ID,
+			Parts: []adk.Part{
+				map[string]any{
+					"kind": "text",
+					"text": taskDescription,
+				},
+			},
+		},
+		Configuration: &adk.MessageSendConfiguration{
+			Blocking:            &[]bool{true}[0],
+			AcceptedOutputModes: []string{"text"},
+		},
 	}
+
+	eventChan := make(chan any, 100)
+	done := make(chan error, 1)
+
+	go func() {
+		done <- adkClient.SendTaskStreaming(ctx, msgParams, eventChan)
+		close(eventChan)
+	}()
+
+	var finalResult string
+	var eventCount int
+	var streamingComplete bool
+
+	for !streamingComplete {
+		select {
+		case <-ctx.Done():
+			return t.errorResult(args, startTime, "Task cancelled or timed out")
+		case err := <-done:
+			if err != nil {
+				return t.errorResult(args, startTime, fmt.Sprintf("Streaming failed: %v", err))
+			}
+			streamingComplete = true
+		case event, ok := <-eventChan:
+			if !ok {
+				continue
+			}
+			eventCount++
+			if eventData, ok := event.(map[string]any); ok {
+				if content, exists := eventData["content"]; exists {
+					if contentStr, ok := content.(string); ok {
+						finalResult += contentStr
+					}
+				}
+			}
+		}
+	}
+
+	adkTask.Status.State = adk.TaskStateCompleted
+	if finalResult != "" {
+		adkTask.Metadata["result"] = finalResult
+	}
+	resultTask := &adkTask
 
 	logger.Debug("A2A task submitted via tool", "task_id", resultTask.ID, "agent_url", agentURL)
 
@@ -141,7 +181,7 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 			AgentName: agentURL,
 			Task:      resultTask,
 			Success:   true,
-			Message:   fmt.Sprintf("Task submitted to agent at %s with ID: %s", agentURL, resultTask.ID),
+			Message:   fmt.Sprintf("Task completed successfully at %s with ID: %s (processed %d events)", agentURL, resultTask.ID, eventCount),
 			Duration:  time.Since(startTime),
 		},
 	}, nil

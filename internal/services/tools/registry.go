@@ -10,10 +10,9 @@ import (
 
 // Registry manages all available tools
 type Registry struct {
-	config           *config.Config
-	tools            map[string]domain.Tool
-	readToolUsed     bool
-	a2aDirectService domain.A2ADirectService
+	config       *config.Config
+	tools        map[string]domain.Tool
+	readToolUsed bool
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
@@ -52,10 +51,11 @@ func (r *Registry) registerTools() {
 		r.tools["Github"] = NewGithubTool(r.config)
 	}
 
-	if r.config.IsA2ADirectEnabled() && r.a2aDirectService != nil {
-		r.tools["Task"] = NewA2ATaskTool(r.config, r.a2aDirectService)
-		r.tools["Query"] = NewA2AQueryTool(r.config, r.a2aDirectService)
+	if r.config.IsA2ADirectEnabled() {
+		r.tools["Query"] = NewA2AQueryTool(r.config)
+		r.tools["Task"] = NewA2ATaskTool(r.config)
 	}
+
 }
 
 // GetTool retrieves a tool by name
@@ -106,10 +106,4 @@ func (r *Registry) SetReadToolUsed() {
 // IsReadToolUsed returns whether the Read tool has been used
 func (r *Registry) IsReadToolUsed() bool {
 	return r.readToolUsed
-}
-
-// SetA2ADirectService sets the A2A direct service and re-registers tools
-func (r *Registry) SetA2ADirectService(service domain.A2ADirectService) {
-	r.a2aDirectService = service
-	r.registerTools()
 }

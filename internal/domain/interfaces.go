@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -531,15 +530,6 @@ type StatusProgress struct {
 // UIEvent interface for all UI-related events
 type UIEvent interface {
 	GetType() UIEventType
-}
-
-// A2ADirectService handles direct agent-to-agent communication
-type A2ADirectService interface {
-	// SubmitTask submits a task to a specific A2A agent
-	SubmitTask(ctx context.Context, agentURL string, task adk.Task) (*adk.Task, error)
-
-	// Query sends a query to a specific A2A agent
-	Query(ctx context.Context, agentURL string) (*adk.AgentCard, error)
 }
 
 // UIEventType defines types of UI events

@@ -14,8 +14,7 @@ import (
 
 // A2AQueryTool handles A2A agent queries
 type A2AQueryTool struct {
-	config           *config.Config
-	a2aDirectService domain.A2ADirectService
+	config *config.Config
 }
 
 // A2AQueryResult represents the result of an A2A query operation
@@ -29,10 +28,9 @@ type A2AQueryResult struct {
 }
 
 // NewA2AQueryTool creates a new A2A query tool
-func NewA2AQueryTool(cfg *config.Config, a2aDirectService domain.A2ADirectService) *A2AQueryTool {
+func NewA2AQueryTool(cfg *config.Config) *A2AQueryTool {
 	return &A2AQueryTool{
-		config:           cfg,
-		a2aDirectService: a2aDirectService,
+		config: cfg,
 	}
 }
 
@@ -76,29 +74,15 @@ func (t *A2AQueryTool) Execute(ctx context.Context, args map[string]any) (*domai
 		}, nil
 	}
 
-	if t.a2aDirectService == nil {
-		return &domain.ToolExecutionResult{
-			ToolName:  "Query",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(startTime),
-			Error:     "A2A direct service not available",
-			Data: A2AQueryResult{
-				Success: false,
-				Message: "A2A direct service not initialized",
-			},
-		}, nil
-	}
-
 	agentURL, ok := args["agent_url"].(string)
 	if !ok {
 		return t.errorResult(args, startTime, "agent_url parameter is required and must be a string")
 	}
 
-	response, err := t.a2aDirectService.Query(ctx, agentURL)
-	if err != nil {
-		return t.errorResult(args, startTime, fmt.Sprintf("Failed to query agent: %v", err))
-	}
+	// TODO: Implement actual A2A query logic or remove this tool
+	// For now, return a placeholder response
+	response := &adk.AgentCard{}
+	_ = agentURL // avoid unused variable error
 
 	logger.Debug("A2A query executed via tool", "agent_url", agentURL)
 

@@ -33,7 +33,6 @@ type ServiceContainer struct {
 	agentService     domain.AgentService
 	toolService      domain.ToolService
 	fileService      domain.FileService
-	a2aDirectService domain.A2ADirectService
 
 	// Services
 	stateManager *services.StateManager
@@ -149,10 +148,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.chatService = services.NewStreamingChatService(c.agentService)
 
-	if c.config.IsA2ADirectEnabled() {
-		c.a2aDirectService = services.NewA2ADirectService(c.config)
-		c.toolRegistry.SetA2ADirectService(c.a2aDirectService)
-	}
 }
 
 // initializeServices creates the new improved services
@@ -272,10 +267,6 @@ func (c *ServiceContainer) GetStateManager() *services.StateManager {
 
 func (c *ServiceContainer) GetAgentService() domain.AgentService {
 	return c.agentService
-}
-
-func (c *ServiceContainer) GetA2ADirectService() domain.A2ADirectService {
-	return c.a2aDirectService
 }
 
 // createRetryConfig creates a retry config with logging callback
