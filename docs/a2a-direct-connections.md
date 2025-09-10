@@ -1,6 +1,7 @@
 # A2A Direct Connections
 
-This document describes the Agent-to-Agent (A2A) direct connection functionality that allows the CLI to connect directly to A2A server agents, bypassing the Gateway for efficient microservice communication.
+This document describes the Agent-to-Agent (A2A) direct connection functionality that allows the CLI to
+connect directly to A2A server agents, bypassing the Gateway for efficient microservice communication.
 
 ## Overview
 
@@ -15,15 +16,17 @@ The A2A direct connection feature enables:
 ## Architecture
 
 ### Traditional Architecture (Gateway-based)
-```
+
+```text
 CLI Client → Gateway (A2A middleware) → A2A Agents
 ```
 
 ### New Direct Architecture
-```
+
+```text
 CLI Client ←─┐
              ├─→ A2A Agent 1 (Direct connection)
-             ├─→ A2A Agent 2 (Direct connection)  
+             ├─→ A2A Agent 2 (Direct connection)
              └─→ Gateway (For internal LLM requests)
 ```
 
@@ -40,39 +43,28 @@ a2a:
     code-review-agent:
       name: "Code Review Agent"
       url: "http://code-review.internal:8081"
-      api_key: "${A2A_CODE_REVIEW_KEY}"
       description: "Performs automated code reviews"
       timeout: 60
       enabled: true
       metadata:
         team: "platform"
         version: "v1.2.0"
-    
+
     deployment-agent:
       name: "Deployment Agent"
       url: "http://deploy.internal:8082"
-      api_key: "${A2A_DEPLOY_KEY}"
       description: "Handles deployment tasks"
       timeout: 120
       enabled: true
       metadata:
         environment: "production"
         region: "us-west-2"
-  
+
   tasks:
     max_concurrent: 3
     timeout_seconds: 300
     retry_count: 2
     status_poll_seconds: 5
-```
-
-### Environment Variables
-
-Set the following environment variables for your A2A agents:
-
-```bash
-export A2A_CODE_REVIEW_KEY="your-code-review-api-key"
-export A2A_DEPLOY_KEY="your-deployment-api-key"
 ```
 
 ## Usage
@@ -83,15 +75,16 @@ The A2A functionality is exposed through the `a2a_task` tool that can be used in
 
 #### Submit a Task
 
-```
+```text
 Submit a code review task to the code-review-agent for the current pull request
 ```
 
 The LLM will use the `a2a_task` tool:
+
 ```json
 {
   "operation": "submit",
-  "agent_name": "code-review-agent", 
+  "agent_name": "code-review-agent",
   "task_type": "code_review",
   "task_description": "Review pull request #123 for security and best practices",
   "parameters": {
@@ -103,7 +96,7 @@ The LLM will use the `a2a_task` tool:
 
 #### Check Task Status
 
-```
+```text
 Check the status of task-abc-123
 ```
 
@@ -116,20 +109,20 @@ Check the status of task-abc-123
 
 #### Collect Results
 
-```
+```text
 Collect the results from task-abc-123
 ```
 
 ```json
 {
-  "operation": "collect", 
+  "operation": "collect",
   "task_id": "task-abc-123"
 }
 ```
 
 #### List Available Agents
 
-```
+```text
 Show me all available A2A agents
 ```
 
@@ -141,7 +134,7 @@ Show me all available A2A agents
 
 #### Test Connection
 
-```
+```text
 Test connection to the deployment-agent
 ```
 
@@ -168,20 +161,23 @@ A2A task operations are fully integrated into the chat history:
 A2A agents must implement the following endpoints:
 
 #### Health Check
-```
+
+```http
 GET /api/v1/health
 ```
+
 Returns agent health status.
 
 #### Submit Task
-```
+
+```http
 POST /api/v1/tasks
 Content-Type: application/json
 Authorization: Bearer {api_key}
 
 {
   "id": "task-123",
-  "type": "code_review", 
+  "type": "code_review",
   "description": "Review pull request",
   "parameters": {...},
   "priority": 5,
@@ -190,12 +186,14 @@ Authorization: Bearer {api_key}
 ```
 
 #### Get Task Status
-```
+
+```http
 GET /api/v1/tasks/{task_id}/status
 Authorization: Bearer {api_key}
 ```
 
 Response:
+
 ```json
 {
   "task_id": "task-123",
@@ -209,13 +207,15 @@ Response:
 ```
 
 #### Get Task Result
-```
+
+```http
 GET /api/v1/tasks/{task_id}/result
 Authorization: Bearer {api_key}
 ```
 
 #### Cancel Task
-```
+
+```http
 POST /api/v1/tasks/{task_id}/cancel
 Authorization: Bearer {api_key}
 ```
@@ -223,7 +223,7 @@ Authorization: Bearer {api_key}
 ### Task Status Values
 
 - `pending`: Task is queued but not started
-- `running`: Task is currently executing  
+- `running`: Task is currently executing
 - `completed`: Task finished successfully
 - `failed`: Task failed with an error
 - `input_required`: Task needs user input to continue
@@ -236,7 +236,7 @@ When an agent needs user input, it sets status to `input_required` with an `inpu
 ```json
 {
   "task_id": "task-123",
-  "status": "input_required", 
+  "status": "input_required",
   "input_request": {
     "type": "choice",
     "message": "Which deployment environment?",
@@ -257,7 +257,7 @@ The CLI will prompt the user and can submit the input back to the agent.
 - Keys should be stored as environment variables
 - Use secure key rotation practices
 
-### Network Security  
+### Network Security
 
 - A2A agents should be deployed in secure network segments
 - Use network policies to restrict agent-to-agent communication
@@ -266,7 +266,7 @@ The CLI will prompt the user and can submit the input back to the agent.
 ### Path Protection
 
 - A2A agents have restricted file system access
-- Sandbox directories prevent unauthorized file access  
+- Sandbox directories prevent unauthorized file access
 - Protected paths include `.git/`, `.infer/`, `*.env`
 
 ## Monitoring and Logging
@@ -335,45 +335,56 @@ tail -f .infer/logs/debug-*.log
 
 ### Common Issues
 
-**Agent Not Found**
-```
+#### Agent Not Found
+
+```text
 Error: agent 'my-agent' not found in configuration
 ```
+
 Solution: Check agent name in config and ensure it's enabled.
 
-**Connection Refused**  
-```
+#### Connection Refused
+
+```text
 Error: connection to agent 'my-agent' failed: connection refused
 ```
+
 Solution: Verify agent URL and ensure agent is running.
 
-**Authentication Failed**
-```  
+#### Authentication Failed
+
+```text
 Error: failed to submit task: 401 Unauthorized
 ```
+
 Solution: Check API key configuration and environment variables.
 
-**Task Timeout**
-```
+#### Task Timeout
+
+```text
 Error: task execution timeout after 300 seconds
-```  
+```
+
 Solution: Increase timeout in agent configuration or task parameters.
 
 ### Diagnostic Commands
 
 Test agent connectivity:
+
 ```bash
 infer chat
 > Test connection to my-agent
 ```
 
 List configured agents:
+
 ```bash
-infer chat  
+infer chat
 > Show all A2A agents
 ```
 
 Check active tasks:
+
 ```bash
 infer chat
 > List all running A2A tasks
