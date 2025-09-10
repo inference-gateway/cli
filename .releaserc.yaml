@@ -1,0 +1,142 @@
+branches:
+  - main
+
+tagFormat: "v${version}"
+
+plugins:
+  - - "@semantic-release/commit-analyzer"
+    - preset: conventionalcommits
+      releaseRules:
+        - type: feat
+          release: minor
+        - type: fix
+          release: patch
+        - type: perf
+          release: patch
+        - type: docs
+          release: patch
+        - type: style
+          release: patch
+        - type: refactor
+          release: patch
+        - type: test
+          release: patch
+        - type: build
+          release: patch
+        - type: ci
+          release: patch
+        - type: chore
+          release: patch
+        - type: revert
+          release: patch
+        - breaking: true
+          release: minor
+
+  - - "@semantic-release/release-notes-generator"
+    - preset: conventionalcommits
+      presetConfig:
+        types:
+          - type: feat
+            section: "🚀 Features"
+            hidden: false
+          - type: fix
+            section: "🐛 Bug Fixes"
+            hidden: false
+          - type: perf
+            section: "⚡ Performance Improvements"
+            hidden: false
+          - type: refactor
+            section: "♻️ Code Refactoring"
+            hidden: false
+          - type: docs
+            section: "📚 Documentation"
+            hidden: false
+          - type: style
+            section: "💄 Styles"
+            hidden: false
+          - type: test
+            section: "✅ Tests"
+            hidden: false
+          - type: build
+            section: "🔧 Build System"
+            hidden: false
+          - type: ci
+            section: "👷 CI/CD"
+            hidden: false
+          - type: chore
+            section: "🧹 Maintenance"
+            hidden: false
+          - type: revert
+            section: "⏪ Reverts"
+            hidden: false
+      writerOpts:
+        commitsSort:
+          - subject
+          - scope
+
+  - - "@semantic-release/changelog"
+    - changelogFile: CHANGELOG.md
+      changelogTitle: |
+        # Changelog
+
+        All notable changes to this project will be documented in this file.
+
+        The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+        and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+  - - "@semantic-release/git"
+    - assets:
+        - CHANGELOG.md
+      message: |
+        chore(release): ${nextRelease.version} [skip ci]
+
+        ${nextRelease.notes}
+
+  - - "@semantic-release/exec"
+    - prepareCmd: 'VERSION=v${nextRelease.version} COMMIT=$(git rev-parse --short HEAD) DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") flox activate -- task release:build'
+      publishCmd: "VERSION=${nextRelease.version} flox activate -- task container:push"
+
+  - - "@semantic-release/github"
+    - releaseNameTemplate: "🚀 Version ${nextRelease.version}"
+      releaseBodyTemplate: |
+        ## What's Changed
+
+        ${nextRelease.notes}
+
+        ## 📦 Installation
+
+        ### Binary Download
+        Download the appropriate binary for your platform from the assets below.
+
+        ### Container Image
+        ```bash
+        docker run --rm -it ghcr.io/inference-gateway/cli:${nextRelease.version}
+        ```
+
+        ---
+
+        **Full Changelog**: https://github.com/${env.GITHUB_REPOSITORY}/compare/${lastRelease.gitTag}...${nextRelease.gitTag}
+      discussionCategoryName: false
+      assets:
+        - path: dist/infer-darwin-amd64
+          label: "infer-darwin-amd64 (macOS Intel)"
+          name: infer-darwin-amd64
+        - path: dist/infer-darwin-arm64
+          label: "infer-darwin-arm64 (macOS Apple Silicon)"
+          name: infer-darwin-arm64
+        - path: dist/infer-linux-amd64
+          label: "infer-linux-amd64 (Linux x64)"
+          name: infer-linux-amd64
+        - path: dist/infer-linux-arm64
+          label: "infer-linux-arm64 (Linux ARM64)"
+          name: infer-linux-arm64
+        - path: dist/checksums.txt
+          label: "SHA256 checksums"
+          name: checksums.txt
+        - path: dist/checksums.txt.sig
+          label: "Cosign signature for checksums"
+          name: checksums.txt.sig
+        - path: dist/checksums.txt.pem
+          label: "Cosign certificate for checksums"
+          name: checksums.txt.pem
+      addReleases: bottom
