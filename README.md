@@ -98,6 +98,29 @@ and management of inference services.
 go install github.com/inference-gateway/cli@latest
 ```
 
+### Using Container Image
+
+For containerized environments, you can use the official container image:
+
+```bash
+# Run the CLI directly
+docker run --rm -it ghcr.io/inference-gateway/cli:latest --help
+
+# With volume mount for config persistence
+docker run --rm -it -v ~/.infer:/home/infer/.infer ghcr.io/inference-gateway/cli:latest
+
+# Example: Run chat command
+docker run --rm -it -v ~/.infer:/home/infer/.infer ghcr.io/inference-gateway/cli:latest chat
+```
+
+**Using specific version:**
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.48.12
+```
+
+**Available architectures:** `linux/amd64`, `linux/arm64`
+
 ### Using Install Script
 
 For quick installation, you can use our install script:

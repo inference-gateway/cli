@@ -124,10 +124,23 @@ tasks:
       - cd dist && sha256sum {{.BINARY_NAME}}-* > checksums.txt
       - cd dist && cosign sign-blob --yes --output-signature checksums.txt.sig --output-certificate checksums.txt.pem checksums.txt
 
-  clean:release:
-    desc: Clean release artifacts
+  container:push:
+    desc: Push pre-built container images to registry
     cmds:
-      - rm -rf dist/
+      - |
+        docker buildx build \
+          --platform linux/amd64,linux/arm64 \
+          --push \
+          -t ghcr.io/inference-gateway/cli:{{.VERSION}} \
+          -t ghcr.io/inference-gateway/cli:latest \
+          --build-context binaries=dist/ \
+          --build-arg VERSION={{.VERSION}} \
+          --build-arg REVISION={{.COMMIT}} \
+          --build-arg BUILD_DATE={{.DATE}} \
+          -f Dockerfile \
+          .
+    deps:
+      - release:build
 
   deps:install:
     desc: Install development dependencies
@@ -208,3 +221,8 @@ tasks:
     desc: Clean generated mock files
     cmds:
       - rm -rf tests/mocks/generated/
+
+  clean:release:
+    desc: Clean release artifacts
+    cmds:
+      - rm -rf dist/

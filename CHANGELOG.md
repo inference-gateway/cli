@@ -6,6 +6,73 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.48.19](https://github.com/inference-gateway/cli/compare/v0.48.18...v0.48.19) (2025-09-10)
+
+### ♻️ Code Refactoring
+
+* Improve Docker build command in Taskfile for better versioning and metadata ([60ab5e6](https://github.com/inference-gateway/cli/commit/60ab5e62a91a5d3ad37a85d7c3a3efe91dbc91d0))
+* Update release name and body templates to use Loadash Template syntax for dynamic values ([ae66500](https://github.com/inference-gateway/cli/commit/ae66500fd37a8dba1c303c44a270f54239beff96))
+
+## [0.48.18](https://github.com/inference-gateway/cli/compare/v0.48.17...v0.48.18) (2025-09-10)
+
+### ♻️ Code Refactoring
+
+* Change releaserc from JSON to YAML ([4e4be8c](https://github.com/inference-gateway/cli/commit/4e4be8c1ba5d6fd0b16c239c5fe0f5d3baf37303))
+
+## [0.48.17](https://github.com/inference-gateway/cli/compare/v0.48.16...v0.48.17) (2025-09-10)
+
+### 🐛 Bug Fixes
+
+* **ci:** Update restore-keys formatting for Go module caching ([223c303](https://github.com/inference-gateway/cli/commit/223c303dcae67c46bb58a1fc9e40ca9df3107f23))
+
+### ♻️ Code Refactoring
+
+* **ci:** Improve readability of build command in CI workflow ([0af01bc](https://github.com/inference-gateway/cli/commit/0af01bc8aefbeed29d15b652309451d789cb827f))
+* **ci:** Replace Flox with native Go commands in CI workflow ([e7514ac](https://github.com/inference-gateway/cli/commit/e7514ac86a1b39b0ab0b873ebb2746bb614c7e52))
+* Update repository name reference in GitHub App token step ([6148cdf](https://github.com/inference-gateway/cli/commit/6148cdfda1bd0b064325a2cd18988bf3212e74c7))
+
+### 👷 CI/CD
+
+* Restructure CI workflow to improve job organization and add project cleanliness checks ([ca3fac5](https://github.com/inference-gateway/cli/commit/ca3fac517aa79bfdde4af5fcd02540c4f39040ce))
+
+### 🧹 Maintenance
+
+* Make the release workflow only on workflow dispatch ([a32eb03](https://github.com/inference-gateway/cli/commit/a32eb03b4b35fb4fdce478eccf0f8acc6e9d3c8c))
+* **ci:** Remove redundant caching steps and streamline Go setup ([32e3a87](https://github.com/inference-gateway/cli/commit/32e3a875917af76997933e03abf704c8b3ee5e98))
+* Update actions/checkout to v5 in CI and release workflows ([4a3ab56](https://github.com/inference-gateway/cli/commit/4a3ab56ea8c2cb013cf14189f113ce6f917e0a9d))
+* Update package versions and group assignments in manifest.toml ([afa7526](https://github.com/inference-gateway/cli/commit/afa7526c71d9328a78a6ae1e06e11aeb74e62b71))
+* **ci:** Update runner version to ubuntu-24.04 and GitHub App Token action to v2.1.1 ([925ffff](https://github.com/inference-gateway/cli/commit/925ffffaf5e3db0d66b4dd5ba05827c0d1dbfeaf))
+
+## [0.48.16](https://github.com/inference-gateway/cli/compare/v0.48.15...v0.48.16) (2025-09-09)
+
+### 🐛 Bug Fixes
+
+* Add 'packages' permission to release job in workflow ([6f26d9b](https://github.com/inference-gateway/cli/commit/6f26d9b39df4a881016a2904b534620e1e8e12f3))
+
+## [0.48.15](https://github.com/inference-gateway/cli/compare/v0.48.14...v0.48.15) (2025-09-09)
+
+### 🐛 Bug Fixes
+
+* Update GitHub Container Registry login to use the standard token ([fce3780](https://github.com/inference-gateway/cli/commit/fce37807bacc4ee3249228033d35f0f2472d3c91))
+
+## [0.48.14](https://github.com/inference-gateway/cli/compare/v0.48.13...v0.48.14) (2025-09-09)
+
+### 🐛 Bug Fixes
+
+* Add GitHub Container Registry login and Docker Buildx setup to release workflow ([682dfbf](https://github.com/inference-gateway/cli/commit/682dfbf6687da724d933ebb59bbef8b1ab1a8b12))
+
+## [0.48.13](https://github.com/inference-gateway/cli/compare/v0.48.12...v0.48.13) (2025-09-09)
+
+### ♻️ Code Refactoring
+
+* Add Dockerfile and update README for container usage ([8bbd1ff](https://github.com/inference-gateway/cli/commit/8bbd1ff60aa8fdcc2cee4da101ed5fd872324d34))
+
+## [0.48.12](https://github.com/inference-gateway/cli/compare/v0.48.11...v0.48.12) (2025-09-09)
+
+### 📚 Documentation
+
+* **examples:** Add n8n agent configuration and update assistant prompt in docker-compose ([7bc361e](https://github.com/inference-gateway/cli/commit/7bc361e2011a19d53fed3ea293d28b24a837518b))
+
 ## [0.48.11](https://github.com/inference-gateway/cli/compare/v0.48.10...v0.48.11) (2025-09-09)
 
 ### 🧹 Maintenance
