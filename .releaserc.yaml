@@ -97,11 +97,11 @@ plugins:
       publishCmd: "VERSION=${nextRelease.version} flox activate -- task container:push"
 
   - - "@semantic-release/github"
-    - releaseNameTemplate: "🚀 Version ${nextRelease.version}"
+    - releaseNameTemplate: "🚀 Version <%= nextRelease.version %>"
       releaseBodyTemplate: |
         ## What's Changed
 
-        ${nextRelease.notes}
+        <%= nextRelease.notes %>
 
         ## 📦 Installation
 
@@ -110,12 +110,12 @@ plugins:
 
         ### Container Image
         ```bash
-        docker run --rm -it ghcr.io/inference-gateway/cli:${nextRelease.version}
+        docker run --rm -it ghcr.io/inference-gateway/cli:<%= nextRelease.version %>
         ```
 
         ---
 
-        **Full Changelog**: https://github.com/${env.GITHUB_REPOSITORY}/compare/${lastRelease.gitTag}...${nextRelease.gitTag}
+        **Full Changelog**: https://github.com/<%= env.GITHUB_REPOSITORY %>/compare/<%= lastRelease.gitTag %>...<%= nextRelease.gitTag %>
       discussionCategoryName: false
       assets:
         - path: dist/infer-darwin-amd64
