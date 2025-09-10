@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/stretchr/testify/assert"
@@ -64,8 +66,14 @@ func TestA2ADirectServiceImpl_SubmitTask(t *testing.T) {
 			},
 			agentName: "test-agent",
 			task: domain.A2ATask{
-				Type:        "test",
-				Description: "Test task",
+				Task: adk.Task{
+					ID:   uuid.New().String(),
+					Kind: "test",
+					Metadata: map[string]any{
+						"description": "Test task",
+					},
+				},
+				JobType: "test",
 			},
 			wantErr: true,
 			errMsg:  "A2A direct connections are disabled",
@@ -80,8 +88,14 @@ func TestA2ADirectServiceImpl_SubmitTask(t *testing.T) {
 			},
 			agentName: "nonexistent-agent",
 			task: domain.A2ATask{
-				Type:        "test",
-				Description: "Test task",
+				Task: adk.Task{
+					ID:   uuid.New().String(),
+					Kind: "test",
+					Metadata: map[string]any{
+						"description": "Test task",
+					},
+				},
+				JobType: "test",
 			},
 			wantErr: true,
 			errMsg:  "agent 'nonexistent-agent' not found in configuration",
@@ -102,8 +116,14 @@ func TestA2ADirectServiceImpl_SubmitTask(t *testing.T) {
 			},
 			agentName: "test-agent",
 			task: domain.A2ATask{
-				Type:        "test",
-				Description: "Test task",
+				Task: adk.Task{
+					ID:   uuid.New().String(),
+					Kind: "test",
+					Metadata: map[string]any{
+						"description": "Test task",
+					},
+				},
+				JobType: "test",
 			},
 			wantErr: true,
 			errMsg:  "agent 'test-agent' is disabled",
@@ -152,10 +172,16 @@ func TestA2ADirectServiceImpl_GetTaskStatus(t *testing.T) {
 					TaskID:    "test-task",
 					AgentName: "test-agent",
 					Status: &domain.A2ATaskStatus{
-						TaskID:    "test-task",
-						Status:    domain.A2ATaskStatusWorking,
+						TaskID: "test-task",
+						TaskStatus: adk.TaskStatus{
+							State: domain.A2ATaskStatusWorking,
+							Message: adk.NewStreamingStatusMessage(
+								uuid.New().String(),
+								"Task in progress",
+								map[string]any{"progress": 50.0},
+							),
+						},
 						Progress:  50.0,
-						Message:   "Task in progress",
 						CreatedAt: time.Now(),
 						UpdatedAt: time.Now(),
 					},
@@ -313,10 +339,16 @@ func TestA2ADirectServiceImpl_updateTaskStatus(t *testing.T) {
 					TaskID:    "test-task",
 					AgentName: "test-agent",
 					Status: &domain.A2ATaskStatus{
-						TaskID:    "test-task",
-						Status:    domain.A2ATaskStatusWorking,
+						TaskID: "test-task",
+						TaskStatus: adk.TaskStatus{
+							State: domain.A2ATaskStatusWorking,
+							Message: adk.NewStreamingStatusMessage(
+								uuid.New().String(),
+								"Task in progress",
+								map[string]any{"progress": 50.0},
+							),
+						},
 						Progress:  50.0,
-						Message:   "Task in progress",
 						CreatedAt: time.Now(),
 						UpdatedAt: time.Now(),
 					},
@@ -325,9 +357,10 @@ func TestA2ADirectServiceImpl_updateTaskStatus(t *testing.T) {
 			verify: func(t *testing.T, s *A2ADirectServiceImpl) {
 				task, exists := s.activeTasks["test-task"]
 				require.True(t, exists)
-				assert.Equal(t, domain.A2ATaskStatusCompleted, task.Status.Status)
+				assert.Equal(t, domain.A2ATaskStatusCompleted, task.Status.Status())
 				assert.Equal(t, 100.0, task.Status.Progress)
-				assert.Equal(t, "Task completed successfully", task.Status.Message)
+				// Check message is in ADK TaskStatus.Message
+				require.NotNil(t, task.Status.TaskStatus.Message)
 				assert.NotNil(t, task.Status.CompletedAt)
 			},
 		},

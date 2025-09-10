@@ -5,6 +5,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	generated "github.com/inference-gateway/cli/tests/mocks/generated"
@@ -309,10 +311,16 @@ func TestA2ATaskTool_Execute_Status(t *testing.T) {
 			},
 			mockSetup: func(m *generated.FakeA2ADirectService) {
 				status := &domain.A2ATaskStatus{
-					TaskID:    "test-task",
-					Status:    domain.A2ATaskStatusWorking,
+					TaskID: "test-task",
+					TaskStatus: adk.TaskStatus{
+						State: domain.A2ATaskStatusWorking,
+						Message: adk.NewStreamingStatusMessage(
+							uuid.New().String(),
+							"Task in progress",
+							map[string]any{"progress": 75.0},
+						),
+					},
 					Progress:  75.0,
-					Message:   "Task in progress",
 					CreatedAt: time.Now(),
 					UpdatedAt: time.Now(),
 				}

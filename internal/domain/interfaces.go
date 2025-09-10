@@ -557,18 +557,18 @@ type A2ADirectService interface {
 	GetAgentCard(ctx context.Context, agentName string) (*adk.AgentCard, error)
 }
 
-// A2ATaskSubmission represents a task to be submitted to an A2A agent
-// This is for job submission, distinct from ADK's conversational Task structure
-type A2ATask struct {
-	ID          string                 `json:"id"`
-	Type        string                 `json:"type"`
-	Description string                 `json:"description"`
-	Parameters  map[string]interface{} `json:"parameters"`
-	Priority    int                    `json:"priority,omitempty"`
-	Timeout     int                    `json:"timeout,omitempty"`
-	// Can optionally link to an ADK Task for full conversation context
-	AdkTask *adk.Task `json:"adk_task,omitempty"`
+// A2ATaskRequest represents a task submission request using ADK Task as the base
+// while adding job-submission specific fields for backward compatibility
+type A2ATaskRequest struct {
+	Task      adk.Task               `json:"task"`                 // Use ADK Task as the foundation
+	Priority  int                    `json:"priority,omitempty"`   // Job-specific field
+	Timeout   int                    `json:"timeout,omitempty"`    // Job-specific field
+	JobType   string                 `json:"job_type,omitempty"`   // Distinct from task kind
+	JobParams map[string]interface{} `json:"job_params,omitempty"` // Distinct from task metadata
 }
+
+// A2ATask alias for backward compatibility - to be removed in future versions
+type A2ATask = A2ATaskRequest
 
 // Use ADK TaskState enum instead of custom status enum
 type A2ATaskStatusEnum = adk.TaskState
@@ -581,17 +581,20 @@ const (
 	A2ATaskStatusInputRequired = adk.TaskStateInputRequired
 )
 
-// A2ATaskStatus represents the status of an A2A task
-// Enhanced with additional tracking fields while using ADK TaskStatus for core status
+// A2ATaskStatus represents the status of an A2A task using ADK TaskStatus as foundation
 type A2ATaskStatus struct {
-	TaskID       string            `json:"task_id"`
-	Status       A2ATaskStatusEnum `json:"status"` // Uses ADK TaskState
-	Progress     float64           `json:"progress,omitempty"`
-	Message      string            `json:"message,omitempty"`
-	CreatedAt    time.Time         `json:"created_at"`
-	UpdatedAt    time.Time         `json:"updated_at"`
-	CompletedAt  *time.Time        `json:"completed_at,omitempty"`
-	InputRequest *A2AInputRequest  `json:"input_request,omitempty"`
+	TaskID       string           `json:"task_id"`
+	TaskStatus   adk.TaskStatus   `json:"task_status"`        // ADK TaskStatus with state, message, timestamp
+	Progress     float64          `json:"progress,omitempty"` // Additional tracking field
+	CreatedAt    time.Time        `json:"created_at"`
+	UpdatedAt    time.Time        `json:"updated_at"`
+	CompletedAt  *time.Time       `json:"completed_at,omitempty"`
+	InputRequest *A2AInputRequest `json:"input_request,omitempty"`
+}
+
+// Status returns the ADK TaskState for backward compatibility
+func (s *A2ATaskStatus) Status() adk.TaskState {
+	return s.TaskStatus.State
 }
 
 // A2AInputRequest represents a request for user input during task execution
@@ -628,6 +631,40 @@ type A2AAgentInfo struct {
 	Enabled     bool              `json:"enabled"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 	Card        *adk.AgentCard    `json:"card,omitempty"` // ADK AgentCard for full capabilities
+}
+
+// A2ASubmitTaskRequest represents a JSON-RPC request to submit a task using ADK patterns
+type A2ASubmitTaskRequest struct {
+	ID      string         `json:"id"`
+	JSONRPC string         `json:"jsonrpc"`
+	Method  string         `json:"method"`
+	Params  A2ATaskRequest `json:"params"`
+}
+
+// A2ASubmitTaskResponse represents the response from task submission
+type A2ASubmitTaskResponse struct {
+	ID      string        `json:"id"`
+	JSONRPC string        `json:"jsonrpc"`
+	Result  *adk.Task     `json:"result,omitempty"`
+	Error   *adk.A2AError `json:"error,omitempty"`
+}
+
+// A2AGetTaskStatusRequest represents a JSON-RPC request to get task status
+type A2AGetTaskStatusRequest struct {
+	ID      string `json:"id"`
+	JSONRPC string `json:"jsonrpc"`
+	Method  string `json:"method"`
+	Params  struct {
+		TaskID string `json:"task_id"`
+	} `json:"params"`
+}
+
+// A2AGetTaskStatusResponse represents the response from task status query
+type A2AGetTaskStatusResponse struct {
+	ID      string         `json:"id"`
+	JSONRPC string         `json:"jsonrpc"`
+	Result  *A2ATaskStatus `json:"result,omitempty"`
+	Error   *adk.A2AError  `json:"error,omitempty"`
 }
 
 // UIEventType defines types of UI events

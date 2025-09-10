@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/logger"
@@ -191,15 +193,28 @@ func (t *A2ATaskTool) handleSubmitTask(ctx context.Context, args map[string]any,
 		return t.errorResult(args, startTime, "task_description parameter is required for submit operation", "submit")
 	}
 
+	// Create ADK Task structure
+	adkTask := adk.Task{
+		ID:   uuid.New().String(),
+		Kind: taskType,
+		Metadata: map[string]any{
+			"description": taskDescription,
+		},
+		Status: adk.TaskStatus{
+			State: adk.TaskStateSubmitted,
+		},
+	}
+
+	// Create A2A Task Request
 	task := domain.A2ATask{
-		Type:        taskType,
-		Description: taskDescription,
-		Parameters:  make(map[string]interface{}),
+		Task:      adkTask,
+		JobType:   taskType,
+		JobParams: make(map[string]interface{}),
 	}
 
 	if params, exists := args["parameters"]; exists {
 		if paramMap, ok := params.(map[string]interface{}); ok {
-			task.Parameters = paramMap
+			task.JobParams = paramMap
 		}
 	}
 
@@ -259,17 +274,30 @@ func (t *A2ATaskTool) handleGetTaskStatus(ctx context.Context, args map[string]a
 		Data: A2ATaskResult{
 			Operation:   "status",
 			TaskID:      taskID,
-			Status:      status.Status,
+			Status:      status.Status(),
 			Success:     true,
-			Message:     fmt.Sprintf("Task %s status: %s (%.1f%% complete)", taskID, status.Status, status.Progress),
+			Message:     fmt.Sprintf("Task %s status: %s (%.1f%% complete)", taskID, status.Status(), status.Progress),
 			CreatedAt:   status.CreatedAt,
 			CompletedAt: status.CompletedAt,
 			Metadata: map[string]string{
 				"progress": fmt.Sprintf("%.1f", status.Progress),
-				"message":  status.Message,
+				"message":  getStatusMessage(status),
 			},
 		},
 	}, nil
+}
+
+// getStatusMessage extracts the message from A2ATaskStatus
+func getStatusMessage(status *domain.A2ATaskStatus) string {
+	if status.TaskStatus.Message != nil {
+		// Try to extract text content from ADK Message
+		for _, part := range status.TaskStatus.Message.Parts {
+			if textPart, ok := part.(*adk.TextPart); ok {
+				return textPart.Text
+			}
+		}
+	}
+	return ""
 }
 
 // handleCollectResults handles result collection

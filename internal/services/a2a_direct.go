@@ -72,33 +72,35 @@ func (s *A2ADirectServiceImpl) SubmitTask(ctx context.Context, agentName string,
 		return "", fmt.Errorf("agent '%s' is disabled", agentName)
 	}
 
-	if task.ID == "" {
-		task.ID = uuid.New().String()
+	if task.Task.ID == "" {
+		task.Task.ID = uuid.New().String()
 	}
 
 	taskTracker := &A2ATaskTracker{
-		TaskID:    task.ID,
+		TaskID:    task.Task.ID,
 		AgentName: agentName,
 		Task:      task,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 		Status: &domain.A2ATaskStatus{
-			TaskID:    task.ID,
-			Status:    domain.A2ATaskStatusPending,
+			TaskID: task.Task.ID,
+			TaskStatus: adk.TaskStatus{
+				State: domain.A2ATaskStatusPending,
+			},
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		},
 	}
 
 	s.activeTasksMux.Lock()
-	s.activeTasks[task.ID] = taskTracker
+	s.activeTasks[task.Task.ID] = taskTracker
 	s.activeTasksMux.Unlock()
 
 	s.backgroundJobs.Add(1)
 	go s.submitTaskAsync(ctx, agent, task, taskTracker)
 
-	logger.Debug("A2A task submitted", "task_id", task.ID, "agent", agentName)
-	return task.ID, nil
+	logger.Debug("A2A task submitted", "task_id", task.Task.ID, "agent", agentName)
+	return task.Task.ID, nil
 }
 
 // submitTaskAsync handles the asynchronous task submission
@@ -109,13 +111,26 @@ func (s *A2ADirectServiceImpl) submitTaskAsync(ctx context.Context, agent config
 
 	endpoint := fmt.Sprintf("%s/api/v1/tasks", strings.TrimSuffix(agent.URL, "/"))
 
+	// Create JSON-RPC request using ADK pattern
+	submitRequest := domain.A2ASubmitTaskRequest{
+		ID:      uuid.New().String(),
+		JSONRPC: "2.0",
+		Method:  "tasks/submit",
+		Params:  task,
+	}
+
+	// For backward compatibility, also create legacy payload structure
 	payload := map[string]interface{}{
-		"id":          task.ID,
-		"type":        task.Type,
-		"description": task.Description,
-		"parameters":  task.Parameters,
-		"priority":    task.Priority,
-		"timeout":     task.Timeout,
+		"jsonrpc": submitRequest.JSONRPC,
+		"id":      submitRequest.ID,
+		"method":  submitRequest.Method,
+		"params": map[string]interface{}{
+			"task":       task.Task,
+			"job_type":   task.JobType,
+			"job_params": task.JobParams,
+			"priority":   task.Priority,
+			"timeout":    task.Timeout,
+		},
 	}
 
 	request := s.client.R().
@@ -130,13 +145,13 @@ func (s *A2ADirectServiceImpl) submitTaskAsync(ctx context.Context, agent config
 	resp, err := request.Post(endpoint)
 	if err != nil {
 		s.updateTaskStatus(tracker.TaskID, domain.A2ATaskStatusFailed, 0, fmt.Sprintf("Failed to submit task: %v", err))
-		logger.Error("Failed to submit A2A task", "task_id", task.ID, "agent", agent.Name, "error", err)
+		logger.Error("Failed to submit A2A task", "task_id", task.Task.ID, "agent", agent.Name, "error", err)
 		return
 	}
 
 	if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusAccepted {
 		s.updateTaskStatus(tracker.TaskID, domain.A2ATaskStatusFailed, 0, fmt.Sprintf("Task submission failed: %s", resp.String()))
-		logger.Error("A2A task submission failed", "task_id", task.ID, "status", resp.Status(), "response", resp.String())
+		logger.Error("A2A task submission failed", "task_id", task.Task.ID, "status", resp.Status(), "response", resp.String())
 		return
 	}
 
@@ -147,7 +162,7 @@ func (s *A2ADirectServiceImpl) submitTaskAsync(ctx context.Context, agent config
 
 	if err := json.Unmarshal(resp.Body(), &submitResponse); err != nil {
 		s.updateTaskStatus(tracker.TaskID, domain.A2ATaskStatusFailed, 0, fmt.Sprintf("Failed to parse submission response: %v", err))
-		logger.Error("Failed to parse A2A task submission response", "task_id", task.ID, "error", err)
+		logger.Error("Failed to parse A2A task submission response", "task_id", task.Task.ID, "error", err)
 		return
 	}
 
@@ -156,7 +171,7 @@ func (s *A2ADirectServiceImpl) submitTaskAsync(ctx context.Context, agent config
 	// Start status polling
 	s.startStatusPolling(ctx, agent, tracker.TaskID)
 
-	logger.Debug("A2A task submitted successfully", "task_id", task.ID, "agent", agent.Name)
+	logger.Debug("A2A task submitted successfully", "task_id", task.Task.ID, "agent", agent.Name)
 }
 
 // startStatusPolling starts a goroutine to poll task status
@@ -205,7 +220,7 @@ func (s *A2ADirectServiceImpl) pollTaskStatus(ctx context.Context, agent config.
 			s.activeTasksMux.Unlock()
 
 			// Stop polling if task is completed
-			if status.Status == domain.A2ATaskStatusCompleted || status.Status == domain.A2ATaskStatusFailed {
+			if status.Status() == domain.A2ATaskStatusCompleted || status.Status() == domain.A2ATaskStatusFailed {
 				return
 			}
 		}
@@ -435,14 +450,27 @@ func (s *A2ADirectServiceImpl) updateTaskStatus(taskID string, status domain.A2A
 	defer s.activeTasksMux.Unlock()
 
 	if tracker, exists := s.activeTasks[taskID]; exists {
-		tracker.Status.Status = status
+		// Update ADK TaskStatus
+		tracker.Status.TaskStatus.State = status
+		if message != "" {
+			// Create ADK Message for the status
+			tracker.Status.TaskStatus.Message = adk.NewStreamingStatusMessage(
+				uuid.New().String(),
+				message,
+				map[string]any{"progress": progress},
+			)
+		}
+		// Update timestamp
+		now := time.Now()
+		timestamp := now.Format(time.RFC3339)
+		tracker.Status.TaskStatus.Timestamp = &timestamp
+
+		// Update additional tracking fields
 		tracker.Status.Progress = progress
-		tracker.Status.Message = message
-		tracker.Status.UpdatedAt = time.Now()
-		tracker.UpdatedAt = time.Now()
+		tracker.Status.UpdatedAt = now
+		tracker.UpdatedAt = now
 
 		if status == domain.A2ATaskStatusCompleted || status == domain.A2ATaskStatusFailed {
-			now := time.Now()
 			tracker.Status.CompletedAt = &now
 		}
 	}
