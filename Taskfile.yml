@@ -191,6 +191,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ThemeService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ConversationRepository
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain SDKClient
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain A2ADirectService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/infra/storage ConversationStorage
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/ui ConversationRenderer
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/ui InputComponent
@@ -217,6 +218,7 @@ tasks:
       - "tests/mocks/generated/fake_model_service.go"
       - "tests/mocks/generated/fake_config_service.go"
       - "tests/mocks/generated/fake_theme_service.go"
+      - "tests/mocks/generated/fake_a2adirect_service.go"
       - "tests/mocks/generated/fake_conversation_repository.go"
       - "tests/mocks/generated/fake_conversation_storage.go"
       - "tests/mocks/generated/fake_conversation_renderer.go"

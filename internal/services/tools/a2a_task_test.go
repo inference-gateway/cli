@@ -6,52 +6,11 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	generated "github.com/inference-gateway/cli/tests/mocks/generated"
+	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 )
-
-// MockA2ADirectService is a mock implementation of domain.A2ADirectService
-type MockA2ADirectService struct {
-	mock.Mock
-}
-
-func (m *MockA2ADirectService) SubmitTask(ctx context.Context, agentName string, task domain.A2ATask) (string, error) {
-	args := m.Called(ctx, agentName, task)
-	return args.String(0), args.Error(1)
-}
-
-func (m *MockA2ADirectService) GetTaskStatus(ctx context.Context, taskID string) (*domain.A2ATaskStatus, error) {
-	args := m.Called(ctx, taskID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.A2ATaskStatus), args.Error(1)
-}
-
-func (m *MockA2ADirectService) CollectResults(ctx context.Context, taskID string) (*domain.A2ATaskResult, error) {
-	args := m.Called(ctx, taskID)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*domain.A2ATaskResult), args.Error(1)
-}
-
-func (m *MockA2ADirectService) CancelTask(ctx context.Context, taskID string) error {
-	args := m.Called(ctx, taskID)
-	return args.Error(0)
-}
-
-func (m *MockA2ADirectService) ListActiveAgents() (map[string]domain.A2AAgentInfo, error) {
-	args := m.Called()
-	return args.Get(0).(map[string]domain.A2AAgentInfo), args.Error(1)
-}
-
-func (m *MockA2ADirectService) TestConnection(ctx context.Context, agentName string) error {
-	args := m.Called(ctx, agentName)
-	return args.Error(0)
-}
 
 func TestNewA2ATaskTool(t *testing.T) {
 	tests := []struct {
@@ -66,7 +25,7 @@ func TestNewA2ATaskTool(t *testing.T) {
 					Enabled: true,
 				},
 			},
-			a2aDirectService: &MockA2ADirectService{},
+			a2aDirectService: &generated.FakeA2ADirectService{},
 		},
 	}
 
@@ -96,7 +55,7 @@ func TestA2ATaskTool_Definition(t *testing.T) {
 					Enabled: true,
 				},
 			}
-			tool := NewA2ATaskTool(cfg, &MockA2ADirectService{})
+			tool := NewA2ATaskTool(cfg, &generated.FakeA2ADirectService{})
 
 			def := tool.Definition()
 
@@ -135,7 +94,7 @@ func TestA2ATaskTool_IsEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tool := NewA2ATaskTool(tt.config, &MockA2ADirectService{})
+			tool := NewA2ATaskTool(tt.config, &generated.FakeA2ADirectService{})
 
 			enabled := tool.IsEnabled()
 
@@ -242,7 +201,7 @@ func TestA2ATaskTool_Validate(t *testing.T) {
 					Enabled: true,
 				},
 			}
-			tool := NewA2ATaskTool(cfg, &MockA2ADirectService{})
+			tool := NewA2ATaskTool(cfg, &generated.FakeA2ADirectService{})
 
 			err := tool.Validate(tt.args)
 
@@ -261,7 +220,7 @@ func TestA2ATaskTool_Execute_Submit(t *testing.T) {
 		name             string
 		config           *config.Config
 		args             map[string]any
-		mockSetup        func(*MockA2ADirectService)
+		mockSetup        func(*generated.FakeA2ADirectService)
 		expectSuccess    bool
 		expectedTaskID   string
 		expectedErrorMsg string
@@ -279,7 +238,7 @@ func TestA2ATaskTool_Execute_Submit(t *testing.T) {
 				"task_type":        "test",
 				"task_description": "Test task",
 			},
-			mockSetup:        func(m *MockA2ADirectService) {},
+			mockSetup:        func(m *generated.FakeA2ADirectService) {},
 			expectSuccess:    false,
 			expectedErrorMsg: "A2A direct connections are disabled",
 		},
@@ -296,9 +255,8 @@ func TestA2ATaskTool_Execute_Submit(t *testing.T) {
 				"task_type":        "test",
 				"task_description": "Test task",
 			},
-			mockSetup: func(m *MockA2ADirectService) {
-				m.On("SubmitTask", mock.Anything, "test-agent", mock.AnythingOfType("domain.A2ATask")).
-					Return("task-123", nil)
+			mockSetup: func(m *generated.FakeA2ADirectService) {
+				m.SubmitTaskReturns("task-123", nil)
 			},
 			expectSuccess:  true,
 			expectedTaskID: "task-123",
@@ -307,7 +265,7 @@ func TestA2ATaskTool_Execute_Submit(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := &MockA2ADirectService{}
+			mockService := &generated.FakeA2ADirectService{}
 			tt.mockSetup(mockService)
 
 			tool := NewA2ATaskTool(tt.config, mockService)
@@ -330,7 +288,6 @@ func TestA2ATaskTool_Execute_Submit(t *testing.T) {
 				assert.Contains(t, result.Error, tt.expectedErrorMsg)
 			}
 
-			mockService.AssertExpectations(t)
 		})
 	}
 }
@@ -339,7 +296,7 @@ func TestA2ATaskTool_Execute_Status(t *testing.T) {
 	tests := []struct {
 		name             string
 		args             map[string]any
-		mockSetup        func(*MockA2ADirectService)
+		mockSetup        func(*generated.FakeA2ADirectService)
 		expectSuccess    bool
 		expectedStatus   domain.A2ATaskStatusEnum
 		expectedErrorMsg string
@@ -350,7 +307,7 @@ func TestA2ATaskTool_Execute_Status(t *testing.T) {
 				"operation": "status",
 				"task_id":   "test-task",
 			},
-			mockSetup: func(m *MockA2ADirectService) {
+			mockSetup: func(m *generated.FakeA2ADirectService) {
 				status := &domain.A2ATaskStatus{
 					TaskID:    "test-task",
 					Status:    domain.A2ATaskStatusWorking,
@@ -359,7 +316,7 @@ func TestA2ATaskTool_Execute_Status(t *testing.T) {
 					CreatedAt: time.Now(),
 					UpdatedAt: time.Now(),
 				}
-				m.On("GetTaskStatus", mock.Anything, "test-task").Return(status, nil)
+				m.GetTaskStatusReturns(status, nil)
 			},
 			expectSuccess:  true,
 			expectedStatus: domain.A2ATaskStatusWorking,
@@ -368,7 +325,7 @@ func TestA2ATaskTool_Execute_Status(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := &MockA2ADirectService{}
+			mockService := &generated.FakeA2ADirectService{}
 			tt.mockSetup(mockService)
 
 			cfg := &config.Config{
@@ -392,7 +349,6 @@ func TestA2ATaskTool_Execute_Status(t *testing.T) {
 				assert.Equal(t, tt.expectedStatus, data.Status)
 			}
 
-			mockService.AssertExpectations(t)
 		})
 	}
 }
@@ -400,13 +356,13 @@ func TestA2ATaskTool_Execute_Status(t *testing.T) {
 func TestA2ATaskTool_Execute_ListAgents(t *testing.T) {
 	tests := []struct {
 		name          string
-		mockSetup     func(*MockA2ADirectService)
+		mockSetup     func(*generated.FakeA2ADirectService)
 		expectSuccess bool
 		expectedCount int
 	}{
 		{
 			name: "lists agents successfully",
-			mockSetup: func(m *MockA2ADirectService) {
+			mockSetup: func(m *generated.FakeA2ADirectService) {
 				agents := map[string]domain.A2AAgentInfo{
 					"agent1": {
 						Name:        "agent1",
@@ -421,7 +377,7 @@ func TestA2ATaskTool_Execute_ListAgents(t *testing.T) {
 						Enabled:     true,
 					},
 				}
-				m.On("ListActiveAgents").Return(agents, nil)
+				m.ListActiveAgentsReturns(agents, nil)
 			},
 			expectSuccess: true,
 			expectedCount: 2,
@@ -430,7 +386,7 @@ func TestA2ATaskTool_Execute_ListAgents(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockService := &MockA2ADirectService{}
+			mockService := &generated.FakeA2ADirectService{}
 			tt.mockSetup(mockService)
 
 			cfg := &config.Config{
@@ -456,12 +412,11 @@ func TestA2ATaskTool_Execute_ListAgents(t *testing.T) {
 				require.True(t, ok)
 				assert.Equal(t, "list_agents", data.Operation)
 
-				if agentList, ok := data.Result.([]map[string]interface{}); ok {
+				if agentList, ok := data.Result.([]map[string]any); ok {
 					assert.Len(t, agentList, tt.expectedCount)
 				}
 			}
 
-			mockService.AssertExpectations(t)
 		})
 	}
 }
@@ -522,7 +477,7 @@ func TestA2ATaskTool_FormatResult(t *testing.T) {
 					Enabled: true,
 				},
 			}
-			tool := NewA2ATaskTool(cfg, &MockA2ADirectService{})
+			tool := NewA2ATaskTool(cfg, &generated.FakeA2ADirectService{})
 
 			formatted := tool.FormatResult(tt.result, tt.formatType)
 
@@ -556,7 +511,7 @@ func TestA2ATaskTool_ShouldCollapseArg(t *testing.T) {
 					Enabled: true,
 				},
 			}
-			tool := NewA2ATaskTool(cfg, &MockA2ADirectService{})
+			tool := NewA2ATaskTool(cfg, &generated.FakeA2ADirectService{})
 
 			result := tool.ShouldCollapseArg(tt.key)
 

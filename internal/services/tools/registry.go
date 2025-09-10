@@ -52,9 +52,9 @@ func (r *Registry) registerTools() {
 		r.tools["Github"] = NewGithubTool(r.config)
 	}
 
-	// Register A2A task tool if A2A direct connections are enabled and service is available
 	if r.config.IsA2ADirectEnabled() && r.a2aDirectService != nil {
-		r.tools["A2ATask"] = NewA2ATaskTool(r.config, r.a2aDirectService)
+		r.tools["Task"] = NewA2ATaskTool(r.config, r.a2aDirectService)
+		r.tools["AgentCard"] = NewAgentCardTool(r.config, r.a2aDirectService)
 	}
 }
 

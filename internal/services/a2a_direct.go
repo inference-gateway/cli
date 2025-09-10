@@ -10,10 +10,12 @@ import (
 	"time"
 
 	"github.com/go-resty/resty/v2"
-	"github.com/google/uuid"
+	uuid "github.com/google/uuid"
+	adkClient "github.com/inference-gateway/adk/client"
+	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // A2ADirectServiceImpl implements the A2ADirectService interface
@@ -395,6 +397,36 @@ func (s *A2ADirectServiceImpl) TestConnection(ctx context.Context, agentName str
 
 	logger.Debug("A2A agent connection test successful", "agent", agentName)
 	return nil
+}
+
+func (s *A2ADirectServiceImpl) GetAgentCard(ctx context.Context, agentName string) (*adk.AgentCard, error) {
+	agent, exists := s.config.GetA2AAgent(agentName)
+	if !exists {
+		return nil, fmt.Errorf("agent '%s' not found in configuration", agentName)
+	}
+
+	clientConfig := &adkClient.Config{
+		BaseURL: agent.URL,
+		Timeout: time.Duration(agent.Timeout) * time.Second,
+	}
+
+	// Add API key as header if provided
+	if agent.APIKey != "" {
+		if clientConfig.Headers == nil {
+			clientConfig.Headers = make(map[string]string)
+		}
+		clientConfig.Headers["Authorization"] = "Bearer " + agent.APIKey
+	}
+
+	client := adkClient.NewClientWithConfig(clientConfig)
+
+	agentCard, err := client.GetAgentCard(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch agent card from '%s': %w", agentName, err)
+	}
+
+	logger.Debug("A2A agent card fetched successfully", "agent", agentName, "card_name", agentCard.Name)
+	return agentCard, nil
 }
 
 // updateTaskStatus updates the status of a tracked task

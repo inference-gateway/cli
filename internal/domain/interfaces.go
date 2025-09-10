@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -551,6 +552,9 @@ type A2ADirectService interface {
 
 	// TestConnection tests connectivity to a specific agent
 	TestConnection(ctx context.Context, agentName string) error
+
+	// GetAgentCard retrieves detailed capabilities and API schema for an agent
+	GetAgentCard(ctx context.Context, agentName string) (*adk.AgentCard, error)
 }
 
 // A2ATask represents a task to be submitted to an A2A agent
