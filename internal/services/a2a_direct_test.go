@@ -153,7 +153,7 @@ func TestA2ADirectServiceImpl_GetTaskStatus(t *testing.T) {
 					AgentName: "test-agent",
 					Status: &domain.A2ATaskStatus{
 						TaskID:    "test-task",
-						Status:    "running",
+						Status:    domain.A2ATaskStatusRunning,
 						Progress:  50.0,
 						Message:   "Task in progress",
 						CreatedAt: time.Now(),
@@ -296,7 +296,7 @@ func TestA2ADirectServiceImpl_updateTaskStatus(t *testing.T) {
 	tests := []struct {
 		name     string
 		taskID   string
-		status   string
+		status   domain.A2ATaskStatusEnum
 		progress float64
 		message  string
 		setup    func(*A2ADirectServiceImpl)
@@ -305,7 +305,7 @@ func TestA2ADirectServiceImpl_updateTaskStatus(t *testing.T) {
 		{
 			name:     "updates existing task status",
 			taskID:   "test-task",
-			status:   "completed",
+			status:   domain.A2ATaskStatusCompleted,
 			progress: 100.0,
 			message:  "Task completed successfully",
 			setup: func(s *A2ADirectServiceImpl) {
@@ -314,7 +314,7 @@ func TestA2ADirectServiceImpl_updateTaskStatus(t *testing.T) {
 					AgentName: "test-agent",
 					Status: &domain.A2ATaskStatus{
 						TaskID:    "test-task",
-						Status:    "running",
+						Status:    domain.A2ATaskStatusRunning,
 						Progress:  50.0,
 						Message:   "Task in progress",
 						CreatedAt: time.Now(),
@@ -325,7 +325,7 @@ func TestA2ADirectServiceImpl_updateTaskStatus(t *testing.T) {
 			verify: func(t *testing.T, s *A2ADirectServiceImpl) {
 				task, exists := s.activeTasks["test-task"]
 				require.True(t, exists)
-				assert.Equal(t, "completed", task.Status.Status)
+				assert.Equal(t, domain.A2ATaskStatusCompleted, task.Status.Status)
 				assert.Equal(t, 100.0, task.Status.Progress)
 				assert.Equal(t, "Task completed successfully", task.Status.Message)
 				assert.NotNil(t, task.Status.CompletedAt)
@@ -334,7 +334,7 @@ func TestA2ADirectServiceImpl_updateTaskStatus(t *testing.T) {
 		{
 			name:     "ignores update for nonexistent task",
 			taskID:   "nonexistent-task",
-			status:   "completed",
+			status:   domain.A2ATaskStatusCompleted,
 			progress: 100.0,
 			message:  "Task completed",
 			setup:    func(s *A2ADirectServiceImpl) {},

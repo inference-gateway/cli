@@ -82,7 +82,7 @@ func (s *A2ADirectServiceImpl) SubmitTask(ctx context.Context, agentName string,
 		UpdatedAt: time.Now(),
 		Status: &domain.A2ATaskStatus{
 			TaskID:    task.ID,
-			Status:    "pending",
+			Status:    domain.A2ATaskStatusPending,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		},
@@ -127,13 +127,13 @@ func (s *A2ADirectServiceImpl) submitTaskAsync(ctx context.Context, agent config
 
 	resp, err := request.Post(endpoint)
 	if err != nil {
-		s.updateTaskStatus(tracker.TaskID, "failed", 0, fmt.Sprintf("Failed to submit task: %v", err))
+		s.updateTaskStatus(tracker.TaskID, domain.A2ATaskStatusFailed, 0, fmt.Sprintf("Failed to submit task: %v", err))
 		logger.Error("Failed to submit A2A task", "task_id", task.ID, "agent", agent.Name, "error", err)
 		return
 	}
 
 	if resp.StatusCode() != http.StatusOK && resp.StatusCode() != http.StatusAccepted {
-		s.updateTaskStatus(tracker.TaskID, "failed", 0, fmt.Sprintf("Task submission failed: %s", resp.String()))
+		s.updateTaskStatus(tracker.TaskID, domain.A2ATaskStatusFailed, 0, fmt.Sprintf("Task submission failed: %s", resp.String()))
 		logger.Error("A2A task submission failed", "task_id", task.ID, "status", resp.Status(), "response", resp.String())
 		return
 	}
@@ -144,12 +144,12 @@ func (s *A2ADirectServiceImpl) submitTaskAsync(ctx context.Context, agent config
 	}
 
 	if err := json.Unmarshal(resp.Body(), &submitResponse); err != nil {
-		s.updateTaskStatus(tracker.TaskID, "failed", 0, fmt.Sprintf("Failed to parse submission response: %v", err))
+		s.updateTaskStatus(tracker.TaskID, domain.A2ATaskStatusFailed, 0, fmt.Sprintf("Failed to parse submission response: %v", err))
 		logger.Error("Failed to parse A2A task submission response", "task_id", task.ID, "error", err)
 		return
 	}
 
-	s.updateTaskStatus(tracker.TaskID, "running", 10, "Task submitted successfully")
+	s.updateTaskStatus(tracker.TaskID, domain.A2ATaskStatusRunning, 10, "Task submitted successfully")
 
 	// Start status polling
 	s.startStatusPolling(ctx, agent, tracker.TaskID)
@@ -203,7 +203,7 @@ func (s *A2ADirectServiceImpl) pollTaskStatus(ctx context.Context, agent config.
 			s.activeTasksMux.Unlock()
 
 			// Stop polling if task is completed
-			if status.Status == "completed" || status.Status == "failed" {
+			if status.Status == domain.A2ATaskStatusCompleted || status.Status == domain.A2ATaskStatusFailed {
 				return
 			}
 		}
@@ -398,7 +398,7 @@ func (s *A2ADirectServiceImpl) TestConnection(ctx context.Context, agentName str
 }
 
 // updateTaskStatus updates the status of a tracked task
-func (s *A2ADirectServiceImpl) updateTaskStatus(taskID, status string, progress float64, message string) {
+func (s *A2ADirectServiceImpl) updateTaskStatus(taskID string, status domain.A2ATaskStatusEnum, progress float64, message string) {
 	s.activeTasksMux.Lock()
 	defer s.activeTasksMux.Unlock()
 
@@ -409,7 +409,7 @@ func (s *A2ADirectServiceImpl) updateTaskStatus(taskID, status string, progress 
 		tracker.Status.UpdatedAt = time.Now()
 		tracker.UpdatedAt = time.Now()
 
-		if status == "completed" || status == "failed" {
+		if status == domain.A2ATaskStatusCompleted || status == domain.A2ATaskStatusFailed {
 			now := time.Now()
 			tracker.Status.CompletedAt = &now
 		}

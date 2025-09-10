@@ -563,16 +563,27 @@ type A2ATask struct {
 	Timeout     int                    `json:"timeout,omitempty"`
 }
 
+// A2ATaskStatusEnum represents the possible status values for an A2A task
+type A2ATaskStatusEnum string
+
+const (
+	A2ATaskStatusPending       A2ATaskStatusEnum = "pending"
+	A2ATaskStatusRunning       A2ATaskStatusEnum = "running"
+	A2ATaskStatusCompleted     A2ATaskStatusEnum = "completed"
+	A2ATaskStatusFailed        A2ATaskStatusEnum = "failed"
+	A2ATaskStatusInputRequired A2ATaskStatusEnum = "input_required"
+)
+
 // A2ATaskStatus represents the status of an A2A task
 type A2ATaskStatus struct {
-	TaskID       string           `json:"task_id"`
-	Status       string           `json:"status"` // pending, running, completed, failed, input_required
-	Progress     float64          `json:"progress,omitempty"`
-	Message      string           `json:"message,omitempty"`
-	CreatedAt    time.Time        `json:"created_at"`
-	UpdatedAt    time.Time        `json:"updated_at"`
-	CompletedAt  *time.Time       `json:"completed_at,omitempty"`
-	InputRequest *A2AInputRequest `json:"input_request,omitempty"`
+	TaskID       string            `json:"task_id"`
+	Status       A2ATaskStatusEnum `json:"status"`
+	Progress     float64           `json:"progress,omitempty"`
+	Message      string            `json:"message,omitempty"`
+	CreatedAt    time.Time         `json:"created_at"`
+	UpdatedAt    time.Time         `json:"updated_at"`
+	CompletedAt  *time.Time        `json:"completed_at,omitempty"`
+	InputRequest *A2AInputRequest  `json:"input_request,omitempty"`
 }
 
 // A2AInputRequest represents a request for user input during task execution

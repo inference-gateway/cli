@@ -20,17 +20,17 @@ type A2ATaskTool struct {
 
 // A2ATaskResult represents the result of an A2A task operation
 type A2ATaskResult struct {
-	Operation   string            `json:"operation"`
-	TaskID      string            `json:"task_id,omitempty"`
-	Status      string            `json:"status,omitempty"`
-	AgentName   string            `json:"agent_name,omitempty"`
-	Message     string            `json:"message"`
-	Result      interface{}       `json:"result,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	Success     bool              `json:"success"`
-	Duration    time.Duration     `json:"duration,omitempty"`
-	CreatedAt   time.Time         `json:"created_at,omitempty"`
-	CompletedAt *time.Time        `json:"completed_at,omitempty"`
+	Operation   string                   `json:"operation"`
+	TaskID      string                   `json:"task_id,omitempty"`
+	Status      domain.A2ATaskStatusEnum `json:"status,omitempty"`
+	AgentName   string                   `json:"agent_name,omitempty"`
+	Message     string                   `json:"message"`
+	Result      interface{}              `json:"result,omitempty"`
+	Metadata    map[string]string        `json:"metadata,omitempty"`
+	Success     bool                     `json:"success"`
+	Duration    time.Duration            `json:"duration,omitempty"`
+	CreatedAt   time.Time                `json:"created_at,omitempty"`
+	CompletedAt *time.Time               `json:"completed_at,omitempty"`
 }
 
 // NewA2ATaskTool creates a new A2A task tool
