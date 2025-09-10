@@ -10,6 +10,7 @@ require (
 	github.com/charmbracelet/bubbletea v1.3.7
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/go-redis/redis/v8 v8.11.5
+	github.com/go-resty/resty/v2 v2.16.5
 	github.com/google/uuid v1.6.0
 	github.com/inference-gateway/sdk v1.13.0
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
@@ -36,7 +37,6 @@ require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/erikgeiser/coninput v0.0.0-20211004153227-1c3628e74d0f // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
-	github.com/go-resty/resty/v2 v2.16.5 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/lucasb-eyer/go-colorful v1.2.0 // indirect
