@@ -30,7 +30,7 @@ tasks:
   install:
     desc: Install the CLI from source
     cmds:
-      - go install -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" {{.MAIN_PACKAGE}}
+      - go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o $(go env GOPATH)/bin/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
 
   clean:
     desc: Clean build artifacts
