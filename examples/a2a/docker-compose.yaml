@@ -12,8 +12,15 @@ services:
       - a2a-network
 
   infer-cli:
-    image: ghcr.io/inference-gateway/cli:latest-dev
+    image: golang:1.24.5
+    tty: true
+    working_dir: /go/src
+    volumes:
+      - ../..:/go/src
+      - go-modules:/go/pkg/mod
+      - go-build-cache:/root/.cache/go-build
     environment:
+      INFER_LOGGING_DEBUG: true
       INFER_GATEWAY_URL: http://inference-gateway:8080
       INFER_A2A_ENABLED: true
       INFER_TOOLS_ENABLED: true
@@ -23,6 +30,11 @@ services:
         - http://google-calendar-agent:8080
         - http://documentation-agent:8080
         - http://n8n-agent:8080
+    command:
+      - go
+      - run
+      - .
+      - chat
     networks:
       - a2a-network
     profiles:
@@ -70,3 +82,7 @@ services:
 networks:
   a2a-network:
     driver: bridge
+
+volumes:
+  go-modules:
+  go-build-cache:

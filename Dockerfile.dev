@@ -1,4 +1,0 @@
-FROM golang:1.24.5-alpine3.22
-WORKDIR /go/src
-COPY ./dist/infer-linux-arm64 /usr/local/bin/infer
-ENTRYPOINT ["infer"]

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -79,12 +80,14 @@ func (t *A2AQueryTool) Execute(ctx context.Context, args map[string]any) (*domai
 		return t.errorResult(args, startTime, "agent_url parameter is required and must be a string")
 	}
 
-	// TODO: Implement actual A2A query logic or remove this tool
-	// For now, return a placeholder response
-	response := &adk.AgentCard{}
-	_ = agentURL // avoid unused variable error
+	adkClient := client.NewClient(agentURL)
+	response, err := adkClient.GetAgentCard(ctx)
+	if err != nil {
+		logger.Error("Failed to fetch agent card", "agent_url", agentURL, "error", err)
+		return t.errorResult(args, startTime, fmt.Sprintf("Failed to fetch agent card: %v", err))
+	}
 
-	logger.Debug("A2A query executed via tool", "agent_url", agentURL)
+	logger.Debug("A2A query executed via tool", "agent_url", agentURL, "agent_name", response.Name)
 
 	return &domain.ToolExecutionResult{
 		ToolName:  "Query",
@@ -154,8 +157,41 @@ func (t *A2AQueryTool) FormatResult(result *domain.ToolExecutionResult, formatTy
 // formatForLLM formats the result for LLM consumption
 func (t *A2AQueryTool) formatForLLM(data A2AQueryResult) string {
 	result := fmt.Sprintf("A2A Query to %s: %s", data.AgentName, data.Message)
-	if data.Response != nil {
-		result += fmt.Sprintf(" Response: %+v", data.Response)
+	if data.Response == nil {
+		return result
+	}
+
+	result += "\nAgent Card Details:"
+	result += fmt.Sprintf("\n- Name: %s", data.Response.Name)
+	result += fmt.Sprintf("\n- Version: %s", data.Response.Version)
+	result += fmt.Sprintf("\n- Description: %s", data.Response.Description)
+	result += fmt.Sprintf("\n- URL: %s", data.Response.URL)
+	result += fmt.Sprintf("\n- Protocol Version: %s", data.Response.ProtocolVersion)
+	result += fmt.Sprintf("\n- Preferred Transport: %s", data.Response.PreferredTransport)
+
+	result += "\n- Capabilities:"
+	if data.Response.Capabilities.Streaming != nil {
+		result += fmt.Sprintf("\n  - Streaming: %t", *data.Response.Capabilities.Streaming)
+	}
+	if data.Response.Capabilities.PushNotifications != nil {
+		result += fmt.Sprintf("\n  - Push Notifications: %t", *data.Response.Capabilities.PushNotifications)
+	}
+	if data.Response.Capabilities.StateTransitionHistory != nil {
+		result += fmt.Sprintf("\n  - State Transition History: %t", *data.Response.Capabilities.StateTransitionHistory)
+	}
+
+	if len(data.Response.DefaultInputModes) > 0 {
+		result += fmt.Sprintf("\n- Default Input Modes: %v", data.Response.DefaultInputModes)
+	}
+	if len(data.Response.DefaultOutputModes) > 0 {
+		result += fmt.Sprintf("\n- Default Output Modes: %v", data.Response.DefaultOutputModes)
+	}
+
+	if len(data.Response.Skills) > 0 {
+		result += "\n- Skills:"
+		for _, skill := range data.Response.Skills {
+			result += fmt.Sprintf("\n  - %s: %s", skill.Name, skill.Description)
+		}
 	}
 	return result
 }
@@ -172,8 +208,65 @@ func (t *A2AQueryTool) formatForUI(data A2AQueryResult) string {
 		result += fmt.Sprintf("\n❓ **Query**: %s", data.Query)
 	}
 
-	if data.Response != nil {
-		result += fmt.Sprintf("\n💬 **Response**: %+v", data.Response)
+	if data.Response == nil {
+		if data.Duration > 0 {
+			result += fmt.Sprintf("\n⏱️ **Duration**: %v", data.Duration)
+		}
+		return result
+	}
+
+	result += "\n📋 **Agent Card**:"
+	result += fmt.Sprintf("\n  - **Name**: %s", data.Response.Name)
+	result += fmt.Sprintf("\n  - **Version**: %s", data.Response.Version)
+	result += fmt.Sprintf("\n  - **Description**: %s", data.Response.Description)
+
+	if data.Response.URL != "" {
+		result += fmt.Sprintf("\n  - **URL**: %s", data.Response.URL)
+	}
+	if data.Response.ProtocolVersion != "" {
+		result += fmt.Sprintf("\n  - **Protocol**: %s", data.Response.ProtocolVersion)
+	}
+	if data.Response.PreferredTransport != "" {
+		result += fmt.Sprintf("\n  - **Transport**: %s", data.Response.PreferredTransport)
+	}
+
+	result += "\n  - **Capabilities**:"
+	if data.Response.Capabilities.Streaming != nil {
+		icon := "❌"
+		if *data.Response.Capabilities.Streaming {
+			icon = "✅"
+		}
+		result += fmt.Sprintf("\n    - **Streaming**: %s %t", icon, *data.Response.Capabilities.Streaming)
+	}
+
+	if data.Response.Capabilities.PushNotifications != nil {
+		icon := "❌"
+		if *data.Response.Capabilities.PushNotifications {
+			icon = "✅"
+		}
+		result += fmt.Sprintf("\n    - **Push Notifications**: %s %t", icon, *data.Response.Capabilities.PushNotifications)
+	}
+
+	if data.Response.Capabilities.StateTransitionHistory != nil {
+		icon := "❌"
+		if *data.Response.Capabilities.StateTransitionHistory {
+			icon = "✅"
+		}
+		result += fmt.Sprintf("\n    - **State History**: %s %t", icon, *data.Response.Capabilities.StateTransitionHistory)
+	}
+
+	if len(data.Response.DefaultInputModes) > 0 {
+		result += fmt.Sprintf("\n  - **Input Modes**: %v", data.Response.DefaultInputModes)
+	}
+	if len(data.Response.DefaultOutputModes) > 0 {
+		result += fmt.Sprintf("\n  - **Output Modes**: %v", data.Response.DefaultOutputModes)
+	}
+
+	if len(data.Response.Skills) > 0 {
+		result += "\n  - **Skills**:"
+		for _, skill := range data.Response.Skills {
+			result += fmt.Sprintf("\n    - **%s**: %s", skill.Name, skill.Description)
+		}
 	}
 
 	if data.Duration > 0 {
