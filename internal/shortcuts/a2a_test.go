@@ -101,9 +101,6 @@ func TestA2AShortcut_Execute(t *testing.T) {
 					URL:     "http://localhost:8080",
 					APIKey:  "test-api-key",
 					Timeout: 30,
-					Middlewares: config.MiddlewaresConfig{
-						A2A: true,
-					},
 				},
 			},
 			args:            []string{},
@@ -123,9 +120,6 @@ func TestA2AShortcut_Execute(t *testing.T) {
 					URL:     "http://localhost:8080",
 					APIKey:  "test-api-key",
 					Timeout: 30,
-					Middlewares: config.MiddlewaresConfig{
-						A2A: true,
-					},
 				},
 			},
 			args:            []string{"list"},

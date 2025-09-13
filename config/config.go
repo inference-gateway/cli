@@ -34,10 +34,9 @@ type Config struct {
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL         string            `yaml:"url" mapstructure:"url"`
-	APIKey      string            `yaml:"api_key" mapstructure:"api_key"`
-	Timeout     int               `yaml:"timeout" mapstructure:"timeout"`
-	Middlewares MiddlewaresConfig `yaml:"middlewares" mapstructure:"middlewares"`
+	URL     string `yaml:"url" mapstructure:"url"`
+	APIKey  string `yaml:"api_key" mapstructure:"api_key"`
+	Timeout int    `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -77,7 +76,10 @@ type ToolsConfig struct {
 	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
 	Github    GithubToolConfig    `yaml:"github" mapstructure:"github"`
 	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
-	Safety    SafetyConfig        `yaml:"safety" mapstructure:"safety"`
+	Query     QueryToolConfig     `yaml:"query" mapstructure:"query"`
+	Task      TaskToolConfig      `yaml:"task" mapstructure:"task"`
+
+	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
 
 // BashToolConfig contains bash-specific tool settings
@@ -145,6 +147,18 @@ type WebSearchToolConfig struct {
 
 // TodoWriteToolConfig contains TodoWrite-specific tool settings
 type TodoWriteToolConfig struct {
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// QueryToolConfig contains Query-specific tool settings
+type QueryToolConfig struct {
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// TaskToolConfig contains Task-specific tool settings
+type TaskToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
@@ -240,12 +254,6 @@ type ConversationTitleConfig struct {
 	Interval     int    `yaml:"interval" mapstructure:"interval"`
 }
 
-// MiddlewaresConfig contains middleware-specific settings
-type MiddlewaresConfig struct {
-	A2A bool `yaml:"a2a" mapstructure:"a2a"`
-	MCP bool `yaml:"mcp" mapstructure:"mcp"`
-}
-
 // ChatConfig contains chat interface settings
 type ChatConfig struct {
 	Theme string `yaml:"theme" mapstructure:"theme"`
@@ -307,6 +315,26 @@ type RedisStorageConfig struct {
 	DB       int    `yaml:"db" mapstructure:"db"`
 }
 
+
+// A2AAgentInfo contains information about a direct A2A agent connection
+type A2AAgentInfo struct {
+	Name        string            `yaml:"name" mapstructure:"name"`
+	URL         string            `yaml:"url" mapstructure:"url"`
+	APIKey      string            `yaml:"api_key" mapstructure:"api_key"`
+	Description string            `yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Timeout     int               `yaml:"timeout" mapstructure:"timeout"`
+	Enabled     bool              `yaml:"enabled" mapstructure:"enabled"`
+	Metadata    map[string]string `yaml:"metadata,omitempty" mapstructure:"metadata,omitempty"`
+}
+
+// A2ATaskConfig contains configuration for A2A task processing
+type A2ATaskConfig struct {
+	MaxConcurrent     int `yaml:"max_concurrent" mapstructure:"max_concurrent"`
+	TimeoutSeconds    int `yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
+	RetryCount        int `yaml:"retry_count" mapstructure:"retry_count"`
+	StatusPollSeconds int `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
+}
+
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config { //nolint:funlen
 	return &Config{
@@ -314,10 +342,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			URL:     "http://localhost:8080",
 			APIKey:  "",
 			Timeout: 200,
-			Middlewares: MiddlewaresConfig{
-				A2A: false,
-				MCP: false,
-			},
 		},
 		Client: ClientConfig{
 			Timeout: 200,
@@ -655,14 +679,6 @@ func (c *Config) GetSandboxDirectories() []string {
 
 func (c *Config) GetProtectedPaths() []string {
 	return c.Tools.Sandbox.ProtectedPaths
-}
-
-func (c *Config) ShouldSkipA2AToolOnClient() bool {
-	return !c.Gateway.Middlewares.A2A
-}
-
-func (c *Config) ShouldSkipMCPToolOnClient() bool {
-	return !c.Gateway.Middlewares.MCP
 }
 
 func (c *Config) GetTheme() string {

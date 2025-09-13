@@ -25,6 +25,5 @@ ARG TARGETARCH
 COPY --from=binaries infer-linux-${TARGETARCH} ./infer
 RUN chmod +x ./infer && chown infer:infer ./infer
 RUN mkdir -p .infer && chown -R infer:infer .infer
-VOLUME ["/home/infer/.infer"]
 USER infer
 ENTRYPOINT ["./infer"]

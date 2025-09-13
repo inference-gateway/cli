@@ -86,6 +86,10 @@ const (
 	EventCancelled
 	EventOptimizationStatus
 	EventA2AToolCallExecuted
+	EventA2ATaskSubmitted
+	EventA2ATaskStatusUpdate
+	EventA2ATaskCompleted
+	EventA2ATaskInputRequired
 )
 
 // ChatEvent represents events during chat operations
@@ -560,6 +564,10 @@ const (
 	UIEventToolExecutionStarted
 	UIEventToolExecutionProgress
 	UIEventToolExecutionCompleted
+	UIEventA2ATaskSubmitted
+	UIEventA2ATaskStatusUpdate
+	UIEventA2ATaskCompleted
+	UIEventA2ATaskInputRequired
 )
 
 // ScrollDirection defines scroll direction

@@ -50,6 +50,15 @@ func (r *Registry) registerTools() {
 	if r.config.Tools.Github.Enabled {
 		r.tools["Github"] = NewGithubTool(r.config)
 	}
+
+	if r.config.Tools.Query.Enabled {
+		r.tools["Query"] = NewA2AQueryTool(r.config)
+	}
+
+	if r.config.Tools.Task.Enabled {
+		r.tools["Task"] = NewA2ATaskTool(r.config)
+	}
+
 }
 
 // GetTool retrieves a tool by name

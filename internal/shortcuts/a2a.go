@@ -75,11 +75,6 @@ func (a *A2AShortcut) showStatus(_ context.Context) (ShortcutResult, error) {
 	networkLabel := colors.CreateColoredText("🌐", colors.AccentColor)
 	output.WriteString(fmt.Sprintf("%s **Gateway URL:** %s\n", networkLabel, gatewayURL))
 
-	if a.config.Gateway.Middlewares.A2A {
-		successIcon := icons.StyledCheckMark()
-		output.WriteString(fmt.Sprintf("%s **A2A Middleware:** Enabled (tools execute on Gateway)\n", successIcon))
-	}
-
 	subheader := colors.CreateColoredText("\n### A2A Server Information\n", colors.StatusColor)
 	output.WriteString(subheader)
 	output.WriteString("A2A (Agent-to-Agent) middleware is configured to handle tool execution on the Gateway.\n")
