@@ -65,7 +65,7 @@ func (h *ChatHandler) GetName() string {
 
 // GetPriority returns the handler priority
 func (h *ChatHandler) GetPriority() int {
-	return 100 // High priority for chat messages
+	return 100
 }
 
 // CanHandle determines if this handler can process the message
