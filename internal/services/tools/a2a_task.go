@@ -144,8 +144,6 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	var finalResult string
 	var eventCount int
 
-	timeout := time.After(30 * time.Second)
-
 	adkEventChan, err := adkClient.SendTaskStreaming(ctx, msgParams)
 	if err != nil {
 		if t.eventChan != nil {
@@ -168,14 +166,7 @@ streamLoop:
 				}
 			}
 			return t.errorResult(args, startTime, "Task cancelled")
-		case <-timeout:
-			if t.eventChan != nil {
-				t.eventChan <- domain.ShowErrorEvent{
-					Error:  "A2A task timed out after 30 seconds",
-					Sticky: false,
-				}
-			}
-			return t.errorResult(args, startTime, "Task timed out")
+
 		case event, ok := <-adkEventChan:
 			if !ok {
 				break streamLoop
