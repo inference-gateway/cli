@@ -12,7 +12,9 @@ services:
       - a2a-network
 
   infer-cli:
-    image: golang:1.24.5
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
     tty: true
     working_dir: /go/src
     volumes:
@@ -33,9 +35,10 @@ services:
         - http://documentation-agent:8080
         - http://n8n-agent:8080
     command:
-      - bash
-      - -c
-      - "go install github.com/go-task/task/v3/cmd/task@latest && go run . chat"
+      - go
+      - run
+      - .
+      - chat
     networks:
       - a2a-network
     profiles:
