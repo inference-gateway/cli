@@ -33,10 +33,9 @@ services:
         - http://documentation-agent:8080
         - http://n8n-agent:8080
     command:
-      - go
-      - run
-      - .
-      - chat
+      - bash
+      - -c
+      - "go install github.com/go-task/task/v3/cmd/task@latest && go run . chat"
     networks:
       - a2a-network
     profiles:
