@@ -16,8 +16,8 @@ import (
 
 // A2ATaskTool handles A2A task submission and management
 type A2ATaskTool struct {
-	config    *config.Config
-	eventChan chan<- domain.UIEvent
+	config *config.Config
+	_      domain.BaseFormatter
 }
 
 // A2ATaskResult represents the result of an A2A task operation
@@ -34,11 +34,6 @@ func NewA2ATaskTool(cfg *config.Config) *A2ATaskTool {
 	return &A2ATaskTool{
 		config: cfg,
 	}
-}
-
-// SetEventChannel sets the event channel for streaming events to the UI
-func (t *A2ATaskTool) SetEventChannel(eventChan chan<- domain.UIEvent) {
-	t.eventChan = eventChan
 }
 
 // Definition returns the tool definition for the LLM
@@ -73,7 +68,7 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 
 	// TODO - need to improve this
 
-	if !t.config.IsA2ADirectEnabled() {
+	if !t.IsEnabled() {
 		return &domain.ToolExecutionResult{
 			ToolName:  "Task",
 			Arguments: args,
@@ -133,25 +128,11 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 		},
 	}
 
-	if t.eventChan != nil {
-		t.eventChan <- domain.SetStatusEvent{
-			Message:    fmt.Sprintf("Submitting task to %s...", agentURL),
-			Spinner:    true,
-			StatusType: domain.StatusProcessing,
-		}
-	}
-
 	var finalResult string
 	var eventCount int
 
 	adkEventChan, err := adkClient.SendTaskStreaming(ctx, msgParams)
 	if err != nil {
-		if t.eventChan != nil {
-			t.eventChan <- domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("A2A task streaming failed: %v", err),
-				Sticky: false,
-			}
-		}
 		return t.errorResult(args, startTime, fmt.Sprintf("A2A task streaming failed: %v", err))
 	}
 
@@ -159,12 +140,6 @@ streamLoop:
 	for {
 		select {
 		case <-ctx.Done():
-			if t.eventChan != nil {
-				t.eventChan <- domain.ShowErrorEvent{
-					Error:  "A2A task cancelled",
-					Sticky: false,
-				}
-			}
 			return t.errorResult(args, startTime, "Task cancelled")
 
 		case event, ok := <-adkEventChan:
@@ -196,14 +171,14 @@ streamLoop:
 			switch eventKindStr {
 			case "message":
 				t.handleMessageEvent(eventData, &finalResult)
-			case "task-status-update":
-				t.handleTaskStatusEvent(eventData)
+			case "status-update":
+				t.handleUpdateStatusEvent(eventData)
 			case "artifact-update":
 				t.handleArtifactEvent(eventData)
 			case "input-required":
 				t.handleInputRequiredEvent(eventData)
 			default:
-				t.handleDefaultEvent(eventData, eventKindStr, &finalResult)
+				logger.Warn("unknown event received", "event", eventData)
 			}
 		}
 	}
@@ -211,14 +186,6 @@ streamLoop:
 	adkTask.Status.State = adk.TaskStateCompleted
 	if finalResult != "" {
 		adkTask.Metadata["result"] = finalResult
-	}
-
-	if t.eventChan != nil {
-		t.eventChan <- domain.SetStatusEvent{
-			Message:    fmt.Sprintf("A2A task completed at %s", agentURL),
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
 	}
 
 	logger.Debug("A2A task completed", "task_id", adkTask.ID, "agent_url", agentURL, "event_count", eventCount)
@@ -251,7 +218,7 @@ func (t *A2ATaskTool) Validate(args map[string]any) error {
 
 // IsEnabled returns whether this tool is enabled
 func (t *A2ATaskTool) IsEnabled() bool {
-	return t.config.IsA2ADirectEnabled()
+	return t.config.Tools.Task.Enabled
 }
 
 // FormatResult formats tool execution results for different contexts
@@ -380,13 +347,7 @@ func (t *A2ATaskTool) handleMessageEvent(eventData map[string]any, finalResult *
 	}
 }
 
-func (t *A2ATaskTool) handleTaskStatusEvent(eventData map[string]any) {
-	if t.eventChan == nil {
-		return
-	}
-
-	message := "Processing task..."
-
+func (t *A2ATaskTool) handleUpdateStatusEvent(eventData map[string]any) {
 	eventBytes, err := json.Marshal(eventData)
 	if err != nil {
 		return
@@ -423,39 +384,16 @@ func (t *A2ATaskTool) handleTaskStatusEvent(eventData map[string]any) {
 			continue
 		}
 
-		message = textStr
+		_ = textStr
 		break
 	}
 
-	var statusType domain.StatusType
-	var showSpinner bool
-	switch status {
-	case "working", "submitted":
-		statusType = domain.StatusProcessing
-		showSpinner = true
-	case "completed":
-		statusType = domain.StatusDefault
-		showSpinner = false
-	case "failed", "canceled":
-		statusType = domain.StatusDefault
-		showSpinner = false
-	default:
-		statusType = domain.StatusProcessing
-		showSpinner = true
-	}
+	_ = status
 
-	t.eventChan <- domain.SetStatusEvent{
-		Message:    fmt.Sprintf("A2A: %s", message),
-		Spinner:    showSpinner,
-		StatusType: statusType,
-	}
+	// TODO send event
 }
 
 func (t *A2ATaskTool) handleArtifactEvent(eventData map[string]any) {
-	if t.eventChan == nil {
-		return
-	}
-
 	artifactMessage := "Updating artifact..."
 
 	eventBytes, err := json.Marshal(eventData)
@@ -472,19 +410,11 @@ func (t *A2ATaskTool) handleArtifactEvent(eventData map[string]any) {
 		artifactMessage = fmt.Sprintf("Updating '%s'...", *artifactEvent.Artifact.Name)
 	}
 
-	t.eventChan <- domain.SetStatusEvent{
-		Message:    fmt.Sprintf("A2A: %s", artifactMessage),
-		Spinner:    true,
-		StatusType: domain.StatusProcessing,
-	}
+	// Event handling disabled - no eventChan available
+	_ = artifactMessage
 }
 
 func (t *A2ATaskTool) handleInputRequiredEvent(eventData map[string]any) {
-	if t.eventChan == nil {
-		return
-	}
-
-	message := "Input required"
 
 	eventBytes, err := json.Marshal(eventData)
 	if err != nil {
@@ -517,29 +447,7 @@ func (t *A2ATaskTool) handleInputRequiredEvent(eventData map[string]any) {
 			continue
 		}
 
-		message = textStr
+		_ = textStr
 		break
-	}
-
-	t.eventChan <- domain.SetStatusEvent{
-		Message:    fmt.Sprintf("A2A: %s", message),
-		Spinner:    false,
-		StatusType: domain.StatusDefault,
-	}
-}
-
-func (t *A2ATaskTool) handleDefaultEvent(eventData map[string]any, eventKind string, finalResult *string) {
-	if content, exists := eventData["content"]; exists {
-		if contentStr, ok := content.(string); ok {
-			*finalResult += contentStr
-		}
-	}
-
-	if t.eventChan != nil {
-		t.eventChan <- domain.SetStatusEvent{
-			Message:    fmt.Sprintf("A2A: Processing %s event", eventKind),
-			Spinner:    true,
-			StatusType: domain.StatusProcessing,
-		}
 	}
 }

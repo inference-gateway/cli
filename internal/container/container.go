@@ -193,9 +193,12 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	gitCommitClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
 
-	middlewareClient := c.createSDKClient()
-	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, middlewareClient))
-	c.shortcutRegistry.Register(shortcuts.NewMCPShortcut(c.config, middlewareClient))
+	// TODO - Add an A2A discovery, when the client executes /a2a
+	// the client will do its best to fetch all the A2A cards of the agents its aware of
+	// (those agents will be configured in raw text in the system prompt, to keep it dynamic rather then hardcoded configurations)
+
+	// middlewareClient := c.createSDKClient()
+	// c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, middlewareClient))
 
 	if c.configService != nil {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService))

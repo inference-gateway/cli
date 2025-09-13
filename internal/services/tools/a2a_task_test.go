@@ -14,8 +14,10 @@ import (
 
 func TestA2ATaskTool_Definition(t *testing.T) {
 	cfg := &config.Config{
-		A2A: config.A2AConfig{
-			Enabled: true,
+		Tools: config.ToolsConfig{
+			Task: config.TaskToolConfig{
+				Enabled: true,
+			},
 		},
 	}
 	tool := NewA2ATaskTool(cfg)
@@ -29,8 +31,10 @@ func TestA2ATaskTool_Definition(t *testing.T) {
 
 func TestA2ATaskTool_Execute_DisabledA2A(t *testing.T) {
 	cfg := &config.Config{
-		A2A: config.A2AConfig{
-			Enabled: false,
+		Tools: config.ToolsConfig{
+			Task: config.TaskToolConfig{
+				Enabled: false,
+			},
 		},
 	}
 	tool := NewA2ATaskTool(cfg)
@@ -69,8 +73,10 @@ func TestA2ATaskTool_Execute_DisabledA2A(t *testing.T) {
 
 func TestA2ATaskTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
-		A2A: config.A2AConfig{
-			Enabled: true,
+		Tools: config.ToolsConfig{
+			Task: config.TaskToolConfig{
+				Enabled: true,
+			},
 		},
 	}
 	tool := NewA2ATaskTool(cfg)
@@ -88,8 +94,10 @@ func TestA2ATaskTool_Execute_MissingAgentURL(t *testing.T) {
 
 func TestA2ATaskTool_Execute_MissingTaskDescription(t *testing.T) {
 	cfg := &config.Config{
-		A2A: config.A2AConfig{
-			Enabled: true,
+		Tools: config.ToolsConfig{
+			Task: config.TaskToolConfig{
+				Enabled: true,
+			},
 		},
 	}
 	tool := NewA2ATaskTool(cfg)
@@ -198,8 +206,10 @@ func TestA2ATaskTool_IsEnabled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				A2A: config.A2AConfig{
-					Enabled: tt.enabled,
+				Tools: config.ToolsConfig{
+					Task: config.TaskToolConfig{
+						Enabled: tt.enabled,
+					},
 				},
 			}
 			tool := NewA2ATaskTool(cfg)

@@ -16,6 +16,7 @@ import (
 // A2AQueryTool handles A2A agent queries
 type A2AQueryTool struct {
 	config *config.Config
+	_      domain.BaseFormatter
 }
 
 // A2AQueryResult represents the result of an A2A query operation
@@ -61,7 +62,7 @@ func (t *A2AQueryTool) Definition() sdk.ChatCompletionTool {
 func (t *A2AQueryTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	startTime := time.Now()
 
-	if !t.config.IsA2ADirectEnabled() {
+	if !t.IsEnabled() {
 		return &domain.ToolExecutionResult{
 			ToolName:  "Query",
 			Arguments: args,
@@ -126,11 +127,6 @@ func (t *A2AQueryTool) Validate(args map[string]any) error {
 		return fmt.Errorf("agent_url parameter is required and must be a string")
 	}
 	return nil
-}
-
-// IsEnabled returns whether this tool is enabled
-func (t *A2AQueryTool) IsEnabled() bool {
-	return t.config.IsA2ADirectEnabled()
 }
 
 // FormatResult formats tool execution results for different contexts
@@ -297,4 +293,9 @@ func (t *A2AQueryTool) ShouldCollapseArg(key string) bool {
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
 func (t *A2AQueryTool) ShouldAlwaysExpand() bool {
 	return false
+}
+
+// IsEnabled returns whether the query tool is enabled
+func (t *A2AQueryTool) IsEnabled() bool {
+	return t.config.Tools.Query.Enabled
 }

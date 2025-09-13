@@ -257,11 +257,6 @@ func (v *A2AServersView) renderConnectionInfo() string {
 	networkIcon := colors.CreateColoredText("🌐", colors.AccentColor)
 	content.WriteString(fmt.Sprintf("%s Gateway: %s%s%s\n", networkIcon, accentColor, gatewayURL, colors.Reset))
 
-	if v.config.Gateway.Middlewares.A2A {
-		successIcon := icons.StyledCheckMark()
-		content.WriteString(fmt.Sprintf("%s A2A Middleware: Enabled (tools execute on Gateway)\n", successIcon))
-	}
-
 	content.WriteString("\n")
 	content.WriteString(fmt.Sprintf("%sPress ESC to return to chat%s", dimColor, colors.Reset))
 

@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -38,10 +37,6 @@ type AgentServiceImpl struct {
 	// Tool call accumulation
 	toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall
 	toolCallsMux sync.RWMutex
-
-	// A2A task tracking to prevent duplicate processing
-	executedA2ATasks map[string]bool
-	a2aTasksMux      sync.RWMutex
 }
 
 // eventPublisher provides a utility for publishing chat events
@@ -98,18 +93,6 @@ func (p *eventPublisher) publishToolCallStart(toolName, toolArguments string) {
 	}
 }
 
-// publishToolCallUpdate publishes a ToolCallUpdateEvent
-func (p *eventPublisher) publishToolCallUpdate(toolCallID, toolName, arguments string, status domain.ToolCallStreamStatus) {
-	p.chatEvents <- domain.ToolCallUpdateEvent{
-		RequestID:  p.requestID,
-		Timestamp:  time.Now(),
-		ToolCallID: toolCallID,
-		ToolName:   toolName,
-		Arguments:  arguments,
-		Status:     status,
-	}
-}
-
 // publishToolCallComplete publishes a ToolCallCompleteEvent
 func (p *eventPublisher) publishToolCallComplete(toolCallID, toolName string, result any, success bool) {
 	p.chatEvents <- domain.ToolCallCompleteEvent{
@@ -145,19 +128,6 @@ func (p *eventPublisher) publishOptimizationStatus(message string, isActive bool
 	}
 }
 
-// publishA2AToolCallExecuted publishes an A2AToolCallExecutedEvent
-func (p *eventPublisher) publishA2AToolCallExecuted(toolCallID, toolName, arguments, taskID string, executedOnGateway bool) {
-	p.chatEvents <- domain.A2AToolCallExecutedEvent{
-		RequestID:         p.requestID,
-		Timestamp:         time.Now(),
-		ToolCallID:        toolCallID,
-		ToolName:          toolName,
-		Arguments:         arguments,
-		ExecutedOnGateway: executedOnGateway,
-		TaskID:            taskID,
-	}
-}
-
 // NewAgentService creates a new agent service with pre-configured client
 func NewAgentService(
 	client sdk.Client,
@@ -179,7 +149,6 @@ func NewAgentService(
 		cancelChannels:   make(map[string]chan struct{}),
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
-		executedA2ATasks: make(map[string]bool),
 	}
 }
 
@@ -213,8 +182,8 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 			MaxTokens: &s.maxTokens,
 		}).
 			WithMiddlewareOptions(&sdk.MiddlewareOptions{
-				SkipMCP: s.config.ShouldSkipMCPToolOnClient(),
-				SkipA2A: s.config.ShouldSkipA2AToolOnClient(),
+				SkipMCP: true,
+				SkipA2A: true,
 			})
 		if s.toolService != nil { // nolint:nestif
 			availableTools := s.toolService.ListTools()
@@ -284,8 +253,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 	client := s.client.
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
-			SkipMCP: s.config.ShouldSkipMCPToolOnClient(),
-			SkipA2A: s.config.ShouldSkipA2AToolOnClient(),
+			SkipMCP: true,
+			SkipA2A: true,
 		})
 	availableTools := s.toolService.ListTools()
 	if len(availableTools) > 0 {
@@ -454,26 +423,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			}
 
 			for _, tc := range toolCalls {
-				if s.isA2ATool(tc.Function.Name) {
-					s.a2aTasksMux.Lock()
-					alreadyExecuted := s.executedA2ATasks[tc.Id]
-					if !alreadyExecuted {
-						s.executedA2ATasks[tc.Id] = true
-						s.a2aTasksMux.Unlock()
-						s.handleA2AToolCall(*tc, eventPublisher)
-					} else {
-						s.a2aTasksMux.Unlock()
-					}
-
-					toolResult := sdk.Message{
-						Role:       sdk.Tool,
-						Content:    fmt.Sprintf("%s executed on Gateway successfully", tc.Function.Name),
-						ToolCallId: &tc.Id,
-					}
-					conversation = append(conversation, toolResult)
-					continue
-				}
-
 				err := s.executeToolCall(ctx, *tc, eventPublisher)
 				if err != nil {
 					logger.Error("failed to execute tool: %w", err)
@@ -639,42 +588,6 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 	return conversation
 }
 
-func (s *AgentServiceImpl) isA2ATool(toolName string) bool {
-	return strings.HasPrefix(toolName, "a2a_")
-}
-
-func (s *AgentServiceImpl) handleA2AToolCall(tc sdk.ChatCompletionMessageToolCall, eventPublisher *eventPublisher) {
-	startTime := time.Now()
-
-	eventPublisher.publishToolCallStart(tc.Function.Name, tc.Function.Arguments)
-	eventPublisher.publishToolCallUpdate(tc.Id, tc.Function.Name, tc.Function.Arguments, domain.ToolCallStreamStatusStreaming)
-	eventPublisher.publishA2AToolCallExecuted(tc.Id, tc.Function.Name, tc.Function.Arguments, tc.Id, true)
-
-	a2aEntry := domain.ConversationEntry{
-		Message: domain.Message{
-			Role:       "tool",
-			Content:    fmt.Sprintf("%s executed on Gateway", tc.Function.Name),
-			ToolCallId: &tc.Id,
-		},
-		Time: time.Now(),
-		ToolExecution: &domain.ToolExecutionResult{
-			ToolName:  tc.Function.Name,
-			Arguments: make(map[string]any),
-			Success:   true,
-			Duration:  time.Since(startTime),
-			Metadata: map[string]string{
-				"executed_on_gateway": "true",
-			},
-		},
-	}
-
-	if err := s.conversationRepo.AddMessage(a2aEntry); err != nil {
-		logger.Error("failed to store A2A tool execution in conversation", "error", err)
-	}
-
-	eventPublisher.publishToolCallComplete(tc.Id, tc.Function.Name, "executed on gateway", true)
-}
-
 func (s *AgentServiceImpl) executeToolCall(ctx context.Context, tc sdk.ChatCompletionMessageToolCall, eventPublisher *eventPublisher) error {
 	startTime := time.Now()
 
@@ -733,7 +646,11 @@ func (s *AgentServiceImpl) executeToolCall(ctx context.Context, tc sdk.ChatCompl
 		return fmt.Errorf("tool validation failed: %w", err)
 	}
 
-	tcResult, err := s.toolService.ExecuteTool(ctx, tc.Function)
+	var tcResult *domain.ToolExecutionResult
+	var err error
+
+	tcResult, err = s.toolService.ExecuteTool(ctx, tc.Function)
+
 	if err != nil {
 		logger.Error("failed to execute %s with %s", tc.Function.Name, tc.Function.Arguments)
 

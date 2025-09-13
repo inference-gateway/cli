@@ -2,9 +2,6 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
-  middlewares:
-    a2a: false
-    mcp: false
 client:
   timeout: 200
   retry:
@@ -109,6 +106,10 @@ tools:
   todo_write:
     enabled: true
     require_approval: false
+  query:
+    enabled: false
+  task:
+    enabled: false
   safety:
     require_approval: true
 compact:
@@ -230,5 +231,3 @@ conversation:
     interval: 0
 chat:
   theme: tokyo-night
-a2a:
-  enabled: false

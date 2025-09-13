@@ -14,8 +14,10 @@ import (
 
 func TestA2AQueryTool_Definition(t *testing.T) {
 	cfg := &config.Config{
-		A2A: config.A2AConfig{
-			Enabled: true,
+		Tools: config.ToolsConfig{
+			Query: config.QueryToolConfig{
+				Enabled: true,
+			},
 		},
 	}
 	tool := NewA2AQueryTool(cfg)
@@ -29,8 +31,10 @@ func TestA2AQueryTool_Definition(t *testing.T) {
 
 func TestA2AQueryTool_Execute_DisabledA2A(t *testing.T) {
 	cfg := &config.Config{
-		A2A: config.A2AConfig{
-			Enabled: false,
+		Tools: config.ToolsConfig{
+			Query: config.QueryToolConfig{
+				Enabled: false,
+			},
 		},
 	}
 	tool := NewA2AQueryTool(cfg)
@@ -67,8 +71,10 @@ func TestA2AQueryTool_Execute_DisabledA2A(t *testing.T) {
 
 func TestA2AQueryTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
-		A2A: config.A2AConfig{
-			Enabled: true,
+		Tools: config.ToolsConfig{
+			Query: config.QueryToolConfig{
+				Enabled: true,
+			},
 		},
 	}
 	tool := NewA2AQueryTool(cfg)
@@ -178,8 +184,10 @@ func TestA2AQueryTool_IsEnabled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				A2A: config.A2AConfig{
-					Enabled: tt.enabled,
+				Tools: config.ToolsConfig{
+					Query: config.QueryToolConfig{
+						Enabled: tt.enabled,
+					},
 				},
 			}
 			tool := NewA2AQueryTool(cfg)
