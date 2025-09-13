@@ -1,7 +1,6 @@
 package components
 
 import (
-	"fmt"
 	"strings"
 	"time"
 
@@ -33,21 +32,25 @@ type ToolExecutionState struct {
 }
 
 type ParallelToolsRenderer struct {
-	tools      map[string]*ToolExecutionState
-	styles     *parallelToolStyles
-	blinkState bool
-	visible    bool
+	tools       map[string]*ToolExecutionState
+	styles      *parallelToolStyles
+	blinkState  bool
+	visible     bool
+	spinnerStep int
 }
 
 type parallelToolStyles struct {
-	executing lipgloss.Style
-	queued    lipgloss.Style
-	complete  lipgloss.Style
-	failed    lipgloss.Style
-	toolName  lipgloss.Style
-	container lipgloss.Style
-	message   lipgloss.Style
-	duration  lipgloss.Style
+	executing   lipgloss.Style
+	queued      lipgloss.Style
+	complete    lipgloss.Style
+	failed      lipgloss.Style
+	toolName    lipgloss.Style
+	container   lipgloss.Style
+	message     lipgloss.Style
+	duration    lipgloss.Style
+	statusLabel lipgloss.Style
+	toolBadge   lipgloss.Style
+	separator   lipgloss.Style
 }
 
 type TickMsg struct{}
@@ -58,7 +61,7 @@ func NewParallelToolsRenderer() *ParallelToolsRenderer {
 			Foreground(colors.AccentColor.GetLipglossColor()).
 			Bold(true),
 		queued: lipgloss.NewStyle().
-			Foreground(colors.DimColor.GetLipglossColor()),
+			Foreground(colors.WarningColor.GetLipglossColor()),
 		complete: lipgloss.NewStyle().
 			Foreground(colors.SuccessColor.GetLipglossColor()).
 			Bold(true),
@@ -66,23 +69,37 @@ func NewParallelToolsRenderer() *ParallelToolsRenderer {
 			Foreground(colors.ErrorColor.GetLipglossColor()).
 			Bold(true),
 		toolName: lipgloss.NewStyle().
-			Bold(true),
+			Bold(false).
+			Foreground(colors.AssistantColor.GetLipglossColor()),
 		container: lipgloss.NewStyle().
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(colors.BorderColor.GetLipglossColor()).
-			Padding(1).
-			Margin(1, 0),
+			Padding(0, 1).
+			Margin(0, 0, 1, 0),
 		message: lipgloss.NewStyle().
 			Foreground(colors.DimColor.GetLipglossColor()).
 			Italic(true),
 		duration: lipgloss.NewStyle().
 			Foreground(colors.DimColor.GetLipglossColor()),
+		statusLabel: lipgloss.NewStyle().
+			Foreground(colors.DimColor.GetLipglossColor()).
+			Bold(true).
+			Padding(0, 1),
+		toolBadge: lipgloss.NewStyle().
+			Padding(0, 1).
+			Margin(0, 1, 0, 0).
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(colors.BorderColor.GetLipglossColor()),
+		separator: lipgloss.NewStyle().
+			Foreground(colors.DimColor.GetLipglossColor()).
+			Padding(0, 1),
 	}
 
 	return &ParallelToolsRenderer{
-		tools:   make(map[string]*ToolExecutionState),
-		styles:  styles,
-		visible: false,
+		tools:       make(map[string]*ToolExecutionState),
+		styles:      styles,
+		visible:     false,
+		spinnerStep: 0,
 	}
 }
 
@@ -118,6 +135,7 @@ func (r *ParallelToolsRenderer) Update(msg tea.Msg) (*ParallelToolsRenderer, tea
 
 	case TickMsg:
 		r.blinkState = !r.blinkState
+		r.spinnerStep = (r.spinnerStep + 1) % 4
 
 		hasExecuting := r.hasExecutingTools()
 		if hasExecuting {
@@ -154,86 +172,93 @@ func (r *ParallelToolsRenderer) Render() string {
 		return ""
 	}
 
-	var lines []string
+	var toolDisplays []string
 
-	executing := []string{}
-	queued := []string{}
-	completed := []string{}
-	failed := []string{}
+	statusOrder := map[ToolExecutionStatus]int{
+		ToolStatusRunning:  1,
+		ToolStatusStarting: 1,
+		ToolStatusSaving:   1,
+		ToolStatusQueued:   2,
+		ToolStatusComplete: 3,
+		ToolStatusFailed:   4,
+	}
 
+	type sortedTool struct {
+		tool     *ToolExecutionState
+		priority int
+	}
+
+	var sortedTools []sortedTool
 	for _, tool := range r.tools {
-		line := r.renderToolLine(tool)
+		priority, exists := statusOrder[tool.Status]
+		if !exists {
+			priority = 5
+		}
+		sortedTools = append(sortedTools, sortedTool{tool: tool, priority: priority})
+	}
 
-		switch tool.Status {
-		case ToolStatusRunning, ToolStatusStarting, ToolStatusSaving:
-			executing = append(executing, line)
-		case ToolStatusQueued:
-			queued = append(queued, line)
-		case ToolStatusComplete:
-			completed = append(completed, line)
-		case ToolStatusFailed:
-			failed = append(failed, line)
+	for i := 0; i < len(sortedTools)-1; i++ {
+		for j := i + 1; j < len(sortedTools); j++ {
+			if sortedTools[i].priority > sortedTools[j].priority {
+				sortedTools[i], sortedTools[j] = sortedTools[j], sortedTools[i]
+			}
 		}
 	}
 
-	lines = append(lines, executing...)
-	lines = append(lines, queued...)
-	lines = append(lines, completed...)
-	lines = append(lines, failed...)
+	for _, st := range sortedTools {
+		toolDisplay := r.renderToolBadge(st.tool)
+		toolDisplays = append(toolDisplays, toolDisplay)
+	}
 
-	if len(lines) == 0 {
+	if len(toolDisplays) == 0 {
 		return ""
 	}
 
-	content := strings.Join(lines, "\n")
+	label := r.styles.statusLabel.Render("Tools:")
+	toolsContent := strings.Join(toolDisplays, " ")
+	content := label + " " + toolsContent
+
 	return r.styles.container.Render(content)
 }
 
-func (r *ParallelToolsRenderer) renderToolLine(tool *ToolExecutionState) string {
-	var style lipgloss.Style
+func (r *ParallelToolsRenderer) renderToolBadge(tool *ToolExecutionState) string {
 	var icon string
+	var badgeStyle lipgloss.Style
 
 	switch tool.Status {
-	case ToolStatusQueued:
-		style = r.styles.queued
-		icon = icons.QueuedIcon
+	case ToolStatusRunning, ToolStatusStarting, ToolStatusSaving:
+		icon = icons.GetSpinnerFrame(r.spinnerStep)
+		badgeStyle = r.styles.toolBadge.
+			BorderForeground(colors.AccentColor.GetLipglossColor()).
+			Foreground(colors.AccentColor.GetLipglossColor())
 
-	case ToolStatusStarting, ToolStatusRunning, ToolStatusSaving:
-		if r.blinkState {
-			style = r.styles.executing.
-				Foreground(colors.AccentColor.GetLipglossColor())
-		} else {
-			style = r.styles.executing.
-				Foreground(colors.DimColor.GetLipglossColor())
-		}
-		icon = icons.ExecutingIcon
+	case ToolStatusQueued:
+		icon = icons.QueuedIcon
+		badgeStyle = r.styles.toolBadge.
+			BorderForeground(colors.WarningColor.GetLipglossColor()).
+			Foreground(colors.WarningColor.GetLipglossColor())
 
 	case ToolStatusComplete:
-		style = r.styles.complete
 		icon = icons.CheckMark
+		badgeStyle = r.styles.toolBadge.
+			BorderForeground(colors.SuccessColor.GetLipglossColor()).
+			Foreground(colors.SuccessColor.GetLipglossColor())
 
 	case ToolStatusFailed:
-		style = r.styles.failed
 		icon = icons.CrossMark
+		badgeStyle = r.styles.toolBadge.
+			BorderForeground(colors.ErrorColor.GetLipglossColor()).
+			Foreground(colors.ErrorColor.GetLipglossColor())
 
 	default:
-		style = r.styles.queued
 		icon = icons.BulletIcon
+		badgeStyle = r.styles.toolBadge.
+			BorderForeground(colors.DimColor.GetLipglossColor()).
+			Foreground(colors.DimColor.GetLipglossColor())
 	}
 
-	toolName := r.styles.toolName.Render(tool.ToolName)
-	status := style.Render(fmt.Sprintf("%s %s", icon, toolName))
-
-	if tool.Message != "" {
-		status += " " + r.styles.message.Render(fmt.Sprintf("- %s", tool.Message))
-	}
-
-	if tool.EndTime != nil {
-		duration := tool.EndTime.Sub(tool.StartTime).Round(time.Millisecond)
-		status += " " + r.styles.duration.Render(fmt.Sprintf("(%v)", duration))
-	}
-
-	return status
+	badgeContent := icon + " " + r.styles.toolName.Render(tool.ToolName)
+	return badgeStyle.Render(badgeContent)
 }
 
 func (r *ParallelToolsRenderer) Clear() {

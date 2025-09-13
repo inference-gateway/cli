@@ -49,6 +49,7 @@ type ChatApplication struct {
 	fileSelectionView    *components.FileSelectionView
 	textSelectionView    *components.TextSelectionView
 	a2aServersView       *components.A2AServersView
+	toolCallRenderer     *components.ToolCallRenderer
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -106,11 +107,13 @@ func NewChatApplication(
 		logger.Error("Failed to transition to initial view", "error", err)
 	}
 
+	app.toolCallRenderer = components.NewToolCallRenderer()
 	app.conversationView = ui.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
+		cv.SetToolCallRenderer(app.toolCallRenderer)
 	}
 
 	configDir := ".infer"
@@ -630,13 +633,16 @@ func (app *ChatApplication) renderChatInterface() string {
 		CurrentView:   app.stateManager.GetCurrentView(),
 	}
 
-	return app.applicationViewRenderer.RenderChatInterface(
+	// Get the main chat interface
+	chatInterface := app.applicationViewRenderer.RenderChatInterface(
 		data,
 		app.conversationView,
 		app.inputView,
 		app.statusView,
 		app.helpBar,
 	)
+
+	return chatInterface
 }
 
 func (app *ChatApplication) renderModelSelection() string {
@@ -835,7 +841,8 @@ func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.C
 		domain.ShowErrorEvent, domain.ClearErrorEvent, domain.ClearInputEvent, domain.SetInputEvent,
 		domain.ToggleHelpBarEvent, domain.HideHelpBarEvent, domain.DebugKeyEvent, domain.SetupFileSelectionEvent,
 		domain.ScrollRequestEvent, domain.ConversationsLoadedEvent, domain.ModelSelectedEvent,
-		domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent:
+		domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent,
+		domain.ParallelToolsStartEvent, domain.ParallelToolsCompleteEvent:
 		return app.updateUIComponents(msg)
 	case domain.UserInputEvent:
 		return cmds

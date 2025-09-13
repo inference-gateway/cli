@@ -611,6 +611,8 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 		return calls
 	}())
 
+	time.Sleep(100 * time.Millisecond)
+
 	results := make([]domain.ConversationEntry, len(toolCalls))
 	resultsChan := make(chan IndexedToolResult, len(toolCalls))
 
@@ -634,6 +636,8 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 				"starting",
 				fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
 			)
+
+			time.Sleep(100 * time.Millisecond)
 
 			result := s.executeToolWithFlashingUI(ctx, *toolCall, eventPublisher)
 
@@ -695,6 +699,8 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 
 	eventPublisher.publishToolStatusChange(tc.Id, "running", "Executing...")
 
+	time.Sleep(100 * time.Millisecond)
+
 	var args map[string]any
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 		logger.Error("failed to parse tool arguments", "tool", tc.Function.Name, "error", err)
@@ -713,6 +719,8 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 	}
 
 	eventPublisher.publishToolStatusChange(tc.Id, "saving", "Saving results...")
+
+	time.Sleep(100 * time.Millisecond)
 
 	toolExecutionResult := &domain.ToolExecutionResult{
 		ToolName:  result.ToolName,

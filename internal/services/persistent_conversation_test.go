@@ -353,7 +353,7 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 		messageCount := newRepo.GetMessageCount()
 		assert.Equal(t, 1, messageCount, "Message should be added to in-memory store")
 
-		time.Sleep(200 * time.Millisecond)
+		time.Sleep(100 * time.Millisecond)
 
 		err = newRepo.Clear()
 		assert.NoError(t, err)

@@ -32,6 +32,7 @@ type ConversationView struct {
 	configPath          string
 	themeService        domain.ThemeService
 	isStreaming         bool
+	toolCallRenderer    *ToolCallRenderer
 }
 
 func NewConversationView(themeService domain.ThemeService) *ConversationView {
@@ -59,6 +60,11 @@ func (cv *ConversationView) SetToolFormatter(formatter domain.ToolFormatter) {
 // SetConfigPath sets the config path for the welcome message
 func (cv *ConversationView) SetConfigPath(configPath string) {
 	cv.configPath = configPath
+}
+
+// SetToolCallRenderer sets the tool call renderer for displaying real-time tool execution status
+func (cv *ConversationView) SetToolCallRenderer(renderer *ToolCallRenderer) {
+	cv.toolCallRenderer = renderer
 }
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
@@ -160,6 +166,15 @@ func (cv *ConversationView) updateViewportContent() {
 		displayIndex++
 	}
 
+	if cv.toolCallRenderer != nil {
+		toolPreviews := cv.toolCallRenderer.RenderPreviews()
+		if toolPreviews != "" {
+			b.WriteString("\n")
+			b.WriteString(toolPreviews)
+			b.WriteString("\n")
+		}
+	}
+
 	wasAtBottom := cv.Viewport.AtBottom()
 	cv.Viewport.SetContent(b.String())
 
@@ -256,7 +271,6 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 
 	if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 { // nolint:nestif
 		toolCallsColor := cv.getAccentColor()
-		result.WriteString(fmt.Sprintf("\n%s🔧 Tool Calls:%s\n", toolCallsColor, colors.Reset))
 
 		for _, toolCall := range *entry.Message.ToolCalls {
 			toolName := toolCall.Function.Name
@@ -466,6 +480,16 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cv.updateViewportContent()
 	}
 
+	if cv.toolCallRenderer != nil {
+		switch msg.(type) {
+		case domain.ParallelToolsStartEvent, domain.ToolExecutionProgressEvent:
+			if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+				cmd = tea.Batch(cmd, rendererCmd)
+			}
+			cv.updateViewportContent()
+		}
+	}
+
 	switch msg := msg.(type) {
 	case domain.UpdateHistoryEvent:
 		cv.isStreaming = false
@@ -535,9 +559,6 @@ func (cv *ConversationView) getStatusColor() string {
 }
 
 func (cv *ConversationView) getSuccessColor() string {
-	if cv.themeService != nil {
-		return cv.themeService.GetCurrentTheme().GetStatusColor()
-	}
 	return colors.SuccessColor.ANSI
 }
 

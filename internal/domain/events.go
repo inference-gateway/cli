@@ -41,7 +41,6 @@ func (e ChatChunkEvent) GetType() ChatEventType  { return EventChatChunk }
 func (e ChatChunkEvent) GetRequestID() string    { return e.RequestID }
 func (e ChatChunkEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-
 // ChatCompleteEvent indicates chat completion
 type ChatCompleteEvent struct {
 	RequestID string
