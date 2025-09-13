@@ -11,6 +11,13 @@ const (
 	CrossMark = "✗"
 )
 
+// Tool execution icons
+const (
+	QueuedIcon    = "○"
+	ExecutingIcon = "●"
+	BulletIcon    = "•"
+)
+
 // Icon styles
 var (
 	CheckMarkStyle = lipgloss.NewStyle().Foreground(colors.SuccessColor.GetLipglossColor()).Bold(true)

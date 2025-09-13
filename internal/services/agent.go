@@ -83,39 +83,6 @@ func (p *eventPublisher) publishChatChunk(content, reasoningContent string, tool
 	}
 }
 
-// publishToolCallStart publishes a ToolCallStartEvent
-func (p *eventPublisher) publishToolCallStart(toolName, toolArguments string) {
-	p.chatEvents <- domain.ToolCallStartEvent{
-		RequestID:     p.requestID,
-		Timestamp:     time.Now(),
-		ToolName:      toolName,
-		ToolArguments: toolArguments,
-	}
-}
-
-// publishToolCallComplete publishes a ToolCallCompleteEvent
-func (p *eventPublisher) publishToolCallComplete(toolCallID, toolName string, result any, success bool) {
-	p.chatEvents <- domain.ToolCallCompleteEvent{
-		RequestID:  p.requestID,
-		Timestamp:  time.Now(),
-		Success:    success,
-		ToolCallID: toolCallID,
-		ToolName:   toolName,
-		Result:     result,
-	}
-}
-
-// publishToolCallError publishes a ToolCallErrorEvent
-func (p *eventPublisher) publishToolCallError(toolCallID, toolName string, err error) {
-	p.chatEvents <- domain.ToolCallErrorEvent{
-		RequestID:  p.requestID,
-		Timestamp:  time.Now(),
-		ToolCallID: toolCallID,
-		ToolName:   toolName,
-		Error:      err,
-	}
-}
-
 // publishOptimizationStatus publishes an OptimizationStatusEvent
 func (p *eventPublisher) publishOptimizationStatus(message string, isActive bool, originalCount, optimizedCount int) {
 	p.chatEvents <- domain.OptimizationStatusEvent{
@@ -126,6 +93,59 @@ func (p *eventPublisher) publishOptimizationStatus(message string, isActive bool
 		OriginalCount:  originalCount,
 		OptimizedCount: optimizedCount,
 	}
+}
+
+// publishParallelToolsStart publishes a ParallelToolsStartEvent
+func (p *eventPublisher) publishParallelToolsStart(toolCalls []sdk.ChatCompletionMessageToolCall) {
+	tools := make([]domain.ToolInfo, len(toolCalls))
+	for i, tc := range toolCalls {
+		tools[i] = domain.ToolInfo{
+			CallID: tc.Id,
+			Name:   tc.Function.Name,
+			Status: "queued",
+		}
+	}
+
+	event := domain.ParallelToolsStartEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		Tools: tools,
+	}
+
+	p.chatEvents <- event
+}
+
+// publishToolStatusChange publishes a ToolExecutionProgressEvent
+func (p *eventPublisher) publishToolStatusChange(callID string, status string, message string) {
+	event := domain.ToolExecutionProgressEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		ToolCallID: callID,
+		Status:     status,
+		Message:    message,
+	}
+
+	p.chatEvents <- event
+}
+
+// publishParallelToolsComplete publishes a ParallelToolsCompleteEvent
+func (p *eventPublisher) publishParallelToolsComplete(totalExecuted, successCount, failureCount int, duration time.Duration) {
+	event := domain.ParallelToolsCompleteEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		TotalExecuted: totalExecuted,
+		SuccessCount:  successCount,
+		FailureCount:  failureCount,
+		Duration:      duration,
+	}
+
+	p.chatEvents <- event
 }
 
 // NewAgentService creates a new agent service with pre-configured client
@@ -324,7 +344,12 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 			events, err := client.GenerateContentStream(requestCtx, sdk.Provider(provider), model, conversation)
 			if err != nil {
-				logger.Error("failed to create a stream, %w", err)
+				logger.Error("Failed to create stream",
+					"error", err,
+					"turn", turns,
+					"conversationLength", len(conversation),
+					"provider", provider)
+				return
 			}
 
 			var allToolCallDeltas []sdk.ChatCompletionMessageToolCallChunk
@@ -420,60 +445,33 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				for _, tc := range toolCalls {
 					completeToolCalls = append(completeToolCalls, *tc)
 				}
-			}
 
-			for _, tc := range toolCalls {
-				err := s.executeToolCall(ctx, *tc, eventPublisher)
-				if err != nil {
-					logger.Error("failed to execute tool: %w", err)
-					errorResult := sdk.Message{
+				toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
+				for _, tc := range toolCalls {
+					toolCallsSlice = append(toolCallsSlice, tc)
+				}
+
+				toolResults := s.executeToolCallsParallel(ctx, toolCallsSlice, eventPublisher)
+
+				for _, entry := range toolResults {
+					toolResult := sdk.Message{
 						Role:       sdk.Tool,
-						Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
-						ToolCallId: &tc.Id,
+						Content:    entry.Message.Content,
+						ToolCallId: entry.Message.ToolCallId,
 					}
-					conversation = append(conversation, errorResult)
-					continue
+					conversation = append(conversation, toolResult)
 				}
 
-				messages := s.conversationRepo.GetMessages()
-				if len(messages) == 0 {
-					errorResult := sdk.Message{
-						Role:       sdk.Tool,
-						Content:    "Tool execution completed but no result was stored",
-						ToolCallId: &tc.Id,
-					}
-					conversation = append(conversation, errorResult)
-					continue
-				}
+				s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
 
-				lastMessage := messages[len(messages)-1]
-				if lastMessage.Message.Role != sdk.Tool {
-					errorResult := sdk.Message{
-						Role:       sdk.Tool,
-						Content:    "Tool execution completed but result format is unexpected",
-						ToolCallId: &tc.Id,
-					}
-					conversation = append(conversation, errorResult)
-					continue
-				}
+				eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
 
-				toolResult := sdk.Message{
-					Role:       sdk.Tool,
-					Content:    lastMessage.Message.Content,
-					ToolCallId: &tc.Id,
-				}
-				conversation = append(conversation, toolResult)
-			}
-
-			s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
-
-			eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
-
-			if len(toolCalls) == 0 {
-				// TODO - implement retries to ensure the agent is done - inject final message and continue until max configured retries
+				turns++
+			} else {
+				s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
+				eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
 				break
 			}
-			turns++
 		}
 		//// EVENT LOOP FINISHED
 		close(chatEvents)
@@ -588,129 +586,195 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 	return conversation
 }
 
-func (s *AgentServiceImpl) executeToolCall(ctx context.Context, tc sdk.ChatCompletionMessageToolCall, eventPublisher *eventPublisher) error {
+type IndexedToolResult struct {
+	Index  int
+	Result domain.ConversationEntry
+}
+
+func (s *AgentServiceImpl) executeToolCallsParallel(
+	ctx context.Context,
+	toolCalls []*sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) []domain.ConversationEntry {
+
+	if len(toolCalls) == 0 {
+		return []domain.ConversationEntry{}
+	}
+
 	startTime := time.Now()
 
-	eventPublisher.publishToolCallStart(tc.Function.Name, tc.Function.Arguments)
+	eventPublisher.publishParallelToolsStart(func() []sdk.ChatCompletionMessageToolCall {
+		calls := make([]sdk.ChatCompletionMessageToolCall, len(toolCalls))
+		for i, tc := range toolCalls {
+			calls[i] = *tc
+		}
+		return calls
+	}())
+
+	results := make([]domain.ConversationEntry, len(toolCalls))
+	resultsChan := make(chan IndexedToolResult, len(toolCalls))
+
+	semaphore := make(chan struct{}, 5)
+
+	var wg sync.WaitGroup
+	for i, tc := range toolCalls {
+		wg.Add(1)
+		go func(index int, toolCall *sdk.ChatCompletionMessageToolCall) {
+			defer func() {
+				wg.Done()
+			}()
+
+			semaphore <- struct{}{}
+			defer func() {
+				<-semaphore
+			}()
+
+			eventPublisher.publishToolStatusChange(
+				toolCall.Id,
+				"starting",
+				fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
+			)
+
+			result := s.executeToolWithFlashingUI(ctx, *toolCall, eventPublisher)
+
+			status := "complete"
+			message := "Completed successfully"
+			if result.ToolExecution != nil && !result.ToolExecution.Success {
+				status = "failed"
+				message = "Execution failed"
+			}
+
+			eventPublisher.publishToolStatusChange(toolCall.Id, status, message)
+
+			resultsChan <- IndexedToolResult{
+				Index:  index,
+				Result: result,
+			}
+		}(i, tc)
+	}
+
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	resultCount := 0
+	for res := range resultsChan {
+		resultCount++
+		results[res.Index] = res.Result
+	}
+
+	duration := time.Since(startTime)
+	successCount := 0
+	failureCount := 0
+
+	for _, result := range results {
+		if result.ToolExecution != nil && result.ToolExecution.Success {
+			successCount++
+		} else {
+			failureCount++
+		}
+	}
+
+	eventPublisher.publishParallelToolsComplete(len(toolCalls), successCount, failureCount, duration)
+
+	if err := s.batchSaveToolResults(results); err != nil {
+		logger.Error("failed to batch save tool results", "error", err)
+	}
+
+	return results
+}
+
+func (s *AgentServiceImpl) executeToolWithFlashingUI(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) domain.ConversationEntry {
+
+	startTime := time.Now()
+
+	eventPublisher.publishToolStatusChange(tc.Id, "running", "Executing...")
 
 	var args map[string]any
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 		logger.Error("failed to parse tool arguments", "tool", tc.Function.Name, "error", err)
-
-		errorEntry := domain.ConversationEntry{
-			Message: domain.Message{
-				Role:       "tool",
-				Content:    fmt.Sprintf("Tool call failed: %s - invalid arguments: %v", tc.Function.Name, err),
-				ToolCallId: &tc.Id,
-			},
-			Time: time.Now(),
-			ToolExecution: &domain.ToolExecutionResult{
-				ToolName:  tc.Function.Name,
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(startTime),
-				Error:     fmt.Sprintf("invalid tool arguments: %v", err),
-			},
-		}
-		if err := s.conversationRepo.AddMessage(errorEntry); err != nil {
-			logger.Error("failed to store tool error in conversation", "error", err)
-		}
-
-		eventPublisher.publishToolCallError(tc.Id, tc.Function.Name, fmt.Errorf("invalid tool arguments: %w", err))
-		return fmt.Errorf("failed to parse tool arguments: %w", err)
+		return s.createErrorEntry(tc, err, startTime)
 	}
 
 	if err := s.toolService.ValidateTool(tc.Function.Name, args); err != nil {
 		logger.Error("tool validation failed", "tool", tc.Function.Name, "error", err)
-
-		errorEntry := domain.ConversationEntry{
-			Message: domain.Message{
-				Role:       "tool",
-				Content:    fmt.Sprintf("Tool validation failed: %s - %s", tc.Function.Name, err.Error()),
-				ToolCallId: &tc.Id,
-			},
-			Time: time.Now(),
-			ToolExecution: &domain.ToolExecutionResult{
-				ToolName:  tc.Function.Name,
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(startTime),
-				Error:     err.Error(),
-			},
-		}
-		if err := s.conversationRepo.AddMessage(errorEntry); err != nil {
-			logger.Error("failed to store tool validation error in conversation", "error", err)
-		}
-
-		eventPublisher.publishToolCallError(tc.Id, tc.Function.Name, err)
-		return fmt.Errorf("tool validation failed: %w", err)
+		return s.createErrorEntry(tc, err, startTime)
 	}
 
-	var tcResult *domain.ToolExecutionResult
-	var err error
-
-	tcResult, err = s.toolService.ExecuteTool(ctx, tc.Function)
-
+	result, err := s.toolService.ExecuteTool(ctx, tc.Function)
 	if err != nil {
-		logger.Error("failed to execute %s with %s", tc.Function.Name, tc.Function.Arguments)
-
-		errorEntry := domain.ConversationEntry{
-			Message: domain.Message{
-				Role:       "tool",
-				Content:    fmt.Sprintf("Tool execution failed: %s - %s", tc.Function.Name, err.Error()),
-				ToolCallId: &tc.Id,
-			},
-			Time: time.Now(),
-			ToolExecution: &domain.ToolExecutionResult{
-				ToolName:  tc.Function.Name,
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(startTime),
-				Error:     err.Error(),
-			},
-		}
-		if err := s.conversationRepo.AddMessage(errorEntry); err != nil {
-			logger.Error("failed to store tool execution error in conversation", "error", err)
-		}
-
-		eventPublisher.publishToolCallError(tc.Id, tc.Function.Name, err)
-		return err
+		logger.Error("failed to execute tool", "tool", tc.Function.Name, "error", err)
+		return s.createErrorEntry(tc, err, startTime)
 	}
+
+	eventPublisher.publishToolStatusChange(tc.Id, "saving", "Saving results...")
 
 	toolExecutionResult := &domain.ToolExecutionResult{
-		ToolName:  tcResult.ToolName,
+		ToolName:  result.ToolName,
 		Arguments: args,
-		Success:   tcResult.Success,
+		Success:   result.Success,
 		Duration:  time.Since(startTime),
-		Data:      tcResult.Data,
-		Metadata:  tcResult.Metadata,
-		Diff:      tcResult.Diff,
+		Data:      result.Data,
+		Metadata:  result.Metadata,
+		Diff:      result.Diff,
+		Error:     result.Error,
 	}
 
 	formattedContent := s.conversationRepo.FormatToolResultForLLM(toolExecutionResult)
 
-	successEntry := domain.ConversationEntry{
+	entry := domain.ConversationEntry{
 		Message: domain.Message{
-			Role:       "tool",
+			Role:       sdk.Tool,
 			Content:    formattedContent,
+			ToolCallId: &tc.Id,
+		},
+		Time:          time.Now(),
+		ToolExecution: toolExecutionResult,
+	}
+
+	return entry
+}
+
+func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) domain.ConversationEntry {
+	return domain.ConversationEntry{
+		Message: domain.Message{
+			Role:       sdk.Tool,
+			Content:    fmt.Sprintf("Tool execution failed: %s - %s", tc.Function.Name, err.Error()),
 			ToolCallId: &tc.Id,
 		},
 		Time: time.Now(),
 		ToolExecution: &domain.ToolExecutionResult{
-			ToolName:  tcResult.ToolName,
-			Arguments: args,
-			Success:   tcResult.Success,
+			ToolName:  tc.Function.Name,
+			Arguments: make(map[string]any),
+			Success:   false,
 			Duration:  time.Since(startTime),
-			Data:      tcResult.Data,
-			Metadata:  tcResult.Metadata,
-			Diff:      tcResult.Diff,
+			Error:     err.Error(),
 		},
 	}
-	if err := s.conversationRepo.AddMessage(successEntry); err != nil {
-		logger.Error("failed to store tool execution success in conversation", "error", err)
+}
+
+func (s *AgentServiceImpl) batchSaveToolResults(entries []domain.ConversationEntry) error {
+	savedCount := 0
+	for _, entry := range entries {
+		if err := s.conversationRepo.AddMessage(entry); err != nil {
+			logger.Error("failed to save tool result",
+				"tool", entry.ToolExecution.ToolName,
+				"error", err,
+			)
+			return err
+		}
+		savedCount++
 	}
 
-	eventPublisher.publishToolCallComplete(tc.Id, tcResult.ToolName, tcResult.Data, tcResult.Success)
+	logger.Info("successfully saved tool results",
+		"saved", savedCount,
+		"total", len(entries),
+	)
 
 	return nil
 }

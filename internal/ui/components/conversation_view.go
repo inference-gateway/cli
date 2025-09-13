@@ -209,7 +209,7 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 		} else {
 			role = "⏺ Assistant"
 		}
-		// Check if assistant message has tool calls
+
 		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
 			return cv.renderAssistantWithToolCalls(entry, index, color, role)
 		}
@@ -231,6 +231,10 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 	default:
 		color = cv.getDimColor()
 		role = string(entry.Message.Role)
+	}
+
+	if entry.Hidden {
+		return ""
 	}
 
 	content := entry.Message.Content

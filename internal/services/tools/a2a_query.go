@@ -88,8 +88,6 @@ func (t *A2AQueryTool) Execute(ctx context.Context, args map[string]any) (*domai
 		return t.errorResult(args, startTime, fmt.Sprintf("Failed to fetch agent card: %v", err))
 	}
 
-	logger.Debug("A2A query executed via tool", "agent_url", agentURL, "agent_name", response.Name)
-
 	return &domain.ToolExecutionResult{
 		ToolName:  "Query",
 		Arguments: args,

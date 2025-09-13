@@ -454,10 +454,6 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 
 		if s.hasTimedOut() {
 			if !timeoutReached {
-				elapsed := time.Since(s.startTime).Seconds()
-				logger.Debug("initial timeout reached, injecting Write tool instruction",
-					"elapsed_seconds", elapsed,
-					"timeout_seconds", s.timeoutSeconds)
 				s.outputProgress("timeout", "Timeout reached, requesting final output...", "")
 				timeoutReached = true
 				s.timeoutMessageCount = 1
@@ -471,11 +467,6 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 				s.addMessage(timeoutMsg)
 			} else if s.completedTurns%2 == 0 && s.timeoutMessageCount < 3 {
 				s.timeoutMessageCount++
-				elapsed := time.Since(s.startTime).Seconds()
-				logger.Debug("re-injecting timeout message",
-					"attempt", s.timeoutMessageCount,
-					"elapsed_seconds", elapsed,
-					"completed_turns", s.completedTurns)
 				s.outputProgress("timeout_repeat", fmt.Sprintf("Timeout reminder %d - use Write tool now!", s.timeoutMessageCount), "")
 
 				timeoutMsg := InitConversationMessage{
@@ -489,11 +480,6 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 		}
 
 		if timeoutReached && s.timeoutMessageCount >= 3 && s.completedTurns > 6 {
-			elapsed := time.Since(s.startTime).Seconds()
-			logger.Debug("forcing session end due to ignored timeout messages",
-				"timeout_messages_sent", s.timeoutMessageCount,
-				"completed_turns", s.completedTurns,
-				"elapsed_seconds", elapsed)
 			s.outputProgress("forced_exit", "Agent ignored timeout instructions, ending session", "")
 			break
 		}
@@ -505,10 +491,6 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 				break
 			}
 
-			logger.Debug("adding fallback completion message",
-				"reason", "no tool calls detected",
-				"consecutive_no_tool_calls", consecutiveNoToolCalls,
-				"timeout_reached", timeoutReached)
 			verifyMsg := InitConversationMessage{
 				Role:      "user",
 				Content:   "Please provide the final AGENTS.md content based on your analysis. The content should be the complete markdown file ready for use.",

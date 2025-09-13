@@ -188,8 +188,6 @@ streamLoop:
 		adkTask.Metadata["result"] = finalResult
 	}
 
-	logger.Debug("A2A task completed", "task_id", adkTask.ID, "agent_url", agentURL, "event_count", eventCount)
-
 	return &domain.ToolExecutionResult{
 		ToolName:  "Task",
 		Arguments: args,

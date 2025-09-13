@@ -77,12 +77,9 @@ const (
 	EventChatChunk
 	EventChatComplete
 	EventChatError
-	EventToolCallStart
 	EventToolCallPreview
 	EventToolCallUpdate
 	EventToolCallReady
-	EventToolCallComplete
-	EventToolCallError
 	EventCancelled
 	EventOptimizationStatus
 	EventA2AToolCallExecuted
@@ -90,6 +87,9 @@ const (
 	EventA2ATaskStatusUpdate
 	EventA2ATaskCompleted
 	EventA2ATaskInputRequired
+	EventParallelToolsStart
+	EventToolExecutionProgress
+	EventParallelToolsComplete
 )
 
 // ChatEvent represents events during chat operations
@@ -564,6 +564,8 @@ const (
 	UIEventToolExecutionStarted
 	UIEventToolExecutionProgress
 	UIEventToolExecutionCompleted
+	UIEventParallelToolsStart
+	UIEventParallelToolsComplete
 	UIEventA2ATaskSubmitted
 	UIEventA2ATaskStatusUpdate
 	UIEventA2ATaskCompleted
