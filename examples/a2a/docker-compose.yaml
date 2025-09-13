@@ -24,6 +24,8 @@ services:
       INFER_GATEWAY_URL: http://inference-gateway:8080
       INFER_A2A_ENABLED: true
       INFER_TOOLS_ENABLED: true
+      INFER_TOOLS_QUERY_ENABLED: true
+      INFER_TOOLS_TASK_ENABLED:  true
       INFER_AGENT_MODEL: deepseek/deepseek-chat
       INFER_AGENT_SYSTEM_PROMPT: |
         You are an helpful assistant, you have access to the following agents:
@@ -44,7 +46,7 @@ services:
     image: ghcr.io/inference-gateway/google-calendar-agent:latest
     pull_policy: always
     env_file:
-      - .env.agent
+      - .env.calendar
     restart: unless-stopped
     networks:
       - a2a-network
