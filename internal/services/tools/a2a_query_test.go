@@ -26,7 +26,8 @@ func TestA2AQueryTool_Definition(t *testing.T) {
 
 	assert.Equal(t, "Query", def.Function.Name)
 	assert.NotNil(t, def.Function.Description)
-	assert.Contains(t, *def.Function.Description, "Agent-to-Agent")
+	assert.Contains(t, *def.Function.Description, "A2A agent")
+	assert.Contains(t, *def.Function.Description, "metadata card")
 }
 
 func TestA2AQueryTool_Execute_MissingAgentURL(t *testing.T) {

@@ -44,7 +44,7 @@ func NewA2ATaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2ATask
 
 // Definition returns the tool definition for the LLM
 func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
-	description := "Submit a task to an Agent-to-Agent (A2A) server for execution, or continue working on an existing task."
+	description := "Submit work to an A2A agent server: ask questions, execute tasks, perform actions, or continue existing work. Use this for ANY interaction where you need an agent to respond with answers or complete work. The Query tool is ONLY for retrieving agent metadata/capabilities (agent card)."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
@@ -55,11 +55,11 @@ func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
 				"properties": map[string]interface{}{
 					"agent_url": map[string]interface{}{
 						"type":        "string",
-						"description": "URL of the A2A agent",
+						"description": "URL of the A2A agent server",
 					},
 					"task_description": map[string]interface{}{
 						"type":        "string",
-						"description": "Description of the task to execute or continue",
+						"description": "The question to ask or work to perform. Can be a question, task, action, or continuation of existing work",
 					},
 				},
 				"required": []string{"agent_url", "task_description"},

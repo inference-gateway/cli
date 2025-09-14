@@ -42,7 +42,7 @@ func NewA2AQueryTool(cfg *config.Config) *A2AQueryTool {
 
 // Definition returns the tool definition for the LLM
 func (t *A2AQueryTool) Definition() sdk.ChatCompletionTool {
-	description := "Send a query to an Agent-to-Agent (A2A) server and get a response."
+	description := "Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Task tool instead."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
@@ -53,7 +53,7 @@ func (t *A2AQueryTool) Definition() sdk.ChatCompletionTool {
 				"properties": map[string]interface{}{
 					"agent_url": map[string]interface{}{
 						"type":        "string",
-						"description": "URL of the A2A agent to query",
+						"description": "URL of the A2A agent to retrieve metadata from",
 					},
 				},
 				"required": []string{"agent_url"},
