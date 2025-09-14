@@ -137,6 +137,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 		})
 	}
 
+	c.a2aAgentService = services.NewA2AAgentService(c.config)
+
 	agentClient := c.createSDKClient()
 	c.agentService = services.NewAgentService(
 		agentClient,
@@ -149,8 +151,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 	)
 
 	c.chatService = services.NewStreamingChatService(c.agentService)
-
-	c.a2aAgentService = services.NewA2AAgentService(c.config)
 }
 
 // initializeServices creates the new improved services
