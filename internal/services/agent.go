@@ -209,7 +209,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 				SkipMCP: true,
 				SkipA2A: true,
 			})
-		if s.toolService != nil { // nolint:nestif
+		if s.toolService != nil {
 			availableTools := s.toolService.ListTools()
 			if len(availableTools) > 0 {
 				client = s.client.WithTools(&availableTools)
