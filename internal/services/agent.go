@@ -712,7 +712,41 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 		return s.createErrorEntry(tc, err, startTime)
 	}
 
-	result, err := s.toolService.ExecuteTool(ctx, tc.Function)
+	resultChan := make(chan struct {
+		result *domain.ToolExecutionResult
+		err    error
+	}, 1)
+
+	go func() {
+		result, err := s.toolService.ExecuteTool(ctx, tc.Function)
+		resultChan <- struct {
+			result *domain.ToolExecutionResult
+			err    error
+		}{result, err}
+	}()
+
+	ticker := time.NewTicker(200 * time.Millisecond)
+	defer ticker.Stop()
+
+	var result *domain.ToolExecutionResult
+	var err error
+
+	for {
+		select {
+		case res := <-resultChan:
+			result = res.result
+			err = res.err
+			ticker.Stop()
+			goto done
+		case <-ticker.C:
+			eventPublisher.publishToolStatusChange(tc.Id, "running", "Processing...")
+		case <-ctx.Done():
+			logger.Error("tool execution cancelled", "tool", tc.Function.Name)
+			return s.createErrorEntry(tc, ctx.Err(), startTime)
+		}
+	}
+
+done:
 	if err != nil {
 		logger.Error("failed to execute tool", "tool", tc.Function.Name, "error", err)
 		return s.createErrorEntry(tc, err, startTime)

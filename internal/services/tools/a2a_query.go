@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	client "github.com/inference-gateway/adk/client"
@@ -15,8 +16,8 @@ import (
 
 // A2AQueryTool handles A2A agent queries
 type A2AQueryTool struct {
-	config *config.Config
-	_      domain.BaseFormatter
+	config    *config.Config
+	formatter domain.CustomFormatter
 }
 
 // A2AQueryResult represents the result of an A2A query operation
@@ -33,6 +34,9 @@ type A2AQueryResult struct {
 func NewA2AQueryTool(cfg *config.Config) *A2AQueryTool {
 	return &A2AQueryTool{
 		config: cfg,
+		formatter: domain.NewCustomFormatter("Query", func(key string) bool {
+			return key == "metadata"
+		}),
 	}
 }
 
@@ -129,145 +133,55 @@ func (t *A2AQueryTool) Validate(args map[string]any) error {
 
 // FormatResult formats tool execution results for different contexts
 func (t *A2AQueryTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
-	if result.Data == nil {
-		return result.Error
-	}
-
-	data, ok := result.Data.(A2AQueryResult)
-	if !ok {
-		return "Invalid A2A query result format"
-	}
-
 	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
 	case domain.FormatterLLM:
-		return t.formatForLLM(data)
+		return t.FormatForLLM(result)
 	case domain.FormatterShort:
-		return data.Message
+		return t.FormatPreview(result)
 	default:
-		return t.formatForUI(data)
+		return t.FormatForUI(result)
 	}
 }
 
-// formatForLLM formats the result for LLM consumption
-func (t *A2AQueryTool) formatForLLM(data A2AQueryResult) string {
-	result := fmt.Sprintf("A2A Query to %s: %s", data.AgentName, data.Message)
-	if data.Response == nil {
-		return result
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *A2AQueryTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
 	}
 
-	result += "\nAgent Card Details:"
-	result += fmt.Sprintf("\n- Name: %s", data.Response.Name)
-	result += fmt.Sprintf("\n- Version: %s", data.Response.Version)
-	result += fmt.Sprintf("\n- Description: %s", data.Response.Description)
-	result += fmt.Sprintf("\n- URL: %s", data.Response.URL)
-	result += fmt.Sprintf("\n- Protocol Version: %s", data.Response.ProtocolVersion)
-	result += fmt.Sprintf("\n- Preferred Transport: %s", data.Response.PreferredTransport)
+	var output strings.Builder
 
-	result += "\n- Capabilities:"
-	if data.Response.Capabilities.Streaming != nil {
-		result += fmt.Sprintf("\n  - Streaming: %t", *data.Response.Capabilities.Streaming)
-	}
-	if data.Response.Capabilities.PushNotifications != nil {
-		result += fmt.Sprintf("\n  - Push Notifications: %t", *data.Response.Capabilities.PushNotifications)
-	}
-	if data.Response.Capabilities.StateTransitionHistory != nil {
-		result += fmt.Sprintf("\n  - State Transition History: %t", *data.Response.Capabilities.StateTransitionHistory)
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+
+	if result.Data != nil {
+		dataContent := t.formatter.FormatAsJSON(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
-	if len(data.Response.DefaultInputModes) > 0 {
-		result += fmt.Sprintf("\n- Default Input Modes: %v", data.Response.DefaultInputModes)
-	}
-	if len(data.Response.DefaultOutputModes) > 0 {
-		result += fmt.Sprintf("\n- Default Output Modes: %v", data.Response.DefaultOutputModes)
-	}
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
-	if len(data.Response.Skills) > 0 {
-		result += "\n- Skills:"
-		for _, skill := range data.Response.Skills {
-			result += fmt.Sprintf("\n  - %s: %s", skill.Name, skill.Description)
-		}
-	}
-	return result
+	return output.String()
 }
 
-// formatForUI formats the result for UI display
-func (t *A2AQueryTool) formatForUI(data A2AQueryResult) string {
-	result := fmt.Sprintf("**A2A Query**: %s", data.Message)
-
-	if data.AgentName != "" {
-		result += fmt.Sprintf("\n🤖 **Agent**: %s", data.AgentName)
+// FormatForUI formats the result for UI display
+func (t *A2AQueryTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
 	}
 
-	if data.Query != "" {
-		result += fmt.Sprintf("\n❓ **Query**: %s", data.Query)
-	}
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
 
-	if data.Response == nil {
-		if data.Duration > 0 {
-			result += fmt.Sprintf("\n⏱️ **Duration**: %v", data.Duration)
-		}
-		return result
-	}
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
 
-	result += "\n📋 **Agent Card**:"
-	result += fmt.Sprintf("\n  - **Name**: %s", data.Response.Name)
-	result += fmt.Sprintf("\n  - **Version**: %s", data.Response.Version)
-	result += fmt.Sprintf("\n  - **Description**: %s", data.Response.Description)
-
-	if data.Response.URL != "" {
-		result += fmt.Sprintf("\n  - **URL**: %s", data.Response.URL)
-	}
-	if data.Response.ProtocolVersion != "" {
-		result += fmt.Sprintf("\n  - **Protocol**: %s", data.Response.ProtocolVersion)
-	}
-	if data.Response.PreferredTransport != "" {
-		result += fmt.Sprintf("\n  - **Transport**: %s", data.Response.PreferredTransport)
-	}
-
-	result += "\n  - **Capabilities**:"
-	if data.Response.Capabilities.Streaming != nil {
-		icon := "❌"
-		if *data.Response.Capabilities.Streaming {
-			icon = "✅"
-		}
-		result += fmt.Sprintf("\n    - **Streaming**: %s %t", icon, *data.Response.Capabilities.Streaming)
-	}
-
-	if data.Response.Capabilities.PushNotifications != nil {
-		icon := "❌"
-		if *data.Response.Capabilities.PushNotifications {
-			icon = "✅"
-		}
-		result += fmt.Sprintf("\n    - **Push Notifications**: %s %t", icon, *data.Response.Capabilities.PushNotifications)
-	}
-
-	if data.Response.Capabilities.StateTransitionHistory != nil {
-		icon := "❌"
-		if *data.Response.Capabilities.StateTransitionHistory {
-			icon = "✅"
-		}
-		result += fmt.Sprintf("\n    - **State History**: %s %t", icon, *data.Response.Capabilities.StateTransitionHistory)
-	}
-
-	if len(data.Response.DefaultInputModes) > 0 {
-		result += fmt.Sprintf("\n  - **Input Modes**: %v", data.Response.DefaultInputModes)
-	}
-	if len(data.Response.DefaultOutputModes) > 0 {
-		result += fmt.Sprintf("\n  - **Output Modes**: %v", data.Response.DefaultOutputModes)
-	}
-
-	if len(data.Response.Skills) > 0 {
-		result += "\n  - **Skills**:"
-		for _, skill := range data.Response.Skills {
-			result += fmt.Sprintf("\n    - **%s**: %s", skill.Name, skill.Description)
-		}
-	}
-
-	if data.Duration > 0 {
-		result += fmt.Sprintf("\n⏱️ **Duration**: %v", data.Duration)
-	}
-
-	return result
+	return output.String()
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -285,7 +199,7 @@ func (t *A2AQueryTool) FormatPreview(result *domain.ToolExecutionResult) string 
 
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *A2AQueryTool) ShouldCollapseArg(key string) bool {
-	return false
+	return t.formatter.ShouldCollapseArg(key)
 }
 
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI

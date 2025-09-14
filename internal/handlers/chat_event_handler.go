@@ -389,7 +389,7 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
 		statusEvent := domain.UpdateStatusEvent{
-			Message:    fmt.Sprintf("Tool %s: %s", msg.ToolCallID, msg.Message),
+			Message:    msg.Message,
 			StatusType: domain.StatusWorking,
 		}
 		return statusEvent

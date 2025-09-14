@@ -121,24 +121,17 @@ This opens the A2A servers view showing:
 - API key configuration status
 - Connection timeout settings
 
-### Middleware Configuration
+### Direct A2A Tool Configuration
 
-> **⚠️ Deprecation Notice**: The A2A middleware configuration will be deprecated in a future release.
-> Direct client execution will become the default behavior.
-
-A2A tools can be configured to execute on the Gateway instead of the client:
+A2A tools are configured directly in the tools section:
 
 ```yaml
-gateway:
-  middlewares:
-    a2a: true  # Tools execute on Gateway (default, deprecated)
-    # a2a: false  # Tools execute on client (future default)
+tools:
+  task:
+    enabled: true  # Enable A2A Task tool
+  query:
+    enabled: true  # Enable A2A Query tool
 ```
-
-When `gateway.middlewares.a2a` is `true`:
-
-- In chat mode: Tools are visualized but execution is skipped (handled by Gateway)
-- In agent mode: Tools execute normally on the client
 
 ## Security Considerations
 

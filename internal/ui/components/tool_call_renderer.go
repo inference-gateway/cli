@@ -156,11 +156,14 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
 
 	case domain.ToolExecutionProgressEvent:
 		if state, exists := r.parallelTools[msg.ToolCallID]; exists {
-			logger.Debug("Tool status update", "tool_name", state.ToolName, "old_status", state.Status, "new_status", msg.Status, "call_id", msg.ToolCallID)
 			state.Status = msg.Status
 			if msg.Status == "complete" || msg.Status == "failed" {
 				endTime := time.Now()
 				state.EndTime = &endTime
+			}
+
+			if r.hasActiveParallelTools() {
+				return r, r.spinner.Tick
 			}
 		} else {
 			logger.Debug("Received progress event for unknown tool", "call_id", msg.ToolCallID, "status", msg.Status)

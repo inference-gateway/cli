@@ -135,6 +135,7 @@ func (s *SQLiteStorage) SaveConversation(ctx context.Context, conversationID str
 		message := map[string]any{
 			"role":    entry.Message.Role,
 			"content": entry.Message.Content,
+			"hidden":  entry.Hidden,
 		}
 
 		if entry.Model != "" {
@@ -179,6 +180,7 @@ func (s *SQLiteStorage) SaveConversation(ctx context.Context, conversationID str
 			message := map[string]any{
 				"role":    entry.Message.Role,
 				"content": entry.Message.Content,
+				"hidden":  entry.Hidden,
 			}
 
 			if entry.Model != "" {
@@ -302,6 +304,12 @@ func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID str
 					Time: metadata.UpdatedAt,
 				}
 
+				if hidden, ok := msg["hidden"]; ok && hidden != nil {
+					if hiddenBool, ok := hidden.(bool); ok {
+						entry.Hidden = hiddenBool
+					}
+				}
+
 				if model, ok := msg["model"]; ok && model != nil {
 					if modelStr, ok := model.(string); ok {
 						entry.Model = modelStr
@@ -341,6 +349,12 @@ func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID str
 				Content: msg["content"].(string),
 			},
 			Time: metadata.UpdatedAt,
+		}
+
+		if hidden, ok := msg["hidden"]; ok && hidden != nil {
+			if hiddenBool, ok := hidden.(bool); ok {
+				entry.Hidden = hiddenBool
+			}
 		}
 
 		if model, ok := msg["model"]; ok && model != nil {

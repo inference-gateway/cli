@@ -4,41 +4,45 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // A2ATaskTool handles A2A task submission and management
 type A2ATaskTool struct {
-	config *config.Config
-	_      domain.BaseFormatter
+	config    *config.Config
+	formatter domain.CustomFormatter
 }
 
 // A2ATaskResult represents the result of an A2A task operation
 type A2ATaskResult struct {
-	AgentName string        `json:"agent_name"`
-	Task      *adk.Task     `json:"task"`
-	Success   bool          `json:"success"`
-	Message   string        `json:"message"`
-	Duration  time.Duration `json:"duration"`
+	AgentName  string        `json:"agent_name"`
+	Task       *adk.Task     `json:"task"`
+	Success    bool          `json:"success"`
+	Message    string        `json:"message"`
+	Duration   time.Duration `json:"duration"`
+	TaskResult string        `json:"task_result"`
 }
 
 // NewA2ATaskTool creates a new A2A task tool
 func NewA2ATaskTool(cfg *config.Config) *A2ATaskTool {
 	return &A2ATaskTool{
 		config: cfg,
+		formatter: domain.NewCustomFormatter("Task", func(key string) bool {
+			return key == "metadata" || key == "task_description"
+		}),
 	}
 }
 
 // Definition returns the tool definition for the LLM
 func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
-	description := "Submit a task to an Agent-to-Agent (A2A) server for execution."
+	description := "Submit a task to an Agent-to-Agent (A2A) server for execution, or continue working on an existing task."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
@@ -53,7 +57,11 @@ func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
 					},
 					"task_description": map[string]interface{}{
 						"type":        "string",
-						"description": "Description of the task",
+						"description": "Description of the task to execute or continue",
+					},
+					"task_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional: ID of existing task to continue working on. If not provided, creates a new task.",
 					},
 				},
 				"required": []string{"agent_url", "task_description"},
@@ -65,8 +73,6 @@ func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
 // Execute runs the tool with given arguments
 func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) { // nolint:gocyclo,cyclop,funlen
 	startTime := time.Now()
-
-	// TODO - need to improve this
 
 	if !t.IsEnabled() {
 		return &domain.ToolExecutionResult{
@@ -92,6 +98,8 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 		return t.errorResult(args, startTime, "task_description parameter is required and must be a string")
 	}
 
+	existingTaskID, hasTaskID := args["task_id"].(string)
+
 	adkTask := adk.Task{
 		Kind: "task",
 		Metadata: map[string]any{
@@ -111,17 +119,23 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 
 	adkClient := client.NewClient(agentURL)
-	msgParams := adk.MessageSendParams{
-		Message: adk.Message{
-			Kind: "message",
-			Role: "user",
-			Parts: []adk.Part{
-				map[string]any{
-					"kind": "text",
-					"text": taskDescription,
-				},
+	message := adk.Message{
+		Kind: "message",
+		Role: "user",
+		Parts: []adk.Part{
+			map[string]any{
+				"kind": "text",
+				"text": taskDescription,
 			},
 		},
+	}
+
+	if hasTaskID && existingTaskID != "" {
+		message.TaskID = &existingTaskID
+	}
+
+	msgParams := adk.MessageSendParams{
+		Message: message,
 		Configuration: &adk.MessageSendConfiguration{
 			Blocking:            &[]bool{true}[0],
 			AcceptedOutputModes: []string{"text"},
@@ -129,63 +143,69 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 
 	var finalResult string
-	var eventCount int
+	var taskID string
 
-	adkEventChan, err := adkClient.SendTaskStreaming(ctx, msgParams)
+	taskResponse, err := adkClient.SendTask(ctx, msgParams)
 	if err != nil {
-		return t.errorResult(args, startTime, fmt.Sprintf("A2A task streaming failed: %v", err))
+		return t.errorResult(args, startTime, fmt.Sprintf("A2A task submission failed: %v", err))
 	}
 
-streamLoop:
-	for {
+	var submittedTask adk.Task
+	if err := mapToStruct(taskResponse.Result, &submittedTask); err != nil {
+		return t.errorResult(args, startTime, "Failed to parse task submission response")
+	}
+
+	if submittedTask.ID == "" {
+		return t.errorResult(args, startTime, "Task submitted but no task ID received")
+	}
+
+	taskID = submittedTask.ID
+
+	maxAttempts := 60
+	pollInterval := 5 * time.Second
+
+	for attempt := range maxAttempts {
 		select {
 		case <-ctx.Done():
 			return t.errorResult(args, startTime, "Task cancelled")
+		default:
+		}
 
-		case event, ok := <-adkEventChan:
-			if !ok {
-				break streamLoop
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return t.errorResult(args, startTime, "Task cancelled")
+			case <-time.After(pollInterval):
 			}
+		}
 
-			eventCount++
+		queryParams := adk.TaskQueryParams{ID: taskID}
+		taskStatus, err := adkClient.GetTask(ctx, queryParams)
+		if err != nil {
+			continue
+		}
 
-			if event.Result == nil {
-				continue
-			}
+		var currentTask adk.Task
+		if err := mapToStruct(taskStatus.Result, &currentTask); err != nil {
+			continue
+		}
 
-			eventData, ok := event.Result.(map[string]any)
-			if !ok {
-				continue
-			}
+		if currentTask.Status.State == adk.TaskStateCompleted || currentTask.Status.State == adk.TaskStateFailed {
+			finalResult += t.extractTaskResult(currentTask)
+			break
+		}
 
-			eventKind, exists := eventData["kind"]
-			if !exists {
-				continue
-			}
-
-			eventKindStr, ok := eventKind.(string)
-			if !ok {
-				continue
-			}
-
-			switch eventKindStr {
-			case "message":
-				t.handleMessageEvent(eventData, &finalResult)
-			case "status-update":
-				t.handleUpdateStatusEvent(eventData)
-			case "artifact-update":
-				t.handleArtifactEvent(eventData)
-			case "input-required":
-				t.handleInputRequiredEvent(eventData)
-			default:
-				logger.Warn("unknown event received", "event", eventData)
-			}
+		if currentTask.Status.State == "input-required" {
+			return t.handleInputRequiredState(args, agentURL, taskID, currentTask, adkTask, startTime)
 		}
 	}
 
 	adkTask.Status.State = adk.TaskStateCompleted
 	if finalResult != "" {
 		adkTask.Metadata["result"] = finalResult
+	}
+	if taskID != "" {
+		adkTask.ID = taskID
 	}
 
 	return &domain.ToolExecutionResult{
@@ -194,11 +214,12 @@ streamLoop:
 		Success:   true,
 		Duration:  time.Since(startTime),
 		Data: A2ATaskResult{
-			AgentName: agentURL,
-			Task:      &adkTask,
-			Success:   true,
-			Message:   fmt.Sprintf("A2A task submitted to %s", agentURL),
-			Duration:  time.Since(startTime),
+			AgentName:  agentURL,
+			Task:       &adkTask,
+			Success:    true,
+			Message:    fmt.Sprintf("A2A task submitted to %s", agentURL),
+			Duration:   time.Since(startTime),
+			TaskResult: finalResult,
 		},
 	}, nil
 }
@@ -221,54 +242,38 @@ func (t *A2ATaskTool) IsEnabled() bool {
 
 // FormatResult formats tool execution results for different contexts
 func (t *A2ATaskTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
-	if result.Data == nil {
-		return result.Error
-	}
-
-	data, ok := result.Data.(A2ATaskResult)
-	if !ok {
-		return "Invalid A2A task result format"
-	}
-
 	switch formatType {
+	case domain.FormatterUI:
+		return t.FormatForUI(result)
 	case domain.FormatterLLM:
-		return t.formatForLLM(data)
+		return t.FormatForLLM(result)
 	case domain.FormatterShort:
-		return data.Message
+		return t.FormatPreview(result)
 	default:
-		return t.formatForUI(data)
+		return t.FormatForUI(result)
 	}
 }
 
-// formatForLLM formats the result for LLM consumption
-func (t *A2ATaskTool) formatForLLM(data A2ATaskResult) string {
-	result := fmt.Sprintf("A2A Task: %s", data.Message)
-
-	if data.Task != nil {
-		result += fmt.Sprintf(" (Task ID: %s)", data.Task.ID)
+// FormatForLLM formats the result for LLM consumption with detailed information
+func (t *A2ATaskTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
 	}
 
-	return result
-}
+	var output strings.Builder
 
-// formatForUI formats the result for UI display
-func (t *A2ATaskTool) formatForUI(data A2ATaskResult) string {
-	result := fmt.Sprintf("**A2A Task**: %s", data.Message)
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	if data.Task != nil {
-		result += fmt.Sprintf("\n📋 **Task ID**: `%s`", data.Task.ID)
-		result += fmt.Sprintf("\n📝 **Kind**: %s", data.Task.Kind)
+	if result.Data != nil {
+		dataContent := t.formatter.FormatAsJSON(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
-	if data.AgentName != "" {
-		result += fmt.Sprintf("\n🤖 **Agent**: %s", data.AgentName)
-	}
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
-	if data.Duration > 0 {
-		result += fmt.Sprintf("\n⏱️ **Duration**: %v", data.Duration)
-	}
-
-	return result
+	return output.String()
 }
 
 // FormatPreview returns a short preview of the result for UI display
@@ -284,9 +289,26 @@ func (t *A2ATaskTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	return "A2A task operation completed"
 }
 
+// FormatForUI formats the result for UI display
+func (t *A2ATaskTool) FormatForUI(result *domain.ToolExecutionResult) string {
+	if result == nil {
+		return "Tool execution result unavailable"
+	}
+
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+	preview := t.FormatPreview(result)
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
+	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	return output.String()
+}
+
 // ShouldCollapseArg determines if an argument should be collapsed in display
 func (t *A2ATaskTool) ShouldCollapseArg(key string) bool {
-	return key == "metadata"
+	return t.formatter.ShouldCollapseArg(key)
 }
 
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
@@ -309,143 +331,65 @@ func (t *A2ATaskTool) errorResult(args map[string]any, startTime time.Time, erro
 	}, nil
 }
 
-func (t *A2ATaskTool) handleMessageEvent(eventData map[string]any, finalResult *string) {
-	eventBytes, err := json.Marshal(eventData)
-	if err != nil {
-		return
+// extractTextFromParts extracts text content from message parts
+func extractTextFromParts(parts []adk.Part) string {
+	var result strings.Builder
+	for _, part := range parts {
+		if partMap, ok := part.(map[string]any); ok {
+			if text, exists := partMap["text"]; exists {
+				if textStr, ok := text.(string); ok {
+					result.WriteString(textStr)
+				}
+			}
+		}
 	}
-
-	var message adk.Message
-	if json.Unmarshal(eventBytes, &message) != nil {
-		return
-	}
-
-	for _, part := range message.Parts {
-		partMap, ok := part.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		partKind, exists := partMap["kind"]
-		if !exists || partKind != "text" {
-			continue
-		}
-
-		text, exists := partMap["text"]
-		if !exists {
-			continue
-		}
-
-		textStr, ok := text.(string)
-		if !ok {
-			continue
-		}
-
-		*finalResult += textStr
-	}
+	return result.String()
 }
 
-func (t *A2ATaskTool) handleUpdateStatusEvent(eventData map[string]any) {
-	eventBytes, err := json.Marshal(eventData)
-	if err != nil {
-		return
+// extractTaskResult extracts the result text from a completed or failed task
+func (t *A2ATaskTool) extractTaskResult(task adk.Task) string {
+	if task.Status.Message != nil {
+		return extractTextFromParts(task.Status.Message.Parts)
 	}
-
-	var statusEvent adk.TaskStatusUpdateEvent
-	if json.Unmarshal(eventBytes, &statusEvent) != nil {
-		return
-	}
-
-	status := string(statusEvent.Status.State)
-	if statusEvent.Status.Message == nil {
-		return
-	}
-
-	for _, part := range statusEvent.Status.Message.Parts {
-		partMap, ok := part.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		partKind, exists := partMap["kind"]
-		if !exists || partKind != "text" {
-			continue
-		}
-
-		text, exists := partMap["text"]
-		if !exists {
-			continue
-		}
-
-		textStr, ok := text.(string)
-		if !ok {
-			continue
-		}
-
-		_ = textStr
-		break
-	}
-
-	_ = status
-
-	// TODO send event
+	return ""
 }
 
-func (t *A2ATaskTool) handleArtifactEvent(eventData map[string]any) {
-	artifactMessage := "Updating artifact..."
-
-	eventBytes, err := json.Marshal(eventData)
-	if err != nil {
-		return
+// handleInputRequiredState handles the input-required task state
+func (t *A2ATaskTool) handleInputRequiredState(args map[string]any, agentURL, taskID string, currentTask adk.Task, adkTask adk.Task, startTime time.Time) (*domain.ToolExecutionResult, error) {
+	inputMessage := ""
+	if currentTask.Status.Message != nil {
+		inputMessage = extractTextFromParts(currentTask.Status.Message.Parts)
 	}
 
-	var artifactEvent adk.TaskArtifactUpdateEvent
-	if json.Unmarshal(eventBytes, &artifactEvent) != nil {
-		return
+	if inputMessage == "" {
+		inputMessage = "Input required"
 	}
 
-	if artifactEvent.Artifact.Name != nil {
-		artifactMessage = fmt.Sprintf("Updating '%s'...", *artifactEvent.Artifact.Name)
-	}
+	adkTask.Status.State = "input-required"
+	adkTask.Metadata["input_required"] = inputMessage
+	adkTask.ID = taskID
 
-	// Event handling disabled - no eventChan available
-	_ = artifactMessage
+	return &domain.ToolExecutionResult{
+		ToolName:  "Task",
+		Arguments: args,
+		Success:   true,
+		Duration:  time.Since(startTime),
+		Data: A2ATaskResult{
+			AgentName:  agentURL,
+			Task:       &adkTask,
+			Success:    true,
+			Message:    fmt.Sprintf("Task %s requires input: %s", taskID, inputMessage),
+			Duration:   time.Since(startTime),
+			TaskResult: inputMessage,
+		},
+	}, nil
 }
 
-func (t *A2ATaskTool) handleInputRequiredEvent(eventData map[string]any) {
-
-	eventBytes, err := json.Marshal(eventData)
+// mapToStruct converts a map[string]any to a struct using JSON marshaling
+func mapToStruct(data any, target any) error {
+	jsonBytes, err := json.Marshal(data)
 	if err != nil {
-		return
+		return err
 	}
-
-	var inputEvent adk.Message
-	if json.Unmarshal(eventBytes, &inputEvent) != nil {
-		return
-	}
-
-	for _, part := range inputEvent.Parts {
-		partMap, ok := part.(map[string]any)
-		if !ok {
-			continue
-		}
-
-		partKind, exists := partMap["kind"]
-		if !exists || partKind != "text" {
-			continue
-		}
-
-		text, exists := partMap["text"]
-		if !exists {
-			continue
-		}
-
-		textStr, ok := text.(string)
-		if !ok {
-			continue
-		}
-
-		_ = textStr
-		break
-	}
+	return json.Unmarshal(jsonBytes, target)
 }

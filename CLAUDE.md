@@ -278,20 +278,15 @@ task mocks:generate         # Regenerate mocks
 - **WebSearch/WebFetch**: Web integration with domain whitelisting
 - **GitHub**: GitHub API integration
 - **TodoWrite**: Task management for LLM workflows
-- **A2A/MCP Tools**: Gateway middleware tools with client-side visualization
+- **A2A Tools**: Direct agent-to-agent communication tools (Task, Query)
 
-#### A2A and MCP Tool Call Handling
+#### A2A Tool Call Handling
 
-Tools prefixed with `a2a_*` or `mcp_*` receive special handling based on configuration:
+The A2A Task and Query tools communicate directly with A2A servers:
 
-- **Chat Mode**: Tools are visualized but execution is skipped when `gateway.middlewares.a2a` or
-  `gateway.middlewares.mcp` is `true` (default)
-- **Agent Mode**: Tools are executed normally (main agent has full access)
-- **Visualization**: Skipped tools show as "executed on Gateway" with appropriate metadata
-- **Configuration**: Execution behavior is configurable via `gateway.middlewares.a2a` and
-  `gateway.middlewares.mcp` (when `true`, tools execute on Gateway; when `false`, tools execute on client)
-- **Purpose**: Maintains simple clients while centralizing operations on Gateway, with flexibility to
-  enable client execution when needed
+- **Direct Communication**: Tools like "Task" and "Query" connect directly to A2A agent servers
+- **Configuration**: Tools are enabled/disabled via configuration (e.g., `tools.task.enabled`)
+- **Purpose**: Enables direct agent-to-agent communication without middleware layers
 
 ## Agent System
 
