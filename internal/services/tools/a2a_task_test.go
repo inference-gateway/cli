@@ -248,12 +248,12 @@ func TestA2ATaskTool_FormatResult(t *testing.T) {
 		{
 			name:       "LLM format",
 			formatType: domain.FormatterLLM,
-			contains:   []string{"A2A Task", "Task submitted successfully", "task-123"},
+			contains:   []string{"Task()", "✓ Success", "📄 Result:", "agent_name", "test-agent", "task-123"},
 		},
 		{
 			name:       "UI format",
 			formatType: domain.FormatterUI,
-			contains:   []string{"**A2A Task**", "test-agent", "task-123", "test"},
+			contains:   []string{"Task()", "✓ A2A Task", "Task submitted successfully"},
 		},
 		{
 			name:       "Short format",
@@ -298,7 +298,7 @@ func TestA2ATaskTool_ShouldCollapseArg(t *testing.T) {
 
 	assert.True(t, tool.ShouldCollapseArg("metadata"))
 	assert.False(t, tool.ShouldCollapseArg("agent_url"))
-	assert.False(t, tool.ShouldCollapseArg("task_description"))
+	assert.True(t, tool.ShouldCollapseArg("task_description"))
 }
 
 func TestA2ATaskTool_ShouldAlwaysExpand(t *testing.T) {

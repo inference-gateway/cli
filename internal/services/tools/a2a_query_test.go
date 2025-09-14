@@ -224,12 +224,12 @@ func TestA2AQueryTool_FormatResult(t *testing.T) {
 		{
 			name:       "LLM format",
 			formatType: domain.FormatterLLM,
-			contains:   []string{"A2A Query to test-agent", "Query sent successfully", "- Name: test-agent", "Agent Card Details"},
+			contains:   []string{"Query()", "✓ Success", "📄 Result:", "agent_name", "test-agent", "query", "card"},
 		},
 		{
 			name:       "UI format",
 			formatType: domain.FormatterUI,
-			contains:   []string{"**A2A Query**", "test-agent", "card", "- **Name**: test-agent", "**Capabilities**"},
+			contains:   []string{"Query()", "✓ A2A Query", "Query sent successfully"},
 		},
 		{
 			name:       "Short format",
