@@ -221,13 +221,14 @@ type SystemRemindersConfig struct {
 
 // AgentConfig contains agent command-specific settings
 type AgentConfig struct {
-	Model           string                `yaml:"model" mapstructure:"model"`
-	SystemPrompt    string                `yaml:"system_prompt" mapstructure:"system_prompt"`
-	SystemReminders SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
-	VerboseTools    bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
-	MaxTurns        int                   `yaml:"max_turns" mapstructure:"max_turns"`
-	MaxTokens       int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
-	Optimization    OptimizationConfig    `yaml:"optimization" mapstructure:"optimization"`
+	Model              string                `yaml:"model" mapstructure:"model"`
+	SystemPrompt       string                `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemReminders    SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
+	VerboseTools       bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
+	MaxTurns           int                   `yaml:"max_turns" mapstructure:"max_turns"`
+	MaxTokens          int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
+	MaxConcurrentTools int                   `yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`
+	Optimization       OptimizationConfig    `yaml:"optimization" mapstructure:"optimization"`
 }
 
 // GitConfig contains git shortcut-specific settings
@@ -521,9 +522,10 @@ EXAMPLE:
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>`,
 			},
-			VerboseTools: false,
-			MaxTurns:     50,
-			MaxTokens:    4096,
+			VerboseTools:       false,
+			MaxTurns:           50,
+			MaxTokens:          4096,
+			MaxConcurrentTools: 5,
 			Optimization: OptimizationConfig{
 				Enabled:     false,
 				Model:       "",

@@ -612,7 +612,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 	results := make([]domain.ConversationEntry, len(toolCalls))
 	resultsChan := make(chan IndexedToolResult, len(toolCalls))
 
-	semaphore := make(chan struct{}, 5)
+	semaphore := make(chan struct{}, s.config.GetAgentConfig().MaxConcurrentTools)
 
 	var wg sync.WaitGroup
 	for i, tc := range toolCalls {
