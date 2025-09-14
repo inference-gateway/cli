@@ -231,3 +231,5 @@ conversation:
     interval: 0
 chat:
   theme: tokyo-night
+a2a:
+  agents: []

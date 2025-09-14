@@ -29,11 +29,7 @@ services:
       INFER_TOOLS_QUERY_ENABLED: true
       INFER_TOOLS_TASK_ENABLED:  true
       INFER_AGENT_MODEL: deepseek/deepseek-chat
-      INFER_AGENT_SYSTEM_PROMPT: |
-        You are an helpful assistant, you have access to the following agents:
-        - http://google-calendar-agent:8080
-        - http://documentation-agent:8080
-        - http://n8n-agent:8080
+      INFER_A2A_AGENTS: 'http://google-calendar-agent:8080,http://n8n-agent:8080,http://documentation-agent:8080'
     command:
       - go
       - run

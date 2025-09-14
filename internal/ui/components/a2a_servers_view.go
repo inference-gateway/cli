@@ -11,19 +11,18 @@ import (
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui/styles/colors"
 	"github.com/inference-gateway/cli/internal/ui/styles/icons"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // A2AServersView displays connected A2A servers in a dedicated view component
 type A2AServersView struct {
-	config       *config.Config
-	client       sdk.Client
-	servers      []A2AServerInfo
-	width        int
-	height       int
-	isLoading    bool
-	error        string
-	themeService domain.ThemeService
+	config          *config.Config
+	a2aAgentService domain.A2AAgentService
+	servers         []A2AServerInfo
+	width           int
+	height          int
+	isLoading       bool
+	error           string
+	themeService    domain.ThemeService
 }
 
 // A2AServerInfo represents information about an A2A server
@@ -36,17 +35,18 @@ type A2AServerInfo struct {
 	OutputModes    []string
 	IsConnected    bool
 	ConnectionInfo string
+	URL            string
 }
 
 // NewA2AServersView creates a new A2A servers view
-func NewA2AServersView(cfg *config.Config, client sdk.Client, themeService domain.ThemeService) *A2AServersView {
+func NewA2AServersView(cfg *config.Config, a2aAgentService domain.A2AAgentService, themeService domain.ThemeService) *A2AServersView {
 	return &A2AServersView{
-		config:       cfg,
-		client:       client,
-		servers:      []A2AServerInfo{},
-		width:        80,
-		height:       20,
-		themeService: themeService,
+		config:          cfg,
+		a2aAgentService: a2aAgentService,
+		servers:         []A2AServerInfo{},
+		width:           80,
+		height:          20,
+		themeService:    themeService,
 	}
 }
 
@@ -63,33 +63,34 @@ func (v *A2AServersView) LoadServers(ctx context.Context) tea.Cmd {
 	v.error = ""
 
 	return func() tea.Msg {
-		if v.client == nil {
+		if v.a2aAgentService == nil {
 			return A2AServersLoadedMsg{
 				servers: []A2AServerInfo{},
-				error:   "SDK client not configured",
+				error:   "A2A agent service not configured",
 			}
 		}
 
-		agentsResp, err := v.client.ListAgents(ctx)
+		cards, err := v.a2aAgentService.GetAllAgentCards(ctx)
 		if err != nil {
 			return A2AServersLoadedMsg{
 				servers: []A2AServerInfo{},
-				error:   fmt.Sprintf("Error fetching agents: %v", err),
+				error:   fmt.Sprintf("Failed to fetch agent cards: %v", err),
 			}
 		}
 
 		var servers []A2AServerInfo
-		if agentsResp != nil && len(agentsResp.Data) > 0 {
-			for _, agent := range agentsResp.Data {
+		for _, cached := range cards {
+			if cached.Card != nil {
 				server := A2AServerInfo{
-					ID:             agent.Id,
-					Name:           agent.Name,
-					Description:    agent.Description,
-					DocumentsURL:   agent.DocumentationUrl,
-					InputModes:     agent.DefaultInputModes,
-					OutputModes:    agent.DefaultOutputModes,
+					ID:             cached.Card.URL,
+					Name:           cached.Card.Name,
+					Description:    cached.Card.Description,
+					DocumentsURL:   cached.Card.DocumentationURL,
+					InputModes:     cached.Card.DefaultInputModes,
+					OutputModes:    cached.Card.DefaultOutputModes,
 					IsConnected:    true,
-					ConnectionInfo: "Connected via Gateway",
+					ConnectionInfo: "Direct A2A Connection",
+					URL:            cached.URL,
 				}
 				servers = append(servers, server)
 			}
@@ -164,12 +165,12 @@ func (v *A2AServersView) renderEmpty() string {
 
 	var content strings.Builder
 	warningIcon := colors.CreateColoredText("⚠️", colors.WarningColor)
-	content.WriteString(fmt.Sprintf("%s %sNo A2A servers available%s\n\n", warningIcon, warningColor, colors.Reset))
+	content.WriteString(fmt.Sprintf("%s %sNo A2A agent servers in cache%s\n\n", warningIcon, warningColor, colors.Reset))
 
-	content.WriteString(fmt.Sprintf("%sThis could mean:%s\n", dimColor, colors.Reset))
-	content.WriteString("• No agents are registered with the Gateway\n")
-	content.WriteString("• A2A middleware is not properly configured\n")
-	content.WriteString("• Connection issues with the Gateway")
+	content.WriteString(fmt.Sprintf("%sAgent cards will be fetched when first accessed.%s\n\n", dimColor, colors.Reset))
+	content.WriteString("Available A2A tools:\n")
+	content.WriteString("• **Task**: Submit tasks to A2A agents\n")
+	content.WriteString("• **Query**: Query A2A agent information")
 
 	style := lipgloss.NewStyle().
 		Width(v.width).
@@ -188,8 +189,8 @@ func (v *A2AServersView) renderServers() string {
 
 	var content strings.Builder
 
-	content.WriteString(fmt.Sprintf("%s## A2A Connected Servers%s\n\n", headerColor, colors.Reset))
-	content.WriteString(fmt.Sprintf("%sFound %d connected agents:%s\n\n", successColor, len(v.servers), colors.Reset))
+	content.WriteString(fmt.Sprintf("%s## A2A Agent Servers%s\n\n", headerColor, colors.Reset))
+	content.WriteString(fmt.Sprintf("%sFound %d cached agent cards:%s\n\n", successColor, len(v.servers), colors.Reset))
 
 	for i, server := range v.servers {
 		content.WriteString(v.renderSingleServer(server))
@@ -242,20 +243,24 @@ func (v *A2AServersView) renderSingleServer(server A2AServerInfo) string {
 			outputIcon, statusColor, strings.Join(server.OutputModes, ", "), colors.Reset))
 	}
 
+	if server.URL != "" {
+		linkIcon := colors.CreateColoredText("🔗", colors.DimColor)
+		content.WriteString(fmt.Sprintf("   %s URL: %s%s%s\n",
+			linkIcon, dimColor, server.URL, colors.Reset))
+	}
+
 	return content.String()
 }
 
 func (v *A2AServersView) renderConnectionInfo() string {
 	dimColor := v.getDimColor()
-	accentColor := v.getAccentColor()
 
 	var content strings.Builder
 	content.WriteString("\n")
 	content.WriteString(fmt.Sprintf("%s━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%s\n", dimColor, colors.Reset))
 
-	gatewayURL := v.config.Gateway.URL
 	networkIcon := colors.CreateColoredText("🌐", colors.AccentColor)
-	content.WriteString(fmt.Sprintf("%s Gateway: %s%s%s\n", networkIcon, accentColor, gatewayURL, colors.Reset))
+	content.WriteString(fmt.Sprintf("%s A2A Connection Mode%s\n", networkIcon, colors.Reset))
 
 	content.WriteString("\n")
 	content.WriteString(fmt.Sprintf("%sPress ESC to return to chat%s", dimColor, colors.Reset))

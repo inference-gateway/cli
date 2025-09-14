@@ -30,6 +30,7 @@ type Config struct {
 	Storage      StorageConfig      `yaml:"storage" mapstructure:"storage"`
 	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
 	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
+	A2A          A2AConfig          `yaml:"a2a" mapstructure:"a2a"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -232,6 +233,11 @@ type AgentConfig struct {
 // GitConfig contains git shortcut-specific settings
 type GitConfig struct {
 	CommitMessage GitCommitMessageConfig `yaml:"commit_message" mapstructure:"commit_message"`
+}
+
+// A2AConfig contains A2A agent configuration
+type A2AConfig struct {
+	Agents []string `yaml:"agents" mapstructure:"agents"`
 }
 
 // ConversationConfig contains conversation-specific settings
@@ -584,6 +590,9 @@ Respond with ONLY the title, no quotes or explanation.`,
 		},
 		Chat: ChatConfig{
 			Theme: "tokyo-night",
+		},
+		A2A: A2AConfig{
+			Agents: []string{},
 		},
 	}
 }

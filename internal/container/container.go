@@ -33,6 +33,7 @@ type ServiceContainer struct {
 	agentService     domain.AgentService
 	toolService      domain.ToolService
 	fileService      domain.FileService
+	a2aAgentService  domain.A2AAgentService
 
 	// Services
 	stateManager *services.StateManager
@@ -142,12 +143,14 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.toolService,
 		c.config,
 		c.conversationRepo,
+		c.a2aAgentService,
 		c.config.Gateway.Timeout,
 		optimizer,
 	)
 
 	c.chatService = services.NewStreamingChatService(c.agentService)
 
+	c.a2aAgentService = services.NewA2AAgentService(c.config)
 }
 
 // initializeServices creates the new improved services
@@ -193,12 +196,8 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	gitCommitClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
 
-	// TODO - Add an A2A discovery, when the client executes /a2a
-	// the client will do its best to fetch all the A2A cards of the agents its aware of
-	// (those agents will be configured in raw text in the system prompt, to keep it dynamic rather then hardcoded configurations)
-
-	// middlewareClient := c.createSDKClient()
-	// c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, middlewareClient))
+	// A2A discovery - fetches agent cards when /a2a is executed
+	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService))
 
 	if c.configService != nil {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService))
@@ -261,6 +260,11 @@ func (c *ServiceContainer) GetThemeService() domain.ThemeService {
 
 func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
 	return c.shortcutRegistry
+}
+
+// GetA2AAgentService returns the A2A agent service
+func (c *ServiceContainer) GetA2AAgentService() domain.A2AAgentService {
+	return c.a2aAgentService
 }
 
 // New service getters

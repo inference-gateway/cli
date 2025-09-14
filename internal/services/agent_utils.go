@@ -1,12 +1,14 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -37,18 +39,15 @@ func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessag
 			toolCall.Function.Name = delta.Function.Name
 		}
 		if delta.Function.Arguments != "" {
-			// First delta sets the arguments
 			if toolCall.Function.Arguments == "" {
 				toolCall.Function.Arguments = delta.Function.Arguments
 				continue
 			}
 
-			// Skip concatenation if we already have complete JSON
 			if isCompleteJSON(toolCall.Function.Arguments) {
 				continue
 			}
 
-			// Otherwise concatenate for streaming JSON
 			toolCall.Function.Arguments += delta.Function.Arguments
 		}
 	}
@@ -86,12 +85,25 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 		sandboxInfo := s.buildSandboxInfo()
 
-		systemPromptWithSandbox := fmt.Sprintf("%s\n\n%s\n\nCurrent date and time: %s",
-			baseSystemPrompt, sandboxInfo, currentTime)
+		var a2aAgentInfo string
+		if s.a2aAgentService != nil {
+			ctx := context.Background()
+			a2aAgentInfo = s.a2aAgentService.GetSystemPromptAgentInfo(ctx)
+		}
+
+		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s\n\nCurrent date and time: %s",
+			baseSystemPrompt, sandboxInfo, a2aAgentInfo, currentTime)
+
+		logger.Debug("Final system prompt constructed", "total_length", len(systemPromptWithInfo), "has_a2a_info", len(a2aAgentInfo) > 0)
+		previewLen := 200
+		if len(systemPromptWithInfo) < previewLen {
+			previewLen = len(systemPromptWithInfo)
+		}
+		logger.Debug("System prompt content preview", "content", systemPromptWithInfo[:previewLen])
 
 		systemMessages = append(systemMessages, sdk.Message{
 			Role:    sdk.System,
-			Content: systemPromptWithSandbox,
+			Content: systemPromptWithInfo,
 		})
 	}
 

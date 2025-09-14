@@ -18,6 +18,7 @@ type AgentServiceImpl struct {
 	toolService      domain.ToolService
 	config           domain.ConfigService
 	conversationRepo domain.ConversationRepository
+	a2aAgentService  domain.A2AAgentService
 	timeoutSeconds   int
 	maxTokens        int
 	optimizer        *ConversationOptimizer
@@ -154,6 +155,7 @@ func NewAgentService(
 	toolService domain.ToolService,
 	config domain.ConfigService,
 	conversationRepo domain.ConversationRepository,
+	a2aAgentService domain.A2AAgentService,
 	timeoutSeconds int,
 	optimizer *ConversationOptimizer,
 ) *AgentServiceImpl {
@@ -162,6 +164,7 @@ func NewAgentService(
 		toolService:      toolService,
 		config:           config,
 		conversationRepo: conversationRepo,
+		a2aAgentService:  a2aAgentService,
 		timeoutSeconds:   timeoutSeconds,
 		maxTokens:        config.GetAgentConfig().MaxTokens,
 		optimizer:        optimizer,
@@ -248,6 +251,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 // RunWithStream executes an agent task with streaming (for interactive chat)
 func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop,funlen
+	logger.Debug("RunWithStream called", "request_id", req.RequestID, "model", req.Model, "messages_count", len(req.Messages))
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
 	}
@@ -266,11 +270,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		s.cancelMux.Unlock()
 	}()
 
-	systemPrompt := s.config.GetAgentConfig().SystemPrompt
-	if systemPrompt == "" {
-		systemPrompt = "You are an helpful assistant."
-	}
-
 	client := s.client.
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
 			SkipMCP: true,
@@ -281,10 +280,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		client = client.WithTools(&availableTools)
 	}
 
-	conversation := []sdk.Message{
-		{Role: "system", Content: systemPrompt},
-	}
-	conversation = append(conversation, req.Messages...)
+	conversation := s.addSystemPrompt(req.Messages)
 
 	provider, model, err := s.parseProvider(req.Model)
 	if err != nil {
@@ -342,6 +338,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 			}
 
+			logger.Debug("system prompt", "system", conversation)
 			events, err := client.GenerateContentStream(requestCtx, sdk.Provider(provider), model, conversation)
 			if err != nil {
 				logger.Error("Failed to create stream",

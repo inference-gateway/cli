@@ -19,7 +19,6 @@ import (
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // ChatApplication represents the main application model using state management
@@ -495,13 +494,13 @@ func (app *ChatApplication) handleA2AServersView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
-	var sdkClient sdk.Client
+	var a2aAgentService domain.A2AAgentService
 	if a2aShortcut, exists := app.shortcutRegistry.Get("a2a"); exists {
 		if a2a, ok := a2aShortcut.(*shortcuts.A2AShortcut); ok {
-			sdkClient = a2a.GetClient()
+			a2aAgentService = a2a.GetA2AAgentService()
 		}
 	}
-	app.a2aServersView = components.NewA2AServersView(app.configService, sdkClient, app.themeService)
+	app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, app.themeService)
 
 	ctx := context.Background()
 	if cmd := app.a2aServersView.LoadServers(ctx); cmd != nil {
@@ -594,13 +593,13 @@ func (app *ChatApplication) renderThemeSelection() string {
 
 func (app *ChatApplication) renderA2AServers() string {
 	if app.a2aServersView == nil {
-		var sdkClient sdk.Client
+		var a2aAgentService domain.A2AAgentService
 		if a2aShortcut, exists := app.shortcutRegistry.Get("a2a"); exists {
 			if a2a, ok := a2aShortcut.(*shortcuts.A2AShortcut); ok {
-				sdkClient = a2a.GetClient()
+				a2aAgentService = a2a.GetA2AAgentService()
 			}
 		}
-		app.a2aServersView = components.NewA2AServersView(app.configService, sdkClient, app.themeService)
+		app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, app.themeService)
 	}
 
 	width, height := app.stateManager.GetDimensions()
