@@ -29,7 +29,6 @@ func TestA2ATaskTool_Definition(t *testing.T) {
 	assert.Contains(t, *def.Function.Description, "Agent-to-Agent")
 }
 
-
 func TestA2ATaskTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
@@ -71,7 +70,6 @@ func TestA2ATaskTool_Execute_MissingTaskDescription(t *testing.T) {
 	assert.False(t, result.Success)
 	assert.Contains(t, result.Error, "task_description parameter is required")
 }
-
 
 func TestA2ATaskTool_Validate(t *testing.T) {
 	cfg := &config.Config{}

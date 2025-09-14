@@ -29,7 +29,6 @@ func TestA2AQueryTool_Definition(t *testing.T) {
 	assert.Contains(t, *def.Function.Description, "Agent-to-Agent")
 }
 
-
 func TestA2AQueryTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
@@ -48,8 +47,6 @@ func TestA2AQueryTool_Execute_MissingAgentURL(t *testing.T) {
 	assert.False(t, result.Success)
 	assert.Contains(t, result.Error, "agent_url parameter is required")
 }
-
-
 
 func TestA2AQueryTool_Validate(t *testing.T) {
 	cfg := &config.Config{}
