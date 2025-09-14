@@ -473,6 +473,7 @@ func (app *ChatApplication) handleA2AServersView(msg tea.Msg) []tea.Cmd {
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "esc":
+				app.a2aServersView = nil
 				_ = app.stateManager.TransitionToView(domain.ViewStateChat)
 				cmds = append(cmds, func() tea.Msg {
 					return domain.SetStatusEvent{

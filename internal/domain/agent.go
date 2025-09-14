@@ -48,8 +48,6 @@ type CachedAgentCard struct {
 
 // A2AAgentService manages A2A agent operations
 type A2AAgentService interface {
-	GetAgentCard(ctx context.Context, agentURL string) (*adk.AgentCard, error)
+	GetAgentCards(ctx context.Context) ([]*CachedAgentCard, error)
 	GetConfiguredAgents() []string
-	GetAllAgentCards(ctx context.Context) ([]*CachedAgentCard, error)
-	GetSystemPromptAgentInfo(ctx context.Context) string
 }

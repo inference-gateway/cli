@@ -1,7 +1,6 @@
 package services
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -85,11 +84,7 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 		sandboxInfo := s.buildSandboxInfo()
 
-		var a2aAgentInfo string
-		if s.a2aAgentService != nil {
-			ctx := context.Background()
-			a2aAgentInfo = s.a2aAgentService.GetSystemPromptAgentInfo(ctx)
-		}
+		a2aAgentInfo := s.buildA2AAgentInfo()
 
 		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s\n\nCurrent date and time: %s",
 			baseSystemPrompt, sandboxInfo, a2aAgentInfo, currentTime)
@@ -111,6 +106,24 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 		messages = append(systemMessages, messages...)
 	}
 	return messages
+}
+
+// buildA2AAgentInfo creates dynamic A2A agent information for the system prompt
+func (s *AgentServiceImpl) buildA2AAgentInfo() string {
+	if s.a2aAgentService == nil {
+		return ""
+	}
+
+	urls := s.a2aAgentService.GetConfiguredAgents()
+	if len(urls) == 0 {
+		return ""
+	}
+
+	agentInfo := "\n\nAvailable A2A Agent URLs:\n"
+	for _, url := range urls {
+		agentInfo += fmt.Sprintf("- %s\n", url)
+	}
+	return agentInfo
 }
 
 // buildSandboxInfo creates dynamic sandbox information for the system prompt

@@ -70,7 +70,7 @@ func (v *A2AServersView) LoadServers(ctx context.Context) tea.Cmd {
 			}
 		}
 
-		cards, err := v.a2aAgentService.GetAllAgentCards(ctx)
+		cards, err := v.a2aAgentService.GetAgentCards(ctx)
 		if err != nil {
 			return A2AServersLoadedMsg{
 				servers: []A2AServerInfo{},
@@ -165,9 +165,9 @@ func (v *A2AServersView) renderEmpty() string {
 
 	var content strings.Builder
 	warningIcon := colors.CreateColoredText("⚠️", colors.WarningColor)
-	content.WriteString(fmt.Sprintf("%s %sNo A2A agent servers in cache%s\n\n", warningIcon, warningColor, colors.Reset))
+	content.WriteString(fmt.Sprintf("%s %sNo A2A agent servers configured%s\n\n", warningIcon, warningColor, colors.Reset))
 
-	content.WriteString(fmt.Sprintf("%sAgent cards will be fetched when first accessed.%s\n\n", dimColor, colors.Reset))
+	content.WriteString(fmt.Sprintf("%sConfigure agents in your config or via environment variables.%s\n\n", dimColor, colors.Reset))
 	content.WriteString("Available A2A tools:\n")
 	content.WriteString("• **Task**: Submit tasks to A2A agents\n")
 	content.WriteString("• **Query**: Query A2A agent information")
@@ -190,7 +190,7 @@ func (v *A2AServersView) renderServers() string {
 	var content strings.Builder
 
 	content.WriteString(fmt.Sprintf("%s## A2A Agent Servers%s\n\n", headerColor, colors.Reset))
-	content.WriteString(fmt.Sprintf("%sFound %d cached agent cards:%s\n\n", successColor, len(v.servers), colors.Reset))
+	content.WriteString(fmt.Sprintf("%sFound %d agent cards:%s\n\n", successColor, len(v.servers), colors.Reset))
 
 	for i, server := range v.servers {
 		content.WriteString(v.renderSingleServer(server))
