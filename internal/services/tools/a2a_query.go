@@ -72,10 +72,10 @@ func (t *A2AQueryTool) Execute(ctx context.Context, args map[string]any) (*domai
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
-			Error:     "A2A direct connections are disabled in configuration",
+			Error:     "A2A connections are disabled in configuration",
 			Data: A2AQueryResult{
 				Success: false,
-				Message: "A2A direct connections are disabled",
+				Message: "A2A connections are disabled",
 			},
 		}, nil
 	}

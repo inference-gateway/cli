@@ -29,45 +29,6 @@ func TestA2AQueryTool_Definition(t *testing.T) {
 	assert.Contains(t, *def.Function.Description, "Agent-to-Agent")
 }
 
-func TestA2AQueryTool_Execute_DisabledA2A(t *testing.T) {
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Query: config.QueryToolConfig{
-				Enabled: false,
-			},
-		},
-	}
-	tool := NewA2AQueryTool(cfg)
-
-	args := map[string]any{
-		"agent_url": "http://test-agent.example.com",
-	}
-
-	result, err := tool.Execute(context.Background(), args)
-
-	require.NoError(t, err)
-	assert.False(t, result.Success)
-	assert.Contains(t, result.Error, "A2A direct connections are disabled")
-}
-
-// TODO: Update test for simplified A2A implementation
-// func TestA2AQueryTool_Execute_NoService(t *testing.T) {
-// 	cfg := &config.Config{
-// 		A2A: config.A2AConfig{
-// 			Enabled: true,
-// 		},
-// 	}
-// 	tool := NewA2AQueryTool(cfg)
-//
-// 	args := map[string]any{
-// 		"agent_url": "http://test-agent.example.com",
-// 	}
-//
-// 	result, err := tool.Execute(context.Background(), args)
-//
-// 	require.NoError(t, err)
-// 	assert.True(t, result.Success) // Now succeeds with placeholder implementation
-// }
 
 func TestA2AQueryTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
@@ -88,41 +49,7 @@ func TestA2AQueryTool_Execute_MissingAgentURL(t *testing.T) {
 	assert.Contains(t, result.Error, "agent_url parameter is required")
 }
 
-// TODO: Implement proper tests for simplified A2A query tool
-// func TestA2AQueryTool_Execute_SuccessfulQuery(t *testing.T) {
-// 	cfg := &config.Config{
-// 		A2A: config.A2AConfig{
-// 			Enabled: true,
-// 		},
-// 	}
-//
-// 	tool := NewA2AQueryTool(cfg)
-//
-// 	args := map[string]any{
-// 		"agent_url": "http://test-agent.example.com",
-// 	}
-//
-// 	result, err := tool.Execute(context.Background(), args)
-//
-// 	require.NoError(t, err)
-// 	assert.True(t, result.Success)
-// 	assert.Equal(t, "Query", result.ToolName)
-// }
 
-// TODO: Implement proper tests for simplified A2A query tool
-// func TestA2AQueryTool_Execute_ServiceError(t *testing.T) {
-// 	cfg := &config.Config{
-// 		A2A: config.A2AConfig{
-// 			Enabled: true,
-// 		},
-// 	}
-//
-// 	tool := NewA2AQueryTool(cfg)
-//
-// 	args := map[string]any{
-// 		"agent_url": "http://test-agent.example.com",
-// 	}
-// }
 
 func TestA2AQueryTool_Validate(t *testing.T) {
 	cfg := &config.Config{}

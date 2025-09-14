@@ -1,13 +1,13 @@
-# A2A Direct Connections
+# A2A Connections
 
-This document describes the Agent-to-Agent (A2A) direct connection functionality that allows the CLI to
-connect directly to A2A server agents using the ADK (Agent Development Kit) client.
+This document describes the Agent-to-Agent (A2A) connection functionality that allows the CLI to
+connect to A2A server agents using the ADK (Agent Development Kit) client.
 
 ## Overview
 
-The A2A direct connection feature enables:
+The A2A connection feature enables:
 
-- Direct communication between the CLI client and A2A server agents via URL
+- Communication between the CLI client and A2A server agents via URL
 - Task submission with streaming responses
 - Agent querying for server information
 - Simple agent-to-agent communication patterns
@@ -17,21 +17,10 @@ The A2A direct connection feature enables:
 ### Current Architecture
 
 ```text
-CLI Client → A2A Agent (Direct connection via URL)
+CLI Client → A2A Agent (Connection via URL)
 ```
 
-The CLI connects directly to A2A agents using their URL endpoints through the ADK client library.
-
-## Configuration
-
-### Enabling A2A Direct Connections
-
-Add the following to your `.infer/config.yaml`:
-
-```yaml
-a2a:
-  enabled: true
-```
+The CLI connects to A2A agents using their URL endpoints through the ADK client library.
 
 ## Usage
 
@@ -41,7 +30,7 @@ The A2A functionality is exposed through two tools that can be used in conversat
 
 #### Task Tool - Submit a Task
 
-The `Task` tool submits tasks directly to A2A agents:
+The `Task` tool submits tasks to A2A agents:
 
 ```text
 Submit a task to analyze this code
@@ -121,9 +110,9 @@ This opens the A2A servers view showing:
 - API key configuration status
 - Connection timeout settings
 
-### Direct A2A Tool Configuration
+### A2A Tool Configuration
 
-A2A tools are configured directly in the tools section:
+A2A tools are configured in the tools section:
 
 ```yaml
 tools:
@@ -137,13 +126,12 @@ tools:
 
 ### Configuration Validation
 
-- A2A tools are only enabled when `a2a.enabled: true` in configuration
 - Tools validate required parameters before execution
 - Invalid configurations result in clear error messages
 
 ### Network Security
 
-- Direct connections require proper URL validation
+- A2A connections require proper URL validation
 - Consider using HTTPS for production agent URLs
 - Implement proper timeout handling for network requests
 
@@ -176,16 +164,15 @@ The CLI logs:
 
 ### Common Error Conditions
 
-1. **A2A Disabled**: When `a2a.enabled: false` in configuration
-2. **Invalid Parameters**: Missing or invalid `agent_url` or `task_description`
-3. **Connection Failures**: Network timeouts or unreachable agents
-4. **Streaming Errors**: Issues with ADK client streaming
+1. **Invalid Parameters**: Missing or invalid `agent_url` or `task_description`
+2. **Connection Failures**: Network timeouts or unreachable agents
+3. **Streaming Errors**: Issues with ADK client streaming
 
 ### Error Messages
 
 Tools provide descriptive error messages:
 
-- "A2A direct connections are disabled in configuration"
+- "A2A connections are disabled in configuration"
 - "agent_url parameter is required and must be a string"
 - "Streaming failed: [specific error]"
 

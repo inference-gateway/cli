@@ -322,7 +322,7 @@ type RedisStorageConfig struct {
 	DB       int    `yaml:"db" mapstructure:"db"`
 }
 
-// A2AAgentInfo contains information about a direct A2A agent connection
+// A2AAgentInfo contains information about an A2A agent connection
 type A2AAgentInfo struct {
 	Name        string            `yaml:"name" mapstructure:"name"`
 	URL         string            `yaml:"url" mapstructure:"url"`

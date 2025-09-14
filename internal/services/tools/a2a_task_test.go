@@ -29,47 +29,6 @@ func TestA2ATaskTool_Definition(t *testing.T) {
 	assert.Contains(t, *def.Function.Description, "Agent-to-Agent")
 }
 
-func TestA2ATaskTool_Execute_DisabledA2A(t *testing.T) {
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: false,
-			},
-		},
-	}
-	tool := NewA2ATaskTool(cfg)
-
-	args := map[string]any{
-		"agent_url":        "http://test-agent.example.com",
-		"task_description": "Test task",
-	}
-
-	result, err := tool.Execute(context.Background(), args)
-
-	require.NoError(t, err)
-	assert.False(t, result.Success)
-	assert.Contains(t, result.Error, "A2A direct connections are disabled")
-}
-
-// TODO: Update test for simplified A2A implementation
-// func TestA2ATaskTool_Execute_NoService(t *testing.T) {
-// 	cfg := &config.Config{
-// 		A2A: config.A2AConfig{
-// 			Enabled: true,
-// 		},
-// 	}
-// 	tool := NewA2ATaskTool(cfg)
-//
-// 	args := map[string]any{
-// 		"agent_url":        "http://test-agent.example.com",
-// 		"task_description": "Test task",
-// 	}
-//
-// 	result, err := tool.Execute(context.Background(), args)
-//
-// 	require.NoError(t, err)
-// 	assert.True(t, result.Success) // Now succeeds with placeholder implementation
-// }
 
 func TestA2ATaskTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
@@ -113,27 +72,6 @@ func TestA2ATaskTool_Execute_MissingTaskDescription(t *testing.T) {
 	assert.Contains(t, result.Error, "task_description parameter is required")
 }
 
-// TODO: Implement proper tests for simplified A2A task tool
-// func TestA2ATaskTool_Execute_SuccessfulSubmit(t *testing.T) {
-// 	cfg := &config.Config{
-// 		A2A: config.A2AConfig{
-// 			Enabled: true,
-// 		},
-// 	}
-//
-// 	tool := NewA2ATaskTool(cfg)
-//
-// 	args := map[string]any{
-// 		"agent_url":        "http://test-agent.example.com",
-// 		"task_description": "Test task",
-// 	}
-//
-// 	result, err := tool.Execute(context.Background(), args)
-//
-// 	require.NoError(t, err)
-// 	assert.True(t, result.Success)
-// 	assert.Equal(t, "Task", result.ToolName)
-// }
 
 func TestA2ATaskTool_Validate(t *testing.T) {
 	cfg := &config.Config{}

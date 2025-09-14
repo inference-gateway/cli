@@ -89,7 +89,7 @@ func (v *A2AServersView) LoadServers(ctx context.Context) tea.Cmd {
 					InputModes:     cached.Card.DefaultInputModes,
 					OutputModes:    cached.Card.DefaultOutputModes,
 					IsConnected:    true,
-					ConnectionInfo: "Direct A2A Connection",
+					ConnectionInfo: "A2A Connection",
 					URL:            cached.URL,
 				}
 				servers = append(servers, server)

@@ -278,15 +278,15 @@ task mocks:generate         # Regenerate mocks
 - **WebSearch/WebFetch**: Web integration with domain whitelisting
 - **GitHub**: GitHub API integration
 - **TodoWrite**: Task management for LLM workflows
-- **A2A Tools**: Direct agent-to-agent communication tools (Task, Query)
+- **A2A Tools**: Agent-to-agent communication tools (Task, Query)
 
 #### A2A Tool Call Handling
 
-The A2A Task and Query tools communicate directly with A2A servers:
+The A2A Task and Query tools communicate with A2A servers:
 
-- **Direct Communication**: Tools like "Task" and "Query" connect directly to A2A agent servers
+- **A2A Communication**: Tools like "Task" and "Query" connect to A2A agent servers
 - **Configuration**: Tools are enabled/disabled via configuration (e.g., `tools.task.enabled`)
-- **Purpose**: Enables direct agent-to-agent communication without middleware layers
+- **Purpose**: Enables agent-to-agent communication
 
 ## Agent System
 

@@ -80,10 +80,10 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
-			Error:     "A2A direct connections are disabled in configuration",
+			Error:     "A2A connections are disabled in configuration",
 			Data: A2ATaskResult{
 				Success: false,
-				Message: "A2A direct connections are disabled",
+				Message: "A2A connections are disabled",
 			},
 		}, nil
 	}
