@@ -124,17 +124,6 @@ tasks:
       - cd dist && sha256sum {{.BINARY_NAME}}-* > checksums.txt
       - cd dist && cosign sign-blob --yes --output-signature checksums.txt.sig --output-certificate checksums.txt.pem checksums.txt
 
-  container:build-dev:
-    desc: Build pre-built container images
-    cmds:
-      - |
-        docker build \
-          -t ghcr.io/inference-gateway/cli:latest-dev \
-          -f Dockerfile.dev \
-          .
-    deps:
-      - release:build
-
   container:push:
     desc: Push pre-built container images to registry
     cmds:
