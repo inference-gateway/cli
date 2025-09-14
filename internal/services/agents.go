@@ -30,11 +30,8 @@ func (s *A2AAgentService) GetAgentCard(ctx context.Context, agentURL string) (*a
 		if card := s.getFromCache(agentURL); card != nil {
 			return card, nil
 		}
-	} else {
-		logger.Debug("Cache is disabled, will fetch from server", "agent_url", agentURL)
 	}
 
-	logger.Debug("Fetching agent card from server", "agent_url", agentURL)
 	adkClient := client.NewClient(agentURL)
 	card, err := adkClient.GetAgentCard(ctx)
 	if err != nil {
@@ -50,24 +47,20 @@ func (s *A2AAgentService) GetAgentCard(ctx context.Context, agentURL string) (*a
 }
 
 func (s *A2AAgentService) getFromCache(agentURL string) *adk.AgentCard {
-	logger.Debug("Cache is enabled, checking for cached card", "agent_url", agentURL, "ttl", s.config.A2A.Cache.TTL)
 	s.cacheMutex.RLock()
 	defer s.cacheMutex.RUnlock()
 
 	cachedCard, exists := s.cache[agentURL]
 	if !exists {
-		logger.Debug("No cached card found", "agent_url", agentURL)
 		return nil
 	}
 
 	ttlDuration := time.Duration(s.config.A2A.Cache.TTL) * time.Second
 	age := time.Since(cachedCard.FetchedAt)
 	if age >= ttlDuration {
-		logger.Debug("Cached card expired", "agent_url", agentURL, "age_seconds", age.Seconds(), "ttl_seconds", ttlDuration.Seconds())
 		return nil
 	}
 
-	logger.Debug("Returning cached agent card", "agent_url", agentURL, "age_seconds", age.Seconds(), "ttl_seconds", ttlDuration.Seconds())
 	return cachedCard.Card
 }
 
@@ -80,7 +73,6 @@ func (s *A2AAgentService) storeInCache(agentURL string, card *adk.AgentCard) {
 		URL:       agentURL,
 		FetchedAt: time.Now(),
 	}
-	logger.Debug("Cached agent card", "agent_url", agentURL)
 }
 
 func (s *A2AAgentService) GetConfiguredAgents() []string {

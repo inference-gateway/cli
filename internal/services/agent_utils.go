@@ -7,7 +7,6 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -88,13 +87,6 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s\n\nCurrent date and time: %s",
 			baseSystemPrompt, sandboxInfo, a2aAgentInfo, currentTime)
-
-		logger.Debug("Final system prompt constructed", "total_length", len(systemPromptWithInfo), "has_a2a_info", len(a2aAgentInfo) > 0)
-		previewLen := 200
-		if len(systemPromptWithInfo) < previewLen {
-			previewLen = len(systemPromptWithInfo)
-		}
-		logger.Debug("System prompt content preview", "content", systemPromptWithInfo[:previewLen])
 
 		systemMessages = append(systemMessages, sdk.Message{
 			Role:    sdk.System,

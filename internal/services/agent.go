@@ -251,7 +251,6 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 // RunWithStream executes an agent task with streaming (for interactive chat)
 func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop,funlen
-	logger.Debug("RunWithStream called", "request_id", req.RequestID, "model", req.Model, "messages_count", len(req.Messages))
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
 	}
@@ -338,7 +337,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 			}
 
-			logger.Debug("system prompt", "system", conversation)
 			events, err := client.GenerateContentStream(requestCtx, sdk.Provider(provider), model, conversation)
 			if err != nil {
 				logger.Error("Failed to create stream",

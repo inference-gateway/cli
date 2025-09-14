@@ -8,7 +8,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
@@ -333,7 +332,6 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 	case domain.UpdateStatusEvent:
-		logger.Debug("STATUS_VIEW: Processing UpdateStatusEvent", "message", msg.Message, "status_type", msg.StatusType)
 		sv.UpdateSpinnerMessage(msg.Message, msg.StatusType)
 	case domain.ShowErrorEvent:
 		sv.ShowError(msg.Error)

@@ -9,7 +9,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
@@ -138,7 +137,6 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
 		r.ClearPreviews()
 
 	case domain.ParallelToolsStartEvent:
-		logger.Debug("ParallelToolsStartEvent received", "tool_count", len(msg.Tools))
 		for _, tool := range msg.Tools {
 			now := time.Now()
 			r.parallelTools[tool.CallID] = &ParallelToolState{
@@ -150,7 +148,6 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
 				LastUpdate:  now,
 				MinShowTime: 400 * time.Millisecond,
 			}
-			logger.Debug("Tool queued", "tool_name", tool.Name, "call_id", tool.CallID)
 		}
 		return r, r.spinner.Tick
 
@@ -165,8 +162,6 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
 			if r.hasActiveParallelTools() {
 				return r, r.spinner.Tick
 			}
-		} else {
-			logger.Debug("Received progress event for unknown tool", "call_id", msg.ToolCallID, "status", msg.Status)
 		}
 
 	case spinner.TickMsg:
