@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	generated "github.com/inference-gateway/cli/tests/mocks/generated"
@@ -169,7 +170,7 @@ func TestPersistentConversationRepository_AutoSaveTitle(t *testing.T) {
 		err := repo.AddMessage(entry)
 		assert.NoError(t, err)
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(constants.TestSleepDelay)
 
 		metadata := repo.GetCurrentConversationMetadata()
 		assert.Equal(t, "How do I implement a binary search tree in Go?", metadata.Title)
@@ -311,7 +312,7 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 		err = repo.AddMessage(entry)
 		assert.NoError(t, err)
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(constants.TestSleepDelay)
 
 		err = repo.Clear()
 		assert.NoError(t, err)
@@ -353,7 +354,7 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 		messageCount := newRepo.GetMessageCount()
 		assert.Equal(t, 1, messageCount, "Message should be added to in-memory store")
 
-		time.Sleep(100 * time.Millisecond)
+		time.Sleep(constants.TestSleepDelay)
 
 		err = newRepo.Clear()
 		assert.NoError(t, err)

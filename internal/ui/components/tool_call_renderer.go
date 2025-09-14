@@ -8,6 +8,7 @@ import (
 	spinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
@@ -119,7 +120,7 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
 
 	case domain.ToolCallUpdateEvent:
 		if preview, exists := r.toolPreviews[msg.ToolCallID]; exists {
-			if time.Since(r.lastUpdate) < 50*time.Millisecond {
+			if time.Since(r.lastUpdate) < constants.ToolCallUpdateThrottle {
 				return r, nil
 			}
 			preview.Arguments = msg.Arguments
@@ -146,7 +147,7 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
 				NextStatus:  "",
 				StartTime:   now,
 				LastUpdate:  now,
-				MinShowTime: 400 * time.Millisecond,
+				MinShowTime: constants.ToolCallMinShowTime,
 			}
 		}
 		return r, r.spinner.Tick

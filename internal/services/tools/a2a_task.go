@@ -10,6 +10,7 @@ import (
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -162,7 +163,7 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	taskID = submittedTask.ID
 
 	maxAttempts := 60
-	pollInterval := 5 * time.Second
+	pollInterval := constants.A2ATaskPollInterval
 
 	for attempt := range maxAttempts {
 		select {

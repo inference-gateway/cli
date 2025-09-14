@@ -6,6 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
@@ -158,7 +159,7 @@ func (r *ParallelToolsRenderer) hasExecutingTools() bool {
 }
 
 func (r *ParallelToolsRenderer) tick() tea.Cmd {
-	return tea.Tick(500*time.Millisecond, func(time.Time) tea.Msg {
+	return tea.Tick(constants.ParallelToolsTickInterval, func(time.Time) tea.Msg {
 		return TickMsg{}
 	})
 }

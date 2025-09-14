@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
@@ -305,7 +306,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			iterationStartTime := time.Now()
 
 			if turns > 0 {
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(constants.AgentIterationDelay)
 			}
 
 			requestCtx, requestCancel := context.WithCancel(ctx)
@@ -606,7 +607,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 		return calls
 	}())
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(constants.AgentToolExecutionDelay)
 
 	results := make([]domain.ConversationEntry, len(toolCalls))
 	resultsChan := make(chan IndexedToolResult, len(toolCalls))
@@ -632,7 +633,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 				fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
 			)
 
-			time.Sleep(100 * time.Millisecond)
+			time.Sleep(constants.AgentToolExecutionDelay)
 
 			result := s.executeToolWithFlashingUI(ctx, *toolCall, eventPublisher)
 
@@ -694,7 +695,7 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 
 	eventPublisher.publishToolStatusChange(tc.Id, "running", "Executing...")
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(constants.AgentToolExecutionDelay)
 
 	var args map[string]any
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
@@ -720,7 +721,7 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 		}{result, err}
 	}()
 
-	ticker := time.NewTicker(200 * time.Millisecond)
+	ticker := time.NewTicker(constants.AgentStatusTickerInterval)
 	defer ticker.Stop()
 
 	var result *domain.ToolExecutionResult
@@ -749,7 +750,7 @@ done:
 
 	eventPublisher.publishToolStatusChange(tc.Id, "saving", "Saving results...")
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(constants.AgentToolExecutionDelay)
 
 	toolExecutionResult := &domain.ToolExecutionResult{
 		ToolName:  result.ToolName,
