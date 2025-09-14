@@ -136,6 +136,13 @@ type FileInfo struct {
 	IsDir bool
 }
 
+// TaskTracker handles task ID tracking within chat sessions
+type TaskTracker interface {
+	GetFirstTaskID() string
+	SetFirstTaskID(taskID string)
+	ClearTaskID()
+}
+
 // FetchResult represents the result of a fetch operation
 type FetchResult struct {
 	Content     string            `json:"content"`

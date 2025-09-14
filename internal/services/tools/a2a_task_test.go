@@ -7,9 +7,9 @@ import (
 
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 )
 
 func TestA2ATaskTool_Definition(t *testing.T) {
@@ -20,7 +20,7 @@ func TestA2ATaskTool_Definition(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2ATaskTool(cfg)
+	tool := NewA2ATaskTool(cfg, nil)
 
 	def := tool.Definition()
 
@@ -37,7 +37,7 @@ func TestA2ATaskTool_Execute_MissingAgentURL(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2ATaskTool(cfg)
+	tool := NewA2ATaskTool(cfg, nil)
 
 	args := map[string]any{
 		"task_description": "Test task",
@@ -58,7 +58,7 @@ func TestA2ATaskTool_Execute_MissingTaskDescription(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2ATaskTool(cfg)
+	tool := NewA2ATaskTool(cfg, nil)
 
 	args := map[string]any{
 		"agent_url": "http://test-agent.example.com",
@@ -73,7 +73,7 @@ func TestA2ATaskTool_Execute_MissingTaskDescription(t *testing.T) {
 
 func TestA2ATaskTool_Validate(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ATaskTool(cfg)
+	tool := NewA2ATaskTool(cfg, nil)
 
 	tests := []struct {
 		name    string
@@ -148,7 +148,7 @@ func TestA2ATaskTool_IsEnabled(t *testing.T) {
 					},
 				},
 			}
-			tool := NewA2ATaskTool(cfg)
+			tool := NewA2ATaskTool(cfg, nil)
 
 			assert.Equal(t, tt.expected, tool.IsEnabled())
 		})
@@ -157,7 +157,7 @@ func TestA2ATaskTool_IsEnabled(t *testing.T) {
 
 func TestA2ATaskTool_FormatResult(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ATaskTool(cfg)
+	tool := NewA2ATaskTool(cfg, nil)
 
 	taskResult := A2ATaskResult{
 		AgentName: "test-agent",
@@ -210,7 +210,7 @@ func TestA2ATaskTool_FormatResult(t *testing.T) {
 
 func TestA2ATaskTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ATaskTool(cfg)
+	tool := NewA2ATaskTool(cfg, nil)
 
 	taskResult := A2ATaskResult{
 		Success: true,
@@ -230,7 +230,7 @@ func TestA2ATaskTool_FormatPreview(t *testing.T) {
 
 func TestA2ATaskTool_ShouldCollapseArg(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ATaskTool(cfg)
+	tool := NewA2ATaskTool(cfg, nil)
 
 	assert.True(t, tool.ShouldCollapseArg("metadata"))
 	assert.False(t, tool.ShouldCollapseArg("agent_url"))
@@ -239,7 +239,7 @@ func TestA2ATaskTool_ShouldCollapseArg(t *testing.T) {
 
 func TestA2ATaskTool_ShouldAlwaysExpand(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ATaskTool(cfg)
+	tool := NewA2ATaskTool(cfg, nil)
 
 	assert.False(t, tool.ShouldAlwaysExpand())
 }

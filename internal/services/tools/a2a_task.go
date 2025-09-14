@@ -16,8 +16,9 @@ import (
 
 // A2ATaskTool handles A2A task submission and management
 type A2ATaskTool struct {
-	config    *config.Config
-	formatter domain.CustomFormatter
+	config      *config.Config
+	formatter   domain.CustomFormatter
+	taskTracker domain.TaskTracker
 }
 
 // A2ATaskResult represents the result of an A2A task operation
@@ -31,9 +32,10 @@ type A2ATaskResult struct {
 }
 
 // NewA2ATaskTool creates a new A2A task tool
-func NewA2ATaskTool(cfg *config.Config) *A2ATaskTool {
+func NewA2ATaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2ATaskTool {
 	return &A2ATaskTool{
-		config: cfg,
+		config:      cfg,
+		taskTracker: taskTracker,
 		formatter: domain.NewCustomFormatter("Task", func(key string) bool {
 			return key == "metadata" || key == "task_description"
 		}),
@@ -58,10 +60,6 @@ func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
 					"task_description": map[string]interface{}{
 						"type":        "string",
 						"description": "Description of the task to execute or continue",
-					},
-					"task_id": map[string]interface{}{
-						"type":        "string",
-						"description": "Optional: ID of existing task to continue working on. If not provided, creates a new task.",
 					},
 				},
 				"required": []string{"agent_url", "task_description"},
@@ -98,7 +96,10 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 		return t.errorResult(args, startTime, "task_description parameter is required and must be a string")
 	}
 
-	existingTaskID, hasTaskID := args["task_id"].(string)
+	var existingTaskID string
+	if t.taskTracker != nil {
+		existingTaskID = t.taskTracker.GetFirstTaskID()
+	}
 
 	adkTask := adk.Task{
 		Kind: "task",
@@ -130,7 +131,7 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 		},
 	}
 
-	if hasTaskID && existingTaskID != "" {
+	if existingTaskID != "" {
 		message.TaskID = &existingTaskID
 	}
 
@@ -160,6 +161,10 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 
 	taskID = submittedTask.ID
+
+	if t.taskTracker != nil && existingTaskID == "" {
+		t.taskTracker.SetFirstTaskID(taskID)
+	}
 
 	maxAttempts := 60
 	pollInterval := time.Duration(t.config.A2A.Task.StatusPollSeconds) * time.Second
