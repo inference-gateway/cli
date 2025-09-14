@@ -7,10 +7,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // A2AServersView displays connected A2A servers in a dedicated view component
