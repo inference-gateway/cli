@@ -240,6 +240,7 @@ type GitConfig struct {
 type A2AConfig struct {
 	Agents []string       `yaml:"agents" mapstructure:"agents"`
 	Cache  A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
+	Task   A2ATaskConfig  `yaml:"task" mapstructure:"task"`
 }
 
 // ConversationConfig contains conversation-specific settings
@@ -336,9 +337,6 @@ type A2AAgentInfo struct {
 
 // A2ATaskConfig contains configuration for A2A task processing
 type A2ATaskConfig struct {
-	MaxConcurrent     int `yaml:"max_concurrent" mapstructure:"max_concurrent"`
-	TimeoutSeconds    int `yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
-	RetryCount        int `yaml:"retry_count" mapstructure:"retry_count"`
 	StatusPollSeconds int `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
 }
 
@@ -605,6 +603,9 @@ Respond with ONLY the title, no quotes or explanation.`,
 			Cache: A2ACacheConfig{
 				Enabled: true,
 				TTL:     300,
+			},
+			Task: A2ATaskConfig{
+				StatusPollSeconds: 5,
 			},
 		},
 	}

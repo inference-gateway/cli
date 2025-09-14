@@ -237,3 +237,5 @@ a2a:
   cache:
     enabled: true
     ttl: 300
+  task:
+    status_poll_seconds: 5

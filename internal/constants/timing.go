@@ -5,9 +5,6 @@ import "time"
 // TaskTransitionTiming contains constants for task state transition delays
 // to improve UX when tasks transition from queued → working → completed
 const (
-	// A2A Task polling interval - how often to check task status
-	A2ATaskPollInterval = 5 * time.Second
-
 	// Agent service processing delays
 	AgentIterationDelay        = 100 * time.Millisecond // Delay between agent iterations
 	AgentToolExecutionDelay    = 100 * time.Millisecond // Delay during tool execution
