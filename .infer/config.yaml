@@ -233,3 +233,6 @@ chat:
   theme: tokyo-night
 a2a:
   agents: []
+  cache:
+    enabled: true
+    ttl: 300

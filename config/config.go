@@ -237,7 +237,8 @@ type GitConfig struct {
 
 // A2AConfig contains A2A agent configuration
 type A2AConfig struct {
-	Agents []string `yaml:"agents" mapstructure:"agents"`
+	Agents []string       `yaml:"agents" mapstructure:"agents"`
+	Cache  A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
 }
 
 // ConversationConfig contains conversation-specific settings
@@ -338,6 +339,12 @@ type A2ATaskConfig struct {
 	TimeoutSeconds    int `yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
 	RetryCount        int `yaml:"retry_count" mapstructure:"retry_count"`
 	StatusPollSeconds int `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
+}
+
+// A2ACacheConfig contains settings for A2A agent card caching
+type A2ACacheConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+	TTL     int  `yaml:"ttl" mapstructure:"ttl"`
 }
 
 // DefaultConfig returns a default configuration
@@ -593,6 +600,10 @@ Respond with ONLY the title, no quotes or explanation.`,
 		},
 		A2A: A2AConfig{
 			Agents: []string{},
+			Cache: A2ACacheConfig{
+				Enabled: true,
+				TTL:     300,
+			},
 		},
 	}
 }
