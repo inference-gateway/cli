@@ -49,6 +49,7 @@ type ConversationRepository interface {
 	AddMessage(msg ConversationEntry) error
 	GetMessages() []ConversationEntry
 	Clear() error
+	ClearExceptFirstUserMessage() error
 	Export(format ExportFormat) ([]byte, error)
 	GetMessageCount() int
 	UpdateLastMessage(content string) error
