@@ -3,9 +3,10 @@ package tools
 import (
 	"fmt"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/sdk"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	utils "github.com/inference-gateway/cli/internal/utils"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // Registry manages all available tools
@@ -13,6 +14,7 @@ type Registry struct {
 	config       *config.Config
 	tools        map[string]domain.Tool
 	readToolUsed bool
+	taskTracker  domain.TaskTracker
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
@@ -21,6 +23,7 @@ func NewRegistry(cfg *config.Config) *Registry {
 		config:       cfg,
 		tools:        make(map[string]domain.Tool),
 		readToolUsed: false,
+		taskTracker:  utils.NewSimpleTaskTracker(),
 	}
 
 	registry.registerTools()
@@ -50,6 +53,15 @@ func (r *Registry) registerTools() {
 	if r.config.Tools.Github.Enabled {
 		r.tools["Github"] = NewGithubTool(r.config)
 	}
+
+	if r.config.Tools.Query.Enabled {
+		r.tools["Query"] = NewA2AQueryTool(r.config)
+	}
+
+	if r.config.Tools.Task.Enabled {
+		r.tools["Task"] = NewA2ATaskTool(r.config, r.taskTracker)
+	}
+
 }
 
 // GetTool retrieves a tool by name
@@ -100,4 +112,9 @@ func (r *Registry) SetReadToolUsed() {
 // IsReadToolUsed returns whether the Read tool has been used
 func (r *Registry) IsReadToolUsed() bool {
 	return r.readToolUsed
+}
+
+// GetTaskTracker returns the task tracker instance
+func (r *Registry) GetTaskTracker() domain.TaskTracker {
+	return r.taskTracker
 }

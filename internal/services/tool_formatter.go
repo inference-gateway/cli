@@ -83,11 +83,6 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutio
 		return "Tool execution result unavailable"
 	}
 
-	if strings.HasPrefix(result.ToolName, "a2a_") {
-		content := s.formatA2AToolResult(result, domain.FormatterUI)
-		return s.formatResponsive(content, terminalWidth)
-	}
-
 	tool, err := s.toolRegistry.GetTool(result.ToolName)
 	if err != nil {
 		content := s.formatFallback(result, domain.FormatterUI)
@@ -102,12 +97,6 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutio
 func (s *ToolFormatterService) FormatToolResultExpanded(result *domain.ToolExecutionResult, terminalWidth int) string {
 	if result == nil {
 		return "Tool execution result unavailable"
-	}
-
-	// Handle A2A tools specially - they're not in the registry but should show as successful
-	if strings.HasPrefix(result.ToolName, "a2a_") {
-		content := s.formatA2AToolResult(result, domain.FormatterLLM)
-		return s.formatResponsive(content, terminalWidth)
 	}
 
 	tool, err := s.toolRegistry.GetTool(result.ToolName)
@@ -126,11 +115,6 @@ func (s *ToolFormatterService) FormatToolResultForLLM(result *domain.ToolExecuti
 		return "Tool execution result unavailable"
 	}
 
-	// Handle A2A tools specially - they're not in the registry but should show as successful
-	if strings.HasPrefix(result.ToolName, "a2a_") {
-		return s.formatA2AToolResult(result, domain.FormatterLLM)
-	}
-
 	tool, err := s.toolRegistry.GetTool(result.ToolName)
 	if err != nil {
 		return s.formatFallback(result, domain.FormatterLLM)
@@ -139,48 +123,12 @@ func (s *ToolFormatterService) FormatToolResultForLLM(result *domain.ToolExecuti
 	return tool.FormatResult(result, domain.FormatterLLM)
 }
 
-// formatA2AToolResult provides specialized formatting for A2A tools
-func (s *ToolFormatterService) formatA2AToolResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
-	formatter := domain.NewBaseFormatter(result.ToolName)
-
-	switch formatType {
-	case domain.FormatterUI:
-		toolCall := formatter.FormatToolCall(result.Arguments, false)
-		statusIcon := formatter.FormatStatusIcon(result.Success)
-		preview := "Executed on Gateway"
-		if !result.Success {
-			preview = "Gateway execution failed"
-		}
-
-		var output strings.Builder
-		output.WriteString(fmt.Sprintf("%s\n", toolCall))
-		output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
-		return output.String()
-
-	case domain.FormatterLLM:
-		var output strings.Builder
-		output.WriteString(formatter.FormatExpandedHeader(result))
-		output.WriteString("Status: Executed on Gateway\n")
-		if result.Data != nil {
-			output.WriteString(fmt.Sprintf("Output: %v\n", result.Data))
-		}
-		return output.String()
-
-	default:
-		if result.Success {
-			return "Executed on Gateway successfully"
-		}
-		return "Gateway execution failed"
-	}
-}
-
 // formatFallback provides fallback formatting when tool is not available
 func (s *ToolFormatterService) formatFallback(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
 	formatter := domain.NewBaseFormatter(result.ToolName)
 
 	switch formatType {
 	case domain.FormatterUI:
-		// Check if this is an enhanced Gateway tool visualization
 		if s.isGatewayToolWithEnhancedVisualization(result) {
 			return s.formatEnhancedGatewayTool(result, &formatter)
 		}

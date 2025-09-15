@@ -65,7 +65,7 @@ func (h *ChatHandler) GetName() string {
 
 // GetPriority returns the handler priority
 func (h *ChatHandler) GetPriority() int {
-	return 100 // High priority for chat messages
+	return 100
 }
 
 // CanHandle determines if this handler can process the message
@@ -81,11 +81,11 @@ func (h *ChatHandler) CanHandle(msg tea.Msg) bool {
 		return true
 	case domain.OptimizationStatusEvent:
 		return true
-	case domain.ToolCallStartEvent, domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent, domain.ToolCallCompleteEvent, domain.ToolCallErrorEvent:
-		return true
-	case domain.A2AToolCallExecutedEvent:
+	case domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent:
 		return true
 	case domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent:
+		return true
+	case domain.ParallelToolsStartEvent, domain.ParallelToolsCompleteEvent:
 		return true
 	default:
 		return false
@@ -113,9 +113,6 @@ func (h *ChatHandler) Handle(
 	case domain.ChatChunkEvent:
 		return h.eventHandler.handleChatChunk(msg, stateManager)
 
-	case domain.ToolCallStartEvent:
-		return h.eventHandler.handleToolCallStart(msg, stateManager)
-
 	case domain.ToolCallPreviewEvent:
 		return h.eventHandler.handleToolCallPreview(msg, stateManager)
 
@@ -124,15 +121,6 @@ func (h *ChatHandler) Handle(
 
 	case domain.ToolCallReadyEvent:
 		return h.eventHandler.handleToolCallReady(msg, stateManager)
-
-	case domain.ToolCallCompleteEvent:
-		return h.eventHandler.handleToolCallComplete(msg, stateManager)
-
-	case domain.ToolCallErrorEvent:
-		return h.eventHandler.handleToolCallError(msg, stateManager)
-
-	case domain.A2AToolCallExecutedEvent:
-		return h.eventHandler.handleA2AToolCallExecuted(msg, stateManager)
 
 	case domain.ChatCompleteEvent:
 		return h.eventHandler.handleChatComplete(msg, stateManager)
@@ -151,6 +139,12 @@ func (h *ChatHandler) Handle(
 
 	case domain.ToolExecutionCompletedEvent:
 		return h.eventHandler.handleToolExecutionCompleted(msg, stateManager)
+
+	case domain.ParallelToolsStartEvent:
+		return h.eventHandler.handleParallelToolsStart(msg, stateManager)
+
+	case domain.ParallelToolsCompleteEvent:
+		return h.eventHandler.handleParallelToolsComplete(msg, stateManager)
 
 	}
 	return nil, nil

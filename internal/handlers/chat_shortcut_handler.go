@@ -241,6 +241,19 @@ func (s *ChatShortcutHandler) handleExportConversationSideEffect() tea.Msg {
 }
 
 func (s *ChatShortcutHandler) performExportAsync() tea.Cmd {
+	return tea.Sequence(
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "🤖 Generating AI summary...",
+				Spinner:    true,
+				StatusType: domain.StatusGenerating,
+			}
+		},
+		s.performSummaryGeneration(),
+	)
+}
+
+func (s *ChatShortcutHandler) performSummaryGeneration() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
@@ -249,7 +262,7 @@ func (s *ChatShortcutHandler) performExportAsync() tea.Cmd {
 			return domain.SetStatusEvent{
 				Message:    "Export command not found",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: domain.StatusError,
 			}
 		}
 
@@ -258,24 +271,50 @@ func (s *ChatShortcutHandler) performExportAsync() tea.Cmd {
 			return domain.SetStatusEvent{
 				Message:    "Invalid export command type",
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: domain.StatusError,
 			}
 		}
 
-		filePath, err := exportShortcut.PerformExport(ctx)
+		exportResult, err := exportShortcut.PerformExport(ctx)
 		if err != nil {
 			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("Export failed: %v", err),
 				Spinner:    false,
-				StatusType: domain.StatusDefault,
+				StatusType: domain.StatusError,
 			}
 		}
 
-		return domain.SetStatusEvent{
-			Message:    fmt.Sprintf("📝 Conversation exported to: %s", filePath),
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
+		if clearErr := s.handler.conversationRepo.ClearExceptFirstUserMessage(); clearErr != nil {
+			logger.Error("failed to clear conversation except first message", "error", clearErr)
 		}
+
+		summaryEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: fmt.Sprintf("📝 **Conversation Summary**\n\n%s\n\n---\n\n*Full conversation exported to: %s*", exportResult.Summary, exportResult.FilePath),
+			},
+			Model: "",
+			Time:  time.Now(),
+		}
+
+		if addErr := s.handler.conversationRepo.AddMessage(summaryEntry); addErr != nil {
+			logger.Error("failed to add summary message", "error", addErr)
+		}
+
+		return tea.Batch(
+			func() tea.Msg {
+				return domain.UpdateHistoryEvent{
+					History: s.handler.conversationRepo.GetMessages(),
+				}
+			},
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    fmt.Sprintf("📝 Conversation compacted and exported to: %s", exportResult.FilePath),
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
+				}
+			},
+		)()
 	}
 }
 

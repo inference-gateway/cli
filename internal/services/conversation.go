@@ -72,6 +72,29 @@ func (r *InMemoryConversationRepository) Clear() error {
 	return nil
 }
 
+func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	var firstUserMessage *domain.ConversationEntry
+	for i := range r.messages {
+		if r.messages[i].Message.Role == sdk.User {
+			firstUserMessage = &r.messages[i]
+			break
+		}
+	}
+
+	if firstUserMessage == nil {
+		r.messages = r.messages[:0]
+		r.sessionStats = domain.SessionTokenStats{}
+		return nil
+	}
+
+	r.messages = []domain.ConversationEntry{*firstUserMessage}
+	r.sessionStats = domain.SessionTokenStats{}
+	return nil
+}
+
 func (r *InMemoryConversationRepository) Export(format domain.ExportFormat) ([]byte, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()

@@ -5,22 +5,36 @@ import (
 	"strings"
 	"time"
 
-	"github.com/charmbracelet/bubbles/spinner"
+	spinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	lipgloss "github.com/charmbracelet/lipgloss"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 type ToolCallRenderer struct {
-	width        int
-	height       int
-	spinner      spinner.Model
-	toolPreviews map[string]*domain.ToolCallPreviewEvent
-	styles       *toolRenderStyles
-	lastUpdate   time.Time
+	width         int
+	height        int
+	spinner       spinner.Model
+	toolPreviews  map[string]*domain.ToolCallPreviewEvent
+	styles        *toolRenderStyles
+	lastUpdate    time.Time
+	parallelTools map[string]*ParallelToolState
+	spinnerStep   int
+}
+
+type ParallelToolState struct {
+	CallID      string
+	ToolName    string
+	Status      string
+	NextStatus  string
+	StartTime   time.Time
+	EndTime     *time.Time
+	LastUpdate  time.Time
+	MinShowTime time.Duration
 }
 
 type toolRenderStyles struct {
@@ -77,10 +91,11 @@ func NewToolCallRenderer() *ToolCallRenderer {
 	s.Style = styles.spinner
 
 	return &ToolCallRenderer{
-		spinner:      s,
-		toolPreviews: make(map[string]*domain.ToolCallPreviewEvent),
-		styles:       styles,
-		width:        80,
+		spinner:       s,
+		toolPreviews:  make(map[string]*domain.ToolCallPreviewEvent),
+		parallelTools: make(map[string]*ParallelToolState),
+		styles:        styles,
+		width:         80,
 	}
 }
 
@@ -105,7 +120,7 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
 
 	case domain.ToolCallUpdateEvent:
 		if preview, exists := r.toolPreviews[msg.ToolCallID]; exists {
-			if time.Since(r.lastUpdate) < 50*time.Millisecond {
+			if time.Since(r.lastUpdate) < constants.ToolCallUpdateThrottle {
 				return r, nil
 			}
 			preview.Arguments = msg.Arguments
@@ -122,8 +137,37 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
 	case domain.ChatCompleteEvent:
 		r.ClearPreviews()
 
+	case domain.ParallelToolsStartEvent:
+		for _, tool := range msg.Tools {
+			now := time.Now()
+			r.parallelTools[tool.CallID] = &ParallelToolState{
+				CallID:      tool.CallID,
+				ToolName:    tool.Name,
+				Status:      "queued",
+				NextStatus:  "",
+				StartTime:   now,
+				LastUpdate:  now,
+				MinShowTime: constants.ToolCallMinShowTime,
+			}
+		}
+		return r, r.spinner.Tick
+
+	case domain.ToolExecutionProgressEvent:
+		if state, exists := r.parallelTools[msg.ToolCallID]; exists {
+			state.Status = msg.Status
+			if msg.Status == "complete" || msg.Status == "failed" {
+				endTime := time.Now()
+				state.EndTime = &endTime
+			}
+
+			if r.hasActiveParallelTools() {
+				return r, r.spinner.Tick
+			}
+		}
+
 	case spinner.TickMsg:
-		if r.HasActivePreviews() {
+		r.spinnerStep = (r.spinnerStep + 1) % 4
+		if r.HasActivePreviews() || r.hasActiveParallelTools() {
 			r.spinner, cmd = r.spinner.Update(msg)
 			return r, cmd
 		}
@@ -143,22 +187,32 @@ func (r *ToolCallRenderer) updateArgsContainerWidth() {
 }
 
 func (r *ToolCallRenderer) RenderPreviews() string {
-	if len(r.toolPreviews) == 0 {
-		return ""
-	}
+	var allPreviews []string
 
-	var previews []string
 	for _, preview := range r.toolPreviews {
 		if r.shouldShowPreview(preview) {
-			previews = append(previews, r.renderToolPreview(preview))
+			allPreviews = append(allPreviews, r.renderToolPreview(preview))
 		}
 	}
 
-	if len(previews) == 0 {
+	now := time.Now()
+	for callID, tool := range r.parallelTools {
+		if (tool.Status == "complete" || tool.Status == "failed") && tool.EndTime != nil {
+			showDuration := now.Sub(*tool.EndTime)
+			if showDuration > 1000*time.Millisecond {
+				delete(r.parallelTools, callID)
+				continue
+			}
+		}
+
+		allPreviews = append(allPreviews, r.renderParallelTool(tool))
+	}
+
+	if len(allPreviews) == 0 {
 		return ""
 	}
 
-	return strings.Join(previews, "\n")
+	return strings.Join(allPreviews, "\n")
 }
 
 func (r *ToolCallRenderer) RenderToolCalls(toolCalls []sdk.ChatCompletionMessageToolCall, status string) string {
@@ -174,13 +228,8 @@ func (r *ToolCallRenderer) RenderToolCalls(toolCalls []sdk.ChatCompletionMessage
 	return strings.Join(rendered, "\n")
 }
 
-func (r *ToolCallRenderer) RenderA2AToolCall(toolName, arguments, status string) string {
-	toolInfo := r.parseToolName(toolName)
-	return r.renderToolCallContent(toolInfo, arguments, status, true)
-}
-
-func (r *ToolCallRenderer) shouldShowPreview(preview *domain.ToolCallPreviewEvent) bool {
-	return strings.HasPrefix(preview.ToolName, "a2a_") || strings.HasPrefix(preview.ToolName, "mcp_")
+func (r *ToolCallRenderer) shouldShowPreview(*domain.ToolCallPreviewEvent) bool {
+	return true
 }
 
 func (r *ToolCallRenderer) renderToolPreview(preview *domain.ToolCallPreviewEvent) string {
@@ -190,19 +239,19 @@ func (r *ToolCallRenderer) renderToolPreview(preview *domain.ToolCallPreviewEven
 
 	switch preview.Status {
 	case domain.ToolCallStreamStatusStreaming:
-		statusIcon = r.spinner.View()
-		statusText = "executing on Gateway"
+		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
+		statusText = "executing"
 		statusStyle = r.styles.statusStreaming
 	case domain.ToolCallStreamStatusComplete:
-		statusIcon = "✓"
-		statusText = "executed on Gateway"
+		statusIcon = icons.CheckMark
+		statusText = "completed"
 		statusStyle = r.styles.statusComplete
 	case domain.ToolCallStreamStatusReady:
-		statusIcon = "⏳"
+		statusIcon = icons.QueuedIcon
 		statusText = "ready"
-		statusStyle = r.styles.statusReady
+		statusStyle = r.styles.statusDefault.Foreground(colors.DimColor.GetLipglossColor())
 	default:
-		statusIcon = "•"
+		statusIcon = icons.BulletIcon
 		statusText = "unknown"
 		statusStyle = r.styles.statusDefault
 	}
@@ -229,31 +278,28 @@ func (r *ToolCallRenderer) renderToolPreview(preview *domain.ToolCallPreviewEven
 
 func (r *ToolCallRenderer) renderCompletedToolCall(toolCall sdk.ChatCompletionMessageToolCall, status string) string {
 	toolInfo := ToolInfo{Name: toolCall.Function.Name, Prefix: "TOOL"}
-	return r.renderToolCallContent(toolInfo, toolCall.Function.Arguments, status, false)
+	return r.renderToolCallContent(toolInfo, toolCall.Function.Arguments, status)
 }
 
-func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, status string, isA2A bool) string {
+func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, status string) string {
 	var statusIcon string
 	var statusText string
 
 	switch status {
-	case "executing":
-		statusIcon = "⏳"
+	case "queued":
+		statusIcon = icons.QueuedIcon
+		statusText = "queued"
+	case "executing", "running", "starting", "saving":
+		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
 		statusText = status
-		if isA2A {
-			statusText = "executing on Gateway"
-		}
-	case "executed", "completed":
-		statusIcon = icons.StyledCheckMark()
+	case "executed", "completed", "complete":
+		statusIcon = icons.CheckMark
 		statusText = status
-		if isA2A {
-			statusText = "executed on Gateway"
-		}
 	case "error", "failed":
-		statusIcon = icons.StyledCrossMark()
+		statusIcon = icons.CrossMark
 		statusText = status
 	default:
-		statusIcon = "🔧"
+		statusIcon = icons.BulletIcon
 		statusText = status
 	}
 
@@ -285,14 +331,6 @@ func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, s
 }
 
 func (r *ToolCallRenderer) parseToolName(toolName string) ToolInfo {
-	if name, found := strings.CutPrefix(toolName, "a2a_"); found {
-		return ToolInfo{Name: name, Prefix: "A2A"}
-	}
-
-	if name, found := strings.CutPrefix(toolName, "mcp_"); found {
-		return ToolInfo{Name: name, Prefix: "MCP"}
-	}
-
 	return ToolInfo{Name: toolName, Prefix: "TOOL"}
 }
 
@@ -310,6 +348,7 @@ func (r *ToolCallRenderer) formatArgsPreview(args string) string {
 
 func (r *ToolCallRenderer) ClearPreviews() {
 	r.toolPreviews = make(map[string]*domain.ToolCallPreviewEvent)
+	r.parallelTools = make(map[string]*ParallelToolState)
 }
 
 func (r *ToolCallRenderer) HasActivePreviews() bool {
@@ -319,4 +358,52 @@ func (r *ToolCallRenderer) HasActivePreviews() bool {
 		}
 	}
 	return false
+}
+
+func (r *ToolCallRenderer) hasActiveParallelTools() bool {
+	for _, tool := range r.parallelTools {
+		if tool.Status == "running" || tool.Status == "starting" || tool.Status == "saving" {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *ToolCallRenderer) renderParallelTool(tool *ParallelToolState) string {
+	var statusIcon string
+	var statusText string
+	var statusStyle lipgloss.Style
+
+	switch tool.Status {
+	case "queued":
+		statusIcon = icons.QueuedIcon
+		statusText = "queued"
+		statusStyle = r.styles.statusDefault.Foreground(colors.DimColor.GetLipglossColor())
+	case "running", "starting", "saving":
+		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
+		statusText = "executing"
+		statusStyle = r.styles.statusStreaming
+	case "complete":
+		statusIcon = icons.CheckMark
+		statusText = "completed"
+		statusStyle = r.styles.statusComplete
+	case "failed":
+		statusIcon = icons.CrossMark
+		statusText = "failed"
+		statusStyle = r.styles.statusComplete.Foreground(colors.ErrorColor.GetLipglossColor())
+	default:
+		statusIcon = icons.BulletIcon
+		statusText = tool.Status
+		statusStyle = r.styles.statusDefault
+	}
+
+	toolInfo := r.parseToolName(tool.ToolName)
+
+	header := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		statusStyle.Render(fmt.Sprintf("%s %s:%s", statusIcon, toolInfo.Prefix, toolInfo.Name)),
+		r.styles.toolCallMeta.Render(fmt.Sprintf(" (%s)", statusText)),
+	)
+
+	return header
 }
