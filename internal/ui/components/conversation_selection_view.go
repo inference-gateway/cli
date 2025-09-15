@@ -7,6 +7,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -60,7 +61,7 @@ func (c *ConversationSelectorImpl) loadConversationsCmd() tea.Cmd {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(constants.TestSleepDelay / 10)
 
 		conversations, err := c.repo.ListSavedConversations(ctx, 50, 0)
 

@@ -348,7 +348,6 @@ func (t *WriteTool) extractFormat(args map[string]any) string {
 
 // formatAsJSON converts result to JSON format
 func (t *WriteTool) formatAsJSON(result *domain.ToolExecutionResult) *domain.ToolExecutionResult {
-	// This would format the result as JSON - simplified for now
 	return result
 }
 

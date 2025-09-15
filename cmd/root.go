@@ -57,6 +57,7 @@ func initConfig() {
 	v.SetDefault("client", defaults.Client)
 	v.SetDefault("tools", defaults.Tools)
 	v.SetDefault("agent", defaults.Agent)
+	v.SetDefault("a2a", defaults.A2A)
 
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")
@@ -66,6 +67,15 @@ func initConfig() {
 	v.SetEnvPrefix("INFER")
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+
+	if a2aAgents := os.Getenv("INFER_A2A_AGENTS"); a2aAgents != "" {
+		agents := strings.Split(a2aAgents, ",")
+		for i, agent := range agents {
+			agents[i] = strings.TrimSpace(agent)
+		}
+
+		v.Set("a2a.agents", agents)
+	}
 
 	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
 		fmt.Fprintf(os.Stderr, "Error binding verbose flag: %v\n", err)

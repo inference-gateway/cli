@@ -41,18 +41,6 @@ func (e ChatChunkEvent) GetType() ChatEventType  { return EventChatChunk }
 func (e ChatChunkEvent) GetRequestID() string    { return e.RequestID }
 func (e ChatChunkEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ToolCallStartEvent indicates tool calls have started being received
-type ToolCallStartEvent struct {
-	RequestID     string
-	Timestamp     time.Time
-	ToolName      string
-	ToolArguments string
-}
-
-func (e ToolCallStartEvent) GetType() ChatEventType  { return EventToolCallStart }
-func (e ToolCallStartEvent) GetRequestID() string    { return e.RequestID }
-func (e ToolCallStartEvent) GetTimestamp() time.Time { return e.Timestamp }
-
 // ChatCompleteEvent indicates chat completion
 type ChatCompleteEvent struct {
 	RequestID string
@@ -117,33 +105,6 @@ func (e ToolCallReadyEvent) GetType() ChatEventType  { return EventToolCallReady
 func (e ToolCallReadyEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolCallReadyEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ToolCallCompleteEvent indicates a single tool call has completed execution
-type ToolCallCompleteEvent struct {
-	RequestID  string
-	Timestamp  time.Time
-	ToolCallID string
-	ToolName   string
-	Result     any
-	Success    bool
-}
-
-func (e ToolCallCompleteEvent) GetType() ChatEventType  { return EventToolCallComplete }
-func (e ToolCallCompleteEvent) GetRequestID() string    { return e.RequestID }
-func (e ToolCallCompleteEvent) GetTimestamp() time.Time { return e.Timestamp }
-
-// ToolCallErrorEvent indicates a tool call failed during execution
-type ToolCallErrorEvent struct {
-	RequestID  string
-	Timestamp  time.Time
-	ToolCallID string
-	ToolName   string
-	Error      error
-}
-
-func (e ToolCallErrorEvent) GetType() ChatEventType  { return EventToolCallError }
-func (e ToolCallErrorEvent) GetRequestID() string    { return e.RequestID }
-func (e ToolCallErrorEvent) GetTimestamp() time.Time { return e.Timestamp }
-
 // CancelledEvent indicates a request was cancelled
 type CancelledEvent struct {
 	RequestID string
@@ -183,3 +144,57 @@ type A2AToolCallExecutedEvent struct {
 func (e A2AToolCallExecutedEvent) GetType() ChatEventType  { return EventA2AToolCallExecuted }
 func (e A2AToolCallExecutedEvent) GetRequestID() string    { return e.RequestID }
 func (e A2AToolCallExecutedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// A2ATaskSubmittedEvent indicates an A2A task was submitted
+type A2ATaskSubmittedEvent struct {
+	RequestID string
+	Timestamp time.Time
+	TaskID    string
+	AgentName string
+	TaskType  string
+}
+
+func (e A2ATaskSubmittedEvent) GetType() ChatEventType  { return EventA2ATaskSubmitted }
+func (e A2ATaskSubmittedEvent) GetRequestID() string    { return e.RequestID }
+func (e A2ATaskSubmittedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// A2ATaskStatusUpdateEvent indicates an A2A task status update
+type A2ATaskStatusUpdateEvent struct {
+	RequestID string
+	Timestamp time.Time
+	TaskID    string
+	Status    string
+	Progress  float64
+	Message   string
+}
+
+func (e A2ATaskStatusUpdateEvent) GetType() ChatEventType  { return EventA2ATaskStatusUpdate }
+func (e A2ATaskStatusUpdateEvent) GetRequestID() string    { return e.RequestID }
+func (e A2ATaskStatusUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// A2ATaskCompletedEvent indicates an A2A task was completed
+type A2ATaskCompletedEvent struct {
+	RequestID string
+	Timestamp time.Time
+	TaskID    string
+	Success   bool
+	Result    interface{}
+	Error     string
+}
+
+func (e A2ATaskCompletedEvent) GetType() ChatEventType  { return EventA2ATaskCompleted }
+func (e A2ATaskCompletedEvent) GetRequestID() string    { return e.RequestID }
+func (e A2ATaskCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// A2ATaskInputRequiredEvent indicates an A2A task requires user input
+type A2ATaskInputRequiredEvent struct {
+	RequestID string
+	Timestamp time.Time
+	TaskID    string
+	Message   string
+	Required  bool
+}
+
+func (e A2ATaskInputRequiredEvent) GetType() ChatEventType  { return EventA2ATaskInputRequired }
+func (e A2ATaskInputRequiredEvent) GetRequestID() string    { return e.RequestID }
+func (e A2ATaskInputRequiredEvent) GetTimestamp() time.Time { return e.Timestamp }

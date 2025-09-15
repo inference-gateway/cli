@@ -43,6 +43,16 @@ type FakeConversationRepository struct {
 	clearReturnsOnCall map[int]struct {
 		result1 error
 	}
+	ClearExceptFirstUserMessageStub        func() error
+	clearExceptFirstUserMessageMutex       sync.RWMutex
+	clearExceptFirstUserMessageArgsForCall []struct {
+	}
+	clearExceptFirstUserMessageReturns struct {
+		result1 error
+	}
+	clearExceptFirstUserMessageReturnsOnCall map[int]struct {
+		result1 error
+	}
 	ExportStub        func(domain.ExportFormat) ([]byte, error)
 	exportMutex       sync.RWMutex
 	exportArgsForCall []struct {
@@ -320,6 +330,59 @@ func (fake *FakeConversationRepository) ClearReturnsOnCall(i int, result1 error)
 		})
 	}
 	fake.clearReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) ClearExceptFirstUserMessage() error {
+	fake.clearExceptFirstUserMessageMutex.Lock()
+	ret, specificReturn := fake.clearExceptFirstUserMessageReturnsOnCall[len(fake.clearExceptFirstUserMessageArgsForCall)]
+	fake.clearExceptFirstUserMessageArgsForCall = append(fake.clearExceptFirstUserMessageArgsForCall, struct {
+	}{})
+	stub := fake.ClearExceptFirstUserMessageStub
+	fakeReturns := fake.clearExceptFirstUserMessageReturns
+	fake.recordInvocation("ClearExceptFirstUserMessage", []interface{}{})
+	fake.clearExceptFirstUserMessageMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) ClearExceptFirstUserMessageCallCount() int {
+	fake.clearExceptFirstUserMessageMutex.RLock()
+	defer fake.clearExceptFirstUserMessageMutex.RUnlock()
+	return len(fake.clearExceptFirstUserMessageArgsForCall)
+}
+
+func (fake *FakeConversationRepository) ClearExceptFirstUserMessageCalls(stub func() error) {
+	fake.clearExceptFirstUserMessageMutex.Lock()
+	defer fake.clearExceptFirstUserMessageMutex.Unlock()
+	fake.ClearExceptFirstUserMessageStub = stub
+}
+
+func (fake *FakeConversationRepository) ClearExceptFirstUserMessageReturns(result1 error) {
+	fake.clearExceptFirstUserMessageMutex.Lock()
+	defer fake.clearExceptFirstUserMessageMutex.Unlock()
+	fake.ClearExceptFirstUserMessageStub = nil
+	fake.clearExceptFirstUserMessageReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) ClearExceptFirstUserMessageReturnsOnCall(i int, result1 error) {
+	fake.clearExceptFirstUserMessageMutex.Lock()
+	defer fake.clearExceptFirstUserMessageMutex.Unlock()
+	fake.ClearExceptFirstUserMessageStub = nil
+	if fake.clearExceptFirstUserMessageReturnsOnCall == nil {
+		fake.clearExceptFirstUserMessageReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.clearExceptFirstUserMessageReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }

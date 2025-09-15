@@ -592,19 +592,16 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	// Show the content with glamour diff formatting in expanded view
 	showGitDiff := result.Success && result.Arguments != nil
 	if showGitDiff {
 		output.WriteString("\n")
 		diffRenderer := components.NewDiffRenderer(nil)
 		diffInfo := t.GetDiffInfo(result.Arguments)
-		// Update title for past tense (edits already applied)
 		diffInfo.Title = "← Edits applied →"
 		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
 		output.WriteString("\n")
 	}
 
-	// Only show data section if not showing git diff to avoid duplication
 	if !showGitDiff && result.Data != nil {
 		dataContent := t.formatEditData(result.Data)
 		hasMetadata := len(result.Metadata) > 0

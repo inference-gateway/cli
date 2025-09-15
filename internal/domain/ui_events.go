@@ -186,17 +186,6 @@ type ToolExecutionStartedEvent struct {
 
 func (e ToolExecutionStartedEvent) GetType() UIEventType { return UIEventToolExecutionStarted }
 
-// ToolExecutionProgressEvent indicates progress in tool execution
-type ToolExecutionProgressEvent struct {
-	SessionID   string
-	CurrentTool int
-	TotalTools  int
-	ToolName    string
-	Status      string
-}
-
-func (e ToolExecutionProgressEvent) GetType() UIEventType { return UIEventToolExecutionProgress }
-
 // ToolExecutionCompletedEvent indicates tool execution is complete
 type ToolExecutionCompletedEvent struct {
 	SessionID     string

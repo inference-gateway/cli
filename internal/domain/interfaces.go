@@ -49,6 +49,7 @@ type ConversationRepository interface {
 	AddMessage(msg ConversationEntry) error
 	GetMessages() []ConversationEntry
 	Clear() error
+	ClearExceptFirstUserMessage() error
 	Export(format ExportFormat) ([]byte, error)
 	GetMessageCount() int
 	UpdateLastMessage(content string) error
@@ -77,15 +78,19 @@ const (
 	EventChatChunk
 	EventChatComplete
 	EventChatError
-	EventToolCallStart
 	EventToolCallPreview
 	EventToolCallUpdate
 	EventToolCallReady
-	EventToolCallComplete
-	EventToolCallError
 	EventCancelled
 	EventOptimizationStatus
 	EventA2AToolCallExecuted
+	EventA2ATaskSubmitted
+	EventA2ATaskStatusUpdate
+	EventA2ATaskCompleted
+	EventA2ATaskInputRequired
+	EventParallelToolsStart
+	EventToolExecutionProgress
+	EventParallelToolsComplete
 )
 
 // ChatEvent represents events during chat operations
@@ -130,6 +135,13 @@ type FileInfo struct {
 	Path  string
 	Size  int64
 	IsDir bool
+}
+
+// TaskTracker handles task ID tracking within chat sessions
+type TaskTracker interface {
+	GetFirstTaskID() string
+	SetFirstTaskID(taskID string)
+	ClearTaskID()
 }
 
 // FetchResult represents the result of a fetch operation
@@ -560,6 +572,12 @@ const (
 	UIEventToolExecutionStarted
 	UIEventToolExecutionProgress
 	UIEventToolExecutionCompleted
+	UIEventParallelToolsStart
+	UIEventParallelToolsComplete
+	UIEventA2ATaskSubmitted
+	UIEventA2ATaskStatusUpdate
+	UIEventA2ATaskCompleted
+	UIEventA2ATaskInputRequired
 )
 
 // ScrollDirection defines scroll direction
