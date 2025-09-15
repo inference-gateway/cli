@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.49.0](https://github.com/inference-gateway/cli/compare/v0.48.20...v0.49.0) (2025-09-15)
+
+### 🚀 Features
+
+* **init:** Add AGENTS.md generation to `infer init` command ([#148](https://github.com/inference-gateway/cli/issues/148)) ([6e18281](https://github.com/inference-gateway/cli/commit/6e18281f3fa50f2a77d8073b75e96c227bb489f2)), closes [#147](https://github.com/inference-gateway/cli/issues/147)
+* Implement Direct Communication to A2A servers ([#153](https://github.com/inference-gateway/cli/issues/153)) ([52ab7ec](https://github.com/inference-gateway/cli/commit/52ab7ec6a76c231752132bbd21ea52c5af214ae5))
+
+### 🧹 Maintenance
+
+* **deps:** Bump github.com/charmbracelet/bubbletea from 1.3.7 to 1.3.9 ([#155](https://github.com/inference-gateway/cli/issues/155)) ([4cfa6b9](https://github.com/inference-gateway/cli/commit/4cfa6b9f9b3ffa377048ac321fa2d18b6de3848a))
+* **deps:** Bump github.com/spf13/viper from 1.20.1 to 1.21.0 ([#154](https://github.com/inference-gateway/cli/issues/154)) ([edf5583](https://github.com/inference-gateway/cli/commit/edf5583c0c8aa703e659ef99f83ee37b4000d8d8))
+
 ## [0.48.20](https://github.com/inference-gateway/cli/compare/v0.48.19...v0.48.20) (2025-09-10)
 
 ### 📚 Documentation
