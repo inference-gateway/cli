@@ -19,6 +19,7 @@ type A2ATaskTool struct {
 	config      *config.Config
 	formatter   domain.CustomFormatter
 	taskTracker domain.TaskTracker
+	client      client.A2AClient
 }
 
 // A2ATaskResult represents the result of an A2A task operation
@@ -36,6 +37,19 @@ func NewA2ATaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2ATask
 	return &A2ATaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
+		client:      nil,
+		formatter: domain.NewCustomFormatter("Task", func(key string) bool {
+			return key == "metadata" || key == "task_description"
+		}),
+	}
+}
+
+// NewA2ATaskToolWithClient creates a new A2A task tool with an injected client (for testing)
+func NewA2ATaskToolWithClient(cfg *config.Config, taskTracker domain.TaskTracker, client client.A2AClient) *A2ATaskTool {
+	return &A2ATaskTool{
+		config:      cfg,
+		taskTracker: taskTracker,
+		client:      client,
 		formatter: domain.NewCustomFormatter("Task", func(key string) bool {
 			return key == "metadata" || key == "task_description"
 		}),
@@ -119,7 +133,12 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 		}
 	}
 
-	adkClient := client.NewClient(agentURL)
+	var adkClient client.A2AClient
+	if t.client != nil {
+		adkClient = t.client
+	} else {
+		adkClient = client.NewClient(agentURL)
+	}
 	message := adk.Message{
 		Kind: "message",
 		Role: "user",
@@ -148,6 +167,10 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 
 	taskResponse, err := adkClient.SendTask(ctx, msgParams)
 	if err != nil {
+		if t.taskTracker != nil && existingTaskID != "" && t.isTaskNotFoundError(err) {
+			t.taskTracker.ClearTaskID()
+			return t.errorResult(args, startTime, fmt.Sprintf("Previous task no longer exists (cleared from tracker): %v", err))
+		}
 		return t.errorResult(args, startTime, fmt.Sprintf("A2A task submission failed: %v", err))
 	}
 
@@ -161,6 +184,12 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 
 	taskID = submittedTask.ID
+
+	if t.taskTracker != nil && existingTaskID != "" &&
+		(submittedTask.Status.State == adk.TaskStateCompleted || submittedTask.Status.State == adk.TaskStateFailed) {
+		t.taskTracker.ClearTaskID()
+		return t.errorResult(args, startTime, fmt.Sprintf("Previous task %s is already %s (cleared from tracker)", existingTaskID, submittedTask.Status.State))
+	}
 
 	if t.taskTracker != nil && existingTaskID == "" {
 		t.taskTracker.SetFirstTaskID(taskID)
@@ -388,6 +417,17 @@ func (t *A2ATaskTool) handleInputRequiredState(args map[string]any, agentURL, ta
 			TaskResult: inputMessage,
 		},
 	}, nil
+}
+
+// isTaskNotFoundError checks if the error indicates a task was not found
+func (t *A2ATaskTool) isTaskNotFoundError(err error) bool {
+	if err == nil {
+		return false
+	}
+	errorStr := strings.ToLower(err.Error())
+	return strings.Contains(errorStr, "task not found") ||
+		strings.Contains(errorStr, "not found") ||
+		strings.Contains(errorStr, "32603")
 }
 
 // mapToStruct converts a map[string]any to a struct using JSON marshaling
