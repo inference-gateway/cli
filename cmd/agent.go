@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -215,31 +216,25 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 		s.outputMessage(assistantMsg)
 	}
 
-	for _, toolCall := range response.ToolCalls {
-		toolCallMsg := ConversationMessage{
-			Role:      "assistant",
-			Content:   "",
-			ToolCalls: &[]sdk.ChatCompletionMessageToolCall{toolCall},
-			Timestamp: time.Now(),
-			RequestID: requestID,
-		}
-		s.addMessage(toolCallMsg)
-		s.outputMessage(toolCallMsg)
+	if len(response.ToolCalls) == 0 {
+		return nil
+	}
 
-		result, err := s.executeToolCall(toolCall.Function.Name, toolCall.Function.Arguments)
-		if err != nil {
-			logger.Error("Tool execution failed", "tool", toolCall.Function.Name, "error", err)
-			continue
-		}
+	toolCallMsg := ConversationMessage{
+		Role:      "assistant",
+		Content:   "",
+		ToolCalls: &response.ToolCalls,
+		Timestamp: time.Now(),
+		RequestID: requestID,
+	}
+	s.addMessage(toolCallMsg)
+	s.outputMessage(toolCallMsg)
 
-		toolResultMsg := ConversationMessage{
-			Role:       "tool",
-			Content:    s.formatToolResult(result),
-			ToolCallID: toolCall.Id,
-			Timestamp:  time.Now(),
-		}
-		s.addMessage(toolResultMsg)
-		s.outputMessage(toolResultMsg)
+	toolResults := s.executeToolCallsParallel(response.ToolCalls)
+
+	for _, result := range toolResults {
+		s.addMessage(result)
+		s.outputMessage(result)
 	}
 
 	return nil
@@ -257,6 +252,50 @@ func (s *AgentSession) executeToolCall(toolName, args string) (*domain.ToolExecu
 		Arguments: args,
 	}
 	return s.toolService.ExecuteTool(ctx, toolCall)
+}
+
+func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMessageToolCall) []ConversationMessage {
+	if len(toolCalls) == 0 {
+		return []ConversationMessage{}
+	}
+
+	logger.Info("Executing tool calls in parallel", "count", len(toolCalls), "max_concurrent", s.config.Agent.MaxConcurrentTools)
+
+	results := make([]ConversationMessage, len(toolCalls))
+	semaphore := make(chan struct{}, s.config.Agent.MaxConcurrentTools)
+
+	var wg sync.WaitGroup
+	for i, toolCall := range toolCalls {
+		wg.Add(1)
+		go func(index int, tc sdk.ChatCompletionMessageToolCall) {
+			defer wg.Done()
+
+			semaphore <- struct{}{}
+			defer func() { <-semaphore }()
+
+			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments)
+			if err != nil {
+				logger.Error("Tool execution failed", "tool", tc.Function.Name, "error", err)
+				results[index] = ConversationMessage{
+					Role:       "tool",
+					Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
+					ToolCallID: tc.Id,
+					Timestamp:  time.Now(),
+				}
+				return
+			}
+
+			results[index] = ConversationMessage{
+				Role:       "tool",
+				Content:    s.formatToolResult(result),
+				ToolCallID: tc.Id,
+				Timestamp:  time.Now(),
+			}
+		}(i, toolCall)
+	}
+
+	wg.Wait()
+	return results
 }
 
 func (s *AgentSession) formatToolResult(result *domain.ToolExecutionResult) string {

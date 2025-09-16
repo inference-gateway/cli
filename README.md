@@ -438,8 +438,10 @@ until the task is considered complete. Particularly useful for SCM tickets like 
 - **Autonomous execution**: Agent works independently to complete tasks
 - **Iterative processing**: Continues until task completion criteria are met
 - **Tool integration**: Full access to all available tools (Bash, Read, Write, etc.)
+- **Parallel tool execution**: Executes multiple tool calls simultaneously for improved efficiency
 - **Background operation**: Runs without interactive user input
 - **Task completion detection**: Automatically detects when tasks are complete
+- **Configurable concurrency**: Control the maximum number of parallel tool executions (default: 5)
 - **JSON output**: Structured JSON output for easy parsing and integration
 
 **Options:**
