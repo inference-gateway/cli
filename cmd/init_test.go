@@ -193,7 +193,6 @@ func TestGenerateAgentsMD(t *testing.T) {
 	}
 }
 
-
 func TestProjectResearchSystemPrompt(t *testing.T) {
 	prompt := projectResearchSystemPrompt()
 

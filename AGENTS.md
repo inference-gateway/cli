@@ -2,203 +2,182 @@
 
 ## Project Overview
 
-The Inference Gateway CLI is a powerful command-line interface for managing and interacting with the Inference
-Gateway. It provides tools for configuration, monitoring, and management of inference services. Built with Go 1.24+,
-it features an interactive chat interface, conversation history management, and extensive tool execution capabilities
-for LLMs.
+The Inference Gateway CLI is a powerful command-line interface for managing and interacting with the Inference Gateway.
+It provides tools for configuration, monitoring, and management of inference services. The project is built in Go
+and features an interactive chat interface, autonomous agent capabilities, and extensive tool integration for
+AI-assisted development.
 
 ## Architecture & Structure
 
-```text
-/go/src/
-├── cmd/                 # CLI command implementations
-│   ├── agent.go         # Agent command handler
-│   ├── chat.go          # Interactive chat interface
-│   ├── config.go        # Configuration management
-│   └── root.go          # Root command and CLI setup
-├── config/              # Configuration handling
-├── docs/                # Documentation
-├── examples/            # Usage examples and templates
-├── internal/            # Internal application logic
-│   ├── app/             # Application core
-│   ├── domain/          # Domain models and interfaces
-│   ├── handlers/        # Command and event handlers
-│   ├── infra/           # Infrastructure adapters
-│   ├── logger/          # Logging utilities
-│   ├── services/        # Business logic services
-│   ├── shortcuts/       # Shortcuts system
-│   └── ui/              # User interface components
-└── .github/             # GitHub workflows and templates
-```
+**Key Directories:**
 
-Key architectural patterns:
+- `cmd/`: CLI command implementations
+- `internal/`: Core application logic
+  - `app/`: Application layer
+  - `domain/`: Domain models and interfaces
+  - `handlers/`: Command and event handlers
+  - `services/`: Business logic services
+  - `shortcuts/`: Extensible shortcut system
+  - `ui/`: Terminal UI components
+- `config/`: Configuration management
+- `docs/`: Documentation
+- `examples/`: Usage examples
+
+**Architectural Patterns:**
 
 - Clean Architecture with domain-driven design
 - Command pattern for CLI operations
-- Event-driven architecture for chat interactions
-- Dependency injection via container system
+- Repository pattern for data access
+- Service layer for business logic
+- Dependency injection via container
 
 ## Development Environment
 
-### Setup Instructions
+**Setup Instructions:**
 
-- **Go Version**: 1.24.5 or later
-- **Dependencies**: Managed via Go modules (go.mod)
-- **Required Tools**: Go toolchain, Git
+- Go 1.24.5+ required
+- Install dependencies: `task setup`
+- Install pre-commit hooks: `task precommit:install`
 
-### Environment Variables
+**Required Tools:**
 
-- `INFER_CONFIG_PATH`: Custom config file path
-- `INFER_LOG_LEVEL`: Logging level (debug, info, warn, error)
-- `INFER_NO_COLOR`: Disable colored output
-- `INFER_VERBOSE`: Enable verbose logging
+- Go 1.24.5+
+- golangci-lint
+- Task (taskfile.dev)
+- pre-commit
+- Docker (for container builds)
 
-### Configuration Files
+**Environment Variables:**
 
-- `.infer.yaml`: Project-level configuration
-- `~/.infer/config.yaml`: User-level configuration
-- `.env` files for environment-specific settings
+- `GITHUB_TOKEN`: For GitHub API access
+- `GOOGLE_SEARCH_API_KEY`: Optional Google search API
+- `GOOGLE_SEARCH_ENGINE_ID`: Optional Google search engine ID
+- `DUCKDUCKGO_SEARCH_API_KEY`: Optional DuckDuckGo API
 
 ## Development Workflow
 
-### Build Commands
+**Build Commands:**
 
-```bash
-# Build the binary
-go build -o infer ./cmd
+- `task build`: Build binary with version info
+- `task install`: Install to GOPATH/bin
+- `task release:build`: Build multi-platform release binaries
 
-# Build with specific version
-go build -ldflags "-X main.version=1.0.0" -o infer ./cmd
+**Testing Procedures:**
 
-# Install globally
-go install ./cmd
-```
+- `task test`: Run all tests
+- `task test:verbose`: Run tests with verbose output
+- `task test:coverage`: Run tests with coverage
+- `task vet`: Run go vet
 
-### Testing Procedures
+**Code Quality Tools:**
 
-```bash
-# Run all tests
-go test ./...
+- `task fmt`: Format Go code
+- `task lint`: Run golangci-lint and markdownlint
+- `task check`: Run all quality checks (fmt, vet, test)
 
-# Run tests with coverage
-go test -cover ./...
+**Git Workflow:**
 
-# Run specific test package
-go test ./internal/services/...
-```
-
-### Code Quality Tools
-
-- **Formatting**: `go fmt ./...`
-- **Vet**: `go vet ./...`
-- **Static Analysis**: Built-in Go tooling
-- **Testing**: Native Go testing framework
-
-### Git Workflow
-
-- Main branch: `main`
-- Feature branches: `feature/*`
-- Release branches: `release/*`
+- Main branch development
+- Pre-commit hooks for code quality
 - Conventional commits recommended
+- GitHub Actions for CI/CD
 
 ## Key Commands
 
-- **Build**: `go build -o infer ./cmd`
-- **Test**: `go test ./...`
-- **Run**: `./infer [command]`
-- **Install**: `go install ./cmd`
-- **Format**: `go fmt ./...`
+**Build:** `task build`
+**Test:** `task test`
+**Lint:** `task lint`
+**Run:** `task run -- <args>`
+**Format:** `task fmt`
+**Clean:** `task clean`
 
 ## Testing Instructions
 
-### Test Organization
+**How to Run Tests:**
 
-- Unit tests in `*_test.go` files alongside source
-- Integration tests in dedicated test files
-- Test coverage requirements: 80%+ for critical components
+- `go test ./...`: Run all tests
+- `go test -v ./...`: Verbose output
+- `go test -cover ./...`: With coverage
 
-### Running Tests
+**Test Organization:**
 
-```bash
-# Run all tests with verbose output
-go test -v ./...
+- Tests co-located with source files (`*_test.go`)
+- Mock generation using counterfeiter
+- Integration tests in separate packages
 
-# Run tests with race detection
-go test -race ./...
+**Coverage Requirements:**
 
-# Generate coverage report
-go test -coverprofile=coverage.out ./...
-go tool cover -html=coverage.out
-```
+- No specific coverage threshold enforced
+- Tests required for all new features
+- Integration tests for critical paths
 
 ## Deployment & Release
 
-### CI/CD Pipeline
+**Deployment Processes:**
 
-- GitHub Actions workflows in `.github/workflows/`
-- Automated testing on push and PR
-- Release automation via GitHub Releases
-- Docker image builds for container deployment
+- Multi-platform binary builds
+- Docker container images
+- GitHub Releases with signed artifacts
 
-### Release Procedures
+**Release Procedures:**
 
-1. Version bump in code
-2. Automated testing via CI
-3. Binary builds for multiple platforms
-4. GitHub Release creation
-5. Docker image publishing
+- Automated via GitHub Actions
+- Version tagging with semantic versioning
+- Cosign signatures for security
+
+**CI/CD Pipeline:**
+
+- GitHub Actions workflows for CI
+- Automated testing and linting
+- Multi-platform build validation
 
 ## Project Conventions
 
-### Coding Standards
+**Coding Standards:**
 
-- Go standard formatting (`go fmt`)
-- Error handling: explicit error returns
-- Documentation: Godoc comments for exported symbols
-- Naming: camelCase for variables, PascalCase for exports
+- Go standard formatting (`gofmt`)
+- golangci-lint configuration
+- Maximum cyclomatic complexity: 25
+- Maximum function length: 150 lines
 
-### File Organization
+**Naming Conventions:**
 
-- One package per directory
-- `internal/` for application-specific code
-- `cmd/` for CLI entry points
-- `pkg/` for reusable packages (if any)
+- Go idiomatic naming (camelCase for variables, PascalCase for exports)
+- Clear, descriptive names
+- Interface names end with "er" (e.g., `ToolService`)
 
-### Commit Message Format
+**File Organization:**
 
-```text
-feat: add new feature
-fix: repair bug
-docs: update documentation
-chore: maintenance tasks
-test: add or update tests
-```
+- Domain-driven structure
+- One type per file (with exceptions for small related types)
+- Test files co-located with source
+
+**Commit Message Formats:**
+
+- Conventional commits preferred
+- Descriptive commit messages
+- Reference issues when applicable
 
 ## Important Files & Configurations
 
-### Key Configuration Files
+**Key Configuration Files:**
 
-- `go.mod` - Go module dependencies
-- `.github/workflows/ci.yml` - CI/CD pipeline
-- `cmd/root.go` - CLI root command setup
-- `internal/container/container.go` - Dependency injection
+- `go.mod`: Go module dependencies
+- `Taskfile.yml`: Build and development tasks
+- `.golangci.yml`: Linter configuration
+- `.pre-commit-config.yaml`: Pre-commit hooks
+- `.github/workflows/ci.yml`: CI pipeline
 
-### Critical Source Files
+**Critical Source Files:**
 
-- `internal/services/chat.go` - Chat service implementation
-- `internal/handlers/chat_handler.go` - Chat event handling
-- `internal/shortcuts/registry.go` - Shortcuts system
-- `internal/tools/` - LLM tool implementations
+- `cmd/root.go`: Main CLI entry point
+- `internal/domain/interfaces.go`: Core domain interfaces
+- `internal/services/agent.go`: Autonomous agent logic
+- `internal/handlers/chat_handler.go`: Chat interface handling
 
-### Documentation Files
+**Security Considerations:**
 
-- `README.md` - Comprehensive project documentation
-- `docs/` - Detailed feature documentation
-- `examples/` - Usage examples and templates
-
-## Security Considerations
-
-- Tool execution with whitelist validation
-- Protected path restrictions
-- Environment variable sanitization
-- Configuration file security
+- Path exclusions: `.infer/`, `.git/`, `*.env`
+- Tool execution requires approval by default
+- Sandboxed directory access
+- Command whitelisting for Bash tool

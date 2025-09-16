@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -236,9 +237,16 @@ IMPORTANT GUIDELINES:
 
 TOOL USAGE:
 - Use available tools to explore the project (Tree, Read, Grep, etc.)
+- PARALLEL EXECUTION: You can call multiple tools simultaneously in a single response to improve efficiency. The system supports up to 3 concurrent tool executions using a semaphore-based approach. Use this to reduce back-and-forth communication by batching related operations.
 - When you have gathered enough information, use the Write tool to create the AGENTS.md file
 - Write the file content directly without code fences or API calls
 - The Write tool expects: Write(file_path="/path/to/file", content="file content here")
+
+EFFICIENCY TIPS:
+- Batch related file reads (e.g., read package.json, Taskfile.yml, and README.md in parallel)
+- Execute multiple grep searches simultaneously for different patterns
+- Combine directory exploration with file reading in the same response
+- Use parallel execution to gather comprehensive project information quickly
 
 Your analysis should help other agents quickly understand how to work with this project effectively.`
 }
@@ -299,6 +307,7 @@ func analyzeProjectForAgents(projectDir string, userspace bool, model string, ag
 		startTime:      time.Now(),
 		timeoutSeconds: 30,
 		agentsMDPath:   agentsMDPath,
+		toolSemaphore:  make(chan struct{}, 3),
 	}
 
 	_, _ = fmt.Fprintf(os.Stdout, "%s\n", `{"content":"Initializing project analysis session...","timestamp":"`+time.Now().Format("15:04:05")+`","elapsed":"0.0s","tokens":{"input":0,"output":0,"total":0}}`)
@@ -336,7 +345,6 @@ func validateFilesNotExist(configPath, gitignorePath, agentsMDPath string, gener
 	return nil
 }
 
-
 // InitConversationMessage represents a message in the analysis conversation
 type InitConversationMessage struct {
 	Role       string                               `json:"role"`
@@ -365,13 +373,11 @@ type ProjectAnalysisSession struct {
 	totalOutputTokens   int64
 	timeoutMessageCount int
 	agentsMDPath        string
+	toolSemaphore       chan struct{}
+	conversationMutex   sync.Mutex
 }
 
 func (s *ProjectAnalysisSession) analyze(taskDescription string) error {
-	logger.Info("starting project analysis session",
-		"model", s.model,
-		"timeout_seconds", s.timeoutSeconds,
-		"max_turns", s.maxTurns)
 	s.outputProgress("session_start", "Starting project analysis...", "")
 
 	s.addMessage(InitConversationMessage{
@@ -449,19 +455,10 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) error {
 	}
 
 	if !fileWritten {
-		logger.Warn("agent did not write AGENTS.md file",
-			"completed_turns", s.completedTurns,
-			"elapsed_seconds", time.Since(s.startTime).Seconds())
 		s.outputProgress("complete", "Agent did not write file", "")
 		return fmt.Errorf("agent did not write AGENTS.md file")
 	}
 
-	logger.Info("project analysis session completed successfully",
-		"completed_turns", s.completedTurns,
-		"elapsed_seconds", time.Since(s.startTime).Seconds(),
-		"total_input_tokens", s.totalInputTokens,
-		"total_output_tokens", s.totalOutputTokens,
-		"timeout_messages_sent", s.timeoutMessageCount)
 	s.outputProgress("complete", "Analysis complete, AGENTS.md generated", "")
 	return nil
 }
@@ -545,39 +542,68 @@ func (s *ProjectAnalysisSession) processSyncResponse(response *domain.ChatSyncRe
 		s.outputAssistantProgress(response.Content)
 	}
 
-	for i, toolCall := range response.ToolCalls {
-		if toolCall.Id == "" {
-			toolCall.Id = fmt.Sprintf("call_%d_%d", time.Now().UnixNano(), i)
-		}
-
-		toolCallMsg := InitConversationMessage{
+	if len(response.ToolCalls) > 0 {
+		assistantMsg := InitConversationMessage{
 			Role:      "assistant",
 			Content:   "",
-			ToolCalls: &[]sdk.ChatCompletionMessageToolCall{toolCall},
+			ToolCalls: &response.ToolCalls,
 			Timestamp: time.Now(),
 			RequestID: requestID,
 		}
-		s.addMessage(toolCallMsg)
+		s.addMessage(assistantMsg)
 
-		var argsMap map[string]any
-		_ = json.Unmarshal([]byte(toolCall.Function.Arguments), &argsMap)
-		s.outputToolCallProgress(toolCall.Function.Name, argsMap)
+		var wg sync.WaitGroup
+		toolResults := make([]InitConversationMessage, len(response.ToolCalls))
 
-		result, err := s.executeToolCall(toolCall.Function.Name, toolCall.Function.Arguments)
-		if err != nil {
-			s.outputProgress("tool_error", fmt.Sprintf("Tool %s failed: %s", toolCall.Function.Name, err.Error()), "")
-			continue
+		for i, toolCall := range response.ToolCalls {
+			if toolCall.Id == "" {
+				toolCall.Id = fmt.Sprintf("call_%d_%d", time.Now().UnixNano(), i)
+			}
+
+			var argsMap map[string]any
+			_ = json.Unmarshal([]byte(toolCall.Function.Arguments), &argsMap)
+			s.outputToolCallProgress(toolCall.Function.Name, argsMap)
+
+			wg.Add(1)
+			go func(index int, tc sdk.ChatCompletionMessageToolCall) {
+				defer wg.Done()
+
+				s.toolSemaphore <- struct{}{}
+				defer func() { <-s.toolSemaphore }()
+
+				result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments)
+				if err != nil {
+					logger.Error("tool execution failed",
+						"tool", tc.Function.Name,
+						"index", index,
+						"tool_call_id", tc.Id,
+						"error", err)
+					s.outputProgress("tool_error", fmt.Sprintf("Tool %s failed: %s", tc.Function.Name, err.Error()), "")
+					toolResults[index] = InitConversationMessage{
+						Role:       "tool",
+						Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
+						ToolCallID: tc.Id,
+						Timestamp:  time.Now(),
+					}
+					return
+				}
+
+				s.outputToolResultProgress(tc.Function.Name, result)
+
+				toolResults[index] = InitConversationMessage{
+					Role:       "tool",
+					Content:    s.formatToolResult(result),
+					ToolCallID: tc.Id,
+					Timestamp:  time.Now(),
+				}
+			}(i, toolCall)
 		}
 
-		s.outputToolResultProgress(toolCall.Function.Name, result)
+		wg.Wait()
 
-		toolResultMsg := InitConversationMessage{
-			Role:       "tool",
-			Content:    s.formatToolResult(result),
-			ToolCallID: toolCall.Id,
-			Timestamp:  time.Now(),
+		for _, toolResult := range toolResults {
+			s.addMessage(toolResult)
 		}
-		s.addMessage(toolResultMsg)
 	}
 
 	return nil
@@ -619,6 +645,8 @@ func (s *ProjectAnalysisSession) formatToolResult(result *domain.ToolExecutionRe
 }
 
 func (s *ProjectAnalysisSession) addMessage(msg InitConversationMessage) {
+	s.conversationMutex.Lock()
+	defer s.conversationMutex.Unlock()
 	s.conversation = append(s.conversation, msg)
 }
 
@@ -636,7 +664,6 @@ func (s *ProjectAnalysisSession) lastResponseHadNoToolCalls() bool {
 
 	return false
 }
-
 
 func (s *ProjectAnalysisSession) hasTimedOut() bool {
 	return time.Since(s.startTime) > time.Duration(s.timeoutSeconds)*time.Second
