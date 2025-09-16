@@ -225,8 +225,11 @@ go build -o infer .
 1. **Initialize project configuration:**
 
    ```bash
-   infer init
+   infer init --model deepseek/deepseek-chat
    ```
+
+   Using `--model` is recommended as it enables AI project analysis and generates a comprehensive AGENTS.md file
+   tailored to your specific project.
 
 2. **Check gateway status:**
 
@@ -244,8 +247,12 @@ go build -o infer .
 
 ### `infer init`
 
-Initialize a new project with Inference Gateway CLI. This creates the `.infer`
-directory with configuration file and additional setup files like `.gitignore`.
+Initialize a new project with Inference Gateway CLI. This creates:
+
+- `.infer/` directory with:
+  - `config.yaml` - Main configuration file for the project
+  - `.gitignore` - Ensures sensitive files are not committed to version control
+- `AGENTS.md` - AI-generated project documentation in the repository root (only when `--model` is specified)
 
 This is the recommended command to start working with Inference Gateway CLI in a new project.
 

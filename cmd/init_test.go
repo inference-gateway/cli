@@ -13,39 +13,39 @@ import (
 func TestInitializeProject(t *testing.T) {
 	tests := []struct {
 		name        string
-		flags       map[string]bool
+		flags       map[string]any
 		wantFiles   []string
 		wantNoFiles []string
 		wantErr     bool
 	}{
 		{
 			name: "basic project initialization",
-			flags: map[string]bool{
-				"overwrite":      false,
-				"userspace":      false,
-				"skip-agents-md": false,
-			},
-			wantFiles:   []string{".infer/config.yaml", ".infer/.gitignore", "AGENTS.md"},
-			wantNoFiles: []string{},
-			wantErr:     false,
-		},
-		{
-			name: "project initialization with skip-agents-md",
-			flags: map[string]bool{
-				"overwrite":      false,
-				"userspace":      false,
-				"skip-agents-md": true,
+			flags: map[string]any{
+				"overwrite": false,
+				"userspace": false,
+				"model":     "",
 			},
 			wantFiles:   []string{".infer/config.yaml", ".infer/.gitignore"},
 			wantNoFiles: []string{"AGENTS.md"},
 			wantErr:     false,
 		},
 		{
+			name: "project initialization with model",
+			flags: map[string]any{
+				"overwrite": false,
+				"userspace": false,
+				"model":     "anthropic/claude-3-haiku",
+			},
+			wantFiles:   []string{".infer/config.yaml", ".infer/.gitignore"},
+			wantNoFiles: []string{},
+			wantErr:     true,
+		},
+		{
 			name: "userspace initialization",
-			flags: map[string]bool{
-				"overwrite":      true,
-				"userspace":      true,
-				"skip-agents-md": true,
+			flags: map[string]any{
+				"overwrite": true,
+				"userspace": true,
+				"model":     "",
 			},
 			wantFiles:   []string{},
 			wantNoFiles: []string{".infer/config.yaml", ".infer/.gitignore", "AGENTS.md"},
@@ -73,8 +73,14 @@ func TestInitializeProject(t *testing.T) {
 
 			cmd := &cobra.Command{}
 			for flag, value := range tt.flags {
-				cmd.Flags().Bool(flag, value, "")
-				_ = cmd.Flag(flag).Value.Set(strconv.FormatBool(value))
+				switch v := value.(type) {
+				case bool:
+					cmd.Flags().Bool(flag, v, "")
+					_ = cmd.Flag(flag).Value.Set(strconv.FormatBool(v))
+				case string:
+					cmd.Flags().String(flag, v, "")
+					_ = cmd.Flag(flag).Value.Set(v)
+				}
 			}
 
 			err = initializeProject(cmd)
@@ -85,7 +91,7 @@ func TestInitializeProject(t *testing.T) {
 			}
 
 			for _, file := range tt.wantFiles {
-				if tt.flags["userspace"] && !strings.Contains(file, "/") {
+				if userspace, ok := tt.flags["userspace"].(bool); ok && userspace && !strings.Contains(file, "/") {
 					continue
 				}
 				if _, err := os.Stat(file); os.IsNotExist(err) {
@@ -106,20 +112,30 @@ func TestGenerateAgentsMD(t *testing.T) {
 	tests := []struct {
 		name         string
 		userspace    bool
+		model        string
 		expectExists bool
 		wantErr      bool
 	}{
 		{
-			name:         "project AGENTS.md generation",
+			name:         "project AGENTS.md generation without model",
 			userspace:    false,
-			expectExists: true,
-			wantErr:      false,
+			model:        "",
+			expectExists: false,
+			wantErr:      true,
 		},
 		{
-			name:         "userspace AGENTS.md generation",
+			name:         "project AGENTS.md generation with model",
+			userspace:    false,
+			model:        "anthropic/claude-3-haiku",
+			expectExists: false,
+			wantErr:      true,
+		},
+		{
+			name:         "userspace AGENTS.md generation without model",
 			userspace:    true,
-			expectExists: true,
-			wantErr:      false,
+			model:        "",
+			expectExists: false,
+			wantErr:      true,
 		},
 	}
 
@@ -143,7 +159,7 @@ func TestGenerateAgentsMD(t *testing.T) {
 
 			agentsMDPath := filepath.Join(tmpDir, "AGENTS.md")
 
-			err = generateAgentsMD(agentsMDPath, tt.userspace, "")
+			err = generateAgentsMD(agentsMDPath, tt.userspace, tt.model)
 
 			if (err != nil) != tt.wantErr {
 				t.Errorf("generateAgentsMD() error = %v, wantErr %v", err, tt.wantErr)
@@ -177,65 +193,6 @@ func TestGenerateAgentsMD(t *testing.T) {
 	}
 }
 
-func TestGetDefaultAgentsMDContent(t *testing.T) {
-	content := getDefaultAgentsMDContent()
-
-	expectedSections := []string{
-		"# AGENTS.md",
-		"## Project Overview",
-		"## Development Environment",
-		"## Development Workflow",
-		"## Key Commands",
-		"## Testing Instructions",
-		"## Project Conventions",
-		"## Important Files & Configurations",
-	}
-
-	for _, section := range expectedSections {
-		if !strings.Contains(content, section) {
-			t.Errorf("default AGENTS.md content missing section: %s", section)
-		}
-	}
-
-	if len(content) < 500 {
-		t.Errorf("default AGENTS.md content seems too short: %d characters", len(content))
-	}
-}
-
-func TestGetProjectAnalysisModel(t *testing.T) {
-	tests := []struct {
-		name     string
-		envValue string
-		expected string
-	}{
-		{
-			name:     "default model when no env var",
-			envValue: "",
-			expected: "anthropic/claude-3-haiku",
-		},
-		{
-			name:     "custom model from env var",
-			envValue: "openai/gpt-4",
-			expected: "openai/gpt-4",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if tt.envValue != "" {
-				_ = os.Setenv("INFER_AGENT_MODEL", tt.envValue)
-				defer func() { _ = os.Unsetenv("INFER_AGENT_MODEL") }()
-			} else {
-				_ = os.Unsetenv("INFER_AGENT_MODEL")
-			}
-
-			result := getProjectAnalysisModel()
-			if result != tt.expected {
-				t.Errorf("getProjectAnalysisModel() = %v, want %v", result, tt.expected)
-			}
-		})
-	}
-}
 
 func TestProjectResearchSystemPrompt(t *testing.T) {
 	prompt := projectResearchSystemPrompt()

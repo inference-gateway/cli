@@ -26,8 +26,8 @@ var initCmd = &cobra.Command{
 	Long: `Initialize a new project directory with Inference Gateway CLI configuration.
 This creates the .infer directory with configuration file and additional setup files like .gitignore.
 
-By default, generates a basic AGENTS.md file. Use --model <provider>/<model> to generate an
-AI-analyzed project-specific AGENTS.md file.
+Use --model <provider>/<model> to enable AI project analysis and generate a comprehensive
+AGENTS.md file tailored to your specific project.
 
 This is the recommended command to start working with Inference Gateway CLI in a new project.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -38,15 +38,13 @@ This is the recommended command to start working with Inference Gateway CLI in a
 func init() {
 	initCmd.Flags().Bool("overwrite", false, "Overwrite existing files if they already exist")
 	initCmd.Flags().Bool("userspace", false, "Initialize configuration in user home directory (~/.infer/)")
-	initCmd.Flags().Bool("skip-agents-md", false, "Skip generating AGENTS.md file during initialization")
-	initCmd.Flags().String("model", "", "LLM model to use for generating AGENTS.md file (if not specified, generates default AGENTS.md)")
+	initCmd.Flags().String("model", "", "LLM model to use for AI project analysis and AGENTS.md generation (recommended)")
 	rootCmd.AddCommand(initCmd)
 }
 
 func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
-	skipAgentsMD, _ := cmd.Flags().GetBool("skip-agents-md")
 	model, _ := cmd.Flags().GetString("model")
 
 	var configPath, gitignorePath, agentsMDPath string
@@ -66,7 +64,7 @@ func initializeProject(cmd *cobra.Command) error {
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, agentsMDPath, skipAgentsMD); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, agentsMDPath, model != ""); err != nil {
 			return err
 		}
 	}
@@ -86,7 +84,7 @@ conversations.db
 		return fmt.Errorf("failed to create .gitignore file: %w", err)
 	}
 
-	if !skipAgentsMD {
+	if model != "" {
 		if err := generateAgentsMD(agentsMDPath, userspace, model); err != nil {
 			return fmt.Errorf("failed to create AGENTS.md file: %w", err)
 		}
@@ -102,17 +100,17 @@ conversations.db
 	fmt.Printf("%s Successfully initialized Inference Gateway CLI %s configuration\n", icons.CheckMarkStyle.Render(icons.CheckMark), scopeDesc)
 	fmt.Printf("   Created: %s\n", configPath)
 	fmt.Printf("   Created: %s\n", gitignorePath)
-	if !skipAgentsMD {
+	if model != "" {
 		fmt.Printf("   Created: %s\n", agentsMDPath)
-		if model == "" && !userspace {
-			fmt.Printf("   ⚠️  Generated default AGENTS.md (use --model <provider>/<model> for AI-generated content)\n")
-		}
 	}
 	fmt.Println("")
 	if userspace {
 		fmt.Println("This userspace configuration will be used as a fallback for all projects.")
 		fmt.Println("Project-level configurations will take precedence when present.")
 		fmt.Println("")
+	}
+	if model == "" && !userspace {
+		fmt.Println("Tip: Use --model <provider>/<model> to generate an AI-analyzed AGENTS.md file")
 	}
 	fmt.Println("You can now customize the configuration:")
 	fmt.Println("  • Set default model: infer config agent set-model <model-name>")
@@ -152,13 +150,9 @@ func generateAgentsMD(agentsMDPath string, userspace bool, model string) error {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	content, err := analyzeProjectForAgents(wd, userspace, model)
+	err = analyzeProjectForAgents(wd, userspace, model, agentsMDPath)
 	if err != nil {
 		return fmt.Errorf("failed to analyze project: %w", err)
-	}
-
-	if err := os.WriteFile(agentsMDPath, []byte(content), 0644); err != nil {
-		return fmt.Errorf("failed to write AGENTS.md: %w", err)
 	}
 
 	return nil
@@ -250,26 +244,22 @@ Your analysis should help other agents quickly understand how to work with this 
 }
 
 // analyzeProjectForAgents analyzes the current project and generates AGENTS.md content
-func analyzeProjectForAgents(projectDir string, userspace bool, model string) (string, error) {
-	if userspace {
-		return getDefaultAgentsMDContent(), nil
-	}
-
-	if model == "" {
-		return getDefaultAgentsMDContent(), nil
+func analyzeProjectForAgents(projectDir string, userspace bool, model string, agentsMDPath string) error {
+	if userspace || model == "" {
+		return fmt.Errorf("model is required for AGENTS.md generation")
 	}
 
 	if V == nil {
-		return getDefaultAgentsMDContent(), nil
+		return fmt.Errorf("configuration not initialized")
 	}
 
 	cfg, err := getConfigFromViper()
 	if err != nil {
-		return getDefaultAgentsMDContent(), nil
+		return fmt.Errorf("failed to get configuration: %w", err)
 	}
 
 	if cfg == nil {
-		return getDefaultAgentsMDContent(), nil
+		return fmt.Errorf("configuration is nil")
 	}
 
 	cfgCopy := *cfg
@@ -282,21 +272,21 @@ func analyzeProjectForAgents(projectDir string, userspace bool, model string) (s
 
 	models, err := services.GetModelService().ListModels(ctx)
 	if err != nil {
-		return getDefaultAgentsMDContent(), nil
+		return fmt.Errorf("failed to list models: %w", err)
 	}
 
 	if len(models) == 0 {
-		return getDefaultAgentsMDContent(), nil
+		return fmt.Errorf("no models available")
 	}
 
 	if !isModelAvailable(models, model) {
-		return getDefaultAgentsMDContent(), nil
+		return fmt.Errorf("model %s is not available", model)
 	}
 
 	agentService := services.GetAgentService()
 	toolService := services.GetToolService()
 	if agentService == nil || toolService == nil {
-		return getDefaultAgentsMDContent(), nil
+		return fmt.Errorf("failed to initialize services")
 	}
 
 	session := &ProjectAnalysisSession{
@@ -308,19 +298,20 @@ func analyzeProjectForAgents(projectDir string, userspace bool, model string) (s
 		maxTurns:       cfgCopy.Agent.MaxTurns,
 		startTime:      time.Now(),
 		timeoutSeconds: 30,
+		agentsMDPath:   agentsMDPath,
 	}
 
 	_, _ = fmt.Fprintf(os.Stdout, "%s\n", `{"content":"Initializing project analysis session...","timestamp":"`+time.Now().Format("15:04:05")+`","elapsed":"0.0s","tokens":{"input":0,"output":0,"total":0}}`)
 	_ = os.Stdout.Sync()
 
-	result, err := session.analyze(fmt.Sprintf("Please analyze the project in directory '%s' and generate a comprehensive AGENTS.md file. Use your available tools to examine the project structure, configuration files, documentation, build systems, and development workflow. Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project.", projectDir))
+	err = session.analyze(fmt.Sprintf("Please analyze the project in directory '%s' and generate a comprehensive AGENTS.md file. Use your available tools to examine the project structure, configuration files, documentation, build systems, and development workflow. Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project. Write the AGENTS.md file to: %s", projectDir, agentsMDPath))
 	if err != nil {
-		_, _ = fmt.Fprintf(os.Stdout, "%s\n", `{"role":"error","content":"Analysis failed, using default content","timestamp":"`+time.Now().Format("15:04:05")+`","elapsed":"0.0s","tokens":{"input":0,"output":0,"total":0}}`)
+		_, _ = fmt.Fprintf(os.Stdout, "%s\n", `{"role":"error","content":"Analysis failed","timestamp":"`+time.Now().Format("15:04:05")+`","elapsed":"0.0s","tokens":{"input":0,"output":0,"total":0}}`)
 		_ = os.Stdout.Sync()
-		return getDefaultAgentsMDContent(), nil
+		return fmt.Errorf("analysis failed: %w", err)
 	}
 
-	return result, nil
+	return nil
 }
 
 // checkFileExists checks if a file exists and returns an error if it does
@@ -332,72 +323,19 @@ func checkFileExists(path, description string) error {
 }
 
 // validateFilesNotExist validates that required files do not exist
-func validateFilesNotExist(configPath, gitignorePath, agentsMDPath string, skipAgentsMD bool) error {
+func validateFilesNotExist(configPath, gitignorePath, agentsMDPath string, generateAgentsMD bool) error {
 	if err := checkFileExists(configPath, "configuration file"); err != nil {
 		return err
 	}
 	if err := checkFileExists(gitignorePath, ".gitignore file"); err != nil {
 		return err
 	}
-	if !skipAgentsMD {
+	if generateAgentsMD {
 		return checkFileExists(agentsMDPath, "AGENTS.md file")
 	}
 	return nil
 }
 
-// getProjectAnalysisModel returns the model to use for project analysis
-func getProjectAnalysisModel() string {
-	if model := os.Getenv("INFER_AGENT_MODEL"); model != "" {
-		return model
-	}
-	return "anthropic/claude-3-haiku"
-}
-
-// getDefaultAgentsMDContent returns default AGENTS.md content when analysis fails
-func getDefaultAgentsMDContent() string {
-	return `# AGENTS.md
-
-## Project Overview
-This project uses the Inference Gateway CLI for AI-powered development workflows.
-
-## Development Environment
-- Ensure you have the Inference Gateway CLI configured
-- Check project-specific requirements in README.md or documentation
-- Configure your development environment according to project standards
-
-## Development Workflow
-- Initialize the project with proper configuration
-- Follow established coding patterns and conventions
-- Run tests before committing changes
-- Use appropriate build and deployment processes
-
-## Key Commands
-Check the following files for project-specific commands:
-- package.json scripts
-- Makefile targets
-- Taskfile.yml tasks
-- README.md instructions
-
-## Testing Instructions
-- Locate and examine test files in the project
-- Run test suites using project-specific test runners
-- Ensure all tests pass before submitting changes
-
-## Project Conventions
-- Follow the coding style established in the codebase
-- Respect existing architecture patterns
-- Use consistent naming conventions
-- Follow project-specific commit message formats
-
-## Important Files & Configurations
-- Configuration files in project root
-- Environment variable templates (.env.example)
-- Build and deployment scripts
-- Documentation files
-
-*This AGENTS.md was generated automatically. For more specific project information, examine the codebase directly or refer to project documentation.*
-`
-}
 
 // InitConversationMessage represents a message in the analysis conversation
 type InitConversationMessage struct {
@@ -426,9 +364,10 @@ type ProjectAnalysisSession struct {
 	totalInputTokens    int64
 	totalOutputTokens   int64
 	timeoutMessageCount int
+	agentsMDPath        string
 }
 
-func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error) {
+func (s *ProjectAnalysisSession) analyze(taskDescription string) error {
 	logger.Info("starting project analysis session",
 		"model", s.model,
 		"timeout_seconds", s.timeoutSeconds,
@@ -442,12 +381,16 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 	})
 
 	consecutiveNoToolCalls := 0
-	var lastAssistantResponse string
 	timeoutReached := false
+	fileWritten := false
 
 	for s.completedTurns < s.maxTurns {
 		if err := s.executeTurn(); err != nil {
-			return getDefaultAgentsMDContent(), err
+			return err
+		}
+
+		if _, err := os.Stat(s.agentsMDPath); err == nil {
+			fileWritten = true
 		}
 
 		s.completedTurns++
@@ -460,7 +403,7 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 
 				timeoutMsg := InitConversationMessage{
 					Role:      "user",
-					Content:   "TIME LIMIT REACHED. You must now complete the task immediately. Use the Write tool to create the AGENTS.md file with all the information you have gathered during your analysis. IMPORTANT: Write the content directly without any markdown code fences (```markdown) at the beginning or end - just write the raw markdown content. If you have been tracking todos, include any remaining incomplete tasks in a 'Future Work' or 'TODO' section so future agents know what still needs to be explored. After writing the file, do NOT make any more tool calls. Write a comprehensive AGENTS.md file based on your exploration so far.",
+					Content:   fmt.Sprintf("TIME LIMIT REACHED. You must now complete the task immediately. Use the Write tool to create the AGENTS.md file at path '%s' with all the information you have gathered during your analysis. IMPORTANT: Write the content directly without any markdown code fences (```markdown) at the beginning or end - just write the raw markdown content. If you have been tracking todos, include any remaining incomplete tasks in a 'Future Work' or 'TODO' section so future agents know what still needs to be explored. After writing the file, do NOT make any more tool calls.", s.agentsMDPath),
 					Timestamp: time.Now(),
 					Internal:  false,
 				}
@@ -471,7 +414,7 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 
 				timeoutMsg := InitConversationMessage{
 					Role:      "user",
-					Content:   "TIME LIMIT REACHED. You must now complete the task immediately. Use the Write tool to create the AGENTS.md file with all the information you have gathered during your analysis. IMPORTANT: Write the content directly without any markdown code fences (```markdown) at the beginning or end - just write the raw markdown content. If you have been tracking todos, include any remaining incomplete tasks in a 'Future Work' or 'TODO' section so future agents know what still needs to be explored. After writing the file, do NOT make any more tool calls. Write a comprehensive AGENTS.md file based on your exploration so far.",
+					Content:   fmt.Sprintf("TIME LIMIT REACHED. You must now complete the task immediately. Use the Write tool to create the AGENTS.md file at path '%s' with all the information you have gathered during your analysis. IMPORTANT: Write the content directly without any markdown code fences (```markdown) at the beginning or end - just write the raw markdown content. If you have been tracking todos, include any remaining incomplete tasks in a 'Future Work' or 'TODO' section so future agents know what still needs to be explored. After writing the file, do NOT make any more tool calls.", s.agentsMDPath),
 					Timestamp: time.Now(),
 					Internal:  false,
 				}
@@ -487,30 +430,30 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 		if s.lastResponseHadNoToolCalls() {
 			consecutiveNoToolCalls++
 
-			if consecutiveNoToolCalls >= 2 || timeoutReached {
+			if (consecutiveNoToolCalls >= 2 || timeoutReached) && fileWritten {
 				break
 			}
 
-			verifyMsg := InitConversationMessage{
-				Role:      "user",
-				Content:   "Please provide the final AGENTS.md content based on your analysis. The content should be the complete markdown file ready for use.",
-				Timestamp: time.Now(),
-				Internal:  true,
+			if !fileWritten {
+				verifyMsg := InitConversationMessage{
+					Role:      "user",
+					Content:   fmt.Sprintf("Please use the Write tool to create the AGENTS.md file at path '%s' with the complete markdown content based on your analysis.", s.agentsMDPath),
+					Timestamp: time.Now(),
+					Internal:  true,
+				}
+				s.addMessage(verifyMsg)
 			}
-			s.addMessage(verifyMsg)
 		} else {
 			consecutiveNoToolCalls = 0
 		}
-
-		lastAssistantResponse = s.getLastAssistantContent()
 	}
 
-	if lastAssistantResponse == "" {
-		logger.Warn("no assistant response generated, using default AGENTS.md content",
+	if !fileWritten {
+		logger.Warn("agent did not write AGENTS.md file",
 			"completed_turns", s.completedTurns,
 			"elapsed_seconds", time.Since(s.startTime).Seconds())
-		s.outputProgress("complete", "No response generated, using default content", "")
-		return getDefaultAgentsMDContent(), nil
+		s.outputProgress("complete", "Agent did not write file", "")
+		return fmt.Errorf("agent did not write AGENTS.md file")
 	}
 
 	logger.Info("project analysis session completed successfully",
@@ -520,7 +463,7 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) (string, error)
 		"total_output_tokens", s.totalOutputTokens,
 		"timeout_messages_sent", s.timeoutMessageCount)
 	s.outputProgress("complete", "Analysis complete, AGENTS.md generated", "")
-	return lastAssistantResponse, nil
+	return nil
 }
 
 func (s *ProjectAnalysisSession) executeTurn() error {
@@ -694,15 +637,6 @@ func (s *ProjectAnalysisSession) lastResponseHadNoToolCalls() bool {
 	return false
 }
 
-func (s *ProjectAnalysisSession) getLastAssistantContent() string {
-	for i := len(s.conversation) - 1; i >= 0; i-- {
-		msg := s.conversation[i]
-		if msg.Role == "assistant" && msg.Content != "" {
-			return msg.Content
-		}
-	}
-	return ""
-}
 
 func (s *ProjectAnalysisSession) hasTimedOut() bool {
 	return time.Since(s.startTime) > time.Duration(s.timeoutSeconds)*time.Second
