@@ -15,11 +15,15 @@ import (
 
 // ClearShortcut clears the conversation history
 type ClearShortcut struct {
-	repo domain.ConversationRepository
+	repo        domain.ConversationRepository
+	taskTracker domain.TaskTracker
 }
 
-func NewClearShortcut(repo domain.ConversationRepository) *ClearShortcut {
-	return &ClearShortcut{repo: repo}
+func NewClearShortcut(repo domain.ConversationRepository, taskTracker domain.TaskTracker) *ClearShortcut {
+	return &ClearShortcut{
+		repo:        repo,
+		taskTracker: taskTracker,
+	}
 }
 
 func (c *ClearShortcut) GetName() string               { return "clear" }
@@ -33,6 +37,11 @@ func (c *ClearShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 			Output:  fmt.Sprintf("Failed to clear conversation: %v", err),
 			Success: false,
 		}, nil
+	}
+
+	if c.taskTracker != nil {
+		c.taskTracker.ClearTaskID()
+		c.taskTracker.ClearContextID()
 	}
 
 	return ShortcutResult{
@@ -221,11 +230,15 @@ func (c *ExportShortcut) createCompactMarkdown(summary, fullConversation string)
 
 // NewShortcut starts a new conversation
 type NewShortcut struct {
-	repo PersistentConversationRepository
+	repo        PersistentConversationRepository
+	taskTracker domain.TaskTracker
 }
 
-func NewNewShortcut(repo PersistentConversationRepository) *NewShortcut {
-	return &NewShortcut{repo: repo}
+func NewNewShortcut(repo PersistentConversationRepository, taskTracker domain.TaskTracker) *NewShortcut {
+	return &NewShortcut{
+		repo:        repo,
+		taskTracker: taskTracker,
+	}
 }
 
 func (c *NewShortcut) GetName() string               { return "new" }
@@ -237,6 +250,11 @@ func (c *NewShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 	title := "New Conversation"
 	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
 		title = strings.TrimSpace(args[0])
+	}
+
+	if c.taskTracker != nil {
+		c.taskTracker.ClearTaskID()
+		c.taskTracker.ClearContextID()
 	}
 
 	return ShortcutResult{
