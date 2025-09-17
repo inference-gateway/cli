@@ -113,6 +113,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
 
 		persistentRepo.SetTitleGenerator(c.titleGenerator)
+		persistentRepo.SetTaskTracker(c.toolRegistry.GetTaskTracker())
 	}
 
 	modelClient := c.createSDKClient()

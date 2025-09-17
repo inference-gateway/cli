@@ -191,8 +191,11 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 
 	taskID = submittedTask.ID
 
-	if t.taskTracker != nil && submittedTask.ContextID != "" {
-		t.taskTracker.SetContextID(submittedTask.ContextID)
+	if submittedTask.ContextID != "" {
+		contextID = submittedTask.ContextID
+		if t.taskTracker != nil {
+			t.taskTracker.SetContextID(submittedTask.ContextID)
+		}
 	}
 
 	if t.taskTracker != nil && existingTaskID != "" &&

@@ -23,6 +23,7 @@ type PersistentConversationRepository struct {
 	autoSave       bool
 	titleGenerator *ConversationTitleGenerator
 	autoSaveMutex  sync.Mutex
+	taskTracker    domain.TaskTracker
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
@@ -52,6 +53,11 @@ func (r *PersistentConversationRepository) SetTitleGenerator(titleGenerator *Con
 	r.titleGenerator = titleGenerator
 }
 
+// SetTaskTracker sets the task tracker for context ID persistence
+func (r *PersistentConversationRepository) SetTaskTracker(taskTracker domain.TaskTracker) {
+	r.taskTracker = taskTracker
+}
+
 // StartNewConversation begins a new conversation with a unique ID
 func (r *PersistentConversationRepository) StartNewConversation(title string) error {
 	r.conversationID = uuid.New().String()
@@ -67,6 +73,11 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 		Tags:             []string{},
 		TitleGenerated:   false,
 		TitleInvalidated: false,
+	}
+
+	if r.taskTracker != nil {
+		r.taskTracker.ClearTaskID()
+		r.taskTracker.ClearContextID()
 	}
 
 	return r.InMemoryConversationRepository.Clear()
@@ -94,6 +105,14 @@ func (r *PersistentConversationRepository) LoadConversation(ctx context.Context,
 
 	r.sessionStats = metadata.TokenStats
 
+	if r.taskTracker != nil {
+		r.taskTracker.ClearTaskID()
+		r.taskTracker.ClearContextID()
+		if metadata.ContextID != "" {
+			r.taskTracker.SetContextID(metadata.ContextID)
+		}
+	}
+
 	return nil
 }
 
@@ -108,6 +127,10 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 	r.metadata.UpdatedAt = time.Now()
 	r.metadata.MessageCount = len(entries)
 	r.metadata.TokenStats = r.GetSessionTokens()
+
+	if r.taskTracker != nil {
+		r.metadata.ContextID = r.taskTracker.GetContextID()
+	}
 
 	return r.storage.SaveConversation(ctx, r.conversationID, entries, r.metadata)
 }
