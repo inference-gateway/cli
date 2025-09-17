@@ -96,7 +96,7 @@ agent:
   verbose_tools: false
   max_turns: 50
   max_tokens: 4096
-  max_concurrent_tools: 5  # Maximum number of tools that can run in parallel
+  max_concurrent_tools: 5 
   optimization:
     enabled: false
     max_history: 10
