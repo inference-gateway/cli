@@ -68,6 +68,68 @@ func TestSimpleTaskTracker_SetAndGetTaskID(t *testing.T) {
 	}
 }
 
+func TestSimpleTaskTracker_SetAndGetContextID(t *testing.T) {
+	tests := []struct {
+		name              string
+		operations        []func(*SimpleTaskTracker)
+		expectedContextID string
+	}{
+		{
+			name: "first context ID is stored",
+			operations: []func(*SimpleTaskTracker){
+				func(tt *SimpleTaskTracker) { tt.SetContextID("context-123") },
+			},
+			expectedContextID: "context-123",
+		},
+		{
+			name: "only first context ID is kept",
+			operations: []func(*SimpleTaskTracker){
+				func(tt *SimpleTaskTracker) { tt.SetContextID("context-123") },
+				func(tt *SimpleTaskTracker) { tt.SetContextID("context-456") },
+				func(tt *SimpleTaskTracker) { tt.SetContextID("context-789") },
+			},
+			expectedContextID: "context-123",
+		},
+		{
+			name: "empty context ID is ignored",
+			operations: []func(*SimpleTaskTracker){
+				func(tt *SimpleTaskTracker) { tt.SetContextID("") },
+				func(tt *SimpleTaskTracker) { tt.SetContextID("context-123") },
+			},
+			expectedContextID: "context-123",
+		},
+		{
+			name: "clear removes context ID",
+			operations: []func(*SimpleTaskTracker){
+				func(tt *SimpleTaskTracker) { tt.SetContextID("context-123") },
+				func(tt *SimpleTaskTracker) { tt.ClearContextID() },
+			},
+			expectedContextID: "",
+		},
+		{
+			name: "can set new ID after clearing",
+			operations: []func(*SimpleTaskTracker){
+				func(tt *SimpleTaskTracker) { tt.SetContextID("context-123") },
+				func(tt *SimpleTaskTracker) { tt.ClearContextID() },
+				func(tt *SimpleTaskTracker) { tt.SetContextID("context-456") },
+			},
+			expectedContextID: "context-456",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := NewSimpleTaskTracker().(*SimpleTaskTracker)
+
+			for _, op := range tt.operations {
+				op(tracker)
+			}
+
+			assert.Equal(t, tt.expectedContextID, tracker.GetContextID())
+		})
+	}
+}
+
 func TestSimpleTaskTracker_ConcurrentAccess(t *testing.T) {
 	tracker := NewSimpleTaskTracker()
 	done := make(chan bool)
@@ -77,6 +139,9 @@ func TestSimpleTaskTracker_ConcurrentAccess(t *testing.T) {
 			tracker.SetFirstTaskID("task-123")
 			tracker.GetFirstTaskID()
 			tracker.ClearTaskID()
+			tracker.SetContextID("context-123")
+			tracker.GetContextID()
+			tracker.ClearContextID()
 		}
 		done <- true
 	}()
@@ -86,6 +151,9 @@ func TestSimpleTaskTracker_ConcurrentAccess(t *testing.T) {
 			tracker.GetFirstTaskID()
 			tracker.SetFirstTaskID("task-456")
 			tracker.ClearTaskID()
+			tracker.GetContextID()
+			tracker.SetContextID("context-456")
+			tracker.ClearContextID()
 		}
 		done <- true
 	}()
