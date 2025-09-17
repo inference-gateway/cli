@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.50.0](https://github.com/inference-gateway/cli/compare/v0.49.0...v0.50.0) (2025-09-17)
+
+### 🚀 Features
+
+* **a2a:** Add Context ID support to A2A Task communication ([#159](https://github.com/inference-gateway/cli/issues/159)) ([aad2466](https://github.com/inference-gateway/cli/commit/aad24667aed639b3b36007656a1b7c7ce5f98ce2)), closes [#158](https://github.com/inference-gateway/cli/issues/158) [#158](https://github.com/inference-gateway/cli/issues/158)
+* **agent:** Add parallel tool execution support to `infer agent` command ([#157](https://github.com/inference-gateway/cli/issues/157)) ([9f8bd26](https://github.com/inference-gateway/cli/commit/9f8bd2629472221acbf3f10bb8742768e9c8228f)), closes [#156](https://github.com/inference-gateway/cli/issues/156)
+
+### ♻️ Code Refactoring
+
+* Improve AGENTS.md generation with parallel tool execution and efficiency tips ([1c2a090](https://github.com/inference-gateway/cli/commit/1c2a0904eb0ac05a7b6fc283a2667069c9a8b648))
+* **init:** Simplify `infer init` command to support AI-generated AGENTS.md with model option ([18505da](https://github.com/inference-gateway/cli/commit/18505daab4b61ab979eeaf3dc27582f7b5cda83f))
+
 ## [0.49.0](https://github.com/inference-gateway/cli/compare/v0.48.20...v0.49.0) (2025-09-15)
 
 ### 🚀 Features
