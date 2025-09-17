@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	uuid "github.com/google/uuid"
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
@@ -116,10 +115,6 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	if t.taskTracker != nil {
 		existingTaskID = t.taskTracker.GetFirstTaskID()
 		contextID = t.taskTracker.GetContextID()
-		if contextID == "" {
-			contextID = uuid.New().String()
-			t.taskTracker.SetContextID(contextID)
-		}
 	}
 
 	adkTask := adk.Task{
@@ -195,6 +190,11 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 
 	taskID = submittedTask.ID
+
+	// Extract and store Context ID from server response
+	if t.taskTracker != nil && submittedTask.ContextID != "" {
+		t.taskTracker.SetContextID(submittedTask.ContextID)
+	}
 
 	if t.taskTracker != nil && existingTaskID != "" &&
 		(submittedTask.Status.State == adk.TaskStateCompleted || submittedTask.Status.State == adk.TaskStateFailed) {
