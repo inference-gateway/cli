@@ -83,7 +83,7 @@ func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the tool with given arguments
-func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) { // nolint:gocyclo,cyclop,funlen
+func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) { // nolint:gocyclo,cyclop,funlen,gocognit
 	startTime := time.Now()
 
 	if !t.IsEnabled() {
@@ -191,7 +191,6 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 
 	taskID = submittedTask.ID
 
-	// Extract and store Context ID from server response
 	if t.taskTracker != nil && submittedTask.ContextID != "" {
 		t.taskTracker.SetContextID(submittedTask.ContextID)
 	}
@@ -251,6 +250,9 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 	if taskID != "" {
 		adkTask.ID = taskID
+	}
+	if contextID != "" {
+		adkTask.ContextID = contextID
 	}
 
 	return &domain.ToolExecutionResult{
