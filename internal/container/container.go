@@ -113,6 +113,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
 
 		persistentRepo.SetTitleGenerator(c.titleGenerator)
+		persistentRepo.SetTaskTracker(c.toolRegistry.GetTaskTracker())
 	}
 
 	modelClient := c.createSDKClient()
@@ -180,7 +181,11 @@ func (c *ServiceContainer) initializeExtensibility() {
 
 // registerDefaultCommands registers the built-in commands
 func (c *ServiceContainer) registerDefaultCommands() {
-	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo))
+	var taskTracker domain.TaskTracker
+	if c.toolRegistry != nil {
+		taskTracker = c.toolRegistry.GetTaskTracker()
+	}
+	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, taskTracker))
 	c.shortcutRegistry.Register(shortcuts.NewExportShortcut(c.conversationRepo, c.agentService, c.modelService, c.config))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
@@ -190,13 +195,12 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(adapter))
-		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter))
+		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter, taskTracker))
 	}
 
 	gitCommitClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
 
-	// A2A discovery - fetches agent cards when /a2a is executed
 	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService))
 
 	if c.configService != nil {

@@ -83,7 +83,7 @@ func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the tool with given arguments
-func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) { // nolint:gocyclo,cyclop,funlen
+func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) { // nolint:gocyclo,cyclop,funlen,gocognit
 	startTime := time.Now()
 
 	if !t.IsEnabled() {
@@ -111,8 +111,10 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 
 	var existingTaskID string
+	var contextID string
 	if t.taskTracker != nil {
 		existingTaskID = t.taskTracker.GetFirstTaskID()
+		contextID = t.taskTracker.GetContextID()
 	}
 
 	adkTask := adk.Task{
@@ -154,6 +156,10 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 		message.TaskID = &existingTaskID
 	}
 
+	if contextID != "" {
+		message.ContextID = &contextID
+	}
+
 	msgParams := adk.MessageSendParams{
 		Message: message,
 		Configuration: &adk.MessageSendConfiguration{
@@ -184,6 +190,13 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 
 	taskID = submittedTask.ID
+
+	if submittedTask.ContextID != "" {
+		contextID = submittedTask.ContextID
+		if t.taskTracker != nil {
+			t.taskTracker.SetContextID(submittedTask.ContextID)
+		}
+	}
 
 	if t.taskTracker != nil && existingTaskID != "" &&
 		(submittedTask.Status.State == adk.TaskStateCompleted || submittedTask.Status.State == adk.TaskStateFailed) {
@@ -240,6 +253,9 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 	if taskID != "" {
 		adkTask.ID = taskID
+	}
+	if contextID != "" {
+		adkTask.ContextID = contextID
 	}
 
 	return &domain.ToolExecutionResult{
