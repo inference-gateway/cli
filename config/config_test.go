@@ -117,7 +117,14 @@ RULES:
 - Code: Follow existing patterns, check deps, no secrets
 - Tasks: Use TodoWrite, mark progress immediately
 - Chat exports: Read only "## Summary" to "---" section
-- Tools: Batch calls, prefer Grep for search
+- Tools: ALWAYS use parallel execution when possible - batch multiple tool calls in a single response to improve efficiency
+- Tools: Prefer Grep for search, Read for specific files
+
+PARALLEL TOOL EXECUTION:
+- When you need to perform multiple operations, make ALL tool calls in a single response
+- Examples: Read multiple files, search multiple patterns, execute multiple commands
+- The system supports up to 5 concurrent tool executions by default
+- This reduces back-and-forth communication and significantly improves performance
 
 WORKFLOW:
 When asked to implement features or fix issues:
