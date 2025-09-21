@@ -4,6 +4,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
 )
@@ -67,21 +68,12 @@ func TestBackgroundTaskHandler_HandleBackgroundTaskToggle(t *testing.T) {
 			msg := cmd()
 
 			if tt.expectError {
-				if errorEvent, ok := msg.(domain.ShowErrorEvent); ok {
-					if errorEvent.Error == "" {
-						t.Error("expected error message but got empty string")
-					}
-				} else {
-					t.Errorf("expected ShowErrorEvent but got %T", msg)
-				}
-			} else if tt.expectStatusMessage {
-				if statusEvent, ok := msg.(domain.SetStatusEvent); ok {
-					if statusEvent.Message == "" {
-						t.Error("expected status message but got empty string")
-					}
-				} else {
-					t.Errorf("expected SetStatusEvent but got %T", msg)
-				}
+				validateErrorEvent(t, msg)
+				return
+			}
+
+			if tt.expectStatusMessage {
+				validateStatusEvent(t, msg)
 			}
 		})
 	}
@@ -169,22 +161,11 @@ func TestBackgroundTaskHandler_HandleBackgroundTaskCompleted(t *testing.T) {
 			msg := cmd()
 
 			if tt.expectError {
-				if errorEvent, ok := msg.(domain.ShowErrorEvent); ok {
-					if errorEvent.Error == "" {
-						t.Error("expected error message but got empty string")
-					}
-				} else {
-					t.Errorf("expected ShowErrorEvent but got %T", msg)
-				}
-			} else {
-				if statusEvent, ok := msg.(domain.SetStatusEvent); ok {
-					if statusEvent.Message == "" {
-						t.Error("expected status message but got empty string")
-					}
-				} else {
-					t.Errorf("expected SetStatusEvent but got %T", msg)
-				}
+				validateErrorEvent(t, msg)
+				return
 			}
+
+			validateStatusEvent(t, msg)
 		})
 	}
 }
@@ -250,5 +231,29 @@ func TestBackgroundTaskHandler_UpdateBackgroundTaskCount(t *testing.T) {
 				t.Errorf("expected BackgroundTaskCountUpdateEvent but got %T", msg)
 			}
 		})
+	}
+}
+
+func validateErrorEvent(t *testing.T, msg tea.Msg) {
+	errorEvent, ok := msg.(domain.ShowErrorEvent)
+	if !ok {
+		t.Errorf("expected ShowErrorEvent but got %T", msg)
+		return
+	}
+
+	if errorEvent.Error == "" {
+		t.Error("expected error message but got empty string")
+	}
+}
+
+func validateStatusEvent(t *testing.T, msg tea.Msg) {
+	statusEvent, ok := msg.(domain.SetStatusEvent)
+	if !ok {
+		t.Errorf("expected SetStatusEvent but got %T", msg)
+		return
+	}
+
+	if statusEvent.Message == "" {
+		t.Error("expected status message but got empty string")
 	}
 }

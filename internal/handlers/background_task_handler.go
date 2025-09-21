@@ -44,25 +44,9 @@ func (h *BackgroundTaskHandler) HandleBackgroundTaskToggle() tea.Cmd {
 
 	var statusMessage string
 	if len(activeTasks) > 0 {
-		statusMessage = "Active background tasks:\n"
-		for _, task := range activeTasks {
-			duration := time.Since(task.StartTime)
-			statusMessage += "• " + task.Description + " [" + string(task.Status) + "] (" + duration.Round(time.Second).String() + ")\n"
-		}
+		statusMessage = h.formatActiveTasksMessage(activeTasks)
 	} else {
-		statusMessage = "No active background tasks"
-		if len(allTasks) > 0 {
-			completedCount := 0
-			failedCount := 0
-			for _, task := range allTasks {
-				if task.Status == domain.BackgroundTaskStatusCompleted {
-					completedCount++
-				} else if task.Status == domain.BackgroundTaskStatusFailed {
-					failedCount++
-				}
-			}
-			statusMessage += " (Recent: " + string(rune(completedCount)) + " completed, " + string(rune(failedCount)) + " failed)"
-		}
+		statusMessage = h.formatInactiveTasksMessage(allTasks)
 	}
 
 	return func() tea.Msg {
@@ -118,4 +102,40 @@ func (h *BackgroundTaskHandler) UpdateBackgroundTaskCount() tea.Cmd {
 			Count: activeCount,
 		}
 	}
+}
+
+func (h *BackgroundTaskHandler) formatActiveTasksMessage(activeTasks []*domain.BackgroundTask) string {
+	statusMessage := "Active background tasks:\n"
+	for _, task := range activeTasks {
+		duration := time.Since(task.StartTime)
+		statusMessage += "• " + task.Description + " [" + string(task.Status) + "] (" + duration.Round(time.Second).String() + ")\n"
+	}
+	return statusMessage
+}
+
+func (h *BackgroundTaskHandler) formatInactiveTasksMessage(allTasks []*domain.BackgroundTask) string {
+	statusMessage := "No active background tasks"
+	if len(allTasks) == 0 {
+		return statusMessage
+	}
+
+	completedCount, failedCount := h.countTasksByStatus(allTasks)
+	statusMessage += " (Recent: " + string(rune(completedCount)) + " completed, " + string(rune(failedCount)) + " failed)"
+	return statusMessage
+}
+
+func (h *BackgroundTaskHandler) countTasksByStatus(tasks []*domain.BackgroundTask) (int, int) {
+	completedCount := 0
+	failedCount := 0
+
+	for _, task := range tasks {
+		switch task.Status {
+		case domain.BackgroundTaskStatusCompleted:
+			completedCount++
+		case domain.BackgroundTaskStatusFailed:
+			failedCount++
+		}
+	}
+
+	return completedCount, failedCount
 }
