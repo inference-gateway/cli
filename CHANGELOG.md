@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.50.1](https://github.com/inference-gateway/cli/compare/v0.50.0...v0.50.1) (2025-09-21)
+
+### 🐛 Bug Fixes
+
+* Update Node.js version to use the latest LTS in CI workflow ([a060521](https://github.com/inference-gateway/cli/commit/a0605216efed512db37b0d0002fc4bb1555a9d2e))
+
+### 👷 CI/CD
+
+* Improve CI - remove flox, keep it only for local development ([#162](https://github.com/inference-gateway/cli/issues/162)) ([b56c04a](https://github.com/inference-gateway/cli/commit/b56c04a45300c174eb347fb53996407a4d35cca2)), closes [#161](https://github.com/inference-gateway/cli/issues/161)
+
 ## [0.50.0](https://github.com/inference-gateway/cli/compare/v0.49.0...v0.50.0) (2025-09-17)
 
 ### 🚀 Features
