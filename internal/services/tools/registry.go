@@ -11,10 +11,11 @@ import (
 
 // Registry manages all available tools
 type Registry struct {
-	config       *config.Config
-	tools        map[string]domain.Tool
-	readToolUsed bool
-	taskTracker  domain.TaskTracker
+	config                *config.Config
+	tools                 map[string]domain.Tool
+	readToolUsed          bool
+	taskTracker           domain.TaskTracker
+	backgroundTaskManager domain.BackgroundTaskManager
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
@@ -117,4 +118,16 @@ func (r *Registry) IsReadToolUsed() bool {
 // GetTaskTracker returns the task tracker instance
 func (r *Registry) GetTaskTracker() domain.TaskTracker {
 	return r.taskTracker
+}
+
+// SetBackgroundTaskManager sets the background task manager for tools that need it
+func (r *Registry) SetBackgroundTaskManager(manager domain.BackgroundTaskManager) {
+	r.backgroundTaskManager = manager
+
+	// Update the A2A Task tool with the background task manager
+	if tool, exists := r.tools["Task"]; exists {
+		if a2aTaskTool, ok := tool.(*A2ATaskTool); ok {
+			a2aTaskTool.SetBackgroundTaskManager(manager)
+		}
+	}
 }

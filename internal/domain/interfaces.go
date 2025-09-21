@@ -147,6 +147,44 @@ type TaskTracker interface {
 	ClearContextID()
 }
 
+// BackgroundTaskManager manages background task execution
+type BackgroundTaskManager interface {
+	SubmitTask(ctx context.Context, agentURL, description string, args map[string]any) (*BackgroundTask, error)
+	GetActiveTasks() []*BackgroundTask
+	GetAllTasks() []*BackgroundTask
+	GetTask(taskID string) (*BackgroundTask, bool)
+	CancelTask(taskID string) error
+	GetActiveTaskCount() int
+	CleanupOldTasks(maxAge time.Duration) int
+	SetEventChannel(eventChan chan<- UIEvent)
+}
+
+// BackgroundTaskStatus represents the status of a background task
+type BackgroundTaskStatus string
+
+const (
+	BackgroundTaskStatusPending   BackgroundTaskStatus = "pending"
+	BackgroundTaskStatusRunning   BackgroundTaskStatus = "running"
+	BackgroundTaskStatusCompleted BackgroundTaskStatus = "completed"
+	BackgroundTaskStatusFailed    BackgroundTaskStatus = "failed"
+	BackgroundTaskStatusCancelled BackgroundTaskStatus = "cancelled"
+)
+
+// BackgroundTask represents a task running in the background
+type BackgroundTask struct {
+	ID              string                 `json:"id"`
+	AgentURL        string                 `json:"agent_url"`
+	Description     string                 `json:"description"`
+	Status          BackgroundTaskStatus   `json:"status"`
+	StartTime       time.Time              `json:"start_time"`
+	CompletionTime  *time.Time             `json:"completion_time,omitempty"`
+	Result          string                 `json:"result,omitempty"`
+	Error           string                 `json:"error,omitempty"`
+	TaskID          string                 `json:"task_id,omitempty"`
+	ContextID       string                 `json:"context_id,omitempty"`
+	OriginalRequest map[string]interface{} `json:"original_request"`
+}
+
 // FetchResult represents the result of a fetch operation
 type FetchResult struct {
 	Content     string            `json:"content"`
@@ -581,6 +619,10 @@ const (
 	UIEventA2ATaskStatusUpdate
 	UIEventA2ATaskCompleted
 	UIEventA2ATaskInputRequired
+	UIEventBackgroundTaskStarted
+	UIEventBackgroundTaskCompleted
+	UIEventBackgroundTaskToggle
+	UIEventBackgroundTaskCountUpdate
 )
 
 // ScrollDirection defines scroll direction

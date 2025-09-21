@@ -198,3 +198,26 @@ type A2ATaskInputRequiredEvent struct {
 func (e A2ATaskInputRequiredEvent) GetType() ChatEventType  { return EventA2ATaskInputRequired }
 func (e A2ATaskInputRequiredEvent) GetRequestID() string    { return e.RequestID }
 func (e A2ATaskInputRequiredEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// BackgroundTaskStartedEvent indicates a background task was started
+type BackgroundTaskStartedEvent struct {
+	TaskID      string
+	AgentURL    string
+	Description string
+	Timestamp   time.Time
+}
+
+func (e BackgroundTaskStartedEvent) GetType() UIEventType    { return UIEventBackgroundTaskStarted }
+func (e BackgroundTaskStartedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// BackgroundTaskCompletedEvent indicates a background task was completed
+type BackgroundTaskCompletedEvent struct {
+	TaskID    string
+	Success   bool
+	Result    string
+	Error     string
+	Timestamp time.Time
+}
+
+func (e BackgroundTaskCompletedEvent) GetType() UIEventType    { return UIEventBackgroundTaskCompleted }
+func (e BackgroundTaskCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }

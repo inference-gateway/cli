@@ -39,9 +39,10 @@ type ServiceContainer struct {
 	stateManager *services.StateManager
 
 	// Background services
-	titleGenerator       *services.ConversationTitleGenerator
-	backgroundJobManager *services.BackgroundJobManager
-	storage              storage.ConversationStorage
+	titleGenerator        *services.ConversationTitleGenerator
+	backgroundJobManager  *services.BackgroundJobManager
+	backgroundTaskManager domain.BackgroundTaskManager
+	storage               storage.ConversationStorage
 
 	// UI components
 	themeService domain.ThemeService
@@ -139,6 +140,9 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 
 	c.a2aAgentService = services.NewA2AAgentService(c.config)
+
+	c.backgroundTaskManager = services.NewBackgroundTaskManager(c.config, c.toolRegistry.GetTaskTracker())
+	c.toolRegistry.SetBackgroundTaskManager(c.backgroundTaskManager)
 
 	agentClient := c.createSDKClient()
 	c.agentService = services.NewAgentService(
@@ -384,4 +388,9 @@ func (c *ServiceContainer) GetBackgroundJobManager() *services.BackgroundJobMana
 // GetStorage returns the conversation storage
 func (c *ServiceContainer) GetStorage() storage.ConversationStorage {
 	return c.storage
+}
+
+// GetBackgroundTaskManager returns the background task manager
+func (c *ServiceContainer) GetBackgroundTaskManager() domain.BackgroundTaskManager {
+	return c.backgroundTaskManager
 }

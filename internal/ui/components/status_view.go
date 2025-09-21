@@ -15,19 +15,20 @@ import (
 
 // StatusView handles status messages, errors, and loading spinners
 type StatusView struct {
-	message      string
-	isError      bool
-	isSpinner    bool
-	spinner      spinner.Model
-	startTime    time.Time
-	tokenUsage   string
-	baseMessage  string
-	debugInfo    string
-	width        int
-	statusType   domain.StatusType
-	progress     *domain.StatusProgress
-	savedState   *StatusState
-	themeService domain.ThemeService
+	message             string
+	isError             bool
+	isSpinner           bool
+	spinner             spinner.Model
+	startTime           time.Time
+	tokenUsage          string
+	baseMessage         string
+	debugInfo           string
+	width               int
+	statusType          domain.StatusType
+	progress            *domain.StatusProgress
+	savedState          *StatusState
+	themeService        domain.ThemeService
+	backgroundTaskCount int
 }
 
 // StatusState represents a saved status state
@@ -179,6 +180,11 @@ func (sv *StatusView) SetTokenUsage(usage string) {
 	sv.tokenUsage = usage
 }
 
+// SetBackgroundTaskCount sets the number of active background tasks
+func (sv *StatusView) SetBackgroundTaskCount(count int) {
+	sv.backgroundTaskCount = count
+}
+
 func (sv *StatusView) SetWidth(width int) {
 	sv.width = width
 }
@@ -206,6 +212,16 @@ func (sv *StatusView) Render() string {
 			displayMessage = fmt.Sprintf("%s | %s", displayMessage, sv.debugInfo)
 		} else {
 			displayMessage = sv.debugInfo
+		}
+	}
+
+	// Add background task indicator
+	if sv.backgroundTaskCount > 0 {
+		taskIndicator := fmt.Sprintf("[Tasks: %d 🔄]", sv.backgroundTaskCount)
+		if displayMessage != "" {
+			displayMessage = fmt.Sprintf("%s %s", displayMessage, taskIndicator)
+		} else {
+			displayMessage = taskIndicator
 		}
 	}
 

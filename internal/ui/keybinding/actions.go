@@ -80,6 +80,18 @@ func (r *Registry) createChatActions() []*KeyAction {
 			},
 		},
 		{
+			ID:          "background_task_toggle",
+			Keys:        []string{"ctrl+b"},
+			Description: "toggle background task management",
+			Category:    "tasks",
+			Handler:     handleBackgroundTaskToggle,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
 			ID:          "enter_key_handler",
 			Keys:        []string{"enter"},
 			Description: "send message or insert newline",
@@ -735,6 +747,12 @@ func handleEnterSelectionMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 			}
 		},
 	)
+}
+
+func handleBackgroundTaskToggle(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	return func() tea.Msg {
+		return domain.BackgroundTaskToggleEvent{}
+	}
 }
 
 // KeyBindingManager manages the key binding system for ChatApplication

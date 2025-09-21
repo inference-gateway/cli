@@ -16,10 +16,11 @@ import (
 
 // A2ATaskTool handles A2A task submission and management
 type A2ATaskTool struct {
-	config      *config.Config
-	formatter   domain.CustomFormatter
-	taskTracker domain.TaskTracker
-	client      client.A2AClient
+	config                *config.Config
+	formatter             domain.CustomFormatter
+	taskTracker           domain.TaskTracker
+	client                client.A2AClient
+	backgroundTaskManager domain.BackgroundTaskManager
 }
 
 // A2ATaskResult represents the result of an A2A task operation
@@ -39,9 +40,14 @@ func NewA2ATaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2ATask
 		taskTracker: taskTracker,
 		client:      nil,
 		formatter: domain.NewCustomFormatter("Task", func(key string) bool {
-			return key == "metadata" || key == "task_description"
+			return key == "metadata" || key == "task_description" || key == "run_in_background"
 		}),
 	}
+}
+
+// SetBackgroundTaskManager sets the background task manager for this tool
+func (t *A2ATaskTool) SetBackgroundTaskManager(manager domain.BackgroundTaskManager) {
+	t.backgroundTaskManager = manager
 }
 
 // NewA2ATaskToolWithClient creates a new A2A task tool with an injected client (for testing)
@@ -74,6 +80,10 @@ func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
 					"task_description": map[string]interface{}{
 						"type":        "string",
 						"description": "The question to ask or work to perform. Can be a question, task, action, or continuation of existing work",
+					},
+					"run_in_background": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Run task in background, allowing other operations to continue concurrently",
 					},
 				},
 				"required": []string{"agent_url", "task_description"},
@@ -108,6 +118,12 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	taskDescription, ok := args["task_description"].(string)
 	if !ok {
 		return t.errorResult(args, startTime, "task_description parameter is required and must be a string")
+	}
+
+	runInBackground, _ := args["run_in_background"].(bool)
+
+	if runInBackground {
+		return t.executeInBackground(ctx, args, agentURL, taskDescription, startTime)
 	}
 
 	var existingTaskID string
@@ -444,6 +460,35 @@ func (t *A2ATaskTool) isTaskNotFoundError(err error) bool {
 	return strings.Contains(errorStr, "task not found") ||
 		strings.Contains(errorStr, "not found") ||
 		strings.Contains(errorStr, "32603")
+}
+
+// executeInBackground submits the task to background execution
+func (t *A2ATaskTool) executeInBackground(ctx context.Context, args map[string]any, agentURL, taskDescription string, startTime time.Time) (*domain.ToolExecutionResult, error) {
+	if t.backgroundTaskManager == nil {
+		return t.errorResult(args, startTime, "background task execution is not available")
+	}
+
+	backgroundTask, err := t.backgroundTaskManager.SubmitTask(ctx, agentURL, taskDescription, args)
+	if err != nil {
+		return t.errorResult(args, startTime, fmt.Sprintf("failed to submit background task: %v", err))
+	}
+
+	taskID := backgroundTask.ID
+
+	return &domain.ToolExecutionResult{
+		ToolName:  "Task",
+		Arguments: args,
+		Success:   true,
+		Duration:  time.Since(startTime),
+		Data: A2ATaskResult{
+			AgentName:  agentURL,
+			Task:       nil,
+			Success:    true,
+			Message:    fmt.Sprintf("A2A task submitted to background (ID: %s)", taskID),
+			Duration:   time.Since(startTime),
+			TaskResult: fmt.Sprintf("Background task started - ID: %s", taskID),
+		},
+	}, nil
 }
 
 // mapToStruct converts a map[string]any to a struct using JSON marshaling

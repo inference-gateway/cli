@@ -196,3 +196,17 @@ type ToolExecutionCompletedEvent struct {
 }
 
 func (e ToolExecutionCompletedEvent) GetType() UIEventType { return UIEventToolExecutionCompleted }
+
+// BackgroundTaskToggleEvent toggles background task management view
+type BackgroundTaskToggleEvent struct{}
+
+func (e BackgroundTaskToggleEvent) GetType() UIEventType { return UIEventBackgroundTaskToggle }
+
+// BackgroundTaskCountUpdateEvent updates the background task count in status view
+type BackgroundTaskCountUpdateEvent struct {
+	Count int
+}
+
+func (e BackgroundTaskCountUpdateEvent) GetType() UIEventType {
+	return UIEventBackgroundTaskCountUpdate
+}
