@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -19,6 +19,7 @@ type AgentServiceImpl struct {
 	toolService      domain.ToolService
 	config           domain.ConfigService
 	conversationRepo domain.ConversationRepository
+	a2aAgentService  domain.A2AAgentService
 	timeoutSeconds   int
 	maxTokens        int
 	optimizer        *ConversationOptimizer
@@ -38,10 +39,115 @@ type AgentServiceImpl struct {
 	// Tool call accumulation
 	toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall
 	toolCallsMux sync.RWMutex
+}
 
-	// A2A task tracking to prevent duplicate processing
-	executedA2ATasks map[string]bool
-	a2aTasksMux      sync.RWMutex
+// eventPublisher provides a utility for publishing chat events
+type eventPublisher struct {
+	requestID  string
+	chatEvents chan<- domain.ChatEvent
+}
+
+// newEventPublisher creates a new event publisher for the given request
+func newEventPublisher(requestID string, chatEvents chan<- domain.ChatEvent) *eventPublisher {
+	return &eventPublisher{
+		requestID:  requestID,
+		chatEvents: chatEvents,
+	}
+}
+
+// publishChatStart publishes a ChatStartEvent
+func (p *eventPublisher) publishChatStart() {
+	p.chatEvents <- domain.ChatStartEvent{
+		RequestID: p.requestID,
+		Timestamp: time.Now(),
+	}
+}
+
+// publishChatComplete publishes a ChatCompleteEvent
+func (p *eventPublisher) publishChatComplete(toolCalls []sdk.ChatCompletionMessageToolCall, metrics *domain.ChatMetrics) {
+	p.chatEvents <- domain.ChatCompleteEvent{
+		RequestID: p.requestID,
+		Timestamp: time.Now(),
+		ToolCalls: toolCalls,
+		Metrics:   metrics,
+	}
+}
+
+// publishChatChunk publishes a ChatChunkEvent
+func (p *eventPublisher) publishChatChunk(content, reasoningContent string, toolCalls []sdk.ChatCompletionMessageToolCallChunk) {
+	p.chatEvents <- domain.ChatChunkEvent{
+		RequestID:        p.requestID,
+		Timestamp:        time.Now(),
+		ReasoningContent: reasoningContent,
+		Content:          content,
+		Delta:            true,
+		ToolCalls:        toolCalls,
+	}
+}
+
+// publishOptimizationStatus publishes an OptimizationStatusEvent
+func (p *eventPublisher) publishOptimizationStatus(message string, isActive bool, originalCount, optimizedCount int) {
+	p.chatEvents <- domain.OptimizationStatusEvent{
+		RequestID:      p.requestID,
+		Timestamp:      time.Now(),
+		Message:        message,
+		IsActive:       isActive,
+		OriginalCount:  originalCount,
+		OptimizedCount: optimizedCount,
+	}
+}
+
+// publishParallelToolsStart publishes a ParallelToolsStartEvent
+func (p *eventPublisher) publishParallelToolsStart(toolCalls []sdk.ChatCompletionMessageToolCall) {
+	tools := make([]domain.ToolInfo, len(toolCalls))
+	for i, tc := range toolCalls {
+		tools[i] = domain.ToolInfo{
+			CallID: tc.Id,
+			Name:   tc.Function.Name,
+			Status: "queued",
+		}
+	}
+
+	event := domain.ParallelToolsStartEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		Tools: tools,
+	}
+
+	p.chatEvents <- event
+}
+
+// publishToolStatusChange publishes a ToolExecutionProgressEvent
+func (p *eventPublisher) publishToolStatusChange(callID string, status string, message string) {
+	event := domain.ToolExecutionProgressEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		ToolCallID: callID,
+		Status:     status,
+		Message:    message,
+	}
+
+	p.chatEvents <- event
+}
+
+// publishParallelToolsComplete publishes a ParallelToolsCompleteEvent
+func (p *eventPublisher) publishParallelToolsComplete(totalExecuted, successCount, failureCount int, duration time.Duration) {
+	event := domain.ParallelToolsCompleteEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		TotalExecuted: totalExecuted,
+		SuccessCount:  successCount,
+		FailureCount:  failureCount,
+		Duration:      duration,
+	}
+
+	p.chatEvents <- event
 }
 
 // NewAgentService creates a new agent service with pre-configured client
@@ -50,6 +156,7 @@ func NewAgentService(
 	toolService domain.ToolService,
 	config domain.ConfigService,
 	conversationRepo domain.ConversationRepository,
+	a2aAgentService domain.A2AAgentService,
 	timeoutSeconds int,
 	optimizer *ConversationOptimizer,
 ) *AgentServiceImpl {
@@ -58,6 +165,7 @@ func NewAgentService(
 		toolService:      toolService,
 		config:           config,
 		conversationRepo: conversationRepo,
+		a2aAgentService:  a2aAgentService,
 		timeoutSeconds:   timeoutSeconds,
 		maxTokens:        config.GetAgentConfig().MaxTokens,
 		optimizer:        optimizer,
@@ -65,7 +173,6 @@ func NewAgentService(
 		cancelChannels:   make(map[string]chan struct{}),
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
-		executedA2ATasks: make(map[string]bool),
 	}
 }
 
@@ -99,10 +206,10 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 			MaxTokens: &s.maxTokens,
 		}).
 			WithMiddlewareOptions(&sdk.MiddlewareOptions{
-				SkipMCP: s.config.ShouldSkipMCPToolOnClient(),
-				SkipA2A: s.config.ShouldSkipA2AToolOnClient(),
+				SkipMCP: true,
+				SkipA2A: true,
 			})
-		if s.toolService != nil { // nolint:nestif
+		if s.toolService != nil {
 			availableTools := s.toolService.ListTools()
 			if len(availableTools) > 0 {
 				client = s.client.WithTools(&availableTools)
@@ -150,6 +257,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	}
 
 	chatEvents := make(chan domain.ChatEvent, 100)
+	eventPublisher := newEventPublisher(req.RequestID, chatEvents)
 
 	cancelChan := make(chan struct{}, 1)
 	s.cancelMux.Lock()
@@ -162,25 +270,17 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		s.cancelMux.Unlock()
 	}()
 
-	systemPrompt := s.config.GetAgentConfig().SystemPrompt
-	if systemPrompt == "" {
-		systemPrompt = "You are an helpful assistant."
-	}
-
 	client := s.client.
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
-			SkipMCP: s.config.ShouldSkipMCPToolOnClient(),
-			SkipA2A: s.config.ShouldSkipA2AToolOnClient(),
+			SkipMCP: true,
+			SkipA2A: true,
 		})
 	availableTools := s.toolService.ListTools()
 	if len(availableTools) > 0 {
 		client = client.WithTools(&availableTools)
 	}
 
-	conversation := []sdk.Message{
-		{Role: "system", Content: systemPrompt},
-	}
-	conversation = append(conversation, req.Messages...)
+	conversation := s.addSystemPrompt(req.Messages)
 
 	provider, model, err := s.parseProvider(req.Model)
 	if err != nil {
@@ -190,18 +290,13 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	turns := 0
 	maxTurns := s.config.GetAgentConfig().MaxTurns
 	go func() {
-		conversation = s.optimizeConversation(ctx, req, conversation, chatEvents)
+		conversation = s.optimizeConversation(ctx, req, conversation, eventPublisher)
 
 		//// EVENT LOOP START
 		for maxTurns > turns {
 			select {
 			case <-cancelChan:
-				chatEvents <- domain.ChatCompleteEvent{
-					RequestID: req.RequestID,
-					Timestamp: time.Now(),
-					ToolCalls: []sdk.ChatCompletionMessageToolCall{},
-					Metrics:   s.GetMetrics(req.RequestID),
-				}
+				eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
 				close(chatEvents)
 				return
 			default:
@@ -211,7 +306,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			iterationStartTime := time.Now()
 
 			if turns > 0 {
-				time.Sleep(100 * time.Millisecond)
+				time.Sleep(constants.AgentIterationDelay)
 			}
 
 			requestCtx, requestCancel := context.WithCancel(ctx)
@@ -226,10 +321,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				s.requestsMux.Unlock()
 			}()
 
-			chatEvents <- domain.ChatStartEvent{
-				RequestID: req.RequestID,
-				Timestamp: time.Now(),
-			}
+			eventPublisher.publishChatStart()
 
 			if s.shouldInjectSystemReminder(turns) {
 				systemReminderMsg := s.getSystemReminderMessage()
@@ -248,7 +340,12 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 			events, err := client.GenerateContentStream(requestCtx, sdk.Provider(provider), model, conversation)
 			if err != nil {
-				logger.Error("failed to create a stream, %w", err)
+				logger.Error("Failed to create stream",
+					"error", err,
+					"turn", turns,
+					"conversationLength", len(conversation),
+					"provider", provider)
+				return
 			}
 
 			var allToolCallDeltas []sdk.ChatCompletionMessageToolCallChunk
@@ -301,19 +398,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					}
 
 					if deltaContent != "" || reasoning != "" || len(choice.Delta.ToolCalls) > 0 {
-						event := domain.ChatChunkEvent{
-							RequestID:        req.RequestID,
-							Timestamp:        time.Now(),
-							ReasoningContent: reasoning,
-							Content:          deltaContent,
-							Delta:            true,
-						}
-
-						if len(choice.Delta.ToolCalls) > 0 {
-							event.ToolCalls = choice.Delta.ToolCalls
-						}
-
-						chatEvents <- event
+						eventPublisher.publishChatChunk(deltaContent, reasoning, choice.Delta.ToolCalls)
 					}
 
 					if streamResponse.Usage != nil {
@@ -356,85 +441,33 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				for _, tc := range toolCalls {
 					completeToolCalls = append(completeToolCalls, *tc)
 				}
-			}
 
-			for _, tc := range toolCalls {
-				if s.isA2ATool(tc.Function.Name) {
-					s.a2aTasksMux.Lock()
-					alreadyExecuted := s.executedA2ATasks[tc.Id]
-					if !alreadyExecuted {
-						s.executedA2ATasks[tc.Id] = true
-						s.a2aTasksMux.Unlock()
-						s.handleA2AToolCall(*tc, req.RequestID, chatEvents)
-					} else {
-						s.a2aTasksMux.Unlock()
-					}
+				toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
+				for _, tc := range toolCalls {
+					toolCallsSlice = append(toolCallsSlice, tc)
+				}
 
+				toolResults := s.executeToolCallsParallel(ctx, toolCallsSlice, eventPublisher)
+
+				for _, entry := range toolResults {
 					toolResult := sdk.Message{
 						Role:       sdk.Tool,
-						Content:    fmt.Sprintf("%s executed on Gateway successfully", tc.Function.Name),
-						ToolCallId: &tc.Id,
+						Content:    entry.Message.Content,
+						ToolCallId: entry.Message.ToolCallId,
 					}
 					conversation = append(conversation, toolResult)
-					continue
 				}
 
-				err := s.executeToolCall(ctx, *tc, req.RequestID, chatEvents)
-				if err != nil {
-					logger.Error("failed to execute tool: %w", err)
-					errorResult := sdk.Message{
-						Role:       sdk.Tool,
-						Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
-						ToolCallId: &tc.Id,
-					}
-					conversation = append(conversation, errorResult)
-					continue
-				}
+				s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
 
-				messages := s.conversationRepo.GetMessages()
-				if len(messages) == 0 {
-					errorResult := sdk.Message{
-						Role:       sdk.Tool,
-						Content:    "Tool execution completed but no result was stored",
-						ToolCallId: &tc.Id,
-					}
-					conversation = append(conversation, errorResult)
-					continue
-				}
+				eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
 
-				lastMessage := messages[len(messages)-1]
-				if lastMessage.Message.Role != sdk.Tool {
-					errorResult := sdk.Message{
-						Role:       sdk.Tool,
-						Content:    "Tool execution completed but result format is unexpected",
-						ToolCallId: &tc.Id,
-					}
-					conversation = append(conversation, errorResult)
-					continue
-				}
-
-				toolResult := sdk.Message{
-					Role:       sdk.Tool,
-					Content:    lastMessage.Message.Content,
-					ToolCallId: &tc.Id,
-				}
-				conversation = append(conversation, toolResult)
-			}
-
-			s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
-
-			chatEvents <- domain.ChatCompleteEvent{
-				RequestID: req.RequestID,
-				Timestamp: time.Now(),
-				ToolCalls: completeToolCalls,
-				Metrics:   s.GetMetrics(req.RequestID),
-			}
-
-			if len(toolCalls) == 0 {
-				// TODO - implement retries to ensure the agent is done - inject final message and continue until max configured retries
+				turns++
+			} else {
+				s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
+				eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
 				break
 			}
-			turns++
 		}
 		//// EVENT LOOP FINISHED
 		close(chatEvents)
@@ -509,7 +542,7 @@ func (s *AgentServiceImpl) storeIterationMetrics(requestID string, startTime tim
 	}
 }
 
-func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain.AgentRequest, conversation []sdk.Message, chatEvents chan<- domain.ChatEvent) []sdk.Message {
+func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain.AgentRequest, conversation []sdk.Message, eventPublisher *eventPublisher) []sdk.Message {
 	if s.optimizer == nil || !s.config.GetAgentConfig().Optimization.Enabled {
 		return conversation
 	}
@@ -526,14 +559,7 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 		}
 	}
 
-	chatEvents <- domain.OptimizationStatusEvent{
-		RequestID:      req.RequestID,
-		Timestamp:      time.Now(),
-		Message:        "Optimizing conversation history...",
-		IsActive:       true,
-		OriginalCount:  originalCount,
-		OptimizedCount: originalCount,
-	}
+	eventPublisher.publishOptimizationStatus("Optimizing conversation history...", true, originalCount, originalCount)
 
 	conversation = s.optimizer.OptimizeMessagesWithModel(conversation, req.Model)
 	optimizedCount := len(conversation)
@@ -545,14 +571,7 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 		message = "Conversation optimization completed"
 	}
 
-	chatEvents <- domain.OptimizationStatusEvent{
-		RequestID:      req.RequestID,
-		Timestamp:      time.Now(),
-		Message:        message,
-		IsActive:       false,
-		OriginalCount:  originalCount,
-		OptimizedCount: optimizedCount,
-	}
+	eventPublisher.publishOptimizationStatus(message, false, originalCount, optimizedCount)
 
 	if isPersistent {
 		if err := persistentRepo.SetOptimizedMessages(ctx, conversation); err != nil {
@@ -563,222 +582,237 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 	return conversation
 }
 
-func (s *AgentServiceImpl) isA2ATool(toolName string) bool {
-	return strings.HasPrefix(toolName, "a2a_")
+type IndexedToolResult struct {
+	Index  int
+	Result domain.ConversationEntry
 }
 
-func (s *AgentServiceImpl) handleA2AToolCall(tc sdk.ChatCompletionMessageToolCall, requestID string, chatEvents chan<- domain.ChatEvent) {
+func (s *AgentServiceImpl) executeToolCallsParallel(
+	ctx context.Context,
+	toolCalls []*sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) []domain.ConversationEntry {
+
+	if len(toolCalls) == 0 {
+		return []domain.ConversationEntry{}
+	}
+
 	startTime := time.Now()
 
-	// Enhanced status indicator for A2A tool calls
-	chatEvents <- domain.ToolCallStartEvent{
-		RequestID:     requestID,
-		Timestamp:     startTime,
-		ToolName:      tc.Function.Name,
-		ToolArguments: tc.Function.Arguments,
+	eventPublisher.publishParallelToolsStart(func() []sdk.ChatCompletionMessageToolCall {
+		calls := make([]sdk.ChatCompletionMessageToolCall, len(toolCalls))
+		for i, tc := range toolCalls {
+			calls[i] = *tc
+		}
+		return calls
+	}())
+
+	time.Sleep(constants.AgentToolExecutionDelay)
+
+	results := make([]domain.ConversationEntry, len(toolCalls))
+	resultsChan := make(chan IndexedToolResult, len(toolCalls))
+
+	semaphore := make(chan struct{}, s.config.GetAgentConfig().MaxConcurrentTools)
+
+	var wg sync.WaitGroup
+	for i, tc := range toolCalls {
+		wg.Add(1)
+		go func(index int, toolCall *sdk.ChatCompletionMessageToolCall) {
+			defer func() {
+				wg.Done()
+			}()
+
+			semaphore <- struct{}{}
+			defer func() {
+				<-semaphore
+			}()
+
+			eventPublisher.publishToolStatusChange(
+				toolCall.Id,
+				"starting",
+				fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
+			)
+
+			time.Sleep(constants.AgentToolExecutionDelay)
+
+			result := s.executeToolWithFlashingUI(ctx, *toolCall, eventPublisher)
+
+			status := "complete"
+			message := "Completed successfully"
+			if result.ToolExecution != nil && !result.ToolExecution.Success {
+				status = "failed"
+				message = "Execution failed"
+			}
+
+			eventPublisher.publishToolStatusChange(toolCall.Id, status, message)
+
+			resultsChan <- IndexedToolResult{
+				Index:  index,
+				Result: result,
+			}
+		}(i, tc)
 	}
 
-	// Show intermediate status that agent is processing
-	chatEvents <- domain.ToolCallUpdateEvent{
-		RequestID:  requestID,
-		Timestamp:  time.Now(),
-		ToolCallID: tc.Id,
-		ToolName:   tc.Function.Name,
-		Arguments:  tc.Function.Arguments,
-		Status:     domain.ToolCallStreamStatusStreaming,
+	go func() {
+		wg.Wait()
+		close(resultsChan)
+	}()
+
+	resultCount := 0
+	for res := range resultsChan {
+		resultCount++
+		results[res.Index] = res.Result
 	}
 
-	chatEvents <- domain.A2AToolCallExecutedEvent{
-		RequestID:         requestID,
-		Timestamp:         time.Now(),
-		ToolCallID:        tc.Id,
-		ToolName:          tc.Function.Name,
-		Arguments:         tc.Function.Arguments,
-		ExecutedOnGateway: true,
-		TaskID:            tc.Id,
+	duration := time.Since(startTime)
+	successCount := 0
+	failureCount := 0
+
+	for _, result := range results {
+		if result.ToolExecution != nil && result.ToolExecution.Success {
+			successCount++
+		} else {
+			failureCount++
+		}
 	}
 
-	a2aEntry := domain.ConversationEntry{
+	eventPublisher.publishParallelToolsComplete(len(toolCalls), successCount, failureCount, duration)
+
+	if err := s.batchSaveToolResults(results); err != nil {
+		logger.Error("failed to batch save tool results", "error", err)
+	}
+
+	return results
+}
+
+func (s *AgentServiceImpl) executeToolWithFlashingUI(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) domain.ConversationEntry {
+
+	startTime := time.Now()
+
+	eventPublisher.publishToolStatusChange(tc.Id, "running", "Executing...")
+
+	time.Sleep(constants.AgentToolExecutionDelay)
+
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		logger.Error("failed to parse tool arguments", "tool", tc.Function.Name, "error", err)
+		return s.createErrorEntry(tc, err, startTime)
+	}
+
+	if err := s.toolService.ValidateTool(tc.Function.Name, args); err != nil {
+		logger.Error("tool validation failed", "tool", tc.Function.Name, "error", err)
+		return s.createErrorEntry(tc, err, startTime)
+	}
+
+	resultChan := make(chan struct {
+		result *domain.ToolExecutionResult
+		err    error
+	}, 1)
+
+	go func() {
+		result, err := s.toolService.ExecuteTool(ctx, tc.Function)
+		resultChan <- struct {
+			result *domain.ToolExecutionResult
+			err    error
+		}{result, err}
+	}()
+
+	ticker := time.NewTicker(constants.AgentStatusTickerInterval)
+	defer ticker.Stop()
+
+	var result *domain.ToolExecutionResult
+	var err error
+
+	for {
+		select {
+		case res := <-resultChan:
+			result = res.result
+			err = res.err
+			ticker.Stop()
+			goto done
+		case <-ticker.C:
+			eventPublisher.publishToolStatusChange(tc.Id, "running", "Processing...")
+		case <-ctx.Done():
+			logger.Error("tool execution cancelled", "tool", tc.Function.Name)
+			return s.createErrorEntry(tc, ctx.Err(), startTime)
+		}
+	}
+
+done:
+	if err != nil {
+		logger.Error("failed to execute tool", "tool", tc.Function.Name, "error", err)
+		return s.createErrorEntry(tc, err, startTime)
+	}
+
+	eventPublisher.publishToolStatusChange(tc.Id, "saving", "Saving results...")
+
+	time.Sleep(constants.AgentToolExecutionDelay)
+
+	toolExecutionResult := &domain.ToolExecutionResult{
+		ToolName:  result.ToolName,
+		Arguments: args,
+		Success:   result.Success,
+		Duration:  time.Since(startTime),
+		Data:      result.Data,
+		Metadata:  result.Metadata,
+		Diff:      result.Diff,
+		Error:     result.Error,
+	}
+
+	formattedContent := s.conversationRepo.FormatToolResultForLLM(toolExecutionResult)
+
+	entry := domain.ConversationEntry{
 		Message: domain.Message{
-			Role:       "tool",
-			Content:    fmt.Sprintf("%s executed on Gateway", tc.Function.Name),
+			Role:       sdk.Tool,
+			Content:    formattedContent,
+			ToolCallId: &tc.Id,
+		},
+		Time:          time.Now(),
+		ToolExecution: toolExecutionResult,
+	}
+
+	return entry
+}
+
+func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) domain.ConversationEntry {
+	return domain.ConversationEntry{
+		Message: domain.Message{
+			Role:       sdk.Tool,
+			Content:    fmt.Sprintf("Tool execution failed: %s - %s", tc.Function.Name, err.Error()),
 			ToolCallId: &tc.Id,
 		},
 		Time: time.Now(),
 		ToolExecution: &domain.ToolExecutionResult{
 			ToolName:  tc.Function.Name,
 			Arguments: make(map[string]any),
-			Success:   true,
+			Success:   false,
 			Duration:  time.Since(startTime),
-			Metadata: map[string]string{
-				"executed_on_gateway": "true",
-			},
+			Error:     err.Error(),
 		},
-	}
-
-	if err := s.conversationRepo.AddMessage(a2aEntry); err != nil {
-		logger.Error("failed to store A2A tool execution in conversation", "error", err)
-	}
-
-	chatEvents <- domain.ToolCallCompleteEvent{
-		RequestID:  requestID,
-		Timestamp:  time.Now(),
-		Success:    true,
-		ToolCallID: tc.Id,
-		ToolName:   tc.Function.Name,
-		Result:     "executed on gateway",
 	}
 }
 
-func (s *AgentServiceImpl) executeToolCall(ctx context.Context, tc sdk.ChatCompletionMessageToolCall, requestID string, chatEvents chan<- domain.ChatEvent) error {
-	startTime := time.Now()
-
-	chatEvents <- domain.ToolCallStartEvent{
-		RequestID:     requestID,
-		Timestamp:     startTime,
-		ToolName:      tc.Function.Name,
-		ToolArguments: tc.Function.Arguments,
+func (s *AgentServiceImpl) batchSaveToolResults(entries []domain.ConversationEntry) error {
+	savedCount := 0
+	for _, entry := range entries {
+		if err := s.conversationRepo.AddMessage(entry); err != nil {
+			logger.Error("failed to save tool result",
+				"tool", entry.ToolExecution.ToolName,
+				"error", err,
+			)
+			return err
+		}
+		savedCount++
 	}
 
-	var args map[string]any
-	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-		logger.Error("failed to parse tool arguments", "tool", tc.Function.Name, "error", err)
-
-		errorEntry := domain.ConversationEntry{
-			Message: domain.Message{
-				Role:       "tool",
-				Content:    fmt.Sprintf("Tool call failed: %s - invalid arguments: %v", tc.Function.Name, err),
-				ToolCallId: &tc.Id,
-			},
-			Time: time.Now(),
-			ToolExecution: &domain.ToolExecutionResult{
-				ToolName:  tc.Function.Name,
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(startTime),
-				Error:     fmt.Sprintf("invalid tool arguments: %v", err),
-			},
-		}
-		if err := s.conversationRepo.AddMessage(errorEntry); err != nil {
-			logger.Error("failed to store tool error in conversation", "error", err)
-		}
-
-		chatEvents <- domain.ToolCallErrorEvent{
-			RequestID:  requestID,
-			Timestamp:  time.Now(),
-			ToolCallID: tc.Id,
-			ToolName:   tc.Function.Name,
-			Error:      fmt.Errorf("invalid tool arguments: %w", err),
-		}
-		return fmt.Errorf("failed to parse tool arguments: %w", err)
-	}
-
-	if err := s.toolService.ValidateTool(tc.Function.Name, args); err != nil {
-		logger.Error("tool validation failed", "tool", tc.Function.Name, "error", err)
-
-		errorEntry := domain.ConversationEntry{
-			Message: domain.Message{
-				Role:       "tool",
-				Content:    fmt.Sprintf("Tool validation failed: %s - %s", tc.Function.Name, err.Error()),
-				ToolCallId: &tc.Id,
-			},
-			Time: time.Now(),
-			ToolExecution: &domain.ToolExecutionResult{
-				ToolName:  tc.Function.Name,
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(startTime),
-				Error:     err.Error(),
-			},
-		}
-		if err := s.conversationRepo.AddMessage(errorEntry); err != nil {
-			logger.Error("failed to store tool validation error in conversation", "error", err)
-		}
-
-		chatEvents <- domain.ToolCallErrorEvent{
-			RequestID:  requestID,
-			Timestamp:  time.Now(),
-			ToolCallID: tc.Id,
-			ToolName:   tc.Function.Name,
-			Error:      err,
-		}
-		return fmt.Errorf("tool validation failed: %w", err)
-	}
-
-	tcResult, err := s.toolService.ExecuteTool(ctx, tc.Function)
-	if err != nil {
-		logger.Error("failed to execute %s with %s", tc.Function.Name, tc.Function.Arguments)
-
-		errorEntry := domain.ConversationEntry{
-			Message: domain.Message{
-				Role:       "tool",
-				Content:    fmt.Sprintf("Tool execution failed: %s - %s", tc.Function.Name, err.Error()),
-				ToolCallId: &tc.Id,
-			},
-			Time: time.Now(),
-			ToolExecution: &domain.ToolExecutionResult{
-				ToolName:  tc.Function.Name,
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(startTime),
-				Error:     err.Error(),
-			},
-		}
-		if err := s.conversationRepo.AddMessage(errorEntry); err != nil {
-			logger.Error("failed to store tool execution error in conversation", "error", err)
-		}
-
-		chatEvents <- domain.ToolCallErrorEvent{
-			RequestID:  requestID,
-			Timestamp:  time.Now(),
-			ToolCallID: tc.Id,
-			ToolName:   tc.Function.Name,
-			Error:      err,
-		}
-		return err
-	}
-
-	toolExecutionResult := &domain.ToolExecutionResult{
-		ToolName:  tcResult.ToolName,
-		Arguments: args,
-		Success:   tcResult.Success,
-		Duration:  time.Since(startTime),
-		Data:      tcResult.Data,
-		Metadata:  tcResult.Metadata,
-		Diff:      tcResult.Diff,
-	}
-
-	formattedContent := s.conversationRepo.FormatToolResultForLLM(toolExecutionResult)
-
-	successEntry := domain.ConversationEntry{
-		Message: domain.Message{
-			Role:       "tool",
-			Content:    formattedContent,
-			ToolCallId: &tc.Id,
-		},
-		Time: time.Now(),
-		ToolExecution: &domain.ToolExecutionResult{
-			ToolName:  tcResult.ToolName,
-			Arguments: args,
-			Success:   tcResult.Success,
-			Duration:  time.Since(startTime),
-			Data:      tcResult.Data,
-			Metadata:  tcResult.Metadata,
-			Diff:      tcResult.Diff,
-		},
-	}
-	if err := s.conversationRepo.AddMessage(successEntry); err != nil {
-		logger.Error("failed to store tool execution success in conversation", "error", err)
-	}
-
-	chatEvents <- domain.ToolCallCompleteEvent{
-		RequestID:  requestID,
-		Timestamp:  time.Now(),
-		Success:    tcResult.Success,
-		ToolCallID: tc.Id,
-		ToolName:   tcResult.ToolName,
-		Result:     tcResult.Data,
-	}
+	logger.Info("successfully saved tool results",
+		"saved", savedCount,
+		"total", len(entries),
+	)
 
 	return nil
 }

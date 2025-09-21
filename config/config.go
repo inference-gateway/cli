@@ -30,14 +30,14 @@ type Config struct {
 	Storage      StorageConfig      `yaml:"storage" mapstructure:"storage"`
 	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
 	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
+	A2A          A2AConfig          `yaml:"a2a" mapstructure:"a2a"`
 }
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL         string            `yaml:"url" mapstructure:"url"`
-	APIKey      string            `yaml:"api_key" mapstructure:"api_key"`
-	Timeout     int               `yaml:"timeout" mapstructure:"timeout"`
-	Middlewares MiddlewaresConfig `yaml:"middlewares" mapstructure:"middlewares"`
+	URL     string `yaml:"url" mapstructure:"url"`
+	APIKey  string `yaml:"api_key" mapstructure:"api_key"`
+	Timeout int    `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -77,7 +77,10 @@ type ToolsConfig struct {
 	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
 	Github    GithubToolConfig    `yaml:"github" mapstructure:"github"`
 	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
-	Safety    SafetyConfig        `yaml:"safety" mapstructure:"safety"`
+	Query     QueryToolConfig     `yaml:"query" mapstructure:"query"`
+	Task      TaskToolConfig      `yaml:"task" mapstructure:"task"`
+
+	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
 
 // BashToolConfig contains bash-specific tool settings
@@ -149,6 +152,18 @@ type TodoWriteToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
+// QueryToolConfig contains Query-specific tool settings
+type QueryToolConfig struct {
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// TaskToolConfig contains Task-specific tool settings
+type TaskToolConfig struct {
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
 // GithubToolConfig contains GitHub fetch-specific tool settings
 type GithubToolConfig struct {
 	Enabled         bool               `yaml:"enabled" mapstructure:"enabled"`
@@ -206,18 +221,26 @@ type SystemRemindersConfig struct {
 
 // AgentConfig contains agent command-specific settings
 type AgentConfig struct {
-	Model           string                `yaml:"model" mapstructure:"model"`
-	SystemPrompt    string                `yaml:"system_prompt" mapstructure:"system_prompt"`
-	SystemReminders SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
-	VerboseTools    bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
-	MaxTurns        int                   `yaml:"max_turns" mapstructure:"max_turns"`
-	MaxTokens       int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
-	Optimization    OptimizationConfig    `yaml:"optimization" mapstructure:"optimization"`
+	Model              string                `yaml:"model" mapstructure:"model"`
+	SystemPrompt       string                `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemReminders    SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
+	VerboseTools       bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
+	MaxTurns           int                   `yaml:"max_turns" mapstructure:"max_turns"`
+	MaxTokens          int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
+	MaxConcurrentTools int                   `yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`
+	Optimization       OptimizationConfig    `yaml:"optimization" mapstructure:"optimization"`
 }
 
 // GitConfig contains git shortcut-specific settings
 type GitConfig struct {
 	CommitMessage GitCommitMessageConfig `yaml:"commit_message" mapstructure:"commit_message"`
+}
+
+// A2AConfig contains A2A agent configuration
+type A2AConfig struct {
+	Agents []string       `yaml:"agents" mapstructure:"agents"`
+	Cache  A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
+	Task   A2ATaskConfig  `yaml:"task" mapstructure:"task"`
 }
 
 // ConversationConfig contains conversation-specific settings
@@ -238,12 +261,6 @@ type ConversationTitleConfig struct {
 	SystemPrompt string `yaml:"system_prompt" mapstructure:"system_prompt"`
 	BatchSize    int    `yaml:"batch_size" mapstructure:"batch_size"`
 	Interval     int    `yaml:"interval" mapstructure:"interval"`
-}
-
-// MiddlewaresConfig contains middleware-specific settings
-type MiddlewaresConfig struct {
-	A2A bool `yaml:"a2a" mapstructure:"a2a"`
-	MCP bool `yaml:"mcp" mapstructure:"mcp"`
 }
 
 // ChatConfig contains chat interface settings
@@ -307,6 +324,28 @@ type RedisStorageConfig struct {
 	DB       int    `yaml:"db" mapstructure:"db"`
 }
 
+// A2AAgentInfo contains information about an A2A agent connection
+type A2AAgentInfo struct {
+	Name        string            `yaml:"name" mapstructure:"name"`
+	URL         string            `yaml:"url" mapstructure:"url"`
+	APIKey      string            `yaml:"api_key" mapstructure:"api_key"`
+	Description string            `yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Timeout     int               `yaml:"timeout" mapstructure:"timeout"`
+	Enabled     bool              `yaml:"enabled" mapstructure:"enabled"`
+	Metadata    map[string]string `yaml:"metadata,omitempty" mapstructure:"metadata,omitempty"`
+}
+
+// A2ATaskConfig contains configuration for A2A task processing
+type A2ATaskConfig struct {
+	StatusPollSeconds int `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
+}
+
+// A2ACacheConfig contains settings for A2A agent card caching
+type A2ACacheConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+	TTL     int  `yaml:"ttl" mapstructure:"ttl"`
+}
+
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config { //nolint:funlen
 	return &Config{
@@ -314,10 +353,6 @@ func DefaultConfig() *Config { //nolint:funlen
 			URL:     "http://localhost:8080",
 			APIKey:  "",
 			Timeout: 200,
-			Middlewares: MiddlewaresConfig{
-				A2A: false,
-				MCP: false,
-			},
 		},
 		Client: ClientConfig{
 			Timeout: 200,
@@ -453,7 +488,14 @@ RULES:
 - Code: Follow existing patterns, check deps, no secrets
 - Tasks: Use TodoWrite, mark progress immediately
 - Chat exports: Read only "## Summary" to "---" section
-- Tools: Batch calls, prefer Grep for search
+- Tools: ALWAYS use parallel execution when possible - batch multiple tool calls in a single response to improve efficiency
+- Tools: Prefer Grep for search, Read for specific files
+
+PARALLEL TOOL EXECUTION:
+- When you need to perform multiple operations, make ALL tool calls in a single response
+- Examples: Read multiple files, search multiple patterns, execute multiple commands
+- The system supports up to 5 concurrent tool executions by default
+- This reduces back-and-forth communication and significantly improves performance
 
 WORKFLOW:
 When asked to implement features or fix issues:
@@ -485,9 +527,10 @@ EXAMPLE:
 This is a reminder that your todo list is currently empty. DO NOT mention this to the user explicitly because they are already aware. If you are working on tasks that would benefit from a todo list please use the TodoWrite tool to create one. If not, please feel free to ignore. Again do not mention this message to the user.
 </system-reminder>`,
 			},
-			VerboseTools: false,
-			MaxTurns:     50,
-			MaxTokens:    4096,
+			VerboseTools:       false,
+			MaxTurns:           50,
+			MaxTokens:          4096,
+			MaxConcurrentTools: 5,
 			Optimization: OptimizationConfig{
 				Enabled:     false,
 				Model:       "",
@@ -561,6 +604,16 @@ Respond with ONLY the title, no quotes or explanation.`,
 		},
 		Chat: ChatConfig{
 			Theme: "tokyo-night",
+		},
+		A2A: A2AConfig{
+			Agents: []string{},
+			Cache: A2ACacheConfig{
+				Enabled: true,
+				TTL:     300,
+			},
+			Task: A2ATaskConfig{
+				StatusPollSeconds: 5,
+			},
 		},
 	}
 }
@@ -655,14 +708,6 @@ func (c *Config) GetSandboxDirectories() []string {
 
 func (c *Config) GetProtectedPaths() []string {
 	return c.Tools.Sandbox.ProtectedPaths
-}
-
-func (c *Config) ShouldSkipA2AToolOnClient() bool {
-	return !c.Gateway.Middlewares.A2A
-}
-
-func (c *Config) ShouldSkipMCPToolOnClient() bool {
-	return !c.Gateway.Middlewares.MCP
 }
 
 func (c *Config) GetTheme() string {

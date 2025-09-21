@@ -1,0 +1,7 @@
+FROM golang:1.24.5
+
+RUN apt-get update && \
+    apt-get install -y npm && \
+    npm install -g markdownlint-cli && \
+    go install github.com/go-task/task/v3/cmd/task@latest && \
+    go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.4.0

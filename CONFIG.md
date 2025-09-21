@@ -40,6 +40,7 @@ export INFER_GATEWAY_TIMEOUT=300
 # Agent configuration
 export INFER_AGENT_MODEL="anthropic/claude-4.1"
 export INFER_AGENT_MAX_TURNS=100
+export INFER_AGENT_MAX_CONCURRENT_TOOLS=3
 export INFER_AGENT_VERBOSE_TOOLS=true
 
 # Tools configuration
@@ -95,6 +96,7 @@ agent:
   verbose_tools: false
   max_turns: 50
   max_tokens: 4096
+  max_concurrent_tools: 5 
   optimization:
     enabled: false
     max_history: 10

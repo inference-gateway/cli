@@ -72,6 +72,8 @@ and management of inference services.
 - **Status Monitoring**: Check gateway health and resource usage
 - **Interactive Chat**: Chat with models using an interactive interface
 - **Conversation History**: Store and retrieve past conversations with multiple storage backends
+  - [Conversation Storage](docs/conversation-storage.md) - Detailed storage backend documentation
+  - [Conversation Title Generation](docs/conversation-title-generation.md) - AI-powered title generation system
 - **Configuration Management**: Manage gateway settings via YAML config
 - **Project Initialization**: Set up local project configurations
 - **Tool Execution**: LLMs can execute whitelisted commands and tools including:
@@ -95,6 +97,29 @@ and management of inference services.
 ```bash
 go install github.com/inference-gateway/cli@latest
 ```
+
+### Using Container Image
+
+For containerized environments, you can use the official container image:
+
+```bash
+# Run the CLI directly
+docker run --rm -it ghcr.io/inference-gateway/cli:latest --help
+
+# With volume mount for config persistence
+docker run --rm -it -v ~/.infer:/home/infer/.infer ghcr.io/inference-gateway/cli:latest
+
+# Example: Run chat command
+docker run --rm -it -v ~/.infer:/home/infer/.infer ghcr.io/inference-gateway/cli:latest chat
+```
+
+**Using specific version:**
+
+```bash
+docker run --rm -it ghcr.io/inference-gateway/cli:0.48.12
+```
+
+**Available architectures:** `linux/amd64`, `linux/arm64`
 
 ### Using Install Script
 
@@ -200,8 +225,11 @@ go build -o infer .
 1. **Initialize project configuration:**
 
    ```bash
-   infer init
+   infer init --model deepseek/deepseek-chat
    ```
+
+   Using `--model` is recommended as it enables AI project analysis and generates a comprehensive AGENTS.md file
+   tailored to your specific project.
 
 2. **Check gateway status:**
 
@@ -219,8 +247,12 @@ go build -o infer .
 
 ### `infer init`
 
-Initialize a new project with Inference Gateway CLI. This creates the `.infer`
-directory with configuration file and additional setup files like `.gitignore`.
+Initialize a new project with Inference Gateway CLI. This creates:
+
+- `.infer/` directory with:
+  - `config.yaml` - Main configuration file for the project
+  - `.gitignore` - Ensures sensitive files are not committed to version control
+- `AGENTS.md` - AI-generated project documentation in the repository root (only when `--model` is specified)
 
 This is the recommended command to start working with Inference Gateway CLI in a new project.
 
@@ -406,8 +438,10 @@ until the task is considered complete. Particularly useful for SCM tickets like 
 - **Autonomous execution**: Agent works independently to complete tasks
 - **Iterative processing**: Continues until task completion criteria are met
 - **Tool integration**: Full access to all available tools (Bash, Read, Write, etc.)
+- **Parallel tool execution**: Executes multiple tool calls simultaneously for improved efficiency
 - **Background operation**: Runs without interactive user input
 - **Task completion detection**: Automatically detects when tasks are complete
+- **Configurable concurrency**: Control the maximum number of parallel tool executions (default: 5)
 - **JSON output**: Structured JSON output for easy parsing and integration
 
 **Options:**

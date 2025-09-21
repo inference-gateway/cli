@@ -1,107 +1,183 @@
 # AGENTS.md
 
-## Agent Patterns for Inference Gateway CLI
+## Project Overview
 
-This document outlines agent patterns and best practices for the `infer` CLI tool.
+The Inference Gateway CLI is a powerful command-line interface for managing and interacting with the Inference Gateway.
+It provides tools for configuration, monitoring, and management of inference services. The project is built in Go
+and features an interactive chat interface, autonomous agent capabilities, and extensive tool integration for
+AI-assisted development.
 
-## Agent Command (`infer agent`)
+## Architecture & Structure
 
-The agent command runs in background mode for autonomous task completion:
+**Key Directories:**
 
-- **Syntax**: `infer agent "task description"`
-- **Output**: JSON conversation stream
-- **Mode**: Iterative problem solving with tool execution
-- **Integration**: GitHub issue recognition and SCM workflows
+- `cmd/`: CLI command implementations
+- `internal/`: Core application logic
+  - `app/`: Application layer
+  - `domain/`: Domain models and interfaces
+  - `handlers/`: Command and event handlers
+  - `services/`: Business logic services
+  - `shortcuts/`: Extensible shortcut system
+  - `ui/`: Terminal UI components
+- `config/`: Configuration management
+- `docs/`: Documentation
+- `examples/`: Usage examples
 
-### Usage Examples
+**Architectural Patterns:**
 
-```bash
-# GitHub issue resolution
-infer agent "Fix GitHub issue #38"
+- Clean Architecture with domain-driven design
+- Command pattern for CLI operations
+- Repository pattern for data access
+- Service layer for business logic
+- Dependency injection via container
 
-# Code improvements
-infer agent "Optimize the status command performance"
+## Development Environment
 
-# Feature implementation
-infer agent "Add websocket support to the gateway client"
-```
+**Setup Instructions:**
 
-### Agent Workflow
+- Go 1.24.5+ required
+- Install dependencies: `task setup`
+- Install pre-commit hooks: `task precommit:install`
 
-1. **Task Analysis**: Parse and understand the request
-2. **Planning**: Break down complex tasks into steps
-3. **Execution**: Use tools iteratively to solve problems
-4. **Validation**: Test and verify solutions
-5. **Completion**: Detect when task objectives are met
+**Required Tools:**
 
-### JSON Output Format
+- Go 1.24.5+
+- golangci-lint
+- Task (taskfile.dev)
+- pre-commit
+- Docker (for container builds)
 
-```json
-{"role": "user", "content": "task description", "timestamp": "2024-01-01T00:00:00Z"}
-{"role": "assistant", "content": "analysis", "tool_calls": [...]}
-{"role": "tool", "content": "tool result", "tool_call_id": "call_123"}
-{"role": "assistant", "content": "next step"}
-```
+**Environment Variables:**
 
-## Chat Mode Agents
+- `GITHUB_TOKEN`: For GitHub API access
+- `GOOGLE_SEARCH_API_KEY`: Optional Google search API
+- `GOOGLE_SEARCH_ENGINE_ID`: Optional Google search engine ID
+- `DUCKDUCKGO_SEARCH_API_KEY`: Optional DuckDuckGo API
 
-Interactive chat mode supports agent-like behaviors:
+## Development Workflow
 
-### Tool Execution
+**Build Commands:**
 
-- Direct tool calls: `!!ToolName(arg="value")`
-- Bash commands: `!command`
-- Auto-completion and validation
+- `task build`: Build binary with version info
+- `task install`: Install to GOPATH/bin
+- `task release:build`: Build multi-platform release binaries
 
-### Context Management
+**Testing Procedures:**
 
-- Token tracking per request and session
-- History navigation and search
-- Model switching mid-conversation
+- `task test`: Run all tests
+- `task test:verbose`: Run tests with verbose output
+- `task test:coverage`: Run tests with coverage
+- `task vet`: Run go vet
 
-## Agent Configuration
+**Code Quality Tools:**
 
-Configure agent behavior through `.infer/config.yaml`:
+- `task fmt`: Format Go code
+- `task lint`: Run golangci-lint and markdownlint
+- `task check`: Run all quality checks (fmt, vet, test)
 
-```yaml
-agent:
-  default_model: "anthropic/claude-4.1"
-  system_prompt: "You are a helpful coding assistant..."
+**Git Workflow:**
 
-tools:
-  enabled: true
-  approval_required: false
-  sandbox_directories: ["./workspace", "./tmp"]
+- Main branch development
+- Pre-commit hooks for code quality
+- Conventional commits recommended
+- GitHub Actions for CI/CD
 
-safety:
-  protected_paths: [".infer/", ".git/", "*.env"]
-  command_whitelist: ["git", "npm", "go"]
-```
+## Key Commands
 
-## Best Practices
+**Build:** `task build`
+**Test:** `task test`
+**Lint:** `task lint`
+**Run:** `task run -- <args>`
+**Format:** `task fmt`
+**Clean:** `task clean`
 
-1. **Task Decomposition**: Break complex tasks into manageable steps
-2. **Tool Selection**: Choose the right tools for each subtask
-3. **Error Handling**: Gracefully handle failures and retry strategies
-4. **Token Efficiency**: Optimize prompts and responses for cost
-5. **Security**: Validate inputs and respect safety boundaries
+## Testing Instructions
 
-## Integration Patterns
+**How to Run Tests:**
 
-### GitHub Integration
+- `go test ./...`: Run all tests
+- `go test -v ./...`: Verbose output
+- `go test -cover ./...`: With coverage
 
-- Issue parsing and context extraction
-- Branch creation and PR workflows
-- Commit message generation
+**Test Organization:**
 
-### Development Workflow
+- Tests co-located with source files (`*_test.go`)
+- Mock generation using counterfeiter
+- Integration tests in separate packages
 
-- Code analysis and refactoring
-- Test generation and execution
-- Documentation updates
+**Coverage Requirements:**
 
-### Monitoring and Status
+- No specific coverage threshold enforced
+- Tests required for all new features
+- Integration tests for critical paths
 
-- Gateway health checks
-- Performance analysis
-- Log investigation
+## Deployment & Release
+
+**Deployment Processes:**
+
+- Multi-platform binary builds
+- Docker container images
+- GitHub Releases with signed artifacts
+
+**Release Procedures:**
+
+- Automated via GitHub Actions
+- Version tagging with semantic versioning
+- Cosign signatures for security
+
+**CI/CD Pipeline:**
+
+- GitHub Actions workflows for CI
+- Automated testing and linting
+- Multi-platform build validation
+
+## Project Conventions
+
+**Coding Standards:**
+
+- Go standard formatting (`gofmt`)
+- golangci-lint configuration
+- Maximum cyclomatic complexity: 25
+- Maximum function length: 150 lines
+
+**Naming Conventions:**
+
+- Go idiomatic naming (camelCase for variables, PascalCase for exports)
+- Clear, descriptive names
+- Interface names end with "er" (e.g., `ToolService`)
+
+**File Organization:**
+
+- Domain-driven structure
+- One type per file (with exceptions for small related types)
+- Test files co-located with source
+
+**Commit Message Formats:**
+
+- Conventional commits preferred
+- Descriptive commit messages
+- Reference issues when applicable
+
+## Important Files & Configurations
+
+**Key Configuration Files:**
+
+- `go.mod`: Go module dependencies
+- `Taskfile.yml`: Build and development tasks
+- `.golangci.yml`: Linter configuration
+- `.pre-commit-config.yaml`: Pre-commit hooks
+- `.github/workflows/ci.yml`: CI pipeline
+
+**Critical Source Files:**
+
+- `cmd/root.go`: Main CLI entry point
+- `internal/domain/interfaces.go`: Core domain interfaces
+- `internal/services/agent.go`: Autonomous agent logic
+- `internal/handlers/chat_handler.go`: Chat interface handling
+
+**Security Considerations:**
+
+- Path exclusions: `.infer/`, `.git/`, `*.env`
+- Tool execution requires approval by default
+- Sandboxed directory access
+- Command whitelisting for Bash tool

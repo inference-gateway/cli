@@ -64,6 +64,18 @@ This limits how long an agent can run to prevent infinite loops or excessive tok
 	},
 }
 
+var configAgentSetMaxConcurrentToolsCmd = &cobra.Command{
+	Use:   "set-max-concurrent-tools [NUMBER]",
+	Short: "Set the maximum number of concurrent tool executions",
+	Long: `Set the maximum number of tools that can execute concurrently during agent sessions.
+This controls the semaphore size for parallel tool execution and helps manage resource usage.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		maxConcurrent := args[0]
+		return setMaxConcurrentTools(cmd, maxConcurrent)
+	},
+}
+
 var configInitCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a new configuration file",
@@ -613,6 +625,27 @@ func setMaxTurns(_ *cobra.Command, maxTurnsStr string) error {
 	return nil
 }
 
+func setMaxConcurrentTools(_ *cobra.Command, maxConcurrentStr string) error {
+	maxConcurrent, err := strconv.Atoi(maxConcurrentStr)
+	if err != nil {
+		return fmt.Errorf("invalid max concurrent tools value '%s': must be a positive integer", maxConcurrentStr)
+	}
+
+	if maxConcurrent < 1 {
+		return fmt.Errorf("max concurrent tools must be at least 1, got %d", maxConcurrent)
+	}
+
+	V.Set("agent.max_concurrent_tools", maxConcurrent)
+	if err := utils.WriteViperConfigWithIndent(V, 2); err != nil {
+		return fmt.Errorf("failed to save config: %w", err)
+	}
+
+	fmt.Printf("%s Maximum concurrent tools set to: %d\n", icons.CheckMarkStyle.Render(icons.CheckMark), maxConcurrent)
+	fmt.Printf("Configuration saved to %s\n", V.ConfigFileUsed())
+	fmt.Println("Agent sessions will now use this semaphore size for parallel tool execution.")
+	return nil
+}
+
 var configAgentCmd = &cobra.Command{
 	Use:   "agent",
 	Short: "Configure agent command settings",
@@ -714,6 +747,7 @@ func init() {
 	configAgentCmd.AddCommand(configAgentSetModelCmd)
 	configAgentCmd.AddCommand(configAgentSetSystemCmd)
 	configAgentCmd.AddCommand(configAgentSetMaxTurnsCmd)
+	configAgentCmd.AddCommand(configAgentSetMaxConcurrentToolsCmd)
 	configAgentCmd.AddCommand(configAgentVerboseToolsCmd)
 
 	configCmd.PersistentFlags().Bool("userspace", false, "Apply to userspace configuration (~/.infer/) instead of project configuration")

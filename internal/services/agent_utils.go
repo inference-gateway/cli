@@ -37,18 +37,15 @@ func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessag
 			toolCall.Function.Name = delta.Function.Name
 		}
 		if delta.Function.Arguments != "" {
-			// First delta sets the arguments
 			if toolCall.Function.Arguments == "" {
 				toolCall.Function.Arguments = delta.Function.Arguments
 				continue
 			}
 
-			// Skip concatenation if we already have complete JSON
 			if isCompleteJSON(toolCall.Function.Arguments) {
 				continue
 			}
 
-			// Otherwise concatenate for streaming JSON
 			toolCall.Function.Arguments += delta.Function.Arguments
 		}
 	}
@@ -86,12 +83,14 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 		sandboxInfo := s.buildSandboxInfo()
 
-		systemPromptWithSandbox := fmt.Sprintf("%s\n\n%s\n\nCurrent date and time: %s",
-			baseSystemPrompt, sandboxInfo, currentTime)
+		a2aAgentInfo := s.buildA2AAgentInfo()
+
+		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s\n\nCurrent date and time: %s",
+			baseSystemPrompt, sandboxInfo, a2aAgentInfo, currentTime)
 
 		systemMessages = append(systemMessages, sdk.Message{
 			Role:    sdk.System,
-			Content: systemPromptWithSandbox,
+			Content: systemPromptWithInfo,
 		})
 	}
 
@@ -99,6 +98,24 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 		messages = append(systemMessages, messages...)
 	}
 	return messages
+}
+
+// buildA2AAgentInfo creates dynamic A2A agent information for the system prompt
+func (s *AgentServiceImpl) buildA2AAgentInfo() string {
+	if s.a2aAgentService == nil {
+		return ""
+	}
+
+	urls := s.a2aAgentService.GetConfiguredAgents()
+	if len(urls) == 0 {
+		return ""
+	}
+
+	agentInfo := "\n\nAvailable A2A Agent URLs:\n"
+	for _, url := range urls {
+		agentInfo += fmt.Sprintf("- %s\n", url)
+	}
+	return agentInfo
 }
 
 // buildSandboxInfo creates dynamic sandbox information for the system prompt

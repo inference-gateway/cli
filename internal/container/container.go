@@ -33,6 +33,7 @@ type ServiceContainer struct {
 	agentService     domain.AgentService
 	toolService      domain.ToolService
 	fileService      domain.FileService
+	a2aAgentService  domain.A2AAgentService
 
 	// Services
 	stateManager *services.StateManager
@@ -112,6 +113,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
 
 		persistentRepo.SetTitleGenerator(c.titleGenerator)
+		persistentRepo.SetTaskTracker(c.toolRegistry.GetTaskTracker())
 	}
 
 	modelClient := c.createSDKClient()
@@ -136,12 +138,15 @@ func (c *ServiceContainer) initializeDomainServices() {
 		})
 	}
 
+	c.a2aAgentService = services.NewA2AAgentService(c.config)
+
 	agentClient := c.createSDKClient()
 	c.agentService = services.NewAgentService(
 		agentClient,
 		c.toolService,
 		c.config,
 		c.conversationRepo,
+		c.a2aAgentService,
 		c.config.Gateway.Timeout,
 		optimizer,
 	)
@@ -176,7 +181,11 @@ func (c *ServiceContainer) initializeExtensibility() {
 
 // registerDefaultCommands registers the built-in commands
 func (c *ServiceContainer) registerDefaultCommands() {
-	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo))
+	var taskTracker domain.TaskTracker
+	if c.toolRegistry != nil {
+		taskTracker = c.toolRegistry.GetTaskTracker()
+	}
+	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, taskTracker))
 	c.shortcutRegistry.Register(shortcuts.NewExportShortcut(c.conversationRepo, c.agentService, c.modelService, c.config))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
@@ -186,7 +195,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(adapter))
-		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter))
+		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter, taskTracker))
 	}
 
 	gitCommitClient := c.createSDKClient()
@@ -197,6 +206,8 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	middlewareClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, middlewareClient))
 	c.shortcutRegistry.Register(shortcuts.NewMCPShortcut(c.config, middlewareClient))
+
+	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService))
 
 	if c.configService != nil {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService))
@@ -259,6 +270,11 @@ func (c *ServiceContainer) GetThemeService() domain.ThemeService {
 
 func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
 	return c.shortcutRegistry
+}
+
+// GetA2AAgentService returns the A2A agent service
+func (c *ServiceContainer) GetA2AAgentService() domain.A2AAgentService {
+	return c.a2aAgentService
 }
 
 // New service getters

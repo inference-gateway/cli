@@ -49,6 +49,7 @@ type ConversationMetadata struct {
 	TitleGenerated      bool                       `json:"title_generated,omitempty"`
 	TitleInvalidated    bool                       `json:"title_invalidated,omitempty"`
 	TitleGenerationTime *time.Time                 `json:"title_generation_time,omitempty"`
+	ContextID           string                     `json:"context_id,omitempty"`
 }
 
 // ConversationSummary contains summary information about a conversation

@@ -4,10 +4,22 @@ This directory contains practical examples for using the `infer` CLI tool to int
 
 ## Prerequisites
 
-1. Start the Inference Gateway server:
+1. Start the Inference Gateway server with Docker Compose:
 
 ```bash
+# Copy the example environment file and edit with your API keys
 cp .env.example .env
+
+# Start the gateway (add --profile local-models to include Ollama)
+docker-compose up -d
+
+# Check status
+docker-compose ps
+```
+
+Alternative single container setup:
+
+```bash
 docker run --rm -it --env-file .env -p 8080:8080 ghcr.io/inference-gateway/inference-gateway:latest
 ```
 

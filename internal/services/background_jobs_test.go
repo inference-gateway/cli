@@ -5,9 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	config "github.com/inference-gateway/cli/config"
+	constants "github.com/inference-gateway/cli/internal/constants"
+	assert "github.com/stretchr/testify/assert"
+	mock "github.com/stretchr/testify/mock"
 )
 
 func TestBackgroundJobManager_StartStop(t *testing.T) {
@@ -23,7 +24,7 @@ func TestBackgroundJobManager_StartStop(t *testing.T) {
 	manager.Start(ctx)
 	assert.True(t, manager.IsRunning())
 
-	time.Sleep(100 * time.Millisecond)
+	time.Sleep(constants.TestSleepDelay)
 
 	manager.Stop()
 	assert.False(t, manager.IsRunning())

@@ -24,7 +24,7 @@ func TestA2AShortcut_GetDescription(t *testing.T) {
 	mockConfig := &config.Config{}
 	shortcut := NewA2AShortcut(mockConfig, nil)
 
-	expected := "List connected A2A servers"
+	expected := "List available A2A agent servers"
 	actual := shortcut.GetDescription()
 
 	if actual != expected {
@@ -101,15 +101,12 @@ func TestA2AShortcut_Execute(t *testing.T) {
 					URL:     "http://localhost:8080",
 					APIKey:  "test-api-key",
 					Timeout: 30,
-					Middlewares: config.MiddlewaresConfig{
-						A2A: true,
-					},
 				},
 			},
 			args:            []string{},
 			expectedSuccess: true,
 			expectedContains: []string{
-				"Opening A2A servers view",
+				"Opening A2A agent servers view",
 			},
 			expectedNotContain: []string{
 				"A2A Agents",
@@ -123,15 +120,12 @@ func TestA2AShortcut_Execute(t *testing.T) {
 					URL:     "http://localhost:8080",
 					APIKey:  "test-api-key",
 					Timeout: 30,
-					Middlewares: config.MiddlewaresConfig{
-						A2A: true,
-					},
 				},
 			},
 			args:            []string{"list"},
 			expectedSuccess: true,
 			expectedContains: []string{
-				"Opening A2A servers view",
+				"Opening A2A agent servers view",
 			},
 			expectedNotContain: []string{
 				"A2A Agents",

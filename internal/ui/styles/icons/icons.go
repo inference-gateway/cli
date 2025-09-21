@@ -11,6 +11,17 @@ const (
 	CrossMark = "✗"
 )
 
+// Tool execution icons - modern Unicode symbols
+const (
+	QueuedIcon    = "⏳"
+	ExecutingIcon = "⚡"
+	BulletIcon    = "•"
+	SpinnerFrames = "⣾⣽⣻⢿⡿⣟⣯⣷"
+	ProgressDots  = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
+	ModernSpinner = "◐◓◑◒"
+	ArrowSpinner  = "▶▷▶▷"
+)
+
 // Icon styles
 var (
 	CheckMarkStyle = lipgloss.NewStyle().Foreground(colors.SuccessColor.GetLipglossColor()).Bold(true)
@@ -24,4 +35,14 @@ func StyledCheckMark() string {
 
 func StyledCrossMark() string {
 	return CrossMarkStyle.Render(CrossMark)
+}
+
+// GetSpinnerFrame returns the appropriate spinner frame based on animation step
+func GetSpinnerFrame(step int) string {
+	frames := ModernSpinner
+	runes := []rune(frames)
+	if len(runes) == 0 {
+		return ExecutingIcon
+	}
+	return string(runes[step%len(runes)])
 }

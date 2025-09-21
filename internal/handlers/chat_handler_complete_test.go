@@ -212,11 +212,12 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 		{
 			name: "ToolExecutionProgressEvent",
 			msg: domain.ToolExecutionProgressEvent{
-				SessionID:   "test-123",
-				CurrentTool: 1,
-				TotalTools:  2,
-				ToolName:    "Read",
-				Status:      "executing",
+				BaseChatEvent: domain.BaseChatEvent{
+					RequestID: "test-123",
+				},
+				ToolCallID: "test_tool_call",
+				Status:     "executing",
+				Message:    "Read tool executing",
 			},
 			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, config *mocks.FakeConfigService) {
 			},

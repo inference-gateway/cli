@@ -15,11 +15,15 @@ import (
 
 // ClearShortcut clears the conversation history
 type ClearShortcut struct {
-	repo domain.ConversationRepository
+	repo        domain.ConversationRepository
+	taskTracker domain.TaskTracker
 }
 
-func NewClearShortcut(repo domain.ConversationRepository) *ClearShortcut {
-	return &ClearShortcut{repo: repo}
+func NewClearShortcut(repo domain.ConversationRepository, taskTracker domain.TaskTracker) *ClearShortcut {
+	return &ClearShortcut{
+		repo:        repo,
+		taskTracker: taskTracker,
+	}
 }
 
 func (c *ClearShortcut) GetName() string               { return "clear" }
@@ -33,6 +37,11 @@ func (c *ClearShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 			Output:  fmt.Sprintf("Failed to clear conversation: %v", err),
 			Success: false,
 		}, nil
+	}
+
+	if c.taskTracker != nil {
+		c.taskTracker.ClearTaskID()
+		c.taskTracker.ClearContextID()
 	}
 
 	return ShortcutResult{
@@ -76,12 +85,18 @@ func (c *ExportShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		Output:     "🔄 Generating summary and exporting conversation...",
 		Success:    true,
 		SideEffect: SideEffectExportConversation,
-		Data:       ctx, // Pass context to side effect handler
+		Data:       ctx,
 	}, nil
 }
 
+// ExportResult contains the results of an export operation
+type ExportResult struct {
+	FilePath string
+	Summary  string
+}
+
 // PerformExport performs the actual export operation (called by side effect handler)
-func (c *ExportShortcut) PerformExport(ctx context.Context) (string, error) {
+func (c *ExportShortcut) PerformExport(ctx context.Context) (*ExportResult, error) {
 	filename := fmt.Sprintf("chat_export_%s.md", time.Now().Format("20060102_150405"))
 
 	outputDir := c.config.Compact.OutputDir
@@ -90,7 +105,7 @@ func (c *ExportShortcut) PerformExport(ctx context.Context) (string, error) {
 	}
 
 	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return "", fmt.Errorf("failed to create output directory: %w", err)
+		return nil, fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	filePath := filepath.Join(outputDir, filename)
@@ -102,16 +117,19 @@ func (c *ExportShortcut) PerformExport(ctx context.Context) (string, error) {
 
 	conversationData, err := c.repo.Export(domain.ExportMarkdown)
 	if err != nil {
-		return "", fmt.Errorf("failed to export conversation: %w", err)
+		return nil, fmt.Errorf("failed to export conversation: %w", err)
 	}
 
 	content := c.createCompactMarkdown(summary, string(conversationData))
 
 	if err := os.WriteFile(filePath, []byte(content), 0644); err != nil {
-		return "", fmt.Errorf("failed to write export file: %w", err)
+		return nil, fmt.Errorf("failed to write export file: %w", err)
 	}
 
-	return filePath, nil
+	return &ExportResult{
+		FilePath: filePath,
+		Summary:  summary,
+	}, nil
 }
 
 // generateSummary uses the LLM to generate a summary of the conversation
@@ -212,11 +230,15 @@ func (c *ExportShortcut) createCompactMarkdown(summary, fullConversation string)
 
 // NewShortcut starts a new conversation
 type NewShortcut struct {
-	repo PersistentConversationRepository
+	repo        PersistentConversationRepository
+	taskTracker domain.TaskTracker
 }
 
-func NewNewShortcut(repo PersistentConversationRepository) *NewShortcut {
-	return &NewShortcut{repo: repo}
+func NewNewShortcut(repo PersistentConversationRepository, taskTracker domain.TaskTracker) *NewShortcut {
+	return &NewShortcut{
+		repo:        repo,
+		taskTracker: taskTracker,
+	}
 }
 
 func (c *NewShortcut) GetName() string               { return "new" }
@@ -228,6 +250,11 @@ func (c *NewShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 	title := "New Conversation"
 	if len(args) > 0 && strings.TrimSpace(args[0]) != "" {
 		title = strings.TrimSpace(args[0])
+	}
+
+	if c.taskTracker != nil {
+		c.taskTracker.ClearTaskID()
+		c.taskTracker.ClearContextID()
 	}
 
 	return ShortcutResult{

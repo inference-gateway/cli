@@ -11,11 +11,14 @@ This directory contains practical examples for using the `infer` CLI tool to int
 cp .env.gateway.example .env.gateway
 ```
 
-2. Configure the Google Calendar Agent:
+2. Configure the Google Calendar and Documentation Agents:
 
 ```bash
 # Configure the Google Calendar A2A Server Agent
-cp .env.agent.example .env.agent
+cp .env.calendar.example .env.calendar
+
+# Configure the Context7 A2A Server agent
+cp .env.documentation.example .env.documentation
 ```
 
 3. Bring all the containers up:

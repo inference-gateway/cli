@@ -19,7 +19,6 @@ import (
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // ChatApplication represents the main application model using state management
@@ -49,6 +48,7 @@ type ChatApplication struct {
 	fileSelectionView    *components.FileSelectionView
 	textSelectionView    *components.TextSelectionView
 	a2aServersView       *components.A2AServersView
+	toolCallRenderer     *components.ToolCallRenderer
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -106,11 +106,13 @@ func NewChatApplication(
 		logger.Error("Failed to transition to initial view", "error", err)
 	}
 
+	app.toolCallRenderer = components.NewToolCallRenderer()
 	app.conversationView = ui.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
+		cv.SetToolCallRenderer(app.toolCallRenderer)
 	}
 
 	configDir := ".infer"
@@ -471,6 +473,7 @@ func (app *ChatApplication) handleA2AServersView(msg tea.Msg) []tea.Cmd {
 		case tea.KeyMsg:
 			switch msg.String() {
 			case "esc":
+				app.a2aServersView = nil
 				_ = app.stateManager.TransitionToView(domain.ViewStateChat)
 				cmds = append(cmds, func() tea.Msg {
 					return domain.SetStatusEvent{
@@ -492,13 +495,13 @@ func (app *ChatApplication) handleA2AServersView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
-	var sdkClient sdk.Client
+	var a2aAgentService domain.A2AAgentService
 	if a2aShortcut, exists := app.shortcutRegistry.Get("a2a"); exists {
 		if a2a, ok := a2aShortcut.(*shortcuts.A2AShortcut); ok {
-			sdkClient = a2a.GetClient()
+			a2aAgentService = a2a.GetA2AAgentService()
 		}
 	}
-	app.a2aServersView = components.NewA2AServersView(app.configService, sdkClient, app.themeService)
+	app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, app.themeService)
 
 	ctx := context.Background()
 	if cmd := app.a2aServersView.LoadServers(ctx); cmd != nil {
@@ -591,13 +594,13 @@ func (app *ChatApplication) renderThemeSelection() string {
 
 func (app *ChatApplication) renderA2AServers() string {
 	if app.a2aServersView == nil {
-		var sdkClient sdk.Client
+		var a2aAgentService domain.A2AAgentService
 		if a2aShortcut, exists := app.shortcutRegistry.Get("a2a"); exists {
 			if a2a, ok := a2aShortcut.(*shortcuts.A2AShortcut); ok {
-				sdkClient = a2a.GetClient()
+				a2aAgentService = a2a.GetA2AAgentService()
 			}
 		}
-		app.a2aServersView = components.NewA2AServersView(app.configService, sdkClient, app.themeService)
+		app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, app.themeService)
 	}
 
 	width, height := app.stateManager.GetDimensions()
@@ -630,13 +633,16 @@ func (app *ChatApplication) renderChatInterface() string {
 		CurrentView:   app.stateManager.GetCurrentView(),
 	}
 
-	return app.applicationViewRenderer.RenderChatInterface(
+	// Get the main chat interface
+	chatInterface := app.applicationViewRenderer.RenderChatInterface(
 		data,
 		app.conversationView,
 		app.inputView,
 		app.statusView,
 		app.helpBar,
 	)
+
+	return chatInterface
 }
 
 func (app *ChatApplication) renderModelSelection() string {
@@ -835,7 +841,8 @@ func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.C
 		domain.ShowErrorEvent, domain.ClearErrorEvent, domain.ClearInputEvent, domain.SetInputEvent,
 		domain.ToggleHelpBarEvent, domain.HideHelpBarEvent, domain.DebugKeyEvent, domain.SetupFileSelectionEvent,
 		domain.ScrollRequestEvent, domain.ConversationsLoadedEvent, domain.ModelSelectedEvent,
-		domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent:
+		domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent,
+		domain.ParallelToolsStartEvent, domain.ParallelToolsCompleteEvent:
 		return app.updateUIComponents(msg)
 	case domain.UserInputEvent:
 		return cmds
