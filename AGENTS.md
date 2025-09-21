@@ -35,13 +35,13 @@ AI-assisted development.
 
 **Setup Instructions:**
 
-- Go 1.24.5+ required
+- Go 1.25.0+ required
 - Install dependencies: `task setup`
 - Install pre-commit hooks: `task precommit:install`
 
 **Required Tools:**
 
-- Go 1.24.5+
+- Go 1.25.0+
 - golangci-lint
 - Task (taskfile.dev)
 - pre-commit
