@@ -70,6 +70,8 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	themeService := services.GetThemeService()
 	toolRegistry := services.GetToolRegistry()
 
+	backgroundTaskManager := services.GetBackgroundTaskManager()
+
 	application := app.NewChatApplication(
 		models,
 		defaultModel,
@@ -84,6 +86,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		themeService,
 		toolRegistry,
 		getEffectiveConfigPath(),
+		backgroundTaskManager,
 	)
 
 	program := tea.NewProgram(application)

@@ -38,6 +38,10 @@ func (t *testKeyHandlerContext) GetAgentService() domain.AgentService {
 	return nil
 }
 
+func (t *testKeyHandlerContext) GetBackgroundTaskManager() domain.BackgroundTaskManager {
+	return nil
+}
+
 func (t *testKeyHandlerContext) GetConversationView() ui.ConversationRenderer {
 	return &testConversationRenderer{}
 }

@@ -21,6 +21,7 @@ type KeyHandlerContext interface {
 
 	// Services
 	GetAgentService() domain.AgentService
+	GetBackgroundTaskManager() domain.BackgroundTaskManager
 
 	// UI components
 	GetConversationView() ui.ConversationRenderer

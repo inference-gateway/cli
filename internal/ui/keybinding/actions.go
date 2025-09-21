@@ -3,6 +3,7 @@ package keybinding
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
@@ -750,8 +751,39 @@ func handleEnterSelectionMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 }
 
 func handleBackgroundTaskToggle(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	backgroundTaskManager := app.GetBackgroundTaskManager()
+	if backgroundTaskManager == nil {
+		return func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error: "Background task manager not available",
+			}
+		}
+	}
+
+	activeTasks := backgroundTaskManager.GetActiveTasks()
+	allTasks := backgroundTaskManager.GetAllTasks()
+
+	if len(allTasks) == 0 {
+		return func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message: "No background tasks",
+				Spinner: false,
+			}
+		}
+	}
+
+	var statusMessage string
+	if len(activeTasks) > 0 {
+		statusMessage = formatActiveTasksMessage(activeTasks)
+	} else {
+		statusMessage = formatInactiveTasksMessage(allTasks)
+	}
+
 	return func() tea.Msg {
-		return domain.BackgroundTaskToggleEvent{}
+		return domain.SetStatusEvent{
+			Message: statusMessage,
+			Spinner: false,
+		}
 	}
 }
 
@@ -840,6 +872,42 @@ func (m *KeyBindingManager) debugKeyBinding(keyMsg tea.KeyMsg, info string) tea.
 		}
 	}
 	return nil
+}
+
+func formatActiveTasksMessage(activeTasks []*domain.BackgroundTask) string {
+	statusMessage := "Active background tasks:\n"
+	for _, task := range activeTasks {
+		duration := time.Since(task.StartTime)
+		statusMessage += "• " + task.Description + " [" + string(task.Status) + "] (" + duration.Round(time.Second).String() + ")\n"
+	}
+	return statusMessage
+}
+
+func formatInactiveTasksMessage(allTasks []*domain.BackgroundTask) string {
+	statusMessage := "No active background tasks"
+	if len(allTasks) == 0 {
+		return statusMessage
+	}
+
+	completedCount, failedCount := countTasksByStatus(allTasks)
+	statusMessage += fmt.Sprintf(" (Recent: %d completed, %d failed)", completedCount, failedCount)
+	return statusMessage
+}
+
+func countTasksByStatus(tasks []*domain.BackgroundTask) (int, int) {
+	completedCount := 0
+	failedCount := 0
+
+	for _, task := range tasks {
+		switch task.Status {
+		case domain.BackgroundTaskStatusCompleted:
+			completedCount++
+		case domain.BackgroundTaskStatusFailed:
+			failedCount++
+		}
+	}
+
+	return completedCount, failedCount
 }
 
 func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {

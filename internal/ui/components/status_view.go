@@ -2,6 +2,7 @@ package components
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	spinner "github.com/charmbracelet/bubbles/spinner"
@@ -300,7 +301,17 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 	elapsed := time.Since(sv.startTime)
 	seconds := int(elapsed.Seconds())
 	baseMsg := sv.formatStatusWithType(sv.baseMessage)
-	displayMessage := fmt.Sprintf("%s (%ds) - Press ESC to interrupt", baseMsg, seconds)
+
+	// Check if this is a task execution that can be backgrounded
+	isTaskExecution := strings.Contains(strings.ToLower(baseMsg), "task") ||
+		sv.statusType == domain.StatusProcessing
+
+	var displayMessage string
+	if isTaskExecution {
+		displayMessage = fmt.Sprintf("%s (%ds) - Press ESC to interrupt | Ctrl+B for background", baseMsg, seconds)
+	} else {
+		displayMessage = fmt.Sprintf("%s (%ds) - Press ESC to interrupt", baseMsg, seconds)
+	}
 
 	statusColor := sv.getStatusColor()
 	return prefix, statusColor, displayMessage

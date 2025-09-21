@@ -24,15 +24,16 @@ import (
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
 	// Dependencies
-	configService    *config.Config
-	agentService     domain.AgentService
-	conversationRepo domain.ConversationRepository
-	modelService     domain.ModelService
-	toolService      domain.ToolService
-	fileService      domain.FileService
-	shortcutRegistry *shortcuts.Registry
-	themeService     domain.ThemeService
-	toolRegistry     *tools.Registry
+	configService         *config.Config
+	agentService          domain.AgentService
+	conversationRepo      domain.ConversationRepository
+	modelService          domain.ModelService
+	toolService           domain.ToolService
+	fileService           domain.FileService
+	shortcutRegistry      *shortcuts.Registry
+	themeService          domain.ThemeService
+	toolRegistry          *tools.Registry
+	backgroundTaskManager domain.BackgroundTaskManager
 
 	// State management
 	stateManager *services.StateManager
@@ -82,6 +83,7 @@ func NewChatApplication(
 	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
 	configPath string,
+	backgroundTaskManager domain.BackgroundTaskManager,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
 	if defaultModel != "" {
@@ -89,17 +91,18 @@ func NewChatApplication(
 	}
 
 	app := &ChatApplication{
-		agentService:     agentService,
-		conversationRepo: conversationRepo,
-		modelService:     modelService,
-		configService:    configService,
-		toolService:      toolService,
-		fileService:      fileService,
-		shortcutRegistry: shortcutRegistry,
-		themeService:     themeService,
-		toolRegistry:     toolRegistry,
-		availableModels:  models,
-		stateManager:     stateManager,
+		agentService:          agentService,
+		conversationRepo:      conversationRepo,
+		modelService:          modelService,
+		configService:         configService,
+		toolService:           toolService,
+		fileService:           fileService,
+		shortcutRegistry:      shortcutRegistry,
+		themeService:          themeService,
+		toolRegistry:          toolRegistry,
+		backgroundTaskManager: backgroundTaskManager,
+		availableModels:       models,
+		stateManager:          stateManager,
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -170,6 +173,11 @@ func (app *ChatApplication) registerHandlers() {
 		app.shortcutRegistry,
 	)
 	app.messageRouter.AddHandler(chatHandler)
+
+	if app.backgroundTaskManager != nil {
+		backgroundTaskHandler := handlers.NewBackgroundTaskHandler(app.backgroundTaskManager)
+		app.messageRouter.AddHandler(backgroundTaskHandler)
+	}
 }
 
 // updateHelpBarShortcuts updates the help bar with essential keyboard shortcuts
@@ -783,6 +791,13 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	if countMsg, ok := msg.(domain.BackgroundTaskCountUpdateEvent); ok {
+		if statusView, ok := app.statusView.(*components.StatusView); ok {
+			statusView.SetBackgroundTaskCount(countMsg.Count)
+		}
+		return cmds
+	}
+
 	if model, cmd := app.conversationView.(tea.Model).Update(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 		if convModel, ok := model.(ui.ConversationRenderer); ok {
@@ -842,7 +857,8 @@ func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.C
 		domain.ToggleHelpBarEvent, domain.HideHelpBarEvent, domain.DebugKeyEvent, domain.SetupFileSelectionEvent,
 		domain.ScrollRequestEvent, domain.ConversationsLoadedEvent, domain.ModelSelectedEvent,
 		domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent,
-		domain.ParallelToolsStartEvent, domain.ParallelToolsCompleteEvent:
+		domain.ParallelToolsStartEvent, domain.ParallelToolsCompleteEvent, domain.BackgroundTaskToggleEvent,
+		domain.BackgroundTaskCountUpdateEvent:
 		return app.updateUIComponents(msg)
 	case domain.UserInputEvent:
 		return cmds
@@ -901,6 +917,11 @@ func (app *ChatApplication) GetInputView() ui.InputComponent {
 // GetStatusView returns the status view
 func (app *ChatApplication) GetStatusView() ui.StatusComponent {
 	return app.statusView
+}
+
+// GetBackgroundTaskManager returns the background task manager
+func (app *ChatApplication) GetBackgroundTaskManager() domain.BackgroundTaskManager {
+	return app.backgroundTaskManager
 }
 
 // GetPageSize returns the current page size for scrolling

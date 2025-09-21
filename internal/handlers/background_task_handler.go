@@ -6,6 +6,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	services "github.com/inference-gateway/cli/internal/services"
 )
 
 // BackgroundTaskHandler handles background task related events
@@ -18,6 +19,40 @@ func NewBackgroundTaskHandler(backgroundTaskManager domain.BackgroundTaskManager
 	return &BackgroundTaskHandler{
 		backgroundTaskManager: backgroundTaskManager,
 	}
+}
+
+// CanHandle checks if this handler can handle the given message
+func (h *BackgroundTaskHandler) CanHandle(msg tea.Msg) bool {
+	switch msg.(type) {
+	case domain.BackgroundTaskToggleEvent, domain.BackgroundTaskStartedEvent, domain.BackgroundTaskCompletedEvent:
+		return true
+	default:
+		return false
+	}
+}
+
+// Handle processes the message and returns any resulting commands
+func (h *BackgroundTaskHandler) Handle(msg tea.Msg, stateManager *services.StateManager) (tea.Model, tea.Cmd) {
+	switch event := msg.(type) {
+	case domain.BackgroundTaskToggleEvent:
+		return nil, h.HandleBackgroundTaskToggle()
+	case domain.BackgroundTaskStartedEvent:
+		return nil, h.HandleBackgroundTaskStarted(event)
+	case domain.BackgroundTaskCompletedEvent:
+		return nil, h.HandleBackgroundTaskCompleted(event)
+	default:
+		return nil, nil
+	}
+}
+
+// GetPriority returns the handler priority
+func (h *BackgroundTaskHandler) GetPriority() int {
+	return 100
+}
+
+// GetName returns the handler name
+func (h *BackgroundTaskHandler) GetName() string {
+	return "BackgroundTaskHandler"
 }
 
 // HandleBackgroundTaskToggle handles the ctrl+b key binding to show background task status
