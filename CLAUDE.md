@@ -29,7 +29,7 @@ inference services. It provides an interactive chat interface, autonomous agent 
 extensive tool execution for AI models.
 
 **Architecture**: Clean Architecture pattern with dependency injection
-**Language**: Go 1.24+
+**Language**: Go 1.25+
 **Framework**: Cobra CLI with Bubble Tea TUI
 **Testing**: Table-driven tests with counterfeiter mocks
 

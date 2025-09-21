@@ -3,19 +3,14 @@
   "manifest": {
     "version": 1,
     "install": {
-      "docker": {
-        "pkg-path": "docker",
-        "pkg-group": "common",
-        "version": "^28.3.2"
-      },
       "go": {
         "pkg-path": "go",
-        "version": "^1.24.5"
+        "version": "^1.25.0"
       },
       "go-task": {
         "pkg-path": "go-task",
         "pkg-group": "common",
-        "version": "^3.44.0"
+        "version": "^3.44.1"
       },
       "golangci-lint": {
         "pkg-path": "golangci-lint",
@@ -54,122 +49,6 @@
     "options": {}
   },
   "packages": [
-    {
-      "attr_path": "docker",
-      "broken": false,
-      "derivation": "/nix/store/zjjn35ckpxwy8kcj2b33f81hjrwxvisc-docker-28.3.3.drv",
-      "description": "Open source project to pack, ship and run any application as a lightweight container",
-      "install_id": "docker",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=8eb28adfa3dc4de28e792e3bf49fcf9007ca8ac9",
-      "name": "docker-28.3.3",
-      "pname": "docker",
-      "rev": "8eb28adfa3dc4de28e792e3bf49fcf9007ca8ac9",
-      "rev_count": 856926,
-      "rev_date": "2025-09-05T10:37:24Z",
-      "scrape_date": "2025-09-08T03:40:12.107896Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "28.3.3",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/hingyj7jjl5qkhm54px0wnxbr50ilq7c-docker-28.3.3"
-      },
-      "system": "aarch64-darwin",
-      "group": "common",
-      "priority": 5
-    },
-    {
-      "attr_path": "docker",
-      "broken": false,
-      "derivation": "/nix/store/wh3rsab43w8aps9bykpzcn2h5x196i8k-docker-28.3.3.drv",
-      "description": "Open source project to pack, ship and run any application as a lightweight container",
-      "install_id": "docker",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=8eb28adfa3dc4de28e792e3bf49fcf9007ca8ac9",
-      "name": "docker-28.3.3",
-      "pname": "docker",
-      "rev": "8eb28adfa3dc4de28e792e3bf49fcf9007ca8ac9",
-      "rev_count": 856926,
-      "rev_date": "2025-09-05T10:37:24Z",
-      "scrape_date": "2025-09-08T03:52:21.695582Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "28.3.3",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/mzw2fqdgbvhixmvdc81xcy5ii2vxwp2z-docker-28.3.3"
-      },
-      "system": "aarch64-linux",
-      "group": "common",
-      "priority": 5
-    },
-    {
-      "attr_path": "docker",
-      "broken": false,
-      "derivation": "/nix/store/v3k1zycvbfxmvsisiv89nfggvk6qhd6a-docker-28.3.3.drv",
-      "description": "Open source project to pack, ship and run any application as a lightweight container",
-      "install_id": "docker",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=8eb28adfa3dc4de28e792e3bf49fcf9007ca8ac9",
-      "name": "docker-28.3.3",
-      "pname": "docker",
-      "rev": "8eb28adfa3dc4de28e792e3bf49fcf9007ca8ac9",
-      "rev_count": 856926,
-      "rev_date": "2025-09-05T10:37:24Z",
-      "scrape_date": "2025-09-08T04:22:01.964078Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "28.3.3",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/9r9hqr5vi851ijhf4npzwdbmzvkfz8ga-docker-28.3.3"
-      },
-      "system": "x86_64-darwin",
-      "group": "common",
-      "priority": 5
-    },
-    {
-      "attr_path": "docker",
-      "broken": false,
-      "derivation": "/nix/store/ds5l7cl8ylj5h00458gb9d7k3zdvnrlp-docker-28.3.3.drv",
-      "description": "Open source project to pack, ship and run any application as a lightweight container",
-      "install_id": "docker",
-      "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=8eb28adfa3dc4de28e792e3bf49fcf9007ca8ac9",
-      "name": "docker-28.3.3",
-      "pname": "docker",
-      "rev": "8eb28adfa3dc4de28e792e3bf49fcf9007ca8ac9",
-      "rev_count": 856926,
-      "rev_date": "2025-09-05T10:37:24Z",
-      "scrape_date": "2025-09-08T04:54:30.232657Z",
-      "stabilities": [
-        "unstable"
-      ],
-      "unfree": false,
-      "version": "28.3.3",
-      "outputs_to_install": [
-        "out"
-      ],
-      "outputs": {
-        "out": "/nix/store/3yl26dpqcssq2q32rl9j974fjjkdvwmm-docker-28.3.3"
-      },
-      "system": "x86_64-linux",
-      "group": "common",
-      "priority": 5
-    },
     {
       "attr_path": "go-task",
       "broken": false,
@@ -765,27 +644,27 @@
     {
       "attr_path": "go",
       "broken": false,
-      "derivation": "/nix/store/64rdsj50y7y019hy08vjn9bbkqs4xv94-go-1.24.5.drv",
+      "derivation": "/nix/store/s3y2xgs6d01qvf0yhgw455ghiylmn8jy-go-1.25.0.drv",
       "description": "Go Programming language",
       "install_id": "go",
       "license": "BSD-3-Clause",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=20075955deac2583bb12f07151c2df830ef346b4",
-      "name": "go-1.24.5",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=8eaee110344796db060382e15d3af0a9fc396e0e",
+      "name": "go-1.25.0",
       "pname": "go",
-      "rev": "20075955deac2583bb12f07151c2df830ef346b4",
-      "rev_count": 846535,
-      "rev_date": "2025-08-19T15:00:17Z",
-      "scrape_date": "2025-08-24T15:38:53.852940Z",
+      "rev": "8eaee110344796db060382e15d3af0a9fc396e0e",
+      "rev_count": 864002,
+      "rev_date": "2025-09-19T10:20:10Z",
+      "scrape_date": "2025-09-21T05:38:43.327804Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "1.24.5",
+      "version": "1.25.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/kw1vd98s15vj700m3gx2x2xca2z477i3-go-1.24.5"
+        "out": "/nix/store/cr196bvbbai01r0w11p1inkzkdrqdx6y-go-1.25.0"
       },
       "system": "aarch64-darwin",
       "group": "toplevel",
@@ -794,27 +673,27 @@
     {
       "attr_path": "go",
       "broken": false,
-      "derivation": "/nix/store/w5wx665g669d26ms6q6wyl7ga4vqqfbh-go-1.24.5.drv",
+      "derivation": "/nix/store/i027if1wkdbbk9vmkjf4281iqfdjzwp0-go-1.25.0.drv",
       "description": "Go Programming language",
       "install_id": "go",
       "license": "BSD-3-Clause",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=20075955deac2583bb12f07151c2df830ef346b4",
-      "name": "go-1.24.5",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=8eaee110344796db060382e15d3af0a9fc396e0e",
+      "name": "go-1.25.0",
       "pname": "go",
-      "rev": "20075955deac2583bb12f07151c2df830ef346b4",
-      "rev_count": 846535,
-      "rev_date": "2025-08-19T15:00:17Z",
-      "scrape_date": "2025-08-24T16:05:26.651219Z",
+      "rev": "8eaee110344796db060382e15d3af0a9fc396e0e",
+      "rev_count": 864002,
+      "rev_date": "2025-09-19T10:20:10Z",
+      "scrape_date": "2025-09-21T06:10:24.196012Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "1.24.5",
+      "version": "1.25.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/5bzlaj0c4mqw9p0zrcx5g9vz16vd45dl-go-1.24.5"
+        "out": "/nix/store/yhcdwwikp86p2cpq0qr7di91ji63460s-go-1.25.0"
       },
       "system": "aarch64-linux",
       "group": "toplevel",
@@ -823,27 +702,27 @@
     {
       "attr_path": "go",
       "broken": false,
-      "derivation": "/nix/store/sblxqar4xfxgxy55z3h3mdfgrp7vm1lj-go-1.24.5.drv",
+      "derivation": "/nix/store/n9i0d6pa57wr8f8yl6dymwr5wr9ndfbb-go-1.25.0.drv",
       "description": "Go Programming language",
       "install_id": "go",
       "license": "BSD-3-Clause",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=20075955deac2583bb12f07151c2df830ef346b4",
-      "name": "go-1.24.5",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=8eaee110344796db060382e15d3af0a9fc396e0e",
+      "name": "go-1.25.0",
       "pname": "go",
-      "rev": "20075955deac2583bb12f07151c2df830ef346b4",
-      "rev_count": 846535,
-      "rev_date": "2025-08-19T15:00:17Z",
-      "scrape_date": "2025-08-24T16:29:26.066648Z",
+      "rev": "8eaee110344796db060382e15d3af0a9fc396e0e",
+      "rev_count": 864002,
+      "rev_date": "2025-09-19T10:20:10Z",
+      "scrape_date": "2025-09-21T06:39:00.886687Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "1.24.5",
+      "version": "1.25.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/b72n20ixzl5ja9vciwahkr30bhmsn5jc-go-1.24.5"
+        "out": "/nix/store/hz7dfw13v8iff4vf6vbnqnlnd7wh7j5x-go-1.25.0"
       },
       "system": "x86_64-darwin",
       "group": "toplevel",
@@ -852,27 +731,27 @@
     {
       "attr_path": "go",
       "broken": false,
-      "derivation": "/nix/store/n3ggn80wfjjbrgnlh0q8zrmfmdlcmd0b-go-1.24.5.drv",
+      "derivation": "/nix/store/pxn4bbdbwd25r02kvp7a1jp3fjykrb65-go-1.25.0.drv",
       "description": "Go Programming language",
       "install_id": "go",
       "license": "BSD-3-Clause",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=20075955deac2583bb12f07151c2df830ef346b4",
-      "name": "go-1.24.5",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=8eaee110344796db060382e15d3af0a9fc396e0e",
+      "name": "go-1.25.0",
       "pname": "go",
-      "rev": "20075955deac2583bb12f07151c2df830ef346b4",
-      "rev_count": 846535,
-      "rev_date": "2025-08-19T15:00:17Z",
-      "scrape_date": "2025-08-24T16:57:27.960410Z",
+      "rev": "8eaee110344796db060382e15d3af0a9fc396e0e",
+      "rev_count": 864002,
+      "rev_date": "2025-09-19T10:20:10Z",
+      "scrape_date": "2025-09-21T07:10:55.814579Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "1.24.5",
+      "version": "1.25.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/y4awwzp30ka130wmjrpaqjmjdf9p010w-go-1.24.5"
+        "out": "/nix/store/3fd683jfggglpshxprz9mi5sz8wd3c9p-go-1.25.0"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
