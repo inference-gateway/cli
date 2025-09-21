@@ -88,8 +88,8 @@ func TestBackgroundTaskManager_SubmitTask(t *testing.T) {
 				t.Errorf("expected description %q, got %q", tt.description, task.Description)
 			}
 
-			if task.Status != BackgroundTaskStatusPending {
-				t.Errorf("expected status %q, got %q", BackgroundTaskStatusPending, task.Status)
+			if task.Status != domain.BackgroundTaskStatusPending {
+				t.Errorf("expected status %q, got %q", domain.BackgroundTaskStatusPending, task.Status)
 			}
 		})
 	}
@@ -230,8 +230,8 @@ func TestBackgroundTaskManager_CancelTask(t *testing.T) {
 				return
 			}
 
-			if task.Status != BackgroundTaskStatusCancelled {
-				t.Errorf("expected status %q, got %q", BackgroundTaskStatusCancelled, task.Status)
+			if task.Status != domain.BackgroundTaskStatusCancelled {
+				t.Errorf("expected status %q, got %q", domain.BackgroundTaskStatusCancelled, task.Status)
 			}
 		})
 	}

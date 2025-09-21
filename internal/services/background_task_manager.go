@@ -44,6 +44,23 @@ type BackgroundTask struct {
 	cancelFunc context.CancelFunc
 }
 
+// toDomainTask converts internal BackgroundTask to domain.BackgroundTask
+func (t *BackgroundTask) toDomainTask() *domain.BackgroundTask {
+	return &domain.BackgroundTask{
+		ID:              t.ID,
+		AgentURL:        t.AgentURL,
+		Description:     t.Description,
+		Status:          domain.BackgroundTaskStatus(t.Status),
+		StartTime:       t.StartTime,
+		CompletionTime:  t.CompletionTime,
+		Result:          t.Result,
+		Error:           t.Error,
+		TaskID:          t.TaskID,
+		ContextID:       t.ContextID,
+		OriginalRequest: t.OriginalRequest,
+	}
+}
+
 // BackgroundTaskResult represents the result of a background task
 type BackgroundTaskResult struct {
 	Task    *BackgroundTask `json:"task"`
@@ -110,7 +127,7 @@ func (m *BackgroundTaskManager) SubmitTask(ctx context.Context, agentURL, descri
 	go m.executeTask(task)
 
 	logger.Info("Background task submitted", "task_id", taskID, "agent_url", agentURL)
-	return task, nil
+	return task.toDomainTask(), nil
 }
 
 // executeTask runs a task in the background
@@ -308,38 +325,41 @@ func (m *BackgroundTaskManager) updateTaskStatus(taskID string, status Backgroun
 }
 
 // GetActiveTasks returns all currently active (non-completed) tasks
-func (m *BackgroundTaskManager) GetActiveTasks() []interface{} {
+func (m *BackgroundTaskManager) GetActiveTasks() []*domain.BackgroundTask {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	var activeTasks []interface{}
+	var activeTasks []*domain.BackgroundTask
 	for _, task := range m.tasks {
 		if task.Status == BackgroundTaskStatusPending || task.Status == BackgroundTaskStatusRunning {
-			activeTasks = append(activeTasks, task)
+			activeTasks = append(activeTasks, task.toDomainTask())
 		}
 	}
 	return activeTasks
 }
 
 // GetAllTasks returns all tasks
-func (m *BackgroundTaskManager) GetAllTasks() []interface{} {
+func (m *BackgroundTaskManager) GetAllTasks() []*domain.BackgroundTask {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
-	var allTasks []interface{}
+	var allTasks []*domain.BackgroundTask
 	for _, task := range m.tasks {
-		allTasks = append(allTasks, task)
+		allTasks = append(allTasks, task.toDomainTask())
 	}
 	return allTasks
 }
 
 // GetTask returns a specific task by ID
-func (m *BackgroundTaskManager) GetTask(taskID string) (interface{}, bool) {
+func (m *BackgroundTaskManager) GetTask(taskID string) (*domain.BackgroundTask, bool) {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 
 	task, exists := m.tasks[taskID]
-	return task, exists
+	if !exists {
+		return nil, false
+	}
+	return task.toDomainTask(), true
 }
 
 // CancelTask cancels a background task
