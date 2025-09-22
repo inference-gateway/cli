@@ -91,8 +91,6 @@ services:
       GOOGLE_CALENDAR_TIMEZONE: CET
       GOOGLE_CALENDAR_SA_JSON: ${GOOGLE_CALENDAR_SA_JSON}
       GOOGLE_APPLICATION_CREDENTIALS: /tmp/google-credentials.json
-    env_file:
-      - .env.calendar
     restart: unless-stopped
     networks:
       - a2a-network
@@ -113,8 +111,6 @@ services:
       A2A_QUEUE_CLEANUP_INTERVAL: 500s
       A2A_AGENT_CLIENT_MAX_CHAT_COMPLETION_ITERATIONS: 20
       CONTEXT7_API_KEY: ${CONTEXT7_API_KEY}
-    env_file:
-      - .env.documentation
     restart: unless-stopped
     networks:
       - a2a-network
