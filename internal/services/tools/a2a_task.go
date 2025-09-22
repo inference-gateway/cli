@@ -287,7 +287,7 @@ func (t *A2ATaskTool) Validate(args map[string]any) error {
 
 // IsEnabled returns whether this tool is enabled
 func (t *A2ATaskTool) IsEnabled() bool {
-	return t.config.Tools.Task.Enabled
+	return t.config.IsA2AToolsEnabled() || t.config.Tools.Task.Enabled
 }
 
 // FormatResult formats tool execution results for different contexts

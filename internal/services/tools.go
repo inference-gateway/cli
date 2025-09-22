@@ -16,6 +16,7 @@ import (
 type LLMToolService struct {
 	registry *tools.Registry
 	enabled  bool
+	config   *config.Config
 }
 
 // NewLLMToolService creates a new LLM tool service with a new registry
@@ -23,6 +24,7 @@ func NewLLMToolService(cfg *config.Config) *LLMToolService {
 	return &LLMToolService{
 		registry: tools.NewRegistry(cfg),
 		enabled:  cfg.Tools.Enabled,
+		config:   cfg,
 	}
 }
 
@@ -31,12 +33,13 @@ func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry)
 	return &LLMToolService{
 		registry: registry,
 		enabled:  cfg.Tools.Enabled,
+		config:   cfg,
 	}
 }
 
 // ListTools returns definitions for all enabled tools
 func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
-	if !s.enabled {
+	if !s.enabled && !s.config.IsA2AToolsEnabled() {
 		return []sdk.ChatCompletionTool{}
 	}
 	return s.registry.GetToolDefinitions()
@@ -44,16 +47,29 @@ func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
 
 // ListAvailableTools returns names of all enabled tools
 func (s *LLMToolService) ListAvailableTools() []string {
-	if !s.enabled {
+	if !s.enabled && !s.config.IsA2AToolsEnabled() {
 		return []string{}
 	}
 	return s.registry.ListAvailableTools()
 }
 
+// isA2ATool checks if a tool is an A2A-related tool
+func (s *LLMToolService) isA2ATool(toolName string) bool {
+	a2aTools := []string{"QueryAgent", "QueryTask", "Task"}
+	for _, a2aTool := range a2aTools {
+		if toolName == a2aTool {
+			return true
+		}
+	}
+	return false
+}
+
 // ExecuteTool executes a tool with the given arguments
 func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	if !s.enabled {
-		return nil, fmt.Errorf("tools are not enabled")
+		if !s.config.IsA2AToolsEnabled() || !s.isA2ATool(toolCall.Name) {
+			return nil, fmt.Errorf("tools are not enabled")
+		}
 	}
 
 	var args map[string]any
@@ -78,7 +94,9 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompl
 // IsToolEnabled checks if a tool is enabled
 func (s *LLMToolService) IsToolEnabled(name string) bool {
 	if !s.enabled {
-		return false
+		if !s.config.IsA2AToolsEnabled() || !s.isA2ATool(name) {
+			return false
+		}
 	}
 	return s.registry.IsToolEnabled(name)
 }
@@ -86,7 +104,9 @@ func (s *LLMToolService) IsToolEnabled(name string) bool {
 // ValidateTool validates tool arguments
 func (s *LLMToolService) ValidateTool(name string, args map[string]any) error {
 	if !s.enabled {
-		return fmt.Errorf("tools are not enabled")
+		if !s.config.IsA2AToolsEnabled() || !s.isA2ATool(name) {
+			return fmt.Errorf("tools are not enabled")
+		}
 	}
 
 	if strings.HasPrefix(name, "a2a_") {

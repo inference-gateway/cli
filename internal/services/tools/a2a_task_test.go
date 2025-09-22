@@ -124,19 +124,34 @@ func TestA2ATaskTool_Validate(t *testing.T) {
 
 func TestA2ATaskTool_IsEnabled(t *testing.T) {
 	tests := []struct {
-		name     string
-		enabled  bool
-		expected bool
+		name       string
+		enabled    bool
+		a2aEnabled bool
+		expected   bool
 	}{
 		{
-			name:     "enabled when A2A is enabled",
-			enabled:  true,
-			expected: true,
+			name:       "enabled when task tool is enabled",
+			enabled:    true,
+			a2aEnabled: false,
+			expected:   true,
 		},
 		{
-			name:     "disabled when A2A is disabled",
-			enabled:  false,
-			expected: false,
+			name:       "disabled when both task tool and A2A are disabled",
+			enabled:    false,
+			a2aEnabled: false,
+			expected:   false,
+		},
+		{
+			name:       "enabled when A2A is enabled even if task tool is disabled",
+			enabled:    false,
+			a2aEnabled: true,
+			expected:   true,
+		},
+		{
+			name:       "enabled when both task tool and A2A are enabled",
+			enabled:    true,
+			a2aEnabled: true,
+			expected:   true,
 		},
 	}
 
@@ -147,6 +162,9 @@ func TestA2ATaskTool_IsEnabled(t *testing.T) {
 					Task: config.TaskToolConfig{
 						Enabled: tt.enabled,
 					},
+				},
+				A2A: config.A2AConfig{
+					Enabled: tt.a2aEnabled,
 				},
 			}
 			tool := NewA2ATaskTool(cfg, nil)

@@ -245,9 +245,10 @@ type GitConfig struct {
 
 // A2AConfig contains A2A agent configuration
 type A2AConfig struct {
-	Agents []string       `yaml:"agents" mapstructure:"agents"`
-	Cache  A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
-	Task   A2ATaskConfig  `yaml:"task" mapstructure:"task"`
+	Enabled bool           `yaml:"enabled" mapstructure:"enabled"`
+	Agents  []string       `yaml:"agents" mapstructure:"agents"`
+	Cache   A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
+	Task    A2ATaskConfig  `yaml:"task" mapstructure:"task"`
 }
 
 // ConversationConfig contains conversation-specific settings
@@ -625,7 +626,8 @@ Respond with ONLY the title, no quotes or explanation.`,
 			Theme: "tokyo-night",
 		},
 		A2A: A2AConfig{
-			Agents: []string{},
+			Enabled: false,
+			Agents:  []string{},
 			Cache: A2ACacheConfig{
 				Enabled: true,
 				TTL:     300,
@@ -691,6 +693,12 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 	}
 
 	return globalApproval
+}
+
+// IsA2AToolsEnabled checks if A2A tools should be enabled
+// A2A tools are enabled when a2a.enabled is true, regardless of tools.enabled
+func (c *Config) IsA2AToolsEnabled() bool {
+	return c.A2A.Enabled
 }
 
 func (c *Config) GetAgentConfig() *AgentConfig {

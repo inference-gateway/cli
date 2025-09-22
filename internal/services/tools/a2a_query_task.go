@@ -242,5 +242,5 @@ func (t *A2AQueryTaskTool) ShouldAlwaysExpand() bool {
 }
 
 func (t *A2AQueryTaskTool) IsEnabled() bool {
-	return t.config.Tools.QueryTask.Enabled
+	return t.config.IsA2AToolsEnabled() || t.config.Tools.QueryTask.Enabled
 }

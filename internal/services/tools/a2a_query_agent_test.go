@@ -90,19 +90,34 @@ func TestA2AQueryAgentTool_Validate(t *testing.T) {
 
 func TestA2AQueryAgentTool_IsEnabled(t *testing.T) {
 	tests := []struct {
-		name     string
-		enabled  bool
-		expected bool
+		name       string
+		enabled    bool
+		a2aEnabled bool
+		expected   bool
 	}{
 		{
-			name:     "enabled when A2A is enabled",
-			enabled:  true,
-			expected: true,
+			name:       "enabled when query agent tool is enabled",
+			enabled:    true,
+			a2aEnabled: false,
+			expected:   true,
 		},
 		{
-			name:     "disabled when A2A is disabled",
-			enabled:  false,
-			expected: false,
+			name:       "disabled when both query agent tool and A2A are disabled",
+			enabled:    false,
+			a2aEnabled: false,
+			expected:   false,
+		},
+		{
+			name:       "enabled when A2A is enabled even if query agent tool is disabled",
+			enabled:    false,
+			a2aEnabled: true,
+			expected:   true,
+		},
+		{
+			name:       "enabled when both query agent tool and A2A are enabled",
+			enabled:    true,
+			a2aEnabled: true,
+			expected:   true,
 		},
 	}
 
@@ -113,6 +128,9 @@ func TestA2AQueryAgentTool_IsEnabled(t *testing.T) {
 					QueryAgent: config.QueryAgentToolConfig{
 						Enabled: tt.enabled,
 					},
+				},
+				A2A: config.A2AConfig{
+					Enabled: tt.a2aEnabled,
 				},
 			}
 			tool := NewA2AQueryAgentTool(cfg)

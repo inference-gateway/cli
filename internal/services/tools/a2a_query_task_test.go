@@ -217,19 +217,34 @@ func TestA2AQueryTaskTool_Execute_InvalidArgs(t *testing.T) {
 
 func TestA2AQueryTaskTool_IsEnabled(t *testing.T) {
 	tests := []struct {
-		name    string
-		enabled bool
-		want    bool
+		name       string
+		enabled    bool
+		a2aEnabled bool
+		want       bool
 	}{
 		{
-			name:    "enabled",
-			enabled: true,
-			want:    true,
+			name:       "enabled when query task tool is enabled",
+			enabled:    true,
+			a2aEnabled: false,
+			want:       true,
 		},
 		{
-			name:    "disabled",
-			enabled: false,
-			want:    false,
+			name:       "disabled when both query task tool and A2A are disabled",
+			enabled:    false,
+			a2aEnabled: false,
+			want:       false,
+		},
+		{
+			name:       "enabled when A2A is enabled even if query task tool is disabled",
+			enabled:    false,
+			a2aEnabled: true,
+			want:       true,
+		},
+		{
+			name:       "enabled when both query task tool and A2A are enabled",
+			enabled:    true,
+			a2aEnabled: true,
+			want:       true,
 		},
 	}
 
@@ -240,6 +255,9 @@ func TestA2AQueryTaskTool_IsEnabled(t *testing.T) {
 					QueryTask: config.QueryTaskToolConfig{
 						Enabled: tt.enabled,
 					},
+				},
+				A2A: config.A2AConfig{
+					Enabled: tt.a2aEnabled,
 				},
 			}
 			tool := NewA2AQueryTaskTool(cfg)
