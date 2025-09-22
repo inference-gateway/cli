@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.50.2](https://github.com/inference-gateway/cli/compare/v0.50.1...v0.50.2) (2025-09-22)
+
+### 🧹 Maintenance
+
+* **deps:** Bump github.com/charmbracelet/bubbletea from 1.3.9 to 1.3.10 ([#164](https://github.com/inference-gateway/cli/issues/164)) ([7ef69db](https://github.com/inference-gateway/cli/commit/7ef69db1ae41ba91f27e8bd0460b9d9b0bec2875))
+* **deps:** Bump github.com/inference-gateway/adk from 0.10.0 to 0.11.0 ([#166](https://github.com/inference-gateway/cli/issues/166)) ([ed5389b](https://github.com/inference-gateway/cli/commit/ed5389bd22945333d5ca8d38ba3ba078b1b4ddcd))
+* **deps:** Bump modernc.org/sqlite from 1.38.2 to 1.39.0 ([#165](https://github.com/inference-gateway/cli/issues/165)) ([09ba66e](https://github.com/inference-gateway/cli/commit/09ba66ec9cdf05b0f42e793d119c2b3a895fb133))
+
 ## [0.50.1](https://github.com/inference-gateway/cli/compare/v0.50.0...v0.50.1) (2025-09-21)
 
 ### 🐛 Bug Fixes
