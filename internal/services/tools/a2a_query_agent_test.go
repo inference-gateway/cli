@@ -15,7 +15,7 @@ import (
 func TestA2AQueryAgentTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
-			Query: config.QueryToolConfig{
+			QueryAgent: config.QueryAgentToolConfig{
 				Enabled: true,
 			},
 		},
@@ -33,7 +33,7 @@ func TestA2AQueryAgentTool_Definition(t *testing.T) {
 func TestA2AQueryAgentTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
-			Query: config.QueryToolConfig{
+			QueryAgent: config.QueryAgentToolConfig{
 				Enabled: true,
 			},
 		},
@@ -110,7 +110,7 @@ func TestA2AQueryAgentTool_IsEnabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
 				Tools: config.ToolsConfig{
-					Query: config.QueryToolConfig{
+					QueryAgent: config.QueryAgentToolConfig{
 						Enabled: tt.enabled,
 					},
 				},
