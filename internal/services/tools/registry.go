@@ -55,11 +55,15 @@ func (r *Registry) registerTools() {
 	}
 
 	if r.config.Tools.Query.Enabled {
-		r.tools["Query"] = NewA2AQueryTool(r.config)
+		r.tools["QueryAgent"] = NewA2AQueryAgentTool(r.config)
 	}
 
 	if r.config.Tools.Task.Enabled {
 		r.tools["Task"] = NewA2ATaskTool(r.config, r.taskTracker)
+	}
+
+	if r.config.Tools.QueryTask.Enabled {
+		r.tools["QueryTask"] = NewA2AQueryTaskTool(r.config)
 	}
 
 }

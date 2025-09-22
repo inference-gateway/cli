@@ -79,6 +79,7 @@ type ToolsConfig struct {
 	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
 	Query     QueryToolConfig     `yaml:"query" mapstructure:"query"`
 	Task      TaskToolConfig      `yaml:"task" mapstructure:"task"`
+	QueryTask QueryTaskToolConfig `yaml:"query_task" mapstructure:"query_task"`
 
 	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
@@ -160,6 +161,12 @@ type QueryToolConfig struct {
 
 // TaskToolConfig contains Task-specific tool settings
 type TaskToolConfig struct {
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// QueryTaskToolConfig contains QueryTask-specific tool settings
+type QueryTaskToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
@@ -462,6 +469,18 @@ func DefaultConfig() *Config { //nolint:funlen
 				Repo:  "",
 			},
 			TodoWrite: TodoWriteToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
+			},
+			Query: QueryToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
+			},
+			Task: TaskToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
+			},
+			QueryTask: QueryTaskToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
 			},
