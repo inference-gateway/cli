@@ -7,7 +7,7 @@ tool github.com/maxbrunsfeld/counterfeiter/v6
 require (
 	github.com/atotto/clipboard v0.1.4
 	github.com/charmbracelet/bubbles v0.21.0
-	github.com/charmbracelet/bubbletea v1.3.9
+	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/uuid v1.6.0
