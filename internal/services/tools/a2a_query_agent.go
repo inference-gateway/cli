@@ -14,14 +14,12 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// A2AQueryTool handles A2A agent queries
-type A2AQueryTool struct {
+type A2AQueryAgentTool struct {
 	config    *config.Config
 	formatter domain.CustomFormatter
 }
 
-// A2AQueryResult represents the result of an A2A query operation
-type A2AQueryResult struct {
+type A2AQueryAgentResult struct {
 	AgentName string         `json:"agent_name"`
 	Query     string         `json:"query"`
 	Response  *adk.AgentCard `json:"response"`
@@ -30,23 +28,21 @@ type A2AQueryResult struct {
 	Duration  time.Duration  `json:"duration"`
 }
 
-// NewA2AQueryTool creates a new A2A query tool
-func NewA2AQueryTool(cfg *config.Config) *A2AQueryTool {
-	return &A2AQueryTool{
+func NewA2AQueryAgentTool(cfg *config.Config) *A2AQueryAgentTool {
+	return &A2AQueryAgentTool{
 		config: cfg,
-		formatter: domain.NewCustomFormatter("Query", func(key string) bool {
+		formatter: domain.NewCustomFormatter("QueryAgent", func(key string) bool {
 			return key == "metadata"
 		}),
 	}
 }
 
-// Definition returns the tool definition for the LLM
-func (t *A2AQueryTool) Definition() sdk.ChatCompletionTool {
+func (t *A2AQueryAgentTool) Definition() sdk.ChatCompletionTool {
 	description := "Retrieve an A2A agent's metadata card showing its capabilities and configuration. Use ONLY for discovering what an agent can do. For asking questions or requesting work from an agent, use the Task tool instead."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
-			Name:        "Query",
+			Name:        "QueryAgent",
 			Description: &description,
 			Parameters: &sdk.FunctionParameters{
 				"type": "object",
@@ -62,18 +58,17 @@ func (t *A2AQueryTool) Definition() sdk.ChatCompletionTool {
 	}
 }
 
-// Execute runs the tool with given arguments
-func (t *A2AQueryTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
+func (t *A2AQueryAgentTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	startTime := time.Now()
 
 	if !t.IsEnabled() {
 		return &domain.ToolExecutionResult{
-			ToolName:  "Query",
+			ToolName:  "QueryAgent",
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
 			Error:     "A2A connections are disabled in configuration",
-			Data: A2AQueryResult{
+			Data: A2AQueryAgentResult{
 				Success: false,
 				Message: "A2A connections are disabled",
 			},
@@ -93,46 +88,43 @@ func (t *A2AQueryTool) Execute(ctx context.Context, args map[string]any) (*domai
 	}
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "Query",
+		ToolName:  "QueryAgent",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
-		Data: A2AQueryResult{
+		Data: A2AQueryAgentResult{
 			AgentName: agentURL,
 			Query:     "card",
 			Response:  response,
 			Success:   true,
-			Message:   fmt.Sprintf("Query sent to agent at %s successfully", agentURL),
+			Message:   fmt.Sprintf("QueryAgent sent to agent at %s successfully", agentURL),
 			Duration:  time.Since(startTime),
 		},
 	}, nil
 }
 
-// errorResult creates an error result
-func (t *A2AQueryTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
+func (t *A2AQueryAgentTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
 	return &domain.ToolExecutionResult{
-		ToolName:  "Query",
+		ToolName:  "QueryAgent",
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(startTime),
 		Error:     errorMsg,
-		Data: A2AQueryResult{
+		Data: A2AQueryAgentResult{
 			Success: false,
 			Message: errorMsg,
 		},
 	}, nil
 }
 
-// Validate checks if the tool arguments are valid
-func (t *A2AQueryTool) Validate(args map[string]any) error {
+func (t *A2AQueryAgentTool) Validate(args map[string]any) error {
 	if _, ok := args["agent_url"].(string); !ok {
 		return fmt.Errorf("agent_url parameter is required and must be a string")
 	}
 	return nil
 }
 
-// FormatResult formats tool execution results for different contexts
-func (t *A2AQueryTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *A2AQueryAgentTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
 	switch formatType {
 	case domain.FormatterUI:
 		return t.FormatForUI(result)
@@ -145,8 +137,7 @@ func (t *A2AQueryTool) FormatResult(result *domain.ToolExecutionResult, formatTy
 	}
 }
 
-// FormatForLLM formats the result for LLM consumption with detailed information
-func (t *A2AQueryTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *A2AQueryAgentTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -167,8 +158,7 @@ func (t *A2AQueryTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	return output.String()
 }
 
-// FormatForUI formats the result for UI display
-func (t *A2AQueryTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *A2AQueryAgentTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -184,30 +174,26 @@ func (t *A2AQueryTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	return output.String()
 }
 
-// FormatPreview returns a short preview of the result for UI display
-func (t *A2AQueryTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *A2AQueryAgentTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	if result.Data == nil {
 		return result.Error
 	}
 
-	if data, ok := result.Data.(A2AQueryResult); ok {
-		return fmt.Sprintf("A2A Query: %s", data.Message)
+	if data, ok := result.Data.(A2AQueryAgentResult); ok {
+		return fmt.Sprintf("A2A QueryAgent: %s", data.Message)
 	}
 
-	return "A2A query operation completed"
+	return "A2A query agent operation completed"
 }
 
-// ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *A2AQueryTool) ShouldCollapseArg(key string) bool {
+func (t *A2AQueryAgentTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
 }
 
-// ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *A2AQueryTool) ShouldAlwaysExpand() bool {
+func (t *A2AQueryAgentTool) ShouldAlwaysExpand() bool {
 	return false
 }
 
-// IsEnabled returns whether the query tool is enabled
-func (t *A2AQueryTool) IsEnabled() bool {
-	return t.config.Tools.Query.Enabled
+func (t *A2AQueryAgentTool) IsEnabled() bool {
+	return t.config.Tools.QueryAgent.Enabled
 }

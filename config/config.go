@@ -64,21 +64,22 @@ type LoggingConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled   bool                `yaml:"enabled" mapstructure:"enabled"`
-	Sandbox   SandboxConfig       `yaml:"sandbox" mapstructure:"sandbox"`
-	Bash      BashToolConfig      `yaml:"bash" mapstructure:"bash"`
-	Read      ReadToolConfig      `yaml:"read" mapstructure:"read"`
-	Write     WriteToolConfig     `yaml:"write" mapstructure:"write"`
-	Edit      EditToolConfig      `yaml:"edit" mapstructure:"edit"`
-	Delete    DeleteToolConfig    `yaml:"delete" mapstructure:"delete"`
-	Grep      GrepToolConfig      `yaml:"grep" mapstructure:"grep"`
-	Tree      TreeToolConfig      `yaml:"tree" mapstructure:"tree"`
-	WebFetch  WebFetchToolConfig  `yaml:"web_fetch" mapstructure:"web_fetch"`
-	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
-	Github    GithubToolConfig    `yaml:"github" mapstructure:"github"`
-	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
-	Query     QueryToolConfig     `yaml:"query" mapstructure:"query"`
-	Task      TaskToolConfig      `yaml:"task" mapstructure:"task"`
+	Enabled    bool                 `yaml:"enabled" mapstructure:"enabled"`
+	Sandbox    SandboxConfig        `yaml:"sandbox" mapstructure:"sandbox"`
+	Bash       BashToolConfig       `yaml:"bash" mapstructure:"bash"`
+	Read       ReadToolConfig       `yaml:"read" mapstructure:"read"`
+	Write      WriteToolConfig      `yaml:"write" mapstructure:"write"`
+	Edit       EditToolConfig       `yaml:"edit" mapstructure:"edit"`
+	Delete     DeleteToolConfig     `yaml:"delete" mapstructure:"delete"`
+	Grep       GrepToolConfig       `yaml:"grep" mapstructure:"grep"`
+	Tree       TreeToolConfig       `yaml:"tree" mapstructure:"tree"`
+	WebFetch   WebFetchToolConfig   `yaml:"web_fetch" mapstructure:"web_fetch"`
+	WebSearch  WebSearchToolConfig  `yaml:"web_search" mapstructure:"web_search"`
+	Github     GithubToolConfig     `yaml:"github" mapstructure:"github"`
+	TodoWrite  TodoWriteToolConfig  `yaml:"todo_write" mapstructure:"todo_write"`
+	QueryAgent QueryAgentToolConfig `yaml:"query_agent" mapstructure:"query_agent"`
+	QueryTask  QueryTaskToolConfig  `yaml:"query_task" mapstructure:"query_task"`
+	Task       TaskToolConfig       `yaml:"task" mapstructure:"task"`
 
 	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
@@ -152,14 +153,20 @@ type TodoWriteToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
-// QueryToolConfig contains Query-specific tool settings
-type QueryToolConfig struct {
+// QueryAgentToolConfig contains Query-specific tool settings
+type QueryAgentToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // TaskToolConfig contains Task-specific tool settings
 type TaskToolConfig struct {
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// QueryTaskToolConfig contains QueryTask-specific tool settings
+type QueryTaskToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
@@ -462,6 +469,18 @@ func DefaultConfig() *Config { //nolint:funlen
 				Repo:  "",
 			},
 			TodoWrite: TodoWriteToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
+			},
+			QueryAgent: QueryAgentToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
+			},
+			QueryTask: QueryTaskToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
+			},
+			Task: TaskToolConfig{
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
 			},

@@ -12,33 +12,33 @@ import (
 	require "github.com/stretchr/testify/require"
 )
 
-func TestA2AQueryTool_Definition(t *testing.T) {
+func TestA2AQueryAgentTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
-			Query: config.QueryToolConfig{
+			QueryAgent: config.QueryAgentToolConfig{
 				Enabled: true,
 			},
 		},
 	}
-	tool := NewA2AQueryTool(cfg)
+	tool := NewA2AQueryAgentTool(cfg)
 
 	def := tool.Definition()
 
-	assert.Equal(t, "Query", def.Function.Name)
+	assert.Equal(t, "QueryAgent", def.Function.Name)
 	assert.NotNil(t, def.Function.Description)
 	assert.Contains(t, *def.Function.Description, "A2A agent")
 	assert.Contains(t, *def.Function.Description, "metadata card")
 }
 
-func TestA2AQueryTool_Execute_MissingAgentURL(t *testing.T) {
+func TestA2AQueryAgentTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
-			Query: config.QueryToolConfig{
+			QueryAgent: config.QueryAgentToolConfig{
 				Enabled: true,
 			},
 		},
 	}
-	tool := NewA2AQueryTool(cfg)
+	tool := NewA2AQueryAgentTool(cfg)
 
 	args := map[string]any{}
 
@@ -49,9 +49,9 @@ func TestA2AQueryTool_Execute_MissingAgentURL(t *testing.T) {
 	assert.Contains(t, result.Error, "agent_url parameter is required")
 }
 
-func TestA2AQueryTool_Validate(t *testing.T) {
+func TestA2AQueryAgentTool_Validate(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2AQueryTool(cfg)
+	tool := NewA2AQueryAgentTool(cfg)
 
 	tests := []struct {
 		name    string
@@ -88,7 +88,7 @@ func TestA2AQueryTool_Validate(t *testing.T) {
 	}
 }
 
-func TestA2AQueryTool_IsEnabled(t *testing.T) {
+func TestA2AQueryAgentTool_IsEnabled(t *testing.T) {
 	tests := []struct {
 		name     string
 		enabled  bool
@@ -110,33 +110,33 @@ func TestA2AQueryTool_IsEnabled(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
 				Tools: config.ToolsConfig{
-					Query: config.QueryToolConfig{
+					QueryAgent: config.QueryAgentToolConfig{
 						Enabled: tt.enabled,
 					},
 				},
 			}
-			tool := NewA2AQueryTool(cfg)
+			tool := NewA2AQueryAgentTool(cfg)
 
 			assert.Equal(t, tt.expected, tool.IsEnabled())
 		})
 	}
 }
 
-func TestA2AQueryTool_FormatResult(t *testing.T) {
+func TestA2AQueryAgentTool_FormatResult(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2AQueryTool(cfg)
+	tool := NewA2AQueryAgentTool(cfg)
 
-	queryResult := A2AQueryResult{
+	queryResult := A2AQueryAgentResult{
 		AgentName: "test-agent",
 		Query:     "card",
 		Response:  &adk.AgentCard{Name: "test-agent", Description: "Test agent"},
 		Success:   true,
-		Message:   "Query sent successfully",
+		Message:   "QueryAgent sent successfully",
 		Duration:  time.Second,
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "Query",
+		ToolName: "QueryAgent",
 		Success:  true,
 		Data:     queryResult,
 	}
@@ -149,17 +149,17 @@ func TestA2AQueryTool_FormatResult(t *testing.T) {
 		{
 			name:       "LLM format",
 			formatType: domain.FormatterLLM,
-			contains:   []string{"Query()", "✓ Success", "📄 Result:", "agent_name", "test-agent", "query", "card"},
+			contains:   []string{"QueryAgent()", "✓ Success", "📄 Result:", "agent_name", "test-agent", "query", "card"},
 		},
 		{
 			name:       "UI format",
 			formatType: domain.FormatterUI,
-			contains:   []string{"Query()", "✓ A2A Query", "Query sent successfully"},
+			contains:   []string{"QueryAgent()", "✓ A2A QueryAgent", "QueryAgent sent successfully"},
 		},
 		{
 			name:       "Short format",
 			formatType: domain.FormatterShort,
-			contains:   []string{"Query sent successfully"},
+			contains:   []string{"QueryAgent sent successfully"},
 		},
 	}
 
@@ -173,36 +173,36 @@ func TestA2AQueryTool_FormatResult(t *testing.T) {
 	}
 }
 
-func TestA2AQueryTool_FormatPreview(t *testing.T) {
+func TestA2AQueryAgentTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2AQueryTool(cfg)
+	tool := NewA2AQueryAgentTool(cfg)
 
-	queryResult := A2AQueryResult{
+	queryResult := A2AQueryAgentResult{
 		Success: true,
-		Message: "Query sent successfully",
+		Message: "QueryAgent sent successfully",
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "Query",
+		ToolName: "QueryAgent",
 		Success:  true,
 		Data:     queryResult,
 	}
 
 	preview := tool.FormatPreview(result)
-	assert.Contains(t, preview, "A2A Query")
-	assert.Contains(t, preview, "Query sent successfully")
+	assert.Contains(t, preview, "A2A QueryAgent")
+	assert.Contains(t, preview, "QueryAgent sent successfully")
 }
 
-func TestA2AQueryTool_ShouldCollapseArg(t *testing.T) {
+func TestA2AQueryAgentTool_ShouldCollapseArg(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2AQueryTool(cfg)
+	tool := NewA2AQueryAgentTool(cfg)
 
 	assert.False(t, tool.ShouldCollapseArg("agent_url"))
 }
 
-func TestA2AQueryTool_ShouldAlwaysExpand(t *testing.T) {
+func TestA2AQueryAgentTool_ShouldAlwaysExpand(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2AQueryTool(cfg)
+	tool := NewA2AQueryAgentTool(cfg)
 
 	assert.False(t, tool.ShouldAlwaysExpand())
 }
