@@ -7,27 +7,17 @@ This directory contains practical examples for using the `infer` CLI tool to int
 1. Configure the Inference Gateway server:
 
 ```bash
-# Configure the providers you want to work with
-cp .env.gateway.example .env.gateway
+# Configure the providers you want to work with and some of the agents credentials (Google Calendar, Context7 - if applicable)
+cp .env.example .env
 ```
 
-2. Configure the Google Calendar and Documentation Agents:
-
-```bash
-# Configure the Google Calendar A2A Server Agent
-cp .env.calendar.example .env.calendar
-
-# Configure the Context7 A2A Server agent
-cp .env.documentation.example .env.documentation
-```
-
-3. Bring all the containers up:
+2. Bring all the containers up:
 
 ```bash
 docker compose up -d
 ```
 
-4. Log the containers verify that everything is up and running:
+3. Log the containers verify that everything is up and running:
 
 ```bash
 docker compose ps
@@ -36,7 +26,7 @@ docker compose logs -f
 
 ## Configuration
 
-Set up your CLI configuration via environment variables (review docker-compose.yaml infer-cli service):
+Set up your CLI configuration via environment variables (review docker-compose.yaml cli service):
 
 ```yaml
 INFER_GATEWAY_URL: http://inference-gateway:8080
@@ -48,10 +38,10 @@ INFER_AGENT_MODEL: deepseek/deepseek-chat # Choose whatever LLM you would like t
 ** Disabled local tools to save some costs, since you only want to see that it works with the A2A - feel free to
 enable them if you want they will get merged with the Inference Gateway A2A related tools.
 
-Now you can enter the Interactive Chat within the infer-cli container and start chatting:
+Now you can enter the Interactive Chat within the cli container and start chatting:
 
 ```bash
-docker compose run --rm infer-cli
+docker compose run --rm cli
 ```
 
 ## Troubleshooting
