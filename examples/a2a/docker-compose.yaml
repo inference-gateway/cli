@@ -5,8 +5,26 @@ services:
     pull_policy: always
     ports:
       - "8080:8080"
-    env_file:
-      - .env.gateway
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLOUDFLARE_API_KEY: ${CLOUDFLARE_API_KEY}
+      COHERE_API_KEY: ${COHERE_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      ENVIRONMENT: development
+      SERVER_HOST: 0.0.0.0
+      SERVER_PORT: 8080
+      SERVER_READ_TIMEOUT: 230s
+      SERVER_WRITE_TIMEOUT: 230s
+      SERVER_IDLE_TIMEOUT: 220s
+      CLIENT_TIMEOUT: 230s
+      CLIENT_MAX_IDLE_CONNS: 220
+      CLIENT_MAX_IDLE_CONNS_PER_HOST: 220
+      CLIENT_IDLE_CONN_TIMEOUT: 130s
+      CLIENT_RESPONSE_HEADER_TIMEOUT: 120s
     restart: unless-stopped
     networks:
       - a2a-network

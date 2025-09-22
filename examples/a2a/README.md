@@ -7,27 +7,17 @@ This directory contains practical examples for using the `infer` CLI tool to int
 1. Configure the Inference Gateway server:
 
 ```bash
-# Configure the providers you want to work with
-cp .env.gateway.example .env.gateway
+# Configure the providers you want to work with and some of the agents credentials (Google Calendar, Context7 - if applicable)
+cp .env.example .env
 ```
 
-2. Configure the Google Calendar and Documentation Agents:
-
-```bash
-# Configure the Google Calendar A2A Server Agent
-cp .env.calendar.example .env.calendar
-
-# Configure the Context7 A2A Server agent
-cp .env.documentation.example .env.documentation
-```
-
-3. Bring all the containers up:
+2. Bring all the containers up:
 
 ```bash
 docker compose up -d
 ```
 
-4. Log the containers verify that everything is up and running:
+3. Log the containers verify that everything is up and running:
 
 ```bash
 docker compose ps
