@@ -14,17 +14,15 @@ import (
 
 func TestA2ATaskTool_Definition(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: true,
-			},
+		A2A: config.A2AConfig{
+			Enabled: true,
 		},
 	}
 	tool := NewA2ATaskTool(cfg, nil)
 
 	def := tool.Definition()
 
-	assert.Equal(t, "Task", def.Function.Name)
+	assert.Equal(t, "A2A_Task", def.Function.Name)
 	assert.NotNil(t, def.Function.Description)
 	assert.Contains(t, *def.Function.Description, "A2A agent")
 	assert.Contains(t, *def.Function.Description, "ask questions")
@@ -32,10 +30,8 @@ func TestA2ATaskTool_Definition(t *testing.T) {
 
 func TestA2ATaskTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: true,
-			},
+		A2A: config.A2AConfig{
+			Enabled: true,
 		},
 	}
 	tool := NewA2ATaskTool(cfg, nil)
@@ -53,10 +49,8 @@ func TestA2ATaskTool_Execute_MissingAgentURL(t *testing.T) {
 
 func TestA2ATaskTool_Execute_MissingTaskDescription(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: true,
-			},
+		A2A: config.A2AConfig{
+			Enabled: true,
 		},
 	}
 	tool := NewA2ATaskTool(cfg, nil)
@@ -125,31 +119,16 @@ func TestA2ATaskTool_Validate(t *testing.T) {
 func TestA2ATaskTool_IsEnabled(t *testing.T) {
 	tests := []struct {
 		name       string
-		enabled    bool
 		a2aEnabled bool
 		expected   bool
 	}{
 		{
-			name:       "enabled when task tool is enabled",
-			enabled:    true,
-			a2aEnabled: false,
-			expected:   true,
-		},
-		{
-			name:       "disabled when both task tool and A2A are disabled",
-			enabled:    false,
+			name:       "disabled when A2A is disabled",
 			a2aEnabled: false,
 			expected:   false,
 		},
 		{
-			name:       "enabled when A2A is enabled even if task tool is disabled",
-			enabled:    false,
-			a2aEnabled: true,
-			expected:   true,
-		},
-		{
-			name:       "enabled when both task tool and A2A are enabled",
-			enabled:    true,
+			name:       "enabled when A2A is enabled",
 			a2aEnabled: true,
 			expected:   true,
 		},
@@ -158,11 +137,6 @@ func TestA2ATaskTool_IsEnabled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Tools: config.ToolsConfig{
-					Task: config.TaskToolConfig{
-						Enabled: tt.enabled,
-					},
-				},
 				A2A: config.A2AConfig{
 					Enabled: tt.a2aEnabled,
 				},

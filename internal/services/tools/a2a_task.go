@@ -62,7 +62,7 @@ func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
-			Name:        "Task",
+			Name:        "A2A_Task",
 			Description: &description,
 			Parameters: &sdk.FunctionParameters{
 				"type": "object",
@@ -88,7 +88,7 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 
 	if !t.IsEnabled() {
 		return &domain.ToolExecutionResult{
-			ToolName:  "Task",
+			ToolName:  "A2A_Task",
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
@@ -259,7 +259,7 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "Task",
+		ToolName:  "A2A_Task",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
@@ -287,7 +287,7 @@ func (t *A2ATaskTool) Validate(args map[string]any) error {
 
 // IsEnabled returns whether this tool is enabled
 func (t *A2ATaskTool) IsEnabled() bool {
-	return t.config.IsA2AToolsEnabled() || t.config.Tools.Task.Enabled
+	return t.config.IsA2AToolsEnabled()
 }
 
 // FormatResult formats tool execution results for different contexts
@@ -369,7 +369,7 @@ func (t *A2ATaskTool) ShouldAlwaysExpand() bool {
 // errorResult creates an error result
 func (t *A2ATaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
 	return &domain.ToolExecutionResult{
-		ToolName:  "Task",
+		ToolName:  "A2A_Task",
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(startTime),
@@ -420,7 +420,7 @@ func (t *A2ATaskTool) handleInputRequiredState(args map[string]any, agentURL, ta
 	adkTask.ID = taskID
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "Task",
+		ToolName:  "A2A_Task",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),

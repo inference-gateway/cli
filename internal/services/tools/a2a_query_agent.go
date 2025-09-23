@@ -42,7 +42,7 @@ func (t *A2AQueryAgentTool) Definition() sdk.ChatCompletionTool {
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
-			Name:        "QueryAgent",
+			Name:        "A2A_QueryAgent",
 			Description: &description,
 			Parameters: &sdk.FunctionParameters{
 				"type": "object",
@@ -63,7 +63,7 @@ func (t *A2AQueryAgentTool) Execute(ctx context.Context, args map[string]any) (*
 
 	if !t.IsEnabled() {
 		return &domain.ToolExecutionResult{
-			ToolName:  "QueryAgent",
+			ToolName:  "A2A_QueryAgent",
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
@@ -88,7 +88,7 @@ func (t *A2AQueryAgentTool) Execute(ctx context.Context, args map[string]any) (*
 	}
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "QueryAgent",
+		ToolName:  "A2A_QueryAgent",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
@@ -105,7 +105,7 @@ func (t *A2AQueryAgentTool) Execute(ctx context.Context, args map[string]any) (*
 
 func (t *A2AQueryAgentTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
 	return &domain.ToolExecutionResult{
-		ToolName:  "QueryAgent",
+		ToolName:  "A2A_QueryAgent",
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(startTime),
@@ -195,5 +195,5 @@ func (t *A2AQueryAgentTool) ShouldAlwaysExpand() bool {
 }
 
 func (t *A2AQueryAgentTool) IsEnabled() bool {
-	return t.config.IsA2AToolsEnabled() || t.config.Tools.QueryAgent.Enabled
+	return t.config.IsA2AToolsEnabled()
 }

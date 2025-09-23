@@ -113,12 +113,8 @@ func (m *MockA2AClient) GetArtifactHelper() *client.ArtifactHelper { return nil 
 
 func TestA2ATaskTool_CompletedTaskHandling(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: true,
-			},
-		},
 		A2A: config.A2AConfig{
+			Enabled: true,
 			Task: config.A2ATaskConfig{
 				StatusPollSeconds: 1,
 			},

@@ -54,16 +54,10 @@ func (r *Registry) registerTools() {
 		r.tools["Github"] = NewGithubTool(r.config)
 	}
 
-	if r.config.Tools.QueryAgent.Enabled {
-		r.tools["QueryAgent"] = NewA2AQueryAgentTool(r.config)
-	}
-
-	if r.config.Tools.QueryTask.Enabled {
-		r.tools["QueryTask"] = NewA2AQueryTaskTool(r.config)
-	}
-
-	if r.config.Tools.Task.Enabled {
-		r.tools["Task"] = NewA2ATaskTool(r.config, r.taskTracker)
+	if r.config.IsA2AToolsEnabled() {
+		r.tools["A2A_QueryAgent"] = NewA2AQueryAgentTool(r.config)
+		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(r.config)
+		r.tools["A2A_Task"] = NewA2ATaskTool(r.config, r.taskTracker)
 	}
 }
 

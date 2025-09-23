@@ -39,36 +39,69 @@ func NewLLMToolServiceWithRegistry(cfg *config.Config, registry *tools.Registry)
 
 // ListTools returns definitions for all enabled tools
 func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
-	if !s.enabled && !s.config.IsA2AToolsEnabled() {
-		return []sdk.ChatCompletionTool{}
+	var definitions []sdk.ChatCompletionTool
+
+	// Get all tools from registry
+	allTools := s.registry.GetToolDefinitions()
+
+	for _, tool := range allTools {
+		toolName := tool.Function.Name
+		if s.isA2ATool(toolName) {
+			// A2A tools are included if a2a.enabled=true
+			if s.config.IsA2AToolsEnabled() {
+				definitions = append(definitions, tool)
+			}
+		} else {
+			// Local tools are included if tools.enabled=true and the specific tool is enabled
+			if s.enabled {
+				definitions = append(definitions, tool)
+			}
+		}
 	}
-	return s.registry.GetToolDefinitions()
+
+	return definitions
 }
 
 // ListAvailableTools returns names of all enabled tools
 func (s *LLMToolService) ListAvailableTools() []string {
-	if !s.enabled && !s.config.IsA2AToolsEnabled() {
-		return []string{}
+	var tools []string
+
+	// Get all available tools from registry
+	allTools := s.registry.ListAvailableTools()
+
+	for _, toolName := range allTools {
+		if s.isA2ATool(toolName) {
+			// A2A tools are included if a2a.enabled=true
+			if s.config.IsA2AToolsEnabled() {
+				tools = append(tools, toolName)
+			}
+		} else {
+			// Local tools are included if tools.enabled=true
+			if s.enabled {
+				tools = append(tools, toolName)
+			}
+		}
 	}
-	return s.registry.ListAvailableTools()
+
+	return tools
 }
 
 // isA2ATool checks if a tool is an A2A-related tool
 func (s *LLMToolService) isA2ATool(toolName string) bool {
-	a2aTools := []string{"QueryAgent", "QueryTask", "Task"}
-	for _, a2aTool := range a2aTools {
-		if toolName == a2aTool {
-			return true
-		}
-	}
-	return false
+	return strings.HasPrefix(toolName, "A2A_")
 }
 
 // ExecuteTool executes a tool with the given arguments
 func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
-	if !s.enabled {
-		if !s.config.IsA2AToolsEnabled() || !s.isA2ATool(toolCall.Name) {
-			return nil, fmt.Errorf("tools are not enabled")
+	if s.isA2ATool(toolCall.Name) {
+		// A2A tools require a2a.enabled=true
+		if !s.config.IsA2AToolsEnabled() {
+			return nil, fmt.Errorf("A2A tools are not enabled")
+		}
+	} else {
+		// Local tools require tools.enabled=true
+		if !s.enabled {
+			return nil, fmt.Errorf("local tools are not enabled")
 		}
 	}
 
@@ -93,23 +126,30 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompl
 
 // IsToolEnabled checks if a tool is enabled
 func (s *LLMToolService) IsToolEnabled(name string) bool {
-	if !s.enabled {
-		if !s.config.IsA2AToolsEnabled() || !s.isA2ATool(name) {
-			return false
-		}
+	if s.isA2ATool(name) {
+		// A2A tools require a2a.enabled=true
+		return s.config.IsA2AToolsEnabled() && s.registry.IsToolEnabled(name)
+	} else {
+		// Local tools require tools.enabled=true
+		return s.enabled && s.registry.IsToolEnabled(name)
 	}
-	return s.registry.IsToolEnabled(name)
 }
 
 // ValidateTool validates tool arguments
 func (s *LLMToolService) ValidateTool(name string, args map[string]any) error {
-	if !s.enabled {
-		if !s.config.IsA2AToolsEnabled() || !s.isA2ATool(name) {
-			return fmt.Errorf("tools are not enabled")
+	if s.isA2ATool(name) {
+		// A2A tools require a2a.enabled=true
+		if !s.config.IsA2AToolsEnabled() {
+			return fmt.Errorf("A2A tools are not enabled")
+		}
+	} else {
+		// Local tools require tools.enabled=true
+		if !s.enabled {
+			return fmt.Errorf("local tools are not enabled")
 		}
 	}
 
-	if strings.HasPrefix(name, "a2a_") {
+	if s.isA2ATool(name) {
 		return nil
 	}
 

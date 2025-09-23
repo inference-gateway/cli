@@ -14,17 +14,15 @@ import (
 
 func TestA2AQueryAgentTool_Definition(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			QueryAgent: config.QueryAgentToolConfig{
-				Enabled: true,
-			},
+		A2A: config.A2AConfig{
+			Enabled: true,
 		},
 	}
 	tool := NewA2AQueryAgentTool(cfg)
 
 	def := tool.Definition()
 
-	assert.Equal(t, "QueryAgent", def.Function.Name)
+	assert.Equal(t, "A2A_QueryAgent", def.Function.Name)
 	assert.NotNil(t, def.Function.Description)
 	assert.Contains(t, *def.Function.Description, "A2A agent")
 	assert.Contains(t, *def.Function.Description, "metadata card")
@@ -32,10 +30,8 @@ func TestA2AQueryAgentTool_Definition(t *testing.T) {
 
 func TestA2AQueryAgentTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			QueryAgent: config.QueryAgentToolConfig{
-				Enabled: true,
-			},
+		A2A: config.A2AConfig{
+			Enabled: true,
 		},
 	}
 	tool := NewA2AQueryAgentTool(cfg)
@@ -91,31 +87,16 @@ func TestA2AQueryAgentTool_Validate(t *testing.T) {
 func TestA2AQueryAgentTool_IsEnabled(t *testing.T) {
 	tests := []struct {
 		name       string
-		enabled    bool
 		a2aEnabled bool
 		expected   bool
 	}{
 		{
-			name:       "enabled when query agent tool is enabled",
-			enabled:    true,
-			a2aEnabled: false,
-			expected:   true,
-		},
-		{
-			name:       "disabled when both query agent tool and A2A are disabled",
-			enabled:    false,
+			name:       "disabled when A2A is disabled",
 			a2aEnabled: false,
 			expected:   false,
 		},
 		{
-			name:       "enabled when A2A is enabled even if query agent tool is disabled",
-			enabled:    false,
-			a2aEnabled: true,
-			expected:   true,
-		},
-		{
-			name:       "enabled when both query agent tool and A2A are enabled",
-			enabled:    true,
+			name:       "enabled when A2A is enabled",
 			a2aEnabled: true,
 			expected:   true,
 		},
@@ -124,11 +105,6 @@ func TestA2AQueryAgentTool_IsEnabled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Tools: config.ToolsConfig{
-					QueryAgent: config.QueryAgentToolConfig{
-						Enabled: tt.enabled,
-					},
-				},
 				A2A: config.A2AConfig{
 					Enabled: tt.a2aEnabled,
 				},

@@ -11,17 +11,15 @@ import (
 
 func TestA2AQueryTaskTool_Definition(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			QueryTask: config.QueryTaskToolConfig{
-				Enabled: true,
-			},
+		A2A: config.A2AConfig{
+			Enabled: true,
 		},
 	}
 	tool := NewA2AQueryTaskTool(cfg)
 	def := tool.Definition()
 
-	if def.Function.Name != "QueryTask" {
-		t.Errorf("Expected function name to be 'QueryTask', got %s", def.Function.Name)
+	if def.Function.Name != "A2A_QueryTask" {
+		t.Errorf("Expected function name to be 'A2A_QueryTask', got %s", def.Function.Name)
 	}
 
 	if def.Function.Description == nil {
@@ -102,10 +100,8 @@ func TestA2AQueryTaskTool_Validate(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			QueryTask: config.QueryTaskToolConfig{
-				Enabled: true,
-			},
+		A2A: config.A2AConfig{
+			Enabled: true,
 		},
 	}
 	tool := NewA2AQueryTaskTool(cfg)
@@ -188,10 +184,8 @@ func TestA2AQueryTaskTool_Execute_InvalidArgs(t *testing.T) {
 	}
 
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			QueryTask: config.QueryTaskToolConfig{
-				Enabled: true,
-			},
+		A2A: config.A2AConfig{
+			Enabled: true,
 		},
 	}
 	tool := NewA2AQueryTaskTool(cfg)
@@ -218,31 +212,16 @@ func TestA2AQueryTaskTool_Execute_InvalidArgs(t *testing.T) {
 func TestA2AQueryTaskTool_IsEnabled(t *testing.T) {
 	tests := []struct {
 		name       string
-		enabled    bool
 		a2aEnabled bool
 		want       bool
 	}{
 		{
-			name:       "enabled when query task tool is enabled",
-			enabled:    true,
-			a2aEnabled: false,
-			want:       true,
-		},
-		{
-			name:       "disabled when both query task tool and A2A are disabled",
-			enabled:    false,
+			name:       "disabled when A2A is disabled",
 			a2aEnabled: false,
 			want:       false,
 		},
 		{
-			name:       "enabled when A2A is enabled even if query task tool is disabled",
-			enabled:    false,
-			a2aEnabled: true,
-			want:       true,
-		},
-		{
-			name:       "enabled when both query task tool and A2A are enabled",
-			enabled:    true,
+			name:       "enabled when A2A is enabled",
 			a2aEnabled: true,
 			want:       true,
 		},
@@ -251,11 +230,6 @@ func TestA2AQueryTaskTool_IsEnabled(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Tools: config.ToolsConfig{
-					QueryTask: config.QueryTaskToolConfig{
-						Enabled: tt.enabled,
-					},
-				},
 				A2A: config.A2AConfig{
 					Enabled: tt.a2aEnabled,
 				},
@@ -271,10 +245,8 @@ func TestA2AQueryTaskTool_IsEnabled(t *testing.T) {
 
 func TestA2AQueryTaskTool_FormatResult(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			QueryTask: config.QueryTaskToolConfig{
-				Enabled: true,
-			},
+		A2A: config.A2AConfig{
+			Enabled: true,
 		},
 	}
 	tool := NewA2AQueryTaskTool(cfg)
@@ -324,10 +296,8 @@ func TestA2AQueryTaskTool_FormatResult(t *testing.T) {
 
 func TestA2AQueryTaskTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			QueryTask: config.QueryTaskToolConfig{
-				Enabled: true,
-			},
+		A2A: config.A2AConfig{
+			Enabled: true,
 		},
 	}
 	tool := NewA2AQueryTaskTool(cfg)
