@@ -14,16 +14,16 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// A2ATaskTool handles A2A task submission and management
-type A2ATaskTool struct {
+// A2ASubmitTaskTool handles A2A task submission and management
+type A2ASubmitTaskTool struct {
 	config      *config.Config
 	formatter   domain.CustomFormatter
 	taskTracker domain.TaskTracker
 	client      client.A2AClient
 }
 
-// A2ATaskResult represents the result of an A2A task operation
-type A2ATaskResult struct {
+// A2ASubmitTaskResult represents the result of an A2A task operation
+type A2ASubmitTaskResult struct {
 	AgentName  string        `json:"agent_name"`
 	Task       *adk.Task     `json:"task"`
 	Success    bool          `json:"success"`
@@ -32,37 +32,37 @@ type A2ATaskResult struct {
 	TaskResult string        `json:"task_result"`
 }
 
-// NewA2ATaskTool creates a new A2A task tool
-func NewA2ATaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2ATaskTool {
-	return &A2ATaskTool{
+// NewA2ASubmitTaskTool creates a new A2A task tool
+func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2ASubmitTaskTool {
+	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
 		client:      nil,
-		formatter: domain.NewCustomFormatter("Task", func(key string) bool {
+		formatter: domain.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
 			return key == "metadata" || key == "task_description"
 		}),
 	}
 }
 
-// NewA2ATaskToolWithClient creates a new A2A task tool with an injected client (for testing)
-func NewA2ATaskToolWithClient(cfg *config.Config, taskTracker domain.TaskTracker, client client.A2AClient) *A2ATaskTool {
-	return &A2ATaskTool{
+// NewA2ASubmitTaskToolWithClient creates a new A2A task tool with an injected client (for testing)
+func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker domain.TaskTracker, client client.A2AClient) *A2ASubmitTaskTool {
+	return &A2ASubmitTaskTool{
 		config:      cfg,
 		taskTracker: taskTracker,
 		client:      client,
-		formatter: domain.NewCustomFormatter("Task", func(key string) bool {
+		formatter: domain.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
 			return key == "metadata" || key == "task_description"
 		}),
 	}
 }
 
 // Definition returns the tool definition for the LLM
-func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
+func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
 	description := "Submit work to an A2A agent server: ask questions, execute tasks, perform actions, or continue existing work. Use this for ANY interaction where you need an agent to respond with answers or complete work. The Query tool is ONLY for retrieving agent metadata/capabilities (agent card)."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
-			Name:        "Task",
+			Name:        "A2A_SubmitTask",
 			Description: &description,
 			Parameters: &sdk.FunctionParameters{
 				"type": "object",
@@ -83,17 +83,17 @@ func (t *A2ATaskTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the tool with given arguments
-func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) { // nolint:gocyclo,cyclop,funlen,gocognit
+func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) { // nolint:gocyclo,cyclop,funlen,gocognit
 	startTime := time.Now()
 
 	if !t.IsEnabled() {
 		return &domain.ToolExecutionResult{
-			ToolName:  "Task",
+			ToolName:  "A2A_SubmitTask",
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(startTime),
 			Error:     "A2A connections are disabled in configuration",
-			Data: A2ATaskResult{
+			Data: A2ASubmitTaskResult{
 				Success: false,
 				Message: "A2A connections are disabled",
 			},
@@ -259,11 +259,11 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 	}
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "Task",
+		ToolName:  "A2A_SubmitTask",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
-		Data: A2ATaskResult{
+		Data: A2ASubmitTaskResult{
 			AgentName:  agentURL,
 			Task:       &adkTask,
 			Success:    true,
@@ -275,7 +275,7 @@ func (t *A2ATaskTool) Execute(ctx context.Context, args map[string]any) (*domain
 }
 
 // Validate checks if the tool arguments are valid
-func (t *A2ATaskTool) Validate(args map[string]any) error {
+func (t *A2ASubmitTaskTool) Validate(args map[string]any) error {
 	if _, ok := args["agent_url"].(string); !ok {
 		return fmt.Errorf("agent_url parameter is required and must be a string")
 	}
@@ -286,12 +286,12 @@ func (t *A2ATaskTool) Validate(args map[string]any) error {
 }
 
 // IsEnabled returns whether this tool is enabled
-func (t *A2ATaskTool) IsEnabled() bool {
-	return t.config.Tools.Task.Enabled
+func (t *A2ASubmitTaskTool) IsEnabled() bool {
+	return t.config.IsA2AToolsEnabled() && t.config.A2A.Tools.SubmitTask.Enabled
 }
 
 // FormatResult formats tool execution results for different contexts
-func (t *A2ATaskTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
+func (t *A2ASubmitTaskTool) FormatResult(result *domain.ToolExecutionResult, formatType domain.FormatterType) string {
 	switch formatType {
 	case domain.FormatterUI:
 		return t.FormatForUI(result)
@@ -305,7 +305,7 @@ func (t *A2ATaskTool) FormatResult(result *domain.ToolExecutionResult, formatTyp
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
-func (t *A2ATaskTool) FormatForLLM(result *domain.ToolExecutionResult) string {
+func (t *A2ASubmitTaskTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -327,12 +327,12 @@ func (t *A2ATaskTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 }
 
 // FormatPreview returns a short preview of the result for UI display
-func (t *A2ATaskTool) FormatPreview(result *domain.ToolExecutionResult) string {
+func (t *A2ASubmitTaskTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	if result.Data == nil {
 		return result.Error
 	}
 
-	if data, ok := result.Data.(A2ATaskResult); ok {
+	if data, ok := result.Data.(A2ASubmitTaskResult); ok {
 		return fmt.Sprintf("A2A Task: %s", data.Message)
 	}
 
@@ -340,7 +340,7 @@ func (t *A2ATaskTool) FormatPreview(result *domain.ToolExecutionResult) string {
 }
 
 // FormatForUI formats the result for UI display
-func (t *A2ATaskTool) FormatForUI(result *domain.ToolExecutionResult) string {
+func (t *A2ASubmitTaskTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
@@ -357,24 +357,24 @@ func (t *A2ATaskTool) FormatForUI(result *domain.ToolExecutionResult) string {
 }
 
 // ShouldCollapseArg determines if an argument should be collapsed in display
-func (t *A2ATaskTool) ShouldCollapseArg(key string) bool {
+func (t *A2ASubmitTaskTool) ShouldCollapseArg(key string) bool {
 	return t.formatter.ShouldCollapseArg(key)
 }
 
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
-func (t *A2ATaskTool) ShouldAlwaysExpand() bool {
+func (t *A2ASubmitTaskTool) ShouldAlwaysExpand() bool {
 	return false
 }
 
 // errorResult creates an error result
-func (t *A2ATaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
+func (t *A2ASubmitTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
 	return &domain.ToolExecutionResult{
-		ToolName:  "Task",
+		ToolName:  "A2A_SubmitTask",
 		Arguments: args,
 		Success:   false,
 		Duration:  time.Since(startTime),
 		Error:     errorMsg,
-		Data: A2ATaskResult{
+		Data: A2ASubmitTaskResult{
 			Success: false,
 			Message: errorMsg,
 		},
@@ -397,7 +397,7 @@ func extractTextFromParts(parts []adk.Part) string {
 }
 
 // extractTaskResult extracts the result text from a completed or failed task
-func (t *A2ATaskTool) extractTaskResult(task adk.Task) string {
+func (t *A2ASubmitTaskTool) extractTaskResult(task adk.Task) string {
 	if task.Status.Message != nil {
 		return extractTextFromParts(task.Status.Message.Parts)
 	}
@@ -405,7 +405,7 @@ func (t *A2ATaskTool) extractTaskResult(task adk.Task) string {
 }
 
 // handleInputRequiredState handles the input-required task state
-func (t *A2ATaskTool) handleInputRequiredState(args map[string]any, agentURL, taskID string, currentTask adk.Task, adkTask adk.Task, startTime time.Time) (*domain.ToolExecutionResult, error) {
+func (t *A2ASubmitTaskTool) handleInputRequiredState(args map[string]any, agentURL, taskID string, currentTask adk.Task, adkTask adk.Task, startTime time.Time) (*domain.ToolExecutionResult, error) {
 	inputMessage := ""
 	if currentTask.Status.Message != nil {
 		inputMessage = extractTextFromParts(currentTask.Status.Message.Parts)
@@ -420,11 +420,11 @@ func (t *A2ATaskTool) handleInputRequiredState(args map[string]any, agentURL, ta
 	adkTask.ID = taskID
 
 	return &domain.ToolExecutionResult{
-		ToolName:  "Task",
+		ToolName:  "A2A_SubmitTask",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
-		Data: A2ATaskResult{
+		Data: A2ASubmitTaskResult{
 			AgentName:  agentURL,
 			Task:       &adkTask,
 			Success:    true,
@@ -436,7 +436,7 @@ func (t *A2ATaskTool) handleInputRequiredState(args map[string]any, agentURL, ta
 }
 
 // isTaskNotFoundError checks if the error indicates a task was not found
-func (t *A2ATaskTool) isTaskNotFoundError(err error) bool {
+func (t *A2ASubmitTaskTool) isTaskNotFoundError(err error) bool {
 	if err == nil {
 		return false
 	}

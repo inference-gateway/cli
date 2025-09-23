@@ -64,22 +64,19 @@ type LoggingConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled    bool                 `yaml:"enabled" mapstructure:"enabled"`
-	Sandbox    SandboxConfig        `yaml:"sandbox" mapstructure:"sandbox"`
-	Bash       BashToolConfig       `yaml:"bash" mapstructure:"bash"`
-	Read       ReadToolConfig       `yaml:"read" mapstructure:"read"`
-	Write      WriteToolConfig      `yaml:"write" mapstructure:"write"`
-	Edit       EditToolConfig       `yaml:"edit" mapstructure:"edit"`
-	Delete     DeleteToolConfig     `yaml:"delete" mapstructure:"delete"`
-	Grep       GrepToolConfig       `yaml:"grep" mapstructure:"grep"`
-	Tree       TreeToolConfig       `yaml:"tree" mapstructure:"tree"`
-	WebFetch   WebFetchToolConfig   `yaml:"web_fetch" mapstructure:"web_fetch"`
-	WebSearch  WebSearchToolConfig  `yaml:"web_search" mapstructure:"web_search"`
-	Github     GithubToolConfig     `yaml:"github" mapstructure:"github"`
-	TodoWrite  TodoWriteToolConfig  `yaml:"todo_write" mapstructure:"todo_write"`
-	QueryAgent QueryAgentToolConfig `yaml:"query_agent" mapstructure:"query_agent"`
-	QueryTask  QueryTaskToolConfig  `yaml:"query_task" mapstructure:"query_task"`
-	Task       TaskToolConfig       `yaml:"task" mapstructure:"task"`
+	Enabled   bool                `yaml:"enabled" mapstructure:"enabled"`
+	Sandbox   SandboxConfig       `yaml:"sandbox" mapstructure:"sandbox"`
+	Bash      BashToolConfig      `yaml:"bash" mapstructure:"bash"`
+	Read      ReadToolConfig      `yaml:"read" mapstructure:"read"`
+	Write     WriteToolConfig     `yaml:"write" mapstructure:"write"`
+	Edit      EditToolConfig      `yaml:"edit" mapstructure:"edit"`
+	Delete    DeleteToolConfig    `yaml:"delete" mapstructure:"delete"`
+	Grep      GrepToolConfig      `yaml:"grep" mapstructure:"grep"`
+	Tree      TreeToolConfig      `yaml:"tree" mapstructure:"tree"`
+	WebFetch  WebFetchToolConfig  `yaml:"web_fetch" mapstructure:"web_fetch"`
+	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
+	Github    GithubToolConfig    `yaml:"github" mapstructure:"github"`
+	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
 
 	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
@@ -159,8 +156,8 @@ type QueryAgentToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
-// TaskToolConfig contains Task-specific tool settings
-type TaskToolConfig struct {
+// SubmitTaskToolConfig contains SubmitTask-specific tool settings
+type SubmitTaskToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
@@ -245,9 +242,18 @@ type GitConfig struct {
 
 // A2AConfig contains A2A agent configuration
 type A2AConfig struct {
-	Agents []string       `yaml:"agents" mapstructure:"agents"`
-	Cache  A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
-	Task   A2ATaskConfig  `yaml:"task" mapstructure:"task"`
+	Enabled bool           `yaml:"enabled" mapstructure:"enabled"`
+	Agents  []string       `yaml:"agents" mapstructure:"agents"`
+	Cache   A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
+	Task    A2ATaskConfig  `yaml:"task" mapstructure:"task"`
+	Tools   A2AToolsConfig `yaml:"tools" mapstructure:"tools"`
+}
+
+// A2AToolsConfig contains A2A-specific tool configurations
+type A2AToolsConfig struct {
+	QueryAgent QueryAgentToolConfig `yaml:"query_agent" mapstructure:"query_agent"`
+	QueryTask  QueryTaskToolConfig  `yaml:"query_task" mapstructure:"query_task"`
+	SubmitTask SubmitTaskToolConfig `yaml:"submit_task" mapstructure:"submit_task"`
 }
 
 // ConversationConfig contains conversation-specific settings
@@ -472,18 +478,6 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
 			},
-			QueryAgent: QueryAgentToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
-			},
-			QueryTask: QueryTaskToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
-			},
-			Task: TaskToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
-			},
 			Safety: SafetyConfig{
 				RequireApproval: true,
 			},
@@ -625,13 +619,28 @@ Respond with ONLY the title, no quotes or explanation.`,
 			Theme: "tokyo-night",
 		},
 		A2A: A2AConfig{
-			Agents: []string{},
+			Enabled: false,
+			Agents:  []string{},
 			Cache: A2ACacheConfig{
 				Enabled: true,
 				TTL:     300,
 			},
 			Task: A2ATaskConfig{
 				StatusPollSeconds: 5,
+			},
+			Tools: A2AToolsConfig{
+				QueryAgent: QueryAgentToolConfig{
+					Enabled:         true,
+					RequireApproval: &[]bool{false}[0],
+				},
+				QueryTask: QueryTaskToolConfig{
+					Enabled:         true,
+					RequireApproval: &[]bool{false}[0],
+				},
+				SubmitTask: SubmitTaskToolConfig{
+					Enabled:         true,
+					RequireApproval: &[]bool{false}[0],
+				},
 			},
 		},
 	}
@@ -640,7 +649,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 // IsApprovalRequired checks if approval is required for a specific tool
 // It returns true if tool-specific approval is set to true, or if global approval is true and tool-specific is not set to false
 // ConfigService interface implementation
-func (c *Config) IsApprovalRequired(toolName string) bool {
+func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cyclop
 	globalApproval := c.Tools.Safety.RequireApproval
 
 	switch toolName {
@@ -688,9 +697,27 @@ func (c *Config) IsApprovalRequired(toolName string) bool {
 		if c.Tools.TodoWrite.RequireApproval != nil {
 			return *c.Tools.TodoWrite.RequireApproval
 		}
+	case "A2A_QueryAgent":
+		if c.A2A.Tools.QueryAgent.RequireApproval != nil {
+			return *c.A2A.Tools.QueryAgent.RequireApproval
+		}
+	case "A2A_QueryTask":
+		if c.A2A.Tools.QueryTask.RequireApproval != nil {
+			return *c.A2A.Tools.QueryTask.RequireApproval
+		}
+	case "A2A_SubmitTask":
+		if c.A2A.Tools.SubmitTask.RequireApproval != nil {
+			return *c.A2A.Tools.SubmitTask.RequireApproval
+		}
 	}
 
 	return globalApproval
+}
+
+// IsA2AToolsEnabled checks if A2A tools should be enabled
+// A2A tools are enabled when a2a.enabled is true, regardless of tools.enabled
+func (c *Config) IsA2AToolsEnabled() bool {
+	return c.A2A.Enabled
 }
 
 func (c *Config) GetAgentConfig() *AgentConfig {

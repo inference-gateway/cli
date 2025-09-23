@@ -14,9 +14,12 @@ import (
 
 func TestA2AQueryAgentTool_Definition(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			QueryAgent: config.QueryAgentToolConfig{
-				Enabled: true,
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				QueryAgent: config.QueryAgentToolConfig{
+					Enabled: true,
+				},
 			},
 		},
 	}
@@ -24,7 +27,7 @@ func TestA2AQueryAgentTool_Definition(t *testing.T) {
 
 	def := tool.Definition()
 
-	assert.Equal(t, "QueryAgent", def.Function.Name)
+	assert.Equal(t, "A2A_QueryAgent", def.Function.Name)
 	assert.NotNil(t, def.Function.Description)
 	assert.Contains(t, *def.Function.Description, "A2A agent")
 	assert.Contains(t, *def.Function.Description, "metadata card")
@@ -32,9 +35,12 @@ func TestA2AQueryAgentTool_Definition(t *testing.T) {
 
 func TestA2AQueryAgentTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			QueryAgent: config.QueryAgentToolConfig{
-				Enabled: true,
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				QueryAgent: config.QueryAgentToolConfig{
+					Enabled: true,
+				},
 			},
 		},
 	}
@@ -90,28 +96,31 @@ func TestA2AQueryAgentTool_Validate(t *testing.T) {
 
 func TestA2AQueryAgentTool_IsEnabled(t *testing.T) {
 	tests := []struct {
-		name     string
-		enabled  bool
-		expected bool
+		name       string
+		a2aEnabled bool
+		expected   bool
 	}{
 		{
-			name:     "enabled when A2A is enabled",
-			enabled:  true,
-			expected: true,
+			name:       "disabled when A2A is disabled",
+			a2aEnabled: false,
+			expected:   false,
 		},
 		{
-			name:     "disabled when A2A is disabled",
-			enabled:  false,
-			expected: false,
+			name:       "enabled when A2A is enabled",
+			a2aEnabled: true,
+			expected:   true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Tools: config.ToolsConfig{
-					QueryAgent: config.QueryAgentToolConfig{
-						Enabled: tt.enabled,
+				A2A: config.A2AConfig{
+					Enabled: tt.a2aEnabled,
+					Tools: config.A2AToolsConfig{
+						QueryAgent: config.QueryAgentToolConfig{
+							Enabled: true,
+						},
 					},
 				},
 			}
@@ -136,7 +145,7 @@ func TestA2AQueryAgentTool_FormatResult(t *testing.T) {
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "QueryAgent",
+		ToolName: "A2A_QueryAgent",
 		Success:  true,
 		Data:     queryResult,
 	}
@@ -183,7 +192,7 @@ func TestA2AQueryAgentTool_FormatPreview(t *testing.T) {
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "QueryAgent",
+		ToolName: "A2A_QueryAgent",
 		Success:  true,
 		Data:     queryResult,
 	}

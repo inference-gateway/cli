@@ -12,33 +12,39 @@ import (
 	require "github.com/stretchr/testify/require"
 )
 
-func TestA2ATaskTool_Definition(t *testing.T) {
+func TestA2ASubmitTaskTool_Definition(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: true,
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
+					Enabled: true,
+				},
 			},
 		},
 	}
-	tool := NewA2ATaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil)
 
 	def := tool.Definition()
 
-	assert.Equal(t, "Task", def.Function.Name)
+	assert.Equal(t, "A2A_SubmitTask", def.Function.Name)
 	assert.NotNil(t, def.Function.Description)
 	assert.Contains(t, *def.Function.Description, "A2A agent")
 	assert.Contains(t, *def.Function.Description, "ask questions")
 }
 
-func TestA2ATaskTool_Execute_MissingAgentURL(t *testing.T) {
+func TestA2ASubmitTaskTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: true,
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
+					Enabled: true,
+				},
 			},
 		},
 	}
-	tool := NewA2ATaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil)
 
 	args := map[string]any{
 		"task_description": "Test task",
@@ -51,15 +57,18 @@ func TestA2ATaskTool_Execute_MissingAgentURL(t *testing.T) {
 	assert.Contains(t, result.Error, "agent_url parameter is required")
 }
 
-func TestA2ATaskTool_Execute_MissingTaskDescription(t *testing.T) {
+func TestA2ASubmitTaskTool_Execute_MissingTaskDescription(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: true,
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
+					Enabled: true,
+				},
 			},
 		},
 	}
-	tool := NewA2ATaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil)
 
 	args := map[string]any{
 		"agent_url": "http://test-agent.example.com",
@@ -72,9 +81,9 @@ func TestA2ATaskTool_Execute_MissingTaskDescription(t *testing.T) {
 	assert.Contains(t, result.Error, "task_description parameter is required")
 }
 
-func TestA2ATaskTool_Validate(t *testing.T) {
+func TestA2ASubmitTaskTool_Validate(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ATaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil)
 
 	tests := []struct {
 		name    string
@@ -122,45 +131,48 @@ func TestA2ATaskTool_Validate(t *testing.T) {
 	}
 }
 
-func TestA2ATaskTool_IsEnabled(t *testing.T) {
+func TestA2ASubmitTaskTool_IsEnabled(t *testing.T) {
 	tests := []struct {
-		name     string
-		enabled  bool
-		expected bool
+		name       string
+		a2aEnabled bool
+		expected   bool
 	}{
 		{
-			name:     "enabled when A2A is enabled",
-			enabled:  true,
-			expected: true,
+			name:       "disabled when A2A is disabled",
+			a2aEnabled: false,
+			expected:   false,
 		},
 		{
-			name:     "disabled when A2A is disabled",
-			enabled:  false,
-			expected: false,
+			name:       "enabled when A2A is enabled",
+			a2aEnabled: true,
+			expected:   true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{
-				Tools: config.ToolsConfig{
-					Task: config.TaskToolConfig{
-						Enabled: tt.enabled,
+				A2A: config.A2AConfig{
+					Enabled: tt.a2aEnabled,
+					Tools: config.A2AToolsConfig{
+						SubmitTask: config.SubmitTaskToolConfig{
+							Enabled: true,
+						},
 					},
 				},
 			}
-			tool := NewA2ATaskTool(cfg, nil)
+			tool := NewA2ASubmitTaskTool(cfg, nil)
 
 			assert.Equal(t, tt.expected, tool.IsEnabled())
 		})
 	}
 }
 
-func TestA2ATaskTool_FormatResult(t *testing.T) {
+func TestA2ASubmitTaskTool_FormatResult(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ATaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil)
 
-	taskResult := A2ATaskResult{
+	taskResult := A2ASubmitTaskResult{
 		AgentName: "test-agent",
 		Task: &adk.Task{
 			ID:   "task-123",
@@ -172,7 +184,7 @@ func TestA2ATaskTool_FormatResult(t *testing.T) {
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "Task",
+		ToolName: "A2A_SubmitTask",
 		Success:  true,
 		Data:     taskResult,
 	}
@@ -209,17 +221,17 @@ func TestA2ATaskTool_FormatResult(t *testing.T) {
 	}
 }
 
-func TestA2ATaskTool_FormatPreview(t *testing.T) {
+func TestA2ASubmitTaskTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ATaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil)
 
-	taskResult := A2ATaskResult{
+	taskResult := A2ASubmitTaskResult{
 		Success: true,
 		Message: "Task submitted successfully",
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "Task",
+		ToolName: "A2A_SubmitTask",
 		Success:  true,
 		Data:     taskResult,
 	}
@@ -229,18 +241,18 @@ func TestA2ATaskTool_FormatPreview(t *testing.T) {
 	assert.Contains(t, preview, "Task submitted successfully")
 }
 
-func TestA2ATaskTool_ShouldCollapseArg(t *testing.T) {
+func TestA2ASubmitTaskTool_ShouldCollapseArg(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ATaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil)
 
 	assert.True(t, tool.ShouldCollapseArg("metadata"))
 	assert.False(t, tool.ShouldCollapseArg("agent_url"))
 	assert.True(t, tool.ShouldCollapseArg("task_description"))
 }
 
-func TestA2ATaskTool_ShouldAlwaysExpand(t *testing.T) {
+func TestA2ASubmitTaskTool_ShouldAlwaysExpand(t *testing.T) {
 	cfg := &config.Config{}
-	tool := NewA2ATaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil)
 
 	assert.False(t, tool.ShouldAlwaysExpand())
 }

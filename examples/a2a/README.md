@@ -30,13 +30,14 @@ Set up your CLI configuration via environment variables (review docker-compose.y
 
 ```yaml
 INFER_GATEWAY_URL: http://inference-gateway:8080
-INFER_GATEWAY_MIDDLEWARES_A2A: true
+INFER_A2A_ENABLED: true
 INFER_TOOLS_ENABLED: false
 INFER_AGENT_MODEL: deepseek/deepseek-chat # Choose whatever LLM you would like to use from the configured providers
 ```
 
-** Disabled local tools to save some costs, since you only want to see that it works with the A2A - feel free to
-enable them if you want they will get merged with the Inference Gateway A2A related tools.
+** Using `INFER_A2A_ENABLED: true` automatically enables A2A tools (QueryAgent, QueryTask, SubmitTask) even when local tools
+are disabled. This simplified configuration gives you only the A2A functionality without needing to configure each
+tool individually.
 
 Now you can enter the Interactive Chat within the cli container and start chatting:
 

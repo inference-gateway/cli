@@ -28,15 +28,15 @@ The CLI connects to A2A agents using their URL endpoints through the ADK client 
 
 The A2A functionality is exposed through two tools that can be used in conversations:
 
-#### Task Tool - Submit a Task
+#### SubmitTask Tool - Submit a Task
 
-The `Task` tool submits tasks to A2A agents:
+The `SubmitTask` tool submits tasks to A2A agents:
 
 ```text
 Submit a task to analyze this code
 ```
 
-The LLM will use the `Task` tool:
+The LLM will use the `SubmitTask` tool:
 
 ```json
 {
@@ -74,9 +74,9 @@ Query the agent at localhost:8081 for its capabilities
 
 ### Tool Implementation Details
 
-#### Task Tool
+#### SubmitTask Tool
 
-- **Name**: `Task`
+- **Name**: `SubmitTask`
 - **Parameters**:
   - `agent_url` (required): URL of the A2A agent
   - `task_description` (required): Description of the task to perform
@@ -115,11 +115,12 @@ This opens the A2A servers view showing:
 A2A tools are configured in the tools section:
 
 ```yaml
-tools:
-  task:
-    enabled: true  # Enable A2A Task tool
-  query:
-    enabled: true  # Enable A2A Query tool
+a2a:
+  tools:
+    submit_task:
+      enabled: true  # Enable A2A SubmitTask tool
+    query_task:
+      enabled: true  # Enable A2A QueryTask tool
 ```
 
 ## Security Considerations
@@ -189,7 +190,7 @@ a2a:
 
 ### Connection Testing
 
-Test agent connectivity using the Task tool with a simple description:
+Test agent connectivity using the SubmitTask tool with a simple description:
 
 ```text
 Test connection to agent at http://localhost:8081

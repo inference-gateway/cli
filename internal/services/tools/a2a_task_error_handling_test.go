@@ -15,15 +15,18 @@ import (
 	zap "go.uber.org/zap"
 )
 
-func TestA2ATaskTool_isTaskNotFoundError(t *testing.T) {
+func TestA2ASubmitTaskTool_isTaskNotFoundError(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: true,
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
+					Enabled: true,
+				},
 			},
 		},
 	}
-	tool := NewA2ATaskTool(cfg, nil)
+	tool := NewA2ASubmitTaskTool(cfg, nil)
 
 	tests := []struct {
 		name     string
@@ -111,16 +114,17 @@ func (m *MockA2AClient) SetLogger(logger *zap.Logger)              {}
 func (m *MockA2AClient) GetLogger() *zap.Logger                    { return nil }
 func (m *MockA2AClient) GetArtifactHelper() *client.ArtifactHelper { return nil }
 
-func TestA2ATaskTool_CompletedTaskHandling(t *testing.T) {
+func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: true,
-			},
-		},
 		A2A: config.A2AConfig{
+			Enabled: true,
 			Task: config.A2ATaskConfig{
 				StatusPollSeconds: 1,
+			},
+			Tools: config.A2AToolsConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
+					Enabled: true,
+				},
 			},
 		},
 	}
@@ -133,7 +137,7 @@ func TestA2ATaskTool_CompletedTaskHandling(t *testing.T) {
 			sendTaskError: errors.New("A2A error: failed to resume task: task not found: nonexistent-task-123 (code: -32603)"),
 		}
 
-		tool := NewA2ATaskToolWithClient(cfg, tracker, mockClient)
+		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
 
 		assert.Equal(t, "nonexistent-task-123", tracker.GetFirstTaskID())
 
@@ -169,7 +173,7 @@ func TestA2ATaskTool_CompletedTaskHandling(t *testing.T) {
 			},
 		}
 
-		tool := NewA2ATaskToolWithClient(cfg, tracker, mockClient)
+		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
 
 		assert.Equal(t, "completed-task-456", tracker.GetFirstTaskID())
 
