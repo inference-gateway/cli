@@ -705,7 +705,7 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		if c.A2A.Tools.QueryTask.RequireApproval != nil {
 			return *c.A2A.Tools.QueryTask.RequireApproval
 		}
-	case "A2A_Task":
+	case "A2A_SubmitTask":
 		if c.A2A.Tools.Task.RequireApproval != nil {
 			return *c.A2A.Tools.Task.RequireApproval
 		}

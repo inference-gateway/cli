@@ -10,7 +10,7 @@ import (
 	require "github.com/stretchr/testify/require"
 )
 
-func TestA2ATaskTool_TaskIDTracking(t *testing.T) {
+func TestA2ASubmitTaskTool_TaskIDTracking(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
@@ -26,7 +26,7 @@ func TestA2ATaskTool_TaskIDTracking(t *testing.T) {
 		tracker := utils.NewSimpleTaskTracker()
 		tracker.SetFirstTaskID("existing-task-123")
 
-		tool := NewA2ATaskTool(cfg, tracker)
+		tool := NewA2ASubmitTaskTool(cfg, tracker)
 
 		args := map[string]any{
 			"agent_url":        "http://test.agent",
@@ -42,7 +42,7 @@ func TestA2ATaskTool_TaskIDTracking(t *testing.T) {
 	t.Run("no task ID when tracker is empty", func(t *testing.T) {
 		tracker := utils.NewSimpleTaskTracker()
 
-		tool := NewA2ATaskTool(cfg, tracker)
+		tool := NewA2ASubmitTaskTool(cfg, tracker)
 
 		args := map[string]any{
 			"agent_url":        "http://test.agent",
@@ -56,7 +56,7 @@ func TestA2ATaskTool_TaskIDTracking(t *testing.T) {
 	})
 
 	t.Run("handles nil tracker gracefully", func(t *testing.T) {
-		tool := NewA2ATaskTool(cfg, nil)
+		tool := NewA2ASubmitTaskTool(cfg, nil)
 
 		args := map[string]any{
 			"agent_url":        "http://test.agent",
