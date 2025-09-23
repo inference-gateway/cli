@@ -1195,7 +1195,7 @@ You can also configure individual tools via environment variables using the patt
 
 And individual A2A tools:
 
-- `INFER_A2A_TOOLS_TASK_ENABLED`: Enable/disable A2A Task tool
+- `INFER_A2A_TOOLS_SUBMIT_TASK_ENABLED`: Enable/disable A2A SubmitTask tool
 - `INFER_A2A_TOOLS_QUERY_AGENT_ENABLED`: Enable/disable A2A QueryAgent tool
 - `INFER_A2A_TOOLS_QUERY_TASK_ENABLED`: Enable/disable A2A QueryTask tool
 

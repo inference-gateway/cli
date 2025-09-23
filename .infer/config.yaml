@@ -250,6 +250,6 @@ a2a:
     query_task:
       enabled: true
       require_approval: false
-    task:
+    submit_task:
       enabled: true
       require_approval: false

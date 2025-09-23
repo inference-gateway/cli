@@ -20,7 +20,7 @@ func TestA2ASubmitTaskTool_isTaskNotFoundError(t *testing.T) {
 		A2A: config.A2AConfig{
 			Enabled: true,
 			Tools: config.A2AToolsConfig{
-				Task: config.TaskToolConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
 					Enabled: true,
 				},
 			},
@@ -122,7 +122,7 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 				StatusPollSeconds: 1,
 			},
 			Tools: config.A2AToolsConfig{
-				Task: config.TaskToolConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
 					Enabled: true,
 				},
 			},

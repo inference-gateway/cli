@@ -15,7 +15,7 @@ func TestA2ASubmitTaskTool_TaskIDTracking(t *testing.T) {
 		A2A: config.A2AConfig{
 			Enabled: true,
 			Tools: config.A2AToolsConfig{
-				Task: config.TaskToolConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
 					Enabled: false,
 				},
 			},

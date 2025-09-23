@@ -35,7 +35,7 @@ INFER_TOOLS_ENABLED: false
 INFER_AGENT_MODEL: deepseek/deepseek-chat # Choose whatever LLM you would like to use from the configured providers
 ```
 
-** Using `INFER_A2A_ENABLED: true` automatically enables A2A tools (QueryAgent, QueryTask, Task) even when local tools
+** Using `INFER_A2A_ENABLED: true` automatically enables A2A tools (QueryAgent, QueryTask, SubmitTask) even when local tools
 are disabled. This simplified configuration gives you only the A2A functionality without needing to configure each
 tool individually.
 

@@ -156,8 +156,8 @@ type QueryAgentToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
-// TaskToolConfig contains Task-specific tool settings
-type TaskToolConfig struct {
+// SubmitTaskToolConfig contains SubmitTask-specific tool settings
+type SubmitTaskToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
@@ -253,7 +253,7 @@ type A2AConfig struct {
 type A2AToolsConfig struct {
 	QueryAgent QueryAgentToolConfig `yaml:"query_agent" mapstructure:"query_agent"`
 	QueryTask  QueryTaskToolConfig  `yaml:"query_task" mapstructure:"query_task"`
-	Task       TaskToolConfig       `yaml:"task" mapstructure:"task"`
+	SubmitTask SubmitTaskToolConfig `yaml:"submit_task" mapstructure:"submit_task"`
 }
 
 // ConversationConfig contains conversation-specific settings
@@ -637,7 +637,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 					Enabled:         true,
 					RequireApproval: &[]bool{false}[0],
 				},
-				Task: TaskToolConfig{
+				SubmitTask: SubmitTaskToolConfig{
 					Enabled:         true,
 					RequireApproval: &[]bool{false}[0],
 				},
@@ -706,8 +706,8 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 			return *c.A2A.Tools.QueryTask.RequireApproval
 		}
 	case "A2A_SubmitTask":
-		if c.A2A.Tools.Task.RequireApproval != nil {
-			return *c.A2A.Tools.Task.RequireApproval
+		if c.A2A.Tools.SubmitTask.RequireApproval != nil {
+			return *c.A2A.Tools.SubmitTask.RequireApproval
 		}
 	}
 

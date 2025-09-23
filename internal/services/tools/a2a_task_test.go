@@ -17,7 +17,7 @@ func TestA2ASubmitTaskTool_Definition(t *testing.T) {
 		A2A: config.A2AConfig{
 			Enabled: true,
 			Tools: config.A2AToolsConfig{
-				Task: config.TaskToolConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
 					Enabled: true,
 				},
 			},
@@ -38,7 +38,7 @@ func TestA2ASubmitTaskTool_Execute_MissingAgentURL(t *testing.T) {
 		A2A: config.A2AConfig{
 			Enabled: true,
 			Tools: config.A2AToolsConfig{
-				Task: config.TaskToolConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
 					Enabled: true,
 				},
 			},
@@ -62,7 +62,7 @@ func TestA2ASubmitTaskTool_Execute_MissingTaskDescription(t *testing.T) {
 		A2A: config.A2AConfig{
 			Enabled: true,
 			Tools: config.A2AToolsConfig{
-				Task: config.TaskToolConfig{
+				SubmitTask: config.SubmitTaskToolConfig{
 					Enabled: true,
 				},
 			},
@@ -155,7 +155,7 @@ func TestA2ASubmitTaskTool_IsEnabled(t *testing.T) {
 				A2A: config.A2AConfig{
 					Enabled: tt.a2aEnabled,
 					Tools: config.A2AToolsConfig{
-						Task: config.TaskToolConfig{
+						SubmitTask: config.SubmitTaskToolConfig{
 							Enabled: true,
 						},
 					},
