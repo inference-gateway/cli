@@ -17,9 +17,12 @@ import (
 
 func TestA2ATaskTool_isTaskNotFoundError(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: true,
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				Task: config.TaskToolConfig{
+					Enabled: true,
+				},
 			},
 		},
 	}
@@ -117,6 +120,11 @@ func TestA2ATaskTool_CompletedTaskHandling(t *testing.T) {
 			Enabled: true,
 			Task: config.A2ATaskConfig{
 				StatusPollSeconds: 1,
+			},
+			Tools: config.A2AToolsConfig{
+				Task: config.TaskToolConfig{
+					Enabled: true,
+				},
 			},
 		},
 	}

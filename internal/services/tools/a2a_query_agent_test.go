@@ -16,6 +16,11 @@ func TestA2AQueryAgentTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				QueryAgent: config.QueryAgentToolConfig{
+					Enabled: true,
+				},
+			},
 		},
 	}
 	tool := NewA2AQueryAgentTool(cfg)
@@ -32,6 +37,11 @@ func TestA2AQueryAgentTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				QueryAgent: config.QueryAgentToolConfig{
+					Enabled: true,
+				},
+			},
 		},
 	}
 	tool := NewA2AQueryAgentTool(cfg)
@@ -107,6 +117,11 @@ func TestA2AQueryAgentTool_IsEnabled(t *testing.T) {
 			cfg := &config.Config{
 				A2A: config.A2AConfig{
 					Enabled: tt.a2aEnabled,
+					Tools: config.A2AToolsConfig{
+						QueryAgent: config.QueryAgentToolConfig{
+							Enabled: true,
+						},
+					},
 				},
 			}
 			tool := NewA2AQueryAgentTool(cfg)
@@ -130,7 +145,7 @@ func TestA2AQueryAgentTool_FormatResult(t *testing.T) {
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "QueryAgent",
+		ToolName: "A2A_QueryAgent",
 		Success:  true,
 		Data:     queryResult,
 	}
@@ -177,7 +192,7 @@ func TestA2AQueryAgentTool_FormatPreview(t *testing.T) {
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "QueryAgent",
+		ToolName: "A2A_QueryAgent",
 		Success:  true,
 		Data:     queryResult,
 	}

@@ -31,7 +31,7 @@ type A2AQueryAgentResult struct {
 func NewA2AQueryAgentTool(cfg *config.Config) *A2AQueryAgentTool {
 	return &A2AQueryAgentTool{
 		config: cfg,
-		formatter: domain.NewCustomFormatter("QueryAgent", func(key string) bool {
+		formatter: domain.NewCustomFormatter("A2A_QueryAgent", func(key string) bool {
 			return key == "metadata"
 		}),
 	}
@@ -195,5 +195,5 @@ func (t *A2AQueryAgentTool) ShouldAlwaysExpand() bool {
 }
 
 func (t *A2AQueryAgentTool) IsEnabled() bool {
-	return t.config.IsA2AToolsEnabled()
+	return t.config.IsA2AToolsEnabled() && t.config.A2A.Tools.QueryAgent.Enabled
 }

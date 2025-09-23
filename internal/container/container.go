@@ -119,7 +119,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	modelClient := c.createSDKClient()
 	c.modelService = services.NewHTTPModelService(modelClient)
 
-	if c.config.Tools.Enabled {
+	if c.config.Tools.Enabled || c.config.IsA2AToolsEnabled() {
 		c.toolService = services.NewLLMToolServiceWithRegistry(c.config, c.toolRegistry)
 	} else {
 		c.toolService = services.NewNoOpToolService()

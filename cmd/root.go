@@ -69,9 +69,13 @@ func initConfig() {
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
 	if a2aAgents := os.Getenv("INFER_A2A_AGENTS"); a2aAgents != "" {
-		agents := strings.Split(a2aAgents, ",")
-		for i, agent := range agents {
-			agents[i] = strings.TrimSpace(agent)
+		var agents []string
+		for _, agent := range strings.FieldsFunc(a2aAgents, func(c rune) bool {
+			return c == ',' || c == '\n'
+		}) {
+			if trimmed := strings.TrimSpace(agent); trimmed != "" {
+				agents = append(agents, trimmed)
+			}
 		}
 
 		v.Set("a2a.agents", agents)

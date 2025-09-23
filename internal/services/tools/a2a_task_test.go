@@ -16,6 +16,11 @@ func TestA2ATaskTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				Task: config.TaskToolConfig{
+					Enabled: true,
+				},
+			},
 		},
 	}
 	tool := NewA2ATaskTool(cfg, nil)
@@ -32,6 +37,11 @@ func TestA2ATaskTool_Execute_MissingAgentURL(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				Task: config.TaskToolConfig{
+					Enabled: true,
+				},
+			},
 		},
 	}
 	tool := NewA2ATaskTool(cfg, nil)
@@ -51,6 +61,11 @@ func TestA2ATaskTool_Execute_MissingTaskDescription(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				Task: config.TaskToolConfig{
+					Enabled: true,
+				},
+			},
 		},
 	}
 	tool := NewA2ATaskTool(cfg, nil)
@@ -139,6 +154,11 @@ func TestA2ATaskTool_IsEnabled(t *testing.T) {
 			cfg := &config.Config{
 				A2A: config.A2AConfig{
 					Enabled: tt.a2aEnabled,
+					Tools: config.A2AToolsConfig{
+						Task: config.TaskToolConfig{
+							Enabled: true,
+						},
+					},
 				},
 			}
 			tool := NewA2ATaskTool(cfg, nil)
@@ -164,7 +184,7 @@ func TestA2ATaskTool_FormatResult(t *testing.T) {
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "Task",
+		ToolName: "A2A_Task",
 		Success:  true,
 		Data:     taskResult,
 	}
@@ -211,7 +231,7 @@ func TestA2ATaskTool_FormatPreview(t *testing.T) {
 	}
 
 	result := &domain.ToolExecutionResult{
-		ToolName: "Task",
+		ToolName: "A2A_Task",
 		Success:  true,
 		Data:     taskResult,
 	}

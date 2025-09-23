@@ -12,9 +12,12 @@ import (
 
 func TestA2ATaskTool_TaskIDTracking(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Task: config.TaskToolConfig{
-				Enabled: false,
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				Task: config.TaskToolConfig{
+					Enabled: false,
+				},
 			},
 		},
 	}

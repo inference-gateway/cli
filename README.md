@@ -1146,6 +1146,71 @@ export DUCKDUCKGO_SEARCH_API_KEY="your_api_key_here"
 **Note:** Both engines have built-in fallback methods that work without API configuration. However, using
 official APIs provides better reliability and performance for production use.
 
+### Environment Variables
+
+The CLI supports environment variable configuration with the `INFER_` prefix. Environment variables override
+configuration file settings and are particularly useful for containerized deployments and CI/CD environments.
+
+#### Core Environment Variables
+
+- `INFER_GATEWAY_URL`: Override gateway URL (e.g., `http://localhost:8080`)
+- `INFER_GATEWAY_API_KEY`: Set gateway API key for authentication
+- `INFER_LOGGING_DEBUG`: Enable debug logging (`true`/`false`)
+- `INFER_AGENT_MODEL`: Default model for agent operations (e.g., `openai/gpt-4`)
+
+#### Tools Configuration
+
+- `INFER_TOOLS_ENABLED`: Enable/disable all local tools (`true`/`false`)
+
+#### A2A (Agent-to-Agent) Configuration
+
+- `INFER_A2A_ENABLED`: Enable/disable A2A tools (`true`/`false`)
+- `INFER_A2A_AGENTS`: Configure A2A agent endpoints (supports comma-separated or newline-separated format)
+
+**A2A Agents Configuration Examples:**
+
+```bash
+# Comma-separated format
+export INFER_A2A_AGENTS="http://agent1:8080,http://agent2:8080,http://agent3:8080"
+
+# Newline-separated format (useful in docker-compose)
+export INFER_A2A_AGENTS="
+http://google-calendar-agent:8080
+http://n8n-agent:8080
+http://documentation-agent:8080
+http://browser-agent:8080
+"
+```
+
+#### Individual Tool Configuration
+
+You can also configure individual tools via environment variables using the pattern `INFER_TOOLS_<TOOL>_ENABLED`:
+
+- `INFER_TOOLS_BASH_ENABLED`: Enable/disable Bash tool
+- `INFER_TOOLS_READ_ENABLED`: Enable/disable Read tool
+- `INFER_TOOLS_WRITE_ENABLED`: Enable/disable Write tool
+- `INFER_TOOLS_GREP_ENABLED`: Enable/disable Grep tool
+- `INFER_TOOLS_WEBSEARCH_ENABLED`: Enable/disable WebSearch tool
+- `INFER_TOOLS_GITHUB_ENABLED`: Enable/disable Github tool
+
+And individual A2A tools:
+
+- `INFER_A2A_TOOLS_TASK_ENABLED`: Enable/disable A2A Task tool
+- `INFER_A2A_TOOLS_QUERY_AGENT_ENABLED`: Enable/disable A2A QueryAgent tool
+- `INFER_A2A_TOOLS_QUERY_TASK_ENABLED`: Enable/disable A2A QueryTask tool
+
+#### Environment Variable Precedence
+
+Environment variables have the highest precedence in the configuration system:
+
+1. **Environment Variables** (e.g., `INFER_TOOLS_ENABLED`) - **Highest Priority**
+2. **Project-level config** (`.infer/config.yaml`)
+3. **Userspace config** (`~/.infer/config.yaml`)
+4. **Built-in defaults** - **Lowest Priority**
+
+**Example**: If your config file sets `tools.enabled: true` but you set `INFER_TOOLS_ENABLED=false`, the
+environment variable wins and tools will be disabled.
+
 ## Global Flags
 
 - `-c, --config`: Config file (default is `./.infer/config.yaml`)

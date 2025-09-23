@@ -38,7 +38,7 @@ func NewA2ATaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2ATask
 		config:      cfg,
 		taskTracker: taskTracker,
 		client:      nil,
-		formatter: domain.NewCustomFormatter("Task", func(key string) bool {
+		formatter: domain.NewCustomFormatter("A2A_Task", func(key string) bool {
 			return key == "metadata" || key == "task_description"
 		}),
 	}
@@ -50,7 +50,7 @@ func NewA2ATaskToolWithClient(cfg *config.Config, taskTracker domain.TaskTracker
 		config:      cfg,
 		taskTracker: taskTracker,
 		client:      client,
-		formatter: domain.NewCustomFormatter("Task", func(key string) bool {
+		formatter: domain.NewCustomFormatter("A2A_Task", func(key string) bool {
 			return key == "metadata" || key == "task_description"
 		}),
 	}
@@ -287,7 +287,7 @@ func (t *A2ATaskTool) Validate(args map[string]any) error {
 
 // IsEnabled returns whether this tool is enabled
 func (t *A2ATaskTool) IsEnabled() bool {
-	return t.config.IsA2AToolsEnabled()
+	return t.config.IsA2AToolsEnabled() && t.config.A2A.Tools.Task.Enabled
 }
 
 // FormatResult formats tool execution results for different contexts

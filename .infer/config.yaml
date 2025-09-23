@@ -106,15 +106,6 @@ tools:
   todo_write:
     enabled: true
     require_approval: false
-  query_agent:
-    enabled: true
-    require_approval: false
-  query_task:
-    enabled: true
-    require_approval: false
-  task:
-    enabled: true
-    require_approval: false
   safety:
     require_approval: true
 compact:
@@ -245,9 +236,20 @@ conversation:
 chat:
   theme: tokyo-night
 a2a:
+  enabled: false
   agents: []
   cache:
     enabled: true
     ttl: 300
   task:
     status_poll_seconds: 5
+  tools:
+    query_agent:
+      enabled: true
+      require_approval: false
+    query_task:
+      enabled: true
+      require_approval: false
+    task:
+      enabled: true
+      require_approval: false

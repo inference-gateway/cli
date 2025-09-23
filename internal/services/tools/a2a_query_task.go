@@ -33,7 +33,7 @@ type A2AQueryTaskResult struct {
 func NewA2AQueryTaskTool(cfg *config.Config) *A2AQueryTaskTool {
 	return &A2AQueryTaskTool{
 		config: cfg,
-		formatter: domain.NewCustomFormatter("QueryTask", func(key string) bool {
+		formatter: domain.NewCustomFormatter("A2A_QueryTask", func(key string) bool {
 			return key == "metadata"
 		}),
 	}
@@ -242,5 +242,5 @@ func (t *A2AQueryTaskTool) ShouldAlwaysExpand() bool {
 }
 
 func (t *A2AQueryTaskTool) IsEnabled() bool {
-	return t.config.IsA2AToolsEnabled()
+	return t.config.IsA2AToolsEnabled() && t.config.A2A.Tools.QueryTask.Enabled
 }

@@ -13,6 +13,11 @@ func TestA2AQueryTaskTool_Definition(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				QueryTask: config.QueryTaskToolConfig{
+					Enabled: true,
+				},
+			},
 		},
 	}
 	tool := NewA2AQueryTaskTool(cfg)
@@ -102,6 +107,11 @@ func TestA2AQueryTaskTool_Validate(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				QueryTask: config.QueryTaskToolConfig{
+					Enabled: true,
+				},
+			},
 		},
 	}
 	tool := NewA2AQueryTaskTool(cfg)
@@ -118,9 +128,12 @@ func TestA2AQueryTaskTool_Validate(t *testing.T) {
 
 func TestA2AQueryTaskTool_Execute_Disabled(t *testing.T) {
 	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			QueryTask: config.QueryTaskToolConfig{
-				Enabled: false,
+		A2A: config.A2AConfig{
+			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				QueryTask: config.QueryTaskToolConfig{
+					Enabled: false,
+				},
 			},
 		},
 	}
@@ -186,6 +199,11 @@ func TestA2AQueryTaskTool_Execute_InvalidArgs(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				QueryTask: config.QueryTaskToolConfig{
+					Enabled: true,
+				},
+			},
 		},
 	}
 	tool := NewA2AQueryTaskTool(cfg)
@@ -232,6 +250,11 @@ func TestA2AQueryTaskTool_IsEnabled(t *testing.T) {
 			cfg := &config.Config{
 				A2A: config.A2AConfig{
 					Enabled: tt.a2aEnabled,
+					Tools: config.A2AToolsConfig{
+						QueryTask: config.QueryTaskToolConfig{
+							Enabled: true,
+						},
+					},
 				},
 			}
 			tool := NewA2AQueryTaskTool(cfg)
@@ -247,12 +270,17 @@ func TestA2AQueryTaskTool_FormatResult(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				QueryTask: config.QueryTaskToolConfig{
+					Enabled: true,
+				},
+			},
 		},
 	}
 	tool := NewA2AQueryTaskTool(cfg)
 
 	result := &domain.ToolExecutionResult{
-		ToolName:  "QueryTask",
+		ToolName:  "A2A_QueryTask",
 		Arguments: map[string]any{"agent_url": "http://example.com"},
 		Success:   true,
 		Duration:  time.Second,
@@ -298,6 +326,11 @@ func TestA2AQueryTaskTool_FormatPreview(t *testing.T) {
 	cfg := &config.Config{
 		A2A: config.A2AConfig{
 			Enabled: true,
+			Tools: config.A2AToolsConfig{
+				QueryTask: config.QueryTaskToolConfig{
+					Enabled: true,
+				},
+			},
 		},
 	}
 	tool := NewA2AQueryTaskTool(cfg)
