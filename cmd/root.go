@@ -63,7 +63,6 @@ func initConfig() {
 	v.SetDefault("conversation", defaults.Conversation)
 	v.SetDefault("chat", defaults.Chat)
 
-	// Set A2A defaults individually to ensure proper env var override behavior
 	v.SetDefault("a2a.enabled", defaults.A2A.Enabled)
 	v.SetDefault("a2a.agents", defaults.A2A.Agents)
 	v.SetDefault("a2a.cache", defaults.A2A.Cache)
