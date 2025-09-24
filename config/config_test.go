@@ -586,12 +586,24 @@ func TestA2AConfigFromEnv(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.envEnabled != "" {
-				os.Setenv("INFER_A2A_ENABLED", tt.envEnabled)
-				defer os.Unsetenv("INFER_A2A_ENABLED")
+				if err := os.Setenv("INFER_A2A_ENABLED", tt.envEnabled); err != nil {
+					t.Fatalf("Failed to set INFER_A2A_ENABLED: %v", err)
+				}
+				defer func() {
+					if err := os.Unsetenv("INFER_A2A_ENABLED"); err != nil {
+						t.Errorf("Failed to unset INFER_A2A_ENABLED: %v", err)
+					}
+				}()
 			}
 			if tt.envAgents != "" {
-				os.Setenv("INFER_A2A_AGENTS", tt.envAgents)
-				defer os.Unsetenv("INFER_A2A_AGENTS")
+				if err := os.Setenv("INFER_A2A_AGENTS", tt.envAgents); err != nil {
+					t.Fatalf("Failed to set INFER_A2A_AGENTS: %v", err)
+				}
+				defer func() {
+					if err := os.Unsetenv("INFER_A2A_AGENTS"); err != nil {
+						t.Errorf("Failed to unset INFER_A2A_AGENTS: %v", err)
+					}
+				}()
 			}
 
 			v := viper.New()
