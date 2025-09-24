@@ -545,6 +545,62 @@ func validateWebSearchConfig(t *testing.T, cfg *Config, expected WebSearchToolCo
 	}
 }
 
+func setTestEnv(t *testing.T, key, value string) func() {
+	if value == "" {
+		return func() {}
+	}
+	if err := os.Setenv(key, value); err != nil {
+		t.Fatalf("Failed to set %s: %v", key, err)
+	}
+	return func() {
+		if err := os.Unsetenv(key); err != nil {
+			t.Errorf("Failed to unset %s: %v", key, err)
+		}
+	}
+}
+
+func createA2AViperConfig() *viper.Viper {
+	v := viper.New()
+	defaults := DefaultConfig()
+	v.SetDefault("a2a", defaults.A2A)
+	v.SetEnvPrefix("INFER")
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	return v
+}
+
+func configureA2AAgents(v *viper.Viper) {
+	a2aAgents := os.Getenv("INFER_A2A_AGENTS")
+	if a2aAgents == "" {
+		return
+	}
+	var agents []string
+	for _, agent := range strings.FieldsFunc(a2aAgents, func(c rune) bool {
+		return c == ',' || c == '\n'
+	}) {
+		if trimmed := strings.TrimSpace(agent); trimmed != "" {
+			agents = append(agents, trimmed)
+		}
+	}
+	v.Set("a2a.agents", agents)
+}
+
+func configureA2AEnabled(v *viper.Viper) {
+	a2aEnabled := os.Getenv("INFER_A2A_ENABLED")
+	if a2aEnabled == "" {
+		return
+	}
+	enabled := a2aEnabled == "true"
+	v.Set("a2a.enabled", enabled)
+}
+
+func normalizeAgents(agents []string) []string {
+	if agents == nil {
+		return []string{}
+	}
+	return agents
+}
+
 func TestA2AConfigFromEnv(t *testing.T) {
 	tests := []struct {
 		name            string
@@ -585,50 +641,15 @@ func TestA2AConfigFromEnv(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.envEnabled != "" {
-				if err := os.Setenv("INFER_A2A_ENABLED", tt.envEnabled); err != nil {
-					t.Fatalf("Failed to set INFER_A2A_ENABLED: %v", err)
-				}
-				defer func() {
-					if err := os.Unsetenv("INFER_A2A_ENABLED"); err != nil {
-						t.Errorf("Failed to unset INFER_A2A_ENABLED: %v", err)
-					}
-				}()
-			}
-			if tt.envAgents != "" {
-				if err := os.Setenv("INFER_A2A_AGENTS", tt.envAgents); err != nil {
-					t.Fatalf("Failed to set INFER_A2A_AGENTS: %v", err)
-				}
-				defer func() {
-					if err := os.Unsetenv("INFER_A2A_AGENTS"); err != nil {
-						t.Errorf("Failed to unset INFER_A2A_AGENTS: %v", err)
-					}
-				}()
-			}
+			cleanupEnabled := setTestEnv(t, "INFER_A2A_ENABLED", tt.envEnabled)
+			defer cleanupEnabled()
 
-			v := viper.New()
-			defaults := DefaultConfig()
-			v.SetDefault("a2a", defaults.A2A)
-			v.SetEnvPrefix("INFER")
-			v.AutomaticEnv()
-			v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+			cleanupAgents := setTestEnv(t, "INFER_A2A_AGENTS", tt.envAgents)
+			defer cleanupAgents()
 
-			if a2aAgents := os.Getenv("INFER_A2A_AGENTS"); a2aAgents != "" {
-				var agents []string
-				for _, agent := range strings.FieldsFunc(a2aAgents, func(c rune) bool {
-					return c == ',' || c == '\n'
-				}) {
-					if trimmed := strings.TrimSpace(agent); trimmed != "" {
-						agents = append(agents, trimmed)
-					}
-				}
-				v.Set("a2a.agents", agents)
-			}
-
-			if a2aEnabled := os.Getenv("INFER_A2A_ENABLED"); a2aEnabled != "" {
-				enabled := a2aEnabled == "true"
-				v.Set("a2a.enabled", enabled)
-			}
+			v := createA2AViperConfig()
+			configureA2AAgents(v)
+			configureA2AEnabled(v)
 
 			cfg := &Config{}
 			if err := v.Unmarshal(cfg); err != nil {
@@ -639,14 +660,8 @@ func TestA2AConfigFromEnv(t *testing.T) {
 				t.Errorf("Expected A2A.Enabled to be %v, got %v", tt.expectedEnabled, cfg.A2A.Enabled)
 			}
 
-			actualAgents := cfg.A2A.Agents
-			if actualAgents == nil {
-				actualAgents = []string{}
-			}
-			expectedAgents := tt.expectedAgents
-			if expectedAgents == nil {
-				expectedAgents = []string{}
-			}
+			actualAgents := normalizeAgents(cfg.A2A.Agents)
+			expectedAgents := normalizeAgents(tt.expectedAgents)
 			if !reflect.DeepEqual(actualAgents, expectedAgents) {
 				t.Errorf("Expected A2A.Agents to be %v, got %v", tt.expectedAgents, cfg.A2A.Agents)
 			}
