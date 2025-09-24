@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.51.1](https://github.com/inference-gateway/cli/compare/v0.51.0...v0.51.1) (2025-09-24)
+
+### 🐛 Bug Fixes
+
+* **a2a:** Add explicit handling for INFER_A2A_ENABLED environment variable ([#173](https://github.com/inference-gateway/cli/issues/173)) ([cd45e2b](https://github.com/inference-gateway/cli/commit/cd45e2be3eefb2a4888f688b6ad2584f017777bf)), closes [#172](https://github.com/inference-gateway/cli/issues/172)
+
 ## [0.51.0](https://github.com/inference-gateway/cli/compare/v0.50.2...v0.51.0) (2025-09-24)
 
 ### 🚀 Features
