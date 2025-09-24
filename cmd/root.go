@@ -57,7 +57,23 @@ func initConfig() {
 	v.SetDefault("client", defaults.Client)
 	v.SetDefault("tools", defaults.Tools)
 	v.SetDefault("agent", defaults.Agent)
-	v.SetDefault("a2a", defaults.A2A)
+	v.SetDefault("compact", defaults.Compact)
+	v.SetDefault("git", defaults.Git)
+	v.SetDefault("storage", defaults.Storage)
+	v.SetDefault("conversation", defaults.Conversation)
+	v.SetDefault("chat", defaults.Chat)
+
+	// Set A2A defaults individually to ensure proper env var override behavior
+	v.SetDefault("a2a.enabled", defaults.A2A.Enabled)
+	v.SetDefault("a2a.agents", defaults.A2A.Agents)
+	v.SetDefault("a2a.cache", defaults.A2A.Cache)
+	v.SetDefault("a2a.task", defaults.A2A.Task)
+	v.SetDefault("a2a.tools.query_agent.enabled", defaults.A2A.Tools.QueryAgent.Enabled)
+	v.SetDefault("a2a.tools.query_agent.require_approval", defaults.A2A.Tools.QueryAgent.RequireApproval)
+	v.SetDefault("a2a.tools.query_task.enabled", defaults.A2A.Tools.QueryTask.Enabled)
+	v.SetDefault("a2a.tools.query_task.require_approval", defaults.A2A.Tools.QueryTask.RequireApproval)
+	v.SetDefault("a2a.tools.submit_task.enabled", defaults.A2A.Tools.SubmitTask.Enabled)
+	v.SetDefault("a2a.tools.submit_task.require_approval", defaults.A2A.Tools.SubmitTask.RequireApproval)
 
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")
@@ -68,6 +84,7 @@ func initConfig() {
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
+	// Handle special A2A environment variables that need manual processing
 	if a2aAgents := os.Getenv("INFER_A2A_AGENTS"); a2aAgents != "" {
 		var agents []string
 		for _, agent := range strings.FieldsFunc(a2aAgents, func(c rune) bool {
@@ -79,11 +96,6 @@ func initConfig() {
 		}
 
 		v.Set("a2a.agents", agents)
-	}
-
-	if a2aEnabled := os.Getenv("INFER_A2A_ENABLED"); a2aEnabled != "" {
-		enabled := a2aEnabled == "true"
-		v.Set("a2a.enabled", enabled)
 	}
 
 	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
