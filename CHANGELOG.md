@@ -6,6 +6,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.51.0](https://github.com/inference-gateway/cli/compare/v0.50.2...v0.51.0) (2025-09-24)
+
+### 🚀 Features
+
+* **a2a:** Implement QueryTask tool and rename Query to QueryAgent ([#169](https://github.com/inference-gateway/cli/issues/169)) ([52558fd](https://github.com/inference-gateway/cli/commit/52558fd1ad6c4b36e66526ad65a4c95f39b86f69)), closes [#168](https://github.com/inference-gateway/cli/issues/168)
+* **a2a:** Implement single switch configuration for A2A tools ([#171](https://github.com/inference-gateway/cli/issues/171)) ([59206af](https://github.com/inference-gateway/cli/commit/59206afb3f68acbaf06fdbb402a464a32c63253c)), closes [#170](https://github.com/inference-gateway/cli/issues/170)
+
+### 🧹 Maintenance
+
+* **gitignore:** Add .gitignore to exclude all files except itself ([a851997](https://github.com/inference-gateway/cli/commit/a851997a1699c0dc362024ef23a3b539b6cdb3b8))
+* **examples:** Consolidate and update environment configuration files ([a92bc83](https://github.com/inference-gateway/cli/commit/a92bc83e8810199c41c42eb674b7b77988970a4c))
+* **docker-compose:** Update A2A agents configuration and rename playwright-agent to browser-agent ([785220a](https://github.com/inference-gateway/cli/commit/785220a173d13fbf02c14bf34b37e85488c35ba1))
+
 ## [0.50.2](https://github.com/inference-gateway/cli/compare/v0.50.1...v0.50.2) (2025-09-22)
 
 ### 🧹 Maintenance
