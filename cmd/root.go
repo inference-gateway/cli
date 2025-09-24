@@ -83,7 +83,6 @@ func initConfig() {
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 
-	// Handle special A2A environment variables that need manual processing
 	if a2aAgents := os.Getenv("INFER_A2A_AGENTS"); a2aAgents != "" {
 		var agents []string
 		for _, agent := range strings.FieldsFunc(a2aAgents, func(c rune) bool {
