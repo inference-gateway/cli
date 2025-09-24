@@ -84,6 +84,18 @@ func initConfig() {
 	if a2aEnabled := os.Getenv("INFER_A2A_ENABLED"); a2aEnabled != "" {
 		enabled := a2aEnabled == "true"
 		v.Set("a2a.enabled", enabled)
+
+		if enabled {
+			if os.Getenv("INFER_A2A_TOOLS_QUERY_AGENT_ENABLED") == "" {
+				v.Set("a2a.tools.query_agent.enabled", true)
+			}
+			if os.Getenv("INFER_A2A_TOOLS_QUERY_TASK_ENABLED") == "" {
+				v.Set("a2a.tools.query_task.enabled", true)
+			}
+			if os.Getenv("INFER_A2A_TOOLS_SUBMIT_TASK_ENABLED") == "" {
+				v.Set("a2a.tools.submit_task.enabled", true)
+			}
+		}
 	}
 
 	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {

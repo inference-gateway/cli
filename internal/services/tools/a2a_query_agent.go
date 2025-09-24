@@ -195,5 +195,8 @@ func (t *A2AQueryAgentTool) ShouldAlwaysExpand() bool {
 }
 
 func (t *A2AQueryAgentTool) IsEnabled() bool {
-	return t.config.IsA2AToolsEnabled() && t.config.A2A.Tools.QueryAgent.Enabled
+	if !t.config.IsA2AToolsEnabled() {
+		return false
+	}
+	return t.config.A2A.Tools.QueryAgent.Enabled
 }
