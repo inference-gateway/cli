@@ -86,6 +86,8 @@ func initConfig() {
 		v.Set("a2a.enabled", enabled)
 	}
 
+	processA2AHierarchicalConfig(v)
+
 	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
 		fmt.Fprintf(os.Stderr, "Error binding verbose flag: %v\n", err)
 	}
@@ -110,4 +112,21 @@ func initConfig() {
 	}
 
 	logger.Init(verbose, debug, logDir)
+}
+
+func processA2AHierarchicalConfig(v *viper.Viper) {
+	if !v.GetBool("a2a.enabled") {
+		return
+	}
+
+	tools := []string{"query_agent", "query_task", "submit_task"}
+
+	for _, tool := range tools {
+		key := fmt.Sprintf("a2a.tools.%s.enabled", tool)
+		envKey := fmt.Sprintf("INFER_A2A_TOOLS_%s_ENABLED", strings.ToUpper(tool))
+
+		if os.Getenv(envKey) == "" && !v.IsSet(key) {
+			v.Set(key, true)
+		}
+	}
 }
