@@ -81,6 +81,11 @@ func initConfig() {
 		v.Set("a2a.agents", agents)
 	}
 
+	if a2aEnabled := os.Getenv("INFER_A2A_ENABLED"); a2aEnabled != "" {
+		enabled := a2aEnabled == "true"
+		v.Set("a2a.enabled", enabled)
+	}
+
 	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
 		fmt.Fprintf(os.Stderr, "Error binding verbose flag: %v\n", err)
 	}
