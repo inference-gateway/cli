@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.51.3](https://github.com/inference-gateway/cli/compare/v0.51.2...v0.51.3) (2025-09-26)
+
+### ♻️ Code Refactoring
+
+* **deps:** Update inference-gateway/adk to v0.11.1 ([6859609](https://github.com/inference-gateway/cli/commit/6859609e014b26941e01e03960a3ae33b7fc1f1f))
+
+### 🧹 Maintenance
+
+* **gitignore:** Add .DS_Store to git ignore ([be6e2d1](https://github.com/inference-gateway/cli/commit/be6e2d11f5bba82a658bd1d2882b7518153e86d2))
+
 ## [0.51.2](https://github.com/inference-gateway/cli/compare/v0.51.1...v0.51.2) (2025-09-24)
 
 ### 🐛 Bug Fixes
