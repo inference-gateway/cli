@@ -170,8 +170,9 @@ type QueryTaskToolConfig struct {
 
 // DownloadArtifactsToolConfig contains DownloadArtifacts-specific tool settings
 type DownloadArtifactsToolConfig struct {
-	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	DownloadDir     string `yaml:"download_dir" mapstructure:"download_dir"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
 // GithubToolConfig contains GitHub fetch-specific tool settings

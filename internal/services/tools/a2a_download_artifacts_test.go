@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"os"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -80,6 +81,26 @@ func TestA2ADownloadArtifactsTool_Execute(t *testing.T) {
 			config: &config.Config{
 				A2A: config.A2AConfig{
 					Enabled: false,
+				},
+			},
+			args: map[string]any{
+				"agent_url":  "http://localhost:8081",
+				"context_id": "context-123",
+				"task_id":    "task-456",
+			},
+			wantSuccess:  false,
+			wantErrorMsg: "A2A connections are disabled in configuration",
+		},
+		{
+			name: "tool disabled",
+			config: &config.Config{
+				A2A: config.A2AConfig{
+					Enabled: true,
+					Tools: config.A2AToolsConfig{
+						DownloadArtifacts: config.DownloadArtifactsToolConfig{
+							Enabled: false,
+						},
+					},
 				},
 			},
 			args: map[string]any{
@@ -360,4 +381,64 @@ func TestA2ADownloadArtifactsTool_ShouldAlwaysExpand(t *testing.T) {
 
 	got := tool.ShouldAlwaysExpand()
 	assert.False(t, got)
+}
+
+func TestA2ADownloadArtifactsTool_getDownloadDirectory(t *testing.T) {
+	tests := []struct {
+		name           string
+		config         *config.Config
+		expectedResult string
+	}{
+		{
+			name: "configured download directory",
+			config: &config.Config{
+				A2A: config.A2AConfig{
+					Tools: config.A2AToolsConfig{
+						DownloadArtifacts: config.DownloadArtifactsToolConfig{
+							DownloadDir: "/custom/download/path",
+						},
+					},
+				},
+			},
+			expectedResult: "/custom/download/path",
+		},
+		{
+			name: "default download directory",
+			config: &config.Config{
+				A2A: config.A2AConfig{
+					Tools: config.A2AToolsConfig{
+						DownloadArtifacts: config.DownloadArtifactsToolConfig{
+							DownloadDir: "",
+						},
+					},
+				},
+			},
+			expectedResult: "./downloads",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tracker := utils.NewSimpleTaskTracker()
+			tool := NewA2ADownloadArtifactsTool(tt.config, tracker)
+
+			result := tool.getDownloadDirectory()
+			assert.Equal(t, tt.expectedResult, result)
+		})
+	}
+}
+
+func TestA2ADownloadArtifactsTool_ensureDownloadDirectory(t *testing.T) {
+	tracker := utils.NewSimpleTaskTracker()
+	tool := NewA2ADownloadArtifactsTool(&config.Config{}, tracker)
+
+	tempDir := t.TempDir()
+	testDir := tempDir + "/test/nested/directory"
+
+	err := tool.ensureDownloadDirectory(testDir)
+	assert.NoError(t, err)
+
+	info, err := os.Stat(testDir)
+	assert.NoError(t, err)
+	assert.True(t, info.IsDir())
 }

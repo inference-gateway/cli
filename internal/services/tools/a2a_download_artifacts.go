@@ -3,6 +3,10 @@ package tools
 import (
 	"context"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -32,11 +36,13 @@ type A2ADownloadArtifactsResult struct {
 }
 
 type ArtifactInfo struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	MimeType string `json:"mime_type"`
-	Size     int64  `json:"size"`
-	Content  string `json:"content,omitempty"`
+	ID         string `json:"id"`
+	Name       string `json:"name"`
+	MimeType   string `json:"mime_type"`
+	Size       int64  `json:"size"`
+	URL        string `json:"url"`
+	LocalPath  string `json:"local_path,omitempty"`
+	Downloaded bool   `json:"downloaded"`
 }
 
 func NewA2ADownloadArtifactsTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2ADownloadArtifactsTool {
@@ -146,12 +152,7 @@ func (t *A2ADownloadArtifactsTool) Execute(ctx context.Context, args map[string]
 		return t.errorResult(args, startTime, fmt.Sprintf("Task %s is not completed (current state: %s). Artifacts can only be downloaded from completed tasks", taskID, task.Status.State))
 	}
 
-	artifactHelper := adkClient.GetArtifactHelper()
-	if artifactHelper == nil {
-		return t.errorResult(args, startTime, "Artifact helper not available from A2A client")
-	}
-
-	artifacts, err := t.downloadTaskArtifacts(ctx, artifactHelper, taskID)
+	artifacts, err := t.downloadTaskArtifacts(ctx, taskResponse.Result)
 	if err != nil {
 		logger.Error("Failed to download artifacts", "agent_url", agentURL, "task_id", taskID, "error", err)
 		return t.errorResult(args, startTime, fmt.Sprintf("Failed to download artifacts: %v", err))
@@ -176,10 +177,133 @@ func (t *A2ADownloadArtifactsTool) Execute(ctx context.Context, args map[string]
 	}, nil
 }
 
-func (t *A2ADownloadArtifactsTool) downloadTaskArtifacts(ctx context.Context, artifactHelper *client.ArtifactHelper, taskID string) ([]ArtifactInfo, error) {
+func (t *A2ADownloadArtifactsTool) downloadTaskArtifacts(ctx context.Context, taskData interface{}) ([]ArtifactInfo, error) {
 	var artifacts []ArtifactInfo
 
-	return artifacts, fmt.Errorf("artifact download functionality requires ADK ArtifactHelper implementation - this is a placeholder for the future ADK artifact API")
+	downloadDir := t.getDownloadDirectory()
+	if err := t.ensureDownloadDirectory(downloadDir); err != nil {
+		return nil, fmt.Errorf("failed to create download directory: %w", err)
+	}
+
+	if taskData == nil {
+		return artifacts, nil
+	}
+
+	taskResult, ok := taskData.(map[string]interface{})
+	if !ok {
+		return artifacts, nil
+	}
+
+	artifactsData, exists := taskResult["artifacts"]
+	if !exists {
+		return artifacts, nil
+	}
+
+	artifactsList, ok := artifactsData.([]interface{})
+	if !ok {
+		return artifacts, nil
+	}
+
+	httpClient := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	for i, artifactData := range artifactsList {
+		artifactMap, ok := artifactData.(map[string]interface{})
+		if !ok {
+			logger.Warn("Invalid artifact data format", "index", i)
+			continue
+		}
+
+		artifact := ArtifactInfo{
+			Downloaded: false,
+		}
+
+		if id, ok := artifactMap["id"].(string); ok {
+			artifact.ID = id
+		}
+		if name, ok := artifactMap["name"].(string); ok {
+			artifact.Name = name
+		}
+		if mimeType, ok := artifactMap["mime_type"].(string); ok {
+			artifact.MimeType = mimeType
+		}
+		if url, ok := artifactMap["url"].(string); ok {
+			artifact.URL = url
+		}
+		if sizeFloat, ok := artifactMap["size"].(float64); ok {
+			artifact.Size = int64(sizeFloat)
+		} else if sizeInt, ok := artifactMap["size"].(int64); ok {
+			artifact.Size = sizeInt
+		}
+
+		if artifact.URL == "" {
+			logger.Warn("Artifact has no URL, skipping", "id", artifact.ID, "name", artifact.Name)
+			artifacts = append(artifacts, artifact)
+			continue
+		}
+
+		fileName := artifact.Name
+		if fileName == "" {
+			fileName = fmt.Sprintf("artifact_%s", artifact.ID)
+		}
+
+		localPath := filepath.Join(downloadDir, fileName)
+		artifact.LocalPath = localPath
+
+		if err := t.downloadFile(ctx, httpClient, artifact.URL, localPath); err != nil {
+			logger.Error("Failed to download artifact", "url", artifact.URL, "path", localPath, "error", err)
+			artifacts = append(artifacts, artifact)
+			continue
+		}
+
+		artifact.Downloaded = true
+		artifacts = append(artifacts, artifact)
+		logger.Info("Successfully downloaded artifact", "name", artifact.Name, "path", localPath)
+	}
+
+	return artifacts, nil
+}
+
+func (t *A2ADownloadArtifactsTool) getDownloadDirectory() string {
+	if t.config.A2A.Tools.DownloadArtifacts.DownloadDir != "" {
+		return t.config.A2A.Tools.DownloadArtifacts.DownloadDir
+	}
+	return "./downloads"
+}
+
+func (t *A2ADownloadArtifactsTool) ensureDownloadDirectory(dir string) error {
+	return os.MkdirAll(dir, 0755)
+}
+
+func (t *A2ADownloadArtifactsTool) downloadFile(ctx context.Context, httpClient *http.Client, url, filePath string) error {
+	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to download file: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("download failed with status %d: %s", resp.StatusCode, resp.Status)
+	}
+
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	_, err = io.Copy(file, resp.Body)
+	if err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return nil
 }
 
 func (t *A2ADownloadArtifactsTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
