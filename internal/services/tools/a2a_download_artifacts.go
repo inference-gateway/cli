@@ -286,7 +286,11 @@ func (t *A2ADownloadArtifactsTool) downloadFile(ctx context.Context, httpClient 
 	if err != nil {
 		return fmt.Errorf("failed to download file: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			logger.Error("Failed to close response body", "error", closeErr)
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download failed with status %d: %s", resp.StatusCode, resp.Status)
@@ -296,7 +300,11 @@ func (t *A2ADownloadArtifactsTool) downloadFile(ctx context.Context, httpClient 
 	if err != nil {
 		return fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			logger.Error("Failed to close file", "error", closeErr)
+		}
+	}()
 
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
