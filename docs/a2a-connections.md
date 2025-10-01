@@ -111,11 +111,13 @@ The LLM will use the `DownloadArtifacts` tool:
 ```
 
 **Important Requirements:**
+
 - The task must be in "completed" status before artifacts can be downloaded
 - The agent must first use the QueryTask tool to verify completion status
 - Only works with tasks that have generated artifacts
 
 Tool Details:
+
 - **Name**: `A2A_DownloadArtifacts`
 - **Parameters**:
   - `agent_url` (required): URL of the A2A agent server
@@ -266,5 +268,6 @@ First check if task task-456 is completed, then download its artifacts from the 
 ```
 
 This will:
+
 1. Use QueryTask to verify the task is completed
 2. Use DownloadArtifacts to retrieve any generated files, documents, or other outputs from the task

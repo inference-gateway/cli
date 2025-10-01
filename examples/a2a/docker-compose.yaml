@@ -127,8 +127,11 @@ services:
   browser-agent:
     image: ghcr.io/inference-gateway/browser-agent:latest
     pull_policy: always
+    ports:
+      - 8081:8081 # TODO - remove this port once I figured out why the artifacts cannot get downloaded to the infer CLI
     environment:
       ENVIRONMENT: development
+      BROWSER_DATA_DIR: /tmp/playwright/artifacts
       A2A_AGENT_URL: http://browser-agent:8080
       A2A_AGENT_CLIENT_PROVIDER: deepseek
       A2A_AGENT_CLIENT_MODEL: deepseek-chat
@@ -139,8 +142,17 @@ services:
       A2A_AGENT_CLIENT_TIMEOUT: 120s
       A2A_QUEUE_CLEANUP_INTERVAL: 500s
       A2A_AGENT_CLIENT_MAX_CHAT_COMPLETION_ITERATIONS: 20
+      A2A_ARTIFACTS_ENABLE: true
+      A2A_ARTIFACTS_SERVER_HOST: localhost
+      A2A_ARTIFACTS_SERVER_PORT: 8081
+      A2A_ARTIFACTS_STORAGE_PROVIDER: filesystem
+      A2A_ARTIFACTS_STORAGE_BASE_PATH: /tmp/playwright/artifacts
+      A2A_ARTIFACTS_STORAGE_BASE_URL: http://browser-agent:8081
+      A2A_ARTIFACTS_RETENTION_MAX_ARTIFACTS: 10
+      # A2A_ARTIFACTS_RETENTION_MAX_AGE: 7d
+      A2A_ARTIFACTS_RETENTION_CLEANUP_INTERVAL: 24h
     volumes:
-      - ./browser-agent:/tmp/screenshots
+      - ./browser-agent:/tmp/playwright/artifacts # TODO - I need to check why the artifacts cannot be downloaded
     restart: unless-stopped
     networks:
       - a2a-network

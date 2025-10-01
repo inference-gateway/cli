@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
@@ -288,7 +289,12 @@ func TestA2AQueryTaskTool_FormatResult(t *testing.T) {
 			AgentName: "http://example.com",
 			ContextID: "ctx123",
 			TaskID:    "task456",
-			Status:    "completed",
+			Task: &adk.Task{
+				ID: "task456",
+				Status: adk.TaskStatus{
+					State: adk.TaskStateCompleted,
+				},
+			},
 			Success:   true,
 			Message:   "Task task456 is completed",
 		},

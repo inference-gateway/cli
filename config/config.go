@@ -651,6 +651,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 				},
 				DownloadArtifacts: DownloadArtifactsToolConfig{
 					Enabled:         true,
+					DownloadDir:     "/tmp/downloads",
 					RequireApproval: &[]bool{false}[0],
 				},
 			},

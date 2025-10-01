@@ -413,7 +413,7 @@ func TestA2ADownloadArtifactsTool_getDownloadDirectory(t *testing.T) {
 					},
 				},
 			},
-			expectedResult: "./downloads",
+			expectedResult: "/tmp/downloads",
 		},
 	}
 

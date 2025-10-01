@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -77,16 +78,16 @@ func (t *A2ADownloadArtifactsTool) Definition() sdk.ChatCompletionTool {
 			Description: &description,
 			Parameters: &sdk.FunctionParameters{
 				"type": "object",
-				"properties": map[string]interface{}{
-					"agent_url": map[string]interface{}{
+				"properties": map[string]any{
+					"agent_url": map[string]any{
 						"type":        "string",
 						"description": "URL of the A2A agent server",
 					},
-					"context_id": map[string]interface{}{
+					"context_id": map[string]any{
 						"type":        "string",
 						"description": "Context ID for the task",
 					},
-					"task_id": map[string]interface{}{
+					"task_id": map[string]any{
 						"type":        "string",
 						"description": "ID of the completed task to download artifacts from",
 					},
@@ -143,16 +144,21 @@ func (t *A2ADownloadArtifactsTool) Execute(ctx context.Context, args map[string]
 		return t.errorResult(args, startTime, fmt.Sprintf("Failed to query task: %v", err))
 	}
 
+	taskBytes, err := json.Marshal(taskResponse.Result)
+	if err != nil {
+		return t.errorResult(args, startTime, fmt.Sprintf("Failed to marshal task result: %v", err))
+	}
+
 	var task adk.Task
-	if err := mapToStruct(taskResponse.Result, &task); err != nil {
-		return t.errorResult(args, startTime, "Failed to parse task response")
+	if err := json.Unmarshal(taskBytes, &task); err != nil {
+		return t.errorResult(args, startTime, fmt.Sprintf("Failed to unmarshal task: %v", err))
 	}
 
 	if task.Status.State != adk.TaskStateCompleted {
 		return t.errorResult(args, startTime, fmt.Sprintf("Task %s is not completed (current state: %s). Artifacts can only be downloaded from completed tasks", taskID, task.Status.State))
 	}
 
-	artifacts, err := t.downloadTaskArtifacts(ctx, taskResponse.Result)
+	artifacts, err := t.downloadTaskArtifacts(ctx, &task)
 	if err != nil {
 		logger.Error("Failed to download artifacts", "agent_url", agentURL, "task_id", taskID, "error", err)
 		return t.errorResult(args, startTime, fmt.Sprintf("Failed to download artifacts: %v", err))
@@ -177,7 +183,7 @@ func (t *A2ADownloadArtifactsTool) Execute(ctx context.Context, args map[string]
 	}, nil
 }
 
-func (t *A2ADownloadArtifactsTool) downloadTaskArtifacts(ctx context.Context, taskData interface{}) ([]ArtifactInfo, error) {
+func (t *A2ADownloadArtifactsTool) downloadTaskArtifacts(ctx context.Context, task *adk.Task) ([]ArtifactInfo, error) {
 	var artifacts []ArtifactInfo
 
 	downloadDir := t.getDownloadDirectory()
@@ -185,22 +191,7 @@ func (t *A2ADownloadArtifactsTool) downloadTaskArtifacts(ctx context.Context, ta
 		return nil, fmt.Errorf("failed to create download directory: %w", err)
 	}
 
-	if taskData == nil {
-		return artifacts, nil
-	}
-
-	taskResult, ok := taskData.(map[string]interface{})
-	if !ok {
-		return artifacts, nil
-	}
-
-	artifactsData, exists := taskResult["artifacts"]
-	if !exists {
-		return artifacts, nil
-	}
-
-	artifactsList, ok := artifactsData.([]interface{})
-	if !ok {
+	if task == nil || len(task.Artifacts) == 0 {
 		return artifacts, nil
 	}
 
@@ -208,32 +199,30 @@ func (t *A2ADownloadArtifactsTool) downloadTaskArtifacts(ctx context.Context, ta
 		Timeout: 30 * time.Second,
 	}
 
-	for i, artifactData := range artifactsList {
-		artifactMap, ok := artifactData.(map[string]interface{})
-		if !ok {
-			logger.Warn("Invalid artifact data format", "index", i)
-			continue
-		}
-
+	for _, adkArtifact := range task.Artifacts {
 		artifact := ArtifactInfo{
+			ID:         adkArtifact.ArtifactID,
 			Downloaded: false,
 		}
 
-		if id, ok := artifactMap["id"].(string); ok {
-			artifact.ID = id
+		if adkArtifact.Name != nil {
+			artifact.Name = *adkArtifact.Name
 		}
-		if name, ok := artifactMap["name"].(string); ok {
-			artifact.Name = name
+
+		if adkArtifact.Metadata == nil {
+			artifacts = append(artifacts, artifact)
+			continue
 		}
-		if mimeType, ok := artifactMap["mime_type"].(string); ok {
-			artifact.MimeType = mimeType
-		}
-		if url, ok := artifactMap["url"].(string); ok {
+
+		if url, ok := adkArtifact.Metadata["url"].(string); ok {
 			artifact.URL = url
 		}
-		if sizeFloat, ok := artifactMap["size"].(float64); ok {
+		if mimeType, ok := adkArtifact.Metadata["mime_type"].(string); ok {
+			artifact.MimeType = mimeType
+		}
+		if sizeFloat, ok := adkArtifact.Metadata["size"].(float64); ok {
 			artifact.Size = int64(sizeFloat)
-		} else if sizeInt, ok := artifactMap["size"].(int64); ok {
+		} else if sizeInt, ok := adkArtifact.Metadata["size"].(int64); ok {
 			artifact.Size = sizeInt
 		}
 
@@ -269,7 +258,7 @@ func (t *A2ADownloadArtifactsTool) getDownloadDirectory() string {
 	if t.config.A2A.Tools.DownloadArtifacts.DownloadDir != "" {
 		return t.config.A2A.Tools.DownloadArtifacts.DownloadDir
 	}
-	return "./downloads"
+	return "/tmp/downloads"
 }
 
 func (t *A2ADownloadArtifactsTool) ensureDownloadDirectory(dir string) error {
