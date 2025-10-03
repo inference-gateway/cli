@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo Store - Playwright Agent Testing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .header {
+            background-color: #f4f4f4;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+        }
+        .content {
+            margin: 20px 0;
+        }
+        .product {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .price {
+            color: #e74c3c;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        .form-section {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .button {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #2980b9;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            background-color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Demo Store</h1>
+        <p>A sample e-commerce page for testing Playwright Agent automation</p>
+    </div>
+
+    <div class="content">
+        <h2>Featured Products</h2>
+
+        <div class="product" data-product-id="1">
+            <h3>Wireless Headphones</h3>
+            <p>Premium quality wireless headphones with noise cancellation.</p>
+            <div class="price">$199.99</div>
+            <button class="button" onclick="addToCart(1)">Add to Cart</button>
+        </div>
+
+        <div class="product" data-product-id="2">
+            <h3>Smart Watch</h3>
+            <p>Advanced fitness tracking and notifications on your wrist.</p>
+            <div class="price">$299.99</div>
+            <button class="button" onclick="addToCart(2)">Add to Cart</button>
+        </div>
+
+        <div class="product" data-product-id="3">
+            <h3>Laptop Stand</h3>
+            <p>Ergonomic aluminum laptop stand for better workspace setup.</p>
+            <div class="price">$49.99</div>
+            <button class="button" onclick="addToCart(3)">Add to Cart</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number">1,234</div>
+                <div>Total Orders</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">98%</div>
+                <div>Customer Satisfaction</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">24/7</div>
+                <div>Support Available</div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Newsletter Signup</h3>
+            <form id="newsletter-form">
+                <label for="email">Email:</label><br>
+                <input type="email" id="email" name="email" required style="width: 300px; padding: 8px; margin: 10px 0;"><br>
+
+                <label for="name">Name:</label><br>
+                <input type="text" id="name" name="name" required style="width: 300px; padding: 8px; margin: 10px 0;"><br>
+
+                <label>
+                    <input type="checkbox" id="terms" name="terms" required>
+                    I agree to the terms and conditions
+                </label><br><br>
+
+                <button type="submit" class="button">Subscribe</button>
+            </form>
+        </div>
+
+        <div id="message" style="margin: 20px 0; padding: 10px; display: none;"></div>
+    </div>
+
+    <script>
+        function addToCart(productId) {
+            const message = document.getElementById('message');
+            message.style.display = 'block';
+            message.style.backgroundColor = '#d4edda';
+            message.style.color = '#155724';
+            message.style.border = '1px solid #c3e6cb';
+            message.textContent = `Product ${productId} added to cart!`;
+
+            setTimeout(() => {
+                message.style.display = 'none';
+            }, 3000);
+        }
+
+        document.getElementById('newsletter-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const message = document.getElementById('message');
+            message.style.display = 'block';
+            message.style.backgroundColor = '#d1ecf1';
+            message.style.color = '#0c5460';
+            message.style.border = '1px solid #bee5eb';
+            message.textContent = 'Thank you for subscribing to our newsletter!';
+
+            this.reset();
+
+            setTimeout(() => {
+                message.style.display = 'none';
+            }, 3000);
+        });
+    </script>
+</body>
+</html>
