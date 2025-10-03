@@ -295,8 +295,8 @@ func TestA2AQueryTaskTool_FormatResult(t *testing.T) {
 					State: adk.TaskStateCompleted,
 				},
 			},
-			Success:   true,
-			Message:   "Task task456 is completed",
+			Success: true,
+			Message: "Task task456 is completed",
 		},
 	}
 
