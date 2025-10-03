@@ -149,7 +149,7 @@ services:
       A2A_ARTIFACTS_STORAGE_BASE_PATH: /tmp/playwright/artifacts
       A2A_ARTIFACTS_STORAGE_BASE_URL: http://browser-agent:8081
       A2A_ARTIFACTS_RETENTION_MAX_ARTIFACTS: 10
-      # A2A_ARTIFACTS_RETENTION_MAX_AGE: 7d # TODO - fix parsing error
+      A2A_ARTIFACTS_RETENTION_MAX_AGE: 24h
       A2A_ARTIFACTS_RETENTION_CLEANUP_INTERVAL: 24h
     volumes:
       - ./browser-agent:/tmp/playwright/artifacts # TODO - I need to check why the artifacts cannot be downloaded
