@@ -126,8 +126,6 @@ services:
   browser-agent:
     image: ghcr.io/inference-gateway/browser-agent:latest
     pull_policy: always
-    ports:
-      - 8081:8081
     environment:
       ENVIRONMENT: development
       BROWSER_DATA_DIR: /tmp/playwright/artifacts
