@@ -161,8 +161,6 @@ services:
 
   demo-site:
     image: nginx:alpine
-    ports:
-      - "8090:80"
     volumes:
       - ./demo-site:/usr/share/nginx/html:ro
     networks:
@@ -174,7 +172,7 @@ services:
     entrypoint:
       - /a2a
       - --server-url
-      - http://n8n-agent:8080
+      - http://browser-agent:8080
     networks:
       - a2a-network
     profiles:

@@ -2,13 +2,12 @@ package tools
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	utils "github.com/inference-gateway/cli/internal/utils"
-	"github.com/stretchr/testify/assert"
+	assert "github.com/stretchr/testify/assert"
 )
 
 func TestA2ADownloadArtifactsTool_Execute(t *testing.T) {
@@ -426,19 +425,4 @@ func TestA2ADownloadArtifactsTool_getDownloadDirectory(t *testing.T) {
 			assert.Equal(t, tt.expectedResult, result)
 		})
 	}
-}
-
-func TestA2ADownloadArtifactsTool_ensureDownloadDirectory(t *testing.T) {
-	tracker := utils.NewSimpleTaskTracker()
-	tool := NewA2ADownloadArtifactsTool(&config.Config{}, tracker)
-
-	tempDir := t.TempDir()
-	testDir := tempDir + "/test/nested/directory"
-
-	err := tool.ensureDownloadDirectory(testDir)
-	assert.NoError(t, err)
-
-	info, err := os.Stat(testDir)
-	assert.NoError(t, err)
-	assert.True(t, info.IsDir())
 }

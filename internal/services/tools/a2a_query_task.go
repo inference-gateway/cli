@@ -187,11 +187,65 @@ func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) stri
 
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	if result.Data != nil {
+	if result.Data == nil {
+		hasDataSection := false
+		output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+		return output.String()
+	}
+
+	queryResult, ok := result.Data.(A2AQueryTaskResult)
+	if !ok || queryResult.Task == nil {
 		dataContent := t.formatter.FormatAsJSON(result.Data)
 		hasMetadata := len(result.Metadata) > 0
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+		hasDataSection := result.Data != nil
+		output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+		return output.String()
 	}
+
+	task := queryResult.Task
+	output.WriteString("Task Status: " + string(task.Status.State) + "\n")
+
+	hasArtifacts := len(task.Artifacts) > 0
+	if !hasArtifacts {
+		output.WriteString("\nNo artifacts available for this task.\n")
+		output.WriteString("\nFull Task Data:\n")
+		dataContent := t.formatter.FormatAsJSON(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+		hasDataSection := result.Data != nil
+		output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+		return output.String()
+	}
+
+	output.WriteString(fmt.Sprintf("\nArtifacts (%d):\n", len(task.Artifacts)))
+	for i, artifact := range task.Artifacts {
+		output.WriteString(fmt.Sprintf("%d. ", i+1))
+		if artifact.Name != nil {
+			output.WriteString(fmt.Sprintf("Name: %s", *artifact.Name))
+		}
+		output.WriteString(fmt.Sprintf(" (ID: %s)", artifact.ArtifactID))
+
+		hasMetadata := artifact.Metadata != nil
+		if hasMetadata {
+			if url, ok := artifact.Metadata["url"].(string); ok {
+				output.WriteString(fmt.Sprintf("\n   Download URL: %s", url))
+			}
+			if mimeType, ok := artifact.Metadata["mime_type"].(string); ok {
+				output.WriteString(fmt.Sprintf("\n   MIME Type: %s", mimeType))
+			}
+			if size, ok := artifact.Metadata["size"].(float64); ok {
+				output.WriteString(fmt.Sprintf("\n   Size: %d bytes", int64(size)))
+			}
+		}
+		output.WriteString("\n")
+	}
+	output.WriteString("\nTo download these artifacts, use the A2A_DownloadArtifacts tool with the same task_id.\n")
+
+	output.WriteString("\nFull Task Data:\n")
+	dataContent := t.formatter.FormatAsJSON(result.Data)
+	hasMetadata := len(result.Metadata) > 0
+	output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 
 	hasDataSection := result.Data != nil
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
