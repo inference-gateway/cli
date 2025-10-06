@@ -256,4 +256,5 @@ a2a:
     download_artifacts:
       enabled: true
       download_dir: /tmp/downloads
+      timeout_seconds: 30
       require_approval: false

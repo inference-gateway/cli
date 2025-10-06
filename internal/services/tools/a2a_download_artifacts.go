@@ -24,23 +24,22 @@ type A2ADownloadArtifactsTool struct {
 }
 
 type A2ADownloadArtifactsResult struct {
-	AgentName string         `json:"agent_name"`
-	ContextID string         `json:"context_id"`
-	TaskID    string         `json:"task_id"`
-	Artifacts []ArtifactInfo `json:"artifacts"`
-	Success   bool           `json:"success"`
-	Message   string         `json:"message"`
-	Duration  time.Duration  `json:"duration"`
+	AgentName       string          `json:"agent_name"`
+	ContextID       string          `json:"context_id"`
+	TaskID          string          `json:"task_id"`
+	Artifacts       []adk.Artifact  `json:"artifacts"`
+	DownloadResults []DownloadInfo  `json:"download_results"`
+	Success         bool            `json:"success"`
+	Message         string          `json:"message"`
+	Duration        time.Duration   `json:"duration"`
 }
 
-type ArtifactInfo struct {
-	ID         string `json:"id"`
-	Name       string `json:"name"`
-	MimeType   string `json:"mime_type"`
+type DownloadInfo struct {
+	ArtifactID string `json:"artifact_id"`
+	LocalPath  string `json:"local_path"`
 	Size       int64  `json:"size"`
-	URL        string `json:"url"`
-	LocalPath  string `json:"local_path,omitempty"`
 	Downloaded bool   `json:"downloaded"`
+	Error      string `json:"error,omitempty"`
 }
 
 func NewA2ADownloadArtifactsTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2ADownloadArtifactsTool {
@@ -155,20 +154,21 @@ func (t *A2ADownloadArtifactsTool) Execute(ctx context.Context, args map[string]
 		return t.errorResult(args, startTime, fmt.Sprintf("Task %s is not completed (current state: %s). Artifacts can only be downloaded from completed tasks", taskID, task.Status.State))
 	}
 
-	artifacts, err := t.downloadTaskArtifacts(ctx, &task)
+	downloadResults, err := t.downloadTaskArtifacts(ctx, &task)
 	if err != nil {
 		logger.Error("Failed to download artifacts", "agent_url", agentURL, "task_id", taskID, "error", err)
 		return t.errorResult(args, startTime, fmt.Sprintf("Failed to download artifacts: %v", err))
 	}
 
 	result := A2ADownloadArtifactsResult{
-		AgentName: agentURL,
-		ContextID: contextID,
-		TaskID:    taskID,
-		Artifacts: artifacts,
-		Success:   true,
-		Duration:  time.Since(startTime),
-		Message:   fmt.Sprintf("Downloaded %d artifact(s) from completed task %s", len(artifacts), taskID),
+		AgentName:       agentURL,
+		ContextID:       contextID,
+		TaskID:          taskID,
+		Artifacts:       task.Artifacts,
+		DownloadResults: downloadResults,
+		Success:         true,
+		Duration:        time.Since(startTime),
+		Message:         fmt.Sprintf("Downloaded %d artifact(s) from completed task %s", len(downloadResults), taskID),
 	}
 
 	return &domain.ToolExecutionResult{
@@ -180,15 +180,23 @@ func (t *A2ADownloadArtifactsTool) Execute(ctx context.Context, args map[string]
 	}, nil
 }
 
-func (t *A2ADownloadArtifactsTool) downloadTaskArtifacts(ctx context.Context, task *adk.Task) ([]ArtifactInfo, error) {
-	downloadDir := t.getDownloadDirectory()
+func (t *A2ADownloadArtifactsTool) downloadTaskArtifacts(ctx context.Context, task *adk.Task) ([]DownloadInfo, error) {
+	downloadDir := "/tmp/downloads"
+	if t.config.A2A.Tools.DownloadArtifacts.DownloadDir != "" {
+		downloadDir = t.config.A2A.Tools.DownloadArtifacts.DownloadDir
+	}
+
+	timeoutSeconds := 30
+	if t.config.A2A.Tools.DownloadArtifacts.TimeoutSeconds > 0 {
+		timeoutSeconds = t.config.A2A.Tools.DownloadArtifacts.TimeoutSeconds
+	}
 
 	helper := client.NewArtifactHelper()
 	config := &client.DownloadConfig{
 		OutputDir:            downloadDir,
-		HTTPClient:           &http.Client{Timeout: 30 * time.Second},
+		HTTPClient:           &http.Client{Timeout: time.Duration(timeoutSeconds) * time.Second},
 		OverwriteExisting:    true,
-		OrganizeByArtifactID: false,
+		OrganizeByArtifactID: true,
 	}
 
 	results, err := helper.DownloadAllArtifacts(ctx, task, config)
@@ -196,37 +204,35 @@ func (t *A2ADownloadArtifactsTool) downloadTaskArtifacts(ctx context.Context, ta
 		return nil, fmt.Errorf("failed to download artifacts: %w", err)
 	}
 
-	artifacts := make([]ArtifactInfo, 0, len(results))
-	for i, result := range results {
-		artifact := ArtifactInfo{
-			ID:         task.Artifacts[i].ArtifactID,
-			Name:       result.FileName,
+	downloadInfos := make([]DownloadInfo, 0, len(results))
+	artifactIndex := 0
+
+	for _, result := range results {
+		if artifactIndex >= len(task.Artifacts) {
+			break
+		}
+
+		currentArtifact := task.Artifacts[artifactIndex]
+
+		info := DownloadInfo{
+			ArtifactID: currentArtifact.ArtifactID,
 			LocalPath:  result.FilePath,
 			Size:       result.BytesWritten,
 			Downloaded: result.Error == nil,
 		}
 
-		if task.Artifacts[i].Name != nil {
-			artifact.Name = *task.Artifacts[i].Name
-		}
-
 		if result.Error != nil {
-			logger.Error("Failed to download artifact", "id", artifact.ID, "path", result.FilePath, "error", result.Error)
+			info.Error = result.Error.Error()
+			logger.Error("Failed to download artifact", "artifact_id", info.ArtifactID, "path", result.FilePath, "error", result.Error)
 		} else {
-			logger.Info("Successfully downloaded artifact", "name", artifact.Name, "path", result.FilePath, "size", result.BytesWritten)
+			logger.Info("Successfully downloaded artifact", "artifact_id", info.ArtifactID, "path", result.FilePath, "size", result.BytesWritten)
 		}
 
-		artifacts = append(artifacts, artifact)
+		downloadInfos = append(downloadInfos, info)
+		artifactIndex++
 	}
 
-	return artifacts, nil
-}
-
-func (t *A2ADownloadArtifactsTool) getDownloadDirectory() string {
-	if t.config.A2A.Tools.DownloadArtifacts.DownloadDir != "" {
-		return t.config.A2A.Tools.DownloadArtifacts.DownloadDir
-	}
-	return "/tmp/downloads"
+	return downloadInfos, nil
 }
 
 func (t *A2ADownloadArtifactsTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {

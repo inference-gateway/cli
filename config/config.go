@@ -172,6 +172,7 @@ type QueryTaskToolConfig struct {
 type DownloadArtifactsToolConfig struct {
 	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
 	DownloadDir     string `yaml:"download_dir" mapstructure:"download_dir"`
+	TimeoutSeconds  int    `yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
 	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
@@ -652,6 +653,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 				DownloadArtifacts: DownloadArtifactsToolConfig{
 					Enabled:         true,
 					DownloadDir:     "/tmp/downloads",
+					TimeoutSeconds:  30,
 					RequireApproval: &[]bool{false}[0],
 				},
 			},

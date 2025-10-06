@@ -292,7 +292,7 @@ func TestA2ADownloadArtifactsTool_Definition(t *testing.T) {
 	params := def.Function.Parameters
 	assert.NotNil(t, params)
 
-	properties, ok := (*params)["properties"].(map[string]interface{})
+	properties, ok := (*params)["properties"].(map[string]any)
 	assert.True(t, ok)
 
 	assert.Contains(t, properties, "agent_url")
@@ -380,49 +380,4 @@ func TestA2ADownloadArtifactsTool_ShouldAlwaysExpand(t *testing.T) {
 
 	got := tool.ShouldAlwaysExpand()
 	assert.False(t, got)
-}
-
-func TestA2ADownloadArtifactsTool_getDownloadDirectory(t *testing.T) {
-	tests := []struct {
-		name           string
-		config         *config.Config
-		expectedResult string
-	}{
-		{
-			name: "configured download directory",
-			config: &config.Config{
-				A2A: config.A2AConfig{
-					Tools: config.A2AToolsConfig{
-						DownloadArtifacts: config.DownloadArtifactsToolConfig{
-							DownloadDir: "/custom/download/path",
-						},
-					},
-				},
-			},
-			expectedResult: "/custom/download/path",
-		},
-		{
-			name: "default download directory",
-			config: &config.Config{
-				A2A: config.A2AConfig{
-					Tools: config.A2AToolsConfig{
-						DownloadArtifacts: config.DownloadArtifactsToolConfig{
-							DownloadDir: "",
-						},
-					},
-				},
-			},
-			expectedResult: "/tmp/downloads",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tracker := utils.NewSimpleTaskTracker()
-			tool := NewA2ADownloadArtifactsTool(tt.config, tracker)
-
-			result := tool.getDownloadDirectory()
-			assert.Equal(t, tt.expectedResult, result)
-		})
-	}
 }
