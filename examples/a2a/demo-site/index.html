@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Demo Store - Playwright Agent Testing</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .header {
+            background-color: #f4f4f4;
+            padding: 20px;
+            text-align: center;
+            border-radius: 8px;
+        }
+        .content {
+            margin: 20px 0;
+        }
+        .product {
+            border: 1px solid #ddd;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+        }
+        .price {
+            color: #e74c3c;
+            font-weight: bold;
+            font-size: 1.2em;
+        }
+        .form-section {
+            background-color: #f9f9f9;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .button {
+            background-color: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .button:hover {
+            background-color: #2980b9;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-around;
+            background-color: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .stat-item {
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 20px;
+            margin: 30px 0;
+            padding: 20px;
+        }
+        .pagination-btn {
+            min-width: 100px;
+        }
+        .pagination-btn:disabled {
+            background-color: #95a5a6;
+            cursor: not-allowed;
+        }
+        #page-info {
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        .pagination-info {
+            text-align: center;
+            margin: 10px 0 20px 0;
+            color: #7f8c8d;
+            font-size: 0.95em;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>Demo Store</h1>
+        <p>A sample e-commerce page for testing Playwright Agent automation</p>
+    </div>
+
+    <div class="content">
+        <h2>Featured Products</h2>
+
+        <div class="pagination-info">
+            Showing <span id="showing-start">1</span>-<span id="showing-end">6</span> of <span id="total-products">24</span> products
+        </div>
+
+        <div id="products-container">
+            <div class="product" data-product-id="1">
+                <h3>Wireless Headphones</h3>
+                <p>Premium quality wireless headphones with noise cancellation.</p>
+                <div class="price">$199.99</div>
+                <button class="button" onclick="addToCart(1)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="2">
+                <h3>Smart Watch</h3>
+                <p>Advanced fitness tracking and notifications on your wrist.</p>
+                <div class="price">$299.99</div>
+                <button class="button" onclick="addToCart(2)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="3">
+                <h3>Laptop Stand</h3>
+                <p>Ergonomic aluminum laptop stand for better workspace setup.</p>
+                <div class="price">$49.99</div>
+                <button class="button" onclick="addToCart(3)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="4">
+                <h3>USB-C Hub</h3>
+                <p>Multi-port USB-C hub with HDMI, USB 3.0, and SD card reader.</p>
+                <div class="price">$79.99</div>
+                <button class="button" onclick="addToCart(4)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="5">
+                <h3>Mechanical Keyboard</h3>
+                <p>RGB backlit mechanical keyboard with blue switches.</p>
+                <div class="price">$129.99</div>
+                <button class="button" onclick="addToCart(5)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="6">
+                <h3>Wireless Mouse</h3>
+                <p>Ergonomic wireless mouse with precision tracking.</p>
+                <div class="price">$39.99</div>
+                <button class="button" onclick="addToCart(6)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="7" style="display: none;">
+                <h3>4K Monitor</h3>
+                <p>27-inch 4K UHD monitor with HDR support and slim bezels.</p>
+                <div class="price">$399.99</div>
+                <button class="button" onclick="addToCart(7)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="8" style="display: none;">
+                <h3>Webcam HD</h3>
+                <p>1080p HD webcam with auto-focus and built-in microphone.</p>
+                <div class="price">$89.99</div>
+                <button class="button" onclick="addToCart(8)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="9" style="display: none;">
+                <h3>External SSD 1TB</h3>
+                <p>Portable external SSD with 1TB storage and USB 3.2 Gen 2.</p>
+                <div class="price">$149.99</div>
+                <button class="button" onclick="addToCart(9)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="10" style="display: none;">
+                <h3>Phone Stand</h3>
+                <p>Adjustable aluminum phone stand for desk or bedside.</p>
+                <div class="price">$24.99</div>
+                <button class="button" onclick="addToCart(10)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="11" style="display: none;">
+                <h3>Bluetooth Speaker</h3>
+                <p>Waterproof Bluetooth speaker with 360-degree sound.</p>
+                <div class="price">$69.99</div>
+                <button class="button" onclick="addToCart(11)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="12" style="display: none;">
+                <h3>Cable Organizer</h3>
+                <p>Desktop cable management system with multiple slots.</p>
+                <div class="price">$19.99</div>
+                <button class="button" onclick="addToCart(12)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="13" style="display: none;">
+                <h3>Desk Lamp LED</h3>
+                <p>Adjustable LED desk lamp with touch controls and USB port.</p>
+                <div class="price">$44.99</div>
+                <button class="button" onclick="addToCart(13)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="14" style="display: none;">
+                <h3>Gaming Chair</h3>
+                <p>Ergonomic gaming chair with lumbar support and adjustable armrests.</p>
+                <div class="price">$249.99</div>
+                <button class="button" onclick="addToCart(14)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="15" style="display: none;">
+                <h3>Noise Machine</h3>
+                <p>White noise machine with 20 soothing sounds for better sleep.</p>
+                <div class="price">$34.99</div>
+                <button class="button" onclick="addToCart(15)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="16" style="display: none;">
+                <h3>Power Bank 20000mAh</h3>
+                <p>High-capacity power bank with fast charging and dual ports.</p>
+                <div class="price">$54.99</div>
+                <button class="button" onclick="addToCart(16)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="17" style="display: none;">
+                <h3>Graphics Tablet</h3>
+                <p>Digital drawing tablet with pressure-sensitive pen.</p>
+                <div class="price">$179.99</div>
+                <button class="button" onclick="addToCart(17)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="18" style="display: none;">
+                <h3>Document Scanner</h3>
+                <p>Portable document scanner with auto-feed and duplex scanning.</p>
+                <div class="price">$219.99</div>
+                <button class="button" onclick="addToCart(18)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="19" style="display: none;">
+                <h3>Fitness Tracker</h3>
+                <p>Water-resistant fitness tracker with heart rate monitor.</p>
+                <div class="price">$99.99</div>
+                <button class="button" onclick="addToCart(19)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="20" style="display: none;">
+                <h3>Smart Plug 4-Pack</h3>
+                <p>WiFi-enabled smart plugs with voice control compatibility.</p>
+                <div class="price">$39.99</div>
+                <button class="button" onclick="addToCart(20)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="21" style="display: none;">
+                <h3>Ring Light</h3>
+                <p>18-inch LED ring light with tripod stand for photography.</p>
+                <div class="price">$64.99</div>
+                <button class="button" onclick="addToCart(21)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="22" style="display: none;">
+                <h3>Travel Backpack</h3>
+                <p>Anti-theft travel backpack with USB charging port and laptop compartment.</p>
+                <div class="price">$59.99</div>
+                <button class="button" onclick="addToCart(22)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="23" style="display: none;">
+                <h3>Electric Kettle</h3>
+                <p>Stainless steel electric kettle with temperature control.</p>
+                <div class="price">$49.99</div>
+                <button class="button" onclick="addToCart(23)">Add to Cart</button>
+            </div>
+
+            <div class="product" data-product-id="24" style="display: none;">
+                <h3>Air Purifier</h3>
+                <p>HEPA air purifier for rooms up to 400 sq ft with quiet operation.</p>
+                <div class="price">$159.99</div>
+                <button class="button" onclick="addToCart(24)">Add to Cart</button>
+            </div>
+        </div>
+
+        <div class="pagination">
+            <button class="button pagination-btn" id="prev-btn" onclick="changePage(-1)">Previous</button>
+            <span id="page-info">Page <span id="current-page">1</span> of <span id="total-pages">4</span></span>
+            <button class="button pagination-btn" id="next-btn" onclick="changePage(1)">Next</button>
+        </div>
+
+        <div class="stats">
+            <div class="stat-item">
+                <div class="stat-number">1,234</div>
+                <div>Total Orders</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">98%</div>
+                <div>Customer Satisfaction</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">24/7</div>
+                <div>Support Available</div>
+            </div>
+        </div>
+
+        <div class="form-section">
+            <h3>Newsletter Signup</h3>
+            <form id="newsletter-form">
+                <label for="email">Email:</label><br>
+                <input type="email" id="email" name="email" required style="width: 300px; padding: 8px; margin: 10px 0;"><br>
+
+                <label for="name">Name:</label><br>
+                <input type="text" id="name" name="name" required style="width: 300px; padding: 8px; margin: 10px 0;"><br>
+
+                <label>
+                    <input type="checkbox" id="terms" name="terms" required>
+                    I agree to the terms and conditions
+                </label><br><br>
+
+                <button type="submit" class="button">Subscribe</button>
+            </form>
+        </div>
+
+        <div id="message" style="margin: 20px 0; padding: 10px; display: none;"></div>
+    </div>
+
+    <script>
+        const PRODUCTS_PER_PAGE = 6;
+        const TOTAL_PRODUCTS = 24;
+        const TOTAL_PAGES = Math.ceil(TOTAL_PRODUCTS / PRODUCTS_PER_PAGE);
+        let currentPage = 1;
+
+        function showPage(page) {
+            const products = document.querySelectorAll('.product');
+            const startIndex = (page - 1) * PRODUCTS_PER_PAGE;
+            const endIndex = startIndex + PRODUCTS_PER_PAGE;
+
+            products.forEach((product, index) => {
+                if (index >= startIndex && index < endIndex) {
+                    product.style.display = 'block';
+                } else {
+                    product.style.display = 'none';
+                }
+            });
+
+            document.getElementById('current-page').textContent = page;
+            document.getElementById('showing-start').textContent = startIndex + 1;
+            document.getElementById('showing-end').textContent = Math.min(endIndex, TOTAL_PRODUCTS);
+
+            document.getElementById('prev-btn').disabled = page === 1;
+            document.getElementById('next-btn').disabled = page === TOTAL_PAGES;
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function changePage(delta) {
+            const newPage = currentPage + delta;
+            if (newPage >= 1 && newPage <= TOTAL_PAGES) {
+                currentPage = newPage;
+                showPage(currentPage);
+            }
+        }
+
+        function addToCart(productId) {
+            const message = document.getElementById('message');
+            message.style.display = 'block';
+            message.style.backgroundColor = '#d4edda';
+            message.style.color = '#155724';
+            message.style.border = '1px solid #c3e6cb';
+            message.textContent = `Product ${productId} added to cart!`;
+
+            setTimeout(() => {
+                message.style.display = 'none';
+            }, 3000);
+        }
+
+        document.getElementById('newsletter-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const message = document.getElementById('message');
+            message.style.display = 'block';
+            message.style.backgroundColor = '#d1ecf1';
+            message.style.color = '#0c5460';
+            message.style.border = '1px solid #bee5eb';
+            message.textContent = 'Thank you for subscribing to our newsletter!';
+
+            this.reset();
+
+            setTimeout(() => {
+                message.style.display = 'none';
+            }, 3000);
+        });
+
+        document.addEventListener('DOMContentLoaded', function() {
+            showPage(1);
+        });
+    </script>
+</body>
+</html>

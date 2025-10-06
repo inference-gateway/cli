@@ -26,7 +26,7 @@ The CLI connects to A2A agents using their URL endpoints through the ADK client 
 
 ### Using the A2A Tools
 
-The A2A functionality is exposed through two tools that can be used in conversations:
+The A2A functionality is exposed through multiple tools that can be used in conversations:
 
 #### SubmitTask Tool - Submit a Task
 
@@ -92,6 +92,40 @@ Query the agent at localhost:8081 for its capabilities
 - **Returns**: Agent card information
 - **Behavior**: Currently returns placeholder response (TODO: implement actual query logic)
 
+#### DownloadArtifacts Tool - Download Task Artifacts
+
+The `DownloadArtifacts` tool downloads artifacts from completed A2A tasks:
+
+```text
+Download artifacts from the completed task
+```
+
+The LLM will use the `DownloadArtifacts` tool:
+
+```json
+{
+  "agent_url": "http://localhost:8081",
+  "context_id": "context-123",
+  "task_id": "task-456"
+}
+```
+
+**Important Requirements:**
+
+- The task must be in "completed" status before artifacts can be downloaded
+- The agent must first use the QueryTask tool to verify completion status
+- Only works with tasks that have generated artifacts
+
+Tool Details:
+
+- **Name**: `A2A_DownloadArtifacts`
+- **Parameters**:
+  - `agent_url` (required): URL of the A2A agent server
+  - `context_id` (required): Context ID for the task
+  - `task_id` (required): ID of the completed task to download artifacts from
+- **Returns**: List of artifacts with metadata and content
+- **Behavior**: Validates task completion status, then downloads available artifacts
+
 ## A2A Integration
 
 ### Shortcut Command
@@ -121,6 +155,8 @@ a2a:
       enabled: true  # Enable A2A SubmitTask tool
     query_task:
       enabled: true  # Enable A2A QueryTask tool
+    download_artifacts:
+      enabled: true  # Enable A2A DownloadArtifacts tool
 ```
 
 ## Security Considerations
@@ -224,3 +260,14 @@ Ask the security agent at http://localhost:8082 to analyze this codebase for vul
 ```text
 Query the documentation agent at http://localhost:8083 for its available features
 ```
+
+### Artifact Download
+
+```text
+First check if task task-456 is completed, then download its artifacts from the agent at http://localhost:8081
+```
+
+This will:
+
+1. Use QueryTask to verify the task is completed
+2. Use DownloadArtifacts to retrieve any generated files, documents, or other outputs from the task

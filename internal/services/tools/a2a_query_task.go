@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -23,8 +24,7 @@ type A2AQueryTaskResult struct {
 	AgentName string        `json:"agent_name"`
 	ContextID string        `json:"context_id"`
 	TaskID    string        `json:"task_id"`
-	Status    string        `json:"status"`
-	Result    string        `json:"result,omitempty"`
+	Task      *adk.Task     `json:"task"`
 	Success   bool          `json:"success"`
 	Message   string        `json:"message"`
 	Duration  time.Duration `json:"duration"`
@@ -40,7 +40,7 @@ func NewA2AQueryTaskTool(cfg *config.Config) *A2AQueryTaskTool {
 }
 
 func (t *A2AQueryTaskTool) Definition() sdk.ChatCompletionTool {
-	description := "Query the status and result of a specific A2A task. Returns task status and last message if completed/input-required, or current status if still working."
+	description := "Query the status and result of a specific A2A task. Returns the complete task object including status, artifacts, and message data."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
@@ -108,28 +108,26 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*d
 		return t.errorResult(args, startTime, fmt.Sprintf("Failed to query task: %v", err))
 	}
 
+	taskBytes, err := json.Marshal(taskResponse.Result)
+	if err != nil {
+		return t.errorResult(args, startTime, fmt.Sprintf("Failed to marshal task result: %v", err))
+	}
+
 	var task adk.Task
-	if err := mapToStruct(taskResponse.Result, &task); err != nil {
-		return t.errorResult(args, startTime, "Failed to parse task response")
+	if err := json.Unmarshal(taskBytes, &task); err != nil {
+		return t.errorResult(args, startTime, fmt.Sprintf("Failed to unmarshal task: %v", err))
 	}
 
 	result := A2AQueryTaskResult{
 		AgentName: agentURL,
 		ContextID: contextID,
 		TaskID:    taskID,
-		Status:    string(task.Status.State),
+		Task:      &task,
 		Success:   true,
 		Duration:  time.Since(startTime),
 	}
 
-	if task.Status.State == adk.TaskStateCompleted || task.Status.State == "input-required" {
-		if task.Status.Message != nil {
-			result.Result = extractTextFromParts(task.Status.Message.Parts)
-		}
-		result.Message = fmt.Sprintf("Task %s is %s", taskID, task.Status.State)
-	} else {
-		result.Message = fmt.Sprintf("Task %s is %s", taskID, task.Status.State)
-	}
+	result.Message = fmt.Sprintf("Task %s is %s", taskID, task.Status.State)
 
 	return &domain.ToolExecutionResult{
 		ToolName:  "A2A_QueryTask",
@@ -189,11 +187,65 @@ func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) stri
 
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	if result.Data != nil {
+	if result.Data == nil {
+		hasDataSection := false
+		output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+		return output.String()
+	}
+
+	queryResult, ok := result.Data.(A2AQueryTaskResult)
+	if !ok || queryResult.Task == nil {
 		dataContent := t.formatter.FormatAsJSON(result.Data)
 		hasMetadata := len(result.Metadata) > 0
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+		hasDataSection := result.Data != nil
+		output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+		return output.String()
 	}
+
+	task := queryResult.Task
+	output.WriteString("Task Status: " + string(task.Status.State) + "\n")
+
+	hasArtifacts := len(task.Artifacts) > 0
+	if !hasArtifacts {
+		output.WriteString("\nNo artifacts available for this task.\n")
+		output.WriteString("\nFull Task Data:\n")
+		dataContent := t.formatter.FormatAsJSON(result.Data)
+		hasMetadata := len(result.Metadata) > 0
+		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
+		hasDataSection := result.Data != nil
+		output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+		return output.String()
+	}
+
+	output.WriteString(fmt.Sprintf("\nArtifacts (%d):\n", len(task.Artifacts)))
+	for i, artifact := range task.Artifacts {
+		output.WriteString(fmt.Sprintf("%d. ", i+1))
+		if artifact.Name != nil {
+			output.WriteString(fmt.Sprintf("Name: %s", *artifact.Name))
+		}
+		output.WriteString(fmt.Sprintf(" (ID: %s)", artifact.ArtifactID))
+
+		hasMetadata := artifact.Metadata != nil
+		if hasMetadata {
+			if url, ok := artifact.Metadata["url"].(string); ok {
+				output.WriteString(fmt.Sprintf("\n   Download URL: %s", url))
+			}
+			if mimeType, ok := artifact.Metadata["mime_type"].(string); ok {
+				output.WriteString(fmt.Sprintf("\n   MIME Type: %s", mimeType))
+			}
+			if size, ok := artifact.Metadata["size"].(float64); ok {
+				output.WriteString(fmt.Sprintf("\n   Size: %d bytes", int64(size)))
+			}
+		}
+		output.WriteString("\n")
+	}
+	output.WriteString("\nTo download these artifacts, use the A2A_DownloadArtifacts tool with the same task_id.\n")
+
+	output.WriteString("\nFull Task Data:\n")
+	dataContent := t.formatter.FormatAsJSON(result.Data)
+	hasMetadata := len(result.Metadata) > 0
+	output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 
 	hasDataSection := result.Data != nil
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
