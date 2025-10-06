@@ -24,14 +24,14 @@ type A2ADownloadArtifactsTool struct {
 }
 
 type A2ADownloadArtifactsResult struct {
-	AgentName       string          `json:"agent_name"`
-	ContextID       string          `json:"context_id"`
-	TaskID          string          `json:"task_id"`
-	Artifacts       []adk.Artifact  `json:"artifacts"`
-	DownloadResults []DownloadInfo  `json:"download_results"`
-	Success         bool            `json:"success"`
-	Message         string          `json:"message"`
-	Duration        time.Duration   `json:"duration"`
+	AgentName       string         `json:"agent_name"`
+	ContextID       string         `json:"context_id"`
+	TaskID          string         `json:"task_id"`
+	Artifacts       []adk.Artifact `json:"artifacts"`
+	DownloadResults []DownloadInfo `json:"download_results"`
+	Success         bool           `json:"success"`
+	Message         string         `json:"message"`
+	Duration        time.Duration  `json:"duration"`
 }
 
 type DownloadInfo struct {
