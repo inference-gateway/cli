@@ -50,7 +50,7 @@ jobs:
 
       - name: Install Task
         run: |
-          go install github.com/go-task/task/v3/cmd/task@v3.44.0
+          go install github.com/go-task/task/v3/cmd/task@v3.45.4
           echo "$HOME/go/bin" >> $GITHUB_PATH
 
       - name: Setup golangci-lint
