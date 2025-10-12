@@ -47,7 +47,8 @@ jobs:
         echo "Project is clean"
 
   lint:
-    needs: prepare
+    needs:
+      - prepare
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
@@ -67,7 +68,8 @@ jobs:
         args: --timeout=5m
 
   vet:
-    needs: prepare
+    needs:
+      - prepare
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
@@ -83,28 +85,10 @@ jobs:
     - name: Run vet
       run: go vet ./...
 
-  test:
-    needs: prepare
-    runs-on: ubuntu-24.04
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v5
-
-    - name: Setup Go
-      uses: actions/setup-go@v6
-      with:
-        go-version-file: 'go.mod'
-        cache-dependency-path: |
-          go.sum
-
-    - name: Run tests
-      run: go test ./...
-
   build:
     needs:
       - lint
       - vet
-      - test
     runs-on: ubuntu-24.04
     steps:
     - name: Checkout code
@@ -125,3 +109,21 @@ jobs:
             -X github.com/inference-gateway/cli/cmd.commit=${{ github.sha }} \
             -X github.com/inference-gateway/cli/cmd.date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
           -o infer .
+
+  test:
+    needs:
+      - build
+    runs-on: ubuntu-24.04
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v5
+
+    - name: Setup Go
+      uses: actions/setup-go@v6
+      with:
+        go-version-file: 'go.mod'
+        cache-dependency-path: |
+          go.sum
+
+    - name: Run tests
+      run: go test ./...
