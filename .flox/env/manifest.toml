@@ -11,7 +11,10 @@ NODE_PATH = "$FLOX_ENV_PROJECT/.flox/npm/lib/node_modules"
 
 [install]
 go.pkg-path = "go"
-go.version = "1.25.0"
+go.version = "1.25.*"
+
+nodejs.pkg-path = "nodejs"
+nodejs.version = "22.*"
 
 git.pkg-path = "git"
 git.version = "2.51.0"
@@ -24,10 +27,6 @@ gh.pkg-group = "common"
 golangci-lint.pkg-path = "golangci-lint"
 golangci-lint.version = "2.5.0"
 golangci-lint.pkg-group = "common"
-
-nodejs.pkg-path = "nodejs"
-nodejs.version = "22"
-nodejs.pkg-group = "common"
 
 pre-commit.pkg-path = "pre-commit"
 pre-commit.version = "4.3.0"
@@ -45,6 +44,10 @@ claude-code.pkg-path = "claude-code"
 claude-code.version= "2.0.11"
 claude-code.pkg-group = "common"
 
+markdownlint-cli.pkg-path = "markdownlint-cli"
+markdownlint-cli.version = "0.45.0"
+markdownlint-cli.pkg-group = "common"
+
 docker.pkg-path = "docker"
 docker.version = "28.4.0"
 docker.pkg-group = "common"
@@ -52,28 +55,3 @@ docker.pkg-group = "common"
 docker-compose.pkg-path = "docker-compose"
 docker-compose.version = "2.39.4"
 docker-compose.pkg-group = "common"
-
-[hook]
-on-activate = """
-  mkdir -p "$NPM_CONFIG_PREFIX"
-  export PATH="$PATH:$NPM_CONFIG_PREFIX/bin:$HOME/go/bin:$HOME/.local/bin"
-
-  if [ ! -d "$NPM_CONFIG_PREFIX/lib/node_modules/semantic-release" ]; then
-    echo "Installing semantic-release and plugins..."
-    npm install -g \
-      semantic-release@24.2.7 \
-      @semantic-release/commit-analyzer@13.0.1 \
-      @semantic-release/release-notes-generator@14.0.3 \
-      @semantic-release/changelog@6.0.3 \
-      @semantic-release/git@10.0.1 \
-      @semantic-release/exec@7.1.0 \
-      @semantic-release/github@11.0.3 \
-      conventional-changelog-conventionalcommits@9.1.0 \
-      conventional-changelog-cli@5.0.0
-  fi
-
-  if [ ! -d "$NPM_CONFIG_PREFIX/lib/node_modules/markdownlint-cli" ]; then
-    echo "Installing markdownlint-cli..."
-    npm install -g markdownlint-cli
-  fi
-"""

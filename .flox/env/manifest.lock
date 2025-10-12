@@ -30,7 +30,7 @@
       },
       "go": {
         "pkg-path": "go",
-        "version": "1.25.0"
+        "version": "1.25.*"
       },
       "go-task": {
         "pkg-path": "go-task",
@@ -42,10 +42,14 @@
         "pkg-group": "common",
         "version": "2.5.0"
       },
+      "markdownlint-cli": {
+        "pkg-path": "markdownlint-cli",
+        "pkg-group": "common",
+        "version": "0.45.0"
+      },
       "nodejs": {
         "pkg-path": "nodejs",
-        "pkg-group": "common",
-        "version": "22"
+        "version": "22.*"
       },
       "pre-commit": {
         "pkg-path": "pre-commit",
@@ -66,9 +70,6 @@
       "GOSUMDB": "sum.golang.org",
       "NODE_PATH": "$FLOX_ENV_PROJECT/.flox/npm/lib/node_modules",
       "NPM_CONFIG_PREFIX": "$FLOX_ENV_PROJECT/.flox/npm"
-    },
-    "hook": {
-      "on-activate": "  mkdir -p \"$NPM_CONFIG_PREFIX\"\n  export PATH=\"$PATH:$NPM_CONFIG_PREFIX/bin:$HOME/go/bin:$HOME/.local/bin\"\n\n  if [ ! -d \"$NPM_CONFIG_PREFIX/lib/node_modules/semantic-release\" ]; then\n    echo \"Installing semantic-release and plugins...\"\n    npm install -g semantic-release@24.2.7 @semantic-release/commit-analyzer@13.0.1 @semantic-release/release-notes-generator@14.0.3 @semantic-release/changelog@6.0.3 @semantic-release/git@10.0.1 @semantic-release/exec@7.1.0 @semantic-release/github@11.0.3 conventional-changelog-conventionalcommits@9.1.0 conventional-changelog-cli@5.0.0\n  fi\n\n  if [ ! -d \"$NPM_CONFIG_PREFIX/lib/node_modules/markdownlint-cli\" ]; then\n    echo \"Installing markdownlint-cli...\"\n    npm install -g markdownlint-cli\n  fi\n"
     },
     "options": {}
   },
@@ -892,124 +893,116 @@
       "priority": 5
     },
     {
-      "attr_path": "nodejs",
+      "attr_path": "markdownlint-cli",
       "broken": false,
-      "derivation": "/nix/store/njql10f23aipqq0wxay6ad9rh0h6y845-nodejs-22.19.0.drv",
-      "description": "Event-driven I/O framework for the V8 JavaScript engine",
-      "install_id": "nodejs",
+      "derivation": "/nix/store/hayazpx0xm72cx5g9az1zfyjw26yd3f6-markdownlint-cli-0.45.0.drv",
+      "description": "Command line interface for MarkdownLint",
+      "install_id": "markdownlint-cli",
       "license": "MIT",
       "locked_url": "https://github.com/flox/nixpkgs?rev=0b4defa2584313f3b781240b29d61f6f9f7e0df3",
-      "name": "nodejs-22.19.0",
-      "pname": "nodejs",
+      "name": "markdownlint-cli-0.45.0",
+      "pname": "markdownlint-cli",
       "rev": "0b4defa2584313f3b781240b29d61f6f9f7e0df3",
       "rev_count": 875086,
       "rev_date": "2025-10-09T19:42:10Z",
-      "scrape_date": "2025-10-11T01:21:49.998745Z",
+      "scrape_date": "2025-10-11T01:21:47.027571Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "22.19.0",
+      "version": "0.45.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "dev": "/nix/store/q5717bq2c2dcccyl7y0x5qr4504dk96w-nodejs-22.19.0-dev",
-        "libv8": "/nix/store/pjwc489b912csplpbkrz5qvwpfp3x8a7-nodejs-22.19.0-libv8",
-        "out": "/nix/store/7hnbd3z2flnqh17fh3sbk0srpn6zvzck-nodejs-22.19.0"
+        "out": "/nix/store/wvm4vma53pwzhxsd03fjwcapfqgrls2c-markdownlint-cli-0.45.0"
       },
       "system": "aarch64-darwin",
       "group": "common",
       "priority": 5
     },
     {
-      "attr_path": "nodejs",
+      "attr_path": "markdownlint-cli",
       "broken": false,
-      "derivation": "/nix/store/wkcwb0hi4lrd492y41536s8nj2j8myjj-nodejs-22.19.0.drv",
-      "description": "Event-driven I/O framework for the V8 JavaScript engine",
-      "install_id": "nodejs",
+      "derivation": "/nix/store/87rgydyds1drgq2qawp8fnxb79z48rip-markdownlint-cli-0.45.0.drv",
+      "description": "Command line interface for MarkdownLint",
+      "install_id": "markdownlint-cli",
       "license": "MIT",
       "locked_url": "https://github.com/flox/nixpkgs?rev=0b4defa2584313f3b781240b29d61f6f9f7e0df3",
-      "name": "nodejs-22.19.0",
-      "pname": "nodejs",
+      "name": "markdownlint-cli-0.45.0",
+      "pname": "markdownlint-cli",
       "rev": "0b4defa2584313f3b781240b29d61f6f9f7e0df3",
       "rev_count": 875086,
       "rev_date": "2025-10-09T19:42:10Z",
-      "scrape_date": "2025-10-11T01:51:30.232058Z",
+      "scrape_date": "2025-10-11T01:51:25.863548Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "22.19.0",
+      "version": "0.45.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "dev": "/nix/store/hg4z4rayzry2fm40na7r5zwdsk5fsq3x-nodejs-22.19.0-dev",
-        "libv8": "/nix/store/izcf0v8wqz5i20ym2d25j7q99ga4pc06-nodejs-22.19.0-libv8",
-        "out": "/nix/store/v7yw5fxjc5q8hmbrc91g05pps8bhsrxk-nodejs-22.19.0"
+        "out": "/nix/store/vryz6yihgm5n5sjgwmh77bm9anwsv2pf-markdownlint-cli-0.45.0"
       },
       "system": "aarch64-linux",
       "group": "common",
       "priority": 5
     },
     {
-      "attr_path": "nodejs",
+      "attr_path": "markdownlint-cli",
       "broken": false,
-      "derivation": "/nix/store/s7fnsj6i1mx7hizq1rni7pqk9lrbvhcp-nodejs-22.19.0.drv",
-      "description": "Event-driven I/O framework for the V8 JavaScript engine",
-      "install_id": "nodejs",
+      "derivation": "/nix/store/2z88bb8k95ndb511j3w29vbi4ixf3345-markdownlint-cli-0.45.0.drv",
+      "description": "Command line interface for MarkdownLint",
+      "install_id": "markdownlint-cli",
       "license": "MIT",
       "locked_url": "https://github.com/flox/nixpkgs?rev=0b4defa2584313f3b781240b29d61f6f9f7e0df3",
-      "name": "nodejs-22.19.0",
-      "pname": "nodejs",
+      "name": "markdownlint-cli-0.45.0",
+      "pname": "markdownlint-cli",
       "rev": "0b4defa2584313f3b781240b29d61f6f9f7e0df3",
       "rev_count": 875086,
       "rev_date": "2025-10-09T19:42:10Z",
-      "scrape_date": "2025-10-11T02:19:19.222622Z",
+      "scrape_date": "2025-10-11T02:19:16.424405Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "22.19.0",
+      "version": "0.45.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "dev": "/nix/store/10g223jgp8rdmyr7a35n8ffvcy7fdwwj-nodejs-22.19.0-dev",
-        "libv8": "/nix/store/k8n7pak4w7g9gl66cv2lvwbaa1k90cvv-nodejs-22.19.0-libv8",
-        "out": "/nix/store/k400m590nxzdzjh3knhygrx9dvwymj0b-nodejs-22.19.0"
+        "out": "/nix/store/8r3hv9i2k3j9r08i5k97pwmmiiqh6m4n-markdownlint-cli-0.45.0"
       },
       "system": "x86_64-darwin",
       "group": "common",
       "priority": 5
     },
     {
-      "attr_path": "nodejs",
+      "attr_path": "markdownlint-cli",
       "broken": false,
-      "derivation": "/nix/store/3w3jqy448psycb24x4m3angc70g6nj8l-nodejs-22.19.0.drv",
-      "description": "Event-driven I/O framework for the V8 JavaScript engine",
-      "install_id": "nodejs",
+      "derivation": "/nix/store/sq8gwlz5g8vq2zsx7b25mdblb99w1xyp-markdownlint-cli-0.45.0.drv",
+      "description": "Command line interface for MarkdownLint",
+      "install_id": "markdownlint-cli",
       "license": "MIT",
       "locked_url": "https://github.com/flox/nixpkgs?rev=0b4defa2584313f3b781240b29d61f6f9f7e0df3",
-      "name": "nodejs-22.19.0",
-      "pname": "nodejs",
+      "name": "markdownlint-cli-0.45.0",
+      "pname": "markdownlint-cli",
       "rev": "0b4defa2584313f3b781240b29d61f6f9f7e0df3",
       "rev_count": 875086,
       "rev_date": "2025-10-09T19:42:10Z",
-      "scrape_date": "2025-10-11T02:50:41.788038Z",
+      "scrape_date": "2025-10-11T02:50:36.639504Z",
       "stabilities": [
         "unstable"
       ],
       "unfree": false,
-      "version": "22.19.0",
+      "version": "0.45.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "dev": "/nix/store/lqjnmhndv91n749bg0f5m4kxkay5gx2c-nodejs-22.19.0-dev",
-        "libv8": "/nix/store/avmhpnmdxk8jx3ascl4r95i82yx95v5h-nodejs-22.19.0-libv8",
-        "out": "/nix/store/cwxxy2is6hb4dcqsx8rhnvwic3hfzpcd-nodejs-22.19.0"
+        "out": "/nix/store/j7wws488qny8pmh3gvj43lyr8xv3crd9-markdownlint-cli-0.45.0"
       },
       "system": "x86_64-linux",
       "group": "common",
@@ -1366,6 +1359,134 @@
       ],
       "outputs": {
         "out": "/nix/store/3fd683jfggglpshxprz9mi5sz8wd3c9p-go-1.25.0"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/dp91748q5jcc0xfchfzyd374vlkm6zj6-nodejs-22.19.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=7df7ff7d8e00218376575f0acdcc5d66741351ee",
+      "name": "nodejs-22.19.0",
+      "pname": "nodejs",
+      "rev": "7df7ff7d8e00218376575f0acdcc5d66741351ee",
+      "rev_count": 870157,
+      "rev_date": "2025-10-02T04:57:58Z",
+      "scrape_date": "2025-10-03T04:40:31.894251Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "22.19.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/2haz1qvxgshwfnf34ds3ldhrw1fr19xl-nodejs-22.19.0-dev",
+        "libv8": "/nix/store/9c8wh022ri1w080xykya778gkj9y23q0-nodejs-22.19.0-libv8",
+        "out": "/nix/store/3scj3c1qxh5iclf8jy5hbl9pki40y77n-nodejs-22.19.0"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/kxdvf1r44bkyfgbj20faxkqgdcpg5cx3-nodejs-22.19.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=7df7ff7d8e00218376575f0acdcc5d66741351ee",
+      "name": "nodejs-22.19.0",
+      "pname": "nodejs",
+      "rev": "7df7ff7d8e00218376575f0acdcc5d66741351ee",
+      "rev_count": 870157,
+      "rev_date": "2025-10-02T04:57:58Z",
+      "scrape_date": "2025-10-03T04:57:16.809670Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "22.19.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/i7d7f38736nndmiawzmrx8ncyg12bzzh-nodejs-22.19.0-dev",
+        "libv8": "/nix/store/vxims6ls362vhdzlzjxpwbw8vj8p5d0s-nodejs-22.19.0-libv8",
+        "out": "/nix/store/13ar46sdd3qls1q4w35qv7v9a6wpj63c-nodejs-22.19.0"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/6syyniknawdszishm6kg07bhld5rn6l0-nodejs-22.19.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=7df7ff7d8e00218376575f0acdcc5d66741351ee",
+      "name": "nodejs-22.19.0",
+      "pname": "nodejs",
+      "rev": "7df7ff7d8e00218376575f0acdcc5d66741351ee",
+      "rev_count": 870157,
+      "rev_date": "2025-10-02T04:57:58Z",
+      "scrape_date": "2025-10-03T05:12:37.965818Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "22.19.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/z08yd37bvr4w54qmkb65d9wzyv27xgrd-nodejs-22.19.0-dev",
+        "libv8": "/nix/store/vpz64ylnvx5hm8mx8vx35inhpzbnkljq-nodejs-22.19.0-libv8",
+        "out": "/nix/store/xgqkmyswq6s9jbdhvx6x8ix2jkj0jbip-nodejs-22.19.0"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "nodejs",
+      "broken": false,
+      "derivation": "/nix/store/3qn3nm2ayw8wmdckxq0pzgkvbq8v67sp-nodejs-22.19.0.drv",
+      "description": "Event-driven I/O framework for the V8 JavaScript engine",
+      "install_id": "nodejs",
+      "license": "MIT",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=7df7ff7d8e00218376575f0acdcc5d66741351ee",
+      "name": "nodejs-22.19.0",
+      "pname": "nodejs",
+      "rev": "7df7ff7d8e00218376575f0acdcc5d66741351ee",
+      "rev_count": 870157,
+      "rev_date": "2025-10-02T04:57:58Z",
+      "scrape_date": "2025-10-03T05:28:13.591944Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "22.19.0",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/a99hiwhamgzds70gxkfnb4cm8i926356-nodejs-22.19.0-dev",
+        "libv8": "/nix/store/z6bm3d1gzn39p4yxyga4q3b1spdsggy1-nodejs-22.19.0-libv8",
+        "out": "/nix/store/r4557ald6zn4dzmvgh8na9vwnwzgrjgc-nodejs-22.19.0"
       },
       "system": "x86_64-linux",
       "group": "toplevel",
