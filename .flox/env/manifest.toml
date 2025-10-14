@@ -55,3 +55,23 @@ docker.pkg-group = "common"
 docker-compose.pkg-path = "docker-compose"
 docker-compose.version = "2.39.4"
 docker-compose.pkg-group = "common"
+
+[hook]
+on-activate = """
+  mkdir -p "$NPM_CONFIG_PREFIX"
+  export PATH="$PATH:$NPM_CONFIG_PREFIX/bin:$HOME/go/bin:$HOME/.local/bin"
+
+  if [ ! -d "$NPM_CONFIG_PREFIX/lib/node_modules/semantic-release" ]; then
+    echo "Installing semantic-release and plugins..."
+    npm install -g \
+      semantic-release@24.2.7 \
+      @semantic-release/commit-analyzer@13.0.1 \
+      @semantic-release/release-notes-generator@14.0.3 \
+      @semantic-release/changelog@6.0.3 \
+      @semantic-release/git@10.0.1 \
+      @semantic-release/exec@7.1.0 \
+      @semantic-release/github@11.0.3 \
+      conventional-changelog-conventionalcommits@9.1.0 \
+      conventional-changelog-cli@5.0.0
+  fi
+"""
