@@ -168,6 +168,14 @@ type QueryTaskToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
+// DownloadArtifactsToolConfig contains DownloadArtifacts-specific tool settings
+type DownloadArtifactsToolConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	DownloadDir     string `yaml:"download_dir" mapstructure:"download_dir"`
+	TimeoutSeconds  int    `yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
+	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
 // GithubToolConfig contains GitHub fetch-specific tool settings
 type GithubToolConfig struct {
 	Enabled         bool               `yaml:"enabled" mapstructure:"enabled"`
@@ -251,9 +259,10 @@ type A2AConfig struct {
 
 // A2AToolsConfig contains A2A-specific tool configurations
 type A2AToolsConfig struct {
-	QueryAgent QueryAgentToolConfig `yaml:"query_agent" mapstructure:"query_agent"`
-	QueryTask  QueryTaskToolConfig  `yaml:"query_task" mapstructure:"query_task"`
-	SubmitTask SubmitTaskToolConfig `yaml:"submit_task" mapstructure:"submit_task"`
+	QueryAgent        QueryAgentToolConfig        `yaml:"query_agent" mapstructure:"query_agent"`
+	QueryTask         QueryTaskToolConfig         `yaml:"query_task" mapstructure:"query_task"`
+	SubmitTask        SubmitTaskToolConfig        `yaml:"submit_task" mapstructure:"submit_task"`
+	DownloadArtifacts DownloadArtifactsToolConfig `yaml:"download_artifacts" mapstructure:"download_artifacts"`
 }
 
 // ConversationConfig contains conversation-specific settings
@@ -641,6 +650,12 @@ Respond with ONLY the title, no quotes or explanation.`,
 					Enabled:         true,
 					RequireApproval: &[]bool{false}[0],
 				},
+				DownloadArtifacts: DownloadArtifactsToolConfig{
+					Enabled:         true,
+					DownloadDir:     "/tmp/downloads",
+					TimeoutSeconds:  30,
+					RequireApproval: &[]bool{false}[0],
+				},
 			},
 		},
 	}
@@ -708,6 +723,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	case "A2A_SubmitTask":
 		if c.A2A.Tools.SubmitTask.RequireApproval != nil {
 			return *c.A2A.Tools.SubmitTask.RequireApproval
+		}
+	case "A2A_DownloadArtifacts":
+		if c.A2A.Tools.DownloadArtifacts.RequireApproval != nil {
+			return *c.A2A.Tools.DownloadArtifacts.RequireApproval
 		}
 	}
 

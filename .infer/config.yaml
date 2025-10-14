@@ -253,3 +253,8 @@ a2a:
     submit_task:
       enabled: true
       require_approval: false
+    download_artifacts:
+      enabled: true
+      download_dir: /tmp/downloads
+      timeout_seconds: 30
+      require_approval: false
