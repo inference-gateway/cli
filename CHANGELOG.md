@@ -6,6 +6,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.52.0](https://github.com/inference-gateway/cli/compare/v0.51.3...v0.52.0) (2025-10-14)
+
+### 🚀 Features
+
+* **a2a:** Implement A2A_DownloadArtifacts tool ([#178](https://github.com/inference-gateway/cli/issues/178)) ([9c5f8d4](https://github.com/inference-gateway/cli/commit/9c5f8d46d4607275f27b158f64aece14aecb81fe)), closes [#177](https://github.com/inference-gateway/cli/issues/177)
+
+### 🐛 Bug Fixes
+
+* **flox:** Add on-activate hook for semantic-release installation ([4761461](https://github.com/inference-gateway/cli/commit/4761461be2a4bd2a33d07293c048a4374631d129))
+
+### 🧹 Maintenance
+
+* **deps:** Bump github.com/inference-gateway/adk from 0.11.1 to 0.13.1 ([#179](https://github.com/inference-gateway/cli/issues/179)) ([14b575d](https://github.com/inference-gateway/cli/commit/14b575db328ac6ba7f7639f8dfbcc98b4e41a7b6))
+* **deps:** Bump github.com/inference-gateway/adk from 0.13.1 to 0.14.0 ([#181](https://github.com/inference-gateway/cli/issues/181)) ([c40acfc](https://github.com/inference-gateway/cli/commit/c40acfcd52882ea15d00450213ea5b20b27e0987))
+* **deps:** Bump modernc.org/sqlite from 1.39.0 to 1.39.1 ([#182](https://github.com/inference-gateway/cli/issues/182)) ([b98de84](https://github.com/inference-gateway/cli/commit/b98de846cb6d7220a2699e2e67b2c129d2d7cd6e))
+* **deps:** Update semantic-release and related plugins to latest versions ([02cac9f](https://github.com/inference-gateway/cli/commit/02cac9f1a21df18cf2f3ca620a454d7fca84c8a1))
+* **deps:** Upgrade dev deps ([#180](https://github.com/inference-gateway/cli/issues/180)) ([95f1262](https://github.com/inference-gateway/cli/commit/95f1262156ab744b9430f76ad73320ff66ca463d))
+
 ## [0.51.3](https://github.com/inference-gateway/cli/compare/v0.51.2...v0.51.3) (2025-09-26)
 
 ### ♻️ Code Refactoring
