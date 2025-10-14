@@ -24,12 +24,16 @@ type A2ASubmitTaskTool struct {
 
 // A2ASubmitTaskResult represents the result of an A2A task operation
 type A2ASubmitTaskResult struct {
-	AgentName  string        `json:"agent_name"`
-	Task       *adk.Task     `json:"task"`
-	Success    bool          `json:"success"`
-	Message    string        `json:"message"`
-	Duration   time.Duration `json:"duration"`
-	TaskResult string        `json:"task_result"`
+	AgentName   string        `json:"agent_name"`
+	Task        *adk.Task     `json:"task"`
+	Success     bool          `json:"success"`
+	Message     string        `json:"message"`
+	Duration    time.Duration `json:"duration"`
+	TaskResult  string        `json:"task_result"`
+	TaskType    string        `json:"task_type"`
+	TimedOut    bool          `json:"timed_out"`
+	WentIdle    bool          `json:"went_idle"`
+	IdleTimeout time.Duration `json:"idle_timeout,omitempty"`
 }
 
 // NewA2ASubmitTaskTool creates a new A2A task tool
@@ -208,33 +212,43 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		t.taskTracker.SetFirstTaskID(taskID)
 	}
 
-	maxAttempts := 60
 	pollInterval := time.Duration(t.config.A2A.Task.StatusPollSeconds) * time.Second
+	idleTimeout := time.Duration(t.config.A2A.Task.IdleTimeoutSec) * time.Second
+	deadline := time.Now().Add(idleTimeout)
 
-	for attempt := range maxAttempts {
+	var wentIdle bool
+
+	for {
 		select {
 		case <-ctx.Done():
 			return t.errorResult(args, startTime, "Task cancelled")
 		default:
 		}
 
-		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return t.errorResult(args, startTime, "Task cancelled")
-			case <-time.After(pollInterval):
-			}
+		if time.Now().After(deadline) {
+			wentIdle = true
+			break
 		}
 
 		queryParams := adk.TaskQueryParams{ID: taskID}
 		taskStatus, err := adkClient.GetTask(ctx, queryParams)
 		if err != nil {
-			continue
+			select {
+			case <-ctx.Done():
+				return t.errorResult(args, startTime, "Task cancelled")
+			case <-time.After(pollInterval):
+				continue
+			}
 		}
 
 		var currentTask adk.Task
 		if err := mapToStruct(taskStatus.Result, &currentTask); err != nil {
-			continue
+			select {
+			case <-ctx.Done():
+				return t.errorResult(args, startTime, "Task cancelled")
+			case <-time.After(pollInterval):
+				continue
+			}
 		}
 
 		if currentTask.Status.State == adk.TaskStateCompleted || currentTask.Status.State == adk.TaskStateFailed {
@@ -245,9 +259,21 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		if currentTask.Status.State == "input-required" {
 			return t.handleInputRequiredState(args, agentURL, taskID, currentTask, adkTask, startTime)
 		}
+
+		select {
+		case <-ctx.Done():
+			return t.errorResult(args, startTime, "Task cancelled")
+		case <-time.After(pollInterval):
+		}
 	}
 
-	adkTask.Status.State = adk.TaskStateCompleted
+	if wentIdle {
+		adkTask.Status.State = "idle"
+		adkTask.Metadata["idle_reason"] = fmt.Sprintf("Task went idle after %v timeout", idleTimeout)
+	} else {
+		adkTask.Status.State = adk.TaskStateCompleted
+	}
+
 	if finalResult != "" {
 		adkTask.Metadata["result"] = finalResult
 	}
@@ -258,18 +284,28 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		adkTask.ContextID = contextID
 	}
 
+	var statusMessage string
+	if wentIdle {
+		statusMessage = fmt.Sprintf("A2A task delegated to %s (went idle after %v)", agentURL, idleTimeout)
+	} else {
+		statusMessage = fmt.Sprintf("A2A task completed on %s", agentURL)
+	}
+
 	return &domain.ToolExecutionResult{
 		ToolName:  "A2A_SubmitTask",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
 		Data: A2ASubmitTaskResult{
-			AgentName:  agentURL,
-			Task:       &adkTask,
-			Success:    true,
-			Message:    fmt.Sprintf("A2A task submitted to %s", agentURL),
-			Duration:   time.Since(startTime),
-			TaskResult: finalResult,
+			AgentName:   agentURL,
+			Task:        &adkTask,
+			Success:     true,
+			Message:     statusMessage,
+			Duration:    time.Since(startTime),
+			TaskResult:  finalResult,
+			TaskType:    taskDescription,
+			WentIdle:    wentIdle,
+			IdleTimeout: idleTimeout,
 		},
 	}, nil
 }
@@ -333,6 +369,16 @@ func (t *A2ASubmitTaskTool) FormatPreview(result *domain.ToolExecutionResult) st
 	}
 
 	if data, ok := result.Data.(A2ASubmitTaskResult); ok {
+		if data.TaskType != "" {
+			taskPreview := data.TaskType
+			if len(taskPreview) > 50 {
+				taskPreview = taskPreview[:47] + "..."
+			}
+			if data.WentIdle {
+				return fmt.Sprintf("A2A Task: %s (delegated, went idle)", taskPreview)
+			}
+			return fmt.Sprintf("A2A Task: %s", taskPreview)
+		}
 		return fmt.Sprintf("A2A Task: %s", data.Message)
 	}
 
@@ -368,6 +414,11 @@ func (t *A2ASubmitTaskTool) ShouldAlwaysExpand() bool {
 
 // errorResult creates an error result
 func (t *A2ASubmitTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
+	var taskType string
+	if desc, ok := args["task_description"].(string); ok {
+		taskType = desc
+	}
+
 	return &domain.ToolExecutionResult{
 		ToolName:  "A2A_SubmitTask",
 		Arguments: args,
@@ -375,8 +426,9 @@ func (t *A2ASubmitTaskTool) errorResult(args map[string]any, startTime time.Time
 		Duration:  time.Since(startTime),
 		Error:     errorMsg,
 		Data: A2ASubmitTaskResult{
-			Success: false,
-			Message: errorMsg,
+			Success:  false,
+			Message:  errorMsg,
+			TaskType: taskType,
 		},
 	}, nil
 }
@@ -415,6 +467,11 @@ func (t *A2ASubmitTaskTool) handleInputRequiredState(args map[string]any, agentU
 		inputMessage = "Input required"
 	}
 
+	var taskType string
+	if desc, ok := args["task_description"].(string); ok {
+		taskType = desc
+	}
+
 	adkTask.Status.State = "input-required"
 	adkTask.Metadata["input_required"] = inputMessage
 	adkTask.ID = taskID
@@ -431,6 +488,7 @@ func (t *A2ASubmitTaskTool) handleInputRequiredState(args map[string]any, agentU
 			Message:    fmt.Sprintf("Task %s requires input: %s", taskID, inputMessage),
 			Duration:   time.Since(startTime),
 			TaskResult: inputMessage,
+			TaskType:   taskType,
 		},
 	}, nil
 }

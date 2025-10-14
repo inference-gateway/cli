@@ -295,6 +295,9 @@ func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, s
 	case "executed", "completed", "complete":
 		statusIcon = icons.CheckMark
 		statusText = status
+	case "idle":
+		statusIcon = icons.CheckMark
+		statusText = "delegated"
 	case "error", "failed":
 		statusIcon = icons.CrossMark
 		statusText = status

@@ -360,6 +360,7 @@ type A2AAgentInfo struct {
 // A2ATaskConfig contains configuration for A2A task processing
 type A2ATaskConfig struct {
 	StatusPollSeconds int `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
+	IdleTimeoutSec    int `yaml:"idle_timeout_sec" mapstructure:"idle_timeout_sec"`
 }
 
 // A2ACacheConfig contains settings for A2A agent card caching
@@ -636,6 +637,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 			},
 			Task: A2ATaskConfig{
 				StatusPollSeconds: 5,
+				IdleTimeoutSec:    60,
 			},
 			Tools: A2AToolsConfig{
 				QueryAgent: QueryAgentToolConfig{
