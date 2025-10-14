@@ -126,7 +126,7 @@ services:
       A2A_ARTIFACTS_STORAGE_PROVIDER: filesystem
       A2A_ARTIFACTS_STORAGE_BASE_PATH: /tmp/artifacts
     volumes:
-      - ./n8n-agent:/tmp/artifacts
+      - ./agents/n8n-agent:/tmp/artifacts
     restart: unless-stopped
     networks:
       - a2a-network
@@ -158,7 +158,7 @@ services:
       A2A_ARTIFACTS_RETENTION_MAX_AGE: 24h
       A2A_ARTIFACTS_RETENTION_CLEANUP_INTERVAL: 24h
     volumes:
-      - ./browser-agent:/tmp/artifacts
+      - ./agents/browser-agent:/tmp/artifacts
     restart: unless-stopped
     networks:
       - a2a-network
