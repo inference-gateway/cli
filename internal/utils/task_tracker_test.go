@@ -6,51 +6,56 @@ import (
 	assert "github.com/stretchr/testify/assert"
 )
 
-func TestSimpleTaskTracker_SetAndGetTaskID(t *testing.T) {
+func TestSimpleTaskTracker_SetAndGetTaskIDForAgent(t *testing.T) {
 	tests := []struct {
 		name           string
 		operations     []func(*SimpleTaskTracker)
+		agentURL       string
 		expectedTaskID string
 	}{
 		{
-			name: "first task ID is stored",
+			name: "task ID is stored for agent",
 			operations: []func(*SimpleTaskTracker){
-				func(tt *SimpleTaskTracker) { tt.SetFirstTaskID("task-123") },
+				func(tt *SimpleTaskTracker) { tt.SetTaskIDForAgent("http://agent1.com", "task-123") },
 			},
+			agentURL:       "http://agent1.com",
 			expectedTaskID: "task-123",
 		},
 		{
-			name: "only first task ID is kept",
+			name: "task ID can be updated for agent",
 			operations: []func(*SimpleTaskTracker){
-				func(tt *SimpleTaskTracker) { tt.SetFirstTaskID("task-123") },
-				func(tt *SimpleTaskTracker) { tt.SetFirstTaskID("task-456") },
-				func(tt *SimpleTaskTracker) { tt.SetFirstTaskID("task-789") },
+				func(tt *SimpleTaskTracker) { tt.SetTaskIDForAgent("http://agent1.com", "task-123") },
+				func(tt *SimpleTaskTracker) { tt.SetTaskIDForAgent("http://agent1.com", "task-456") },
 			},
-			expectedTaskID: "task-123",
+			agentURL:       "http://agent1.com",
+			expectedTaskID: "task-456",
 		},
 		{
 			name: "empty task ID is ignored",
 			operations: []func(*SimpleTaskTracker){
-				func(tt *SimpleTaskTracker) { tt.SetFirstTaskID("") },
-				func(tt *SimpleTaskTracker) { tt.SetFirstTaskID("task-123") },
+				func(tt *SimpleTaskTracker) { tt.SetTaskIDForAgent("http://agent1.com", "task-123") },
+				func(tt *SimpleTaskTracker) { tt.SetTaskIDForAgent("http://agent1.com", "") },
 			},
+			agentURL:       "http://agent1.com",
 			expectedTaskID: "task-123",
 		},
 		{
-			name: "clear removes task ID",
+			name: "clear removes task ID for specific agent",
 			operations: []func(*SimpleTaskTracker){
-				func(tt *SimpleTaskTracker) { tt.SetFirstTaskID("task-123") },
-				func(tt *SimpleTaskTracker) { tt.ClearTaskID() },
+				func(tt *SimpleTaskTracker) { tt.SetTaskIDForAgent("http://agent1.com", "task-123") },
+				func(tt *SimpleTaskTracker) { tt.ClearTaskIDForAgent("http://agent1.com") },
 			},
+			agentURL:       "http://agent1.com",
 			expectedTaskID: "",
 		},
 		{
 			name: "can set new ID after clearing",
 			operations: []func(*SimpleTaskTracker){
-				func(tt *SimpleTaskTracker) { tt.SetFirstTaskID("task-123") },
-				func(tt *SimpleTaskTracker) { tt.ClearTaskID() },
-				func(tt *SimpleTaskTracker) { tt.SetFirstTaskID("task-456") },
+				func(tt *SimpleTaskTracker) { tt.SetTaskIDForAgent("http://agent1.com", "task-123") },
+				func(tt *SimpleTaskTracker) { tt.ClearTaskIDForAgent("http://agent1.com") },
+				func(tt *SimpleTaskTracker) { tt.SetTaskIDForAgent("http://agent1.com", "task-456") },
 			},
+			agentURL:       "http://agent1.com",
 			expectedTaskID: "task-456",
 		},
 	}
@@ -63,57 +68,61 @@ func TestSimpleTaskTracker_SetAndGetTaskID(t *testing.T) {
 				op(tracker)
 			}
 
-			assert.Equal(t, tt.expectedTaskID, tracker.GetFirstTaskID())
+			assert.Equal(t, tt.expectedTaskID, tracker.GetTaskIDForAgent(tt.agentURL))
 		})
 	}
 }
 
-func TestSimpleTaskTracker_SetAndGetContextID(t *testing.T) {
+func TestSimpleTaskTracker_MultipleAgents(t *testing.T) {
+	tracker := NewSimpleTaskTracker().(*SimpleTaskTracker)
+
+	tracker.SetTaskIDForAgent("http://agent1.com", "task-agent1")
+	tracker.SetTaskIDForAgent("http://agent2.com", "task-agent2")
+	tracker.SetContextIDForAgent("http://agent1.com", "context-agent1")
+	tracker.SetContextIDForAgent("http://agent2.com", "context-agent2")
+
+	assert.Equal(t, "task-agent1", tracker.GetTaskIDForAgent("http://agent1.com"))
+	assert.Equal(t, "task-agent2", tracker.GetTaskIDForAgent("http://agent2.com"))
+	assert.Equal(t, "context-agent1", tracker.GetContextIDForAgent("http://agent1.com"))
+	assert.Equal(t, "context-agent2", tracker.GetContextIDForAgent("http://agent2.com"))
+
+	tracker.ClearTaskIDForAgent("http://agent1.com")
+	assert.Equal(t, "", tracker.GetTaskIDForAgent("http://agent1.com"))
+	assert.Equal(t, "task-agent2", tracker.GetTaskIDForAgent("http://agent2.com"))
+}
+
+func TestSimpleTaskTracker_SetAndGetContextIDForAgent(t *testing.T) {
 	tests := []struct {
 		name              string
 		operations        []func(*SimpleTaskTracker)
+		agentURL          string
 		expectedContextID string
 	}{
 		{
-			name: "first context ID is stored",
+			name: "context ID is stored for agent",
 			operations: []func(*SimpleTaskTracker){
-				func(tt *SimpleTaskTracker) { tt.SetContextID("context-123") },
+				func(tt *SimpleTaskTracker) { tt.SetContextIDForAgent("http://agent1.com", "context-123") },
 			},
+			agentURL:          "http://agent1.com",
 			expectedContextID: "context-123",
 		},
 		{
-			name: "only first context ID is kept",
+			name: "context ID can be updated for agent",
 			operations: []func(*SimpleTaskTracker){
-				func(tt *SimpleTaskTracker) { tt.SetContextID("context-123") },
-				func(tt *SimpleTaskTracker) { tt.SetContextID("context-456") },
-				func(tt *SimpleTaskTracker) { tt.SetContextID("context-789") },
+				func(tt *SimpleTaskTracker) { tt.SetContextIDForAgent("http://agent1.com", "context-123") },
+				func(tt *SimpleTaskTracker) { tt.SetContextIDForAgent("http://agent1.com", "context-456") },
 			},
-			expectedContextID: "context-123",
+			agentURL:          "http://agent1.com",
+			expectedContextID: "context-456",
 		},
 		{
 			name: "empty context ID is ignored",
 			operations: []func(*SimpleTaskTracker){
-				func(tt *SimpleTaskTracker) { tt.SetContextID("") },
-				func(tt *SimpleTaskTracker) { tt.SetContextID("context-123") },
+				func(tt *SimpleTaskTracker) { tt.SetContextIDForAgent("http://agent1.com", "context-123") },
+				func(tt *SimpleTaskTracker) { tt.SetContextIDForAgent("http://agent1.com", "") },
 			},
+			agentURL:          "http://agent1.com",
 			expectedContextID: "context-123",
-		},
-		{
-			name: "clear removes context ID",
-			operations: []func(*SimpleTaskTracker){
-				func(tt *SimpleTaskTracker) { tt.SetContextID("context-123") },
-				func(tt *SimpleTaskTracker) { tt.ClearContextID() },
-			},
-			expectedContextID: "",
-		},
-		{
-			name: "can set new ID after clearing",
-			operations: []func(*SimpleTaskTracker){
-				func(tt *SimpleTaskTracker) { tt.SetContextID("context-123") },
-				func(tt *SimpleTaskTracker) { tt.ClearContextID() },
-				func(tt *SimpleTaskTracker) { tt.SetContextID("context-456") },
-			},
-			expectedContextID: "context-456",
 		},
 	}
 
@@ -125,9 +134,25 @@ func TestSimpleTaskTracker_SetAndGetContextID(t *testing.T) {
 				op(tracker)
 			}
 
-			assert.Equal(t, tt.expectedContextID, tracker.GetContextID())
+			assert.Equal(t, tt.expectedContextID, tracker.GetContextIDForAgent(tt.agentURL))
 		})
 	}
+}
+
+func TestSimpleTaskTracker_ClearAllAgents(t *testing.T) {
+	tracker := NewSimpleTaskTracker().(*SimpleTaskTracker)
+
+	tracker.SetTaskIDForAgent("http://agent1.com", "task-1")
+	tracker.SetTaskIDForAgent("http://agent2.com", "task-2")
+	tracker.SetContextIDForAgent("http://agent1.com", "context-1")
+	tracker.SetContextIDForAgent("http://agent2.com", "context-2")
+
+	tracker.ClearAllAgents()
+
+	assert.Equal(t, "", tracker.GetTaskIDForAgent("http://agent1.com"))
+	assert.Equal(t, "", tracker.GetTaskIDForAgent("http://agent2.com"))
+	assert.Equal(t, "", tracker.GetContextIDForAgent("http://agent1.com"))
+	assert.Equal(t, "", tracker.GetContextIDForAgent("http://agent2.com"))
 }
 
 func TestSimpleTaskTracker_ConcurrentAccess(t *testing.T) {
@@ -136,24 +161,24 @@ func TestSimpleTaskTracker_ConcurrentAccess(t *testing.T) {
 
 	go func() {
 		for i := 0; i < 100; i++ {
-			tracker.SetFirstTaskID("task-123")
-			tracker.GetFirstTaskID()
-			tracker.ClearTaskID()
-			tracker.SetContextID("context-123")
-			tracker.GetContextID()
-			tracker.ClearContextID()
+			tracker.SetTaskIDForAgent("http://agent1.com", "task-123")
+			tracker.GetTaskIDForAgent("http://agent1.com")
+			tracker.ClearTaskIDForAgent("http://agent1.com")
+			tracker.SetContextIDForAgent("http://agent1.com", "context-123")
+			tracker.GetContextIDForAgent("http://agent1.com")
+			tracker.ClearAllAgents()
 		}
 		done <- true
 	}()
 
 	go func() {
 		for i := 0; i < 100; i++ {
-			tracker.GetFirstTaskID()
-			tracker.SetFirstTaskID("task-456")
-			tracker.ClearTaskID()
-			tracker.GetContextID()
-			tracker.SetContextID("context-456")
-			tracker.ClearContextID()
+			tracker.GetTaskIDForAgent("http://agent2.com")
+			tracker.SetTaskIDForAgent("http://agent2.com", "task-456")
+			tracker.ClearTaskIDForAgent("http://agent2.com")
+			tracker.GetContextIDForAgent("http://agent2.com")
+			tracker.SetContextIDForAgent("http://agent2.com", "context-456")
+			tracker.ClearAllAgents()
 		}
 		done <- true
 	}()

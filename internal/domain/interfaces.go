@@ -137,14 +137,41 @@ type FileInfo struct {
 	IsDir bool
 }
 
+// TaskPollingState represents the state of background polling for a task
+type TaskPollingState struct {
+	TaskID     string
+	AgentURL   string
+	IsPolling  bool
+	StartedAt  time.Time
+	LastPollAt time.Time
+	CancelFunc context.CancelFunc
+	ResultChan chan *ToolExecutionResult
+	ErrorChan  chan error
+	StatusChan chan *A2ATaskStatusUpdate
+}
+
+// A2ATaskStatusUpdate represents a status update for an ongoing A2A task
+type A2ATaskStatusUpdate struct {
+	TaskID    string
+	AgentURL  string
+	State     string
+	Message   string
+	Timestamp time.Time
+}
+
 // TaskTracker handles task ID and context ID tracking within chat sessions
 type TaskTracker interface {
-	GetFirstTaskID() string
-	SetFirstTaskID(taskID string)
-	ClearTaskID()
-	GetContextID() string
-	SetContextID(contextID string)
-	ClearContextID()
+	GetTaskIDForAgent(agentURL string) string
+	SetTaskIDForAgent(agentURL, taskID string)
+	ClearTaskIDForAgent(agentURL string)
+	GetContextIDForAgent(agentURL string) string
+	SetContextIDForAgent(agentURL, contextID string)
+	ClearAllAgents()
+
+	StartPolling(agentURL string, state *TaskPollingState)
+	StopPolling(agentURL string)
+	GetPollingState(agentURL string) *TaskPollingState
+	IsPolling(agentURL string) bool
 }
 
 // FetchResult represents the result of a fetch operation

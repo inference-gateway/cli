@@ -8,58 +8,124 @@ import (
 
 // SimpleTaskTracker provides a simple in-memory implementation of TaskTracker
 type SimpleTaskTracker struct {
-	mu          sync.RWMutex
-	firstTaskID string
-	contextID   string
+	mu              sync.RWMutex
+	agentTaskIDs    map[string]string
+	agentContextIDs map[string]string
+	pollingStates   map[string]*domain.TaskPollingState
 }
 
 // NewSimpleTaskTracker creates a new SimpleTaskTracker
 func NewSimpleTaskTracker() domain.TaskTracker {
-	return &SimpleTaskTracker{}
-}
-
-// GetFirstTaskID returns the first task ID in the current session
-func (t *SimpleTaskTracker) GetFirstTaskID() string {
-	t.mu.RLock()
-	defer t.mu.RUnlock()
-	return t.firstTaskID
-}
-
-// SetFirstTaskID sets the first task ID if not already set
-func (t *SimpleTaskTracker) SetFirstTaskID(taskID string) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.firstTaskID == "" && taskID != "" {
-		t.firstTaskID = taskID
+	return &SimpleTaskTracker{
+		agentTaskIDs:    make(map[string]string),
+		agentContextIDs: make(map[string]string),
+		pollingStates:   make(map[string]*domain.TaskPollingState),
 	}
 }
 
-// ClearTaskID clears the stored task ID
-func (t *SimpleTaskTracker) ClearTaskID() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.firstTaskID = ""
-}
-
-// GetContextID returns the context ID for the current session
-func (t *SimpleTaskTracker) GetContextID() string {
+// GetTaskIDForAgent returns the task ID for a specific agent
+func (t *SimpleTaskTracker) GetTaskIDForAgent(agentURL string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.contextID
+	return t.agentTaskIDs[agentURL]
 }
 
-// SetContextID sets the context ID if not already set
-func (t *SimpleTaskTracker) SetContextID(contextID string) {
+// SetTaskIDForAgent sets the task ID for a specific agent
+func (t *SimpleTaskTracker) SetTaskIDForAgent(agentURL, taskID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.contextID == "" && contextID != "" {
-		t.contextID = contextID
+	if taskID != "" {
+		t.agentTaskIDs[agentURL] = taskID
 	}
 }
 
-// ClearContextID clears the stored context ID
-func (t *SimpleTaskTracker) ClearContextID() {
+// ClearTaskIDForAgent clears the task ID for a specific agent
+func (t *SimpleTaskTracker) ClearTaskIDForAgent(agentURL string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.contextID = ""
+	delete(t.agentTaskIDs, agentURL)
+}
+
+// GetContextIDForAgent returns the context ID for a specific agent
+func (t *SimpleTaskTracker) GetContextIDForAgent(agentURL string) string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.agentContextIDs[agentURL]
+}
+
+// SetContextIDForAgent sets the context ID for a specific agent
+func (t *SimpleTaskTracker) SetContextIDForAgent(agentURL, contextID string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if contextID != "" {
+		t.agentContextIDs[agentURL] = contextID
+	}
+}
+
+// ClearAllAgents clears all tracked task and context IDs for all agents
+func (t *SimpleTaskTracker) ClearAllAgents() {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	for agentURL, state := range t.pollingStates {
+		if state.CancelFunc != nil {
+			state.CancelFunc()
+		}
+		delete(t.pollingStates, agentURL)
+	}
+
+	t.agentTaskIDs = make(map[string]string)
+	t.agentContextIDs = make(map[string]string)
+	t.pollingStates = make(map[string]*domain.TaskPollingState)
+}
+
+// StartPolling starts tracking a background polling operation for an agent
+func (t *SimpleTaskTracker) StartPolling(agentURL string, state *domain.TaskPollingState) {
+	if state == nil {
+		return
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if existingState, exists := t.pollingStates[agentURL]; exists {
+		if existingState.CancelFunc != nil {
+			existingState.CancelFunc()
+		}
+	}
+
+	state.IsPolling = true
+	t.pollingStates[agentURL] = state
+}
+
+// StopPolling stops and clears the polling state for an agent
+func (t *SimpleTaskTracker) StopPolling(agentURL string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	if state, exists := t.pollingStates[agentURL]; exists {
+		if state.CancelFunc != nil {
+			state.CancelFunc()
+		}
+		state.IsPolling = false
+		delete(t.pollingStates, agentURL)
+	}
+}
+
+// GetPollingState returns the current polling state for an agent
+func (t *SimpleTaskTracker) GetPollingState(agentURL string) *domain.TaskPollingState {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+	return t.pollingStates[agentURL]
+}
+
+// IsPolling returns whether an agent currently has an active polling operation
+func (t *SimpleTaskTracker) IsPolling(agentURL string) bool {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	if state, exists := t.pollingStates[agentURL]; exists {
+		return state.IsPolling
+	}
+	return false
 }

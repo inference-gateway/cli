@@ -40,8 +40,7 @@ func (c *ClearShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 	}
 
 	if c.taskTracker != nil {
-		c.taskTracker.ClearTaskID()
-		c.taskTracker.ClearContextID()
+		c.taskTracker.ClearAllAgents()
 	}
 
 	return ShortcutResult{
@@ -253,8 +252,7 @@ func (c *NewShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 	}
 
 	if c.taskTracker != nil {
-		c.taskTracker.ClearTaskID()
-		c.taskTracker.ClearContextID()
+		c.taskTracker.ClearAllAgents()
 	}
 
 	return ShortcutResult{
