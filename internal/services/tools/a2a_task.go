@@ -368,21 +368,25 @@ func (t *A2ASubmitTaskTool) FormatPreview(result *domain.ToolExecutionResult) st
 		return result.Error
 	}
 
-	if data, ok := result.Data.(A2ASubmitTaskResult); ok {
-		if data.TaskType != "" {
-			taskPreview := data.TaskType
-			if len(taskPreview) > 50 {
-				taskPreview = taskPreview[:47] + "..."
-			}
-			if data.WentIdle {
-				return fmt.Sprintf("A2A Task: %s (delegated, went idle)", taskPreview)
-			}
-			return fmt.Sprintf("A2A Task: %s", taskPreview)
-		}
+	data, ok := result.Data.(A2ASubmitTaskResult)
+	if !ok {
+		return "A2A task operation completed"
+	}
+
+	if data.TaskType == "" {
 		return fmt.Sprintf("A2A Task: %s", data.Message)
 	}
 
-	return "A2A task operation completed"
+	taskPreview := data.TaskType
+	if len(taskPreview) > 50 {
+		taskPreview = taskPreview[:47] + "..."
+	}
+
+	if data.WentIdle {
+		return fmt.Sprintf("A2A Task: %s (delegated, went idle)", taskPreview)
+	}
+
+	return fmt.Sprintf("A2A Task: %s", taskPreview)
 }
 
 // FormatForUI formats the result for UI display
