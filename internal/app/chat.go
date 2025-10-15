@@ -35,7 +35,7 @@ type ChatApplication struct {
 	toolRegistry     *tools.Registry
 
 	// State management
-	stateManager *services.StateManager
+	stateManager domain.StateManager
 
 	// UI components
 	conversationView     ui.ConversationRenderer
@@ -78,7 +78,7 @@ func NewChatApplication(
 	toolService domain.ToolService,
 	fileService domain.FileService,
 	shortcutRegistry *shortcuts.Registry,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
 	configPath string,
@@ -882,7 +882,7 @@ func (app *ChatApplication) GetConfig() *config.Config {
 }
 
 // GetStateManager returns the current state manager
-func (app *ChatApplication) GetStateManager() *services.StateManager {
+func (app *ChatApplication) GetStateManager() domain.StateManager {
 	return app.stateManager
 }
 

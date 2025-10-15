@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,7 +26,6 @@ type ChatHandler struct {
 	messageProcessor *ChatMessageProcessor
 	commandHandler   *ChatCommandHandler
 	eventHandler     *ChatEventHandler
-	eventRegistry    *EventRegistry
 }
 
 func NewChatHandler(
@@ -53,7 +51,6 @@ func NewChatHandler(
 	handler.messageProcessor = NewChatMessageProcessor(handler)
 	handler.commandHandler = NewChatCommandHandler(handler)
 	handler.eventHandler = NewChatEventHandler(handler)
-	handler.eventRegistry = NewEventRegistry(handler)
 
 	return handler
 }
@@ -66,20 +63,62 @@ func (h *ChatHandler) GetPriority() int {
 	return 100
 }
 
-func (h *ChatHandler) CanHandle(msg tea.Msg) bool {
-	_, exists := h.eventRegistry.handlers[reflect.TypeOf(msg)]
-	return exists
-}
-
 func (h *ChatHandler) Handle(
 	msg tea.Msg,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
-	return h.eventRegistry.Handle(h, msg, stateManager)
+	switch m := msg.(type) {
+	case domain.UserInputEvent:
+		return h.HandleUserInputEvent(m, stateManager)
+	case domain.FileSelectionRequestEvent:
+		return h.HandleFileSelectionRequestEvent(m, stateManager)
+	case domain.ConversationSelectedEvent:
+		return h.HandleConversationSelectedEvent(m, stateManager)
+	case domain.ChatStartEvent:
+		return h.HandleChatStartEvent(m, stateManager)
+	case domain.ChatChunkEvent:
+		return h.HandleChatChunkEvent(m, stateManager)
+	case domain.ChatCompleteEvent:
+		return h.HandleChatCompleteEvent(m, stateManager)
+	case domain.ChatErrorEvent:
+		return h.HandleChatErrorEvent(m, stateManager)
+	case domain.OptimizationStatusEvent:
+		return h.HandleOptimizationStatusEvent(m, stateManager)
+	case domain.ToolCallPreviewEvent:
+		return h.HandleToolCallPreviewEvent(m, stateManager)
+	case domain.ToolCallUpdateEvent:
+		return h.HandleToolCallUpdateEvent(m, stateManager)
+	case domain.ToolCallReadyEvent:
+		return h.HandleToolCallReadyEvent(m, stateManager)
+	case domain.ToolExecutionStartedEvent:
+		return h.HandleToolExecutionStartedEvent(m, stateManager)
+	case domain.ToolExecutionProgressEvent:
+		return h.HandleToolExecutionProgressEvent(m, stateManager)
+	case domain.ToolExecutionCompletedEvent:
+		return h.HandleToolExecutionCompletedEvent(m, stateManager)
+	case domain.ParallelToolsStartEvent:
+		return h.HandleParallelToolsStartEvent(m, stateManager)
+	case domain.ParallelToolsCompleteEvent:
+		return h.HandleParallelToolsCompleteEvent(m, stateManager)
+	case domain.CancelledEvent:
+		return h.HandleCancelledEvent(m, stateManager)
+	case domain.A2AToolCallExecutedEvent:
+		return h.HandleA2AToolCallExecutedEvent(m, stateManager)
+	case domain.A2ATaskSubmittedEvent:
+		return h.HandleA2ATaskSubmittedEvent(m, stateManager)
+	case domain.A2ATaskStatusUpdateEvent:
+		return h.HandleA2ATaskStatusUpdateEvent(m, stateManager)
+	case domain.A2ATaskCompletedEvent:
+		return h.HandleA2ATaskCompletedEvent(m, stateManager)
+	case domain.A2ATaskInputRequiredEvent:
+		return h.HandleA2ATaskInputRequiredEvent(m, stateManager)
+	default:
+		return nil, nil
+	}
 }
 
 func (h *ChatHandler) startChatCompletion(
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
@@ -163,7 +202,7 @@ func generateRequestID() string {
 
 func (h *ChatHandler) handleFileSelectionRequest(
 	_ domain.FileSelectionRequestEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	files, err := h.fileService.ListProjectFiles()
 	if err != nil {
@@ -202,7 +241,7 @@ func (h *ChatHandler) handleFileSelectionRequest(
 
 func (h *ChatHandler) handleConversationSelected(
 	msg domain.ConversationSelectedEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository)
 	if !ok {
@@ -245,154 +284,154 @@ func (h *ChatHandler) handleConversationSelected(
 
 func (h *ChatHandler) HandleUserInputEvent(
 	msg domain.UserInputEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.messageProcessor.handleUserInput(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleFileSelectionRequestEvent(
 	msg domain.FileSelectionRequestEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.handleFileSelectionRequest(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleConversationSelectedEvent(
 	msg domain.ConversationSelectedEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.handleConversationSelected(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleChatStartEvent(
 	msg domain.ChatStartEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleChatStart(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleChatChunkEvent(
 	msg domain.ChatChunkEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleChatChunk(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleChatCompleteEvent(
 	msg domain.ChatCompleteEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleChatComplete(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleChatErrorEvent(
 	msg domain.ChatErrorEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleChatError(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleOptimizationStatusEvent(
 	msg domain.OptimizationStatusEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleOptimizationStatus(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleToolCallPreviewEvent(
 	msg domain.ToolCallPreviewEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleToolCallPreview(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleToolCallUpdateEvent(
 	msg domain.ToolCallUpdateEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleToolCallUpdate(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleToolCallReadyEvent(
 	msg domain.ToolCallReadyEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleToolCallReady(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleToolExecutionStartedEvent(
 	msg domain.ToolExecutionStartedEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleToolExecutionStarted(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleToolExecutionProgressEvent(
 	msg domain.ToolExecutionProgressEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleToolExecutionProgress(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleToolExecutionCompletedEvent(
 	msg domain.ToolExecutionCompletedEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleToolExecutionCompleted(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleParallelToolsStartEvent(
 	msg domain.ParallelToolsStartEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleParallelToolsStart(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleParallelToolsCompleteEvent(
 	msg domain.ParallelToolsCompleteEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleParallelToolsComplete(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleCancelledEvent(
 	msg domain.CancelledEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleCancelled(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleA2AToolCallExecutedEvent(
 	msg domain.A2AToolCallExecutedEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleA2AToolCallExecuted(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleA2ATaskSubmittedEvent(
 	msg domain.A2ATaskSubmittedEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleA2ATaskSubmitted(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleA2ATaskStatusUpdateEvent(
 	msg domain.A2ATaskStatusUpdateEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleA2ATaskStatusUpdate(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleA2ATaskCompletedEvent(
 	msg domain.A2ATaskCompletedEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleA2ATaskCompleted(msg, stateManager)
 }
 
 func (h *ChatHandler) HandleA2ATaskInputRequiredEvent(
 	msg domain.A2ATaskInputRequiredEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return h.eventHandler.handleA2ATaskInputRequired(msg, stateManager)
 }

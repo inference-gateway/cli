@@ -30,7 +30,7 @@ func NewChatShortcutHandler(handler *ChatHandler) *ChatShortcutHandler {
 func (s *ChatShortcutHandler) executeShortcut(
 	shortcut string,
 	args []string,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) tea.Cmd {
 	return func() tea.Msg {
 		if registryResult := s.tryExecuteFromRegistry(shortcut, args, stateManager); registryResult != nil {
@@ -72,7 +72,7 @@ func (s *ChatShortcutHandler) executeShortcut(
 }
 
 // tryExecuteFromRegistry attempts to execute shortcut from the shortcut registry
-func (s *ChatShortcutHandler) tryExecuteFromRegistry(shortcut string, args []string, stateManager *services.StateManager) tea.Msg {
+func (s *ChatShortcutHandler) tryExecuteFromRegistry(shortcut string, args []string, stateManager domain.StateManager) tea.Msg {
 	if s.handler.shortcutRegistry == nil {
 		return nil
 	}
@@ -94,7 +94,7 @@ func (s *ChatShortcutHandler) tryExecuteFromRegistry(shortcut string, args []str
 }
 
 // executeRegistryShortcut executes a shortcut from the registry and handles results
-func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args []string, stateManager *services.StateManager) tea.Msg {
+func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args []string, stateManager domain.StateManager) tea.Msg {
 	ctx := context.Background()
 	result, err := shortcut.Execute(ctx, args)
 	if err != nil {
@@ -143,7 +143,7 @@ func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcu
 }
 
 // handleShortcutSideEffect handles side effects from shortcut execution
-func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectType, data any, stateManager *services.StateManager) tea.Msg {
+func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.SideEffectType, data any, stateManager domain.StateManager) tea.Msg {
 	switch sideEffect {
 	case shortcuts.SideEffectSwitchModel:
 		return s.handleSwitchModelSideEffect(stateManager)
@@ -180,7 +180,7 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 }
 
 // Side effect handlers
-func (s *ChatShortcutHandler) handleSwitchModelSideEffect(stateManager *services.StateManager) tea.Msg {
+func (s *ChatShortcutHandler) handleSwitchModelSideEffect(stateManager domain.StateManager) tea.Msg {
 	_ = stateManager.TransitionToView(domain.ViewStateModelSelection)
 	return domain.SetStatusEvent{
 		Message:    "Select a model from the dropdown",
@@ -190,7 +190,7 @@ func (s *ChatShortcutHandler) handleSwitchModelSideEffect(stateManager *services
 	}
 }
 
-func (s *ChatShortcutHandler) handleSwitchThemeSideEffect(stateManager *services.StateManager) tea.Msg {
+func (s *ChatShortcutHandler) handleSwitchThemeSideEffect(stateManager domain.StateManager) tea.Msg {
 	_ = stateManager.TransitionToView(domain.ViewStateThemeSelection)
 	return domain.SetStatusEvent{
 		Message:    "",
@@ -345,7 +345,7 @@ func (s *ChatShortcutHandler) handleShowHelpSideEffect() tea.Msg {
 	)()
 }
 
-func (s *ChatShortcutHandler) handleGenerateCommitSideEffect(data any, stateManager *services.StateManager) tea.Msg {
+func (s *ChatShortcutHandler) handleGenerateCommitSideEffect(data any, stateManager domain.StateManager) tea.Msg {
 	return tea.Batch(
 		func() tea.Msg {
 			return domain.UpdateHistoryEvent{
@@ -363,7 +363,7 @@ func (s *ChatShortcutHandler) handleGenerateCommitSideEffect(data any, stateMana
 	)()
 }
 
-func (s *ChatShortcutHandler) performCommitGeneration(data any, _ *services.StateManager) tea.Cmd {
+func (s *ChatShortcutHandler) performCommitGeneration(data any, _ domain.StateManager) tea.Cmd {
 	return func() tea.Msg {
 		if data == nil {
 			return domain.SetStatusEvent{
@@ -475,7 +475,7 @@ func (s *ChatShortcutHandler) handleSaveConversationSideEffect() tea.Msg {
 	}
 }
 
-func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect(stateManager *services.StateManager) tea.Msg {
+func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect(stateManager domain.StateManager) tea.Msg {
 	if err := stateManager.TransitionToView(domain.ViewStateConversationSelection); err != nil {
 		logger.Error("Failed to transition to conversation selection view", "error", err)
 		return domain.ShowErrorEvent{
@@ -492,7 +492,7 @@ func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect(stateMan
 	}
 }
 
-func (s *ChatShortcutHandler) handleShowA2AServersSideEffect(stateManager *services.StateManager) tea.Msg {
+func (s *ChatShortcutHandler) handleShowA2AServersSideEffect(stateManager domain.StateManager) tea.Msg {
 	_ = stateManager.TransitionToView(domain.ViewStateA2AServers)
 	return domain.SetStatusEvent{
 		Message:    "Loading A2A servers...",

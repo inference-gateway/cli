@@ -8,7 +8,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -27,7 +26,7 @@ func NewChatMessageProcessor(handler *ChatHandler) *ChatMessageProcessor {
 // handleUserInput processes user input messages
 func (p *ChatMessageProcessor) handleUserInput(
 	msg domain.UserInputEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	if strings.HasPrefix(msg.Content, "/") {
 		return p.handler.commandHandler.handleCommand(msg.Content, stateManager)
@@ -125,7 +124,7 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 // processChatMessage processes a regular chat message
 func (p *ChatMessageProcessor) processChatMessage(
 	content string,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	userEntry := domain.ConversationEntry{
 		Message: sdk.Message{

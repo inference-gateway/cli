@@ -70,32 +70,8 @@ type ModelService interface {
 	ValidateModel(modelID string) error
 }
 
-// ChatEventType defines types of chat events
-type ChatEventType int
-
-const (
-	EventChatStart ChatEventType = iota
-	EventChatChunk
-	EventChatComplete
-	EventChatError
-	EventToolCallPreview
-	EventToolCallUpdate
-	EventToolCallReady
-	EventCancelled
-	EventOptimizationStatus
-	EventA2AToolCallExecuted
-	EventA2ATaskSubmitted
-	EventA2ATaskStatusUpdate
-	EventA2ATaskCompleted
-	EventA2ATaskInputRequired
-	EventParallelToolsStart
-	EventToolExecutionProgress
-	EventParallelToolsComplete
-)
-
 // ChatEvent represents events during chat operations
 type ChatEvent interface {
-	GetType() ChatEventType
 	GetRequestID() string
 	GetTimestamp() time.Time
 }
@@ -119,6 +95,37 @@ type ChatSyncResponse struct {
 type ChatService interface {
 	CancelRequest(requestID string) error
 	GetMetrics(requestID string) *ChatMetrics
+}
+
+// StateManager interface defines state management operations
+type StateManager interface {
+	// View state management
+	GetCurrentView() ViewState
+	TransitionToView(newView ViewState) error
+
+	// Chat session management
+	StartChatSession(requestID, model string, eventChan <-chan ChatEvent) error
+	UpdateChatStatus(status ChatStatus) error
+	EndChatSession()
+	GetChatSession() *ChatSession
+
+	// Tool execution management
+	StartToolExecution(toolCalls []sdk.ChatCompletionMessageToolCall) error
+	CompleteCurrentTool(result *ToolExecutionResult) error
+	FailCurrentTool(result *ToolExecutionResult) error
+	EndToolExecution()
+	GetToolExecution() *ToolExecutionSession
+
+	// Dimensions management
+	SetDimensions(width, height int)
+	GetDimensions() (int, int)
+
+	// File selection management
+	SetupFileSelection(files []string)
+	GetFileSelectionState() *FileSelectionState
+	UpdateFileSearchQuery(query string)
+	SetFileSelectedIndex(index int)
+	ClearFileSelectionState()
 }
 
 // FileService handles file operations

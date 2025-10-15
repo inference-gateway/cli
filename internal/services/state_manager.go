@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/logger"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -135,7 +135,6 @@ func (sm *StateManager) TransitionToView(newView domain.ViewState) error {
 	}
 
 	sm.captureStateChange(StateChangeTypeViewTransition, oldState)
-	// View transition successful
 	return nil
 }
 

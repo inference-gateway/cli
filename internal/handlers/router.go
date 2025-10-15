@@ -4,23 +4,23 @@ import (
 	"sort"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/services"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // MessageRouter routes messages to handlers using the new state management system
 type MessageRouter struct {
-	handlers []MessageHandler
+	handlers []EventHandler
 }
 
 // NewMessageRouter creates a new message router
 func NewMessageRouter() *MessageRouter {
 	return &MessageRouter{
-		handlers: make([]MessageHandler, 0),
+		handlers: make([]EventHandler, 0),
 	}
 }
 
 // AddHandler adds a message handler to the router
-func (r *MessageRouter) AddHandler(handler MessageHandler) {
+func (r *MessageRouter) AddHandler(handler EventHandler) {
 	r.handlers = append(r.handlers, handler)
 	sort.Slice(r.handlers, func(i, j int) bool {
 		return r.handlers[i].GetPriority() > r.handlers[j].GetPriority()
@@ -40,11 +40,11 @@ func (r *MessageRouter) RemoveHandler(handlerName string) {
 // Route routes a message to the appropriate handler
 func (r *MessageRouter) Route(
 	msg tea.Msg,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	for _, handler := range r.handlers {
-		if handler.CanHandle(msg) {
-			model, cmd := handler.Handle(msg, stateManager)
+		model, cmd := handler.Handle(msg, stateManager)
+		if model != nil || cmd != nil {
 			return model, cmd
 		}
 	}
@@ -53,14 +53,14 @@ func (r *MessageRouter) Route(
 }
 
 // GetHandlers returns all registered handlers
-func (r *MessageRouter) GetHandlers() []MessageHandler {
-	handlers := make([]MessageHandler, len(r.handlers))
+func (r *MessageRouter) GetHandlers() []EventHandler {
+	handlers := make([]EventHandler, len(r.handlers))
 	copy(handlers, r.handlers)
 	return handlers
 }
 
 // GetHandlerByName returns a handler by name
-func (r *MessageRouter) GetHandlerByName(name string) MessageHandler {
+func (r *MessageRouter) GetHandlerByName(name string) EventHandler {
 	for _, handler := range r.handlers {
 		if handler.GetName() == name {
 			return handler

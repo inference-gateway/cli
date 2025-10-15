@@ -22,7 +22,6 @@ type ChatStartEvent struct {
 	Model     string
 }
 
-func (e ChatStartEvent) GetType() ChatEventType  { return EventChatStart }
 func (e ChatStartEvent) GetRequestID() string    { return e.RequestID }
 func (e ChatStartEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -34,10 +33,9 @@ type ChatChunkEvent struct {
 	ReasoningContent string
 	ToolCalls        []sdk.ChatCompletionMessageToolCallChunk
 	Delta            bool
-	Usage            *sdk.CompletionUsage // Live token usage during streaming
+	Usage            *sdk.CompletionUsage
 }
 
-func (e ChatChunkEvent) GetType() ChatEventType  { return EventChatChunk }
 func (e ChatChunkEvent) GetRequestID() string    { return e.RequestID }
 func (e ChatChunkEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -50,7 +48,6 @@ type ChatCompleteEvent struct {
 	Metrics   *ChatMetrics
 }
 
-func (e ChatCompleteEvent) GetType() ChatEventType  { return EventChatComplete }
 func (e ChatCompleteEvent) GetRequestID() string    { return e.RequestID }
 func (e ChatCompleteEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -61,7 +58,6 @@ type ChatErrorEvent struct {
 	Error     error
 }
 
-func (e ChatErrorEvent) GetType() ChatEventType  { return EventChatError }
 func (e ChatErrorEvent) GetRequestID() string    { return e.RequestID }
 func (e ChatErrorEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -76,7 +72,6 @@ type ToolCallPreviewEvent struct {
 	IsComplete bool
 }
 
-func (e ToolCallPreviewEvent) GetType() ChatEventType  { return EventToolCallPreview }
 func (e ToolCallPreviewEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolCallPreviewEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -90,7 +85,6 @@ type ToolCallUpdateEvent struct {
 	Status     ToolCallStreamStatus
 }
 
-func (e ToolCallUpdateEvent) GetType() ChatEventType  { return EventToolCallUpdate }
 func (e ToolCallUpdateEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolCallUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -101,7 +95,6 @@ type ToolCallReadyEvent struct {
 	ToolCalls []sdk.ChatCompletionMessageToolCall
 }
 
-func (e ToolCallReadyEvent) GetType() ChatEventType  { return EventToolCallReady }
 func (e ToolCallReadyEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolCallReadyEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -112,7 +105,6 @@ type CancelledEvent struct {
 	Reason    string
 }
 
-func (e CancelledEvent) GetType() ChatEventType  { return EventCancelled }
 func (e CancelledEvent) GetRequestID() string    { return e.RequestID }
 func (e CancelledEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -126,7 +118,6 @@ type OptimizationStatusEvent struct {
 	OptimizedCount int
 }
 
-func (e OptimizationStatusEvent) GetType() ChatEventType  { return EventOptimizationStatus }
 func (e OptimizationStatusEvent) GetRequestID() string    { return e.RequestID }
 func (e OptimizationStatusEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -141,7 +132,6 @@ type A2AToolCallExecutedEvent struct {
 	TaskID            string
 }
 
-func (e A2AToolCallExecutedEvent) GetType() ChatEventType  { return EventA2AToolCallExecuted }
 func (e A2AToolCallExecutedEvent) GetRequestID() string    { return e.RequestID }
 func (e A2AToolCallExecutedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -154,7 +144,6 @@ type A2ATaskSubmittedEvent struct {
 	TaskType  string
 }
 
-func (e A2ATaskSubmittedEvent) GetType() ChatEventType  { return EventA2ATaskSubmitted }
 func (e A2ATaskSubmittedEvent) GetRequestID() string    { return e.RequestID }
 func (e A2ATaskSubmittedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -168,7 +157,6 @@ type A2ATaskStatusUpdateEvent struct {
 	Message   string
 }
 
-func (e A2ATaskStatusUpdateEvent) GetType() ChatEventType  { return EventA2ATaskStatusUpdate }
 func (e A2ATaskStatusUpdateEvent) GetRequestID() string    { return e.RequestID }
 func (e A2ATaskStatusUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -182,7 +170,6 @@ type A2ATaskCompletedEvent struct {
 	Error     string
 }
 
-func (e A2ATaskCompletedEvent) GetType() ChatEventType  { return EventA2ATaskCompleted }
 func (e A2ATaskCompletedEvent) GetRequestID() string    { return e.RequestID }
 func (e A2ATaskCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
@@ -195,6 +182,5 @@ type A2ATaskInputRequiredEvent struct {
 	Required  bool
 }
 
-func (e A2ATaskInputRequiredEvent) GetType() ChatEventType  { return EventA2ATaskInputRequired }
 func (e A2ATaskInputRequiredEvent) GetRequestID() string    { return e.RequestID }
 func (e A2ATaskInputRequiredEvent) GetTimestamp() time.Time { return e.Timestamp }

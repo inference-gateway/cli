@@ -11,7 +11,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -32,7 +31,7 @@ func NewChatCommandHandler(handler *ChatHandler) *ChatCommandHandler {
 // handleCommand processes slash commands
 func (c *ChatCommandHandler) handleCommand(
 	commandText string,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	if c.handler.shortcutRegistry == nil {
 		return nil, func() tea.Msg {
@@ -59,7 +58,7 @@ func (c *ChatCommandHandler) handleCommand(
 // handleBashCommand processes bash commands starting with !
 func (c *ChatCommandHandler) handleBashCommand(
 	commandText string,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	command := strings.TrimSpace(strings.TrimPrefix(commandText, "!"))
 
@@ -125,7 +124,7 @@ func (c *ChatCommandHandler) handleBashCommand(
 // handleToolCommand processes tool commands starting with !!
 func (c *ChatCommandHandler) handleToolCommand(
 	commandText string,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	command := strings.TrimSpace(strings.TrimPrefix(commandText, "!!"))
 

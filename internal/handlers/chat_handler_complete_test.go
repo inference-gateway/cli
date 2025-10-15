@@ -21,9 +21,6 @@ func TestChatHandler_Handle(t *testing.T) {
 			handler := setupTestChatHandler(t, tt.setupMocks)
 			stateManager := services.NewStateManager(false)
 
-			canHandle := handler.CanHandle(tt.msg)
-			assert.True(t, canHandle, "Handler should be able to handle %T", tt.msg)
-
 			_, cmd := handler.Handle(tt.msg, stateManager)
 
 			if tt.expectedCmd {

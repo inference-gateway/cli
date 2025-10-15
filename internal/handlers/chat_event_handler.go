@@ -7,7 +7,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -26,7 +25,7 @@ func NewChatEventHandler(handler *ChatHandler) *ChatEventHandler {
 
 func (e *ChatEventHandler) handleChatStart(
 	event domain.ChatStartEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	_ = stateManager.UpdateChatStatus(domain.ChatStatusStarting)
 
@@ -48,7 +47,7 @@ func (e *ChatEventHandler) handleChatStart(
 
 func (e *ChatEventHandler) handleChatChunk(
 	msg domain.ChatChunkEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	chatSession := stateManager.GetChatSession()
 	if chatSession == nil {
@@ -95,7 +94,7 @@ func (e *ChatEventHandler) handleChatChunk(
 
 func (e *ChatEventHandler) handleOptimizationStatus(
 	event domain.OptimizationStatusEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	if event.IsActive {
 		return nil, func() tea.Msg {
@@ -136,7 +135,7 @@ func (e *ChatEventHandler) handleEmptyContent(chatSession *domain.ChatSession) (
 	return nil, nil
 }
 
-func (e *ChatEventHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *domain.ChatSession, stateManager *services.StateManager) []tea.Cmd {
+func (e *ChatEventHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *domain.ChatSession, stateManager domain.StateManager) []tea.Cmd {
 	newStatus, shouldUpdateStatus := e.determineNewStatus(msg, chatSession.Status, chatSession.IsFirstChunk)
 
 	if !shouldUpdateStatus {
@@ -213,7 +212,7 @@ func (e *ChatEventHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea
 
 func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	_ = stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
 
@@ -249,7 +248,7 @@ func (e *ChatEventHandler) handleChatComplete(
 
 func (e *ChatEventHandler) handleChatError(
 	msg domain.ChatErrorEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	_ = stateManager.UpdateChatStatus(domain.ChatStatusError)
 	stateManager.EndChatSession()
@@ -272,7 +271,7 @@ func (e *ChatEventHandler) handleChatError(
 
 func (e *ChatEventHandler) handleToolCallPreview(
 	msg domain.ToolCallPreviewEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -295,7 +294,7 @@ func (e *ChatEventHandler) handleToolCallPreview(
 
 func (e *ChatEventHandler) handleToolCallUpdate(
 	msg domain.ToolCallUpdateEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
@@ -330,7 +329,7 @@ func (e *ChatEventHandler) handleToolCallUpdate(
 
 func (e *ChatEventHandler) handleToolCallReady(
 	msg domain.ToolCallReadyEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
@@ -345,7 +344,7 @@ func (e *ChatEventHandler) handleToolCallReady(
 
 func (e *ChatEventHandler) handleToolExecutionStarted(
 	msg domain.ToolExecutionStartedEvent,
-	_ *services.StateManager,
+	_ domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 
 	return nil, func() tea.Msg {
@@ -359,7 +358,7 @@ func (e *ChatEventHandler) handleToolExecutionStarted(
 
 func (e *ChatEventHandler) handleToolExecutionProgress(
 	msg domain.ToolExecutionProgressEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
@@ -379,7 +378,7 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 
 func (e *ChatEventHandler) handleToolExecutionCompleted(
 	msg domain.ToolExecutionCompletedEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	return nil, tea.Batch(
 		func() tea.Msg {
@@ -401,7 +400,7 @@ func (e *ChatEventHandler) handleToolExecutionCompleted(
 
 func (e *ChatEventHandler) handleParallelToolsStart(
 	msg domain.ParallelToolsStartEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
@@ -422,7 +421,7 @@ func (e *ChatEventHandler) handleParallelToolsStart(
 
 func (e *ChatEventHandler) handleParallelToolsComplete(
 	msg domain.ParallelToolsCompleteEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
@@ -524,7 +523,7 @@ func (e *ChatEventHandler) formatToolCallStatusMessage(toolName string, status d
 
 func (e *ChatEventHandler) handleCancelled(
 	msg domain.CancelledEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
@@ -534,7 +533,7 @@ func (e *ChatEventHandler) handleCancelled(
 
 func (e *ChatEventHandler) handleA2AToolCallExecuted(
 	msg domain.A2AToolCallExecutedEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
@@ -544,7 +543,7 @@ func (e *ChatEventHandler) handleA2AToolCallExecuted(
 
 func (e *ChatEventHandler) handleA2ATaskSubmitted(
 	msg domain.A2ATaskSubmittedEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
@@ -554,7 +553,7 @@ func (e *ChatEventHandler) handleA2ATaskSubmitted(
 
 func (e *ChatEventHandler) handleA2ATaskStatusUpdate(
 	msg domain.A2ATaskStatusUpdateEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
@@ -564,7 +563,7 @@ func (e *ChatEventHandler) handleA2ATaskStatusUpdate(
 
 func (e *ChatEventHandler) handleA2ATaskCompleted(
 	msg domain.A2ATaskCompletedEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
@@ -574,7 +573,7 @@ func (e *ChatEventHandler) handleA2ATaskCompleted(
 
 func (e *ChatEventHandler) handleA2ATaskInputRequired(
 	msg domain.A2ATaskInputRequiredEvent,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 ) (tea.Model, tea.Cmd) {
 	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
