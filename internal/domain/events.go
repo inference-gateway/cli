@@ -198,3 +198,14 @@ type A2ATaskInputRequiredEvent struct {
 func (e A2ATaskInputRequiredEvent) GetType() ChatEventType  { return EventA2ATaskInputRequired }
 func (e A2ATaskInputRequiredEvent) GetRequestID() string    { return e.RequestID }
 func (e A2ATaskInputRequiredEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// MessageQueuedEvent indicates a message was received from the queue and stored
+type MessageQueuedEvent struct {
+	RequestID string
+	Timestamp time.Time
+	Message   sdk.Message
+}
+
+func (e MessageQueuedEvent) GetType() ChatEventType  { return EventMessageQueued }
+func (e MessageQueuedEvent) GetRequestID() string    { return e.RequestID }
+func (e MessageQueuedEvent) GetTimestamp() time.Time { return e.Timestamp }

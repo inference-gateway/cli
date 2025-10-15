@@ -42,7 +42,7 @@ func (e *ChatEventHandler) handleChatStart(
 		}
 	})
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil {
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
@@ -93,7 +93,7 @@ func (e *ChatEventHandler) handleChatChunk(
 	statusCmds := e.handleStatusUpdate(msg, chatSession, stateManager)
 	cmds = append(cmds, statusCmds...)
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+	if chatSession.EventChannel != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
@@ -105,23 +105,31 @@ func (e *ChatEventHandler) handleOptimizationStatus(
 	event domain.OptimizationStatusEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
 	if event.IsActive {
-		return nil, func() tea.Msg {
+		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    event.Message,
 				Spinner:    true,
 				StatusType: domain.StatusProcessing,
 			}
-		}
+		})
+	} else {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    event.Message,
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		})
 	}
 
-	return nil, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    event.Message,
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
+
+	return nil, tea.Batch(cmds...)
 }
 
 // handleNoChatSession handles the case when there's no active chat session
@@ -313,6 +321,10 @@ func (e *ChatEventHandler) handleToolCallPreview(
 		}
 	})
 
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
 	return nil, tea.Batch(cmds...)
 }
 
@@ -349,6 +361,10 @@ func (e *ChatEventHandler) handleToolCallUpdate(
 		})
 	}
 
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
 	return nil, tea.Batch(cmds...)
 }
 
@@ -365,21 +381,32 @@ func (e *ChatEventHandler) handleToolCallReady(
 		},
 	}
 
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
 	return nil, tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolExecutionStarted(
 	msg domain.ToolExecutionStartedEvent,
-	_ *services.StateManager,
+	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 
-	return nil, func() tea.Msg {
+	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Starting tool execution (%d tools)", msg.TotalTools),
 			Spinner:    true,
 			StatusType: domain.StatusWorking,
 		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
+
+	return nil, tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolExecutionProgress(
@@ -438,7 +465,7 @@ func (e *ChatEventHandler) handleParallelToolsStart(
 		return statusEvent
 	})
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil {
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
@@ -469,7 +496,7 @@ func (e *ChatEventHandler) handleParallelToolsComplete(
 		return statusEvent
 	})
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil {
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
@@ -547,4 +574,78 @@ func (e *ChatEventHandler) formatToolCallStatusMessage(toolName string, status d
 	default:
 		return ""
 	}
+}
+
+func (e *ChatEventHandler) handleA2ATaskCompleted(
+	msg domain.A2ATaskCompletedEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	statusMessage := "A2A task completed - continuing conversation..."
+	if !msg.Success {
+		statusMessage = fmt.Sprintf("A2A task failed: %s", msg.Error)
+	}
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    statusMessage,
+			Spinner:    true,
+			StatusType: domain.StatusProcessing,
+		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
+func (e *ChatEventHandler) handleA2ATaskStatusUpdate(
+	msg domain.A2ATaskStatusUpdateEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	statusMessage := fmt.Sprintf("A2A task %s: %s", msg.Status, msg.Message)
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateStatusEvent{
+			Message:    statusMessage,
+			StatusType: domain.StatusWorking,
+		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
+func (e *ChatEventHandler) handleMessageQueued(
+	msg domain.MessageQueuedEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent{
+			History: e.handler.conversationRepo.GetMessages(),
+		}
+	})
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Processing queued message...",
+			Spinner:    true,
+			StatusType: domain.StatusProcessing,
+		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
 }

@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
@@ -87,6 +88,12 @@ func (h *ChatHandler) CanHandle(msg tea.Msg) bool {
 		return true
 	case domain.ParallelToolsStartEvent, domain.ParallelToolsCompleteEvent:
 		return true
+	case domain.A2ATaskCompletedEvent:
+		return true
+	case domain.A2ATaskStatusUpdateEvent:
+		return true
+	case domain.MessageQueuedEvent:
+		return true
 	default:
 		return false
 	}
@@ -146,6 +153,15 @@ func (h *ChatHandler) Handle(
 	case domain.ParallelToolsCompleteEvent:
 		return h.eventHandler.handleParallelToolsComplete(msg, stateManager)
 
+	case domain.A2ATaskCompletedEvent:
+		return h.eventHandler.handleA2ATaskCompleted(msg, stateManager)
+
+	case domain.A2ATaskStatusUpdateEvent:
+		return h.eventHandler.handleA2ATaskStatusUpdate(msg, stateManager)
+
+	case domain.MessageQueuedEvent:
+		return h.eventHandler.handleMessageQueued(msg, stateManager)
+
 	}
 	return nil, nil
 }
@@ -200,8 +216,10 @@ func (h *ChatHandler) startChatCompletion(
 func (h *ChatHandler) listenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd {
 	return func() tea.Msg {
 		if event, ok := <-eventChan; ok {
+			logger.Debug("Received chat event", "event_type", fmt.Sprintf("%T", event))
 			return event
 		}
+		logger.Debug("Chat event channel closed")
 		return nil
 	}
 }

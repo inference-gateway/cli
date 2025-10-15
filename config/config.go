@@ -359,8 +359,13 @@ type A2AAgentInfo struct {
 
 // A2ATaskConfig contains configuration for A2A task processing
 type A2ATaskConfig struct {
-	StatusPollSeconds int `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
-	IdleTimeoutSec    int `yaml:"idle_timeout_sec" mapstructure:"idle_timeout_sec"`
+	StatusPollSeconds      int     `yaml:"status_poll_seconds" mapstructure:"status_poll_seconds"`
+	IdleTimeoutSec         int     `yaml:"idle_timeout_sec" mapstructure:"idle_timeout_sec"`
+	PollingStrategy        string  `yaml:"polling_strategy" mapstructure:"polling_strategy"`
+	InitialPollIntervalSec int     `yaml:"initial_poll_interval_sec" mapstructure:"initial_poll_interval_sec"`
+	MaxPollIntervalSec     int     `yaml:"max_poll_interval_sec" mapstructure:"max_poll_interval_sec"`
+	BackoffMultiplier      float64 `yaml:"backoff_multiplier" mapstructure:"backoff_multiplier"`
+	BackgroundMonitoring   bool    `yaml:"background_monitoring" mapstructure:"background_monitoring"`
 }
 
 // A2ACacheConfig contains settings for A2A agent card caching
@@ -636,8 +641,13 @@ Respond with ONLY the title, no quotes or explanation.`,
 				TTL:     300,
 			},
 			Task: A2ATaskConfig{
-				StatusPollSeconds: 5,
-				IdleTimeoutSec:    60,
+				StatusPollSeconds:      5,
+				IdleTimeoutSec:         60,
+				PollingStrategy:        "exponential",
+				InitialPollIntervalSec: 2,
+				MaxPollIntervalSec:     60,
+				BackoffMultiplier:      2.0,
+				BackgroundMonitoring:   true,
 			},
 			Tools: A2AToolsConfig{
 				QueryAgent: QueryAgentToolConfig{

@@ -30,7 +30,7 @@ func TestA2ASubmitTaskTool_Definition(t *testing.T) {
 	assert.Equal(t, "A2A_SubmitTask", def.Function.Name)
 	assert.NotNil(t, def.Function.Description)
 	assert.Contains(t, *def.Function.Description, "A2A agent")
-	assert.Contains(t, *def.Function.Description, "ask questions")
+	assert.Contains(t, *def.Function.Description, "delegate")
 }
 
 func TestA2ASubmitTaskTool_Execute_MissingAgentURL(t *testing.T) {

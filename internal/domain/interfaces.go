@@ -91,6 +91,7 @@ const (
 	EventParallelToolsStart
 	EventToolExecutionProgress
 	EventParallelToolsComplete
+	EventMessageQueued
 )
 
 // ChatEvent represents events during chat operations
@@ -139,15 +140,17 @@ type FileInfo struct {
 
 // TaskPollingState represents the state of background polling for a task
 type TaskPollingState struct {
-	TaskID     string
-	AgentURL   string
-	IsPolling  bool
-	StartedAt  time.Time
-	LastPollAt time.Time
-	CancelFunc context.CancelFunc
-	ResultChan chan *ToolExecutionResult
-	ErrorChan  chan error
-	StatusChan chan *A2ATaskStatusUpdate
+	TaskID          string
+	AgentURL        string
+	IsPolling       bool
+	StartedAt       time.Time
+	LastPollAt      time.Time
+	NextPollTime    time.Time
+	CurrentInterval time.Duration
+	CancelFunc      context.CancelFunc
+	ResultChan      chan *ToolExecutionResult
+	ErrorChan       chan error
+	StatusChan      chan *A2ATaskStatusUpdate
 }
 
 // A2ATaskStatusUpdate represents a status update for an ongoing A2A task
@@ -172,6 +175,7 @@ type TaskTracker interface {
 	StopPolling(agentURL string)
 	GetPollingState(agentURL string) *TaskPollingState
 	IsPolling(agentURL string) bool
+	GetAllPollingAgents() []string
 }
 
 // FetchResult represents the result of a fetch operation

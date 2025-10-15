@@ -129,3 +129,16 @@ func (t *SimpleTaskTracker) IsPolling(agentURL string) bool {
 	}
 	return false
 }
+
+func (t *SimpleTaskTracker) GetAllPollingAgents() []string {
+	t.mu.RLock()
+	defer t.mu.RUnlock()
+
+	agents := make([]string, 0, len(t.pollingStates))
+	for agentURL, state := range t.pollingStates {
+		if state.IsPolling {
+			agents = append(agents, agentURL)
+		}
+	}
+	return agents
+}
