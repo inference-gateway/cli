@@ -177,7 +177,7 @@ func (r *EventHandlerRegistry) ValidateAllEventTypes() error {
 When adding new event types:
 
 1. Define the event type in `domain/events.go` or `domain/ui_events.go`
-2. Add the event type to `SimplifiedEventRegistry.autoRegisterHandlers()`
+2. Add the event type to `EventRegistry.autoRegisterHandlers()`
 3. Implement handler method in `ChatHandler` following the pattern: `Handle{EventTypeName}`
 
 The system will panic on startup if the handler method is missing, providing compile-time safety.
