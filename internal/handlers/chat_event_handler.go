@@ -59,8 +59,6 @@ func (e *ChatEventHandler) handleChatChunk(
 		return e.handleEmptyContent(chatSession)
 	}
 
-	e.updateConversationHistory(msg, chatSession)
-
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return domain.StreamingContentEvent{
@@ -136,9 +134,6 @@ func (e *ChatEventHandler) handleEmptyContent(chatSession *domain.ChatSession) (
 		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
 	return nil, nil
-}
-
-func (e *ChatEventHandler) updateConversationHistory(msg domain.ChatChunkEvent, chatSession *domain.ChatSession) {
 }
 
 func (e *ChatEventHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *domain.ChatSession, stateManager *services.StateManager) []tea.Cmd {
