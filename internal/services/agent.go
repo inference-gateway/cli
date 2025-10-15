@@ -333,16 +333,9 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			}
 
 			hasActivePolling := taskTracker != nil && len(taskTracker.GetAllPollingAgents()) > 0
-			logger.Debug("Event loop iteration check", "request_id", req.RequestID, "turns", turns, "hasToolResults", hasToolResults, "hasActivePolling", hasActivePolling, "pollingAgents", func() int {
-				if taskTracker != nil {
-					return len(taskTracker.GetAllPollingAgents())
-				}
-				return 0
-			}())
 
 			if !hasToolResults && turns > 0 {
 				if !hasActivePolling {
-					logger.Debug("No tool results and no active polling - completing chat", "request_id", req.RequestID, "turns", turns)
 					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
 					close(chatEvents)
 					return

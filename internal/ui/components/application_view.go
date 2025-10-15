@@ -23,9 +23,12 @@ func NewApplicationViewRenderer(themeService domain.ThemeService) *ApplicationVi
 
 // ChatInterfaceData holds the data needed to render the chat interface
 type ChatInterfaceData struct {
-	Width, Height int
-	ToolExecution *domain.ToolExecutionSession
-	CurrentView   domain.ViewState
+	Width           int
+	Height          int
+	ToolExecution   *domain.ToolExecutionSession
+	CurrentView     domain.ViewState
+	QueuedMessages  []domain.QueuedMessage
+	BackgroundTasks []domain.TaskPollingState
 }
 
 // RenderChatInterface renders the main chat interface
@@ -35,18 +38,28 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	inputView shared.InputComponent,
 	statusView shared.StatusComponent,
 	helpBar shared.HelpBarComponent,
+	queueBoxView *QueueBoxView,
 ) string {
 	width, height := data.Width, data.Height
 
 	headerHeight := 3
 	helpBarHeight := 0
+	queueBoxHeight := 0
 
 	helpBar.SetWidth(width)
 	if helpBar.IsEnabled() {
 		helpBarHeight = 6
 	}
 
-	adjustedHeight := height - headerHeight - helpBarHeight
+	if queueBoxView != nil && (len(data.QueuedMessages) > 0 || len(data.BackgroundTasks) > 0) {
+		totalItems := len(data.QueuedMessages) + len(data.BackgroundTasks)
+		queueBoxHeight = totalItems + 4
+		if len(data.BackgroundTasks) > 0 && len(data.QueuedMessages) > 0 {
+			queueBoxHeight += 2
+		}
+	}
+
+	adjustedHeight := height - headerHeight - helpBarHeight - queueBoxHeight
 	conversationHeight := shared.CalculateConversationHeight(adjustedHeight)
 	inputHeight := shared.CalculateInputHeight(adjustedHeight)
 	statusHeight := shared.CalculateStatusHeight(adjustedHeight)
@@ -60,6 +73,10 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	inputView.SetWidth(width)
 	inputView.SetHeight(inputHeight)
 	statusView.SetWidth(width)
+
+	if queueBoxView != nil {
+		queueBoxView.SetWidth(width)
+	}
 
 	headerStyle := lipgloss.NewStyle().
 		Width(width).
@@ -87,6 +104,13 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		statusContent := statusView.Render()
 		if statusContent != "" {
 			components = append(components, statusContent)
+		}
+	}
+
+	if queueBoxView != nil && (len(data.QueuedMessages) > 0 || len(data.BackgroundTasks) > 0) {
+		queueBoxContent := queueBoxView.Render(data.QueuedMessages, data.BackgroundTasks)
+		if queueBoxContent != "" {
+			components = append(components, queueBoxContent)
 		}
 	}
 

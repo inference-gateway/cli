@@ -127,12 +127,27 @@ func (p *ChatMessageProcessor) processChatMessage(
 	content string,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
+	message := sdk.Message{
+		Role:    sdk.User,
+		Content: content,
+	}
+
+	if stateManager.IsAgentBusy() {
+		requestID := fmt.Sprintf("queued-%d", time.Now().UnixNano())
+		stateManager.AddQueuedMessage(message, requestID)
+
+		return nil, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Message queued - agent is currently busy",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+	}
+
 	userEntry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.User,
-			Content: content,
-		},
-		Time: time.Now(),
+		Message: message,
+		Time:    time.Now(),
 	}
 
 	if err := p.handler.conversationRepo.AddMessage(userEntry); err != nil {

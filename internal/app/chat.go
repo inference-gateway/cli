@@ -42,6 +42,7 @@ type ChatApplication struct {
 	inputView            ui.InputComponent
 	statusView           ui.StatusComponent
 	helpBar              ui.HelpBarComponent
+	queueBoxView         *components.QueueBoxView
 	modelSelector        *components.ModelSelectorImpl
 	themeSelector        *components.ThemeSelectorImpl
 	conversationSelector *components.ConversationSelectorImpl
@@ -126,6 +127,7 @@ func NewChatApplication(
 	}
 	app.statusView = ui.CreateStatusView(app.themeService)
 	app.helpBar = ui.CreateHelpBar(app.themeService)
+	app.queueBoxView = components.NewQueueBoxView(app.themeService)
 
 	app.fileSelectionView = components.NewFileSelectionView(app.themeService)
 	app.textSelectionView = components.NewTextSelectionView()
@@ -410,7 +412,6 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 		return cmds
 	}
 
-	// Auto-reset if selector is in any completed state (selected or cancelled) for reuse
 	if app.conversationSelector.IsSelected() || app.conversationSelector.IsCancelled() {
 		app.conversationSelector.Reset()
 		if cmd := app.conversationSelector.Init(); cmd != nil {
@@ -626,20 +627,25 @@ func (app *ChatApplication) renderChatInterface() string {
 	app.updateHelpBarShortcuts()
 
 	width, height := app.stateManager.GetDimensions()
+	queuedMessages := app.stateManager.GetQueuedMessages()
+	backgroundTasks := app.stateManager.GetBackgroundTasks(app.toolService)
+
 	data := components.ChatInterfaceData{
-		Width:         width,
-		Height:        height,
-		ToolExecution: app.stateManager.GetToolExecution(),
-		CurrentView:   app.stateManager.GetCurrentView(),
+		Width:           width,
+		Height:          height,
+		ToolExecution:   app.stateManager.GetToolExecution(),
+		CurrentView:     app.stateManager.GetCurrentView(),
+		QueuedMessages:  queuedMessages,
+		BackgroundTasks: backgroundTasks,
 	}
 
-	// Get the main chat interface
 	chatInterface := app.applicationViewRenderer.RenderChatInterface(
 		data,
 		app.conversationView,
 		app.inputView,
 		app.statusView,
 		app.helpBar,
+		app.queueBoxView,
 	)
 
 	return chatInterface

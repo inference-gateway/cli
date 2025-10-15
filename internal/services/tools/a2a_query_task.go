@@ -105,7 +105,6 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*d
 	if t.taskTracker != nil && t.taskTracker.IsPolling(agentURL) {
 		state := t.taskTracker.GetPollingState(agentURL)
 		errorMsg := t.buildPollingBlockedError(agentURL, state)
-		logger.Debug("A2A_QueryTask blocked due to active polling", "agent_url", agentURL, "task_id", taskID)
 		return t.errorResult(args, startTime, errorMsg)
 	}
 

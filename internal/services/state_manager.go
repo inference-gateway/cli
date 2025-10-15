@@ -191,6 +191,24 @@ func (sm *StateManager) GetChatSession() *domain.ChatSession {
 	return sm.state.GetChatSession()
 }
 
+// IsAgentBusy returns true if the agent is currently processing a request
+func (sm *StateManager) IsAgentBusy() bool {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	chatSession := sm.state.GetChatSession()
+	if chatSession == nil {
+		return false
+	}
+
+	switch chatSession.Status {
+	case domain.ChatStatusIdle, domain.ChatStatusCompleted, domain.ChatStatusError, domain.ChatStatusCancelled:
+		return false
+	default:
+		return true
+	}
+}
+
 // StartToolExecution starts a new tool execution session
 func (sm *StateManager) StartToolExecution(toolCalls []sdk.ChatCompletionMessageToolCall) error {
 	sm.mutex.Lock()
@@ -401,6 +419,67 @@ func (sm *StateManager) ClearFileSelectionState() {
 	defer sm.mutex.Unlock()
 
 	sm.state.ClearFileSelectionState()
+}
+
+// AddQueuedMessage adds a message to the input queue
+func (sm *StateManager) AddQueuedMessage(message sdk.Message, requestID string) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	oldState := sm.state.GetStateSnapshot()
+	sm.state.AddQueuedMessage(message, requestID)
+	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
+}
+
+// PopQueuedMessage removes and returns the first message from the queue (FIFO order)
+func (sm *StateManager) PopQueuedMessage() *domain.QueuedMessage {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	oldState := sm.state.GetStateSnapshot()
+	msg := sm.state.PopQueuedMessage()
+	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
+	return msg
+}
+
+// ClearQueuedMessages clears all queued messages
+func (sm *StateManager) ClearQueuedMessages() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	oldState := sm.state.GetStateSnapshot()
+	sm.state.ClearQueuedMessages()
+	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
+}
+
+// GetQueuedMessages returns the current queued messages
+func (sm *StateManager) GetQueuedMessages() []domain.QueuedMessage {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.GetQueuedMessages()
+}
+
+// GetBackgroundTasks returns the current background polling tasks
+func (sm *StateManager) GetBackgroundTasks(toolService domain.ToolService) []domain.TaskPollingState {
+	if toolService == nil {
+		return []domain.TaskPollingState{}
+	}
+
+	taskTracker := toolService.GetTaskTracker()
+	if taskTracker == nil {
+		return []domain.TaskPollingState{}
+	}
+
+	pollingAgents := taskTracker.GetAllPollingAgents()
+	tasks := make([]domain.TaskPollingState, 0, len(pollingAgents))
+
+	for _, agentURL := range pollingAgents {
+		if state := taskTracker.GetPollingState(agentURL); state != nil {
+			tasks = append(tasks, *state)
+		}
+	}
+
+	return tasks
 }
 
 // RecoverFromInconsistentState attempts to recover from an inconsistent state

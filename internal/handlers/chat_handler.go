@@ -7,7 +7,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
@@ -96,6 +95,12 @@ func (h *ChatHandler) CanHandle(msg tea.Msg) bool {
 		return true
 	case domain.MessageQueuedEvent:
 		return true
+	case domain.CancelledEvent:
+		return true
+	case domain.A2AToolCallExecutedEvent:
+		return true
+	case domain.A2ATaskSubmittedEvent:
+		return true
 	default:
 		return false
 	}
@@ -167,6 +172,15 @@ func (h *ChatHandler) Handle(
 	case domain.MessageQueuedEvent:
 		return h.eventHandler.handleMessageQueued(msg, stateManager)
 
+	case domain.CancelledEvent:
+		return h.eventHandler.handleCancelled(msg, stateManager)
+
+	case domain.A2AToolCallExecutedEvent:
+		return h.eventHandler.handleA2AToolCallExecuted(msg, stateManager)
+
+	case domain.A2ATaskSubmittedEvent:
+		return h.eventHandler.handleA2ATaskSubmitted(msg, stateManager)
+
 	}
 	return nil, nil
 }
@@ -213,7 +227,11 @@ func (h *ChatHandler) startChatCompletion(
 
 		_ = stateManager.StartChatSession(requestID, currentModel, eventChan)
 
-		return h.listenForChatEvents(eventChan)()
+		return domain.ChatStartEvent{
+			RequestID: requestID,
+			Model:     currentModel,
+			Timestamp: time.Now(),
+		}
 	}
 }
 
@@ -221,10 +239,8 @@ func (h *ChatHandler) startChatCompletion(
 func (h *ChatHandler) listenForChatEvents(eventChan <-chan domain.ChatEvent) tea.Cmd {
 	return func() tea.Msg {
 		if event, ok := <-eventChan; ok {
-			logger.Debug("Received chat event", "event_type", fmt.Sprintf("%T", event))
 			return event
 		}
-		logger.Debug("Chat event channel closed")
 		return nil
 	}
 }

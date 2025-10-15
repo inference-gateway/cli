@@ -269,11 +269,24 @@ func (e *ChatEventHandler) handleChatComplete(
 		}
 	})
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	stateManager.EndChatSession()
+
+	if queuedMsg := stateManager.PopQueuedMessage(); queuedMsg != nil {
+		cmds = append(cmds, e.processQueuedMessage(queuedMsg, stateManager))
 	}
 
 	return nil, tea.Batch(cmds...)
+}
+
+// processQueuedMessage processes a message from the queue
+func (e *ChatEventHandler) processQueuedMessage(queuedMsg *domain.QueuedMessage, stateManager *services.StateManager) tea.Cmd {
+	return func() tea.Msg {
+		return domain.MessageQueuedEvent{
+			Message:   queuedMsg.Message,
+			RequestID: queuedMsg.RequestID,
+			Timestamp: time.Now(),
+		}
+	}
 }
 
 // handleChatError processes chat error events
@@ -582,6 +595,8 @@ func (e *ChatEventHandler) handleA2ATaskCompleted(
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	stateManager.PopQueuedMessage()
+
 	statusMessage := "A2A task completed - continuing conversation..."
 	if !msg.Success {
 		statusMessage = fmt.Sprintf("A2A task failed: %s", msg.Error)
@@ -627,6 +642,20 @@ func (e *ChatEventHandler) handleMessageQueued(
 	msg domain.MessageQueuedEvent,
 	stateManager *services.StateManager,
 ) (tea.Model, tea.Cmd) {
+	userEntry := domain.ConversationEntry{
+		Message: msg.Message,
+		Time:    time.Now(),
+	}
+
+	if err := e.handler.conversationRepo.AddMessage(userEntry); err != nil {
+		return nil, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to save queued message: %v", err),
+				Sticky: false,
+			}
+		}
+	}
+
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
@@ -643,9 +672,7 @@ func (e *ChatEventHandler) handleMessageQueued(
 		}
 	})
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
-	}
+	cmds = append(cmds, e.handler.startChatCompletion(stateManager))
 
 	return nil, tea.Batch(cmds...)
 }
@@ -662,6 +689,67 @@ func (e *ChatEventHandler) handleA2ATaskInputRequired(
 			Message:    statusMessage,
 			Spinner:    false,
 			StatusType: domain.StatusDefault,
+		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
+func (e *ChatEventHandler) handleCancelled(
+	msg domain.CancelledEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	_ = stateManager.UpdateChatStatus(domain.ChatStatusCancelled)
+	stateManager.EndChatSession()
+	stateManager.EndToolExecution()
+
+	return nil, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    fmt.Sprintf("Request cancelled: %s", msg.Reason),
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+}
+
+func (e *ChatEventHandler) handleA2AToolCallExecuted(
+	msg domain.A2AToolCallExecutedEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	statusMessage := fmt.Sprintf("A2A tool %s executed on gateway", msg.ToolName)
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    statusMessage,
+			Spinner:    true,
+			StatusType: domain.StatusWorking,
+		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}
+
+func (e *ChatEventHandler) handleA2ATaskSubmitted(
+	msg domain.A2ATaskSubmittedEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	statusMessage := fmt.Sprintf("A2A task submitted to %s", msg.AgentName)
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    statusMessage,
+			Spinner:    true,
+			StatusType: domain.StatusWorking,
 		}
 	})
 
