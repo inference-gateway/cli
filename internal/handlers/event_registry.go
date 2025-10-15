@@ -9,39 +9,21 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 )
 
-// EventHandlerFunc defines the signature for event handler functions
-type EventHandlerFunc func(msg tea.Msg, stateManager *services.StateManager) (tea.Model, tea.Cmd)
-
-// EventHandlerRegistry provides automatic registration and validation of event handlers
-type EventHandlerRegistry struct {
-	handlers map[reflect.Type]EventHandlerFunc
+type EventRegistry struct {
+	handlers map[reflect.Type]reflect.Method
 }
 
-// NewEventHandlerRegistry creates a new event handler registry
-func NewEventHandlerRegistry() *EventHandlerRegistry {
-	return &EventHandlerRegistry{
-		handlers: make(map[reflect.Type]EventHandlerFunc),
+func NewEventRegistry(handler interface{}) *EventRegistry {
+	registry := &EventRegistry{
+		handlers: make(map[reflect.Type]reflect.Method),
 	}
+	registry.autoRegisterHandlers(handler)
+	return registry
 }
 
-// Register adds a handler for a specific event type
-func (r *EventHandlerRegistry) Register(eventType tea.Msg, handler EventHandlerFunc) {
-	r.handlers[reflect.TypeOf(eventType)] = handler
-}
+func (r *EventRegistry) autoRegisterHandlers(handler interface{}) {
+	handlerType := reflect.TypeOf(handler)
 
-// MustHaveHandlerFor verifies that a handler exists for the given event type
-// Panics if no handler is registered (fail-fast behavior)
-func (r *EventHandlerRegistry) MustHaveHandlerFor(eventType tea.Msg) {
-	if _, exists := r.handlers[reflect.TypeOf(eventType)]; !exists {
-		panic(fmt.Sprintf("No handler registered for event type: %T", eventType))
-	}
-}
-
-// ValidateAllEventTypes ensures all event types have registered handlers
-func (r *EventHandlerRegistry) ValidateAllEventTypes() error {
-	var missingHandlers []string
-
-	// Define all event types that should have handlers
 	eventTypes := []tea.Msg{
 		domain.UserInputEvent{},
 		domain.FileSelectionRequestEvent{},
@@ -68,20 +50,44 @@ func (r *EventHandlerRegistry) ValidateAllEventTypes() error {
 	}
 
 	for _, eventType := range eventTypes {
-		if _, exists := r.handlers[reflect.TypeOf(eventType)]; !exists {
-			missingHandlers = append(missingHandlers, fmt.Sprintf("%T", eventType))
+		methodName := "Handle" + getEventTypeName(eventType)
+		if method, exists := handlerType.MethodByName(methodName); exists {
+			r.handlers[reflect.TypeOf(eventType)] = method
+		} else {
+			panic(fmt.Sprintf("Missing handler method: %s for event type: %T", methodName, eventType))
 		}
 	}
-
-	if len(missingHandlers) > 0 {
-		return fmt.Errorf("missing handlers for event types: %v", missingHandlers)
-	}
-
-	return nil
 }
 
-// GetHandler returns the handler for a specific event type
-func (r *EventHandlerRegistry) GetHandler(eventType tea.Msg) (EventHandlerFunc, bool) {
-	handler, exists := r.handlers[reflect.TypeOf(eventType)]
-	return handler, exists
+func (r *EventRegistry) Handle(handler interface{}, msg tea.Msg, stateManager *services.StateManager) (tea.Model, tea.Cmd) {
+	method, exists := r.handlers[reflect.TypeOf(msg)]
+	if !exists {
+		panic(fmt.Sprintf("No handler registered for event type: %T", msg))
+	}
+
+	args := []reflect.Value{
+		reflect.ValueOf(handler),
+		reflect.ValueOf(msg),
+		reflect.ValueOf(stateManager),
+	}
+
+	results := method.Func.Call(args)
+
+	var model tea.Model
+	var cmd tea.Cmd
+
+	if !results[0].IsNil() {
+		model = results[0].Interface().(tea.Model)
+	}
+
+	if !results[1].IsNil() {
+		cmd = results[1].Interface().(tea.Cmd)
+	}
+
+	return model, cmd
+}
+
+func getEventTypeName(event tea.Msg) string {
+	eventType := reflect.TypeOf(event)
+	return eventType.Name()
 }

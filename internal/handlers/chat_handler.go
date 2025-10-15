@@ -27,7 +27,7 @@ type ChatHandler struct {
 	messageProcessor *ChatMessageProcessor
 	commandHandler   *ChatCommandHandler
 	eventHandler     *ChatEventHandler
-	eventRegistry    *SimplifiedEventRegistry
+	eventRegistry    *EventRegistry
 }
 
 func NewChatHandler(
@@ -53,7 +53,7 @@ func NewChatHandler(
 	handler.messageProcessor = NewChatMessageProcessor(handler)
 	handler.commandHandler = NewChatCommandHandler(handler)
 	handler.eventHandler = NewChatEventHandler(handler)
-	handler.eventRegistry = NewSimplifiedEventRegistry(handler)
+	handler.eventRegistry = NewEventRegistry(handler)
 
 	return handler
 }
