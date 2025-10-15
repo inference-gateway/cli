@@ -92,6 +92,8 @@ func (h *ChatHandler) CanHandle(msg tea.Msg) bool {
 		return true
 	case domain.A2ATaskStatusUpdateEvent:
 		return true
+	case domain.A2ATaskInputRequiredEvent:
+		return true
 	case domain.MessageQueuedEvent:
 		return true
 	default:
@@ -158,6 +160,9 @@ func (h *ChatHandler) Handle(
 
 	case domain.A2ATaskStatusUpdateEvent:
 		return h.eventHandler.handleA2ATaskStatusUpdate(msg, stateManager)
+
+	case domain.A2ATaskInputRequiredEvent:
+		return h.eventHandler.handleA2ATaskInputRequired(msg, stateManager)
 
 	case domain.MessageQueuedEvent:
 		return h.eventHandler.handleMessageQueued(msg, stateManager)

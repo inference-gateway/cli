@@ -649,3 +649,25 @@ func (e *ChatEventHandler) handleMessageQueued(
 
 	return nil, tea.Batch(cmds...)
 }
+
+func (e *ChatEventHandler) handleA2ATaskInputRequired(
+	msg domain.A2ATaskInputRequiredEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
+
+	statusMessage := fmt.Sprintf("⚠️  A2A task requires input: %s", msg.Message)
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    statusMessage,
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	})
+
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return nil, tea.Batch(cmds...)
+}

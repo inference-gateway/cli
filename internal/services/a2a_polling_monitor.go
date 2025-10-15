@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	adk "github.com/inference-gateway/adk/types"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
@@ -175,6 +176,23 @@ func (m *A2APollingMonitor) emitStatusUpdateEvent(update *domain.A2ATaskStatusUp
 	select {
 	case m.eventChan <- event:
 	default:
+	}
+
+	if update.State == string(adk.TaskStateInputRequired) {
+		inputRequiredEvent := domain.A2ATaskInputRequiredEvent{
+			RequestID: m.requestID,
+			Timestamp: time.Now(),
+			TaskID:    update.TaskID,
+			Message:   update.Message,
+			Required:  true,
+		}
+
+		select {
+		case m.eventChan <- inputRequiredEvent:
+		default:
+			logger.Warn("Failed to emit A2A input required event - channel full",
+				"task_id", update.TaskID)
+		}
 	}
 }
 
