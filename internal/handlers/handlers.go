@@ -8,8 +8,6 @@ import (
 // EventHandler defines the interface for handling events
 type EventHandler interface {
 	Handle(msg tea.Msg, stateManager domain.StateManager) (tea.Model, tea.Cmd)
-	GetPriority() int
-	GetName() string
 }
 
 // Compile-time assertion that ChatHandler implements EventHandler

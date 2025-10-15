@@ -14,7 +14,6 @@ import (
 )
 
 type ChatHandler struct {
-	name             string
 	agentService     domain.AgentService
 	conversationRepo domain.ConversationRepository
 	modelService     domain.ModelService
@@ -38,7 +37,6 @@ func NewChatHandler(
 	shortcutRegistry *shortcuts.Registry,
 ) *ChatHandler {
 	handler := &ChatHandler{
-		name:             "ChatHandler",
 		agentService:     agentService,
 		conversationRepo: conversationRepo,
 		modelService:     modelService,
@@ -53,14 +51,6 @@ func NewChatHandler(
 	handler.eventHandler = NewChatEventHandler(handler)
 
 	return handler
-}
-
-func (h *ChatHandler) GetName() string {
-	return h.name
-}
-
-func (h *ChatHandler) GetPriority() int {
-	return 100
 }
 
 func (h *ChatHandler) Handle(

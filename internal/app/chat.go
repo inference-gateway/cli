@@ -54,8 +54,8 @@ type ChatApplication struct {
 	applicationViewRenderer *components.ApplicationViewRenderer
 	fileSelectionHandler    *components.FileSelectionHandler
 
-	// Message routing
-	messageRouter *handlers.MessageRouter
+	// Event handling
+	chatHandler handlers.EventHandler
 
 	// Current active component for key handling
 	focusedComponent ui.InputComponent
@@ -152,15 +152,7 @@ func NewChatApplication(
 		app.focusedComponent = nil
 	}
 
-	app.messageRouter = handlers.NewMessageRouter()
-	app.registerHandlers()
-
-	return app
-}
-
-// registerHandlers registers all message handlers
-func (app *ChatApplication) registerHandlers() {
-	chatHandler := handlers.NewChatHandler(
+	app.chatHandler = handlers.NewChatHandler(
 		app.agentService,
 		app.conversationRepo,
 		app.modelService,
@@ -169,7 +161,8 @@ func (app *ChatApplication) registerHandlers() {
 		app.fileService,
 		app.shortcutRegistry,
 	)
-	app.messageRouter.AddHandler(chatHandler)
+
+	return app
 }
 
 // updateHelpBarShortcuts updates the help bar with essential keyboard shortcuts
@@ -252,7 +245,7 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
 	}
 
-	if _, cmd := app.messageRouter.Route(msg, app.stateManager); cmd != nil {
+	if _, cmd := app.chatHandler.Handle(msg, app.stateManager); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
