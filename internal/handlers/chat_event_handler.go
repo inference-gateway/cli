@@ -12,13 +12,11 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// ChatEventHandler handles chat events
 type ChatEventHandler struct {
 	handler          *ChatHandler
 	toolCallRenderer *components.ToolCallRenderer
 }
 
-// NewChatEventHandler creates a new event handler
 func NewChatEventHandler(handler *ChatHandler) *ChatEventHandler {
 	return &ChatEventHandler{
 		handler:          handler,
@@ -26,7 +24,6 @@ func NewChatEventHandler(handler *ChatHandler) *ChatEventHandler {
 	}
 }
 
-// handleChatStart processes chat start events
 func (e *ChatEventHandler) handleChatStart(
 	event domain.ChatStartEvent,
 	stateManager *services.StateManager,
@@ -49,7 +46,6 @@ func (e *ChatEventHandler) handleChatStart(
 	return nil, tea.Batch(cmds...)
 }
 
-// handleChatChunk processes chat chunk events
 func (e *ChatEventHandler) handleChatChunk(
 	msg domain.ChatChunkEvent,
 	stateManager *services.StateManager,
@@ -75,7 +71,6 @@ func (e *ChatEventHandler) handleChatChunk(
 		},
 	}
 
-	// Add live token usage updates during streaming when available
 	if msg.Usage != nil {
 		tokenUsage := e.formatLiveTokenUsage(msg.Usage)
 		if tokenUsage != "" {
@@ -100,7 +95,6 @@ func (e *ChatEventHandler) handleChatChunk(
 	return nil, tea.Batch(cmds...)
 }
 
-// handleOptimizationStatus processes optimization status events
 func (e *ChatEventHandler) handleOptimizationStatus(
 	event domain.OptimizationStatusEvent,
 	stateManager *services.StateManager,
@@ -124,7 +118,6 @@ func (e *ChatEventHandler) handleOptimizationStatus(
 	}
 }
 
-// handleNoChatSession handles the case when there's no active chat session
 func (e *ChatEventHandler) handleNoChatSession(msg domain.ChatChunkEvent) (tea.Model, tea.Cmd) {
 	if msg.ReasoningContent != "" {
 		return nil, func() tea.Msg {
@@ -138,7 +131,6 @@ func (e *ChatEventHandler) handleNoChatSession(msg domain.ChatChunkEvent) (tea.M
 	return nil, nil
 }
 
-// handleEmptyContent handles the case when the message has no content
 func (e *ChatEventHandler) handleEmptyContent(chatSession *domain.ChatSession) (tea.Model, tea.Cmd) {
 	if chatSession != nil && chatSession.EventChannel != nil {
 		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
@@ -146,13 +138,9 @@ func (e *ChatEventHandler) handleEmptyContent(chatSession *domain.ChatSession) (
 	return nil, nil
 }
 
-// updateConversationHistory handles streaming content for UI display only (no database writes)
 func (e *ChatEventHandler) updateConversationHistory(msg domain.ChatChunkEvent, chatSession *domain.ChatSession) {
-	// During streaming, we don't update the database - agent handles that at completion
-	// Just accumulate content in the chat session for UI display
 }
 
-// handleStatusUpdate handles updating the chat status and returns appropriate commands
 func (e *ChatEventHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *domain.ChatSession, stateManager *services.StateManager) []tea.Cmd {
 	newStatus, shouldUpdateStatus := e.determineNewStatus(msg, chatSession.Status, chatSession.IsFirstChunk)
 
@@ -174,7 +162,6 @@ func (e *ChatEventHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSes
 	return nil
 }
 
-// determineNewStatus determines what the new status should be based on message content
 func (e *ChatEventHandler) determineNewStatus(msg domain.ChatChunkEvent, currentStatus domain.ChatStatus, _ bool) (domain.ChatStatus, bool) {
 	if msg.ReasoningContent != "" {
 		return domain.ChatStatusThinking, true
@@ -187,7 +174,6 @@ func (e *ChatEventHandler) determineNewStatus(msg domain.ChatChunkEvent, current
 	return currentStatus, false
 }
 
-// createFirstChunkStatusCmd creates status command for the first chunk
 func (e *ChatEventHandler) createFirstChunkStatusCmd(status domain.ChatStatus) []tea.Cmd {
 	switch status {
 	case domain.ChatStatusThinking:
@@ -210,7 +196,6 @@ func (e *ChatEventHandler) createFirstChunkStatusCmd(status domain.ChatStatus) [
 	return nil
 }
 
-// createStatusUpdateCmd creates status update command for status changes
 func (e *ChatEventHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea.Cmd {
 	switch status {
 	case domain.ChatStatusThinking:
@@ -231,7 +216,6 @@ func (e *ChatEventHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea
 	return nil
 }
 
-// handleChatComplete processes chat completion events
 func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
 	stateManager *services.StateManager,
@@ -268,7 +252,6 @@ func (e *ChatEventHandler) handleChatComplete(
 	return nil, tea.Batch(cmds...)
 }
 
-// handleChatError processes chat error events
 func (e *ChatEventHandler) handleChatError(
 	msg domain.ChatErrorEvent,
 	stateManager *services.StateManager,
@@ -292,7 +275,6 @@ func (e *ChatEventHandler) handleChatError(
 	}
 }
 
-// handleToolCallPreview processes initial tool call preview events
 func (e *ChatEventHandler) handleToolCallPreview(
 	msg domain.ToolCallPreviewEvent,
 	stateManager *services.StateManager,
@@ -316,7 +298,6 @@ func (e *ChatEventHandler) handleToolCallPreview(
 	return nil, tea.Batch(cmds...)
 }
 
-// handleToolCallUpdate processes streaming updates to tool calls
 func (e *ChatEventHandler) handleToolCallUpdate(
 	msg domain.ToolCallUpdateEvent,
 	stateManager *services.StateManager,
@@ -352,7 +333,6 @@ func (e *ChatEventHandler) handleToolCallUpdate(
 	return nil, tea.Batch(cmds...)
 }
 
-// handleToolCallReady is no longer used since tools are handled directly in agent
 func (e *ChatEventHandler) handleToolCallReady(
 	msg domain.ToolCallReadyEvent,
 	stateManager *services.StateManager,
@@ -513,7 +493,6 @@ func (e *ChatEventHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 	return strings.Join(parts, " | ")
 }
 
-// formatLiveTokenUsage formats token usage during streaming
 func (e *ChatEventHandler) formatLiveTokenUsage(usage *sdk.CompletionUsage) string {
 	if usage == nil {
 		return ""
@@ -537,7 +516,6 @@ func (e *ChatEventHandler) formatLiveTokenUsage(usage *sdk.CompletionUsage) stri
 	return ""
 }
 
-// formatToolCallStatusMessage formats status messages for tool calls based on tool type and status
 func (e *ChatEventHandler) formatToolCallStatusMessage(toolName string, status domain.ToolCallStreamStatus) string {
 	switch status {
 	case domain.ToolCallStreamStatusStreaming:
@@ -549,7 +527,6 @@ func (e *ChatEventHandler) formatToolCallStatusMessage(toolName string, status d
 	}
 }
 
-// handleCancelled processes cancellation events with pass-through behavior
 func (e *ChatEventHandler) handleCancelled(
 	msg domain.CancelledEvent,
 	stateManager *services.StateManager,
@@ -560,7 +537,6 @@ func (e *ChatEventHandler) handleCancelled(
 	return nil, nil
 }
 
-// handleA2AToolCallExecuted processes A2A tool call executed events with pass-through behavior
 func (e *ChatEventHandler) handleA2AToolCallExecuted(
 	msg domain.A2AToolCallExecutedEvent,
 	stateManager *services.StateManager,
@@ -571,7 +547,6 @@ func (e *ChatEventHandler) handleA2AToolCallExecuted(
 	return nil, nil
 }
 
-// handleA2ATaskSubmitted processes A2A task submitted events with pass-through behavior
 func (e *ChatEventHandler) handleA2ATaskSubmitted(
 	msg domain.A2ATaskSubmittedEvent,
 	stateManager *services.StateManager,
@@ -582,7 +557,6 @@ func (e *ChatEventHandler) handleA2ATaskSubmitted(
 	return nil, nil
 }
 
-// handleA2ATaskStatusUpdate processes A2A task status update events with pass-through behavior
 func (e *ChatEventHandler) handleA2ATaskStatusUpdate(
 	msg domain.A2ATaskStatusUpdateEvent,
 	stateManager *services.StateManager,
@@ -593,7 +567,6 @@ func (e *ChatEventHandler) handleA2ATaskStatusUpdate(
 	return nil, nil
 }
 
-// handleA2ATaskCompleted processes A2A task completed events with pass-through behavior
 func (e *ChatEventHandler) handleA2ATaskCompleted(
 	msg domain.A2ATaskCompletedEvent,
 	stateManager *services.StateManager,
@@ -604,7 +577,6 @@ func (e *ChatEventHandler) handleA2ATaskCompleted(
 	return nil, nil
 }
 
-// handleA2ATaskInputRequired processes A2A task input required events with pass-through behavior
 func (e *ChatEventHandler) handleA2ATaskInputRequired(
 	msg domain.A2ATaskInputRequiredEvent,
 	stateManager *services.StateManager,
