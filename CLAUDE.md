@@ -151,6 +151,41 @@ type UIEvent struct {
 }
 ```
 
+**Event Handler Architecture**: Automatic registration with fail-fast validation
+
+```go
+// All event types must have registered handlers
+type EventHandlerRegistry struct {
+    handlers map[reflect.Type]EventHandlerFunc
+}
+
+// Validation ensures no events are silently dropped
+func (r *EventHandlerRegistry) ValidateAllEventTypes() error {
+    // Verifies all event types have handlers at startup
+}
+```
+
+### Event Handler Requirements
+
+- **All event types MUST have handlers** - Registry validates at startup
+- **Handler registration is automatic** - No manual switch statement management
+- **Default pass-through behavior** - Prevents UI freezes from unhandled events
+- **Logging for debugging** - Warns about unexpected event types
+- **Fail-fast validation** - Panics on startup if handlers are missing
+
+### Adding New Event Types
+
+When adding new event types:
+
+1. Define the event type in `domain/events.go` or `domain/ui_events.go`
+2. Add the event type to `EventHandlerRegistry.ValidateAllEventTypes()`
+3. Implement handler method in `ChatEventHandler`
+4. Register the handler in `ChatHandler.registerEventHandlers()`
+5. Add the event type to `ChatHandler.CanHandle()`
+6. Run tests to verify registration: `task test`
+
+The system will panic on startup if any step is missed, providing compile-time safety.
+
 ## Coding Standards
 
 ### Required Practices

@@ -548,3 +548,69 @@ func (e *ChatEventHandler) formatToolCallStatusMessage(toolName string, status d
 		return ""
 	}
 }
+
+// handleCancelled processes cancellation events with pass-through behavior
+func (e *ChatEventHandler) handleCancelled(
+	msg domain.CancelledEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+	}
+	return nil, nil
+}
+
+// handleA2AToolCallExecuted processes A2A tool call executed events with pass-through behavior
+func (e *ChatEventHandler) handleA2AToolCallExecuted(
+	msg domain.A2AToolCallExecutedEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+	}
+	return nil, nil
+}
+
+// handleA2ATaskSubmitted processes A2A task submitted events with pass-through behavior
+func (e *ChatEventHandler) handleA2ATaskSubmitted(
+	msg domain.A2ATaskSubmittedEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+	}
+	return nil, nil
+}
+
+// handleA2ATaskStatusUpdate processes A2A task status update events with pass-through behavior
+func (e *ChatEventHandler) handleA2ATaskStatusUpdate(
+	msg domain.A2ATaskStatusUpdateEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+	}
+	return nil, nil
+}
+
+// handleA2ATaskCompleted processes A2A task completed events with pass-through behavior
+func (e *ChatEventHandler) handleA2ATaskCompleted(
+	msg domain.A2ATaskCompletedEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+	}
+	return nil, nil
+}
+
+// handleA2ATaskInputRequired processes A2A task input required events with pass-through behavior
+func (e *ChatEventHandler) handleA2ATaskInputRequired(
+	msg domain.A2ATaskInputRequiredEvent,
+	stateManager *services.StateManager,
+) (tea.Model, tea.Cmd) {
+	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+	}
+	return nil, nil
+}
