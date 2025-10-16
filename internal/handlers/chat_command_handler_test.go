@@ -54,9 +54,8 @@ func TestChatCommandHandler_handleCommand(t *testing.T) {
 			}
 
 			commandHandler := NewChatCommandHandler(handler)
-			stateManager := services.NewStateManager(false)
 
-			_, cmd := commandHandler.handleCommand(tt.command, stateManager)
+			cmd := commandHandler.handleCommand(tt.command)
 
 			assert.NotNil(t, cmd)
 		})
@@ -114,9 +113,8 @@ func TestChatCommandHandler_handleBashCommand(t *testing.T) {
 			}
 
 			commandHandler := NewChatCommandHandler(handler)
-			stateManager := services.NewStateManager(false)
 
-			_, cmd := commandHandler.handleBashCommand(tt.command, stateManager)
+			cmd := commandHandler.handleBashCommand(tt.command)
 
 			if tt.expectedCmd {
 				assert.NotNil(t, cmd)
@@ -179,9 +177,8 @@ func TestChatCommandHandler_handleToolCommand(t *testing.T) {
 			}
 
 			commandHandler := NewChatCommandHandler(handler)
-			stateManager := services.NewStateManager(false)
 
-			_, cmd := commandHandler.handleToolCommand(tt.command, stateManager)
+			cmd := commandHandler.handleToolCommand(tt.command)
 
 			assert.NotNil(t, cmd)
 		})

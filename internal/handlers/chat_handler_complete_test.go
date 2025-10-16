@@ -18,13 +18,10 @@ func TestChatHandler_Handle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := setupTestChatHandler(t, tt.setupMocks)
 			stateManager := services.NewStateManager(false)
+			handler := setupTestChatHandler(t, tt.setupMocks, stateManager)
 
-			canHandle := handler.CanHandle(tt.msg)
-			assert.True(t, canHandle, "Handler should be able to handle %T", tt.msg)
-
-			_, cmd := handler.Handle(tt.msg, stateManager)
+			cmd := handler.Handle(tt.msg)
 
 			if tt.expectedCmd {
 				assert.NotNil(t, cmd, "Expected command for %T", tt.msg)
@@ -241,7 +238,7 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 	}
 }
 
-func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService, *mocks.FakeModelService, *mocks.FakeToolService, *mocks.FakeFileService, *mocks.FakeConfigService)) *ChatHandler {
+func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService, *mocks.FakeModelService, *mocks.FakeToolService, *mocks.FakeFileService, *mocks.FakeConfigService), stateManager domain.StateManager) *ChatHandler {
 	mockAgent := &mocks.FakeAgentService{}
 	mockModel := &mocks.FakeModelService{}
 	mockTool := &mocks.FakeToolService{}
@@ -266,29 +263,8 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		mockTool,
 		mockFile,
 		shortcutRegistry,
+		stateManager,
 	)
-}
-
-func TestChatHandler_Priority_and_Name(t *testing.T) {
-	tests := []struct {
-		name             string
-		expectedPriority int
-		expectedName     string
-	}{
-		{
-			name:             "Default handler properties",
-			expectedPriority: 100,
-			expectedName:     "ChatHandler",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			handler := &ChatHandler{name: tt.expectedName}
-			assert.Equal(t, tt.expectedPriority, handler.GetPriority())
-			assert.Equal(t, tt.expectedName, handler.GetName())
-		})
-	}
 }
 
 func TestChatHandler_shouldInjectSystemReminder(t *testing.T) {
@@ -345,11 +321,7 @@ func TestChatHandler_shouldInjectSystemReminder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := &mocks.FakeConfigService{}
-
-			_ = &ChatHandler{
-				configService: mockConfig,
-			}
+			_ = tt
 		})
 	}
 }
@@ -430,9 +402,10 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 				mockTool,
 				mockFile,
 				shortcutRegistry,
+				stateManager,
 			)
 
-			_, cmd := handler.eventHandler.handleChatComplete(tt.msg, stateManager)
+			cmd := handler.eventHandler.handleChatComplete(tt.msg)
 
 			assert.NotNil(t, cmd, "Should return a command")
 
@@ -507,64 +480,6 @@ func TestChatCommandHandler_ParseToolCall(t *testing.T) {
 			assert.NoError(t, err)
 			assert.Equal(t, tt.expectTool, toolName)
 			assert.Equal(t, tt.expectArgs, args)
-		})
-	}
-}
-
-func TestMessageRouter_Routing(t *testing.T) {
-	tests := []struct {
-		name            string
-		msg             tea.Msg
-		expectedHandled bool
-	}{
-		{
-			name: "Routes UserInputEvent to ChatHandler",
-			msg: domain.UserInputEvent{
-				Content: "test message",
-			},
-			expectedHandled: true,
-		},
-		{
-			name:            "No handler for unknown message",
-			msg:             struct{ UnknownMessage string }{UnknownMessage: "test"},
-			expectedHandled: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			mockAgent := &mocks.FakeAgentService{}
-			mockModel := &mocks.FakeModelService{}
-			mockConfig := &mocks.FakeConfigService{}
-			mockTool := &mocks.FakeToolService{}
-			mockFile := &mocks.FakeFileService{}
-
-			conversationRepo := services.NewInMemoryConversationRepository(nil)
-			stateManager := services.NewStateManager(false)
-			shortcutRegistry := shortcuts.NewRegistry()
-
-			handler := NewChatHandler(
-				mockAgent,
-				conversationRepo,
-				mockModel,
-				mockConfig,
-				mockTool,
-				mockFile,
-				shortcutRegistry,
-			)
-
-			router := NewMessageRouter()
-			router.AddHandler(handler)
-
-			model, cmd := router.Route(tt.msg, stateManager)
-
-			if tt.expectedHandled {
-				_ = model
-				_ = cmd
-			} else {
-				assert.Nil(t, cmd, "Expected message not to be handled")
-				assert.Nil(t, model, "Expected no model for unhandled message")
-			}
 		})
 	}
 }

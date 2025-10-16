@@ -70,33 +70,8 @@ type ModelService interface {
 	ValidateModel(modelID string) error
 }
 
-// ChatEventType defines types of chat events
-type ChatEventType int
-
-const (
-	EventChatStart ChatEventType = iota
-	EventChatChunk
-	EventChatComplete
-	EventChatError
-	EventToolCallPreview
-	EventToolCallUpdate
-	EventToolCallReady
-	EventCancelled
-	EventOptimizationStatus
-	EventA2AToolCallExecuted
-	EventA2ATaskSubmitted
-	EventA2ATaskStatusUpdate
-	EventA2ATaskCompleted
-	EventA2ATaskInputRequired
-	EventParallelToolsStart
-	EventToolExecutionProgress
-	EventParallelToolsComplete
-	EventMessageQueued
-)
-
 // ChatEvent represents events during chat operations
 type ChatEvent interface {
-	GetType() ChatEventType
 	GetRequestID() string
 	GetTimestamp() time.Time
 }
@@ -120,6 +95,47 @@ type ChatSyncResponse struct {
 type ChatService interface {
 	CancelRequest(requestID string) error
 	GetMetrics(requestID string) *ChatMetrics
+}
+
+// StateManager interface defines state management operations
+type StateManager interface {
+	// View state management
+	GetCurrentView() ViewState
+	TransitionToView(newView ViewState) error
+
+	// Chat session management
+	StartChatSession(requestID, model string, eventChan <-chan ChatEvent) error
+	UpdateChatStatus(status ChatStatus) error
+	EndChatSession()
+	GetChatSession() *ChatSession
+	IsAgentBusy() bool
+
+	// Tool execution management
+	StartToolExecution(toolCalls []sdk.ChatCompletionMessageToolCall) error
+	CompleteCurrentTool(result *ToolExecutionResult) error
+	FailCurrentTool(result *ToolExecutionResult) error
+	EndToolExecution()
+	GetToolExecution() *ToolExecutionSession
+
+	// Dimensions management
+	SetDimensions(width, height int)
+	GetDimensions() (int, int)
+
+	// File selection management
+	SetupFileSelection(files []string)
+	GetFileSelectionState() *FileSelectionState
+	UpdateFileSearchQuery(query string)
+	SetFileSelectedIndex(index int)
+	ClearFileSelectionState()
+
+	// Message queue management
+	AddQueuedMessage(message Message, requestID string)
+	PopQueuedMessage() *QueuedMessage
+	ClearQueuedMessages()
+	GetQueuedMessages() []QueuedMessage
+
+	// Background task management
+	GetBackgroundTasks(toolService ToolService) []TaskPollingState
 }
 
 // FileService handles file operations
@@ -568,51 +584,6 @@ type StatusProgress struct {
 	Current int
 	Total   int
 }
-
-// UIEvent interface for all UI-related events
-type UIEvent interface {
-	GetType() UIEventType
-}
-
-// UIEventType defines types of UI events
-type UIEventType int
-
-const (
-	UIEventUpdateHistory UIEventType = iota
-	UIEventStreamingContent
-	UIEventSetStatus
-	UIEventUpdateStatus
-	UIEventShowError
-	UIEventClearError
-	UIEventClearInput
-	UIEventSetInput
-	UIEventUserInput
-	UIEventModelSelected
-	UIEventThemeSelected
-	UIEventConversationSelected
-	UIEventInitializeConversationSelection
-	UIEventFileSelected
-	UIEventFileSelectionRequest
-	UIEventSetupFileSelection
-	UIEventScrollRequest
-	UIEventFocusRequest
-	UIEventResize
-	UIEventDebugKey
-	UIEventToggleHelpBar
-	UIEventHideHelpBar
-	UIEventExitSelectionMode
-	UIEventInitializeTextSelection
-	UIEventConversationsLoaded
-	UIEventToolExecutionStarted
-	UIEventToolExecutionProgress
-	UIEventToolExecutionCompleted
-	UIEventParallelToolsStart
-	UIEventParallelToolsComplete
-	UIEventA2ATaskSubmitted
-	UIEventA2ATaskStatusUpdate
-	UIEventA2ATaskCompleted
-	UIEventA2ATaskInputRequired
-)
 
 // ScrollDirection defines scroll direction
 type ScrollDirection int

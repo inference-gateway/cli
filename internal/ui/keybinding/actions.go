@@ -4,13 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/atotto/clipboard"
+	clipboard "github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/components"
-	"github.com/inference-gateway/cli/internal/ui/keys"
-	"github.com/inference-gateway/cli/internal/ui/shared"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	components "github.com/inference-gateway/cli/internal/ui/components"
+	keys "github.com/inference-gateway/cli/internal/ui/keys"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // registerDefaultBindings registers all default key bindings

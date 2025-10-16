@@ -11,7 +11,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	services "github.com/inference-gateway/cli/internal/services"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -32,10 +31,9 @@ func NewChatCommandHandler(handler *ChatHandler) *ChatCommandHandler {
 // handleCommand processes slash commands
 func (c *ChatCommandHandler) handleCommand(
 	commandText string,
-	stateManager *services.StateManager,
-) (tea.Model, tea.Cmd) {
+) tea.Cmd {
 	if c.handler.shortcutRegistry == nil {
-		return nil, func() tea.Msg {
+		return func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  "Shortcut registry not available",
 				Sticky: false,
@@ -45,7 +43,7 @@ func (c *ChatCommandHandler) handleCommand(
 
 	mainShortcut, args, err := c.handler.shortcutRegistry.ParseShortcut(commandText)
 	if err != nil {
-		return nil, func() tea.Msg {
+		return func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Invalid shortcut format: %v", err),
 				Sticky: false,
@@ -53,18 +51,17 @@ func (c *ChatCommandHandler) handleCommand(
 		}
 	}
 
-	return nil, c.shortcutHandler.executeShortcut(mainShortcut, args, stateManager)
+	return c.shortcutHandler.executeShortcut(mainShortcut, args)
 }
 
 // handleBashCommand processes bash commands starting with !
 func (c *ChatCommandHandler) handleBashCommand(
 	commandText string,
-	stateManager *services.StateManager,
-) (tea.Model, tea.Cmd) {
+) tea.Cmd {
 	command := strings.TrimSpace(strings.TrimPrefix(commandText, "!"))
 
 	if command == "" {
-		return nil, func() tea.Msg {
+		return func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  "No bash command provided. Use: !<command>",
 				Sticky: false,
@@ -73,7 +70,7 @@ func (c *ChatCommandHandler) handleBashCommand(
 	}
 
 	if !c.handler.toolService.IsToolEnabled("Bash") {
-		return nil, func() tea.Msg {
+		return func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  "Bash tool is not enabled. Run 'infer config tool bash enable' to enable it.",
 				Sticky: false,
@@ -81,7 +78,7 @@ func (c *ChatCommandHandler) handleBashCommand(
 		}
 	}
 
-	return nil, func() tea.Msg {
+	return func() tea.Msg {
 		toolCall := sdk.ChatCompletionMessageToolCallFunction{
 			Name:      "Bash",
 			Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
@@ -125,12 +122,11 @@ func (c *ChatCommandHandler) handleBashCommand(
 // handleToolCommand processes tool commands starting with !!
 func (c *ChatCommandHandler) handleToolCommand(
 	commandText string,
-	stateManager *services.StateManager,
-) (tea.Model, tea.Cmd) {
+) tea.Cmd {
 	command := strings.TrimSpace(strings.TrimPrefix(commandText, "!!"))
 
 	if command == "" {
-		return nil, func() tea.Msg {
+		return func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  "No tool command provided. Use: !!ToolName(arg=\"value\")",
 				Sticky: false,
@@ -140,7 +136,7 @@ func (c *ChatCommandHandler) handleToolCommand(
 
 	toolName, args, err := c.ParseToolCall(command)
 	if err != nil {
-		return nil, func() tea.Msg {
+		return func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Invalid tool syntax: %v. Use: !!ToolName(arg=\"value\")", err),
 				Sticky: false,
@@ -149,7 +145,7 @@ func (c *ChatCommandHandler) handleToolCommand(
 	}
 
 	if !c.handler.toolService.IsToolEnabled(toolName) {
-		return nil, func() tea.Msg {
+		return func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Tool '%s' is not enabled. Check 'infer config tools list' for available tools.", toolName),
 				Sticky: false,
@@ -157,7 +153,7 @@ func (c *ChatCommandHandler) handleToolCommand(
 		}
 	}
 
-	return nil, func() tea.Msg {
+	return func() tea.Msg {
 		argsJSON, err := json.Marshal(args)
 		if err != nil {
 			return domain.ShowErrorEvent{

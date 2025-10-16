@@ -520,7 +520,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			}
 
 			s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
-			eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
 
 			if len(toolCalls) > 0 {
 				toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
@@ -540,6 +539,13 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 				hasToolResults = true
 			}
+
+			hasActivePollingAfterTools := taskTracker != nil && len(taskTracker.GetAllPollingAgents()) > 0
+			logger.Info("publishing chat complete",
+				"hadToolCalls", len(completeToolCalls) > 0,
+				"hasActivePolling", hasActivePollingAfterTools)
+
+			eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
 		}
 		//// EVENT LOOP FINISHED
 		close(chatEvents)

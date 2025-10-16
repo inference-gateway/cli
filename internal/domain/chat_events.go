@@ -24,8 +24,6 @@ type ParallelToolsStartEvent struct {
 	Tools []ToolInfo
 }
 
-func (e ParallelToolsStartEvent) GetType() ChatEventType { return EventParallelToolsStart }
-
 // ToolExecutionProgressEvent indicates progress in tool execution
 type ToolExecutionProgressEvent struct {
 	BaseChatEvent
@@ -33,8 +31,6 @@ type ToolExecutionProgressEvent struct {
 	Status     string
 	Message    string
 }
-
-func (e ToolExecutionProgressEvent) GetType() ChatEventType { return EventToolExecutionProgress }
 
 // ParallelToolsCompleteEvent indicates all parallel tools have completed
 type ParallelToolsCompleteEvent struct {
@@ -44,5 +40,3 @@ type ParallelToolsCompleteEvent struct {
 	FailureCount  int
 	Duration      time.Duration
 }
-
-func (e ParallelToolsCompleteEvent) GetType() ChatEventType { return EventParallelToolsComplete }
