@@ -24,18 +24,15 @@ type A2ASubmitTaskTool struct {
 
 // A2ASubmitTaskResult represents the result of an A2A task operation
 type A2ASubmitTaskResult struct {
-	AgentName      string        `json:"agent_name"`
-	Task           *adk.Task     `json:"task"`
-	Success        bool          `json:"success"`
-	Message        string        `json:"message"`
-	Duration       time.Duration `json:"duration"`
-	TaskResult     string        `json:"task_result"`
-	TaskType       string        `json:"task_type"`
-	TimedOut       bool          `json:"timed_out"`
-	WentIdle       bool          `json:"went_idle"`
-	IdleTimeout    time.Duration `json:"idle_timeout,omitempty"`
-	PollAttempts   int           `json:"poll_attempts,omitempty"`
-	PollingDetails string        `json:"polling_details,omitempty"`
+	TaskID      string        `json:"task_id"`                // From ADK Task.ID
+	ContextID   string        `json:"context_id,omitempty"`   // From ADK Task.ContextID
+	AgentURL    string        `json:"agent_url"`              // Agent URL
+	State       string        `json:"state"`                  // From ADK TaskStatus.State
+	Message     string        `json:"message"`                // Human-readable status message
+	TaskResult  string        `json:"task_result,omitempty"`  // Final result text for completed tasks
+	Success     bool          `json:"success"`                // Operation success indicator
+	WentIdle    bool          `json:"went_idle,omitempty"`    // Whether task went idle (stopped polling)
+	IdleTimeout time.Duration `json:"idle_timeout,omitempty"` // Idle timeout duration if applicable
 }
 
 // NewA2ASubmitTaskTool creates a new A2A task tool
@@ -45,7 +42,7 @@ func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A
 		taskTracker: taskTracker,
 		client:      nil,
 		formatter: domain.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
-			return key == "metadata" || key == "task_description"
+			return key == "metadata"
 		}),
 	}
 }
@@ -57,7 +54,7 @@ func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker domain.TaskT
 		taskTracker: taskTracker,
 		client:      client,
 		formatter: domain.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
-			return key == "metadata" || key == "task_description"
+			return key == "metadata"
 		}),
 	}
 }
@@ -251,41 +248,18 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 
 	go t.pollTaskInBackground(pollCtx, agentURL, taskID, pollingState)
 
-	adkTask := adk.Task{
-		Kind: "task",
-		ID:   taskID,
-		Metadata: map[string]any{
-			"description": taskDescription,
-		},
-		Status: adk.TaskStatus{
-			State: adk.TaskStateSubmitted,
-		},
-	}
-
-	if contextID != "" {
-		adkTask.ContextID = contextID
-	}
-
-	if metadata, exists := args["metadata"]; exists {
-		if metadataMap, ok := metadata.(map[string]interface{}); ok {
-			for k, v := range metadataMap {
-				adkTask.Metadata[k] = v
-			}
-		}
-	}
-
 	return &domain.ToolExecutionResult{
 		ToolName:  "A2A_SubmitTask",
 		Arguments: args,
 		Success:   true,
 		Duration:  time.Since(startTime),
 		Data: A2ASubmitTaskResult{
-			AgentName:  agentURL,
-			Task:       &adkTask,
+			TaskID:     submittedTask.ID,
+			ContextID:  submittedTask.ContextID,
+			AgentURL:   agentURL,
+			State:      string(submittedTask.Status.State),
 			Success:    true,
 			Message:    fmt.Sprintf("Task delegated to %s and monitoring in background", agentURL),
-			Duration:   time.Since(startTime),
-			TaskType:   taskDescription,
 			TaskResult: fmt.Sprintf("Task %s delegated successfully. You will be notified automatically when it completes - no need to poll manually.", taskID),
 		},
 	}, nil
@@ -391,7 +365,9 @@ func (t *A2ASubmitTaskTool) handleImmediateIdle(agentURL, taskID string, state *
 		Success:  true,
 		Duration: time.Since(state.StartedAt),
 		Data: A2ASubmitTaskResult{
-			AgentName:   agentURL,
+			TaskID:      taskID,
+			AgentURL:    agentURL,
+			State:       string(adk.TaskStateWorking),
 			Success:     true,
 			Message:     "Task delegated and went idle immediately",
 			WentIdle:    true,
@@ -429,13 +405,13 @@ func (t *A2ASubmitTaskTool) checkIdleConditions(agentURL, taskID, strategy strin
 				Success:  true,
 				Duration: time.Since(state.StartedAt),
 				Data: A2ASubmitTaskResult{
-					AgentName:      agentURL,
-					Success:        true,
-					Message:        fmt.Sprintf("Task went idle after reaching max poll interval of %v", maxInterval),
-					WentIdle:       true,
-					IdleTimeout:    idleTimeout,
-					PollAttempts:   pollAttempt,
-					PollingDetails: pollingDetails,
+					TaskID:      taskID,
+					AgentURL:    agentURL,
+					State:       string(adk.TaskStateWorking),
+					Success:     true,
+					Message:     fmt.Sprintf("Task went idle after reaching max poll interval of %v", maxInterval),
+					WentIdle:    true,
+					IdleTimeout: idleTimeout,
 				},
 			}
 			return true, result
@@ -446,13 +422,13 @@ func (t *A2ASubmitTaskTool) checkIdleConditions(agentURL, taskID, strategy strin
 			Success:  true,
 			Duration: time.Since(state.StartedAt),
 			Data: A2ASubmitTaskResult{
-				AgentName:      agentURL,
-				Success:        true,
-				Message:        fmt.Sprintf("Task went idle after %v", idleTimeout),
-				WentIdle:       true,
-				IdleTimeout:    idleTimeout,
-				PollAttempts:   pollAttempt,
-				PollingDetails: pollingDetails,
+				TaskID:      taskID,
+				AgentURL:    agentURL,
+				State:       string(adk.TaskStateWorking),
+				Success:     true,
+				Message:     fmt.Sprintf("Task went idle after %v", idleTimeout),
+				WentIdle:    true,
+				IdleTimeout: idleTimeout,
 			},
 		}
 		return true, result
@@ -527,13 +503,13 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 			Success:  true,
 			Duration: time.Since(state.StartedAt),
 			Data: A2ASubmitTaskResult{
-				AgentName:      agentURL,
-				Success:        true,
-				Message:        fmt.Sprintf("Task %s", currentTask.Status.State),
-				Duration:       time.Since(state.StartedAt),
-				TaskResult:     finalResult,
-				PollAttempts:   pollAttempt,
-				PollingDetails: pollingDetails,
+				TaskID:     currentTask.ID,
+				ContextID:  currentTask.ContextID,
+				AgentURL:   agentURL,
+				State:      string(currentTask.Status.State),
+				Success:    true,
+				Message:    fmt.Sprintf("Task %s", currentTask.Status.State),
+				TaskResult: finalResult,
 			},
 		}
 		return true, result
@@ -545,13 +521,13 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 			Success:  false,
 			Duration: time.Since(state.StartedAt),
 			Data: A2ASubmitTaskResult{
-				AgentName:      agentURL,
-				Success:        false,
-				Message:        fmt.Sprintf("Task %s", currentTask.Status.State),
-				Duration:       time.Since(state.StartedAt),
-				TaskResult:     finalResult,
-				PollAttempts:   pollAttempt,
-				PollingDetails: pollingDetails,
+				TaskID:     currentTask.ID,
+				ContextID:  currentTask.ContextID,
+				AgentURL:   agentURL,
+				State:      string(currentTask.Status.State),
+				Success:    false,
+				Message:    fmt.Sprintf("Task %s", currentTask.Status.State),
+				TaskResult: finalResult,
 			},
 		}
 		return true, result
@@ -567,12 +543,13 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 			Success:  true,
 			Duration: time.Since(state.StartedAt),
 			Data: A2ASubmitTaskResult{
-				AgentName:      agentURL,
-				Success:        true,
-				Message:        fmt.Sprintf("Task requires input: %s", inputMessage),
-				TaskResult:     inputMessage,
-				PollAttempts:   pollAttempt,
-				PollingDetails: pollingDetails,
+				TaskID:     currentTask.ID,
+				ContextID:  currentTask.ContextID,
+				AgentURL:   agentURL,
+				State:      string(currentTask.Status.State),
+				Success:    true,
+				Message:    fmt.Sprintf("Task requires input: %s", inputMessage),
+				TaskResult: inputMessage,
 			},
 		}
 		return true, result
@@ -662,20 +639,16 @@ func (t *A2ASubmitTaskTool) FormatPreview(result *domain.ToolExecutionResult) st
 		return "A2A task operation completed"
 	}
 
-	if data.TaskType == "" {
-		return fmt.Sprintf("A2A Task: %s", data.Message)
-	}
-
-	taskPreview := data.TaskType
-	if len(taskPreview) > 50 {
-		taskPreview = taskPreview[:47] + "..."
+	preview := fmt.Sprintf("Task %s", data.State)
+	if data.Message != "" {
+		preview = data.Message
 	}
 
 	if data.WentIdle {
-		return fmt.Sprintf("A2A Task: %s (delegated, went idle)", taskPreview)
+		return fmt.Sprintf("%s (went idle)", preview)
 	}
 
-	return fmt.Sprintf("A2A Task: %s", taskPreview)
+	return preview
 }
 
 // FormatForUI formats the result for UI display
@@ -707,10 +680,7 @@ func (t *A2ASubmitTaskTool) ShouldAlwaysExpand() bool {
 
 // errorResult creates an error result
 func (t *A2ASubmitTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
-	var taskType string
-	if desc, ok := args["task_description"].(string); ok {
-		taskType = desc
-	}
+	agentURL, _ := args["agent_url"].(string)
 
 	return &domain.ToolExecutionResult{
 		ToolName:  "A2A_SubmitTask",
@@ -719,9 +689,10 @@ func (t *A2ASubmitTaskTool) errorResult(args map[string]any, startTime time.Time
 		Duration:  time.Since(startTime),
 		Error:     errorMsg,
 		Data: A2ASubmitTaskResult{
+			AgentURL: agentURL,
+			State:    string(adk.TaskStateFailed),
 			Success:  false,
 			Message:  errorMsg,
-			TaskType: taskType,
 		},
 	}, nil
 }

@@ -3,7 +3,6 @@ package tools
 import (
 	"context"
 	"testing"
-	"time"
 
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
@@ -173,14 +172,12 @@ func TestA2ASubmitTaskTool_FormatResult(t *testing.T) {
 	tool := NewA2ASubmitTaskTool(cfg, nil)
 
 	taskResult := A2ASubmitTaskResult{
-		AgentName: "test-agent",
-		Task: &adk.Task{
-			ID:   "task-123",
-			Kind: "test",
-		},
-		Success:  true,
-		Message:  "Task submitted successfully",
-		Duration: time.Second,
+		TaskID:    "task-123",
+		ContextID: "ctx-456",
+		AgentURL:  "http://test-agent.example.com",
+		State:     string(adk.TaskStateSubmitted),
+		Success:   true,
+		Message:   "Task submitted successfully",
 	}
 
 	result := &domain.ToolExecutionResult{
@@ -197,12 +194,12 @@ func TestA2ASubmitTaskTool_FormatResult(t *testing.T) {
 		{
 			name:       "LLM format",
 			formatType: domain.FormatterLLM,
-			contains:   []string{"Task()", "✓ Success", "📄 Result:", "agent_name", "test-agent", "task-123"},
+			contains:   []string{"Task()", "✓ Success", "📄 Result:", "task_id", "task-123"},
 		},
 		{
 			name:       "UI format",
 			formatType: domain.FormatterUI,
-			contains:   []string{"Task()", "✓ A2A Task", "Task submitted successfully"},
+			contains:   []string{"Task()", "✓", "Task submitted successfully"},
 		},
 		{
 			name:       "Short format",
@@ -226,6 +223,7 @@ func TestA2ASubmitTaskTool_FormatPreview(t *testing.T) {
 	tool := NewA2ASubmitTaskTool(cfg, nil)
 
 	taskResult := A2ASubmitTaskResult{
+		State:   string(adk.TaskStateSubmitted),
 		Success: true,
 		Message: "Task submitted successfully",
 	}
@@ -237,7 +235,6 @@ func TestA2ASubmitTaskTool_FormatPreview(t *testing.T) {
 	}
 
 	preview := tool.FormatPreview(result)
-	assert.Contains(t, preview, "A2A Task")
 	assert.Contains(t, preview, "Task submitted successfully")
 }
 
@@ -247,7 +244,7 @@ func TestA2ASubmitTaskTool_ShouldCollapseArg(t *testing.T) {
 
 	assert.True(t, tool.ShouldCollapseArg("metadata"))
 	assert.False(t, tool.ShouldCollapseArg("agent_url"))
-	assert.True(t, tool.ShouldCollapseArg("task_description"))
+	assert.False(t, tool.ShouldCollapseArg("task_description"))
 }
 
 func TestA2ASubmitTaskTool_ShouldAlwaysExpand(t *testing.T) {
