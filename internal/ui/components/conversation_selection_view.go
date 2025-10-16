@@ -84,7 +84,6 @@ func (c *ConversationSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		return c.handleWindowResize(msg)
 	case tea.KeyMsg:
-		// Don't handle key input while loading
 		if c.loading {
 			return c, nil
 		}

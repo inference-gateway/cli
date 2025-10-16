@@ -2,11 +2,10 @@ package keybinding
 
 import (
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/services"
-	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/shared"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	ui "github.com/inference-gateway/cli/internal/ui"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // KeyHandler represents a function that handles a key binding
@@ -15,7 +14,7 @@ type KeyHandler func(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 // KeyHandlerContext provides access to application context for key handlers
 type KeyHandlerContext interface {
 	// State management
-	GetStateManager() *services.StateManager
+	GetStateManager() domain.StateManager
 	GetConversationRepository() domain.ConversationRepository
 	GetConfig() *config.Config
 

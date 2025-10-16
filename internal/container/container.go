@@ -36,7 +36,7 @@ type ServiceContainer struct {
 	a2aAgentService  domain.A2AAgentService
 
 	// Services
-	stateManager *services.StateManager
+	stateManager domain.StateManager
 
 	// Background services
 	titleGenerator       *services.ConversationTitleGenerator
@@ -272,7 +272,7 @@ func (c *ServiceContainer) GetA2AAgentService() domain.A2AAgentService {
 }
 
 // New service getters
-func (c *ServiceContainer) GetStateManager() *services.StateManager {
+func (c *ServiceContainer) GetStateManager() domain.StateManager {
 	return c.stateManager
 }
 

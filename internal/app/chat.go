@@ -35,7 +35,7 @@ type ChatApplication struct {
 	toolRegistry     *tools.Registry
 
 	// State management
-	stateManager *services.StateManager
+	stateManager domain.StateManager
 
 	// UI components
 	conversationView     ui.ConversationRenderer
@@ -54,8 +54,8 @@ type ChatApplication struct {
 	applicationViewRenderer *components.ApplicationViewRenderer
 	fileSelectionHandler    *components.FileSelectionHandler
 
-	// Message routing
-	messageRouter *handlers.MessageRouter
+	// Event handling
+	chatHandler handlers.EventHandler
 
 	// Current active component for key handling
 	focusedComponent ui.InputComponent
@@ -78,7 +78,7 @@ func NewChatApplication(
 	toolService domain.ToolService,
 	fileService domain.FileService,
 	shortcutRegistry *shortcuts.Registry,
-	stateManager *services.StateManager,
+	stateManager domain.StateManager,
 	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
 	configPath string,
@@ -152,15 +152,7 @@ func NewChatApplication(
 		app.focusedComponent = nil
 	}
 
-	app.messageRouter = handlers.NewMessageRouter()
-	app.registerHandlers()
-
-	return app
-}
-
-// registerHandlers registers all message handlers
-func (app *ChatApplication) registerHandlers() {
-	chatHandler := handlers.NewChatHandler(
+	app.chatHandler = handlers.NewChatHandler(
 		app.agentService,
 		app.conversationRepo,
 		app.modelService,
@@ -168,8 +160,10 @@ func (app *ChatApplication) registerHandlers() {
 		app.toolService,
 		app.fileService,
 		app.shortcutRegistry,
+		app.stateManager,
 	)
-	app.messageRouter.AddHandler(chatHandler)
+
+	return app
 }
 
 // updateHelpBarShortcuts updates the help bar with essential keyboard shortcuts
@@ -248,11 +242,7 @@ func (app *ChatApplication) Init() tea.Cmd {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
-	}
-
-	if _, cmd := app.messageRouter.Route(msg, app.stateManager); cmd != nil {
+	if cmd := app.chatHandler.Handle(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
@@ -633,7 +623,6 @@ func (app *ChatApplication) renderChatInterface() string {
 		CurrentView:   app.stateManager.GetCurrentView(),
 	}
 
-	// Get the main chat interface
 	chatInterface := app.applicationViewRenderer.RenderChatInterface(
 		data,
 		app.conversationView,
@@ -778,6 +767,11 @@ func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
 
 func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
+
+	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
+	}
+
 	if setupMsg, ok := msg.(domain.SetupFileSelectionEvent); ok {
 		app.stateManager.SetupFileSelection(setupMsg.Files)
 		return cmds
@@ -827,32 +821,19 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 	return cmds
 }
 
-// updateUIComponentsForUIMessages only updates UI components for UI-specific messages
-// Business logic messages are handled by the router system
+// updateUIComponentsForUIMessages updates UI components for UI events and framework messages
 func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
 	switch msg.(type) {
-	case tea.WindowSizeMsg, tea.MouseMsg:
+	case tea.WindowSizeMsg, tea.MouseMsg, tea.KeyMsg:
 		return app.updateUIComponents(msg)
-	case tea.KeyMsg:
-		return app.updateUIComponents(msg)
-	case domain.UpdateHistoryEvent, domain.StreamingContentEvent, domain.SetStatusEvent, domain.UpdateStatusEvent,
-		domain.ShowErrorEvent, domain.ClearErrorEvent, domain.ClearInputEvent, domain.SetInputEvent,
-		domain.ToggleHelpBarEvent, domain.HideHelpBarEvent, domain.DebugKeyEvent, domain.SetupFileSelectionEvent,
-		domain.ScrollRequestEvent, domain.ConversationsLoadedEvent, domain.ModelSelectedEvent,
-		domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent,
-		domain.ParallelToolsStartEvent, domain.ParallelToolsCompleteEvent:
-		return app.updateUIComponents(msg)
-	case domain.UserInputEvent:
-		return cmds
-	default:
-		msgType := fmt.Sprintf("%T", msg)
-		if strings.Contains(msgType, "spinner.TickMsg") || strings.Contains(msgType, "Tick") {
-			return app.updateUIComponents(msg)
-		}
-		return cmds
 	}
+
+	msgType := fmt.Sprintf("%T", msg)
+	if strings.HasPrefix(msgType, "domain.") || strings.Contains(msgType, "spinner.TickMsg") || strings.Contains(msgType, "Tick") {
+		return app.updateUIComponents(msg)
+	}
+
+	return nil
 }
 
 func (app *ChatApplication) getPageSize() int {
@@ -882,7 +863,7 @@ func (app *ChatApplication) GetConfig() *config.Config {
 }
 
 // GetStateManager returns the current state manager
-func (app *ChatApplication) GetStateManager() *services.StateManager {
+func (app *ChatApplication) GetStateManager() domain.StateManager {
 	return app.stateManager
 }
 

@@ -2,323 +2,312 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Core Development Rules
-
-NEVER use fmt statements for Debugging - instead you use the logger.
-
-NEVER write inline comments.
-
-ALWAYS use table-driven tests for testing your code.
-
-ALWAYS use early returns for handling errors and special cases - use protective programming techniques to avoid deep nesting.
-
-ALWAYS generate mocks for interfaces using counterfeiter - NEVER create custom mocks yourself.
-
-ALWAYS review Taskfile.yml for available developer tasks.
-
-ALWAYS use named imports for nonstandard library packages.
-
-ALWAYS delete old code, backward compatibility is not a priority.
-
-Please refer to AGENTS.md for more information.
-
 ## Project Overview
 
-The Inference Gateway CLI is a comprehensive command-line interface for managing and interacting with
-inference services. It provides an interactive chat interface, autonomous agent capabilities, and
-extensive tool execution for AI models.
+The Inference Gateway CLI (`infer`) is a command-line tool for managing and interacting with the Inference Gateway.
+It provides an interactive chat interface, autonomous agent capabilities, and extensive tool integration for
+AI-assisted development workflows. Built in Go with a terminal UI powered by Bubble Tea.
 
-**Architecture**: Clean Architecture pattern with dependency injection
-**Language**: Go 1.25+
-**Framework**: Cobra CLI with Bubble Tea TUI
-**Testing**: Table-driven tests with counterfeiter mocks
+## Build and Test Commands
 
-## Development Commands
-
-All development tasks are managed through [Task](https://taskfile.dev). Key commands:
-
-### Core Development
+### Building
 
 ```bash
-task build          # Build the CLI binary
-task test           # Run all tests
-task test:verbose   # Run tests with verbose output
-task test:coverage  # Run tests with coverage
-task fmt            # Format Go code
-task lint           # Run golangci-lint + markdownlint
-task vet            # Run go vet
-task check          # Run fmt + vet + test
-task dev            # Development workflow (fmt + build + test)
+# Build the binary (default: ./infer)
+task build
+
+# Install to GOPATH/bin
+task install
+
+# Build multi-platform release binaries
+task release:build
 ```
 
-### Mock Generation
+### Testing
 
 ```bash
-task mocks:generate # Generate all mocks using counterfeiter
-task mocks:clean    # Clean generated mocks
+# Run all tests
+task test
+
+# Run tests with verbose output
+task test:verbose
+
+# Run tests with coverage
+task test:coverage
+
+# Run single test file
+go test -v ./internal/handlers/event_registry_test.go
+
+# Run specific test by name
+go test -v -run TestEventRegistry_AutoRegisterHandlers ./internal/handlers
 ```
 
-### Release & Quality
+### Code Quality
 
 ```bash
-task release:build     # Multi-platform release builds
-task precommit:run     # Run pre-commit hooks
-task setup            # Full development environment setup
+# Format code
+task fmt
+
+# Run linters (golangci-lint + markdownlint)
+task lint
+
+# Run go vet
+task vet
+
+# Run all quality checks (fmt + vet + test)
+task check
 ```
 
-### UI Testing
+### Mocks
 
 ```bash
-task test:ui:snapshots  # Generate UI component snapshots
-task test:ui:verify     # Verify UI snapshots match
-task test:ui:interactive # Interactive UI component testing
+# Generate mocks using counterfeiter
+task mocks:generate
+
+# Clean generated mocks
+task mocks:clean
 ```
 
-## Testing Interactive Chat
+## Architecture and Key Design Patterns
 
-```bash
-echo "Hi" | INFER_LOGGING_DEBUG=true INFER_AGENT_MODEL=deepseek/deepseek-chat INFER_TOOLS_ENABLED=false go run . chat
-```
+### Clean Architecture Layers
 
-## Testing Database Entries and Conversation flows
+The codebase follows **Clean Architecture** with clear separation:
 
-Get the latest conversation messages:
+1. **Domain Layer** (`internal/domain/`): Core business entities, interfaces, and value objects
+   - `interfaces.go`: Central registry of all service interfaces and domain types
+   - Event types (ChatEvent, UIEvent) for asynchronous communication
+   - Domain models (Tool, ConversationEntry, FileInfo, etc.)
 
-```bash
-sqlite3 .infer/conversations.db -json "
-  SELECT json(messages) AS messages
-  FROM conversations
-  ORDER BY created_at DESC
-  LIMIT 1;
-" | jq -r '.[0].messages | fromjson'
-```
+2. **Application Layer** (`internal/app/`): Application-specific logic and coordination
 
-Check the logs:
+3. **Services Layer** (`internal/services/`): Business logic implementation
+   - `agent.go`: Autonomous agent execution logic
+   - `conversation.go`: Conversation management
+   - `tools.go`: Tool factory and service
+   - `tool_formatter.go`: Tool result formatting for UI/LLM contexts
+   - `state_manager.go`: Application state management
 
-```bash
-tail -n 100 .infer/logs/debug-*.log
-```
+4. **Handlers Layer** (`internal/handlers/`): Event handlers for chat and commands
+   - `chat_handler.go`: Main chat interface logic
+   - `chat_message_processor.go`: Message processing and streaming
+   - `event_registry.go`: Automatic event handler registration using reflection
 
-## Code Architecture
+5. **Infrastructure Layer** (`internal/infra/`): External concerns (storage, etc.)
 
-### Directory Structure
+6. **UI Layer** (`internal/ui/`): Terminal UI components using Bubble Tea
 
-```text
-├── cmd/                    # Cobra CLI commands
-├── internal/
-│   ├── domain/            # Domain interfaces & entities
-│   ├── container/         # Dependency injection container
-│   ├── services/          # Business logic implementations
-│   │   └── tools/         # Tool implementations (Bash, Read, Write, etc.)
-│   ├── handlers/          # Message routing & event handling
-│   ├── ui/               # Bubble Tea TUI components
-│   ├── infra/            # Infrastructure (storage adapters)
-│   └── shortcuts/        # Extensible command shortcuts
-└── tests/mocks/generated/ # Counterfeiter-generated mocks
-```
+### Event-Driven Architecture
 
-### Key Patterns
+The chat interface uses an **event-driven pattern** with:
 
-**Dependency Injection**: Central `ServiceContainer` manages all dependencies
+- **Event Registry** (`event_registry.go`): Automatically registers handler methods using reflection
+  - Convention: Handler methods must be named `Handle{EventTypeName}` (e.g., `HandleChatStartEvent`)
+  - All event types must be registered in `autoRegisterHandlers()` or the system will panic at startup
+  - This strict registration prevents silent event drops
+
+- **Event Types** (defined in `internal/domain/interfaces.go`):
+  - `ChatEvent`: Chat operations (ChatStart, ChatChunk, ChatComplete, ChatError, etc.)
+  - `UIEvent`: UI updates (UpdateHistory, SetStatus, ShowError, etc.)
+  - Tool execution events (ToolCallPreview, ToolExecutionStarted, ToolExecutionCompleted)
+  - A2A events (A2ATaskSubmitted, A2ATaskStatusUpdate, A2ATaskCompleted)
+
+### Tool System Architecture
+
+Tools are implemented using the **Factory Pattern** and **Strategy Pattern**:
+
+- **Tool Interface** (`domain.Tool`): Common interface for all tools with:
+  - `Definition()`: Returns tool schema for LLM
+  - `Execute()`: Executes the tool with given arguments
+  - `Validate()`: Validates arguments before execution
+  - `FormatResult()`: Formats results for different contexts (UI, LLM, Short)
+
+- **Tool Factory** (`services.ToolFactory`): Creates tool instances by name
+
+- **Tool Services**: Individual tool implementations in `internal/services/tools/`:
+  - `bash.go`: Command execution
+  - `read.go`, `write.go`, `edit.go`: File operations
+  - `grep.go`: Code search
+  - `websearch.go`, `webfetch.go`: Web operations
+  - `github.go`: GitHub API integration
+  - `a2a_*.go`: Agent-to-agent communication tools
+
+### State Management
+
+The `StateManager` (`internal/services/state_manager.go`) centralizes application state using concurrent-safe patterns:
+
+- Tracks conversation state, tool execution status, task tracking
+- Manages A2A task state and context IDs
+- Provides state observers for reactive updates
+
+## Important Conventions
+
+### Adding New Event Types
+
+When adding a new event type, you MUST:
+
+1. Define the event struct in `internal/domain/interfaces.go`
+2. Add the event to the `eventTypes` slice in `event_registry.go:autoRegisterHandlers()`
+3. Implement a handler method in the appropriate handler file named `Handle{EventTypeName}`
+
+**Failure to follow this pattern will cause a panic at startup**, which is intentional to prevent silent event drops.
+
+### Tool Result Formatting
+
+Tool results support multiple formatting contexts:
+
+- **FormatterUI**: Compact display for terminal UI (limited width)
+- **FormatterLLM**: Full details for LLM consumption
+- **FormatterShort**: Brief summary for inline display
+
+Implement `FormatResult()` in your Tool implementation to support all contexts.
+
+### Testing Event Handlers
+
+Test event handlers by:
+
+1. Creating mock dependencies using counterfeiter
+2. Instantiating the handler with mocks
+3. Calling the specific `Handle{EventType}` method directly
+4. Asserting on returned model state and commands
+
+Example:
 
 ```go
-// Services are injected via container
-type ServiceContainer struct {
-    AgentService      domain.AgentService
-    ToolService       domain.ToolService
-    ConversationRepo  domain.ConversationRepository
-    // ...
-}
+handler := NewChatHandler(mockRepo, mockToolService, ...)
+model, cmd := handler.HandleChatStartEvent(event, stateManager)
+// Assert on model and cmd
 ```
 
-**Tool System**: Extensible tool registry with common interface
+## Key Files and Their Purpose
 
-```go
-type Tool interface {
-    Name() string
-    Execute(ctx context.Context, params map[string]interface{}) (*ToolResult, error)
-    IsEnabled(config *Config) bool
-    // ...
-}
+### Command Layer (`cmd/`)
+
+- `root.go`: CLI root command and global flags
+- `chat.go`: Interactive chat command
+- `agent.go`: Autonomous agent command
+- `config.go`: Configuration management commands
+- `init.go`: Project initialization with AI analysis
+
+### Domain Layer (`internal/domain/`)
+
+- `interfaces.go`: **Central registry** of all interfaces and domain types
+  - All service interfaces (ChatService, FileService, ToolService, etc.)
+  - All domain types (Tool, ToolExecutionResult, ConversationEntry, etc.)
+  - All event types (ChatEvent, UIEvent types)
+
+### Handlers Layer (`internal/handlers/`)
+
+- `event_registry.go`: Reflection-based event handler registration
+- `chat_handler.go`: Main chat interface orchestration
+- `chat_message_processor.go`: Message processing and streaming logic
+- `chat_command_handler.go`: Chat command processing (/clear, /exit, etc.)
+- `chat_shortcut_handler.go`: Custom shortcut execution
+
+### Services Layer (`internal/services/`)
+
+- `agent.go`: Autonomous agent with iterative task execution
+- `conversation.go`: Conversation history management
+- `persistent_conversation.go`: Storage backend integration
+- `state_manager.go`: Centralized state management
+- `tool_formatter.go`: Tool result formatting strategies
+- `tools/`: Individual tool implementations
+
+### UI Layer (`internal/ui/`)
+
+- Bubble Tea components for terminal rendering
+- Model-View-Update pattern
+- Theme support with multiple color schemes
+
+## Development Workflow Tips
+
+### Running the CLI During Development
+
+```bash
+# Run chat command with verbose logging
+go run . chat --verbose
+
+# Run agent command
+go run . agent "Fix the failing tests"
+
+# Run with custom config
+go run . --config ./test-config.yaml chat
 ```
 
-**Event-Driven UI**: Bubble Tea with custom message types
+### Debugging Event Flow
 
-```go
-type UIEvent struct {
-    Type string
-    Data interface{}
-}
-```
+The event registry will panic if a handler is missing. This is intentional:
 
-## Coding Standards
+- **Before adding an event**: Check `event_registry.go` for the registration pattern
+- **When debugging events**: Look for the event type in `internal/domain/interfaces.go`
+- **When events aren't firing**: Check that the event is in the `eventTypes` slice
 
-### Required Practices
+### Working with Tools
 
-- **NEVER use fmt statements for debugging** - Use the logger instead
-- **NEVER write inline comments** - Code should be self-documenting
-- **ALWAYS use table-driven tests** for all test functions
-- **ALWAYS use early returns** for error handling (protective programming)
-- **ALWAYS generate mocks using counterfeiter** - Never create custom mocks
-- **ALWAYS use named imports** for non-standard library packages
+When adding a new tool:
 
-### Example Table-Driven Test
+1. Create implementation in `internal/services/tools/{toolname}.go`
+2. Implement the `domain.Tool` interface
+3. Add tool to factory in `internal/services/tools.go`
+4. Update config schema in `config/config.go`
+5. Add tool definition to relevant documentation
 
-```go
-func TestBashTool_Execute(t *testing.T) {
-    tests := []struct {
-        name     string
-        command  string
-        expected *ToolResult
-        wantErr  bool
-    }{
-        {
-            name:     "valid command",
-            command:  "echo hello",
-            expected: &ToolResult{Output: "hello\n"},
-            wantErr:  false,
-        },
-        // More test cases...
-    }
+### Dependency Injection
 
-    for _, tt := range tests {
-        t.Run(tt.name, func(t *testing.T) {
-            // Test implementation
-        })
-    }
-}
-```
+The application uses a container pattern (`internal/container/`):
 
-### Error Handling Pattern
-
-```go
-// Good: Early return with protective programming
-func ProcessRequest(req *Request) (*Response, error) {
-    if req == nil {
-        return nil, ErrInvalidRequest
-    }
-
-    if !req.IsValid() {
-        return nil, ErrValidationFailed
-    }
-
-    result, err := performOperation(req)
-    if err != nil {
-        return nil, fmt.Errorf("operation failed: %w", err)
-    }
-
-    return result, nil
-}
-```
+- Dependencies are injected via constructors
+- Services depend on interfaces, not implementations
+- Mock generation via `task mocks:generate` for testing
 
 ## Configuration System
 
-**2-Layer Configuration**:
+The CLI uses a 2-layer configuration system:
 
-1. Userspace: `~/.infer/config.yaml` (global fallback)
-2. Project: `.infer/config.yaml` (takes precedence)
+1. **Userspace**: `~/.infer/config.yaml` (global defaults)
+2. **Project**: `.infer/config.yaml` (project-specific, takes precedence)
 
-**Key Configuration Areas**:
-
-- `gateway`: Connection settings, API keys, timeouts
-- `tools`: Security controls, whitelisting, approval settings
-- `agent`: Model selection, system prompts, optimization
-- `storage`: Database configurations for conversation persistence
-- `chat`: Default models, system prompts, reminders
-
-## Security & Safety
-
-### Multi-layered Security
-
-1. **Tool Whitelisting**: Command pattern matching and validation
-2. **Path Exclusions**: Protected directories (`.git/`, `.infer/`, `*.env`)
-3. **Approval Workflows**: User confirmation for destructive operations
-4. **Sandbox Directories**: Restricted file access
-5. **Input Validation**: Comprehensive parameter validation
-
-### Security-by-Default
-
-- Write/Edit/Delete operations require approval
-- Read operations are safe by default
-- Environment variable substitution with validation
+Configuration is loaded using Viper with environment variable overrides (`INFER_*` prefix).
 
 ## Testing Strategy
 
-### Test Types
+- **Unit tests**: Co-located with source files (`*_test.go`)
+- **Mocks**: Generated via counterfeiter in `tests/mocks/generated/`
+- **Integration tests**: Minimal, focused on critical paths
+- **Test coverage**: Not enforced, but expected for new features
 
-1. **Unit Tests**: Table-driven tests for all components
-2. **Integration Tests**: End-to-end command testing
-3. **UI Regression Tests**: Snapshot-based TUI testing
-4. **Mock Generation**: Automated with counterfeiter
-
-### Running Tests
+Run specific test patterns:
 
 ```bash
-task test                    # All tests
-task test:coverage          # With coverage
-task test:ui:verify         # UI regression tests
-task mocks:generate         # Regenerate mocks
+# Test a specific package
+go test -v ./internal/handlers
+
+# Test with race detector
+go test -race ./...
+
+# Test with coverage
+go test -cover ./internal/services/...
 ```
 
-## Tools & Dependencies
+## Common Gotchas
 
-### Core Dependencies
+1. **Event handler naming**: Must be exact `Handle{EventTypeName}` or will panic
+2. **Tool registration**: Tools must be registered in factory or they won't be available
+3. **State synchronization**: Use StateManager for shared state, not direct field access
+4. **Context handling**: Always pass context through for cancellation support
+5. **SDK compatibility**: This project uses `github.com/inference-gateway/sdk` - ensure compatibility when updating
 
-- **cobra**: CLI framework
-- **bubbletea**: Terminal UI framework
-- **yaml.v3**: YAML configuration parsing
-- **counterfeiter**: Mock generation
-- **golangci-lint**: Code linting
+## Git Workflow
 
-### Tool System
+- Main development branch: `main`
+- Feature branches: `feature/*` or `claude/*` for Claude Code work
+- Pre-commit hooks enforce formatting and linting
+- Conventional commits are preferred but not enforced
+- CI runs on all PRs (linting, testing, building)
 
-- **Bash**: Execute whitelisted shell commands
-- **Read/Write/Edit**: File operations with security controls
-- **Grep**: Ripgrep-powered search with regex support
-- **WebSearch/WebFetch**: Web integration with domain whitelisting
-- **GitHub**: GitHub API integration
-- **TodoWrite**: Task management for LLM workflows
-- **A2A Tools**: Agent-to-agent communication tools (Task, Query)
+## Related Documentation
 
-#### A2A Tool Call Handling
-
-The A2A Task and Query tools communicate with A2A servers:
-
-- **A2A Communication**: Tools like "Task" and "Query" connect to A2A agent servers
-- **Configuration**: Tools are enabled/disabled via configuration (e.g., `tools.task.enabled`)
-- **Purpose**: Enables agent-to-agent communication
-
-## Agent System
-
-The CLI includes an autonomous agent mode (`infer agent`) for iterative task completion:
-
-- **JSON Output**: Structured conversation stream
-- **Tool Integration**: Full access to all available tools
-- **GitHub Integration**: Issue recognition and SCM workflows
-- **Iterative Processing**: Continues until task completion
-
-See AGENTS.md for detailed agent patterns and workflows.
-
-## Development Workflow
-
-### Standard Workflow
-
-1. **Setup**: `task setup` (installs deps, pre-commit hooks)
-2. **Development**: `task dev` (format + build + test)
-3. **Quality**: `task lint` and `task precommit:run`
-4. **Mocks**: `task mocks:generate` when interfaces change
-5. **UI Testing**: `task test:ui:verify` for TUI changes
-
-### Pre-commit Quality Gates
-
-- Go formatting (`gofmt`)
-- Linting (`golangci-lint`)
-- Markdown linting
-- Test execution
-- Generated mock validation
-
-### Release Process
-
-- Multi-platform builds with `task release:build`
-- Cosign signature verification for binaries
-- Automated releases via GitHub Actions
+- Full README: `README.md`
+- Configuration details: `CONFIG.md`
+- Contributing guidelines: `CONTRIBUTING.md`
+- Agent architecture: `AGENTS.md`

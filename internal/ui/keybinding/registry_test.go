@@ -4,10 +4,10 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/services"
-	"github.com/inference-gateway/cli/internal/ui"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	services "github.com/inference-gateway/cli/internal/services"
+	ui "github.com/inference-gateway/cli/internal/ui"
 )
 
 type testKeyHandlerContext struct {
@@ -18,7 +18,7 @@ type testKeyHandlerContext struct {
 	stateManager      *services.StateManager
 }
 
-func (t *testKeyHandlerContext) GetStateManager() *services.StateManager {
+func (t *testKeyHandlerContext) GetStateManager() domain.StateManager {
 	if t.stateManager == nil {
 		t.stateManager = services.NewStateManager(false)
 		_ = t.stateManager.TransitionToView(t.currentView)

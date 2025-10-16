@@ -180,6 +180,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ThemeService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ConversationRepository
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain SDKClient
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain StateManager
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/infra/storage ConversationStorage
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/ui ConversationRenderer
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/ui InputComponent
