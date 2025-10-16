@@ -165,7 +165,7 @@ type A2ATaskCompletedEvent struct {
 	RequestID string
 	Timestamp time.Time
 	TaskID    string
-	Result    interface{}
+	Result    ToolExecutionResult
 }
 
 func (e A2ATaskCompletedEvent) GetRequestID() string    { return e.RequestID }
@@ -176,7 +176,7 @@ type A2ATaskFailedEvent struct {
 	RequestID string
 	Timestamp time.Time
 	TaskID    string
-	Result    interface{}
+	Result    ToolExecutionResult
 	Error     string
 }
 

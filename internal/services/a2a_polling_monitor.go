@@ -149,7 +149,7 @@ func (m *A2APollingMonitor) emitCompletionEvent(taskID string, result *domain.To
 			RequestID: m.requestID,
 			Timestamp: time.Now(),
 			TaskID:    taskID,
-			Result:    result,
+			Result:    *result,
 		}
 
 		select {
@@ -163,7 +163,7 @@ func (m *A2APollingMonitor) emitCompletionEvent(taskID string, result *domain.To
 			RequestID: m.requestID,
 			Timestamp: time.Now(),
 			TaskID:    taskID,
-			Result:    result,
+			Result:    *result,
 			Error:     result.Error,
 		}
 
@@ -218,7 +218,12 @@ func (m *A2APollingMonitor) emitErrorEvent(taskID string, err error) {
 		RequestID: m.requestID,
 		Timestamp: time.Now(),
 		TaskID:    taskID,
-		Error:     errorMsg,
+		Result: domain.ToolExecutionResult{
+			ToolName: "A2ATask",
+			Success:  false,
+			Error:    errorMsg,
+		},
+		Error: errorMsg,
 	}
 
 	select {
