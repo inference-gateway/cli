@@ -101,11 +101,12 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				mockTool,
 				mockFile,
 				shortcutRegistry,
+				stateManager,
 			)
 
 			processor := NewChatMessageProcessor(handler)
 
-			_, cmd := processor.handleUserInput(tt.input, stateManager)
+			cmd := processor.handleUserInput(tt.input)
 
 			if tt.expectError {
 				assert.NotNil(t, cmd)
@@ -246,9 +247,8 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 			}
 
 			processor := NewChatMessageProcessor(handler)
-			stateManager := services.NewStateManager(false)
 
-			_, cmd := processor.processChatMessage(tt.content, stateManager)
+			cmd := processor.processChatMessage(tt.content)
 
 			assert.NotNil(t, cmd)
 		})

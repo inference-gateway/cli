@@ -18,10 +18,10 @@ func TestChatHandler_Handle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			handler := setupTestChatHandler(t, tt.setupMocks)
 			stateManager := services.NewStateManager(false)
+			handler := setupTestChatHandler(t, tt.setupMocks, stateManager)
 
-			_, cmd := handler.Handle(tt.msg, stateManager)
+			cmd := handler.Handle(tt.msg)
 
 			if tt.expectedCmd {
 				assert.NotNil(t, cmd, "Expected command for %T", tt.msg)
@@ -238,7 +238,7 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 	}
 }
 
-func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService, *mocks.FakeModelService, *mocks.FakeToolService, *mocks.FakeFileService, *mocks.FakeConfigService)) *ChatHandler {
+func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService, *mocks.FakeModelService, *mocks.FakeToolService, *mocks.FakeFileService, *mocks.FakeConfigService), stateManager domain.StateManager) *ChatHandler {
 	mockAgent := &mocks.FakeAgentService{}
 	mockModel := &mocks.FakeModelService{}
 	mockTool := &mocks.FakeToolService{}
@@ -263,9 +263,9 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		mockTool,
 		mockFile,
 		shortcutRegistry,
+		stateManager,
 	)
 }
-
 
 func TestChatHandler_shouldInjectSystemReminder(t *testing.T) {
 	tests := []struct {
@@ -321,11 +321,7 @@ func TestChatHandler_shouldInjectSystemReminder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockConfig := &mocks.FakeConfigService{}
-
-			_ = &ChatHandler{
-				configService: mockConfig,
-			}
+			_ = tt
 		})
 	}
 }
@@ -406,9 +402,10 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 				mockTool,
 				mockFile,
 				shortcutRegistry,
+				stateManager,
 			)
 
-			_, cmd := handler.eventHandler.handleChatComplete(tt.msg, stateManager)
+			cmd := handler.eventHandler.handleChatComplete(tt.msg)
 
 			assert.NotNil(t, cmd, "Should return a command")
 

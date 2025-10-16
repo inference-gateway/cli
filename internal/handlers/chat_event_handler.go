@@ -25,9 +25,8 @@ func NewChatEventHandler(handler *ChatHandler) *ChatEventHandler {
 
 func (e *ChatEventHandler) handleChatStart(
 	event domain.ChatStartEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	_ = stateManager.UpdateChatStatus(domain.ChatStatusStarting)
+) tea.Cmd {
+	_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusStarting)
 
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
@@ -38,18 +37,17 @@ func (e *ChatEventHandler) handleChatStart(
 		}
 	})
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return nil, tea.Batch(cmds...)
+	return tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) handleChatChunk(
 	msg domain.ChatChunkEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	chatSession := stateManager.GetChatSession()
+) tea.Cmd {
+	chatSession := e.handler.stateManager.GetChatSession()
 	if chatSession == nil {
 		return e.handleNoChatSession(msg)
 	}
@@ -82,22 +80,21 @@ func (e *ChatEventHandler) handleChatChunk(
 		}
 	}
 
-	statusCmds := e.handleStatusUpdate(msg, chatSession, stateManager)
+	statusCmds := e.handleStatusUpdate(msg, chatSession)
 	cmds = append(cmds, statusCmds...)
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return nil, tea.Batch(cmds...)
+	return tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) handleOptimizationStatus(
 	event domain.OptimizationStatusEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
+) tea.Cmd {
 	if event.IsActive {
-		return nil, func() tea.Msg {
+		return func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    event.Message,
 				Spinner:    true,
@@ -106,7 +103,7 @@ func (e *ChatEventHandler) handleOptimizationStatus(
 		}
 	}
 
-	return nil, func() tea.Msg {
+	return func() tea.Msg {
 		return domain.SetStatusEvent{
 			Message:    event.Message,
 			Spinner:    false,
@@ -115,9 +112,9 @@ func (e *ChatEventHandler) handleOptimizationStatus(
 	}
 }
 
-func (e *ChatEventHandler) handleNoChatSession(msg domain.ChatChunkEvent) (tea.Model, tea.Cmd) {
+func (e *ChatEventHandler) handleNoChatSession(msg domain.ChatChunkEvent) tea.Cmd {
 	if msg.ReasoningContent != "" {
-		return nil, func() tea.Msg {
+		return func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    "Thinking...",
 				Spinner:    true,
@@ -125,24 +122,24 @@ func (e *ChatEventHandler) handleNoChatSession(msg domain.ChatChunkEvent) (tea.M
 			}
 		}
 	}
-	return nil, nil
+	return nil
 }
 
-func (e *ChatEventHandler) handleEmptyContent(chatSession *domain.ChatSession) (tea.Model, tea.Cmd) {
+func (e *ChatEventHandler) handleEmptyContent(chatSession *domain.ChatSession) tea.Cmd {
 	if chatSession != nil && chatSession.EventChannel != nil {
-		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
-	return nil, nil
+	return nil
 }
 
-func (e *ChatEventHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *domain.ChatSession, stateManager domain.StateManager) []tea.Cmd {
+func (e *ChatEventHandler) handleStatusUpdate(msg domain.ChatChunkEvent, chatSession *domain.ChatSession) []tea.Cmd {
 	newStatus, shouldUpdateStatus := e.determineNewStatus(msg, chatSession.Status, chatSession.IsFirstChunk)
 
 	if !shouldUpdateStatus {
 		return nil
 	}
 
-	_ = stateManager.UpdateChatStatus(newStatus)
+	_ = e.handler.stateManager.UpdateChatStatus(newStatus)
 
 	if chatSession.IsFirstChunk {
 		chatSession.IsFirstChunk = false
@@ -212,9 +209,9 @@ func (e *ChatEventHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea
 
 func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	_ = stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
+
+) tea.Cmd {
+	_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
 
 	var cmds []tea.Cmd
 
@@ -239,29 +236,29 @@ func (e *ChatEventHandler) handleChatComplete(
 		}
 	})
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return nil, tea.Batch(cmds...)
+	return tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) handleChatError(
 	msg domain.ChatErrorEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	_ = stateManager.UpdateChatStatus(domain.ChatStatusError)
-	stateManager.EndChatSession()
-	stateManager.EndToolExecution()
 
-	_ = stateManager.TransitionToView(domain.ViewStateChat)
+) tea.Cmd {
+	_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusError)
+	e.handler.stateManager.EndChatSession()
+	e.handler.stateManager.EndToolExecution()
+
+	_ = e.handler.stateManager.TransitionToView(domain.ViewStateChat)
 
 	errorMsg := fmt.Sprintf("Chat error: %v", msg.Error)
 	if strings.Contains(msg.Error.Error(), "timed out") {
 		errorMsg = fmt.Sprintf("⏰ %v\n\nSuggestions:\n• Try breaking your request into smaller parts\n• Check if the server is overloaded\n• Verify your network connection", msg.Error)
 	}
 
-	return nil, func() tea.Msg {
+	return func() tea.Msg {
 		return domain.ShowErrorEvent{
 			Error:  errorMsg,
 			Sticky: true,
@@ -271,8 +268,8 @@ func (e *ChatEventHandler) handleChatError(
 
 func (e *ChatEventHandler) handleToolCallPreview(
 	msg domain.ToolCallPreviewEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
+
+) tea.Cmd {
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
@@ -289,13 +286,13 @@ func (e *ChatEventHandler) handleToolCallPreview(
 		}
 	})
 
-	return nil, tea.Batch(cmds...)
+	return tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolCallUpdate(
 	msg domain.ToolCallUpdateEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
+
+) tea.Cmd {
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
@@ -324,13 +321,13 @@ func (e *ChatEventHandler) handleToolCallUpdate(
 		})
 	}
 
-	return nil, tea.Batch(cmds...)
+	return tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolCallReady(
 	msg domain.ToolCallReadyEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
+
+) tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return domain.UpdateHistoryEvent{
@@ -339,15 +336,15 @@ func (e *ChatEventHandler) handleToolCallReady(
 		},
 	}
 
-	return nil, tea.Batch(cmds...)
+	return tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolExecutionStarted(
 	msg domain.ToolExecutionStartedEvent,
-	_ domain.StateManager,
-) (tea.Model, tea.Cmd) {
 
-	return nil, func() tea.Msg {
+) tea.Cmd {
+
+	return func() tea.Msg {
 		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Starting tool execution (%d tools)", msg.TotalTools),
 			Spinner:    true,
@@ -358,8 +355,8 @@ func (e *ChatEventHandler) handleToolExecutionStarted(
 
 func (e *ChatEventHandler) handleToolExecutionProgress(
 	msg domain.ToolExecutionProgressEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
+
+) tea.Cmd {
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
 		statusEvent := domain.UpdateStatusEvent{
@@ -369,18 +366,18 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 		return statusEvent
 	})
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return nil, tea.Batch(cmds...)
+	return tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolExecutionCompleted(
 	msg domain.ToolExecutionCompletedEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	return nil, tea.Batch(
+
+) tea.Cmd {
+	return tea.Batch(
 		func() tea.Msg {
 			return domain.UpdateHistoryEvent{
 				History: e.handler.conversationRepo.GetMessages(),
@@ -394,14 +391,14 @@ func (e *ChatEventHandler) handleToolExecutionCompleted(
 				StatusType: domain.StatusPreparing,
 			}
 		},
-		e.handler.startChatCompletion(stateManager),
+		e.handler.startChatCompletion(),
 	)
 }
 
 func (e *ChatEventHandler) handleParallelToolsStart(
 	msg domain.ParallelToolsStartEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
+
+) tea.Cmd {
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
 		statusEvent := domain.SetStatusEvent{
@@ -412,17 +409,17 @@ func (e *ChatEventHandler) handleParallelToolsStart(
 		return statusEvent
 	})
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return nil, tea.Batch(cmds...)
+	return tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) handleParallelToolsComplete(
 	msg domain.ParallelToolsCompleteEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
+
+) tea.Cmd {
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
 		historyEvent := domain.UpdateHistoryEvent{
@@ -443,11 +440,11 @@ func (e *ChatEventHandler) handleParallelToolsComplete(
 		return statusEvent
 	})
 
-	if chatSession := stateManager.GetChatSession(); chatSession != nil {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return nil, tea.Batch(cmds...)
+	return tea.Batch(cmds...)
 }
 
 func (e *ChatEventHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
@@ -523,60 +520,60 @@ func (e *ChatEventHandler) formatToolCallStatusMessage(toolName string, status d
 
 func (e *ChatEventHandler) handleCancelled(
 	msg domain.CancelledEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+
+) tea.Cmd {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
-	return nil, nil
+	return nil
 }
 
 func (e *ChatEventHandler) handleA2AToolCallExecuted(
 	msg domain.A2AToolCallExecutedEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+
+) tea.Cmd {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
-	return nil, nil
+	return nil
 }
 
 func (e *ChatEventHandler) handleA2ATaskSubmitted(
 	msg domain.A2ATaskSubmittedEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+
+) tea.Cmd {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
-	return nil, nil
+	return nil
 }
 
 func (e *ChatEventHandler) handleA2ATaskStatusUpdate(
 	msg domain.A2ATaskStatusUpdateEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+
+) tea.Cmd {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
-	return nil, nil
+	return nil
 }
 
 func (e *ChatEventHandler) handleA2ATaskCompleted(
 	msg domain.A2ATaskCompletedEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+
+) tea.Cmd {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
-	return nil, nil
+	return nil
 }
 
 func (e *ChatEventHandler) handleA2ATaskInputRequired(
 	msg domain.A2ATaskInputRequiredEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
-	if chatSession := stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		return nil, e.handler.listenForChatEvents(chatSession.EventChannel)
+
+) tea.Cmd {
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
-	return nil, nil
+	return nil
 }

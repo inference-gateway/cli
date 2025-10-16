@@ -160,6 +160,7 @@ func NewChatApplication(
 		app.toolService,
 		app.fileService,
 		app.shortcutRegistry,
+		app.stateManager,
 	)
 
 	return app
@@ -245,7 +246,7 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
 	}
 
-	if _, cmd := app.chatHandler.Handle(msg, app.stateManager); cmd != nil {
+	if cmd := app.chatHandler.Handle(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 

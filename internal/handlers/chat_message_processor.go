@@ -26,23 +26,22 @@ func NewChatMessageProcessor(handler *ChatHandler) *ChatMessageProcessor {
 // handleUserInput processes user input messages
 func (p *ChatMessageProcessor) handleUserInput(
 	msg domain.UserInputEvent,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
+) tea.Cmd {
 	if strings.HasPrefix(msg.Content, "/") {
-		return p.handler.commandHandler.handleCommand(msg.Content, stateManager)
+		return p.handler.commandHandler.handleCommand(msg.Content)
 	}
 
 	if strings.HasPrefix(msg.Content, "!!") {
-		return p.handler.commandHandler.handleToolCommand(msg.Content, stateManager)
+		return p.handler.commandHandler.handleToolCommand(msg.Content)
 	}
 
 	if strings.HasPrefix(msg.Content, "!") {
-		return p.handler.commandHandler.handleBashCommand(msg.Content, stateManager)
+		return p.handler.commandHandler.handleBashCommand(msg.Content)
 	}
 
 	expandedContent, err := p.expandFileReferences(msg.Content)
 	if err != nil {
-		return nil, func() tea.Msg {
+		return func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to expand file references: %v", err),
 				Sticky: false,
@@ -50,7 +49,7 @@ func (p *ChatMessageProcessor) handleUserInput(
 		}
 	}
 
-	return p.processChatMessage(expandedContent, stateManager)
+	return p.processChatMessage(expandedContent)
 }
 
 // ExtractMarkdownSummary extracts the "## Summary" section from markdown content (exposed for testing)
@@ -124,8 +123,7 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 // processChatMessage processes a regular chat message
 func (p *ChatMessageProcessor) processChatMessage(
 	content string,
-	stateManager domain.StateManager,
-) (tea.Model, tea.Cmd) {
+) tea.Cmd {
 	userEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
@@ -135,7 +133,7 @@ func (p *ChatMessageProcessor) processChatMessage(
 	}
 
 	if err := p.handler.conversationRepo.AddMessage(userEntry); err != nil {
-		return nil, func() tea.Msg {
+		return func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to save message: %v", err),
 				Sticky: false,
@@ -161,7 +159,7 @@ func (p *ChatMessageProcessor) processChatMessage(
 		})
 	}
 
-	cmds = append(cmds, p.handler.startChatCompletion(stateManager))
+	cmds = append(cmds, p.handler.startChatCompletion())
 
-	return nil, tea.Batch(cmds...)
+	return tea.Batch(cmds...)
 }
