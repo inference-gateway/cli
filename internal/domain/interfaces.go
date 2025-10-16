@@ -545,50 +545,6 @@ type StatusProgress struct {
 	Total   int
 }
 
-// UIEvent interface for all UI-related events
-type UIEvent interface {
-	GetType() UIEventType
-}
-
-// UIEventType defines types of UI events
-type UIEventType int
-
-const (
-	UIEventUpdateHistory UIEventType = iota
-	UIEventStreamingContent
-	UIEventSetStatus
-	UIEventUpdateStatus
-	UIEventShowError
-	UIEventClearError
-	UIEventClearInput
-	UIEventSetInput
-	UIEventUserInput
-	UIEventModelSelected
-	UIEventThemeSelected
-	UIEventConversationSelected
-	UIEventInitializeConversationSelection
-	UIEventFileSelected
-	UIEventFileSelectionRequest
-	UIEventSetupFileSelection
-	UIEventScrollRequest
-	UIEventFocusRequest
-	UIEventResize
-	UIEventDebugKey
-	UIEventToggleHelpBar
-	UIEventHideHelpBar
-	UIEventExitSelectionMode
-	UIEventInitializeTextSelection
-	UIEventConversationsLoaded
-	UIEventToolExecutionStarted
-	UIEventToolExecutionProgress
-	UIEventToolExecutionCompleted
-	UIEventParallelToolsStart
-	UIEventParallelToolsComplete
-	UIEventA2ATaskSubmitted
-	UIEventA2ATaskStatusUpdate
-	UIEventA2ATaskCompleted
-	UIEventA2ATaskInputRequired
-)
 
 // ScrollDirection defines scroll direction
 type ScrollDirection int

@@ -242,10 +242,6 @@ func (app *ChatApplication) Init() tea.Cmd {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
-	}
-
 	if cmd := app.chatHandler.Handle(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -627,7 +623,6 @@ func (app *ChatApplication) renderChatInterface() string {
 		CurrentView:   app.stateManager.GetCurrentView(),
 	}
 
-	// Get the main chat interface
 	chatInterface := app.applicationViewRenderer.RenderChatInterface(
 		data,
 		app.conversationView,
@@ -772,6 +767,11 @@ func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
 
 func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
+
+	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
+		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
+	}
+
 	if setupMsg, ok := msg.(domain.SetupFileSelectionEvent); ok {
 		app.stateManager.SetupFileSelection(setupMsg.Files)
 		return cmds
@@ -821,32 +821,19 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 	return cmds
 }
 
-// updateUIComponentsForUIMessages only updates UI components for UI-specific messages
-// Business logic messages are handled by the router system
+// updateUIComponentsForUIMessages updates UI components for UI events and framework messages
 func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
 	switch msg.(type) {
-	case tea.WindowSizeMsg, tea.MouseMsg:
+	case tea.WindowSizeMsg, tea.MouseMsg, tea.KeyMsg:
 		return app.updateUIComponents(msg)
-	case tea.KeyMsg:
-		return app.updateUIComponents(msg)
-	case domain.UpdateHistoryEvent, domain.StreamingContentEvent, domain.SetStatusEvent, domain.UpdateStatusEvent,
-		domain.ShowErrorEvent, domain.ClearErrorEvent, domain.ClearInputEvent, domain.SetInputEvent,
-		domain.ToggleHelpBarEvent, domain.HideHelpBarEvent, domain.DebugKeyEvent, domain.SetupFileSelectionEvent,
-		domain.ScrollRequestEvent, domain.ConversationsLoadedEvent, domain.ModelSelectedEvent,
-		domain.ToolExecutionStartedEvent, domain.ToolExecutionProgressEvent, domain.ToolExecutionCompletedEvent,
-		domain.ParallelToolsStartEvent, domain.ParallelToolsCompleteEvent:
-		return app.updateUIComponents(msg)
-	case domain.UserInputEvent:
-		return cmds
-	default:
-		msgType := fmt.Sprintf("%T", msg)
-		if strings.Contains(msgType, "spinner.TickMsg") || strings.Contains(msgType, "Tick") {
-			return app.updateUIComponents(msg)
-		}
-		return cmds
 	}
+
+	msgType := fmt.Sprintf("%T", msg)
+	if strings.HasPrefix(msgType, "domain.") || strings.Contains(msgType, "spinner.TickMsg") || strings.Contains(msgType, "Tick") {
+		return app.updateUIComponents(msg)
+	}
+
+	return nil
 }
 
 func (app *ChatApplication) getPageSize() int {

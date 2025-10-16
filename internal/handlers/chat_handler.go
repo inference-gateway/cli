@@ -58,7 +58,9 @@ func NewChatHandler(
 	return handler
 }
 
-func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd {
+// Handle routes incoming messages to appropriate handler methods based on message type.
+// TODO - refacor this
+func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop
 	switch m := msg.(type) {
 	case domain.UserInputEvent:
 		return h.HandleUserInputEvent(m)
@@ -105,6 +107,10 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd {
 	case domain.A2ATaskInputRequiredEvent:
 		return h.HandleA2ATaskInputRequiredEvent(m)
 	default:
+		if isUIOnlyEvent(msg) {
+			return nil
+		}
+
 		msgType := fmt.Sprintf("%T", msg)
 		if strings.Contains(msgType, "domain.") {
 			logger.Warn("unhandled domain event", "type", msgType)
@@ -404,4 +410,31 @@ func (h *ChatHandler) HandleA2ATaskInputRequiredEvent(
 	msg domain.A2ATaskInputRequiredEvent,
 ) tea.Cmd {
 	return h.eventHandler.handleA2ATaskInputRequired(msg)
+}
+
+// isUIOnlyEvent checks if the event is a UI-only event that doesn't require business logic handling
+func isUIOnlyEvent(msg tea.Msg) bool {
+	switch msg.(type) {
+	case domain.UpdateHistoryEvent,
+		domain.StreamingContentEvent,
+		domain.SetStatusEvent,
+		domain.UpdateStatusEvent,
+		domain.ShowErrorEvent,
+		domain.ClearErrorEvent,
+		domain.ClearInputEvent,
+		domain.SetInputEvent,
+		domain.ToggleHelpBarEvent,
+		domain.HideHelpBarEvent,
+		domain.DebugKeyEvent,
+		domain.SetupFileSelectionEvent,
+		domain.ScrollRequestEvent,
+		domain.ConversationsLoadedEvent,
+		domain.InitializeTextSelectionEvent,
+		domain.ExitSelectionModeEvent,
+		domain.ModelSelectedEvent,
+		domain.ThemeSelectedEvent:
+		return true
+	}
+
+	return false
 }
