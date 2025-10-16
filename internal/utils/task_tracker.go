@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"sort"
 	"sync"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -140,5 +141,8 @@ func (t *SimpleTaskTracker) GetAllPollingAgents() []string {
 			agents = append(agents, agentURL)
 		}
 	}
+
+	sort.Strings(agents)
+
 	return agents
 }

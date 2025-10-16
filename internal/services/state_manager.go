@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -458,7 +459,7 @@ func (sm *StateManager) GetQueuedMessages() []domain.QueuedMessage {
 	return sm.state.GetQueuedMessages()
 }
 
-// GetBackgroundTasks returns the current background polling tasks
+// GetBackgroundTasks returns the current background polling tasks sorted by start time
 func (sm *StateManager) GetBackgroundTasks(toolService domain.ToolService) []domain.TaskPollingState {
 	if toolService == nil {
 		return []domain.TaskPollingState{}
@@ -477,6 +478,10 @@ func (sm *StateManager) GetBackgroundTasks(toolService domain.ToolService) []dom
 			tasks = append(tasks, *state)
 		}
 	}
+
+	sort.Slice(tasks, func(i, j int) bool {
+		return tasks[i].StartedAt.Before(tasks[j].StartedAt)
+	})
 
 	return tasks
 }
