@@ -3,10 +3,12 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
@@ -103,6 +105,10 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd {
 	case domain.A2ATaskInputRequiredEvent:
 		return h.HandleA2ATaskInputRequiredEvent(m)
 	default:
+		msgType := fmt.Sprintf("%T", msg)
+		if strings.Contains(msgType, "domain.") {
+			logger.Warn("unhandled domain event", "type", msgType)
+		}
 		return nil
 	}
 }
