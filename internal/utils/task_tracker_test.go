@@ -2,7 +2,9 @@ package utils
 
 import (
 	"testing"
+	"time"
 
+	domain "github.com/inference-gateway/cli/internal/domain"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -185,4 +187,42 @@ func TestSimpleTaskTracker_ConcurrentAccess(t *testing.T) {
 
 	<-done
 	<-done
+}
+
+func TestSimpleTaskTracker_GetAllPollingAgents_StableOrder(t *testing.T) {
+	tracker := NewSimpleTaskTracker().(*SimpleTaskTracker)
+
+	agents := []string{
+		"http://agent-zulu.com",
+		"http://agent-alpha.com",
+		"http://agent-charlie.com",
+		"http://agent-bravo.com",
+	}
+
+	for _, agent := range agents {
+		state := &domain.TaskPollingState{
+			AgentURL:  agent,
+			TaskID:    "task-123",
+			StartedAt: time.Now(),
+			IsPolling: true,
+		}
+		tracker.StartPolling(agent, state)
+	}
+
+	var previousOrder []string
+	for i := 0; i < 10; i++ {
+		currentOrder := tracker.GetAllPollingAgents()
+
+		if i == 0 {
+			assert.Equal(t, []string{
+				"http://agent-alpha.com",
+				"http://agent-bravo.com",
+				"http://agent-charlie.com",
+				"http://agent-zulu.com",
+			}, currentOrder, "agents should be sorted alphabetically")
+			previousOrder = currentOrder
+		} else {
+			assert.Equal(t, previousOrder, currentOrder, "order should be consistent across calls")
+		}
+	}
 }
