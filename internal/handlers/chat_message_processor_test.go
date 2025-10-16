@@ -239,11 +239,13 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 
 			mockAgent := &mocks.FakeAgentService{}
 			mockModel := &mocks.FakeModelService{}
+			stateManager := services.NewStateManager(false)
 
 			handler := &ChatHandler{
 				agentService:     mockAgent,
 				conversationRepo: conversationRepo,
 				modelService:     mockModel,
+				stateManager:     stateManager,
 			}
 
 			processor := NewChatMessageProcessor(handler)

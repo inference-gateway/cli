@@ -17,6 +17,7 @@ const (
 	Magenta       = "\033[38;2;187;154;247m" // #bb9af7 - purple for secondary
 	White         = "\033[38;2;169;177;214m" // #a9b1d6 - light gray-blue for primary text
 	Gray          = "\033[38;2;86;95;137m"   // #565f89 - dim gray
+	LightGray     = "\033[38;2;102;102;102m" // #666666 - light gray
 	Amber         = "\033[38;2;224;175;104m" // #e0af68 - amber for warnings
 	BrightRed     = "\033[38;2;247;118;142m" // Same as Red
 	Strikethrough = "\033[9m"
@@ -27,16 +28,17 @@ const (
 
 // Lipgloss Color Names - Tokyo Night Theme Hex Values
 const (
-	LipglossRed     = "#f7768e"
-	LipglossGreen   = "#9ece6a"
-	LipglossBlue    = "#7aa2f7"
-	LipglossCyan    = "#7dcfff"
-	LipglossMagenta = "#bb9af7"
-	LipglossWhite   = "#a9b1d6"
-	LipglossGray    = "#565f89"
-	LipglossAmber   = "#e0af68"
-	LipglossBlack   = "#000000"
-	LipglossWhiteBg = "#FFFFFF"
+	LipglossRed       = "#f7768e"
+	LipglossGreen     = "#9ece6a"
+	LipglossBlue      = "#7aa2f7"
+	LipglossCyan      = "#7dcfff"
+	LipglossMagenta   = "#bb9af7"
+	LipglossWhite     = "#a9b1d6"
+	LipglossGray      = "#565f89"
+	LipglossLightGray = "#666666"
+	LipglossAmber     = "#e0af68"
+	LipglossBlack     = "#000000"
+	LipglossWhiteBg   = "#FFFFFF"
 
 	// GitHub Light Theme Colors
 	GithubBlue      = "#0366d6"
@@ -79,6 +81,7 @@ var (
 	DiffAddColor            = Color{ANSI: Green, Lipgloss: LipglossGreen}                      // Green for additions
 	DiffRemoveColor         = Color{ANSI: Red, Lipgloss: LipglossRed}                          // Red for removals
 	WarningColor            = Color{ANSI: Amber, Lipgloss: LipglossAmber}                      // Amber for warnings
+	QueuedMessageColor      = Color{ANSI: LightGray, Lipgloss: LipglossLightGray}              // Light gray for queued messages
 	TextSelectionForeground = Color{ANSI: "\033[38;2;0;0;0m", Lipgloss: LipglossBlack}         // Black for text selection foreground
 	TextSelectionCursor     = Color{ANSI: "\033[48;2;255;255;255m", Lipgloss: LipglossWhiteBg} // White background for text selection cursor
 

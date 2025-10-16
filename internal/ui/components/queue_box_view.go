@@ -35,15 +35,12 @@ func (qv *QueueBoxView) Render(queuedMessages []domain.QueuedMessage, background
 	if len(queuedMessages) == 0 && len(backgroundTasks) == 0 {
 		return ""
 	}
-
-	dimColor := qv.getDimColor()
-	accentColor := qv.getAccentColor()
 	warningColor := qv.getWarningColor()
 
 	var sections []string
 
 	if len(backgroundTasks) > 0 {
-		titleText := fmt.Sprintf("🔄 Background Tasks (%d)", len(backgroundTasks))
+		titleText := fmt.Sprintf("Background Tasks (%d)", len(backgroundTasks))
 		titleStyle := lipgloss.NewStyle().
 			Foreground(lipgloss.Color(warningColor)).
 			Bold(true)
@@ -59,10 +56,10 @@ func (qv *QueueBoxView) Render(queuedMessages []domain.QueuedMessage, background
 	}
 
 	if len(queuedMessages) > 0 {
-		titleText := fmt.Sprintf("📥 Queued Messages (%d)", len(queuedMessages))
+		queuedColor := qv.getQueuedMessageColor()
+		titleText := fmt.Sprintf("Queued Messages (%d)", len(queuedMessages))
 		titleStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(accentColor)).
-			Bold(true)
+			Foreground(lipgloss.Color(queuedColor))
 
 		var messageLines []string
 		for i, queuedMsg := range queuedMessages {
@@ -76,12 +73,10 @@ func (qv *QueueBoxView) Render(queuedMessages []domain.QueuedMessage, background
 
 	contentText := strings.Join(sections, "\n\n")
 
+	queuedColor := qv.getQueuedMessageColor()
 	boxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(dimColor)).
 		Padding(0, 1).
-		Width(qv.width - 4).
-		Foreground(lipgloss.Color(dimColor))
+		Foreground(lipgloss.Color(queuedColor))
 
 	return boxStyle.Render(contentText)
 }
@@ -89,7 +84,6 @@ func (qv *QueueBoxView) Render(queuedMessages []domain.QueuedMessage, background
 func (qv *QueueBoxView) formatMessagePreview(queuedMsg domain.QueuedMessage) string {
 	msg := queuedMsg.Message
 
-	roleIcon := qv.getRoleIcon(string(msg.Role))
 	content := msg.Content
 
 	maxPreviewLength := qv.width - 20
@@ -106,22 +100,7 @@ func (qv *QueueBoxView) formatMessagePreview(queuedMsg domain.QueuedMessage) str
 
 	wrappedPreview := shared.WrapText(preview, maxPreviewLength)
 
-	return fmt.Sprintf("%s %s", roleIcon, wrappedPreview)
-}
-
-func (qv *QueueBoxView) getRoleIcon(role string) string {
-	switch role {
-	case "user":
-		return "👤"
-	case "assistant":
-		return "🤖"
-	case "system":
-		return "⚙️"
-	case "tool":
-		return "🔧"
-	default:
-		return "📝"
-	}
+	return wrappedPreview
 }
 
 func (qv *QueueBoxView) Init() tea.Cmd {
@@ -139,20 +118,13 @@ func (qv *QueueBoxView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return qv, nil
 }
 
-func (qv *QueueBoxView) getDimColor() string {
-	if qv.themeService != nil {
-		return qv.themeService.GetCurrentTheme().GetDimColor()
-	}
-	return colors.DimColor.ANSI
-}
-
-func (qv *QueueBoxView) getAccentColor() string {
-	if qv.themeService != nil {
-		return qv.themeService.GetCurrentTheme().GetAccentColor()
-	}
-	return colors.AccentColor.ANSI
-}
-
 func (qv *QueueBoxView) getWarningColor() string {
 	return colors.WarningColor.ANSI
+}
+
+func (qv *QueueBoxView) getQueuedMessageColor() string {
+	if qv.themeService != nil {
+		return colors.QueuedMessageColor.Lipgloss
+	}
+	return colors.QueuedMessageColor.Lipgloss
 }

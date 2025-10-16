@@ -8,6 +8,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -132,6 +133,12 @@ func (p *ChatMessageProcessor) processChatMessage(
 	if p.handler.stateManager.IsAgentBusy() {
 		requestID := fmt.Sprintf("queued-%d", time.Now().UnixNano())
 		p.handler.stateManager.AddQueuedMessage(message, requestID)
+
+		queuedMessages := p.handler.stateManager.GetQueuedMessages()
+		logger.Info("Message queued while agent busy",
+			"content", message.Content,
+			"requestID", requestID,
+			"queueSize", len(queuedMessages))
 
 		return func() tea.Msg {
 			return domain.SetStatusEvent{

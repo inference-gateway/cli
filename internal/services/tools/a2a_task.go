@@ -298,17 +298,12 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 	taskID string,
 	state *domain.TaskPollingState,
 ) {
-	defer func() {
-		if t.taskTracker != nil {
-			t.taskTracker.StopPolling(agentURL)
-		}
-	}()
-
 	adkClient := t.getOrCreateClient(agentURL)
 
 	strategy := t.config.A2A.Task.PollingStrategy
 	if strategy == "immediate_idle" {
 		t.handleImmediateIdle(agentURL, taskID, state)
+		t.stopPolling(agentURL)
 		return
 	}
 
@@ -328,6 +323,7 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 			if state.ErrorChan != nil {
 				state.ErrorChan <- fmt.Errorf("task cancelled")
 			}
+			t.stopPolling(agentURL)
 			return
 
 		case <-ticker.C:
@@ -339,7 +335,9 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 			if shouldStop {
 				if stopResult != nil && state.ResultChan != nil {
 					state.ResultChan <- stopResult
+					time.Sleep(100 * time.Millisecond)
 				}
+				t.stopPolling(agentURL)
 				return
 			}
 
@@ -362,12 +360,20 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 			if shouldReturn {
 				if taskResult != nil && state.ResultChan != nil {
 					state.ResultChan <- taskResult
+					time.Sleep(100 * time.Millisecond)
 				}
+				t.stopPolling(agentURL)
 				return
 			}
 
 			currentInterval = t.applyExponentialBackoff(agentURL, taskID, strategy, currentInterval, pollAttempt, state, ticker)
 		}
+	}
+}
+
+func (t *A2ASubmitTaskTool) stopPolling(agentURL string) {
+	if t.taskTracker != nil {
+		t.taskTracker.StopPolling(agentURL)
 	}
 }
 

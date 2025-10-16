@@ -314,6 +314,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			if monitor != nil {
 				monitor.Stop()
 			}
+			close(chatEvents)
 		}()
 
 		conversation = s.optimizeConversation(ctx, req, conversation, eventPublisher)
@@ -327,7 +328,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			select {
 			case <-cancelChan:
 				eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
-				close(chatEvents)
 				return
 			default:
 			}
@@ -337,7 +337,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			if !hasToolResults && turns > 0 {
 				if !hasActivePolling {
 					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
-					close(chatEvents)
 					return
 				}
 
@@ -365,13 +364,11 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					waitTimeout.Stop()
 
 				case <-waitTimeout.C:
-					close(chatEvents)
 					return
 
 				case <-cancelChan:
 					waitTimeout.Stop()
 					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
-					close(chatEvents)
 					return
 				}
 			}
@@ -548,7 +545,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
 		}
 		//// EVENT LOOP FINISHED
-		close(chatEvents)
 	}()
 
 	return chatEvents, nil

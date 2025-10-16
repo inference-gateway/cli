@@ -60,7 +60,7 @@ func NewChatHandler(
 
 // Handle routes incoming messages to appropriate handler methods based on message type.
 // TODO - refactor this
-func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop
+func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 	switch m := msg.(type) {
 	case domain.UserInputEvent:
 		return h.HandleUserInputEvent(m)
@@ -104,6 +104,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop
 		return h.HandleA2ATaskStatusUpdateEvent(m)
 	case domain.A2ATaskCompletedEvent:
 		return h.HandleA2ATaskCompletedEvent(m)
+	case domain.A2ATaskFailedEvent:
+		return h.HandleA2ATaskFailedEvent(m)
 	case domain.A2ATaskInputRequiredEvent:
 		return h.HandleA2ATaskInputRequiredEvent(m)
 	case domain.MessageQueuedEvent:
@@ -409,6 +411,13 @@ func (h *ChatHandler) HandleA2ATaskCompletedEvent(
 	msg domain.A2ATaskCompletedEvent,
 ) tea.Cmd {
 	_, cmd := h.eventHandler.handleA2ATaskCompleted(msg)
+	return cmd
+}
+
+func (h *ChatHandler) HandleA2ATaskFailedEvent(
+	msg domain.A2ATaskFailedEvent,
+) tea.Cmd {
+	_, cmd := h.eventHandler.handleA2ATaskFailed(msg)
 	return cmd
 }
 

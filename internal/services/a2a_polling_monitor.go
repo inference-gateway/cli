@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 	"time"
 
@@ -110,14 +109,30 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, agentURL stri
 		m.mu.Lock()
 		delete(m.activeMonitors, agentURL)
 		m.mu.Unlock()
+		logger.Info("Monitor stopped for agent", "agentURL", agentURL, "taskID", state.TaskID)
 	}()
+
+	logger.Info("Monitor started for agent", "agentURL", agentURL, "taskID", state.TaskID)
 
 	for {
 		select {
 		case <-ctx.Done():
+			logger.Info("Monitor context cancelled", "agentURL", agentURL, "taskID", state.TaskID)
 			return
 
 		case result := <-state.ResultChan:
+			logger.Info("Received result from ResultChan",
+				"agentURL", agentURL,
+				"taskID", state.TaskID,
+				"success", result.Success)
+
+			if m.taskTracker != nil {
+				m.taskTracker.StopPolling(agentURL)
+				logger.Info("Stopped polling for agent before emitting completion event",
+					"agentURL", agentURL,
+					"taskID", state.TaskID)
+			}
+
 			m.emitCompletionEvent(state.TaskID, result)
 			return
 
@@ -130,6 +145,13 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, agentURL stri
 				"task_id", state.TaskID,
 				"error", err)
 
+			if m.taskTracker != nil {
+				m.taskTracker.StopPolling(agentURL)
+				logger.Info("Stopped polling for agent before emitting error event",
+					"agentURL", agentURL,
+					"taskID", state.TaskID)
+			}
+
 			m.emitErrorEvent(state.TaskID, err)
 			return
 		}
@@ -137,28 +159,40 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, agentURL stri
 }
 
 func (m *A2APollingMonitor) emitCompletionEvent(taskID string, result *domain.ToolExecutionResult) {
-	event := domain.A2ATaskCompletedEvent{
-		RequestID: m.requestID,
-		Timestamp: time.Now(),
-		TaskID:    taskID,
-		Success:   result.Success,
-		Result:    result,
-		Error:     result.Error,
-	}
+	logger.Info("Emitting A2A task completion event",
+		"taskID", taskID,
+		"success", result.Success,
+		"requestID", m.requestID)
 
-	select {
-	case m.eventChan <- event:
-	default:
-		logger.Warn("Failed to emit A2A completion event - channel full",
-			"task_id", taskID)
-	}
+	if result.Success {
+		event := domain.A2ATaskCompletedEvent{
+			RequestID: m.requestID,
+			Timestamp: time.Now(),
+			TaskID:    taskID,
+			Result:    result,
+		}
 
-	if m.messageQueue != nil {
-		syntheticMessage := m.createSyntheticToolResultMessage(result)
 		select {
-		case m.messageQueue <- syntheticMessage:
+		case m.eventChan <- event:
+			logger.Info("A2A completion event emitted successfully", "taskID", taskID)
 		default:
-			logger.Warn("Failed to queue synthetic tool result - queue full",
+			logger.Warn("Failed to emit A2A completion event - channel full",
+				"task_id", taskID)
+		}
+	} else {
+		event := domain.A2ATaskFailedEvent{
+			RequestID: m.requestID,
+			Timestamp: time.Now(),
+			TaskID:    taskID,
+			Result:    result,
+			Error:     result.Error,
+		}
+
+		select {
+		case m.eventChan <- event:
+			logger.Info("A2A failure event emitted successfully", "taskID", taskID)
+		default:
+			logger.Warn("Failed to emit A2A failure event - channel full",
 				"task_id", taskID)
 		}
 	}
@@ -202,11 +236,10 @@ func (m *A2APollingMonitor) emitErrorEvent(taskID string, err error) {
 		errorMsg = err.Error()
 	}
 
-	event := domain.A2ATaskCompletedEvent{
+	event := domain.A2ATaskFailedEvent{
 		RequestID: m.requestID,
 		Timestamp: time.Now(),
 		TaskID:    taskID,
-		Success:   false,
 		Error:     errorMsg,
 	}
 
@@ -215,31 +248,6 @@ func (m *A2APollingMonitor) emitErrorEvent(taskID string, err error) {
 	default:
 		logger.Warn("Failed to emit A2A error event - channel full",
 			"task_id", taskID)
-	}
-}
-
-func (m *A2APollingMonitor) createSyntheticToolResultMessage(result *domain.ToolExecutionResult) sdk.Message {
-	content := "[System] The background A2A task has completed. "
-
-	if !result.Success {
-		if result.Error != "" {
-			content += "Error: " + result.Error
-		}
-		return sdk.Message{
-			Role:    sdk.User,
-			Content: content,
-		}
-	}
-
-	if result.Data != nil {
-		if dataJSON, err := json.Marshal(result.Data); err == nil {
-			content += "Result: " + string(dataJSON)
-		}
-	}
-
-	return sdk.Message{
-		Role:    sdk.User,
-		Content: content,
 	}
 }
 
