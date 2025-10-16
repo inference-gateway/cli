@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -112,9 +111,7 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop
 		}
 
 		msgType := fmt.Sprintf("%T", msg)
-		if strings.Contains(msgType, "domain.") {
-			logger.Warn("unhandled domain event", "type", msgType)
-		}
+		logger.Warn("unhandled domain event", "type", msgType)
 		return nil
 	}
 }
