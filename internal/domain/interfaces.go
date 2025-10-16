@@ -545,7 +545,6 @@ type StatusProgress struct {
 	Total   int
 }
 
-
 // ScrollDirection defines scroll direction
 type ScrollDirection int
 
