@@ -59,7 +59,7 @@ func NewChatHandler(
 }
 
 // Handle routes incoming messages to appropriate handler methods based on message type.
-// TODO - refacor this
+// TODO - refactor this
 func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop
 	switch m := msg.(type) {
 	case domain.UserInputEvent:
