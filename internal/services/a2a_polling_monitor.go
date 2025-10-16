@@ -109,28 +109,16 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, agentURL stri
 		m.mu.Lock()
 		delete(m.activeMonitors, agentURL)
 		m.mu.Unlock()
-		logger.Info("Monitor stopped for agent", "agentURL", agentURL, "taskID", state.TaskID)
 	}()
-
-	logger.Info("Monitor started for agent", "agentURL", agentURL, "taskID", state.TaskID)
 
 	for {
 		select {
 		case <-ctx.Done():
-			logger.Info("Monitor context cancelled", "agentURL", agentURL, "taskID", state.TaskID)
 			return
 
 		case result := <-state.ResultChan:
-			logger.Info("Received result from ResultChan",
-				"agentURL", agentURL,
-				"taskID", state.TaskID,
-				"success", result.Success)
-
 			if m.taskTracker != nil {
 				m.taskTracker.StopPolling(agentURL)
-				logger.Info("Stopped polling for agent before emitting completion event",
-					"agentURL", agentURL,
-					"taskID", state.TaskID)
 			}
 
 			m.emitCompletionEvent(state.TaskID, result)
@@ -147,9 +135,6 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, agentURL stri
 
 			if m.taskTracker != nil {
 				m.taskTracker.StopPolling(agentURL)
-				logger.Info("Stopped polling for agent before emitting error event",
-					"agentURL", agentURL,
-					"taskID", state.TaskID)
 			}
 
 			m.emitErrorEvent(state.TaskID, err)
@@ -159,11 +144,6 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, agentURL stri
 }
 
 func (m *A2APollingMonitor) emitCompletionEvent(taskID string, result *domain.ToolExecutionResult) {
-	logger.Info("Emitting A2A task completion event",
-		"taskID", taskID,
-		"success", result.Success,
-		"requestID", m.requestID)
-
 	if result.Success {
 		event := domain.A2ATaskCompletedEvent{
 			RequestID: m.requestID,
@@ -174,7 +154,6 @@ func (m *A2APollingMonitor) emitCompletionEvent(taskID string, result *domain.To
 
 		select {
 		case m.eventChan <- event:
-			logger.Info("A2A completion event emitted successfully", "taskID", taskID)
 		default:
 			logger.Warn("Failed to emit A2A completion event - channel full",
 				"task_id", taskID)
@@ -190,7 +169,6 @@ func (m *A2APollingMonitor) emitCompletionEvent(taskID string, result *domain.To
 
 		select {
 		case m.eventChan <- event:
-			logger.Info("A2A failure event emitted successfully", "taskID", taskID)
 		default:
 			logger.Warn("Failed to emit A2A failure event - channel full",
 				"task_id", taskID)

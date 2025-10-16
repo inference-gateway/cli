@@ -537,11 +537,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				hasToolResults = true
 			}
 
-			hasActivePollingAfterTools := taskTracker != nil && len(taskTracker.GetAllPollingAgents()) > 0
-			logger.Info("publishing chat complete",
-				"hadToolCalls", len(completeToolCalls) > 0,
-				"hasActivePolling", hasActivePollingAfterTools)
-
 			eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
 		}
 		//// EVENT LOOP FINISHED
@@ -882,11 +877,6 @@ func (s *AgentServiceImpl) batchSaveToolResults(entries []domain.ConversationEnt
 		}
 		savedCount++
 	}
-
-	logger.Info("successfully saved tool results",
-		"saved", savedCount,
-		"total", len(entries),
-	)
 
 	return nil
 }

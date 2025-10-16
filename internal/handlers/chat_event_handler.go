@@ -244,20 +244,11 @@ func (e *ChatEventHandler) handleChatComplete(
 	}
 
 	queuedMessages := e.handler.stateManager.GetQueuedMessages()
-	logger.Info("Chat completed, checking queue",
-		"queueSize", len(queuedMessages),
-		"hasBackgroundTasks", hasBackgroundTasks)
 
 	var queuedMsg *domain.QueuedMessage
 
 	if len(queuedMessages) > 0 {
 		queuedMsg = e.handler.stateManager.PopQueuedMessage()
-		remainingInQueue := len(e.handler.stateManager.GetQueuedMessages())
-
-		logger.Info("Popped queued message for processing",
-			"requestID", queuedMsg.RequestID,
-			"content", queuedMsg.Message.Content,
-			"remainingInQueue", remainingInQueue)
 	}
 
 	if queuedMsg != nil && hasBackgroundTasks {
@@ -602,25 +593,16 @@ func (e *ChatEventHandler) handleA2ATaskCompleted(
 	chatSession := e.handler.stateManager.GetChatSession()
 	hasActiveSession := chatSession != nil
 
-	logger.Info("A2A task completed (success) handler called",
-		"requestID", msg.RequestID,
-		"taskID", msg.TaskID,
-		"hasBackgroundTasks", hasBackgroundTasks,
-		"queueSize", len(queuedMessages),
-		"hasActiveSession", hasActiveSession)
-
 	statusMessage := "A2A task completed"
 	if hasBackgroundTasks {
 		statusMessage = fmt.Sprintf("A2A task completed - %d background task(s) remaining", len(backgroundTasks))
 	}
 
 	if !hasBackgroundTasks && hasActiveSession {
-		logger.Info("Last background task completed - ending chat session")
 		e.handler.stateManager.EndChatSession()
 	}
 
 	if !hasBackgroundTasks && !hasQueuedMessages {
-		logger.Info("No background tasks or queued messages - triggering chat completion for A2A results")
 
 		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{
@@ -662,26 +644,16 @@ func (e *ChatEventHandler) handleA2ATaskFailed(
 	chatSession := e.handler.stateManager.GetChatSession()
 	hasActiveSession := chatSession != nil
 
-	logger.Info("A2A task failed handler called",
-		"requestID", msg.RequestID,
-		"taskID", msg.TaskID,
-		"error", msg.Error,
-		"hasBackgroundTasks", hasBackgroundTasks,
-		"queueSize", len(queuedMessages),
-		"hasActiveSession", hasActiveSession)
-
 	statusMessage := fmt.Sprintf("A2A task failed: %s", msg.Error)
 	if hasBackgroundTasks {
 		statusMessage = fmt.Sprintf("A2A task failed - %d background task(s) remaining", len(backgroundTasks))
 	}
 
 	if !hasBackgroundTasks && hasActiveSession {
-		logger.Info("Last background task failed - ending chat session")
 		e.handler.stateManager.EndChatSession()
 	}
 
 	if !hasBackgroundTasks && !hasQueuedMessages {
-		logger.Info("A2A task failed - triggering chat completion for agent to reason about failure")
 
 		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{
@@ -734,12 +706,6 @@ func (e *ChatEventHandler) handleMessageQueued(
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	queueSize := len(e.handler.stateManager.GetQueuedMessages())
-	logger.Info("Processing queued message",
-		"requestID", msg.RequestID,
-		"content", msg.Message.Content,
-		"remainingInQueue", queueSize)
-
 	userEntry := domain.ConversationEntry{
 		Message: msg.Message,
 		Time:    time.Now(),
@@ -757,10 +723,6 @@ func (e *ChatEventHandler) handleMessageQueued(
 		})
 		return nil, tea.Batch(cmds...)
 	}
-
-	logger.Info("Queued message added to conversation, starting chat completion",
-		"requestID", msg.RequestID,
-		"totalMessages", len(e.handler.conversationRepo.GetMessages()))
 
 	cmds = append(cmds, func() tea.Msg {
 		return domain.UpdateHistoryEvent{
