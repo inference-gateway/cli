@@ -554,6 +554,9 @@ func TestStateManager_IsAgentBusy(t *testing.T) {
 			_ = sm.StartChatSession("req-123", "test-model", eventChan)
 
 			if tt.status != domain.ChatStatusStarting {
+				if tt.status == domain.ChatStatusCompleted {
+					_ = sm.UpdateChatStatus(domain.ChatStatusGenerating)
+				}
 				_ = sm.UpdateChatStatus(tt.status)
 			}
 
