@@ -3,7 +3,6 @@ package services
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -470,19 +469,16 @@ func (sm *StateManager) GetBackgroundTasks(toolService domain.ToolService) []dom
 		return []domain.TaskPollingState{}
 	}
 
-	pollingAgents := taskTracker.GetAllPollingAgents()
-	tasks := make([]domain.TaskPollingState, 0, len(pollingAgents))
+	pollingTasks := taskTracker.GetAllPollingTasks()
+	tasks := make([]domain.TaskPollingState, 0, len(pollingTasks))
 
-	for _, agentURL := range pollingAgents {
-		if state := taskTracker.GetPollingState(agentURL); state != nil {
+	for _, taskID := range pollingTasks {
+		if state := taskTracker.GetPollingState(taskID); state != nil {
 			tasks = append(tasks, *state)
 		}
 	}
 
-	sort.Slice(tasks, func(i, j int) bool {
-		return tasks[i].StartedAt.Before(tasks[j].StartedAt)
-	})
-
+	// Tasks are already sorted by start time from GetAllPollingTasks
 	return tasks
 }
 

@@ -23,9 +23,12 @@ func TestA2ASubmitTaskTool_TaskIDTracking(t *testing.T) {
 	}
 
 	t.Run("uses tracked task ID when available", func(t *testing.T) {
-		tracker := utils.NewSimpleTaskTracker()
+		tracker := utils.NewTaskTracker()
 		agentURL := "http://test.agent"
-		tracker.SetTaskIDForAgent(agentURL, "existing-task-123")
+		contextID := "context-123"
+
+		tracker.RegisterContext(agentURL, contextID)
+		tracker.AddTask(contextID, "existing-task-123")
 
 		tool := NewA2ASubmitTaskTool(cfg, tracker)
 
@@ -37,11 +40,11 @@ func TestA2ASubmitTaskTool_TaskIDTracking(t *testing.T) {
 		_, err := tool.Execute(context.Background(), args)
 		require.NoError(t, err)
 
-		assert.Equal(t, "existing-task-123", tracker.GetTaskIDForAgent(agentURL))
+		assert.True(t, tracker.HasTask("existing-task-123"))
 	})
 
 	t.Run("no task ID when tracker is empty", func(t *testing.T) {
-		tracker := utils.NewSimpleTaskTracker()
+		tracker := utils.NewTaskTracker()
 		agentURL := "http://test.agent"
 
 		tool := NewA2ASubmitTaskTool(cfg, tracker)
@@ -54,7 +57,7 @@ func TestA2ASubmitTaskTool_TaskIDTracking(t *testing.T) {
 		_, err := tool.Execute(context.Background(), args)
 		require.NoError(t, err)
 
-		assert.Equal(t, "", tracker.GetTaskIDForAgent(agentURL))
+		assert.Empty(t, tracker.GetContextsForAgent(agentURL))
 	})
 
 	t.Run("handles nil tracker gracefully", func(t *testing.T) {

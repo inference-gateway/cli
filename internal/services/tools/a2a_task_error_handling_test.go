@@ -10,7 +10,7 @@ import (
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
-	utils "github.com/inference-gateway/cli/internal/utils"
+	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
 	assert "github.com/stretchr/testify/assert"
 	zap "go.uber.org/zap"
 )
@@ -130,17 +130,19 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 	}
 
 	t.Run("Execute clears tracker when task not found", func(t *testing.T) {
-		tracker := utils.NewSimpleTaskTracker()
+		tracker := &mocks.FakeTaskTracker{}
 		agentURL := "http://test-agent"
-		tracker.SetTaskIDForAgent(agentURL, "nonexistent-task-123")
+		contextID := "context-123"
+		taskID := "nonexistent-task-123"
+
+		tracker.GetLatestContextForAgentReturns(contextID)
+		tracker.GetLatestTaskForContextReturns(taskID)
 
 		mockClient := &MockA2AClient{
 			sendTaskError: errors.New("A2A error: failed to resume task: task not found: nonexistent-task-123 (code: -32603)"),
 		}
 
 		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
-
-		assert.Equal(t, "nonexistent-task-123", tracker.GetTaskIDForAgent(agentURL))
 
 		args := map[string]any{
 			"agent_url":        agentURL,
@@ -154,16 +156,22 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 
 		assert.Contains(t, result.Error, "Previous task no longer exists (cleared from tracker)")
 
-		assert.Equal(t, "", tracker.GetTaskIDForAgent(agentURL))
+		// Verify RemoveTask was called
+		assert.Equal(t, 1, tracker.RemoveTaskCallCount())
 	})
 
 	t.Run("Execute clears tracker when task is completed", func(t *testing.T) {
-		tracker := utils.NewSimpleTaskTracker()
+		tracker := &mocks.FakeTaskTracker{}
 		agentURL := "http://test-agent"
-		tracker.SetTaskIDForAgent(agentURL, "completed-task-456")
+		contextID := "context-456"
+		taskID := "completed-task-456"
+
+		tracker.GetLatestContextForAgentReturns(contextID)
+		tracker.GetLatestTaskForContextReturns(taskID)
 
 		completedTask := adk.Task{
-			ID: "completed-task-456",
+			ID:        taskID,
+			ContextID: contextID,
 			Status: adk.TaskStatus{
 				State: adk.TaskStateCompleted,
 			},
@@ -177,8 +185,6 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 
 		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
 
-		assert.Equal(t, "completed-task-456", tracker.GetTaskIDForAgent(agentURL))
-
 		args := map[string]any{
 			"agent_url":        agentURL,
 			"task_description": "Continue task",
@@ -191,7 +197,8 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 
 		assert.Contains(t, result.Error, "is already completed (cleared from tracker)")
 
-		assert.Equal(t, "", tracker.GetTaskIDForAgent(agentURL))
+		// Verify RemoveTask was called
+		assert.Equal(t, 1, tracker.RemoveTaskCallCount())
 	})
 }
 
@@ -272,19 +279,24 @@ func TestA2ASubmitTaskTool_WorkingTaskGuardrail(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tracker := utils.NewSimpleTaskTracker()
+			tracker := &mocks.FakeTaskTracker{}
 			agentURL := "http://test-agent"
-			tracker.SetTaskIDForAgent(agentURL, tt.existingTaskID)
+			contextID := "context-test"
+
+			tracker.GetLatestContextForAgentReturns(contextID)
+			tracker.GetLatestTaskForContextReturns(tt.existingTaskID)
 
 			existingTask := adk.Task{
-				ID: tt.existingTaskID,
+				ID:        tt.existingTaskID,
+				ContextID: contextID,
 				Status: adk.TaskStatus{
 					State: tt.existingTaskState,
 				},
 			}
 
 			newTask := adk.Task{
-				ID: "new-task-999",
+				ID:        "new-task-999",
+				ContextID: contextID,
 				Status: adk.TaskStatus{
 					State: adk.TaskStateSubmitted,
 				},
@@ -314,7 +326,7 @@ func TestA2ASubmitTaskTool_WorkingTaskGuardrail(t *testing.T) {
 			if tt.shouldPreventSubmit {
 				assert.False(t, result.Success)
 				assert.Contains(t, result.Error, tt.expectedErrorMessage)
-				assert.Equal(t, tt.existingTaskID, tracker.GetTaskIDForAgent(agentURL))
+				assert.Equal(t, 0, tracker.RemoveTaskCallCount())
 			} else {
 				if result.Success {
 					assert.True(t, result.Success)
@@ -341,25 +353,33 @@ func TestA2ASubmitTaskTool_MultipleAgents(t *testing.T) {
 	}
 
 	t.Run("allows submission to different agents independently", func(t *testing.T) {
-		tracker := utils.NewSimpleTaskTracker()
+		tracker := &mocks.FakeTaskTracker{}
 		agentURL1 := "http://agent1.example.com"
 		agentURL2 := "http://agent2.example.com"
+		context1 := "context-agent1"
+		context2 := "context-agent2"
 
-		tracker.SetTaskIDForAgent(agentURL1, "working-task-agent1")
+		// Agent 1 has a context with a working task
+		tracker.GetLatestContextForAgentReturnsOnCall(0, context1)
+		tracker.GetLatestTaskForContextReturnsOnCall(0, "working-task-agent1")
+
+		// Agent 2 has no context
+		tracker.GetLatestContextForAgentReturnsOnCall(1, "")
 
 		workingTaskAgent1 := adk.Task{
-			ID: "working-task-agent1",
+			ID:        "working-task-agent1",
+			ContextID: context1,
 			Status: adk.TaskStatus{
 				State: adk.TaskStateWorking,
 			},
 		}
 
 		newTaskAgent2 := adk.Task{
-			ID: "new-task-agent2",
+			ID:        "new-task-agent2",
+			ContextID: context2,
 			Status: adk.TaskStatus{
 				State: adk.TaskStateCompleted,
 			},
-			ContextID: "context-agent2",
 		}
 
 		mockClient := &MockA2AClient{
@@ -395,9 +415,9 @@ func TestA2ASubmitTaskTool_MultipleAgents(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, result2.Success)
 
-		assert.Equal(t, "working-task-agent1", tracker.GetTaskIDForAgent(agentURL1))
-		assert.Equal(t, "new-task-agent2", tracker.GetTaskIDForAgent(agentURL2))
-		assert.Equal(t, "context-agent2", tracker.GetContextIDForAgent(agentURL2))
+		// Verify new API methods were called
+		assert.GreaterOrEqual(t, tracker.AddTaskCallCount(), 1)
+		assert.GreaterOrEqual(t, tracker.RegisterContextCallCount(), 1)
 	})
 }
 
@@ -418,15 +438,17 @@ func TestA2ASubmitTaskTool_NoExistingTask(t *testing.T) {
 	}
 
 	t.Run("creates new task when no existing task ID in tracker", func(t *testing.T) {
-		tracker := utils.NewSimpleTaskTracker()
+		tracker := &mocks.FakeTaskTracker{}
 		agentURL := "http://test-agent"
 
+		tracker.GetLatestContextForAgentReturns("")
+
 		newTask := adk.Task{
-			ID: "new-task-123",
+			ID:        "new-task-123",
+			ContextID: "context-456",
 			Status: adk.TaskStatus{
 				State: adk.TaskStateCompleted,
 			},
-			ContextID: "context-456",
 		}
 
 		mockClient := &MockA2AClient{
@@ -440,8 +462,6 @@ func TestA2ASubmitTaskTool_NoExistingTask(t *testing.T) {
 
 		tool := NewA2ASubmitTaskToolWithClient(cfg, tracker, mockClient)
 
-		assert.Equal(t, "", tracker.GetTaskIDForAgent(agentURL))
-
 		args := map[string]any{
 			"agent_url":        agentURL,
 			"task_description": "New task",
@@ -452,7 +472,7 @@ func TestA2ASubmitTaskTool_NoExistingTask(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, result.Success)
 
-		assert.Equal(t, "new-task-123", tracker.GetTaskIDForAgent(agentURL))
-		assert.Equal(t, "context-456", tracker.GetContextIDForAgent(agentURL))
+		assert.Equal(t, 1, tracker.AddTaskCallCount())
+		assert.Equal(t, 1, tracker.RegisterContextCallCount())
 	})
 }

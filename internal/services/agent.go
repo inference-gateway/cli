@@ -332,7 +332,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			default:
 			}
 
-			hasActivePolling := taskTracker != nil && len(taskTracker.GetAllPollingAgents()) > 0
+			hasActivePolling := taskTracker != nil && len(taskTracker.GetAllPollingTasks()) > 0
 
 			if !hasToolResults && turns > 0 {
 				if !hasActivePolling {

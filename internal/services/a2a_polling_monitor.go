@@ -72,42 +72,42 @@ func (m *A2APollingMonitor) checkForNewPollingTasks(ctx context.Context) {
 		return
 	}
 
-	pollingAgents := m.taskTracker.GetAllPollingAgents()
+	pollingTasks := m.taskTracker.GetAllPollingTasks()
 
-	for _, agentURL := range pollingAgents {
+	for _, taskID := range pollingTasks {
 		m.mu.RLock()
-		_, alreadyMonitoring := m.activeMonitors[agentURL]
+		_, alreadyMonitoring := m.activeMonitors[taskID]
 		m.mu.RUnlock()
 
 		if alreadyMonitoring {
 			continue
 		}
 
-		state := m.taskTracker.GetPollingState(agentURL)
+		state := m.taskTracker.GetPollingState(taskID)
 		if state != nil && state.IsPolling {
-			m.MonitorPollingState(ctx, agentURL, state)
+			m.MonitorPollingState(ctx, taskID, state)
 		}
 	}
 }
 
-func (m *A2APollingMonitor) MonitorPollingState(ctx context.Context, agentURL string, state *domain.TaskPollingState) {
+func (m *A2APollingMonitor) MonitorPollingState(ctx context.Context, taskID string, state *domain.TaskPollingState) {
 	m.mu.Lock()
-	if _, exists := m.activeMonitors[agentURL]; exists {
+	if _, exists := m.activeMonitors[taskID]; exists {
 		m.mu.Unlock()
 		return
 	}
 
 	monitorCtx, cancel := context.WithCancel(ctx)
-	m.activeMonitors[agentURL] = cancel
+	m.activeMonitors[taskID] = cancel
 	m.mu.Unlock()
 
-	go m.monitorSingleTask(monitorCtx, agentURL, state)
+	go m.monitorSingleTask(monitorCtx, taskID, state)
 }
 
-func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, agentURL string, state *domain.TaskPollingState) {
+func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, taskID string, state *domain.TaskPollingState) {
 	defer func() {
 		m.mu.Lock()
-		delete(m.activeMonitors, agentURL)
+		delete(m.activeMonitors, taskID)
 		m.mu.Unlock()
 	}()
 
@@ -118,7 +118,7 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, agentURL stri
 
 		case result := <-state.ResultChan:
 			if m.taskTracker != nil {
-				m.taskTracker.StopPolling(agentURL)
+				m.taskTracker.StopPolling(taskID)
 			}
 
 			m.emitCompletionEvent(state.TaskID, result)
@@ -129,12 +129,12 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, agentURL stri
 
 		case err := <-state.ErrorChan:
 			logger.Error("A2A task polling error",
-				"agent_url", agentURL,
+				"agent_url", state.AgentURL,
 				"task_id", state.TaskID,
 				"error", err)
 
 			if m.taskTracker != nil {
-				m.taskTracker.StopPolling(agentURL)
+				m.taskTracker.StopPolling(taskID)
 			}
 
 			m.emitErrorEvent(state.TaskID, err)
@@ -144,6 +144,12 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, agentURL stri
 }
 
 func (m *A2APollingMonitor) emitCompletionEvent(taskID string, result *domain.ToolExecutionResult) {
+	if result == nil {
+		logger.Error("Received nil result in emitCompletionEvent",
+			"task_id", taskID)
+		return
+	}
+
 	if result.Success {
 		event := domain.A2ATaskCompletedEvent{
 			RequestID: m.requestID,
@@ -177,6 +183,11 @@ func (m *A2APollingMonitor) emitCompletionEvent(taskID string, result *domain.To
 }
 
 func (m *A2APollingMonitor) emitStatusUpdateEvent(update *domain.A2ATaskStatusUpdate) {
+	if update == nil {
+		logger.Error("Received nil update in emitStatusUpdateEvent")
+		return
+	}
+
 	event := domain.A2ATaskStatusUpdateEvent{
 		RequestID: m.requestID,
 		Timestamp: time.Now(),

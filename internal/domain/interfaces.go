@@ -179,19 +179,38 @@ type A2ATaskStatusUpdate struct {
 }
 
 // TaskTracker handles task ID and context ID tracking within chat sessions
+// Following A2A spec: supports multi-tenant with multiple contexts per agent
+// Context IDs and Task IDs are server-generated and tracked by the client
 type TaskTracker interface {
-	GetTaskIDForAgent(agentURL string) string
-	SetTaskIDForAgent(agentURL, taskID string)
-	ClearTaskIDForAgent(agentURL string)
-	GetContextIDForAgent(agentURL string) string
-	SetContextIDForAgent(agentURL, contextID string)
+	// Context management (contexts are server-generated and tracked here)
+	// Multiple contexts per agent enable multi-tenant/multi-session support
+	RegisterContext(agentURL, contextID string)
+	GetContextsForAgent(agentURL string) []string
+	GetAgentForContext(contextID string) string
+	GetLatestContextForAgent(agentURL string) string
+	HasContext(contextID string) bool
+	RemoveContext(contextID string)
+
+	// Task management (tasks are server-generated and scoped to contexts per A2A spec)
+	AddTask(contextID, taskID string)
+	GetTasksForContext(contextID string) []string
+	GetLatestTaskForContext(contextID string) string
+	GetContextForTask(taskID string) string
+	RemoveTask(taskID string)
+	HasTask(taskID string) bool
+
+	// Agent management
+	GetAllAgents() []string
+	GetAllContexts() []string
 	ClearAllAgents()
 
-	StartPolling(agentURL string, state *TaskPollingState)
-	StopPolling(agentURL string)
-	GetPollingState(agentURL string) *TaskPollingState
-	IsPolling(agentURL string) bool
-	GetAllPollingAgents() []string
+	// Polling state management (one polling state per task)
+	StartPolling(taskID string, state *TaskPollingState)
+	StopPolling(taskID string)
+	GetPollingState(taskID string) *TaskPollingState
+	IsPolling(taskID string) bool
+	GetPollingTasksForContext(contextID string) []string
+	GetAllPollingTasks() []string
 }
 
 // FetchResult represents the result of a fetch operation

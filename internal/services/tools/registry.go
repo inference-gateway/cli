@@ -23,7 +23,7 @@ func NewRegistry(cfg *config.Config) *Registry {
 		config:       cfg,
 		tools:        make(map[string]domain.Tool),
 		readToolUsed: false,
-		taskTracker:  utils.NewSimpleTaskTracker(),
+		taskTracker:  utils.NewTaskTracker(),
 	}
 
 	registry.registerTools()
