@@ -136,6 +136,7 @@ type StateManager interface {
 
 	// Background task management
 	GetBackgroundTasks(toolService ToolService) []TaskPollingState
+	CancelBackgroundTask(taskID string, toolService ToolService) error
 }
 
 // FileService handles file operations
@@ -157,7 +158,9 @@ type FileInfo struct {
 // TaskPollingState represents the state of background polling for a task
 type TaskPollingState struct {
 	TaskID          string
+	ContextID       string
 	AgentURL        string
+	TaskDescription string
 	IsPolling       bool
 	StartedAt       time.Time
 	LastPollAt      time.Time

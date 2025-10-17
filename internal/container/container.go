@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	adkclient "github.com/inference-gateway/adk/client"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriterdomain "github.com/inference-gateway/cli/internal/domain/filewriter"
@@ -157,7 +158,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 // initializeServices creates the new improved services
 func (c *ServiceContainer) initializeServices() {
 	debugMode := c.config.Logging.Debug
-	c.stateManager = services.NewStateManager(debugMode)
+
+	createADKClient := func(agentURL string) adkclient.A2AClient {
+		return adkclient.NewClient(agentURL)
+	}
+
+	c.stateManager = services.NewStateManager(debugMode, createADKClient)
 }
 
 // initializeUIComponents creates UI components and theme
@@ -202,6 +208,10 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
 
 	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService))
+
+	if c.config.IsA2AToolsEnabled() {
+		c.shortcutRegistry.Register(shortcuts.NewCancelShortcut(c.stateManager, c.toolService, taskTracker))
+	}
 
 	if c.configService != nil {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService))

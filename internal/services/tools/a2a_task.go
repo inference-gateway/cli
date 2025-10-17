@@ -244,15 +244,17 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 
 	pollCtx, cancel := context.WithCancel(context.Background())
 	pollingState := &domain.TaskPollingState{
-		TaskID:     taskID,
-		AgentURL:   agentURL,
-		IsPolling:  false,
-		StartedAt:  time.Now(),
-		LastPollAt: time.Now(),
-		CancelFunc: cancel,
-		ResultChan: make(chan *domain.ToolExecutionResult, 1),
-		ErrorChan:  make(chan error, 1),
-		StatusChan: make(chan *domain.A2ATaskStatusUpdate, 10),
+		TaskID:          taskID,
+		ContextID:       receivedContextID,
+		AgentURL:        agentURL,
+		TaskDescription: taskDescription,
+		IsPolling:       false,
+		StartedAt:       time.Now(),
+		LastPollAt:      time.Now(),
+		CancelFunc:      cancel,
+		ResultChan:      make(chan *domain.ToolExecutionResult, 1),
+		ErrorChan:       make(chan error, 1),
+		StatusChan:      make(chan *domain.A2ATaskStatusUpdate, 10),
 	}
 
 	if t.taskTracker != nil {

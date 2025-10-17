@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	adkclient "github.com/inference-gateway/adk/client"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -20,7 +21,10 @@ type testKeyHandlerContext struct {
 
 func (t *testKeyHandlerContext) GetStateManager() domain.StateManager {
 	if t.stateManager == nil {
-		t.stateManager = services.NewStateManager(false)
+		createADKClient := func(agentURL string) adkclient.A2AClient {
+			return adkclient.NewClient(agentURL)
+		}
+		t.stateManager = services.NewStateManager(false, createADKClient)
 		_ = t.stateManager.TransitionToView(t.currentView)
 	}
 	return t.stateManager

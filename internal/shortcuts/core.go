@@ -8,8 +8,11 @@ import (
 	"strings"
 	"time"
 
+	client "github.com/inference-gateway/adk/client"
+	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -410,4 +413,122 @@ func (c *ThemeShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 		SideEffect: SideEffectSwitchTheme,
 		Data:       themeName,
 	}, nil
+}
+
+// CancelShortcut cancels a background task
+type CancelShortcut struct {
+	stateManager domain.StateManager
+	toolService  domain.ToolService
+	taskTracker  domain.TaskTracker
+}
+
+func NewCancelShortcut(stateManager domain.StateManager, toolService domain.ToolService, taskTracker domain.TaskTracker) *CancelShortcut {
+	return &CancelShortcut{
+		stateManager: stateManager,
+		toolService:  toolService,
+		taskTracker:  taskTracker,
+	}
+}
+
+func (c *CancelShortcut) GetName() string        { return "cancel" }
+func (c *CancelShortcut) GetDescription() string { return "Cancel a background task" }
+func (c *CancelShortcut) GetUsage() string       { return "/cancel [task-number]" }
+func (c *CancelShortcut) CanExecute(args []string) bool {
+	return len(args) <= 1
+}
+
+func (c *CancelShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+	backgroundTasks := c.stateManager.GetBackgroundTasks(c.toolService)
+
+	if len(backgroundTasks) == 0 {
+		return ShortcutResult{
+			Output:  "No background tasks to cancel",
+			Success: false,
+		}, nil
+	}
+
+	if len(args) == 0 {
+		var output strings.Builder
+		output.WriteString("**Background tasks:**\n\n")
+		for i, task := range backgroundTasks {
+			elapsed := time.Since(task.StartedAt).Round(time.Second)
+			agentName := extractAgentName(task.AgentURL)
+			output.WriteString(fmt.Sprintf("%d. **%s** (%v)\n", i+1, agentName, elapsed))
+		}
+		output.WriteString("\n💡 *Usage: `/cancel <task-number>`*")
+		return ShortcutResult{
+			Output:  output.String(),
+			Success: true,
+		}, nil
+	}
+
+	var taskNum int
+	if _, err := fmt.Sscanf(args[0], "%d", &taskNum); err != nil || taskNum < 1 || taskNum > len(backgroundTasks) {
+		return ShortcutResult{
+			Output:  fmt.Sprintf("Invalid task number. Please use a number between 1 and %d", len(backgroundTasks)),
+			Success: false,
+		}, nil
+	}
+
+	task := backgroundTasks[taskNum-1]
+	agentName := extractAgentName(task.AgentURL)
+
+	logger.Info("Cancelling task", "task_id", task.TaskID, "agent", agentName)
+
+	if err := c.sendCancelToAgent(ctx, task); err != nil {
+		logger.Error("Failed to send cancel to agent", "task_id", task.TaskID, "agent", agentName, "error", err)
+		return ShortcutResult{
+			Output:  fmt.Sprintf("Failed to cancel task on agent %s: %v", agentName, err),
+			Success: false,
+		}, nil
+	}
+	logger.Info("Successfully sent cancel request to agent", "task_id", task.TaskID)
+
+	if task.CancelFunc != nil {
+		logger.Debug("Triggering local context cancellation", "task_id", task.TaskID)
+		task.CancelFunc()
+	}
+
+	// Immediately stop polling and remove from tracker
+	if c.taskTracker != nil {
+		logger.Debug("Stopping polling and removing from tracker", "task_id", task.TaskID)
+		c.taskTracker.StopPolling(task.TaskID)
+		c.taskTracker.RemoveTask(task.TaskID)
+	}
+
+	logger.Info("Task cancelled successfully", "task_id", task.TaskID, "agent", agentName)
+	return ShortcutResult{
+		Output:  fmt.Sprintf("✓ Cancelled task: **%s**", agentName),
+		Success: true,
+	}, nil
+}
+
+// extractAgentName extracts the agent name from the agent URL
+func extractAgentName(agentURL string) string {
+	parts := strings.Split(agentURL, "://")
+	if len(parts) < 2 {
+		return agentURL
+	}
+	hostPort := parts[1]
+	host := strings.Split(hostPort, ":")[0]
+	return host
+}
+
+// sendCancelToAgent sends a cancel request to the agent server
+func (c *CancelShortcut) sendCancelToAgent(ctx context.Context, task domain.TaskPollingState) error {
+	logger.Debug("Creating ADK client", "agent_url", task.AgentURL)
+	adkClient := client.NewClient(task.AgentURL)
+
+	logger.Debug("Sending CancelTask request to agent", "task_id", task.TaskID, "agent_url", task.AgentURL)
+	_, err := adkClient.CancelTask(ctx, adk.TaskIdParams{
+		ID: task.TaskID,
+	})
+
+	if err != nil {
+		logger.Error("ADK CancelTask returned error", "task_id", task.TaskID, "error", err)
+	} else {
+		logger.Debug("ADK CancelTask succeeded", "task_id", task.TaskID)
+	}
+
+	return err
 }

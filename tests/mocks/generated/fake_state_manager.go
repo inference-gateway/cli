@@ -15,6 +15,18 @@ type FakeStateManager struct {
 		arg1 domain.Message
 		arg2 string
 	}
+	CancelBackgroundTaskStub        func(string, domain.ToolService) error
+	cancelBackgroundTaskMutex       sync.RWMutex
+	cancelBackgroundTaskArgsForCall []struct {
+		arg1 string
+		arg2 domain.ToolService
+	}
+	cancelBackgroundTaskReturns struct {
+		result1 error
+	}
+	cancelBackgroundTaskReturnsOnCall map[int]struct {
+		result1 error
+	}
 	ClearFileSelectionStateStub        func()
 	clearFileSelectionStateMutex       sync.RWMutex
 	clearFileSelectionStateArgsForCall []struct {
@@ -248,6 +260,68 @@ func (fake *FakeStateManager) AddQueuedMessageArgsForCall(i int) (domain.Message
 	defer fake.addQueuedMessageMutex.RUnlock()
 	argsForCall := fake.addQueuedMessageArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeStateManager) CancelBackgroundTask(arg1 string, arg2 domain.ToolService) error {
+	fake.cancelBackgroundTaskMutex.Lock()
+	ret, specificReturn := fake.cancelBackgroundTaskReturnsOnCall[len(fake.cancelBackgroundTaskArgsForCall)]
+	fake.cancelBackgroundTaskArgsForCall = append(fake.cancelBackgroundTaskArgsForCall, struct {
+		arg1 string
+		arg2 domain.ToolService
+	}{arg1, arg2})
+	stub := fake.CancelBackgroundTaskStub
+	fakeReturns := fake.cancelBackgroundTaskReturns
+	fake.recordInvocation("CancelBackgroundTask", []interface{}{arg1, arg2})
+	fake.cancelBackgroundTaskMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) CancelBackgroundTaskCallCount() int {
+	fake.cancelBackgroundTaskMutex.RLock()
+	defer fake.cancelBackgroundTaskMutex.RUnlock()
+	return len(fake.cancelBackgroundTaskArgsForCall)
+}
+
+func (fake *FakeStateManager) CancelBackgroundTaskCalls(stub func(string, domain.ToolService) error) {
+	fake.cancelBackgroundTaskMutex.Lock()
+	defer fake.cancelBackgroundTaskMutex.Unlock()
+	fake.CancelBackgroundTaskStub = stub
+}
+
+func (fake *FakeStateManager) CancelBackgroundTaskArgsForCall(i int) (string, domain.ToolService) {
+	fake.cancelBackgroundTaskMutex.RLock()
+	defer fake.cancelBackgroundTaskMutex.RUnlock()
+	argsForCall := fake.cancelBackgroundTaskArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeStateManager) CancelBackgroundTaskReturns(result1 error) {
+	fake.cancelBackgroundTaskMutex.Lock()
+	defer fake.cancelBackgroundTaskMutex.Unlock()
+	fake.CancelBackgroundTaskStub = nil
+	fake.cancelBackgroundTaskReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeStateManager) CancelBackgroundTaskReturnsOnCall(i int, result1 error) {
+	fake.cancelBackgroundTaskMutex.Lock()
+	defer fake.cancelBackgroundTaskMutex.Unlock()
+	fake.CancelBackgroundTaskStub = nil
+	if fake.cancelBackgroundTaskReturnsOnCall == nil {
+		fake.cancelBackgroundTaskReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.cancelBackgroundTaskReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeStateManager) ClearFileSelectionState() {
