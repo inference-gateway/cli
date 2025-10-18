@@ -51,6 +51,20 @@ export INFER_TOOLS_SAFETY_REQUIRE_APPROVAL=false
 export INFER_TOOLS_BASH_ENABLED=true
 export INFER_TOOLS_WEB_FETCH_ENABLED=false
 
+# A2A (Agent-to-Agent) configuration
+export INFER_A2A_ENABLED=true
+export INFER_A2A_AGENTS="http://agent1:8080,http://agent2:8080"
+export INFER_A2A_CACHE_ENABLED=true
+export INFER_A2A_CACHE_TTL=300
+
+# A2A Tools configuration
+export INFER_A2A_TOOLS_SUBMIT_TASK_ENABLED=true
+export INFER_A2A_TOOLS_QUERY_AGENT_ENABLED=true
+export INFER_A2A_TOOLS_QUERY_TASK_ENABLED=true
+export INFER_A2A_TOOLS_DOWNLOAD_ARTIFACTS_ENABLED=true
+export INFER_A2A_DOWNLOAD_ARTIFACTS_DOWNLOAD_DIR="/tmp/downloads"
+export INFER_A2A_DOWNLOAD_ARTIFACTS_TIMEOUT_SECONDS=30
+
 # Storage configuration (for database passwords)
 export INFER_STORAGE_POSTGRES_PASSWORD="your-postgres-password"
 export INFER_STORAGE_REDIS_PASSWORD="your-redis-password"
@@ -131,6 +145,46 @@ tools:
 
   safety:
     require_approval: true  # Global approval setting
+
+# A2A (Agent-to-Agent) configuration
+a2a:
+  enabled: false  # Enable/disable A2A functionality
+  agents: []      # List of A2A agent endpoints
+  
+  # Agent card caching settings
+  cache:
+    enabled: true
+    ttl: 300      # Cache TTL in seconds
+  
+  # Task monitoring configuration
+  task:
+    status_poll_seconds: 5
+    idle_timeout_sec: 60
+    polling_strategy: "exponential"
+    initial_poll_interval_sec: 2
+    max_poll_interval_sec: 60
+    backoff_multiplier: 2.0
+    background_monitoring: true
+  
+  # Individual A2A tool settings
+  tools:
+    query_agent:
+      enabled: true
+      require_approval: false
+    
+    query_task:
+      enabled: true
+      require_approval: false
+    
+    submit_task:
+      enabled: true
+      require_approval: false
+    
+    download_artifacts:
+      enabled: true
+      download_dir: "/tmp/downloads"
+      timeout_seconds: 30
+      require_approval: false
 
 # Token optimization settings
 compact:
