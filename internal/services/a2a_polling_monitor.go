@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -12,30 +13,33 @@ import (
 )
 
 type A2APollingMonitor struct {
-	taskTracker    domain.TaskTracker
-	eventChan      chan<- domain.ChatEvent
-	messageQueue   chan<- sdk.Message
-	requestID      string
-	mu             sync.RWMutex
-	activeMonitors map[string]context.CancelFunc
-	stopChan       chan struct{}
-	stopped        bool
+	taskTracker      domain.TaskTracker
+	eventChan        chan<- domain.ChatEvent
+	messageQueue     domain.MessageQueue
+	requestID        string
+	conversationRepo domain.ConversationRepository
+	mu               sync.RWMutex
+	activeMonitors   map[string]context.CancelFunc
+	stopChan         chan struct{}
+	stopped          bool
 }
 
 func NewA2APollingMonitor(
 	taskTracker domain.TaskTracker,
 	eventChan chan<- domain.ChatEvent,
-	messageQueue chan<- sdk.Message,
+	messageQueue domain.MessageQueue,
 	requestID string,
+	conversationRepo domain.ConversationRepository,
 ) *A2APollingMonitor {
 	return &A2APollingMonitor{
-		taskTracker:    taskTracker,
-		eventChan:      eventChan,
-		messageQueue:   messageQueue,
-		requestID:      requestID,
-		activeMonitors: make(map[string]context.CancelFunc),
-		stopChan:       make(chan struct{}),
-		stopped:        false,
+		taskTracker:      taskTracker,
+		eventChan:        eventChan,
+		messageQueue:     messageQueue,
+		requestID:        requestID,
+		conversationRepo: conversationRepo,
+		activeMonitors:   make(map[string]context.CancelFunc),
+		stopChan:         make(chan struct{}),
+		stopped:          false,
 	}
 }
 
@@ -121,6 +125,7 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, taskID string
 				m.taskTracker.StopPolling(taskID)
 			}
 
+			m.addResultToMessageQueue(state.TaskID, result)
 			m.emitCompletionEvent(state.TaskID, result)
 			return
 
@@ -137,6 +142,17 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, taskID string
 				m.taskTracker.StopPolling(taskID)
 			}
 
+			errorMsg := ""
+			if err != nil {
+				errorMsg = err.Error()
+			}
+			errorResult := &domain.ToolExecutionResult{
+				ToolName: "A2ATask",
+				Success:  false,
+				Error:    errorMsg,
+			}
+
+			m.addResultToMessageQueue(state.TaskID, errorResult)
 			m.emitErrorEvent(state.TaskID, err)
 			return
 		}
@@ -254,4 +270,35 @@ func (m *A2APollingMonitor) stopAllMonitors() {
 	}
 
 	m.activeMonitors = make(map[string]context.CancelFunc)
+}
+
+// addResultToMessageQueue adds the A2A task result to the centralized message queue
+func (m *A2APollingMonitor) addResultToMessageQueue(taskID string, result *domain.ToolExecutionResult) {
+	if result == nil || m.messageQueue == nil {
+		return
+	}
+
+	var content string
+	formattedResult := m.conversationRepo.FormatToolResultForLLM(result)
+	if result.Error != "" {
+		content = fmt.Sprintf("[A2A Task Failed: %s]\n\nTask ID: %s\n\n%s",
+			result.ToolName,
+			taskID,
+			formattedResult)
+	} else {
+		content = fmt.Sprintf("[A2A Task Completed: %s]\n\nTask ID: %s\n\n%s",
+			result.ToolName,
+			taskID,
+			formattedResult)
+	}
+
+	message := sdk.Message{
+		Role:    sdk.User,
+		Content: content,
+	}
+
+	m.messageQueue.Enqueue(message, m.requestID)
+	logger.Debug("Added A2A task result to message queue",
+		"task_id", taskID,
+		"success", result.Success)
 }

@@ -35,6 +35,7 @@ type ServiceContainer struct {
 	toolService      domain.ToolService
 	fileService      domain.FileService
 	a2aAgentService  domain.A2AAgentService
+	messageQueue     domain.MessageQueue
 
 	// Services
 	stateManager domain.StateManager
@@ -93,6 +94,7 @@ func (c *ServiceContainer) initializeFileWriterServices() {
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = services.NewFileService()
+	c.messageQueue = services.NewMessageQueueService()
 
 	c.toolRegistry = tools.NewRegistry(c.config)
 
@@ -148,6 +150,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config,
 		c.conversationRepo,
 		c.a2aAgentService,
+		c.messageQueue,
 		c.config.Gateway.Timeout,
 		optimizer,
 	)
@@ -288,6 +291,10 @@ func (c *ServiceContainer) GetStateManager() domain.StateManager {
 
 func (c *ServiceContainer) GetAgentService() domain.AgentService {
 	return c.agentService
+}
+
+func (c *ServiceContainer) GetMessageQueue() domain.MessageQueue {
+	return c.messageQueue
 }
 
 // createRetryConfig creates a retry config with logging callback

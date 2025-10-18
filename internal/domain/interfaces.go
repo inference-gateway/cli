@@ -97,6 +97,32 @@ type ChatService interface {
 	GetMetrics(requestID string) *ChatMetrics
 }
 
+// MessageQueue handles centralized message queuing for all components
+type MessageQueue interface {
+	// Enqueue adds a message to the queue
+	Enqueue(message Message, requestID string)
+
+	// Dequeue removes and returns the next message from the queue
+	// Returns nil if the queue is empty
+	Dequeue() *QueuedMessage
+
+	// Peek returns the next message without removing it
+	// Returns nil if the queue is empty
+	Peek() *QueuedMessage
+
+	// Size returns the number of messages in the queue
+	Size() int
+
+	// IsEmpty returns true if the queue has no messages
+	IsEmpty() bool
+
+	// Clear removes all messages from the queue
+	Clear()
+
+	// GetAll returns all messages in the queue without removing them
+	GetAll() []QueuedMessage
+}
+
 // StateManager interface defines state management operations
 type StateManager interface {
 	// View state management
@@ -128,7 +154,7 @@ type StateManager interface {
 	SetFileSelectedIndex(index int)
 	ClearFileSelectionState()
 
-	// Message queue management
+	// Message queue management (DEPRECATED - use MessageQueue service instead)
 	AddQueuedMessage(message Message, requestID string)
 	PopQueuedMessage() *QueuedMessage
 	ClearQueuedMessages()
@@ -183,7 +209,6 @@ type A2ATaskStatusUpdate struct {
 
 // TaskTracker handles task ID and context ID tracking within chat sessions
 // Following A2A spec: supports multi-tenant with multiple contexts per agent
-// Context IDs and Task IDs are server-generated and tracked by the client
 type TaskTracker interface {
 	// Context management (contexts are server-generated and tracked here)
 	// Multiple contexts per agent enable multi-tenant/multi-session support

@@ -36,6 +36,7 @@ type ChatApplication struct {
 
 	// State management
 	stateManager domain.StateManager
+	messageQueue domain.MessageQueue
 
 	// UI components
 	conversationView     ui.ConversationRenderer
@@ -80,6 +81,7 @@ func NewChatApplication(
 	fileService domain.FileService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager domain.StateManager,
+	messageQueue domain.MessageQueue,
 	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
 	configPath string,
@@ -101,6 +103,7 @@ func NewChatApplication(
 		toolRegistry:     toolRegistry,
 		availableModels:  models,
 		stateManager:     stateManager,
+		messageQueue:     messageQueue,
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -163,6 +166,7 @@ func NewChatApplication(
 		app.fileService,
 		app.shortcutRegistry,
 		app.stateManager,
+		messageQueue,
 	)
 
 	return app
@@ -617,7 +621,7 @@ func (app *ChatApplication) renderChatInterface() string {
 	app.updateHelpBarShortcuts()
 
 	width, height := app.stateManager.GetDimensions()
-	queuedMessages := app.stateManager.GetQueuedMessages()
+	queuedMessages := app.messageQueue.GetAll()
 	backgroundTasks := app.stateManager.GetBackgroundTasks(app.toolService)
 
 	data := components.ChatInterfaceData{

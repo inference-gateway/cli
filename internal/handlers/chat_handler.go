@@ -24,6 +24,7 @@ type ChatHandler struct {
 	fileService      domain.FileService
 	shortcutRegistry *shortcuts.Registry
 	stateManager     domain.StateManager
+	messageQueue     domain.MessageQueue
 
 	messageProcessor *ChatMessageProcessor
 	commandHandler   *ChatCommandHandler
@@ -39,6 +40,7 @@ func NewChatHandler(
 	fileService domain.FileService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager domain.StateManager,
+	messageQueue domain.MessageQueue,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		agentService:     agentService,
@@ -49,6 +51,7 @@ func NewChatHandler(
 		fileService:      fileService,
 		shortcutRegistry: shortcutRegistry,
 		stateManager:     stateManager,
+		messageQueue:     messageQueue,
 	}
 
 	handler.messageProcessor = NewChatMessageProcessor(handler)

@@ -1,40 +1,44 @@
 package utils
 
 import (
-	"sort"
 	"sync"
-	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 var _ domain.TaskTracker = (*TaskTrackerImpl)(nil)
 
-// TaskTrackerImpl provides a simple in-memory implementation of TaskTracker
-// Supports multi-tenant: multiple contexts per agent, tasks scoped to contexts
+// AgentContext represents a context within an agent with its tasks
+type AgentContext struct {
+	ContextID string
+	Tasks     []*domain.TaskPollingState
+}
+
+// Agent represents an A2A agent with its contexts
+type Agent struct {
+	AgentURL string
+	Contexts []*AgentContext
+}
+
+// TaskTrackerImpl provides a hierarchical implementation of TaskTracker
 type TaskTrackerImpl struct {
 	mu sync.RWMutex
 
-	// Multi-tenant context tracking
-	agentContexts  map[string][]string
-	contextToAgent map[string]string
+	// Hierarchical structure
+	agents []*Agent
 
-	// Task tracking (tasks scoped to contexts per A2A spec)
-	contextTasks  map[string][]string
-	taskToContext map[string]string
-
-	// Polling state (keyed by task ID)
-	pollingStates map[string]*domain.TaskPollingState
+	agentIndex   map[string]int
+	contextIndex map[string]*AgentContext
+	taskIndex    map[string]*domain.TaskPollingState
 }
 
 // NewTaskTracker creates a new TaskTrackerImpl
 func NewTaskTracker() domain.TaskTracker {
 	return &TaskTrackerImpl{
-		agentContexts:  make(map[string][]string),
-		contextToAgent: make(map[string]string),
-		contextTasks:   make(map[string][]string),
-		taskToContext:  make(map[string]string),
-		pollingStates:  make(map[string]*domain.TaskPollingState),
+		agents:       make([]*Agent, 0),
+		agentIndex:   make(map[string]int),
+		contextIndex: make(map[string]*AgentContext),
+		taskIndex:    make(map[string]*domain.TaskPollingState),
 	}
 }
 
@@ -47,16 +51,28 @@ func (t *TaskTrackerImpl) RegisterContext(agentURL, contextID string) {
 		return
 	}
 
-	contexts := t.agentContexts[agentURL]
-	for _, existingID := range contexts {
-		if existingID == contextID {
-			return
-		}
+	if _, exists := t.contextIndex[contextID]; exists {
+		return
 	}
 
-	// Register context
-	t.agentContexts[agentURL] = append(contexts, contextID)
-	t.contextToAgent[contextID] = agentURL
+	var agent *Agent
+	if idx, exists := t.agentIndex[agentURL]; exists {
+		agent = t.agents[idx]
+	} else {
+		agent = &Agent{
+			AgentURL: agentURL,
+			Contexts: make([]*AgentContext, 0),
+		}
+		t.agents = append(t.agents, agent)
+		t.agentIndex[agentURL] = len(t.agents) - 1
+	}
+
+	context := &AgentContext{
+		ContextID: contextID,
+		Tasks:     make([]*domain.TaskPollingState, 0),
+	}
+	agent.Contexts = append(agent.Contexts, context)
+	t.contextIndex[contextID] = context
 }
 
 // GetContextsForAgent returns all context IDs for a specific agent
@@ -64,21 +80,34 @@ func (t *TaskTrackerImpl) GetContextsForAgent(agentURL string) []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	contexts := t.agentContexts[agentURL]
-	if contexts == nil {
+	idx, exists := t.agentIndex[agentURL]
+	if !exists {
 		return []string{}
 	}
 
-	result := make([]string, len(contexts))
-	copy(result, contexts)
-	return result
+	agent := t.agents[idx]
+	contexts := make([]string, len(agent.Contexts))
+	for i, ctx := range agent.Contexts {
+		contexts[i] = ctx.ContextID
+	}
+
+	return contexts
 }
 
 // GetAgentForContext returns the agent URL for a given context ID
 func (t *TaskTrackerImpl) GetAgentForContext(contextID string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.contextToAgent[contextID]
+
+	for _, agent := range t.agents {
+		for _, ctx := range agent.Contexts {
+			if ctx.ContextID == contextID {
+				return agent.AgentURL
+			}
+		}
+	}
+
+	return ""
 }
 
 // GetLatestContextForAgent returns the most recently registered context for an agent
@@ -86,19 +115,25 @@ func (t *TaskTrackerImpl) GetLatestContextForAgent(agentURL string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	contexts := t.agentContexts[agentURL]
-	if len(contexts) == 0 {
+	idx, exists := t.agentIndex[agentURL]
+	if !exists {
 		return ""
 	}
 
-	return contexts[len(contexts)-1]
+	agent := t.agents[idx]
+	if len(agent.Contexts) == 0 {
+		return ""
+	}
+
+	return agent.Contexts[len(agent.Contexts)-1].ContextID
 }
 
 // HasContext checks if a context ID is registered
 func (t *TaskTrackerImpl) HasContext(contextID string) bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	_, exists := t.contextToAgent[contextID]
+
+	_, exists := t.contextIndex[contextID]
 	return exists
 }
 
@@ -107,39 +142,38 @@ func (t *TaskTrackerImpl) RemoveContext(contextID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	agentURL := t.contextToAgent[contextID]
-	if agentURL == "" {
+	ctx, exists := t.contextIndex[contextID]
+	if !exists {
 		return
 	}
 
-	tasks := t.contextTasks[contextID]
-	for _, taskID := range tasks {
-		delete(t.taskToContext, taskID)
+	for _, task := range ctx.Tasks {
+		if task.CancelFunc != nil {
+			task.CancelFunc()
+		}
+		delete(t.taskIndex, task.TaskID)
+	}
 
-		if state, exists := t.pollingStates[taskID]; exists {
-			if state.CancelFunc != nil {
-				state.CancelFunc()
+	for agentIdx, agent := range t.agents {
+		for ctxIdx, agentCtx := range agent.Contexts {
+			if agentCtx.ContextID == contextID {
+				agent.Contexts = append(agent.Contexts[:ctxIdx], agent.Contexts[ctxIdx+1:]...)
+
+				if len(agent.Contexts) == 0 {
+					t.agents = append(t.agents[:agentIdx], t.agents[agentIdx+1:]...)
+					delete(t.agentIndex, agent.AgentURL)
+
+					for i, a := range t.agents {
+						t.agentIndex[a.AgentURL] = i
+					}
+				}
+
+				break
 			}
-			delete(t.pollingStates, taskID)
-		}
-	}
-	delete(t.contextTasks, contextID)
-
-	contexts := t.agentContexts[agentURL]
-	newContexts := make([]string, 0, len(contexts))
-	for _, id := range contexts {
-		if id != contextID {
-			newContexts = append(newContexts, id)
 		}
 	}
 
-	if len(newContexts) == 0 {
-		delete(t.agentContexts, agentURL)
-	} else {
-		t.agentContexts[agentURL] = newContexts
-	}
-
-	delete(t.contextToAgent, contextID)
+	delete(t.contextIndex, contextID)
 }
 
 // AddTask adds a server-generated task ID to a context
@@ -151,19 +185,24 @@ func (t *TaskTrackerImpl) AddTask(contextID, taskID string) {
 		return
 	}
 
-	if _, exists := t.contextToAgent[contextID]; !exists {
+	ctx, exists := t.contextIndex[contextID]
+	if !exists {
 		return
 	}
 
-	tasks := t.contextTasks[contextID]
-	for _, existingID := range tasks {
-		if existingID == taskID {
+	for _, task := range ctx.Tasks {
+		if task.TaskID == taskID {
 			return
 		}
 	}
 
-	t.contextTasks[contextID] = append(tasks, taskID)
-	t.taskToContext[taskID] = contextID
+	state := &domain.TaskPollingState{
+		TaskID:    taskID,
+		ContextID: contextID,
+	}
+
+	ctx.Tasks = append(ctx.Tasks, state)
+	t.taskIndex[taskID] = state
 }
 
 // GetTasksForContext returns all task IDs for a specific context
@@ -171,14 +210,17 @@ func (t *TaskTrackerImpl) GetTasksForContext(contextID string) []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	tasks := t.contextTasks[contextID]
-	if tasks == nil {
+	ctx, exists := t.contextIndex[contextID]
+	if !exists {
 		return []string{}
 	}
 
-	result := make([]string, len(tasks))
-	copy(result, tasks)
-	return result
+	taskIDs := make([]string, len(ctx.Tasks))
+	for i, task := range ctx.Tasks {
+		taskIDs[i] = task.TaskID
+	}
+
+	return taskIDs
 }
 
 // GetLatestTaskForContext returns the most recently added task for a context
@@ -186,19 +228,25 @@ func (t *TaskTrackerImpl) GetLatestTaskForContext(contextID string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	tasks := t.contextTasks[contextID]
-	if len(tasks) == 0 {
+	ctx, exists := t.contextIndex[contextID]
+	if !exists || len(ctx.Tasks) == 0 {
 		return ""
 	}
 
-	return tasks[len(tasks)-1]
+	return ctx.Tasks[len(ctx.Tasks)-1].TaskID
 }
 
 // GetContextForTask returns the context ID for a given task
 func (t *TaskTrackerImpl) GetContextForTask(taskID string) string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.taskToContext[taskID]
+
+	task, exists := t.taskIndex[taskID]
+	if !exists {
+		return ""
+	}
+
+	return task.ContextID
 }
 
 // RemoveTask removes a task from its context
@@ -206,40 +254,34 @@ func (t *TaskTrackerImpl) RemoveTask(taskID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	contextID := t.taskToContext[taskID]
-	if contextID == "" {
+	task, exists := t.taskIndex[taskID]
+	if !exists {
 		return
 	}
 
-	tasks := t.contextTasks[contextID]
-	newTasks := make([]string, 0, len(tasks))
-	for _, id := range tasks {
-		if id != taskID {
-			newTasks = append(newTasks, id)
+	if task.CancelFunc != nil {
+		task.CancelFunc()
+	}
+
+	ctx := t.contextIndex[task.ContextID]
+	if ctx != nil {
+		for i, t := range ctx.Tasks {
+			if t.TaskID == taskID {
+				ctx.Tasks = append(ctx.Tasks[:i], ctx.Tasks[i+1:]...)
+				break
+			}
 		}
 	}
 
-	if len(newTasks) == 0 {
-		delete(t.contextTasks, contextID)
-	} else {
-		t.contextTasks[contextID] = newTasks
-	}
-
-	delete(t.taskToContext, taskID)
-
-	if state, exists := t.pollingStates[taskID]; exists {
-		if state.CancelFunc != nil {
-			state.CancelFunc()
-		}
-		delete(t.pollingStates, taskID)
-	}
+	delete(t.taskIndex, taskID)
 }
 
 // HasTask checks if a task ID exists
 func (t *TaskTrackerImpl) HasTask(taskID string) bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	_, exists := t.taskToContext[taskID]
+
+	_, exists := t.taskIndex[taskID]
 	return exists
 }
 
@@ -248,12 +290,11 @@ func (t *TaskTrackerImpl) GetAllAgents() []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	agents := make([]string, 0, len(t.agentContexts))
-	for agentURL := range t.agentContexts {
-		agents = append(agents, agentURL)
+	agents := make([]string, len(t.agents))
+	for i, agent := range t.agents {
+		agents[i] = agent.AgentURL
 	}
 
-	sort.Strings(agents)
 	return agents
 }
 
@@ -262,12 +303,11 @@ func (t *TaskTrackerImpl) GetAllContexts() []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	contexts := make([]string, 0, len(t.contextToAgent))
-	for contextID := range t.contextToAgent {
+	contexts := make([]string, 0, len(t.contextIndex))
+	for contextID := range t.contextIndex {
 		contexts = append(contexts, contextID)
 	}
 
-	sort.Strings(contexts)
 	return contexts
 }
 
@@ -276,18 +316,16 @@ func (t *TaskTrackerImpl) ClearAllAgents() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	for taskID, state := range t.pollingStates {
-		if state.CancelFunc != nil {
-			state.CancelFunc()
+	for _, task := range t.taskIndex {
+		if task.CancelFunc != nil {
+			task.CancelFunc()
 		}
-		delete(t.pollingStates, taskID)
 	}
 
-	t.agentContexts = make(map[string][]string)
-	t.contextToAgent = make(map[string]string)
-	t.contextTasks = make(map[string][]string)
-	t.taskToContext = make(map[string]string)
-	t.pollingStates = make(map[string]*domain.TaskPollingState)
+	t.agents = make([]*Agent, 0)
+	t.agentIndex = make(map[string]int)
+	t.contextIndex = make(map[string]*AgentContext)
+	t.taskIndex = make(map[string]*domain.TaskPollingState)
 }
 
 // StartPolling starts tracking a background polling operation for a task
@@ -299,14 +337,33 @@ func (t *TaskTrackerImpl) StartPolling(taskID string, state *domain.TaskPollingS
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if existingState, exists := t.pollingStates[taskID]; exists {
+	if existingState, exists := t.taskIndex[taskID]; exists {
 		if existingState.CancelFunc != nil {
 			existingState.CancelFunc()
 		}
 	}
 
+	ctx, exists := t.contextIndex[state.ContextID]
+	if !exists {
+		return
+	}
+
 	state.IsPolling = true
-	t.pollingStates[taskID] = state
+
+	found := false
+	for i, task := range ctx.Tasks {
+		if task.TaskID == taskID {
+			ctx.Tasks[i] = state
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		ctx.Tasks = append(ctx.Tasks, state)
+	}
+
+	t.taskIndex[taskID] = state
 }
 
 // StopPolling stops and clears the polling state for a task
@@ -314,20 +371,36 @@ func (t *TaskTrackerImpl) StopPolling(taskID string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	if state, exists := t.pollingStates[taskID]; exists {
-		if state.CancelFunc != nil {
-			state.CancelFunc()
-		}
-		state.IsPolling = false
-		delete(t.pollingStates, taskID)
+	task, exists := t.taskIndex[taskID]
+	if !exists {
+		return
 	}
+
+	if task.CancelFunc != nil {
+		task.CancelFunc()
+	}
+
+	task.IsPolling = false
+
+	ctx := t.contextIndex[task.ContextID]
+	if ctx != nil {
+		for i, t := range ctx.Tasks {
+			if t.TaskID == taskID {
+				ctx.Tasks = append(ctx.Tasks[:i], ctx.Tasks[i+1:]...)
+				break
+			}
+		}
+	}
+
+	delete(t.taskIndex, taskID)
 }
 
 // GetPollingState returns the current polling state for a task
 func (t *TaskTrackerImpl) GetPollingState(taskID string) *domain.TaskPollingState {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
-	return t.pollingStates[taskID]
+
+	return t.taskIndex[taskID]
 }
 
 // IsPolling returns whether a task currently has an active polling operation
@@ -335,10 +408,12 @@ func (t *TaskTrackerImpl) IsPolling(taskID string) bool {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	if state, exists := t.pollingStates[taskID]; exists {
-		return state.IsPolling
+	task, exists := t.taskIndex[taskID]
+	if !exists {
+		return false
 	}
-	return false
+
+	return task.IsPolling
 }
 
 // GetPollingTasksForContext returns all task IDs that are currently being polled for a context
@@ -346,23 +421,17 @@ func (t *TaskTrackerImpl) GetPollingTasksForContext(contextID string) []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	tasks := t.contextTasks[contextID]
-	if tasks == nil {
+	ctx, exists := t.contextIndex[contextID]
+	if !exists {
 		return []string{}
 	}
 
 	pollingTasks := make([]string, 0)
-	for _, taskID := range tasks {
-		if state, exists := t.pollingStates[taskID]; exists && state.IsPolling {
-			pollingTasks = append(pollingTasks, taskID)
+	for _, task := range ctx.Tasks {
+		if task.IsPolling {
+			pollingTasks = append(pollingTasks, task.TaskID)
 		}
 	}
-
-	sort.Slice(pollingTasks, func(i, j int) bool {
-		stateI := t.pollingStates[pollingTasks[i]]
-		stateJ := t.pollingStates[pollingTasks[j]]
-		return stateI.StartedAt.Before(stateJ.StartedAt)
-	})
 
 	return pollingTasks
 }
@@ -372,30 +441,17 @@ func (t *TaskTrackerImpl) GetAllPollingTasks() []string {
 	t.mu.RLock()
 	defer t.mu.RUnlock()
 
-	tasks := make([]taskWithTime, 0, len(t.pollingStates))
-	for taskID, state := range t.pollingStates {
-		if state.IsPolling {
-			tasks = append(tasks, taskWithTime{
-				taskID:    taskID,
-				startedAt: state.StartedAt,
-			})
+	taskIDs := make([]string, 0)
+
+	for _, agent := range t.agents {
+		for _, ctx := range agent.Contexts {
+			for _, task := range ctx.Tasks {
+				if task.IsPolling {
+					taskIDs = append(taskIDs, task.TaskID)
+				}
+			}
 		}
 	}
 
-	sort.Slice(tasks, func(i, j int) bool {
-		return tasks[i].startedAt.Before(tasks[j].startedAt)
-	})
-
-	result := make([]string, len(tasks))
-	for i, t := range tasks {
-		result[i] = t.taskID
-	}
-
-	return result
-}
-
-// taskWithTime is a helper struct for sorting tasks by start time
-type taskWithTime struct {
-	taskID    string
-	startedAt time.Time
+	return taskIDs
 }

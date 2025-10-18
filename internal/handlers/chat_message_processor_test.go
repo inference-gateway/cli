@@ -96,6 +96,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				return adkclient.NewClient(agentURL)
 			}
 			stateManager := services.NewStateManager(false, createADKClient)
+			messageQueue := services.NewMessageQueueService()
 
 			handler := NewChatHandler(
 				mockAgent,
@@ -106,6 +107,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				mockFile,
 				shortcutRegistry,
 				stateManager,
+				messageQueue,
 			)
 
 			processor := NewChatMessageProcessor(handler)

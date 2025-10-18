@@ -131,7 +131,7 @@ func (p *ChatMessageProcessor) processChatMessage(
 
 	if p.handler.stateManager.IsAgentBusy() {
 		requestID := fmt.Sprintf("queued-%d", time.Now().UnixNano())
-		p.handler.stateManager.AddQueuedMessage(message, requestID)
+		p.handler.messageQueue.Enqueue(message, requestID)
 
 		return func() tea.Msg {
 			return domain.SetStatusEvent{

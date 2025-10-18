@@ -20,6 +20,7 @@ type AgentServiceImpl struct {
 	config           domain.ConfigService
 	conversationRepo domain.ConversationRepository
 	a2aAgentService  domain.A2AAgentService
+	messageQueue     domain.MessageQueue
 	timeoutSeconds   int
 	maxTokens        int
 	optimizer        *ConversationOptimizer
@@ -39,10 +40,6 @@ type AgentServiceImpl struct {
 	// Tool call accumulation
 	toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall
 	toolCallsMux sync.RWMutex
-
-	// Input message queue for all conversation inputs
-	messageQueues map[string]chan sdk.Message
-	queuesMux     sync.RWMutex
 }
 
 // eventPublisher provides a utility for publishing chat events
@@ -161,6 +158,7 @@ func NewAgentService(
 	config domain.ConfigService,
 	conversationRepo domain.ConversationRepository,
 	a2aAgentService domain.A2AAgentService,
+	messageQueue domain.MessageQueue,
 	timeoutSeconds int,
 	optimizer *ConversationOptimizer,
 ) *AgentServiceImpl {
@@ -170,6 +168,7 @@ func NewAgentService(
 		config:           config,
 		conversationRepo: conversationRepo,
 		a2aAgentService:  a2aAgentService,
+		messageQueue:     messageQueue,
 		timeoutSeconds:   timeoutSeconds,
 		maxTokens:        config.GetAgentConfig().MaxTokens,
 		optimizer:        optimizer,
@@ -177,7 +176,6 @@ func NewAgentService(
 		cancelChannels:   make(map[string]chan struct{}),
 		metrics:          make(map[string]*domain.ChatMetrics),
 		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
-		messageQueues:    make(map[string]chan sdk.Message),
 	}
 }
 
@@ -264,11 +262,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	chatEvents := make(chan domain.ChatEvent, 1000)
 	eventPublisher := newEventPublisher(req.RequestID, chatEvents)
 
-	messageQueue := make(chan sdk.Message, 10)
-	s.queuesMux.Lock()
-	s.messageQueues[req.RequestID] = messageQueue
-	s.queuesMux.Unlock()
-
 	cancelChan := make(chan struct{}, 1)
 	s.cancelMux.Lock()
 	s.cancelChannels[req.RequestID] = cancelChan
@@ -278,10 +271,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		s.cancelMux.Lock()
 		delete(s.cancelChannels, req.RequestID)
 		s.cancelMux.Unlock()
-
-		s.queuesMux.Lock()
-		delete(s.messageQueues, req.RequestID)
-		s.queuesMux.Unlock()
 	}()
 
 	client := s.client.
@@ -305,7 +294,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	var monitor *A2APollingMonitor
 
 	if taskTracker != nil {
-		monitor = NewA2APollingMonitor(taskTracker, chatEvents, messageQueue, req.RequestID)
+		monitor = NewA2APollingMonitor(taskTracker, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
 		go monitor.Start(ctx)
 	}
 
@@ -332,42 +321,38 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			default:
 			}
 
-			hasActivePolling := taskTracker != nil && len(taskTracker.GetAllPollingTasks()) > 0
-
 			if !hasToolResults && turns > 0 {
-				if !hasActivePolling {
-					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
-					return
-				}
+				hasQueuedMessage := s.messageQueue != nil && !s.messageQueue.IsEmpty()
 
-				maxWaitTime := 5 * time.Minute
-				waitTimeout := time.NewTimer(maxWaitTime)
+				hasBackgroundTasks := taskTracker != nil && len(taskTracker.GetAllPollingTasks()) > 0
 
-				select {
-				case msg := <-messageQueue:
-					conversation = append(conversation, msg)
-
-					entry := domain.ConversationEntry{
-						Message: msg,
-						Time:    time.Now(),
+				switch {
+				case hasQueuedMessage:
+					queuedMsg := s.messageQueue.Dequeue()
+					if queuedMsg != nil {
+						conversation = append(conversation, queuedMsg.Message)
+						entry := domain.ConversationEntry{
+							Message: queuedMsg.Message,
+							Time:    time.Now(),
+						}
+						if err := s.conversationRepo.AddMessage(entry); err != nil {
+							logger.Error("failed to store queued message", "error", err)
+						}
+						eventPublisher.chatEvents <- domain.MessageQueuedEvent{
+							RequestID: queuedMsg.RequestID,
+							Timestamp: time.Now(),
+							Message:   queuedMsg.Message,
+						}
+						hasToolResults = true
+						continue
 					}
-					if err := s.conversationRepo.AddMessage(entry); err != nil {
-						logger.Error("failed to store queued message", "error", err)
-					}
-
-					eventPublisher.chatEvents <- domain.MessageQueuedEvent{
-						RequestID: req.RequestID,
-						Timestamp: time.Now(),
-						Message:   msg,
-					}
-
-					waitTimeout.Stop()
-
-				case <-waitTimeout.C:
-					return
-
-				case <-cancelChan:
-					waitTimeout.Stop()
+				case hasBackgroundTasks:
+					logger.Debug("Waiting for background A2A tasks to complete",
+						"request_id", req.RequestID,
+						"turn", turns)
+					time.Sleep(500 * time.Millisecond)
+					continue
+				default:
 					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
 					return
 				}

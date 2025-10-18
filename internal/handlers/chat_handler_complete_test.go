@@ -258,6 +258,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 
 	conversationRepo := services.NewInMemoryConversationRepository(nil)
 	shortcutRegistry := shortcuts.NewRegistry()
+	messageQueue := services.NewMessageQueueService()
 
 	return NewChatHandler(
 		mockAgent,
@@ -268,6 +269,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		mockFile,
 		shortcutRegistry,
 		stateManager,
+		messageQueue,
 	)
 }
 
@@ -400,6 +402,7 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 			}
 			stateManager := services.NewStateManager(false, createADKClient)
 			shortcutRegistry := shortcuts.NewRegistry()
+			messageQueue := services.NewMessageQueueService()
 
 			handler := NewChatHandler(
 				mockAgent,
@@ -410,6 +413,7 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 				mockFile,
 				shortcutRegistry,
 				stateManager,
+				messageQueue,
 			)
 
 			cmd := handler.eventHandler.handleChatComplete(tt.msg)

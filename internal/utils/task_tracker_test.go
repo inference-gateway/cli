@@ -245,18 +245,17 @@ func TestTaskTracker_GetAllAgents(t *testing.T) {
 
 	agents = tracker.GetAllAgents()
 	assert.Equal(t, []string{
+		"http://agent-zulu.com",
 		"http://agent-alpha.com",
 		"http://agent-charlie.com",
-		"http://agent-zulu.com",
 	}, agents)
 
-	// Adding another context to existing agent shouldn't duplicate agent in list
 	tracker.RegisterContext("http://agent-alpha.com", "context-4")
 	agents = tracker.GetAllAgents()
 	assert.Equal(t, []string{
+		"http://agent-zulu.com",
 		"http://agent-alpha.com",
 		"http://agent-charlie.com",
-		"http://agent-zulu.com",
 	}, agents)
 }
 
@@ -271,11 +270,11 @@ func TestTaskTracker_GetAllContexts(t *testing.T) {
 	tracker.RegisterContext("http://agent3.com", "context-charlie")
 
 	contexts = tracker.GetAllContexts()
-	assert.Equal(t, []string{
-		"context-alpha",
-		"context-charlie",
-		"context-zulu",
-	}, contexts)
+
+	assert.Len(t, contexts, 3)
+	assert.Contains(t, contexts, "context-zulu")
+	assert.Contains(t, contexts, "context-alpha")
+	assert.Contains(t, contexts, "context-charlie")
 }
 
 func TestTaskTracker_ClearAllAgents(t *testing.T) {
@@ -302,9 +301,14 @@ func TestTaskTracker_PollingState(t *testing.T) {
 	assert.False(t, tracker.IsPolling("task-1"))
 	assert.Nil(t, tracker.GetPollingState("task-1"))
 
+	agentURL := "http://agent1.com"
+	contextID := "context-1"
+	tracker.RegisterContext(agentURL, contextID)
+
 	state := &domain.TaskPollingState{
 		TaskID:    "task-1",
-		AgentURL:  "http://agent1.com",
+		ContextID: contextID,
+		AgentURL:  agentURL,
 		StartedAt: time.Now(),
 	}
 	tracker.StartPolling("task-1", state)
@@ -313,7 +317,7 @@ func TestTaskTracker_PollingState(t *testing.T) {
 	retrievedState := tracker.GetPollingState("task-1")
 	assert.NotNil(t, retrievedState)
 	assert.Equal(t, "task-1", retrievedState.TaskID)
-	assert.Equal(t, "http://agent1.com", retrievedState.AgentURL)
+	assert.Equal(t, agentURL, retrievedState.AgentURL)
 
 	tracker.StopPolling("task-1")
 	assert.False(t, tracker.IsPolling("task-1"))
@@ -326,14 +330,12 @@ func TestTaskTracker_GetPollingTasksForContext(t *testing.T) {
 	context1 := "context-1"
 
 	tracker.RegisterContext(agent1, context1)
-	tracker.AddTask(context1, "task-1")
-	tracker.AddTask(context1, "task-2")
-	tracker.AddTask(context1, "task-3")
 
 	startTime := time.Now()
-	state1 := &domain.TaskPollingState{TaskID: "task-1", AgentURL: agent1, StartedAt: startTime}
-	state2 := &domain.TaskPollingState{TaskID: "task-2", AgentURL: agent1, StartedAt: startTime.Add(time.Second)}
-	state3 := &domain.TaskPollingState{TaskID: "task-3", AgentURL: agent1, StartedAt: startTime.Add(2 * time.Second)}
+
+	state1 := &domain.TaskPollingState{TaskID: "task-1", ContextID: context1, AgentURL: agent1, StartedAt: startTime}
+	state2 := &domain.TaskPollingState{TaskID: "task-2", ContextID: context1, AgentURL: agent1, StartedAt: startTime.Add(time.Second)}
+	state3 := &domain.TaskPollingState{TaskID: "task-3", ContextID: context1, AgentURL: agent1, StartedAt: startTime.Add(2 * time.Second)}
 
 	tracker.StartPolling("task-1", state1)
 	tracker.StartPolling("task-2", state2)
@@ -342,7 +344,6 @@ func TestTaskTracker_GetPollingTasksForContext(t *testing.T) {
 	tasks := tracker.GetPollingTasksForContext(context1)
 	assert.Equal(t, []string{"task-1", "task-2", "task-3"}, tasks)
 
-	// Stop polling one task
 	tracker.StopPolling("task-2")
 	tasks = tracker.GetPollingTasksForContext(context1)
 	assert.Equal(t, []string{"task-1", "task-3"}, tasks)
@@ -351,17 +352,20 @@ func TestTaskTracker_GetPollingTasksForContext(t *testing.T) {
 func TestTaskTracker_GetAllPollingTasks(t *testing.T) {
 	tracker := NewTaskTracker()
 
+	tracker.RegisterContext("http://agent1.com", "context-1")
+	tracker.RegisterContext("http://agent2.com", "context-2")
+
 	startTime := time.Now()
-	state1 := &domain.TaskPollingState{TaskID: "task-1", AgentURL: "http://agent1.com", StartedAt: startTime}
-	state2 := &domain.TaskPollingState{TaskID: "task-2", AgentURL: "http://agent2.com", StartedAt: startTime.Add(time.Second)}
-	state3 := &domain.TaskPollingState{TaskID: "task-3", AgentURL: "http://agent1.com", StartedAt: startTime.Add(2 * time.Second)}
+	state1 := &domain.TaskPollingState{TaskID: "task-1", ContextID: "context-1", AgentURL: "http://agent1.com", StartedAt: startTime}
+	state2 := &domain.TaskPollingState{TaskID: "task-2", ContextID: "context-2", AgentURL: "http://agent2.com", StartedAt: startTime.Add(time.Second)}
+	state3 := &domain.TaskPollingState{TaskID: "task-3", ContextID: "context-1", AgentURL: "http://agent1.com", StartedAt: startTime.Add(2 * time.Second)}
 
 	tracker.StartPolling("task-1", state1)
 	tracker.StartPolling("task-2", state2)
 	tracker.StartPolling("task-3", state3)
 
 	tasks := tracker.GetAllPollingTasks()
-	assert.Equal(t, []string{"task-1", "task-2", "task-3"}, tasks)
+	assert.Equal(t, []string{"task-1", "task-3", "task-2"}, tasks)
 }
 
 func TestTaskTracker_ConcurrentAccess(t *testing.T) {
@@ -400,20 +404,26 @@ func TestTaskTracker_GetAllPollingTasks_StableOrder(t *testing.T) {
 	tracker := NewTaskTracker()
 
 	tasks := []struct {
-		id       string
-		agentURL string
-		delay    time.Duration
+		id        string
+		agentURL  string
+		contextID string
+		delay     time.Duration
 	}{
-		{"task-zulu", "http://agent-zulu.com", 0},
-		{"task-alpha", "http://agent-alpha.com", 10 * time.Millisecond},
-		{"task-charlie", "http://agent-charlie.com", 20 * time.Millisecond},
-		{"task-bravo", "http://agent-bravo.com", 30 * time.Millisecond},
+		{"task-zulu", "http://agent-zulu.com", "context-zulu", 0},
+		{"task-alpha", "http://agent-alpha.com", "context-alpha", 10 * time.Millisecond},
+		{"task-charlie", "http://agent-charlie.com", "context-charlie", 20 * time.Millisecond},
+		{"task-bravo", "http://agent-bravo.com", "context-bravo", 30 * time.Millisecond},
+	}
+
+	for _, task := range tasks {
+		tracker.RegisterContext(task.agentURL, task.contextID)
 	}
 
 	startTime := time.Now()
 	for _, task := range tasks {
 		state := &domain.TaskPollingState{
 			AgentURL:  task.agentURL,
+			ContextID: task.contextID,
 			TaskID:    task.id,
 			StartedAt: startTime.Add(task.delay),
 			IsPolling: true,
@@ -431,7 +441,7 @@ func TestTaskTracker_GetAllPollingTasks_StableOrder(t *testing.T) {
 				"task-alpha",
 				"task-charlie",
 				"task-bravo",
-			}, currentOrder, "tasks should be sorted by start time")
+			}, currentOrder, "tasks should be in FIFO order (agent → context → task)")
 			previousOrder = currentOrder
 		} else {
 			assert.Equal(t, previousOrder, currentOrder, "order should be consistent across calls")
@@ -442,10 +452,8 @@ func TestTaskTracker_GetAllPollingTasks_StableOrder(t *testing.T) {
 func TestTaskTracker_AddTaskWithoutContext(t *testing.T) {
 	tracker := NewTaskTracker()
 
-	// Try to add task without registering context first
 	tracker.AddTask("context-nonexistent", "task-1")
 
-	// Task should not be added
 	assert.False(t, tracker.HasTask("task-1"))
 	assert.Empty(t, tracker.GetTasksForContext("context-nonexistent"))
 }
@@ -454,12 +462,10 @@ func TestTaskTracker_EmptyValues(t *testing.T) {
 	tracker := NewTaskTracker()
 	agentURL := "http://agent1.com"
 
-	// RegisterContext with empty values should be ignored
 	tracker.RegisterContext("", "context-1")
 	tracker.RegisterContext(agentURL, "")
 	assert.Empty(t, tracker.GetAllContexts())
 
-	// AddTask with empty values should be ignored
 	tracker.RegisterContext(agentURL, "context-1")
 	tracker.AddTask("", "task-1")
 	tracker.AddTask("context-1", "")

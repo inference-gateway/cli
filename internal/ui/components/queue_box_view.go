@@ -68,38 +68,18 @@ func (qv *QueueBoxView) renderBackgroundTasks(backgroundTasks []domain.TaskPolli
 		Foreground(lipgloss.Color(accentColor)).
 		Bold(true)
 
-	contextGroups := qv.groupTasksByContext(backgroundTasks)
-
 	var taskLines []string
-	globalIndex := 1
+	var lastContextID string
 
-	for contextID, tasks := range contextGroups {
-		if contextID != "" {
-			contextHeader := qv.formatContextHeader(contextID)
-			taskLines = append(taskLines, contextHeader)
+	for i, task := range backgroundTasks {
+		if task.ContextID != lastContextID && task.ContextID != "" {
+			taskLines = append(taskLines, qv.formatContextHeader(task.ContextID))
+			lastContextID = task.ContextID
 		}
-
-		for _, task := range tasks {
-			taskLines = append(taskLines, qv.formatBackgroundTask(globalIndex, task))
-			globalIndex++
-		}
+		taskLines = append(taskLines, qv.formatBackgroundTask(i+1, task))
 	}
 
 	return titleStyle.Render(titleText) + "\n" + strings.Join(taskLines, "\n")
-}
-
-func (qv *QueueBoxView) groupTasksByContext(tasks []domain.TaskPollingState) map[string][]domain.TaskPollingState {
-	groups := make(map[string][]domain.TaskPollingState)
-
-	for _, task := range tasks {
-		contextID := task.ContextID
-		if contextID == "" {
-			contextID = "no-context"
-		}
-		groups[contextID] = append(groups[contextID], task)
-	}
-
-	return groups
 }
 
 func (qv *QueueBoxView) formatContextHeader(contextID string) string {
@@ -117,11 +97,11 @@ func (qv *QueueBoxView) formatContextHeader(contextID string) string {
 }
 
 func (qv *QueueBoxView) renderQueuedMessages(queuedMessages []domain.QueuedMessage) string {
-	dimColor := qv.getDimColor()
+	accentColor := qv.getAccentColor()
 	titleText := fmt.Sprintf("Queued Messages (%d)", len(queuedMessages))
 	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(dimColor)).
-		Bold(false)
+		Foreground(lipgloss.Color(accentColor)).
+		Bold(true)
 
 	var messageLines []string
 	for i, queuedMsg := range queuedMessages {
@@ -159,15 +139,16 @@ func (qv *QueueBoxView) formatBackgroundTask(index int, task domain.TaskPollingS
 
 func (qv *QueueBoxView) formatQueuedMessage(index int, queuedMsg domain.QueuedMessage) string {
 	dimColor := qv.getDimColor()
+	accentColor := qv.getAccentColor()
 	preview := qv.formatMessagePreview(queuedMsg)
 
 	indexStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor)).Italic(true)
-	previewStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.QueuedMessageColor.Lipgloss)).Faint(true)
+	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
+	previewStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.QueuedMessageColor.Lipgloss))
 
 	formattedLine := fmt.Sprintf("%s %s %s",
 		indexStyle.Render(fmt.Sprintf("  %d.", index)),
-		labelStyle.Render("[QUEUED]"),
+		arrowStyle.Render("→"),
 		previewStyle.Render(preview),
 	)
 
