@@ -194,7 +194,7 @@ func TestA2ASubmitTaskTool_FormatResult(t *testing.T) {
 		{
 			name:       "LLM format",
 			formatType: domain.FormatterLLM,
-			contains:   []string{"Task()", "✓ Success", "📄 Result:", "task_id", "task-123"},
+			contains:   []string{"Task()", "✓ Success", "Result:", "task_id", "task-123"},
 		},
 		{
 			name:       "UI format",

@@ -686,7 +686,7 @@ func (e *ChatEventHandler) handleA2ATaskStatusUpdate(
 }
 
 func (e *ChatEventHandler) handleMessageQueued(
-	msg domain.MessageQueuedEvent,
+	_ domain.MessageQueuedEvent,
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 

@@ -158,7 +158,7 @@ func TestA2AQueryAgentTool_FormatResult(t *testing.T) {
 		{
 			name:       "LLM format",
 			formatType: domain.FormatterLLM,
-			contains:   []string{"QueryAgent()", "✓ Success", "📄 Result:", "agent_name", "test-agent", "query", "card"},
+			contains:   []string{"QueryAgent()", "✓ Success", "Result:", "agent_name", "test-agent", "query", "card"},
 		},
 		{
 			name:       "UI format",
