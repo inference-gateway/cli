@@ -1339,6 +1339,16 @@ And individual A2A tools:
 - `INFER_A2A_TOOLS_SUBMIT_TASK_ENABLED`: Enable/disable A2A SubmitTask tool
 - `INFER_A2A_TOOLS_QUERY_AGENT_ENABLED`: Enable/disable A2A QueryAgent tool
 - `INFER_A2A_TOOLS_QUERY_TASK_ENABLED`: Enable/disable A2A QueryTask tool
+- `INFER_A2A_TOOLS_DOWNLOAD_ARTIFACTS_ENABLED`: Enable/disable A2A DownloadArtifacts tool
+
+#### A2A Tools Additional Configuration
+
+Additional configuration options for A2A tools:
+
+- `INFER_A2A_CACHE_ENABLED`: Enable/disable A2A agent card caching (`true`/`false`)
+- `INFER_A2A_CACHE_TTL`: Cache TTL in seconds for A2A agent cards (default: `300`)
+- `INFER_A2A_DOWNLOAD_ARTIFACTS_DOWNLOAD_DIR`: Directory for downloading A2A task artifacts (default: `/tmp/downloads`)
+- `INFER_A2A_DOWNLOAD_ARTIFACTS_TIMEOUT_SECONDS`: Timeout for downloading artifacts in seconds (default: `30`)
 
 #### Environment Variable Precedence
 
