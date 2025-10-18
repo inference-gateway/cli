@@ -1,0 +1,29 @@
+FROM alpine:latest
+
+# Install x11vnc
+RUN apk add --no-cache x11vnc
+
+# Create a startup script that connects to the shared X display
+COPY <<'EOF' /usr/local/bin/start-vnc.sh
+#!/bin/sh
+set -e
+
+echo "Waiting for X display :99 to be available..."
+echo "Checking /tmp/.X11-unix directory..."
+ls -la /tmp/.X11-unix/ 2>/dev/null || echo "Directory not found or empty"
+
+while true; do
+  if [ -S /tmp/.X11-unix/X99 ]; then
+    echo "X11 socket found, attempting to start x11vnc..."
+    x11vnc -display :99 -forever -shared -passwd password -rfbport 5900 -listen 0.0.0.0 -noshm && break
+  else
+    echo "Waiting for /tmp/.X11-unix/X99 socket... ($(date))"
+    ls -la /tmp/.X11-unix/ 2>/dev/null || echo "Directory still empty"
+  fi
+  sleep 5
+done
+EOF
+
+RUN chmod +x /usr/local/bin/start-vnc.sh
+
+ENTRYPOINT ["/usr/local/bin/start-vnc.sh"]
