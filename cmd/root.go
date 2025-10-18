@@ -73,6 +73,10 @@ func initConfig() {
 	v.SetDefault("a2a.tools.query_task.require_approval", defaults.A2A.Tools.QueryTask.RequireApproval)
 	v.SetDefault("a2a.tools.submit_task.enabled", defaults.A2A.Tools.SubmitTask.Enabled)
 	v.SetDefault("a2a.tools.submit_task.require_approval", defaults.A2A.Tools.SubmitTask.RequireApproval)
+	v.SetDefault("a2a.tools.download_artifacts.enabled", defaults.A2A.Tools.DownloadArtifacts.Enabled)
+	v.SetDefault("a2a.tools.download_artifacts.require_approval", defaults.A2A.Tools.DownloadArtifacts.RequireApproval)
+	v.SetDefault("a2a.tools.download_artifacts.download_dir", defaults.A2A.Tools.DownloadArtifacts.DownloadDir)
+	v.SetDefault("a2a.tools.download_artifacts.timeout_seconds", defaults.A2A.Tools.DownloadArtifacts.TimeoutSeconds)
 
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")
