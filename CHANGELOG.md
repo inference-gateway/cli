@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.53.0](https://github.com/inference-gateway/cli/compare/v0.52.0...v0.53.0) (2025-10-18)
+
+### 🚀 Features
+
+* **a2a:** Implement background polling with exponential backoff and multi-agent support ([#184](https://github.com/inference-gateway/cli/issues/184)) ([e6a46f3](https://github.com/inference-gateway/cli/commit/e6a46f3da51b6dc8bb753429364e56658bc69f54))
+* **handlers:** Refactor event handler architecture to prevent silent event drops ([#186](https://github.com/inference-gateway/cli/issues/186)) ([27f3217](https://github.com/inference-gateway/cli/commit/27f3217ac57f134e9475d3f627a9ec6657c3fb9c)), closes [#185](https://github.com/inference-gateway/cli/issues/185)
+
 ## [0.52.0](https://github.com/inference-gateway/cli/compare/v0.51.3...v0.52.0) (2025-10-14)
 
 ### 🚀 Features
