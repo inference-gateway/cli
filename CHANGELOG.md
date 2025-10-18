@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.53.1](https://github.com/inference-gateway/cli/compare/v0.53.0...v0.53.1) (2025-10-18)
+
+### 💄 Styles
+
+* **ui:** Simplify UI messages by removing emojis and adjusting formatting ([#187](https://github.com/inference-gateway/cli/issues/187)) ([b22a36f](https://github.com/inference-gateway/cli/commit/b22a36f656ebb3f31d750b98642a375655aac940))
+
+### 🧹 Maintenance
+
+* **deps:** Bump claude-code version from 2.0.11 to 2.0.15 in manifest.toml ([4b2c55d](https://github.com/inference-gateway/cli/commit/4b2c55db295128f4161225fc0ff280fe91df64ea))
+
 ## [0.53.0](https://github.com/inference-gateway/cli/compare/v0.52.0...v0.53.0) (2025-10-18)
 
 ### 🚀 Features
