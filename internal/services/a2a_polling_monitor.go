@@ -298,7 +298,4 @@ func (m *A2APollingMonitor) addResultToMessageQueue(taskID string, result *domai
 	}
 
 	m.messageQueue.Enqueue(message, m.requestID)
-	logger.Debug("Added A2A task result to message queue",
-		"task_id", taskID,
-		"success", result.Success)
 }

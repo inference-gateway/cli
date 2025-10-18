@@ -513,8 +513,6 @@ func (sm *StateManager) CancelBackgroundTask(taskID string, toolService domain.T
 		return fmt.Errorf("task %s not found in background tasks", taskID)
 	}
 
-	logger.Debug("Found task to cancel", "task_id", taskID, "agent_url", targetTask.AgentURL)
-
 	if err := sm.sendCancelToAgent(targetTask); err != nil {
 		logger.Error("Failed to send cancel to agent", "task_id", taskID, "error", err)
 	} else {
@@ -522,13 +520,11 @@ func (sm *StateManager) CancelBackgroundTask(taskID string, toolService domain.T
 	}
 
 	if targetTask.CancelFunc != nil {
-		logger.Debug("Triggering local context cancellation", "task_id", taskID)
 		targetTask.CancelFunc()
 	}
 
 	taskTracker := toolService.GetTaskTracker()
 	if taskTracker != nil {
-		logger.Debug("Stopping polling and removing from tracker", "task_id", taskID)
 		taskTracker.StopPolling(taskID)
 		taskTracker.RemoveTask(taskID)
 	}
@@ -541,7 +537,6 @@ func (sm *StateManager) CancelBackgroundTask(taskID string, toolService domain.T
 func (sm *StateManager) sendCancelToAgent(task *domain.TaskPollingState) error {
 	adkClient := sm.createADKClient(task.AgentURL)
 
-	logger.Debug("Sending CancelTask request to agent", "task_id", task.TaskID, "agent_url", task.AgentURL)
 	_, err := adkClient.CancelTask(context.Background(), adk.TaskIdParams{
 		ID: task.TaskID,
 	})
@@ -551,7 +546,6 @@ func (sm *StateManager) sendCancelToAgent(task *domain.TaskPollingState) error {
 		return err
 	}
 
-	logger.Debug("ADK CancelTask succeeded", "task_id", task.TaskID)
 	return nil
 }
 
