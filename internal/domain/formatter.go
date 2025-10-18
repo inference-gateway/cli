@@ -76,9 +76,38 @@ func (f BaseFormatter) FormatStatusIcon(success bool) string {
 	return icons.CrossMark
 }
 
-// FormatDuration formats a duration for display
+// FormatDuration formats a duration for display in a human-friendly way
 func (f BaseFormatter) FormatDuration(result *ToolExecutionResult) string {
-	return result.Duration.String()
+	d := result.Duration
+
+	if d < 1e3 {
+		return fmt.Sprintf("%dns", d.Nanoseconds())
+	}
+	if d < 1e6 {
+		return fmt.Sprintf("%dµs", d.Microseconds())
+	}
+	if d < 1e9 {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	if d < 60e9 {
+		return fmt.Sprintf("%ds", int64(d.Seconds()))
+	}
+
+	if d < 3600e9 {
+		minutes := int64(d.Minutes())
+		seconds := int64(d.Seconds()) % 60
+		if seconds == 0 {
+			return fmt.Sprintf("%dm", minutes)
+		}
+		return fmt.Sprintf("%dm%ds", minutes, seconds)
+	}
+
+	hours := int64(d.Hours())
+	minutes := int64(d.Minutes()) % 60
+	if minutes == 0 {
+		return fmt.Sprintf("%dh", hours)
+	}
+	return fmt.Sprintf("%dh%dm", hours, minutes)
 }
 
 // FormatExpandedHeader formats the expanded view header with tool call and metadata
