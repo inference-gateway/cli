@@ -104,8 +104,8 @@ func (qv *QueueBoxView) renderQueuedMessages(queuedMessages []domain.QueuedMessa
 		Bold(true)
 
 	var messageLines []string
-	for i, queuedMsg := range queuedMessages {
-		messageLines = append(messageLines, qv.formatQueuedMessage(i+1, queuedMsg))
+	for _, queuedMsg := range queuedMessages {
+		messageLines = append(messageLines, qv.formatQueuedMessage(queuedMsg))
 	}
 
 	return titleStyle.Render(titleText) + "\n" + strings.Join(messageLines, "\n")
@@ -120,14 +120,12 @@ func (qv *QueueBoxView) formatBackgroundTask(index int, task domain.TaskPollingS
 	accentColor := qv.getAccentColor()
 	dimColor := qv.getDimColor()
 
-	indexStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 	agentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
 	timeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.AssistantColor.Lipgloss))
 
-	formattedLine := fmt.Sprintf("%s Task %s %s (%s) %s",
-		indexStyle.Render(fmt.Sprintf("      %d.", index)),
+	formattedLine := fmt.Sprintf("      Task %s %s (%s) %s",
 		arrowStyle.Render("→"),
 		agentStyle.Render(agentName),
 		timeStyle.Render(qv.formatElapsed(elapsed)),
@@ -137,17 +135,14 @@ func (qv *QueueBoxView) formatBackgroundTask(index int, task domain.TaskPollingS
 	return formattedLine
 }
 
-func (qv *QueueBoxView) formatQueuedMessage(index int, queuedMsg domain.QueuedMessage) string {
-	dimColor := qv.getDimColor()
+func (qv *QueueBoxView) formatQueuedMessage(queuedMsg domain.QueuedMessage) string {
 	accentColor := qv.getAccentColor()
 	preview := qv.formatMessagePreview(queuedMsg)
 
-	indexStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
 	previewStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.QueuedMessageColor.Lipgloss))
 
-	formattedLine := fmt.Sprintf("%s %s %s",
-		indexStyle.Render(fmt.Sprintf("  %d.", index)),
+	formattedLine := fmt.Sprintf("  %s %s",
 		arrowStyle.Render("→"),
 		previewStyle.Render(preview),
 	)

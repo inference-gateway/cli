@@ -168,7 +168,7 @@ func (m *ThemeSelectorImpl) updateSearch() {
 func (m *ThemeSelectorImpl) View() string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("%s🎨 Select a Theme%s\n\n",
+	b.WriteString(fmt.Sprintf("%sSelect a Theme%s\n\n",
 		m.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset))
 
 	if m.searchMode {

@@ -13,7 +13,7 @@ const (
 
 // Tool execution icons - modern Unicode symbols
 const (
-	QueuedIcon    = "⏳"
+	QueuedIcon    = "•"
 	ExecutingIcon = "⚡"
 	BulletIcon    = "•"
 	SpinnerFrames = "⣾⣽⣻⢿⡿⣟⣯⣷"
