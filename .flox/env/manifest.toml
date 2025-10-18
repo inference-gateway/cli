@@ -41,7 +41,7 @@ ripgrep.version= "14.1.1"
 ripgrep.pkg-group = "common"
 
 claude-code.pkg-path = "claude-code"
-claude-code.version= "2.0.11"
+claude-code.version= "2.0.15"
 claude-code.pkg-group = "common"
 
 markdownlint-cli.pkg-path = "markdownlint-cli"
