@@ -160,18 +160,28 @@ type A2ATaskStatusUpdateEvent struct {
 func (e A2ATaskStatusUpdateEvent) GetRequestID() string    { return e.RequestID }
 func (e A2ATaskStatusUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// A2ATaskCompletedEvent indicates an A2A task was completed
+// A2ATaskCompletedEvent indicates an A2A task was completed successfully
 type A2ATaskCompletedEvent struct {
 	RequestID string
 	Timestamp time.Time
 	TaskID    string
-	Success   bool
-	Result    interface{}
-	Error     string
+	Result    ToolExecutionResult
 }
 
 func (e A2ATaskCompletedEvent) GetRequestID() string    { return e.RequestID }
 func (e A2ATaskCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// A2ATaskFailedEvent indicates an A2A task failed
+type A2ATaskFailedEvent struct {
+	RequestID string
+	Timestamp time.Time
+	TaskID    string
+	Result    ToolExecutionResult
+	Error     string
+}
+
+func (e A2ATaskFailedEvent) GetRequestID() string    { return e.RequestID }
+func (e A2ATaskFailedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // A2ATaskInputRequiredEvent indicates an A2A task requires user input
 type A2ATaskInputRequiredEvent struct {
@@ -184,3 +194,13 @@ type A2ATaskInputRequiredEvent struct {
 
 func (e A2ATaskInputRequiredEvent) GetRequestID() string    { return e.RequestID }
 func (e A2ATaskInputRequiredEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// MessageQueuedEvent indicates a message was received from the queue and stored
+type MessageQueuedEvent struct {
+	RequestID string
+	Timestamp time.Time
+	Message   sdk.Message
+}
+
+func (e MessageQueuedEvent) GetRequestID() string    { return e.RequestID }
+func (e MessageQueuedEvent) GetTimestamp() time.Time { return e.Timestamp }

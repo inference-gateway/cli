@@ -2,12 +2,14 @@ package tools
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
 )
 
 func TestA2AQueryTaskTool_Definition(t *testing.T) {
@@ -21,7 +23,7 @@ func TestA2AQueryTaskTool_Definition(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2AQueryTaskTool(cfg)
+	tool := NewA2AQueryTaskTool(cfg, nil)
 	def := tool.Definition()
 
 	if def.Function.Name != "A2A_QueryTask" {
@@ -115,7 +117,7 @@ func TestA2AQueryTaskTool_Validate(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2AQueryTaskTool(cfg)
+	tool := NewA2AQueryTaskTool(cfg, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -138,7 +140,7 @@ func TestA2AQueryTaskTool_Execute_Disabled(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2AQueryTaskTool(cfg)
+	tool := NewA2AQueryTaskTool(cfg, nil)
 
 	args := map[string]any{
 		"agent_url":  "http://example.com",
@@ -207,7 +209,7 @@ func TestA2AQueryTaskTool_Execute_InvalidArgs(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2AQueryTaskTool(cfg)
+	tool := NewA2AQueryTaskTool(cfg, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -258,7 +260,7 @@ func TestA2AQueryTaskTool_IsEnabled(t *testing.T) {
 					},
 				},
 			}
-			tool := NewA2AQueryTaskTool(cfg)
+			tool := NewA2AQueryTaskTool(cfg, nil)
 
 			if got := tool.IsEnabled(); got != tt.want {
 				t.Errorf("IsEnabled() = %v, want %v", got, tt.want)
@@ -278,7 +280,7 @@ func TestA2AQueryTaskTool_FormatResult(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2AQueryTaskTool(cfg)
+	tool := NewA2AQueryTaskTool(cfg, nil)
 
 	result := &domain.ToolExecutionResult{
 		ToolName:  "A2A_QueryTask",
@@ -339,7 +341,7 @@ func TestA2AQueryTaskTool_FormatPreview(t *testing.T) {
 			},
 		},
 	}
-	tool := NewA2AQueryTaskTool(cfg)
+	tool := NewA2AQueryTaskTool(cfg, nil)
 
 	tests := []struct {
 		name   string
@@ -374,6 +376,74 @@ func TestA2AQueryTaskTool_FormatPreview(t *testing.T) {
 			got := tool.FormatPreview(tt.result)
 			if got != tt.want {
 				t.Errorf("FormatPreview() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestA2AQueryTaskTool_PollingStateBlocking(t *testing.T) {
+	tests := []struct {
+		name                 string
+		isPolling            bool
+		expectBlocked        bool
+		expectedErrorMessage string
+	}{
+		{
+			name:                 "blocks query when polling is active",
+			isPolling:            true,
+			expectBlocked:        true,
+			expectedErrorMessage: "Cannot query task manually - background polling is active",
+		},
+		{
+			name:          "allows query when polling is not active",
+			isPolling:     false,
+			expectBlocked: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{
+				A2A: config.A2AConfig{
+					Enabled: true,
+					Tools: config.A2AToolsConfig{
+						QueryTask: config.QueryTaskToolConfig{
+							Enabled: true,
+						},
+					},
+				},
+			}
+
+			tracker := &mocks.FakeTaskTracker{}
+			tracker.IsPollingReturns(tt.isPolling)
+
+			tool := NewA2AQueryTaskTool(cfg, tracker)
+
+			args := map[string]any{
+				"agent_url":  "http://test-agent.example.com",
+				"context_id": "ctx123",
+				"task_id":    "task456",
+			}
+
+			result, err := tool.Execute(context.Background(), args)
+
+			if err != nil {
+				t.Errorf("Execute() returned unexpected error: %v", err)
+			}
+
+			if !tt.expectBlocked {
+				if result.Success {
+					t.Error("Expected Execute() to fail (no server available for test)")
+				}
+				return
+			}
+
+			if result.Success {
+				t.Error("Expected Execute() to fail when polling is active")
+			}
+
+			if !strings.Contains(result.Error, tt.expectedErrorMessage) {
+				t.Errorf("Expected error to contain %q, got: %s", tt.expectedErrorMessage, result.Error)
 			}
 		})
 	}

@@ -76,8 +76,7 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 	}
 
 	if r.taskTracker != nil {
-		r.taskTracker.ClearTaskID()
-		r.taskTracker.ClearContextID()
+		r.taskTracker.ClearAllAgents()
 	}
 
 	return r.InMemoryConversationRepository.Clear()
@@ -106,11 +105,7 @@ func (r *PersistentConversationRepository) LoadConversation(ctx context.Context,
 	r.sessionStats = metadata.TokenStats
 
 	if r.taskTracker != nil {
-		r.taskTracker.ClearTaskID()
-		r.taskTracker.ClearContextID()
-		if metadata.ContextID != "" {
-			r.taskTracker.SetContextID(metadata.ContextID)
-		}
+		r.taskTracker.ClearAllAgents()
 	}
 
 	return nil
@@ -127,10 +122,6 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 	r.metadata.UpdatedAt = time.Now()
 	r.metadata.MessageCount = len(entries)
 	r.metadata.TokenStats = r.GetSessionTokens()
-
-	if r.taskTracker != nil {
-		r.metadata.ContextID = r.taskTracker.GetContextID()
-	}
 
 	return r.storage.SaveConversation(ctx, r.conversationID, entries, r.metadata)
 }

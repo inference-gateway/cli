@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	spinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -23,6 +24,7 @@ type ChatHandler struct {
 	fileService      domain.FileService
 	shortcutRegistry *shortcuts.Registry
 	stateManager     domain.StateManager
+	messageQueue     domain.MessageQueue
 
 	messageProcessor *ChatMessageProcessor
 	commandHandler   *ChatCommandHandler
@@ -38,6 +40,7 @@ func NewChatHandler(
 	fileService domain.FileService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager domain.StateManager,
+	messageQueue domain.MessageQueue,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		agentService:     agentService,
@@ -48,6 +51,7 @@ func NewChatHandler(
 		fileService:      fileService,
 		shortcutRegistry: shortcutRegistry,
 		stateManager:     stateManager,
+		messageQueue:     messageQueue,
 	}
 
 	handler.messageProcessor = NewChatMessageProcessor(handler)
@@ -59,7 +63,7 @@ func NewChatHandler(
 
 // Handle routes incoming messages to appropriate handler methods based on message type.
 // TODO - refactor this
-func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop
+func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 	switch m := msg.(type) {
 	case domain.UserInputEvent:
 		return h.HandleUserInputEvent(m)
@@ -103,8 +107,12 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop
 		return h.HandleA2ATaskStatusUpdateEvent(m)
 	case domain.A2ATaskCompletedEvent:
 		return h.HandleA2ATaskCompletedEvent(m)
+	case domain.A2ATaskFailedEvent:
+		return h.HandleA2ATaskFailedEvent(m)
 	case domain.A2ATaskInputRequiredEvent:
 		return h.HandleA2ATaskInputRequiredEvent(m)
+	case domain.MessageQueuedEvent:
+		return h.HandleMessageQueuedEvent(m)
 	default:
 		if isUIOnlyEvent(msg) {
 			return nil
@@ -155,7 +163,11 @@ func (h *ChatHandler) startChatCompletion() tea.Cmd {
 
 		_ = h.stateManager.StartChatSession(requestID, currentModel, eventChan)
 
-		return h.listenForChatEvents(eventChan)()
+		return domain.ChatStartEvent{
+			RequestID: requestID,
+			Model:     currentModel,
+			Timestamp: time.Now(),
+		}
 	}
 }
 
@@ -394,19 +406,36 @@ func (h *ChatHandler) HandleA2ATaskSubmittedEvent(
 func (h *ChatHandler) HandleA2ATaskStatusUpdateEvent(
 	msg domain.A2ATaskStatusUpdateEvent,
 ) tea.Cmd {
-	return h.eventHandler.handleA2ATaskStatusUpdate(msg)
+	_, cmd := h.eventHandler.handleA2ATaskStatusUpdate(msg)
+	return cmd
 }
 
 func (h *ChatHandler) HandleA2ATaskCompletedEvent(
 	msg domain.A2ATaskCompletedEvent,
 ) tea.Cmd {
-	return h.eventHandler.handleA2ATaskCompleted(msg)
+	_, cmd := h.eventHandler.handleA2ATaskCompleted(msg)
+	return cmd
+}
+
+func (h *ChatHandler) HandleA2ATaskFailedEvent(
+	msg domain.A2ATaskFailedEvent,
+) tea.Cmd {
+	_, cmd := h.eventHandler.handleA2ATaskFailed(msg)
+	return cmd
 }
 
 func (h *ChatHandler) HandleA2ATaskInputRequiredEvent(
 	msg domain.A2ATaskInputRequiredEvent,
 ) tea.Cmd {
-	return h.eventHandler.handleA2ATaskInputRequired(msg)
+	_, cmd := h.eventHandler.handleA2ATaskInputRequired(msg, h.stateManager)
+	return cmd
+}
+
+func (h *ChatHandler) HandleMessageQueuedEvent(
+	msg domain.MessageQueuedEvent,
+) tea.Cmd {
+	_, cmd := h.eventHandler.handleMessageQueued(msg)
+	return cmd
 }
 
 // isUIOnlyEvent checks if the event is a UI-only event that doesn't require business logic handling
@@ -429,7 +458,10 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.InitializeTextSelectionEvent,
 		domain.ExitSelectionModeEvent,
 		domain.ModelSelectedEvent,
-		domain.ThemeSelectedEvent:
+		domain.ThemeSelectedEvent,
+		tea.KeyMsg,
+		tea.WindowSizeMsg,
+		spinner.TickMsg:
 		return true
 	}
 

@@ -9,9 +9,31 @@ import (
 )
 
 type FakeStateManager struct {
+	AddQueuedMessageStub        func(domain.Message, string)
+	addQueuedMessageMutex       sync.RWMutex
+	addQueuedMessageArgsForCall []struct {
+		arg1 domain.Message
+		arg2 string
+	}
+	CancelBackgroundTaskStub        func(string, domain.ToolService) error
+	cancelBackgroundTaskMutex       sync.RWMutex
+	cancelBackgroundTaskArgsForCall []struct {
+		arg1 string
+		arg2 domain.ToolService
+	}
+	cancelBackgroundTaskReturns struct {
+		result1 error
+	}
+	cancelBackgroundTaskReturnsOnCall map[int]struct {
+		result1 error
+	}
 	ClearFileSelectionStateStub        func()
 	clearFileSelectionStateMutex       sync.RWMutex
 	clearFileSelectionStateArgsForCall []struct {
+	}
+	ClearQueuedMessagesStub        func()
+	clearQueuedMessagesMutex       sync.RWMutex
+	clearQueuedMessagesArgsForCall []struct {
 	}
 	CompleteCurrentToolStub        func(*domain.ToolExecutionResult) error
 	completeCurrentToolMutex       sync.RWMutex
@@ -42,6 +64,17 @@ type FakeStateManager struct {
 	}
 	failCurrentToolReturnsOnCall map[int]struct {
 		result1 error
+	}
+	GetBackgroundTasksStub        func(domain.ToolService) []domain.TaskPollingState
+	getBackgroundTasksMutex       sync.RWMutex
+	getBackgroundTasksArgsForCall []struct {
+		arg1 domain.ToolService
+	}
+	getBackgroundTasksReturns struct {
+		result1 []domain.TaskPollingState
+	}
+	getBackgroundTasksReturnsOnCall map[int]struct {
+		result1 []domain.TaskPollingState
 	}
 	GetChatSessionStub        func() *domain.ChatSession
 	getChatSessionMutex       sync.RWMutex
@@ -85,6 +118,16 @@ type FakeStateManager struct {
 	getFileSelectionStateReturnsOnCall map[int]struct {
 		result1 *domain.FileSelectionState
 	}
+	GetQueuedMessagesStub        func() []domain.QueuedMessage
+	getQueuedMessagesMutex       sync.RWMutex
+	getQueuedMessagesArgsForCall []struct {
+	}
+	getQueuedMessagesReturns struct {
+		result1 []domain.QueuedMessage
+	}
+	getQueuedMessagesReturnsOnCall map[int]struct {
+		result1 []domain.QueuedMessage
+	}
 	GetToolExecutionStub        func() *domain.ToolExecutionSession
 	getToolExecutionMutex       sync.RWMutex
 	getToolExecutionArgsForCall []struct {
@@ -94,6 +137,26 @@ type FakeStateManager struct {
 	}
 	getToolExecutionReturnsOnCall map[int]struct {
 		result1 *domain.ToolExecutionSession
+	}
+	IsAgentBusyStub        func() bool
+	isAgentBusyMutex       sync.RWMutex
+	isAgentBusyArgsForCall []struct {
+	}
+	isAgentBusyReturns struct {
+		result1 bool
+	}
+	isAgentBusyReturnsOnCall map[int]struct {
+		result1 bool
+	}
+	PopQueuedMessageStub        func() *domain.QueuedMessage
+	popQueuedMessageMutex       sync.RWMutex
+	popQueuedMessageArgsForCall []struct {
+	}
+	popQueuedMessageReturns struct {
+		result1 *domain.QueuedMessage
+	}
+	popQueuedMessageReturnsOnCall map[int]struct {
+		result1 *domain.QueuedMessage
 	}
 	SetDimensionsStub        func(int, int)
 	setDimensionsMutex       sync.RWMutex
@@ -166,6 +229,101 @@ type FakeStateManager struct {
 	invocationsMutex sync.RWMutex
 }
 
+func (fake *FakeStateManager) AddQueuedMessage(arg1 domain.Message, arg2 string) {
+	fake.addQueuedMessageMutex.Lock()
+	fake.addQueuedMessageArgsForCall = append(fake.addQueuedMessageArgsForCall, struct {
+		arg1 domain.Message
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.AddQueuedMessageStub
+	fake.recordInvocation("AddQueuedMessage", []interface{}{arg1, arg2})
+	fake.addQueuedMessageMutex.Unlock()
+	if stub != nil {
+		fake.AddQueuedMessageStub(arg1, arg2)
+	}
+}
+
+func (fake *FakeStateManager) AddQueuedMessageCallCount() int {
+	fake.addQueuedMessageMutex.RLock()
+	defer fake.addQueuedMessageMutex.RUnlock()
+	return len(fake.addQueuedMessageArgsForCall)
+}
+
+func (fake *FakeStateManager) AddQueuedMessageCalls(stub func(domain.Message, string)) {
+	fake.addQueuedMessageMutex.Lock()
+	defer fake.addQueuedMessageMutex.Unlock()
+	fake.AddQueuedMessageStub = stub
+}
+
+func (fake *FakeStateManager) AddQueuedMessageArgsForCall(i int) (domain.Message, string) {
+	fake.addQueuedMessageMutex.RLock()
+	defer fake.addQueuedMessageMutex.RUnlock()
+	argsForCall := fake.addQueuedMessageArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeStateManager) CancelBackgroundTask(arg1 string, arg2 domain.ToolService) error {
+	fake.cancelBackgroundTaskMutex.Lock()
+	ret, specificReturn := fake.cancelBackgroundTaskReturnsOnCall[len(fake.cancelBackgroundTaskArgsForCall)]
+	fake.cancelBackgroundTaskArgsForCall = append(fake.cancelBackgroundTaskArgsForCall, struct {
+		arg1 string
+		arg2 domain.ToolService
+	}{arg1, arg2})
+	stub := fake.CancelBackgroundTaskStub
+	fakeReturns := fake.cancelBackgroundTaskReturns
+	fake.recordInvocation("CancelBackgroundTask", []interface{}{arg1, arg2})
+	fake.cancelBackgroundTaskMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) CancelBackgroundTaskCallCount() int {
+	fake.cancelBackgroundTaskMutex.RLock()
+	defer fake.cancelBackgroundTaskMutex.RUnlock()
+	return len(fake.cancelBackgroundTaskArgsForCall)
+}
+
+func (fake *FakeStateManager) CancelBackgroundTaskCalls(stub func(string, domain.ToolService) error) {
+	fake.cancelBackgroundTaskMutex.Lock()
+	defer fake.cancelBackgroundTaskMutex.Unlock()
+	fake.CancelBackgroundTaskStub = stub
+}
+
+func (fake *FakeStateManager) CancelBackgroundTaskArgsForCall(i int) (string, domain.ToolService) {
+	fake.cancelBackgroundTaskMutex.RLock()
+	defer fake.cancelBackgroundTaskMutex.RUnlock()
+	argsForCall := fake.cancelBackgroundTaskArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeStateManager) CancelBackgroundTaskReturns(result1 error) {
+	fake.cancelBackgroundTaskMutex.Lock()
+	defer fake.cancelBackgroundTaskMutex.Unlock()
+	fake.CancelBackgroundTaskStub = nil
+	fake.cancelBackgroundTaskReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeStateManager) CancelBackgroundTaskReturnsOnCall(i int, result1 error) {
+	fake.cancelBackgroundTaskMutex.Lock()
+	defer fake.cancelBackgroundTaskMutex.Unlock()
+	fake.CancelBackgroundTaskStub = nil
+	if fake.cancelBackgroundTaskReturnsOnCall == nil {
+		fake.cancelBackgroundTaskReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.cancelBackgroundTaskReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
 func (fake *FakeStateManager) ClearFileSelectionState() {
 	fake.clearFileSelectionStateMutex.Lock()
 	fake.clearFileSelectionStateArgsForCall = append(fake.clearFileSelectionStateArgsForCall, struct {
@@ -188,6 +346,30 @@ func (fake *FakeStateManager) ClearFileSelectionStateCalls(stub func()) {
 	fake.clearFileSelectionStateMutex.Lock()
 	defer fake.clearFileSelectionStateMutex.Unlock()
 	fake.ClearFileSelectionStateStub = stub
+}
+
+func (fake *FakeStateManager) ClearQueuedMessages() {
+	fake.clearQueuedMessagesMutex.Lock()
+	fake.clearQueuedMessagesArgsForCall = append(fake.clearQueuedMessagesArgsForCall, struct {
+	}{})
+	stub := fake.ClearQueuedMessagesStub
+	fake.recordInvocation("ClearQueuedMessages", []interface{}{})
+	fake.clearQueuedMessagesMutex.Unlock()
+	if stub != nil {
+		fake.ClearQueuedMessagesStub()
+	}
+}
+
+func (fake *FakeStateManager) ClearQueuedMessagesCallCount() int {
+	fake.clearQueuedMessagesMutex.RLock()
+	defer fake.clearQueuedMessagesMutex.RUnlock()
+	return len(fake.clearQueuedMessagesArgsForCall)
+}
+
+func (fake *FakeStateManager) ClearQueuedMessagesCalls(stub func()) {
+	fake.clearQueuedMessagesMutex.Lock()
+	defer fake.clearQueuedMessagesMutex.Unlock()
+	fake.ClearQueuedMessagesStub = stub
 }
 
 func (fake *FakeStateManager) CompleteCurrentTool(arg1 *domain.ToolExecutionResult) error {
@@ -357,6 +539,67 @@ func (fake *FakeStateManager) FailCurrentToolReturnsOnCall(i int, result1 error)
 	}
 	fake.failCurrentToolReturnsOnCall[i] = struct {
 		result1 error
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetBackgroundTasks(arg1 domain.ToolService) []domain.TaskPollingState {
+	fake.getBackgroundTasksMutex.Lock()
+	ret, specificReturn := fake.getBackgroundTasksReturnsOnCall[len(fake.getBackgroundTasksArgsForCall)]
+	fake.getBackgroundTasksArgsForCall = append(fake.getBackgroundTasksArgsForCall, struct {
+		arg1 domain.ToolService
+	}{arg1})
+	stub := fake.GetBackgroundTasksStub
+	fakeReturns := fake.getBackgroundTasksReturns
+	fake.recordInvocation("GetBackgroundTasks", []interface{}{arg1})
+	fake.getBackgroundTasksMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetBackgroundTasksCallCount() int {
+	fake.getBackgroundTasksMutex.RLock()
+	defer fake.getBackgroundTasksMutex.RUnlock()
+	return len(fake.getBackgroundTasksArgsForCall)
+}
+
+func (fake *FakeStateManager) GetBackgroundTasksCalls(stub func(domain.ToolService) []domain.TaskPollingState) {
+	fake.getBackgroundTasksMutex.Lock()
+	defer fake.getBackgroundTasksMutex.Unlock()
+	fake.GetBackgroundTasksStub = stub
+}
+
+func (fake *FakeStateManager) GetBackgroundTasksArgsForCall(i int) domain.ToolService {
+	fake.getBackgroundTasksMutex.RLock()
+	defer fake.getBackgroundTasksMutex.RUnlock()
+	argsForCall := fake.getBackgroundTasksArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) GetBackgroundTasksReturns(result1 []domain.TaskPollingState) {
+	fake.getBackgroundTasksMutex.Lock()
+	defer fake.getBackgroundTasksMutex.Unlock()
+	fake.GetBackgroundTasksStub = nil
+	fake.getBackgroundTasksReturns = struct {
+		result1 []domain.TaskPollingState
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetBackgroundTasksReturnsOnCall(i int, result1 []domain.TaskPollingState) {
+	fake.getBackgroundTasksMutex.Lock()
+	defer fake.getBackgroundTasksMutex.Unlock()
+	fake.GetBackgroundTasksStub = nil
+	if fake.getBackgroundTasksReturnsOnCall == nil {
+		fake.getBackgroundTasksReturnsOnCall = make(map[int]struct {
+			result1 []domain.TaskPollingState
+		})
+	}
+	fake.getBackgroundTasksReturnsOnCall[i] = struct {
+		result1 []domain.TaskPollingState
 	}{result1}
 }
 
@@ -575,6 +818,59 @@ func (fake *FakeStateManager) GetFileSelectionStateReturnsOnCall(i int, result1 
 	}{result1}
 }
 
+func (fake *FakeStateManager) GetQueuedMessages() []domain.QueuedMessage {
+	fake.getQueuedMessagesMutex.Lock()
+	ret, specificReturn := fake.getQueuedMessagesReturnsOnCall[len(fake.getQueuedMessagesArgsForCall)]
+	fake.getQueuedMessagesArgsForCall = append(fake.getQueuedMessagesArgsForCall, struct {
+	}{})
+	stub := fake.GetQueuedMessagesStub
+	fakeReturns := fake.getQueuedMessagesReturns
+	fake.recordInvocation("GetQueuedMessages", []interface{}{})
+	fake.getQueuedMessagesMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetQueuedMessagesCallCount() int {
+	fake.getQueuedMessagesMutex.RLock()
+	defer fake.getQueuedMessagesMutex.RUnlock()
+	return len(fake.getQueuedMessagesArgsForCall)
+}
+
+func (fake *FakeStateManager) GetQueuedMessagesCalls(stub func() []domain.QueuedMessage) {
+	fake.getQueuedMessagesMutex.Lock()
+	defer fake.getQueuedMessagesMutex.Unlock()
+	fake.GetQueuedMessagesStub = stub
+}
+
+func (fake *FakeStateManager) GetQueuedMessagesReturns(result1 []domain.QueuedMessage) {
+	fake.getQueuedMessagesMutex.Lock()
+	defer fake.getQueuedMessagesMutex.Unlock()
+	fake.GetQueuedMessagesStub = nil
+	fake.getQueuedMessagesReturns = struct {
+		result1 []domain.QueuedMessage
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetQueuedMessagesReturnsOnCall(i int, result1 []domain.QueuedMessage) {
+	fake.getQueuedMessagesMutex.Lock()
+	defer fake.getQueuedMessagesMutex.Unlock()
+	fake.GetQueuedMessagesStub = nil
+	if fake.getQueuedMessagesReturnsOnCall == nil {
+		fake.getQueuedMessagesReturnsOnCall = make(map[int]struct {
+			result1 []domain.QueuedMessage
+		})
+	}
+	fake.getQueuedMessagesReturnsOnCall[i] = struct {
+		result1 []domain.QueuedMessage
+	}{result1}
+}
+
 func (fake *FakeStateManager) GetToolExecution() *domain.ToolExecutionSession {
 	fake.getToolExecutionMutex.Lock()
 	ret, specificReturn := fake.getToolExecutionReturnsOnCall[len(fake.getToolExecutionArgsForCall)]
@@ -625,6 +921,112 @@ func (fake *FakeStateManager) GetToolExecutionReturnsOnCall(i int, result1 *doma
 	}
 	fake.getToolExecutionReturnsOnCall[i] = struct {
 		result1 *domain.ToolExecutionSession
+	}{result1}
+}
+
+func (fake *FakeStateManager) IsAgentBusy() bool {
+	fake.isAgentBusyMutex.Lock()
+	ret, specificReturn := fake.isAgentBusyReturnsOnCall[len(fake.isAgentBusyArgsForCall)]
+	fake.isAgentBusyArgsForCall = append(fake.isAgentBusyArgsForCall, struct {
+	}{})
+	stub := fake.IsAgentBusyStub
+	fakeReturns := fake.isAgentBusyReturns
+	fake.recordInvocation("IsAgentBusy", []interface{}{})
+	fake.isAgentBusyMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) IsAgentBusyCallCount() int {
+	fake.isAgentBusyMutex.RLock()
+	defer fake.isAgentBusyMutex.RUnlock()
+	return len(fake.isAgentBusyArgsForCall)
+}
+
+func (fake *FakeStateManager) IsAgentBusyCalls(stub func() bool) {
+	fake.isAgentBusyMutex.Lock()
+	defer fake.isAgentBusyMutex.Unlock()
+	fake.IsAgentBusyStub = stub
+}
+
+func (fake *FakeStateManager) IsAgentBusyReturns(result1 bool) {
+	fake.isAgentBusyMutex.Lock()
+	defer fake.isAgentBusyMutex.Unlock()
+	fake.IsAgentBusyStub = nil
+	fake.isAgentBusyReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStateManager) IsAgentBusyReturnsOnCall(i int, result1 bool) {
+	fake.isAgentBusyMutex.Lock()
+	defer fake.isAgentBusyMutex.Unlock()
+	fake.IsAgentBusyStub = nil
+	if fake.isAgentBusyReturnsOnCall == nil {
+		fake.isAgentBusyReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isAgentBusyReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStateManager) PopQueuedMessage() *domain.QueuedMessage {
+	fake.popQueuedMessageMutex.Lock()
+	ret, specificReturn := fake.popQueuedMessageReturnsOnCall[len(fake.popQueuedMessageArgsForCall)]
+	fake.popQueuedMessageArgsForCall = append(fake.popQueuedMessageArgsForCall, struct {
+	}{})
+	stub := fake.PopQueuedMessageStub
+	fakeReturns := fake.popQueuedMessageReturns
+	fake.recordInvocation("PopQueuedMessage", []interface{}{})
+	fake.popQueuedMessageMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) PopQueuedMessageCallCount() int {
+	fake.popQueuedMessageMutex.RLock()
+	defer fake.popQueuedMessageMutex.RUnlock()
+	return len(fake.popQueuedMessageArgsForCall)
+}
+
+func (fake *FakeStateManager) PopQueuedMessageCalls(stub func() *domain.QueuedMessage) {
+	fake.popQueuedMessageMutex.Lock()
+	defer fake.popQueuedMessageMutex.Unlock()
+	fake.PopQueuedMessageStub = stub
+}
+
+func (fake *FakeStateManager) PopQueuedMessageReturns(result1 *domain.QueuedMessage) {
+	fake.popQueuedMessageMutex.Lock()
+	defer fake.popQueuedMessageMutex.Unlock()
+	fake.PopQueuedMessageStub = nil
+	fake.popQueuedMessageReturns = struct {
+		result1 *domain.QueuedMessage
+	}{result1}
+}
+
+func (fake *FakeStateManager) PopQueuedMessageReturnsOnCall(i int, result1 *domain.QueuedMessage) {
+	fake.popQueuedMessageMutex.Lock()
+	defer fake.popQueuedMessageMutex.Unlock()
+	fake.PopQueuedMessageStub = nil
+	if fake.popQueuedMessageReturnsOnCall == nil {
+		fake.popQueuedMessageReturnsOnCall = make(map[int]struct {
+			result1 *domain.QueuedMessage
+		})
+	}
+	fake.popQueuedMessageReturnsOnCall[i] = struct {
+		result1 *domain.QueuedMessage
 	}{result1}
 }
 

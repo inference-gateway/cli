@@ -24,6 +24,16 @@ type FakeToolService struct {
 		result1 *domain.ToolExecutionResult
 		result2 error
 	}
+	GetTaskTrackerStub        func() domain.TaskTracker
+	getTaskTrackerMutex       sync.RWMutex
+	getTaskTrackerArgsForCall []struct {
+	}
+	getTaskTrackerReturns struct {
+		result1 domain.TaskTracker
+	}
+	getTaskTrackerReturnsOnCall map[int]struct {
+		result1 domain.TaskTracker
+	}
 	IsToolEnabledStub        func(string) bool
 	isToolEnabledMutex       sync.RWMutex
 	isToolEnabledArgsForCall []struct {
@@ -134,6 +144,59 @@ func (fake *FakeToolService) ExecuteToolReturnsOnCall(i int, result1 *domain.Too
 		result1 *domain.ToolExecutionResult
 		result2 error
 	}{result1, result2}
+}
+
+func (fake *FakeToolService) GetTaskTracker() domain.TaskTracker {
+	fake.getTaskTrackerMutex.Lock()
+	ret, specificReturn := fake.getTaskTrackerReturnsOnCall[len(fake.getTaskTrackerArgsForCall)]
+	fake.getTaskTrackerArgsForCall = append(fake.getTaskTrackerArgsForCall, struct {
+	}{})
+	stub := fake.GetTaskTrackerStub
+	fakeReturns := fake.getTaskTrackerReturns
+	fake.recordInvocation("GetTaskTracker", []interface{}{})
+	fake.getTaskTrackerMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeToolService) GetTaskTrackerCallCount() int {
+	fake.getTaskTrackerMutex.RLock()
+	defer fake.getTaskTrackerMutex.RUnlock()
+	return len(fake.getTaskTrackerArgsForCall)
+}
+
+func (fake *FakeToolService) GetTaskTrackerCalls(stub func() domain.TaskTracker) {
+	fake.getTaskTrackerMutex.Lock()
+	defer fake.getTaskTrackerMutex.Unlock()
+	fake.GetTaskTrackerStub = stub
+}
+
+func (fake *FakeToolService) GetTaskTrackerReturns(result1 domain.TaskTracker) {
+	fake.getTaskTrackerMutex.Lock()
+	defer fake.getTaskTrackerMutex.Unlock()
+	fake.GetTaskTrackerStub = nil
+	fake.getTaskTrackerReturns = struct {
+		result1 domain.TaskTracker
+	}{result1}
+}
+
+func (fake *FakeToolService) GetTaskTrackerReturnsOnCall(i int, result1 domain.TaskTracker) {
+	fake.getTaskTrackerMutex.Lock()
+	defer fake.getTaskTrackerMutex.Unlock()
+	fake.GetTaskTrackerStub = nil
+	if fake.getTaskTrackerReturnsOnCall == nil {
+		fake.getTaskTrackerReturnsOnCall = make(map[int]struct {
+			result1 domain.TaskTracker
+		})
+	}
+	fake.getTaskTrackerReturnsOnCall[i] = struct {
+		result1 domain.TaskTracker
+	}{result1}
 }
 
 func (fake *FakeToolService) IsToolEnabled(arg1 string) bool {

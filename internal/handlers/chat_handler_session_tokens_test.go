@@ -15,6 +15,8 @@ func TestFormatMetricsWithSessionTokens(t *testing.T) {
 	conversationRepo := services.NewInMemoryConversationRepository(nil)
 	shortcutRegistry := shortcuts.NewRegistry()
 
+	messageQueue := services.NewMessageQueueService()
+
 	handler := NewChatHandler(
 		nil, // agentService
 		conversationRepo,
@@ -24,6 +26,7 @@ func TestFormatMetricsWithSessionTokens(t *testing.T) {
 		nil, // fileService
 		shortcutRegistry,
 		nil, // stateManager
+		messageQueue,
 	)
 
 	err := conversationRepo.AddTokenUsage(100, 50, 150)

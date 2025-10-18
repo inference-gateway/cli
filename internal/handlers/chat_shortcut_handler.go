@@ -45,6 +45,11 @@ func (s *ChatShortcutHandler) executeShortcut(
 					StatusType: domain.StatusDefault,
 				}
 			}
+
+			if s.handler.messageQueue != nil {
+				s.handler.messageQueue.Clear()
+			}
+
 			return tea.Batch(
 				func() tea.Msg {
 					return domain.UpdateHistoryEvent{
@@ -207,6 +212,10 @@ func (s *ChatShortcutHandler) handleClearConversationSideEffect() tea.Msg {
 			TokenUsage: s.handler.getCurrentTokenUsage(),
 			StatusType: domain.StatusDefault,
 		}
+	}
+
+	if s.handler.messageQueue != nil {
+		s.handler.messageQueue.Clear()
 	}
 
 	return tea.Batch(

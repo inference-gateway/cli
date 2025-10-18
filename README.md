@@ -136,7 +136,7 @@ curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.
 **With specific version:**
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version v0.1.1
+curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version latest
 ```
 
 **Custom install directory:**
@@ -169,15 +169,15 @@ following steps:
 ```bash
 # Download binary (replace with your platform)
 curl -L -o infer-darwin-amd64 \
-  https://github.com/inference-gateway/cli/releases/download/v0.29.1/infer-darwin-amd64
+  https://github.com/inference-gateway/cli/releases/latest/download/infer-darwin-amd64
 
 # Download checksums and signature files
 curl -L -o checksums.txt \
-  https://github.com/inference-gateway/cli/releases/download/v0.29.1/checksums.txt
+  https://github.com/inference-gateway/cli/releases/latest/download/checksums.txt
 curl -L -o checksums.txt.pem \
-  https://github.com/inference-gateway/cli/releases/download/v0.29.1/checksums.txt.pem
+  https://github.com/inference-gateway/cli/releases/latest/download/checksums.txt.pem
 curl -L -o checksums.txt.sig \
-  https://github.com/inference-gateway/cli/releases/download/v0.29.1/checksums.txt.sig
+  https://github.com/inference-gateway/cli/releases/latest/download/checksums.txt.sig
 ```
 
 **2. Verify SHA256 checksum:**
@@ -212,7 +212,8 @@ chmod +x infer-darwin-amd64
 sudo mv infer-darwin-amd64 /usr/local/bin/infer
 ```
 
-> **Note**: Replace `v0.29.1` with the desired release version and `infer-darwin-amd64` with your platform's binary name.
+> **Note**: Replace `latest` with the desired release version (e.g., `v0.48.12`) and
+> `infer-darwin-amd64` with your platform's binary name.
 
 ### Build from Source
 
@@ -370,11 +371,6 @@ infer config tools exec "git status"
 infer config tools safety enable   # Enable approval prompts for all tool execution
 infer config tools safety disable  # Disable approval prompts (execute tools immediately)
 infer config tools safety status   # Show current safety approval status
-
-# Manage tool-specific safety settings (granular control)
-infer config tools safety set Bash enabled        # Require approval for Bash tool only
-infer config tools safety set WebSearch disabled  # Skip approval for WebSearch tool
-infer config tools safety unset Bash              # Remove tool-specific setting (use global)
 
 # Manage excluded paths
 infer config tools sandbox list
@@ -1058,6 +1054,8 @@ tools:
         - uniq
         - gh
         - task
+        - docker ps
+        - kubectl get pods
       patterns: # Regex patterns for more complex commands
         - ^git branch( --show-current)?$
         - ^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$
@@ -1402,10 +1400,9 @@ infer config tools sandbox add "/tmp/work"
 infer config tools sandbox add ".env"
 infer config tools sandbox add ".git/"
 
-# Configure individual tool safety settings
-infer config tools safety set Read disabled    # Skip approval for Read tool
-infer config tools safety set Write enabled    # Require approval for Write tool
-infer config tools safety set Delete enabled   # Require approval for Delete tool
+# Configure tool execution (safety approval is enabled by default for write/delete operations)
+infer config tools enable
+infer config tools safety enable
 ```
 
 ## Development

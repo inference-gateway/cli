@@ -124,12 +124,27 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 func (p *ChatMessageProcessor) processChatMessage(
 	content string,
 ) tea.Cmd {
+	message := sdk.Message{
+		Role:    sdk.User,
+		Content: content,
+	}
+
+	if p.handler.stateManager.IsAgentBusy() {
+		requestID := fmt.Sprintf("queued-%d", time.Now().UnixNano())
+		p.handler.messageQueue.Enqueue(message, requestID)
+
+		return func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Message queued - agent is currently busy",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+	}
+
 	userEntry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.User,
-			Content: content,
-		},
-		Time: time.Now(),
+		Message: message,
+		Time:    time.Now(),
 	}
 
 	if err := p.handler.conversationRepo.AddMessage(userEntry); err != nil {

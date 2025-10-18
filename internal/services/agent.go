@@ -20,6 +20,7 @@ type AgentServiceImpl struct {
 	config           domain.ConfigService
 	conversationRepo domain.ConversationRepository
 	a2aAgentService  domain.A2AAgentService
+	messageQueue     domain.MessageQueue
 	timeoutSeconds   int
 	maxTokens        int
 	optimizer        *ConversationOptimizer
@@ -157,6 +158,7 @@ func NewAgentService(
 	config domain.ConfigService,
 	conversationRepo domain.ConversationRepository,
 	a2aAgentService domain.A2AAgentService,
+	messageQueue domain.MessageQueue,
 	timeoutSeconds int,
 	optimizer *ConversationOptimizer,
 ) *AgentServiceImpl {
@@ -166,6 +168,7 @@ func NewAgentService(
 		config:           config,
 		conversationRepo: conversationRepo,
 		a2aAgentService:  a2aAgentService,
+		messageQueue:     messageQueue,
 		timeoutSeconds:   timeoutSeconds,
 		maxTokens:        config.GetAgentConfig().MaxTokens,
 		optimizer:        optimizer,
@@ -256,7 +259,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		return nil, err
 	}
 
-	chatEvents := make(chan domain.ChatEvent, 100)
+	chatEvents := make(chan domain.ChatEvent, 1000)
 	eventPublisher := newEventPublisher(req.RequestID, chatEvents)
 
 	cancelChan := make(chan struct{}, 1)
@@ -287,25 +290,80 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		return nil, fmt.Errorf("failed to parse provider from model '%s': %w", model, err)
 	}
 
-	turns := 0
-	maxTurns := s.config.GetAgentConfig().MaxTurns
+	taskTracker := s.toolService.GetTaskTracker()
+	var monitor *A2APollingMonitor
+
+	if taskTracker != nil {
+		monitor = NewA2APollingMonitor(taskTracker, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
+		go monitor.Start(ctx)
+	}
+
 	go func() {
+		defer func() {
+			if monitor != nil {
+				monitor.Stop()
+			}
+			close(chatEvents)
+		}()
+
 		conversation = s.optimizeConversation(ctx, req, conversation, eventPublisher)
+
+		turns := 0
+		maxTurns := s.config.GetAgentConfig().MaxTurns
+		hasToolResults := false
 
 		//// EVENT LOOP START
 		for maxTurns > turns {
 			select {
 			case <-cancelChan:
 				eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
-				close(chatEvents)
 				return
 			default:
 			}
 
+			if !hasToolResults && turns > 0 {
+				hasQueuedMessage := s.messageQueue != nil && !s.messageQueue.IsEmpty()
+
+				hasBackgroundTasks := taskTracker != nil && len(taskTracker.GetAllPollingTasks()) > 0
+
+				switch {
+				case hasQueuedMessage:
+					queuedMsg := s.messageQueue.Dequeue()
+					if queuedMsg != nil {
+						conversation = append(conversation, queuedMsg.Message)
+						entry := domain.ConversationEntry{
+							Message: queuedMsg.Message,
+							Time:    time.Now(),
+						}
+						if err := s.conversationRepo.AddMessage(entry); err != nil {
+							logger.Error("failed to store queued message", "error", err)
+						}
+						eventPublisher.chatEvents <- domain.MessageQueuedEvent{
+							RequestID: queuedMsg.RequestID,
+							Timestamp: time.Now(),
+							Message:   queuedMsg.Message,
+						}
+						hasToolResults = true
+						continue
+					}
+				case hasBackgroundTasks:
+					logger.Debug("Waiting for background A2A tasks to complete",
+						"request_id", req.RequestID,
+						"turn", turns)
+					time.Sleep(500 * time.Millisecond)
+					continue
+				default:
+					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
+					return
+				}
+			}
+
+			hasToolResults = false
+			turns++
 			s.clearToolCallsMap()
 			iterationStartTime := time.Now()
 
-			if turns > 0 {
+			if turns > 1 {
 				time.Sleep(constants.AgentIterationDelay)
 			}
 
@@ -441,7 +499,11 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				for _, tc := range toolCalls {
 					completeToolCalls = append(completeToolCalls, *tc)
 				}
+			}
 
+			s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
+
+			if len(toolCalls) > 0 {
 				toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
 				for _, tc := range toolCalls {
 					toolCallsSlice = append(toolCallsSlice, tc)
@@ -457,20 +519,12 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					}
 					conversation = append(conversation, toolResult)
 				}
-
-				s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
-
-				eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
-
-				turns++
-			} else {
-				s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
-				eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
-				break
+				hasToolResults = true
 			}
+
+			eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
 		}
 		//// EVENT LOOP FINISHED
-		close(chatEvents)
 	}()
 
 	return chatEvents, nil
@@ -808,11 +862,6 @@ func (s *AgentServiceImpl) batchSaveToolResults(entries []domain.ConversationEnt
 		}
 		savedCount++
 	}
-
-	logger.Info("successfully saved tool results",
-		"saved", savedCount,
-		"total", len(entries),
-	)
 
 	return nil
 }

@@ -97,6 +97,32 @@ type ChatService interface {
 	GetMetrics(requestID string) *ChatMetrics
 }
 
+// MessageQueue handles centralized message queuing for all components
+type MessageQueue interface {
+	// Enqueue adds a message to the queue
+	Enqueue(message Message, requestID string)
+
+	// Dequeue removes and returns the next message from the queue
+	// Returns nil if the queue is empty
+	Dequeue() *QueuedMessage
+
+	// Peek returns the next message without removing it
+	// Returns nil if the queue is empty
+	Peek() *QueuedMessage
+
+	// Size returns the number of messages in the queue
+	Size() int
+
+	// IsEmpty returns true if the queue has no messages
+	IsEmpty() bool
+
+	// Clear removes all messages from the queue
+	Clear()
+
+	// GetAll returns all messages in the queue without removing them
+	GetAll() []QueuedMessage
+}
+
 // StateManager interface defines state management operations
 type StateManager interface {
 	// View state management
@@ -108,6 +134,7 @@ type StateManager interface {
 	UpdateChatStatus(status ChatStatus) error
 	EndChatSession()
 	GetChatSession() *ChatSession
+	IsAgentBusy() bool
 
 	// Tool execution management
 	StartToolExecution(toolCalls []sdk.ChatCompletionMessageToolCall) error
@@ -126,6 +153,16 @@ type StateManager interface {
 	UpdateFileSearchQuery(query string)
 	SetFileSelectedIndex(index int)
 	ClearFileSelectionState()
+
+	// Message queue management (DEPRECATED - use MessageQueue service instead)
+	AddQueuedMessage(message Message, requestID string)
+	PopQueuedMessage() *QueuedMessage
+	ClearQueuedMessages()
+	GetQueuedMessages() []QueuedMessage
+
+	// Background task management
+	GetBackgroundTasks(toolService ToolService) []TaskPollingState
+	CancelBackgroundTask(taskID string, toolService ToolService) error
 }
 
 // FileService handles file operations
@@ -144,14 +181,64 @@ type FileInfo struct {
 	IsDir bool
 }
 
+// TaskPollingState represents the state of background polling for a task
+type TaskPollingState struct {
+	TaskID          string
+	ContextID       string
+	AgentURL        string
+	TaskDescription string
+	IsPolling       bool
+	StartedAt       time.Time
+	LastPollAt      time.Time
+	NextPollTime    time.Time
+	CurrentInterval time.Duration
+	CancelFunc      context.CancelFunc
+	ResultChan      chan *ToolExecutionResult
+	ErrorChan       chan error
+	StatusChan      chan *A2ATaskStatusUpdate
+}
+
+// A2ATaskStatusUpdate represents a status update for an ongoing A2A task
+type A2ATaskStatusUpdate struct {
+	TaskID    string
+	AgentURL  string
+	State     string
+	Message   string
+	Timestamp time.Time
+}
+
 // TaskTracker handles task ID and context ID tracking within chat sessions
+// Following A2A spec: supports multi-tenant with multiple contexts per agent
 type TaskTracker interface {
-	GetFirstTaskID() string
-	SetFirstTaskID(taskID string)
-	ClearTaskID()
-	GetContextID() string
-	SetContextID(contextID string)
-	ClearContextID()
+	// Context management (contexts are server-generated and tracked here)
+	// Multiple contexts per agent enable multi-tenant/multi-session support
+	RegisterContext(agentURL, contextID string)
+	GetContextsForAgent(agentURL string) []string
+	GetAgentForContext(contextID string) string
+	GetLatestContextForAgent(agentURL string) string
+	HasContext(contextID string) bool
+	RemoveContext(contextID string)
+
+	// Task management (tasks are server-generated and scoped to contexts per A2A spec)
+	AddTask(contextID, taskID string)
+	GetTasksForContext(contextID string) []string
+	GetLatestTaskForContext(contextID string) string
+	GetContextForTask(taskID string) string
+	RemoveTask(taskID string)
+	HasTask(taskID string) bool
+
+	// Agent management
+	GetAllAgents() []string
+	GetAllContexts() []string
+	ClearAllAgents()
+
+	// Polling state management (one polling state per task)
+	StartPolling(taskID string, state *TaskPollingState)
+	StopPolling(taskID string)
+	GetPollingState(taskID string) *TaskPollingState
+	IsPolling(taskID string) bool
+	GetPollingTasksForContext(contextID string) []string
+	GetAllPollingTasks() []string
 }
 
 // FetchResult represents the result of a fetch operation

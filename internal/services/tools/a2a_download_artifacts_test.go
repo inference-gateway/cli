@@ -114,7 +114,7 @@ func TestA2ADownloadArtifactsTool_Execute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tracker := utils.NewSimpleTaskTracker()
+			tracker := utils.NewTaskTracker()
 			tool := NewA2ADownloadArtifactsTool(tt.config, tracker)
 
 			result, err := tool.Execute(context.Background(), tt.args)
@@ -201,7 +201,7 @@ func TestA2ADownloadArtifactsTool_Validate(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{}
-			tracker := utils.NewSimpleTaskTracker()
+			tracker := utils.NewTaskTracker()
 			tool := NewA2ADownloadArtifactsTool(cfg, tracker)
 
 			err := tool.Validate(tt.args)
@@ -268,7 +268,7 @@ func TestA2ADownloadArtifactsTool_IsEnabled(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tracker := utils.NewSimpleTaskTracker()
+			tracker := utils.NewTaskTracker()
 			tool := NewA2ADownloadArtifactsTool(tt.config, tracker)
 
 			got := tool.IsEnabled()
@@ -279,7 +279,7 @@ func TestA2ADownloadArtifactsTool_IsEnabled(t *testing.T) {
 
 func TestA2ADownloadArtifactsTool_Definition(t *testing.T) {
 	cfg := &config.Config{}
-	tracker := utils.NewSimpleTaskTracker()
+	tracker := utils.NewTaskTracker()
 	tool := NewA2ADownloadArtifactsTool(cfg, tracker)
 
 	def := tool.Definition()
@@ -342,7 +342,7 @@ func TestA2ADownloadArtifactsTool_FormatResult(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := &config.Config{}
-			tracker := utils.NewSimpleTaskTracker()
+			tracker := utils.NewTaskTracker()
 			tool := NewA2ADownloadArtifactsTool(cfg, tracker)
 
 			got := tool.FormatResult(tt.result, tt.formatType)
@@ -353,7 +353,7 @@ func TestA2ADownloadArtifactsTool_FormatResult(t *testing.T) {
 
 func TestA2ADownloadArtifactsTool_ShouldCollapseArg(t *testing.T) {
 	cfg := &config.Config{}
-	tracker := utils.NewSimpleTaskTracker()
+	tracker := utils.NewTaskTracker()
 	tool := NewA2ADownloadArtifactsTool(cfg, tracker)
 
 	tests := []struct {
@@ -375,7 +375,7 @@ func TestA2ADownloadArtifactsTool_ShouldCollapseArg(t *testing.T) {
 
 func TestA2ADownloadArtifactsTool_ShouldAlwaysExpand(t *testing.T) {
 	cfg := &config.Config{}
-	tracker := utils.NewSimpleTaskTracker()
+	tracker := utils.NewTaskTracker()
 	tool := NewA2ADownloadArtifactsTool(cfg, tracker)
 
 	got := tool.ShouldAlwaysExpand()

@@ -23,7 +23,7 @@ func NewRegistry(cfg *config.Config) *Registry {
 		config:       cfg,
 		tools:        make(map[string]domain.Tool),
 		readToolUsed: false,
-		taskTracker:  utils.NewSimpleTaskTracker(),
+		taskTracker:  utils.NewTaskTracker(),
 	}
 
 	registry.registerTools()
@@ -56,7 +56,7 @@ func (r *Registry) registerTools() {
 
 	if r.config.IsA2AToolsEnabled() {
 		r.tools["A2A_QueryAgent"] = NewA2AQueryAgentTool(r.config)
-		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(r.config)
+		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(r.config, r.taskTracker)
 		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(r.config, r.taskTracker)
 		r.tools["A2A_DownloadArtifacts"] = NewA2ADownloadArtifactsTool(r.config, r.taskTracker)
 	}

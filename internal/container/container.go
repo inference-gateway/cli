@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	adkclient "github.com/inference-gateway/adk/client"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriterdomain "github.com/inference-gateway/cli/internal/domain/filewriter"
@@ -34,6 +35,7 @@ type ServiceContainer struct {
 	toolService      domain.ToolService
 	fileService      domain.FileService
 	a2aAgentService  domain.A2AAgentService
+	messageQueue     domain.MessageQueue
 
 	// Services
 	stateManager domain.StateManager
@@ -92,6 +94,7 @@ func (c *ServiceContainer) initializeFileWriterServices() {
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = services.NewFileService()
+	c.messageQueue = services.NewMessageQueueService()
 
 	c.toolRegistry = tools.NewRegistry(c.config)
 
@@ -147,6 +150,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config,
 		c.conversationRepo,
 		c.a2aAgentService,
+		c.messageQueue,
 		c.config.Gateway.Timeout,
 		optimizer,
 	)
@@ -157,7 +161,12 @@ func (c *ServiceContainer) initializeDomainServices() {
 // initializeServices creates the new improved services
 func (c *ServiceContainer) initializeServices() {
 	debugMode := c.config.Logging.Debug
-	c.stateManager = services.NewStateManager(debugMode)
+
+	createADKClient := func(agentURL string) adkclient.A2AClient {
+		return adkclient.NewClient(agentURL)
+	}
+
+	c.stateManager = services.NewStateManager(debugMode, createADKClient)
 }
 
 // initializeUIComponents creates UI components and theme
@@ -202,6 +211,10 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
 
 	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService))
+
+	if c.config.IsA2AToolsEnabled() {
+		c.shortcutRegistry.Register(shortcuts.NewCancelShortcut(c.stateManager, c.toolService, taskTracker))
+	}
 
 	if c.configService != nil {
 		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService))
@@ -278,6 +291,10 @@ func (c *ServiceContainer) GetStateManager() domain.StateManager {
 
 func (c *ServiceContainer) GetAgentService() domain.AgentService {
 	return c.agentService
+}
+
+func (c *ServiceContainer) GetMessageQueue() domain.MessageQueue {
+	return c.messageQueue
 }
 
 // createRetryConfig creates a retry config with logging callback

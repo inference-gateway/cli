@@ -1,15 +1,21 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
 
+	client "github.com/inference-gateway/adk/client"
+	adk "github.com/inference-gateway/adk/types"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
+
+// ADKClientFactory creates ADK clients for specific agent URLs
+type ADKClientFactory func(agentURL string) client.A2AClient
 
 // StateManager provides centralized state management with proper synchronization
 type StateManager struct {
@@ -23,7 +29,13 @@ type StateManager struct {
 	debugMode      bool
 	stateHistory   []domain.StateSnapshot
 	maxHistorySize int
+
+	// ADK client factory for creating clients per agent URL
+	createADKClient ADKClientFactory
 }
+
+// Compile-time assertion that StateManager implements domain.StateManager interface
+var _ domain.StateManager = (*StateManager)(nil)
 
 // StateChangeListener interface for components that need to react to state changes
 type StateChangeListener interface {
@@ -64,13 +76,14 @@ func (s StateChangeType) String() string {
 }
 
 // NewStateManager creates a new state manager
-func NewStateManager(debugMode bool) *StateManager {
+func NewStateManager(debugMode bool, createADKClient ADKClientFactory) *StateManager {
 	return &StateManager{
-		state:          domain.NewApplicationState(),
-		listeners:      make([]StateChangeListener, 0),
-		debugMode:      debugMode,
-		stateHistory:   make([]domain.StateSnapshot, 0),
-		maxHistorySize: 100,
+		state:           domain.NewApplicationState(),
+		listeners:       make([]StateChangeListener, 0),
+		debugMode:       debugMode,
+		stateHistory:    make([]domain.StateSnapshot, 0),
+		maxHistorySize:  100,
+		createADKClient: createADKClient,
 	}
 }
 
@@ -104,8 +117,6 @@ func (sm *StateManager) notifyListeners(oldState, newState domain.StateSnapshot)
 // captureStateChange captures a state change for debugging and audit trail
 func (sm *StateManager) captureStateChange(changeType StateChangeType, oldState domain.StateSnapshot) {
 	newState := sm.state.GetStateSnapshot()
-
-	// State change detection removed - too verbose
 
 	sm.stateHistory = append(sm.stateHistory, newState)
 	if len(sm.stateHistory) > sm.maxHistorySize {
@@ -188,6 +199,24 @@ func (sm *StateManager) GetChatSession() *domain.ChatSession {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 	return sm.state.GetChatSession()
+}
+
+// IsAgentBusy returns true if the agent is currently processing a request
+func (sm *StateManager) IsAgentBusy() bool {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	chatSession := sm.state.GetChatSession()
+	if chatSession == nil {
+		return false
+	}
+
+	switch chatSession.Status {
+	case domain.ChatStatusIdle, domain.ChatStatusCompleted, domain.ChatStatusError, domain.ChatStatusCancelled:
+		return false
+	default:
+		return true
+	}
 }
 
 // StartToolExecution starts a new tool execution session
@@ -400,6 +429,153 @@ func (sm *StateManager) ClearFileSelectionState() {
 	defer sm.mutex.Unlock()
 
 	sm.state.ClearFileSelectionState()
+}
+
+// AddQueuedMessage adds a message to the input queue
+func (sm *StateManager) AddQueuedMessage(message sdk.Message, requestID string) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	oldState := sm.state.GetStateSnapshot()
+	sm.state.AddQueuedMessage(message, requestID)
+	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
+}
+
+// PopQueuedMessage removes and returns the first message from the queue (FIFO order)
+func (sm *StateManager) PopQueuedMessage() *domain.QueuedMessage {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	oldState := sm.state.GetStateSnapshot()
+	msg := sm.state.PopQueuedMessage()
+	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
+	return msg
+}
+
+// ClearQueuedMessages clears all queued messages
+func (sm *StateManager) ClearQueuedMessages() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	oldState := sm.state.GetStateSnapshot()
+	sm.state.ClearQueuedMessages()
+	sm.captureStateChange(StateChangeTypeChatStatus, oldState)
+}
+
+// GetQueuedMessages returns the current queued messages
+func (sm *StateManager) GetQueuedMessages() []domain.QueuedMessage {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.GetQueuedMessages()
+}
+
+// GetBackgroundTasks returns the current background polling tasks sorted by start time
+func (sm *StateManager) GetBackgroundTasks(toolService domain.ToolService) []domain.TaskPollingState {
+	if toolService == nil {
+		return []domain.TaskPollingState{}
+	}
+
+	taskTracker := toolService.GetTaskTracker()
+	if taskTracker == nil {
+		return []domain.TaskPollingState{}
+	}
+
+	pollingTasks := taskTracker.GetAllPollingTasks()
+	tasks := make([]domain.TaskPollingState, 0, len(pollingTasks))
+
+	for _, taskID := range pollingTasks {
+		if state := taskTracker.GetPollingState(taskID); state != nil {
+			tasks = append(tasks, *state)
+		}
+	}
+
+	return tasks
+}
+
+// CancelBackgroundTask cancels a background task by task ID
+func (sm *StateManager) CancelBackgroundTask(taskID string, toolService domain.ToolService) error {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	logger.Info("Canceling background task", "task_id", taskID)
+
+	backgroundTasks := sm.getBackgroundTasksInternal(toolService)
+
+	var targetTask *domain.TaskPollingState
+	for i := range backgroundTasks {
+		if backgroundTasks[i].TaskID == taskID {
+			targetTask = &backgroundTasks[i]
+			break
+		}
+	}
+
+	if targetTask == nil {
+		return fmt.Errorf("task %s not found in background tasks", taskID)
+	}
+
+	logger.Debug("Found task to cancel", "task_id", taskID, "agent_url", targetTask.AgentURL)
+
+	if err := sm.sendCancelToAgent(targetTask); err != nil {
+		logger.Error("Failed to send cancel to agent", "task_id", taskID, "error", err)
+	} else {
+		logger.Info("Successfully sent cancel request to agent", "task_id", taskID)
+	}
+
+	if targetTask.CancelFunc != nil {
+		logger.Debug("Triggering local context cancellation", "task_id", taskID)
+		targetTask.CancelFunc()
+	}
+
+	taskTracker := toolService.GetTaskTracker()
+	if taskTracker != nil {
+		logger.Debug("Stopping polling and removing from tracker", "task_id", taskID)
+		taskTracker.StopPolling(taskID)
+		taskTracker.RemoveTask(taskID)
+	}
+
+	logger.Info("Task cancelled successfully", "task_id", taskID)
+	return nil
+}
+
+// sendCancelToAgent sends a cancel request to the agent server
+func (sm *StateManager) sendCancelToAgent(task *domain.TaskPollingState) error {
+	adkClient := sm.createADKClient(task.AgentURL)
+
+	logger.Debug("Sending CancelTask request to agent", "task_id", task.TaskID, "agent_url", task.AgentURL)
+	_, err := adkClient.CancelTask(context.Background(), adk.TaskIdParams{
+		ID: task.TaskID,
+	})
+
+	if err != nil {
+		logger.Error("ADK CancelTask returned error", "task_id", task.TaskID, "error", err)
+		return err
+	}
+
+	logger.Debug("ADK CancelTask succeeded", "task_id", task.TaskID)
+	return nil
+}
+
+// getBackgroundTasksInternal is an internal version that doesn't lock (caller must lock)
+func (sm *StateManager) getBackgroundTasksInternal(toolService domain.ToolService) []domain.TaskPollingState {
+	if toolService == nil {
+		return []domain.TaskPollingState{}
+	}
+
+	taskTracker := toolService.GetTaskTracker()
+	if taskTracker == nil {
+		return []domain.TaskPollingState{}
+	}
+
+	pollingTasks := taskTracker.GetAllPollingTasks()
+	tasks := make([]domain.TaskPollingState, 0, len(pollingTasks))
+
+	for _, taskID := range pollingTasks {
+		if state := taskTracker.GetPollingState(taskID); state != nil {
+			tasks = append(tasks, *state)
+		}
+	}
+
+	return tasks
 }
 
 // RecoverFromInconsistentState attempts to recover from an inconsistent state

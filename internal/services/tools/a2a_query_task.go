@@ -16,8 +16,9 @@ import (
 )
 
 type A2AQueryTaskTool struct {
-	config    *config.Config
-	formatter domain.CustomFormatter
+	config      *config.Config
+	formatter   domain.CustomFormatter
+	taskTracker domain.TaskTracker
 }
 
 type A2AQueryTaskResult struct {
@@ -30,17 +31,18 @@ type A2AQueryTaskResult struct {
 	Duration  time.Duration `json:"duration"`
 }
 
-func NewA2AQueryTaskTool(cfg *config.Config) *A2AQueryTaskTool {
+func NewA2AQueryTaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A2AQueryTaskTool {
 	return &A2AQueryTaskTool{
 		config: cfg,
 		formatter: domain.NewCustomFormatter("A2A_QueryTask", func(key string) bool {
 			return key == "metadata"
 		}),
+		taskTracker: taskTracker,
 	}
 }
 
 func (t *A2AQueryTaskTool) Definition() sdk.ChatCompletionTool {
-	description := "Query the status and result of a specific A2A task. Returns the complete task object including status, artifacts, and message data."
+	description := "Query the status and result of a specific A2A task. Returns the complete task object including status, artifacts, and message data. IMPORTANT: When you submit a task via A2A_SubmitTask, it automatically monitors the task in the background and emits an event when complete - you will be notified automatically. DO NOT manually query recently submitted tasks during background monitoring. Only use this tool to: 1) Check tasks from previous conversations, 2) Check tasks submitted outside this session, or 3) Get detailed results AFTER you receive a completion notification."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
@@ -100,6 +102,12 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*d
 		return t.errorResult(args, startTime, "task_id parameter is required and must be a string")
 	}
 
+	if t.taskTracker != nil && t.taskTracker.IsPolling(agentURL) {
+		state := t.taskTracker.GetPollingState(agentURL)
+		errorMsg := t.buildPollingBlockedError(agentURL, state)
+		return t.errorResult(args, startTime, errorMsg)
+	}
+
 	adkClient := client.NewClient(agentURL)
 	queryParams := adk.TaskQueryParams{ID: taskID}
 	taskResponse, err := adkClient.GetTask(ctx, queryParams)
@@ -136,6 +144,21 @@ func (t *A2AQueryTaskTool) Execute(ctx context.Context, args map[string]any) (*d
 		Duration:  time.Since(startTime),
 		Data:      result,
 	}, nil
+}
+
+func (t *A2AQueryTaskTool) buildPollingBlockedError(agentURL string, state *domain.TaskPollingState) string {
+	if state == nil || state.NextPollTime.IsZero() {
+		return fmt.Sprintf("Cannot query task manually - background polling is active for agent %s. The A2A_SubmitTask tool is already polling for updates automatically. Please wait for the polling to complete.", agentURL)
+	}
+
+	timeUntilNextPoll := time.Until(state.NextPollTime)
+	if timeUntilNextPoll > 0 {
+		return fmt.Sprintf("Cannot query task manually - background polling is active for agent %s. Next automatic poll in %.1f seconds (interval: %v). The A2A_SubmitTask tool is already polling for updates. Wait for the next poll to complete before querying manually.",
+			agentURL, timeUntilNextPoll.Seconds(), state.CurrentInterval)
+	}
+
+	return fmt.Sprintf("Cannot query task manually - background polling is active for agent %s. Next automatic poll is happening now (interval: %v). The A2A_SubmitTask tool is already polling for updates. Wait for it to complete.",
+		agentURL, state.CurrentInterval)
 }
 
 func (t *A2AQueryTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {

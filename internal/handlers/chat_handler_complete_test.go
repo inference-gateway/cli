@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	adkclient "github.com/inference-gateway/adk/client"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -18,7 +19,10 @@ func TestChatHandler_Handle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			stateManager := services.NewStateManager(false)
+			createADKClient := func(agentURL string) adkclient.A2AClient {
+				return adkclient.NewClient(agentURL)
+			}
+			stateManager := services.NewStateManager(false, createADKClient)
 			handler := setupTestChatHandler(t, tt.setupMocks, stateManager)
 
 			cmd := handler.Handle(tt.msg)
@@ -254,6 +258,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 
 	conversationRepo := services.NewInMemoryConversationRepository(nil)
 	shortcutRegistry := shortcuts.NewRegistry()
+	messageQueue := services.NewMessageQueueService()
 
 	return NewChatHandler(
 		mockAgent,
@@ -264,6 +269,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		mockFile,
 		shortcutRegistry,
 		stateManager,
+		messageQueue,
 	)
 }
 
@@ -391,8 +397,12 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 			mockFile := &mocks.FakeFileService{}
 
 			conversationRepo := services.NewInMemoryConversationRepository(nil)
-			stateManager := services.NewStateManager(false)
+			createADKClient := func(agentURL string) adkclient.A2AClient {
+				return adkclient.NewClient(agentURL)
+			}
+			stateManager := services.NewStateManager(false, createADKClient)
 			shortcutRegistry := shortcuts.NewRegistry()
+			messageQueue := services.NewMessageQueueService()
 
 			handler := NewChatHandler(
 				mockAgent,
@@ -403,6 +413,7 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 				mockFile,
 				shortcutRegistry,
 				stateManager,
+				messageQueue,
 			)
 
 			cmd := handler.eventHandler.handleChatComplete(tt.msg)

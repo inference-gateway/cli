@@ -19,6 +19,9 @@ type ApplicationState struct {
 	// Tool Execution State
 	toolExecution *ToolExecutionSession
 
+	// Message Queue
+	queuedMessages []QueuedMessage
+
 	// UI Dimensions
 	width  int
 	height int
@@ -64,17 +67,23 @@ func (v ViewState) String() string {
 	}
 }
 
+// QueuedMessage represents a message in the input queue
+type QueuedMessage struct {
+	Message   sdk.Message
+	QueuedAt  time.Time
+	RequestID string
+}
+
 // ChatSession represents an active chat session state
 type ChatSession struct {
-	RequestID       string
-	Status          ChatStatus
-	StartTime       time.Time
-	Model           string
-	EventChannel    <-chan ChatEvent
-	IsFirstChunk    bool
-	HasToolCalls    bool
-	PendingMessages []sdk.Message
-	LastActivity    time.Time
+	RequestID    string
+	Status       ChatStatus
+	StartTime    time.Time
+	Model        string
+	EventChannel <-chan ChatEvent
+	IsFirstChunk bool
+	HasToolCalls bool
+	LastActivity time.Time
 }
 
 // ChatStatus represents the current chat operation status
@@ -211,6 +220,7 @@ func NewApplicationState() *ApplicationState {
 		previousView:       ViewStateModelSelection,
 		chatSession:        nil,
 		toolExecution:      nil,
+		queuedMessages:     make([]QueuedMessage, 0),
 		fileSelectionState: nil,
 		debugMode:          false,
 	}
@@ -271,16 +281,45 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 // StartChatSession initializes a new chat session
 func (s *ApplicationState) StartChatSession(requestID, model string, eventChan <-chan ChatEvent) {
 	s.chatSession = &ChatSession{
-		RequestID:       requestID,
-		Status:          ChatStatusStarting,
-		StartTime:       time.Now(),
-		Model:           model,
-		EventChannel:    eventChan,
-		IsFirstChunk:    true,
-		HasToolCalls:    false,
-		PendingMessages: make([]sdk.Message, 0),
-		LastActivity:    time.Now(),
+		RequestID:    requestID,
+		Status:       ChatStatusStarting,
+		StartTime:    time.Now(),
+		Model:        model,
+		EventChannel: eventChan,
+		IsFirstChunk: true,
+		HasToolCalls: false,
+		LastActivity: time.Now(),
 	}
+}
+
+// AddQueuedMessage adds a message to the input queue
+func (s *ApplicationState) AddQueuedMessage(message sdk.Message, requestID string) {
+	queuedMsg := QueuedMessage{
+		Message:   message,
+		QueuedAt:  time.Now(),
+		RequestID: requestID,
+	}
+	s.queuedMessages = append(s.queuedMessages, queuedMsg)
+}
+
+// PopQueuedMessage removes and returns the first message from the queue (FIFO)
+func (s *ApplicationState) PopQueuedMessage() *QueuedMessage {
+	if len(s.queuedMessages) == 0 {
+		return nil
+	}
+	msg := s.queuedMessages[0]
+	s.queuedMessages = s.queuedMessages[1:]
+	return &msg
+}
+
+// ClearQueuedMessages clears all queued messages
+func (s *ApplicationState) ClearQueuedMessages() {
+	s.queuedMessages = make([]QueuedMessage, 0)
+}
+
+// GetQueuedMessages returns the current queued messages
+func (s *ApplicationState) GetQueuedMessages() []QueuedMessage {
+	return s.queuedMessages
 }
 
 // UpdateChatStatus updates the chat session status

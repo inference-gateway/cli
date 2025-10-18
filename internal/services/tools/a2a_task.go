@@ -24,12 +24,15 @@ type A2ASubmitTaskTool struct {
 
 // A2ASubmitTaskResult represents the result of an A2A task operation
 type A2ASubmitTaskResult struct {
-	AgentName  string        `json:"agent_name"`
-	Task       *adk.Task     `json:"task"`
-	Success    bool          `json:"success"`
-	Message    string        `json:"message"`
-	Duration   time.Duration `json:"duration"`
-	TaskResult string        `json:"task_result"`
+	TaskID      string        `json:"task_id"`
+	ContextID   string        `json:"context_id,omitempty"`
+	AgentURL    string        `json:"agent_url"`
+	State       string        `json:"state"`
+	Message     string        `json:"message"`
+	TaskResult  string        `json:"task_result,omitempty"`
+	Success     bool          `json:"success"`
+	WentIdle    bool          `json:"went_idle,omitempty"`
+	IdleTimeout time.Duration `json:"idle_timeout,omitempty"`
 }
 
 // NewA2ASubmitTaskTool creates a new A2A task tool
@@ -39,7 +42,7 @@ func NewA2ASubmitTaskTool(cfg *config.Config, taskTracker domain.TaskTracker) *A
 		taskTracker: taskTracker,
 		client:      nil,
 		formatter: domain.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
-			return key == "metadata" || key == "task_description"
+			return key == "metadata"
 		}),
 	}
 }
@@ -51,14 +54,52 @@ func NewA2ASubmitTaskToolWithClient(cfg *config.Config, taskTracker domain.TaskT
 		taskTracker: taskTracker,
 		client:      client,
 		formatter: domain.NewCustomFormatter("A2A_SubmitTask", func(key string) bool {
-			return key == "metadata" || key == "task_description"
+			return key == "metadata"
 		}),
 	}
 }
 
+// shouldResumeTask checks if an existing task should be resumed (returns task state and whether to resume)
+func (t *A2ASubmitTaskTool) shouldResumeTask(ctx context.Context, adkClient client.A2AClient, existingTaskID string) (adk.TaskState, bool, error) {
+	if existingTaskID == "" {
+		return "", false, nil
+	}
+
+	queryParams := adk.TaskQueryParams{ID: existingTaskID}
+	taskStatus, err := adkClient.GetTask(ctx, queryParams)
+	if err != nil {
+		return "", false, nil
+	}
+
+	if taskStatus == nil {
+		return "", false, nil
+	}
+
+	var existingTask adk.Task
+	if err := mapToStruct(taskStatus.Result, &existingTask); err != nil {
+		return "", false, err
+	}
+
+	return existingTask.Status.State, true, nil
+}
+
+func (t *A2ASubmitTaskTool) validateExistingTask(ctx context.Context, adkClient client.A2AClient, existingTaskID, agentURL string, args map[string]any, startTime time.Time) *domain.ToolExecutionResult {
+	taskState, found, err := t.shouldResumeTask(ctx, adkClient, existingTaskID)
+	if err != nil || !found {
+		return nil
+	}
+
+	if taskState == adk.TaskStateWorking {
+		result, _ := t.errorResult(args, startTime, fmt.Sprintf("Cannot create new task: existing task %s is still in working state on agent %s. Wait for it to complete or use A2A_QueryTask to check status.", existingTaskID, agentURL))
+		return result
+	}
+
+	return nil
+}
+
 // Definition returns the tool definition for the LLM
 func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
-	description := "Submit work to an A2A agent server: ask questions, execute tasks, perform actions, or continue existing work. Use this for ANY interaction where you need an agent to respond with answers or complete work. The Query tool is ONLY for retrieving agent metadata/capabilities (agent card)."
+	description := "Submit work to an A2A agent server and delegate it to run in the background. This tool returns IMMEDIATELY after submission - you don't need to wait or poll manually. The system will automatically monitor the task and emit an event when it completes. After submission, you can continue with other work or ask the user if there's anything else to do while waiting. Use this for ANY interaction where you need an agent to respond with answers or complete work. The Query tool is ONLY for retrieving agent metadata/capabilities (agent card) or checking status of previously submitted tasks."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
@@ -83,7 +124,9 @@ func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
 }
 
 // Execute runs the tool with given arguments
-func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) { // nolint:gocyclo,cyclop,funlen,gocognit
+//
+//nolint:gocyclo,cyclop,funlen
+func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	startTime := time.Now()
 
 	if !t.IsEnabled() {
@@ -110,28 +153,12 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		return t.errorResult(args, startTime, "task_description parameter is required and must be a string")
 	}
 
+	var existingContextID string
 	var existingTaskID string
-	var contextID string
 	if t.taskTracker != nil {
-		existingTaskID = t.taskTracker.GetFirstTaskID()
-		contextID = t.taskTracker.GetContextID()
-	}
-
-	adkTask := adk.Task{
-		Kind: "task",
-		Metadata: map[string]any{
-			"description": taskDescription,
-		},
-		Status: adk.TaskStatus{
-			State: adk.TaskStateSubmitted,
-		},
-	}
-
-	if metadata, exists := args["metadata"]; exists {
-		if metadataMap, ok := metadata.(map[string]interface{}); ok {
-			for k, v := range metadataMap {
-				adkTask.Metadata[k] = v
-			}
+		existingContextID = t.taskTracker.GetLatestContextForAgent(agentURL)
+		if existingContextID != "" {
+			existingTaskID = t.taskTracker.GetLatestTaskForContext(existingContextID)
 		}
 	}
 
@@ -141,6 +168,14 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 	} else {
 		adkClient = client.NewClient(agentURL)
 	}
+
+	if result := t.validateExistingTask(ctx, adkClient, existingTaskID, agentURL, args, startTime); result != nil {
+		return result, nil
+	}
+
+	taskState, _, _ := t.shouldResumeTask(ctx, adkClient, existingTaskID)
+	shouldResume := taskState == adk.TaskStateInputRequired
+
 	message := adk.Message{
 		Kind: "message",
 		Role: "user",
@@ -152,12 +187,12 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		},
 	}
 
-	if existingTaskID != "" {
+	if shouldResume && existingTaskID != "" {
 		message.TaskID = &existingTaskID
 	}
 
-	if contextID != "" {
-		message.ContextID = &contextID
+	if existingContextID != "" {
+		message.ContextID = &existingContextID
 	}
 
 	msgParams := adk.MessageSendParams{
@@ -168,13 +203,11 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		},
 	}
 
-	var finalResult string
-	var taskID string
-
 	taskResponse, err := adkClient.SendTask(ctx, msgParams)
 	if err != nil {
-		if t.taskTracker != nil && existingTaskID != "" && t.isTaskNotFoundError(err) {
-			t.taskTracker.ClearTaskID()
+		shouldClear := t.taskTracker != nil && existingTaskID != "" && t.isTaskNotFoundError(err)
+		if shouldClear {
+			t.taskTracker.RemoveTask(existingTaskID)
 			return t.errorResult(args, startTime, fmt.Sprintf("Previous task no longer exists (cleared from tracker): %v", err))
 		}
 		return t.errorResult(args, startTime, fmt.Sprintf("A2A task submission failed: %v", err))
@@ -189,74 +222,46 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		return t.errorResult(args, startTime, "Task submitted but no task ID received")
 	}
 
-	taskID = submittedTask.ID
+	taskID := submittedTask.ID
+	receivedContextID := submittedTask.ContextID
 
-	if submittedTask.ContextID != "" {
-		contextID = submittedTask.ContextID
-		if t.taskTracker != nil {
-			t.taskTracker.SetContextID(submittedTask.ContextID)
+	if t.taskTracker != nil && receivedContextID != "" {
+		if !t.taskTracker.HasContext(receivedContextID) {
+			t.taskTracker.RegisterContext(agentURL, receivedContextID)
+		}
+
+		isCompleted := submittedTask.Status.State == adk.TaskStateCompleted
+		isFailed := submittedTask.Status.State == adk.TaskStateFailed
+		if existingTaskID != "" && (isCompleted || isFailed) {
+			t.taskTracker.RemoveTask(existingTaskID)
+			return t.errorResult(args, startTime, fmt.Sprintf("Previous task %s is already %s (cleared from tracker)", existingTaskID, submittedTask.Status.State))
+		}
+
+		if !shouldResume {
+			t.taskTracker.AddTask(receivedContextID, taskID)
 		}
 	}
 
-	if t.taskTracker != nil && existingTaskID != "" &&
-		(submittedTask.Status.State == adk.TaskStateCompleted || submittedTask.Status.State == adk.TaskStateFailed) {
-		t.taskTracker.ClearTaskID()
-		return t.errorResult(args, startTime, fmt.Sprintf("Previous task %s is already %s (cleared from tracker)", existingTaskID, submittedTask.Status.State))
+	pollCtx, cancel := context.WithCancel(context.Background())
+	pollingState := &domain.TaskPollingState{
+		TaskID:          taskID,
+		ContextID:       receivedContextID,
+		AgentURL:        agentURL,
+		TaskDescription: taskDescription,
+		IsPolling:       false,
+		StartedAt:       time.Now(),
+		LastPollAt:      time.Now(),
+		CancelFunc:      cancel,
+		ResultChan:      make(chan *domain.ToolExecutionResult, 1),
+		ErrorChan:       make(chan error, 1),
+		StatusChan:      make(chan *domain.A2ATaskStatusUpdate, 10),
 	}
 
-	if t.taskTracker != nil && existingTaskID == "" {
-		t.taskTracker.SetFirstTaskID(taskID)
+	if t.taskTracker != nil {
+		t.taskTracker.StartPolling(taskID, pollingState)
 	}
 
-	maxAttempts := 60
-	pollInterval := time.Duration(t.config.A2A.Task.StatusPollSeconds) * time.Second
-
-	for attempt := range maxAttempts {
-		select {
-		case <-ctx.Done():
-			return t.errorResult(args, startTime, "Task cancelled")
-		default:
-		}
-
-		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return t.errorResult(args, startTime, "Task cancelled")
-			case <-time.After(pollInterval):
-			}
-		}
-
-		queryParams := adk.TaskQueryParams{ID: taskID}
-		taskStatus, err := adkClient.GetTask(ctx, queryParams)
-		if err != nil {
-			continue
-		}
-
-		var currentTask adk.Task
-		if err := mapToStruct(taskStatus.Result, &currentTask); err != nil {
-			continue
-		}
-
-		if currentTask.Status.State == adk.TaskStateCompleted || currentTask.Status.State == adk.TaskStateFailed {
-			finalResult += t.extractTaskResult(currentTask)
-			break
-		}
-
-		if currentTask.Status.State == "input-required" {
-			return t.handleInputRequiredState(args, agentURL, taskID, currentTask, adkTask, startTime)
-		}
-	}
-
-	adkTask.Status.State = adk.TaskStateCompleted
-	if finalResult != "" {
-		adkTask.Metadata["result"] = finalResult
-	}
-	if taskID != "" {
-		adkTask.ID = taskID
-	}
-	if contextID != "" {
-		adkTask.ContextID = contextID
-	}
+	go t.pollTaskInBackground(pollCtx, agentURL, taskID, pollingState)
 
 	return &domain.ToolExecutionResult{
 		ToolName:  "A2A_SubmitTask",
@@ -264,14 +269,330 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 		Success:   true,
 		Duration:  time.Since(startTime),
 		Data: A2ASubmitTaskResult{
-			AgentName:  agentURL,
-			Task:       &adkTask,
+			TaskID:     submittedTask.ID,
+			ContextID:  submittedTask.ContextID,
+			AgentURL:   agentURL,
+			State:      string(submittedTask.Status.State),
 			Success:    true,
-			Message:    fmt.Sprintf("A2A task submitted to %s", agentURL),
-			Duration:   time.Since(startTime),
-			TaskResult: finalResult,
+			Message:    fmt.Sprintf("Task delegated to %s and monitoring in background", agentURL),
+			TaskResult: fmt.Sprintf("Task %s delegated successfully. You will be notified automatically when it completes - no need to poll manually.", taskID),
 		},
 	}, nil
+}
+
+// pollTaskInBackground polls for task completion in a background goroutine
+func (t *A2ASubmitTaskTool) pollTaskInBackground(
+	ctx context.Context,
+	agentURL string,
+	taskID string,
+	state *domain.TaskPollingState,
+) {
+	adkClient := t.getOrCreateClient(agentURL)
+
+	strategy := t.config.A2A.Task.PollingStrategy
+	if strategy == "immediate_idle" {
+		t.handleImmediateIdle(agentURL, taskID, state)
+		t.stopPolling(taskID)
+		return
+	}
+
+	currentInterval, deadline := t.initializePollingStrategy(agentURL, taskID, strategy)
+	state.CurrentInterval = currentInterval
+	state.NextPollTime = time.Now().Add(currentInterval)
+
+	pollAttempt := 0
+	var pollingDetails strings.Builder
+
+	ticker := time.NewTicker(currentInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			if state.ErrorChan != nil {
+				state.ErrorChan <- fmt.Errorf("task cancelled")
+			}
+			t.stopPolling(taskID)
+			return
+
+		case <-ticker.C:
+			pollAttempt++
+			pollingDetails.WriteString(fmt.Sprintf("Poll #%d: interval=%v, elapsed=%v\n",
+				pollAttempt, currentInterval, time.Since(state.StartedAt)))
+
+			shouldStop, stopResult := t.checkIdleConditions(agentURL, taskID, strategy, currentInterval, deadline, pollAttempt, state, pollingDetails.String())
+			if shouldStop {
+				if stopResult != nil && state.ResultChan != nil {
+					state.ResultChan <- stopResult
+					time.Sleep(100 * time.Millisecond)
+				}
+				t.stopPolling(taskID)
+				return
+			}
+
+			state.LastPollAt = time.Now()
+
+			currentTask, err := t.queryTask(ctx, adkClient, taskID)
+			if err != nil {
+				currentInterval = t.handleQueryError(agentURL, taskID, strategy, currentInterval, state, ticker, err)
+				continue
+			}
+
+			if currentTask == nil {
+				currentInterval = t.handleQueryError(agentURL, taskID, strategy, currentInterval, state, ticker, fmt.Errorf("failed to parse task"))
+				continue
+			}
+
+			t.publishStatusUpdate(state, taskID, agentURL, *currentTask)
+
+			shouldReturn, taskResult := t.handleTaskState(agentURL, taskID, pollAttempt, state, *currentTask, pollingDetails.String())
+			if shouldReturn {
+				if taskResult != nil && state.ResultChan != nil {
+					state.ResultChan <- taskResult
+					time.Sleep(100 * time.Millisecond)
+				}
+
+				if t.taskTracker != nil {
+					t.taskTracker.RemoveTask(taskID)
+				}
+				t.stopPolling(taskID)
+				return
+			}
+
+			currentInterval = t.applyExponentialBackoff(agentURL, taskID, strategy, currentInterval, pollAttempt, state, ticker)
+		}
+	}
+}
+
+func (t *A2ASubmitTaskTool) stopPolling(taskID string) {
+	if t.taskTracker != nil {
+		t.taskTracker.StopPolling(taskID)
+	}
+}
+
+func (t *A2ASubmitTaskTool) getOrCreateClient(agentURL string) client.A2AClient {
+	if t.client != nil {
+		return t.client
+	}
+	return client.NewClient(agentURL)
+}
+
+func (t *A2ASubmitTaskTool) handleImmediateIdle(agentURL, taskID string, state *domain.TaskPollingState) {
+	idleTimeout := time.Duration(t.config.A2A.Task.IdleTimeoutSec) * time.Second
+	result := &domain.ToolExecutionResult{
+		ToolName: "A2A_SubmitTask",
+		Success:  true,
+		Duration: time.Since(state.StartedAt),
+		Data: A2ASubmitTaskResult{
+			TaskID:      taskID,
+			AgentURL:    agentURL,
+			State:       string(adk.TaskStateWorking),
+			Success:     true,
+			Message:     "Task delegated and went idle immediately",
+			WentIdle:    true,
+			IdleTimeout: idleTimeout,
+		},
+	}
+	if state.ResultChan != nil {
+		state.ResultChan <- result
+	}
+}
+
+func (t *A2ASubmitTaskTool) initializePollingStrategy(agentURL, taskID, strategy string) (time.Duration, time.Time) {
+	var currentInterval time.Duration
+
+	if strategy == "exponential" {
+		currentInterval = time.Duration(t.config.A2A.Task.InitialPollIntervalSec) * time.Second
+	} else {
+		currentInterval = time.Duration(t.config.A2A.Task.StatusPollSeconds) * time.Second
+	}
+
+	idleTimeout := time.Duration(t.config.A2A.Task.IdleTimeoutSec) * time.Second
+	deadline := time.Now().Add(idleTimeout)
+
+	return currentInterval, deadline
+}
+
+func (t *A2ASubmitTaskTool) checkIdleConditions(agentURL, taskID, strategy string, currentInterval time.Duration, deadline time.Time, pollAttempt int, state *domain.TaskPollingState, pollingDetails string) (bool, *domain.ToolExecutionResult) {
+	idleTimeout := time.Duration(t.config.A2A.Task.IdleTimeoutSec) * time.Second
+
+	if strategy == "exponential" {
+		maxInterval := time.Duration(t.config.A2A.Task.MaxPollIntervalSec) * time.Second
+		if currentInterval >= maxInterval {
+			result := &domain.ToolExecutionResult{
+				ToolName: "A2A_SubmitTask",
+				Success:  true,
+				Duration: time.Since(state.StartedAt),
+				Data: A2ASubmitTaskResult{
+					TaskID:      taskID,
+					AgentURL:    agentURL,
+					State:       string(adk.TaskStateWorking),
+					Success:     true,
+					Message:     fmt.Sprintf("Task went idle after reaching max poll interval of %v", maxInterval),
+					WentIdle:    true,
+					IdleTimeout: idleTimeout,
+				},
+			}
+			return true, result
+		}
+	} else if time.Now().After(deadline) {
+		result := &domain.ToolExecutionResult{
+			ToolName: "A2A_SubmitTask",
+			Success:  true,
+			Duration: time.Since(state.StartedAt),
+			Data: A2ASubmitTaskResult{
+				TaskID:      taskID,
+				AgentURL:    agentURL,
+				State:       string(adk.TaskStateWorking),
+				Success:     true,
+				Message:     fmt.Sprintf("Task went idle after %v", idleTimeout),
+				WentIdle:    true,
+				IdleTimeout: idleTimeout,
+			},
+		}
+		return true, result
+	}
+
+	return false, nil
+}
+
+func (t *A2ASubmitTaskTool) queryTask(ctx context.Context, adkClient client.A2AClient, taskID string) (*adk.Task, error) {
+	queryParams := adk.TaskQueryParams{ID: taskID}
+	taskStatus, err := adkClient.GetTask(ctx, queryParams)
+	if err != nil {
+		return nil, err
+	}
+
+	var currentTask adk.Task
+	if err := mapToStruct(taskStatus.Result, &currentTask); err != nil {
+		return nil, err
+	}
+
+	return &currentTask, nil
+}
+
+func (t *A2ASubmitTaskTool) handleQueryError(agentURL, taskID, strategy string, currentInterval time.Duration, state *domain.TaskPollingState, ticker *time.Ticker, err error) time.Duration {
+	if strategy != "exponential" {
+		return currentInterval
+	}
+
+	newInterval := time.Duration(float64(currentInterval) * t.config.A2A.Task.BackoffMultiplier)
+	maxInterval := time.Duration(t.config.A2A.Task.MaxPollIntervalSec) * time.Second
+	if newInterval > maxInterval {
+		newInterval = maxInterval
+	}
+
+	state.CurrentInterval = newInterval
+	state.NextPollTime = time.Now().Add(newInterval)
+	ticker.Reset(newInterval)
+
+	return newInterval
+}
+
+func (t *A2ASubmitTaskTool) publishStatusUpdate(state *domain.TaskPollingState, taskID, agentURL string, currentTask adk.Task) {
+	if state.StatusChan == nil {
+		return
+	}
+
+	statusMessage := ""
+	if currentTask.Status.Message != nil {
+		statusMessage = extractTextFromParts(currentTask.Status.Message.Parts)
+	}
+
+	statusUpdate := &domain.A2ATaskStatusUpdate{
+		TaskID:    taskID,
+		AgentURL:  agentURL,
+		State:     string(currentTask.Status.State),
+		Message:   statusMessage,
+		Timestamp: time.Now(),
+	}
+
+	select {
+	case state.StatusChan <- statusUpdate:
+	default:
+	}
+}
+
+func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt int, state *domain.TaskPollingState, currentTask adk.Task, pollingDetails string) (bool, *domain.ToolExecutionResult) {
+	switch currentTask.Status.State {
+	case adk.TaskStateCompleted:
+		finalResult := t.extractTaskResult(currentTask)
+		result := &domain.ToolExecutionResult{
+			ToolName: "A2A_SubmitTask",
+			Success:  true,
+			Duration: time.Since(state.StartedAt),
+			Data: A2ASubmitTaskResult{
+				TaskID:     currentTask.ID,
+				ContextID:  currentTask.ContextID,
+				AgentURL:   agentURL,
+				State:      string(currentTask.Status.State),
+				Success:    true,
+				Message:    fmt.Sprintf("Task %s", currentTask.Status.State),
+				TaskResult: finalResult,
+			},
+		}
+		return true, result
+
+	case adk.TaskStateFailed:
+		finalResult := t.extractTaskResult(currentTask)
+		result := &domain.ToolExecutionResult{
+			ToolName: "A2A_SubmitTask",
+			Success:  false,
+			Duration: time.Since(state.StartedAt),
+			Data: A2ASubmitTaskResult{
+				TaskID:     currentTask.ID,
+				ContextID:  currentTask.ContextID,
+				AgentURL:   agentURL,
+				State:      string(currentTask.Status.State),
+				Success:    false,
+				Message:    fmt.Sprintf("Task %s", currentTask.Status.State),
+				TaskResult: finalResult,
+			},
+		}
+		return true, result
+
+	case adk.TaskStateInputRequired:
+		inputMessage := ""
+		if currentTask.Status.Message != nil {
+			inputMessage = extractTextFromParts(currentTask.Status.Message.Parts)
+		}
+
+		result := &domain.ToolExecutionResult{
+			ToolName: "A2A_SubmitTask",
+			Success:  true,
+			Duration: time.Since(state.StartedAt),
+			Data: A2ASubmitTaskResult{
+				TaskID:     currentTask.ID,
+				ContextID:  currentTask.ContextID,
+				AgentURL:   agentURL,
+				State:      string(currentTask.Status.State),
+				Success:    true,
+				Message:    fmt.Sprintf("Task requires input: %s", inputMessage),
+				TaskResult: inputMessage,
+			},
+		}
+		return true, result
+	}
+
+	return false, nil
+}
+
+func (t *A2ASubmitTaskTool) applyExponentialBackoff(agentURL, taskID, strategy string, currentInterval time.Duration, pollAttempt int, state *domain.TaskPollingState, ticker *time.Ticker) time.Duration {
+	if strategy != "exponential" {
+		return currentInterval
+	}
+
+	newInterval := time.Duration(float64(currentInterval) * t.config.A2A.Task.BackoffMultiplier)
+	maxInterval := time.Duration(t.config.A2A.Task.MaxPollIntervalSec) * time.Second
+	if newInterval > maxInterval {
+		newInterval = maxInterval
+	}
+
+	state.CurrentInterval = newInterval
+	state.NextPollTime = time.Now().Add(newInterval)
+	ticker.Reset(newInterval)
+
+	return newInterval
 }
 
 // Validate checks if the tool arguments are valid
@@ -332,11 +653,21 @@ func (t *A2ASubmitTaskTool) FormatPreview(result *domain.ToolExecutionResult) st
 		return result.Error
 	}
 
-	if data, ok := result.Data.(A2ASubmitTaskResult); ok {
-		return fmt.Sprintf("A2A Task: %s", data.Message)
+	data, ok := result.Data.(A2ASubmitTaskResult)
+	if !ok {
+		return "A2A task operation completed"
 	}
 
-	return "A2A task operation completed"
+	preview := fmt.Sprintf("Task %s", data.State)
+	if data.Message != "" {
+		preview = data.Message
+	}
+
+	if data.WentIdle {
+		return fmt.Sprintf("%s (went idle)", preview)
+	}
+
+	return preview
 }
 
 // FormatForUI formats the result for UI display
@@ -368,6 +699,8 @@ func (t *A2ASubmitTaskTool) ShouldAlwaysExpand() bool {
 
 // errorResult creates an error result
 func (t *A2ASubmitTaskTool) errorResult(args map[string]any, startTime time.Time, errorMsg string) (*domain.ToolExecutionResult, error) {
+	agentURL, _ := args["agent_url"].(string)
+
 	return &domain.ToolExecutionResult{
 		ToolName:  "A2A_SubmitTask",
 		Arguments: args,
@@ -375,8 +708,10 @@ func (t *A2ASubmitTaskTool) errorResult(args map[string]any, startTime time.Time
 		Duration:  time.Since(startTime),
 		Error:     errorMsg,
 		Data: A2ASubmitTaskResult{
-			Success: false,
-			Message: errorMsg,
+			AgentURL: agentURL,
+			State:    string(adk.TaskStateFailed),
+			Success:  false,
+			Message:  errorMsg,
 		},
 	}, nil
 }
@@ -402,37 +737,6 @@ func (t *A2ASubmitTaskTool) extractTaskResult(task adk.Task) string {
 		return extractTextFromParts(task.Status.Message.Parts)
 	}
 	return ""
-}
-
-// handleInputRequiredState handles the input-required task state
-func (t *A2ASubmitTaskTool) handleInputRequiredState(args map[string]any, agentURL, taskID string, currentTask adk.Task, adkTask adk.Task, startTime time.Time) (*domain.ToolExecutionResult, error) {
-	inputMessage := ""
-	if currentTask.Status.Message != nil {
-		inputMessage = extractTextFromParts(currentTask.Status.Message.Parts)
-	}
-
-	if inputMessage == "" {
-		inputMessage = "Input required"
-	}
-
-	adkTask.Status.State = "input-required"
-	adkTask.Metadata["input_required"] = inputMessage
-	adkTask.ID = taskID
-
-	return &domain.ToolExecutionResult{
-		ToolName:  "A2A_SubmitTask",
-		Arguments: args,
-		Success:   true,
-		Duration:  time.Since(startTime),
-		Data: A2ASubmitTaskResult{
-			AgentName:  agentURL,
-			Task:       &adkTask,
-			Success:    true,
-			Message:    fmt.Sprintf("Task %s requires input: %s", taskID, inputMessage),
-			Duration:   time.Since(startTime),
-			TaskResult: inputMessage,
-		},
-	}, nil
 }
 
 // isTaskNotFoundError checks if the error indicates a task was not found
