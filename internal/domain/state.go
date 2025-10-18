@@ -44,7 +44,7 @@ const (
 	ViewStateConversationSelection
 	ViewStateThemeSelection
 	ViewStateA2AServers
-	ViewStateTaskManagement
+	ViewStateA2ATaskManagement
 )
 
 func (v ViewState) String() string {
@@ -63,8 +63,8 @@ func (v ViewState) String() string {
 		return "ThemeSelection"
 	case ViewStateA2AServers:
 		return "A2AServers"
-	case ViewStateTaskManagement:
-		return "TaskManagement"
+	case ViewStateA2ATaskManagement:
+		return "A2ATaskManagement"
 	default:
 		return "Unknown"
 	}

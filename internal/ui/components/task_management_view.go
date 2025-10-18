@@ -41,7 +41,6 @@ type TaskManagerImpl struct {
 	loading          bool
 	loadError        error
 	confirmCancel    bool
-	cancelError      error
 	showInfo         bool
 	currentView      TaskViewMode
 	maxCompleted     int
@@ -466,7 +465,7 @@ func (t *TaskManagerImpl) View() string {
 }
 
 func (t *TaskManagerImpl) renderLoading() string {
-	return fmt.Sprintf("Loading tasks...")
+	return "Loading tasks..."
 }
 
 func (t *TaskManagerImpl) renderError() string {
@@ -481,7 +480,7 @@ func (t *TaskManagerImpl) renderTaskInfo() string {
 	task := t.filteredTasks[t.selected]
 	var content strings.Builder
 
-	content.WriteString(fmt.Sprintf("Task Details\n"))
+	content.WriteString("Task Details\n")
 	content.WriteString(strings.Repeat("─", t.width-4) + "\n\n")
 	content.WriteString(fmt.Sprintf("ID: %s\n", task.TaskID))
 	content.WriteString(fmt.Sprintf("Agent: %s\n", task.AgentName))
@@ -534,23 +533,24 @@ func (t *TaskManagerImpl) renderTaskList() string {
 	// Task list
 	if len(t.filteredTasks) == 0 {
 		content.WriteString("No tasks found.\n")
-	} else {
-		for i, task := range t.filteredTasks {
-			prefix := "  "
-			if i == t.selected {
-				prefix = "> "
-			}
+		return content.String()
+	}
 
-			status := task.Status
-			if task.Completed {
-				status = "Completed"
-			} else if task.Canceled {
-				status = "Canceled"
-			}
-
-			content.WriteString(fmt.Sprintf("%s%s (%s) - %v\n",
-				prefix, task.AgentName, status, task.ElapsedTime.Round(time.Second)))
+	for i, task := range t.filteredTasks {
+		prefix := "  "
+		if i == t.selected {
+			prefix = "> "
 		}
+
+		status := task.Status
+		if task.Completed {
+			status = "Completed"
+		} else if task.Canceled {
+			status = "Canceled"
+		}
+
+		content.WriteString(fmt.Sprintf("%s%s (%s) - %v\n",
+			prefix, task.AgentName, status, task.ElapsedTime.Round(time.Second)))
 	}
 
 	// Cancel confirmation

@@ -290,8 +290,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleThemeSelectionView(msg)
 	case domain.ViewStateA2AServers:
 		return app.handleA2AServersView(msg)
-	case domain.ViewStateTaskManagement:
-		return app.handleTaskManagementView(msg)
+	case domain.ViewStateA2ATaskManagement:
+		return app.handleA2ATaskManagementView(msg)
 	default:
 		return nil
 	}
@@ -403,8 +403,8 @@ func (app *ChatApplication) View() string {
 		return app.renderThemeSelection()
 	case domain.ViewStateA2AServers:
 		return app.renderA2AServers()
-	case domain.ViewStateTaskManagement:
-		return app.renderTaskManagement()
+	case domain.ViewStateA2ATaskManagement:
+		return app.renderA2ATaskManagement()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -477,7 +477,7 @@ func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cm
 	return cmds
 }
 
-func (app *ChatApplication) handleTaskManagementView(msg tea.Msg) []tea.Cmd {
+func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if app.taskManager == nil {
@@ -504,19 +504,19 @@ func (app *ChatApplication) handleTaskManagementView(msg tea.Msg) []tea.Cmd {
 		cmds = append(cmds, cmd)
 	}
 
-	return app.handleTaskManagement(cmds)
+	return app.handleA2ATaskManagement(cmds)
 }
 
-func (app *ChatApplication) handleTaskManagement(cmds []tea.Cmd) []tea.Cmd {
+func (app *ChatApplication) handleA2ATaskManagement(cmds []tea.Cmd) []tea.Cmd {
 	if app.taskManager.IsCancelled() {
-		return app.handleTaskManagementCancelled(cmds)
+		return app.handleA2ATaskManagementCancelled(cmds)
 	}
 
 	// Handle task-specific events
 	return cmds
 }
 
-func (app *ChatApplication) handleTaskManagementCancelled(cmds []tea.Cmd) []tea.Cmd {
+func (app *ChatApplication) handleA2ATaskManagementCancelled(cmds []tea.Cmd) []tea.Cmd {
 	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
@@ -680,7 +680,7 @@ func (app *ChatApplication) renderConversationSelection() string {
 	return app.conversationSelector.View()
 }
 
-func (app *ChatApplication) renderTaskManagement() string {
+func (app *ChatApplication) renderA2ATaskManagement() string {
 	if app.taskManager == nil {
 		return "Task management requires A2A to be enabled in configuration."
 	}

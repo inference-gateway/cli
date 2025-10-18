@@ -7,7 +7,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
-func TestTaskManagementShortcut(t *testing.T) {
+func TestA2ATaskManagementShortcut(t *testing.T) {
 	// Test with A2A enabled
 	configWithA2A := &config.Config{
 		A2A: config.A2AConfig{
@@ -15,7 +15,7 @@ func TestTaskManagementShortcut(t *testing.T) {
 		},
 	}
 
-	shortcut := NewTaskManagementShortcut(configWithA2A)
+	shortcut := NewA2ATaskManagementShortcut(configWithA2A)
 
 	// Test basic properties
 	if shortcut.GetName() != "tasks" {
@@ -46,12 +46,12 @@ func TestTaskManagementShortcut(t *testing.T) {
 		t.Error("Expected successful execution")
 	}
 
-	if result.SideEffect != SideEffectShowTaskManagement {
-		t.Errorf("Expected SideEffectShowTaskManagement, got %v", result.SideEffect)
+	if result.SideEffect != SideEffectShowA2ATaskManagement {
+		t.Errorf("Expected SideEffectShowA2ATaskManagement, got %v", result.SideEffect)
 	}
 }
 
-func TestTaskManagementShortcutDisabled(t *testing.T) {
+func TestA2ATaskManagementShortcutDisabled(t *testing.T) {
 	// Test with A2A disabled
 	configWithoutA2A := &config.Config{
 		A2A: config.A2AConfig{
@@ -59,7 +59,7 @@ func TestTaskManagementShortcutDisabled(t *testing.T) {
 		},
 	}
 
-	shortcut := NewTaskManagementShortcut(configWithoutA2A)
+	shortcut := NewA2ATaskManagementShortcut(configWithoutA2A)
 
 	// Test execution with A2A disabled
 	result, err := shortcut.Execute(context.Background(), []string{})

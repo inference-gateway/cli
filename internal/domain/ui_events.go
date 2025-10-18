@@ -139,8 +139,8 @@ type TaskCancelledEvent struct {
 	Error  error
 }
 
-// InitializeTaskManagementEvent indicates task management view should be initialized
-type InitializeTaskManagementEvent struct{}
+// InitializeA2ATaskManagementEvent indicates A2A task management view should be initialized
+type InitializeA2ATaskManagementEvent struct{}
 
 // Tool Execution Events
 

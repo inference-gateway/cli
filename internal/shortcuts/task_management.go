@@ -6,24 +6,24 @@ import (
 	config "github.com/inference-gateway/cli/config"
 )
 
-// TaskManagementShortcut shows the task management dropdown
-type TaskManagementShortcut struct {
+// A2ATaskManagementShortcut shows the A2A task management dropdown
+type A2ATaskManagementShortcut struct {
 	configService *config.Config
 }
 
-// NewTaskManagementShortcut creates a new task management shortcut
-func NewTaskManagementShortcut(configService *config.Config) *TaskManagementShortcut {
-	return &TaskManagementShortcut{configService: configService}
+// NewA2ATaskManagementShortcut creates a new A2A task management shortcut
+func NewA2ATaskManagementShortcut(configService *config.Config) *A2ATaskManagementShortcut {
+	return &A2ATaskManagementShortcut{configService: configService}
 }
 
-func (t *TaskManagementShortcut) GetName() string { return "tasks" }
-func (t *TaskManagementShortcut) GetDescription() string {
-	return "Show task management interface"
+func (t *A2ATaskManagementShortcut) GetName() string { return "tasks" }
+func (t *A2ATaskManagementShortcut) GetDescription() string {
+	return "Show A2A task management interface"
 }
-func (t *TaskManagementShortcut) GetUsage() string              { return "/tasks" }
-func (t *TaskManagementShortcut) CanExecute(args []string) bool { return len(args) == 0 }
+func (t *A2ATaskManagementShortcut) GetUsage() string              { return "/tasks" }
+func (t *A2ATaskManagementShortcut) CanExecute(args []string) bool { return len(args) == 0 }
 
-func (t *TaskManagementShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+func (t *A2ATaskManagementShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	// Check if A2A is enabled
 	if !t.configService.A2A.Enabled {
 		return ShortcutResult{
@@ -35,6 +35,6 @@ func (t *TaskManagementShortcut) Execute(ctx context.Context, args []string) (Sh
 	return ShortcutResult{
 		Output:     "",
 		Success:    true,
-		SideEffect: SideEffectShowTaskManagement,
+		SideEffect: SideEffectShowA2ATaskManagement,
 	}, nil
 }
