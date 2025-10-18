@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	tools "github.com/inference-gateway/cli/internal/services/tools"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -555,6 +556,31 @@ func (e *ChatEventHandler) handleA2ATaskCompleted(
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	var taskResult string
+	if msg.Result.Data != nil {
+		if submitResult, ok := msg.Result.Data.(tools.A2ASubmitTaskResult); ok {
+			taskResult = submitResult.TaskResult
+		}
+	}
+
+	if taskResult == "" {
+		taskResult = e.handler.conversationRepo.FormatToolResultForLLM(&msg.Result)
+	}
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.StreamingContentEvent{
+			RequestID: msg.RequestID,
+			Content:   taskResult,
+			Delta:     false,
+		}
+	})
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent{
+			History: e.handler.conversationRepo.GetMessages(),
+		}
+	})
+
 	backgroundTasks := e.handler.stateManager.GetBackgroundTasks(e.handler.toolService)
 	hasBackgroundTasks := len(backgroundTasks) > 0
 
@@ -584,6 +610,35 @@ func (e *ChatEventHandler) handleA2ATaskFailed(
 	msg domain.A2ATaskFailedEvent,
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
+
+	var taskResult string
+	if msg.Result.Data != nil {
+		if submitResult, ok := msg.Result.Data.(tools.A2ASubmitTaskResult); ok {
+			taskResult = submitResult.TaskResult
+		}
+	}
+
+	var errorContent string
+	if taskResult != "" {
+		errorContent = fmt.Sprintf("[A2A Task Failed]\n\n%s", taskResult)
+	} else {
+		formattedResult := e.handler.conversationRepo.FormatToolResultForLLM(&msg.Result)
+		errorContent = fmt.Sprintf("[A2A Task Failed]\n\nError: %s\n\n%s", msg.Error, formattedResult)
+	}
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.StreamingContentEvent{
+			RequestID: msg.RequestID,
+			Content:   errorContent,
+			Delta:     false,
+		}
+	})
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent{
+			History: e.handler.conversationRepo.GetMessages(),
+		}
+	})
 
 	backgroundTasks := e.handler.stateManager.GetBackgroundTasks(e.handler.toolService)
 	hasBackgroundTasks := len(backgroundTasks) > 0
@@ -631,7 +686,7 @@ func (e *ChatEventHandler) handleA2ATaskStatusUpdate(
 }
 
 func (e *ChatEventHandler) handleMessageQueued(
-	msg domain.MessageQueuedEvent,
+	_ domain.MessageQueuedEvent,
 ) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 

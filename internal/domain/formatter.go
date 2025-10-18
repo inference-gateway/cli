@@ -76,9 +76,38 @@ func (f BaseFormatter) FormatStatusIcon(success bool) string {
 	return icons.CrossMark
 }
 
-// FormatDuration formats a duration for display
+// FormatDuration formats a duration for display in a human-friendly way
 func (f BaseFormatter) FormatDuration(result *ToolExecutionResult) string {
-	return result.Duration.String()
+	d := result.Duration
+
+	if d < 1e3 {
+		return fmt.Sprintf("%dns", d.Nanoseconds())
+	}
+	if d < 1e6 {
+		return fmt.Sprintf("%dµs", d.Microseconds())
+	}
+	if d < 1e9 {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	if d < 60e9 {
+		return fmt.Sprintf("%ds", int64(d.Seconds()))
+	}
+
+	if d < 3600e9 {
+		minutes := int64(d.Minutes())
+		seconds := int64(d.Seconds()) % 60
+		if seconds == 0 {
+			return fmt.Sprintf("%dm", minutes)
+		}
+		return fmt.Sprintf("%dm%ds", minutes, seconds)
+	}
+
+	hours := int64(d.Hours())
+	minutes := int64(d.Minutes()) % 60
+	if minutes == 0 {
+		return fmt.Sprintf("%dh", hours)
+	}
+	return fmt.Sprintf("%dh%dm", hours, minutes)
 }
 
 // FormatExpandedHeader formats the expanded view header with tool call and metadata
@@ -87,15 +116,15 @@ func (f BaseFormatter) FormatExpandedHeader(result *ToolExecutionResult) string 
 	toolCall := f.FormatToolCall(result.Arguments, false)
 
 	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("├─ ⏱️  Duration: %s\n", f.FormatDuration(result)))
-	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", f.FormatStatus(result.Success)))
+	output.WriteString(fmt.Sprintf("├─ Duration: %s\n", f.FormatDuration(result)))
+	output.WriteString(fmt.Sprintf("├─ Status: %s\n", f.FormatStatus(result.Success)))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("├─ ✗ Error: %s\n", result.Error))
+		output.WriteString(fmt.Sprintf("├─ Error: %s\n", result.Error))
 	}
 
 	if len(result.Arguments) > 0 {
-		output.WriteString("├─ 📝 Arguments:\n")
+		output.WriteString("├─ Arguments:\n")
 		keys := make([]string, 0, len(result.Arguments))
 		for key := range result.Arguments {
 			keys = append(keys, key)
@@ -127,9 +156,9 @@ func (f BaseFormatter) FormatExpandedFooter(result *ToolExecutionResult, hasData
 
 	var output strings.Builder
 	if hasDataSection {
-		output.WriteString("└─ 🏷️  Metadata:\n")
+		output.WriteString("└─ Metadata:\n")
 	} else {
-		output.WriteString("└─ 🏷️  Metadata:\n")
+		output.WriteString("└─ Metadata:\n")
 	}
 
 	keys := make([]string, 0, len(result.Metadata))
@@ -157,9 +186,9 @@ func (f BaseFormatter) FormatDataSection(dataContent string, hasMetadata bool) s
 
 	var output strings.Builder
 	if hasMetadata {
-		output.WriteString("├─ 📄 Result:\n")
+		output.WriteString("├─ Result:\n")
 	} else {
-		output.WriteString("└─ 📄 Result:\n")
+		output.WriteString("└─ Result:\n")
 	}
 
 	for _, line := range strings.Split(strings.TrimRight(dataContent, "\n"), "\n") {
@@ -224,15 +253,15 @@ func (f CustomFormatter) FormatExpandedHeader(result *ToolExecutionResult) strin
 	toolCall := f.FormatToolCall(result.Arguments, false)
 
 	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("├─ ⏱️  Duration: %s\n", f.FormatDuration(result)))
-	output.WriteString(fmt.Sprintf("├─ 📊 Status: %s\n", f.FormatStatus(result.Success)))
+	output.WriteString(fmt.Sprintf("├─ Duration: %s\n", f.FormatDuration(result)))
+	output.WriteString(fmt.Sprintf("├─ Status: %s\n", f.FormatStatus(result.Success)))
 
 	if result.Error != "" {
-		output.WriteString(fmt.Sprintf("├─ ✗ Error: %s\n", result.Error))
+		output.WriteString(fmt.Sprintf("├─ Error: %s\n", result.Error))
 	}
 
 	if len(result.Arguments) > 0 {
-		output.WriteString("├─ 📝 Arguments:\n")
+		output.WriteString("├─ Arguments:\n")
 		keys := make([]string, 0, len(result.Arguments))
 		for key := range result.Arguments {
 			keys = append(keys, key)

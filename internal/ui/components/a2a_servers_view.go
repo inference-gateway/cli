@@ -121,7 +121,7 @@ func (v *A2AServersView) Render() string {
 
 func (v *A2AServersView) renderLoading() string {
 	headerColor := v.getHeaderColor()
-	content := headerColor + "🔍 Loading A2A servers..." + colors.Reset
+	content := headerColor + "Loading A2A servers..." + colors.Reset
 
 	style := lipgloss.NewStyle().
 		Width(v.width).
@@ -164,8 +164,7 @@ func (v *A2AServersView) renderEmpty() string {
 	dimColor := v.getDimColor()
 
 	var content strings.Builder
-	warningIcon := colors.CreateColoredText("⚠️", colors.WarningColor)
-	content.WriteString(fmt.Sprintf("%s %sNo A2A agent servers configured%s\n\n", warningIcon, warningColor, colors.Reset))
+	content.WriteString(fmt.Sprintf("%sNo A2A agent servers configured%s\n\n", warningColor, colors.Reset))
 
 	content.WriteString(fmt.Sprintf("%sConfigure agents in your config or via environment variables.%s\n\n", dimColor, colors.Reset))
 	content.WriteString("Available A2A tools:\n")
@@ -213,40 +212,35 @@ func (v *A2AServersView) renderServers() string {
 }
 
 func (v *A2AServersView) renderSingleServer(server A2AServerInfo) string {
-	agentIcon := colors.CreateColoredText("🤖", colors.AccentColor)
 	successIcon := icons.StyledCheckMark()
 	dimColor := v.getDimColor()
 	statusColor := v.getStatusColor()
 
 	var content strings.Builder
-	content.WriteString(fmt.Sprintf("%s **%s** (%s%s%s) %s\n",
-		agentIcon, server.Name, dimColor, server.ID, colors.Reset, successIcon))
+	content.WriteString(fmt.Sprintf("**%s** (%s%s%s) %s\n",
+		server.Name, dimColor, server.ID, colors.Reset, successIcon))
 
 	if server.Description != "" {
 		content.WriteString(fmt.Sprintf("   %s\n", server.Description))
 	}
 
 	if server.DocumentsURL != nil && *server.DocumentsURL != "" {
-		docsIcon := colors.CreateColoredText("📚", colors.DimColor)
-		content.WriteString(fmt.Sprintf("   %s Docs: %s\n", docsIcon, *server.DocumentsURL))
+		content.WriteString(fmt.Sprintf("   Docs: %s\n", *server.DocumentsURL))
 	}
 
 	if len(server.InputModes) > 0 {
-		inputIcon := colors.CreateColoredText("📥", colors.StatusColor)
-		content.WriteString(fmt.Sprintf("   %s Input: %s%s%s\n",
-			inputIcon, statusColor, strings.Join(server.InputModes, ", "), colors.Reset))
+		content.WriteString(fmt.Sprintf("   Input: %s%s%s\n",
+			statusColor, strings.Join(server.InputModes, ", "), colors.Reset))
 	}
 
 	if len(server.OutputModes) > 0 {
-		outputIcon := colors.CreateColoredText("📤", colors.StatusColor)
-		content.WriteString(fmt.Sprintf("   %s Output: %s%s%s\n",
-			outputIcon, statusColor, strings.Join(server.OutputModes, ", "), colors.Reset))
+		content.WriteString(fmt.Sprintf("   Output: %s%s%s\n",
+			statusColor, strings.Join(server.OutputModes, ", "), colors.Reset))
 	}
 
 	if server.URL != "" {
-		linkIcon := colors.CreateColoredText("🔗", colors.DimColor)
-		content.WriteString(fmt.Sprintf("   %s URL: %s%s%s\n",
-			linkIcon, dimColor, server.URL, colors.Reset))
+		content.WriteString(fmt.Sprintf("   URL: %s%s%s\n",
+			dimColor, server.URL, colors.Reset))
 	}
 
 	return content.String()
@@ -259,8 +253,7 @@ func (v *A2AServersView) renderConnectionInfo() string {
 	content.WriteString("\n")
 	content.WriteString(fmt.Sprintf("%s━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%s\n", dimColor, colors.Reset))
 
-	networkIcon := colors.CreateColoredText("🌐", colors.AccentColor)
-	content.WriteString(fmt.Sprintf("%s A2A Connection Mode%s\n", networkIcon, colors.Reset))
+	content.WriteString(fmt.Sprintf("A2A Connection Mode%s\n", colors.Reset))
 
 	content.WriteString("\n")
 	content.WriteString(fmt.Sprintf("%sPress ESC to return to chat%s", dimColor, colors.Reset))

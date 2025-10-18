@@ -347,9 +347,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 						continue
 					}
 				case hasBackgroundTasks:
-					logger.Debug("Waiting for background A2A tasks to complete",
-						"request_id", req.RequestID,
-						"turn", turns)
 					time.Sleep(500 * time.Millisecond)
 					continue
 				default:

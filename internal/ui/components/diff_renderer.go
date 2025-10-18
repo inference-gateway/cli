@@ -44,10 +44,10 @@ func (d *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
 
 	var result strings.Builder
 
-	result.WriteString(d.fileStyle.Render(fmt.Sprintf("📄 %s", filePath)))
+	result.WriteString(d.fileStyle.Render(filePath))
 	result.WriteString("\n")
 	if replaceAll {
-		result.WriteString(d.contextStyle.Render("🔄 Mode: Replace all occurrences"))
+		result.WriteString(d.contextStyle.Render("Mode: Replace all occurrences"))
 		result.WriteString("\n")
 	}
 	result.WriteString("\n")
@@ -69,7 +69,7 @@ func (d *DiffRenderer) RenderMultiEditToolArguments(args map[string]any) string 
 
 	var result strings.Builder
 
-	result.WriteString(d.fileStyle.Render(fmt.Sprintf("📄 %s", filePath)))
+	result.WriteString(d.fileStyle.Render(filePath))
 	result.WriteString("\n\n")
 
 	editsArray, ok := editsInterface.([]any)
@@ -78,7 +78,7 @@ func (d *DiffRenderer) RenderMultiEditToolArguments(args map[string]any) string 
 		return result.String()
 	}
 
-	result.WriteString(d.contextStyle.Render(fmt.Sprintf("✏️  Operations: %d edits", len(editsArray))))
+	result.WriteString(d.contextStyle.Render(fmt.Sprintf("Operations: %d edits", len(editsArray))))
 	result.WriteString("\n\n")
 
 	for i, editInterface := range editsArray {
@@ -113,9 +113,9 @@ func (d *DiffRenderer) RenderWriteToolArguments(args map[string]any) string {
 
 	var result strings.Builder
 
-	result.WriteString(d.fileStyle.Render(fmt.Sprintf("📄 %s", filePath)))
+	result.WriteString(d.fileStyle.Render(filePath))
 	result.WriteString("\n\n")
-	result.WriteString(d.contextStyle.Render("📝 Content:"))
+	result.WriteString(d.contextStyle.Render("Content:"))
 	result.WriteString("\n")
 	result.WriteString(content)
 	if !strings.HasSuffix(content, "\n") {
@@ -130,11 +130,11 @@ func (d *DiffRenderer) RenderDiff(diffInfo DiffInfo) string {
 	var result strings.Builder
 
 	if diffInfo.Title != "" {
-		result.WriteString(d.headerStyle.Render(fmt.Sprintf("✨ %s", diffInfo.Title)))
+		result.WriteString(d.headerStyle.Render(diffInfo.Title))
 		result.WriteString("\n\n")
 	}
 
-	result.WriteString(d.fileStyle.Render(fmt.Sprintf("📄 %s", diffInfo.FilePath)))
+	result.WriteString(d.fileStyle.Render(diffInfo.FilePath))
 	result.WriteString("\n\n")
 
 	result.WriteString(d.headerStyle.Render(fmt.Sprintf("--- a/%s", diffInfo.FilePath)))

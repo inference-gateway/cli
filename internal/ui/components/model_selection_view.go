@@ -146,7 +146,7 @@ func (m *ModelSelectorImpl) updateSearch() {
 func (m *ModelSelectorImpl) View() string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("%s🤖 Select a Model%s\n\n",
+	b.WriteString(fmt.Sprintf("%sSelect a Model%s\n\n",
 		m.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset))
 
 	if m.searchMode {

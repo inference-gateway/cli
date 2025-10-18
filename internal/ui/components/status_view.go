@@ -223,17 +223,17 @@ func (sv *StatusView) Render() string {
 func (sv *StatusView) getStatusIcon() string {
 	switch sv.statusType {
 	case domain.StatusThinking:
-		return "🤔"
+		return ""
 	case domain.StatusGenerating:
-		return "🤖"
+		return ""
 	case domain.StatusWorking:
-		return "⚡"
+		return ""
 	case domain.StatusProcessing:
-		return "🔄"
+		return ""
 	case domain.StatusPreparing:
-		return "📋"
+		return ""
 	default:
-		return "📊"
+		return ""
 	}
 }
 

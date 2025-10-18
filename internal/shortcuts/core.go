@@ -485,13 +485,10 @@ func (c *CancelShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 	logger.Info("Successfully sent cancel request to agent", "task_id", task.TaskID)
 
 	if task.CancelFunc != nil {
-		logger.Debug("Triggering local context cancellation", "task_id", task.TaskID)
 		task.CancelFunc()
 	}
 
-	// Immediately stop polling and remove from tracker
 	if c.taskTracker != nil {
-		logger.Debug("Stopping polling and removing from tracker", "task_id", task.TaskID)
 		c.taskTracker.StopPolling(task.TaskID)
 		c.taskTracker.RemoveTask(task.TaskID)
 	}
@@ -516,18 +513,14 @@ func extractAgentName(agentURL string) string {
 
 // sendCancelToAgent sends a cancel request to the agent server
 func (c *CancelShortcut) sendCancelToAgent(ctx context.Context, task domain.TaskPollingState) error {
-	logger.Debug("Creating ADK client", "agent_url", task.AgentURL)
 	adkClient := client.NewClient(task.AgentURL)
 
-	logger.Debug("Sending CancelTask request to agent", "task_id", task.TaskID, "agent_url", task.AgentURL)
 	_, err := adkClient.CancelTask(ctx, adk.TaskIdParams{
 		ID: task.TaskID,
 	})
 
 	if err != nil {
 		logger.Error("ADK CancelTask returned error", "task_id", task.TaskID, "error", err)
-	} else {
-		logger.Debug("ADK CancelTask succeeded", "task_id", task.TaskID)
 	}
 
 	return err
