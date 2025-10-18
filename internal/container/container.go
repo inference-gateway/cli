@@ -214,6 +214,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 
 	if c.config.IsA2AToolsEnabled() {
 		c.shortcutRegistry.Register(shortcuts.NewCancelShortcut(c.stateManager, c.toolService, taskTracker))
+		c.shortcutRegistry.Register(shortcuts.NewTaskManagementShortcut(c.config))
 	}
 
 	if c.configService != nil {

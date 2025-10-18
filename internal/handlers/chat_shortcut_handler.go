@@ -173,6 +173,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleStartNewConversationSideEffect(data)
 	case shortcuts.SideEffectShowA2AServers:
 		return s.handleShowA2AServersSideEffect()
+	case shortcuts.SideEffectShowTaskManagement:
+		return s.handleShowTaskManagementSideEffect()
 	default:
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
@@ -557,4 +559,21 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 			}
 		},
 	)()
+}
+
+func (s *ChatShortcutHandler) handleShowTaskManagementSideEffect() tea.Msg {
+	if err := s.handler.stateManager.TransitionToView(domain.ViewStateTaskManagement); err != nil {
+		logger.Error("Failed to transition to task management view", "error", err)
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to show task management: %v", err),
+			Sticky: false,
+		}
+	}
+
+	return domain.SetStatusEvent{
+		Message:    "Task management interface",
+		Spinner:    false,
+		TokenUsage: s.handler.getCurrentTokenUsage(),
+		StatusType: domain.StatusDefault,
+	}
 }

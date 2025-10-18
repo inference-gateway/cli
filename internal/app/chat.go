@@ -50,6 +50,7 @@ type ChatApplication struct {
 	fileSelectionView    *components.FileSelectionView
 	textSelectionView    *components.TextSelectionView
 	a2aServersView       *components.A2AServersView
+	taskManager          *components.TaskManagerImpl
 	toolCallRenderer     *components.ToolCallRenderer
 
 	// Presentation layer
@@ -151,6 +152,13 @@ func NewChatApplication(
 		app.conversationSelector = nil
 	}
 
+	// Initialize task manager only if A2A is enabled
+	if configService.A2A.Enabled {
+		app.taskManager = components.NewTaskManager(app.stateManager, app.toolService, app.themeService)
+	} else {
+		app.taskManager = nil
+	}
+
 	if initialView == domain.ViewStateChat {
 		app.focusedComponent = app.inputView
 	} else {
@@ -240,6 +248,11 @@ func (app *ChatApplication) Init() tea.Cmd {
 			cmds = append(cmds, cmd)
 		}
 	}
+	if app.taskManager != nil {
+		if cmd := app.taskManager.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
 
 	return tea.Batch(cmds...)
 }
@@ -277,6 +290,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleThemeSelectionView(msg)
 	case domain.ViewStateA2AServers:
 		return app.handleA2AServersView(msg)
+	case domain.ViewStateTaskManagement:
+		return app.handleTaskManagementView(msg)
 	default:
 		return nil
 	}
@@ -388,6 +403,8 @@ func (app *ChatApplication) View() string {
 		return app.renderThemeSelection()
 	case domain.ViewStateA2AServers:
 		return app.renderA2AServers()
+	case domain.ViewStateTaskManagement:
+		return app.renderTaskManagement()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -452,6 +469,54 @@ func (app *ChatApplication) handleConversationSelected(cmds []tea.Cmd) []tea.Cmd
 }
 
 func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cmd {
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		return []tea.Cmd{tea.Quit}
+	}
+
+	app.focusedComponent = app.inputView
+	return cmds
+}
+
+func (app *ChatApplication) handleTaskManagementView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.taskManager == nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  "Task management requires A2A to be enabled in configuration.",
+				Sticky: true,
+			}
+		})
+		return cmds
+	}
+
+	if app.taskManager.IsDone() || app.taskManager.IsCancelled() {
+		// Reset task manager for next use
+		if cmd := app.taskManager.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	model, cmd := app.taskManager.Update(msg)
+	app.taskManager = model.(*components.TaskManagerImpl)
+
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return app.handleTaskManagement(cmds)
+}
+
+func (app *ChatApplication) handleTaskManagement(cmds []tea.Cmd) []tea.Cmd {
+	if app.taskManager.IsCancelled() {
+		return app.handleTaskManagementCancelled(cmds)
+	}
+
+	// Handle task-specific events
+	return cmds
+}
+
+func (app *ChatApplication) handleTaskManagementCancelled(cmds []tea.Cmd) []tea.Cmd {
 	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
@@ -613,6 +678,17 @@ func (app *ChatApplication) renderConversationSelection() string {
 	app.conversationSelector.SetWidth(width)
 	app.conversationSelector.SetHeight(height)
 	return app.conversationSelector.View()
+}
+
+func (app *ChatApplication) renderTaskManagement() string {
+	if app.taskManager == nil {
+		return "Task management requires A2A to be enabled in configuration."
+	}
+
+	width, height := app.stateManager.GetDimensions()
+	app.taskManager.SetWidth(width)
+	app.taskManager.SetHeight(height)
+	return app.taskManager.View()
 }
 
 func (app *ChatApplication) renderChatInterface() string {
@@ -825,6 +901,19 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 			}
 			if convSelectorModel, ok := model.(*components.ConversationSelectorImpl); ok {
 				app.conversationSelector = convSelectorModel
+			}
+		}
+	}
+
+	if app.taskManager != nil {
+		switch msg.(type) {
+		case domain.TasksLoadedEvent, domain.TaskCancelledEvent:
+			model, cmd := app.taskManager.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			if taskManagerModel, ok := model.(*components.TaskManagerImpl); ok {
+				app.taskManager = taskManagerModel
 			}
 		}
 	}
