@@ -15,18 +15,6 @@ type FakeStateManager struct {
 		arg1 domain.Message
 		arg2 string
 	}
-	CancelBackgroundTaskStub        func(string, domain.ToolService) error
-	cancelBackgroundTaskMutex       sync.RWMutex
-	cancelBackgroundTaskArgsForCall []struct {
-		arg1 string
-		arg2 domain.ToolService
-	}
-	cancelBackgroundTaskReturns struct {
-		result1 error
-	}
-	cancelBackgroundTaskReturnsOnCall map[int]struct {
-		result1 error
-	}
 	ClearFileSelectionStateStub        func()
 	clearFileSelectionStateMutex       sync.RWMutex
 	clearFileSelectionStateArgsForCall []struct {
@@ -64,17 +52,6 @@ type FakeStateManager struct {
 	}
 	failCurrentToolReturnsOnCall map[int]struct {
 		result1 error
-	}
-	GetBackgroundTasksStub        func(domain.ToolService) []domain.TaskPollingState
-	getBackgroundTasksMutex       sync.RWMutex
-	getBackgroundTasksArgsForCall []struct {
-		arg1 domain.ToolService
-	}
-	getBackgroundTasksReturns struct {
-		result1 []domain.TaskPollingState
-	}
-	getBackgroundTasksReturnsOnCall map[int]struct {
-		result1 []domain.TaskPollingState
 	}
 	GetChatSessionStub        func() *domain.ChatSession
 	getChatSessionMutex       sync.RWMutex
@@ -260,68 +237,6 @@ func (fake *FakeStateManager) AddQueuedMessageArgsForCall(i int) (domain.Message
 	defer fake.addQueuedMessageMutex.RUnlock()
 	argsForCall := fake.addQueuedMessageArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
-}
-
-func (fake *FakeStateManager) CancelBackgroundTask(arg1 string, arg2 domain.ToolService) error {
-	fake.cancelBackgroundTaskMutex.Lock()
-	ret, specificReturn := fake.cancelBackgroundTaskReturnsOnCall[len(fake.cancelBackgroundTaskArgsForCall)]
-	fake.cancelBackgroundTaskArgsForCall = append(fake.cancelBackgroundTaskArgsForCall, struct {
-		arg1 string
-		arg2 domain.ToolService
-	}{arg1, arg2})
-	stub := fake.CancelBackgroundTaskStub
-	fakeReturns := fake.cancelBackgroundTaskReturns
-	fake.recordInvocation("CancelBackgroundTask", []interface{}{arg1, arg2})
-	fake.cancelBackgroundTaskMutex.Unlock()
-	if stub != nil {
-		return stub(arg1, arg2)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeStateManager) CancelBackgroundTaskCallCount() int {
-	fake.cancelBackgroundTaskMutex.RLock()
-	defer fake.cancelBackgroundTaskMutex.RUnlock()
-	return len(fake.cancelBackgroundTaskArgsForCall)
-}
-
-func (fake *FakeStateManager) CancelBackgroundTaskCalls(stub func(string, domain.ToolService) error) {
-	fake.cancelBackgroundTaskMutex.Lock()
-	defer fake.cancelBackgroundTaskMutex.Unlock()
-	fake.CancelBackgroundTaskStub = stub
-}
-
-func (fake *FakeStateManager) CancelBackgroundTaskArgsForCall(i int) (string, domain.ToolService) {
-	fake.cancelBackgroundTaskMutex.RLock()
-	defer fake.cancelBackgroundTaskMutex.RUnlock()
-	argsForCall := fake.cancelBackgroundTaskArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
-}
-
-func (fake *FakeStateManager) CancelBackgroundTaskReturns(result1 error) {
-	fake.cancelBackgroundTaskMutex.Lock()
-	defer fake.cancelBackgroundTaskMutex.Unlock()
-	fake.CancelBackgroundTaskStub = nil
-	fake.cancelBackgroundTaskReturns = struct {
-		result1 error
-	}{result1}
-}
-
-func (fake *FakeStateManager) CancelBackgroundTaskReturnsOnCall(i int, result1 error) {
-	fake.cancelBackgroundTaskMutex.Lock()
-	defer fake.cancelBackgroundTaskMutex.Unlock()
-	fake.CancelBackgroundTaskStub = nil
-	if fake.cancelBackgroundTaskReturnsOnCall == nil {
-		fake.cancelBackgroundTaskReturnsOnCall = make(map[int]struct {
-			result1 error
-		})
-	}
-	fake.cancelBackgroundTaskReturnsOnCall[i] = struct {
-		result1 error
-	}{result1}
 }
 
 func (fake *FakeStateManager) ClearFileSelectionState() {
@@ -539,67 +454,6 @@ func (fake *FakeStateManager) FailCurrentToolReturnsOnCall(i int, result1 error)
 	}
 	fake.failCurrentToolReturnsOnCall[i] = struct {
 		result1 error
-	}{result1}
-}
-
-func (fake *FakeStateManager) GetBackgroundTasks(arg1 domain.ToolService) []domain.TaskPollingState {
-	fake.getBackgroundTasksMutex.Lock()
-	ret, specificReturn := fake.getBackgroundTasksReturnsOnCall[len(fake.getBackgroundTasksArgsForCall)]
-	fake.getBackgroundTasksArgsForCall = append(fake.getBackgroundTasksArgsForCall, struct {
-		arg1 domain.ToolService
-	}{arg1})
-	stub := fake.GetBackgroundTasksStub
-	fakeReturns := fake.getBackgroundTasksReturns
-	fake.recordInvocation("GetBackgroundTasks", []interface{}{arg1})
-	fake.getBackgroundTasksMutex.Unlock()
-	if stub != nil {
-		return stub(arg1)
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeStateManager) GetBackgroundTasksCallCount() int {
-	fake.getBackgroundTasksMutex.RLock()
-	defer fake.getBackgroundTasksMutex.RUnlock()
-	return len(fake.getBackgroundTasksArgsForCall)
-}
-
-func (fake *FakeStateManager) GetBackgroundTasksCalls(stub func(domain.ToolService) []domain.TaskPollingState) {
-	fake.getBackgroundTasksMutex.Lock()
-	defer fake.getBackgroundTasksMutex.Unlock()
-	fake.GetBackgroundTasksStub = stub
-}
-
-func (fake *FakeStateManager) GetBackgroundTasksArgsForCall(i int) domain.ToolService {
-	fake.getBackgroundTasksMutex.RLock()
-	defer fake.getBackgroundTasksMutex.RUnlock()
-	argsForCall := fake.getBackgroundTasksArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeStateManager) GetBackgroundTasksReturns(result1 []domain.TaskPollingState) {
-	fake.getBackgroundTasksMutex.Lock()
-	defer fake.getBackgroundTasksMutex.Unlock()
-	fake.GetBackgroundTasksStub = nil
-	fake.getBackgroundTasksReturns = struct {
-		result1 []domain.TaskPollingState
-	}{result1}
-}
-
-func (fake *FakeStateManager) GetBackgroundTasksReturnsOnCall(i int, result1 []domain.TaskPollingState) {
-	fake.getBackgroundTasksMutex.Lock()
-	defer fake.getBackgroundTasksMutex.Unlock()
-	fake.GetBackgroundTasksStub = nil
-	if fake.getBackgroundTasksReturnsOnCall == nil {
-		fake.getBackgroundTasksReturnsOnCall = make(map[int]struct {
-			result1 []domain.TaskPollingState
-		})
-	}
-	fake.getBackgroundTasksReturnsOnCall[i] = struct {
-		result1 []domain.TaskPollingState
 	}{result1}
 }
 

@@ -24,15 +24,17 @@ import (
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
 	// Dependencies
-	configService    *config.Config
-	agentService     domain.AgentService
-	conversationRepo domain.ConversationRepository
-	modelService     domain.ModelService
-	toolService      domain.ToolService
-	fileService      domain.FileService
-	shortcutRegistry *shortcuts.Registry
-	themeService     domain.ThemeService
-	toolRegistry     *tools.Registry
+	configService         *config.Config
+	agentService          domain.AgentService
+	conversationRepo      domain.ConversationRepository
+	modelService          domain.ModelService
+	toolService           domain.ToolService
+	fileService           domain.FileService
+	shortcutRegistry      *shortcuts.Registry
+	themeService          domain.ThemeService
+	toolRegistry          *tools.Registry
+	taskRetentionService  domain.TaskRetentionService
+	backgroundTaskService domain.BackgroundTaskService
 
 	// State management
 	stateManager domain.StateManager
@@ -50,6 +52,7 @@ type ChatApplication struct {
 	fileSelectionView    *components.FileSelectionView
 	textSelectionView    *components.TextSelectionView
 	a2aServersView       *components.A2AServersView
+	taskManager          *components.TaskManagerImpl
 	toolCallRenderer     *components.ToolCallRenderer
 
 	// Presentation layer
@@ -84,6 +87,8 @@ func NewChatApplication(
 	messageQueue domain.MessageQueue,
 	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
+	taskRetentionService domain.TaskRetentionService,
+	backgroundTaskService domain.BackgroundTaskService,
 	configPath string,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
@@ -92,18 +97,20 @@ func NewChatApplication(
 	}
 
 	app := &ChatApplication{
-		agentService:     agentService,
-		conversationRepo: conversationRepo,
-		modelService:     modelService,
-		configService:    configService,
-		toolService:      toolService,
-		fileService:      fileService,
-		shortcutRegistry: shortcutRegistry,
-		themeService:     themeService,
-		toolRegistry:     toolRegistry,
-		availableModels:  models,
-		stateManager:     stateManager,
-		messageQueue:     messageQueue,
+		agentService:          agentService,
+		conversationRepo:      conversationRepo,
+		modelService:          modelService,
+		configService:         configService,
+		toolService:           toolService,
+		fileService:           fileService,
+		shortcutRegistry:      shortcutRegistry,
+		themeService:          themeService,
+		toolRegistry:          toolRegistry,
+		taskRetentionService:  taskRetentionService,
+		backgroundTaskService: backgroundTaskService,
+		availableModels:       models,
+		stateManager:          stateManager,
+		messageQueue:          messageQueue,
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -151,6 +158,8 @@ func NewChatApplication(
 		app.conversationSelector = nil
 	}
 
+	app.taskManager = nil
+
 	if initialView == domain.ViewStateChat {
 		app.focusedComponent = app.inputView
 	} else {
@@ -167,6 +176,8 @@ func NewChatApplication(
 		app.shortcutRegistry,
 		app.stateManager,
 		messageQueue,
+		app.taskRetentionService,
+		app.backgroundTaskService,
 	)
 
 	return app
@@ -277,6 +288,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleThemeSelectionView(msg)
 	case domain.ViewStateA2AServers:
 		return app.handleA2AServersView(msg)
+	case domain.ViewStateA2ATaskManagement:
+		return app.handleA2ATaskManagementView(msg)
 	default:
 		return nil
 	}
@@ -388,6 +401,8 @@ func (app *ChatApplication) View() string {
 		return app.renderThemeSelection()
 	case domain.ViewStateA2AServers:
 		return app.renderA2AServers()
+	case domain.ViewStateA2ATaskManagement:
+		return app.renderA2ATaskManagement()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -452,6 +467,60 @@ func (app *ChatApplication) handleConversationSelected(cmds []tea.Cmd) []tea.Cmd
 }
 
 func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cmd {
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		return []tea.Cmd{tea.Quit}
+	}
+
+	app.focusedComponent = app.inputView
+	return cmds
+}
+
+func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.taskManager == nil {
+		if !app.configService.A2A.Enabled {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  "Task management requires A2A to be enabled in configuration.",
+					Sticky: true,
+				}
+			})
+			return cmds
+		}
+
+		app.taskManager = components.NewTaskManager(app.themeService, app.taskRetentionService, app.backgroundTaskService)
+		if cmd := app.taskManager.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	if app.taskManager.IsDone() || app.taskManager.IsCancelled() {
+		app.taskManager.Reset()
+		if cmd := app.taskManager.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	model, cmd := app.taskManager.Update(msg)
+	app.taskManager = model.(*components.TaskManagerImpl)
+
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return app.handleA2ATaskManagement(cmds)
+}
+
+func (app *ChatApplication) handleA2ATaskManagement(cmds []tea.Cmd) []tea.Cmd {
+	if app.taskManager.IsCancelled() {
+		return app.handleA2ATaskManagementCancelled(cmds)
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) handleA2ATaskManagementCancelled(cmds []tea.Cmd) []tea.Cmd {
 	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
@@ -615,6 +684,17 @@ func (app *ChatApplication) renderConversationSelection() string {
 	return app.conversationSelector.View()
 }
 
+func (app *ChatApplication) renderA2ATaskManagement() string {
+	if app.taskManager == nil {
+		return "Task management requires A2A to be enabled in configuration."
+	}
+
+	width, height := app.stateManager.GetDimensions()
+	app.taskManager.SetWidth(width)
+	app.taskManager.SetHeight(height)
+	return app.taskManager.View()
+}
+
 func (app *ChatApplication) renderChatInterface() string {
 	app.inputView.SetTextSelectionMode(false)
 
@@ -622,7 +702,11 @@ func (app *ChatApplication) renderChatInterface() string {
 
 	width, height := app.stateManager.GetDimensions()
 	queuedMessages := app.messageQueue.GetAll()
-	backgroundTasks := app.stateManager.GetBackgroundTasks(app.toolService)
+
+	var backgroundTasks []domain.TaskPollingState
+	if app.backgroundTaskService != nil {
+		backgroundTasks = app.backgroundTaskService.GetBackgroundTasks()
+	}
 
 	data := components.ChatInterfaceData{
 		Width:           width,
@@ -825,6 +909,19 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 			}
 			if convSelectorModel, ok := model.(*components.ConversationSelectorImpl); ok {
 				app.conversationSelector = convSelectorModel
+			}
+		}
+	}
+
+	if app.taskManager != nil {
+		switch msg.(type) {
+		case domain.TasksLoadedEvent, domain.TaskCancelledEvent:
+			model, cmd := app.taskManager.Update(msg)
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+			if taskManagerModel, ok := model.(*components.TaskManagerImpl); ok {
+				app.taskManager = taskManagerModel
 			}
 		}
 	}

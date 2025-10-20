@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.53.2](https://github.com/inference-gateway/cli/compare/v0.53.1...v0.53.2) (2025-10-18)
+
+### 🐛 Bug Fixes
+
+* **a2a:** Fix A2A download artifacts tool and download dir defaults are not set ([#193](https://github.com/inference-gateway/cli/issues/193)) ([2da14e1](https://github.com/inference-gateway/cli/commit/2da14e19f6a6f92e45c8a64e58d50614902a1fce))
+
 ## [0.53.1](https://github.com/inference-gateway/cli/compare/v0.53.0...v0.53.1) (2025-10-18)
 
 ### 💄 Styles

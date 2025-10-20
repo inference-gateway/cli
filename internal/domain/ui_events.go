@@ -124,6 +124,24 @@ type ConversationsLoadedEvent struct {
 	Error         error
 }
 
+// Task Management Events
+
+// TasksLoadedEvent indicates tasks have been loaded
+type TasksLoadedEvent struct {
+	ActiveTasks    []interface{}
+	CompletedTasks []interface{}
+	Error          error
+}
+
+// TaskCancelledEvent indicates a task has been cancelled
+type TaskCancelledEvent struct {
+	TaskID string
+	Error  error
+}
+
+// InitializeA2ATaskManagementEvent indicates A2A task management view should be initialized
+type InitializeA2ATaskManagementEvent struct{}
+
 // Tool Execution Events
 
 // ToolExecutionStartedEvent indicates tool execution has started

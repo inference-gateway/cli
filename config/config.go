@@ -366,6 +366,7 @@ type A2ATaskConfig struct {
 	MaxPollIntervalSec     int     `yaml:"max_poll_interval_sec" mapstructure:"max_poll_interval_sec"`
 	BackoffMultiplier      float64 `yaml:"backoff_multiplier" mapstructure:"backoff_multiplier"`
 	BackgroundMonitoring   bool    `yaml:"background_monitoring" mapstructure:"background_monitoring"`
+	CompletedTaskRetention int     `yaml:"completed_task_retention" mapstructure:"completed_task_retention"`
 }
 
 // A2ACacheConfig contains settings for A2A agent card caching
@@ -648,6 +649,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 				MaxPollIntervalSec:     60,
 				BackoffMultiplier:      2.0,
 				BackgroundMonitoring:   true,
+				CompletedTaskRetention: 5,
 			},
 			Tools: A2AToolsConfig{
 				QueryAgent: QueryAgentToolConfig{

@@ -44,6 +44,7 @@ services:
       INFER_TOOLS_ENABLED: false
       INFER_AGENT_MODEL: deepseek/deepseek-chat
       INFER_A2A_AGENTS: |
+        http://mock-agent:8080
         http://google-calendar-agent:8080
         http://n8n-agent:8080
         http://documentation-agent:8080
@@ -59,6 +60,35 @@ services:
       - a2a-network
     profiles:
       - manual
+
+  mock-agent:
+    image: ghcr.io/inference-gateway/mock-agent:latest
+    pull_policy: always
+    environment:
+      ENVIRONMENT: development
+      A2A_AGENT_URL: http://mock-agent:8080
+      A2A_AGENT_CLIENT_PROVIDER: ""
+      A2A_AGENT_CLIENT_MODEL: ""
+      A2A_AGENT_CLIENT_BASE_URL: ""
+      A2A_AGENT_CLIENT_MAX_CHAT_COMPLETION_ITERATIONS: 20
+      A2A_AGENT_CLIENT_TIMEOUT: 120s
+      A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT: true
+      A2A_SERVER_READ_TIMEOUT: 120s
+      A2A_SERVER_WRITE_TIMEOUT: 120s
+      A2A_SERVER_IDLE_TIMEOUT: 120s
+      A2A_QUEUE_CLEANUP_INTERVAL: 500s
+      A2A_ARTIFACTS_ENABLE: true
+      A2A_ARTIFACTS_SERVER_HOST: localhost
+      A2A_ARTIFACTS_SERVER_PORT: 8081
+      A2A_ARTIFACTS_STORAGE_PROVIDER: filesystem
+      A2A_ARTIFACTS_STORAGE_BASE_PATH: /tmp/artifacts
+      A2A_ARTIFACTS_STORAGE_BASE_URL: http://mock-agent:8081
+      A2A_ARTIFACTS_RETENTION_MAX_ARTIFACTS: 10
+      A2A_ARTIFACTS_RETENTION_MAX_AGE: 24h
+      A2A_ARTIFACTS_RETENTION_CLEANUP_INTERVAL: 24h
+    restart: unless-stopped
+    networks:
+      - a2a-network
 
   google-calendar-agent:
     image: ghcr.io/inference-gateway/google-calendar-agent:latest
