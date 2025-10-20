@@ -496,7 +496,6 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 		}
 	}
 
-	// Standard update cycle
 	model, cmd := app.taskManager.Update(msg)
 	app.taskManager = model.(*components.TaskManagerImpl)
 
@@ -512,7 +511,6 @@ func (app *ChatApplication) handleA2ATaskManagement(cmds []tea.Cmd) []tea.Cmd {
 		return app.handleA2ATaskManagementCancelled(cmds)
 	}
 
-	// Handle task-specific events
 	return cmds
 }
 
