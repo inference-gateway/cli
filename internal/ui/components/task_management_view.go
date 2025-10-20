@@ -17,30 +17,29 @@ type TaskInfo struct {
 	domain.TaskPollingState
 	Status      string
 	ElapsedTime time.Duration
-	TaskRef     *domain.RetainedTaskInfo // nil for active tasks, non-nil for terminal tasks (completed, failed, canceled, etc.)
+	TaskRef     *domain.TaskInfo
 }
 
 // TaskManagerImpl implements task management UI similar to conversation selection
 type TaskManagerImpl struct {
-	activeTasks    []TaskInfo
-	completedTasks []TaskInfo
-	filteredTasks  []TaskInfo
-	selected       int
-	width          int
-	height         int
-	themeService   domain.ThemeService
-	done           bool
-	cancelled      bool
-	stateManager   domain.StateManager
-	toolService    domain.ToolService
-	taskTracker    domain.TaskTracker
-	searchQuery    string
-	searchMode     bool
-	loading        bool
-	loadError      error
-	confirmCancel  bool
-	showInfo       bool
-	currentView    TaskViewMode
+	activeTasks           []TaskInfo
+	completedTasks        []TaskInfo
+	filteredTasks         []TaskInfo
+	selected              int
+	width                 int
+	height                int
+	themeService          domain.ThemeService
+	done                  bool
+	cancelled             bool
+	taskRetentionService  domain.TaskRetentionService
+	backgroundTaskService domain.BackgroundTaskService
+	searchQuery           string
+	searchMode            bool
+	loading               bool
+	loadError             error
+	confirmCancel         bool
+	showInfo              bool
+	currentView           TaskViewMode
 }
 
 type TaskViewMode int
@@ -55,26 +54,25 @@ const (
 
 // NewTaskManager creates a new task manager UI component
 func NewTaskManager(
-	stateManager domain.StateManager,
-	toolService domain.ToolService,
 	themeService domain.ThemeService,
+	taskRetentionService domain.TaskRetentionService,
+	backgroundTaskService domain.BackgroundTaskService,
 ) *TaskManagerImpl {
 	return &TaskManagerImpl{
-		activeTasks:    make([]TaskInfo, 0),
-		completedTasks: make([]TaskInfo, 0),
-		filteredTasks:  make([]TaskInfo, 0),
-		selected:       0,
-		width:          80,
-		height:         24,
-		themeService:   themeService,
-		stateManager:   stateManager,
-		toolService:    toolService,
-		taskTracker:    toolService.GetTaskTracker(),
-		searchQuery:    "",
-		searchMode:     false,
-		loading:        true,
-		loadError:      nil,
-		currentView:    TaskViewAll,
+		activeTasks:           make([]TaskInfo, 0),
+		completedTasks:        make([]TaskInfo, 0),
+		filteredTasks:         make([]TaskInfo, 0),
+		selected:              0,
+		width:                 80,
+		height:                24,
+		themeService:          themeService,
+		taskRetentionService:  taskRetentionService,
+		backgroundTaskService: backgroundTaskService,
+		searchQuery:           "",
+		searchMode:            false,
+		loading:               true,
+		loadError:             nil,
+		currentView:           TaskViewAll,
 	}
 }
 
@@ -98,15 +96,15 @@ func (t *TaskManagerImpl) Reset() {
 
 func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 	return func() tea.Msg {
-		if t.toolService == nil {
+		if t.backgroundTaskService == nil {
 			return domain.TasksLoadedEvent{
 				ActiveTasks:    []interface{}{},
 				CompletedTasks: []interface{}{},
-				Error:          fmt.Errorf("tool service not available"),
+				Error:          fmt.Errorf("background task service not available"),
 			}
 		}
 
-		backgroundTasks := t.stateManager.GetBackgroundTasks(t.toolService)
+		backgroundTasks := t.backgroundTaskService.GetBackgroundTasks()
 		activeTasks := make([]TaskInfo, 0, len(backgroundTasks))
 
 		for _, task := range backgroundTasks {
@@ -126,7 +124,10 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 			activeTasks = append(activeTasks, taskInfo)
 		}
 
-		retainedTaskInfos := t.stateManager.GetRetainedTasks()
+		var retainedTaskInfos []domain.TaskInfo
+		if t.taskRetentionService != nil {
+			retainedTaskInfos = t.taskRetentionService.GetTasks()
+		}
 		completedTasks := make([]TaskInfo, 0, len(retainedTaskInfos))
 
 		for i := range retainedTaskInfos {
@@ -361,7 +362,7 @@ func (t *TaskManagerImpl) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 
 func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
 	return func() tea.Msg {
-		err := t.stateManager.CancelBackgroundTask(task.TaskID, t.toolService)
+		err := t.backgroundTaskService.CancelBackgroundTask(task.TaskID)
 
 		if err != nil {
 			logger.Error("Failed to cancel task", "task_id", task.TaskID, "error", err)

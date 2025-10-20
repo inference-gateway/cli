@@ -4,7 +4,6 @@ import (
 	"errors"
 	"testing"
 
-	adkclient "github.com/inference-gateway/adk/client"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -92,10 +91,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 
 			conversationRepo := services.NewInMemoryConversationRepository(nil)
 			shortcutRegistry := shortcuts.NewRegistry()
-			createADKClient := func(agentURL string) adkclient.A2AClient {
-				return adkclient.NewClient(agentURL)
-			}
-			stateManager := services.NewStateManager(false, createADKClient)
+			stateManager := services.NewStateManager(false)
 			messageQueue := services.NewMessageQueueService()
 
 			handler := NewChatHandler(
@@ -108,6 +104,8 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				shortcutRegistry,
 				stateManager,
 				messageQueue,
+				nil,
+				nil,
 			)
 
 			processor := NewChatMessageProcessor(handler)
@@ -245,10 +243,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 
 			mockAgent := &mocks.FakeAgentService{}
 			mockModel := &mocks.FakeModelService{}
-			createADKClient := func(agentURL string) adkclient.A2AClient {
-				return adkclient.NewClient(agentURL)
-			}
-			stateManager := services.NewStateManager(false, createADKClient)
+			stateManager := services.NewStateManager(false)
 
 			handler := &ChatHandler{
 				agentService:     mockAgent,

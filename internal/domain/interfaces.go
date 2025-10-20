@@ -160,17 +160,6 @@ type StateManager interface {
 	PopQueuedMessage() *QueuedMessage
 	ClearQueuedMessages()
 	GetQueuedMessages() []QueuedMessage
-
-	// Background task management
-	GetBackgroundTasks(toolService ToolService) []TaskPollingState
-	CancelBackgroundTask(taskID string, toolService ToolService) error
-
-	// Task retention (stored in-memory just so it can be visible in the UI)
-	AddTaskToInMemoryRetention(task RetainedTaskInfo)
-	GetRetainedTasks() []RetainedTaskInfo
-	SetMaxTaskRetention(maxRetention int)
-	GetMaxTaskRetention() int
-	ClearRetainedTasks()
 }
 
 // FileService handles file operations
@@ -216,9 +205,9 @@ type A2ATaskStatusUpdate struct {
 	Timestamp time.Time
 }
 
-// RetainedTaskInfo wraps ADK Task with UI-specific metadata for in-memory retention
-// Used to store terminal tasks (completed, failed, canceled, rejected, etc.) for display
-type RetainedTaskInfo struct {
+// TaskInfo wraps ADK Task with UI-specific metadata for completed/terminal tasks
+// Used for A2A task retention and display
+type TaskInfo struct {
 	// ADK Task contains: ID, ContextID, Status (with State), History, Artifacts, Metadata
 	Task adk.Task
 
@@ -226,6 +215,35 @@ type RetainedTaskInfo struct {
 	AgentURL    string
 	StartedAt   time.Time
 	CompletedAt time.Time
+}
+
+// TaskRetentionService manages in-memory retention of completed/terminal A2A tasks
+// Only enabled when A2A is enabled - decouples task retention from StateManager
+type TaskRetentionService interface {
+	// AddTask adds a terminal task (completed, failed, canceled, etc.) to retention
+	AddTask(task TaskInfo)
+
+	// GetTasks returns all retained tasks
+	GetTasks() []TaskInfo
+
+	// Clear removes all retained tasks
+	Clear()
+
+	// SetMaxRetention updates the maximum retention count
+	SetMaxRetention(maxRetention int)
+
+	// GetMaxRetention returns the current maximum retention count
+	GetMaxRetention() int
+}
+
+// BackgroundTaskService handles background A2A task operations
+// Only enabled when A2A is enabled - provides task cancellation and retrieval
+type BackgroundTaskService interface {
+	// GetBackgroundTasks returns all current background polling tasks
+	GetBackgroundTasks() []TaskPollingState
+
+	// CancelBackgroundTask cancels a background task by task ID
+	CancelBackgroundTask(taskID string) error
 }
 
 // TaskTracker handles task ID and context ID tracking within chat sessions

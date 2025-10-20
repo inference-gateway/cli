@@ -86,7 +86,6 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		Bold(true).
 		Padding(0, 1)
 
-	// Show background task count in header if there are any
 	headerText := ""
 	if len(data.BackgroundTasks) > 0 {
 		headerText = fmt.Sprintf("(%d)", len(data.BackgroundTasks))

@@ -70,6 +70,8 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	messageQueue := services.GetMessageQueue()
 	themeService := services.GetThemeService()
 	toolRegistry := services.GetToolRegistry()
+	taskRetentionService := services.GetTaskRetentionService()
+	backgroundTaskService := services.GetBackgroundTaskService()
 
 	application := app.NewChatApplication(
 		models,
@@ -85,6 +87,8 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		messageQueue,
 		themeService,
 		toolRegistry,
+		taskRetentionService,
+		backgroundTaskService,
 		getEffectiveConfigPath(),
 	)
 

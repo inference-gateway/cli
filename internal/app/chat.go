@@ -24,15 +24,17 @@ import (
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
 	// Dependencies
-	configService    *config.Config
-	agentService     domain.AgentService
-	conversationRepo domain.ConversationRepository
-	modelService     domain.ModelService
-	toolService      domain.ToolService
-	fileService      domain.FileService
-	shortcutRegistry *shortcuts.Registry
-	themeService     domain.ThemeService
-	toolRegistry     *tools.Registry
+	configService         *config.Config
+	agentService          domain.AgentService
+	conversationRepo      domain.ConversationRepository
+	modelService          domain.ModelService
+	toolService           domain.ToolService
+	fileService           domain.FileService
+	shortcutRegistry      *shortcuts.Registry
+	themeService          domain.ThemeService
+	toolRegistry          *tools.Registry
+	taskRetentionService  domain.TaskRetentionService
+	backgroundTaskService domain.BackgroundTaskService
 
 	// State management
 	stateManager domain.StateManager
@@ -85,6 +87,8 @@ func NewChatApplication(
 	messageQueue domain.MessageQueue,
 	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
+	taskRetentionService domain.TaskRetentionService,
+	backgroundTaskService domain.BackgroundTaskService,
 	configPath string,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
@@ -93,18 +97,20 @@ func NewChatApplication(
 	}
 
 	app := &ChatApplication{
-		agentService:     agentService,
-		conversationRepo: conversationRepo,
-		modelService:     modelService,
-		configService:    configService,
-		toolService:      toolService,
-		fileService:      fileService,
-		shortcutRegistry: shortcutRegistry,
-		themeService:     themeService,
-		toolRegistry:     toolRegistry,
-		availableModels:  models,
-		stateManager:     stateManager,
-		messageQueue:     messageQueue,
+		agentService:          agentService,
+		conversationRepo:      conversationRepo,
+		modelService:          modelService,
+		configService:         configService,
+		toolService:           toolService,
+		fileService:           fileService,
+		shortcutRegistry:      shortcutRegistry,
+		themeService:          themeService,
+		toolRegistry:          toolRegistry,
+		taskRetentionService:  taskRetentionService,
+		backgroundTaskService: backgroundTaskService,
+		availableModels:       models,
+		stateManager:          stateManager,
+		messageQueue:          messageQueue,
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -170,6 +176,8 @@ func NewChatApplication(
 		app.shortcutRegistry,
 		app.stateManager,
 		messageQueue,
+		app.taskRetentionService,
+		app.backgroundTaskService,
 	)
 
 	return app
@@ -481,7 +489,7 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 			return cmds
 		}
 
-		app.taskManager = components.NewTaskManager(app.stateManager, app.toolService, app.themeService)
+		app.taskManager = components.NewTaskManager(app.themeService, app.taskRetentionService, app.backgroundTaskService)
 		if cmd := app.taskManager.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
@@ -694,7 +702,11 @@ func (app *ChatApplication) renderChatInterface() string {
 
 	width, height := app.stateManager.GetDimensions()
 	queuedMessages := app.messageQueue.GetAll()
-	backgroundTasks := app.stateManager.GetBackgroundTasks(app.toolService)
+
+	var backgroundTasks []domain.TaskPollingState
+	if app.backgroundTaskService != nil {
+		backgroundTasks = app.backgroundTaskService.GetBackgroundTasks()
+	}
 
 	data := components.ChatInterfaceData{
 		Width:           width,
