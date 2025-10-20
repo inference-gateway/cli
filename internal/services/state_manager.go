@@ -33,8 +33,8 @@ type StateManager struct {
 	// ADK client factory for creating clients per agent URL
 	createADKClient ADKClientFactory
 
-	// Task retention for terminal tasks (completed, failed, canceled, etc.)
-	retainedTasks     []domain.RetainedTaskInfo
+	// Task retention for terminal tasks (completed, failed, canceled, input-required etc.)
+	tasks             []domain.RetainedTaskInfo
 	maxTaskRetention  int
 	taskRetentionLock sync.RWMutex
 }
@@ -89,7 +89,7 @@ func NewStateManager(debugMode bool, createADKClient ADKClientFactory) *StateMan
 		stateHistory:     make([]domain.StateSnapshot, 0),
 		maxHistorySize:   100,
 		createADKClient:  createADKClient,
-		retainedTasks:    make([]domain.RetainedTaskInfo, 0),
+		tasks:            make([]domain.RetainedTaskInfo, 0),
 		maxTaskRetention: 5,
 	}
 }
@@ -335,7 +335,6 @@ func (sm *StateManager) GetStateHistory() []domain.StateSnapshot {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
-	// Return a copy to prevent external modifications
 	history := make([]domain.StateSnapshot, len(sm.stateHistory))
 	copy(history, sm.stateHistory)
 	return history
@@ -725,15 +724,11 @@ func (sm *StateManager) AddTaskToInMemoryRetention(task domain.RetainedTaskInfo)
 	sm.taskRetentionLock.Lock()
 	defer sm.taskRetentionLock.Unlock()
 
-	// Add to the beginning (most recent first)
-	sm.retainedTasks = append([]domain.RetainedTaskInfo{task}, sm.retainedTasks...)
+	sm.tasks = append([]domain.RetainedTaskInfo{task}, sm.tasks...)
 
-	// Trim to max retention
-	if len(sm.retainedTasks) > sm.maxTaskRetention {
-		sm.retainedTasks = sm.retainedTasks[:sm.maxTaskRetention]
+	if len(sm.tasks) > sm.maxTaskRetention {
+		sm.tasks = sm.tasks[:sm.maxTaskRetention]
 	}
-
-	logger.Debug("Task added to retention", "task_id", task.Task.ID, "total_retained", len(sm.retainedTasks))
 }
 
 // GetRetainedTasks returns all retained tasks
@@ -741,9 +736,8 @@ func (sm *StateManager) GetRetainedTasks() []domain.RetainedTaskInfo {
 	sm.taskRetentionLock.RLock()
 	defer sm.taskRetentionLock.RUnlock()
 
-	// Return a copy to prevent external modifications
-	tasks := make([]domain.RetainedTaskInfo, len(sm.retainedTasks))
-	copy(tasks, sm.retainedTasks)
+	tasks := make([]domain.RetainedTaskInfo, len(sm.tasks))
+	copy(tasks, sm.tasks)
 	return tasks
 }
 
@@ -753,14 +747,13 @@ func (sm *StateManager) SetMaxTaskRetention(maxRetention int) {
 	defer sm.taskRetentionLock.Unlock()
 
 	if maxRetention <= 0 {
-		maxRetention = 5 // Default minimum
+		maxRetention = 5
 	}
 
 	sm.maxTaskRetention = maxRetention
 
-	// Trim existing tasks if new retention is smaller
-	if len(sm.retainedTasks) > maxRetention {
-		sm.retainedTasks = sm.retainedTasks[:maxRetention]
+	if len(sm.tasks) > maxRetention {
+		sm.tasks = sm.tasks[:maxRetention]
 	}
 }
 
@@ -776,6 +769,5 @@ func (sm *StateManager) ClearRetainedTasks() {
 	sm.taskRetentionLock.Lock()
 	defer sm.taskRetentionLock.Unlock()
 
-	sm.retainedTasks = make([]domain.RetainedTaskInfo, 0)
-	logger.Debug("Cleared all retained tasks from memory")
+	sm.tasks = make([]domain.RetainedTaskInfo, 0)
 }
