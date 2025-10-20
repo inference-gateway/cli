@@ -586,7 +586,6 @@ func (sm *StateManager) addCanceledTaskToRetention(task *domain.TaskPollingState
 		CompletedAt: time.Now(),
 	}
 
-	logger.Debug("Adding canceled task to retention", "task_id", task.TaskID, "state", finalTask.Status.State)
 	sm.AddTaskToInMemoryRetention(retainedTask)
 }
 
