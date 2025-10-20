@@ -24,10 +24,9 @@ func (t *A2ATaskManagementShortcut) GetUsage() string              { return "/ta
 func (t *A2ATaskManagementShortcut) CanExecute(args []string) bool { return len(args) == 0 }
 
 func (t *A2ATaskManagementShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	// Check if A2A is enabled
 	if !t.configService.A2A.Enabled {
 		return ShortcutResult{
-			Output:  "❌ Task management requires A2A to be enabled in configuration.",
+			Output:  "Task management requires A2A to be enabled in configuration.",
 			Success: false,
 		}, nil
 	}
