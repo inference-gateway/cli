@@ -5,7 +5,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	adkclient "github.com/inference-gateway/adk/client"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -19,10 +18,7 @@ func TestChatHandler_Handle(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			createADKClient := func(agentURL string) adkclient.A2AClient {
-				return adkclient.NewClient(agentURL)
-			}
-			stateManager := services.NewStateManager(false, createADKClient)
+			stateManager := services.NewStateManager(false)
 			handler := setupTestChatHandler(t, tt.setupMocks, stateManager)
 
 			cmd := handler.Handle(tt.msg)
@@ -270,6 +266,8 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		shortcutRegistry,
 		stateManager,
 		messageQueue,
+		nil,
+		nil,
 	)
 }
 
@@ -397,10 +395,7 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 			mockFile := &mocks.FakeFileService{}
 
 			conversationRepo := services.NewInMemoryConversationRepository(nil)
-			createADKClient := func(agentURL string) adkclient.A2AClient {
-				return adkclient.NewClient(agentURL)
-			}
-			stateManager := services.NewStateManager(false, createADKClient)
+			stateManager := services.NewStateManager(false)
 			shortcutRegistry := shortcuts.NewRegistry()
 			messageQueue := services.NewMessageQueueService()
 
@@ -414,6 +409,8 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 				shortcutRegistry,
 				stateManager,
 				messageQueue,
+				nil,
+				nil,
 			)
 
 			cmd := handler.eventHandler.handleChatComplete(tt.msg)

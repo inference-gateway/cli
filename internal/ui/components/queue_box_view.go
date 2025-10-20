@@ -3,7 +3,6 @@ package components
 import (
 	"fmt"
 	"strings"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	lipgloss "github.com/charmbracelet/lipgloss"
@@ -63,37 +62,26 @@ func (qv *QueueBoxView) Render(queuedMessages []domain.QueuedMessage, background
 
 func (qv *QueueBoxView) renderBackgroundTasks(backgroundTasks []domain.TaskPollingState) string {
 	accentColor := qv.getAccentColor()
-	titleText := fmt.Sprintf("Background Tasks (%d)", len(backgroundTasks))
+	dimColor := qv.getDimColor()
+
+	count := len(backgroundTasks)
+	taskWord := "task"
+	if count != 1 {
+		taskWord = "tasks"
+	}
+
 	titleStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(accentColor)).
 		Bold(true)
 
-	var taskLines []string
-	var lastContextID string
-
-	for i, task := range backgroundTasks {
-		if task.ContextID != lastContextID && task.ContextID != "" {
-			taskLines = append(taskLines, qv.formatContextHeader(task.ContextID))
-			lastContextID = task.ContextID
-		}
-		taskLines = append(taskLines, qv.formatBackgroundTask(i+1, task))
-	}
-
-	return titleStyle.Render(titleText) + "\n" + strings.Join(taskLines, "\n")
-}
-
-func (qv *QueueBoxView) formatContextHeader(contextID string) string {
-	dimColor := qv.getDimColor()
-	shortContextID := contextID
-	if len(contextID) > 12 {
-		shortContextID = contextID[:12] + "..."
-	}
-
-	headerStyle := lipgloss.NewStyle().
+	hintStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(dimColor)).
 		Italic(true)
 
-	return headerStyle.Render(fmt.Sprintf("    Context: %s", shortContextID))
+	titleText := fmt.Sprintf("Background Tasks (%d)", count)
+	hintText := fmt.Sprintf("  %d active %s running • Type /tasks to view details", count, taskWord)
+
+	return titleStyle.Render(titleText) + "\n" + hintStyle.Render(hintText)
 }
 
 func (qv *QueueBoxView) renderQueuedMessages(queuedMessages []domain.QueuedMessage) string {
@@ -109,30 +97,6 @@ func (qv *QueueBoxView) renderQueuedMessages(queuedMessages []domain.QueuedMessa
 	}
 
 	return titleStyle.Render(titleText) + "\n" + strings.Join(messageLines, "\n")
-}
-
-func (qv *QueueBoxView) formatBackgroundTask(index int, task domain.TaskPollingState) string {
-	elapsed := time.Since(task.StartedAt).Round(time.Second)
-
-	agentName := qv.extractAgentName(task.AgentURL)
-	taskDesc := qv.extractTaskDescription(task)
-
-	accentColor := qv.getAccentColor()
-	dimColor := qv.getDimColor()
-
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-	agentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
-	timeStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-	descStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.AssistantColor.Lipgloss))
-
-	formattedLine := fmt.Sprintf("      Task %s %s (%s) %s",
-		arrowStyle.Render("→"),
-		agentStyle.Render(agentName),
-		timeStyle.Render(qv.formatElapsed(elapsed)),
-		descStyle.Render(taskDesc),
-	)
-
-	return formattedLine
 }
 
 func (qv *QueueBoxView) formatQueuedMessage(queuedMsg domain.QueuedMessage) string {
@@ -185,48 +149,6 @@ func (qv *QueueBoxView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		qv.SetWidth(windowMsg.Width)
 	}
 	return qv, nil
-}
-
-func (qv *QueueBoxView) extractAgentName(agentURL string) string {
-	parts := strings.Split(agentURL, "://")
-	if len(parts) < 2 {
-		return agentURL
-	}
-
-	hostPort := parts[1]
-	host := strings.Split(hostPort, ":")[0]
-
-	return host
-}
-
-func (qv *QueueBoxView) extractTaskDescription(task domain.TaskPollingState) string {
-	if task.TaskDescription != "" {
-		maxLength := 50
-		if qv.width > 100 {
-			maxLength = 80
-		}
-
-		desc := task.TaskDescription
-		if len(desc) > maxLength {
-			return desc[:maxLength-3] + "..."
-		}
-		return desc
-	}
-
-	if len(task.TaskID) > 8 {
-		return task.TaskID[:8]
-	}
-	return task.TaskID
-}
-
-func (qv *QueueBoxView) formatElapsed(elapsed time.Duration) string {
-	if elapsed < time.Minute {
-		return fmt.Sprintf("%ds", int(elapsed.Seconds()))
-	}
-	if elapsed < time.Hour {
-		return fmt.Sprintf("%dm%ds", int(elapsed.Minutes()), int(elapsed.Seconds())%60)
-	}
-	return fmt.Sprintf("%dh%dm", int(elapsed.Hours()), int(elapsed.Minutes())%60)
 }
 
 func (qv *QueueBoxView) getAccentColor() string {

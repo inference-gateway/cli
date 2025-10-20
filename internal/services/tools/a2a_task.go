@@ -33,6 +33,7 @@ type A2ASubmitTaskResult struct {
 	Success     bool          `json:"success"`
 	WentIdle    bool          `json:"went_idle,omitempty"`
 	IdleTimeout time.Duration `json:"idle_timeout,omitempty"`
+	Task        *adk.Task     `json:"task,omitempty"`
 }
 
 // NewA2ASubmitTaskTool creates a new A2A task tool
@@ -489,6 +490,21 @@ func (t *A2ASubmitTaskTool) handleQueryError(agentURL, taskID, strategy string, 
 	return newInterval
 }
 
+// extractTextFromParts extracts text content from ADK message parts
+func (t *A2ASubmitTaskTool) extractTextFromParts(parts []adk.Part) string {
+	var text string
+	for _, part := range parts {
+		if textPart, ok := part.(adk.TextPart); ok {
+			text += textPart.Text
+		} else if partMap, ok := part.(map[string]any); ok {
+			if partText, exists := partMap["text"]; exists {
+				text += fmt.Sprintf("%v", partText)
+			}
+		}
+	}
+	return text
+}
+
 func (t *A2ASubmitTaskTool) publishStatusUpdate(state *domain.TaskPollingState, taskID, agentURL string, currentTask adk.Task) {
 	if state.StatusChan == nil {
 		return
@@ -496,7 +512,7 @@ func (t *A2ASubmitTaskTool) publishStatusUpdate(state *domain.TaskPollingState, 
 
 	statusMessage := ""
 	if currentTask.Status.Message != nil {
-		statusMessage = extractTextFromParts(currentTask.Status.Message.Parts)
+		statusMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
 	}
 
 	statusUpdate := &domain.A2ATaskStatusUpdate{
@@ -516,7 +532,11 @@ func (t *A2ASubmitTaskTool) publishStatusUpdate(state *domain.TaskPollingState, 
 func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt int, state *domain.TaskPollingState, currentTask adk.Task, pollingDetails string) (bool, *domain.ToolExecutionResult) {
 	switch currentTask.Status.State {
 	case adk.TaskStateCompleted:
-		finalResult := t.extractTaskResult(currentTask)
+		finalResult := ""
+		if currentTask.Status.Message != nil {
+			finalResult = t.extractTextFromParts(currentTask.Status.Message.Parts)
+		}
+
 		result := &domain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  true,
@@ -529,12 +549,17 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 				Success:    true,
 				Message:    fmt.Sprintf("Task %s", currentTask.Status.State),
 				TaskResult: finalResult,
+				Task:       &currentTask,
 			},
 		}
 		return true, result
 
 	case adk.TaskStateFailed:
-		finalResult := t.extractTaskResult(currentTask)
+		finalResult := ""
+		if currentTask.Status.Message != nil {
+			finalResult = t.extractTextFromParts(currentTask.Status.Message.Parts)
+		}
+
 		result := &domain.ToolExecutionResult{
 			ToolName: "A2A_SubmitTask",
 			Success:  false,
@@ -547,6 +572,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 				Success:    false,
 				Message:    fmt.Sprintf("Task %s", currentTask.Status.State),
 				TaskResult: finalResult,
+				Task:       &currentTask,
 			},
 		}
 		return true, result
@@ -554,7 +580,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 	case adk.TaskStateInputRequired:
 		inputMessage := ""
 		if currentTask.Status.Message != nil {
-			inputMessage = extractTextFromParts(currentTask.Status.Message.Parts)
+			inputMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
 		}
 
 		result := &domain.ToolExecutionResult{
@@ -569,6 +595,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 				Success:    true,
 				Message:    fmt.Sprintf("Task requires input: %s", inputMessage),
 				TaskResult: inputMessage,
+				Task:       &currentTask,
 			},
 		}
 		return true, result
@@ -714,29 +741,6 @@ func (t *A2ASubmitTaskTool) errorResult(args map[string]any, startTime time.Time
 			Message:  errorMsg,
 		},
 	}, nil
-}
-
-// extractTextFromParts extracts text content from message parts
-func extractTextFromParts(parts []adk.Part) string {
-	var result strings.Builder
-	for _, part := range parts {
-		if partMap, ok := part.(map[string]any); ok {
-			if text, exists := partMap["text"]; exists {
-				if textStr, ok := text.(string); ok {
-					result.WriteString(textStr)
-				}
-			}
-		}
-	}
-	return result.String()
-}
-
-// extractTaskResult extracts the result text from a completed or failed task
-func (t *A2ASubmitTaskTool) extractTaskResult(task adk.Task) string {
-	if task.Status.Message != nil {
-		return extractTextFromParts(task.Status.Message.Parts)
-	}
-	return ""
 }
 
 // isTaskNotFoundError checks if the error indicates a task was not found

@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"strings"
 
 	lipgloss "github.com/charmbracelet/lipgloss"
@@ -85,7 +86,11 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		Bold(true).
 		Padding(0, 1)
 
-	header := headerStyle.Render("")
+	headerText := ""
+	if len(data.BackgroundTasks) > 0 {
+		headerText = fmt.Sprintf("(%d)", len(data.BackgroundTasks))
+	}
+	header := headerStyle.Render(headerText)
 	headerBorder := ""
 
 	conversationStyle := lipgloss.NewStyle().

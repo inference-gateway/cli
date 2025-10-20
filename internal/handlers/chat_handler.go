@@ -16,15 +16,17 @@ import (
 )
 
 type ChatHandler struct {
-	agentService     domain.AgentService
-	conversationRepo domain.ConversationRepository
-	modelService     domain.ModelService
-	configService    domain.ConfigService
-	toolService      domain.ToolService
-	fileService      domain.FileService
-	shortcutRegistry *shortcuts.Registry
-	stateManager     domain.StateManager
-	messageQueue     domain.MessageQueue
+	agentService          domain.AgentService
+	conversationRepo      domain.ConversationRepository
+	modelService          domain.ModelService
+	configService         domain.ConfigService
+	toolService           domain.ToolService
+	fileService           domain.FileService
+	shortcutRegistry      *shortcuts.Registry
+	stateManager          domain.StateManager
+	messageQueue          domain.MessageQueue
+	taskRetentionService  domain.TaskRetentionService
+	backgroundTaskService domain.BackgroundTaskService
 
 	messageProcessor *ChatMessageProcessor
 	commandHandler   *ChatCommandHandler
@@ -41,17 +43,21 @@ func NewChatHandler(
 	shortcutRegistry *shortcuts.Registry,
 	stateManager domain.StateManager,
 	messageQueue domain.MessageQueue,
+	taskRetentionService domain.TaskRetentionService,
+	backgroundTaskService domain.BackgroundTaskService,
 ) *ChatHandler {
 	handler := &ChatHandler{
-		agentService:     agentService,
-		conversationRepo: conversationRepo,
-		modelService:     modelService,
-		configService:    configService,
-		toolService:      toolService,
-		fileService:      fileService,
-		shortcutRegistry: shortcutRegistry,
-		stateManager:     stateManager,
-		messageQueue:     messageQueue,
+		agentService:          agentService,
+		conversationRepo:      conversationRepo,
+		modelService:          modelService,
+		configService:         configService,
+		toolService:           toolService,
+		fileService:           fileService,
+		shortcutRegistry:      shortcutRegistry,
+		stateManager:          stateManager,
+		messageQueue:          messageQueue,
+		taskRetentionService:  taskRetentionService,
+		backgroundTaskService: backgroundTaskService,
 	}
 
 	handler.messageProcessor = NewChatMessageProcessor(handler)

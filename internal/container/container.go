@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	adkclient "github.com/inference-gateway/adk/client"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriterdomain "github.com/inference-gateway/cli/internal/domain/filewriter"
@@ -28,14 +27,17 @@ type ServiceContainer struct {
 	configService *services.ConfigService
 
 	// Domain services
-	conversationRepo domain.ConversationRepository
-	modelService     domain.ModelService
-	chatService      domain.ChatService
-	agentService     domain.AgentService
-	toolService      domain.ToolService
-	fileService      domain.FileService
-	a2aAgentService  domain.A2AAgentService
-	messageQueue     domain.MessageQueue
+	conversationRepo      domain.ConversationRepository
+	modelService          domain.ModelService
+	chatService           domain.ChatService
+	agentService          domain.AgentService
+	toolService           domain.ToolService
+	fileService           domain.FileService
+	a2aAgentService       domain.A2AAgentService
+	messageQueue          domain.MessageQueue
+	taskTrackerService    domain.TaskTracker
+	taskRetentionService  domain.TaskRetentionService
+	backgroundTaskService domain.BackgroundTaskService
 
 	// Services
 	stateManager domain.StateManager
@@ -97,6 +99,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.messageQueue = services.NewMessageQueueService()
 
 	c.toolRegistry = tools.NewRegistry(c.config)
+	c.taskTrackerService = c.toolRegistry.GetTaskTracker()
 
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
 
@@ -116,7 +119,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.backgroundJobManager = services.NewBackgroundJobManager(c.titleGenerator, c.config)
 
 		persistentRepo.SetTitleGenerator(c.titleGenerator)
-		persistentRepo.SetTaskTracker(c.toolRegistry.GetTaskTracker())
+		persistentRepo.SetTaskTracker(c.taskTrackerService)
 	}
 
 	modelClient := c.createSDKClient()
@@ -161,12 +164,15 @@ func (c *ServiceContainer) initializeDomainServices() {
 // initializeServices creates the new improved services
 func (c *ServiceContainer) initializeServices() {
 	debugMode := c.config.Logging.Debug
+	c.stateManager = services.NewStateManager(debugMode)
 
-	createADKClient := func(agentURL string) adkclient.A2AClient {
-		return adkclient.NewClient(agentURL)
+	if c.config.IsA2AToolsEnabled() {
+		maxTaskRetention := c.config.A2A.Task.CompletedTaskRetention
+		c.taskRetentionService = services.NewTaskRetentionService(maxTaskRetention)
+
+		// Create BackgroundTaskService with TaskTracker
+		c.backgroundTaskService = services.NewBackgroundTaskService(c.taskTrackerService)
 	}
-
-	c.stateManager = services.NewStateManager(debugMode, createADKClient)
 }
 
 // initializeUIComponents creates UI components and theme
@@ -190,11 +196,7 @@ func (c *ServiceContainer) initializeExtensibility() {
 
 // registerDefaultCommands registers the built-in commands
 func (c *ServiceContainer) registerDefaultCommands() {
-	var taskTracker domain.TaskTracker
-	if c.toolRegistry != nil {
-		taskTracker = c.toolRegistry.GetTaskTracker()
-	}
-	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, taskTracker))
+	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, c.taskTrackerService))
 	c.shortcutRegistry.Register(shortcuts.NewExportShortcut(c.conversationRepo, c.agentService, c.modelService, c.config))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
@@ -204,7 +206,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	if persistentRepo, ok := c.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
 		c.shortcutRegistry.Register(shortcuts.NewConversationSelectShortcut(adapter))
-		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter, taskTracker))
+		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter, c.taskTrackerService))
 	}
 
 	gitCommitClient := c.createSDKClient()
@@ -213,7 +215,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService))
 
 	if c.config.IsA2AToolsEnabled() {
-		c.shortcutRegistry.Register(shortcuts.NewCancelShortcut(c.stateManager, c.toolService, taskTracker))
+		c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut(c.config))
 	}
 
 	if c.configService != nil {
@@ -295,6 +297,21 @@ func (c *ServiceContainer) GetAgentService() domain.AgentService {
 
 func (c *ServiceContainer) GetMessageQueue() domain.MessageQueue {
 	return c.messageQueue
+}
+
+// GetTaskTrackerService returns the task tracker service
+func (c *ServiceContainer) GetTaskTrackerService() domain.TaskTracker {
+	return c.taskTrackerService
+}
+
+// GetTaskRetentionService returns the task retention service (may be nil if A2A is not enabled)
+func (c *ServiceContainer) GetTaskRetentionService() domain.TaskRetentionService {
+	return c.taskRetentionService
+}
+
+// GetBackgroundTaskService returns the background task service (may be nil if A2A is not enabled)
+func (c *ServiceContainer) GetBackgroundTaskService() domain.BackgroundTaskService {
+	return c.backgroundTaskService
 }
 
 // createRetryConfig creates a retry config with logging callback

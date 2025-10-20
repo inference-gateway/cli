@@ -27,6 +27,8 @@ func TestFormatMetricsWithSessionTokens(t *testing.T) {
 		shortcutRegistry,
 		nil, // stateManager
 		messageQueue,
+		nil, // taskRetentionService
+		nil, // backgroundTaskService
 	)
 
 	err := conversationRepo.AddTokenUsage(100, 50, 150)

@@ -74,6 +74,7 @@ func initConfig() {
 	v.SetDefault("a2a.task.max_poll_interval_sec", defaults.A2A.Task.MaxPollIntervalSec)
 	v.SetDefault("a2a.task.backoff_multiplier", defaults.A2A.Task.BackoffMultiplier)
 	v.SetDefault("a2a.task.background_monitoring", defaults.A2A.Task.BackgroundMonitoring)
+	v.SetDefault("a2a.task.completed_task_retention", defaults.A2A.Task.CompletedTaskRetention)
 	v.SetDefault("a2a.tools.query_agent.enabled", defaults.A2A.Tools.QueryAgent.Enabled)
 	v.SetDefault("a2a.tools.query_agent.require_approval", defaults.A2A.Tools.QueryAgent.RequireApproval)
 	v.SetDefault("a2a.tools.query_task.enabled", defaults.A2A.Tools.QueryTask.Enabled)

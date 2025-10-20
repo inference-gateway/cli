@@ -236,7 +236,10 @@ func (e *ChatEventHandler) handleChatComplete(
 		tokenUsage = e.FormatMetrics(msg.Metrics)
 	}
 
-	backgroundTasks := e.handler.stateManager.GetBackgroundTasks(e.handler.toolService)
+	var backgroundTasks []domain.TaskPollingState
+	if e.handler.backgroundTaskService != nil {
+		backgroundTasks = e.handler.backgroundTaskService.GetBackgroundTasks()
+	}
 	hasBackgroundTasks := len(backgroundTasks) > 0
 
 	if hasBackgroundTasks {
@@ -560,6 +563,16 @@ func (e *ChatEventHandler) handleA2ATaskCompleted(
 	if msg.Result.Data != nil {
 		if submitResult, ok := msg.Result.Data.(tools.A2ASubmitTaskResult); ok {
 			taskResult = submitResult.TaskResult
+
+			if submitResult.Task != nil && e.handler.taskRetentionService != nil {
+				retainedTask := domain.TaskInfo{
+					Task:        *submitResult.Task,
+					AgentURL:    submitResult.AgentURL,
+					StartedAt:   time.Now().Add(-msg.Result.Duration),
+					CompletedAt: time.Now(),
+				}
+				e.handler.taskRetentionService.AddTask(retainedTask)
+			}
 		}
 	}
 
@@ -581,7 +594,10 @@ func (e *ChatEventHandler) handleA2ATaskCompleted(
 		}
 	})
 
-	backgroundTasks := e.handler.stateManager.GetBackgroundTasks(e.handler.toolService)
+	var backgroundTasks []domain.TaskPollingState
+	if e.handler.backgroundTaskService != nil {
+		backgroundTasks = e.handler.backgroundTaskService.GetBackgroundTasks()
+	}
 	hasBackgroundTasks := len(backgroundTasks) > 0
 
 	chatSession := e.handler.stateManager.GetChatSession()
@@ -615,6 +631,16 @@ func (e *ChatEventHandler) handleA2ATaskFailed(
 	if msg.Result.Data != nil {
 		if submitResult, ok := msg.Result.Data.(tools.A2ASubmitTaskResult); ok {
 			taskResult = submitResult.TaskResult
+
+			if submitResult.Task != nil && e.handler.taskRetentionService != nil {
+				retainedTask := domain.TaskInfo{
+					Task:        *submitResult.Task,
+					AgentURL:    submitResult.AgentURL,
+					StartedAt:   time.Now().Add(-msg.Result.Duration),
+					CompletedAt: time.Now(),
+				}
+				e.handler.taskRetentionService.AddTask(retainedTask)
+			}
 		}
 	}
 
@@ -640,7 +666,10 @@ func (e *ChatEventHandler) handleA2ATaskFailed(
 		}
 	})
 
-	backgroundTasks := e.handler.stateManager.GetBackgroundTasks(e.handler.toolService)
+	var backgroundTasks []domain.TaskPollingState
+	if e.handler.backgroundTaskService != nil {
+		backgroundTasks = e.handler.backgroundTaskService.GetBackgroundTasks()
+	}
 	hasBackgroundTasks := len(backgroundTasks) > 0
 
 	chatSession := e.handler.stateManager.GetChatSession()
