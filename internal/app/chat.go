@@ -152,7 +152,6 @@ func NewChatApplication(
 		app.conversationSelector = nil
 	}
 
-	// Task manager will be lazily initialized when first accessed
 	app.taskManager = nil
 
 	if initialView == domain.ViewStateChat {
