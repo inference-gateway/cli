@@ -105,7 +105,7 @@ If A2A is disabled, the `/tasks` command will show an error message.
 
 ### View States
 
-- `ViewStateTaskManagement`: Dedicated view state for task management
+- `ViewStateA2ATaskManagement`: Dedicated view state for task management
 - Proper transitions back to chat view when exiting
 - Integration with existing view management system
 
