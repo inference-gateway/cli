@@ -31,14 +31,11 @@ func (t *TaskRetentionService) AddTaskToInMemoryRetention(task components.TaskIn
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 
-	// Mark as completed/canceled with end time
 	now := time.Now()
 	task.ElapsedTime = now.Sub(task.StartedAt)
 
-	// Add to the beginning of the list (most recent first)
 	t.completedTasks = append([]components.TaskInfo{task}, t.completedTasks...)
 
-	// Trim to max retention
 	if len(t.completedTasks) > t.maxRetention {
 		t.completedTasks = t.completedTasks[:t.maxRetention]
 	}
@@ -49,7 +46,6 @@ func (t *TaskRetentionService) GetCompletedTasks() []components.TaskInfo {
 	t.mutex.RLock()
 	defer t.mutex.RUnlock()
 
-	// Return a copy to avoid race conditions
 	result := make([]components.TaskInfo, len(t.completedTasks))
 	copy(result, t.completedTasks)
 	return result
@@ -73,7 +69,6 @@ func (t *TaskRetentionService) SetMaxRetention(maxRetention int) {
 
 	t.maxRetention = maxRetention
 
-	// Trim existing tasks if new retention is smaller
 	if len(t.completedTasks) > maxRetention {
 		t.completedTasks = t.completedTasks[:maxRetention]
 	}
