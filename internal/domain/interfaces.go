@@ -200,6 +200,7 @@ type TaskPollingState struct {
 	LastPollAt      time.Time
 	NextPollTime    time.Time
 	CurrentInterval time.Duration
+	LastKnownState  string
 	CancelFunc      context.CancelFunc
 	ResultChan      chan *ToolExecutionResult
 	ErrorChan       chan error

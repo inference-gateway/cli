@@ -490,6 +490,21 @@ func (t *A2ASubmitTaskTool) handleQueryError(agentURL, taskID, strategy string, 
 	return newInterval
 }
 
+// extractTextFromParts extracts text content from ADK message parts
+func (t *A2ASubmitTaskTool) extractTextFromParts(parts []adk.Part) string {
+	var text string
+	for _, part := range parts {
+		if textPart, ok := part.(adk.TextPart); ok {
+			text += textPart.Text
+		} else if partMap, ok := part.(map[string]any); ok {
+			if partText, exists := partMap["text"]; exists {
+				text += fmt.Sprintf("%v", partText)
+			}
+		}
+	}
+	return text
+}
+
 func (t *A2ASubmitTaskTool) publishStatusUpdate(state *domain.TaskPollingState, taskID, agentURL string, currentTask adk.Task) {
 	if state.StatusChan == nil {
 		return
@@ -497,9 +512,7 @@ func (t *A2ASubmitTaskTool) publishStatusUpdate(state *domain.TaskPollingState, 
 
 	statusMessage := ""
 	if currentTask.Status.Message != nil {
-		for _, part := range currentTask.Status.Message.Parts {
-			statusMessage += fmt.Sprintf("%v", part)
-		}
+		statusMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
 	}
 
 	statusUpdate := &domain.A2ATaskStatusUpdate{
@@ -521,9 +534,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 	case adk.TaskStateCompleted:
 		finalResult := ""
 		if currentTask.Status.Message != nil {
-			for _, part := range currentTask.Status.Message.Parts {
-				finalResult += fmt.Sprintf("%v", part)
-			}
+			finalResult = t.extractTextFromParts(currentTask.Status.Message.Parts)
 		}
 
 		result := &domain.ToolExecutionResult{
@@ -546,9 +557,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 	case adk.TaskStateFailed:
 		finalResult := ""
 		if currentTask.Status.Message != nil {
-			for _, part := range currentTask.Status.Message.Parts {
-				finalResult += fmt.Sprintf("%v", part)
-			}
+			finalResult = t.extractTextFromParts(currentTask.Status.Message.Parts)
 		}
 
 		result := &domain.ToolExecutionResult{
@@ -571,9 +580,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 	case adk.TaskStateInputRequired:
 		inputMessage := ""
 		if currentTask.Status.Message != nil {
-			for _, part := range currentTask.Status.Message.Parts {
-				inputMessage += fmt.Sprintf("%v", part)
-			}
+			inputMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
 		}
 
 		result := &domain.ToolExecutionResult{
@@ -588,6 +595,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 				Success:    true,
 				Message:    fmt.Sprintf("Task requires input: %s", inputMessage),
 				TaskResult: inputMessage,
+				Task:       &currentTask,
 			},
 		}
 		return true, result

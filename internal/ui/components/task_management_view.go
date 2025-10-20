@@ -46,9 +46,11 @@ type TaskManagerImpl struct {
 type TaskViewMode int
 
 const (
-	TaskViewActive TaskViewMode = iota
+	TaskViewAll TaskViewMode = iota
+	TaskViewActive
+	TaskViewInputRequired
 	TaskViewCompleted
-	TaskViewAll
+	TaskViewCanceled
 )
 
 // NewTaskManager creates a new task manager UI component
@@ -110,11 +112,16 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 		for _, task := range backgroundTasks {
 			elapsed := time.Since(task.StartedAt)
 
+			displayStatus := "Running"
+			if task.LastKnownState != "" {
+				displayStatus = t.mapTaskStateToDisplayStatus(task.LastKnownState)
+			}
+
 			taskInfo := TaskInfo{
 				TaskPollingState: task,
-				Status:           "Running",
+				Status:           displayStatus,
 				ElapsedTime:      elapsed,
-				TaskRef:          nil, // Active tasks have no retained task reference
+				TaskRef:          nil,
 			}
 			activeTasks = append(activeTasks, taskInfo)
 		}
@@ -263,7 +270,6 @@ func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
 			task := t.filteredTasks[t.selected]
-			// Only allow canceling active tasks (those without a retained task reference)
 			if task.TaskRef == nil {
 				t.confirmCancel = true
 				return t, nil
@@ -274,23 +280,31 @@ func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		t.searchMode = true
 		return t, nil
 
-	case "1":
-		t.currentView = TaskViewActive
-		t.applyFilters()
-
-	case "2":
-		t.currentView = TaskViewCompleted
-		t.applyFilters()
-
-	case "3":
-		t.currentView = TaskViewAll
-		t.applyFilters()
+	case "1", "2", "3", "4", "5":
+		t.handleViewSwitch(msg.String())
+		return t, nil
 
 	case "r":
 		return t, t.loadTasksCmd()
 	}
 
 	return t, nil
+}
+
+func (t *TaskManagerImpl) handleViewSwitch(key string) {
+	switch key {
+	case "1":
+		t.currentView = TaskViewAll
+	case "2":
+		t.currentView = TaskViewActive
+	case "3":
+		t.currentView = TaskViewInputRequired
+	case "4":
+		t.currentView = TaskViewCompleted
+	case "5":
+		t.currentView = TaskViewCanceled
+	}
+	t.applyFilters()
 }
 
 func (t *TaskManagerImpl) handleCancelConfirmation(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -386,16 +400,42 @@ func (t *TaskManagerImpl) mapTaskStatus(state adk.TaskState) string {
 	return "Unknown"
 }
 
+// mapTaskStateToDisplayStatus maps task state string to display status
+func (t *TaskManagerImpl) mapTaskStateToDisplayStatus(state string) string {
+	return t.mapTaskStatus(adk.TaskState(state))
+}
+
 func (t *TaskManagerImpl) applyFilters() {
 	var baseTasks []TaskInfo
 
+	allTasks := append(append([]TaskInfo{}, t.activeTasks...), t.completedTasks...)
+
 	switch t.currentView {
+	case TaskViewAll:
+		baseTasks = allTasks
 	case TaskViewActive:
 		baseTasks = t.activeTasks
+	case TaskViewInputRequired:
+		baseTasks = make([]TaskInfo, 0)
+		for _, task := range allTasks {
+			if task.Status == "Input Required" {
+				baseTasks = append(baseTasks, task)
+			}
+		}
 	case TaskViewCompleted:
-		baseTasks = t.completedTasks
-	case TaskViewAll:
-		baseTasks = append(append([]TaskInfo{}, t.activeTasks...), t.completedTasks...)
+		baseTasks = make([]TaskInfo, 0)
+		for _, task := range t.completedTasks {
+			if task.Status == "Completed" {
+				baseTasks = append(baseTasks, task)
+			}
+		}
+	case TaskViewCanceled:
+		baseTasks = make([]TaskInfo, 0)
+		for _, task := range t.completedTasks {
+			if task.Status == "Canceled" {
+				baseTasks = append(baseTasks, task)
+			}
+		}
 	}
 
 	if t.searchQuery == "" {
@@ -563,21 +603,27 @@ func (t *TaskManagerImpl) renderTaskList() string {
 
 // writeViewTabs writes the view selection tabs
 func (t *TaskManagerImpl) writeViewTabs(b *strings.Builder) {
-	activeStyle := "[1] Active"
-	completedStyle := "[2] Completed"
-	allStyle := "[3] All"
+	allStyle := "[1] All"
+	activeStyle := "[2] Active"
+	inputRequiredStyle := "[3] Input Required"
+	completedStyle := "[4] Completed"
+	canceledStyle := "[5] Canceled"
 
 	switch t.currentView {
-	case TaskViewActive:
-		activeStyle = fmt.Sprintf("%s[1] Active%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
-	case TaskViewCompleted:
-		completedStyle = fmt.Sprintf("%s[2] Completed%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
 	case TaskViewAll:
-		allStyle = fmt.Sprintf("%s[3] All%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+		allStyle = fmt.Sprintf("%s[1] All%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+	case TaskViewActive:
+		activeStyle = fmt.Sprintf("%s[2] Active%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+	case TaskViewInputRequired:
+		inputRequiredStyle = fmt.Sprintf("%s[3] Input Required%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+	case TaskViewCompleted:
+		completedStyle = fmt.Sprintf("%s[4] Completed%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+	case TaskViewCanceled:
+		canceledStyle = fmt.Sprintf("%s[5] Canceled%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
 	}
 
-	fmt.Fprintf(b, "%s%s  %s  %s%s\n",
-		t.themeService.GetCurrentTheme().GetDimColor(), activeStyle, completedStyle, allStyle, colors.Reset)
+	fmt.Fprintf(b, "%s%s  %s  %s  %s  %s%s\n",
+		t.themeService.GetCurrentTheme().GetDimColor(), allStyle, activeStyle, inputRequiredStyle, completedStyle, canceledStyle, colors.Reset)
 
 	separatorWidth := t.width - 4
 	if separatorWidth < 0 {
@@ -600,8 +646,8 @@ func (t *TaskManagerImpl) writeSearchInfo(b *strings.Builder) {
 
 // writeTableHeader writes the table header with column labels
 func (t *TaskManagerImpl) writeTableHeader(b *strings.Builder) {
-	fmt.Fprintf(b, "%s%-38s │ %-30s │ %-15s │ %-12s%s\n",
-		t.themeService.GetCurrentTheme().GetDimColor(), "Task ID", "Agent", "Status", "Elapsed", colors.Reset)
+	fmt.Fprintf(b, "%s  %-36s │ %-38s │ %-30s │ %-15s │ %-12s%s\n",
+		t.themeService.GetCurrentTheme().GetDimColor(), "Context ID", "Task ID", "Agent", "Status", "Elapsed", colors.Reset)
 	fmt.Fprintf(b, "%s%s%s\n",
 		t.themeService.GetCurrentTheme().GetDimColor(), strings.Repeat("─", t.width-4), colors.Reset)
 }
@@ -615,17 +661,21 @@ func (t *TaskManagerImpl) writeTaskRows(b *strings.Builder) {
 
 // writeTaskRow writes a single task row in table format
 func (t *TaskManagerImpl) writeTaskRow(b *strings.Builder, task TaskInfo, index int) {
-	taskID := t.truncateString(task.TaskID, 36)
+	taskID := t.truncateString(task.TaskID, 38)
 	agentURL := t.truncateString(task.AgentURL, 30)
+	contextID := t.truncateString(task.ContextID, 38)
+	if contextID == "" {
+		contextID = "-"
+	}
 	status := t.truncateString(task.Status, 15)
 	elapsed := t.formatDuration(task.ElapsedTime)
 
 	if index == t.selected {
-		fmt.Fprintf(b, "%s▶ %-36s │ %-30s │ %-15s │ %-12s%s\n",
-			t.themeService.GetCurrentTheme().GetAccentColor(), taskID, agentURL, status, elapsed, colors.Reset)
+		fmt.Fprintf(b, "%s▶ %-36s │ %-38s │ %-30s │ %-15s │ %-12s%s\n",
+			t.themeService.GetCurrentTheme().GetAccentColor(), contextID, taskID, agentURL, status, elapsed, colors.Reset)
 	} else {
-		fmt.Fprintf(b, "  %-36s │ %-30s │ %-15s │ %-12s\n",
-			taskID, agentURL, status, elapsed)
+		fmt.Fprintf(b, "  %-36s │ %-38s │ %-30s │ %-15s │ %-12s\n",
+			contextID, taskID, agentURL, status, elapsed)
 	}
 }
 

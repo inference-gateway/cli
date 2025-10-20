@@ -213,6 +213,11 @@ func (sm *StateManager) IsAgentBusy() bool {
 	sm.mutex.RLock()
 	defer sm.mutex.RUnlock()
 
+	toolExecution := sm.state.GetToolExecution()
+	if toolExecution != nil {
+		return true
+	}
+
 	chatSession := sm.state.GetChatSession()
 	if chatSession == nil {
 		return false

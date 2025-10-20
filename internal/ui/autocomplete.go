@@ -327,10 +327,13 @@ func (a *AutocompleteImpl) Render() string {
 
 	for i := start; i < end; i++ {
 		cmd := a.filtered[i]
-		prefix := "  "
+		var prefix string
 
 		if i == a.selected {
-			prefix = fmt.Sprintf("%s▶ %s", a.theme.GetAccentColor(), colors.Reset)
+			marker := "▶"
+			prefix = fmt.Sprintf("%s%s%s ", a.theme.GetAccentColor(), marker, colors.Reset)
+		} else {
+			prefix = "  "
 		}
 
 		var line string
@@ -339,20 +342,17 @@ func (a *AutocompleteImpl) Render() string {
 			shortcutName := parts[0]
 			usageArgs := ""
 			if len(parts) > 1 {
-				usageArgs = " " + parts[1]
+				usageArgs = parts[1]
 			}
 
-			line = fmt.Sprintf("%s %-12s %s%s%s %s%s%s",
+			line = fmt.Sprintf("%s%-20s %s%-50s%s",
 				prefix,
-				shortcutName,
-				a.theme.GetDimColor(),
-				usageArgs,
-				colors.Reset,
+				shortcutName+" "+usageArgs,
 				a.theme.GetDimColor(),
 				cmd.Description,
 				colors.Reset)
 		} else {
-			line = fmt.Sprintf("%s %-12s %s%s%s",
+			line = fmt.Sprintf("%s%-20s %s%s%s",
 				prefix,
 				cmd.Shortcut,
 				a.theme.GetDimColor(),
@@ -368,7 +368,7 @@ func (a *AutocompleteImpl) Render() string {
 
 	helpColor := a.theme.GetDimColor()
 	if len(a.filtered) > 0 {
-		b.WriteString(fmt.Sprintf("\n\n%s  Tab to select, ↑↓ to navigate%s\n",
+		b.WriteString(fmt.Sprintf("\n\n%sTab to select, ↑↓ to navigate%s\n",
 			helpColor, colors.Reset))
 	}
 
