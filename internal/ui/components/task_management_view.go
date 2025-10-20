@@ -1,99 +1,46 @@
 package components
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	adk "github.com/inference-gateway/adk/types"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // TaskInfo extends TaskPollingState with additional metadata for UI display
 type TaskInfo struct {
 	domain.TaskPollingState
-	AgentName   string
 	Status      string
 	ElapsedTime time.Duration
-	Completed   bool
-	Canceled    bool
+	TaskRef     *domain.RetainedTaskInfo // nil for active tasks, non-nil for terminal tasks (completed, failed, canceled, etc.)
 }
 
 // TaskManagerImpl implements task management UI similar to conversation selection
 type TaskManagerImpl struct {
-	activeTasks      []TaskInfo
-	completedTasks   []TaskInfo
-	filteredTasks    []TaskInfo
-	selected         int
-	width            int
-	height           int
-	themeService     domain.ThemeService
-	done             bool
-	cancelled        bool
-	stateManager     domain.StateManager
-	toolService      domain.ToolService
-	taskTracker      domain.TaskTracker
-	retentionService TaskRetentionService
-	searchQuery      string
-	searchMode       bool
-	loading          bool
-	loadError        error
-	confirmCancel    bool
-	showInfo         bool
-	currentView      TaskViewMode
-	maxCompleted     int
-}
-
-// TaskRetentionService interface for managing completed tasks
-type TaskRetentionService interface {
-	AddCompletedTask(task TaskInfo)
-	GetCompletedTasks() []TaskInfo
-	GetMaxRetention() int
-	SetMaxRetention(maxRetention int)
-	ClearCompletedTasks()
-}
-
-// SimpleTaskRetentionService is a simple in-memory implementation
-type SimpleTaskRetentionService struct {
+	activeTasks    []TaskInfo
 	completedTasks []TaskInfo
-	maxRetention   int
-}
-
-func (s *SimpleTaskRetentionService) AddCompletedTask(task TaskInfo) {
-	// Add to the beginning of the list (most recent first)
-	s.completedTasks = append([]TaskInfo{task}, s.completedTasks...)
-
-	// Trim to max retention
-	if len(s.completedTasks) > s.maxRetention {
-		s.completedTasks = s.completedTasks[:s.maxRetention]
-	}
-}
-
-func (s *SimpleTaskRetentionService) GetCompletedTasks() []TaskInfo {
-	return s.completedTasks
-}
-
-func (s *SimpleTaskRetentionService) GetMaxRetention() int {
-	return s.maxRetention
-}
-
-func (s *SimpleTaskRetentionService) SetMaxRetention(maxRetention int) {
-	if maxRetention <= 0 {
-		maxRetention = 5
-	}
-
-	s.maxRetention = maxRetention
-
-	// Trim existing tasks if new retention is smaller
-	if len(s.completedTasks) > maxRetention {
-		s.completedTasks = s.completedTasks[:maxRetention]
-	}
-}
-
-func (s *SimpleTaskRetentionService) ClearCompletedTasks() {
-	s.completedTasks = make([]TaskInfo, 0)
+	filteredTasks  []TaskInfo
+	selected       int
+	width          int
+	height         int
+	themeService   domain.ThemeService
+	done           bool
+	cancelled      bool
+	stateManager   domain.StateManager
+	toolService    domain.ToolService
+	taskTracker    domain.TaskTracker
+	searchQuery    string
+	searchMode     bool
+	loading        bool
+	loadError      error
+	confirmCancel  bool
+	showInfo       bool
+	currentView    TaskViewMode
 }
 
 type TaskViewMode int
@@ -110,35 +57,41 @@ func NewTaskManager(
 	toolService domain.ToolService,
 	themeService domain.ThemeService,
 ) *TaskManagerImpl {
-	// Create a simple in-memory retention service
-	retentionService := &SimpleTaskRetentionService{
-		completedTasks: make([]TaskInfo, 0),
-		maxRetention:   5, // Default retention
-	}
-
 	return &TaskManagerImpl{
-		activeTasks:      make([]TaskInfo, 0),
-		completedTasks:   make([]TaskInfo, 0),
-		filteredTasks:    make([]TaskInfo, 0),
-		selected:         0,
-		width:            80,
-		height:           24,
-		themeService:     themeService,
-		stateManager:     stateManager,
-		toolService:      toolService,
-		taskTracker:      toolService.GetTaskTracker(),
-		retentionService: retentionService,
-		searchQuery:      "",
-		searchMode:       false,
-		loading:          true,
-		loadError:        nil,
-		currentView:      TaskViewActive,
-		maxCompleted:     5, // Default retention of 5 completed tasks
+		activeTasks:    make([]TaskInfo, 0),
+		completedTasks: make([]TaskInfo, 0),
+		filteredTasks:  make([]TaskInfo, 0),
+		selected:       0,
+		width:          80,
+		height:         24,
+		themeService:   themeService,
+		stateManager:   stateManager,
+		toolService:    toolService,
+		taskTracker:    toolService.GetTaskTracker(),
+		searchQuery:    "",
+		searchMode:     false,
+		loading:        true,
+		loadError:      nil,
+		currentView:    TaskViewAll,
 	}
 }
 
 func (t *TaskManagerImpl) Init() tea.Cmd {
 	return t.loadTasksCmd()
+}
+
+// Reset resets the task manager state for reuse
+func (t *TaskManagerImpl) Reset() {
+	t.done = false
+	t.cancelled = false
+	t.confirmCancel = false
+	t.showInfo = false
+	t.searchMode = false
+	t.searchQuery = ""
+	t.selected = 0
+	t.loading = true
+	t.loadError = nil
+	t.currentView = TaskViewAll
 }
 
 func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
@@ -155,24 +108,39 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 		activeTasks := make([]TaskInfo, 0, len(backgroundTasks))
 
 		for _, task := range backgroundTasks {
-			agentName := extractAgentName(task.AgentURL)
 			elapsed := time.Since(task.StartedAt)
 
 			taskInfo := TaskInfo{
 				TaskPollingState: task,
-				AgentName:        agentName,
 				Status:           "Running",
 				ElapsedTime:      elapsed,
-				Completed:        false,
-				Canceled:         false,
+				TaskRef:          nil, // Active tasks have no retained task reference
 			}
 			activeTasks = append(activeTasks, taskInfo)
 		}
 
-		// Load completed tasks from retention service
-		completedTasks := t.retentionService.GetCompletedTasks()
+		retainedTaskInfos := t.stateManager.GetRetainedTasks()
+		completedTasks := make([]TaskInfo, 0, len(retainedTaskInfos))
 
-		// Convert to interface slices for the event
+		for i := range retainedTaskInfos {
+			retainedTaskInfo := &retainedTaskInfos[i]
+			elapsed := retainedTaskInfo.CompletedAt.Sub(retainedTaskInfo.StartedAt)
+
+			taskInfo := TaskInfo{
+				TaskPollingState: domain.TaskPollingState{
+					TaskID:          retainedTaskInfo.Task.ID,
+					ContextID:       retainedTaskInfo.Task.ContextID,
+					AgentURL:        retainedTaskInfo.AgentURL,
+					TaskDescription: "",
+					StartedAt:       retainedTaskInfo.StartedAt,
+				},
+				Status:      t.mapTaskStatus(retainedTaskInfo.Task.Status.State),
+				ElapsedTime: elapsed,
+				TaskRef:     retainedTaskInfo,
+			}
+			completedTasks = append(completedTasks, taskInfo)
+		}
+
 		interfaceActiveTasks := make([]interface{}, len(activeTasks))
 		for i, task := range activeTasks {
 			interfaceActiveTasks[i] = task
@@ -195,6 +163,8 @@ func (t *TaskManagerImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case domain.TasksLoadedEvent:
 		return t.handleTasksLoaded(msg)
+	case domain.TaskCancelledEvent:
+		return t.handleTaskCancelled(msg)
 	case tea.WindowSizeMsg:
 		return t.handleWindowResize(msg)
 	case tea.KeyMsg:
@@ -212,7 +182,6 @@ func (t *TaskManagerImpl) handleTasksLoaded(msg domain.TasksLoadedEvent) (tea.Mo
 	t.loadError = msg.Error
 
 	if msg.Error == nil {
-		// Convert interface slices back to TaskInfo slices
 		t.activeTasks = make([]TaskInfo, len(msg.ActiveTasks))
 		for i, task := range msg.ActiveTasks {
 			if taskInfo, ok := task.(TaskInfo); ok {
@@ -231,6 +200,18 @@ func (t *TaskManagerImpl) handleTasksLoaded(msg domain.TasksLoadedEvent) (tea.Mo
 	}
 
 	return t, nil
+}
+
+func (t *TaskManagerImpl) handleTaskCancelled(msg domain.TaskCancelledEvent) (tea.Model, tea.Cmd) {
+	if msg.Error != nil {
+		logger.Error("Task cancellation failed", "task_id", msg.TaskID, "error", msg.Error)
+		// Even if cancellation failed, reload tasks to show current state
+	} else {
+		logger.Info("Task cancelled, reloading tasks", "task_id", msg.TaskID)
+	}
+
+	// Reload tasks to reflect the canceled task in completed tasks list
+	return t, t.loadTasksCmd()
 }
 
 func (t *TaskManagerImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
@@ -253,13 +234,12 @@ func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg.String() {
-	case "q", "esc":
+	case "q", "esc", "ctrl+c":
 		t.cancelled = true
 		return t, nil
 
 	case "enter":
 		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
-			// Default action is to show info
 			t.showInfo = true
 			return t, nil
 		}
@@ -283,7 +263,8 @@ func (t *TaskManagerImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "c":
 		if len(t.filteredTasks) > 0 && t.selected < len(t.filteredTasks) {
 			task := t.filteredTasks[t.selected]
-			if !task.Completed && !task.Canceled {
+			// Only allow canceling active tasks (those without a retained task reference)
+			if task.TaskRef == nil {
 				t.confirmCancel = true
 				return t, nil
 			}
@@ -330,7 +311,7 @@ func (t *TaskManagerImpl) handleCancelConfirmation(msg tea.KeyMsg) (tea.Model, t
 
 func (t *TaskManagerImpl) handleInfoView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
-	case "q", "esc", "i":
+	case "q", "esc", "i", "ctrl+c":
 		t.showInfo = false
 	}
 
@@ -366,40 +347,17 @@ func (t *TaskManagerImpl) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 
 func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
 	return func() tea.Msg {
-		if t.taskTracker == nil {
-			return domain.TaskCancelledEvent{
-				TaskID: task.TaskID,
-				Error:  fmt.Errorf("task tracker not available"),
-			}
-		}
+		err := t.stateManager.CancelBackgroundTask(task.TaskID, t.toolService)
 
-		// Send cancel to agent
-		err := t.sendCancelToAgent(context.Background(), task.TaskPollingState)
 		if err != nil {
-			logger.Error("Failed to send cancel to agent", "task_id", task.TaskID, "error", err)
+			logger.Error("Failed to cancel task", "task_id", task.TaskID, "error", err)
 			return domain.TaskCancelledEvent{
 				TaskID: task.TaskID,
 				Error:  err,
 			}
 		}
 
-		// Cancel locally
-		if task.CancelFunc != nil {
-			task.CancelFunc()
-		}
-
-		if t.taskTracker != nil {
-			t.taskTracker.StopPolling(task.TaskID)
-			t.taskTracker.RemoveTask(task.TaskID)
-		}
-
-		// Add the canceled task to retention
-		canceledTask := task
-		canceledTask.Canceled = true
-		canceledTask.Status = "Canceled"
-		canceledTask.ElapsedTime = time.Since(task.StartedAt)
-		t.retentionService.AddCompletedTask(canceledTask)
-
+		logger.Info("Task cancelled successfully", "task_id", task.TaskID)
 		return domain.TaskCancelledEvent{
 			TaskID: task.TaskID,
 			Error:  nil,
@@ -407,10 +365,25 @@ func (t *TaskManagerImpl) cancelTaskCmd(task TaskInfo) tea.Cmd {
 	}
 }
 
-func (t *TaskManagerImpl) sendCancelToAgent(ctx context.Context, task domain.TaskPollingState) error {
-	// This would use the same logic as in the CancelShortcut
-	// For now, we'll simulate success
-	return nil
+// mapTaskStatus maps task state to display status
+func (t *TaskManagerImpl) mapTaskStatus(state adk.TaskState) string {
+	statusMap := map[adk.TaskState]string{
+		adk.TaskStateCompleted:     "Completed",
+		adk.TaskStateFailed:        "Failed",
+		adk.TaskStateCanceled:      "Canceled",
+		adk.TaskStateRejected:      "Rejected",
+		adk.TaskStateInputRequired: "Input Required",
+	}
+
+	if displayName, exists := statusMap[state]; exists {
+		return displayName
+	}
+
+	stateStr := string(state)
+	if len(stateStr) > 0 {
+		return strings.ToUpper(stateStr[:1]) + stateStr[1:]
+	}
+	return "Unknown"
 }
 
 func (t *TaskManagerImpl) applyFilters() {
@@ -431,7 +404,7 @@ func (t *TaskManagerImpl) applyFilters() {
 		t.filteredTasks = make([]TaskInfo, 0)
 		query := strings.ToLower(t.searchQuery)
 		for _, task := range baseTasks {
-			if strings.Contains(strings.ToLower(task.AgentName), query) ||
+			if strings.Contains(strings.ToLower(task.AgentURL), query) ||
 				strings.Contains(strings.ToLower(task.TaskID), query) ||
 				strings.Contains(strings.ToLower(task.Status), query) {
 				t.filteredTasks = append(t.filteredTasks, task)
@@ -439,7 +412,6 @@ func (t *TaskManagerImpl) applyFilters() {
 		}
 	}
 
-	// Adjust selection if needed
 	if t.selected >= len(t.filteredTasks) {
 		t.selected = len(t.filteredTasks) - 1
 	}
@@ -481,10 +453,9 @@ func (t *TaskManagerImpl) renderTaskInfo() string {
 	var content strings.Builder
 
 	content.WriteString("Task Details\n")
-	content.WriteString(strings.Repeat("─", t.width-4) + "\n\n")
+	content.WriteString(strings.Repeat("─", t.getSeparatorWidth()) + "\n\n")
 	content.WriteString(fmt.Sprintf("ID: %s\n", task.TaskID))
-	content.WriteString(fmt.Sprintf("Agent: %s\n", task.AgentName))
-	content.WriteString(fmt.Sprintf("URL: %s\n", task.AgentURL))
+	content.WriteString(fmt.Sprintf("Agent URL: %s\n", task.AgentURL))
 	content.WriteString(fmt.Sprintf("Status: %s\n", task.Status))
 	content.WriteString(fmt.Sprintf("Started: %s\n", task.StartedAt.Format("2006-01-02 15:04:05")))
 	content.WriteString(fmt.Sprintf("Elapsed: %v\n", task.ElapsedTime.Round(time.Second)))
@@ -492,90 +463,212 @@ func (t *TaskManagerImpl) renderTaskInfo() string {
 		content.WriteString(fmt.Sprintf("Context: %s\n", task.ContextID))
 	}
 
+	if task.TaskRef != nil {
+		t.renderTaskHistory(&content, task)
+	}
+
 	content.WriteString("\n")
+	content.WriteString(strings.Repeat("─", t.width-4) + "\n")
 	content.WriteString("Press 'i' or 'esc' to close")
 
 	return content.String()
 }
 
+// renderTaskHistory renders the task history section
+func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskInfo) {
+	content.WriteString("\n")
+	content.WriteString(strings.Repeat("─", t.width-4) + "\n")
+	content.WriteString("Task History\n")
+	content.WriteString(strings.Repeat("─", t.width-4) + "\n\n")
+
+	for i, historyItem := range task.TaskRef.Task.History {
+		if i > 0 {
+			content.WriteString("\n")
+		}
+
+		t.renderHistoryItemRole(content, historyItem.Role)
+
+		for _, part := range historyItem.Parts {
+			if textPart, ok := part.(adk.TextPart); ok {
+				if textPart.Text != "" {
+					fmt.Fprintf(content, "  %s\n", textPart.Text)
+				}
+			}
+		}
+	}
+
+	if task.TaskRef.Task.Status.Message != nil {
+		t.renderFinalResult(content, task)
+	}
+}
+
+// renderHistoryItemRole renders the role prefix for a history item
+func (t *TaskManagerImpl) renderHistoryItemRole(content *strings.Builder, role string) {
+	switch role {
+	case "assistant":
+		content.WriteString("◆ Assistant:\n")
+	case "user":
+		content.WriteString("◆ User:\n")
+	default:
+		fmt.Fprintf(content, "◆ %s:\n", role)
+	}
+}
+
+// renderFinalResult renders the final result message
+func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskInfo) {
+	if len(task.TaskRef.Task.History) > 0 {
+		content.WriteString("\n")
+	}
+	content.WriteString("◆ Assistant (Final Result):\n")
+	for _, part := range task.TaskRef.Task.Status.Message.Parts {
+		if textPart, ok := part.(adk.TextPart); ok {
+			if textPart.Text != "" {
+				fmt.Fprintf(content, "  %s\n", textPart.Text)
+			}
+		}
+	}
+}
+
 func (t *TaskManagerImpl) renderTaskList() string {
 	var content strings.Builder
 
-	// Header
-	content.WriteString("A2A Background Tasks\n")
-	content.WriteString(strings.Repeat("─", t.width-4) + "\n")
+	fmt.Fprintf(&content, "%sA2A Background Tasks%s\n\n",
+		t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
 
-	// View tabs
+	t.writeViewTabs(&content)
+
+	t.writeSearchInfo(&content)
+
+	if len(t.filteredTasks) == 0 {
+		fmt.Fprintf(&content, "%sNo tasks found.%s\n",
+			t.themeService.GetCurrentTheme().GetErrorColor(), colors.Reset)
+		t.writeFooter(&content)
+		return content.String()
+	}
+
+	t.writeTableHeader(&content)
+
+	t.writeTaskRows(&content)
+
+	if t.confirmCancel {
+		content.WriteString("\n")
+		fmt.Fprintf(&content, "%s⚠ Cancel this task? (y/n)%s",
+			t.themeService.GetCurrentTheme().GetErrorColor(), colors.Reset)
+	}
+
+	t.writeFooter(&content)
+
+	return content.String()
+}
+
+// writeViewTabs writes the view selection tabs
+func (t *TaskManagerImpl) writeViewTabs(b *strings.Builder) {
 	activeStyle := "[1] Active"
 	completedStyle := "[2] Completed"
 	allStyle := "[3] All"
 
 	switch t.currentView {
 	case TaskViewActive:
-		activeStyle = "[1] •Active•"
+		activeStyle = fmt.Sprintf("%s[1] Active%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
 	case TaskViewCompleted:
-		completedStyle = "[2] •Completed•"
+		completedStyle = fmt.Sprintf("%s[2] Completed%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
 	case TaskViewAll:
-		allStyle = "[3] •All•"
+		allStyle = fmt.Sprintf("%s[3] All%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
 	}
 
-	content.WriteString(fmt.Sprintf("%s  %s  %s\n", activeStyle, completedStyle, allStyle))
-	content.WriteString(strings.Repeat("─", t.width-4) + "\n")
+	fmt.Fprintf(b, "%s%s  %s  %s%s\n",
+		t.themeService.GetCurrentTheme().GetDimColor(), activeStyle, completedStyle, allStyle, colors.Reset)
 
-	// Search bar
-	if t.searchMode {
-		content.WriteString(fmt.Sprintf("Search: %s_\n", t.searchQuery))
-	} else {
-		content.WriteString(fmt.Sprintf("Search: %s (press '/' to search)\n", t.searchQuery))
+	separatorWidth := t.width - 4
+	if separatorWidth < 0 {
+		separatorWidth = 40
 	}
-	content.WriteString("\n")
-
-	// Task list
-	if len(t.filteredTasks) == 0 {
-		content.WriteString("No tasks found.\n")
-		return content.String()
-	}
-
-	for i, task := range t.filteredTasks {
-		prefix := "  "
-		if i == t.selected {
-			prefix = "> "
-		}
-
-		status := task.Status
-		if task.Completed {
-			status = "Completed"
-		} else if task.Canceled {
-			status = "Canceled"
-		}
-
-		content.WriteString(fmt.Sprintf("%s%s (%s) - %v\n",
-			prefix, task.AgentName, status, task.ElapsedTime.Round(time.Second)))
-	}
-
-	// Cancel confirmation
-	if t.confirmCancel {
-		content.WriteString("\n")
-		content.WriteString("Cancel this task? (y/n)")
-	}
-
-	// Help
-	content.WriteString("\n")
-	content.WriteString(strings.Repeat("─", t.width-4) + "\n")
-	content.WriteString("↑/↓: navigate  Enter/i: info  c: cancel  /: search  r: refresh  q: quit")
-
-	return content.String()
+	fmt.Fprintf(b, "%s%s%s\n\n",
+		t.themeService.GetCurrentTheme().GetDimColor(), strings.Repeat("─", separatorWidth), colors.Reset)
 }
 
-// extractAgentName extracts the agent name from the agent URL
-func extractAgentName(agentURL string) string {
-	parts := strings.Split(agentURL, "://")
-	if len(parts) < 2 {
-		return agentURL
+// writeSearchInfo writes the search information section
+func (t *TaskManagerImpl) writeSearchInfo(b *strings.Builder) {
+	if t.searchMode {
+		fmt.Fprintf(b, "%sSearch: %s%s│%s\n\n",
+			t.themeService.GetCurrentTheme().GetStatusColor(), t.searchQuery, t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+	} else {
+		fmt.Fprintf(b, "%sPress / to search • %d tasks available%s\n\n",
+			t.themeService.GetCurrentTheme().GetDimColor(), len(t.filteredTasks), colors.Reset)
 	}
-	hostPort := parts[1]
-	host := strings.Split(hostPort, ":")[0]
-	return host
+}
+
+// writeTableHeader writes the table header with column labels
+func (t *TaskManagerImpl) writeTableHeader(b *strings.Builder) {
+	fmt.Fprintf(b, "%s%-38s │ %-30s │ %-15s │ %-12s%s\n",
+		t.themeService.GetCurrentTheme().GetDimColor(), "Task ID", "Agent", "Status", "Elapsed", colors.Reset)
+	fmt.Fprintf(b, "%s%s%s\n",
+		t.themeService.GetCurrentTheme().GetDimColor(), strings.Repeat("─", t.width-4), colors.Reset)
+}
+
+// writeTaskRows writes all task rows in table format
+func (t *TaskManagerImpl) writeTaskRows(b *strings.Builder) {
+	for i, task := range t.filteredTasks {
+		t.writeTaskRow(b, task, i)
+	}
+}
+
+// writeTaskRow writes a single task row in table format
+func (t *TaskManagerImpl) writeTaskRow(b *strings.Builder, task TaskInfo, index int) {
+	taskID := t.truncateString(task.TaskID, 36)
+	agentURL := t.truncateString(task.AgentURL, 30)
+	status := t.truncateString(task.Status, 15)
+	elapsed := t.formatDuration(task.ElapsedTime)
+
+	if index == t.selected {
+		fmt.Fprintf(b, "%s▶ %-36s │ %-30s │ %-15s │ %-12s%s\n",
+			t.themeService.GetCurrentTheme().GetAccentColor(), taskID, agentURL, status, elapsed, colors.Reset)
+	} else {
+		fmt.Fprintf(b, "  %-36s │ %-30s │ %-15s │ %-12s\n",
+			taskID, agentURL, status, elapsed)
+	}
+}
+
+// writeFooter writes the footer section with keyboard shortcuts
+func (t *TaskManagerImpl) writeFooter(b *strings.Builder) {
+	b.WriteString("\n")
+	b.WriteString(colors.CreateSeparator(t.width, "─"))
+	b.WriteString("\n")
+
+	if t.searchMode {
+		fmt.Fprintf(b, "%sType to search, ↑↓ to navigate, Enter to view, Esc to clear search%s",
+			t.themeService.GetCurrentTheme().GetDimColor(), colors.Reset)
+	} else {
+		fmt.Fprintf(b, "%sUse ↑↓ arrows to navigate, Enter/i for info, c to cancel, / to search, r to refresh, q/Esc to quit%s",
+			t.themeService.GetCurrentTheme().GetDimColor(), colors.Reset)
+	}
+}
+
+// truncateString truncates a string to the specified length with ellipsis
+func (t *TaskManagerImpl) truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-3] + "..."
+}
+
+// formatDuration formats a duration into a human-readable string
+func (t *TaskManagerImpl) formatDuration(d time.Duration) string {
+	rounded := d.Round(time.Second)
+	if rounded < time.Minute {
+		return fmt.Sprintf("%ds", int(rounded.Seconds()))
+	}
+	if rounded < time.Hour {
+		mins := int(rounded.Minutes())
+		secs := int(rounded.Seconds()) % 60
+		return fmt.Sprintf("%dm %ds", mins, secs)
+	}
+	hours := int(rounded.Hours())
+	mins := int(rounded.Minutes()) % 60
+	return fmt.Sprintf("%dh %dm", hours, mins)
 }
 
 // GetSelectedTask returns the currently selected task (used by parent components)
@@ -604,4 +697,13 @@ func (t *TaskManagerImpl) SetWidth(width int) {
 // SetHeight sets the height of the task manager
 func (t *TaskManagerImpl) SetHeight(height int) {
 	t.height = height
+}
+
+// getSeparatorWidth returns a safe width for separator strings
+func (t *TaskManagerImpl) getSeparatorWidth() int {
+	width := t.width - 4
+	if width < 1 {
+		return 40
+	}
+	return width
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -163,6 +164,13 @@ type StateManager interface {
 	// Background task management
 	GetBackgroundTasks(toolService ToolService) []TaskPollingState
 	CancelBackgroundTask(taskID string, toolService ToolService) error
+
+	// Task retention (stored in-memory just so it can be visible in the UI)
+	AddTaskToInMemoryRetention(task RetainedTaskInfo)
+	GetRetainedTasks() []RetainedTaskInfo
+	SetMaxTaskRetention(maxRetention int)
+	GetMaxTaskRetention() int
+	ClearRetainedTasks()
 }
 
 // FileService handles file operations
@@ -205,6 +213,18 @@ type A2ATaskStatusUpdate struct {
 	State     string
 	Message   string
 	Timestamp time.Time
+}
+
+// RetainedTaskInfo wraps ADK Task with UI-specific metadata for in-memory retention
+// Used to store terminal tasks (completed, failed, canceled, rejected, etc.) for display
+type RetainedTaskInfo struct {
+	// ADK Task contains: ID, ContextID, Status (with State), History, Artifacts, Metadata
+	Task adk.Task
+
+	// UI-specific fields
+	AgentURL    string
+	StartedAt   time.Time
+	CompletedAt time.Time
 }
 
 // TaskTracker handles task ID and context ID tracking within chat sessions

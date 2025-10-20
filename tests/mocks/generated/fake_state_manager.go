@@ -15,6 +15,11 @@ type FakeStateManager struct {
 		arg1 domain.Message
 		arg2 string
 	}
+	AddTaskToInMemoryRetentionStub        func(domain.RetainedTaskInfo)
+	addTaskToInMemoryRetentionMutex       sync.RWMutex
+	addTaskToInMemoryRetentionArgsForCall []struct {
+		arg1 domain.RetainedTaskInfo
+	}
 	CancelBackgroundTaskStub        func(string, domain.ToolService) error
 	cancelBackgroundTaskMutex       sync.RWMutex
 	cancelBackgroundTaskArgsForCall []struct {
@@ -34,6 +39,10 @@ type FakeStateManager struct {
 	ClearQueuedMessagesStub        func()
 	clearQueuedMessagesMutex       sync.RWMutex
 	clearQueuedMessagesArgsForCall []struct {
+	}
+	ClearRetainedTasksStub        func()
+	clearRetainedTasksMutex       sync.RWMutex
+	clearRetainedTasksArgsForCall []struct {
 	}
 	CompleteCurrentToolStub        func(*domain.ToolExecutionResult) error
 	completeCurrentToolMutex       sync.RWMutex
@@ -118,6 +127,16 @@ type FakeStateManager struct {
 	getFileSelectionStateReturnsOnCall map[int]struct {
 		result1 *domain.FileSelectionState
 	}
+	GetMaxTaskRetentionStub        func() int
+	getMaxTaskRetentionMutex       sync.RWMutex
+	getMaxTaskRetentionArgsForCall []struct {
+	}
+	getMaxTaskRetentionReturns struct {
+		result1 int
+	}
+	getMaxTaskRetentionReturnsOnCall map[int]struct {
+		result1 int
+	}
 	GetQueuedMessagesStub        func() []domain.QueuedMessage
 	getQueuedMessagesMutex       sync.RWMutex
 	getQueuedMessagesArgsForCall []struct {
@@ -127,6 +146,16 @@ type FakeStateManager struct {
 	}
 	getQueuedMessagesReturnsOnCall map[int]struct {
 		result1 []domain.QueuedMessage
+	}
+	GetRetainedTasksStub        func() []domain.RetainedTaskInfo
+	getRetainedTasksMutex       sync.RWMutex
+	getRetainedTasksArgsForCall []struct {
+	}
+	getRetainedTasksReturns struct {
+		result1 []domain.RetainedTaskInfo
+	}
+	getRetainedTasksReturnsOnCall map[int]struct {
+		result1 []domain.RetainedTaskInfo
 	}
 	GetToolExecutionStub        func() *domain.ToolExecutionSession
 	getToolExecutionMutex       sync.RWMutex
@@ -167,6 +196,11 @@ type FakeStateManager struct {
 	SetFileSelectedIndexStub        func(int)
 	setFileSelectedIndexMutex       sync.RWMutex
 	setFileSelectedIndexArgsForCall []struct {
+		arg1 int
+	}
+	SetMaxTaskRetentionStub        func(int)
+	setMaxTaskRetentionMutex       sync.RWMutex
+	setMaxTaskRetentionArgsForCall []struct {
 		arg1 int
 	}
 	SetupFileSelectionStub        func([]string)
@@ -260,6 +294,38 @@ func (fake *FakeStateManager) AddQueuedMessageArgsForCall(i int) (domain.Message
 	defer fake.addQueuedMessageMutex.RUnlock()
 	argsForCall := fake.addQueuedMessageArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeStateManager) AddTaskToInMemoryRetention(arg1 domain.RetainedTaskInfo) {
+	fake.addTaskToInMemoryRetentionMutex.Lock()
+	fake.addTaskToInMemoryRetentionArgsForCall = append(fake.addTaskToInMemoryRetentionArgsForCall, struct {
+		arg1 domain.RetainedTaskInfo
+	}{arg1})
+	stub := fake.AddTaskToInMemoryRetentionStub
+	fake.recordInvocation("AddTaskToInMemoryRetention", []interface{}{arg1})
+	fake.addTaskToInMemoryRetentionMutex.Unlock()
+	if stub != nil {
+		fake.AddTaskToInMemoryRetentionStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) AddTaskToInMemoryRetentionCallCount() int {
+	fake.addTaskToInMemoryRetentionMutex.RLock()
+	defer fake.addTaskToInMemoryRetentionMutex.RUnlock()
+	return len(fake.addTaskToInMemoryRetentionArgsForCall)
+}
+
+func (fake *FakeStateManager) AddTaskToInMemoryRetentionCalls(stub func(domain.RetainedTaskInfo)) {
+	fake.addTaskToInMemoryRetentionMutex.Lock()
+	defer fake.addTaskToInMemoryRetentionMutex.Unlock()
+	fake.AddTaskToInMemoryRetentionStub = stub
+}
+
+func (fake *FakeStateManager) AddTaskToInMemoryRetentionArgsForCall(i int) domain.RetainedTaskInfo {
+	fake.addTaskToInMemoryRetentionMutex.RLock()
+	defer fake.addTaskToInMemoryRetentionMutex.RUnlock()
+	argsForCall := fake.addTaskToInMemoryRetentionArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeStateManager) CancelBackgroundTask(arg1 string, arg2 domain.ToolService) error {
@@ -370,6 +436,30 @@ func (fake *FakeStateManager) ClearQueuedMessagesCalls(stub func()) {
 	fake.clearQueuedMessagesMutex.Lock()
 	defer fake.clearQueuedMessagesMutex.Unlock()
 	fake.ClearQueuedMessagesStub = stub
+}
+
+func (fake *FakeStateManager) ClearRetainedTasks() {
+	fake.clearRetainedTasksMutex.Lock()
+	fake.clearRetainedTasksArgsForCall = append(fake.clearRetainedTasksArgsForCall, struct {
+	}{})
+	stub := fake.ClearRetainedTasksStub
+	fake.recordInvocation("ClearRetainedTasks", []interface{}{})
+	fake.clearRetainedTasksMutex.Unlock()
+	if stub != nil {
+		fake.ClearRetainedTasksStub()
+	}
+}
+
+func (fake *FakeStateManager) ClearRetainedTasksCallCount() int {
+	fake.clearRetainedTasksMutex.RLock()
+	defer fake.clearRetainedTasksMutex.RUnlock()
+	return len(fake.clearRetainedTasksArgsForCall)
+}
+
+func (fake *FakeStateManager) ClearRetainedTasksCalls(stub func()) {
+	fake.clearRetainedTasksMutex.Lock()
+	defer fake.clearRetainedTasksMutex.Unlock()
+	fake.ClearRetainedTasksStub = stub
 }
 
 func (fake *FakeStateManager) CompleteCurrentTool(arg1 *domain.ToolExecutionResult) error {
@@ -818,6 +908,59 @@ func (fake *FakeStateManager) GetFileSelectionStateReturnsOnCall(i int, result1 
 	}{result1}
 }
 
+func (fake *FakeStateManager) GetMaxTaskRetention() int {
+	fake.getMaxTaskRetentionMutex.Lock()
+	ret, specificReturn := fake.getMaxTaskRetentionReturnsOnCall[len(fake.getMaxTaskRetentionArgsForCall)]
+	fake.getMaxTaskRetentionArgsForCall = append(fake.getMaxTaskRetentionArgsForCall, struct {
+	}{})
+	stub := fake.GetMaxTaskRetentionStub
+	fakeReturns := fake.getMaxTaskRetentionReturns
+	fake.recordInvocation("GetMaxTaskRetention", []interface{}{})
+	fake.getMaxTaskRetentionMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetMaxTaskRetentionCallCount() int {
+	fake.getMaxTaskRetentionMutex.RLock()
+	defer fake.getMaxTaskRetentionMutex.RUnlock()
+	return len(fake.getMaxTaskRetentionArgsForCall)
+}
+
+func (fake *FakeStateManager) GetMaxTaskRetentionCalls(stub func() int) {
+	fake.getMaxTaskRetentionMutex.Lock()
+	defer fake.getMaxTaskRetentionMutex.Unlock()
+	fake.GetMaxTaskRetentionStub = stub
+}
+
+func (fake *FakeStateManager) GetMaxTaskRetentionReturns(result1 int) {
+	fake.getMaxTaskRetentionMutex.Lock()
+	defer fake.getMaxTaskRetentionMutex.Unlock()
+	fake.GetMaxTaskRetentionStub = nil
+	fake.getMaxTaskRetentionReturns = struct {
+		result1 int
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetMaxTaskRetentionReturnsOnCall(i int, result1 int) {
+	fake.getMaxTaskRetentionMutex.Lock()
+	defer fake.getMaxTaskRetentionMutex.Unlock()
+	fake.GetMaxTaskRetentionStub = nil
+	if fake.getMaxTaskRetentionReturnsOnCall == nil {
+		fake.getMaxTaskRetentionReturnsOnCall = make(map[int]struct {
+			result1 int
+		})
+	}
+	fake.getMaxTaskRetentionReturnsOnCall[i] = struct {
+		result1 int
+	}{result1}
+}
+
 func (fake *FakeStateManager) GetQueuedMessages() []domain.QueuedMessage {
 	fake.getQueuedMessagesMutex.Lock()
 	ret, specificReturn := fake.getQueuedMessagesReturnsOnCall[len(fake.getQueuedMessagesArgsForCall)]
@@ -868,6 +1011,59 @@ func (fake *FakeStateManager) GetQueuedMessagesReturnsOnCall(i int, result1 []do
 	}
 	fake.getQueuedMessagesReturnsOnCall[i] = struct {
 		result1 []domain.QueuedMessage
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetRetainedTasks() []domain.RetainedTaskInfo {
+	fake.getRetainedTasksMutex.Lock()
+	ret, specificReturn := fake.getRetainedTasksReturnsOnCall[len(fake.getRetainedTasksArgsForCall)]
+	fake.getRetainedTasksArgsForCall = append(fake.getRetainedTasksArgsForCall, struct {
+	}{})
+	stub := fake.GetRetainedTasksStub
+	fakeReturns := fake.getRetainedTasksReturns
+	fake.recordInvocation("GetRetainedTasks", []interface{}{})
+	fake.getRetainedTasksMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetRetainedTasksCallCount() int {
+	fake.getRetainedTasksMutex.RLock()
+	defer fake.getRetainedTasksMutex.RUnlock()
+	return len(fake.getRetainedTasksArgsForCall)
+}
+
+func (fake *FakeStateManager) GetRetainedTasksCalls(stub func() []domain.RetainedTaskInfo) {
+	fake.getRetainedTasksMutex.Lock()
+	defer fake.getRetainedTasksMutex.Unlock()
+	fake.GetRetainedTasksStub = stub
+}
+
+func (fake *FakeStateManager) GetRetainedTasksReturns(result1 []domain.RetainedTaskInfo) {
+	fake.getRetainedTasksMutex.Lock()
+	defer fake.getRetainedTasksMutex.Unlock()
+	fake.GetRetainedTasksStub = nil
+	fake.getRetainedTasksReturns = struct {
+		result1 []domain.RetainedTaskInfo
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetRetainedTasksReturnsOnCall(i int, result1 []domain.RetainedTaskInfo) {
+	fake.getRetainedTasksMutex.Lock()
+	defer fake.getRetainedTasksMutex.Unlock()
+	fake.GetRetainedTasksStub = nil
+	if fake.getRetainedTasksReturnsOnCall == nil {
+		fake.getRetainedTasksReturnsOnCall = make(map[int]struct {
+			result1 []domain.RetainedTaskInfo
+		})
+	}
+	fake.getRetainedTasksReturnsOnCall[i] = struct {
+		result1 []domain.RetainedTaskInfo
 	}{result1}
 }
 
@@ -1092,6 +1288,38 @@ func (fake *FakeStateManager) SetFileSelectedIndexArgsForCall(i int) int {
 	fake.setFileSelectedIndexMutex.RLock()
 	defer fake.setFileSelectedIndexMutex.RUnlock()
 	argsForCall := fake.setFileSelectedIndexArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) SetMaxTaskRetention(arg1 int) {
+	fake.setMaxTaskRetentionMutex.Lock()
+	fake.setMaxTaskRetentionArgsForCall = append(fake.setMaxTaskRetentionArgsForCall, struct {
+		arg1 int
+	}{arg1})
+	stub := fake.SetMaxTaskRetentionStub
+	fake.recordInvocation("SetMaxTaskRetention", []interface{}{arg1})
+	fake.setMaxTaskRetentionMutex.Unlock()
+	if stub != nil {
+		fake.SetMaxTaskRetentionStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetMaxTaskRetentionCallCount() int {
+	fake.setMaxTaskRetentionMutex.RLock()
+	defer fake.setMaxTaskRetentionMutex.RUnlock()
+	return len(fake.setMaxTaskRetentionArgsForCall)
+}
+
+func (fake *FakeStateManager) SetMaxTaskRetentionCalls(stub func(int)) {
+	fake.setMaxTaskRetentionMutex.Lock()
+	defer fake.setMaxTaskRetentionMutex.Unlock()
+	fake.SetMaxTaskRetentionStub = stub
+}
+
+func (fake *FakeStateManager) SetMaxTaskRetentionArgsForCall(i int) int {
+	fake.setMaxTaskRetentionMutex.RLock()
+	defer fake.setMaxTaskRetentionMutex.RUnlock()
+	argsForCall := fake.setMaxTaskRetentionArgsForCall[i]
 	return argsForCall.arg1
 }
 

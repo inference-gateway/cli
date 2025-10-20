@@ -26,8 +26,8 @@ func NewTaskRetentionService(maxRetention int) *TaskRetentionService {
 	}
 }
 
-// AddCompletedTask adds a completed or canceled task to the retention list
-func (t *TaskRetentionService) AddCompletedTask(task components.TaskInfo) {
+// AddTaskToInMemoryRetention adds a terminal task (completed, failed, canceled, etc.) to the in-memory retention list
+func (t *TaskRetentionService) AddTaskToInMemoryRetention(task components.TaskInfo) {
 	t.mutex.Lock()
 	defer t.mutex.Unlock()
 

@@ -560,6 +560,16 @@ func (e *ChatEventHandler) handleA2ATaskCompleted(
 	if msg.Result.Data != nil {
 		if submitResult, ok := msg.Result.Data.(tools.A2ASubmitTaskResult); ok {
 			taskResult = submitResult.TaskResult
+
+			if submitResult.Task != nil {
+				retainedTask := domain.RetainedTaskInfo{
+					Task:        *submitResult.Task,
+					AgentURL:    submitResult.AgentURL,
+					StartedAt:   time.Now().Add(-msg.Result.Duration),
+					CompletedAt: time.Now(),
+				}
+				e.handler.stateManager.AddTaskToInMemoryRetention(retainedTask)
+			}
 		}
 	}
 
@@ -615,6 +625,16 @@ func (e *ChatEventHandler) handleA2ATaskFailed(
 	if msg.Result.Data != nil {
 		if submitResult, ok := msg.Result.Data.(tools.A2ASubmitTaskResult); ok {
 			taskResult = submitResult.TaskResult
+
+			if submitResult.Task != nil {
+				retainedTask := domain.RetainedTaskInfo{
+					Task:        *submitResult.Task,
+					AgentURL:    submitResult.AgentURL,
+					StartedAt:   time.Now().Add(-msg.Result.Duration),
+					CompletedAt: time.Now(),
+				}
+				e.handler.stateManager.AddTaskToInMemoryRetention(retainedTask)
+			}
 		}
 	}
 

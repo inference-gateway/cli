@@ -152,12 +152,8 @@ func NewChatApplication(
 		app.conversationSelector = nil
 	}
 
-	// Initialize task manager only if A2A is enabled
-	if configService.A2A.Enabled {
-		app.taskManager = components.NewTaskManager(app.stateManager, app.toolService, app.themeService)
-	} else {
-		app.taskManager = nil
-	}
+	// Task manager will be lazily initialized when first accessed
+	app.taskManager = nil
 
 	if initialView == domain.ViewStateChat {
 		app.focusedComponent = app.inputView
@@ -248,11 +244,7 @@ func (app *ChatApplication) Init() tea.Cmd {
 			cmds = append(cmds, cmd)
 		}
 	}
-	if app.taskManager != nil {
-		if cmd := app.taskManager.Init(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
+	// Task manager is lazily initialized when first accessed
 
 	return tea.Batch(cmds...)
 }
@@ -481,22 +473,30 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if app.taskManager == nil {
-		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "Task management requires A2A to be enabled in configuration.",
-				Sticky: true,
-			}
-		})
-		return cmds
-	}
+		if !app.configService.A2A.Enabled {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  "Task management requires A2A to be enabled in configuration.",
+					Sticky: true,
+				}
+			})
+			return cmds
+		}
 
-	if app.taskManager.IsDone() || app.taskManager.IsCancelled() {
-		// Reset task manager for next use
+		app.taskManager = components.NewTaskManager(app.stateManager, app.toolService, app.themeService)
 		if cmd := app.taskManager.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
 
+	if app.taskManager.IsDone() || app.taskManager.IsCancelled() {
+		app.taskManager.Reset()
+		if cmd := app.taskManager.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	// Standard update cycle
 	model, cmd := app.taskManager.Update(msg)
 	app.taskManager = model.(*components.TaskManagerImpl)
 

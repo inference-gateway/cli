@@ -32,6 +32,11 @@ type StateManager struct {
 
 	// ADK client factory for creating clients per agent URL
 	createADKClient ADKClientFactory
+
+	// Task retention for terminal tasks (completed, failed, canceled, etc.)
+	retainedTasks     []domain.RetainedTaskInfo
+	maxTaskRetention  int
+	taskRetentionLock sync.RWMutex
 }
 
 // Compile-time assertion that StateManager implements domain.StateManager interface
@@ -78,12 +83,14 @@ func (s StateChangeType) String() string {
 // NewStateManager creates a new state manager
 func NewStateManager(debugMode bool, createADKClient ADKClientFactory) *StateManager {
 	return &StateManager{
-		state:           domain.NewApplicationState(),
-		listeners:       make([]StateChangeListener, 0),
-		debugMode:       debugMode,
-		stateHistory:    make([]domain.StateSnapshot, 0),
-		maxHistorySize:  100,
-		createADKClient: createADKClient,
+		state:            domain.NewApplicationState(),
+		listeners:        make([]StateChangeListener, 0),
+		debugMode:        debugMode,
+		stateHistory:     make([]domain.StateSnapshot, 0),
+		maxHistorySize:   100,
+		createADKClient:  createADKClient,
+		retainedTasks:    make([]domain.RetainedTaskInfo, 0),
+		maxTaskRetention: 5,
 	}
 }
 
@@ -519,6 +526,8 @@ func (sm *StateManager) CancelBackgroundTask(taskID string, toolService domain.T
 		logger.Info("Successfully sent cancel request to agent", "task_id", taskID)
 	}
 
+	sm.addCanceledTaskToRetention(targetTask)
+
 	if targetTask.CancelFunc != nil {
 		targetTask.CancelFunc()
 	}
@@ -533,11 +542,79 @@ func (sm *StateManager) CancelBackgroundTask(taskID string, toolService domain.T
 	return nil
 }
 
+// addCanceledTaskToRetention queries the final task state and adds it to retention
+func (sm *StateManager) addCanceledTaskToRetention(task *domain.TaskPollingState) {
+	adkClient := sm.createADKClient(task.AgentURL)
+
+	taskResult, err := adkClient.GetTask(context.Background(), adk.TaskQueryParams{
+		ID: task.TaskID,
+	})
+
+	if err != nil {
+		logger.Warn("Failed to query final task state for retention", "task_id", task.TaskID, "error", err)
+		retainedTask := domain.RetainedTaskInfo{
+			Task: adk.Task{
+				ID:        task.TaskID,
+				ContextID: task.ContextID,
+				Status: adk.TaskStatus{
+					State:   adk.TaskStateCanceled,
+					Message: nil,
+				},
+			},
+			AgentURL:    task.AgentURL,
+			StartedAt:   task.StartedAt,
+			CompletedAt: time.Now(),
+		}
+		sm.AddTaskToInMemoryRetention(retainedTask)
+		return
+	}
+
+	if taskResult == nil {
+		logger.Warn("Task query returned nil result", "task_id", task.TaskID)
+		return
+	}
+
+	var finalTask adk.Task
+	if mapErr := mapToStruct(taskResult.Result, &finalTask); mapErr != nil {
+		logger.Warn("Failed to parse final task state", "task_id", task.TaskID, "error", mapErr)
+		return
+	}
+
+	retainedTask := domain.RetainedTaskInfo{
+		Task:        finalTask,
+		AgentURL:    task.AgentURL,
+		StartedAt:   task.StartedAt,
+		CompletedAt: time.Now(),
+	}
+
+	logger.Debug("Adding canceled task to retention", "task_id", task.TaskID, "state", finalTask.Status.State)
+	sm.AddTaskToInMemoryRetention(retainedTask)
+}
+
 // sendCancelToAgent sends a cancel request to the agent server
 func (sm *StateManager) sendCancelToAgent(task *domain.TaskPollingState) error {
 	adkClient := sm.createADKClient(task.AgentURL)
 
-	_, err := adkClient.CancelTask(context.Background(), adk.TaskIdParams{
+	taskStatus, err := adkClient.GetTask(context.Background(), adk.TaskQueryParams{
+		ID: task.TaskID,
+	})
+
+	if err != nil {
+		logger.Warn("Failed to query task status before canceling, proceeding with cancel anyway", "task_id", task.TaskID, "error", err)
+	} else if taskStatus != nil {
+		var currentTask adk.Task
+		if mapErr := mapToStruct(taskStatus.Result, &currentTask); mapErr == nil {
+			switch currentTask.Status.State {
+			case adk.TaskStateCompleted, adk.TaskStateFailed, adk.TaskStateCanceled, adk.TaskStateRejected:
+				logger.Info("Task is already in terminal state, skipping cancel request",
+					"task_id", task.TaskID,
+					"state", currentTask.Status.State)
+				return nil
+			}
+		}
+	}
+
+	_, err = adkClient.CancelTask(context.Background(), adk.TaskIdParams{
 		ID: task.TaskID,
 	})
 
@@ -547,6 +624,15 @@ func (sm *StateManager) sendCancelToAgent(task *domain.TaskPollingState) error {
 	}
 
 	return nil
+}
+
+// mapToStruct converts a map[string]any to a struct using JSON marshaling
+func mapToStruct(data any, target any) error {
+	jsonBytes, err := json.Marshal(data)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(jsonBytes, target)
 }
 
 // getBackgroundTasksInternal is an internal version that doesn't lock (caller must lock)
@@ -630,4 +716,66 @@ type HealthStatus struct {
 	StateHistorySize int       `json:"state_history_size"`
 	LastStateChange  time.Time `json:"last_state_change"`
 	MemoryUsageKB    int       `json:"memory_usage_kb"`
+}
+
+// Task Retention Management
+
+// AddTaskToInMemoryRetention adds a terminal task (completed, failed, canceled, etc.) to the in-memory retention list
+func (sm *StateManager) AddTaskToInMemoryRetention(task domain.RetainedTaskInfo) {
+	sm.taskRetentionLock.Lock()
+	defer sm.taskRetentionLock.Unlock()
+
+	// Add to the beginning (most recent first)
+	sm.retainedTasks = append([]domain.RetainedTaskInfo{task}, sm.retainedTasks...)
+
+	// Trim to max retention
+	if len(sm.retainedTasks) > sm.maxTaskRetention {
+		sm.retainedTasks = sm.retainedTasks[:sm.maxTaskRetention]
+	}
+
+	logger.Debug("Task added to retention", "task_id", task.Task.ID, "total_retained", len(sm.retainedTasks))
+}
+
+// GetRetainedTasks returns all retained tasks
+func (sm *StateManager) GetRetainedTasks() []domain.RetainedTaskInfo {
+	sm.taskRetentionLock.RLock()
+	defer sm.taskRetentionLock.RUnlock()
+
+	// Return a copy to prevent external modifications
+	tasks := make([]domain.RetainedTaskInfo, len(sm.retainedTasks))
+	copy(tasks, sm.retainedTasks)
+	return tasks
+}
+
+// SetMaxTaskRetention sets the maximum number of completed tasks to retain
+func (sm *StateManager) SetMaxTaskRetention(maxRetention int) {
+	sm.taskRetentionLock.Lock()
+	defer sm.taskRetentionLock.Unlock()
+
+	if maxRetention <= 0 {
+		maxRetention = 5 // Default minimum
+	}
+
+	sm.maxTaskRetention = maxRetention
+
+	// Trim existing tasks if new retention is smaller
+	if len(sm.retainedTasks) > maxRetention {
+		sm.retainedTasks = sm.retainedTasks[:maxRetention]
+	}
+}
+
+// GetMaxTaskRetention returns the current maximum task retention
+func (sm *StateManager) GetMaxTaskRetention() int {
+	sm.taskRetentionLock.RLock()
+	defer sm.taskRetentionLock.RUnlock()
+	return sm.maxTaskRetention
+}
+
+// ClearRetainedTasks clears all retained tasks from memory
+func (sm *StateManager) ClearRetainedTasks() {
+	sm.taskRetentionLock.Lock()
+	defer sm.taskRetentionLock.Unlock()
+
+	sm.retainedTasks = make([]domain.RetainedTaskInfo, 0)
+	logger.Debug("Cleared all retained tasks from memory")
 }

@@ -213,7 +213,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService))
 
 	if c.config.IsA2AToolsEnabled() {
-		c.shortcutRegistry.Register(shortcuts.NewCancelShortcut(c.stateManager, c.toolService, taskTracker))
 		c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut(c.config))
 	}
 
