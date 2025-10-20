@@ -243,7 +243,6 @@ func (app *ChatApplication) Init() tea.Cmd {
 			cmds = append(cmds, cmd)
 		}
 	}
-	// Task manager is lazily initialized when first accessed
 
 	return tea.Batch(cmds...)
 }
