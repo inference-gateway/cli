@@ -68,7 +68,6 @@ func initConfig() {
 	v.SetDefault("a2a.cache.enabled", defaults.A2A.Cache.Enabled)
 	v.SetDefault("a2a.cache.ttl", defaults.A2A.Cache.TTL)
 	v.SetDefault("a2a.task.status_poll_seconds", defaults.A2A.Task.StatusPollSeconds)
-	v.SetDefault("a2a.task.idle_timeout_sec", defaults.A2A.Task.IdleTimeoutSec)
 	v.SetDefault("a2a.task.polling_strategy", defaults.A2A.Task.PollingStrategy)
 	v.SetDefault("a2a.task.initial_poll_interval_sec", defaults.A2A.Task.InitialPollIntervalSec)
 	v.SetDefault("a2a.task.max_poll_interval_sec", defaults.A2A.Task.MaxPollIntervalSec)

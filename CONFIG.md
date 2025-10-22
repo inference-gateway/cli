@@ -159,7 +159,6 @@ a2a:
   # Task monitoring configuration
   task:
     status_poll_seconds: 5
-    idle_timeout_sec: 60
     polling_strategy: "exponential"
     initial_poll_interval_sec: 2
     max_poll_interval_sec: 60

@@ -24,16 +24,14 @@ type A2ASubmitTaskTool struct {
 
 // A2ASubmitTaskResult represents the result of an A2A task operation
 type A2ASubmitTaskResult struct {
-	TaskID      string        `json:"task_id"`
-	ContextID   string        `json:"context_id,omitempty"`
-	AgentURL    string        `json:"agent_url"`
-	State       string        `json:"state"`
-	Message     string        `json:"message"`
-	TaskResult  string        `json:"task_result,omitempty"`
-	Success     bool          `json:"success"`
-	WentIdle    bool          `json:"went_idle,omitempty"`
-	IdleTimeout time.Duration `json:"idle_timeout,omitempty"`
-	Task        *adk.Task     `json:"task,omitempty"`
+	TaskID     string    `json:"task_id"`
+	ContextID  string    `json:"context_id,omitempty"`
+	AgentURL   string    `json:"agent_url"`
+	State      string    `json:"state"`
+	Message    string    `json:"message"`
+	TaskResult string    `json:"task_result,omitempty"`
+	Success    bool      `json:"success"`
+	Task       *adk.Task `json:"task,omitempty"`
 }
 
 // NewA2ASubmitTaskTool creates a new A2A task tool
@@ -291,13 +289,8 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 	adkClient := t.getOrCreateClient(agentURL)
 
 	strategy := t.config.A2A.Task.PollingStrategy
-	if strategy == "immediate_idle" {
-		t.handleImmediateIdle(agentURL, taskID, state)
-		t.stopPolling(taskID)
-		return
-	}
 
-	currentInterval, deadline := t.initializePollingStrategy(agentURL, taskID, strategy)
+	currentInterval := t.initializePollingStrategy(agentURL, taskID, strategy)
 	state.CurrentInterval = currentInterval
 	state.NextPollTime = time.Now().Add(currentInterval)
 
@@ -320,16 +313,6 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 			pollAttempt++
 			pollingDetails.WriteString(fmt.Sprintf("Poll #%d: interval=%v, elapsed=%v\n",
 				pollAttempt, currentInterval, time.Since(state.StartedAt)))
-
-			shouldStop, stopResult := t.checkIdleConditions(agentURL, taskID, strategy, currentInterval, deadline, pollAttempt, state, pollingDetails.String())
-			if shouldStop {
-				if stopResult != nil && state.ResultChan != nil {
-					state.ResultChan <- stopResult
-					time.Sleep(100 * time.Millisecond)
-				}
-				t.stopPolling(taskID)
-				return
-			}
 
 			state.LastPollAt = time.Now()
 
@@ -378,28 +361,7 @@ func (t *A2ASubmitTaskTool) getOrCreateClient(agentURL string) client.A2AClient 
 	return client.NewClient(agentURL)
 }
 
-func (t *A2ASubmitTaskTool) handleImmediateIdle(agentURL, taskID string, state *domain.TaskPollingState) {
-	idleTimeout := time.Duration(t.config.A2A.Task.IdleTimeoutSec) * time.Second
-	result := &domain.ToolExecutionResult{
-		ToolName: "A2A_SubmitTask",
-		Success:  true,
-		Duration: time.Since(state.StartedAt),
-		Data: A2ASubmitTaskResult{
-			TaskID:      taskID,
-			AgentURL:    agentURL,
-			State:       string(adk.TaskStateWorking),
-			Success:     true,
-			Message:     "Task delegated and went idle immediately",
-			WentIdle:    true,
-			IdleTimeout: idleTimeout,
-		},
-	}
-	if state.ResultChan != nil {
-		state.ResultChan <- result
-	}
-}
-
-func (t *A2ASubmitTaskTool) initializePollingStrategy(agentURL, taskID, strategy string) (time.Duration, time.Time) {
+func (t *A2ASubmitTaskTool) initializePollingStrategy(agentURL, taskID, strategy string) time.Duration {
 	var currentInterval time.Duration
 
 	if strategy == "exponential" {
@@ -408,53 +370,7 @@ func (t *A2ASubmitTaskTool) initializePollingStrategy(agentURL, taskID, strategy
 		currentInterval = time.Duration(t.config.A2A.Task.StatusPollSeconds) * time.Second
 	}
 
-	idleTimeout := time.Duration(t.config.A2A.Task.IdleTimeoutSec) * time.Second
-	deadline := time.Now().Add(idleTimeout)
-
-	return currentInterval, deadline
-}
-
-func (t *A2ASubmitTaskTool) checkIdleConditions(agentURL, taskID, strategy string, currentInterval time.Duration, deadline time.Time, pollAttempt int, state *domain.TaskPollingState, pollingDetails string) (bool, *domain.ToolExecutionResult) {
-	idleTimeout := time.Duration(t.config.A2A.Task.IdleTimeoutSec) * time.Second
-
-	if strategy == "exponential" {
-		maxInterval := time.Duration(t.config.A2A.Task.MaxPollIntervalSec) * time.Second
-		if currentInterval >= maxInterval {
-			result := &domain.ToolExecutionResult{
-				ToolName: "A2A_SubmitTask",
-				Success:  true,
-				Duration: time.Since(state.StartedAt),
-				Data: A2ASubmitTaskResult{
-					TaskID:      taskID,
-					AgentURL:    agentURL,
-					State:       string(adk.TaskStateWorking),
-					Success:     true,
-					Message:     fmt.Sprintf("Task went idle after reaching max poll interval of %v", maxInterval),
-					WentIdle:    true,
-					IdleTimeout: idleTimeout,
-				},
-			}
-			return true, result
-		}
-	} else if time.Now().After(deadline) {
-		result := &domain.ToolExecutionResult{
-			ToolName: "A2A_SubmitTask",
-			Success:  true,
-			Duration: time.Since(state.StartedAt),
-			Data: A2ASubmitTaskResult{
-				TaskID:      taskID,
-				AgentURL:    agentURL,
-				State:       string(adk.TaskStateWorking),
-				Success:     true,
-				Message:     fmt.Sprintf("Task went idle after %v", idleTimeout),
-				WentIdle:    true,
-				IdleTimeout: idleTimeout,
-			},
-		}
-		return true, result
-	}
-
-	return false, nil
+	return currentInterval
 }
 
 func (t *A2ASubmitTaskTool) queryTask(ctx context.Context, adkClient client.A2AClient, taskID string) (*adk.Task, error) {
@@ -688,10 +604,6 @@ func (t *A2ASubmitTaskTool) FormatPreview(result *domain.ToolExecutionResult) st
 	preview := fmt.Sprintf("Task %s", data.State)
 	if data.Message != "" {
 		preview = data.Message
-	}
-
-	if data.WentIdle {
-		return fmt.Sprintf("%s (went idle)", preview)
 	}
 
 	return preview
