@@ -55,16 +55,12 @@ func (s *BackgroundTaskService) CancelBackgroundTask(taskID string) error {
 
 	logger.Info("Canceling background task", "task_id", taskID)
 
-	backgroundTasks := s.GetBackgroundTasks()
-
-	var targetTask *domain.TaskPollingState
-	for i := range backgroundTasks {
-		if backgroundTasks[i].TaskID == taskID {
-			targetTask = &backgroundTasks[i]
-			break
-		}
+	if s.taskTracker == nil {
+		return fmt.Errorf("task tracker not available")
 	}
 
+	// Get the live polling state directly from the tracker instead of using a copy
+	targetTask := s.taskTracker.GetPollingState(taskID)
 	if targetTask == nil {
 		return fmt.Errorf("task %s not found in background tasks", taskID)
 	}
@@ -75,14 +71,14 @@ func (s *BackgroundTaskService) CancelBackgroundTask(taskID string) error {
 		logger.Info("Successfully sent cancel request to agent", "task_id", taskID)
 	}
 
+	// Call the cancel function from the live polling state to actually stop the goroutine
 	if targetTask.CancelFunc != nil {
 		targetTask.CancelFunc()
 	}
 
-	if s.taskTracker != nil {
-		s.taskTracker.StopPolling(taskID)
-		s.taskTracker.RemoveTask(taskID)
-	}
+	// Clean up the task from the tracker
+	s.taskTracker.StopPolling(taskID)
+	s.taskTracker.RemoveTask(taskID)
 
 	logger.Info("Task cancelled successfully", "task_id", taskID)
 	return nil
