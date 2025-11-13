@@ -45,6 +45,36 @@ Now you can enter the Interactive Chat within the cli container and start chatti
 docker compose run --rm cli
 ```
 
+## Viewing Browser Agent GUI
+
+The browser-agent can run in headed mode with VNC support for real-time viewing of browser automation.
+
+**Requirements:**
+
+1. Browser-agent v0.4.0+ with Xvfb support
+2. `BROWSER_HEADLESS: false` environment variable set
+3. Shared X11 socket volume between browser-agent and browser-vnc
+
+**Usage:**
+
+Connect to the VNC server on port 5900:
+
+```bash
+# Using a VNC client (e.g., RealVNC, TigerVNC, or macOS Screen Sharing)
+# Connect to: localhost:5900
+# Password: password
+```
+
+On macOS, you can use the built-in Screen Sharing app:
+
+```bash
+open vnc://localhost:5900
+# When prompted, enter password: password
+```
+
+**Note:** The X11 display is created by Xvfb when the browser-agent container starts. The VNC server will connect
+automatically and you can view browser automation in real-time.
+
 ## Troubleshooting
 
 ```bash
