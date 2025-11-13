@@ -342,7 +342,6 @@ func TestA2ASubmitTaskTool_MultipleAgents(t *testing.T) {
 			Enabled: true,
 			Task: config.A2ATaskConfig{
 				StatusPollSeconds: 1,
-				IdleTimeoutSec:    5,
 			},
 			Tools: config.A2AToolsConfig{
 				SubmitTask: config.SubmitTaskToolConfig{
@@ -427,7 +426,6 @@ func TestA2ASubmitTaskTool_NoExistingTask(t *testing.T) {
 			Enabled: true,
 			Task: config.A2ATaskConfig{
 				StatusPollSeconds: 1,
-				IdleTimeoutSec:    5,
 			},
 			Tools: config.A2AToolsConfig{
 				SubmitTask: config.SubmitTaskToolConfig{
