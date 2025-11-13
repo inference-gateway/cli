@@ -526,6 +526,20 @@ func (app *ChatApplication) handleA2ATaskManagementCancelled(cmds []tea.Cmd) []t
 	}
 
 	app.focusedComponent = app.inputView
+
+	if app.backgroundTaskService != nil {
+		backgroundTasks := app.backgroundTaskService.GetBackgroundTasks()
+		if len(backgroundTasks) > 0 {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    fmt.Sprintf("Background tasks running (%d)", len(backgroundTasks)),
+					Spinner:    true,
+					StatusType: domain.StatusDefault,
+				}
+			})
+		}
+	}
+
 	return cmds
 }
 

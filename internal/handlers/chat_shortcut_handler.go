@@ -570,9 +570,15 @@ func (s *ChatShortcutHandler) handleShowA2ATaskManagementSideEffect() tea.Msg {
 		}
 	}
 
+	hasBackgroundTasks := false
+	if s.handler.backgroundTaskService != nil {
+		backgroundTasks := s.handler.backgroundTaskService.GetBackgroundTasks()
+		hasBackgroundTasks = len(backgroundTasks) > 0
+	}
+
 	return domain.SetStatusEvent{
 		Message:    "Task management interface",
-		Spinner:    false,
+		Spinner:    hasBackgroundTasks,
 		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,
 	}

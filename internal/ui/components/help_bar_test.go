@@ -10,10 +10,6 @@ import (
 func TestNewHelpBar(t *testing.T) {
 	hb := NewHelpBar(nil)
 
-	if hb == nil {
-		t.Fatal("Expected HelpBar to be created, got nil")
-	}
-
 	if hb.width != 80 {
 		t.Errorf("Expected default width 80, got %d", hb.width)
 	}
