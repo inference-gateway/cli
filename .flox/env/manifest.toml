@@ -11,45 +11,45 @@ NODE_PATH = "$FLOX_ENV_PROJECT/.flox/npm/lib/node_modules"
 
 [install]
 go.pkg-path = "go"
-go.version = "1.25.*"
+go.version = "1.25.2"
 
-nodejs.pkg-path = "nodejs"
-nodejs.version = "22.*"
+nodejs.pkg-path = "nodejs_24"
+nodejs.version = "24.11.0"
 
 git.pkg-path = "git"
 git.version = "2.51.0"
-git.pkg-group = "common"
+git.pkg-group = "vcs"
 
 gh.pkg-path = "gh"
-gh.version = "2.81.0"
-gh.pkg-group = "common"
+gh.version = "2.82.1"
+gh.pkg-group = "vcs"
 
 golangci-lint.pkg-path = "golangci-lint"
 golangci-lint.version = "2.5.0"
-golangci-lint.pkg-group = "common"
+golangci-lint.pkg-group = "linting"
 
 pre-commit.pkg-path = "pre-commit"
 pre-commit.version = "4.3.0"
-pre-commit.pkg-group = "common"
+pre-commit.pkg-group = "linting"
 
 go-task.pkg-path = "go-task"
-go-task.version= "3.45.4"
-go-task.pkg-group = "common"
+go-task.version = "3.45.4"
+go-task.pkg-group = "build"
 
 ripgrep.pkg-path = "ripgrep"
-ripgrep.version= "14.1.1"
-ripgrep.pkg-group = "common"
-
-claude-code.pkg-path = "claude-code"
-claude-code.version= "2.0.15"
-claude-code.pkg-group = "common"
+ripgrep.version = "14.1.1"
+ripgrep.pkg-group = "tools"
 
 markdownlint-cli.pkg-path = "markdownlint-cli"
 markdownlint-cli.version = "0.45.0"
-markdownlint-cli.pkg-group = "common"
+markdownlint-cli.pkg-group = "linting"
+
+claude-code.pkg-path = "claude-code"
+claude-code.version = "2.0.30"
+claude-code.pkg-group = "common"
 
 docker.pkg-path = "docker"
-docker.version = "28.4.0"
+docker.version = "28.5.1"
 docker.pkg-group = "common"
 
 docker-compose.pkg-path = "docker-compose"
