@@ -40,7 +40,7 @@
       "golangci-lint": {
         "pkg-path": "golangci-lint",
         "pkg-group": "linting",
-        "version": "2.5.0"
+        "version": "2.6.0"
       },
       "markdownlint-cli": {
         "pkg-path": "markdownlint-cli",
@@ -544,28 +544,27 @@
     {
       "attr_path": "golangci-lint",
       "broken": false,
-      "derivation": "/nix/store/50gl14pbzklcnr23d8y5xpxddd0gh395-golangci-lint-2.5.0.drv",
+      "derivation": "/nix/store/yiblqcwbv8jhfr1ldh253plifh0q4vly-golangci-lint-2.6.0.drv",
       "description": "Fast linters Runner for Go",
       "install_id": "golangci-lint",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "name": "golangci-lint-2.5.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "name": "golangci-lint-2.6.0",
       "pname": "golangci-lint",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-10-31T03:31:58.793666Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-04T00:35:19.288243Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
-      "version": "2.5.0",
+      "version": "2.6.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/pgswzj0kk73xzs9y6lr84y4ik8j9bgmm-golangci-lint-2.5.0"
+        "out": "/nix/store/3d9s59vm4hjgavsnfkd18p5krry20fgv-golangci-lint-2.6.0"
       },
       "system": "aarch64-darwin",
       "group": "linting",
@@ -574,28 +573,27 @@
     {
       "attr_path": "golangci-lint",
       "broken": false,
-      "derivation": "/nix/store/1cxsmv6pyrs899hh8m5i3x507b7jvrkm-golangci-lint-2.5.0.drv",
+      "derivation": "/nix/store/rlswjwc8fkjr28hmb7y0rxx7s4d2vxwi-golangci-lint-2.6.0.drv",
       "description": "Fast linters Runner for Go",
       "install_id": "golangci-lint",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "name": "golangci-lint-2.5.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "name": "golangci-lint-2.6.0",
       "pname": "golangci-lint",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-11-05T16:18:36.574026Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-05T16:28:59.408005Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
-      "version": "2.5.0",
+      "version": "2.6.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/jax87s4qv29qw287zayhsrgif6wjwh27-golangci-lint-2.5.0"
+        "out": "/nix/store/2yk0xhvyvx5f2x41wnlx5n9hijvb2xyv-golangci-lint-2.6.0"
       },
       "system": "aarch64-linux",
       "group": "linting",
@@ -604,28 +602,27 @@
     {
       "attr_path": "golangci-lint",
       "broken": false,
-      "derivation": "/nix/store/miv8rpv10iv8x2vk36r8pz37191s819z-golangci-lint-2.5.0.drv",
+      "derivation": "/nix/store/rs97a7y8jyg9z7g0mcmw0wv059k1706k-golangci-lint-2.6.0.drv",
       "description": "Fast linters Runner for Go",
       "install_id": "golangci-lint",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "name": "golangci-lint-2.5.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "name": "golangci-lint-2.6.0",
       "pname": "golangci-lint",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-11-05T16:45:17.830773Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-05T16:54:58.341319Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
-      "version": "2.5.0",
+      "version": "2.6.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/14gr6rnpd06116fqbslzxv2kf19m8dm1-golangci-lint-2.5.0"
+        "out": "/nix/store/573khksn3wshypg14xx9i3fy0xn2iwzj-golangci-lint-2.6.0"
       },
       "system": "x86_64-darwin",
       "group": "linting",
@@ -634,28 +631,27 @@
     {
       "attr_path": "golangci-lint",
       "broken": false,
-      "derivation": "/nix/store/vl52xwfbyzp40mpsj4vb840kwx5k9mrz-golangci-lint-2.5.0.drv",
+      "derivation": "/nix/store/a5kgpb44aiwnf36zwwxy3pavr57z722q-golangci-lint-2.6.0.drv",
       "description": "Fast linters Runner for Go",
       "install_id": "golangci-lint",
       "license": "GPL-3.0-or-later",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "name": "golangci-lint-2.5.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "name": "golangci-lint-2.6.0",
       "pname": "golangci-lint",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-11-05T17:10:03.166296Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-05T17:20:48.901883Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
-      "version": "2.5.0",
+      "version": "2.6.0",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/vbmjda845a78032j1q21x3qfv5iq64in-golangci-lint-2.5.0"
+        "out": "/nix/store/gqgzprwh1lpfkvwcyb7z2zn2higx445w-golangci-lint-2.6.0"
       },
       "system": "x86_64-linux",
       "group": "linting",
@@ -668,15 +664,14 @@
       "description": "Command line interface for MarkdownLint",
       "install_id": "markdownlint-cli",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
       "name": "markdownlint-cli-0.45.0",
       "pname": "markdownlint-cli",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-10-31T03:32:16.927276Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-04T00:35:37.814161Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -698,15 +693,14 @@
       "description": "Command line interface for MarkdownLint",
       "install_id": "markdownlint-cli",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
       "name": "markdownlint-cli-0.45.0",
       "pname": "markdownlint-cli",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-11-05T16:19:06.386033Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-05T16:29:30.586220Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -728,15 +722,14 @@
       "description": "Command line interface for MarkdownLint",
       "install_id": "markdownlint-cli",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
       "name": "markdownlint-cli-0.45.0",
       "pname": "markdownlint-cli",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-11-05T16:45:37.627399Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-05T16:55:17.549939Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -758,15 +751,14 @@
       "description": "Command line interface for MarkdownLint",
       "install_id": "markdownlint-cli",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
       "name": "markdownlint-cli-0.45.0",
       "pname": "markdownlint-cli",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-11-05T17:10:35.575561Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-05T17:21:23.129255Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -788,15 +780,14 @@
       "description": "Framework for managing and maintaining multi-language pre-commit hooks",
       "install_id": "pre-commit",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
       "name": "pre-commit-4.3.0",
       "pname": "pre-commit",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-10-31T03:32:34.792773Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-04T00:35:56.097311Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -819,15 +810,14 @@
       "description": "Framework for managing and maintaining multi-language pre-commit hooks",
       "install_id": "pre-commit",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
       "name": "pre-commit-4.3.0",
       "pname": "pre-commit",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-11-05T16:19:31.721839Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-05T16:29:58.051072Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -850,15 +840,14 @@
       "description": "Framework for managing and maintaining multi-language pre-commit hooks",
       "install_id": "pre-commit",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
       "name": "pre-commit-4.3.0",
       "pname": "pre-commit",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-11-05T16:45:57.240609Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-05T16:55:35.696883Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -881,15 +870,14 @@
       "description": "Framework for managing and maintaining multi-language pre-commit hooks",
       "install_id": "pre-commit",
       "license": "MIT",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
       "name": "pre-commit-4.3.0",
       "pname": "pre-commit",
-      "rev": "08dacfca559e1d7da38f3cf05f1f45ee9bfd213c",
-      "rev_count": 886100,
-      "rev_date": "2025-10-28T17:26:24Z",
-      "scrape_date": "2025-11-05T17:11:02.829111Z",
+      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "rev_count": 888552,
+      "rev_date": "2025-11-02T19:18:41Z",
+      "scrape_date": "2025-11-05T17:21:52.834505Z",
       "stabilities": [
-        "staging",
         "unstable"
       ],
       "unfree": false,

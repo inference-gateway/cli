@@ -25,7 +25,7 @@ gh.version = "2.82.1"
 gh.pkg-group = "vcs"
 
 golangci-lint.pkg-path = "golangci-lint"
-golangci-lint.version = "2.5.0"
+golangci-lint.version = "2.6.0"
 golangci-lint.pkg-group = "linting"
 
 pre-commit.pkg-path = "pre-commit"

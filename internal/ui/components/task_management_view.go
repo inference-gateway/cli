@@ -5,10 +5,12 @@ import (
 	"strings"
 	"time"
 
+	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	adk "github.com/inference-gateway/adk/types"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
@@ -40,6 +42,7 @@ type TaskManagerImpl struct {
 	confirmCancel         bool
 	showInfo              bool
 	currentView           TaskViewMode
+	infoViewport          viewport.Model
 }
 
 type TaskViewMode int
@@ -58,6 +61,9 @@ func NewTaskManager(
 	taskRetentionService domain.TaskRetentionService,
 	backgroundTaskService domain.BackgroundTaskService,
 ) *TaskManagerImpl {
+	vp := viewport.New(80, 20)
+	vp.SetContent("")
+
 	return &TaskManagerImpl{
 		activeTasks:           make([]TaskInfo, 0),
 		completedTasks:        make([]TaskInfo, 0),
@@ -73,6 +79,7 @@ func NewTaskManager(
 		loading:               true,
 		loadError:             nil,
 		currentView:           TaskViewAll,
+		infoViewport:          vp,
 	}
 }
 
@@ -225,6 +232,10 @@ func (t *TaskManagerImpl) handleTaskCancelled(msg domain.TaskCancelledEvent) (te
 func (t *TaskManagerImpl) handleWindowResize(msg tea.WindowSizeMsg) (tea.Model, tea.Cmd) {
 	t.width = msg.Width
 	t.height = msg.Height
+
+	t.infoViewport.Width = msg.Width
+	t.infoViewport.Height = msg.Height - 2
+
 	return t, nil
 }
 
@@ -325,12 +336,29 @@ func (t *TaskManagerImpl) handleCancelConfirmation(msg tea.KeyMsg) (tea.Model, t
 }
 
 func (t *TaskManagerImpl) handleInfoView(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+
 	switch msg.String() {
 	case "q", "esc", "i", "ctrl+c":
 		t.showInfo = false
+		return t, nil
+	case "up", "k":
+		t.infoViewport.ScrollUp(1)
+	case "down", "j":
+		t.infoViewport.ScrollDown(1)
+	case "pgup", "b":
+		t.infoViewport.PageUp()
+	case "pgdown", "f", " ":
+		t.infoViewport.PageDown()
+	case "g":
+		t.infoViewport.GotoTop()
+	case "G":
+		t.infoViewport.GotoBottom()
+	default:
+		t.infoViewport, cmd = t.infoViewport.Update(msg)
 	}
 
-	return t, nil
+	return t, cmd
 }
 
 func (t *TaskManagerImpl) handleSearchInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
@@ -508,11 +536,16 @@ func (t *TaskManagerImpl) renderTaskInfo() string {
 		t.renderTaskHistory(&content, task)
 	}
 
-	content.WriteString("\n")
-	content.WriteString(strings.Repeat("─", t.width-4) + "\n")
-	content.WriteString("Press 'i' or 'esc' to close")
+	// Set viewport content (without footer)
+	t.infoViewport.SetContent(content.String())
 
-	return content.String()
+	var view strings.Builder
+	view.WriteString(t.infoViewport.View())
+	view.WriteString("\n")
+	view.WriteString(strings.Repeat("─", t.width) + "\n")
+	view.WriteString("Press ↑↓/j/k to scroll • g/G for top/bottom • PgUp/PgDn to page • 'i' or 'esc' to close")
+
+	return view.String()
 }
 
 // renderTaskHistory renders the task history section
@@ -521,6 +554,8 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 	content.WriteString(strings.Repeat("─", t.width-4) + "\n")
 	content.WriteString("Task History\n")
 	content.WriteString(strings.Repeat("─", t.width-4) + "\n\n")
+
+	textWidth := t.width - 10
 
 	for i, historyItem := range task.TaskRef.Task.History {
 		if i > 0 {
@@ -532,7 +567,13 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 		for _, part := range historyItem.Parts {
 			if textPart, ok := part.(adk.TextPart); ok {
 				if textPart.Text != "" {
-					fmt.Fprintf(content, "  %s\n", textPart.Text)
+					// Wrap text to fit viewport width
+					wrappedText := shared.FormatResponsiveMessage(textPart.Text, textWidth)
+					// Indent each line
+					lines := strings.Split(wrappedText, "\n")
+					for _, line := range lines {
+						fmt.Fprintf(content, "  %s\n", line)
+					}
 				}
 			}
 		}
@@ -557,6 +598,8 @@ func (t *TaskManagerImpl) renderHistoryItemRole(content *strings.Builder, role s
 
 // renderFinalResult renders the final result message
 func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskInfo) {
+	textWidth := t.width - 10
+
 	if len(task.TaskRef.Task.History) > 0 {
 		content.WriteString("\n")
 	}
@@ -564,7 +607,11 @@ func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskI
 	for _, part := range task.TaskRef.Task.Status.Message.Parts {
 		if textPart, ok := part.(adk.TextPart); ok {
 			if textPart.Text != "" {
-				fmt.Fprintf(content, "  %s\n", textPart.Text)
+				wrappedText := shared.FormatResponsiveMessage(textPart.Text, textWidth)
+				lines := strings.Split(wrappedText, "\n")
+				for _, line := range lines {
+					fmt.Fprintf(content, "  %s\n", line)
+				}
 			}
 		}
 	}
