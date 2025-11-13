@@ -11,10 +11,6 @@ import (
 func TestNewConversationView(t *testing.T) {
 	cv := NewConversationView(nil)
 
-	if cv == nil {
-		t.Fatal("Expected ConversationView to be created, got nil")
-	}
-
 	if cv.width != 80 {
 		t.Errorf("Expected default width 80, got %d", cv.width)
 	}

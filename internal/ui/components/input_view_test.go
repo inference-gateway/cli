@@ -37,10 +37,6 @@ func TestNewInputView(t *testing.T) {
 	mockModelService := &mockModelService{}
 	iv := NewInputView(mockModelService)
 
-	if iv == nil {
-		t.Fatal("Expected InputView to be created, got nil")
-	}
-
 	if iv.text != "" {
 		t.Errorf("Expected empty text, got '%s'", iv.text)
 	}

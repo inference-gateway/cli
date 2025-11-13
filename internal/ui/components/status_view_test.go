@@ -8,10 +8,6 @@ import (
 func TestNewStatusView(t *testing.T) {
 	sv := NewStatusView(nil)
 
-	if sv == nil {
-		t.Fatal("Expected StatusView to be created, got nil")
-	}
-
 	if sv.width != 0 {
 		t.Errorf("Expected default width 0, got %d", sv.width)
 	}

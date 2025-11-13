@@ -265,16 +265,14 @@ func TestKeyResolution(t *testing.T) {
 	action := registry.Resolve("ctrl+c", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+c to resolve to an action")
-	}
-	if action.ID != "quit" {
+	} else if action.ID != "quit" {
 		t.Errorf("Expected ctrl+c to resolve to 'quit', got %s", action.ID)
 	}
 
 	action = registry.Resolve("ctrl+r", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+r to resolve to an action")
-	}
-	if action.ID != "toggle_tool_expansion" {
+	} else if action.ID != "toggle_tool_expansion" {
 		t.Errorf("Expected ctrl+r to resolve to 'toggle_tool_expansion', got %s", action.ID)
 	}
 
@@ -330,23 +328,23 @@ func TestActionHandlers(t *testing.T) {
 	action := registry.Resolve("ctrl+c", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+c to resolve to quit action")
-	}
-
-	cmd := action.Handler(mockContext, tea.KeyMsg{})
-	if cmd == nil {
-		t.Error("Expected quit handler to return a command")
+	} else {
+		cmd := action.Handler(mockContext, tea.KeyMsg{})
+		if cmd == nil {
+			t.Error("Expected quit handler to return a command")
+		}
 	}
 
 	action = registry.Resolve("ctrl+r", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+r to resolve to toggle action")
-	}
+	} else {
+		initialCallCount := mockContext.expandToggleCalls
+		_ = action.Handler(mockContext, tea.KeyMsg{})
 
-	initialCallCount := mockContext.expandToggleCalls
-	_ = action.Handler(mockContext, tea.KeyMsg{})
-
-	if mockContext.expandToggleCalls != initialCallCount+1 {
-		t.Error("Expected toggle handler to call ToggleToolResultExpansion()")
+		if mockContext.expandToggleCalls != initialCallCount+1 {
+			t.Error("Expected toggle handler to call ToggleToolResultExpansion()")
+		}
 	}
 }
 
@@ -391,8 +389,7 @@ func TestConditionalKeyBindings(t *testing.T) {
 	action := registry.Resolve("enter", emptyInputContext)
 	if action == nil {
 		t.Fatal("Expected enter key to resolve to enter_key_handler even when input is empty")
-	}
-	if action.ID != "enter_key_handler" {
+	} else if action.ID != "enter_key_handler" {
 		t.Errorf("Expected enter to resolve to 'enter_key_handler', got %s", action.ID)
 	}
 
@@ -403,8 +400,7 @@ func TestConditionalKeyBindings(t *testing.T) {
 	action = registry.Resolve("enter", nonEmptyInputContext)
 	if action == nil {
 		t.Fatal("Expected enter key to resolve to enter_key_handler when input has content")
-	}
-	if action.ID != "enter_key_handler" {
+	} else if action.ID != "enter_key_handler" {
 		t.Errorf("Expected enter to resolve to 'enter_key_handler', got %s", action.ID)
 	}
 }
@@ -451,8 +447,7 @@ func TestActionRegistration(t *testing.T) {
 	retrievedAction := registry.GetAction("test_action")
 	if retrievedAction == nil {
 		t.Fatal("Expected to retrieve registered action")
-	}
-	if retrievedAction.ID != "test_action" {
+	} else if retrievedAction.ID != "test_action" {
 		t.Errorf("Expected retrieved action ID to be 'test_action', got %s", retrievedAction.ID)
 	}
 
@@ -462,8 +457,7 @@ func TestActionRegistration(t *testing.T) {
 	resolvedAction := registry.Resolve("ctrl+t", mockContext)
 	if resolvedAction == nil {
 		t.Fatal("Expected custom action to be resolved")
-	}
-	if resolvedAction.ID != "test_action" {
+	} else if resolvedAction.ID != "test_action" {
 		t.Errorf("Expected resolved action to be 'test_action', got %s", resolvedAction.ID)
 	}
 }
