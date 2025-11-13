@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.53.4](https://github.com/inference-gateway/cli/compare/v0.53.3...v0.53.4) (2025-11-13)
+
+### 🐛 Bug Fixes
+
+* **cli:** Add scrolling and text wrapping to task management view ([#203](https://github.com/inference-gateway/cli/issues/203)) ([5b0aeaf](https://github.com/inference-gateway/cli/commit/5b0aeafeaa8235715f8fc0cc2e40faa8ea07500b))
+* **a2a:** Fix task cancellation race condition ([#198](https://github.com/inference-gateway/cli/issues/198)) ([1f831dd](https://github.com/inference-gateway/cli/commit/1f831dd097fe464d9a05cb942de14af7ad8874d8)), closes [#195](https://github.com/inference-gateway/cli/issues/195)
+* **cli:** Maintain spinner visibility when exiting task management view ([#202](https://github.com/inference-gateway/cli/issues/202)) ([63c78b1](https://github.com/inference-gateway/cli/commit/63c78b1400eb945668f1b91545ba9e5b7ec254a3))
+
+### ♻️ Code Refactoring
+
+* **a2a:** Remove task goes idle feature ([#199](https://github.com/inference-gateway/cli/issues/199)) ([b199ad5](https://github.com/inference-gateway/cli/commit/b199ad5b790bf00168e55865294ccf3c5cacc5b7)), closes [#197](https://github.com/inference-gateway/cli/issues/197)
+
+### 📚 Documentation
+
+* **a2a:** Add VNC support for browser-agent with real-time GUI viewing ([#189](https://github.com/inference-gateway/cli/issues/189)) ([a24336c](https://github.com/inference-gateway/cli/commit/a24336c8a95a6b422179a81db8e603643d41778d))
+
+### 🧹 Maintenance
+
+* **deps:** Bump modernc.org/sqlite from 1.39.1 to 1.40.0 ([#200](https://github.com/inference-gateway/cli/issues/200)) ([5752375](https://github.com/inference-gateway/cli/commit/5752375d8a8fbe605cf8deab700187471ff7a8bc))
+* Update Flox environment dependencies ([#201](https://github.com/inference-gateway/cli/issues/201)) ([1787187](https://github.com/inference-gateway/cli/commit/178718769f4e9818e137ef2112946cf67eea2a0f))
+
 ## [0.53.3](https://github.com/inference-gateway/cli/compare/v0.53.2...v0.53.3) (2025-10-20)
 
 ### ♻️ Code Refactoring
