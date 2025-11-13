@@ -55,16 +55,11 @@ func (s *BackgroundTaskService) CancelBackgroundTask(taskID string) error {
 
 	logger.Info("Canceling background task", "task_id", taskID)
 
-	backgroundTasks := s.GetBackgroundTasks()
-
-	var targetTask *domain.TaskPollingState
-	for i := range backgroundTasks {
-		if backgroundTasks[i].TaskID == taskID {
-			targetTask = &backgroundTasks[i]
-			break
-		}
+	if s.taskTracker == nil {
+		return fmt.Errorf("task tracker not available")
 	}
 
+	targetTask := s.taskTracker.GetPollingState(taskID)
 	if targetTask == nil {
 		return fmt.Errorf("task %s not found in background tasks", taskID)
 	}
@@ -79,10 +74,8 @@ func (s *BackgroundTaskService) CancelBackgroundTask(taskID string) error {
 		targetTask.CancelFunc()
 	}
 
-	if s.taskTracker != nil {
-		s.taskTracker.StopPolling(taskID)
-		s.taskTracker.RemoveTask(taskID)
-	}
+	s.taskTracker.StopPolling(taskID)
+	s.taskTracker.RemoveTask(taskID)
 
 	logger.Info("Task cancelled successfully", "task_id", taskID)
 	return nil
