@@ -13,15 +13,17 @@ import (
 )
 
 type A2AAgentService struct {
-	config     *config.Config
-	cache      map[string]*domain.CachedAgentCard
-	cacheMutex sync.RWMutex
+	config          *config.Config
+	agentsConfigSvc domain.AgentsConfigService
+	cache           map[string]*domain.CachedAgentCard
+	cacheMutex      sync.RWMutex
 }
 
-func NewA2AAgentService(cfg *config.Config) *A2AAgentService {
+func NewA2AAgentService(cfg *config.Config, agentsConfigSvc domain.AgentsConfigService) *A2AAgentService {
 	return &A2AAgentService{
-		config: cfg,
-		cache:  make(map[string]*domain.CachedAgentCard),
+		config:          cfg,
+		agentsConfigSvc: agentsConfigSvc,
+		cache:           make(map[string]*domain.CachedAgentCard),
 	}
 }
 
@@ -76,7 +78,7 @@ func (s *A2AAgentService) storeInCache(agentURL string, card *adk.AgentCard) {
 }
 
 func (s *A2AAgentService) GetConfiguredAgents() []string {
-	return s.config.A2A.Agents
+	return s.agentsConfigSvc.GetConfiguredAgentURLs()
 }
 
 func (s *A2AAgentService) GetAgentCards(ctx context.Context) ([]*domain.CachedAgentCard, error) {

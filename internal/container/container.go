@@ -144,7 +144,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 		})
 	}
 
-	c.a2aAgentService = services.NewA2AAgentService(c.config)
+	agentsConfigService := services.NewAgentsConfigService()
+	c.a2aAgentService = services.NewA2AAgentService(c.config, agentsConfigService)
 
 	agentClient := c.createSDKClient()
 	c.agentService = services.NewAgentService(

@@ -64,7 +64,6 @@ func initConfig() {
 	v.SetDefault("chat", defaults.Chat)
 
 	v.SetDefault("a2a.enabled", defaults.A2A.Enabled)
-	v.SetDefault("a2a.agents", defaults.A2A.Agents)
 	v.SetDefault("a2a.cache.enabled", defaults.A2A.Cache.Enabled)
 	v.SetDefault("a2a.cache.ttl", defaults.A2A.Cache.TTL)
 	v.SetDefault("a2a.task.status_poll_seconds", defaults.A2A.Task.StatusPollSeconds)
@@ -93,19 +92,6 @@ func initConfig() {
 	v.SetEnvPrefix("INFER")
 	v.AutomaticEnv()
 	v.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
-
-	if a2aAgents := os.Getenv("INFER_A2A_AGENTS"); a2aAgents != "" {
-		var agents []string
-		for _, agent := range strings.FieldsFunc(a2aAgents, func(c rune) bool {
-			return c == ',' || c == '\n'
-		}) {
-			if trimmed := strings.TrimSpace(agent); trimmed != "" {
-				agents = append(agents, trimmed)
-			}
-		}
-
-		v.Set("a2a.agents", agents)
-	}
 
 	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
 		fmt.Fprintf(os.Stderr, "Error binding verbose flag: %v\n", err)

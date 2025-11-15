@@ -111,10 +111,11 @@ func (s *AgentServiceImpl) buildA2AAgentInfo() string {
 		return ""
 	}
 
-	agentInfo := "\n\nAvailable A2A Agent URLs:\n"
+	agentInfo := "\n\nAvailable A2A Agents:\n"
 	for _, url := range urls {
 		agentInfo += fmt.Sprintf("- %s\n", url)
 	}
+	agentInfo += "\nUse A2A tools to communicate with these agents for collaborative task execution.\n"
 	return agentInfo
 }
 

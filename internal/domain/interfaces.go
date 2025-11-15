@@ -333,6 +333,30 @@ type ThemeService interface {
 	SetTheme(themeName string) error
 }
 
+// AgentsConfigService manages A2A agent configurations
+type AgentsConfigService interface {
+	LoadConfig() (*AgentsConfig, error)
+	SaveConfig(config *AgentsConfig, path string) error
+	GetConfiguredAgentURLs() []string
+	AddAgent(name, url, oci string, run bool) error
+	RemoveAgent(name string) error
+	UpdateAgent(name string, url, oci *string, run *bool) error
+	ListAgents() ([]AgentInfo, error)
+}
+
+// AgentInfo represents agent information for display
+type AgentInfo struct {
+	Name string `json:"name"`
+	URL  string `json:"url"`
+	OCI  string `json:"oci,omitempty"`
+	Run  bool   `json:"run"`
+}
+
+// AgentsConfig represents the agents configuration structure
+type AgentsConfig struct {
+	Agents []AgentInfo `json:"agents"`
+}
+
 // Theme interface for theming support
 type Theme interface {
 	GetUserColor() string

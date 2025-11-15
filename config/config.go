@@ -251,7 +251,6 @@ type GitConfig struct {
 // A2AConfig contains A2A agent configuration
 type A2AConfig struct {
 	Enabled bool           `yaml:"enabled" mapstructure:"enabled"`
-	Agents  []string       `yaml:"agents" mapstructure:"agents"`
 	Cache   A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
 	Task    A2ATaskConfig  `yaml:"task" mapstructure:"task"`
 	Tools   A2AToolsConfig `yaml:"tools" mapstructure:"tools"`
@@ -635,7 +634,6 @@ Respond with ONLY the title, no quotes or explanation.`,
 		},
 		A2A: A2AConfig{
 			Enabled: false,
-			Agents:  []string{},
 			Cache: A2ACacheConfig{
 				Enabled: true,
 				TTL:     300,
