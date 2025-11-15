@@ -102,20 +102,71 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 // buildA2AAgentInfo creates dynamic A2A agent information for the system prompt
 func (s *AgentServiceImpl) buildA2AAgentInfo() string {
-	if s.a2aAgentService == nil {
+	var agentInfo strings.Builder
+
+	// Check for agents from both the legacy config and new agents.yaml
+	legacyURLs := []string{}
+	if s.a2aAgentService != nil {
+		legacyURLs = s.a2aAgentService.GetConfiguredAgents()
+	}
+
+	newAgents := []domain.AgentDefinition{}
+	if s.agentConfigService != nil {
+		agents, err := s.agentConfigService.ListAgents()
+		if err == nil {
+			// Filter to only enabled agents
+			for _, agent := range agents {
+				if agent.Enabled {
+					newAgents = append(newAgents, agent)
+				}
+			}
+		}
+	}
+
+	if len(legacyURLs) == 0 && len(newAgents) == 0 {
 		return ""
 	}
 
-	urls := s.a2aAgentService.GetConfiguredAgents()
-	if len(urls) == 0 {
-		return ""
+	agentInfo.WriteString("\n\nAVAILABLE A2A AGENTS:\n")
+
+	// Add legacy agents (from config.yaml)
+	if len(legacyURLs) > 0 {
+		agentInfo.WriteString("Legacy Agents (from config):\n")
+		for _, url := range legacyURLs {
+			agentInfo.WriteString(fmt.Sprintf("- %s\n", url))
+		}
+		if len(newAgents) > 0 {
+			agentInfo.WriteString("\n")
+		}
 	}
 
-	agentInfo := "\n\nAvailable A2A Agent URLs:\n"
-	for _, url := range urls {
-		agentInfo += fmt.Sprintf("- %s\n", url)
+	// Add new agents (from agents.yaml)
+	if len(newAgents) > 0 {
+		if len(legacyURLs) > 0 {
+			agentInfo.WriteString("Configured Agents (from agents.yaml):\n")
+		}
+		for _, agent := range newAgents {
+			runningStatus := ""
+			if agent.Run {
+				status, err := s.agentConfigService.GetAgentStatus(agent.Name)
+				if err == nil && status.Running {
+					runningStatus = " (running locally)"
+				} else if err == nil {
+					runningStatus = " (local, stopped)"
+				} else {
+					runningStatus = " (local, unknown status)"
+				}
+			}
+
+			agentInfo.WriteString(fmt.Sprintf("- %s (%s)%s", agent.Name, agent.URL, runningStatus))
+			if agent.Description != "" {
+				agentInfo.WriteString(fmt.Sprintf(" - %s", agent.Description))
+			}
+			agentInfo.WriteString("\n")
+		}
 	}
-	return agentInfo
+
+	return agentInfo.String()
 }
 
 // buildSandboxInfo creates dynamic sandbox information for the system prompt

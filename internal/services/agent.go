@@ -15,15 +15,16 @@ import (
 
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
 type AgentServiceImpl struct {
-	client           sdk.Client
-	toolService      domain.ToolService
-	config           domain.ConfigService
-	conversationRepo domain.ConversationRepository
-	a2aAgentService  domain.A2AAgentService
-	messageQueue     domain.MessageQueue
-	timeoutSeconds   int
-	maxTokens        int
-	optimizer        *ConversationOptimizer
+	client             sdk.Client
+	toolService        domain.ToolService
+	config             domain.ConfigService
+	conversationRepo   domain.ConversationRepository
+	a2aAgentService    domain.A2AAgentService
+	agentConfigService domain.AgentConfigService
+	messageQueue       domain.MessageQueue
+	timeoutSeconds     int
+	maxTokens          int
+	optimizer          *ConversationOptimizer
 
 	// Request tracking
 	activeRequests map[string]context.CancelFunc
@@ -158,24 +159,26 @@ func NewAgentService(
 	config domain.ConfigService,
 	conversationRepo domain.ConversationRepository,
 	a2aAgentService domain.A2AAgentService,
+	agentConfigService domain.AgentConfigService,
 	messageQueue domain.MessageQueue,
 	timeoutSeconds int,
 	optimizer *ConversationOptimizer,
 ) *AgentServiceImpl {
 	return &AgentServiceImpl{
-		client:           client,
-		toolService:      toolService,
-		config:           config,
-		conversationRepo: conversationRepo,
-		a2aAgentService:  a2aAgentService,
-		messageQueue:     messageQueue,
-		timeoutSeconds:   timeoutSeconds,
-		maxTokens:        config.GetAgentConfig().MaxTokens,
-		optimizer:        optimizer,
-		activeRequests:   make(map[string]context.CancelFunc),
-		cancelChannels:   make(map[string]chan struct{}),
-		metrics:          make(map[string]*domain.ChatMetrics),
-		toolCallsMap:     make(map[string]*sdk.ChatCompletionMessageToolCall),
+		client:             client,
+		toolService:        toolService,
+		config:             config,
+		conversationRepo:   conversationRepo,
+		a2aAgentService:    a2aAgentService,
+		agentConfigService: agentConfigService,
+		messageQueue:       messageQueue,
+		timeoutSeconds:     timeoutSeconds,
+		maxTokens:          config.GetAgentConfig().MaxTokens,
+		optimizer:          optimizer,
+		activeRequests:     make(map[string]context.CancelFunc),
+		cancelChannels:     make(map[string]chan struct{}),
+		metrics:            make(map[string]*domain.ChatMetrics),
+		toolCallsMap:       make(map[string]*sdk.ChatCompletionMessageToolCall),
 	}
 }
 

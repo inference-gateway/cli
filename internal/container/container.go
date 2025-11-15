@@ -1,6 +1,7 @@
 package container
 
 import (
+	"context"
 	"path/filepath"
 	"strings"
 	"time"
@@ -34,6 +35,8 @@ type ServiceContainer struct {
 	toolService           domain.ToolService
 	fileService           domain.FileService
 	a2aAgentService       domain.A2AAgentService
+	agentConfigService    domain.AgentConfigService
+	dockerService         domain.DockerService
 	messageQueue          domain.MessageQueue
 	taskTrackerService    domain.TaskTracker
 	taskRetentionService  domain.TaskRetentionService
@@ -146,6 +149,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.a2aAgentService = services.NewA2AAgentService(c.config)
 
+	// Initialize Docker and agent config services
+	ctx := context.Background()
+	c.dockerService = services.NewDockerService(ctx)
+	c.agentConfigService = services.NewAgentConfigService(c.config, c.dockerService)
+
 	agentClient := c.createSDKClient()
 	c.agentService = services.NewAgentService(
 		agentClient,
@@ -153,6 +161,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.config,
 		c.conversationRepo,
 		c.a2aAgentService,
+		c.agentConfigService,
 		c.messageQueue,
 		c.config.Gateway.Timeout,
 		optimizer,
@@ -284,6 +293,16 @@ func (c *ServiceContainer) GetShortcutRegistry() *shortcuts.Registry {
 // GetA2AAgentService returns the A2A agent service
 func (c *ServiceContainer) GetA2AAgentService() domain.A2AAgentService {
 	return c.a2aAgentService
+}
+
+// GetAgentConfigService returns the agent config service
+func (c *ServiceContainer) GetAgentConfigService() domain.AgentConfigService {
+	return c.agentConfigService
+}
+
+// GetDockerService returns the Docker service
+func (c *ServiceContainer) GetDockerService() domain.DockerService {
+	return c.dockerService
 }
 
 // New service getters
