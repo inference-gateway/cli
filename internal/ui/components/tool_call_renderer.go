@@ -197,7 +197,6 @@ func (r *ToolCallRenderer) updateArgsContainerWidth() {
 func (r *ToolCallRenderer) RenderPreviews() string {
 	var allPreviews []string
 
-	// Render tool previews in order
 	for _, callID := range r.toolPreviewsOrder {
 		preview, exists := r.toolPreviews[callID]
 		if !exists {
@@ -208,7 +207,6 @@ func (r *ToolCallRenderer) RenderPreviews() string {
 		}
 	}
 
-	// Render parallel tools in order
 	now := time.Now()
 	var remainingTools []string
 	for _, callID := range r.parallelToolsOrder {
