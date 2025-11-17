@@ -36,65 +36,39 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Setup Go
+      - name: Set up Go
         uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
-          cache-dependency-path: |
-            go.sum
+          cache: true
+
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v2.6.0
+
+      - name: Install task
+        run: |
+          curl -s https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin v3.45.4
 
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
           node-version: 'lts/*'
 
-      - name: Install Task
-        run: |
-          go install github.com/go-task/task/v3/cmd/task@v3.45.4
-          echo "$HOME/go/bin" >> $GITHUB_PATH
-
-      - name: Setup golangci-lint
-        uses: golangci/golangci-lint-action@v8.0.0
-
       - name: Install additional dependencies
         run: npm install -g markdownlint-cli
 
       - name: Run Claude Code
         id: claude
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@main
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           additional_permissions: |
             actions: read
           use_commit_signing: true
           base_branch: main
-          branch_prefix: 'claude/'
-          custom_instructions: |
-            IMPORTANT: You must NEVER push directly to the main branch. Always:
-            1. Create a new feature branch (claude/feature-name)
-            2. Make your changes on the feature branch
-            3. Open a pull request to main
-            4. Wait for review and approval before merging
-
-            <system-reminder>ALWAYS use `task check` and ensure there are no failing rules before pushing your changes.</system-reminder>
-
-            COMMIT MESSAGE FORMAT: Always use conventional commits with capital letters.
-            Follow the format: "type(scope): Description" where the description starts with a capital letter.
-            Examples: "feat(a2a): Add retry mechanism for agent connections", "fix(auth): Resolve token validation issue"
-
-            Follow the development workflow specified in the coding instructions.
-          mcp_config: |
-            {
-              "mcpServers": {
-                "context7": {
-                  "command": "npx",
-                  "args": ["-y", "@upstash/context7-mcp@latest"],
-                  "env": {}
-                }
-              }
-            }
-          allowed_tools: |
-            Bash(task:*)
-            Bash(go:*)
-            Bash(gh:*)
-            Bash(git:*)
+          branch_prefix: "claude/"
+          claude_args: |
+            --system-prompt "IMPORTANT: You must NEVER push directly to the main branch. Always: 1. Create a new feature branch (claude/feature-name), 2. Make your changes on the feature branch, 3. Open a pull request to main. IMPORTANT: Use specification-driven development. Always: 1. Adjust or add to the agent.yaml, 2. Run 'task generate', 3. Start developing. COMMIT MESSAGE FORMAT: Always use conventional commits with capital letters. Follow the format: 'type(scope): Description' where the description starts with a capital letter. Examples: 'feat(grafana): Add retry mechanism for agent connections', 'fix(auth): Resolve token validation issue'. Follow the development workflow specified in the coding instructions."
+            --allowedTools "Bash(task:*),Bash(go:*),Bash(gh:*),Bash(git:*)"
+            --mcp-config '{"mcpServers":{"context7":{"command":"npx","args":["-y","@upstash/context7-mcp@latest"]}}}'
