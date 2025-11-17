@@ -16,14 +16,16 @@ import (
 )
 
 type ToolCallRenderer struct {
-	width         int
-	height        int
-	spinner       spinner.Model
-	toolPreviews  map[string]*domain.ToolCallPreviewEvent
-	styles        *toolRenderStyles
-	lastUpdate    time.Time
-	parallelTools map[string]*ParallelToolState
-	spinnerStep   int
+	width              int
+	height             int
+	spinner            spinner.Model
+	toolPreviews       map[string]*domain.ToolCallPreviewEvent
+	toolPreviewsOrder  []string
+	styles             *toolRenderStyles
+	lastUpdate         time.Time
+	parallelTools      map[string]*ParallelToolState
+	parallelToolsOrder []string
+	spinnerStep        int
 }
 
 type ParallelToolState struct {
@@ -113,6 +115,9 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
 		r.updateArgsContainerWidth()
 
 	case domain.ToolCallPreviewEvent:
+		if _, exists := r.toolPreviews[msg.ToolCallID]; !exists {
+			r.toolPreviewsOrder = append(r.toolPreviewsOrder, msg.ToolCallID)
+		}
 		r.toolPreviews[msg.ToolCallID] = &msg
 		if len(r.toolPreviews) == 1 && r.HasActivePreviews() {
 			return r, r.spinner.Tick
@@ -140,6 +145,9 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
 	case domain.ParallelToolsStartEvent:
 		for _, tool := range msg.Tools {
 			now := time.Now()
+			if _, exists := r.parallelTools[tool.CallID]; !exists {
+				r.parallelToolsOrder = append(r.parallelToolsOrder, tool.CallID)
+			}
 			r.parallelTools[tool.CallID] = &ParallelToolState{
 				CallID:      tool.CallID,
 				ToolName:    tool.Name,
@@ -189,14 +197,26 @@ func (r *ToolCallRenderer) updateArgsContainerWidth() {
 func (r *ToolCallRenderer) RenderPreviews() string {
 	var allPreviews []string
 
-	for _, preview := range r.toolPreviews {
+	// Render tool previews in order
+	for _, callID := range r.toolPreviewsOrder {
+		preview, exists := r.toolPreviews[callID]
+		if !exists {
+			continue
+		}
 		if r.shouldShowPreview(preview) {
 			allPreviews = append(allPreviews, r.renderToolPreview(preview))
 		}
 	}
 
+	// Render parallel tools in order
 	now := time.Now()
-	for callID, tool := range r.parallelTools {
+	var remainingTools []string
+	for _, callID := range r.parallelToolsOrder {
+		tool, exists := r.parallelTools[callID]
+		if !exists {
+			continue
+		}
+
 		if (tool.Status == "complete" || tool.Status == "failed") && tool.EndTime != nil {
 			showDuration := now.Sub(*tool.EndTime)
 			if showDuration > 1000*time.Millisecond {
@@ -206,7 +226,9 @@ func (r *ToolCallRenderer) RenderPreviews() string {
 		}
 
 		allPreviews = append(allPreviews, r.renderParallelTool(tool))
+		remainingTools = append(remainingTools, callID)
 	}
+	r.parallelToolsOrder = remainingTools
 
 	if len(allPreviews) == 0 {
 		return ""
@@ -348,7 +370,9 @@ func (r *ToolCallRenderer) formatArgsPreview(args string) string {
 
 func (r *ToolCallRenderer) ClearPreviews() {
 	r.toolPreviews = make(map[string]*domain.ToolCallPreviewEvent)
+	r.toolPreviewsOrder = nil
 	r.parallelTools = make(map[string]*ParallelToolState)
+	r.parallelToolsOrder = nil
 }
 
 func (r *ToolCallRenderer) HasActivePreviews() bool {
