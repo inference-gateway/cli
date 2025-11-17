@@ -1,6 +1,8 @@
 package container
 
 import (
+	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -38,6 +40,7 @@ type ServiceContainer struct {
 	taskTrackerService    domain.TaskTracker
 	taskRetentionService  domain.TaskRetentionService
 	backgroundTaskService domain.BackgroundTaskService
+	gatewayManager        *services.GatewayManager
 
 	// Services
 	stateManager domain.StateManager
@@ -75,6 +78,7 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 		container.configService = services.NewConfigService(v[0], cfg)
 	}
 
+	container.initializeGatewayManager()
 	container.initializeFileWriterServices()
 	container.initializeDomainServices()
 	container.initializeServices()
@@ -82,6 +86,20 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 	container.initializeExtensibility()
 
 	return container
+}
+
+// initializeGatewayManager creates and starts the gateway manager if configured
+func (c *ServiceContainer) initializeGatewayManager() {
+	c.gatewayManager = services.NewGatewayManager(c.config)
+
+	if c.config.Gateway.Run {
+		ctx := context.Background()
+		if err := c.gatewayManager.Start(ctx); err != nil {
+			fmt.Printf("Failed to start gateway: %v\n", err)
+			logger.Error("Failed to start gateway", "error", err)
+			logger.Warn("Continuing without local gateway - make sure gateway is running manually")
+		}
+	}
 }
 
 // initializeFileWriterServices creates the new file writer architecture services
@@ -170,7 +188,6 @@ func (c *ServiceContainer) initializeServices() {
 		maxTaskRetention := c.config.A2A.Task.CompletedTaskRetention
 		c.taskRetentionService = services.NewTaskRetentionService(maxTaskRetention)
 
-		// Create BackgroundTaskService with TaskTracker
 		c.backgroundTaskService = services.NewBackgroundTaskService(c.taskTrackerService)
 	}
 }
@@ -418,4 +435,16 @@ func (c *ServiceContainer) GetBackgroundJobManager() *services.BackgroundJobMana
 // GetStorage returns the conversation storage
 func (c *ServiceContainer) GetStorage() storage.ConversationStorage {
 	return c.storage
+}
+
+// Shutdown gracefully shuts down the service container and its resources
+func (c *ServiceContainer) Shutdown(ctx context.Context) error {
+	if c.gatewayManager != nil && c.gatewayManager.IsRunning() {
+		logger.Info("Shutting down gateway container...")
+		if err := c.gatewayManager.Stop(ctx); err != nil {
+			logger.Error("Failed to stop gateway container", "error", err)
+			return err
+		}
+	}
+	return nil
 }

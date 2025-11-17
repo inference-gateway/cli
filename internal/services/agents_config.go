@@ -1,6 +1,7 @@
 package services
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -44,10 +45,19 @@ func (s *AgentsConfigService) Load() (*config.AgentsConfig, error) {
 
 // Save saves the agents configuration to the file
 func (s *AgentsConfigService) Save(cfg *config.AgentsConfig) error {
-	data, err := yaml.Marshal(cfg)
-	if err != nil {
+	var buf bytes.Buffer
+	encoder := yaml.NewEncoder(&buf)
+	encoder.SetIndent(2)
+
+	if err := encoder.Encode(cfg); err != nil {
 		return fmt.Errorf("failed to marshal agents config: %w", err)
 	}
+
+	if err := encoder.Close(); err != nil {
+		return fmt.Errorf("failed to close encoder: %w", err)
+	}
+
+	data := buf.Bytes()
 
 	configDir := filepath.Dir(s.configPath)
 	if err := os.MkdirAll(configDir, 0755); err != nil {

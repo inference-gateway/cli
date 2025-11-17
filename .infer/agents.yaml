@@ -1,0 +1,5 @@
+agents:
+  - name: documentation-agent
+    url: https://localhost:8080
+    oci: ghcr.io/inference-gateway/documentation-agent:latest
+    run: true

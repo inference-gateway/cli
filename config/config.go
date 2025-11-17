@@ -38,6 +38,9 @@ type GatewayConfig struct {
 	URL     string `yaml:"url" mapstructure:"url"`
 	APIKey  string `yaml:"api_key" mapstructure:"api_key"`
 	Timeout int    `yaml:"timeout" mapstructure:"timeout"`
+	OCI     string `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
+	Run     bool   `yaml:"run" mapstructure:"run"`
+	Docker  bool   `yaml:"docker" mapstructure:"docker"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -381,6 +384,9 @@ func DefaultConfig() *Config { //nolint:funlen
 			URL:     "http://localhost:8080",
 			APIKey:  "",
 			Timeout: 200,
+			OCI:     "ghcr.io/inference-gateway/inference-gateway:latest",
+			Run:     true,
+			Docker:  false,
 		},
 		Client: ClientConfig{
 			Timeout: 200,

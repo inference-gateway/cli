@@ -4,7 +4,9 @@ This document describes how to configure Agent-to-Agent (A2A) communication usin
 
 ## Overview
 
-The Inference Gateway CLI supports delegating tasks to other AI agents through the A2A protocol. Instead of configuring agents directly in `config.yaml`, you can now use a dedicated `agents.yaml` file that provides a cleaner, more focused configuration experience.
+The Inference Gateway CLI supports delegating tasks to other AI agents through the A2A protocol. Instead of
+configuring agents directly in `config.yaml`, you can now use a dedicated `agents.yaml` file that provides a
+cleaner, more focused configuration experience.
 
 ## Configuration Files
 
@@ -175,11 +177,12 @@ infer agents add doc-gen https://docs.example.com
 
 ## System Prompt Integration
 
-Configured agents are automatically included in the system prompt for chat and agent sessions. When you start a session, the AI is aware of available agents and can delegate tasks using the A2A tools.
+Configured agents are automatically included in the system prompt for chat and agent sessions. When you start a
+session, the AI is aware of available agents and can delegate tasks using the A2A tools.
 
 Example system prompt section:
 
-```
+```text
 Available A2A Agents:
 - https://code-review.example.com
 - https://security.example.com
@@ -192,33 +195,26 @@ You can delegate tasks to these agents using the A2A_SubmitTask tool.
 
 Once configured, you can ask the AI to delegate tasks to specific agents:
 
-```
+```text
 User: Please have the code-reviewer agent review my latest commit
 ```
 
 The AI will use the `A2A_SubmitTask` tool to delegate this task to the configured code-reviewer agent.
 
-## Backward Compatibility
-
-The CLI maintains backward compatibility with the legacy `a2a.agents` configuration in `config.yaml`. If agents are configured in both locations, the legacy configuration takes precedence, and a warning is logged.
-
-To migrate from legacy configuration:
-
-1. Run `infer agents init` to create `agents.yaml`
-2. Add your agents using `infer agents add`
-3. Remove the `a2a.agents` section from `config.yaml`
-
 ## Local Agent Execution (Docker)
 
-When `run: true` is set, the CLI expects the agent to be available as a Docker container. The container lifecycle is managed externally - the CLI only communicates with the agent via HTTP.
+When `run: true` is set, the CLI expects the agent to be available as a Docker container. The container
+lifecycle is managed externally - the CLI only communicates with the agent via HTTP.
 
 **Requirements for local agents:**
+
 - Docker must be installed and running
 - The OCI image must be pulled or available locally
 - The agent must expose an HTTP endpoint (specified in `url`)
 - Environment variables are passed to the container
 
-**Note:** The current implementation focuses on configuration. Full Docker lifecycle management (pull, run, stop) will be added in future versions. For now, you must manually start local agents:
+**Note:** The current implementation focuses on configuration. Full Docker lifecycle management (pull, run,
+stop) will be added in future versions. For now, you must manually start local agents:
 
 ```bash
 docker run -d -p 8081:8080 \

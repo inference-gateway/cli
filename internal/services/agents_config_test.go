@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	require "github.com/stretchr/testify/require"
 )
 
 func TestAgentsConfigService_AddAgent(t *testing.T) {
@@ -24,18 +25,15 @@ func TestAgentsConfigService_AddAgent(t *testing.T) {
 		},
 	}
 
-	// Add agent
 	err := svc.AddAgent(agent)
 	if err != nil {
 		t.Fatalf("Failed to add agent: %v", err)
 	}
 
-	// Verify file was created
 	if _, err := os.Stat(agentsPath); os.IsNotExist(err) {
 		t.Fatal("Agents config file was not created")
 	}
 
-	// Load and verify
 	cfg, err := svc.Load()
 	if err != nil {
 		t.Fatalf("Failed to load config: %v", err)
@@ -76,13 +74,11 @@ func TestAgentsConfigService_AddDuplicateAgent(t *testing.T) {
 		URL:  "https://agent.example.com",
 	}
 
-	// Add agent first time
 	err := svc.AddAgent(agent)
 	if err != nil {
 		t.Fatalf("Failed to add agent: %v", err)
 	}
 
-	// Try to add duplicate
 	err = svc.AddAgent(agent)
 	if err == nil {
 		t.Fatal("Expected error when adding duplicate agent, got nil")
@@ -104,17 +100,14 @@ func TestAgentsConfigService_RemoveAgent(t *testing.T) {
 		URL:  "https://agent2.example.com",
 	}
 
-	// Add two agents
-	svc.AddAgent(agent1)
-	svc.AddAgent(agent2)
+	require.NoError(t, svc.AddAgent(agent1))
+	require.NoError(t, svc.AddAgent(agent2))
 
-	// Remove first agent
 	err := svc.RemoveAgent("agent1")
 	if err != nil {
 		t.Fatalf("Failed to remove agent: %v", err)
 	}
 
-	// Verify only one agent remains
 	agents, err := svc.ListAgents()
 	if err != nil {
 		t.Fatalf("Failed to list agents: %v", err)
@@ -145,7 +138,6 @@ func TestAgentsConfigService_ListAgents(t *testing.T) {
 	agentsPath := filepath.Join(tmpDir, "agents.yaml")
 	svc := NewAgentsConfigService(agentsPath)
 
-	// Add multiple agents
 	agents := []config.AgentEntry{
 		{Name: "agent1", URL: "https://agent1.example.com"},
 		{Name: "agent2", URL: "https://agent2.example.com"},
@@ -153,10 +145,9 @@ func TestAgentsConfigService_ListAgents(t *testing.T) {
 	}
 
 	for _, agent := range agents {
-		svc.AddAgent(agent)
+		require.NoError(t, svc.AddAgent(agent))
 	}
 
-	// List agents
 	listed, err := svc.ListAgents()
 	if err != nil {
 		t.Fatalf("Failed to list agents: %v", err)
@@ -177,9 +168,8 @@ func TestAgentsConfigService_GetAgent(t *testing.T) {
 		URL:  "https://agent.example.com",
 	}
 
-	svc.AddAgent(agent)
+	require.NoError(t, svc.AddAgent(agent))
 
-	// Get agent
 	retrieved, err := svc.GetAgent("test-agent")
 	if err != nil {
 		t.Fatalf("Failed to get agent: %v", err)
@@ -216,7 +206,7 @@ func TestAgentsConfigService_GetAgentURLs(t *testing.T) {
 	}
 
 	for _, agent := range agents {
-		svc.AddAgent(agent)
+		require.NoError(t, svc.AddAgent(agent))
 	}
 
 	urls, err := svc.GetAgentURLs()

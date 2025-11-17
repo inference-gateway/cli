@@ -64,6 +64,11 @@ type AgentSession struct {
 
 func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string) error {
 	services := container.NewServiceContainer(cfg)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = services.Shutdown(ctx)
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()
