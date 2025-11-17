@@ -1,0 +1,263 @@
+package services
+
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	config "github.com/inference-gateway/cli/config"
+)
+
+func TestAgentsConfigService_AddAgent(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	svc := NewAgentsConfigService(agentsPath)
+
+	agent := config.AgentEntry{
+		Name: "test-agent",
+		URL:  "https://agent.example.com",
+		OCI:  "ghcr.io/org/test-agent:latest",
+		Run:  true,
+		Environment: map[string]string{
+			"API_KEY": "secret",
+			"MODEL":   "gpt-4",
+		},
+	}
+
+	// Add agent
+	err := svc.AddAgent(agent)
+	if err != nil {
+		t.Fatalf("Failed to add agent: %v", err)
+	}
+
+	// Verify file was created
+	if _, err := os.Stat(agentsPath); os.IsNotExist(err) {
+		t.Fatal("Agents config file was not created")
+	}
+
+	// Load and verify
+	cfg, err := svc.Load()
+	if err != nil {
+		t.Fatalf("Failed to load config: %v", err)
+	}
+
+	if len(cfg.Agents) != 1 {
+		t.Fatalf("Expected 1 agent, got %d", len(cfg.Agents))
+	}
+
+	if cfg.Agents[0].Name != agent.Name {
+		t.Errorf("Expected name %s, got %s", agent.Name, cfg.Agents[0].Name)
+	}
+
+	if cfg.Agents[0].URL != agent.URL {
+		t.Errorf("Expected URL %s, got %s", agent.URL, cfg.Agents[0].URL)
+	}
+
+	if cfg.Agents[0].OCI != agent.OCI {
+		t.Errorf("Expected OCI %s, got %s", agent.OCI, cfg.Agents[0].OCI)
+	}
+
+	if cfg.Agents[0].Run != agent.Run {
+		t.Errorf("Expected Run %v, got %v", agent.Run, cfg.Agents[0].Run)
+	}
+
+	if len(cfg.Agents[0].Environment) != 2 {
+		t.Errorf("Expected 2 environment variables, got %d", len(cfg.Agents[0].Environment))
+	}
+}
+
+func TestAgentsConfigService_AddDuplicateAgent(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	svc := NewAgentsConfigService(agentsPath)
+
+	agent := config.AgentEntry{
+		Name: "test-agent",
+		URL:  "https://agent.example.com",
+	}
+
+	// Add agent first time
+	err := svc.AddAgent(agent)
+	if err != nil {
+		t.Fatalf("Failed to add agent: %v", err)
+	}
+
+	// Try to add duplicate
+	err = svc.AddAgent(agent)
+	if err == nil {
+		t.Fatal("Expected error when adding duplicate agent, got nil")
+	}
+}
+
+func TestAgentsConfigService_RemoveAgent(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	svc := NewAgentsConfigService(agentsPath)
+
+	agent1 := config.AgentEntry{
+		Name: "agent1",
+		URL:  "https://agent1.example.com",
+	}
+
+	agent2 := config.AgentEntry{
+		Name: "agent2",
+		URL:  "https://agent2.example.com",
+	}
+
+	// Add two agents
+	svc.AddAgent(agent1)
+	svc.AddAgent(agent2)
+
+	// Remove first agent
+	err := svc.RemoveAgent("agent1")
+	if err != nil {
+		t.Fatalf("Failed to remove agent: %v", err)
+	}
+
+	// Verify only one agent remains
+	agents, err := svc.ListAgents()
+	if err != nil {
+		t.Fatalf("Failed to list agents: %v", err)
+	}
+
+	if len(agents) != 1 {
+		t.Fatalf("Expected 1 agent, got %d", len(agents))
+	}
+
+	if agents[0].Name != "agent2" {
+		t.Errorf("Expected agent2 to remain, got %s", agents[0].Name)
+	}
+}
+
+func TestAgentsConfigService_RemoveNonexistentAgent(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	svc := NewAgentsConfigService(agentsPath)
+
+	err := svc.RemoveAgent("nonexistent")
+	if err == nil {
+		t.Fatal("Expected error when removing nonexistent agent, got nil")
+	}
+}
+
+func TestAgentsConfigService_ListAgents(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	svc := NewAgentsConfigService(agentsPath)
+
+	// Add multiple agents
+	agents := []config.AgentEntry{
+		{Name: "agent1", URL: "https://agent1.example.com"},
+		{Name: "agent2", URL: "https://agent2.example.com"},
+		{Name: "agent3", URL: "https://agent3.example.com"},
+	}
+
+	for _, agent := range agents {
+		svc.AddAgent(agent)
+	}
+
+	// List agents
+	listed, err := svc.ListAgents()
+	if err != nil {
+		t.Fatalf("Failed to list agents: %v", err)
+	}
+
+	if len(listed) != 3 {
+		t.Fatalf("Expected 3 agents, got %d", len(listed))
+	}
+}
+
+func TestAgentsConfigService_GetAgent(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	svc := NewAgentsConfigService(agentsPath)
+
+	agent := config.AgentEntry{
+		Name: "test-agent",
+		URL:  "https://agent.example.com",
+	}
+
+	svc.AddAgent(agent)
+
+	// Get agent
+	retrieved, err := svc.GetAgent("test-agent")
+	if err != nil {
+		t.Fatalf("Failed to get agent: %v", err)
+	}
+
+	if retrieved.Name != agent.Name {
+		t.Errorf("Expected name %s, got %s", agent.Name, retrieved.Name)
+	}
+
+	if retrieved.URL != agent.URL {
+		t.Errorf("Expected URL %s, got %s", agent.URL, retrieved.URL)
+	}
+}
+
+func TestAgentsConfigService_GetNonexistentAgent(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	svc := NewAgentsConfigService(agentsPath)
+
+	_, err := svc.GetAgent("nonexistent")
+	if err == nil {
+		t.Fatal("Expected error when getting nonexistent agent, got nil")
+	}
+}
+
+func TestAgentsConfigService_GetAgentURLs(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	svc := NewAgentsConfigService(agentsPath)
+
+	agents := []config.AgentEntry{
+		{Name: "agent1", URL: "https://agent1.example.com"},
+		{Name: "agent2", URL: "https://agent2.example.com"},
+	}
+
+	for _, agent := range agents {
+		svc.AddAgent(agent)
+	}
+
+	urls, err := svc.GetAgentURLs()
+	if err != nil {
+		t.Fatalf("Failed to get agent URLs: %v", err)
+	}
+
+	if len(urls) != 2 {
+		t.Fatalf("Expected 2 URLs, got %d", len(urls))
+	}
+
+	expectedURLs := map[string]bool{
+		"https://agent1.example.com": false,
+		"https://agent2.example.com": false,
+	}
+
+	for _, url := range urls {
+		if _, exists := expectedURLs[url]; !exists {
+			t.Errorf("Unexpected URL: %s", url)
+		}
+		expectedURLs[url] = true
+	}
+
+	for url, found := range expectedURLs {
+		if !found {
+			t.Errorf("Expected URL not found: %s", url)
+		}
+	}
+}
+
+func TestAgentsConfigService_LoadNonexistentFile(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "nonexistent.yaml")
+	svc := NewAgentsConfigService(agentsPath)
+
+	cfg, err := svc.Load()
+	if err != nil {
+		t.Fatalf("Expected no error for nonexistent file, got: %v", err)
+	}
+
+	if len(cfg.Agents) != 0 {
+		t.Errorf("Expected empty agents list, got %d agents", len(cfg.Agents))
+	}
+}

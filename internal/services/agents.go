@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -13,15 +15,46 @@ import (
 )
 
 type A2AAgentService struct {
-	config     *config.Config
-	cache      map[string]*domain.CachedAgentCard
-	cacheMutex sync.RWMutex
+	config          *config.Config
+	agentsConfigSvc *AgentsConfigService
+	cache           map[string]*domain.CachedAgentCard
+	cacheMutex      sync.RWMutex
+	legacyAgents    []string
+	useLegacyConfig bool
 }
 
 func NewA2AAgentService(cfg *config.Config) *A2AAgentService {
+	// Determine which agents config path to use
+	agentsPath := config.DefaultAgentsPath
+
+	// Check if userspace config exists
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		userspacePath := filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName)
+		if _, err := os.Stat(userspacePath); err == nil {
+			agentsPath = userspacePath
+		}
+	}
+
+	// Check if project config exists
+	if _, err := os.Stat(config.DefaultAgentsPath); err == nil {
+		agentsPath = config.DefaultAgentsPath
+	}
+
+	agentsConfigSvc := NewAgentsConfigService(agentsPath)
+
+	// Check if we should use legacy config (backward compatibility)
+	useLegacy := false
+	if len(cfg.A2A.Agents) > 0 {
+		// Legacy config exists in config.yaml
+		useLegacy = true
+	}
+
 	return &A2AAgentService{
-		config: cfg,
-		cache:  make(map[string]*domain.CachedAgentCard),
+		config:          cfg,
+		agentsConfigSvc: agentsConfigSvc,
+		cache:           make(map[string]*domain.CachedAgentCard),
+		legacyAgents:    cfg.A2A.Agents,
+		useLegacyConfig: useLegacy,
 	}
 }
 
@@ -76,7 +109,20 @@ func (s *A2AAgentService) storeInCache(agentURL string, card *adk.AgentCard) {
 }
 
 func (s *A2AAgentService) GetConfiguredAgents() []string {
-	return s.config.A2A.Agents
+	// Use legacy config if it exists (backward compatibility)
+	if s.useLegacyConfig {
+		logger.Info("Using legacy agents configuration from config.yaml")
+		return s.legacyAgents
+	}
+
+	// Load from agents.yaml
+	urls, err := s.agentsConfigSvc.GetAgentURLs()
+	if err != nil {
+		logger.Error("Failed to load agents from agents.yaml, falling back to legacy config", "error", err)
+		return s.legacyAgents
+	}
+
+	return urls
 }
 
 func (s *A2AAgentService) GetAgentCards(ctx context.Context) ([]*domain.CachedAgentCard, error) {

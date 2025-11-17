@@ -830,6 +830,8 @@ Create and manage structured task lists for LLM-assisted development workflows.
 The A2A (Agent-to-Agent) tools enable communication between the CLI client and specialized A2A server agents,
 allowing for task delegation, distributed processing, and agent coordination.
 
+> **📖 For detailed configuration instructions, see [A2A Agents Configuration Guide](docs/agents-configuration.md)**
+
 **Core A2A Tools:**
 
 #### A2A_SubmitTask Tool
