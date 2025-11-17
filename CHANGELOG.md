@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.53.5](https://github.com/inference-gateway/cli/compare/v0.53.4...v0.53.5) (2025-11-17)
+
+### 🐛 Bug Fixes
+
+* **ui:** Ensure stable ordering for parallel tool execution display ([#209](https://github.com/inference-gateway/cli/issues/209)) ([d69b51b](https://github.com/inference-gateway/cli/commit/d69b51bafc84230723c15f4e977bf87fad71453f)), closes [#207](https://github.com/inference-gateway/cli/issues/207)
+
+### 👷 CI/CD
+
+* **workflow:** Update Claude Code workflow configuration ([#208](https://github.com/inference-gateway/cli/issues/208)) ([d3798bd](https://github.com/inference-gateway/cli/commit/d3798bda6a9f62537731b29a10364e0353c5f540))
+
 ## [0.53.4](https://github.com/inference-gateway/cli/compare/v0.53.3...v0.53.4) (2025-11-13)
 
 ### 🐛 Bug Fixes
