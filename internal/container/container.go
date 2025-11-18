@@ -41,6 +41,7 @@ type ServiceContainer struct {
 	taskRetentionService  domain.TaskRetentionService
 	backgroundTaskService domain.BackgroundTaskService
 	gatewayManager        *services.GatewayManager
+	agentManager          domain.AgentManager
 
 	// Services
 	stateManager domain.StateManager
@@ -79,6 +80,7 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 	}
 
 	container.initializeGatewayManager()
+	container.initializeAgentManager()
 	container.initializeFileWriterServices()
 	container.initializeDomainServices()
 	container.initializeServices()
@@ -99,6 +101,29 @@ func (c *ServiceContainer) initializeGatewayManager() {
 			logger.Error("Failed to start gateway", "error", err)
 			logger.Warn("Continuing without local gateway - make sure gateway is running manually")
 		}
+	}
+}
+
+// initializeAgentManager creates and starts the agent manager if A2A is enabled
+func (c *ServiceContainer) initializeAgentManager() {
+	if !c.config.IsA2AToolsEnabled() {
+		return
+	}
+
+	agentsPath := filepath.Join(config.ConfigDirName, config.AgentsFileName)
+	agentsConfigSvc := services.NewAgentsConfigService(agentsPath)
+	agentsConfig, err := agentsConfigSvc.Load()
+	if err != nil {
+		logger.Warn("Failed to load agents configuration", "error", err)
+		return
+	}
+
+	c.agentManager = services.NewAgentManager(c.config, agentsConfig)
+
+	ctx := context.Background()
+	if err := c.agentManager.StartAgents(ctx); err != nil {
+		logger.Warn("Failed to start some agents", "error", err)
+		logger.Warn("Continuing with available agents")
 	}
 }
 
@@ -439,6 +464,13 @@ func (c *ServiceContainer) GetStorage() storage.ConversationStorage {
 
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
+	if c.agentManager != nil && c.agentManager.IsRunning() {
+		logger.Info("Shutting down agent containers...")
+		if err := c.agentManager.StopAgents(ctx); err != nil {
+			logger.Error("Failed to stop agent containers", "error", err)
+		}
+	}
+
 	if c.gatewayManager != nil && c.gatewayManager.IsRunning() {
 		logger.Info("Shutting down gateway container...")
 		if err := c.gatewayManager.Stop(ctx); err != nil {

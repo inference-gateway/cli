@@ -1,5 +1,6 @@
 agents:
   - name: documentation-agent
-    url: https://localhost:8080
+    url: http://localhost:8081
     oci: ghcr.io/inference-gateway/documentation-agent:latest
     run: true
+    model: deepseek/deepseek-chat

@@ -239,7 +239,7 @@ conversation:
 chat:
   theme: tokyo-night
 a2a:
-  enabled: false
+  enabled: true
   agents: []
   cache:
     enabled: true
