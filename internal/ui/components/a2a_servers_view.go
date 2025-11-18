@@ -164,12 +164,14 @@ func (v *A2AServersView) renderEmpty() string {
 	dimColor := v.getDimColor()
 
 	var content strings.Builder
-	content.WriteString(fmt.Sprintf("%sNo A2A agent servers configured%s\n\n", warningColor, colors.Reset))
+	content.WriteString(fmt.Sprintf("%sNo A2A agents available%s\n\n", warningColor, colors.Reset))
 
-	content.WriteString(fmt.Sprintf("%sConfigure agents in your config or via environment variables.%s\n\n", dimColor, colors.Reset))
+	content.WriteString(fmt.Sprintf("%sAgents are starting or not configured in .infer/agents.yaml%s\n\n", dimColor, colors.Reset))
 	content.WriteString("Available A2A tools:\n")
-	content.WriteString("• **Task**: Submit tasks to A2A agents\n")
-	content.WriteString("• **Query**: Query A2A agent information")
+	content.WriteString("• SubmitTask: Submit tasks to A2A agents\n")
+	content.WriteString("• QueryTask: Query task status and results\n")
+	content.WriteString("• QueryAgent: Query agent capabilities and information\n")
+	content.WriteString("• DownloadArtifacts: Download artifacts from completed tasks")
 
 	style := lipgloss.NewStyle().
 		Width(v.width).

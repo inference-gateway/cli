@@ -41,6 +41,11 @@ and have a conversational interface with the inference gateway.`,
 // StartChatSession starts a chat session
 func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	services := container.NewServiceContainer(cfg, v)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = services.Shutdown(ctx)
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()
@@ -164,6 +169,11 @@ func isInteractiveTerminal() bool {
 // runNonInteractiveChat handles non-interactive chat mode (stdin/stdout)
 func runNonInteractiveChat(cfg *config.Config, v *viper.Viper) error {
 	services := container.NewServiceContainer(cfg, v)
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = services.Shutdown(ctx)
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()

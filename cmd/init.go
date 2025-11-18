@@ -79,6 +79,7 @@ logs/*.log
 history
 chat_export_*
 conversations.db
+bin/
 `
 
 	if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {

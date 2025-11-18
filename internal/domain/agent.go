@@ -51,3 +51,15 @@ type A2AAgentService interface {
 	GetAgentCards(ctx context.Context) ([]*CachedAgentCard, error)
 	GetConfiguredAgents() []string
 }
+
+// AgentManager manages the lifecycle of A2A agent containers
+type AgentManager interface {
+	// StartAgents starts all agents configured with run: true
+	StartAgents(ctx context.Context) error
+
+	// StopAgents stops all running agent containers
+	StopAgents(ctx context.Context) error
+
+	// IsRunning returns whether any agents are running
+	IsRunning() bool
+}

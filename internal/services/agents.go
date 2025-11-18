@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -13,15 +15,32 @@ import (
 )
 
 type A2AAgentService struct {
-	config     *config.Config
-	cache      map[string]*domain.CachedAgentCard
-	cacheMutex sync.RWMutex
+	config          *config.Config
+	agentsConfigSvc *AgentsConfigService
+	cache           map[string]*domain.CachedAgentCard
+	cacheMutex      sync.RWMutex
 }
 
 func NewA2AAgentService(cfg *config.Config) *A2AAgentService {
+	agentsPath := config.DefaultAgentsPath
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		userspacePath := filepath.Join(homeDir, config.ConfigDirName, config.AgentsFileName)
+		if _, err := os.Stat(userspacePath); err == nil {
+			agentsPath = userspacePath
+		}
+	}
+
+	if _, err := os.Stat(config.DefaultAgentsPath); err == nil {
+		agentsPath = config.DefaultAgentsPath
+	}
+
+	agentsConfigSvc := NewAgentsConfigService(agentsPath)
+
 	return &A2AAgentService{
-		config: cfg,
-		cache:  make(map[string]*domain.CachedAgentCard),
+		config:          cfg,
+		agentsConfigSvc: agentsConfigSvc,
+		cache:           make(map[string]*domain.CachedAgentCard),
 	}
 }
 
@@ -76,7 +95,13 @@ func (s *A2AAgentService) storeInCache(agentURL string, card *adk.AgentCard) {
 }
 
 func (s *A2AAgentService) GetConfiguredAgents() []string {
-	return s.config.A2A.Agents
+	urls, err := s.agentsConfigSvc.GetAgentURLs()
+	if err != nil {
+		logger.Error("Failed to load agents from agents.yaml", "error", err)
+		return []string{}
+	}
+
+	return urls
 }
 
 func (s *A2AAgentService) GetAgentCards(ctx context.Context) ([]*domain.CachedAgentCard, error) {

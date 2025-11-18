@@ -70,8 +70,10 @@ and management of inference services.
 
 ## Features
 
-- **Status Monitoring**: Check gateway health and resource usage
+- **Automatic Gateway Management**: Automatically downloads and runs the Inference Gateway binary (no Docker required!)
+- **Zero-Configuration Setup**: Start chatting immediately with just your API keys in a `.env` file
 - **Interactive Chat**: Chat with models using an interactive interface
+- **Status Monitoring**: Check gateway health and resource usage
 - **Conversation History**: Store and retrieve past conversations with multiple storage backends
   - [Conversation Storage](docs/conversation-storage.md) - Detailed storage backend documentation
   - [Conversation Title Generation](docs/conversation-title-generation.md) - AI-powered title generation system
@@ -225,26 +227,50 @@ go build -o infer .
 
 ## Quick Start
 
-1. **Initialize project configuration:**
+Getting started with the Inference Gateway CLI is now incredibly simple:
+
+1. **Install the CLI** (choose one method):
 
    ```bash
-   infer init --model deepseek/deepseek-chat
+   # Using install script (recommended)
+   curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+
+   # Using Go
+   go install github.com/inference-gateway/cli@latest
+
+   # Using Container Image
+   docker run --rm -it ghcr.io/inference-gateway/cli:latest
    ```
 
-   Using `--model` is recommended as it enables AI project analysis and generates a comprehensive AGENTS.md file
-   tailored to your specific project.
-
-2. **Check gateway status:**
+2. **Add your API keys** (create a `.env` file):
 
    ```bash
-   infer status
+   # Example .env file
+   ANTHROPIC_API_KEY=your_key_here
+   OPENAI_API_KEY=your_key_here
+   GOOGLE_API_KEY=your_key_here
+   # Add other provider API keys as needed
    ```
 
-3. **Start an interactive chat:**
+3. **Start chatting** (the gateway is automatically managed):
 
    ```bash
    infer chat
    ```
+
+That's it! The CLI will automatically:
+
+- Download and run the Inference Gateway binary in the background
+- Load your API keys from the `.env` file
+- Connect you to available models
+
+**Optional**: Initialize project configuration with AI analysis:
+
+```bash
+infer init --model deepseek/deepseek-chat
+```
+
+Using `--model` enables AI project analysis and generates a comprehensive AGENTS.md file tailored to your specific project.
 
 ## Commands
 
@@ -830,6 +856,8 @@ Create and manage structured task lists for LLM-assisted development workflows.
 The A2A (Agent-to-Agent) tools enable communication between the CLI client and specialized A2A server agents,
 allowing for task delegation, distributed processing, and agent coordination.
 
+> **📖 For detailed configuration instructions, see [A2A Agents Configuration Guide](docs/agents-configuration.md)**
+
 **Core A2A Tools:**
 
 #### A2A_SubmitTask Tool
@@ -1023,6 +1051,9 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
+  oci: ghcr.io/inference-gateway/inference-gateway:latest  # OCI image for Docker mode
+  run: true    # Automatically run the gateway (enabled by default)
+  docker: false  # Use binary mode by default (set to true for Docker)
 client:
   timeout: 200
   retry:
@@ -1170,9 +1201,16 @@ chat:
 
 **Gateway Settings:**
 
-- **gateway.url**: The URL of the inference gateway
+- **gateway.url**: The URL of the inference gateway (default: `http://localhost:8080`)
 - **gateway.api_key**: API key for authentication (if required)
-- **gateway.timeout**: Request timeout in seconds
+- **gateway.timeout**: Request timeout in seconds (default: 200)
+- **gateway.run**: Automatically run the gateway on startup (default: `true`)
+  - When enabled, the CLI automatically starts the gateway before running commands
+  - The gateway runs in the background and shuts down when the CLI exits
+- **gateway.docker**: Use Docker instead of binary mode (default: `false`)
+  - `false` (default): Downloads and runs the gateway as a binary (no Docker required)
+  - `true`: Uses Docker to run the gateway container (requires Docker installed)
+- **gateway.oci**: OCI image to use for Docker mode (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 
 **Client Settings:**
 
@@ -1373,14 +1411,21 @@ environment variable wins and tools will be disabled.
 ### Basic Workflow
 
 ```bash
-# Initialize project configuration
-infer init
+# Create .env file with your API keys
+cat > .env << EOF
+ANTHROPIC_API_KEY=your_anthropic_key
+OPENAI_API_KEY=your_openai_key
+GOOGLE_API_KEY=your_google_key
+EOF
 
-# Check if gateway is running
-infer status
-
-# Start interactive chat
+# Start interactive chat (gateway starts automatically)
 infer chat
+
+# Optional: Initialize project configuration with AI analysis
+infer init --model deepseek/deepseek-chat
+
+# Optional: Check gateway status
+infer status
 ```
 
 ### Configuration Management

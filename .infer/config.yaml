@@ -2,6 +2,9 @@ gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
+  oci: ghcr.io/inference-gateway/inference-gateway:latest
+  run: true
+  docker: false
 client:
   timeout: 200
   retry:
@@ -236,7 +239,7 @@ conversation:
 chat:
   theme: tokyo-night
 a2a:
-  enabled: false
+  enabled: true
   agents: []
   cache:
     enabled: true
@@ -248,6 +251,7 @@ a2a:
     max_poll_interval_sec: 60
     backoff_multiplier: 2
     background_monitoring: true
+    completed_task_retention: 5
   tools:
     query_agent:
       enabled: true
