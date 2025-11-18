@@ -9,10 +9,16 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
+// ToolFormatterService interface for formatting tool arguments
+type ToolFormatterService interface {
+	FormatToolArgumentsForApproval(toolName string, args map[string]any) string
+}
+
 // ApprovalComponent renders the tool approval modal
 type ApprovalComponent struct {
-	width  int
-	height int
+	width         int
+	height        int
+	toolFormatter ToolFormatterService
 }
 
 // NewApprovalComponent creates a new approval component
@@ -24,6 +30,11 @@ func NewApprovalComponent() *ApprovalComponent {
 func (c *ApprovalComponent) SetDimensions(width, height int) {
 	c.width = width
 	c.height = height
+}
+
+// SetToolFormatter sets the tool formatter service
+func (c *ApprovalComponent) SetToolFormatter(formatter ToolFormatterService) {
+	c.toolFormatter = formatter
 }
 
 // Render renders the approval modal
@@ -59,7 +70,7 @@ func (c *ApprovalComponent) Render(approvalState *domain.ApprovalUIState, theme 
 
 	toolName := fmt.Sprintf("Tool: %s", toolNameStyle.Render(toolCall.Function.Name))
 
-	args := c.formatArguments(toolCall.Function.Arguments, modalWidth-4, dimColor)
+	args := c.formatArguments(toolCall.Function.Name, toolCall.Function.Arguments, modalWidth-4, dimColor)
 
 	options := c.renderOptions(approvalState.SelectedIndex, accentColor, errorColor)
 
@@ -84,7 +95,7 @@ func (c *ApprovalComponent) Render(approvalState *domain.ApprovalUIState, theme 
 }
 
 // formatArguments formats tool arguments for display
-func (c *ApprovalComponent) formatArguments(argsJSON string, maxWidth int, dimColor string) string {
+func (c *ApprovalComponent) formatArguments(toolName, argsJSON string, maxWidth int, dimColor string) string {
 	if argsJSON == "" {
 		return ""
 	}
@@ -96,6 +107,13 @@ func (c *ApprovalComponent) formatArguments(argsJSON string, maxWidth int, dimCo
 
 	if len(args) == 0 {
 		return ""
+	}
+
+	if c.toolFormatter != nil {
+		formatted := c.toolFormatter.FormatToolArgumentsForApproval(toolName, args)
+		if formatted != "" {
+			return "\n" + formatted
+		}
 	}
 
 	argStyle := lipgloss.NewStyle().
@@ -141,7 +159,6 @@ func (c *ApprovalComponent) formatValue(value any, maxLen int) string {
 		str = fmt.Sprintf("%v", v)
 	}
 
-	// Truncate long values
 	if len(str) > maxLen {
 		if maxLen > 3 {
 			str = str[:maxLen-3] + "..."
@@ -150,7 +167,6 @@ func (c *ApprovalComponent) formatValue(value any, maxLen int) string {
 		}
 	}
 
-	// Replace newlines with spaces for compact display
 	str = strings.ReplaceAll(str, "\n", " ")
 	str = strings.ReplaceAll(str, "\r", "")
 

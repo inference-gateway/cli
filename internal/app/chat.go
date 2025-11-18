@@ -122,6 +122,9 @@ func NewChatApplication(
 	app.approvalComponent = components.NewApprovalComponent()
 	app.conversationView = ui.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
+
+	app.approvalComponent.SetToolFormatter(toolFormatterService)
+
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
