@@ -240,7 +240,6 @@ chat:
   theme: tokyo-night
 a2a:
   enabled: true
-  agents: []
   cache:
     enabled: true
     ttl: 300
