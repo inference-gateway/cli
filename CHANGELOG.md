@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.55.0](https://github.com/inference-gateway/cli/compare/v0.54.0...v0.55.0) (2025-11-18)
+
+### 🚀 Features
+
+* **agents:** Add model flag and update command for A2A agents ([7f0110e](https://github.com/inference-gateway/cli/commit/7f0110ed87432f06606c0b32565c093e478eb30d))
+
+### 🧹 Maintenance
+
+* Remove redundant comment ([4116109](https://github.com/inference-gateway/cli/commit/41161090aae2d55bf6a2ca51ebba524e60cc99d1))
+
 ## [0.54.0](https://github.com/inference-gateway/cli/compare/v0.53.5...v0.54.0) (2025-11-18)
 
 ### 🚀 Features
