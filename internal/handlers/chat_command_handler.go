@@ -78,6 +78,18 @@ func (c *ChatCommandHandler) handleBashCommand(
 		}
 	}
 
+	isWhitelisted := c.handler.configService.IsBashCommandWhitelisted(command)
+	requiresApproval := !isWhitelisted
+
+	if requiresApproval {
+		return c.handleBashCommandWithApproval(commandText, command)
+	}
+
+	return c.executeBashCommand(commandText, command)
+}
+
+// executeBashCommand executes a bash command without approval
+func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea.Cmd {
 	return func() tea.Msg {
 		toolCall := sdk.ChatCompletionMessageToolCallFunction{
 			Name:      "Bash",
@@ -119,6 +131,29 @@ func (c *ChatCommandHandler) handleBashCommand(
 	}
 }
 
+// handleBashCommandWithApproval requests approval before executing a bash command
+func (c *ChatCommandHandler) handleBashCommandWithApproval(commandText, command string) tea.Cmd {
+	return func() tea.Msg {
+		toolCall := sdk.ChatCompletionMessageToolCall{
+			Id:   fmt.Sprintf("manual-%d", time.Now().UnixNano()),
+			Type: "function",
+			Function: sdk.ChatCompletionMessageToolCallFunction{
+				Name:      "Bash",
+				Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
+			},
+		}
+
+		responseChan := make(chan domain.ApprovalAction, 1)
+
+		return domain.ToolApprovalRequestedEvent{
+			RequestID:    fmt.Sprintf("manual-bash-%d", time.Now().UnixNano()),
+			Timestamp:    time.Now(),
+			ToolCall:     toolCall,
+			ResponseChan: responseChan,
+		}
+	}
+}
+
 // handleToolCommand processes tool commands starting with !!
 func (c *ChatCommandHandler) handleToolCommand(
 	commandText string,
@@ -153,18 +188,31 @@ func (c *ChatCommandHandler) handleToolCommand(
 		}
 	}
 
-	return func() tea.Msg {
-		argsJSON, err := json.Marshal(args)
-		if err != nil {
+	requiresApproval := c.handler.configService.IsApprovalRequired(toolName)
+
+	argsJSON, err := json.Marshal(args)
+	if err != nil {
+		return func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to marshal arguments: %v", err),
 				Sticky: false,
 			}
 		}
+	}
 
+	if requiresApproval {
+		return c.handleToolCommandWithApproval(toolName, string(argsJSON))
+	}
+
+	return c.executeToolCommand(toolName, string(argsJSON))
+}
+
+// executeToolCommand executes a tool command without approval
+func (c *ChatCommandHandler) executeToolCommand(toolName, argsJSON string) tea.Cmd {
+	return func() tea.Msg {
 		toolCall := sdk.ChatCompletionMessageToolCallFunction{
 			Name:      toolName,
-			Arguments: string(argsJSON),
+			Arguments: argsJSON,
 		}
 
 		result, err := c.handler.toolService.ExecuteTool(context.Background(), toolCall)
@@ -174,6 +222,8 @@ func (c *ChatCommandHandler) handleToolCommand(
 				Sticky: false,
 			}
 		}
+
+		commandText := "!!" + toolName + "(...)"
 
 		userEntry := domain.ConversationEntry{
 			Message: sdk.Message{
@@ -197,6 +247,29 @@ func (c *ChatCommandHandler) handleToolCommand(
 
 		return domain.UpdateHistoryEvent{
 			History: c.handler.conversationRepo.GetMessages(),
+		}
+	}
+}
+
+// handleToolCommandWithApproval requests approval before executing a tool command
+func (c *ChatCommandHandler) handleToolCommandWithApproval(toolName, argsJSON string) tea.Cmd {
+	return func() tea.Msg {
+		toolCall := sdk.ChatCompletionMessageToolCall{
+			Id:   fmt.Sprintf("manual-%d", time.Now().UnixNano()),
+			Type: "function",
+			Function: sdk.ChatCompletionMessageToolCallFunction{
+				Name:      toolName,
+				Arguments: argsJSON,
+			},
+		}
+
+		responseChan := make(chan domain.ApprovalAction, 1)
+
+		return domain.ToolApprovalRequestedEvent{
+			RequestID:    fmt.Sprintf("manual-tool-%d", time.Now().UnixNano()),
+			Timestamp:    time.Now(),
+			ToolCall:     toolCall,
+			ResponseChan: responseChan,
 		}
 	}
 }
