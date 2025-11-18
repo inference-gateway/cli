@@ -40,7 +40,7 @@ type ServiceContainer struct {
 	taskTrackerService    domain.TaskTracker
 	taskRetentionService  domain.TaskRetentionService
 	backgroundTaskService domain.BackgroundTaskService
-	gatewayManager        *services.GatewayManager
+	gatewayManager        domain.GatewayManager
 	agentManager          domain.AgentManager
 
 	// Services

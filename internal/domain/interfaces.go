@@ -325,6 +325,18 @@ type WebSearchService interface {
 	SetEnabled(enabled bool)
 }
 
+// GatewayManager manages the lifecycle of the gateway (container or binary)
+type GatewayManager interface {
+	// Start starts the gateway container or binary if configured to run locally
+	Start(ctx context.Context) error
+
+	// Stop stops the gateway container or binary
+	Stop(ctx context.Context) error
+
+	// IsRunning returns whether the gateway is running
+	IsRunning() bool
+}
+
 // ThemeService handles theme management
 type ThemeService interface {
 	ListThemes() []string
