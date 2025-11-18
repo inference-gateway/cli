@@ -13,7 +13,7 @@ type AgentEntry struct {
 	URL         string            `yaml:"url" mapstructure:"url"`
 	OCI         string            `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
 	Run         bool              `yaml:"run" mapstructure:"run"`
-	Model       string            `yaml:"model,omitempty" mapstructure:"model,omitempty"` // Format: "provider/model" e.g., "anthropic/claude-3-sonnet"
+	Model       string            `yaml:"model,omitempty" mapstructure:"model,omitempty"`
 	Environment map[string]string `yaml:"environment,omitempty" mapstructure:"environment,omitempty"`
 }
 
