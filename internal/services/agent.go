@@ -13,11 +13,6 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// Context key for user-approved tool executions
-type contextKey string
-
-const toolApprovedKey contextKey = "tool_approved"
-
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
 type AgentServiceImpl struct {
 	client           sdk.Client
@@ -836,7 +831,7 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 
 	execCtx := ctx
 	if wasApproved {
-		execCtx = context.WithValue(ctx, toolApprovedKey, true)
+		execCtx = context.WithValue(ctx, domain.ToolApprovedKey, true)
 	}
 
 	resultChan := make(chan struct {
