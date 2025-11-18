@@ -121,7 +121,8 @@ func (v *A2AServersView) Render() string {
 
 func (v *A2AServersView) renderLoading() string {
 	headerColor := v.getHeaderColor()
-	content := headerColor + "Loading A2A servers..." + colors.Reset
+	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(headerColor))
+	content := textStyle.Render("Loading A2A servers...")
 
 	style := lipgloss.NewStyle().
 		Width(v.width).
@@ -138,12 +139,15 @@ func (v *A2AServersView) renderError() string {
 	errorColor := v.getErrorColor()
 	dimColor := v.getDimColor()
 
+	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(errorColor))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
+
 	var content strings.Builder
 	errorIcon := icons.StyledCrossMark()
-	content.WriteString(fmt.Sprintf("%s %sError loading A2A servers%s\n\n", errorIcon, errorColor, colors.Reset))
-	content.WriteString(fmt.Sprintf("%s%s%s\n\n", dimColor, v.error, colors.Reset))
+	content.WriteString(fmt.Sprintf("%s %s\n\n", errorIcon, errorStyle.Render("Error loading A2A servers")))
+	content.WriteString(fmt.Sprintf("%s\n\n", dimStyle.Render(v.error)))
 
-	content.WriteString(fmt.Sprintf("%sMake sure:%s\n", dimColor, colors.Reset))
+	content.WriteString(fmt.Sprintf("%s\n", dimStyle.Render("Make sure:")))
 	content.WriteString("• The Gateway is running and accessible\n")
 	content.WriteString("• A2A middleware is exposed (EXPOSE_A2A=true)\n")
 	content.WriteString("• Your API key is valid")
@@ -163,10 +167,13 @@ func (v *A2AServersView) renderEmpty() string {
 	warningColor := v.getWarningColor()
 	dimColor := v.getDimColor()
 
-	var content strings.Builder
-	content.WriteString(fmt.Sprintf("%sNo A2A agents available%s\n\n", warningColor, colors.Reset))
+	warningStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(warningColor))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 
-	content.WriteString(fmt.Sprintf("%sAgents are starting or not configured in .infer/agents.yaml%s\n\n", dimColor, colors.Reset))
+	var content strings.Builder
+	content.WriteString(fmt.Sprintf("%s\n\n", warningStyle.Render("No A2A agents available")))
+
+	content.WriteString(fmt.Sprintf("%s\n\n", dimStyle.Render("Agents are starting or not configured in .infer/agents.yaml")))
 	content.WriteString("Available A2A tools:\n")
 	content.WriteString("• SubmitTask: Submit tasks to A2A agents\n")
 	content.WriteString("• QueryTask: Query task status and results\n")
@@ -188,10 +195,13 @@ func (v *A2AServersView) renderServers() string {
 	headerColor := v.getHeaderColor()
 	successColor := v.getSuccessColor()
 
+	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(headerColor)).Bold(true)
+	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(successColor))
+
 	var content strings.Builder
 
-	content.WriteString(fmt.Sprintf("%sA2A Agent Servers%s\n\n", headerColor, colors.Reset))
-	content.WriteString(fmt.Sprintf("%sFound %d agent card(s)%s\n\n", successColor, len(v.servers), colors.Reset))
+	content.WriteString(fmt.Sprintf("%s\n\n", headerStyle.Render("Agent Servers")))
+	content.WriteString(fmt.Sprintf("%s\n\n", successStyle.Render(fmt.Sprintf("Found %d agent card(s)", len(v.servers)))))
 
 	for i, server := range v.servers {
 		content.WriteString(v.renderSingleServer(server))
@@ -218,31 +228,35 @@ func (v *A2AServersView) renderSingleServer(server A2AServerInfo) string {
 	dimColor := v.getDimColor()
 	headerColor := v.getHeaderColor()
 
+	nameStyle := lipgloss.NewStyle().Bold(true)
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
+	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(headerColor))
+
 	var content strings.Builder
-	content.WriteString(fmt.Sprintf("%s%s%s %s (%s%s%s)\n",
-		colors.Bold, server.Name, colors.Reset, successIcon, dimColor, server.ID, colors.Reset))
+	content.WriteString(fmt.Sprintf("%s %s\n",
+		nameStyle.Render(server.Name), successIcon))
 
 	if server.Description != "" {
 		content.WriteString(fmt.Sprintf("  %s\n", server.Description))
 	}
 
 	if server.DocumentsURL != nil && *server.DocumentsURL != "" {
-		content.WriteString(fmt.Sprintf("  %sDocs:%s %s\n", headerColor, colors.Reset, *server.DocumentsURL))
+		content.WriteString(fmt.Sprintf("  %s %s\n", labelStyle.Render("Docs:"), *server.DocumentsURL))
 	}
 
 	if len(server.InputModes) > 0 {
-		content.WriteString(fmt.Sprintf("  %sInput:%s %s\n",
-			headerColor, colors.Reset, strings.Join(server.InputModes, ", ")))
+		content.WriteString(fmt.Sprintf("  %s %s\n",
+			labelStyle.Render("Input:"), strings.Join(server.InputModes, ", ")))
 	}
 
 	if len(server.OutputModes) > 0 {
-		content.WriteString(fmt.Sprintf("  %sOutput:%s %s\n",
-			headerColor, colors.Reset, strings.Join(server.OutputModes, ", ")))
+		content.WriteString(fmt.Sprintf("  %s %s\n",
+			labelStyle.Render("Output:"), strings.Join(server.OutputModes, ", ")))
 	}
 
 	if server.URL != "" {
-		content.WriteString(fmt.Sprintf("  %sURL:%s %s%s%s\n",
-			headerColor, colors.Reset, dimColor, server.URL, colors.Reset))
+		content.WriteString(fmt.Sprintf("  %s %s\n",
+			labelStyle.Render("URL:"), dimStyle.Render(server.URL)))
 	}
 
 	return content.String()
@@ -250,15 +264,16 @@ func (v *A2AServersView) renderSingleServer(server A2AServerInfo) string {
 
 func (v *A2AServersView) renderConnectionInfo() string {
 	dimColor := v.getDimColor()
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 
 	var content strings.Builder
 	content.WriteString("\n")
-	content.WriteString(fmt.Sprintf("%s━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━%s\n", dimColor, colors.Reset))
+	content.WriteString(dimStyle.Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━") + "\n")
 
-	content.WriteString(fmt.Sprintf("A2A Connection Mode%s\n", colors.Reset))
+	content.WriteString("A2A Connection Mode\n")
 
 	content.WriteString("\n")
-	content.WriteString(fmt.Sprintf("%sPress ESC to return to chat%s", dimColor, colors.Reset))
+	content.WriteString(dimStyle.Render("Press ESC to return to chat"))
 
 	return content.String()
 }
