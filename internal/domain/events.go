@@ -204,3 +204,34 @@ type MessageQueuedEvent struct {
 
 func (e MessageQueuedEvent) GetRequestID() string    { return e.RequestID }
 func (e MessageQueuedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolApprovalRequestedEvent indicates a tool requires user approval before execution
+type ToolApprovalRequestedEvent struct {
+	RequestID    string
+	Timestamp    time.Time
+	ToolCall     sdk.ChatCompletionMessageToolCall
+	ResponseChan chan ApprovalAction
+}
+
+func (e ToolApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolApprovalRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolApprovedEvent indicates the user approved the tool execution
+type ToolApprovedEvent struct {
+	RequestID string
+	Timestamp time.Time
+	ToolCall  sdk.ChatCompletionMessageToolCall
+}
+
+func (e ToolApprovedEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolApprovedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolRejectedEvent indicates the user rejected the tool execution
+type ToolRejectedEvent struct {
+	RequestID string
+	Timestamp time.Time
+	ToolCall  sdk.ChatCompletionMessageToolCall
+}
+
+func (e ToolRejectedEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolRejectedEvent) GetTimestamp() time.Time { return e.Timestamp }

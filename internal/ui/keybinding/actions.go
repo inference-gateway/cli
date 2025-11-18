@@ -18,8 +18,9 @@ func (r *Registry) registerDefaultBindings() {
 	globalActions := r.createGlobalActions()
 	chatActions := r.createChatActions()
 	scrollActions := r.createScrollActions()
+	approvalActions := r.createApprovalActions()
 
-	r.registerActionsToLayers(globalActions, chatActions, scrollActions)
+	r.registerActionsToLayers(globalActions, chatActions, scrollActions, approvalActions)
 }
 
 // createGlobalActions creates global key actions available in all views
@@ -376,10 +377,65 @@ func (r *Registry) createScrollActions() []*KeyAction {
 	}
 }
 
+// createApprovalActions creates key actions specific to approval view
+func (r *Registry) createApprovalActions() []*KeyAction {
+	return []*KeyAction{
+		{
+			ID:          "approval_left",
+			Keys:        []string{"left", "h"},
+			Description: "move selection left",
+			Category:    "approval",
+			Handler:     handleApprovalLeft,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateToolApproval},
+			},
+		},
+		{
+			ID:          "approval_right",
+			Keys:        []string{"right", "l"},
+			Description: "move selection right",
+			Category:    "approval",
+			Handler:     handleApprovalRight,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateToolApproval},
+			},
+		},
+		{
+			ID:          "approval_approve",
+			Keys:        []string{"enter", "y"},
+			Description: "approve tool execution",
+			Category:    "approval",
+			Handler:     handleApprovalApprove,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateToolApproval},
+			},
+		},
+		{
+			ID:          "approval_reject",
+			Keys:        []string{"n"},
+			Description: "reject tool execution",
+			Category:    "approval",
+			Handler:     handleApprovalReject,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateToolApproval},
+			},
+		},
+	}
+}
+
 // registerActionsToLayers registers actions to their appropriate layers
-func (r *Registry) registerActionsToLayers(globalActions, chatActions, scrollActions []*KeyAction) {
+func (r *Registry) registerActionsToLayers(globalActions, chatActions, scrollActions, approvalActions []*KeyAction) {
 	allActions := append(globalActions, chatActions...)
 	allActions = append(allActions, scrollActions...)
+	allActions = append(allActions, approvalActions...)
 
 	for _, action := range allActions {
 		if err := r.Register(action); err != nil {
@@ -398,6 +454,10 @@ func (r *Registry) registerActionsToLayers(globalActions, chatActions, scrollAct
 	for _, action := range scrollActions {
 		_ = r.addActionToLayer("chat_view", action)
 	}
+
+	for _, action := range approvalActions {
+		_ = r.addActionToLayer("approval_view", action)
+	}
 }
 
 // Handler implementations
@@ -412,6 +472,20 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 
 	stateManager := app.GetStateManager()
+
+	// If we're in approval view, reject the approval and transition back
+	if stateManager.GetCurrentView() == domain.ViewStateToolApproval {
+		approvalState := stateManager.GetApprovalUIState()
+		if approvalState != nil && approvalState.ResponseChan != nil {
+			return func() tea.Msg {
+				return domain.ToolApprovalResponseEvent{
+					Action:   domain.ApprovalReject,
+					ToolCall: *approvalState.PendingToolCall,
+				}
+			}
+		}
+	}
+
 	if chatSession := stateManager.GetChatSession(); chatSession != nil {
 		agentService := app.GetAgentService()
 		if agentService != nil {
@@ -920,4 +994,71 @@ func handlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
 	}
 
 	return nil
+}
+
+// Approval handlers
+func handleApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+	approvalState := stateManager.GetApprovalUIState()
+	if approvalState == nil {
+		return nil
+	}
+
+	selectedIndex := approvalState.SelectedIndex
+	if selectedIndex > int(domain.ApprovalApprove) {
+		selectedIndex--
+		stateManager.SetApprovalSelectedIndex(selectedIndex)
+	}
+	return nil
+}
+
+func handleApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+	approvalState := stateManager.GetApprovalUIState()
+	if approvalState == nil {
+		return nil
+	}
+
+	selectedIndex := approvalState.SelectedIndex
+	if selectedIndex < int(domain.ApprovalReject) {
+		selectedIndex++
+		stateManager.SetApprovalSelectedIndex(selectedIndex)
+	}
+	return nil
+}
+
+func handleApprovalApprove(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+	approvalState := stateManager.GetApprovalUIState()
+	if approvalState == nil {
+		return nil
+	}
+
+	// If user is on "Approve" or presses enter/y, approve the tool
+	action := domain.ApprovalAction(approvalState.SelectedIndex)
+	if action == domain.ApprovalApprove || keyMsg.String() == "y" {
+		action = domain.ApprovalApprove
+	}
+
+	return func() tea.Msg {
+		return domain.ToolApprovalResponseEvent{
+			Action:   action,
+			ToolCall: *approvalState.PendingToolCall,
+		}
+	}
+}
+
+func handleApprovalReject(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	return func() tea.Msg {
+		stateManager := app.GetStateManager()
+		approvalState := stateManager.GetApprovalUIState()
+		if approvalState == nil {
+			return nil
+		}
+
+		return domain.ToolApprovalResponseEvent{
+			Action:   domain.ApprovalReject,
+			ToolCall: *approvalState.PendingToolCall,
+		}
+	}
 }

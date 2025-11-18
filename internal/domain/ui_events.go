@@ -1,5 +1,9 @@
 package domain
 
+import (
+	sdk "github.com/inference-gateway/sdk"
+)
+
 // UI Events for application state management
 
 // UpdateHistoryEvent updates the conversation history display
@@ -157,4 +161,18 @@ type ToolExecutionCompletedEvent struct {
 	SuccessCount  int
 	FailureCount  int
 	Results       []*ToolExecutionResult
+}
+
+// Approval Events
+
+// ShowToolApprovalEvent displays the tool approval modal
+type ShowToolApprovalEvent struct {
+	ToolCall     sdk.ChatCompletionMessageToolCall
+	ResponseChan chan ApprovalAction
+}
+
+// ToolApprovalResponseEvent captures the user's approval decision
+type ToolApprovalResponseEvent struct {
+	Action   ApprovalAction
+	ToolCall sdk.ChatCompletionMessageToolCall
 }

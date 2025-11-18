@@ -119,6 +119,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return h.HandleA2ATaskInputRequiredEvent(m)
 	case domain.MessageQueuedEvent:
 		return h.HandleMessageQueuedEvent(m)
+	case domain.ToolApprovalRequestedEvent:
+		return h.HandleToolApprovalRequestedEvent(m)
 	default:
 		if isUIOnlyEvent(msg) {
 			return nil
@@ -153,9 +155,10 @@ func (h *ChatHandler) startChatCompletion() tea.Cmd {
 		requestID := generateRequestID()
 
 		req := &domain.AgentRequest{
-			RequestID: requestID,
-			Model:     currentModel,
-			Messages:  messages,
+			RequestID:  requestID,
+			Model:      currentModel,
+			Messages:   messages,
+			IsChatMode: true,
 		}
 
 		eventChan, err := h.agentService.RunWithStream(ctx, req)
@@ -361,6 +364,12 @@ func (h *ChatHandler) HandleToolCallReadyEvent(
 	return h.eventHandler.handleToolCallReady(msg)
 }
 
+func (h *ChatHandler) HandleToolApprovalRequestedEvent(
+	msg domain.ToolApprovalRequestedEvent,
+) tea.Cmd {
+	return h.eventHandler.handleToolApprovalRequested(msg)
+}
+
 func (h *ChatHandler) HandleToolExecutionStartedEvent(
 	msg domain.ToolExecutionStartedEvent,
 ) tea.Cmd {
@@ -465,6 +474,7 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.ExitSelectionModeEvent,
 		domain.ModelSelectedEvent,
 		domain.ThemeSelectedEvent,
+		domain.ShowToolApprovalEvent,
 		tea.KeyMsg,
 		tea.WindowSizeMsg,
 		spinner.TickMsg:

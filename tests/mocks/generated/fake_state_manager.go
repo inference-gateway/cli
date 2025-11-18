@@ -15,6 +15,10 @@ type FakeStateManager struct {
 		arg1 domain.Message
 		arg2 string
 	}
+	ClearApprovalUIStateStub        func()
+	clearApprovalUIStateMutex       sync.RWMutex
+	clearApprovalUIStateArgsForCall []struct {
+	}
 	ClearFileSelectionStateStub        func()
 	clearFileSelectionStateMutex       sync.RWMutex
 	clearFileSelectionStateArgsForCall []struct {
@@ -52,6 +56,16 @@ type FakeStateManager struct {
 	}
 	failCurrentToolReturnsOnCall map[int]struct {
 		result1 error
+	}
+	GetApprovalUIStateStub        func() *domain.ApprovalUIState
+	getApprovalUIStateMutex       sync.RWMutex
+	getApprovalUIStateArgsForCall []struct {
+	}
+	getApprovalUIStateReturns struct {
+		result1 *domain.ApprovalUIState
+	}
+	getApprovalUIStateReturnsOnCall map[int]struct {
+		result1 *domain.ApprovalUIState
 	}
 	GetChatSessionStub        func() *domain.ChatSession
 	getChatSessionMutex       sync.RWMutex
@@ -135,6 +149,11 @@ type FakeStateManager struct {
 	popQueuedMessageReturnsOnCall map[int]struct {
 		result1 *domain.QueuedMessage
 	}
+	SetApprovalSelectedIndexStub        func(int)
+	setApprovalSelectedIndexMutex       sync.RWMutex
+	setApprovalSelectedIndexArgsForCall []struct {
+		arg1 int
+	}
 	SetDimensionsStub        func(int, int)
 	setDimensionsMutex       sync.RWMutex
 	setDimensionsArgsForCall []struct {
@@ -145,6 +164,12 @@ type FakeStateManager struct {
 	setFileSelectedIndexMutex       sync.RWMutex
 	setFileSelectedIndexArgsForCall []struct {
 		arg1 int
+	}
+	SetupApprovalUIStateStub        func(*sdk.ChatCompletionMessageToolCall, chan domain.ApprovalAction)
+	setupApprovalUIStateMutex       sync.RWMutex
+	setupApprovalUIStateArgsForCall []struct {
+		arg1 *sdk.ChatCompletionMessageToolCall
+		arg2 chan domain.ApprovalAction
 	}
 	SetupFileSelectionStub        func([]string)
 	setupFileSelectionMutex       sync.RWMutex
@@ -237,6 +262,30 @@ func (fake *FakeStateManager) AddQueuedMessageArgsForCall(i int) (domain.Message
 	defer fake.addQueuedMessageMutex.RUnlock()
 	argsForCall := fake.addQueuedMessageArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeStateManager) ClearApprovalUIState() {
+	fake.clearApprovalUIStateMutex.Lock()
+	fake.clearApprovalUIStateArgsForCall = append(fake.clearApprovalUIStateArgsForCall, struct {
+	}{})
+	stub := fake.ClearApprovalUIStateStub
+	fake.recordInvocation("ClearApprovalUIState", []interface{}{})
+	fake.clearApprovalUIStateMutex.Unlock()
+	if stub != nil {
+		fake.ClearApprovalUIStateStub()
+	}
+}
+
+func (fake *FakeStateManager) ClearApprovalUIStateCallCount() int {
+	fake.clearApprovalUIStateMutex.RLock()
+	defer fake.clearApprovalUIStateMutex.RUnlock()
+	return len(fake.clearApprovalUIStateArgsForCall)
+}
+
+func (fake *FakeStateManager) ClearApprovalUIStateCalls(stub func()) {
+	fake.clearApprovalUIStateMutex.Lock()
+	defer fake.clearApprovalUIStateMutex.Unlock()
+	fake.ClearApprovalUIStateStub = stub
 }
 
 func (fake *FakeStateManager) ClearFileSelectionState() {
@@ -454,6 +503,59 @@ func (fake *FakeStateManager) FailCurrentToolReturnsOnCall(i int, result1 error)
 	}
 	fake.failCurrentToolReturnsOnCall[i] = struct {
 		result1 error
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetApprovalUIState() *domain.ApprovalUIState {
+	fake.getApprovalUIStateMutex.Lock()
+	ret, specificReturn := fake.getApprovalUIStateReturnsOnCall[len(fake.getApprovalUIStateArgsForCall)]
+	fake.getApprovalUIStateArgsForCall = append(fake.getApprovalUIStateArgsForCall, struct {
+	}{})
+	stub := fake.GetApprovalUIStateStub
+	fakeReturns := fake.getApprovalUIStateReturns
+	fake.recordInvocation("GetApprovalUIState", []interface{}{})
+	fake.getApprovalUIStateMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetApprovalUIStateCallCount() int {
+	fake.getApprovalUIStateMutex.RLock()
+	defer fake.getApprovalUIStateMutex.RUnlock()
+	return len(fake.getApprovalUIStateArgsForCall)
+}
+
+func (fake *FakeStateManager) GetApprovalUIStateCalls(stub func() *domain.ApprovalUIState) {
+	fake.getApprovalUIStateMutex.Lock()
+	defer fake.getApprovalUIStateMutex.Unlock()
+	fake.GetApprovalUIStateStub = stub
+}
+
+func (fake *FakeStateManager) GetApprovalUIStateReturns(result1 *domain.ApprovalUIState) {
+	fake.getApprovalUIStateMutex.Lock()
+	defer fake.getApprovalUIStateMutex.Unlock()
+	fake.GetApprovalUIStateStub = nil
+	fake.getApprovalUIStateReturns = struct {
+		result1 *domain.ApprovalUIState
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetApprovalUIStateReturnsOnCall(i int, result1 *domain.ApprovalUIState) {
+	fake.getApprovalUIStateMutex.Lock()
+	defer fake.getApprovalUIStateMutex.Unlock()
+	fake.GetApprovalUIStateStub = nil
+	if fake.getApprovalUIStateReturnsOnCall == nil {
+		fake.getApprovalUIStateReturnsOnCall = make(map[int]struct {
+			result1 *domain.ApprovalUIState
+		})
+	}
+	fake.getApprovalUIStateReturnsOnCall[i] = struct {
+		result1 *domain.ApprovalUIState
 	}{result1}
 }
 
@@ -884,6 +986,38 @@ func (fake *FakeStateManager) PopQueuedMessageReturnsOnCall(i int, result1 *doma
 	}{result1}
 }
 
+func (fake *FakeStateManager) SetApprovalSelectedIndex(arg1 int) {
+	fake.setApprovalSelectedIndexMutex.Lock()
+	fake.setApprovalSelectedIndexArgsForCall = append(fake.setApprovalSelectedIndexArgsForCall, struct {
+		arg1 int
+	}{arg1})
+	stub := fake.SetApprovalSelectedIndexStub
+	fake.recordInvocation("SetApprovalSelectedIndex", []interface{}{arg1})
+	fake.setApprovalSelectedIndexMutex.Unlock()
+	if stub != nil {
+		fake.SetApprovalSelectedIndexStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetApprovalSelectedIndexCallCount() int {
+	fake.setApprovalSelectedIndexMutex.RLock()
+	defer fake.setApprovalSelectedIndexMutex.RUnlock()
+	return len(fake.setApprovalSelectedIndexArgsForCall)
+}
+
+func (fake *FakeStateManager) SetApprovalSelectedIndexCalls(stub func(int)) {
+	fake.setApprovalSelectedIndexMutex.Lock()
+	defer fake.setApprovalSelectedIndexMutex.Unlock()
+	fake.SetApprovalSelectedIndexStub = stub
+}
+
+func (fake *FakeStateManager) SetApprovalSelectedIndexArgsForCall(i int) int {
+	fake.setApprovalSelectedIndexMutex.RLock()
+	defer fake.setApprovalSelectedIndexMutex.RUnlock()
+	argsForCall := fake.setApprovalSelectedIndexArgsForCall[i]
+	return argsForCall.arg1
+}
+
 func (fake *FakeStateManager) SetDimensions(arg1 int, arg2 int) {
 	fake.setDimensionsMutex.Lock()
 	fake.setDimensionsArgsForCall = append(fake.setDimensionsArgsForCall, struct {
@@ -947,6 +1081,39 @@ func (fake *FakeStateManager) SetFileSelectedIndexArgsForCall(i int) int {
 	defer fake.setFileSelectedIndexMutex.RUnlock()
 	argsForCall := fake.setFileSelectedIndexArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) SetupApprovalUIState(arg1 *sdk.ChatCompletionMessageToolCall, arg2 chan domain.ApprovalAction) {
+	fake.setupApprovalUIStateMutex.Lock()
+	fake.setupApprovalUIStateArgsForCall = append(fake.setupApprovalUIStateArgsForCall, struct {
+		arg1 *sdk.ChatCompletionMessageToolCall
+		arg2 chan domain.ApprovalAction
+	}{arg1, arg2})
+	stub := fake.SetupApprovalUIStateStub
+	fake.recordInvocation("SetupApprovalUIState", []interface{}{arg1, arg2})
+	fake.setupApprovalUIStateMutex.Unlock()
+	if stub != nil {
+		fake.SetupApprovalUIStateStub(arg1, arg2)
+	}
+}
+
+func (fake *FakeStateManager) SetupApprovalUIStateCallCount() int {
+	fake.setupApprovalUIStateMutex.RLock()
+	defer fake.setupApprovalUIStateMutex.RUnlock()
+	return len(fake.setupApprovalUIStateArgsForCall)
+}
+
+func (fake *FakeStateManager) SetupApprovalUIStateCalls(stub func(*sdk.ChatCompletionMessageToolCall, chan domain.ApprovalAction)) {
+	fake.setupApprovalUIStateMutex.Lock()
+	defer fake.setupApprovalUIStateMutex.Unlock()
+	fake.SetupApprovalUIStateStub = stub
+}
+
+func (fake *FakeStateManager) SetupApprovalUIStateArgsForCall(i int) (*sdk.ChatCompletionMessageToolCall, chan domain.ApprovalAction) {
+	fake.setupApprovalUIStateMutex.RLock()
+	defer fake.setupApprovalUIStateMutex.RUnlock()
+	argsForCall := fake.setupApprovalUIStateArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeStateManager) SetupFileSelection(arg1 []string) {

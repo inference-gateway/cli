@@ -155,6 +155,12 @@ type StateManager interface {
 	SetFileSelectedIndex(index int)
 	ClearFileSelectionState()
 
+	// Approval management
+	SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan ApprovalAction)
+	GetApprovalUIState() *ApprovalUIState
+	SetApprovalSelectedIndex(index int)
+	ClearApprovalUIState()
+
 	// Message queue management (DEPRECATED - use MessageQueue service instead)
 	AddQueuedMessage(message Message, requestID string)
 	PopQueuedMessage() *QueuedMessage

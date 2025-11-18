@@ -19,9 +19,10 @@ type SDKClient interface {
 
 // AgentRequest represents a request to the agent service
 type AgentRequest struct {
-	RequestID string        `json:"request_id"`
-	Model     string        `json:"model"`
-	Messages  []sdk.Message `json:"messages"`
+	RequestID  string        `json:"request_id"`
+	Model      string        `json:"model"`
+	Messages   []sdk.Message `json:"messages"`
+	IsChatMode bool          `json:"is_chat_mode"`
 }
 
 // AgentService handles agent operations with both sync and streaming modes

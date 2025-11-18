@@ -370,6 +370,29 @@ func (e *ChatEventHandler) handleToolCallReady(
 	return tea.Batch(cmds...)
 }
 
+func (e *ChatEventHandler) handleToolApprovalRequested(
+	msg domain.ToolApprovalRequestedEvent,
+) tea.Cmd {
+	_ = e.handler.stateManager.TransitionToView(domain.ViewStateToolApproval)
+
+	e.handler.stateManager.SetupApprovalUIState(&msg.ToolCall, msg.ResponseChan)
+
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.ShowToolApprovalEvent{
+			ToolCall:     msg.ToolCall,
+			ResponseChan: msg.ResponseChan,
+		}
+	})
+
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return tea.Batch(cmds...)
+}
+
 func (e *ChatEventHandler) handleToolExecutionStarted(
 	msg domain.ToolExecutionStartedEvent,
 ) tea.Cmd {

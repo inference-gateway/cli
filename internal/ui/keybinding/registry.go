@@ -262,6 +262,15 @@ func (r *Registry) initializeLayers() {
 	})
 
 	r.AddLayer(&KeyLayer{
+		Name:     "approval_view",
+		Priority: 150,
+		Bindings: make(map[string]*KeyAction),
+		Matcher: func(app KeyHandlerContext) bool {
+			return app.GetStateManager().GetCurrentView() == domain.ViewStateToolApproval
+		},
+	})
+
+	r.AddLayer(&KeyLayer{
 		Name:     "global",
 		Priority: 100,
 		Bindings: make(map[string]*KeyAction),
