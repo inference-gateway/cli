@@ -53,6 +53,7 @@ type MockTheme struct{}
 func (m MockTheme) GetUserColor() string       { return "#00FF00" }
 func (m MockTheme) GetAssistantColor() string  { return "#0000FF" }
 func (m MockTheme) GetErrorColor() string      { return "#FF0000" }
+func (m MockTheme) GetSuccessColor() string    { return "#00FF00" }
 func (m MockTheme) GetStatusColor() string     { return "#FFFF00" }
 func (m MockTheme) GetAccentColor() string     { return "#FF00FF" }
 func (m MockTheme) GetDimColor() string        { return "#808080" }

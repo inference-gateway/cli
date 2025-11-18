@@ -356,6 +356,7 @@ type Theme interface {
 	GetUserColor() string
 	GetAssistantColor() string
 	GetErrorColor() string
+	GetSuccessColor() string
 	GetStatusColor() string
 	GetAccentColor() string
 	GetDimColor() string

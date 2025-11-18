@@ -216,7 +216,9 @@ func (sv *StatusView) Render() string {
 		}
 	}
 
-	return fmt.Sprintf("%s%s %s%s", color, prefix, displayMessage, colors.Reset)
+	style := lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+	statusLine := fmt.Sprintf("%s %s", prefix, displayMessage)
+	return style.Render(statusLine)
 }
 
 // getStatusIcon returns the appropriate icon for the current status type

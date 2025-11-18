@@ -131,6 +131,7 @@ type mockTheme struct{}
 func (t *mockTheme) GetUserColor() string       { return "" }
 func (t *mockTheme) GetAssistantColor() string  { return "" }
 func (t *mockTheme) GetErrorColor() string      { return "" }
+func (t *mockTheme) GetSuccessColor() string    { return "" }
 func (t *mockTheme) GetStatusColor() string     { return "" }
 func (t *mockTheme) GetAccentColor() string     { return "" }
 func (t *mockTheme) GetDimColor() string        { return "" }

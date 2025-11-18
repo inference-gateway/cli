@@ -185,7 +185,7 @@ func (iv *InputView) createCursorChar(char string) string {
 
 func (iv *InputView) getBorderColor(isBashMode bool, isToolsMode bool) string {
 	if isBashMode {
-		return iv.getStatusColor()
+		return iv.getSuccessColor()
 	}
 	if isToolsMode {
 		return iv.getAccentColor()
@@ -467,4 +467,11 @@ func (iv *InputView) getStatusColor() string {
 		return iv.themeService.GetCurrentTheme().GetStatusColor()
 	}
 	return colors.StatusColor.Lipgloss
+}
+
+func (iv *InputView) getSuccessColor() string {
+	if iv.themeService != nil {
+		return iv.themeService.GetCurrentTheme().GetSuccessColor()
+	}
+	return colors.SuccessColor.Lipgloss
 }

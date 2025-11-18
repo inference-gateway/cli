@@ -88,6 +88,16 @@ type FakeTheme struct {
 	getStatusColorReturnsOnCall map[int]struct {
 		result1 string
 	}
+	GetSuccessColorStub        func() string
+	getSuccessColorMutex       sync.RWMutex
+	getSuccessColorArgsForCall []struct {
+	}
+	getSuccessColorReturns struct {
+		result1 string
+	}
+	getSuccessColorReturnsOnCall map[int]struct {
+		result1 string
+	}
 	GetUserColorStub        func() string
 	getUserColorMutex       sync.RWMutex
 	getUserColorArgsForCall []struct {
@@ -522,6 +532,59 @@ func (fake *FakeTheme) GetStatusColorReturnsOnCall(i int, result1 string) {
 		})
 	}
 	fake.getStatusColorReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeTheme) GetSuccessColor() string {
+	fake.getSuccessColorMutex.Lock()
+	ret, specificReturn := fake.getSuccessColorReturnsOnCall[len(fake.getSuccessColorArgsForCall)]
+	fake.getSuccessColorArgsForCall = append(fake.getSuccessColorArgsForCall, struct {
+	}{})
+	stub := fake.GetSuccessColorStub
+	fakeReturns := fake.getSuccessColorReturns
+	fake.recordInvocation("GetSuccessColor", []interface{}{})
+	fake.getSuccessColorMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeTheme) GetSuccessColorCallCount() int {
+	fake.getSuccessColorMutex.RLock()
+	defer fake.getSuccessColorMutex.RUnlock()
+	return len(fake.getSuccessColorArgsForCall)
+}
+
+func (fake *FakeTheme) GetSuccessColorCalls(stub func() string) {
+	fake.getSuccessColorMutex.Lock()
+	defer fake.getSuccessColorMutex.Unlock()
+	fake.GetSuccessColorStub = stub
+}
+
+func (fake *FakeTheme) GetSuccessColorReturns(result1 string) {
+	fake.getSuccessColorMutex.Lock()
+	defer fake.getSuccessColorMutex.Unlock()
+	fake.GetSuccessColorStub = nil
+	fake.getSuccessColorReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeTheme) GetSuccessColorReturnsOnCall(i int, result1 string) {
+	fake.getSuccessColorMutex.Lock()
+	defer fake.getSuccessColorMutex.Unlock()
+	fake.GetSuccessColorStub = nil
+	if fake.getSuccessColorReturnsOnCall == nil {
+		fake.getSuccessColorReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getSuccessColorReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
 }

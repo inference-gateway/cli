@@ -2,10 +2,11 @@ package components
 
 import (
 	"context"
+	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/domain"
+	tea "github.com/charmbracelet/bubbletea"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // mockModelService is a simple mock for testing
@@ -222,5 +223,36 @@ func TestInputView_History(t *testing.T) {
 
 	if iv.historyManager == nil {
 		t.Error("Expected history manager to be initialized")
+	}
+}
+
+func TestInputView_BashModeBorderColor(t *testing.T) {
+	mockModelService := &mockModelService{}
+	iv := NewInputView(mockModelService)
+
+	iv.SetText("normal text")
+	normalOutput := iv.Render()
+	if normalOutput == "" {
+		t.Error("Expected non-empty render output for normal text")
+	}
+
+	iv.SetText("!")
+	bashOutput := iv.Render()
+	if bashOutput == "" {
+		t.Error("Expected non-empty render output for bash mode")
+	}
+
+	if !strings.Contains(bashOutput, "BASH MODE") {
+		t.Error("Expected bash mode output to contain 'BASH MODE' indicator")
+	}
+
+	iv.SetText("!!")
+	toolsOutput := iv.Render()
+	if toolsOutput == "" {
+		t.Error("Expected non-empty render output for tools mode")
+	}
+
+	if !strings.Contains(toolsOutput, "TOOLS MODE") {
+		t.Error("Expected tools mode output to contain 'TOOLS MODE' indicator")
 	}
 }

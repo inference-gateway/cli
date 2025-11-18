@@ -194,9 +194,11 @@ func (cv *ConversationView) renderWelcome() string {
 	dimColor := cv.getDimColor()
 	headerColor := cv.getHeaderColor()
 
-	headerLine := statusColor + "✨ Inference Gateway CLI" + colors.Reset
-	readyLine := successColor + "🚀 Ready to chat!" + colors.Reset
-	workingLine := dimColor + "📂 Working in: " + colors.Reset + headerColor + wd + colors.Reset
+	headerLine := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor)).Render("✨ Inference Gateway CLI")
+	readyLine := lipgloss.NewStyle().Foreground(lipgloss.Color(successColor)).Render("🚀 Ready to chat!")
+	workingLinePrefix := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor)).Render("📂 Working in: ")
+	workingLinePath := lipgloss.NewStyle().Foreground(lipgloss.Color(headerColor)).Render(wd)
+	workingLine := workingLinePrefix + workingLinePath
 
 	configLine := cv.buildConfigLine()
 
@@ -204,7 +206,7 @@ func (cv *ConversationView) renderWelcome() string {
 
 	style := styles.NewCommonStyles().Border.
 		Border(styles.RoundedBorder(), true).
-		BorderForeground(lipgloss.Color(cv.getAccentColorLipgloss())).
+		BorderForeground(lipgloss.Color(cv.getAccentColor())).
 		Padding(1, 1)
 
 	return style.Render(content)
@@ -254,7 +256,9 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 
 	content := entry.Message.Content
 	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
-	message := fmt.Sprintf("%s%s:%s %s", color, role, colors.Reset, wrappedContent)
+
+	roleStyled := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(role + ":")
+	message := roleStyled + " " + wrappedContent
 
 	return message + "\n"
 }
@@ -262,15 +266,18 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, _ int, color, role string) string {
 	var result strings.Builder
 
+	roleStyled := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(role + ":")
+
 	if entry.Message.Content != "" {
 		wrappedContent := shared.FormatResponsiveMessage(entry.Message.Content, cv.width)
-		result.WriteString(fmt.Sprintf("%s%s:%s %s\n", color, role, colors.Reset, wrappedContent))
+		result.WriteString(roleStyled + " " + wrappedContent + "\n")
 	} else {
-		result.WriteString(fmt.Sprintf("%s%s:%s\n", color, role, colors.Reset))
+		result.WriteString(roleStyled + "\n")
 	}
 
 	if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 { // nolint:nestif
 		toolCallsColor := cv.getAccentColor()
+		toolNameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(toolCallsColor))
 
 		for _, toolCall := range *entry.Message.ToolCalls {
 			toolName := toolCall.Function.Name
@@ -283,11 +290,11 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 				} else {
 					argsDisplay = toolArgs
 				}
-				result.WriteString(fmt.Sprintf("  • %s%s%s: %s\n",
-					toolCallsColor, toolName, colors.Reset, argsDisplay))
+				toolNameStyled := toolNameStyle.Render(toolName)
+				result.WriteString(fmt.Sprintf("  • %s: %s\n", toolNameStyled, argsDisplay))
 			} else {
-				result.WriteString(fmt.Sprintf("  • %s%s%s\n",
-					toolCallsColor, toolName, colors.Reset))
+				toolNameStyled := toolNameStyle.Render(toolName)
+				result.WriteString(fmt.Sprintf("  • %s\n", toolNameStyled))
 			}
 		}
 	}
@@ -308,7 +315,9 @@ func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, inde
 	}
 
 	content := cv.formatEntryContent(entry, isExpanded)
-	message := fmt.Sprintf("%s%s:%s %s", color, role, colors.Reset, content)
+
+	roleStyled := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(role + ":")
+	message := roleStyled + " " + content
 	return message + "\n"
 }
 
@@ -422,7 +431,14 @@ func (cv *ConversationView) buildConfigLine() string {
 	dimColor := cv.getDimColor()
 	accentColor := cv.getAccentColor()
 
-	return dimColor + "⚙  Config: " + colors.Reset + accentColor + displayPath + colors.Reset + dimColor + " (" + configType + ")" + colors.Reset
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
+	accentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
+
+	configPrefix := dimStyle.Render("⚙  Config: ")
+	pathStyled := accentStyle.Render(displayPath)
+	configTypeStyled := dimStyle.Render(" (" + configType + ")")
+
+	return configPrefix + pathStyled + configTypeStyled
 }
 
 // getConfigType determines if the config is project-level or userspace
@@ -559,7 +575,10 @@ func (cv *ConversationView) getStatusColor() string {
 }
 
 func (cv *ConversationView) getSuccessColor() string {
-	return colors.SuccessColor.ANSI
+	if cv.themeService != nil {
+		return cv.themeService.GetCurrentTheme().GetSuccessColor()
+	}
+	return colors.SuccessColor.Lipgloss
 }
 
 func (cv *ConversationView) getAccentColor() string {
@@ -581,13 +600,6 @@ func (cv *ConversationView) getHeaderColor() string {
 		return cv.themeService.GetCurrentTheme().GetAccentColor()
 	}
 	return colors.HeaderColor.ANSI
-}
-
-func (cv *ConversationView) getAccentColorLipgloss() string {
-	if cv.themeService != nil {
-		return cv.themeService.GetCurrentTheme().GetAccentColor()
-	}
-	return colors.AccentColor.Lipgloss
 }
 
 // appendStreamingContent appends streaming content to the last assistant message

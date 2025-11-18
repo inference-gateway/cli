@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	lipgloss "github.com/charmbracelet/lipgloss"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
@@ -168,25 +169,38 @@ func (m *ThemeSelectorImpl) updateSearch() {
 func (m *ThemeSelectorImpl) View() string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("%sSelect a Theme%s\n\n",
-		m.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset))
+	// Use Lipgloss styling
+	accentColor := m.themeService.GetCurrentTheme().GetAccentColor()
+	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
+	b.WriteString(titleStyle.Render("Select a Theme"))
+	b.WriteString("\n\n")
 
 	if m.searchMode {
-		b.WriteString(fmt.Sprintf("%sSearch: %s%s│%s\n\n",
-			m.themeService.GetCurrentTheme().GetStatusColor(), m.searchQuery, m.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset))
+		statusColor := m.themeService.GetCurrentTheme().GetStatusColor()
+		searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor))
+		cursorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
+
+		b.WriteString(searchStyle.Render("Search: " + m.searchQuery))
+		b.WriteString(cursorStyle.Render("│"))
+		b.WriteString("\n\n")
 	} else {
-		b.WriteString(fmt.Sprintf("%sPress / to search • %d themes available%s\n\n",
-			m.themeService.GetCurrentTheme().GetDimColor(), len(m.themes), colors.Reset))
+		dimColor := m.themeService.GetCurrentTheme().GetDimColor()
+		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
+		helpText := fmt.Sprintf("Press / to search • %d themes available", len(m.themes))
+		b.WriteString(dimStyle.Render(helpText))
+		b.WriteString("\n\n")
 	}
 
 	if len(m.filteredThemes) == 0 {
+		errorColor := m.themeService.GetCurrentTheme().GetErrorColor()
+		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(errorColor))
+
 		if m.searchQuery != "" {
-			b.WriteString(fmt.Sprintf("%sNo themes match '%s'%s\n",
-				m.themeService.GetCurrentTheme().GetErrorColor(), m.searchQuery, colors.Reset))
+			b.WriteString(errorStyle.Render(fmt.Sprintf("No themes match '%s'", m.searchQuery)))
 		} else {
-			b.WriteString(fmt.Sprintf("%sNo themes available%s\n",
-				m.themeService.GetCurrentTheme().GetErrorColor(), colors.Reset))
+			b.WriteString(errorStyle.Render("No themes available"))
 		}
+		b.WriteString("\n")
 		return b.String()
 	}
 
@@ -201,6 +215,9 @@ func (m *ThemeSelectorImpl) View() string {
 	}
 
 	currentTheme := m.themeService.GetCurrentThemeName()
+	statusColor := m.themeService.GetCurrentTheme().GetStatusColor()
+	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
+	currentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor))
 
 	for i := start; i < start+maxVisible && i < len(m.filteredThemes); i++ {
 		themeName := m.filteredThemes[i]
@@ -208,37 +225,48 @@ func (m *ThemeSelectorImpl) View() string {
 		// Format the theme item based on selection and current theme
 		prefix := "  "
 		suffix := ""
-		color := ""
 
 		if i == m.selected {
 			prefix = "▶ "
-			color = m.themeService.GetCurrentTheme().GetAccentColor()
 		}
 
 		if themeName == currentTheme {
 			suffix = " ✓"
-			if i != m.selected {
-				color = m.themeService.GetCurrentTheme().GetStatusColor()
-			}
 		}
 
-		b.WriteString(fmt.Sprintf("%s%s%s%s%s\n", color, prefix, themeName, suffix, colors.Reset))
+		// Apply styling
+		line := prefix + themeName + suffix
+		if i == m.selected {
+			b.WriteString(selectedStyle.Render(line))
+		} else if themeName == currentTheme {
+			b.WriteString(currentStyle.Render(line))
+		} else {
+			b.WriteString(line)
+		}
+		b.WriteString("\n")
 	}
 
 	if len(m.filteredThemes) > maxVisible {
-		b.WriteString(fmt.Sprintf("\n%sShowing %d-%d of %d themes%s\n",
-			m.themeService.GetCurrentTheme().GetDimColor(), start+1, start+maxVisible, len(m.filteredThemes), colors.Reset))
+		dimColor := m.themeService.GetCurrentTheme().GetDimColor()
+		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
+		paginationText := fmt.Sprintf("Showing %d-%d of %d themes", start+1, start+maxVisible, len(m.filteredThemes))
+
+		b.WriteString("\n")
+		b.WriteString(dimStyle.Render(paginationText))
+		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
 	b.WriteString(colors.CreateSeparator(m.width, "─"))
 	b.WriteString("\n")
+
+	dimColor := m.themeService.GetCurrentTheme().GetDimColor()
+	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
+
 	if m.searchMode {
-		b.WriteString(fmt.Sprintf("%sType to search, ↑↓ to navigate, Enter to select, Esc to clear search%s",
-			m.themeService.GetCurrentTheme().GetDimColor(), colors.Reset))
+		b.WriteString(helpStyle.Render("Type to search, ↑↓ to navigate, Enter to select, Esc to clear search"))
 	} else {
-		b.WriteString(fmt.Sprintf("%sUse ↑↓ arrows to navigate, Enter to select, / to search, Esc/Ctrl+C to cancel%s",
-			m.themeService.GetCurrentTheme().GetDimColor(), colors.Reset))
+		b.WriteString(helpStyle.Render("Use ↑↓ arrows to navigate, Enter to select, / to search, Esc/Ctrl+C to cancel"))
 	}
 
 	return b.String()
