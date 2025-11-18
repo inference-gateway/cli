@@ -40,25 +40,22 @@ tools:
       commands:
         - ls
         - pwd
-        - echo
+        - tree
         - wc
         - sort
         - uniq
+        - head
+        - tail
         - task
+        - make
+        - find
       patterns:
-        - ^git branch( --show-current)?$
-        - ^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$
-        - ^git checkout [a-zA-Z0-9/_-]+
-        - ^git add [a-zA-Z0-9/_.-]+
-        - ^git diff+
-        - ^git remote -v$
         - ^git status$
-        - ^git log --oneline -n [0-9]+$
-        - ^git commit
-        - ^git push( --set-upstream)?( origin)? (feature|fix|bugfix|hotfix|chore|docs|test|refactor|build|ci|perf|style)/[a-zA-Z0-9/_.-]+$
-        - ^git push( --set-upstream)?( origin)? develop$
-        - ^git push( --set-upstream)?( origin)? staging$
-        - ^git push( --set-upstream)?( origin)? release/[a-zA-Z0-9._-]+$
+        - ^git branch( --show-current)?( -[alrvd])?$
+        - ^git log
+        - ^git diff
+        - ^git remote( -v)?$
+        - ^git show
   read:
     enabled: true
     require_approval: false
