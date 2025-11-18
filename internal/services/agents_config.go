@@ -79,7 +79,6 @@ func (s *AgentsConfigService) AddAgent(agent config.AgentEntry) error {
 		return err
 	}
 
-	// Check for duplicate names
 	for _, existing := range cfg.Agents {
 		if existing.Name == agent.Name {
 			return fmt.Errorf("agent with name '%s' already exists", agent.Name)
