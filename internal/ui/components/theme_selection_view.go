@@ -169,7 +169,6 @@ func (m *ThemeSelectorImpl) updateSearch() {
 func (m *ThemeSelectorImpl) View() string {
 	var b strings.Builder
 
-	// Use Lipgloss styling
 	accentColor := m.themeService.GetCurrentTheme().GetAccentColor()
 	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
 	b.WriteString(titleStyle.Render("Select a Theme"))
@@ -222,7 +221,6 @@ func (m *ThemeSelectorImpl) View() string {
 	for i := start; i < start+maxVisible && i < len(m.filteredThemes); i++ {
 		themeName := m.filteredThemes[i]
 
-		// Format the theme item based on selection and current theme
 		prefix := "  "
 		suffix := ""
 
@@ -234,7 +232,6 @@ func (m *ThemeSelectorImpl) View() string {
 			suffix = " ✓"
 		}
 
-		// Apply styling
 		line := prefix + themeName + suffix
 		if i == m.selected {
 			b.WriteString(selectedStyle.Render(line))
