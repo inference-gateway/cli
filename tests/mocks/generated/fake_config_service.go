@@ -90,6 +90,17 @@ type FakeConfigService struct {
 	isApprovalRequiredReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	IsBashCommandWhitelistedStub        func(string) bool
+	isBashCommandWhitelistedMutex       sync.RWMutex
+	isBashCommandWhitelistedArgsForCall []struct {
+		arg1 string
+	}
+	isBashCommandWhitelistedReturns struct {
+		result1 bool
+	}
+	isBashCommandWhitelistedReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -522,6 +533,67 @@ func (fake *FakeConfigService) IsApprovalRequiredReturnsOnCall(i int, result1 bo
 		})
 	}
 	fake.isApprovalRequiredReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeConfigService) IsBashCommandWhitelisted(arg1 string) bool {
+	fake.isBashCommandWhitelistedMutex.Lock()
+	ret, specificReturn := fake.isBashCommandWhitelistedReturnsOnCall[len(fake.isBashCommandWhitelistedArgsForCall)]
+	fake.isBashCommandWhitelistedArgsForCall = append(fake.isBashCommandWhitelistedArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.IsBashCommandWhitelistedStub
+	fakeReturns := fake.isBashCommandWhitelistedReturns
+	fake.recordInvocation("IsBashCommandWhitelisted", []interface{}{arg1})
+	fake.isBashCommandWhitelistedMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConfigService) IsBashCommandWhitelistedCallCount() int {
+	fake.isBashCommandWhitelistedMutex.RLock()
+	defer fake.isBashCommandWhitelistedMutex.RUnlock()
+	return len(fake.isBashCommandWhitelistedArgsForCall)
+}
+
+func (fake *FakeConfigService) IsBashCommandWhitelistedCalls(stub func(string) bool) {
+	fake.isBashCommandWhitelistedMutex.Lock()
+	defer fake.isBashCommandWhitelistedMutex.Unlock()
+	fake.IsBashCommandWhitelistedStub = stub
+}
+
+func (fake *FakeConfigService) IsBashCommandWhitelistedArgsForCall(i int) string {
+	fake.isBashCommandWhitelistedMutex.RLock()
+	defer fake.isBashCommandWhitelistedMutex.RUnlock()
+	argsForCall := fake.isBashCommandWhitelistedArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeConfigService) IsBashCommandWhitelistedReturns(result1 bool) {
+	fake.isBashCommandWhitelistedMutex.Lock()
+	defer fake.isBashCommandWhitelistedMutex.Unlock()
+	fake.IsBashCommandWhitelistedStub = nil
+	fake.isBashCommandWhitelistedReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeConfigService) IsBashCommandWhitelistedReturnsOnCall(i int, result1 bool) {
+	fake.isBashCommandWhitelistedMutex.Lock()
+	defer fake.isBashCommandWhitelistedMutex.Unlock()
+	fake.IsBashCommandWhitelistedStub = nil
+	if fake.isBashCommandWhitelistedReturnsOnCall == nil {
+		fake.isBashCommandWhitelistedReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isBashCommandWhitelistedReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }

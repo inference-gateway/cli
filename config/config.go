@@ -796,6 +796,26 @@ func (c *Config) GetTheme() string {
 	return c.Chat.Theme
 }
 
+// IsBashCommandWhitelisted checks if a specific bash command is whitelisted
+func (c *Config) IsBashCommandWhitelisted(command string) bool {
+	command = strings.TrimSpace(command)
+
+	for _, allowed := range c.Tools.Bash.Whitelist.Commands {
+		if command == allowed || strings.HasPrefix(command, allowed+" ") {
+			return true
+		}
+	}
+
+	for _, pattern := range c.Tools.Bash.Whitelist.Patterns {
+		matched, err := regexp.MatchString(pattern, command)
+		if err == nil && matched {
+			return true
+		}
+	}
+
+	return false
+}
+
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories
 func (c *Config) ValidatePathInSandbox(path string) error {
 	if err := c.checkProtectedPaths(path); err != nil {

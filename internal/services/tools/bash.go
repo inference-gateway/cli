@@ -85,6 +85,11 @@ func (t *BashTool) Definition() sdk.ChatCompletionTool {
 	}
 }
 
+// Context key for user-approved tool executions
+type contextKey string
+
+const toolApprovedKey contextKey = "tool_approved"
+
 // Execute runs the bash tool with given arguments
 func (t *BashTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
 	start := time.Now()
@@ -160,7 +165,9 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		Command: command,
 	}
 
-	if !t.isCommandAllowed(command) {
+	wasApproved, _ := ctx.Value(toolApprovedKey).(bool)
+
+	if !wasApproved && !t.isCommandAllowed(command) {
 		result.ExitCode = -1
 		result.Duration = time.Since(start).String()
 		result.Error = fmt.Sprintf("command not whitelisted: %s", command)

@@ -13,6 +13,11 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
+// Context key for user-approved tool executions
+type contextKey string
+
+const toolApprovedKey contextKey = "tool_approved"
+
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
 type AgentServiceImpl struct {
 	client           sdk.Client
@@ -673,7 +678,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 	}
 
 	for i, tc := range toolCalls {
-		requiresApproval := isChatMode && s.config.IsApprovalRequired(tc.Function.Name)
+		requiresApproval := s.shouldRequireApproval(tc, isChatMode)
 		if requiresApproval {
 			approvalTools = append(approvalTools, struct {
 				index int
@@ -792,8 +797,10 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 
 	startTime := time.Now()
 
-	requiresApproval := isChatMode && s.config.IsApprovalRequired(tc.Function.Name)
+	requiresApproval := s.shouldRequireApproval(&tc, isChatMode)
 	logger.Debug("tool approval check", "tool", tc.Function.Name, "is_chat_mode", isChatMode, "requires_approval", requiresApproval)
+
+	wasApproved := false
 
 	if requiresApproval {
 		logger.Info("requesting approval for tool", "tool", tc.Function.Name)
@@ -807,6 +814,7 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 			rejectionErr := fmt.Errorf("tool execution rejected by user")
 			return s.createErrorEntry(tc, rejectionErr, startTime)
 		}
+		wasApproved = true
 	}
 
 	eventPublisher.publishToolStatusChange(tc.Id, "running", "Executing...")
@@ -819,9 +827,16 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 		return s.createErrorEntry(tc, err, startTime)
 	}
 
-	if err := s.toolService.ValidateTool(tc.Function.Name, args); err != nil {
-		logger.Error("tool validation failed", "tool", tc.Function.Name, "error", err)
-		return s.createErrorEntry(tc, err, startTime)
+	if !wasApproved {
+		if err := s.toolService.ValidateTool(tc.Function.Name, args); err != nil {
+			logger.Error("tool validation failed", "tool", tc.Function.Name, "error", err)
+			return s.createErrorEntry(tc, err, startTime)
+		}
+	}
+
+	execCtx := ctx
+	if wasApproved {
+		execCtx = context.WithValue(ctx, toolApprovedKey, true)
 	}
 
 	resultChan := make(chan struct {
@@ -830,7 +845,7 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 	}, 1)
 
 	go func() {
-		result, err := s.toolService.ExecuteTool(ctx, tc.Function)
+		result, err := s.toolService.ExecuteTool(execCtx, tc.Function)
 		resultChan <- struct {
 			result *domain.ToolExecutionResult
 			err    error
@@ -920,6 +935,31 @@ func (s *AgentServiceImpl) requestToolApproval(
 	case <-time.After(5 * time.Minute): // Timeout after 5 minutes
 		return false, fmt.Errorf("approval request timed out")
 	}
+}
+
+// shouldRequireApproval determines if a tool execution requires user approval
+// For Bash tool specifically, it checks if the command is whitelisted
+func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
+	if !isChatMode {
+		return false
+	}
+
+	if tc.Function.Name == "Bash" {
+		var args map[string]any
+		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+			return true
+		}
+
+		command, ok := args["command"].(string)
+		if !ok {
+			return true
+		}
+
+		isWhitelisted := s.config.IsBashCommandWhitelisted(command)
+		return !isWhitelisted
+	}
+
+	return s.config.IsApprovalRequired(tc.Function.Name)
 }
 
 func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) domain.ConversationEntry {
