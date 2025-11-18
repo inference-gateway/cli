@@ -10,6 +10,7 @@ import (
 // ANSI Color Codes - Tokyo Night Theme
 const (
 	Reset         = "\033[0m"
+	Bold          = "\033[1m"
 	Red           = "\033[38;2;247;118;142m" // #f7768e - soft red for errors
 	Green         = "\033[38;2;158;206;106m" // #9ece6a - green for success
 	Blue          = "\033[38;2;122;162;247m" // #7aa2f7 - blue for accent

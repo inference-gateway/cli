@@ -4,7 +4,7 @@ gateway:
   timeout: 200
   oci: ghcr.io/inference-gateway/inference-gateway:latest
   run: true
-  docker: false
+  docker: true
 client:
   timeout: 200
   retry:
@@ -54,7 +54,7 @@ tools:
         - ^git remote -v$
         - ^git status$
         - ^git log --oneline -n [0-9]+$
-        - ^git commit -m ".+"$
+        - ^git commit
         - ^git push( --set-upstream)?( origin)? (feature|fix|bugfix|hotfix|chore|docs|test|refactor|build|ci|perf|style)/[a-zA-Z0-9/_.-]+$
         - ^git push( --set-upstream)?( origin)? develop$
         - ^git push( --set-upstream)?( origin)? staging$

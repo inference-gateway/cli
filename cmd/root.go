@@ -64,7 +64,6 @@ func initConfig() {
 	v.SetDefault("chat", defaults.Chat)
 
 	v.SetDefault("a2a.enabled", defaults.A2A.Enabled)
-	v.SetDefault("a2a.agents", defaults.A2A.Agents)
 	v.SetDefault("a2a.cache.enabled", defaults.A2A.Cache.Enabled)
 	v.SetDefault("a2a.cache.ttl", defaults.A2A.Cache.TTL)
 	v.SetDefault("a2a.task.status_poll_seconds", defaults.A2A.Task.StatusPollSeconds)

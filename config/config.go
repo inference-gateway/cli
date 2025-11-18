@@ -386,7 +386,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Timeout: 200,
 			OCI:     "ghcr.io/inference-gateway/inference-gateway:latest",
 			Run:     true,
-			Docker:  false,
+			Docker:  true,
 		},
 		Client: ClientConfig{
 			Timeout: 200,
@@ -430,7 +430,7 @@ func DefaultConfig() *Config { //nolint:funlen
 						"^git remote -v$",
 						"^git status$",
 						"^git log --oneline -n [0-9]+$",
-						"^git commit -m \".+\"$",
+						"^git commit",
 						"^git push( --set-upstream)?( origin)? (feature|fix|bugfix|hotfix|chore|docs|test|refactor|build|ci|perf|style)/[a-zA-Z0-9/_.-]+$",
 						"^git push( --set-upstream)?( origin)? develop$",
 						"^git push( --set-upstream)?( origin)? staging$",
@@ -640,8 +640,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 			Theme: "tokyo-night",
 		},
 		A2A: A2AConfig{
-			Enabled: false,
-			Agents:  []string{},
+			Enabled: true,
 			Cache: A2ACacheConfig{
 				Enabled: true,
 				TTL:     300,

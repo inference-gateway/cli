@@ -1207,9 +1207,9 @@ chat:
 - **gateway.run**: Automatically run the gateway on startup (default: `true`)
   - When enabled, the CLI automatically starts the gateway before running commands
   - The gateway runs in the background and shuts down when the CLI exits
-- **gateway.docker**: Use Docker instead of binary mode (default: `false`)
-  - `false` (default): Downloads and runs the gateway as a binary (no Docker required)
-  - `true`: Uses Docker to run the gateway container (requires Docker installed)
+- **gateway.docker**: Use Docker instead of binary mode (default: `true`)
+  - `true` (default): Uses Docker to run the gateway container (requires Docker installed)
+  - `false`: Downloads and runs the gateway as a binary (no Docker required)
 - **gateway.oci**: OCI image to use for Docker mode (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
 
 **Client Settings:**
@@ -1343,7 +1343,7 @@ configuration file settings and are particularly useful for containerized deploy
 
 #### A2A (Agent-to-Agent) Configuration
 
-- `INFER_A2A_ENABLED`: Enable/disable A2A tools (`true`/`false`)
+- `INFER_A2A_ENABLED`: Enable/disable A2A tools (`true`/`false`, default: `true`)
 - `INFER_A2A_AGENTS`: Configure A2A agent endpoints (supports comma-separated or newline-separated format)
 
 **A2A Agents Configuration Examples:**

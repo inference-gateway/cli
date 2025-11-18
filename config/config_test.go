@@ -634,7 +634,7 @@ func TestA2AConfigFromEnv(t *testing.T) {
 			name:            "A2A not set",
 			envEnabled:      "",
 			envAgents:       "",
-			expectedEnabled: false,
+			expectedEnabled: true,
 			expectedAgents:  nil,
 		},
 	}

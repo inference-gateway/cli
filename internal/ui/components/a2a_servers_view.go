@@ -190,8 +190,8 @@ func (v *A2AServersView) renderServers() string {
 
 	var content strings.Builder
 
-	content.WriteString(fmt.Sprintf("%s## A2A Agent Servers%s\n\n", headerColor, colors.Reset))
-	content.WriteString(fmt.Sprintf("%sFound %d agent cards:%s\n\n", successColor, len(v.servers), colors.Reset))
+	content.WriteString(fmt.Sprintf("%sA2A Agent Servers%s\n\n", headerColor, colors.Reset))
+	content.WriteString(fmt.Sprintf("%sFound %d agent card(s)%s\n\n", successColor, len(v.servers), colors.Reset))
 
 	for i, server := range v.servers {
 		content.WriteString(v.renderSingleServer(server))
@@ -216,33 +216,33 @@ func (v *A2AServersView) renderServers() string {
 func (v *A2AServersView) renderSingleServer(server A2AServerInfo) string {
 	successIcon := icons.StyledCheckMark()
 	dimColor := v.getDimColor()
-	statusColor := v.getStatusColor()
+	headerColor := v.getHeaderColor()
 
 	var content strings.Builder
-	content.WriteString(fmt.Sprintf("**%s** (%s%s%s) %s\n",
-		server.Name, dimColor, server.ID, colors.Reset, successIcon))
+	content.WriteString(fmt.Sprintf("%s%s%s %s (%s%s%s)\n",
+		colors.Bold, server.Name, colors.Reset, successIcon, dimColor, server.ID, colors.Reset))
 
 	if server.Description != "" {
-		content.WriteString(fmt.Sprintf("   %s\n", server.Description))
+		content.WriteString(fmt.Sprintf("  %s\n", server.Description))
 	}
 
 	if server.DocumentsURL != nil && *server.DocumentsURL != "" {
-		content.WriteString(fmt.Sprintf("   Docs: %s\n", *server.DocumentsURL))
+		content.WriteString(fmt.Sprintf("  %sDocs:%s %s\n", headerColor, colors.Reset, *server.DocumentsURL))
 	}
 
 	if len(server.InputModes) > 0 {
-		content.WriteString(fmt.Sprintf("   Input: %s%s%s\n",
-			statusColor, strings.Join(server.InputModes, ", "), colors.Reset))
+		content.WriteString(fmt.Sprintf("  %sInput:%s %s\n",
+			headerColor, colors.Reset, strings.Join(server.InputModes, ", ")))
 	}
 
 	if len(server.OutputModes) > 0 {
-		content.WriteString(fmt.Sprintf("   Output: %s%s%s\n",
-			statusColor, strings.Join(server.OutputModes, ", "), colors.Reset))
+		content.WriteString(fmt.Sprintf("  %sOutput:%s %s\n",
+			headerColor, colors.Reset, strings.Join(server.OutputModes, ", ")))
 	}
 
 	if server.URL != "" {
-		content.WriteString(fmt.Sprintf("   URL: %s%s%s\n",
-			dimColor, server.URL, colors.Reset))
+		content.WriteString(fmt.Sprintf("  %sURL:%s %s%s%s\n",
+			headerColor, colors.Reset, dimColor, server.URL, colors.Reset))
 	}
 
 	return content.String()
@@ -332,11 +332,4 @@ func (v *A2AServersView) getDimColor() string {
 		return v.themeService.GetCurrentTheme().GetDimColor()
 	}
 	return colors.DimColor.ANSI
-}
-
-func (v *A2AServersView) getStatusColor() string {
-	if v.themeService != nil {
-		return v.themeService.GetCurrentTheme().GetStatusColor()
-	}
-	return colors.StatusColor.ANSI
 }
