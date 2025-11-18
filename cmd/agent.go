@@ -70,6 +70,19 @@ func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string) erro
 		_ = services.Shutdown(ctx)
 	}()
 
+	gatewayManager := services.GetGatewayManager()
+	if gatewayManager != nil && !gatewayManager.IsRunning() {
+		return fmt.Errorf(`inference gateway is not running. Please ensure the gateway is started.
+
+Possible solutions:
+1. Ensure Docker is running: docker ps
+2. Manually start the gateway container: docker run -d --name inference-gateway -p 8080:8080 ghcr.io/inference-gateway/inference-gateway:latest
+3. Or disable auto-run in config and start the gateway manually
+4. Check gateway logs: docker logs inference-gateway
+
+For more information, visit: https://github.com/inference-gateway/inference-gateway`)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()
 

@@ -95,9 +95,13 @@ func (c *ServiceContainer) initializeGatewayManager() {
 	c.gatewayManager = services.NewGatewayManager(c.config)
 
 	if c.config.Gateway.Run {
-		ctx := context.Background()
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
+
 		if err := c.gatewayManager.Start(ctx); err != nil {
-			fmt.Printf("Failed to start gateway: %v\n", err)
+			fmt.Printf("\n⚠️  Failed to start gateway automatically: %v\n", err)
+			fmt.Printf("   Continuing without local gateway.\n")
+			fmt.Printf("   Make sure the inference gateway is running at: %s\n\n", c.config.Gateway.URL)
 			logger.Error("Failed to start gateway", "error", err)
 			logger.Warn("Continuing without local gateway - make sure gateway is running manually")
 		}
@@ -460,6 +464,11 @@ func (c *ServiceContainer) GetBackgroundJobManager() *services.BackgroundJobMana
 // GetStorage returns the conversation storage
 func (c *ServiceContainer) GetStorage() storage.ConversationStorage {
 	return c.storage
+}
+
+// GetGatewayManager returns the gateway manager
+func (c *ServiceContainer) GetGatewayManager() domain.GatewayManager {
+	return c.gatewayManager
 }
 
 // Shutdown gracefully shuts down the service container and its resources
