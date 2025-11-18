@@ -244,9 +244,9 @@ type FileSelectionState struct {
 
 // ApprovalUIState represents the state of approval UI
 type ApprovalUIState struct {
-	SelectedIndex  int                                   `json:"selected_index"`
-	PendingToolCall *sdk.ChatCompletionMessageToolCall   `json:"pending_tool_call"`
-	ResponseChan   chan ApprovalAction                   `json:"-"`
+	SelectedIndex   int                                `json:"selected_index"`
+	PendingToolCall *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call"`
+	ResponseChan    chan ApprovalAction                `json:"-"`
 }
 
 // NewApplicationState creates a new application state
