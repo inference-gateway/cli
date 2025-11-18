@@ -33,8 +33,11 @@ Examples:
   # Add a local agent with OCI image
   infer agents add test-runner https://localhost:8081 --oci ghcr.io/org/test-runner:latest --run
 
-  # Add agent with environment variables
-  infer agents add analyzer https://agent.example.com --environment API_KEY=secret --environment MODEL=gpt-4`,
+  # Add agent with specific model
+  infer agents add code-reviewer https://agent.example.com --run --model deepseek/deepseek-chat
+
+  # Add agent with custom environment variables
+  infer agents add analyzer https://agent.example.com --run --environment CUSTOM_ENV=value --environment A2A_DEBUG=true --environment A2A_PORT=8443`,
 	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
@@ -42,6 +45,7 @@ Examples:
 
 		oci, _ := cmd.Flags().GetString("oci")
 		run, _ := cmd.Flags().GetBool("run")
+		model, _ := cmd.Flags().GetString("model")
 		envVars, _ := cmd.Flags().GetStringSlice("environment")
 
 		environment := make(map[string]string)
@@ -53,7 +57,57 @@ Examples:
 			environment[parts[0]] = parts[1]
 		}
 
-		return addAgent(cmd, name, url, oci, run, environment)
+		return addAgent(cmd, name, url, oci, run, model, environment)
+	},
+}
+
+var agentsUpdateCmd = &cobra.Command{
+	Use:   "update <name>",
+	Short: "Update an existing A2A agent configuration",
+	Long: `Update an existing Agent-to-Agent (A2A) agent in the agents.yaml configuration.
+At least one flag must be provided to update the agent.
+
+Examples:
+  # Update agent URL
+  infer agents update code-reviewer --run=false --url https://new-agent.example.com
+
+  # Update agent model
+  infer agents update code-reviewer --model openai/gpt-4
+
+  # Update multiple properties
+  infer agents update test-runner --oci ghcr.io/org/test-runner:v2 --model anthropic/claude-3-5-sonnet
+
+  # Add environment variables (replaces existing ones)
+  infer agents update analyzer --environment CUSTOM_ENV=value --environment DEBUG=true`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		name := args[0]
+
+		if !cmd.Flags().Changed("url") && !cmd.Flags().Changed("oci") &&
+			!cmd.Flags().Changed("run") && !cmd.Flags().Changed("model") &&
+			!cmd.Flags().Changed("environment") {
+			return fmt.Errorf("at least one flag must be provided to update the agent")
+		}
+
+		url, _ := cmd.Flags().GetString("url")
+		oci, _ := cmd.Flags().GetString("oci")
+		run, _ := cmd.Flags().GetBool("run")
+		model, _ := cmd.Flags().GetString("model")
+		envVars, _ := cmd.Flags().GetStringSlice("environment")
+
+		var environment map[string]string
+		if cmd.Flags().Changed("environment") {
+			environment = make(map[string]string)
+			for _, env := range envVars {
+				parts := strings.SplitN(env, "=", 2)
+				if len(parts) != 2 {
+					return fmt.Errorf("invalid environment variable format: %s (expected KEY=VALUE)", env)
+				}
+				environment[parts[0]] = parts[1]
+			}
+		}
+
+		return updateAgent(cmd, name, url, oci, run, model, environment)
 	},
 }
 
@@ -108,7 +162,7 @@ func getAgentsConfigService(cmd *cobra.Command) (*services.AgentsConfigService, 
 	return services.NewAgentsConfigService(agentsPath), nil
 }
 
-func addAgent(cmd *cobra.Command, name, url, oci string, run bool, environment map[string]string) error {
+func addAgent(cmd *cobra.Command, name, url, oci string, run bool, model string, environment map[string]string) error {
 	svc, err := getAgentsConfigService(cmd)
 	if err != nil {
 		return err
@@ -119,6 +173,7 @@ func addAgent(cmd *cobra.Command, name, url, oci string, run bool, environment m
 		URL:         url,
 		OCI:         oci,
 		Run:         run,
+		Model:       model,
 		Environment: environment,
 	}
 
@@ -134,8 +189,61 @@ func addAgent(cmd *cobra.Command, name, url, oci string, run bool, environment m
 	if run {
 		fmt.Printf("  Run locally: %s\n", ui.FormatEnabled())
 	}
+	if model != "" {
+		fmt.Printf("  Model: %s\n", model)
+	}
 	if len(environment) > 0 {
 		fmt.Printf("  Environment variables: %d configured\n", len(environment))
+	}
+
+	return nil
+}
+
+func updateAgent(cmd *cobra.Command, name, url, oci string, run bool, model string, environment map[string]string) error {
+	svc, err := getAgentsConfigService(cmd)
+	if err != nil {
+		return err
+	}
+
+	existing, err := svc.GetAgent(name)
+	if err != nil {
+		return err
+	}
+
+	agent := *existing
+	if cmd.Flags().Changed("url") {
+		agent.URL = url
+	}
+	if cmd.Flags().Changed("oci") {
+		agent.OCI = oci
+	}
+	if cmd.Flags().Changed("run") {
+		agent.Run = run
+	}
+	if cmd.Flags().Changed("model") {
+		agent.Model = model
+	}
+	if cmd.Flags().Changed("environment") {
+		agent.Environment = environment
+	}
+
+	if err := svc.UpdateAgent(agent); err != nil {
+		return err
+	}
+
+	fmt.Printf("%s Agent '%s' updated successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark), name)
+	fmt.Printf("  URL: %s\n", agent.URL)
+	if agent.OCI != "" {
+		fmt.Printf("  OCI: %s\n", agent.OCI)
+	}
+	if agent.Run {
+		fmt.Printf("  Run locally: %s\n", ui.FormatEnabled())
+	}
+	if agent.Model != "" {
+		fmt.Printf("  Model: %s\n", agent.Model)
+	}
+	if len(agent.Environment) > 0 {
+		fmt.Printf("  Environment variables: %d configured\n", len(agent.Environment))
 	}
 
 	return nil
@@ -193,6 +301,9 @@ func listAgents(cmd *cobra.Command, args []string) error {
 		if agent.Run {
 			fmt.Printf("   Run locally: %s\n", ui.FormatEnabled())
 		}
+		if agent.Model != "" {
+			fmt.Printf("   Model: %s\n", agent.Model)
+		}
 		if len(agent.Environment) > 0 {
 			fmt.Printf("   Environment: %d variables configured\n", len(agent.Environment))
 		}
@@ -230,6 +341,9 @@ func showAgent(cmd *cobra.Command, name string) error {
 		fmt.Printf("OCI: %s\n", agent.OCI)
 	}
 	fmt.Printf("Run locally: %v\n", agent.Run)
+	if agent.Model != "" {
+		fmt.Printf("Model: %s\n", agent.Model)
+	}
 	if len(agent.Environment) > 0 {
 		fmt.Println("Environment variables:")
 		for key, value := range agent.Environment {
@@ -263,6 +377,7 @@ func initAgents(cmd *cobra.Command, args []string) error {
 
 func init() {
 	agentsCmd.AddCommand(agentsAddCmd)
+	agentsCmd.AddCommand(agentsUpdateCmd)
 	agentsCmd.AddCommand(agentsListCmd)
 	agentsCmd.AddCommand(agentsRemoveCmd)
 	agentsCmd.AddCommand(agentsShowCmd)
@@ -270,7 +385,14 @@ func init() {
 
 	agentsAddCmd.Flags().String("oci", "", "OCI image reference for local execution")
 	agentsAddCmd.Flags().Bool("run", false, "Run this agent locally with Docker")
+	agentsAddCmd.Flags().String("model", "", "Model to use for the agent (format: provider/model)")
 	agentsAddCmd.Flags().StringSlice("environment", []string{}, "Environment variables (KEY=VALUE)")
+
+	agentsUpdateCmd.Flags().String("url", "", "Agent URL")
+	agentsUpdateCmd.Flags().String("oci", "", "OCI image reference for local execution")
+	agentsUpdateCmd.Flags().Bool("run", false, "Run this agent locally with Docker")
+	agentsUpdateCmd.Flags().String("model", "", "Model to use for the agent (format: provider/model)")
+	agentsUpdateCmd.Flags().StringSlice("environment", []string{}, "Environment variables (KEY=VALUE)")
 
 	agentsListCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")
 	agentsShowCmd.Flags().StringP("format", "f", "text", "Output format (text, json)")

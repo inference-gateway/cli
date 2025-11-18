@@ -251,3 +251,82 @@ func TestAgentsConfigService_LoadNonexistentFile(t *testing.T) {
 		t.Errorf("Expected empty agents list, got %d agents", len(cfg.Agents))
 	}
 }
+
+func TestAgentsConfigService_UpdateAgent(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	svc := NewAgentsConfigService(agentsPath)
+
+	agent := config.AgentEntry{
+		Name:  "test-agent",
+		URL:   "https://agent.example.com",
+		OCI:   "ghcr.io/org/test-agent:v1",
+		Run:   false,
+		Model: "openai/gpt-4",
+		Environment: map[string]string{
+			"API_KEY": "secret",
+		},
+	}
+
+	require.NoError(t, svc.AddAgent(agent))
+
+	updatedAgent := config.AgentEntry{
+		Name:  "test-agent",
+		URL:   "https://new-agent.example.com",
+		OCI:   "ghcr.io/org/test-agent:v2",
+		Run:   true,
+		Model: "anthropic/claude-3-5-sonnet",
+		Environment: map[string]string{
+			"DEBUG": "true",
+		},
+	}
+
+	err := svc.UpdateAgent(updatedAgent)
+	require.NoError(t, err)
+
+	retrieved, err := svc.GetAgent("test-agent")
+	require.NoError(t, err)
+
+	if retrieved.URL != updatedAgent.URL {
+		t.Errorf("Expected URL %s, got %s", updatedAgent.URL, retrieved.URL)
+	}
+
+	if retrieved.OCI != updatedAgent.OCI {
+		t.Errorf("Expected OCI %s, got %s", updatedAgent.OCI, retrieved.OCI)
+	}
+
+	if retrieved.Run != updatedAgent.Run {
+		t.Errorf("Expected Run %v, got %v", updatedAgent.Run, retrieved.Run)
+	}
+
+	if retrieved.Model != updatedAgent.Model {
+		t.Errorf("Expected Model %s, got %s", updatedAgent.Model, retrieved.Model)
+	}
+
+	if len(retrieved.Environment) != 1 || retrieved.Environment["DEBUG"] != "true" {
+		t.Errorf("Expected Environment to be updated, got %v", retrieved.Environment)
+	}
+
+	agents, err := svc.ListAgents()
+	require.NoError(t, err)
+
+	if len(agents) != 1 {
+		t.Errorf("Expected 1 agent after update, got %d", len(agents))
+	}
+}
+
+func TestAgentsConfigService_UpdateNonexistentAgent(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+	svc := NewAgentsConfigService(agentsPath)
+
+	agent := config.AgentEntry{
+		Name: "nonexistent",
+		URL:  "https://agent.example.com",
+	}
+
+	err := svc.UpdateAgent(agent)
+	if err == nil {
+		t.Fatal("Expected error when updating nonexistent agent, got nil")
+	}
+}

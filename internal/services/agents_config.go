@@ -89,6 +89,29 @@ func (s *AgentsConfigService) AddAgent(agent config.AgentEntry) error {
 	return s.Save(cfg)
 }
 
+// UpdateAgent updates an existing agent in the configuration
+func (s *AgentsConfigService) UpdateAgent(agent config.AgentEntry) error {
+	cfg, err := s.Load()
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for i, existing := range cfg.Agents {
+		if existing.Name == agent.Name {
+			cfg.Agents[i] = agent
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("agent with name '%s' not found", agent.Name)
+	}
+
+	return s.Save(cfg)
+}
+
 // RemoveAgent removes an agent by name
 func (s *AgentsConfigService) RemoveAgent(name string) error {
 	cfg, err := s.Load()
