@@ -130,6 +130,11 @@ type StateManager interface {
 	GetCurrentView() ViewState
 	TransitionToView(newView ViewState) error
 
+	// Agent mode management
+	GetAgentMode() AgentMode
+	SetAgentMode(mode AgentMode)
+	CycleAgentMode() AgentMode
+
 	// Chat session management
 	StartChatSession(requestID, model string, eventChan <-chan ChatEvent) error
 	UpdateChatStatus(status ChatStatus) error

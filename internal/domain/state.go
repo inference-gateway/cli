@@ -13,6 +13,9 @@ type ApplicationState struct {
 	currentView  ViewState
 	previousView ViewState
 
+	// Agent Mode
+	agentMode AgentMode
+
 	// Chat State
 	chatSession *ChatSession
 
@@ -49,6 +52,18 @@ const (
 	ViewStateToolApproval
 )
 
+// AgentMode represents the operational mode of the agent
+type AgentMode int
+
+const (
+	// AgentModeStandard is the default mode with all configured tools and approval checks
+	AgentModeStandard AgentMode = iota
+	// AgentModePlan is a read-only mode for planning without execution
+	AgentModePlan
+	// AgentModeAutoAccept bypasses all approval checks (YOLO mode)
+	AgentModeAutoAccept
+)
+
 func (v ViewState) String() string {
 	switch v {
 	case ViewStateModelSelection:
@@ -69,6 +84,33 @@ func (v ViewState) String() string {
 		return "A2ATaskManagement"
 	case ViewStateToolApproval:
 		return "ToolApproval"
+	default:
+		return "Unknown"
+	}
+}
+
+func (m AgentMode) String() string {
+	switch m {
+	case AgentModeStandard:
+		return "Standard"
+	case AgentModePlan:
+		return "Plan"
+	case AgentModeAutoAccept:
+		return "AutoAccept"
+	default:
+		return "Unknown"
+	}
+}
+
+// DisplayName returns a user-friendly display name for the mode
+func (m AgentMode) DisplayName() string {
+	switch m {
+	case AgentModeStandard:
+		return "🎯 Standard"
+	case AgentModePlan:
+		return "📋 Plan Mode"
+	case AgentModeAutoAccept:
+		return "⚡ Auto-Accept"
 	default:
 		return "Unknown"
 	}
@@ -254,6 +296,7 @@ func NewApplicationState() *ApplicationState {
 	return &ApplicationState{
 		currentView:        ViewStateModelSelection,
 		previousView:       ViewStateModelSelection,
+		agentMode:          AgentModeStandard,
 		chatSession:        nil,
 		toolExecution:      nil,
 		queuedMessages:     make([]QueuedMessage, 0),
@@ -276,6 +319,31 @@ func (s *ApplicationState) TransitionToView(newView ViewState) error {
 	s.previousView = s.currentView
 	s.currentView = newView
 	return nil
+}
+
+// GetAgentMode returns the current agent mode
+func (s *ApplicationState) GetAgentMode() AgentMode {
+	return s.agentMode
+}
+
+// SetAgentMode sets the agent mode
+func (s *ApplicationState) SetAgentMode(mode AgentMode) {
+	s.agentMode = mode
+}
+
+// CycleAgentMode cycles to the next agent mode
+func (s *ApplicationState) CycleAgentMode() AgentMode {
+	switch s.agentMode {
+	case AgentModeStandard:
+		s.agentMode = AgentModePlan
+	case AgentModePlan:
+		s.agentMode = AgentModeAutoAccept
+	case AgentModeAutoAccept:
+		s.agentMode = AgentModeStandard
+	default:
+		s.agentMode = AgentModeStandard
+	}
+	return s.agentMode
 }
 
 // isValidTransition validates if a view transition is allowed

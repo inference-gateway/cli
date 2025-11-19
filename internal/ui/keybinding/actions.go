@@ -57,6 +57,18 @@ func (r *Registry) createGlobalActions() []*KeyAction {
 func (r *Registry) createChatActions() []*KeyAction {
 	actions := []*KeyAction{
 		{
+			ID:          "cycle_agent_mode",
+			Keys:        []string{"shift+tab"},
+			Description: "cycle agent mode (Standard/Plan/Auto-Accept)",
+			Category:    "mode",
+			Handler:     handleCycleAgentMode,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
 			ID:          "toggle_tool_expansion",
 			Keys:        []string{"ctrl+r"},
 			Description: "expand/collapse tool results",
@@ -780,6 +792,19 @@ func handleInsertNewline(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 func handleToggleHelp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.ToggleHelpBarEvent{}
+	}
+}
+
+func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+	newMode := stateManager.CycleAgentMode()
+
+	return func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
+			Spinner:    false,
+			TokenUsage: getCurrentTokenUsage(app),
+		}
 	}
 }
 

@@ -21,6 +21,7 @@ type AgentServiceImpl struct {
 	conversationRepo domain.ConversationRepository
 	a2aAgentService  domain.A2AAgentService
 	messageQueue     domain.MessageQueue
+	stateManager     domain.StateManager
 	timeoutSeconds   int
 	maxTokens        int
 	optimizer        *ConversationOptimizer
@@ -159,6 +160,7 @@ func NewAgentService(
 	conversationRepo domain.ConversationRepository,
 	a2aAgentService domain.A2AAgentService,
 	messageQueue domain.MessageQueue,
+	stateManager domain.StateManager,
 	timeoutSeconds int,
 	optimizer *ConversationOptimizer,
 ) *AgentServiceImpl {
@@ -169,6 +171,7 @@ func NewAgentService(
 		conversationRepo: conversationRepo,
 		a2aAgentService:  a2aAgentService,
 		messageQueue:     messageQueue,
+		stateManager:     stateManager,
 		timeoutSeconds:   timeoutSeconds,
 		maxTokens:        config.GetAgentConfig().MaxTokens,
 		optimizer:        optimizer,
@@ -935,6 +938,11 @@ func (s *AgentServiceImpl) requestToolApproval(
 // shouldRequireApproval determines if a tool execution requires user approval
 // For Bash tool specifically, it checks if the command is whitelisted
 func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
+	// In auto-accept mode, never require approval
+	if s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
+		return false
+	}
+
 	if !isChatMode {
 		return false
 	}

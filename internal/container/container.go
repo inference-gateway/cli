@@ -201,6 +201,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.conversationRepo,
 		c.a2aAgentService,
 		c.messageQueue,
+		c.stateManager,
 		c.config.Gateway.Timeout,
 		optimizer,
 	)

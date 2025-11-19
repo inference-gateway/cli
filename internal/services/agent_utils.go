@@ -85,8 +85,11 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 		a2aAgentInfo := s.buildA2AAgentInfo()
 
-		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s\n\nCurrent date and time: %s",
-			baseSystemPrompt, sandboxInfo, a2aAgentInfo, currentTime)
+		// Get current agent mode and add mode-specific instructions
+		modeInfo := s.buildModeInfo()
+
+		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s%s\n\nCurrent date and time: %s",
+			baseSystemPrompt, sandboxInfo, a2aAgentInfo, modeInfo, currentTime)
 
 		systemMessages = append(systemMessages, sdk.Message{
 			Role:    sdk.System,
@@ -98,6 +101,47 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 		messages = append(systemMessages, messages...)
 	}
 	return messages
+}
+
+// buildModeInfo creates mode-specific instructions for the system prompt
+func (s *AgentServiceImpl) buildModeInfo() string {
+	if s.stateManager == nil {
+		return ""
+	}
+
+	mode := s.stateManager.GetAgentMode()
+	switch mode {
+	case domain.AgentModePlan:
+		return `
+
+PLAN MODE:
+You are currently in PLAN MODE. Your role is to:
+- Analyze the user's request and understand what needs to be done
+- Break down complex tasks into clear, actionable steps
+- Explain your reasoning and approach
+- DO NOT execute any tools or make changes
+- DO NOT use Write, Edit, Delete, Bash, or any other modification tools
+- You may use Read, Grep, and Tree tools ONLY for gathering information
+- Present a clear plan of what you would do if asked to implement
+
+Focus on planning and explanation, not execution.`
+
+	case domain.AgentModeAutoAccept:
+		return `
+
+AUTO-ACCEPT MODE:
+You are in AUTO-ACCEPT MODE. All tool executions will be automatically approved.
+- Execute tools freely without waiting for user approval
+- Be confident in your actions
+- Work efficiently to complete tasks
+- All safety guardrails are disabled in this mode`
+
+	case domain.AgentModeStandard:
+		return ""
+
+	default:
+		return ""
+	}
 }
 
 // buildA2AAgentInfo creates dynamic A2A agent information for the system prompt

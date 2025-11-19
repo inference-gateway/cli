@@ -142,6 +142,7 @@ func NewChatApplication(
 	app.inputView = ui.CreateInputViewWithToolServiceAndConfigDir(app.modelService, app.shortcutRegistry, app.toolService, configDir)
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)
+		iv.SetStateManager(app.stateManager)
 	}
 	app.statusView = ui.CreateStatusView(app.themeService)
 	app.helpBar = ui.CreateHelpBar(app.themeService)

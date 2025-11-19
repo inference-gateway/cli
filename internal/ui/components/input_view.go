@@ -21,6 +21,7 @@ type InputView struct {
 	width               int
 	height              int
 	modelService        domain.ModelService
+	stateManager        domain.StateManager
 	Autocomplete        shared.AutocompleteInterface
 	historyManager      *history.HistoryManager
 	isTextSelectionMode bool
@@ -60,6 +61,11 @@ func NewInputViewWithConfigDir(modelService domain.ModelService, configDir strin
 func (iv *InputView) SetThemeService(themeService domain.ThemeService) {
 	iv.themeService = themeService
 	iv.styleProvider = styles.NewProvider(themeService)
+}
+
+// SetStateManager sets the state manager for this input view
+func (iv *InputView) SetStateManager(stateManager domain.StateManager) {
+	iv.stateManager = stateManager
 }
 
 func (iv *InputView) GetInput() string {
@@ -205,6 +211,27 @@ func (iv *InputView) addModeIndicator(components []string, isBashMode bool, isTo
 				},
 			)
 			components = append(components, indicator)
+		} else if iv.stateManager != nil {
+			// Show agent mode indicator
+			agentMode := iv.stateManager.GetAgentMode()
+			if agentMode != domain.AgentModeStandard {
+				var modeText string
+				switch agentMode {
+				case domain.AgentModePlan:
+					modeText = "📋 PLAN MODE - Planning only, no execution (Shift+Tab to change)"
+				case domain.AgentModeAutoAccept:
+					modeText = "⚡ AUTO-ACCEPT MODE - All tools auto-approved (Shift+Tab to change)"
+				}
+				indicator := iv.styleProvider.RenderStyledText(
+					modeText,
+					styles.StyleOptions{
+						Foreground: iv.styleProvider.GetThemeColor("accent"),
+						Bold:       true,
+						Width:      iv.width,
+					},
+				)
+				components = append(components, indicator)
+			}
 		}
 	}
 	return components
