@@ -91,15 +91,16 @@ func NewTokyoNightTheme() *TokyoNightTheme {
 	return &TokyoNightTheme{}
 }
 
-func (t *TokyoNightTheme) GetUserColor() string       { return colors.UserColor.ANSI }
-func (t *TokyoNightTheme) GetAssistantColor() string  { return colors.AssistantColor.ANSI }
-func (t *TokyoNightTheme) GetErrorColor() string      { return colors.ErrorColor.ANSI }
-func (t *TokyoNightTheme) GetStatusColor() string     { return colors.StatusColor.ANSI }
-func (t *TokyoNightTheme) GetAccentColor() string     { return colors.AccentColor.ANSI }
-func (t *TokyoNightTheme) GetDimColor() string        { return colors.DimColor.ANSI }
-func (t *TokyoNightTheme) GetBorderColor() string     { return colors.BorderColor.ANSI }
-func (t *TokyoNightTheme) GetDiffAddColor() string    { return colors.DiffAddColor.ANSI }
-func (t *TokyoNightTheme) GetDiffRemoveColor() string { return colors.DiffRemoveColor.ANSI }
+func (t *TokyoNightTheme) GetUserColor() string       { return colors.UserColor.Lipgloss }
+func (t *TokyoNightTheme) GetAssistantColor() string  { return colors.AssistantColor.Lipgloss }
+func (t *TokyoNightTheme) GetErrorColor() string      { return colors.ErrorColor.Lipgloss }
+func (t *TokyoNightTheme) GetSuccessColor() string    { return colors.SuccessColor.Lipgloss }
+func (t *TokyoNightTheme) GetStatusColor() string     { return colors.StatusColor.Lipgloss }
+func (t *TokyoNightTheme) GetAccentColor() string     { return colors.AccentColor.Lipgloss }
+func (t *TokyoNightTheme) GetDimColor() string        { return colors.DimColor.Lipgloss }
+func (t *TokyoNightTheme) GetBorderColor() string     { return colors.BorderColor.Lipgloss }
+func (t *TokyoNightTheme) GetDiffAddColor() string    { return colors.DiffAddColor.Lipgloss }
+func (t *TokyoNightTheme) GetDiffRemoveColor() string { return colors.DiffRemoveColor.Lipgloss }
 
 // GithubLightTheme provides a light theme similar to GitHub's interface
 type GithubLightTheme struct{}
@@ -111,6 +112,7 @@ func NewGithubLightTheme() *GithubLightTheme {
 func (t *GithubLightTheme) GetUserColor() string       { return colors.GithubUserColor.Lipgloss }
 func (t *GithubLightTheme) GetAssistantColor() string  { return colors.GithubAssistantColor.Lipgloss }
 func (t *GithubLightTheme) GetErrorColor() string      { return colors.GithubErrorColor.Lipgloss }
+func (t *GithubLightTheme) GetSuccessColor() string    { return colors.GithubSuccessColor.Lipgloss }
 func (t *GithubLightTheme) GetStatusColor() string     { return colors.GithubStatusColor.Lipgloss }
 func (t *GithubLightTheme) GetAccentColor() string     { return colors.GithubAccentColor.Lipgloss }
 func (t *GithubLightTheme) GetDimColor() string        { return colors.GithubDimColor.Lipgloss }
@@ -128,6 +130,7 @@ func NewDraculaTheme() *DraculaTheme {
 func (t *DraculaTheme) GetUserColor() string       { return colors.DraculaUserColor.Lipgloss }
 func (t *DraculaTheme) GetAssistantColor() string  { return colors.DraculaAssistantColor.Lipgloss }
 func (t *DraculaTheme) GetErrorColor() string      { return colors.DraculaErrorColor.Lipgloss }
+func (t *DraculaTheme) GetSuccessColor() string    { return colors.DraculaSuccessColor.Lipgloss }
 func (t *DraculaTheme) GetStatusColor() string     { return colors.DraculaStatusColor.Lipgloss }
 func (t *DraculaTheme) GetAccentColor() string     { return colors.DraculaAccentColor.Lipgloss }
 func (t *DraculaTheme) GetDimColor() string        { return colors.DraculaDimColor.Lipgloss }

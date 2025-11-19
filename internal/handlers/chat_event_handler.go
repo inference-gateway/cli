@@ -9,6 +9,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -18,9 +19,13 @@ type ChatEventHandler struct {
 }
 
 func NewChatEventHandler(handler *ChatHandler) *ChatEventHandler {
+	// Create style provider with default theme for tool call rendering
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+
 	return &ChatEventHandler{
 		handler:          handler,
-		toolCallRenderer: components.NewToolCallRenderer(),
+		toolCallRenderer: components.NewToolCallRenderer(styleProvider),
 	}
 }
 
@@ -362,6 +367,29 @@ func (e *ChatEventHandler) handleToolCallReady(
 			}
 		},
 	}
+
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return tea.Batch(cmds...)
+}
+
+func (e *ChatEventHandler) handleToolApprovalRequested(
+	msg domain.ToolApprovalRequestedEvent,
+) tea.Cmd {
+	_ = e.handler.stateManager.TransitionToView(domain.ViewStateToolApproval)
+
+	e.handler.stateManager.SetupApprovalUIState(&msg.ToolCall, msg.ResponseChan)
+
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.ShowToolApprovalEvent{
+			ToolCall:     msg.ToolCall,
+			ResponseChan: msg.ResponseChan,
+		}
+	})
 
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))

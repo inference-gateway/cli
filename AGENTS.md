@@ -1,183 +1,99 @@
+
 # AGENTS.md
 
 ## Project Overview
 
-The Inference Gateway CLI is a powerful command-line interface for managing and interacting with the Inference Gateway.
-It provides tools for configuration, monitoring, and management of inference services. The project is built in Go
-and features an interactive chat interface, autonomous agent capabilities, and extensive tool integration for
-AI-assisted development.
+The Inference Gateway CLI is a command-line interface for interacting with the Inference Gateway. It is built in Go
+and provides tools for managing and configuring inference services, monitoring agent status, and facilitating
+development workflows. Key features include an interactive chat interface, extensible shortcut system, and support
+for AI agents.
 
 ## Architecture & Structure
 
-**Key Directories:**
+- **`cmd/`**: Contains the implementation of CLI commands, such as `agent`, `chat`, `config`, and `status`.
+- **`internal/`**: Houses the core application logic, including:
+  - **`app/`**: Application layer components.
+  - **`domain/`**: Core domain models, interfaces, and business logic.
+  - **`handlers/`**: Command and event handlers for processing user input and system events.
+  - **`services/`**: Business logic services that orchestrate operations.
+  - **`shortcuts/`**: Implements the extensible shortcut system for custom commands.
+  - **`ui/`**: Contains components for the terminal user interface.
+- **`config/`**: Manages configuration loading and manipulation for agents and the gateway.
+- **`docs/`**: Project documentation, including guides on agent configuration, A2A connections, and conversation management.
+- **`examples/`**: Provides example usage of the CLI, including A2A agent setups and basic configurations.
 
-- `cmd/`: CLI command implementations
-- `internal/`: Core application logic
-  - `app/`: Application layer
-  - `domain/`: Domain models and interfaces
-  - `handlers/`: Command and event handlers
-  - `services/`: Business logic services
-  - `shortcuts/`: Extensible shortcut system
-  - `ui/`: Terminal UI components
-- `config/`: Configuration management
-- `docs/`: Documentation
-- `examples/`: Usage examples
+**Architectural Patterns**:
 
-**Architectural Patterns:**
-
-- Clean Architecture with domain-driven design
-- Command pattern for CLI operations
-- Repository pattern for data access
-- Service layer for business logic
-- Dependency injection via container
+- **Clean Architecture**: Emphasizes separation of concerns with layers like domain, application, and infrastructure.
+- **Domain-Driven Design (DDD)**: Core business logic is modeled around the domain.
+- **Command Pattern**: Used for structuring CLI commands.
+- **Repository Pattern**: Abstracting data access for domain entities.
+- **Dependency Injection**: Utilized for managing dependencies, likely via a container.
 
 ## Development Environment
 
-**Setup Instructions:**
-
-- Go 1.25.0+ required
-- Install dependencies: `task setup`
-- Install pre-commit hooks: `task precommit:install`
-
-**Required Tools:**
-
-- Go 1.25.0+
-- golangci-lint
-- Task (taskfile.dev)
-- pre-commit
-- Docker (for container builds)
-
-**Environment Variables:**
-
-- `GITHUB_TOKEN`: For GitHub API access
-- `GOOGLE_SEARCH_API_KEY`: Optional Google search API
-- `GOOGLE_SEARCH_ENGINE_ID`: Optional Google search engine ID
-- `DUCKDUCKGO_SEARCH_API_KEY`: Optional DuckDuckGo API
+- **Setup Instructions**:
+  - **Go Version**: Requires Go 1.25.0 or later.
+  - **Dependencies**: Install project dependencies using `task setup`.
+  - **Pre-commit Hooks**: Install pre-commit hooks with `task precommit:install`.
+- **Required Tools**:
+  - Go (1.25.0+)
+  - `golangci-lint` (for linting)
+  - `Task` (taskfile.dev)
+  - `pre-commit`
+  - Docker (for building container images)
 
 ## Development Workflow
 
-**Build Commands:**
-
-- `task build`: Build binary with version info
-- `task install`: Install to GOPATH/bin
-- `task release:build`: Build multi-platform release binaries
-
-**Testing Procedures:**
-
-- `task test`: Run all tests
-- `task test:verbose`: Run tests with verbose output
-- `task test:coverage`: Run tests with coverage
-- `task vet`: Run go vet
-
-**Code Quality Tools:**
-
-- `task fmt`: Format Go code
-- `task lint`: Run golangci-lint and markdownlint
-- `task check`: Run all quality checks (fmt, vet, test)
-
-**Git Workflow:**
-
-- Main branch development
-- Pre-commit hooks for code quality
-- Conventional commits recommended
-- GitHub Actions for CI/CD
+- **Build Process**: Typically managed via `Task` tasks defined in `Taskfile.yml` (or similar).
+- **Testing**: Unit tests are present (e.g., `*_test.go` files). Running tests is likely done via `task test` or
+  `go test ./...`.
+- **Code Quality**: `golangci-lint` is used for static analysis and linting. Pre-commit hooks ensure code quality
+  before commits.
+- **Git Workflow**: Standard Git workflows are expected. Pre-commit hooks likely enforce commit message formats
+  and code style.
 
 ## Key Commands
 
-**Build:** `task build`
-**Test:** `task test`
-**Lint:** `task lint`
-**Run:** `task run -- <args>`
-**Format:** `task fmt`
-**Clean:** `task clean`
+- **Setup**: `task setup`
+- **Install Pre-commit**: `task precommit:install`
+- **Run Tests**: `task test` or `go test ./...`
+- **Lint Code**: `task lint` or `golangci-lint run`
+- **Build**: `task build` (specific target may vary)
+- **Run CLI**: `go run ./cmd/cli` or executable from `bin/` after building.
 
 ## Testing Instructions
 
-**How to Run Tests:**
-
-- `go test ./...`: Run all tests
-- `go test -v ./...`: Verbose output
-- `go test -cover ./...`: With coverage
-
-**Test Organization:**
-
-- Tests co-located with source files (`*_test.go`)
-- Mock generation using counterfeiter
-- Integration tests in separate packages
-
-**Coverage Requirements:**
-
-- No specific coverage threshold enforced
-- Tests required for all new features
-- Integration tests for critical paths
+- **Running Tests**: Use `task test` or `go test ./...` to execute all unit tests.
+- **Organization**: Tests are co-located with their respective source files (`*_test.go`).
+- **Coverage**: Specific coverage requirements are not detailed here but are typically checked during CI. Use
+  `go test -cover ./...` for local coverage checks.
 
 ## Deployment & Release
 
-**Deployment Processes:**
-
-- Multi-platform binary builds
-- Docker container images
-- GitHub Releases with signed artifacts
-
-**Release Procedures:**
-
-- Automated via GitHub Actions
-- Version tagging with semantic versioning
-- Cosign signatures for security
-
-**CI/CD Pipeline:**
-
-- GitHub Actions workflows for CI
-- Automated testing and linting
-- Multi-platform build validation
+- **Builds**: Dockerfiles are present (e.g., in `examples/a2a/demo-site/`), indicating containerized deployments.
+- **CI/CD**: Likely configured via GitHub Actions or similar, triggered by commits to the main branch and tag
+  creation for releases.
+- **Release Procedures**: Involves building binaries, creating Docker images, and tagging releases. Specific commands
+  are likely defined in the `Taskfile.yml`.
 
 ## Project Conventions
 
-**Coding Standards:**
-
-- Go standard formatting (`gofmt`)
-- golangci-lint configuration
-- Maximum cyclomatic complexity: 25
-- Maximum function length: 150 lines
-
-**Naming Conventions:**
-
-- Go idiomatic naming (camelCase for variables, PascalCase for exports)
-- Clear, descriptive names
-- Interface names end with "er" (e.g., `ToolService`)
-
-**File Organization:**
-
-- Domain-driven structure
-- One type per file (with exceptions for small related types)
-- Test files co-located with source
-
-**Commit Message Formats:**
-
-- Conventional commits preferred
-- Descriptive commit messages
-- Reference issues when applicable
+- **Coding Standards**: Follows Go best practices. `golangci-lint` enforces specific rules.
+- **Naming Conventions**: Standard Go naming conventions (CamelCase for exported, snake_case for unexported where appropriate).
+- **File Organization**: Structured into `cmd`, `internal`, `config`, `docs`, and `examples` directories, with
+  subdirectories reflecting logical components.
+- **Commit Messages**: Likely follow a convention enforced by pre-commit hooks (e.g., Conventional Commits).
 
 ## Important Files & Configurations
 
-**Key Configuration Files:**
-
-- `go.mod`: Go module dependencies
-- `Taskfile.yml`: Build and development tasks
-- `.golangci.yml`: Linter configuration
-- `.pre-commit-config.yaml`: Pre-commit hooks
-- `.github/workflows/ci.yml`: CI pipeline
-
-**Critical Source Files:**
-
-- `cmd/root.go`: Main CLI entry point
-- `internal/domain/interfaces.go`: Core domain interfaces
-- `internal/services/agent.go`: Autonomous agent logic
-- `internal/handlers/chat_handler.go`: Chat interface handling
-
-**Security Considerations:**
-
-- Path exclusions: `.infer/`, `.git/`, `*.env`
-- Tool execution requires approval by default
-- Sandboxed directory access
-- Command whitelisting for Bash tool
+- **`Taskfile.yml`**: Defines automation tasks for building, testing, linting, and setup.
+- **`go.mod` / `go.sum`**: Go module dependency management files.
+- **`.pre-commit-config.yaml`**: Configuration for pre-commit hooks, specifying linters and formatters.
+- **`golangci.yml` (or similar)**: Configuration for `golangci-lint`.
+- **`*.go` files**: Source code files. Key entry points are in `cmd/`.
+- **`docs/`**: Markdown files containing project documentation.
+- **`config/`**: Go files related to application configuration.
+- **`internal/domain`**: Core business logic and interfaces.
+- **`internal/shortcuts`**: Implementation of the shortcut system.
+- **`Dockerfile` (in examples/)**: Example Dockerfiles for building container images.

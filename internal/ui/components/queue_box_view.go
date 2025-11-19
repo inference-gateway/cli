@@ -5,21 +5,20 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "github.com/charmbracelet/lipgloss"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 type QueueBoxView struct {
-	width        int
-	themeService domain.ThemeService
+	width         int
+	styleProvider *styles.Provider
 }
 
-func NewQueueBoxView(themeService domain.ThemeService) *QueueBoxView {
+func NewQueueBoxView(styleProvider *styles.Provider) *QueueBoxView {
 	return &QueueBoxView{
-		width:        80,
-		themeService: themeService,
+		width:         80,
+		styleProvider: styleProvider,
 	}
 }
 
@@ -46,23 +45,16 @@ func (qv *QueueBoxView) Render(queuedMessages []domain.QueuedMessage, background
 	}
 
 	separator := strings.Repeat("─", qv.width-4)
-	dimSeparator := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(colors.DimColor.Lipgloss)).
-		Render(separator)
+	dimColor := qv.styleProvider.GetThemeColor("dim")
+	dimSeparator := qv.styleProvider.RenderWithColor(separator, dimColor)
 
 	contentText := strings.Join(sections, "\n"+dimSeparator+"\n")
 
-	boxStyle := lipgloss.NewStyle().
-		Padding(0, 1).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(colors.DimColor.Lipgloss))
-
-	return boxStyle.Render(contentText)
+	return qv.styleProvider.RenderBorderedBox(contentText, dimColor, 0, 1)
 }
 
 func (qv *QueueBoxView) renderBackgroundTasks(backgroundTasks []domain.TaskPollingState) string {
-	accentColor := qv.getAccentColor()
-	dimColor := qv.getDimColor()
+	accentColor := qv.styleProvider.GetThemeColor("accent")
 
 	count := len(backgroundTasks)
 	taskWord := "task"
@@ -70,45 +62,32 @@ func (qv *QueueBoxView) renderBackgroundTasks(backgroundTasks []domain.TaskPolli
 		taskWord = "tasks"
 	}
 
-	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(accentColor)).
-		Bold(true)
-
-	hintStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(dimColor)).
-		Italic(true)
-
 	titleText := fmt.Sprintf("Background Tasks (%d)", count)
 	hintText := fmt.Sprintf("  %d active %s running • Type /tasks to view details", count, taskWord)
 
-	return titleStyle.Render(titleText) + "\n" + hintStyle.Render(hintText)
+	return qv.styleProvider.RenderWithColorAndBold(titleText, accentColor) + "\n" + qv.styleProvider.RenderDimText(hintText)
 }
 
 func (qv *QueueBoxView) renderQueuedMessages(queuedMessages []domain.QueuedMessage) string {
-	accentColor := qv.getAccentColor()
+	accentColor := qv.styleProvider.GetThemeColor("accent")
 	titleText := fmt.Sprintf("Queued Messages (%d)", len(queuedMessages))
-	titleStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(accentColor)).
-		Bold(true)
 
 	var messageLines []string
 	for _, queuedMsg := range queuedMessages {
 		messageLines = append(messageLines, qv.formatQueuedMessage(queuedMsg))
 	}
 
-	return titleStyle.Render(titleText) + "\n" + strings.Join(messageLines, "\n")
+	return qv.styleProvider.RenderWithColorAndBold(titleText, accentColor) + "\n" + strings.Join(messageLines, "\n")
 }
 
 func (qv *QueueBoxView) formatQueuedMessage(queuedMsg domain.QueuedMessage) string {
-	accentColor := qv.getAccentColor()
+	accentColor := qv.styleProvider.GetThemeColor("accent")
+	dimColor := qv.styleProvider.GetThemeColor("dim")
 	preview := qv.formatMessagePreview(queuedMsg)
 
-	arrowStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
-	previewStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(colors.QueuedMessageColor.Lipgloss))
-
 	formattedLine := fmt.Sprintf("  %s %s",
-		arrowStyle.Render("→"),
-		previewStyle.Render(preview),
+		qv.styleProvider.RenderWithColor("→", accentColor),
+		qv.styleProvider.RenderWithColor(preview, dimColor),
 	)
 
 	return formattedLine
@@ -149,15 +128,4 @@ func (qv *QueueBoxView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		qv.SetWidth(windowMsg.Width)
 	}
 	return qv, nil
-}
-
-func (qv *QueueBoxView) getAccentColor() string {
-	if qv.themeService != nil {
-		return qv.themeService.GetCurrentTheme().GetAccentColor()
-	}
-	return colors.AccentColor.Lipgloss
-}
-
-func (qv *QueueBoxView) getDimColor() string {
-	return colors.DimColor.Lipgloss
 }

@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // ModelSelectorImpl implements model selection UI
@@ -16,7 +16,7 @@ type ModelSelectorImpl struct {
 	selected       int
 	width          int
 	height         int
-	themeService   domain.ThemeService
+	styleProvider  *styles.Provider
 	done           bool
 	cancelled      bool
 	modelService   domain.ModelService
@@ -25,14 +25,14 @@ type ModelSelectorImpl struct {
 }
 
 // NewModelSelector creates a new model selector
-func NewModelSelector(models []string, modelService domain.ModelService, themeService domain.ThemeService) *ModelSelectorImpl {
+func NewModelSelector(models []string, modelService domain.ModelService, styleProvider *styles.Provider) *ModelSelectorImpl {
 	m := &ModelSelectorImpl{
 		models:         models,
 		filteredModels: make([]string, len(models)),
 		selected:       0,
 		width:          80,
 		height:         24,
-		themeService:   themeService,
+		styleProvider:  styleProvider,
 		modelService:   modelService,
 		searchQuery:    "",
 		searchMode:     false,
@@ -146,25 +146,30 @@ func (m *ModelSelectorImpl) updateSearch() {
 func (m *ModelSelectorImpl) View() string {
 	var b strings.Builder
 
-	b.WriteString(fmt.Sprintf("%sSelect a Model%s\n\n",
-		m.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset))
+	accentColor := m.styleProvider.GetThemeColor("accent")
+	b.WriteString(m.styleProvider.RenderWithColor("Select a Model", accentColor))
+	b.WriteString("\n\n")
 
 	if m.searchMode {
-		b.WriteString(fmt.Sprintf("%sSearch: %s%s│%s\n\n",
-			m.themeService.GetCurrentTheme().GetStatusColor(), m.searchQuery, m.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset))
+		statusColor := m.styleProvider.GetThemeColor("status")
+		b.WriteString(m.styleProvider.RenderWithColor("Search: "+m.searchQuery, statusColor))
+		b.WriteString(m.styleProvider.RenderWithColor("│", accentColor))
+		b.WriteString("\n\n")
 	} else {
-		b.WriteString(fmt.Sprintf("%sPress / to search • %d models available%s\n\n",
-			m.themeService.GetCurrentTheme().GetDimColor(), len(m.models), colors.Reset))
+		helpText := fmt.Sprintf("Press / to search • %d models available", len(m.models))
+		b.WriteString(m.styleProvider.RenderDimText(helpText))
+		b.WriteString("\n\n")
 	}
 
 	if len(m.filteredModels) == 0 {
+		errorColor := m.styleProvider.GetThemeColor("error")
+
 		if m.searchQuery != "" {
-			b.WriteString(fmt.Sprintf("%sNo models match '%s'%s\n",
-				m.themeService.GetCurrentTheme().GetErrorColor(), m.searchQuery, colors.Reset))
+			b.WriteString(m.styleProvider.RenderWithColor(fmt.Sprintf("No models match '%s'", m.searchQuery), errorColor))
 		} else {
-			b.WriteString(fmt.Sprintf("%sNo models available%s\n",
-				m.themeService.GetCurrentTheme().GetErrorColor(), colors.Reset))
+			b.WriteString(m.styleProvider.RenderWithColor("No models available", errorColor))
 		}
+		b.WriteString("\n")
 		return b.String()
 	}
 
@@ -182,27 +187,28 @@ func (m *ModelSelectorImpl) View() string {
 		model := m.filteredModels[i]
 
 		if i == m.selected {
-			b.WriteString(fmt.Sprintf("%s▶ %s%s\n",
-				m.themeService.GetCurrentTheme().GetAccentColor(), model, colors.Reset))
+			b.WriteString(m.styleProvider.RenderWithColor("▶ "+model, accentColor))
+			b.WriteString("\n")
 		} else {
 			b.WriteString(fmt.Sprintf("  %s\n", model))
 		}
 	}
 
 	if len(m.filteredModels) > maxVisible {
-		b.WriteString(fmt.Sprintf("\n%sShowing %d-%d of %d models%s\n",
-			m.themeService.GetCurrentTheme().GetDimColor(), start+1, start+maxVisible, len(m.filteredModels), colors.Reset))
+		paginationText := fmt.Sprintf("Showing %d-%d of %d models", start+1, start+maxVisible, len(m.filteredModels))
+		b.WriteString("\n")
+		b.WriteString(m.styleProvider.RenderDimText(paginationText))
+		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(colors.CreateSeparator(m.width, "─"))
+	b.WriteString(strings.Repeat("─", m.width))
 	b.WriteString("\n")
+
 	if m.searchMode {
-		b.WriteString(fmt.Sprintf("%sType to search, ↑↓ to navigate, Enter to select, Esc to clear search%s",
-			m.themeService.GetCurrentTheme().GetDimColor(), colors.Reset))
+		b.WriteString(m.styleProvider.RenderDimText("Type to search, ↑↓ to navigate, Enter to select, Esc to clear search"))
 	} else {
-		b.WriteString(fmt.Sprintf("%sUse ↑↓ arrows to navigate, Enter to select, / to search, Esc/Ctrl+C to cancel%s",
-			m.themeService.GetCurrentTheme().GetDimColor(), colors.Reset))
+		b.WriteString(m.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter to select, / to search, Esc/Ctrl+C to cancel"))
 	}
 
 	return b.String()

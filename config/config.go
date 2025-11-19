@@ -254,7 +254,7 @@ type GitConfig struct {
 // A2AConfig contains A2A agent configuration
 type A2AConfig struct {
 	Enabled bool           `yaml:"enabled" mapstructure:"enabled"`
-	Agents  []string       `yaml:"agents" mapstructure:"agents"`
+	Agents  []string       `yaml:"agents,omitempty" mapstructure:"agents"`
 	Cache   A2ACacheConfig `yaml:"cache" mapstructure:"cache"`
 	Task    A2ATaskConfig  `yaml:"task" mapstructure:"task"`
 	Tools   A2AToolsConfig `yaml:"tools" mapstructure:"tools"`
@@ -417,24 +417,17 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled: true,
 				Whitelist: ToolWhitelistConfig{
 					Commands: []string{
-						"ls", "pwd", "echo",
-						"wc", "sort", "uniq",
-						"task",
+						"ls", "pwd", "tree",
+						"wc", "sort", "uniq", "head", "tail",
+						"task", "make", "find",
 					},
 					Patterns: []string{
-						"^git branch( --show-current)?$",
-						"^git checkout -b [a-zA-Z0-9/_-]+( [a-zA-Z0-9/_-]+)?$",
-						"^git checkout [a-zA-Z0-9/_-]+",
-						"^git add [a-zA-Z0-9/_.-]+",
-						"^git diff+",
-						"^git remote -v$",
 						"^git status$",
-						"^git log --oneline -n [0-9]+$",
-						"^git commit",
-						"^git push( --set-upstream)?( origin)? (feature|fix|bugfix|hotfix|chore|docs|test|refactor|build|ci|perf|style)/[a-zA-Z0-9/_.-]+$",
-						"^git push( --set-upstream)?( origin)? develop$",
-						"^git push( --set-upstream)?( origin)? staging$",
-						"^git push( --set-upstream)?( origin)? release/[a-zA-Z0-9._-]+$",
+						"^git branch( --show-current)?( -[alrvd])?$",
+						"^git log",
+						"^git diff",
+						"^git remote( -v)?$",
+						"^git show",
 					},
 				},
 			},
@@ -794,6 +787,26 @@ func (c *Config) GetProtectedPaths() []string {
 
 func (c *Config) GetTheme() string {
 	return c.Chat.Theme
+}
+
+// IsBashCommandWhitelisted checks if a specific bash command is whitelisted
+func (c *Config) IsBashCommandWhitelisted(command string) bool {
+	command = strings.TrimSpace(command)
+
+	for _, allowed := range c.Tools.Bash.Whitelist.Commands {
+		if command == allowed || strings.HasPrefix(command, allowed+" ") {
+			return true
+		}
+	}
+
+	for _, pattern := range c.Tools.Bash.Whitelist.Patterns {
+		matched, err := regexp.MatchString(pattern, command)
+		if err == nil && matched {
+			return true
+		}
+	}
+
+	return false
 }
 
 // ValidatePathInSandbox checks if a path is within the configured sandbox directories

@@ -4,26 +4,25 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "github.com/charmbracelet/lipgloss"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // HelpBar displays keyboard shortcuts at the bottom of the screen
 type HelpBar struct {
-	enabled      bool
-	width        int
-	shortcuts    []shared.KeyShortcut
-	themeService domain.ThemeService
+	enabled       bool
+	width         int
+	shortcuts     []shared.KeyShortcut
+	styleProvider *styles.Provider
 }
 
-func NewHelpBar(themeService domain.ThemeService) *HelpBar {
+func NewHelpBar(styleProvider *styles.Provider) *HelpBar {
 	return &HelpBar{
-		enabled:      false,
-		width:        80,
-		shortcuts:    make([]shared.KeyShortcut, 0),
-		themeService: themeService,
+		enabled:       false,
+		width:         80,
+		shortcuts:     make([]shared.KeyShortcut, 0),
+		styleProvider: styleProvider,
 	}
 }
 
@@ -151,20 +150,19 @@ func (hb *HelpBar) renderResponsiveTable() string {
 				}
 			}
 
-			cellStyle := lipgloss.NewStyle().
-				Width(colWidth).
-				Align(lipgloss.Left)
-			cells = append(cells, cellStyle.Render(cellText))
+			cellText = hb.styleProvider.RenderStyledText(cellText, styles.StyleOptions{
+				Width: colWidth,
+			})
+			cells = append(cells, cellText)
 		}
-		tableRows = append(tableRows, lipgloss.JoinHorizontal(lipgloss.Left, cells...))
+		tableRows = append(tableRows, hb.styleProvider.JoinHorizontal(cells...))
 	}
 
-	dimColor := hb.getDimColor()
-	tableStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(dimColor)).
-		Width(hb.width)
-
-	return tableStyle.Render(strings.Join(tableRows, "\n"))
+	fullTable := strings.Join(tableRows, "\n")
+	return hb.styleProvider.RenderStyledText(fullTable, styles.StyleOptions{
+		Foreground: hb.styleProvider.GetThemeColor("dim"),
+		Width:      hb.width,
+	})
 }
 
 // Bubble Tea interface
@@ -182,12 +180,4 @@ func (hb *HelpBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		hb.enabled = false
 	}
 	return hb, nil
-}
-
-// Helper method to get theme colors with fallback
-func (hb *HelpBar) getDimColor() string {
-	if hb.themeService != nil {
-		return hb.themeService.GetCurrentTheme().GetDimColor()
-	}
-	return colors.DimColor.Lipgloss
 }

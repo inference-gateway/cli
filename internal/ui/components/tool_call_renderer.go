@@ -7,10 +7,9 @@ import (
 
 	spinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "github.com/charmbracelet/lipgloss"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -21,7 +20,7 @@ type ToolCallRenderer struct {
 	spinner            spinner.Model
 	toolPreviews       map[string]*domain.ToolCallPreviewEvent
 	toolPreviewsOrder  []string
-	styles             *toolRenderStyles
+	styleProvider      *styles.Provider
 	lastUpdate         time.Time
 	parallelTools      map[string]*ParallelToolState
 	parallelToolsOrder []string
@@ -39,64 +38,20 @@ type ParallelToolState struct {
 	MinShowTime time.Duration
 }
 
-type toolRenderStyles struct {
-	statusStreaming lipgloss.Style
-	statusComplete  lipgloss.Style
-	statusReady     lipgloss.Style
-	statusDefault   lipgloss.Style
-	toolCallMeta    lipgloss.Style
-	toolCallArgs    lipgloss.Style
-	spinner         lipgloss.Style
-	toolName        lipgloss.Style
-	argsContainer   lipgloss.Style
-}
-
 type ToolInfo struct {
 	Name   string
 	Prefix string
 }
 
-func NewToolCallRenderer() *ToolCallRenderer {
+func NewToolCallRenderer(styleProvider *styles.Provider) *ToolCallRenderer {
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-
-	styles := &toolRenderStyles{
-		statusStreaming: lipgloss.NewStyle().
-			Foreground(colors.SpinnerColor.GetLipglossColor()).
-			Bold(true),
-		statusComplete: lipgloss.NewStyle().
-			Foreground(colors.SuccessColor.GetLipglossColor()).
-			Bold(true),
-		statusReady: lipgloss.NewStyle().
-			Foreground(colors.WarningColor.GetLipglossColor()).
-			Bold(true),
-		statusDefault: lipgloss.NewStyle().
-			Foreground(colors.DimColor.GetLipglossColor()),
-		toolCallMeta: lipgloss.NewStyle().
-			Foreground(colors.DimColor.GetLipglossColor()).
-			Italic(true),
-		toolCallArgs: lipgloss.NewStyle().
-			Foreground(colors.DimColor.GetLipglossColor()).
-			MarginLeft(2),
-		spinner: lipgloss.NewStyle().
-			Foreground(colors.SpinnerColor.GetLipglossColor()),
-		toolName: lipgloss.NewStyle().
-			Foreground(colors.AccentColor.GetLipglossColor()).
-			Bold(true),
-		argsContainer: lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder(), false, false, false, true).
-			BorderForeground(colors.DimColor.GetLipglossColor()).
-			PaddingLeft(2).
-			MarginTop(1),
-	}
-
-	s.Style = styles.spinner
 
 	return &ToolCallRenderer{
 		spinner:       s,
 		toolPreviews:  make(map[string]*domain.ToolCallPreviewEvent),
 		parallelTools: make(map[string]*ParallelToolState),
-		styles:        styles,
+		styleProvider: styleProvider,
 		width:         80,
 	}
 }
@@ -190,8 +145,7 @@ func (r *ToolCallRenderer) SetWidth(width int) {
 }
 
 func (r *ToolCallRenderer) updateArgsContainerWidth() {
-	r.styles.argsContainer = r.styles.argsContainer.Width(r.width - 6)
-	r.styles.toolCallArgs = r.styles.toolCallArgs.Width(r.width - 8)
+	// Width is now handled dynamically by styleProvider methods
 }
 
 func (r *ToolCallRenderer) RenderPreviews() string {
@@ -255,42 +209,37 @@ func (r *ToolCallRenderer) shouldShowPreview(*domain.ToolCallPreviewEvent) bool 
 func (r *ToolCallRenderer) renderToolPreview(preview *domain.ToolCallPreviewEvent) string {
 	var statusIcon string
 	var statusText string
-	var statusStyle lipgloss.Style
+	var colorName string
 
 	switch preview.Status {
 	case domain.ToolCallStreamStatusStreaming:
 		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
 		statusText = "executing"
-		statusStyle = r.styles.statusStreaming
+		colorName = "spinner"
 	case domain.ToolCallStreamStatusComplete:
 		statusIcon = icons.CheckMark
 		statusText = "completed"
-		statusStyle = r.styles.statusComplete
+		colorName = "success"
 	case domain.ToolCallStreamStatusReady:
 		statusIcon = icons.QueuedIcon
 		statusText = "ready"
-		statusStyle = r.styles.statusDefault.Foreground(colors.DimColor.GetLipglossColor())
+		colorName = "dim"
 	default:
 		statusIcon = icons.BulletIcon
 		statusText = "unknown"
-		statusStyle = r.styles.statusDefault
+		colorName = "dim"
 	}
 
 	toolInfo := r.parseToolName(preview.ToolName)
 	argsPreview := r.formatArgsPreview(preview.Arguments)
 
-	header := lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		statusStyle.Render(fmt.Sprintf("%s %s:%s", statusIcon, toolInfo.Prefix, toolInfo.Name)),
-		r.styles.toolCallMeta.Render(fmt.Sprintf(" (%s)", statusText)),
-	)
+	statusPart := r.styleProvider.RenderWithColor(fmt.Sprintf("%s %s:%s", statusIcon, toolInfo.Prefix, toolInfo.Name), r.styleProvider.GetThemeColor(colorName))
+	metaPart := r.styleProvider.RenderDimText(fmt.Sprintf(" (%s)", statusText))
+	header := statusPart + metaPart
 
 	if argsPreview != "" {
-		return lipgloss.JoinVertical(
-			lipgloss.Left,
-			header,
-			r.styles.toolCallArgs.Render(fmt.Sprintf("  %s", argsPreview)),
-		)
+		argsPart := r.styleProvider.RenderDimText(fmt.Sprintf("  %s", argsPreview))
+		return r.styleProvider.JoinVertical(header, argsPart)
 	}
 
 	return header
@@ -323,18 +272,17 @@ func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, s
 		statusText = status
 	}
 
+	toolNameColor := r.styleProvider.GetThemeColor("accent")
 	var header string
 	if toolInfo.Prefix != "TOOL" {
-		header = fmt.Sprintf("%s %s:%s (%s)",
-			statusIcon,
-			r.styles.toolName.Render(toolInfo.Prefix),
-			r.styles.toolName.Render(toolInfo.Name),
-			r.styles.toolCallMeta.Render(statusText))
+		prefixPart := r.styleProvider.RenderWithColorAndBold(toolInfo.Prefix, toolNameColor)
+		namePart := r.styleProvider.RenderWithColorAndBold(toolInfo.Name, toolNameColor)
+		metaPart := r.styleProvider.RenderDimText(statusText)
+		header = fmt.Sprintf("%s %s:%s (%s)", statusIcon, prefixPart, namePart, metaPart)
 	} else {
-		header = fmt.Sprintf("%s %s (%s)",
-			statusIcon,
-			r.styles.toolName.Render(toolInfo.Name),
-			r.styles.toolCallMeta.Render(statusText))
+		namePart := r.styleProvider.RenderWithColorAndBold(toolInfo.Name, toolNameColor)
+		metaPart := r.styleProvider.RenderDimText(statusText)
+		header = fmt.Sprintf("%s %s (%s)", statusIcon, namePart, metaPart)
 	}
 
 	if arguments != "" && arguments != "{}" {
@@ -343,8 +291,8 @@ func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, s
 			args = args[:197] + "..."
 		}
 
-		formattedArgs := r.styles.toolCallArgs.Render(args)
-		return fmt.Sprintf("%s\n%s", header, r.styles.argsContainer.Render(formattedArgs))
+		formattedArgs := r.styleProvider.RenderDimText(args)
+		return r.styleProvider.JoinVertical(header, formattedArgs)
 	}
 
 	return header
@@ -394,38 +342,35 @@ func (r *ToolCallRenderer) hasActiveParallelTools() bool {
 func (r *ToolCallRenderer) renderParallelTool(tool *ParallelToolState) string {
 	var statusIcon string
 	var statusText string
-	var statusStyle lipgloss.Style
+	var colorName string
 
 	switch tool.Status {
 	case "queued":
 		statusIcon = icons.QueuedIcon
 		statusText = "queued"
-		statusStyle = r.styles.statusDefault.Foreground(colors.DimColor.GetLipglossColor())
+		colorName = "dim"
 	case "running", "starting", "saving":
 		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
 		statusText = "executing"
-		statusStyle = r.styles.statusStreaming
+		colorName = "spinner"
 	case "complete":
 		statusIcon = icons.CheckMark
 		statusText = "completed"
-		statusStyle = r.styles.statusComplete
+		colorName = "success"
 	case "failed":
 		statusIcon = icons.CrossMark
 		statusText = "failed"
-		statusStyle = r.styles.statusComplete.Foreground(colors.ErrorColor.GetLipglossColor())
+		colorName = "error"
 	default:
 		statusIcon = icons.BulletIcon
 		statusText = tool.Status
-		statusStyle = r.styles.statusDefault
+		colorName = "dim"
 	}
 
 	toolInfo := r.parseToolName(tool.ToolName)
 
-	header := lipgloss.JoinHorizontal(
-		lipgloss.Left,
-		statusStyle.Render(fmt.Sprintf("%s %s:%s", statusIcon, toolInfo.Prefix, toolInfo.Name)),
-		r.styles.toolCallMeta.Render(fmt.Sprintf(" (%s)", statusText)),
-	)
+	statusPart := r.styleProvider.RenderWithColor(fmt.Sprintf("%s %s:%s", statusIcon, toolInfo.Prefix, toolInfo.Name), r.styleProvider.GetThemeColor(colorName))
+	metaPart := r.styleProvider.RenderDimText(fmt.Sprintf(" (%s)", statusText))
 
-	return header
+	return statusPart + metaPart
 }

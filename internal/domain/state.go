@@ -28,6 +28,7 @@ type ApplicationState struct {
 
 	// UI State
 	fileSelectionState *FileSelectionState
+	approvalUIState    *ApprovalUIState
 
 	// Debugging
 	debugMode bool
@@ -45,6 +46,7 @@ const (
 	ViewStateThemeSelection
 	ViewStateA2AServers
 	ViewStateA2ATaskManagement
+	ViewStateToolApproval
 )
 
 func (v ViewState) String() string {
@@ -65,6 +67,8 @@ func (v ViewState) String() string {
 		return "A2AServers"
 	case ViewStateA2ATaskManagement:
 		return "A2ATaskManagement"
+	case ViewStateToolApproval:
+		return "ToolApproval"
 	default:
 		return "Unknown"
 	}
@@ -155,6 +159,7 @@ type ToolCallStatus int
 
 const (
 	ToolCallStatusPending ToolCallStatus = iota
+	ToolCallStatusWaitingApproval
 	ToolCallStatusExecuting
 	ToolCallStatusCompleted
 	ToolCallStatusFailed
@@ -166,6 +171,8 @@ func (t ToolCallStatus) String() string {
 	switch t {
 	case ToolCallStatusPending:
 		return "Pending"
+	case ToolCallStatusWaitingApproval:
+		return "WaitingApproval"
 	case ToolCallStatusExecuting:
 		return "Executing"
 	case ToolCallStatusCompleted:
@@ -209,11 +216,37 @@ func (t ToolExecutionStatus) String() string {
 	}
 }
 
+// ApprovalAction represents the user's choice for tool approval
+type ApprovalAction int
+
+const (
+	ApprovalApprove ApprovalAction = iota
+	ApprovalReject
+)
+
+func (a ApprovalAction) String() string {
+	switch a {
+	case ApprovalApprove:
+		return "Approve"
+	case ApprovalReject:
+		return "Reject"
+	default:
+		return "Unknown"
+	}
+}
+
 // FileSelectionState represents the state of file selection UI
 type FileSelectionState struct {
 	Files         []string `json:"files"`
 	SearchQuery   string   `json:"search_query"`
 	SelectedIndex int      `json:"selected_index"`
+}
+
+// ApprovalUIState represents the state of approval UI
+type ApprovalUIState struct {
+	SelectedIndex   int                                `json:"selected_index"`
+	PendingToolCall *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call"`
+	ResponseChan    chan ApprovalAction                `json:"-"`
 }
 
 // NewApplicationState creates a new application state
@@ -261,6 +294,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateThemeSelection,
 			ViewStateA2AServers,
 			ViewStateA2ATaskManagement,
+			ViewStateToolApproval,
 		},
 		ViewStateFileSelection:         {ViewStateChat},
 		ViewStateTextSelection:         {ViewStateChat},
@@ -268,6 +302,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateThemeSelection:        {ViewStateChat},
 		ViewStateA2AServers:            {ViewStateChat},
 		ViewStateA2ATaskManagement:     {ViewStateChat},
+		ViewStateToolApproval:          {ViewStateChat},
 	}
 
 	allowed, exists := validTransitions[from]
@@ -580,6 +615,37 @@ func (s *ApplicationState) SetFileSelectedIndex(index int) {
 // ClearFileSelectionState clears the file selection state
 func (s *ApplicationState) ClearFileSelectionState() {
 	s.fileSelectionState = nil
+}
+
+// Approval State Management
+
+// SetupApprovalUIState initializes approval UI state with the pending tool call
+func (s *ApplicationState) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan ApprovalAction) {
+	s.approvalUIState = &ApprovalUIState{
+		SelectedIndex:   int(ApprovalApprove), // Default to approve
+		PendingToolCall: toolCall,
+		ResponseChan:    responseChan,
+	}
+}
+
+// GetApprovalUIState returns the current approval UI state
+func (s *ApplicationState) GetApprovalUIState() *ApprovalUIState {
+	return s.approvalUIState
+}
+
+// SetApprovalSelectedIndex sets the approval selection index
+func (s *ApplicationState) SetApprovalSelectedIndex(index int) {
+	if s.approvalUIState != nil {
+		s.approvalUIState.SelectedIndex = index
+	}
+}
+
+// ClearApprovalUIState clears the approval UI state
+func (s *ApplicationState) ClearApprovalUIState() {
+	if s.approvalUIState != nil && s.approvalUIState.ResponseChan != nil {
+		close(s.approvalUIState.ResponseChan)
+	}
+	s.approvalUIState = nil
 }
 
 // StateSnapshot represents a point-in-time snapshot of application state

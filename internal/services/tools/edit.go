@@ -10,6 +10,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -663,7 +664,9 @@ func (t *EditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 
 // FormatArgumentsForApproval formats arguments for approval display with diff preview
 func (t *EditTool) FormatArgumentsForApproval(args map[string]any) string {
-	// Use colored diff renderer
-	diffRenderer := components.NewToolDiffRenderer()
+	// Use colored diff renderer with default theme
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	diffRenderer := components.NewToolDiffRenderer(styleProvider)
 	return diffRenderer.RenderEditToolArguments(args)
 }

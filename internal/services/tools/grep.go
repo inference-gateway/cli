@@ -11,6 +11,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -25,6 +26,7 @@ type GrepTool struct {
 	enabled        bool
 	gitignore      *ignore.GitIgnore
 	gitignoreCache map[string]*ignore.GitIgnore
+	cacheMutex     sync.RWMutex
 	ripgrepPath    string
 	useRipgrep     bool
 	formatter      domain.BaseFormatter
@@ -973,6 +975,16 @@ func (t *GrepTool) loadGitignore() {
 
 // getOrLoadDirGitignore loads and caches .gitignore for a specific directory
 func (t *GrepTool) getOrLoadDirGitignore(dirPath string) *ignore.GitIgnore {
+	t.cacheMutex.RLock()
+	if cached, exists := t.gitignoreCache[dirPath]; exists {
+		t.cacheMutex.RUnlock()
+		return cached
+	}
+	t.cacheMutex.RUnlock()
+
+	t.cacheMutex.Lock()
+	defer t.cacheMutex.Unlock()
+
 	if cached, exists := t.gitignoreCache[dirPath]; exists {
 		return cached
 	}

@@ -22,6 +22,7 @@ func NewDefaultTheme() *DefaultTheme { return &DefaultTheme{} }
 func (t *DefaultTheme) GetUserColor() string       { return colors.UserColor.ANSI }
 func (t *DefaultTheme) GetAssistantColor() string  { return colors.AssistantColor.ANSI }
 func (t *DefaultTheme) GetErrorColor() string      { return colors.ErrorColor.ANSI }
+func (t *DefaultTheme) GetSuccessColor() string    { return colors.SuccessColor.ANSI }
 func (t *DefaultTheme) GetStatusColor() string     { return colors.StatusColor.ANSI }
 func (t *DefaultTheme) GetAccentColor() string     { return colors.AccentColor.ANSI }
 func (t *DefaultTheme) GetDimColor() string        { return colors.DimColor.ANSI }

@@ -19,6 +19,7 @@ import (
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // ChatApplication represents the main application model using state management
@@ -54,6 +55,7 @@ type ChatApplication struct {
 	a2aServersView       *components.A2AServersView
 	taskManager          *components.TaskManagerImpl
 	toolCallRenderer     *components.ToolCallRenderer
+	approvalComponent    *components.ApprovalComponent
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -117,9 +119,15 @@ func NewChatApplication(
 		logger.Error("Failed to transition to initial view", "error", err)
 	}
 
-	app.toolCallRenderer = components.NewToolCallRenderer()
+	styleProvider := styles.NewProvider(app.themeService)
+
+	app.toolCallRenderer = components.NewToolCallRenderer(styleProvider)
+	app.approvalComponent = components.NewApprovalComponent(styleProvider)
 	app.conversationView = ui.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
+
+	app.approvalComponent.SetToolFormatter(toolFormatterService)
+
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
@@ -137,23 +145,23 @@ func NewChatApplication(
 	}
 	app.statusView = ui.CreateStatusView(app.themeService)
 	app.helpBar = ui.CreateHelpBar(app.themeService)
-	app.queueBoxView = components.NewQueueBoxView(app.themeService)
+	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 
-	app.fileSelectionView = components.NewFileSelectionView(app.themeService)
-	app.textSelectionView = components.NewTextSelectionView()
+	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
+	app.textSelectionView = components.NewTextSelectionView(styleProvider)
 
-	app.applicationViewRenderer = components.NewApplicationViewRenderer(app.themeService)
-	app.fileSelectionHandler = components.NewFileSelectionHandler(app.themeService)
+	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
+	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
 
 	app.keyBindingManager = keybinding.NewKeyBindingManager(app)
 	app.updateHelpBarShortcuts()
 
-	app.modelSelector = components.NewModelSelector(models, app.modelService, app.themeService)
-	app.themeSelector = components.NewThemeSelector(app.themeService)
+	app.modelSelector = components.NewModelSelector(models, app.modelService, styleProvider)
+	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 
 	if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
-		app.conversationSelector = components.NewConversationSelector(adapter, app.themeService)
+		app.conversationSelector = components.NewConversationSelector(adapter, styleProvider)
 	} else {
 		app.conversationSelector = nil
 	}
@@ -290,6 +298,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleA2AServersView(msg)
 	case domain.ViewStateA2ATaskManagement:
 		return app.handleA2ATaskManagementView(msg)
+	case domain.ViewStateToolApproval:
+		return app.handleToolApprovalView(msg)
 	default:
 		return nil
 	}
@@ -336,6 +346,31 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd 
 
 	if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
 		cmds = append(cmds, cmd)
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) handleToolApprovalView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	if approvalEvent, ok := msg.(domain.ToolApprovalResponseEvent); ok {
+		approvalState := app.stateManager.GetApprovalUIState()
+		if approvalState != nil && approvalState.ResponseChan != nil {
+			approvalState.ResponseChan <- approvalEvent.Action
+
+			if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+				logger.Error("Failed to transition back to chat view", "error", err)
+			}
+
+			app.stateManager.ClearApprovalUIState()
+		}
 	}
 
 	return cmds
@@ -403,6 +438,8 @@ func (app *ChatApplication) View() string {
 		return app.renderA2AServers()
 	case domain.ViewStateA2ATaskManagement:
 		return app.renderA2ATaskManagement()
+	case domain.ViewStateToolApproval:
+		return app.renderToolApproval()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -579,7 +616,8 @@ func (app *ChatApplication) handleA2AServersView(msg tea.Msg) []tea.Cmd {
 			a2aAgentService = a2a.GetA2AAgentService()
 		}
 	}
-	app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, app.themeService)
+	styleProvider := styles.NewProvider(app.themeService)
+	app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, styleProvider)
 
 	ctx := context.Background()
 	if cmd := app.a2aServersView.LoadServers(ctx); cmd != nil {
@@ -660,7 +698,8 @@ func (app *ChatApplication) updateAllComponentsWithNewTheme() {
 		inputView.SetThemeService(app.themeService)
 	}
 
-	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.themeService)
+	styleProvider := styles.NewProvider(app.themeService)
+	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, styleProvider)
 }
 
 func (app *ChatApplication) renderThemeSelection() string {
@@ -678,7 +717,8 @@ func (app *ChatApplication) renderA2AServers() string {
 				a2aAgentService = a2a.GetA2AAgentService()
 			}
 		}
-		app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, app.themeService)
+		styleProvider := styles.NewProvider(app.themeService)
+		app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, styleProvider)
 	}
 
 	width, height := app.stateManager.GetDimensions()
@@ -707,6 +747,19 @@ func (app *ChatApplication) renderA2ATaskManagement() string {
 	app.taskManager.SetWidth(width)
 	app.taskManager.SetHeight(height)
 	return app.taskManager.View()
+}
+
+func (app *ChatApplication) renderToolApproval() string {
+	approvalState := app.stateManager.GetApprovalUIState()
+	if approvalState == nil {
+		return "No pending tool approval"
+	}
+
+	width, height := app.stateManager.GetDimensions()
+	app.approvalComponent.SetDimensions(width, height)
+
+	theme := app.themeService.GetCurrentTheme()
+	return app.approvalComponent.Render(approvalState, theme)
 }
 
 func (app *ChatApplication) renderChatInterface() string {

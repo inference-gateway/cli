@@ -12,6 +12,11 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
+const (
+	// AgentContainerPrefix is the naming prefix for agent containers
+	AgentContainerPrefix = "inference-agent-"
+)
+
 // AgentManager manages the lifecycle of A2A agent containers
 type AgentManager struct {
 	config       *config.Config
@@ -92,11 +97,14 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 
 // StopAgents stops all running agent containers
 func (am *AgentManager) StopAgents(ctx context.Context) error {
+	logger.Info("Stopping agents", "trackedCount", len(am.containers))
+
 	for agentName := range am.containers {
 		if err := am.StopAgent(ctx, agentName); err != nil {
 			logger.Warn("Failed to stop agent", "name", agentName, "error", err)
 		}
 	}
+
 	am.isRunning = false
 	return nil
 }
@@ -154,7 +162,7 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	args := []string{
 		"run",
 		"-d",
-		"--name", fmt.Sprintf("infer-agent-%s", agent.Name),
+		"--name", fmt.Sprintf("%s%s", AgentContainerPrefix, agent.Name),
 		"-p", fmt.Sprintf("%s:8080", port),
 		"--rm",
 	}
@@ -182,7 +190,7 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 
 // isAgentRunning checks if an agent container is already running
 func (am *AgentManager) isAgentRunning(agentName string) bool {
-	containerName := fmt.Sprintf("infer-agent-%s", agentName)
+	containerName := fmt.Sprintf("%s%s", AgentContainerPrefix, agentName)
 	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.ID}}")
 	output, err := cmd.CombinedOutput()
 	if err != nil {

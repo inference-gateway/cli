@@ -4,11 +4,13 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // CreateConversationView creates a new conversation view component
 func CreateConversationView(themeService domain.ThemeService) ConversationRenderer {
-	return components.NewConversationView(themeService)
+	styleProvider := styles.NewProvider(themeService)
+	return components.NewConversationView(styleProvider)
 }
 
 // CreateInputView creates a new input view component
@@ -42,12 +44,14 @@ func CreateInputViewWithToolServiceAndConfigDir(modelService domain.ModelService
 
 // CreateStatusView creates a new status view component
 func CreateStatusView(themeService domain.ThemeService) StatusComponent {
-	return components.NewStatusView(themeService)
+	styleProvider := styles.NewProvider(themeService)
+	return components.NewStatusView(styleProvider)
 }
 
 // CreateHelpBar creates a new help bar component
 func CreateHelpBar(themeService domain.ThemeService) HelpBarComponent {
-	return components.NewHelpBar(themeService)
+	styleProvider := styles.NewProvider(themeService)
+	return components.NewHelpBar(styleProvider)
 }
 
 // Layout calculations - simplified without interfaces

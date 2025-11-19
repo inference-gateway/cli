@@ -5,10 +5,16 @@ import (
 	"testing"
 
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
+// createMockStyleProviderForHelpBar creates a mock styles provider for testing
+func createMockStyleProviderForHelpBar() *styles.Provider {
+	return styles.NewProvider(&mockThemeService{})
+}
+
 func TestNewHelpBar(t *testing.T) {
-	hb := NewHelpBar(nil)
+	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 
 	if hb.width != 80 {
 		t.Errorf("Expected default width 80, got %d", hb.width)
@@ -24,7 +30,7 @@ func TestNewHelpBar(t *testing.T) {
 }
 
 func TestHelpBar_SetShortcuts(t *testing.T) {
-	hb := NewHelpBar(nil)
+	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 
 	shortcuts := []shared.KeyShortcut{
 		{Key: "Enter", Description: "Send message"},
@@ -48,7 +54,7 @@ func TestHelpBar_SetShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_IsEnabled(t *testing.T) {
-	hb := NewHelpBar(nil)
+	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 
 	if hb.IsEnabled() {
 		t.Error("Expected help bar to be disabled by default")
@@ -56,7 +62,7 @@ func TestHelpBar_IsEnabled(t *testing.T) {
 }
 
 func TestHelpBar_SetEnabled(t *testing.T) {
-	hb := NewHelpBar(nil)
+	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 
 	hb.SetEnabled(false)
 	if hb.IsEnabled() {
@@ -70,7 +76,7 @@ func TestHelpBar_SetEnabled(t *testing.T) {
 }
 
 func TestHelpBar_SetWidth(t *testing.T) {
-	hb := NewHelpBar(nil)
+	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 
 	hb.SetWidth(120)
 
@@ -80,13 +86,13 @@ func TestHelpBar_SetWidth(t *testing.T) {
 }
 
 func TestHelpBar_SetHeight(t *testing.T) {
-	hb := NewHelpBar(nil)
+	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 
 	hb.SetHeight(2)
 }
 
 func TestHelpBar_Render_Disabled(t *testing.T) {
-	hb := NewHelpBar(nil)
+	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 	hb.SetEnabled(false)
 
 	output := hb.Render()
@@ -97,7 +103,7 @@ func TestHelpBar_Render_Disabled(t *testing.T) {
 }
 
 func TestHelpBar_Render_NoShortcuts(t *testing.T) {
-	hb := NewHelpBar(nil)
+	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 	hb.SetEnabled(true)
 
 	output := hb.Render()
@@ -108,7 +114,8 @@ func TestHelpBar_Render_NoShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_Render_WithShortcuts(t *testing.T) {
-	hb := NewHelpBar(nil)
+	styleProvider := styles.NewProvider(&mockThemeService{})
+	hb := NewHelpBar(styleProvider)
 	hb.SetEnabled(true)
 
 	shortcuts := []shared.KeyShortcut{
@@ -138,7 +145,7 @@ func TestHelpBar_Render_WithShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_Render_LongShortcuts(t *testing.T) {
-	hb := NewHelpBar(nil)
+	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 	hb.SetEnabled(true)
 	hb.SetWidth(20)
 
@@ -160,7 +167,7 @@ func TestHelpBar_Render_LongShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_Render_EmptyShortcuts(t *testing.T) {
-	hb := NewHelpBar(nil)
+	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 	hb.SetEnabled(true)
 
 	hb.SetShortcuts([]shared.KeyShortcut{})
@@ -172,7 +179,7 @@ func TestHelpBar_Render_EmptyShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_Render_SingleShortcut(t *testing.T) {
-	hb := NewHelpBar(nil)
+	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 	hb.SetEnabled(true)
 
 	shortcuts := []shared.KeyShortcut{

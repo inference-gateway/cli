@@ -2,10 +2,11 @@ package components
 
 import (
 	"context"
+	"strings"
 	"testing"
 
-	"github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/domain"
+	tea "github.com/charmbracelet/bubbletea"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // mockModelService is a simple mock for testing
@@ -31,6 +32,13 @@ func (m *mockModelService) IsModelAvailable(modelID string) bool {
 
 func (m *mockModelService) ValidateModel(modelID string) error {
 	return nil
+}
+
+// createInputViewWithTheme creates an InputView with a mock theme service for testing
+func createInputViewWithTheme(modelService domain.ModelService) *InputView {
+	iv := NewInputView(modelService)
+	iv.SetThemeService(&mockThemeService{})
+	return iv
 }
 
 func TestNewInputView(t *testing.T) {
@@ -171,7 +179,7 @@ func TestInputView_SetHeight(t *testing.T) {
 
 func TestInputView_Render(t *testing.T) {
 	mockModelService := &mockModelService{}
-	iv := NewInputView(mockModelService)
+	iv := createInputViewWithTheme(mockModelService)
 
 	output := iv.Render()
 	if output == "" {
@@ -222,5 +230,36 @@ func TestInputView_History(t *testing.T) {
 
 	if iv.historyManager == nil {
 		t.Error("Expected history manager to be initialized")
+	}
+}
+
+func TestInputView_BashModeBorderColor(t *testing.T) {
+	mockModelService := &mockModelService{}
+	iv := createInputViewWithTheme(mockModelService)
+
+	iv.SetText("normal text")
+	normalOutput := iv.Render()
+	if normalOutput == "" {
+		t.Error("Expected non-empty render output for normal text")
+	}
+
+	iv.SetText("!")
+	bashOutput := iv.Render()
+	if bashOutput == "" {
+		t.Error("Expected non-empty render output for bash mode")
+	}
+
+	if !strings.Contains(bashOutput, "BASH MODE") {
+		t.Error("Expected bash mode output to contain 'BASH MODE' indicator")
+	}
+
+	iv.SetText("!!")
+	toolsOutput := iv.Render()
+	if toolsOutput == "" {
+		t.Error("Expected non-empty render output for tools mode")
+	}
+
+	if !strings.Contains(toolsOutput, "TOOLS MODE") {
+		t.Error("Expected tools mode output to contain 'TOOLS MODE' indicator")
 	}
 }

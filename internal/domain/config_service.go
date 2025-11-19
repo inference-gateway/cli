@@ -6,6 +6,7 @@ import "github.com/inference-gateway/cli/config"
 type ConfigService interface {
 	// Tool approval configuration
 	IsApprovalRequired(toolName string) bool
+	IsBashCommandWhitelisted(command string) bool
 
 	// Debug and output configuration
 	GetOutputDirectory() string

@@ -105,10 +105,14 @@ func TestChatCommandHandler_handleBashCommand(t *testing.T) {
 			mockTool := &mocks.FakeToolService{}
 			mockTool.IsToolEnabledReturns(tt.toolEnabled)
 
+			mockConfig := &mocks.FakeConfigService{}
+			mockConfig.IsBashCommandWhitelistedReturns(true)
+
 			conversationRepo := services.NewInMemoryConversationRepository(nil)
 
 			handler := &ChatHandler{
 				toolService:      mockTool,
+				configService:    mockConfig,
 				conversationRepo: conversationRepo,
 			}
 
@@ -169,10 +173,14 @@ func TestChatCommandHandler_handleToolCommand(t *testing.T) {
 			mockTool := &mocks.FakeToolService{}
 			mockTool.IsToolEnabledReturns(tt.toolEnabled)
 
+			mockConfig := &mocks.FakeConfigService{}
+			mockConfig.IsApprovalRequiredReturns(false)
+
 			conversationRepo := services.NewInMemoryConversationRepository(nil)
 
 			handler := &ChatHandler{
 				toolService:      mockTool,
+				configService:    mockConfig,
 				conversationRepo: conversationRepo,
 			}
 

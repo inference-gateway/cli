@@ -325,40 +325,54 @@ func (a *AutocompleteImpl) Render() string {
 		}
 	}
 
+	// Calculate max width across ALL filtered items to prevent jumping
+	maxShortcutWidth := 0
+	for _, cmd := range a.filtered {
+		width := 0
+		if cmd.Usage != "" && cmd.Usage != cmd.Shortcut {
+			width = len(cmd.Usage)
+		} else {
+			width = len(cmd.Shortcut)
+		}
+		if width > maxShortcutWidth {
+			maxShortcutWidth = width
+		}
+	}
+
+	if maxShortcutWidth < 30 {
+		maxShortcutWidth = 30
+	}
+
 	for i := start; i < end; i++ {
 		cmd := a.filtered[i]
 		var prefix string
+		var marker string
 
 		if i == a.selected {
-			marker := "▶"
-			prefix = fmt.Sprintf("%s%s%s ", a.theme.GetAccentColor(), marker, colors.Reset)
+			marker = "▶ "
+			prefix = fmt.Sprintf("%s%s%s", a.theme.GetAccentColor(), marker, colors.Reset)
 		} else {
-			prefix = "  "
+			marker = "  "
+			prefix = marker
 		}
 
-		var line string
+		var shortcutText string
 		if cmd.Usage != "" && cmd.Usage != cmd.Shortcut {
-			parts := strings.SplitN(cmd.Usage, " ", 2)
-			shortcutName := parts[0]
-			usageArgs := ""
-			if len(parts) > 1 {
-				usageArgs = parts[1]
-			}
-
-			line = fmt.Sprintf("%s%-20s %s%-50s%s",
-				prefix,
-				shortcutName+" "+usageArgs,
-				a.theme.GetDimColor(),
-				cmd.Description,
-				colors.Reset)
+			shortcutText = cmd.Usage
 		} else {
-			line = fmt.Sprintf("%s%-20s %s%s%s",
-				prefix,
-				cmd.Shortcut,
-				a.theme.GetDimColor(),
-				cmd.Description,
-				colors.Reset)
+			shortcutText = cmd.Shortcut
 		}
+
+		paddedShortcut := shortcutText + strings.Repeat(" ", maxShortcutWidth-len(shortcutText))
+		separator := " │ "
+
+		line := fmt.Sprintf("%s%s%s%s%s%s",
+			prefix,
+			paddedShortcut,
+			a.theme.GetDimColor(),
+			separator,
+			cmd.Description,
+			colors.Reset)
 
 		b.WriteString(line)
 		if i < end-1 {

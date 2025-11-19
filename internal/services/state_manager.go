@@ -425,6 +425,40 @@ func (sm *StateManager) ClearFileSelectionState() {
 	sm.state.ClearFileSelectionState()
 }
 
+// Approval state methods
+
+// SetupApprovalUIState initializes approval UI state
+func (sm *StateManager) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan domain.ApprovalAction) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.SetupApprovalUIState(toolCall, responseChan)
+}
+
+// GetApprovalUIState returns the current approval UI state
+func (sm *StateManager) GetApprovalUIState() *domain.ApprovalUIState {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	return sm.state.GetApprovalUIState()
+}
+
+// SetApprovalSelectedIndex sets the approval selection index
+func (sm *StateManager) SetApprovalSelectedIndex(index int) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.SetApprovalSelectedIndex(index)
+}
+
+// ClearApprovalUIState clears the approval UI state
+func (sm *StateManager) ClearApprovalUIState() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.ClearApprovalUIState()
+}
+
 // AddQueuedMessage adds a message to the input queue
 func (sm *StateManager) AddQueuedMessage(message sdk.Message, requestID string) {
 	sm.mutex.Lock()

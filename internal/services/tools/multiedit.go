@@ -10,6 +10,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -895,6 +896,9 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 
 // FormatArgumentsForApproval formats arguments for approval display with diff preview
 func (t *MultiEditTool) FormatArgumentsForApproval(args map[string]any) string {
-	diffRenderer := components.NewToolDiffRenderer()
+	// Use colored diff renderer with default theme
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	diffRenderer := components.NewToolDiffRenderer(styleProvider)
 	return diffRenderer.RenderMultiEditToolArguments(args)
 }

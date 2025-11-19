@@ -5,11 +5,17 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
 
+// createMockStyleProvider creates a mock styles provider for testing
+func createMockStyleProvider() *styles.Provider {
+	return styles.NewProvider(&mockThemeService{})
+}
+
 func TestNewConversationView(t *testing.T) {
-	cv := NewConversationView(nil)
+	cv := NewConversationView(createMockStyleProvider())
 
 	if cv.width != 80 {
 		t.Errorf("Expected default width 80, got %d", cv.width)
@@ -33,7 +39,7 @@ func TestNewConversationView(t *testing.T) {
 }
 
 func TestConversationView_SetConversation(t *testing.T) {
-	cv := NewConversationView(nil)
+	cv := NewConversationView(createMockStyleProvider())
 
 	conversation := []domain.ConversationEntry{
 		{
@@ -68,7 +74,7 @@ func TestConversationView_SetConversation(t *testing.T) {
 }
 
 func TestConversationView_GetScrollOffset(t *testing.T) {
-	cv := NewConversationView(nil)
+	cv := NewConversationView(createMockStyleProvider())
 
 	offset := cv.GetScrollOffset()
 
@@ -78,7 +84,7 @@ func TestConversationView_GetScrollOffset(t *testing.T) {
 }
 
 func TestConversationView_CanScrollUp(t *testing.T) {
-	cv := NewConversationView(nil)
+	cv := NewConversationView(createMockStyleProvider())
 
 	if cv.CanScrollUp() {
 		t.Error("Expected CanScrollUp to be false when at top")
@@ -86,7 +92,7 @@ func TestConversationView_CanScrollUp(t *testing.T) {
 }
 
 func TestConversationView_CanScrollDown(t *testing.T) {
-	cv := NewConversationView(nil)
+	cv := NewConversationView(createMockStyleProvider())
 
 	if cv.CanScrollDown() {
 		t.Error("Expected CanScrollDown to be false with no content")
@@ -94,7 +100,7 @@ func TestConversationView_CanScrollDown(t *testing.T) {
 }
 
 func TestConversationView_ToggleToolResultExpansion(t *testing.T) {
-	cv := NewConversationView(nil)
+	cv := NewConversationView(createMockStyleProvider())
 
 	conversation := []domain.ConversationEntry{
 		{
@@ -121,7 +127,7 @@ func TestConversationView_ToggleToolResultExpansion(t *testing.T) {
 }
 
 func TestConversationView_ToggleAllToolResultsExpansion(t *testing.T) {
-	cv := NewConversationView(nil)
+	cv := NewConversationView(createMockStyleProvider())
 
 	conversation := []domain.ConversationEntry{
 		{
@@ -170,7 +176,7 @@ func TestConversationView_ToggleAllToolResultsExpansion(t *testing.T) {
 }
 
 func TestConversationView_IsToolResultExpanded(t *testing.T) {
-	cv := NewConversationView(nil)
+	cv := NewConversationView(createMockStyleProvider())
 
 	if cv.IsToolResultExpanded(0) {
 		t.Error("Expected tool result 0 to not be expanded initially")
@@ -182,7 +188,7 @@ func TestConversationView_IsToolResultExpanded(t *testing.T) {
 }
 
 func TestConversationView_SetWidth(t *testing.T) {
-	cv := NewConversationView(nil)
+	cv := NewConversationView(createMockStyleProvider())
 
 	cv.SetWidth(120)
 
@@ -196,7 +202,7 @@ func TestConversationView_SetWidth(t *testing.T) {
 }
 
 func TestConversationView_SetHeight(t *testing.T) {
-	cv := NewConversationView(nil)
+	cv := NewConversationView(createMockStyleProvider())
 
 	cv.SetHeight(30)
 
@@ -210,7 +216,7 @@ func TestConversationView_SetHeight(t *testing.T) {
 }
 
 func TestConversationView_Render(t *testing.T) {
-	cv := NewConversationView(nil)
+	cv := NewConversationView(createMockStyleProvider())
 
 	output := cv.Render()
 

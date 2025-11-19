@@ -2,7 +2,9 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	spinner "github.com/charmbracelet/bubbles/spinner"
@@ -119,6 +121,10 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return h.HandleA2ATaskInputRequiredEvent(m)
 	case domain.MessageQueuedEvent:
 		return h.HandleMessageQueuedEvent(m)
+	case domain.ToolApprovalRequestedEvent:
+		return h.HandleToolApprovalRequestedEvent(m)
+	case domain.ToolApprovalResponseEvent:
+		return h.HandleToolApprovalResponseEvent(m)
 	default:
 		if isUIOnlyEvent(msg) {
 			return nil
@@ -153,9 +159,10 @@ func (h *ChatHandler) startChatCompletion() tea.Cmd {
 		requestID := generateRequestID()
 
 		req := &domain.AgentRequest{
-			RequestID: requestID,
-			Model:     currentModel,
-			Messages:  messages,
+			RequestID:  requestID,
+			Model:      currentModel,
+			Messages:   messages,
+			IsChatMode: true,
 		}
 
 		eventChan, err := h.agentService.RunWithStream(ctx, req)
@@ -361,6 +368,12 @@ func (h *ChatHandler) HandleToolCallReadyEvent(
 	return h.eventHandler.handleToolCallReady(msg)
 }
 
+func (h *ChatHandler) HandleToolApprovalRequestedEvent(
+	msg domain.ToolApprovalRequestedEvent,
+) tea.Cmd {
+	return h.eventHandler.handleToolApprovalRequested(msg)
+}
+
 func (h *ChatHandler) HandleToolExecutionStartedEvent(
 	msg domain.ToolExecutionStartedEvent,
 ) tea.Cmd {
@@ -444,6 +457,94 @@ func (h *ChatHandler) HandleMessageQueuedEvent(
 	return cmd
 }
 
+func (h *ChatHandler) HandleToolApprovalResponseEvent(
+	msg domain.ToolApprovalResponseEvent,
+) tea.Cmd {
+	return h.handleToolApprovalResponse(msg)
+}
+
+// handleToolApprovalResponse processes the user's approval decision
+func (h *ChatHandler) handleToolApprovalResponse(
+	msg domain.ToolApprovalResponseEvent,
+) tea.Cmd {
+	approvalState := h.stateManager.GetApprovalUIState()
+	if approvalState != nil && approvalState.ResponseChan != nil {
+		select {
+		case approvalState.ResponseChan <- msg.Action:
+		default:
+		}
+	}
+
+	h.stateManager.ClearApprovalUIState()
+	_ = h.stateManager.TransitionToView(domain.ViewStateChat)
+
+	isManualExecution := strings.HasPrefix(msg.ToolCall.Id, "manual-")
+
+	if !isManualExecution {
+		return nil
+	}
+
+	if msg.Action == domain.ApprovalReject {
+		return func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Tool execution rejected: %s", msg.ToolCall.Function.Name),
+				Sticky: false,
+			}
+		}
+	}
+
+	return func() tea.Msg {
+		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
+		result, err := h.toolService.ExecuteTool(ctx, msg.ToolCall.Function)
+		if err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to execute tool: %v", err),
+				Sticky: false,
+			}
+		}
+
+		commandText := h.reconstructCommandText(msg.ToolCall)
+
+		userEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: commandText,
+			},
+			Time: time.Now(),
+		}
+		_ = h.conversationRepo.AddMessage(userEntry)
+
+		responseContent := h.conversationRepo.FormatToolResultForLLM(result)
+		assistantEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: responseContent,
+			},
+			Time: time.Now(),
+		}
+		_ = h.conversationRepo.AddMessage(assistantEntry)
+
+		return domain.UpdateHistoryEvent{
+			History: h.conversationRepo.GetMessages(),
+		}
+	}
+}
+
+// reconstructCommandText reconstructs the original command text from a tool call
+func (h *ChatHandler) reconstructCommandText(toolCall sdk.ChatCompletionMessageToolCall) string {
+	if toolCall.Function.Name == "Bash" {
+		var args map[string]interface{}
+		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
+			if command, ok := args["command"].(string); ok {
+				return "!" + command
+			}
+		}
+		return "!<unknown command>"
+	}
+
+	return "!!" + toolCall.Function.Name + "(...)"
+}
+
 // isUIOnlyEvent checks if the event is a UI-only event that doesn't require business logic handling
 func isUIOnlyEvent(msg tea.Msg) bool {
 	switch msg.(type) {
@@ -465,6 +566,7 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.ExitSelectionModeEvent,
 		domain.ModelSelectedEvent,
 		domain.ThemeSelectedEvent,
+		domain.ShowToolApprovalEvent,
 		tea.KeyMsg,
 		tea.WindowSizeMsg,
 		spinner.TickMsg:

@@ -6,9 +6,8 @@ import (
 
 	clipboard "github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "github.com/charmbracelet/lipgloss"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // TextSelectionView provides vim-like text selection mode
@@ -24,6 +23,7 @@ type TextSelectionView struct {
 	height         int
 	scrollOffset   int
 	copiedText     string
+	styleProvider  *styles.Provider
 }
 
 // Position represents a position in the text
@@ -33,15 +33,16 @@ type Position struct {
 }
 
 // NewTextSelectionView creates a new text selection view
-func NewTextSelectionView() *TextSelectionView {
+func NewTextSelectionView(styleProvider *styles.Provider) *TextSelectionView {
 	return &TextSelectionView{
-		lines:        []string{},
-		cursorLine:   0,
-		cursorCol:    0,
-		selecting:    false,
-		width:        80,
-		height:       20,
-		scrollOffset: 0,
+		lines:         []string{},
+		cursorLine:    0,
+		cursorCol:     0,
+		selecting:     false,
+		width:         80,
+		height:        20,
+		scrollOffset:  0,
+		styleProvider: styleProvider,
 	}
 }
 
@@ -385,10 +386,6 @@ func (v *TextSelectionView) Render() string {
 
 	var b strings.Builder
 
-	headerStyle := lipgloss.NewStyle().
-		Foreground(colors.AccentColor.GetLipglossColor()).
-		Bold(true)
-
 	mode := "SELECTION MODE"
 	if v.selecting {
 		mode = "VISUAL"
@@ -396,7 +393,8 @@ func (v *TextSelectionView) Render() string {
 		mode = "VISUAL LINE"
 	}
 
-	header := headerStyle.Render(fmt.Sprintf("-- %s --", mode))
+	accentColor := v.styleProvider.GetThemeColor("accent")
+	header := v.styleProvider.RenderWithColorAndBold(fmt.Sprintf("-- %s --", mode), accentColor)
 	b.WriteString(header)
 	b.WriteString("\n")
 
@@ -413,10 +411,6 @@ func (v *TextSelectionView) Render() string {
 		b.WriteString("\n")
 	}
 
-	posStyle := lipgloss.NewStyle().
-		Foreground(colors.DimColor.GetLipglossColor()).
-		Italic(true)
-
 	debugInfo := ""
 	if v.selecting {
 		debugInfo = fmt.Sprintf(" | Visual: %d,%d -> %d,%d",
@@ -428,7 +422,7 @@ func (v *TextSelectionView) Render() string {
 	}
 
 	position := fmt.Sprintf("Line %d/%d, Col %d%s", v.cursorLine+1, len(v.lines), v.cursorCol+1, debugInfo)
-	b.WriteString(posStyle.Render(position))
+	b.WriteString(v.styleProvider.RenderDimText(position))
 
 	return b.String()
 }
@@ -462,10 +456,6 @@ func (v *TextSelectionView) renderLineWithSelection(lineIdx int, line string) st
 		start, end = end, start
 	}
 
-	highlightStyle := lipgloss.NewStyle().
-		Background(colors.AccentColor.GetLipglossColor()).
-		Foreground(colors.TextSelectionForeground.GetLipglossColor())
-
 	if lineIdx < start.Line || lineIdx > end.Line {
 		return line
 	}
@@ -486,7 +476,7 @@ func (v *TextSelectionView) renderLineWithSelection(lineIdx int, line string) st
 		}
 
 		if shouldHighlight {
-			result.WriteString(highlightStyle.Render(string(line[i])))
+			result.WriteString(v.styleProvider.RenderTextSelection(string(line[i])))
 		} else {
 			result.WriteByte(line[i])
 		}
@@ -496,18 +486,18 @@ func (v *TextSelectionView) renderLineWithSelection(lineIdx int, line string) st
 }
 
 // renderCharAtPosition renders a character at a specific position with appropriate styling
-func (v *TextSelectionView) renderCharAtPosition(i, lineLen int, line string, isCursor, shouldHighlight bool, cursorStyle, highlightStyle lipgloss.Style) string {
+func (v *TextSelectionView) renderCharAtPosition(i, lineLen int, line string, isCursor, shouldHighlight bool) string {
 	if isCursor {
 		if i < lineLen {
-			return cursorStyle.Render(string(line[i]))
+			return v.styleProvider.RenderCursor(string(line[i]))
 		}
-		return cursorStyle.Render(" ")
+		return v.styleProvider.RenderCursor(" ")
 	}
 
 	if i < lineLen {
 		char := string(line[i])
 		if shouldHighlight {
-			return highlightStyle.Render(char)
+			return v.styleProvider.RenderTextSelection(char)
 		}
 		return char
 	}
@@ -526,10 +516,7 @@ func (v *TextSelectionView) renderDisplayLine(lineIdx int, line string, isSelect
 	}
 
 	if v.visualLineMode {
-		highlightStyle := lipgloss.NewStyle().
-			Background(colors.AccentColor.GetLipglossColor()).
-			Foreground(lipgloss.Color("#000000"))
-		return highlightStyle.Render(line)
+		return v.styleProvider.RenderVisualLineSelection(line)
 	}
 
 	return v.renderLineWithSelection(lineIdx, line)
@@ -576,14 +563,6 @@ func (v *TextSelectionView) shouldHighlightChar(lineIdx, charIdx int, isSelected
 func (v *TextSelectionView) renderLineWithCursor(lineIdx int, line string, isSelected bool) string {
 	var result strings.Builder
 
-	cursorStyle := lipgloss.NewStyle().
-		Background(colors.TextSelectionCursor.GetLipglossColor()).
-		Foreground(colors.TextSelectionForeground.GetLipglossColor())
-
-	highlightStyle := lipgloss.NewStyle().
-		Background(colors.AccentColor.GetLipglossColor()).
-		Foreground(colors.TextSelectionForeground.GetLipglossColor())
-
 	lineLen := len(line)
 	displayCursorCol := v.cursorCol
 	if displayCursorCol > lineLen {
@@ -592,11 +571,9 @@ func (v *TextSelectionView) renderLineWithCursor(lineIdx int, line string, isSel
 
 	for i := 0; i <= lineLen; i++ {
 		isCursor := i == displayCursorCol
-		shouldHighlight := false
+		shouldHighlight := v.shouldHighlightChar(lineIdx, i, isSelected, lineLen)
 
-		shouldHighlight = v.shouldHighlightChar(lineIdx, i, isSelected, lineLen)
-
-		charRendered := v.renderCharAtPosition(i, lineLen, line, isCursor, shouldHighlight, cursorStyle, highlightStyle)
+		charRendered := v.renderCharAtPosition(i, lineLen, line, isCursor, shouldHighlight)
 		if charRendered != "" {
 			result.WriteString(charRendered)
 		}

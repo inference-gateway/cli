@@ -93,6 +93,7 @@ and management of inference services.
   - **MultiEdit**: Make multiple edits to files in atomic operations
   - **TodoWrite**: Create and manage structured task lists
   - **A2A Tools**: Agent-to-agent communication for task delegation and coordination
+- **Tool Approval System**: User approval workflow for sensitive operations with real-time diff visualization for file modifications
 
 ## Installation
 

@@ -506,7 +506,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					toolCallsSlice = append(toolCallsSlice, tc)
 				}
 
-				toolResults := s.executeToolCallsParallel(ctx, toolCallsSlice, eventPublisher)
+				toolResults := s.executeToolCallsParallel(ctx, toolCallsSlice, eventPublisher, req.IsChatMode)
 
 				for _, entry := range toolResults {
 					toolResult := sdk.Message{
@@ -642,6 +642,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 	ctx context.Context,
 	toolCalls []*sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
+	isChatMode bool,
 ) []domain.ConversationEntry {
 
 	if len(toolCalls) == 0 {
@@ -661,58 +662,104 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 	time.Sleep(constants.AgentToolExecutionDelay)
 
 	results := make([]domain.ConversationEntry, len(toolCalls))
-	resultsChan := make(chan IndexedToolResult, len(toolCalls))
 
-	semaphore := make(chan struct{}, s.config.GetAgentConfig().MaxConcurrentTools)
-
-	var wg sync.WaitGroup
-	for i, tc := range toolCalls {
-		wg.Add(1)
-		go func(index int, toolCall *sdk.ChatCompletionMessageToolCall) {
-			defer func() {
-				wg.Done()
-			}()
-
-			semaphore <- struct{}{}
-			defer func() {
-				<-semaphore
-			}()
-
-			eventPublisher.publishToolStatusChange(
-				toolCall.Id,
-				"starting",
-				fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
-			)
-
-			time.Sleep(constants.AgentToolExecutionDelay)
-
-			result := s.executeToolWithFlashingUI(ctx, *toolCall, eventPublisher)
-
-			status := "complete"
-			message := "Completed successfully"
-			if result.ToolExecution != nil && !result.ToolExecution.Success {
-				status = "failed"
-				message = "Execution failed"
-			}
-
-			eventPublisher.publishToolStatusChange(toolCall.Id, status, message)
-
-			resultsChan <- IndexedToolResult{
-				Index:  index,
-				Result: result,
-			}
-		}(i, tc)
+	var approvalTools []struct {
+		index int
+		tool  *sdk.ChatCompletionMessageToolCall
+	}
+	var parallelTools []struct {
+		index int
+		tool  *sdk.ChatCompletionMessageToolCall
 	}
 
-	go func() {
-		wg.Wait()
-		close(resultsChan)
-	}()
+	for i, tc := range toolCalls {
+		requiresApproval := s.shouldRequireApproval(tc, isChatMode)
+		if requiresApproval {
+			approvalTools = append(approvalTools, struct {
+				index int
+				tool  *sdk.ChatCompletionMessageToolCall
+			}{i, tc})
+		} else {
+			parallelTools = append(parallelTools, struct {
+				index int
+				tool  *sdk.ChatCompletionMessageToolCall
+			}{i, tc})
+		}
+	}
 
-	resultCount := 0
-	for res := range resultsChan {
-		resultCount++
-		results[res.Index] = res.Result
+	for _, at := range approvalTools {
+		eventPublisher.publishToolStatusChange(
+			at.tool.Id,
+			"starting",
+			fmt.Sprintf("Initializing %s...", at.tool.Function.Name),
+		)
+
+		time.Sleep(constants.AgentToolExecutionDelay)
+
+		result := s.executeToolWithFlashingUI(ctx, *at.tool, eventPublisher, isChatMode)
+
+		status := "complete"
+		message := "Completed successfully"
+		if result.ToolExecution != nil && !result.ToolExecution.Success {
+			status = "failed"
+			message = "Execution failed"
+		}
+
+		eventPublisher.publishToolStatusChange(at.tool.Id, status, message)
+		results[at.index] = result
+	}
+
+	if len(parallelTools) > 0 {
+		resultsChan := make(chan IndexedToolResult, len(parallelTools))
+		semaphore := make(chan struct{}, s.config.GetAgentConfig().MaxConcurrentTools)
+
+		var wg sync.WaitGroup
+		for _, pt := range parallelTools {
+			wg.Add(1)
+			go func(index int, toolCall *sdk.ChatCompletionMessageToolCall) {
+				defer func() {
+					wg.Done()
+				}()
+
+				semaphore <- struct{}{}
+				defer func() {
+					<-semaphore
+				}()
+
+				eventPublisher.publishToolStatusChange(
+					toolCall.Id,
+					"starting",
+					fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
+				)
+
+				time.Sleep(constants.AgentToolExecutionDelay)
+
+				result := s.executeToolWithFlashingUI(ctx, *toolCall, eventPublisher, isChatMode)
+
+				status := "complete"
+				message := "Completed successfully"
+				if result.ToolExecution != nil && !result.ToolExecution.Success {
+					status = "failed"
+					message = "Execution failed"
+				}
+
+				eventPublisher.publishToolStatusChange(toolCall.Id, status, message)
+
+				resultsChan <- IndexedToolResult{
+					Index:  index,
+					Result: result,
+				}
+			}(pt.index, pt.tool)
+		}
+
+		go func() {
+			wg.Wait()
+			close(resultsChan)
+		}()
+
+		for res := range resultsChan {
+			results[res.Index] = res.Result
+		}
 	}
 
 	duration := time.Since(startTime)
@@ -740,9 +787,30 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
+	isChatMode bool,
 ) domain.ConversationEntry {
 
 	startTime := time.Now()
+
+	requiresApproval := s.shouldRequireApproval(&tc, isChatMode)
+	logger.Debug("tool approval check", "tool", tc.Function.Name, "is_chat_mode", isChatMode, "requires_approval", requiresApproval)
+
+	wasApproved := false
+
+	if requiresApproval {
+		logger.Info("requesting approval for tool", "tool", tc.Function.Name)
+		approved, err := s.requestToolApproval(ctx, tc, eventPublisher)
+		if err != nil {
+			logger.Error("failed to request tool approval", "tool", tc.Function.Name, "error", err)
+			return s.createErrorEntry(tc, err, startTime)
+		}
+		if !approved {
+			logger.Info("tool execution rejected by user", "tool", tc.Function.Name)
+			rejectionErr := fmt.Errorf("tool execution rejected by user")
+			return s.createErrorEntry(tc, rejectionErr, startTime)
+		}
+		wasApproved = true
+	}
 
 	eventPublisher.publishToolStatusChange(tc.Id, "running", "Executing...")
 
@@ -754,9 +822,16 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 		return s.createErrorEntry(tc, err, startTime)
 	}
 
-	if err := s.toolService.ValidateTool(tc.Function.Name, args); err != nil {
-		logger.Error("tool validation failed", "tool", tc.Function.Name, "error", err)
-		return s.createErrorEntry(tc, err, startTime)
+	if !wasApproved {
+		if err := s.toolService.ValidateTool(tc.Function.Name, args); err != nil {
+			logger.Error("tool validation failed", "tool", tc.Function.Name, "error", err)
+			return s.createErrorEntry(tc, err, startTime)
+		}
+	}
+
+	execCtx := ctx
+	if wasApproved {
+		execCtx = context.WithValue(ctx, domain.ToolApprovedKey, true)
 	}
 
 	resultChan := make(chan struct {
@@ -765,7 +840,7 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 	}, 1)
 
 	go func() {
-		result, err := s.toolService.ExecuteTool(ctx, tc.Function)
+		result, err := s.toolService.ExecuteTool(execCtx, tc.Function)
 		resultChan <- struct {
 			result *domain.ToolExecutionResult
 			err    error
@@ -827,6 +902,59 @@ done:
 	}
 
 	return entry
+}
+
+// requestToolApproval requests user approval for a tool and waits for response
+func (s *AgentServiceImpl) requestToolApproval(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+) (bool, error) {
+	// Create response channel
+	responseChan := make(chan domain.ApprovalAction, 1)
+
+	// Publish approval request event
+	eventPublisher.chatEvents <- domain.ToolApprovalRequestedEvent{
+		RequestID:    eventPublisher.requestID,
+		Timestamp:    time.Now(),
+		ToolCall:     tc,
+		ResponseChan: responseChan,
+	}
+
+	// Wait for user response or context cancellation
+	select {
+	case response := <-responseChan:
+		return response == domain.ApprovalApprove, nil
+	case <-ctx.Done():
+		return false, fmt.Errorf("approval request cancelled: %w", ctx.Err())
+	case <-time.After(5 * time.Minute): // Timeout after 5 minutes
+		return false, fmt.Errorf("approval request timed out")
+	}
+}
+
+// shouldRequireApproval determines if a tool execution requires user approval
+// For Bash tool specifically, it checks if the command is whitelisted
+func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
+	if !isChatMode {
+		return false
+	}
+
+	if tc.Function.Name == "Bash" {
+		var args map[string]any
+		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+			return true
+		}
+
+		command, ok := args["command"].(string)
+		if !ok {
+			return true
+		}
+
+		isWhitelisted := s.config.IsBashCommandWhitelisted(command)
+		return !isWhitelisted
+	}
+
+	return s.config.IsApprovalRequired(tc.Function.Name)
 }
 
 func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) domain.ConversationEntry {

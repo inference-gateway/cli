@@ -160,7 +160,9 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		Command: command,
 	}
 
-	if !t.isCommandAllowed(command) {
+	wasApproved, _ := ctx.Value(domain.ToolApprovedKey).(bool)
+
+	if !wasApproved && !t.isCommandAllowed(command) {
 		result.ExitCode = -1
 		result.Duration = time.Since(start).String()
 		result.Error = fmt.Sprintf("command not whitelisted: %s", command)

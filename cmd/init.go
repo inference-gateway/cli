@@ -6,8 +6,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"sync"
+	"syscall"
 	"time"
 
 	uuid "github.com/google/uuid"
@@ -30,6 +32,8 @@ This creates the .infer directory with configuration file and additional setup f
 Use --model <provider>/<model> to enable AI project analysis and generate a comprehensive
 AGENTS.md file tailored to your specific project.
 
+For larger projects or complex analysis, use --timeout to increase the analysis time limit.
+
 This is the recommended command to start working with Inference Gateway CLI in a new project.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return initializeProject(cmd)
@@ -40,6 +44,7 @@ func init() {
 	initCmd.Flags().Bool("overwrite", false, "Overwrite existing files if they already exist")
 	initCmd.Flags().Bool("userspace", false, "Initialize configuration in user home directory (~/.infer/)")
 	initCmd.Flags().String("model", "", "LLM model to use for AI project analysis and AGENTS.md generation (recommended)")
+	initCmd.Flags().Int("timeout", 60, "Timeout in seconds for project analysis (default: 60)")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -47,6 +52,7 @@ func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
 	model, _ := cmd.Flags().GetString("model")
+	timeout, _ := cmd.Flags().GetInt("timeout")
 
 	var configPath, gitignorePath, agentsMDPath string
 
@@ -87,7 +93,7 @@ bin/
 	}
 
 	if model != "" {
-		if err := generateAgentsMD(agentsMDPath, userspace, model); err != nil {
+		if err := generateAgentsMD(agentsMDPath, userspace, model, timeout, overwrite); err != nil {
 			return fmt.Errorf("failed to create AGENTS.md file: %w", err)
 		}
 	}
@@ -146,13 +152,13 @@ func writeConfigAsYAMLWithIndent(filename string, indent int) error {
 }
 
 // generateAgentsMD creates an AGENTS.md file based on project analysis
-func generateAgentsMD(agentsMDPath string, userspace bool, model string) error {
+func generateAgentsMD(agentsMDPath string, userspace bool, model string, timeout int, overwrite bool) error {
 	wd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("failed to get working directory: %w", err)
 	}
 
-	err = analyzeProjectForAgents(wd, userspace, model, agentsMDPath)
+	err = analyzeProjectForAgents(wd, userspace, model, agentsMDPath, timeout, overwrite)
 	if err != nil {
 		return fmt.Errorf("failed to analyze project: %w", err)
 	}
@@ -220,13 +226,13 @@ Essential commands developers use regularly:
 Key files that agents should be aware of and their purposes.
 
 RESEARCH APPROACH:
-1. Start by reading package.json, go.mod, Cargo.toml, or similar dependency files
-2. Look for README files, documentation, and setup guides
-3. Examine build scripts, Makefiles, or task runners (package.json scripts, Taskfile.yml, etc.)
+1. **MANDATORY FIRST STEP**: You MUST run the Tree tool as your very first action to understand the project structure. This is required before any other tool calls.
+2. After running Tree, look for README files, documentation, and setup guides
+3. Examine build scripts - Makefile, or Taskfile.yml
 4. Check for configuration files (.gitignore, .env examples, config files)
 5. Identify testing frameworks and CI/CD configurations
 6. Look for code quality tools configurations
-7. Examine directory structure and common patterns
+7. Use the information from Tree to guide your exploration strategy
 
 IMPORTANT GUIDELINES:
 - Be concise but comprehensive - agents need actionable information
@@ -238,22 +244,25 @@ IMPORTANT GUIDELINES:
 
 TOOL USAGE:
 - Use available tools to explore the project (Tree, Read, Grep, etc.)
-- PARALLEL EXECUTION: You can call multiple tools simultaneously in a single response to improve efficiency. The system supports up to 3 concurrent tool executions using a semaphore-based approach. Use this to reduce back-and-forth communication by batching related operations.
+- READ IN CHUNKS: Always read files in chunks of 50 lines using the Read tool's limit and offset parameters (e.g., Read(file_path="README.md", limit=50, offset=0) for first chunk, then Read(file_path="README.md", limit=50, offset=50) for next chunk). This significantly reduces token usage.
+- PARALLEL EXECUTION: You can call multiple tools simultaneously in a single response to improve efficiency. The system supports up to 10 concurrent tool executions using a semaphore-based approach. Use this to reduce back-and-forth communication by batching related operations.
 - When you have gathered enough information, use the Write tool to create the AGENTS.md file
 - Write the file content directly without code fences or API calls
 - The Write tool expects: Write(file_path="/path/to/file", content="file content here")
 
 EFFICIENCY TIPS:
-- Batch related file reads (e.g., read package.json, Taskfile.yml, and README.md in parallel)
+- ALWAYS read files in 50-line chunks rather than reading entire files at once to minimize token usage
+- Batch related file reads (e.g., read first 50 lines of build configuration, task files, and documentation in parallel)
 - Execute multiple grep searches simultaneously for different patterns
 - Combine directory exploration with file reading in the same response
 - Use parallel execution to gather comprehensive project information quickly
+- Only read additional chunks if the first 50 lines don't provide enough context
 
 Your analysis should help other agents quickly understand how to work with this project effectively.`
 }
 
 // analyzeProjectForAgents analyzes the current project and generates AGENTS.md content
-func analyzeProjectForAgents(projectDir string, userspace bool, model string, agentsMDPath string) error {
+func analyzeProjectForAgents(projectDir string, userspace bool, model string, agentsMDPath string, timeoutSeconds int, overwrite bool) error {
 	if userspace || model == "" {
 		return fmt.Errorf("model is required for AGENTS.md generation")
 	}
@@ -275,6 +284,51 @@ func analyzeProjectForAgents(projectDir string, userspace bool, model string, ag
 	cfgCopy.Agent.SystemPrompt = projectResearchSystemPrompt()
 
 	services := container.NewServiceContainer(&cfgCopy, V)
+
+	gatewayManager := services.GetGatewayManager()
+	if gatewayManager != nil && !gatewayManager.IsRunning() {
+		return fmt.Errorf(`inference gateway is not running. Please ensure the gateway is started before running init with --model.
+
+Possible solutions:
+1. Ensure Docker is running: docker ps
+2. Manually start the gateway container: docker run -d --name inference-gateway -p 8080:8080 ghcr.io/inference-gateway/inference-gateway:latest
+3. Or disable auto-run in config and start the gateway manually
+4. Check gateway logs: docker logs inference-gateway
+
+For more information, visit: https://github.com/inference-gateway/inference-gateway`)
+	}
+
+	cleanupDone := make(chan struct{})
+	cleanup := func() {
+		select {
+		case <-cleanupDone:
+			return
+		default:
+			close(cleanupDone)
+			fmt.Println("Shutting down containers...")
+			logger.Info("Shutting down containers...")
+			ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+			defer cancel()
+			if err := services.Shutdown(ctx); err != nil {
+				fmt.Fprintf(os.Stderr, "Failed to shutdown containers: %v\n", err)
+				logger.Error("Failed to shutdown containers", "error", err)
+			} else {
+				fmt.Println("Containers stopped successfully")
+				logger.Info("Containers stopped successfully")
+			}
+		}
+	}
+	defer cleanup()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-sigChan
+		fmt.Println("\nReceived interrupt signal, cleaning up...")
+		cleanup()
+		fmt.Println("Cleanup complete, exiting...")
+		os.Exit(130)
+	}()
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfgCopy.Gateway.Timeout)*time.Second)
 	defer cancel()
@@ -306,15 +360,22 @@ func analyzeProjectForAgents(projectDir string, userspace bool, model string, ag
 		conversation:   []InitConversationMessage{},
 		maxTurns:       cfgCopy.Agent.MaxTurns,
 		startTime:      time.Now(),
-		timeoutSeconds: 30,
+		timeoutSeconds: timeoutSeconds,
 		agentsMDPath:   agentsMDPath,
-		toolSemaphore:  make(chan struct{}, 3),
+		toolSemaphore:  make(chan struct{}, 10),
+		overwrite:      overwrite,
 	}
 
 	_, _ = fmt.Fprintf(os.Stdout, "%s\n", `{"content":"Initializing project analysis session...","timestamp":"`+time.Now().Format("15:04:05")+`","elapsed":"0.0s","tokens":{"input":0,"output":0,"total":0}}`)
 	_ = os.Stdout.Sync()
 
-	err = session.analyze(fmt.Sprintf("Please analyze the project in directory '%s' and generate a comprehensive AGENTS.md file. Use your available tools to examine the project structure, configuration files, documentation, build systems, and development workflow. Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project. Write the AGENTS.md file to: %s", projectDir, agentsMDPath))
+	initialPrompt := fmt.Sprintf("Please analyze the project in directory '%s' and generate a comprehensive AGENTS.md file. Use your available tools to examine the project structure, configuration files, documentation, build systems, and development workflow. Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project. Write the AGENTS.md file to: %s", projectDir, agentsMDPath)
+
+	if overwrite {
+		initialPrompt += fmt.Sprintf("\n\nIMPORTANT: The user has explicitly requested to overwrite the existing AGENTS.md file using the --overwrite flag. First, use the Read tool with limit=50 to read only the first 50 lines of the existing file at '%s' to get a quick overview of what's already documented. Then, use the Write tool to replace it with your updated and improved analysis. You MUST write the file even though it already exists - this is intentional.", agentsMDPath)
+	}
+
+	err = session.analyze(initialPrompt)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stdout, "%s\n", `{"role":"error","content":"Analysis failed","timestamp":"`+time.Now().Format("15:04:05")+`","elapsed":"0.0s","tokens":{"input":0,"output":0,"total":0}}`)
 		_ = os.Stdout.Sync()
@@ -376,6 +437,7 @@ type ProjectAnalysisSession struct {
 	agentsMDPath        string
 	toolSemaphore       chan struct{}
 	conversationMutex   sync.Mutex
+	overwrite           bool
 }
 
 func (s *ProjectAnalysisSession) analyze(taskDescription string) error {
