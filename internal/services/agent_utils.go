@@ -77,7 +77,7 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
 	var systemMessages []sdk.Message
 
-	baseSystemPrompt := s.config.GetAgentConfig().SystemPrompt
+	baseSystemPrompt := s.getSystemPromptForMode()
 	if baseSystemPrompt != "" {
 		currentTime := time.Now().Format("Monday, January 2, 2006 at 3:04 PM MST")
 
@@ -85,10 +85,8 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 		a2aAgentInfo := s.buildA2AAgentInfo()
 
-		modeInfo := s.buildModeInfo()
-
-		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s%s\n\nCurrent date and time: %s",
-			baseSystemPrompt, sandboxInfo, a2aAgentInfo, modeInfo, currentTime)
+		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s\n\nCurrent date and time: %s",
+			baseSystemPrompt, sandboxInfo, a2aAgentInfo, currentTime)
 
 		systemMessages = append(systemMessages, sdk.Message{
 			Role:    sdk.System,
@@ -102,44 +100,30 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 	return messages
 }
 
-// buildModeInfo creates mode-specific instructions for the system prompt
-func (s *AgentServiceImpl) buildModeInfo() string {
+// getSystemPromptForMode returns the appropriate system prompt based on current agent mode
+func (s *AgentServiceImpl) getSystemPromptForMode() string {
+	agentConfig := s.config.GetAgentConfig()
+
 	if s.stateManager == nil {
-		return ""
+		return agentConfig.SystemPrompt
 	}
 
 	mode := s.stateManager.GetAgentMode()
 	switch mode {
 	case domain.AgentModePlan:
-		return `
-
-PLAN MODE:
-You are currently in PLAN MODE. Your role is to:
-- Analyze the user's request and understand what needs to be done
-- Break down complex tasks into clear, actionable steps
-- Explain your reasoning and approach
-- DO NOT execute any tools or make changes
-- DO NOT use Write, Edit, Delete, Bash, or any other modification tools
-- You may use Read, Grep, and Tree tools ONLY for gathering information
-- Present a clear plan of what you would do if asked to implement
-
-Focus on planning and explanation, not execution.`
+		if agentConfig.SystemPromptPlan != "" {
+			return agentConfig.SystemPromptPlan
+		}
+		return agentConfig.SystemPrompt
 
 	case domain.AgentModeAutoAccept:
-		return `
-
-AUTO-ACCEPT MODE:
-You are in AUTO-ACCEPT MODE. All tool executions will be automatically approved.
-- Execute tools freely without waiting for user approval
-- Be confident in your actions
-- Work efficiently to complete tasks
-- All safety guardrails are disabled in this mode`
+		return agentConfig.SystemPrompt
 
 	case domain.AgentModeStandard:
-		return ""
+		return agentConfig.SystemPrompt
 
 	default:
-		return ""
+		return agentConfig.SystemPrompt
 	}
 }
 

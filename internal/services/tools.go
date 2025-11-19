@@ -64,9 +64,10 @@ func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
 func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompletionTool {
 	if mode == domain.AgentModePlan {
 		allowedTools := map[string]bool{
-			"Read": true,
-			"Grep": true,
-			"Tree": true,
+			"Read":            true,
+			"Grep":            true,
+			"Tree":            true,
+			"A2A_QueryAgent":  true,
 		}
 
 		var definitions []sdk.ChatCompletionTool
