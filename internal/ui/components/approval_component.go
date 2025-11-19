@@ -64,7 +64,7 @@ func (c *ApprovalComponent) Render(approvalState *domain.ApprovalUIState, theme 
 	options := c.renderOptions(approvalState.SelectedIndex)
 
 	helpText := c.styleProvider.RenderStyledText(
-		"←/→: Navigate  •  Enter/y: Approve  •  n: Reject  •  a: Auto-Accept  •  Esc: Cancel",
+		"←/→: Navigate • Enter/y: Approve • n: Reject • a: Auto-Accept • Esc: Cancel",
 		styles.StyleOptions{
 			Foreground: c.styleProvider.GetThemeColor("dim"),
 			Italic:     true,
@@ -170,20 +170,21 @@ func (c *ApprovalComponent) renderOptions(selectedIndex int) string {
 	isRejectSelected := selectedIndex == int(domain.ApprovalReject)
 	isAutoAcceptSelected := selectedIndex == int(domain.ApprovalAutoAccept)
 
-	approveText := "  Approve"
+	var approveIcon, rejectIcon, autoAcceptIcon string
+
 	if isApproveSelected {
-		approveText = "✓ Approve"
+		approveIcon = "✓ "
 	}
-
-	rejectText := "  Reject"
 	if isRejectSelected {
-		rejectText = "✗ Reject"
+		rejectIcon = "✗ "
+	}
+	if isAutoAcceptSelected {
+		autoAcceptIcon = "⚡ "
 	}
 
-	autoAcceptText := "  Auto-Accept"
-	if isAutoAcceptSelected {
-		autoAcceptText = "⚡ Auto-Accept"
-	}
+	approveText := approveIcon + "Approve"
+	rejectText := rejectIcon + "Reject"
+	autoAcceptText := autoAcceptIcon + "Auto-Accept"
 
 	approveButton := c.styleProvider.RenderApprovalButton(approveText, isApproveSelected, true)
 	rejectButton := c.styleProvider.RenderApprovalButton(rejectText, isRejectSelected, false)
