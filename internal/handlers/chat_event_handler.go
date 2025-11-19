@@ -9,6 +9,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -18,9 +19,13 @@ type ChatEventHandler struct {
 }
 
 func NewChatEventHandler(handler *ChatHandler) *ChatEventHandler {
+	// Create style provider with default theme for tool call rendering
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+
 	return &ChatEventHandler{
 		handler:          handler,
-		toolCallRenderer: components.NewToolCallRenderer(),
+		toolCallRenderer: components.NewToolCallRenderer(styleProvider),
 	}
 }
 

@@ -3,10 +3,15 @@ package components
 import (
 	"strings"
 	"testing"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 func TestDiffRenderer_RenderDiff(t *testing.T) {
-	renderer := NewDiffRenderer(nil)
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	renderer := NewDiffRenderer(styleProvider)
 
 	t.Run("New file creation", func(t *testing.T) {
 		diffInfo := DiffInfo{
@@ -89,7 +94,9 @@ func TestDiffRenderer_RenderDiff(t *testing.T) {
 }
 
 func TestDiffRenderer_RenderMultiEditToolArguments(t *testing.T) {
-	renderer := NewDiffRenderer(nil)
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	renderer := NewDiffRenderer(styleProvider)
 
 	t.Run("Multiple edits", func(t *testing.T) {
 		args := map[string]any{
@@ -165,7 +172,9 @@ func TestDiffRenderer_RenderMultiEditToolArguments(t *testing.T) {
 }
 
 func TestDiffRenderer_HelperMethods(t *testing.T) {
-	renderer := NewDiffRenderer(nil)
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	renderer := NewDiffRenderer(styleProvider)
 
 	t.Run("renderNewFileContent", func(t *testing.T) {
 		content := "line1\nline2\nline3"
@@ -234,20 +243,30 @@ func TestDiffRenderer_HelperMethods(t *testing.T) {
 }
 
 func TestDiffRenderer_Styling(t *testing.T) {
-	renderer := NewDiffRenderer(nil)
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	renderer := NewDiffRenderer(styleProvider)
 
-	testContent := "test"
+	if renderer == nil {
+		t.Fatal("NewDiffRenderer should not return nil")
+	}
 
-	_ = renderer.additionStyle.Render(testContent)
-	_ = renderer.deletionStyle.Render(testContent)
-	_ = renderer.headerStyle.Render(testContent)
-	_ = renderer.fileStyle.Render(testContent)
-	_ = renderer.contextStyle.Render(testContent)
-	_ = renderer.chunkStyle.Render(testContent)
+	diffInfo := DiffInfo{
+		FilePath:   "test.go",
+		OldContent: "old",
+		NewContent: "new",
+		Title:      "Test",
+	}
+	output := renderer.RenderDiff(diffInfo)
+	if output == "" {
+		t.Error("Expected non-empty output from RenderDiff")
+	}
 }
 
 func TestNewToolDiffRenderer(t *testing.T) {
-	renderer := NewToolDiffRenderer()
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	renderer := NewToolDiffRenderer(styleProvider)
 
 	if renderer == nil {
 		t.Fatal("NewToolDiffRenderer should not return nil")

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/charmbracelet/lipgloss"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // ToolFormatterService interface for formatting tool arguments
@@ -19,11 +19,14 @@ type ApprovalComponent struct {
 	width         int
 	height        int
 	toolFormatter ToolFormatterService
+	styleProvider *styles.Provider
 }
 
 // NewApprovalComponent creates a new approval component
-func NewApprovalComponent() *ApprovalComponent {
-	return &ApprovalComponent{}
+func NewApprovalComponent(styleProvider *styles.Provider) *ApprovalComponent {
+	return &ApprovalComponent{
+		styleProvider: styleProvider,
+	}
 }
 
 // SetDimensions updates the component dimensions
@@ -45,57 +48,45 @@ func (c *ApprovalComponent) Render(approvalState *domain.ApprovalUIState, theme 
 
 	toolCall := approvalState.PendingToolCall
 
-	borderColor := theme.GetBorderColor()
-	accentColor := theme.GetAccentColor()
-	errorColor := theme.GetErrorColor()
-	dimColor := theme.GetDimColor()
-
 	modalWidth := min(c.width-4, 80)
-	modalStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(borderColor)).
-		Padding(1, 2).
-		Width(modalWidth)
 
-	titleStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(accentColor)).
-		MarginBottom(1)
+	title := c.styleProvider.RenderStyledText("🔒 Tool Approval Required", styles.StyleOptions{
+		Foreground:   c.styleProvider.GetThemeColor("accent"),
+		Bold:         true,
+		MarginBottom: 1,
+	})
 
-	title := titleStyle.Render("🔒 Tool Approval Required")
+	toolNameStyled := c.styleProvider.RenderWithColorAndBold(toolCall.Function.Name, c.styleProvider.GetThemeColor("accent"))
+	toolName := fmt.Sprintf("Tool: %s", toolNameStyled)
 
-	toolNameStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color(accentColor))
+	args := c.formatArguments(toolCall.Function.Name, toolCall.Function.Arguments, modalWidth-4)
 
-	toolName := fmt.Sprintf("Tool: %s", toolNameStyle.Render(toolCall.Function.Name))
+	options := c.renderOptions(approvalState.SelectedIndex)
 
-	args := c.formatArguments(toolCall.Function.Name, toolCall.Function.Arguments, modalWidth-4, dimColor)
+	helpText := c.styleProvider.RenderStyledText(
+		"←/→: Navigate  •  Enter/y: Approve  •  n/Esc: Reject",
+		styles.StyleOptions{
+			Foreground: c.styleProvider.GetThemeColor("dim"),
+			Italic:     true,
+			MarginTop:  1,
+		},
+	)
 
-	options := c.renderOptions(approvalState.SelectedIndex, accentColor, errorColor)
-
-	helpStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(dimColor)).
-		Italic(true).
-		MarginTop(1)
-
-	helpText := helpStyle.Render("←/→: Navigate  •  Enter/y: Approve  •  n/Esc: Reject")
-
-	content := lipgloss.JoinVertical(
-		lipgloss.Left,
+	content := c.styleProvider.JoinVertical(
 		title,
 		toolName,
 		args,
 		"",
-		lipgloss.Place(modalWidth, lipgloss.Height(options), lipgloss.Center, lipgloss.Top, options),
+		c.styleProvider.PlaceCenterTop(modalWidth, c.styleProvider.GetHeight(options), options),
 		helpText,
 	)
 
-	return lipgloss.Place(c.width, c.height, lipgloss.Center, lipgloss.Center, modalStyle.Render(content))
+	modal := c.styleProvider.RenderModal(content, modalWidth)
+	return c.styleProvider.PlaceCenter(c.width, c.height, modal)
 }
 
 // formatArguments formats tool arguments for display
-func (c *ApprovalComponent) formatArguments(toolName, argsJSON string, maxWidth int, dimColor string) string {
+func (c *ApprovalComponent) formatArguments(toolName, argsJSON string, maxWidth int) string {
 	if argsJSON == "" {
 		return ""
 	}
@@ -115,10 +106,6 @@ func (c *ApprovalComponent) formatArguments(toolName, argsJSON string, maxWidth 
 			return "\n" + formatted
 		}
 	}
-
-	argStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color(dimColor)).
-		Width(maxWidth)
 
 	var argLines []string
 	argLines = append(argLines, "\nArguments:")
@@ -142,7 +129,11 @@ func (c *ApprovalComponent) formatArguments(toolName, argsJSON string, maxWidth 
 		argLines = append(argLines, line)
 	}
 
-	return argStyle.Render(strings.Join(argLines, "\n"))
+	argsText := strings.Join(argLines, "\n")
+	return c.styleProvider.RenderStyledText(argsText, styles.StyleOptions{
+		Foreground: c.styleProvider.GetThemeColor("dim"),
+		Width:      maxWidth,
+	})
 }
 
 // formatValue formats a single argument value, truncating if necessary
@@ -174,47 +165,24 @@ func (c *ApprovalComponent) formatValue(value any, maxLen int) string {
 }
 
 // renderOptions renders the Approve/Reject options
-func (c *ApprovalComponent) renderOptions(selectedIndex int, accentColor, errorColor string) string {
-	approveStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(accentColor))
+func (c *ApprovalComponent) renderOptions(selectedIndex int) string {
+	isApproveSelected := selectedIndex == int(domain.ApprovalApprove)
+	isRejectSelected := selectedIndex == int(domain.ApprovalReject)
 
-	rejectStyle := lipgloss.NewStyle().
-		Padding(0, 2).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(errorColor))
-
-	selectedApproveStyle := approveStyle.
-		Background(lipgloss.Color(accentColor)).
-		Foreground(lipgloss.Color("#000000")).
-		Bold(true)
-
-	selectedRejectStyle := rejectStyle.
-		Background(lipgloss.Color(errorColor)).
-		Foreground(lipgloss.Color("#ffffff")).
-		Bold(true)
-
-	var approveText, rejectText string
-
-	if selectedIndex == int(domain.ApprovalApprove) {
-		approveText = selectedApproveStyle.Render("✓ Approve")
-	} else {
-		approveText = approveStyle.Render("  Approve")
+	approveText := "  Approve"
+	if isApproveSelected {
+		approveText = "✓ Approve"
 	}
 
-	if selectedIndex == int(domain.ApprovalReject) {
-		rejectText = selectedRejectStyle.Render("✗ Reject")
-	} else {
-		rejectText = rejectStyle.Render("  Reject")
+	rejectText := "  Reject"
+	if isRejectSelected {
+		rejectText = "✗ Reject"
 	}
 
-	return lipgloss.JoinHorizontal(
-		lipgloss.Top,
-		approveText,
-		"  ",
-		rejectText,
-	)
+	approveButton := c.styleProvider.RenderApprovalButton(approveText, isApproveSelected, true)
+	rejectButton := c.styleProvider.RenderApprovalButton(rejectText, isRejectSelected, false)
+
+	return c.styleProvider.JoinHorizontal(approveButton, "  ", rejectButton)
 }
 
 // min returns the minimum of two integers

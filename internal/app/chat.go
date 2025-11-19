@@ -19,6 +19,7 @@ import (
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // ChatApplication represents the main application model using state management
@@ -118,8 +119,10 @@ func NewChatApplication(
 		logger.Error("Failed to transition to initial view", "error", err)
 	}
 
-	app.toolCallRenderer = components.NewToolCallRenderer()
-	app.approvalComponent = components.NewApprovalComponent()
+	styleProvider := styles.NewProvider(app.themeService)
+
+	app.toolCallRenderer = components.NewToolCallRenderer(styleProvider)
+	app.approvalComponent = components.NewApprovalComponent(styleProvider)
 	app.conversationView = ui.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
 
@@ -142,23 +145,23 @@ func NewChatApplication(
 	}
 	app.statusView = ui.CreateStatusView(app.themeService)
 	app.helpBar = ui.CreateHelpBar(app.themeService)
-	app.queueBoxView = components.NewQueueBoxView(app.themeService)
+	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 
-	app.fileSelectionView = components.NewFileSelectionView(app.themeService)
-	app.textSelectionView = components.NewTextSelectionView()
+	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
+	app.textSelectionView = components.NewTextSelectionView(styleProvider)
 
-	app.applicationViewRenderer = components.NewApplicationViewRenderer(app.themeService)
-	app.fileSelectionHandler = components.NewFileSelectionHandler(app.themeService)
+	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
+	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
 
 	app.keyBindingManager = keybinding.NewKeyBindingManager(app)
 	app.updateHelpBarShortcuts()
 
-	app.modelSelector = components.NewModelSelector(models, app.modelService, app.themeService)
-	app.themeSelector = components.NewThemeSelector(app.themeService)
+	app.modelSelector = components.NewModelSelector(models, app.modelService, styleProvider)
+	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 
 	if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
-		app.conversationSelector = components.NewConversationSelector(adapter, app.themeService)
+		app.conversationSelector = components.NewConversationSelector(adapter, styleProvider)
 	} else {
 		app.conversationSelector = nil
 	}
@@ -613,7 +616,8 @@ func (app *ChatApplication) handleA2AServersView(msg tea.Msg) []tea.Cmd {
 			a2aAgentService = a2a.GetA2AAgentService()
 		}
 	}
-	app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, app.themeService)
+	styleProvider := styles.NewProvider(app.themeService)
+	app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, styleProvider)
 
 	ctx := context.Background()
 	if cmd := app.a2aServersView.LoadServers(ctx); cmd != nil {
@@ -694,7 +698,8 @@ func (app *ChatApplication) updateAllComponentsWithNewTheme() {
 		inputView.SetThemeService(app.themeService)
 	}
 
-	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.themeService)
+	styleProvider := styles.NewProvider(app.themeService)
+	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, styleProvider)
 }
 
 func (app *ChatApplication) renderThemeSelection() string {
@@ -712,7 +717,8 @@ func (app *ChatApplication) renderA2AServers() string {
 				a2aAgentService = a2a.GetA2AAgentService()
 			}
 		}
-		app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, app.themeService)
+		styleProvider := styles.NewProvider(app.themeService)
+		app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, styleProvider)
 	}
 
 	width, height := app.stateManager.GetDimensions()

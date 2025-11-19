@@ -7,12 +7,11 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "github.com/charmbracelet/lipgloss"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // ConversationSelectorImpl implements conversation selection UI
@@ -22,7 +21,7 @@ type ConversationSelectorImpl struct {
 	selected              int
 	width                 int
 	height                int
-	themeService          domain.ThemeService
+	styleProvider         *styles.Provider
 	done                  bool
 	cancelled             bool
 	repo                  shortcuts.PersistentConversationRepository
@@ -35,14 +34,14 @@ type ConversationSelectorImpl struct {
 }
 
 // NewConversationSelector creates a new conversation selector
-func NewConversationSelector(repo shortcuts.PersistentConversationRepository, themeService domain.ThemeService) *ConversationSelectorImpl {
+func NewConversationSelector(repo shortcuts.PersistentConversationRepository, styleProvider *styles.Provider) *ConversationSelectorImpl {
 	c := &ConversationSelectorImpl{
 		conversations:         make([]shortcuts.ConversationSummary, 0),
 		filteredConversations: make([]shortcuts.ConversationSummary, 0),
 		selected:              0,
 		width:                 80,
 		height:                24,
-		themeService:          themeService,
+		styleProvider:         styleProvider,
 		repo:                  repo,
 		searchQuery:           "",
 		searchMode:            false,
@@ -378,57 +377,42 @@ func (c *ConversationSelectorImpl) Reset() {
 
 // writeHeader writes the header section of the view
 func (c *ConversationSelectorImpl) writeHeader(b *strings.Builder) {
-	accentColor := c.themeService.GetCurrentTheme().GetAccentColor()
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
-	fmt.Fprintf(b, "%s\n\n", titleStyle.Render("Select a Conversation"))
+	fmt.Fprintf(b, "%s\n\n", c.styleProvider.RenderWithColor("Select a Conversation", c.styleProvider.GetThemeColor("accent")))
 }
 
 // writeLoadingView writes the loading view and returns the complete string
 func (c *ConversationSelectorImpl) writeLoadingView(b *strings.Builder) string {
-	statusColor := c.themeService.GetCurrentTheme().GetStatusColor()
-	loadingStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor))
-	fmt.Fprintf(b, "%s\n", loadingStyle.Render("Loading conversations..."))
+	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor("Loading conversations...", c.styleProvider.GetThemeColor("status")))
 	return b.String()
 }
 
 // writeErrorView writes the error view and returns the complete string
 func (c *ConversationSelectorImpl) writeErrorView(b *strings.Builder) string {
-	errorColor := c.themeService.GetCurrentTheme().GetErrorColor()
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(errorColor))
 	errorMsg := fmt.Sprintf("Error loading conversations: %v", c.loadError)
-	fmt.Fprintf(b, "%s\n", errorStyle.Render(errorMsg))
+	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor(errorMsg, c.styleProvider.GetThemeColor("error")))
 	return b.String()
 }
 
 // writeSearchInfo writes the search information section
 func (c *ConversationSelectorImpl) writeSearchInfo(b *strings.Builder) {
 	if c.searchMode {
-		statusColor := c.themeService.GetCurrentTheme().GetStatusColor()
-		accentColor := c.themeService.GetCurrentTheme().GetAccentColor()
-		searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor))
-		cursorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
 		fmt.Fprintf(b, "%s%s\n\n",
-			searchStyle.Render("Search: "+c.searchQuery),
-			cursorStyle.Render("│"))
+			c.styleProvider.RenderWithColor("Search: "+c.searchQuery, c.styleProvider.GetThemeColor("status")),
+			c.styleProvider.RenderWithColor("│", c.styleProvider.GetThemeColor("accent")))
 	} else {
-		dimColor := c.themeService.GetCurrentTheme().GetDimColor()
-		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 		helpText := fmt.Sprintf("Press / to search • %d conversations available", len(c.conversations))
-		fmt.Fprintf(b, "%s\n\n", dimStyle.Render(helpText))
+		fmt.Fprintf(b, "%s\n\n", c.styleProvider.RenderDimText(helpText))
 	}
 }
 
 // writeEmptyView writes the empty view and returns the complete string
 func (c *ConversationSelectorImpl) writeEmptyView(b *strings.Builder) string {
-	errorColor := c.themeService.GetCurrentTheme().GetErrorColor()
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(errorColor))
-
 	if c.searchQuery != "" {
 		msg := fmt.Sprintf("No conversations match '%s'", c.searchQuery)
-		fmt.Fprintf(b, "%s\n", errorStyle.Render(msg))
+		fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor(msg, c.styleProvider.GetThemeColor("error")))
 	} else if len(c.conversations) == 0 {
 		msg := "No saved conversations found. Start chatting to create your first conversation!"
-		fmt.Fprintf(b, "%s\n", errorStyle.Render(msg))
+		fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor(msg, c.styleProvider.GetThemeColor("error")))
 	}
 	return b.String()
 }
@@ -445,25 +429,20 @@ func (c *ConversationSelectorImpl) writeConversationList(b *strings.Builder) {
 	}
 
 	if len(c.filteredConversations) > pagination.maxVisible {
-		dimColor := c.themeService.GetCurrentTheme().GetDimColor()
-		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 		paginationText := fmt.Sprintf("Showing %d-%d of %d conversations",
 			pagination.start+1, pagination.start+pagination.maxVisible, len(c.filteredConversations))
-		fmt.Fprintf(b, "%s\n", dimStyle.Render(paginationText))
+		fmt.Fprintf(b, "%s\n", c.styleProvider.RenderDimText(paginationText))
 	}
 }
 
 // writeTableHeader writes the table header
 func (c *ConversationSelectorImpl) writeTableHeader(b *strings.Builder) {
-	dimColor := c.themeService.GetCurrentTheme().GetDimColor()
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-
 	headerLine := fmt.Sprintf("%-38s │ %-25s │ %-20s │ %-10s │ %-12s",
 		"ID", "Summary", "Updated", "Messages", "Input Tokens")
-	fmt.Fprintf(b, "%s\n", dimStyle.Render(headerLine))
+	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderDimText(headerLine))
 
 	separator := strings.Repeat("─", c.width-4)
-	fmt.Fprintf(b, "%s\n", dimStyle.Render(separator))
+	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderDimText(separator))
 }
 
 // paginationInfo holds pagination calculation results
@@ -505,11 +484,10 @@ func (c *ConversationSelectorImpl) writeConversationRow(b *strings.Builder, conv
 	inputTokens := fmt.Sprintf("%d", conv.TokenStats.TotalInputTokens)
 
 	if index == c.selected {
-		accentColor := c.themeService.GetCurrentTheme().GetAccentColor()
-		selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
+		accentColor := c.styleProvider.GetThemeColor("accent")
 		rowText := fmt.Sprintf("▶ %-36s │ %-25s │ %-20s │ %-10s │ %-12s",
 			fullID, summary, updatedAt, msgCount, inputTokens)
-		fmt.Fprintf(b, "%s\n", selectedStyle.Render(rowText))
+		fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor(rowText, accentColor))
 	} else {
 		fmt.Fprintf(b, "  %-36s │ %-25s │ %-20s │ %-10s │ %-12s\n",
 			fullID, summary, updatedAt, msgCount, inputTokens)
@@ -569,18 +547,15 @@ func (c *ConversationSelectorImpl) formatDateTimeParts(updatedAt string) string 
 // writeFooter writes the footer section
 func (c *ConversationSelectorImpl) writeFooter(b *strings.Builder) {
 	b.WriteString("\n")
-	b.WriteString(colors.CreateSeparator(c.width, "─"))
+	b.WriteString(strings.Repeat("─", c.width))
 	b.WriteString("\n")
-
-	dimColor := c.themeService.GetCurrentTheme().GetDimColor()
-	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 
 	if c.searchMode {
 		helpText := "Type to search, ↑↓ to navigate, Enter to select, Esc to clear search"
-		fmt.Fprintf(b, "%s", helpStyle.Render(helpText))
+		fmt.Fprintf(b, "%s", c.styleProvider.RenderDimText(helpText))
 	} else {
 		helpText := "Use ↑↓ arrows to navigate, Enter to select, d to delete, / to search, Esc/Ctrl+C to cancel"
-		fmt.Fprintf(b, "%s", helpStyle.Render(helpText))
+		fmt.Fprintf(b, "%s", c.styleProvider.RenderDimText(helpText))
 	}
 }
 
@@ -596,30 +571,24 @@ func (c *ConversationSelectorImpl) writeDeleteConfirmation(b *strings.Builder) s
 	c.writeConversationList(b)
 
 	b.WriteString("\n")
-	b.WriteString(colors.CreateSeparator(c.width, "─"))
+	b.WriteString(strings.Repeat("─", c.width))
 	b.WriteString("\n\n")
 
-	errorColor := c.themeService.GetCurrentTheme().GetErrorColor()
-	dimColor := c.themeService.GetCurrentTheme().GetDimColor()
-	accentColor := c.themeService.GetCurrentTheme().GetAccentColor()
+	errorColor := c.styleProvider.GetThemeColor("error")
+	accentColor := c.styleProvider.GetThemeColor("accent")
 
-	warningStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(errorColor))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-	accentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
-
-	fmt.Fprintf(b, "%s\n\n", warningStyle.Render("⚠ Delete Confirmation"))
+	fmt.Fprintf(b, "%s\n\n", c.styleProvider.RenderWithColor("⚠ Delete Confirmation", errorColor))
 	fmt.Fprintf(b, "Are you sure you want to delete this conversation?\n\n")
-	fmt.Fprintf(b, "%s\n", dimStyle.Render("ID: "+conv.ID))
-	fmt.Fprintf(b, "%s\n\n", dimStyle.Render("Title: "+conv.Title))
-	fmt.Fprintf(b, "%s", accentStyle.Render("Press Y to confirm, N or Esc to cancel"))
+	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderDimText("ID: "+conv.ID))
+	fmt.Fprintf(b, "%s\n\n", c.styleProvider.RenderDimText("Title: "+conv.Title))
+	fmt.Fprintf(b, "%s", c.styleProvider.RenderWithColor("Press Y to confirm, N or Esc to cancel", accentColor))
 
 	return b.String()
 }
 
 // writeDeleteError writes the delete error message
 func (c *ConversationSelectorImpl) writeDeleteError(b *strings.Builder) {
-	errorColor := c.themeService.GetCurrentTheme().GetErrorColor()
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(errorColor))
+	errorColor := c.styleProvider.GetThemeColor("error")
 	errorMsg := fmt.Sprintf("Error deleting conversation: %v", c.deleteError)
-	fmt.Fprintf(b, "%s\n\n", errorStyle.Render(errorMsg))
+	fmt.Fprintf(b, "%s\n\n", c.styleProvider.RenderWithColor(errorMsg, errorColor))
 }

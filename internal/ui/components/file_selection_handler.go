@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // FileSelectionHandler handles file selection logic and state management
@@ -15,9 +16,9 @@ type FileSelectionHandler struct {
 }
 
 // NewFileSelectionHandler creates a new file selection handler
-func NewFileSelectionHandler(themeService domain.ThemeService) *FileSelectionHandler {
+func NewFileSelectionHandler(styleProvider *styles.Provider) *FileSelectionHandler {
 	return &FileSelectionHandler{
-		view: NewFileSelectionView(themeService),
+		view: NewFileSelectionView(styleProvider),
 	}
 }
 

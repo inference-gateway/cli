@@ -6,13 +6,15 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 func TestConversationSelectorImpl_Reset(t *testing.T) {
 	mockRepo := &mockPersistentConversationRepository{}
 	themeService := &mockThemeService{}
+	styleProvider := styles.NewProvider(themeService)
 
-	selector := NewConversationSelector(mockRepo, themeService)
+	selector := NewConversationSelector(mockRepo, styleProvider)
 
 	selector.done = true
 	selector.cancelled = true
@@ -60,8 +62,9 @@ func TestConversationSelectorImpl_Reset(t *testing.T) {
 func TestConversationSelectorImpl_ResetAllowsReuse(t *testing.T) {
 	mockRepo := &mockPersistentConversationRepository{}
 	themeService := &mockThemeService{}
+	styleProvider := styles.NewProvider(themeService)
 
-	selector := NewConversationSelector(mockRepo, themeService)
+	selector := NewConversationSelector(mockRepo, styleProvider)
 
 	selector.cancelled = true
 	selector.done = true

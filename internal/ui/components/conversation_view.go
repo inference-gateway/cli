@@ -10,11 +10,9 @@ import (
 
 	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "github.com/charmbracelet/lipgloss"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -30,12 +28,12 @@ type ConversationView struct {
 	lineFormatter       *shared.ConversationLineFormatter
 	plainTextLines      []string
 	configPath          string
-	themeService        domain.ThemeService
+	styleProvider       *styles.Provider
 	isStreaming         bool
 	toolCallRenderer    *ToolCallRenderer
 }
 
-func NewConversationView(themeService domain.ThemeService) *ConversationView {
+func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	vp := viewport.New(80, 20)
 	vp.SetContent("")
 	return &ConversationView{
@@ -47,7 +45,7 @@ func NewConversationView(themeService domain.ThemeService) *ConversationView {
 		allToolsExpanded:    false,
 		lineFormatter:       shared.NewConversationLineFormatter(80, nil),
 		plainTextLines:      []string{},
-		themeService:        themeService,
+		styleProvider:       styleProvider,
 	}
 }
 
@@ -189,27 +187,22 @@ func (cv *ConversationView) renderWelcome() string {
 		wd = "unknown"
 	}
 
-	statusColor := cv.getStatusColor()
-	successColor := cv.getSuccessColor()
-	dimColor := cv.getDimColor()
+	statusColor := cv.styleProvider.GetThemeColor("status")
+	successColor := cv.styleProvider.GetThemeColor("success")
+	dimColor := cv.styleProvider.GetThemeColor("dim")
 	headerColor := cv.getHeaderColor()
 
-	headerLine := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor)).Render("✨ Inference Gateway CLI")
-	readyLine := lipgloss.NewStyle().Foreground(lipgloss.Color(successColor)).Render("🚀 Ready to chat!")
-	workingLinePrefix := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor)).Render("📂 Working in: ")
-	workingLinePath := lipgloss.NewStyle().Foreground(lipgloss.Color(headerColor)).Render(wd)
+	headerLine := cv.styleProvider.RenderWithColor("✨ Inference Gateway CLI", statusColor)
+	readyLine := cv.styleProvider.RenderWithColor("🚀 Ready to chat!", successColor)
+	workingLinePrefix := cv.styleProvider.RenderWithColor("📂 Working in: ", dimColor)
+	workingLinePath := cv.styleProvider.RenderWithColor(wd, headerColor)
 	workingLine := workingLinePrefix + workingLinePath
 
 	configLine := cv.buildConfigLine()
 
 	content := headerLine + "\n\n" + readyLine + "\n\n" + workingLine + "\n\n" + configLine
 
-	style := styles.NewCommonStyles().Border.
-		Border(styles.RoundedBorder(), true).
-		BorderForeground(lipgloss.Color(cv.getAccentColor())).
-		Padding(1, 1)
-
-	return style.Render(content)
+	return cv.styleProvider.RenderBorderedBox(content, cv.styleProvider.GetThemeColor("accent"), 1, 1)
 }
 
 func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
@@ -231,22 +224,22 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 			return cv.renderAssistantWithToolCalls(entry, index, color, role)
 		}
 	case "system":
-		color = cv.getDimColor()
+		color = cv.styleProvider.GetThemeColor("dim")
 		role = "⚙️ System"
 	case "tool":
 		if entry.ToolExecution != nil && !entry.ToolExecution.Success {
-			color = cv.getErrorColor()
+			color = cv.styleProvider.GetThemeColor("error")
 			role = "🔧 Tool"
 		} else if entry.ToolExecution != nil && entry.ToolExecution.Success {
-			color = cv.getSuccessColor()
+			color = cv.styleProvider.GetThemeColor("success")
 			role = "🔧 Tool"
 		} else {
-			color = cv.getAccentColor()
+			color = cv.styleProvider.GetThemeColor("accent")
 			role = "🔧 Tool"
 		}
 		return cv.renderToolEntry(entry, index, color, role)
 	default:
-		color = cv.getDimColor()
+		color = cv.styleProvider.GetThemeColor("dim")
 		role = string(entry.Message.Role)
 	}
 
@@ -257,7 +250,7 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 	content := entry.Message.Content
 	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
 
-	roleStyled := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(role + ":")
+	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
 	message := roleStyled + " " + wrappedContent
 
 	return message + "\n"
@@ -266,7 +259,7 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, _ int, color, role string) string {
 	var result strings.Builder
 
-	roleStyled := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(role + ":")
+	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
 
 	if entry.Message.Content != "" {
 		wrappedContent := shared.FormatResponsiveMessage(entry.Message.Content, cv.width)
@@ -276,8 +269,7 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 	}
 
 	if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 { // nolint:nestif
-		toolCallsColor := cv.getAccentColor()
-		toolNameStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(toolCallsColor))
+		toolCallsColor := cv.styleProvider.GetThemeColor("accent")
 
 		for _, toolCall := range *entry.Message.ToolCalls {
 			toolName := toolCall.Function.Name
@@ -290,10 +282,10 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 				} else {
 					argsDisplay = toolArgs
 				}
-				toolNameStyled := toolNameStyle.Render(toolName)
+				toolNameStyled := cv.styleProvider.RenderWithColor(toolName, toolCallsColor)
 				result.WriteString(fmt.Sprintf("  • %s: %s\n", toolNameStyled, argsDisplay))
 			} else {
-				toolNameStyled := toolNameStyle.Render(toolName)
+				toolNameStyled := cv.styleProvider.RenderWithColor(toolName, toolCallsColor)
 				result.WriteString(fmt.Sprintf("  • %s\n", toolNameStyled))
 			}
 		}
@@ -316,7 +308,7 @@ func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, inde
 
 	content := cv.formatEntryContent(entry, isExpanded)
 
-	roleStyled := lipgloss.NewStyle().Foreground(lipgloss.Color(color)).Render(role + ":")
+	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
 	message := roleStyled + " " + content
 	return message + "\n"
 }
@@ -428,15 +420,12 @@ func (cv *ConversationView) buildConfigLine() string {
 	configType := cv.getConfigType()
 	displayPath := cv.shortenPath(cv.configPath)
 
-	dimColor := cv.getDimColor()
-	accentColor := cv.getAccentColor()
+	dimColor := cv.styleProvider.GetThemeColor("dim")
+	accentColor := cv.styleProvider.GetThemeColor("accent")
 
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-	accentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
-
-	configPrefix := dimStyle.Render("⚙  Config: ")
-	pathStyled := accentStyle.Render(displayPath)
-	configTypeStyled := dimStyle.Render(" (" + configType + ")")
+	configPrefix := cv.styleProvider.RenderWithColor("⚙  Config: ", dimColor)
+	pathStyled := cv.styleProvider.RenderWithColor(displayPath, accentColor)
+	configTypeStyled := cv.styleProvider.RenderWithColor(" ("+configType+")", dimColor)
 
 	return configPrefix + pathStyled + configTypeStyled
 }
@@ -547,59 +536,15 @@ func (cv *ConversationView) handleScrollRequest(msg domain.ScrollRequestEvent) (
 
 // Helper methods to get theme colors with fallbacks
 func (cv *ConversationView) getUserColor() string {
-	if cv.themeService != nil {
-		return cv.themeService.GetCurrentTheme().GetUserColor()
-	}
-	return colors.UserColor.ANSI
+	return cv.styleProvider.GetThemeColor("user")
 }
 
 func (cv *ConversationView) getAssistantColor() string {
-	if cv.themeService != nil {
-		return cv.themeService.GetCurrentTheme().GetAssistantColor()
-	}
-	return colors.AssistantColor.ANSI
-}
-
-func (cv *ConversationView) getErrorColor() string {
-	if cv.themeService != nil {
-		return cv.themeService.GetCurrentTheme().GetErrorColor()
-	}
-	return colors.ErrorColor.ANSI
-}
-
-func (cv *ConversationView) getStatusColor() string {
-	if cv.themeService != nil {
-		return cv.themeService.GetCurrentTheme().GetStatusColor()
-	}
-	return colors.StatusColor.ANSI
-}
-
-func (cv *ConversationView) getSuccessColor() string {
-	if cv.themeService != nil {
-		return cv.themeService.GetCurrentTheme().GetSuccessColor()
-	}
-	return colors.SuccessColor.Lipgloss
-}
-
-func (cv *ConversationView) getAccentColor() string {
-	if cv.themeService != nil {
-		return cv.themeService.GetCurrentTheme().GetAccentColor()
-	}
-	return colors.AccentColor.ANSI
-}
-
-func (cv *ConversationView) getDimColor() string {
-	if cv.themeService != nil {
-		return cv.themeService.GetCurrentTheme().GetDimColor()
-	}
-	return colors.DimColor.ANSI
+	return cv.styleProvider.GetThemeColor("assistant")
 }
 
 func (cv *ConversationView) getHeaderColor() string {
-	if cv.themeService != nil {
-		return cv.themeService.GetCurrentTheme().GetAccentColor()
-	}
-	return colors.HeaderColor.ANSI
+	return cv.styleProvider.GetThemeColor("accent")
 }
 
 // appendStreamingContent appends streaming content to the last assistant message

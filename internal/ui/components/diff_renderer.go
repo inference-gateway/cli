@@ -5,38 +5,18 @@ import (
 	"os"
 	"strings"
 
-	lipgloss "github.com/charmbracelet/lipgloss"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // DiffRenderer provides high-performance diff rendering with colors
 type DiffRenderer struct {
-	themeService  domain.ThemeService
-	additionStyle lipgloss.Style
-	deletionStyle lipgloss.Style
-	headerStyle   lipgloss.Style
-	fileStyle     lipgloss.Style
-	contextStyle  lipgloss.Style
-	lineNumStyle  lipgloss.Style
-	chunkStyle    lipgloss.Style
-	borderStyle   lipgloss.Style
-	statsStyle    lipgloss.Style
+	styleProvider *styles.Provider
 }
 
 // NewDiffRenderer creates a new diff renderer with colored output
-func NewDiffRenderer(themeService domain.ThemeService) *DiffRenderer {
+func NewDiffRenderer(styleProvider *styles.Provider) *DiffRenderer {
 	return &DiffRenderer{
-		themeService:  themeService,
-		additionStyle: lipgloss.NewStyle().Foreground(colors.DiffAddColor.GetLipglossColor()),
-		deletionStyle: lipgloss.NewStyle().Foreground(colors.DiffRemoveColor.GetLipglossColor()),
-		headerStyle:   lipgloss.NewStyle().Foreground(colors.HeaderColor.GetLipglossColor()),
-		fileStyle:     lipgloss.NewStyle().Foreground(colors.AccentColor.GetLipglossColor()).Bold(true),
-		contextStyle:  lipgloss.NewStyle().Foreground(colors.DimColor.GetLipglossColor()),
-		lineNumStyle:  lipgloss.NewStyle().Foreground(colors.DimColor.GetLipglossColor()),
-		chunkStyle:    lipgloss.NewStyle().Foreground(colors.StatusColor.GetLipglossColor()).Bold(true),
-		borderStyle:   lipgloss.NewStyle().Foreground(colors.BorderColor.GetLipglossColor()),
-		statsStyle:    lipgloss.NewStyle().Foreground(colors.StatusColor.GetLipglossColor()),
+		styleProvider: styleProvider,
 	}
 }
 
@@ -49,17 +29,17 @@ func (d *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
 
 	var result strings.Builder
 
-	result.WriteString(d.fileStyle.Render(filePath))
+	result.WriteString(d.styleProvider.RenderWithColorAndBold(filePath, d.styleProvider.GetThemeColor("accent")))
 	result.WriteString("\n")
 	if replaceAll {
-		result.WriteString(d.contextStyle.Render("Mode: Replace all occurrences"))
+		result.WriteString(d.styleProvider.RenderDimText("Mode: Replace all occurrences"))
 		result.WriteString("\n")
 	}
 	result.WriteString("\n")
 
-	result.WriteString(d.headerStyle.Render(fmt.Sprintf("--- a/%s", filePath)))
+	result.WriteString(d.styleProvider.RenderWithColor(fmt.Sprintf("--- a/%s", filePath), d.styleProvider.GetThemeColor("accent")))
 	result.WriteString("\n")
-	result.WriteString(d.headerStyle.Render(fmt.Sprintf("+++ b/%s", filePath)))
+	result.WriteString(d.styleProvider.RenderWithColor(fmt.Sprintf("+++ b/%s", filePath), d.styleProvider.GetThemeColor("accent")))
 	result.WriteString("\n")
 
 	cleanedOldString := d.cleanString(oldString)
@@ -193,7 +173,7 @@ func (d *DiffRenderer) RenderMultiEditToolArguments(args map[string]any) string 
 
 	var result strings.Builder
 
-	result.WriteString(d.fileStyle.Render(filePath))
+	result.WriteString(d.styleProvider.RenderWithColorAndBold(filePath, d.styleProvider.GetThemeColor("accent")))
 	result.WriteString("\n\n")
 
 	editsArray, ok := editsInterface.([]any)
@@ -202,7 +182,7 @@ func (d *DiffRenderer) RenderMultiEditToolArguments(args map[string]any) string 
 		return result.String()
 	}
 
-	result.WriteString(d.contextStyle.Render(fmt.Sprintf("Operations: %d edits", len(editsArray))))
+	result.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf("Operations: %d edits", len(editsArray))))
 	result.WriteString("\n\n")
 
 	for i, editInterface := range editsArray {
@@ -215,10 +195,10 @@ func (d *DiffRenderer) RenderMultiEditToolArguments(args map[string]any) string 
 		newString, _ := editMap["new_string"].(string)
 		replaceAll, _ := editMap["replace_all"].(bool)
 
-		result.WriteString(d.headerStyle.Render(fmt.Sprintf("Edit %d:", i+1)))
+		result.WriteString(d.styleProvider.RenderWithColor(fmt.Sprintf("Edit %d:", i+1), d.styleProvider.GetThemeColor("accent")))
 		result.WriteString("\n")
 		if replaceAll {
-			result.WriteString(d.contextStyle.Render("Replace all occurrences"))
+			result.WriteString(d.styleProvider.RenderDimText("Replace all occurrences"))
 			result.WriteString("\n")
 		}
 
@@ -255,22 +235,17 @@ func (d *DiffRenderer) RenderWriteToolArguments(args map[string]any) string {
 	}
 
 	icon := d.getFileIcon(filePath)
-	header := d.fileStyle.Render(icon + " " + filePath)
+	header := d.styleProvider.RenderWithColorAndBold(icon+" "+filePath, d.styleProvider.GetThemeColor("accent"))
 
-	borderStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colors.BorderColor.GetLipglossColor()).
-		Padding(0, 1)
-
-	result.WriteString(borderStyle.Render(header))
+	result.WriteString(d.styleProvider.RenderBordered(header, 80))
 	result.WriteString("\n\n")
 
-	newFileBadge := lipgloss.NewStyle().
-		Background(colors.SuccessColor.GetLipglossColor()).
-		Foreground(lipgloss.Color("#000000")).
-		Bold(true).
-		Padding(0, 1).
-		Render("NEW FILE")
+	opts := styles.StyleOptions{
+		Background: d.styleProvider.GetThemeColor("success"),
+		Foreground: "#000000",
+		Bold:       true,
+	}
+	newFileBadge := d.styleProvider.RenderStyledText("NEW FILE", opts)
 
 	result.WriteString(newFileBadge)
 	result.WriteString("\n\n")
@@ -295,19 +270,20 @@ func (d *DiffRenderer) renderContentPreview(content string) string {
 
 	var result strings.Builder
 	maxLineNumWidth := len(fmt.Sprintf("%d", len(lines)))
-	gutterSep := d.contextStyle.Render(" │ ")
+	gutterSep := d.styleProvider.RenderDimText(" │ ")
 
 	for i, line := range lines {
 		if i >= 50 {
 			remaining := len(lines) - i
-			moreStyle := lipgloss.NewStyle().
-				Foreground(colors.DimColor.GetLipglossColor()).
-				Italic(true)
-			result.WriteString(moreStyle.Render(fmt.Sprintf("\n... %d more lines ...", remaining)))
+			opts := styles.StyleOptions{
+				Foreground: d.styleProvider.GetThemeColor("dim"),
+				Italic:     true,
+			}
+			result.WriteString(d.styleProvider.RenderStyledText(fmt.Sprintf("\n... %d more lines ...", remaining), opts))
 			break
 		}
 
-		lineNumStr := d.lineNumStyle.Render(
+		lineNumStr := d.styleProvider.RenderDimText(
 			fmt.Sprintf("%*d", maxLineNumWidth, i+1))
 		result.WriteString(lineNumStr)
 		result.WriteString(gutterSep)
@@ -317,12 +293,7 @@ func (d *DiffRenderer) renderContentPreview(content string) string {
 		}
 	}
 
-	borderStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colors.DimColor.GetLipglossColor()).
-		Padding(0, 1)
-
-	return borderStyle.Render(result.String())
+	return d.styleProvider.RenderBordered(result.String(), 80)
 }
 
 // RenderDiff renders a unified diff with colors and modern styling
@@ -332,20 +303,20 @@ func (d *DiffRenderer) RenderDiff(diffInfo DiffInfo) string {
 	stats := d.calculateDiffStats(diffInfo.OldContent, diffInfo.NewContent)
 
 	if diffInfo.Title != "" {
-		titleStyle := lipgloss.NewStyle().
-			Foreground(colors.HeaderColor.GetLipglossColor()).
-			Bold(true).
-			Padding(0, 1)
-		result.WriteString(titleStyle.Render(diffInfo.Title))
+		opts := styles.StyleOptions{
+			Foreground: d.styleProvider.GetThemeColor("accent"),
+			Bold:       true,
+		}
+		result.WriteString(d.styleProvider.RenderStyledText(diffInfo.Title, opts))
 		result.WriteString("\n\n")
 	}
 
 	result.WriteString(d.renderFileHeader(diffInfo.FilePath, stats))
 	result.WriteString("\n\n")
 
-	result.WriteString(d.contextStyle.Render(fmt.Sprintf("--- a/%s", diffInfo.FilePath)))
+	result.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf("--- a/%s", diffInfo.FilePath)))
 	result.WriteString("\n")
-	result.WriteString(d.contextStyle.Render(fmt.Sprintf("+++ b/%s", diffInfo.FilePath)))
+	result.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf("+++ b/%s", diffInfo.FilePath)))
 	result.WriteString("\n")
 
 	var diffContent string
@@ -366,12 +337,7 @@ func (d *DiffRenderer) RenderDiff(diffInfo DiffInfo) string {
 		diffContent = d.renderUnifiedDiff(cleanedOldContent, cleanedNewContent, startLine)
 	}
 
-	diffBoxStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colors.DimColor.GetLipglossColor()).
-		Padding(0, 1)
-
-	result.WriteString(diffBoxStyle.Render(diffContent))
+	result.WriteString(d.styleProvider.RenderBordered(diffContent, 100))
 
 	return result.String()
 }
@@ -384,20 +350,9 @@ type DiffInfo struct {
 	Title      string
 }
 
-// NewToolDiffRenderer creates a tool diff renderer (alias for DiffRenderer)
-func NewToolDiffRenderer() *DiffRenderer {
-	return &DiffRenderer{
-		themeService:  nil,
-		additionStyle: lipgloss.NewStyle().Foreground(colors.DiffAddColor.GetLipglossColor()),
-		deletionStyle: lipgloss.NewStyle().Foreground(colors.DiffRemoveColor.GetLipglossColor()),
-		headerStyle:   lipgloss.NewStyle().Foreground(colors.HeaderColor.GetLipglossColor()),
-		fileStyle:     lipgloss.NewStyle().Foreground(colors.AccentColor.GetLipglossColor()).Bold(true),
-		contextStyle:  lipgloss.NewStyle().Foreground(colors.DimColor.GetLipglossColor()),
-		lineNumStyle:  lipgloss.NewStyle().Foreground(colors.DimColor.GetLipglossColor()),
-		chunkStyle:    lipgloss.NewStyle().Foreground(colors.StatusColor.GetLipglossColor()).Bold(true),
-		borderStyle:   lipgloss.NewStyle().Foreground(colors.BorderColor.GetLipglossColor()),
-		statsStyle:    lipgloss.NewStyle().Foreground(colors.StatusColor.GetLipglossColor()),
-	}
+// NewToolDiffRenderer creates a tool diff renderer (alias for NewDiffRenderer)
+func NewToolDiffRenderer(styleProvider *styles.Provider) *DiffRenderer {
+	return NewDiffRenderer(styleProvider)
 }
 
 // RenderColoredDiff renders a simple diff between old and new content (for compatibility)
@@ -416,19 +371,23 @@ func (d *DiffRenderer) renderNewFileContent(newContent string) string {
 	var result strings.Builder
 	newLines := strings.Split(newContent, "\n")
 	chunkHeader := fmt.Sprintf("@@ -0,0 +1,%d @@", len(newLines))
-	result.WriteString(d.chunkStyle.Render(chunkHeader))
+	opts := styles.StyleOptions{
+		Foreground: d.styleProvider.GetThemeColor("status"),
+		Bold:       true,
+	}
+	result.WriteString(d.styleProvider.RenderStyledText(chunkHeader, opts))
 	result.WriteString("\n")
 
 	maxLineNumWidth := len(fmt.Sprintf("%d", len(newLines)))
-	gutterSep := d.contextStyle.Render(" │ ")
+	gutterSep := d.styleProvider.RenderDimText(" │ ")
 
 	for i, line := range newLines {
 		if i < len(newLines)-1 || line != "" {
-			lineNumStr := d.lineNumStyle.Render(
+			lineNumStr := d.styleProvider.RenderDimText(
 				fmt.Sprintf("%*d", maxLineNumWidth, i+1))
 			result.WriteString(lineNumStr)
 			result.WriteString(gutterSep)
-			result.WriteString(d.additionStyle.Render(fmt.Sprintf("+%s", line)))
+			result.WriteString(d.styleProvider.RenderDiffAddition(fmt.Sprintf("+%s", line)))
 			result.WriteString("\n")
 		}
 	}
@@ -440,19 +399,23 @@ func (d *DiffRenderer) renderDeletedFileContent(oldContent string) string {
 	var result strings.Builder
 	oldLines := strings.Split(oldContent, "\n")
 	chunkHeader := fmt.Sprintf("@@ -1,%d +0,0 @@", len(oldLines))
-	result.WriteString(d.chunkStyle.Render(chunkHeader))
+	opts := styles.StyleOptions{
+		Foreground: d.styleProvider.GetThemeColor("status"),
+		Bold:       true,
+	}
+	result.WriteString(d.styleProvider.RenderStyledText(chunkHeader, opts))
 	result.WriteString("\n")
 
 	maxLineNumWidth := len(fmt.Sprintf("%d", len(oldLines)))
-	gutterSep := d.contextStyle.Render(" │ ")
+	gutterSep := d.styleProvider.RenderDimText(" │ ")
 
 	for i, line := range oldLines {
 		if i < len(oldLines)-1 || line != "" {
-			lineNumStr := d.lineNumStyle.Render(
+			lineNumStr := d.styleProvider.RenderDimText(
 				fmt.Sprintf("%*d", maxLineNumWidth, i+1))
 			result.WriteString(lineNumStr)
 			result.WriteString(gutterSep)
-			result.WriteString(d.deletionStyle.Render(fmt.Sprintf("-%s", line)))
+			result.WriteString(d.styleProvider.RenderDiffRemoval(fmt.Sprintf("-%s", line)))
 			result.WriteString("\n")
 		}
 	}
@@ -473,7 +436,11 @@ func (d *DiffRenderer) renderUnifiedDiff(oldContent, newContent string, startLin
 	newCount := len(newLines)
 
 	chunkHeader := fmt.Sprintf("@@ -%d,%d +%d,%d @@", startLine, oldCount, startLine, newCount)
-	result.WriteString(d.chunkStyle.Render(chunkHeader))
+	opts := styles.StyleOptions{
+		Foreground: d.styleProvider.GetThemeColor("status"),
+		Bold:       true,
+	}
+	result.WriteString(d.styleProvider.RenderStyledText(chunkHeader, opts))
 	result.WriteString("\n")
 
 	type diffLine struct {
@@ -548,25 +515,25 @@ func (d *DiffRenderer) renderUnifiedDiff(oldContent, newContent string, startLin
 	}
 
 	maxLineNumWidth := len(fmt.Sprintf("%d", max(oldLineNum, newLineNum)))
-	gutterSep := d.contextStyle.Render(" │ ")
+	gutterSep := d.styleProvider.RenderDimText(" │ ")
 
 	for _, line := range diffLines {
 		var lineNumStr string
 		if line.isDelete {
-			lineNumStr = d.lineNumStyle.Render(fmt.Sprintf("%*d", maxLineNumWidth, line.oldLineNum))
+			lineNumStr = d.styleProvider.RenderDimText(fmt.Sprintf("%*d", maxLineNumWidth, line.oldLineNum))
 		} else {
-			lineNumStr = d.lineNumStyle.Render(fmt.Sprintf("%*d", maxLineNumWidth, line.newLineNum))
+			lineNumStr = d.styleProvider.RenderDimText(fmt.Sprintf("%*d", maxLineNumWidth, line.newLineNum))
 		}
 
 		result.WriteString(lineNumStr)
 		result.WriteString(gutterSep)
 
 		if line.isContext {
-			result.WriteString(d.contextStyle.Render(fmt.Sprintf(" %s", line.content)))
+			result.WriteString(d.styleProvider.RenderDimText(fmt.Sprintf(" %s", line.content)))
 		} else if line.isAdd {
-			result.WriteString(d.additionStyle.Render(fmt.Sprintf("+%s", line.content)))
+			result.WriteString(d.styleProvider.RenderDiffAddition(fmt.Sprintf("+%s", line.content)))
 		} else if line.isDelete {
-			result.WriteString(d.deletionStyle.Render(fmt.Sprintf("-%s", line.content)))
+			result.WriteString(d.styleProvider.RenderDiffRemoval(fmt.Sprintf("-%s", line.content)))
 		}
 		result.WriteString("\n")
 	}
@@ -626,16 +593,16 @@ func (d *DiffRenderer) renderDiffStats(stats DiffStats) string {
 	var parts []string
 
 	if stats.LinesAdded > 0 {
-		parts = append(parts, d.additionStyle.Render(fmt.Sprintf("+%d", stats.LinesAdded)))
+		parts = append(parts, d.styleProvider.RenderDiffAddition(fmt.Sprintf("+%d", stats.LinesAdded)))
 	}
 	if stats.LinesRemoved > 0 {
-		parts = append(parts, d.deletionStyle.Render(fmt.Sprintf("-%d", stats.LinesRemoved)))
+		parts = append(parts, d.styleProvider.RenderDiffRemoval(fmt.Sprintf("-%d", stats.LinesRemoved)))
 	}
 	if stats.LinesChanged > 0 {
-		parts = append(parts, d.statsStyle.Render(fmt.Sprintf("~%d", stats.LinesChanged)))
+		parts = append(parts, d.styleProvider.RenderWithColor(fmt.Sprintf("~%d", stats.LinesChanged), d.styleProvider.GetThemeColor("status")))
 	}
 
-	return d.contextStyle.Render("Changes: ") + strings.Join(parts, " ")
+	return d.styleProvider.RenderDimText("Changes: ") + strings.Join(parts, " ")
 }
 
 // getFileIcon returns an appropriate icon/glyph for a file based on extension
@@ -669,7 +636,7 @@ func (d *DiffRenderer) getFileIcon(filePath string) string {
 // renderFileHeader creates an elegant file header with metadata
 func (d *DiffRenderer) renderFileHeader(filePath string, stats DiffStats) string {
 	icon := d.getFileIcon(filePath)
-	fileName := d.fileStyle.Render(icon + " " + filePath)
+	fileName := d.styleProvider.RenderWithColorAndBold(icon+" "+filePath, d.styleProvider.GetThemeColor("accent"))
 
 	var header strings.Builder
 	header.WriteString(fileName)
@@ -680,11 +647,5 @@ func (d *DiffRenderer) renderFileHeader(filePath string, stats DiffStats) string
 		header.WriteString(statsLine)
 	}
 
-	// Create a border box around the header
-	borderStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(colors.BorderColor.GetLipglossColor()).
-		Padding(0, 1)
-
-	return borderStyle.Render(header.String())
+	return d.styleProvider.RenderBordered(header.String(), 100)
 }

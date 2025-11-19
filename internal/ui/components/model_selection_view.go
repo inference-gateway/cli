@@ -5,9 +5,8 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "github.com/charmbracelet/lipgloss"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // ModelSelectorImpl implements model selection UI
@@ -17,7 +16,7 @@ type ModelSelectorImpl struct {
 	selected       int
 	width          int
 	height         int
-	themeService   domain.ThemeService
+	styleProvider  *styles.Provider
 	done           bool
 	cancelled      bool
 	modelService   domain.ModelService
@@ -26,14 +25,14 @@ type ModelSelectorImpl struct {
 }
 
 // NewModelSelector creates a new model selector
-func NewModelSelector(models []string, modelService domain.ModelService, themeService domain.ThemeService) *ModelSelectorImpl {
+func NewModelSelector(models []string, modelService domain.ModelService, styleProvider *styles.Provider) *ModelSelectorImpl {
 	m := &ModelSelectorImpl{
 		models:         models,
 		filteredModels: make([]string, len(models)),
 		selected:       0,
 		width:          80,
 		height:         24,
-		themeService:   themeService,
+		styleProvider:  styleProvider,
 		modelService:   modelService,
 		searchQuery:    "",
 		searchMode:     false,
@@ -147,36 +146,28 @@ func (m *ModelSelectorImpl) updateSearch() {
 func (m *ModelSelectorImpl) View() string {
 	var b strings.Builder
 
-	// Use Lipgloss styling
-	accentColor := m.themeService.GetCurrentTheme().GetAccentColor()
-	titleStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
-	b.WriteString(titleStyle.Render("Select a Model"))
+	accentColor := m.styleProvider.GetThemeColor("accent")
+	b.WriteString(m.styleProvider.RenderWithColor("Select a Model", accentColor))
 	b.WriteString("\n\n")
 
 	if m.searchMode {
-		statusColor := m.themeService.GetCurrentTheme().GetStatusColor()
-		searchStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(statusColor))
-		cursorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
-
-		b.WriteString(searchStyle.Render("Search: " + m.searchQuery))
-		b.WriteString(cursorStyle.Render("│"))
+		statusColor := m.styleProvider.GetThemeColor("status")
+		b.WriteString(m.styleProvider.RenderWithColor("Search: "+m.searchQuery, statusColor))
+		b.WriteString(m.styleProvider.RenderWithColor("│", accentColor))
 		b.WriteString("\n\n")
 	} else {
-		dimColor := m.themeService.GetCurrentTheme().GetDimColor()
-		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 		helpText := fmt.Sprintf("Press / to search • %d models available", len(m.models))
-		b.WriteString(dimStyle.Render(helpText))
+		b.WriteString(m.styleProvider.RenderDimText(helpText))
 		b.WriteString("\n\n")
 	}
 
 	if len(m.filteredModels) == 0 {
-		errorColor := m.themeService.GetCurrentTheme().GetErrorColor()
-		errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(errorColor))
+		errorColor := m.styleProvider.GetThemeColor("error")
 
 		if m.searchQuery != "" {
-			b.WriteString(errorStyle.Render(fmt.Sprintf("No models match '%s'", m.searchQuery)))
+			b.WriteString(m.styleProvider.RenderWithColor(fmt.Sprintf("No models match '%s'", m.searchQuery), errorColor))
 		} else {
-			b.WriteString(errorStyle.Render("No models available"))
+			b.WriteString(m.styleProvider.RenderWithColor("No models available", errorColor))
 		}
 		b.WriteString("\n")
 		return b.String()
@@ -192,13 +183,11 @@ func (m *ModelSelectorImpl) View() string {
 		start = m.selected - maxVisible + 1
 	}
 
-	selectedStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
-
 	for i := start; i < start+maxVisible && i < len(m.filteredModels); i++ {
 		model := m.filteredModels[i]
 
 		if i == m.selected {
-			b.WriteString(selectedStyle.Render("▶ " + model))
+			b.WriteString(m.styleProvider.RenderWithColor("▶ "+model, accentColor))
 			b.WriteString("\n")
 		} else {
 			b.WriteString(fmt.Sprintf("  %s\n", model))
@@ -206,26 +195,20 @@ func (m *ModelSelectorImpl) View() string {
 	}
 
 	if len(m.filteredModels) > maxVisible {
-		dimColor := m.themeService.GetCurrentTheme().GetDimColor()
-		dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 		paginationText := fmt.Sprintf("Showing %d-%d of %d models", start+1, start+maxVisible, len(m.filteredModels))
-
 		b.WriteString("\n")
-		b.WriteString(dimStyle.Render(paginationText))
+		b.WriteString(m.styleProvider.RenderDimText(paginationText))
 		b.WriteString("\n")
 	}
 
 	b.WriteString("\n")
-	b.WriteString(colors.CreateSeparator(m.width, "─"))
+	b.WriteString(strings.Repeat("─", m.width))
 	b.WriteString("\n")
 
-	dimColor := m.themeService.GetCurrentTheme().GetDimColor()
-	helpStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-
 	if m.searchMode {
-		b.WriteString(helpStyle.Render("Type to search, ↑↓ to navigate, Enter to select, Esc to clear search"))
+		b.WriteString(m.styleProvider.RenderDimText("Type to search, ↑↓ to navigate, Enter to select, Esc to clear search"))
 	} else {
-		b.WriteString(helpStyle.Render("Use ↑↓ arrows to navigate, Enter to select, / to search, Esc/Ctrl+C to cancel"))
+		b.WriteString(m.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter to select, / to search, Esc/Ctrl+C to cancel"))
 	}
 
 	return b.String()

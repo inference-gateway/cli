@@ -4,21 +4,20 @@ import (
 	"fmt"
 	"strings"
 
-	lipgloss "github.com/charmbracelet/lipgloss"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // ApplicationViewRenderer handles rendering of different application views
 type ApplicationViewRenderer struct {
-	themeService domain.ThemeService
+	styleProvider *styles.Provider
 }
 
 // NewApplicationViewRenderer creates a new application view renderer
-func NewApplicationViewRenderer(themeService domain.ThemeService) *ApplicationViewRenderer {
+func NewApplicationViewRenderer(styleProvider *styles.Provider) *ApplicationViewRenderer {
 	return &ApplicationViewRenderer{
-		themeService: themeService,
+		styleProvider: styleProvider,
 	}
 }
 
@@ -79,29 +78,17 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		queueBoxView.SetWidth(width)
 	}
 
-	headerStyle := lipgloss.NewStyle().
-		Width(width).
-		Align(lipgloss.Center).
-		Foreground(lipgloss.Color(r.themeService.GetCurrentTheme().GetAccentColor())).
-		Bold(true).
-		Padding(0, 1)
-
 	headerText := ""
 	if len(data.BackgroundTasks) > 0 {
 		headerText = fmt.Sprintf("(%d)", len(data.BackgroundTasks))
 	}
-	header := headerStyle.Render(headerText)
+	accentColor := r.styleProvider.GetThemeColor("accent")
+	header := r.styleProvider.RenderCenteredBoldWithColor(headerText, accentColor, width)
 	headerBorder := ""
 
-	conversationStyle := lipgloss.NewStyle().
-		Height(conversationHeight)
-
-	inputStyle := lipgloss.NewStyle().
-		Width(width)
-
-	conversationArea := conversationStyle.Render(conversationView.Render())
-	separator := colors.CreateSeparator(width, "─")
-	inputArea := inputStyle.Render(inputView.Render())
+	conversationArea := conversationView.Render()
+	separator := strings.Repeat("─", width)
+	inputArea := inputView.Render()
 
 	components := []string{header, headerBorder, conversationArea, separator}
 
@@ -124,16 +111,12 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	helpBar.SetWidth(width)
 	helpBarContent := helpBar.Render()
 	if helpBarContent != "" {
-		separator := colors.CreateSeparator(width, "─")
+		separator := strings.Repeat("─", width)
 		components = append(components, separator)
-
-		helpBarStyle := lipgloss.NewStyle().
-			Width(width).
-			Padding(1, 1)
-		components = append(components, helpBarStyle.Render(helpBarContent))
+		components = append(components, helpBarContent)
 	}
 
-	return lipgloss.JoinVertical(lipgloss.Left, components...)
+	return strings.Join(components, "\n")
 }
 
 // FileSelectionData holds the data needed to render the file selection view

@@ -4,20 +4,19 @@ import (
 	"fmt"
 	"strings"
 
-	lipgloss "github.com/charmbracelet/lipgloss"
-	domain "github.com/inference-gateway/cli/internal/domain"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 type FileSelectionView struct {
-	themeService domain.ThemeService
-	maxVisible   int
-	width        int
+	styleProvider *styles.Provider
+	maxVisible    int
+	width         int
 }
 
-func NewFileSelectionView(themeService domain.ThemeService) *FileSelectionView {
+func NewFileSelectionView(styleProvider *styles.Provider) *FileSelectionView {
 	return &FileSelectionView{
-		themeService: themeService,
-		maxVisible:   12,
+		styleProvider: styleProvider,
+		maxVisible:    12,
 	}
 }
 
@@ -86,44 +85,31 @@ func (f *FileSelectionView) renderHeader(b *strings.Builder, files, allFiles []s
 func (f *FileSelectionView) renderSearchField(b *strings.Builder, searchQuery string) {
 	b.WriteString("🔍 Search: ")
 	if searchQuery != "" {
-		userColor := f.themeService.GetCurrentTheme().GetUserColor()
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color(userColor))
-		fmt.Fprintf(b, "%s│", style.Render(searchQuery))
+		fmt.Fprintf(b, "%s│", f.styleProvider.RenderWithColor(searchQuery, f.styleProvider.GetThemeColor("user")))
 	} else {
-		dimColor := f.themeService.GetCurrentTheme().GetDimColor()
-		style := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-		fmt.Fprintf(b, "%s│", style.Render("type to filter files..."))
+		fmt.Fprintf(b, "%s│", f.styleProvider.RenderDimText("type to filter files..."))
 	}
 	b.WriteString("\n\n")
 }
 
 func (f *FileSelectionView) renderNoFilesFound(b *strings.Builder, searchQuery string) string {
-	errorColor := f.themeService.GetCurrentTheme().GetErrorColor()
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(errorColor))
 	errorMsg := fmt.Sprintf("No files match '%s'", searchQuery)
-	fmt.Fprintf(b, "%s\n\n", errorStyle.Render(errorMsg))
+	fmt.Fprintf(b, "%s\n\n", f.styleProvider.RenderWithColor(errorMsg, f.styleProvider.GetThemeColor("error")))
 
-	dimColor := f.themeService.GetCurrentTheme().GetDimColor()
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
 	helpText := "Type to search, BACKSPACE to clear search, ESC to cancel"
-	b.WriteString(dimStyle.Render(helpText))
+	b.WriteString(f.styleProvider.RenderDimText(helpText))
 	return b.String()
 }
 
 func (f *FileSelectionView) renderFileList(b *strings.Builder, files []string, selectedIndex int) {
 	startIndex, endIndex := f.calculateVisibleRange(len(files), selectedIndex)
 
-	accentColor := f.themeService.GetCurrentTheme().GetAccentColor()
-	dimColor := f.themeService.GetCurrentTheme().GetDimColor()
-	accentStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(accentColor))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-
 	for i := startIndex; i < endIndex; i++ {
 		file := files[i]
 		if i == selectedIndex {
-			fmt.Fprintf(b, "%s\n", accentStyle.Render("▶ "+file))
+			fmt.Fprintf(b, "%s\n", f.styleProvider.RenderWithColor("▶ "+file, f.styleProvider.GetThemeColor("accent")))
 		} else {
-			fmt.Fprintf(b, "%s\n", dimStyle.Render("  "+file))
+			fmt.Fprintf(b, "%s\n", f.styleProvider.RenderDimText("  "+file))
 		}
 	}
 }
@@ -143,16 +129,13 @@ func (f *FileSelectionView) calculateVisibleRange(totalFiles, selectedIndex int)
 func (f *FileSelectionView) renderFooter(b *strings.Builder, files []string, selectedIndex int) {
 	b.WriteString("\n")
 
-	dimColor := f.themeService.GetCurrentTheme().GetDimColor()
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-
 	if len(files) > f.maxVisible {
 		startIndex, endIndex := f.calculateVisibleRange(len(files), selectedIndex)
 		paginationText := fmt.Sprintf("Showing %d-%d of %d matches", startIndex+1, endIndex, len(files))
-		fmt.Fprintf(b, "%s\n", dimStyle.Render(paginationText))
+		fmt.Fprintf(b, "%s\n", f.styleProvider.RenderDimText(paginationText))
 		b.WriteString("\n")
 	}
 
 	helpText := "Type to search, ↑↓ to navigate, ENTER to select, BACKSPACE to clear, ESC to cancel"
-	b.WriteString(dimStyle.Render(helpText))
+	b.WriteString(f.styleProvider.RenderDimText(helpText))
 }

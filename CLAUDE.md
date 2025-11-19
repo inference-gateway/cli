@@ -110,6 +110,7 @@ The chat interface uses an **event-driven pattern** with:
   - `ChatEvent`: Chat operations (ChatStart, ChatChunk, ChatComplete, ChatError, etc.)
   - `UIEvent`: UI updates (UpdateHistory, SetStatus, ShowError, etc.)
   - Tool execution events (ToolCallPreview, ToolExecutionStarted, ToolExecutionCompleted)
+  - Tool approval events (ToolApprovalRequestedEvent, ShowToolApprovalEvent, ToolApprovalResponseEvent)
   - A2A events (A2ATaskSubmitted, A2ATaskStatusUpdate, A2ATaskCompleted)
 
 ### Tool System Architecture
@@ -131,6 +132,39 @@ Tools are implemented using the **Factory Pattern** and **Strategy Pattern**:
   - `websearch.go`, `webfetch.go`: Web operations
   - `github.go`: GitHub API integration
   - `a2a_*.go`: Agent-to-agent communication tools
+
+### Tool Approval System
+
+The CLI implements a **user approval workflow** for sensitive tool operations to ensure safety:
+
+- **Configuration-Driven**: Each tool has a `require_approval` flag in its config
+  - Dangerous tools (Write, Edit, Delete, MultiEdit) require approval by default
+  - Safe tools (Read, Grep) do not require approval by default
+  - Can be overridden per-tool in `config.yaml`
+
+- **Approval Components**:
+  - `ApprovalComponent` (`internal/ui/components/approval_component.go`): Renders approval modal
+  - `DiffRenderer` (`internal/ui/components/diff_renderer.go`): Visualizes code changes for Edit/Write tools
+  - `ToolFormatterService`: Formats tool arguments for human-readable display
+
+- **Approval Events** (defined in `internal/domain/`):
+  - `ToolApprovalRequestedEvent`: Triggered when a tool requiring approval is called
+  - `ShowToolApprovalEvent`: UI event to display approval modal
+  - `ToolApprovalResponseEvent`: Captures user's approval/rejection decision
+  - `ToolApprovedEvent`/`ToolRejectedEvent`: Final approval outcome
+
+- **Approval Flow**:
+  1. LLM requests a tool execution that requires approval
+  2. System emits `ToolApprovalRequestedEvent`
+  3. UI displays modal with tool details and diff visualization (for code changes)
+  4. User approves (Enter/y) or rejects (Esc/n) the operation
+  5. System proceeds with execution or cancels based on user decision
+
+- **UI Controls**:
+  - Navigation: ←/→ to select Approve/Reject
+  - Approve: Enter or 'y' key
+  - Reject: Esc or 'n' key
+  - Real-time diff preview for file modification tools
 
 ### State Management
 

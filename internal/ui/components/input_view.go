@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/atotto/clipboard"
+	clipboard "github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/history"
-	"github.com/inference-gateway/cli/internal/ui/keys"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	history "github.com/inference-gateway/cli/internal/ui/history"
+	keys "github.com/inference-gateway/cli/internal/ui/keys"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // InputView handles user input with history and autocomplete
@@ -26,6 +25,7 @@ type InputView struct {
 	historyManager      *history.HistoryManager
 	isTextSelectionMode bool
 	themeService        domain.ThemeService
+	styleProvider       *styles.Provider
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -59,6 +59,7 @@ func NewInputViewWithConfigDir(modelService domain.ModelService, configDir strin
 // SetThemeService sets the theme service for this input view
 func (iv *InputView) SetThemeService(themeService domain.ThemeService) {
 	iv.themeService = themeService
+	iv.styleProvider = styles.NewProvider(themeService)
 }
 
 func (iv *InputView) GetInput() string {
@@ -109,22 +110,17 @@ func (iv *InputView) Render() string {
 	displayText := iv.renderDisplayText()
 
 	inputContent := fmt.Sprintf("> %s", displayText)
-	borderColor := iv.getBorderColor(isBashMode, isToolsMode)
 
-	inputStyle := lipgloss.NewStyle().
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(borderColor)).
-		Padding(0, 1).
-		Width(iv.width - 4)
+	focused := isBashMode || isToolsMode
+	borderedInput := iv.styleProvider.RenderInputField(inputContent, iv.width-4, focused)
 
-	borderedInput := inputStyle.Render(inputContent)
 	components := []string{borderedInput}
 
 	components = iv.addModeIndicator(components, isBashMode, isToolsMode)
 	components = iv.addAutocomplete(components)
 	components = iv.addModelDisplay(components, isBashMode, isToolsMode)
 
-	return lipgloss.JoinVertical(lipgloss.Left, components...)
+	return iv.styleProvider.JoinVertical(components...)
 }
 
 func (iv *InputView) renderDisplayText() string {
@@ -135,10 +131,7 @@ func (iv *InputView) renderDisplayText() string {
 }
 
 func (iv *InputView) renderPlaceholder() string {
-	dimColor := iv.getDimColor()
-	return lipgloss.NewStyle().
-		Foreground(lipgloss.Color(dimColor)).
-		Render(iv.placeholder)
+	return iv.styleProvider.RenderInputPlaceholder(iv.placeholder)
 }
 
 func (iv *InputView) renderTextWithCursor() string {
@@ -177,48 +170,41 @@ func (iv *InputView) buildTextWithCursor(before, after string) string {
 }
 
 func (iv *InputView) createCursorChar(char string) string {
-	return lipgloss.NewStyle().
-		Background(lipgloss.Color(colors.LipglossWhiteBg)).
-		Foreground(lipgloss.Color(colors.LipglossBlack)).
-		Render(char)
-}
-
-func (iv *InputView) getBorderColor(isBashMode bool, isToolsMode bool) string {
-	if isBashMode {
-		return iv.getSuccessColor()
-	}
-	if isToolsMode {
-		return iv.getAccentColor()
-	}
-	return iv.getDimColor()
+	return iv.styleProvider.RenderTextSelectionCursor(char)
 }
 
 func (iv *InputView) addModeIndicator(components []string, isBashMode bool, isToolsMode bool) []string {
 	if iv.height >= 2 {
 		if iv.isTextSelectionMode {
-			accentColor := iv.getAccentColor()
-			textSelectionIndicator := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(accentColor)).
-				Bold(true).
-				Width(iv.width).
-				Render("TEXT SELECTION MODE - Use vim keys to navigate and select text (Escape to exit)")
-			components = append(components, textSelectionIndicator)
+			indicator := iv.styleProvider.RenderStyledText(
+				"TEXT SELECTION MODE - Use vim keys to navigate and select text (Escape to exit)",
+				styles.StyleOptions{
+					Foreground: iv.styleProvider.GetThemeColor("accent"),
+					Bold:       true,
+					Width:      iv.width,
+				},
+			)
+			components = append(components, indicator)
 		} else if isBashMode {
-			statusColor := iv.getStatusColor()
-			bashIndicator := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(statusColor)).
-				Bold(true).
-				Width(iv.width).
-				Render("BASH MODE - Command will be executed directly")
-			components = append(components, bashIndicator)
+			indicator := iv.styleProvider.RenderStyledText(
+				"BASH MODE - Command will be executed directly",
+				styles.StyleOptions{
+					Foreground: iv.styleProvider.GetThemeColor("status"),
+					Bold:       true,
+					Width:      iv.width,
+				},
+			)
+			components = append(components, indicator)
 		} else if isToolsMode {
-			accentColor := iv.getAccentColor()
-			toolsIndicator := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(accentColor)).
-				Bold(true).
-				Width(iv.width).
-				Render("TOOLS MODE - !!ToolName(arg=\"value\") - Tab for autocomplete")
-			components = append(components, toolsIndicator)
+			indicator := iv.styleProvider.RenderStyledText(
+				"TOOLS MODE - !!ToolName(arg=\"value\") - Tab for autocomplete",
+				styles.StyleOptions{
+					Foreground: iv.styleProvider.GetThemeColor("accent"),
+					Bold:       true,
+					Width:      iv.width,
+				},
+			)
+			components = append(components, indicator)
 		}
 	}
 	return components
@@ -237,11 +223,6 @@ func (iv *InputView) addModelDisplay(components []string, isBashMode bool, isToo
 	if iv.modelService != nil {
 		currentModel := iv.modelService.GetCurrentModel()
 		if currentModel != "" && iv.height >= 2 && !isBashMode && !isToolsMode {
-			dimColor := iv.getDimColor()
-			modelStyle := lipgloss.NewStyle().
-				Foreground(lipgloss.Color(dimColor)).
-				Width(iv.width)
-
 			displayText := fmt.Sprintf("  Model: %s", currentModel)
 
 			if iv.themeService != nil {
@@ -249,7 +230,10 @@ func (iv *InputView) addModelDisplay(components []string, isBashMode bool, isToo
 				displayText = fmt.Sprintf("  Model: %s • Theme: %s", currentModel, currentTheme)
 			}
 
-			modelDisplay := modelStyle.Render(displayText)
+			modelDisplay := iv.styleProvider.RenderStyledText(displayText, styles.StyleOptions{
+				Foreground: iv.styleProvider.GetThemeColor("dim"),
+				Width:      iv.width,
+			})
 			components = append(components, modelDisplay)
 		}
 	}
@@ -445,33 +429,4 @@ func (iv *InputView) SetTextSelectionMode(enabled bool) {
 
 func (iv *InputView) IsTextSelectionMode() bool {
 	return iv.isTextSelectionMode
-}
-
-// Helper methods to get theme colors with fallbacks
-func (iv *InputView) getDimColor() string {
-	if iv.themeService != nil {
-		return iv.themeService.GetCurrentTheme().GetDimColor()
-	}
-	return colors.DimColor.Lipgloss
-}
-
-func (iv *InputView) getAccentColor() string {
-	if iv.themeService != nil {
-		return iv.themeService.GetCurrentTheme().GetAccentColor()
-	}
-	return colors.AccentColor.Lipgloss
-}
-
-func (iv *InputView) getStatusColor() string {
-	if iv.themeService != nil {
-		return iv.themeService.GetCurrentTheme().GetStatusColor()
-	}
-	return colors.StatusColor.Lipgloss
-}
-
-func (iv *InputView) getSuccessColor() string {
-	if iv.themeService != nil {
-		return iv.themeService.GetCurrentTheme().GetSuccessColor()
-	}
-	return colors.SuccessColor.Lipgloss
 }

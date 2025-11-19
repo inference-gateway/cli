@@ -110,7 +110,7 @@ agent:
   verbose_tools: false
   max_turns: 50
   max_tokens: 4096
-  max_concurrent_tools: 5 
+  max_concurrent_tools: 5
   optimization:
     enabled: false
     max_history: 10
@@ -150,12 +150,12 @@ tools:
 a2a:
   enabled: false  # Enable/disable A2A functionality
   agents: []      # List of A2A agent endpoints
-  
+
   # Agent card caching settings
   cache:
     enabled: true
     ttl: 300      # Cache TTL in seconds
-  
+
   # Task monitoring configuration
   task:
     status_poll_seconds: 5
@@ -164,21 +164,21 @@ a2a:
     max_poll_interval_sec: 60
     backoff_multiplier: 2.0
     background_monitoring: true
-  
+
   # Individual A2A tool settings
   tools:
     query_agent:
       enabled: true
       require_approval: false
-    
+
     query_task:
       enabled: true
       require_approval: false
-    
+
     submit_task:
       enabled: true
       require_approval: false
-    
+
     download_artifacts:
       enabled: true
       download_dir: "/tmp/downloads"
@@ -212,6 +212,104 @@ storage:
     password: ""  # Use INFER_STORAGE_REDIS_PASSWORD env var
     db: 0
 ```
+
+## Tool Approval System
+
+The CLI implements a **user approval workflow** for sensitive tool operations to enhance security and user control.
+
+### How It Works
+
+When the LLM attempts to execute a tool that requires approval:
+
+1. **Approval Request**: The system pauses execution and displays an approval modal
+2. **Visual Preview**: For file modification tools (Write, Edit, MultiEdit), a diff
+   visualization shows exactly what will change
+3. **User Decision**: You can approve (✓) or reject (✗) the operation
+4. **Execution**: Only approved operations proceed; rejected operations are canceled
+
+### Configuration
+
+Each tool has a `require_approval` flag that can be configured:
+
+```yaml
+tools:
+  # Dangerous operations require approval by default
+  write:
+    enabled: true
+    require_approval: true  # User must approve before writing files
+
+  edit:
+    enabled: true
+    require_approval: true  # User must approve before editing files
+
+  delete:
+    enabled: true
+    require_approval: true  # User must approve before deleting files
+
+  # Safe operations don't require approval by default
+  read:
+    enabled: true
+    require_approval: false  # No approval needed to read files
+
+  grep:
+    enabled: true
+    require_approval: false  # No approval needed for searches
+
+  bash:
+    enabled: true
+    require_approval: true  # Approval required for command execution
+```
+
+### Default Approval Requirements
+
+**Tools requiring approval by default:**
+
+- `write` - Writing new files or overwriting existing ones
+- `edit` - Modifying file contents
+- `multiedit` - Making multiple file edits
+- `delete` - Deleting files or directories
+- `bash` - Executing shell commands
+
+**Tools NOT requiring approval by default:**
+
+- `read` - Reading file contents
+- `grep` - Searching code
+- `websearch` - Web searches
+- `webfetch` - Fetching web content
+- `github` - GitHub API operations
+- `tree` - Displaying directory structure
+- `todowrite` - Managing task lists
+
+### UI Controls
+
+When an approval modal is displayed:
+
+- **Navigate**: Use ←/→ arrow keys to select Approve or Reject
+- **Approve**: Press Enter or 'y' to approve the operation
+- **Reject**: Press Esc or 'n' to reject the operation
+- **View Details**: The modal shows:
+  - Tool name being executed
+  - Tool arguments (formatted for readability)
+  - Diff preview (for file modification tools)
+
+### Environment Variable Override
+
+You can override approval requirements using environment variables:
+
+```bash
+# Disable approval for Write tool
+export INFER_TOOLS_WRITE_REQUIRE_APPROVAL=false
+
+# Enable approval for Read tool
+export INFER_TOOLS_READ_REQUIRE_APPROVAL=true
+```
+
+### Security Best Practices
+
+1. **Keep approval enabled** for destructive tools (Write, Edit, Delete) in production
+2. **Review diffs carefully** before approving file modifications
+3. **Use project configs** to enforce approval requirements across team
+4. **Disable approval only** in trusted, sandboxed environments
 
 ## Command Usage
 

@@ -6,11 +6,10 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	lipgloss "github.com/charmbracelet/lipgloss"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // A2AServersView displays connected A2A servers in a dedicated view component
@@ -22,7 +21,7 @@ type A2AServersView struct {
 	height          int
 	isLoading       bool
 	error           string
-	themeService    domain.ThemeService
+	styleProvider   *styles.Provider
 }
 
 // A2AServerInfo represents information about an A2A server
@@ -39,14 +38,14 @@ type A2AServerInfo struct {
 }
 
 // NewA2AServersView creates a new A2A servers view
-func NewA2AServersView(cfg *config.Config, a2aAgentService domain.A2AAgentService, themeService domain.ThemeService) *A2AServersView {
+func NewA2AServersView(cfg *config.Config, a2aAgentService domain.A2AAgentService, styleProvider *styles.Provider) *A2AServersView {
 	return &A2AServersView{
 		config:          cfg,
 		a2aAgentService: a2aAgentService,
 		servers:         []A2AServerInfo{},
 		width:           80,
 		height:          20,
-		themeService:    themeService,
+		styleProvider:   styleProvider,
 	}
 }
 
@@ -120,88 +119,51 @@ func (v *A2AServersView) Render() string {
 }
 
 func (v *A2AServersView) renderLoading() string {
-	headerColor := v.getHeaderColor()
-	textStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(headerColor))
-	content := textStyle.Render("Loading A2A servers...")
-
-	style := lipgloss.NewStyle().
-		Width(v.width).
-		Height(v.height).
-		Align(lipgloss.Center, lipgloss.Center).
-		Border(lipgloss.RoundedBorder(), true).
-		BorderForeground(lipgloss.Color(v.getAccentColor())).
-		Padding(2, 4)
-
-	return style.Render(content)
+	accentColor := v.styleProvider.GetThemeColor("accent")
+	content := v.styleProvider.RenderWithColor("Loading A2A servers...", accentColor)
+	return v.styleProvider.RenderCenteredBorderedBox(content, accentColor, v.width, v.height, 2, 4)
 }
 
 func (v *A2AServersView) renderError() string {
-	errorColor := v.getErrorColor()
-	dimColor := v.getDimColor()
-
-	errorStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(errorColor))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
+	errorColor := v.styleProvider.GetThemeColor("error")
 
 	var content strings.Builder
 	errorIcon := icons.StyledCrossMark()
-	content.WriteString(fmt.Sprintf("%s %s\n\n", errorIcon, errorStyle.Render("Error loading A2A servers")))
-	content.WriteString(fmt.Sprintf("%s\n\n", dimStyle.Render(v.error)))
+	content.WriteString(fmt.Sprintf("%s %s\n\n", errorIcon, v.styleProvider.RenderWithColor("Error loading A2A servers", errorColor)))
+	content.WriteString(fmt.Sprintf("%s\n\n", v.styleProvider.RenderDimText(v.error)))
 
-	content.WriteString(fmt.Sprintf("%s\n", dimStyle.Render("Make sure:")))
+	content.WriteString(fmt.Sprintf("%s\n", v.styleProvider.RenderDimText("Make sure:")))
 	content.WriteString("• The Gateway is running and accessible\n")
 	content.WriteString("• A2A middleware is exposed (EXPOSE_A2A=true)\n")
 	content.WriteString("• Your API key is valid")
 
-	style := lipgloss.NewStyle().
-		Width(v.width).
-		Height(v.height).
-		Align(lipgloss.Left, lipgloss.Center).
-		Border(lipgloss.RoundedBorder(), true).
-		BorderForeground(lipgloss.Color(v.getErrorColor())).
-		Padding(2, 4)
-
-	return style.Render(content.String())
+	return v.styleProvider.RenderLeftAlignedBorderedBox(content.String(), errorColor, v.width, v.height, 2, 4)
 }
 
 func (v *A2AServersView) renderEmpty() string {
-	warningColor := v.getWarningColor()
-	dimColor := v.getDimColor()
-
-	warningStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(warningColor))
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
+	warningColor := v.styleProvider.GetThemeColor("warning")
 
 	var content strings.Builder
-	content.WriteString(fmt.Sprintf("%s\n\n", warningStyle.Render("No A2A agents available")))
+	content.WriteString(fmt.Sprintf("%s\n\n", v.styleProvider.RenderWithColor("No A2A agents available", warningColor)))
 
-	content.WriteString(fmt.Sprintf("%s\n\n", dimStyle.Render("Agents are starting or not configured in .infer/agents.yaml")))
+	content.WriteString(fmt.Sprintf("%s\n\n", v.styleProvider.RenderDimText("Agents are starting or not configured in .infer/agents.yaml")))
 	content.WriteString("Available A2A tools:\n")
 	content.WriteString("• SubmitTask: Submit tasks to A2A agents\n")
 	content.WriteString("• QueryTask: Query task status and results\n")
 	content.WriteString("• QueryAgent: Query agent capabilities and information\n")
 	content.WriteString("• DownloadArtifacts: Download artifacts from completed tasks")
 
-	style := lipgloss.NewStyle().
-		Width(v.width).
-		Height(v.height).
-		Align(lipgloss.Left, lipgloss.Center).
-		Border(lipgloss.RoundedBorder(), true).
-		BorderForeground(lipgloss.Color(v.getWarningColor())).
-		Padding(2, 4)
-
-	return style.Render(content.String())
+	return v.styleProvider.RenderLeftAlignedBorderedBox(content.String(), warningColor, v.width, v.height, 2, 4)
 }
 
 func (v *A2AServersView) renderServers() string {
-	headerColor := v.getHeaderColor()
-	successColor := v.getSuccessColor()
-
-	headerStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(headerColor)).Bold(true)
-	successStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(successColor))
+	accentColor := v.styleProvider.GetThemeColor("accent")
+	successColor := v.styleProvider.GetThemeColor("success")
 
 	var content strings.Builder
 
-	content.WriteString(fmt.Sprintf("%s\n\n", headerStyle.Render("Agent Servers")))
-	content.WriteString(fmt.Sprintf("%s\n\n", successStyle.Render(fmt.Sprintf("Found %d agent card(s)", len(v.servers)))))
+	content.WriteString(fmt.Sprintf("%s\n\n", v.styleProvider.RenderBold("Agent Servers")))
+	content.WriteString(fmt.Sprintf("%s\n\n", v.styleProvider.RenderWithColor(fmt.Sprintf("Found %d agent card(s)", len(v.servers)), successColor)))
 
 	for i, server := range v.servers {
 		content.WriteString(v.renderSingleServer(server))
@@ -212,68 +174,52 @@ func (v *A2AServersView) renderServers() string {
 
 	content.WriteString(v.renderConnectionInfo())
 
-	style := lipgloss.NewStyle().
-		Width(v.width).
-		Height(v.height).
-		Align(lipgloss.Left, lipgloss.Top).
-		Border(lipgloss.RoundedBorder(), true).
-		BorderForeground(lipgloss.Color(v.getAccentColor())).
-		Padding(1, 2)
-
-	return style.Render(content.String())
+	return v.styleProvider.RenderTopAlignedBorderedBox(content.String(), accentColor, v.width, v.height, 1, 2)
 }
 
 func (v *A2AServersView) renderSingleServer(server A2AServerInfo) string {
 	successIcon := icons.StyledCheckMark()
-	dimColor := v.getDimColor()
-	headerColor := v.getHeaderColor()
-
-	nameStyle := lipgloss.NewStyle().Bold(true)
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-	labelStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(headerColor))
+	accentColor := v.styleProvider.GetThemeColor("accent")
 
 	var content strings.Builder
 	content.WriteString(fmt.Sprintf("%s %s\n",
-		nameStyle.Render(server.Name), successIcon))
+		v.styleProvider.RenderBold(server.Name), successIcon))
 
 	if server.Description != "" {
 		content.WriteString(fmt.Sprintf("  %s\n", server.Description))
 	}
 
 	if server.DocumentsURL != nil && *server.DocumentsURL != "" {
-		content.WriteString(fmt.Sprintf("  %s %s\n", labelStyle.Render("Docs:"), *server.DocumentsURL))
+		content.WriteString(fmt.Sprintf("  %s %s\n", v.styleProvider.RenderWithColor("Docs:", accentColor), *server.DocumentsURL))
 	}
 
 	if len(server.InputModes) > 0 {
 		content.WriteString(fmt.Sprintf("  %s %s\n",
-			labelStyle.Render("Input:"), strings.Join(server.InputModes, ", ")))
+			v.styleProvider.RenderWithColor("Input:", accentColor), strings.Join(server.InputModes, ", ")))
 	}
 
 	if len(server.OutputModes) > 0 {
 		content.WriteString(fmt.Sprintf("  %s %s\n",
-			labelStyle.Render("Output:"), strings.Join(server.OutputModes, ", ")))
+			v.styleProvider.RenderWithColor("Output:", accentColor), strings.Join(server.OutputModes, ", ")))
 	}
 
 	if server.URL != "" {
 		content.WriteString(fmt.Sprintf("  %s %s\n",
-			labelStyle.Render("URL:"), dimStyle.Render(server.URL)))
+			v.styleProvider.RenderWithColor("URL:", accentColor), v.styleProvider.RenderDimText(server.URL)))
 	}
 
 	return content.String()
 }
 
 func (v *A2AServersView) renderConnectionInfo() string {
-	dimColor := v.getDimColor()
-	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(dimColor))
-
 	var content strings.Builder
 	content.WriteString("\n")
-	content.WriteString(dimStyle.Render("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━") + "\n")
+	content.WriteString(v.styleProvider.RenderDimText("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━") + "\n")
 
 	content.WriteString("A2A Connection Mode\n")
 
 	content.WriteString("\n")
-	content.WriteString(dimStyle.Render("Press ESC to return to chat"))
+	content.WriteString(v.styleProvider.RenderDimText("Press ESC to return to chat"))
 
 	return content.String()
 }
@@ -304,47 +250,4 @@ func (v *A2AServersView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 type A2AServersLoadedMsg struct {
 	servers []A2AServerInfo
 	error   string
-}
-
-// Helper methods to get theme colors with fallbacks
-func (v *A2AServersView) getHeaderColor() string {
-	if v.themeService != nil {
-		return v.themeService.GetCurrentTheme().GetAccentColor()
-	}
-	return colors.HeaderColor.ANSI
-}
-
-func (v *A2AServersView) getSuccessColor() string {
-	if v.themeService != nil {
-		return v.themeService.GetCurrentTheme().GetStatusColor()
-	}
-	return colors.SuccessColor.ANSI
-}
-
-func (v *A2AServersView) getErrorColor() string {
-	if v.themeService != nil {
-		return v.themeService.GetCurrentTheme().GetErrorColor()
-	}
-	return colors.ErrorColor.ANSI
-}
-
-func (v *A2AServersView) getWarningColor() string {
-	if v.themeService != nil {
-		return v.themeService.GetCurrentTheme().GetErrorColor()
-	}
-	return colors.WarningColor.ANSI
-}
-
-func (v *A2AServersView) getAccentColor() string {
-	if v.themeService != nil {
-		return v.themeService.GetCurrentTheme().GetAccentColor()
-	}
-	return colors.AccentColor.ANSI
-}
-
-func (v *A2AServersView) getDimColor() string {
-	if v.themeService != nil {
-		return v.themeService.GetCurrentTheme().GetDimColor()
-	}
-	return colors.DimColor.ANSI
 }
