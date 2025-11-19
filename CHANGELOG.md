@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.56.0](https://github.com/inference-gateway/cli/compare/v0.55.0...v0.56.0) (2025-11-19)
+
+### 🚀 Features
+
+* **agent:** Add agent mode switching (Standard/Plan/Auto-Accept) ([#213](https://github.com/inference-gateway/cli/issues/213)) ([c4d5de1](https://github.com/inference-gateway/cli/commit/c4d5de1b93294ed3de8e1e28915544b347868d28)), closes [#212](https://github.com/inference-gateway/cli/issues/212)
+* Add interactive tool approval system for chat mode ([#211](https://github.com/inference-gateway/cli/issues/211)) ([68f11ec](https://github.com/inference-gateway/cli/commit/68f11ecb68371e8b781527a0ff27ea878fc366d9))
+* Update A2A server configuration and UI components ([18c2213](https://github.com/inference-gateway/cli/commit/18c2213dfc6c29f78f3d01f5802c9fbf96e8aae9))
+
 ## [0.55.0](https://github.com/inference-gateway/cli/compare/v0.54.0...v0.55.0) (2025-11-18)
 
 ### 🚀 Features
