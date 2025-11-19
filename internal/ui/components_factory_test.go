@@ -11,16 +11,16 @@ import (
 // mockTheme implements domain.Theme for testing
 type mockTheme struct{}
 
-func (m *mockTheme) GetUserColor() string        { return "#00FF00" }
-func (m *mockTheme) GetAssistantColor() string   { return "#0000FF" }
-func (m *mockTheme) GetErrorColor() string       { return "#FF0000" }
-func (m *mockTheme) GetSuccessColor() string     { return "#00FF00" }
-func (m *mockTheme) GetStatusColor() string      { return "#FFFF00" }
-func (m *mockTheme) GetAccentColor() string      { return "#FF00FF" }
-func (m *mockTheme) GetDimColor() string         { return "#808080" }
-func (m *mockTheme) GetBorderColor() string      { return "#FFFFFF" }
-func (m *mockTheme) GetDiffAddColor() string     { return "#00FF00" }
-func (m *mockTheme) GetDiffRemoveColor() string  { return "#FF0000" }
+func (m *mockTheme) GetUserColor() string       { return "#00FF00" }
+func (m *mockTheme) GetAssistantColor() string  { return "#0000FF" }
+func (m *mockTheme) GetErrorColor() string      { return "#FF0000" }
+func (m *mockTheme) GetSuccessColor() string    { return "#00FF00" }
+func (m *mockTheme) GetStatusColor() string     { return "#FFFF00" }
+func (m *mockTheme) GetAccentColor() string     { return "#FF00FF" }
+func (m *mockTheme) GetDimColor() string        { return "#808080" }
+func (m *mockTheme) GetBorderColor() string     { return "#FFFFFF" }
+func (m *mockTheme) GetDiffAddColor() string    { return "#00FF00" }
+func (m *mockTheme) GetDiffRemoveColor() string { return "#FF0000" }
 
 // mockThemeService implements domain.ThemeService for testing
 type mockThemeService struct{}
