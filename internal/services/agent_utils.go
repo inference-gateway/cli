@@ -85,7 +85,6 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 		a2aAgentInfo := s.buildA2AAgentInfo()
 
-		// Get current agent mode and add mode-specific instructions
 		modeInfo := s.buildModeInfo()
 
 		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s%s\n\nCurrent date and time: %s",
