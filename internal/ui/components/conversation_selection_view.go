@@ -9,9 +9,9 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // ConversationSelectorImpl implements conversation selection UI
