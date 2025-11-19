@@ -9,6 +9,7 @@ import (
 // ToolService handles tool execution
 type ToolService interface {
 	ListTools() []sdk.ChatCompletionTool
+	ListToolsForMode(mode AgentMode) []sdk.ChatCompletionTool
 	ListAvailableTools() []string
 	ExecuteTool(ctx context.Context, tool sdk.ChatCompletionMessageToolCallFunction) (*ToolExecutionResult, error)
 	IsToolEnabled(name string) bool

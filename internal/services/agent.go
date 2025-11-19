@@ -216,7 +216,11 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 				SkipA2A: true,
 			})
 		if s.toolService != nil {
-			availableTools := s.toolService.ListTools()
+			mode := domain.AgentModeStandard
+			if s.stateManager != nil {
+				mode = s.stateManager.GetAgentMode()
+			}
+			availableTools := s.toolService.ListToolsForMode(mode)
 			if len(availableTools) > 0 {
 				client = s.client.WithTools(&availableTools)
 			}
@@ -275,16 +279,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		delete(s.cancelChannels, req.RequestID)
 		s.cancelMux.Unlock()
 	}()
-
-	client := s.client.
-		WithMiddlewareOptions(&sdk.MiddlewareOptions{
-			SkipMCP: true,
-			SkipA2A: true,
-		})
-	availableTools := s.toolService.ListTools()
-	if len(availableTools) > 0 {
-		client = client.WithTools(&availableTools)
-	}
 
 	conversation := s.addSystemPrompt(req.Messages)
 
@@ -394,6 +388,24 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				if err := s.conversationRepo.AddMessage(reminderEntry); err != nil {
 					logger.Error("failed to store system reminder message", "error", err)
 				}
+			}
+
+			mode := domain.AgentModeStandard
+			if s.stateManager != nil {
+				mode = s.stateManager.GetAgentMode()
+				logger.Debug("Retrieved agent mode from state manager", "mode", mode.String(), "turn", turns)
+			} else {
+				logger.Warn("StateManager is nil, using default Standard mode")
+			}
+			availableTools := s.toolService.ListToolsForMode(mode)
+
+			client := s.client.
+				WithMiddlewareOptions(&sdk.MiddlewareOptions{
+					SkipMCP: true,
+					SkipA2A: true,
+				})
+			if len(availableTools) > 0 {
+				client = client.WithTools(&availableTools)
 			}
 
 			events, err := client.GenerateContentStream(requestCtx, sdk.Provider(provider), model, conversation)
