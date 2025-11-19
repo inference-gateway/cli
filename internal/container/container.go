@@ -232,9 +232,6 @@ func (c *ServiceContainer) initializeUIComponents() {
 	}
 
 	c.themeService = themeProvider
-
-	// Note: We'll import styles package lazily to avoid import cycles
-	// The styleProvider will be initialized when first needed
 }
 
 // initializeExtensibility sets up extensible systems
