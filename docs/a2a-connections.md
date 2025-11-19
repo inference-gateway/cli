@@ -28,15 +28,15 @@ The CLI connects to A2A agents using their URL endpoints through the ADK client 
 
 The A2A functionality is exposed through multiple tools that can be used in conversations:
 
-#### SubmitTask Tool - Submit a Task
+#### A2A_SubmitTask Tool - Submit a Task
 
-The `SubmitTask` tool submits tasks to A2A agents:
+The `A2A_SubmitTask` tool submits tasks to A2A agents:
 
 ```text
 Submit a task to analyze this code
 ```
 
-The LLM will use the `SubmitTask` tool:
+The LLM will use the `A2A_SubmitTask` tool:
 
 ```json
 {
@@ -58,9 +58,9 @@ Optional metadata can be included:
 }
 ```
 
-#### Query Tool - Get Agent Information
+#### A2A_QueryAgent Tool - Get Agent Information
 
-The `Query` tool gets information from A2A agents:
+The `A2A_QueryAgent` tool gets information from A2A agents:
 
 ```text
 Query the agent at localhost:8081 for its capabilities
@@ -74,9 +74,9 @@ Query the agent at localhost:8081 for its capabilities
 
 ### Tool Implementation Details
 
-#### SubmitTask Tool
+#### A2A_SubmitTask Tool
 
-- **Name**: `SubmitTask`
+- **Name**: `A2A_SubmitTask`
 - **Parameters**:
   - `agent_url` (required): URL of the A2A agent
   - `task_description` (required): Description of the task to perform
@@ -84,23 +84,23 @@ Query the agent at localhost:8081 for its capabilities
 - **Returns**: Task result with ID, status, and response content
 - **Behavior**: Submits task and waits for streaming completion
 
-#### Query Tool
+#### A2A_QueryAgent Tool
 
-- **Name**: `Query`
+- **Name**: `A2A_QueryAgent`
 - **Parameters**:
   - `agent_url` (required): URL of the A2A agent to query
-- **Returns**: Agent card information
-- **Behavior**: Currently returns placeholder response (TODO: implement actual query logic)
+- **Returns**: Agent card information with capabilities and configuration
+- **Behavior**: Retrieves agent metadata for discovery and validation
 
-#### DownloadArtifacts Tool - Download Task Artifacts
+#### A2A_DownloadArtifacts Tool - Download Task Artifacts
 
-The `DownloadArtifacts` tool downloads artifacts from completed A2A tasks:
+The `A2A_DownloadArtifacts` tool downloads artifacts from completed A2A tasks:
 
 ```text
 Download artifacts from the completed task
 ```
 
-The LLM will use the `DownloadArtifacts` tool:
+The LLM will use the `A2A_DownloadArtifacts` tool:
 
 ```json
 {
@@ -150,13 +150,16 @@ A2A tools are configured in the tools section:
 
 ```yaml
 a2a:
+  enabled: true
   tools:
     submit_task:
-      enabled: true  # Enable A2A SubmitTask tool
+      enabled: true  # Enable A2A_SubmitTask tool
+    query_agent:
+      enabled: true  # Enable A2A_QueryAgent tool
     query_task:
-      enabled: true  # Enable A2A QueryTask tool
+      enabled: true  # Enable A2A_QueryTask tool
     download_artifacts:
-      enabled: true  # Enable A2A DownloadArtifacts tool
+      enabled: true  # Enable A2A_DownloadArtifacts tool
 ```
 
 ## Security Considerations
@@ -269,5 +272,5 @@ First check if task task-456 is completed, then download its artifacts from the 
 
 This will:
 
-1. Use QueryTask to verify the task is completed
-2. Use DownloadArtifacts to retrieve any generated files, documents, or other outputs from the task
+1. Use A2A_QueryTask to verify the task is completed
+2. Use A2A_DownloadArtifacts to retrieve any generated files, documents, or other outputs from the task

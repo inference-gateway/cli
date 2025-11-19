@@ -188,7 +188,7 @@ Available A2A Agents:
 - https://security.example.com
 - https://perf.example.com
 
-You can delegate tasks to these agents using the A2A_SubmitTask tool.
+You can delegate tasks to these agents using the A2A tools (A2A_SubmitTask, A2A_QueryAgent, A2A_QueryTask, A2A_DownloadArtifacts).
 ```
 
 ## Using Agents in Chat
@@ -199,7 +199,7 @@ Once configured, you can ask the AI to delegate tasks to specific agents:
 User: Please have the code-reviewer agent review my latest commit
 ```
 
-The AI will use the `A2A_SubmitTask` tool to delegate this task to the configured code-reviewer agent.
+The AI will use the A2A tools to delegate this task to the configured code-reviewer agent.
 
 ## Local Agent Execution (Docker)
 
