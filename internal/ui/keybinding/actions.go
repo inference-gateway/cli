@@ -440,6 +440,18 @@ func (r *Registry) createApprovalActions() []*KeyAction {
 				Views: []domain.ViewState{domain.ViewStateToolApproval},
 			},
 		},
+		{
+			ID:          "approval_auto_accept",
+			Keys:        []string{"a"},
+			Description: "switch to auto-accept mode",
+			Category:    "approval",
+			Handler:     handleApprovalAutoAccept,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateToolApproval},
+			},
+		},
 	}
 }
 
@@ -1052,7 +1064,7 @@ func handleApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 
 	selectedIndex := approvalState.SelectedIndex
-	if selectedIndex < int(domain.ApprovalReject) {
+	if selectedIndex < int(domain.ApprovalAutoAccept) {
 		selectedIndex++
 		stateManager.SetApprovalSelectedIndex(selectedIndex)
 	}
@@ -1066,7 +1078,6 @@ func handleApprovalApprove(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	// If user is on "Approve" or presses enter/y, approve the tool
 	action := domain.ApprovalAction(approvalState.SelectedIndex)
 	if action == domain.ApprovalApprove || keyMsg.String() == "y" {
 		action = domain.ApprovalApprove
@@ -1090,6 +1101,21 @@ func handleApprovalReject(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 		return domain.ToolApprovalResponseEvent{
 			Action:   domain.ApprovalReject,
+			ToolCall: *approvalState.PendingToolCall,
+		}
+	}
+}
+
+func handleApprovalAutoAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	return func() tea.Msg {
+		stateManager := app.GetStateManager()
+		approvalState := stateManager.GetApprovalUIState()
+		if approvalState == nil {
+			return nil
+		}
+
+		return domain.ToolApprovalResponseEvent{
+			Action:   domain.ApprovalAutoAccept,
 			ToolCall: *approvalState.PendingToolCall,
 		}
 	}

@@ -812,7 +812,11 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 
 	wasApproved := false
 
-	if requiresApproval {
+	isAutoAcceptMode := s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept
+	if isAutoAcceptMode {
+		logger.Debug("auto-accept mode active, bypassing approval", "tool", tc.Function.Name)
+		wasApproved = true
+	} else if requiresApproval {
 		logger.Info("requesting approval for tool", "tool", tc.Function.Name)
 		approved, err := s.requestToolApproval(ctx, tc, eventPublisher)
 		if err != nil {

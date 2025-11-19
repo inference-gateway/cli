@@ -264,6 +264,7 @@ type ApprovalAction int
 const (
 	ApprovalApprove ApprovalAction = iota
 	ApprovalReject
+	ApprovalAutoAccept
 )
 
 func (a ApprovalAction) String() string {
@@ -272,6 +273,8 @@ func (a ApprovalAction) String() string {
 		return "Approve"
 	case ApprovalReject:
 		return "Reject"
+	case ApprovalAutoAccept:
+		return "Auto-Accept"
 	default:
 		return "Unknown"
 	}

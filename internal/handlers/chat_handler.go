@@ -467,6 +467,29 @@ func (h *ChatHandler) HandleToolApprovalResponseEvent(
 func (h *ChatHandler) handleToolApprovalResponse(
 	msg domain.ToolApprovalResponseEvent,
 ) tea.Cmd {
+	if msg.Action == domain.ApprovalAutoAccept {
+		h.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
+
+		approvalState := h.stateManager.GetApprovalUIState()
+		if approvalState != nil && approvalState.ResponseChan != nil {
+			select {
+			case approvalState.ResponseChan <- domain.ApprovalApprove:
+			default:
+			}
+		}
+
+		h.stateManager.ClearApprovalUIState()
+		_ = h.stateManager.TransitionToView(domain.ViewStateChat)
+
+		return func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Switched to Auto-Accept mode - all tools will be auto-approved",
+				Spinner:    false,
+				TokenUsage: h.getCurrentTokenUsage(),
+			}
+		}
+	}
+
 	approvalState := h.stateManager.GetApprovalUIState()
 	if approvalState != nil && approvalState.ResponseChan != nil {
 		select {
