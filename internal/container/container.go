@@ -82,6 +82,7 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 	container.initializeGatewayManager()
 	container.initializeAgentManager()
 	container.initializeFileWriterServices()
+	container.initializeStateManager()
 	container.initializeDomainServices()
 	container.initializeServices()
 	container.initializeUIComponents()
@@ -201,6 +202,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.conversationRepo,
 		c.a2aAgentService,
 		c.messageQueue,
+		c.stateManager,
 		c.config.Gateway.Timeout,
 		optimizer,
 	)
@@ -208,11 +210,14 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.chatService = services.NewStreamingChatService(c.agentService)
 }
 
-// initializeServices creates the new improved services
-func (c *ServiceContainer) initializeServices() {
+// initializeStateManager creates the state manager before domain services need it
+func (c *ServiceContainer) initializeStateManager() {
 	debugMode := c.config.Logging.Debug
 	c.stateManager = services.NewStateManager(debugMode)
+}
 
+// initializeServices creates the new improved services
+func (c *ServiceContainer) initializeServices() {
 	if c.config.IsA2AToolsEnabled() {
 		maxTaskRetention := c.config.A2A.Task.CompletedTaskRetention
 		c.taskRetentionService = services.NewTaskRetentionService(maxTaskRetention)

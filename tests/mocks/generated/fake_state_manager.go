@@ -38,6 +38,16 @@ type FakeStateManager struct {
 	completeCurrentToolReturnsOnCall map[int]struct {
 		result1 error
 	}
+	CycleAgentModeStub        func() domain.AgentMode
+	cycleAgentModeMutex       sync.RWMutex
+	cycleAgentModeArgsForCall []struct {
+	}
+	cycleAgentModeReturns struct {
+		result1 domain.AgentMode
+	}
+	cycleAgentModeReturnsOnCall map[int]struct {
+		result1 domain.AgentMode
+	}
 	EndChatSessionStub        func()
 	endChatSessionMutex       sync.RWMutex
 	endChatSessionArgsForCall []struct {
@@ -56,6 +66,16 @@ type FakeStateManager struct {
 	}
 	failCurrentToolReturnsOnCall map[int]struct {
 		result1 error
+	}
+	GetAgentModeStub        func() domain.AgentMode
+	getAgentModeMutex       sync.RWMutex
+	getAgentModeArgsForCall []struct {
+	}
+	getAgentModeReturns struct {
+		result1 domain.AgentMode
+	}
+	getAgentModeReturnsOnCall map[int]struct {
+		result1 domain.AgentMode
 	}
 	GetApprovalUIStateStub        func() *domain.ApprovalUIState
 	getApprovalUIStateMutex       sync.RWMutex
@@ -148,6 +168,11 @@ type FakeStateManager struct {
 	}
 	popQueuedMessageReturnsOnCall map[int]struct {
 		result1 *domain.QueuedMessage
+	}
+	SetAgentModeStub        func(domain.AgentMode)
+	setAgentModeMutex       sync.RWMutex
+	setAgentModeArgsForCall []struct {
+		arg1 domain.AgentMode
 	}
 	SetApprovalSelectedIndexStub        func(int)
 	setApprovalSelectedIndexMutex       sync.RWMutex
@@ -397,6 +422,59 @@ func (fake *FakeStateManager) CompleteCurrentToolReturnsOnCall(i int, result1 er
 	}{result1}
 }
 
+func (fake *FakeStateManager) CycleAgentMode() domain.AgentMode {
+	fake.cycleAgentModeMutex.Lock()
+	ret, specificReturn := fake.cycleAgentModeReturnsOnCall[len(fake.cycleAgentModeArgsForCall)]
+	fake.cycleAgentModeArgsForCall = append(fake.cycleAgentModeArgsForCall, struct {
+	}{})
+	stub := fake.CycleAgentModeStub
+	fakeReturns := fake.cycleAgentModeReturns
+	fake.recordInvocation("CycleAgentMode", []interface{}{})
+	fake.cycleAgentModeMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) CycleAgentModeCallCount() int {
+	fake.cycleAgentModeMutex.RLock()
+	defer fake.cycleAgentModeMutex.RUnlock()
+	return len(fake.cycleAgentModeArgsForCall)
+}
+
+func (fake *FakeStateManager) CycleAgentModeCalls(stub func() domain.AgentMode) {
+	fake.cycleAgentModeMutex.Lock()
+	defer fake.cycleAgentModeMutex.Unlock()
+	fake.CycleAgentModeStub = stub
+}
+
+func (fake *FakeStateManager) CycleAgentModeReturns(result1 domain.AgentMode) {
+	fake.cycleAgentModeMutex.Lock()
+	defer fake.cycleAgentModeMutex.Unlock()
+	fake.CycleAgentModeStub = nil
+	fake.cycleAgentModeReturns = struct {
+		result1 domain.AgentMode
+	}{result1}
+}
+
+func (fake *FakeStateManager) CycleAgentModeReturnsOnCall(i int, result1 domain.AgentMode) {
+	fake.cycleAgentModeMutex.Lock()
+	defer fake.cycleAgentModeMutex.Unlock()
+	fake.CycleAgentModeStub = nil
+	if fake.cycleAgentModeReturnsOnCall == nil {
+		fake.cycleAgentModeReturnsOnCall = make(map[int]struct {
+			result1 domain.AgentMode
+		})
+	}
+	fake.cycleAgentModeReturnsOnCall[i] = struct {
+		result1 domain.AgentMode
+	}{result1}
+}
+
 func (fake *FakeStateManager) EndChatSession() {
 	fake.endChatSessionMutex.Lock()
 	fake.endChatSessionArgsForCall = append(fake.endChatSessionArgsForCall, struct {
@@ -503,6 +581,59 @@ func (fake *FakeStateManager) FailCurrentToolReturnsOnCall(i int, result1 error)
 	}
 	fake.failCurrentToolReturnsOnCall[i] = struct {
 		result1 error
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetAgentMode() domain.AgentMode {
+	fake.getAgentModeMutex.Lock()
+	ret, specificReturn := fake.getAgentModeReturnsOnCall[len(fake.getAgentModeArgsForCall)]
+	fake.getAgentModeArgsForCall = append(fake.getAgentModeArgsForCall, struct {
+	}{})
+	stub := fake.GetAgentModeStub
+	fakeReturns := fake.getAgentModeReturns
+	fake.recordInvocation("GetAgentMode", []interface{}{})
+	fake.getAgentModeMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetAgentModeCallCount() int {
+	fake.getAgentModeMutex.RLock()
+	defer fake.getAgentModeMutex.RUnlock()
+	return len(fake.getAgentModeArgsForCall)
+}
+
+func (fake *FakeStateManager) GetAgentModeCalls(stub func() domain.AgentMode) {
+	fake.getAgentModeMutex.Lock()
+	defer fake.getAgentModeMutex.Unlock()
+	fake.GetAgentModeStub = stub
+}
+
+func (fake *FakeStateManager) GetAgentModeReturns(result1 domain.AgentMode) {
+	fake.getAgentModeMutex.Lock()
+	defer fake.getAgentModeMutex.Unlock()
+	fake.GetAgentModeStub = nil
+	fake.getAgentModeReturns = struct {
+		result1 domain.AgentMode
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetAgentModeReturnsOnCall(i int, result1 domain.AgentMode) {
+	fake.getAgentModeMutex.Lock()
+	defer fake.getAgentModeMutex.Unlock()
+	fake.GetAgentModeStub = nil
+	if fake.getAgentModeReturnsOnCall == nil {
+		fake.getAgentModeReturnsOnCall = make(map[int]struct {
+			result1 domain.AgentMode
+		})
+	}
+	fake.getAgentModeReturnsOnCall[i] = struct {
+		result1 domain.AgentMode
 	}{result1}
 }
 
@@ -984,6 +1115,38 @@ func (fake *FakeStateManager) PopQueuedMessageReturnsOnCall(i int, result1 *doma
 	fake.popQueuedMessageReturnsOnCall[i] = struct {
 		result1 *domain.QueuedMessage
 	}{result1}
+}
+
+func (fake *FakeStateManager) SetAgentMode(arg1 domain.AgentMode) {
+	fake.setAgentModeMutex.Lock()
+	fake.setAgentModeArgsForCall = append(fake.setAgentModeArgsForCall, struct {
+		arg1 domain.AgentMode
+	}{arg1})
+	stub := fake.SetAgentModeStub
+	fake.recordInvocation("SetAgentMode", []interface{}{arg1})
+	fake.setAgentModeMutex.Unlock()
+	if stub != nil {
+		fake.SetAgentModeStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetAgentModeCallCount() int {
+	fake.setAgentModeMutex.RLock()
+	defer fake.setAgentModeMutex.RUnlock()
+	return len(fake.setAgentModeArgsForCall)
+}
+
+func (fake *FakeStateManager) SetAgentModeCalls(stub func(domain.AgentMode)) {
+	fake.setAgentModeMutex.Lock()
+	defer fake.setAgentModeMutex.Unlock()
+	fake.SetAgentModeStub = stub
+}
+
+func (fake *FakeStateManager) SetAgentModeArgsForCall(i int) domain.AgentMode {
+	fake.setAgentModeMutex.RLock()
+	defer fake.setAgentModeMutex.RUnlock()
+	argsForCall := fake.setAgentModeArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeStateManager) SetApprovalSelectedIndex(arg1 int) {

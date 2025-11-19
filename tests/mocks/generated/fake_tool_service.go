@@ -65,6 +65,17 @@ type FakeToolService struct {
 	listToolsReturnsOnCall map[int]struct {
 		result1 []sdk.ChatCompletionTool
 	}
+	ListToolsForModeStub        func(domain.AgentMode) []sdk.ChatCompletionTool
+	listToolsForModeMutex       sync.RWMutex
+	listToolsForModeArgsForCall []struct {
+		arg1 domain.AgentMode
+	}
+	listToolsForModeReturns struct {
+		result1 []sdk.ChatCompletionTool
+	}
+	listToolsForModeReturnsOnCall map[int]struct {
+		result1 []sdk.ChatCompletionTool
+	}
 	ValidateToolStub        func(string, map[string]any) error
 	validateToolMutex       sync.RWMutex
 	validateToolArgsForCall []struct {
@@ -362,6 +373,67 @@ func (fake *FakeToolService) ListToolsReturnsOnCall(i int, result1 []sdk.ChatCom
 		})
 	}
 	fake.listToolsReturnsOnCall[i] = struct {
+		result1 []sdk.ChatCompletionTool
+	}{result1}
+}
+
+func (fake *FakeToolService) ListToolsForMode(arg1 domain.AgentMode) []sdk.ChatCompletionTool {
+	fake.listToolsForModeMutex.Lock()
+	ret, specificReturn := fake.listToolsForModeReturnsOnCall[len(fake.listToolsForModeArgsForCall)]
+	fake.listToolsForModeArgsForCall = append(fake.listToolsForModeArgsForCall, struct {
+		arg1 domain.AgentMode
+	}{arg1})
+	stub := fake.ListToolsForModeStub
+	fakeReturns := fake.listToolsForModeReturns
+	fake.recordInvocation("ListToolsForMode", []interface{}{arg1})
+	fake.listToolsForModeMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeToolService) ListToolsForModeCallCount() int {
+	fake.listToolsForModeMutex.RLock()
+	defer fake.listToolsForModeMutex.RUnlock()
+	return len(fake.listToolsForModeArgsForCall)
+}
+
+func (fake *FakeToolService) ListToolsForModeCalls(stub func(domain.AgentMode) []sdk.ChatCompletionTool) {
+	fake.listToolsForModeMutex.Lock()
+	defer fake.listToolsForModeMutex.Unlock()
+	fake.ListToolsForModeStub = stub
+}
+
+func (fake *FakeToolService) ListToolsForModeArgsForCall(i int) domain.AgentMode {
+	fake.listToolsForModeMutex.RLock()
+	defer fake.listToolsForModeMutex.RUnlock()
+	argsForCall := fake.listToolsForModeArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeToolService) ListToolsForModeReturns(result1 []sdk.ChatCompletionTool) {
+	fake.listToolsForModeMutex.Lock()
+	defer fake.listToolsForModeMutex.Unlock()
+	fake.ListToolsForModeStub = nil
+	fake.listToolsForModeReturns = struct {
+		result1 []sdk.ChatCompletionTool
+	}{result1}
+}
+
+func (fake *FakeToolService) ListToolsForModeReturnsOnCall(i int, result1 []sdk.ChatCompletionTool) {
+	fake.listToolsForModeMutex.Lock()
+	defer fake.listToolsForModeMutex.Unlock()
+	fake.ListToolsForModeStub = nil
+	if fake.listToolsForModeReturnsOnCall == nil {
+		fake.listToolsForModeReturnsOnCall = make(map[int]struct {
+			result1 []sdk.ChatCompletionTool
+		})
+	}
+	fake.listToolsForModeReturnsOnCall[i] = struct {
 		result1 []sdk.ChatCompletionTool
 	}{result1}
 }

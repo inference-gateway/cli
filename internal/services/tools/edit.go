@@ -596,7 +596,9 @@ func (t *EditTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	showGitDiff := result.Success && result.Arguments != nil
 	if showGitDiff {
 		output.WriteString("\n")
-		diffRenderer := components.NewDiffRenderer(nil)
+		themeService := domain.NewThemeProvider()
+		styleProvider := styles.NewProvider(themeService)
+		diffRenderer := components.NewDiffRenderer(styleProvider)
 		diffInfo := t.GetDiffInfo(result.Arguments)
 		diffInfo.Title = "← Edits applied →"
 		output.WriteString(diffRenderer.RenderDiff(*diffInfo))

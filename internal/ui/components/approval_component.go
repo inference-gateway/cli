@@ -64,7 +64,7 @@ func (c *ApprovalComponent) Render(approvalState *domain.ApprovalUIState, theme 
 	options := c.renderOptions(approvalState.SelectedIndex)
 
 	helpText := c.styleProvider.RenderStyledText(
-		"←/→: Navigate  •  Enter/y: Approve  •  n/Esc: Reject",
+		"←/→: Navigate  •  Enter/y: Approve  •  n: Reject  •  a: Auto-Accept  •  Esc: Cancel",
 		styles.StyleOptions{
 			Foreground: c.styleProvider.GetThemeColor("dim"),
 			Italic:     true,
@@ -164,10 +164,11 @@ func (c *ApprovalComponent) formatValue(value any, maxLen int) string {
 	return str
 }
 
-// renderOptions renders the Approve/Reject options
+// renderOptions renders the Approve/Reject/Auto-Accept options
 func (c *ApprovalComponent) renderOptions(selectedIndex int) string {
 	isApproveSelected := selectedIndex == int(domain.ApprovalApprove)
 	isRejectSelected := selectedIndex == int(domain.ApprovalReject)
+	isAutoAcceptSelected := selectedIndex == int(domain.ApprovalAutoAccept)
 
 	approveText := "  Approve"
 	if isApproveSelected {
@@ -179,10 +180,16 @@ func (c *ApprovalComponent) renderOptions(selectedIndex int) string {
 		rejectText = "✗ Reject"
 	}
 
+	autoAcceptText := "  Auto-Accept"
+	if isAutoAcceptSelected {
+		autoAcceptText = "⚡ Auto-Accept"
+	}
+
 	approveButton := c.styleProvider.RenderApprovalButton(approveText, isApproveSelected, true)
 	rejectButton := c.styleProvider.RenderApprovalButton(rejectText, isRejectSelected, false)
+	autoAcceptButton := c.styleProvider.RenderApprovalButton(autoAcceptText, isAutoAcceptSelected, true)
 
-	return c.styleProvider.JoinHorizontal(approveButton, "  ", rejectButton)
+	return c.styleProvider.JoinHorizontal(approveButton, "  ", rejectButton, "  ", autoAcceptButton)
 }
 
 // min returns the minimum of two integers

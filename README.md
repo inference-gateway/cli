@@ -94,6 +94,11 @@ and management of inference services.
   - **TodoWrite**: Create and manage structured task lists
   - **A2A Tools**: Agent-to-agent communication for task delegation and coordination
 - **Tool Approval System**: User approval workflow for sensitive operations with real-time diff visualization for file modifications
+- **Agent Modes**: Three operational modes for different workflows:
+  - **🎯 Standard Mode** (default): Normal operation with all configured tools and approval checks
+  - **📋 Plan Mode**: Read-only mode for planning and analysis without execution
+  - **⚡ Auto-Accept Mode**: All tools auto-approved for rapid execution (YOLO mode)
+  - Toggle between modes with **Shift+Tab**
 
 ## Installation
 
@@ -436,6 +441,31 @@ conversational interface where you can select models and have conversations.
 - **Home/End**: Jump to top/bottom of chat history
 - **Shift+↑/Shift+↓**: Half-page scrolling
 - **Ctrl+R**: Toggle expanded view of tool results
+- **Shift+Tab**: Cycle agent mode (Standard → Plan → Auto-Accept)
+
+**Agent Modes:**
+
+The chat interface supports three operational modes that can be toggled with **Shift+Tab**:
+
+- **🎯 Standard Mode** (default): Normal operation with all configured tools and approval checks enabled. The agent
+  has access to all tools defined in your configuration and will request approval for sensitive operations (Write,
+  Edit, Delete, Bash, etc.).
+
+- **📋 Plan Mode**: Read-only mode designed for planning and analysis. In this mode, the agent:
+  - Can only use Read, Grep, and Tree tools to gather information
+  - Is instructed to analyze tasks and create detailed plans without executing changes
+  - Provides step-by-step breakdowns of what would be done in Standard mode
+  - Useful for understanding codebases or previewing changes before implementation
+
+- **⚡ Auto-Accept Mode** (YOLO mode): All tool executions are automatically approved without prompting. The agent:
+  - Has full access to all configured tools
+  - Bypasses all approval checks and safety guardrails
+  - Executes modifications immediately without confirmation
+  - Ideal for trusted workflows or when rapid iteration is needed
+  - **Use with caution** - ensure you have backups and version control
+
+The current mode is displayed below the input field when not in Standard mode. Toggle between modes anytime during a
+chat session.
 
 **System Reminders:**
 

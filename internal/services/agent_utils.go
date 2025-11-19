@@ -77,7 +77,7 @@ func (s *AgentServiceImpl) clearToolCallsMap() {
 func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message {
 	var systemMessages []sdk.Message
 
-	baseSystemPrompt := s.config.GetAgentConfig().SystemPrompt
+	baseSystemPrompt := s.getSystemPromptForMode()
 	if baseSystemPrompt != "" {
 		currentTime := time.Now().Format("Monday, January 2, 2006 at 3:04 PM MST")
 
@@ -98,6 +98,33 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 		messages = append(systemMessages, messages...)
 	}
 	return messages
+}
+
+// getSystemPromptForMode returns the appropriate system prompt based on current agent mode
+func (s *AgentServiceImpl) getSystemPromptForMode() string {
+	agentConfig := s.config.GetAgentConfig()
+
+	if s.stateManager == nil {
+		return agentConfig.SystemPrompt
+	}
+
+	mode := s.stateManager.GetAgentMode()
+	switch mode {
+	case domain.AgentModePlan:
+		if agentConfig.SystemPromptPlan != "" {
+			return agentConfig.SystemPromptPlan
+		}
+		return agentConfig.SystemPrompt
+
+	case domain.AgentModeAutoAccept:
+		return agentConfig.SystemPrompt
+
+	case domain.AgentModeStandard:
+		return agentConfig.SystemPrompt
+
+	default:
+		return agentConfig.SystemPrompt
+	}
 }
 
 // buildA2AAgentInfo creates dynamic A2A agent information for the system prompt

@@ -360,6 +360,21 @@ func (p *Provider) JoinHorizontal(strs ...string) string {
 	return lipgloss.JoinHorizontal(lipgloss.Top, strs...)
 }
 
+// PlaceHorizontal places two components horizontally with the second one on the right
+func (p *Provider) PlaceHorizontal(width int, left string, right string) string {
+	leftWidth := lipgloss.Width(left)
+	rightWidth := lipgloss.Width(right)
+
+	if leftWidth+rightWidth >= width {
+		return lipgloss.JoinHorizontal(lipgloss.Top, left, right)
+	}
+
+	padding := width - leftWidth - rightWidth
+	spacer := strings.Repeat(" ", padding)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, spacer, right)
+}
+
 // PlaceCenter places content in the center of the given dimensions
 func (p *Provider) PlaceCenter(width, height int, content string) string {
 	return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, content)

@@ -21,6 +21,7 @@ type AgentServiceImpl struct {
 	conversationRepo domain.ConversationRepository
 	a2aAgentService  domain.A2AAgentService
 	messageQueue     domain.MessageQueue
+	stateManager     domain.StateManager
 	timeoutSeconds   int
 	maxTokens        int
 	optimizer        *ConversationOptimizer
@@ -159,6 +160,7 @@ func NewAgentService(
 	conversationRepo domain.ConversationRepository,
 	a2aAgentService domain.A2AAgentService,
 	messageQueue domain.MessageQueue,
+	stateManager domain.StateManager,
 	timeoutSeconds int,
 	optimizer *ConversationOptimizer,
 ) *AgentServiceImpl {
@@ -169,6 +171,7 @@ func NewAgentService(
 		conversationRepo: conversationRepo,
 		a2aAgentService:  a2aAgentService,
 		messageQueue:     messageQueue,
+		stateManager:     stateManager,
 		timeoutSeconds:   timeoutSeconds,
 		maxTokens:        config.GetAgentConfig().MaxTokens,
 		optimizer:        optimizer,
@@ -213,7 +216,11 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 				SkipA2A: true,
 			})
 		if s.toolService != nil {
-			availableTools := s.toolService.ListTools()
+			mode := domain.AgentModeStandard
+			if s.stateManager != nil {
+				mode = s.stateManager.GetAgentMode()
+			}
+			availableTools := s.toolService.ListToolsForMode(mode)
 			if len(availableTools) > 0 {
 				client = s.client.WithTools(&availableTools)
 			}
@@ -272,16 +279,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		delete(s.cancelChannels, req.RequestID)
 		s.cancelMux.Unlock()
 	}()
-
-	client := s.client.
-		WithMiddlewareOptions(&sdk.MiddlewareOptions{
-			SkipMCP: true,
-			SkipA2A: true,
-		})
-	availableTools := s.toolService.ListTools()
-	if len(availableTools) > 0 {
-		client = client.WithTools(&availableTools)
-	}
 
 	conversation := s.addSystemPrompt(req.Messages)
 
@@ -391,6 +388,24 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				if err := s.conversationRepo.AddMessage(reminderEntry); err != nil {
 					logger.Error("failed to store system reminder message", "error", err)
 				}
+			}
+
+			mode := domain.AgentModeStandard
+			if s.stateManager != nil {
+				mode = s.stateManager.GetAgentMode()
+				logger.Debug("Retrieved agent mode from state manager", "mode", mode.String(), "turn", turns)
+			} else {
+				logger.Warn("StateManager is nil, using default Standard mode")
+			}
+			availableTools := s.toolService.ListToolsForMode(mode)
+
+			client := s.client.
+				WithMiddlewareOptions(&sdk.MiddlewareOptions{
+					SkipMCP: true,
+					SkipA2A: true,
+				})
+			if len(availableTools) > 0 {
+				client = client.WithTools(&availableTools)
 			}
 
 			events, err := client.GenerateContentStream(requestCtx, sdk.Provider(provider), model, conversation)
@@ -797,7 +812,11 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 
 	wasApproved := false
 
-	if requiresApproval {
+	isAutoAcceptMode := s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept
+	if isAutoAcceptMode {
+		logger.Debug("auto-accept mode active, bypassing approval", "tool", tc.Function.Name)
+		wasApproved = true
+	} else if requiresApproval {
 		logger.Info("requesting approval for tool", "tool", tc.Function.Name)
 		approved, err := s.requestToolApproval(ctx, tc, eventPublisher)
 		if err != nil {
@@ -935,6 +954,11 @@ func (s *AgentServiceImpl) requestToolApproval(
 // shouldRequireApproval determines if a tool execution requires user approval
 // For Bash tool specifically, it checks if the command is whitelisted
 func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
+	// In auto-accept mode, never require approval
+	if s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
+		return false
+	}
+
 	if !isChatMode {
 		return false
 	}

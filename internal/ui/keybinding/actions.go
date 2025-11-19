@@ -57,6 +57,18 @@ func (r *Registry) createGlobalActions() []*KeyAction {
 func (r *Registry) createChatActions() []*KeyAction {
 	actions := []*KeyAction{
 		{
+			ID:          "cycle_agent_mode",
+			Keys:        []string{"shift+tab"},
+			Description: "cycle agent mode (Standard/Plan/Auto-Accept)",
+			Category:    "mode",
+			Handler:     handleCycleAgentMode,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
 			ID:          "toggle_tool_expansion",
 			Keys:        []string{"ctrl+r"},
 			Description: "expand/collapse tool results",
@@ -428,6 +440,18 @@ func (r *Registry) createApprovalActions() []*KeyAction {
 				Views: []domain.ViewState{domain.ViewStateToolApproval},
 			},
 		},
+		{
+			ID:          "approval_auto_accept",
+			Keys:        []string{"a"},
+			Description: "switch to auto-accept mode",
+			Category:    "approval",
+			Handler:     handleApprovalAutoAccept,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateToolApproval},
+			},
+		},
 	}
 }
 
@@ -783,6 +807,19 @@ func handleToggleHelp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 }
 
+func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+	newMode := stateManager.CycleAgentMode()
+
+	return func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
+			Spinner:    false,
+			TokenUsage: getCurrentTokenUsage(app),
+		}
+	}
+}
+
 func handleEnterSelectionMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 
@@ -857,6 +894,13 @@ func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyMsg) tea.Cmd {
 		return tea.Batch(cmds...)
 	}
 	return charCmd
+}
+
+// IsKeyHandledByAction returns true if the key would be handled by a keybinding action
+func (m *KeyBindingManager) IsKeyHandledByAction(keyMsg tea.KeyMsg) bool {
+	keyStr := keyMsg.String()
+	action := m.registry.Resolve(keyStr, m.app)
+	return action != nil
 }
 
 // GetHelpShortcuts returns help shortcuts for the current context
@@ -1020,7 +1064,7 @@ func handleApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 
 	selectedIndex := approvalState.SelectedIndex
-	if selectedIndex < int(domain.ApprovalReject) {
+	if selectedIndex < int(domain.ApprovalAutoAccept) {
 		selectedIndex++
 		stateManager.SetApprovalSelectedIndex(selectedIndex)
 	}
@@ -1034,7 +1078,6 @@ func handleApprovalApprove(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	// If user is on "Approve" or presses enter/y, approve the tool
 	action := domain.ApprovalAction(approvalState.SelectedIndex)
 	if action == domain.ApprovalApprove || keyMsg.String() == "y" {
 		action = domain.ApprovalApprove
@@ -1058,6 +1101,21 @@ func handleApprovalReject(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 		return domain.ToolApprovalResponseEvent{
 			Action:   domain.ApprovalReject,
+			ToolCall: *approvalState.PendingToolCall,
+		}
+	}
+}
+
+func handleApprovalAutoAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	return func() tea.Msg {
+		stateManager := app.GetStateManager()
+		approvalState := stateManager.GetApprovalUIState()
+		if approvalState == nil {
+			return nil
+		}
+
+		return domain.ToolApprovalResponseEvent{
+			Action:   domain.ApprovalAutoAccept,
 			ToolCall: *approvalState.PendingToolCall,
 		}
 	}

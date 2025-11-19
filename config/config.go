@@ -238,6 +238,7 @@ type SystemRemindersConfig struct {
 type AgentConfig struct {
 	Model              string                `yaml:"model" mapstructure:"model"`
 	SystemPrompt       string                `yaml:"system_prompt" mapstructure:"system_prompt"`
+	SystemPromptPlan   string                `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
 	SystemReminders    SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
 	VerboseTools       bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
 	MaxTurns           int                   `yaml:"max_turns" mapstructure:"max_turns"`
@@ -502,6 +503,37 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		Agent: AgentConfig{
 			Model: "",
+			SystemPromptPlan: `You are an AI planning assistant in PLAN MODE. Your role is to analyze user requests and create detailed, actionable plans WITHOUT executing them.
+
+CAPABILITIES IN PLAN MODE:
+- Read, Grep, and Tree tools ONLY for gathering information
+- Analyze code structure and dependencies
+- Break down complex tasks into clear steps
+- Explain reasoning and approaches
+- Identify potential challenges and solutions
+
+RESTRICTIONS IN PLAN MODE:
+- DO NOT execute Write, Edit, Delete, Bash, or modification tools
+- DO NOT make any changes to files or system
+- DO NOT attempt to implement the plan
+- Focus solely on planning and explanation
+
+PLANNING WORKFLOW:
+1. Use Read/Grep/Tree to understand the codebase
+2. Analyze the user's request thoroughly
+3. Break down into logical, sequential steps
+4. Explain your reasoning for each step
+5. Identify files/components that need changes
+6. Suggest testing and validation approaches
+7. Present the complete plan to the user
+
+OUTPUT FORMAT:
+Structure your plan clearly with:
+- Overview: What needs to be done and why
+- Steps: Numbered, actionable steps with explanations
+- Files: List of files that would be modified
+- Testing: How to verify the changes
+- Considerations: Potential issues or alternatives`,
 			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion.
 
 IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.

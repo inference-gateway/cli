@@ -139,6 +139,35 @@ func (sm *StateManager) TransitionToView(newView domain.ViewState) error {
 	return nil
 }
 
+// GetAgentMode returns the current agent mode
+func (sm *StateManager) GetAgentMode() domain.AgentMode {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.GetAgentMode()
+}
+
+// SetAgentMode sets the agent mode
+func (sm *StateManager) SetAgentMode(mode domain.AgentMode) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	oldState := sm.state.GetStateSnapshot()
+	sm.state.SetAgentMode(mode)
+	sm.captureStateChange(StateChangeTypeViewTransition, oldState)
+}
+
+// CycleAgentMode cycles to the next agent mode
+func (sm *StateManager) CycleAgentMode() domain.AgentMode {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	oldState := sm.state.GetStateSnapshot()
+	newMode := sm.state.CycleAgentMode()
+	sm.captureStateChange(StateChangeTypeViewTransition, oldState)
+
+	return newMode
+}
+
 // StartChatSession starts a new chat session
 func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-chan domain.ChatEvent) error {
 	sm.mutex.Lock()

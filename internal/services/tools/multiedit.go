@@ -710,23 +710,24 @@ func (t *MultiEditTool) FormatForLLM(result *domain.ToolExecutionResult) string 
 
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
-	// For successful executions, show actual diff based on execution results
 	if result.Success && result.Arguments != nil && result.Data != nil {
 		output.WriteString("\n")
-		diffRenderer := components.NewDiffRenderer(nil)
+		themeService := domain.NewThemeProvider()
+		styleProvider := styles.NewProvider(themeService)
+		diffRenderer := components.NewDiffRenderer(styleProvider)
 		diffInfo := t.getActualDiffInfo(result)
 		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
 		output.WriteString("\n")
 	} else if !result.Success && result.Arguments != nil {
-		// For failed executions, show the simulated diff to help debug
 		output.WriteString("\n")
-		diffRenderer := components.NewDiffRenderer(nil)
+		themeService := domain.NewThemeProvider()
+		styleProvider := styles.NewProvider(themeService)
+		diffRenderer := components.NewDiffRenderer(styleProvider)
 		diffInfo := t.GetDiffInfo(result.Arguments)
 		diffInfo.Title = "← Simulated diff preview →"
 		output.WriteString(diffRenderer.RenderDiff(*diffInfo))
 		output.WriteString("\n")
 	} else if result.Data != nil {
-		// Fallback to execution data if no arguments available
 		dataContent := t.formatMultiEditData(result.Data)
 		hasMetadata := len(result.Metadata) > 0
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
