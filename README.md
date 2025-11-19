@@ -447,7 +447,9 @@ conversational interface where you can select models and have conversations.
 
 The chat interface supports three operational modes that can be toggled with **Shift+Tab**:
 
-- **🎯 Standard Mode** (default): Normal operation with all configured tools and approval checks enabled. The agent has access to all tools defined in your configuration and will request approval for sensitive operations (Write, Edit, Delete, Bash, etc.).
+- **🎯 Standard Mode** (default): Normal operation with all configured tools and approval checks enabled. The agent
+  has access to all tools defined in your configuration and will request approval for sensitive operations (Write,
+  Edit, Delete, Bash, etc.).
 
 - **📋 Plan Mode**: Read-only mode designed for planning and analysis. In this mode, the agent:
   - Can only use Read, Grep, and Tree tools to gather information
@@ -462,7 +464,8 @@ The chat interface supports three operational modes that can be toggled with **S
   - Ideal for trusted workflows or when rapid iteration is needed
   - **Use with caution** - ensure you have backups and version control
 
-The current mode is displayed below the input field when not in Standard mode. Toggle between modes anytime during a chat session.
+The current mode is displayed below the input field when not in Standard mode. Toggle between modes anytime during a
+chat session.
 
 **System Reminders:**
 

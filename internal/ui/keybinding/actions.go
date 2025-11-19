@@ -884,6 +884,13 @@ func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyMsg) tea.Cmd {
 	return charCmd
 }
 
+// IsKeyHandledByAction returns true if the key would be handled by a keybinding action
+func (m *KeyBindingManager) IsKeyHandledByAction(keyMsg tea.KeyMsg) bool {
+	keyStr := keyMsg.String()
+	action := m.registry.Resolve(keyStr, m.app)
+	return action != nil
+}
+
 // GetHelpShortcuts returns help shortcuts for the current context
 func (m *KeyBindingManager) GetHelpShortcuts() []HelpShortcut {
 	return m.registry.GetHelpShortcuts(m.app)

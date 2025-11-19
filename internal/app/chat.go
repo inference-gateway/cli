@@ -70,6 +70,9 @@ type ChatApplication struct {
 	// Key binding system
 	keyBindingManager *keybinding.KeyBindingManager
 
+	// Track last key handled by keybinding action to prevent double-handling
+	lastHandledKey string
+
 	// Available models
 	availableModels []string
 }
@@ -345,8 +348,14 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd {
 	var cmds []tea.Cmd
 
+	isHandledByAction := app.keyBindingManager.IsKeyHandledByAction(keyMsg)
+
 	if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
 		cmds = append(cmds, cmd)
+	}
+
+	if isHandledByAction {
+		app.lastHandledKey = keyMsg.String()
 	}
 
 	return cmds
@@ -938,6 +947,13 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 	if setupMsg, ok := msg.(domain.SetupFileSelectionEvent); ok {
 		app.stateManager.SetupFileSelection(setupMsg.Files)
 		return cmds
+	}
+
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		if keyMsg.String() == app.lastHandledKey {
+			app.lastHandledKey = ""
+			return cmds
+		}
 	}
 
 	if model, cmd := app.conversationView.(tea.Model).Update(msg); cmd != nil {
