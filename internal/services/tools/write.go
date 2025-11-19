@@ -10,6 +10,8 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriter "github.com/inference-gateway/cli/internal/domain/filewriter"
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
+	components "github.com/inference-gateway/cli/internal/ui/components"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -303,6 +305,14 @@ func (t *WriteTool) ShouldCollapseArg(key string) bool {
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
 func (t *WriteTool) ShouldAlwaysExpand() bool {
 	return false
+}
+
+// FormatArgumentsForApproval formats arguments for approval display with content preview
+func (t *WriteTool) FormatArgumentsForApproval(args map[string]any) string {
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	diffRenderer := components.NewToolDiffRenderer(styleProvider)
+	return diffRenderer.RenderWriteToolArguments(args)
 }
 
 // executeWrite handles regular file write operations

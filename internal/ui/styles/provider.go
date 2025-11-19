@@ -136,7 +136,7 @@ func (p *Provider) RenderButton(text string, selected bool) string {
 	return style.Render(text)
 }
 
-// RenderApprovalButton renders an approval-style button with custom colors
+// RenderApprovalButton renders an approval-style button with custom colors and fixed width
 func (p *Provider) RenderApprovalButton(text string, selected bool, isApprove bool) string {
 	theme := p.themeService.GetCurrentTheme()
 
@@ -144,6 +144,8 @@ func (p *Provider) RenderApprovalButton(text string, selected bool, isApprove bo
 	if !isApprove {
 		borderColor = theme.GetErrorColor()
 	}
+
+	buttonWidth := 16
 
 	if selected {
 		bgColor := borderColor
@@ -153,7 +155,9 @@ func (p *Provider) RenderApprovalButton(text string, selected bool, isApprove bo
 		}
 
 		style := lipgloss.NewStyle().
-			Padding(0, 2).
+			Width(buttonWidth).
+			Align(lipgloss.Center).
+			Padding(0, 1).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(lipgloss.Color(borderColor)).
 			Background(lipgloss.Color(bgColor)).
@@ -163,9 +167,12 @@ func (p *Provider) RenderApprovalButton(text string, selected bool, isApprove bo
 	}
 
 	style := lipgloss.NewStyle().
-		Padding(0, 2).
+		Width(buttonWidth).
+		Align(lipgloss.Center).
+		Padding(0, 1).
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color(borderColor))
+		BorderForeground(lipgloss.Color(borderColor)).
+		Foreground(lipgloss.Color(borderColor))
 	return style.Render(text)
 }
 

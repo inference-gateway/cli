@@ -236,17 +236,16 @@ func (d *DiffRenderer) RenderWriteToolArguments(args map[string]any) string {
 
 	icon := d.getFileIcon(filePath)
 	header := d.styleProvider.RenderWithColorAndBold(icon+" "+filePath, d.styleProvider.GetThemeColor("accent"))
-
-	result.WriteString(d.styleProvider.RenderBordered(header, 80))
+	result.WriteString(header)
 	result.WriteString("\n\n")
 
 	opts := styles.StyleOptions{
 		Background: d.styleProvider.GetThemeColor("success"),
 		Foreground: "#000000",
 		Bold:       true,
+		Padding:    [2]int{0, 1},
 	}
-	newFileBadge := d.styleProvider.RenderStyledText("NEW FILE", opts)
-
+	newFileBadge := d.styleProvider.RenderStyledText(" NEW FILE ", opts)
 	result.WriteString(newFileBadge)
 	result.WriteString("\n\n")
 
@@ -293,7 +292,7 @@ func (d *DiffRenderer) renderContentPreview(content string) string {
 		}
 	}
 
-	return d.styleProvider.RenderBordered(result.String(), 80)
+	return result.String()
 }
 
 // RenderDiff renders a unified diff with colors and modern styling
@@ -337,9 +336,33 @@ func (d *DiffRenderer) RenderDiff(diffInfo DiffInfo) string {
 		diffContent = d.renderUnifiedDiff(cleanedOldContent, cleanedNewContent, startLine)
 	}
 
-	result.WriteString(d.styleProvider.RenderBordered(diffContent, 100))
+	separatorWidth := d.calculateMaxLineWidth(diffContent)
+	if separatorWidth == 0 {
+		separatorWidth = 80
+	}
+
+	result.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth)))
+	result.WriteString("\n")
+	result.WriteString(diffContent)
+	result.WriteString("\n")
+	result.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth)))
 
 	return result.String()
+}
+
+// calculateMaxLineWidth calculates the visible width of the longest line
+func (d *DiffRenderer) calculateMaxLineWidth(content string) int {
+	lines := strings.Split(content, "\n")
+	maxWidth := 0
+
+	for _, line := range lines {
+		width := d.styleProvider.GetWidth(line)
+		if width > maxWidth {
+			maxWidth = width
+		}
+	}
+
+	return maxWidth
 }
 
 // DiffInfo contains information needed to render a diff
@@ -638,14 +661,28 @@ func (d *DiffRenderer) renderFileHeader(filePath string, stats DiffStats) string
 	icon := d.getFileIcon(filePath)
 	fileName := d.styleProvider.RenderWithColorAndBold(icon+" "+filePath, d.styleProvider.GetThemeColor("accent"))
 
-	var header strings.Builder
-	header.WriteString(fileName)
+	var contentLine strings.Builder
+	contentLine.WriteString(fileName)
 
 	statsLine := d.renderDiffStats(stats)
 	if statsLine != "" {
-		header.WriteString("  ")
-		header.WriteString(statsLine)
+		contentLine.WriteString("  ")
+		contentLine.WriteString(statsLine)
 	}
 
-	return d.styleProvider.RenderBordered(header.String(), 100)
+	contentWidth := d.styleProvider.GetWidth(contentLine.String())
+	separatorWidth := contentWidth
+	if separatorWidth < 40 {
+		separatorWidth = 40
+	}
+
+	var header strings.Builder
+
+	header.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth)))
+	header.WriteString("\n")
+	header.WriteString(contentLine.String())
+	header.WriteString("\n")
+	header.WriteString(d.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth)))
+
+	return header.String()
 }
