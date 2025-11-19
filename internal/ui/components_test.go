@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	components "github.com/inference-gateway/cli/internal/ui/components"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 func TestConversationViewBasic(t *testing.T) {
-	cv := CreateConversationView(nil)
+	cv := CreateConversationView(&mockThemeService{})
 	cv.SetWidth(80)
 	cv.SetHeight(5)
 
@@ -37,6 +38,9 @@ func TestConversationViewBasic(t *testing.T) {
 
 func TestInputViewBasic(t *testing.T) {
 	iv := CreateInputView(nil, nil)
+	if inputView, ok := iv.(*components.InputView); ok {
+		inputView.SetThemeService(&mockThemeService{})
+	}
 	iv.SetWidth(80)
 	iv.SetHeight(5)
 
@@ -60,7 +64,7 @@ func TestInputViewBasic(t *testing.T) {
 }
 
 func TestStatusViewBasic(t *testing.T) {
-	sv := CreateStatusView(nil)
+	sv := CreateStatusView(&mockThemeService{})
 	sv.SetWidth(80)
 
 	sv.ShowStatus("Test status")
@@ -91,7 +95,7 @@ func TestStatusViewBasic(t *testing.T) {
 }
 
 func TestHelpBarBasic(t *testing.T) {
-	hb := CreateHelpBar(nil)
+	hb := CreateHelpBar(&mockThemeService{})
 	hb.SetWidth(80)
 
 	shortcuts := []KeyShortcut{

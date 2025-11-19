@@ -34,6 +34,13 @@ func (m *mockModelService) ValidateModel(modelID string) error {
 	return nil
 }
 
+// createInputViewWithTheme creates an InputView with a mock theme service for testing
+func createInputViewWithTheme(modelService domain.ModelService) *InputView {
+	iv := NewInputView(modelService)
+	iv.SetThemeService(&mockThemeService{})
+	return iv
+}
+
 func TestNewInputView(t *testing.T) {
 	mockModelService := &mockModelService{}
 	iv := NewInputView(mockModelService)
@@ -172,7 +179,7 @@ func TestInputView_SetHeight(t *testing.T) {
 
 func TestInputView_Render(t *testing.T) {
 	mockModelService := &mockModelService{}
-	iv := NewInputView(mockModelService)
+	iv := createInputViewWithTheme(mockModelService)
 
 	output := iv.Render()
 	if output == "" {
@@ -228,7 +235,7 @@ func TestInputView_History(t *testing.T) {
 
 func TestInputView_BashModeBorderColor(t *testing.T) {
 	mockModelService := &mockModelService{}
-	iv := NewInputView(mockModelService)
+	iv := createInputViewWithTheme(mockModelService)
 
 	iv.SetText("normal text")
 	normalOutput := iv.Render()

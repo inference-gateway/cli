@@ -3,10 +3,17 @@ package components
 import (
 	"strings"
 	"testing"
+
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
+// createMockStyleProviderForStatus creates a mock styles provider for testing
+func createMockStyleProviderForStatus() *styles.Provider {
+	return styles.NewProvider(&mockThemeService{})
+}
+
 func TestNewStatusView(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	if sv.width != 0 {
 		t.Errorf("Expected default width 0, got %d", sv.width)
@@ -26,7 +33,7 @@ func TestNewStatusView(t *testing.T) {
 }
 
 func TestStatusView_ShowStatus(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	testMessage := "Processing request..."
 	sv.ShowStatus(testMessage)
@@ -45,7 +52,7 @@ func TestStatusView_ShowStatus(t *testing.T) {
 }
 
 func TestStatusView_ShowError(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	testError := "Connection failed"
 	sv.ShowError(testError)
@@ -64,7 +71,7 @@ func TestStatusView_ShowError(t *testing.T) {
 }
 
 func TestStatusView_ShowSpinner(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	testMessage := "Loading..."
 	sv.ShowSpinner(testMessage)
@@ -83,7 +90,7 @@ func TestStatusView_ShowSpinner(t *testing.T) {
 }
 
 func TestStatusView_ClearStatus(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	sv.ShowError("Some error")
 	sv.SetTokenUsage("100 tokens")
@@ -108,7 +115,7 @@ func TestStatusView_ClearStatus(t *testing.T) {
 }
 
 func TestStatusView_IsShowingError(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	if sv.IsShowingError() {
 		t.Error("Expected IsShowingError to be false initially")
@@ -128,7 +135,7 @@ func TestStatusView_IsShowingError(t *testing.T) {
 }
 
 func TestStatusView_IsShowingSpinner(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	if sv.IsShowingSpinner() {
 		t.Error("Expected IsShowingSpinner to be false initially")
@@ -148,7 +155,7 @@ func TestStatusView_IsShowingSpinner(t *testing.T) {
 }
 
 func TestStatusView_SetTokenUsage(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	testUsage := "150 tokens used"
 	sv.SetTokenUsage(testUsage)
@@ -159,7 +166,7 @@ func TestStatusView_SetTokenUsage(t *testing.T) {
 }
 
 func TestStatusView_SetWidth(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	sv.SetWidth(120)
 
@@ -169,13 +176,13 @@ func TestStatusView_SetWidth(t *testing.T) {
 }
 
 func TestStatusView_SetHeight(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	sv.SetHeight(4)
 }
 
 func TestStatusView_Render(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	output := sv.Render()
 	if output != "" {
@@ -213,7 +220,7 @@ func TestStatusView_Render(t *testing.T) {
 }
 
 func TestStatusView_StateTransitions(t *testing.T) {
-	sv := NewStatusView(nil)
+	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	sv.ShowStatus("Normal")
 	sv.ShowError("Error occurred")
