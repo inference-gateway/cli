@@ -53,6 +53,7 @@ type SetInputEvent struct {
 // UserInputEvent represents user input submission
 type UserInputEvent struct {
 	Content string
+	Images  []ImageAttachment // Attached images
 }
 
 // ModelSelectedEvent indicates model selection

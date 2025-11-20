@@ -19,6 +19,14 @@ const (
 	RoleSystem    = sdk.System
 )
 
+// ImageAttachment represents an image attachment in a message
+type ImageAttachment struct {
+	Data        string `json:"data"`          // Base64 encoded image data
+	MimeType    string `json:"mime_type"`     // Image MIME type (image/png, image/jpeg, etc.)
+	Filename    string `json:"filename,omitempty"` // Optional filename
+	DisplayName string `json:"display_name"`  // Display name for UI (e.g., "Image #1")
+}
+
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
 	Message       Message              `json:"message"`
@@ -26,6 +34,7 @@ type ConversationEntry struct {
 	Time          time.Time            `json:"time"`
 	ToolExecution *ToolExecutionResult `json:"tool_execution,omitempty"`
 	Hidden        bool                 `json:"hidden,omitempty"`
+	Images        []ImageAttachment    `json:"images,omitempty"` // Attached images
 }
 
 // ExportFormat defines the format for exporting conversations

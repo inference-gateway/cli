@@ -255,7 +255,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 
 			processor := NewChatMessageProcessor(handler)
 
-			cmd := processor.processChatMessage(tt.content)
+			cmd := processor.processChatMessage(tt.content, nil)
 
 			assert.NotNil(t, cmd)
 		})

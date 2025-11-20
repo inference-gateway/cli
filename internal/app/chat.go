@@ -1088,7 +1088,9 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	}
 
 	input := strings.TrimSpace(app.inputView.GetInput())
-	if input == "" {
+	images := app.inputView.GetImageAttachments()
+
+	if input == "" && len(images) == 0 {
 		return nil
 	}
 
@@ -1099,6 +1101,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	return func() tea.Msg {
 		return domain.UserInputEvent{
 			Content: input,
+			Images:  images,
 		}
 	}
 }

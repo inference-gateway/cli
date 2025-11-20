@@ -27,6 +27,7 @@ type InputView struct {
 	isTextSelectionMode bool
 	themeService        domain.ThemeService
 	styleProvider       *styles.Provider
+	imageAttachments    []domain.ImageAttachment // Pending image attachments
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -54,6 +55,7 @@ func NewInputViewWithConfigDir(modelService domain.ModelService, configDir strin
 		historyManager:      historyManager,
 		isTextSelectionMode: false,
 		themeService:        nil,
+		imageAttachments:    []domain.ImageAttachment{},
 	}
 }
 
@@ -75,6 +77,7 @@ func (iv *InputView) GetInput() string {
 func (iv *InputView) ClearInput() {
 	iv.text = ""
 	iv.cursor = 0
+	iv.imageAttachments = []domain.ImageAttachment{}
 	iv.historyManager.ResetNavigation()
 	if iv.Autocomplete != nil {
 		iv.Autocomplete.Hide()
@@ -509,4 +512,26 @@ func (iv *InputView) SetTextSelectionMode(enabled bool) {
 
 func (iv *InputView) IsTextSelectionMode() bool {
 	return iv.isTextSelectionMode
+}
+
+// AddImageAttachment adds an image attachment to the pending list
+func (iv *InputView) AddImageAttachment(image domain.ImageAttachment) {
+	// Assign display name based on current count
+	image.DisplayName = fmt.Sprintf("Image #%d", len(iv.imageAttachments)+1)
+	iv.imageAttachments = append(iv.imageAttachments, image)
+
+	// Insert image token into text at cursor position
+	imageToken := fmt.Sprintf("[%s]", image.DisplayName)
+	iv.text = iv.text[:iv.cursor] + imageToken + iv.text[iv.cursor:]
+	iv.cursor += len(imageToken)
+}
+
+// GetImageAttachments returns the list of pending image attachments
+func (iv *InputView) GetImageAttachments() []domain.ImageAttachment {
+	return iv.imageAttachments
+}
+
+// ClearImageAttachments clears all pending image attachments
+func (iv *InputView) ClearImageAttachments() {
+	iv.imageAttachments = []domain.ImageAttachment{}
 }

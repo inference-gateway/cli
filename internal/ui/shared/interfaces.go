@@ -63,6 +63,10 @@ type InputComponent interface {
 	NavigateHistoryDown()
 	IsAutocompleteVisible() bool
 	TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string)
+	// Image attachment support
+	AddImageAttachment(image domain.ImageAttachment)
+	GetImageAttachments() []domain.ImageAttachment
+	ClearImageAttachments()
 	AddToHistory(text string) error
 	SetTextSelectionMode(enabled bool)
 	IsTextSelectionMode() bool

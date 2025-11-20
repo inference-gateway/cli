@@ -177,6 +177,14 @@ func (t *testInputComponent) IsTextSelectionMode() bool {
 	return false
 }
 
+func (t *testInputComponent) AddImageAttachment(image domain.ImageAttachment) {}
+
+func (t *testInputComponent) GetImageAttachments() []domain.ImageAttachment {
+	return []domain.ImageAttachment{}
+}
+
+func (t *testInputComponent) ClearImageAttachments() {}
+
 func (t *testInputComponent) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string) {
 	return false, ""
 }

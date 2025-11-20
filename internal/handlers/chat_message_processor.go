@@ -49,7 +49,7 @@ func (p *ChatMessageProcessor) handleUserInput(
 		}
 	}
 
-	return p.processChatMessage(expandedContent)
+	return p.processChatMessage(expandedContent, msg.Images)
 }
 
 // ExtractMarkdownSummary extracts the "## Summary" section from markdown content (exposed for testing)
@@ -120,13 +120,54 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 	return expandedContent, nil
 }
 
-// processChatMessage processes a regular chat message
+// processChatMessage processes a regular chat message with optional image attachments
 func (p *ChatMessageProcessor) processChatMessage(
 	content string,
+	images []domain.ImageAttachment,
 ) tea.Cmd {
-	message := sdk.Message{
-		Role:    sdk.User,
-		Content: sdk.NewMessageContent(content),
+	var message sdk.Message
+
+	// Create multimodal message if images are present
+	if len(images) > 0 {
+		var contentParts []sdk.ContentPart
+
+		// Add text content part
+		textPart, err := sdk.NewTextContentPart(content)
+		if err != nil {
+			return func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to create text content: %v", err),
+					Sticky: false,
+				}
+			}
+		}
+		contentParts = append(contentParts, textPart)
+
+		// Add image content parts
+		for _, img := range images {
+			dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
+			imagePart, err := sdk.NewImageContentPart(dataURL, nil)
+			if err != nil {
+				return func() tea.Msg {
+					return domain.ShowErrorEvent{
+						Error:  fmt.Sprintf("Failed to create image content: %v", err),
+						Sticky: false,
+					}
+				}
+			}
+			contentParts = append(contentParts, imagePart)
+		}
+
+		message = sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent(contentParts),
+		}
+	} else {
+		// Simple text message
+		message = sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent(content),
+		}
 	}
 
 	if p.handler.stateManager.IsAgentBusy() {
@@ -145,6 +186,7 @@ func (p *ChatMessageProcessor) processChatMessage(
 	userEntry := domain.ConversationEntry{
 		Message: message,
 		Time:    time.Now(),
+		Images:  images, // Store images in conversation entry
 	}
 
 	if err := p.handler.conversationRepo.AddMessage(userEntry); err != nil {
