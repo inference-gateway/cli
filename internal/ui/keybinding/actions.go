@@ -12,7 +12,6 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
@@ -578,72 +577,43 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView == nil {
-		logger.Debug("[keybinding] inputView is nil")
 		return nil
 	}
 
-	// First, try to read image data from clipboard
 	imageData := xclipboard.Read(xclipboard.FmtImage)
 	if len(imageData) > 0 {
-		logger.Debug("[keybinding] clipboard contains binary image data", "size", len(imageData))
-
-		// Try to decode and attach the image
 		imageAttachment, err := loadImageFromClipboard(imageData)
 		if err == nil {
-			logger.Debug("[keybinding] successfully loaded image from clipboard", "mime_type", imageAttachment.MimeType)
 			inputView.AddImageAttachment(*imageAttachment)
-			logger.Debug("[keybinding] added binary image attachment to input view")
 			return nil
 		}
-		logger.Debug("[keybinding] failed to load binary image", "error", err)
-	} else {
-		logger.Debug("[keybinding] no binary image data in clipboard")
 	}
-
-	// Fall back to reading text from clipboard
 	clipboardText := string(xclipboard.Read(xclipboard.FmtText))
-	logger.Debug("[keybinding] clipboard text content", "text", clipboardText, "length", len(clipboardText))
 
 	if clipboardText == "" {
-		logger.Debug("[keybinding] clipboard text is empty")
 		return nil
 	}
 
-	// Clean up clipboard text
 	cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
 	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
 	cleanText = strings.TrimSpace(cleanText)
 
-	logger.Debug("[keybinding] cleaned clipboard text", "text", cleanText, "length", len(cleanText))
-
 	if cleanText == "" {
-		logger.Debug("[keybinding] cleaned text is empty")
 		return nil
 	}
 
 	imageService := app.GetImageService()
-	logger.Debug("[keybinding] imageService obtained", "type", fmt.Sprintf("%T", imageService))
 
-	// Check if clipboard contains a file path to an image
 	isImage := imageService.IsImageFile(cleanText)
-	logger.Debug("[keybinding] checking if clipboard contains image path", "path", cleanText, "is_image", isImage)
 
 	if isImage {
-		// Try to load the image from file path
 		imageAttachment, err := imageService.ReadImageFromFile(cleanText)
 		if err == nil {
-			// Successfully loaded image - add as attachment
-			logger.Debug("[keybinding] successfully loaded image from file", "filename", imageAttachment.Filename, "mime_type", imageAttachment.MimeType)
 			inputView.AddImageAttachment(*imageAttachment)
-			logger.Debug("[keybinding] added file image attachment to input view")
 			return nil
 		}
-		logger.Debug("[keybinding] failed to load image from file", "error", err)
-		// If loading failed, fall through to treat as text
 	}
 
-	// Treat as text and paste it
-	logger.Debug("[keybinding] treating clipboard content as text paste")
 	currentText := inputView.GetInput()
 	cursor := inputView.GetCursor()
 

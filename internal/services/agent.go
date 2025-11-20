@@ -396,10 +396,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			mode := domain.AgentModeStandard
 			if s.stateManager != nil {
 				mode = s.stateManager.GetAgentMode()
-				logger.Debug("Retrieved agent mode from state manager", "mode", mode.String(), "turn", turns)
-			} else {
-				logger.Warn("StateManager is nil, using default Standard mode")
 			}
+
 			availableTools := s.toolService.ListToolsForMode(mode)
 
 			client := s.client.
@@ -819,13 +817,9 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 	startTime := time.Now()
 
 	requiresApproval := s.shouldRequireApproval(&tc, isChatMode)
-	logger.Debug("tool approval check", "tool", tc.Function.Name, "is_chat_mode", isChatMode, "requires_approval", requiresApproval)
-
 	wasApproved := false
-
 	isAutoAcceptMode := s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept
 	if isAutoAcceptMode {
-		logger.Debug("auto-accept mode active, bypassing approval", "tool", tc.Function.Name)
 		wasApproved = true
 	} else if requiresApproval {
 		logger.Info("requesting approval for tool", "tool", tc.Function.Name)

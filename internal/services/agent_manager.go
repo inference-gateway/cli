@@ -140,7 +140,6 @@ func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
 
 // pullImage pulls the OCI image for an agent
 func (am *AgentManager) pullImage(ctx context.Context, image string) error {
-	logger.Debug("Pulling agent image", "image", image)
 	cmd := exec.CommandContext(ctx, "docker", "pull", image)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -184,7 +183,6 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 
 	containerID := strings.TrimSpace(string(output))
 	am.containers[agent.Name] = containerID
-	logger.Debug("Agent container started", "name", agent.Name, "containerID", containerID)
 	return nil
 }
 
@@ -214,8 +212,6 @@ func (am *AgentManager) waitForReady(ctx context.Context, agent config.AgentEntr
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
-	logger.Debug("Waiting for agent to become ready", "name", agent.Name, "url", healthURL, "timeout", timeout)
-
 	client := &http.Client{
 		Timeout: 2 * time.Second,
 	}
@@ -233,7 +229,6 @@ func (am *AgentManager) waitForReady(ctx context.Context, agent config.AgentEntr
 			if err == nil {
 				_ = resp.Body.Close()
 				if resp.StatusCode == http.StatusOK {
-					logger.Debug("Agent is ready", "name", agent.Name)
 					return nil
 				}
 			}

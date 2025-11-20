@@ -32,7 +32,6 @@ func NewGatewayManager(cfg *config.Config) *GatewayManager {
 // Start starts the gateway container or binary if configured to run locally
 func (gm *GatewayManager) Start(ctx context.Context) error {
 	if !gm.config.Gateway.Run {
-		logger.Debug("Gateway auto-run is disabled, skipping startup")
 		return nil
 	}
 
@@ -167,7 +166,6 @@ func (gm *GatewayManager) IsRunning() bool {
 
 // pullImage pulls the OCI image
 func (gm *GatewayManager) pullImage(ctx context.Context) error {
-	logger.Debug("Pulling gateway image", "image", gm.config.Gateway.OCI)
 	cmd := exec.CommandContext(ctx, "docker", "pull", gm.config.Gateway.OCI)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -196,7 +194,6 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 
 	if _, err := os.Stat(".env"); err == nil {
 		args = append(args, "--env-file", ".env")
-		logger.Debug("Using .env file for container environment variables")
 	}
 
 	if gm.config.Gateway.APIKey != "" {
@@ -212,7 +209,6 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 	}
 
 	gm.containerID = strings.TrimSpace(string(output))
-	logger.Debug("Container started", "containerID", gm.containerID)
 	return nil
 }
 
@@ -245,8 +241,6 @@ func (gm *GatewayManager) waitForReady(ctx context.Context) error {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 
-	logger.Debug("Waiting for gateway to become ready", "url", healthURL, "timeout", timeout)
-
 	client := &http.Client{
 		Timeout: 2 * time.Second,
 	}
@@ -264,7 +258,6 @@ func (gm *GatewayManager) waitForReady(ctx context.Context) error {
 			if err == nil {
 				_ = resp.Body.Close()
 				if resp.StatusCode == http.StatusOK {
-					logger.Debug("Gateway is ready")
 					return nil
 				}
 			}
@@ -294,7 +287,6 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 	binaryPath := filepath.Join(binaryDir, "inference-gateway")
 
 	if _, err := os.Stat(binaryPath); err == nil {
-		logger.Debug("Using cached gateway binary", "path", binaryPath)
 		return binaryPath, nil
 	}
 
@@ -306,13 +298,11 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 	}
 
 	installCmd := fmt.Sprintf("curl -fsSL https://raw.githubusercontent.com/inference-gateway/inference-gateway/main/install.sh | INSTALL_DIR=%s bash", absBinaryDir)
-	logger.Debug("Running installer command", "cmd", installCmd)
 
 	cmd := exec.CommandContext(ctx, "bash", "-c", installCmd)
 	cmd.Stdin = nil
 
 	output, err := cmd.CombinedOutput()
-	logger.Debug("Installer output", "output", string(output))
 
 	if err != nil {
 		return "", fmt.Errorf("installer failed: %w, output: %s", err, string(output))
@@ -340,7 +330,6 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 	}
 
 	gm.binaryCmd = cmd
-	logger.Debug("Binary started", "pid", cmd.Process.Pid, "path", binaryPath)
 
 	return nil
 }
@@ -368,6 +357,5 @@ func (gm *GatewayManager) loadEnvironment() []string {
 		}
 	}
 
-	logger.Debug("Using .env file for binary environment variables")
 	return envVars
 }

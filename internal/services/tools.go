@@ -8,7 +8,6 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -72,19 +71,15 @@ func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompl
 
 		var definitions []sdk.ChatCompletionTool
 		allTools := s.registry.GetToolDefinitions()
-		toolNames := []string{}
 		for _, tool := range allTools {
 			if s.isToolEnabled(tool.Function.Name) && allowedTools[tool.Function.Name] {
 				definitions = append(definitions, tool)
-				toolNames = append(toolNames, tool.Function.Name)
 			}
 		}
-		logger.Debug("Plan mode tool filtering", "tools", toolNames, "count", len(definitions))
 		return definitions
 	}
 
 	allTools := s.ListTools()
-	logger.Debug("Tool filtering", "mode", mode.String(), "count", len(allTools))
 	return allTools
 }
 
