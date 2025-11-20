@@ -142,13 +142,13 @@ func (c *ExportShortcut) generateSummary(ctx context.Context) (string, error) {
 
 	messages = append(messages, sdk.Message{
 		Role: sdk.System,
-		Content: `You are a helpful assistant that creates concise summaries of chat conversations. Please provide:
+		Content: sdk.NewMessageContent(`You are a helpful assistant that creates concise summaries of chat conversations. Please provide:
 1. A brief overview of the main topics discussed
 2. Key questions asked and answers provided
 3. Important decisions or conclusions reached
 4. Any action items or next steps mentioned
 
-Keep the summary concise but informative, using bullet points where appropriate.`,
+Keep the summary concise but informative, using bullet points where appropriate.`),
 	})
 
 	for _, entry := range entries {
@@ -159,7 +159,7 @@ Keep the summary concise but informative, using bullet points where appropriate.
 
 	messages = append(messages, sdk.Message{
 		Role:    sdk.User,
-		Content: "Please provide a summary of our conversation above.",
+		Content: sdk.NewMessageContent("Please provide a summary of our conversation above."),
 	})
 
 	summaryModel := c.config.Compact.SummaryModel

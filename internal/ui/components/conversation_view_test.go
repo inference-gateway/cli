@@ -45,14 +45,14 @@ func TestConversationView_SetConversation(t *testing.T) {
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: "Hello",
+				Content: sdk.NewMessageContent("Hello"),
 			},
 			Time: time.Now(),
 		},
 		{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: "Hi there!",
+				Content: sdk.NewMessageContent("Hi there!"),
 			},
 			Time: time.Now(),
 		},
@@ -68,8 +68,9 @@ func TestConversationView_SetConversation(t *testing.T) {
 		t.Errorf("Expected first entry role 'user', got '%s'", cv.conversation[0].Message.Role)
 	}
 
-	if cv.conversation[1].Message.Content != "Hi there!" {
-		t.Errorf("Expected second entry content 'Hi there!', got '%s'", cv.conversation[1].Message.Content)
+	contentStr, _ := cv.conversation[1].Message.Content.AsMessageContent0()
+	if contentStr != "Hi there!" {
+		t.Errorf("Expected second entry content 'Hi there!', got '%s'", contentStr)
 	}
 }
 
@@ -106,7 +107,7 @@ func TestConversationView_ToggleToolResultExpansion(t *testing.T) {
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: "Test message",
+				Content: sdk.NewMessageContent("Test message"),
 			},
 			Time: time.Now(),
 		},
@@ -133,21 +134,21 @@ func TestConversationView_ToggleAllToolResultsExpansion(t *testing.T) {
 		{
 			Message: sdk.Message{
 				Role:    sdk.Tool,
-				Content: "Tool result 1",
+				Content: sdk.NewMessageContent("Tool result 1"),
 			},
 			Time: time.Now(),
 		},
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: "User message",
+				Content: sdk.NewMessageContent("User message"),
 			},
 			Time: time.Now(),
 		},
 		{
 			Message: sdk.Message{
 				Role:    sdk.Tool,
-				Content: "Tool result 2",
+				Content: sdk.NewMessageContent("Tool result 2"),
 			},
 			Time: time.Now(),
 		},
@@ -228,7 +229,7 @@ func TestConversationView_Render(t *testing.T) {
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: "Test message",
+				Content: sdk.NewMessageContent("Test message"),
 			},
 			Time: time.Now(),
 		},

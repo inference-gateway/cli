@@ -299,7 +299,7 @@ func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID str
 				entry := domain.ConversationEntry{
 					Message: domain.Message{
 						Role:    sdk.MessageRole(msg["role"].(string)),
-						Content: msg["content"].(string),
+						Content: sdk.NewMessageContent(msg["content"].(string)),
 					},
 					Time: metadata.UpdatedAt,
 				}
@@ -346,7 +346,7 @@ func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID str
 		entry := domain.ConversationEntry{
 			Message: domain.Message{
 				Role:    sdk.MessageRole(msg["role"].(string)),
-				Content: msg["content"].(string),
+				Content: sdk.NewMessageContent(msg["content"].(string)),
 			},
 			Time: metadata.UpdatedAt,
 		}

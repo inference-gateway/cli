@@ -297,7 +297,7 @@ func (t *WebSearchTool) performGoogleCustomSearch(ctx context.Context, query str
 }
 
 // performGoogleScraping performs Google search by scraping (fallback method) - simplified for now
-func (t *WebSearchTool) performGoogleScraping(ctx context.Context, query string, limit int) ([]domain.WebSearchResult, error) {
+func (t *WebSearchTool) performGoogleScraping(_ /* ctx */ context.Context, query string, limit int) ([]domain.WebSearchResult, error) {
 	return t.generateMockResults(query, limit, "google"), nil
 }
 
@@ -352,7 +352,7 @@ func (t *WebSearchTool) performDuckDuckGoScraping(ctx context.Context, query str
 }
 
 // performDuckDuckGoAPI uses DuckDuckGo's instant answer API
-func (t *WebSearchTool) performDuckDuckGoAPI(ctx context.Context, query string, limit int, apiKey string) ([]domain.WebSearchResult, error) {
+func (t *WebSearchTool) performDuckDuckGoAPI(ctx context.Context, query string, limit int, _ /* apiKey */ string) ([]domain.WebSearchResult, error) {
 	searchURL := fmt.Sprintf("https://api.duckduckgo.com/?q=%s&format=json&no_html=1&skip_disambig=1",
 		url.QueryEscape(query))
 

@@ -90,7 +90,7 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 		systemMessages = append(systemMessages, sdk.Message{
 			Role:    sdk.System,
-			Content: systemPromptWithInfo,
+			Content: sdk.NewMessageContent(systemPromptWithInfo),
 		})
 	}
 
@@ -228,7 +228,7 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 
 	return sdk.Message{
 		Role:    sdk.User,
-		Content: reminderText,
+		Content: sdk.NewMessageContent(reminderText),
 	}
 }
 

@@ -247,7 +247,11 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 		return ""
 	}
 
-	content := entry.Message.Content
+	contentStr, err := entry.Message.Content.AsMessageContent0()
+	if err != nil {
+		contentStr = "[error extracting content]"
+	}
+	content := contentStr
 	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
 
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
@@ -261,8 +265,12 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
 
-	if entry.Message.Content != "" {
-		wrappedContent := shared.FormatResponsiveMessage(entry.Message.Content, cv.width)
+	contentStr, err := entry.Message.Content.AsMessageContent0()
+	if err != nil {
+		contentStr = ""
+	}
+	if contentStr != "" {
+		wrappedContent := shared.FormatResponsiveMessage(contentStr, cv.width)
 		result.WriteString(roleStyled + " " + wrappedContent + "\n")
 	} else {
 		result.WriteString(roleStyled + "\n")
@@ -333,7 +341,11 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 
 		return content + helpText
 	}
-	wrappedContent := shared.FormatResponsiveMessage(entry.Message.Content, cv.width)
+	contentStr, err := entry.Message.Content.AsMessageContent0()
+	if err != nil {
+		contentStr = "[error extracting content]"
+	}
+	wrappedContent := shared.FormatResponsiveMessage(contentStr, cv.width)
 	return wrappedContent + "\n\n💡 Press Ctrl+R to collapse all tool calls"
 }
 
@@ -342,7 +354,11 @@ func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry)
 		content := cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
 		return content + "\n💡 Press Ctrl+R to expand all tool calls"
 	}
-	content := cv.formatToolContentCompact(entry.Message.Content)
+	contentStr, err := entry.Message.Content.AsMessageContent0()
+	if err != nil {
+		contentStr = "[error extracting content]"
+	}
+	content := cv.formatToolContentCompact(contentStr)
 	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
 	return wrappedContent + "\n💡 Press Ctrl+R to expand all tool calls"
 }
@@ -557,14 +573,18 @@ func (cv *ConversationView) appendStreamingContent(content string) {
 		streamingEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: content,
+				Content: sdk.NewMessageContent(content),
 			},
 			Time: time.Now(),
 		}
 		cv.conversation = append(cv.conversation, streamingEntry)
 	} else {
 		lastIdx := len(cv.conversation) - 1
-		cv.conversation[lastIdx].Message.Content += content
+		currentContent, err := cv.conversation[lastIdx].Message.Content.AsMessageContent0()
+		if err != nil {
+			currentContent = ""
+		}
+		cv.conversation[lastIdx].Message.Content = sdk.NewMessageContent(currentContent + content)
 	}
 
 	cv.updatePlainTextLines()

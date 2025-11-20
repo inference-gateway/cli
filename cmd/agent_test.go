@@ -76,8 +76,9 @@ func TestBuildSDKMessages(t *testing.T) {
 		t.Errorf("Expected second message role to be 'assistant', got %v", messages[1].Role)
 	}
 
-	if messages[0].Content != "Hello" {
-		t.Errorf("Expected first message content to be 'Hello', got %s", messages[0].Content)
+	content0, _ := messages[0].Content.AsMessageContent0()
+	if content0 != "Hello" {
+		t.Errorf("Expected first message content to be 'Hello', got %s", content0)
 	}
 }
 

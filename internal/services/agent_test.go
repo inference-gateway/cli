@@ -115,7 +115,7 @@ func TestAgentServiceImpl_ValidateRequest(t *testing.T) {
 				RequestID: "test-123",
 				Model:     "openai/gpt-4",
 				Messages: []sdk.Message{
-					{Role: sdk.User, Content: "Hello"},
+					{Role: sdk.User, Content: sdk.NewMessageContent("Hello")},
 				},
 			},
 			expectError: false,
@@ -125,7 +125,7 @@ func TestAgentServiceImpl_ValidateRequest(t *testing.T) {
 			request: &domain.AgentRequest{
 				Model: "openai/gpt-4",
 				Messages: []sdk.Message{
-					{Role: sdk.User, Content: "Hello"},
+					{Role: sdk.User, Content: sdk.NewMessageContent("Hello")},
 				},
 			},
 			expectError: true,
@@ -135,7 +135,7 @@ func TestAgentServiceImpl_ValidateRequest(t *testing.T) {
 			request: &domain.AgentRequest{
 				RequestID: "test-123",
 				Messages: []sdk.Message{
-					{Role: sdk.User, Content: "Hello"},
+					{Role: sdk.User, Content: sdk.NewMessageContent("Hello")},
 				},
 			},
 			expectError: true,

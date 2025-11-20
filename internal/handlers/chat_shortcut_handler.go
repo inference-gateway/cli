@@ -114,7 +114,7 @@ func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcu
 		assistantEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: result.Output,
+				Content: sdk.NewMessageContent(result.Output),
 			},
 			Model: "",
 			Time:  time.Now(),
@@ -301,7 +301,7 @@ func (s *ChatShortcutHandler) performSummaryGeneration() tea.Cmd {
 		summaryEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: fmt.Sprintf("📝 **Conversation Summary**\n\n%s\n\n---\n\n*Full conversation exported to: %s*", exportResult.Summary, exportResult.FilePath),
+				Content: sdk.NewMessageContent(fmt.Sprintf("📝 **Conversation Summary**\n\n%s\n\n---\n\n*Full conversation exported to: %s*", exportResult.Summary, exportResult.FilePath)),
 			},
 			Model: "",
 			Time:  time.Now(),
@@ -420,7 +420,7 @@ func (s *ChatShortcutHandler) performCommitGeneration(data any) tea.Cmd {
 			errorEntry := domain.ConversationEntry{
 				Message: sdk.Message{
 					Role:    sdk.Assistant,
-					Content: fmt.Sprintf("❌ **Commit Failed**\n\n%v", err),
+					Content: sdk.NewMessageContent(fmt.Sprintf("❌ **Commit Failed**\n\n%v", err)),
 				},
 				Model: "",
 				Time:  time.Now(),
@@ -449,7 +449,7 @@ func (s *ChatShortcutHandler) performCommitGeneration(data any) tea.Cmd {
 		successEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: result,
+				Content: sdk.NewMessageContent(result),
 			},
 			Model: "",
 			Time:  time.Now(),

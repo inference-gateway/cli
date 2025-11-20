@@ -135,7 +135,7 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message) []sdk.Mes
 	if summary != "" {
 		summaryMsg := sdk.Message{
 			Role:    "assistant",
-			Content: fmt.Sprintf("[Context Summary: %s]", summary),
+			Content: sdk.NewMessageContent(fmt.Sprintf("[Context Summary: %s]", summary)),
 		}
 		result = append(result, summaryMsg)
 	}
@@ -193,7 +193,7 @@ func (co *ConversationOptimizer) generateLLMSummary(messages []sdk.Message) (str
 
 	summaryMessages = append(summaryMessages, sdk.Message{
 		Role: sdk.System,
-		Content: `You are a conversation summarizer. Create a concise summary that preserves the essential context and progress made in the conversation.
+		Content: sdk.NewMessageContent(`You are a conversation summarizer. Create a concise summary that preserves the essential context and progress made in the conversation.
 
 Focus on:
 - Key tasks completed or in progress
@@ -201,36 +201,42 @@ Focus on:
 - Critical context needed to continue the conversation
 - Any unresolved issues or next steps
 
-Keep the summary brief but informative (2-3 sentences max).`,
+Keep the summary brief but informative (2-3 sentences max).`),
 	})
 
 	for _, msg := range messages {
 		switch msg.Role {
 		case sdk.User, sdk.Assistant:
-			content := msg.Content
-			if len(content) > 2000 {
-				content = content[:2000] + "... [truncated]"
+			contentStr, err := msg.Content.AsMessageContent0()
+			if err != nil {
+				contentStr = ""
+			}
+			if len(contentStr) > 2000 {
+				contentStr = contentStr[:2000] + "... [truncated]"
 			}
 
 			summaryMessages = append(summaryMessages, sdk.Message{
 				Role:    msg.Role,
-				Content: content,
+				Content: sdk.NewMessageContent(contentStr),
 			})
 		case "tool":
-			content := msg.Content
-			if len(content) > 500 {
-				content = content[:500] + "... [tool output truncated]"
+			contentStr, err := msg.Content.AsMessageContent0()
+			if err != nil {
+				contentStr = ""
+			}
+			if len(contentStr) > 500 {
+				contentStr = contentStr[:500] + "... [tool output truncated]"
 			}
 			summaryMessages = append(summaryMessages, sdk.Message{
 				Role:    "assistant",
-				Content: fmt.Sprintf("[Tool result: %s]", content),
+				Content: sdk.NewMessageContent(fmt.Sprintf("[Tool result: %s]", contentStr)),
 			})
 		}
 	}
 
 	summaryMessages = append(summaryMessages, sdk.Message{
 		Role:    sdk.User,
-		Content: "Provide a concise summary of the conversation above, focusing on key progress and context needed to continue.",
+		Content: sdk.NewMessageContent("Provide a concise summary of the conversation above, focusing on key progress and context needed to continue."),
 	})
 
 	if co.model == "" {
@@ -253,7 +259,6 @@ Keep the summary brief but informative (2-3 sentences max).`,
 		WithOptions(options).
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
 			SkipMCP: true,
-			SkipA2A: true,
 		}).
 		GenerateContent(ctx, sdk.Provider(provider), modelName, summaryMessages)
 
@@ -265,5 +270,9 @@ Keep the summary brief but informative (2-3 sentences max).`,
 		return "", fmt.Errorf("no summary generated")
 	}
 
-	return strings.TrimSpace(response.Choices[0].Message.Content), nil
+	contentStr, err := response.Choices[0].Message.Content.AsMessageContent0()
+	if err != nil {
+		return "", fmt.Errorf("failed to extract summary content: %w", err)
+	}
+	return strings.TrimSpace(contentStr), nil
 }

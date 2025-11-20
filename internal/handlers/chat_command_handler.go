@@ -108,7 +108,7 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 		userEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: commandText,
+				Content: sdk.NewMessageContent(commandText),
 			},
 			Time: time.Now(),
 		}
@@ -119,7 +119,7 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 		assistantEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: responseContent,
+				Content: sdk.NewMessageContent(responseContent),
 			},
 			Time: time.Now(),
 		}
@@ -132,7 +132,7 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 }
 
 // handleBashCommandWithApproval requests approval before executing a bash command
-func (c *ChatCommandHandler) handleBashCommandWithApproval(commandText, command string) tea.Cmd {
+func (c *ChatCommandHandler) handleBashCommandWithApproval(_ /* commandText */, command string) tea.Cmd {
 	return func() tea.Msg {
 		toolCall := sdk.ChatCompletionMessageToolCall{
 			Id:   fmt.Sprintf("manual-%d", time.Now().UnixNano()),
@@ -228,7 +228,7 @@ func (c *ChatCommandHandler) executeToolCommand(toolName, argsJSON string) tea.C
 		userEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: commandText,
+				Content: sdk.NewMessageContent(commandText),
 			},
 			Time: time.Now(),
 		}
@@ -239,7 +239,7 @@ func (c *ChatCommandHandler) executeToolCommand(toolName, argsJSON string) tea.C
 		assistantEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: responseContent,
+				Content: sdk.NewMessageContent(responseContent),
 			},
 			Time: time.Now(),
 		}

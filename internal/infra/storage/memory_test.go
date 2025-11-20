@@ -5,7 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 func TestMemoryStorage_SaveAndLoadConversation(t *testing.T) {
@@ -17,14 +18,14 @@ func TestMemoryStorage_SaveAndLoadConversation(t *testing.T) {
 		{
 			Message: domain.Message{
 				Role:    domain.RoleUser,
-				Content: "Hello",
+				Content: sdk.NewMessageContent("Hello"),
 			},
 			Time: time.Now(),
 		},
 		{
 			Message: domain.Message{
 				Role:    domain.RoleAssistant,
-				Content: "Hi there!",
+				Content: sdk.NewMessageContent("Hi there!"),
 			},
 			Time: time.Now(),
 		},
@@ -78,7 +79,7 @@ func TestMemoryStorage_ListConversations(t *testing.T) {
 			{
 				Message: domain.Message{
 					Role:    domain.RoleUser,
-					Content: "Test message",
+					Content: sdk.NewMessageContent("Test message"),
 				},
 				Time: time.Now(),
 			},
@@ -125,7 +126,7 @@ func TestMemoryStorage_DeleteConversation(t *testing.T) {
 		{
 			Message: domain.Message{
 				Role:    domain.RoleUser,
-				Content: "Hello",
+				Content: sdk.NewMessageContent("Hello"),
 			},
 			Time: time.Now(),
 		},
@@ -163,7 +164,7 @@ func TestMemoryStorage_UpdateMetadata(t *testing.T) {
 		{
 			Message: domain.Message{
 				Role:    domain.RoleUser,
-				Content: "Hello",
+				Content: sdk.NewMessageContent("Hello"),
 			},
 			Time: time.Now(),
 		},
@@ -222,7 +223,7 @@ func TestMemoryStorage_Close(t *testing.T) {
 		{
 			Message: domain.Message{
 				Role:    domain.RoleUser,
-				Content: "Hello",
+				Content: sdk.NewMessageContent("Hello"),
 			},
 			Time: time.Now(),
 		},

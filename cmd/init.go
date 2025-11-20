@@ -445,7 +445,7 @@ func (s *ProjectAnalysisSession) analyze(taskDescription string) error {
 
 	s.addMessage(InitConversationMessage{
 		Role:      "user",
-		Content:   taskDescription,
+		Content: taskDescription,
 		Timestamp: time.Now(),
 	})
 
@@ -570,7 +570,7 @@ func (s *ProjectAnalysisSession) buildSDKMessages() []sdk.Message {
 
 		sdkMsg := sdk.Message{
 			Role:    role,
-			Content: msg.Content,
+			Content: sdk.NewMessageContent(msg.Content),
 		}
 
 		if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
@@ -596,7 +596,7 @@ func (s *ProjectAnalysisSession) processSyncResponse(response *domain.ChatSyncRe
 	if response.Content != "" {
 		assistantMsg := InitConversationMessage{
 			Role:       "assistant",
-			Content:    response.Content,
+			Content: response.Content,
 			TokenUsage: response.Usage,
 			Timestamp:  time.Now(),
 			RequestID:  requestID,
@@ -608,7 +608,7 @@ func (s *ProjectAnalysisSession) processSyncResponse(response *domain.ChatSyncRe
 	if len(response.ToolCalls) > 0 {
 		assistantMsg := InitConversationMessage{
 			Role:      "assistant",
-			Content:   "",
+			Content: "",
 			ToolCalls: &response.ToolCalls,
 			Timestamp: time.Now(),
 			RequestID: requestID,

@@ -105,7 +105,7 @@ func TestPersistentConversationRepository_BasicOperations(t *testing.T) {
 		entry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: "Hello, test!",
+				Content: sdk.NewMessageContent("Hello, test!"),
 			},
 			Time:  time.Now(),
 			Model: "claude-3",
@@ -123,7 +123,7 @@ func TestPersistentConversationRepository_BasicOperations(t *testing.T) {
 		entry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: "Hello! How can I help you?",
+				Content: sdk.NewMessageContent("Hello! How can I help you?"),
 			},
 			Time:  time.Now(),
 			Model: "claude-3",
@@ -147,8 +147,10 @@ func TestPersistentConversationRepository_BasicOperations(t *testing.T) {
 
 		messages := repo.GetMessages()
 		assert.Len(t, messages, 2)
-		assert.Equal(t, "Hello, test!", messages[0].Message.Content)
-		assert.Equal(t, "Hello! How can I help you?", messages[1].Message.Content)
+		loadedContent0, _ := messages[0].Message.Content.AsMessageContent0()
+		assert.Equal(t, "Hello, test!", loadedContent0)
+		loadedContent1, _ := messages[1].Message.Content.AsMessageContent0()
+		assert.Equal(t, "Hello! How can I help you?", loadedContent1)
 	})
 }
 
@@ -162,7 +164,7 @@ func TestPersistentConversationRepository_AutoSaveTitle(t *testing.T) {
 		entry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: "How do I implement a binary search tree in Go?",
+				Content: sdk.NewMessageContent("How do I implement a binary search tree in Go?"),
 			},
 			Time:  time.Now(),
 			Model: "claude-3",
@@ -303,7 +305,7 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 		entry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: "Auto save message",
+				Content: sdk.NewMessageContent("Auto save message"),
 			},
 			Time:  time.Now(),
 			Model: "claude-3",
@@ -322,7 +324,8 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 
 		messages := repo.GetMessages()
 		assert.Len(t, messages, 1)
-		assert.Equal(t, "Auto save message", messages[0].Message.Content)
+		loadedContent, _ := messages[0].Message.Content.AsMessageContent0()
+		assert.Equal(t, "Auto save message", loadedContent)
 	})
 
 	t.Run("Auto Start New Conversation", func(t *testing.T) {
@@ -336,7 +339,7 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 		entry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: "First message that should auto-start conversation",
+				Content: sdk.NewMessageContent("First message that should auto-start conversation"),
 			},
 			Time:  time.Now(),
 			Model: "claude-3",
@@ -364,7 +367,8 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 
 		messages := newRepo.GetMessages()
 		assert.Len(t, messages, 1)
-		assert.Equal(t, "First message that should auto-start conversation", messages[0].Message.Content)
+		loadedContent, _ := messages[0].Message.Content.AsMessageContent0()
+		assert.Equal(t, "First message that should auto-start conversation", loadedContent)
 	})
 }
 

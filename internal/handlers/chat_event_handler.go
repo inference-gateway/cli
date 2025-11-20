@@ -30,7 +30,7 @@ func NewChatEventHandler(handler *ChatHandler) *ChatEventHandler {
 }
 
 func (e *ChatEventHandler) handleChatStart(
-	event domain.ChatStartEvent,
+	_ /* event */ domain.ChatStartEvent,
 ) tea.Cmd {
 	_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusStarting)
 
@@ -357,7 +357,7 @@ func (e *ChatEventHandler) handleToolCallUpdate(
 }
 
 func (e *ChatEventHandler) handleToolCallReady(
-	msg domain.ToolCallReadyEvent,
+	_ /* msg */ domain.ToolCallReadyEvent,
 
 ) tea.Cmd {
 	cmds := []tea.Cmd{

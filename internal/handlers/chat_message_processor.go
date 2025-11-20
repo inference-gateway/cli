@@ -126,7 +126,7 @@ func (p *ChatMessageProcessor) processChatMessage(
 ) tea.Cmd {
 	message := sdk.Message{
 		Role:    sdk.User,
-		Content: content,
+		Content: sdk.NewMessageContent(content),
 	}
 
 	if p.handler.stateManager.IsAgentBusy() {
