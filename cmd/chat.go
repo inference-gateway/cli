@@ -41,7 +41,6 @@ and have a conversational interface with the inference gateway.`,
 
 // StartChatSession starts a chat session
 func StartChatSession(cfg *config.Config, v *viper.Viper) error {
-	// Initialize clipboard for image paste support
 	err := clipboard.Init()
 	if err != nil {
 		fmt.Printf("⚠️  Warning: Failed to initialize clipboard support: %v\n", err)
