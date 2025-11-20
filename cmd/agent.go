@@ -121,7 +121,7 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 func (s *AgentSession) execute(taskDescription string) error {
 	s.addMessage(ConversationMessage{
 		Role:      "user",
-		Content: taskDescription,
+		Content:   taskDescription,
 		Timestamp: time.Now(),
 	})
 
@@ -147,7 +147,7 @@ func (s *AgentSession) execute(taskDescription string) error {
 
 			verifyMsg := ConversationMessage{
 				Role:      "user",
-				Content: "Is there anything else that needs to be done to complete this task? If not, simply confirm the task is complete. If there is more work, please continue.",
+				Content:   "Is there anything else that needs to be done to complete this task? If not, simply confirm the task is complete. If there is more work, please continue.",
 				Timestamp: time.Now(),
 				Internal:  true,
 			}
@@ -225,7 +225,7 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 	if response.Content != "" {
 		assistantMsg := ConversationMessage{
 			Role:       "assistant",
-			Content: response.Content,
+			Content:    response.Content,
 			TokenUsage: response.Usage,
 			Timestamp:  time.Now(),
 			RequestID:  requestID,
@@ -240,7 +240,7 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 
 	toolCallMsg := ConversationMessage{
 		Role:      "assistant",
-		Content: "",
+		Content:   "",
 		ToolCalls: &response.ToolCalls,
 		Timestamp: time.Now(),
 		RequestID: requestID,

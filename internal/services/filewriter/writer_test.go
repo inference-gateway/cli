@@ -63,7 +63,7 @@ func TestSafeFileWriter_Write_Success(t *testing.T) {
 
 		req := filewriter.WriteRequest{
 			Path:      testPath,
-			Content: newContent,
+			Content:   newContent,
 			Overwrite: true,
 			Backup:    false,
 		}
@@ -86,7 +86,7 @@ func TestSafeFileWriter_Write_Success(t *testing.T) {
 
 		req := filewriter.WriteRequest{
 			Path:      testPath,
-			Content: newContent,
+			Content:   newContent,
 			Overwrite: true,
 			Backup:    true,
 		}
@@ -111,7 +111,7 @@ func TestSafeFileWriter_Write_Success(t *testing.T) {
 
 		req := filewriter.WriteRequest{
 			Path:      testPath,
-			Content: content,
+			Content:   content,
 			Overwrite: true,
 			Backup:    false,
 		}
@@ -142,7 +142,7 @@ func TestSafeFileWriter_Write_Errors(t *testing.T) {
 
 		req := filewriter.WriteRequest{
 			Path:      testPath,
-			Content: "new content",
+			Content:   "new content",
 			Overwrite: false,
 			Backup:    false,
 		}
@@ -160,7 +160,7 @@ func TestSafeFileWriter_Write_Errors(t *testing.T) {
 	t.Run("error on empty path", func(t *testing.T) {
 		req := filewriter.WriteRequest{
 			Path:      "",
-			Content: "content",
+			Content:   "content",
 			Overwrite: true,
 		}
 
@@ -173,7 +173,7 @@ func TestSafeFileWriter_Write_Errors(t *testing.T) {
 	t.Run("error on path traversal", func(t *testing.T) {
 		req := filewriter.WriteRequest{
 			Path:      "../../../etc/passwd",
-			Content: "malicious content",
+			Content:   "malicious content",
 			Overwrite: true,
 		}
 
@@ -187,7 +187,7 @@ func TestSafeFileWriter_Write_Errors(t *testing.T) {
 		gitPath := filepath.Join(tempDir, ".git", "config")
 		req := filewriter.WriteRequest{
 			Path:      gitPath,
-			Content: "malicious content",
+			Content:   "malicious content",
 			Overwrite: true,
 		}
 
@@ -200,7 +200,7 @@ func TestSafeFileWriter_Write_Errors(t *testing.T) {
 	t.Run("error on path outside sandbox", func(t *testing.T) {
 		req := filewriter.WriteRequest{
 			Path:      "/tmp/outside_sandbox.txt",
-			Content: "content",
+			Content:   "content",
 			Overwrite: true,
 		}
 
