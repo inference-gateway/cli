@@ -20,6 +20,7 @@ type KeyHandlerContext interface {
 
 	// Services
 	GetAgentService() domain.AgentService
+	GetImageService() domain.ImageService
 
 	// UI components
 	GetConversationView() ui.ConversationRenderer

@@ -98,7 +98,7 @@ func (qv *QueueBoxView) formatMessagePreview(queuedMsg domain.QueuedMessage) str
 
 	contentStr, err := msg.Content.AsMessageContent0()
 	if err != nil {
-		contentStr = "[error extracting content]"
+		contentStr = shared.ExtractTextFromContent(msg.Content, nil)
 	}
 	content := contentStr
 

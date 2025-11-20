@@ -31,6 +31,7 @@ type ChatApplication struct {
 	modelService          domain.ModelService
 	toolService           domain.ToolService
 	fileService           domain.FileService
+	imageService          domain.ImageService
 	shortcutRegistry      *shortcuts.Registry
 	themeService          domain.ThemeService
 	toolRegistry          *tools.Registry
@@ -87,6 +88,7 @@ func NewChatApplication(
 	configService *config.Config,
 	toolService domain.ToolService,
 	fileService domain.FileService,
+	imageService domain.ImageService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager domain.StateManager,
 	messageQueue domain.MessageQueue,
@@ -108,6 +110,7 @@ func NewChatApplication(
 		configService:         configService,
 		toolService:           toolService,
 		fileService:           fileService,
+		imageService:          imageService,
 		shortcutRegistry:      shortcutRegistry,
 		themeService:          themeService,
 		toolRegistry:          toolRegistry,
@@ -1047,6 +1050,11 @@ func (app *ChatApplication) GetConversationRepository() domain.ConversationRepos
 // GetAgentService returns the agent service
 func (app *ChatApplication) GetAgentService() domain.AgentService {
 	return app.agentService
+}
+
+// GetImageService returns the image service
+func (app *ChatApplication) GetImageService() domain.ImageService {
+	return app.imageService
 }
 
 // GetConfig returns the configuration for keybinding context

@@ -17,6 +17,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
+	xclipboard "golang.design/x/clipboard"
 )
 
 var chatCmd = &cobra.Command{
@@ -40,6 +41,13 @@ and have a conversational interface with the inference gateway.`,
 
 // StartChatSession starts a chat session
 func StartChatSession(cfg *config.Config, v *viper.Viper) error {
+	// Initialize clipboard for image paste support
+	err := xclipboard.Init()
+	if err != nil {
+		fmt.Printf("⚠️  Warning: Failed to initialize clipboard support: %v\n", err)
+		fmt.Printf("   Image paste functionality will not be available.\n")
+	}
+
 	services := container.NewServiceContainer(cfg, v)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -70,6 +78,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	config := services.GetConfig()
 	toolService := services.GetToolService()
 	fileService := services.GetFileService()
+	imageService := services.GetImageService()
 	shortcutRegistry := services.GetShortcutRegistry()
 	stateManager := services.GetStateManager()
 	messageQueue := services.GetMessageQueue()
@@ -87,6 +96,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		config,
 		toolService,
 		fileService,
+		imageService,
 		shortcutRegistry,
 		stateManager,
 		messageQueue,

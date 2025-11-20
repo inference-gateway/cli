@@ -249,7 +249,7 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
-		contentStr = "[error extracting content]"
+		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 	content := contentStr
 	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
@@ -343,7 +343,8 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
-		contentStr = "[error extracting content]"
+		// Try to extract text from multimodal content
+		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 	wrappedContent := shared.FormatResponsiveMessage(contentStr, cv.width)
 	return wrappedContent + "\n\n💡 Press Ctrl+R to collapse all tool calls"
@@ -356,7 +357,8 @@ func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry)
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
-		contentStr = "[error extracting content]"
+		// Try to extract text from multimodal content
+		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 	content := cv.formatToolContentCompact(contentStr)
 	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)

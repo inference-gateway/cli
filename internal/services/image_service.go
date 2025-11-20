@@ -8,7 +8,10 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"net/url"
 	"os"
+	"path/filepath"
+	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
@@ -24,6 +27,15 @@ func NewImageService() *ImageService {
 
 // ReadImageFromFile reads an image from a file path and returns it as a base64 attachment
 func (s *ImageService) ReadImageFromFile(filePath string) (*domain.ImageAttachment, error) {
+	// Handle file:// URLs
+	if strings.HasPrefix(filePath, "file://") {
+		parsedURL, err := url.Parse(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("invalid file URL: %w", err)
+		}
+		filePath = parsedURL.Path
+	}
+
 	// Read image file
 	imageData, err := os.ReadFile(filePath)
 	if err != nil {
@@ -56,10 +68,24 @@ func (s *ImageService) CreateDataURL(attachment *domain.ImageAttachment) string 
 
 // IsImageFile checks if a file is a supported image format
 func (s *ImageService) IsImageFile(filePath string) bool {
-	if len(filePath) < 4 {
-		return false
+	// Handle file:// URLs
+	if strings.HasPrefix(filePath, "file://") {
+		parsedURL, err := url.Parse(filePath)
+		if err != nil {
+			return false
+		}
+		filePath = parsedURL.Path
 	}
-	// Check file extension
-	ext := filePath[len(filePath)-4:]
-	return ext == ".png" || ext == ".jpg" || ext == "jpeg" || ext == ".gif" || ext == "webp"
+
+	// Get file extension
+	ext := strings.ToLower(filepath.Ext(filePath))
+	supportedExts := []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
+
+	for _, supportedExt := range supportedExts {
+		if ext == supportedExt {
+			return true
+		}
+	}
+
+	return false
 }

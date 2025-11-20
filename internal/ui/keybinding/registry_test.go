@@ -38,6 +38,10 @@ func (t *testKeyHandlerContext) GetAgentService() domain.AgentService {
 	return nil
 }
 
+func (t *testKeyHandlerContext) GetImageService() domain.ImageService {
+	return services.NewImageService()
+}
+
 func (t *testKeyHandlerContext) GetConversationView() ui.ConversationRenderer {
 	return &testConversationRenderer{}
 }

@@ -191,6 +191,16 @@ type FileService interface {
 	GetFileInfo(path string) (FileInfo, error)
 }
 
+// ImageService handles image operations including loading and encoding
+type ImageService interface {
+	// ReadImageFromFile reads an image from a file path and returns it as a base64 attachment
+	ReadImageFromFile(filePath string) (*ImageAttachment, error)
+	// CreateDataURL creates a data URL from an image attachment
+	CreateDataURL(attachment *ImageAttachment) string
+	// IsImageFile checks if a file is a supported image format
+	IsImageFile(filePath string) bool
+}
+
 // FileInfo contains file metadata
 type FileInfo struct {
 	Path  string

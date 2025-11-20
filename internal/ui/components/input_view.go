@@ -1,16 +1,25 @@
 package components
 
 import (
+	"bytes"
+	"encoding/base64"
 	"fmt"
+	"image"
+	_ "image/gif"
+	_ "image/jpeg"
+	_ "image/png"
+	"os"
+	"path/filepath"
 	"strings"
 
-	clipboard "github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	xclipboard "golang.design/x/clipboard"
 )
 
 // InputView handles user input with history and autocomplete
@@ -483,25 +492,70 @@ func (iv *InputView) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, comple
 
 // handlePaste handles clipboard paste operations
 func (iv *InputView) handlePaste() (tea.Model, tea.Cmd) {
-	clipboardText, err := clipboard.ReadAll()
-	if err != nil {
-		return iv, nil
+	// First, try to read image data from clipboard
+	imageData := xclipboard.Read(xclipboard.FmtImage)
+	if len(imageData) > 0 {
+		logger.Debug("[InputView] clipboard contains binary image data", "size", len(imageData))
+
+		// Try to decode and attach the image
+		imageAttachment, err := loadImageFromBinary(imageData)
+		if err == nil {
+			logger.Debug("[InputView] successfully loaded image from clipboard", "mime_type", imageAttachment.MimeType)
+			iv.AddImageAttachment(*imageAttachment)
+			logger.Debug("[InputView] added binary image attachment to input view")
+			return iv, nil
+		}
+		logger.Debug("[InputView] failed to load binary image", "error", err)
+	} else {
+		logger.Debug("[InputView] no binary image data in clipboard")
 	}
 
+	// Fall back to reading text from clipboard
+	clipboardText := string(xclipboard.Read(xclipboard.FmtText))
+
+	logger.Debug("[InputView] clipboard text content", "text", clipboardText, "length", len(clipboardText))
+
 	if clipboardText == "" {
+		logger.Debug("[InputView] clipboard text is empty")
 		return iv, nil
 	}
 
 	cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
 	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
+	cleanText = strings.TrimSpace(cleanText)
 
-	if cleanText != "" {
-		newText := iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
-		newCursor := iv.cursor + len(cleanText)
+	logger.Debug("[InputView] cleaned clipboard text", "text", cleanText, "length", len(cleanText))
 
-		iv.text = newText
-		iv.cursor = newCursor
+	if cleanText == "" {
+		logger.Debug("[InputView] cleaned text is empty")
+		return iv, nil
 	}
+
+	// Check if clipboard contains a file path to an image
+	isImage := isImageFilePath(cleanText)
+	logger.Debug("[InputView] checking if clipboard contains image path", "path", cleanText, "is_image", isImage)
+
+	if isImage {
+		// Try to load the image from file
+		imageAttachment, err := loadImageFromFile(cleanText)
+		if err == nil {
+			// Successfully loaded image - add as attachment
+			logger.Debug("[InputView] successfully loaded image from file", "filename", imageAttachment.Filename, "mime_type", imageAttachment.MimeType)
+			iv.AddImageAttachment(*imageAttachment)
+			logger.Debug("[InputView] added file image attachment to input view")
+			return iv, nil
+		}
+		logger.Debug("[InputView] failed to load image from file", "error", err)
+		// If loading failed, fall through to treat as text
+	}
+
+	// Treat as text and paste it
+	logger.Debug("[InputView] treating clipboard content as text paste")
+	newText := iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
+	newCursor := iv.cursor + len(cleanText)
+
+	iv.text = newText
+	iv.cursor = newCursor
 
 	return iv, nil
 }
@@ -534,4 +588,66 @@ func (iv *InputView) GetImageAttachments() []domain.ImageAttachment {
 // ClearImageAttachments clears all pending image attachments
 func (iv *InputView) ClearImageAttachments() {
 	iv.imageAttachments = []domain.ImageAttachment{}
+}
+
+// isImageFilePath checks if a file path is a supported image format
+func isImageFilePath(filePath string) bool {
+	// Get file extension
+	ext := strings.ToLower(filepath.Ext(filePath))
+	supportedExts := []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
+
+	for _, supportedExt := range supportedExts {
+		if ext == supportedExt {
+			return true
+		}
+	}
+
+	return false
+}
+
+// loadImageFromFile reads an image from a file path and returns it as a base64 attachment
+func loadImageFromFile(filePath string) (*domain.ImageAttachment, error) {
+	// Read image file
+	imageData, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image file: %w", err)
+	}
+
+	// Detect image format
+	_, format, err := image.DecodeConfig(bytes.NewReader(imageData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect image format: %w", err)
+	}
+
+	// Convert to base64
+	base64Data := base64.StdEncoding.EncodeToString(imageData)
+
+	// Determine MIME type
+	mimeType := fmt.Sprintf("image/%s", format)
+
+	return &domain.ImageAttachment{
+		Data:     base64Data,
+		MimeType: mimeType,
+		Filename: filePath,
+	}, nil
+}
+// loadImageFromBinary reads an image from binary data and returns it as a base64 attachment
+func loadImageFromBinary(imageData []byte) (*domain.ImageAttachment, error) {
+	// Detect image format
+	_, format, err := image.DecodeConfig(bytes.NewReader(imageData))
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect image format: %w", err)
+	}
+
+	// Convert to base64
+	base64Data := base64.StdEncoding.EncodeToString(imageData)
+
+	// Determine MIME type
+	mimeType := fmt.Sprintf("image/%s", format)
+
+	return &domain.ImageAttachment{
+		Data:     base64Data,
+		MimeType: mimeType,
+		Filename: "clipboard-image.png", // Generic filename for clipboard images
+	}, nil
 }
