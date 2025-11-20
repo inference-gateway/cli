@@ -27,7 +27,6 @@ func NewImageService() *ImageService {
 
 // ReadImageFromFile reads an image from a file path and returns it as a base64 attachment
 func (s *ImageService) ReadImageFromFile(filePath string) (*domain.ImageAttachment, error) {
-	// Handle file:// URLs
 	if strings.HasPrefix(filePath, "file://") {
 		parsedURL, err := url.Parse(filePath)
 		if err != nil {
@@ -36,22 +35,18 @@ func (s *ImageService) ReadImageFromFile(filePath string) (*domain.ImageAttachme
 		filePath = parsedURL.Path
 	}
 
-	// Read image file
 	imageData, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read image file: %w", err)
 	}
 
-	// Detect image format
 	_, format, err := image.DecodeConfig(bytes.NewReader(imageData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect image format: %w", err)
 	}
 
-	// Convert to base64
 	base64Data := base64.StdEncoding.EncodeToString(imageData)
 
-	// Determine MIME type
 	mimeType := fmt.Sprintf("image/%s", format)
 
 	return &domain.ImageAttachment{

@@ -658,16 +658,13 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 // loadImageFromClipboard reads an image from clipboard binary data and returns it as a base64 attachment
 func loadImageFromClipboard(imageData []byte) (*domain.ImageAttachment, error) {
-	// Detect image format
 	_, format, err := image.DecodeConfig(bytes.NewReader(imageData))
 	if err != nil {
 		return nil, fmt.Errorf("failed to detect image format: %w", err)
 	}
 
-	// Convert to base64
 	base64Data := base64.StdEncoding.EncodeToString(imageData)
 
-	// Determine MIME type
 	mimeType := fmt.Sprintf("image/%s", format)
 
 	return &domain.ImageAttachment{
