@@ -127,11 +127,9 @@ func (p *ChatMessageProcessor) processChatMessage(
 ) tea.Cmd {
 	var message sdk.Message
 
-	// Create multimodal message if images are present
 	if len(images) > 0 {
 		var contentParts []sdk.ContentPart
 
-		// Add text content part
 		textPart, err := sdk.NewTextContentPart(content)
 		if err != nil {
 			return func() tea.Msg {
@@ -143,7 +141,6 @@ func (p *ChatMessageProcessor) processChatMessage(
 		}
 		contentParts = append(contentParts, textPart)
 
-		// Add image content parts
 		for _, img := range images {
 			dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
 			imagePart, err := sdk.NewImageContentPart(dataURL, nil)
@@ -163,7 +160,6 @@ func (p *ChatMessageProcessor) processChatMessage(
 			Content: sdk.NewMessageContent(contentParts),
 		}
 	} else {
-		// Simple text message
 		message = sdk.Message{
 			Role:    sdk.User,
 			Content: sdk.NewMessageContent(content),
@@ -186,7 +182,7 @@ func (p *ChatMessageProcessor) processChatMessage(
 	userEntry := domain.ConversationEntry{
 		Message: message,
 		Time:    time.Now(),
-		Images:  images, // Store images in conversation entry
+		Images:  images,
 	}
 
 	if err := p.handler.conversationRepo.AddMessage(userEntry); err != nil {
