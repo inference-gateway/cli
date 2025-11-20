@@ -417,6 +417,11 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					"turn", turns,
 					"conversationLength", len(conversation),
 					"provider", provider)
+				eventPublisher.chatEvents <- domain.ChatErrorEvent{
+					RequestID: req.RequestID,
+					Timestamp: time.Now(),
+					Error:     err,
+				}
 				return
 			}
 
