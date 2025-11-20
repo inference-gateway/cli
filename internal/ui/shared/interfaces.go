@@ -3,7 +3,7 @@ package shared
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/inference-gateway/cli/internal/domain"
 )
 
@@ -63,7 +63,6 @@ type InputComponent interface {
 	NavigateHistoryDown()
 	IsAutocompleteVisible() bool
 	TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string)
-	// Image attachment support
 	AddImageAttachment(image domain.ImageAttachment)
 	GetImageAttachments() []domain.ImageAttachment
 	ClearImageAttachments()
