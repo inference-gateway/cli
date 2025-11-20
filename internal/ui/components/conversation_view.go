@@ -343,7 +343,6 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
-		// Try to extract text from multimodal content
 		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 	wrappedContent := shared.FormatResponsiveMessage(contentStr, cv.width)
@@ -357,7 +356,6 @@ func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry)
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
-		// Try to extract text from multimodal content
 		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 	content := cv.formatToolContentCompact(contentStr)
