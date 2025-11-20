@@ -1,13 +1,7 @@
 package keybinding
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
-	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -580,16 +574,20 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
+	imageService := app.GetImageService()
+
+	// Try to read image from clipboard
 	imageData := clipboard.Read(clipboard.FmtImage)
 	if len(imageData) > 0 {
-		imageAttachment, err := loadImageFromClipboard(imageData)
+		imageAttachment, err := imageService.ReadImageFromBinary(imageData, "clipboard-screenshot.png")
 		if err == nil {
 			inputView.AddImageAttachment(*imageAttachment)
 			return nil
 		}
 	}
-	clipboardText := string(clipboard.Read(clipboard.FmtText))
 
+	// Try to read text from clipboard
+	clipboardText := string(clipboard.Read(clipboard.FmtText))
 	if clipboardText == "" {
 		return nil
 	}
@@ -602,11 +600,8 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	imageService := app.GetImageService()
-
-	isImage := imageService.IsImageFile(cleanText)
-
-	if isImage {
+	// Check if pasted text is an image file path
+	if imageService.IsImageFile(cleanText) {
 		imageAttachment, err := imageService.ReadImageFromFile(cleanText)
 		if err == nil {
 			inputView.AddImageAttachment(*imageAttachment)
@@ -614,6 +609,7 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 
+	// Otherwise, paste as text
 	currentText := inputView.GetInput()
 	cursor := inputView.GetCursor()
 
@@ -624,24 +620,6 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView.SetCursor(newCursor)
 
 	return nil
-}
-
-// loadImageFromClipboard reads an image from clipboard binary data and returns it as a base64 attachment
-func loadImageFromClipboard(imageData []byte) (*domain.ImageAttachment, error) {
-	_, format, err := image.DecodeConfig(bytes.NewReader(imageData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to detect image format: %w", err)
-	}
-
-	base64Data := base64.StdEncoding.EncodeToString(imageData)
-
-	mimeType := fmt.Sprintf("image/%s", format)
-
-	return &domain.ImageAttachment{
-		Data:     base64Data,
-		MimeType: mimeType,
-		Filename: "clipboard-screenshot.png",
-	}, nil
 }
 
 func handleCopy(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {

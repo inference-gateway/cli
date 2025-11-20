@@ -34,7 +34,7 @@ type ConversationEntry struct {
 	Time          time.Time            `json:"time"`
 	ToolExecution *ToolExecutionResult `json:"tool_execution,omitempty"`
 	Hidden        bool                 `json:"hidden,omitempty"`
-	Images        []ImageAttachment    `json:"images,omitempty"` // Attached images
+	Images        []ImageAttachment    `json:"images,omitempty"`
 }
 
 // ExportFormat defines the format for exporting conversations
@@ -195,6 +195,8 @@ type FileService interface {
 type ImageService interface {
 	// ReadImageFromFile reads an image from a file path and returns it as a base64 attachment
 	ReadImageFromFile(filePath string) (*ImageAttachment, error)
+	// ReadImageFromBinary reads an image from binary data and returns it as a base64 attachment
+	ReadImageFromBinary(imageData []byte, filename string) (*ImageAttachment, error)
 	// CreateDataURL creates a data URL from an image attachment
 	CreateDataURL(attachment *ImageAttachment) string
 	// IsImageFile checks if a file is a supported image format

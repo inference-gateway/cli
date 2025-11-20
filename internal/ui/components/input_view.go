@@ -1,19 +1,10 @@
 package components
 
 import (
-	"bytes"
-	"encoding/base64"
 	"fmt"
-	"image"
-	_ "image/gif"
-	_ "image/jpeg"
-	_ "image/png"
-	"os"
-	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
-	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
@@ -29,13 +20,14 @@ type InputView struct {
 	width               int
 	height              int
 	modelService        domain.ModelService
+	imageService        domain.ImageService
 	stateManager        domain.StateManager
 	Autocomplete        shared.AutocompleteInterface
 	historyManager      *history.HistoryManager
 	isTextSelectionMode bool
 	themeService        domain.ThemeService
 	styleProvider       *styles.Provider
-	imageAttachments    []domain.ImageAttachment // Pending image attachments
+	imageAttachments    []domain.ImageAttachment
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -76,6 +68,11 @@ func (iv *InputView) SetThemeService(themeService domain.ThemeService) {
 // SetStateManager sets the state manager for this input view
 func (iv *InputView) SetStateManager(stateManager domain.StateManager) {
 	iv.stateManager = stateManager
+}
+
+// SetImageService sets the image service for this input view
+func (iv *InputView) SetImageService(imageService domain.ImageService) {
+	iv.imageService = imageService
 }
 
 func (iv *InputView) GetInput() string {
@@ -388,10 +385,6 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	keyStr := key.String()
 
-	if keyStr == "ctrl+v" {
-		return iv.handlePaste()
-	}
-
 	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
 		if handled, completion := iv.Autocomplete.HandleKey(key); handled {
 			return iv.handleAutocomplete(completion)
@@ -489,49 +482,6 @@ func (iv *InputView) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, comple
 	return false, ""
 }
 
-// handlePaste handles clipboard paste operations
-func (iv *InputView) handlePaste() (tea.Model, tea.Cmd) {
-	imageData := clipboard.Read(clipboard.FmtImage)
-	if len(imageData) > 0 {
-		imageAttachment, err := loadImageFromBinary(imageData)
-		if err == nil {
-			iv.AddImageAttachment(*imageAttachment)
-			return iv, nil
-		}
-	}
-
-	clipboardText := string(clipboard.Read(clipboard.FmtText))
-
-	if clipboardText == "" {
-		return iv, nil
-	}
-
-	cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
-	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
-	cleanText = strings.TrimSpace(cleanText)
-
-	if cleanText == "" {
-		return iv, nil
-	}
-
-	isImage := isImageFilePath(cleanText)
-	if isImage {
-		imageAttachment, err := loadImageFromFile(cleanText)
-		if err == nil {
-			iv.AddImageAttachment(*imageAttachment)
-			return iv, nil
-		}
-	}
-
-	newText := iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
-	newCursor := iv.cursor + len(cleanText)
-
-	iv.text = newText
-	iv.cursor = newCursor
-
-	return iv, nil
-}
-
 func (iv *InputView) SetTextSelectionMode(enabled bool) {
 	iv.isTextSelectionMode = enabled
 }
@@ -560,59 +510,4 @@ func (iv *InputView) GetImageAttachments() []domain.ImageAttachment {
 // ClearImageAttachments clears all pending image attachments
 func (iv *InputView) ClearImageAttachments() {
 	iv.imageAttachments = []domain.ImageAttachment{}
-}
-
-// isImageFilePath checks if a file path is a supported image format
-func isImageFilePath(filePath string) bool {
-	ext := strings.ToLower(filepath.Ext(filePath))
-	supportedExts := []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
-
-	for _, supportedExt := range supportedExts {
-		if ext == supportedExt {
-			return true
-		}
-	}
-
-	return false
-}
-
-// loadImageFromFile reads an image from a file path and returns it as a base64 attachment
-func loadImageFromFile(filePath string) (*domain.ImageAttachment, error) {
-	imageData, err := os.ReadFile(filePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read image file: %w", err)
-	}
-
-	_, format, err := image.DecodeConfig(bytes.NewReader(imageData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to detect image format: %w", err)
-	}
-
-	base64Data := base64.StdEncoding.EncodeToString(imageData)
-
-	mimeType := fmt.Sprintf("image/%s", format)
-
-	return &domain.ImageAttachment{
-		Data:     base64Data,
-		MimeType: mimeType,
-		Filename: filePath,
-	}, nil
-}
-
-// loadImageFromBinary reads an image from binary data and returns it as a base64 attachment
-func loadImageFromBinary(imageData []byte) (*domain.ImageAttachment, error) {
-	_, format, err := image.DecodeConfig(bytes.NewReader(imageData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to detect image format: %w", err)
-	}
-
-	base64Data := base64.StdEncoding.EncodeToString(imageData)
-
-	mimeType := fmt.Sprintf("image/%s", format)
-
-	return &domain.ImageAttachment{
-		Data:     base64Data,
-		MimeType: mimeType,
-		Filename: "clipboard-image.png",
-	}, nil
 }

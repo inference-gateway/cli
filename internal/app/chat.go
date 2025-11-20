@@ -149,6 +149,7 @@ func NewChatApplication(
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)
+		iv.SetImageService(app.imageService)
 	}
 	app.statusView = ui.CreateStatusView(app.themeService)
 	app.helpBar = ui.CreateHelpBar(app.themeService)
@@ -709,6 +710,7 @@ func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
 func (app *ChatApplication) updateAllComponentsWithNewTheme() {
 	if inputView, ok := app.inputView.(*components.InputView); ok {
 		inputView.SetThemeService(app.themeService)
+		inputView.SetImageService(app.imageService)
 	}
 
 	styleProvider := styles.NewProvider(app.themeService)
