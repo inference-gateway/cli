@@ -13,12 +13,12 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	xclipboard "golang.design/x/clipboard"
 )
 
 // InputView handles user input with history and autocomplete
@@ -491,7 +491,7 @@ func (iv *InputView) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, comple
 
 // handlePaste handles clipboard paste operations
 func (iv *InputView) handlePaste() (tea.Model, tea.Cmd) {
-	imageData := xclipboard.Read(xclipboard.FmtImage)
+	imageData := clipboard.Read(clipboard.FmtImage)
 	if len(imageData) > 0 {
 		imageAttachment, err := loadImageFromBinary(imageData)
 		if err == nil {
@@ -500,7 +500,7 @@ func (iv *InputView) handlePaste() (tea.Model, tea.Cmd) {
 		}
 	}
 
-	clipboardText := string(xclipboard.Read(xclipboard.FmtText))
+	clipboardText := string(clipboard.Read(clipboard.FmtText))
 
 	if clipboardText == "" {
 		return iv, nil
@@ -564,7 +564,6 @@ func (iv *InputView) ClearImageAttachments() {
 
 // isImageFilePath checks if a file path is a supported image format
 func isImageFilePath(filePath string) bool {
-	// Get file extension
 	ext := strings.ToLower(filepath.Ext(filePath))
 	supportedExts := []string{".png", ".jpg", ".jpeg", ".gif", ".webp"}
 

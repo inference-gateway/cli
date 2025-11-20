@@ -11,12 +11,12 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
-	xclipboard "golang.design/x/clipboard"
 )
 
 // registerDefaultBindings registers all default key bindings
@@ -580,7 +580,7 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	imageData := xclipboard.Read(xclipboard.FmtImage)
+	imageData := clipboard.Read(clipboard.FmtImage)
 	if len(imageData) > 0 {
 		imageAttachment, err := loadImageFromClipboard(imageData)
 		if err == nil {
@@ -588,7 +588,7 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 			return nil
 		}
 	}
-	clipboardText := string(xclipboard.Read(xclipboard.FmtText))
+	clipboardText := string(clipboard.Read(clipboard.FmtText))
 
 	if clipboardText == "" {
 		return nil
@@ -649,7 +649,7 @@ func handleCopy(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	if inputView != nil {
 		text := inputView.GetInput()
 		if text != "" {
-			xclipboard.Write(xclipboard.FmtText, []byte(text))
+			clipboard.Write(clipboard.FmtText, []byte(text))
 		}
 	}
 	return nil

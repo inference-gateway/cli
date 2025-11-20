@@ -12,12 +12,12 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
 	app "github.com/inference-gateway/cli/internal/app"
+	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
-	xclipboard "golang.design/x/clipboard"
 )
 
 var chatCmd = &cobra.Command{
@@ -42,7 +42,7 @@ and have a conversational interface with the inference gateway.`,
 // StartChatSession starts a chat session
 func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	// Initialize clipboard for image paste support
-	err := xclipboard.Init()
+	err := clipboard.Init()
 	if err != nil {
 		fmt.Printf("⚠️  Warning: Failed to initialize clipboard support: %v\n", err)
 		fmt.Printf("   Image paste functionality will not be available.\n")
