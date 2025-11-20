@@ -5,6 +5,7 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -174,8 +175,8 @@ func TestStateManager_QueuedMessages(t *testing.T) {
 	messages := sm.GetQueuedMessages()
 	assert.Empty(t, messages)
 
-	msg1 := domain.Message{Role: domain.RoleUser, Content: "Hello"}
-	msg2 := domain.Message{Role: domain.RoleUser, Content: "World"}
+	msg1 := domain.Message{Role: domain.RoleUser, Content: sdk.NewMessageContent("Hello")}
+	msg2 := domain.Message{Role: domain.RoleUser, Content: sdk.NewMessageContent("World")}
 
 	sm.AddQueuedMessage(msg1, "req-1")
 	sm.AddQueuedMessage(msg2, "req-2")
@@ -185,7 +186,8 @@ func TestStateManager_QueuedMessages(t *testing.T) {
 
 	popped := sm.PopQueuedMessage()
 	assert.NotNil(t, popped)
-	assert.Equal(t, "Hello", popped.Message.Content)
+	poppedContent, _ := popped.Message.Content.AsMessageContent0()
+	assert.Equal(t, "Hello", poppedContent)
 	assert.Equal(t, "req-1", popped.RequestID)
 
 	messages = sm.GetQueuedMessages()

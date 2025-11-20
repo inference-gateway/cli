@@ -69,15 +69,6 @@ func TestGrepTool_Definition(t *testing.T) {
 	}
 }
 
-// Helper function to get map keys for debugging
-func getMapKeys(m map[string]any) []string { // nolint:unused
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	return keys
-}
-
 // Helper functions for file system operations in tests
 func createTempDir(t *testing.T) string {
 	dir, err := os.MkdirTemp("", "grep_test_*")
@@ -592,6 +583,10 @@ func TestGrepResult_Structure(t *testing.T) {
 
 	if result.Truncated != false {
 		t.Errorf("Expected truncated to be false, got %v", result.Truncated)
+	}
+
+	if result.Duration != "1.5ms" {
+		t.Errorf("Expected duration to be '1.5ms', got %s", result.Duration)
 	}
 }
 

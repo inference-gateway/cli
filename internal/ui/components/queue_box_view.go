@@ -96,7 +96,11 @@ func (qv *QueueBoxView) formatQueuedMessage(queuedMsg domain.QueuedMessage) stri
 func (qv *QueueBoxView) formatMessagePreview(queuedMsg domain.QueuedMessage) string {
 	msg := queuedMsg.Message
 
-	content := msg.Content
+	contentStr, err := msg.Content.AsMessageContent0()
+	if err != nil {
+		contentStr = "[error extracting content]"
+	}
+	content := contentStr
 
 	maxPreviewLength := qv.width - 20
 	if maxPreviewLength < 20 {

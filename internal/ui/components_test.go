@@ -19,7 +19,7 @@ func TestConversationViewBasic(t *testing.T) {
 		messages[i] = domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: "Test message " + string(rune('0'+i)),
+				Content: sdk.NewMessageContent("Test message " + string(rune('0'+i))),
 			},
 		}
 	}

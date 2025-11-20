@@ -175,7 +175,8 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 
 		title := "New Conversation"
 		if msg.Message.Role == sdk.User {
-			title = domain.CreateTitleFromMessage(msg.Message.Content)
+			contentStr, _ := msg.Message.Content.AsMessageContent0()
+			title = domain.CreateTitleFromMessage(contentStr)
 		}
 
 		r.metadata = storage.ConversationMetadata{
@@ -255,7 +256,8 @@ func (r *PersistentConversationRepository) AddTokenUsage(inputTokens, outputToke
 		messages := r.GetMessages()
 		for _, entry := range messages {
 			if entry.Message.Role == sdk.User {
-				title = domain.CreateTitleFromMessage(entry.Message.Content)
+				contentStr, _ := entry.Message.Content.AsMessageContent0()
+				title = domain.CreateTitleFromMessage(contentStr)
 				break
 			}
 		}

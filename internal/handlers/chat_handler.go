@@ -531,7 +531,7 @@ func (h *ChatHandler) handleToolApprovalResponse(
 		userEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: commandText,
+				Content: sdk.NewMessageContent(commandText),
 			},
 			Time: time.Now(),
 		}
@@ -541,7 +541,7 @@ func (h *ChatHandler) handleToolApprovalResponse(
 		assistantEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: responseContent,
+				Content: sdk.NewMessageContent(responseContent),
 			},
 			Time: time.Now(),
 		}

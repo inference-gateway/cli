@@ -82,7 +82,7 @@ func TestSQLiteStorage_BasicOperations(t *testing.T) {
 		newEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: "Updated response",
+				Content: sdk.NewMessageContent("Updated response"),
 			},
 			Time:  time.Now(),
 			Model: "claude-3",
@@ -101,7 +101,8 @@ func TestSQLiteStorage_BasicOperations(t *testing.T) {
 
 		assert.Equal(t, "Updated Title", loadedMetadata.Title)
 		assert.Len(t, loadedEntries, len(entries))
-		assert.Equal(t, "Updated response", loadedEntries[len(loadedEntries)-1].Message.Content)
+		lastContent, _ := loadedEntries[len(loadedEntries)-1].Message.Content.AsMessageContent0()
+		assert.Equal(t, "Updated response", lastContent)
 	})
 }
 
@@ -112,7 +113,6 @@ func TestSQLiteStorage_ConversationManagement(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("List Conversations", func(t *testing.T) {
-		// Create multiple conversations
 		conversations := []string{"conv1", "conv2", "conv3"}
 
 		for i, id := range conversations {
@@ -126,12 +126,10 @@ func TestSQLiteStorage_ConversationManagement(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// List conversations
 		summaries, err := storage.ListConversations(ctx, 10, 0)
 		assert.NoError(t, err)
 		assert.GreaterOrEqual(t, len(summaries), 3)
 
-		// Check ordering (most recent first)
 		for i := 1; i < len(summaries); i++ {
 			assert.True(t, summaries[i-1].UpdatedAt.After(summaries[i].UpdatedAt) ||
 				summaries[i-1].UpdatedAt.Equal(summaries[i].UpdatedAt))
@@ -143,19 +141,15 @@ func TestSQLiteStorage_ConversationManagement(t *testing.T) {
 		entries := createTestEntries()
 		metadata := createTestMetadata(conversationID)
 
-		// Save conversation
 		err := storage.SaveConversation(ctx, conversationID, entries, metadata)
 		assert.NoError(t, err)
 
-		// Verify it exists
 		_, _, err = storage.LoadConversation(ctx, conversationID)
 		assert.NoError(t, err)
 
-		// Delete conversation
 		err = storage.DeleteConversation(ctx, conversationID)
 		assert.NoError(t, err)
 
-		// Verify it's gone
 		_, _, err = storage.LoadConversation(ctx, conversationID)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "conversation not found")
@@ -166,11 +160,9 @@ func TestSQLiteStorage_ConversationManagement(t *testing.T) {
 		entries := createTestEntries()
 		metadata := createTestMetadata(conversationID)
 
-		// Save conversation
 		err := storage.SaveConversation(ctx, conversationID, entries, metadata)
 		assert.NoError(t, err)
 
-		// Update metadata
 		metadata.Title = "New Title"
 		metadata.Tags = []string{"updated", "test"}
 		metadata.Summary = "Updated summary"
@@ -179,7 +171,6 @@ func TestSQLiteStorage_ConversationManagement(t *testing.T) {
 		err = storage.UpdateConversationMetadata(ctx, conversationID, metadata)
 		assert.NoError(t, err)
 
-		// Load and verify
 		_, loadedMetadata, err := storage.LoadConversation(ctx, conversationID)
 		assert.NoError(t, err)
 
@@ -214,7 +205,7 @@ func createTestEntries() []domain.ConversationEntry {
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: "Hello, world!",
+				Content: sdk.NewMessageContent("Hello, world!"),
 			},
 			Time:  now,
 			Model: "claude-3",
@@ -222,7 +213,7 @@ func createTestEntries() []domain.ConversationEntry {
 		{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: "Hello! How can I help you today?",
+				Content: sdk.NewMessageContent("Hello! How can I help you today?"),
 			},
 			Time:  now.Add(time.Second),
 			Model: "claude-3",
@@ -230,7 +221,7 @@ func createTestEntries() []domain.ConversationEntry {
 		{
 			Message: sdk.Message{
 				Role:    sdk.User,
-				Content: "What is the capital of France?",
+				Content: sdk.NewMessageContent("What is the capital of France?"),
 			},
 			Time:  now.Add(2 * time.Second),
 			Model: "claude-3",
@@ -238,7 +229,7 @@ func createTestEntries() []domain.ConversationEntry {
 		{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: "The capital of France is Paris.",
+				Content: sdk.NewMessageContent("The capital of France is Paris."),
 			},
 			Time:  now.Add(3 * time.Second),
 			Model: "claude-3",

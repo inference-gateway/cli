@@ -294,7 +294,7 @@ func (m *A2APollingMonitor) addResultToMessageQueue(taskID string, result *domai
 
 	message := sdk.Message{
 		Role:    sdk.User,
-		Content: content,
+		Content: sdk.NewMessageContent(content),
 	}
 
 	m.messageQueue.Enqueue(message, m.requestID)

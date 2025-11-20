@@ -184,8 +184,8 @@ func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries 
 	}
 
 	messages := []sdk.Message{
-		{Role: sdk.System, Content: systemPrompt},
-		{Role: sdk.User, Content: fmt.Sprintf("Generate a title for this conversation:\n\n%s", conversationText)},
+		{Role: sdk.System, Content: sdk.NewMessageContent(systemPrompt)},
+		{Role: sdk.User, Content: sdk.NewMessageContent(fmt.Sprintf("Generate a title for this conversation:\n\n%s", conversationText))},
 	}
 
 	slashIndex := strings.Index(model, "/")
@@ -203,7 +203,6 @@ func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries 
 		}).
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
 			SkipMCP: true,
-			SkipA2A: true,
 		}).
 		GenerateContent(ctx, providerType, modelName, messages)
 	if err != nil {
@@ -214,7 +213,11 @@ func (g *ConversationTitleGenerator) generateTitle(ctx context.Context, entries 
 		return "", fmt.Errorf("no conversation title generated")
 	}
 
-	title := strings.TrimSpace(response.Choices[0].Message.Content)
+	contentStr, err := response.Choices[0].Message.Content.AsMessageContent0()
+	if err != nil {
+		return "", fmt.Errorf("failed to extract title content: %w", err)
+	}
+	title := strings.TrimSpace(contentStr)
 	title = strings.Trim(title, `"'`)
 
 	if len(title) > 50 {
@@ -247,7 +250,8 @@ func (g *ConversationTitleGenerator) formatConversationForTitleGeneration(entrie
 			continue
 		}
 
-		messageText := strings.TrimSpace(entry.Message.Content)
+		contentStr, _ := entry.Message.Content.AsMessageContent0()
+		messageText := strings.TrimSpace(contentStr)
 		if messageText == "" {
 			continue
 		}
@@ -273,8 +277,10 @@ func (g *ConversationTitleGenerator) fallbackTitle(entries []domain.Conversation
 			continue
 		}
 
-		if entry.Message.Role == sdk.User && strings.TrimSpace(entry.Message.Content) != "" {
-			return g.createTitleFromContent(entry.Message.Content)
+		contentStr, _ := entry.Message.Content.AsMessageContent0()
+		if entry.Message.Role == sdk.User && strings.TrimSpace(contentStr) != "" {
+			contentStr, _ := entry.Message.Content.AsMessageContent0()
+			return g.createTitleFromContent(contentStr)
 		}
 	}
 

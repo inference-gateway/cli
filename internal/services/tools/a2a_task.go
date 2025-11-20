@@ -361,7 +361,7 @@ func (t *A2ASubmitTaskTool) getOrCreateClient(agentURL string) client.A2AClient 
 	return client.NewClient(agentURL)
 }
 
-func (t *A2ASubmitTaskTool) initializePollingStrategy(agentURL, taskID, strategy string) time.Duration {
+func (t *A2ASubmitTaskTool) initializePollingStrategy(_ /* agentURL */, _ /* taskID */, strategy string) time.Duration {
 	var currentInterval time.Duration
 
 	if strategy == "exponential" {
@@ -388,7 +388,7 @@ func (t *A2ASubmitTaskTool) queryTask(ctx context.Context, adkClient client.A2AC
 	return &currentTask, nil
 }
 
-func (t *A2ASubmitTaskTool) handleQueryError(agentURL, taskID, strategy string, currentInterval time.Duration, state *domain.TaskPollingState, ticker *time.Ticker, err error) time.Duration {
+func (t *A2ASubmitTaskTool) handleQueryError(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, state *domain.TaskPollingState, ticker *time.Ticker, _ /* err */ error) time.Duration {
 	if strategy != "exponential" {
 		return currentInterval
 	}
@@ -445,7 +445,7 @@ func (t *A2ASubmitTaskTool) publishStatusUpdate(state *domain.TaskPollingState, 
 	}
 }
 
-func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt int, state *domain.TaskPollingState, currentTask adk.Task, pollingDetails string) (bool, *domain.ToolExecutionResult) {
+func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /* pollAttempt */ int, state *domain.TaskPollingState, currentTask adk.Task, _ /* pollingDetails */ string) (bool, *domain.ToolExecutionResult) {
 	switch currentTask.Status.State {
 	case adk.TaskStateCompleted:
 		finalResult := ""
@@ -520,7 +520,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, taskID string, pollAttempt
 	return false, nil
 }
 
-func (t *A2ASubmitTaskTool) applyExponentialBackoff(agentURL, taskID, strategy string, currentInterval time.Duration, pollAttempt int, state *domain.TaskPollingState, ticker *time.Ticker) time.Duration {
+func (t *A2ASubmitTaskTool) applyExponentialBackoff(_ /* agentURL */, _ /* taskID */ string, strategy string, currentInterval time.Duration, _ /* pollAttempt */ int, state *domain.TaskPollingState, ticker *time.Ticker) time.Duration {
 	if strategy != "exponential" {
 		return currentInterval
 	}

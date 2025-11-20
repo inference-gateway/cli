@@ -51,7 +51,11 @@ func (f *ConversationLineFormatter) FormatConversationToLines(conversation []dom
 			role = string(entry.Message.Role)
 		}
 
-		content = entry.Message.Content
+		contentStr, err := entry.Message.Content.AsMessageContent0()
+		if err != nil {
+			contentStr = fmt.Sprintf("[error extracting content: %v]", err)
+		}
+		content = contentStr
 		message := fmt.Sprintf("%s: %s", role, content)
 
 		entryLines := strings.Split(message, "\n")

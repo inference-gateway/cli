@@ -134,7 +134,7 @@ func (s *HTTPModelService) validateAgainstFetchedModels(modelID string) error {
 	return fmt.Errorf("model '%s' is not available", modelID)
 }
 
-func (s *HTTPModelService) handleListModelsError(modelID string, err error) error {
+func (s *HTTPModelService) handleListModelsError(modelID string, _ /* err */ error) error {
 	if !isValidModelFormat(modelID) {
 		return fmt.Errorf("invalid model ID format: %s", modelID)
 	}

@@ -213,7 +213,6 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 		}).
 			WithMiddlewareOptions(&sdk.MiddlewareOptions{
 				SkipMCP: true,
-				SkipA2A: true,
 			})
 		if s.toolService != nil {
 			mode := domain.AgentModeStandard
@@ -244,7 +243,11 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 	if len(response.Choices) > 0 {
 		choice := response.Choices[0]
-		content = choice.Message.Content
+		contentStr, err := choice.Message.Content.AsMessageContent0()
+		if err != nil {
+			contentStr = ""
+		}
+		content = contentStr
 
 		if choice.Message.ToolCalls != nil {
 			toolCalls = *choice.Message.ToolCalls
@@ -402,7 +405,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			client := s.client.
 				WithMiddlewareOptions(&sdk.MiddlewareOptions{
 					SkipMCP: true,
-					SkipA2A: true,
 				})
 			if len(availableTools) > 0 {
 				client = client.WithTools(&availableTools)
@@ -453,7 +455,11 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					}
 					deltaContent := choice.Delta.Content
 					if deltaContent != "" {
-						message.Content += deltaContent
+						currentContent, err := message.Content.AsMessageContent0()
+						if err != nil {
+							currentContent = ""
+						}
+						message.Content = sdk.NewMessageContent(currentContent + deltaContent)
 					}
 
 					reasoning := ""
@@ -913,7 +919,7 @@ done:
 	entry := domain.ConversationEntry{
 		Message: domain.Message{
 			Role:       sdk.Tool,
-			Content:    formattedContent,
+			Content:    sdk.NewMessageContent(formattedContent),
 			ToolCallId: &tc.Id,
 		},
 		Time:          time.Now(),
@@ -985,7 +991,7 @@ func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall
 	return domain.ConversationEntry{
 		Message: domain.Message{
 			Role:       sdk.Tool,
-			Content:    fmt.Sprintf("Tool execution failed: %s - %s", tc.Function.Name, err.Error()),
+			Content:    sdk.NewMessageContent(fmt.Sprintf("Tool execution failed: %s - %s", tc.Function.Name, err.Error())),
 			ToolCallId: &tc.Id,
 		},
 		Time: time.Now(),

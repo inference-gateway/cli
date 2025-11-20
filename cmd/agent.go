@@ -204,7 +204,7 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 
 		sdkMsg := sdk.Message{
 			Role:    role,
-			Content: msg.Content,
+			Content: sdk.NewMessageContent(msg.Content),
 		}
 
 		if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {

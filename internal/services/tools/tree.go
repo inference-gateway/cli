@@ -409,7 +409,7 @@ func (t *TreeTool) processDirectory(dirPath, entryName string, maxDepth int, sho
 }
 
 // shouldExclude checks if a filename should be excluded based on gitignore
-func (t *TreeTool) shouldExclude(fullPath string, name string, respectGitignore bool) bool {
+func (t *TreeTool) shouldExclude(fullPath string, _ /* name */ string, respectGitignore bool) bool {
 	if respectGitignore && t.isPathExcludedByGitignore(fullPath) {
 		return true
 	}

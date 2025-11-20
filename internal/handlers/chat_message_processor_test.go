@@ -8,6 +8,7 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
+	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 )
 
@@ -235,7 +236,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 				entry := domain.ConversationEntry{
 					Message: domain.Message{
 						Role:    domain.RoleUser,
-						Content: "test message",
+						Content: sdk.NewMessageContent("test message"),
 					},
 				}
 				_ = conversationRepo.AddMessage(entry)

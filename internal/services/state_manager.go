@@ -105,7 +105,7 @@ func (sm *StateManager) notifyListeners(oldState, newState domain.StateSnapshot)
 }
 
 // captureStateChange captures a state change for debugging and audit trail
-func (sm *StateManager) captureStateChange(changeType StateChangeType, oldState domain.StateSnapshot) {
+func (sm *StateManager) captureStateChange(_ /* changeType */ StateChangeType, oldState domain.StateSnapshot) {
 	newState := sm.state.GetStateSnapshot()
 
 	sm.stateHistory = append(sm.stateHistory, newState)

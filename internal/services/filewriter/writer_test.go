@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain/filewriter"
-	"github.com/stretchr/testify/require"
+	config "github.com/inference-gateway/cli/config"
+	filewriter "github.com/inference-gateway/cli/internal/domain/filewriter"
+	require "github.com/stretchr/testify/require"
 )
 
 func setupWriterTest(t *testing.T) (string, filewriter.FileWriter, context.Context) {

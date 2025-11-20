@@ -131,7 +131,7 @@ func (r *InMemoryConversationRepository) UpdateLastMessage(content string) error
 	}
 
 	lastIndex := len(r.messages) - 1
-	r.messages[lastIndex].Message.Content = content
+	r.messages[lastIndex].Message.Content = sdk.NewMessageContent(content)
 	r.messages[lastIndex].Time = time.Now()
 
 	return nil
@@ -196,8 +196,9 @@ func (r *InMemoryConversationRepository) exportMarkdown() []byte {
 		content.WriteString(fmt.Sprintf("## Message %d - %s\n\n", i+1, role))
 		content.WriteString(fmt.Sprintf("*%s*\n\n", entry.Time.Format("2006-01-02 15:04:05")))
 
-		if entry.Message.Content != "" {
-			content.WriteString(entry.Message.Content)
+		contentStr, err := entry.Message.Content.AsMessageContent0()
+		if err == nil && contentStr != "" {
+			content.WriteString(contentStr)
 			content.WriteString("\n\n")
 		}
 

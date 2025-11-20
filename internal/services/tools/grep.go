@@ -919,7 +919,7 @@ func (t *GrepTool) searchLineByLine(file *os.File, filePath string, regex *regex
 }
 
 // addContextToMatch adds context lines to a match (simplified implementation)
-func (t *GrepTool) addContextToMatch(match GrepMatch, contextLines []string, scanner *bufio.Scanner, opts *SearchOptions) GrepMatch {
+func (t *GrepTool) addContextToMatch(match GrepMatch, _ /* contextLines */ []string, _ /* scanner */ *bufio.Scanner, _ /* opts */ *SearchOptions) GrepMatch {
 	return match
 }
 

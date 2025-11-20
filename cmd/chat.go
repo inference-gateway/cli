@@ -221,7 +221,7 @@ func runNonInteractiveChat(cfg *config.Config, v *viper.Viper) error {
 
 	userMessage := sdk.Message{
 		Role:    sdk.User,
-		Content: input,
+		Content: sdk.NewMessageContent(input),
 	}
 
 	req := &domain.AgentRequest{

@@ -249,8 +249,8 @@ Respond with ONLY the commit message, no quotes or explanation.`
 	}
 
 	messages := []sdk.Message{
-		{Role: sdk.System, Content: systemPrompt},
-		{Role: sdk.User, Content: fmt.Sprintf("%s\n\nGenerate a commit message for these changes:\n\n```diff\n%s\n```", systemPrompt, diff)},
+		{Role: sdk.System, Content: sdk.NewMessageContent(systemPrompt)},
+		{Role: sdk.User, Content: sdk.NewMessageContent(fmt.Sprintf("%s\n\nGenerate a commit message for these changes:\n\n```diff\n%s\n```", systemPrompt, diff))},
 	}
 
 	slashIndex := strings.Index(model, "/")
@@ -268,7 +268,6 @@ Respond with ONLY the commit message, no quotes or explanation.`
 		}).
 		WithMiddlewareOptions(&sdk.MiddlewareOptions{
 			SkipMCP: true,
-			SkipA2A: true,
 		}).
 		GenerateContent(ctx, providerType, modelName, messages)
 	if err != nil {
@@ -279,7 +278,11 @@ Respond with ONLY the commit message, no quotes or explanation.`
 		return "", fmt.Errorf("no commit message generated")
 	}
 
-	message := strings.TrimSpace(response.Choices[0].Message.Content)
+	contentStr, err := response.Choices[0].Message.Content.AsMessageContent0()
+	if err != nil {
+		return "", fmt.Errorf("failed to extract commit message content: %w", err)
+	}
+	message := strings.TrimSpace(contentStr)
 	message = strings.Trim(message, `"'`)
 	return message, nil
 }
