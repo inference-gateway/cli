@@ -631,6 +631,7 @@ func loadImageFromFile(filePath string) (*domain.ImageAttachment, error) {
 		Filename: filePath,
 	}, nil
 }
+
 // loadImageFromBinary reads an image from binary data and returns it as a base64 attachment
 func loadImageFromBinary(imageData []byte) (*domain.ImageAttachment, error) {
 	// Detect image format
