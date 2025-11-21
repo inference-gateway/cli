@@ -392,6 +392,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			Docker:        true,
 			IncludeModels: []string{},
 			ExcludeModels: []string{
+				"ollama_cloud/cogito-2.1:671b",
 				"ollama_cloud/kimi-k2:1t",
 				"ollama_cloud/kimi-k2-thinking",
 				"ollama_cloud/deepseek-v3.1:671b",
