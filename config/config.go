@@ -716,7 +716,9 @@ Respond with ONLY the title, no quotes or explanation.`,
 			},
 		},
 		Init: InitConfig{
-			Prompt: `Please analyze this project and generate a comprehensive AGENTS.md file. Use your available tools to examine the project structure, configuration files, documentation, build systems, and development workflow. Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project.
+			Prompt: `Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.
+Use your available tools to examine configuration files, documentation, build systems, and development workflow.
+Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project.
 
 The AGENTS.md file should include:
 - Project overview and main technologies
