@@ -497,7 +497,6 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	stateManager := app.GetStateManager()
 
-	// If we're in approval view, reject the approval and transition back
 	if stateManager.GetCurrentView() == domain.ViewStateToolApproval {
 		approvalState := stateManager.GetApprovalUIState()
 		if approvalState != nil && approvalState.ResponseChan != nil {
@@ -576,7 +575,6 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	imageService := app.GetImageService()
 
-	// Try to read image from clipboard
 	imageData := clipboard.Read(clipboard.FmtImage)
 	if len(imageData) > 0 {
 		imageAttachment, err := imageService.ReadImageFromBinary(imageData, "clipboard-screenshot.png")
@@ -586,7 +584,6 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 
-	// Try to read text from clipboard
 	clipboardText := string(clipboard.Read(clipboard.FmtText))
 	if clipboardText == "" {
 		return nil
@@ -600,7 +597,6 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	// Check if pasted text is an image file path
 	if imageService.IsImageFile(cleanText) {
 		imageAttachment, err := imageService.ReadImageFromFile(cleanText)
 		if err == nil {
@@ -609,7 +605,6 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 
-	// Otherwise, paste as text
 	currentText := inputView.GetInput()
 	cursor := inputView.GetCursor()
 
