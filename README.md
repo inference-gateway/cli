@@ -279,7 +279,6 @@ Initialize a new project with Inference Gateway CLI. This creates:
 - `.infer/` directory with:
   - `config.yaml` - Main configuration file for the project
   - `.gitignore` - Ensures sensitive files are not committed to version control
-- `AGENTS.md` - AI-generated project documentation in the repository root (only when `--model` is specified)
 
 This is the recommended command to start working with Inference Gateway CLI in a new project.
 
