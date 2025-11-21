@@ -5,6 +5,10 @@ gateway:
   oci: ghcr.io/inference-gateway/inference-gateway:latest
   run: true
   docker: true
+  exclude_models:
+    - ollama_cloud/kimi-k2:1t
+    - ollama_cloud/kimi-k2-thinking
+    - ollama_cloud/deepseek-v3.1:671b
 client:
   timeout: 200
   retry:

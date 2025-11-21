@@ -1085,6 +1085,8 @@ gateway:
   oci: ghcr.io/inference-gateway/inference-gateway:latest  # OCI image for Docker mode
   run: true    # Automatically run the gateway (enabled by default)
   docker: false  # Use binary mode by default (set to true for Docker)
+  include_models: []  # Optional: only allow specific models (allowlist)
+  exclude_models: []  # Optional: block specific models (blocklist)
 client:
   timeout: 200
   retry:
@@ -1242,6 +1244,15 @@ chat:
   - `true` (default): Uses Docker to run the gateway container (requires Docker installed)
   - `false`: Downloads and runs the gateway as a binary (no Docker required)
 - **gateway.oci**: OCI image to use for Docker mode (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
+- **gateway.include_models**: Only allow specific models (allowlist approach, default: `[]`, allows all models)
+  - When set, only the specified models will be allowed by the gateway
+  - Example: `["deepseek/deepseek-reasoner", "deepseek/deepseek-chat"]`
+  - This is passed to the gateway as the `ALLOW_MODELS` environment variable
+- **gateway.exclude_models**: Block specific models (blocklist approach, default: `[]`, blocks none)
+  - When set, all models are allowed except those in the list
+  - Example: `["openai/gpt-4", "anthropic/claude-3-opus"]`
+  - This is passed to the gateway as the `DISALLOW_MODELS` environment variable
+  - Note: `include_models` and `exclude_models` can be used together - the gateway will apply both filters
 
 **Client Settings:**
 
