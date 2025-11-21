@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.59.0](https://github.com/inference-gateway/cli/compare/v0.58.0...v0.59.0) (2025-11-21)
+
+### 🚀 Features
+
+* **shortcuts:** Add /init shortcut to initialize AGENTS.md ([#224](https://github.com/inference-gateway/cli/issues/224)) ([afbf7d9](https://github.com/inference-gateway/cli/commit/afbf7d953548d4f8b99052c23b7f2c05134ef00d))
+
 ## [0.58.0](https://github.com/inference-gateway/cli/compare/v0.57.1...v0.58.0) (2025-11-21)
 
 ### 🚀 Features
