@@ -540,7 +540,8 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 			return cmds
 		}
 
-		app.taskManager = components.NewTaskManager(app.themeService, app.taskRetentionService, app.backgroundTaskService)
+		styleProvider := styles.NewProvider(app.themeService)
+		app.taskManager = components.NewTaskManager(app.themeService, styleProvider, app.taskRetentionService, app.backgroundTaskService)
 		if cmd := app.taskManager.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}

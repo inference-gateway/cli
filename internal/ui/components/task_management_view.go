@@ -11,7 +11,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
-	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // TaskInfo extends TaskPollingState with additional metadata for UI display
@@ -31,6 +31,7 @@ type TaskManagerImpl struct {
 	width                 int
 	height                int
 	themeService          domain.ThemeService
+	styleProvider         *styles.Provider
 	done                  bool
 	cancelled             bool
 	taskRetentionService  domain.TaskRetentionService
@@ -58,6 +59,7 @@ const (
 // NewTaskManager creates a new task manager UI component
 func NewTaskManager(
 	themeService domain.ThemeService,
+	styleProvider *styles.Provider,
 	taskRetentionService domain.TaskRetentionService,
 	backgroundTaskService domain.BackgroundTaskService,
 ) *TaskManagerImpl {
@@ -72,6 +74,7 @@ func NewTaskManager(
 		width:                 80,
 		height:                24,
 		themeService:          themeService,
+		styleProvider:         styleProvider,
 		taskRetentionService:  taskRetentionService,
 		backgroundTaskService: backgroundTaskService,
 		searchQuery:           "",
@@ -620,16 +623,18 @@ func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskI
 func (t *TaskManagerImpl) renderTaskList() string {
 	var content strings.Builder
 
-	fmt.Fprintf(&content, "%sA2A Background Tasks%s\n\n",
-		t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	title := t.styleProvider.RenderWithColor("A2A Background Tasks", accentColor)
+	fmt.Fprintf(&content, "%s\n\n", title)
 
 	t.writeViewTabs(&content)
 
 	t.writeSearchInfo(&content)
 
 	if len(t.filteredTasks) == 0 {
-		fmt.Fprintf(&content, "%sNo tasks found.%s\n",
-			t.themeService.GetCurrentTheme().GetErrorColor(), colors.Reset)
+		errorColor := t.styleProvider.GetThemeColor("error")
+		noTasks := t.styleProvider.RenderWithColor("No tasks found.", errorColor)
+		fmt.Fprintf(&content, "%s\n", noTasks)
 		t.writeFooter(&content)
 		return content.String()
 	}
@@ -640,8 +645,9 @@ func (t *TaskManagerImpl) renderTaskList() string {
 
 	if t.confirmCancel {
 		content.WriteString("\n")
-		fmt.Fprintf(&content, "%s⚠ Cancel this task? (y/n)%s",
-			t.themeService.GetCurrentTheme().GetErrorColor(), colors.Reset)
+		errorColor := t.styleProvider.GetThemeColor("error")
+		warning := t.styleProvider.RenderWithColor("⚠ Cancel this task? (y/n)", errorColor)
+		fmt.Fprintf(&content, "%s", warning)
 	}
 
 	t.writeFooter(&content)
@@ -651,6 +657,8 @@ func (t *TaskManagerImpl) renderTaskList() string {
 
 // writeViewTabs writes the view selection tabs
 func (t *TaskManagerImpl) writeViewTabs(b *strings.Builder) {
+	accentColor := t.styleProvider.GetThemeColor("accent")
+
 	allStyle := "[1] All"
 	activeStyle := "[2] Active"
 	inputRequiredStyle := "[3] Input Required"
@@ -659,45 +667,52 @@ func (t *TaskManagerImpl) writeViewTabs(b *strings.Builder) {
 
 	switch t.currentView {
 	case TaskViewAll:
-		allStyle = fmt.Sprintf("%s[1] All%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+		allStyle = t.styleProvider.RenderWithColor("[1] All", accentColor)
 	case TaskViewActive:
-		activeStyle = fmt.Sprintf("%s[2] Active%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+		activeStyle = t.styleProvider.RenderWithColor("[2] Active", accentColor)
 	case TaskViewInputRequired:
-		inputRequiredStyle = fmt.Sprintf("%s[3] Input Required%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+		inputRequiredStyle = t.styleProvider.RenderWithColor("[3] Input Required", accentColor)
 	case TaskViewCompleted:
-		completedStyle = fmt.Sprintf("%s[4] Completed%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+		completedStyle = t.styleProvider.RenderWithColor("[4] Completed", accentColor)
 	case TaskViewCanceled:
-		canceledStyle = fmt.Sprintf("%s[5] Canceled%s", t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+		canceledStyle = t.styleProvider.RenderWithColor("[5] Canceled", accentColor)
 	}
 
-	fmt.Fprintf(b, "%s%s  %s  %s  %s  %s%s\n",
-		t.themeService.GetCurrentTheme().GetDimColor(), allStyle, activeStyle, inputRequiredStyle, completedStyle, canceledStyle, colors.Reset)
+	tabs := fmt.Sprintf("%s  %s  %s  %s  %s", allStyle, activeStyle, inputRequiredStyle, completedStyle, canceledStyle)
+	dimTabs := t.styleProvider.RenderDimText(tabs)
+	fmt.Fprintf(b, "%s\n", dimTabs)
 
 	separatorWidth := t.width - 4
 	if separatorWidth < 0 {
 		separatorWidth = 40
 	}
-	fmt.Fprintf(b, "%s%s%s\n\n",
-		t.themeService.GetCurrentTheme().GetDimColor(), strings.Repeat("─", separatorWidth), colors.Reset)
+	separator := t.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth))
+	fmt.Fprintf(b, "%s\n\n", separator)
 }
 
 // writeSearchInfo writes the search information section
 func (t *TaskManagerImpl) writeSearchInfo(b *strings.Builder) {
 	if t.searchMode {
-		fmt.Fprintf(b, "%sSearch: %s%s│%s\n\n",
-			t.themeService.GetCurrentTheme().GetStatusColor(), t.searchQuery, t.themeService.GetCurrentTheme().GetAccentColor(), colors.Reset)
+		statusColor := t.styleProvider.GetThemeColor("status")
+		accentColor := t.styleProvider.GetThemeColor("accent")
+		searchText := t.styleProvider.RenderWithColor(fmt.Sprintf("Search: %s", t.searchQuery), statusColor)
+		cursor := t.styleProvider.RenderWithColor("│", accentColor)
+		fmt.Fprintf(b, "%s%s\n\n", searchText, cursor)
 	} else {
-		fmt.Fprintf(b, "%sPress / to search • %d tasks available%s\n\n",
-			t.themeService.GetCurrentTheme().GetDimColor(), len(t.filteredTasks), colors.Reset)
+		info := fmt.Sprintf("Press / to search • %d tasks available", len(t.filteredTasks))
+		dimInfo := t.styleProvider.RenderDimText(info)
+		fmt.Fprintf(b, "%s\n\n", dimInfo)
 	}
 }
 
 // writeTableHeader writes the table header with column labels
 func (t *TaskManagerImpl) writeTableHeader(b *strings.Builder) {
-	fmt.Fprintf(b, "%s  %-36s │ %-38s │ %-30s │ %-15s │ %-12s%s\n",
-		t.themeService.GetCurrentTheme().GetDimColor(), "Context ID", "Task ID", "Agent", "Status", "Elapsed", colors.Reset)
-	fmt.Fprintf(b, "%s%s%s\n",
-		t.themeService.GetCurrentTheme().GetDimColor(), strings.Repeat("─", t.width-4), colors.Reset)
+	header := fmt.Sprintf("  %-36s │ %-38s │ %-30s │ %-15s │ %-12s", "Context ID", "Task ID", "Agent", "Status", "Elapsed")
+	dimHeader := t.styleProvider.RenderDimText(header)
+	fmt.Fprintf(b, "%s\n", dimHeader)
+
+	separator := t.styleProvider.RenderDimText(strings.Repeat("─", t.width-4))
+	fmt.Fprintf(b, "%s\n", separator)
 }
 
 // writeTaskRows writes all task rows in table format
@@ -719,8 +734,9 @@ func (t *TaskManagerImpl) writeTaskRow(b *strings.Builder, task TaskInfo, index 
 	elapsed := t.formatDuration(task.ElapsedTime)
 
 	if index == t.selected {
-		fmt.Fprintf(b, "%s▶ %-36s │ %-38s │ %-30s │ %-15s │ %-12s%s\n",
-			t.themeService.GetCurrentTheme().GetAccentColor(), contextID, taskID, agentURL, status, elapsed, colors.Reset)
+		accentColor := t.styleProvider.GetThemeColor("accent")
+		rowText := fmt.Sprintf("▶ %-36s │ %-38s │ %-30s │ %-15s │ %-12s", contextID, taskID, agentURL, status, elapsed)
+		fmt.Fprintf(b, "%s\n", t.styleProvider.RenderWithColor(rowText, accentColor))
 	} else {
 		fmt.Fprintf(b, "  %-36s │ %-38s │ %-30s │ %-15s │ %-12s\n",
 			contextID, taskID, agentURL, status, elapsed)
@@ -730,27 +746,61 @@ func (t *TaskManagerImpl) writeTaskRow(b *strings.Builder, task TaskInfo, index 
 // writeFooter writes the footer section with keyboard shortcuts
 func (t *TaskManagerImpl) writeFooter(b *strings.Builder) {
 	b.WriteString("\n")
-	b.WriteString(colors.CreateSeparator(t.width, "─"))
+	separator := t.styleProvider.RenderDimText(strings.Repeat("─", t.width))
+	b.WriteString(separator)
 	b.WriteString("\n")
 
 	if t.searchMode {
-		fmt.Fprintf(b, "%sType to search, ↑↓ to navigate, Enter to view, Esc to clear search%s",
-			t.themeService.GetCurrentTheme().GetDimColor(), colors.Reset)
+		help := t.styleProvider.RenderDimText("Type to search, ↑↓ to navigate, Enter to view, Esc to clear search")
+		fmt.Fprintf(b, "%s", help)
 	} else {
-		fmt.Fprintf(b, "%sUse ↑↓ arrows to navigate, Enter/i for info, c to cancel, / to search, r to refresh, q/Esc to quit%s",
-			t.themeService.GetCurrentTheme().GetDimColor(), colors.Reset)
+		help := t.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter/i for info, c to cancel, / to search, r to refresh, q/Esc to quit")
+		fmt.Fprintf(b, "%s", help)
 	}
 }
 
 // truncateString truncates a string to the specified length with ellipsis
 func (t *TaskManagerImpl) truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
+	actualWidth := t.styleProvider.GetWidth(s)
+
+	if actualWidth <= maxLen {
 		return s
 	}
+
 	if maxLen <= 3 {
-		return s[:maxLen]
+		return "..."
 	}
-	return s[:maxLen-3] + "..."
+
+	stripped := t.stripAnsi(s)
+	if len(stripped) <= maxLen-3 {
+		return stripped + "..."
+	}
+	return stripped[:maxLen-3] + "..."
+}
+
+// stripAnsi removes ANSI escape sequences from a string
+func (t *TaskManagerImpl) stripAnsi(text string) string {
+	var result strings.Builder
+	inEscape := false
+
+	for i := 0; i < len(text); i++ {
+		if text[i] == '\033' && i+1 < len(text) && text[i+1] == '[' {
+			inEscape = true
+			i++
+			continue
+		}
+
+		if inEscape {
+			if (text[i] >= 'A' && text[i] <= 'Z') || (text[i] >= 'a' && text[i] <= 'z') {
+				inEscape = false
+			}
+			continue
+		}
+
+		result.WriteByte(text[i])
+	}
+
+	return result.String()
 }
 
 // formatDuration formats a duration into a human-readable string
