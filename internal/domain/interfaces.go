@@ -21,10 +21,10 @@ const (
 
 // ImageAttachment represents an image attachment in a message
 type ImageAttachment struct {
-	Data        string `json:"data"`               // Base64 encoded image data
-	MimeType    string `json:"mime_type"`          // Image MIME type (image/png, image/jpeg, etc.)
-	Filename    string `json:"filename,omitempty"` // Optional filename
-	DisplayName string `json:"display_name"`       // Display name for UI (e.g., "Image #1")
+	Data        string `json:"data"`
+	MimeType    string `json:"mime_type"`
+	Filename    string `json:"filename,omitempty"`
+	DisplayName string `json:"display_name"`
 }
 
 // ConversationEntry represents a message in the conversation with metadata
@@ -174,12 +174,6 @@ type StateManager interface {
 	GetApprovalUIState() *ApprovalUIState
 	SetApprovalSelectedIndex(index int)
 	ClearApprovalUIState()
-
-	// Message queue management (DEPRECATED - use MessageQueue service instead)
-	AddQueuedMessage(message Message, requestID string)
-	PopQueuedMessage() *QueuedMessage
-	ClearQueuedMessages()
-	GetQueuedMessages() []QueuedMessage
 }
 
 // FileService handles file operations
