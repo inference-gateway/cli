@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.58.0](https://github.com/inference-gateway/cli/compare/v0.57.1...v0.58.0) (2025-11-21)
+
+### 🚀 Features
+
+* **cli:** Add --version flag support ([#220](https://github.com/inference-gateway/cli/issues/220)) ([21dd893](https://github.com/inference-gateway/cli/commit/21dd8933ca9b82c7464968c26045ca7464cf7463))
+
+### ♻️ Code Refactoring
+
+* **ui:** Remove GetWidth from Theme interface ([#222](https://github.com/inference-gateway/cli/issues/222)) ([893e5f8](https://github.com/inference-gateway/cli/commit/893e5f8941972cc279da975e821e313a348856b6))
+* Update config structure and handling ([#221](https://github.com/inference-gateway/cli/issues/221)) ([22d9096](https://github.com/inference-gateway/cli/commit/22d9096f7455efc78193a3511c63be6c952562c4))
+
 ## [0.57.1](https://github.com/inference-gateway/cli/compare/v0.57.0...v0.57.1) (2025-11-21)
 
 ### 🐛 Bug Fixes
