@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.59.2](https://github.com/inference-gateway/cli/compare/v0.59.1...v0.59.2) (2025-11-21)
+
+### 🐛 Bug Fixes
+
+* Add latest MacOS runners to remove deprecation warning ([#227](https://github.com/inference-gateway/cli/issues/227)) ([d5fced4](https://github.com/inference-gateway/cli/commit/d5fced44a9e84630b084cf5cb914d50d1f0a75fc))
+
 ## [0.59.1](https://github.com/inference-gateway/cli/compare/v0.59.0...v0.59.1) (2025-11-21)
 
 ### 🐛 Bug Fixes
