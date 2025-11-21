@@ -93,8 +93,7 @@ plugins:
         ${nextRelease.notes}
 
   - - "@semantic-release/exec"
-    - prepareCmd: 'VERSION=v${nextRelease.version} COMMIT=$(git rev-parse --short HEAD) DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ") flox activate -- task release:build'
-      publishCmd: "VERSION=${nextRelease.version} flox activate -- task container:push"
+    - publishCmd: "VERSION=${nextRelease.version} flox activate -- task container:push"
 
   - - "@semantic-release/github"
     - releaseNameTemplate: "🚀 Version <%= nextRelease.version %>"
