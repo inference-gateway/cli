@@ -270,14 +270,6 @@ That's it! The CLI will automatically:
 - Load your API keys from the `.env` file
 - Connect you to available models
 
-**Optional**: Initialize project configuration with AI analysis:
-
-```bash
-infer init --model deepseek/deepseek-chat
-```
-
-Using `--model` enables AI project analysis and generates a comprehensive AGENTS.md file tailored to your specific project.
-
 ## Commands
 
 ### `infer init`
@@ -1462,9 +1454,6 @@ EOF
 
 # Start interactive chat (gateway starts automatically)
 infer chat
-
-# Optional: Initialize project configuration with AI analysis
-infer init --model deepseek/deepseek-chat
 
 # Optional: Check gateway status
 infer status
