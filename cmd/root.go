@@ -22,6 +22,10 @@ var rootCmd = &cobra.Command{
 the Inference Gateway. This CLI provides tools for configuration,
 deployment, monitoring, and management of inference services.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if cmd.Flags().Changed("version") {
+			versionCmd.Run(cmd, args)
+			return
+		}
 		if len(args) == 0 && !cmd.Flags().Changed("help") {
 			fmt.Println("Welcome to the Inference Gateway CLI!")
 			fmt.Println("Use 'infer chat' to start interactive chat or --help to see available commands.")
@@ -43,6 +47,7 @@ func Execute() {
 
 func init() {
 	rootCmd.PersistentFlags().BoolP("verbose", "v", false, "verbose output")
+	rootCmd.Flags().BoolP("version", "", false, "print version information")
 
 	cobra.OnInitialize(initConfig)
 }
