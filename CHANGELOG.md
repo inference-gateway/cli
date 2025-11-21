@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.59.1](https://github.com/inference-gateway/cli/compare/v0.59.0...v0.59.1) (2025-11-21)
+
+### 🐛 Bug Fixes
+
+* **clipboard:** Compile using CGO on MacOS with native runners ([#226](https://github.com/inference-gateway/cli/issues/226)) ([e0ad5c6](https://github.com/inference-gateway/cli/commit/e0ad5c6024a0662a57d4ac881a929af0277e968f)), closes [#225](https://github.com/inference-gateway/cli/issues/225)
+
+### 🧹 Maintenance
+
+* Update README.md ([6851afd](https://github.com/inference-gateway/cli/commit/6851afd911f509bb3f3ba8e1e408edc1d6b7138e))
+
 ## [0.59.0](https://github.com/inference-gateway/cli/compare/v0.58.0...v0.59.0) (2025-11-21)
 
 ### 🚀 Features
