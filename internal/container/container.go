@@ -96,6 +96,8 @@ func (c *ServiceContainer) initializeGatewayManager() {
 	c.gatewayManager = services.NewGatewayManager(c.config)
 
 	if c.config.Gateway.Run {
+		fmt.Println("🔧 Initializing Inference Gateway...")
+
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
 
