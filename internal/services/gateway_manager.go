@@ -182,12 +182,10 @@ func (gm *GatewayManager) IsRunning() bool {
 func (gm *GatewayManager) pullImage(ctx context.Context) error {
 	logger.Debug("Pulling gateway image", "image", gm.config.Gateway.OCI)
 
-	// Print progress message to user
 	fmt.Printf("• Pulling gateway image: %s\n", gm.config.Gateway.OCI)
 
 	cmd := exec.CommandContext(ctx, "docker", "pull", gm.config.Gateway.OCI)
 
-	// Capture output but also show progress
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker pull failed: %w, output: %s", err, string(output))
@@ -321,7 +319,6 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 
 	logger.Info("Downloading latest gateway binary using installer")
 
-	// Print progress message to user
 	fmt.Println("• Downloading gateway binary...")
 
 	absBinaryDir, err := filepath.Abs(binaryDir)
