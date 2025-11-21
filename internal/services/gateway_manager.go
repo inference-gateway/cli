@@ -48,6 +48,7 @@ func (gm *GatewayManager) startBinary(ctx context.Context) error {
 
 	if gm.isBinaryRunning() {
 		logger.Info("Gateway is already running on port")
+		fmt.Println("• Gateway is already running")
 		gm.isRunning = true
 		return nil
 	}
@@ -57,9 +58,13 @@ func (gm *GatewayManager) startBinary(ctx context.Context) error {
 		return fmt.Errorf("failed to download gateway binary: %w", err)
 	}
 
+	fmt.Println("• Starting gateway binary...")
+
 	if err := gm.runBinary(binaryPath); err != nil {
 		return fmt.Errorf("failed to start gateway binary: %w", err)
 	}
+
+	fmt.Println("• Waiting for gateway to become ready...")
 
 	if err := gm.waitForReady(ctx); err != nil {
 		_ = gm.Stop(ctx)
@@ -67,6 +72,7 @@ func (gm *GatewayManager) startBinary(ctx context.Context) error {
 	}
 
 	gm.isRunning = true
+	fmt.Printf("• Gateway is ready at %s\n\n", gm.config.Gateway.URL)
 	logger.Info("Gateway binary started successfully", "url", gm.config.Gateway.URL)
 	return nil
 }
@@ -81,17 +87,23 @@ func (gm *GatewayManager) startDocker(ctx context.Context) error {
 
 	if gm.isContainerRunning() {
 		logger.Info("Gateway container is already running")
+		fmt.Println("• Gateway container is already running")
 		gm.isRunning = true
 		return nil
 	}
 
 	if err := gm.pullImage(ctx); err != nil {
 		logger.Warn("Failed to pull image, attempting to use local image", "error", err)
+		fmt.Println("• Could not pull latest image, using cached version")
 	}
+
+	fmt.Println("• Starting gateway container...")
 
 	if err := gm.startContainer(ctx); err != nil {
 		return fmt.Errorf("failed to start gateway container: %w", err)
 	}
+
+	fmt.Println("• Waiting for gateway to become ready...")
 
 	if err := gm.waitForReady(ctx); err != nil {
 		_ = gm.Stop(ctx)
@@ -99,6 +111,7 @@ func (gm *GatewayManager) startDocker(ctx context.Context) error {
 	}
 
 	gm.isRunning = true
+	fmt.Printf("• Gateway is ready at %s\n\n", gm.config.Gateway.URL)
 	logger.Info("Gateway container started successfully", "url", gm.config.Gateway.URL)
 	return nil
 }
@@ -164,13 +177,18 @@ func (gm *GatewayManager) IsRunning() bool {
 	return gm.isRunning
 }
 
-// pullImage pulls the OCI image
+// pullImage pulls the OCI image with progress feedback
 func (gm *GatewayManager) pullImage(ctx context.Context) error {
+	fmt.Printf("• Pulling gateway image: %s\n", gm.config.Gateway.OCI)
+
 	cmd := exec.CommandContext(ctx, "docker", "pull", gm.config.Gateway.OCI)
+
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("docker pull failed: %w, output: %s", err, string(output))
 	}
+
+	fmt.Println("• Gateway image pulled successfully")
 	return nil
 }
 
@@ -292,6 +310,8 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 
 	logger.Info("Downloading latest gateway binary using installer")
 
+	fmt.Println("• Downloading gateway binary...")
+
 	absBinaryDir, err := filepath.Abs(binaryDir)
 	if err != nil {
 		return "", fmt.Errorf("failed to get absolute path: %w", err)
@@ -312,6 +332,7 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("binary not found after installation: %w", err)
 	}
 
+	fmt.Println("• Gateway binary downloaded successfully")
 	logger.Info("Gateway binary installed successfully", "path", binaryPath)
 	return binaryPath, nil
 }
