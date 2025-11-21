@@ -220,16 +220,18 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 
 	if len(gm.config.Gateway.IncludeModels) > 0 {
 		includeModels := strings.Join(gm.config.Gateway.IncludeModels, ",")
-		args = append(args, "-e", fmt.Sprintf("ALLOW_MODELS=%s", includeModels))
+		args = append(args, "-e", fmt.Sprintf("ALLOWED_MODELS=%s", includeModels))
 	}
 
 	if len(gm.config.Gateway.ExcludeModels) > 0 {
 		excludeModels := strings.Join(gm.config.Gateway.ExcludeModels, ",")
-		args = append(args, "-e", fmt.Sprintf("DISALLOW_MODELS=%s", excludeModels))
+		args = append(args, "-e", fmt.Sprintf("DISALLOWED_MODELS=%s", excludeModels))
 	}
 
 	args = append(args, gm.config.Gateway.OCI)
 
+	logger.Info("Starting gateway container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
+	logger.Debug("Starting gateway container with args", "args", args)
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -358,12 +360,12 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 
 	if len(gm.config.Gateway.IncludeModels) > 0 {
 		includeModels := strings.Join(gm.config.Gateway.IncludeModels, ",")
-		cmd.Env = append(cmd.Env, fmt.Sprintf("ALLOW_MODELS=%s", includeModels))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("ALLOWED_MODELS=%s", includeModels))
 	}
 
 	if len(gm.config.Gateway.ExcludeModels) > 0 {
 		excludeModels := strings.Join(gm.config.Gateway.ExcludeModels, ",")
-		cmd.Env = append(cmd.Env, fmt.Sprintf("DISALLOW_MODELS=%s", excludeModels))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("DISALLOWED_MODELS=%s", excludeModels))
 	}
 
 	if err := cmd.Start(); err != nil {
