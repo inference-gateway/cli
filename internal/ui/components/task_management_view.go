@@ -760,7 +760,6 @@ func (t *TaskManagerImpl) writeFooter(b *strings.Builder) {
 }
 
 // truncateString truncates a string to the specified length with ellipsis
-// Uses lipgloss.Width to properly handle ANSI escape codes
 func (t *TaskManagerImpl) truncateString(s string, maxLen int) string {
 	actualWidth := t.styleProvider.GetWidth(s)
 
@@ -787,12 +786,11 @@ func (t *TaskManagerImpl) stripAnsi(text string) string {
 	for i := 0; i < len(text); i++ {
 		if text[i] == '\033' && i+1 < len(text) && text[i+1] == '[' {
 			inEscape = true
-			i++ // Skip the '['
+			i++
 			continue
 		}
 
 		if inEscape {
-			// Look for the terminating character (letters A-Z, a-z)
 			if (text[i] >= 'A' && text[i] <= 'Z') || (text[i] >= 'a' && text[i] <= 'z') {
 				inEscape = false
 			}
