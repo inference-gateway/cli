@@ -35,12 +35,14 @@ type Config struct {
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL     string `yaml:"url" mapstructure:"url"`
-	APIKey  string `yaml:"api_key" mapstructure:"api_key"`
-	Timeout int    `yaml:"timeout" mapstructure:"timeout"`
-	OCI     string `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
-	Run     bool   `yaml:"run" mapstructure:"run"`
-	Docker  bool   `yaml:"docker" mapstructure:"docker"`
+	URL           string   `yaml:"url" mapstructure:"url"`
+	APIKey        string   `yaml:"api_key" mapstructure:"api_key"`
+	Timeout       int      `yaml:"timeout" mapstructure:"timeout"`
+	OCI           string   `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
+	Run           bool     `yaml:"run" mapstructure:"run"`
+	Docker        bool     `yaml:"docker" mapstructure:"docker"`
+	IncludeModels []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
+	ExcludeModels []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -382,12 +384,18 @@ type A2ACacheConfig struct {
 func DefaultConfig() *Config { //nolint:funlen
 	return &Config{
 		Gateway: GatewayConfig{
-			URL:     "http://localhost:8080",
-			APIKey:  "",
-			Timeout: 200,
-			OCI:     "ghcr.io/inference-gateway/inference-gateway:latest",
-			Run:     true,
-			Docker:  true,
+			URL:           "http://localhost:8080",
+			APIKey:        "",
+			Timeout:       200,
+			OCI:           "ghcr.io/inference-gateway/inference-gateway:latest",
+			Run:           true,
+			Docker:        true,
+			IncludeModels: []string{},
+			ExcludeModels: []string{
+				"ollama_cloud/kimi-k2:1t",
+				"ollama_cloud/kimi-k2-thinking",
+				"ollama_cloud/deepseek-v3.1:671b",
+			},
 		},
 		Client: ClientConfig{
 			Timeout: 200,
@@ -819,6 +827,14 @@ func (c *Config) GetProtectedPaths() []string {
 
 func (c *Config) GetTheme() string {
 	return c.Chat.Theme
+}
+
+func (c *Config) GetIncludeModels() []string {
+	return c.Gateway.IncludeModels
+}
+
+func (c *Config) GetExcludeModels() []string {
+	return c.Gateway.ExcludeModels
 }
 
 // IsBashCommandWhitelisted checks if a specific bash command is whitelisted

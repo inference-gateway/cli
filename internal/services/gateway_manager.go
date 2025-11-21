@@ -218,8 +218,20 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 		args = append(args, "-e", fmt.Sprintf("API_KEY=%s", gm.config.Gateway.APIKey))
 	}
 
+	if len(gm.config.Gateway.IncludeModels) > 0 {
+		includeModels := strings.Join(gm.config.Gateway.IncludeModels, ",")
+		args = append(args, "-e", fmt.Sprintf("ALLOWED_MODELS=%s", includeModels))
+	}
+
+	if len(gm.config.Gateway.ExcludeModels) > 0 {
+		excludeModels := strings.Join(gm.config.Gateway.ExcludeModels, ",")
+		args = append(args, "-e", fmt.Sprintf("DISALLOWED_MODELS=%s", excludeModels))
+	}
+
 	args = append(args, gm.config.Gateway.OCI)
 
+	logger.Info("Starting gateway container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
+	logger.Debug("Starting gateway container with args", "args", args)
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -344,6 +356,16 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 
 	if gm.config.Gateway.APIKey != "" {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("API_KEY=%s", gm.config.Gateway.APIKey))
+	}
+
+	if len(gm.config.Gateway.IncludeModels) > 0 {
+		includeModels := strings.Join(gm.config.Gateway.IncludeModels, ",")
+		cmd.Env = append(cmd.Env, fmt.Sprintf("ALLOWED_MODELS=%s", includeModels))
+	}
+
+	if len(gm.config.Gateway.ExcludeModels) > 0 {
+		excludeModels := strings.Join(gm.config.Gateway.ExcludeModels, ",")
+		cmd.Env = append(cmd.Env, fmt.Sprintf("DISALLOWED_MODELS=%s", excludeModels))
 	}
 
 	if err := cmd.Start(); err != nil {
