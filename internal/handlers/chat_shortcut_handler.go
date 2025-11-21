@@ -175,6 +175,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowA2AServersSideEffect()
 	case shortcuts.SideEffectShowA2ATaskManagement:
 		return s.handleShowA2ATaskManagementSideEffect()
+	case shortcuts.SideEffectInitProject:
+		return s.handleInitProjectSideEffect(data)
 	default:
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
@@ -581,5 +583,137 @@ func (s *ChatShortcutHandler) handleShowA2ATaskManagementSideEffect() tea.Msg {
 		Spinner:    hasBackgroundTasks,
 		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,
+	}
+}
+
+func (s *ChatShortcutHandler) handleInitProjectSideEffect(data any) tea.Msg {
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "🔍 Analyzing project and generating AGENTS.md...",
+				Spinner:    true,
+				StatusType: domain.StatusWorking,
+			}
+		},
+		s.performInitProject(data),
+	)()
+}
+
+func (s *ChatShortcutHandler) performInitProject(data any) tea.Cmd {
+	return func() tea.Msg {
+		if data == nil {
+			return domain.SetStatusEvent{
+				Message:    "❌ No init data available",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+		dataMap, ok := data.(map[string]any)
+		if !ok {
+			return domain.SetStatusEvent{
+				Message:    "❌ Invalid init data format",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+		model, ok1 := dataMap["model"].(string)
+		timeout, ok2 := dataMap["timeout"].(int)
+		overwrite, ok3 := dataMap["overwrite"].(bool)
+		ctx, ok4 := dataMap["context"].(context.Context)
+
+		if !ok1 || !ok2 || !ok4 {
+			return domain.SetStatusEvent{
+				Message:    "❌ Missing init parameters",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+		if !ok3 {
+			overwrite = false
+		}
+
+		shortcut, exists := s.handler.shortcutRegistry.Get("init")
+		if !exists {
+			return domain.SetStatusEvent{
+				Message:    "❌ Init shortcut not found",
+				Spinner:    false,
+				StatusType: domain.StatusError,
+			}
+		}
+
+		initShortcut, ok := shortcut.(*shortcuts.InitShortcut)
+		if !ok {
+			return domain.SetStatusEvent{
+				Message:    "❌ Invalid init shortcut type",
+				Spinner:    false,
+				StatusType: domain.StatusError,
+			}
+		}
+
+		result, err := initShortcut.PerformInit(ctx, model, timeout, overwrite)
+		if err != nil {
+			errorEntry := domain.ConversationEntry{
+				Message: sdk.Message{
+					Role:    sdk.Assistant,
+					Content: sdk.NewMessageContent(fmt.Sprintf("❌ **AGENTS.md Generation Failed**\n\n%v", err)),
+				},
+				Model: "",
+				Time:  time.Now(),
+			}
+
+			if addErr := s.handler.conversationRepo.AddMessage(errorEntry); addErr != nil {
+				logger.Error("failed to add init error message", "error", addErr)
+			}
+
+			return tea.Batch(
+				func() tea.Msg {
+					return domain.UpdateHistoryEvent{
+						History: s.handler.conversationRepo.GetMessages(),
+					}
+				},
+				func() tea.Msg {
+					return domain.SetStatusEvent{
+						Message:    fmt.Sprintf("%s AGENTS.md generation failed: %v", icons.CrossMark, err),
+						Spinner:    false,
+						StatusType: domain.StatusDefault,
+					}
+				},
+			)()
+		}
+
+		successEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent(result),
+			},
+			Model: "",
+			Time:  time.Now(),
+		}
+
+		if addErr := s.handler.conversationRepo.AddMessage(successEntry); addErr != nil {
+			logger.Error("failed to add init success message", "error", addErr)
+		}
+
+		return tea.Batch(
+			func() tea.Msg {
+				return domain.UpdateHistoryEvent{
+					History: s.handler.conversationRepo.GetMessages(),
+				}
+			},
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    fmt.Sprintf("%s AGENTS.md generated successfully", icons.CheckMark),
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
+				}
+			},
+		)()
 	}
 }

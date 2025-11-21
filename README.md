@@ -1537,6 +1537,7 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 - `/theme [theme-name]` - Switch chat interface theme or list available themes
 - `/config <show|get|set|reload> [key] [value]` - Manage configuration settings
 - `/compact [format]` - Export conversation to markdown
+- `/init [--timeout <seconds>] [--overwrite]` - Initialize AGENTS.md by analyzing the project
 
 ### Git Shortcuts
 
@@ -1545,6 +1546,25 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 - `/git push [remote] [branch] [flags]` - **NEW**: Push commits to remote repository
 
 The git shortcuts provide intelligent commit message generation using AI when no message is provided with `/git commit`.
+
+### Project Initialization Shortcut
+
+The `/init` shortcut allows you to initialize or regenerate the AGENTS.md file directly from
+the interactive chat mode:
+
+```bash
+/init                          # Generate AGENTS.md using the currently selected model
+/init --timeout 120            # Set a custom timeout (in seconds) for the analysis
+/init --overwrite              # Overwrite existing AGENTS.md file
+/init --timeout 180 --overwrite # Combine options
+```
+
+This is equivalent to running `infer init --model <provider>/<model>` from the command line,
+but uses the model currently selected in the chat session. The shortcut:
+
+- Analyzes your project structure, build tools, and configuration files
+- Creates comprehensive documentation for AI agents
+- Generates an AGENTS.md file with project overview, commands, and conventions
 
 ## User-Defined Shortcuts
 

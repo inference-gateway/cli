@@ -266,6 +266,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config))
 
 	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService))
+	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config, c.agentService, c.toolService, c.modelService))
 
 	if c.config.IsA2AToolsEnabled() {
 		c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut(c.config))
