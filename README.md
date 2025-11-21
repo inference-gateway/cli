@@ -1535,6 +1535,16 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 
 The git shortcuts provide intelligent commit message generation using AI when no message is provided with `/git commit`.
 
+#### Model Selection for AI Commit Messages
+
+When generating AI commit messages, the model is selected using the following priority:
+
+1. **`git.commit_message.model`** - Specific model configured for commit messages
+2. **`agent.model`** - Default agent model from configuration
+3. **Currently selected model** - The model selected via `/switch` in the chat session
+
+This allows you to use `/git commit` without configuring a specific model - it will automatically use the model you're currently chatting with.
+
 ### Project Initialization Shortcut
 
 The `/init` shortcut populates the input field with a configurable prompt for generating an

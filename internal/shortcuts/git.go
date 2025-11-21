@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
@@ -16,13 +17,15 @@ import (
 type GitShortcut struct {
 	commitClient sdk.Client
 	config       *config.Config
+	modelService domain.ModelService
 }
 
 // NewGitShortcut creates a new unified git shortcut
-func NewGitShortcut(commitClient sdk.Client, config *config.Config) *GitShortcut {
+func NewGitShortcut(commitClient sdk.Client, config *config.Config, modelService domain.ModelService) *GitShortcut {
 	return &GitShortcut{
 		commitClient: commitClient,
 		config:       config,
+		modelService: modelService,
 	}
 }
 
@@ -231,8 +234,11 @@ func (g *GitShortcut) generateCommitMessage(ctx context.Context, diff string) (s
 	if model == "" {
 		model = g.config.Agent.Model
 	}
+	if model == "" && g.modelService != nil {
+		model = g.modelService.GetCurrentModel()
+	}
 	if model == "" {
-		return "", fmt.Errorf("no model configured for commit messages (set git.commit_message.model or agent.model)")
+		return "", fmt.Errorf("no model configured for commit messages (set git.commit_message.model, agent.model, or select a model with /switch)")
 	}
 
 	systemPrompt := g.config.Git.CommitMessage.SystemPrompt

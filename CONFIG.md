@@ -190,6 +190,12 @@ compact:
   output_dir: ".infer"
   summary_model: ""
 
+# Git shortcut settings
+git:
+  commit_message:
+    model: ""           # Model to use for AI commit messages (optional)
+    system_prompt: ""   # Custom system prompt for commit message generation
+
 # Storage configuration (for conversation history)
 storage:
   enabled: true
@@ -310,6 +316,24 @@ export INFER_TOOLS_READ_REQUIRE_APPROVAL=true
 2. **Review diffs carefully** before approving file modifications
 3. **Use project configs** to enforce approval requirements across team
 4. **Disable approval only** in trusted, sandboxed environments
+
+## Git Shortcut Configuration
+
+The `/git commit` shortcut can generate AI-powered commit messages. The model used for generation follows this priority:
+
+1. **`git.commit_message.model`** - Specific model for commit messages
+2. **`agent.model`** - Default agent model
+3. **Currently selected model** - Model selected via `/switch` in chat
+
+This means you can use `/git commit` without any model configuration - it will use whatever model you're currently chatting with.
+
+```yaml
+# Optional: Configure a specific model for commit messages
+git:
+  commit_message:
+    model: "anthropic/claude-sonnet-4-20250514"  # Optional
+    system_prompt: ""  # Optional custom prompt
+```
 
 ## Command Usage
 
