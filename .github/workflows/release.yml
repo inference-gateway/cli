@@ -8,8 +8,68 @@ permissions:
   contents: read
 
 jobs:
+  build:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            goos: linux
+            goarch: amd64
+            cgo: "0"
+          - os: ubuntu-24.04
+            goos: linux
+            goarch: arm64
+            cgo: "0"
+          - os: macos-13
+            goos: darwin
+            goarch: amd64
+            cgo: "1"
+          - os: macos-14
+            goos: darwin
+            goarch: arm64
+            cgo: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Get version info
+        id: version
+        run: |
+          VERSION=$(git describe --tags --always --dirty 2>/dev/null || echo "dev")
+          COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: ${{ matrix.cgo }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -ldflags "-X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }} -X github.com/inference-gateway/cli/cmd.commit=${{ steps.version.outputs.commit }} -X github.com/inference-gateway/cli/cmd.date=${{ steps.version.outputs.date }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: infer-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: infer-${{ matrix.goos }}-${{ matrix.goarch }}
+          retention-days: 1
+
   release:
     name: Release
+    needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -63,6 +123,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3.11.1
 
+      - name: Download all artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Prepare release artifacts
+        run: |
+          cd dist
+          chmod +x infer-*
+          sha256sum infer-* > checksums.txt
+          cosign sign-blob --yes --output-signature checksums.txt.sig --output-certificate checksums.txt.pem checksums.txt
+
       - name: Check for existing releases
         id: check_releases
         env:
@@ -79,8 +152,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          flox activate -- task build
-          gh release create v0.1.0 --title "🚀 Version 0.1.0" --notes "Initial release" --generate-notes
+          gh release create v0.1.0 --title "🚀 Version 0.1.0" --notes "Initial release" --generate-notes dist/*
 
       - name: Semantic Release
         if: steps.check_releases.outputs.create_initial == 'false'

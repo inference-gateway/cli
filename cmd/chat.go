@@ -41,11 +41,9 @@ and have a conversational interface with the inference gateway.`,
 
 // StartChatSession starts a chat session
 func StartChatSession(cfg *config.Config, v *viper.Viper) error {
-	err := clipboard.Init()
-	if err != nil {
-		fmt.Printf("⚠️  Warning: Failed to initialize clipboard support: %v\n", err)
-		fmt.Printf("   Image paste functionality will not be available.\n")
-	}
+	// Initialize clipboard silently - if it fails (e.g., CGO_ENABLED=0),
+	// image paste functionality won't be available but that's acceptable
+	_ = clipboard.Init()
 
 	services := container.NewServiceContainer(cfg, v)
 	defer func() {

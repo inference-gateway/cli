@@ -114,15 +114,22 @@ tasks:
       - test
 
   release:build:
-    desc: Build release binaries for multiple platforms
+    desc: Build release binaries for multiple platforms (Linux only - macOS builds require native runners)
     cmds:
       - mkdir -p dist
-      - CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-darwin-amd64 {{.MAIN_PACKAGE}}
-      - CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-darwin-arm64 {{.MAIN_PACKAGE}}
       - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PACKAGE}}
       - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-arm64 {{.MAIN_PACKAGE}}
       - cd dist && sha256sum {{.BINARY_NAME}}-* > checksums.txt
       - cd dist && cosign sign-blob --yes --output-signature checksums.txt.sig --output-certificate checksums.txt.pem checksums.txt
+
+  release:build:darwin:
+    desc: Build macOS binary with CGO enabled (for clipboard image support)
+    vars:
+      GOARCH:
+        sh: go env GOARCH
+    cmds:
+      - mkdir -p dist
+      - CGO_ENABLED=1 GOOS=darwin GOARCH={{.GOARCH}} go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-darwin-{{.GOARCH}} {{.MAIN_PACKAGE}}
 
   container:push:
     desc: Push pre-built container images to registry
