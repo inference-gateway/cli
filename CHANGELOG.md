@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.57.0](https://github.com/inference-gateway/cli/compare/v0.56.2...v0.57.0) (2025-11-21)
+
+### 🚀 Features
+
+* **vision:** Add infrastructure for image attachments ([#216](https://github.com/inference-gateway/cli/issues/216)) ([8d894ea](https://github.com/inference-gateway/cli/commit/8d894ea1bfc74d958af03087dc9d46aecf897750)), closes [#206](https://github.com/inference-gateway/cli/issues/206)
+* **gateway:** Add progress feedback for gateway initialization ([#218](https://github.com/inference-gateway/cli/issues/218)) ([1690aea](https://github.com/inference-gateway/cli/commit/1690aea4be729985d05fe56be3a18201e5df9e80)), closes [#217](https://github.com/inference-gateway/cli/issues/217)
+
+### 🧹 Maintenance
+
+* Improve error handling and add missing ollama cloud api key to .env.example ([2926fdf](https://github.com/inference-gateway/cli/commit/2926fdfef2576ad97d2f0847ad28a84652482ad4))
+
 ## [0.56.2](https://github.com/inference-gateway/cli/compare/v0.56.1...v0.56.2) (2025-11-20)
 
 ### 🧹 Maintenance
