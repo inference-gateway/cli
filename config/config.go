@@ -31,6 +31,7 @@ type Config struct {
 	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
 	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
 	A2A          A2AConfig          `yaml:"a2a" mapstructure:"a2a"`
+	Init         InitConfig         `yaml:"init" mapstructure:"init"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -294,6 +295,11 @@ type ConversationTitleConfig struct {
 // ChatConfig contains chat interface settings
 type ChatConfig struct {
 	Theme string `yaml:"theme" mapstructure:"theme"`
+}
+
+// InitConfig contains settings for the /init shortcut
+type InitConfig struct {
+	Prompt string `yaml:"prompt" mapstructure:"prompt"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -708,6 +714,20 @@ Respond with ONLY the title, no quotes or explanation.`,
 					RequireApproval: &[]bool{false}[0],
 				},
 			},
+		},
+		Init: InitConfig{
+			Prompt: `Please analyze this project and generate a comprehensive AGENTS.md file. Use your available tools to examine the project structure, configuration files, documentation, build systems, and development workflow. Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project.
+
+The AGENTS.md file should include:
+- Project overview and main technologies
+- Architecture and structure
+- Development environment setup
+- Key commands (build, test, lint, run)
+- Testing instructions
+- Project conventions and coding standards
+- Important files and configurations
+
+Write the AGENTS.md file to the project root when you have gathered enough information.`,
 		},
 	}
 }

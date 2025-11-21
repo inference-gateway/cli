@@ -1537,7 +1537,7 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 - `/theme [theme-name]` - Switch chat interface theme or list available themes
 - `/config <show|get|set|reload> [key] [value]` - Manage configuration settings
 - `/compact [format]` - Export conversation to markdown
-- `/init [--timeout <seconds>] [--overwrite]` - Initialize AGENTS.md by analyzing the project
+- `/init` - Set input with project analysis prompt for AGENTS.md generation
 
 ### Git Shortcuts
 
@@ -1549,22 +1549,18 @@ The git shortcuts provide intelligent commit message generation using AI when no
 
 ### Project Initialization Shortcut
 
-The `/init` shortcut allows you to initialize or regenerate the AGENTS.md file directly from
-the interactive chat mode:
+The `/init` shortcut populates the input field with a configurable prompt for generating an
+AGENTS.md file. This allows you to:
 
-```bash
-/init                          # Generate AGENTS.md using the currently selected model
-/init --timeout 120            # Set a custom timeout (in seconds) for the analysis
-/init --overwrite              # Overwrite existing AGENTS.md file
-/init --timeout 180 --overwrite # Combine options
-```
+1. Type `/init` to populate the input with the project analysis prompt
+2. Review and optionally modify the prompt before sending
+3. Press Enter to send the prompt and watch the agent analyze your project interactively
 
-This is equivalent to running `infer init --model <provider>/<model>` from the command line,
-but uses the model currently selected in the chat session. The shortcut:
+The prompt is configurable in your config file under `init.prompt`. The default prompt instructs the agent to:
 
-- Analyzes your project structure, build tools, and configuration files
-- Creates comprehensive documentation for AI agents
-- Generates an AGENTS.md file with project overview, commands, and conventions
+- Analyze your project structure, build tools, and configuration files
+- Create comprehensive documentation for AI agents
+- Generate an AGENTS.md file with project overview, commands, and conventions
 
 ## User-Defined Shortcuts
 

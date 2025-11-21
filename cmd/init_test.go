@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"testing"
@@ -23,29 +22,16 @@ func TestInitializeProject(t *testing.T) {
 			flags: map[string]any{
 				"overwrite": false,
 				"userspace": false,
-				"model":     "",
 			},
 			wantFiles:   []string{".infer/config.yaml", ".infer/.gitignore"},
 			wantNoFiles: []string{"AGENTS.md"},
 			wantErr:     false,
 		},
 		{
-			name: "project initialization with model",
-			flags: map[string]any{
-				"overwrite": false,
-				"userspace": false,
-				"model":     "anthropic/claude-3-haiku",
-			},
-			wantFiles:   []string{".infer/config.yaml", ".infer/.gitignore"},
-			wantNoFiles: []string{},
-			wantErr:     true,
-		},
-		{
 			name: "userspace initialization",
 			flags: map[string]any{
 				"overwrite": true,
 				"userspace": true,
-				"model":     "",
 			},
 			wantFiles:   []string{},
 			wantNoFiles: []string{".infer/config.yaml", ".infer/.gitignore", "AGENTS.md"},
@@ -108,110 +94,58 @@ func TestInitializeProject(t *testing.T) {
 	}
 }
 
-func TestGenerateAgentsMD(t *testing.T) {
-	tests := []struct {
-		name         string
-		userspace    bool
-		model        string
-		expectExists bool
-		wantErr      bool
-	}{
-		{
-			name:         "project AGENTS.md generation without model",
-			userspace:    false,
-			model:        "",
-			expectExists: false,
-			wantErr:      true,
-		},
-		{
-			name:         "project AGENTS.md generation with model",
-			userspace:    false,
-			model:        "anthropic/claude-3-haiku",
-			expectExists: false,
-			wantErr:      true,
-		},
-		{
-			name:         "userspace AGENTS.md generation without model",
-			userspace:    true,
-			model:        "",
-			expectExists: false,
-			wantErr:      true,
-		},
+func TestWriteConfigAsYAMLWithIndent(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "infer-config-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
+
+	configPath := tmpDir + "/.infer/config.yaml"
+
+	err = writeConfigAsYAMLWithIndent(configPath, 2)
+	if err != nil {
+		t.Errorf("writeConfigAsYAMLWithIndent() error = %v", err)
+		return
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			tmpDir, err := os.MkdirTemp("", "infer-agents-md-test-*")
-			if err != nil {
-				t.Fatalf("failed to create temp dir: %v", err)
-			}
-			defer func() { _ = os.RemoveAll(tmpDir) }()
+	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+		t.Errorf("expected config file to be created")
+		return
+	}
 
-			oldWd, err := os.Getwd()
-			if err != nil {
-				t.Fatalf("failed to get working directory: %v", err)
-			}
-			defer func() { _ = os.Chdir(oldWd) }()
+	content, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Errorf("failed to read config file: %v", err)
+		return
+	}
 
-			if err := os.Chdir(tmpDir); err != nil {
-				t.Fatalf("failed to change to temp dir: %v", err)
-			}
-
-			agentsMDPath := filepath.Join(tmpDir, "AGENTS.md")
-
-			err = generateAgentsMD(agentsMDPath, tt.userspace, tt.model, 60, false)
-
-			if (err != nil) != tt.wantErr {
-				t.Errorf("generateAgentsMD() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-
-			if !tt.expectExists {
-				return
-			}
-
-			if _, err := os.Stat(agentsMDPath); os.IsNotExist(err) {
-				t.Errorf("expected AGENTS.md to be created, but it wasn't")
-				return
-			}
-
-			content, err := os.ReadFile(agentsMDPath)
-			if err != nil {
-				t.Errorf("failed to read AGENTS.md: %v", err)
-				return
-			}
-
-			contentStr := string(content)
-			if !strings.Contains(contentStr, "# AGENTS.md") {
-				t.Errorf("AGENTS.md does not contain expected header")
-			}
-
-			if !strings.Contains(contentStr, "## Project Overview") {
-				t.Errorf("AGENTS.md does not contain expected Project Overview section")
-			}
-		})
+	if !strings.Contains(string(content), "gateway:") {
+		t.Errorf("config file does not contain expected gateway section")
 	}
 }
 
-func TestProjectResearchSystemPrompt(t *testing.T) {
-	prompt := projectResearchSystemPrompt()
+func TestCheckFileExists(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "infer-check-test-*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer func() { _ = os.RemoveAll(tmpDir) }()
 
-	expectedKeywords := []string{
-		"project analysis agent",
-		"ANALYSIS OBJECTIVES",
-		"OUTPUT FORMAT",
-		"RESEARCH APPROACH",
-		"IMPORTANT GUIDELINES",
-		"AGENTS.md",
+	// Test non-existent file
+	err = checkFileExists(tmpDir+"/nonexistent.txt", "test file")
+	if err != nil {
+		t.Errorf("checkFileExists() should not error for non-existent file: %v", err)
 	}
 
-	for _, keyword := range expectedKeywords {
-		if !strings.Contains(prompt, keyword) {
-			t.Errorf("project research system prompt missing keyword: %s", keyword)
-		}
+	// Test existing file
+	existingFile := tmpDir + "/existing.txt"
+	if err := os.WriteFile(existingFile, []byte("test"), 0644); err != nil {
+		t.Fatalf("failed to create test file: %v", err)
 	}
 
-	if len(prompt) < 1000 {
-		t.Errorf("project research system prompt seems too short: %d characters", len(prompt))
+	err = checkFileExists(existingFile, "test file")
+	if err == nil {
+		t.Errorf("checkFileExists() should error for existing file")
 	}
 }
