@@ -187,13 +187,13 @@ func NewAgentService(
 // Returns false for known models that don't support tools
 func modelSupportsTools(model string) bool {
 	unsupportedPatterns := []string{
-		"kimi-k2-thinking",     // Ollama Cloud kimi thinking models
-		"kimi-k2",              // General kimi-k2 models
-		"o1-preview",           // OpenAI o1 models don't support tools
-		"o1-mini",              // OpenAI o1-mini
-		"o3-mini",              // OpenAI o3-mini
-		"deepseek-reasoner",    // DeepSeek reasoning models
-		"qwq",                  // Alibaba QwQ reasoning models
+		"kimi-k2-thinking",  // Ollama Cloud kimi thinking models
+		"kimi-k2",           // General kimi-k2 models
+		"o1-preview",        // OpenAI o1 models don't support tools
+		"o1-mini",           // OpenAI o1-mini
+		"o3-mini",           // OpenAI o3-mini
+		"deepseek-reasoner", // DeepSeek reasoning models
+		"qwq",               // Alibaba QwQ reasoning models
 	}
 
 	modelLower := strings.ToLower(model)
