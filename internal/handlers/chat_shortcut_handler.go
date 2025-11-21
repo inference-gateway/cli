@@ -175,6 +175,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowA2AServersSideEffect()
 	case shortcuts.SideEffectShowA2ATaskManagement:
 		return s.handleShowA2ATaskManagementSideEffect()
+	case shortcuts.SideEffectSetInput:
+		return s.handleSetInputSideEffect(data)
 	default:
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
@@ -581,5 +583,20 @@ func (s *ChatShortcutHandler) handleShowA2ATaskManagementSideEffect() tea.Msg {
 		Spinner:    hasBackgroundTasks,
 		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,
+	}
+}
+
+func (s *ChatShortcutHandler) handleSetInputSideEffect(data any) tea.Msg {
+	text, ok := data.(string)
+	if !ok {
+		return domain.SetStatusEvent{
+			Message:    "Invalid input data",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	return domain.SetInputEvent{
+		Text: text,
 	}
 }

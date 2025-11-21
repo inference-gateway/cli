@@ -300,3 +300,19 @@ a2a:
       download_dir: /tmp/downloads
       timeout_seconds: 30
       require_approval: false
+init:
+  prompt: |-
+    Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.
+    Use your available tools to examine configuration files, documentation, build systems, and development workflow.
+    Focus on creating actionable documentation that will help other AI agents understand how to work effectively with this project.
+
+    The AGENTS.md file should include:
+    - Project overview and main technologies
+    - Architecture and structure
+    - Development environment setup
+    - Key commands (build, test, lint, run)
+    - Testing instructions
+    - Project conventions and coding standards
+    - Important files and configurations
+
+    Write the AGENTS.md file to the project root when you have gathered enough information.

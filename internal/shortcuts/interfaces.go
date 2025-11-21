@@ -39,6 +39,7 @@ const (
 	SideEffectStartNewConversation
 	SideEffectShowA2AServers
 	SideEffectShowA2ATaskManagement
+	SideEffectSetInput
 )
 
 // PersistentConversationRepository interface for conversation persistence
