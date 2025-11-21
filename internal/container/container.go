@@ -35,6 +35,7 @@ type ServiceContainer struct {
 	agentService          domain.AgentService
 	toolService           domain.ToolService
 	fileService           domain.FileService
+	imageService          domain.ImageService
 	a2aAgentService       domain.A2AAgentService
 	messageQueue          domain.MessageQueue
 	taskTrackerService    domain.TaskTracker
@@ -144,6 +145,7 @@ func (c *ServiceContainer) initializeFileWriterServices() {
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = services.NewFileService()
+	c.imageService = services.NewImageService()
 	c.messageQueue = services.NewMessageQueueService()
 
 	c.toolRegistry = tools.NewRegistry(c.config)
@@ -318,6 +320,10 @@ func (c *ServiceContainer) GetToolRegistry() *tools.Registry {
 
 func (c *ServiceContainer) GetFileService() domain.FileService {
 	return c.fileService
+}
+
+func (c *ServiceContainer) GetImageService() domain.ImageService {
+	return c.imageService
 }
 
 func (c *ServiceContainer) GetTheme() domain.Theme {

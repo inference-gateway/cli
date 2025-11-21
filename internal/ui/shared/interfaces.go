@@ -3,8 +3,8 @@ package shared
 import (
 	"fmt"
 
-	"github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/domain"
+	tea "github.com/charmbracelet/bubbletea"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // AutocompleteInterface defines the interface for autocomplete functionality
@@ -63,6 +63,9 @@ type InputComponent interface {
 	NavigateHistoryDown()
 	IsAutocompleteVisible() bool
 	TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string)
+	AddImageAttachment(image domain.ImageAttachment)
+	GetImageAttachments() []domain.ImageAttachment
+	ClearImageAttachments()
 	AddToHistory(text string) error
 	SetTextSelectionMode(enabled bool)
 	IsTextSelectionMode() bool

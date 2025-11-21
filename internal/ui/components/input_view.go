@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	clipboard "github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	history "github.com/inference-gateway/cli/internal/ui/history"
@@ -21,12 +20,14 @@ type InputView struct {
 	width               int
 	height              int
 	modelService        domain.ModelService
+	imageService        domain.ImageService
 	stateManager        domain.StateManager
 	Autocomplete        shared.AutocompleteInterface
 	historyManager      *history.HistoryManager
 	isTextSelectionMode bool
 	themeService        domain.ThemeService
 	styleProvider       *styles.Provider
+	imageAttachments    []domain.ImageAttachment
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -54,6 +55,7 @@ func NewInputViewWithConfigDir(modelService domain.ModelService, configDir strin
 		historyManager:      historyManager,
 		isTextSelectionMode: false,
 		themeService:        nil,
+		imageAttachments:    []domain.ImageAttachment{},
 	}
 }
 
@@ -68,6 +70,11 @@ func (iv *InputView) SetStateManager(stateManager domain.StateManager) {
 	iv.stateManager = stateManager
 }
 
+// SetImageService sets the image service for this input view
+func (iv *InputView) SetImageService(imageService domain.ImageService) {
+	iv.imageService = imageService
+}
+
 func (iv *InputView) GetInput() string {
 	return iv.text
 }
@@ -75,6 +82,7 @@ func (iv *InputView) GetInput() string {
 func (iv *InputView) ClearInput() {
 	iv.text = ""
 	iv.cursor = 0
+	iv.imageAttachments = []domain.ImageAttachment{}
 	iv.historyManager.ResetNavigation()
 	if iv.Autocomplete != nil {
 		iv.Autocomplete.Hide()
@@ -377,10 +385,6 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	keyStr := key.String()
 
-	if keyStr == "ctrl+v" {
-		return iv.handlePaste()
-	}
-
 	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
 		if handled, completion := iv.Autocomplete.HandleKey(key); handled {
 			return iv.handleAutocomplete(completion)
@@ -478,35 +482,32 @@ func (iv *InputView) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, comple
 	return false, ""
 }
 
-// handlePaste handles clipboard paste operations
-func (iv *InputView) handlePaste() (tea.Model, tea.Cmd) {
-	clipboardText, err := clipboard.ReadAll()
-	if err != nil {
-		return iv, nil
-	}
-
-	if clipboardText == "" {
-		return iv, nil
-	}
-
-	cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
-	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
-
-	if cleanText != "" {
-		newText := iv.text[:iv.cursor] + cleanText + iv.text[iv.cursor:]
-		newCursor := iv.cursor + len(cleanText)
-
-		iv.text = newText
-		iv.cursor = newCursor
-	}
-
-	return iv, nil
-}
-
 func (iv *InputView) SetTextSelectionMode(enabled bool) {
 	iv.isTextSelectionMode = enabled
 }
 
 func (iv *InputView) IsTextSelectionMode() bool {
 	return iv.isTextSelectionMode
+}
+
+// AddImageAttachment adds an image attachment to the pending list
+func (iv *InputView) AddImageAttachment(image domain.ImageAttachment) {
+	// Assign display name based on current count
+	image.DisplayName = fmt.Sprintf("Image #%d", len(iv.imageAttachments)+1)
+	iv.imageAttachments = append(iv.imageAttachments, image)
+
+	// Insert image token into text at cursor position
+	imageToken := fmt.Sprintf("[%s]", image.DisplayName)
+	iv.text = iv.text[:iv.cursor] + imageToken + iv.text[iv.cursor:]
+	iv.cursor += len(imageToken)
+}
+
+// GetImageAttachments returns the list of pending image attachments
+func (iv *InputView) GetImageAttachments() []domain.ImageAttachment {
+	return iv.imageAttachments
+}
+
+// ClearImageAttachments clears all pending image attachments
+func (iv *InputView) ClearImageAttachments() {
+	iv.imageAttachments = []domain.ImageAttachment{}
 }

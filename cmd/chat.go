@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
 	app "github.com/inference-gateway/cli/internal/app"
+	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
@@ -40,6 +41,12 @@ and have a conversational interface with the inference gateway.`,
 
 // StartChatSession starts a chat session
 func StartChatSession(cfg *config.Config, v *viper.Viper) error {
+	err := clipboard.Init()
+	if err != nil {
+		fmt.Printf("⚠️  Warning: Failed to initialize clipboard support: %v\n", err)
+		fmt.Printf("   Image paste functionality will not be available.\n")
+	}
+
 	services := container.NewServiceContainer(cfg, v)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -70,6 +77,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	config := services.GetConfig()
 	toolService := services.GetToolService()
 	fileService := services.GetFileService()
+	imageService := services.GetImageService()
 	shortcutRegistry := services.GetShortcutRegistry()
 	stateManager := services.GetStateManager()
 	messageQueue := services.GetMessageQueue()
@@ -87,6 +95,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		config,
 		toolService,
 		fileService,
+		imageService,
 		shortcutRegistry,
 		stateManager,
 		messageQueue,

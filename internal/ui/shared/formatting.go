@@ -1,9 +1,12 @@
 package shared
 
 import (
+	"fmt"
 	"strings"
 
-	"github.com/muesli/reflow/wordwrap"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
+	wordwrap "github.com/muesli/reflow/wordwrap"
 )
 
 // WrapText wraps text to fit within the specified width using wordwrap
@@ -69,4 +72,52 @@ func TruncateText(text string, maxLength int) string {
 	}
 
 	return text[:maxLength-3] + "..."
+}
+
+// ExtractTextFromContent extracts text from potentially multimodal message content
+func ExtractTextFromContent(content sdk.Message_Content, images []domain.ImageAttachment) string {
+	simpleStr, err := content.AsMessageContent0()
+	if err == nil {
+		return simpleStr
+	}
+
+	multimodalContent, err := content.AsMessageContent1()
+	if err != nil {
+		if len(images) > 0 {
+			var parts []string
+			for i := range images {
+				parts = append(parts, fmt.Sprintf("[Image %d]", i+1))
+			}
+			return strings.Join(parts, " ")
+		}
+		return "[error extracting content]"
+	}
+
+	var textParts []string
+	imageCount := 0
+	for _, part := range multimodalContent {
+		if textPart, err := part.AsTextContentPart(); err == nil {
+			textParts = append(textParts, textPart.Text)
+			continue
+		}
+
+		if _, err := part.AsImageContentPart(); err == nil {
+			imageCount++
+			textParts = append(textParts, fmt.Sprintf("[Image %d]", imageCount))
+		}
+	}
+
+	if len(textParts) > 0 {
+		return strings.Join(textParts, " ")
+	}
+
+	if len(images) > 0 {
+		var parts []string
+		for i := range images {
+			parts = append(parts, fmt.Sprintf("[Image %d]", i+1))
+		}
+		return strings.Join(parts, " ")
+	}
+
+	return "[empty message]"
 }

@@ -5,10 +5,16 @@ import (
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/ui"
 )
 
 type FakeInputComponent struct {
+	AddImageAttachmentStub        func(domain.ImageAttachment)
+	addImageAttachmentMutex       sync.RWMutex
+	addImageAttachmentArgsForCall []struct {
+		arg1 domain.ImageAttachment
+	}
 	AddToHistoryStub        func(string) error
 	addToHistoryMutex       sync.RWMutex
 	addToHistoryArgsForCall []struct {
@@ -31,6 +37,10 @@ type FakeInputComponent struct {
 	canHandleReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	ClearImageAttachmentsStub        func()
+	clearImageAttachmentsMutex       sync.RWMutex
+	clearImageAttachmentsArgsForCall []struct {
+	}
 	ClearInputStub        func()
 	clearInputMutex       sync.RWMutex
 	clearInputArgsForCall []struct {
@@ -44,6 +54,16 @@ type FakeInputComponent struct {
 	}
 	getCursorReturnsOnCall map[int]struct {
 		result1 int
+	}
+	GetImageAttachmentsStub        func() []domain.ImageAttachment
+	getImageAttachmentsMutex       sync.RWMutex
+	getImageAttachmentsArgsForCall []struct {
+	}
+	getImageAttachmentsReturns struct {
+		result1 []domain.ImageAttachment
+	}
+	getImageAttachmentsReturnsOnCall map[int]struct {
+		result1 []domain.ImageAttachment
 	}
 	GetInputStub        func() string
 	getInputMutex       sync.RWMutex
@@ -151,6 +171,38 @@ type FakeInputComponent struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeInputComponent) AddImageAttachment(arg1 domain.ImageAttachment) {
+	fake.addImageAttachmentMutex.Lock()
+	fake.addImageAttachmentArgsForCall = append(fake.addImageAttachmentArgsForCall, struct {
+		arg1 domain.ImageAttachment
+	}{arg1})
+	stub := fake.AddImageAttachmentStub
+	fake.recordInvocation("AddImageAttachment", []interface{}{arg1})
+	fake.addImageAttachmentMutex.Unlock()
+	if stub != nil {
+		fake.AddImageAttachmentStub(arg1)
+	}
+}
+
+func (fake *FakeInputComponent) AddImageAttachmentCallCount() int {
+	fake.addImageAttachmentMutex.RLock()
+	defer fake.addImageAttachmentMutex.RUnlock()
+	return len(fake.addImageAttachmentArgsForCall)
+}
+
+func (fake *FakeInputComponent) AddImageAttachmentCalls(stub func(domain.ImageAttachment)) {
+	fake.addImageAttachmentMutex.Lock()
+	defer fake.addImageAttachmentMutex.Unlock()
+	fake.AddImageAttachmentStub = stub
+}
+
+func (fake *FakeInputComponent) AddImageAttachmentArgsForCall(i int) domain.ImageAttachment {
+	fake.addImageAttachmentMutex.RLock()
+	defer fake.addImageAttachmentMutex.RUnlock()
+	argsForCall := fake.addImageAttachmentArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeInputComponent) AddToHistory(arg1 string) error {
@@ -275,6 +327,30 @@ func (fake *FakeInputComponent) CanHandleReturnsOnCall(i int, result1 bool) {
 	}{result1}
 }
 
+func (fake *FakeInputComponent) ClearImageAttachments() {
+	fake.clearImageAttachmentsMutex.Lock()
+	fake.clearImageAttachmentsArgsForCall = append(fake.clearImageAttachmentsArgsForCall, struct {
+	}{})
+	stub := fake.ClearImageAttachmentsStub
+	fake.recordInvocation("ClearImageAttachments", []interface{}{})
+	fake.clearImageAttachmentsMutex.Unlock()
+	if stub != nil {
+		fake.ClearImageAttachmentsStub()
+	}
+}
+
+func (fake *FakeInputComponent) ClearImageAttachmentsCallCount() int {
+	fake.clearImageAttachmentsMutex.RLock()
+	defer fake.clearImageAttachmentsMutex.RUnlock()
+	return len(fake.clearImageAttachmentsArgsForCall)
+}
+
+func (fake *FakeInputComponent) ClearImageAttachmentsCalls(stub func()) {
+	fake.clearImageAttachmentsMutex.Lock()
+	defer fake.clearImageAttachmentsMutex.Unlock()
+	fake.ClearImageAttachmentsStub = stub
+}
+
 func (fake *FakeInputComponent) ClearInput() {
 	fake.clearInputMutex.Lock()
 	fake.clearInputArgsForCall = append(fake.clearInputArgsForCall, struct {
@@ -349,6 +425,59 @@ func (fake *FakeInputComponent) GetCursorReturnsOnCall(i int, result1 int) {
 	}
 	fake.getCursorReturnsOnCall[i] = struct {
 		result1 int
+	}{result1}
+}
+
+func (fake *FakeInputComponent) GetImageAttachments() []domain.ImageAttachment {
+	fake.getImageAttachmentsMutex.Lock()
+	ret, specificReturn := fake.getImageAttachmentsReturnsOnCall[len(fake.getImageAttachmentsArgsForCall)]
+	fake.getImageAttachmentsArgsForCall = append(fake.getImageAttachmentsArgsForCall, struct {
+	}{})
+	stub := fake.GetImageAttachmentsStub
+	fakeReturns := fake.getImageAttachmentsReturns
+	fake.recordInvocation("GetImageAttachments", []interface{}{})
+	fake.getImageAttachmentsMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeInputComponent) GetImageAttachmentsCallCount() int {
+	fake.getImageAttachmentsMutex.RLock()
+	defer fake.getImageAttachmentsMutex.RUnlock()
+	return len(fake.getImageAttachmentsArgsForCall)
+}
+
+func (fake *FakeInputComponent) GetImageAttachmentsCalls(stub func() []domain.ImageAttachment) {
+	fake.getImageAttachmentsMutex.Lock()
+	defer fake.getImageAttachmentsMutex.Unlock()
+	fake.GetImageAttachmentsStub = stub
+}
+
+func (fake *FakeInputComponent) GetImageAttachmentsReturns(result1 []domain.ImageAttachment) {
+	fake.getImageAttachmentsMutex.Lock()
+	defer fake.getImageAttachmentsMutex.Unlock()
+	fake.GetImageAttachmentsStub = nil
+	fake.getImageAttachmentsReturns = struct {
+		result1 []domain.ImageAttachment
+	}{result1}
+}
+
+func (fake *FakeInputComponent) GetImageAttachmentsReturnsOnCall(i int, result1 []domain.ImageAttachment) {
+	fake.getImageAttachmentsMutex.Lock()
+	defer fake.getImageAttachmentsMutex.Unlock()
+	fake.GetImageAttachmentsStub = nil
+	if fake.getImageAttachmentsReturnsOnCall == nil {
+		fake.getImageAttachmentsReturnsOnCall = make(map[int]struct {
+			result1 []domain.ImageAttachment
+		})
+	}
+	fake.getImageAttachmentsReturnsOnCall[i] = struct {
+		result1 []domain.ImageAttachment
 	}{result1}
 }
 

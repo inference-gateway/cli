@@ -53,7 +53,7 @@ func (f *ConversationLineFormatter) FormatConversationToLines(conversation []dom
 
 		contentStr, err := entry.Message.Content.AsMessageContent0()
 		if err != nil {
-			contentStr = fmt.Sprintf("[error extracting content: %v]", err)
+			contentStr = ExtractTextFromContent(entry.Message.Content, entry.Images)
 		}
 		content = contentStr
 		message := fmt.Sprintf("%s: %s", role, content)

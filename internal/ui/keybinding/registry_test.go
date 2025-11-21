@@ -38,6 +38,10 @@ func (t *testKeyHandlerContext) GetAgentService() domain.AgentService {
 	return nil
 }
 
+func (t *testKeyHandlerContext) GetImageService() domain.ImageService {
+	return services.NewImageService()
+}
+
 func (t *testKeyHandlerContext) GetConversationView() ui.ConversationRenderer {
 	return &testConversationRenderer{}
 }
@@ -176,6 +180,14 @@ func (t *testInputComponent) SetTextSelectionMode(enabled bool) {
 func (t *testInputComponent) IsTextSelectionMode() bool {
 	return false
 }
+
+func (t *testInputComponent) AddImageAttachment(image domain.ImageAttachment) {}
+
+func (t *testInputComponent) GetImageAttachments() []domain.ImageAttachment {
+	return []domain.ImageAttachment{}
+}
+
+func (t *testInputComponent) ClearImageAttachments() {}
 
 func (t *testInputComponent) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string) {
 	return false, ""

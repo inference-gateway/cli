@@ -31,6 +31,7 @@ type ChatApplication struct {
 	modelService          domain.ModelService
 	toolService           domain.ToolService
 	fileService           domain.FileService
+	imageService          domain.ImageService
 	shortcutRegistry      *shortcuts.Registry
 	themeService          domain.ThemeService
 	toolRegistry          *tools.Registry
@@ -87,6 +88,7 @@ func NewChatApplication(
 	configService *config.Config,
 	toolService domain.ToolService,
 	fileService domain.FileService,
+	imageService domain.ImageService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager domain.StateManager,
 	messageQueue domain.MessageQueue,
@@ -108,6 +110,7 @@ func NewChatApplication(
 		configService:         configService,
 		toolService:           toolService,
 		fileService:           fileService,
+		imageService:          imageService,
 		shortcutRegistry:      shortcutRegistry,
 		themeService:          themeService,
 		toolRegistry:          toolRegistry,
@@ -146,6 +149,7 @@ func NewChatApplication(
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)
+		iv.SetImageService(app.imageService)
 	}
 	app.statusView = ui.CreateStatusView(app.themeService)
 	app.helpBar = ui.CreateHelpBar(app.themeService)
@@ -706,6 +710,7 @@ func (app *ChatApplication) handleThemeCancelled(cmds []tea.Cmd) []tea.Cmd {
 func (app *ChatApplication) updateAllComponentsWithNewTheme() {
 	if inputView, ok := app.inputView.(*components.InputView); ok {
 		inputView.SetThemeService(app.themeService)
+		inputView.SetImageService(app.imageService)
 	}
 
 	styleProvider := styles.NewProvider(app.themeService)
@@ -1049,6 +1054,11 @@ func (app *ChatApplication) GetAgentService() domain.AgentService {
 	return app.agentService
 }
 
+// GetImageService returns the image service
+func (app *ChatApplication) GetImageService() domain.ImageService {
+	return app.imageService
+}
+
 // GetConfig returns the configuration for keybinding context
 func (app *ChatApplication) GetConfig() *config.Config {
 	return app.configService
@@ -1088,7 +1098,9 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	}
 
 	input := strings.TrimSpace(app.inputView.GetInput())
-	if input == "" {
+	images := app.inputView.GetImageAttachments()
+
+	if input == "" && len(images) == 0 {
 		return nil
 	}
 
@@ -1099,6 +1111,7 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	return func() tea.Msg {
 		return domain.UserInputEvent{
 			Content: input,
+			Images:  images,
 		}
 	}
 }

@@ -151,6 +151,10 @@ func (s *SQLiteStorage) SaveConversation(ctx context.Context, conversationID str
 			message["tool_call_id"] = *entry.Message.ToolCallId
 		}
 
+		if len(entry.Images) > 0 {
+			message["images"] = entry.Images
+		}
+
 		messages = append(messages, message)
 	}
 
@@ -243,7 +247,32 @@ func (s *SQLiteStorage) SaveConversation(ctx context.Context, conversationID str
 }
 
 // LoadConversation loads a conversation by its ID using simplified schema
-func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error) { // nolint:gocognit,gocyclo,cyclop
+func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error) {
+	metadata, messagesJSON, optimizedMessagesJSON, err := s.loadConversationMetadata(ctx, conversationID)
+	if err != nil {
+		return nil, metadata, err
+	}
+
+	if optimizedMessagesJSON.Valid && optimizedMessagesJSON.String != "" {
+		metadata.OptimizedMessages = s.parseMessageEntries(optimizedMessagesJSON.String, metadata.UpdatedAt, false)
+	}
+
+	var messages []map[string]any
+	if err := json.Unmarshal([]byte(messagesJSON), &messages); err != nil {
+		return nil, metadata, fmt.Errorf("failed to unmarshal messages: %w", err)
+	}
+
+	entries := make([]domain.ConversationEntry, 0, len(messages))
+	for _, msg := range messages {
+		entry := s.parseMessageEntry(msg, metadata.UpdatedAt, true)
+		entries = append(entries, entry)
+	}
+
+	return entries, metadata, nil
+}
+
+// loadConversationMetadata loads the metadata for a conversation
+func (s *SQLiteStorage) loadConversationMetadata(ctx context.Context, conversationID string) (ConversationMetadata, string, sql.NullString, error) {
 	var metadata ConversationMetadata
 	var messagesJSON, modelsJSON, tagsJSON string
 	var optimizedMessagesJSON sql.NullString
@@ -264,9 +293,9 @@ func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID str
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, metadata, fmt.Errorf("conversation not found: %s", conversationID)
+			return metadata, "", optimizedMessagesJSON, fmt.Errorf("conversation not found: %s", conversationID)
 		}
-		return nil, metadata, fmt.Errorf("failed to load conversation: %w", err)
+		return metadata, "", optimizedMessagesJSON, fmt.Errorf("failed to load conversation: %w", err)
 	}
 
 	metadata.TokenStats = domain.SessionTokenStats{
@@ -291,97 +320,123 @@ func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID str
 		metadata.TitleGenerationTime = &titleGenerationTime.Time
 	}
 
-	if optimizedMessagesJSON.Valid && optimizedMessagesJSON.String != "" { //nolint:nestif
-		var optimizedMessages []map[string]any
-		if err := json.Unmarshal([]byte(optimizedMessagesJSON.String), &optimizedMessages); err == nil {
-			metadata.OptimizedMessages = make([]domain.ConversationEntry, 0, len(optimizedMessages))
-			for _, msg := range optimizedMessages {
-				entry := domain.ConversationEntry{
-					Message: domain.Message{
-						Role:    sdk.MessageRole(msg["role"].(string)),
-						Content: sdk.NewMessageContent(msg["content"].(string)),
-					},
-					Time: metadata.UpdatedAt,
-				}
+	return metadata, messagesJSON, optimizedMessagesJSON, nil
+}
 
-				if hidden, ok := msg["hidden"]; ok && hidden != nil {
-					if hiddenBool, ok := hidden.(bool); ok {
-						entry.Hidden = hiddenBool
-					}
-				}
-
-				if model, ok := msg["model"]; ok && model != nil {
-					if modelStr, ok := model.(string); ok {
-						entry.Model = modelStr
-					}
-				}
-
-				if toolCalls, ok := msg["tool_calls"]; ok && toolCalls != nil {
-					if toolCallsData, err := json.Marshal(toolCalls); err == nil {
-						var parsedToolCalls []sdk.ChatCompletionMessageToolCall
-						if json.Unmarshal(toolCallsData, &parsedToolCalls) == nil {
-							entry.Message.ToolCalls = &parsedToolCalls
-						}
-					}
-				}
-
-				if toolCallID, ok := msg["tool_call_id"]; ok && toolCallID != nil {
-					if id, ok := toolCallID.(string); ok {
-						entry.Message.ToolCallId = &id
-					}
-				}
-
-				metadata.OptimizedMessages = append(metadata.OptimizedMessages, entry)
-			}
-		}
-	}
-
+// parseMessageEntries parses a JSON string of messages into conversation entries
+func (s *SQLiteStorage) parseMessageEntries(messagesJSON string, timestamp time.Time, includeImages bool) []domain.ConversationEntry {
 	var messages []map[string]any
 	if err := json.Unmarshal([]byte(messagesJSON), &messages); err != nil {
-		return nil, metadata, fmt.Errorf("failed to unmarshal messages: %w", err)
+		return nil
 	}
 
 	entries := make([]domain.ConversationEntry, 0, len(messages))
 	for _, msg := range messages {
-		entry := domain.ConversationEntry{
-			Message: domain.Message{
-				Role:    sdk.MessageRole(msg["role"].(string)),
-				Content: sdk.NewMessageContent(msg["content"].(string)),
-			},
-			Time: metadata.UpdatedAt,
-		}
-
-		if hidden, ok := msg["hidden"]; ok && hidden != nil {
-			if hiddenBool, ok := hidden.(bool); ok {
-				entry.Hidden = hiddenBool
-			}
-		}
-
-		if model, ok := msg["model"]; ok && model != nil {
-			if modelStr, ok := model.(string); ok {
-				entry.Model = modelStr
-			}
-		}
-
-		if toolCalls, ok := msg["tool_calls"]; ok && toolCalls != nil {
-			if toolCallsData, err := json.Marshal(toolCalls); err == nil {
-				var parsedToolCalls []sdk.ChatCompletionMessageToolCall
-				if json.Unmarshal(toolCallsData, &parsedToolCalls) == nil {
-					entry.Message.ToolCalls = &parsedToolCalls
-				}
-			}
-		}
-
-		if toolCallID, ok := msg["tool_call_id"]; ok && toolCallID != nil {
-			if id, ok := toolCallID.(string); ok {
-				entry.Message.ToolCallId = &id
-			}
-		}
-
+		entry := s.parseMessageEntry(msg, timestamp, includeImages)
 		entries = append(entries, entry)
 	}
+	return entries
+}
 
-	return entries, metadata, nil
+// parseMessageEntry parses a single message map into a conversation entry
+func (s *SQLiteStorage) parseMessageEntry(msg map[string]any, timestamp time.Time, includeImages bool) domain.ConversationEntry {
+	entry := domain.ConversationEntry{
+		Message: domain.Message{
+			Role: sdk.MessageRole(msg["role"].(string)),
+		},
+		Time: timestamp,
+	}
+
+	s.parseMessageContent(&entry, msg)
+	s.parseMessageMetadata(&entry, msg)
+
+	if includeImages {
+		s.parseMessageImages(&entry, msg)
+	}
+
+	return entry
+}
+
+// parseMessageContent parses the content field supporting both string and multimodal formats
+func (s *SQLiteStorage) parseMessageContent(entry *domain.ConversationEntry, msg map[string]any) {
+	content, ok := msg["content"]
+	if !ok {
+		entry.Message.Content = sdk.NewMessageContent("")
+		return
+	}
+
+	switch v := content.(type) {
+	case string:
+		entry.Message.Content = sdk.NewMessageContent(v)
+	case []any:
+		s.parseMultimodalContent(entry, v)
+	default:
+		entry.Message.Content = sdk.NewMessageContent("")
+	}
+}
+
+// parseMultimodalContent parses array content into SDK content parts
+func (s *SQLiteStorage) parseMultimodalContent(entry *domain.ConversationEntry, contentArray []any) {
+	contentData, err := json.Marshal(contentArray)
+	if err != nil {
+		entry.Message.Content = sdk.NewMessageContent("")
+		return
+	}
+
+	var contentParts []sdk.ContentPart
+	if json.Unmarshal(contentData, &contentParts) == nil {
+		entry.Message.Content = sdk.NewMessageContent(contentParts)
+	} else {
+		entry.Message.Content = sdk.NewMessageContent("")
+	}
+}
+
+// parseMessageMetadata parses optional message metadata fields
+func (s *SQLiteStorage) parseMessageMetadata(entry *domain.ConversationEntry, msg map[string]any) {
+	if hidden, ok := msg["hidden"]; ok && hidden != nil {
+		if hiddenBool, ok := hidden.(bool); ok {
+			entry.Hidden = hiddenBool
+		}
+	}
+
+	if model, ok := msg["model"]; ok && model != nil {
+		if modelStr, ok := model.(string); ok {
+			entry.Model = modelStr
+		}
+	}
+
+	if toolCalls, ok := msg["tool_calls"]; ok && toolCalls != nil {
+		if toolCallsData, err := json.Marshal(toolCalls); err == nil {
+			var parsedToolCalls []sdk.ChatCompletionMessageToolCall
+			if json.Unmarshal(toolCallsData, &parsedToolCalls) == nil {
+				entry.Message.ToolCalls = &parsedToolCalls
+			}
+		}
+	}
+
+	if toolCallID, ok := msg["tool_call_id"]; ok && toolCallID != nil {
+		if id, ok := toolCallID.(string); ok {
+			entry.Message.ToolCallId = &id
+		}
+	}
+}
+
+// parseMessageImages parses image attachments if present
+func (s *SQLiteStorage) parseMessageImages(entry *domain.ConversationEntry, msg map[string]any) {
+	images, ok := msg["images"]
+	if !ok || images == nil {
+		return
+	}
+
+	imagesData, err := json.Marshal(images)
+	if err != nil {
+		return
+	}
+
+	var parsedImages []domain.ImageAttachment
+	if json.Unmarshal(imagesData, &parsedImages) == nil {
+		entry.Images = parsedImages
+	}
 }
 
 // ListConversations returns a list of conversation summaries

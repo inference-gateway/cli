@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	clipboard "github.com/atotto/clipboard"
 	tea "github.com/charmbracelet/bubbletea"
+	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
@@ -497,7 +497,6 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	stateManager := app.GetStateManager()
 
-	// If we're in approval view, reject the approval and transition back
 	if stateManager.GetCurrentView() == domain.ViewStateToolApproval {
 		approvalState := stateManager.GetApprovalUIState()
 		if approvalState != nil && approvalState.ResponseChan != nil {
@@ -569,31 +568,52 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	clipboardText, err := clipboard.ReadAll()
-	if err != nil {
+	inputView := app.GetInputView()
+	if inputView == nil {
 		return nil
 	}
 
+	imageService := app.GetImageService()
+
+	imageData := clipboard.Read(clipboard.FmtImage)
+	if len(imageData) > 0 {
+		imageAttachment, err := imageService.ReadImageFromBinary(imageData, "clipboard-screenshot.png")
+		if err == nil {
+			inputView.AddImageAttachment(*imageAttachment)
+			return nil
+		}
+	}
+
+	clipboardText := string(clipboard.Read(clipboard.FmtText))
 	if clipboardText == "" {
 		return nil
 	}
 
 	cleanText := strings.ReplaceAll(clipboardText, "\r\n", "\n")
 	cleanText = strings.ReplaceAll(cleanText, "\r", "\n")
+	cleanText = strings.TrimSpace(cleanText)
 
-	if cleanText != "" {
-		inputView := app.GetInputView()
-		if inputView != nil {
-			currentText := inputView.GetInput()
-			cursor := inputView.GetCursor()
+	if cleanText == "" {
+		return nil
+	}
 
-			newText := currentText[:cursor] + cleanText + currentText[cursor:]
-			newCursor := cursor + len(cleanText)
-
-			inputView.SetText(newText)
-			inputView.SetCursor(newCursor)
+	if imageService.IsImageFile(cleanText) {
+		imageAttachment, err := imageService.ReadImageFromFile(cleanText)
+		if err == nil {
+			inputView.AddImageAttachment(*imageAttachment)
+			return nil
 		}
 	}
+
+	currentText := inputView.GetInput()
+	cursor := inputView.GetCursor()
+
+	newText := currentText[:cursor] + cleanText + currentText[cursor:]
+	newCursor := cursor + len(cleanText)
+
+	inputView.SetText(newText)
+	inputView.SetCursor(newCursor)
+
 	return nil
 }
 
@@ -602,7 +622,7 @@ func handleCopy(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	if inputView != nil {
 		text := inputView.GetInput()
 		if text != "" {
-			_ = clipboard.WriteAll(text)
+			clipboard.Write(clipboard.FmtText, []byte(text))
 		}
 	}
 	return nil

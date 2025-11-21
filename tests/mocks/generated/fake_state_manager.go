@@ -9,12 +9,6 @@ import (
 )
 
 type FakeStateManager struct {
-	AddQueuedMessageStub        func(domain.Message, string)
-	addQueuedMessageMutex       sync.RWMutex
-	addQueuedMessageArgsForCall []struct {
-		arg1 domain.Message
-		arg2 string
-	}
 	ClearApprovalUIStateStub        func()
 	clearApprovalUIStateMutex       sync.RWMutex
 	clearApprovalUIStateArgsForCall []struct {
@@ -22,10 +16,6 @@ type FakeStateManager struct {
 	ClearFileSelectionStateStub        func()
 	clearFileSelectionStateMutex       sync.RWMutex
 	clearFileSelectionStateArgsForCall []struct {
-	}
-	ClearQueuedMessagesStub        func()
-	clearQueuedMessagesMutex       sync.RWMutex
-	clearQueuedMessagesArgsForCall []struct {
 	}
 	CompleteCurrentToolStub        func(*domain.ToolExecutionResult) error
 	completeCurrentToolMutex       sync.RWMutex
@@ -129,16 +119,6 @@ type FakeStateManager struct {
 	getFileSelectionStateReturnsOnCall map[int]struct {
 		result1 *domain.FileSelectionState
 	}
-	GetQueuedMessagesStub        func() []domain.QueuedMessage
-	getQueuedMessagesMutex       sync.RWMutex
-	getQueuedMessagesArgsForCall []struct {
-	}
-	getQueuedMessagesReturns struct {
-		result1 []domain.QueuedMessage
-	}
-	getQueuedMessagesReturnsOnCall map[int]struct {
-		result1 []domain.QueuedMessage
-	}
 	GetToolExecutionStub        func() *domain.ToolExecutionSession
 	getToolExecutionMutex       sync.RWMutex
 	getToolExecutionArgsForCall []struct {
@@ -158,16 +138,6 @@ type FakeStateManager struct {
 	}
 	isAgentBusyReturnsOnCall map[int]struct {
 		result1 bool
-	}
-	PopQueuedMessageStub        func() *domain.QueuedMessage
-	popQueuedMessageMutex       sync.RWMutex
-	popQueuedMessageArgsForCall []struct {
-	}
-	popQueuedMessageReturns struct {
-		result1 *domain.QueuedMessage
-	}
-	popQueuedMessageReturnsOnCall map[int]struct {
-		result1 *domain.QueuedMessage
 	}
 	SetAgentModeStub        func(domain.AgentMode)
 	setAgentModeMutex       sync.RWMutex
@@ -256,39 +226,6 @@ type FakeStateManager struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeStateManager) AddQueuedMessage(arg1 domain.Message, arg2 string) {
-	fake.addQueuedMessageMutex.Lock()
-	fake.addQueuedMessageArgsForCall = append(fake.addQueuedMessageArgsForCall, struct {
-		arg1 domain.Message
-		arg2 string
-	}{arg1, arg2})
-	stub := fake.AddQueuedMessageStub
-	fake.recordInvocation("AddQueuedMessage", []interface{}{arg1, arg2})
-	fake.addQueuedMessageMutex.Unlock()
-	if stub != nil {
-		fake.AddQueuedMessageStub(arg1, arg2)
-	}
-}
-
-func (fake *FakeStateManager) AddQueuedMessageCallCount() int {
-	fake.addQueuedMessageMutex.RLock()
-	defer fake.addQueuedMessageMutex.RUnlock()
-	return len(fake.addQueuedMessageArgsForCall)
-}
-
-func (fake *FakeStateManager) AddQueuedMessageCalls(stub func(domain.Message, string)) {
-	fake.addQueuedMessageMutex.Lock()
-	defer fake.addQueuedMessageMutex.Unlock()
-	fake.AddQueuedMessageStub = stub
-}
-
-func (fake *FakeStateManager) AddQueuedMessageArgsForCall(i int) (domain.Message, string) {
-	fake.addQueuedMessageMutex.RLock()
-	defer fake.addQueuedMessageMutex.RUnlock()
-	argsForCall := fake.addQueuedMessageArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
-}
-
 func (fake *FakeStateManager) ClearApprovalUIState() {
 	fake.clearApprovalUIStateMutex.Lock()
 	fake.clearApprovalUIStateArgsForCall = append(fake.clearApprovalUIStateArgsForCall, struct {
@@ -335,30 +272,6 @@ func (fake *FakeStateManager) ClearFileSelectionStateCalls(stub func()) {
 	fake.clearFileSelectionStateMutex.Lock()
 	defer fake.clearFileSelectionStateMutex.Unlock()
 	fake.ClearFileSelectionStateStub = stub
-}
-
-func (fake *FakeStateManager) ClearQueuedMessages() {
-	fake.clearQueuedMessagesMutex.Lock()
-	fake.clearQueuedMessagesArgsForCall = append(fake.clearQueuedMessagesArgsForCall, struct {
-	}{})
-	stub := fake.ClearQueuedMessagesStub
-	fake.recordInvocation("ClearQueuedMessages", []interface{}{})
-	fake.clearQueuedMessagesMutex.Unlock()
-	if stub != nil {
-		fake.ClearQueuedMessagesStub()
-	}
-}
-
-func (fake *FakeStateManager) ClearQueuedMessagesCallCount() int {
-	fake.clearQueuedMessagesMutex.RLock()
-	defer fake.clearQueuedMessagesMutex.RUnlock()
-	return len(fake.clearQueuedMessagesArgsForCall)
-}
-
-func (fake *FakeStateManager) ClearQueuedMessagesCalls(stub func()) {
-	fake.clearQueuedMessagesMutex.Lock()
-	defer fake.clearQueuedMessagesMutex.Unlock()
-	fake.ClearQueuedMessagesStub = stub
 }
 
 func (fake *FakeStateManager) CompleteCurrentTool(arg1 *domain.ToolExecutionResult) error {
@@ -905,59 +818,6 @@ func (fake *FakeStateManager) GetFileSelectionStateReturnsOnCall(i int, result1 
 	}{result1}
 }
 
-func (fake *FakeStateManager) GetQueuedMessages() []domain.QueuedMessage {
-	fake.getQueuedMessagesMutex.Lock()
-	ret, specificReturn := fake.getQueuedMessagesReturnsOnCall[len(fake.getQueuedMessagesArgsForCall)]
-	fake.getQueuedMessagesArgsForCall = append(fake.getQueuedMessagesArgsForCall, struct {
-	}{})
-	stub := fake.GetQueuedMessagesStub
-	fakeReturns := fake.getQueuedMessagesReturns
-	fake.recordInvocation("GetQueuedMessages", []interface{}{})
-	fake.getQueuedMessagesMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeStateManager) GetQueuedMessagesCallCount() int {
-	fake.getQueuedMessagesMutex.RLock()
-	defer fake.getQueuedMessagesMutex.RUnlock()
-	return len(fake.getQueuedMessagesArgsForCall)
-}
-
-func (fake *FakeStateManager) GetQueuedMessagesCalls(stub func() []domain.QueuedMessage) {
-	fake.getQueuedMessagesMutex.Lock()
-	defer fake.getQueuedMessagesMutex.Unlock()
-	fake.GetQueuedMessagesStub = stub
-}
-
-func (fake *FakeStateManager) GetQueuedMessagesReturns(result1 []domain.QueuedMessage) {
-	fake.getQueuedMessagesMutex.Lock()
-	defer fake.getQueuedMessagesMutex.Unlock()
-	fake.GetQueuedMessagesStub = nil
-	fake.getQueuedMessagesReturns = struct {
-		result1 []domain.QueuedMessage
-	}{result1}
-}
-
-func (fake *FakeStateManager) GetQueuedMessagesReturnsOnCall(i int, result1 []domain.QueuedMessage) {
-	fake.getQueuedMessagesMutex.Lock()
-	defer fake.getQueuedMessagesMutex.Unlock()
-	fake.GetQueuedMessagesStub = nil
-	if fake.getQueuedMessagesReturnsOnCall == nil {
-		fake.getQueuedMessagesReturnsOnCall = make(map[int]struct {
-			result1 []domain.QueuedMessage
-		})
-	}
-	fake.getQueuedMessagesReturnsOnCall[i] = struct {
-		result1 []domain.QueuedMessage
-	}{result1}
-}
-
 func (fake *FakeStateManager) GetToolExecution() *domain.ToolExecutionSession {
 	fake.getToolExecutionMutex.Lock()
 	ret, specificReturn := fake.getToolExecutionReturnsOnCall[len(fake.getToolExecutionArgsForCall)]
@@ -1061,59 +921,6 @@ func (fake *FakeStateManager) IsAgentBusyReturnsOnCall(i int, result1 bool) {
 	}
 	fake.isAgentBusyReturnsOnCall[i] = struct {
 		result1 bool
-	}{result1}
-}
-
-func (fake *FakeStateManager) PopQueuedMessage() *domain.QueuedMessage {
-	fake.popQueuedMessageMutex.Lock()
-	ret, specificReturn := fake.popQueuedMessageReturnsOnCall[len(fake.popQueuedMessageArgsForCall)]
-	fake.popQueuedMessageArgsForCall = append(fake.popQueuedMessageArgsForCall, struct {
-	}{})
-	stub := fake.PopQueuedMessageStub
-	fakeReturns := fake.popQueuedMessageReturns
-	fake.recordInvocation("PopQueuedMessage", []interface{}{})
-	fake.popQueuedMessageMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeStateManager) PopQueuedMessageCallCount() int {
-	fake.popQueuedMessageMutex.RLock()
-	defer fake.popQueuedMessageMutex.RUnlock()
-	return len(fake.popQueuedMessageArgsForCall)
-}
-
-func (fake *FakeStateManager) PopQueuedMessageCalls(stub func() *domain.QueuedMessage) {
-	fake.popQueuedMessageMutex.Lock()
-	defer fake.popQueuedMessageMutex.Unlock()
-	fake.PopQueuedMessageStub = stub
-}
-
-func (fake *FakeStateManager) PopQueuedMessageReturns(result1 *domain.QueuedMessage) {
-	fake.popQueuedMessageMutex.Lock()
-	defer fake.popQueuedMessageMutex.Unlock()
-	fake.PopQueuedMessageStub = nil
-	fake.popQueuedMessageReturns = struct {
-		result1 *domain.QueuedMessage
-	}{result1}
-}
-
-func (fake *FakeStateManager) PopQueuedMessageReturnsOnCall(i int, result1 *domain.QueuedMessage) {
-	fake.popQueuedMessageMutex.Lock()
-	defer fake.popQueuedMessageMutex.Unlock()
-	fake.PopQueuedMessageStub = nil
-	if fake.popQueuedMessageReturnsOnCall == nil {
-		fake.popQueuedMessageReturnsOnCall = make(map[int]struct {
-			result1 *domain.QueuedMessage
-		})
-	}
-	fake.popQueuedMessageReturnsOnCall[i] = struct {
-		result1 *domain.QueuedMessage
 	}{result1}
 }
 

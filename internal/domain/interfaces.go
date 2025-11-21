@@ -19,6 +19,14 @@ const (
 	RoleSystem    = sdk.System
 )
 
+// ImageAttachment represents an image attachment in a message
+type ImageAttachment struct {
+	Data        string `json:"data"`
+	MimeType    string `json:"mime_type"`
+	Filename    string `json:"filename,omitempty"`
+	DisplayName string `json:"display_name"`
+}
+
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
 	Message       Message              `json:"message"`
@@ -26,6 +34,7 @@ type ConversationEntry struct {
 	Time          time.Time            `json:"time"`
 	ToolExecution *ToolExecutionResult `json:"tool_execution,omitempty"`
 	Hidden        bool                 `json:"hidden,omitempty"`
+	Images        []ImageAttachment    `json:"images,omitempty"`
 }
 
 // ExportFormat defines the format for exporting conversations
@@ -165,12 +174,6 @@ type StateManager interface {
 	GetApprovalUIState() *ApprovalUIState
 	SetApprovalSelectedIndex(index int)
 	ClearApprovalUIState()
-
-	// Message queue management (DEPRECATED - use MessageQueue service instead)
-	AddQueuedMessage(message Message, requestID string)
-	PopQueuedMessage() *QueuedMessage
-	ClearQueuedMessages()
-	GetQueuedMessages() []QueuedMessage
 }
 
 // FileService handles file operations
@@ -180,6 +183,18 @@ type FileService interface {
 	ReadFileLines(path string, startLine, endLine int) (string, error)
 	ValidateFile(path string) error
 	GetFileInfo(path string) (FileInfo, error)
+}
+
+// ImageService handles image operations including loading and encoding
+type ImageService interface {
+	// ReadImageFromFile reads an image from a file path and returns it as a base64 attachment
+	ReadImageFromFile(filePath string) (*ImageAttachment, error)
+	// ReadImageFromBinary reads an image from binary data and returns it as a base64 attachment
+	ReadImageFromBinary(imageData []byte, filename string) (*ImageAttachment, error)
+	// CreateDataURL creates a data URL from an image attachment
+	CreateDataURL(attachment *ImageAttachment) string
+	// IsImageFile checks if a file is a supported image format
+	IsImageFile(filePath string) bool
 }
 
 // FileInfo contains file metadata
