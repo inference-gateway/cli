@@ -202,7 +202,7 @@ func (g *GitShortcut) handleSmartCommit(ctx context.Context, args []string) (Sho
 }
 
 // GenerateCommitCommand generates an AI commit message and returns the git commit command string
-// for the user to review and execute. The command is prefixed with "!" to enable bash mode.
+// for the user to review and execute.
 func (g *GitShortcut) GenerateCommitCommand(ctx context.Context, args []string, diff string) (string, error) {
 	commitMessage, err := g.generateCommitMessage(ctx, diff)
 	if err != nil {
@@ -223,7 +223,7 @@ func (g *GitShortcut) GenerateCommitCommand(ctx context.Context, args []string, 
 	return command, nil
 }
 
-// generateCommitMessage uses AI to generate a commit message from the diff
+// generateCommitMessage generates a commit message from the diff using AI
 func (g *GitShortcut) generateCommitMessage(ctx context.Context, diff string) (string, error) {
 	if g.commitClient == nil {
 		return "", fmt.Errorf("commit client not available")

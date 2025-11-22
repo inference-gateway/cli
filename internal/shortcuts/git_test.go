@@ -261,30 +261,25 @@ func TestGitShortcut_ModelFallbackWithNilModelService(t *testing.T) {
 		},
 	}
 
-	// When modelService is nil, it should still work (just can't fallback to current model)
 	shortcut := NewGitShortcut(nil, cfg, nil)
 
-	// Verify the shortcut is created without panic
 	if shortcut == nil {
 		t.Fatal("Expected shortcut to be created, got nil")
 	}
 
-	// Verify modelService is nil
 	if shortcut.modelService != nil {
 		t.Error("Expected modelService to be nil")
 	}
 
-	// Test the model selection logic with nil modelService
 	model := cfg.Git.CommitMessage.Model
 	if model == "" {
 		model = cfg.Agent.Model
 	}
-	// shortcut.modelService is nil, so this block won't execute
+
 	if model == "" && shortcut.modelService != nil {
 		model = shortcut.modelService.GetCurrentModel()
 	}
 
-	// With no config and nil modelService, model should be empty
 	if model != "" {
 		t.Errorf("Expected empty model with nil modelService and no config, got %s", model)
 	}
