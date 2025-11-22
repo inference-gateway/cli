@@ -716,6 +716,10 @@ func (app *ChatApplication) updateAllComponentsWithNewTheme() {
 		inputView.SetImageService(app.imageService)
 	}
 
+	if conversationView, ok := app.conversationView.(*components.ConversationView); ok {
+		conversationView.RefreshTheme()
+	}
+
 	styleProvider := styles.NewProvider(app.themeService)
 	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, styleProvider)
 }
@@ -1148,4 +1152,9 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 // ToggleToolResultExpansion toggles tool result expansion
 func (app *ChatApplication) ToggleToolResultExpansion() {
 	app.toggleToolResultExpansion()
+}
+
+// ToggleRawFormat toggles between raw and rendered markdown display
+func (app *ChatApplication) ToggleRawFormat() {
+	app.conversationView.ToggleRawFormat()
 }

@@ -619,3 +619,9 @@ func (p *Provider) GetSpinnerStyle() lipgloss.Style {
 	theme := p.themeService.GetCurrentTheme()
 	return lipgloss.NewStyle().Foreground(lipgloss.Color(theme.GetStatusColor()))
 }
+
+// GetThemeService returns the underlying theme service for advanced integrations
+// This is needed for components like the markdown renderer that need direct theme access
+func (p *Provider) GetThemeService() domain.ThemeService {
+	return p.themeService
+}

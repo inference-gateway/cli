@@ -11,6 +11,7 @@ import (
 	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	markdown "github.com/inference-gateway/cli/internal/ui/markdown"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
@@ -31,11 +32,19 @@ type ConversationView struct {
 	styleProvider       *styles.Provider
 	isStreaming         bool
 	toolCallRenderer    *ToolCallRenderer
+	markdownRenderer    *markdown.Renderer
+	rawFormat           bool
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	vp := viewport.New(80, 20)
 	vp.SetContent("")
+
+	var mdRenderer *markdown.Renderer
+	if themeService := styleProvider.GetThemeService(); themeService != nil {
+		mdRenderer = markdown.NewRenderer(themeService, 80)
+	}
+
 	return &ConversationView{
 		conversation:        []domain.ConversationEntry{},
 		Viewport:            vp,
@@ -46,6 +55,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 		lineFormatter:       shared.NewConversationLineFormatter(80, nil),
 		plainTextLines:      []string{},
 		styleProvider:       styleProvider,
+		markdownRenderer:    mdRenderer,
 	}
 }
 
@@ -111,6 +121,25 @@ func (cv *ConversationView) IsToolResultExpanded(index int) bool {
 	return false
 }
 
+// ToggleRawFormat toggles between raw and rendered markdown display
+func (cv *ConversationView) ToggleRawFormat() {
+	cv.rawFormat = !cv.rawFormat
+	cv.updateViewportContent()
+}
+
+// IsRawFormat returns true if raw format (no markdown rendering) is enabled
+func (cv *ConversationView) IsRawFormat() bool {
+	return cv.rawFormat
+}
+
+// RefreshTheme rebuilds the markdown renderer with current theme colors
+func (cv *ConversationView) RefreshTheme() {
+	if cv.markdownRenderer != nil {
+		cv.markdownRenderer.RefreshTheme()
+	}
+	cv.updateViewportContent()
+}
+
 // GetPlainTextLines returns the conversation as plain text lines for selection mode
 func (cv *ConversationView) GetPlainTextLines() []string {
 	return cv.plainTextLines
@@ -128,6 +157,9 @@ func (cv *ConversationView) SetWidth(width int) {
 	cv.Viewport.Width = width
 	if cv.lineFormatter != nil {
 		cv.lineFormatter.SetWidth(width)
+	}
+	if cv.markdownRenderer != nil {
+		cv.markdownRenderer.SetWidth(width)
 	}
 }
 
@@ -257,10 +289,16 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 	content := contentStr
-	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
+
+	var formattedContent string
+	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.isStreaming && !cv.rawFormat {
+		formattedContent = cv.markdownRenderer.Render(content)
+	} else {
+		formattedContent = shared.FormatResponsiveMessage(content, cv.width)
+	}
 
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
-	message := roleStyled + " " + wrappedContent
+	message := roleStyled + " " + formattedContent
 
 	return message + "\n"
 }
@@ -275,8 +313,13 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 		contentStr = ""
 	}
 	if contentStr != "" {
-		wrappedContent := shared.FormatResponsiveMessage(contentStr, cv.width)
-		result.WriteString(roleStyled + " " + wrappedContent + "\n")
+		var formattedContent string
+		if cv.markdownRenderer != nil && !cv.rawFormat {
+			formattedContent = cv.markdownRenderer.Render(contentStr)
+		} else {
+			formattedContent = shared.FormatResponsiveMessage(contentStr, cv.width)
+		}
+		result.WriteString(roleStyled + " " + formattedContent + "\n")
 	} else {
 		result.WriteString(roleStyled + "\n")
 	}
@@ -341,7 +384,7 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 		if cv.toolFormatter != nil && cv.toolFormatter.ShouldAlwaysExpandTool(entry.ToolExecution.ToolName) {
 			helpText = ""
 		} else {
-			helpText = "\n💡 Press Ctrl+R to collapse all tool calls"
+			helpText = "\nPress ctrl+o to collapse all tool calls"
 		}
 
 		return content + helpText
@@ -351,13 +394,13 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 	wrappedContent := shared.FormatResponsiveMessage(contentStr, cv.width)
-	return wrappedContent + "\n\n💡 Press Ctrl+R to collapse all tool calls"
+	return wrappedContent + "\n\n💡 Press Ctrl+O to collapse all tool calls"
 }
 
 func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
 		content := cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
-		return content + "\n💡 Press Ctrl+R to expand all tool calls"
+		return content + "\n💡 Press Ctrl+O to expand all tool calls"
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
@@ -365,7 +408,7 @@ func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry)
 	}
 	content := cv.formatToolContentCompact(contentStr)
 	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
-	return wrappedContent + "\n💡 Press Ctrl+R to expand all tool calls"
+	return wrappedContent + "\n💡 Press Ctrl+O to expand all tool calls"
 }
 
 func (cv *ConversationView) formatToolContentCompact(content string) string {

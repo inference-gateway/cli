@@ -487,7 +487,7 @@ func (t *TodoWriteTool) formatTodoData(data any) string {
 	}
 
 	if todoResult.InProgressTask != "" {
-		workingText := colors.CreateColoredText("🚧 Currently working on:", colors.AccentColor)
+		workingText := colors.CreateColoredText("Currently working on:", colors.AccentColor)
 		taskText := colors.CreateColoredText(todoResult.InProgressTask, colors.SuccessColor)
 		output.WriteString(fmt.Sprintf("\n%s %s\n", workingText, taskText))
 	}

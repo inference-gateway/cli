@@ -58,6 +58,9 @@ func (t *testKeyHandlerContext) ToggleToolResultExpansion() {
 	t.expandToggleCalls++
 }
 
+func (t *testKeyHandlerContext) ToggleRawFormat() {
+}
+
 func (t *testKeyHandlerContext) SendMessage() tea.Cmd {
 	t.messageSentCalls++
 	return nil
@@ -104,6 +107,12 @@ func (t *testConversationRenderer) ToggleToolResultExpansion(index int) {}
 func (t *testConversationRenderer) ToggleAllToolResultsExpansion() {}
 
 func (t *testConversationRenderer) IsToolResultExpanded(index int) bool {
+	return false
+}
+
+func (t *testConversationRenderer) ToggleRawFormat() {}
+
+func (t *testConversationRenderer) IsRawFormat() bool {
 	return false
 }
 
@@ -281,11 +290,18 @@ func TestKeyResolution(t *testing.T) {
 		t.Errorf("Expected ctrl+c to resolve to 'quit', got %s", action.ID)
 	}
 
+	action = registry.Resolve("ctrl+o", mockContext)
+	if action == nil {
+		t.Fatal("Expected ctrl+o to resolve to an action")
+	} else if action.ID != "toggle_tool_expansion" {
+		t.Errorf("Expected ctrl+o to resolve to 'toggle_tool_expansion', got %s", action.ID)
+	}
+
 	action = registry.Resolve("ctrl+r", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+r to resolve to an action")
-	} else if action.ID != "toggle_tool_expansion" {
-		t.Errorf("Expected ctrl+r to resolve to 'toggle_tool_expansion', got %s", action.ID)
+	} else if action.ID != "toggle_raw_format" {
+		t.Errorf("Expected ctrl+r to resolve to 'toggle_raw_format', got %s", action.ID)
 	}
 
 	action = registry.Resolve("ctrl+z", mockContext)
@@ -347,9 +363,9 @@ func TestActionHandlers(t *testing.T) {
 		}
 	}
 
-	action = registry.Resolve("ctrl+r", mockContext)
+	action = registry.Resolve("ctrl+o", mockContext)
 	if action == nil {
-		t.Fatal("Expected ctrl+r to resolve to toggle action")
+		t.Fatal("Expected ctrl+o to resolve to toggle action")
 	} else {
 		initialCallCount := mockContext.expandToggleCalls
 		_ = action.Handler(mockContext, tea.KeyMsg{})
@@ -374,12 +390,16 @@ func TestHelpShortcutGeneration(t *testing.T) {
 
 	foundQuit := false
 	foundToggle := false
+	foundRaw := false
 	for _, shortcut := range shortcuts {
 		if shortcut.Key == "ctrl+c" && shortcut.Description == "exit application" {
 			foundQuit = true
 		}
-		if shortcut.Key == "ctrl+r" && shortcut.Description == "expand/collapse tool results" {
+		if shortcut.Key == "ctrl+o" && shortcut.Description == "expand/collapse tool results" {
 			foundToggle = true
+		}
+		if shortcut.Key == "ctrl+r" && shortcut.Description == "toggle raw/rendered markdown" {
+			foundRaw = true
 		}
 	}
 
@@ -388,6 +408,9 @@ func TestHelpShortcutGeneration(t *testing.T) {
 	}
 	if !foundToggle {
 		t.Error("Expected toggle shortcut in help")
+	}
+	if !foundRaw {
+		t.Error("Expected raw format shortcut in help")
 	}
 }
 
