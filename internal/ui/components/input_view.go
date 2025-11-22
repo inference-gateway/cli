@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
@@ -22,6 +23,7 @@ type InputView struct {
 	modelService        domain.ModelService
 	imageService        domain.ImageService
 	stateManager        domain.StateManager
+	configService       *config.Config
 	Autocomplete        shared.AutocompleteInterface
 	historyManager      *history.HistoryManager
 	isTextSelectionMode bool
@@ -68,6 +70,11 @@ func (iv *InputView) SetThemeService(themeService domain.ThemeService) {
 // SetStateManager sets the state manager for this input view
 func (iv *InputView) SetStateManager(stateManager domain.StateManager) {
 	iv.stateManager = stateManager
+}
+
+// SetConfigService sets the config service for this input view
+func (iv *InputView) SetConfigService(configService *config.Config) {
+	iv.configService = configService
 }
 
 // SetImageService sets the image service for this input view
@@ -338,14 +345,21 @@ func (iv *InputView) shouldShowModelDisplay(isBashMode bool, isToolsMode bool) b
 }
 
 func (iv *InputView) buildModelDisplayText(currentModel string) string {
-	displayText := fmt.Sprintf("  Model: %s", currentModel)
+	parts := []string{fmt.Sprintf("Model: %s", currentModel)}
 
 	if iv.themeService != nil {
 		currentTheme := iv.themeService.GetCurrentThemeName()
-		displayText = fmt.Sprintf("  Model: %s • Theme: %s", currentModel, currentTheme)
+		parts = append(parts, fmt.Sprintf("Theme: %s", currentTheme))
 	}
 
-	return displayText
+	if iv.configService != nil {
+		maxTokens := iv.configService.Agent.MaxTokens
+		if maxTokens > 0 {
+			parts = append(parts, fmt.Sprintf("Max Output: %d", maxTokens))
+		}
+	}
+
+	return "  " + strings.Join(parts, " • ")
 }
 
 func (iv *InputView) addModelWithModeIndicator(components []string, displayText string, modeIndicator string) []string {

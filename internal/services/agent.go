@@ -401,6 +401,9 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			availableTools := s.toolService.ListToolsForMode(mode)
 
 			client := s.client.
+				WithOptions(&sdk.CreateChatCompletionRequest{
+					MaxTokens: &s.maxTokens,
+				}).
 				WithMiddlewareOptions(&sdk.MiddlewareOptions{
 					SkipMCP: true,
 				})
@@ -840,13 +843,10 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 
-	// Validate JSON completeness before attempting to unmarshal
-	// This catches truncated JSON from LLMs that hit output token limits
 	if !isCompleteJSON(tc.Function.Arguments) {
 		incompleteErr := fmt.Errorf(
-			"tool arguments are incomplete JSON (length: %d chars) - the model may have hit output token limits while generating the content. "+
-				"For large files, use the Edit tool to write content in smaller incremental sections, or use a model with higher output limits",
-			len(tc.Function.Arguments),
+			"TOOL FAILED: %s - content was truncated due to output token limits (received %d chars of incomplete JSON). %s",
+			tc.Function.Name, len(tc.Function.Arguments), getTruncationRecoveryGuidance(tc.Function.Name),
 		)
 		logger.Error("incomplete JSON in tool arguments",
 			"tool", tc.Function.Name,
