@@ -406,11 +406,11 @@ func (s *ChatShortcutHandler) performCommitGeneration(data any) tea.Cmd {
 			}
 		}
 
-		var result string
+		var command string
 		var err error
 
 		if gitShortcut, ok := dataMap["gitShortcut"].(*shortcuts.GitShortcut); ok {
-			result, err = gitShortcut.PerformCommit(ctx, args, diff)
+			command, err = gitShortcut.GenerateCommitCommand(ctx, args, diff)
 		} else {
 			return domain.SetStatusEvent{
 				Message:    "❌ Missing or invalid git shortcut data",
@@ -422,7 +422,7 @@ func (s *ChatShortcutHandler) performCommitGeneration(data any) tea.Cmd {
 			errorEntry := domain.ConversationEntry{
 				Message: sdk.Message{
 					Role:    sdk.Assistant,
-					Content: sdk.NewMessageContent(fmt.Sprintf("❌ **Commit Failed**\n\n%v", err)),
+					Content: sdk.NewMessageContent(fmt.Sprintf("❌ **Commit Message Generation Failed**\n\n%v", err)),
 				},
 				Model: "",
 				Time:  time.Now(),
@@ -440,7 +440,7 @@ func (s *ChatShortcutHandler) performCommitGeneration(data any) tea.Cmd {
 				},
 				func() tea.Msg {
 					return domain.SetStatusEvent{
-						Message:    fmt.Sprintf("%s Commit failed: %v", icons.CrossMark, err),
+						Message:    fmt.Sprintf("%s Commit message generation failed: %v", icons.CrossMark, err),
 						Spinner:    false,
 						StatusType: domain.StatusDefault,
 					}
@@ -448,30 +448,19 @@ func (s *ChatShortcutHandler) performCommitGeneration(data any) tea.Cmd {
 			)()
 		}
 
-		successEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(result),
-			},
-			Model: "",
-			Time:  time.Now(),
-		}
-
-		if addErr := s.handler.conversationRepo.AddMessage(successEntry); addErr != nil {
-			logger.Error("failed to add commit success message", "error", addErr)
-		}
-
+		// Return SetInputEvent to place the command in the input field with bash mode prefix
+		// The user can review and modify the commit message before pressing Enter to execute
 		return tea.Batch(
 			func() tea.Msg {
-				return domain.UpdateHistoryEvent{
-					History: s.handler.conversationRepo.GetMessages(),
+				return domain.SetStatusEvent{
+					Message:    fmt.Sprintf("%s AI commit message generated - review and press Enter to commit", icons.CheckMark),
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
 				}
 			},
 			func() tea.Msg {
-				return domain.SetStatusEvent{
-					Message:    fmt.Sprintf("%s AI commit completed successfully", icons.CheckMark),
-					Spinner:    false,
-					StatusType: domain.StatusDefault,
+				return domain.SetInputEvent{
+					Text: command,
 				}
 			},
 		)()

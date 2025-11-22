@@ -201,8 +201,9 @@ func (g *GitShortcut) handleSmartCommit(ctx context.Context, args []string) (Sho
 	}, nil
 }
 
-// PerformCommit executes the actual commit with AI-generated message (called by side effect handler)
-func (g *GitShortcut) PerformCommit(ctx context.Context, args []string, diff string) (string, error) {
+// GenerateCommitCommand generates an AI commit message and returns the git commit command string
+// for the user to review and execute. The command is prefixed with "!" to enable bash mode.
+func (g *GitShortcut) GenerateCommitCommand(ctx context.Context, args []string, diff string) (string, error) {
 	commitMessage, err := g.generateCommitMessage(ctx, diff)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate commit message: %w", err)
@@ -212,16 +213,16 @@ func (g *GitShortcut) PerformCommit(ctx context.Context, args []string, diff str
 		return "", fmt.Errorf("generated commit message is empty")
 	}
 
-	commitArgs := append([]string{"git", "commit", "-m", commitMessage}, args...)
-	commitCmd := exec.CommandContext(ctx, commitArgs[0], commitArgs[1:]...)
-	commitOutput, err := commitCmd.CombinedOutput()
+	// Escape any double quotes in the commit message for shell safety
+	escapedMessage := strings.ReplaceAll(commitMessage, `"`, `\"`)
 
-	if err != nil {
-		return "", fmt.Errorf("commit failed: %v\n\nOutput:\n%s\n\nGenerated message was: %s", err, string(commitOutput), commitMessage)
+	// Build the command with additional args if provided
+	command := fmt.Sprintf(`!git commit -m "%s"`, escapedMessage)
+	if len(args) > 0 {
+		command = fmt.Sprintf(`%s %s`, command, strings.Join(args, " "))
 	}
 
-	return fmt.Sprintf("%s %s**AI-Generated Commit Created**%s\n\n**Message:** %s\n\n```\n%s\n```",
-		icons.StyledCheckMark(), colors.Blue, colors.Reset, commitMessage, strings.TrimSpace(string(commitOutput))), nil
+	return command, nil
 }
 
 // generateCommitMessage uses AI to generate a commit message from the diff
