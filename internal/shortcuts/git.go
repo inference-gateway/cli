@@ -213,10 +213,8 @@ func (g *GitShortcut) GenerateCommitCommand(ctx context.Context, args []string, 
 		return "", fmt.Errorf("generated commit message is empty")
 	}
 
-	// Escape any double quotes in the commit message for shell safety
 	escapedMessage := strings.ReplaceAll(commitMessage, `"`, `\"`)
 
-	// Build the command with additional args if provided
 	command := fmt.Sprintf(`!git commit -m "%s"`, escapedMessage)
 	if len(args) > 0 {
 		command = fmt.Sprintf(`%s %s`, command, strings.Join(args, " "))

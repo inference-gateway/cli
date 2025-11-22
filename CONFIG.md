@@ -325,7 +325,8 @@ The `/git commit` shortcut can generate AI-powered commit messages. The model us
 2. **`agent.model`** - Default agent model
 3. **Currently selected model** - Model selected via `/switch` in chat
 
-This means you can use `/git commit` without any model configuration - it will use whatever model you're currently chatting with.
+This means you can use `/git commit` without any model configuration -
+it will use whatever model you're currently chatting with.
 
 ```yaml
 # Optional: Configure a specific model for commit messages

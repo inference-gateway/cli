@@ -448,8 +448,6 @@ func (s *ChatShortcutHandler) performCommitGeneration(data any) tea.Cmd {
 			)()
 		}
 
-		// Return SetInputEvent to place the command in the input field with bash mode prefix
-		// The user can review and modify the commit message before pressing Enter to execute
 		return tea.Batch(
 			func() tea.Msg {
 				return domain.SetStatusEvent{

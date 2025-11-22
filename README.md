@@ -1543,7 +1543,8 @@ When generating AI commit messages, the model is selected using the following pr
 2. **`agent.model`** - Default agent model from configuration
 3. **Currently selected model** - The model selected via `/switch` in the chat session
 
-This allows you to use `/git commit` without configuring a specific model - it will automatically use the model you're currently chatting with.
+This allows you to use `/git commit` without configuring a specific model -
+it will automatically use the model you're currently chatting with.
 
 ### Project Initialization Shortcut
 
