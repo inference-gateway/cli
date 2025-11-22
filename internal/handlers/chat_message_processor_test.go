@@ -102,6 +102,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				mockConfig,
 				mockTool,
 				mockFile,
+				nil,
 				shortcutRegistry,
 				stateManager,
 				messageQueue,
@@ -198,7 +199,7 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				assert.Equal(t, tt.expectedOutput, result)
+				assert.Equal(t, tt.expectedOutput, result.content)
 			}
 		})
 	}

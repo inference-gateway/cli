@@ -30,6 +30,17 @@ type FakeModelService struct {
 	isModelAvailableReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	IsVisionModelStub        func(string) bool
+	isVisionModelMutex       sync.RWMutex
+	isVisionModelArgsForCall []struct {
+		arg1 string
+	}
+	isVisionModelReturns struct {
+		result1 bool
+	}
+	isVisionModelReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	ListModelsStub        func(context.Context) ([]string, error)
 	listModelsMutex       sync.RWMutex
 	listModelsArgsForCall []struct {
@@ -179,6 +190,67 @@ func (fake *FakeModelService) IsModelAvailableReturnsOnCall(i int, result1 bool)
 		})
 	}
 	fake.isModelAvailableReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeModelService) IsVisionModel(arg1 string) bool {
+	fake.isVisionModelMutex.Lock()
+	ret, specificReturn := fake.isVisionModelReturnsOnCall[len(fake.isVisionModelArgsForCall)]
+	fake.isVisionModelArgsForCall = append(fake.isVisionModelArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.IsVisionModelStub
+	fakeReturns := fake.isVisionModelReturns
+	fake.recordInvocation("IsVisionModel", []interface{}{arg1})
+	fake.isVisionModelMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeModelService) IsVisionModelCallCount() int {
+	fake.isVisionModelMutex.RLock()
+	defer fake.isVisionModelMutex.RUnlock()
+	return len(fake.isVisionModelArgsForCall)
+}
+
+func (fake *FakeModelService) IsVisionModelCalls(stub func(string) bool) {
+	fake.isVisionModelMutex.Lock()
+	defer fake.isVisionModelMutex.Unlock()
+	fake.IsVisionModelStub = stub
+}
+
+func (fake *FakeModelService) IsVisionModelArgsForCall(i int) string {
+	fake.isVisionModelMutex.RLock()
+	defer fake.isVisionModelMutex.RUnlock()
+	argsForCall := fake.isVisionModelArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeModelService) IsVisionModelReturns(result1 bool) {
+	fake.isVisionModelMutex.Lock()
+	defer fake.isVisionModelMutex.Unlock()
+	fake.IsVisionModelStub = nil
+	fake.isVisionModelReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeModelService) IsVisionModelReturnsOnCall(i int, result1 bool) {
+	fake.isVisionModelMutex.Lock()
+	defer fake.isVisionModelMutex.Unlock()
+	fake.IsVisionModelStub = nil
+	if fake.isVisionModelReturnsOnCall == nil {
+		fake.isVisionModelReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isVisionModelReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }

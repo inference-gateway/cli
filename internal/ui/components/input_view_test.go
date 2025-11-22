@@ -34,6 +34,10 @@ func (m *mockModelService) ValidateModel(modelID string) error {
 	return nil
 }
 
+func (m *mockModelService) IsVisionModel(modelID string) bool {
+	return false
+}
+
 // createInputViewWithTheme creates an InputView with a mock theme service for testing
 func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 	iv := NewInputView(modelService)

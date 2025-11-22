@@ -61,8 +61,8 @@ Usage:
 - Any lines longer than 2000 characters will be truncated
 - Results are returned using cat -n format, with line numbers starting at 1
 - This tool can read PDF files (.pdf). PDFs are processed page by page, extracting both text and visual content for analysis.
+- This tool cannot read image files. If the user wants to share an image, they should use the @ file reference syntax to attach it directly to their message.
 - You have the capability to call multiple tools in a single response. It is always better to speculatively read multiple files as a batch that are potentially useful.
-- You will regularly be asked to read screenshots. If the user provides a path to a screenshot ALWAYS use this tool to view the file at the path.
 - If you read a file that exists but has empty contents you will receive a system reminder warning in place of file contents.`
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
@@ -120,6 +120,17 @@ func (t *ReadTool) Execute(ctx context.Context, args map[string]any) (*domain.To
 	limit := DefaultLimit
 	if limitFloat, ok := args["limit"].(float64); ok {
 		limit = int(limitFloat)
+	}
+
+	// Check if file is an image - images cannot be read with this tool
+	if t.isImageFile(filePath) {
+		return &domain.ToolExecutionResult{
+			ToolName:  "Read",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     "Cannot read image files. Ask the user to share the image using the @ file reference syntax (e.g., @image.png) to attach it to their message.",
+		}, nil
 	}
 
 	readResult, err := t.executeRead(filePath, offset, limit)
@@ -365,6 +376,19 @@ func (t *ReadTool) isTextFile(file *os.File) bool {
 	}
 
 	return utf8.Valid(buffer[:n])
+}
+
+// isImageFile checks if a file has an image extension
+func (t *ReadTool) isImageFile(filePath string) bool {
+	ext := strings.ToLower(filepath.Ext(filePath))
+	supportedExts := map[string]bool{
+		".png":  true,
+		".jpg":  true,
+		".jpeg": true,
+		".gif":  true,
+		".webp": true,
+	}
+	return supportedExts[ext]
 }
 
 // validateParameters validates offset and limit parameters
