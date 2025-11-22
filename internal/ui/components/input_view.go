@@ -209,10 +209,14 @@ func (iv *InputView) renderTextWithCursor() string {
 	after := displayText[adjustedCursor:]
 	availableWidth := iv.width - 8
 
+	var result string
 	if availableWidth > 0 {
-		return iv.renderWrappedText(before, after, availableWidth)
+		result = iv.renderWrappedText(before, after, availableWidth)
+	} else {
+		result = iv.renderUnwrappedText(before, after)
 	}
-	return iv.renderUnwrappedText(before, after)
+
+	return iv.applyModePrefixStyling(result)
 }
 
 func (iv *InputView) renderWrappedText(before, after string, availableWidth int) string {
@@ -286,7 +290,7 @@ func (iv *InputView) addModeIndicatorBelowInput(components []string, isBashMode 
 			components = append(components, indicator)
 		} else if isBashMode {
 			indicator := iv.styleProvider.RenderStyledText(
-				"BASH MODE - Command will be executed directly",
+				"  BASH MODE - Command will be executed directly",
 				styles.StyleOptions{
 					Foreground: iv.styleProvider.GetThemeColor("status"),
 					Bold:       true,
@@ -296,7 +300,7 @@ func (iv *InputView) addModeIndicatorBelowInput(components []string, isBashMode 
 			components = append(components, indicator)
 		} else if isToolsMode {
 			indicator := iv.styleProvider.RenderStyledText(
-				"TOOLS MODE - !!ToolName(arg=\"value\") - Tab for autocomplete",
+				"  TOOLS MODE - !!ToolName(arg=\"value\") - Tab for autocomplete",
 				styles.StyleOptions{
 					Foreground: iv.styleProvider.GetThemeColor("accent"),
 					Bold:       true,
@@ -573,4 +577,26 @@ func (iv *InputView) GetImageAttachments() []domain.ImageAttachment {
 // ClearImageAttachments clears all pending image attachments
 func (iv *InputView) ClearImageAttachments() {
 	iv.imageAttachments = []domain.ImageAttachment{}
+}
+
+// applyModePrefixStyling applies accent color styling to mode prefixes (! or !!)
+func (iv *InputView) applyModePrefixStyling(text string) string {
+	isToolsMode := strings.HasPrefix(iv.text, "!!")
+	isBashMode := strings.HasPrefix(iv.text, "!") && !isToolsMode
+
+	if !isBashMode && !isToolsMode {
+		return text
+	}
+
+	accentColor := iv.styleProvider.GetThemeColor("accent")
+
+	if isToolsMode && strings.HasPrefix(text, "!! ") {
+		styledPrefix := iv.styleProvider.RenderWithColor("!!", accentColor)
+		return styledPrefix + text[2:]
+	} else if isBashMode && strings.HasPrefix(text, "! ") {
+		styledPrefix := iv.styleProvider.RenderWithColor("!", accentColor)
+		return styledPrefix + text[1:]
+	}
+
+	return text
 }
