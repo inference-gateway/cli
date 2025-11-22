@@ -55,10 +55,8 @@ func (p *ChatMessageProcessor) handleUserInput(
 		}
 	}
 
-	// Merge images from @ references with any existing clipboard images
 	allImages := append(msg.Images, result.images...)
 
-	// Check if we have images and warn if model doesn't support vision
 	var warningCmd tea.Cmd
 	if len(allImages) > 0 {
 		currentModel := p.handler.modelService.GetCurrentModel()
