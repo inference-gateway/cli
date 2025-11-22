@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
@@ -16,13 +17,15 @@ import (
 type GitShortcut struct {
 	commitClient sdk.Client
 	config       *config.Config
+	modelService domain.ModelService
 }
 
 // NewGitShortcut creates a new unified git shortcut
-func NewGitShortcut(commitClient sdk.Client, config *config.Config) *GitShortcut {
+func NewGitShortcut(commitClient sdk.Client, config *config.Config, modelService domain.ModelService) *GitShortcut {
 	return &GitShortcut{
 		commitClient: commitClient,
 		config:       config,
+		modelService: modelService,
 	}
 }
 
@@ -198,8 +201,9 @@ func (g *GitShortcut) handleSmartCommit(ctx context.Context, args []string) (Sho
 	}, nil
 }
 
-// PerformCommit executes the actual commit with AI-generated message (called by side effect handler)
-func (g *GitShortcut) PerformCommit(ctx context.Context, args []string, diff string) (string, error) {
+// GenerateCommitCommand generates an AI commit message and returns the git commit command string
+// for the user to review and execute.
+func (g *GitShortcut) GenerateCommitCommand(ctx context.Context, args []string, diff string) (string, error) {
 	commitMessage, err := g.generateCommitMessage(ctx, diff)
 	if err != nil {
 		return "", fmt.Errorf("failed to generate commit message: %w", err)
@@ -209,19 +213,17 @@ func (g *GitShortcut) PerformCommit(ctx context.Context, args []string, diff str
 		return "", fmt.Errorf("generated commit message is empty")
 	}
 
-	commitArgs := append([]string{"git", "commit", "-m", commitMessage}, args...)
-	commitCmd := exec.CommandContext(ctx, commitArgs[0], commitArgs[1:]...)
-	commitOutput, err := commitCmd.CombinedOutput()
+	escapedMessage := strings.ReplaceAll(commitMessage, `"`, `\"`)
 
-	if err != nil {
-		return "", fmt.Errorf("commit failed: %v\n\nOutput:\n%s\n\nGenerated message was: %s", err, string(commitOutput), commitMessage)
+	command := fmt.Sprintf(`!git commit -m "%s"`, escapedMessage)
+	if len(args) > 0 {
+		command = fmt.Sprintf(`%s %s`, command, strings.Join(args, " "))
 	}
 
-	return fmt.Sprintf("%s %s**AI-Generated Commit Created**%s\n\n**Message:** %s\n\n```\n%s\n```",
-		icons.StyledCheckMark(), colors.Blue, colors.Reset, commitMessage, strings.TrimSpace(string(commitOutput))), nil
+	return command, nil
 }
 
-// generateCommitMessage uses AI to generate a commit message from the diff
+// generateCommitMessage generates a commit message from the diff using AI
 func (g *GitShortcut) generateCommitMessage(ctx context.Context, diff string) (string, error) {
 	if g.commitClient == nil {
 		return "", fmt.Errorf("commit client not available")
@@ -231,8 +233,11 @@ func (g *GitShortcut) generateCommitMessage(ctx context.Context, diff string) (s
 	if model == "" {
 		model = g.config.Agent.Model
 	}
+	if model == "" && g.modelService != nil {
+		model = g.modelService.GetCurrentModel()
+	}
 	if model == "" {
-		return "", fmt.Errorf("no model configured for commit messages (set git.commit_message.model or agent.model)")
+		return "", fmt.Errorf("no model configured for commit messages (set git.commit_message.model, agent.model, or select a model with /switch)")
 	}
 
 	systemPrompt := g.config.Git.CommitMessage.SystemPrompt
