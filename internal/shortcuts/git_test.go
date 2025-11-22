@@ -168,44 +168,44 @@ func TestGitShortcut_HasCommitMessage(t *testing.T) {
 
 func TestGitShortcut_ModelFallbackPriority(t *testing.T) {
 	tests := []struct {
-		name                string
-		gitCommitModel      string
-		agentModel          string
+		name                 string
+		gitCommitModel       string
+		agentModel           string
 		currentSelectedModel string
-		expectModelUsed     string
-		expectError         bool
+		expectModelUsed      string
+		expectError          bool
 	}{
 		{
-			name:                "use git.commit_message.model when set",
-			gitCommitModel:      "provider1/model1",
-			agentModel:          "provider2/model2",
+			name:                 "use git.commit_message.model when set",
+			gitCommitModel:       "provider1/model1",
+			agentModel:           "provider2/model2",
 			currentSelectedModel: "provider3/model3",
-			expectModelUsed:     "provider1/model1",
-			expectError:         false,
+			expectModelUsed:      "provider1/model1",
+			expectError:          false,
 		},
 		{
-			name:                "fallback to agent.model when git model not set",
-			gitCommitModel:      "",
-			agentModel:          "provider2/model2",
+			name:                 "fallback to agent.model when git model not set",
+			gitCommitModel:       "",
+			agentModel:           "provider2/model2",
 			currentSelectedModel: "provider3/model3",
-			expectModelUsed:     "provider2/model2",
-			expectError:         false,
+			expectModelUsed:      "provider2/model2",
+			expectError:          false,
 		},
 		{
-			name:                "fallback to current model when both configs not set",
-			gitCommitModel:      "",
-			agentModel:          "",
+			name:                 "fallback to current model when both configs not set",
+			gitCommitModel:       "",
+			agentModel:           "",
 			currentSelectedModel: "provider3/model3",
-			expectModelUsed:     "provider3/model3",
-			expectError:         false,
+			expectModelUsed:      "provider3/model3",
+			expectError:          false,
 		},
 		{
-			name:                "error when no model configured anywhere",
-			gitCommitModel:      "",
-			agentModel:          "",
+			name:                 "error when no model configured anywhere",
+			gitCommitModel:       "",
+			agentModel:           "",
 			currentSelectedModel: "",
-			expectModelUsed:     "",
-			expectError:         true,
+			expectModelUsed:      "",
+			expectError:          true,
 		},
 	}
 
