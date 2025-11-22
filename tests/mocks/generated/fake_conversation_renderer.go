@@ -39,6 +39,16 @@ type FakeConversationRenderer struct {
 	getScrollOffsetReturnsOnCall map[int]struct {
 		result1 int
 	}
+	IsRawFormatStub        func() bool
+	isRawFormatMutex       sync.RWMutex
+	isRawFormatArgsForCall []struct {
+	}
+	isRawFormatReturns struct {
+		result1 bool
+	}
+	isRawFormatReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	IsToolResultExpandedStub        func(int) bool
 	isToolResultExpandedMutex       sync.RWMutex
 	isToolResultExpandedArgsForCall []struct {
@@ -78,6 +88,10 @@ type FakeConversationRenderer struct {
 	ToggleAllToolResultsExpansionStub        func()
 	toggleAllToolResultsExpansionMutex       sync.RWMutex
 	toggleAllToolResultsExpansionArgsForCall []struct {
+	}
+	ToggleRawFormatStub        func()
+	toggleRawFormatMutex       sync.RWMutex
+	toggleRawFormatArgsForCall []struct {
 	}
 	ToggleToolResultExpansionStub        func(int)
 	toggleToolResultExpansionMutex       sync.RWMutex
@@ -244,6 +258,59 @@ func (fake *FakeConversationRenderer) GetScrollOffsetReturnsOnCall(i int, result
 	}
 	fake.getScrollOffsetReturnsOnCall[i] = struct {
 		result1 int
+	}{result1}
+}
+
+func (fake *FakeConversationRenderer) IsRawFormat() bool {
+	fake.isRawFormatMutex.Lock()
+	ret, specificReturn := fake.isRawFormatReturnsOnCall[len(fake.isRawFormatArgsForCall)]
+	fake.isRawFormatArgsForCall = append(fake.isRawFormatArgsForCall, struct {
+	}{})
+	stub := fake.IsRawFormatStub
+	fakeReturns := fake.isRawFormatReturns
+	fake.recordInvocation("IsRawFormat", []interface{}{})
+	fake.isRawFormatMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRenderer) IsRawFormatCallCount() int {
+	fake.isRawFormatMutex.RLock()
+	defer fake.isRawFormatMutex.RUnlock()
+	return len(fake.isRawFormatArgsForCall)
+}
+
+func (fake *FakeConversationRenderer) IsRawFormatCalls(stub func() bool) {
+	fake.isRawFormatMutex.Lock()
+	defer fake.isRawFormatMutex.Unlock()
+	fake.IsRawFormatStub = stub
+}
+
+func (fake *FakeConversationRenderer) IsRawFormatReturns(result1 bool) {
+	fake.isRawFormatMutex.Lock()
+	defer fake.isRawFormatMutex.Unlock()
+	fake.IsRawFormatStub = nil
+	fake.isRawFormatReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeConversationRenderer) IsRawFormatReturnsOnCall(i int, result1 bool) {
+	fake.isRawFormatMutex.Lock()
+	defer fake.isRawFormatMutex.Unlock()
+	fake.IsRawFormatStub = nil
+	if fake.isRawFormatReturnsOnCall == nil {
+		fake.isRawFormatReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isRawFormatReturnsOnCall[i] = struct {
+		result1 bool
 	}{result1}
 }
 
@@ -484,6 +551,30 @@ func (fake *FakeConversationRenderer) ToggleAllToolResultsExpansionCalls(stub fu
 	fake.toggleAllToolResultsExpansionMutex.Lock()
 	defer fake.toggleAllToolResultsExpansionMutex.Unlock()
 	fake.ToggleAllToolResultsExpansionStub = stub
+}
+
+func (fake *FakeConversationRenderer) ToggleRawFormat() {
+	fake.toggleRawFormatMutex.Lock()
+	fake.toggleRawFormatArgsForCall = append(fake.toggleRawFormatArgsForCall, struct {
+	}{})
+	stub := fake.ToggleRawFormatStub
+	fake.recordInvocation("ToggleRawFormat", []interface{}{})
+	fake.toggleRawFormatMutex.Unlock()
+	if stub != nil {
+		fake.ToggleRawFormatStub()
+	}
+}
+
+func (fake *FakeConversationRenderer) ToggleRawFormatCallCount() int {
+	fake.toggleRawFormatMutex.RLock()
+	defer fake.toggleRawFormatMutex.RUnlock()
+	return len(fake.toggleRawFormatArgsForCall)
+}
+
+func (fake *FakeConversationRenderer) ToggleRawFormatCalls(stub func()) {
+	fake.toggleRawFormatMutex.Lock()
+	defer fake.toggleRawFormatMutex.Unlock()
+	fake.ToggleRawFormatStub = stub
 }
 
 func (fake *FakeConversationRenderer) ToggleToolResultExpansion(arg1 int) {

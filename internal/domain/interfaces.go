@@ -205,6 +205,14 @@ type FileInfo struct {
 	IsDir bool
 }
 
+// MarkdownRenderer handles conversion of markdown text to styled terminal output
+type MarkdownRenderer interface {
+	// Render converts markdown text to styled terminal output
+	Render(content string) string
+	// SetWidth updates the renderer width for responsive rendering
+	SetWidth(width int)
+}
+
 // TaskPollingState represents the state of background polling for a task
 type TaskPollingState struct {
 	TaskID          string

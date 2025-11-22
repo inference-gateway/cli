@@ -70,10 +70,22 @@ func (r *Registry) createChatActions() []*KeyAction {
 		},
 		{
 			ID:          "toggle_tool_expansion",
-			Keys:        []string{"ctrl+r"},
+			Keys:        []string{"ctrl+o"},
 			Description: "expand/collapse tool results",
 			Category:    "tools",
 			Handler:     handleToggleToolExpansion,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
+			ID:          "toggle_raw_format",
+			Keys:        []string{"ctrl+r"},
+			Description: "toggle raw/rendered markdown",
+			Category:    "display",
+			Handler:     handleToggleRawFormat,
 			Priority:    150,
 			Enabled:     true,
 			Context: KeyContext{
@@ -532,6 +544,17 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 func handleToggleToolExpansion(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	app.ToggleToolResultExpansion()
 	return nil
+}
+
+func handleToggleRawFormat(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	app.ToggleRawFormat()
+	return func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Toggled raw/rendered format",
+			Spinner:    false,
+			TokenUsage: getCurrentTokenUsage(app),
+		}
+	}
 }
 
 func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {

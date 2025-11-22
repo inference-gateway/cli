@@ -41,6 +41,8 @@ type ConversationRenderer interface {
 	ToggleToolResultExpansion(index int)
 	ToggleAllToolResultsExpansion()
 	IsToolResultExpanded(index int) bool
+	ToggleRawFormat()
+	IsRawFormat() bool
 	SetWidth(width int)
 	SetHeight(height int)
 	Render() string
