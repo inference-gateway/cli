@@ -242,3 +242,38 @@ func isCompleteJSON(s string) bool {
 	var js interface{}
 	return json.Unmarshal([]byte(s), &js) == nil
 }
+
+// truncateString truncates a string to maxLen characters, adding "..." if truncated
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-3] + "..."
+}
+
+// getTruncationRecoveryGuidance returns tool-specific guidance when a tool call is truncated
+func getTruncationRecoveryGuidance(toolName string) string {
+	switch toolName {
+	case "Write":
+		return "YOU MUST use a different approach: " +
+			"1. First create an EMPTY or MINIMAL file using Write with just a skeleton/placeholder. " +
+			"2. Then use the Edit tool to add content in small chunks (20-30 lines per Edit call). " +
+			"3. Repeat Edit calls until the file is complete. " +
+			"DO NOT attempt to Write the full content again - it will fail the same way."
+	case "Edit":
+		return "YOUR EDIT WAS TOO LARGE. YOU MUST: " +
+			"1. Break your edit into SMALLER chunks (10-20 lines maximum per Edit call). " +
+			"2. Use a shorter, more precise old_string to match. " +
+			"3. Make multiple smaller Edit calls instead of one large edit. " +
+			"DO NOT retry with the same large edit - it will fail again."
+	case "Bash":
+		return "Your command output or arguments were too large. " +
+			"Try breaking the command into smaller parts or redirecting output to a file."
+	default:
+		return "The tool arguments were too large. " +
+			"Try breaking your request into smaller, incremental operations."
+	}
+}

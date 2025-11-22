@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	lipgloss "github.com/charmbracelet/lipgloss"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriter "github.com/inference-gateway/cli/internal/domain/filewriter"
@@ -21,53 +20,15 @@ const (
 	JSONFormat    = "json"
 )
 
-var (
-	// Success styles
-	successStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("10")).
-			Bold(true)
-
-	successIconStyle = lipgloss.NewStyle().
-				Foreground(lipgloss.Color("10"))
-
-	// Error styles
-	errorStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("9")).
-			Bold(true)
-
-	errorIconStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("9"))
-
-	// Path and file info styles
-	pathStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("12")).
-			Bold(true)
-
-	fileInfoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("8"))
-
-	// Status styles
-	createdStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("10")).
-			Bold(true)
-
-	updatedStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("11")).
-			Bold(true)
-
-	// Metric styles
-	metricStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("6"))
-)
-
 // WriteTool implements a refactored WriteTool with clean architecture
 type WriteTool struct {
-	config    *config.Config
-	enabled   bool
-	formatter domain.CustomFormatter
-	writer    filewriter.FileWriter
-	chunks    filewriter.ChunkManager
-	extractor *ParameterExtractor
+	config        *config.Config
+	enabled       bool
+	formatter     domain.CustomFormatter
+	writer        filewriter.FileWriter
+	chunks        filewriter.ChunkManager
+	extractor     *ParameterExtractor
+	styleProvider *styles.Provider
 }
 
 // NewWriteTool creates a new write tool with clean architecture
@@ -77,6 +38,8 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 	fileWriter := filewriterservice.NewSafeFileWriter(pathValidator, backupManager)
 	chunkManager := filewriterservice.NewStreamingChunkManager("./.infer/tmp", fileWriter)
 	paramExtractor := NewParameterExtractor()
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
 
 	return &WriteTool{
 		config:  cfg,
@@ -84,9 +47,10 @@ func NewWriteTool(cfg *config.Config) *WriteTool {
 		formatter: domain.NewCustomFormatter("Write", func(key string) bool {
 			return key == "content"
 		}),
-		writer:    fileWriter,
-		chunks:    chunkManager,
-		extractor: paramExtractor,
+		writer:        fileWriter,
+		chunks:        chunkManager,
+		extractor:     paramExtractor,
+		styleProvider: styleProvider,
 	}
 }
 
@@ -194,77 +158,73 @@ func (t *WriteTool) FormatResult(result *domain.ToolExecutionResult, formatType 
 // FormatPreview returns a short preview of the result for UI display
 func (t *WriteTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	if result == nil {
-		return fileInfoStyle.Render("Write operation result unavailable")
+		return t.styleProvider.RenderDimText("Write operation result unavailable")
 	}
 
 	if !result.Success {
-		return errorStyle.Render("Write operation failed")
+		return t.styleProvider.RenderErrorText("Write operation failed")
 	}
 
 	if result.Data == nil {
-		return successStyle.Render("Write operation completed successfully")
+		return t.styleProvider.RenderSuccessText("Write operation completed successfully")
 	}
 
 	if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
-		fileName := pathStyle.Render(t.formatter.GetFileName(writeResult.FilePath))
-		bytes := metricStyle.Render(fmt.Sprintf("%d bytes", writeResult.BytesWritten))
+		fileName := t.styleProvider.RenderPathText(t.formatter.GetFileName(writeResult.FilePath))
+		bytes := t.styleProvider.RenderMetricText(fmt.Sprintf("%d bytes", writeResult.BytesWritten))
 
 		if writeResult.Created {
 			return fmt.Sprintf("%s %s (%s)",
-				createdStyle.Render("Created"), fileName, bytes)
+				t.styleProvider.RenderCreatedText("Created"), fileName, bytes)
 		} else {
 			return fmt.Sprintf("%s %s (%s)",
-				updatedStyle.Render("Updated"), fileName, bytes)
+				t.styleProvider.RenderUpdatedText("Updated"), fileName, bytes)
 		}
 	}
 
-	return successStyle.Render("Write operation completed")
+	return t.styleProvider.RenderSuccessText("Write operation completed")
 }
 
 // FormatForUI formats the result for UI display
 func (t *WriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	if result == nil {
-		return errorStyle.Render("No result to display")
+		return t.styleProvider.RenderErrorText("No result to display")
 	}
 
 	if !result.Success {
 		return fmt.Sprintf("%s %s",
-			errorIconStyle.Render("✗"),
-			errorStyle.Render(fmt.Sprintf("Write failed: %s", result.Error)))
+			t.styleProvider.RenderErrorIcon("✗"),
+			t.styleProvider.RenderErrorText(fmt.Sprintf("Write failed: %s", result.Error)))
 	}
 
 	if result.Data == nil {
 		return fmt.Sprintf("%s %s",
-			successIconStyle.Render("✓"),
-			successStyle.Render("Write completed successfully"))
+			t.styleProvider.RenderSuccessIcon("✓"),
+			t.styleProvider.RenderSuccessText("Write completed successfully"))
 	}
 
 	if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
-		var statusText string
-		var statusStyle lipgloss.Style
+		var status string
 
 		if writeResult.Created {
-			statusText = "Created"
-			statusStyle = createdStyle
+			status = t.styleProvider.RenderCreatedText("Created")
 		} else {
-			statusText = "Updated"
-			statusStyle = updatedStyle
+			status = t.styleProvider.RenderUpdatedText("Updated")
 		}
 
-		icon := successIconStyle.Render("✓")
-		status := statusStyle.Render(statusText)
-		path := pathStyle.Render(writeResult.FilePath)
+		icon := t.styleProvider.RenderSuccessIcon("✓")
+		path := t.styleProvider.RenderPathText(writeResult.FilePath)
 
 		metrics := fmt.Sprintf("(%s, %s)",
-			metricStyle.Render(fmt.Sprintf("%d bytes", writeResult.BytesWritten)),
-			metricStyle.Render(fmt.Sprintf("%d lines", writeResult.LinesWritten)))
+			t.styleProvider.RenderMetricText(fmt.Sprintf("%d bytes", writeResult.BytesWritten)),
+			t.styleProvider.RenderMetricText(fmt.Sprintf("%d lines", writeResult.LinesWritten)))
 
-		return fmt.Sprintf("%s %s %s %s", icon, status, path, fileInfoStyle.Render(metrics))
+		return fmt.Sprintf("%s %s %s %s", icon, status, path, t.styleProvider.RenderDimText(metrics))
 	}
 
 	return fmt.Sprintf("%s %s",
-		successIconStyle.Render("✓"),
-		successStyle.Render("Write operation completed"))
+		t.styleProvider.RenderSuccessIcon("✓"),
+		t.styleProvider.RenderSuccessText("Write operation completed"))
 }
 
 // FormatForLLM formats the result for LLM consumption

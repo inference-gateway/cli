@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
@@ -22,6 +23,7 @@ type InputView struct {
 	modelService        domain.ModelService
 	imageService        domain.ImageService
 	stateManager        domain.StateManager
+	configService       *config.Config
 	Autocomplete        shared.AutocompleteInterface
 	historyManager      *history.HistoryManager
 	isTextSelectionMode bool
@@ -68,6 +70,11 @@ func (iv *InputView) SetThemeService(themeService domain.ThemeService) {
 // SetStateManager sets the state manager for this input view
 func (iv *InputView) SetStateManager(stateManager domain.StateManager) {
 	iv.stateManager = stateManager
+}
+
+// SetConfigService sets the config service for this input view
+func (iv *InputView) SetConfigService(configService *config.Config) {
+	iv.configService = configService
 }
 
 // SetImageService sets the image service for this input view
@@ -144,19 +151,72 @@ func (iv *InputView) renderDisplayText() string {
 	return iv.renderTextWithCursor()
 }
 
+// getDisplayTextAndCursorOffset returns the display text with mode prefixes and cursor offset adjustment
+// For bash mode (!), we show "! " prefix; for tools mode (!!), we show "!! " prefix
+func (iv *InputView) getDisplayTextAndCursorOffset() (displayText string, cursorOffset int) {
+	isToolsMode := strings.HasPrefix(iv.text, "!!")
+	isBashMode := strings.HasPrefix(iv.text, "!") && !isToolsMode
+
+	if isToolsMode {
+		return "!! " + iv.text[2:], 3
+	} else if isBashMode {
+		return "! " + iv.text[1:], 2
+	}
+	return iv.text, 0
+}
+
 func (iv *InputView) renderPlaceholder() string {
 	return iv.styleProvider.RenderInputPlaceholder(iv.placeholder)
 }
 
+// calculateAdjustedCursor calculates the cursor position for display text
+// accounting for the space added after mode prefixes (! or !!)
+func (iv *InputView) calculateAdjustedCursor(cursorOffset int, displayTextLen int) int {
+	adjustedCursor := iv.cursor
+
+	if cursorOffset > 0 {
+		adjustedCursor = iv.calculateModeCursorOffset()
+	}
+
+	if adjustedCursor > displayTextLen {
+		adjustedCursor = displayTextLen
+	}
+
+	return adjustedCursor
+}
+
+// calculateModeCursorOffset returns the adjusted cursor position for bash/tools mode
+func (iv *InputView) calculateModeCursorOffset() int {
+	isToolsMode := strings.HasPrefix(iv.text, "!!")
+
+	// In tools mode (!!), cursor positions >= 2 shift by +1 for the added space
+	// In bash mode (!), cursor positions >= 1 shift by +1 for the added space
+	if isToolsMode && iv.cursor >= 2 {
+		return iv.cursor + 1
+	}
+	if !isToolsMode && iv.cursor >= 1 {
+		return iv.cursor + 1
+	}
+
+	return iv.cursor
+}
+
 func (iv *InputView) renderTextWithCursor() string {
-	before := iv.text[:iv.cursor]
-	after := iv.text[iv.cursor:]
+	displayText, cursorOffset := iv.getDisplayTextAndCursorOffset()
+	adjustedCursor := iv.calculateAdjustedCursor(cursorOffset, len(displayText))
+
+	before := displayText[:adjustedCursor]
+	after := displayText[adjustedCursor:]
 	availableWidth := iv.width - 8
 
+	var result string
 	if availableWidth > 0 {
-		return iv.renderWrappedText(before, after, availableWidth)
+		result = iv.renderWrappedText(before, after, availableWidth)
+	} else {
+		result = iv.renderUnwrappedText(before, after)
 	}
-	return iv.renderUnwrappedText(before, after)
+
+	return iv.applyModePrefixStyling(result)
 }
 
 func (iv *InputView) renderWrappedText(before, after string, availableWidth int) string {
@@ -230,7 +290,7 @@ func (iv *InputView) addModeIndicatorBelowInput(components []string, isBashMode 
 			components = append(components, indicator)
 		} else if isBashMode {
 			indicator := iv.styleProvider.RenderStyledText(
-				"BASH MODE - Command will be executed directly",
+				"  BASH MODE - Command will be executed directly",
 				styles.StyleOptions{
 					Foreground: iv.styleProvider.GetThemeColor("status"),
 					Bold:       true,
@@ -240,7 +300,7 @@ func (iv *InputView) addModeIndicatorBelowInput(components []string, isBashMode 
 			components = append(components, indicator)
 		} else if isToolsMode {
 			indicator := iv.styleProvider.RenderStyledText(
-				"TOOLS MODE - !!ToolName(arg=\"value\") - Tab for autocomplete",
+				"  TOOLS MODE - !!ToolName(arg=\"value\") - Tab for autocomplete",
 				styles.StyleOptions{
 					Foreground: iv.styleProvider.GetThemeColor("accent"),
 					Bold:       true,
@@ -289,14 +349,21 @@ func (iv *InputView) shouldShowModelDisplay(isBashMode bool, isToolsMode bool) b
 }
 
 func (iv *InputView) buildModelDisplayText(currentModel string) string {
-	displayText := fmt.Sprintf("  Model: %s", currentModel)
+	parts := []string{fmt.Sprintf("Model: %s", currentModel)}
 
 	if iv.themeService != nil {
 		currentTheme := iv.themeService.GetCurrentThemeName()
-		displayText = fmt.Sprintf("  Model: %s • Theme: %s", currentModel, currentTheme)
+		parts = append(parts, fmt.Sprintf("Theme: %s", currentTheme))
 	}
 
-	return displayText
+	if iv.configService != nil {
+		maxTokens := iv.configService.Agent.MaxTokens
+		if maxTokens > 0 {
+			parts = append(parts, fmt.Sprintf("Max Output: %d", maxTokens))
+		}
+	}
+
+	return "  " + strings.Join(parts, " • ")
 }
 
 func (iv *InputView) addModelWithModeIndicator(components []string, displayText string, modeIndicator string) []string {
@@ -510,4 +577,26 @@ func (iv *InputView) GetImageAttachments() []domain.ImageAttachment {
 // ClearImageAttachments clears all pending image attachments
 func (iv *InputView) ClearImageAttachments() {
 	iv.imageAttachments = []domain.ImageAttachment{}
+}
+
+// applyModePrefixStyling applies accent color styling to mode prefixes (! or !!)
+func (iv *InputView) applyModePrefixStyling(text string) string {
+	isToolsMode := strings.HasPrefix(iv.text, "!!")
+	isBashMode := strings.HasPrefix(iv.text, "!") && !isToolsMode
+
+	if !isBashMode && !isToolsMode {
+		return text
+	}
+
+	accentColor := iv.styleProvider.GetThemeColor("accent")
+
+	if isToolsMode && strings.HasPrefix(text, "!! ") {
+		styledPrefix := iv.styleProvider.RenderWithColor("!!", accentColor)
+		return styledPrefix + text[2:]
+	} else if isBashMode && strings.HasPrefix(text, "! ") {
+		styledPrefix := iv.styleProvider.RenderWithColor("!", accentColor)
+		return styledPrefix + text[1:]
+	}
+
+	return text
 }

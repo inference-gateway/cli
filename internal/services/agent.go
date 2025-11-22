@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
@@ -183,28 +182,6 @@ func NewAgentService(
 	}
 }
 
-// modelSupportsTools checks if a model supports tool calling
-// Returns false for known models that don't support tools
-func modelSupportsTools(model string) bool {
-	unsupportedPatterns := []string{
-		"kimi-k2-thinking",  // Ollama Cloud kimi thinking models
-		"kimi-k2",           // General kimi-k2 models
-		"o1-preview",        // OpenAI o1 models don't support tools
-		"o1-mini",           // OpenAI o1-mini
-		"o3-mini",           // OpenAI o3-mini
-		"deepseek-reasoner", // DeepSeek reasoning models
-		"qwq",               // Alibaba QwQ reasoning models
-	}
-
-	modelLower := strings.ToLower(model)
-	for _, pattern := range unsupportedPatterns {
-		if strings.Contains(modelLower, pattern) {
-			return false
-		}
-	}
-	return true
-}
-
 // Run executes an agent task synchronously (for background/batch processing)
 func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*domain.ChatSyncResponse, error) {
 	if err := s.validateRequest(req); err != nil {
@@ -243,10 +220,8 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 				mode = s.stateManager.GetAgentMode()
 			}
 			availableTools := s.toolService.ListToolsForMode(mode)
-			if len(availableTools) > 0 && modelSupportsTools(modelName) {
+			if len(availableTools) > 0 {
 				client = s.client.WithTools(&availableTools)
-			} else if len(availableTools) > 0 {
-				logger.Warn("Model does not support tools, omitting tools from request", "model", modelName)
 			}
 		}
 
@@ -426,13 +401,17 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			availableTools := s.toolService.ListToolsForMode(mode)
 
 			client := s.client.
+				WithOptions(&sdk.CreateChatCompletionRequest{
+					MaxTokens: &s.maxTokens,
+					StreamOptions: &sdk.ChatCompletionStreamOptions{
+						IncludeUsage: true,
+					},
+				}).
 				WithMiddlewareOptions(&sdk.MiddlewareOptions{
 					SkipMCP: true,
 				})
-			if len(availableTools) > 0 && modelSupportsTools(model) {
+			if len(availableTools) > 0 {
 				client = client.WithTools(&availableTools)
-			} else if len(availableTools) > 0 {
-				logger.Warn("Model does not support tools, omitting tools from request", "model", model)
 			}
 
 			events, err := client.GenerateContentStream(requestCtx, sdk.Provider(provider), model, conversation)
@@ -517,9 +496,14 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			s.accumulateToolCalls(allToolCallDeltas)
 			toolCalls := s.getAccumulatedToolCalls()
 
+			assistantContent := message.Content
+			if _, err := assistantContent.AsMessageContent0(); err != nil {
+				assistantContent = sdk.NewMessageContent("")
+			}
+
 			assistantMessage := sdk.Message{
 				Role:    sdk.Assistant,
-				Content: message.Content,
+				Content: assistantContent,
 			}
 
 			if len(toolCalls) > 0 {
@@ -866,6 +850,19 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 	eventPublisher.publishToolStatusChange(tc.Id, "running", "Executing...")
 
 	time.Sleep(constants.AgentToolExecutionDelay)
+
+	if !isCompleteJSON(tc.Function.Arguments) {
+		incompleteErr := fmt.Errorf(
+			"TOOL FAILED: %s - content was truncated due to output token limits (received %d chars of incomplete JSON). %s",
+			tc.Function.Name, len(tc.Function.Arguments), getTruncationRecoveryGuidance(tc.Function.Name),
+		)
+		logger.Error("incomplete JSON in tool arguments",
+			"tool", tc.Function.Name,
+			"args_length", len(tc.Function.Arguments),
+			"args_preview", truncateString(tc.Function.Arguments, 200),
+		)
+		return s.createErrorEntry(tc, incompleteErr, startTime)
+	}
 
 	var args map[string]any
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {

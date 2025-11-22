@@ -17,16 +17,22 @@ type ConfigShortcut struct {
 	configService interface {
 		SetValue(key, value string) error
 	}
+	modelService interface {
+		GetCurrentModel() string
+	}
 }
 
 // NewConfigShortcut creates a new config shortcut
 func NewConfigShortcut(cfg *config.Config, reloadFunc func() (*config.Config, error), configService interface {
 	SetValue(key, value string) error
+}, modelService interface {
+	GetCurrentModel() string
 }) *ConfigShortcut {
 	return &ConfigShortcut{
 		config:        cfg,
 		reloadFunc:    reloadFunc,
 		configService: configService,
+		modelService:  modelService,
 	}
 }
 
@@ -78,54 +84,52 @@ func (c *ConfigShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 
 func (c *ConfigShortcut) executeShow() (ShortcutResult, error) {
 	var output strings.Builder
-	output.WriteString("## Current Configuration\n\n")
+	output.WriteString("Current Configuration\n\n")
 
-	// Gateway settings
-	output.WriteString("### 🌐 Gateway\n")
-	output.WriteString(fmt.Sprintf("• **URL**: `%s`\n", c.config.Gateway.URL))
-	output.WriteString(fmt.Sprintf("• **Timeout**: `%d`s\n", c.config.Gateway.Timeout))
+	output.WriteString("Gateway\n")
+	output.WriteString(fmt.Sprintf("• URL: `%s`\n", c.config.Gateway.URL))
+	output.WriteString(fmt.Sprintf("• Timeout: `%d`s\n", c.config.Gateway.Timeout))
 	if c.config.Gateway.APIKey != "" {
-		output.WriteString("• **API Key**: *[configured]*\n")
+		output.WriteString("• API Key: [configured]\n")
 	} else {
-		output.WriteString("• **API Key**: *[not set]*\n")
+		output.WriteString("• API Key: [not set]\n")
 	}
 
-	// Agent settings
-	output.WriteString("\n### 🤖 Agent\n")
+	output.WriteString("\nAgent\n")
 	if c.config.Agent.Model != "" {
-		output.WriteString(fmt.Sprintf("• **Model**: `%s`\n", c.config.Agent.Model))
+		output.WriteString(fmt.Sprintf("• Model: `%s`\n", c.config.Agent.Model))
+	} else if c.modelService != nil && c.modelService.GetCurrentModel() != "" {
+		output.WriteString(fmt.Sprintf("• Model: `%s` (session)\n", c.modelService.GetCurrentModel()))
 	} else {
-		output.WriteString("• **Model**: *[not set]*\n")
+		output.WriteString("• Model: [not set]\n")
 	}
-	output.WriteString(fmt.Sprintf("• **Verbose Tools**: `%v`\n", c.config.Agent.VerboseTools))
-	output.WriteString(fmt.Sprintf("• **Max Turns**: `%d`\n", c.config.Agent.MaxTurns))
-	output.WriteString(fmt.Sprintf("• **Max Tokens**: `%d`\n", c.config.Agent.MaxTokens))
+	output.WriteString(fmt.Sprintf("• Verbose Tools: `%v`\n", c.config.Agent.VerboseTools))
+	output.WriteString(fmt.Sprintf("• Max Turns: `%d`\n", c.config.Agent.MaxTurns))
+	output.WriteString(fmt.Sprintf("• Max Tokens: `%d`\n", c.config.Agent.MaxTokens))
 
-	// Tools settings
-	output.WriteString("\n### 🔧 Tools\n")
+	output.WriteString("\n🔧 Tools\n")
 	if c.config.Tools.Enabled {
-		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.StyledCheckMark()))
-		output.WriteString("• **Individual Tools**:\n")
-		output.WriteString(fmt.Sprintf("  - **Bash**: %s\n", formatBool(c.config.Tools.Bash.Enabled)))
-		output.WriteString(fmt.Sprintf("  - **Read**: %s\n", formatBool(c.config.Tools.Read.Enabled)))
-		output.WriteString(fmt.Sprintf("  - **Write**: %s\n", formatBool(c.config.Tools.Write.Enabled)))
-		output.WriteString(fmt.Sprintf("  - **Edit**: %s\n", formatBool(c.config.Tools.Edit.Enabled)))
-		output.WriteString(fmt.Sprintf("  - **Grep**: %s\n", formatBool(c.config.Tools.Grep.Enabled)))
-		output.WriteString(fmt.Sprintf("  - **Web Fetch**: %s\n", formatBool(c.config.Tools.WebFetch.Enabled)))
-		output.WriteString(fmt.Sprintf("  - **Web Search**: %s\n", formatBool(c.config.Tools.WebSearch.Enabled)))
+		output.WriteString(fmt.Sprintf("• Enabled: %s\n", icons.StyledCheckMark()))
+		output.WriteString("• Individual Tools:\n")
+		output.WriteString(fmt.Sprintf("  - Bash: %s\n", formatBool(c.config.Tools.Bash.Enabled)))
+		output.WriteString(fmt.Sprintf("  - Read: %s\n", formatBool(c.config.Tools.Read.Enabled)))
+		output.WriteString(fmt.Sprintf("  - Write: %s\n", formatBool(c.config.Tools.Write.Enabled)))
+		output.WriteString(fmt.Sprintf("  - Edit: %s\n", formatBool(c.config.Tools.Edit.Enabled)))
+		output.WriteString(fmt.Sprintf("  - Grep: %s\n", formatBool(c.config.Tools.Grep.Enabled)))
+		output.WriteString(fmt.Sprintf("  - Web Fetch: %s\n", formatBool(c.config.Tools.WebFetch.Enabled)))
+		output.WriteString(fmt.Sprintf("  - Web Search: %s\n", formatBool(c.config.Tools.WebSearch.Enabled)))
 	} else {
-		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.StyledCrossMark()))
+		output.WriteString(fmt.Sprintf("• Enabled: %s\n", icons.StyledCrossMark()))
 	}
 
-	// Optimization settings
-	output.WriteString("\n### ⚡ Optimization\n")
+	output.WriteString("\n⚡ Optimization\n")
 	if c.config.Agent.Optimization.Enabled {
-		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.StyledCheckMark()))
-		output.WriteString(fmt.Sprintf("• **Model**: `%s`\n", c.config.Agent.Optimization.Model))
-		output.WriteString(fmt.Sprintf("• **Min Messages**: `%d`\n", c.config.Agent.Optimization.MinMessages))
-		output.WriteString(fmt.Sprintf("• **Buffer Size**: `%d`\n", c.config.Agent.Optimization.BufferSize))
+		output.WriteString(fmt.Sprintf("• Enabled: %s\n", icons.StyledCheckMark()))
+		output.WriteString(fmt.Sprintf("• Model: `%s`\n", c.config.Agent.Optimization.Model))
+		output.WriteString(fmt.Sprintf("• Min Messages: `%d`\n", c.config.Agent.Optimization.MinMessages))
+		output.WriteString(fmt.Sprintf("• Buffer Size: `%d`\n", c.config.Agent.Optimization.BufferSize))
 	} else {
-		output.WriteString(fmt.Sprintf("• **Enabled**: %s\n", icons.StyledCrossMark()))
+		output.WriteString(fmt.Sprintf("• Enabled: %s\n", icons.StyledCrossMark()))
 	}
 
 	return ShortcutResult{
@@ -165,7 +169,7 @@ func (c *ConfigShortcut) executeSet(key, value string) (ShortcutResult, error) {
 	}
 
 	return ShortcutResult{
-		Output:     fmt.Sprintf("%s Successfully set **%s** = `%s`", icons.StyledCheckMark(), key, value),
+		Output:     fmt.Sprintf("%s Successfully set %s = `%s`", icons.StyledCheckMark(), key, value),
 		Success:    true,
 		SideEffect: SideEffectReloadConfig,
 	}, nil
@@ -187,7 +191,6 @@ func (c *ConfigShortcut) executeReload() (ShortcutResult, error) {
 		}, nil
 	}
 
-	// Update the config reference
 	*c.config = *newConfig
 
 	return ShortcutResult{
@@ -205,14 +208,12 @@ func (c *ConfigShortcut) getConfigValue(key string) (interface{}, error) {
 		return nil, fmt.Errorf("empty key")
 	}
 
-	// Use reflection to traverse the config structure
 	value := reflect.ValueOf(c.config).Elem()
 	for _, part := range parts {
 		if !value.IsValid() {
 			return nil, fmt.Errorf("invalid config path: %s", key)
 		}
 
-		// Handle struct fields
 		if value.Kind() == reflect.Struct {
 			field := c.findField(value, part)
 
@@ -307,12 +308,10 @@ func (c *ConfigShortcut) formatStruct(value reflect.Value) string {
 		field := structType.Field(i)
 		fieldValue := value.Field(i)
 
-		// Skip unexported fields
 		if !fieldValue.CanInterface() {
 			continue
 		}
 
-		// Get field name from yaml tag if available, otherwise use field name
 		fieldName := field.Name
 		if yamlTag := field.Tag.Get("yaml"); yamlTag != "" {
 			tagName := strings.Split(yamlTag, ",")[0]

@@ -603,7 +603,7 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 			},
 			VerboseTools:       false,
 			MaxTurns:           50,
-			MaxTokens:          4096,
+			MaxTokens:          8192,
 			MaxConcurrentTools: 5,
 			Optimization: OptimizationConfig{
 				Enabled:     false,

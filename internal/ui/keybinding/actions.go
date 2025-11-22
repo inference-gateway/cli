@@ -542,10 +542,7 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	if inputView.IsAutocompleteVisible() {
 		if handled, completion := inputView.TryHandleAutocomplete(keyMsg); handled {
-			if completion != "" {
-				inputView.SetText(completion)
-				inputView.SetCursor(len(completion))
-			}
+			applyAutocompleteCompletion(inputView, completion)
 			return nil
 		}
 	}
@@ -565,6 +562,22 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 
 	return app.SendMessage()
+}
+
+// applyAutocompleteCompletion sets the completion text and positions cursor appropriately
+func applyAutocompleteCompletion(inputView ui.InputComponent, completion string) {
+	if completion == "" {
+		return
+	}
+
+	inputView.SetText(completion)
+
+	if idx := strings.Index(completion, `=""`); idx != -1 {
+		inputView.SetCursor(idx + 2)
+		return
+	}
+
+	inputView.SetCursor(len(completion))
 }
 
 func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {

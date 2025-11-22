@@ -212,6 +212,11 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 	case "user":
 		color = cv.getUserColor()
 		role = "> You"
+
+		contentStr, contentErr := entry.Message.Content.AsMessageContent0()
+		if contentErr == nil && strings.HasPrefix(contentStr, "!") {
+			return cv.renderShellCommandEntry(entry, color, role, contentStr)
+		}
 	case "assistant":
 		color = cv.getAssistantColor()
 		if entry.Model != "" {
@@ -561,6 +566,22 @@ func (cv *ConversationView) getAssistantColor() string {
 
 func (cv *ConversationView) getHeaderColor() string {
 	return cv.styleProvider.GetThemeColor("accent")
+}
+
+// renderShellCommandEntry renders a shell command entry with highlighted prefix and proper spacing
+func (cv *ConversationView) renderShellCommandEntry(_ domain.ConversationEntry, color, role, contentStr string) string {
+	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
+
+	command := strings.TrimPrefix(contentStr, "!")
+
+	accentColor := cv.styleProvider.GetThemeColor("accent")
+	prefixStyled := cv.styleProvider.RenderWithColor("!", accentColor)
+
+	formattedContent := prefixStyled + " " + command
+	wrappedContent := shared.FormatResponsiveMessage(formattedContent, cv.width)
+
+	message := roleStyled + " " + wrappedContent
+	return message + "\n"
 }
 
 // appendStreamingContent appends streaming content to the last assistant message
