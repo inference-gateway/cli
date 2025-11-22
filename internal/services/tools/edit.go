@@ -282,6 +282,10 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 	newSize := int64(len(newContent))
 	bytesDifference := newSize - originalSize
 
+	originalLines := countLines(originalContentStr)
+	newLines := countLines(newContent)
+	linesDifference := newLines - originalLines
+
 	diff := generateDiff(originalContentStr, newContent)
 
 	result := &domain.EditToolResult{
@@ -294,10 +298,21 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 		OriginalSize:    originalSize,
 		NewSize:         newSize,
 		BytesDifference: bytesDifference,
+		OriginalLines:   originalLines,
+		NewLines:        newLines,
+		LinesDifference: linesDifference,
 		Diff:            diff,
 	}
 
 	return result, nil
+}
+
+// countLines counts the number of lines in content
+func countLines(content string) int {
+	if content == "" {
+		return 0
+	}
+	return strings.Count(content, "\n") + 1
 }
 
 // cleanString removes common artifacts from Read tool output like line number prefixes
@@ -556,11 +571,12 @@ func (t *EditTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	fileName := t.formatter.GetFileName(editResult.FilePath)
 
 	if editResult.ReplaceAll {
-		return fmt.Sprintf("Replaced %d occurrences in %s", editResult.ReplacedCount, fileName)
+		return fmt.Sprintf("Replaced %d occurrences in %s (%+d bytes, %+d lines)",
+			editResult.ReplacedCount, fileName, editResult.BytesDifference, editResult.LinesDifference)
 	}
 
 	if editResult.FileModified {
-		return fmt.Sprintf("Updated %s (%d bytes difference)", fileName, editResult.BytesDifference)
+		return fmt.Sprintf("Updated %s (%+d bytes, %+d lines)", fileName, editResult.BytesDifference, editResult.LinesDifference)
 	}
 
 	return fmt.Sprintf("No changes needed in %s", fileName)
@@ -642,6 +658,9 @@ func (t *EditTool) formatEditData(data any) string {
 	output.WriteString(fmt.Sprintf("Original Size: %d bytes\n", editResult.OriginalSize))
 	output.WriteString(fmt.Sprintf("New Size: %d bytes\n", editResult.NewSize))
 	output.WriteString(fmt.Sprintf("Bytes Difference: %+d\n", editResult.BytesDifference))
+	output.WriteString(fmt.Sprintf("Original Lines: %d\n", editResult.OriginalLines))
+	output.WriteString(fmt.Sprintf("New Lines: %d\n", editResult.NewLines))
+	output.WriteString(fmt.Sprintf("Lines Difference: %+d\n", editResult.LinesDifference))
 
 	if editResult.Diff != "" {
 		output.WriteString(fmt.Sprintf("Diff:\n%s\n", editResult.Diff))

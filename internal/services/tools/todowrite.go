@@ -336,23 +336,23 @@ func (t *TodoWriteTool) FormatPreview(result *domain.ToolExecutionResult) string
 	todoResult, ok := result.Data.(*domain.TodoWriteToolResult)
 	if !ok {
 		if result.Success {
-			return "📋 Todo list updated successfully"
+			return "Todo list updated successfully"
 		}
 		return fmt.Sprintf("%s Todo list update failed", icons.CrossMarkStyle.Render(icons.CrossMark))
 	}
 
 	if todoResult.TotalTasks == 0 {
-		return "📋 Todo list is empty"
+		return "Todo list is empty"
 	}
 
 	progressBar := t.formatProgressBar(todoResult.CompletedTasks, todoResult.TotalTasks)
 	percentage := int(float64(todoResult.CompletedTasks) / float64(todoResult.TotalTasks) * 100)
 
-	status := fmt.Sprintf("📋 %s %d/%d tasks (%d%%)", progressBar, todoResult.CompletedTasks, todoResult.TotalTasks, percentage)
+	status := fmt.Sprintf("%s %d/%d tasks (%d%%)", progressBar, todoResult.CompletedTasks, todoResult.TotalTasks, percentage)
 
 	if todoResult.InProgressTask != "" {
 		taskPreview := t.formatter.TruncateText(todoResult.InProgressTask, 30)
-		status += fmt.Sprintf(" 🔄 %s", taskPreview)
+		status += fmt.Sprintf(" %s", taskPreview)
 	}
 
 	return status
@@ -468,7 +468,7 @@ func (t *TodoWriteTool) formatTodoData(data any) string {
 
 	var output strings.Builder
 
-	header := colors.CreateColoredText("📋 **Todo List**", colors.AccentColor)
+	header := colors.CreateColoredText("Todo List", colors.AccentColor)
 	completionText := colors.CreateColoredText(fmt.Sprintf("(%d/%d completed)", todoResult.CompletedTasks, todoResult.TotalTasks), colors.DimColor)
 	output.WriteString(fmt.Sprintf("%s %s\n\n", header, completionText))
 

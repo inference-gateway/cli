@@ -325,17 +325,17 @@ func (a *AutocompleteImpl) Render() string {
 		}
 	}
 
-	// Calculate max width across ALL filtered items to prevent jumping
 	maxShortcutWidth := 0
 	for _, cmd := range a.filtered {
-		width := 0
+		displayText := ""
 		if cmd.Usage != "" && cmd.Usage != cmd.Shortcut {
-			width = len(cmd.Usage)
+			displayText = cmd.Usage
 		} else {
-			width = len(cmd.Shortcut)
+			displayText = cmd.Shortcut
 		}
-		if width > maxShortcutWidth {
-			maxShortcutWidth = width
+		displayText = strings.TrimPrefix(displayText, "!!")
+		if len(displayText) > maxShortcutWidth {
+			maxShortcutWidth = len(displayText)
 		}
 	}
 
@@ -363,7 +363,9 @@ func (a *AutocompleteImpl) Render() string {
 			shortcutText = cmd.Shortcut
 		}
 
-		paddedShortcut := shortcutText + strings.Repeat(" ", maxShortcutWidth-len(shortcutText))
+		displayText := strings.TrimPrefix(shortcutText, "!!")
+
+		paddedShortcut := displayText + strings.Repeat(" ", maxShortcutWidth-len(displayText))
 		separator := " │ "
 
 		line := fmt.Sprintf("%s%s%s%s%s%s",

@@ -106,11 +106,11 @@ func (m AgentMode) String() string {
 func (m AgentMode) DisplayName() string {
 	switch m {
 	case AgentModeStandard:
-		return "🎯 Standard"
+		return "Standard"
 	case AgentModePlan:
-		return "📋 Plan Mode"
+		return "Plan Mode"
 	case AgentModeAutoAccept:
-		return "⚡ Auto-Accept"
+		return "Auto-Accept"
 	default:
 		return "Unknown"
 	}

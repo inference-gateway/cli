@@ -505,6 +505,9 @@ type EditToolResult struct {
 	OriginalSize    int64  `json:"original_size"`
 	NewSize         int64  `json:"new_size"`
 	BytesDifference int64  `json:"bytes_difference"`
+	OriginalLines   int    `json:"original_lines"`
+	NewLines        int    `json:"new_lines"`
+	LinesDifference int    `json:"lines_difference"`
 	Diff            string `json:"diff,omitempty"`
 }
 

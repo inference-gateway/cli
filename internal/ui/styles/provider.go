@@ -228,6 +228,57 @@ func (p *Provider) RenderDimText(text string) string {
 	return style.Render(text)
 }
 
+// RenderPathText renders a file path with accent color and bold
+func (p *Provider) RenderPathText(text string) string {
+	theme := p.themeService.GetCurrentTheme()
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.GetAccentColor())).
+		Bold(true)
+	return style.Render(text)
+}
+
+// RenderMetricText renders metric/info text (e.g., byte counts, line counts)
+func (p *Provider) RenderMetricText(text string) string {
+	theme := p.themeService.GetCurrentTheme()
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.GetStatusColor()))
+	return style.Render(text)
+}
+
+// RenderCreatedText renders "created" status text (success color, bold)
+func (p *Provider) RenderCreatedText(text string) string {
+	theme := p.themeService.GetCurrentTheme()
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.GetSuccessColor())).
+		Bold(true)
+	return style.Render(text)
+}
+
+// RenderUpdatedText renders "updated" status text (status/warning color, bold)
+func (p *Provider) RenderUpdatedText(text string) string {
+	theme := p.themeService.GetCurrentTheme()
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.GetStatusColor())).
+		Bold(true)
+	return style.Render(text)
+}
+
+// RenderSuccessIcon renders a success icon (checkmark, etc.)
+func (p *Provider) RenderSuccessIcon(text string) string {
+	theme := p.themeService.GetCurrentTheme()
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.GetSuccessColor()))
+	return style.Render(text)
+}
+
+// RenderErrorIcon renders an error icon (X mark, etc.)
+func (p *Provider) RenderErrorIcon(text string) string {
+	theme := p.themeService.GetCurrentTheme()
+	style := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.GetErrorColor()))
+	return style.Render(text)
+}
+
 // RenderBoldText renders bold text
 func (p *Provider) RenderBoldText(text string) string {
 	style := lipgloss.NewStyle().Bold(true)

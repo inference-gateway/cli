@@ -144,13 +144,62 @@ func (iv *InputView) renderDisplayText() string {
 	return iv.renderTextWithCursor()
 }
 
+// getDisplayTextAndCursorOffset returns the display text with mode prefixes and cursor offset adjustment
+// For bash mode (!), we show "! " prefix; for tools mode (!!), we show "!! " prefix
+func (iv *InputView) getDisplayTextAndCursorOffset() (displayText string, cursorOffset int) {
+	isToolsMode := strings.HasPrefix(iv.text, "!!")
+	isBashMode := strings.HasPrefix(iv.text, "!") && !isToolsMode
+
+	if isToolsMode {
+		return "!! " + iv.text[2:], 3
+	} else if isBashMode {
+		return "! " + iv.text[1:], 2
+	}
+	return iv.text, 0
+}
+
 func (iv *InputView) renderPlaceholder() string {
 	return iv.styleProvider.RenderInputPlaceholder(iv.placeholder)
 }
 
+// calculateAdjustedCursor calculates the cursor position for display text
+// accounting for the space added after mode prefixes (! or !!)
+func (iv *InputView) calculateAdjustedCursor(cursorOffset int, displayTextLen int) int {
+	adjustedCursor := iv.cursor
+
+	if cursorOffset > 0 {
+		adjustedCursor = iv.calculateModeCursorOffset()
+	}
+
+	if adjustedCursor > displayTextLen {
+		adjustedCursor = displayTextLen
+	}
+
+	return adjustedCursor
+}
+
+// calculateModeCursorOffset returns the adjusted cursor position for bash/tools mode
+func (iv *InputView) calculateModeCursorOffset() int {
+	isToolsMode := strings.HasPrefix(iv.text, "!!")
+
+	// In tools mode (!!), cursor positions >= 2 shift by +1 for the added space
+	// In bash mode (!), cursor positions >= 1 shift by +1 for the added space
+	if isToolsMode && iv.cursor >= 2 {
+		return iv.cursor + 1
+	}
+	if !isToolsMode && iv.cursor >= 1 {
+		return iv.cursor + 1
+	}
+
+	return iv.cursor
+}
+
 func (iv *InputView) renderTextWithCursor() string {
-	before := iv.text[:iv.cursor]
-	after := iv.text[iv.cursor:]
+	displayText, cursorOffset := iv.getDisplayTextAndCursorOffset()
+	adjustedCursor := iv.calculateAdjustedCursor(cursorOffset, len(displayText))
+
+	before := displayText[:adjustedCursor]
+	after := displayText[adjustedCursor:]
 	availableWidth := iv.width - 8
 
 	if availableWidth > 0 {

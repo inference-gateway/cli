@@ -281,7 +281,7 @@ func (v *TextSelectionView) yankSelection() tea.Cmd {
 			_ = clipboard.WriteAll(text)
 			return func() tea.Msg {
 				return domain.SetStatusEvent{
-					Message:    "📋 Yanked 1 line",
+					Message:    "Yanked 1 line",
 					Spinner:    false,
 					StatusType: domain.StatusDefault,
 				}
@@ -300,7 +300,7 @@ func (v *TextSelectionView) yankSelection() tea.Cmd {
 		start, end = end, start
 	}
 	lineCount := end.Line - start.Line + 1
-	msg := fmt.Sprintf("📋 Yanked %d line(s)", lineCount)
+	msg := fmt.Sprintf("Yanked %d line(s)", lineCount)
 
 	return func() tea.Msg {
 		return domain.SetStatusEvent{
