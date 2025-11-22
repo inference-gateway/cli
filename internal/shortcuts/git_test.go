@@ -269,7 +269,7 @@ func TestGitShortcut_ModelFallbackWithNilModelService(t *testing.T) {
 
 	// Verify the shortcut is created without panic
 	if shortcut == nil {
-		t.Error("Expected shortcut to be created, got nil")
+		t.Fatal("Expected shortcut to be created, got nil")
 	}
 
 	// Verify modelService is nil
