@@ -496,9 +496,14 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			s.accumulateToolCalls(allToolCallDeltas)
 			toolCalls := s.getAccumulatedToolCalls()
 
+			assistantContent := message.Content
+			if _, err := assistantContent.AsMessageContent0(); err != nil {
+				assistantContent = sdk.NewMessageContent("")
+			}
+
 			assistantMessage := sdk.Message{
 				Role:    sdk.Assistant,
-				Content: message.Content,
+				Content: assistantContent,
 			}
 
 			if len(toolCalls) > 0 {
