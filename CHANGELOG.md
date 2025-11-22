@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.61.0](https://github.com/inference-gateway/cli/compare/v0.60.0...v0.61.0) (2025-11-22)
+
+### 🚀 Features
+
+* Add image attachment support with vision model detection ([#233](https://github.com/inference-gateway/cli/issues/233)) ([fa4d4cd](https://github.com/inference-gateway/cli/commit/fa4d4cd5b7f33400da1527662b1e8bc7bae062bf))
+* Add markdown renderer implementation ([#234](https://github.com/inference-gateway/cli/issues/234)) ([910ddf0](https://github.com/inference-gateway/cli/commit/910ddf0eb9ebc3192ac924c29d4230948c9e2ffa))
+
 ## [0.60.0](https://github.com/inference-gateway/cli/compare/v0.59.2...v0.60.0) (2025-11-22)
 
 ### 🚀 Features
