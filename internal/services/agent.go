@@ -867,6 +867,22 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 
+	// Validate JSON completeness before attempting to unmarshal
+	// This catches truncated JSON from LLMs that hit output token limits
+	if !isCompleteJSON(tc.Function.Arguments) {
+		incompleteErr := fmt.Errorf(
+			"tool arguments are incomplete JSON (length: %d chars) - the model may have hit output token limits while generating the content. "+
+				"For large files, consider using chunked write tools (WriteStart, WriteAppend, WriteComplete) or a model with higher output limits",
+			len(tc.Function.Arguments),
+		)
+		logger.Error("incomplete JSON in tool arguments",
+			"tool", tc.Function.Name,
+			"args_length", len(tc.Function.Arguments),
+			"args_preview", truncateString(tc.Function.Arguments, 200),
+		)
+		return s.createErrorEntry(tc, incompleteErr, startTime)
+	}
+
 	var args map[string]any
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
 		logger.Error("failed to parse tool arguments", "tool", tc.Function.Name, "error", err)
