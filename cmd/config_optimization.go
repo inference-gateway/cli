@@ -104,9 +104,9 @@ func showOptimizationStatus(_ *cobra.Command) error {
 	fmt.Printf("  • Skip redundant confirmations: %v\n", V.GetBool("agent.optimization.skip_redundant_confirmations"))
 
 	if V.GetBool("agent.optimization.enabled") {
-		fmt.Println("\n💡 Optimization is active. Conversation history will be managed to reduce token usage.")
+		fmt.Println("\n• Optimization is active. Conversation history will be managed to reduce token usage.")
 	} else {
-		fmt.Println("\n💡 Optimization is disabled. Full conversation history will be sent with each request.")
+		fmt.Println("\n• Optimization is disabled. Full conversation history will be sent with each request.")
 	}
 
 	return nil

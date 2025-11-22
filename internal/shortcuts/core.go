@@ -305,7 +305,7 @@ func (c *HelpShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 		output.WriteString(fmt.Sprintf("• **`/%s`** - %s\n", shortcut.GetName(), shortcut.GetDescription()))
 	}
 
-	output.WriteString("\n💡 *Type `/help <shortcut>` for detailed usage information.*")
+	output.WriteString("\n• *Type `/help <shortcut>` for detailed usage information.*")
 
 	return ShortcutResult{
 		Output:     output.String(),

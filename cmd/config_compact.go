@@ -76,7 +76,7 @@ func showCompactConfig(_ *cobra.Command) error {
 		fmt.Printf("Summary model: %s\n", ui.FormatSuccess(summaryModel))
 	}
 
-	fmt.Println("\n💡 Use 'infer config compact set-model [MODEL]' to change the summary model")
+	fmt.Println("\n• Use 'infer config compact set-model [MODEL]' to change the summary model")
 
 	return nil
 }
