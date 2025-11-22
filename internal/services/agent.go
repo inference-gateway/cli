@@ -872,7 +872,7 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 	if !isCompleteJSON(tc.Function.Arguments) {
 		incompleteErr := fmt.Errorf(
 			"tool arguments are incomplete JSON (length: %d chars) - the model may have hit output token limits while generating the content. "+
-				"For large files, consider using chunked write tools (WriteStart, WriteAppend, WriteComplete) or a model with higher output limits",
+				"For large files, use the Edit tool to write content in smaller incremental sections, or use a model with higher output limits",
 			len(tc.Function.Arguments),
 		)
 		logger.Error("incomplete JSON in tool arguments",

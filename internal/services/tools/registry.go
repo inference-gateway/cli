@@ -42,11 +42,6 @@ func (r *Registry) registerTools() {
 	r.tools["Tree"] = NewTreeTool(r.config)
 	r.tools["TodoWrite"] = NewTodoWriteTool(r.config)
 
-	// Chunked write tools for handling large files
-	r.tools["WriteStart"] = NewWriteStartTool(r.config)
-	r.tools["WriteAppend"] = NewWriteAppendTool(r.config)
-	r.tools["WriteComplete"] = NewWriteCompleteTool(r.config)
-
 	if r.config.Tools.WebFetch.Enabled {
 		r.tools["WebFetch"] = NewWebFetchTool(r.config)
 	}

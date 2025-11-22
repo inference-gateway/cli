@@ -801,11 +801,6 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		if c.A2A.Tools.DownloadArtifacts.RequireApproval != nil {
 			return *c.A2A.Tools.DownloadArtifacts.RequireApproval
 		}
-	case "WriteStart", "WriteAppend", "WriteComplete":
-		// Chunked write tools inherit from Write tool's approval setting
-		if c.Tools.Write.RequireApproval != nil {
-			return *c.Tools.Write.RequireApproval
-		}
 	}
 
 	return globalApproval
