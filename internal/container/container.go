@@ -273,9 +273,9 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	}
 
 	if c.configService != nil {
-		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService))
+		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService, c.modelService))
 	} else {
-		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, nil, nil))
+		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, nil, nil, c.modelService))
 	}
 
 	configDir := c.determineConfigDirectory()

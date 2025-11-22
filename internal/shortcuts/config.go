@@ -17,16 +17,22 @@ type ConfigShortcut struct {
 	configService interface {
 		SetValue(key, value string) error
 	}
+	modelService interface {
+		GetCurrentModel() string
+	}
 }
 
 // NewConfigShortcut creates a new config shortcut
 func NewConfigShortcut(cfg *config.Config, reloadFunc func() (*config.Config, error), configService interface {
 	SetValue(key, value string) error
+}, modelService interface {
+	GetCurrentModel() string
 }) *ConfigShortcut {
 	return &ConfigShortcut{
 		config:        cfg,
 		reloadFunc:    reloadFunc,
 		configService: configService,
+		modelService:  modelService,
 	}
 }
 
@@ -92,6 +98,8 @@ func (c *ConfigShortcut) executeShow() (ShortcutResult, error) {
 	output.WriteString("\nAgent\n")
 	if c.config.Agent.Model != "" {
 		output.WriteString(fmt.Sprintf("• Model: `%s`\n", c.config.Agent.Model))
+	} else if c.modelService != nil && c.modelService.GetCurrentModel() != "" {
+		output.WriteString(fmt.Sprintf("• Model: `%s` (session)\n", c.modelService.GetCurrentModel()))
 	} else {
 		output.WriteString("• Model: [not set]\n")
 	}
