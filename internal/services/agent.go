@@ -403,6 +403,9 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			client := s.client.
 				WithOptions(&sdk.CreateChatCompletionRequest{
 					MaxTokens: &s.maxTokens,
+					StreamOptions: &sdk.ChatCompletionStreamOptions{
+						IncludeUsage: true,
+					},
 				}).
 				WithMiddlewareOptions(&sdk.MiddlewareOptions{
 					SkipMCP: true,
