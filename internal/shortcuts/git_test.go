@@ -228,9 +228,6 @@ func TestGitShortcut_ModelFallbackPriority(t *testing.T) {
 
 			shortcut := NewGitShortcut(nil, cfg, modelService)
 
-			// Test the model selection logic by checking what model would be used
-			// We can't easily test generateCommitMessage directly as it requires a real client,
-			// but we can verify the model selection logic inline using the shortcut's config and modelService
 			model := shortcut.config.Git.CommitMessage.Model
 			if model == "" {
 				model = shortcut.config.Agent.Model
