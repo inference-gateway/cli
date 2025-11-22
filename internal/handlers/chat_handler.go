@@ -24,6 +24,7 @@ type ChatHandler struct {
 	configService         domain.ConfigService
 	toolService           domain.ToolService
 	fileService           domain.FileService
+	imageService          domain.ImageService
 	shortcutRegistry      *shortcuts.Registry
 	stateManager          domain.StateManager
 	messageQueue          domain.MessageQueue
@@ -42,6 +43,7 @@ func NewChatHandler(
 	configService domain.ConfigService,
 	toolService domain.ToolService,
 	fileService domain.FileService,
+	imageService domain.ImageService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager domain.StateManager,
 	messageQueue domain.MessageQueue,
@@ -55,6 +57,7 @@ func NewChatHandler(
 		configService:         configService,
 		toolService:           toolService,
 		fileService:           fileService,
+		imageService:          imageService,
 		shortcutRegistry:      shortcutRegistry,
 		stateManager:          stateManager,
 		messageQueue:          messageQueue,

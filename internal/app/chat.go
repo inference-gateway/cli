@@ -190,6 +190,7 @@ func NewChatApplication(
 		app.configService,
 		app.toolService,
 		app.fileService,
+		app.imageService,
 		app.shortcutRegistry,
 		app.stateManager,
 		messageQueue,
@@ -935,6 +936,22 @@ func (app *ChatApplication) clearFileSelectionState() {
 }
 
 func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
+	if app.imageService != nil && app.imageService.IsImageFile(selectedFile) {
+		imageAttachment, err := app.imageService.ReadImageFromFile(selectedFile)
+		if err == nil {
+			currentInput := app.inputView.GetInput()
+			cursor := app.inputView.GetCursor()
+			atIndex := app.findAtSymbolBeforeCursor(currentInput, cursor)
+			if atIndex >= 0 {
+				newInput := currentInput[:atIndex] + currentInput[cursor:]
+				app.inputView.SetText(newInput)
+				app.inputView.SetCursor(atIndex)
+			}
+			app.inputView.AddImageAttachment(*imageAttachment)
+			return
+		}
+	}
+
 	currentInput := app.inputView.GetInput()
 	cursor := app.inputView.GetCursor()
 
@@ -942,6 +959,16 @@ func (app *ChatApplication) updateInputWithSelectedFile(selectedFile string) {
 
 	app.inputView.SetText(newInput)
 	app.inputView.SetCursor(newCursor)
+}
+
+// findAtSymbolBeforeCursor finds the position of the @ symbol before the cursor
+func (app *ChatApplication) findAtSymbolBeforeCursor(input string, cursor int) int {
+	for i := cursor - 1; i >= 0; i-- {
+		if input[i] == '@' {
+			return i
+		}
+	}
+	return -1
 }
 
 func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {

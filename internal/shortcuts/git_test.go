@@ -33,6 +33,10 @@ func (m *mockModelService) ValidateModel(modelID string) error {
 	return nil
 }
 
+func (m *mockModelService) IsVisionModel(modelID string) bool {
+	return false
+}
+
 func TestGitShortcut_GetName(t *testing.T) {
 	shortcut := NewGitShortcut(nil, &config.Config{}, nil)
 

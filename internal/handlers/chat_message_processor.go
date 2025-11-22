@@ -23,6 +23,12 @@ func NewChatMessageProcessor(handler *ChatHandler) *ChatMessageProcessor {
 	}
 }
 
+// fileExpansionResult holds the result of expanding file references
+type fileExpansionResult struct {
+	content string
+	images  []domain.ImageAttachment
+}
+
 // handleUserInput processes user input messages
 func (p *ChatMessageProcessor) handleUserInput(
 	msg domain.UserInputEvent,
@@ -39,7 +45,7 @@ func (p *ChatMessageProcessor) handleUserInput(
 		return p.handler.commandHandler.handleBashCommand(msg.Content)
 	}
 
-	expandedContent, err := p.expandFileReferences(msg.Content)
+	result, err := p.expandFileReferences(msg.Content)
 	if err != nil {
 		return func() tea.Msg {
 			return domain.ShowErrorEvent{
@@ -49,7 +55,30 @@ func (p *ChatMessageProcessor) handleUserInput(
 		}
 	}
 
-	return p.processChatMessage(expandedContent, msg.Images)
+	// Merge images from @ references with any existing clipboard images
+	allImages := append(msg.Images, result.images...)
+
+	// Check if we have images and warn if model doesn't support vision
+	var warningCmd tea.Cmd
+	if len(allImages) > 0 {
+		currentModel := p.handler.modelService.GetCurrentModel()
+		if !p.handler.modelService.IsVisionModel(currentModel) {
+			warningCmd = func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    fmt.Sprintf("Warning: Model '%s' may not support vision. Images may be ignored.", currentModel),
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
+				}
+			}
+		}
+	}
+
+	chatCmd := p.processChatMessage(result.content, allImages)
+
+	if warningCmd != nil {
+		return tea.Batch(warningCmd, chatCmd)
+	}
+	return chatCmd
 }
 
 // ExtractMarkdownSummary extracts the "## Summary" section from markdown content (exposed for testing)
@@ -83,13 +112,18 @@ func (p *ChatMessageProcessor) ExtractMarkdownSummary(content string) (string, b
 	return "", false
 }
 
-// expandFileReferences expands @filename references with file content
-func (p *ChatMessageProcessor) expandFileReferences(content string) (string, error) {
+// expandFileReferences expands @filename references with file content or images
+func (p *ChatMessageProcessor) expandFileReferences(content string) (*fileExpansionResult, error) {
 	re := regexp.MustCompile(`@([^\s]+)`)
 	matches := re.FindAllStringSubmatch(content, -1)
 
+	result := &fileExpansionResult{
+		content: content,
+		images:  []domain.ImageAttachment{},
+	}
+
 	if len(matches) == 0 {
-		return content, nil
+		return result, nil
 	}
 
 	expandedContent := content
@@ -98,6 +132,17 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 		filename := match[1]
 
 		if err := p.handler.fileService.ValidateFile(filename); err != nil {
+			continue
+		}
+
+		if p.handler.imageService != nil && p.handler.imageService.IsImageFile(filename) {
+			imageAttachment, err := p.handler.imageService.ReadImageFromFile(filename)
+			if err != nil {
+				continue
+			}
+			result.images = append(result.images, *imageAttachment)
+			imageRef := fmt.Sprintf("[Image: %s]", filename)
+			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
 			continue
 		}
 
@@ -117,7 +162,8 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (string, err
 		expandedContent = strings.Replace(expandedContent, fullMatch, fileBlock, 1)
 	}
 
-	return expandedContent, nil
+	result.content = expandedContent
+	return result, nil
 }
 
 // processChatMessage processes a regular chat message with optional image attachments

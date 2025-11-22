@@ -89,7 +89,7 @@ func (s *FileServiceImpl) handleDirectory(d os.DirEntry, path, cwd string) error
 
 	// Allow walking into .infer directory to find .md files, but we'll filter non-.md files later
 	if d.Name() == ".infer" {
-		return nil // Allow walking into .infer directory
+		return nil
 	}
 
 	depth := strings.Count(relPath, string(filepath.Separator))
@@ -106,13 +106,11 @@ func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool 
 		return false
 	}
 
-	// Allow .md files from .infer directory, but exclude other files from .infer
 	if strings.HasPrefix(relPath, ".infer"+string(filepath.Separator)) || relPath == ".infer" {
 		ext := strings.ToLower(filepath.Ext(relPath))
 		if ext != ".md" {
 			return false
 		}
-		// Continue with the rest of the checks for .md files in .infer
 	} else if strings.HasPrefix(d.Name(), ".") {
 		return false
 	}
@@ -120,10 +118,10 @@ func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool 
 	excludeExts := map[string]bool{
 		".exe": true, ".bin": true, ".dll": true, ".so": true, ".dylib": true,
 		".a": true, ".o": true, ".obj": true, ".pyc": true, ".class": true,
-		".jar": true, ".war": true, ".zip": true, ".tar": true, ".gz": true,
-		".rar": true, ".7z": true, ".png": true, ".jpg": true, ".jpeg": true,
-		".gif": true, ".bmp": true, ".ico": true, ".svg": true, ".pdf": true,
+		".jar": true, ".war": true,
+		".zip": true, ".tar": true, ".gz": true, ".rar": true, ".7z": true,
 		".mov": true, ".mp4": true, ".avi": true, ".mp3": true, ".wav": true,
+		".ico": true, ".svg": true, ".bmp": true, ".pdf": true,
 		".lock": true,
 	}
 
@@ -133,10 +131,12 @@ func (s *FileServiceImpl) shouldIncludeFile(d os.DirEntry, relPath string) bool 
 	}
 
 	if info, err := d.Info(); err == nil {
-		// Allow larger markdown files since we extract summary sections
-		sizeLimit := int64(100 * 1024) // 100KB
-		if strings.ToLower(filepath.Ext(relPath)) == ".md" {
-			sizeLimit = int64(1024 * 1024) // 1MB for markdown files
+		sizeLimit := int64(100 * 1024)
+		switch ext {
+		case ".md":
+			sizeLimit = int64(1024 * 1024)
+		case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+			sizeLimit = int64(10 * 1024 * 1024)
 		}
 		if info.Size() > sizeLimit {
 			return false
@@ -204,16 +204,20 @@ func (s *FileServiceImpl) ValidateFile(path string) error {
 		return fmt.Errorf("path is not a regular file: %s", path)
 	}
 
-	sizeLimit := int64(50 * 1024) // 50KB for regular files
-	if strings.ToLower(filepath.Ext(path)) == ".md" {
-		sizeLimit = int64(1024 * 1024) // 1MB for markdown files
+	ext := strings.ToLower(filepath.Ext(path))
+	sizeLimit := int64(50 * 1024)
+	maxSizeStr := "50KB"
+
+	switch ext {
+	case ".md":
+		sizeLimit = int64(1024 * 1024)
+		maxSizeStr = "1MB"
+	case ".png", ".jpg", ".jpeg", ".gif", ".webp":
+		sizeLimit = int64(10 * 1024 * 1024)
+		maxSizeStr = "10MB"
 	}
 
 	if info.Size() > sizeLimit {
-		maxSizeStr := "50KB"
-		if strings.ToLower(filepath.Ext(path)) == ".md" {
-			maxSizeStr = "1MB"
-		}
 		return fmt.Errorf("file %s is too large (%d bytes), maximum size is %s", path, info.Size(), maxSizeStr)
 	}
 

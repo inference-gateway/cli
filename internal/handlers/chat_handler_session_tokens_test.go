@@ -24,6 +24,7 @@ func TestFormatMetricsWithSessionTokens(t *testing.T) {
 		nil, // configService
 		nil, // toolService
 		nil, // fileService
+		nil, // imageService
 		shortcutRegistry,
 		nil, // stateManager
 		messageQueue,

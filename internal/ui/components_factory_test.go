@@ -76,6 +76,10 @@ func (m *mockModelService) ValidateModel(modelID string) error {
 	return nil
 }
 
+func (m *mockModelService) IsVisionModel(modelID string) bool {
+	return false
+}
+
 func TestCreateInputView(t *testing.T) {
 	mockModelService := &mockModelService{}
 
