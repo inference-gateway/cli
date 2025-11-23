@@ -525,8 +525,6 @@ func (e *ChatEventHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 	return strings.Join(parts, " | ")
 }
 
-
-
 func (e *ChatEventHandler) formatToolCallStatusMessage(toolName string, status domain.ToolCallStreamStatus) string {
 	switch status {
 	case domain.ToolCallStreamStatusStreaming:
