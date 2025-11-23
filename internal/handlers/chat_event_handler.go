@@ -72,20 +72,6 @@ func (e *ChatEventHandler) handleChatChunk(
 		},
 	}
 
-	if msg.Usage != nil {
-		tokenUsage := e.formatLiveTokenUsage(msg.Usage)
-		if tokenUsage != "" {
-			cmds = append(cmds, func() tea.Msg {
-				return domain.SetStatusEvent{
-					Message:    "Streaming response...",
-					Spinner:    true,
-					TokenUsage: tokenUsage,
-					StatusType: domain.StatusGenerating,
-				}
-			})
-		}
-	}
-
 	statusCmds := e.handleStatusUpdate(msg, chatSession)
 	cmds = append(cmds, statusCmds...)
 
@@ -236,10 +222,6 @@ func (e *ChatEventHandler) handleChatComplete(
 	})
 
 	statusMsg := "Response complete"
-	tokenUsage := ""
-	if msg.Metrics != nil {
-		tokenUsage = e.FormatMetrics(msg.Metrics)
-	}
 
 	var backgroundTasks []domain.TaskPollingState
 	if e.handler.backgroundTaskService != nil {
@@ -255,7 +237,6 @@ func (e *ChatEventHandler) handleChatComplete(
 		return domain.SetStatusEvent{
 			Message:    statusMsg,
 			Spinner:    hasBackgroundTasks,
-			TokenUsage: tokenUsage,
 			StatusType: domain.StatusDefault,
 		}
 	})
@@ -541,34 +522,7 @@ func (e *ChatEventHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 		}
 	}
 
-	sessionStats := e.handler.conversationRepo.GetSessionTokens()
-	parts = append(parts, fmt.Sprintf("Session Input: %d tokens", sessionStats.TotalInputTokens))
-	parts = append(parts, fmt.Sprintf("Session Output: %d tokens", sessionStats.TotalOutputTokens))
-
 	return strings.Join(parts, " | ")
-}
-
-func (e *ChatEventHandler) formatLiveTokenUsage(usage *sdk.CompletionUsage) string {
-	if usage == nil {
-		return ""
-	}
-
-	var parts []string
-	if usage.PromptTokens > 0 {
-		parts = append(parts, fmt.Sprintf("Input: %d tokens", usage.PromptTokens))
-	}
-	if usage.CompletionTokens > 0 {
-		parts = append(parts, fmt.Sprintf("Output: %d tokens", usage.CompletionTokens))
-	}
-	if usage.TotalTokens > 0 {
-		parts = append(parts, fmt.Sprintf("Total: %d tokens", usage.TotalTokens))
-	}
-
-	if len(parts) > 0 {
-		return strings.Join(parts, " | ")
-	}
-
-	return ""
 }
 
 func (e *ChatEventHandler) formatToolCallStatusMessage(toolName string, status domain.ToolCallStreamStatus) string {

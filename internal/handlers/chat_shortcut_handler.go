@@ -105,7 +105,6 @@ func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcu
 		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Command failed: %v", err),
 			Spinner:    false,
-			TokenUsage: s.handler.getCurrentTokenUsage(),
 			StatusType: domain.StatusDefault,
 		}
 	}
@@ -135,7 +134,6 @@ func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcu
 					return domain.SetStatusEvent{
 						Message:    "Shortcut action completed",
 						Spinner:    false,
-						TokenUsage: s.handler.getCurrentTokenUsage(),
 						StatusType: domain.StatusDefault,
 					}
 				},
@@ -185,7 +183,6 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
 			Spinner:    false,
-			TokenUsage: s.handler.getCurrentTokenUsage(),
 			StatusType: domain.StatusDefault,
 		}
 	}
@@ -197,7 +194,6 @@ func (s *ChatShortcutHandler) handleSwitchModelSideEffect() tea.Msg {
 	return domain.SetStatusEvent{
 		Message:    "Select a model from the dropdown",
 		Spinner:    false,
-		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,
 	}
 }
@@ -207,7 +203,6 @@ func (s *ChatShortcutHandler) handleSwitchThemeSideEffect() tea.Msg {
 	return domain.SetStatusEvent{
 		Message:    "",
 		Spinner:    false,
-		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,
 	}
 }
@@ -217,7 +212,6 @@ func (s *ChatShortcutHandler) handleClearConversationSideEffect() tea.Msg {
 		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Failed to clear conversation: %v", err),
 			Spinner:    false,
-			TokenUsage: s.handler.getCurrentTokenUsage(),
 			StatusType: domain.StatusDefault,
 		}
 	}
@@ -236,7 +230,6 @@ func (s *ChatShortcutHandler) handleClearConversationSideEffect() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    "Conversation cleared",
 				Spinner:    false,
-				TokenUsage: s.handler.getCurrentTokenUsage(),
 				StatusType: domain.StatusDefault,
 			}
 		},
@@ -338,7 +331,6 @@ func (s *ChatShortcutHandler) handleReloadConfigSideEffect() tea.Msg {
 	return domain.SetStatusEvent{
 		Message:    "Configuration reloaded successfully",
 		Spinner:    false,
-		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,
 	}
 }
@@ -354,7 +346,6 @@ func (s *ChatShortcutHandler) handleShowHelpSideEffect() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    "Help displayed",
 				Spinner:    false,
-				TokenUsage: s.handler.getCurrentTokenUsage(),
 				StatusType: domain.StatusDefault,
 			}
 		},
@@ -473,7 +464,6 @@ func (s *ChatShortcutHandler) handleSaveConversationSideEffect() tea.Msg {
 	return domain.SetStatusEvent{
 		Message:    "Conversation saved successfully",
 		Spinner:    false,
-		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,
 	}
 }
@@ -490,7 +480,6 @@ func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect() tea.Ms
 	return domain.SetStatusEvent{
 		Message:    "Select a conversation from the dropdown",
 		Spinner:    false,
-		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,
 	}
 }
@@ -500,7 +489,6 @@ func (s *ChatShortcutHandler) handleShowA2AServersSideEffect() tea.Msg {
 	return domain.SetStatusEvent{
 		Message:    "Loading A2A servers...",
 		Spinner:    true,
-		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusWorking,
 	}
 }
@@ -517,7 +505,6 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 		return domain.SetStatusEvent{
 			Message:    "New conversation feature requires persistent storage to be enabled",
 			Spinner:    false,
-			TokenUsage: s.handler.getCurrentTokenUsage(),
 			StatusType: domain.StatusDefault,
 		}
 	}
@@ -527,7 +514,6 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Failed to start new conversation: %v", err),
 			Spinner:    false,
-			TokenUsage: s.handler.getCurrentTokenUsage(),
 			StatusType: domain.StatusDefault,
 		}
 	}
@@ -547,7 +533,6 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("🆕 Started new conversation: %s", title),
 				Spinner:    false,
-				TokenUsage: s.handler.getCurrentTokenUsage(),
 				StatusType: domain.StatusDefault,
 			}
 		},
@@ -572,7 +557,6 @@ func (s *ChatShortcutHandler) handleShowA2ATaskManagementSideEffect() tea.Msg {
 	return domain.SetStatusEvent{
 		Message:    "Task management interface",
 		Spinner:    hasBackgroundTasks,
-		TokenUsage: s.handler.getCurrentTokenUsage(),
 		StatusType: domain.StatusDefault,
 	}
 }
@@ -616,7 +600,6 @@ func (s *ChatShortcutHandler) handleCompactConversationSideEffect() tea.Msg {
 		return domain.SetStatusEvent{
 			Message:    "No conversation to compact",
 			Spinner:    false,
-			TokenUsage: s.handler.getCurrentTokenUsage(),
 			StatusType: domain.StatusDefault,
 		}
 	}
@@ -644,7 +627,6 @@ func (s *ChatShortcutHandler) handleCompactConversationSideEffect() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    fmt.Sprintf("Optimization queued for %d messages", messageCount),
 				Spinner:    false,
-				TokenUsage: s.handler.getCurrentTokenUsage(),
 				StatusType: domain.StatusDefault,
 			}
 		},

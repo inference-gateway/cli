@@ -11,7 +11,7 @@ import (
 	"github.com/inference-gateway/sdk"
 )
 
-func TestFormatMetricsWithSessionTokens(t *testing.T) {
+func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 	conversationRepo := services.NewInMemoryConversationRepository(nil)
 	shortcutRegistry := shortcuts.NewRegistry()
 
@@ -48,6 +48,7 @@ func TestFormatMetricsWithSessionTokens(t *testing.T) {
 
 	result := handler.FormatMetrics(metrics)
 
+	// Verify current request tokens are displayed
 	if !strings.Contains(result, "Input: 25 tokens") {
 		t.Errorf("Expected current input tokens in result, got: %s", result)
 	}
@@ -60,11 +61,13 @@ func TestFormatMetricsWithSessionTokens(t *testing.T) {
 		t.Errorf("Expected current total tokens in result, got: %s", result)
 	}
 
-	if !strings.Contains(result, "Session Input: 100 tokens") {
-		t.Errorf("Expected session input tokens in result, got: %s", result)
+	// Session tokens should NOT be displayed in the status bar anymore
+	// They are now available via the /context shortcut instead
+	if strings.Contains(result, "Session Input") {
+		t.Errorf("Session Input tokens should not be in status bar, got: %s", result)
 	}
 
-	if !strings.Contains(result, "Session Output: 50 tokens") {
-		t.Errorf("Expected session output tokens in result, got: %s", result)
+	if strings.Contains(result, "Session Output") {
+		t.Errorf("Session Output tokens should not be in status bar, got: %s", result)
 	}
 }

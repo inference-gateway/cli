@@ -13,7 +13,6 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -196,15 +195,6 @@ func (h *ChatHandler) listenForChatEvents(eventChan <-chan domain.ChatEvent) tea
 	}
 }
 
-func (h *ChatHandler) getCurrentTokenUsage() string {
-	messages := h.conversationRepo.GetMessages()
-	if len(messages) == 0 {
-		return ""
-	}
-
-	return shared.FormatCurrentTokenUsage(h.conversationRepo)
-}
-
 func (h *ChatHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
 	return h.eventHandler.FormatMetrics(metrics)
 }
@@ -298,7 +288,6 @@ func (h *ChatHandler) handleConversationSelected(
 				Message: fmt.Sprintf("🔄 Loaded conversation: %s (%d messages)",
 					metadata.Title, metadata.MessageCount),
 				Spinner:    false,
-				TokenUsage: h.getCurrentTokenUsage(),
 				StatusType: domain.StatusDefault,
 			}
 		},
@@ -486,9 +475,8 @@ func (h *ChatHandler) handleToolApprovalResponse(
 
 		return func() tea.Msg {
 			return domain.SetStatusEvent{
-				Message:    "Switched to Auto-Accept mode - all tools will be auto-approved",
-				Spinner:    false,
-				TokenUsage: h.getCurrentTokenUsage(),
+				Message: "Switched to Auto-Accept mode - all tools will be auto-approved",
+				Spinner: false,
 			}
 		}
 	}

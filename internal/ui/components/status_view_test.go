@@ -93,7 +93,6 @@ func TestStatusView_ClearStatus(t *testing.T) {
 	sv := NewStatusView(createMockStyleProviderForStatus())
 
 	sv.ShowError("Some error")
-	sv.SetTokenUsage("100 tokens")
 
 	sv.ClearStatus()
 
@@ -107,10 +106,6 @@ func TestStatusView_ClearStatus(t *testing.T) {
 
 	if sv.IsShowingError() {
 		t.Error("Expected showError to be false after clear")
-	}
-
-	if sv.tokenUsage != "" {
-		t.Errorf("Expected empty token usage after clear, got '%s'", sv.tokenUsage)
 	}
 }
 
@@ -151,17 +146,6 @@ func TestStatusView_IsShowingSpinner(t *testing.T) {
 
 	if sv.IsShowingSpinner() {
 		t.Error("Expected IsShowingSpinner to be false after ShowStatus")
-	}
-}
-
-func TestStatusView_SetTokenUsage(t *testing.T) {
-	sv := NewStatusView(createMockStyleProviderForStatus())
-
-	testUsage := "150 tokens used"
-	sv.SetTokenUsage(testUsage)
-
-	if sv.tokenUsage != testUsage {
-		t.Errorf("Expected token usage '%s', got '%s'", testUsage, sv.tokenUsage)
 	}
 }
 
@@ -208,14 +192,6 @@ func TestStatusView_Render(t *testing.T) {
 
 	if !strings.Contains(output, "Loading...") {
 		t.Error("Expected render output to contain spinner message")
-	}
-
-	sv.ShowStatus("Status with tokens")
-	sv.SetTokenUsage("100 tokens")
-	output = sv.Render()
-
-	if !strings.Contains(output, "100 tokens") {
-		t.Error("Expected render output to contain token usage")
 	}
 }
 
