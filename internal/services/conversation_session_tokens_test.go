@@ -3,7 +3,7 @@ package services
 import (
 	"testing"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestSessionTokenTracking(t *testing.T) {
@@ -38,11 +38,11 @@ func TestSessionTokenTracking(t *testing.T) {
 
 	stats = repo.GetSessionTokens()
 	expected = domain.SessionTokenStats{
-		TotalInputTokens:  300, // 100 + 200
-		TotalOutputTokens: 125, // 50 + 75
-		TotalTokens:       425, // 150 + 275
+		TotalInputTokens:  300,
+		TotalOutputTokens: 125,
+		TotalTokens:       425,
 		RequestCount:      2,
-		LastInputTokens:   200, // last request's input
+		LastInputTokens:   200,
 	}
 	if stats != expected {
 		t.Errorf("Expected %+v, got %+v", expected, stats)
