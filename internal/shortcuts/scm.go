@@ -44,7 +44,6 @@ func (s *SCMShortcut) CanExecute(args []string) bool {
 	if len(args) < 2 {
 		return false
 	}
-	// Only support "pr create" for now
 	return args[0] == "pr" && args[1] == "create"
 }
 
