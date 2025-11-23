@@ -238,19 +238,16 @@ func (s *SCMShortcut) checkGitRepository(ctx context.Context) error {
 
 // getGitDiff returns the current git diff (staged + unstaged)
 func (s *SCMShortcut) getGitDiff(ctx context.Context) (string, error) {
-	// First try to get staged changes
 	stagedCmd := exec.CommandContext(ctx, "git", "diff", "--cached")
 	stagedOutput, err := stagedCmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get staged diff: %w", err)
 	}
 
-	// If there are staged changes, return those
 	if len(strings.TrimSpace(string(stagedOutput))) > 0 {
 		return string(stagedOutput), nil
 	}
 
-	// Otherwise get unstaged changes
 	unstagedCmd := exec.CommandContext(ctx, "git", "diff")
 	unstagedOutput, err := unstagedCmd.Output()
 	if err != nil {
