@@ -152,6 +152,23 @@ func (p *eventPublisher) publishParallelToolsComplete(totalExecuted, successCoun
 	p.chatEvents <- event
 }
 
+// publishTodoUpdate publishes a TodoUpdateChatEvent when TodoWrite tool executes
+func (p *eventPublisher) publishTodoUpdate(todos []domain.TodoItem) {
+	event := domain.TodoUpdateChatEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		Todos: todos,
+	}
+
+	select {
+	case p.chatEvents <- event:
+	default:
+		logger.Warn("todo update event dropped - channel full")
+	}
+}
+
 // NewAgentService creates a new agent service with pre-configured client
 func NewAgentService(
 	client sdk.Client,
@@ -543,6 +560,14 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 				toolResults := s.executeToolCallsParallel(ctx, toolCallsSlice, eventPublisher, req.IsChatMode)
 
+				hasRejection := false
+				for _, entry := range toolResults {
+					if entry.ToolExecution != nil && entry.ToolExecution.Rejected {
+						hasRejection = true
+						break
+					}
+				}
+
 				for _, entry := range toolResults {
 					toolResult := sdk.Message{
 						Role:       sdk.Tool,
@@ -551,6 +576,12 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					}
 					conversation = append(conversation, toolResult)
 				}
+
+				if hasRejection {
+					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
+					return
+				}
+
 				hasToolResults = true
 			}
 
@@ -841,8 +872,7 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 		}
 		if !approved {
 			logger.Info("tool execution rejected by user", "tool", tc.Function.Name)
-			rejectionErr := fmt.Errorf("tool execution rejected by user")
-			return s.createErrorEntry(tc, rejectionErr, startTime)
+			return s.createRejectionEntry(tc, startTime)
 		}
 		wasApproved = true
 	}
@@ -937,6 +967,12 @@ done:
 		Error:     result.Error,
 	}
 
+	if result.ToolName == "TodoWrite" && result.Success {
+		if todoResult, ok := result.Data.(*domain.TodoWriteToolResult); ok && todoResult != nil {
+			eventPublisher.publishTodoUpdate(todoResult.Todos)
+		}
+	}
+
 	formattedContent := s.conversationRepo.FormatToolResultForLLM(toolExecutionResult)
 
 	entry := domain.ConversationEntry{
@@ -1024,6 +1060,35 @@ func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall
 			Success:   false,
 			Duration:  time.Since(startTime),
 			Error:     err.Error(),
+		},
+	}
+}
+
+func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageToolCall, startTime time.Time) domain.ConversationEntry {
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		args = make(map[string]any)
+	}
+
+	rejectionMessage := fmt.Sprintf(
+		"Tool call rejected by user: %s\n\nYou can provide alternative instructions or ask me to proceed differently.",
+		tc.Function.Name,
+	)
+
+	return domain.ConversationEntry{
+		Message: domain.Message{
+			Role:       sdk.Tool,
+			Content:    sdk.NewMessageContent(rejectionMessage),
+			ToolCallId: &tc.Id,
+		},
+		Time: time.Now(),
+		ToolExecution: &domain.ToolExecutionResult{
+			ToolName:  tc.Function.Name,
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(startTime),
+			Error:     "rejected by user",
+			Rejected:  true,
 		},
 	}
 }

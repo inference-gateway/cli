@@ -40,3 +40,9 @@ type ParallelToolsCompleteEvent struct {
 	FailureCount  int
 	Duration      time.Duration
 }
+
+// TodoUpdateChatEvent indicates the todo list has been updated (flows through chat event channel)
+type TodoUpdateChatEvent struct {
+	BaseChatEvent
+	Todos []TodoItem
+}

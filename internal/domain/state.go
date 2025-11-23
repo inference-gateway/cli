@@ -33,6 +33,9 @@ type ApplicationState struct {
 	fileSelectionState *FileSelectionState
 	approvalUIState    *ApprovalUIState
 
+	// Todo State
+	todos []TodoItem
+
 	// Debugging
 	debugMode bool
 }
@@ -389,6 +392,21 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 	return false
 }
 
+// SetChatPending creates a minimal chat session to mark the agent as busy
+// before the actual chat starts. This prevents race conditions.
+func (s *ApplicationState) SetChatPending() {
+	s.chatSession = &ChatSession{
+		RequestID:    "pending",
+		Status:       ChatStatusStarting,
+		StartTime:    time.Now(),
+		Model:        "",
+		EventChannel: nil,
+		IsFirstChunk: true,
+		HasToolCalls: false,
+		LastActivity: time.Now(),
+	}
+}
+
 // StartChatSession initializes a new chat session
 func (s *ApplicationState) StartChatSession(requestID, model string, eventChan <-chan ChatEvent) {
 	s.chatSession = &ChatSession{
@@ -717,6 +735,18 @@ func (s *ApplicationState) ClearApprovalUIState() {
 		close(s.approvalUIState.ResponseChan)
 	}
 	s.approvalUIState = nil
+}
+
+// Todo State Management
+
+// SetTodos sets the todo list
+func (s *ApplicationState) SetTodos(todos []TodoItem) {
+	s.todos = todos
+}
+
+// GetTodos returns the current todo list
+func (s *ApplicationState) GetTodos() []TodoItem {
+	return s.todos
 }
 
 // StateSnapshot represents a point-in-time snapshot of application state

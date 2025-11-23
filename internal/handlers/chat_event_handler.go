@@ -211,7 +211,9 @@ func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
 
 ) tea.Cmd {
-	_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
+	if len(msg.ToolCalls) == 0 {
+		_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
+	}
 
 	var cmds []tea.Cmd
 
@@ -422,7 +424,7 @@ func (e *ChatEventHandler) handleToolExecutionCompleted(
 	msg domain.ToolExecutionCompletedEvent,
 
 ) tea.Cmd {
-	return tea.Batch(
+	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return domain.UpdateHistoryEvent{
 				History: e.handler.conversationRepo.GetMessages(),
@@ -437,7 +439,37 @@ func (e *ChatEventHandler) handleToolExecutionCompleted(
 			}
 		},
 		e.handler.startChatCompletion(),
-	)
+	}
+
+	// Check for TodoWrite results and emit TodoUpdateEvent
+	todoUpdateCmd := e.extractTodoUpdateCmd(msg.Results)
+	if todoUpdateCmd != nil {
+		cmds = append(cmds, todoUpdateCmd)
+	}
+
+	return tea.Batch(cmds...)
+}
+
+// extractTodoUpdateCmd checks tool results for TodoWrite and returns a command to update todos
+func (e *ChatEventHandler) extractTodoUpdateCmd(results []*domain.ToolExecutionResult) tea.Cmd {
+	for _, result := range results {
+		if result == nil || result.ToolName != "TodoWrite" || !result.Success {
+			continue
+		}
+
+		todoResult, ok := result.Data.(*domain.TodoWriteToolResult)
+		if !ok || todoResult == nil {
+			continue
+		}
+
+		todos := todoResult.Todos
+		return func() tea.Msg {
+			return domain.TodoUpdateEvent{
+				Todos: todos,
+			}
+		}
+	}
+	return nil
 }
 
 func (e *ChatEventHandler) handleParallelToolsStart(

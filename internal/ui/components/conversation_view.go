@@ -34,6 +34,7 @@ type ConversationView struct {
 	toolCallRenderer    *ToolCallRenderer
 	markdownRenderer    *markdown.Renderer
 	rawFormat           bool
+	userScrolledUp      bool
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
@@ -96,6 +97,12 @@ func (cv *ConversationView) CanScrollUp() bool {
 
 func (cv *ConversationView) CanScrollDown() bool {
 	return !cv.Viewport.AtBottom()
+}
+
+// ResetUserScroll resets the user scroll state, enabling auto-scroll to bottom.
+// Call this when a new message is sent to ensure the user sees the latest response.
+func (cv *ConversationView) ResetUserScroll() {
+	cv.userScrolledUp = false
 }
 
 func (cv *ConversationView) ToggleToolResultExpansion(index int) {
@@ -205,10 +212,9 @@ func (cv *ConversationView) updateViewportContent() {
 		}
 	}
 
-	wasAtBottom := cv.Viewport.AtBottom()
 	cv.Viewport.SetContent(b.String())
 
-	if wasAtBottom {
+	if !cv.userScrolledUp {
 		cv.Viewport.GotoBottom()
 	}
 }
@@ -535,8 +541,12 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			switch mouseMsg.Button {
 			case tea.MouseButtonWheelDown:
 				cv.Viewport.ScrollDown(1)
+				if cv.Viewport.AtBottom() {
+					cv.userScrolledUp = false
+				}
 				return cv, nil
 			case tea.MouseButtonWheelUp:
+				cv.userScrolledUp = true
 				cv.Viewport.ScrollUp(1)
 				return cv, nil
 			}
@@ -583,6 +593,7 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (cv *ConversationView) handleScrollRequest(msg domain.ScrollRequestEvent) (tea.Model, tea.Cmd) {
 	switch msg.Direction {
 	case domain.ScrollUp:
+		cv.userScrolledUp = true
 		for i := 0; i < msg.Amount; i++ {
 			cv.Viewport.ScrollUp(1)
 		}
@@ -590,9 +601,14 @@ func (cv *ConversationView) handleScrollRequest(msg domain.ScrollRequestEvent) (
 		for i := 0; i < msg.Amount; i++ {
 			cv.Viewport.ScrollDown(1)
 		}
+		if cv.Viewport.AtBottom() {
+			cv.userScrolledUp = false
+		}
 	case domain.ScrollToTop:
+		cv.userScrolledUp = true
 		cv.Viewport.GotoTop()
 	case domain.ScrollToBottom:
+		cv.userScrolledUp = false
 		cv.Viewport.GotoBottom()
 	}
 	return cv, nil

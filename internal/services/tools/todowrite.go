@@ -359,20 +359,14 @@ func (t *TodoWriteTool) FormatPreview(result *domain.ToolExecutionResult) string
 }
 
 // FormatForUI formats the result for UI display
+// Returns minimal format as todo updates are shown in the dedicated todo component
 func (t *TodoWriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	if result == nil {
 		return "Tool execution result unavailable"
 	}
 
-	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
 	statusIcon := t.formatter.FormatStatusIcon(result.Success)
-	preview := t.FormatPreview(result)
-
-	var output strings.Builder
-	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
-
-	return output.String()
+	return fmt.Sprintf("TodoWrite(...)\n└─ %s Todo list updated", statusIcon)
 }
 
 // FormatForLLM formats the result for LLM consumption with detailed information
@@ -566,6 +560,7 @@ func (t *TodoWriteTool) ShouldCollapseArg(key string) bool {
 }
 
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
+// Returns false since todos are shown in the dedicated todo component
 func (t *TodoWriteTool) ShouldAlwaysExpand() bool {
-	return true
+	return false
 }

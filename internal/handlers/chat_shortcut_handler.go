@@ -50,10 +50,17 @@ func (s *ChatShortcutHandler) executeShortcut(
 				s.handler.messageQueue.Clear()
 			}
 
+			s.handler.stateManager.SetTodos([]domain.TodoItem{})
+
 			return tea.Batch(
 				func() tea.Msg {
 					return domain.UpdateHistoryEvent{
 						History: s.handler.conversationRepo.GetMessages(),
+					}
+				},
+				func() tea.Msg {
+					return domain.TodoUpdateEvent{
+						Todos: []domain.TodoItem{},
 					}
 				},
 				func() tea.Msg {

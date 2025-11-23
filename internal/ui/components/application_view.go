@@ -39,12 +39,14 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	statusView shared.StatusComponent,
 	helpBar shared.HelpBarComponent,
 	queueBoxView *QueueBoxView,
+	todoBoxView *TodoBoxView,
 ) string {
 	width, height := data.Width, data.Height
 
 	headerHeight := 3
 	helpBarHeight := 0
 	queueBoxHeight := 0
+	todoBoxHeight := 0
 
 	helpBar.SetWidth(width)
 	if helpBar.IsEnabled() {
@@ -59,7 +61,12 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		}
 	}
 
-	adjustedHeight := height - headerHeight - helpBarHeight - queueBoxHeight
+	// Calculate todo box height
+	if todoBoxView != nil && todoBoxView.HasTodos() {
+		todoBoxHeight = todoBoxView.GetHeight()
+	}
+
+	adjustedHeight := height - headerHeight - helpBarHeight - queueBoxHeight - todoBoxHeight
 	conversationHeight := shared.CalculateConversationHeight(adjustedHeight)
 	inputHeight := shared.CalculateInputHeight(adjustedHeight)
 	statusHeight := shared.CalculateStatusHeight(adjustedHeight)
@@ -78,6 +85,10 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		queueBoxView.SetWidth(width)
 	}
 
+	if todoBoxView != nil {
+		todoBoxView.SetWidth(width)
+	}
+
 	headerText := ""
 	if len(data.BackgroundTasks) > 0 {
 		headerText = fmt.Sprintf("(%d)", len(data.BackgroundTasks))
@@ -90,19 +101,28 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	separator := strings.Repeat("─", width)
 	inputArea := inputView.Render()
 
-	components := []string{header, headerBorder, conversationArea, separator}
-
-	if statusHeight > 0 {
-		statusContent := statusView.Render()
-		if statusContent != "" {
-			components = append(components, statusContent)
-		}
-	}
+	components := []string{header, headerBorder, conversationArea}
 
 	if queueBoxView != nil && (len(data.QueuedMessages) > 0 || len(data.BackgroundTasks) > 0) {
 		queueBoxContent := queueBoxView.Render(data.QueuedMessages, data.BackgroundTasks)
 		if queueBoxContent != "" {
 			components = append(components, queueBoxContent)
+		}
+	}
+
+	if todoBoxView != nil && todoBoxView.HasTodos() {
+		todoBoxContent := todoBoxView.Render()
+		if todoBoxContent != "" {
+			components = append(components, todoBoxContent)
+		}
+	}
+
+	components = append(components, separator)
+
+	if statusHeight > 0 {
+		statusContent := statusView.Render()
+		if statusContent != "" {
+			components = append(components, statusContent)
 		}
 	}
 

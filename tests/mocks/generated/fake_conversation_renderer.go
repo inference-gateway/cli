@@ -70,6 +70,10 @@ type FakeConversationRenderer struct {
 	renderReturnsOnCall map[int]struct {
 		result1 string
 	}
+	ResetUserScrollStub        func()
+	resetUserScrollMutex       sync.RWMutex
+	resetUserScrollArgsForCall []struct {
+	}
 	SetConversationStub        func([]domain.ConversationEntry)
 	setConversationMutex       sync.RWMutex
 	setConversationArgsForCall []struct {
@@ -426,6 +430,30 @@ func (fake *FakeConversationRenderer) RenderReturnsOnCall(i int, result1 string)
 	fake.renderReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
+}
+
+func (fake *FakeConversationRenderer) ResetUserScroll() {
+	fake.resetUserScrollMutex.Lock()
+	fake.resetUserScrollArgsForCall = append(fake.resetUserScrollArgsForCall, struct {
+	}{})
+	stub := fake.ResetUserScrollStub
+	fake.recordInvocation("ResetUserScroll", []interface{}{})
+	fake.resetUserScrollMutex.Unlock()
+	if stub != nil {
+		fake.ResetUserScrollStub()
+	}
+}
+
+func (fake *FakeConversationRenderer) ResetUserScrollCallCount() int {
+	fake.resetUserScrollMutex.RLock()
+	defer fake.resetUserScrollMutex.RUnlock()
+	return len(fake.resetUserScrollArgsForCall)
+}
+
+func (fake *FakeConversationRenderer) ResetUserScrollCalls(stub func()) {
+	fake.resetUserScrollMutex.Lock()
+	defer fake.resetUserScrollMutex.Unlock()
+	fake.ResetUserScrollStub = stub
 }
 
 func (fake *FakeConversationRenderer) SetConversation(arg1 []domain.ConversationEntry) {

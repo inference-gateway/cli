@@ -116,6 +116,8 @@ func (t *testConversationRenderer) IsRawFormat() bool {
 	return false
 }
 
+func (t *testConversationRenderer) ResetUserScroll() {}
+
 func (t *testConversationRenderer) SetWidth(width int) {}
 
 func (t *testConversationRenderer) SetHeight(height int) {}
@@ -461,7 +463,7 @@ func TestActionRegistration(t *testing.T) {
 
 	customAction := &KeyAction{
 		ID:          "test_action",
-		Keys:        []string{"ctrl+t"},
+		Keys:        []string{"ctrl+shift+t"},
 		Description: "test action",
 		Category:    "test",
 		Handler: func(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
@@ -489,7 +491,7 @@ func TestActionRegistration(t *testing.T) {
 	mockContext := &testKeyHandlerContext{
 		currentView: domain.ViewStateChat,
 	}
-	resolvedAction := registry.Resolve("ctrl+t", mockContext)
+	resolvedAction := registry.Resolve("ctrl+shift+t", mockContext)
 	if resolvedAction == nil {
 		t.Fatal("Expected custom action to be resolved")
 	} else if resolvedAction.ID != "test_action" {

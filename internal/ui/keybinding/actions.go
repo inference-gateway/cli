@@ -136,6 +136,18 @@ func (r *Registry) createChatActions() []*KeyAction {
 				},
 			},
 		},
+		{
+			ID:          "toggle_todo_box",
+			Keys:        []string{"ctrl+t"},
+			Description: "toggle todo list",
+			Category:    "display",
+			Handler:     handleToggleTodoBox,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
 	}
 
 	// Add clipboard actions
@@ -857,6 +869,12 @@ func handleInsertNewline(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 func handleToggleHelp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
 		return domain.ToggleHelpBarEvent{}
+	}
+}
+
+func handleToggleTodoBox(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	return func() tea.Msg {
+		return domain.ToggleTodoBoxEvent{}
 	}
 }
 
