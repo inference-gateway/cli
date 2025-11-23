@@ -394,13 +394,13 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 	wrappedContent := shared.FormatResponsiveMessage(contentStr, cv.width)
-	return wrappedContent + "\n\n• Press Ctrl+O to collapse all tool calls"
+	return wrappedContent + "\n\n• Press ctrl+o to collapse all tool calls"
 }
 
 func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
 	if entry.ToolExecution != nil {
 		content := cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
-		return content + "\n• Press Ctrl+O to expand all tool calls"
+		return content + "\n• Press ctrl+o to expand all tool calls"
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
@@ -408,7 +408,7 @@ func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry)
 	}
 	content := cv.formatToolContentCompact(contentStr)
 	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
-	return wrappedContent + "\n• Press Ctrl+O to expand all tool calls"
+	return wrappedContent + "\n• Press ctrl+o to expand all tool calls"
 }
 
 func (cv *ConversationView) formatToolContentCompact(content string) string {

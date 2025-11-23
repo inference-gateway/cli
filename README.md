@@ -452,7 +452,7 @@ The chat interface supports three operational modes that can be toggled with **S
   Edit, Delete, Bash, etc.).
 
 - **Plan Mode**: Read-only mode designed for planning and analysis. In this mode, the agent:
-  - Can only use Read, Grep, and Tree tools to gather information
+  - Can only use Read, Grep, Tree, and A2A_QueryAgent tools to gather information
   - Is instructed to analyze tasks and create detailed plans without executing changes
   - Provides step-by-step breakdowns of what would be done in Standard mode
   - Useful for understanding codebases or previewing changes before implementation
@@ -1085,9 +1085,13 @@ gateway:
   timeout: 200
   oci: ghcr.io/inference-gateway/inference-gateway:latest  # OCI image for Docker mode
   run: true    # Automatically run the gateway (enabled by default)
-  docker: false  # Use binary mode by default (set to true for Docker)
+  docker: true  # Use Docker mode by default (set to false for binary mode)
   include_models: []  # Optional: only allow specific models (allowlist)
-  exclude_models: []  # Optional: block specific models (blocklist)
+  exclude_models:
+    - ollama_cloud/cogito-2.1:671b
+    - ollama_cloud/kimi-k2:1t
+    - ollama_cloud/kimi-k2-thinking
+    - ollama_cloud/deepseek-v3.1:671b # Block specific models by default
 client:
   timeout: 200
   retry:
@@ -1156,7 +1160,7 @@ tools:
     whitelisted_domains:
       - golang.org
     safety:
-      max_size: 4096 # 4KB
+      max_size: 8192 # 8KB
       timeout: 30 # 30 seconds
       allow_redirect: true
     cache:
@@ -1222,7 +1226,7 @@ agent:
   max_turns: 50 # Maximum number of turns for agent sessions
   max_tokens: 4096 # The maximum number of tokens that can be generated per request
   optimization:
-    enabled: false
+    enabled: true
     max_history: 10
     compact_threshold: 20
     truncate_large_outputs: true

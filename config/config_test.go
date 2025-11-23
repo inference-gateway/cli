@@ -31,8 +31,8 @@ func TestDefaultConfig(t *testing.T) {
 	t.Run("websearch engine validation", func(t *testing.T) {
 		testWebSearchEngineValidation(t, cfg)
 	})
-	t.Run("compact defaults", func(t *testing.T) {
-		testCompactDefaults(t, cfg)
+	t.Run("export defaults", func(t *testing.T) {
+		testExportDefaults(t, cfg)
 	})
 	t.Run("chat defaults", func(t *testing.T) {
 		testChatDefaults(t, cfg)
@@ -95,9 +95,9 @@ func testWebSearchEngineValidation(t *testing.T, cfg *Config) {
 	}
 }
 
-func testCompactDefaults(t *testing.T, cfg *Config) {
-	if cfg.Compact.OutputDir != ".infer" {
-		t.Errorf("Expected compact output dir to be '.infer', got %q", cfg.Compact.OutputDir)
+func testExportDefaults(t *testing.T, cfg *Config) {
+	if cfg.Export.OutputDir != ".infer" {
+		t.Errorf("Expected export output dir to be '.infer', got %q", cfg.Export.OutputDir)
 	}
 }
 
@@ -266,7 +266,7 @@ tools:
   safety:
     require_approval: false
 
-compact:
+export:
   output_dir: ".infer"
 
 agent:

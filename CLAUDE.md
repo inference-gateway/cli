@@ -101,10 +101,10 @@ The codebase follows **Clean Architecture** with clear separation:
 
 The chat interface uses an **event-driven pattern** with:
 
-- **Event Registry** (`event_registry.go`): Automatically registers handler methods using reflection
-  - Convention: Handler methods must be named `Handle{EventTypeName}` (e.g., `HandleChatStartEvent`)
-  - All event types must be registered in `autoRegisterHandlers()` or the system will panic at startup
-  - This strict registration prevents silent event drops
+- **Manual Event Handling**: Events are handled through explicit switch statements in handler methods
+  - Convention: Handler methods are named `Handle{EventTypeName}` (e.g., `HandleChatStartEvent`)
+  - All event types must be explicitly handled in the main `Handle()` method
+  - Unhandled events are logged with warnings
 
 - **Event Types** (defined in `internal/domain/interfaces.go`):
   - `ChatEvent`: Chat operations (ChatStart, ChatChunk, ChatComplete, ChatError, etc.)
@@ -129,7 +129,7 @@ Tools are implemented using the **Factory Pattern** and **Strategy Pattern**:
   - `bash.go`: Command execution
   - `read.go`, `write.go`, `edit.go`: File operations
   - `grep.go`: Code search
-  - `websearch.go`, `webfetch.go`: Web operations
+  - `web_search.go`, `web_fetch.go`: Web operations
   - `github.go`: GitHub API integration
   - `a2a_*.go`: Agent-to-agent communication tools
 
@@ -181,10 +181,10 @@ The `StateManager` (`internal/services/state_manager.go`) centralizes applicatio
 When adding a new event type, you MUST:
 
 1. Define the event struct in `internal/domain/interfaces.go`
-2. Add the event to the `eventTypes` slice in `event_registry.go:autoRegisterHandlers()`
+2. Add a case statement in the main `Handle()` method in `internal/handlers/chat_handler.go`
 3. Implement a handler method in the appropriate handler file named `Handle{EventTypeName}`
 
-**Failure to follow this pattern will cause a panic at startup**, which is intentional to prevent silent event drops.
+**Unhandled events will be logged with warnings** but won't cause startup failures.
 
 ### Tool Result Formatting
 
@@ -270,11 +270,11 @@ go run . --config ./test-config.yaml chat
 
 ### Debugging Event Flow
 
-The event registry will panic if a handler is missing. This is intentional:
+Unhandled events are logged with warnings:
 
-- **Before adding an event**: Check `event_registry.go` for the registration pattern
+- **Before adding an event**: Check the main `Handle()` method in `internal/handlers/chat_handler.go`
 - **When debugging events**: Look for the event type in `internal/domain/interfaces.go`
-- **When events aren't firing**: Check that the event is in the `eventTypes` slice
+- **When events aren't firing**: Check that the event has a case statement in the main handler
 
 ### Working with Tools
 

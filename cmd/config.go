@@ -685,7 +685,7 @@ func init() {
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configToolsCmd)
 	configCmd.AddCommand(configOptimizationCmd)
-	configCmd.AddCommand(configCompactCmd)
+	configCmd.AddCommand(configExportCmd)
 	configCmd.AddCommand(configAgentCmd)
 
 	configToolsCmd.AddCommand(configToolsEnableCmd)

@@ -52,6 +52,7 @@ type SessionTokenStats struct {
 	TotalOutputTokens int `json:"total_output_tokens"`
 	TotalTokens       int `json:"total_tokens"`
 	RequestCount      int `json:"request_count"`
+	LastInputTokens   int `json:"last_input_tokens"`
 }
 
 // ConversationRepository handles conversation storage and retrieval

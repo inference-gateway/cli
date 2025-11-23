@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	models "github.com/inference-gateway/cli/internal/models"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
@@ -24,6 +25,7 @@ type InputView struct {
 	imageService        domain.ImageService
 	stateManager        domain.StateManager
 	configService       *config.Config
+	conversationRepo    domain.ConversationRepository
 	Autocomplete        shared.AutocompleteInterface
 	historyManager      *history.HistoryManager
 	isTextSelectionMode bool
@@ -80,6 +82,11 @@ func (iv *InputView) SetConfigService(configService *config.Config) {
 // SetImageService sets the image service for this input view
 func (iv *InputView) SetImageService(imageService domain.ImageService) {
 	iv.imageService = imageService
+}
+
+// SetConversationRepo sets the conversation repository for context usage display
+func (iv *InputView) SetConversationRepo(repo domain.ConversationRepository) {
+	iv.conversationRepo = repo
 }
 
 func (iv *InputView) GetInput() string {
@@ -363,7 +370,46 @@ func (iv *InputView) buildModelDisplayText(currentModel string) string {
 		}
 	}
 
+	if contextIndicator := iv.getContextUsageIndicator(currentModel); contextIndicator != "" {
+		parts = append(parts, contextIndicator)
+	}
+
 	return "  " + strings.Join(parts, " • ")
+}
+
+// getContextUsageIndicator returns a context usage indicator string
+func (iv *InputView) getContextUsageIndicator(model string) string {
+	if iv.conversationRepo == nil {
+		return ""
+	}
+
+	stats := iv.conversationRepo.GetSessionTokens()
+	currentContextSize := stats.LastInputTokens
+	if currentContextSize == 0 {
+		return ""
+	}
+
+	contextWindow := iv.estimateContextWindow(model)
+	if contextWindow == 0 {
+		return ""
+	}
+
+	usagePercent := float64(currentContextSize) * 100 / float64(contextWindow)
+
+	if usagePercent >= 90 {
+		return fmt.Sprintf("Context: %.0f%% FULL", usagePercent)
+	} else if usagePercent >= 75 {
+		return fmt.Sprintf("Context: %.0f%% HIGH", usagePercent)
+	} else if usagePercent >= 50 {
+		return fmt.Sprintf("Context: %.0f%%", usagePercent)
+	}
+
+	return ""
+}
+
+// estimateContextWindow returns an estimated context window size based on model name
+func (iv *InputView) estimateContextWindow(model string) int {
+	return models.EstimateContextWindow(model)
 }
 
 func (iv *InputView) addModelWithModeIndicator(components []string, displayText string, modeIndicator string) []string {

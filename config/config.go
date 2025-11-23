@@ -24,7 +24,7 @@ type Config struct {
 	Client       ClientConfig       `yaml:"client" mapstructure:"client"`
 	Logging      LoggingConfig      `yaml:"logging" mapstructure:"logging"`
 	Tools        ToolsConfig        `yaml:"tools" mapstructure:"tools"`
-	Compact      CompactConfig      `yaml:"compact" mapstructure:"compact"`
+	Export       ExportConfig       `yaml:"export" mapstructure:"export"`
 	Agent        AgentConfig        `yaml:"agent" mapstructure:"agent"`
 	Git          GitConfig          `yaml:"git" mapstructure:"git"`
 	SCM          SCMConfig          `yaml:"scm" mapstructure:"scm"`
@@ -217,8 +217,8 @@ type SafetyConfig struct {
 	RequireApproval bool `yaml:"require_approval" mapstructure:"require_approval"`
 }
 
-// CompactConfig contains settings for compact command
-type CompactConfig struct {
+// ExportConfig contains settings for export command
+type ExportConfig struct {
 	OutputDir    string `yaml:"output_dir" mapstructure:"output_dir"`
 	SummaryModel string `yaml:"summary_model" mapstructure:"summary_model"`
 }
@@ -533,7 +533,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				RequireApproval: true,
 			},
 		},
-		Compact: CompactConfig{
+		Export: ExportConfig{
 			OutputDir:    ConfigDirName,
 			SummaryModel: "",
 		},
@@ -627,9 +627,9 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 			MaxTokens:          8192,
 			MaxConcurrentTools: 5,
 			Optimization: OptimizationConfig{
-				Enabled:     false,
+				Enabled:     true,
 				Model:       "",
-				MinMessages: 10,
+				MinMessages: 50,
 				BufferSize:  2,
 			},
 		},
@@ -849,7 +849,7 @@ func (c *Config) GetAgentConfig() *AgentConfig {
 }
 
 func (c *Config) GetOutputDirectory() string {
-	return c.Compact.OutputDir
+	return c.Export.OutputDir
 }
 
 func (c *Config) GetGatewayURL() string {

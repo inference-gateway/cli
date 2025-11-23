@@ -281,6 +281,7 @@ func (r *InMemoryConversationRepository) AddTokenUsage(inputTokens, outputTokens
 	r.sessionStats.TotalOutputTokens += outputTokens
 	r.sessionStats.TotalTokens += totalTokens
 	r.sessionStats.RequestCount++
+	r.sessionStats.LastInputTokens = inputTokens
 
 	return nil
 }

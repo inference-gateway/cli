@@ -113,7 +113,7 @@ tools:
     require_approval: false
   safety:
     require_approval: true
-compact:
+export:
   output_dir: .infer
   summary_model: ""
 agent:
@@ -207,9 +207,9 @@ agent:
   max_tokens: 8192
   max_concurrent_tools: 5
   optimization:
-    enabled: false
+    enabled: true
     model: ""
-    min_messages: 10
+    min_messages: 50
     buffer_size: 2
 git:
   commit_message:
