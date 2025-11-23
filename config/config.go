@@ -314,6 +314,7 @@ type SCMPRCreateConfig struct {
 	Prompt       string `yaml:"prompt" mapstructure:"prompt"`
 	BaseBranch   string `yaml:"base_branch" mapstructure:"base_branch"`
 	BranchPrefix string `yaml:"branch_prefix" mapstructure:"branch_prefix"`
+	Model        string `yaml:"model" mapstructure:"model"`
 }
 
 // SCMCleanupConfig contains settings for cleanup after PR creation
@@ -753,25 +754,7 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 		},
 		SCM: SCMConfig{
 			PRCreate: SCMPRCreateConfig{
-				Prompt: `Please help me create a pull request with the following workflow:
-
-1. **Analyze the changes** and determine:
-   - A descriptive branch name (use conventional format like feat/, fix/, docs/, refactor/)
-   - A concise commit message following conventional commits
-   - A PR title and description
-
-2. **Execute the git workflow**:
-   - If on main/master: Create and checkout a new branch
-   - Stage all changes with git add
-   - Commit with the generated message
-   - Push to the remote repository
-   - Create a pull request using the GitHub CLI (gh pr create)
-
-3. **Cleanup** (after PR is created):
-   - Return to the original branch (main/master)
-   - Optionally delete the local feature branch if requested
-
-Please proceed with analyzing the changes below and executing the workflow. Ask for confirmation before each destructive action.`,
+				Prompt:       "",
 				BaseBranch:   "main",
 				BranchPrefix: "",
 			},

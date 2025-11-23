@@ -230,6 +230,15 @@ git:
       - "refactor: Simplify error handling"
 
       Respond with ONLY the commit message, no quotes or explanation.
+scm:
+  pr_create:
+    prompt: ""
+    base_branch: main
+    branch_prefix: ""
+    model: ""
+  cleanup:
+    return_to_base: true
+    delete_local_branch: false
 storage:
   enabled: true
   type: sqlite

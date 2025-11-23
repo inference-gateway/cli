@@ -71,7 +71,6 @@ func (s *SCMShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 
 // executePRCreate handles the PR creation workflow
 func (s *SCMShortcut) executePRCreate(ctx context.Context) (ShortcutResult, error) {
-	// Check if we're in a git repository
 	if err := s.checkGitRepository(ctx); err != nil {
 		return ShortcutResult{
 			Output:  fmt.Sprintf("❌ Not in a git repository: %v", err),
@@ -79,7 +78,6 @@ func (s *SCMShortcut) executePRCreate(ctx context.Context) (ShortcutResult, erro
 		}, nil
 	}
 
-	// Check for uncommitted changes
 	diff, err := s.getGitDiff(ctx)
 	if err != nil {
 		return ShortcutResult{
@@ -95,7 +93,6 @@ func (s *SCMShortcut) executePRCreate(ctx context.Context) (ShortcutResult, erro
 		}, nil
 	}
 
-	// Get the current branch to check if we're on main/master
 	currentBranch, err := s.getCurrentBranch(ctx)
 	if err != nil {
 		return ShortcutResult{
@@ -104,18 +101,130 @@ func (s *SCMShortcut) executePRCreate(ctx context.Context) (ShortcutResult, erro
 		}, nil
 	}
 
-	// Check if already on a feature branch (not main/master)
 	isMainBranch := currentBranch == "main" || currentBranch == "master"
 
-	// Return with SideEffectSetInput to populate the input with a prompt for the LLM
-	prompt := s.buildPRCreationPrompt(diff, currentBranch, isMainBranch)
-
 	return ShortcutResult{
-		Output:     fmt.Sprintf("%s🚀 Preparing PR creation workflow...%s\n\nReview the prompt below and press Enter to let the AI generate your branch, commit, and PR.", colors.Magenta, colors.Reset),
+		Output:     fmt.Sprintf("%s🚀 Analyzing changes and generating PR plan...%s", colors.Magenta, colors.Reset),
 		Success:    true,
-		SideEffect: SideEffectSetInput,
-		Data:       prompt,
+		SideEffect: SideEffectGeneratePRPlan,
+		Data: map[string]any{
+			"context":       ctx,
+			"diff":          diff,
+			"currentBranch": currentBranch,
+			"isMainBranch":  isMainBranch,
+			"scmShortcut":   s,
+		},
 	}, nil
+}
+
+// GeneratePRPlan generates a concise PR plan by calling the LLM
+func (s *SCMShortcut) GeneratePRPlan(ctx context.Context, diff, currentBranch string, isMainBranch bool) (string, error) {
+	if s.client == nil {
+		return "", fmt.Errorf("client not available")
+	}
+
+	model := s.config.SCM.PRCreate.Model
+	if model == "" {
+		model = s.config.Agent.Model
+	}
+	if model == "" && s.modelService != nil {
+		model = s.modelService.GetCurrentModel()
+	}
+	if model == "" {
+		return "", fmt.Errorf("no model configured (set scm.pr_create.model, agent.model, or select a model with /switch)")
+	}
+
+	baseBranch := s.config.SCM.PRCreate.BaseBranch
+	if baseBranch == "" {
+		baseBranch = "main"
+	}
+
+	systemPrompt := s.getPRPlanSystemPrompt()
+
+	userPrompt := s.buildPRPlanUserPrompt(diff, currentBranch, isMainBranch, baseBranch)
+
+	messages := []sdk.Message{
+		{Role: sdk.System, Content: sdk.NewMessageContent(systemPrompt)},
+		{Role: sdk.User, Content: sdk.NewMessageContent(userPrompt)},
+	}
+
+	slashIndex := strings.Index(model, "/")
+	if slashIndex == -1 {
+		return "", fmt.Errorf("invalid model format, expected 'provider/model'")
+	}
+
+	provider := model[:slashIndex]
+	modelName := strings.TrimPrefix(model, provider+"/")
+	providerType := sdk.Provider(provider)
+
+	response, err := s.client.
+		WithOptions(&sdk.CreateChatCompletionRequest{
+			MaxTokens: &[]int{500}[0],
+		}).
+		WithMiddlewareOptions(&sdk.MiddlewareOptions{
+			SkipMCP: true,
+		}).
+		GenerateContent(ctx, providerType, modelName, messages)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate PR plan: %w", err)
+	}
+
+	if len(response.Choices) == 0 {
+		return "", fmt.Errorf("no PR plan generated")
+	}
+
+	contentStr, err := response.Choices[0].Message.Content.AsMessageContent0()
+	if err != nil {
+		return "", fmt.Errorf("failed to extract PR plan content: %w", err)
+	}
+
+	return strings.TrimSpace(contentStr), nil
+}
+
+// getPRPlanSystemPrompt returns the system prompt for PR plan generation
+func (s *SCMShortcut) getPRPlanSystemPrompt() string {
+	return `You are a helpful assistant that analyzes code changes and generates a concise PR creation plan.
+
+Your task is to analyze the diff and output a structured plan with EXACTLY this format (each field on its own line):
+
+**Branch:** feat/descriptive-branch-name
+
+**Commit:** type: concise commit message
+
+**PR Title:** Clear, descriptive title
+
+**PR Description:**
+Brief summary of changes (2-3 sentences max)
+
+REQUIREMENTS:
+- Each field must be on its own separate line with a blank line between fields
+- Branch name: Use conventional format (feat/, fix/, docs/, refactor/, chore/)
+- Commit message: Follow conventional commits, under 50 chars, first letter after colon must be capitalized (e.g., "feat: Add new feature")
+- PR Title: Clear and descriptive
+- PR Description: Brief, focused on what and why
+- NEVER use words like "comprehensive", "enhance", "robust", or other filler adjectives
+- Use simple, direct verbs: Add, Fix, Update, Remove, Refactor, etc.
+
+Output ONLY the plan in the format above. No explanations or additional text.`
+}
+
+// buildPRPlanUserPrompt builds the user prompt for PR plan generation
+func (s *SCMShortcut) buildPRPlanUserPrompt(diff, currentBranch string, isMainBranch bool, baseBranch string) string {
+	var sb strings.Builder
+
+	sb.WriteString("Analyze these changes and generate a PR plan:\n\n")
+
+	sb.WriteString(fmt.Sprintf("Current branch: %s\n", currentBranch))
+	sb.WriteString(fmt.Sprintf("Base branch: %s\n", baseBranch))
+	if isMainBranch {
+		sb.WriteString("Status: On main branch - will create a new feature branch\n")
+	} else {
+		sb.WriteString("Status: Already on a feature branch\n")
+	}
+
+	sb.WriteString(fmt.Sprintf("\n```diff\n%s\n```", truncateDiff(diff, 6000)))
+
+	return sb.String()
 }
 
 // checkGitRepository verifies we're in a git repository
@@ -161,56 +270,10 @@ func (s *SCMShortcut) getCurrentBranch(ctx context.Context) (string, error) {
 	return strings.TrimSpace(string(output)), nil
 }
 
-// buildPRCreationPrompt builds the prompt for AI to generate PR details
-func (s *SCMShortcut) buildPRCreationPrompt(diff, currentBranch string, isMainBranch bool) string {
-	// Use custom template from config if available
-	template := s.config.SCM.PRCreate.Prompt
-	if template == "" {
-		template = defaultPRCreatePrompt()
-	}
-
-	// Build context about current state
-	var contextInfo strings.Builder
-	contextInfo.WriteString("## Current Git State\n")
-	contextInfo.WriteString(fmt.Sprintf("- Current branch: `%s`\n", currentBranch))
-	if isMainBranch {
-		contextInfo.WriteString("- Status: On main/master branch - will need to create a new feature branch\n")
-	} else {
-		contextInfo.WriteString("- Status: Already on a feature branch\n")
-	}
-	contextInfo.WriteString(fmt.Sprintf("\n## Changes to be committed\n```diff\n%s\n```\n", truncateDiff(diff, 8000)))
-
-	// Combine template with context
-	return fmt.Sprintf("%s\n\n%s", template, contextInfo.String())
-}
-
 // truncateDiff truncates the diff to a maximum length to avoid token limits
 func truncateDiff(diff string, maxLen int) string {
 	if len(diff) <= maxLen {
 		return diff
 	}
 	return diff[:maxLen] + "\n... (diff truncated for brevity)"
-}
-
-// defaultPRCreatePrompt returns the default prompt template for PR creation
-func defaultPRCreatePrompt() string {
-	return `Please help me create a pull request with the following workflow:
-
-1. **Analyze the changes** and determine:
-   - A descriptive branch name (use conventional format like feat/, fix/, docs/, refactor/)
-   - A concise commit message following conventional commits
-   - A PR title and description
-
-2. **Execute the git workflow**:
-   - If on main/master: Create and checkout a new branch
-   - Stage all changes with git add
-   - Commit with the generated message
-   - Push to the remote repository
-   - Create a pull request using the GitHub CLI (gh pr create)
-
-3. **Cleanup** (after PR is created):
-   - Return to the original branch (main/master)
-   - Optionally delete the local feature branch if requested
-
-Please proceed with analyzing the changes below and executing the workflow. Ask for confirmation before each destructive action.`
 }

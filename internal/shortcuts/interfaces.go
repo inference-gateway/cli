@@ -40,6 +40,7 @@ const (
 	SideEffectShowA2AServers
 	SideEffectShowA2ATaskManagement
 	SideEffectSetInput
+	SideEffectGeneratePRPlan
 )
 
 // PersistentConversationRepository interface for conversation persistence

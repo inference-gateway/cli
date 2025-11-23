@@ -348,7 +348,9 @@ git:
 
 ## SCM Shortcut Configuration
 
-The `/scm pr create` shortcut provides a complete workflow for creating pull requests. It analyzes your changes using AI and generates:
+The `/scm pr create` shortcut provides a complete workflow for creating pull requests.
+It analyzes your changes using AI and generates:
+
 - A descriptive branch name (using conventional format like `feat/`, `fix/`, `docs/`)
 - A commit message following conventional commits
 - A PR title and description
@@ -361,6 +363,7 @@ The `/scm pr create` shortcut provides a complete workflow for creating pull req
 ```
 
 The shortcut will:
+
 1. Check for uncommitted changes
 2. Send the diff to the AI for analysis
 3. Populate the input with a prompt that guides the AI through:
@@ -370,7 +373,7 @@ The shortcut will:
    - Creating a PR using GitHub CLI
    - Optional cleanup (returning to base branch)
 
-### Configuration
+### SCM Configuration
 
 ```yaml
 # SCM shortcut settings
@@ -401,7 +404,7 @@ scm:
       Analyze the changes and execute the workflow.
 ```
 
-### Environment Variables
+### SCM Environment Variables
 
 ```bash
 # Override SCM settings

@@ -152,58 +152,41 @@ func TestSCMShortcut_TruncateDiff(t *testing.T) {
 	}
 }
 
-func TestSCMShortcut_DefaultPRCreatePrompt(t *testing.T) {
-	prompt := defaultPRCreatePrompt()
+func TestSCMShortcut_GetPRPlanSystemPrompt(t *testing.T) {
+	cfg := config.DefaultConfig()
+	shortcut := NewSCMShortcut(nil, cfg, nil)
+
+	prompt := shortcut.getPRPlanSystemPrompt()
 
 	if prompt == "" {
-		t.Error("Expected non-empty default prompt")
+		t.Error("Expected non-empty system prompt")
 	}
 
-	// Check that key elements are present
 	expectedPhrases := []string{
-		"pull request",
-		"branch name",
-		"commit message",
-		"git workflow",
+		"Branch:",
+		"Commit:",
+		"PR Title:",
+		"PR Description:",
 	}
 
 	for _, phrase := range expectedPhrases {
 		if !contains(prompt, phrase) {
-			t.Errorf("Expected prompt to contain %q", phrase)
+			t.Errorf("Expected system prompt to contain %q", phrase)
 		}
 	}
 }
 
-func TestSCMShortcut_BuildPRCreationPrompt_UsesConfigTemplate(t *testing.T) {
-	customPrompt := "Custom PR creation template"
-	cfg := &config.Config{
-		SCM: config.SCMConfig{
-			PRCreate: config.SCMPRCreateConfig{
-				Prompt: customPrompt,
-			},
-		},
-	}
-
-	shortcut := NewSCMShortcut(nil, cfg, nil)
-
-	prompt := shortcut.buildPRCreationPrompt("diff content", "main", true)
-
-	if !contains(prompt, customPrompt) {
-		t.Errorf("Expected prompt to contain custom template %q", customPrompt)
-	}
-}
-
-func TestSCMShortcut_BuildPRCreationPrompt_IncludesContext(t *testing.T) {
+func TestSCMShortcut_BuildPRPlanUserPrompt_FeatureBranch(t *testing.T) {
 	cfg := config.DefaultConfig()
 	shortcut := NewSCMShortcut(nil, cfg, nil)
 
-	prompt := shortcut.buildPRCreationPrompt("diff content", "feature-branch", false)
+	prompt := shortcut.buildPRPlanUserPrompt("diff content", "feature-branch", false, "main")
 
 	expectedPhrases := []string{
-		"Current Git State",
 		"feature-branch",
 		"Already on a feature branch",
 		"diff content",
+		"Base branch: main",
 	}
 
 	for _, phrase := range expectedPhrases {
@@ -213,13 +196,13 @@ func TestSCMShortcut_BuildPRCreationPrompt_IncludesContext(t *testing.T) {
 	}
 }
 
-func TestSCMShortcut_BuildPRCreationPrompt_MainBranch(t *testing.T) {
+func TestSCMShortcut_BuildPRPlanUserPrompt_MainBranch(t *testing.T) {
 	cfg := config.DefaultConfig()
 	shortcut := NewSCMShortcut(nil, cfg, nil)
 
-	prompt := shortcut.buildPRCreationPrompt("diff content", "main", true)
+	prompt := shortcut.buildPRPlanUserPrompt("diff content", "main", true, "main")
 
-	if !contains(prompt, "will need to create a new feature branch") {
+	if !contains(prompt, "will create a new feature branch") {
 		t.Error("Expected prompt to indicate need for new branch when on main")
 	}
 }
