@@ -307,8 +307,7 @@ Follow Conventional Commits specification:
 
 ### Documentation Files
 
-- **`README.md`**: Main project documentation
+- **`README.md`**: Main project documentation (includes configuration guide)
 - **`AGENTS.md`**: AI agent documentation (this file)
-- **`CONFIG.md`**: Configuration guide
 - **`CONTRIBUTING.md`**: Contribution guidelines
 - **`CHANGELOG.md`**: Release history

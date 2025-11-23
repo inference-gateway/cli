@@ -342,6 +342,5 @@ go test -cover ./internal/services/...
 ## Related Documentation
 
 - Full README: `README.md`
-- Configuration details: `CONFIG.md`
 - Contributing guidelines: `CONTRIBUTING.md`
 - Agent architecture: `AGENTS.md`

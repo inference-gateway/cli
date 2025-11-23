@@ -26,46 +26,55 @@ and management of inference services.
 
 - [Features](#features)
 - [Installation](#installation)
+  - [Using Go Install](#using-go-install)
+  - [Using Container Image](#using-container-image)
+  - [Using Install Script](#using-install-script)
+  - [Manual Download](#manual-download)
   - [Verifying Release Binaries](#verifying-release-binaries)
+  - [Build from Source](#build-from-source)
 - [Quick Start](#quick-start)
 - [Commands](#commands)
   - [`infer init`](#infer-init)
   - [`infer config`](#infer-config)
-    - [`infer config init`](#infer-config-init)
-    - [`infer config agent set-model`](#infer-config-agent-set-model)
-    - [`infer config agent set-system`](#infer-config-agent-set-system)
-    - [`infer config tools`](#infer-config-tools)
   - [`infer status`](#infer-status)
   - [`infer chat`](#infer-chat)
   - [`infer agent`](#infer-agent)
   - [`infer version`](#infer-version)
-- [Extensible Shortcuts System](#extensible-shortcuts-system)
+- [Configuration](#configuration)
+  - [Configuration Layers](#configuration-layers)
+  - [Configuration Precedence](#configuration-precedence)
+  - [Default Configuration](#default-configuration)
+  - [Configuration Options](#configuration-options)
+  - [Environment Variables](#environment-variables)
+  - [Environment Variable Substitution](#environment-variable-substitution)
+  - [Configuration Best Practices](#configuration-best-practices)
+  - [Configuration Validation and Troubleshooting](#configuration-validation-and-troubleshooting)
+- [Tool Approval System](#tool-approval-system)
+  - [How It Works](#how-it-works)
+  - [Approval Configuration](#approval-configuration)
+  - [Default Approval Requirements](#default-approval-requirements)
+  - [Approval UI Controls](#approval-ui-controls)
 - [Available Tools for LLMs](#available-tools-for-llms)
   - [Bash Tool](#bash-tool)
   - [Read Tool](#read-tool)
   - [Write Tool](#write-tool)
   - [Grep Tool](#grep-tool)
+  - [Edit Tool](#edit-tool)
+  - [MultiEdit Tool](#multiedit-tool)
+  - [Delete Tool](#delete-tool)
+  - [Tree Tool](#tree-tool)
   - [WebSearch Tool](#websearch-tool)
   - [WebFetch Tool](#webfetch-tool)
   - [Github Tool](#github-tool)
-  - [Tree Tool](#tree-tool)
-  - [Delete Tool](#delete-tool)
-  - [Edit Tool](#edit-tool)
-  - [MultiEdit Tool](#multiedit-tool)
   - [TodoWrite Tool](#todowrite-tool)
-  - [A2A Tools (Agent-to-Agent Communication)](#a2a-tools-agent-to-agent-communication)
-- [Configuration](#configuration)
-  - [Default Configuration](#default-configuration)
-  - [Configuration Options](#configuration-options)
-  - [Web Search API Setup (Optional)](#web-search-api-setup-optional)
+  - [A2A Tools](#a2a-tools-agent-to-agent-communication)
+- [Shortcuts System](#shortcuts-system)
+  - [Built-in Shortcuts](#built-in-shortcuts)
+  - [Git Shortcuts](#git-shortcuts)
+  - [User-Defined Shortcuts](#user-defined-shortcuts)
 - [Global Flags](#global-flags)
 - [Examples](#examples)
-  - [Basic Workflow](#basic-workflow)
-  - [Configuration Management](#configuration-management)
 - [Development](#development)
-  - [Building](#building)
-  - [Testing](#testing)
-  - [Dependencies](#dependencies)
 - [License](#license)
 
 ## Features
@@ -1024,8 +1033,8 @@ For detailed A2A documentation and examples, see [docs/a2a-connections.md](docs/
 
 ## Configuration
 
-The CLI supports a **2-layer configuration system** that allows for both user-level and project-level
-configuration with proper precedence handling. For detailed configuration documentation and examples, see [CONFIG.md](CONFIG.md).
+The CLI uses a powerful 2-layer configuration system built on [Viper](https://github.com/spf13/viper),
+supporting multiple configuration sources with proper precedence handling.
 
 ### Configuration Layers
 
@@ -1041,16 +1050,17 @@ configuration with proper precedence handling. For detailed configuration docume
 
 ### Configuration Precedence
 
-Configuration values are merged with the following precedence (highest to lowest):
+Configuration values are resolved in the following order (highest to lowest priority):
 
-1. **Project-level config** (`.infer/config.yaml`) - **Highest Priority**
-2. **Userspace config** (`~/.infer/config.yaml`)
-3. **Built-in defaults** - **Lowest Priority**
+1. **Environment Variables** (`INFER_*` prefix) - **Highest Priority**
+2. **Command Line Flags**
+3. **Project Config** (`.infer/config.yaml`)
+4. **Userspace Config** (`~/.infer/config.yaml`)
+5. **Built-in Defaults** - **Lowest Priority**
 
 **Example**: If your userspace config sets `agent.model: "anthropic/claude-4"` and your project config sets
-`agent.model: "deepseek/deepseek-chat"`, the project config wins and `deepseek/deepseek-chat` will be used.
-However, if the project config doesn't specify a model but does specify other settings, the userspace model will be preserved
-while project settings take precedence for their specific values.
+`agent.model: "deepseek/deepseek-chat"`, the project config wins. However, if you also set
+`INFER_AGENT_MODEL="openai/gpt-4"`, the environment variable takes precedence over both config files.
 
 ### Usage Examples
 
@@ -1421,17 +1431,170 @@ Additional configuration options for A2A tools:
 - `INFER_A2A_DOWNLOAD_ARTIFACTS_DOWNLOAD_DIR`: Directory for downloading A2A task artifacts (default: `/tmp/downloads`)
 - `INFER_A2A_DOWNLOAD_ARTIFACTS_TIMEOUT_SECONDS`: Timeout for downloading artifacts in seconds (default: `30`)
 
-#### Environment Variable Precedence
+### Environment Variable Substitution
 
-Environment variables have the highest precedence in the configuration system:
+Configuration values support environment variable substitution using the `%VAR_NAME%` syntax:
 
-1. **Environment Variables** (e.g., `INFER_TOOLS_ENABLED`) - **Highest Priority**
-2. **Project-level config** (`.infer/config.yaml`)
-3. **Userspace config** (`~/.infer/config.yaml`)
-4. **Built-in defaults** - **Lowest Priority**
+```yaml
+gateway:
+  api_key: "%INFER_API_KEY%"
 
-**Example**: If your config file sets `tools.enabled: true` but you set `INFER_TOOLS_ENABLED=false`, the
-environment variable wins and tools will be disabled.
+tools:
+  github:
+    token: "%GITHUB_TOKEN%"
+```
+
+This allows sensitive values to be stored as environment variables while keeping them out of configuration files.
+
+### Configuration Best Practices
+
+**Security:**
+
+- **Never commit sensitive data** (API keys, tokens) to configuration files
+- Use environment variable substitution (`%VAR_NAME%`) for sensitive values
+- Use environment variables (`INFER_*`) for CI/CD environments
+
+**Organization:**
+
+- Use **project config** (`.infer/config.yaml`) for project-specific settings
+- Use **userspace config** (`~/.infer/config.yaml`) for personal preferences
+- Commit project configs to version control, exclude userspace configs
+
+**Example Workflow:**
+
+```bash
+# 1. Setup userspace defaults
+infer config --userspace agent set-model "anthropic/claude-4.1"
+infer config --userspace agent set-system "You are a helpful assistant"
+
+# 2. Project-specific overrides
+infer config agent set-model "deepseek/deepseek-chat"  # Project-specific model
+infer config tools bash enable  # Enable bash tools for this project
+
+# 3. Runtime overrides
+INFER_AGENT_VERBOSE_TOOLS=true infer chat  # Temporary verbose mode
+```
+
+### Configuration Validation and Troubleshooting
+
+The CLI validates configuration on startup and provides helpful error messages for:
+
+- Invalid YAML syntax
+- Unknown configuration keys
+- Invalid value types (string vs boolean vs integer)
+- Missing required values
+
+**Common Issues:**
+
+1. **Configuration not found**: Check that the config file exists and has correct YAML syntax
+2. **Environment variables not working**: Ensure proper `INFER_` prefix and underscore conversion
+3. **Precedence confusion**: Remember that environment variables override config files
+
+**Debugging:**
+
+```bash
+# Enable verbose logging
+infer -v config show
+
+# Enable debug logging
+INFER_LOGGING_DEBUG=true infer config show
+
+# Check which config file is being used
+infer config show | grep "Configuration file"
+```
+
+## Tool Approval System
+
+The CLI implements a **user approval workflow** for sensitive tool operations to enhance security and user control.
+
+### How It Works
+
+When the LLM attempts to execute a tool that requires approval:
+
+1. **Approval Request**: The system pauses execution and displays an approval modal
+2. **Visual Preview**: For file modification tools (Write, Edit, MultiEdit), a diff
+   visualization shows exactly what will change
+3. **User Decision**: You can approve or reject the operation
+4. **Execution**: Only approved operations proceed; rejected operations are canceled
+
+### Approval Configuration
+
+Each tool has a `require_approval` flag that can be configured:
+
+```yaml
+tools:
+  # Dangerous operations require approval by default
+  write:
+    enabled: true
+    require_approval: true  # User must approve before writing files
+
+  edit:
+    enabled: true
+    require_approval: true  # User must approve before editing files
+
+  delete:
+    enabled: true
+    require_approval: true  # User must approve before deleting files
+
+  # Safe operations don't require approval by default
+  read:
+    enabled: true
+    require_approval: false  # No approval needed to read files
+
+  grep:
+    enabled: true
+    require_approval: false  # No approval needed for searches
+
+  bash:
+    enabled: true
+    require_approval: true  # Approval required for command execution
+```
+
+You can override approval requirements using environment variables:
+
+```bash
+# Disable approval for Write tool
+export INFER_TOOLS_WRITE_REQUIRE_APPROVAL=false
+
+# Enable approval for Read tool
+export INFER_TOOLS_READ_REQUIRE_APPROVAL=true
+```
+
+### Default Approval Requirements
+
+**Tools requiring approval by default:**
+
+- `write` - Writing new files or overwriting existing ones
+- `edit` - Modifying file contents
+- `multiedit` - Making multiple file edits
+- `delete` - Deleting files or directories
+- `bash` - Executing shell commands
+
+**Tools NOT requiring approval by default:**
+
+- `read` - Reading file contents
+- `grep` - Searching code
+- `websearch` - Web searches
+- `webfetch` - Fetching web content
+- `github` - GitHub API operations
+- `tree` - Displaying directory structure
+- `todowrite` - Managing task lists
+
+### Approval UI Controls
+
+When an approval modal is displayed:
+
+- **Navigate**: Use `←`/`→` arrow keys to select Approve or Reject
+- **Approve**: Press `Enter` or `y` to approve the operation
+- **Reject**: Press `Esc` or `n` to reject the operation
+- **View Details**: The modal shows tool name, arguments, and diff preview for file modifications
+
+**Security Best Practices:**
+
+1. **Keep approval enabled** for destructive tools (Write, Edit, Delete) in production
+2. **Review diffs carefully** before approving file modifications
+3. **Use project configs** to enforce approval requirements across team
+4. **Disable approval only** in trusted, sandboxed environments
 
 ## Global Flags
 
@@ -1509,14 +1672,14 @@ go test ./...
 - [Cobra](https://github.com/spf13/cobra) - CLI framework
 - [YAML v3](https://gopkg.in/yaml.v3) - YAML parsing
 
-# Extensible Shortcuts System
+## Shortcuts System
 
 The CLI provides an extensible shortcuts system that allows you to quickly execute common commands with
 `/shortcut-name` syntax.
 
-## Built-in Shortcuts
+### Built-in Shortcuts
 
-### Core Shortcuts
+**Core Shortcuts:**
 
 - `/clear` - Clear conversation history
 - `/exit` - Exit the chat session
@@ -1530,12 +1693,12 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 ### Git Shortcuts
 
 - `/git <command> [args...]` - Execute git commands (supports commit, push, status, etc.)
-- `/git commit [flags]` - **NEW**: Commit staged changes with AI-generated message
-- `/git push [remote] [branch] [flags]` - **NEW**: Push commits to remote repository
+- `/git commit [flags]` - Commit staged changes with AI-generated message
+- `/git push [remote] [branch] [flags]` - Push commits to remote repository
 
 The git shortcuts provide intelligent commit message generation using AI when no message is provided with `/git commit`.
 
-#### Model Selection for AI Commit Messages
+**Model Selection for AI Commit Messages:**
 
 When generating AI commit messages, the model is selected using the following priority:
 
@@ -1546,7 +1709,17 @@ When generating AI commit messages, the model is selected using the following pr
 This allows you to use `/git commit` without configuring a specific model -
 it will automatically use the model you're currently chatting with.
 
-### Project Initialization Shortcut
+**Git Shortcut Configuration:**
+
+```yaml
+# Optional: Configure a specific model for commit messages
+git:
+  commit_message:
+    model: "anthropic/claude-sonnet-4-20250514"  # Optional
+    system_prompt: ""  # Optional custom prompt
+```
+
+**Project Initialization Shortcut:**
 
 The `/init` shortcut populates the input field with a configurable prompt for generating an
 AGENTS.md file. This allows you to:
@@ -1561,11 +1734,11 @@ The prompt is configurable in your config file under `init.prompt`. The default 
 - Create comprehensive documentation for AI agents
 - Generate an AGENTS.md file with project overview, commands, and conventions
 
-## User-Defined Shortcuts
+### User-Defined Shortcuts
 
 You can create custom shortcuts by adding YAML configuration files in the `.infer/shortcuts/` directory.
 
-### Configuration File Format
+**Configuration File Format:**
 
 Create files named `custom-*.yaml` (e.g., `custom-1.yaml`, `custom-dev.yaml`) in `.infer/shortcuts/`:
 
@@ -1588,7 +1761,7 @@ shortcuts:
     args: ["run"]
 ```
 
-### Configuration Fields
+**Configuration Fields:**
 
 - **name** (required): The shortcut name (used as `/name`)
 - **description** (required): Human-readable description shown in `/help`
@@ -1596,7 +1769,7 @@ shortcuts:
 - **args** (optional): Array of arguments to pass to the command
 - **working_dir** (optional): Working directory for the command (defaults to current)
 
-### Using Shortcuts
+**Using Shortcuts:**
 
 With the configuration above, you can use:
 
@@ -1609,11 +1782,11 @@ You can also pass additional arguments:
 - `/tests -v` - Runs `go test ./... -v`
 - `/build --race` - Runs `go build -o infer . --race`
 
-## Example Custom Shortcuts
+**Example Custom Shortcuts:**
 
 Here are some useful shortcuts you might want to add:
 
-### Development Shortcuts (`custom-dev.yaml`)
+*Development Shortcuts (`custom-dev.yaml`):*
 
 ```yaml
 shortcuts:
@@ -1633,7 +1806,7 @@ shortcuts:
     args: ["describe", "--tags", "--always", "--dirty"]
 ```
 
-### Docker Shortcuts (`custom-docker.yaml`)
+*Docker Shortcuts (`custom-docker.yaml`):*
 
 ```yaml
 shortcuts:
@@ -1648,7 +1821,7 @@ shortcuts:
     args: ["run", "-p", "8080:8080", "myapp"]
 ```
 
-### Project-Specific Shortcuts (`custom-project.yaml`)
+*Project-Specific Shortcuts (`custom-project.yaml`):*
 
 ```yaml
 shortcuts:
@@ -1663,7 +1836,7 @@ shortcuts:
     args: ["run", "cmd/seed/main.go"]
 ```
 
-## Tips
+**Tips:**
 
 1. **File Organization**: Use descriptive names for your config files (e.g., `custom-dev.yaml`, `custom-docker.yaml`)
 2. **Command Discovery**: Use `/help` to see all available shortcuts including your custom ones
@@ -1671,7 +1844,7 @@ shortcuts:
 4. **Reloading**: Restart the chat session to reload custom shortcuts after making changes
 5. **Security**: Be careful with custom shortcuts as they execute system commands
 
-## Troubleshooting
+**Troubleshooting Shortcuts:**
 
 - **Shortcut not appearing**: Check YAML syntax and file naming (`custom-*.yaml`)
 - **Command not found**: Ensure the command is available in your PATH
