@@ -196,6 +196,16 @@ git:
     model: ""           # Model to use for AI commit messages (optional)
     system_prompt: ""   # Custom system prompt for commit message generation
 
+# SCM (Source Control Management) shortcut settings
+scm:
+  pr_create:
+    prompt: ""            # Custom prompt template for PR creation
+    base_branch: "main"   # Base branch for PRs
+    branch_prefix: ""     # Optional prefix for branch names
+  cleanup:
+    return_to_base: true       # Return to base branch after PR creation
+    delete_local_branch: false # Delete local feature branch after PR
+
 # Storage configuration (for conversation history)
 storage:
   enabled: true
@@ -334,6 +344,73 @@ git:
   commit_message:
     model: "anthropic/claude-sonnet-4-20250514"  # Optional
     system_prompt: ""  # Optional custom prompt
+```
+
+## SCM Shortcut Configuration
+
+The `/scm pr create` shortcut provides a complete workflow for creating pull requests.
+It analyzes your changes using AI and generates:
+
+- A descriptive branch name (using conventional format like `feat/`, `fix/`, `docs/`)
+- A commit message following conventional commits
+- A PR title and description
+
+### Usage
+
+```bash
+# In chat mode, simply type:
+/scm pr create
+```
+
+The shortcut will:
+
+1. Check for uncommitted changes
+2. Send the diff to the AI for analysis
+3. Populate the input with a prompt that guides the AI through:
+   - Creating a new branch (if on main/master)
+   - Staging and committing changes
+   - Pushing to remote
+   - Creating a PR using GitHub CLI
+   - Optional cleanup (returning to base branch)
+
+### SCM Configuration
+
+```yaml
+# SCM shortcut settings
+scm:
+  pr_create:
+    prompt: ""            # Custom prompt template (optional)
+    base_branch: "main"   # Base branch for PRs
+    branch_prefix: ""     # Optional prefix for branch names
+
+  cleanup:
+    return_to_base: true       # Return to main/master after PR creation
+    delete_local_branch: false # Delete local feature branch after PR
+```
+
+### Custom Prompt Template
+
+You can customize the PR creation prompt in your config:
+
+```yaml
+scm:
+  pr_create:
+    prompt: |
+      Create a pull request following our team conventions:
+      - Branch names must use format: feature/JIRA-XXX-description
+      - Commit messages must reference JIRA ticket
+      - PR description must include testing checklist
+
+      Analyze the changes and execute the workflow.
+```
+
+### SCM Environment Variables
+
+```bash
+# Override SCM settings
+export INFER_SCM_PR_CREATE_BASE_BRANCH="develop"
+export INFER_SCM_CLEANUP_RETURN_TO_BASE=true
+export INFER_SCM_CLEANUP_DELETE_LOCAL_BRANCH=true
 ```
 
 ## Command Usage

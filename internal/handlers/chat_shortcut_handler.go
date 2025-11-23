@@ -177,6 +177,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowA2ATaskManagementSideEffect()
 	case shortcuts.SideEffectSetInput:
 		return s.handleSetInputSideEffect(data)
+	case shortcuts.SideEffectGeneratePRPlan:
+		return s.handleGeneratePRPlanSideEffect(data)
 	default:
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
@@ -585,5 +587,131 @@ func (s *ChatShortcutHandler) handleSetInputSideEffect(data any) tea.Msg {
 
 	return domain.SetInputEvent{
 		Text: text,
+	}
+}
+
+func (s *ChatShortcutHandler) handleGeneratePRPlanSideEffect(data any) tea.Msg {
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Generating PR plan...",
+				Spinner:    true,
+				StatusType: domain.StatusWorking,
+			}
+		},
+		s.performPRPlanGeneration(data),
+	)()
+}
+
+func (s *ChatShortcutHandler) performPRPlanGeneration(data any) tea.Cmd {
+	return func() tea.Msg {
+		if data == nil {
+			return domain.SetStatusEvent{
+				Message:    "No side effect data available",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+		dataMap, ok := data.(map[string]any)
+		if !ok {
+			return domain.SetStatusEvent{
+				Message:    "Invalid side effect data format",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+		ctx, ok1 := dataMap["context"].(context.Context)
+		diff, ok2 := dataMap["diff"].(string)
+		currentBranch, ok3 := dataMap["currentBranch"].(string)
+		isMainBranch, ok4 := dataMap["isMainBranch"].(bool)
+
+		if !ok1 || !ok2 || !ok3 || !ok4 {
+			return domain.SetStatusEvent{
+				Message:    "Missing PR data",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+		scmShortcut, ok := dataMap["scmShortcut"].(*shortcuts.SCMShortcut)
+		if !ok {
+			return domain.SetStatusEvent{
+				Message:    "Missing or invalid SCM shortcut data",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+		plan, err := scmShortcut.GeneratePRPlan(ctx, diff, currentBranch, isMainBranch)
+		if err != nil {
+			errorEntry := domain.ConversationEntry{
+				Message: sdk.Message{
+					Role:    sdk.Assistant,
+					Content: sdk.NewMessageContent(fmt.Sprintf("**PR Plan Generation Failed**\n\n%v", err)),
+				},
+				Model: "",
+				Time:  time.Now(),
+			}
+
+			if addErr := s.handler.conversationRepo.AddMessage(errorEntry); addErr != nil {
+				logger.Error("failed to add PR plan error message", "error", addErr)
+			}
+
+			return tea.Batch(
+				func() tea.Msg {
+					return domain.UpdateHistoryEvent{
+						History: s.handler.conversationRepo.GetMessages(),
+					}
+				},
+				func() tea.Msg {
+					return domain.SetStatusEvent{
+						Message:    fmt.Sprintf("%s PR plan generation failed: %v", icons.CrossMark, err),
+						Spinner:    false,
+						StatusType: domain.StatusDefault,
+					}
+				},
+			)()
+		}
+
+		formattedPlan := fmt.Sprintf(`## PR Plan
+
+%s
+
+**Next steps:** Type **yes** to proceed with this plan, or provide feedback to adjust it.`, plan)
+
+		planEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent(formattedPlan),
+			},
+			Model: "",
+			Time:  time.Now(),
+		}
+
+		if addErr := s.handler.conversationRepo.AddMessage(planEntry); addErr != nil {
+			logger.Error("failed to add PR plan message", "error", addErr)
+		}
+
+		return tea.Batch(
+			func() tea.Msg {
+				return domain.UpdateHistoryEvent{
+					History: s.handler.conversationRepo.GetMessages(),
+				}
+			},
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    fmt.Sprintf("%s PR plan generated - review and confirm", icons.CheckMark),
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
+				}
+			},
+		)()
 	}
 }

@@ -27,6 +27,7 @@ type Config struct {
 	Compact      CompactConfig      `yaml:"compact" mapstructure:"compact"`
 	Agent        AgentConfig        `yaml:"agent" mapstructure:"agent"`
 	Git          GitConfig          `yaml:"git" mapstructure:"git"`
+	SCM          SCMConfig          `yaml:"scm" mapstructure:"scm"`
 	Storage      StorageConfig      `yaml:"storage" mapstructure:"storage"`
 	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
 	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
@@ -300,6 +301,26 @@ type ChatConfig struct {
 // InitConfig contains settings for the /init shortcut
 type InitConfig struct {
 	Prompt string `yaml:"prompt" mapstructure:"prompt"`
+}
+
+// SCMConfig contains settings for source control management shortcuts
+type SCMConfig struct {
+	PRCreate SCMPRCreateConfig `yaml:"pr_create" mapstructure:"pr_create"`
+	Cleanup  SCMCleanupConfig  `yaml:"cleanup" mapstructure:"cleanup"`
+}
+
+// SCMPRCreateConfig contains settings for the /scm pr create shortcut
+type SCMPRCreateConfig struct {
+	Prompt       string `yaml:"prompt" mapstructure:"prompt"`
+	BaseBranch   string `yaml:"base_branch" mapstructure:"base_branch"`
+	BranchPrefix string `yaml:"branch_prefix" mapstructure:"branch_prefix"`
+	Model        string `yaml:"model" mapstructure:"model"`
+}
+
+// SCMCleanupConfig contains settings for cleanup after PR creation
+type SCMCleanupConfig struct {
+	ReturnToBase      bool `yaml:"return_to_base" mapstructure:"return_to_base"`
+	DeleteLocalBranch bool `yaml:"delete_local_branch" mapstructure:"delete_local_branch"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -730,6 +751,17 @@ The AGENTS.md file should include:
 - Important files and configurations
 
 Write the AGENTS.md file to the project root when you have gathered enough information.`,
+		},
+		SCM: SCMConfig{
+			PRCreate: SCMPRCreateConfig{
+				Prompt:       "",
+				BaseBranch:   "main",
+				BranchPrefix: "",
+			},
+			Cleanup: SCMCleanupConfig{
+				ReturnToBase:      true,
+				DeleteLocalBranch: false,
+			},
 		},
 	}
 }
