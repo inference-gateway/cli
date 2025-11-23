@@ -168,6 +168,18 @@ func (sm *StateManager) CycleAgentMode() domain.AgentMode {
 	return newMode
 }
 
+// SetChatPending marks the agent as busy before the chat actually starts.
+// This prevents race conditions where messages might not be queued
+// between the time we decide to start a chat and when StartChatSession is called.
+func (sm *StateManager) SetChatPending() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	if sm.state.GetChatSession() == nil {
+		sm.state.SetChatPending()
+	}
+}
+
 // StartChatSession starts a new chat session
 func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-chan domain.ChatEvent) error {
 	sm.mutex.Lock()
@@ -486,6 +498,24 @@ func (sm *StateManager) ClearApprovalUIState() {
 	defer sm.mutex.Unlock()
 
 	sm.state.ClearApprovalUIState()
+}
+
+// Todo management methods
+
+// SetTodos sets the todo list
+func (sm *StateManager) SetTodos(todos []domain.TodoItem) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.SetTodos(todos)
+}
+
+// GetTodos returns the current todo list
+func (sm *StateManager) GetTodos() []domain.TodoItem {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	return sm.state.GetTodos()
 }
 
 // AddQueuedMessage adds a message to the input queue

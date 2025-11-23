@@ -176,3 +176,13 @@ type ToolApprovalResponseEvent struct {
 	Action   ApprovalAction
 	ToolCall sdk.ChatCompletionMessageToolCall
 }
+
+// Todo Events
+
+// TodoUpdateEvent indicates the todo list has been updated
+type TodoUpdateEvent struct {
+	Todos []TodoItem
+}
+
+// ToggleTodoBoxEvent toggles the todo box expanded/collapsed state
+type ToggleTodoBoxEvent struct{}

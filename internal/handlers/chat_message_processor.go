@@ -238,6 +238,8 @@ func (p *ChatMessageProcessor) processChatMessage(
 		}
 	}
 
+	p.handler.stateManager.SetChatPending()
+
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return domain.UpdateHistoryEvent{

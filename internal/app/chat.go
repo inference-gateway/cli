@@ -48,6 +48,7 @@ type ChatApplication struct {
 	statusView           ui.StatusComponent
 	helpBar              ui.HelpBarComponent
 	queueBoxView         *components.QueueBoxView
+	todoBoxView          *components.TodoBoxView
 	modelSelector        *components.ModelSelectorImpl
 	themeSelector        *components.ThemeSelectorImpl
 	conversationSelector *components.ConversationSelectorImpl
@@ -156,6 +157,7 @@ func NewChatApplication(
 	app.statusView = ui.CreateStatusView(app.themeService)
 	app.helpBar = ui.CreateHelpBar(app.themeService)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
+	app.todoBoxView = components.NewTodoBoxView(styleProvider)
 
 	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
 	app.textSelectionView = components.NewTextSelectionView(styleProvider)
@@ -814,6 +816,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		app.statusView,
 		app.helpBar,
 		app.queueBoxView,
+		app.todoBoxView,
 	)
 
 	return chatInterface
@@ -979,77 +982,46 @@ func (app *ChatApplication) findAtSymbolBeforeCursor(input string, cursor int) i
 func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
+	if handled := app.handleWindowAndSetupEvents(msg, &cmds); handled {
+		return cmds
+	}
+
+	if handled := app.handleDuplicateKeyEvents(msg, &cmds); handled {
+		return cmds
+	}
+
+	app.updateMainUIComponents(msg, &cmds)
+
+	app.updateOptionalComponents(msg, &cmds)
+
+	app.handleTodoEvents(msg, &cmds)
+
+	return cmds
+}
+
+// handleWindowAndSetupEvents handles window size and setup events that may return early
+func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, cmds *[]tea.Cmd) bool {
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
 	}
 
 	if setupMsg, ok := msg.(domain.SetupFileSelectionEvent); ok {
 		app.stateManager.SetupFileSelection(setupMsg.Files)
-		return cmds
+		return true
 	}
 
+	return false
+}
+
+// handleDuplicateKeyEvents handles duplicate key events to prevent double processing
+func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, cmds *[]tea.Cmd) bool {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		if keyMsg.String() == app.lastHandledKey {
 			app.lastHandledKey = ""
-			return cmds
+			return true
 		}
 	}
-
-	if model, cmd := app.conversationView.(tea.Model).Update(msg); cmd != nil {
-		cmds = append(cmds, cmd)
-		if convModel, ok := model.(ui.ConversationRenderer); ok {
-			app.conversationView = convModel
-		}
-	}
-
-	if model, cmd := app.statusView.(tea.Model).Update(msg); cmd != nil {
-		cmds = append(cmds, cmd)
-		if statusModel, ok := model.(ui.StatusComponent); ok {
-			app.statusView = statusModel
-		}
-	}
-
-	if model, cmd := app.inputView.(tea.Model).Update(msg); cmd != nil {
-		cmds = append(cmds, cmd)
-		if inputModel, ok := model.(ui.InputComponent); ok {
-			app.inputView = inputModel
-		}
-	}
-
-	if model, cmd := app.helpBar.(tea.Model).Update(msg); cmd != nil {
-		cmds = append(cmds, cmd)
-		if helpBarModel, ok := model.(ui.HelpBarComponent); ok {
-			app.helpBar = helpBarModel
-		}
-	}
-
-	if app.conversationSelector != nil {
-		switch msg.(type) {
-		case domain.ConversationsLoadedEvent:
-			model, cmd := app.conversationSelector.Update(msg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			if convSelectorModel, ok := model.(*components.ConversationSelectorImpl); ok {
-				app.conversationSelector = convSelectorModel
-			}
-		}
-	}
-
-	if app.taskManager != nil {
-		switch msg.(type) {
-		case domain.TasksLoadedEvent, domain.TaskCancelledEvent:
-			model, cmd := app.taskManager.Update(msg)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-			if taskManagerModel, ok := model.(*components.TaskManagerImpl); ok {
-				app.taskManager = taskManagerModel
-			}
-		}
-	}
-
-	return cmds
+	return false
 }
 
 // updateUIComponentsForUIMessages updates UI components for UI events and framework messages
@@ -1076,6 +1048,86 @@ func (app *ChatApplication) getPageSize() int {
 // toggleToolResultExpansion toggles expansion of all tool results
 func (app *ChatApplication) toggleToolResultExpansion() {
 	app.conversationView.ToggleAllToolResultsExpansion()
+}
+
+// updateMainUIComponents updates the main UI components (conversation, status, input, help bar)
+func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, cmds *[]tea.Cmd) {
+	if model, cmd := app.conversationView.(tea.Model).Update(msg); cmd != nil {
+		*cmds = append(*cmds, cmd)
+		if convModel, ok := model.(ui.ConversationRenderer); ok {
+			app.conversationView = convModel
+		}
+	}
+
+	if model, cmd := app.statusView.(tea.Model).Update(msg); cmd != nil {
+		*cmds = append(*cmds, cmd)
+		if statusModel, ok := model.(ui.StatusComponent); ok {
+			app.statusView = statusModel
+		}
+	}
+
+	if model, cmd := app.inputView.(tea.Model).Update(msg); cmd != nil {
+		*cmds = append(*cmds, cmd)
+		if inputModel, ok := model.(ui.InputComponent); ok {
+			app.inputView = inputModel
+		}
+	}
+
+	if model, cmd := app.helpBar.(tea.Model).Update(msg); cmd != nil {
+		*cmds = append(*cmds, cmd)
+		if helpBarModel, ok := model.(ui.HelpBarComponent); ok {
+			app.helpBar = helpBarModel
+		}
+	}
+}
+
+// updateOptionalComponents updates optional components (conversation selector, task manager)
+func (app *ChatApplication) updateOptionalComponents(msg tea.Msg, cmds *[]tea.Cmd) {
+	if app.conversationSelector != nil {
+		switch msg.(type) {
+		case domain.ConversationsLoadedEvent:
+			model, cmd := app.conversationSelector.Update(msg)
+			if cmd != nil {
+				*cmds = append(*cmds, cmd)
+			}
+			if convSelectorModel, ok := model.(*components.ConversationSelectorImpl); ok {
+				app.conversationSelector = convSelectorModel
+			}
+		}
+	}
+
+	if app.taskManager != nil {
+		switch msg.(type) {
+		case domain.TasksLoadedEvent, domain.TaskCancelledEvent:
+			model, cmd := app.taskManager.Update(msg)
+			if cmd != nil {
+				*cmds = append(*cmds, cmd)
+			}
+			if taskManagerModel, ok := model.(*components.TaskManagerImpl); ok {
+				app.taskManager = taskManagerModel
+			}
+		}
+	}
+}
+
+// handleTodoEvents handles todo-related events
+func (app *ChatApplication) handleTodoEvents(msg tea.Msg, cmds *[]tea.Cmd) {
+	switch todoMsg := msg.(type) {
+	case domain.TodoUpdateEvent:
+		if app.todoBoxView != nil {
+			app.todoBoxView.SetTodos(todoMsg.Todos)
+			app.stateManager.SetTodos(todoMsg.Todos)
+			*cmds = append(*cmds, components.ScheduleAutoCollapse())
+		}
+	case domain.ToggleTodoBoxEvent:
+		if app.todoBoxView != nil {
+			app.todoBoxView.Toggle()
+		}
+	case components.AutoCollapseTickMsg:
+		if app.todoBoxView != nil {
+			app.todoBoxView.AutoCollapse()
+		}
+	}
 }
 
 // GetServices returns the service container
@@ -1141,6 +1193,8 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	_ = app.inputView.AddToHistory(input)
 
 	app.inputView.ClearInput()
+
+	app.conversationView.ResetUserScroll()
 
 	return func() tea.Msg {
 		return domain.UserInputEvent{

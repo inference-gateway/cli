@@ -119,6 +119,16 @@ type FakeStateManager struct {
 	getFileSelectionStateReturnsOnCall map[int]struct {
 		result1 *domain.FileSelectionState
 	}
+	GetTodosStub        func() []domain.TodoItem
+	getTodosMutex       sync.RWMutex
+	getTodosArgsForCall []struct {
+	}
+	getTodosReturns struct {
+		result1 []domain.TodoItem
+	}
+	getTodosReturnsOnCall map[int]struct {
+		result1 []domain.TodoItem
+	}
 	GetToolExecutionStub        func() *domain.ToolExecutionSession
 	getToolExecutionMutex       sync.RWMutex
 	getToolExecutionArgsForCall []struct {
@@ -149,6 +159,10 @@ type FakeStateManager struct {
 	setApprovalSelectedIndexArgsForCall []struct {
 		arg1 int
 	}
+	SetChatPendingStub        func()
+	setChatPendingMutex       sync.RWMutex
+	setChatPendingArgsForCall []struct {
+	}
 	SetDimensionsStub        func(int, int)
 	setDimensionsMutex       sync.RWMutex
 	setDimensionsArgsForCall []struct {
@@ -159,6 +173,11 @@ type FakeStateManager struct {
 	setFileSelectedIndexMutex       sync.RWMutex
 	setFileSelectedIndexArgsForCall []struct {
 		arg1 int
+	}
+	SetTodosStub        func([]domain.TodoItem)
+	setTodosMutex       sync.RWMutex
+	setTodosArgsForCall []struct {
+		arg1 []domain.TodoItem
 	}
 	SetupApprovalUIStateStub        func(*sdk.ChatCompletionMessageToolCall, chan domain.ApprovalAction)
 	setupApprovalUIStateMutex       sync.RWMutex
@@ -818,6 +837,59 @@ func (fake *FakeStateManager) GetFileSelectionStateReturnsOnCall(i int, result1 
 	}{result1}
 }
 
+func (fake *FakeStateManager) GetTodos() []domain.TodoItem {
+	fake.getTodosMutex.Lock()
+	ret, specificReturn := fake.getTodosReturnsOnCall[len(fake.getTodosArgsForCall)]
+	fake.getTodosArgsForCall = append(fake.getTodosArgsForCall, struct {
+	}{})
+	stub := fake.GetTodosStub
+	fakeReturns := fake.getTodosReturns
+	fake.recordInvocation("GetTodos", []interface{}{})
+	fake.getTodosMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetTodosCallCount() int {
+	fake.getTodosMutex.RLock()
+	defer fake.getTodosMutex.RUnlock()
+	return len(fake.getTodosArgsForCall)
+}
+
+func (fake *FakeStateManager) GetTodosCalls(stub func() []domain.TodoItem) {
+	fake.getTodosMutex.Lock()
+	defer fake.getTodosMutex.Unlock()
+	fake.GetTodosStub = stub
+}
+
+func (fake *FakeStateManager) GetTodosReturns(result1 []domain.TodoItem) {
+	fake.getTodosMutex.Lock()
+	defer fake.getTodosMutex.Unlock()
+	fake.GetTodosStub = nil
+	fake.getTodosReturns = struct {
+		result1 []domain.TodoItem
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetTodosReturnsOnCall(i int, result1 []domain.TodoItem) {
+	fake.getTodosMutex.Lock()
+	defer fake.getTodosMutex.Unlock()
+	fake.GetTodosStub = nil
+	if fake.getTodosReturnsOnCall == nil {
+		fake.getTodosReturnsOnCall = make(map[int]struct {
+			result1 []domain.TodoItem
+		})
+	}
+	fake.getTodosReturnsOnCall[i] = struct {
+		result1 []domain.TodoItem
+	}{result1}
+}
+
 func (fake *FakeStateManager) GetToolExecution() *domain.ToolExecutionSession {
 	fake.getToolExecutionMutex.Lock()
 	ret, specificReturn := fake.getToolExecutionReturnsOnCall[len(fake.getToolExecutionArgsForCall)]
@@ -988,6 +1060,30 @@ func (fake *FakeStateManager) SetApprovalSelectedIndexArgsForCall(i int) int {
 	return argsForCall.arg1
 }
 
+func (fake *FakeStateManager) SetChatPending() {
+	fake.setChatPendingMutex.Lock()
+	fake.setChatPendingArgsForCall = append(fake.setChatPendingArgsForCall, struct {
+	}{})
+	stub := fake.SetChatPendingStub
+	fake.recordInvocation("SetChatPending", []interface{}{})
+	fake.setChatPendingMutex.Unlock()
+	if stub != nil {
+		fake.SetChatPendingStub()
+	}
+}
+
+func (fake *FakeStateManager) SetChatPendingCallCount() int {
+	fake.setChatPendingMutex.RLock()
+	defer fake.setChatPendingMutex.RUnlock()
+	return len(fake.setChatPendingArgsForCall)
+}
+
+func (fake *FakeStateManager) SetChatPendingCalls(stub func()) {
+	fake.setChatPendingMutex.Lock()
+	defer fake.setChatPendingMutex.Unlock()
+	fake.SetChatPendingStub = stub
+}
+
 func (fake *FakeStateManager) SetDimensions(arg1 int, arg2 int) {
 	fake.setDimensionsMutex.Lock()
 	fake.setDimensionsArgsForCall = append(fake.setDimensionsArgsForCall, struct {
@@ -1050,6 +1146,43 @@ func (fake *FakeStateManager) SetFileSelectedIndexArgsForCall(i int) int {
 	fake.setFileSelectedIndexMutex.RLock()
 	defer fake.setFileSelectedIndexMutex.RUnlock()
 	argsForCall := fake.setFileSelectedIndexArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) SetTodos(arg1 []domain.TodoItem) {
+	var arg1Copy []domain.TodoItem
+	if arg1 != nil {
+		arg1Copy = make([]domain.TodoItem, len(arg1))
+		copy(arg1Copy, arg1)
+	}
+	fake.setTodosMutex.Lock()
+	fake.setTodosArgsForCall = append(fake.setTodosArgsForCall, struct {
+		arg1 []domain.TodoItem
+	}{arg1Copy})
+	stub := fake.SetTodosStub
+	fake.recordInvocation("SetTodos", []interface{}{arg1Copy})
+	fake.setTodosMutex.Unlock()
+	if stub != nil {
+		fake.SetTodosStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetTodosCallCount() int {
+	fake.setTodosMutex.RLock()
+	defer fake.setTodosMutex.RUnlock()
+	return len(fake.setTodosArgsForCall)
+}
+
+func (fake *FakeStateManager) SetTodosCalls(stub func([]domain.TodoItem)) {
+	fake.setTodosMutex.Lock()
+	defer fake.setTodosMutex.Unlock()
+	fake.SetTodosStub = stub
+}
+
+func (fake *FakeStateManager) SetTodosArgsForCall(i int) []domain.TodoItem {
+	fake.setTodosMutex.RLock()
+	defer fake.setTodosMutex.RUnlock()
+	argsForCall := fake.setTodosArgsForCall[i]
 	return argsForCall.arg1
 }
 

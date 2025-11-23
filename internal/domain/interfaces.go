@@ -147,6 +147,7 @@ type StateManager interface {
 	CycleAgentMode() AgentMode
 
 	// Chat session management
+	SetChatPending()
 	StartChatSession(requestID, model string, eventChan <-chan ChatEvent) error
 	UpdateChatStatus(status ChatStatus) error
 	EndChatSession()
@@ -176,6 +177,10 @@ type StateManager interface {
 	GetApprovalUIState() *ApprovalUIState
 	SetApprovalSelectedIndex(index int)
 	ClearApprovalUIState()
+
+	// Todo management
+	SetTodos(todos []TodoItem)
+	GetTodos() []TodoItem
 }
 
 // FileService handles file operations
@@ -468,6 +473,7 @@ type ToolExecutionResult struct {
 	Data      any               `json:"data,omitempty"`
 	Metadata  map[string]string `json:"metadata,omitempty"`
 	Diff      string            `json:"diff,omitempty"`
+	Rejected  bool              `json:"rejected,omitempty"`
 }
 
 // BashToolResult represents the result of a bash command execution

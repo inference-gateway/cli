@@ -127,6 +127,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return h.HandleToolApprovalRequestedEvent(m)
 	case domain.ToolApprovalResponseEvent:
 		return h.HandleToolApprovalResponseEvent(m)
+	case domain.TodoUpdateChatEvent:
+		return h.HandleTodoUpdateChatEvent(m)
 	default:
 		if isUIOnlyEvent(msg) {
 			return nil
@@ -453,6 +455,25 @@ func (h *ChatHandler) HandleToolApprovalResponseEvent(
 	msg domain.ToolApprovalResponseEvent,
 ) tea.Cmd {
 	return h.handleToolApprovalResponse(msg)
+}
+
+// HandleTodoUpdateChatEvent converts the chat event to a UI event for the todo component
+func (h *ChatHandler) HandleTodoUpdateChatEvent(
+	msg domain.TodoUpdateChatEvent,
+) tea.Cmd {
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.TodoUpdateEvent{
+			Todos: msg.Todos,
+		}
+	})
+
+	if chatSession := h.stateManager.GetChatSession(); chatSession != nil {
+		cmds = append(cmds, h.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return tea.Batch(cmds...)
 }
 
 // handleToolApprovalResponse processes the user's approval decision
