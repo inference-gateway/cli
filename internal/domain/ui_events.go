@@ -22,7 +22,6 @@ type StreamingContentEvent struct {
 type SetStatusEvent struct {
 	Message    string
 	Spinner    bool
-	TokenUsage string
 	StatusType StatusType
 	Progress   *StatusProgress
 }

@@ -72,11 +72,6 @@ type FakeStatusComponent struct {
 	setHeightArgsForCall []struct {
 		arg1 int
 	}
-	SetTokenUsageStub        func(string)
-	setTokenUsageMutex       sync.RWMutex
-	setTokenUsageArgsForCall []struct {
-		arg1 string
-	}
 	SetWidthStub        func(int)
 	setWidthMutex       sync.RWMutex
 	setWidthArgsForCall []struct {
@@ -443,38 +438,6 @@ func (fake *FakeStatusComponent) SetHeightArgsForCall(i int) int {
 	fake.setHeightMutex.RLock()
 	defer fake.setHeightMutex.RUnlock()
 	argsForCall := fake.setHeightArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeStatusComponent) SetTokenUsage(arg1 string) {
-	fake.setTokenUsageMutex.Lock()
-	fake.setTokenUsageArgsForCall = append(fake.setTokenUsageArgsForCall, struct {
-		arg1 string
-	}{arg1})
-	stub := fake.SetTokenUsageStub
-	fake.recordInvocation("SetTokenUsage", []interface{}{arg1})
-	fake.setTokenUsageMutex.Unlock()
-	if stub != nil {
-		fake.SetTokenUsageStub(arg1)
-	}
-}
-
-func (fake *FakeStatusComponent) SetTokenUsageCallCount() int {
-	fake.setTokenUsageMutex.RLock()
-	defer fake.setTokenUsageMutex.RUnlock()
-	return len(fake.setTokenUsageArgsForCall)
-}
-
-func (fake *FakeStatusComponent) SetTokenUsageCalls(stub func(string)) {
-	fake.setTokenUsageMutex.Lock()
-	defer fake.setTokenUsageMutex.Unlock()
-	fake.SetTokenUsageStub = stub
-}
-
-func (fake *FakeStatusComponent) SetTokenUsageArgsForCall(i int) string {
-	fake.setTokenUsageMutex.RLock()
-	defer fake.setTokenUsageMutex.RUnlock()
-	argsForCall := fake.setTokenUsageArgsForCall[i]
 	return argsForCall.arg1
 }
 

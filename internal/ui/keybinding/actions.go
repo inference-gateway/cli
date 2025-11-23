@@ -10,7 +10,6 @@ import (
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // registerDefaultBindings registers all default key bindings
@@ -534,9 +533,8 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	return func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message:    "Operation cancelled",
-			Spinner:    false,
-			TokenUsage: getCurrentTokenUsage(app),
+			Message: "Operation cancelled",
+			Spinner: false,
 		}
 	}
 }
@@ -550,9 +548,8 @@ func handleToggleRawFormat(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	app.ToggleRawFormat()
 	return func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message:    "Toggled raw/rendered format",
-			Spinner:    false,
-			TokenUsage: getCurrentTokenUsage(app),
+			Message: "Toggled raw/rendered format",
+			Spinner: false,
 		}
 	}
 }
@@ -869,9 +866,8 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	return func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message:    fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
-			Spinner:    false,
-			TokenUsage: getCurrentTokenUsage(app),
+			Message: fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
+			Spinner: false,
 		}
 	}
 }
@@ -967,16 +963,6 @@ func (m *KeyBindingManager) GetHelpShortcuts() []HelpShortcut {
 // RegisterCustomAction registers a new custom key action
 func (m *KeyBindingManager) RegisterCustomAction(action *KeyAction) error {
 	return m.registry.Register(action)
-}
-
-// getCurrentTokenUsage returns current session token usage string
-func getCurrentTokenUsage(app KeyHandlerContext) string {
-	conversationRepo := app.GetConversationRepository()
-	if conversationRepo == nil {
-		return ""
-	}
-
-	return shared.FormatCurrentTokenUsage(conversationRepo)
 }
 
 // GetRegistry returns the underlying registry (for advanced usage)

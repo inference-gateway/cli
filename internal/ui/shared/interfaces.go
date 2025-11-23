@@ -81,7 +81,6 @@ type StatusComponent interface {
 	ClearStatus()
 	IsShowingError() bool
 	IsShowingSpinner() bool
-	SetTokenUsage(usage string)
 	SetWidth(width int)
 	SetHeight(height int)
 	Render() string

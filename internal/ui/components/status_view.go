@@ -19,7 +19,6 @@ type StatusView struct {
 	isSpinner     bool
 	spinner       spinner.Model
 	startTime     time.Time
-	tokenUsage    string
 	baseMessage   string
 	debugInfo     string
 	width         int
@@ -35,7 +34,6 @@ type StatusState struct {
 	isError     bool
 	isSpinner   bool
 	startTime   time.Time
-	tokenUsage  string
 	baseMessage string
 	statusType  domain.StatusType
 	progress    *domain.StatusProgress
@@ -59,7 +57,6 @@ func (sv *StatusView) ShowStatus(message string) {
 	sv.baseMessage = message
 	sv.isError = false
 	sv.isSpinner = false
-	sv.tokenUsage = ""
 	sv.statusType = domain.StatusDefault
 	sv.progress = nil
 }
@@ -69,7 +66,6 @@ func (sv *StatusView) ShowStatusWithType(message string, statusType domain.Statu
 	sv.baseMessage = message
 	sv.isError = false
 	sv.isSpinner = false
-	sv.tokenUsage = ""
 	sv.statusType = statusType
 	sv.progress = progress
 }
@@ -86,7 +82,6 @@ func (sv *StatusView) ShowSpinner(message string) {
 	sv.isError = false
 	sv.isSpinner = true
 	sv.startTime = time.Now()
-	sv.tokenUsage = ""
 	sv.statusType = domain.StatusDefault
 	sv.progress = nil
 }
@@ -97,7 +92,6 @@ func (sv *StatusView) ShowSpinnerWithType(message string, statusType domain.Stat
 	sv.isError = false
 	sv.isSpinner = true
 	sv.startTime = time.Now()
-	sv.tokenUsage = ""
 	sv.statusType = statusType
 	sv.progress = progress
 }
@@ -115,7 +109,6 @@ func (sv *StatusView) ClearStatus() {
 	sv.baseMessage = ""
 	sv.isError = false
 	sv.isSpinner = false
-	sv.tokenUsage = ""
 	sv.startTime = time.Time{}
 	sv.debugInfo = ""
 	sv.statusType = domain.StatusDefault
@@ -129,7 +122,6 @@ func (sv *StatusView) SaveCurrentState() {
 		isError:     sv.isError,
 		isSpinner:   sv.isSpinner,
 		startTime:   sv.startTime,
-		tokenUsage:  sv.tokenUsage,
 		baseMessage: sv.baseMessage,
 		statusType:  sv.statusType,
 		progress:    sv.progress,
@@ -147,7 +139,6 @@ func (sv *StatusView) RestoreSavedState() tea.Cmd {
 	sv.isError = sv.savedState.isError
 	sv.isSpinner = sv.savedState.isSpinner
 	sv.startTime = sv.savedState.startTime
-	sv.tokenUsage = sv.savedState.tokenUsage
 	sv.baseMessage = sv.savedState.baseMessage
 	sv.statusType = sv.savedState.statusType
 	sv.progress = sv.savedState.progress
@@ -172,10 +163,6 @@ func (sv *StatusView) IsShowingError() bool {
 
 func (sv *StatusView) IsShowingSpinner() bool {
 	return sv.isSpinner
-}
-
-func (sv *StatusView) SetTokenUsage(usage string) {
-	sv.tokenUsage = usage
 }
 
 func (sv *StatusView) SetWidth(width int) {
@@ -295,10 +282,6 @@ func (sv *StatusView) formatNormalStatus() (string, string, string) {
 	statusColor := sv.styleProvider.GetThemeColor("status")
 	displayMessage := sv.formatStatusWithType(sv.message)
 
-	if sv.tokenUsage != "" {
-		displayMessage = fmt.Sprintf("%s (%s)", displayMessage, sv.tokenUsage)
-	}
-
 	return prefix, statusColor, displayMessage
 }
 
@@ -327,9 +310,6 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		} else {
 			sv.ShowStatusWithType(msg.Message, msg.StatusType, msg.Progress)
-			if msg.TokenUsage != "" {
-				sv.SetTokenUsage(msg.TokenUsage)
-			}
 		}
 	case domain.UpdateStatusEvent:
 		sv.UpdateSpinnerMessage(msg.Message, msg.StatusType)
