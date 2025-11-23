@@ -238,8 +238,10 @@ func NewCompactShortcut(repo domain.ConversationRepository) *CompactShortcut {
 	}
 }
 
-func (c *CompactShortcut) GetName() string               { return "compact" }
-func (c *CompactShortcut) GetDescription() string        { return "Optimize conversation to reduce token usage" }
+func (c *CompactShortcut) GetName() string { return "compact" }
+func (c *CompactShortcut) GetDescription() string {
+	return "Optimize conversation to reduce token usage"
+}
 func (c *CompactShortcut) GetUsage() string              { return "/compact" }
 func (c *CompactShortcut) CanExecute(args []string) bool { return len(args) == 0 }
 
