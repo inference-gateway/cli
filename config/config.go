@@ -27,6 +27,7 @@ type Config struct {
 	Compact      CompactConfig      `yaml:"compact" mapstructure:"compact"`
 	Agent        AgentConfig        `yaml:"agent" mapstructure:"agent"`
 	Git          GitConfig          `yaml:"git" mapstructure:"git"`
+	SCM          SCMConfig          `yaml:"scm" mapstructure:"scm"`
 	Storage      StorageConfig      `yaml:"storage" mapstructure:"storage"`
 	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
 	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
@@ -300,6 +301,25 @@ type ChatConfig struct {
 // InitConfig contains settings for the /init shortcut
 type InitConfig struct {
 	Prompt string `yaml:"prompt" mapstructure:"prompt"`
+}
+
+// SCMConfig contains settings for source control management shortcuts
+type SCMConfig struct {
+	PRCreate SCMPRCreateConfig `yaml:"pr_create" mapstructure:"pr_create"`
+	Cleanup  SCMCleanupConfig  `yaml:"cleanup" mapstructure:"cleanup"`
+}
+
+// SCMPRCreateConfig contains settings for the /scm pr create shortcut
+type SCMPRCreateConfig struct {
+	Prompt       string `yaml:"prompt" mapstructure:"prompt"`
+	BaseBranch   string `yaml:"base_branch" mapstructure:"base_branch"`
+	BranchPrefix string `yaml:"branch_prefix" mapstructure:"branch_prefix"`
+}
+
+// SCMCleanupConfig contains settings for cleanup after PR creation
+type SCMCleanupConfig struct {
+	ReturnToBase      bool `yaml:"return_to_base" mapstructure:"return_to_base"`
+	DeleteLocalBranch bool `yaml:"delete_local_branch" mapstructure:"delete_local_branch"`
 }
 
 // FetchSafetyConfig contains safety settings for fetch operations
@@ -730,6 +750,35 @@ The AGENTS.md file should include:
 - Important files and configurations
 
 Write the AGENTS.md file to the project root when you have gathered enough information.`,
+		},
+		SCM: SCMConfig{
+			PRCreate: SCMPRCreateConfig{
+				Prompt: `Please help me create a pull request with the following workflow:
+
+1. **Analyze the changes** and determine:
+   - A descriptive branch name (use conventional format like feat/, fix/, docs/, refactor/)
+   - A concise commit message following conventional commits
+   - A PR title and description
+
+2. **Execute the git workflow**:
+   - If on main/master: Create and checkout a new branch
+   - Stage all changes with git add
+   - Commit with the generated message
+   - Push to the remote repository
+   - Create a pull request using the GitHub CLI (gh pr create)
+
+3. **Cleanup** (after PR is created):
+   - Return to the original branch (main/master)
+   - Optionally delete the local feature branch if requested
+
+Please proceed with analyzing the changes below and executing the workflow. Ask for confirmation before each destructive action.`,
+				BaseBranch:   "main",
+				BranchPrefix: "",
+			},
+			Cleanup: SCMCleanupConfig{
+				ReturnToBase:      true,
+				DeleteLocalBranch: false,
+			},
 		},
 	}
 }

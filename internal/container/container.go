@@ -265,6 +265,9 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	gitCommitClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config, c.modelService))
 
+	scmClient := c.createSDKClient()
+	c.shortcutRegistry.Register(shortcuts.NewSCMShortcut(scmClient, c.config, c.modelService))
+
 	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService))
 	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config))
 
