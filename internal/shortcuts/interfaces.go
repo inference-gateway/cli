@@ -41,6 +41,7 @@ const (
 	SideEffectShowA2ATaskManagement
 	SideEffectSetInput
 	SideEffectGeneratePRPlan
+	SideEffectCompactConversation
 )
 
 // PersistentConversationRepository interface for conversation persistence

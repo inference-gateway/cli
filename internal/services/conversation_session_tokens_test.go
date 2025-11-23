@@ -25,6 +25,7 @@ func TestSessionTokenTracking(t *testing.T) {
 		TotalOutputTokens: 50,
 		TotalTokens:       150,
 		RequestCount:      1,
+		LastInputTokens:   100,
 	}
 	if stats != expected {
 		t.Errorf("Expected %+v, got %+v", expected, stats)
@@ -41,6 +42,7 @@ func TestSessionTokenTracking(t *testing.T) {
 		TotalOutputTokens: 125, // 50 + 75
 		TotalTokens:       425, // 150 + 275
 		RequestCount:      2,
+		LastInputTokens:   200, // last request's input
 	}
 	if stats != expected {
 		t.Errorf("Expected %+v, got %+v", expected, stats)

@@ -62,7 +62,7 @@ func initConfig() {
 	v.SetDefault("client", defaults.Client)
 	v.SetDefault("tools", defaults.Tools)
 	v.SetDefault("agent", defaults.Agent)
-	v.SetDefault("compact", defaults.Compact)
+	v.SetDefault("export", defaults.Export)
 	v.SetDefault("git", defaults.Git)
 	v.SetDefault("storage", defaults.Storage)
 	v.SetDefault("conversation", defaults.Conversation)

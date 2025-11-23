@@ -24,6 +24,7 @@ type InputView struct {
 	imageService        domain.ImageService
 	stateManager        domain.StateManager
 	configService       *config.Config
+	conversationRepo    domain.ConversationRepository
 	Autocomplete        shared.AutocompleteInterface
 	historyManager      *history.HistoryManager
 	isTextSelectionMode bool
@@ -80,6 +81,11 @@ func (iv *InputView) SetConfigService(configService *config.Config) {
 // SetImageService sets the image service for this input view
 func (iv *InputView) SetImageService(imageService domain.ImageService) {
 	iv.imageService = imageService
+}
+
+// SetConversationRepo sets the conversation repository for context usage display
+func (iv *InputView) SetConversationRepo(repo domain.ConversationRepository) {
+	iv.conversationRepo = repo
 }
 
 func (iv *InputView) GetInput() string {
@@ -363,7 +369,104 @@ func (iv *InputView) buildModelDisplayText(currentModel string) string {
 		}
 	}
 
+	// Add context usage indicator
+	if contextIndicator := iv.getContextUsageIndicator(currentModel); contextIndicator != "" {
+		parts = append(parts, contextIndicator)
+	}
+
 	return "  " + strings.Join(parts, " • ")
+}
+
+// getContextUsageIndicator returns a context usage indicator string
+func (iv *InputView) getContextUsageIndicator(model string) string {
+	if iv.conversationRepo == nil {
+		return ""
+	}
+
+	stats := iv.conversationRepo.GetSessionTokens()
+	// Use LastInputTokens which represents the current context size
+	currentContextSize := stats.LastInputTokens
+	if currentContextSize == 0 {
+		return ""
+	}
+
+	contextWindow := iv.estimateContextWindow(model)
+	if contextWindow == 0 {
+		return ""
+	}
+
+	usagePercent := float64(currentContextSize) * 100 / float64(contextWindow)
+
+	// Show warning indicator when usage is high
+	if usagePercent >= 90 {
+		return fmt.Sprintf("Context: %.0f%% FULL", usagePercent)
+	} else if usagePercent >= 75 {
+		return fmt.Sprintf("Context: %.0f%% HIGH", usagePercent)
+	} else if usagePercent >= 50 {
+		return fmt.Sprintf("Context: %.0f%%", usagePercent)
+	}
+
+	// Don't show for low usage to reduce clutter
+	return ""
+}
+
+// estimateContextWindow returns an estimated context window size based on model name
+func (iv *InputView) estimateContextWindow(model string) int {
+	model = strings.ToLower(model)
+
+	// DeepSeek models (all have 128K context)
+	if strings.Contains(model, "deepseek") {
+		return 128000
+	}
+
+	// OpenAI models
+	if strings.Contains(model, "gpt-4o") || strings.Contains(model, "gpt-4-turbo") {
+		return 128000
+	}
+	if strings.Contains(model, "gpt-4-32k") {
+		return 32768
+	}
+	if strings.Contains(model, "gpt-4") {
+		return 8192
+	}
+	if strings.Contains(model, "gpt-3.5-turbo-16k") {
+		return 16384
+	}
+	if strings.Contains(model, "gpt-3.5") {
+		return 4096
+	}
+
+	// Anthropic models
+	if strings.Contains(model, "claude-3") || strings.Contains(model, "claude-2") {
+		return 200000
+	}
+	if strings.Contains(model, "claude") {
+		return 100000
+	}
+
+	// Google models
+	if strings.Contains(model, "gemini-1.5") {
+		return 1000000
+	}
+	if strings.Contains(model, "gemini") {
+		return 32768
+	}
+
+	// Mistral models
+	if strings.Contains(model, "mistral") {
+		return 32768
+	}
+
+	// Llama models
+	if strings.Contains(model, "llama-3") {
+		return 8192
+	}
+	if strings.Contains(model, "llama") {
+		return 4096
+	}
+
+	// Default fallback
+	return 8192
 }
 
 func (iv *InputView) addModelWithModeIndicator(components []string, displayText string, modeIndicator string) []string {

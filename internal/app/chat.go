@@ -151,6 +151,7 @@ func NewChatApplication(
 		iv.SetStateManager(app.stateManager)
 		iv.SetImageService(app.imageService)
 		iv.SetConfigService(app.configService)
+		iv.SetConversationRepo(app.conversationRepo)
 	}
 	app.statusView = ui.CreateStatusView(app.themeService)
 	app.helpBar = ui.CreateHelpBar(app.themeService)

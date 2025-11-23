@@ -179,6 +179,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleSetInputSideEffect(data)
 	case shortcuts.SideEffectGeneratePRPlan:
 		return s.handleGeneratePRPlanSideEffect(data)
+	case shortcuts.SideEffectCompactConversation:
+		return s.handleCompactConversationSideEffect()
 	default:
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
@@ -271,7 +273,7 @@ func (s *ChatShortcutHandler) performSummaryGeneration() tea.Cmd {
 	return func() tea.Msg {
 		ctx := context.Background()
 
-		shortcut, exists := s.handler.shortcutRegistry.Get("compact")
+		shortcut, exists := s.handler.shortcutRegistry.Get("export")
 		if !exists {
 			return domain.SetStatusEvent{
 				Message:    "Export command not found",
@@ -323,7 +325,7 @@ func (s *ChatShortcutHandler) performSummaryGeneration() tea.Cmd {
 			},
 			func() tea.Msg {
 				return domain.SetStatusEvent{
-					Message:    fmt.Sprintf("📝 Conversation compacted and exported to: %s", exportResult.FilePath),
+					Message:    fmt.Sprintf("Conversation exported to: %s", exportResult.FilePath),
 					Spinner:    false,
 					StatusType: domain.StatusDefault,
 				}
@@ -605,6 +607,47 @@ func (s *ChatShortcutHandler) handleGeneratePRPlanSideEffect(data any) tea.Msg {
 			}
 		},
 		s.performPRPlanGeneration(data),
+	)()
+}
+
+func (s *ChatShortcutHandler) handleCompactConversationSideEffect() tea.Msg {
+	messageCount := s.handler.conversationRepo.GetMessageCount()
+	if messageCount == 0 {
+		return domain.SetStatusEvent{
+			Message:    "No conversation to compact",
+			Spinner:    false,
+			TokenUsage: s.handler.getCurrentTokenUsage(),
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	infoEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: sdk.NewMessageContent(fmt.Sprintf("Conversation optimization enabled. The conversation history (%d messages) will be compacted on your next message to reduce token usage.", messageCount)),
+		},
+		Model: "",
+		Time:  time.Now(),
+	}
+
+	if addErr := s.handler.conversationRepo.AddMessage(infoEntry); addErr != nil {
+		logger.Error("failed to add compact info message", "error", addErr)
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Optimization queued for %d messages", messageCount),
+				Spinner:    false,
+				TokenUsage: s.handler.getCurrentTokenUsage(),
+				StatusType: domain.StatusDefault,
+			}
+		},
 	)()
 }
 
