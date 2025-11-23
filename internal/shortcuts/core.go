@@ -331,12 +331,16 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 func (c *ContextShortcut) estimateContextWindow(model string) int {
 	model = strings.ToLower(model)
 
-	// DeepSeek models (all have 128K context)
+	// DeepSeek models (128K context)
 	if strings.Contains(model, "deepseek") {
 		return 128000
 	}
 
 	// OpenAI models
+	// o1/o3 models have 200K context
+	if strings.Contains(model, "o1") || strings.Contains(model, "o3") {
+		return 200000
+	}
 	if strings.Contains(model, "gpt-4o") || strings.Contains(model, "gpt-4-turbo") {
 		return 128000
 	}
@@ -346,40 +350,71 @@ func (c *ContextShortcut) estimateContextWindow(model string) int {
 	if strings.Contains(model, "gpt-4") {
 		return 8192
 	}
-	if strings.Contains(model, "gpt-3.5-turbo-16k") {
-		return 16384
-	}
+	// All current GPT-3.5-turbo models support 16K
 	if strings.Contains(model, "gpt-3.5") {
-		return 4096
+		return 16384
 	}
 
 	// Anthropic models
-	if strings.Contains(model, "claude-3") || strings.Contains(model, "claude-2") {
+	// Claude 4, Claude 3.5, and Claude 3 all have 200K context
+	if strings.Contains(model, "claude-4") || strings.Contains(model, "claude-3.5") || strings.Contains(model, "claude-3") {
 		return 200000
 	}
-	if strings.Contains(model, "claude") {
+	// Claude 2 has 100K context
+	if strings.Contains(model, "claude-2") {
 		return 100000
+	}
+	// Other Claude models default to 200K
+	if strings.Contains(model, "claude") {
+		return 200000
 	}
 
 	// Google models
+	// Gemini 2.0 models have 1M context
+	if strings.Contains(model, "gemini-2") {
+		return 1000000
+	}
+	// Gemini 1.5 Pro has 2M, Flash has 1M - use 1M as conservative default
 	if strings.Contains(model, "gemini-1.5") {
 		return 1000000
 	}
+	// Gemini 1.0 Pro has 32K
 	if strings.Contains(model, "gemini") {
 		return 32768
 	}
 
 	// Mistral models
-	if strings.Contains(model, "mistral") {
+	// Mistral Large has 128K context
+	if strings.Contains(model, "mistral-large") {
+		return 128000
+	}
+	// Other Mistral models (Small, 7B, Mixtral) have 32K
+	if strings.Contains(model, "mistral") || strings.Contains(model, "mixtral") {
 		return 32768
 	}
 
 	// Llama models
+	// Llama 3.1, 3.2, 3.3 have 128K context
+	if strings.Contains(model, "llama-3.1") || strings.Contains(model, "llama-3.2") || strings.Contains(model, "llama-3.3") {
+		return 128000
+	}
+	// Llama 3 (original) has 8K context
 	if strings.Contains(model, "llama-3") {
 		return 8192
 	}
+	// Llama 2 has 4K context
 	if strings.Contains(model, "llama") {
 		return 4096
+	}
+
+	// Qwen models (all have 128K context)
+	if strings.Contains(model, "qwen") {
+		return 128000
+	}
+
+	// Cohere Command models
+	if strings.Contains(model, "command-r") {
+		return 128000
 	}
 
 	// Default fallback
