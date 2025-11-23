@@ -257,6 +257,6 @@ infer agents add new-name https://agent.url
 
 ## Related Documentation
 
-- [A2A Tools Documentation](../README.md#a2a-tools)
-- [Configuration Guide](../CONFIG.md)
+- [A2A Tools Documentation](../README.md#a2a-tools-agent-to-agent-communication)
+- [Configuration Guide](../README.md#configuration)
 - [Agent Architecture](../AGENTS.md)
