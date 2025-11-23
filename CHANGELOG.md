@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.62.0](https://github.com/inference-gateway/cli/compare/v0.61.0...v0.62.0) (2025-11-23)
+
+### 🚀 Features
+
+* **scm:** Add /scm pr create shortcut for automated PR workflow ([#239](https://github.com/inference-gateway/cli/issues/239)) ([a62c577](https://github.com/inference-gateway/cli/commit/a62c57784c5afc5c07c720a58710be6049f2a015)), closes [#238](https://github.com/inference-gateway/cli/issues/238)
+
+### 📚 Documentation
+
+* Consolidate configuration documentation into README ([#240](https://github.com/inference-gateway/cli/issues/240)) ([4804d4a](https://github.com/inference-gateway/cli/commit/4804d4aafd241067a0f0dd5a050d813597416fc7))
+
+### ✅ Tests
+
+* Add table-driven tests for edit tools ([#237](https://github.com/inference-gateway/cli/issues/237)) ([2d35231](https://github.com/inference-gateway/cli/commit/2d35231a87aa48d28b9184084f36b4a20e7cede7))
+
 ## [0.61.0](https://github.com/inference-gateway/cli/compare/v0.60.0...v0.61.0) (2025-11-22)
 
 ### 🚀 Features
