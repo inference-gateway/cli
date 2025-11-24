@@ -583,6 +583,56 @@ func (sm *StateManager) RecoverFromInconsistentState() error {
 	return nil
 }
 
+// Agent Readiness Management
+
+// InitializeAgentReadiness initializes the agent readiness tracking
+func (sm *StateManager) InitializeAgentReadiness(totalAgents int) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.InitializeAgentReadiness(totalAgents)
+}
+
+// UpdateAgentStatus updates the status of a specific agent
+func (sm *StateManager) UpdateAgentStatus(name string, state domain.AgentState, message string, url string, image string) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.UpdateAgentStatus(name, state, message, url, image)
+}
+
+// SetAgentError sets an error for a specific agent
+func (sm *StateManager) SetAgentError(name string, err error) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.SetAgentError(name, err)
+}
+
+// GetAgentReadiness returns the current agent readiness state
+func (sm *StateManager) GetAgentReadiness() *domain.AgentReadinessState {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	return sm.state.GetAgentReadiness()
+}
+
+// AreAllAgentsReady returns true if all agents are ready
+func (sm *StateManager) AreAllAgentsReady() bool {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	return sm.state.AreAllAgentsReady()
+}
+
+// ClearAgentReadiness clears the agent readiness state
+func (sm *StateManager) ClearAgentReadiness() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.ClearAgentReadiness()
+}
+
 // GetHealthStatus returns the health status of the state manager
 func (sm *StateManager) GetHealthStatus() HealthStatus {
 	sm.mutex.RLock()

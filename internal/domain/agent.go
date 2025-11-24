@@ -63,4 +63,7 @@ type AgentManager interface {
 
 	// IsRunning returns whether any agents are running
 	IsRunning() bool
+
+	// SetStatusCallback sets the callback function for agent status updates
+	SetStatusCallback(callback func(agentName string, state AgentState, message string, url string, image string))
 }

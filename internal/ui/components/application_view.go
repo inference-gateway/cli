@@ -40,6 +40,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	helpBar shared.HelpBarComponent,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
+	agentReadinessView *AgentReadinessView,
 ) string {
 	width, height := data.Width, data.Height
 
@@ -127,6 +128,15 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	}
 
 	components = append(components, inputArea)
+
+	// Add agent readiness indicator below input if agents are starting
+	if agentReadinessView != nil {
+		agentReadinessView.SetWidth(width)
+		agentReadinessContent := agentReadinessView.Render()
+		if agentReadinessContent != "" {
+			components = append(components, agentReadinessContent)
+		}
+	}
 
 	helpBar.SetWidth(width)
 	helpBarContent := helpBar.Render()

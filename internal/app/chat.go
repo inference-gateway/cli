@@ -49,6 +49,7 @@ type ChatApplication struct {
 	helpBar              ui.HelpBarComponent
 	queueBoxView         *components.QueueBoxView
 	todoBoxView          *components.TodoBoxView
+	agentReadinessView   *components.AgentReadinessView
 	modelSelector        *components.ModelSelectorImpl
 	themeSelector        *components.ThemeSelectorImpl
 	conversationSelector *components.ConversationSelectorImpl
@@ -158,6 +159,7 @@ func NewChatApplication(
 	app.helpBar = ui.CreateHelpBar(app.themeService)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
+	app.agentReadinessView = components.NewAgentReadinessView(app.stateManager, styleProvider)
 
 	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
 	app.textSelectionView = components.NewTextSelectionView(styleProvider)
@@ -817,6 +819,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		app.helpBar,
 		app.queueBoxView,
 		app.todoBoxView,
+		app.agentReadinessView,
 	)
 
 	return chatInterface
@@ -1077,6 +1080,15 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, cmds *[]tea.Cmd)
 		*cmds = append(*cmds, cmd)
 		if helpBarModel, ok := model.(ui.HelpBarComponent); ok {
 			app.helpBar = helpBarModel
+		}
+	}
+
+	if app.agentReadinessView != nil {
+		if model, cmd := app.agentReadinessView.Update(msg); cmd != nil {
+			*cmds = append(*cmds, cmd)
+			if readinessModel, ok := model.(*components.AgentReadinessView); ok {
+				app.agentReadinessView = readinessModel
+			}
 		}
 	}
 }
