@@ -406,9 +406,6 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 func (e *ChatEventHandler) handleBashOutputChunk(
 	_ domain.BashOutputChunkEvent,
 ) tea.Cmd {
-	// Note: BashOutputChunkEvent is now handled directly by UI components
-	// (conversation_view forwards to tool_call_renderer) to avoid unnecessary event conversion.
-	// We just continue listening for more events from the channel.
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
