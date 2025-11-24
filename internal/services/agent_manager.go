@@ -179,16 +179,7 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Check for port collision errors
-		outputStr := string(output)
-		if strings.Contains(outputStr, "port is already allocated") ||
-			strings.Contains(outputStr, "address already in use") {
-			return &domain.PortCollisionError{
-				Port:    port,
-				Service: agent.Name,
-			}
-		}
-		return fmt.Errorf("docker run failed: %w, output: %s", err, outputStr)
+		return fmt.Errorf("docker run failed: %w, output: %s", err, string(output))
 	}
 
 	containerID := strings.TrimSpace(string(output))

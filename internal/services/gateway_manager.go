@@ -235,16 +235,7 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		// Check for port collision errors
-		outputStr := string(output)
-		if strings.Contains(outputStr, "port is already allocated") ||
-			strings.Contains(outputStr, "address already in use") {
-			return &domain.PortCollisionError{
-				Port:    port,
-				Service: "gateway",
-			}
-		}
-		return fmt.Errorf("docker run failed: %w, output: %s", err, outputStr)
+		return fmt.Errorf("docker run failed: %w, output: %s", err, string(output))
 	}
 
 	gm.containerID = strings.TrimSpace(string(output))
