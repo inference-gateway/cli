@@ -36,7 +36,7 @@ type ParallelToolState struct {
 	EndTime      *time.Time
 	LastUpdate   time.Time
 	MinShowTime  time.Duration
-	OutputBuffer []string // Buffer for streaming bash output
+	OutputBuffer []string
 }
 
 type ToolInfo struct {
