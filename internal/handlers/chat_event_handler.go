@@ -420,6 +420,27 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 	return tea.Batch(cmds...)
 }
 
+func (e *ChatEventHandler) handleBashOutputChunk(
+	msg domain.BashOutputChunkEvent,
+) tea.Cmd {
+	var cmds []tea.Cmd
+
+	// Emit the bash output as streaming content for display
+	cmds = append(cmds, func() tea.Msg {
+		return domain.BashOutputStreamEvent{
+			ToolCallID: msg.ToolCallID,
+			Output:     msg.Output,
+			IsComplete: msg.IsComplete,
+		}
+	})
+
+	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return tea.Batch(cmds...)
+}
+
 func (e *ChatEventHandler) handleToolExecutionCompleted(
 	msg domain.ToolExecutionCompletedEvent,
 

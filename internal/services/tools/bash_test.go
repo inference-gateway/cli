@@ -2,9 +2,11 @@ package tools
 
 import (
 	"context"
+	"sync"
 	"testing"
 
 	"github.com/inference-gateway/cli/config"
+	"github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestBashTool_Definition(t *testing.T) {
@@ -267,4 +269,81 @@ func TestBashTool_GitPushValidation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBashTool_StreamingOutput(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Bash: config.BashToolConfig{
+				Enabled: true,
+				Whitelist: config.ToolWhitelistConfig{
+					Commands: []string{"echo", "printf"},
+				},
+			},
+		},
+	}
+
+	tool := NewBashTool(cfg)
+
+	// Test with streaming callback
+	t.Run("streaming callback receives output", func(t *testing.T) {
+		var receivedLines []string
+		var mu sync.Mutex
+
+		callback := func(line string) {
+			mu.Lock()
+			receivedLines = append(receivedLines, line)
+			mu.Unlock()
+		}
+
+		ctx := context.WithValue(context.Background(), domain.BashOutputCallbackKey, domain.BashOutputCallback(callback))
+
+		args := map[string]any{
+			"command": "echo 'line 1' && echo 'line 2' && echo 'line 3'",
+		}
+
+		result, err := tool.Execute(ctx, args)
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+
+		if !result.Success {
+			t.Errorf("Expected successful execution, got error: %s", result.Error)
+		}
+
+		mu.Lock()
+		lineCount := len(receivedLines)
+		mu.Unlock()
+
+		if lineCount < 3 {
+			t.Errorf("Expected at least 3 streamed lines, got %d", lineCount)
+		}
+	})
+
+	// Test without streaming callback (original behavior)
+	t.Run("works without streaming callback", func(t *testing.T) {
+		ctx := context.Background()
+
+		args := map[string]any{
+			"command": "echo hello",
+		}
+
+		result, err := tool.Execute(ctx, args)
+		if err != nil {
+			t.Fatalf("Execute() failed: %v", err)
+		}
+
+		if result == nil {
+			t.Fatal("Expected non-nil result")
+		}
+
+		if !result.Success {
+			t.Errorf("Expected successful execution, got error: %s", result.Error)
+		}
+	})
 }

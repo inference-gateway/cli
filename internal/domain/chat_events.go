@@ -32,6 +32,14 @@ type ToolExecutionProgressEvent struct {
 	Message    string
 }
 
+// BashOutputChunkEvent indicates a new chunk of bash output is available
+type BashOutputChunkEvent struct {
+	BaseChatEvent
+	ToolCallID string
+	Output     string
+	IsComplete bool
+}
+
 // ParallelToolsCompleteEvent indicates all parallel tools have completed
 type ParallelToolsCompleteEvent struct {
 	BaseChatEvent

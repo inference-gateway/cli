@@ -28,14 +28,15 @@ type ToolCallRenderer struct {
 }
 
 type ParallelToolState struct {
-	CallID      string
-	ToolName    string
-	Status      string
-	NextStatus  string
-	StartTime   time.Time
-	EndTime     *time.Time
-	LastUpdate  time.Time
-	MinShowTime time.Duration
+	CallID       string
+	ToolName     string
+	Status       string
+	NextStatus   string
+	StartTime    time.Time
+	EndTime      *time.Time
+	LastUpdate   time.Time
+	MinShowTime  time.Duration
+	OutputBuffer []string // Buffer for streaming bash output
 }
 
 type ToolInfo struct {
@@ -60,36 +61,18 @@ func (r *ToolCallRenderer) Init() tea.Cmd {
 	return r.spinner.Tick
 }
 
-func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
+func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) { // nolint:gocyclo
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		r.width = msg.Width
-		r.height = msg.Height
-		r.updateArgsContainerWidth()
+		r.handleWindowSize(msg)
 
 	case domain.ToolCallPreviewEvent:
-		if _, exists := r.toolPreviews[msg.ToolCallID]; !exists {
-			r.toolPreviewsOrder = append(r.toolPreviewsOrder, msg.ToolCallID)
-		}
-		r.toolPreviews[msg.ToolCallID] = &msg
-		if len(r.toolPreviews) == 1 && r.HasActivePreviews() {
-			return r, r.spinner.Tick
-		}
+		return r.handleToolCallPreview(msg)
 
 	case domain.ToolCallUpdateEvent:
-		if preview, exists := r.toolPreviews[msg.ToolCallID]; exists {
-			if time.Since(r.lastUpdate) < constants.ToolCallUpdateThrottle {
-				return r, nil
-			}
-			preview.Arguments = msg.Arguments
-			preview.Status = msg.Status
-			if msg.Status == domain.ToolCallStreamStatusComplete {
-				preview.IsComplete = true
-			}
-			r.lastUpdate = time.Now()
-		}
+		return r.handleToolCallUpdate(msg)
 
 	case domain.ToolCallReadyEvent:
 		r.ClearPreviews()
@@ -98,45 +81,109 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) {
 		r.ClearPreviews()
 
 	case domain.ParallelToolsStartEvent:
-		for _, tool := range msg.Tools {
-			now := time.Now()
-			if _, exists := r.parallelTools[tool.CallID]; !exists {
-				r.parallelToolsOrder = append(r.parallelToolsOrder, tool.CallID)
-			}
-			r.parallelTools[tool.CallID] = &ParallelToolState{
-				CallID:      tool.CallID,
-				ToolName:    tool.Name,
-				Status:      "queued",
-				NextStatus:  "",
-				StartTime:   now,
-				LastUpdate:  now,
-				MinShowTime: constants.ToolCallMinShowTime,
-			}
-		}
-		return r, r.spinner.Tick
+		return r.handleParallelToolsStart(msg)
 
 	case domain.ToolExecutionProgressEvent:
-		if state, exists := r.parallelTools[msg.ToolCallID]; exists {
-			state.Status = msg.Status
-			if msg.Status == "complete" || msg.Status == "failed" {
-				endTime := time.Now()
-				state.EndTime = &endTime
-			}
+		return r.handleToolExecutionProgress(msg)
 
-			if r.hasActiveParallelTools() {
-				return r, r.spinner.Tick
-			}
-		}
+	case domain.BashOutputStreamEvent:
+		return r.handleBashOutputStream(msg)
 
 	case spinner.TickMsg:
-		r.spinnerStep = (r.spinnerStep + 1) % 4
-		if r.HasActivePreviews() || r.hasActiveParallelTools() {
-			r.spinner, cmd = r.spinner.Update(msg)
-			return r, cmd
-		}
+		return r.handleSpinnerTick(msg)
 	}
 
 	return r, cmd
+}
+
+func (r *ToolCallRenderer) handleWindowSize(msg tea.WindowSizeMsg) {
+	r.width = msg.Width
+	r.height = msg.Height
+	r.updateArgsContainerWidth()
+}
+
+func (r *ToolCallRenderer) handleToolCallPreview(msg domain.ToolCallPreviewEvent) (*ToolCallRenderer, tea.Cmd) {
+	if _, exists := r.toolPreviews[msg.ToolCallID]; !exists {
+		r.toolPreviewsOrder = append(r.toolPreviewsOrder, msg.ToolCallID)
+	}
+	r.toolPreviews[msg.ToolCallID] = &msg
+	if len(r.toolPreviews) == 1 && r.HasActivePreviews() {
+		return r, r.spinner.Tick
+	}
+	return r, nil
+}
+
+func (r *ToolCallRenderer) handleToolCallUpdate(msg domain.ToolCallUpdateEvent) (*ToolCallRenderer, tea.Cmd) {
+	if preview, exists := r.toolPreviews[msg.ToolCallID]; exists {
+		if time.Since(r.lastUpdate) < constants.ToolCallUpdateThrottle {
+			return r, nil
+		}
+		preview.Arguments = msg.Arguments
+		preview.Status = msg.Status
+		if msg.Status == domain.ToolCallStreamStatusComplete {
+			preview.IsComplete = true
+		}
+		r.lastUpdate = time.Now()
+	}
+	return r, nil
+}
+
+func (r *ToolCallRenderer) handleParallelToolsStart(msg domain.ParallelToolsStartEvent) (*ToolCallRenderer, tea.Cmd) {
+	for _, tool := range msg.Tools {
+		now := time.Now()
+		if _, exists := r.parallelTools[tool.CallID]; !exists {
+			r.parallelToolsOrder = append(r.parallelToolsOrder, tool.CallID)
+		}
+		r.parallelTools[tool.CallID] = &ParallelToolState{
+			CallID:      tool.CallID,
+			ToolName:    tool.Name,
+			Status:      "queued",
+			NextStatus:  "",
+			StartTime:   now,
+			LastUpdate:  now,
+			MinShowTime: constants.ToolCallMinShowTime,
+		}
+	}
+	return r, r.spinner.Tick
+}
+
+func (r *ToolCallRenderer) handleToolExecutionProgress(msg domain.ToolExecutionProgressEvent) (*ToolCallRenderer, tea.Cmd) {
+	if state, exists := r.parallelTools[msg.ToolCallID]; exists {
+		state.Status = msg.Status
+		if msg.Status == "complete" || msg.Status == "failed" {
+			endTime := time.Now()
+			state.EndTime = &endTime
+		}
+		if r.hasActiveParallelTools() {
+			return r, r.spinner.Tick
+		}
+	}
+	return r, nil
+}
+
+func (r *ToolCallRenderer) handleBashOutputStream(msg domain.BashOutputStreamEvent) (*ToolCallRenderer, tea.Cmd) {
+	if state, exists := r.parallelTools[msg.ToolCallID]; exists {
+		// Add output to the buffer (limit to last 10 lines for display)
+		state.OutputBuffer = append(state.OutputBuffer, msg.Output)
+		if len(state.OutputBuffer) > 10 {
+			state.OutputBuffer = state.OutputBuffer[len(state.OutputBuffer)-10:]
+		}
+		state.LastUpdate = time.Now()
+		if r.hasActiveParallelTools() {
+			return r, r.spinner.Tick
+		}
+	}
+	return r, nil
+}
+
+func (r *ToolCallRenderer) handleSpinnerTick(msg spinner.TickMsg) (*ToolCallRenderer, tea.Cmd) {
+	r.spinnerStep = (r.spinnerStep + 1) % 4
+	if r.HasActivePreviews() || r.hasActiveParallelTools() {
+		var cmd tea.Cmd
+		r.spinner, cmd = r.spinner.Update(msg)
+		return r, cmd
+	}
+	return r, nil
 }
 
 func (r *ToolCallRenderer) SetWidth(width int) {
@@ -372,5 +419,28 @@ func (r *ToolCallRenderer) renderParallelTool(tool *ParallelToolState) string {
 	statusPart := r.styleProvider.RenderWithColor(fmt.Sprintf("%s %s:%s", statusIcon, toolInfo.Prefix, toolInfo.Name), r.styleProvider.GetThemeColor(colorName))
 	metaPart := r.styleProvider.RenderDimText(fmt.Sprintf(" (%s)", statusText))
 
-	return statusPart + metaPart
+	header := statusPart + metaPart
+
+	// For Bash tools, show streaming output if available
+	if tool.ToolName == "Bash" && len(tool.OutputBuffer) > 0 {
+		var outputLines []string
+		outputLines = append(outputLines, header)
+
+		// Show last few lines of output with indentation
+		for _, line := range tool.OutputBuffer {
+			truncatedLine := line
+			maxLineLen := r.width - 6 // Account for indentation
+			if maxLineLen < 20 {
+				maxLineLen = 20
+			}
+			if len(truncatedLine) > maxLineLen {
+				truncatedLine = truncatedLine[:maxLineLen-3] + "..."
+			}
+			outputLines = append(outputLines, r.styleProvider.RenderDimText("    "+truncatedLine))
+		}
+
+		return strings.Join(outputLines, "\n")
+	}
+
+	return header
 }

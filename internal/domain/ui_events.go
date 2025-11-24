@@ -186,3 +186,10 @@ type TodoUpdateEvent struct {
 
 // ToggleTodoBoxEvent toggles the todo box expanded/collapsed state
 type ToggleTodoBoxEvent struct{}
+
+// BashOutputStreamEvent delivers streaming bash command output for immediate UI display
+type BashOutputStreamEvent struct {
+	ToolCallID string
+	Output     string
+	IsComplete bool
+}

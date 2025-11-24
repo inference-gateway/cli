@@ -561,7 +561,7 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if cv.toolCallRenderer != nil {
 		switch msg.(type) {
-		case domain.ParallelToolsStartEvent, domain.ToolExecutionProgressEvent:
+		case domain.ParallelToolsStartEvent, domain.ToolExecutionProgressEvent, domain.BashOutputStreamEvent:
 			if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
 				cmd = tea.Batch(cmd, rendererCmd)
 			}
