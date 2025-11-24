@@ -75,7 +75,7 @@ func TruncateText(text string, maxLength int) string {
 }
 
 // ExtractTextFromContent extracts text from potentially multimodal message content
-func ExtractTextFromContent(content sdk.Message_Content, images []domain.ImageAttachment) string {
+func ExtractTextFromContent(content sdk.MessageContent, images []domain.ImageAttachment) string {
 	simpleStr, err := content.AsMessageContent0()
 	if err == nil {
 		return simpleStr
