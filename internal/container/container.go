@@ -81,9 +81,9 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 	}
 
 	container.initializeGatewayManager()
-	container.initializeAgentManager()
 	container.initializeFileWriterServices()
 	container.initializeStateManager()
+	container.initializeAgentManager()
 	container.initializeDomainServices()
 	container.initializeServices()
 	container.initializeUIComponents()
