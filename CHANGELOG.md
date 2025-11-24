@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.64.0](https://github.com/inference-gateway/cli/compare/v0.63.1...v0.64.0) (2025-11-24)
+
+### 🚀 Features
+
+* **tokenizer:** Add token usage polyfill for providers without metrics ([#248](https://github.com/inference-gateway/cli/issues/248)) ([3cd2d9c](https://github.com/inference-gateway/cli/commit/3cd2d9c085f4d19e40036f8e7fcaa7913aa9e7bd)), closes [#242](https://github.com/inference-gateway/cli/issues/242)
+
+### 🧹 Maintenance
+
+* **deps:** Bump go.uber.org/zap from 1.27.0 to 1.27.1 ([#247](https://github.com/inference-gateway/cli/issues/247)) ([6fa54c0](https://github.com/inference-gateway/cli/commit/6fa54c0f10c6037e1fe33fe8b60f5ff9e043f7f8))
+* **deps:** Bump modernc.org/sqlite from 1.40.0 to 1.40.1 ([#246](https://github.com/inference-gateway/cli/issues/246)) ([1faf973](https://github.com/inference-gateway/cli/commit/1faf973492dc7db2e47111676aab75dd5c5af361))
+
 ## [0.63.1](https://github.com/inference-gateway/cli/compare/v0.63.0...v0.63.1) (2025-11-23)
 
 ### ♻️ Code Refactoring
