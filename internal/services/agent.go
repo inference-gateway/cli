@@ -25,6 +25,7 @@ type AgentServiceImpl struct {
 	timeoutSeconds   int
 	maxTokens        int
 	optimizer        *ConversationOptimizer
+	tokenizer        *TokenizerService
 
 	// Request tracking
 	activeRequests map[string]context.CancelFunc
@@ -181,6 +182,9 @@ func NewAgentService(
 	timeoutSeconds int,
 	optimizer *ConversationOptimizer,
 ) *AgentServiceImpl {
+	// Create tokenizer service for providers that don't return token usage
+	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
+
 	return &AgentServiceImpl{
 		client:           client,
 		toolService:      toolService,
@@ -192,6 +196,7 @@ func NewAgentService(
 		timeoutSeconds:   timeoutSeconds,
 		maxTokens:        config.GetAgentConfig().MaxTokens,
 		optimizer:        optimizer,
+		tokenizer:        tokenizer,
 		activeRequests:   make(map[string]context.CancelFunc),
 		cancelChannels:   make(map[string]chan struct{}),
 		metrics:          make(map[string]*domain.ChatMetrics),
@@ -550,7 +555,18 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 			}
 
-			s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
+			// Extract output content for polyfill calculation
+			outputContent, _ := assistantContent.AsMessageContent0()
+
+			// Prepare polyfill input for providers that don't return token usage
+			polyfillInput := &storeIterationMetricsInput{
+				inputMessages:   conversation[:len(conversation)-1], // Exclude the just-added assistant message
+				outputContent:   outputContent,
+				outputToolCalls: completeToolCalls,
+				availableTools:  availableTools,
+			}
+
+			s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage, polyfillInput)
 
 			if len(toolCalls) > 0 {
 				toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
@@ -635,15 +651,47 @@ func (s *AgentServiceImpl) GetMetrics(requestID string) *domain.ChatMetrics {
 	return nil
 }
 
-// storeIterationMetrics stores metrics for the current iteration and accumulates session tokens
-func (s *AgentServiceImpl) storeIterationMetrics(requestID string, startTime time.Time, usage *sdk.CompletionUsage) {
-	if usage == nil {
+// storeIterationMetricsInput holds the data needed for token usage polyfill calculation
+type storeIterationMetricsInput struct {
+	inputMessages   []sdk.Message
+	outputContent   string
+	outputToolCalls []sdk.ChatCompletionMessageToolCall
+	availableTools  []sdk.ChatCompletionTool
+}
+
+// storeIterationMetrics stores metrics for the current iteration and accumulates session tokens.
+// If the provider doesn't return usage metrics, it uses the tokenizer polyfill to estimate them.
+func (s *AgentServiceImpl) storeIterationMetrics(
+	requestID string,
+	startTime time.Time,
+	usage *sdk.CompletionUsage,
+	polyfillInput *storeIterationMetricsInput,
+) {
+	effectiveUsage := usage
+
+	// Use polyfill if provider didn't return token usage
+	if s.tokenizer != nil && s.tokenizer.ShouldUsePolyfill(usage) && polyfillInput != nil {
+		effectiveUsage = s.tokenizer.CalculateUsagePolyfill(
+			polyfillInput.inputMessages,
+			polyfillInput.outputContent,
+			polyfillInput.outputToolCalls,
+			polyfillInput.availableTools,
+		)
+		logger.Debug("using token usage polyfill",
+			"promptTokens", effectiveUsage.PromptTokens,
+			"completionTokens", effectiveUsage.CompletionTokens,
+			"totalTokens", effectiveUsage.TotalTokens,
+		)
+	}
+
+	// If still no usage data, return early
+	if effectiveUsage == nil {
 		return
 	}
 
 	metrics := &domain.ChatMetrics{
 		Duration: time.Since(startTime),
-		Usage:    usage,
+		Usage:    effectiveUsage,
 	}
 
 	s.metricsMux.Lock()
@@ -651,9 +699,9 @@ func (s *AgentServiceImpl) storeIterationMetrics(requestID string, startTime tim
 	s.metricsMux.Unlock()
 
 	if err := s.conversationRepo.AddTokenUsage(
-		int(usage.PromptTokens),
-		int(usage.CompletionTokens),
-		int(usage.TotalTokens),
+		int(effectiveUsage.PromptTokens),
+		int(effectiveUsage.CompletionTokens),
+		int(effectiveUsage.TotalTokens),
 	); err != nil {
 		logger.Error("failed to add token usage to session", "error", err)
 	}
