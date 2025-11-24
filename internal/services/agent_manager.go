@@ -9,6 +9,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	"github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
@@ -178,7 +179,16 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("docker run failed: %w, output: %s", err, string(output))
+		// Check for port collision errors
+		outputStr := string(output)
+		if strings.Contains(outputStr, "port is already allocated") ||
+			strings.Contains(outputStr, "address already in use") {
+			return &domain.PortCollisionError{
+				Port:    port,
+				Service: agent.Name,
+			}
+		}
+		return fmt.Errorf("docker run failed: %w, output: %s", err, outputStr)
 	}
 
 	containerID := strings.TrimSpace(string(output))
