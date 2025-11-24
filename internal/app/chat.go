@@ -1000,7 +1000,7 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 }
 
 // handleWindowAndSetupEvents handles window size and setup events that may return early
-func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, cmds *[]tea.Cmd) bool {
+func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, _ *[]tea.Cmd) bool {
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
 	}
@@ -1014,7 +1014,7 @@ func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, cmds *[]tea.
 }
 
 // handleDuplicateKeyEvents handles duplicate key events to prevent double processing
-func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, cmds *[]tea.Cmd) bool {
+func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, _ *[]tea.Cmd) bool {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		if keyMsg.String() == app.lastHandledKey {
 			app.lastHandledKey = ""
