@@ -202,7 +202,7 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 // executeBashWithStreaming executes a bash command and streams output through the callback
 func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, callback domain.BashOutputCallback, start time.Time) (*BashResult, error) {
 	result := &BashResult{
-		Command: cmd.Args[len(cmd.Args)-1], // Get the actual command from args
+		Command: cmd.Args[len(cmd.Args)-1],
 	}
 
 	stdout, err := cmd.StdoutPipe()
