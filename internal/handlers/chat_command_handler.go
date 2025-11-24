@@ -290,7 +290,6 @@ func (c *ChatCommandHandler) executeToolCommand(commandText, toolName, argsJSON 
 		}
 		_ = c.handler.conversationRepo.AddMessage(assistantEntry)
 
-		// Add tool result message with matching tool_call_id
 		toolEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:       sdk.Tool,
