@@ -1012,13 +1012,11 @@ func ResolveEnvironmentVariables(value string) string {
 // DetectGithubOwner attempts to detect the GitHub owner from the git remote URL
 // Returns empty string if not a git repository or not a GitHub remote
 func DetectGithubOwner() string {
-	// Check if we're in a git repository
 	cmd := exec.Command("git", "rev-parse", "--git-dir")
 	if err := cmd.Run(); err != nil {
 		return ""
 	}
 
-	// Get the remote URL (try origin first)
 	cmd = exec.Command("git", "remote", "get-url", "origin")
 	output, err := cmd.Output()
 	if err != nil {
@@ -1039,13 +1037,11 @@ func parseGithubOwnerFromURL(url string) string {
 		return ""
 	}
 
-	// HTTPS format: https://github.com/owner/repo.git
 	httpsPattern := regexp.MustCompile(`^https?://github\.com/([^/]+)/`)
 	if matches := httpsPattern.FindStringSubmatch(url); len(matches) > 1 {
 		return matches[1]
 	}
 
-	// SSH format: git@github.com:owner/repo.git
 	sshPattern := regexp.MustCompile(`^git@github\.com:([^/]+)/`)
 	if matches := sshPattern.FindStringSubmatch(url); len(matches) > 1 {
 		return matches[1]
