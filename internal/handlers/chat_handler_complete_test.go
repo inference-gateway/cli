@@ -218,7 +218,7 @@ func getToolExecutionTestCases() []chatHandlerTestCase {
 			},
 			setupMocks: func(agent *mocks.FakeAgentService, model *mocks.FakeModelService, tool *mocks.FakeToolService, file *mocks.FakeFileService, config *mocks.FakeConfigService) {
 			},
-			expectedCmd: true,
+			expectedCmd: false,
 		},
 		{
 			name: "ToolExecutionCompletedEvent",

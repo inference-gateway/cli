@@ -319,6 +319,8 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		sv.ClearStatus()
 	case domain.DebugKeyEvent:
 		sv.debugInfo = fmt.Sprintf("DEBUG: %s -> %s", msg.Key, msg.Handler)
+	case domain.BashCommandCompletedEvent:
+		sv.ClearStatus()
 	}
 
 	return sv, cmd

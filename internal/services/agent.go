@@ -137,6 +137,25 @@ func (p *eventPublisher) publishToolStatusChange(callID string, status string, m
 	p.chatEvents <- event
 }
 
+// publishBashOutputChunk publishes a BashOutputChunkEvent for streaming bash output
+func (p *eventPublisher) publishBashOutputChunk(callID string, output string, isComplete bool) {
+	event := domain.BashOutputChunkEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		ToolCallID: callID,
+		Output:     output,
+		IsComplete: isComplete,
+	}
+
+	select {
+	case p.chatEvents <- event:
+	default:
+		logger.Warn("bash output chunk dropped - channel full")
+	}
+}
+
 // publishParallelToolsComplete publishes a ParallelToolsCompleteEvent
 func (p *eventPublisher) publishParallelToolsComplete(totalExecuted, successCount, failureCount int, duration time.Duration) {
 	event := domain.ParallelToolsCompleteEvent{
@@ -673,11 +692,6 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 			polyfillInput.outputToolCalls,
 			polyfillInput.availableTools,
 		)
-		logger.Debug("using token usage polyfill",
-			"promptTokens", effectiveUsage.PromptTokens,
-			"completionTokens", effectiveUsage.CompletionTokens,
-			"totalTokens", effectiveUsage.TotalTokens,
-		)
 	}
 
 	if effectiveUsage == nil {
@@ -953,6 +967,13 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 	execCtx := ctx
 	if wasApproved {
 		execCtx = context.WithValue(ctx, domain.ToolApprovedKey, true)
+	}
+
+	if tc.Function.Name == "Bash" {
+		bashCallback := func(line string) {
+			eventPublisher.publishBashOutputChunk(tc.Id, line, false)
+		}
+		execCtx = context.WithValue(execCtx, domain.BashOutputCallbackKey, domain.BashOutputCallback(bashCallback))
 	}
 
 	resultChan := make(chan struct {

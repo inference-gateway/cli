@@ -186,3 +186,8 @@ type TodoUpdateEvent struct {
 
 // ToggleTodoBoxEvent toggles the todo box expanded/collapsed state
 type ToggleTodoBoxEvent struct{}
+
+// BashCommandCompletedEvent indicates a direct bash command (! prefix) has completed
+type BashCommandCompletedEvent struct {
+	History []ConversationEntry
+}

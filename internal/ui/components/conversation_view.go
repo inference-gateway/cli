@@ -252,8 +252,12 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 		role = "> You"
 
 		contentStr, contentErr := entry.Message.Content.AsMessageContent0()
-		if contentErr == nil && strings.HasPrefix(contentStr, "!") {
-			return cv.renderShellCommandEntry(entry, color, role, contentStr)
+		if contentErr == nil {
+			if strings.HasPrefix(contentStr, "!!") {
+				return cv.renderToolCommandEntry(entry, color, role, contentStr)
+			} else if strings.HasPrefix(contentStr, "!") {
+				return cv.renderShellCommandEntry(entry, color, role, contentStr)
+			}
 		}
 	case "assistant":
 		color = cv.getAssistantColor()
@@ -536,21 +540,8 @@ func (cv *ConversationView) View() string { return cv.Render() }
 func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
-		if mouseMsg.Action == tea.MouseActionPress {
-			switch mouseMsg.Button {
-			case tea.MouseButtonWheelDown:
-				cv.Viewport.ScrollDown(1)
-				if cv.Viewport.AtBottom() {
-					cv.userScrolledUp = false
-				}
-				return cv, nil
-			case tea.MouseButtonWheelUp:
-				cv.userScrolledUp = true
-				cv.Viewport.ScrollUp(1)
-				return cv, nil
-			}
-		}
+	if handled, result, mouseCmd := cv.handleMouseMsg(msg); handled {
+		return result, mouseCmd
 	}
 
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
@@ -560,19 +551,20 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	if cv.toolCallRenderer != nil {
-		switch msg.(type) {
-		case domain.ParallelToolsStartEvent, domain.ToolExecutionProgressEvent:
-			if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
-				cmd = tea.Batch(cmd, rendererCmd)
-			}
-			cv.updateViewportContent()
-		}
+		cmd = cv.handleToolCallRendererEvents(msg, cmd)
 	}
 
 	switch msg := msg.(type) {
 	case domain.UpdateHistoryEvent:
 		cv.isStreaming = false
 		cv.SetConversation(msg.History)
+		return cv, cmd
+	case domain.BashCommandCompletedEvent:
+		cv.isStreaming = false
+		cv.SetConversation(msg.History)
+		if cv.toolCallRenderer != nil {
+			cv.toolCallRenderer.ClearPreviews()
+		}
 		return cv, cmd
 	case domain.StreamingContentEvent:
 		cv.appendStreamingContent(msg.Content)
@@ -643,6 +635,22 @@ func (cv *ConversationView) renderShellCommandEntry(_ domain.ConversationEntry, 
 	return message + "\n"
 }
 
+// renderToolCommandEntry renders a tool command entry (!! prefix) with highlighted prefix
+func (cv *ConversationView) renderToolCommandEntry(_ domain.ConversationEntry, color, role, contentStr string) string {
+	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
+
+	command := strings.TrimPrefix(contentStr, "!!")
+
+	accentColor := cv.styleProvider.GetThemeColor("accent")
+	prefixStyled := cv.styleProvider.RenderWithColor("!!", accentColor)
+
+	formattedContent := prefixStyled + " " + command
+	wrappedContent := shared.FormatResponsiveMessage(formattedContent, cv.width)
+
+	message := roleStyled + " " + wrappedContent
+	return message + "\n"
+}
+
 // appendStreamingContent appends streaming content to the last assistant message
 func (cv *ConversationView) appendStreamingContent(content string) {
 	if !cv.isStreaming {
@@ -669,4 +677,53 @@ func (cv *ConversationView) appendStreamingContent(content string) {
 
 	cv.updatePlainTextLines()
 	cv.updateViewportContent()
+}
+
+// handleMouseMsg handles mouse wheel scrolling events
+func (cv *ConversationView) handleMouseMsg(msg tea.Msg) (bool, tea.Model, tea.Cmd) {
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
+		if mouseMsg.Action == tea.MouseActionPress {
+			switch mouseMsg.Button {
+			case tea.MouseButtonWheelDown:
+				cv.Viewport.ScrollDown(1)
+				if cv.Viewport.AtBottom() {
+					cv.userScrolledUp = false
+				}
+				return true, cv, nil
+			case tea.MouseButtonWheelUp:
+				cv.userScrolledUp = true
+				cv.Viewport.ScrollUp(1)
+				return true, cv, nil
+			}
+		}
+	}
+	return false, nil, nil
+}
+
+// handleToolCallRendererEvents processes tool call renderer specific events
+func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cmd) tea.Cmd {
+	switch msg := msg.(type) {
+	case domain.ParallelToolsStartEvent:
+		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+			cmd = tea.Batch(cmd, rendererCmd)
+		}
+	case domain.ToolExecutionProgressEvent:
+		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+			cmd = tea.Batch(cmd, rendererCmd)
+		}
+	case domain.BashOutputChunkEvent:
+		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+			cmd = tea.Batch(cmd, rendererCmd)
+		}
+	case domain.ParallelToolsCompleteEvent:
+		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+			cmd = tea.Batch(cmd, rendererCmd)
+		}
+	case domain.ChatCompleteEvent:
+		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+			cmd = tea.Batch(cmd, rendererCmd)
+		}
+	}
+	cv.updateViewportContent()
+	return cmd
 }

@@ -90,13 +90,43 @@ func (c *ChatCommandHandler) handleBashCommand(
 
 // executeBashCommand executes a bash command without approval
 func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea.Cmd {
+	userEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent(commandText),
+		},
+		Time: time.Now(),
+	}
+	_ = c.handler.conversationRepo.AddMessage(userEntry)
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: c.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Executing: %s", command),
+				Spinner:    true,
+				StatusType: domain.StatusWorking,
+			}
+		},
+		c.executeBashCommandAsync(command),
+	)
+}
+
+// executeBashCommandAsync executes the bash command and returns results
+func (c *ChatCommandHandler) executeBashCommandAsync(command string) tea.Cmd {
 	return func() tea.Msg {
-		toolCall := sdk.ChatCompletionMessageToolCallFunction{
+		toolCallID := fmt.Sprintf("user-bash-%d", time.Now().UnixNano())
+
+		toolCallFunc := sdk.ChatCompletionMessageToolCallFunction{
 			Name:      "Bash",
 			Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
 		}
 
-		result, err := c.handler.toolService.ExecuteTool(context.Background(), toolCall)
+		result, err := c.handler.toolService.ExecuteTool(context.Background(), toolCallFunc)
 
 		if err != nil {
 			return domain.ShowErrorEvent{
@@ -105,27 +135,35 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 			}
 		}
 
-		userEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.User,
-				Content: sdk.NewMessageContent(commandText),
+		toolCalls := []sdk.ChatCompletionMessageToolCall{
+			{
+				Id:       toolCallID,
+				Type:     "function",
+				Function: toolCallFunc,
 			},
-			Time: time.Now(),
 		}
-		_ = c.handler.conversationRepo.AddMessage(userEntry)
-
-		responseContent := c.handler.conversationRepo.FormatToolResultForLLM(result)
-
 		assistantEntry := domain.ConversationEntry{
 			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(responseContent),
+				Role:      sdk.Assistant,
+				Content:   sdk.NewMessageContent(""),
+				ToolCalls: &toolCalls,
 			},
 			Time: time.Now(),
 		}
 		_ = c.handler.conversationRepo.AddMessage(assistantEntry)
 
-		return domain.UpdateHistoryEvent{
+		toolEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:       sdk.Tool,
+				Content:    sdk.NewMessageContent(""),
+				ToolCallId: &toolCallID,
+			},
+			ToolExecution: result,
+			Time:          time.Now(),
+		}
+		_ = c.handler.conversationRepo.AddMessage(toolEntry)
+
+		return domain.BashCommandCompletedEvent{
 			History: c.handler.conversationRepo.GetMessages(),
 		}
 	}
@@ -204,26 +242,26 @@ func (c *ChatCommandHandler) handleToolCommand(
 		return c.handleToolCommandWithApproval(toolName, string(argsJSON))
 	}
 
-	return c.executeToolCommand(toolName, string(argsJSON))
+	return c.executeToolCommand(commandText, toolName, string(argsJSON))
 }
 
 // executeToolCommand executes a tool command without approval
-func (c *ChatCommandHandler) executeToolCommand(toolName, argsJSON string) tea.Cmd {
+func (c *ChatCommandHandler) executeToolCommand(commandText, toolName, argsJSON string) tea.Cmd {
 	return func() tea.Msg {
-		toolCall := sdk.ChatCompletionMessageToolCallFunction{
+		toolCallID := fmt.Sprintf("user-tool-%d", time.Now().UnixNano())
+
+		toolCallFunc := sdk.ChatCompletionMessageToolCallFunction{
 			Name:      toolName,
 			Arguments: argsJSON,
 		}
 
-		result, err := c.handler.toolService.ExecuteTool(context.Background(), toolCall)
+		result, err := c.handler.toolService.ExecuteTool(context.Background(), toolCallFunc)
 		if err != nil {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to execute tool: %v", err),
 				Sticky: false,
 			}
 		}
-
-		commandText := "!!" + toolName + "(...)"
 
 		userEntry := domain.ConversationEntry{
 			Message: sdk.Message{
@@ -234,16 +272,33 @@ func (c *ChatCommandHandler) executeToolCommand(toolName, argsJSON string) tea.C
 		}
 		_ = c.handler.conversationRepo.AddMessage(userEntry)
 
-		responseContent := c.handler.conversationRepo.FormatToolResultForLLM(result)
-
+		toolCalls := []sdk.ChatCompletionMessageToolCall{
+			{
+				Id:       toolCallID,
+				Type:     "function",
+				Function: toolCallFunc,
+			},
+		}
 		assistantEntry := domain.ConversationEntry{
 			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(responseContent),
+				Role:      sdk.Assistant,
+				Content:   sdk.NewMessageContent(""),
+				ToolCalls: &toolCalls,
 			},
 			Time: time.Now(),
 		}
 		_ = c.handler.conversationRepo.AddMessage(assistantEntry)
+
+		toolEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:       sdk.Tool,
+				Content:    sdk.NewMessageContent(""),
+				ToolCallId: &toolCallID,
+			},
+			ToolExecution: result,
+			Time:          time.Now(),
+		}
+		_ = c.handler.conversationRepo.AddMessage(toolEntry)
 
 		return domain.UpdateHistoryEvent{
 			History: c.handler.conversationRepo.GetMessages(),
