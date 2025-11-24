@@ -172,7 +172,6 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		return result, fmt.Errorf("command not whitelisted: %s", command)
 	}
 
-	// Check if we have a streaming callback
 	outputCallback, hasCallback := ctx.Value(domain.BashOutputCallbackKey).(domain.BashOutputCallback)
 
 	cmdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -180,7 +179,6 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 
 	cmd := exec.CommandContext(cmdCtx, "bash", "-c", command)
 
-	// If we have a callback, stream output; otherwise use combined output
 	if hasCallback && outputCallback != nil {
 		return t.executeBashWithStreaming(cmdCtx, cmd, outputCallback, start)
 	}
@@ -207,7 +205,6 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 		Command: cmd.Args[len(cmd.Args)-1], // Get the actual command from args
 	}
 
-	// Create pipes for stdout and stderr
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
 		result.ExitCode = -1
@@ -224,7 +221,6 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 		return result, err
 	}
 
-	// Start the command
 	if err := cmd.Start(); err != nil {
 		result.ExitCode = -1
 		result.Duration = time.Since(start).String()
@@ -232,12 +228,10 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 		return result, err
 	}
 
-	// Combine stdout and stderr
 	var outputBuilder strings.Builder
 	var wg sync.WaitGroup
 	var outputMux sync.Mutex
 
-	// Function to read from a pipe and stream output
 	readPipe := func(pipe io.ReadCloser) {
 		defer wg.Done()
 		scanner := bufio.NewScanner(pipe)
@@ -248,7 +242,6 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 			outputBuilder.WriteString("\n")
 			outputMux.Unlock()
 
-			// Stream the line through the callback
 			callback(line)
 		}
 	}
@@ -257,10 +250,8 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 	go readPipe(stdout)
 	go readPipe(stderr)
 
-	// Wait for all readers to complete
 	wg.Wait()
 
-	// Wait for the command to complete
 	err = cmd.Wait()
 	result.Duration = time.Since(start).String()
 	result.Output = outputBuilder.String()
