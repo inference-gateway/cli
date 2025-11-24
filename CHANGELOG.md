@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.65.0](https://github.com/inference-gateway/cli/compare/v0.64.0...v0.65.0) (2025-11-24)
+
+### 🚀 Features
+
+* **bash:** Add stdout streaming for bash command execution ([#251](https://github.com/inference-gateway/cli/issues/251)) ([f6265ba](https://github.com/inference-gateway/cli/commit/f6265bae1a39d1e3149d04bb46ba5715cf8d6b26)), closes [#249](https://github.com/inference-gateway/cli/issues/249)
+
+### 🧹 Maintenance
+
+* Update SDK dependency to v1.14.1 ([82218cc](https://github.com/inference-gateway/cli/commit/82218cc78f0a4133542653d82819685e235638bb))
+
 ## [0.64.0](https://github.com/inference-gateway/cli/compare/v0.63.1...v0.64.0) (2025-11-24)
 
 ### 🚀 Features
