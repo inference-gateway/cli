@@ -269,6 +269,8 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		messageQueue,
 		nil,
 		nil,
+		nil,
+		nil,
 	)
 }
 
@@ -411,6 +413,8 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 				shortcutRegistry,
 				stateManager,
 				messageQueue,
+				nil,
+				nil,
 				nil,
 				nil,
 			)

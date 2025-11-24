@@ -83,6 +83,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	toolRegistry := services.GetToolRegistry()
 	taskRetentionService := services.GetTaskRetentionService()
 	backgroundTaskService := services.GetBackgroundTaskService()
+	agentManager := services.GetAgentManager()
 
 	application := app.NewChatApplication(
 		models,
@@ -101,6 +102,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		toolRegistry,
 		taskRetentionService,
 		backgroundTaskService,
+		agentManager,
 		getEffectiveConfigPath(),
 	)
 

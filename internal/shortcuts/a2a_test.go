@@ -10,7 +10,7 @@ import (
 
 func TestA2AShortcut_GetName(t *testing.T) {
 	mockConfig := &config.Config{}
-	shortcut := NewA2AShortcut(mockConfig, nil)
+	shortcut := NewA2AShortcut(mockConfig, nil, nil, nil)
 
 	expected := "a2a"
 	actual := shortcut.GetName()
@@ -22,9 +22,9 @@ func TestA2AShortcut_GetName(t *testing.T) {
 
 func TestA2AShortcut_GetDescription(t *testing.T) {
 	mockConfig := &config.Config{}
-	shortcut := NewA2AShortcut(mockConfig, nil)
+	shortcut := NewA2AShortcut(mockConfig, nil, nil, nil)
 
-	expected := "List available A2A agent servers"
+	expected := "Manage A2A agent servers (list, add, remove)"
 	actual := shortcut.GetDescription()
 
 	if actual != expected {
@@ -34,9 +34,9 @@ func TestA2AShortcut_GetDescription(t *testing.T) {
 
 func TestA2AShortcut_GetUsage(t *testing.T) {
 	mockConfig := &config.Config{}
-	shortcut := NewA2AShortcut(mockConfig, nil)
+	shortcut := NewA2AShortcut(mockConfig, nil, nil, nil)
 
-	expected := "/a2a [list]"
+	expected := "/a2a [list|add <name> <url> [--oci IMAGE] [--run] [--model MODEL] [--environment KEY=VALUE ...]|remove <name>]"
 	actual := shortcut.GetUsage()
 
 	if actual != expected {
@@ -61,19 +61,24 @@ func TestA2AShortcut_CanExecute(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "other argument not allowed",
-			args:     []string{"other"},
+			name:     "add with name and url allowed",
+			args:     []string{"add", "test-agent", "http://localhost:8080"},
+			expected: true,
+		},
+		{
+			name:     "add with insufficient args not allowed",
+			args:     []string{"add", "test-agent"},
 			expected: false,
 		},
 		{
-			name:     "multiple arguments not allowed",
-			args:     []string{"arg1", "arg2"},
+			name:     "other argument not allowed",
+			args:     []string{"other"},
 			expected: false,
 		},
 	}
 
 	mockConfig := &config.Config{}
-	shortcut := NewA2AShortcut(mockConfig, nil)
+	shortcut := NewA2AShortcut(mockConfig, nil, nil, nil)
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -136,7 +141,7 @@ func TestA2AShortcut_Execute(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			shortcut := NewA2AShortcut(tt.config, nil)
+			shortcut := NewA2AShortcut(tt.config, nil, nil, nil)
 
 			result, err := shortcut.Execute(context.Background(), tt.args)
 

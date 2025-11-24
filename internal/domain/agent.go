@@ -61,6 +61,9 @@ type AgentManager interface {
 	// StopAgents stops all running agent containers
 	StopAgents(ctx context.Context) error
 
+	// StopAgent stops a specific agent container by name
+	StopAgent(ctx context.Context, agentName string) error
+
 	// IsRunning returns whether any agents are running
 	IsRunning() bool
 

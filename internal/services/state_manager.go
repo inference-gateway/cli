@@ -633,6 +633,14 @@ func (sm *StateManager) ClearAgentReadiness() {
 	sm.state.ClearAgentReadiness()
 }
 
+// RemoveAgent removes an agent from the readiness tracking
+func (sm *StateManager) RemoveAgent(name string) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.RemoveAgent(name)
+}
+
 // GetHealthStatus returns the health status of the state manager
 func (sm *StateManager) GetHealthStatus() HealthStatus {
 	sm.mutex.RLock()

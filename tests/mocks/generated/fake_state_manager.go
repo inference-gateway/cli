@@ -178,6 +178,11 @@ type FakeStateManager struct {
 	isAgentBusyReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	RemoveAgentStub        func(string)
+	removeAgentMutex       sync.RWMutex
+	removeAgentArgsForCall []struct {
+		arg1 string
+	}
 	SetAgentErrorStub        func(string, error)
 	setAgentErrorMutex       sync.RWMutex
 	setAgentErrorArgsForCall []struct {
@@ -1200,6 +1205,38 @@ func (fake *FakeStateManager) IsAgentBusyReturnsOnCall(i int, result1 bool) {
 	fake.isAgentBusyReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
+}
+
+func (fake *FakeStateManager) RemoveAgent(arg1 string) {
+	fake.removeAgentMutex.Lock()
+	fake.removeAgentArgsForCall = append(fake.removeAgentArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.RemoveAgentStub
+	fake.recordInvocation("RemoveAgent", []interface{}{arg1})
+	fake.removeAgentMutex.Unlock()
+	if stub != nil {
+		fake.RemoveAgentStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) RemoveAgentCallCount() int {
+	fake.removeAgentMutex.RLock()
+	defer fake.removeAgentMutex.RUnlock()
+	return len(fake.removeAgentArgsForCall)
+}
+
+func (fake *FakeStateManager) RemoveAgentCalls(stub func(string)) {
+	fake.removeAgentMutex.Lock()
+	defer fake.removeAgentMutex.Unlock()
+	fake.RemoveAgentStub = stub
+}
+
+func (fake *FakeStateManager) RemoveAgentArgsForCall(i int) string {
+	fake.removeAgentMutex.RLock()
+	defer fake.removeAgentMutex.RUnlock()
+	argsForCall := fake.removeAgentArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeStateManager) SetAgentError(arg1 string, arg2 error) {

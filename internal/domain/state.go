@@ -940,3 +940,23 @@ func (s *ApplicationState) AreAllAgentsReady() bool {
 func (s *ApplicationState) ClearAgentReadiness() {
 	s.agentReadiness = nil
 }
+
+// RemoveAgent removes an agent from the readiness tracking
+func (s *ApplicationState) RemoveAgent(name string) {
+	if s.agentReadiness == nil {
+		return
+	}
+
+	agent, exists := s.agentReadiness.Agents[name]
+	if !exists {
+		return
+	}
+
+	if agent.State == AgentStateReady {
+		s.agentReadiness.ReadyAgents--
+	}
+
+	delete(s.agentReadiness.Agents, name)
+
+	s.agentReadiness.TotalAgents--
+}

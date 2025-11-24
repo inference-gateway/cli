@@ -6,6 +6,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -186,6 +187,13 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleGeneratePRPlanSideEffect(data)
 	case shortcuts.SideEffectCompactConversation:
 		return s.handleCompactConversationSideEffect()
+	case shortcuts.SideEffectA2AAgentAdded:
+		return s.handleA2AAgentAddedSideEffect(data)
+	case shortcuts.SideEffectA2AAgentRemoved:
+		if agentName, ok := data.(string); ok {
+			return s.handleA2AAgentRemovedSideEffectWithData(agentName)
+		}
+		return s.handleA2AAgentRemovedSideEffect()
 	default:
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
@@ -756,4 +764,124 @@ func (s *ChatShortcutHandler) performPRPlanGeneration(data any) tea.Cmd {
 			},
 		)()
 	}
+}
+
+func (s *ChatShortcutHandler) handleA2AAgentAddedSideEffect(data any) tea.Msg {
+	// Check if we need to start the agent
+	if dataMap, ok := data.(map[string]any); ok {
+		if shouldStart, ok := dataMap["start"].(bool); ok && shouldStart {
+			if agent, ok := dataMap["agent"].(config.AgentEntry); ok {
+				return s.handleA2AAgentAddedWithStart(agent)
+			}
+		}
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Agent added successfully",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)()
+}
+
+func (s *ChatShortcutHandler) handleA2AAgentAddedWithStart(agent config.AgentEntry) tea.Msg {
+	// Increment agent readiness count
+	if s.handler.stateManager != nil {
+		readiness := s.handler.stateManager.GetAgentReadiness()
+		if readiness != nil {
+			s.handler.stateManager.InitializeAgentReadiness(readiness.TotalAgents + 1)
+		} else {
+			s.handler.stateManager.InitializeAgentReadiness(1)
+		}
+	}
+
+	// Start the agent asynchronously
+	go func() {
+		ctx := context.Background()
+
+		// Create a new agent manager for this single agent
+		agentsConfig := &config.AgentsConfig{
+			Agents: []config.AgentEntry{agent},
+		}
+
+		agentManager := services.NewAgentManager(s.handler.config, agentsConfig)
+		agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
+			if s.handler.stateManager != nil {
+				s.handler.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
+			}
+			logger.Debug("Agent status update", "agent", agentName, "state", state.String(), "message", message)
+		})
+
+		if err := agentManager.StartAgents(ctx); err != nil {
+			logger.Error("Failed to start agent", "error", err, "agent", agent.Name)
+			if s.handler.stateManager != nil {
+				s.handler.stateManager.SetAgentError(agent.Name, err)
+			}
+		}
+	}()
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Agent '%s' added and starting in background (check indicator below)", agent.Name),
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+		func() tea.Msg {
+			time.Sleep(500 * time.Millisecond)
+			return domain.AgentStatusUpdateEvent{}
+		},
+	)()
+}
+
+func (s *ChatShortcutHandler) handleA2AAgentRemovedSideEffect() tea.Msg {
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Agent removed successfully",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)()
+}
+
+func (s *ChatShortcutHandler) handleA2AAgentRemovedSideEffectWithData(agentName string) tea.Msg {
+	if s.handler.stateManager != nil {
+		s.handler.stateManager.RemoveAgent(agentName)
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Agent removed successfully",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)()
 }

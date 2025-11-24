@@ -51,6 +51,7 @@ type ServiceContainer struct {
 	titleGenerator       *services.ConversationTitleGenerator
 	backgroundJobManager *services.BackgroundJobManager
 	storage              storage.ConversationStorage
+	agentsConfigService  *services.AgentsConfigService
 
 	// UI components
 	themeService domain.ThemeService
@@ -112,13 +113,14 @@ func (c *ServiceContainer) initializeGatewayManager() {
 
 // initializeAgentManager creates and starts the agent manager if A2A is enabled
 func (c *ServiceContainer) initializeAgentManager() {
+	agentsPath := filepath.Join(config.ConfigDirName, config.AgentsFileName)
+	c.agentsConfigService = services.NewAgentsConfigService(agentsPath)
+
 	if !c.config.IsA2AToolsEnabled() {
 		return
 	}
 
-	agentsPath := filepath.Join(config.ConfigDirName, config.AgentsFileName)
-	agentsConfigSvc := services.NewAgentsConfigService(agentsPath)
-	agentsConfig, err := agentsConfigSvc.Load()
+	agentsConfig, err := c.agentsConfigService.Load()
 	if err != nil {
 		logger.Warn("Failed to load agents configuration", "error", err)
 		return
@@ -285,7 +287,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	scmClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewSCMShortcut(scmClient, c.config, c.modelService))
 
-	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService))
+	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService, c.agentsConfigService, c.agentManager))
 	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config))
 
 	if c.config.IsA2AToolsEnabled() {
@@ -367,6 +369,10 @@ func (c *ServiceContainer) GetA2AAgentService() domain.A2AAgentService {
 // New service getters
 func (c *ServiceContainer) GetStateManager() domain.StateManager {
 	return c.stateManager
+}
+
+func (c *ServiceContainer) GetAgentManager() domain.AgentManager {
+	return c.agentManager
 }
 
 func (c *ServiceContainer) GetAgentService() domain.AgentService {

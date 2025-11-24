@@ -189,6 +189,7 @@ type StateManager interface {
 	GetAgentReadiness() *AgentReadinessState
 	AreAllAgentsReady() bool
 	ClearAgentReadiness()
+	RemoveAgent(name string)
 }
 
 // FileService handles file operations
