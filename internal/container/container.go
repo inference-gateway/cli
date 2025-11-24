@@ -124,7 +124,6 @@ func (c *ServiceContainer) initializeAgentManager() {
 		return
 	}
 
-	// Count agents configured to run
 	agentCount := 0
 	for _, agent := range agentsConfig.Agents {
 		if agent.Run {
@@ -132,20 +131,17 @@ func (c *ServiceContainer) initializeAgentManager() {
 		}
 	}
 
-	// Initialize agent readiness tracking in state manager
 	if agentCount > 0 {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 
 	c.agentManager = services.NewAgentManager(c.config, agentsConfig)
 
-	// Set up status callback to update state manager
 	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
 		logger.Debug("Agent status update", "agent", agentName, "state", state.String(), "message", message)
 	})
 
-	// Start agents asynchronously in the background
 	ctx := context.Background()
 	if err := c.agentManager.StartAgents(ctx); err != nil {
 		logger.Warn("Failed to start agents in background", "error", err)
