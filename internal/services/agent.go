@@ -152,7 +152,6 @@ func (p *eventPublisher) publishBashOutputChunk(callID string, output string, is
 	select {
 	case p.chatEvents <- event:
 	default:
-		// Channel is full, skip this chunk to avoid blocking
 		logger.Warn("bash output chunk dropped - channel full")
 	}
 }
