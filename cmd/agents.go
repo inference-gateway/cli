@@ -163,7 +163,6 @@ func getAgentsConfigService(cmd *cobra.Command) (*services.AgentsConfigService, 
 }
 
 func addAgent(cmd *cobra.Command, name, url, oci string, run bool, model string, environment map[string]string) error {
-	// Validate that model is provided when run is enabled
 	if run && model == "" {
 		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-4, anthropic/claude-3-5-sonnet)")
 	}
@@ -232,9 +231,8 @@ func updateAgent(cmd *cobra.Command, name, url, oci string, run bool, model stri
 		agent.Environment = environment
 	}
 
-	// Validate that model is provided when run is enabled
 	if agent.Run && agent.Model == "" {
-		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-4, anthropic/claude-3-5-sonnet)")
+		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-5, anthropic/claude-4-5-sonnet)")
 	}
 
 	if err := svc.UpdateAgent(agent); err != nil {
