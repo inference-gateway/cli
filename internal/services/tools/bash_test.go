@@ -286,7 +286,6 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 
 	tool := NewBashTool(cfg)
 
-	// Test with streaming callback
 	t.Run("streaming callback receives output", func(t *testing.T) {
 		var receivedLines []string
 		var mu sync.Mutex
