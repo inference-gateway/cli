@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.66.0](https://github.com/inference-gateway/cli/compare/v0.65.0...v0.66.0) (2025-11-24)
+
+### 🚀 Features
+
+* **config:** Add GitHub owner auto-detection in infer init ([#252](https://github.com/inference-gateway/cli/issues/252)) ([bfee809](https://github.com/inference-gateway/cli/commit/bfee809248a12df4572652a892740d38ceb00628)), closes [#250](https://github.com/inference-gateway/cli/issues/250)
+
 ## [0.65.0](https://github.com/inference-gateway/cli/compare/v0.64.0...v0.65.0) (2025-11-24)
 
 ### 🚀 Features
