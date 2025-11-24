@@ -108,6 +108,8 @@ and management of inference services.
   - **Plan Mode**: Read-only mode for planning and analysis without execution
   - **Auto-Accept Mode**: All tools auto-approved for rapid execution (YOLO mode)
   - Toggle between modes with **Shift+Tab**
+- **Token Usage Tracking**: Accurate token counting with polyfill support for providers (like Ollama Cloud)
+  that don't return usage metrics in their responses
 
 ## Installation
 

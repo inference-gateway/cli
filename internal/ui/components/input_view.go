@@ -396,12 +396,17 @@ func (iv *InputView) getContextUsageIndicator(model string) string {
 
 	usagePercent := float64(currentContextSize) * 100 / float64(contextWindow)
 
+	displayPercent := usagePercent
+	if displayPercent > 100 {
+		displayPercent = 100
+	}
+
 	if usagePercent >= 90 {
-		return fmt.Sprintf("Context: %.0f%% FULL", usagePercent)
+		return fmt.Sprintf("Context: %.0f%% FULL", displayPercent)
 	} else if usagePercent >= 75 {
-		return fmt.Sprintf("Context: %.0f%% HIGH", usagePercent)
+		return fmt.Sprintf("Context: %.0f%% HIGH", displayPercent)
 	} else if usagePercent >= 50 {
-		return fmt.Sprintf("Context: %.0f%%", usagePercent)
+		return fmt.Sprintf("Context: %.0f%%", displayPercent)
 	}
 
 	return ""

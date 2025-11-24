@@ -25,6 +25,7 @@ type AgentServiceImpl struct {
 	timeoutSeconds   int
 	maxTokens        int
 	optimizer        *ConversationOptimizer
+	tokenizer        *TokenizerService
 
 	// Request tracking
 	activeRequests map[string]context.CancelFunc
@@ -181,6 +182,8 @@ func NewAgentService(
 	timeoutSeconds int,
 	optimizer *ConversationOptimizer,
 ) *AgentServiceImpl {
+	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
+
 	return &AgentServiceImpl{
 		client:           client,
 		toolService:      toolService,
@@ -192,6 +195,7 @@ func NewAgentService(
 		timeoutSeconds:   timeoutSeconds,
 		maxTokens:        config.GetAgentConfig().MaxTokens,
 		optimizer:        optimizer,
+		tokenizer:        tokenizer,
 		activeRequests:   make(map[string]context.CancelFunc),
 		cancelChannels:   make(map[string]chan struct{}),
 		metrics:          make(map[string]*domain.ChatMetrics),
@@ -550,7 +554,16 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 			}
 
-			s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage)
+			outputContent, _ := assistantContent.AsMessageContent0()
+
+			polyfillInput := &storeIterationMetricsInput{
+				inputMessages:   conversation[:len(conversation)-1],
+				outputContent:   outputContent,
+				outputToolCalls: completeToolCalls,
+				availableTools:  availableTools,
+			}
+
+			s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage, polyfillInput)
 
 			if len(toolCalls) > 0 {
 				toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
@@ -635,15 +648,45 @@ func (s *AgentServiceImpl) GetMetrics(requestID string) *domain.ChatMetrics {
 	return nil
 }
 
-// storeIterationMetrics stores metrics for the current iteration and accumulates session tokens
-func (s *AgentServiceImpl) storeIterationMetrics(requestID string, startTime time.Time, usage *sdk.CompletionUsage) {
-	if usage == nil {
+// storeIterationMetricsInput holds the data needed for token usage polyfill calculation
+type storeIterationMetricsInput struct {
+	inputMessages   []sdk.Message
+	outputContent   string
+	outputToolCalls []sdk.ChatCompletionMessageToolCall
+	availableTools  []sdk.ChatCompletionTool
+}
+
+// storeIterationMetrics stores metrics for the current iteration and accumulates session tokens.
+// If the provider doesn't return usage metrics, it uses the tokenizer polyfill to estimate them.
+func (s *AgentServiceImpl) storeIterationMetrics(
+	requestID string,
+	startTime time.Time,
+	usage *sdk.CompletionUsage,
+	polyfillInput *storeIterationMetricsInput,
+) {
+	effectiveUsage := usage
+
+	if s.tokenizer != nil && s.tokenizer.ShouldUsePolyfill(usage) && polyfillInput != nil {
+		effectiveUsage = s.tokenizer.CalculateUsagePolyfill(
+			polyfillInput.inputMessages,
+			polyfillInput.outputContent,
+			polyfillInput.outputToolCalls,
+			polyfillInput.availableTools,
+		)
+		logger.Debug("using token usage polyfill",
+			"promptTokens", effectiveUsage.PromptTokens,
+			"completionTokens", effectiveUsage.CompletionTokens,
+			"totalTokens", effectiveUsage.TotalTokens,
+		)
+	}
+
+	if effectiveUsage == nil {
 		return
 	}
 
 	metrics := &domain.ChatMetrics{
 		Duration: time.Since(startTime),
-		Usage:    usage,
+		Usage:    effectiveUsage,
 	}
 
 	s.metricsMux.Lock()
@@ -651,9 +694,9 @@ func (s *AgentServiceImpl) storeIterationMetrics(requestID string, startTime tim
 	s.metricsMux.Unlock()
 
 	if err := s.conversationRepo.AddTokenUsage(
-		int(usage.PromptTokens),
-		int(usage.CompletionTokens),
-		int(usage.TotalTokens),
+		int(effectiveUsage.PromptTokens),
+		int(effectiveUsage.CompletionTokens),
+		int(effectiveUsage.TotalTokens),
 	); err != nil {
 		logger.Error("failed to add token usage to session", "error", err)
 	}
@@ -994,10 +1037,8 @@ func (s *AgentServiceImpl) requestToolApproval(
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 ) (bool, error) {
-	// Create response channel
 	responseChan := make(chan domain.ApprovalAction, 1)
 
-	// Publish approval request event
 	eventPublisher.chatEvents <- domain.ToolApprovalRequestedEvent{
 		RequestID:    eventPublisher.requestID,
 		Timestamp:    time.Now(),
@@ -1005,13 +1046,12 @@ func (s *AgentServiceImpl) requestToolApproval(
 		ResponseChan: responseChan,
 	}
 
-	// Wait for user response or context cancellation
 	select {
 	case response := <-responseChan:
 		return response == domain.ApprovalApprove, nil
 	case <-ctx.Done():
 		return false, fmt.Errorf("approval request cancelled: %w", ctx.Err())
-	case <-time.After(5 * time.Minute): // Timeout after 5 minutes
+	case <-time.After(5 * time.Minute):
 		return false, fmt.Errorf("approval request timed out")
 	}
 }
@@ -1019,7 +1059,6 @@ func (s *AgentServiceImpl) requestToolApproval(
 // shouldRequireApproval determines if a tool execution requires user approval
 // For Bash tool specifically, it checks if the command is whitelisted
 func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
-	// In auto-accept mode, never require approval
 	if s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
 		return false
 	}
