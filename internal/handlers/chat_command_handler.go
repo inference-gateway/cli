@@ -272,7 +272,6 @@ func (c *ChatCommandHandler) executeToolCommand(commandText, toolName, argsJSON 
 		}
 		_ = c.handler.conversationRepo.AddMessage(userEntry)
 
-		// Add assistant message with tool_calls (required by API for tool results)
 		toolCalls := []sdk.ChatCompletionMessageToolCall{
 			{
 				Id:       toolCallID,
