@@ -764,3 +764,99 @@ func writeViperConfigForTest(v *viper.Viper, indent int) error {
 
 	return nil
 }
+
+func TestParseGithubOwnerFromURL(t *testing.T) {
+	tests := []struct {
+		name     string
+		url      string
+		expected string
+	}{
+		{
+			name:     "HTTPS URL with .git extension",
+			url:      "https://github.com/inference-gateway/cli.git",
+			expected: "inference-gateway",
+		},
+		{
+			name:     "HTTPS URL without .git extension",
+			url:      "https://github.com/inference-gateway/cli",
+			expected: "inference-gateway",
+		},
+		{
+			name:     "SSH URL with .git extension",
+			url:      "git@github.com:inference-gateway/cli.git",
+			expected: "inference-gateway",
+		},
+		{
+			name:     "SSH URL without .git extension",
+			url:      "git@github.com:inference-gateway/cli",
+			expected: "inference-gateway",
+		},
+		{
+			name:     "HTTP URL (not HTTPS)",
+			url:      "http://github.com/test-org/test-repo.git",
+			expected: "test-org",
+		},
+		{
+			name:     "URL with trailing whitespace",
+			url:      "https://github.com/myorg/myrepo.git  ",
+			expected: "myorg",
+		},
+		{
+			name:     "URL with leading whitespace",
+			url:      "  git@github.com:myorg/myrepo.git",
+			expected: "myorg",
+		},
+		{
+			name:     "Non-GitHub HTTPS URL",
+			url:      "https://gitlab.com/myorg/myrepo.git",
+			expected: "",
+		},
+		{
+			name:     "Non-GitHub SSH URL",
+			url:      "git@gitlab.com:myorg/myrepo.git",
+			expected: "",
+		},
+		{
+			name:     "Empty URL",
+			url:      "",
+			expected: "",
+		},
+		{
+			name:     "Invalid URL format",
+			url:      "not-a-url",
+			expected: "",
+		},
+		{
+			name:     "GitHub Enterprise URL",
+			url:      "https://github.enterprise.com/myorg/myrepo.git",
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := parseGithubOwnerFromURL(tt.url)
+			if result != tt.expected {
+				t.Errorf("parseGithubOwnerFromURL(%q) = %q, expected %q", tt.url, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestDetectGithubOwner(t *testing.T) {
+	// Note: This test will only pass if the test is run in the actual git repository
+	// For CI/CD environments, this should detect the owner correctly
+	owner := DetectGithubOwner()
+
+	// We can't assert a specific value since the test might run in different contexts
+	// But we can verify it returns a string (empty or not)
+	if owner != "" {
+		t.Logf("Detected GitHub owner: %s", owner)
+		// Basic validation: owner should not contain slashes or special characters
+		if strings.Contains(owner, "/") {
+			t.Errorf("GitHub owner should not contain slashes: %s", owner)
+		}
+	} else {
+		t.Log("No GitHub owner detected (not a git repo or not a GitHub remote)")
+	}
+}
