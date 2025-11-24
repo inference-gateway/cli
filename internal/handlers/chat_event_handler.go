@@ -8,24 +8,16 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
-	components "github.com/inference-gateway/cli/internal/ui/components"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 type ChatEventHandler struct {
-	handler          *ChatHandler
-	toolCallRenderer *components.ToolCallRenderer
+	handler *ChatHandler
 }
 
 func NewChatEventHandler(handler *ChatHandler) *ChatEventHandler {
-	// Create style provider with default theme for tool call rendering
-	themeService := domain.NewThemeProvider()
-	styleProvider := styles.NewProvider(themeService)
-
 	return &ChatEventHandler{
-		handler:          handler,
-		toolCallRenderer: components.NewToolCallRenderer(styleProvider),
+		handler: handler,
 	}
 }
 
@@ -402,43 +394,26 @@ func (e *ChatEventHandler) handleToolExecutionStarted(
 }
 
 func (e *ChatEventHandler) handleToolExecutionProgress(
-	msg domain.ToolExecutionProgressEvent,
+	_ domain.ToolExecutionProgressEvent,
 ) tea.Cmd {
-	var cmds []tea.Cmd
-	cmds = append(cmds, func() tea.Msg {
-		statusEvent := domain.UpdateStatusEvent{
-			Message:    msg.Message,
-			StatusType: domain.StatusWorking,
-		}
-		return statusEvent
-	})
-
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
 
-	return tea.Batch(cmds...)
+	return nil
 }
 
 func (e *ChatEventHandler) handleBashOutputChunk(
-	msg domain.BashOutputChunkEvent,
+	_ domain.BashOutputChunkEvent,
 ) tea.Cmd {
-	var cmds []tea.Cmd
-
-	// Emit the bash output as streaming content for display
-	cmds = append(cmds, func() tea.Msg {
-		return domain.BashOutputStreamEvent{
-			ToolCallID: msg.ToolCallID,
-			Output:     msg.Output,
-			IsComplete: msg.IsComplete,
-		}
-	})
-
+	// Note: BashOutputChunkEvent is now handled directly by UI components
+	// (conversation_view forwards to tool_call_renderer) to avoid unnecessary event conversion.
+	// We just continue listening for more events from the channel.
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
 
-	return tea.Batch(cmds...)
+	return nil
 }
 
 func (e *ChatEventHandler) handleToolExecutionCompleted(
@@ -462,7 +437,6 @@ func (e *ChatEventHandler) handleToolExecutionCompleted(
 		e.handler.startChatCompletion(),
 	}
 
-	// Check for TodoWrite results and emit TodoUpdateEvent
 	todoUpdateCmd := e.extractTodoUpdateCmd(msg.Results)
 	if todoUpdateCmd != nil {
 		cmds = append(cmds, todoUpdateCmd)
@@ -494,48 +468,26 @@ func (e *ChatEventHandler) extractTodoUpdateCmd(results []*domain.ToolExecutionR
 }
 
 func (e *ChatEventHandler) handleParallelToolsStart(
-	msg domain.ParallelToolsStartEvent,
+	_ domain.ParallelToolsStartEvent,
 
 ) tea.Cmd {
-	var cmds []tea.Cmd
-	cmds = append(cmds, func() tea.Msg {
-		statusEvent := domain.SetStatusEvent{
-			Message:    fmt.Sprintf("Executing %d tools in parallel...", len(msg.Tools)),
-			Spinner:    true,
-			StatusType: domain.StatusWorking,
-		}
-		return statusEvent
-	})
-
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil {
-		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
 
-	return tea.Batch(cmds...)
+	return nil
 }
 
 func (e *ChatEventHandler) handleParallelToolsComplete(
-	msg domain.ParallelToolsCompleteEvent,
+	_ domain.ParallelToolsCompleteEvent,
 
 ) tea.Cmd {
 	var cmds []tea.Cmd
-	cmds = append(cmds, func() tea.Msg {
-		historyEvent := domain.UpdateHistoryEvent{
-			History: e.handler.conversationRepo.GetMessages(),
-		}
-		return historyEvent
-	})
 
 	cmds = append(cmds, func() tea.Msg {
-		statusEvent := domain.SetStatusEvent{
-			Message: fmt.Sprintf("Completed %d tools in %v - preparing response...",
-				msg.TotalExecuted,
-				msg.Duration.Round(time.Millisecond),
-			),
-			Spinner:    true,
-			StatusType: domain.StatusPreparing,
+		return domain.UpdateHistoryEvent{
+			History: e.handler.conversationRepo.GetMessages(),
 		}
-		return statusEvent
 	})
 
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil {

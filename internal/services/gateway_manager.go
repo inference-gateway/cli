@@ -231,7 +231,6 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 	args = append(args, gm.config.Gateway.OCI)
 
 	logger.Info("Starting gateway container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
-	logger.Debug("Starting gateway container with args", "args", args)
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	output, err := cmd.CombinedOutput()
 	if err != nil {

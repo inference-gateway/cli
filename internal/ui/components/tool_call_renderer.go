@@ -80,13 +80,16 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) { //
 	case domain.ChatCompleteEvent:
 		r.ClearPreviews()
 
+	case domain.ParallelToolsCompleteEvent:
+		r.ClearPreviews()
+
 	case domain.ParallelToolsStartEvent:
 		return r.handleParallelToolsStart(msg)
 
 	case domain.ToolExecutionProgressEvent:
 		return r.handleToolExecutionProgress(msg)
 
-	case domain.BashOutputStreamEvent:
+	case domain.BashOutputChunkEvent:
 		return r.handleBashOutputStream(msg)
 
 	case spinner.TickMsg:
@@ -161,7 +164,7 @@ func (r *ToolCallRenderer) handleToolExecutionProgress(msg domain.ToolExecutionP
 	return r, nil
 }
 
-func (r *ToolCallRenderer) handleBashOutputStream(msg domain.BashOutputStreamEvent) (*ToolCallRenderer, tea.Cmd) {
+func (r *ToolCallRenderer) handleBashOutputStream(msg domain.BashOutputChunkEvent) (*ToolCallRenderer, tea.Cmd) {
 	if state, exists := r.parallelTools[msg.ToolCallID]; exists {
 		// Add output to the buffer (limit to last 10 lines for display)
 		state.OutputBuffer = append(state.OutputBuffer, msg.Output)
@@ -178,7 +181,9 @@ func (r *ToolCallRenderer) handleBashOutputStream(msg domain.BashOutputStreamEve
 
 func (r *ToolCallRenderer) handleSpinnerTick(msg spinner.TickMsg) (*ToolCallRenderer, tea.Cmd) {
 	r.spinnerStep = (r.spinnerStep + 1) % 4
-	if r.HasActivePreviews() || r.hasActiveParallelTools() {
+	hasActivePreviews := r.HasActivePreviews()
+	hasActiveTools := r.hasActiveParallelTools()
+	if hasActivePreviews || hasActiveTools {
 		var cmd tea.Cmd
 		r.spinner, cmd = r.spinner.Update(msg)
 		return r, cmd
@@ -386,6 +391,19 @@ func (r *ToolCallRenderer) hasActiveParallelTools() bool {
 	return false
 }
 
+// formatDuration formats a duration in a human-readable way
+func (r *ToolCallRenderer) formatDuration(d time.Duration) string {
+	if d < time.Second {
+		return fmt.Sprintf("%dms", d.Milliseconds())
+	}
+	if d < time.Minute {
+		return fmt.Sprintf("%.1fs", d.Seconds())
+	}
+	minutes := int(d.Minutes())
+	seconds := int(d.Seconds()) % 60
+	return fmt.Sprintf("%dm%ds", minutes, seconds)
+}
+
 func (r *ToolCallRenderer) renderParallelTool(tool *ParallelToolState) string {
 	var statusIcon string
 	var statusText string
@@ -398,15 +416,26 @@ func (r *ToolCallRenderer) renderParallelTool(tool *ParallelToolState) string {
 		colorName = "dim"
 	case "running", "starting", "saving":
 		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
-		statusText = "executing"
+		elapsed := time.Since(tool.StartTime)
+		statusText = fmt.Sprintf("running %s", r.formatDuration(elapsed))
 		colorName = "spinner"
 	case "complete":
 		statusIcon = icons.CheckMark
-		statusText = "completed"
+		if tool.EndTime != nil {
+			duration := tool.EndTime.Sub(tool.StartTime)
+			statusText = fmt.Sprintf("completed in %s", r.formatDuration(duration))
+		} else {
+			statusText = "completed"
+		}
 		colorName = "success"
 	case "failed":
 		statusIcon = icons.CrossMark
-		statusText = "failed"
+		if tool.EndTime != nil {
+			duration := tool.EndTime.Sub(tool.StartTime)
+			statusText = fmt.Sprintf("failed after %s", r.formatDuration(duration))
+		} else {
+			statusText = "failed"
+		}
 		colorName = "error"
 	default:
 		statusIcon = icons.BulletIcon

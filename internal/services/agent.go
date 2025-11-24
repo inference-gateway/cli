@@ -693,11 +693,6 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 			polyfillInput.outputToolCalls,
 			polyfillInput.availableTools,
 		)
-		logger.Debug("using token usage polyfill",
-			"promptTokens", effectiveUsage.PromptTokens,
-			"completionTokens", effectiveUsage.CompletionTokens,
-			"totalTokens", effectiveUsage.TotalTokens,
-		)
 	}
 
 	if effectiveUsage == nil {
