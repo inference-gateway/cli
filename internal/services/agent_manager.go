@@ -63,7 +63,6 @@ func (am *AgentManager) StartAgents(ctx context.Context) error {
 		return nil
 	}
 
-	// Start agents in background goroutines
 	for _, agent := range agentsToStart {
 		go am.startAgentAsync(ctx, agent)
 	}
@@ -96,26 +95,22 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 		return nil
 	}
 
-	// Notify: pulling image
 	am.notifyStatus(agent.Name, domain.AgentStatePullingImage, fmt.Sprintf("Pulling image: %s", agent.OCI), agent.URL, agent.OCI)
 	if err := am.pullImage(ctx, agent.OCI); err != nil {
 		logger.Warn("Failed to pull agent image, attempting to use local image", "name", agent.Name, "error", err)
 	}
 
-	// Notify: starting container
 	am.notifyStatus(agent.Name, domain.AgentStateStarting, "Starting container", agent.URL, agent.OCI)
 	if err := am.startContainer(ctx, agent); err != nil {
 		return fmt.Errorf("failed to start agent container: %w", err)
 	}
 
-	// Notify: waiting for ready
 	am.notifyStatus(agent.Name, domain.AgentStateWaitingReady, "Waiting for health check", agent.URL, agent.OCI)
 	if err := am.waitForReady(ctx, agent); err != nil {
 		_ = am.StopAgent(ctx, agent.Name)
 		return fmt.Errorf("agent failed to become ready: %w", err)
 	}
 
-	// Notify: ready
 	am.notifyStatus(agent.Name, domain.AgentStateReady, "Ready", agent.URL, agent.OCI)
 	logger.Info("Agent container started successfully", "name", agent.Name, "url", agent.URL)
 	return nil
