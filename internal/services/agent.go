@@ -970,7 +970,6 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 		execCtx = context.WithValue(ctx, domain.ToolApprovedKey, true)
 	}
 
-	// For Bash tool, inject streaming callback for real-time output
 	if tc.Function.Name == "Bash" {
 		bashCallback := func(line string) {
 			eventPublisher.publishBashOutputChunk(tc.Id, line, false)
