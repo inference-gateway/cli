@@ -794,22 +794,22 @@ type ToolCallSnapshot struct {
 
 // AgentReadinessState represents the current state of A2A agents during startup
 type AgentReadinessState struct {
-	TotalAgents int                      `json:"total_agents"`
-	ReadyAgents int                      `json:"ready_agents"`
-	Agents      map[string]*AgentStatus  `json:"agents"`
-	StartTime   time.Time                `json:"start_time"`
+	TotalAgents int                     `json:"total_agents"`
+	ReadyAgents int                     `json:"ready_agents"`
+	Agents      map[string]*AgentStatus `json:"agents"`
+	StartTime   time.Time               `json:"start_time"`
 }
 
 // AgentStatus represents the status of an individual A2A agent
 type AgentStatus struct {
-	Name      string          `json:"name"`
-	URL       string          `json:"url"`
-	Image     string          `json:"image"`
-	State     AgentState      `json:"state"`
-	Message   string          `json:"message,omitempty"`
-	StartTime time.Time       `json:"start_time"`
-	ReadyTime *time.Time      `json:"ready_time,omitempty"`
-	Error     string          `json:"error,omitempty"`
+	Name      string     `json:"name"`
+	URL       string     `json:"url"`
+	Image     string     `json:"image"`
+	State     AgentState `json:"state"`
+	Message   string     `json:"message,omitempty"`
+	StartTime time.Time  `json:"start_time"`
+	ReadyTime *time.Time `json:"ready_time,omitempty"`
+	Error     string     `json:"error,omitempty"`
 }
 
 // AgentState represents the current state of an agent
