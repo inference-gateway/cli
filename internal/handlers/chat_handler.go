@@ -285,6 +285,11 @@ func (h *ChatHandler) handleConversationSelected(
 			}
 		},
 		func() tea.Msg {
+			return domain.TodoUpdateEvent{
+				Todos: nil,
+			}
+		},
+		func() tea.Msg {
 			metadata := persistentRepo.GetCurrentConversationMetadata()
 			return domain.SetStatusEvent{
 				Message: fmt.Sprintf("🔄 Loaded conversation: %s (%d messages)",

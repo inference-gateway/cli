@@ -110,7 +110,6 @@ func TestEstimateMessageTokens(t *testing.T) {
 		}
 
 		result := tokenizer.EstimateMessageTokens(msg)
-		// Should be at least the overhead (4) + some content tokens
 		if result < 5 {
 			t.Errorf("Expected at least 5 tokens, got %d", result)
 		}
@@ -135,7 +134,6 @@ func TestEstimateMessageTokens(t *testing.T) {
 		}
 
 		result := tokenizer.EstimateMessageTokens(msg)
-		// Should include message overhead + content + tool call overhead
 		if result < 20 {
 			t.Errorf("Expected at least 20 tokens for message with tool call, got %d", result)
 		}
@@ -183,7 +181,6 @@ func TestEstimateMessagesTokens(t *testing.T) {
 		}
 
 		result := tokenizer.EstimateMessagesTokens(messages)
-		// Should be sum of all message tokens plus overhead
 		if result < 20 {
 			t.Errorf("Expected at least 20 tokens for conversation, got %d", result)
 		}
@@ -252,7 +249,6 @@ func TestCalculateUsagePolyfill(t *testing.T) {
 		if usage == nil {
 			t.Fatal("Expected non-nil usage")
 		}
-		// Tool calls should add to completion tokens
 		if usage.CompletionTokens < 15 {
 			t.Errorf("Expected more CompletionTokens with tool calls, got %d", usage.CompletionTokens)
 		}
@@ -376,7 +372,7 @@ func TestIsLikelyCodeContent(t *testing.T) {
 		{
 			name:     "mixed content",
 			text:     "The function does something with data.",
-			expected: false, // Not enough code indicators
+			expected: false,
 		},
 	}
 
@@ -398,21 +394,17 @@ func TestAdjustedEstimate(t *testing.T) {
 		codeText := `func main() { fmt.Println("Hello, World!") }`
 		proseText := "The quick brown fox jumps over the lazy dog."
 
-		// Make the texts similar length
 		codeEstimate := tokenizer.AdjustedEstimate(codeText)
 		proseEstimate := tokenizer.AdjustedEstimate(proseText)
 
-		// The base estimates should be similar since texts are similar length
 		baseCodeEstimate := tokenizer.EstimateTokenCount(codeText)
 		baseProseEstimate := tokenizer.EstimateTokenCount(proseText)
 
-		// Code should be adjusted upward
 		if codeEstimate <= baseCodeEstimate {
 			t.Errorf("Expected adjusted code estimate (%d) to be higher than base (%d)",
 				codeEstimate, baseCodeEstimate)
 		}
 
-		// Prose should not be adjusted
 		if proseEstimate != baseProseEstimate {
 			t.Errorf("Expected prose estimate (%d) to equal base (%d)",
 				proseEstimate, baseProseEstimate)
@@ -423,7 +415,6 @@ func TestAdjustedEstimate(t *testing.T) {
 func TestTokenizerConsistency(t *testing.T) {
 	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
 
-	// Test that the same input always produces the same output
 	text := "This is a test message for consistency checking."
 
 	firstEstimate := tokenizer.EstimateTokenCount(text)

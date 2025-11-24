@@ -72,13 +72,10 @@ func (t *TokenizerService) EstimateTokenCount(text string) int {
 		return 0
 	}
 
-	// Use rune count for proper Unicode handling
 	charCount := utf8.RuneCountInString(text)
 
-	// Calculate token estimate
 	tokens := float64(charCount) / t.charsPerToken
 
-	// Round up to ensure we don't underestimate
 	return int(tokens + 0.5)
 }
 
@@ -86,16 +83,13 @@ func (t *TokenizerService) EstimateTokenCount(text string) int {
 func (t *TokenizerService) EstimateMessageTokens(msg sdk.Message) int {
 	tokens := t.messageOverhead
 
-	// Count content tokens
 	contentStr, err := msg.Content.AsMessageContent0()
 	if err == nil && contentStr != "" {
 		tokens += t.EstimateTokenCount(contentStr)
 	}
 
-	// Add role token (typically 1-2 tokens)
 	tokens += t.EstimateTokenCount(string(msg.Role))
 
-	// Add tokens for tool calls if present
 	if msg.ToolCalls != nil {
 		for _, tc := range *msg.ToolCalls {
 			tokens += t.toolCallOverhead
@@ -104,12 +98,10 @@ func (t *TokenizerService) EstimateMessageTokens(msg sdk.Message) int {
 		}
 	}
 
-	// Add tokens for tool call ID if present
 	if msg.ToolCallId != nil {
 		tokens += t.EstimateTokenCount(*msg.ToolCallId)
 	}
 
-	// Add tokens for reasoning if present
 	if msg.Reasoning != nil {
 		tokens += t.EstimateTokenCount(*msg.Reasoning)
 	}
@@ -132,8 +124,6 @@ func (t *TokenizerService) EstimateMessagesTokens(messages []sdk.Message) int {
 		totalTokens += t.EstimateMessageTokens(msg)
 	}
 
-	// Add base overhead for the messages array structure
-	// (typically 3-4 tokens for message list formatting)
 	totalTokens += 3
 
 	return totalTokens
@@ -147,13 +137,11 @@ func (t *TokenizerService) EstimateToolDefinitionsTokens(tools []sdk.ChatComplet
 
 	totalTokens := 0
 	for _, tool := range tools {
-		// Add tokens for function name and description
 		totalTokens += t.EstimateTokenCount(tool.Function.Name)
 		if tool.Function.Description != nil {
 			totalTokens += t.EstimateTokenCount(*tool.Function.Description)
 		}
 
-		// Estimate tokens for the parameters schema
 		if tool.Function.Parameters != nil {
 			paramsJSON, err := json.Marshal(tool.Function.Parameters)
 			if err == nil {
@@ -161,7 +149,6 @@ func (t *TokenizerService) EstimateToolDefinitionsTokens(tools []sdk.ChatComplet
 			}
 		}
 
-		// Add overhead for tool structure
 		totalTokens += t.toolCallOverhead
 	}
 
@@ -176,7 +163,6 @@ func (t *TokenizerService) EstimateResponseTokens(response string) int {
 
 	tokens := t.EstimateTokenCount(response)
 
-	// Add message overhead for the assistant response
 	tokens += t.messageOverhead
 
 	return tokens
@@ -190,18 +176,14 @@ func (t *TokenizerService) CalculateUsagePolyfill(
 	outputToolCalls []sdk.ChatCompletionMessageToolCall,
 	tools []sdk.ChatCompletionTool,
 ) *sdk.CompletionUsage {
-	// Calculate prompt tokens (input)
 	promptTokens := t.EstimateMessagesTokens(inputMessages)
 
-	// Add tool definitions if present
 	if len(tools) > 0 {
 		promptTokens += t.EstimateToolDefinitionsTokens(tools)
 	}
 
-	// Calculate completion tokens (output)
 	completionTokens := t.EstimateResponseTokens(outputContent)
 
-	// Add tokens for tool calls in the response
 	for _, tc := range outputToolCalls {
 		completionTokens += t.toolCallOverhead
 		completionTokens += t.EstimateTokenCount(tc.Function.Name)
@@ -224,7 +206,6 @@ func (t *TokenizerService) ShouldUsePolyfill(usage *sdk.CompletionUsage) bool {
 		return true
 	}
 
-	// Some providers return zeros instead of nil
 	return usage.TotalTokens == 0 && usage.PromptTokens == 0 && usage.CompletionTokens == 0
 }
 
@@ -249,7 +230,6 @@ func (t *TokenizerService) IsLikelyCodeContent(text string) bool {
 		}
 	}
 
-	// If we find multiple code indicators, it's likely code
 	return codeScore >= 3
 }
 
@@ -257,9 +237,7 @@ func (t *TokenizerService) IsLikelyCodeContent(text string) bool {
 func (t *TokenizerService) AdjustedEstimate(text string) int {
 	baseEstimate := t.EstimateTokenCount(text)
 
-	// Code typically uses more tokens due to special characters and formatting
 	if t.IsLikelyCodeContent(text) {
-		// Increase estimate by ~25% for code content
 		return int(float64(baseEstimate) * 1.25)
 	}
 

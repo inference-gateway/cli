@@ -234,6 +234,11 @@ func (s *ChatShortcutHandler) handleClearConversationSideEffect() tea.Msg {
 			}
 		},
 		func() tea.Msg {
+			return domain.TodoUpdateEvent{
+				Todos: nil,
+			}
+		},
+		func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    "Conversation cleared",
 				Spinner:    false,
@@ -534,6 +539,11 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 		func() tea.Msg {
 			return domain.UpdateHistoryEvent{
 				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.TodoUpdateEvent{
+				Todos: nil,
 			}
 		},
 		func() tea.Msg {

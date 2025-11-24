@@ -299,27 +299,7 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 	output.WriteString(fmt.Sprintf("**Session Totals:** %d input, %d output\n", stats.TotalInputTokens, stats.TotalOutputTokens))
 
 	if contextWindowSize > 0 && stats.LastInputTokens > 0 {
-		usagePercent := float64(stats.LastInputTokens) * 100 / float64(contextWindowSize)
-		remaining := contextWindowSize - stats.LastInputTokens
-		if remaining < 0 {
-			remaining = 0
-		}
-
-		output.WriteString(fmt.Sprintf("\n**Context Window:** %d tokens\n", contextWindowSize))
-		output.WriteString(fmt.Sprintf("**Usage:** %.1f%%\n", usagePercent))
-		output.WriteString(fmt.Sprintf("**Remaining:** ~%d tokens\n", remaining))
-
-		barWidth := 20
-		filledWidth := int(usagePercent * float64(barWidth) / 100)
-		if filledWidth > barWidth {
-			filledWidth = barWidth
-		}
-		bar := strings.Repeat("█", filledWidth) + strings.Repeat("░", barWidth-filledWidth)
-		output.WriteString(fmt.Sprintf("\n`[%s]` %.1f%%\n", bar, usagePercent))
-
-		if usagePercent > 80 {
-			output.WriteString("\n**Warning:** Context window is getting full. Consider using `/compact` to optimize.")
-		}
+		output.WriteString(c.formatContextUsage(stats.LastInputTokens, contextWindowSize))
 	}
 
 	return ShortcutResult{
@@ -331,6 +311,40 @@ func (c *ContextShortcut) Execute(ctx context.Context, args []string) (ShortcutR
 // estimateContextWindow returns an estimated context window size based on model name
 func (c *ContextShortcut) estimateContextWindow(model string) int {
 	return models.EstimateContextWindow(model)
+}
+
+// formatContextUsage formats the context window usage information
+func (c *ContextShortcut) formatContextUsage(lastInputTokens, contextWindowSize int) string {
+	var output strings.Builder
+
+	usagePercent := float64(lastInputTokens) * 100 / float64(contextWindowSize)
+	remaining := contextWindowSize - lastInputTokens
+	if remaining < 0 {
+		remaining = 0
+	}
+
+	displayPercent := usagePercent
+	if displayPercent > 100 {
+		displayPercent = 100
+	}
+
+	output.WriteString(fmt.Sprintf("\n**Context Window:** %d tokens\n", contextWindowSize))
+	output.WriteString(fmt.Sprintf("**Usage:** %.1f%%\n", displayPercent))
+	output.WriteString(fmt.Sprintf("**Remaining:** ~%d tokens\n", remaining))
+
+	barWidth := 20
+	filledWidth := int(displayPercent * float64(barWidth) / 100)
+	if filledWidth > barWidth {
+		filledWidth = barWidth
+	}
+	bar := strings.Repeat("█", filledWidth) + strings.Repeat("░", barWidth-filledWidth)
+	output.WriteString(fmt.Sprintf("\n`[%s]` %.1f%%\n", bar, displayPercent))
+
+	if usagePercent > 80 {
+		output.WriteString("\n**Warning:** Context window is getting full. Consider using `/compact` to optimize.")
+	}
+
+	return output.String()
 }
 
 // NewShortcut starts a new conversation

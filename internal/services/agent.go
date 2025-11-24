@@ -182,7 +182,6 @@ func NewAgentService(
 	timeoutSeconds int,
 	optimizer *ConversationOptimizer,
 ) *AgentServiceImpl {
-	// Create tokenizer service for providers that don't return token usage
 	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
 
 	return &AgentServiceImpl{
@@ -555,12 +554,10 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 			}
 
-			// Extract output content for polyfill calculation
 			outputContent, _ := assistantContent.AsMessageContent0()
 
-			// Prepare polyfill input for providers that don't return token usage
 			polyfillInput := &storeIterationMetricsInput{
-				inputMessages:   conversation[:len(conversation)-1], // Exclude the just-added assistant message
+				inputMessages:   conversation[:len(conversation)-1],
 				outputContent:   outputContent,
 				outputToolCalls: completeToolCalls,
 				availableTools:  availableTools,
@@ -669,7 +666,6 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 ) {
 	effectiveUsage := usage
 
-	// Use polyfill if provider didn't return token usage
 	if s.tokenizer != nil && s.tokenizer.ShouldUsePolyfill(usage) && polyfillInput != nil {
 		effectiveUsage = s.tokenizer.CalculateUsagePolyfill(
 			polyfillInput.inputMessages,
@@ -684,7 +680,6 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 		)
 	}
 
-	// If still no usage data, return early
 	if effectiveUsage == nil {
 		return
 	}
@@ -1042,10 +1037,8 @@ func (s *AgentServiceImpl) requestToolApproval(
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 ) (bool, error) {
-	// Create response channel
 	responseChan := make(chan domain.ApprovalAction, 1)
 
-	// Publish approval request event
 	eventPublisher.chatEvents <- domain.ToolApprovalRequestedEvent{
 		RequestID:    eventPublisher.requestID,
 		Timestamp:    time.Now(),
@@ -1053,13 +1046,12 @@ func (s *AgentServiceImpl) requestToolApproval(
 		ResponseChan: responseChan,
 	}
 
-	// Wait for user response or context cancellation
 	select {
 	case response := <-responseChan:
 		return response == domain.ApprovalApprove, nil
 	case <-ctx.Done():
 		return false, fmt.Errorf("approval request cancelled: %w", ctx.Err())
-	case <-time.After(5 * time.Minute): // Timeout after 5 minutes
+	case <-time.After(5 * time.Minute):
 		return false, fmt.Errorf("approval request timed out")
 	}
 }
@@ -1067,7 +1059,6 @@ func (s *AgentServiceImpl) requestToolApproval(
 // shouldRequireApproval determines if a tool execution requires user approval
 // For Bash tool specifically, it checks if the command is whitelisted
 func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
-	// In auto-accept mode, never require approval
 	if s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
 		return false
 	}
