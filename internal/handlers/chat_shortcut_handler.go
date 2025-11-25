@@ -817,7 +817,6 @@ func (s *ChatShortcutHandler) handleA2AAgentAddedWithStart(agent config.AgentEnt
 			if s.handler.stateManager != nil {
 				s.handler.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
 			}
-			logger.Debug("Agent status update", "agent", agentName, "state", state.String(), "message", message)
 		})
 
 		if err := agentManager.StartAgents(ctx); err != nil {

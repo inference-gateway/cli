@@ -1119,22 +1119,15 @@ func (s *AgentServiceImpl) requestToolApproval(
 func (s *AgentServiceImpl) isBashCommandWhitelisted(tc *sdk.ChatCompletionMessageToolCall) bool {
 	var args map[string]any
 	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-		logger.Debug("Tool approval required - failed to parse bash arguments", "tool", tc.Function.Name, "error", err)
 		return false
 	}
 
 	command, ok := args["command"].(string)
 	if !ok {
-		logger.Debug("Tool approval required - command not found in bash arguments", "tool", tc.Function.Name)
 		return false
 	}
 
 	isWhitelisted := s.config.IsBashCommandWhitelisted(command)
-	if isWhitelisted {
-		logger.Debug("Tool approval not required - bash command is whitelisted", "tool", tc.Function.Name, "command", command)
-	} else {
-		logger.Debug("Tool approval required - bash command not whitelisted", "tool", tc.Function.Name, "command", command)
-	}
 	return isWhitelisted
 }
 
@@ -1142,12 +1135,10 @@ func (s *AgentServiceImpl) isBashCommandWhitelisted(tc *sdk.ChatCompletionMessag
 // For Bash tool specifically, it checks if the command is whitelisted
 func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
 	if s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
-		logger.Debug("Tool approval not required - auto-accept mode enabled", "tool", tc.Function.Name)
 		return false
 	}
 
 	if !isChatMode {
-		logger.Debug("Tool approval not required - not in chat mode", "tool", tc.Function.Name)
 		return false
 	}
 
@@ -1156,11 +1147,6 @@ func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageTo
 	}
 
 	requiresApproval := s.config.IsApprovalRequired(tc.Function.Name)
-	if requiresApproval {
-		logger.Debug("Tool approval required - tool configured to require approval", "tool", tc.Function.Name)
-	} else {
-		logger.Debug("Tool approval not required - tool configured to not require approval", "tool", tc.Function.Name)
-	}
 	return requiresApproval
 }
 

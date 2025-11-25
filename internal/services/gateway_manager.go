@@ -413,7 +413,6 @@ func (gm *GatewayManager) loadEnvironment() []string {
 func (gm *GatewayManager) ensureNetwork(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, "docker", "network", "inspect", InferNetworkName)
 	if err := cmd.Run(); err == nil {
-		logger.Debug("Docker network already exists", "network", InferNetworkName)
 		return nil
 	}
 

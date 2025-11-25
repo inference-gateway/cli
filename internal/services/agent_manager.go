@@ -199,7 +199,7 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 
 	dotEnvVars, err := am.loadDotEnvFile()
 	if err != nil {
-		logger.Debug("Could not load .env file", "error", err)
+		logger.Warn("Could not load .env file", "error", err)
 	}
 
 	env := agent.GetEnvironmentWithModel()
@@ -225,10 +225,10 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	for key := range env {
 		if value, exists := dotEnvVars[key]; exists {
 			resolvedEnv[key] = value
-			logger.Debug("Using .env value for variable", "key", key)
+			logger.Warn("Using .env value for variable", "key", key)
 		} else if value, exists := os.LookupEnv(key); exists {
 			resolvedEnv[key] = value
-			logger.Debug("Using system environment value for variable", "key", key)
+			logger.Warn("Using system environment value for variable", "key", key)
 		} else {
 			resolvedEnv[key] = env[key]
 		}

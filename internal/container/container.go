@@ -141,7 +141,6 @@ func (c *ServiceContainer) initializeAgentManager() {
 
 	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
-		logger.Debug("Agent status update", "agent", agentName, "state", state.String(), "message", message)
 	})
 
 	ctx := context.Background()
