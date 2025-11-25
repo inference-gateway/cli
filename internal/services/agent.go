@@ -303,6 +303,51 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 	}, nil
 }
 
+// handleIdleState processes queued messages and background tasks when the agent is idle
+func (s *AgentServiceImpl) handleIdleState(
+	eventPublisher *eventPublisher,
+	taskTracker domain.TaskTracker,
+	conversation *[]sdk.Message,
+) (shouldContinue bool, shouldReturn bool) {
+	hasQueuedMessage := s.messageQueue != nil && !s.messageQueue.IsEmpty()
+	hasBackgroundTasks := taskTracker != nil && len(taskTracker.GetAllPollingTasks()) > 0
+
+	switch {
+	case hasQueuedMessage:
+		queuedMsg := s.messageQueue.Dequeue()
+		if queuedMsg != nil {
+			*conversation = append(*conversation, queuedMsg.Message)
+			entry := domain.ConversationEntry{
+				Message: queuedMsg.Message,
+				Time:    time.Now(),
+			}
+			if err := s.conversationRepo.AddMessage(entry); err != nil {
+				logger.Error("failed to store queued message", "error", err)
+			}
+			eventPublisher.chatEvents <- domain.MessageQueuedEvent{
+				RequestID: queuedMsg.RequestID,
+				Timestamp: time.Now(),
+				Message:   queuedMsg.Message,
+			}
+			return true, false
+		}
+	case hasBackgroundTasks:
+		time.Sleep(500 * time.Millisecond)
+		return true, false
+	default:
+		eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(eventPublisher.requestID))
+
+		time.Sleep(100 * time.Millisecond)
+		if s.messageQueue != nil && !s.messageQueue.IsEmpty() {
+			logger.Info("Detected queued message after chat complete, continuing")
+			return true, false
+		}
+
+		return false, true
+	}
+	return false, false
+}
+
 // RunWithStream executes an agent task with streaming (for interactive chat)
 func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop,funlen
 	if err := s.validateRequest(req); err != nil {
@@ -362,44 +407,13 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			}
 
 			if !hasToolResults && turns > 0 {
-				hasQueuedMessage := s.messageQueue != nil && !s.messageQueue.IsEmpty()
-
-				hasBackgroundTasks := taskTracker != nil && len(taskTracker.GetAllPollingTasks()) > 0
-
-				switch {
-				case hasQueuedMessage:
-					queuedMsg := s.messageQueue.Dequeue()
-					if queuedMsg != nil {
-						conversation = append(conversation, queuedMsg.Message)
-						entry := domain.ConversationEntry{
-							Message: queuedMsg.Message,
-							Time:    time.Now(),
-						}
-						if err := s.conversationRepo.AddMessage(entry); err != nil {
-							logger.Error("failed to store queued message", "error", err)
-						}
-						eventPublisher.chatEvents <- domain.MessageQueuedEvent{
-							RequestID: queuedMsg.RequestID,
-							Timestamp: time.Now(),
-							Message:   queuedMsg.Message,
-						}
-						hasToolResults = true
-						continue
-					}
-				case hasBackgroundTasks:
-					time.Sleep(500 * time.Millisecond)
-					continue
-				default:
-					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
-
-					time.Sleep(100 * time.Millisecond)
-					if s.messageQueue != nil && !s.messageQueue.IsEmpty() {
-						logger.Info("Detected queued message after chat complete, continuing")
-						hasToolResults = true
-						continue
-					}
-
+				shouldContinue, shouldReturn := s.handleIdleState(eventPublisher, taskTracker, &conversation)
+				if shouldReturn {
 					return
+				}
+				if shouldContinue {
+					hasToolResults = true
+					continue
 				}
 			}
 
@@ -1085,33 +1099,53 @@ func (s *AgentServiceImpl) requestToolApproval(
 	}
 }
 
+// isBashCommandWhitelisted checks if a Bash tool command is whitelisted
+func (s *AgentServiceImpl) isBashCommandWhitelisted(tc *sdk.ChatCompletionMessageToolCall) bool {
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		logger.Debug("Tool approval required - failed to parse bash arguments", "tool", tc.Function.Name, "error", err)
+		return false
+	}
+
+	command, ok := args["command"].(string)
+	if !ok {
+		logger.Debug("Tool approval required - command not found in bash arguments", "tool", tc.Function.Name)
+		return false
+	}
+
+	isWhitelisted := s.config.IsBashCommandWhitelisted(command)
+	if isWhitelisted {
+		logger.Debug("Tool approval not required - bash command is whitelisted", "tool", tc.Function.Name, "command", command)
+	} else {
+		logger.Debug("Tool approval required - bash command not whitelisted", "tool", tc.Function.Name, "command", command)
+	}
+	return isWhitelisted
+}
+
 // shouldRequireApproval determines if a tool execution requires user approval
 // For Bash tool specifically, it checks if the command is whitelisted
 func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
 	if s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
+		logger.Debug("Tool approval not required - auto-accept mode enabled", "tool", tc.Function.Name)
 		return false
 	}
 
 	if !isChatMode {
+		logger.Debug("Tool approval not required - not in chat mode", "tool", tc.Function.Name)
 		return false
 	}
 
 	if tc.Function.Name == "Bash" {
-		var args map[string]any
-		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-			return true
-		}
-
-		command, ok := args["command"].(string)
-		if !ok {
-			return true
-		}
-
-		isWhitelisted := s.config.IsBashCommandWhitelisted(command)
-		return !isWhitelisted
+		return !s.isBashCommandWhitelisted(tc)
 	}
 
-	return s.config.IsApprovalRequired(tc.Function.Name)
+	requiresApproval := s.config.IsApprovalRequired(tc.Function.Name)
+	if requiresApproval {
+		logger.Debug("Tool approval required - tool configured to require approval", "tool", tc.Function.Name)
+	} else {
+		logger.Debug("Tool approval not required - tool configured to not require approval", "tool", tc.Function.Name)
+	}
+	return requiresApproval
 }
 
 func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) domain.ConversationEntry {

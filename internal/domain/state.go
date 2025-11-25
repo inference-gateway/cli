@@ -56,7 +56,6 @@ const (
 	ViewStateThemeSelection
 	ViewStateA2AServers
 	ViewStateA2ATaskManagement
-	ViewStateToolApproval
 	ViewStatePlanApproval
 )
 
@@ -90,8 +89,6 @@ func (v ViewState) String() string {
 		return "A2AServers"
 	case ViewStateA2ATaskManagement:
 		return "A2ATaskManagement"
-	case ViewStateToolApproval:
-		return "ToolApproval"
 	case ViewStatePlanApproval:
 		return "PlanApproval"
 	default:
@@ -404,7 +401,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateThemeSelection,
 			ViewStateA2AServers,
 			ViewStateA2ATaskManagement,
-			ViewStateToolApproval,
 			ViewStatePlanApproval,
 		},
 		ViewStateFileSelection:         {ViewStateChat},
@@ -413,7 +409,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateThemeSelection:        {ViewStateChat},
 		ViewStateA2AServers:            {ViewStateChat},
 		ViewStateA2ATaskManagement:     {ViewStateChat},
-		ViewStateToolApproval:          {ViewStateChat},
 		ViewStatePlanApproval:          {ViewStateChat},
 	}
 

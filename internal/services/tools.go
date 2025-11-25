@@ -111,6 +111,12 @@ func (s *LLMToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompl
 		return nil, fmt.Errorf("local tools are not enabled")
 	}
 
+	return s.ExecuteToolDirect(ctx, toolCall)
+}
+
+// ExecuteToolDirect executes a tool directly without checking if it's enabled
+// Used for user-initiated commands where the user explicitly wants to run the tool
+func (s *LLMToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	var args map[string]any
 	if err := json.Unmarshal([]byte(toolCall.Arguments), &args); err != nil {
 		return nil, fmt.Errorf("failed to parse tool arguments: %w", err)
@@ -181,6 +187,10 @@ func (s *NoOpToolService) ListAvailableTools() []string {
 }
 
 func (s *NoOpToolService) ExecuteTool(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
+	return nil, fmt.Errorf("tools are not enabled")
+}
+
+func (s *NoOpToolService) ExecuteToolDirect(ctx context.Context, toolCall sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
 	return nil, fmt.Errorf("tools are not enabled")
 }
 

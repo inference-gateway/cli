@@ -1,6 +1,7 @@
 package components
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -268,6 +269,10 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 	case "assistant":
 		if entry.IsPlan {
 			return cv.renderPlanEntry(entry, index)
+		}
+
+		if entry.PendingToolCall != nil {
+			return cv.renderPendingToolEntry(entry, index)
 		}
 
 		if entry.Rejected {
@@ -822,6 +827,168 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 	)
 
 	return fmt.Sprintf("  %s  %s  %s\n%s", acceptStyled, rejectStyled, autoApproveStyled, helpText)
+}
+
+// renderPendingToolEntry renders a pending tool call that requires approval
+// renderEditToolArgs renders the Edit tool arguments with a diff
+func (cv *ConversationView) renderEditToolArgs(args map[string]any) string {
+	var result strings.Builder
+
+	oldStr, hasOld := args["old_string"].(string)
+	newStr, hasNew := args["new_string"].(string)
+	filePath, hasPath := args["file_path"].(string)
+
+	if hasOld && hasNew && hasPath {
+		result.WriteString(fmt.Sprintf("  File: %s\n\n", filePath))
+		diffRenderer := NewDiffRenderer(cv.styleProvider)
+		diffInfo := DiffInfo{
+			FilePath:   filePath,
+			OldContent: oldStr,
+			NewContent: newStr,
+			Title:      "← Proposed Changes →",
+		}
+		diff := diffRenderer.RenderDiff(diffInfo)
+		result.WriteString(diff)
+		result.WriteString("\n")
+	}
+
+	return result.String()
+}
+
+// renderWriteToolArgs renders the Write tool arguments with content preview
+func (cv *ConversationView) renderWriteToolArgs(args map[string]any) string {
+	var result strings.Builder
+
+	if filePath, ok := args["file_path"].(string); ok {
+		result.WriteString(fmt.Sprintf("  File: %s\n", filePath))
+	}
+	if content, ok := args["content"].(string); ok {
+		preview := content
+		if len(preview) > 200 {
+			preview = preview[:200] + "..."
+		}
+		result.WriteString(fmt.Sprintf("  Content: %s\n", preview))
+	}
+
+	return result.String()
+}
+
+// renderGenericToolArgs renders tool arguments as JSON
+func (cv *ConversationView) renderGenericToolArgs(args map[string]any) string {
+	argsJSON, _ := json.MarshalIndent(args, "  ", "  ")
+	return fmt.Sprintf("  Arguments:\n  %s\n", string(argsJSON))
+}
+
+func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntry, index int) string {
+	var result strings.Builder
+
+	// Determine the color and role based on approval status
+	var color string
+	var role string
+	switch entry.ToolApprovalStatus {
+	case domain.ToolApprovalPending:
+		color = cv.styleProvider.GetThemeColor("accent")
+		role = "Tool (Pending Approval)"
+	case domain.ToolApprovalApproved:
+		color = cv.styleProvider.GetThemeColor("success")
+		role = "Tool (Approved)"
+	case domain.ToolApprovalRejected:
+		color = cv.styleProvider.GetThemeColor("error")
+		role = "Tool (Rejected)"
+	default:
+		color = cv.getAssistantColor()
+		role = "Tool"
+	}
+
+	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
+	result.WriteString(roleStyled + "\n")
+
+	// Format tool call information
+	toolCall := entry.PendingToolCall
+	toolName := toolCall.Function.Name
+
+	// Parse arguments to display them nicely
+	var args map[string]any
+	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
+		result.WriteString(fmt.Sprintf("  Tool: %s\n", toolName))
+
+		switch toolName {
+		case "Edit":
+			result.WriteString(cv.renderEditToolArgs(args))
+		case "Write":
+			result.WriteString(cv.renderWriteToolArgs(args))
+		default:
+			result.WriteString(cv.renderGenericToolArgs(args))
+		}
+	} else {
+		result.WriteString(fmt.Sprintf("  Tool: %s\n", toolName))
+	}
+
+	// Render approval buttons if status is pending
+	if entry.ToolApprovalStatus == domain.ToolApprovalPending {
+		result.WriteString("\n")
+		result.WriteString(cv.renderInlineToolApprovalButtons(index))
+	}
+
+	return result.String() + "\n"
+}
+
+// renderInlineToolApprovalButtons renders inline approval buttons for a tool
+func (cv *ConversationView) renderInlineToolApprovalButtons(_ int) string {
+	selectedIndex := 0
+	if cv.stateManager != nil {
+		if approvalState := cv.stateManager.GetApprovalUIState(); approvalState != nil {
+			selectedIndex = approvalState.SelectedIndex
+		}
+	}
+
+	approveText := "Approve"
+	rejectText := "Reject"
+	autoApproveText := "Auto-Approve"
+
+	successColor := cv.styleProvider.GetThemeColor("success")
+	errorColor := cv.styleProvider.GetThemeColor("error")
+	accentColor := cv.styleProvider.GetThemeColor("accent")
+	highlightBg := cv.styleProvider.GetThemeColor("selection_bg")
+
+	// Render buttons with highlighting for selected one
+	var approveStyled, rejectStyled, autoApproveStyled string
+	if selectedIndex == int(domain.ApprovalApprove) {
+		approveStyled = cv.styleProvider.RenderStyledText("[ "+approveText+" ]", styles.StyleOptions{
+			Foreground: successColor,
+			Background: highlightBg,
+			Bold:       true,
+		})
+	} else {
+		approveStyled = cv.styleProvider.RenderWithColor("[ "+approveText+" ]", successColor)
+	}
+
+	if selectedIndex == int(domain.ApprovalReject) {
+		rejectStyled = cv.styleProvider.RenderStyledText("[ "+rejectText+" ]", styles.StyleOptions{
+			Foreground: errorColor,
+			Background: highlightBg,
+			Bold:       true,
+		})
+	} else {
+		rejectStyled = cv.styleProvider.RenderWithColor("[ "+rejectText+" ]", errorColor)
+	}
+
+	if selectedIndex == int(domain.ApprovalAutoAccept) {
+		autoApproveStyled = cv.styleProvider.RenderStyledText("[ "+autoApproveText+" ]", styles.StyleOptions{
+			Foreground: accentColor,
+			Background: highlightBg,
+			Bold:       true,
+		})
+	} else {
+		autoApproveStyled = cv.styleProvider.RenderWithColor("[ "+autoApproveText+" ]", accentColor)
+	}
+
+	helpText := cv.styleProvider.RenderWithColor(
+		"  ←/→: Navigate • Enter: Confirm • Esc: Reject",
+		cv.styleProvider.GetThemeColor("dim"),
+	)
+
+	return fmt.Sprintf("  %s  %s  %s\n%s", approveStyled, rejectStyled, autoApproveStyled, helpText)
 }
 
 // handleToolCallRendererEvents processes tool call renderer specific events

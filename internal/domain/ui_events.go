@@ -165,12 +165,6 @@ type ToolExecutionCompletedEvent struct {
 
 // Approval Events
 
-// ShowToolApprovalEvent displays the tool approval modal
-type ShowToolApprovalEvent struct {
-	ToolCall     sdk.ChatCompletionMessageToolCall
-	ResponseChan chan ApprovalAction
-}
-
 // ToolApprovalResponseEvent captures the user's approval decision
 type ToolApprovalResponseEvent struct {
 	Action   ApprovalAction

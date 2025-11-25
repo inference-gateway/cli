@@ -69,22 +69,6 @@ func (c *ChatCommandHandler) handleBashCommand(
 		}
 	}
 
-	if !c.handler.toolService.IsToolEnabled("Bash") {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "Bash tool is not enabled. Run 'infer config tool bash enable' to enable it.",
-				Sticky: false,
-			}
-		}
-	}
-
-	isWhitelisted := c.handler.configService.IsBashCommandWhitelisted(command)
-	requiresApproval := !isWhitelisted
-
-	if requiresApproval {
-		return c.handleBashCommandWithApproval(commandText, command)
-	}
-
 	return c.executeBashCommand(commandText, command)
 }
 
@@ -126,7 +110,8 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string) tea.Cmd {
 			Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
 		}
 
-		result, err := c.handler.toolService.ExecuteTool(context.Background(), toolCallFunc)
+		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
+		result, err := c.handler.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
 			return domain.ShowErrorEvent{
@@ -165,29 +150,6 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string) tea.Cmd {
 
 		return domain.BashCommandCompletedEvent{
 			History: c.handler.conversationRepo.GetMessages(),
-		}
-	}
-}
-
-// handleBashCommandWithApproval requests approval before executing a bash command
-func (c *ChatCommandHandler) handleBashCommandWithApproval(_ /* commandText */, command string) tea.Cmd {
-	return func() tea.Msg {
-		toolCall := sdk.ChatCompletionMessageToolCall{
-			Id:   fmt.Sprintf("manual-%d", time.Now().UnixNano()),
-			Type: "function",
-			Function: sdk.ChatCompletionMessageToolCallFunction{
-				Name:      "Bash",
-				Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
-			},
-		}
-
-		responseChan := make(chan domain.ApprovalAction, 1)
-
-		return domain.ToolApprovalRequestedEvent{
-			RequestID:    fmt.Sprintf("manual-bash-%d", time.Now().UnixNano()),
-			Timestamp:    time.Now(),
-			ToolCall:     toolCall,
-			ResponseChan: responseChan,
 		}
 	}
 }

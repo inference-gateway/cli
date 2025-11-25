@@ -58,7 +58,6 @@ type ChatApplication struct {
 	a2aServersView        *components.A2AServersView
 	taskManager           *components.TaskManagerImpl
 	toolCallRenderer      *components.ToolCallRenderer
-	approvalComponent     *components.ApprovalComponent
 	planApprovalComponent *components.PlanApprovalComponent
 
 	// Presentation layer
@@ -132,12 +131,9 @@ func NewChatApplication(
 	styleProvider := styles.NewProvider(app.themeService)
 
 	app.toolCallRenderer = components.NewToolCallRenderer(styleProvider)
-	app.approvalComponent = components.NewApprovalComponent(styleProvider)
 	app.planApprovalComponent = components.NewPlanApprovalComponent(styleProvider)
 	app.conversationView = ui.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
-
-	app.approvalComponent.SetToolFormatter(toolFormatterService)
 
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
@@ -326,8 +322,6 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleA2AServersView(msg)
 	case domain.ViewStateA2ATaskManagement:
 		return app.handleA2ATaskManagementView(msg)
-	case domain.ViewStateToolApproval:
-		return app.handleToolApprovalView(msg)
 	case domain.ViewStatePlanApproval:
 		return app.handlePlanApprovalView(msg)
 	default:
@@ -382,31 +376,6 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd 
 
 	if isHandledByAction {
 		app.lastHandledKey = keyMsg.String()
-	}
-
-	return cmds
-}
-
-func (app *ChatApplication) handleToolApprovalView(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	if approvalEvent, ok := msg.(domain.ToolApprovalResponseEvent); ok {
-		approvalState := app.stateManager.GetApprovalUIState()
-		if approvalState != nil && approvalState.ResponseChan != nil {
-			approvalState.ResponseChan <- approvalEvent.Action
-
-			if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
-				logger.Error("Failed to transition back to chat view", "error", err)
-			}
-
-			app.stateManager.ClearApprovalUIState()
-		}
 	}
 
 	return cmds
@@ -499,8 +468,6 @@ func (app *ChatApplication) View() string {
 		return app.renderA2AServers()
 	case domain.ViewStateA2ATaskManagement:
 		return app.renderA2ATaskManagement()
-	case domain.ViewStateToolApproval:
-		return app.renderToolApproval()
 	case domain.ViewStatePlanApproval:
 		return app.renderPlanApproval()
 	default:
@@ -816,19 +783,6 @@ func (app *ChatApplication) renderA2ATaskManagement() string {
 	app.taskManager.SetWidth(width)
 	app.taskManager.SetHeight(height)
 	return app.taskManager.View()
-}
-
-func (app *ChatApplication) renderToolApproval() string {
-	approvalState := app.stateManager.GetApprovalUIState()
-	if approvalState == nil {
-		return "No pending tool approval"
-	}
-
-	width, height := app.stateManager.GetDimensions()
-	app.approvalComponent.SetDimensions(width, height)
-
-	theme := app.themeService.GetCurrentTheme()
-	return app.approvalComponent.Render(approvalState, theme)
 }
 
 func (app *ChatApplication) renderPlanApproval() string {
