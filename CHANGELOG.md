@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.68.0](https://github.com/inference-gateway/cli/compare/v0.67.0...v0.68.0) (2025-11-25)
+
+### 🚀 Features
+
+* **ui:** Add plan approval workflow for Plan Mode ([#263](https://github.com/inference-gateway/cli/issues/263)) ([3c39ed2](https://github.com/inference-gateway/cli/commit/3c39ed2ce8021279f496cf0b9bb27ec5fbd1d30d)), closes [#262](https://github.com/inference-gateway/cli/issues/262)
+
 ## [0.67.0](https://github.com/inference-gateway/cli/compare/v0.66.1...v0.67.0) (2025-11-25)
 
 ### 🚀 Features
