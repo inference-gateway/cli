@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -569,9 +570,20 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			}
 
 			if len(toolCalls) > 0 {
+				indices := make([]int, 0, len(toolCalls))
+				for key := range toolCalls {
+					var idx int
+					_, _ = fmt.Sscanf(key, "%d", &idx)
+					indices = append(indices, idx)
+				}
+				sort.Ints(indices)
+
 				assistantToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
-				for _, tc := range toolCalls {
-					assistantToolCalls = append(assistantToolCalls, *tc)
+				for _, idx := range indices {
+					key := fmt.Sprintf("%d", idx)
+					if tc, ok := toolCalls[key]; ok {
+						assistantToolCalls = append(assistantToolCalls, *tc)
+					}
 				}
 				assistantMessage.ToolCalls = &assistantToolCalls
 			}
@@ -943,14 +955,14 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 	if isAutoAcceptMode {
 		wasApproved = true
 	} else if requiresApproval {
-		logger.Info("requesting approval for tool", "tool", tc.Function.Name)
 		approved, err := s.requestToolApproval(ctx, tc, eventPublisher)
 		if err != nil {
 			logger.Error("failed to request tool approval", "tool", tc.Function.Name, "error", err)
+			s.conversationRepo.RemovePendingToolCallByID(tc.Id)
 			return s.createErrorEntry(tc, err, startTime)
 		}
 		if !approved {
-			logger.Info("tool execution rejected by user", "tool", tc.Function.Name)
+			s.conversationRepo.RemovePendingToolCallByID(tc.Id)
 			return s.createRejectionEntry(tc, startTime)
 		}
 		wasApproved = true
@@ -1069,6 +1081,10 @@ done:
 		},
 		Time:          time.Now(),
 		ToolExecution: toolExecutionResult,
+	}
+
+	if requiresApproval {
+		s.conversationRepo.RemovePendingToolCallByID(tc.Id)
 	}
 
 	return entry

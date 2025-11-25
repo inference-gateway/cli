@@ -131,6 +131,11 @@ type FakeConversationRepository struct {
 	getSessionTokensReturnsOnCall map[int]struct {
 		result1 domain.SessionTokenStats
 	}
+	RemovePendingToolCallByIDStub        func(string)
+	removePendingToolCallByIDMutex       sync.RWMutex
+	removePendingToolCallByIDArgsForCall []struct {
+		arg1 string
+	}
 	UpdateLastMessageStub        func(string) error
 	updateLastMessageMutex       sync.RWMutex
 	updateLastMessageArgsForCall []struct {
@@ -793,6 +798,38 @@ func (fake *FakeConversationRepository) GetSessionTokensReturnsOnCall(i int, res
 	fake.getSessionTokensReturnsOnCall[i] = struct {
 		result1 domain.SessionTokenStats
 	}{result1}
+}
+
+func (fake *FakeConversationRepository) RemovePendingToolCallByID(arg1 string) {
+	fake.removePendingToolCallByIDMutex.Lock()
+	fake.removePendingToolCallByIDArgsForCall = append(fake.removePendingToolCallByIDArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.RemovePendingToolCallByIDStub
+	fake.recordInvocation("RemovePendingToolCallByID", []interface{}{arg1})
+	fake.removePendingToolCallByIDMutex.Unlock()
+	if stub != nil {
+		fake.RemovePendingToolCallByIDStub(arg1)
+	}
+}
+
+func (fake *FakeConversationRepository) RemovePendingToolCallByIDCallCount() int {
+	fake.removePendingToolCallByIDMutex.RLock()
+	defer fake.removePendingToolCallByIDMutex.RUnlock()
+	return len(fake.removePendingToolCallByIDArgsForCall)
+}
+
+func (fake *FakeConversationRepository) RemovePendingToolCallByIDCalls(stub func(string)) {
+	fake.removePendingToolCallByIDMutex.Lock()
+	defer fake.removePendingToolCallByIDMutex.Unlock()
+	fake.RemovePendingToolCallByIDStub = stub
+}
+
+func (fake *FakeConversationRepository) RemovePendingToolCallByIDArgsForCall(i int) string {
+	fake.removePendingToolCallByIDMutex.RLock()
+	defer fake.removePendingToolCallByIDMutex.RUnlock()
+	argsForCall := fake.removePendingToolCallByIDArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeConversationRepository) UpdateLastMessage(arg1 string) error {

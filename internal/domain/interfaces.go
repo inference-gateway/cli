@@ -94,6 +94,7 @@ type ConversationRepository interface {
 	FormatToolResultForLLM(result *ToolExecutionResult) string
 	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
 	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
+	RemovePendingToolCallByID(toolCallID string)
 }
 
 // ModelService handles model selection and information

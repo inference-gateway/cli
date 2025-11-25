@@ -8,7 +8,6 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -62,10 +61,8 @@ func (r *InMemoryConversationRepository) MarkLastMessageAsPlan() {
 
 	for i := len(r.messages) - 1; i >= 0; i-- {
 		if r.messages[i].Message.Role == sdk.Assistant {
-			logger.Info("Marking message as plan", "index", i, "totalMessages", len(r.messages))
 			r.messages[i].IsPlan = true
 			r.messages[i].PlanApprovalStatus = domain.PlanApprovalPending
-			logger.Info("Message marked as plan", "isPlan", r.messages[i].IsPlan, "status", r.messages[i].PlanApprovalStatus)
 			break
 		}
 	}
@@ -108,7 +105,6 @@ func (r *InMemoryConversationRepository) AddPendingToolCall(toolCall sdk.ChatCom
 	}
 
 	r.messages = append(r.messages, entry)
-	logger.Info("Added pending tool call", "tool", toolCall.Function.Name, "index", len(r.messages)-1)
 	return nil
 }
 
@@ -125,8 +121,20 @@ func (r *InMemoryConversationRepository) UpdateToolApprovalStatus(action domain.
 			case domain.ApprovalReject:
 				r.messages[i].ToolApprovalStatus = domain.ToolApprovalRejected
 			}
-			logger.Info("Updated tool approval status", "status", r.messages[i].ToolApprovalStatus, "tool", r.messages[i].PendingToolCall.Function.Name)
 			break
+		}
+	}
+}
+
+// RemovePendingToolCallByID removes a specific pending tool call by its ID
+func (r *InMemoryConversationRepository) RemovePendingToolCallByID(toolCallID string) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for i := len(r.messages) - 1; i >= 0; i-- {
+		if r.messages[i].PendingToolCall != nil && r.messages[i].PendingToolCall.Id == toolCallID {
+			r.messages = append(r.messages[:i], r.messages[i+1:]...)
+			return
 		}
 	}
 }
