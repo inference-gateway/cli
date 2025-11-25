@@ -75,8 +75,6 @@ func findAvailablePort(basePort int) int {
 			return port
 		}
 	}
-	// If no port is available in the range, return the base port
-	// The user will get an error when trying to start the agent
 	return basePort
 }
 
