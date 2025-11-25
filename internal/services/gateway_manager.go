@@ -163,8 +163,6 @@ func (gm *GatewayManager) stopDocker(ctx context.Context) error {
 		return nil
 	}
 
-	logger.Info("Stopping gateway container", "containerID", gm.containerID)
-
 	cmd := exec.CommandContext(ctx, "docker", "stop", gm.containerID)
 	if err := cmd.Run(); err != nil {
 		logger.Warn("Failed to stop container", "error", err)
@@ -177,7 +175,6 @@ func (gm *GatewayManager) stopDocker(ctx context.Context) error {
 
 	gm.isRunning = false
 	gm.containerID = ""
-	logger.Info("Gateway container stopped")
 	return nil
 }
 

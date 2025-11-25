@@ -121,8 +121,6 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 
 // StopAgents stops all running agent containers
 func (am *AgentManager) StopAgents(ctx context.Context) error {
-	logger.Info("Stopping agents", "trackedCount", len(am.containers))
-
 	for agentName := range am.containers {
 		if err := am.StopAgent(ctx, agentName); err != nil {
 			logger.Warn("Failed to stop agent", "name", agentName, "error", err)
@@ -145,8 +143,6 @@ func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
 		return nil
 	}
 
-	logger.Info("Stopping agent container", "name", agentName, "containerID", containerID)
-
 	cmd := exec.CommandContext(ctx, "docker", "stop", containerID)
 	if err := cmd.Run(); err != nil {
 		logger.Warn("Failed to stop agent container", "name", agentName, "error", err)
@@ -158,7 +154,6 @@ func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
 	}
 
 	delete(am.containers, agentName)
-	logger.Info("Agent container stopped", "name", agentName)
 	return nil
 }
 

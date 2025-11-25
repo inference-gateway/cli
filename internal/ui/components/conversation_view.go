@@ -35,6 +35,7 @@ type ConversationView struct {
 	markdownRenderer    *markdown.Renderer
 	rawFormat           bool
 	userScrolledUp      bool
+	stateManager        domain.StateManager
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
@@ -74,6 +75,11 @@ func (cv *ConversationView) SetConfigPath(configPath string) {
 // SetToolCallRenderer sets the tool call renderer for displaying real-time tool execution status
 func (cv *ConversationView) SetToolCallRenderer(renderer *ToolCallRenderer) {
 	cv.toolCallRenderer = renderer
+}
+
+// SetStateManager sets the state manager for accessing plan approval state
+func (cv *ConversationView) SetStateManager(stateManager domain.StateManager) {
+	cv.stateManager = stateManager
 }
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
@@ -260,11 +266,20 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 			}
 		}
 	case "assistant":
-		color = cv.getAssistantColor()
-		if entry.Model != "" {
-			role = fmt.Sprintf("⏺ %s", entry.Model)
+		if entry.IsPlan {
+			return cv.renderPlanEntry(entry, index)
+		}
+
+		if entry.Rejected {
+			color = cv.styleProvider.GetThemeColor("dim")
+			role = "⊘ Rejected Plan"
 		} else {
-			role = "⏺ Assistant"
+			color = cv.getAssistantColor()
+			if entry.Model != "" {
+				role = fmt.Sprintf("⏺ %s", entry.Model)
+			} else {
+				role = "⏺ Assistant"
+			}
 		}
 
 		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
@@ -698,6 +713,115 @@ func (cv *ConversationView) handleMouseMsg(msg tea.Msg) (bool, tea.Model, tea.Cm
 		}
 	}
 	return false, nil, nil
+}
+
+// renderPlanEntry renders a plan entry with inline approval buttons
+func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, index int) string {
+	var result strings.Builder
+
+	// Determine the color and role based on approval status
+	var color string
+	var role string
+	switch entry.PlanApprovalStatus {
+	case domain.PlanApprovalPending:
+		color = cv.styleProvider.GetThemeColor("accent")
+		role = "Plan (Pending Approval)"
+	case domain.PlanApprovalAccepted:
+		color = cv.styleProvider.GetThemeColor("success")
+		role = "Plan (Accepted)"
+	case domain.PlanApprovalRejected:
+		color = cv.styleProvider.GetThemeColor("dim")
+		role = "Plan (Rejected)"
+	default:
+		color = cv.getAssistantColor()
+		role = "Plan"
+	}
+
+	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
+
+	// Render the plan content
+	contentStr, err := entry.Message.Content.AsMessageContent0()
+	if err != nil {
+		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
+	}
+
+	var formattedContent string
+
+	if entry.PlanApprovalStatus == domain.PlanApprovalRejected {
+		plainContent := shared.FormatResponsiveMessage(contentStr, cv.width)
+		formattedContent = cv.styleProvider.RenderWithColor(plainContent, color)
+	} else if cv.markdownRenderer != nil && !cv.isStreaming && !cv.rawFormat {
+		formattedContent = cv.markdownRenderer.Render(contentStr)
+	} else {
+		formattedContent = shared.FormatResponsiveMessage(contentStr, cv.width)
+	}
+
+	result.WriteString(roleStyled + " " + formattedContent + "\n")
+
+	if entry.PlanApprovalStatus == domain.PlanApprovalPending {
+		result.WriteString("\n")
+		result.WriteString(cv.renderInlineApprovalButtons(index))
+	}
+
+	return result.String() + "\n"
+}
+
+// renderInlineApprovalButtons renders inline approval buttons for a plan
+func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
+	selectedIndex := 0
+	if cv.stateManager != nil {
+		if planState := cv.stateManager.GetPlanApprovalUIState(); planState != nil {
+			selectedIndex = planState.SelectedIndex
+		}
+	}
+
+	acceptText := "Accept"
+	rejectText := "Reject"
+	autoApproveText := "Auto-Approve"
+
+	successColor := cv.styleProvider.GetThemeColor("success")
+	errorColor := cv.styleProvider.GetThemeColor("error")
+	accentColor := cv.styleProvider.GetThemeColor("accent")
+	highlightBg := cv.styleProvider.GetThemeColor("selection_bg")
+
+	// Render buttons with highlighting for selected one
+	var acceptStyled, rejectStyled, autoApproveStyled string
+	if selectedIndex == int(domain.PlanApprovalAccept) {
+		acceptStyled = cv.styleProvider.RenderStyledText("[ "+acceptText+" ]", styles.StyleOptions{
+			Foreground: successColor,
+			Background: highlightBg,
+			Bold:       true,
+		})
+	} else {
+		acceptStyled = cv.styleProvider.RenderWithColor("[ "+acceptText+" ]", successColor)
+	}
+
+	if selectedIndex == int(domain.PlanApprovalReject) {
+		rejectStyled = cv.styleProvider.RenderStyledText("[ "+rejectText+" ]", styles.StyleOptions{
+			Foreground: errorColor,
+			Background: highlightBg,
+			Bold:       true,
+		})
+	} else {
+		rejectStyled = cv.styleProvider.RenderWithColor("[ "+rejectText+" ]", errorColor)
+	}
+
+	if selectedIndex == int(domain.PlanApprovalAcceptAndAutoApprove) {
+		autoApproveStyled = cv.styleProvider.RenderStyledText("[ "+autoApproveText+" ]", styles.StyleOptions{
+			Foreground: accentColor,
+			Background: highlightBg,
+			Bold:       true,
+		})
+	} else {
+		autoApproveStyled = cv.styleProvider.RenderWithColor("[ "+autoApproveText+" ]", accentColor)
+	}
+
+	helpText := cv.styleProvider.RenderWithColor(
+		"  ←/→: Navigate • Enter: Confirm • Esc: Reject",
+		cv.styleProvider.GetThemeColor("dim"),
+	)
+
+	return fmt.Sprintf("  %s  %s  %s\n%s", acceptStyled, rejectStyled, autoApproveStyled, helpText)
 }
 
 // handleToolCallRendererEvents processes tool call renderer specific events

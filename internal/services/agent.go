@@ -391,6 +391,14 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					continue
 				default:
 					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
+
+					time.Sleep(100 * time.Millisecond)
+					if s.messageQueue != nil && !s.messageQueue.IsEmpty() {
+						logger.Info("Detected queued message after chat complete, continuing")
+						hasToolResults = true
+						continue
+					}
+
 					return
 				}
 			}

@@ -68,27 +68,36 @@ func Init(verbose, debug bool, logDir string) {
 
 	var cores []zapcore.Core
 
+	// Error file - only ERROR and FATAL levels
 	errorCore := zapcore.NewCore(
 		encoder,
 		zapcore.AddSync(errorFile),
-		zapcore.ErrorLevel,
+		zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+			return lvl >= zapcore.ErrorLevel
+		}),
 	)
 	cores = append(cores, errorCore)
 
+	// Info file - only INFO and WARN levels (not error, not debug)
 	infoCore := zapcore.NewCore(
 		encoder,
 		zapcore.AddSync(infoFile),
-		zapcore.InfoLevel,
+		zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+			return lvl >= zapcore.InfoLevel && lvl < zapcore.ErrorLevel
+		}),
 	)
 	cores = append(cores, infoCore)
 
 	if verbose {
 		debugFile, err := os.OpenFile(debugLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err == nil {
+			// Debug file - only DEBUG level (not info, not error)
 			debugCore := zapcore.NewCore(
 				encoder,
 				zapcore.AddSync(debugFile),
-				zapcore.DebugLevel,
+				zap.LevelEnablerFunc(func(lvl zapcore.Level) bool {
+					return lvl == zapcore.DebugLevel
+				}),
 			)
 			cores = append(cores, debugCore)
 		}

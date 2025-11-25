@@ -594,71 +594,133 @@ func (h *ChatHandler) handleToolApprovalResponse(
 func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
 	msg domain.PlanApprovalRequestedEvent,
 ) tea.Cmd {
-	if err := h.stateManager.TransitionToView(domain.ViewStatePlanApproval); err != nil {
-		logger.Error("failed to transition to plan approval view", "error", err)
-		return nil
+	logger.Info("HandlePlanApprovalRequestedEvent called")
+
+	if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
+		logger.Info("Marking last message as plan (InMemory)")
+		inMemRepo.MarkLastMessageAsPlan()
+	} else if persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository); ok {
+		logger.Info("Marking last message as plan (Persistent)")
+		persistentRepo.MarkLastMessageAsPlan()
+	} else {
+		logger.Warn("conversationRepo does not support plan approval", "type", fmt.Sprintf("%T", h.conversationRepo))
 	}
 
 	h.stateManager.SetupPlanApprovalUIState(msg.PlanContent, msg.ResponseChan)
 
-	return func() tea.Msg {
-		return domain.ShowPlanApprovalEvent{
-			PlanContent:  msg.PlanContent,
-			ResponseChan: msg.ResponseChan,
-		}
-	}
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Plan ready - use arrow keys to select and Enter to confirm",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)
 }
 
 func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 	msg domain.PlanApprovalResponseEvent,
 ) tea.Cmd {
+	logger.Info("HandlePlanApprovalResponseEvent called", "action", msg.Action)
+
+	planApprovalState := h.stateManager.GetPlanApprovalUIState()
+	if planApprovalState == nil {
+		logger.Warn("HandlePlanApprovalResponseEvent: planApprovalState is nil, ignoring")
+		return nil
+	}
+
+	logger.Info("Clearing plan approval UI state to prevent re-entry")
 	h.stateManager.ClearPlanApprovalUIState()
 
-	if err := h.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
-		logger.Error("failed to transition back to chat view", "error", err)
-		return nil
+	if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
+		logger.Info("Updating plan status (InMemory)")
+		inMemRepo.UpdatePlanStatus(msg.Action)
+	} else if persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository); ok {
+		logger.Info("Updating plan status (Persistent)")
+		persistentRepo.UpdatePlanStatus(msg.Action)
 	}
 
 	switch msg.Action {
 	case domain.PlanApprovalAccept:
-		// User accepted the plan - just clear and return to chat
-		return func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Plan accepted",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
-
+		logger.Info("Switching to standard agent mode for plan execution")
+		h.stateManager.SetAgentMode(domain.AgentModeStandard)
 	case domain.PlanApprovalAcceptAndAutoApprove:
-		// User accepted and wants to enable auto-approve mode
+		logger.Info("Switching to auto-accept mode for plan execution")
 		h.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
-		return func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Plan accepted - Auto-Approve mode enabled",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
-
-	case domain.PlanApprovalReject:
-		// User rejected the plan - keep in plan mode and notify
-		return func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Plan rejected - you can provide feedback or changes",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
 	}
 
-	return nil
+	var statusMessage string
+	switch msg.Action {
+	case domain.PlanApprovalAccept:
+		statusMessage = "Plan accepted - executing plan..."
+		logger.Info("Adding hidden continue message to queue")
+		h.addHiddenContinueMessage()
+	case domain.PlanApprovalReject:
+		statusMessage = "Plan rejected - you can provide feedback or changes"
+		logger.Info("Ending chat session due to plan rejection")
+		h.stateManager.EndChatSession()
+	case domain.PlanApprovalAcceptAndAutoApprove:
+		statusMessage = "Plan accepted - Auto-Approve mode enabled, executing plan..."
+		logger.Info("Adding hidden continue message to queue (auto-approve mode)")
+		h.addHiddenContinueMessage()
+	}
+
+	cmds := []tea.Cmd{
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    statusMessage,
+				Spinner:    msg.Action != domain.PlanApprovalReject,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	}
+
+	if msg.Action != domain.PlanApprovalReject {
+		logger.Info("Starting new chat session to execute approved plan")
+		cmds = append(cmds, h.startChatCompletion())
+	}
+
+	return tea.Batch(cmds...)
+}
+
+// addHiddenContinueMessage adds a hidden user message to tell the LLM to continue with the approved plan
+func (h *ChatHandler) addHiddenContinueMessage() {
+	logger.Info("addHiddenContinueMessage called")
+
+	continueMessage := sdk.Message{
+		Role:    sdk.User,
+		Content: sdk.NewMessageContent("The plan has been approved. Please proceed with executing it."),
+	}
+
+	entry := domain.ConversationEntry{
+		Message: continueMessage,
+		Time:    time.Now(),
+		Hidden:  true,
+	}
+
+	if err := h.conversationRepo.AddMessage(entry); err != nil {
+		logger.Error("Failed to add continue message to conversation", "error", err)
+		return
+	}
+
+	logger.Info("Continue message added to conversation history")
 }
 
 // reconstructCommandText reconstructs the original command text from a tool call
 func (h *ChatHandler) reconstructCommandText(toolCall sdk.ChatCompletionMessageToolCall) string {
 	if toolCall.Function.Name == "Bash" {
-		var args map[string]interface{}
+		var args map[string]any
 		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
 			if command, ok := args["command"].(string); ok {
 				return "!" + command

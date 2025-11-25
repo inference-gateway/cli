@@ -519,7 +519,6 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 	}
 
 	if c.gatewayManager != nil && c.gatewayManager.IsRunning() {
-		logger.Info("Shutting down gateway container...")
 		if err := c.gatewayManager.Stop(ctx); err != nil {
 			logger.Error("Failed to stop gateway container", "error", err)
 			return err

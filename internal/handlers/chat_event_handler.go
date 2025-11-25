@@ -7,6 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	services "github.com/inference-gateway/cli/internal/services"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -199,46 +201,52 @@ func (e *ChatEventHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea
 	return nil
 }
 
+// triggerPlanApproval extracts plan content and triggers plan approval flow
+func (e *ChatEventHandler) triggerPlanApproval(msg domain.ChatCompleteEvent) tea.Cmd {
+	logger.Info("Triggering plan approval flow")
+
+	messages := e.handler.conversationRepo.GetMessages()
+	var planContent string
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Message.Role == sdk.Assistant {
+			contentStr, err := messages[i].Message.Content.AsMessageContent0()
+			if err == nil {
+				planContent = contentStr
+			}
+			break
+		}
+	}
+
+	var cmds []tea.Cmd
+	logger.Info("Creating PlanApprovalRequestedEvent", "planContentLength", len(planContent))
+	cmds = append(cmds, func() tea.Msg {
+		logger.Info("Returning PlanApprovalRequestedEvent")
+		return domain.PlanApprovalRequestedEvent{
+			RequestID:    msg.RequestID,
+			Timestamp:    msg.Timestamp,
+			PlanContent:  planContent,
+			ResponseChan: nil,
+		}
+	})
+
+	chatSession := e.handler.stateManager.GetChatSession()
+	if chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return tea.Batch(cmds...)
+}
+
 func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
 
 ) tea.Cmd {
 	// Check if we're in plan mode and no tool calls - trigger plan approval
 	agentMode := e.handler.stateManager.GetAgentMode()
+	logger.Info("handleChatComplete called", "agentMode", agentMode, "toolCallsCount", len(msg.ToolCalls))
+
 	if agentMode == domain.AgentModePlan && len(msg.ToolCalls) == 0 {
-		// Extract the plan content from the last assistant message
-		messages := e.handler.conversationRepo.GetMessages()
-		var planContent string
-		for i := len(messages) - 1; i >= 0; i-- {
-			if messages[i].Message.Role == sdk.Assistant {
-				contentStr, err := messages[i].Message.Content.AsMessageContent0()
-				if err == nil {
-					planContent = contentStr
-				}
-				break
-			}
-		}
-
-		// Trigger plan approval
-		responseChan := make(chan domain.PlanApprovalAction, 1)
-
-		// Start a goroutine to wait for the response
-		go func() {
-			action := <-responseChan
-
-			// Send the response event back to the UI
-			// This will be handled by HandlePlanApprovalResponseEvent
-			_ = action // Will be used in the response handler
-		}()
-
-		return func() tea.Msg {
-			return domain.PlanApprovalRequestedEvent{
-				RequestID:    msg.RequestID,
-				Timestamp:    msg.Timestamp,
-				PlanContent:  planContent,
-				ResponseChan: responseChan,
-			}
-		}
+		return e.triggerPlanApproval(msg)
 	}
 
 	if len(msg.ToolCalls) == 0 {
@@ -391,16 +399,35 @@ func (e *ChatEventHandler) handleToolCallReady(
 func (e *ChatEventHandler) handleToolApprovalRequested(
 	msg domain.ToolApprovalRequestedEvent,
 ) tea.Cmd {
-	_ = e.handler.stateManager.TransitionToView(domain.ViewStateToolApproval)
+	logger.Info("handleToolApprovalRequested called", "tool", msg.ToolCall.Function.Name)
+
+	if inMemRepo, ok := e.handler.conversationRepo.(*services.InMemoryConversationRepository); ok {
+		logger.Info("Adding pending tool call to conversation (InMemory)")
+		if err := inMemRepo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
+			logger.Error("Failed to add pending tool call", "error", err)
+		}
+	} else if persistentRepo, ok := e.handler.conversationRepo.(*services.PersistentConversationRepository); ok {
+		logger.Info("Adding pending tool call to conversation (Persistent)")
+		if err := persistentRepo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
+			logger.Error("Failed to add pending tool call", "error", err)
+		}
+	}
 
 	e.handler.stateManager.SetupApprovalUIState(&msg.ToolCall, msg.ResponseChan)
 
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
-		return domain.ShowToolApprovalEvent{
-			ToolCall:     msg.ToolCall,
-			ResponseChan: msg.ResponseChan,
+		return domain.UpdateHistoryEvent{
+			History: e.handler.conversationRepo.GetMessages(),
+		}
+	})
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    fmt.Sprintf("Tool approval required: %s", msg.ToolCall.Function.Name),
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
 		}
 	})
 

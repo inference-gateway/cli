@@ -51,7 +51,7 @@ func (c *PlanApprovalComponent) Render(planApprovalState *domain.PlanApprovalUIS
 	options := c.renderOptions(planApprovalState.SelectedIndex)
 
 	helpText := c.styleProvider.RenderStyledText(
-		"←/→: Navigate • Enter/y: Accept • n: Reject • a: Accept & Auto-Approve • Esc: Reject",
+		"←/→: Navigate • Enter/y: Accept • n: Reject • a: Auto-Approve • Esc: Reject",
 		styles.StyleOptions{
 			Foreground: c.styleProvider.GetThemeColor("dim"),
 			Italic:     true,
@@ -161,7 +161,7 @@ func (c *PlanApprovalComponent) renderOptions(selectedIndex int) string {
 
 	acceptText := acceptIcon + "Accept"
 	rejectText := rejectIcon + "Reject"
-	acceptAndAutoApproveText := acceptAndAutoApproveIcon + "Accept & Auto-Approve"
+	acceptAndAutoApproveText := acceptAndAutoApproveIcon + "Auto-Approve"
 
 	acceptButton := c.styleProvider.RenderApprovalButton(acceptText, isAcceptSelected, true)
 	rejectButton := c.styleProvider.RenderApprovalButton(rejectText, isRejectSelected, false)

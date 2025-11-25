@@ -222,7 +222,7 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			Keys:        []string{"left"},
 			Description: "move cursor left",
 			Category:    "text_editing",
-			Handler:     handleCursorLeft,
+			Handler:     handleCursorLeftOrPlanNav,
 			Priority:    200,
 			Enabled:     true,
 			Context: KeyContext{
@@ -234,7 +234,7 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			Keys:        []string{"right"},
 			Description: "move cursor right",
 			Category:    "text_editing",
-			Handler:     handleCursorRight,
+			Handler:     handleCursorRightOrPlanNav,
 			Priority:    200,
 			Enabled:     true,
 			Context: KeyContext{
@@ -639,6 +639,17 @@ func handleToggleRawFormat(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	if planApprovalState != nil {
+		action := domain.PlanApprovalAction(planApprovalState.SelectedIndex)
+		return func() tea.Msg {
+			return domain.PlanApprovalResponseEvent{
+				Action: action,
+			}
+		}
+	}
+
 	inputView := app.GetInputView()
 	if inputView == nil {
 		return nil
@@ -806,7 +817,21 @@ func handlePageDown(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 // Text editing handlers
-func handleCursorLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	// Check if there's a pending plan approval
+	stateManager := app.GetStateManager()
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	if planApprovalState != nil {
+		// Navigate plan approval buttons
+		newIndex := planApprovalState.SelectedIndex - 1
+		if newIndex < 0 {
+			newIndex = int(domain.PlanApprovalAcceptAndAutoApprove)
+		}
+		stateManager.SetPlanApprovalSelectedIndex(newIndex)
+		return nil
+	}
+
+	// Otherwise, move cursor left in input
 	inputView := app.GetInputView()
 	if inputView != nil {
 		cursor := inputView.GetCursor()
@@ -817,7 +842,21 @@ func handleCursorLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func handleCursorRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	// Check if there's a pending plan approval
+	stateManager := app.GetStateManager()
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	if planApprovalState != nil {
+		// Navigate plan approval buttons
+		newIndex := planApprovalState.SelectedIndex + 1
+		if newIndex > int(domain.PlanApprovalAcceptAndAutoApprove) {
+			newIndex = 0
+		}
+		stateManager.SetPlanApprovalSelectedIndex(newIndex)
+		return nil
+	}
+
+	// Otherwise, move cursor right in input
 	inputView := app.GetInputView()
 	if inputView != nil {
 		cursor := inputView.GetCursor()
@@ -828,6 +867,7 @@ func handleCursorRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 	return nil
 }
+
 
 func handleBackspace(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView := app.GetInputView()
@@ -1256,37 +1296,33 @@ func handleApprovalAutoAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 // Plan Approval handlers
 
 func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	return func() tea.Msg {
-		stateManager := app.GetStateManager()
-		planApprovalState := stateManager.GetPlanApprovalUIState()
-		if planApprovalState == nil {
-			return nil
-		}
-
-		newIndex := planApprovalState.SelectedIndex - 1
-		if newIndex < 0 {
-			newIndex = int(domain.PlanApprovalAcceptAndAutoApprove)
-		}
-		stateManager.SetPlanApprovalSelectedIndex(newIndex)
+	stateManager := app.GetStateManager()
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	if planApprovalState == nil {
 		return nil
 	}
+
+	newIndex := planApprovalState.SelectedIndex - 1
+	if newIndex < 0 {
+		newIndex = int(domain.PlanApprovalAcceptAndAutoApprove)
+	}
+	stateManager.SetPlanApprovalSelectedIndex(newIndex)
+	return nil
 }
 
 func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	return func() tea.Msg {
-		stateManager := app.GetStateManager()
-		planApprovalState := stateManager.GetPlanApprovalUIState()
-		if planApprovalState == nil {
-			return nil
-		}
-
-		newIndex := planApprovalState.SelectedIndex + 1
-		if newIndex > int(domain.PlanApprovalAcceptAndAutoApprove) {
-			newIndex = 0
-		}
-		stateManager.SetPlanApprovalSelectedIndex(newIndex)
+	stateManager := app.GetStateManager()
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	if planApprovalState == nil {
 		return nil
 	}
+
+	newIndex := planApprovalState.SelectedIndex + 1
+	if newIndex > int(domain.PlanApprovalAcceptAndAutoApprove) {
+		newIndex = 0
+	}
+	stateManager.SetPlanApprovalSelectedIndex(newIndex)
+	return nil
 }
 
 func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {

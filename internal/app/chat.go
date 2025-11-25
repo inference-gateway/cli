@@ -143,6 +143,7 @@ func NewChatApplication(
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
 		cv.SetToolCallRenderer(app.toolCallRenderer)
+		cv.SetStateManager(app.stateManager)
 	}
 
 	configDir := ".infer"
