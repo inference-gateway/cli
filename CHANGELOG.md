@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.67.0](https://github.com/inference-gateway/cli/compare/v0.66.1...v0.67.0) (2025-11-25)
+
+### 🚀 Features
+
+* **startup:** Implement async agent startup with readiness indicator ([#260](https://github.com/inference-gateway/cli/issues/260)) ([31f0194](https://github.com/inference-gateway/cli/commit/31f0194a51cc935bd62f0a65914ee62fed602223)), closes [#255](https://github.com/inference-gateway/cli/issues/255)
+
+### 🐛 Bug Fixes
+
+* **agents:** Require model when run flag is enabled ([#258](https://github.com/inference-gateway/cli/issues/258)) ([dbce0f5](https://github.com/inference-gateway/cli/commit/dbce0f591f247ac19ab72db73e57b0927e18d509)), closes [#256](https://github.com/inference-gateway/cli/issues/256)
+
 ## [0.66.1](https://github.com/inference-gateway/cli/compare/v0.66.0...v0.66.1) (2025-11-24)
 
 ### 🐛 Bug Fixes
