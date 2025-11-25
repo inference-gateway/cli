@@ -12,7 +12,7 @@ import (
 )
 
 func TestIsModelAvailable(t *testing.T) {
-	models := []string{"openai/gpt-4", "anthropic/claude-3", "openai/gpt-3.5-turbo"}
+	models := []string{"openai/gpt-4", "anthropic/claude-4", "openai/gpt-4.5-turbo"}
 
 	tests := []struct {
 		name        string

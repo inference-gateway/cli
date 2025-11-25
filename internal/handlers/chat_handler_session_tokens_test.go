@@ -30,6 +30,8 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		messageQueue,
 		nil, // taskRetentionService
 		nil, // backgroundTaskService
+		nil, // agentManager
+		nil, // config
 	)
 
 	err := conversationRepo.AddTokenUsage(100, 50, 150)

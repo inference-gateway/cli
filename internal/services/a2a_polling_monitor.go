@@ -125,8 +125,11 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, taskID string
 				m.taskTracker.StopPolling(taskID)
 			}
 
-			m.addResultToMessageQueue(state.TaskID, result)
+			time.Sleep(50 * time.Millisecond)
+
 			m.emitCompletionEvent(state.TaskID, result)
+
+			m.addResultToMessageQueue(state.TaskID, result)
 			return
 
 		case statusUpdate := <-state.StatusChan:

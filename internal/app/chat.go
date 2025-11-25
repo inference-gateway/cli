@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
@@ -97,6 +98,7 @@ func NewChatApplication(
 	toolRegistry *tools.Registry,
 	taskRetentionService domain.TaskRetentionService,
 	backgroundTaskService domain.BackgroundTaskService,
+	agentManager domain.AgentManager,
 	configPath string,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
@@ -199,6 +201,8 @@ func NewChatApplication(
 		messageQueue,
 		app.taskRetentionService,
 		app.backgroundTaskService,
+		agentManager,
+		configService,
 	)
 
 	return app
@@ -271,6 +275,14 @@ func (app *ChatApplication) Init() tea.Cmd {
 		if cmd := app.conversationSelector.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
+	}
+
+	// If there are agents starting up, start polling for status updates
+	if readiness := app.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
+		cmds = append(cmds, func() tea.Msg {
+			time.Sleep(500 * time.Millisecond)
+			return domain.AgentStatusUpdateEvent{}
+		})
 	}
 
 	return tea.Batch(cmds...)
@@ -1000,7 +1012,7 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 }
 
 // handleWindowAndSetupEvents handles window size and setup events that may return early
-func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, cmds *[]tea.Cmd) bool {
+func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, _ *[]tea.Cmd) bool {
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		app.stateManager.SetDimensions(windowMsg.Width, windowMsg.Height)
 	}
@@ -1014,7 +1026,7 @@ func (app *ChatApplication) handleWindowAndSetupEvents(msg tea.Msg, cmds *[]tea.
 }
 
 // handleDuplicateKeyEvents handles duplicate key events to prevent double processing
-func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, cmds *[]tea.Cmd) bool {
+func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, _ *[]tea.Cmd) bool {
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		if keyMsg.String() == app.lastHandledKey {
 			app.lastHandledKey = ""
@@ -1079,6 +1091,7 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, cmds *[]tea.Cmd)
 			app.helpBar = helpBarModel
 		}
 	}
+
 }
 
 // updateOptionalComponents updates optional components (conversation selector, task manager)

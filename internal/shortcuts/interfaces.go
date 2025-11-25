@@ -2,6 +2,8 @@ package shortcuts
 
 import (
 	"context"
+
+	config "github.com/inference-gateway/cli/config"
 )
 
 // Shortcut interface represents a chat shortcut that can be executed
@@ -42,6 +44,8 @@ const (
 	SideEffectSetInput
 	SideEffectGeneratePRPlan
 	SideEffectCompactConversation
+	SideEffectA2AAgentAdded
+	SideEffectA2AAgentRemoved
 )
 
 // PersistentConversationRepository interface for conversation persistence
@@ -88,4 +92,14 @@ type TokenStats struct {
 	TotalOutputTokens int
 	TotalTokens       int
 	RequestCount      int
+}
+
+// AgentsConfigService interface for managing agent configurations
+type AgentsConfigService interface {
+	AddAgent(agent config.AgentEntry) error
+	UpdateAgent(agent config.AgentEntry) error
+	RemoveAgent(name string) error
+	ListAgents() ([]config.AgentEntry, error)
+	GetAgent(name string) (*config.AgentEntry, error)
+	GetAgentURLs() ([]string, error)
 }

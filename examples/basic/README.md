@@ -122,7 +122,7 @@ infer status --format json
 infer chat
 
 # Set a default model to skip selection
-infer config agent set-model anthropic/claude-3.5-sonnet
+infer config agent set-model anthropic/claude-4.5-sonnet
 infer chat
 ```
 
@@ -133,7 +133,7 @@ infer chat
 infer init
 
 # Set default model for chat sessions
-infer config agent set-model anthropic/claude-3.5-sonnet
+infer config agent set-model anthropic/claude-4.5-sonnet
 infer config agent set-model openai/gpt-4
 infer config agent set-model google/gemini-pro
 

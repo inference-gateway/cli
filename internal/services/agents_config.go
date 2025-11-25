@@ -35,8 +35,10 @@ func (s *AgentsConfigService) Load() (*config.AgentsConfig, error) {
 		return nil, fmt.Errorf("failed to read agents config: %w", err)
 	}
 
+	expandedData := os.ExpandEnv(string(data))
+
 	var agentsConfig config.AgentsConfig
-	if err := yaml.Unmarshal(data, &agentsConfig); err != nil {
+	if err := yaml.Unmarshal([]byte(expandedData), &agentsConfig); err != nil {
 		return nil, fmt.Errorf("failed to parse agents config: %w", err)
 	}
 

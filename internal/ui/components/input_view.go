@@ -370,6 +370,12 @@ func (iv *InputView) buildModelDisplayText(currentModel string) string {
 		}
 	}
 
+	if iv.stateManager != nil {
+		if readiness := iv.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
+			parts = append(parts, fmt.Sprintf("Agents: %d/%d", readiness.ReadyAgents, readiness.TotalAgents))
+		}
+	}
+
 	if contextIndicator := iv.getContextUsageIndicator(currentModel); contextIndicator != "" {
 		parts = append(parts, contextIndicator)
 	}

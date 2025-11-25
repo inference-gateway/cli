@@ -293,9 +293,9 @@ func TestAgentServiceImpl_ParseProvider(t *testing.T) {
 		},
 		{
 			name:             "valid_anthropic_model",
-			model:            "anthropic/claude-3-opus",
+			model:            "anthropic/claude-4-opus",
 			expectedProvider: "anthropic",
-			expectedModel:    "claude-3-opus",
+			expectedModel:    "claude-4-opus",
 			expectError:      false,
 		},
 		{

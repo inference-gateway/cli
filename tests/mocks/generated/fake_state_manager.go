@@ -9,6 +9,20 @@ import (
 )
 
 type FakeStateManager struct {
+	AreAllAgentsReadyStub        func() bool
+	areAllAgentsReadyMutex       sync.RWMutex
+	areAllAgentsReadyArgsForCall []struct {
+	}
+	areAllAgentsReadyReturns struct {
+		result1 bool
+	}
+	areAllAgentsReadyReturnsOnCall map[int]struct {
+		result1 bool
+	}
+	ClearAgentReadinessStub        func()
+	clearAgentReadinessMutex       sync.RWMutex
+	clearAgentReadinessArgsForCall []struct {
+	}
 	ClearApprovalUIStateStub        func()
 	clearApprovalUIStateMutex       sync.RWMutex
 	clearApprovalUIStateArgsForCall []struct {
@@ -66,6 +80,16 @@ type FakeStateManager struct {
 	}
 	getAgentModeReturnsOnCall map[int]struct {
 		result1 domain.AgentMode
+	}
+	GetAgentReadinessStub        func() *domain.AgentReadinessState
+	getAgentReadinessMutex       sync.RWMutex
+	getAgentReadinessArgsForCall []struct {
+	}
+	getAgentReadinessReturns struct {
+		result1 *domain.AgentReadinessState
+	}
+	getAgentReadinessReturnsOnCall map[int]struct {
+		result1 *domain.AgentReadinessState
 	}
 	GetApprovalUIStateStub        func() *domain.ApprovalUIState
 	getApprovalUIStateMutex       sync.RWMutex
@@ -139,6 +163,11 @@ type FakeStateManager struct {
 	getToolExecutionReturnsOnCall map[int]struct {
 		result1 *domain.ToolExecutionSession
 	}
+	InitializeAgentReadinessStub        func(int)
+	initializeAgentReadinessMutex       sync.RWMutex
+	initializeAgentReadinessArgsForCall []struct {
+		arg1 int
+	}
 	IsAgentBusyStub        func() bool
 	isAgentBusyMutex       sync.RWMutex
 	isAgentBusyArgsForCall []struct {
@@ -148,6 +177,17 @@ type FakeStateManager struct {
 	}
 	isAgentBusyReturnsOnCall map[int]struct {
 		result1 bool
+	}
+	RemoveAgentStub        func(string)
+	removeAgentMutex       sync.RWMutex
+	removeAgentArgsForCall []struct {
+		arg1 string
+	}
+	SetAgentErrorStub        func(string, error)
+	setAgentErrorMutex       sync.RWMutex
+	setAgentErrorArgsForCall []struct {
+		arg1 string
+		arg2 error
 	}
 	SetAgentModeStub        func(domain.AgentMode)
 	setAgentModeMutex       sync.RWMutex
@@ -225,6 +265,15 @@ type FakeStateManager struct {
 	transitionToViewReturnsOnCall map[int]struct {
 		result1 error
 	}
+	UpdateAgentStatusStub        func(string, domain.AgentState, string, string, string)
+	updateAgentStatusMutex       sync.RWMutex
+	updateAgentStatusArgsForCall []struct {
+		arg1 string
+		arg2 domain.AgentState
+		arg3 string
+		arg4 string
+		arg5 string
+	}
 	UpdateChatStatusStub        func(domain.ChatStatus) error
 	updateChatStatusMutex       sync.RWMutex
 	updateChatStatusArgsForCall []struct {
@@ -243,6 +292,83 @@ type FakeStateManager struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeStateManager) AreAllAgentsReady() bool {
+	fake.areAllAgentsReadyMutex.Lock()
+	ret, specificReturn := fake.areAllAgentsReadyReturnsOnCall[len(fake.areAllAgentsReadyArgsForCall)]
+	fake.areAllAgentsReadyArgsForCall = append(fake.areAllAgentsReadyArgsForCall, struct {
+	}{})
+	stub := fake.AreAllAgentsReadyStub
+	fakeReturns := fake.areAllAgentsReadyReturns
+	fake.recordInvocation("AreAllAgentsReady", []interface{}{})
+	fake.areAllAgentsReadyMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) AreAllAgentsReadyCallCount() int {
+	fake.areAllAgentsReadyMutex.RLock()
+	defer fake.areAllAgentsReadyMutex.RUnlock()
+	return len(fake.areAllAgentsReadyArgsForCall)
+}
+
+func (fake *FakeStateManager) AreAllAgentsReadyCalls(stub func() bool) {
+	fake.areAllAgentsReadyMutex.Lock()
+	defer fake.areAllAgentsReadyMutex.Unlock()
+	fake.AreAllAgentsReadyStub = stub
+}
+
+func (fake *FakeStateManager) AreAllAgentsReadyReturns(result1 bool) {
+	fake.areAllAgentsReadyMutex.Lock()
+	defer fake.areAllAgentsReadyMutex.Unlock()
+	fake.AreAllAgentsReadyStub = nil
+	fake.areAllAgentsReadyReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStateManager) AreAllAgentsReadyReturnsOnCall(i int, result1 bool) {
+	fake.areAllAgentsReadyMutex.Lock()
+	defer fake.areAllAgentsReadyMutex.Unlock()
+	fake.AreAllAgentsReadyStub = nil
+	if fake.areAllAgentsReadyReturnsOnCall == nil {
+		fake.areAllAgentsReadyReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.areAllAgentsReadyReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStateManager) ClearAgentReadiness() {
+	fake.clearAgentReadinessMutex.Lock()
+	fake.clearAgentReadinessArgsForCall = append(fake.clearAgentReadinessArgsForCall, struct {
+	}{})
+	stub := fake.ClearAgentReadinessStub
+	fake.recordInvocation("ClearAgentReadiness", []interface{}{})
+	fake.clearAgentReadinessMutex.Unlock()
+	if stub != nil {
+		fake.ClearAgentReadinessStub()
+	}
+}
+
+func (fake *FakeStateManager) ClearAgentReadinessCallCount() int {
+	fake.clearAgentReadinessMutex.RLock()
+	defer fake.clearAgentReadinessMutex.RUnlock()
+	return len(fake.clearAgentReadinessArgsForCall)
+}
+
+func (fake *FakeStateManager) ClearAgentReadinessCalls(stub func()) {
+	fake.clearAgentReadinessMutex.Lock()
+	defer fake.clearAgentReadinessMutex.Unlock()
+	fake.ClearAgentReadinessStub = stub
 }
 
 func (fake *FakeStateManager) ClearApprovalUIState() {
@@ -566,6 +692,59 @@ func (fake *FakeStateManager) GetAgentModeReturnsOnCall(i int, result1 domain.Ag
 	}
 	fake.getAgentModeReturnsOnCall[i] = struct {
 		result1 domain.AgentMode
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetAgentReadiness() *domain.AgentReadinessState {
+	fake.getAgentReadinessMutex.Lock()
+	ret, specificReturn := fake.getAgentReadinessReturnsOnCall[len(fake.getAgentReadinessArgsForCall)]
+	fake.getAgentReadinessArgsForCall = append(fake.getAgentReadinessArgsForCall, struct {
+	}{})
+	stub := fake.GetAgentReadinessStub
+	fakeReturns := fake.getAgentReadinessReturns
+	fake.recordInvocation("GetAgentReadiness", []interface{}{})
+	fake.getAgentReadinessMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetAgentReadinessCallCount() int {
+	fake.getAgentReadinessMutex.RLock()
+	defer fake.getAgentReadinessMutex.RUnlock()
+	return len(fake.getAgentReadinessArgsForCall)
+}
+
+func (fake *FakeStateManager) GetAgentReadinessCalls(stub func() *domain.AgentReadinessState) {
+	fake.getAgentReadinessMutex.Lock()
+	defer fake.getAgentReadinessMutex.Unlock()
+	fake.GetAgentReadinessStub = stub
+}
+
+func (fake *FakeStateManager) GetAgentReadinessReturns(result1 *domain.AgentReadinessState) {
+	fake.getAgentReadinessMutex.Lock()
+	defer fake.getAgentReadinessMutex.Unlock()
+	fake.GetAgentReadinessStub = nil
+	fake.getAgentReadinessReturns = struct {
+		result1 *domain.AgentReadinessState
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetAgentReadinessReturnsOnCall(i int, result1 *domain.AgentReadinessState) {
+	fake.getAgentReadinessMutex.Lock()
+	defer fake.getAgentReadinessMutex.Unlock()
+	fake.GetAgentReadinessStub = nil
+	if fake.getAgentReadinessReturnsOnCall == nil {
+		fake.getAgentReadinessReturnsOnCall = make(map[int]struct {
+			result1 *domain.AgentReadinessState
+		})
+	}
+	fake.getAgentReadinessReturnsOnCall[i] = struct {
+		result1 *domain.AgentReadinessState
 	}{result1}
 }
 
@@ -943,6 +1122,38 @@ func (fake *FakeStateManager) GetToolExecutionReturnsOnCall(i int, result1 *doma
 	}{result1}
 }
 
+func (fake *FakeStateManager) InitializeAgentReadiness(arg1 int) {
+	fake.initializeAgentReadinessMutex.Lock()
+	fake.initializeAgentReadinessArgsForCall = append(fake.initializeAgentReadinessArgsForCall, struct {
+		arg1 int
+	}{arg1})
+	stub := fake.InitializeAgentReadinessStub
+	fake.recordInvocation("InitializeAgentReadiness", []interface{}{arg1})
+	fake.initializeAgentReadinessMutex.Unlock()
+	if stub != nil {
+		fake.InitializeAgentReadinessStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) InitializeAgentReadinessCallCount() int {
+	fake.initializeAgentReadinessMutex.RLock()
+	defer fake.initializeAgentReadinessMutex.RUnlock()
+	return len(fake.initializeAgentReadinessArgsForCall)
+}
+
+func (fake *FakeStateManager) InitializeAgentReadinessCalls(stub func(int)) {
+	fake.initializeAgentReadinessMutex.Lock()
+	defer fake.initializeAgentReadinessMutex.Unlock()
+	fake.InitializeAgentReadinessStub = stub
+}
+
+func (fake *FakeStateManager) InitializeAgentReadinessArgsForCall(i int) int {
+	fake.initializeAgentReadinessMutex.RLock()
+	defer fake.initializeAgentReadinessMutex.RUnlock()
+	argsForCall := fake.initializeAgentReadinessArgsForCall[i]
+	return argsForCall.arg1
+}
+
 func (fake *FakeStateManager) IsAgentBusy() bool {
 	fake.isAgentBusyMutex.Lock()
 	ret, specificReturn := fake.isAgentBusyReturnsOnCall[len(fake.isAgentBusyArgsForCall)]
@@ -994,6 +1205,71 @@ func (fake *FakeStateManager) IsAgentBusyReturnsOnCall(i int, result1 bool) {
 	fake.isAgentBusyReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
+}
+
+func (fake *FakeStateManager) RemoveAgent(arg1 string) {
+	fake.removeAgentMutex.Lock()
+	fake.removeAgentArgsForCall = append(fake.removeAgentArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.RemoveAgentStub
+	fake.recordInvocation("RemoveAgent", []interface{}{arg1})
+	fake.removeAgentMutex.Unlock()
+	if stub != nil {
+		fake.RemoveAgentStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) RemoveAgentCallCount() int {
+	fake.removeAgentMutex.RLock()
+	defer fake.removeAgentMutex.RUnlock()
+	return len(fake.removeAgentArgsForCall)
+}
+
+func (fake *FakeStateManager) RemoveAgentCalls(stub func(string)) {
+	fake.removeAgentMutex.Lock()
+	defer fake.removeAgentMutex.Unlock()
+	fake.RemoveAgentStub = stub
+}
+
+func (fake *FakeStateManager) RemoveAgentArgsForCall(i int) string {
+	fake.removeAgentMutex.RLock()
+	defer fake.removeAgentMutex.RUnlock()
+	argsForCall := fake.removeAgentArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) SetAgentError(arg1 string, arg2 error) {
+	fake.setAgentErrorMutex.Lock()
+	fake.setAgentErrorArgsForCall = append(fake.setAgentErrorArgsForCall, struct {
+		arg1 string
+		arg2 error
+	}{arg1, arg2})
+	stub := fake.SetAgentErrorStub
+	fake.recordInvocation("SetAgentError", []interface{}{arg1, arg2})
+	fake.setAgentErrorMutex.Unlock()
+	if stub != nil {
+		fake.SetAgentErrorStub(arg1, arg2)
+	}
+}
+
+func (fake *FakeStateManager) SetAgentErrorCallCount() int {
+	fake.setAgentErrorMutex.RLock()
+	defer fake.setAgentErrorMutex.RUnlock()
+	return len(fake.setAgentErrorArgsForCall)
+}
+
+func (fake *FakeStateManager) SetAgentErrorCalls(stub func(string, error)) {
+	fake.setAgentErrorMutex.Lock()
+	defer fake.setAgentErrorMutex.Unlock()
+	fake.SetAgentErrorStub = stub
+}
+
+func (fake *FakeStateManager) SetAgentErrorArgsForCall(i int) (string, error) {
+	fake.setAgentErrorMutex.RLock()
+	defer fake.setAgentErrorMutex.RUnlock()
+	argsForCall := fake.setAgentErrorArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeStateManager) SetAgentMode(arg1 domain.AgentMode) {
@@ -1444,6 +1720,42 @@ func (fake *FakeStateManager) TransitionToViewReturnsOnCall(i int, result1 error
 	fake.transitionToViewReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
+}
+
+func (fake *FakeStateManager) UpdateAgentStatus(arg1 string, arg2 domain.AgentState, arg3 string, arg4 string, arg5 string) {
+	fake.updateAgentStatusMutex.Lock()
+	fake.updateAgentStatusArgsForCall = append(fake.updateAgentStatusArgsForCall, struct {
+		arg1 string
+		arg2 domain.AgentState
+		arg3 string
+		arg4 string
+		arg5 string
+	}{arg1, arg2, arg3, arg4, arg5})
+	stub := fake.UpdateAgentStatusStub
+	fake.recordInvocation("UpdateAgentStatus", []interface{}{arg1, arg2, arg3, arg4, arg5})
+	fake.updateAgentStatusMutex.Unlock()
+	if stub != nil {
+		fake.UpdateAgentStatusStub(arg1, arg2, arg3, arg4, arg5)
+	}
+}
+
+func (fake *FakeStateManager) UpdateAgentStatusCallCount() int {
+	fake.updateAgentStatusMutex.RLock()
+	defer fake.updateAgentStatusMutex.RUnlock()
+	return len(fake.updateAgentStatusArgsForCall)
+}
+
+func (fake *FakeStateManager) UpdateAgentStatusCalls(stub func(string, domain.AgentState, string, string, string)) {
+	fake.updateAgentStatusMutex.Lock()
+	defer fake.updateAgentStatusMutex.Unlock()
+	fake.UpdateAgentStatusStub = stub
+}
+
+func (fake *FakeStateManager) UpdateAgentStatusArgsForCall(i int) (string, domain.AgentState, string, string, string) {
+	fake.updateAgentStatusMutex.RLock()
+	defer fake.updateAgentStatusMutex.RUnlock()
+	argsForCall := fake.updateAgentStatusArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4, argsForCall.arg5
 }
 
 func (fake *FakeStateManager) UpdateChatStatus(arg1 domain.ChatStatus) error {

@@ -275,7 +275,7 @@ func TestAgentsConfigService_UpdateAgent(t *testing.T) {
 		URL:   "https://new-agent.example.com",
 		OCI:   "ghcr.io/org/test-agent:v2",
 		Run:   true,
-		Model: "anthropic/claude-3-5-sonnet",
+		Model: "anthropic/claude-4-5-sonnet",
 		Environment: map[string]string{
 			"DEBUG": "true",
 		},
@@ -329,4 +329,97 @@ func TestAgentsConfigService_UpdateNonexistentAgent(t *testing.T) {
 	if err == nil {
 		t.Fatal("Expected error when updating nonexistent agent, got nil")
 	}
+}
+
+func TestAgentsConfigService_EnvironmentVariableExpansion(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+
+	// Set test environment variables
+	t.Setenv("TEST_API_KEY", "secret-key-123")
+	t.Setenv("TEST_MODEL", "gpt-4")
+	t.Setenv("TEST_DEBUG", "true")
+
+	// Write config file with env var placeholders
+	configContent := `agents:
+  - name: test-agent
+    url: http://localhost:8080
+    oci: ghcr.io/org/test-agent:latest
+    run: true
+    model: openai/$TEST_MODEL
+    environment:
+      API_KEY: $TEST_API_KEY
+      DEBUG: ${TEST_DEBUG}
+      STATIC_VAR: static-value
+`
+	require.NoError(t, os.WriteFile(agentsPath, []byte(configContent), 0644))
+
+	svc := NewAgentsConfigService(agentsPath)
+	cfg, err := svc.Load()
+	require.NoError(t, err)
+
+	require.Len(t, cfg.Agents, 1, "Expected 1 agent")
+
+	agent := cfg.Agents[0]
+	require.Equal(t, "test-agent", agent.Name)
+	require.Equal(t, "openai/gpt-4", agent.Model)
+
+	require.Len(t, agent.Environment, 3, "Expected 3 environment variables")
+	require.Equal(t, "secret-key-123", agent.Environment["API_KEY"], "API_KEY should be expanded")
+	require.Equal(t, "true", agent.Environment["DEBUG"], "DEBUG should be expanded")
+	require.Equal(t, "static-value", agent.Environment["STATIC_VAR"], "STATIC_VAR should remain unchanged")
+}
+
+func TestAgentsConfigService_EnvironmentVariableExpansion_UndefinedVar(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+
+	// Write config file with undefined env var
+	configContent := `agents:
+  - name: test-agent
+    url: http://localhost:8080
+    oci: ghcr.io/org/test-agent:latest
+    run: true
+    environment:
+      UNDEFINED: $UNDEFINED_VAR
+`
+	require.NoError(t, os.WriteFile(agentsPath, []byte(configContent), 0644))
+
+	svc := NewAgentsConfigService(agentsPath)
+	cfg, err := svc.Load()
+	require.NoError(t, err)
+
+	require.Len(t, cfg.Agents, 1)
+	// Undefined env vars expand to empty string
+	require.Equal(t, "", cfg.Agents[0].Environment["UNDEFINED"])
+}
+
+func TestAgentsConfigService_EnvironmentVariableExpansion_MixedSyntax(t *testing.T) {
+	tmpDir := t.TempDir()
+	agentsPath := filepath.Join(tmpDir, "agents.yaml")
+
+	t.Setenv("VAR1", "value1")
+	t.Setenv("VAR2", "value2")
+
+	// Test both $VAR and ${VAR} syntax
+	configContent := `agents:
+  - name: test-agent
+    url: http://localhost:8080
+    oci: ghcr.io/org/test-agent:latest
+    run: true
+    environment:
+      SYNTAX1: $VAR1
+      SYNTAX2: ${VAR2}
+      COMBINED: prefix-$VAR1-${VAR2}-suffix
+`
+	require.NoError(t, os.WriteFile(agentsPath, []byte(configContent), 0644))
+
+	svc := NewAgentsConfigService(agentsPath)
+	cfg, err := svc.Load()
+	require.NoError(t, err)
+
+	agent := cfg.Agents[0]
+	require.Equal(t, "value1", agent.Environment["SYNTAX1"])
+	require.Equal(t, "value2", agent.Environment["SYNTAX2"])
+	require.Equal(t, "prefix-value1-value2-suffix", agent.Environment["COMBINED"])
 }

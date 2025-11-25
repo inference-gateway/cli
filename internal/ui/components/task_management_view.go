@@ -524,29 +524,40 @@ func (t *TaskManagerImpl) renderTaskInfo() string {
 	task := t.filteredTasks[t.selected]
 	var content strings.Builder
 
-	content.WriteString("Task Details\n")
-	content.WriteString(strings.Repeat("─", t.getSeparatorWidth()) + "\n\n")
-	content.WriteString(fmt.Sprintf("ID: %s\n", task.TaskID))
-	content.WriteString(fmt.Sprintf("Agent URL: %s\n", task.AgentURL))
-	content.WriteString(fmt.Sprintf("Status: %s\n", task.Status))
-	content.WriteString(fmt.Sprintf("Started: %s\n", task.StartedAt.Format("2006-01-02 15:04:05")))
-	content.WriteString(fmt.Sprintf("Elapsed: %v\n", task.ElapsedTime.Round(time.Second)))
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
+
+	header := t.styleProvider.RenderWithColorAndBold("Task Details", accentColor)
+	content.WriteString(header + "\n")
+
+	separatorWidth := t.getSeparatorWidth()
+	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
+	content.WriteString(separator + "\n\n")
+
+	content.WriteString(fmt.Sprintf("%-12s %s\n", t.styleProvider.RenderDimText("ID:"), task.TaskID))
+	content.WriteString(fmt.Sprintf("%-12s %s\n", t.styleProvider.RenderDimText("Agent URL:"), task.AgentURL))
+	content.WriteString(fmt.Sprintf("%-12s %s\n", t.styleProvider.RenderDimText("Status:"), task.Status))
+	content.WriteString(fmt.Sprintf("%-12s %s\n", t.styleProvider.RenderDimText("Started:"), task.StartedAt.Format("2006-01-02 15:04:05")))
+	content.WriteString(fmt.Sprintf("%-12s %v\n", t.styleProvider.RenderDimText("Elapsed:"), task.ElapsedTime.Round(time.Second)))
 	if task.ContextID != "" {
-		content.WriteString(fmt.Sprintf("Context: %s\n", task.ContextID))
+		content.WriteString(fmt.Sprintf("%-12s %s\n", t.styleProvider.RenderDimText("Context:"), task.ContextID))
 	}
 
 	if task.TaskRef != nil {
 		t.renderTaskHistory(&content, task)
 	}
 
-	// Set viewport content (without footer)
 	t.infoViewport.SetContent(content.String())
 
 	var view strings.Builder
 	view.WriteString(t.infoViewport.View())
 	view.WriteString("\n")
-	view.WriteString(strings.Repeat("─", t.width) + "\n")
-	view.WriteString("Press ↑↓/j/k to scroll • g/G for top/bottom • PgUp/PgDn to page • 'i' or 'esc' to close")
+
+	footerSeparator := t.styleProvider.RenderWithColor(strings.Repeat("─", t.width), dimColor)
+	view.WriteString(footerSeparator + "\n")
+
+	helpText := t.styleProvider.RenderDimText("Press ↑↓/j/k to scroll • g/G for top/bottom • PgUp/PgDn to page • 'i' or 'esc' to close")
+	view.WriteString(helpText)
 
 	return view.String()
 }
@@ -554,11 +565,23 @@ func (t *TaskManagerImpl) renderTaskInfo() string {
 // renderTaskHistory renders the task history section
 func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskInfo) {
 	content.WriteString("\n")
-	content.WriteString(strings.Repeat("─", t.width-4) + "\n")
-	content.WriteString("Task History\n")
-	content.WriteString(strings.Repeat("─", t.width-4) + "\n\n")
 
-	textWidth := t.width - 10
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
+
+	separatorWidth := t.getSeparatorWidth()
+	separator := t.styleProvider.RenderWithColor(strings.Repeat("─", separatorWidth), dimColor)
+	content.WriteString(separator + "\n")
+
+	historyHeader := t.styleProvider.RenderWithColorAndBold("Task History", accentColor)
+	content.WriteString(historyHeader + "\n")
+
+	content.WriteString(separator + "\n\n")
+
+	textWidth := t.infoViewport.Width - 4
+	if textWidth < 40 {
+		textWidth = 40
+	}
 
 	for i, historyItem := range task.TaskRef.Task.History {
 		if i > 0 {
@@ -570,9 +593,7 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 		for _, part := range historyItem.Parts {
 			if textPart, ok := part.(adk.TextPart); ok {
 				if textPart.Text != "" {
-					// Wrap text to fit viewport width
 					wrappedText := shared.FormatResponsiveMessage(textPart.Text, textWidth)
-					// Indent each line
 					lines := strings.Split(wrappedText, "\n")
 					for _, line := range lines {
 						fmt.Fprintf(content, "  %s\n", line)
@@ -589,24 +610,42 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 
 // renderHistoryItemRole renders the role prefix for a history item
 func (t *TaskManagerImpl) renderHistoryItemRole(content *strings.Builder, role string) {
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
+
+	marker := t.styleProvider.RenderWithColor("◆", accentColor)
+
 	switch role {
 	case "assistant":
-		content.WriteString("◆ Assistant:\n")
+		roleText := t.styleProvider.RenderWithColor("Assistant:", dimColor)
+		fmt.Fprintf(content, "%s %s\n", marker, roleText)
 	case "user":
-		content.WriteString("◆ User:\n")
+		roleText := t.styleProvider.RenderWithColor("User:", dimColor)
+		fmt.Fprintf(content, "%s %s\n", marker, roleText)
 	default:
-		fmt.Fprintf(content, "◆ %s:\n", role)
+		roleText := t.styleProvider.RenderWithColor(fmt.Sprintf("%s:", role), dimColor)
+		fmt.Fprintf(content, "%s %s\n", marker, roleText)
 	}
 }
 
 // renderFinalResult renders the final result message
 func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskInfo) {
-	textWidth := t.width - 10
+	textWidth := t.infoViewport.Width - 4
+	if textWidth < 40 {
+		textWidth = 40
+	}
+
+	accentColor := t.styleProvider.GetThemeColor("accent")
+	dimColor := t.styleProvider.GetThemeColor("dim")
 
 	if len(task.TaskRef.Task.History) > 0 {
 		content.WriteString("\n")
 	}
-	content.WriteString("◆ Assistant (Final Result):\n")
+
+	marker := t.styleProvider.RenderWithColor("◆", accentColor)
+	roleText := t.styleProvider.RenderWithColor("Assistant (Final Result):", dimColor)
+	fmt.Fprintf(content, "%s %s\n", marker, roleText)
+
 	for _, part := range task.TaskRef.Task.Status.Message.Parts {
 		if textPart, ok := part.(adk.TextPart); ok {
 			if textPart.Text != "" {

@@ -181,6 +181,15 @@ type StateManager interface {
 	// Todo management
 	SetTodos(todos []TodoItem)
 	GetTodos() []TodoItem
+
+	// Agent readiness management
+	InitializeAgentReadiness(totalAgents int)
+	UpdateAgentStatus(name string, state AgentState, message string, url string, image string)
+	SetAgentError(name string, err error)
+	GetAgentReadiness() *AgentReadinessState
+	AreAllAgentsReady() bool
+	ClearAgentReadiness()
+	RemoveAgent(name string)
 }
 
 // FileService handles file operations

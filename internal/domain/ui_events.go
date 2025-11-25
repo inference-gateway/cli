@@ -191,3 +191,27 @@ type ToggleTodoBoxEvent struct{}
 type BashCommandCompletedEvent struct {
 	History []ConversationEntry
 }
+
+// Agent Readiness Events
+
+// AgentStatusUpdateEvent indicates an agent's status has changed
+type AgentStatusUpdateEvent struct {
+	AgentName string
+	State     AgentState
+	Message   string
+	URL       string
+	Image     string
+}
+
+// AgentReadyEvent indicates an agent has become ready
+type AgentReadyEvent struct {
+	AgentName   string
+	ReadyAgents int
+	TotalAgents int
+}
+
+// AgentErrorEvent indicates an agent has encountered an error
+type AgentErrorEvent struct {
+	AgentName string
+	Error     error
+}

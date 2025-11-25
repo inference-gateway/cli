@@ -22,11 +22,21 @@ This allows you to configure remote or local agents that can be used for delegat
 }
 
 var agentsAddCmd = &cobra.Command{
-	Use:   "add <name> <url>",
+	Use:   "add <name> [url]",
 	Short: "Add a new A2A agent configuration",
 	Long: `Add a new Agent-to-Agent (A2A) agent to the agents.yaml configuration.
 
+For known agents (browser-agent, mock-agent, google-calendar-agent, documentation-agent, n8n-agent),
+you can simply provide the name and sensible defaults will be used. You can override any default
+with flags.
+
 Examples:
+  # Add a known agent with defaults
+  infer agents add browser-agent
+
+  # Add a known agent and override the model
+  infer agents add browser-agent --model anthropic/claude-4-5-sonnet
+
   # Add a remote agent
   infer agents add code-reviewer https://agent.example.com
 
@@ -38,26 +48,57 @@ Examples:
 
   # Add agent with custom environment variables
   infer agents add analyzer https://agent.example.com --run --environment CUSTOM_ENV=value --environment A2A_DEBUG=true --environment A2A_PORT=8443`,
-	Args: cobra.ExactArgs(2),
+	Args: cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
-		url := args[1]
+		var url string
+		if len(args) > 1 {
+			url = args[1]
+		}
+
+		defaults := config.GetAgentDefaults(name)
+
+		if url == "" && defaults == nil {
+			return fmt.Errorf("URL is required for unknown agent '%s'. Known agents: %v", name, config.ListKnownAgents())
+		}
 
 		oci, _ := cmd.Flags().GetString("oci")
+		artifactsURL, _ := cmd.Flags().GetString("artifacts-url")
 		run, _ := cmd.Flags().GetBool("run")
 		model, _ := cmd.Flags().GetString("model")
 		envVars, _ := cmd.Flags().GetStringSlice("environment")
 
-		environment := make(map[string]string)
-		for _, env := range envVars {
-			parts := strings.SplitN(env, "=", 2)
-			if len(parts) != 2 {
-				return fmt.Errorf("invalid environment variable format: %s (expected KEY=VALUE)", env)
+		var environment map[string]string
+		if len(envVars) > 0 {
+			environment = make(map[string]string)
+			for _, env := range envVars {
+				parts := strings.SplitN(env, "=", 2)
+				if len(parts) != 2 {
+					return fmt.Errorf("invalid environment variable format: %s (expected KEY=VALUE)", env)
+				}
+				environment[parts[0]] = parts[1]
 			}
-			environment[parts[0]] = parts[1]
 		}
 
-		return addAgent(cmd, name, url, oci, run, model, environment)
+		if defaults != nil {
+			if url == "" {
+				url = defaults.URL
+			}
+			if !cmd.Flags().Changed("artifacts-url") && defaults.ArtifactsURL != "" {
+				artifactsURL = defaults.ArtifactsURL
+			}
+			if !cmd.Flags().Changed("oci") && defaults.OCI != "" {
+				oci = defaults.OCI
+			}
+			if !cmd.Flags().Changed("run") {
+				run = defaults.Run
+			}
+			if !cmd.Flags().Changed("model") && defaults.Model != "" {
+				model = defaults.Model
+			}
+		}
+
+		return addAgent(cmd, name, url, artifactsURL, oci, run, model, environment)
 	},
 }
 
@@ -75,7 +116,7 @@ Examples:
   infer agents update code-reviewer --model openai/gpt-4
 
   # Update multiple properties
-  infer agents update test-runner --oci ghcr.io/org/test-runner:v2 --model anthropic/claude-3-5-sonnet
+  infer agents update test-runner --oci ghcr.io/org/test-runner:v2 --model anthropic/claude-4-5-sonnet
 
   # Add environment variables (replaces existing ones)
   infer agents update analyzer --environment CUSTOM_ENV=value --environment DEBUG=true`,
@@ -83,13 +124,14 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
 
-		if !cmd.Flags().Changed("url") && !cmd.Flags().Changed("oci") &&
-			!cmd.Flags().Changed("run") && !cmd.Flags().Changed("model") &&
-			!cmd.Flags().Changed("environment") {
+		if !cmd.Flags().Changed("url") && !cmd.Flags().Changed("artifacts-url") &&
+			!cmd.Flags().Changed("oci") && !cmd.Flags().Changed("run") &&
+			!cmd.Flags().Changed("model") && !cmd.Flags().Changed("environment") {
 			return fmt.Errorf("at least one flag must be provided to update the agent")
 		}
 
 		url, _ := cmd.Flags().GetString("url")
+		artifactsURL, _ := cmd.Flags().GetString("artifacts-url")
 		oci, _ := cmd.Flags().GetString("oci")
 		run, _ := cmd.Flags().GetBool("run")
 		model, _ := cmd.Flags().GetString("model")
@@ -107,7 +149,7 @@ Examples:
 			}
 		}
 
-		return updateAgent(cmd, name, url, oci, run, model, environment)
+		return updateAgent(cmd, name, url, artifactsURL, oci, run, model, environment)
 	},
 }
 
@@ -162,9 +204,9 @@ func getAgentsConfigService(cmd *cobra.Command) (*services.AgentsConfigService, 
 	return services.NewAgentsConfigService(agentsPath), nil
 }
 
-func addAgent(cmd *cobra.Command, name, url, oci string, run bool, model string, environment map[string]string) error {
+func addAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool, model string, environment map[string]string) error {
 	if run && model == "" {
-		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-4, anthropic/claude-3-5-sonnet)")
+		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-5, anthropic/claude-4-5-sonnet)")
 	}
 
 	svc, err := getAgentsConfigService(cmd)
@@ -173,12 +215,13 @@ func addAgent(cmd *cobra.Command, name, url, oci string, run bool, model string,
 	}
 
 	agent := config.AgentEntry{
-		Name:        name,
-		URL:         url,
-		OCI:         oci,
-		Run:         run,
-		Model:       model,
-		Environment: environment,
+		Name:         name,
+		URL:          url,
+		ArtifactsURL: artifactsURL,
+		OCI:          oci,
+		Run:          run,
+		Model:        model,
+		Environment:  environment,
 	}
 
 	if err := svc.AddAgent(agent); err != nil {
@@ -187,6 +230,9 @@ func addAgent(cmd *cobra.Command, name, url, oci string, run bool, model string,
 
 	fmt.Printf("%s Agent '%s' added successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark), name)
 	fmt.Printf("  URL: %s\n", url)
+	if artifactsURL != "" {
+		fmt.Printf("  Artifacts URL: %s\n", artifactsURL)
+	}
 	if oci != "" {
 		fmt.Printf("  OCI: %s\n", oci)
 	}
@@ -203,7 +249,7 @@ func addAgent(cmd *cobra.Command, name, url, oci string, run bool, model string,
 	return nil
 }
 
-func updateAgent(cmd *cobra.Command, name, url, oci string, run bool, model string, environment map[string]string) error {
+func updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool, model string, environment map[string]string) error {
 	svc, err := getAgentsConfigService(cmd)
 	if err != nil {
 		return err
@@ -217,6 +263,9 @@ func updateAgent(cmd *cobra.Command, name, url, oci string, run bool, model stri
 	agent := *existing
 	if cmd.Flags().Changed("url") {
 		agent.URL = url
+	}
+	if cmd.Flags().Changed("artifacts-url") {
+		agent.ArtifactsURL = artifactsURL
 	}
 	if cmd.Flags().Changed("oci") {
 		agent.OCI = oci
@@ -241,6 +290,9 @@ func updateAgent(cmd *cobra.Command, name, url, oci string, run bool, model stri
 
 	fmt.Printf("%s Agent '%s' updated successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark), name)
 	fmt.Printf("  URL: %s\n", agent.URL)
+	if agent.ArtifactsURL != "" {
+		fmt.Printf("  Artifacts URL: %s\n", agent.ArtifactsURL)
+	}
 	if agent.OCI != "" {
 		fmt.Printf("  OCI: %s\n", agent.OCI)
 	}
@@ -392,11 +444,13 @@ func init() {
 	agentsCmd.AddCommand(agentsInitCmd)
 
 	agentsAddCmd.Flags().String("oci", "", "OCI image reference for local execution")
+	agentsAddCmd.Flags().String("artifacts-url", "", "Artifacts server URL")
 	agentsAddCmd.Flags().Bool("run", false, "Run this agent locally with Docker")
 	agentsAddCmd.Flags().String("model", "", "Model to use for the agent (format: provider/model)")
 	agentsAddCmd.Flags().StringSlice("environment", []string{}, "Environment variables (KEY=VALUE)")
 
 	agentsUpdateCmd.Flags().String("url", "", "Agent URL")
+	agentsUpdateCmd.Flags().String("artifacts-url", "", "Artifacts server URL")
 	agentsUpdateCmd.Flags().String("oci", "", "OCI image reference for local execution")
 	agentsUpdateCmd.Flags().Bool("run", false, "Run this agent locally with Docker")
 	agentsUpdateCmd.Flags().String("model", "", "Model to use for the agent (format: provider/model)")

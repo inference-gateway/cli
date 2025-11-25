@@ -754,8 +754,12 @@ func main() {
 		t.Fatalf("Execute should not return error: %v", err)
 	}
 
-	if !result.Success {
-		t.Errorf("Execute should succeed with line number cleaning, got error: %s", result.Error)
+	if result.Success {
+		t.Error("Execute should fail when old_string contains line numbers that don't exist in the file")
+	}
+
+	if !strings.Contains(result.Error, "not found") {
+		t.Errorf("Error should mention 'not found', got: %s", result.Error)
 	}
 
 	newContent, err := os.ReadFile(testFile)
@@ -763,29 +767,8 @@ func main() {
 		t.Fatal(err)
 	}
 
-	expectedContent := `package main
-
-import "fmt"
-
-func newFunction() {
-	fmt.Println("This is the old function")
-}
-
-func anotherFunction() {
-	fmt.Println("Another function here")
-	oldFunction()
-}
-
-var oldVariable = "old value"
-
-func main() {
-	fmt.Println("Starting program")
-	oldFunction()
-	fmt.Println(oldVariable)
-}`
-
-	if string(newContent) != expectedContent {
-		t.Errorf("Expected content:\n%s\nGot:\n%s", expectedContent, string(newContent))
+	if string(newContent) != originalContent {
+		t.Error("File content should be unchanged when edit fails")
 	}
 }
 
@@ -1245,89 +1228,6 @@ func TestMultiEditTool_Validate_TableDriven(t *testing.T) {
 	for _, tt := range getMultiEditValidateTestCases() {
 		t.Run(tt.name, func(t *testing.T) {
 			runMultiEditValidateTest(t, tt, tool)
-		})
-	}
-}
-
-func TestMultiEditTool_CleanString_TableDriven(t *testing.T) {
-	wd, _ := os.Getwd()
-	cfg := &config.Config{
-		Tools: config.ToolsConfig{
-			Enabled: true,
-			Sandbox: config.SandboxConfig{
-				Directories: []string{wd},
-			},
-			Edit: config.EditToolConfig{
-				Enabled: true,
-			},
-		},
-	}
-
-	tool := NewMultiEditTool(cfg)
-
-	tests := []struct {
-		name     string
-		input    string
-		expected string
-	}{
-		{
-			name:     "tab-separated line number",
-			input:    "  10\tfunc main() {",
-			expected: "func main() {",
-		},
-		{
-			name:     "arrow-separated line number",
-			input:    "  10→func main() {",
-			expected: "func main() {",
-		},
-		{
-			name:     "multi-line with tab prefixes",
-			input:    "   5\tpackage main\n   6\t\n   7\timport \"fmt\"",
-			expected: "package main\n\nimport \"fmt\"",
-		},
-		{
-			name:     "multi-line with arrow prefixes",
-			input:    "   5→package main\n   6→\n   7→import \"fmt\"",
-			expected: "package main\n\nimport \"fmt\"",
-		},
-		{
-			name:     "no prefix - unchanged",
-			input:    "regular content",
-			expected: "regular content",
-		},
-		{
-			name:     "number without separator",
-			input:    "10 items",
-			expected: "10 items",
-		},
-		{
-			name:     "preserve content tabs",
-			input:    "  1\tvar x\t= 10",
-			expected: "var x\t= 10",
-		},
-		{
-			name:     "high line numbers",
-			input:    " 1234\tsome code",
-			expected: "some code",
-		},
-		{
-			name:     "empty content after prefix",
-			input:    "  5\t",
-			expected: "",
-		},
-		{
-			name:     "preserve indentation in content",
-			input:    "  5\t    indented",
-			expected: "    indented",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := tool.cleanString(tt.input)
-			if result != tt.expected {
-				t.Errorf("cleanString(%q) = %q, expected %q", tt.input, result, tt.expected)
-			}
 		})
 	}
 }

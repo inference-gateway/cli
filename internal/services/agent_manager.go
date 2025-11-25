@@ -4,12 +4,17 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	gotenv "github.com/subosito/gotenv"
 )
 
 const (
@@ -19,10 +24,12 @@ const (
 
 // AgentManager manages the lifecycle of A2A agent containers
 type AgentManager struct {
-	config       *config.Config
-	agentsConfig *config.AgentsConfig
-	containers   map[string]string
-	isRunning    bool
+	config          *config.Config
+	agentsConfig    *config.AgentsConfig
+	containers      map[string]string
+	isRunning       bool
+	statusCallback  func(agentName string, state domain.AgentState, message string, url string, image string)
+	containersMutex sync.Mutex
 }
 
 // NewAgentManager creates a new agent manager
@@ -34,38 +41,50 @@ func NewAgentManager(cfg *config.Config, agentsConfig *config.AgentsConfig) *Age
 	}
 }
 
-// StartAgents starts all agents configured with run: true
+// SetStatusCallback sets the callback function for agent status updates
+func (am *AgentManager) SetStatusCallback(callback func(agentName string, state domain.AgentState, message string, url string, image string)) {
+	am.statusCallback = callback
+}
+
+// notifyStatus calls the status callback if set
+func (am *AgentManager) notifyStatus(agentName string, state domain.AgentState, message string, url string, image string) {
+	if am.statusCallback != nil {
+		am.statusCallback(agentName, state, message, url, image)
+	}
+}
+
+// StartAgents starts all agents configured with run: true asynchronously
 func (am *AgentManager) StartAgents(ctx context.Context) error {
-	var startedCount int
-	var errors []error
-
+	agentsToStart := []config.AgentEntry{}
 	for _, agent := range am.agentsConfig.Agents {
-		if !agent.Run {
-			continue
+		if agent.Run {
+			agentsToStart = append(agentsToStart, agent)
 		}
-
-		if err := am.StartAgent(ctx, agent); err != nil {
-			logger.Warn("Failed to start agent", "name", agent.Name, "error", err)
-			errors = append(errors, fmt.Errorf("agent %s: %w", agent.Name, err))
-			continue
-		}
-
-		startedCount++
 	}
 
-	if len(errors) > 0 && startedCount == 0 {
-		return fmt.Errorf("failed to start any agents: %v", errors)
+	if len(agentsToStart) == 0 {
+		return nil
 	}
 
-	if startedCount > 0 {
-		am.isRunning = true
-		logger.Info("Started agents", "count", startedCount)
+	for _, agent := range agentsToStart {
+		go am.startAgentAsync(ctx, agent)
 	}
+
+	am.isRunning = true
+	logger.Info("Starting agents in background", "count", len(agentsToStart))
 
 	return nil
 }
 
-// StartAgent starts a single agent container
+// startAgentAsync starts a single agent asynchronously with status updates
+func (am *AgentManager) startAgentAsync(ctx context.Context, agent config.AgentEntry) {
+	if err := am.StartAgent(ctx, agent); err != nil {
+		logger.Warn("Failed to start agent", "name", agent.Name, "error", err)
+		am.notifyStatus(agent.Name, domain.AgentStateFailed, fmt.Sprintf("Failed to start: %v", err), agent.URL, agent.OCI)
+	}
+}
+
+// StartAgent starts a single agent container with status updates
 func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry) error {
 	if agent.OCI == "" {
 		return fmt.Errorf("agent %s has run: true but no OCI image specified", agent.Name)
@@ -75,22 +94,27 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 
 	if am.isAgentRunning(agent.Name) {
 		logger.Info("Agent container is already running", "name", agent.Name)
+		am.notifyStatus(agent.Name, domain.AgentStateReady, "Already running", agent.URL, agent.OCI)
 		return nil
 	}
 
+	am.notifyStatus(agent.Name, domain.AgentStatePullingImage, fmt.Sprintf("Pulling image: %s", agent.OCI), agent.URL, agent.OCI)
 	if err := am.pullImage(ctx, agent.OCI); err != nil {
 		logger.Warn("Failed to pull agent image, attempting to use local image", "name", agent.Name, "error", err)
 	}
 
+	am.notifyStatus(agent.Name, domain.AgentStateStarting, "Starting container", agent.URL, agent.OCI)
 	if err := am.startContainer(ctx, agent); err != nil {
 		return fmt.Errorf("failed to start agent container: %w", err)
 	}
 
+	am.notifyStatus(agent.Name, domain.AgentStateWaitingReady, "Waiting for health check", agent.URL, agent.OCI)
 	if err := am.waitForReady(ctx, agent); err != nil {
 		_ = am.StopAgent(ctx, agent.Name)
 		return fmt.Errorf("agent failed to become ready: %w", err)
 	}
 
+	am.notifyStatus(agent.Name, domain.AgentStateReady, "Ready", agent.URL, agent.OCI)
 	logger.Info("Agent container started successfully", "name", agent.Name, "url", agent.URL)
 	return nil
 }
@@ -162,14 +186,60 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		"run",
 		"-d",
 		"--name", fmt.Sprintf("%s%s", AgentContainerPrefix, agent.Name),
+		"--network", InferNetworkName,
 		"-p", fmt.Sprintf("%s:8080", port),
 		"--rm",
 	}
 
-	env := agent.GetEnvironmentWithModel()
-	env["A2A_AGENT_CLIENT_BASE_URL"] = am.config.Gateway.URL
+	if agent.ArtifactsURL != "" {
+		artifactsPort := "8081"
+		if strings.Contains(agent.ArtifactsURL, ":") {
+			parts := strings.Split(agent.ArtifactsURL, ":")
+			if len(parts) > 0 {
+				artifactsPort = strings.TrimPrefix(parts[len(parts)-1], "/")
+			}
+		}
+		args = append(args, "-p", fmt.Sprintf("%s:8081", artifactsPort))
+	}
 
-	for key, value := range env {
+	dotEnvVars, err := am.loadDotEnvFile()
+	if err != nil {
+		logger.Debug("Could not load .env file", "error", err)
+	}
+
+	env := agent.GetEnvironmentWithModel()
+
+	gatewayURL := "http://inference-gateway:8080/v1"
+	if !am.config.Gateway.Docker {
+		gatewayURL = am.config.Gateway.URL
+		if !strings.HasSuffix(gatewayURL, "/v1") {
+			gatewayURL = strings.TrimSuffix(gatewayURL, "/") + "/v1"
+		}
+	}
+	env["A2A_AGENT_CLIENT_BASE_URL"] = gatewayURL
+
+	// Configure artifacts server if artifacts_url is specified
+	if agent.ArtifactsURL != "" {
+		env["A2A_ARTIFACTS_ENABLE"] = "true"
+		env["A2A_ARTIFACTS_SERVER_HOST"] = "0.0.0.0"
+		env["A2A_ARTIFACTS_SERVER_PORT"] = "8081"
+		env["A2A_ARTIFACTS_STORAGE_BASE_URL"] = agent.ArtifactsURL
+	}
+
+	resolvedEnv := make(map[string]string)
+	for key := range env {
+		if value, exists := dotEnvVars[key]; exists {
+			resolvedEnv[key] = value
+			logger.Debug("Using .env value for variable", "key", key)
+		} else if value, exists := os.LookupEnv(key); exists {
+			resolvedEnv[key] = value
+			logger.Debug("Using system environment value for variable", "key", key)
+		} else {
+			resolvedEnv[key] = env[key]
+		}
+	}
+
+	for key, value := range resolvedEnv {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", key, value))
 	}
 
@@ -182,8 +252,31 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	}
 
 	containerID := strings.TrimSpace(string(output))
+	am.containersMutex.Lock()
 	am.containers[agent.Name] = containerID
+	am.containersMutex.Unlock()
 	return nil
+}
+
+// loadDotEnvFile loads environment variables from .env file in the current directory
+func (am *AgentManager) loadDotEnvFile() (map[string]string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current working directory: %w", err)
+	}
+
+	dotEnvPath := filepath.Join(cwd, ".env")
+	if _, err := os.Stat(dotEnvPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf(".env file not found at %s", dotEnvPath)
+	}
+
+	envMap, err := gotenv.Read(dotEnvPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read .env file: %w", err)
+	}
+
+	logger.Info("Loaded .env file", "path", dotEnvPath, "vars", len(envMap))
+	return envMap, nil
 }
 
 // isAgentRunning checks if an agent container is already running
@@ -197,7 +290,9 @@ func (am *AgentManager) isAgentRunning(agentName string) bool {
 
 	containerID := strings.TrimSpace(string(output))
 	if containerID != "" {
+		am.containersMutex.Lock()
 		am.containers[agentName] = containerID
+		am.containersMutex.Unlock()
 		return true
 	}
 	return false

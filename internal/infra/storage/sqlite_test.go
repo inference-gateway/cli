@@ -85,7 +85,7 @@ func TestSQLiteStorage_BasicOperations(t *testing.T) {
 				Content: sdk.NewMessageContent("Updated response"),
 			},
 			Time:  time.Now(),
-			Model: "claude-3",
+			Model: "claude-4",
 		}
 		entries = append(entries, newEntry)
 
@@ -208,7 +208,7 @@ func createTestEntries() []domain.ConversationEntry {
 				Content: sdk.NewMessageContent("Hello, world!"),
 			},
 			Time:  now,
-			Model: "claude-3",
+			Model: "claude-4",
 		},
 		{
 			Message: sdk.Message{
@@ -216,7 +216,7 @@ func createTestEntries() []domain.ConversationEntry {
 				Content: sdk.NewMessageContent("Hello! How can I help you today?"),
 			},
 			Time:  now.Add(time.Second),
-			Model: "claude-3",
+			Model: "claude-4",
 		},
 		{
 			Message: sdk.Message{
@@ -224,7 +224,7 @@ func createTestEntries() []domain.ConversationEntry {
 				Content: sdk.NewMessageContent("What is the capital of France?"),
 			},
 			Time:  now.Add(2 * time.Second),
-			Model: "claude-3",
+			Model: "claude-4",
 		},
 		{
 			Message: sdk.Message{
@@ -232,7 +232,7 @@ func createTestEntries() []domain.ConversationEntry {
 				Content: sdk.NewMessageContent("The capital of France is Paris."),
 			},
 			Time:  now.Add(3 * time.Second),
-			Model: "claude-3",
+			Model: "claude-4",
 		},
 	}
 }
@@ -250,7 +250,7 @@ func createTestMetadata(id string) ConversationMetadata {
 			TotalTokens:       250,
 			RequestCount:      2,
 		},
-		Model:   "claude-3",
+		Model:   "claude-4",
 		Tags:    []string{"test", "demo"},
 		Summary: "A test conversation",
 	}

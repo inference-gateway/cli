@@ -61,6 +61,12 @@ type AgentManager interface {
 	// StopAgents stops all running agent containers
 	StopAgents(ctx context.Context) error
 
+	// StopAgent stops a specific agent container by name
+	StopAgent(ctx context.Context, agentName string) error
+
 	// IsRunning returns whether any agents are running
 	IsRunning() bool
+
+	// SetStatusCallback sets the callback function for agent status updates
+	SetStatusCallback(callback func(agentName string, state AgentState, message string, url string, image string))
 }

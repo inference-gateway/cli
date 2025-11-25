@@ -9,6 +9,7 @@ import (
 
 	spinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
@@ -29,6 +30,8 @@ type ChatHandler struct {
 	messageQueue          domain.MessageQueue
 	taskRetentionService  domain.TaskRetentionService
 	backgroundTaskService domain.BackgroundTaskService
+	agentManager          domain.AgentManager
+	config                *config.Config
 
 	messageProcessor *ChatMessageProcessor
 	commandHandler   *ChatCommandHandler
@@ -48,6 +51,8 @@ func NewChatHandler(
 	messageQueue domain.MessageQueue,
 	taskRetentionService domain.TaskRetentionService,
 	backgroundTaskService domain.BackgroundTaskService,
+	agentManager domain.AgentManager,
+	cfg *config.Config,
 ) *ChatHandler {
 	handler := &ChatHandler{
 		agentService:          agentService,
@@ -60,6 +65,8 @@ func NewChatHandler(
 		shortcutRegistry:      shortcutRegistry,
 		stateManager:          stateManager,
 		messageQueue:          messageQueue,
+		agentManager:          agentManager,
+		config:                cfg,
 		taskRetentionService:  taskRetentionService,
 		backgroundTaskService: backgroundTaskService,
 	}
@@ -131,6 +138,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return h.HandleToolApprovalResponseEvent(m)
 	case domain.TodoUpdateChatEvent:
 		return h.HandleTodoUpdateChatEvent(m)
+	case domain.AgentStatusUpdateEvent:
+		return h.HandleAgentStatusUpdateEvent(m)
 	default:
 		if isUIOnlyEvent(msg) {
 			return nil
@@ -622,4 +631,24 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 	}
 
 	return false
+}
+
+// HandleAgentStatusUpdateEvent handles agent status updates
+func (h *ChatHandler) HandleAgentStatusUpdateEvent(msg domain.AgentStatusUpdateEvent) tea.Cmd {
+	// The StateManager was already updated in the callback before this event was sent
+	// Just receiving this event triggers a UI refresh, which updates the agent indicator
+
+	// Check if all agents are ready - if so, stop polling
+	if readiness := h.stateManager.GetAgentReadiness(); readiness != nil {
+		if readiness.ReadyAgents >= readiness.TotalAgents {
+			// All agents ready, stop polling
+			return nil
+		}
+	}
+
+	// Keep polling for status updates
+	return func() tea.Msg {
+		time.Sleep(500 * time.Millisecond)
+		return domain.AgentStatusUpdateEvent{}
+	}
 }

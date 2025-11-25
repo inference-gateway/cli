@@ -51,6 +51,7 @@ type ServiceContainer struct {
 	titleGenerator       *services.ConversationTitleGenerator
 	backgroundJobManager *services.BackgroundJobManager
 	storage              storage.ConversationStorage
+	agentsConfigService  *services.AgentsConfigService
 
 	// UI components
 	themeService domain.ThemeService
@@ -81,9 +82,9 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 	}
 
 	container.initializeGatewayManager()
-	container.initializeAgentManager()
 	container.initializeFileWriterServices()
 	container.initializeStateManager()
+	container.initializeAgentManager()
 	container.initializeDomainServices()
 	container.initializeServices()
 	container.initializeUIComponents()
@@ -112,24 +113,40 @@ func (c *ServiceContainer) initializeGatewayManager() {
 
 // initializeAgentManager creates and starts the agent manager if A2A is enabled
 func (c *ServiceContainer) initializeAgentManager() {
+	agentsPath := filepath.Join(config.ConfigDirName, config.AgentsFileName)
+	c.agentsConfigService = services.NewAgentsConfigService(agentsPath)
+
 	if !c.config.IsA2AToolsEnabled() {
 		return
 	}
 
-	agentsPath := filepath.Join(config.ConfigDirName, config.AgentsFileName)
-	agentsConfigSvc := services.NewAgentsConfigService(agentsPath)
-	agentsConfig, err := agentsConfigSvc.Load()
+	agentsConfig, err := c.agentsConfigService.Load()
 	if err != nil {
 		logger.Warn("Failed to load agents configuration", "error", err)
 		return
 	}
 
+	agentCount := 0
+	for _, agent := range agentsConfig.Agents {
+		if agent.Run {
+			agentCount++
+		}
+	}
+
+	if agentCount > 0 {
+		c.stateManager.InitializeAgentReadiness(agentCount)
+	}
+
 	c.agentManager = services.NewAgentManager(c.config, agentsConfig)
+
+	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
+		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
+		logger.Debug("Agent status update", "agent", agentName, "state", state.String(), "message", message)
+	})
 
 	ctx := context.Background()
 	if err := c.agentManager.StartAgents(ctx); err != nil {
-		logger.Warn("Failed to start some agents", "error", err)
-		logger.Warn("Continuing with available agents")
+		logger.Warn("Failed to start agents in background", "error", err)
 	}
 }
 
@@ -270,7 +287,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	scmClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewSCMShortcut(scmClient, c.config, c.modelService))
 
-	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService))
+	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService, c.agentsConfigService, c.agentManager))
 	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config))
 
 	if c.config.IsA2AToolsEnabled() {
@@ -352,6 +369,10 @@ func (c *ServiceContainer) GetA2AAgentService() domain.A2AAgentService {
 // New service getters
 func (c *ServiceContainer) GetStateManager() domain.StateManager {
 	return c.stateManager
+}
+
+func (c *ServiceContainer) GetAgentManager() domain.AgentManager {
+	return c.agentManager
 }
 
 func (c *ServiceContainer) GetAgentService() domain.AgentService {

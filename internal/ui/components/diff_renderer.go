@@ -42,11 +42,8 @@ func (d *DiffRenderer) RenderEditToolArguments(args map[string]any) string {
 	result.WriteString(d.styleProvider.RenderWithColor(fmt.Sprintf("+++ b/%s", filePath), d.styleProvider.GetThemeColor("accent")))
 	result.WriteString("\n")
 
-	cleanedOldString := d.cleanString(oldString)
-	cleanedNewString := d.cleanString(newString)
-
 	startLine := d.findLineNumber(filePath, oldString)
-	result.WriteString(d.renderUnifiedDiff(cleanedOldString, cleanedNewString, startLine))
+	result.WriteString(d.renderUnifiedDiff(oldString, newString, startLine))
 
 	return result.String()
 }
@@ -59,9 +56,8 @@ func (d *DiffRenderer) findLineNumber(filePath, oldString string) int {
 	}
 
 	fileContent := string(content)
-	cleanedOldString := d.cleanString(oldString)
 
-	index := strings.Index(fileContent, cleanedOldString)
+	index := strings.Index(fileContent, oldString)
 	if index != -1 {
 		lineNum := 1
 		for i := 0; i < index; i++ {
@@ -73,7 +69,7 @@ func (d *DiffRenderer) findLineNumber(filePath, oldString string) int {
 	}
 
 	fileLines := strings.Split(fileContent, "\n")
-	oldLines := strings.Split(cleanedOldString, "\n")
+	oldLines := strings.Split(oldString, "\n")
 
 	if len(oldLines) == 0 {
 		return 1
@@ -105,65 +101,6 @@ func (d *DiffRenderer) findLineNumber(filePath, oldString string) int {
 	}
 
 	return 1
-}
-
-// cleanString removes line number prefixes from Read tool output
-func (d *DiffRenderer) cleanString(s string) string {
-	lines := strings.Split(s, "\n")
-	var cleanedLines []string
-
-	for _, line := range lines {
-		if d.isLineNumberPrefix(line) {
-			if cleanedLine, shouldSkip := d.extractContentAfterLineNumber(line); shouldSkip {
-				cleanedLines = append(cleanedLines, cleanedLine)
-				continue
-			}
-		}
-		cleanedLines = append(cleanedLines, line)
-	}
-
-	return strings.Join(cleanedLines, "\n")
-}
-
-// isLineNumberPrefix checks if a line starts with a line number prefix pattern
-func (d *DiffRenderer) isLineNumberPrefix(line string) bool {
-	return len(line) > 0 && (line[0] == ' ' || (line[0] >= '0' && line[0] <= '9'))
-}
-
-// extractContentAfterLineNumber extracts content after line number prefix if present
-func (d *DiffRenderer) extractContentAfterLineNumber(line string) (string, bool) {
-	tabIndex := strings.Index(line, "\t")
-	if tabIndex > 0 {
-		prefix := line[:tabIndex]
-		if d.isValidLineNumberPrefix(prefix) {
-			return line[tabIndex+1:], true
-		}
-	}
-
-	arrowIndex := strings.Index(line, "→")
-	if arrowIndex > 0 {
-		prefix := line[:arrowIndex]
-		if d.isValidLineNumberPrefix(prefix) {
-			return line[arrowIndex+len("→"):], true
-		}
-	}
-
-	return "", false
-}
-
-// isValidLineNumberPrefix validates if a prefix contains only spaces and digits
-func (d *DiffRenderer) isValidLineNumberPrefix(prefix string) bool {
-	hasDigit := false
-
-	for _, r := range prefix {
-		if r >= '0' && r <= '9' {
-			hasDigit = true
-		} else if r != ' ' && r != '→' {
-			return false
-		}
-	}
-
-	return hasDigit
 }
 
 // RenderMultiEditToolArguments renders MultiEdit tool arguments
@@ -202,11 +139,8 @@ func (d *DiffRenderer) RenderMultiEditToolArguments(args map[string]any) string 
 			result.WriteString("\n")
 		}
 
-		cleanedOldString := d.cleanString(oldString)
-		cleanedNewString := d.cleanString(newString)
-
 		startLine := d.findLineNumber(filePath, oldString)
-		result.WriteString(d.renderUnifiedDiff(cleanedOldString, cleanedNewString, startLine))
+		result.WriteString(d.renderUnifiedDiff(oldString, newString, startLine))
 
 		if i < len(editsArray)-1 {
 			result.WriteString("\n")
@@ -325,15 +259,12 @@ func (d *DiffRenderer) RenderDiff(diffInfo DiffInfo) string {
 	case diffInfo.OldContent != "" && diffInfo.NewContent == "":
 		diffContent = d.renderDeletedFileContent(diffInfo.OldContent)
 	default:
-		cleanedOldContent := d.cleanString(diffInfo.OldContent)
-		cleanedNewContent := d.cleanString(diffInfo.NewContent)
-
 		startLine := 1
 		if diffInfo.FilePath != "" && diffInfo.OldContent != "" {
 			startLine = d.findLineNumber(diffInfo.FilePath, diffInfo.OldContent)
 		}
 
-		diffContent = d.renderUnifiedDiff(cleanedOldContent, cleanedNewContent, startLine)
+		diffContent = d.renderUnifiedDiff(diffInfo.OldContent, diffInfo.NewContent, startLine)
 	}
 
 	separatorWidth := d.calculateMaxLineWidth(diffContent)

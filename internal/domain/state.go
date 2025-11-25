@@ -36,6 +36,9 @@ type ApplicationState struct {
 	// Todo State
 	todos []TodoItem
 
+	// Agent Readiness State
+	agentReadiness *AgentReadinessState
+
 	// Debugging
 	debugMode bool
 }
@@ -787,4 +790,173 @@ type ToolCallSnapshot struct {
 	Name      string    `json:"name"`
 	Status    string    `json:"status"`
 	StartTime time.Time `json:"start_time"`
+}
+
+// AgentReadinessState represents the current state of A2A agents during startup
+type AgentReadinessState struct {
+	TotalAgents int                     `json:"total_agents"`
+	ReadyAgents int                     `json:"ready_agents"`
+	Agents      map[string]*AgentStatus `json:"agents"`
+	StartTime   time.Time               `json:"start_time"`
+}
+
+// AgentStatus represents the status of an individual A2A agent
+type AgentStatus struct {
+	Name      string     `json:"name"`
+	URL       string     `json:"url"`
+	Image     string     `json:"image"`
+	State     AgentState `json:"state"`
+	Message   string     `json:"message,omitempty"`
+	StartTime time.Time  `json:"start_time"`
+	ReadyTime *time.Time `json:"ready_time,omitempty"`
+	Error     string     `json:"error,omitempty"`
+}
+
+// AgentState represents the current state of an agent
+type AgentState int
+
+const (
+	AgentStateUnknown AgentState = iota
+	AgentStatePullingImage
+	AgentStateStarting
+	AgentStateWaitingReady
+	AgentStateReady
+	AgentStateFailed
+)
+
+func (a AgentState) String() string {
+	switch a {
+	case AgentStateUnknown:
+		return "Unknown"
+	case AgentStatePullingImage:
+		return "PullingImage"
+	case AgentStateStarting:
+		return "Starting"
+	case AgentStateWaitingReady:
+		return "WaitingReady"
+	case AgentStateReady:
+		return "Ready"
+	case AgentStateFailed:
+		return "Failed"
+	default:
+		return "Unknown"
+	}
+}
+
+// DisplayName returns a user-friendly display name for the agent state
+func (a AgentState) DisplayName() string {
+	switch a {
+	case AgentStateUnknown:
+		return "unknown"
+	case AgentStatePullingImage:
+		return "pulling image"
+	case AgentStateStarting:
+		return "starting"
+	case AgentStateWaitingReady:
+		return "waiting"
+	case AgentStateReady:
+		return "ready"
+	case AgentStateFailed:
+		return "failed"
+	default:
+		return "unknown"
+	}
+}
+
+// Agent Readiness State Management
+
+// InitializeAgentReadiness initializes the agent readiness tracking
+func (s *ApplicationState) InitializeAgentReadiness(totalAgents int) {
+	s.agentReadiness = &AgentReadinessState{
+		TotalAgents: totalAgents,
+		ReadyAgents: 0,
+		Agents:      make(map[string]*AgentStatus),
+		StartTime:   time.Now(),
+	}
+}
+
+// UpdateAgentStatus updates the status of a specific agent
+func (s *ApplicationState) UpdateAgentStatus(name string, state AgentState, message string, url string, image string) {
+	if s.agentReadiness == nil {
+		return
+	}
+
+	agent, exists := s.agentReadiness.Agents[name]
+	if !exists {
+		agent = &AgentStatus{
+			Name:      name,
+			URL:       url,
+			Image:     image,
+			StartTime: time.Now(),
+		}
+		s.agentReadiness.Agents[name] = agent
+	}
+
+	oldState := agent.State
+	agent.State = state
+	agent.Message = message
+
+	// Update ready count
+	if oldState != AgentStateReady && state == AgentStateReady {
+		now := time.Now()
+		agent.ReadyTime = &now
+		s.agentReadiness.ReadyAgents++
+	}
+}
+
+// SetAgentError sets an error for a specific agent
+func (s *ApplicationState) SetAgentError(name string, err error) {
+	if s.agentReadiness == nil {
+		return
+	}
+
+	agent, exists := s.agentReadiness.Agents[name]
+	if !exists {
+		agent = &AgentStatus{
+			Name:      name,
+			StartTime: time.Now(),
+		}
+		s.agentReadiness.Agents[name] = agent
+	}
+
+	agent.State = AgentStateFailed
+	agent.Error = err.Error()
+}
+
+// GetAgentReadiness returns the current agent readiness state
+func (s *ApplicationState) GetAgentReadiness() *AgentReadinessState {
+	return s.agentReadiness
+}
+
+// AreAllAgentsReady returns true if all agents are ready
+func (s *ApplicationState) AreAllAgentsReady() bool {
+	if s.agentReadiness == nil {
+		return true // No agents to wait for
+	}
+	return s.agentReadiness.ReadyAgents >= s.agentReadiness.TotalAgents
+}
+
+// ClearAgentReadiness clears the agent readiness state
+func (s *ApplicationState) ClearAgentReadiness() {
+	s.agentReadiness = nil
+}
+
+// RemoveAgent removes an agent from the readiness tracking
+func (s *ApplicationState) RemoveAgent(name string) {
+	if s.agentReadiness == nil {
+		return
+	}
+
+	agent, exists := s.agentReadiness.Agents[name]
+	if !exists {
+		return
+	}
+
+	if agent.State == AgentStateReady {
+		s.agentReadiness.ReadyAgents--
+	}
+
+	delete(s.agentReadiness.Agents, name)
+
+	s.agentReadiness.TotalAgents--
 }
