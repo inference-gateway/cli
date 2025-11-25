@@ -30,10 +30,10 @@ type ImageAttachment struct {
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
 	// Core message fields
-	Message Message       `json:"message"`
-	Model   string        `json:"model,omitempty"`
-	Time    time.Time     `json:"time"`
-	Hidden  bool          `json:"hidden,omitempty"`
+	Message Message           `json:"message"`
+	Model   string            `json:"model,omitempty"`
+	Time    time.Time         `json:"time"`
+	Hidden  bool              `json:"hidden,omitempty"`
 	Images  []ImageAttachment `json:"images,omitempty"`
 
 	// Tool-related fields
