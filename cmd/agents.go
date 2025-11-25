@@ -80,7 +80,6 @@ Examples:
 			}
 		}
 
-		// Apply defaults if available
 		if defaults != nil {
 			if url == "" {
 				url = defaults.URL
