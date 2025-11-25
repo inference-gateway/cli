@@ -451,6 +451,14 @@ func (e *ChatEventHandler) handleToolExecutionStarted(
 func (e *ChatEventHandler) handleToolExecutionProgress(
 	_ domain.ToolExecutionProgressEvent,
 ) tea.Cmd {
+	e.handler.commandHandler.bashEventChannelMu.RLock()
+	bashEventChan := e.handler.commandHandler.bashEventChannel
+	e.handler.commandHandler.bashEventChannelMu.RUnlock()
+
+	if bashEventChan != nil {
+		return e.handler.commandHandler.listenToBashEvents(bashEventChan)
+	}
+
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
@@ -461,6 +469,14 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 func (e *ChatEventHandler) handleBashOutputChunk(
 	_ domain.BashOutputChunkEvent,
 ) tea.Cmd {
+	e.handler.commandHandler.bashEventChannelMu.RLock()
+	bashEventChan := e.handler.commandHandler.bashEventChannel
+	e.handler.commandHandler.bashEventChannelMu.RUnlock()
+
+	if bashEventChan != nil {
+		return e.handler.commandHandler.listenToBashEvents(bashEventChan)
+	}
+
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
@@ -523,6 +539,14 @@ func (e *ChatEventHandler) handleParallelToolsStart(
 	_ domain.ParallelToolsStartEvent,
 
 ) tea.Cmd {
+	e.handler.commandHandler.bashEventChannelMu.RLock()
+	bashEventChan := e.handler.commandHandler.bashEventChannel
+	e.handler.commandHandler.bashEventChannelMu.RUnlock()
+
+	if bashEventChan != nil {
+		return e.handler.commandHandler.listenToBashEvents(bashEventChan)
+	}
+
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil {
 		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}

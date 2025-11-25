@@ -108,6 +108,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return h.HandleToolExecutionProgressEvent(m)
 	case domain.BashOutputChunkEvent:
 		return h.HandleBashOutputChunkEvent(m)
+	case domain.BashCommandCompletedEvent:
+		return h.HandleBashCommandCompletedEvent(m)
 	case domain.ToolExecutionCompletedEvent:
 		return h.HandleToolExecutionCompletedEvent(m)
 	case domain.ParallelToolsStartEvent:
@@ -402,6 +404,26 @@ func (h *ChatHandler) HandleBashOutputChunkEvent(
 	msg domain.BashOutputChunkEvent,
 ) tea.Cmd {
 	return h.eventHandler.handleBashOutputChunk(msg)
+}
+
+func (h *ChatHandler) HandleBashCommandCompletedEvent(
+	msg domain.BashCommandCompletedEvent,
+) tea.Cmd {
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent(msg)
+	})
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Command completed",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	})
+
+	return tea.Batch(cmds...)
 }
 
 func (h *ChatHandler) HandleToolExecutionCompletedEvent(
