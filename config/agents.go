@@ -9,12 +9,13 @@ type AgentsConfig struct {
 
 // AgentEntry represents a single A2A agent configuration
 type AgentEntry struct {
-	Name        string            `yaml:"name" mapstructure:"name"`
-	URL         string            `yaml:"url" mapstructure:"url"`
-	OCI         string            `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
-	Run         bool              `yaml:"run" mapstructure:"run"`
-	Model       string            `yaml:"model,omitempty" mapstructure:"model,omitempty"`
-	Environment map[string]string `yaml:"environment,omitempty" mapstructure:"environment,omitempty"`
+	Name         string            `yaml:"name" mapstructure:"name"`
+	URL          string            `yaml:"url" mapstructure:"url"`
+	ArtifactsURL string            `yaml:"artifacts_url,omitempty" mapstructure:"artifacts_url,omitempty"`
+	OCI          string            `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
+	Run          bool              `yaml:"run" mapstructure:"run"`
+	Model        string            `yaml:"model,omitempty" mapstructure:"model,omitempty"`
+	Environment  map[string]string `yaml:"environment,omitempty" mapstructure:"environment,omitempty"`
 }
 
 // DefaultAgentsConfig returns a default agents configuration

@@ -186,8 +186,20 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		"run",
 		"-d",
 		"--name", fmt.Sprintf("%s%s", AgentContainerPrefix, agent.Name),
+		"--network", InferNetworkName,
 		"-p", fmt.Sprintf("%s:8080", port),
 		"--rm",
+	}
+
+	if agent.ArtifactsURL != "" {
+		artifactsPort := "8081"
+		if strings.Contains(agent.ArtifactsURL, ":") {
+			parts := strings.Split(agent.ArtifactsURL, ":")
+			if len(parts) > 0 {
+				artifactsPort = strings.TrimPrefix(parts[len(parts)-1], "/")
+			}
+		}
+		args = append(args, "-p", fmt.Sprintf("%s:8081", artifactsPort))
 	}
 
 	dotEnvVars, err := am.loadDotEnvFile()
@@ -196,7 +208,23 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	}
 
 	env := agent.GetEnvironmentWithModel()
-	env["A2A_AGENT_CLIENT_BASE_URL"] = am.config.Gateway.URL
+
+	gatewayURL := "http://inference-gateway:8080/v1"
+	if !am.config.Gateway.Docker {
+		gatewayURL = am.config.Gateway.URL
+		if !strings.HasSuffix(gatewayURL, "/v1") {
+			gatewayURL = strings.TrimSuffix(gatewayURL, "/") + "/v1"
+		}
+	}
+	env["A2A_AGENT_CLIENT_BASE_URL"] = gatewayURL
+
+	// Configure artifacts server if artifacts_url is specified
+	if agent.ArtifactsURL != "" {
+		env["A2A_ARTIFACTS_ENABLE"] = "true"
+		env["A2A_ARTIFACTS_SERVER_HOST"] = "0.0.0.0"
+		env["A2A_ARTIFACTS_SERVER_PORT"] = "8081"
+		env["A2A_ARTIFACTS_STORAGE_BASE_URL"] = agent.ArtifactsURL
+	}
 
 	resolvedEnv := make(map[string]string)
 	for key := range env {

@@ -23,11 +23,13 @@ Each agent entry in `agents.yaml` has the following fields:
 
 ```yaml
 agents:
-  - name: agent-name          # Required: Unique identifier for the agent
-    url: https://agent.url    # Required: Agent's HTTP endpoint
-    oci: registry/image:tag   # Optional: OCI image reference for local execution
-    run: false                # Optional: Whether to run agent locally with Docker
-    environment:              # Optional: Environment variables for the agent
+  - name: agent-name              # Required: Unique identifier for the agent
+    url: https://agent.url        # Required: Agent's HTTP endpoint
+    artifacts_url: https://url    # Optional: Artifacts server HTTP endpoint (default: none)
+    oci: registry/image:tag       # Optional: OCI image reference for local execution
+    run: false                    # Optional: Whether to run agent locally with Docker
+    model: provider/model-name    # Optional: AI model to use (e.g., deepseek/deepseek-chat)
+    environment:                  # Optional: Environment variables for the agent
       KEY: VALUE
 ```
 
@@ -35,8 +37,12 @@ agents:
 
 - **name**: A unique identifier for the agent. Used in CLI commands and logs.
 - **url**: The HTTP endpoint where the agent is accessible.
+- **artifacts_url**: Optional HTTP endpoint for the agent's artifacts server. If specified, the CLI will expose
+  this port when running the agent locally. The artifacts server typically runs on port 8081 inside the container.
 - **oci**: OCI (Docker) image reference for running the agent locally.
 - **run**: Boolean flag indicating whether this agent should be run locally with Docker (default: `false`).
+- **model**: AI model to use in the format `provider/model-name` (e.g., `deepseek/deepseek-chat`).
+  This is automatically expanded to `A2A_AGENT_CLIENT_PROVIDER` and `A2A_AGENT_CLIENT_MODEL` environment variables.
 - **environment**: Key-value pairs of environment variables to pass to the agent when running locally.
   Supports environment variable substitution using `$VAR` or `${VAR}` syntax.
 
@@ -257,6 +263,26 @@ agents:
 ```
 
 When the agent starts, `${GITHUB_TOKEN}` will be automatically expanded to the value from your environment.
+
+### Example 3: Agent with Artifacts Server
+
+Configure an agent with an artifacts server for downloading generated files:
+
+```yaml
+agents:
+  - name: browser-agent
+    url: http://localhost:8083
+    artifacts_url: http://localhost:8084
+    oci: ghcr.io/inference-gateway/browser-agent:latest
+    run: true
+    model: deepseek/deepseek-chat
+    environment:
+      A2A_DEBUG: true
+```
+
+The artifacts server allows the agent to serve files like screenshots, PDFs, or other generated content.
+When running locally, the CLI will map port 8084 on the host to port 8081 in the container (the standard
+artifacts server port).
 
 ### Example 3: Multiple Agents
 

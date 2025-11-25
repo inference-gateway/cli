@@ -14,6 +14,11 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
+const (
+	// InferNetworkName is the Docker network name for inference gateway and agents
+	InferNetworkName = "infer-network"
+)
+
 // GatewayManager manages the lifecycle of the gateway container or binary
 type GatewayManager struct {
 	config      *config.Config
@@ -90,6 +95,10 @@ func (gm *GatewayManager) startDocker(ctx context.Context) error {
 		fmt.Println("• Gateway container is already running")
 		gm.isRunning = true
 		return nil
+	}
+
+	if err := gm.ensureNetwork(ctx); err != nil {
+		logger.Warn("Failed to create Docker network", "error", err)
 	}
 
 	if err := gm.pullImage(ctx); err != nil {
@@ -206,6 +215,7 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 		"run",
 		"-d",
 		"--name", "inference-gateway",
+		"--network", InferNetworkName,
 		"-p", fmt.Sprintf("%s:%s", port, port),
 		"--rm",
 	}
@@ -400,4 +410,23 @@ func (gm *GatewayManager) loadEnvironment() []string {
 	}
 
 	return envVars
+}
+
+// ensureNetwork creates the Docker network if it doesn't exist
+func (gm *GatewayManager) ensureNetwork(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, "docker", "network", "inspect", InferNetworkName)
+	if err := cmd.Run(); err == nil {
+		logger.Debug("Docker network already exists", "network", InferNetworkName)
+		return nil
+	}
+
+	logger.Info("Creating Docker network", "network", InferNetworkName)
+	cmd = exec.CommandContext(ctx, "docker", "network", "create", InferNetworkName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("failed to create Docker network: %w, output: %s", err, string(output))
+	}
+
+	logger.Info("Docker network created successfully", "network", InferNetworkName)
+	return nil
 }
