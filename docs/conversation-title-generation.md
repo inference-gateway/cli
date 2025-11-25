@@ -22,7 +22,7 @@ Configure title generation in your `.infer/config.yaml`:
 conversation:
   title_generation:
     enabled: true                    # Enable/disable title generation
-    model: "anthropic/claude-3-haiku" # AI model for title generation
+    model: "anthropic/claude-4-haiku" # AI model for title generation
     batch_size: 10                   # Number of conversations to process per batch
     interval: 300                    # Background job interval in seconds (default: 300 = 5 minutes)
     system_prompt: |                 # Custom system prompt (optional)
@@ -148,7 +148,7 @@ Title generation works with all supported storage backends:
 
 ## Best Practices
 
-1. **Model Selection**: Use fast, efficient models like `claude-3-haiku` for title generation to minimize latency
+1. **Model Selection**: Use fast, efficient models like `claude-4-haiku` for title generation to minimize latency
 2. **Batch Size**: Keep batch sizes reasonable (5-20) to balance performance and resource usage
 3. **Monitoring**: Check the status command periodically to ensure titles are being generated
 4. **Fallback**: Even with title generation disabled, the first-10-words fallback provides reasonable titles

@@ -63,7 +63,21 @@ func (qv *QueueBoxView) renderBackgroundTasks(backgroundTasks []domain.TaskPolli
 	}
 
 	titleText := fmt.Sprintf("Background Tasks (%d)", count)
+
 	hintText := fmt.Sprintf("  %d active %s running • Type /tasks to view details", count, taskWord)
+
+	maxHintWidth := qv.width - 4
+	if maxHintWidth < 20 {
+		maxHintWidth = 20
+	}
+
+	if len(hintText) > maxHintWidth {
+		hintText = fmt.Sprintf("  %d active %s running", count, taskWord)
+
+		if len(hintText) > maxHintWidth {
+			hintText = fmt.Sprintf("  %d running", count)
+		}
+	}
 
 	return qv.styleProvider.RenderWithColorAndBold(titleText, accentColor) + "\n" + qv.styleProvider.RenderDimText(hintText)
 }

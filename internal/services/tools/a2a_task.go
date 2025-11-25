@@ -98,7 +98,7 @@ func (t *A2ASubmitTaskTool) validateExistingTask(ctx context.Context, adkClient 
 
 // Definition returns the tool definition for the LLM
 func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
-	description := "Submit work to an A2A agent server and delegate it to run in the background. This tool returns IMMEDIATELY after submission - you don't need to wait or poll manually. The system will automatically monitor the task and emit an event when it completes. After submission, you can continue with other work or ask the user if there's anything else to do while waiting. Use this for ANY interaction where you need an agent to respond with answers or complete work. The Query tool is ONLY for retrieving agent metadata/capabilities (agent card) or checking status of previously submitted tasks."
+	description := "Submit work to an A2A agent server and delegate it to run in the background. IMPORTANT: This tool returns IMMEDIATELY after submission. DO NOT poll, query, or download artifacts right after submission. The system automatically monitors the task in the background and you will be AUTOMATICALLY NOTIFIED when it completes - the result will appear in the conversation. After submission, you MUST wait for the automatic notification before taking any follow-up actions. You can tell the user the task is running and you're waiting for it to complete. Use this for ANY interaction where you need an agent to respond with answers or complete work. The A2A_QueryTask tool is ONLY for retrieving metadata/capabilities or checking status of previously submitted tasks, NOT for polling just-submitted tasks."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
@@ -306,7 +306,6 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 			if state.ErrorChan != nil {
 				state.ErrorChan <- fmt.Errorf("task cancelled")
 			}
-			t.stopPolling(taskID)
 			return
 
 		case <-ticker.C:
@@ -335,22 +334,11 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 					state.ResultChan <- taskResult
 					time.Sleep(100 * time.Millisecond)
 				}
-
-				if t.taskTracker != nil {
-					t.taskTracker.RemoveTask(taskID)
-				}
-				t.stopPolling(taskID)
 				return
 			}
 
 			currentInterval = t.applyExponentialBackoff(agentURL, taskID, strategy, currentInterval, pollAttempt, state, ticker)
 		}
-	}
-}
-
-func (t *A2ASubmitTaskTool) stopPolling(taskID string) {
-	if t.taskTracker != nil {
-		t.taskTracker.StopPolling(taskID)
 	}
 }
 

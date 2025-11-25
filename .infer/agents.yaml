@@ -1,17 +1,12 @@
 agents:
-  - name: documentation-agent
-    url: http://localhost:8081
-    artifacts_url: http://localhost:8082
-    oci: ghcr.io/inference-gateway/documentation-agent:latest
-    run: true
-    model: deepseek/deepseek-chat
-    environment:
-      A2A_DEBUG: true
   - name: browser-agent
     url: http://localhost:8083
     artifacts_url: http://localhost:8084
     oci: ghcr.io/inference-gateway/browser-agent:latest
     run: true
     model: deepseek/deepseek-chat
-    environment:
-      A2A_DEBUG: true
+  - name: mock-agent
+    url: http://localhost:8081
+    oci: ghcr.io/inference-gateway/mock-agent:latest
+    run: true
+    model: deepseek/deepseek-chat

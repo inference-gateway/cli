@@ -1257,7 +1257,7 @@ chat:
   - This is passed to the gateway as the `ALLOWED_MODELS` environment variable
 - **gateway.exclude_models**: Block specific models (blocklist approach, default: `[]`, blocks none)
   - When set, all models are allowed except those in the list
-  - Example: `["openai/gpt-4", "anthropic/claude-3-opus"]`
+  - Example: `["openai/gpt-4", "anthropic/claude-4-opus"]`
   - This is passed to the gateway as the `DISALLOWED_MODELS` environment variable
   - Note: `include_models` and `exclude_models` can be used together - the gateway will apply both filters
 

@@ -108,7 +108,7 @@ func TestPersistentConversationRepository_BasicOperations(t *testing.T) {
 				Content: sdk.NewMessageContent("Hello, test!"),
 			},
 			Time:  time.Now(),
-			Model: "claude-3",
+			Model: "claude-4",
 		}
 
 		err := repo.AddMessage(entry)
@@ -126,7 +126,7 @@ func TestPersistentConversationRepository_BasicOperations(t *testing.T) {
 				Content: sdk.NewMessageContent("Hello! How can I help you?"),
 			},
 			Time:  time.Now(),
-			Model: "claude-3",
+			Model: "claude-4",
 		}
 
 		err := repo.AddMessage(entry)
@@ -167,7 +167,7 @@ func TestPersistentConversationRepository_AutoSaveTitle(t *testing.T) {
 				Content: sdk.NewMessageContent("How do I implement a binary search tree in Go?"),
 			},
 			Time:  time.Now(),
-			Model: "claude-3",
+			Model: "claude-4",
 		}
 		err := repo.AddMessage(entry)
 		assert.NoError(t, err)
@@ -308,7 +308,7 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 				Content: sdk.NewMessageContent("Auto save message"),
 			},
 			Time:  time.Now(),
-			Model: "claude-3",
+			Model: "claude-4",
 		}
 
 		err = repo.AddMessage(entry)
@@ -342,7 +342,7 @@ func TestPersistentConversationRepository_AutoSave(t *testing.T) {
 				Content: sdk.NewMessageContent("First message that should auto-start conversation"),
 			},
 			Time:  time.Now(),
-			Model: "claude-3",
+			Model: "claude-4",
 		}
 
 		err := newRepo.AddMessage(entry)

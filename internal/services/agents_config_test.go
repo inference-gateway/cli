@@ -275,7 +275,7 @@ func TestAgentsConfigService_UpdateAgent(t *testing.T) {
 		URL:   "https://new-agent.example.com",
 		OCI:   "ghcr.io/org/test-agent:v2",
 		Run:   true,
-		Model: "anthropic/claude-3-5-sonnet",
+		Model: "anthropic/claude-4-5-sonnet",
 		Environment: map[string]string{
 			"DEBUG": "true",
 		},

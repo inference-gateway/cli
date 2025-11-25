@@ -73,11 +73,11 @@ func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {
 				Conversation: config.ConversationConfig{
 					TitleGeneration: config.ConversationTitleConfig{
 						Enabled: tt.enabled,
-						Model:   "anthropic/claude-3-haiku",
+						Model:   "anthropic/claude-4-haiku",
 					},
 				},
 				Agent: config.AgentConfig{
-					Model: "anthropic/claude-3-haiku",
+					Model: "anthropic/claude-4-haiku",
 				},
 			}
 

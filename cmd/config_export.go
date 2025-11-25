@@ -23,7 +23,7 @@ If not set, the current chat model will be used.
 
 Examples:
   infer config export set-model openai/gpt-4-turbo
-  infer config export set-model anthropic/claude-3-haiku
+  infer config export set-model anthropic/claude-4-haiku
   infer config export set-model ""  # Clear to use chat model`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {

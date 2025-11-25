@@ -36,7 +36,7 @@ func TestA2AShortcut_GetUsage(t *testing.T) {
 	mockConfig := &config.Config{}
 	shortcut := NewA2AShortcut(mockConfig, nil, nil, nil)
 
-	expected := "/a2a [list|add <name> <url> [--oci IMAGE] [--run] [--model MODEL] [--environment KEY=VALUE ...]|remove <name>]"
+	expected := "/a2a [list|add <name> [url] [--oci IMAGE] [--artifacts-url URL] [--run] [--model MODEL] [--environment KEY=VALUE ...]|remove <name>]"
 	actual := shortcut.GetUsage()
 
 	if actual != expected {
@@ -66,9 +66,9 @@ func TestA2AShortcut_CanExecute(t *testing.T) {
 			expected: true,
 		},
 		{
-			name:     "add with insufficient args not allowed",
+			name:     "add with name only allowed (for known agents)",
 			args:     []string{"add", "test-agent"},
-			expected: false,
+			expected: true,
 		},
 		{
 			name:     "other argument not allowed",
