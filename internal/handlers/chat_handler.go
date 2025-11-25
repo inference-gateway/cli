@@ -593,11 +593,8 @@ func (h *ChatHandler) handleToolApprovalResponse(
 		}
 	})
 
-	// Continue listening for chat events if not rejected
-	if msg.Action != domain.ApprovalReject {
-		if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-			cmds = append(cmds, h.listenForChatEvents(chatSession.EventChannel))
-		}
+	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, h.listenForChatEvents(chatSession.EventChannel))
 	}
 
 	return tea.Batch(cmds...)
