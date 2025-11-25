@@ -123,15 +123,12 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 
 // executeBashCommandAsync executes the bash command and returns results
 func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID string) tea.Cmd {
-	// Create an event channel for bash output streaming
 	eventChan := make(chan tea.Msg, 100)
 
-	// Store the channel so handlers can continue listening
 	c.bashEventChannelMu.Lock()
 	c.bashEventChannel = eventChan
 	c.bashEventChannelMu.Unlock()
 
-	// Execute bash in goroutine and stream events
 	go func() {
 		defer func() {
 			close(eventChan)
@@ -140,7 +137,6 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 			c.bashEventChannelMu.Unlock()
 		}()
 
-		// Signal that execution is starting
 		eventChan <- domain.ToolExecutionProgressEvent{
 			BaseChatEvent: domain.BaseChatEvent{
 				RequestID: toolCallID,
@@ -173,7 +169,6 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 		result, err := c.handler.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
-			// Signal execution failed
 			eventChan <- domain.ToolExecutionProgressEvent{
 				BaseChatEvent: domain.BaseChatEvent{
 					RequestID: toolCallID,
@@ -190,7 +185,6 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 			return
 		}
 
-		// Signal execution completed
 		eventChan <- domain.ToolExecutionProgressEvent{
 			BaseChatEvent: domain.BaseChatEvent{
 				RequestID: toolCallID,
