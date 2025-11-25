@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -303,6 +304,51 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 	}, nil
 }
 
+// handleIdleState processes queued messages and background tasks when the agent is idle
+func (s *AgentServiceImpl) handleIdleState(
+	eventPublisher *eventPublisher,
+	taskTracker domain.TaskTracker,
+	conversation *[]sdk.Message,
+) (shouldContinue bool, shouldReturn bool) {
+	hasQueuedMessage := s.messageQueue != nil && !s.messageQueue.IsEmpty()
+	hasBackgroundTasks := taskTracker != nil && len(taskTracker.GetAllPollingTasks()) > 0
+
+	switch {
+	case hasQueuedMessage:
+		queuedMsg := s.messageQueue.Dequeue()
+		if queuedMsg != nil {
+			*conversation = append(*conversation, queuedMsg.Message)
+			entry := domain.ConversationEntry{
+				Message: queuedMsg.Message,
+				Time:    time.Now(),
+			}
+			if err := s.conversationRepo.AddMessage(entry); err != nil {
+				logger.Error("failed to store queued message", "error", err)
+			}
+			eventPublisher.chatEvents <- domain.MessageQueuedEvent{
+				RequestID: queuedMsg.RequestID,
+				Timestamp: time.Now(),
+				Message:   queuedMsg.Message,
+			}
+			return true, false
+		}
+	case hasBackgroundTasks:
+		time.Sleep(500 * time.Millisecond)
+		return true, false
+	default:
+		eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(eventPublisher.requestID))
+
+		time.Sleep(100 * time.Millisecond)
+		if s.messageQueue != nil && !s.messageQueue.IsEmpty() {
+			logger.Info("Detected queued message after chat complete, continuing")
+			return true, false
+		}
+
+		return false, true
+	}
+	return false, false
+}
+
 // RunWithStream executes an agent task with streaming (for interactive chat)
 func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop,funlen
 	if err := s.validateRequest(req); err != nil {
@@ -362,36 +408,13 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			}
 
 			if !hasToolResults && turns > 0 {
-				hasQueuedMessage := s.messageQueue != nil && !s.messageQueue.IsEmpty()
-
-				hasBackgroundTasks := taskTracker != nil && len(taskTracker.GetAllPollingTasks()) > 0
-
-				switch {
-				case hasQueuedMessage:
-					queuedMsg := s.messageQueue.Dequeue()
-					if queuedMsg != nil {
-						conversation = append(conversation, queuedMsg.Message)
-						entry := domain.ConversationEntry{
-							Message: queuedMsg.Message,
-							Time:    time.Now(),
-						}
-						if err := s.conversationRepo.AddMessage(entry); err != nil {
-							logger.Error("failed to store queued message", "error", err)
-						}
-						eventPublisher.chatEvents <- domain.MessageQueuedEvent{
-							RequestID: queuedMsg.RequestID,
-							Timestamp: time.Now(),
-							Message:   queuedMsg.Message,
-						}
-						hasToolResults = true
-						continue
-					}
-				case hasBackgroundTasks:
-					time.Sleep(500 * time.Millisecond)
-					continue
-				default:
-					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
+				shouldContinue, shouldReturn := s.handleIdleState(eventPublisher, taskTracker, &conversation)
+				if shouldReturn {
 					return
+				}
+				if shouldContinue {
+					hasToolResults = true
+					continue
 				}
 			}
 
@@ -547,9 +570,20 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			}
 
 			if len(toolCalls) > 0 {
+				indices := make([]int, 0, len(toolCalls))
+				for key := range toolCalls {
+					var idx int
+					_, _ = fmt.Sscanf(key, "%d", &idx)
+					indices = append(indices, idx)
+				}
+				sort.Ints(indices)
+
 				assistantToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
-				for _, tc := range toolCalls {
-					assistantToolCalls = append(assistantToolCalls, *tc)
+				for _, idx := range indices {
+					key := fmt.Sprintf("%d", idx)
+					if tc, ok := toolCalls[key]; ok {
+						assistantToolCalls = append(assistantToolCalls, *tc)
+					}
 				}
 				assistantMessage.ToolCalls = &assistantToolCalls
 			}
@@ -811,11 +845,6 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 	}
 
 	for _, at := range approvalTools {
-		eventPublisher.publishToolStatusChange(
-			at.tool.Id,
-			"starting",
-			fmt.Sprintf("Initializing %s...", at.tool.Function.Name),
-		)
 
 		time.Sleep(constants.AgentToolExecutionDelay)
 
@@ -921,14 +950,14 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 	if isAutoAcceptMode {
 		wasApproved = true
 	} else if requiresApproval {
-		logger.Info("requesting approval for tool", "tool", tc.Function.Name)
 		approved, err := s.requestToolApproval(ctx, tc, eventPublisher)
 		if err != nil {
 			logger.Error("failed to request tool approval", "tool", tc.Function.Name, "error", err)
+			s.conversationRepo.RemovePendingToolCallByID(tc.Id)
 			return s.createErrorEntry(tc, err, startTime)
 		}
 		if !approved {
-			logger.Info("tool execution rejected by user", "tool", tc.Function.Name)
+			s.conversationRepo.RemovePendingToolCallByID(tc.Id)
 			return s.createRejectionEntry(tc, startTime)
 		}
 		wasApproved = true
@@ -1049,6 +1078,10 @@ done:
 		ToolExecution: toolExecutionResult,
 	}
 
+	if requiresApproval {
+		s.conversationRepo.RemovePendingToolCallByID(tc.Id)
+	}
+
 	return entry
 }
 
@@ -1077,6 +1110,22 @@ func (s *AgentServiceImpl) requestToolApproval(
 	}
 }
 
+// isBashCommandWhitelisted checks if a Bash tool command is whitelisted
+func (s *AgentServiceImpl) isBashCommandWhitelisted(tc *sdk.ChatCompletionMessageToolCall) bool {
+	var args map[string]any
+	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
+		return false
+	}
+
+	command, ok := args["command"].(string)
+	if !ok {
+		return false
+	}
+
+	isWhitelisted := s.config.IsBashCommandWhitelisted(command)
+	return isWhitelisted
+}
+
 // shouldRequireApproval determines if a tool execution requires user approval
 // For Bash tool specifically, it checks if the command is whitelisted
 func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
@@ -1089,21 +1138,11 @@ func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageTo
 	}
 
 	if tc.Function.Name == "Bash" {
-		var args map[string]any
-		if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-			return true
-		}
-
-		command, ok := args["command"].(string)
-		if !ok {
-			return true
-		}
-
-		isWhitelisted := s.config.IsBashCommandWhitelisted(command)
-		return !isWhitelisted
+		return !s.isBashCommandWhitelisted(tc)
 	}
 
-	return s.config.IsApprovalRequired(tc.Function.Name)
+	requiresApproval := s.config.IsApprovalRequired(tc.Function.Name)
+	return requiresApproval
 }
 
 func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) domain.ConversationEntry {

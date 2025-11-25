@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -16,8 +17,10 @@ import (
 
 // ChatCommandHandler handles various command types
 type ChatCommandHandler struct {
-	handler         *ChatHandler
-	shortcutHandler *ChatShortcutHandler
+	handler            *ChatHandler
+	shortcutHandler    *ChatShortcutHandler
+	bashEventChannel   <-chan tea.Msg
+	bashEventChannelMu sync.RWMutex
 }
 
 // NewChatCommandHandler creates a new command handler
@@ -69,27 +72,13 @@ func (c *ChatCommandHandler) handleBashCommand(
 		}
 	}
 
-	if !c.handler.toolService.IsToolEnabled("Bash") {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "Bash tool is not enabled. Run 'infer config tool bash enable' to enable it.",
-				Sticky: false,
-			}
-		}
-	}
-
-	isWhitelisted := c.handler.configService.IsBashCommandWhitelisted(command)
-	requiresApproval := !isWhitelisted
-
-	if requiresApproval {
-		return c.handleBashCommandWithApproval(commandText, command)
-	}
-
 	return c.executeBashCommand(commandText, command)
 }
 
 // executeBashCommand executes a bash command without approval
 func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea.Cmd {
+	toolCallID := fmt.Sprintf("user-bash-%d", time.Now().UnixNano())
+
 	userEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
@@ -112,27 +101,98 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 				StatusType: domain.StatusWorking,
 			}
 		},
-		c.executeBashCommandAsync(command),
+		// Emit ParallelToolsStartEvent so UI knows to display this tool
+		func() tea.Msg {
+			return domain.ParallelToolsStartEvent{
+				BaseChatEvent: domain.BaseChatEvent{
+					RequestID: toolCallID,
+					Timestamp: time.Now(),
+				},
+				Tools: []domain.ToolInfo{
+					{
+						CallID: toolCallID,
+						Name:   "Bash",
+						Status: "starting",
+					},
+				},
+			}
+		},
+		c.executeBashCommandAsync(command, toolCallID),
 	)
 }
 
 // executeBashCommandAsync executes the bash command and returns results
-func (c *ChatCommandHandler) executeBashCommandAsync(command string) tea.Cmd {
-	return func() tea.Msg {
-		toolCallID := fmt.Sprintf("user-bash-%d", time.Now().UnixNano())
+func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID string) tea.Cmd {
+	eventChan := make(chan tea.Msg, 100)
+
+	c.bashEventChannelMu.Lock()
+	c.bashEventChannel = eventChan
+	c.bashEventChannelMu.Unlock()
+
+	go func() {
+		defer func() {
+			close(eventChan)
+			c.bashEventChannelMu.Lock()
+			c.bashEventChannel = nil
+			c.bashEventChannelMu.Unlock()
+		}()
+
+		eventChan <- domain.ToolExecutionProgressEvent{
+			BaseChatEvent: domain.BaseChatEvent{
+				RequestID: toolCallID,
+				Timestamp: time.Now(),
+			},
+			ToolCallID: toolCallID,
+			Status:     "running",
+			Message:    "Executing...",
+		}
 
 		toolCallFunc := sdk.ChatCompletionMessageToolCallFunction{
 			Name:      "Bash",
 			Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
 		}
 
-		result, err := c.handler.toolService.ExecuteTool(context.Background(), toolCallFunc)
+		bashCallback := func(line string) {
+			eventChan <- domain.BashOutputChunkEvent{
+				BaseChatEvent: domain.BaseChatEvent{
+					RequestID: toolCallID,
+					Timestamp: time.Now(),
+				},
+				ToolCallID: toolCallID,
+				Output:     line,
+				IsComplete: false,
+			}
+		}
+
+		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
+		ctx = context.WithValue(ctx, domain.BashOutputCallbackKey, domain.BashOutputCallback(bashCallback))
+		result, err := c.handler.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
-			return domain.ShowErrorEvent{
+			eventChan <- domain.ToolExecutionProgressEvent{
+				BaseChatEvent: domain.BaseChatEvent{
+					RequestID: toolCallID,
+					Timestamp: time.Now(),
+				},
+				ToolCallID: toolCallID,
+				Status:     "failed",
+				Message:    "Execution failed",
+			}
+			eventChan <- domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to execute command: %v", err),
 				Sticky: false,
 			}
+			return
+		}
+
+		eventChan <- domain.ToolExecutionProgressEvent{
+			BaseChatEvent: domain.BaseChatEvent{
+				RequestID: toolCallID,
+				Timestamp: time.Now(),
+			},
+			ToolCallID: toolCallID,
+			Status:     "complete",
+			Message:    "Completed successfully",
 		}
 
 		toolCalls := []sdk.ChatCompletionMessageToolCall{
@@ -163,32 +223,22 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string) tea.Cmd {
 		}
 		_ = c.handler.conversationRepo.AddMessage(toolEntry)
 
-		return domain.BashCommandCompletedEvent{
+		eventChan <- domain.BashCommandCompletedEvent{
 			History: c.handler.conversationRepo.GetMessages(),
 		}
-	}
+	}()
+
+	return c.listenToBashEvents(eventChan)
 }
 
-// handleBashCommandWithApproval requests approval before executing a bash command
-func (c *ChatCommandHandler) handleBashCommandWithApproval(_ /* commandText */, command string) tea.Cmd {
+// listenToBashEvents listens for bash execution events from the channel
+func (c *ChatCommandHandler) listenToBashEvents(eventChan <-chan tea.Msg) tea.Cmd {
 	return func() tea.Msg {
-		toolCall := sdk.ChatCompletionMessageToolCall{
-			Id:   fmt.Sprintf("manual-%d", time.Now().UnixNano()),
-			Type: "function",
-			Function: sdk.ChatCompletionMessageToolCallFunction{
-				Name:      "Bash",
-				Arguments: fmt.Sprintf(`{"command": "%s"}`, strings.ReplaceAll(command, `"`, `\"`)),
-			},
+		msg, ok := <-eventChan
+		if !ok {
+			return nil
 		}
-
-		responseChan := make(chan domain.ApprovalAction, 1)
-
-		return domain.ToolApprovalRequestedEvent{
-			RequestID:    fmt.Sprintf("manual-bash-%d", time.Now().UnixNano()),
-			Timestamp:    time.Now(),
-			ToolCall:     toolCall,
-			ResponseChan: responseChan,
-		}
+		return msg
 	}
 }
 

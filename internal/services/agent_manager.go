@@ -121,8 +121,6 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 
 // StopAgents stops all running agent containers
 func (am *AgentManager) StopAgents(ctx context.Context) error {
-	logger.Info("Stopping agents", "trackedCount", len(am.containers))
-
 	for agentName := range am.containers {
 		if err := am.StopAgent(ctx, agentName); err != nil {
 			logger.Warn("Failed to stop agent", "name", agentName, "error", err)
@@ -145,8 +143,6 @@ func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
 		return nil
 	}
 
-	logger.Info("Stopping agent container", "name", agentName, "containerID", containerID)
-
 	cmd := exec.CommandContext(ctx, "docker", "stop", containerID)
 	if err := cmd.Run(); err != nil {
 		logger.Warn("Failed to stop agent container", "name", agentName, "error", err)
@@ -158,7 +154,6 @@ func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
 	}
 
 	delete(am.containers, agentName)
-	logger.Info("Agent container stopped", "name", agentName)
 	return nil
 }
 
@@ -204,7 +199,7 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 
 	dotEnvVars, err := am.loadDotEnvFile()
 	if err != nil {
-		logger.Debug("Could not load .env file", "error", err)
+		logger.Warn("Could not load .env file", "error", err)
 	}
 
 	env := agent.GetEnvironmentWithModel()
@@ -230,10 +225,10 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	for key := range env {
 		if value, exists := dotEnvVars[key]; exists {
 			resolvedEnv[key] = value
-			logger.Debug("Using .env value for variable", "key", key)
+			logger.Warn("Using .env value for variable", "key", key)
 		} else if value, exists := os.LookupEnv(key); exists {
 			resolvedEnv[key] = value
-			logger.Debug("Using system environment value for variable", "key", key)
+			logger.Warn("Using system environment value for variable", "key", key)
 		} else {
 			resolvedEnv[key] = env[key]
 		}

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/sdk"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // InMemoryConversationRepository implements ConversationRepository using in-memory storage
@@ -52,6 +52,90 @@ func (r *InMemoryConversationRepository) AddMessage(msg domain.ConversationEntry
 
 	r.messages = append(r.messages, msg)
 	return nil
+}
+
+// MarkLastMessageAsPlan marks the last assistant message as a plan with pending approval
+func (r *InMemoryConversationRepository) MarkLastMessageAsPlan() {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for i := len(r.messages) - 1; i >= 0; i-- {
+		if r.messages[i].Message.Role == sdk.Assistant {
+			r.messages[i].IsPlan = true
+			r.messages[i].PlanApprovalStatus = domain.PlanApprovalPending
+			break
+		}
+	}
+}
+
+// UpdatePlanStatus updates the status of the most recent pending plan
+func (r *InMemoryConversationRepository) UpdatePlanStatus(action domain.PlanApprovalAction) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for i := len(r.messages) - 1; i >= 0; i-- {
+		if r.messages[i].IsPlan && r.messages[i].PlanApprovalStatus == domain.PlanApprovalPending {
+			switch action {
+			case domain.PlanApprovalAccept:
+				r.messages[i].PlanApprovalStatus = domain.PlanApprovalAccepted
+			case domain.PlanApprovalReject:
+				r.messages[i].PlanApprovalStatus = domain.PlanApprovalRejected
+			case domain.PlanApprovalAcceptAndAutoApprove:
+				r.messages[i].PlanApprovalStatus = domain.PlanApprovalAccepted
+			}
+			break
+		}
+	}
+}
+
+// AddPendingToolCall adds a pending tool call entry that requires approval
+func (r *InMemoryConversationRepository) AddPendingToolCall(toolCall sdk.ChatCompletionMessageToolCall, responseChan chan domain.ApprovalAction) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	entry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: sdk.NewMessageContent(""),
+		},
+		Time:               time.Now(),
+		PendingToolCall:    &toolCall,
+		ToolApprovalStatus: domain.ToolApprovalPending,
+	}
+
+	r.messages = append(r.messages, entry)
+	return nil
+}
+
+// UpdateToolApprovalStatus updates the approval status of the most recent pending tool
+func (r *InMemoryConversationRepository) UpdateToolApprovalStatus(action domain.ApprovalAction) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for i := len(r.messages) - 1; i >= 0; i-- {
+		if r.messages[i].PendingToolCall != nil && r.messages[i].ToolApprovalStatus == domain.ToolApprovalPending {
+			switch action {
+			case domain.ApprovalApprove, domain.ApprovalAutoAccept:
+				r.messages[i].ToolApprovalStatus = domain.ToolApprovalApproved
+			case domain.ApprovalReject:
+				r.messages[i].ToolApprovalStatus = domain.ToolApprovalRejected
+			}
+			break
+		}
+	}
+}
+
+// RemovePendingToolCallByID removes a specific pending tool call by its ID
+func (r *InMemoryConversationRepository) RemovePendingToolCallByID(toolCallID string) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for i := len(r.messages) - 1; i >= 0; i-- {
+		if r.messages[i].PendingToolCall != nil && r.messages[i].PendingToolCall.Id == toolCallID {
+			r.messages = append(r.messages[:i], r.messages[i+1:]...)
+			return
+		}
+	}
 }
 
 func (r *InMemoryConversationRepository) GetMessages() []domain.ConversationEntry {

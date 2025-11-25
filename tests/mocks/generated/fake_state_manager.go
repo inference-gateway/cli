@@ -31,6 +31,10 @@ type FakeStateManager struct {
 	clearFileSelectionStateMutex       sync.RWMutex
 	clearFileSelectionStateArgsForCall []struct {
 	}
+	ClearPlanApprovalUIStateStub        func()
+	clearPlanApprovalUIStateMutex       sync.RWMutex
+	clearPlanApprovalUIStateArgsForCall []struct {
+	}
 	CompleteCurrentToolStub        func(*domain.ToolExecutionResult) error
 	completeCurrentToolMutex       sync.RWMutex
 	completeCurrentToolArgsForCall []struct {
@@ -143,6 +147,16 @@ type FakeStateManager struct {
 	getFileSelectionStateReturnsOnCall map[int]struct {
 		result1 *domain.FileSelectionState
 	}
+	GetPlanApprovalUIStateStub        func() *domain.PlanApprovalUIState
+	getPlanApprovalUIStateMutex       sync.RWMutex
+	getPlanApprovalUIStateArgsForCall []struct {
+	}
+	getPlanApprovalUIStateReturns struct {
+		result1 *domain.PlanApprovalUIState
+	}
+	getPlanApprovalUIStateReturnsOnCall map[int]struct {
+		result1 *domain.PlanApprovalUIState
+	}
 	GetTodosStub        func() []domain.TodoItem
 	getTodosMutex       sync.RWMutex
 	getTodosArgsForCall []struct {
@@ -214,6 +228,11 @@ type FakeStateManager struct {
 	setFileSelectedIndexArgsForCall []struct {
 		arg1 int
 	}
+	SetPlanApprovalSelectedIndexStub        func(int)
+	setPlanApprovalSelectedIndexMutex       sync.RWMutex
+	setPlanApprovalSelectedIndexArgsForCall []struct {
+		arg1 int
+	}
 	SetTodosStub        func([]domain.TodoItem)
 	setTodosMutex       sync.RWMutex
 	setTodosArgsForCall []struct {
@@ -229,6 +248,12 @@ type FakeStateManager struct {
 	setupFileSelectionMutex       sync.RWMutex
 	setupFileSelectionArgsForCall []struct {
 		arg1 []string
+	}
+	SetupPlanApprovalUIStateStub        func(string, chan domain.PlanApprovalAction)
+	setupPlanApprovalUIStateMutex       sync.RWMutex
+	setupPlanApprovalUIStateArgsForCall []struct {
+		arg1 string
+		arg2 chan domain.PlanApprovalAction
 	}
 	StartChatSessionStub        func(string, string, <-chan domain.ChatEvent) error
 	startChatSessionMutex       sync.RWMutex
@@ -417,6 +442,30 @@ func (fake *FakeStateManager) ClearFileSelectionStateCalls(stub func()) {
 	fake.clearFileSelectionStateMutex.Lock()
 	defer fake.clearFileSelectionStateMutex.Unlock()
 	fake.ClearFileSelectionStateStub = stub
+}
+
+func (fake *FakeStateManager) ClearPlanApprovalUIState() {
+	fake.clearPlanApprovalUIStateMutex.Lock()
+	fake.clearPlanApprovalUIStateArgsForCall = append(fake.clearPlanApprovalUIStateArgsForCall, struct {
+	}{})
+	stub := fake.ClearPlanApprovalUIStateStub
+	fake.recordInvocation("ClearPlanApprovalUIState", []interface{}{})
+	fake.clearPlanApprovalUIStateMutex.Unlock()
+	if stub != nil {
+		fake.ClearPlanApprovalUIStateStub()
+	}
+}
+
+func (fake *FakeStateManager) ClearPlanApprovalUIStateCallCount() int {
+	fake.clearPlanApprovalUIStateMutex.RLock()
+	defer fake.clearPlanApprovalUIStateMutex.RUnlock()
+	return len(fake.clearPlanApprovalUIStateArgsForCall)
+}
+
+func (fake *FakeStateManager) ClearPlanApprovalUIStateCalls(stub func()) {
+	fake.clearPlanApprovalUIStateMutex.Lock()
+	defer fake.clearPlanApprovalUIStateMutex.Unlock()
+	fake.ClearPlanApprovalUIStateStub = stub
 }
 
 func (fake *FakeStateManager) CompleteCurrentTool(arg1 *domain.ToolExecutionResult) error {
@@ -1016,6 +1065,59 @@ func (fake *FakeStateManager) GetFileSelectionStateReturnsOnCall(i int, result1 
 	}{result1}
 }
 
+func (fake *FakeStateManager) GetPlanApprovalUIState() *domain.PlanApprovalUIState {
+	fake.getPlanApprovalUIStateMutex.Lock()
+	ret, specificReturn := fake.getPlanApprovalUIStateReturnsOnCall[len(fake.getPlanApprovalUIStateArgsForCall)]
+	fake.getPlanApprovalUIStateArgsForCall = append(fake.getPlanApprovalUIStateArgsForCall, struct {
+	}{})
+	stub := fake.GetPlanApprovalUIStateStub
+	fakeReturns := fake.getPlanApprovalUIStateReturns
+	fake.recordInvocation("GetPlanApprovalUIState", []interface{}{})
+	fake.getPlanApprovalUIStateMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetPlanApprovalUIStateCallCount() int {
+	fake.getPlanApprovalUIStateMutex.RLock()
+	defer fake.getPlanApprovalUIStateMutex.RUnlock()
+	return len(fake.getPlanApprovalUIStateArgsForCall)
+}
+
+func (fake *FakeStateManager) GetPlanApprovalUIStateCalls(stub func() *domain.PlanApprovalUIState) {
+	fake.getPlanApprovalUIStateMutex.Lock()
+	defer fake.getPlanApprovalUIStateMutex.Unlock()
+	fake.GetPlanApprovalUIStateStub = stub
+}
+
+func (fake *FakeStateManager) GetPlanApprovalUIStateReturns(result1 *domain.PlanApprovalUIState) {
+	fake.getPlanApprovalUIStateMutex.Lock()
+	defer fake.getPlanApprovalUIStateMutex.Unlock()
+	fake.GetPlanApprovalUIStateStub = nil
+	fake.getPlanApprovalUIStateReturns = struct {
+		result1 *domain.PlanApprovalUIState
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetPlanApprovalUIStateReturnsOnCall(i int, result1 *domain.PlanApprovalUIState) {
+	fake.getPlanApprovalUIStateMutex.Lock()
+	defer fake.getPlanApprovalUIStateMutex.Unlock()
+	fake.GetPlanApprovalUIStateStub = nil
+	if fake.getPlanApprovalUIStateReturnsOnCall == nil {
+		fake.getPlanApprovalUIStateReturnsOnCall = make(map[int]struct {
+			result1 *domain.PlanApprovalUIState
+		})
+	}
+	fake.getPlanApprovalUIStateReturnsOnCall[i] = struct {
+		result1 *domain.PlanApprovalUIState
+	}{result1}
+}
+
 func (fake *FakeStateManager) GetTodos() []domain.TodoItem {
 	fake.getTodosMutex.Lock()
 	ret, specificReturn := fake.getTodosReturnsOnCall[len(fake.getTodosArgsForCall)]
@@ -1425,6 +1527,38 @@ func (fake *FakeStateManager) SetFileSelectedIndexArgsForCall(i int) int {
 	return argsForCall.arg1
 }
 
+func (fake *FakeStateManager) SetPlanApprovalSelectedIndex(arg1 int) {
+	fake.setPlanApprovalSelectedIndexMutex.Lock()
+	fake.setPlanApprovalSelectedIndexArgsForCall = append(fake.setPlanApprovalSelectedIndexArgsForCall, struct {
+		arg1 int
+	}{arg1})
+	stub := fake.SetPlanApprovalSelectedIndexStub
+	fake.recordInvocation("SetPlanApprovalSelectedIndex", []interface{}{arg1})
+	fake.setPlanApprovalSelectedIndexMutex.Unlock()
+	if stub != nil {
+		fake.SetPlanApprovalSelectedIndexStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetPlanApprovalSelectedIndexCallCount() int {
+	fake.setPlanApprovalSelectedIndexMutex.RLock()
+	defer fake.setPlanApprovalSelectedIndexMutex.RUnlock()
+	return len(fake.setPlanApprovalSelectedIndexArgsForCall)
+}
+
+func (fake *FakeStateManager) SetPlanApprovalSelectedIndexCalls(stub func(int)) {
+	fake.setPlanApprovalSelectedIndexMutex.Lock()
+	defer fake.setPlanApprovalSelectedIndexMutex.Unlock()
+	fake.SetPlanApprovalSelectedIndexStub = stub
+}
+
+func (fake *FakeStateManager) SetPlanApprovalSelectedIndexArgsForCall(i int) int {
+	fake.setPlanApprovalSelectedIndexMutex.RLock()
+	defer fake.setPlanApprovalSelectedIndexMutex.RUnlock()
+	argsForCall := fake.setPlanApprovalSelectedIndexArgsForCall[i]
+	return argsForCall.arg1
+}
+
 func (fake *FakeStateManager) SetTodos(arg1 []domain.TodoItem) {
 	var arg1Copy []domain.TodoItem
 	if arg1 != nil {
@@ -1530,6 +1664,39 @@ func (fake *FakeStateManager) SetupFileSelectionArgsForCall(i int) []string {
 	defer fake.setupFileSelectionMutex.RUnlock()
 	argsForCall := fake.setupFileSelectionArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) SetupPlanApprovalUIState(arg1 string, arg2 chan domain.PlanApprovalAction) {
+	fake.setupPlanApprovalUIStateMutex.Lock()
+	fake.setupPlanApprovalUIStateArgsForCall = append(fake.setupPlanApprovalUIStateArgsForCall, struct {
+		arg1 string
+		arg2 chan domain.PlanApprovalAction
+	}{arg1, arg2})
+	stub := fake.SetupPlanApprovalUIStateStub
+	fake.recordInvocation("SetupPlanApprovalUIState", []interface{}{arg1, arg2})
+	fake.setupPlanApprovalUIStateMutex.Unlock()
+	if stub != nil {
+		fake.SetupPlanApprovalUIStateStub(arg1, arg2)
+	}
+}
+
+func (fake *FakeStateManager) SetupPlanApprovalUIStateCallCount() int {
+	fake.setupPlanApprovalUIStateMutex.RLock()
+	defer fake.setupPlanApprovalUIStateMutex.RUnlock()
+	return len(fake.setupPlanApprovalUIStateArgsForCall)
+}
+
+func (fake *FakeStateManager) SetupPlanApprovalUIStateCalls(stub func(string, chan domain.PlanApprovalAction)) {
+	fake.setupPlanApprovalUIStateMutex.Lock()
+	defer fake.setupPlanApprovalUIStateMutex.Unlock()
+	fake.SetupPlanApprovalUIStateStub = stub
+}
+
+func (fake *FakeStateManager) SetupPlanApprovalUIStateArgsForCall(i int) (string, chan domain.PlanApprovalAction) {
+	fake.setupPlanApprovalUIStateMutex.RLock()
+	defer fake.setupPlanApprovalUIStateMutex.RUnlock()
+	argsForCall := fake.setupPlanApprovalUIStateArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeStateManager) StartChatSession(arg1 string, arg2 string, arg3 <-chan domain.ChatEvent) error {

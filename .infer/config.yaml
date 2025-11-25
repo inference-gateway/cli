@@ -303,12 +303,12 @@ a2a:
       require_approval: false
     submit_task:
       enabled: true
-      require_approval: false
+      require_approval: true
     download_artifacts:
       enabled: true
       download_dir: /tmp/downloads
       timeout_seconds: 30
-      require_approval: false
+      require_approval: true
 init:
   prompt: |-
     Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.

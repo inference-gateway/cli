@@ -24,6 +24,20 @@ type FakeToolService struct {
 		result1 *domain.ToolExecutionResult
 		result2 error
 	}
+	ExecuteToolDirectStub        func(context.Context, sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error)
+	executeToolDirectMutex       sync.RWMutex
+	executeToolDirectArgsForCall []struct {
+		arg1 context.Context
+		arg2 sdk.ChatCompletionMessageToolCallFunction
+	}
+	executeToolDirectReturns struct {
+		result1 *domain.ToolExecutionResult
+		result2 error
+	}
+	executeToolDirectReturnsOnCall map[int]struct {
+		result1 *domain.ToolExecutionResult
+		result2 error
+	}
 	GetTaskTrackerStub        func() domain.TaskTracker
 	getTaskTrackerMutex       sync.RWMutex
 	getTaskTrackerArgsForCall []struct {
@@ -152,6 +166,71 @@ func (fake *FakeToolService) ExecuteToolReturnsOnCall(i int, result1 *domain.Too
 		})
 	}
 	fake.executeToolReturnsOnCall[i] = struct {
+		result1 *domain.ToolExecutionResult
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeToolService) ExecuteToolDirect(arg1 context.Context, arg2 sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error) {
+	fake.executeToolDirectMutex.Lock()
+	ret, specificReturn := fake.executeToolDirectReturnsOnCall[len(fake.executeToolDirectArgsForCall)]
+	fake.executeToolDirectArgsForCall = append(fake.executeToolDirectArgsForCall, struct {
+		arg1 context.Context
+		arg2 sdk.ChatCompletionMessageToolCallFunction
+	}{arg1, arg2})
+	stub := fake.ExecuteToolDirectStub
+	fakeReturns := fake.executeToolDirectReturns
+	fake.recordInvocation("ExecuteToolDirect", []interface{}{arg1, arg2})
+	fake.executeToolDirectMutex.Unlock()
+	if stub != nil {
+		return stub(arg1, arg2)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeToolService) ExecuteToolDirectCallCount() int {
+	fake.executeToolDirectMutex.RLock()
+	defer fake.executeToolDirectMutex.RUnlock()
+	return len(fake.executeToolDirectArgsForCall)
+}
+
+func (fake *FakeToolService) ExecuteToolDirectCalls(stub func(context.Context, sdk.ChatCompletionMessageToolCallFunction) (*domain.ToolExecutionResult, error)) {
+	fake.executeToolDirectMutex.Lock()
+	defer fake.executeToolDirectMutex.Unlock()
+	fake.ExecuteToolDirectStub = stub
+}
+
+func (fake *FakeToolService) ExecuteToolDirectArgsForCall(i int) (context.Context, sdk.ChatCompletionMessageToolCallFunction) {
+	fake.executeToolDirectMutex.RLock()
+	defer fake.executeToolDirectMutex.RUnlock()
+	argsForCall := fake.executeToolDirectArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeToolService) ExecuteToolDirectReturns(result1 *domain.ToolExecutionResult, result2 error) {
+	fake.executeToolDirectMutex.Lock()
+	defer fake.executeToolDirectMutex.Unlock()
+	fake.ExecuteToolDirectStub = nil
+	fake.executeToolDirectReturns = struct {
+		result1 *domain.ToolExecutionResult
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeToolService) ExecuteToolDirectReturnsOnCall(i int, result1 *domain.ToolExecutionResult, result2 error) {
+	fake.executeToolDirectMutex.Lock()
+	defer fake.executeToolDirectMutex.Unlock()
+	fake.ExecuteToolDirectStub = nil
+	if fake.executeToolDirectReturnsOnCall == nil {
+		fake.executeToolDirectReturnsOnCall = make(map[int]struct {
+			result1 *domain.ToolExecutionResult
+			result2 error
+		})
+	}
+	fake.executeToolDirectReturnsOnCall[i] = struct {
 		result1 *domain.ToolExecutionResult
 		result2 error
 	}{result1, result2}

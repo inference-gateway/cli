@@ -29,13 +29,41 @@ type ImageAttachment struct {
 
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
-	Message       Message              `json:"message"`
-	Model         string               `json:"model,omitempty"`
-	Time          time.Time            `json:"time"`
-	ToolExecution *ToolExecutionResult `json:"tool_execution,omitempty"`
-	Hidden        bool                 `json:"hidden,omitempty"`
-	Images        []ImageAttachment    `json:"images,omitempty"`
+	// Core message fields
+	Message Message           `json:"message"`
+	Model   string            `json:"model,omitempty"`
+	Time    time.Time         `json:"time"`
+	Hidden  bool              `json:"hidden,omitempty"`
+	Images  []ImageAttachment `json:"images,omitempty"`
+
+	// Tool-related fields
+	ToolExecution      *ToolExecutionResult               `json:"tool_execution,omitempty"`
+	PendingToolCall    *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call,omitempty"`
+	ToolApprovalStatus ToolApprovalStatus                 `json:"tool_approval_status,omitempty"`
+
+	// Plan mode fields
+	Rejected           bool               `json:"rejected,omitempty"`
+	IsPlan             bool               `json:"is_plan,omitempty"`
+	PlanApprovalStatus PlanApprovalStatus `json:"plan_approval_status,omitempty"`
 }
+
+// PlanApprovalStatus represents the approval status of a plan
+type PlanApprovalStatus int
+
+const (
+	PlanApprovalPending PlanApprovalStatus = iota
+	PlanApprovalAccepted
+	PlanApprovalRejected
+)
+
+// ToolApprovalStatus represents the approval status of a tool
+type ToolApprovalStatus int
+
+const (
+	ToolApprovalPending ToolApprovalStatus = iota
+	ToolApprovalApproved
+	ToolApprovalRejected
+)
 
 // ExportFormat defines the format for exporting conversations
 type ExportFormat string
@@ -70,6 +98,7 @@ type ConversationRepository interface {
 	FormatToolResultForLLM(result *ToolExecutionResult) string
 	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
 	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
+	RemovePendingToolCallByID(toolCallID string)
 }
 
 // ModelService handles model selection and information
@@ -177,6 +206,12 @@ type StateManager interface {
 	GetApprovalUIState() *ApprovalUIState
 	SetApprovalSelectedIndex(index int)
 	ClearApprovalUIState()
+
+	// Plan approval management
+	SetupPlanApprovalUIState(planContent string, responseChan chan PlanApprovalAction)
+	GetPlanApprovalUIState() *PlanApprovalUIState
+	SetPlanApprovalSelectedIndex(index int)
+	ClearPlanApprovalUIState()
 
 	// Todo management
 	SetTodos(todos []TodoItem)

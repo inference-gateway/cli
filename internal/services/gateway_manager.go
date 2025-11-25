@@ -163,8 +163,6 @@ func (gm *GatewayManager) stopDocker(ctx context.Context) error {
 		return nil
 	}
 
-	logger.Info("Stopping gateway container", "containerID", gm.containerID)
-
 	cmd := exec.CommandContext(ctx, "docker", "stop", gm.containerID)
 	if err := cmd.Run(); err != nil {
 		logger.Warn("Failed to stop container", "error", err)
@@ -177,7 +175,6 @@ func (gm *GatewayManager) stopDocker(ctx context.Context) error {
 
 	gm.isRunning = false
 	gm.containerID = ""
-	logger.Info("Gateway container stopped")
 	return nil
 }
 
@@ -416,7 +413,6 @@ func (gm *GatewayManager) loadEnvironment() []string {
 func (gm *GatewayManager) ensureNetwork(ctx context.Context) error {
 	cmd := exec.CommandContext(ctx, "docker", "network", "inspect", InferNetworkName)
 	if err := cmd.Run(); err == nil {
-		logger.Debug("Docker network already exists", "network", InferNetworkName)
 		return nil
 	}
 

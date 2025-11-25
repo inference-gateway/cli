@@ -44,21 +44,21 @@ type ChatApplication struct {
 	messageQueue domain.MessageQueue
 
 	// UI components
-	conversationView     ui.ConversationRenderer
-	inputView            ui.InputComponent
-	statusView           ui.StatusComponent
-	helpBar              ui.HelpBarComponent
-	queueBoxView         *components.QueueBoxView
-	todoBoxView          *components.TodoBoxView
-	modelSelector        *components.ModelSelectorImpl
-	themeSelector        *components.ThemeSelectorImpl
-	conversationSelector *components.ConversationSelectorImpl
-	fileSelectionView    *components.FileSelectionView
-	textSelectionView    *components.TextSelectionView
-	a2aServersView       *components.A2AServersView
-	taskManager          *components.TaskManagerImpl
-	toolCallRenderer     *components.ToolCallRenderer
-	approvalComponent    *components.ApprovalComponent
+	conversationView      ui.ConversationRenderer
+	inputView             ui.InputComponent
+	statusView            ui.StatusComponent
+	helpBar               ui.HelpBarComponent
+	queueBoxView          *components.QueueBoxView
+	todoBoxView           *components.TodoBoxView
+	modelSelector         *components.ModelSelectorImpl
+	themeSelector         *components.ThemeSelectorImpl
+	conversationSelector  *components.ConversationSelectorImpl
+	fileSelectionView     *components.FileSelectionView
+	textSelectionView     *components.TextSelectionView
+	a2aServersView        *components.A2AServersView
+	taskManager           *components.TaskManagerImpl
+	toolCallRenderer      *components.ToolCallRenderer
+	planApprovalComponent *components.PlanApprovalComponent
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -131,16 +131,15 @@ func NewChatApplication(
 	styleProvider := styles.NewProvider(app.themeService)
 
 	app.toolCallRenderer = components.NewToolCallRenderer(styleProvider)
-	app.approvalComponent = components.NewApprovalComponent(styleProvider)
+	app.planApprovalComponent = components.NewPlanApprovalComponent(styleProvider)
 	app.conversationView = ui.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
-
-	app.approvalComponent.SetToolFormatter(toolFormatterService)
 
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
 		cv.SetToolCallRenderer(app.toolCallRenderer)
+		cv.SetStateManager(app.stateManager)
 	}
 
 	configDir := ".infer"
@@ -323,8 +322,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleA2AServersView(msg)
 	case domain.ViewStateA2ATaskManagement:
 		return app.handleA2ATaskManagementView(msg)
-	case domain.ViewStateToolApproval:
-		return app.handleToolApprovalView(msg)
+	case domain.ViewStatePlanApproval:
+		return app.handlePlanApprovalView(msg)
 	default:
 		return nil
 	}
@@ -382,7 +381,7 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd 
 	return cmds
 }
 
-func (app *ChatApplication) handleToolApprovalView(msg tea.Msg) []tea.Cmd {
+func (app *ChatApplication) handlePlanApprovalView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
@@ -391,8 +390,8 @@ func (app *ChatApplication) handleToolApprovalView(msg tea.Msg) []tea.Cmd {
 		}
 	}
 
-	if approvalEvent, ok := msg.(domain.ToolApprovalResponseEvent); ok {
-		approvalState := app.stateManager.GetApprovalUIState()
+	if approvalEvent, ok := msg.(domain.PlanApprovalResponseEvent); ok {
+		approvalState := app.stateManager.GetPlanApprovalUIState()
 		if approvalState != nil && approvalState.ResponseChan != nil {
 			approvalState.ResponseChan <- approvalEvent.Action
 
@@ -400,7 +399,7 @@ func (app *ChatApplication) handleToolApprovalView(msg tea.Msg) []tea.Cmd {
 				logger.Error("Failed to transition back to chat view", "error", err)
 			}
 
-			app.stateManager.ClearApprovalUIState()
+			app.stateManager.ClearPlanApprovalUIState()
 		}
 	}
 
@@ -469,8 +468,8 @@ func (app *ChatApplication) View() string {
 		return app.renderA2AServers()
 	case domain.ViewStateA2ATaskManagement:
 		return app.renderA2ATaskManagement()
-	case domain.ViewStateToolApproval:
-		return app.renderToolApproval()
+	case domain.ViewStatePlanApproval:
+		return app.renderPlanApproval()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -786,17 +785,17 @@ func (app *ChatApplication) renderA2ATaskManagement() string {
 	return app.taskManager.View()
 }
 
-func (app *ChatApplication) renderToolApproval() string {
-	approvalState := app.stateManager.GetApprovalUIState()
+func (app *ChatApplication) renderPlanApproval() string {
+	approvalState := app.stateManager.GetPlanApprovalUIState()
 	if approvalState == nil {
-		return "No pending tool approval"
+		return "No pending plan approval"
 	}
 
 	width, height := app.stateManager.GetDimensions()
-	app.approvalComponent.SetDimensions(width, height)
+	app.planApprovalComponent.SetDimensions(width, height)
 
 	theme := app.themeService.GetCurrentTheme()
-	return app.approvalComponent.Render(approvalState, theme)
+	return app.planApprovalComponent.Render(approvalState, theme)
 }
 
 func (app *ChatApplication) renderChatInterface() string {

@@ -30,8 +30,9 @@ type ApplicationState struct {
 	height int
 
 	// UI State
-	fileSelectionState *FileSelectionState
-	approvalUIState    *ApprovalUIState
+	fileSelectionState  *FileSelectionState
+	approvalUIState     *ApprovalUIState
+	planApprovalUIState *PlanApprovalUIState
 
 	// Todo State
 	todos []TodoItem
@@ -55,7 +56,7 @@ const (
 	ViewStateThemeSelection
 	ViewStateA2AServers
 	ViewStateA2ATaskManagement
-	ViewStateToolApproval
+	ViewStatePlanApproval
 )
 
 // AgentMode represents the operational mode of the agent
@@ -88,8 +89,8 @@ func (v ViewState) String() string {
 		return "A2AServers"
 	case ViewStateA2ATaskManagement:
 		return "A2ATaskManagement"
-	case ViewStateToolApproval:
-		return "ToolApproval"
+	case ViewStatePlanApproval:
+		return "PlanApproval"
 	default:
 		return "Unknown"
 	}
@@ -286,6 +287,28 @@ func (a ApprovalAction) String() string {
 	}
 }
 
+// PlanApprovalAction represents the user's choice for plan approval
+type PlanApprovalAction int
+
+const (
+	PlanApprovalAccept PlanApprovalAction = iota
+	PlanApprovalReject
+	PlanApprovalAcceptAndAutoApprove
+)
+
+func (a PlanApprovalAction) String() string {
+	switch a {
+	case PlanApprovalAccept:
+		return "Accept"
+	case PlanApprovalReject:
+		return "Reject"
+	case PlanApprovalAcceptAndAutoApprove:
+		return "Accept & Auto-Approve"
+	default:
+		return "Unknown"
+	}
+}
+
 // FileSelectionState represents the state of file selection UI
 type FileSelectionState struct {
 	Files         []string `json:"files"`
@@ -298,6 +321,13 @@ type ApprovalUIState struct {
 	SelectedIndex   int                                `json:"selected_index"`
 	PendingToolCall *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call"`
 	ResponseChan    chan ApprovalAction                `json:"-"`
+}
+
+// PlanApprovalUIState represents the state of plan approval UI
+type PlanApprovalUIState struct {
+	SelectedIndex int                     `json:"selected_index"`
+	PlanContent   string                  `json:"plan_content"`
+	ResponseChan  chan PlanApprovalAction `json:"-"`
 }
 
 // NewApplicationState creates a new application state
@@ -371,7 +401,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateThemeSelection,
 			ViewStateA2AServers,
 			ViewStateA2ATaskManagement,
-			ViewStateToolApproval,
+			ViewStatePlanApproval,
 		},
 		ViewStateFileSelection:         {ViewStateChat},
 		ViewStateTextSelection:         {ViewStateChat},
@@ -379,7 +409,7 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateThemeSelection:        {ViewStateChat},
 		ViewStateA2AServers:            {ViewStateChat},
 		ViewStateA2ATaskManagement:     {ViewStateChat},
-		ViewStateToolApproval:          {ViewStateChat},
+		ViewStatePlanApproval:          {ViewStateChat},
 	}
 
 	allowed, exists := validTransitions[from]
@@ -738,6 +768,37 @@ func (s *ApplicationState) ClearApprovalUIState() {
 		close(s.approvalUIState.ResponseChan)
 	}
 	s.approvalUIState = nil
+}
+
+// Plan Approval State Management
+
+// SetupPlanApprovalUIState initializes plan approval UI state
+func (s *ApplicationState) SetupPlanApprovalUIState(planContent string, responseChan chan PlanApprovalAction) {
+	s.planApprovalUIState = &PlanApprovalUIState{
+		SelectedIndex: int(PlanApprovalAccept), // Default to accept
+		PlanContent:   planContent,
+		ResponseChan:  responseChan,
+	}
+}
+
+// GetPlanApprovalUIState returns the current plan approval UI state
+func (s *ApplicationState) GetPlanApprovalUIState() *PlanApprovalUIState {
+	return s.planApprovalUIState
+}
+
+// SetPlanApprovalSelectedIndex sets the plan approval selection index
+func (s *ApplicationState) SetPlanApprovalSelectedIndex(index int) {
+	if s.planApprovalUIState != nil {
+		s.planApprovalUIState.SelectedIndex = index
+	}
+}
+
+// ClearPlanApprovalUIState clears the plan approval UI state
+func (s *ApplicationState) ClearPlanApprovalUIState() {
+	if s.planApprovalUIState != nil && s.planApprovalUIState.ResponseChan != nil {
+		close(s.planApprovalUIState.ResponseChan)
+	}
+	s.planApprovalUIState = nil
 }
 
 // Todo State Management

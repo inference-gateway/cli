@@ -7,6 +7,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	services "github.com/inference-gateway/cli/internal/services"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -199,10 +201,48 @@ func (e *ChatEventHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea
 	return nil
 }
 
+// triggerPlanApproval extracts plan content and triggers plan approval flow
+func (e *ChatEventHandler) triggerPlanApproval(msg domain.ChatCompleteEvent) tea.Cmd {
+	messages := e.handler.conversationRepo.GetMessages()
+	var planContent string
+	for i := len(messages) - 1; i >= 0; i-- {
+		if messages[i].Message.Role == sdk.Assistant {
+			contentStr, err := messages[i].Message.Content.AsMessageContent0()
+			if err == nil {
+				planContent = contentStr
+			}
+			break
+		}
+	}
+
+	var cmds []tea.Cmd
+	cmds = append(cmds, func() tea.Msg {
+		return domain.PlanApprovalRequestedEvent{
+			RequestID:    msg.RequestID,
+			Timestamp:    msg.Timestamp,
+			PlanContent:  planContent,
+			ResponseChan: nil,
+		}
+	})
+
+	chatSession := e.handler.stateManager.GetChatSession()
+	if chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
+	}
+
+	return tea.Batch(cmds...)
+}
+
 func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
 
 ) tea.Cmd {
+	agentMode := e.handler.stateManager.GetAgentMode()
+
+	if agentMode == domain.AgentModePlan && len(msg.ToolCalls) == 0 {
+		return e.triggerPlanApproval(msg)
+	}
+
 	if len(msg.ToolCalls) == 0 {
 		_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
 	}
@@ -353,16 +393,31 @@ func (e *ChatEventHandler) handleToolCallReady(
 func (e *ChatEventHandler) handleToolApprovalRequested(
 	msg domain.ToolApprovalRequestedEvent,
 ) tea.Cmd {
-	_ = e.handler.stateManager.TransitionToView(domain.ViewStateToolApproval)
+	if inMemRepo, ok := e.handler.conversationRepo.(*services.InMemoryConversationRepository); ok {
+		if err := inMemRepo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
+			logger.Error("Failed to add pending tool call", "error", err)
+		}
+	} else if persistentRepo, ok := e.handler.conversationRepo.(*services.PersistentConversationRepository); ok {
+		if err := persistentRepo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
+			logger.Error("Failed to add pending tool call", "error", err)
+		}
+	}
 
 	e.handler.stateManager.SetupApprovalUIState(&msg.ToolCall, msg.ResponseChan)
 
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
-		return domain.ShowToolApprovalEvent{
-			ToolCall:     msg.ToolCall,
-			ResponseChan: msg.ResponseChan,
+		return domain.UpdateHistoryEvent{
+			History: e.handler.conversationRepo.GetMessages(),
+		}
+	})
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    fmt.Sprintf("Tool approval required: %s", msg.ToolCall.Function.Name),
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
 		}
 	})
 
@@ -396,6 +451,14 @@ func (e *ChatEventHandler) handleToolExecutionStarted(
 func (e *ChatEventHandler) handleToolExecutionProgress(
 	_ domain.ToolExecutionProgressEvent,
 ) tea.Cmd {
+	e.handler.commandHandler.bashEventChannelMu.RLock()
+	bashEventChan := e.handler.commandHandler.bashEventChannel
+	e.handler.commandHandler.bashEventChannelMu.RUnlock()
+
+	if bashEventChan != nil {
+		return e.handler.commandHandler.listenToBashEvents(bashEventChan)
+	}
+
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
@@ -406,6 +469,14 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 func (e *ChatEventHandler) handleBashOutputChunk(
 	_ domain.BashOutputChunkEvent,
 ) tea.Cmd {
+	e.handler.commandHandler.bashEventChannelMu.RLock()
+	bashEventChan := e.handler.commandHandler.bashEventChannel
+	e.handler.commandHandler.bashEventChannelMu.RUnlock()
+
+	if bashEventChan != nil {
+		return e.handler.commandHandler.listenToBashEvents(bashEventChan)
+	}
+
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}
@@ -468,6 +539,14 @@ func (e *ChatEventHandler) handleParallelToolsStart(
 	_ domain.ParallelToolsStartEvent,
 
 ) tea.Cmd {
+	e.handler.commandHandler.bashEventChannelMu.RLock()
+	bashEventChan := e.handler.commandHandler.bashEventChannel
+	e.handler.commandHandler.bashEventChannelMu.RUnlock()
+
+	if bashEventChan != nil {
+		return e.handler.commandHandler.listenToBashEvents(bashEventChan)
+	}
+
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil {
 		return e.handler.listenForChatEvents(chatSession.EventChannel)
 	}

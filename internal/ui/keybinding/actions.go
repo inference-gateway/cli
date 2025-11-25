@@ -222,7 +222,7 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			Keys:        []string{"left"},
 			Description: "move cursor left",
 			Category:    "text_editing",
-			Handler:     handleCursorLeft,
+			Handler:     handleCursorLeftOrPlanNav,
 			Priority:    200,
 			Enabled:     true,
 			Context: KeyContext{
@@ -234,7 +234,7 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			Keys:        []string{"right"},
 			Description: "move cursor right",
 			Category:    "text_editing",
-			Handler:     handleCursorRight,
+			Handler:     handleCursorRightOrPlanNav,
 			Priority:    200,
 			Enabled:     true,
 			Context: KeyContext{
@@ -416,63 +416,63 @@ func (r *Registry) createScrollActions() []*KeyAction {
 func (r *Registry) createApprovalActions() []*KeyAction {
 	return []*KeyAction{
 		{
-			ID:          "approval_left",
+			ID:          "plan_approval_left",
 			Keys:        []string{"left", "h"},
 			Description: "move selection left",
-			Category:    "approval",
-			Handler:     handleApprovalLeft,
+			Category:    "plan_approval",
+			Handler:     handlePlanApprovalLeft,
 			Priority:    150,
 			Enabled:     true,
 			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateToolApproval},
+				Views: []domain.ViewState{domain.ViewStatePlanApproval},
 			},
 		},
 		{
-			ID:          "approval_right",
+			ID:          "plan_approval_right",
 			Keys:        []string{"right", "l"},
 			Description: "move selection right",
-			Category:    "approval",
-			Handler:     handleApprovalRight,
+			Category:    "plan_approval",
+			Handler:     handlePlanApprovalRight,
 			Priority:    150,
 			Enabled:     true,
 			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateToolApproval},
+				Views: []domain.ViewState{domain.ViewStatePlanApproval},
 			},
 		},
 		{
-			ID:          "approval_approve",
+			ID:          "plan_approval_accept",
 			Keys:        []string{"enter", "y"},
-			Description: "approve tool execution",
-			Category:    "approval",
-			Handler:     handleApprovalApprove,
+			Description: "accept plan",
+			Category:    "plan_approval",
+			Handler:     handlePlanApprovalAccept,
 			Priority:    150,
 			Enabled:     true,
 			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateToolApproval},
+				Views: []domain.ViewState{domain.ViewStatePlanApproval},
 			},
 		},
 		{
-			ID:          "approval_reject",
+			ID:          "plan_approval_reject",
 			Keys:        []string{"n"},
-			Description: "reject tool execution",
-			Category:    "approval",
-			Handler:     handleApprovalReject,
+			Description: "reject plan",
+			Category:    "plan_approval",
+			Handler:     handlePlanApprovalReject,
 			Priority:    150,
 			Enabled:     true,
 			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateToolApproval},
+				Views: []domain.ViewState{domain.ViewStatePlanApproval},
 			},
 		},
 		{
-			ID:          "approval_auto_accept",
+			ID:          "plan_approval_accept_and_auto_approve",
 			Keys:        []string{"a"},
-			Description: "switch to auto-accept mode",
-			Category:    "approval",
-			Handler:     handleApprovalAutoAccept,
+			Description: "accept plan and enable auto-approve mode",
+			Category:    "plan_approval",
+			Handler:     handlePlanApprovalAcceptAndAutoApprove,
 			Priority:    150,
 			Enabled:     true,
 			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateToolApproval},
+				Views: []domain.ViewState{domain.ViewStatePlanApproval},
 			},
 		},
 	}
@@ -520,13 +520,12 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	stateManager := app.GetStateManager()
 
-	if stateManager.GetCurrentView() == domain.ViewStateToolApproval {
-		approvalState := stateManager.GetApprovalUIState()
-		if approvalState != nil && approvalState.ResponseChan != nil {
+	if stateManager.GetCurrentView() == domain.ViewStatePlanApproval {
+		planApprovalState := stateManager.GetPlanApprovalUIState()
+		if planApprovalState != nil && planApprovalState.ResponseChan != nil {
 			return func() tea.Msg {
-				return domain.ToolApprovalResponseEvent{
-					Action:   domain.ApprovalReject,
-					ToolCall: *approvalState.PendingToolCall,
+				return domain.PlanApprovalResponseEvent{
+					Action: domain.PlanApprovalReject,
 				}
 			}
 		}
@@ -567,6 +566,29 @@ func handleToggleRawFormat(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+
+	approvalState := stateManager.GetApprovalUIState()
+	if approvalState != nil {
+		action := domain.ApprovalAction(approvalState.SelectedIndex)
+		return func() tea.Msg {
+			return domain.ToolApprovalResponseEvent{
+				Action:   action,
+				ToolCall: *approvalState.PendingToolCall,
+			}
+		}
+	}
+
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	if planApprovalState != nil {
+		action := domain.PlanApprovalAction(planApprovalState.SelectedIndex)
+		return func() tea.Msg {
+			return domain.PlanApprovalResponseEvent{
+				Action: action,
+			}
+		}
+	}
+
 	inputView := app.GetInputView()
 	if inputView == nil {
 		return nil
@@ -734,7 +756,29 @@ func handlePageDown(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 // Text editing handlers
-func handleCursorLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+
+	approvalState := stateManager.GetApprovalUIState()
+	if approvalState != nil {
+		newIndex := approvalState.SelectedIndex - 1
+		if newIndex < 0 {
+			newIndex = int(domain.ApprovalAutoAccept)
+		}
+		stateManager.SetApprovalSelectedIndex(newIndex)
+		return nil
+	}
+
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	if planApprovalState != nil {
+		newIndex := planApprovalState.SelectedIndex - 1
+		if newIndex < 0 {
+			newIndex = int(domain.PlanApprovalAcceptAndAutoApprove)
+		}
+		stateManager.SetPlanApprovalSelectedIndex(newIndex)
+		return nil
+	}
+
 	inputView := app.GetInputView()
 	if inputView != nil {
 		cursor := inputView.GetCursor()
@@ -745,7 +789,29 @@ func handleCursorLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return nil
 }
 
-func handleCursorRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+
+	approvalState := stateManager.GetApprovalUIState()
+	if approvalState != nil {
+		newIndex := approvalState.SelectedIndex + 1
+		if newIndex > int(domain.ApprovalAutoAccept) {
+			newIndex = 0
+		}
+		stateManager.SetApprovalSelectedIndex(newIndex)
+		return nil
+	}
+
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	if planApprovalState != nil {
+		newIndex := planApprovalState.SelectedIndex + 1
+		if newIndex > int(domain.PlanApprovalAcceptAndAutoApprove) {
+			newIndex = 0
+		}
+		stateManager.SetPlanApprovalSelectedIndex(newIndex)
+		return nil
+	}
+
 	inputView := app.GetInputView()
 	if inputView != nil {
 		cursor := inputView.GetCursor()
@@ -1101,82 +1167,69 @@ func handlePasteEvent(app KeyHandlerContext, pastedText string) tea.Cmd {
 }
 
 // Approval handlers
-func handleApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+// Plan Approval handlers
+
+func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
-	approvalState := stateManager.GetApprovalUIState()
-	if approvalState == nil {
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	if planApprovalState == nil {
 		return nil
 	}
 
-	selectedIndex := approvalState.SelectedIndex
-	if selectedIndex > int(domain.ApprovalApprove) {
-		selectedIndex--
-		stateManager.SetApprovalSelectedIndex(selectedIndex)
+	newIndex := planApprovalState.SelectedIndex - 1
+	if newIndex < 0 {
+		newIndex = int(domain.PlanApprovalAcceptAndAutoApprove)
 	}
+	stateManager.SetPlanApprovalSelectedIndex(newIndex)
 	return nil
 }
 
-func handleApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
-	approvalState := stateManager.GetApprovalUIState()
-	if approvalState == nil {
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	if planApprovalState == nil {
 		return nil
 	}
 
-	selectedIndex := approvalState.SelectedIndex
-	if selectedIndex < int(domain.ApprovalAutoAccept) {
-		selectedIndex++
-		stateManager.SetApprovalSelectedIndex(selectedIndex)
+	newIndex := planApprovalState.SelectedIndex + 1
+	if newIndex > int(domain.PlanApprovalAcceptAndAutoApprove) {
+		newIndex = 0
 	}
+	stateManager.SetPlanApprovalSelectedIndex(newIndex)
 	return nil
 }
 
-func handleApprovalApprove(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
-	approvalState := stateManager.GetApprovalUIState()
-	if approvalState == nil {
-		return nil
-	}
-
-	action := domain.ApprovalAction(approvalState.SelectedIndex)
-	if action == domain.ApprovalApprove || keyMsg.String() == "y" {
-		action = domain.ApprovalApprove
-	}
-
+func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		return domain.ToolApprovalResponseEvent{
-			Action:   action,
-			ToolCall: *approvalState.PendingToolCall,
+		stateManager := app.GetStateManager()
+		planApprovalState := stateManager.GetPlanApprovalUIState()
+		if planApprovalState == nil {
+			return nil
+		}
+
+		action := domain.PlanApprovalAction(planApprovalState.SelectedIndex)
+		if action == domain.PlanApprovalAccept || keyMsg.String() == "y" {
+			action = domain.PlanApprovalAccept
+		}
+
+		return domain.PlanApprovalResponseEvent{
+			Action: action,
 		}
 	}
 }
 
-func handleApprovalReject(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handlePlanApprovalReject(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		stateManager := app.GetStateManager()
-		approvalState := stateManager.GetApprovalUIState()
-		if approvalState == nil {
-			return nil
-		}
-
-		return domain.ToolApprovalResponseEvent{
-			Action:   domain.ApprovalReject,
-			ToolCall: *approvalState.PendingToolCall,
+		return domain.PlanApprovalResponseEvent{
+			Action: domain.PlanApprovalReject,
 		}
 	}
 }
 
-func handleApprovalAutoAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+func handlePlanApprovalAcceptAndAutoApprove(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return func() tea.Msg {
-		stateManager := app.GetStateManager()
-		approvalState := stateManager.GetApprovalUIState()
-		if approvalState == nil {
-			return nil
-		}
-
-		return domain.ToolApprovalResponseEvent{
-			Action:   domain.ApprovalAutoAccept,
-			ToolCall: *approvalState.PendingToolCall,
+		return domain.PlanApprovalResponseEvent{
+			Action: domain.PlanApprovalAcceptAndAutoApprove,
 		}
 	}
 }

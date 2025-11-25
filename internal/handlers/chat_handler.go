@@ -2,9 +2,7 @@ package handlers
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	spinner "github.com/charmbracelet/bubbles/spinner"
@@ -110,6 +108,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return h.HandleToolExecutionProgressEvent(m)
 	case domain.BashOutputChunkEvent:
 		return h.HandleBashOutputChunkEvent(m)
+	case domain.BashCommandCompletedEvent:
+		return h.HandleBashCommandCompletedEvent(m)
 	case domain.ToolExecutionCompletedEvent:
 		return h.HandleToolExecutionCompletedEvent(m)
 	case domain.ParallelToolsStartEvent:
@@ -136,6 +136,10 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return h.HandleToolApprovalRequestedEvent(m)
 	case domain.ToolApprovalResponseEvent:
 		return h.HandleToolApprovalResponseEvent(m)
+	case domain.PlanApprovalRequestedEvent:
+		return h.HandlePlanApprovalRequestedEvent(m)
+	case domain.PlanApprovalResponseEvent:
+		return h.HandlePlanApprovalResponseEvent(m)
 	case domain.TodoUpdateChatEvent:
 		return h.HandleTodoUpdateChatEvent(m)
 	case domain.AgentStatusUpdateEvent:
@@ -402,6 +406,26 @@ func (h *ChatHandler) HandleBashOutputChunkEvent(
 	return h.eventHandler.handleBashOutputChunk(msg)
 }
 
+func (h *ChatHandler) HandleBashCommandCompletedEvent(
+	msg domain.BashCommandCompletedEvent,
+) tea.Cmd {
+	var cmds []tea.Cmd
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.UpdateHistoryEvent(msg)
+	})
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Command completed",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	})
+
+	return tea.Batch(cmds...)
+}
+
 func (h *ChatHandler) HandleToolExecutionCompletedEvent(
 	msg domain.ToolExecutionCompletedEvent,
 ) tea.Cmd {
@@ -498,108 +522,225 @@ func (h *ChatHandler) HandleTodoUpdateChatEvent(
 	return tea.Batch(cmds...)
 }
 
-// handleToolApprovalResponse processes the user's approval decision
+// handleToolApprovalResponse processes the user's approval decision for inline tool approval
 func (h *ChatHandler) handleToolApprovalResponse(
 	msg domain.ToolApprovalResponseEvent,
 ) tea.Cmd {
+	logger.Info("handleToolApprovalResponse called", "action", msg.Action, "tool", msg.ToolCall.Function.Name)
+
+	if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
+		logger.Info("Updating tool approval status (InMemory)")
+		inMemRepo.UpdateToolApprovalStatus(msg.Action)
+	} else if persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository); ok {
+		logger.Info("Updating tool approval status (Persistent)")
+		persistentRepo.UpdateToolApprovalStatus(msg.Action)
+	}
+
 	if msg.Action == domain.ApprovalAutoAccept {
+		logger.Info("Switching to auto-accept mode for all future tools")
 		h.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
 
 		approvalState := h.stateManager.GetApprovalUIState()
 		if approvalState != nil && approvalState.ResponseChan != nil {
 			select {
 			case approvalState.ResponseChan <- domain.ApprovalApprove:
+				logger.Info("Sent approval to agent (auto-accept mode)")
 			default:
+				logger.Warn("Failed to send approval - channel full or closed")
 			}
 		}
 
 		h.stateManager.ClearApprovalUIState()
-		_ = h.stateManager.TransitionToView(domain.ViewStateChat)
 
-		return func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message: "Switched to Auto-Accept mode - all tools will be auto-approved",
-				Spinner: false,
+		var cmds []tea.Cmd
+		cmds = append(cmds, func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: h.conversationRepo.GetMessages(),
 			}
+		})
+		cmds = append(cmds, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Auto-Approve mode enabled - executing tool...",
+				Spinner:    true,
+				StatusType: domain.StatusDefault,
+			}
+		})
+
+		if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+			cmds = append(cmds, h.listenForChatEvents(chatSession.EventChannel))
 		}
+
+		return tea.Batch(cmds...)
 	}
 
 	approvalState := h.stateManager.GetApprovalUIState()
 	if approvalState != nil && approvalState.ResponseChan != nil {
 		select {
 		case approvalState.ResponseChan <- msg.Action:
+			logger.Info("Sent approval action to agent", "action", msg.Action)
 		default:
+			logger.Warn("Failed to send approval - channel full or closed")
 		}
 	}
 
 	h.stateManager.ClearApprovalUIState()
-	_ = h.stateManager.TransitionToView(domain.ViewStateChat)
 
-	isManualExecution := strings.HasPrefix(msg.ToolCall.Id, "manual-")
-
-	if !isManualExecution {
-		return nil
+	var statusMessage string
+	var spinner bool
+	switch msg.Action {
+	case domain.ApprovalApprove:
+		statusMessage = fmt.Sprintf("Tool approved - executing %s...", msg.ToolCall.Function.Name)
+		spinner = true
+	case domain.ApprovalReject:
+		statusMessage = fmt.Sprintf("Tool rejected: %s", msg.ToolCall.Function.Name)
+		spinner = false
 	}
 
-	if msg.Action == domain.ApprovalReject {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Tool execution rejected: %s", msg.ToolCall.Function.Name),
-				Sticky: false,
-			}
-		}
-	}
-
-	return func() tea.Msg {
-		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
-		result, err := h.toolService.ExecuteTool(ctx, msg.ToolCall.Function)
-		if err != nil {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to execute tool: %v", err),
-				Sticky: false,
-			}
-		}
-
-		commandText := h.reconstructCommandText(msg.ToolCall)
-
-		userEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.User,
-				Content: sdk.NewMessageContent(commandText),
-			},
-			Time: time.Now(),
-		}
-		_ = h.conversationRepo.AddMessage(userEntry)
-
-		responseContent := h.conversationRepo.FormatToolResultForLLM(result)
-		assistantEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(responseContent),
-			},
-			Time: time.Now(),
-		}
-		_ = h.conversationRepo.AddMessage(assistantEntry)
-
+	var cmds []tea.Cmd
+	cmds = append(cmds, func() tea.Msg {
 		return domain.UpdateHistoryEvent{
 			History: h.conversationRepo.GetMessages(),
 		}
+	})
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    statusMessage,
+			Spinner:    spinner,
+			StatusType: domain.StatusDefault,
+		}
+	})
+
+	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, h.listenForChatEvents(chatSession.EventChannel))
 	}
+
+	return tea.Batch(cmds...)
 }
 
-// reconstructCommandText reconstructs the original command text from a tool call
-func (h *ChatHandler) reconstructCommandText(toolCall sdk.ChatCompletionMessageToolCall) string {
-	if toolCall.Function.Name == "Bash" {
-		var args map[string]interface{}
-		if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
-			if command, ok := args["command"].(string); ok {
-				return "!" + command
-			}
-		}
-		return "!<unknown command>"
+func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
+	msg domain.PlanApprovalRequestedEvent,
+) tea.Cmd {
+	logger.Info("HandlePlanApprovalRequestedEvent called")
+
+	if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
+		logger.Info("Marking last message as plan (InMemory)")
+		inMemRepo.MarkLastMessageAsPlan()
+	} else if persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository); ok {
+		logger.Info("Marking last message as plan (Persistent)")
+		persistentRepo.MarkLastMessageAsPlan()
+	} else {
+		logger.Warn("conversationRepo does not support plan approval", "type", fmt.Sprintf("%T", h.conversationRepo))
 	}
 
-	return "!!" + toolCall.Function.Name + "(...)"
+	h.stateManager.SetupPlanApprovalUIState(msg.PlanContent, msg.ResponseChan)
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Plan ready - use arrow keys to select and Enter to confirm",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)
+}
+
+func (h *ChatHandler) HandlePlanApprovalResponseEvent(
+	msg domain.PlanApprovalResponseEvent,
+) tea.Cmd {
+	logger.Info("HandlePlanApprovalResponseEvent called", "action", msg.Action)
+
+	planApprovalState := h.stateManager.GetPlanApprovalUIState()
+	if planApprovalState == nil {
+		logger.Warn("HandlePlanApprovalResponseEvent: planApprovalState is nil, ignoring")
+		return nil
+	}
+
+	logger.Info("Clearing plan approval UI state to prevent re-entry")
+	h.stateManager.ClearPlanApprovalUIState()
+
+	if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
+		logger.Info("Updating plan status (InMemory)")
+		inMemRepo.UpdatePlanStatus(msg.Action)
+	} else if persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository); ok {
+		logger.Info("Updating plan status (Persistent)")
+		persistentRepo.UpdatePlanStatus(msg.Action)
+	}
+
+	switch msg.Action {
+	case domain.PlanApprovalAccept:
+		logger.Info("Switching to standard agent mode for plan execution")
+		h.stateManager.SetAgentMode(domain.AgentModeStandard)
+	case domain.PlanApprovalAcceptAndAutoApprove:
+		logger.Info("Switching to auto-accept mode for plan execution")
+		h.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
+	}
+
+	var statusMessage string
+	switch msg.Action {
+	case domain.PlanApprovalAccept:
+		statusMessage = "Plan accepted - executing plan..."
+		logger.Info("Adding hidden continue message to queue")
+		h.addHiddenContinueMessage()
+	case domain.PlanApprovalReject:
+		statusMessage = "Plan rejected - you can provide feedback or changes"
+		logger.Info("Ending chat session due to plan rejection")
+		h.stateManager.EndChatSession()
+	case domain.PlanApprovalAcceptAndAutoApprove:
+		statusMessage = "Plan accepted - Auto-Approve mode enabled, executing plan..."
+		logger.Info("Adding hidden continue message to queue (auto-approve mode)")
+		h.addHiddenContinueMessage()
+	}
+
+	cmds := []tea.Cmd{
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: h.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    statusMessage,
+				Spinner:    msg.Action != domain.PlanApprovalReject,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	}
+
+	if msg.Action != domain.PlanApprovalReject {
+		logger.Info("Starting new chat session to execute approved plan")
+		cmds = append(cmds, h.startChatCompletion())
+	}
+
+	return tea.Batch(cmds...)
+}
+
+// addHiddenContinueMessage adds a hidden user message to tell the LLM to continue with the approved plan
+func (h *ChatHandler) addHiddenContinueMessage() {
+	logger.Info("addHiddenContinueMessage called")
+
+	continueMessage := sdk.Message{
+		Role:    sdk.User,
+		Content: sdk.NewMessageContent("The plan has been approved. Please proceed with executing it."),
+	}
+
+	entry := domain.ConversationEntry{
+		Message: continueMessage,
+		Time:    time.Now(),
+		Hidden:  true,
+	}
+
+	if err := h.conversationRepo.AddMessage(entry); err != nil {
+		logger.Error("Failed to add continue message to conversation", "error", err)
+		return
+	}
+
+	logger.Info("Continue message added to conversation history")
 }
 
 // isUIOnlyEvent checks if the event is a UI-only event that doesn't require business logic handling
@@ -623,7 +764,7 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.ExitSelectionModeEvent,
 		domain.ModelSelectedEvent,
 		domain.ThemeSelectedEvent,
-		domain.ShowToolApprovalEvent,
+		domain.ShowPlanApprovalEvent,
 		tea.KeyMsg,
 		tea.WindowSizeMsg,
 		spinner.TickMsg:

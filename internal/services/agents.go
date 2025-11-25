@@ -96,7 +96,6 @@ func (s *A2AAgentService) storeInCache(agentURL string, card *adk.AgentCard) {
 
 func (s *A2AAgentService) GetConfiguredAgents() []string {
 	if len(s.config.A2A.Agents) > 0 {
-		logger.Debug("Using agents from environment variable", "count", len(s.config.A2A.Agents))
 		return s.config.A2A.Agents
 	}
 
