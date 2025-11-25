@@ -500,6 +500,40 @@ func (sm *StateManager) ClearApprovalUIState() {
 	sm.state.ClearApprovalUIState()
 }
 
+// Plan approval state methods
+
+// SetupPlanApprovalUIState initializes plan approval UI state
+func (sm *StateManager) SetupPlanApprovalUIState(planContent string, responseChan chan domain.PlanApprovalAction) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.SetupPlanApprovalUIState(planContent, responseChan)
+}
+
+// GetPlanApprovalUIState returns the current plan approval UI state
+func (sm *StateManager) GetPlanApprovalUIState() *domain.PlanApprovalUIState {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	return sm.state.GetPlanApprovalUIState()
+}
+
+// SetPlanApprovalSelectedIndex sets the plan approval selection index
+func (sm *StateManager) SetPlanApprovalSelectedIndex(index int) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.SetPlanApprovalSelectedIndex(index)
+}
+
+// ClearPlanApprovalUIState clears the plan approval UI state
+func (sm *StateManager) ClearPlanApprovalUIState() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.ClearPlanApprovalUIState()
+}
+
 // Todo management methods
 
 // SetTodos sets the todo list

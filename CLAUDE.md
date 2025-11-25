@@ -170,7 +170,8 @@ The CLI implements a **user approval workflow** for sensitive tool operations to
 
 The CLI implements a **plan approval workflow** for Plan Mode to ensure user oversight of planned actions:
 
-- **Automatic Triggering**: When in Plan Mode (`AgentModePlan`), after the agent completes planning (ChatCompleteEvent with no tool calls), a plan approval modal is automatically displayed
+- **Automatic Triggering**: When in Plan Mode (`AgentModePlan`), after the agent completes planning
+  (ChatCompleteEvent with no tool calls), a plan approval modal is automatically displayed
 
 - **Approval Components**:
   - `PlanApprovalComponent` (`internal/ui/components/plan_approval_component.go`): Renders plan approval modal
@@ -199,7 +200,8 @@ The CLI implements a **plan approval workflow** for Plan Mode to ensure user ove
 - **User Actions**:
   - **Accept**: Approves the plan and returns to chat, staying in Plan Mode for further planning
   - **Reject**: Rejects the plan, allowing the user to provide feedback or request changes
-  - **Accept & Auto-Approve**: Approves the plan AND automatically switches to Auto-Accept mode, enabling immediate execution of the planned actions
+  - **Accept & Auto-Approve**: Approves the plan AND automatically switches to Auto-Accept mode,
+  enabling immediate execution of the planned actions
 
 ### State Management
 

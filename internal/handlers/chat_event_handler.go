@@ -211,7 +211,10 @@ func (e *ChatEventHandler) handleChatComplete(
 		var planContent string
 		for i := len(messages) - 1; i >= 0; i-- {
 			if messages[i].Message.Role == sdk.Assistant {
-				planContent = messages[i].Message.Content.String()
+				contentStr, err := messages[i].Message.Content.AsMessageContent0()
+				if err == nil {
+					planContent = contentStr
+				}
 				break
 			}
 		}
