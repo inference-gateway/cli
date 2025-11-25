@@ -29,18 +29,22 @@ type ImageAttachment struct {
 
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
-	Message            Message                            `json:"message"`
-	Model              string                             `json:"model,omitempty"`
-	Time               time.Time                          `json:"time"`
+	// Core message fields
+	Message Message       `json:"message"`
+	Model   string        `json:"model,omitempty"`
+	Time    time.Time     `json:"time"`
+	Hidden  bool          `json:"hidden,omitempty"`
+	Images  []ImageAttachment `json:"images,omitempty"`
+
+	// Tool-related fields
 	ToolExecution      *ToolExecutionResult               `json:"tool_execution,omitempty"`
-	Hidden             bool                               `json:"hidden,omitempty"`
-	Images             []ImageAttachment                  `json:"images,omitempty"`
-	Rejected           bool                               `json:"rejected,omitempty"`
-	IsPlan             bool                               `json:"is_plan,omitempty"`
-	PlanApprovalStatus PlanApprovalStatus                 `json:"plan_approval_status,omitempty"`
 	PendingToolCall    *sdk.ChatCompletionMessageToolCall `json:"pending_tool_call,omitempty"`
 	ToolApprovalStatus ToolApprovalStatus                 `json:"tool_approval_status,omitempty"`
-	ToolApprovalChan   chan ApprovalAction                `json:"-"` // Not serialized
+
+	// Plan mode fields
+	Rejected           bool               `json:"rejected,omitempty"`
+	IsPlan             bool               `json:"is_plan,omitempty"`
+	PlanApprovalStatus PlanApprovalStatus `json:"plan_approval_status,omitempty"`
 }
 
 // PlanApprovalStatus represents the approval status of a plan

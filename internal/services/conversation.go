@@ -101,7 +101,6 @@ func (r *InMemoryConversationRepository) AddPendingToolCall(toolCall sdk.ChatCom
 		Time:               time.Now(),
 		PendingToolCall:    &toolCall,
 		ToolApprovalStatus: domain.ToolApprovalPending,
-		ToolApprovalChan:   responseChan,
 	}
 
 	r.messages = append(r.messages, entry)
