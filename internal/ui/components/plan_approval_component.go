@@ -1,7 +1,6 @@
 package components
 
 import (
-	"fmt"
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -169,12 +168,4 @@ func (c *PlanApprovalComponent) renderOptions(selectedIndex int) string {
 	acceptAndAutoApproveButton := c.styleProvider.RenderApprovalButton(acceptAndAutoApproveText, isAcceptAndAutoApproveSelected, true)
 
 	return c.styleProvider.JoinHorizontal(acceptButton, "  ", rejectButton, "  ", acceptAndAutoApproveButton)
-}
-
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
