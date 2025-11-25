@@ -845,11 +845,6 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 	}
 
 	for _, at := range approvalTools {
-		eventPublisher.publishToolStatusChange(
-			at.tool.Id,
-			"starting",
-			fmt.Sprintf("Initializing %s...", at.tool.Function.Name),
-		)
 
 		time.Sleep(constants.AgentToolExecutionDelay)
 
