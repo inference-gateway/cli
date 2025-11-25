@@ -355,23 +355,22 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 	successfulEdits := 0
 
 	for i, edit := range edits {
-		cleanedOldString := t.cleanString(edit.OldString)
-		if !strings.Contains(currentContent, cleanedOldString) {
-			return nil, t.createMultiEditMatchError(currentContent, cleanedOldString, filePath, i+1)
+		if !strings.Contains(currentContent, edit.OldString) {
+			return nil, t.createMultiEditMatchError(currentContent, edit.OldString, filePath, i+1)
 		}
 
 		var newContent string
 		var replacedCount int
 
 		if edit.ReplaceAll {
-			newContent = strings.ReplaceAll(currentContent, cleanedOldString, edit.NewString)
-			replacedCount = strings.Count(currentContent, cleanedOldString)
+			newContent = strings.ReplaceAll(currentContent, edit.OldString, edit.NewString)
+			replacedCount = strings.Count(currentContent, edit.OldString)
 		} else {
-			count := strings.Count(currentContent, cleanedOldString)
+			count := strings.Count(currentContent, edit.OldString)
 			if count > 1 {
-				return nil, fmt.Errorf("edit %d failed: old_string '%s' is not unique in file %s (found %d occurrences after previous edits). Use replace_all=true to replace all occurrences or provide a larger string with more surrounding context to make it unique", i+1, cleanedOldString, filePath, count)
+				return nil, fmt.Errorf("edit %d failed: old_string '%s' is not unique in file %s (found %d occurrences after previous edits). Use replace_all=true to replace all occurrences or provide a larger string with more surrounding context to make it unique", i+1, edit.OldString, filePath, count)
 			}
-			newContent = strings.Replace(currentContent, cleanedOldString, edit.NewString, 1)
+			newContent = strings.Replace(currentContent, edit.OldString, edit.NewString, 1)
 			replacedCount = 1
 		}
 
@@ -379,7 +378,7 @@ func (t *MultiEditTool) executeMultiEdit(filePath string, edits []EditOperation)
 		successfulEdits++
 
 		editResults = append(editResults, domain.EditOperationResult{
-			OldString:     cleanedOldString,
+			OldString:     edit.OldString,
 			NewString:     edit.NewString,
 			ReplaceAll:    edit.ReplaceAll,
 			ReplacedCount: replacedCount,
@@ -439,65 +438,6 @@ func (t *MultiEditTool) validateFile(path string) error {
 	return nil
 }
 
-// cleanString removes common artifacts from Read tool output like line number prefixes
-func (t *MultiEditTool) cleanString(s string) string {
-	lines := strings.Split(s, "\n")
-	var cleanedLines []string
-
-	for _, line := range lines {
-		if t.isLineNumberPrefix(line) {
-			if cleanedLine, shouldSkip := t.extractContentAfterLineNumber(line); shouldSkip {
-				cleanedLines = append(cleanedLines, cleanedLine)
-				continue
-			}
-		}
-		cleanedLines = append(cleanedLines, line)
-	}
-
-	return strings.Join(cleanedLines, "\n")
-}
-
-// isLineNumberPrefix checks if a line starts with a line number prefix pattern
-func (t *MultiEditTool) isLineNumberPrefix(line string) bool {
-	return len(line) > 0 && (line[0] == ' ' || (line[0] >= '0' && line[0] <= '9'))
-}
-
-// extractContentAfterLineNumber extracts content after line number prefix if present
-func (t *MultiEditTool) extractContentAfterLineNumber(line string) (string, bool) {
-	tabIndex := strings.Index(line, "\t")
-	if tabIndex > 0 {
-		prefix := line[:tabIndex]
-		if t.isValidLineNumberPrefix(prefix) {
-			return line[tabIndex+1:], true
-		}
-	}
-
-	arrowIndex := strings.Index(line, "→")
-	if arrowIndex > 0 {
-		prefix := line[:arrowIndex]
-		if t.isValidLineNumberPrefix(prefix) {
-			return line[arrowIndex+len("→"):], true
-		}
-	}
-
-	return "", false
-}
-
-// isValidLineNumberPrefix validates if a prefix contains only spaces and digits
-func (t *MultiEditTool) isValidLineNumberPrefix(prefix string) bool {
-	hasDigit := false
-
-	for _, r := range prefix {
-		if r >= '0' && r <= '9' {
-			hasDigit = true
-		} else if r != ' ' && r != '→' {
-			return false
-		}
-	}
-
-	return hasDigit
-}
-
 // createMultiEditMatchError provides detailed error information when string matching fails in MultiEdit
 func (t *MultiEditTool) createMultiEditMatchError(content, searchString, filePath string, editIndex int) error {
 	lines := strings.Split(content, "\n")
@@ -536,7 +476,7 @@ func (t *MultiEditTool) findPotentialMatches(lines, searchLines []string) []stri
 		return suggestions
 	}
 
-	firstSearchLine := strings.TrimSpace(t.cleanLineFromNumbers(searchLines[0]))
+	firstSearchLine := strings.TrimSpace(searchLines[0])
 	if len(firstSearchLine) <= 3 {
 		return suggestions
 	}
@@ -563,14 +503,6 @@ func (t *MultiEditTool) findPotentialMatches(lines, searchLines []string) []stri
 	}
 
 	return suggestions
-}
-
-// cleanLineFromNumbers removes line number prefixes from a single line
-func (t *MultiEditTool) cleanLineFromNumbers(line string) string {
-	if cleanedLine, shouldClean := t.extractContentAfterLineNumber(line); shouldClean {
-		return cleanedLine
-	}
-	return line
 }
 
 // isSimilarLine checks if two lines are similar enough based on a threshold
@@ -861,8 +793,7 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 			continue
 		}
 
-		cleanedOldString := t.cleanString(oldString)
-		if !strings.Contains(currentContent, cleanedOldString) {
+		if !strings.Contains(currentContent, oldString) {
 			return &components.DiffInfo{
 				FilePath:   filePath,
 				OldContent: originalContent,
@@ -872,9 +803,9 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 		}
 
 		if replaceAll {
-			currentContent = strings.ReplaceAll(currentContent, cleanedOldString, newString)
+			currentContent = strings.ReplaceAll(currentContent, oldString, newString)
 		} else {
-			count := strings.Count(currentContent, cleanedOldString)
+			count := strings.Count(currentContent, oldString)
 			if count > 1 {
 				return &components.DiffInfo{
 					FilePath:   filePath,
@@ -883,7 +814,7 @@ func (t *MultiEditTool) GetDiffInfo(args map[string]any) *components.DiffInfo {
 					Title:      "← Simulated diff preview →",
 				}
 			}
-			currentContent = strings.Replace(currentContent, cleanedOldString, newString, 1)
+			currentContent = strings.Replace(currentContent, oldString, newString, 1)
 		}
 	}
 

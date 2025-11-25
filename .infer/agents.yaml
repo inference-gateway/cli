@@ -4,8 +4,12 @@ agents:
     oci: ghcr.io/inference-gateway/documentation-agent:latest
     run: true
     model: deepseek/deepseek-chat
+    environment:
+      A2A_DEBUG: true
   - name: browser-agent
     url: http://localhost:8082
     oci: ghcr.io/inference-gateway/browser-agent:latest
     run: true
     model: deepseek/deepseek-chat
+    environment:
+      A2A_DEBUG: true

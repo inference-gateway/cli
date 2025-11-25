@@ -251,7 +251,6 @@ func (t *EditTool) executeEdit(filePath, oldString, newString string, replaceAll
 	originalContentStr := string(originalContent)
 	originalSize := int64(len(originalContent))
 
-	oldString = t.cleanString(oldString)
 	if !strings.Contains(originalContentStr, oldString) {
 		return nil, t.createMatchError(originalContentStr, oldString, filePath)
 	}
@@ -313,65 +312,6 @@ func countLines(content string) int {
 		return 0
 	}
 	return strings.Count(content, "\n") + 1
-}
-
-// cleanString removes common artifacts from Read tool output like line number prefixes
-func (t *EditTool) cleanString(s string) string {
-	lines := strings.Split(s, "\n")
-	var cleanedLines []string
-
-	for _, line := range lines {
-		if t.isLineNumberPrefix(line) {
-			if cleanedLine, shouldSkip := t.extractContentAfterLineNumber(line); shouldSkip {
-				cleanedLines = append(cleanedLines, cleanedLine)
-				continue
-			}
-		}
-		cleanedLines = append(cleanedLines, line)
-	}
-
-	return strings.Join(cleanedLines, "\n")
-}
-
-// isLineNumberPrefix checks if a line starts with a line number prefix pattern
-func (t *EditTool) isLineNumberPrefix(line string) bool {
-	return len(line) > 0 && (line[0] == ' ' || (line[0] >= '0' && line[0] <= '9'))
-}
-
-// extractContentAfterLineNumber extracts content after line number prefix if present
-func (t *EditTool) extractContentAfterLineNumber(line string) (string, bool) {
-	tabIndex := strings.Index(line, "\t")
-	if tabIndex > 0 {
-		prefix := line[:tabIndex]
-		if t.isValidLineNumberPrefix(prefix) {
-			return line[tabIndex+1:], true
-		}
-	}
-
-	arrowIndex := strings.Index(line, "→")
-	if arrowIndex > 0 {
-		prefix := line[:arrowIndex]
-		if t.isValidLineNumberPrefix(prefix) {
-			return line[arrowIndex+len("→"):], true
-		}
-	}
-
-	return "", false
-}
-
-// isValidLineNumberPrefix validates if a prefix contains only spaces and digits
-func (t *EditTool) isValidLineNumberPrefix(prefix string) bool {
-	hasDigit := false
-
-	for _, r := range prefix {
-		if r >= '0' && r <= '9' {
-			hasDigit = true
-		} else if r != ' ' && r != '→' {
-			return false
-		}
-	}
-
-	return hasDigit
 }
 
 // createMatchError provides detailed error information when string matching fails

@@ -4,7 +4,9 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +14,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	gotenv "github.com/subosito/gotenv"
 )
 
 const (
@@ -187,10 +190,28 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 		"--rm",
 	}
 
+	dotEnvVars, err := am.loadDotEnvFile()
+	if err != nil {
+		logger.Debug("Could not load .env file", "error", err)
+	}
+
 	env := agent.GetEnvironmentWithModel()
 	env["A2A_AGENT_CLIENT_BASE_URL"] = am.config.Gateway.URL
 
-	for key, value := range env {
+	resolvedEnv := make(map[string]string)
+	for key := range env {
+		if value, exists := dotEnvVars[key]; exists {
+			resolvedEnv[key] = value
+			logger.Debug("Using .env value for variable", "key", key)
+		} else if value, exists := os.LookupEnv(key); exists {
+			resolvedEnv[key] = value
+			logger.Debug("Using system environment value for variable", "key", key)
+		} else {
+			resolvedEnv[key] = env[key]
+		}
+	}
+
+	for key, value := range resolvedEnv {
 		args = append(args, "-e", fmt.Sprintf("%s=%s", key, value))
 	}
 
@@ -207,6 +228,27 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	am.containers[agent.Name] = containerID
 	am.containersMutex.Unlock()
 	return nil
+}
+
+// loadDotEnvFile loads environment variables from .env file in the current directory
+func (am *AgentManager) loadDotEnvFile() (map[string]string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get current working directory: %w", err)
+	}
+
+	dotEnvPath := filepath.Join(cwd, ".env")
+	if _, err := os.Stat(dotEnvPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf(".env file not found at %s", dotEnvPath)
+	}
+
+	envMap, err := gotenv.Read(dotEnvPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read .env file: %w", err)
+	}
+
+	logger.Info("Loaded .env file", "path", dotEnvPath, "vars", len(envMap))
+	return envMap, nil
 }
 
 // isAgentRunning checks if an agent container is already running
