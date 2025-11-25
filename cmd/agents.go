@@ -56,22 +56,18 @@ Examples:
 			url = args[1]
 		}
 
-		// Check if this is a known agent
 		defaults := config.GetAgentDefaults(name)
 
-		// If URL is not provided and no defaults exist, return error
 		if url == "" && defaults == nil {
 			return fmt.Errorf("URL is required for unknown agent '%s'. Known agents: %v", name, config.ListKnownAgents())
 		}
 
-		// Get flag values
 		oci, _ := cmd.Flags().GetString("oci")
 		artifactsURL, _ := cmd.Flags().GetString("artifacts-url")
 		run, _ := cmd.Flags().GetBool("run")
 		model, _ := cmd.Flags().GetString("model")
 		envVars, _ := cmd.Flags().GetStringSlice("environment")
 
-		// Build environment map from flags
 		var environment map[string]string
 		if len(envVars) > 0 {
 			environment = make(map[string]string)
