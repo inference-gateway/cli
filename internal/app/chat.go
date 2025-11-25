@@ -44,22 +44,22 @@ type ChatApplication struct {
 	messageQueue domain.MessageQueue
 
 	// UI components
-	conversationView     ui.ConversationRenderer
-	inputView            ui.InputComponent
-	statusView           ui.StatusComponent
-	helpBar              ui.HelpBarComponent
-	queueBoxView         *components.QueueBoxView
-	todoBoxView          *components.TodoBoxView
-	modelSelector        *components.ModelSelectorImpl
-	themeSelector        *components.ThemeSelectorImpl
-	conversationSelector *components.ConversationSelectorImpl
-	fileSelectionView    *components.FileSelectionView
-	textSelectionView    *components.TextSelectionView
-	a2aServersView         *components.A2AServersView
-	taskManager            *components.TaskManagerImpl
-	toolCallRenderer       *components.ToolCallRenderer
-	approvalComponent      *components.ApprovalComponent
-	planApprovalComponent  *components.PlanApprovalComponent
+	conversationView      ui.ConversationRenderer
+	inputView             ui.InputComponent
+	statusView            ui.StatusComponent
+	helpBar               ui.HelpBarComponent
+	queueBoxView          *components.QueueBoxView
+	todoBoxView           *components.TodoBoxView
+	modelSelector         *components.ModelSelectorImpl
+	themeSelector         *components.ThemeSelectorImpl
+	conversationSelector  *components.ConversationSelectorImpl
+	fileSelectionView     *components.FileSelectionView
+	textSelectionView     *components.TextSelectionView
+	a2aServersView        *components.A2AServersView
+	taskManager           *components.TaskManagerImpl
+	toolCallRenderer      *components.ToolCallRenderer
+	approvalComponent     *components.ApprovalComponent
+	planApprovalComponent *components.PlanApprovalComponent
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer

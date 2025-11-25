@@ -43,7 +43,7 @@ func (c *PlanApprovalComponent) Render(planApprovalState *domain.PlanApprovalUIS
 	})
 
 	planHeader := c.styleProvider.RenderStyledText("The agent has completed planning. Review the plan below:", styles.StyleOptions{
-		Foreground: c.styleProvider.GetThemeColor("dim"),
+		Foreground:   c.styleProvider.GetThemeColor("dim"),
 		MarginBottom: 1,
 	})
 

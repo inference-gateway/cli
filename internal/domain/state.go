@@ -30,9 +30,9 @@ type ApplicationState struct {
 	height int
 
 	// UI State
-	fileSelectionState    *FileSelectionState
-	approvalUIState       *ApprovalUIState
-	planApprovalUIState   *PlanApprovalUIState
+	fileSelectionState  *FileSelectionState
+	approvalUIState     *ApprovalUIState
+	planApprovalUIState *PlanApprovalUIState
 
 	// Todo State
 	todos []TodoItem
@@ -328,9 +328,9 @@ type ApprovalUIState struct {
 
 // PlanApprovalUIState represents the state of plan approval UI
 type PlanApprovalUIState struct {
-	SelectedIndex int                        `json:"selected_index"`
-	PlanContent   string                     `json:"plan_content"`
-	ResponseChan  chan PlanApprovalAction    `json:"-"`
+	SelectedIndex int                     `json:"selected_index"`
+	PlanContent   string                  `json:"plan_content"`
+	ResponseChan  chan PlanApprovalAction `json:"-"`
 }
 
 // NewApplicationState creates a new application state
