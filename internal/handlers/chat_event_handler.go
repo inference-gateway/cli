@@ -203,8 +203,6 @@ func (e *ChatEventHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea
 
 // triggerPlanApproval extracts plan content and triggers plan approval flow
 func (e *ChatEventHandler) triggerPlanApproval(msg domain.ChatCompleteEvent) tea.Cmd {
-	logger.Info("Triggering plan approval flow")
-
 	messages := e.handler.conversationRepo.GetMessages()
 	var planContent string
 	for i := len(messages) - 1; i >= 0; i-- {
@@ -218,9 +216,7 @@ func (e *ChatEventHandler) triggerPlanApproval(msg domain.ChatCompleteEvent) tea
 	}
 
 	var cmds []tea.Cmd
-	logger.Info("Creating PlanApprovalRequestedEvent", "planContentLength", len(planContent))
 	cmds = append(cmds, func() tea.Msg {
-		logger.Info("Returning PlanApprovalRequestedEvent")
 		return domain.PlanApprovalRequestedEvent{
 			RequestID:    msg.RequestID,
 			Timestamp:    msg.Timestamp,
@@ -241,9 +237,7 @@ func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
 
 ) tea.Cmd {
-	// Check if we're in plan mode and no tool calls - trigger plan approval
 	agentMode := e.handler.stateManager.GetAgentMode()
-	logger.Info("handleChatComplete called", "agentMode", agentMode, "toolCallsCount", len(msg.ToolCalls))
 
 	if agentMode == domain.AgentModePlan && len(msg.ToolCalls) == 0 {
 		return e.triggerPlanApproval(msg)
@@ -399,15 +393,11 @@ func (e *ChatEventHandler) handleToolCallReady(
 func (e *ChatEventHandler) handleToolApprovalRequested(
 	msg domain.ToolApprovalRequestedEvent,
 ) tea.Cmd {
-	logger.Info("handleToolApprovalRequested called", "tool", msg.ToolCall.Function.Name)
-
 	if inMemRepo, ok := e.handler.conversationRepo.(*services.InMemoryConversationRepository); ok {
-		logger.Info("Adding pending tool call to conversation (InMemory)")
 		if err := inMemRepo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
 			logger.Error("Failed to add pending tool call", "error", err)
 		}
 	} else if persistentRepo, ok := e.handler.conversationRepo.(*services.PersistentConversationRepository); ok {
-		logger.Info("Adding pending tool call to conversation (Persistent)")
 		if err := persistentRepo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
 			logger.Error("Failed to add pending tool call", "error", err)
 		}

@@ -506,7 +506,6 @@ func (h *ChatHandler) handleToolApprovalResponse(
 ) tea.Cmd {
 	logger.Info("handleToolApprovalResponse called", "action", msg.Action, "tool", msg.ToolCall.Function.Name)
 
-	// Update tool approval status in conversation repository
 	if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
 		logger.Info("Updating tool approval status (InMemory)")
 		inMemRepo.UpdateToolApprovalStatus(msg.Action)
@@ -515,12 +514,10 @@ func (h *ChatHandler) handleToolApprovalResponse(
 		persistentRepo.UpdateToolApprovalStatus(msg.Action)
 	}
 
-	// Handle auto-approve mode
 	if msg.Action == domain.ApprovalAutoAccept {
 		logger.Info("Switching to auto-accept mode for all future tools")
 		h.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
 
-		// Send approval to the waiting agent
 		approvalState := h.stateManager.GetApprovalUIState()
 		if approvalState != nil && approvalState.ResponseChan != nil {
 			select {
@@ -547,7 +544,6 @@ func (h *ChatHandler) handleToolApprovalResponse(
 			}
 		})
 
-		// Continue listening for chat events
 		if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 			cmds = append(cmds, h.listenForChatEvents(chatSession.EventChannel))
 		}
@@ -555,7 +551,6 @@ func (h *ChatHandler) handleToolApprovalResponse(
 		return tea.Batch(cmds...)
 	}
 
-	// Send approval/rejection to the waiting agent
 	approvalState := h.stateManager.GetApprovalUIState()
 	if approvalState != nil && approvalState.ResponseChan != nil {
 		select {
