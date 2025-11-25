@@ -203,6 +203,41 @@ func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
 
 ) tea.Cmd {
+	// Check if we're in plan mode and no tool calls - trigger plan approval
+	agentMode := e.handler.stateManager.GetAgentMode()
+	if agentMode == domain.AgentModePlan && len(msg.ToolCalls) == 0 {
+		// Extract the plan content from the last assistant message
+		messages := e.handler.conversationRepo.GetMessages()
+		var planContent string
+		for i := len(messages) - 1; i >= 0; i-- {
+			if messages[i].Message.Role == sdk.Assistant {
+				planContent = messages[i].Message.Content.String()
+				break
+			}
+		}
+
+		// Trigger plan approval
+		responseChan := make(chan domain.PlanApprovalAction, 1)
+
+		// Start a goroutine to wait for the response
+		go func() {
+			action := <-responseChan
+
+			// Send the response event back to the UI
+			// This will be handled by HandlePlanApprovalResponseEvent
+			_ = action // Will be used in the response handler
+		}()
+
+		return func() tea.Msg {
+			return domain.PlanApprovalRequestedEvent{
+				RequestID:    msg.RequestID,
+				Timestamp:    msg.Timestamp,
+				PlanContent:  planContent,
+				ResponseChan: responseChan,
+			}
+		}
+	}
+
 	if len(msg.ToolCalls) == 0 {
 		_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
 	}

@@ -177,6 +177,19 @@ type ToolApprovalResponseEvent struct {
 	ToolCall sdk.ChatCompletionMessageToolCall
 }
 
+// Plan Approval Events
+
+// ShowPlanApprovalEvent displays the plan approval modal
+type ShowPlanApprovalEvent struct {
+	PlanContent  string
+	ResponseChan chan PlanApprovalAction
+}
+
+// PlanApprovalResponseEvent captures the user's plan approval decision
+type PlanApprovalResponseEvent struct {
+	Action PlanApprovalAction
+}
+
 // Todo Events
 
 // TodoUpdateEvent indicates the todo list has been updated

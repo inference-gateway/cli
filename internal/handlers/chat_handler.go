@@ -136,6 +136,10 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return h.HandleToolApprovalRequestedEvent(m)
 	case domain.ToolApprovalResponseEvent:
 		return h.HandleToolApprovalResponseEvent(m)
+	case domain.PlanApprovalRequestedEvent:
+		return h.HandlePlanApprovalRequestedEvent(m)
+	case domain.PlanApprovalResponseEvent:
+		return h.HandlePlanApprovalResponseEvent(m)
 	case domain.TodoUpdateChatEvent:
 		return h.HandleTodoUpdateChatEvent(m)
 	case domain.AgentStatusUpdateEvent:
@@ -587,6 +591,70 @@ func (h *ChatHandler) handleToolApprovalResponse(
 	}
 }
 
+func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
+	msg domain.PlanApprovalRequestedEvent,
+) tea.Cmd {
+	if err := h.stateManager.TransitionToView(domain.ViewStatePlanApproval); err != nil {
+		logger.Error("failed to transition to plan approval view", "error", err)
+		return nil
+	}
+
+	h.stateManager.SetupPlanApprovalUIState(msg.PlanContent, msg.ResponseChan)
+
+	return func() tea.Msg {
+		return domain.ShowPlanApprovalEvent{
+			PlanContent:  msg.PlanContent,
+			ResponseChan: msg.ResponseChan,
+		}
+	}
+}
+
+func (h *ChatHandler) HandlePlanApprovalResponseEvent(
+	msg domain.PlanApprovalResponseEvent,
+) tea.Cmd {
+	h.stateManager.ClearPlanApprovalUIState()
+
+	if err := h.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		logger.Error("failed to transition back to chat view", "error", err)
+		return nil
+	}
+
+	switch msg.Action {
+	case domain.PlanApprovalAccept:
+		// User accepted the plan - just clear and return to chat
+		return func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Plan accepted",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+	case domain.PlanApprovalAcceptAndAutoApprove:
+		// User accepted and wants to enable auto-approve mode
+		h.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
+		return func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Plan accepted - Auto-Approve mode enabled",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+	case domain.PlanApprovalReject:
+		// User rejected the plan - keep in plan mode and notify
+		return func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Plan rejected - you can provide feedback or changes",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+	}
+
+	return nil
+}
+
 // reconstructCommandText reconstructs the original command text from a tool call
 func (h *ChatHandler) reconstructCommandText(toolCall sdk.ChatCompletionMessageToolCall) string {
 	if toolCall.Function.Name == "Bash" {
@@ -624,6 +692,7 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.ModelSelectedEvent,
 		domain.ThemeSelectedEvent,
 		domain.ShowToolApprovalEvent,
+		domain.ShowPlanApprovalEvent,
 		tea.KeyMsg,
 		tea.WindowSizeMsg,
 		spinner.TickMsg:

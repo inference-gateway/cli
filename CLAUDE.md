@@ -166,6 +166,41 @@ The CLI implements a **user approval workflow** for sensitive tool operations to
   - Reject: Esc or 'n' key
   - Real-time diff preview for file modification tools
 
+### Plan Approval System
+
+The CLI implements a **plan approval workflow** for Plan Mode to ensure user oversight of planned actions:
+
+- **Automatic Triggering**: When in Plan Mode (`AgentModePlan`), after the agent completes planning (ChatCompleteEvent with no tool calls), a plan approval modal is automatically displayed
+
+- **Approval Components**:
+  - `PlanApprovalComponent` (`internal/ui/components/plan_approval_component.go`): Renders plan approval modal
+  - Displays the plan content with clear Accept/Reject/Accept & Auto-Approve options
+
+- **Approval Events** (defined in `internal/domain/`):
+  - `PlanApprovalRequestedEvent`: Triggered when plan mode completes
+  - `ShowPlanApprovalEvent`: UI event to display plan approval modal
+  - `PlanApprovalResponseEvent`: Captures user's plan approval decision
+  - `PlanApprovedEvent`/`PlanRejectedEvent`/`PlanApprovedAndAutoAcceptEvent`: Final approval outcomes
+
+- **Approval Flow**:
+  1. Agent completes planning in Plan Mode
+  2. System extracts plan content from last assistant message
+  3. System emits `PlanApprovalRequestedEvent`
+  4. UI displays modal with plan details and three options
+  5. User decides: Accept, Reject, or Accept & Auto-Approve
+  6. System proceeds based on user decision
+
+- **UI Controls**:
+  - Navigation: ←/→ to cycle through options
+  - Accept: Enter or 'y' key (stays in Plan Mode)
+  - Reject: Esc or 'n' key (allows user to provide feedback)
+  - Accept & Auto-Approve: 'a' key (switches to Auto-Accept mode for execution)
+
+- **User Actions**:
+  - **Accept**: Approves the plan and returns to chat, staying in Plan Mode for further planning
+  - **Reject**: Rejects the plan, allowing the user to provide feedback or request changes
+  - **Accept & Auto-Approve**: Approves the plan AND automatically switches to Auto-Accept mode, enabling immediate execution of the planned actions
+
 ### State Management
 
 The `StateManager` (`internal/services/state_manager.go`) centralizes application state using concurrent-safe patterns:

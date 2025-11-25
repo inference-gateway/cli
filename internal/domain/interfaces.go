@@ -178,6 +178,12 @@ type StateManager interface {
 	SetApprovalSelectedIndex(index int)
 	ClearApprovalUIState()
 
+	// Plan approval management
+	SetupPlanApprovalUIState(planContent string, responseChan chan PlanApprovalAction)
+	GetPlanApprovalUIState() *PlanApprovalUIState
+	SetPlanApprovalSelectedIndex(index int)
+	ClearPlanApprovalUIState()
+
 	// Todo management
 	SetTodos(todos []TodoItem)
 	GetTodos() []TodoItem

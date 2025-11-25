@@ -475,6 +475,67 @@ func (r *Registry) createApprovalActions() []*KeyAction {
 				Views: []domain.ViewState{domain.ViewStateToolApproval},
 			},
 		},
+		// Plan Approval actions
+		{
+			ID:          "plan_approval_left",
+			Keys:        []string{"left", "h"},
+			Description: "move selection left",
+			Category:    "plan_approval",
+			Handler:     handlePlanApprovalLeft,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStatePlanApproval},
+			},
+		},
+		{
+			ID:          "plan_approval_right",
+			Keys:        []string{"right", "l"},
+			Description: "move selection right",
+			Category:    "plan_approval",
+			Handler:     handlePlanApprovalRight,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStatePlanApproval},
+			},
+		},
+		{
+			ID:          "plan_approval_accept",
+			Keys:        []string{"enter", "y"},
+			Description: "accept plan",
+			Category:    "plan_approval",
+			Handler:     handlePlanApprovalAccept,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStatePlanApproval},
+			},
+		},
+		{
+			ID:          "plan_approval_reject",
+			Keys:        []string{"n"},
+			Description: "reject plan",
+			Category:    "plan_approval",
+			Handler:     handlePlanApprovalReject,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStatePlanApproval},
+			},
+		},
+		{
+			ID:          "plan_approval_accept_and_auto_approve",
+			Keys:        []string{"a"},
+			Description: "accept plan and enable auto-approve mode",
+			Category:    "plan_approval",
+			Handler:     handlePlanApprovalAcceptAndAutoApprove,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStatePlanApproval},
+			},
+		},
 	}
 }
 
@@ -527,6 +588,17 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 				return domain.ToolApprovalResponseEvent{
 					Action:   domain.ApprovalReject,
 					ToolCall: *approvalState.PendingToolCall,
+				}
+			}
+		}
+	}
+
+	if stateManager.GetCurrentView() == domain.ViewStatePlanApproval {
+		planApprovalState := stateManager.GetPlanApprovalUIState()
+		if planApprovalState != nil && planApprovalState.ResponseChan != nil {
+			return func() tea.Msg {
+				return domain.PlanApprovalResponseEvent{
+					Action: domain.PlanApprovalReject,
 				}
 			}
 		}
@@ -1177,6 +1249,77 @@ func handleApprovalAutoAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd 
 		return domain.ToolApprovalResponseEvent{
 			Action:   domain.ApprovalAutoAccept,
 			ToolCall: *approvalState.PendingToolCall,
+		}
+	}
+}
+
+// Plan Approval handlers
+
+func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	return func() tea.Msg {
+		stateManager := app.GetStateManager()
+		planApprovalState := stateManager.GetPlanApprovalUIState()
+		if planApprovalState == nil {
+			return nil
+		}
+
+		newIndex := planApprovalState.SelectedIndex - 1
+		if newIndex < 0 {
+			newIndex = int(domain.PlanApprovalAcceptAndAutoApprove)
+		}
+		stateManager.SetPlanApprovalSelectedIndex(newIndex)
+		return nil
+	}
+}
+
+func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	return func() tea.Msg {
+		stateManager := app.GetStateManager()
+		planApprovalState := stateManager.GetPlanApprovalUIState()
+		if planApprovalState == nil {
+			return nil
+		}
+
+		newIndex := planApprovalState.SelectedIndex + 1
+		if newIndex > int(domain.PlanApprovalAcceptAndAutoApprove) {
+			newIndex = 0
+		}
+		stateManager.SetPlanApprovalSelectedIndex(newIndex)
+		return nil
+	}
+}
+
+func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	return func() tea.Msg {
+		stateManager := app.GetStateManager()
+		planApprovalState := stateManager.GetPlanApprovalUIState()
+		if planApprovalState == nil {
+			return nil
+		}
+
+		action := domain.PlanApprovalAction(planApprovalState.SelectedIndex)
+		if action == domain.PlanApprovalAccept || keyMsg.String() == "y" {
+			action = domain.PlanApprovalAccept
+		}
+
+		return domain.PlanApprovalResponseEvent{
+			Action: action,
+		}
+	}
+}
+
+func handlePlanApprovalReject(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	return func() tea.Msg {
+		return domain.PlanApprovalResponseEvent{
+			Action: domain.PlanApprovalReject,
+		}
+	}
+}
+
+func handlePlanApprovalAcceptAndAutoApprove(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	return func() tea.Msg {
+		return domain.PlanApprovalResponseEvent{
+			Action: domain.PlanApprovalAcceptAndAutoApprove,
 		}
 	}
 }

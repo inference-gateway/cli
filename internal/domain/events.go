@@ -235,3 +235,41 @@ type ToolRejectedEvent struct {
 
 func (e ToolRejectedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolRejectedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// PlanApprovalRequestedEvent indicates plan mode completion requires user approval
+type PlanApprovalRequestedEvent struct {
+	RequestID    string
+	Timestamp    time.Time
+	PlanContent  string
+	ResponseChan chan PlanApprovalAction
+}
+
+func (e PlanApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
+func (e PlanApprovalRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// PlanApprovedEvent indicates the user approved the plan
+type PlanApprovedEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e PlanApprovedEvent) GetRequestID() string    { return e.RequestID }
+func (e PlanApprovedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// PlanApprovedAndAutoAcceptEvent indicates the user approved the plan and wants to enable auto-accept
+type PlanApprovedAndAutoAcceptEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e PlanApprovedAndAutoAcceptEvent) GetRequestID() string    { return e.RequestID }
+func (e PlanApprovedAndAutoAcceptEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// PlanRejectedEvent indicates the user rejected the plan
+type PlanRejectedEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e PlanRejectedEvent) GetRequestID() string    { return e.RequestID }
+func (e PlanRejectedEvent) GetTimestamp() time.Time { return e.Timestamp }

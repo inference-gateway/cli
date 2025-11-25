@@ -457,6 +457,10 @@ The chat interface supports three operational modes that can be toggled with **S
   - Can only use Read, Grep, Tree, and A2A_QueryAgent tools to gather information
   - Is instructed to analyze tasks and create detailed plans without executing changes
   - Provides step-by-step breakdowns of what would be done in Standard mode
+  - **Plan Approval**: When the agent completes planning, you'll be prompted to:
+    - **Accept**: Approve the plan and continue (stays in Plan Mode)
+    - **Reject** (n or Esc): Reject the plan and provide feedback or changes
+    - **Accept & Auto-Approve** (a): Accept the plan AND switch to Auto-Accept mode for execution
   - Useful for understanding codebases or previewing changes before implementation
 
 - **⚡ Auto-Accept Mode** (YOLO mode): All tool executions are automatically approved without prompting. The agent:
