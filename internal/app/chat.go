@@ -29,6 +29,7 @@ type ChatApplication struct {
 	configService         *config.Config
 	agentService          domain.AgentService
 	conversationRepo      domain.ConversationRepository
+	conversationOptimizer domain.ConversationOptimizerService
 	modelService          domain.ModelService
 	toolService           domain.ToolService
 	fileService           domain.FileService
@@ -86,6 +87,7 @@ func NewChatApplication(
 	defaultModel string,
 	agentService domain.AgentService,
 	conversationRepo domain.ConversationRepository,
+	conversationOptimizer domain.ConversationOptimizerService,
 	modelService domain.ModelService,
 	configService *config.Config,
 	toolService domain.ToolService,
@@ -109,6 +111,7 @@ func NewChatApplication(
 	app := &ChatApplication{
 		agentService:          agentService,
 		conversationRepo:      conversationRepo,
+		conversationOptimizer: conversationOptimizer,
 		modelService:          modelService,
 		configService:         configService,
 		toolService:           toolService,
@@ -190,6 +193,7 @@ func NewChatApplication(
 	app.chatHandler = handlers.NewChatHandler(
 		app.agentService,
 		app.conversationRepo,
+		app.conversationOptimizer,
 		app.modelService,
 		app.configService,
 		app.toolService,

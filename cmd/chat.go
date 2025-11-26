@@ -84,12 +84,14 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	taskRetentionService := services.GetTaskRetentionService()
 	backgroundTaskService := services.GetBackgroundTaskService()
 	agentManager := services.GetAgentManager()
+	conversationOptimizer := services.GetConversationOptimizer()
 
 	application := app.NewChatApplication(
 		models,
 		defaultModel,
 		agentService,
 		conversationRepo,
+		conversationOptimizer,
 		modelService,
 		config,
 		toolService,

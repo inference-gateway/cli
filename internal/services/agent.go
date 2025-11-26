@@ -25,7 +25,7 @@ type AgentServiceImpl struct {
 	stateManager     domain.StateManager
 	timeoutSeconds   int
 	maxTokens        int
-	optimizer        *ConversationOptimizer
+	optimizer        domain.ConversationOptimizerService
 	tokenizer        *TokenizerService
 
 	// Request tracking
@@ -200,7 +200,7 @@ func NewAgentService(
 	messageQueue domain.MessageQueue,
 	stateManager domain.StateManager,
 	timeoutSeconds int,
-	optimizer *ConversationOptimizer,
+	optimizer domain.ConversationOptimizerService,
 ) *AgentServiceImpl {
 	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
 
@@ -230,8 +230,8 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 	}
 
 	optimizedMessages := req.Messages
-	if s.optimizer != nil && s.config.GetAgentConfig().Optimization.Enabled {
-		optimizedMessages = s.optimizer.OptimizeMessagesWithModel(req.Messages, req.Model)
+	if s.optimizer != nil {
+		optimizedMessages = s.optimizer.OptimizeMessagesWithModel(req.Messages, req.Model, false)
 	}
 
 	messages := s.addSystemPrompt(optimizedMessages)
@@ -751,7 +751,7 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 }
 
 func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain.AgentRequest, conversation []sdk.Message, eventPublisher *eventPublisher) []sdk.Message {
-	if s.optimizer == nil || !s.config.GetAgentConfig().Optimization.Enabled {
+	if s.optimizer == nil {
 		return conversation
 	}
 
@@ -769,7 +769,7 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 
 	eventPublisher.publishOptimizationStatus("Optimizing conversation history...", true, originalCount, originalCount)
 
-	conversation = s.optimizer.OptimizeMessagesWithModel(conversation, req.Model)
+	conversation = s.optimizer.OptimizeMessagesWithModel(conversation, req.Model, false)
 	optimizedCount := len(conversation)
 
 	var message string

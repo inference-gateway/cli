@@ -18,6 +18,7 @@ import (
 type ChatHandler struct {
 	agentService          domain.AgentService
 	conversationRepo      domain.ConversationRepository
+	conversationOptimizer domain.ConversationOptimizerService
 	modelService          domain.ModelService
 	configService         domain.ConfigService
 	toolService           domain.ToolService
@@ -39,6 +40,7 @@ type ChatHandler struct {
 func NewChatHandler(
 	agentService domain.AgentService,
 	conversationRepo domain.ConversationRepository,
+	conversationOptimizer domain.ConversationOptimizerService,
 	modelService domain.ModelService,
 	configService domain.ConfigService,
 	toolService domain.ToolService,
@@ -55,6 +57,7 @@ func NewChatHandler(
 	handler := &ChatHandler{
 		agentService:          agentService,
 		conversationRepo:      conversationRepo,
+		conversationOptimizer: conversationOptimizer,
 		modelService:          modelService,
 		configService:         configService,
 		toolService:           toolService,

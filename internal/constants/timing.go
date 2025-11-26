@@ -16,6 +16,7 @@ const (
 	ToolCallUpdateThrottle    = 50 * time.Millisecond  // Minimum time between tool call updates
 	ToolCallMinShowTime       = 400 * time.Millisecond // Minimum time to show tool call before hiding
 	ParallelToolsTickInterval = 500 * time.Millisecond // Parallel tools UI refresh interval
+	TimerUpdateThrottle       = 100 * time.Millisecond // Minimum time between timer updates (e.g., bash command duration)
 
 	// Test timing delays
 	TestSleepDelay = 100 * time.Millisecond // Standard delay in tests for timing-sensitive operations

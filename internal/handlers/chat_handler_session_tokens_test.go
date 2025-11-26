@@ -20,6 +20,7 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 	handler := NewChatHandler(
 		nil, // agentService
 		conversationRepo,
+		nil, // conversationOptimizer
 		nil, // modelService
 		nil, // configService
 		nil, // toolService

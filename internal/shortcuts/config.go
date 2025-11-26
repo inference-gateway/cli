@@ -122,14 +122,12 @@ func (c *ConfigShortcut) executeShow() (ShortcutResult, error) {
 		output.WriteString(fmt.Sprintf("• Enabled: %s\n", icons.StyledCrossMark()))
 	}
 
-	output.WriteString("\n⚡ Optimization\n")
-	if c.config.Agent.Optimization.Enabled {
+	output.WriteString("\n⚡ Compact\n")
+	if c.config.Compact.Enabled {
 		output.WriteString(fmt.Sprintf("• Enabled: %s\n", icons.StyledCheckMark()))
-		output.WriteString(fmt.Sprintf("• Model: `%s`\n", c.config.Agent.Optimization.Model))
-		output.WriteString(fmt.Sprintf("• Min Messages: `%d`\n", c.config.Agent.Optimization.MinMessages))
-		output.WriteString(fmt.Sprintf("• Buffer Size: `%d`\n", c.config.Agent.Optimization.BufferSize))
+		output.WriteString(fmt.Sprintf("• Auto At: `%d%%` of context window\n", c.config.Compact.AutoAt))
 	} else {
-		output.WriteString(fmt.Sprintf("• Enabled: %s\n", icons.StyledCrossMark()))
+		output.WriteString(fmt.Sprintf("• Enabled: %s (use /compact to manually optimize)\n", icons.StyledCrossMark()))
 	}
 
 	return ShortcutResult{

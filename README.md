@@ -1195,9 +1195,6 @@ tools:
     require_approval: false
   safety:
     require_approval: true
-compact:
-  output_dir: .infer # Directory for compact command exports
-  summary_model: "" # Model to use for summarization (optional)
 agent:
   model: "" # Default model for agent operations
   system_prompt: | # System prompt for agent sessions
@@ -1231,14 +1228,12 @@ agent:
   verbose_tools: false
   max_turns: 50 # Maximum number of turns for agent sessions
   max_tokens: 4096 # The maximum number of tokens that can be generated per request
-  optimization:
-    enabled: true
-    max_history: 10
-    compact_threshold: 20
-    truncate_large_outputs: true
-    skip_redundant_confirmations: true
+  max_concurrent_tools: 5 # Maximum concurrent tool executions
 chat:
   theme: tokyo-night
+compact:
+  enabled: false # Enable automatic conversation compaction
+  auto_at: 80 # Compact when context reaches this percentage (20-100)
 ```
 
 ### Configuration Options
@@ -1295,8 +1290,8 @@ chat:
 
 **Compact Settings:**
 
-- **compact.output_dir**: Directory for compact command exports
-  (default: ".infer")
+- **compact.enabled**: Enable automatic conversation compaction to reduce token usage (default: false)
+- **compact.auto_at**: Percentage of context window (20-100) at which to automatically trigger compaction (default: 80)
 
 **Chat Settings:**
 
@@ -1317,11 +1312,7 @@ chat:
 - **agent.verbose_tools**: Enable verbose tool output (default: false)
 - **agent.max_turns**: Maximum number of turns for agent sessions (default: 50)
 - **agent.max_tokens**: Maximum tokens per agent request (default: 8192)
-- **agent.optimization.enabled**: Enable optimization features (default: false)
-- **agent.optimization.max_history**: Maximum conversation history to maintain (default: 10)
-- **agent.optimization.compact_threshold**: Threshold for compacting conversation (default: 20)
-- **agent.optimization.truncate_large_outputs**: Truncate large tool outputs (default: true)
-- **agent.optimization.skip_redundant_confirmations**: Skip redundant confirmation messages (default: true)
+- **agent.max_concurrent_tools**: Maximum number of tools that can execute concurrently (default: 5)
 
 **Web Search Settings:**
 
@@ -1697,7 +1688,8 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 - `/switch [model]` - Switch to a different model
 - `/theme [theme-name]` - Switch chat interface theme or list available themes
 - `/config <show|get|set|reload> [key] [value]` - Manage configuration settings
-- `/compact [format]` - Export conversation to markdown
+- `/compact` - Immediately compact conversation to reduce token usage
+- `/export [format]` - Export conversation to markdown
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
 
 ### Git Shortcuts

@@ -22,6 +22,7 @@ type ToolCallRenderer struct {
 	toolPreviewsOrder  []string
 	styleProvider      *styles.Provider
 	lastUpdate         time.Time
+	lastTimerRender    time.Time
 	parallelTools      map[string]*ParallelToolState
 	parallelToolsOrder []string
 	spinnerStep        int
@@ -140,7 +141,7 @@ func (r *ToolCallRenderer) handleParallelToolsStart(msg domain.ParallelToolsStar
 		r.parallelTools[tool.CallID] = &ParallelToolState{
 			CallID:      tool.CallID,
 			ToolName:    tool.Name,
-			Status:      "queued",
+			Status:      tool.Status,
 			NextStatus:  "",
 			StartTime:   now,
 			LastUpdate:  now,
@@ -180,7 +181,29 @@ func (r *ToolCallRenderer) handleBashOutputStream(msg domain.BashOutputChunkEven
 }
 
 func (r *ToolCallRenderer) handleSpinnerTick(msg spinner.TickMsg) (*ToolCallRenderer, tea.Cmd) {
+	now := time.Now()
+
+	hasRecentBashOutput := false
+	for _, tool := range r.parallelTools {
+		if tool.ToolName == "Bash" && now.Sub(tool.LastUpdate) < 200*time.Millisecond {
+			hasRecentBashOutput = true
+			break
+		}
+	}
+
+	if !hasRecentBashOutput && now.Sub(r.lastTimerRender) < constants.TimerUpdateThrottle {
+		hasActivePreviews := r.HasActivePreviews()
+		hasActiveTools := r.hasActiveParallelTools()
+		if hasActivePreviews || hasActiveTools {
+			var cmd tea.Cmd
+			r.spinner, cmd = r.spinner.Update(msg)
+			return r, cmd
+		}
+		return r, nil
+	}
+
 	r.spinnerStep = (r.spinnerStep + 1) % 4
+	r.lastTimerRender = now
 	hasActivePreviews := r.HasActivePreviews()
 	hasActiveTools := r.hasActiveParallelTools()
 	if hasActivePreviews || hasActiveTools {
@@ -391,17 +414,15 @@ func (r *ToolCallRenderer) hasActiveParallelTools() bool {
 	return false
 }
 
-// formatDuration formats a duration in a human-readable way
+// formatDuration formats a duration in a human-readable way (always in seconds with 1 decimal)
 func (r *ToolCallRenderer) formatDuration(d time.Duration) string {
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
+	seconds := d.Seconds()
+	if seconds < 60 {
+		return fmt.Sprintf("%.1fs", seconds)
 	}
-	if d < time.Minute {
-		return fmt.Sprintf("%.1fs", d.Seconds())
-	}
-	minutes := int(d.Minutes())
-	seconds := int(d.Seconds()) % 60
-	return fmt.Sprintf("%dm%ds", minutes, seconds)
+	minutes := int(seconds / 60)
+	remainingSeconds := seconds - float64(minutes*60)
+	return fmt.Sprintf("%dm%.1fs", minutes, remainingSeconds)
 }
 
 func (r *ToolCallRenderer) renderParallelTool(tool *ParallelToolState) string {
@@ -450,15 +471,16 @@ func (r *ToolCallRenderer) renderParallelTool(tool *ParallelToolState) string {
 
 	header := statusPart + metaPart
 
-	// For Bash tools, show streaming output if available
 	if tool.ToolName == "Bash" && len(tool.OutputBuffer) > 0 {
 		var outputLines []string
 		outputLines = append(outputLines, header)
 
-		// Show last few lines of output with indentation
+		indicator := r.styleProvider.RenderDimText(fmt.Sprintf("    [showing last %d lines]", len(tool.OutputBuffer)))
+		outputLines = append(outputLines, indicator)
+
 		for _, line := range tool.OutputBuffer {
 			truncatedLine := line
-			maxLineLen := r.width - 6 // Account for indentation
+			maxLineLen := r.width - 6
 			if maxLineLen < 20 {
 				maxLineLen = 20
 			}

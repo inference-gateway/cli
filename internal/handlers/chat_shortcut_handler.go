@@ -519,7 +519,6 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 		title = "New Conversation"
 	}
 
-	// Check if we have a persistent conversation repository
 	persistentRepo, ok := s.handler.conversationRepo.(*services.PersistentConversationRepository)
 	if !ok {
 		return domain.SetStatusEvent{
@@ -529,7 +528,6 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 		}
 	}
 
-	// Start new conversation
 	if err := persistentRepo.StartNewConversation(title); err != nil {
 		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Failed to start new conversation: %v", err),
@@ -538,7 +536,6 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 		}
 	}
 
-	// Clear the current conversation history in the UI
 	if err := s.handler.conversationRepo.Clear(); err != nil {
 		logger.Error("failed to clear conversation UI after starting new", "error", err)
 	}
@@ -629,33 +626,130 @@ func (s *ChatShortcutHandler) handleCompactConversationSideEffect() tea.Msg {
 		}
 	}
 
-	infoEntry := domain.ConversationEntry{
-		Message: sdk.Message{
-			Role:    sdk.Assistant,
-			Content: sdk.NewMessageContent(fmt.Sprintf("Conversation optimization enabled. The conversation history (%d messages) will be compacted on your next message to reduce token usage.", messageCount)),
-		},
-		Model: "",
-		Time:  time.Now(),
-	}
-
-	if addErr := s.handler.conversationRepo.AddMessage(infoEntry); addErr != nil {
-		logger.Error("failed to add compact info message", "error", addErr)
-	}
-
 	return tea.Batch(
 		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
-				History: s.handler.conversationRepo.GetMessages(),
+			return domain.SetStatusEvent{
+				Message:    "Compacting conversation history...",
+				Spinner:    true,
+				StatusType: domain.StatusWorking,
 			}
 		},
-		func() tea.Msg {
+		s.performCompactAsync(),
+	)()
+}
+
+func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
+	return func() tea.Msg {
+		if s.handler.conversationOptimizer == nil {
 			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Optimization queued for %d messages", messageCount),
+				Message:    "Conversation optimizer is not enabled in configuration",
+				Spinner:    false,
+				StatusType: domain.StatusError,
+			}
+		}
+
+		entries := s.handler.conversationRepo.GetMessages()
+		if len(entries) == 0 {
+			return domain.SetStatusEvent{
+				Message:    "No messages to compact",
 				Spinner:    false,
 				StatusType: domain.StatusDefault,
 			}
-		},
-	)()
+		}
+
+		logger.Info("Starting conversation compaction", "message_count", len(entries))
+
+		messages := make([]sdk.Message, 0, len(entries))
+		for _, entry := range entries {
+			messages = append(messages, entry.Message)
+		}
+
+		currentModel := s.handler.modelService.GetCurrentModel()
+		if currentModel == "" {
+			logger.Warn("No current model set for compaction - will use basic summary")
+		}
+		logger.Info("About to optimize conversation", "model", currentModel, "message_count", len(messages))
+
+		optimizedChan := make(chan []sdk.Message, 1)
+		go func() {
+			result := s.handler.conversationOptimizer.OptimizeMessagesWithModel(messages, currentModel, true)
+			optimizedChan <- result
+		}()
+
+		var optimizedMessages []sdk.Message
+		select {
+		case optimizedMessages = <-optimizedChan:
+			logger.Info("Optimization complete", "original_count", len(messages), "optimized_count", len(optimizedMessages))
+		case <-time.After(70 * time.Second):
+			logger.Error("Optimization timed out after 70 seconds")
+			return domain.SetStatusEvent{
+				Message:    "Conversation compaction timed out - try again or check gateway logs",
+				Spinner:    false,
+				StatusType: domain.StatusError,
+			}
+		}
+
+		if len(optimizedMessages) >= len(messages) {
+			return domain.SetStatusEvent{
+				Message:    "Conversation is already compact - no optimization needed",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+		if clearErr := s.handler.conversationRepo.Clear(); clearErr != nil {
+			logger.Error("failed to clear conversation during compaction", "error", clearErr)
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Failed to compact conversation: %v", clearErr),
+				Spinner:    false,
+				StatusType: domain.StatusError,
+			}
+		}
+
+		logger.Debug("Re-adding optimized messages", "count", len(optimizedMessages))
+		for _, msg := range optimizedMessages {
+			entry := domain.ConversationEntry{
+				Message: msg,
+				Time:    time.Now(),
+			}
+			if addErr := s.handler.conversationRepo.AddMessage(entry); addErr != nil {
+				logger.Error("failed to add optimized message during compaction", "error", addErr)
+			}
+		}
+
+		reduction := len(messages) - len(optimizedMessages)
+		reductionPercent := (float64(reduction) / float64(len(messages))) * 100
+
+		infoEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent(fmt.Sprintf("Conversation compacted successfully! Reduced from %d to %d messages (%.1f%% reduction).", len(messages), len(optimizedMessages), reductionPercent)),
+			},
+			Model: "",
+			Time:  time.Now(),
+		}
+
+		if addErr := s.handler.conversationRepo.AddMessage(infoEntry); addErr != nil {
+			logger.Error("failed to add compact info message", "error", addErr)
+		}
+
+		logger.Debug("Compaction complete", "reduction", reduction, "reduction_percent", reductionPercent)
+
+		return tea.Batch(
+			func() tea.Msg {
+				return domain.UpdateHistoryEvent{
+					History: s.handler.conversationRepo.GetMessages(),
+				}
+			},
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    fmt.Sprintf("Conversation compacted: %d messages reduced to %d", len(messages), len(optimizedMessages)),
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
+				}
+			},
+		)()
+	}
 }
 
 func (s *ChatShortcutHandler) performPRPlanGeneration(data any) tea.Cmd {
@@ -767,7 +861,6 @@ func (s *ChatShortcutHandler) performPRPlanGeneration(data any) tea.Cmd {
 }
 
 func (s *ChatShortcutHandler) handleA2AAgentAddedSideEffect(data any) tea.Msg {
-	// Check if we need to start the agent
 	if dataMap, ok := data.(map[string]any); ok {
 		if shouldStart, ok := dataMap["start"].(bool); ok && shouldStart {
 			if agent, ok := dataMap["agent"].(config.AgentEntry); ok {
@@ -793,7 +886,6 @@ func (s *ChatShortcutHandler) handleA2AAgentAddedSideEffect(data any) tea.Msg {
 }
 
 func (s *ChatShortcutHandler) handleA2AAgentAddedWithStart(agent config.AgentEntry) tea.Msg {
-	// Increment agent readiness count
 	if s.handler.stateManager != nil {
 		readiness := s.handler.stateManager.GetAgentReadiness()
 		if readiness != nil {
@@ -803,11 +895,9 @@ func (s *ChatShortcutHandler) handleA2AAgentAddedWithStart(agent config.AgentEnt
 		}
 	}
 
-	// Start the agent asynchronously
 	go func() {
 		ctx := context.Background()
 
-		// Create a new agent manager for this single agent
 		agentsConfig := &config.AgentsConfig{
 			Agents: []config.AgentEntry{agent},
 		}

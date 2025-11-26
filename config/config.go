@@ -34,6 +34,7 @@ type Config struct {
 	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
 	A2A          A2AConfig          `yaml:"a2a" mapstructure:"a2a"`
 	Init         InitConfig         `yaml:"init" mapstructure:"init"`
+	Compact      CompactConfig      `yaml:"compact" mapstructure:"compact"`
 }
 
 // GatewayConfig contains gateway connection settings
@@ -224,12 +225,10 @@ type ExportConfig struct {
 	SummaryModel string `yaml:"summary_model" mapstructure:"summary_model"`
 }
 
-// OptimizationConfig contains token optimization settings
-type OptimizationConfig struct {
-	Enabled     bool   `yaml:"enabled" mapstructure:"enabled"`
-	Model       string `yaml:"model" mapstructure:"model"`
-	MinMessages int    `yaml:"min_messages" mapstructure:"min_messages"`
-	BufferSize  int    `yaml:"buffer_size" mapstructure:"buffer_size"`
+// CompactConfig contains conversation compaction settings
+type CompactConfig struct {
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
+	AutoAt  int  `yaml:"auto_at" mapstructure:"auto_at"`
 }
 
 // SystemRemindersConfig contains settings for dynamic system reminders
@@ -249,7 +248,6 @@ type AgentConfig struct {
 	MaxTurns           int                   `yaml:"max_turns" mapstructure:"max_turns"`
 	MaxTokens          int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
 	MaxConcurrentTools int                   `yaml:"max_concurrent_tools" mapstructure:"max_concurrent_tools"`
-	Optimization       OptimizationConfig    `yaml:"optimization" mapstructure:"optimization"`
 }
 
 // GitConfig contains git shortcut-specific settings
@@ -627,12 +625,6 @@ This is a reminder that your todo list is currently empty. DO NOT mention this t
 			MaxTurns:           50,
 			MaxTokens:          8192,
 			MaxConcurrentTools: 5,
-			Optimization: OptimizationConfig{
-				Enabled:     true,
-				Model:       "",
-				MinMessages: 50,
-				BufferSize:  2,
-			},
 		},
 		Git: GitConfig{
 			CommitMessage: GitCommitMessageConfig{
@@ -763,6 +755,10 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				ReturnToBase:      true,
 				DeleteLocalBranch: false,
 			},
+		},
+		Compact: CompactConfig{
+			Enabled: true,
+			AutoAt:  80,
 		},
 	}
 }

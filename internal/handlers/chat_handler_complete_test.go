@@ -259,6 +259,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 	return NewChatHandler(
 		mockAgent,
 		conversationRepo,
+		nil,
 		mockModel,
 		mockConfig,
 		mockTool,
@@ -405,6 +406,7 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 			handler := NewChatHandler(
 				mockAgent,
 				conversationRepo,
+				nil,
 				mockModel,
 				mockConfig,
 				mockTool,

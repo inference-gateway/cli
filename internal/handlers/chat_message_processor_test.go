@@ -98,6 +98,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 			handler := NewChatHandler(
 				mockAgent,
 				conversationRepo,
+				nil,
 				mockModel,
 				mockConfig,
 				mockTool,
