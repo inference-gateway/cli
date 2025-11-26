@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.68.3](https://github.com/inference-gateway/cli/compare/v0.68.2...v0.68.3) (2025-11-26)
+
+### 🐛 Bug Fixes
+
+* Parse bash whitelist environment variables from comma-separated strings ([18af221](https://github.com/inference-gateway/cli/commit/18af22151fe2e269f80cc7fe1ecf4b7a98eb3097))
+* **github:** Support owner/repo format in repo parameter to fix GitHub Actions integration ([173740c](https://github.com/inference-gateway/cli/commit/173740c4ff898d3c8b63bf653a65b1d877c5afcb))
+
+### 📚 Documentation
+
+* Add update_comment resource to GitHub tool documentation ([40f0c43](https://github.com/inference-gateway/cli/commit/40f0c43b489b925f108571e751f8f41e755f6307))
+
+### 👷 CI/CD
+
+* Add Infer GitHub Action workflow ([e1e5862](https://github.com/inference-gateway/cli/commit/e1e586250b20856e60e9c3ae979628f916624b54))
+
+### 🧹 Maintenance
+
+* **release:** 0.68.3 [skip ci] ([1ad7339](https://github.com/inference-gateway/cli/commit/1ad733968df685f240de3c564cdefc94551b8549))
+* **release:** 0.68.4 [skip ci] ([389ad6f](https://github.com/inference-gateway/cli/commit/389ad6fb1a3efd7f87c348d1e7500af6d18846e2))
+
 ## [0.68.4](https://github.com/inference-gateway/cli/compare/v0.68.3...v0.68.4) (2025-11-26)
 
 ### 📚 Documentation
