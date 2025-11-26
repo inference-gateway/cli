@@ -206,11 +206,6 @@ agent:
   max_turns: 50
   max_tokens: 8192
   max_concurrent_tools: 5
-  optimization:
-    enabled: true
-    model: ""
-    min_messages: 50
-    buffer_size: 2
 git:
   commit_message:
     model: ""
@@ -325,3 +320,6 @@ init:
     - Important files and configurations
 
     Write the AGENTS.md file to the project root when you have gathered enough information.
+compact:
+  enabled: true
+  auto_at: 80

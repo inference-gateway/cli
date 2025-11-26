@@ -269,9 +269,9 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 	}
 
 	elapsed := time.Since(sv.startTime)
-	seconds := int(elapsed.Seconds())
+	seconds := elapsed.Seconds()
 	baseMsg := sv.formatStatusWithType(sv.baseMessage)
-	displayMessage := fmt.Sprintf("%s (%ds) - Press ESC to interrupt", baseMsg, seconds)
+	displayMessage := fmt.Sprintf("%s (%.1fs) - Press ESC to interrupt", baseMsg, seconds)
 
 	statusColor := sv.styleProvider.GetThemeColor("status")
 	return prefix, statusColor, displayMessage

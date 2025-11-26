@@ -235,6 +235,14 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 		args = append(args, "-e", fmt.Sprintf("DISALLOWED_MODELS=%s", excludeModels))
 	}
 
+	timeout := gm.config.Gateway.Timeout
+	if timeout > 0 {
+		args = append(args, "-e", fmt.Sprintf("SERVER_READ_TIMEOUT=%ds", timeout))
+		args = append(args, "-e", fmt.Sprintf("SERVER_WRITE_TIMEOUT=%ds", timeout))
+		args = append(args, "-e", fmt.Sprintf("SERVER_IDLE_TIMEOUT=%ds", timeout))
+		args = append(args, "-e", fmt.Sprintf("CLIENT_TIMEOUT=%ds", timeout))
+	}
+
 	args = append(args, gm.config.Gateway.OCI)
 
 	logger.Info("Starting gateway container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
@@ -372,6 +380,14 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 	if len(gm.config.Gateway.ExcludeModels) > 0 {
 		excludeModels := strings.Join(gm.config.Gateway.ExcludeModels, ",")
 		cmd.Env = append(cmd.Env, fmt.Sprintf("DISALLOWED_MODELS=%s", excludeModels))
+	}
+
+	timeout := gm.config.Gateway.Timeout
+	if timeout > 0 {
+		cmd.Env = append(cmd.Env, fmt.Sprintf("SERVER_READ_TIMEOUT=%ds", timeout))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("SERVER_WRITE_TIMEOUT=%ds", timeout))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("SERVER_IDLE_TIMEOUT=%ds", timeout))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("CLIENT_TIMEOUT=%ds", timeout))
 	}
 
 	if err := cmd.Start(); err != nil {

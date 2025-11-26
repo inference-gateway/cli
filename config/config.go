@@ -757,7 +757,7 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			},
 		},
 		Compact: CompactConfig{
-			Enabled: false,
+			Enabled: true,
 			AutoAt:  80,
 		},
 	}

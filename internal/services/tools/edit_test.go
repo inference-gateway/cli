@@ -1347,3 +1347,331 @@ func TestEditTool_GetDiffInfo(t *testing.T) {
 		})
 	}
 }
+
+// TestEditTool_Execute_WhitespaceHandling_TrailingWhitespace tests trailing space/tab handling
+func TestEditTool_Execute_WhitespaceHandling_TrailingWhitespace(t *testing.T) {
+	tempDir := t.TempDir()
+	tool := createEditToolForWhitespaceTest(tempDir)
+
+	tests := []editWhitespaceTest{
+		{
+			name:            "remove line with trailing space - exact match",
+			initialContent:  "line1 \nline2\n",
+			oldString:       "line1 ",
+			newString:       "line1",
+			expectedContent: "line1\nline2\n",
+			expectedSuccess: true,
+			description:     "Should succeed when old_string includes trailing space",
+		},
+		{
+			name:            "remove line with trailing space - missing space in old_string",
+			initialContent:  "line1 \nline2\n",
+			oldString:       "line1",
+			newString:       "replaced",
+			expectedContent: "replaced \nline2\n",
+			expectedSuccess: true,
+			description:     "Should succeed but leave trailing space (partial match behavior)",
+		},
+		{
+			name:            "remove line with trailing space - extra space in old_string",
+			initialContent:  "line1\nline2\n",
+			oldString:       "line1 ",
+			newString:       "replaced",
+			expectedContent: "line1\nline2\n",
+			expectedSuccess: false,
+			errorContains:   "old_string not found",
+			description:     "Should fail when old_string has trailing space but file doesn't",
+		},
+		{
+			name:            "remove trailing tabs",
+			initialContent:  "line1\t\t\nline2\n",
+			oldString:       "line1\t\t",
+			newString:       "line1",
+			expectedContent: "line1\nline2\n",
+			expectedSuccess: true,
+			description:     "Should successfully remove trailing tabs when matched exactly",
+		},
+	}
+
+	runEditWhitespaceTests(t, tool, tempDir, tests)
+}
+
+// TestEditTool_Execute_WhitespaceHandling_BlankLines tests blank line removal
+func TestEditTool_Execute_WhitespaceHandling_BlankLines(t *testing.T) {
+	tempDir := t.TempDir()
+	tool := createEditToolForWhitespaceTest(tempDir)
+
+	tests := []editWhitespaceTest{
+		{
+			name:            "remove blank line (just newline) with replace_all",
+			initialContent:  "line1\n\nline2\n",
+			oldString:       "\n",
+			newString:       "",
+			replaceAll:      true,
+			expectedContent: "line1line2",
+			expectedSuccess: true,
+			description:     "Removes all newlines when using exact match - demonstrates why context is important",
+		},
+		{
+			name:            "remove blank line with context",
+			initialContent:  "line1\n\nline2\n",
+			oldString:       "line1\n\n",
+			newString:       "line1\n",
+			expectedContent: "line1\nline2\n",
+			expectedSuccess: true,
+			description:     "Should succeed with enough context to make match unique",
+		},
+		{
+			name:            "remove line with only spaces",
+			initialContent:  "line1\n    \nline2\n",
+			oldString:       "    \n",
+			newString:       "",
+			expectedContent: "line1\nline2\n",
+			expectedSuccess: true,
+			description:     "Should successfully remove line containing only spaces",
+		},
+		{
+			name:            "remove line with only tabs",
+			initialContent:  "line1\n\t\t\nline2\n",
+			oldString:       "\t\t\n",
+			newString:       "",
+			expectedContent: "line1\nline2\n",
+			expectedSuccess: true,
+			description:     "Should successfully remove line containing only tabs",
+		},
+	}
+
+	runEditWhitespaceTests(t, tool, tempDir, tests)
+}
+
+// TestEditTool_Execute_WhitespaceHandling_TabsVsSpaces tests tab/space confusion
+func TestEditTool_Execute_WhitespaceHandling_TabsVsSpaces(t *testing.T) {
+	tempDir := t.TempDir()
+	tool := createEditToolForWhitespaceTest(tempDir)
+
+	tests := []editWhitespaceTest{
+		{
+			name:            "tab in old_string but spaces in file",
+			initialContent:  "    func test() {",
+			oldString:       "\tfunc test() {",
+			newString:       "replaced",
+			expectedContent: "    func test() {",
+			expectedSuccess: false,
+			errorContains:   "old_string not found",
+			description:     "Should fail when old_string has tab but file has spaces",
+		},
+		{
+			name:            "spaces in old_string but tab in file",
+			initialContent:  "\tfunc test() {",
+			oldString:       "    func test() {",
+			newString:       "replaced",
+			expectedContent: "\tfunc test() {",
+			expectedSuccess: false,
+			errorContains:   "old_string not found",
+			description:     "Should fail when old_string has spaces but file has tab",
+		},
+		{
+			name:            "exact tab match",
+			initialContent:  "\tfunc test() {\n\t\treturn nil\n\t}",
+			oldString:       "\tfunc test() {",
+			newString:       "\tfunc example() {",
+			expectedContent: "\tfunc example() {\n\t\treturn nil\n\t}",
+			expectedSuccess: true,
+			description:     "Should succeed when tabs match exactly",
+		},
+	}
+
+	runEditWhitespaceTests(t, tool, tempDir, tests)
+}
+
+// TestEditTool_Execute_WhitespaceHandling_MixedIndentation tests mixed indentation
+func TestEditTool_Execute_WhitespaceHandling_MixedIndentation(t *testing.T) {
+	tempDir := t.TempDir()
+	tool := createEditToolForWhitespaceTest(tempDir)
+
+	tests := []editWhitespaceTest{
+		{
+			name:            "mixed indentation - two tabs vs eight spaces",
+			initialContent:  "\t\tcode",
+			oldString:       "        code",
+			newString:       "replaced",
+			expectedContent: "\t\tcode",
+			expectedSuccess: false,
+			errorContains:   "old_string not found",
+			description:     "Should fail: file has 2 tabs, old_string has 8 spaces",
+		},
+		{
+			name:            "remove indented line with exact match",
+			initialContent:  "func test() {\n\treturn true\n}",
+			oldString:       "\treturn true",
+			newString:       "\treturn false",
+			expectedContent: "func test() {\n\treturn false\n}",
+			expectedSuccess: true,
+			description:     "Should succeed with exact indentation match",
+		},
+	}
+
+	runEditWhitespaceTests(t, tool, tempDir, tests)
+}
+
+// TestEditTool_Execute_WhitespaceHandling_LineEndings tests line ending handling
+func TestEditTool_Execute_WhitespaceHandling_LineEndings(t *testing.T) {
+	tempDir := t.TempDir()
+	tool := createEditToolForWhitespaceTest(tempDir)
+
+	tests := []editWhitespaceTest{
+		{
+			name:            "remove line including newline",
+			initialContent:  "line1\nline2\nline3\n",
+			oldString:       "line2\n",
+			newString:       "",
+			expectedContent: "line1\nline3\n",
+			expectedSuccess: true,
+			description:     "Should successfully remove line including its newline",
+		},
+		{
+			name:            "remove multiple lines",
+			initialContent:  "line1\nline2\nline3\nline4\n",
+			oldString:       "line2\nline3\n",
+			newString:       "replaced\n",
+			expectedContent: "line1\nreplaced\nline4\n",
+			expectedSuccess: true,
+			description:     "Should successfully remove multiple lines",
+		},
+		{
+			name:            "remove line without newline at end",
+			initialContent:  "line1\nline2",
+			oldString:       "line2",
+			newString:       "replaced",
+			expectedContent: "line1\nreplaced",
+			expectedSuccess: true,
+			description:     "Should handle files without trailing newline",
+		},
+	}
+
+	runEditWhitespaceTests(t, tool, tempDir, tests)
+}
+
+// TestEditTool_Execute_WhitespaceHandling_ComplexCombinations tests complex whitespace cases
+func TestEditTool_Execute_WhitespaceHandling_ComplexCombinations(t *testing.T) {
+	tempDir := t.TempDir()
+	tool := createEditToolForWhitespaceTest(tempDir)
+
+	tests := []editWhitespaceTest{
+		{
+			name:            "remove line with leading and trailing whitespace",
+			initialContent:  "  line with spaces  \n",
+			oldString:       "  line with spaces  ",
+			newString:       "trimmed",
+			expectedContent: "trimmed\n",
+			expectedSuccess: true,
+			description:     "Should handle both leading and trailing whitespace when matched exactly",
+		},
+		{
+			name:            "remove config line with trailing comma and whitespace",
+			initialContent:  "{\n\tbufferSize: 2,\n\texpectSplit: true,\n}",
+			oldString:       "\texpectSplit: true,\n",
+			newString:       "",
+			expectedContent: "{\n\tbufferSize: 2,\n}",
+			expectedSuccess: true,
+			description:     "Should remove config line including trailing comma, tab, and newline",
+		},
+	}
+
+	runEditWhitespaceTests(t, tool, tempDir, tests)
+}
+
+// editWhitespaceTest defines a whitespace handling test case
+type editWhitespaceTest struct {
+	name            string
+	initialContent  string
+	oldString       string
+	newString       string
+	replaceAll      bool
+	expectedContent string
+	expectedSuccess bool
+	errorContains   string
+	description     string
+}
+
+// createEditToolForWhitespaceTest creates an edit tool configured for whitespace tests
+func createEditToolForWhitespaceTest(tempDir string) *EditTool {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Sandbox: config.SandboxConfig{Directories: []string{tempDir}},
+			Edit:    config.EditToolConfig{Enabled: true},
+		},
+	}
+	mockTracker := &MockReadToolTracker{readToolUsed: true}
+	return NewEditToolWithRegistry(cfg, mockTracker)
+}
+
+// runEditWhitespaceTests executes a set of whitespace handling tests
+func runEditWhitespaceTests(t *testing.T, tool *EditTool, tempDir string, tests []editWhitespaceTest) {
+	t.Helper()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testFile := filepath.Join(tempDir, fmt.Sprintf("whitespace_%s.txt",
+				strings.ReplaceAll(tt.name, " ", "_")))
+
+			err := os.WriteFile(testFile, []byte(tt.initialContent), 0644)
+			if err != nil {
+				t.Fatalf("Failed to create test file: %v", err)
+			}
+
+			args := map[string]any{
+				"file_path":  testFile,
+				"old_string": tt.oldString,
+				"new_string": tt.newString,
+			}
+
+			if tt.replaceAll {
+				args["replace_all"] = true
+			}
+
+			result, err := tool.Execute(context.Background(), args)
+			if err != nil {
+				t.Fatalf("Execute returned unexpected error: %v", err)
+			}
+
+			validateEditWhitespaceResult(t, *result, tt)
+			validateEditWhitespaceFileContent(t, testFile, tt)
+		})
+	}
+}
+
+// validateEditWhitespaceResult validates the execution result
+func validateEditWhitespaceResult(t *testing.T, result domain.ToolExecutionResult, tt editWhitespaceTest) {
+	t.Helper()
+
+	if result.Success != tt.expectedSuccess {
+		t.Errorf("%s\nExpected success=%v, got %v. Error: %s",
+			tt.description, tt.expectedSuccess, result.Success, result.Error)
+	}
+
+	if tt.errorContains != "" && !strings.Contains(result.Error, tt.errorContains) {
+		t.Errorf("%s\nExpected error containing '%s', got '%s'",
+			tt.description, tt.errorContains, result.Error)
+	}
+}
+
+// validateEditWhitespaceFileContent validates the file content after edit
+func validateEditWhitespaceFileContent(t *testing.T, testFile string, tt editWhitespaceTest) {
+	t.Helper()
+
+	content, err := os.ReadFile(testFile)
+	if err != nil {
+		t.Fatalf("Failed to read test file: %v", err)
+	}
+
+	if string(content) != tt.expectedContent {
+		t.Errorf("%s\nExpected file content:\n%q\nGot:\n%q\n\nExpected bytes: %v\nGot bytes: %v",
+			tt.description,
+			tt.expectedContent,
+			string(content),
+			[]byte(tt.expectedContent),
+			content)
+	}
+}

@@ -123,7 +123,7 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 
 // executeBashCommandAsync executes the bash command and returns results
 func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID string) tea.Cmd {
-	eventChan := make(chan tea.Msg, 100)
+	eventChan := make(chan tea.Msg, 10000)
 
 	c.bashEventChannelMu.Lock()
 	c.bashEventChannel = eventChan
@@ -131,6 +131,7 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 
 	go func() {
 		defer func() {
+			time.Sleep(100 * time.Millisecond)
 			close(eventChan)
 			c.bashEventChannelMu.Lock()
 			c.bashEventChannel = nil
@@ -153,15 +154,17 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 		}
 
 		bashCallback := func(line string) {
-			eventChan <- domain.BashOutputChunkEvent{
-				BaseChatEvent: domain.BaseChatEvent{
-					RequestID: toolCallID,
-					Timestamp: time.Now(),
-				},
-				ToolCallID: toolCallID,
-				Output:     line,
-				IsComplete: false,
-			}
+			go func(l string) {
+				eventChan <- domain.BashOutputChunkEvent{
+					BaseChatEvent: domain.BaseChatEvent{
+						RequestID: toolCallID,
+						Timestamp: time.Now(),
+					},
+					ToolCallID: toolCallID,
+					Output:     l,
+					IsComplete: false,
+				}
+			}(line)
 		}
 
 		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
