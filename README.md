@@ -625,7 +625,7 @@ WebFetch content from whitelisted URLs or GitHub references using the format `ex
 
 ### Github Tool
 
-Interact with GitHub API to fetch issues, pull requests, create comments,
+Interact with GitHub API to fetch issues, pull requests, create/update comments,
 and create pull requests with authentication support. This is a standalone
 tool separate from WebFetch.
 
@@ -639,9 +639,11 @@ tool separate from WebFetch.
   - `pull_request`: Fetch a specific pull request
   - `comments`: Fetch comments for an issue/PR
   - `create_comment`: Create a comment on an issue/PR
+  - `update_comment`: Update an existing comment
   - `create_pull_request`: Create a new pull request
 - `issue_number` (required for issue/pull_request/comments/create_comment): Issue or PR number
-- `comment_body` (required for create_comment): Comment body text
+- `comment_id` (required for update_comment): Comment ID to update
+- `comment_body` (required for create_comment and update_comment): Comment body text
 - `title` (required for create_pull_request): Pull request title
 - `body` (optional for create_pull_request): Pull request body/description
 - `head` (required for create_pull_request): Head branch name
@@ -685,6 +687,8 @@ tools:
 - Get issue comments: `owner: "octocat", repo: "Hello-World", resource: "comments", issue_number: 1`
 - Create comment: `owner: "octocat", repo: "Hello-World", resource: "create_comment",
   issue_number: 1, comment_body: "Great work!"`
+- Update comment: `owner: "octocat", repo: "Hello-World", resource: "update_comment",
+  comment_id: 12345, comment_body: "Updated: Great work with improvements!"`
 - Create pull request: `owner: "octocat", repo: "Hello-World", resource: "create_pull_request",
   title: "Add feature", body: "New feature implementation", head: "feature-branch", base: "main"`
 

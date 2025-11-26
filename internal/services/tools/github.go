@@ -89,12 +89,19 @@ func (t *GithubTool) Definition() sdk.ChatCompletionTool {
 					"resource": map[string]any{
 						"type":        "string",
 						"description": "Resource type to fetch or create",
-						"enum":        []string{"issue", "issues", "pull_request", "comments", "create_comment", "create_pull_request"},
+						"enum":        []string{"issue", "issues", "pull_request", "comments", "create_comment", "update_comment", "create_pull_request"},
 						"default":     "issue",
 					},
 					"comment_body": map[string]any{
 						"type":        "string",
-						"description": "Comment body text (required for create_comment resource)",
+						"description": "Comment body text (required for create_comment and update_comment resources)",
+					},
+					"comment_id": map[string]any{
+						"oneOf": []map[string]any{
+							{"type": "integer"},
+							{"type": "string"},
+						},
+						"description": "Comment ID to update (required for update_comment resource)",
 					},
 					"state": map[string]any{
 						"type":        "string",
@@ -221,6 +228,8 @@ func (t *GithubTool) executeResource(ctx context.Context, resource, owner, repo 
 		return t.handleCommentsResource(ctx, owner, repo, args)
 	case "create_comment":
 		return t.handleCreateCommentResource(ctx, owner, repo, args)
+	case "update_comment":
+		return t.handleUpdateCommentResource(ctx, owner, repo, args)
 	case "create_pull_request":
 		return t.handleCreatePullRequestResource(ctx, owner, repo, args)
 	default:
@@ -281,6 +290,21 @@ func (t *GithubTool) handleCreateCommentResource(ctx context.Context, owner, rep
 	}
 
 	return t.createIssueComment(ctx, owner, repo, issueNum, commentBody)
+}
+
+// handleUpdateCommentResource handles updating a comment
+func (t *GithubTool) handleUpdateCommentResource(ctx context.Context, owner, repo string, args map[string]any) (any, error) {
+	commentID, ok := parseIssueNumber(args["comment_id"])
+	if !ok {
+		return nil, &ToolExecutionError{"comment_id parameter is required for updating a comment"}
+	}
+
+	commentBody, ok := args["comment_body"].(string)
+	if !ok || commentBody == "" {
+		return nil, &ToolExecutionError{"comment_body parameter is required for updating a comment"}
+	}
+
+	return t.updateIssueComment(ctx, owner, repo, commentID, commentBody)
 }
 
 // handleCreatePullRequestResource handles creating a pull request
@@ -492,6 +516,33 @@ func (t *GithubTool) createIssueComment(ctx context.Context, owner, repo string,
 	return &comment, nil
 }
 
+// updateIssueComment updates an existing comment on an issue or pull request
+func (t *GithubTool) updateIssueComment(ctx context.Context, owner, repo string, commentID int, body string) (*domain.GitHubComment, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/issues/comments/%d",
+		t.config.Tools.Github.BaseURL, owner, repo, commentID)
+
+	commentData := map[string]string{
+		"body": body,
+	}
+
+	jsonData, err := json.Marshal(commentData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal comment data: %w", err)
+	}
+
+	respBody, err := t.makeAPIRequest(ctx, "PATCH", url, jsonData)
+	if err != nil {
+		return nil, err
+	}
+
+	var comment domain.GitHubComment
+	if err := json.Unmarshal(respBody, &comment); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal comment response: %w", err)
+	}
+
+	return &comment, nil
+}
+
 // createPullRequest creates a pull request
 func (t *GithubTool) createPullRequest(ctx context.Context, owner, repo, title, body, head, base string) (*domain.GitHubPullRequest, error) {
 	url := fmt.Sprintf("%s/repos/%s/%s/pulls", t.config.Tools.Github.BaseURL, owner, repo)
@@ -569,7 +620,7 @@ func (t *GithubTool) makeAPIRequest(ctx context.Context, method, url string, bod
 
 // validateResourceType validates the resource type and its requirements
 func (t *GithubTool) validateResourceType(resource string, args map[string]any) error {
-	validResources := []string{"issue", "issues", "pull_request", "comments", "create_comment", "create_pull_request"}
+	validResources := []string{"issue", "issues", "pull_request", "comments", "create_comment", "update_comment", "create_pull_request"}
 	valid := false
 	for _, validRes := range validResources {
 		if resource == validRes {
@@ -590,6 +641,19 @@ func (t *GithubTool) validateResourceType(resource string, args map[string]any) 
 	if resource == "create_comment" {
 		if commentBody, ok := args["comment_body"].(string); !ok || commentBody == "" {
 			return fmt.Errorf("comment_body parameter is required for create_comment resource")
+		}
+	}
+
+	if resource == "update_comment" {
+		commentID, ok := args["comment_id"]
+		if !ok {
+			return fmt.Errorf("comment_id parameter is required for update_comment resource")
+		}
+		if _, valid := parseIssueNumber(commentID); !valid {
+			return fmt.Errorf("comment_id must be a valid number for update_comment resource")
+		}
+		if commentBody, ok := args["comment_body"].(string); !ok || commentBody == "" {
+			return fmt.Errorf("comment_body parameter is required for update_comment resource")
 		}
 	}
 

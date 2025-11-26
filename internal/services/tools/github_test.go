@@ -906,6 +906,155 @@ func TestGithubTool_CreatePullRequest(t *testing.T) {
 	}
 }
 
+func TestGithubTool_UpdateComment(t *testing.T) {
+	mockComment := domain.GitHubComment{
+		ID:   123,
+		Body: "This is an updated comment",
+		User: domain.GitHubUser{Login: "testuser"},
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PATCH" && r.URL.Path == "/repos/testowner/testrepo/issues/comments/123" {
+			var requestData map[string]string
+			body, _ := io.ReadAll(r.Body)
+			_ = json.Unmarshal(body, &requestData)
+
+			if requestData["body"] != "This is an updated comment" {
+				t.Errorf("Expected comment body 'This is an updated comment', got '%s'", requestData["body"])
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(mockComment)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				Owner:   "testowner",
+				BaseURL: server.URL,
+				Safety: config.GithubSafetyConfig{
+					MaxSize: 1048576,
+					Timeout: 30,
+				},
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg)
+	ctx := context.Background()
+
+	args := map[string]any{
+		"owner":        "testowner",
+		"repo":         "testrepo",
+		"resource":     "update_comment",
+		"comment_id":   123,
+		"comment_body": "This is an updated comment",
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected Success = true, got false with error: %s", result.Error)
+	}
+
+	comment, ok := result.Data.(*domain.GitHubComment)
+	if !ok {
+		t.Error("Expected data to be a GitHubComment pointer")
+	} else {
+		if comment.ID != 123 {
+			t.Errorf("Expected comment ID 123, got %d", comment.ID)
+		}
+		if comment.Body != "This is an updated comment" {
+			t.Errorf("Expected comment body 'This is an updated comment', got '%s'", comment.Body)
+		}
+	}
+}
+
+func TestGithubTool_UpdateCommentValidation(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				Owner:   "testowner",
+				BaseURL: "https://api.github.com",
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg)
+
+	tests := []struct {
+		name    string
+		args    map[string]any
+		wantErr string
+	}{
+		{
+			name: "missing comment_id",
+			args: map[string]any{
+				"owner":        "testowner",
+				"repo":         "testrepo",
+				"resource":     "update_comment",
+				"comment_body": "Updated comment",
+			},
+			wantErr: "comment_id parameter is required for update_comment resource",
+		},
+		{
+			name: "missing comment_body",
+			args: map[string]any{
+				"owner":      "testowner",
+				"repo":       "testrepo",
+				"resource":   "update_comment",
+				"comment_id": 123,
+			},
+			wantErr: "comment_body parameter is required for update_comment resource",
+		},
+		{
+			name: "empty comment_body",
+			args: map[string]any{
+				"owner":        "testowner",
+				"repo":         "testrepo",
+				"resource":     "update_comment",
+				"comment_id":   123,
+				"comment_body": "",
+			},
+			wantErr: "comment_body parameter is required for update_comment resource",
+		},
+		{
+			name: "invalid comment_id",
+			args: map[string]any{
+				"owner":        "testowner",
+				"repo":         "testrepo",
+				"resource":     "update_comment",
+				"comment_id":   "not-a-number",
+				"comment_body": "Updated comment",
+			},
+			wantErr: "comment_id must be a valid number for update_comment resource",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tool.Validate(tt.args)
+			if err == nil {
+				t.Errorf("Expected validation error, got nil")
+			} else if !strings.Contains(err.Error(), tt.wantErr) {
+				t.Errorf("Expected error containing '%s', got '%s'", tt.wantErr, err.Error())
+			}
+		})
+	}
+}
+
 func TestGithubTool_CreatePullRequestValidation(t *testing.T) {
 	cfg := &config.Config{
 		Tools: config.ToolsConfig{
