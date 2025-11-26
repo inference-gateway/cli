@@ -45,7 +45,7 @@ markdownlint-cli.version = "0.45.0"
 markdownlint-cli.pkg-group = "linting"
 
 claude-code.pkg-path = "claude-code"
-claude-code.version = "2.0.30"
+claude-code.version = "2.0.37"
 claude-code.pkg-group = "common"
 
 docker.pkg-path = "docker"

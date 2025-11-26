@@ -6,7 +6,7 @@
       "claude-code": {
         "pkg-path": "claude-code",
         "pkg-group": "common",
-        "version": "2.0.30"
+        "version": "2.0.37"
       },
       "docker": {
         "pkg-path": "docker",
@@ -196,27 +196,28 @@
     {
       "attr_path": "claude-code",
       "broken": false,
-      "derivation": "/nix/store/wm3898aygscqcryq92qaxqwzlldwdg1s-claude-code-2.0.30.drv",
+      "derivation": "/nix/store/sz58zlpxjdjc592dbxjinpri2kniy29c-claude-code-2.0.37.drv",
       "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
       "install_id": "claude-code",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "name": "claude-code-2.0.30",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "name": "claude-code-2.0.37",
       "pname": "claude-code",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-04T00:35:18.367967Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T16:41:15.731806Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": true,
-      "version": "2.0.30",
+      "version": "2.0.37",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/hzqj7n02j0rdgjxmhdnpxn94910dszlg-claude-code-2.0.30"
+        "out": "/nix/store/ax3qwwal726crahj7y8a9prk2szc1pw1-claude-code-2.0.37"
       },
       "system": "aarch64-darwin",
       "group": "common",
@@ -225,27 +226,28 @@
     {
       "attr_path": "claude-code",
       "broken": false,
-      "derivation": "/nix/store/iyqnvbygw7qnmhy3q0a3xah0x2172xrs-claude-code-2.0.30.drv",
+      "derivation": "/nix/store/88fhg5v0zxmyqvwkg1r266c0rfdyd407-claude-code-2.0.37.drv",
       "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
       "install_id": "claude-code",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "name": "claude-code-2.0.30",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "name": "claude-code-2.0.37",
       "pname": "claude-code",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-05T16:28:57.669127Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T17:18:25.745127Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": true,
-      "version": "2.0.30",
+      "version": "2.0.37",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/103scqn5wpjx1qrqqlbpl4xv1ja58q5j-claude-code-2.0.30"
+        "out": "/nix/store/wnz6ck9z5jgbd9nlyrdw7pwcf842kil4-claude-code-2.0.37"
       },
       "system": "aarch64-linux",
       "group": "common",
@@ -254,27 +256,28 @@
     {
       "attr_path": "claude-code",
       "broken": false,
-      "derivation": "/nix/store/6arwb3n3gcq2nwmqz0a723v3gy3shh05-claude-code-2.0.30.drv",
+      "derivation": "/nix/store/lsc2cn3mmk9vzk21fk4g0rrn156ida51-claude-code-2.0.37.drv",
       "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
       "install_id": "claude-code",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "name": "claude-code-2.0.30",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "name": "claude-code-2.0.37",
       "pname": "claude-code",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-05T16:54:57.409416Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T17:52:16.953152Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": true,
-      "version": "2.0.30",
+      "version": "2.0.37",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/1g6a26grxq4awpc6z6w08fivzvcnqizv-claude-code-2.0.30"
+        "out": "/nix/store/px034m72kd6r9rgkljpc1w4slvwmsc4r-claude-code-2.0.37"
       },
       "system": "x86_64-darwin",
       "group": "common",
@@ -283,27 +286,28 @@
     {
       "attr_path": "claude-code",
       "broken": false,
-      "derivation": "/nix/store/kiwizv3bh2xrs15qaxnb6ialq08dla2v-claude-code-2.0.30.drv",
+      "derivation": "/nix/store/idbn5c3psrl720ij1l7hqc80ra8yjgx3-claude-code-2.0.37.drv",
       "description": "Agentic coding tool that lives in your terminal, understands your codebase, and helps you code faster",
       "install_id": "claude-code",
       "license": "Unfree",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "name": "claude-code-2.0.30",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "name": "claude-code-2.0.37",
       "pname": "claude-code",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-05T17:20:46.975714Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T18:31:37.063852Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": true,
-      "version": "2.0.30",
+      "version": "2.0.37",
       "outputs_to_install": [
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/6is1i3m8viihhhlxjlvmjlq359x3rdrn-claude-code-2.0.30"
+        "out": "/nix/store/naj3abmnkp0dzznz8namssf0hk53db9w-claude-code-2.0.37"
       },
       "system": "x86_64-linux",
       "group": "common",
@@ -312,18 +316,19 @@
     {
       "attr_path": "docker",
       "broken": false,
-      "derivation": "/nix/store/6rwhixlp1xj8y3cs74hl0zvjvr5qp8dp-docker-28.5.1.drv",
+      "derivation": "/nix/store/54f5ygzy38pw0aijr79mzm5q928fphrx-docker-28.5.1.drv",
       "description": "Open source project to pack, ship and run any application as a lightweight container",
       "install_id": "docker",
       "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
       "name": "docker-28.5.1",
       "pname": "docker",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-04T00:35:18.626661Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T16:41:16.095468Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -332,7 +337,7 @@
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/ydz2b40y83p4xiq6iidjfv24y39srr6k-docker-28.5.1"
+        "out": "/nix/store/zak9as98w3jip87vmjfljrs9z3xcl6xs-docker-28.5.1"
       },
       "system": "aarch64-darwin",
       "group": "common",
@@ -341,18 +346,19 @@
     {
       "attr_path": "docker",
       "broken": false,
-      "derivation": "/nix/store/2rv2xjvzrjz32abayqlpc7kqigdz827r-docker-28.5.1.drv",
+      "derivation": "/nix/store/kh3rx42kjarlhnd3pfgaarj35g4jjmld-docker-28.5.1.drv",
       "description": "Open source project to pack, ship and run any application as a lightweight container",
       "install_id": "docker",
       "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
       "name": "docker-28.5.1",
       "pname": "docker",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-05T16:28:58.044003Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T17:18:26.208845Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -361,7 +367,7 @@
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/0qcksaid2gnnck28xiiygrcd553in1ac-docker-28.5.1"
+        "out": "/nix/store/30nwn7fv83l7vgmzmhspibnk7ar65bg8-docker-28.5.1"
       },
       "system": "aarch64-linux",
       "group": "common",
@@ -370,18 +376,19 @@
     {
       "attr_path": "docker",
       "broken": false,
-      "derivation": "/nix/store/gsg296mhh5v2qj2nkqk687swfs8yx27b-docker-28.5.1.drv",
+      "derivation": "/nix/store/qvm4n99rf7635x1lmwnc243dz988hnh5-docker-28.5.1.drv",
       "description": "Open source project to pack, ship and run any application as a lightweight container",
       "install_id": "docker",
       "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
       "name": "docker-28.5.1",
       "pname": "docker",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-05T16:54:57.673093Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T17:52:17.213797Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -390,7 +397,7 @@
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/g5slmpmm63q41vllqcqp8f37y609rpl8-docker-28.5.1"
+        "out": "/nix/store/iq5ra8j65svh28vs45fg2c4kvdfs1a2d-docker-28.5.1"
       },
       "system": "x86_64-darwin",
       "group": "common",
@@ -399,18 +406,19 @@
     {
       "attr_path": "docker",
       "broken": false,
-      "derivation": "/nix/store/brpm15w10vsqi7r5p0zk1p66hkms570k-docker-28.5.1.drv",
+      "derivation": "/nix/store/w4h9jswmas7wxijlyw78imi2dl7azidi-docker-28.5.1.drv",
       "description": "Open source project to pack, ship and run any application as a lightweight container",
       "install_id": "docker",
       "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
       "name": "docker-28.5.1",
       "pname": "docker",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-05T17:20:47.399507Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T18:31:37.490254Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -419,7 +427,7 @@
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/bv05y2nmdl590g1h106ygqhm07297k0k-docker-28.5.1"
+        "out": "/nix/store/fzi1xdg39zxhxkvypbx47k0as21jd2a1-docker-28.5.1"
       },
       "system": "x86_64-linux",
       "group": "common",
@@ -428,18 +436,19 @@
     {
       "attr_path": "docker-compose",
       "broken": false,
-      "derivation": "/nix/store/91fh42mxjrpgcsia22akaxin7xcvmjdy-docker-compose-2.39.4.drv",
+      "derivation": "/nix/store/0l07wnkzdrq8fmfmingsr8sj1as6hsx5-docker-compose-2.39.4.drv",
       "description": "Docker CLI plugin to define and run multi-container applications with Docker",
       "install_id": "docker-compose",
       "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
       "name": "docker-compose-2.39.4",
       "pname": "docker-compose",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-04T00:35:18.627508Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T16:41:16.096370Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -448,7 +457,7 @@
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/5xm7qwb2902pz7167s5algpadnai9ryn-docker-compose-2.39.4"
+        "out": "/nix/store/yglxl31mng528zdx6wqi98yi4i16lz22-docker-compose-2.39.4"
       },
       "system": "aarch64-darwin",
       "group": "common",
@@ -457,18 +466,19 @@
     {
       "attr_path": "docker-compose",
       "broken": false,
-      "derivation": "/nix/store/nj1x0rxhdzwjmn1qihxkiz5i5w6wnq52-docker-compose-2.39.4.drv",
+      "derivation": "/nix/store/4qydn1wqh9d5q2iy4vrqx80z7xj9277q-docker-compose-2.39.4.drv",
       "description": "Docker CLI plugin to define and run multi-container applications with Docker",
       "install_id": "docker-compose",
       "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
       "name": "docker-compose-2.39.4",
       "pname": "docker-compose",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-05T16:28:58.045009Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T17:18:26.209854Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -477,7 +487,7 @@
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/imljicf31w334n7gm0x3ga6zbkslcv90-docker-compose-2.39.4"
+        "out": "/nix/store/h27z8ndwnzgngnpza610pcnn33prysav-docker-compose-2.39.4"
       },
       "system": "aarch64-linux",
       "group": "common",
@@ -486,18 +496,19 @@
     {
       "attr_path": "docker-compose",
       "broken": false,
-      "derivation": "/nix/store/qlhakbxk1rsigy60h4cvryjsmyi39w53-docker-compose-2.39.4.drv",
+      "derivation": "/nix/store/lw5qswpfxva59z1i9ihbv359nc2w2brj-docker-compose-2.39.4.drv",
       "description": "Docker CLI plugin to define and run multi-container applications with Docker",
       "install_id": "docker-compose",
       "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
       "name": "docker-compose-2.39.4",
       "pname": "docker-compose",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-05T16:54:57.673978Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T17:52:17.214662Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -506,7 +517,7 @@
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/zg19swv5clv59g30jmm2z3hf29bdz9mx-docker-compose-2.39.4"
+        "out": "/nix/store/0r3ha9fy6jva1anl3jpyf9pawwkrfsrh-docker-compose-2.39.4"
       },
       "system": "x86_64-darwin",
       "group": "common",
@@ -515,18 +526,19 @@
     {
       "attr_path": "docker-compose",
       "broken": false,
-      "derivation": "/nix/store/6hgkx9z4dmx6vb1g8vd1ba4vgmbyv1lh-docker-compose-2.39.4.drv",
+      "derivation": "/nix/store/g30af4igabfs13d1pav9vf9sc4am97cv-docker-compose-2.39.4.drv",
       "description": "Docker CLI plugin to define and run multi-container applications with Docker",
       "install_id": "docker-compose",
       "license": "Apache-2.0",
-      "locked_url": "https://github.com/flox/nixpkgs?rev=b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
       "name": "docker-compose-2.39.4",
       "pname": "docker-compose",
-      "rev": "b3d51a0365f6695e7dd5cdf3e180604530ed33b4",
-      "rev_count": 888552,
-      "rev_date": "2025-11-02T19:18:41Z",
-      "scrape_date": "2025-11-05T17:20:47.400566Z",
+      "rev": "c5ae371f1a6a7fd27823bc500d9390b38c05fa55",
+      "rev_count": 895122,
+      "rev_date": "2025-11-12T20:02:36Z",
+      "scrape_date": "2025-11-14T18:31:37.491309Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -535,7 +547,7 @@
         "out"
       ],
       "outputs": {
-        "out": "/nix/store/7akzpazr17iwkqldk917wfhzpiq5vl75-docker-compose-2.39.4"
+        "out": "/nix/store/ypgphp0wk6ndm5a7hjxjsl5q0jh6lpq3-docker-compose-2.39.4"
       },
       "system": "x86_64-linux",
       "group": "common",
