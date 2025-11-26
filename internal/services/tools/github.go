@@ -49,7 +49,7 @@ func (t *GithubTool) Definition() sdk.ChatCompletionTool {
 	}
 
 	ownerDescription := "Repository owner (username or organization)"
-	repoDescription := "Repository name"
+	repoDescription := "Repository name (can be 'repo' or 'owner/repo' format)"
 
 	if t.config.Tools.Github.Owner != "" {
 		ownerDescription += fmt.Sprintf(" (defaults to: %s)", t.config.Tools.Github.Owner)
@@ -201,6 +201,22 @@ func (t *GithubTool) extractOwnerAndRepo(args map[string]any) (string, string, e
 		} else {
 			return "", "", fmt.Errorf("repo parameter is required and must be a string, or set repo in config")
 		}
+	}
+
+	if strings.Contains(repo, "/") {
+		parts := strings.SplitN(repo, "/", 2)
+		if len(parts) != 2 {
+			return "", "", fmt.Errorf("invalid repo format: %s (expected 'repo' or 'owner/repo')", repo)
+		}
+
+		extractedOwner := parts[0]
+		extractedRepo := parts[1]
+
+		if extractedOwner != t.config.Tools.Github.Owner {
+			return "", "", fmt.Errorf("owner in repo parameter (%s) does not match configured owner (%s) for security", extractedOwner, t.config.Tools.Github.Owner)
+		}
+
+		repo = extractedRepo
 	}
 
 	return owner, repo, nil
@@ -382,6 +398,12 @@ func (t *GithubTool) Validate(args map[string]any) error {
 		if t.config.Tools.Github.Repo == "" {
 			return fmt.Errorf("repo parameter is required and must be a string, or set repo in config")
 		}
+
+		repo = t.config.Tools.Github.Repo
+	}
+
+	if err := t.validateRepoFormat(repo); err != nil {
+		return err
 	}
 
 	resource, hasResource := args["resource"].(string)
@@ -664,6 +686,25 @@ func (t *GithubTool) validateResourceType(resource string, args map[string]any) 
 		if head, ok := args["head"].(string); !ok || head == "" {
 			return fmt.Errorf("head parameter is required for create_pull_request resource")
 		}
+	}
+
+	return nil
+}
+
+// validateRepoFormat validates the repo parameter format and owner match for "owner/repo" format
+func (t *GithubTool) validateRepoFormat(repo string) error {
+	if !strings.Contains(repo, "/") {
+		return nil
+	}
+
+	parts := strings.SplitN(repo, "/", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid repo format: %s (expected 'repo' or 'owner/repo')", repo)
+	}
+
+	extractedOwner := parts[0]
+	if extractedOwner != t.config.Tools.Github.Owner {
+		return fmt.Errorf("owner in repo parameter (%s) does not match configured owner (%s) for security", extractedOwner, t.config.Tools.Github.Owner)
 	}
 
 	return nil

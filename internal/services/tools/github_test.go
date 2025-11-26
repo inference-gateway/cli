@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 func TestGithubTool_Definition(t *testing.T) {
@@ -323,6 +323,218 @@ func TestGithubTool_Validate_SecurityRequirement(t *testing.T) {
 	err = toolWithDefaults.Validate(argsWithoutOwner)
 	if err != nil {
 		t.Errorf("Expected no validation error when defaults configured, got %v", err)
+	}
+}
+
+func TestGithubTool_Validate_OwnerRepoFormat(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				Owner:   "testowner",
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg)
+
+	tests := []struct {
+		name      string
+		args      map[string]any
+		expectErr bool
+		errMsg    string
+	}{
+		{
+			name: "valid owner/repo format matching configured owner",
+			args: map[string]any{
+				"repo":         "testowner/testrepo",
+				"resource":     "issue",
+				"issue_number": float64(123),
+			},
+			expectErr: false,
+		},
+		{
+			name: "invalid owner/repo format - owner mismatch",
+			args: map[string]any{
+				"repo":         "wrongowner/testrepo",
+				"resource":     "issue",
+				"issue_number": float64(123),
+			},
+			expectErr: true,
+			errMsg:    "owner in repo parameter (wrongowner) does not match configured owner (testowner) for security",
+		},
+		{
+			name: "invalid repo format - multiple slashes with wrong owner",
+			args: map[string]any{
+				"repo":         "owner/repo/extra",
+				"resource":     "issue",
+				"issue_number": float64(123),
+			},
+			expectErr: true,
+			errMsg:    "owner in repo parameter (owner) does not match configured owner (testowner) for security",
+		},
+		{
+			name: "valid simple repo format",
+			args: map[string]any{
+				"repo":         "testrepo",
+				"resource":     "issue",
+				"issue_number": float64(123),
+			},
+			expectErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tool.Validate(tt.args)
+
+			if !tt.expectErr {
+				if err != nil {
+					t.Errorf("Expected no validation error, got: %v", err)
+				}
+				return
+			}
+
+			// Expect error
+			if err == nil {
+				t.Errorf("Expected validation error but got none")
+				return
+			}
+
+			if tt.errMsg != "" && !strings.Contains(err.Error(), tt.errMsg) {
+				t.Errorf("Expected error containing '%s', got '%s'", tt.errMsg, err.Error())
+			}
+		})
+	}
+}
+
+func TestGithubTool_Execute_OwnerRepoFormat(t *testing.T) {
+	mockIssue := domain.GitHubIssue{
+		ID:     123456,
+		Number: 123,
+		Title:  "Test Issue from owner/repo format",
+		Body:   "This test verifies owner/repo format parsing",
+		State:  "open",
+		User: domain.GitHubUser{
+			ID:    789,
+			Login: "testuser",
+		},
+		Comments:  5,
+		CreatedAt: time.Now().Add(-time.Hour),
+		UpdatedAt: time.Now().Add(-time.Minute),
+		HTMLURL:   "https://github.com/testowner/testrepo/issues/123",
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		expectedPath := "/repos/testowner/testrepo/issues/123"
+		if r.URL.Path == expectedPath {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(mockIssue)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+		_ = json.NewEncoder(w).Encode(map[string]string{
+			"message": "Not Found - incorrect URL path: " + r.URL.Path,
+		})
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				Owner:   "testowner",
+				BaseURL: server.URL,
+				Safety: config.GithubSafetyConfig{
+					MaxSize: 1048576,
+					Timeout: 30,
+				},
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg)
+	ctx := context.Background()
+
+	args := map[string]any{
+		"repo":         "testowner/testrepo",
+		"resource":     "issue",
+		"issue_number": float64(123),
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute() error = %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result object")
+	}
+
+	if !result.Success {
+		t.Errorf("Expected Success = true, got false with error: %s", result.Error)
+	}
+
+	if result.Data == nil {
+		t.Error("Expected data to be present")
+	}
+
+	issue, ok := result.Data.(*domain.GitHubIssue)
+	if !ok {
+		t.Error("Expected data to be a GitHubIssue")
+	} else {
+		if issue.Number != 123 {
+			t.Errorf("Expected issue number 123, got %d", issue.Number)
+		}
+		if issue.Title != "Test Issue from owner/repo format" {
+			t.Errorf("Expected specific title, got %s", issue.Title)
+		}
+	}
+}
+
+func TestGithubTool_Execute_OwnerRepoFormatMismatch(t *testing.T) {
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				Owner:   "testowner",
+				BaseURL: "https://api.github.com",
+				Safety: config.GithubSafetyConfig{
+					MaxSize: 1048576,
+					Timeout: 30,
+				},
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg)
+	ctx := context.Background()
+
+	args := map[string]any{
+		"repo":         "wrongowner/testrepo",
+		"resource":     "issue",
+		"issue_number": float64(123),
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute() should not return error, got %v", err)
+	}
+
+	if result == nil {
+		t.Fatal("Expected result object")
+	}
+
+	if result.Success {
+		t.Error("Expected Success = false when owner doesn't match")
+	}
+
+	expectedErrMsg := "owner in repo parameter (wrongowner) does not match configured owner (testowner) for security"
+	if !strings.Contains(result.Error, expectedErrMsg) {
+		t.Errorf("Expected error containing '%s', got '%s'", expectedErrMsg, result.Error)
 	}
 }
 
