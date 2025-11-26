@@ -111,6 +111,32 @@ func initConfig() {
 		v.Set("a2a.agents", agents)
 	}
 
+	if whitelistCommands := os.Getenv("INFER_TOOLS_BASH_WHITELIST_COMMANDS"); whitelistCommands != "" {
+		var commands []string
+		for _, cmd := range strings.FieldsFunc(whitelistCommands, func(c rune) bool {
+			return c == ',' || c == '\n'
+		}) {
+			if trimmed := strings.TrimSpace(cmd); trimmed != "" {
+				commands = append(commands, trimmed)
+			}
+		}
+
+		v.Set("tools.bash.whitelist.commands", commands)
+	}
+
+	if whitelistPatterns := os.Getenv("INFER_TOOLS_BASH_WHITELIST_PATTERNS"); whitelistPatterns != "" {
+		var patterns []string
+		for _, pattern := range strings.FieldsFunc(whitelistPatterns, func(c rune) bool {
+			return c == ',' || c == '\n'
+		}) {
+			if trimmed := strings.TrimSpace(pattern); trimmed != "" {
+				patterns = append(patterns, trimmed)
+			}
+		}
+
+		v.Set("tools.bash.whitelist.patterns", patterns)
+	}
+
 	if err := v.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
 		fmt.Fprintf(os.Stderr, "Error binding verbose flag: %v\n", err)
 	}

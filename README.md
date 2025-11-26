@@ -1374,20 +1374,162 @@ official APIs provides better reliability and performance for production use.
 The CLI supports environment variable configuration with the `INFER_` prefix. Environment variables override
 configuration file settings and are particularly useful for containerized deployments and CI/CD environments.
 
-#### Core Environment Variables
+All configuration fields can be set via environment variables by converting the YAML path to uppercase and replacing
+dots (`.`) with underscores (`_`), then prefixing with `INFER_`.
 
-- `INFER_GATEWAY_URL`: Override gateway URL (e.g., `http://localhost:8080`)
-- `INFER_GATEWAY_API_KEY`: Set gateway API key for authentication
-- `INFER_LOGGING_DEBUG`: Enable debug logging (`true`/`false`)
-- `INFER_AGENT_MODEL`: Default model for agent operations (e.g., `openai/gpt-4`)
+**Example:** `gateway.url` → `INFER_GATEWAY_URL`, `tools.bash.enabled` → `INFER_TOOLS_BASH_ENABLED`
+
+#### Gateway Configuration
+
+- `INFER_GATEWAY_URL`: Gateway URL (default: `http://localhost:8080`)
+- `INFER_GATEWAY_API_KEY`: Gateway API key for authentication
+- `INFER_GATEWAY_TIMEOUT`: Gateway request timeout in seconds (default: `200`)
+- `INFER_GATEWAY_OCI`: OCI image for gateway (default: `ghcr.io/inference-gateway/inference-gateway:latest`)
+- `INFER_GATEWAY_RUN`: Auto-run gateway if not running (default: `true`)
+- `INFER_GATEWAY_DOCKER`: Use Docker to run gateway (default: `true`)
+
+#### Client Configuration
+
+- `INFER_CLIENT_TIMEOUT`: HTTP client timeout in seconds (default: `200`)
+- `INFER_CLIENT_RETRY_ENABLED`: Enable retry logic (default: `true`)
+- `INFER_CLIENT_RETRY_MAX_ATTEMPTS`: Maximum retry attempts (default: `3`)
+- `INFER_CLIENT_RETRY_INITIAL_BACKOFF_SEC`: Initial backoff delay in seconds (default: `5`)
+- `INFER_CLIENT_RETRY_MAX_BACKOFF_SEC`: Maximum backoff delay in seconds (default: `60`)
+- `INFER_CLIENT_RETRY_BACKOFF_MULTIPLIER`: Backoff multiplier (default: `2`)
+
+#### Logging Configuration
+
+- `INFER_LOGGING_DEBUG`: Enable debug logging (default: `false`)
+- `INFER_LOGGING_DIR`: Log directory path (default: `.infer/logs`)
+
+#### Agent Configuration
+
+- `INFER_AGENT_MODEL`: Default model for agent operations (e.g., `deepseek/deepseek-chat`)
+- `INFER_AGENT_SYSTEM_PROMPT`: Custom system prompt for agent
+- `INFER_AGENT_SYSTEM_PROMPT_PLAN`: Custom system prompt for plan mode
+- `INFER_AGENT_VERBOSE_TOOLS`: Enable verbose tool output (default: `false`)
+- `INFER_AGENT_MAX_TURNS`: Maximum agent turns (default: `100`)
+- `INFER_AGENT_MAX_TOKENS`: Maximum tokens per response (default: `8192`)
+- `INFER_AGENT_MAX_CONCURRENT_TOOLS`: Maximum concurrent tool executions (default: `5`)
+
+#### Chat Configuration
+
+- `INFER_CHAT_THEME`: Chat UI theme (`light`, `dark`, `dracula`, `nord`, `solarized`, default: `dark`)
 
 #### Tools Configuration
 
-- `INFER_TOOLS_ENABLED`: Enable/disable all local tools (`true`/`false`)
+- `INFER_TOOLS_ENABLED`: Enable/disable all local tools (default: `true`)
+
+**Individual Tool Enablement:**
+
+- `INFER_TOOLS_BASH_ENABLED`: Enable/disable Bash tool (default: `true`)
+- `INFER_TOOLS_READ_ENABLED`: Enable/disable Read tool (default: `true`)
+- `INFER_TOOLS_WRITE_ENABLED`: Enable/disable Write tool (default: `true`)
+- `INFER_TOOLS_EDIT_ENABLED`: Enable/disable Edit tool (default: `true`)
+- `INFER_TOOLS_DELETE_ENABLED`: Enable/disable Delete tool (default: `true`)
+- `INFER_TOOLS_GREP_ENABLED`: Enable/disable Grep tool (default: `true`)
+- `INFER_TOOLS_TREE_ENABLED`: Enable/disable Tree tool (default: `true`)
+- `INFER_TOOLS_WEB_FETCH_ENABLED`: Enable/disable WebFetch tool (default: `true`)
+- `INFER_TOOLS_WEB_SEARCH_ENABLED`: Enable/disable WebSearch tool (default: `true`)
+- `INFER_TOOLS_GITHUB_ENABLED`: Enable/disable Github tool (default: `true`)
+- `INFER_TOOLS_TODO_WRITE_ENABLED`: Enable/disable TodoWrite tool (default: `true`)
+
+**Tool Approval Configuration:**
+
+- `INFER_TOOLS_BASH_REQUIRE_APPROVAL`: Require approval for Bash tool (default: `false`)
+- `INFER_TOOLS_WRITE_REQUIRE_APPROVAL`: Require approval for Write tool (default: `true`)
+- `INFER_TOOLS_EDIT_REQUIRE_APPROVAL`: Require approval for Edit tool (default: `true`)
+- `INFER_TOOLS_DELETE_REQUIRE_APPROVAL`: Require approval for Delete tool (default: `true`)
+
+**Bash Tool Whitelist Configuration:**
+
+The Bash tool supports whitelisting commands and patterns for security. These environment variables accept
+comma-separated or newline-separated values:
+
+- `INFER_TOOLS_BASH_WHITELIST_COMMANDS`: Comma-separated list of whitelisted commands
+- `INFER_TOOLS_BASH_WHITELIST_PATTERNS`: Comma-separated list of regex patterns for whitelisted commands
+
+**Examples:**
+
+```bash
+# Whitelist specific commands
+export INFER_TOOLS_BASH_WHITELIST_COMMANDS="gh,git,npm,task,make"
+
+# Whitelist command patterns (regex)
+export INFER_TOOLS_BASH_WHITELIST_PATTERNS="^gh .*,^git .*,^npm .*,^task .*"
+
+# Combined example for GitHub Actions
+export INFER_TOOLS_BASH_WHITELIST_COMMANDS="gh,git,npm"
+export INFER_TOOLS_BASH_WHITELIST_PATTERNS="^gh .*,^git .*,^npm (install|test|run).*"
+```
+
+**Grep Tool Configuration:**
+
+- `INFER_TOOLS_GREP_BACKEND`: Grep backend to use (`ripgrep` or `grep`, default: `ripgrep`)
+
+**WebSearch Tool Configuration:**
+
+- `INFER_TOOLS_WEB_SEARCH_DEFAULT_ENGINE`: Default search engine (`duckduckgo` or `google`, default: `duckduckgo`)
+- `INFER_TOOLS_WEB_SEARCH_MAX_RESULTS`: Maximum search results (default: `10`)
+- `INFER_TOOLS_WEB_SEARCH_TIMEOUT`: Search timeout in seconds (default: `30`)
+
+**WebFetch Tool Configuration:**
+
+- `INFER_TOOLS_WEB_FETCH_SAFETY_MAX_SIZE`: Maximum fetch size in bytes (default: `10485760`)
+- `INFER_TOOLS_WEB_FETCH_SAFETY_TIMEOUT`: Fetch timeout in seconds (default: `30`)
+- `INFER_TOOLS_WEB_FETCH_SAFETY_ALLOW_REDIRECT`: Allow HTTP redirects (default: `true`)
+- `INFER_TOOLS_WEB_FETCH_CACHE_ENABLED`: Enable fetch caching (default: `true`)
+- `INFER_TOOLS_WEB_FETCH_CACHE_TTL`: Cache TTL in seconds (default: `900`)
+- `INFER_TOOLS_WEB_FETCH_CACHE_MAX_SIZE`: Maximum cache size in bytes (default: `104857600`)
+
+**GitHub Tool Configuration:**
+
+- `INFER_TOOLS_GITHUB_TOKEN`: GitHub personal access token
+- `INFER_TOOLS_GITHUB_BASE_URL`: GitHub API base URL (default: `https://api.github.com`)
+- `INFER_TOOLS_GITHUB_OWNER`: Default GitHub owner/organization
+- `INFER_TOOLS_GITHUB_REPO`: Default GitHub repository
+- `INFER_TOOLS_GITHUB_SAFETY_MAX_SIZE`: Maximum GitHub file size in bytes (default: `10485760`)
+- `INFER_TOOLS_GITHUB_SAFETY_TIMEOUT`: GitHub API timeout in seconds (default: `30`)
+
+**Sandbox Configuration:**
+
+- `INFER_TOOLS_SANDBOX_DIRECTORIES`: Comma-separated list of allowed directories (default: `.,/tmp`)
+
+#### Storage Configuration
+
+- `INFER_STORAGE_ENABLED`: Enable conversation storage (default: `true`)
+- `INFER_STORAGE_TYPE`: Storage backend type (`memory`, `sqlite`, `postgres`, `redis`, default: `sqlite`)
+
+**SQLite Storage:**
+
+- `INFER_STORAGE_SQLITE_PATH`: SQLite database path (default: `.infer/conversations.db`)
+
+**PostgreSQL Storage:**
+
+- `INFER_STORAGE_POSTGRES_HOST`: PostgreSQL host
+- `INFER_STORAGE_POSTGRES_PORT`: PostgreSQL port (default: `5432`)
+- `INFER_STORAGE_POSTGRES_DATABASE`: PostgreSQL database name
+- `INFER_STORAGE_POSTGRES_USERNAME`: PostgreSQL username
+- `INFER_STORAGE_POSTGRES_PASSWORD`: PostgreSQL password
+- `INFER_STORAGE_POSTGRES_SSL_MODE`: PostgreSQL SSL mode (default: `disable`)
+
+**Redis Storage:**
+
+- `INFER_STORAGE_REDIS_HOST`: Redis host
+- `INFER_STORAGE_REDIS_PORT`: Redis port (default: `6379`)
+- `INFER_STORAGE_REDIS_PASSWORD`: Redis password
+- `INFER_STORAGE_REDIS_DB`: Redis database number (default: `0`)
+
+#### Conversation Configuration
+
+- `INFER_CONVERSATION_TITLE_GENERATION_ENABLED`: Enable AI-powered title generation (default: `true`)
+- `INFER_CONVERSATION_TITLE_GENERATION_MODEL`: Model for title generation (default: `anthropic/claude-4.1-haiku`)
+- `INFER_CONVERSATION_TITLE_GENERATION_BATCH_SIZE`: Batch size for title generation (default: `5`)
+- `INFER_CONVERSATION_TITLE_GENERATION_INTERVAL`: Interval in seconds between title generation attempts (default: `30`)
 
 #### A2A (Agent-to-Agent) Configuration
 
-- `INFER_A2A_ENABLED`: Enable/disable A2A tools (`true`/`false`, default: `true`)
+- `INFER_A2A_ENABLED`: Enable/disable A2A tools (default: `true`)
 - `INFER_A2A_AGENTS`: Configure A2A agent endpoints (supports comma-separated or newline-separated format)
 
 **A2A Agents Configuration Examples:**
@@ -1405,32 +1547,55 @@ http://browser-agent:8080
 "
 ```
 
-#### Individual Tool Configuration
+**A2A Cache Configuration:**
 
-You can also configure individual tools via environment variables using the pattern `INFER_TOOLS_<TOOL>_ENABLED`:
-
-- `INFER_TOOLS_BASH_ENABLED`: Enable/disable Bash tool
-- `INFER_TOOLS_READ_ENABLED`: Enable/disable Read tool
-- `INFER_TOOLS_WRITE_ENABLED`: Enable/disable Write tool
-- `INFER_TOOLS_GREP_ENABLED`: Enable/disable Grep tool
-- `INFER_TOOLS_WEBSEARCH_ENABLED`: Enable/disable WebSearch tool
-- `INFER_TOOLS_GITHUB_ENABLED`: Enable/disable Github tool
-
-And individual A2A tools:
-
-- `INFER_A2A_TOOLS_SUBMIT_TASK_ENABLED`: Enable/disable A2A SubmitTask tool
-- `INFER_A2A_TOOLS_QUERY_AGENT_ENABLED`: Enable/disable A2A QueryAgent tool
-- `INFER_A2A_TOOLS_QUERY_TASK_ENABLED`: Enable/disable A2A QueryTask tool
-- `INFER_A2A_TOOLS_DOWNLOAD_ARTIFACTS_ENABLED`: Enable/disable A2A DownloadArtifacts tool
-
-#### A2A Tools Additional Configuration
-
-Additional configuration options for A2A tools:
-
-- `INFER_A2A_CACHE_ENABLED`: Enable/disable A2A agent card caching (`true`/`false`)
+- `INFER_A2A_CACHE_ENABLED`: Enable/disable A2A agent card caching (default: `true`)
 - `INFER_A2A_CACHE_TTL`: Cache TTL in seconds for A2A agent cards (default: `300`)
-- `INFER_A2A_DOWNLOAD_ARTIFACTS_DOWNLOAD_DIR`: Directory for downloading A2A task artifacts (default: `/tmp/downloads`)
-- `INFER_A2A_DOWNLOAD_ARTIFACTS_TIMEOUT_SECONDS`: Timeout for downloading artifacts in seconds (default: `30`)
+
+**A2A Task Configuration:**
+
+- `INFER_A2A_TASK_STATUS_POLL_SECONDS`: Status polling interval in seconds (default: `10`)
+- `INFER_A2A_TASK_POLLING_STRATEGY`: Polling strategy (`fixed` or `exponential`, default: `exponential`)
+- `INFER_A2A_TASK_INITIAL_POLL_INTERVAL_SEC`: Initial polling interval for exponential strategy (default: `2`)
+- `INFER_A2A_TASK_MAX_POLL_INTERVAL_SEC`: Maximum polling interval for exponential strategy (default: `30`)
+- `INFER_A2A_TASK_BACKOFF_MULTIPLIER`: Backoff multiplier for exponential strategy (default: `1.5`)
+- `INFER_A2A_TASK_BACKGROUND_MONITORING`: Enable background task monitoring (default: `true`)
+- `INFER_A2A_TASK_COMPLETED_TASK_RETENTION`: Completed task retention in seconds (default: `3600`)
+
+**A2A Individual Tool Configuration:**
+
+- `INFER_A2A_TOOLS_SUBMIT_TASK_ENABLED`: Enable/disable A2A SubmitTask tool (default: `true`)
+- `INFER_A2A_TOOLS_SUBMIT_TASK_REQUIRE_APPROVAL`: Require approval for SubmitTask (default: `false`)
+- `INFER_A2A_TOOLS_QUERY_AGENT_ENABLED`: Enable/disable A2A QueryAgent tool (default: `true`)
+- `INFER_A2A_TOOLS_QUERY_AGENT_REQUIRE_APPROVAL`: Require approval for QueryAgent (default: `false`)
+- `INFER_A2A_TOOLS_QUERY_TASK_ENABLED`: Enable/disable A2A QueryTask tool (default: `true`)
+- `INFER_A2A_TOOLS_QUERY_TASK_REQUIRE_APPROVAL`: Require approval for QueryTask (default: `false`)
+- `INFER_A2A_TOOLS_DOWNLOAD_ARTIFACTS_ENABLED`: Enable/disable A2A DownloadArtifacts tool (default: `true`)
+- `INFER_A2A_TOOLS_DOWNLOAD_ARTIFACTS_REQUIRE_APPROVAL`: Require approval for DownloadArtifacts (default: `false`)
+- `INFER_A2A_TOOLS_DOWNLOAD_ARTIFACTS_DOWNLOAD_DIR`: Directory for downloading A2A task artifacts (default: `/tmp/downloads`)
+- `INFER_A2A_TOOLS_DOWNLOAD_ARTIFACTS_TIMEOUT_SECONDS`: Timeout for downloading artifacts in seconds (default: `30`)
+
+#### Export Configuration
+
+- `INFER_EXPORT_OUTPUT_DIR`: Output directory for exported conversations (default: `./exports`)
+- `INFER_EXPORT_SUMMARY_MODEL`: Model for generating export summaries (default: `anthropic/claude-4.1-haiku`)
+
+#### Compact Configuration
+
+- `INFER_COMPACT_ENABLED`: Enable automatic conversation compaction (default: `false`)
+- `INFER_COMPACT_AUTO_AT`: Auto-compact after N messages (default: `100`)
+
+#### Git Configuration
+
+- `INFER_GIT_COMMIT_MESSAGE_MODEL`: Model for AI-generated commit messages (default: `deepseek/deepseek-chat`)
+
+#### SCM Configuration
+
+- `INFER_SCM_PR_CREATE_BASE_BRANCH`: Base branch for PR creation (default: `main`)
+- `INFER_SCM_PR_CREATE_BRANCH_PREFIX`: Branch prefix for PR creation (default: `feature/`)
+- `INFER_SCM_PR_CREATE_MODEL`: Model for PR creation (default: `deepseek/deepseek-chat`)
+- `INFER_SCM_CLEANUP_RETURN_TO_BASE`: Return to base branch after PR creation (default: `true`)
+- `INFER_SCM_CLEANUP_DELETE_LOCAL_BRANCH`: Delete local branch after PR creation (default: `false`)
 
 ### Environment Variable Substitution
 
