@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.68.3](https://github.com/inference-gateway/cli/compare/v0.68.2...v0.68.3) (2025-11-26)
+
+### 🐛 Bug Fixes
+
+* Parse bash whitelist environment variables from comma-separated strings ([9717fcd](https://github.com/inference-gateway/cli/commit/9717fcdd0b72aee3769020cf1ea36a3206d9f4b8))
+
 ## [0.68.2](https://github.com/inference-gateway/cli/compare/v0.68.1...v0.68.2) (2025-11-26)
 
 ### 🐛 Bug Fixes
