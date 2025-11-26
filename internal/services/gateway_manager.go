@@ -221,6 +221,25 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 		args = append(args, "--env-file", ".env")
 	}
 
+	apiKeyEnvVars := []string{
+		"ANTHROPIC_API_KEY",
+		"OPENAI_API_KEY",
+		"GOOGLE_API_KEY",
+		"DEEPSEEK_API_KEY",
+		"GROQ_API_KEY",
+		"MISTRAL_API_KEY",
+		"CLOUDFLARE_API_KEY",
+		"COHERE_API_KEY",
+		"OLLAMA_API_KEY",
+		"OLLAMA_CLOUD_API_KEY",
+	}
+
+	for _, envVar := range apiKeyEnvVars {
+		if value := os.Getenv(envVar); value != "" {
+			args = append(args, "-e", fmt.Sprintf("%s=%s", envVar, value))
+		}
+	}
+
 	if gm.config.Gateway.APIKey != "" {
 		args = append(args, "-e", fmt.Sprintf("API_KEY=%s", gm.config.Gateway.APIKey))
 	}
