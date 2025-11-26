@@ -520,13 +520,21 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	stateManager := app.GetStateManager()
 
-	if stateManager.GetCurrentView() == domain.ViewStatePlanApproval {
-		planApprovalState := stateManager.GetPlanApprovalUIState()
-		if planApprovalState != nil && planApprovalState.ResponseChan != nil {
-			return func() tea.Msg {
-				return domain.PlanApprovalResponseEvent{
-					Action: domain.PlanApprovalReject,
-				}
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	if planApprovalState != nil {
+		return func() tea.Msg {
+			return domain.PlanApprovalResponseEvent{
+				Action: domain.PlanApprovalReject,
+			}
+		}
+	}
+
+	approvalState := stateManager.GetApprovalUIState()
+	if approvalState != nil && approvalState.PendingToolCall != nil {
+		return func() tea.Msg {
+			return domain.ToolApprovalResponseEvent{
+				Action:   domain.ApprovalReject,
+				ToolCall: *approvalState.PendingToolCall,
 			}
 		}
 	}
