@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/config"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	"github.com/inference-gateway/cli/internal/models"
 	"github.com/inference-gateway/sdk"
 )
@@ -24,7 +25,7 @@ type ConversationOptimizer struct {
 // OptimizerConfig represents configuration for the conversation optimizer
 type OptimizerConfig struct {
 	Enabled    bool
-	AutoAt     int // percentage of context window (20-100)
+	AutoAt     int
 	BufferSize int
 	Client     sdk.Client
 	Config     *config.Config
@@ -34,6 +35,7 @@ type OptimizerConfig struct {
 // NewConversationOptimizer creates a new conversation optimizer with configuration
 func NewConversationOptimizer(config OptimizerConfig) *ConversationOptimizer {
 	if config.AutoAt < 20 || config.AutoAt > 100 {
+		logger.Warn("AutoAt must be between 20 and 100, defaulting to 80", "provided", config.AutoAt)
 		config.AutoAt = 80
 	}
 	if config.BufferSize <= 0 {
@@ -72,7 +74,7 @@ func (co *ConversationOptimizer) OptimizeMessagesWithModel(messages []sdk.Messag
 	// Get context window size for the model
 	contextWindow := models.EstimateContextWindow(currentModel)
 	if contextWindow == 0 {
-		contextWindow = 8192 // fallback
+		contextWindow = 30000 // fallback
 	}
 
 	// Calculate threshold based on percentage
