@@ -7,45 +7,51 @@ import (
 	"time"
 
 	"github.com/inference-gateway/cli/config"
+	"github.com/inference-gateway/cli/internal/models"
 	"github.com/inference-gateway/sdk"
 )
 
 // ConversationOptimizer provides methods to optimize conversation history for token efficiency
 type ConversationOptimizer struct {
-	enabled     bool
-	model       string
-	minMessages int
-	bufferSize  int
-	client      sdk.Client
-	config      *config.Config
+	enabled    bool
+	autoAt     int // percentage of context window (20-100)
+	bufferSize int
+	client     sdk.Client
+	config     *config.Config
+	tokenizer  *TokenizerService
 }
 
 // OptimizerConfig represents configuration for the conversation optimizer
 type OptimizerConfig struct {
-	Enabled     bool
-	Model       string
-	MinMessages int
-	BufferSize  int
-	Client      sdk.Client
-	Config      *config.Config
+	Enabled    bool
+	AutoAt     int // percentage of context window (20-100)
+	BufferSize int
+	Client     sdk.Client
+	Config     *config.Config
+	Tokenizer  *TokenizerService
 }
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration
 func NewConversationOptimizer(config OptimizerConfig) *ConversationOptimizer {
-	if config.MinMessages <= 0 {
-		config.MinMessages = 10
+	if config.AutoAt < 20 || config.AutoAt > 100 {
+		config.AutoAt = 80
 	}
 	if config.BufferSize <= 0 {
 		config.BufferSize = 2
 	}
 
+	tokenizer := config.Tokenizer
+	if tokenizer == nil {
+		tokenizer = NewTokenizerService(DefaultTokenizerConfig())
+	}
+
 	return &ConversationOptimizer{
-		enabled:     config.Enabled,
-		model:       config.Model,
-		minMessages: config.MinMessages,
-		bufferSize:  config.BufferSize,
-		client:      config.Client,
-		config:      config.Config,
+		enabled:    config.Enabled,
+		autoAt:     config.AutoAt,
+		bufferSize: config.BufferSize,
+		client:     config.Client,
+		config:     config.Config,
+		tokenizer:  tokenizer,
 	}
 }
 
@@ -56,7 +62,24 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message) []sdk.
 
 // OptimizeMessagesWithModel reduces token usage with optional current model for fallback
 func (co *ConversationOptimizer) OptimizeMessagesWithModel(messages []sdk.Message, currentModel string) []sdk.Message {
-	if !co.enabled || len(messages) < co.minMessages {
+	if !co.enabled || len(messages) == 0 {
+		return messages
+	}
+
+	// Estimate current token usage
+	currentTokens := co.tokenizer.EstimateMessagesTokens(messages)
+
+	// Get context window size for the model
+	contextWindow := models.EstimateContextWindow(currentModel)
+	if contextWindow == 0 {
+		contextWindow = 8192 // fallback
+	}
+
+	// Calculate threshold based on percentage
+	threshold := (contextWindow * co.autoAt) / 100
+
+	// Only optimize if we've exceeded the threshold
+	if currentTokens < threshold {
 		return messages
 	}
 
@@ -71,25 +94,14 @@ func (co *ConversationOptimizer) OptimizeMessagesWithModel(messages []sdk.Messag
 		}
 	}
 
-	if len(conversationMessages) >= co.minMessages {
-		originalModel := co.model
-		if co.model == "" && currentModel != "" {
-			co.model = currentModel
-		}
-
-		optimized := co.smartOptimize(conversationMessages)
-		conversationMessages = optimized
-
-		co.model = originalModel
-	}
-
-	return append(systemMessages, conversationMessages...)
+	optimized := co.smartOptimize(conversationMessages, currentModel)
+	return append(systemMessages, optimized...)
 }
 
 // smartOptimize implements the smart optimization strategy
 // It keeps the first user message (root context), summarizes the middle, and preserves recent context
-func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message) []sdk.Message {
-	if len(messages) < co.minMessages {
+func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model string) []sdk.Message {
+	if len(messages) < 3 {
 		return messages
 	}
 
@@ -131,7 +143,7 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message) []sdk.Mes
 
 	messagesToSummarize := messages[firstUserIndex+1 : lastMessagesStart]
 
-	summary := co.generateSmartSummary(messagesToSummarize)
+	summary := co.generateSmartSummary(messagesToSummarize, model)
 	if summary != "" {
 		summaryMsg := sdk.Message{
 			Role:    "assistant",
@@ -146,16 +158,16 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message) []sdk.Mes
 }
 
 // generateSmartSummary creates an intelligent summary using LLM
-func (co *ConversationOptimizer) generateSmartSummary(messages []sdk.Message) string {
+func (co *ConversationOptimizer) generateSmartSummary(messages []sdk.Message, model string) string {
 	if len(messages) == 0 {
 		return ""
 	}
 
-	if co.client == nil || co.model == "" {
+	if co.client == nil || model == "" {
 		return co.createBasicSummary(messages)
 	}
 
-	summary, err := co.generateLLMSummary(messages)
+	summary, err := co.generateLLMSummary(messages, model)
 	if err != nil {
 		return co.createBasicSummary(messages)
 	}
@@ -185,7 +197,7 @@ func (co *ConversationOptimizer) createBasicSummary(messages []sdk.Message) stri
 }
 
 // generateLLMSummary uses the SDK client to generate an intelligent summary
-func (co *ConversationOptimizer) generateLLMSummary(messages []sdk.Message) (string, error) {
+func (co *ConversationOptimizer) generateLLMSummary(messages []sdk.Message, model string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
@@ -239,16 +251,16 @@ Keep the summary brief but informative (2-3 sentences max).`),
 		Content: sdk.NewMessageContent("Provide a concise summary of the conversation above, focusing on key progress and context needed to continue."),
 	})
 
-	if co.model == "" {
+	if model == "" {
 		return "", fmt.Errorf("no model configured for summarization")
 	}
 
-	slashIndex := strings.Index(co.model, "/")
+	slashIndex := strings.Index(model, "/")
 	if slashIndex == -1 {
 		return "", fmt.Errorf("invalid model format, expected 'provider/model'")
 	}
-	provider := co.model[:slashIndex]
-	modelName := co.model[slashIndex+1:]
+	provider := model[:slashIndex]
+	modelName := model[slashIndex+1:]
 
 	maxTokens := 200
 	options := &sdk.CreateChatCompletionRequest{

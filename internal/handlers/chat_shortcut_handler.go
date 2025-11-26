@@ -632,7 +632,7 @@ func (s *ChatShortcutHandler) handleCompactConversationSideEffect() tea.Msg {
 	infoEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.Assistant,
-			Content: sdk.NewMessageContent(fmt.Sprintf("Conversation optimization enabled. The conversation history (%d messages) will be compacted on your next message to reduce token usage.", messageCount)),
+			Content: sdk.NewMessageContent("✨ Conversation compacted successfully! Token usage has been optimized."),
 		},
 		Model: "",
 		Time:  time.Now(),
@@ -650,7 +650,7 @@ func (s *ChatShortcutHandler) handleCompactConversationSideEffect() tea.Msg {
 		},
 		func() tea.Msg {
 			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Optimization queued for %d messages", messageCount),
+				Message:    "Conversation compacted",
 				Spinner:    false,
 				StatusType: domain.StatusDefault,
 			}

@@ -198,15 +198,16 @@ func (c *ServiceContainer) initializeDomainServices() {
 	}
 
 	var optimizer *services.ConversationOptimizer
-	if c.config.Agent.Optimization.Enabled {
+	if c.config.Compact.Enabled {
 		summaryClient := c.createSDKClient()
+		tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 		optimizer = services.NewConversationOptimizer(services.OptimizerConfig{
-			Enabled:     c.config.Agent.Optimization.Enabled,
-			Model:       c.config.Agent.Optimization.Model,
-			MinMessages: c.config.Agent.Optimization.MinMessages,
-			BufferSize:  c.config.Agent.Optimization.BufferSize,
-			Client:      summaryClient,
-			Config:      c.config,
+			Enabled:    c.config.Compact.Enabled,
+			AutoAt:     c.config.Compact.AutoAt,
+			BufferSize: 2, // Keep last 2 messages uncompacted
+			Client:     summaryClient,
+			Config:     c.config,
+			Tokenizer:  tokenizer,
 		})
 	}
 

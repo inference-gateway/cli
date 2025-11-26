@@ -684,7 +684,6 @@ var configAgentVerboseToolsCmd = &cobra.Command{
 func init() {
 	configCmd.AddCommand(configInitCmd)
 	configCmd.AddCommand(configToolsCmd)
-	configCmd.AddCommand(configOptimizationCmd)
 	configCmd.AddCommand(configExportCmd)
 	configCmd.AddCommand(configAgentCmd)
 
