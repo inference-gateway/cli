@@ -1634,7 +1634,7 @@ This allows sensitive values to be stored as environment variables while keeping
 
 ```bash
 # 1. Setup userspace defaults
-infer config --userspace agent set-model "anthropic/claude-4.1"
+infer config --userspace agent set-model "deepseek/deepseek-chat"
 infer config --userspace agent set-system "You are a helpful assistant"
 
 # 2. Project-specific overrides
