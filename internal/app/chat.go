@@ -24,6 +24,7 @@ import (
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // ChatApplication represents the main application model using state management
@@ -632,10 +633,16 @@ func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) 
 			}
 		}
 
-		return domain.SetStatusEvent{
-			Message:    fmt.Sprintf("Workflow configured with github-actions[bot]! Create PR at: %s", prURL),
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
+		messageText := fmt.Sprintf("✅ GitHub workflow configured with github-actions[bot]!\n\nCreate your pull request here:\n%s", prURL)
+		message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
+		entry := domain.ConversationEntry{
+			Message: message,
+			Time:    time.Now(),
+		}
+		_ = app.conversationRepo.AddMessage(entry)
+
+		return domain.UpdateHistoryEvent{
+			History: app.conversationRepo.GetMessages(),
 		}
 	}
 
@@ -691,10 +698,16 @@ func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) 
 		}
 	}
 
-	return domain.SetStatusEvent{
-		Message:    fmt.Sprintf("GitHub App configured with org-level secrets! Create PR at: %s", prURL),
-		Spinner:    false,
-		StatusType: domain.StatusDefault,
+	messageText := fmt.Sprintf("✅ GitHub App configured with org-level secrets!\n\nCreate your pull request here:\n%s", prURL)
+	message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
+	entry := domain.ConversationEntry{
+		Message: message,
+		Time:    time.Now(),
+	}
+	_ = app.conversationRepo.AddMessage(entry)
+
+	return domain.UpdateHistoryEvent{
+		History: app.conversationRepo.GetMessages(),
 	}
 }
 
