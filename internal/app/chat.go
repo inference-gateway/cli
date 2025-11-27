@@ -317,6 +317,11 @@ func (app *ChatApplication) Init() tea.Cmd {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	if _, ok := msg.(domain.TriggerGitHubAppSetupEvent); ok {
+		cmds = append(cmds, app.handleGitHubAppSetupTrigger()...)
+		return app, tea.Batch(cmds...)
+	}
+
 	if cmd := app.chatHandler.Handle(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -536,7 +541,6 @@ func (app *ChatApplication) handleGitHubAppSetupComplete(cmds []tea.Cmd) []tea.C
 			}
 		})
 	} else {
-		// Trigger async setup process
 		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    "Setting up GitHub App...",
@@ -545,10 +549,7 @@ func (app *ChatApplication) handleGitHubAppSetupComplete(cmds []tea.Cmd) []tea.C
 			}
 		})
 
-		// Run the actual setup in background
-		cmds = append(cmds, func() tea.Msg {
-			return app.performGitHubAppSetup(appID, privateKeyPath)
-		})
+		cmds = append(cmds, app.performGitHubAppSetup(appID, privateKeyPath))
 	}
 
 	app.githubAppSetupView.Reset()
@@ -578,7 +579,6 @@ func (app *ChatApplication) handleGitHubAppSetupCancelled(cmds []tea.Cmd) []tea.
 		}
 	})
 
-	// Reset view for next use
 	app.githubAppSetupView.Reset()
 	if cmd := app.githubAppSetupView.Init(); cmd != nil {
 		cmds = append(cmds, cmd)
@@ -597,25 +597,176 @@ func (app *ChatApplication) handleGitHubAppSetupCancelled(cmds []tea.Cmd) []tea.
 	return cmds
 }
 
-func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) tea.Msg {
+func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
+	var cmds []tea.Cmd
+
 	repo, err := app.getCurrentRepo()
 	if err != nil {
-		return domain.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to get repository info: %v", err),
-			Sticky: true,
-		}
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to get repository info: %v", err),
+				Sticky: true,
+			}
+		})
+		return cmds
 	}
 
 	isOrg, err := app.isOrgRepo(repo)
 	if err != nil {
-		return domain.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to check repository type: %v", err),
-			Sticky: true,
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to check repository type: %v", err),
+				Sticky: true,
+			}
+		})
+		return cmds
+	}
+
+	if isOrg {
+		orgName := strings.Split(repo, "/")[0]
+		secretsExist, err := app.checkOrgSecretsExist(orgName)
+		if err != nil {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
+					Sticky: true,
+				}
+			})
+			return cmds
+		}
+
+		if secretsExist {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    "Org secrets found, creating workflow...",
+					Spinner:    true,
+					StatusType: domain.StatusDefault,
+				}
+			})
+
+			cmds = append(cmds, app.performGitHubAppSetup("", ""))
+
+			return cmds
 		}
 	}
 
-	if !isOrg {
-		workflowContent := app.generateStandardWorkflowContent()
+	if err := app.stateManager.TransitionToView(domain.ViewStateGitHubAppSetup); err != nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to show GitHub App setup: %v", err),
+				Sticky: false,
+			}
+		})
+		return cmds
+	}
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Setting up GitHub App...",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	})
+
+	return cmds
+}
+
+func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) tea.Cmd {
+	return func() tea.Msg {
+		repo, err := app.getCurrentRepo()
+		if err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to get repository info: %v", err),
+				Sticky: true,
+			}
+		}
+
+		isOrg, err := app.isOrgRepo(repo)
+		if err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to check repository type: %v", err),
+				Sticky: true,
+			}
+		}
+
+		if !isOrg {
+			workflowContent := app.generateStandardWorkflowContent()
+			workflowPath := ".github/workflows/infer.yml"
+
+			if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
+					Sticky: true,
+				}
+			}
+
+			prURL, err := app.preparePRCreation(repo, workflowPath)
+			if err != nil {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
+					Sticky: true,
+				}
+			}
+
+			messageText := fmt.Sprintf("✅ GitHub workflow configured with github-actions[bot]!\n\nCreate your pull request here:\n%s", prURL)
+			message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
+			entry := domain.ConversationEntry{
+				Message: message,
+				Time:    time.Now(),
+			}
+			_ = app.conversationRepo.AddMessage(entry)
+
+			return tea.Batch(
+				func() tea.Msg {
+					return domain.UpdateHistoryEvent{
+						History: app.conversationRepo.GetMessages(),
+					}
+				},
+				func() tea.Msg {
+					return domain.SetStatusEvent{
+						Message:    "",
+						Spinner:    false,
+						StatusType: domain.StatusDefault,
+					}
+				},
+			)()
+		}
+
+		orgName := strings.Split(repo, "/")[0]
+
+		secretsExist, err := app.checkOrgSecretsExist(orgName)
+		if err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
+				Sticky: true,
+			}
+		}
+
+		if !secretsExist && privateKeyPath != "" {
+			privateKey, err := app.fileService.ReadFile(privateKeyPath)
+			if err != nil {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to read private key: %v", err),
+					Sticky: true,
+				}
+			}
+
+			if err := app.setOrgSecret(orgName, "INFER_APP_ID", appID); err != nil {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to set org secret INFER_APP_ID: %v", err),
+					Sticky: true,
+				}
+			}
+
+			if err := app.setOrgSecret(orgName, "INFER_APP_PRIVATE_KEY", privateKey); err != nil {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to set org secret INFER_APP_PRIVATE_KEY: %v", err),
+					Sticky: true,
+				}
+			}
+		}
+
+		workflowContent := app.generateGitHubAppWorkflowContent()
 		workflowPath := ".github/workflows/infer.yml"
 
 		if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
@@ -633,7 +784,7 @@ func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) 
 			}
 		}
 
-		messageText := fmt.Sprintf("✅ GitHub workflow configured with github-actions[bot]!\n\nCreate your pull request here:\n%s", prURL)
+		messageText := fmt.Sprintf("✅ GitHub App configured with org-level secrets!\n\nCreate your pull request here:\n%s", prURL)
 		message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
 		entry := domain.ConversationEntry{
 			Message: message,
@@ -641,73 +792,20 @@ func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) 
 		}
 		_ = app.conversationRepo.AddMessage(entry)
 
-		return domain.UpdateHistoryEvent{
-			History: app.conversationRepo.GetMessages(),
-		}
-	}
-
-	orgName := strings.Split(repo, "/")[0]
-
-	secretsExist, err := app.checkOrgSecretsExist(orgName)
-	if err != nil {
-		return domain.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
-			Sticky: true,
-		}
-	}
-
-	if !secretsExist && privateKeyPath != "" {
-		privateKey, err := app.fileService.ReadFile(privateKeyPath)
-		if err != nil {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to read private key: %v", err),
-				Sticky: true,
-			}
-		}
-
-		if err := app.setOrgSecret(orgName, "INFER_APP_ID", appID); err != nil {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to set org secret INFER_APP_ID: %v", err),
-				Sticky: true,
-			}
-		}
-
-		if err := app.setOrgSecret(orgName, "INFER_APP_PRIVATE_KEY", privateKey); err != nil {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to set org secret INFER_APP_PRIVATE_KEY: %v", err),
-				Sticky: true,
-			}
-		}
-	}
-
-	workflowContent := app.generateGitHubAppWorkflowContent()
-	workflowPath := ".github/workflows/infer.yml"
-
-	if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
-		return domain.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
-			Sticky: true,
-		}
-	}
-
-	prURL, err := app.preparePRCreation(repo, workflowPath)
-	if err != nil {
-		return domain.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
-			Sticky: true,
-		}
-	}
-
-	messageText := fmt.Sprintf("✅ GitHub App configured with org-level secrets!\n\nCreate your pull request here:\n%s", prURL)
-	message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
-	entry := domain.ConversationEntry{
-		Message: message,
-		Time:    time.Now(),
-	}
-	_ = app.conversationRepo.AddMessage(entry)
-
-	return domain.UpdateHistoryEvent{
-		History: app.conversationRepo.GetMessages(),
+		return tea.Batch(
+			func() tea.Msg {
+				return domain.UpdateHistoryEvent{
+					History: app.conversationRepo.GetMessages(),
+				}
+			},
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    "",
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
+				}
+			},
+		)()
 	}
 }
 
@@ -1630,13 +1728,25 @@ jobs:
 }
 
 func (app *ChatApplication) preparePRCreation(repo, workflowPath string) (string, error) {
-	cmd := exec.Command("git", "branch", "--show-current")
+	cmd := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD")
+	output, err := cmd.Output()
+	var baseBranch string
+	if err == nil {
+		parts := strings.Split(strings.TrimSpace(string(output)), "/")
+		if len(parts) > 0 {
+			baseBranch = parts[len(parts)-1]
+		}
+	}
+	if baseBranch == "" {
+		baseBranch = "main"
+	}
+
+	cmd = exec.Command("git", "branch", "--show-current")
 	currentBranch, err := cmd.Output()
 	if err != nil {
 		return "", fmt.Errorf("failed to get current branch: %w", err)
 	}
 	branch := strings.TrimSpace(string(currentBranch))
-	baseBranch := branch
 
 	if branch == "main" || branch == "master" {
 		baseBranch = branch

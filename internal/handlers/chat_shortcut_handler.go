@@ -516,19 +516,7 @@ func (s *ChatShortcutHandler) handleShowA2AServersSideEffect() tea.Msg {
 }
 
 func (s *ChatShortcutHandler) handleShowGitHubAppSetupSideEffect() tea.Msg {
-	if err := s.handler.stateManager.TransitionToView(domain.ViewStateGitHubAppSetup); err != nil {
-		logger.Error("Failed to transition to GitHub App setup view", "error", err)
-		return domain.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to show GitHub App setup: %v", err),
-			Sticky: false,
-		}
-	}
-
-	return domain.SetStatusEvent{
-		Message:    "Setting up GitHub App...",
-		Spinner:    false,
-		StatusType: domain.StatusDefault,
-	}
+	return domain.TriggerGitHubAppSetupEvent{}
 }
 
 func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea.Msg {
