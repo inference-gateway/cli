@@ -92,9 +92,6 @@ plugins:
 
         ${nextRelease.notes}
 
-  - - "@semantic-release/exec"
-    - publishCmd: "VERSION=${nextRelease.version} flox activate -- task container:push"
-
   - - "@semantic-release/github"
     - releaseNameTemplate: "🚀 Version <%= nextRelease.version %>"
       releaseBodyTemplate: |
