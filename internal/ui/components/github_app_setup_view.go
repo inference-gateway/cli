@@ -261,7 +261,7 @@ func (v *GitHubAppSetupView) View() string {
 		if v.cancelled {
 			return "Setup cancelled.\n"
 		}
-		return "Setup complete!\n"
+		return v.renderSetupComplete()
 	}
 
 	var b strings.Builder
@@ -286,6 +286,8 @@ func (v *GitHubAppSetupView) View() string {
 }
 
 func (v *GitHubAppSetupView) renderStepAskExisting(b *strings.Builder) {
+	b.WriteString("GitHub App Setup for infer-action\n\n")
+	b.WriteString("This will help you create and configure a GitHub App for infer-action.\n\n")
 	b.WriteString("Do you already have a GitHub App for infer-action?\n\n")
 	b.WriteString("Tip: You can reuse one GitHub App across multiple repositories!\n\n")
 	b.WriteString("Press Y for Yes, N for No")
@@ -419,6 +421,43 @@ func (v *GitHubAppSetupView) getGitHubAppsURL() string {
 		return fmt.Sprintf("https://github.com/organizations/%s/settings/apps", v.repoOwner)
 	}
 	return "https://github.com/settings/apps"
+}
+
+// getGitHubAppInstallationURL returns the installation URL for the GitHub App
+func (v *GitHubAppSetupView) getGitHubAppInstallationURL(appID string) string {
+	if v.isOrgRepo && v.repoOwner != "" {
+		return fmt.Sprintf("https://github.com/organizations/%s/settings/apps/%s", v.repoOwner, appID)
+	}
+	return fmt.Sprintf("https://github.com/settings/apps/%s", appID)
+}
+
+// renderSetupComplete renders the setup completion message with installation instructions
+func (v *GitHubAppSetupView) renderSetupComplete() string {
+	var b strings.Builder
+	
+	accentColor := v.styleProvider.GetThemeColor("accent")
+	b.WriteString(v.styleProvider.RenderWithColor("✅ GitHub App Setup Complete!", accentColor))
+	b.WriteString("\n\n")
+	
+	b.WriteString("Next steps:\n\n")
+	
+	if v.appID != "" {
+		installationURL := v.getGitHubAppInstallationURL(v.appID)
+		b.WriteString("1. Install your GitHub App on your organization/repository:\n")
+		link := v.styleProvider.RenderWithColor(installationURL, accentColor)
+		b.WriteString("   " + link + "\n\n")
+		
+		b.WriteString("2. On the installation page:\n")
+		b.WriteString("   - Select your organization or repository\n")
+		b.WriteString("   - Click 'Install'\n")
+		b.WriteString("   - Grant the requested permissions\n\n")
+	}
+	
+	b.WriteString("3. The workflow will be created and a PR will be opened automatically.\n\n")
+	
+	b.WriteString("Your infer-action bot will be ready to use once the PR is merged! 🎉\n")
+	
+	return b.String()
 }
 
 // Reset resets the view state for reuse

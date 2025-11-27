@@ -711,7 +711,7 @@ func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) 
 				}
 			}
 
-			messageText := fmt.Sprintf("✅ GitHub workflow configured with github-actions[bot]!\n\nCreate your pull request here:\n%s", prURL)
+			messageText := fmt.Sprintf("✅ GitHub workflow configured with github-actions[bot]!\n\nCreate your pull request here:\n%s\n\nAfter merging the PR, your infer-action bot will be ready to use! 🎉", prURL)
 			message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
 			entry := domain.ConversationEntry{
 				Message: message,
@@ -787,7 +787,7 @@ func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) 
 			}
 		}
 
-		messageText := fmt.Sprintf("✅ GitHub App configured with org-level secrets!\n\nCreate your pull request here:\n%s", prURL)
+		messageText := fmt.Sprintf("✅ GitHub App configured with org-level secrets!\n\nNext steps:\n\n1. Install your GitHub App on your organization:\n   https://github.com/organizations/%s/settings/apps\n\n2. Create your pull request here:\n%s\n\nAfter installing the app and merging the PR, your infer-action bot will be ready to use! 🎉", orgName, prURL)
 		message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
 		entry := domain.ConversationEntry{
 			Message: message,
