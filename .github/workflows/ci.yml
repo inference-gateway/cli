@@ -25,11 +25,10 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Setup Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@v6.1.0
       with:
         go-version-file: 'go.mod'
-        cache-dependency-path: |
-          go.sum
+        cache: true
 
     - name: Prepare project
       run: |
@@ -55,11 +54,10 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Setup Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@v6.1.0
       with:
         go-version-file: 'go.mod'
-        cache-dependency-path: |
-          go.sum
+        cache: true
 
     - name: Install golangci-lint
       uses: golangci/golangci-lint-action@v8.0.0
@@ -76,11 +74,10 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Setup Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@v6.1.0
       with:
         go-version-file: 'go.mod'
-        cache-dependency-path: |
-          go.sum
+        cache: true
 
     - name: Run vet
       run: go vet ./...
@@ -95,11 +92,10 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Setup Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@v6.1.0
       with:
         go-version-file: 'go.mod'
-        cache-dependency-path: |
-          go.sum
+        cache: true
 
     - name: Build project
       run: |
@@ -119,11 +115,10 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Setup Go
-      uses: actions/setup-go@v6
+      uses: actions/setup-go@v6.1.0
       with:
         go-version-file: 'go.mod'
-        cache-dependency-path: |
-          go.sum
+        cache: true
 
     - name: Run tests
       run: go test ./...
