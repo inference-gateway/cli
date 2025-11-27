@@ -173,7 +173,7 @@ jobs:
           cd dist
           chmod +x infer-*
           sha256sum infer-* > checksums.txt
-          cosign sign-blob --yes --output-signature checksums.txt.sig --output-certificate checksums.txt.pem checksums.txt
+          cosign sign-blob --yes checksums.txt --bundle checksums.txt.sigstore.json
 
       - name: Upload binaries to release
         env:
