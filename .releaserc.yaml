@@ -116,26 +116,4 @@ plugins:
 
         **Full Changelog**: https://github.com/<%= env.GITHUB_REPOSITORY %>/compare/<%= lastRelease.gitTag %>...<%= nextRelease.gitTag %>
       discussionCategoryName: false
-      assets:
-        - path: dist/infer-darwin-amd64
-          label: "infer-darwin-amd64 (macOS Intel)"
-          name: infer-darwin-amd64
-        - path: dist/infer-darwin-arm64
-          label: "infer-darwin-arm64 (macOS Apple Silicon)"
-          name: infer-darwin-arm64
-        - path: dist/infer-linux-amd64
-          label: "infer-linux-amd64 (Linux x64)"
-          name: infer-linux-amd64
-        - path: dist/infer-linux-arm64
-          label: "infer-linux-arm64 (Linux ARM64)"
-          name: infer-linux-arm64
-        - path: dist/checksums.txt
-          label: "SHA256 checksums"
-          name: checksums.txt
-        - path: dist/checksums.txt.sig
-          label: "Cosign signature for checksums"
-          name: checksums.txt.sig
-        - path: dist/checksums.txt.pem
-          label: "Cosign certificate for checksums"
-          name: checksums.txt.pem
       addReleases: bottom

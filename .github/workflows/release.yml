@@ -8,8 +8,86 @@ permissions:
   contents: read
 
 jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+      id-token: write
+      packages: write
+    steps:
+      - name: Create GitHub App Token
+        uses: actions/create-github-app-token@v2.1.1
+        id: app-token
+        with:
+          app-id: ${{ secrets.BOT_GH_APP_ID }}
+          private-key: ${{ secrets.BOT_GH_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            ${{ github.event.repository.name }}
+
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Get GitHub App User ID
+        id: get-user-id
+        run: echo "user-id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+
+      - name: Set up Git
+        run: |
+          git config --global user.name '${{ steps.app-token.outputs.app-slug }}[bot]'
+          git config --global user.email '${{ steps.get-user-id.outputs.user-id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com'
+          git config --global commit.gpgsign false
+          git config --global commit.signoff true
+
+      - name: Install Flox
+        uses: flox/install-flox-action@main
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3.5.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.11.1
+
+      - name: Check for existing releases
+        id: check_releases
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          if [ -z "$(gh release list --limit 1)" ]; then
+            echo "create_initial=true" >> $GITHUB_OUTPUT
+          else
+            echo "create_initial=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create initial release
+        if: steps.check_releases.outputs.create_initial == 'true'
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          gh release create v0.1.0 --title "🚀 Version 0.1.0" --notes "Initial release"
+
+      - name: Semantic Release
+        if: steps.check_releases.outputs.create_initial == 'false'
+        env:
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+        run: |
+          flox activate -- semantic-release
+
   build:
     name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    needs: create-release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -67,16 +145,13 @@ jobs:
           path: infer-${{ matrix.goos }}-${{ matrix.goarch }}
           retention-days: 1
 
-  release:
-    name: Release
+  upload:
+    name: Upload Release Assets
     needs: build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
-      issues: write
-      pull-requests: write
       id-token: write
-      packages: write
     steps:
       - name: Create GitHub App Token
         uses: actions/create-github-app-token@v2.1.1
@@ -94,34 +169,8 @@ jobs:
           fetch-depth: 0
           token: ${{ steps.app-token.outputs.token }}
 
-      - name: Get GitHub App User ID
-        id: get-user-id
-        run: echo "user-id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
-        env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
-
-      - name: Set up Git
-        run: |
-          git config --global user.name '${{ steps.app-token.outputs.app-slug }}[bot]'
-          git config --global user.email '${{ steps.get-user-id.outputs.user-id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com'
-          git config --global commit.gpgsign false
-          git config --global commit.signoff true
-
-      - name: Install Flox
-        uses: flox/install-flox-action@main
-
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.9.2
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3.5.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3.11.1
 
       - name: Download all artifacts
         uses: actions/download-artifact@v5
@@ -136,27 +185,9 @@ jobs:
           sha256sum infer-* > checksums.txt
           cosign sign-blob --yes --output-signature checksums.txt.sig --output-certificate checksums.txt.pem checksums.txt
 
-      - name: Check for existing releases
-        id: check_releases
+      - name: Upload binaries to release
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: |
-          if [ -z "$(gh release list --limit 1)" ]; then
-            echo "create_initial=true" >> $GITHUB_OUTPUT
-          else
-            echo "create_initial=false" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create initial release
-        if: steps.check_releases.outputs.create_initial == 'true'
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          gh release create v0.1.0 --title "🚀 Version 0.1.0" --notes "Initial release" --generate-notes dist/*
-
-      - name: Semantic Release
-        if: steps.check_releases.outputs.create_initial == 'false'
-        env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
-        run: |
-          flox activate -- semantic-release
+          RELEASE_TAG=$(git describe --tags --abbrev=0)
+          gh release upload "$RELEASE_TAG" dist/* --clobber
