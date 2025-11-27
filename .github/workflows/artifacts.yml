@@ -131,7 +131,7 @@ jobs:
 
       - name: Cache task binary
         id: cache-task
-        uses: actions/cache@v4
+        uses: actions/cache@v4.3.0
         with:
           path: /usr/local/bin/task
           key: ${{ runner.os }}-task-3.45.5
