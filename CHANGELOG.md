@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.69.3](https://github.com/inference-gateway/cli/compare/v0.69.2...v0.69.3) (2025-11-27)
+
+### 🐛 Bug Fixes
+
+* **release:** Remove exec plugin and add docker build and push after release ([301062a](https://github.com/inference-gateway/cli/commit/301062a68bff32297a456968a0e54995ae0dece8))
+
 ## [0.69.2](https://github.com/inference-gateway/cli/compare/v0.69.1...v0.69.2) (2025-11-27)
 
 ### ♻️ Code Refactoring
