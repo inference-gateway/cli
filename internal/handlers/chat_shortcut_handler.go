@@ -179,6 +179,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleStartNewConversationSideEffect(data)
 	case shortcuts.SideEffectShowA2AServers:
 		return s.handleShowA2AServersSideEffect()
+	case shortcuts.SideEffectShowGitHubAppSetup:
+		return s.handleShowGitHubAppSetupSideEffect()
 	case shortcuts.SideEffectShowA2ATaskManagement:
 		return s.handleShowA2ATaskManagementSideEffect()
 	case shortcuts.SideEffectSetInput:
@@ -510,6 +512,22 @@ func (s *ChatShortcutHandler) handleShowA2AServersSideEffect() tea.Msg {
 		Message:    "Loading A2A servers...",
 		Spinner:    true,
 		StatusType: domain.StatusWorking,
+	}
+}
+
+func (s *ChatShortcutHandler) handleShowGitHubAppSetupSideEffect() tea.Msg {
+	if err := s.handler.stateManager.TransitionToView(domain.ViewStateGitHubAppSetup); err != nil {
+		logger.Error("Failed to transition to GitHub App setup view", "error", err)
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to show GitHub App setup: %v", err),
+			Sticky: false,
+		}
+	}
+
+	return domain.SetStatusEvent{
+		Message:    "Setting up GitHub App...",
+		Spinner:    false,
+		StatusType: domain.StatusDefault,
 	}
 }
 

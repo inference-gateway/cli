@@ -11,6 +11,14 @@ const (
 	CrossMark = "✗"
 )
 
+// Emoji icons
+const (
+	Robot     = "🤖"
+	Link      = "🔗"
+	Help      = "❓"
+	Lightbulb = "💡"
+)
+
 // Tool execution icons - modern Unicode symbols
 const (
 	QueuedIcon    = "•"
