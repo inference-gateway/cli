@@ -29,5 +29,6 @@ USER infer
 
 ENV INFER_GATEWAY_RUN=false
 ENV INFER_GATEWAY_DOCKER=false
+ENV INFER_GATEWAY_URL=http://inference-gateway:8080
 
 ENTRYPOINT ["./infer"]
