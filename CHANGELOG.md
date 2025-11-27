@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.69.9](https://github.com/inference-gateway/cli/compare/v0.69.8...v0.69.9) (2025-11-27)
+
+### ♻️ Code Refactoring
+
+* **ci:** Strip off v prefix from container image tag ([95c5d23](https://github.com/inference-gateway/cli/commit/95c5d230edb361eac5d1bf804d3892e6ccb4be8f))
+
+### 🧹 Maintenance
+
+* Add index for multi-arch build ([06890a1](https://github.com/inference-gateway/cli/commit/06890a14bee0756b9b038390296a911926e77592))
+
 ## [0.69.8](https://github.com/inference-gateway/cli/compare/v0.69.7...v0.69.8) (2025-11-27)
 
 ### ♻️ Code Refactoring
