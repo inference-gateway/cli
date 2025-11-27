@@ -26,4 +26,8 @@ COPY --from=binaries infer-linux-${TARGETARCH} ./infer
 RUN chmod +x ./infer && chown infer:infer ./infer
 RUN mkdir -p .infer && chown -R infer:infer .infer
 USER infer
+
+ENV INFER_GATEWAY_RUN=false
+ENV INFER_GATEWAY_DOCKER=false
+
 ENTRYPOINT ["./infer"]
