@@ -45,8 +45,30 @@ jobs:
           git config --global commit.gpgsign false
           git config --global commit.signoff true
 
-      - name: Install Flox
-        uses: flox/install-flox-action@main
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 'lts/*'
+
+      - name: Cache npm global packages
+        uses: actions/cache@v4.3.0
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-npm-global-${{ hashFiles('**/release.yml') }}
+          restore-keys: |
+            ${{ runner.os }}-npm-global-
+
+      - name: Install semantic-release dependencies
+        run: |
+          npm install -g \
+            semantic-release@25.0.2 \
+            @semantic-release/commit-analyzer@13.0.1 \
+            @semantic-release/release-notes-generator@14.1.0 \
+            @semantic-release/changelog@6.0.3 \
+            @semantic-release/git@10.0.1 \
+            @semantic-release/github@11.0.6 \
+            conventional-changelog-conventionalcommits@9.1.0 \
+            conventional-changelog-cli@5.0.0
 
       - name: Check for existing releases
         id: check_releases
@@ -71,4 +93,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
-          flox activate -- semantic-release
+          semantic-release

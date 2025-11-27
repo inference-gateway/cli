@@ -41,9 +41,10 @@ jobs:
           ref: ${{ github.event.release.tag_name }}
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6.1.0
         with:
-          go-version-file: go.mod
+          go-version-file: 'go.mod'
+          cache: true
 
       - name: Get version info
         id: version
@@ -122,8 +123,23 @@ jobs:
           fetch-depth: 0
           ref: ${{ github.event.release.tag_name }}
 
-      - name: Install Flox
-        uses: flox/install-flox-action@main
+      - name: Set up Go
+        uses: actions/setup-go@v6.1.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Cache task binary
+        id: cache-task
+        uses: actions/cache@v4.3.0
+        with:
+          path: /usr/local/bin/task
+          key: ${{ runner.os }}-task-3.45.5
+
+      - name: Install task
+        if: steps.cache-task.outputs.cache-hit != 'true'
+        run: |
+          sh -c "$(curl --location https://taskfile.dev/install.sh)" -- -d -b /usr/local/bin v3.45.5
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3.6.0
@@ -168,4 +184,4 @@ jobs:
           DATE: ${{ steps.version.outputs.date }}
           PUSH_LATEST: ${{ steps.version.outputs.is_prerelease == 'false' }}
         run: |
-          flox activate -- task container:push
+          task container:push
