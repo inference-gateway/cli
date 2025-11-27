@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"fmt"
-	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1772,18 +1771,32 @@ func (app *ChatApplication) preparePRCreation(repo, workflowPath string) (string
 		return "", fmt.Errorf("failed to push: %s: %w", string(output), err)
 	}
 
-	title := url.QueryEscape("feat(ci): Setup infer workflow")
-	body := url.QueryEscape("## Summary\n\n" +
-		"This PR sets up the infer workflow for automated code review and assistance.\n\n" +
-		"## Changes\n\n" +
-		"- Added infer workflow configuration\n" +
-		"- Configured to trigger on @infer mentions in issues\n\n" +
-		"## Testing\n\n" +
-		"After merging, @infer mentions in issues will trigger the bot.\n\n" +
-		"🤖 Generated with infer\n")
+	title := "feat(ci): Setup infer workflow"
+	body := `## Summary
 
-	prURL := fmt.Sprintf("https://github.com/%s/compare/%s...%s?expand=1&title=%s&body=%s",
-		repo, baseBranch, branch, title, body)
+This PR sets up the infer workflow for automated code review and assistance.
 
-	return prURL, nil
+## Changes
+
+- Added infer workflow configuration
+- Configured to trigger on @infer mentions in issues
+
+## Testing
+
+After merging, @infer mentions in issues will trigger the bot.
+
+🤖 Generated with infer`
+
+	cmd = exec.Command("gh", "pr", "create",
+		"--base", baseBranch,
+		"--head", branch,
+		"--title", title,
+		"--body", body,
+		"--web")
+
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("failed to open PR creation page: %w", err)
+	}
+
+	return fmt.Sprintf("https://github.com/%s/compare/%s...%s", repo, baseBranch, branch), nil
 }
