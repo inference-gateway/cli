@@ -8,9 +8,11 @@ permissions:
   contents: read
 
 jobs:
-  create-release:
+  create_release:
     name: Create Release
     runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.release.outputs.tag }}
     permissions:
       contents: write
       issues: write
@@ -20,7 +22,7 @@ jobs:
     steps:
       - name: Create GitHub App Token
         uses: actions/create-github-app-token@v2.2.0
-        id: app-token
+        id: app_token
         with:
           app-id: ${{ secrets.BOT_GH_APP_ID }}
           private-key: ${{ secrets.BOT_GH_APP_PRIVATE_KEY }}
@@ -32,18 +34,18 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.app_token.outputs.token }}
 
       - name: Get GitHub App User ID
-        id: get-user-id
-        run: echo "user-id=$(gh api "/users/${{ steps.app-token.outputs.app-slug }}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
+        id: get_user_id
+        run: echo "user_id=$(gh api "/users/${{ steps.app_token.outputs.app-slug }}[bot]" --jq .id)" >> "$GITHUB_OUTPUT"
         env:
-          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
 
       - name: Set up Git
         run: |
-          git config --global user.name '${{ steps.app-token.outputs.app-slug }}[bot]'
-          git config --global user.email '${{ steps.get-user-id.outputs.user-id }}+${{ steps.app-token.outputs.app-slug }}[bot]@users.noreply.github.com'
+          git config --global user.name '${{ steps.app_token.outputs.app-slug }}[bot]'
+          git config --global user.email '${{ steps.get_user_id.outputs.user_id }}+${{ steps.app_token.outputs.app-slug }}[bot]@users.noreply.github.com'
           git config --global commit.gpgsign false
           git config --global commit.signoff true
 
@@ -53,7 +55,7 @@ jobs:
       - name: Check for existing releases
         id: check_releases
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           if [ -z "$(gh release list --limit 1)" ]; then
             echo "create_initial=true" >> $GITHUB_OUTPUT
@@ -64,20 +66,33 @@ jobs:
       - name: Create initial release
         if: steps.check_releases.outputs.create_initial == 'true'
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           gh release create v0.1.0 --title "🚀 Version 0.1.0" --notes "Initial release"
 
       - name: Semantic Release
         if: steps.check_releases.outputs.create_initial == 'false'
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           flox activate -- semantic-release
 
+      - name: Get release tag
+        id: release
+        env:
+          GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
+        run: |
+          if [ "${{ steps.check_releases.outputs.create_initial }}" == "true" ]; then
+            echo "tag=v0.1.0" >> $GITHUB_OUTPUT
+          else
+            git fetch --tags
+            LATEST_TAG=$(git describe --tags --abbrev=0)
+            echo "tag=$LATEST_TAG" >> $GITHUB_OUTPUT
+          fi
+
   build:
     name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
-    needs: create-release
+    needs: create_release
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -137,7 +152,9 @@ jobs:
 
   upload:
     name: Upload Release Assets
-    needs: build
+    needs:
+      - create_release
+      - build
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -145,7 +162,7 @@ jobs:
     steps:
       - name: Create GitHub App Token
         uses: actions/create-github-app-token@v2.2.0
-        id: app-token
+        id: app_token
         with:
           app-id: ${{ secrets.BOT_GH_APP_ID }}
           private-key: ${{ secrets.BOT_GH_APP_PRIVATE_KEY }}
@@ -157,7 +174,7 @@ jobs:
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.app_token.outputs.token }}
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v4.0.0
@@ -177,14 +194,17 @@ jobs:
 
       - name: Upload binaries to release
         env:
-          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ steps.app_token.outputs.token }}
+          RELEASE_TAG: ${{ needs.create_release.outputs.tag }}
         run: |
-          RELEASE_TAG=$(git describe --tags --abbrev=0)
+          echo "Uploading binaries to release: $RELEASE_TAG"
           gh release upload "$RELEASE_TAG" dist/* --clobber
 
   container:
     name: Push Container Images
-    needs: upload
+    needs:
+      - create_release
+      - upload
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -217,18 +237,30 @@ jobs:
 
       - name: Get version info
         id: version
+        env:
+          RELEASE_TAG: ${{ needs.create_release.outputs.tag }}
         run: |
-          VERSION=$(git describe --tags --abbrev=0)
+          VERSION="$RELEASE_TAG"
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
           echo "commit=$COMMIT" >> $GITHUB_OUTPUT
           echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "Using release tag: $VERSION"
+
+          if [[ "$VERSION" =~ -(rc|feat|fix)\. ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "This is a prerelease - will NOT tag as latest"
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "This is a stable release - will tag as latest"
+          fi
 
       - name: Push container images
         env:
           VERSION: ${{ steps.version.outputs.version }}
           COMMIT: ${{ steps.version.outputs.commit }}
           DATE: ${{ steps.version.outputs.date }}
+          PUSH_LATEST: ${{ steps.version.outputs.is_prerelease == 'false' }}
         run: |
           flox activate -- task container:push
