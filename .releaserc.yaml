@@ -124,3 +124,5 @@ plugins:
         **Full Changelog**: https://github.com/<%= env.GITHUB_REPOSITORY %>/compare/<%= lastRelease.gitTag %>...<%= nextRelease.gitTag %>
       discussionCategoryName: false
       addReleases: bottom
+      releasedLabels:
+        - "<%= nextRelease.channel ? 'prerelease' : 'released' %>"
