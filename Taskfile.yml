@@ -154,6 +154,17 @@ tasks:
           --build-arg VERSION={{.VERSION}} \
           --build-arg REVISION={{.COMMIT}} \
           --build-arg BUILD_DATE={{.DATE}} \
+          --annotation "org.opencontainers.image.title=Inference Gateway CLI" \
+          --annotation "org.opencontainers.image.description=A powerful command-line interface for managing and interacting with the Inference Gateway. Provides interactive chat, autonomous agent capabilities, and extensive tool execution for AI models." \
+          --annotation "org.opencontainers.image.vendor=Inference Gateway" \
+          --annotation "org.opencontainers.image.authors=Inference Gateway Team" \
+          --annotation "org.opencontainers.image.url=https://github.com/inference-gateway/cli" \
+          --annotation "org.opencontainers.image.documentation=https://github.com/inference-gateway/cli#readme" \
+          --annotation "org.opencontainers.image.source=https://github.com/inference-gateway/cli" \
+          --annotation "org.opencontainers.image.licenses=MIT" \
+          --annotation "org.opencontainers.image.version={{.VERSION}}" \
+          --annotation "org.opencontainers.image.revision={{.COMMIT}}" \
+          --annotation "org.opencontainers.image.created={{.DATE}}" \
           -f Dockerfile \
           .
 
