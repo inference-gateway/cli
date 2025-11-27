@@ -146,8 +146,6 @@ tasks:
           --build-arg BUILD_DATE={{.DATE}} \
           -f Dockerfile \
           .
-    deps:
-      - release:build
 
   deps:install:
     desc: Install development dependencies
