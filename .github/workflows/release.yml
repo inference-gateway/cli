@@ -19,7 +19,7 @@ jobs:
       packages: write
     steps:
       - name: Create GitHub App Token
-        uses: actions/create-github-app-token@v2.1.1
+        uses: actions/create-github-app-token@v2.2.0
         id: app-token
         with:
           app-id: ${{ secrets.BOT_GH_APP_ID }}
@@ -154,7 +154,7 @@ jobs:
       id-token: write
     steps:
       - name: Create GitHub App Token
-        uses: actions/create-github-app-token@v2.1.1
+        uses: actions/create-github-app-token@v2.2.0
         id: app-token
         with:
           app-id: ${{ secrets.BOT_GH_APP_ID }}
