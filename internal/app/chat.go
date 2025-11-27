@@ -621,9 +621,10 @@ func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
 		return cmds
 	}
 
+	owner := strings.Split(repo, "/")[0]
+
 	if isOrg {
-		orgName := strings.Split(repo, "/")[0]
-		secretsExist, err := app.checkOrgSecretsExist(orgName)
+		secretsExist, err := app.checkOrgSecretsExist(owner)
 		if err != nil {
 			cmds = append(cmds, func() tea.Msg {
 				return domain.ShowErrorEvent{
@@ -648,6 +649,9 @@ func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
 			return cmds
 		}
 	}
+
+	// Set repository info for the setup view
+	app.githubAppSetupView.SetRepositoryInfo(owner, isOrg)
 
 	if err := app.stateManager.TransitionToView(domain.ViewStateGitHubAppSetup); err != nil {
 		cmds = append(cmds, func() tea.Msg {
