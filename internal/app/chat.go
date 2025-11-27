@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -21,6 +23,7 @@ import (
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // ChatApplication represents the main application model using state management
@@ -60,6 +63,7 @@ type ChatApplication struct {
 	taskManager           *components.TaskManagerImpl
 	toolCallRenderer      *components.ToolCallRenderer
 	planApprovalComponent *components.PlanApprovalComponent
+	githubAppSetupView    *components.GitHubAppSetupView
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -174,6 +178,23 @@ func NewChatApplication(
 
 	app.modelSelector = components.NewModelSelector(models, app.modelService, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
+	app.githubAppSetupView = components.NewGitHubAppSetupView(styleProvider)
+
+	app.githubAppSetupView.SetSecretsExistChecker(func(appID string) bool {
+		repo, err := app.getCurrentRepo()
+		if err != nil {
+			return false
+		}
+
+		isOrg, err := app.isOrgRepo(repo)
+		if err != nil || !isOrg {
+			return false
+		}
+
+		orgName := strings.Split(repo, "/")[0]
+		secretsExist, err := app.checkOrgSecretsExist(orgName)
+		return err == nil && secretsExist
+	})
 
 	if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
@@ -295,6 +316,11 @@ func (app *ChatApplication) Init() tea.Cmd {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
+	if _, ok := msg.(domain.TriggerGitHubAppSetupEvent); ok {
+		cmds = append(cmds, app.handleGitHubAppSetupTrigger()...)
+		return app, tea.Batch(cmds...)
+	}
+
 	if cmd := app.chatHandler.Handle(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -328,6 +354,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleA2ATaskManagementView(msg)
 	case domain.ViewStatePlanApproval:
 		return app.handlePlanApprovalView(msg)
+	case domain.ViewStateGitHubAppSetup:
+		return app.handleGitHubAppSetupView(msg)
 	default:
 		return nil
 	}
@@ -474,8 +502,309 @@ func (app *ChatApplication) View() string {
 		return app.renderA2ATaskManagement()
 	case domain.ViewStatePlanApproval:
 		return app.renderPlanApproval()
+	case domain.ViewStateGitHubAppSetup:
+		return app.renderGitHubAppSetup()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
+	}
+}
+
+func (app *ChatApplication) handleGitHubAppSetupView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	model, cmd := app.githubAppSetupView.Update(msg)
+	app.githubAppSetupView = model.(*components.GitHubAppSetupView)
+
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	if app.githubAppSetupView.IsDone() {
+		if app.githubAppSetupView.IsCancelled() {
+			return app.handleGitHubAppSetupCancelled(cmds)
+		}
+		return app.handleGitHubAppSetupComplete(cmds)
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) handleGitHubAppSetupComplete(cmds []tea.Cmd) []tea.Cmd {
+	appID, privateKeyPath, err := app.githubAppSetupView.GetResult()
+
+	if err != nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("GitHub App setup failed: %v", err),
+				Sticky: false,
+			}
+		})
+	} else {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Setting up GitHub App...",
+				Spinner:    true,
+				StatusType: domain.StatusDefault,
+			}
+		})
+
+		cmds = append(cmds, app.performGitHubAppSetup(appID, privateKeyPath))
+	}
+
+	app.githubAppSetupView.Reset()
+	if cmd := app.githubAppSetupView.Init(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to return to chat: %v", err),
+				Sticky: false,
+			}
+		})
+	}
+
+	app.focusedComponent = app.inputView
+	return cmds
+}
+
+func (app *ChatApplication) handleGitHubAppSetupCancelled(cmds []tea.Cmd) []tea.Cmd {
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "GitHub App setup cancelled",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	})
+
+	app.githubAppSetupView.Reset()
+	if cmd := app.githubAppSetupView.Init(); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to return to chat: %v", err),
+				Sticky: false,
+			}
+		})
+	}
+
+	app.focusedComponent = app.inputView
+	return cmds
+}
+
+func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
+	var cmds []tea.Cmd
+
+	repo, err := app.getCurrentRepo()
+	if err != nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to get repository info: %v", err),
+				Sticky: true,
+			}
+		})
+		return cmds
+	}
+
+	isOrg, err := app.isOrgRepo(repo)
+	if err != nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to check repository type: %v", err),
+				Sticky: true,
+			}
+		})
+		return cmds
+	}
+
+	if isOrg {
+		orgName := strings.Split(repo, "/")[0]
+		secretsExist, err := app.checkOrgSecretsExist(orgName)
+		if err != nil {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
+					Sticky: true,
+				}
+			})
+			return cmds
+		}
+
+		if secretsExist {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    "Org secrets found, creating workflow...",
+					Spinner:    true,
+					StatusType: domain.StatusDefault,
+				}
+			})
+
+			cmds = append(cmds, app.performGitHubAppSetup("", ""))
+
+			return cmds
+		}
+	}
+
+	if err := app.stateManager.TransitionToView(domain.ViewStateGitHubAppSetup); err != nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to show GitHub App setup: %v", err),
+				Sticky: false,
+			}
+		})
+		return cmds
+	}
+
+	cmds = append(cmds, func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Setting up GitHub App...",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	})
+
+	return cmds
+}
+
+func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) tea.Cmd {
+	return func() tea.Msg {
+		repo, err := app.getCurrentRepo()
+		if err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to get repository info: %v", err),
+				Sticky: true,
+			}
+		}
+
+		isOrg, err := app.isOrgRepo(repo)
+		if err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to check repository type: %v", err),
+				Sticky: true,
+			}
+		}
+
+		if !isOrg {
+			workflowContent := app.generateStandardWorkflowContent()
+			workflowPath := ".github/workflows/infer.yml"
+
+			if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
+					Sticky: true,
+				}
+			}
+
+			prURL, err := app.preparePRCreation(repo, workflowPath)
+			if err != nil {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
+					Sticky: true,
+				}
+			}
+
+			messageText := fmt.Sprintf("✅ GitHub workflow configured with github-actions[bot]!\n\nCreate your pull request here:\n%s", prURL)
+			message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
+			entry := domain.ConversationEntry{
+				Message: message,
+				Time:    time.Now(),
+			}
+			_ = app.conversationRepo.AddMessage(entry)
+
+			return tea.Batch(
+				func() tea.Msg {
+					return domain.UpdateHistoryEvent{
+						History: app.conversationRepo.GetMessages(),
+					}
+				},
+				func() tea.Msg {
+					return domain.SetStatusEvent{
+						Message:    "",
+						Spinner:    false,
+						StatusType: domain.StatusDefault,
+					}
+				},
+			)()
+		}
+
+		orgName := strings.Split(repo, "/")[0]
+
+		secretsExist, err := app.checkOrgSecretsExist(orgName)
+		if err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
+				Sticky: true,
+			}
+		}
+
+		if !secretsExist && privateKeyPath != "" {
+			privateKey, err := app.fileService.ReadFile(privateKeyPath)
+			if err != nil {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to read private key: %v", err),
+					Sticky: true,
+				}
+			}
+
+			if err := app.setOrgSecret(orgName, "INFER_APP_ID", appID); err != nil {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to set org secret INFER_APP_ID: %v", err),
+					Sticky: true,
+				}
+			}
+
+			if err := app.setOrgSecret(orgName, "INFER_APP_PRIVATE_KEY", privateKey); err != nil {
+				return domain.ShowErrorEvent{
+					Error:  fmt.Sprintf("Failed to set org secret INFER_APP_PRIVATE_KEY: %v", err),
+					Sticky: true,
+				}
+			}
+		}
+
+		workflowContent := app.generateGitHubAppWorkflowContent()
+		workflowPath := ".github/workflows/infer.yml"
+
+		if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
+				Sticky: true,
+			}
+		}
+
+		prURL, err := app.preparePRCreation(repo, workflowPath)
+		if err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
+				Sticky: true,
+			}
+		}
+
+		messageText := fmt.Sprintf("✅ GitHub App configured with org-level secrets!\n\nCreate your pull request here:\n%s", prURL)
+		message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
+		entry := domain.ConversationEntry{
+			Message: message,
+			Time:    time.Now(),
+		}
+		_ = app.conversationRepo.AddMessage(entry)
+
+		return tea.Batch(
+			func() tea.Msg {
+				return domain.UpdateHistoryEvent{
+					History: app.conversationRepo.GetMessages(),
+				}
+			},
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    "",
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
+				}
+			},
+		)()
 	}
 }
 
@@ -800,6 +1129,13 @@ func (app *ChatApplication) renderPlanApproval() string {
 
 	theme := app.themeService.GetCurrentTheme()
 	return app.planApprovalComponent.Render(approvalState, theme)
+}
+
+func (app *ChatApplication) renderGitHubAppSetup() string {
+	width, height := app.stateManager.GetDimensions()
+	app.githubAppSetupView.SetWidth(width)
+	app.githubAppSetupView.SetHeight(height)
+	return app.githubAppSetupView.View()
 }
 
 func (app *ChatApplication) renderChatInterface() string {
@@ -1228,4 +1564,239 @@ func (app *ChatApplication) ToggleToolResultExpansion() {
 // ToggleRawFormat toggles between raw and rendered markdown display
 func (app *ChatApplication) ToggleRawFormat() {
 	app.conversationView.ToggleRawFormat()
+}
+
+// GitHub App Setup Helper Methods
+
+func (app *ChatApplication) getCurrentRepo() (string, error) {
+	cmd := exec.Command("gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner")
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current repository: %w", err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+func (app *ChatApplication) writeWorkflowFile(path, content string) error {
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return fmt.Errorf("failed to create directory: %w", err)
+	}
+
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		return fmt.Errorf("failed to write file: %w", err)
+	}
+
+	return nil
+}
+
+func (app *ChatApplication) isOrgRepo(repo string) (bool, error) {
+	parts := strings.Split(repo, "/")
+	if len(parts) != 2 {
+		return false, fmt.Errorf("invalid repo format: %s", repo)
+	}
+	owner := parts[0]
+
+	cmd := exec.Command("gh", "api", fmt.Sprintf("/orgs/%s", owner))
+	if err := cmd.Run(); err != nil {
+		return false, nil
+	}
+	return true, nil
+}
+
+func (app *ChatApplication) checkOrgSecretsExist(orgName string) (bool, error) {
+	cmd := exec.Command("gh", "secret", "list", "--org", orgName)
+	output, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("failed to list org secrets: %w", err)
+	}
+
+	secrets := string(output)
+	hasAppID := strings.Contains(secrets, "INFER_APP_ID")
+	hasPrivateKey := strings.Contains(secrets, "INFER_APP_PRIVATE_KEY")
+
+	return hasAppID && hasPrivateKey, nil
+}
+
+func (app *ChatApplication) setOrgSecret(orgName, name, value string) error {
+	cmd := exec.Command("gh", "secret", "set", name, "--org", orgName, "--visibility", "all", "--body", value)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s: %w", string(output), err)
+	}
+	return nil
+}
+
+func (app *ChatApplication) generateStandardWorkflowContent() string {
+	return `---
+name: Infer
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  issues: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  infer:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Run Infer Agent
+        uses: inference-gateway/infer-action@v0.3.1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          trigger-phrase: "@infer"
+          model: deepseek/deepseek-chat
+          max-turns: 50
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          google-api-key: ${{ secrets.GOOGLE_API_KEY }}
+          deepseek-api-key: ${{ secrets.DEEPSEEK_API_KEY }}
+          groq-api-key: ${{ secrets.GROQ_API_KEY }}
+          mistral-api-key: ${{ secrets.MISTRAL_API_KEY }}
+          cloudflare-api-key: ${{ secrets.CLOUDFLARE_API_KEY }}
+          cohere-api-key: ${{ secrets.COHERE_API_KEY }}
+          ollama-api-key: ${{ secrets.OLLAMA_API_KEY }}
+          ollama-cloud-api-key: ${{ secrets.OLLAMA_CLOUD_API_KEY }}
+`
+}
+
+func (app *ChatApplication) generateGitHubAppWorkflowContent() string {
+	return `---
+name: Infer
+
+on:
+  issues:
+    types:
+      - opened
+      - edited
+  issue_comment:
+    types:
+      - created
+
+permissions:
+  issues: write
+  contents: write
+  pull-requests: write
+
+jobs:
+  infer:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Generate GitHub App Token
+        uses: actions/create-github-app-token@v2
+        id: app-token
+        with:
+          app-id: ${{ secrets.INFER_APP_ID }}
+          private-key: ${{ secrets.INFER_APP_PRIVATE_KEY }}
+
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          token: ${{ steps.app-token.outputs.token }}
+
+      - name: Run Infer Agent
+        uses: inference-gateway/infer-action@v0.3.1
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          trigger-phrase: "@infer"
+          model: deepseek/deepseek-chat
+          max-turns: 50
+          anthropic-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          google-api-key: ${{ secrets.GOOGLE_API_KEY }}
+          deepseek-api-key: ${{ secrets.DEEPSEEK_API_KEY }}
+          groq-api-key: ${{ secrets.GROQ_API_KEY }}
+          mistral-api-key: ${{ secrets.MISTRAL_API_KEY }}
+          cloudflare-api-key: ${{ secrets.CLOUDFLARE_API_KEY }}
+          cohere-api-key: ${{ secrets.COHERE_API_KEY }}
+          ollama-api-key: ${{ secrets.OLLAMA_API_KEY }}
+          ollama-cloud-api-key: ${{ secrets.OLLAMA_CLOUD_API_KEY }}
+`
+}
+
+func (app *ChatApplication) preparePRCreation(repo, workflowPath string) (string, error) {
+	cmd := exec.Command("git", "symbolic-ref", "refs/remotes/origin/HEAD")
+	output, err := cmd.Output()
+	var baseBranch string
+	if err == nil {
+		parts := strings.Split(strings.TrimSpace(string(output)), "/")
+		if len(parts) > 0 {
+			baseBranch = parts[len(parts)-1]
+		}
+	}
+	if baseBranch == "" {
+		baseBranch = "main"
+	}
+
+	cmd = exec.Command("git", "branch", "--show-current")
+	currentBranch, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get current branch: %w", err)
+	}
+	branch := strings.TrimSpace(string(currentBranch))
+
+	if branch == "main" || branch == "master" {
+		baseBranch = branch
+		branch = "ci/setup-infer-app"
+		cmd = exec.Command("git", "checkout", "-b", branch)
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("failed to create branch: %s: %w", string(output), err)
+		}
+	}
+
+	cmd = exec.Command("git", "add", workflowPath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("failed to add file: %s: %w", string(output), err)
+	}
+
+	cmd = exec.Command("git", "commit", "-m", "feat(ci): Setup infer workflow")
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("failed to commit: %s: %w", string(output), err)
+	}
+
+	cmd = exec.Command("git", "push", "-u", "origin", branch)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return "", fmt.Errorf("failed to push: %s: %w", string(output), err)
+	}
+
+	title := "feat(ci): Setup infer workflow"
+	body := `## Summary
+
+This PR sets up the infer workflow for automated code review and assistance.
+
+## Changes
+
+- Added infer workflow configuration
+- Configured to trigger on @infer mentions in issues
+
+## Testing
+
+After merging, @infer mentions in issues will trigger the bot.
+
+🤖 Generated with infer`
+
+	cmd = exec.Command("gh", "pr", "create",
+		"--base", baseBranch,
+		"--head", branch,
+		"--title", title,
+		"--body", body,
+		"--web")
+
+	if err := cmd.Start(); err != nil {
+		return "", fmt.Errorf("failed to open PR creation page: %w", err)
+	}
+
+	return fmt.Sprintf("https://github.com/%s/compare/%s...%s", repo, baseBranch, branch), nil
 }

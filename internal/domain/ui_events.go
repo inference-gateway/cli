@@ -222,3 +222,8 @@ type AgentErrorEvent struct {
 	AgentName string
 	Error     error
 }
+
+// GitHub App Setup Events
+
+// TriggerGitHubAppSetupEvent triggers the GitHub App setup flow
+type TriggerGitHubAppSetupEvent struct{}

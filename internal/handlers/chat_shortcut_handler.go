@@ -179,6 +179,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleStartNewConversationSideEffect(data)
 	case shortcuts.SideEffectShowA2AServers:
 		return s.handleShowA2AServersSideEffect()
+	case shortcuts.SideEffectShowGitHubAppSetup:
+		return s.handleShowGitHubAppSetupSideEffect()
 	case shortcuts.SideEffectShowA2ATaskManagement:
 		return s.handleShowA2ATaskManagementSideEffect()
 	case shortcuts.SideEffectSetInput:
@@ -511,6 +513,10 @@ func (s *ChatShortcutHandler) handleShowA2AServersSideEffect() tea.Msg {
 		Spinner:    true,
 		StatusType: domain.StatusWorking,
 	}
+}
+
+func (s *ChatShortcutHandler) handleShowGitHubAppSetupSideEffect() tea.Msg {
+	return domain.TriggerGitHubAppSetupEvent{}
 }
 
 func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea.Msg {

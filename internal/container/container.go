@@ -287,6 +287,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	scmClient := c.createSDKClient()
 	c.shortcutRegistry.Register(shortcuts.NewSCMShortcut(scmClient, c.config, c.modelService))
 
+	c.shortcutRegistry.Register(shortcuts.NewGitHubAppShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService, c.agentsConfigService, c.agentManager))
 	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config))
 
