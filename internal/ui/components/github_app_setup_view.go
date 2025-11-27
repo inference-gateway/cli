@@ -297,7 +297,8 @@ func (v *GitHubAppSetupView) renderStepManualAppID(b *strings.Builder) {
 		b.WriteString("You can find your App ID at:\n")
 
 		accentColor := v.styleProvider.GetThemeColor("accent")
-		link := v.styleProvider.RenderWithColor("https://github.com/settings/apps", accentColor)
+		appsURL := v.getGitHubAppsURL()
+		link := v.styleProvider.RenderWithColor(appsURL, accentColor)
 		b.WriteString("  " + link + "\n\n")
 
 		b.WriteString("Click on your app name to see the App ID\n\n")
@@ -323,7 +324,7 @@ func (v *GitHubAppSetupView) renderStepPrivateKey(b *strings.Builder) {
 
 	b.WriteString("To download your private key:\n")
 	accentColor := v.styleProvider.GetThemeColor("accent")
-	appsPageURL := "https://github.com/settings/apps"
+	appsPageURL := v.getGitHubAppsURL()
 	link := v.styleProvider.RenderWithColor(appsPageURL, accentColor)
 	b.WriteString("  1. Go to " + link + "\n")
 	b.WriteString("  2. Click on your app name from the list\n")
@@ -410,6 +411,14 @@ func (v *GitHubAppSetupView) SetSecretsExistChecker(checker func(appID string) b
 func (v *GitHubAppSetupView) SetRepositoryInfo(owner string, isOrg bool) {
 	v.repoOwner = owner
 	v.isOrgRepo = isOrg
+}
+
+// getGitHubAppsURL returns the appropriate GitHub Apps URL based on whether this is an org repo
+func (v *GitHubAppSetupView) getGitHubAppsURL() string {
+	if v.isOrgRepo && v.repoOwner != "" {
+		return fmt.Sprintf("https://github.com/organizations/%s/settings/apps", v.repoOwner)
+	}
+	return "https://github.com/settings/apps"
 }
 
 // Reset resets the view state for reuse
