@@ -37,6 +37,10 @@ type GitHubAppSetupView struct {
 	privateKey string
 	err        error
 
+	// Repository information
+	repoOwner string
+	isOrgRepo bool
+
 	// Callback to check if org secrets already exist
 	checkSecretsExist func(appID string) bool
 }
@@ -123,7 +127,7 @@ func (v *GitHubAppSetupView) handleYesInput() (tea.Model, tea.Cmd) {
 func (v *GitHubAppSetupView) handleNoInput() (tea.Model, tea.Cmd) {
 	if v.step == 0 {
 		v.hasExisting = false
-		_ = openGitHubAppCreationURL()
+		_ = openGitHubAppCreationURL(v.repoOwner, v.isOrgRepo)
 		v.step = 2
 		v.inputBuffer = ""
 		v.cursorPos = 0
@@ -402,6 +406,12 @@ func (v *GitHubAppSetupView) SetSecretsExistChecker(checker func(appID string) b
 	v.checkSecretsExist = checker
 }
 
+// SetRepositoryInfo sets the repository owner and whether it's an org
+func (v *GitHubAppSetupView) SetRepositoryInfo(owner string, isOrg bool) {
+	v.repoOwner = owner
+	v.isOrgRepo = isOrg
+}
+
 // Reset resets the view state for reuse
 func (v *GitHubAppSetupView) Reset() {
 	v.done = false
@@ -417,7 +427,7 @@ func (v *GitHubAppSetupView) Reset() {
 }
 
 // openGitHubAppCreationURL opens the GitHub App creation page with pre-filled parameters
-func openGitHubAppCreationURL() error {
+func openGitHubAppCreationURL(owner string, isOrg bool) error {
 	params := url.Values{}
 	params.Set("name", "infer-bot")
 	params.Set("url", "https://github.com/inference-gateway/cli")
@@ -431,7 +441,13 @@ func openGitHubAppCreationURL() error {
 	params.Set("issues", "write")
 	params.Set("metadata", "read")
 
-	githubURL := "https://github.com/settings/apps/new?" + params.Encode()
+	var githubURL string
+	if isOrg && owner != "" {
+		githubURL = fmt.Sprintf("https://github.com/organizations/%s/settings/apps/new?%s", owner, params.Encode())
+	} else {
+		githubURL = "https://github.com/settings/apps/new?" + params.Encode()
+	}
+
 	return openBrowser(githubURL)
 }
 
