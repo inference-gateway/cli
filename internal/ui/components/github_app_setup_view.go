@@ -21,7 +21,7 @@ type GitHubAppSetupView struct {
 	cancelled     bool
 
 	// Wizard state
-	step           int // 0=ask existing, 2=enter app ID manually, 3=private key input
+	step           int // 0=introduction, 1=ask existing, 2=enter app ID manually, 3=private key input, 4=installation
 	hasExisting    bool
 	privateKeyPath string
 	inputBuffer    string
@@ -115,7 +115,7 @@ func (v *GitHubAppSetupView) handleFilePicker() (tea.Model, tea.Cmd) {
 }
 
 func (v *GitHubAppSetupView) handleYesInput() (tea.Model, tea.Cmd) {
-	if v.step == 0 {
+	if v.step == 1 {
 		v.hasExisting = true
 		v.step = 2
 		v.inputBuffer = ""
@@ -125,7 +125,7 @@ func (v *GitHubAppSetupView) handleYesInput() (tea.Model, tea.Cmd) {
 }
 
 func (v *GitHubAppSetupView) handleNoInput() (tea.Model, tea.Cmd) {
-	if v.step == 0 {
+	if v.step == 1 {
 		v.hasExisting = false
 		_ = openGitHubAppCreationURL(v.repoOwner, v.isOrgRepo)
 		v.step = 2
@@ -233,6 +233,10 @@ func (v *GitHubAppSetupView) loadPemFiles() {
 
 func (v *GitHubAppSetupView) handleEnter() (tea.Model, tea.Cmd) {
 	switch v.step {
+	case 0:
+		// Introduction - move to next step
+		v.step = 1
+		return v, nil
 	case 2:
 		if len(v.inputBuffer) > 0 {
 			v.appID = v.inputBuffer
@@ -240,7 +244,7 @@ func (v *GitHubAppSetupView) handleEnter() (tea.Model, tea.Cmd) {
 			v.cursorPos = 0
 
 			if v.checkSecretsExist != nil && v.checkSecretsExist(v.appID) {
-				v.done = true
+				v.step = 4 // Skip to installation instructions if secrets exist
 			} else {
 				v.step = 3
 			}
@@ -249,6 +253,10 @@ func (v *GitHubAppSetupView) handleEnter() (tea.Model, tea.Cmd) {
 
 	case 3:
 		v.privateKeyPath = v.inputBuffer
+		v.step = 4 // Move to installation instructions
+		return v, nil
+	case 4:
+		// Installation instructions - complete setup
 		v.done = true
 		return v, nil
 	}
@@ -259,9 +267,9 @@ func (v *GitHubAppSetupView) handleEnter() (tea.Model, tea.Cmd) {
 func (v *GitHubAppSetupView) View() string {
 	if v.done {
 		if v.cancelled {
-			return "Setup cancelled.\n"
+			return "❌ Setup cancelled.\n"
 		}
-		return "Setup complete!\n"
+		return v.renderCompletionMessage()
 	}
 
 	var b strings.Builder
@@ -272,17 +280,34 @@ func (v *GitHubAppSetupView) View() string {
 
 	switch v.step {
 	case 0:
+		v.renderStepIntroduction(&b)
+	case 1:
 		v.renderStepAskExisting(&b)
 	case 2:
 		v.renderStepManualAppID(&b)
 	case 3:
 		v.renderStepPrivateKey(&b)
+	case 4:
+		v.renderStepInstallation(&b)
 	}
 
 	b.WriteString("\n\n")
 	b.WriteString(v.styleProvider.RenderDimText("Press Esc to cancel"))
 
 	return b.String()
+}
+
+func (v *GitHubAppSetupView) renderStepIntroduction(b *strings.Builder) {
+	b.WriteString("🚀 GitHub App Setup Wizard\n\n")
+	b.WriteString("This wizard will help you set up a GitHub App for the infer-action bot.\n\n")
+	b.WriteString("What this setup does:\n")
+	b.WriteString("• Creates or configures a GitHub App for automated workflows\n")
+	b.WriteString("• Sets up proper permissions for code review and automation\n")
+	b.WriteString("• Configures the bot identity for your repositories\n\n")
+	b.WriteString("You'll need:\n")
+	b.WriteString("• GitHub account with repository access\n")
+	b.WriteString("• Permission to install apps on your organization/repositories\n\n")
+	b.WriteString("Press Enter to continue")
 }
 
 func (v *GitHubAppSetupView) renderStepAskExisting(b *strings.Builder) {
@@ -341,6 +366,66 @@ func (v *GitHubAppSetupView) renderStepPrivateKey(b *strings.Builder) {
 
 	tabHint := v.styleProvider.RenderDimText("Press Tab to browse .pem files in current directory")
 	b.WriteString(tabHint + " | Press Enter when done")
+}
+
+func (v *GitHubAppSetupView) renderStepInstallation(b *strings.Builder) {
+	b.WriteString("🎉 GitHub App Setup Complete!\n\n")
+	
+	if v.hasExisting {
+		b.WriteString("Your existing GitHub App has been configured successfully.\n\n")
+	} else {
+		b.WriteString("Your new GitHub App has been created successfully.\n\n")
+	}
+	
+	b.WriteString("📋 Installation Instructions:\n\n")
+	
+	// Generate installation URL
+	installationURL := v.getGitHubAppInstallationURL()
+	accentColor := v.styleProvider.GetThemeColor("accent")
+	link := v.styleProvider.RenderWithColor(installationURL, accentColor)
+	
+	b.WriteString("1. Install the GitHub App on your repositories:\n")
+	b.WriteString("   " + link + "\n\n")
+	
+	b.WriteString("2. Select the repositories where you want to use infer-action\n\n")
+	
+	b.WriteString("3. The app will be ready to use in your GitHub Actions workflows\n\n")
+	
+	b.WriteString("💡 Tip: You can install the app on specific repositories or all repositories\n\n")
+	
+	b.WriteString("Press Enter to complete setup")
+}
+
+func (v *GitHubAppSetupView) renderCompletionMessage() string {
+	var b strings.Builder
+	
+	b.WriteString("🎉 GitHub App Setup Complete!\n\n")
+	
+	if v.hasExisting {
+		b.WriteString("✅ Your existing GitHub App has been configured successfully!\n\n")
+	} else {
+		b.WriteString("✅ Your new GitHub App has been created successfully!\n\n")
+	}
+	
+	b.WriteString("📋 Next Steps:\n\n")
+	
+	// Generate installation URL
+	installationURL := v.getGitHubAppInstallationURL()
+	accentColor := v.styleProvider.GetThemeColor("accent")
+	link := v.styleProvider.RenderWithColor(installationURL, accentColor)
+	
+	b.WriteString("1. Install the GitHub App on your repositories:\n")
+	b.WriteString("   " + link + "\n\n")
+	
+	b.WriteString("2. Select the repositories where you want to use infer-action\n\n")
+	
+	b.WriteString("3. The app will be ready to use in your GitHub Actions workflows\n\n")
+	
+	b.WriteString("💡 Tip: You can install the app on specific repositories or all repositories\n\n")
+	
+	b.WriteString("✨ Setup complete! You can now use infer-action in your workflows.")
+	
+	return b.String()
 }
 
 func (v *GitHubAppSetupView) renderFilePicker(b *strings.Builder) {
@@ -419,6 +504,14 @@ func (v *GitHubAppSetupView) getGitHubAppsURL() string {
 		return fmt.Sprintf("https://github.com/organizations/%s/settings/apps", v.repoOwner)
 	}
 	return "https://github.com/settings/apps"
+}
+
+// getGitHubAppInstallationURL returns the appropriate GitHub App installation URL
+func (v *GitHubAppSetupView) getGitHubAppInstallationURL() string {
+	if v.isOrgRepo && v.repoOwner != "" {
+		return fmt.Sprintf("https://github.com/organizations/%s/settings/installations", v.repoOwner)
+	}
+	return "https://github.com/settings/installations"
 }
 
 // Reset resets the view state for reuse
