@@ -20,11 +20,14 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Generate GitHub App Token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v2.1.1
         id: app-token
         with:
           app-id: ${{ secrets.INFER_APP_ID }}
           private-key: ${{ secrets.INFER_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            ${{ github.event.repository.name }}
 
       - name: Checkout repository
         uses: actions/checkout@v5
