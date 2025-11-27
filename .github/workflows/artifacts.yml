@@ -145,6 +145,7 @@ jobs:
         id: version
         run: |
           VERSION="${{ github.event.release.tag_name }}"
+          VERSION="${VERSION#v}"
           COMMIT=$(git rev-parse --short HEAD)
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           echo "version=$VERSION" >> $GITHUB_OUTPUT
