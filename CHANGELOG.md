@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.69.7](https://github.com/inference-gateway/cli/compare/v0.69.6...v0.69.7) (2025-11-27)
+
+### 🐛 Bug Fixes
+
+* Ensure CLI is not starting a gateway when running in a container ([3909a0c](https://github.com/inference-gateway/cli/commit/3909a0ce8af4d5b52bcc320ee1fbb4b589554e51))
+
+### ♻️ Code Refactoring
+
+* Add good default svc name for the inference-gateway instead of localhost:8080 when running in containers ([12d413f](https://github.com/inference-gateway/cli/commit/12d413f338596985da1604c171cd772627e23c6a))
+
+### 🧹 Maintenance
+
+* Add annotations for multi-arch builds ([9b85542](https://github.com/inference-gateway/cli/commit/9b85542aaa25d7dd06338d2c811a0a7f2d20e55e))
+
 ## [0.69.6](https://github.com/inference-gateway/cli/compare/v0.69.5...v0.69.6) (2025-11-27)
 
 ### 👷 CI/CD
