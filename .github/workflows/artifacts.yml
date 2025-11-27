@@ -1,0 +1,170 @@
+---
+name: Build and Publish Artifacts
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            goos: linux
+            goarch: amd64
+            cgo: "0"
+          - os: ubuntu-24.04
+            goos: linux
+            goarch: arm64
+            cgo: "0"
+          - os: macos-15-intel
+            goos: darwin
+            goarch: amd64
+            cgo: "1"
+          - os: macos-latest
+            goos: darwin
+            goarch: arm64
+            cgo: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Get version info
+        id: version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+
+      - name: Build binary
+        env:
+          CGO_ENABLED: ${{ matrix.cgo }}
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          go build -ldflags "-X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }} -X github.com/inference-gateway/cli/cmd.commit=${{ steps.version.outputs.commit }} -X github.com/inference-gateway/cli/cmd.date=${{ steps.version.outputs.date }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v5
+        with:
+          name: infer-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: infer-${{ matrix.goos }}-${{ matrix.goarch }}
+          retention-days: 1
+
+  upload:
+    name: Upload Release Assets
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Install Cosign
+        uses: sigstore/cosign-installer@v4.0.0
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Prepare release artifacts
+        run: |
+          cd dist
+          chmod +x infer-*
+          sha256sum infer-* > checksums.txt
+          cosign sign-blob --yes checksums.txt --bundle checksums.txt.sigstore.json
+
+      - name: Upload binaries to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          echo "Uploading binaries to release: ${{ github.event.release.tag_name }}"
+          gh release upload "${{ github.event.release.tag_name }}" dist/* --clobber
+
+  container:
+    name: Push Container Images
+    needs: upload
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Install Flox
+        uses: flox/install-flox-action@main
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3.11.1
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Get version info
+        id: version
+        run: |
+          VERSION="${{ github.event.release.tag_name }}"
+          COMMIT=$(git rev-parse --short HEAD)
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "commit=$COMMIT" >> $GITHUB_OUTPUT
+          echo "date=$DATE" >> $GITHUB_OUTPUT
+          echo "Using release tag: $VERSION"
+
+          if [[ "$VERSION" =~ -rc ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+            echo "This is a prerelease - will NOT tag as latest"
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+            echo "This is a stable release - will tag as latest"
+          fi
+
+      - name: Push container images
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT: ${{ steps.version.outputs.commit }}
+          DATE: ${{ steps.version.outputs.date }}
+          PUSH_LATEST: ${{ steps.version.outputs.is_prerelease == 'false' }}
+        run: |
+          flox activate -- task container:push
