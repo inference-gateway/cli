@@ -20,8 +20,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - name: Generate GitHub App Token
-        uses: actions/create-github-app-token@v2.1.1
-        id: app-token
+        uses: actions/create-github-app-token@v2.2.0
+        id: app_token
         with:
           app-id: ${{ secrets.INFER_APP_ID }}
           private-key: ${{ secrets.INFER_APP_PRIVATE_KEY }}
@@ -32,12 +32,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          token: ${{ steps.app-token.outputs.token }}
+          token: ${{ steps.app_token.outputs.token }}
 
       - name: Run Infer Agent
         uses: inference-gateway/infer-action@v0.3.1
         with:
-          github-token: ${{ steps.app-token.outputs.token }}
+          github-token: ${{ steps.app_token.outputs.token }}
           trigger-phrase: "@infer"
           model: deepseek/deepseek-chat
           max-turns: 50
