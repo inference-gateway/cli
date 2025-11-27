@@ -180,6 +180,22 @@ func NewChatApplication(
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.githubAppSetupView = components.NewGitHubAppSetupView(styleProvider)
 
+	app.githubAppSetupView.SetSecretsExistChecker(func(appID string) bool {
+		repo, err := app.getCurrentRepo()
+		if err != nil {
+			return false
+		}
+
+		isOrg, err := app.isOrgRepo(repo)
+		if err != nil || !isOrg {
+			return false
+		}
+
+		orgName := strings.Split(repo, "/")[0]
+		secretsExist, err := app.checkOrgSecretsExist(orgName)
+		return err == nil && secretsExist
+	})
+
 	if persistentRepo, ok := app.conversationRepo.(*services.PersistentConversationRepository); ok {
 		adapter := adapters.NewPersistentConversationAdapter(persistentRepo)
 		app.conversationSelector = components.NewConversationSelector(adapter, styleProvider)
@@ -623,27 +639,37 @@ func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) 
 		}
 	}
 
-	privateKey, err := app.fileService.ReadFile(privateKeyPath)
-	if err != nil {
-		return domain.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to read private key: %v", err),
-			Sticky: true,
-		}
-	}
-
 	orgName := strings.Split(repo, "/")[0]
 
-	if err := app.setOrgSecret(orgName, "INFER_APP_ID", appID); err != nil {
+	secretsExist, err := app.checkOrgSecretsExist(orgName)
+	if err != nil {
 		return domain.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to set org secret INFER_APP_ID: %v", err),
+			Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
 			Sticky: true,
 		}
 	}
 
-	if err := app.setOrgSecret(orgName, "INFER_APP_PRIVATE_KEY", privateKey); err != nil {
-		return domain.ShowErrorEvent{
-			Error:  fmt.Sprintf("Failed to set org secret INFER_APP_PRIVATE_KEY: %v", err),
-			Sticky: true,
+	if !secretsExist && privateKeyPath != "" {
+		privateKey, err := app.fileService.ReadFile(privateKeyPath)
+		if err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to read private key: %v", err),
+				Sticky: true,
+			}
+		}
+
+		if err := app.setOrgSecret(orgName, "INFER_APP_ID", appID); err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to set org secret INFER_APP_ID: %v", err),
+				Sticky: true,
+			}
+		}
+
+		if err := app.setOrgSecret(orgName, "INFER_APP_PRIVATE_KEY", privateKey); err != nil {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to set org secret INFER_APP_PRIVATE_KEY: %v", err),
+				Sticky: true,
+			}
 		}
 	}
 
@@ -1466,6 +1492,20 @@ func (app *ChatApplication) isOrgRepo(repo string) (bool, error) {
 		return false, nil
 	}
 	return true, nil
+}
+
+func (app *ChatApplication) checkOrgSecretsExist(orgName string) (bool, error) {
+	cmd := exec.Command("gh", "secret", "list", "--org", orgName)
+	output, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("failed to list org secrets: %w", err)
+	}
+
+	secrets := string(output)
+	hasAppID := strings.Contains(secrets, "INFER_APP_ID")
+	hasPrivateKey := strings.Contains(secrets, "INFER_APP_PRIVATE_KEY")
+
+	return hasAppID && hasPrivateKey, nil
 }
 
 func (app *ChatApplication) setOrgSecret(orgName, name, value string) error {

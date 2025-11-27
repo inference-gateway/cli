@@ -36,6 +36,9 @@ type GitHubAppSetupView struct {
 	appID      string
 	privateKey string
 	err        error
+
+	// Callback to check if org secrets already exist
+	checkSecretsExist func(appID string) bool
 }
 
 // NewGitHubAppSetupView creates a new GitHub App setup wizard
@@ -231,7 +234,12 @@ func (v *GitHubAppSetupView) handleEnter() (tea.Model, tea.Cmd) {
 			v.appID = v.inputBuffer
 			v.inputBuffer = ""
 			v.cursorPos = 0
-			v.step = 3
+
+			if v.checkSecretsExist != nil && v.checkSecretsExist(v.appID) {
+				v.done = true
+			} else {
+				v.step = 3
+			}
 		}
 		return v, nil
 
@@ -388,6 +396,11 @@ func (v *GitHubAppSetupView) SetWidth(width int) {
 // SetHeight sets the height of the view
 func (v *GitHubAppSetupView) SetHeight(height int) {
 	v.height = height
+}
+
+// SetSecretsExistChecker sets the callback to check if org secrets exist
+func (v *GitHubAppSetupView) SetSecretsExistChecker(checker func(appID string) bool) {
+	v.checkSecretsExist = checker
 }
 
 // Reset resets the view state for reuse
