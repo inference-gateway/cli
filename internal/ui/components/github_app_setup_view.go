@@ -349,7 +349,6 @@ func (v *GitHubAppSetupView) renderFilePicker(b *strings.Builder) {
 
 	accentColor := v.styleProvider.GetThemeColor("accent")
 
-	// Show up to 10 files
 	maxVisible := 10
 	start := v.filePickerIndex
 	if start > len(v.filePickerFiles)-maxVisible {
