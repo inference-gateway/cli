@@ -2039,6 +2039,68 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 - `/compact` - Immediately compact conversation to reduce token usage
 - `/export [format]` - Export conversation to markdown
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
+- `/init-github-action` - Interactive wizard to set up GitHub App for infer-action bot
+
+### GitHub Action Setup
+
+The `/init-github-action` shortcut launches an interactive wizard that guides you through
+setting up a GitHub App for use with the infer-action bot in GitHub Actions workflows.
+
+**What it does:**
+
+The wizard helps you configure GitHub App credentials (App ID and private key) needed for the infer-action bot to:
+
+- Access repository contents
+- Create and update pull requests
+- Post comments on issues and PRs
+- Perform automated code reviews and workflow tasks
+
+**Features:**
+
+- **Interactive wizard** with step-by-step guidance
+- **Flexible setup** - create a new GitHub App or use an existing one
+- **Browser integration** - automatically opens GitHub with pre-filled app creation form
+- **File picker** - convenient selection of `.pem` private key files
+- **Multi-repository support** - reuse one GitHub App across multiple repositories
+- **Organization support** - works with both personal accounts and organization repositories
+
+**How to use:**
+
+1. Type `/init-github-action` in the chat interface
+2. Choose whether you have an existing GitHub App or want to create a new one:
+   - **New App**: The wizard opens your browser with a pre-filled GitHub App creation form
+   - **Existing App**: You'll be prompted to enter your existing App ID
+3. Enter your GitHub App ID
+4. Provide the path to your GitHub App private key (`.pem` file):
+   - Type the full path manually, or
+   - Press `Tab` to browse `.pem` files in the current directory
+
+**GitHub App Permissions:**
+
+When creating a new GitHub App through the wizard, the following permissions are pre-configured:
+
+- **Contents**: Write access (for reading and modifying repository files)
+- **Pull Requests**: Write access (for creating and updating PRs)
+- **Issues**: Write access (for commenting on issues)
+- **Metadata**: Read access (for repository metadata)
+
+**Tips:**
+
+- You can reuse one GitHub App across multiple repositories - no need to create a new app for each project
+- Store your `.pem` private key file in a secure location
+- For organization repositories, you'll need appropriate permissions to create or manage GitHub Apps
+
+**Example workflow:**
+
+```bash
+# In the chat interface
+> /init-github-action
+
+# Follow the wizard prompts:
+# 1. Do you have an existing GitHub App? (Y/N)
+# 2. Enter App ID (or browser opens for new app creation)
+# 3. Enter path to private key .pem file (or press Tab to browse)
+```
 
 ### Git Shortcuts
 

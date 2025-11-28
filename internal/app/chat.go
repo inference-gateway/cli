@@ -1763,7 +1763,7 @@ func (app *ChatApplication) preparePRCreation(repo, workflowPath string) (string
 
 	if branch == "main" || branch == "master" {
 		baseBranch = branch
-		branch = "ci/setup-infer-app"
+		branch = "ci/setup-infer-github-action"
 		cmd = exec.Command("git", "checkout", "-b", branch)
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("failed to create branch: %s: %w", string(output), err)
