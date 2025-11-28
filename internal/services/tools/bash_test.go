@@ -2,6 +2,7 @@ package tools
 
 import (
 	"context"
+	"strings"
 	"sync"
 	"testing"
 
@@ -287,12 +288,12 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 	tool := NewBashTool(cfg)
 
 	t.Run("streaming callback receives output", func(t *testing.T) {
-		var receivedLines []string
+		var receivedOutput []string
 		var mu sync.Mutex
 
-		callback := func(line string) {
+		callback := func(output string) {
 			mu.Lock()
-			receivedLines = append(receivedLines, line)
+			receivedOutput = append(receivedOutput, output)
 			mu.Unlock()
 		}
 
@@ -316,11 +317,18 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 		}
 
 		mu.Lock()
-		lineCount := len(receivedLines)
+		callbackCount := len(receivedOutput)
+		combinedOutput := strings.Join(receivedOutput, "\n")
 		mu.Unlock()
 
-		if lineCount < 3 {
-			t.Errorf("Expected at least 3 streamed lines, got %d", lineCount)
+		if callbackCount == 0 {
+			t.Errorf("Expected at least 1 callback, got 0")
+		}
+
+		if !strings.Contains(combinedOutput, "line 1") ||
+			!strings.Contains(combinedOutput, "line 2") ||
+			!strings.Contains(combinedOutput, "line 3") {
+			t.Errorf("Expected output to contain all 3 lines, got: %s", combinedOutput)
 		}
 	})
 

@@ -281,12 +281,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewNewShortcut(adapter, c.taskTrackerService))
 	}
 
-	gitCommitClient := c.createSDKClient()
-	c.shortcutRegistry.Register(shortcuts.NewGitShortcut(gitCommitClient, c.config, c.modelService))
-
-	scmClient := c.createSDKClient()
-	c.shortcutRegistry.Register(shortcuts.NewSCMShortcut(scmClient, c.config, c.modelService))
-
 	c.shortcutRegistry.Register(shortcuts.NewInitGithubActionShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewA2AShortcut(c.config, c.a2aAgentService, c.agentsConfigService, c.agentManager))
 	c.shortcutRegistry.Register(shortcuts.NewInitShortcut(c.config))
@@ -302,7 +296,8 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	}
 
 	configDir := c.determineConfigDirectory()
-	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir); err != nil {
+	customShortcutClient := c.createSDKClient()
+	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir, customShortcutClient, c.modelService); err != nil {
 		logger.Error("Failed to load custom shortcuts", "error", err, "config_dir", configDir)
 	}
 }

@@ -1,0 +1,91 @@
+# SCM (Source Control Management) Shortcuts
+# These shortcuts provide convenient access to GitHub functionality via the gh CLI.
+#
+# Requirements:
+# - GitHub CLI (gh) must be installed: https://cli.github.com
+# - Authenticate with: gh auth login
+#
+# Usage:
+# - /scm-issues - List all GitHub issues for the repository
+# - /scm-issue <number> - Show details for a specific GitHub issue
+# - /scm-pr-create - Generate AI-powered PR plan with branch name, commit, and description
+
+shortcuts:
+  - name: scm-issues
+    description: "List all GitHub issues for the repository"
+    command: gh
+    args:
+      - issue
+      - list
+      - --json
+      - "number,title,state,author,labels,createdAt,updatedAt"
+      - --limit
+      - "20"
+
+  - name: scm-issue
+    description: "Show details for a specific GitHub issue (usage: /scm-issue <number>)"
+    command: gh
+    args:
+      - issue
+      - view
+      - --json
+      - "number,title,body,state,author,labels,comments,createdAt,updatedAt"
+
+  - name: scm-pr-create
+    description: "Generate AI-powered PR plan with LLM"
+    command: bash
+    args:
+      - -c
+      - |
+        diff=$(git diff --cached 2>/dev/null || git diff 2>/dev/null)
+        if [ -z "$diff" ]; then
+          echo '{"error": "No changes detected. Stage your changes with git add first."}'
+          exit 1
+        fi
+        branch=$(git branch --show-current)
+        base_branch="main"
+        jq -n \
+          --arg diff "$diff" \
+          --arg branch "$branch" \
+          --arg base "$base_branch" \
+          '{diff: $diff, currentBranch: $branch, baseBranch: $base}'
+    snippet:
+      prompt: |
+        Analyze this git diff and generate a concise PR creation plan.
+
+        Current branch: {currentBranch}
+        Base branch: {baseBranch}
+
+        Changes:
+        ```diff
+        {diff}
+        ```
+
+        Output EXACTLY this format (each field on its own line with blank lines between):
+
+        **Branch:** feat/descriptive-branch-name
+
+        **Commit:** type: concise commit message
+
+        **PR Title:** Clear, descriptive title
+
+        **PR Description:**
+        Brief summary of changes (2-3 sentences max)
+
+        REQUIREMENTS:
+        - Branch: Use conventional format (feat/, fix/, docs/, refactor/, chore/)
+        - Commit: Follow conventional commits, under 50 chars, capitalize first letter after colon
+        - PR Title: Clear and descriptive
+        - Description: Brief, focused on what and why
+        - NO filler words like "comprehensive", "enhance", "robust"
+        - Use simple verbs: Add, Fix, Update, Remove, Refactor
+
+        Output ONLY the plan, no explanations.
+      template: |
+        ## PR Plan
+
+        {llm}
+
+        **Next steps:** Please follow these exact steps.
+
+        Finally, return to the main branch and delete the branch.

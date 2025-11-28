@@ -73,6 +73,7 @@ and management of inference services.
 - [Shortcuts System](#shortcuts-system)
   - [Built-in Shortcuts](#built-in-shortcuts)
   - [Git Shortcuts](#git-shortcuts)
+  - [SCM Shortcuts](#scm-shortcuts)
   - [User-Defined Shortcuts](#user-defined-shortcuts)
 - [Global Flags](#global-flags)
 - [Examples](#examples)
@@ -2039,97 +2040,43 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 - `/compact` - Immediately compact conversation to reduce token usage
 - `/export [format]` - Export conversation to markdown
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
-- `/init-github-action` - Interactive wizard to set up GitHub App for infer-action bot
-
-### GitHub Action Setup
-
-The `/init-github-action` shortcut launches an interactive wizard that guides you through
-setting up a GitHub App for use with the infer-action bot in GitHub Actions workflows.
-
-**What it does:**
-
-The wizard helps you configure GitHub App credentials (App ID and private key) needed for the infer-action bot to:
-
-- Access repository contents
-- Create and update pull requests
-- Post comments on issues and PRs
-- Perform automated code reviews and workflow tasks
-
-**Features:**
-
-- **Interactive wizard** with step-by-step guidance
-- **Flexible setup** - create a new GitHub App or use an existing one
-- **Browser integration** - automatically opens GitHub with pre-filled app creation form
-- **File picker** - convenient selection of `.pem` private key files
-- **Multi-repository support** - reuse one GitHub App across multiple repositories
-- **Organization support** - works with both personal accounts and organization repositories
-
-**How to use:**
-
-1. Type `/init-github-action` in the chat interface
-2. Choose whether you have an existing GitHub App or want to create a new one:
-   - **New App**: The wizard opens your browser with a pre-filled GitHub App creation form
-   - **Existing App**: You'll be prompted to enter your existing App ID
-3. Enter your GitHub App ID
-4. Provide the path to your GitHub App private key (`.pem` file):
-   - Type the full path manually, or
-   - Press `Tab` to browse `.pem` files in the current directory
-
-**GitHub App Permissions:**
-
-When creating a new GitHub App through the wizard, the following permissions are pre-configured:
-
-- **Contents**: Write access (for reading and modifying repository files)
-- **Pull Requests**: Write access (for creating and updating PRs)
-- **Issues**: Write access (for commenting on issues)
-- **Metadata**: Read access (for repository metadata)
-
-**Tips:**
-
-- You can reuse one GitHub App across multiple repositories - no need to create a new app for each project
-- Store your `.pem` private key file in a secure location
-- For organization repositories, you'll need appropriate permissions to create or manage GitHub Apps
-
-**Example workflow:**
-
-```bash
-# In the chat interface
-> /init-github-action
-
-# Follow the wizard prompts:
-# 1. Do you have an existing GitHub App? (Y/N)
-# 2. Enter App ID (or browser opens for new app creation)
-# 3. Enter path to private key .pem file (or press Tab to browse)
-```
 
 ### Git Shortcuts
 
-- `/git <command> [args...]` - Execute git commands (supports commit, push, status, etc.)
-- `/git commit [flags]` - Commit staged changes with AI-generated message
-- `/git push [remote] [branch] [flags]` - Push commits to remote repository
+When you run `infer init`, a `.infer/shortcuts/git.yaml` file is created with common git operations:
 
-The git shortcuts provide intelligent commit message generation using AI when no message is provided with `/git commit`.
+- `/git-status` - Show working tree status
+- `/git-pull` - Pull changes from remote repository
+- `/git-push` - Push commits to remote repository
+- `/git-log` - Show commit logs (last 10 commits with graph)
+- `/git-commit` - Generate AI commit message from staged changes
 
-**Model Selection for AI Commit Messages:**
+**AI-Powered Commit Messages:**
 
-When generating AI commit messages, the model is selected using the following priority:
+The `/git-commit` shortcut uses the **snippet feature** to generate conventional commit messages:
 
-1. **`git.commit_message.model`** - Specific model configured for commit messages
-2. **`agent.model`** - Default agent model from configuration
-3. **Currently selected model** - The model selected via `/switch` in the chat session
+1. Analyzes your staged changes (`git diff --cached`)
+2. Sends the diff to the LLM with a prompt to generate a conventional commit message
+3. Automatically commits with the AI-generated message
 
-This allows you to use `/git commit` without configuring a specific model -
-it will automatically use the model you're currently chatting with.
+**Example Usage:**
 
-**Git Shortcut Configuration:**
+```bash
+# Stage your changes
+git add .
 
-```yaml
-# Optional: Configure a specific model for commit messages
-git:
-  commit_message:
-    model: "anthropic/claude-sonnet-4-20250514"  # Optional
-    system_prompt: ""  # Optional custom prompt
+# Generate commit message and commit
+/git-commit
 ```
+
+The AI will generate a commit message following the conventional commit format
+(e.g., `feat: Add user authentication`, `fix: Resolve memory leak`).
+
+**Requirements:**
+
+- Run `infer init` to create the shortcuts file
+- Stage changes with `git add` before using `/git-commit`
+- The shortcut uses `jq` to format JSON output
 
 **Project Initialization Shortcut:**
 
@@ -2146,6 +2093,170 @@ The prompt is configurable in your config file under `init.prompt`. The default 
 - Create comprehensive documentation for AI agents
 - Generate an AGENTS.md file with project overview, commands, and conventions
 
+### SCM Shortcuts
+
+The SCM (Source Control Management) shortcuts provide seamless integration with GitHub and git workflows.
+
+When you run `infer init`, a `.infer/shortcuts/scm.yaml` file is created with the following shortcuts:
+
+- `/scm-issues` - List all GitHub issues for the repository
+- `/scm-issue <number>` - Show details for a specific GitHub issue with comments
+- `/scm-pr-create` - Generate AI-powered PR plan with branch name, commit, and description
+
+**AI-Powered PR Creation:**
+
+The `/scm-pr-create` shortcut uses the **snippet feature** to analyze your changes and generate a complete PR plan:
+
+1. Analyzes staged or unstaged changes (`git diff`)
+2. Sends the diff to the LLM with context about the current and base branches
+3. Generates a comprehensive PR plan including:
+   - Suggested branch name (following conventional format: `feat/`, `fix/`, etc.)
+   - Conventional commit message
+   - PR title and description
+
+This provides a deterministic way to fetch GitHub data and AI assistance for PR planning.
+
+**Example Usage:**
+
+```bash
+# List all open issues
+/scm-issues
+
+# View details for issue #123 including comments
+/scm-issue 123
+```
+
+**Requirements:**
+
+- [GitHub CLI (`gh`)](https://cli.github.com) must be installed and authenticated
+- Run `infer init` to create the shortcuts file
+- The commands work in any git repository with a GitHub remote
+
+**Customization:**
+
+You can customize these shortcuts by editing `.infer/shortcuts/scm.yaml`:
+
+```yaml
+shortcuts:
+  - name: scm-issues
+    description: "List all GitHub issues for the repository"
+    command: gh
+    args:
+      - issue
+      - list
+      - --json
+      - number,title,state,author,labels,createdAt,updatedAt
+      - --limit
+      - "20"
+```
+
+**Use Cases:**
+
+- Quickly get context on what issues need to be worked on
+- Fetch issue details and comments before implementing a fix
+- Let the LLM analyze issue discussions to understand requirements
+- Customize the shortcuts to add filters, change limits, or modify output format
+
+### AI-Powered Snippets
+
+Shortcuts can use the **snippet feature** to integrate LLM-powered workflows
+directly into YAML configuration. This enables complex AI-assisted tasks
+without writing Go code.
+
+**How Snippets Work:**
+
+1. **Command Execution**: The shortcut runs a command that outputs JSON data
+2. **Prompt Generation**: A prompt template is filled with the JSON data and sent to the LLM
+3. **Template Filling**: The final template is filled with both JSON data and the LLM response
+4. **Result Display**: The filled template is shown to the user or executed
+
+**Snippet Configuration:**
+
+```yaml
+shortcuts:
+  - name: example-snippet
+    description: "Example AI-powered shortcut"
+    command: bash
+    args:
+      - -c
+      - |
+        # Command must output JSON
+        jq -n --arg data "Hello" '{message: $data}'
+    snippet:
+      prompt: |
+        You are given this data: {message}
+        Generate a response based on it.
+      template: |
+        ## AI Response
+        {llm}
+```
+
+**Placeholder Syntax:**
+
+- `{fieldname}` - Replaced with values from the command's JSON output
+- `{llm}` - Replaced with the LLM's response to the prompt
+
+### Real-World Example: AI Commit Messages
+
+The `/git-commit` shortcut demonstrates the snippet feature:
+
+```yaml
+- name: git-commit
+  description: "Generate AI commit message from staged changes"
+  command: bash
+  args:
+    - -c
+    - |
+      if ! git diff --cached --quiet 2>/dev/null; then
+        diff=$(git diff --cached)
+        jq -n --arg diff "$diff" '{diff: $diff}'
+      else
+        echo '{"error": "No staged changes found."}'
+        exit 1
+      fi
+  snippet:
+    prompt: |
+      Generate a conventional commit message.
+
+      Changes:
+      ```diff
+      {diff}
+      ```
+
+      Format: "type: Description"
+      - Type: feat, fix, docs, refactor, etc.
+      - Description: "Capital first letter, under 50 chars"
+
+      Output ONLY the commit message.
+    template: "!git commit -m \"{llm}\""
+```
+
+**How This Works:**
+
+1. Command runs `git diff --cached` and outputs JSON: `{"diff": "..."}`
+2. Prompt template receives the diff via `{diff}` placeholder
+3. LLM generates commit message (e.g., `feat: Add user authentication`)
+4. Template receives LLM response via `{llm}` placeholder
+5. Final command executed: `git commit -m "feat: Add user authentication"`
+
+### Advanced: Command Execution Prefix
+
+If the template starts with `!`, the result is executed as a shell command:
+
+```yaml
+template: "!git commit -m \"{llm}\""  # Executes the command
+template: "{llm}"                      # Just displays the result
+```
+
+**Use Cases for Snippets:**
+
+- Generate commit messages from diffs
+- Create PR descriptions from changes
+- Analyze test output and suggest fixes
+- Generate code documentation from source
+- Transform data formats with AI assistance
+- Automate complex workflows with AI decision-making
+
 ### User-Defined Shortcuts
 
 You can create custom shortcuts by adding YAML configuration files in the `.infer/shortcuts/` directory.
@@ -2156,21 +2267,28 @@ Create files named `custom-*.yaml` (e.g., `custom-1.yaml`, `custom-dev.yaml`) in
 
 ```yaml
 shortcuts:
-  - name: "tests"
+  - name: tests
     description: "Run all tests in the project"
-    command: "go"
-    args: ["test", "./..."]
-    working_dir: "."  # Optional: set working directory
+    command: go
+    args:
+      - test
+      - ./...
+    working_dir: .  # Optional: set working directory
 
-  - name: "build"
+  - name: build
     description: "Build the project"
-    command: "go"
-    args: ["build", "-o", "infer", "."]
+    command: go
+    args:
+      - build
+      - -o
+      - infer
+      - .
 
-  - name: "lint"
+  - name: lint
     description: "Run linter on the codebase"
-    command: "golangci-lint"
-    args: ["run"]
+    command: golangci-lint
+    args:
+      - run
 ```
 
 **Configuration Fields:**
@@ -2180,6 +2298,7 @@ shortcuts:
 - **command** (required): The executable command to run
 - **args** (optional): Array of arguments to pass to the command
 - **working_dir** (optional): Working directory for the command (defaults to current)
+- **snippet** (optional): AI-powered snippet configuration with `prompt` and `template` fields (see [AI-Powered Snippets](#ai-powered-snippets))
 
 **Using Shortcuts:**
 
@@ -2202,20 +2321,28 @@ Here are some useful shortcuts you might want to add:
 
 ```yaml
 shortcuts:
-  - name: "fmt"
+  - name: fmt
     description: "Format all Go code"
-    command: "go"
-    args: ["fmt", "./..."]
+    command: go
+    args:
+      - fmt
+      - ./...
 
   - name: "mod tidy"
     description: "Tidy up go modules"
-    command: "go"
-    args: ["mod", "tidy"]
+    command: go
+    args:
+      - mod
+      - tidy
 
-  - name: "version"
+  - name: version
     description: "Show current version"
-    command: "git"
-    args: ["describe", "--tags", "--always", "--dirty"]
+    command: git
+    args:
+      - describe
+      - --tags
+      - --always
+      - --dirty
 ```
 
 *Docker Shortcuts (`custom-docker.yaml`):*
@@ -2224,28 +2351,38 @@ shortcuts:
 shortcuts:
   - name: "docker build"
     description: "Build Docker image"
-    command: "docker"
-    args: ["build", "-t", "myapp", "."]
+    command: docker
+    args:
+      - build
+      - -t
+      - myapp
+      - .
 
   - name: "docker run"
     description: "Run Docker container"
-    command: "docker"
-    args: ["run", "-p", "8080:8080", "myapp"]
+    command: docker
+    args:
+      - run
+      - -p
+      - "8080:8080"
+      - myapp
 ```
 
 *Project-Specific Shortcuts (`custom-project.yaml`):*
 
 ```yaml
 shortcuts:
-  - name: "migrate"
+  - name: migrate
     description: "Run database migrations"
-    command: "./scripts/migrate.sh"
-    working_dir: "."
+    command: ./scripts/migrate.sh
+    working_dir: .
 
-  - name: "seed"
+  - name: seed
     description: "Seed database with test data"
-    command: "go"
-    args: ["run", "cmd/seed/main.go"]
+    command: go
+    args:
+      - run
+      - cmd/seed/main.go
 ```
 
 **Tips:**

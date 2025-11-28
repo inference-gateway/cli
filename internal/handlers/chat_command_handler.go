@@ -154,17 +154,15 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 		}
 
 		bashCallback := func(line string) {
-			go func(l string) {
-				eventChan <- domain.BashOutputChunkEvent{
-					BaseChatEvent: domain.BaseChatEvent{
-						RequestID: toolCallID,
-						Timestamp: time.Now(),
-					},
-					ToolCallID: toolCallID,
-					Output:     l,
-					IsComplete: false,
-				}
-			}(line)
+			eventChan <- domain.BashOutputChunkEvent{
+				BaseChatEvent: domain.BaseChatEvent{
+					RequestID: toolCallID,
+					Timestamp: time.Now(),
+				},
+				ToolCallID: toolCallID,
+				Output:     line,
+				IsComplete: false,
+			}
 		}
 
 		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)

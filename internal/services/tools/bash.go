@@ -235,6 +235,24 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 	readPipe := func(pipe io.ReadCloser) {
 		defer wg.Done()
 		scanner := bufio.NewScanner(pipe)
+
+		const batchSize = 20
+		const flushInterval = 50 * time.Millisecond
+
+		batch := make([]string, 0, batchSize)
+		lastFlush := time.Now()
+
+		flushBatch := func() {
+			if len(batch) == 0 {
+				return
+			}
+
+			combined := strings.Join(batch, "\n")
+			callback(combined)
+			batch = batch[:0]
+			lastFlush = time.Now()
+		}
+
 		for scanner.Scan() {
 			line := scanner.Text()
 			outputMux.Lock()
@@ -242,8 +260,14 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 			outputBuilder.WriteString("\n")
 			outputMux.Unlock()
 
-			callback(line)
+			batch = append(batch, line)
+
+			if len(batch) >= batchSize || time.Since(lastFlush) >= flushInterval {
+				flushBatch()
+			}
 		}
+
+		flushBatch()
 	}
 
 	wg.Add(2)
