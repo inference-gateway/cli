@@ -36,9 +36,11 @@ and management of inference services.
 - [Commands](#commands)
   - [`infer init`](#infer-init)
   - [`infer config`](#infer-config)
+  - [`infer agents`](#infer-agents)
   - [`infer status`](#infer-status)
   - [`infer chat`](#infer-chat)
   - [`infer agent`](#infer-agent)
+  - [`infer conversation-title`](#infer-conversation-title)
   - [`infer version`](#infer-version)
 - [Configuration](#configuration)
   - [Configuration Layers](#configuration-layers)
@@ -360,9 +362,51 @@ infer config agent set-system "You are a helpful assistant."
 infer config agent set-system "You are a Go programming expert."
 ```
 
+### `infer config agent set-max-turns`
+
+Set the maximum number of turns for agent sessions.
+
+**Examples:**
+
 ```bash
-infer config agent set-system "You are a helpful assistant."
-infer config agent set-system "You are a Go programming expert."
+infer config agent set-max-turns 100
+```
+
+### `infer config agent set-max-concurrent-tools`
+
+Set the maximum number of tools that can execute concurrently.
+
+**Examples:**
+
+```bash
+infer config agent set-max-concurrent-tools 5
+```
+
+### `infer config agent verbose-tools`
+
+Enable or disable verbose tool output for agent sessions.
+
+**Examples:**
+
+```bash
+infer config agent verbose-tools enable
+infer config agent verbose-tools disable
+```
+
+### `infer config export`
+
+Manage export settings for conversation exports.
+
+**Subcommands:**
+
+- `set-model <model>`: Set the model used for generating export summaries
+- `show`: Display current export configuration
+
+**Examples:**
+
+```bash
+infer config export set-model anthropic/claude-4.1-haiku
+infer config export show
 ```
 
 ### `infer config tools`
@@ -385,6 +429,33 @@ managing whitelists, and security settings.
   - `list`: List all sandbox directories
   - `add <path>`: Add a protected path to the sandbox
   - `remove <path>`: Remove a protected path from the sandbox
+- `bash`: Manage Bash tool settings
+  - `enable`: Enable Bash tool
+  - `disable`: Disable Bash tool
+- `grep`: Manage Grep tool settings
+  - `enable`: Enable Grep tool
+  - `disable`: Disable Grep tool
+  - `set-backend <backend>`: Set grep backend ("ripgrep" or "go")
+  - `status`: Show current Grep tool configuration
+- `web-search`: Manage WebSearch tool settings
+  - `enable`: Enable WebSearch tool
+  - `disable`: Disable WebSearch tool
+- `web-fetch`: Manage WebFetch tool settings
+  - `enable`: Enable WebFetch tool
+  - `disable`: Disable WebFetch tool
+  - `list`: List whitelisted domains
+  - `add-domain <domain>`: Add a domain to whitelist
+  - `remove-domain <domain>`: Remove a domain from whitelist
+  - `cache`: Manage WebFetch cache
+    - `status`: Show cache status
+    - `clear`: Clear cache
+- `github`: Manage GitHub tool settings
+  - `enable`: Enable GitHub tool
+  - `disable`: Disable GitHub tool
+  - `status`: Show current GitHub tool configuration
+  - `set-token <token>`: Set GitHub personal access token
+  - `set-owner <owner>`: Set default GitHub owner/organization
+  - `set-repo <repo>`: Set default GitHub repository
 
 **Examples:**
 
@@ -410,7 +481,67 @@ infer config tools safety status   # Show current safety approval status
 infer config tools sandbox list
 infer config tools sandbox add ".github/"
 infer config tools sandbox remove "test.txt"
+
+# Manage individual tools
+infer config tools bash enable
+infer config tools bash disable
+
+infer config tools grep set-backend ripgrep
+infer config tools grep status
+
+infer config tools web-search enable
+infer config tools web-search disable
+
+infer config tools web-fetch add-domain "example.com"
+infer config tools web-fetch list
+infer config tools web-fetch cache status
+infer config tools web-fetch cache clear
+
+infer config tools github set-token "ghp_xxxxxxxxxxxx"
+infer config tools github set-owner "my-org"
+infer config tools github set-repo "my-repo"
+infer config tools github status
 ```
+
+### `infer agents`
+
+Manage A2A (Agent-to-Agent) agent configurations. This command allows you to
+configure and manage connections to specialized A2A agents for task delegation
+and distributed processing.
+
+**Subcommands:**
+
+- `init`: Initialize agents.yaml configuration file
+- `add <url> [name]`: Add a new A2A agent endpoint
+- `update <name> <url>`: Update an existing agent's URL
+- `list`: List all configured agents
+- `show <name>`: Show details for a specific agent
+- `remove <name>`: Remove an agent from configuration
+
+**Examples:**
+
+```bash
+# Initialize agents configuration
+infer agents init
+
+# Add agents
+infer agents add http://security-agent:8080 security
+infer agents add http://docs-agent:8080 documentation
+
+# List all agents
+infer agents list
+
+# Show agent details
+infer agents show security
+
+# Update agent URL
+infer agents update security http://security-agent:9090
+
+# Remove agent
+infer agents remove security
+```
+
+For more details on A2A agents, see the [A2A Tools](#a2a-tools-agent-to-agent-communication) section.
 
 ### `infer status`
 
@@ -524,6 +655,54 @@ infer agent "Debug the failing test in PR 15"
 # Refactor code
 infer agent "Refactor the authentication module to use JWT tokens"
 ```
+
+### `infer conversation-title`
+
+Manage AI-powered conversation title generation. The CLI can automatically
+generate descriptive titles for conversations to improve organization and
+searchability.
+
+**Subcommands:**
+
+- `generate [conversation-id]`: Generate titles for conversations (all or specific)
+- `status`: Show title generation status and statistics
+- `daemon`: Run title generation daemon in background
+
+**Examples:**
+
+```bash
+# Generate titles for all conversations without titles
+infer conversation-title generate
+
+# Generate title for a specific conversation
+infer conversation-title generate conv-12345
+
+# Check title generation status
+infer conversation-title status
+
+# Run daemon for automatic title generation
+infer conversation-title daemon
+```
+
+**Features:**
+
+- **Automatic Generation**: Titles are generated based on conversation content
+- **Batch Processing**: Generate titles for multiple conversations at once
+- **Configurable Model**: Use any available model for title generation
+- **Background Daemon**: Optional daemon mode for continuous title generation
+
+**Configuration:**
+
+```yaml
+conversation:
+  title_generation:
+    enabled: true
+    model: "deepseek/deepseek-chat"
+    batch_size: 5
+    interval: 30  # seconds between generation attempts
+```
+
+For more details, see the [Conversation Title Generation](docs/conversation-title-generation.md) documentation.
 
 ### `infer version`
 
