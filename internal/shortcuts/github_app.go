@@ -16,7 +16,7 @@ func NewGitHubAppShortcut() *GitHubAppShortcut {
 }
 
 func (g *GitHubAppShortcut) GetName() string {
-	return "setup-github-app"
+	return "init-github-action"
 }
 
 func (g *GitHubAppShortcut) GetDescription() string {
@@ -24,7 +24,7 @@ func (g *GitHubAppShortcut) GetDescription() string {
 }
 
 func (g *GitHubAppShortcut) GetUsage() string {
-	return "/setup-github-app"
+	return "/init-github-action"
 }
 
 func (g *GitHubAppShortcut) CanExecute(args []string) bool {
