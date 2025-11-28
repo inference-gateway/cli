@@ -35,7 +35,6 @@ const (
 	SideEffectSwitchTheme
 	SideEffectShowHelp
 	SideEffectReloadConfig
-	SideEffectGenerateCommit
 	SideEffectSaveConversation
 	SideEffectShowConversationSelection
 	SideEffectStartNewConversation

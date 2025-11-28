@@ -169,8 +169,6 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowHelpSideEffect()
 	case shortcuts.SideEffectExit:
 		return tea.Quit()
-	case shortcuts.SideEffectGenerateCommit:
-		return s.handleGenerateCommitSideEffect(data)
 	case shortcuts.SideEffectSaveConversation:
 		return s.handleSaveConversationSideEffect()
 	case shortcuts.SideEffectShowConversationSelection:
@@ -372,114 +370,6 @@ func (s *ChatShortcutHandler) handleShowHelpSideEffect() tea.Msg {
 			}
 		},
 	)()
-}
-
-func (s *ChatShortcutHandler) handleGenerateCommitSideEffect(data any) tea.Msg {
-	return tea.Batch(
-		func() tea.Msg {
-			return domain.UpdateHistoryEvent{
-				History: s.handler.conversationRepo.GetMessages(),
-			}
-		},
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "Generating AI commit message...",
-				Spinner:    true,
-				StatusType: domain.StatusWorking,
-			}
-		},
-		s.performCommitGeneration(data),
-	)()
-}
-
-func (s *ChatShortcutHandler) performCommitGeneration(data any) tea.Cmd {
-	return func() tea.Msg {
-		if data == nil {
-			return domain.SetStatusEvent{
-				Message:    "❌ No side effect data available",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
-
-		dataMap, ok := data.(map[string]any)
-		if !ok {
-			return domain.SetStatusEvent{
-				Message:    "❌ Invalid side effect data format",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
-
-		ctx, ok1 := dataMap["context"].(context.Context)
-		args, ok2 := dataMap["args"].([]string)
-		diff, ok3 := dataMap["diff"].(string)
-
-		if !ok1 || !ok2 || !ok3 {
-			return domain.SetStatusEvent{
-				Message:    "❌ Missing commit data",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
-
-		var command string
-		var err error
-
-		if gitShortcut, ok := dataMap["gitShortcut"].(*shortcuts.GitShortcut); ok {
-			command, err = gitShortcut.GenerateCommitCommand(ctx, args, diff)
-		} else {
-			return domain.SetStatusEvent{
-				Message:    "❌ Missing or invalid git shortcut data",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
-		if err != nil {
-			errorEntry := domain.ConversationEntry{
-				Message: sdk.Message{
-					Role:    sdk.Assistant,
-					Content: sdk.NewMessageContent(fmt.Sprintf("❌ **Commit Message Generation Failed**\n\n%v", err)),
-				},
-				Model: "",
-				Time:  time.Now(),
-			}
-
-			if addErr := s.handler.conversationRepo.AddMessage(errorEntry); addErr != nil {
-				logger.Error("failed to add commit error message", "error", addErr)
-			}
-
-			return tea.Batch(
-				func() tea.Msg {
-					return domain.UpdateHistoryEvent{
-						History: s.handler.conversationRepo.GetMessages(),
-					}
-				},
-				func() tea.Msg {
-					return domain.SetStatusEvent{
-						Message:    fmt.Sprintf("%s Commit message generation failed: %v", icons.CrossMark, err),
-						Spinner:    false,
-						StatusType: domain.StatusDefault,
-					}
-				},
-			)()
-		}
-
-		return tea.Batch(
-			func() tea.Msg {
-				return domain.SetStatusEvent{
-					Message:    fmt.Sprintf("%s AI commit message generated - review and press Enter to commit", icons.CheckMark),
-					Spinner:    false,
-					StatusType: domain.StatusDefault,
-				}
-			},
-			func() tea.Msg {
-				return domain.SetInputEvent{
-					Text: command,
-				}
-			},
-		)()
-	}
 }
 
 func (s *ChatShortcutHandler) handleSaveConversationSideEffect() tea.Msg {
