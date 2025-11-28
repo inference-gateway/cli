@@ -12,8 +12,8 @@ import (
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
-// GitHubAppSetupView implements the GitHub App setup wizard UI
-type GitHubAppSetupView struct {
+// InitGithubActionView implements the Init GitHub Action setup wizard UI
+type InitGithubActionView struct {
 	width         int
 	height        int
 	styleProvider *styles.Provider
@@ -45,9 +45,9 @@ type GitHubAppSetupView struct {
 	checkSecretsExist func(appID string) bool
 }
 
-// NewGitHubAppSetupView creates a new GitHub App setup wizard
-func NewGitHubAppSetupView(styleProvider *styles.Provider) *GitHubAppSetupView {
-	return &GitHubAppSetupView{
+// NewInitGithubActionView creates a new Init GitHub Action setup wizard
+func NewInitGithubActionView(styleProvider *styles.Provider) *InitGithubActionView {
+	return &InitGithubActionView{
 		width:         80,
 		height:        24,
 		styleProvider: styleProvider,
@@ -55,11 +55,11 @@ func NewGitHubAppSetupView(styleProvider *styles.Provider) *GitHubAppSetupView {
 	}
 }
 
-func (v *GitHubAppSetupView) Init() tea.Cmd {
+func (v *InitGithubActionView) Init() tea.Cmd {
 	return nil
 }
 
-func (v *GitHubAppSetupView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
 		v.width = msg.Width
@@ -73,7 +73,7 @@ func (v *GitHubAppSetupView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return v, nil
 }
 
-func (v *GitHubAppSetupView) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if v.showingFilePicker {
 		return v.handleFilePickerKeys(msg)
 	}
@@ -100,13 +100,13 @@ func (v *GitHubAppSetupView) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd)
 	}
 }
 
-func (v *GitHubAppSetupView) handleCancel() (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) handleCancel() (tea.Model, tea.Cmd) {
 	v.cancelled = true
 	v.done = true
 	return v, nil
 }
 
-func (v *GitHubAppSetupView) handleFilePicker() (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) handleFilePicker() (tea.Model, tea.Cmd) {
 	if v.step == 3 {
 		v.showingFilePicker = true
 		v.loadPemFiles()
@@ -114,7 +114,7 @@ func (v *GitHubAppSetupView) handleFilePicker() (tea.Model, tea.Cmd) {
 	return v, nil
 }
 
-func (v *GitHubAppSetupView) handleYesInput() (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) handleYesInput() (tea.Model, tea.Cmd) {
 	if v.step == 0 {
 		v.hasExisting = true
 		v.step = 2
@@ -124,7 +124,7 @@ func (v *GitHubAppSetupView) handleYesInput() (tea.Model, tea.Cmd) {
 	return v, nil
 }
 
-func (v *GitHubAppSetupView) handleNoInput() (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) handleNoInput() (tea.Model, tea.Cmd) {
 	if v.step == 0 {
 		v.hasExisting = false
 		_ = openGitHubAppCreationURL(v.repoOwner, v.isOrgRepo)
@@ -135,21 +135,21 @@ func (v *GitHubAppSetupView) handleNoInput() (tea.Model, tea.Cmd) {
 	return v, nil
 }
 
-func (v *GitHubAppSetupView) handleLeftArrow() (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) handleLeftArrow() (tea.Model, tea.Cmd) {
 	if (v.step == 2 || v.step == 3) && v.cursorPos > 0 {
 		v.cursorPos--
 	}
 	return v, nil
 }
 
-func (v *GitHubAppSetupView) handleRightArrow() (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) handleRightArrow() (tea.Model, tea.Cmd) {
 	if (v.step == 2 || v.step == 3) && v.cursorPos < len(v.inputBuffer) {
 		v.cursorPos++
 	}
 	return v, nil
 }
 
-func (v *GitHubAppSetupView) handleBackspace() (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) handleBackspace() (tea.Model, tea.Cmd) {
 	if (v.step == 2 || v.step == 3) && v.cursorPos > 0 {
 		v.inputBuffer = v.inputBuffer[:v.cursorPos-1] + v.inputBuffer[v.cursorPos:]
 		v.cursorPos--
@@ -157,7 +157,7 @@ func (v *GitHubAppSetupView) handleBackspace() (tea.Model, tea.Cmd) {
 	return v, nil
 }
 
-func (v *GitHubAppSetupView) handleTextInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) handleTextInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	if v.step != 2 && v.step != 3 {
 		return v, nil
 	}
@@ -172,7 +172,7 @@ func (v *GitHubAppSetupView) handleTextInput(msg tea.KeyMsg) (tea.Model, tea.Cmd
 	return v, nil
 }
 
-func (v *GitHubAppSetupView) sanitizeInput(input string) string {
+func (v *InitGithubActionView) sanitizeInput(input string) string {
 	input = strings.ReplaceAll(input, "[", "")
 	input = strings.ReplaceAll(input, "]", "")
 
@@ -189,7 +189,7 @@ func (v *GitHubAppSetupView) sanitizeInput(input string) string {
 	return input
 }
 
-func (v *GitHubAppSetupView) handleFilePickerKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) handleFilePickerKeys(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "esc":
 		v.showingFilePicker = false
@@ -220,7 +220,7 @@ func (v *GitHubAppSetupView) handleFilePickerKeys(msg tea.KeyMsg) (tea.Model, te
 	return v, nil
 }
 
-func (v *GitHubAppSetupView) loadPemFiles() {
+func (v *InitGithubActionView) loadPemFiles() {
 	v.filePickerFiles = []string{}
 	v.filePickerIndex = 0
 
@@ -231,7 +231,7 @@ func (v *GitHubAppSetupView) loadPemFiles() {
 	}
 }
 
-func (v *GitHubAppSetupView) handleEnter() (tea.Model, tea.Cmd) {
+func (v *InitGithubActionView) handleEnter() (tea.Model, tea.Cmd) {
 	switch v.step {
 	case 2:
 		if len(v.inputBuffer) > 0 {
@@ -256,7 +256,7 @@ func (v *GitHubAppSetupView) handleEnter() (tea.Model, tea.Cmd) {
 	return v, nil
 }
 
-func (v *GitHubAppSetupView) View() string {
+func (v *InitGithubActionView) View() string {
 	if v.done {
 		if v.cancelled {
 			return "Setup cancelled.\n"
@@ -267,7 +267,7 @@ func (v *GitHubAppSetupView) View() string {
 	var b strings.Builder
 
 	accentColor := v.styleProvider.GetThemeColor("accent")
-	b.WriteString(v.styleProvider.RenderWithColor("GitHub App Setup Wizard", accentColor))
+	b.WriteString(v.styleProvider.RenderWithColor("Init GitHub Action Setup Wizard", accentColor))
 	b.WriteString("\n\n")
 
 	switch v.step {
@@ -285,13 +285,13 @@ func (v *GitHubAppSetupView) View() string {
 	return b.String()
 }
 
-func (v *GitHubAppSetupView) renderStepAskExisting(b *strings.Builder) {
+func (v *InitGithubActionView) renderStepAskExisting(b *strings.Builder) {
 	b.WriteString("Do you already have a GitHub App for infer-action?\n\n")
 	b.WriteString("Tip: You can reuse one GitHub App across multiple repositories!\n\n")
 	b.WriteString("Press Y for Yes, N for No")
 }
 
-func (v *GitHubAppSetupView) renderStepManualAppID(b *strings.Builder) {
+func (v *InitGithubActionView) renderStepManualAppID(b *strings.Builder) {
 	if v.hasExisting {
 		b.WriteString("Enter your GitHub App ID\n\n")
 		b.WriteString("You can find your App ID at:\n")
@@ -313,7 +313,7 @@ func (v *GitHubAppSetupView) renderStepManualAppID(b *strings.Builder) {
 	b.WriteString("Press Enter when done")
 }
 
-func (v *GitHubAppSetupView) renderStepPrivateKey(b *strings.Builder) {
+func (v *InitGithubActionView) renderStepPrivateKey(b *strings.Builder) {
 	fmt.Fprintf(b, "Selected App ID: %s\n\n", v.appID)
 	b.WriteString("Private Key Required\n\n")
 
@@ -343,7 +343,7 @@ func (v *GitHubAppSetupView) renderStepPrivateKey(b *strings.Builder) {
 	b.WriteString(tabHint + " | Press Enter when done")
 }
 
-func (v *GitHubAppSetupView) renderFilePicker(b *strings.Builder) {
+func (v *InitGithubActionView) renderFilePicker(b *strings.Builder) {
 	b.WriteString("Select a .pem file (from current directory):\n\n")
 
 	if len(v.filePickerFiles) == 0 {
@@ -378,43 +378,43 @@ func (v *GitHubAppSetupView) renderFilePicker(b *strings.Builder) {
 }
 
 // IsDone returns whether the wizard is complete
-func (v *GitHubAppSetupView) IsDone() bool {
+func (v *InitGithubActionView) IsDone() bool {
 	return v.done
 }
 
 // IsCancelled returns whether the wizard was cancelled
-func (v *GitHubAppSetupView) IsCancelled() bool {
+func (v *InitGithubActionView) IsCancelled() bool {
 	return v.cancelled
 }
 
 // GetResult returns the wizard result
-func (v *GitHubAppSetupView) GetResult() (appID, privateKeyPath string, err error) {
+func (v *InitGithubActionView) GetResult() (appID, privateKeyPath string, err error) {
 	return v.appID, v.privateKeyPath, v.err
 }
 
 // SetWidth sets the width of the view
-func (v *GitHubAppSetupView) SetWidth(width int) {
+func (v *InitGithubActionView) SetWidth(width int) {
 	v.width = width
 }
 
 // SetHeight sets the height of the view
-func (v *GitHubAppSetupView) SetHeight(height int) {
+func (v *InitGithubActionView) SetHeight(height int) {
 	v.height = height
 }
 
 // SetSecretsExistChecker sets the callback to check if org secrets exist
-func (v *GitHubAppSetupView) SetSecretsExistChecker(checker func(appID string) bool) {
+func (v *InitGithubActionView) SetSecretsExistChecker(checker func(appID string) bool) {
 	v.checkSecretsExist = checker
 }
 
 // SetRepositoryInfo sets the repository owner and whether it's an org
-func (v *GitHubAppSetupView) SetRepositoryInfo(owner string, isOrg bool) {
+func (v *InitGithubActionView) SetRepositoryInfo(owner string, isOrg bool) {
 	v.repoOwner = owner
 	v.isOrgRepo = isOrg
 }
 
 // getGitHubAppsURL returns the appropriate GitHub Apps URL based on whether this is an org repo
-func (v *GitHubAppSetupView) getGitHubAppsURL() string {
+func (v *InitGithubActionView) getGitHubAppsURL() string {
 	if v.isOrgRepo && v.repoOwner != "" {
 		return fmt.Sprintf("https://github.com/organizations/%s/settings/apps", v.repoOwner)
 	}
@@ -422,7 +422,7 @@ func (v *GitHubAppSetupView) getGitHubAppsURL() string {
 }
 
 // Reset resets the view state for reuse
-func (v *GitHubAppSetupView) Reset() {
+func (v *InitGithubActionView) Reset() {
 	v.done = false
 	v.cancelled = false
 	v.step = 0
@@ -479,7 +479,7 @@ func openBrowser(url string) error {
 }
 
 // GetInstallationURL returns the URL to install the GitHub App on a repository
-func (v *GitHubAppSetupView) GetInstallationURL(repoOwner, repoName string) string {
+func (v *InitGithubActionView) GetInstallationURL(repoOwner, repoName string) string {
 	if repoOwner != "" && repoName != "" {
 		return fmt.Sprintf("https://github.com/apps/infer-bot/installations/new/permissions?target_id=%s&repository=%s", repoOwner, repoName)
 	}
