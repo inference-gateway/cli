@@ -21,7 +21,7 @@ func TestSCMShortcut_GetName(t *testing.T) {
 func TestSCMShortcut_GetDescription(t *testing.T) {
 	shortcut := NewSCMShortcut(nil, &config.Config{}, nil)
 
-	expected := "Source control management (e.g., /scm pr create)"
+	expected := "Source control management (e.g., /scm pr create, /scm issues)"
 	actual := shortcut.GetDescription()
 
 	if actual != expected {
@@ -32,11 +32,19 @@ func TestSCMShortcut_GetDescription(t *testing.T) {
 func TestSCMShortcut_GetUsage(t *testing.T) {
 	shortcut := NewSCMShortcut(nil, &config.Config{}, nil)
 
-	expected := "/scm pr create - Create a PR with AI-generated branch name, commit message, and PR description"
 	actual := shortcut.GetUsage()
 
-	if actual != expected {
-		t.Errorf("Expected usage %s, got %s", expected, actual)
+	// Check that usage contains all expected commands
+	expectedPhrases := []string{
+		"/scm pr create",
+		"/scm issues",
+		"/scm issues <number>",
+	}
+
+	for _, phrase := range expectedPhrases {
+		if !contains(actual, phrase) {
+			t.Errorf("Expected usage to contain %q, got %s", phrase, actual)
+		}
 	}
 }
 
@@ -52,7 +60,7 @@ func TestSCMShortcut_CanExecute(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "single argument not allowed",
+			name:     "single pr argument not allowed",
 			args:     []string{"pr"},
 			expected: false,
 		},
@@ -65,6 +73,16 @@ func TestSCMShortcut_CanExecute(t *testing.T) {
 			name:     "pr other not allowed",
 			args:     []string{"pr", "delete"},
 			expected: false,
+		},
+		{
+			name:     "issues allowed",
+			args:     []string{"issues"},
+			expected: true,
+		},
+		{
+			name:     "issues with number allowed",
+			args:     []string{"issues", "123"},
+			expected: true,
 		},
 		{
 			name:     "other subcommand not allowed",
@@ -204,6 +222,45 @@ func TestSCMShortcut_BuildPRPlanUserPrompt_MainBranch(t *testing.T) {
 
 	if !contains(prompt, "will create a new feature branch") {
 		t.Error("Expected prompt to indicate need for new branch when on main")
+	}
+}
+
+func TestSCMShortcut_FormatIssuesList(t *testing.T) {
+	cfg := config.DefaultConfig()
+	shortcut := NewSCMShortcut(nil, cfg, nil)
+
+	jsonOutput := `[{"number":1,"title":"Test Issue"}]`
+	formatted := shortcut.formatIssuesList(jsonOutput)
+
+	expectedPhrases := []string{
+		"GitHub Issues",
+		jsonOutput,
+		"/scm issues <number>",
+	}
+
+	for _, phrase := range expectedPhrases {
+		if !contains(formatted, phrase) {
+			t.Errorf("Expected formatted output to contain %q", phrase)
+		}
+	}
+}
+
+func TestSCMShortcut_FormatIssueDetails(t *testing.T) {
+	cfg := config.DefaultConfig()
+	shortcut := NewSCMShortcut(nil, cfg, nil)
+
+	jsonOutput := `{"number":1,"title":"Test Issue","body":"Description"}`
+	formatted := shortcut.formatIssueDetails(jsonOutput)
+
+	expectedPhrases := []string{
+		"GitHub Issue Details",
+		jsonOutput,
+	}
+
+	for _, phrase := range expectedPhrases {
+		if !contains(formatted, phrase) {
+			t.Errorf("Expected formatted output to contain %q", phrase)
+		}
 	}
 }
 

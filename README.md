@@ -73,6 +73,7 @@ and management of inference services.
 - [Shortcuts System](#shortcuts-system)
   - [Built-in Shortcuts](#built-in-shortcuts)
   - [Git Shortcuts](#git-shortcuts)
+  - [SCM Shortcuts](#scm-shortcuts)
   - [User-Defined Shortcuts](#user-defined-shortcuts)
 - [Global Flags](#global-flags)
 - [Examples](#examples)
@@ -2083,6 +2084,38 @@ The prompt is configurable in your config file under `init.prompt`. The default 
 - Analyze your project structure, build tools, and configuration files
 - Create comprehensive documentation for AI agents
 - Generate an AGENTS.md file with project overview, commands, and conventions
+
+### SCM Shortcuts
+
+The SCM (Source Control Management) shortcuts provide seamless integration with GitHub and git workflows:
+
+- `/scm pr create` - Create a PR with AI-generated branch name, commit message, and PR description
+- `/scm issues` - List all GitHub issues for the repository
+- `/scm issues <number>` - Show details for a specific GitHub issue with comments
+
+**Issue Management:**
+
+The `/scm issues` commands provide a deterministic way to fetch GitHub issue data without consuming LLM tokens.
+They use the GitHub CLI (`gh`) under the hood to fetch structured JSON data that the LLM can analyze:
+
+```bash
+# List all open issues
+/scm issues
+
+# View details for issue #123 including comments
+/scm issues 123
+```
+
+**Requirements:**
+
+- [GitHub CLI (`gh`)](https://cli.github.com) must be installed and authenticated
+- The commands work in any git repository with a GitHub remote
+
+**Use Cases:**
+
+- Quickly get context on what issues need to be worked on
+- Fetch issue details and comments before implementing a fix
+- Let the LLM analyze issue discussions to understand requirements
 
 ### User-Defined Shortcuts
 
