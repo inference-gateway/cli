@@ -1,0 +1,22 @@
+# SCM (Source Control Management) Shortcuts
+# These shortcuts provide convenient access to GitHub functionality via the gh CLI.
+#
+# Requirements:
+# - GitHub CLI (gh) must be installed: https://cli.github.com
+# - Authenticate with: gh auth login
+#
+# Usage:
+# - /scm-issues - List all GitHub issues for the repository
+# - /scm-issue <number> - Show details for a specific GitHub issue
+
+shortcuts:
+  - name: "scm-issues"
+    description: "List all GitHub issues for the repository"
+    command: "gh"
+    args: ["issue", "list", "--json", "number,title,state,author,labels,createdAt,updatedAt", "--limit", "20"]
+
+  - name: "scm-issue"
+    description: "Show details for a specific GitHub issue (usage: /scm-issue <number>)"
+    command: "gh"
+    args: ["issue", "view", "--json", "number,title,body,state,author,labels,comments,createdAt,updatedAt"]
+    # User-provided arguments (like issue number) are automatically appended to the args

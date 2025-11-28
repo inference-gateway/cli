@@ -33,32 +33,20 @@ func (s *SCMShortcut) GetName() string {
 }
 
 func (s *SCMShortcut) GetDescription() string {
-	return "Source control management (e.g., /scm pr create, /scm issues)"
+	return "Source control management (e.g., /scm pr create)"
 }
 
 func (s *SCMShortcut) GetUsage() string {
-	return `/scm pr create - Create a PR with AI-generated branch name, commit message, and PR description
-/scm issues - List all GitHub issues
-/scm issues <number> - Show details for a specific GitHub issue`
+	return `/scm pr create - Create a PR with AI-generated branch name, commit message, and PR description`
 }
 
 func (s *SCMShortcut) CanExecute(args []string) bool {
-	if len(args) == 0 {
+	if len(args) < 2 {
 		return false
 	}
 
-	// /scm issues (no issue number)
-	if len(args) == 1 && args[0] == "issues" {
-		return true
-	}
-
-	// /scm issues <number> (with issue number)
-	if len(args) == 2 && args[0] == "issues" {
-		return true
-	}
-
 	// /scm pr create
-	if len(args) >= 2 && args[0] == "pr" && args[1] == "create" {
+	if args[0] == "pr" && args[1] == "create" {
 		return true
 	}
 
@@ -66,7 +54,7 @@ func (s *SCMShortcut) CanExecute(args []string) bool {
 }
 
 func (s *SCMShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	if len(args) == 0 {
+	if len(args) < 2 {
 		return ShortcutResult{
 			Output:  "Invalid usage. " + s.GetUsage(),
 			Success: false,
@@ -74,31 +62,15 @@ func (s *SCMShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 	}
 
 	subcommand := args[0]
-
-	// Handle /scm issues
-	if subcommand == "issues" {
-		if len(args) == 1 {
-			return s.executeListIssues(ctx)
-		}
-		// Handle /scm issues <number>
-		return s.executeShowIssue(ctx, args[1])
-	}
+	action := args[1]
 
 	// Handle /scm pr create
-	if len(args) >= 2 {
-		action := args[1]
-		if subcommand == "pr" && action == "create" {
-			return s.executePRCreate(ctx)
-		}
-
-		return ShortcutResult{
-			Output:  fmt.Sprintf("Unknown SCM command: %s %s. %s", subcommand, action, s.GetUsage()),
-			Success: false,
-		}, nil
+	if subcommand == "pr" && action == "create" {
+		return s.executePRCreate(ctx)
 	}
 
 	return ShortcutResult{
-		Output:  "Invalid usage. " + s.GetUsage(),
+		Output:  fmt.Sprintf("Unknown SCM command: %s %s. %s", subcommand, action, s.GetUsage()),
 		Success: false,
 	}, nil
 }
@@ -307,112 +279,4 @@ func truncateDiff(diff string, maxLen int) string {
 		return diff
 	}
 	return diff[:maxLen] + "\n... (diff truncated for brevity)"
-}
-
-// executeListIssues lists all GitHub issues using gh CLI
-func (s *SCMShortcut) executeListIssues(ctx context.Context) (ShortcutResult, error) {
-	// Check if gh CLI is available
-	if err := s.checkGHCLI(ctx); err != nil {
-		return ShortcutResult{
-			Output:  fmt.Sprintf("❌ GitHub CLI (gh) is not installed or not in PATH: %v", err),
-			Success: false,
-		}, nil
-	}
-
-	// Execute gh issue list with JSON format
-	cmd := exec.CommandContext(ctx, "gh", "issue", "list", "--json", "number,title,state,author,labels,createdAt,updatedAt", "--limit", "20")
-	output, err := cmd.Output()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return ShortcutResult{
-				Output:  fmt.Sprintf("❌ Failed to list issues: %s", strings.TrimSpace(string(exitErr.Stderr))),
-				Success: false,
-			}, nil
-		}
-		return ShortcutResult{
-			Output:  fmt.Sprintf("❌ Failed to list issues: %v", err),
-			Success: false,
-		}, nil
-	}
-
-	// Format the output for LLM consumption
-	formattedOutput := s.formatIssuesList(string(output))
-
-	return ShortcutResult{
-		Output:     formattedOutput,
-		Success:    true,
-		SideEffect: SideEffectNone,
-	}, nil
-}
-
-// executeShowIssue shows details for a specific GitHub issue
-func (s *SCMShortcut) executeShowIssue(ctx context.Context, issueNumber string) (ShortcutResult, error) {
-	// Check if gh CLI is available
-	if err := s.checkGHCLI(ctx); err != nil {
-		return ShortcutResult{
-			Output:  fmt.Sprintf("❌ GitHub CLI (gh) is not installed or not in PATH: %v", err),
-			Success: false,
-		}, nil
-	}
-
-	// Execute gh issue view with JSON format
-	cmd := exec.CommandContext(ctx, "gh", "issue", "view", issueNumber, "--json", "number,title,body,state,author,labels,comments,createdAt,updatedAt")
-	output, err := cmd.Output()
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
-			return ShortcutResult{
-				Output:  fmt.Sprintf("❌ Failed to view issue #%s: %s", issueNumber, strings.TrimSpace(string(exitErr.Stderr))),
-				Success: false,
-			}, nil
-		}
-		return ShortcutResult{
-			Output:  fmt.Sprintf("❌ Failed to view issue #%s: %v", issueNumber, err),
-			Success: false,
-		}, nil
-	}
-
-	// Format the output for LLM consumption
-	formattedOutput := s.formatIssueDetails(string(output))
-
-	return ShortcutResult{
-		Output:     formattedOutput,
-		Success:    true,
-		SideEffect: SideEffectNone,
-	}, nil
-}
-
-// checkGHCLI verifies that gh CLI is installed and available
-func (s *SCMShortcut) checkGHCLI(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "gh", "--version")
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("gh CLI not found (install from https://cli.github.com)")
-	}
-	return nil
-}
-
-// formatIssuesList formats the JSON output from gh issue list into markdown
-func (s *SCMShortcut) formatIssuesList(jsonOutput string) string {
-	var sb strings.Builder
-
-	sb.WriteString("## GitHub Issues\n\n")
-	sb.WriteString("Here are the issues for this repository:\n\n")
-	sb.WriteString("```json\n")
-	sb.WriteString(jsonOutput)
-	sb.WriteString("\n```\n\n")
-	sb.WriteString("Use `/scm issues <number>` to view details for a specific issue.")
-
-	return sb.String()
-}
-
-// formatIssueDetails formats the JSON output from gh issue view into markdown
-func (s *SCMShortcut) formatIssueDetails(jsonOutput string) string {
-	var sb strings.Builder
-
-	sb.WriteString("## GitHub Issue Details\n\n")
-	sb.WriteString("Here are the details for this issue:\n\n")
-	sb.WriteString("```json\n")
-	sb.WriteString(jsonOutput)
-	sb.WriteString("\n```")
-
-	return sb.String()
 }

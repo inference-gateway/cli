@@ -2040,68 +2040,6 @@ The CLI provides an extensible shortcuts system that allows you to quickly execu
 - `/compact` - Immediately compact conversation to reduce token usage
 - `/export [format]` - Export conversation to markdown
 - `/init` - Set input with project analysis prompt for AGENTS.md generation
-- `/init-github-action` - Interactive wizard to set up GitHub App for infer-action bot
-
-### GitHub Action Setup
-
-The `/init-github-action` shortcut launches an interactive wizard that guides you through
-setting up a GitHub App for use with the infer-action bot in GitHub Actions workflows.
-
-**What it does:**
-
-The wizard helps you configure GitHub App credentials (App ID and private key) needed for the infer-action bot to:
-
-- Access repository contents
-- Create and update pull requests
-- Post comments on issues and PRs
-- Perform automated code reviews and workflow tasks
-
-**Features:**
-
-- **Interactive wizard** with step-by-step guidance
-- **Flexible setup** - create a new GitHub App or use an existing one
-- **Browser integration** - automatically opens GitHub with pre-filled app creation form
-- **File picker** - convenient selection of `.pem` private key files
-- **Multi-repository support** - reuse one GitHub App across multiple repositories
-- **Organization support** - works with both personal accounts and organization repositories
-
-**How to use:**
-
-1. Type `/init-github-action` in the chat interface
-2. Choose whether you have an existing GitHub App or want to create a new one:
-   - **New App**: The wizard opens your browser with a pre-filled GitHub App creation form
-   - **Existing App**: You'll be prompted to enter your existing App ID
-3. Enter your GitHub App ID
-4. Provide the path to your GitHub App private key (`.pem` file):
-   - Type the full path manually, or
-   - Press `Tab` to browse `.pem` files in the current directory
-
-**GitHub App Permissions:**
-
-When creating a new GitHub App through the wizard, the following permissions are pre-configured:
-
-- **Contents**: Write access (for reading and modifying repository files)
-- **Pull Requests**: Write access (for creating and updating PRs)
-- **Issues**: Write access (for commenting on issues)
-- **Metadata**: Read access (for repository metadata)
-
-**Tips:**
-
-- You can reuse one GitHub App across multiple repositories - no need to create a new app for each project
-- Store your `.pem` private key file in a secure location
-- For organization repositories, you'll need appropriate permissions to create or manage GitHub Apps
-
-**Example workflow:**
-
-```bash
-# In the chat interface
-> /init-github-action
-
-# Follow the wizard prompts:
-# 1. Do you have an existing GitHub App? (Y/N)
-# 2. Enter App ID (or browser opens for new app creation)
-# 3. Enter path to private key .pem file (or press Tab to browse)
-```
 
 ### Git Shortcuts
 
@@ -2149,35 +2087,56 @@ The prompt is configurable in your config file under `init.prompt`. The default 
 
 ### SCM Shortcuts
 
-The SCM (Source Control Management) shortcuts provide seamless integration with GitHub and git workflows:
+The SCM (Source Control Management) shortcuts provide seamless integration with GitHub and git workflows.
 
-- `/scm pr create` - Create a PR with AI-generated branch name, commit message, and PR description
-- `/scm issues` - List all GitHub issues for the repository
-- `/scm issues <number>` - Show details for a specific GitHub issue with comments
+**Built-in SCM Shortcuts:**
 
-**Issue Management:**
+- `/scm pr create` - Create a PR with AI-generated branch name, commit message, and PR description (built-in shortcut)
 
-The `/scm issues` commands provide a deterministic way to fetch GitHub issue data without consuming LLM tokens.
-They use the GitHub CLI (`gh`) under the hood to fetch structured JSON data that the LLM can analyze:
+**YAML-based SCM Shortcuts:**
+
+When you run `infer init`, a `.infer/shortcuts/scm.yaml` file is created with GitHub issue management shortcuts:
+
+- `/scm-issues` - List all GitHub issues for the repository
+- `/scm-issue <number>` - Show details for a specific GitHub issue with comments
+
+These YAML-based shortcuts provide a deterministic way to fetch GitHub issue data without consuming LLM tokens.
+They use the GitHub CLI (`gh`) under the hood to fetch structured JSON data that the LLM can analyze.
+
+**Example Usage:**
 
 ```bash
 # List all open issues
-/scm issues
+/scm-issues
 
 # View details for issue #123 including comments
-/scm issues 123
+/scm-issue 123
 ```
 
 **Requirements:**
 
 - [GitHub CLI (`gh`)](https://cli.github.com) must be installed and authenticated
+- Run `infer init` to create the shortcuts file
 - The commands work in any git repository with a GitHub remote
+
+**Customization:**
+
+You can customize these shortcuts by editing `.infer/shortcuts/scm.yaml`:
+
+```yaml
+shortcuts:
+  - name: "scm-issues"
+    description: "List all GitHub issues for the repository"
+    command: "gh"
+    args: ["issue", "list", "--json", "number,title,state,author,labels,createdAt,updatedAt", "--limit", "20"]
+```
 
 **Use Cases:**
 
 - Quickly get context on what issues need to be worked on
 - Fetch issue details and comments before implementing a fix
 - Let the LLM analyze issue discussions to understand requirements
+- Customize the shortcuts to add filters, change limits, or modify output format
 
 ### User-Defined Shortcuts
 

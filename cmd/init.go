@@ -37,7 +37,7 @@ func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
 
-	var configPath, gitignorePath string
+	var configPath, gitignorePath, shortcutsPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -46,13 +46,15 @@ func initializeProject(cmd *cobra.Command) error {
 		}
 		configPath = filepath.Join(homeDir, config.ConfigDirName, config.ConfigFileName)
 		gitignorePath = filepath.Join(homeDir, config.ConfigDirName, config.GitignoreFileName)
+		shortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "scm.yaml")
 	} else {
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
+		shortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "scm.yaml")
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, shortcutsPath); err != nil {
 			return err
 		}
 	}
@@ -73,6 +75,11 @@ bin/
 		return fmt.Errorf("failed to create .gitignore file: %w", err)
 	}
 
+	// Create shortcuts directory and SCM shortcuts file
+	if err := createSCMShortcutsFile(shortcutsPath); err != nil {
+		return fmt.Errorf("failed to create SCM shortcuts file: %w", err)
+	}
+
 	var scopeDesc string
 	if userspace {
 		scopeDesc = "userspace"
@@ -83,6 +90,7 @@ bin/
 	fmt.Printf("%s Successfully initialized Inference Gateway CLI %s configuration\n", icons.CheckMarkStyle.Render(icons.CheckMark), scopeDesc)
 	fmt.Printf("   Created: %s\n", configPath)
 	fmt.Printf("   Created: %s\n", gitignorePath)
+	fmt.Printf("   Created: %s\n", shortcutsPath)
 	fmt.Println("")
 	if userspace {
 		fmt.Println("This userspace configuration will be used as a fallback for all projects.")
@@ -92,6 +100,7 @@ bin/
 	fmt.Println("You can now customize the configuration:")
 	fmt.Println("  - Set default model: infer config agent set-model <model-name>")
 	fmt.Println("  - Configure tools: infer config tools --help")
+	fmt.Println("  - Customize shortcuts: Edit .infer/shortcuts/scm.yaml or add your own")
 	fmt.Println("  - Start chatting: infer chat")
 	fmt.Println("")
 	fmt.Println("Tip: Use /init in chat mode to generate an AGENTS.md file interactively")
@@ -131,9 +140,50 @@ func checkFileExists(path, description string) error {
 }
 
 // validateFilesNotExist validates that required files do not exist
-func validateFilesNotExist(configPath, gitignorePath string) error {
-	if err := checkFileExists(configPath, "configuration file"); err != nil {
-		return err
+func validateFilesNotExist(paths ...string) error {
+	descriptions := []string{"configuration file", ".gitignore file", "shortcuts file"}
+	for i, path := range paths {
+		desc := "file"
+		if i < len(descriptions) {
+			desc = descriptions[i]
+		}
+		if err := checkFileExists(path, desc); err != nil {
+			return err
+		}
 	}
-	return checkFileExists(gitignorePath, ".gitignore file")
+	return nil
+}
+
+// createSCMShortcutsFile creates the SCM shortcuts YAML file
+func createSCMShortcutsFile(path string) error {
+	// Create shortcuts directory
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create shortcuts directory: %w", err)
+	}
+
+	scmShortcutsContent := `# SCM (Source Control Management) Shortcuts
+# These shortcuts provide convenient access to GitHub functionality via the gh CLI.
+#
+# Requirements:
+# - GitHub CLI (gh) must be installed: https://cli.github.com
+# - Authenticate with: gh auth login
+#
+# Usage:
+# - /scm-issues - List all GitHub issues for the repository
+# - /scm-issue <number> - Show details for a specific GitHub issue
+
+shortcuts:
+  - name: "scm-issues"
+    description: "List all GitHub issues for the repository"
+    command: "gh"
+    args: ["issue", "list", "--json", "number,title,state,author,labels,createdAt,updatedAt", "--limit", "20"]
+
+  - name: "scm-issue"
+    description: "Show details for a specific GitHub issue (usage: /scm-issue <number>)"
+    command: "gh"
+    args: ["issue", "view", "--json", "number,title,body,state,author,labels,comments,createdAt,updatedAt"]
+    # User-provided arguments (like issue number) are automatically appended to the args
+`
+
+	return os.WriteFile(path, []byte(scmShortcutsContent), 0644)
 }
