@@ -42,7 +42,7 @@ const (
 	SideEffectShowA2AServers
 	SideEffectShowA2ATaskManagement
 	SideEffectSetInput
-	SideEffectGeneratePRPlan
+	SideEffectGenerateSnippet
 	SideEffectCompactConversation
 	SideEffectA2AAgentAdded
 	SideEffectA2AAgentRemoved

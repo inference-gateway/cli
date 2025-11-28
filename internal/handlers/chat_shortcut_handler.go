@@ -185,8 +185,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleShowA2ATaskManagementSideEffect()
 	case shortcuts.SideEffectSetInput:
 		return s.handleSetInputSideEffect(data)
-	case shortcuts.SideEffectGeneratePRPlan:
-		return s.handleGeneratePRPlanSideEffect(data)
+	case shortcuts.SideEffectGenerateSnippet:
+		return s.handleGenerateSnippetSideEffect(data)
 	case shortcuts.SideEffectCompactConversation:
 		return s.handleCompactConversationSideEffect()
 	case shortcuts.SideEffectA2AAgentAdded:
@@ -604,7 +604,7 @@ func (s *ChatShortcutHandler) handleSetInputSideEffect(data any) tea.Msg {
 	}
 }
 
-func (s *ChatShortcutHandler) handleGeneratePRPlanSideEffect(data any) tea.Msg {
+func (s *ChatShortcutHandler) handleGenerateSnippetSideEffect(data any) tea.Msg {
 	return tea.Batch(
 		func() tea.Msg {
 			return domain.UpdateHistoryEvent{
@@ -613,13 +613,75 @@ func (s *ChatShortcutHandler) handleGeneratePRPlanSideEffect(data any) tea.Msg {
 		},
 		func() tea.Msg {
 			return domain.SetStatusEvent{
-				Message:    "Generating PR plan...",
+				Message:    "Generating snippet with AI...",
 				Spinner:    true,
 				StatusType: domain.StatusWorking,
 			}
 		},
-		s.performPRPlanGeneration(data),
+		s.performSnippetGeneration(data),
 	)()
+}
+
+func (s *ChatShortcutHandler) performSnippetGeneration(data any) tea.Cmd {
+	return func() tea.Msg {
+		if data == nil {
+			return domain.SetStatusEvent{
+				Message:    "No snippet data available",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+		dataMap, ok := data.(map[string]any)
+		if !ok {
+			return domain.SetStatusEvent{
+				Message:    "Invalid snippet data format",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+		ctx, ok1 := dataMap["context"].(context.Context)
+		snippetDataMap, ok2 := dataMap["dataMap"].(map[string]string)
+		customShortcut, ok3 := dataMap["customShortcut"].(*shortcuts.CustomShortcut)
+		shortcutName, ok4 := dataMap["shortcutName"].(string)
+
+		if !ok1 || !ok2 || !ok3 || !ok4 {
+			return domain.SetStatusEvent{
+				Message:    "Missing snippet generation data",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+
+		snippet, err := customShortcut.GenerateSnippet(ctx, snippetDataMap)
+		if err != nil {
+			return tea.Batch(
+				func() tea.Msg {
+					return domain.SetStatusEvent{
+						Message:    fmt.Sprintf("%s Snippet generation failed: %v", icons.CrossMark, err),
+						Spinner:    false,
+						StatusType: domain.StatusDefault,
+					}
+				},
+			)()
+		}
+
+		return tea.Batch(
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    fmt.Sprintf("%s Snippet generated for %s - review and press Enter", icons.CheckMark, shortcutName),
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
+				}
+			},
+			func() tea.Msg {
+				return domain.SetInputEvent{
+					Text: snippet,
+				}
+			},
+		)()
+	}
 }
 
 func (s *ChatShortcutHandler) handleCompactConversationSideEffect() tea.Msg {
@@ -750,114 +812,6 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			func() tea.Msg {
 				return domain.SetStatusEvent{
 					Message:    fmt.Sprintf("Conversation compacted: %d messages reduced to %d", len(messages), len(optimizedMessages)),
-					Spinner:    false,
-					StatusType: domain.StatusDefault,
-				}
-			},
-		)()
-	}
-}
-
-func (s *ChatShortcutHandler) performPRPlanGeneration(data any) tea.Cmd {
-	return func() tea.Msg {
-		if data == nil {
-			return domain.SetStatusEvent{
-				Message:    "No side effect data available",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
-
-		dataMap, ok := data.(map[string]any)
-		if !ok {
-			return domain.SetStatusEvent{
-				Message:    "Invalid side effect data format",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
-
-		ctx, ok1 := dataMap["context"].(context.Context)
-		diff, ok2 := dataMap["diff"].(string)
-		currentBranch, ok3 := dataMap["currentBranch"].(string)
-		isMainBranch, ok4 := dataMap["isMainBranch"].(bool)
-
-		if !ok1 || !ok2 || !ok3 || !ok4 {
-			return domain.SetStatusEvent{
-				Message:    "Missing PR data",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
-
-		scmShortcut, ok := dataMap["scmShortcut"].(*shortcuts.SCMShortcut)
-		if !ok {
-			return domain.SetStatusEvent{
-				Message:    "Missing or invalid SCM shortcut data",
-				Spinner:    false,
-				StatusType: domain.StatusDefault,
-			}
-		}
-
-		plan, err := scmShortcut.GeneratePRPlan(ctx, diff, currentBranch, isMainBranch)
-		if err != nil {
-			errorEntry := domain.ConversationEntry{
-				Message: sdk.Message{
-					Role:    sdk.Assistant,
-					Content: sdk.NewMessageContent(fmt.Sprintf("**PR Plan Generation Failed**\n\n%v", err)),
-				},
-				Model: "",
-				Time:  time.Now(),
-			}
-
-			if addErr := s.handler.conversationRepo.AddMessage(errorEntry); addErr != nil {
-				logger.Error("failed to add PR plan error message", "error", addErr)
-			}
-
-			return tea.Batch(
-				func() tea.Msg {
-					return domain.UpdateHistoryEvent{
-						History: s.handler.conversationRepo.GetMessages(),
-					}
-				},
-				func() tea.Msg {
-					return domain.SetStatusEvent{
-						Message:    fmt.Sprintf("%s PR plan generation failed: %v", icons.CrossMark, err),
-						Spinner:    false,
-						StatusType: domain.StatusDefault,
-					}
-				},
-			)()
-		}
-
-		formattedPlan := fmt.Sprintf(`## PR Plan
-
-%s
-
-**Next steps:** Type **yes** to proceed with this plan, or provide feedback to adjust it.`, plan)
-
-		planEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(formattedPlan),
-			},
-			Model: "",
-			Time:  time.Now(),
-		}
-
-		if addErr := s.handler.conversationRepo.AddMessage(planEntry); addErr != nil {
-			logger.Error("failed to add PR plan message", "error", addErr)
-		}
-
-		return tea.Batch(
-			func() tea.Msg {
-				return domain.UpdateHistoryEvent{
-					History: s.handler.conversationRepo.GetMessages(),
-				}
-			},
-			func() tea.Msg {
-				return domain.SetStatusEvent{
-					Message:    fmt.Sprintf("%s PR plan generated - review and confirm", icons.CheckMark),
 					Spinner:    false,
 					StatusType: domain.StatusDefault,
 				}

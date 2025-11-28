@@ -6,6 +6,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // Registry manages all available shortcuts
@@ -22,11 +25,11 @@ func NewRegistry() *Registry {
 }
 
 // LoadCustomShortcuts loads user-defined shortcuts from the specified base directory
-func (r *Registry) LoadCustomShortcuts(baseDir string) error {
+func (r *Registry) LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.ModelService) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	customShortcuts, err := LoadCustomShortcuts(baseDir)
+	customShortcuts, err := LoadCustomShortcuts(baseDir, client, modelService)
 	if err != nil {
 		return fmt.Errorf("failed to load custom shortcuts: %w", err)
 	}
