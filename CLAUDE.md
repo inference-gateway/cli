@@ -323,6 +323,42 @@ When adding a new tool:
 4. Update config schema in `config/config.go`
 5. Add tool definition to relevant documentation
 
+### Working with Shortcuts
+
+The CLI includes a shortcuts system for quick command execution via `/shortcut-name` syntax.
+
+**Built-in Shortcuts:**
+
+Built-in shortcuts are implemented in `internal/shortcuts/` and include:
+
+- `init_github_action.go`: Interactive wizard for setting up GitHub App credentials for infer-action bot
+  - Guides users through creating or configuring a GitHub App
+  - Opens browser with pre-filled app creation form
+  - Provides file picker for selecting `.pem` private key files
+  - Supports both personal and organization repositories
+  - Handles App ID input and private key configuration
+
+Other built-in shortcuts include: clear, exit, help, switch, theme, config, compact, export, init, and git commands.
+
+**Adding a New Shortcut:**
+
+When adding a new built-in shortcut:
+
+1. Create implementation in `internal/shortcuts/{shortcut_name}.go`
+2. Implement the `Shortcut` interface:
+   - `GetName()`: Returns shortcut name (e.g., "init-github-action")
+   - `GetDescription()`: Returns user-friendly description
+   - `GetUsage()`: Returns usage string (e.g., "/init-github-action")
+   - `CanExecute(args []string)`: Validates if shortcut can execute with given args
+   - `Execute(ctx, args)`: Executes the shortcut logic
+3. Register shortcut in `internal/container/container.go`
+4. Add documentation to `README.md` in the "Shortcuts System" section
+5. If the shortcut has a UI component, create it in `internal/ui/components/`
+
+**User-Defined Shortcuts:**
+
+Users can create custom shortcuts by adding YAML files to `.infer/shortcuts/custom-*.yaml`.
+
 ### Dependency Injection
 
 The application uses a container pattern (`internal/container/`):
