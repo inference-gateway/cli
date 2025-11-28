@@ -104,6 +104,7 @@ tasks:
     deps:
       - fmt
       - vet
+      - lint
       - test
 
   dev:

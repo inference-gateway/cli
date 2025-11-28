@@ -693,123 +693,134 @@ func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) 
 		}
 
 		if !isOrg {
-			workflowContent := app.generateStandardWorkflowContent()
-			workflowPath := ".github/workflows/infer.yml"
-
-			if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
-				return domain.ShowErrorEvent{
-					Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
-					Sticky: true,
-				}
-			}
-
-			prURL, err := app.preparePRCreation(repo, workflowPath)
-			if err != nil {
-				return domain.ShowErrorEvent{
-					Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
-					Sticky: true,
-				}
-			}
-
-			messageText := fmt.Sprintf("✅ GitHub workflow configured with github-actions[bot]!\n\nCreate your pull request here:\n%s", prURL)
-			message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
-			entry := domain.ConversationEntry{
-				Message: message,
-				Time:    time.Now(),
-			}
-			_ = app.conversationRepo.AddMessage(entry)
-
-			return tea.Batch(
-				func() tea.Msg {
-					return domain.UpdateHistoryEvent{
-						History: app.conversationRepo.GetMessages(),
-					}
-				},
-				func() tea.Msg {
-					return domain.SetStatusEvent{
-						Message:    "",
-						Spinner:    false,
-						StatusType: domain.StatusDefault,
-					}
-				},
-			)()
+			return app.setupStandardWorkflow(repo)
 		}
 
-		orgName := strings.Split(repo, "/")[0]
-
-		secretsExist, err := app.checkOrgSecretsExist(orgName)
-		if err != nil {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
-				Sticky: true,
-			}
-		}
-
-		if !secretsExist && privateKeyPath != "" {
-			privateKey, err := app.fileService.ReadFile(privateKeyPath)
-			if err != nil {
-				return domain.ShowErrorEvent{
-					Error:  fmt.Sprintf("Failed to read private key: %v", err),
-					Sticky: true,
-				}
-			}
-
-			if err := app.setOrgSecret(orgName, "INFER_APP_ID", appID); err != nil {
-				return domain.ShowErrorEvent{
-					Error:  fmt.Sprintf("Failed to set org secret INFER_APP_ID: %v", err),
-					Sticky: true,
-				}
-			}
-
-			if err := app.setOrgSecret(orgName, "INFER_APP_PRIVATE_KEY", privateKey); err != nil {
-				return domain.ShowErrorEvent{
-					Error:  fmt.Sprintf("Failed to set org secret INFER_APP_PRIVATE_KEY: %v", err),
-					Sticky: true,
-				}
-			}
-		}
-
-		workflowContent := app.generateGitHubAppWorkflowContent()
-		workflowPath := ".github/workflows/infer.yml"
-
-		if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
-				Sticky: true,
-			}
-		}
-
-		prURL, err := app.preparePRCreation(repo, workflowPath)
-		if err != nil {
-			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
-				Sticky: true,
-			}
-		}
-
-		messageText := fmt.Sprintf("✅ GitHub App configured with org-level secrets!\n\nCreate your pull request here:\n%s", prURL)
-		message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
-		entry := domain.ConversationEntry{
-			Message: message,
-			Time:    time.Now(),
-		}
-		_ = app.conversationRepo.AddMessage(entry)
-
-		return tea.Batch(
-			func() tea.Msg {
-				return domain.UpdateHistoryEvent{
-					History: app.conversationRepo.GetMessages(),
-				}
-			},
-			func() tea.Msg {
-				return domain.SetStatusEvent{
-					Message:    "",
-					Spinner:    false,
-					StatusType: domain.StatusDefault,
-				}
-			},
-		)()
+		return app.setupOrgWorkflow(repo, appID, privateKeyPath)
 	}
+}
+
+func (app *ChatApplication) setupStandardWorkflow(repo string) tea.Msg {
+	workflowContent := app.generateStandardWorkflowContent()
+	workflowPath := ".github/workflows/infer.yml"
+
+	if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
+			Sticky: true,
+		}
+	}
+
+	prURL, err := app.preparePRCreation(repo, workflowPath)
+	if err != nil {
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
+			Sticky: true,
+		}
+	}
+
+	return app.createSuccessMessage(repo, prURL, "✅ GitHub workflow configured with github-actions[bot]!")
+}
+
+func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string) tea.Msg {
+	orgName := strings.Split(repo, "/")[0]
+
+	secretsExist, err := app.checkOrgSecretsExist(orgName)
+	if err != nil {
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to check org secrets: %v", err),
+			Sticky: true,
+		}
+	}
+
+	if !secretsExist && privateKeyPath != "" {
+		if err := app.setupOrgSecrets(orgName, appID, privateKeyPath); err != nil {
+			return err
+		}
+	}
+
+	workflowContent := app.generateGitHubAppWorkflowContent()
+	workflowPath := ".github/workflows/infer.yml"
+
+	if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to write workflow file: %v", err),
+			Sticky: true,
+		}
+	}
+
+	prURL, err := app.preparePRCreation(repo, workflowPath)
+	if err != nil {
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to prepare PR: %v. You can manually commit and push the changes.", err),
+			Sticky: true,
+		}
+	}
+
+	return app.createSuccessMessage(repo, prURL, "✅ GitHub App configured with org-level secrets!")
+}
+
+func (app *ChatApplication) setupOrgSecrets(orgName, appID, privateKeyPath string) tea.Msg {
+	privateKey, err := app.fileService.ReadFile(privateKeyPath)
+	if err != nil {
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to read private key: %v", err),
+			Sticky: true,
+		}
+	}
+
+	if err := app.setOrgSecret(orgName, "INFER_APP_ID", appID); err != nil {
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to set org secret INFER_APP_ID: %v", err),
+			Sticky: true,
+		}
+	}
+
+	if err := app.setOrgSecret(orgName, "INFER_APP_PRIVATE_KEY", privateKey); err != nil {
+		return domain.ShowErrorEvent{
+			Error:  fmt.Sprintf("Failed to set org secret INFER_APP_PRIVATE_KEY: %v", err),
+			Sticky: true,
+		}
+	}
+
+	return nil
+}
+
+func (app *ChatApplication) createSuccessMessage(repo, prURL, successMsg string) tea.Msg {
+	parts := strings.Split(repo, "/")
+	repoOwner := ""
+	repoName := ""
+	if len(parts) == 2 {
+		repoOwner = parts[0]
+		repoName = parts[1]
+	}
+	installURL := app.githubAppSetupView.GetInstallationURL(repoOwner, repoName)
+
+	messageText := fmt.Sprintf("%s\n\n"+
+		"Next steps:\n"+
+		"1. Install the GitHub App on your repository:\n   %s\n\n"+
+		"2. Create your pull request here:\n   %s", successMsg, installURL, prURL)
+	message, _ := sdk.NewTextMessage(sdk.Assistant, messageText)
+	entry := domain.ConversationEntry{
+		Message: message,
+		Time:    time.Now(),
+	}
+	_ = app.conversationRepo.AddMessage(entry)
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: app.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)()
 }
 
 func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.Cmd {

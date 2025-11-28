@@ -477,3 +477,11 @@ func openBrowser(url string) error {
 
 	return cmd.Start()
 }
+
+// GetInstallationURL returns the URL to install the GitHub App on a repository
+func (v *GitHubAppSetupView) GetInstallationURL(repoOwner, repoName string) string {
+	if repoOwner != "" && repoName != "" {
+		return fmt.Sprintf("https://github.com/apps/infer-bot/installations/new/permissions?target_id=%s&repository=%s", repoOwner, repoName)
+	}
+	return "https://github.com/apps/infer-bot/installations/new"
+}
