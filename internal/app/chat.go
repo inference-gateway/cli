@@ -520,28 +520,28 @@ func (app *ChatApplication) handleInitGithubActionView(msg tea.Msg) []tea.Cmd {
 
 	if app.initGithubActionView.IsDone() {
 		if app.initGithubActionView.IsCancelled() {
-			return app.handleGitHubAppSetupCancelled(cmds)
+			return app.handleInitGithubActionCancelled(cmds)
 		}
-		return app.handleGitHubAppSetupComplete(cmds)
+		return app.handleInitGithubActionCompleted(cmds)
 	}
 
 	return cmds
 }
 
-func (app *ChatApplication) handleGitHubAppSetupComplete(cmds []tea.Cmd) []tea.Cmd {
+func (app *ChatApplication) handleInitGithubActionCompleted(cmds []tea.Cmd) []tea.Cmd {
 	appID, privateKeyPath, err := app.initGithubActionView.GetResult()
 
 	if err != nil {
 		cmds = append(cmds, func() tea.Msg {
 			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("GitHub App setup failed: %v", err),
+				Error:  fmt.Sprintf("Init Github Action setup failed: %v", err),
 				Sticky: false,
 			}
 		})
 	} else {
 		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{
-				Message:    "Setting up GitHub App...",
+				Message:    "Setting up Init Github Action...",
 				Spinner:    true,
 				StatusType: domain.StatusDefault,
 			}
@@ -568,10 +568,10 @@ func (app *ChatApplication) handleGitHubAppSetupComplete(cmds []tea.Cmd) []tea.C
 	return cmds
 }
 
-func (app *ChatApplication) handleGitHubAppSetupCancelled(cmds []tea.Cmd) []tea.Cmd {
+func (app *ChatApplication) handleInitGithubActionCancelled(cmds []tea.Cmd) []tea.Cmd {
 	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message:    "GitHub App setup cancelled",
+			Message:    "Init Github Action setup cancelled",
 			Spinner:    false,
 			StatusType: domain.StatusDefault,
 		}
@@ -654,7 +654,7 @@ func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
 	if err := app.stateManager.TransitionToView(domain.ViewStateGitHubAppSetup); err != nil {
 		cmds = append(cmds, func() tea.Msg {
 			return domain.ShowErrorEvent{
-				Error:  fmt.Sprintf("Failed to show GitHub App setup: %v", err),
+				Error:  fmt.Sprintf("Failed to show Init Github Action setup: %v", err),
 				Sticky: false,
 			}
 		})
@@ -663,7 +663,7 @@ func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
 
 	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message:    "Setting up GitHub App...",
+			Message:    "Setting up Init GitHub Action...",
 			Spinner:    false,
 			StatusType: domain.StatusDefault,
 		}
@@ -1579,8 +1579,6 @@ func (app *ChatApplication) ToggleRawFormat() {
 	app.conversationView.ToggleRawFormat()
 }
 
-// GitHub App Setup Helper Methods
-
 func (app *ChatApplication) getCurrentRepo() (string, error) {
 	cmd := exec.Command("gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner")
 	output, err := cmd.Output()
@@ -1666,7 +1664,7 @@ jobs:
         uses: actions/checkout@v5
 
       - name: Run Infer Agent
-        uses: inference-gateway/infer-action@v0.3.1
+        uses: inference-gateway/infer-action@main
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           trigger-phrase: "@infer"

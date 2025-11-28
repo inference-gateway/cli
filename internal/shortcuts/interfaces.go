@@ -46,7 +46,7 @@ const (
 	SideEffectCompactConversation
 	SideEffectA2AAgentAdded
 	SideEffectA2AAgentRemoved
-	SideEffectShowGitHubAppSetup
+	SideEffectShowInitGithubActionSetup
 )
 
 // PersistentConversationRepository interface for conversation persistence

@@ -4,37 +4,37 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
-// GitHubAppShortcut helps setup GitHub App for infer-action
-type GitHubAppShortcut struct{}
+// InitGithubActionShortcut helps setup Init GitHub Action for infer-action
+type InitGithubActionShortcut struct{}
 
-// NewGitHubAppShortcut creates a new GitHub App setup shortcut
-func NewGitHubAppShortcut() *GitHubAppShortcut {
-	return &GitHubAppShortcut{}
+// NewInitGithubActionShortcut creates a new Init GitHub Action setup shortcut
+func NewInitGithubActionShortcut() *InitGithubActionShortcut {
+	return &InitGithubActionShortcut{}
 }
 
-func (g *GitHubAppShortcut) GetName() string {
+func (g *InitGithubActionShortcut) GetName() string {
 	return "init-github-action"
 }
 
-func (g *GitHubAppShortcut) GetDescription() string {
+func (g *InitGithubActionShortcut) GetDescription() string {
 	return "Setup GitHub App for infer-action bot identity (interactive wizard)"
 }
 
-func (g *GitHubAppShortcut) GetUsage() string {
+func (g *InitGithubActionShortcut) GetUsage() string {
 	return "/init-github-action"
 }
 
-func (g *GitHubAppShortcut) CanExecute(args []string) bool {
+func (g *InitGithubActionShortcut) CanExecute(args []string) bool {
 	return len(args) == 0
 }
 
-func (g *GitHubAppShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+func (g *InitGithubActionShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	return ShortcutResult{
 		Output:     fmt.Sprintf("%s Launching GitHub App Setup Wizard...", icons.Robot),
 		Success:    true,
-		SideEffect: SideEffectShowGitHubAppSetup,
+		SideEffect: SideEffectShowInitGithubActionSetup,
 	}, nil
 }

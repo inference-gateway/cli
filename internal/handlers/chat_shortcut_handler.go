@@ -179,7 +179,7 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleStartNewConversationSideEffect(data)
 	case shortcuts.SideEffectShowA2AServers:
 		return s.handleShowA2AServersSideEffect()
-	case shortcuts.SideEffectShowGitHubAppSetup:
+	case shortcuts.SideEffectShowInitGithubActionSetup:
 		return s.handleShowGitHubAppSetupSideEffect()
 	case shortcuts.SideEffectShowA2ATaskManagement:
 		return s.handleShowA2ATaskManagementSideEffect()

@@ -12,7 +12,7 @@ import (
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
-// InitGithubActionView implements the GitHub App setup wizard UI
+// InitGithubActionView implements the Init GitHub Action setup wizard UI
 type InitGithubActionView struct {
 	width         int
 	height        int
@@ -45,7 +45,7 @@ type InitGithubActionView struct {
 	checkSecretsExist func(appID string) bool
 }
 
-// NewInitGithubActionView creates a new GitHub App setup wizard
+// NewInitGithubActionView creates a new Init GitHub Action setup wizard
 func NewInitGithubActionView(styleProvider *styles.Provider) *InitGithubActionView {
 	return &InitGithubActionView{
 		width:         80,
@@ -267,7 +267,7 @@ func (v *InitGithubActionView) View() string {
 	var b strings.Builder
 
 	accentColor := v.styleProvider.GetThemeColor("accent")
-	b.WriteString(v.styleProvider.RenderWithColor("GitHub App Setup Wizard", accentColor))
+	b.WriteString(v.styleProvider.RenderWithColor("Init GitHub Action Setup Wizard", accentColor))
 	b.WriteString("\n\n")
 
 	switch v.step {
