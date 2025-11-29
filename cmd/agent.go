@@ -286,49 +286,8 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 	var messages []sdk.Message
 
 	for _, msg := range s.conversation {
-		var role sdk.MessageRole
-		switch msg.Role {
-		case "user":
-			role = sdk.User
-		case "assistant":
-			role = sdk.Assistant
-		case "tool":
-			role = sdk.Tool
-		case "system":
-			role = sdk.System
-		default:
-			role = sdk.User
-		}
-
-		// Build multimodal content if images are present
-		var content sdk.MessageContent
-		if len(msg.Images) > 0 {
-			var contentParts []sdk.ContentPart
-
-			// Add text content part
-			textPart, err := sdk.NewTextContentPart(msg.Content)
-			if err != nil {
-				logger.Warn("Failed to create text content part", "error", err)
-				content = sdk.NewMessageContent(msg.Content)
-			} else {
-				contentParts = append(contentParts, textPart)
-
-				// Add image content parts
-				for _, img := range msg.Images {
-					dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
-					imagePart, err := sdk.NewImageContentPart(dataURL, nil)
-					if err != nil {
-						logger.Warn("Failed to create image content part", "filename", img.Filename, "error", err)
-						continue
-					}
-					contentParts = append(contentParts, imagePart)
-				}
-
-				content = sdk.NewMessageContent(contentParts)
-			}
-		} else {
-			content = sdk.NewMessageContent(msg.Content)
-		}
+		role := s.convertRole(msg.Role)
+		content := s.buildMessageContent(msg)
 
 		sdkMsg := sdk.Message{
 			Role:    role,
@@ -347,6 +306,56 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 	}
 
 	return messages
+}
+
+func (s *AgentSession) convertRole(role string) sdk.MessageRole {
+	switch role {
+	case "user":
+		return sdk.User
+	case "assistant":
+		return sdk.Assistant
+	case "tool":
+		return sdk.Tool
+	case "system":
+		return sdk.System
+	default:
+		return sdk.User
+	}
+}
+
+func (s *AgentSession) buildMessageContent(msg ConversationMessage) sdk.MessageContent {
+	if len(msg.Images) == 0 {
+		return sdk.NewMessageContent(msg.Content)
+	}
+
+	contentParts := s.buildContentParts(msg)
+	if contentParts == nil {
+		return sdk.NewMessageContent(msg.Content)
+	}
+
+	return sdk.NewMessageContent(contentParts)
+}
+
+func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentPart {
+	textPart, err := sdk.NewTextContentPart(msg.Content)
+	if err != nil {
+		logger.Warn("Failed to create text content part", "error", err)
+		return nil
+	}
+
+	contentParts := []sdk.ContentPart{textPart}
+
+	for _, img := range msg.Images {
+		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
+		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
+		if err != nil {
+			logger.Warn("Failed to create image content part", "filename", img.Filename, "error", err)
+			continue
+		}
+		contentParts = append(contentParts, imagePart)
+	}
+
+	return contentParts
 }
 
 func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
