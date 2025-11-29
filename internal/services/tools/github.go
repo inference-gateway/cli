@@ -1000,7 +1000,6 @@ func extractImageURLs(text string) []string {
 	var urls []string
 	urlSet := make(map[string]bool)
 
-	// Extract from HTML <img> tags
 	htmlImgRegex := regexp.MustCompile(`<img[^>]*src="([^"]+)"[^>]*\/?>`)
 	htmlMatches := htmlImgRegex.FindAllStringSubmatch(text, -1)
 	for _, match := range htmlMatches {
@@ -1010,7 +1009,6 @@ func extractImageURLs(text string) []string {
 		}
 	}
 
-	// Extract from markdown image syntax
 	mdImgRegex := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
 	mdMatches := mdImgRegex.FindAllStringSubmatch(text, -1)
 	for _, match := range mdMatches {
