@@ -674,6 +674,7 @@ infer agent "Analyze @error.log and this screenshot" --files debug-screen.png
 **Image and File Support:**
 
 The agent command supports multimodal content for vision-capable models:
+
 - Use `--files` or `-f` flag to attach images or files
 - Use `@filename` syntax in the task description to reference files
 - Supported image formats: PNG, JPEG, GIF, WebP
