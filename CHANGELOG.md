@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.72.0](https://github.com/inference-gateway/cli/compare/v0.71.0...v0.72.0) (2025-11-29)
+
+### 🚀 Features
+
+* **vision:** Add markdown image syntax support for URLs and file paths ([#285](https://github.com/inference-gateway/cli/issues/285)) ([6d666c1](https://github.com/inference-gateway/cli/commit/6d666c14f2128bd0349cf71546be90e43567d474)), closes [#284](https://github.com/inference-gateway/cli/issues/284)
+
 ## [0.71.0](https://github.com/inference-gateway/cli/compare/v0.70.0...v0.71.0) (2025-11-29)
 
 ### 🚀 Features
