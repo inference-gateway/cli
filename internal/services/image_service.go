@@ -8,10 +8,13 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
@@ -76,6 +79,69 @@ func (s *ImageService) IsImageFile(filePath string) bool {
 	filePath = s.normalizeFilePath(filePath)
 	ext := strings.ToLower(filepath.Ext(filePath))
 
+	supportedExts := map[string]bool{
+		".png":  true,
+		".jpg":  true,
+		".jpeg": true,
+		".gif":  true,
+		".webp": true,
+	}
+
+	return supportedExts[ext]
+}
+
+// ReadImageFromURL fetches an image from a URL and returns it as a base64 attachment
+func (s *ImageService) ReadImageFromURL(imageURL string) (*domain.ImageAttachment, error) {
+	// Create HTTP client with timeout
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+
+	// Fetch the image
+	resp, err := client.Get(imageURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch image from URL: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch image: HTTP %d", resp.StatusCode)
+	}
+
+	// Read the image data
+	imageData, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image data: %w", err)
+	}
+
+	// Extract filename from URL
+	parsedURL, err := url.Parse(imageURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URL: %w", err)
+	}
+	filename := filepath.Base(parsedURL.Path)
+	if filename == "" || filename == "." || filename == "/" {
+		filename = "image"
+	}
+
+	return s.ReadImageFromBinary(imageData, filename)
+}
+
+// IsImageURL checks if a string is a valid image URL
+func (s *ImageService) IsImageURL(urlStr string) bool {
+	// Check if it's a valid URL
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return false
+	}
+
+	// Must have http or https scheme
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return false
+	}
+
+	// Check if the URL path has an image extension
+	ext := strings.ToLower(filepath.Ext(parsedURL.Path))
 	supportedExts := map[string]bool{
 		".png":  true,
 		".jpg":  true,
