@@ -643,6 +643,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					conversation = append(conversation, toolResult)
 				}
 
+				s.addImageMessageFromToolResults(toolResults, &conversation)
+
 				if hasRejection {
 					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
 					return
@@ -1058,6 +1060,7 @@ done:
 		Metadata:  result.Metadata,
 		Diff:      result.Diff,
 		Error:     result.Error,
+		Images:    result.Images,
 	}
 
 	if result.ToolName == "TodoWrite" && result.Success {
@@ -1083,6 +1086,65 @@ done:
 	}
 
 	return entry
+}
+
+// addImageMessageFromToolResults adds images from tool results as a separate hidden user message
+// This ensures compatibility with all providers (Anthropic requires tool messages to be text-only)
+func (s *AgentServiceImpl) addImageMessageFromToolResults(toolResults []domain.ConversationEntry, conversation *[]sdk.Message) {
+	imageMessage := s.createImageMessageFromToolResults(toolResults)
+	if imageMessage == nil {
+		return
+	}
+
+	*conversation = append(*conversation, *imageMessage)
+
+	imageEntry := domain.ConversationEntry{
+		Message: *imageMessage,
+		Time:    time.Now(),
+		Hidden:  true,
+	}
+	if err := s.conversationRepo.AddMessage(imageEntry); err != nil {
+		logger.Error("failed to add image message from tool results", "error", err)
+	}
+}
+
+// createImageMessageFromToolResults creates a hidden user message containing images from tool results
+// Returns nil if no images are present
+func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domain.ConversationEntry) *sdk.Message {
+	var allImages []domain.ImageAttachment
+
+	for _, result := range toolResults {
+		if result.ToolExecution != nil && len(result.ToolExecution.Images) > 0 {
+			allImages = append(allImages, result.ToolExecution.Images...)
+		}
+	}
+
+	if len(allImages) == 0 {
+		return nil
+	}
+
+	var contentParts []sdk.ContentPart
+	textPart, err := sdk.NewTextContentPart(fmt.Sprintf("Tool execution returned %d image(s) for analysis:", len(allImages)))
+	if err == nil {
+		contentParts = append(contentParts, textPart)
+	}
+
+	for i, img := range allImages {
+		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
+		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
+		if err != nil {
+			logger.Warn("Failed to create image content part", "index", i, "filename", img.Filename, "error", err)
+			continue
+		}
+		contentParts = append(contentParts, imagePart)
+	}
+
+	logger.Debug("Created image message from tool results", "image_count", len(allImages))
+
+	return &sdk.Message{
+		Role:    sdk.User,
+		Content: sdk.NewMessageContent(contentParts),
+	}
 }
 
 // requestToolApproval requests user approval for a tool and waits for response

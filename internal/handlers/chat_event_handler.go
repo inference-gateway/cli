@@ -510,11 +510,6 @@ func (e *ChatEventHandler) handleToolExecutionCompleted(
 		cmds = append(cmds, todoUpdateCmd)
 	}
 
-	imageCmd := e.extractAndAddImages(msg.Results)
-	if imageCmd != nil {
-		cmds = append(cmds, imageCmd)
-	}
-
 	return tea.Batch(cmds...)
 }
 
@@ -538,75 +533,6 @@ func (e *ChatEventHandler) extractTodoUpdateCmd(results []*domain.ToolExecutionR
 		}
 	}
 	return nil
-}
-
-// extractAndAddImages checks tool results for images and adds them to conversation
-func (e *ChatEventHandler) extractAndAddImages(results []*domain.ToolExecutionResult) tea.Cmd {
-	var allImages []domain.ImageAttachment
-
-	for _, result := range results {
-		if result != nil && len(result.Images) > 0 {
-			allImages = append(allImages, result.Images...)
-		}
-	}
-
-	if len(allImages) == 0 {
-		return nil
-	}
-
-	if !e.handler.config.Gateway.VisionEnabled {
-		logger.Warn("Skipping image extraction - vision is disabled in gateway config",
-			"image_count", len(allImages),
-		)
-		return nil
-	}
-
-	currentModel := e.handler.modelService.GetCurrentModel()
-	if !e.handler.modelService.IsVisionModel(currentModel) {
-		logger.Warn("Skipping image extraction - model does not support vision",
-			"model", currentModel,
-			"image_count", len(allImages),
-		)
-		return nil
-	}
-
-	return func() tea.Msg {
-		var contentParts []sdk.ContentPart
-
-		textPart, err := sdk.NewTextContentPart(fmt.Sprintf("Extracted %d image(s) from tool result:", len(allImages)))
-		if err == nil {
-			contentParts = append(contentParts, textPart)
-		}
-
-		for i, img := range allImages {
-			dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
-			imagePart, err := sdk.NewImageContentPart(dataURL, nil)
-			if err != nil {
-				logger.Warn("Failed to create image content part", "index", i, "filename", img.Filename, "error", err)
-				continue
-			}
-			contentParts = append(contentParts, imagePart)
-		}
-
-		imageEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.User,
-				Content: sdk.NewMessageContent(contentParts),
-			},
-			Images: allImages,
-			Time:   time.Now(),
-			Hidden: true,
-		}
-
-		if err := e.handler.conversationRepo.AddMessage(imageEntry); err != nil {
-			logger.Error("failed to add image message from tool result", "error", err)
-			return nil
-		}
-
-		return domain.UpdateHistoryEvent{
-			History: e.handler.conversationRepo.GetMessages(),
-		}
-	}
 }
 
 func (e *ChatEventHandler) handleParallelToolsStart(
