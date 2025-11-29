@@ -30,7 +30,7 @@ func (a *A2AShortcut) GetDescription() string {
 	return "Manage A2A agent servers (list, add, remove)"
 }
 func (a *A2AShortcut) GetUsage() string {
-	return "/a2a [list|add <name> [url] [--oci IMAGE] [--artifacts-url URL] [--run] [--model MODEL] [--environment KEY=VALUE ...]|remove <name>]"
+	return "/a2a [list|add <name>|remove <name>]"
 }
 
 func (a *A2AShortcut) CanExecute(args []string) bool {
