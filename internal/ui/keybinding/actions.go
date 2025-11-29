@@ -81,10 +81,22 @@ func (r *Registry) createChatActions() []*KeyAction {
 		},
 		{
 			ID:          "toggle_raw_format",
-			Keys:        []string{"ctrl+r"},
+			Keys:        []string{"ctrl+shift+r"},
 			Description: "toggle raw/rendered markdown",
 			Category:    "display",
 			Handler:     handleToggleRawFormat,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
+			ID:          "history_search",
+			Keys:        []string{"ctrl+r"},
+			Description: "recursive history search",
+			Category:    "navigation",
+			Handler:     handleHistorySearch,
 			Priority:    150,
 			Enabled:     true,
 			Context: KeyContext{
@@ -1239,5 +1251,24 @@ func handlePlanApprovalAcceptAndAutoApprove(app KeyHandlerContext, keyMsg tea.Ke
 		return domain.PlanApprovalResponseEvent{
 			Action: domain.PlanApprovalAcceptAndAutoApprove,
 		}
+	}
+}
+
+// handleHistorySearch opens the recursive history search UI
+func handleHistorySearch(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+
+	// Transition to history search view
+	err := stateManager.TransitionToView(domain.ViewStateHistorySearch)
+	if err != nil {
+		return func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error: "Failed to open history search: " + err.Error(),
+			}
+		}
+	}
+
+	return func() tea.Msg {
+		return domain.HistorySearchRequestedEvent{}
 	}
 }

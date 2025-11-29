@@ -59,6 +59,7 @@ type ChatApplication struct {
 	conversationSelector  *components.ConversationSelectorImpl
 	fileSelectionView     *components.FileSelectionView
 	textSelectionView     *components.TextSelectionView
+	historySearchView     *components.HistorySearchView
 	a2aServersView        *components.A2AServersView
 	taskManager           *components.TaskManagerImpl
 	toolCallRenderer      *components.ToolCallRenderer
@@ -169,6 +170,12 @@ func NewChatApplication(
 
 	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
 	app.textSelectionView = components.NewTextSelectionView(styleProvider)
+
+	// Initialize history search view with the input view's history manager
+	if iv, ok := app.inputView.(*components.InputView); ok {
+		historyManager := iv.GetHistoryManager()
+		app.historySearchView = components.NewHistorySearchView(historyManager, styleProvider)
+	}
 
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
 	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
@@ -347,6 +354,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleConversationSelectionView(msg)
 	case domain.ViewStateThemeSelection:
 		return app.handleThemeSelectionView(msg)
+	case domain.ViewStateHistorySearch:
+		return app.handleHistorySearchView(msg)
 	case domain.ViewStateA2AServers:
 		return app.handleA2AServersView(msg)
 	case domain.ViewStateA2ATaskManagement:
@@ -495,6 +504,8 @@ func (app *ChatApplication) View() string {
 		return app.renderConversationSelection()
 	case domain.ViewStateThemeSelection:
 		return app.renderThemeSelection()
+	case domain.ViewStateHistorySearch:
+		return app.renderHistorySearch()
 	case domain.ViewStateA2AServers:
 		return app.renderA2AServers()
 	case domain.ViewStateA2ATaskManagement:
@@ -888,6 +899,61 @@ func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cm
 	return cmds
 }
 
+func (app *ChatApplication) handleHistorySearchView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	if app.historySearchView == nil {
+		cmds = append(cmds, func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  "History search view not initialized.",
+				Sticky: true,
+			}
+		})
+		return cmds
+	}
+
+	// Initialize on first entry or after reset
+	if app.historySearchView.IsDone() {
+		app.historySearchView.Reset()
+		if cmd := app.historySearchView.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	model, cmd := app.historySearchView.Update(msg)
+	app.historySearchView = model.(*components.HistorySearchView)
+
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	return app.handleHistorySearchSelection(cmds)
+}
+
+func (app *ChatApplication) handleHistorySearchSelection(cmds []tea.Cmd) []tea.Cmd {
+	if app.historySearchView.IsDone() {
+		if !app.historySearchView.IsCancelled() {
+			// User selected an entry
+			selected := app.historySearchView.GetSelected()
+			if selected != "" {
+				// Insert into input field
+				cmds = append(cmds, func() tea.Msg {
+					return domain.SetInputEvent{Text: selected}
+				})
+			}
+		}
+
+		// Return to chat view
+		if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+			return []tea.Cmd{tea.Quit}
+		}
+
+		app.focusedComponent = app.inputView
+	}
+
+	return cmds
+}
+
 func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
@@ -1118,6 +1184,17 @@ func (app *ChatApplication) renderConversationSelection() string {
 	app.conversationSelector.SetWidth(width)
 	app.conversationSelector.SetHeight(height)
 	return app.conversationSelector.View()
+}
+
+func (app *ChatApplication) renderHistorySearch() string {
+	if app.historySearchView == nil {
+		return "History search view not initialized."
+	}
+
+	width, height := app.stateManager.GetDimensions()
+	app.historySearchView.SetWidth(width)
+	app.historySearchView.SetHeight(height)
+	return app.historySearchView.View()
 }
 
 func (app *ChatApplication) renderA2ATaskManagement() string {

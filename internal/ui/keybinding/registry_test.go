@@ -39,7 +39,7 @@ func (t *testKeyHandlerContext) GetAgentService() domain.AgentService {
 }
 
 func (t *testKeyHandlerContext) GetImageService() domain.ImageService {
-	return services.NewImageService(config.DefaultConfig())
+	return services.NewImageService()
 }
 
 func (t *testKeyHandlerContext) GetConversationView() ui.ConversationRenderer {
@@ -302,8 +302,16 @@ func TestKeyResolution(t *testing.T) {
 	action = registry.Resolve("ctrl+r", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+r to resolve to an action")
+	} else if action.ID != "history_search" {
+		t.Errorf("Expected ctrl+r to resolve to 'history_search', got %s", action.ID)
+	}
+
+	// Test the new binding for toggle raw format
+	action = registry.Resolve("ctrl+shift+r", mockContext)
+	if action == nil {
+		t.Fatal("Expected ctrl+shift+r to resolve to an action")
 	} else if action.ID != "toggle_raw_format" {
-		t.Errorf("Expected ctrl+r to resolve to 'toggle_raw_format', got %s", action.ID)
+		t.Errorf("Expected ctrl+shift+r to resolve to 'toggle_raw_format', got %s", action.ID)
 	}
 
 	action = registry.Resolve("ctrl+z", mockContext)
@@ -400,7 +408,8 @@ func TestHelpShortcutGeneration(t *testing.T) {
 		if shortcut.Key == "ctrl+o" && shortcut.Description == "expand/collapse tool results" {
 			foundToggle = true
 		}
-		if shortcut.Key == "ctrl+r" && shortcut.Description == "toggle raw/rendered markdown" {
+		// Updated to use the new keybinding ctrl+shift+r
+		if shortcut.Key == "ctrl+shift+r" && shortcut.Description == "toggle raw/rendered markdown" {
 			foundRaw = true
 		}
 	}
@@ -412,7 +421,7 @@ func TestHelpShortcutGeneration(t *testing.T) {
 		t.Error("Expected toggle shortcut in help")
 	}
 	if !foundRaw {
-		t.Error("Expected raw format shortcut in help")
+		t.Error("Expected raw format shortcut in help (ctrl+shift+r)")
 	}
 }
 

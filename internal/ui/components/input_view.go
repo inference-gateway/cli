@@ -636,6 +636,11 @@ func (iv *InputView) ClearImageAttachments() {
 	iv.imageAttachments = []domain.ImageAttachment{}
 }
 
+// GetHistoryManager returns the history manager for external use
+func (iv *InputView) GetHistoryManager() *history.HistoryManager {
+	return iv.historyManager
+}
+
 // applyModePrefixStyling applies accent color styling to mode prefixes (! or !!)
 func (iv *InputView) applyModePrefixStyling(text string) string {
 	isToolsMode := strings.HasPrefix(iv.text, "!!")
