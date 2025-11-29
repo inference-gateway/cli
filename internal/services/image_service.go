@@ -8,21 +8,29 @@ import (
 	_ "image/gif"
 	_ "image/jpeg"
 	_ "image/png"
+	"io"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ImageService handles image operations including file-based image loading and base64 encoding
 // Note: Direct clipboard support requires platform-specific dependencies and is not yet implemented
-type ImageService struct{}
+type ImageService struct {
+	config *config.Config
+}
 
 // NewImageService creates a new image service
-func NewImageService() *ImageService {
-	return &ImageService{}
+func NewImageService(cfg *config.Config) *ImageService {
+	return &ImageService{
+		config: cfg,
+	}
 }
 
 // ReadImageFromFile reads an image from a file path and returns it as a base64 attachment
@@ -76,6 +84,72 @@ func (s *ImageService) IsImageFile(filePath string) bool {
 	filePath = s.normalizeFilePath(filePath)
 	ext := strings.ToLower(filepath.Ext(filePath))
 
+	supportedExts := map[string]bool{
+		".png":  true,
+		".jpg":  true,
+		".jpeg": true,
+		".gif":  true,
+		".webp": true,
+	}
+
+	return supportedExts[ext]
+}
+
+// ReadImageFromURL fetches an image from a URL and returns it as a base64 attachment
+func (s *ImageService) ReadImageFromURL(imageURL string) (*domain.ImageAttachment, error) {
+	timeout := time.Duration(s.config.Image.Timeout) * time.Second
+	client := &http.Client{
+		Timeout: timeout,
+	}
+
+	resp, err := client.Get(imageURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch image from URL: %w", err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("failed to fetch image: HTTP %d", resp.StatusCode)
+	}
+
+	maxSize := s.config.Image.MaxSize
+	if resp.ContentLength > 0 && resp.ContentLength > maxSize {
+		return nil, fmt.Errorf("image size (%d bytes) exceeds maximum allowed size (%d bytes)", resp.ContentLength, maxSize)
+	}
+
+	imageData, err := io.ReadAll(io.LimitReader(resp.Body, maxSize))
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image data: %w", err)
+	}
+
+	if int64(len(imageData)) >= maxSize {
+		return nil, fmt.Errorf("image exceeds maximum size of %d bytes", maxSize)
+	}
+
+	parsedURL, err := url.Parse(imageURL)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse URL: %w", err)
+	}
+	filename := filepath.Base(parsedURL.Path)
+	if filename == "" || filename == "." || filename == "/" {
+		filename = "image"
+	}
+
+	return s.ReadImageFromBinary(imageData, filename)
+}
+
+// IsImageURL checks if a string is a valid image URL
+func (s *ImageService) IsImageURL(urlStr string) bool {
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		return false
+	}
+
+	if parsedURL.Scheme != "http" && parsedURL.Scheme != "https" {
+		return false
+	}
+
+	ext := strings.ToLower(filepath.Ext(parsedURL.Path))
 	supportedExts := map[string]bool{
 		".png":  true,
 		".jpg":  true,

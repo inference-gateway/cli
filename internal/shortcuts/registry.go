@@ -25,11 +25,11 @@ func NewRegistry() *Registry {
 }
 
 // LoadCustomShortcuts loads user-defined shortcuts from the specified base directory
-func (r *Registry) LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.ModelService) error {
+func (r *Registry) LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
-	customShortcuts, err := LoadCustomShortcuts(baseDir, client, modelService)
+	customShortcuts, err := LoadCustomShortcuts(baseDir, client, modelService, imageService)
 	if err != nil {
 		return fmt.Errorf("failed to load custom shortcuts: %w", err)
 	}

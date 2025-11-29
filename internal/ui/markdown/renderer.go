@@ -6,6 +6,7 @@ import (
 	glamour "github.com/charmbracelet/glamour"
 	ansi "github.com/charmbracelet/glamour/ansi"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // Renderer handles markdown to styled terminal output conversion
@@ -45,9 +46,8 @@ func (r *Renderer) Render(content string) string {
 		return content
 	}
 
-	// Skip rendering if content doesn't contain markdown
 	if !containsMarkdown(content) {
-		return content
+		return shared.FormatResponsiveMessage(content, r.width)
 	}
 
 	rendered, err := r.renderer.Render(content)
@@ -55,7 +55,6 @@ func (r *Renderer) Render(content string) string {
 		return content
 	}
 
-	// Trim extra whitespace that glamour adds
 	rendered = strings.TrimSpace(rendered)
 	return rendered
 }
@@ -289,7 +288,6 @@ func containsMarkdown(content string) bool {
 		return false
 	}
 
-	// Check for common markdown patterns
 	patterns := []string{
 		"```",  // Code blocks
 		"**",   // Bold
@@ -309,12 +307,10 @@ func containsMarkdown(content string) bool {
 		}
 	}
 
-	// Check for inline code (backticks) but not in tool output
 	if strings.Contains(content, "`") && !strings.Contains(content, "Exit Code") {
 		return true
 	}
 
-	// Check for links [text](url) pattern
 	if strings.Contains(content, "](") && strings.Contains(content, "[") {
 		return true
 	}
@@ -433,7 +429,7 @@ func (r *Renderer) buildTextFormattingStyles(accentColor, dimColor, borderColor 
 		},
 		ImageText: ansi.StylePrimitive{
 			Color:  stringPtr(dimColor),
-			Format: "🖼  {{.text}}",
+			Format: "[Image: {{.text}}]",
 		},
 	}
 }

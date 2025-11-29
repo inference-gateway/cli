@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -18,21 +19,23 @@ import (
 
 // GithubTool handles GitHub API operations
 type GithubTool struct {
-	config    *config.Config
-	enabled   bool
-	client    *http.Client
-	formatter domain.BaseFormatter
+	config       *config.Config
+	enabled      bool
+	client       *http.Client
+	formatter    domain.BaseFormatter
+	imageService domain.ImageService
 }
 
 // NewGithubTool creates a new GitHub tool
-func NewGithubTool(cfg *config.Config) *GithubTool {
+func NewGithubTool(cfg *config.Config, imageService domain.ImageService) *GithubTool {
 	return &GithubTool{
 		config:  cfg,
 		enabled: cfg.Tools.Enabled && cfg.Tools.Github.Enabled,
 		client: &http.Client{
 			Timeout: time.Duration(cfg.Tools.Github.Safety.Timeout) * time.Second,
 		},
-		formatter: domain.NewBaseFormatter("GitHub"),
+		formatter:    domain.NewBaseFormatter("GitHub"),
+		imageService: imageService,
 	}
 }
 
@@ -161,7 +164,15 @@ func (t *GithubTool) Execute(ctx context.Context, args map[string]any) (*domain.
 		return t.createResult(args, start, nil, err.Error()), nil
 	}
 
-	return t.createResult(args, start, githubResult, ""), nil
+	result := t.createResult(args, start, githubResult, "")
+
+	if resource == "issue" && t.config.Gateway.VisionEnabled {
+		if issue, ok := githubResult.(*domain.GitHubIssue); ok {
+			result.Images = t.extractImagesFromIssue(issue)
+		}
+	}
+
+	return result, nil
 }
 
 // ToolExecutionError represents an error during tool execution
@@ -824,6 +835,10 @@ func (t *GithubTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
+	if len(result.Images) > 0 {
+		output.WriteString(fmt.Sprintf("\n[Images attached: %d image(s) from issue - you can see and analyze these images]\n", len(result.Images)))
+	}
+
 	hasDataSection := result.Data != nil
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
@@ -978,6 +993,52 @@ func (t *GithubTool) formatList(items []any) string {
 	}
 
 	return output.String()
+}
+
+// extractImageURLs extracts all image URLs from both HTML <img> tags and markdown ![](url) syntax
+func extractImageURLs(text string) []string {
+	var urls []string
+	urlSet := make(map[string]bool)
+
+	htmlImgRegex := regexp.MustCompile(`<img[^>]*src="([^"]+)"[^>]*\/?>`)
+	htmlMatches := htmlImgRegex.FindAllStringSubmatch(text, -1)
+	for _, match := range htmlMatches {
+		if len(match) > 1 && !urlSet[match[1]] {
+			urlSet[match[1]] = true
+			urls = append(urls, match[1])
+		}
+	}
+
+	mdImgRegex := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
+	mdMatches := mdImgRegex.FindAllStringSubmatch(text, -1)
+	for _, match := range mdMatches {
+		if len(match) > 2 && !urlSet[match[2]] {
+			urlSet[match[2]] = true
+			urls = append(urls, match[2])
+		}
+	}
+
+	return urls
+}
+
+// extractImagesFromIssue extracts images from a GitHub issue body and comments
+func (t *GithubTool) extractImagesFromIssue(issue *domain.GitHubIssue) []domain.ImageAttachment {
+	if t.imageService == nil {
+		return nil
+	}
+
+	var imageAttachments []domain.ImageAttachment
+
+	if issue.Body != "" {
+		imageURLs := extractImageURLs(issue.Body)
+		for _, url := range imageURLs {
+			if attachment, err := t.imageService.ReadImageFromURL(url); err == nil {
+				imageAttachments = append(imageAttachments, *attachment)
+			}
+		}
+	}
+
+	return imageAttachments
 }
 
 // ShouldCollapseArg determines if an argument should be collapsed in display

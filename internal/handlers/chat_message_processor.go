@@ -125,6 +125,7 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (*fileExpans
 	}
 
 	expandedContent := content
+
 	for _, match := range matches {
 		fullMatch := match[0]
 		filename := match[1]

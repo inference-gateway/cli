@@ -262,6 +262,10 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 		args = append(args, "-e", fmt.Sprintf("CLIENT_TIMEOUT=%ds", timeout))
 	}
 
+	if gm.config.Gateway.VisionEnabled {
+		args = append(args, "-e", "ENABLE_VISION=true")
+	}
+
 	args = append(args, gm.config.Gateway.OCI)
 
 	logger.Info("Starting gateway container", "command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
@@ -407,6 +411,10 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SERVER_WRITE_TIMEOUT=%ds", timeout))
 		cmd.Env = append(cmd.Env, fmt.Sprintf("SERVER_IDLE_TIMEOUT=%ds", timeout))
 		cmd.Env = append(cmd.Env, fmt.Sprintf("CLIENT_TIMEOUT=%ds", timeout))
+	}
+
+	if gm.config.Gateway.VisionEnabled {
+		cmd.Env = append(cmd.Env, "ENABLE_VISION=true")
 	}
 
 	if err := cmd.Start(); err != nil {

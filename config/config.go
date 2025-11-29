@@ -25,6 +25,7 @@ type Config struct {
 	Client       ClientConfig       `yaml:"client" mapstructure:"client"`
 	Logging      LoggingConfig      `yaml:"logging" mapstructure:"logging"`
 	Tools        ToolsConfig        `yaml:"tools" mapstructure:"tools"`
+	Image        ImageConfig        `yaml:"image" mapstructure:"image"`
 	Export       ExportConfig       `yaml:"export" mapstructure:"export"`
 	Agent        AgentConfig        `yaml:"agent" mapstructure:"agent"`
 	Git          GitConfig          `yaml:"git" mapstructure:"git"`
@@ -47,6 +48,7 @@ type GatewayConfig struct {
 	Docker        bool     `yaml:"docker" mapstructure:"docker"`
 	IncludeModels []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
 	ExcludeModels []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
+	VisionEnabled bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -69,6 +71,12 @@ type RetryConfig struct {
 type LoggingConfig struct {
 	Debug bool   `yaml:"debug" mapstructure:"debug"`
 	Dir   string `yaml:"dir" mapstructure:"dir"`
+}
+
+// ImageConfig contains image service settings
+type ImageConfig struct {
+	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
+	Timeout int   `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // ToolsConfig contains tool execution settings
@@ -423,6 +431,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				"ollama_cloud/kimi-k2-thinking",
 				"ollama_cloud/deepseek-v3.1:671b",
 			},
+			VisionEnabled: true,
 		},
 		Client: ClientConfig{
 			Timeout: 200,
@@ -531,6 +540,10 @@ func DefaultConfig() *Config { //nolint:funlen
 			Safety: SafetyConfig{
 				RequireApproval: true,
 			},
+		},
+		Image: ImageConfig{
+			MaxSize: 5242880, // 5MB
+			Timeout: 30,      // 30 seconds
 		},
 		Export: ExportConfig{
 			OutputDir:    ConfigDirName,

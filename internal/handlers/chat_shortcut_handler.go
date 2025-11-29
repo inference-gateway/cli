@@ -194,6 +194,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 			return s.handleA2AAgentRemovedSideEffectWithData(agentName)
 		}
 		return s.handleA2AAgentRemovedSideEffect()
+	case shortcuts.SideEffectEmbedImages:
+		return s.handleEmbedImagesSideEffect(data)
 	default:
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
@@ -664,7 +666,6 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			}
 		}
 
-		logger.Debug("Re-adding optimized messages", "count", len(optimizedMessages))
 		for _, msg := range optimizedMessages {
 			entry := domain.ConversationEntry{
 				Message: msg,
@@ -690,8 +691,6 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 		if addErr := s.handler.conversationRepo.AddMessage(infoEntry); addErr != nil {
 			logger.Error("failed to add compact info message", "error", addErr)
 		}
-
-		logger.Debug("Compaction complete", "reduction", reduction, "reduction_percent", reductionPercent)
 
 		return tea.Batch(
 			func() tea.Msg {
@@ -818,6 +817,79 @@ func (s *ChatShortcutHandler) handleA2AAgentRemovedSideEffectWithData(agentName 
 		func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    "Agent removed successfully",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)()
+}
+
+func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
+	imageAttachments, ok := data.([]domain.ImageAttachment)
+	if !ok {
+		return domain.SetStatusEvent{
+			Message:    "Invalid image data",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	var contentParts []sdk.ContentPart
+
+	textPart, err := sdk.NewTextContentPart(fmt.Sprintf("The issue contains %d image(s):", len(imageAttachments)))
+	if err != nil {
+		logger.Warn("Failed to create text content part", "error", err)
+	} else {
+		contentParts = append(contentParts, textPart)
+	}
+
+	for i, img := range imageAttachments {
+		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
+		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
+		if err != nil {
+			logger.Warn("Failed to create image content part", "index", i, "filename", img.Filename, "error", err)
+			continue
+		}
+		contentParts = append(contentParts, imagePart)
+	}
+
+	if len(contentParts) == 0 {
+		logger.Warn("No content parts created for image message")
+		return domain.SetStatusEvent{
+			Message:    "Failed to create image content",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	imageEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent(contentParts),
+		},
+		Images: imageAttachments,
+		Time:   time.Now(),
+		Hidden: true,
+	}
+
+	if err := s.handler.conversationRepo.AddMessage(imageEntry); err != nil {
+		logger.Error("failed to add image message", "error", err)
+		return domain.SetStatusEvent{
+			Message:    "Failed to embed images",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Embedded %d image(s) from GitHub issue", len(imageAttachments)),
 				Spinner:    false,
 				StatusType: domain.StatusDefault,
 			}

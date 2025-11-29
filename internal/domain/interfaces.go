@@ -248,10 +248,14 @@ type ImageService interface {
 	ReadImageFromFile(filePath string) (*ImageAttachment, error)
 	// ReadImageFromBinary reads an image from binary data and returns it as a base64 attachment
 	ReadImageFromBinary(imageData []byte, filename string) (*ImageAttachment, error)
+	// ReadImageFromURL fetches an image from a URL and returns it as a base64 attachment
+	ReadImageFromURL(imageURL string) (*ImageAttachment, error)
 	// CreateDataURL creates a data URL from an image attachment
 	CreateDataURL(attachment *ImageAttachment) string
 	// IsImageFile checks if a file is a supported image format
 	IsImageFile(filePath string) bool
+	// IsImageURL checks if a string is a valid image URL
+	IsImageURL(urlStr string) bool
 }
 
 // FileInfo contains file metadata
@@ -524,6 +528,7 @@ type ToolExecutionResult struct {
 	Metadata  map[string]string `json:"metadata,omitempty"`
 	Diff      string            `json:"diff,omitempty"`
 	Rejected  bool              `json:"rejected,omitempty"`
+	Images    []ImageAttachment `json:"images,omitempty"`
 }
 
 // BashToolResult represents the result of a bash command execution

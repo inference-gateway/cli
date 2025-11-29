@@ -43,14 +43,16 @@ type CustomShortcut struct {
 	config       CustomShortcutConfig
 	client       sdk.Client
 	modelService domain.ModelService
+	imageService domain.ImageService
 }
 
 // NewCustomShortcut creates a new custom shortcut from configuration
-func NewCustomShortcut(config CustomShortcutConfig, client sdk.Client, modelService domain.ModelService) *CustomShortcut {
+func NewCustomShortcut(config CustomShortcutConfig, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService) *CustomShortcut {
 	return &CustomShortcut{
 		config:       config,
 		client:       client,
 		modelService: modelService,
+		imageService: imageService,
 	}
 }
 
@@ -68,6 +70,76 @@ func (c *CustomShortcut) GetUsage() string {
 
 func (c *CustomShortcut) CanExecute(args []string) bool {
 	return true
+}
+
+// extractImageURLs extracts all image URLs from both HTML <img> tags and markdown ![](url) syntax
+func extractImageURLs(text string) []string {
+	var urls []string
+	urlSet := make(map[string]bool)
+
+	htmlImgRegex := regexp.MustCompile(`<img[^>]*src="([^"]+)"[^>]*\/?>`)
+	htmlMatches := htmlImgRegex.FindAllStringSubmatch(text, -1)
+	for _, match := range htmlMatches {
+		if len(match) > 1 && !urlSet[match[1]] {
+			urlSet[match[1]] = true
+			urls = append(urls, match[1])
+		}
+	}
+
+	mdImgRegex := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
+	mdMatches := mdImgRegex.FindAllStringSubmatch(text, -1)
+	for _, match := range mdMatches {
+		if len(match) > 2 && !urlSet[match[2]] {
+			urlSet[match[2]] = true
+			urls = append(urls, match[2])
+		}
+	}
+
+	return urls
+}
+
+// extractAllImageURLs extracts image URLs from both top-level text and nested JSON structures
+// This handles GitHub issues with images in comments
+func extractAllImageURLs(text string) []string {
+	urlSet := make(map[string]bool)
+	var urls []string
+
+	topLevelURLs := extractImageURLs(text)
+	for _, url := range topLevelURLs {
+		if !urlSet[url] {
+			urlSet[url] = true
+			urls = append(urls, url)
+		}
+	}
+
+	var jsonData map[string]any
+	if err := json.Unmarshal([]byte(text), &jsonData); err == nil {
+		extractImagesFromJSON(jsonData, urlSet, &urls)
+	}
+
+	return urls
+}
+
+// extractImagesFromJSON recursively searches JSON for image URLs
+func extractImagesFromJSON(data any, urlSet map[string]bool, urls *[]string) {
+	switch v := data.(type) {
+	case map[string]any:
+		for _, value := range v {
+			extractImagesFromJSON(value, urlSet, urls)
+		}
+	case []any:
+		for _, item := range v {
+			extractImagesFromJSON(item, urlSet, urls)
+		}
+	case string:
+		imgURLs := extractImageURLs(v)
+		for _, url := range imgURLs {
+			if !urlSet[url] {
+				urlSet[url] = true
+				*urls = append(*urls, url)
+			}
+		}
+	}
 }
 
 // fillTemplate replaces placeholders in template with values from data map
@@ -113,6 +185,28 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		return c.executeWithSnippet(ctx, outputStr)
 	}
 
+	imageURLs := extractAllImageURLs(outputStr)
+	var imageAttachments []domain.ImageAttachment
+
+	if len(imageURLs) > 0 && c.imageService != nil {
+		for _, url := range imageURLs {
+			if attachment, err := c.imageService.ReadImageFromURL(url); err == nil {
+				imageAttachments = append(imageAttachments, *attachment)
+			}
+		}
+	}
+
+	formattedOutput := fmt.Sprintf("```json\n%s\n```", outputStr)
+
+	if len(imageAttachments) > 0 {
+		return ShortcutResult{
+			Output:     formattedOutput,
+			Success:    true,
+			SideEffect: SideEffectEmbedImages,
+			Data:       imageAttachments,
+		}, nil
+	}
+
 	return ShortcutResult{
 		Output:  fmt.Sprintf("%s **%s completed**\n\n```\n%s\n```", icons.StyledCheckMark(), c.config.Name, outputStr),
 		Success: true,
@@ -156,10 +250,8 @@ func (c *CustomShortcut) GenerateSnippet(ctx context.Context, dataMap map[string
 		return "", fmt.Errorf("failed to generate snippet with LLM: %w", err)
 	}
 
-	// Add LLM response to data map
 	dataMap["llm"] = llmResponse
 
-	// Fill the final template with all data including LLM response
 	finalSnippet := fillTemplate(c.config.Snippet.Template, dataMap)
 
 	return finalSnippet, nil
@@ -222,7 +314,7 @@ func (c *CustomShortcut) callLLM(ctx context.Context, prompt string) (string, er
 }
 
 // LoadCustomShortcuts loads user-defined shortcuts from shortcuts/ directory within the specified base directory
-func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.ModelService) ([]Shortcut, error) {
+func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService) ([]Shortcut, error) {
 	shortcuts := make([]Shortcut, 0)
 
 	shortcutsDir := filepath.Join(baseDir, "shortcuts")
@@ -237,7 +329,7 @@ func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.
 	}
 
 	for _, file := range files {
-		shortcutsFromFile, err := loadShortcutsFromFile(file, client, modelService)
+		shortcutsFromFile, err := loadShortcutsFromFile(file, client, modelService, imageService)
 		if err != nil {
 			fmt.Printf("Warning: failed to load shortcuts from %s: %v\n", file, err)
 			continue
@@ -249,7 +341,7 @@ func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.
 }
 
 // loadShortcutsFromFile loads shortcuts from a specific YAML file
-func loadShortcutsFromFile(filename string, client sdk.Client, modelService domain.ModelService) ([]Shortcut, error) {
+func loadShortcutsFromFile(filename string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService) ([]Shortcut, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", filename, err)
@@ -271,7 +363,7 @@ func loadShortcutsFromFile(filename string, client sdk.Client, modelService doma
 			continue
 		}
 
-		shortcuts = append(shortcuts, NewCustomShortcut(shortcutConfig, client, modelService))
+		shortcuts = append(shortcuts, NewCustomShortcut(shortcutConfig, client, modelService, imageService))
 	}
 
 	return shortcuts, nil

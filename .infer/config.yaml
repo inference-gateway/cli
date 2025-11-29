@@ -10,6 +10,7 @@ gateway:
     - ollama_cloud/kimi-k2:1t
     - ollama_cloud/kimi-k2-thinking
     - ollama_cloud/deepseek-v3.1:671b
+  vision_enabled: true
 client:
   timeout: 200
   retry:
@@ -113,6 +114,9 @@ tools:
     require_approval: false
   safety:
     require_approval: true
+image:
+  max_size: 5242880
+  timeout: 30
 export:
   output_dir: .infer
   summary_model: ""

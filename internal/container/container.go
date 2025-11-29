@@ -162,10 +162,10 @@ func (c *ServiceContainer) initializeFileWriterServices() {
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = services.NewFileService()
-	c.imageService = services.NewImageService()
+	c.imageService = services.NewImageService(c.config)
 	c.messageQueue = services.NewMessageQueueService()
 
-	c.toolRegistry = tools.NewRegistry(c.config)
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService)
 	c.taskTrackerService = c.toolRegistry.GetTaskTracker()
 
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
@@ -297,7 +297,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 
 	configDir := c.determineConfigDirectory()
 	customShortcutClient := c.createSDKClient()
-	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir, customShortcutClient, c.modelService); err != nil {
+	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir, customShortcutClient, c.modelService, c.imageService); err != nil {
 		logger.Error("Failed to load custom shortcuts", "error", err, "config_dir", configDir)
 	}
 }
