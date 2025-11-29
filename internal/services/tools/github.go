@@ -835,7 +835,6 @@ func (t *GithubTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
-	// Indicate if images are attached
 	if len(result.Images) > 0 {
 		output.WriteString(fmt.Sprintf("\n[Images attached: %d image(s) from issue - you can see and analyze these images]\n", len(result.Images)))
 	}
