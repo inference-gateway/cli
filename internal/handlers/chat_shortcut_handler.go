@@ -837,10 +837,8 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 		}
 	}
 
-	// Create multimodal content with images
 	var contentParts []sdk.ContentPart
 
-	// Add text explaining what these images are
 	textPart, err := sdk.NewTextContentPart(fmt.Sprintf("The issue contains %d image(s):", len(imageAttachments)))
 	if err != nil {
 		logger.Warn("Failed to create text content part", "error", err)
@@ -848,7 +846,6 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 		contentParts = append(contentParts, textPart)
 	}
 
-	// Add each image as multimodal content
 	for i, img := range imageAttachments {
 		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
 		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
@@ -860,7 +857,6 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 		logger.Debug("Added image to conversation", "index", i, "mime_type", img.MimeType, "filename", img.Filename)
 	}
 
-	// Add a user message with the embedded images
 	imageEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,
@@ -868,7 +864,7 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 		},
 		Images: imageAttachments,
 		Time:   time.Now(),
-		Hidden: true, // Mark as hidden so it doesn't clutter the UI
+		Hidden: true,
 	}
 
 	if err := s.handler.conversationRepo.AddMessage(imageEntry); err != nil {

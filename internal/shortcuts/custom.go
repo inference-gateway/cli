@@ -77,7 +77,6 @@ func extractImageURLs(text string) []string {
 	var urls []string
 	urlSet := make(map[string]bool)
 
-	// Extract from HTML <img> tags
 	htmlImgRegex := regexp.MustCompile(`<img[^>]*src="([^"]+)"[^>]*\/?>`)
 	htmlMatches := htmlImgRegex.FindAllStringSubmatch(text, -1)
 	for _, match := range htmlMatches {
@@ -87,7 +86,6 @@ func extractImageURLs(text string) []string {
 		}
 	}
 
-	// Extract from markdown image syntax: ![alt](url)
 	mdImgRegex := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
 	mdMatches := mdImgRegex.FindAllStringSubmatch(text, -1)
 	for _, match := range mdMatches {
@@ -103,10 +101,9 @@ func extractImageURLs(text string) []string {
 // extractAllImageURLs extracts image URLs from both top-level text and nested JSON structures
 // This handles GitHub issues with images in comments
 func extractAllImageURLs(text string) []string {
-	urlSet := make(map[string]bool) // Use map to deduplicate
+	urlSet := make(map[string]bool)
 	var urls []string
 
-	// First, extract from top-level text
 	topLevelURLs := extractImageURLs(text)
 	for _, url := range topLevelURLs {
 		if !urlSet[url] {
@@ -115,10 +112,8 @@ func extractAllImageURLs(text string) []string {
 		}
 	}
 
-	// Try to parse as JSON to find images in nested structures (like comments)
 	var jsonData map[string]any
 	if err := json.Unmarshal([]byte(text), &jsonData); err == nil {
-		// Recursively search for image URLs in the JSON
 		extractImagesFromJSON(jsonData, urlSet, &urls)
 	}
 
@@ -137,7 +132,6 @@ func extractImagesFromJSON(data any, urlSet map[string]bool, urls *[]string) {
 			extractImagesFromJSON(item, urlSet, urls)
 		}
 	case string:
-		// Extract image URLs from string fields (like comment bodies)
 		imgURLs := extractImageURLs(v)
 		for _, url := range imgURLs {
 			if !urlSet[url] {
@@ -191,12 +185,9 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		return c.executeWithSnippet(ctx, outputStr)
 	}
 
-	// Extract image URLs from output (e.g., GitHub issue <img> tags)
-	// This handles both top-level content and nested JSON structures like comments
 	imageURLs := extractAllImageURLs(outputStr)
 	var imageAttachments []domain.ImageAttachment
 
-	// Fetch images if any are found
 	if len(imageURLs) > 0 && c.imageService != nil {
 		for _, url := range imageURLs {
 			if attachment, err := c.imageService.ReadImageFromURL(url); err == nil {
@@ -205,11 +196,8 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		}
 	}
 
-	// Keep JSON output as-is (don't convert HTML tags to markdown)
-	// Images are embedded separately as multimodal content for the LLM
 	formattedOutput := fmt.Sprintf("```json\n%s\n```", outputStr)
 
-	// If we fetched images, return them as a side effect
 	if len(imageAttachments) > 0 {
 		return ShortcutResult{
 			Output:     formattedOutput,
@@ -262,10 +250,8 @@ func (c *CustomShortcut) GenerateSnippet(ctx context.Context, dataMap map[string
 		return "", fmt.Errorf("failed to generate snippet with LLM: %w", err)
 	}
 
-	// Add LLM response to data map
 	dataMap["llm"] = llmResponse
 
-	// Fill the final template with all data including LLM response
 	finalSnippet := fillTemplate(c.config.Snippet.Template, dataMap)
 
 	return finalSnippet, nil
