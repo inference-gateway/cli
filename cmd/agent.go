@@ -524,12 +524,15 @@ func selectModel(models []string, modelFlag, defaultModel string) (string, error
 
 	if defaultModel != "" {
 		if !isModelAvailable(models, defaultModel) {
-			return "", fmt.Errorf("default model '%s' is not available. Available models: %v", defaultModel, models)
+			logger.Warn("Default model not available, using first available model", "default_model", defaultModel, "selected_model", models[0])
+			return models[0], nil
 		}
 		return defaultModel, nil
 	}
 
-	return "", fmt.Errorf("no model specified. Please use --model flag or set a default model with 'infer config agent set-model <model>'")
+	// No model specified in flag or config - use first available model
+	logger.Info("No model specified, using first available model", "model", models[0])
+	return models[0], nil
 }
 
 func isModelAvailable(models []string, targetModel string) bool {
