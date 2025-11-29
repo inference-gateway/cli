@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.71.0](https://github.com/inference-gateway/cli/compare/v0.70.0...v0.71.0) (2025-11-29)
+
+### 🚀 Features
+
+* **agent:** Add image/file input support to agent mode ([#283](https://github.com/inference-gateway/cli/issues/283)) ([efe9c78](https://github.com/inference-gateway/cli/commit/efe9c78fde876350d79177acbcc3d27e2965262e)), closes [#279](https://github.com/inference-gateway/cli/issues/279)
+
+### 👷 CI/CD
+
+* Update infer.yml ([3dad10e](https://github.com/inference-gateway/cli/commit/3dad10e5be8bb99c6d1cc8e51c5d715f0fe570a7))
+
 ## [0.70.0](https://github.com/inference-gateway/cli/compare/v0.69.19...v0.70.0) (2025-11-28)
 
 ### 🚀 Features
