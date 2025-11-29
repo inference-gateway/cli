@@ -24,7 +24,7 @@ func TestGithubTool_Definition(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	def := tool.Definition()
 
 	if def.Function.Name != "Github" {
@@ -52,7 +52,7 @@ func TestGithubTool_DefinitionWithDefaults(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	def := tool.Definition()
 
 	if def.Function.Parameters == nil {
@@ -104,7 +104,7 @@ func TestGithubTool_IsEnabled(t *testing.T) {
 				},
 			}
 
-			tool := NewGithubTool(cfg)
+			tool := NewGithubTool(cfg, nil)
 			if tool.IsEnabled() != tt.expectedState {
 				t.Errorf("Expected IsEnabled() = %v, got %v", tt.expectedState, tool.IsEnabled())
 			}
@@ -123,7 +123,7 @@ func TestGithubTool_Validate_ValidCases(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 
 	tests := []struct {
 		name string
@@ -210,7 +210,7 @@ func TestGithubTool_Validate_InvalidCases(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 
 	tests := []struct {
 		name string
@@ -288,7 +288,7 @@ func TestGithubTool_Validate_SecurityRequirement(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 
 	args := map[string]any{
 		"repo": "testrepo",
@@ -315,7 +315,7 @@ func TestGithubTool_Validate_SecurityRequirement(t *testing.T) {
 		},
 	}
 
-	toolWithDefaults := NewGithubTool(cfgWithDefaults)
+	toolWithDefaults := NewGithubTool(cfgWithDefaults, nil)
 	argsWithoutOwner := map[string]any{
 		"resource": "issues",
 	}
@@ -337,7 +337,7 @@ func TestGithubTool_Validate_OwnerRepoFormat(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 
 	tests := []struct {
 		name      string
@@ -396,7 +396,6 @@ func TestGithubTool_Validate_OwnerRepoFormat(t *testing.T) {
 				return
 			}
 
-			// Expect error
 			if err == nil {
 				t.Errorf("Expected validation error but got none")
 				return
@@ -455,7 +454,7 @@ func TestGithubTool_Execute_OwnerRepoFormat(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -510,7 +509,7 @@ func TestGithubTool_Execute_OwnerRepoFormatMismatch(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -548,7 +547,7 @@ func TestGithubTool_Execute_Disabled(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -578,7 +577,7 @@ func TestGithubTool_Execute_GithubDisabled(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -613,7 +612,7 @@ func TestGithubTool_Execute_InvalidArgs(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	ctx := context.Background()
 
 	tests := []struct {
@@ -719,7 +718,7 @@ func TestGithubTool_Execute_Success(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -746,7 +745,6 @@ func TestGithubTool_Execute_Success(t *testing.T) {
 		t.Error("Expected data to be present")
 	}
 
-	// Verify the result data
 	issue, ok := result.Data.(*domain.GitHubIssue)
 	if !ok {
 		t.Error("Expected data to be a GitHubIssue")
@@ -761,7 +759,6 @@ func TestGithubTool_Execute_Success(t *testing.T) {
 }
 
 func TestGithubTool_Execute_APIError(t *testing.T) {
-	// Create mock server that returns API error
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
@@ -786,7 +783,7 @@ func TestGithubTool_Execute_APIError(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -815,7 +812,6 @@ func TestGithubTool_Execute_APIError(t *testing.T) {
 }
 
 func TestGithubTool_Execute_IssuesList(t *testing.T) {
-	// Create mock issues list
 	mockIssues := []domain.GitHubIssue{
 		{
 			ID:     1,
@@ -858,7 +854,7 @@ func TestGithubTool_Execute_IssuesList(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -929,7 +925,7 @@ func TestGithubTool_CreateComment(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -974,7 +970,7 @@ func TestGithubTool_CreateCommentValidation(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 
 	tests := []struct {
 		name    string
@@ -1083,7 +1079,7 @@ func TestGithubTool_CreatePullRequest(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -1159,7 +1155,7 @@ func TestGithubTool_UpdateComment(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -1204,7 +1200,7 @@ func TestGithubTool_UpdateCommentValidation(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 
 	tests := []struct {
 		name    string
@@ -1279,7 +1275,7 @@ func TestGithubTool_CreatePullRequestValidation(t *testing.T) {
 		},
 	}
 
-	tool := NewGithubTool(cfg)
+	tool := NewGithubTool(cfg, nil)
 
 	tests := []struct {
 		name    string
@@ -1339,5 +1335,235 @@ func TestGithubTool_CreatePullRequestValidation(t *testing.T) {
 				t.Errorf("Expected error containing '%s', got '%s'", tt.wantErr, err.Error())
 			}
 		})
+	}
+}
+
+// mockImageService is a mock implementation of ImageService for testing
+type mockImageService struct {
+	readImageFromURLFunc func(url string) (*domain.ImageAttachment, error)
+}
+
+func (m *mockImageService) ReadImageFromFile(filePath string) (*domain.ImageAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockImageService) ReadImageFromBinary(imageData []byte, filename string) (*domain.ImageAttachment, error) {
+	return nil, nil
+}
+
+func (m *mockImageService) ReadImageFromURL(imageURL string) (*domain.ImageAttachment, error) {
+	if m.readImageFromURLFunc != nil {
+		return m.readImageFromURLFunc(imageURL)
+	}
+	return &domain.ImageAttachment{
+		Data:        "base64data",
+		MimeType:    "image/png",
+		Filename:    "test.png",
+		DisplayName: "test.png",
+	}, nil
+}
+
+func (m *mockImageService) CreateDataURL(attachment *domain.ImageAttachment) string {
+	return "data:image/png;base64,base64data"
+}
+
+func (m *mockImageService) IsImageFile(filePath string) bool {
+	return false
+}
+
+func (m *mockImageService) IsImageURL(urlStr string) bool {
+	return true
+}
+
+func TestExtractImageURLs(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected []string
+	}{
+		{
+			name:     "HTML img tag",
+			input:    `Some text <img src="https://example.com/image.png" alt="test" /> more text`,
+			expected: []string{"https://example.com/image.png"},
+		},
+		{
+			name:     "Markdown image syntax",
+			input:    `Some text ![alt text](https://example.com/photo.jpg) more text`,
+			expected: []string{"https://example.com/photo.jpg"},
+		},
+		{
+			name:     "Multiple images mixed syntax",
+			input:    `<img src="https://example.com/img1.png"/> and ![alt](https://example.com/img2.jpg)`,
+			expected: []string{"https://example.com/img1.png", "https://example.com/img2.jpg"},
+		},
+		{
+			name:     "No images",
+			input:    `Just regular text with no images`,
+			expected: []string{},
+		},
+		{
+			name:     "Duplicate URLs",
+			input:    `<img src="https://example.com/img.png"/> and <img src="https://example.com/img.png"/>`,
+			expected: []string{"https://example.com/img.png"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractImageURLs(tt.input)
+
+			if len(result) != len(tt.expected) {
+				t.Errorf("Expected %d URLs, got %d", len(tt.expected), len(result))
+				return
+			}
+
+			for i, url := range tt.expected {
+				if result[i] != url {
+					t.Errorf("Expected URL %s at index %d, got %s", url, i, result[i])
+				}
+			}
+		})
+	}
+}
+
+func TestGithubTool_ImageExtraction(t *testing.T) {
+	mockIssue := domain.GitHubIssue{
+		ID:     123456,
+		Number: 123,
+		Title:  "Test Issue",
+		Body:   "This is a bug report with images:\n![Screenshot](https://example.com/screenshot.png)\n<img src=\"https://example.com/error.jpg\" alt=\"Error\"/>",
+		State:  "open",
+		User: domain.GitHubUser{
+			ID:    789,
+			Login: "testuser",
+		},
+		Comments:  0,
+		CreatedAt: time.Now().Add(-time.Hour),
+		UpdatedAt: time.Now().Add(-time.Minute),
+		HTMLURL:   "https://github.com/testowner/testrepo/issues/123",
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/testowner/testrepo/issues/123" {
+			w.Header().Set("Content-Type", "application/json")
+			data, _ := json.Marshal(mockIssue)
+			_, _ = w.Write(data)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				BaseURL: server.URL,
+				Owner:   "testowner",
+				Repo:    "testrepo",
+				Safety: config.GithubSafetyConfig{
+					Timeout: 30,
+					MaxSize: 10 * 1024 * 1024,
+				},
+			},
+		},
+	}
+
+	mockImgService := &mockImageService{}
+	tool := NewGithubTool(cfg, mockImgService)
+
+	ctx := context.Background()
+	args := map[string]any{
+		"owner":        "testowner",
+		"repo":         "testrepo",
+		"resource":     "issue",
+		"issue_number": float64(123),
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+
+	if len(result.Images) != 2 {
+		t.Errorf("Expected 2 images, got %d", len(result.Images))
+	}
+
+	formatted := tool.FormatForLLM(result)
+	if !strings.Contains(formatted, "Images attached") {
+		t.Error("Expected FormatForLLM to indicate images are attached")
+	}
+}
+
+func TestGithubTool_NoImageExtraction_WhenImageServiceNil(t *testing.T) {
+	mockIssue := domain.GitHubIssue{
+		ID:     123456,
+		Number: 123,
+		Title:  "Test Issue",
+		Body:   "![Screenshot](https://example.com/screenshot.png)",
+		State:  "open",
+		User: domain.GitHubUser{
+			ID:    789,
+			Login: "testuser",
+		},
+		Comments:  0,
+		CreatedAt: time.Now().Add(-time.Hour),
+		UpdatedAt: time.Now().Add(-time.Minute),
+		HTMLURL:   "https://github.com/testowner/testrepo/issues/123",
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/repos/testowner/testrepo/issues/123" {
+			w.Header().Set("Content-Type", "application/json")
+			data, _ := json.Marshal(mockIssue)
+			_, _ = w.Write(data)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer server.Close()
+
+	cfg := &config.Config{
+		Tools: config.ToolsConfig{
+			Enabled: true,
+			Github: config.GithubToolConfig{
+				Enabled: true,
+				BaseURL: server.URL,
+				Owner:   "testowner",
+				Repo:    "testrepo",
+				Safety: config.GithubSafetyConfig{
+					Timeout: 30,
+					MaxSize: 10 * 1024 * 1024,
+				},
+			},
+		},
+	}
+
+	tool := NewGithubTool(cfg, nil)
+
+	ctx := context.Background()
+	args := map[string]any{
+		"owner":        "testowner",
+		"repo":         "testrepo",
+		"resource":     "issue",
+		"issue_number": float64(123),
+	}
+
+	result, err := tool.Execute(ctx, args)
+	if err != nil {
+		t.Fatalf("Execute failed: %v", err)
+	}
+
+	if !result.Success {
+		t.Errorf("Expected success, got error: %s", result.Error)
+	}
+
+	if len(result.Images) != 0 {
+		t.Errorf("Expected 0 images when imageService is nil, got %d", len(result.Images))
 	}
 }

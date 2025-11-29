@@ -15,15 +15,17 @@ type Registry struct {
 	tools        map[string]domain.Tool
 	readToolUsed bool
 	taskTracker  domain.TaskTracker
+	imageService domain.ImageService
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
-func NewRegistry(cfg *config.Config) *Registry {
+func NewRegistry(cfg *config.Config, imageService domain.ImageService) *Registry {
 	registry := &Registry{
 		config:       cfg,
 		tools:        make(map[string]domain.Tool),
 		readToolUsed: false,
 		taskTracker:  utils.NewTaskTracker(),
+		imageService: imageService,
 	}
 
 	registry.registerTools()
@@ -51,7 +53,7 @@ func (r *Registry) registerTools() {
 	}
 
 	if r.config.Tools.Github.Enabled {
-		r.tools["Github"] = NewGithubTool(r.config)
+		r.tools["Github"] = NewGithubTool(r.config, r.imageService)
 	}
 
 	if r.config.IsA2AToolsEnabled() {

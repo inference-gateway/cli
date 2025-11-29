@@ -528,6 +528,7 @@ type ToolExecutionResult struct {
 	Metadata  map[string]string `json:"metadata,omitempty"`
 	Diff      string            `json:"diff,omitempty"`
 	Rejected  bool              `json:"rejected,omitempty"`
+	Images    []ImageAttachment `json:"images,omitempty"`
 }
 
 // BashToolResult represents the result of a bash command execution

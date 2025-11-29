@@ -47,6 +47,7 @@ type GatewayConfig struct {
 	Docker        bool     `yaml:"docker" mapstructure:"docker"`
 	IncludeModels []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
 	ExcludeModels []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
+	VisionEnabled bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -423,6 +424,7 @@ func DefaultConfig() *Config { //nolint:funlen
 				"ollama_cloud/kimi-k2-thinking",
 				"ollama_cloud/deepseek-v3.1:671b",
 			},
+			VisionEnabled: true,
 		},
 		Client: ClientConfig{
 			Timeout: 200,

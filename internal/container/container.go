@@ -165,7 +165,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.imageService = services.NewImageService()
 	c.messageQueue = services.NewMessageQueueService()
 
-	c.toolRegistry = tools.NewRegistry(c.config)
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService)
 	c.taskTrackerService = c.toolRegistry.GetTaskTracker()
 
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
