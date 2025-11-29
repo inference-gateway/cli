@@ -117,7 +117,7 @@ export:
   output_dir: .infer
   summary_model: ""
 agent:
-  model: ""
+  model: "ollama_cloud/qwen3-vl:235b-instruct"
   system_prompt: |
     Autonomous software engineering agent. Execute tasks iteratively until completion.
 
