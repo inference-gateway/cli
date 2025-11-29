@@ -112,19 +112,16 @@ func (s *ImageService) ReadImageFromURL(imageURL string) (*domain.ImageAttachmen
 		return nil, fmt.Errorf("failed to fetch image: HTTP %d", resp.StatusCode)
 	}
 
-	// Check Content-Length header if available
 	maxSize := s.config.Image.MaxSize
 	if resp.ContentLength > 0 && resp.ContentLength > maxSize {
 		return nil, fmt.Errorf("image size (%d bytes) exceeds maximum allowed size (%d bytes)", resp.ContentLength, maxSize)
 	}
 
-	// Use LimitReader to enforce size limit during download
 	imageData, err := io.ReadAll(io.LimitReader(resp.Body, maxSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read image data: %w", err)
 	}
 
-	// Check if we hit the size limit
 	if int64(len(imageData)) >= maxSize {
 		return nil, fmt.Errorf("image exceeds maximum size of %d bytes", maxSize)
 	}
