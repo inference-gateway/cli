@@ -297,7 +297,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 
 	configDir := c.determineConfigDirectory()
 	customShortcutClient := c.createSDKClient()
-	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir, customShortcutClient, c.modelService); err != nil {
+	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir, customShortcutClient, c.modelService, c.imageService); err != nil {
 		logger.Error("Failed to load custom shortcuts", "error", err, "config_dir", configDir)
 	}
 }

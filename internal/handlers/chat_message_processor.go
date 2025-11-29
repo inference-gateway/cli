@@ -110,64 +110,21 @@ func (p *ChatMessageProcessor) ExtractMarkdownSummary(content string) (string, b
 	return "", false
 }
 
-// processMarkdownImage processes a single markdown image match and returns the attachment and display name
-func (p *ChatMessageProcessor) processMarkdownImage(imageSource, altText string) (*domain.ImageAttachment, string, error) {
-	if p.handler.imageService == nil {
-		return nil, "", fmt.Errorf("image service not available")
-	}
-
-	var imageAttachment *domain.ImageAttachment
-	var err error
-
-	if p.handler.imageService.IsImageURL(imageSource) {
-		imageAttachment, err = p.handler.imageService.ReadImageFromURL(imageSource)
-	} else if p.handler.fileService.ValidateFile(imageSource) == nil && p.handler.imageService.IsImageFile(imageSource) {
-		imageAttachment, err = p.handler.imageService.ReadImageFromFile(imageSource)
-	} else {
-		return nil, "", fmt.Errorf("not a valid image source")
-	}
-
-	if err != nil {
-		return nil, "", err
-	}
-
-	displayName := altText
-	if displayName == "" {
-		displayName = imageSource
-	}
-
-	return imageAttachment, displayName, nil
-}
-
-// expandFileReferences expands @filename references and markdown image syntax with file content or images
+// expandFileReferences expands @filename references with file content or images
 func (p *ChatMessageProcessor) expandFileReferences(content string) (*fileExpansionResult, error) {
+	re := regexp.MustCompile(`@([^\s]+)`)
+	matches := re.FindAllStringSubmatch(content, -1)
+
 	result := &fileExpansionResult{
 		content: content,
 		images:  []domain.ImageAttachment{},
 	}
 
-	markdownImageRe := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
-	expandedContent := content
-
-	markdownMatches := markdownImageRe.FindAllStringSubmatch(content, -1)
-	for _, match := range markdownMatches {
-		fullMatch := match[0]
-		altText := match[1]
-		imageSource := match[2]
-
-		imageAttachment, displayName, err := p.processMarkdownImage(imageSource, altText)
-		if err != nil {
-			continue
-		}
-
-		imageAttachment.DisplayName = displayName
-		result.images = append(result.images, *imageAttachment)
-		imageRef := fmt.Sprintf("[Image: %s]", displayName)
-		expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
+	if len(matches) == 0 {
+		return result, nil
 	}
 
-	atFileRe := regexp.MustCompile(`@([^\s]+)`)
-	matches := atFileRe.FindAllStringSubmatch(expandedContent, -1)
+	expandedContent := content
 
 	for _, match := range matches {
 		fullMatch := match[0]

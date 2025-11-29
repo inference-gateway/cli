@@ -194,6 +194,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 			return s.handleA2AAgentRemovedSideEffectWithData(agentName)
 		}
 		return s.handleA2AAgentRemovedSideEffect()
+	case shortcuts.SideEffectEmbedImages:
+		return s.handleEmbedImagesSideEffect(data)
 	default:
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
@@ -818,6 +820,75 @@ func (s *ChatShortcutHandler) handleA2AAgentRemovedSideEffectWithData(agentName 
 		func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    "Agent removed successfully",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)()
+}
+
+func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
+	imageAttachments, ok := data.([]domain.ImageAttachment)
+	if !ok {
+		return domain.SetStatusEvent{
+			Message:    "Invalid image data",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	// Create multimodal content with images
+	var contentParts []sdk.ContentPart
+
+	// Add text explaining what these images are
+	textPart, err := sdk.NewTextContentPart(fmt.Sprintf("The issue contains %d image(s):", len(imageAttachments)))
+	if err != nil {
+		logger.Warn("Failed to create text content part", "error", err)
+	} else {
+		contentParts = append(contentParts, textPart)
+	}
+
+	// Add each image as multimodal content
+	for i, img := range imageAttachments {
+		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
+		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
+		if err != nil {
+			logger.Warn("Failed to create image content part", "index", i, "filename", img.Filename, "error", err)
+			continue
+		}
+		contentParts = append(contentParts, imagePart)
+		logger.Debug("Added image to conversation", "index", i, "mime_type", img.MimeType, "filename", img.Filename)
+	}
+
+	// Add a user message with the embedded images
+	imageEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent(contentParts),
+		},
+		Images: imageAttachments,
+		Time:   time.Now(),
+		Hidden: true, // Mark as hidden so it doesn't clutter the UI
+	}
+
+	if err := s.handler.conversationRepo.AddMessage(imageEntry); err != nil {
+		logger.Error("failed to add image message", "error", err)
+		return domain.SetStatusEvent{
+			Message:    "Failed to embed images",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Embedded %d image(s) from GitHub issue", len(imageAttachments)),
 				Spinner:    false,
 				StatusType: domain.StatusDefault,
 			}

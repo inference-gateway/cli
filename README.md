@@ -676,28 +676,11 @@ infer agent "Analyze @error.log and this screenshot" --files debug-screen.png
 The agent command supports multimodal content for vision-capable models:
 
 - Use `--files` or `-f` flag to attach images or files
-- Use `@filename` syntax in the task description to reference local files
-- Use standard markdown image syntax `![alt text](url or path)` to embed images from URLs or local paths
+- Use `@filename` syntax in the task description to reference files
 - Supported image formats: PNG, JPEG, GIF, WebP
 - Images are automatically encoded as base64 and sent as multimodal content
 - Text files are embedded in code blocks
 - Requires gateway configuration: `ENABLE_VISION=true`
-
-**Image Syntax Examples:**
-
-```bash
-# Markdown syntax with URL
-infer agent "Analyze this diagram ![architecture](https://example.com/diagram.png)"
-
-# Markdown syntax with local file
-infer agent "Review this screenshot ![bug](./screenshots/error.png)"
-
-# Legacy @ syntax (still supported)
-infer agent "Check @screenshot.png for issues"
-
-# Mix both syntaxes
-infer agent "Compare ![remote](https://example.com/design.png) with @local-design.png"
-```
 
 ### `infer conversation-title`
 

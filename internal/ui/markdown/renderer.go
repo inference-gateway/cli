@@ -6,6 +6,7 @@ import (
 	glamour "github.com/charmbracelet/glamour"
 	ansi "github.com/charmbracelet/glamour/ansi"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	wordwrap "github.com/muesli/reflow/wordwrap"
 )
 
 // Renderer handles markdown to styled terminal output conversion
@@ -45,9 +46,8 @@ func (r *Renderer) Render(content string) string {
 		return content
 	}
 
-	// Skip rendering if content doesn't contain markdown
 	if !containsMarkdown(content) {
-		return content
+		return r.wrapPlainText(content)
 	}
 
 	rendered, err := r.renderer.Render(content)
@@ -58,6 +58,31 @@ func (r *Renderer) Render(content string) string {
 	// Trim extra whitespace that glamour adds
 	rendered = strings.TrimSpace(rendered)
 	return rendered
+}
+
+// wrapPlainText wraps plain text content to fit within the renderer's width
+func (r *Renderer) wrapPlainText(content string) string {
+	if r.width <= 0 {
+		return content
+	}
+
+	lines := strings.Split(content, "\n")
+	var result []string
+
+	for _, line := range lines {
+		if len(line) <= r.width {
+			result = append(result, line)
+		} else {
+			wrapped := wordwrap.String(line, r.width)
+			wrappedLines := strings.Split(wrapped, "\n")
+			for i, wl := range wrappedLines {
+				wrappedLines[i] = strings.TrimRight(wl, " ")
+			}
+			result = append(result, strings.Join(wrappedLines, "\n"))
+		}
+	}
+
+	return strings.Join(result, "\n")
 }
 
 // RenderBlock renders a markdown block with surrounding context
@@ -433,7 +458,7 @@ func (r *Renderer) buildTextFormattingStyles(accentColor, dimColor, borderColor 
 		},
 		ImageText: ansi.StylePrimitive{
 			Color:  stringPtr(dimColor),
-			Format: "🖼  {{.text}}",
+			Format: "[Image: {{.text}}]",
 		},
 	}
 }
