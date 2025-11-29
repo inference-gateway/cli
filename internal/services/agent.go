@@ -1139,8 +1139,6 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domai
 		contentParts = append(contentParts, imagePart)
 	}
 
-	logger.Debug("Created image message from tool results", "image_count", len(allImages))
-
 	return &sdk.Message{
 		Role:    sdk.User,
 		Content: sdk.NewMessageContent(contentParts),

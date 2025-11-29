@@ -666,7 +666,6 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			}
 		}
 
-		logger.Debug("Re-adding optimized messages", "count", len(optimizedMessages))
 		for _, msg := range optimizedMessages {
 			entry := domain.ConversationEntry{
 				Message: msg,
@@ -692,8 +691,6 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 		if addErr := s.handler.conversationRepo.AddMessage(infoEntry); addErr != nil {
 			logger.Error("failed to add compact info message", "error", addErr)
 		}
-
-		logger.Debug("Compaction complete", "reduction", reduction, "reduction_percent", reductionPercent)
 
 		return tea.Batch(
 			func() tea.Msg {
@@ -854,7 +851,6 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 			continue
 		}
 		contentParts = append(contentParts, imagePart)
-		logger.Debug("Added image to conversation", "index", i, "mime_type", img.MimeType, "filename", img.Filename)
 	}
 
 	imageEntry := domain.ConversationEntry{
