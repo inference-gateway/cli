@@ -303,7 +303,6 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 	return messages
 }
 
-
 func (s *AgentSession) buildMessageContent(msg ConversationMessage) sdk.MessageContent {
 	if len(msg.Images) == 0 {
 		return sdk.NewMessageContent(msg.Content)
