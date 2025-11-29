@@ -6,7 +6,7 @@ import (
 	glamour "github.com/charmbracelet/glamour"
 	ansi "github.com/charmbracelet/glamour/ansi"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	wordwrap "github.com/muesli/reflow/wordwrap"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // Renderer handles markdown to styled terminal output conversion
@@ -47,7 +47,7 @@ func (r *Renderer) Render(content string) string {
 	}
 
 	if !containsMarkdown(content) {
-		return r.wrapPlainText(content)
+		return shared.FormatResponsiveMessage(content, r.width)
 	}
 
 	rendered, err := r.renderer.Render(content)
@@ -55,34 +55,8 @@ func (r *Renderer) Render(content string) string {
 		return content
 	}
 
-	// Trim extra whitespace that glamour adds
 	rendered = strings.TrimSpace(rendered)
 	return rendered
-}
-
-// wrapPlainText wraps plain text content to fit within the renderer's width
-func (r *Renderer) wrapPlainText(content string) string {
-	if r.width <= 0 {
-		return content
-	}
-
-	lines := strings.Split(content, "\n")
-	var result []string
-
-	for _, line := range lines {
-		if len(line) <= r.width {
-			result = append(result, line)
-		} else {
-			wrapped := wordwrap.String(line, r.width)
-			wrappedLines := strings.Split(wrapped, "\n")
-			for i, wl := range wrappedLines {
-				wrappedLines[i] = strings.TrimRight(wl, " ")
-			}
-			result = append(result, strings.Join(wrappedLines, "\n"))
-		}
-	}
-
-	return strings.Join(result, "\n")
 }
 
 // RenderBlock renders a markdown block with surrounding context
@@ -314,7 +288,6 @@ func containsMarkdown(content string) bool {
 		return false
 	}
 
-	// Check for common markdown patterns
 	patterns := []string{
 		"```",  // Code blocks
 		"**",   // Bold
@@ -334,12 +307,10 @@ func containsMarkdown(content string) bool {
 		}
 	}
 
-	// Check for inline code (backticks) but not in tool output
 	if strings.Contains(content, "`") && !strings.Contains(content, "Exit Code") {
 		return true
 	}
 
-	// Check for links [text](url) pattern
 	if strings.Contains(content, "](") && strings.Contains(content, "[") {
 		return true
 	}
