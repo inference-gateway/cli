@@ -1032,7 +1032,6 @@ func (t *GithubTool) extractImagesFromIssue(issue *domain.GitHubIssue) []domain.
 
 	var imageAttachments []domain.ImageAttachment
 
-	// Extract images from issue body
 	if issue.Body != "" {
 		imageURLs := extractImageURLs(issue.Body)
 		for _, url := range imageURLs {
