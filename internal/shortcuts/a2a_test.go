@@ -36,7 +36,7 @@ func TestA2AShortcut_GetUsage(t *testing.T) {
 	mockConfig := &config.Config{}
 	shortcut := NewA2AShortcut(mockConfig, nil, nil, nil)
 
-	expected := "/a2a [list|add <name> [url] [--oci IMAGE] [--artifacts-url URL] [--run] [--model MODEL] [--environment KEY=VALUE ...]|remove <name>]"
+	expected := "/a2a [list|add <name>|remove <name>]"
 	actual := shortcut.GetUsage()
 
 	if actual != expected {
