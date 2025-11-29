@@ -166,7 +166,7 @@ func (t *GithubTool) Execute(ctx context.Context, args map[string]any) (*domain.
 
 	result := t.createResult(args, start, githubResult, "")
 
-	if resource == "issue" {
+	if resource == "issue" && t.config.Gateway.VisionEnabled {
 		if issue, ok := githubResult.(*domain.GitHubIssue); ok {
 			result.Images = t.extractImagesFromIssue(issue)
 		}

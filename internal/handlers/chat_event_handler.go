@@ -554,6 +554,13 @@ func (e *ChatEventHandler) extractAndAddImages(results []*domain.ToolExecutionRe
 		return nil
 	}
 
+	if !e.handler.config.Gateway.VisionEnabled {
+		logger.Warn("Skipping image extraction - vision is disabled in gateway config",
+			"image_count", len(allImages),
+		)
+		return nil
+	}
+
 	currentModel := e.handler.modelService.GetCurrentModel()
 	if !e.handler.modelService.IsVisionModel(currentModel) {
 		logger.Warn("Skipping image extraction - model does not support vision",

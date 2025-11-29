@@ -1455,6 +1455,9 @@ func TestGithubTool_ImageExtraction(t *testing.T) {
 	defer server.Close()
 
 	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			VisionEnabled: true,
+		},
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Github: config.GithubToolConfig{
@@ -1529,6 +1532,9 @@ func TestGithubTool_NoImageExtraction_WhenImageServiceNil(t *testing.T) {
 	defer server.Close()
 
 	cfg := &config.Config{
+		Gateway: config.GatewayConfig{
+			VisionEnabled: true,
+		},
 		Tools: config.ToolsConfig{
 			Enabled: true,
 			Github: config.GithubToolConfig{
