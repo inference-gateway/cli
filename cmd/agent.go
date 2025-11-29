@@ -144,7 +144,6 @@ func (s *AgentSession) expandFileReferences(content string, additionalFiles []st
 		images:  []domain.ImageAttachment{},
 	}
 
-	// First, process @filename references in the content
 	re := regexp.MustCompile(`@([^\s]+)`)
 	matches := re.FindAllStringSubmatch(content, -1)
 
@@ -180,7 +179,6 @@ func (s *AgentSession) expandFileReferences(content string, additionalFiles []st
 		expandedContent = strings.Replace(expandedContent, fullMatch, fileBlock, 1)
 	}
 
-	// Then, process files from --files flag
 	for _, filename := range additionalFiles {
 		if err := s.fileService.ValidateFile(filename); err != nil {
 			return nil, fmt.Errorf("invalid file '%s': %w", filename, err)
@@ -209,13 +207,11 @@ func (s *AgentSession) expandFileReferences(content string, additionalFiles []st
 }
 
 func (s *AgentSession) execute(taskDescription string, files []string) error {
-	// Expand file references and collect images
 	expansion, err := s.expandFileReferences(taskDescription, files)
 	if err != nil {
 		return fmt.Errorf("failed to expand file references: %w", err)
 	}
 
-	// Add the initial user message with images if present
 	s.addMessage(ConversationMessage{
 		Role:      "user",
 		Content:   expansion.content,
