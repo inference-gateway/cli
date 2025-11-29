@@ -636,10 +636,12 @@ until the task is considered complete. Particularly useful for SCM tickets like 
 - **Task completion detection**: Automatically detects when tasks are complete
 - **Configurable concurrency**: Control the maximum number of parallel tool executions (default: 5)
 - **JSON output**: Structured JSON output for easy parsing and integration
+- **Multimodal support**: Process images and files with vision-capable models
 
 **Options:**
 
 - `-m, --model`: Model to use for the agent (e.g., openai/gpt-4)
+- `-f, --files`: Files or images to include (can be specified multiple times)
 
 **Examples:**
 
@@ -655,7 +657,30 @@ infer agent "Debug the failing test in PR 15"
 
 # Refactor code
 infer agent "Refactor the authentication module to use JWT tokens"
+
+# Analyze screenshots with vision-capable models
+infer agent "Analyze this screenshot and identify the UI issue" --files screenshot.png
+
+# Process multiple images
+infer agent "Compare these diagrams and suggest improvements" -f diagram1.png -f diagram2.png
+
+# Mix images and code files using @filename syntax
+infer agent "Review @app.go and @architecture.png and suggest refactoring"
+
+# Combine --files flag with @filename references
+infer agent "Analyze @error.log and this screenshot" --files debug-screen.png
 ```
+
+**Image and File Support:**
+
+The agent command supports multimodal content for vision-capable models:
+
+- Use `--files` or `-f` flag to attach images or files
+- Use `@filename` syntax in the task description to reference files
+- Supported image formats: PNG, JPEG, GIF, WebP
+- Images are automatically encoded as base64 and sent as multimodal content
+- Text files are embedded in code blocks
+- Requires gateway configuration: `ENABLE_VISION=true`
 
 ### `infer conversation-title`
 

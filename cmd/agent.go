@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,15 +27,19 @@ until the task is considered complete. Particularly useful for SCM tickets like 
 Examples:
   infer agent "Please fix the github issue 38"
   infer agent --model "openai/gpt-4" "Implement the feature described in issue #42"
-  infer agent "Debug the failing test in PR 15"`,
+  infer agent "Debug the failing test in PR 15"
+  infer agent "Analyze this screenshot" --files screenshot.png
+  infer agent "Compare these images" -f image1.png -f image2.png
+  infer agent "Review this code and diagram" --files @code.go @diagram.png`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		model, _ := cmd.Flags().GetString("model")
+		files, _ := cmd.Flags().GetStringSlice("files")
 		cfg, err := getConfigFromViper()
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		return RunAgentCommand(cfg, model, args[0])
+		return RunAgentCommand(cfg, model, args[0], files)
 	},
 }
 
@@ -48,12 +54,15 @@ type ConversationMessage struct {
 	Timestamp  time.Time                            `json:"timestamp"`
 	RequestID  string                               `json:"request_id,omitempty"`
 	Internal   bool                                 `json:"-"`
+	Images     []domain.ImageAttachment             `json:"images,omitempty"`
 }
 
 // AgentSession manages the background execution session
 type AgentSession struct {
 	agentService   domain.AgentService
 	toolService    domain.ToolService
+	fileService    domain.FileService
+	imageService   domain.ImageService
 	model          string
 	conversation   []ConversationMessage
 	sessionID      string
@@ -62,7 +71,7 @@ type AgentSession struct {
 	config         *config.Config
 }
 
-func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string) error {
+func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string) error {
 	services := container.NewServiceContainer(cfg)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -102,10 +111,14 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 
 	agentService := services.GetAgentService()
 	toolService := services.GetToolService()
+	fileService := services.GetFileService()
+	imageService := services.GetImageService()
 
 	session := &AgentSession{
 		agentService: agentService,
 		toolService:  toolService,
+		fileService:  fileService,
+		imageService: imageService,
 		model:        selectedModel,
 		sessionID:    uuid.New().String(),
 		maxTurns:     cfg.Agent.MaxTurns,
@@ -115,13 +128,94 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 
 	logger.Info("Starting agent session", "session_id", session.sessionID, "model", selectedModel)
 
-	return session.execute(taskDescription)
+	return session.execute(taskDescription, files)
 }
 
-func (s *AgentSession) execute(taskDescription string) error {
+// fileExpansionResult holds the result of expanding file references
+type fileExpansionResult struct {
+	content string
+	images  []domain.ImageAttachment
+}
+
+// expandFileReferences expands @filename references and --files flag inputs
+func (s *AgentSession) expandFileReferences(content string, additionalFiles []string) (*fileExpansionResult, error) {
+	result := &fileExpansionResult{
+		content: content,
+		images:  []domain.ImageAttachment{},
+	}
+
+	re := regexp.MustCompile(`@([^\s]+)`)
+	matches := re.FindAllStringSubmatch(content, -1)
+
+	expandedContent := content
+	for _, match := range matches {
+		fullMatch := match[0]
+		filename := match[1]
+
+		if err := s.fileService.ValidateFile(filename); err != nil {
+			logger.Warn("Skipping invalid file reference", "filename", filename, "error", err)
+			continue
+		}
+
+		if s.imageService != nil && s.imageService.IsImageFile(filename) {
+			imageAttachment, err := s.imageService.ReadImageFromFile(filename)
+			if err != nil {
+				logger.Warn("Failed to read image file", "filename", filename, "error", err)
+				continue
+			}
+			result.images = append(result.images, *imageAttachment)
+			imageRef := fmt.Sprintf("[Image: %s]", filename)
+			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
+			continue
+		}
+
+		fileContent, err := s.fileService.ReadFile(filename)
+		if err != nil {
+			logger.Warn("Failed to read file", "filename", filename, "error", err)
+			continue
+		}
+
+		fileBlock := fmt.Sprintf("File: %s\n```%s\n%s\n```\n", filename, filename, fileContent)
+		expandedContent = strings.Replace(expandedContent, fullMatch, fileBlock, 1)
+	}
+
+	for _, filename := range additionalFiles {
+		if err := s.fileService.ValidateFile(filename); err != nil {
+			return nil, fmt.Errorf("invalid file '%s': %w", filename, err)
+		}
+
+		if s.imageService != nil && s.imageService.IsImageFile(filename) {
+			imageAttachment, err := s.imageService.ReadImageFromFile(filename)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read image file '%s': %w", filename, err)
+			}
+			result.images = append(result.images, *imageAttachment)
+			continue
+		}
+
+		fileContent, err := s.fileService.ReadFile(filename)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read file '%s': %w", filename, err)
+		}
+
+		fileBlock := fmt.Sprintf("\n\nFile: %s\n```%s\n%s\n```\n", filename, filename, fileContent)
+		expandedContent += fileBlock
+	}
+
+	result.content = expandedContent
+	return result, nil
+}
+
+func (s *AgentSession) execute(taskDescription string, files []string) error {
+	expansion, err := s.expandFileReferences(taskDescription, files)
+	if err != nil {
+		return fmt.Errorf("failed to expand file references: %w", err)
+	}
+
 	s.addMessage(ConversationMessage{
 		Role:      "user",
-		Content:   taskDescription,
+		Content:   expansion.content,
+		Images:    expansion.images,
 		Timestamp: time.Now(),
 	})
 
@@ -188,23 +282,11 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 	var messages []sdk.Message
 
 	for _, msg := range s.conversation {
-		var role sdk.MessageRole
-		switch msg.Role {
-		case "user":
-			role = sdk.User
-		case "assistant":
-			role = sdk.Assistant
-		case "tool":
-			role = sdk.Tool
-		case "system":
-			role = sdk.System
-		default:
-			role = sdk.User
-		}
+		content := s.buildMessageContent(msg)
 
 		sdkMsg := sdk.Message{
-			Role:    role,
-			Content: sdk.NewMessageContent(msg.Content),
+			Role:    sdk.MessageRole(msg.Role),
+			Content: content,
 		}
 
 		if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
@@ -219,6 +301,41 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 	}
 
 	return messages
+}
+
+func (s *AgentSession) buildMessageContent(msg ConversationMessage) sdk.MessageContent {
+	if len(msg.Images) == 0 {
+		return sdk.NewMessageContent(msg.Content)
+	}
+
+	contentParts := s.buildContentParts(msg)
+	if contentParts == nil {
+		return sdk.NewMessageContent(msg.Content)
+	}
+
+	return sdk.NewMessageContent(contentParts)
+}
+
+func (s *AgentSession) buildContentParts(msg ConversationMessage) []sdk.ContentPart {
+	textPart, err := sdk.NewTextContentPart(msg.Content)
+	if err != nil {
+		logger.Warn("Failed to create text content part", "error", err)
+		return nil
+	}
+
+	contentParts := []sdk.ContentPart{textPart}
+
+	for _, img := range msg.Images {
+		dataURL := fmt.Sprintf("data:%s;base64,%s", img.MimeType, img.Data)
+		imagePart, err := sdk.NewImageContentPart(dataURL, nil)
+		if err != nil {
+			logger.Warn("Failed to create image content part", "filename", img.Filename, "error", err)
+			continue
+		}
+		contentParts = append(contentParts, imagePart)
+	}
+
+	return contentParts
 }
 
 func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, requestID string) error {
@@ -406,5 +523,6 @@ func isModelAvailable(models []string, targetModel string) bool {
 
 func init() {
 	agentCmd.Flags().StringP("model", "m", "", "Model to use for the agent (e.g., openai/gpt-4)")
+	agentCmd.Flags().StringSliceP("files", "f", []string{}, "Files or images to include (e.g., -f image.png -f code.go)")
 	rootCmd.AddCommand(agentCmd)
 }
