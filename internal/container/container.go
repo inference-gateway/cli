@@ -162,7 +162,7 @@ func (c *ServiceContainer) initializeFileWriterServices() {
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = services.NewFileService()
-	c.imageService = services.NewImageService()
+	c.imageService = services.NewImageService(c.config)
 	c.messageQueue = services.NewMessageQueueService()
 
 	c.toolRegistry = tools.NewRegistry(c.config, c.imageService)

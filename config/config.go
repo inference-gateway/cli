@@ -25,6 +25,7 @@ type Config struct {
 	Client       ClientConfig       `yaml:"client" mapstructure:"client"`
 	Logging      LoggingConfig      `yaml:"logging" mapstructure:"logging"`
 	Tools        ToolsConfig        `yaml:"tools" mapstructure:"tools"`
+	Image        ImageConfig        `yaml:"image" mapstructure:"image"`
 	Export       ExportConfig       `yaml:"export" mapstructure:"export"`
 	Agent        AgentConfig        `yaml:"agent" mapstructure:"agent"`
 	Git          GitConfig          `yaml:"git" mapstructure:"git"`
@@ -70,6 +71,12 @@ type RetryConfig struct {
 type LoggingConfig struct {
 	Debug bool   `yaml:"debug" mapstructure:"debug"`
 	Dir   string `yaml:"dir" mapstructure:"dir"`
+}
+
+// ImageConfig contains image service settings
+type ImageConfig struct {
+	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
+	Timeout int   `yaml:"timeout" mapstructure:"timeout"`
 }
 
 // ToolsConfig contains tool execution settings
@@ -533,6 +540,10 @@ func DefaultConfig() *Config { //nolint:funlen
 			Safety: SafetyConfig{
 				RequireApproval: true,
 			},
+		},
+		Image: ImageConfig{
+			MaxSize: 5242880, // 5MB
+			Timeout: 30,      // 30 seconds
 		},
 		Export: ExportConfig{
 			OutputDir:    ConfigDirName,

@@ -114,6 +114,9 @@ tools:
     require_approval: false
   safety:
     require_approval: true
+image:
+  max_size: 5242880
+  timeout: 30
 export:
   output_dir: .infer
   summary_model: ""

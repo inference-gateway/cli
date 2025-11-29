@@ -16,16 +16,21 @@ import (
 	"strings"
 	"time"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ImageService handles image operations including file-based image loading and base64 encoding
 // Note: Direct clipboard support requires platform-specific dependencies and is not yet implemented
-type ImageService struct{}
+type ImageService struct {
+	config *config.Config
+}
 
 // NewImageService creates a new image service
-func NewImageService() *ImageService {
-	return &ImageService{}
+func NewImageService(cfg *config.Config) *ImageService {
+	return &ImageService{
+		config: cfg,
+	}
 }
 
 // ReadImageFromFile reads an image from a file path and returns it as a base64 attachment
@@ -92,8 +97,9 @@ func (s *ImageService) IsImageFile(filePath string) bool {
 
 // ReadImageFromURL fetches an image from a URL and returns it as a base64 attachment
 func (s *ImageService) ReadImageFromURL(imageURL string) (*domain.ImageAttachment, error) {
+	timeout := time.Duration(s.config.Image.Timeout) * time.Second
 	client := &http.Client{
-		Timeout: 30 * time.Second,
+		Timeout: timeout,
 	}
 
 	resp, err := client.Get(imageURL)
@@ -106,9 +112,21 @@ func (s *ImageService) ReadImageFromURL(imageURL string) (*domain.ImageAttachmen
 		return nil, fmt.Errorf("failed to fetch image: HTTP %d", resp.StatusCode)
 	}
 
-	imageData, err := io.ReadAll(resp.Body)
+	// Check Content-Length header if available
+	maxSize := s.config.Image.MaxSize
+	if resp.ContentLength > 0 && resp.ContentLength > maxSize {
+		return nil, fmt.Errorf("image size (%d bytes) exceeds maximum allowed size (%d bytes)", resp.ContentLength, maxSize)
+	}
+
+	// Use LimitReader to enforce size limit during download
+	imageData, err := io.ReadAll(io.LimitReader(resp.Body, maxSize))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read image data: %w", err)
+	}
+
+	// Check if we hit the size limit
+	if int64(len(imageData)) >= maxSize {
+		return nil, fmt.Errorf("image exceeds maximum size of %d bytes", maxSize)
 	}
 
 	parsedURL, err := url.Parse(imageURL)

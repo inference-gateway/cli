@@ -1139,6 +1139,11 @@ func (s *AgentServiceImpl) createImageMessageFromToolResults(toolResults []domai
 		contentParts = append(contentParts, imagePart)
 	}
 
+	if len(contentParts) == 0 {
+		logger.Warn("No content parts created for image message from tool results")
+		return nil
+	}
+
 	return &sdk.Message{
 		Role:    sdk.User,
 		Content: sdk.NewMessageContent(contentParts),

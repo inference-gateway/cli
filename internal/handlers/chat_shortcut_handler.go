@@ -853,6 +853,15 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 		contentParts = append(contentParts, imagePart)
 	}
 
+	if len(contentParts) == 0 {
+		logger.Warn("No content parts created for image message")
+		return domain.SetStatusEvent{
+			Message:    "Failed to create image content",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
 	imageEntry := domain.ConversationEntry{
 		Message: sdk.Message{
 			Role:    sdk.User,

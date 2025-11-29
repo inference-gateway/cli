@@ -1,11 +1,13 @@
 package services
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
+	config "github.com/inference-gateway/cli/config"
+	assert "github.com/stretchr/testify/assert"
 )
 
 func TestImageService_IsImageURL(t *testing.T) {
@@ -68,7 +70,7 @@ func TestImageService_IsImageURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewImageService()
+			service := NewImageService(config.DefaultConfig())
 			result := service.IsImageURL(tt.url)
 			assert.Equal(t, tt.expected, result)
 		})
@@ -114,7 +116,7 @@ func TestImageService_ReadImageFromURL(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewImageService()
+			service := NewImageService(config.DefaultConfig())
 			attachment, err := service.ReadImageFromURL(tt.url)
 
 			if tt.expectError {
@@ -136,12 +138,34 @@ func TestImageService_ReadImageFromURL_404(t *testing.T) {
 	}))
 	defer server.Close()
 
-	service := NewImageService()
+	service := NewImageService(config.DefaultConfig())
 	attachment, err := service.ReadImageFromURL(server.URL + "/notfound.png")
 
 	assert.Error(t, err)
 	assert.Nil(t, attachment)
 	assert.Contains(t, err.Error(), "HTTP 404")
+}
+
+func TestImageService_ReadImageFromURL_OversizedImage(t *testing.T) {
+	largeData := make([]byte, 6*1024*1024)
+	for i := range largeData {
+		largeData[i] = byte(i % 256)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(largeData)))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(largeData)
+	}))
+	defer server.Close()
+
+	service := NewImageService(config.DefaultConfig())
+	attachment, err := service.ReadImageFromURL(server.URL + "/large.png")
+
+	assert.Error(t, err)
+	assert.Nil(t, attachment)
+	assert.Contains(t, err.Error(), "exceeds maximum")
 }
 
 func TestImageService_IsImageFile(t *testing.T) {
@@ -199,7 +223,7 @@ func TestImageService_IsImageFile(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service := NewImageService()
+			service := NewImageService(config.DefaultConfig())
 			result := service.IsImageFile(tt.path)
 			assert.Equal(t, tt.expected, result)
 		})
