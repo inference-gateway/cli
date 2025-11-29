@@ -126,6 +126,23 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 	}
 }
 
+// setupExpandFileReferencesTest creates a processor with mocked dependencies for file expansion tests
+func setupExpandFileReferencesTest(setupMocks func(*mocks.FakeFileService, *mocks.FakeImageService)) *ChatMessageProcessor {
+	mockFile := &mocks.FakeFileService{}
+	mockImage := &mocks.FakeImageService{}
+
+	if setupMocks != nil {
+		setupMocks(mockFile, mockImage)
+	}
+
+	handler := &ChatHandler{
+		fileService:  mockFile,
+		imageService: mockImage,
+	}
+
+	return NewChatMessageProcessor(handler)
+}
+
 func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -254,20 +271,7 @@ func TestChatMessageProcessor_expandFileReferences(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockFile := &mocks.FakeFileService{}
-			mockImage := &mocks.FakeImageService{}
-
-			if tt.setupMocks != nil {
-				tt.setupMocks(mockFile, mockImage)
-			}
-
-			handler := &ChatHandler{
-				fileService:  mockFile,
-				imageService: mockImage,
-			}
-
-			processor := NewChatMessageProcessor(handler)
-
+			processor := setupExpandFileReferencesTest(tt.setupMocks)
 			result, err := processor.expandFileReferences(tt.content)
 
 			if tt.expectError {

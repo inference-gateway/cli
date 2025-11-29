@@ -110,6 +110,35 @@ func (p *ChatMessageProcessor) ExtractMarkdownSummary(content string) (string, b
 	return "", false
 }
 
+// processMarkdownImage processes a single markdown image match and returns the attachment and display name
+func (p *ChatMessageProcessor) processMarkdownImage(imageSource, altText string) (*domain.ImageAttachment, string, error) {
+	if p.handler.imageService == nil {
+		return nil, "", fmt.Errorf("image service not available")
+	}
+
+	var imageAttachment *domain.ImageAttachment
+	var err error
+
+	if p.handler.imageService.IsImageURL(imageSource) {
+		imageAttachment, err = p.handler.imageService.ReadImageFromURL(imageSource)
+	} else if p.handler.fileService.ValidateFile(imageSource) == nil && p.handler.imageService.IsImageFile(imageSource) {
+		imageAttachment, err = p.handler.imageService.ReadImageFromFile(imageSource)
+	} else {
+		return nil, "", fmt.Errorf("not a valid image source")
+	}
+
+	if err != nil {
+		return nil, "", err
+	}
+
+	displayName := altText
+	if displayName == "" {
+		displayName = imageSource
+	}
+
+	return imageAttachment, displayName, nil
+}
+
 // expandFileReferences expands @filename references and markdown image syntax with file content or images
 func (p *ChatMessageProcessor) expandFileReferences(content string) (*fileExpansionResult, error) {
 	result := &fileExpansionResult{
@@ -117,7 +146,6 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (*fileExpans
 		images:  []domain.ImageAttachment{},
 	}
 
-	// First, process markdown image syntax: ![alt](url or path)
 	markdownImageRe := regexp.MustCompile(`!\[([^\]]*)\]\(([^)]+)\)`)
 	expandedContent := content
 
@@ -127,46 +155,17 @@ func (p *ChatMessageProcessor) expandFileReferences(content string) (*fileExpans
 		altText := match[1]
 		imageSource := match[2]
 
-		if p.handler.imageService == nil {
+		imageAttachment, displayName, err := p.processMarkdownImage(imageSource, altText)
+		if err != nil {
 			continue
 		}
 
-		var imageAttachment *domain.ImageAttachment
-		var err error
-		var displayName string
-
-		// Check if it's a URL or a file path
-		if p.handler.imageService.IsImageURL(imageSource) {
-			imageAttachment, err = p.handler.imageService.ReadImageFromURL(imageSource)
-			if err != nil {
-				continue
-			}
-			displayName = altText
-			if displayName == "" {
-				displayName = imageSource
-			}
-		} else if p.handler.fileService.ValidateFile(imageSource) == nil && p.handler.imageService.IsImageFile(imageSource) {
-			imageAttachment, err = p.handler.imageService.ReadImageFromFile(imageSource)
-			if err != nil {
-				continue
-			}
-			displayName = altText
-			if displayName == "" {
-				displayName = imageSource
-			}
-		} else {
-			continue
-		}
-
-		if imageAttachment != nil {
-			imageAttachment.DisplayName = displayName
-			result.images = append(result.images, *imageAttachment)
-			imageRef := fmt.Sprintf("[Image: %s]", displayName)
-			expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
-		}
+		imageAttachment.DisplayName = displayName
+		result.images = append(result.images, *imageAttachment)
+		imageRef := fmt.Sprintf("[Image: %s]", displayName)
+		expandedContent = strings.Replace(expandedContent, fullMatch, imageRef, 1)
 	}
 
-	// Then, process @filename references (legacy syntax)
 	atFileRe := regexp.MustCompile(`@([^\s]+)`)
 	matches := atFileRe.FindAllStringSubmatch(expandedContent, -1)
 
