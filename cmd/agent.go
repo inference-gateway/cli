@@ -282,11 +282,10 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 	var messages []sdk.Message
 
 	for _, msg := range s.conversation {
-		role := s.convertRole(msg.Role)
 		content := s.buildMessageContent(msg)
 
 		sdkMsg := sdk.Message{
-			Role:    role,
+			Role:    sdk.MessageRole(msg.Role),
 			Content: content,
 		}
 
@@ -304,20 +303,6 @@ func (s *AgentSession) buildSDKMessages() []sdk.Message {
 	return messages
 }
 
-func (s *AgentSession) convertRole(role string) sdk.MessageRole {
-	switch role {
-	case "user":
-		return sdk.User
-	case "assistant":
-		return sdk.Assistant
-	case "tool":
-		return sdk.Tool
-	case "system":
-		return sdk.System
-	default:
-		return sdk.User
-	}
-}
 
 func (s *AgentSession) buildMessageContent(msg ConversationMessage) sdk.MessageContent {
 	if len(msg.Images) == 0 {
