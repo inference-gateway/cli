@@ -1,105 +1,128 @@
-# AGENTS.md
+# AGENTS.md - Inference Gateway CLI
+
+This document provides comprehensive guidance for AI agents working with the Inference Gateway CLI project.
+It covers project structure, development workflows, configuration, and best practices.
 
 ## Project Overview
 
-The Inference Gateway CLI is a powerful command-line interface for managing and interacting with the Inference Gateway.
-Built in Go, it provides tools for configuration, monitoring, and management of inference services with AI agent capabilities.
-Key features include interactive chat, autonomous agent execution, extensive tool integration, and A2A (Agent-to-Agent) communication.
+**Inference Gateway CLI** is a powerful command-line interface for managing and interacting with the Inference Gateway.
+It provides:
+
+- **Interactive Chat**: Chat with AI models using an interactive interface
+- **Autonomous Agents**: Execute tasks iteratively until completion
+- **Tool Execution**: LLMs can execute whitelisted commands and tools
+- **Configuration Management**: Manage gateway settings via YAML config
+- **Agent-to-Agent (A2A) Communication**: Delegate tasks to specialized agents
 
 **Main Technologies:**
 
-- **Language**: Go 1.25.2+
-- **CLI Framework**: Cobra
-- **Configuration**: Viper with YAML
-- **UI**: Charmbracelet BubbleTea for TUI
-- **Testing**: Go testing framework with testify
-- **Linting**: golangci-lint
-- **Build System**: Taskfile
+- **Language**: Go 1.25+
+- **Framework**: Cobra CLI framework
+- **Configuration**: Viper with YAML support
+- **UI**: Charmbracelet Bubble Tea for TUI
+- **Storage**: SQLite, PostgreSQL, Redis support
+- **Container**: Docker for gateway and agents
 
-## Architecture & Structure
+## Architecture and Structure
 
-### Directory Structure
+### Project Layout
 
 ```text
-├── cmd/                # CLI command implementations
-│   ├── agent.go        # Autonomous agent execution
-│   ├── chat.go         # Interactive chat interface
-│   ├── config.go       # Configuration management
-│   ├── init.go         # Project initialization
-│   └── root.go         # Root command and config setup
-├── config/             # Configuration management
-├── internal/           # Core application logic
-│   ├── app/            # Application layer components
-│   ├── domain/         # Domain models and interfaces
-│   ├── handlers/       # Command and event handlers
-│   ├── services/       # Business logic services
-│   └── ui/             # Terminal user interface components
-├── docs/               # Project documentation
-├── examples/           # Usage examples and configurations
-└── tests/              # Test files and mocks
+.
+├── cmd/                    # CLI command implementations
+│   ├── root.go            # Main CLI entry point
+│   ├── chat.go            # Interactive chat command
+│   ├── agent.go           # Autonomous agent command
+│   ├── config.go          # Configuration management
+│   └── agents.go          # A2A agent management
+├── config/                # Configuration structures
+│   ├── config.go          # Main configuration types
+│   └── agent_defaults.go  # Default agent configurations
+├── internal/              # Internal application logic
+│   ├── app/               # Application layer
+│   ├── domain/            # Domain models and interfaces
+│   ├── handlers/          # Command and event handlers
+│   ├── services/          # Business logic services
+│   ├── infra/             # Infrastructure adapters
+│   └── formatting/        # Text formatting utilities
+├── docs/                  # Documentation
+│   ├── agents-configuration.md
+│   ├── a2a-connections.md
+│   ├── conversation-storage.md
+│   └── conversation-title-generation.md
+├── examples/              # Example configurations
+│   ├── basic/             # Basic setup examples
+│   └── a2a/               # A2A agent examples
+├── Taskfile.yml           # Build and development tasks
+├── go.mod                 # Go module dependencies
+└── main.go               # Application entry point
 ```
 
-### Architectural Patterns
+### Key Components
 
-- **Clean Architecture**: Separation of concerns with domain, application, and infrastructure layers
-- **Domain-Driven Design**: Core business logic modeled around domain concepts
-- **Command Pattern**: Structured CLI commands using Cobra
-- **Repository Pattern**: Abstracted data access for domain entities
-- **Dependency Injection**: Container-based dependency management
+1. **CLI Commands**: Implemented using Cobra framework
+2. **Configuration System**: 2-layer system (project + userspace) with Viper
+3. **Tool System**: Secure execution of whitelisted commands
+4. **A2A Integration**: Agent-to-agent communication protocol
+5. **Storage Backends**: Multiple conversation storage options
+6. **UI Components**: Interactive chat interface with Bubble Tea
 
-## Development Environment
+## Development Environment Setup
 
-### Setup Instructions
+### Prerequisites
 
-1. **Go Version**: Requires Go 1.25.2 or later
+- **Go 1.25+**: Required for building from source
+- **Docker**: Optional for containerized gateway and agents
+- **Task**: Build tool (optional, Taskfile.yml provided)
 
-2. **Install Dependencies**:
-
-   ```bash
-   task setup
-   ```
-
-3. **Install Pre-commit Hooks**:
-
-   ```bash
-   task precommit:install
-   ```
-
-### Required Tools
-
-- **Go**: 1.25.2+
-- **Task**: Taskfile runner (taskfile.dev)
-- **golangci-lint**: For code linting and static analysis
-- **pre-commit**: For git hooks
-- **Docker**: For container builds and testing
-- **Flox**: For development environment management (optional)
-
-### Environment Variables
-
-Key environment variables for development:
-
-- `GITHUB_TOKEN`: For GitHub API access
-- `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`: For model providers
-- `INFER_*`: CLI configuration overrides
-
-## Development Workflow
-
-### Build Process
-
-The project uses Taskfile for build automation:
+### Quick Setup
 
 ```bash
+# Clone the repository
+git clone https://github.com/inference-gateway/cli.git
+cd cli
+
+# Install dependencies
+go mod download
+
+# Install development tools
+task setup
+
 # Build the binary
+task build
+```
+
+### Development Dependencies
+
+Install required tools:
+
+```bash
+# Install golangci-lint
+go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+# Install pre-commit hooks
+task precommit:install
+```
+
+## Key Commands
+
+### Build Commands
+
+```bash
+# Build the CLI binary
 task build
 
 # Install from source
 task install
 
-# Clean build artifacts
-task clean
+# Run locally without building
+task run
+
+# Run with specific command
+task run -- --help
 ```
 
-### Testing
+### Development Commands
 
 ```bash
 # Run all tests
@@ -111,49 +134,20 @@ task test:verbose
 # Run tests with coverage
 task test:coverage
 
-# Run specific test package
-go test ./internal/services/...
-```
-
-### Code Quality
-
-```bash
-# Format Go code
+# Format code
 task fmt
 
 # Run linter
 task lint
 
-# Run go vet
-task vet
-
 # Run all quality checks
 task check
 
-# Development workflow (format, build, test)
+# Development workflow (fmt, build, test)
 task dev
 ```
 
-### Git Workflow
-
-- **Branching**: Feature branches from main
-- **Commits**: Conventional Commits format
-- **Pre-commit Hooks**: Auto-format and lint on commit
-- **CI/CD**: GitHub Actions for testing and releases
-
-## Key Commands
-
-### Development Commands
-
-- **Setup**: `task setup` - Install all dependencies
-- **Build**: `task build` - Build the binary
-- **Test**: `task test` - Run all tests
-- **Lint**: `task lint` - Run golangci-lint
-- **Format**: `task fmt` - Format Go code
-- **Clean**: `task clean` - Remove build artifacts
-- **Dev**: `task dev` - Complete development workflow
-
-### Module Management
+### Dependency Management
 
 ```bash
 # Tidy go modules
@@ -173,24 +167,15 @@ task mocks:generate
 task mocks:clean
 ```
 
-### Release Process
-
-```bash
-# Build release binaries for multiple platforms
-task release:build
-
-# Push container images to registry
-task container:push
-```
-
 ## Testing Instructions
 
-### Test Organization
+### Test Structure
 
-- **Location**: Tests co-located with source files (`*_test.go`)
-- **Framework**: Standard Go testing with testify assertions
-- **Mocking**: Counterfeiter for interface mocks
-- **Coverage**: Built-in Go coverage tools
+Tests are organized alongside the code they test:
+
+- Unit tests in `*_test.go` files
+- Integration tests in `cmd/` and `internal/` packages
+- Mock generation using counterfeiter
 
 ### Running Tests
 
@@ -198,116 +183,265 @@ task container:push
 # Run all tests
 go test ./...
 
+# Run tests with verbose output
+go test -v ./...
+
 # Run tests with coverage
 go test -cover ./...
 
 # Run specific package tests
-go test ./internal/services
-
-# Run tests with verbose output
-go test -v ./...
+go test ./cmd
 ```
 
-### Test Patterns
+### Test Best Practices
 
-- Use table-driven tests for multiple scenarios
-- Mock external dependencies using counterfeiter
-- Test both success and error cases
-- Follow Go testing best practices
+1. **Use Table-Driven Tests**: For comprehensive test coverage
+2. **Mock External Dependencies**: Use generated mocks for services
+3. **Test Edge Cases**: Include boundary conditions and error scenarios
+4. **Parallel Execution**: Use `t.Parallel()` where appropriate
+5. **Clean Test Data**: Ensure tests don't leave artifacts
 
-## Deployment & Release
+## Project Conventions and Coding Standards
 
-### CI/CD Pipeline
+### Code Style
 
-- **GitHub Actions**: Automated testing and releases
-- **Main Branch**: Protected with required checks
-- **Release Process**: Semantic versioning with automated changelog
-- **Container Images**: Multi-architecture builds for Linux
-
-### Release Steps
-
-1. **Version Bump**: Automated via semantic-release
-2. **Build**: Multi-platform binaries
-3. **Signing**: Cosign for supply chain security
-4. **Container**: Docker images pushed to GHCR
-5. **Documentation**: Changelog and release notes
-
-### Container Deployment
-
-```bash
-# Build and push container images
-task container:push
-
-# Run locally
-docker run --rm -it ghcr.io/inference-gateway/cli:latest
-```
-
-## Project Conventions
-
-### Coding Standards
-
-- **Go Standards**: Follow standard Go conventions and idioms
-- **Linting**: Enforced by golangci-lint with custom configuration
-- **Formatting**: `go fmt` for consistent code style
-- **Imports**: Group standard library, third-party, and local imports
-
-### Naming Conventions
-
-- **Packages**: Lowercase, single-word names
-- **Files**: snake_case for multi-word names
-- **Variables**: camelCase for local variables
-- **Constants**: camelCase or UPPER_CASE depending on scope
-- **Interfaces**: Use descriptive names ending with "er" when appropriate
+- **Go Format**: Use `gofmt` or `task fmt` for consistent formatting
+- **Linting**: Follow `golangci-lint` rules
+- **Naming**: Use descriptive names following Go conventions
+- **Error Handling**: Return errors, don't panic
 
 ### File Organization
 
-- **Domain Logic**: `internal/domain/` for core business logic
-- **Services**: `internal/services/` for business logic services
-- **Handlers**: `internal/handlers/` for command and event handling
-- **UI Components**: `internal/ui/` for terminal interface
-- **Configuration**: `config/` for configuration management
+- **Package Structure**: Group related functionality in packages
+- **Interface Segregation**: Define focused interfaces
+- **Dependency Injection**: Use interfaces for testability
 
-### Commit Message Format
+### Configuration Management
 
-Follow Conventional Commits specification:
+- **2-Layer System**: Project config overrides userspace config
+- **Environment Variables**: Use `INFER_` prefix for overrides
+- **Secure Storage**: Never commit sensitive data to config files
 
-```text
-<type>[optional scope]: <description>
+### Commit Conventions
 
-[optional body]
+```bash
+# Conventional commit format
+type: Brief description
 
-[optional footer(s)]
+# Examples:
+feat: Add new tool for file operations
+fix: Resolve memory leak in chat handler
+docs: Update AGENTS.md with development workflow
+refactor: Simplify configuration loading
+test: Add unit tests for agent service
 ```
 
-**Types**: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+## Important Files and Configurations
 
-## Important Files & Configurations
+### Configuration Files
 
-### Core Configuration Files
+#### Main Configuration (.infer/config.yaml)
 
-- **`Taskfile.yml`**: Build automation and development tasks
-- **`go.mod` / `go.sum`**: Go module dependencies
-- **`.golangci.yml`**: Linting configuration
-- **`.pre-commit-config.yaml`**: Git hooks configuration
-- **`.github/workflows/`**: CI/CD pipeline definitions
+```yaml
+gateway:
+  url: http://localhost:8080
+  run: true
+  docker: true
+  oci: ghcr.io/inference-gateway/inference-gateway:latest
 
-### Project Structure Files
+tools:
+  enabled: true
+  sandbox:
+    directories: [".", "/tmp"]
+    protected_paths: [".infer/", ".git/", "*.env"]
+  bash:
+    enabled: true
+    whitelist:
+      commands: ["ls", "pwd", "git", "task"]
+      patterns: ["^git status$", "^git branch"]
 
-- **`cmd/`**: CLI command implementations
-- **`config/`**: Configuration management
-- **`internal/`**: Core application logic
-- **`docs/`**: Project documentation
-- **`examples/`**: Usage examples
+agent:
+  model: ""
+  system_prompt: |
+    Autonomous software engineering agent. Execute tasks iteratively until completion.
 
-### Build and Release Files
+    IMPORTANT: You NEVER push to main or master or to the current branch...
+  max_concurrent_tools: 5
 
-- **`Dockerfile`**: Container image definition
-- **`.releaserc.yaml`**: Release configuration
-- **`install.sh`**: Installation script
+a2a:
+  enabled: true
+  agents: []
+```
 
-### Documentation Files
+#### A2A Agents Configuration (.infer/agents.yaml)
 
-- **`README.md`**: Main project documentation (includes configuration guide)
-- **`AGENTS.md`**: AI agent documentation (this file)
-- **`CONTRIBUTING.md`**: Contribution guidelines
-- **`CHANGELOG.md`**: Release history
+```yaml
+agents:
+  - name: security-agent
+    url: http://localhost:8081
+    oci: ghcr.io/org/security-agent:latest
+    run: true
+    model: deepseek/deepseek-chat
+    environment:
+      API_KEY: "%SECURITY_API_KEY%"
+```
+
+### Environment Variables
+
+Key environment variables for configuration:
+
+```bash
+# Gateway Configuration
+INFER_GATEWAY_URL=http://localhost:8080
+INFER_GATEWAY_RUN=true
+INFER_GATEWAY_DOCKER=true
+
+# Agent Configuration
+INFER_AGENT_MODEL=deepseek/deepseek-chat
+INFER_AGENT_MAX_CONCURRENT_TOOLS=5
+
+# Tool Configuration
+INFER_TOOLS_ENABLED=true
+INFER_TOOLS_BASH_ENABLED=true
+
+# A2A Configuration
+INFER_A2A_ENABLED=true
+INFER_A2A_AGENTS="http://agent1:8080,http://agent2:8080"
+```
+
+### Build Configuration (Taskfile.yml)
+
+Key build tasks:
+
+- `task build`: Build binary with version info
+- `task test`: Run all tests
+- `task lint`: Run linter and markdown lint
+- `task dev`: Development workflow (fmt, build, test)
+- `task release:build`: Build release binaries
+
+## Tool Execution System
+
+### Available Tools
+
+AI agents can use these tools when tool execution is enabled:
+
+- **Bash**: Execute whitelisted commands
+- **Read**: Read file contents
+- **Write**: Write files (requires approval)
+- **Edit**: Modify files (requires approval)
+- **Delete**: Delete files (requires approval)
+- **Grep**: Search code with regex
+- **Tree**: Display directory structure
+- **WebSearch**: Search the web
+- **WebFetch**: Fetch web content
+- **Github**: Interact with GitHub API
+- **TodoWrite**: Manage task lists
+- **A2A Tools**: Agent-to-agent communication
+
+### Security Controls
+
+- **Sandbox Directories**: Restricted to `.` and `/tmp` by default
+- **Protected Paths**: `.infer/`, `.git/`, `*.env` are excluded
+- **Approval System**: Dangerous operations require user approval
+- **Command Whitelist**: Only pre-approved commands can execute
+
+## A2A (Agent-to-Agent) Integration
+
+### Core A2A Tools
+
+- **A2A_SubmitTask**: Delegate tasks to specialized agents
+- **A2A_QueryAgent**: Discover agent capabilities
+- **A2A_QueryTask**: Monitor task progress
+- **A2A_DownloadArtifacts**: Retrieve task outputs
+
+### Agent Configuration
+
+```bash
+# Add A2A agents
+infer agents add security http://security-agent:8080
+infer agents add docs http://docs-agent:8080
+
+# List configured agents
+infer agents list
+
+# Show agent details
+infer agents show security
+```
+
+## Development Workflow
+
+### Typical Development Process
+
+1. **Plan**: Use Plan Mode to analyze tasks without execution
+2. **Implement**: Use Standard Mode with approval for changes
+3. **Test**: Run tests with `task test`
+4. **Lint**: Check code quality with `task lint`
+5. **Format**: Ensure consistent formatting with `task fmt`
+6. **Commit**: Use conventional commit messages
+
+### Agent Mode Guidelines
+
+- **Standard Mode**: Normal operation with approval checks
+- **Plan Mode**: Read-only analysis and planning
+- **Auto-Accept Mode**: All tools auto-approved (use with caution)
+
+### Code Review Checklist
+
+- [ ] Tests pass: `task test`
+- [ ] Code formatted: `task fmt`
+- [ ] Linting passes: `task lint`
+- [ ] No sensitive data in commits
+- [ ] Conventional commit message
+- [ ] Documentation updated if needed
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Configuration Not Loading**: Check file permissions and YAML syntax
+2. **Gateway Connection Issues**: Verify gateway is running and accessible
+3. **Tool Execution Failing**: Check command whitelist and sandbox settings
+4. **A2A Agent Connection**: Verify agent URLs and network connectivity
+
+### Debug Mode
+
+Enable debug logging for troubleshooting:
+
+```bash
+# Set debug environment variable
+export INFER_LOGGING_DEBUG=true
+
+# Or use verbose flag
+infer --verbose chat
+```
+
+## Best Practices for AI Agents
+
+### When Working with This Project
+
+1. **Always Use TodoWrite**: Create structured task lists for complex work
+2. **Prefer Grep Over Read**: Search for specific patterns rather than reading entire files
+3. **Batch Tool Calls**: Use parallel execution for efficiency
+4. **Follow Security Rules**: Never access protected paths
+5. **Use Conventional Commits**: Follow the project's commit message format
+6. **Test Your Changes**: Always run tests before considering work complete
+
+### File Modification Guidelines
+
+1. **Read First**: Always read files before editing
+2. **Use MultiEdit**: For multiple changes to the same file
+3. **Preview Changes**: Review diffs before approval
+4. **Follow Patterns**: Match existing code style and patterns
+5. **Update Tests**: Include test updates with feature changes
+
+### Configuration Best Practices
+
+1. **Use Environment Variables**: For sensitive data and CI/CD
+2. **Respect Precedence**: Understand config layer hierarchy
+3. **Validate Changes**: Test configuration changes thoroughly
+4. **Document Changes**: Update documentation when adding new features
+
+---
+
+This documentation is maintained by AI agents working on the project.
+Please update it when making significant changes to the project structure or development workflow.
