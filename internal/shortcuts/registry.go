@@ -184,10 +184,6 @@ func parseShortcutLine(input string) ([]string, error) {
 		args = append(args, arg)
 	}
 
-	if inQuotes {
-		return nil, fmt.Errorf("unclosed quote in shortcut")
-	}
-
 	return args, nil
 }
 

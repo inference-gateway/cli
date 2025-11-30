@@ -770,6 +770,7 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.ShowPlanApprovalEvent,
 		tea.KeyMsg,
 		tea.WindowSizeMsg,
+		tea.MouseMsg,
 		spinner.TickMsg:
 		return true
 	}

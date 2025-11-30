@@ -11,12 +11,16 @@ import (
 
 	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	markdown "github.com/inference-gateway/cli/internal/ui/markdown"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
+
+// renderTickMsg is sent by the ticker to trigger batched UI updates
+type renderTickMsg struct{}
 
 // ConversationView handles the chat conversation display
 type ConversationView struct {
@@ -38,6 +42,9 @@ type ConversationView struct {
 	userScrolledUp      bool
 	stateManager        domain.StateManager
 	renderedContent     string
+	streamingBuffer     strings.Builder
+	lastRenderTime      time.Time
+	renderPending       bool
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
@@ -91,7 +98,7 @@ func (cv *ConversationView) SetConversation(conversation []domain.ConversationEn
 	cv.conversation = conversation
 	cv.isStreaming = false
 	cv.updatePlainTextLines()
-	cv.updateViewportContent()
+	cv.updateViewportContentFull()
 	if wasAtBottom {
 		cv.Viewport.GotoBottom()
 	}
@@ -118,6 +125,7 @@ func (cv *ConversationView) ResetUserScroll() {
 func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 	if index >= 0 && index < len(cv.conversation) {
 		cv.expandedToolResults[index] = !cv.expandedToolResults[index]
+		cv.updateViewportContentFull()
 	}
 }
 
@@ -129,6 +137,7 @@ func (cv *ConversationView) ToggleAllToolResultsExpansion() {
 			cv.expandedToolResults[i] = cv.allToolsExpanded
 		}
 	}
+	cv.updateViewportContentFull()
 }
 
 func (cv *ConversationView) IsToolResultExpanded(index int) bool {
@@ -141,7 +150,7 @@ func (cv *ConversationView) IsToolResultExpanded(index int) bool {
 // ToggleRawFormat toggles between raw and rendered markdown display
 func (cv *ConversationView) ToggleRawFormat() {
 	cv.rawFormat = !cv.rawFormat
-	cv.updateViewportContent()
+	cv.updateViewportContentFull()
 }
 
 // IsRawFormat returns true if raw format (no markdown rendering) is enabled
@@ -154,7 +163,7 @@ func (cv *ConversationView) RefreshTheme() {
 	if cv.markdownRenderer != nil {
 		cv.markdownRenderer.RefreshTheme()
 	}
-	cv.updateViewportContent()
+	cv.updateViewportContentFull()
 }
 
 // GetPlainTextLines returns the conversation as plain text lines for selection mode
@@ -196,8 +205,6 @@ func (cv *ConversationView) SetHeight(height int) {
 func (cv *ConversationView) Render() string {
 	if len(cv.conversation) == 0 {
 		cv.Viewport.SetContent(cv.renderWelcome())
-	} else {
-		cv.updateViewportContent()
 	}
 
 	viewportContent := cv.Viewport.View()
@@ -211,6 +218,15 @@ func (cv *ConversationView) Render() string {
 }
 
 func (cv *ConversationView) updateViewportContent() {
+	if cv.isStreaming {
+		cv.updateViewportContentIncremental()
+	} else {
+		cv.updateViewportContentFull()
+	}
+}
+
+// updateViewportContentFull performs a full rebuild of the viewport content
+func (cv *ConversationView) updateViewportContentFull() {
 	var b strings.Builder
 
 	displayIndex := 0
@@ -221,6 +237,47 @@ func (cv *ConversationView) updateViewportContent() {
 		b.WriteString(cv.renderEntryWithIndex(entry, i))
 		b.WriteString("\n")
 		displayIndex++
+	}
+
+	if cv.toolCallRenderer != nil {
+		toolPreviews := cv.toolCallRenderer.RenderPreviews()
+		if toolPreviews != "" {
+			b.WriteString("\n")
+			b.WriteString(toolPreviews)
+			b.WriteString("\n")
+		}
+	}
+
+	cv.renderedContent = b.String()
+	cv.Viewport.SetContent(cv.renderedContent)
+
+	if !cv.userScrolledUp {
+		cv.Viewport.GotoBottom()
+	}
+}
+
+// updateViewportContentIncremental optimizes updates during streaming by only updating the last entry
+func (cv *ConversationView) updateViewportContentIncremental() {
+	if len(cv.conversation) == 0 {
+		return
+	}
+
+	var b strings.Builder
+
+	for i := 0; i < len(cv.conversation)-1; i++ {
+		entry := cv.conversation[i]
+		if entry.Hidden {
+			continue
+		}
+		b.WriteString(cv.renderEntryWithIndex(entry, i))
+		b.WriteString("\n")
+	}
+
+	lastIdx := len(cv.conversation) - 1
+	lastEntry := cv.conversation[lastIdx]
+	if !lastEntry.Hidden {
+		b.WriteString(cv.renderEntryWithIndex(lastEntry, lastIdx))
+		b.WriteString("\n")
 	}
 
 	if cv.toolCallRenderer != nil {
@@ -566,6 +623,13 @@ func (cv *ConversationView) shortenPath(path string) string {
 	return "..." + string(filepath.Separator) + parts[len(parts)-2] + string(filepath.Separator) + parts[len(parts)-1]
 }
 
+// renderTickCmd creates a ticker command for throttled UI updates
+func renderTickCmd() tea.Cmd {
+	return tea.Tick(constants.RenderThrottleInterval, func(t time.Time) tea.Msg {
+		return renderTickMsg{}
+	})
+}
+
 // Bubble Tea interface
 func (cv *ConversationView) Init() tea.Cmd { return nil }
 
@@ -587,7 +651,7 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		cv.SetWidth(windowMsg.Width)
 		cv.height = windowMsg.Height
-		cv.updateViewportContent()
+		cv.updateViewportContentFull()
 	}
 
 	if cv.toolCallRenderer != nil {
@@ -597,17 +661,28 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case domain.UpdateHistoryEvent:
 		cv.isStreaming = false
+		cv.flushStreamingBuffer()
 		cv.SetConversation(msg.History)
 		return cv, cmd
 	case domain.BashCommandCompletedEvent:
 		cv.isStreaming = false
+		cv.flushStreamingBuffer()
 		cv.SetConversation(msg.History)
 		if cv.toolCallRenderer != nil {
 			cv.toolCallRenderer.ClearPreviews()
 		}
 		return cv, cmd
 	case domain.StreamingContentEvent:
-		cv.appendStreamingContent(msg.Content)
+		tickCmd := cv.appendStreamingContent(msg.Content)
+		if tickCmd != nil {
+			cmd = tea.Batch(cmd, tickCmd)
+		}
+		return cv, cmd
+	case renderTickMsg:
+		cv.flushStreamingBuffer()
+		if cv.isStreaming && cv.renderPending {
+			cmd = renderTickCmd()
+		}
 		return cv, cmd
 	case domain.ScrollRequestEvent:
 		if msg.ComponentID == "conversation" {
@@ -616,7 +691,6 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 		if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
 			cv.Viewport, cmd = cv.Viewport.Update(msg)
-			// After viewport updates, check if we're at bottom
 			if cv.Viewport.AtBottom() {
 				cv.userScrolledUp = false
 			}
@@ -695,17 +769,45 @@ func (cv *ConversationView) renderToolCommandEntry(_ domain.ConversationEntry, c
 	return message + "\n"
 }
 
-// appendStreamingContent appends streaming content to the last assistant message
-func (cv *ConversationView) appendStreamingContent(content string) {
+// appendStreamingContent buffers streaming content for throttled rendering
+func (cv *ConversationView) appendStreamingContent(content string) tea.Cmd {
 	if !cv.isStreaming {
 		cv.isStreaming = true
+		cv.lastRenderTime = time.Now()
 	}
+
+	cv.streamingBuffer.WriteString(content)
+	cv.renderPending = true
+
+	timeSinceLastRender := time.Since(cv.lastRenderTime)
+	if timeSinceLastRender >= constants.RenderThrottleInterval {
+		cv.flushStreamingBuffer()
+		return nil
+	}
+
+	return renderTickCmd()
+}
+
+// flushStreamingBuffer applies buffered streaming content to the conversation
+func (cv *ConversationView) flushStreamingBuffer() {
+	if !cv.renderPending {
+		return
+	}
+
+	bufferedContent := cv.streamingBuffer.String()
+	if bufferedContent == "" {
+		return
+	}
+
+	cv.streamingBuffer.Reset()
+	cv.renderPending = false
+	cv.lastRenderTime = time.Now()
 
 	if len(cv.conversation) == 0 || cv.conversation[len(cv.conversation)-1].Message.Role != sdk.Assistant {
 		streamingEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(content),
+				Content: sdk.NewMessageContent(bufferedContent),
 			},
 			Time: time.Now(),
 		}
@@ -716,7 +818,7 @@ func (cv *ConversationView) appendStreamingContent(content string) {
 		if err != nil {
 			currentContent = ""
 		}
-		cv.conversation[lastIdx].Message.Content = sdk.NewMessageContent(currentContent + content)
+		cv.conversation[lastIdx].Message.Content = sdk.NewMessageContent(currentContent + bufferedContent)
 	}
 
 	cv.updatePlainTextLines()
@@ -791,7 +893,6 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 	accentColor := cv.styleProvider.GetThemeColor("accent")
 	highlightBg := cv.styleProvider.GetThemeColor("selection_bg")
 
-	// Render buttons with highlighting for selected one
 	var acceptStyled, rejectStyled, autoApproveStyled string
 	if selectedIndex == int(domain.PlanApprovalAccept) {
 		acceptStyled = cv.styleProvider.RenderStyledText("[ "+acceptText+" ]", styles.StyleOptions{
@@ -879,7 +980,6 @@ func (cv *ConversationView) renderGenericToolArgs(args map[string]any) string {
 func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntry, index int) string {
 	var result strings.Builder
 
-	// Determine the color and role based on approval status
 	var color string
 	var role string
 	switch entry.ToolApprovalStatus {
@@ -900,11 +1000,9 @@ func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntr
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
 	result.WriteString(roleStyled + "\n")
 
-	// Format tool call information
 	toolCall := entry.PendingToolCall
 	toolName := toolCall.Function.Name
 
-	// Parse arguments to display them nicely
 	var args map[string]any
 	if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err == nil {
 		result.WriteString(fmt.Sprintf("  Tool: %s\n", toolName))
@@ -921,7 +1019,6 @@ func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntr
 		result.WriteString(fmt.Sprintf("  Tool: %s\n", toolName))
 	}
 
-	// Render approval buttons if status is pending
 	if entry.ToolApprovalStatus == domain.ToolApprovalPending {
 		result.WriteString("\n")
 		result.WriteString(cv.renderInlineToolApprovalButtons(index))
@@ -1007,6 +1104,7 @@ func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cm
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	}
+
 	cv.updateViewportContent()
 	return cmd
 }
