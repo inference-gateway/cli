@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.76.1](https://github.com/inference-gateway/cli/compare/v0.76.0...v0.76.1) (2025-11-30)
+
+### 🐛 Bug Fixes
+
+* Improve bash output formatting and truncation limits ([#294](https://github.com/inference-gateway/cli/issues/294)) ([dcebb0d](https://github.com/inference-gateway/cli/commit/dcebb0de785cd65233335d7293c8ac70d91e17d1))
+* Improve UI rendering performance and history handling ([#293](https://github.com/inference-gateway/cli/issues/293)) ([e8f615e](https://github.com/inference-gateway/cli/commit/e8f615e468bf430ddb298154e90a19b87b4e7b83))
+
 ## [0.76.0](https://github.com/inference-gateway/cli/compare/v0.75.0...v0.76.0) (2025-11-30)
 
 ### 🚀 Features
