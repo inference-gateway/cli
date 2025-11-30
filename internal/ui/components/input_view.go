@@ -179,7 +179,9 @@ func (iv *InputView) getDisplayTextAndCursorOffset() (displayText string, cursor
 }
 
 func (iv *InputView) renderPlaceholder() string {
-	return iv.styleProvider.RenderInputPlaceholder(iv.placeholder)
+	cursorChar := iv.createCursorChar(" ")
+	placeholder := iv.styleProvider.RenderInputPlaceholder(iv.placeholder)
+	return cursorChar + placeholder
 }
 
 // calculateAdjustedCursor calculates the cursor position for display text
