@@ -515,10 +515,10 @@ func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry)
 func (cv *ConversationView) formatToolContentCompact(content string) string {
 	if cv.toolFormatter == nil {
 		lines := strings.Split(content, "\n")
-		if len(lines) <= 3 {
+		if len(lines) <= 4 {
 			return content
 		}
-		return strings.Join(lines[:3], "\n") + "\n... (truncated)"
+		return strings.Join(lines[:4], "\n") + "\n... (truncated)"
 	}
 
 	lines := strings.Split(content, "\n")
@@ -534,10 +534,10 @@ func (cv *ConversationView) formatToolContentCompact(content string) string {
 		}
 	}
 
-	if len(result) <= 3 {
+	if len(result) <= 4 {
 		return strings.Join(result, "\n")
 	}
-	return strings.Join(result[:3], "\n") + "\n... (truncated)"
+	return strings.Join(result[:4], "\n") + "\n... (truncated)"
 }
 
 type ToolCallInfo struct {
