@@ -37,6 +37,7 @@ type ConversationView struct {
 	rawFormat           bool
 	userScrolledUp      bool
 	stateManager        domain.StateManager
+	renderedContent     string
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
@@ -157,8 +158,16 @@ func (cv *ConversationView) RefreshTheme() {
 }
 
 // GetPlainTextLines returns the conversation as plain text lines for selection mode
+// This returns the actual rendered content that was displayed in the viewport,
+// preserving the same text wrapping and formatting
 func (cv *ConversationView) GetPlainTextLines() []string {
-	return cv.plainTextLines
+	lines := strings.Split(cv.renderedContent, "\n")
+
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " ")
+	}
+
+	return lines
 }
 
 // updatePlainTextLines updates the plain text representation of the conversation
@@ -221,7 +230,8 @@ func (cv *ConversationView) updateViewportContent() {
 		}
 	}
 
-	cv.Viewport.SetContent(b.String())
+	cv.renderedContent = b.String()
+	cv.Viewport.SetContent(cv.renderedContent)
 
 	if !cv.userScrolledUp {
 		cv.Viewport.GotoBottom()
