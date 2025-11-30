@@ -4,416 +4,366 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-The Inference Gateway CLI (`infer`) is a command-line tool for managing and interacting with the Inference Gateway.
-It provides an interactive chat interface, autonomous agent capabilities, and extensive tool integration for
-AI-assisted development workflows. Built in Go with a terminal UI powered by Bubble Tea.
+The Inference Gateway CLI is a Go-based command-line interface for managing AI model interactions.
+It provides interactive chat, autonomous agent execution, and extensive tool integration for LLMs.
+The project uses Clean Architecture with domain-driven design patterns.
 
-## Build and Test Commands
+## Build & Test Commands
 
-### Building
+### Development Commands
 
 ```bash
-# Build the binary (default: ./infer)
+# Build the binary
 task build
 
-# Install to GOPATH/bin
-task install
-
-# Build multi-platform release binaries
-task release:build
-```
-
-### Testing
-
-```bash
 # Run all tests
 task test
-
-# Run tests with verbose output
-task test:verbose
 
 # Run tests with coverage
 task test:coverage
 
-# Run single test file
-go test -v ./internal/handlers/event_registry_test.go
-
-# Run specific test by name
-go test -v -run TestEventRegistry_AutoRegisterHandlers ./internal/handlers
-```
-
-### Code Quality
-
-```bash
 # Format code
 task fmt
 
-# Run linters (golangci-lint + markdownlint)
+# Run linter
 task lint
 
-# Run go vet
-task vet
-
-# Run all quality checks (fmt + vet + test)
+# Run all quality checks (format, vet, lint, test)
 task check
+
+# Complete development workflow (format, build, test)
+task dev
 ```
 
-### Mocks
+### Module Management
 
 ```bash
-# Generate mocks using counterfeiter
+# Tidy go modules
+task mod:tidy
+
+# Generate mocks for testing
 task mocks:generate
 
 # Clean generated mocks
 task mocks:clean
 ```
 
-## Architecture and Key Design Patterns
+### Running Specific Tests
+
+```bash
+# Run tests for a specific package
+go test ./internal/services/tools
+
+# Run specific test with verbose output
+go test -v ./internal/services -run TestSpecificFunction
+
+# Run tests with race detection
+go test -race ./...
+```
+
+## Architecture
 
 ### Clean Architecture Layers
 
-The codebase follows **Clean Architecture** with clear separation:
+The codebase follows Clean Architecture principles with clear separation:
 
-1. **Domain Layer** (`internal/domain/`): Core business entities, interfaces, and value objects
-   - `interfaces.go`: Central registry of all service interfaces and domain types
-   - Event types (ChatEvent, UIEvent) for asynchronous communication
-   - Domain models (Tool, ConversationEntry, FileInfo, etc.)
+1. **Domain Layer** (`internal/domain/`): Core business logic and interfaces
+   - Contains domain models, interfaces, and business rules
+   - No dependencies on external frameworks or infrastructure
+   - Defines contracts for services through interfaces
 
-2. **Application Layer** (`internal/app/`): Application-specific logic and coordination
+2. **Application Layer** (`cmd/`, `internal/handlers/`): Application-specific logic
+   - CLI command implementations using Cobra
+   - Event handlers for chat and tool execution
+   - Orchestrates domain services
 
-3. **Services Layer** (`internal/services/`): Business logic implementation
-   - `agent.go`: Autonomous agent execution logic
-   - `conversation.go`: Conversation management
-   - `tools.go`: Tool factory and service
-   - `tool_formatter.go`: Tool result formatting for UI/LLM contexts
-   - `state_manager.go`: Application state management
+3. **Infrastructure Layer** (`internal/infra/`, `internal/services/`): External concerns
+   - Storage implementations (SQLite, PostgreSQL, Redis)
+   - Tool implementations (Bash, Read, Write, Grep, etc.)
+   - SDK integration for model communication
 
-4. **Handlers Layer** (`internal/handlers/`): Event handlers for chat and commands
-   - `chat_handler.go`: Main chat interface logic
-   - `chat_message_processor.go`: Message processing and streaming
-   - `event_registry.go`: Automatic event handler registration using reflection
+4. **UI Layer** (`internal/ui/`): Terminal user interface
+   - BubbleTea components for interactive chat
+   - Approval modals for tool execution
+   - Theme management and styling
 
-5. **Infrastructure Layer** (`internal/infra/`): External concerns (storage, etc.)
+### Dependency Injection
 
-6. **UI Layer** (`internal/ui/`): Terminal UI components using Bubble Tea
+The project uses a **ServiceContainer** pattern (`internal/container/container.go`):
 
-### Event-Driven Architecture
-
-The chat interface uses an **event-driven pattern** with:
-
-- **Manual Event Handling**: Events are handled through explicit switch statements in handler methods
-  - Convention: Handler methods are named `Handle{EventTypeName}` (e.g., `HandleChatStartEvent`)
-  - All event types must be explicitly handled in the main `Handle()` method
-  - Unhandled events are logged with warnings
-
-- **Event Types** (defined in `internal/domain/interfaces.go`):
-  - `ChatEvent`: Chat operations (ChatStart, ChatChunk, ChatComplete, ChatError, etc.)
-  - `UIEvent`: UI updates (UpdateHistory, SetStatus, ShowError, etc.)
-  - Tool execution events (ToolCallPreview, ToolExecutionStarted, ToolExecutionCompleted)
-  - Tool approval events (ToolApprovalRequestedEvent, ShowToolApprovalEvent, ToolApprovalResponseEvent)
-  - A2A events (A2ATaskSubmitted, A2ATaskStatusUpdate, A2ATaskCompleted)
-
-### Tool System Architecture
-
-Tools are implemented using the **Factory Pattern** and **Strategy Pattern**:
-
-- **Tool Interface** (`domain.Tool`): Common interface for all tools with:
-  - `Definition()`: Returns tool schema for LLM
-  - `Execute()`: Executes the tool with given arguments
-  - `Validate()`: Validates arguments before execution
-  - `FormatResult()`: Formats results for different contexts (UI, LLM, Short)
-
-- **Tool Factory** (`services.ToolFactory`): Creates tool instances by name
-
-- **Tool Services**: Individual tool implementations in `internal/services/tools/`:
-  - `bash.go`: Command execution
-  - `read.go`, `write.go`, `edit.go`: File operations
-  - `grep.go`: Code search
-  - `web_search.go`, `web_fetch.go`: Web operations
-  - `github.go`: GitHub API integration
-  - `a2a_*.go`: Agent-to-agent communication tools
-
-### Tool Approval System
-
-The CLI implements a **user approval workflow** for sensitive tool operations to ensure safety:
-
-- **Configuration-Driven**: Each tool has a `require_approval` flag in its config
-  - Dangerous tools (Write, Edit, Delete, MultiEdit) require approval by default
-  - Safe tools (Read, Grep) do not require approval by default
-  - Can be overridden per-tool in `config.yaml`
-
-- **Approval Components**:
-  - `ApprovalComponent` (`internal/ui/components/approval_component.go`): Renders approval modal
-  - `DiffRenderer` (`internal/ui/components/diff_renderer.go`): Visualizes code changes for Edit/Write tools
-  - `ToolFormatterService`: Formats tool arguments for human-readable display
-
-- **Approval Events** (defined in `internal/domain/`):
-  - `ToolApprovalRequestedEvent`: Triggered when a tool requiring approval is called
-  - `ShowToolApprovalEvent`: UI event to display approval modal
-  - `ToolApprovalResponseEvent`: Captures user's approval/rejection decision
-  - `ToolApprovedEvent`/`ToolRejectedEvent`: Final approval outcome
-
-- **Approval Flow**:
-  1. LLM requests a tool execution that requires approval
-  2. System emits `ToolApprovalRequestedEvent`
-  3. UI displays modal with tool details and diff visualization (for code changes)
-  4. User approves (Enter/y) or rejects (Esc/n) the operation
-  5. System proceeds with execution or cancels based on user decision
-
-- **UI Controls**:
-  - Navigation: ←/→ to select Approve/Reject
-  - Approve: Enter or 'y' key
-  - Reject: Esc or 'n' key
-  - Real-time diff preview for file modification tools
-
-### Plan Approval System
-
-The CLI implements a **plan approval workflow** for Plan Mode to ensure user oversight of planned actions:
-
-- **Automatic Triggering**: When in Plan Mode (`AgentModePlan`), after the agent completes planning
-  (ChatCompleteEvent with no tool calls), a plan approval modal is automatically displayed
-
-- **Approval Components**:
-  - `PlanApprovalComponent` (`internal/ui/components/plan_approval_component.go`): Renders plan approval modal
-  - Displays the plan content with clear Accept/Reject/Accept & Auto-Approve options
-
-- **Approval Events** (defined in `internal/domain/`):
-  - `PlanApprovalRequestedEvent`: Triggered when plan mode completes
-  - `ShowPlanApprovalEvent`: UI event to display plan approval modal
-  - `PlanApprovalResponseEvent`: Captures user's plan approval decision
-  - `PlanApprovedEvent`/`PlanRejectedEvent`/`PlanApprovedAndAutoAcceptEvent`: Final approval outcomes
-
-- **Approval Flow**:
-  1. Agent completes planning in Plan Mode
-  2. System extracts plan content from last assistant message
-  3. System emits `PlanApprovalRequestedEvent`
-  4. UI displays modal with plan details and three options
-  5. User decides: Accept, Reject, or Accept & Auto-Approve
-  6. System proceeds based on user decision
-
-- **UI Controls**:
-  - Navigation: ←/→ to cycle through options
-  - Accept: Enter or 'y' key (stays in Plan Mode)
-  - Reject: Esc or 'n' key (allows user to provide feedback)
-  - Accept & Auto-Approve: 'a' key (switches to Auto-Accept mode for execution)
-
-- **User Actions**:
-  - **Accept**: Approves the plan and returns to chat, staying in Plan Mode for further planning
-  - **Reject**: Rejects the plan, allowing the user to provide feedback or request changes
-  - **Accept & Auto-Approve**: Approves the plan AND automatically switches to Auto-Accept mode,
-  enabling immediate execution of the planned actions
-
-### State Management
-
-The `StateManager` (`internal/services/state_manager.go`) centralizes application state using concurrent-safe patterns:
-
-- Tracks conversation state, tool execution status, task tracking
-- Manages A2A task state and context IDs
-- Provides state observers for reactive updates
-
-## Important Conventions
-
-### Adding New Event Types
-
-When adding a new event type, you MUST:
-
-1. Define the event struct in `internal/domain/interfaces.go`
-2. Add a case statement in the main `Handle()` method in `internal/handlers/chat_handler.go`
-3. Implement a handler method in the appropriate handler file named `Handle{EventTypeName}`
-
-**Unhandled events will be logged with warnings** but won't cause startup failures.
-
-### Tool Result Formatting
-
-Tool results support multiple formatting contexts:
-
-- **FormatterUI**: Compact display for terminal UI (limited width)
-- **FormatterLLM**: Full details for LLM consumption
-- **FormatterShort**: Brief summary for inline display
-
-Implement `FormatResult()` in your Tool implementation to support all contexts.
-
-### Testing Event Handlers
-
-Test event handlers by:
-
-1. Creating mock dependencies using counterfeiter
-2. Instantiating the handler with mocks
-3. Calling the specific `Handle{EventType}` method directly
-4. Asserting on returned model state and commands
+- Centralizes dependency creation and wiring
+- Manages service lifecycles
+- Provides access to all services through getter methods
+- Initialized once at application startup
 
 Example:
 
 ```go
-handler := NewChatHandler(mockRepo, mockToolService, ...)
-model, cmd := handler.HandleChatStartEvent(event, stateManager)
-// Assert on model and cmd
+container := container.NewServiceContainer(cfg, viper)
+chatService := container.ChatService()
+toolService := container.ToolService()
 ```
 
-## Key Files and Their Purpose
+### Tool System Architecture
 
-### Command Layer (`cmd/`)
+Tools are implemented as plugins following a registry pattern:
 
-- `root.go`: CLI root command and global flags
-- `chat.go`: Interactive chat command
-- `agent.go`: Autonomous agent command
-- `config.go`: Configuration management commands
-- `init.go`: Project initialization with AI analysis
+1. **Tool Interface** (`internal/domain/tools.go`): Defines contract for all tools
+2. **Tool Registry** (`internal/services/tools/registry.go`): Manages tool registration and execution
+3. **Individual Tools** (`internal/services/tools/*.go`): Specific tool implementations
 
-### Domain Layer (`internal/domain/`)
+Each tool must implement:
 
-- `interfaces.go`: **Central registry** of all interfaces and domain types
-  - All service interfaces (ChatService, FileService, ToolService, etc.)
-  - All domain types (Tool, ToolExecutionResult, ConversationEntry, etc.)
-  - All event types (ChatEvent, UIEvent types)
-
-### Handlers Layer (`internal/handlers/`)
-
-- `event_registry.go`: Reflection-based event handler registration
-- `chat_handler.go`: Main chat interface orchestration
-- `chat_message_processor.go`: Message processing and streaming logic
-- `chat_command_handler.go`: Chat command processing (/clear, /exit, etc.)
-- `chat_shortcut_handler.go`: Custom shortcut execution
-
-### Services Layer (`internal/services/`)
-
-- `agent.go`: Autonomous agent with iterative task execution
-- `conversation.go`: Conversation history management
-- `persistent_conversation.go`: Storage backend integration
-- `state_manager.go`: Centralized state management
-- `tool_formatter.go`: Tool result formatting strategies
-- `tools/`: Individual tool implementations
-
-### UI Layer (`internal/ui/`)
-
-- Bubble Tea components for terminal rendering
-- Model-View-Update pattern
-- Theme support with multiple color schemes
-
-## Development Workflow Tips
-
-### Running the CLI During Development
-
-```bash
-# Run chat command with verbose logging
-go run . chat --verbose
-
-# Run agent command
-go run . agent "Fix the failing tests"
-
-# Run with custom config
-go run . --config ./test-config.yaml chat
-```
-
-### Debugging Event Flow
-
-Unhandled events are logged with warnings:
-
-- **Before adding an event**: Check the main `Handle()` method in `internal/handlers/chat_handler.go`
-- **When debugging events**: Look for the event type in `internal/domain/interfaces.go`
-- **When events aren't firing**: Check that the event has a case statement in the main handler
-
-### Working with Tools
-
-When adding a new tool:
-
-1. Create implementation in `internal/services/tools/{toolname}.go`
-2. Implement the `domain.Tool` interface
-3. Add tool to factory in `internal/services/tools.go`
-4. Update config schema in `config/config.go`
-5. Add tool definition to relevant documentation
-
-### Working with Shortcuts
-
-The CLI includes a shortcuts system for quick command execution via `/shortcut-name` syntax.
-
-**Built-in Shortcuts:**
-
-Built-in shortcuts are implemented in `internal/shortcuts/` and include:
-
-- `init_github_action.go`: Interactive wizard for setting up GitHub App credentials for infer-action bot
-  - Guides users through creating or configuring a GitHub App
-  - Opens browser with pre-filled app creation form
-  - Provides file picker for selecting `.pem` private key files
-  - Supports both personal and organization repositories
-  - Handles App ID input and private key configuration
-
-Other built-in shortcuts include: clear, exit, help, switch, theme, config, compact, export, init, and git commands.
-
-**Adding a New Shortcut:**
-
-When adding a new built-in shortcut:
-
-1. Create implementation in `internal/shortcuts/{shortcut_name}.go`
-2. Implement the `Shortcut` interface:
-   - `GetName()`: Returns shortcut name (e.g., "init-github-action")
-   - `GetDescription()`: Returns user-friendly description
-   - `GetUsage()`: Returns usage string (e.g., "/init-github-action")
-   - `CanExecute(args []string)`: Validates if shortcut can execute with given args
-   - `Execute(ctx, args)`: Executes the shortcut logic
-3. Register shortcut in `internal/container/container.go`
-4. Add documentation to `README.md` in the "Shortcuts System" section
-5. If the shortcut has a UI component, create it in `internal/ui/components/`
-
-**User-Defined Shortcuts:**
-
-Users can create custom shortcuts by adding YAML files to `.infer/shortcuts/custom-*.yaml`.
-
-### Dependency Injection
-
-The application uses a container pattern (`internal/container/`):
-
-- Dependencies are injected via constructors
-- Services depend on interfaces, not implementations
-- Mock generation via `task mocks:generate` for testing
+- `Definition()`: Returns tool schema for LLM
+- `Execute(ctx, args)`: Executes the tool with given arguments
+- `Validate(args)`: Validates arguments before execution
+- `IsEnabled()`: Reports if tool is enabled in config
 
 ## Configuration System
 
-The CLI uses a 2-layer configuration system:
+### Configuration Precedence (highest to lowest)
 
-1. **Userspace**: `~/.infer/config.yaml` (global defaults)
-2. **Project**: `.infer/config.yaml` (project-specific, takes precedence)
+1. Environment variables (`INFER_*`)
+2. Command line flags
+3. Project config (`.infer/config.yaml`)
+4. Userspace config (`~/.infer/config.yaml`)
+5. Built-in defaults
 
-Configuration is loaded using Viper with environment variable overrides (`INFER_*` prefix).
+### Important Config Files
 
-## Testing Strategy
+- **`config/config.go`**: Config struct definitions and defaults
+- **`config/agents.go`**: A2A agent configuration
+- **`.infer/config.yaml`**: Project-level configuration (committed)
+- **`~/.infer/config.yaml`**: User-level configuration (not committed)
 
-- **Unit tests**: Co-located with source files (`*_test.go`)
-- **Mocks**: Generated via counterfeiter in `tests/mocks/`
-- **Integration tests**: Minimal, focused on critical paths
-- **Test coverage**: Not enforced, but expected for new features
+### Environment Variable Pattern
 
-Run specific test patterns:
+All config fields can be overridden via environment variables:
+
+- Format: `INFER_<PATH>` where dots become underscores
+- Example: `gateway.url` → `INFER_GATEWAY_URL`
+- Example: `tools.bash.enabled` → `INFER_TOOLS_BASH_ENABLED`
+
+## Code Conventions
+
+### File Organization
+
+- **Snake case** for file names: `conversation_title.go`
+- **Camel case** for Go identifiers: `ConversationTitle`
+- **Grouped imports**: stdlib, third-party, local
+- **Tests co-located**: `file.go` + `file_test.go`
+
+### Naming Patterns
+
+- **Services**: End with `Service` (e.g., `ChatService`, `ToolService`)
+- **Repositories**: End with `Repository` (e.g., `ConversationRepository`)
+- **Interfaces**: Descriptive names, often ending in `-er` (e.g., `FileWriter`, `PathValidator`)
+- **Config structs**: End with `Config` (e.g., `GatewayConfig`, `ToolsConfig`)
+
+### Error Handling
+
+- Use `fmt.Errorf` with `%w` for error wrapping
+- Return errors explicitly, don't panic
+- Provide context in error messages
+- Use domain-specific error types when appropriate
+
+### Testing Patterns
+
+1. **Table-driven tests** for multiple scenarios:
+
+```go
+tests := []struct {
+    name    string
+    input   string
+    want    string
+    wantErr bool
+}{
+    // test cases
+}
+```
+
+2. **Mock generation** with counterfeiter:
+
+- Mocks stored in `tests/mocks/`
+- Regenerate with `task mocks:generate`
+
+3. **Test helpers** for common setup:
+
+```go
+func setupTestConfig() *config.Config {
+    return &config.Config{
+        Tools: config.ToolsConfig{Enabled: true},
+    }
+}
+```
+
+## Key Design Patterns
+
+### Repository Pattern
+
+Storage implementations abstracted behind interfaces:
+
+- Interface: `domain.ConversationRepository`
+- Implementations: `storage.SQLiteStorage`, `storage.PostgresStorage`, `storage.RedisStorage`
+- Factory: `storage.NewConversationStorage(cfg)`
+
+### Strategy Pattern
+
+Tools and services use strategy pattern for different implementations:
+
+- Grep backend: ripgrep vs Go implementation
+- Gateway mode: Docker vs binary mode
+- Storage backend: SQLite vs PostgreSQL vs Redis
+
+### Observer Pattern
+
+Event-driven architecture for chat and agent execution:
+
+- Events defined in `internal/domain/events.go`
+- Handlers in `internal/handlers/`
+- State management through `StateManager`
+
+### Registry Pattern
+
+Tools registered and accessed through central registry:
+
+```go
+registry := tools.NewRegistry(cfg, services...)
+registry.GetTool("Bash")
+registry.ListTools()
+```
+
+## Adding New Tools
+
+See `CONTRIBUTING.md` for detailed guide. Key steps:
+
+1. Create `internal/services/tools/your_tool.go`
+2. Implement `Tool` interface (Definition, Execute, Validate, IsEnabled)
+3. Register in `internal/services/tools/registry.go`
+4. Add config section to `config/config.go` if needed
+5. Write tests in `your_tool_test.go`
+
+## Working with UI Components
+
+The TUI uses BubbleTea framework:
+
+- Models in `internal/ui/components/`
+- Shared styles in `internal/ui/styles/`
+- Theme system in `internal/domain/theme_provider.go`
+
+### Testing UI Components
+
+Use the internal `test-view` command for rapid iteration:
 
 ```bash
-# Test a specific package
-go test -v ./internal/handlers
-
-# Test with race detector
-go test -race ./...
-
-# Test with coverage
-go test -cover ./internal/services/...
+./infer test-view approval    # Test approval modal
+./infer test-view diff         # Test diff renderer
+./infer test-view multiedit    # Test MultiEdit formatting
 ```
+
+Generate snapshots for regression testing:
+
+```bash
+task test:ui:snapshots    # Generate baseline snapshots
+task test:ui:verify       # Verify against snapshots
+```
+
+## Commit Message Format
+
+Follow Conventional Commits specification:
+
+```text
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer]
+```
+
+**Types**: feat, fix, docs, style, refactor, perf, test, build, ci, chore, revert
+
+**Examples**:
+
+- `feat: add WebSearch tool for DuckDuckGo and Google`
+- `fix(tools): resolve Bash command validation edge case`
+- `docs: update tool configuration guide`
+- `feat!: change tool approval system interface` (breaking change)
+
+## Important Implementation Details
+
+### Tool Approval System
+
+Tools requiring user approval use a two-phase execution:
+
+1. **Validation Phase**: `Validate(args)` checks arguments
+2. **Approval Phase**: UI shows modal with tool details and diff preview
+3. **Execution Phase**: `Execute(ctx, args)` runs only if approved
+
+Controlled by `require_approval` config per tool.
+
+### A2A (Agent-to-Agent) Communication
+
+Enables task delegation to specialized agents:
+
+- Configuration in `.infer/agents.yaml`
+- Tools: `A2A_SubmitTask`, `A2A_QueryAgent`, `A2A_QueryTask`, `A2A_DownloadArtifacts`
+- Background task monitoring with exponential backoff polling
+
+### Shortcuts System
+
+User-defined commands in `.infer/shortcuts/`:
+
+- Built-in: `/clear`, `/exit`, `/help`, `/switch`, `/theme`
+- Git: `/git-status`, `/git-commit`, `/git-push`
+- SCM: `/scm-issues`, `/scm-pr-create`
+- Custom: `custom-*.yaml` files in shortcuts directory
+
+**AI-powered snippets**: Execute commands, send output to LLM, use response in template
+
+### State Management
+
+Conversation state managed through `StateManager`:
+
+- Tracks agent modes (Standard, Plan, Auto-Accept)
+- Manages conversation history
+- Handles tool execution state
+- Coordinates background tasks
+
+### Gateway Management
+
+Automatic gateway lifecycle management:
+
+- Downloads gateway binary if not present
+- Starts gateway in background (Docker or binary mode)
+- Monitors health via `/status` endpoint
+- Shuts down on CLI exit
 
 ## Common Gotchas
 
-1. **Event handler naming**: Must be exact `Handle{EventTypeName}` or will panic
-2. **Tool registration**: Tools must be registered in factory or they won't be available
-3. **State synchronization**: Use StateManager for shared state, not direct field access
-4. **Context handling**: Always pass context through for cancellation support
-5. **SDK compatibility**: This project uses `github.com/inference-gateway/sdk` - ensure compatibility when updating
+1. **Config changes**: After modifying config structs, update defaults in `config/defaults.go`
+2. **Tool registration**: New tools must be registered in registry's `registerTools()` method
+3. **Viper environment variables**: Use underscores, not dots (e.g., `INFER_GATEWAY_URL`)
+4. **Mock regeneration**: Run `task mocks:generate` after changing interfaces
+5. **Read before Edit**: Edit tools require Read tool to be used first on the file
+6. **Context propagation**: Always pass context through to allow cancellation
 
-## Git Workflow
+## External Dependencies
 
-- Main development branch: `main`
-- Feature branches: `feature/*` or `claude/*` for Claude Code work
-- Pre-commit hooks enforce formatting and linting
-- Conventional commits are preferred but not enforced
-- CI runs on all PRs (linting, testing, building)
+Key third-party libraries:
 
-## Related Documentation
+- **Cobra**: CLI framework for commands and flags
+- **Viper**: Configuration management with env var support
+- **BubbleTea**: Terminal UI framework
+- **Lipgloss**: Styling for terminal output
+- **go-redis**: Redis client for storage backend
+- **lib/pq**: PostgreSQL driver
+- **modernc.org/sqlite**: CGO-free SQLite driver
 
-- Full README: `README.md`
-- Contributing guidelines: `CONTRIBUTING.md`
-- Agent architecture: `AGENTS.md`
+## Development Environment
+
+- **Go version**: 1.25.2+ required
+- **Task**: Task runner (taskfile.dev) for build automation
+- **golangci-lint**: Linting and static analysis
+- **pre-commit**: Git hooks for code quality
+- **Docker**: Optional, for gateway Docker mode
+- **Flox**: Optional, for reproducible dev environment
