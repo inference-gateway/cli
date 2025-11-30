@@ -284,6 +284,8 @@ func (app *ChatApplication) updateHelpBarShortcutsForTextSelection() {
 func (app *ChatApplication) Init() tea.Cmd {
 	var cmds []tea.Cmd
 
+	cmds = append(cmds, tea.ClearScreen)
+
 	if cmd := app.conversationView.(tea.Model).Init(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
@@ -1814,4 +1816,20 @@ After merging, @infer mentions in issues will trigger the bot.
 	}
 
 	return fmt.Sprintf("https://github.com/%s/compare/%s...%s", repo, baseBranch, branch), nil
+}
+
+// PrintConversationHistory outputs the full conversation history to stdout
+// This is called when the application exits to preserve the chat session
+func (app *ChatApplication) PrintConversationHistory() {
+	entries := app.conversationRepo.GetMessages()
+	if len(entries) == 0 {
+		return
+	}
+
+	if conversationView, ok := app.conversationView.(*components.ConversationView); ok {
+		plainTextLines := conversationView.GetPlainTextLines()
+		for _, line := range plainTextLines {
+			fmt.Println(line)
+		}
+	}
 }

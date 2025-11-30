@@ -37,11 +37,14 @@ type ConversationView struct {
 	rawFormat           bool
 	userScrolledUp      bool
 	stateManager        domain.StateManager
+	renderedContent     string
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	vp := viewport.New(80, 20)
 	vp.SetContent("")
+	vp.MouseWheelEnabled = true
+	vp.MouseWheelDelta = 3
 
 	var mdRenderer *markdown.Renderer
 	if themeService := styleProvider.GetThemeService(); themeService != nil {
@@ -155,8 +158,16 @@ func (cv *ConversationView) RefreshTheme() {
 }
 
 // GetPlainTextLines returns the conversation as plain text lines for selection mode
+// This returns the actual rendered content that was displayed in the viewport,
+// preserving the same text wrapping and formatting
 func (cv *ConversationView) GetPlainTextLines() []string {
-	return cv.plainTextLines
+	lines := strings.Split(cv.renderedContent, "\n")
+
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " ")
+	}
+
+	return lines
 }
 
 // updatePlainTextLines updates the plain text representation of the conversation
@@ -219,7 +230,8 @@ func (cv *ConversationView) updateViewportContent() {
 		}
 	}
 
-	cv.Viewport.SetContent(b.String())
+	cv.renderedContent = b.String()
+	cv.Viewport.SetContent(cv.renderedContent)
 
 	if !cv.userScrolledUp {
 		cv.Viewport.GotoBottom()
@@ -560,8 +572,14 @@ func (cv *ConversationView) View() string { return cv.Render() }
 func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	if handled, result, mouseCmd := cv.handleMouseMsg(msg); handled {
-		return result, mouseCmd
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
+		if mouseMsg.Action == tea.MouseActionPress {
+			switch mouseMsg.Button {
+			case tea.MouseButtonWheelUp:
+				cv.userScrolledUp = true
+			case tea.MouseButtonWheelDown:
+			}
+		}
 	}
 
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
@@ -596,6 +614,10 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 		if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
 			cv.Viewport, cmd = cv.Viewport.Update(msg)
+			// After viewport updates, check if we're at bottom
+			if cv.Viewport.AtBottom() {
+				cv.userScrolledUp = false
+			}
 		}
 	}
 
@@ -699,32 +721,10 @@ func (cv *ConversationView) appendStreamingContent(content string) {
 	cv.updateViewportContent()
 }
 
-// handleMouseMsg handles mouse wheel scrolling events
-func (cv *ConversationView) handleMouseMsg(msg tea.Msg) (bool, tea.Model, tea.Cmd) {
-	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
-		if mouseMsg.Action == tea.MouseActionPress {
-			switch mouseMsg.Button {
-			case tea.MouseButtonWheelDown:
-				cv.Viewport.ScrollDown(1)
-				if cv.Viewport.AtBottom() {
-					cv.userScrolledUp = false
-				}
-				return true, cv, nil
-			case tea.MouseButtonWheelUp:
-				cv.userScrolledUp = true
-				cv.Viewport.ScrollUp(1)
-				return true, cv, nil
-			}
-		}
-	}
-	return false, nil, nil
-}
-
 // renderPlanEntry renders a plan entry with inline approval buttons
 func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, index int) string {
 	var result strings.Builder
 
-	// Determine the color and role based on approval status
 	var color string
 	var role string
 	switch entry.PlanApprovalStatus {
