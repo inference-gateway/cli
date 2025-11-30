@@ -12,8 +12,8 @@ import (
 	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	markdown "github.com/inference-gateway/cli/internal/ui/markdown"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -27,7 +27,7 @@ type ConversationView struct {
 	expandedToolResults map[int]bool
 	allToolsExpanded    bool
 	toolFormatter       domain.ToolFormatter
-	lineFormatter       *shared.ConversationLineFormatter
+	lineFormatter       *formatting.ConversationLineFormatter
 	plainTextLines      []string
 	configPath          string
 	styleProvider       *styles.Provider
@@ -55,7 +55,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 		height:              20,
 		expandedToolResults: make(map[int]bool),
 		allToolsExpanded:    false,
-		lineFormatter:       shared.NewConversationLineFormatter(80, nil),
+		lineFormatter:       formatting.NewConversationLineFormatter(80, nil),
 		plainTextLines:      []string{},
 		styleProvider:       styleProvider,
 		markdownRenderer:    mdRenderer,
@@ -65,7 +65,7 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 // SetToolFormatter sets the tool formatter for this conversation view
 func (cv *ConversationView) SetToolFormatter(formatter domain.ToolFormatter) {
 	cv.toolFormatter = formatter
-	cv.lineFormatter = shared.NewConversationLineFormatter(cv.width, formatter)
+	cv.lineFormatter = formatting.NewConversationLineFormatter(cv.width, formatter)
 }
 
 // SetConfigPath sets the config path for the welcome message
@@ -316,7 +316,7 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
-		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
+		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 	content := contentStr
 
@@ -324,7 +324,7 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.isStreaming && !cv.rawFormat {
 		formattedContent = cv.markdownRenderer.Render(content)
 	} else {
-		formattedContent = shared.FormatResponsiveMessage(content, cv.width)
+		formattedContent = formatting.FormatResponsiveMessage(content, cv.width)
 	}
 
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
@@ -347,7 +347,7 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 		if cv.markdownRenderer != nil && !cv.rawFormat {
 			formattedContent = cv.markdownRenderer.Render(contentStr)
 		} else {
-			formattedContent = shared.FormatResponsiveMessage(contentStr, cv.width)
+			formattedContent = formatting.FormatResponsiveMessage(contentStr, cv.width)
 		}
 		result.WriteString(roleStyled + " " + formattedContent + "\n")
 	} else {
@@ -421,9 +421,9 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
-		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
+		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
-	wrappedContent := shared.FormatResponsiveMessage(contentStr, cv.width)
+	wrappedContent := formatting.FormatResponsiveMessage(contentStr, cv.width)
 	return wrappedContent + "\n\n• Press ctrl+o to collapse all tool calls"
 }
 
@@ -434,10 +434,10 @@ func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry)
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
-		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
+		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 	content := cv.formatToolContentCompact(contentStr)
-	wrappedContent := shared.FormatResponsiveMessage(content, cv.width)
+	wrappedContent := formatting.FormatResponsiveMessage(content, cv.width)
 	return wrappedContent + "\n• Press ctrl+o to expand all tool calls"
 }
 
@@ -649,7 +649,7 @@ func (cv *ConversationView) renderShellCommandEntry(_ domain.ConversationEntry, 
 	prefixStyled := cv.styleProvider.RenderWithColor("!", accentColor)
 
 	formattedContent := prefixStyled + " " + command
-	wrappedContent := shared.FormatResponsiveMessage(formattedContent, cv.width)
+	wrappedContent := formatting.FormatResponsiveMessage(formattedContent, cv.width)
 
 	message := roleStyled + " " + wrappedContent
 	return message + "\n"
@@ -665,7 +665,7 @@ func (cv *ConversationView) renderToolCommandEntry(_ domain.ConversationEntry, c
 	prefixStyled := cv.styleProvider.RenderWithColor("!!", accentColor)
 
 	formattedContent := prefixStyled + " " + command
-	wrappedContent := shared.FormatResponsiveMessage(formattedContent, cv.width)
+	wrappedContent := formatting.FormatResponsiveMessage(formattedContent, cv.width)
 
 	message := roleStyled + " " + wrappedContent
 	return message + "\n"
@@ -747,18 +747,18 @@ func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, inde
 	// Render the plan content
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
-		contentStr = shared.ExtractTextFromContent(entry.Message.Content, entry.Images)
+		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 
 	var formattedContent string
 
 	if entry.PlanApprovalStatus == domain.PlanApprovalRejected {
-		plainContent := shared.FormatResponsiveMessage(contentStr, cv.width)
+		plainContent := formatting.FormatResponsiveMessage(contentStr, cv.width)
 		formattedContent = cv.styleProvider.RenderWithColor(plainContent, color)
 	} else if cv.markdownRenderer != nil && !cv.isStreaming && !cv.rawFormat {
 		formattedContent = cv.markdownRenderer.Render(contentStr)
 	} else {
-		formattedContent = shared.FormatResponsiveMessage(contentStr, cv.width)
+		formattedContent = formatting.FormatResponsiveMessage(contentStr, cv.width)
 	}
 
 	result.WriteString(roleStyled + " " + formattedContent + "\n")

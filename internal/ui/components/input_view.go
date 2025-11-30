@@ -7,6 +7,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	models "github.com/inference-gateway/cli/internal/models"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
@@ -231,7 +232,7 @@ func (iv *InputView) renderTextWithCursor() string {
 
 func (iv *InputView) renderWrappedText(before, after string, availableWidth int) string {
 	wrappedBefore := iv.preserveTrailingSpaces(before, availableWidth)
-	wrappedAfter := shared.WrapText(after, availableWidth)
+	wrappedAfter := formatting.WrapText(after, availableWidth)
 	return iv.buildTextWithCursor(wrappedBefore, wrappedAfter)
 }
 
@@ -590,7 +591,7 @@ func (iv *InputView) CanHandle(key tea.KeyMsg) bool {
 }
 
 func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) string {
-	wrappedText := shared.WrapText(text, availableWidth)
+	wrappedText := formatting.WrapText(text, availableWidth)
 
 	trailingSpaces := 0
 	for i := len(text) - 1; i >= 0 && text[i] == ' '; i-- {

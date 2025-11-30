@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -121,7 +121,7 @@ func (h *FileSelectionHandler) filterFiles(allFiles []string, searchQuery string
 // RenderFileSelection renders the file selection view
 func (h *FileSelectionHandler) RenderFileSelection(data FileSelectionData) string {
 	if len(data.Files) == 0 {
-		return shared.FormatWarning("No files available for selection")
+		return formatting.FormatWarning("No files available for selection")
 	}
 
 	h.view.SetWidth(data.Width)

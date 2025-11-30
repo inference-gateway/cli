@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
@@ -153,7 +154,7 @@ func (r *ApplicationViewRenderer) RenderFileSelection(
 	fileSelectionView *FileSelectionView,
 ) string {
 	if len(data.Files) == 0 {
-		return shared.FormatWarning("No files available for selection")
+		return formatting.FormatWarning("No files available for selection")
 	}
 
 	fileSelectionView.SetWidth(data.Width)

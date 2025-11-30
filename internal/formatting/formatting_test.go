@@ -1,4 +1,4 @@
-package shared
+package formatting
 
 import (
 	"strings"
@@ -44,7 +44,7 @@ func TestFormatResponsiveMessage_NoTrailingSpaces(t *testing.T) {
 
 func TestFormatResponsiveMessage_PreservesContent(t *testing.T) {
 	content := "Hello world\nThis is a test\nWith multiple lines"
-	width := 100 // Wide enough to not wrap
+	width := 100
 
 	result := FormatResponsiveMessage(content, width)
 

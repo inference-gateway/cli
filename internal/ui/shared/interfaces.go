@@ -1,8 +1,6 @@
 package shared
 
 import (
-	"fmt"
-
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
@@ -145,9 +143,4 @@ func CalculateStatusHeight(totalHeight int) int {
 		return 1
 	}
 	return 2
-}
-
-// FormatWarning creates a properly formatted warning message
-func FormatWarning(message string) string {
-	return fmt.Sprintf("⚠️ %s", message)
 }

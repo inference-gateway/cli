@@ -7,9 +7,9 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -163,7 +163,7 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model str
 	logger.Info("LLM summary generated successfully", "summary_length", len(summary))
 
 	if summary != "" {
-		wrappedSummary := shared.WrapText(summary, 80)
+		wrappedSummary := formatting.WrapText(summary, 80)
 		formattedSummary := fmt.Sprintf("--- Context Summary ---\n\n%s\n\n--- End Summary ---", wrappedSummary)
 		summaryMsg := sdk.Message{
 			Role:    "assistant",

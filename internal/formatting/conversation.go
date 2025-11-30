@@ -1,10 +1,10 @@
-package shared
+package formatting
 
 import (
 	"fmt"
 	"strings"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ConversationLineFormatter converts conversation entries to text lines

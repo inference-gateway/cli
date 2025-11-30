@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -22,7 +23,6 @@ import (
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	factory "github.com/inference-gateway/cli/internal/ui/factory"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -1199,7 +1199,7 @@ func (app *ChatApplication) renderFileSelection() string {
 	width, _ := app.stateManager.GetDimensions()
 
 	if fileState == nil {
-		return shared.FormatWarning("No files available for selection")
+		return formatting.FormatWarning("No files available for selection")
 	}
 
 	data := components.FileSelectionData{

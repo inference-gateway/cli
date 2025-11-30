@@ -8,7 +8,7 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -39,7 +39,7 @@ func (r *InMemoryConversationRepository) formatToolCall(toolCall sdk.ChatComplet
 		return r.formatterService.FormatToolCall(toolCall.Function.Name, args)
 	}
 
-	return shared.FormatToolCall(toolCall.Function.Name, args)
+	return formatting.FormatToolCall(toolCall.Function.Name, args)
 }
 
 func (r *InMemoryConversationRepository) AddMessage(msg domain.ConversationEntry) error {
