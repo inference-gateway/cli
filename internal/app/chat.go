@@ -21,7 +21,7 @@ import (
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
-	factory "github.com/inference-gateway/cli/internal/ui/factory"
+	factory "github.com/inference-gateway/cli/internal/ui/components/factory"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
