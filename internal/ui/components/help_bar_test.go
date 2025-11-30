@@ -4,13 +4,18 @@ import (
 	"strings"
 	"testing"
 
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // createMockStyleProviderForHelpBar creates a mock styles provider for testing
 func createMockStyleProviderForHelpBar() *styles.Provider {
-	return styles.NewProvider(&mockThemeService{})
+	fakeTheme := &uimocks.FakeTheme{}
+	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
+	return styles.NewProvider(fakeThemeService)
 }
 
 func TestNewHelpBar(t *testing.T) {
@@ -32,7 +37,7 @@ func TestNewHelpBar(t *testing.T) {
 func TestHelpBar_SetShortcuts(t *testing.T) {
 	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 
-	shortcuts := []shared.KeyShortcut{
+	shortcuts := []ui.KeyShortcut{
 		{Key: "Enter", Description: "Send message"},
 		{Key: "Ctrl+C", Description: "Cancel"},
 		{Key: "↑↓", Description: "History"},
@@ -114,11 +119,14 @@ func TestHelpBar_Render_NoShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_Render_WithShortcuts(t *testing.T) {
-	styleProvider := styles.NewProvider(&mockThemeService{})
+	fakeTheme := &uimocks.FakeTheme{}
+	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
+	styleProvider := styles.NewProvider(fakeThemeService)
 	hb := NewHelpBar(styleProvider)
 	hb.SetEnabled(true)
 
-	shortcuts := []shared.KeyShortcut{
+	shortcuts := []ui.KeyShortcut{
 		{Key: "Enter", Description: "Send"},
 		{Key: "Ctrl+C", Description: "Cancel"},
 		{Key: "?", Description: "Help"},
@@ -149,7 +157,7 @@ func TestHelpBar_Render_LongShortcuts(t *testing.T) {
 	hb.SetEnabled(true)
 	hb.SetWidth(20)
 
-	shortcuts := []shared.KeyShortcut{
+	shortcuts := []ui.KeyShortcut{
 		{Key: "Ctrl+Shift+Alt+D", Description: "Very long description that should be truncated"},
 		{Key: "F1", Description: "Short"},
 	}
@@ -170,7 +178,7 @@ func TestHelpBar_Render_EmptyShortcuts(t *testing.T) {
 	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 	hb.SetEnabled(true)
 
-	hb.SetShortcuts([]shared.KeyShortcut{})
+	hb.SetShortcuts([]ui.KeyShortcut{})
 	output := hb.Render()
 
 	if output != "" {
@@ -182,7 +190,7 @@ func TestHelpBar_Render_SingleShortcut(t *testing.T) {
 	hb := NewHelpBar(createMockStyleProviderForHelpBar())
 	hb.SetEnabled(true)
 
-	shortcuts := []shared.KeyShortcut{
+	shortcuts := []ui.KeyShortcut{
 		{Key: "?", Description: "Help"},
 	}
 

@@ -14,8 +14,8 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	services "github.com/inference-gateway/cli/internal/services"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
@@ -760,7 +760,7 @@ func enableTools(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess("Tools enabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatSuccess("Tools enabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	return nil
 }
@@ -771,7 +771,7 @@ func disableTools(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatErrorCLI("Tools disabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatErrorCLI("Tools disabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	return nil
 }
@@ -816,9 +816,9 @@ func listTools(cmd *cobra.Command, args []string) error {
 	fmt.Printf("TOOLS STATUS\n")
 	fmt.Printf("────────────\n")
 	if V.GetBool("tools.enabled") {
-		fmt.Printf("Overall: %s\n", ui.FormatEnabled())
+		fmt.Printf("Overall: %s\n", formatting.FormatEnabled())
 	} else {
-		fmt.Printf("Overall: %s\n", ui.FormatDisabled())
+		fmt.Printf("Overall: %s\n", formatting.FormatDisabled())
 	}
 
 	fmt.Printf("\nINDIVIDUAL TOOLS\n")
@@ -891,7 +891,7 @@ func listTools(cmd *cobra.Command, args []string) error {
 // ValidateTool validates if a command is whitelisted for execution
 func ValidateTool(cfg *config.Config, command string) error {
 	if !cfg.Tools.Enabled {
-		fmt.Printf("%s\n", ui.FormatErrorCLI("Tools are disabled"))
+		fmt.Printf("%s\n", formatting.FormatErrorCLI("Tools are disabled"))
 		return nil
 	}
 
@@ -903,12 +903,12 @@ func ValidateTool(cfg *config.Config, command string) error {
 
 	err := toolService.ValidateTool("Bash", toolArgs)
 	if err != nil {
-		fmt.Printf("%s\n", ui.FormatErrorCLI(fmt.Sprintf("Command not allowed: %s", command)))
+		fmt.Printf("%s\n", formatting.FormatErrorCLI(fmt.Sprintf("Command not allowed: %s", command)))
 		fmt.Printf("Reason: %s\n", err.Error())
 		return nil
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Command is whitelisted: %s", command)))
+	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Command is whitelisted: %s", command)))
 	return nil
 }
 
@@ -968,7 +968,7 @@ func enableSafety(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess("Safety approval enabled"))
+	fmt.Printf("%s\n", formatting.FormatSuccess("Safety approval enabled"))
 	fmt.Printf("Commands will require approval before execution\n")
 	return nil
 }
@@ -979,7 +979,7 @@ func disableSafety(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatWarning("Safety approval disabled"))
+	fmt.Printf("%s\n", formatting.FormatWarning("Safety approval disabled"))
 	fmt.Printf("Commands will execute immediately without approval\n")
 	return nil
 }
@@ -989,10 +989,10 @@ func safetyStatus(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Safety Approval Status: ")
 	if globalApproval {
-		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+		fmt.Printf("%s\n", formatting.FormatSuccess("Enabled"))
 		fmt.Printf("Commands require approval before execution\n")
 	} else {
-		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+		fmt.Printf("%s\n", formatting.FormatErrorCLI("Disabled"))
 		fmt.Printf("Commands execute immediately without approval\n")
 	}
 
@@ -1020,9 +1020,9 @@ func safetyStatus(cmd *cobra.Command, args []string) error {
 		}
 
 		if V.GetBool(tool.key) {
-			fmt.Printf("%s\n", ui.FormatSuccess("enabled"))
+			fmt.Printf("%s\n", formatting.FormatSuccess("enabled"))
 		} else {
-			fmt.Printf("%s\n", ui.FormatErrorCLI("disabled"))
+			fmt.Printf("%s\n", formatting.FormatErrorCLI("disabled"))
 		}
 	}
 
@@ -1078,7 +1078,7 @@ func setToolApproval(cmd *cobra.Command, args []string) error {
 	if !enabled {
 		status = "disabled"
 	}
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Tool-specific approval for %s %s", toolName, status)))
+	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Tool-specific approval for %s %s", toolName, status)))
 	return nil
 }
 
@@ -1116,7 +1116,7 @@ func unsetToolApproval(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Tool-specific approval setting removed for %s (using global setting)", toolName)))
+	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Tool-specific approval setting removed for %s (using global setting)", toolName)))
 	return nil
 }
 
@@ -1166,7 +1166,7 @@ func addSandboxDirectory(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Added '%s' to sandbox directories", dirToAdd)))
+	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Added '%s' to sandbox directories", dirToAdd)))
 	fmt.Printf("Tools can now access files within this directory\n")
 	return nil
 }
@@ -1189,11 +1189,11 @@ func removeSandboxDirectory(cmd *cobra.Command, args []string) error {
 	}
 
 	if !found {
-		fmt.Printf("%s\n", ui.FormatWarning(fmt.Sprintf("Directory '%s' was not in the sandbox directories list", dirToRemove)))
+		fmt.Printf("%s\n", formatting.FormatWarning(fmt.Sprintf("Directory '%s' was not in the sandbox directories list", dirToRemove)))
 		return nil
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed '%s' from sandbox directories", dirToRemove)))
+	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Removed '%s' from sandbox directories", dirToRemove)))
 	fmt.Printf("Tools can no longer access this directory\n")
 	return nil
 }
@@ -1204,7 +1204,7 @@ func enableFetch(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess("Web fetch tool enabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatSuccess("Web fetch tool enabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Println("You can now configure whitelisted sources with 'infer config tools web-fetch add-domain <domain>'")
 	return nil
@@ -1216,7 +1216,7 @@ func disableFetch(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatErrorCLI("Web fetch tool disabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatErrorCLI("Web fetch tool disabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	return nil
 }
@@ -1254,9 +1254,9 @@ func listFetchDomains(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Web Fetch Tool Status: ")
 	if cfg.Tools.WebFetch.Enabled {
-		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+		fmt.Printf("%s\n", formatting.FormatSuccess("Enabled"))
 	} else {
-		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+		fmt.Printf("%s\n", formatting.FormatErrorCLI("Disabled"))
 	}
 
 	fmt.Printf("\nWhitelisted Domains (%d):\n", len(cfg.Tools.WebFetch.WhitelistedDomains))
@@ -1275,11 +1275,11 @@ func listFetchDomains(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\nCache Settings:\n")
 	if cfg.Tools.WebFetch.Cache.Enabled {
-		fmt.Printf("  • Status: %s\n", ui.FormatSuccess("Enabled"))
+		fmt.Printf("  • Status: %s\n", formatting.FormatSuccess("Enabled"))
 		fmt.Printf("  • TTL: %d seconds\n", cfg.Tools.WebFetch.Cache.TTL)
 		fmt.Printf("  • Max size: %d bytes (%.1f MB)\n", cfg.Tools.WebFetch.Cache.MaxSize, float64(cfg.Tools.WebFetch.Cache.MaxSize)/(1024*1024))
 	} else {
-		fmt.Printf("  • Status: %s\n", ui.FormatErrorCLI("Disabled"))
+		fmt.Printf("  • Status: %s\n", formatting.FormatErrorCLI("Disabled"))
 	}
 
 	return nil
@@ -1308,7 +1308,7 @@ func addFetchDomain(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Added '%s' to whitelisted domains", domainToAdd)))
+	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Added '%s' to whitelisted domains", domainToAdd)))
 	fmt.Printf("LLMs can now web fetch content from this domain and its subdomains\n")
 	return nil
 }
@@ -1333,11 +1333,11 @@ func removeFetchDomain(cmd *cobra.Command, args []string) error {
 	}
 
 	if !found {
-		fmt.Printf("%s\n", ui.FormatWarning(fmt.Sprintf("Domain '%s' was not in the whitelist", domainToRemove)))
+		fmt.Printf("%s\n", formatting.FormatWarning(fmt.Sprintf("Domain '%s' was not in the whitelist", domainToRemove)))
 		return nil
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Removed '%s' from whitelisted domains", domainToRemove)))
+	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Removed '%s' from whitelisted domains", domainToRemove)))
 	fmt.Printf("LLMs can no longer web fetch content from this domain\n")
 	return nil
 }
@@ -1350,9 +1350,9 @@ func fetchCacheStatus(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Cache Status: ")
 	if cfg.Tools.WebFetch.Cache.Enabled {
-		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+		fmt.Printf("%s\n", formatting.FormatSuccess("Enabled"))
 	} else {
-		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+		fmt.Printf("%s\n", formatting.FormatErrorCLI("Disabled"))
 	}
 
 	fmt.Printf("\nCache Statistics:\n")
@@ -1363,7 +1363,7 @@ func fetchCacheStatus(cmd *cobra.Command, args []string) error {
 }
 
 func fetchCacheClear(cmd *cobra.Command, args []string) error {
-	fmt.Printf("%s\n", ui.FormatErrorCLI("Web fetch cache clear is currently unavailable"))
+	fmt.Printf("%s\n", formatting.FormatErrorCLI("Web fetch cache clear is currently unavailable"))
 	fmt.Printf("Web fetch functionality has been refactored to tools package\n")
 	return nil
 }
@@ -1374,7 +1374,7 @@ func enableBashTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess("Bash tool enabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatSuccess("Bash tool enabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can now execute whitelisted bash commands\n")
 	return nil
@@ -1386,7 +1386,7 @@ func disableBashTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatErrorCLI("Bash tool disabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatErrorCLI("Bash tool disabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can no longer execute bash commands\n")
 	return nil
@@ -1398,7 +1398,7 @@ func enableWebSearchTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess("Web search tool enabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatSuccess("Web search tool enabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can now perform web searches using %s\n", "DuckDuckGo and Google")
 	return nil
@@ -1410,7 +1410,7 @@ func disableWebSearchTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatErrorCLI("Web search tool disabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatErrorCLI("Web search tool disabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can no longer perform web searches\n")
 	return nil
@@ -1422,7 +1422,7 @@ func enableGrepTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess("Grep tool enabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatSuccess("Grep tool enabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can now search file contents using grep\n")
 	return nil
@@ -1434,7 +1434,7 @@ func disableGrepTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatErrorCLI("Grep tool disabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatErrorCLI("Grep tool disabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can no longer search file contents\n")
 	return nil
@@ -1462,7 +1462,7 @@ func setGrepBackend(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("Grep backend set to: %s", normalizedBackend)))
+	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("Grep backend set to: %s", normalizedBackend)))
 	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
 
 	switch normalizedBackend {
@@ -1485,9 +1485,9 @@ func grepStatus(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Grep Tool Status: ")
 	if cfg.Tools.Grep.Enabled {
-		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+		fmt.Printf("%s\n", formatting.FormatSuccess("Enabled"))
 	} else {
-		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+		fmt.Printf("%s\n", formatting.FormatErrorCLI("Disabled"))
 	}
 
 	backend := cfg.Tools.Grep.Backend
@@ -1499,33 +1499,33 @@ func grepStatus(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\nBackend Detection:\n")
 	if rgPath, err := exec.LookPath("rg"); err == nil {
-		fmt.Printf("  • ripgrep (rg): %s (%s)\n", ui.FormatSuccess("Available"), rgPath)
+		fmt.Printf("  • ripgrep (rg): %s (%s)\n", formatting.FormatSuccess("Available"), rgPath)
 	} else {
-		fmt.Printf("  • ripgrep (rg): %s\n", ui.FormatErrorCLI("Not found"))
+		fmt.Printf("  • ripgrep (rg): %s\n", formatting.FormatErrorCLI("Not found"))
 	}
-	fmt.Printf("  • Go implementation: %s\n", ui.FormatSuccess("Available"))
+	fmt.Printf("  • Go implementation: %s\n", formatting.FormatSuccess("Available"))
 
 	fmt.Printf("\nActive Backend: ")
 	switch backend {
 	case "ripgrep":
 		if _, err := exec.LookPath("rg"); err == nil {
-			fmt.Printf("%s\n", ui.FormatSuccess("ripgrep"))
+			fmt.Printf("%s\n", formatting.FormatSuccess("ripgrep"))
 		} else {
-			fmt.Printf("%s (fallback to Go - ripgrep not found)\n", ui.FormatWarning("Go implementation"))
+			fmt.Printf("%s (fallback to Go - ripgrep not found)\n", formatting.FormatWarning("Go implementation"))
 		}
 	case "go":
-		fmt.Printf("%s\n", ui.FormatSuccess("Go implementation"))
+		fmt.Printf("%s\n", formatting.FormatSuccess("Go implementation"))
 	case "auto":
 		if _, err := exec.LookPath("rg"); err == nil {
-			fmt.Printf("%s\n", ui.FormatSuccess("ripgrep (auto-detected)"))
+			fmt.Printf("%s\n", formatting.FormatSuccess("ripgrep (auto-detected)"))
 		} else {
-			fmt.Printf("%s\n", ui.FormatSuccess("Go implementation (auto-fallback)"))
+			fmt.Printf("%s\n", formatting.FormatSuccess("Go implementation (auto-fallback)"))
 		}
 	default:
 		if _, err := exec.LookPath("rg"); err == nil {
-			fmt.Printf("%s\n", ui.FormatSuccess("ripgrep (auto-detected)"))
+			fmt.Printf("%s\n", formatting.FormatSuccess("ripgrep (auto-detected)"))
 		} else {
-			fmt.Printf("%s\n", ui.FormatSuccess("Go implementation (auto-fallback)"))
+			fmt.Printf("%s\n", formatting.FormatSuccess("Go implementation (auto-fallback)"))
 		}
 	}
 
@@ -1539,7 +1539,7 @@ func enableGithubTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess("GitHub tool enabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatSuccess("GitHub tool enabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can now perform GitHub operations\n")
 	return nil
@@ -1551,7 +1551,7 @@ func disableGithubTool(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatErrorCLI("GitHub tool disabled successfully"))
+	fmt.Printf("%s\n", formatting.FormatErrorCLI("GitHub tool disabled successfully"))
 	fmt.Printf("Configuration saved to: %s\n", V.ConfigFileUsed())
 	fmt.Printf("LLMs can no longer perform GitHub operations\n")
 	return nil
@@ -1560,9 +1560,9 @@ func disableGithubTool(cmd *cobra.Command, args []string) error {
 func githubStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("GitHub Tool Status: ")
 	if V.GetBool("tools.github.enabled") {
-		fmt.Printf("%s\n", ui.FormatSuccess("Enabled"))
+		fmt.Printf("%s\n", formatting.FormatSuccess("Enabled"))
 	} else {
-		fmt.Printf("%s\n", ui.FormatErrorCLI("Disabled"))
+		fmt.Printf("%s\n", formatting.FormatErrorCLI("Disabled"))
 	}
 
 	fmt.Printf("\nConfiguration:\n")
@@ -1600,10 +1600,10 @@ func githubStatus(cmd *cobra.Command, args []string) error {
 	fmt.Printf("  • Require approval: ")
 	if V.IsSet("tools.github.require_approval") {
 		status := "disabled"
-		color := ui.FormatErrorCLI
+		color := formatting.FormatErrorCLI
 		if V.GetBool("tools.github.require_approval") {
 			status = "enabled"
-			color = ui.FormatSuccess
+			color = formatting.FormatSuccess
 		}
 		fmt.Printf("%s\n", color(status))
 	} else {
@@ -1626,7 +1626,7 @@ func setGithubToken(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess("GitHub token set successfully"))
+	fmt.Printf("%s\n", formatting.FormatSuccess("GitHub token set successfully"))
 	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
 	fmt.Printf("Note: For security, consider using environment variables (%%GITHUB_TOKEN%%)\n")
 	return nil
@@ -1641,7 +1641,7 @@ func setGithubOwner(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("GitHub default owner set to: %s", owner)))
+	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("GitHub default owner set to: %s", owner)))
 	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
 	return nil
 }
@@ -1655,7 +1655,7 @@ func setGithubRepo(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	fmt.Printf("%s\n", ui.FormatSuccess(fmt.Sprintf("GitHub default repository set to: %s", repo)))
+	fmt.Printf("%s\n", formatting.FormatSuccess(fmt.Sprintf("GitHub default repository set to: %s", repo)))
 	fmt.Printf("Configuration saved to: %s\n", getConfigPath())
 	fmt.Printf("Note: This can be overridden per operation\n")
 	return nil
@@ -1664,7 +1664,7 @@ func setGithubRepo(cmd *cobra.Command, args []string) error {
 // formatToolStatus formats a tool's enabled/disabled status
 func formatToolStatus(enabled bool) string {
 	if enabled {
-		return ui.FormatEnabled()
+		return formatting.FormatEnabled()
 	}
-	return ui.FormatDisabled()
+	return formatting.FormatDisabled()
 }

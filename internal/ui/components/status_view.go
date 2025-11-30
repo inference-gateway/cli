@@ -7,7 +7,7 @@ import (
 	spinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
@@ -198,7 +198,7 @@ func (sv *StatusView) Render() string {
 	if sv.width > 0 {
 		availableWidth := sv.width - 4
 		if availableWidth > 0 {
-			displayMessage = shared.WrapText(displayMessage, availableWidth)
+			displayMessage = formatting.WrapText(displayMessage, availableWidth)
 		}
 	}
 

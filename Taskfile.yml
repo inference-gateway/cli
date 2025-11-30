@@ -194,64 +194,75 @@ tasks:
   mocks:generate:
     desc: Generate mocks using counterfeiter
     cmds:
-      - mkdir -p tests/mocks/generated
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain Tool
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ToolFactory
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ToolService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain FileService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ImageService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain WebSearchService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain WebFetchService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain AgentService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ModelService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ConfigService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ThemeService
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain ConversationRepository
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain SDKClient
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain StateManager
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/domain TaskTracker
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/infra/storage ConversationStorage
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/ui ConversationRenderer
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/ui InputComponent
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/ui StatusComponent
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/ui HelpBarComponent
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/ui SelectionComponent
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/ui Theme
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/generated internal/ui/shared AutocompleteInterface
+      - mkdir -p tests/mocks/domain
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain Tool
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ToolFactory
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ToolService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain FileService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ImageService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain WebSearchService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain WebFetchService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain AgentService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ModelService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ConfigService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ThemeService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ConversationRepository
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SDKClient
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain StateManager
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain TaskTracker
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain A2AAgentService
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/infra/storage ConversationStorage
+      - mkdir -p tests/mocks/services
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/services internal/services TitleGenerator
+      - mkdir -p tests/mocks/shortcuts
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/shortcuts Shortcut
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/shortcuts internal/shortcuts PersistentConversationRepository
+      - mkdir -p tests/mocks/ui
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui ConversationRenderer
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui InputComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui StatusComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui HelpBarComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui SelectionComponent
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui Theme
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui/autocomplete ShortcutRegistry
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui AutocompleteInterface
+      - mkdir -p tests/mocks/history
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/history internal/ui/history ShellHistoryProvider
     sources:
       - "internal/domain/interfaces.go"
       - "internal/domain/agent.go"
       - "internal/domain/config_service.go"
       - "internal/infra/storage/interfaces.go"
       - "internal/ui/interfaces.go"
-      - "internal/ui/shared/interfaces.go"
+      - "internal/services/background_jobs.go"
+      - "internal/shortcuts/interfaces.go"
     generates:
-      - "tests/mocks/generated/fake_tool.go"
-      - "tests/mocks/generated/fake_tool_factory.go"
-      - "tests/mocks/generated/fake_tool_service.go"
-      - "tests/mocks/generated/fake_web_search_service.go"
-      - "tests/mocks/generated/fake_web_fetch_service.go"
-      - "tests/mocks/generated/fake_file_service.go"
-      - "tests/mocks/generated/fake_agent_service.go"
-      - "tests/mocks/generated/fake_model_service.go"
-      - "tests/mocks/generated/fake_config_service.go"
-      - "tests/mocks/generated/fake_theme_service.go"
-      - "tests/mocks/generated/fake_conversation_repository.go"
-      - "tests/mocks/generated/fake_conversation_storage.go"
-      - "tests/mocks/generated/fake_conversation_renderer.go"
-      - "tests/mocks/generated/fake_input_component.go"
-      - "tests/mocks/generated/fake_status_component.go"
-      - "tests/mocks/generated/fake_help_bar_component.go"
-      - "tests/mocks/generated/fake_selection_component.go"
-      - "tests/mocks/generated/fake_theme.go"
-      - "tests/mocks/generated/fake_autocomplete_interface.go"
-      - "tests/mocks/generated/fake_sdkclient.go"
-      - "tests/mocks/generated/fake_task_tracker.go"
+      - "tests/mocks/domain/fake_tool.go"
+      - "tests/mocks/domain/fake_tool_factory.go"
+      - "tests/mocks/domain/fake_tool_service.go"
+      - "tests/mocks/domain/fake_web_search_service.go"
+      - "tests/mocks/domain/fake_web_fetch_service.go"
+      - "tests/mocks/domain/fake_file_service.go"
+      - "tests/mocks/domain/fake_agent_service.go"
+      - "tests/mocks/domain/fake_model_service.go"
+      - "tests/mocks/domain/fake_config_service.go"
+      - "tests/mocks/domain/fake_theme_service.go"
+      - "tests/mocks/domain/fake_conversation_repository.go"
+      - "tests/mocks/domain/fake_conversation_storage.go"
+      - "tests/mocks/domain/fake_sdkclient.go"
+      - "tests/mocks/domain/fake_task_tracker.go"
+      - "tests/mocks/ui/fake_conversation_renderer.go"
+      - "tests/mocks/ui/fake_input_component.go"
+      - "tests/mocks/ui/fake_status_component.go"
+      - "tests/mocks/ui/fake_help_bar_component.go"
+      - "tests/mocks/ui/fake_selection_component.go"
+      - "tests/mocks/ui/fake_theme.go"
+      - "tests/mocks/ui/fake_autocomplete_interface.go"
 
   mocks:clean:
     desc: Clean generated mock files
     cmds:
-      - rm -rf tests/mocks/generated/
+      - rm -rf tests/mocks
 
   clean:release:
     desc: Clean release artifacts

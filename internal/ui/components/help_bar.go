@@ -5,7 +5,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -13,7 +13,7 @@ import (
 type HelpBar struct {
 	enabled       bool
 	width         int
-	shortcuts     []shared.KeyShortcut
+	shortcuts     []ui.KeyShortcut
 	styleProvider *styles.Provider
 }
 
@@ -21,12 +21,12 @@ func NewHelpBar(styleProvider *styles.Provider) *HelpBar {
 	return &HelpBar{
 		enabled:       false,
 		width:         80,
-		shortcuts:     make([]shared.KeyShortcut, 0),
+		shortcuts:     make([]ui.KeyShortcut, 0),
 		styleProvider: styleProvider,
 	}
 }
 
-func (hb *HelpBar) SetShortcuts(shortcuts []shared.KeyShortcut) {
+func (hb *HelpBar) SetShortcuts(shortcuts []ui.KeyShortcut) {
 	hb.shortcuts = shortcuts
 }
 
@@ -69,13 +69,13 @@ func (hb *HelpBar) renderResponsiveTable() string {
 	}
 
 	// Create grid of shortcuts (not formatted text yet)
-	grid := make([][]shared.KeyShortcut, rows)
+	grid := make([][]ui.KeyShortcut, rows)
 	for i := range grid {
-		grid[i] = make([]shared.KeyShortcut, cols)
+		grid[i] = make([]ui.KeyShortcut, cols)
 	}
 
-	var firstColumnKeys []shared.KeyShortcut
-	var otherKeys []shared.KeyShortcut
+	var firstColumnKeys []ui.KeyShortcut
+	var otherKeys []ui.KeyShortcut
 
 	priorityKeys := []string{"!", "/", "@", "#", "ctrl+s", "shift+down", "shift+up", "pgdn/page_down", "pgup/page_up"}
 	for _, shortcut := range hb.shortcuts {

@@ -497,23 +497,6 @@ To add a new component to the test-view command:
 3. **Create Test Function**: Implement a `test[ComponentName]` function following existing patterns
 4. **Update Help**: Add your component to the command description and help text
 
-Example structure:
-
-```go
-func testMyComponent(theme shared.Theme) {
-    fmt.Println("🎨 Testing My Component")
-    fmt.Println(shared.CreateSeparator(50, "─"))
-
-    component := components.NewMyComponent(theme)
-    component.SetWidth(componentWidth)
-    component.SetHeight(componentHeight)
-
-    // Render with sample data
-    output := component.Render(sampleData)
-    fmt.Println(output)
-}
-```
-
 ## Release Process
 
 Releases are automated using semantic-release:

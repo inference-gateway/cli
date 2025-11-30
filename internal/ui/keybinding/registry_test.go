@@ -39,7 +39,7 @@ func (t *testKeyHandlerContext) GetAgentService() domain.AgentService {
 }
 
 func (t *testKeyHandlerContext) GetImageService() domain.ImageService {
-	return services.NewImageService(config.DefaultConfig())
+	return services.NewImageService(t.GetConfig())
 }
 
 func (t *testKeyHandlerContext) GetConversationView() ui.ConversationRenderer {
@@ -412,7 +412,7 @@ func TestHelpShortcutGeneration(t *testing.T) {
 		t.Error("Expected toggle shortcut in help")
 	}
 	if !foundRaw {
-		t.Error("Expected raw format shortcut in help")
+		t.Error("Expected raw format shortcut in help (ctrl+r)")
 	}
 }
 

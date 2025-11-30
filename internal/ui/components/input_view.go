@@ -7,31 +7,35 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	models "github.com/inference-gateway/cli/internal/models"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // InputView handles user input with history and autocomplete
 type InputView struct {
-	text                string
-	cursor              int
-	placeholder         string
-	width               int
-	height              int
-	modelService        domain.ModelService
-	imageService        domain.ImageService
-	stateManager        domain.StateManager
-	configService       *config.Config
-	conversationRepo    domain.ConversationRepository
-	Autocomplete        shared.AutocompleteInterface
-	historyManager      *history.HistoryManager
-	isTextSelectionMode bool
-	themeService        domain.ThemeService
-	styleProvider       *styles.Provider
-	imageAttachments    []domain.ImageAttachment
+	text                 string
+	cursor               int
+	placeholder          string
+	width                int
+	height               int
+	modelService         domain.ModelService
+	imageService         domain.ImageService
+	stateManager         domain.StateManager
+	configService        *config.Config
+	conversationRepo     domain.ConversationRepository
+	Autocomplete         ui.AutocompleteInterface
+	historyManager       *history.HistoryManager
+	isTextSelectionMode  bool
+	themeService         domain.ThemeService
+	styleProvider        *styles.Provider
+	imageAttachments     []domain.ImageAttachment
+	historySuggestion    string
+	historySuggestions   []string
+	historySelectedIndex int
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -133,6 +137,8 @@ func (iv *InputView) SetHeight(height int) {
 }
 
 func (iv *InputView) Render() string {
+	iv.updateHistorySuggestions()
+
 	isToolsMode := strings.HasPrefix(iv.text, "!!")
 	isBashMode := strings.HasPrefix(iv.text, "!") && !isToolsMode
 	displayText := iv.renderDisplayText()
@@ -173,7 +179,9 @@ func (iv *InputView) getDisplayTextAndCursorOffset() (displayText string, cursor
 }
 
 func (iv *InputView) renderPlaceholder() string {
-	return iv.styleProvider.RenderInputPlaceholder(iv.placeholder)
+	cursorChar := iv.createCursorChar(" ")
+	placeholder := iv.styleProvider.RenderInputPlaceholder(iv.placeholder)
+	return cursorChar + placeholder
 }
 
 // calculateAdjustedCursor calculates the cursor position for display text
@@ -196,8 +204,6 @@ func (iv *InputView) calculateAdjustedCursor(cursorOffset int, displayTextLen in
 func (iv *InputView) calculateModeCursorOffset() int {
 	isToolsMode := strings.HasPrefix(iv.text, "!!")
 
-	// In tools mode (!!), cursor positions >= 2 shift by +1 for the added space
-	// In bash mode (!), cursor positions >= 1 shift by +1 for the added space
 	if isToolsMode && iv.cursor >= 2 {
 		return iv.cursor + 1
 	}
@@ -228,7 +234,7 @@ func (iv *InputView) renderTextWithCursor() string {
 
 func (iv *InputView) renderWrappedText(before, after string, availableWidth int) string {
 	wrappedBefore := iv.preserveTrailingSpaces(before, availableWidth)
-	wrappedAfter := shared.WrapText(after, availableWidth)
+	wrappedAfter := formatting.WrapText(after, availableWidth)
 	return iv.buildTextWithCursor(wrappedBefore, wrappedAfter)
 }
 
@@ -239,7 +245,14 @@ func (iv *InputView) renderUnwrappedText(before, after string) string {
 func (iv *InputView) buildTextWithCursor(before, after string) string {
 	if len(after) == 0 {
 		cursorChar := iv.createCursorChar(" ")
-		return fmt.Sprintf("%s%s", before, cursorChar)
+		result := fmt.Sprintf("%s%s", before, cursorChar)
+
+		if iv.cursor == len(iv.text) && iv.historySuggestion != "" {
+			ghostText := iv.styleProvider.RenderDimText(iv.historySuggestion)
+			result = fmt.Sprintf("%s%s", before, ghostText)
+		}
+
+		return result
 	}
 
 	cursorChar := iv.createCursorChar(string(after[0]))
@@ -509,6 +522,13 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	keyStr := key.String()
 
+	if keyStr == "tab" && (iv.Autocomplete == nil || !iv.Autocomplete.IsVisible()) {
+		if iv.HasHistorySuggestion() && iv.cursor == len(iv.text) {
+			iv.cycleHistorySuggestion()
+			return iv, nil
+		}
+	}
+
 	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
 		if handled, completion := iv.Autocomplete.HandleKey(key); handled {
 			return iv.handleAutocomplete(completion)
@@ -573,7 +593,7 @@ func (iv *InputView) CanHandle(key tea.KeyMsg) bool {
 }
 
 func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) string {
-	wrappedText := shared.WrapText(text, availableWidth)
+	wrappedText := formatting.WrapText(text, availableWidth)
 
 	trailingSpaces := 0
 	for i := len(text) - 1; i >= 0 && text[i] == ' '; i-- {
@@ -616,11 +636,9 @@ func (iv *InputView) IsTextSelectionMode() bool {
 
 // AddImageAttachment adds an image attachment to the pending list
 func (iv *InputView) AddImageAttachment(image domain.ImageAttachment) {
-	// Assign display name based on current count
 	image.DisplayName = fmt.Sprintf("Image #%d", len(iv.imageAttachments)+1)
 	iv.imageAttachments = append(iv.imageAttachments, image)
 
-	// Insert image token into text at cursor position
 	imageToken := fmt.Sprintf("[%s]", image.DisplayName)
 	iv.text = iv.text[:iv.cursor] + imageToken + iv.text[iv.cursor:]
 	iv.cursor += len(imageToken)
@@ -634,6 +652,104 @@ func (iv *InputView) GetImageAttachments() []domain.ImageAttachment {
 // ClearImageAttachments clears all pending image attachments
 func (iv *InputView) ClearImageAttachments() {
 	iv.imageAttachments = []domain.ImageAttachment{}
+}
+
+// GetHistoryManager returns the history manager for external use
+func (iv *InputView) GetHistoryManager() *history.HistoryManager {
+	return iv.historyManager
+}
+
+// updateHistorySuggestions filters history based on current input and updates suggestions
+func (iv *InputView) updateHistorySuggestions() {
+	if iv.text == "" || iv.cursor != len(iv.text) {
+		iv.historySuggestion = ""
+		iv.historySuggestions = nil
+		iv.historySelectedIndex = 0
+		return
+	}
+
+	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
+		iv.historySuggestion = ""
+		iv.historySuggestions = nil
+		iv.historySelectedIndex = 0
+		return
+	}
+
+	count := iv.historyManager.GetHistoryCount()
+	matches := make([]string, 0)
+
+	iv.historyManager.ResetNavigation()
+	tempHistory := make([]string, 0, count)
+
+	for i := 0; i < count; i++ {
+		entry := iv.historyManager.NavigateUp("")
+		if entry != "" {
+			tempHistory = append([]string{entry}, tempHistory...)
+		}
+	}
+	iv.historyManager.ResetNavigation()
+
+	query := strings.ToLower(iv.text)
+	for _, entry := range tempHistory {
+		if entry != iv.text && strings.HasPrefix(strings.ToLower(entry), query) {
+			matches = append(matches, entry)
+		}
+	}
+
+	iv.historySuggestions = matches
+	if len(matches) > 0 {
+		if iv.historySelectedIndex >= len(matches) {
+			iv.historySelectedIndex = 0
+		}
+		iv.historySuggestion = matches[iv.historySelectedIndex][len(iv.text):]
+	} else {
+		iv.historySuggestion = ""
+		iv.historySelectedIndex = 0
+	}
+}
+
+// cycleHistorySuggestion moves to the next suggestion in the list
+func (iv *InputView) cycleHistorySuggestion() {
+	if len(iv.historySuggestions) == 0 {
+		return
+	}
+
+	iv.historySelectedIndex = (iv.historySelectedIndex + 1) % len(iv.historySuggestions)
+	iv.historySuggestion = iv.historySuggestions[iv.historySelectedIndex][len(iv.text):]
+}
+
+// AcceptHistorySuggestion applies the current suggestion to the input
+func (iv *InputView) AcceptHistorySuggestion() bool {
+	if iv.historySuggestion == "" {
+		return false
+	}
+
+	iv.text += iv.historySuggestion
+	iv.cursor = len(iv.text)
+	iv.historySuggestion = ""
+	iv.historySuggestions = nil
+	iv.historySelectedIndex = 0
+	return true
+}
+
+// TryHandleHistorySuggestionTab handles Tab key for history suggestions
+// Returns true if handled (either cycled or accepted), false if no suggestion available
+func (iv *InputView) TryHandleHistorySuggestionTab() bool {
+	if len(iv.historySuggestions) == 0 {
+		return false
+	}
+
+	if iv.historySuggestion != "" {
+		iv.cycleHistorySuggestion()
+		return true
+	}
+
+	return false
+}
+
+// HasHistorySuggestion returns true if there's a history suggestion available
+func (iv *InputView) HasHistorySuggestion() bool {
+	return iv.historySuggestion != ""
 }
 
 // applyModePrefixStyling applies accent color styling to mode prefixes (! or !!)

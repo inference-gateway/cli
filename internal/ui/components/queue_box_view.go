@@ -6,7 +6,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -112,7 +112,7 @@ func (qv *QueueBoxView) formatMessagePreview(queuedMsg domain.QueuedMessage) str
 
 	contentStr, err := msg.Content.AsMessageContent0()
 	if err != nil {
-		contentStr = shared.ExtractTextFromContent(msg.Content, nil)
+		contentStr = formatting.ExtractTextFromContent(msg.Content, nil)
 	}
 	content := contentStr
 
@@ -128,7 +128,7 @@ func (qv *QueueBoxView) formatMessagePreview(queuedMsg domain.QueuedMessage) str
 		preview = preview[:maxPreviewLength-3] + "..."
 	}
 
-	wrappedPreview := shared.WrapText(preview, maxPreviewLength)
+	wrappedPreview := formatting.WrapText(preview, maxPreviewLength)
 
 	return wrappedPreview
 }

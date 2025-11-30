@@ -3,7 +3,7 @@ package cmd
 import (
 	"fmt"
 
-	ui "github.com/inference-gateway/cli/internal/ui"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	cobra "github.com/spf13/cobra"
@@ -58,7 +58,7 @@ func setExportModel(_ *cobra.Command, modelName string) error {
 	if modelName == "" {
 		fmt.Printf("%s Export will use the current chat model for summaries\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 	} else {
-		fmt.Printf("%s Set export summary model to %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), ui.FormatSuccess(modelName))
+		fmt.Printf("%s Set export summary model to %s\n", icons.CheckMarkStyle.Render(icons.CheckMark), formatting.FormatSuccess(modelName))
 	}
 
 	return nil
@@ -73,7 +73,7 @@ func showExportConfig(_ *cobra.Command) error {
 	if summaryModel == "" {
 		fmt.Printf("Summary model: %s\n", "not configured (uses current chat model)")
 	} else {
-		fmt.Printf("Summary model: %s\n", ui.FormatSuccess(summaryModel))
+		fmt.Printf("Summary model: %s\n", formatting.FormatSuccess(summaryModel))
 	}
 
 	fmt.Println("\n• Use 'infer config export set-model [MODEL]' to change the summary model")

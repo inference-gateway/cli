@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	logger "github.com/inference-gateway/cli/internal/logger"
@@ -20,8 +21,8 @@ import (
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	factory "github.com/inference-gateway/cli/internal/ui/components/factory"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -139,7 +140,7 @@ func NewChatApplication(
 
 	app.toolCallRenderer = components.NewToolCallRenderer(styleProvider)
 	app.planApprovalComponent = components.NewPlanApprovalComponent(styleProvider)
-	app.conversationView = ui.CreateConversationView(app.themeService)
+	app.conversationView = factory.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
 
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
@@ -154,7 +155,7 @@ func NewChatApplication(
 		configDir = filepath.Dir(configPath)
 	}
 
-	app.inputView = ui.CreateInputViewWithToolServiceAndConfigDir(app.modelService, app.shortcutRegistry, app.toolService, configDir)
+	app.inputView = factory.CreateInputViewWithToolServiceAndConfigDir(app.modelService, app.shortcutRegistry, app.toolService, configDir)
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)
@@ -162,8 +163,8 @@ func NewChatApplication(
 		iv.SetConfigService(app.configService)
 		iv.SetConversationRepo(app.conversationRepo)
 	}
-	app.statusView = ui.CreateStatusView(app.themeService)
-	app.helpBar = ui.CreateHelpBar(app.themeService)
+	app.statusView = factory.CreateStatusView(app.themeService)
+	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
 
@@ -1198,7 +1199,7 @@ func (app *ChatApplication) renderFileSelection() string {
 	width, _ := app.stateManager.GetDimensions()
 
 	if fileState == nil {
-		return shared.FormatWarning("No files available for selection")
+		return formatting.FormatWarning("No files available for selection")
 	}
 
 	data := components.FileSelectionData{
@@ -1223,8 +1224,8 @@ func (app *ChatApplication) renderTextSelection() string {
 		helpBarHeight = 6
 	}
 	adjustedHeight := height - 3 - helpBarHeight
-	conversationHeight := ui.CalculateConversationHeight(adjustedHeight)
-	statusHeight := ui.CalculateStatusHeight(adjustedHeight)
+	conversationHeight := factory.CalculateConversationHeight(adjustedHeight)
+	statusHeight := factory.CalculateStatusHeight(adjustedHeight)
 
 	app.textSelectionView.SetWidth(width)
 	app.textSelectionView.SetHeight(conversationHeight)
@@ -1405,7 +1406,7 @@ func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.C
 
 func (app *ChatApplication) getPageSize() int {
 	_, height := app.stateManager.GetDimensions()
-	conversationHeight := ui.CalculateConversationHeight(height)
+	conversationHeight := factory.CalculateConversationHeight(height)
 	return max(1, conversationHeight-2)
 }
 

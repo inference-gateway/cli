@@ -5,7 +5,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 // KeyHandler represents a function that handles a key binding
@@ -34,8 +33,8 @@ type KeyHandlerContext interface {
 	GetPageSize() int
 }
 
-// Theme is an alias to the shared Theme interface
-type Theme = shared.Theme
+// Theme is an alias to the ui Theme interface
+type Theme = ui.Theme
 
 // KeyAction represents a key binding action with metadata
 type KeyAction struct {

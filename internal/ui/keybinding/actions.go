@@ -150,11 +150,8 @@ func (r *Registry) createChatActions() []*KeyAction {
 		},
 	}
 
-	// Add clipboard actions
 	actions = append(actions, r.createClipboardActions()...)
-	// Add text editing actions
 	actions = append(actions, r.createTextEditingActions()...)
-	// Add history actions
 	actions = append(actions, r.createHistoryActions()...)
 
 	return actions
@@ -821,12 +818,22 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cm
 	}
 
 	inputView := app.GetInputView()
-	if inputView != nil {
-		cursor := inputView.GetCursor()
-		text := inputView.GetInput()
-		if cursor < len(text) {
-			inputView.SetCursor(cursor + 1)
+	if inputView == nil {
+		return nil
+	}
+
+	cursor := inputView.GetCursor()
+	text := inputView.GetInput()
+
+	if cursor == len(text) {
+		if iv, ok := inputView.(*components.InputView); ok && iv.HasHistorySuggestion() {
+			iv.AcceptHistorySuggestion()
+			return nil
 		}
+	}
+
+	if cursor < len(text) {
+		inputView.SetCursor(cursor + 1)
 	}
 	return nil
 }

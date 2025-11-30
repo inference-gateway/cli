@@ -9,8 +9,8 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	adk "github.com/inference-gateway/adk/types"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -593,7 +593,7 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 		for _, part := range historyItem.Parts {
 			if textPart, ok := part.(adk.TextPart); ok {
 				if textPart.Text != "" {
-					wrappedText := shared.FormatResponsiveMessage(textPart.Text, textWidth)
+					wrappedText := formatting.FormatResponsiveMessage(textPart.Text, textWidth)
 					lines := strings.Split(wrappedText, "\n")
 					for _, line := range lines {
 						fmt.Fprintf(content, "  %s\n", line)
@@ -649,7 +649,7 @@ func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskI
 	for _, part := range task.TaskRef.Task.Status.Message.Parts {
 		if textPart, ok := part.(adk.TextPart); ok {
 			if textPart.Text != "" {
-				wrappedText := shared.FormatResponsiveMessage(textPart.Text, textWidth)
+				wrappedText := formatting.FormatResponsiveMessage(textPart.Text, textWidth)
 				lines := strings.Split(wrappedText, "\n")
 				for _, line := range lines {
 					fmt.Fprintf(content, "  %s\n", line)

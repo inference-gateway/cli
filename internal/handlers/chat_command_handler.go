@@ -277,8 +277,6 @@ func (c *ChatCommandHandler) handleToolCommand(
 		}
 	}
 
-	requiresApproval := c.handler.configService.IsApprovalRequired(toolName)
-
 	argsJSON, err := json.Marshal(args)
 	if err != nil {
 		return func() tea.Msg {
@@ -289,39 +287,81 @@ func (c *ChatCommandHandler) handleToolCommand(
 		}
 	}
 
-	if requiresApproval {
-		return c.handleToolCommandWithApproval(toolName, string(argsJSON))
-	}
-
 	return c.executeToolCommand(commandText, toolName, string(argsJSON))
 }
 
 // executeToolCommand executes a tool command without approval
 func (c *ChatCommandHandler) executeToolCommand(commandText, toolName, argsJSON string) tea.Cmd {
+	toolCallID := fmt.Sprintf("user-tool-%d", time.Now().UnixNano())
+
+	userEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent(commandText),
+		},
+		Time: time.Now(),
+	}
+	_ = c.handler.conversationRepo.AddMessage(userEntry)
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: c.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Executing: %s", toolName),
+				Spinner:    true,
+				StatusType: domain.StatusWorking,
+			}
+		},
+		func() tea.Msg {
+			return domain.ParallelToolsStartEvent{
+				BaseChatEvent: domain.BaseChatEvent{
+					RequestID: toolCallID,
+					Timestamp: time.Now(),
+				},
+				Tools: []domain.ToolInfo{
+					{
+						CallID: toolCallID,
+						Name:   toolName,
+						Status: "starting",
+					},
+				},
+			}
+		},
+		c.executeToolCommandAsync(toolName, argsJSON, toolCallID),
+	)
+}
+
+// executeToolCommandAsync executes the tool command asynchronously and returns results
+func (c *ChatCommandHandler) executeToolCommandAsync(toolName, argsJSON, toolCallID string) tea.Cmd {
 	return func() tea.Msg {
-		toolCallID := fmt.Sprintf("user-tool-%d", time.Now().UnixNano())
+		// Send progress event
+		progressEvent := domain.ToolExecutionProgressEvent{
+			BaseChatEvent: domain.BaseChatEvent{
+				RequestID: toolCallID,
+				Timestamp: time.Now(),
+			},
+			ToolCallID: toolCallID,
+			Status:     "running",
+			Message:    "Executing...",
+		}
 
 		toolCallFunc := sdk.ChatCompletionMessageToolCallFunction{
 			Name:      toolName,
 			Arguments: argsJSON,
 		}
 
-		result, err := c.handler.toolService.ExecuteTool(context.Background(), toolCallFunc)
+		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
+		result, err := c.handler.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 		if err != nil {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to execute tool: %v", err),
 				Sticky: false,
 			}
 		}
-
-		userEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.User,
-				Content: sdk.NewMessageContent(commandText),
-			},
-			Time: time.Now(),
-		}
-		_ = c.handler.conversationRepo.AddMessage(userEntry)
 
 		toolCalls := []sdk.ChatCompletionMessageToolCall{
 			{
@@ -351,32 +391,32 @@ func (c *ChatCommandHandler) executeToolCommand(commandText, toolName, argsJSON 
 		}
 		_ = c.handler.conversationRepo.AddMessage(toolEntry)
 
-		return domain.UpdateHistoryEvent{
-			History: c.handler.conversationRepo.GetMessages(),
-		}
-	}
-}
-
-// handleToolCommandWithApproval requests approval before executing a tool command
-func (c *ChatCommandHandler) handleToolCommandWithApproval(toolName, argsJSON string) tea.Cmd {
-	return func() tea.Msg {
-		toolCall := sdk.ChatCompletionMessageToolCall{
-			Id:   fmt.Sprintf("manual-%d", time.Now().UnixNano()),
-			Type: "function",
-			Function: sdk.ChatCompletionMessageToolCallFunction{
-				Name:      toolName,
-				Arguments: argsJSON,
+		completedEvent := domain.ToolExecutionProgressEvent{
+			BaseChatEvent: domain.BaseChatEvent{
+				RequestID: toolCallID,
+				Timestamp: time.Now(),
 			},
+			ToolCallID: toolCallID,
+			Status:     "complete",
+			Message:    "Completed successfully",
 		}
 
-		responseChan := make(chan domain.ApprovalAction, 1)
-
-		return domain.ToolApprovalRequestedEvent{
-			RequestID:    fmt.Sprintf("manual-tool-%d", time.Now().UnixNano()),
-			Timestamp:    time.Now(),
-			ToolCall:     toolCall,
-			ResponseChan: responseChan,
-		}
+		return tea.Batch(
+			func() tea.Msg { return progressEvent },
+			func() tea.Msg { return completedEvent },
+			func() tea.Msg {
+				return domain.UpdateHistoryEvent{
+					History: c.handler.conversationRepo.GetMessages(),
+				}
+			},
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    fmt.Sprintf("%s completed successfully", toolName),
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
+				}
+			},
+		)()
 	}
 }
 

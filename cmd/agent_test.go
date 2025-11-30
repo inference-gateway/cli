@@ -7,7 +7,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/tests/mocks/generated"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -180,7 +180,7 @@ func TestExecuteToolCallsParallel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockToolService := &generated.FakeToolService{}
+			mockToolService := &domainmocks.FakeToolService{}
 
 			for i := range tt.toolCalls {
 				if i < len(tt.mockErrors) && tt.mockErrors[i] != nil {
@@ -283,7 +283,7 @@ func TestProcessSyncResponseParallel(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mockToolService := &generated.FakeToolService{}
+			mockToolService := &domainmocks.FakeToolService{}
 			mockToolService.ExecuteToolReturns(&domain.ToolExecutionResult{
 				ToolName: "TestTool",
 				Success:  true,

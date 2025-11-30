@@ -113,6 +113,11 @@ and management of inference services.
   - Toggle between modes with **Shift+Tab**
 - **Token Usage Tracking**: Accurate token counting with polyfill support for providers (like Ollama Cloud)
   that don't return usage metrics in their responses
+- **Inline History Auto-Completion**: Smart command history suggestions with inline completion
+  - Ghost-text suggestions appear as you type, matching command history by prefix
+  - **Right Arrow** to accept the entire suggestion
+  - **Tab** to cycle through multiple matching suggestions
+  - Suggestions automatically update as you type
 
 ## Installation
 
@@ -574,7 +579,7 @@ conversational interface where you can select models and have conversations.
 - **Page Up/Page Down**: Scroll by page
 - **Home/End**: Jump to top/bottom of chat history
 - **Shift+↑/Shift+↓**: Half-page scrolling
-- **Ctrl+R**: Toggle expanded view of tool results
+- **Ctrl+O**: Toggle expanded view of tool results
 - **Shift+Tab**: Cycle agent mode (Standard → Plan → Auto-Accept)
 
 **Agent Modes:**

@@ -5,11 +5,16 @@ import (
 	"testing"
 
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // createMockStyleProviderForStatus creates a mock styles provider for testing
 func createMockStyleProviderForStatus() *styles.Provider {
-	return styles.NewProvider(&mockThemeService{})
+	fakeTheme := &uimocks.FakeTheme{}
+	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
+	return styles.NewProvider(fakeThemeService)
 }
 
 func TestNewStatusView(t *testing.T) {

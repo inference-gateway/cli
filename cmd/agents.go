@@ -8,8 +8,8 @@ import (
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 	services "github.com/inference-gateway/cli/internal/services"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	cobra "github.com/spf13/cobra"
 )
@@ -237,7 +237,7 @@ func addAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool,
 		fmt.Printf("  OCI: %s\n", oci)
 	}
 	if run {
-		fmt.Printf("  Run locally: %s\n", ui.FormatEnabled())
+		fmt.Printf("  Run locally: %s\n", formatting.FormatEnabled())
 	}
 	if model != "" {
 		fmt.Printf("  Model: %s\n", model)
@@ -297,7 +297,7 @@ func updateAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bo
 		fmt.Printf("  OCI: %s\n", agent.OCI)
 	}
 	if agent.Run {
-		fmt.Printf("  Run locally: %s\n", ui.FormatEnabled())
+		fmt.Printf("  Run locally: %s\n", formatting.FormatEnabled())
 	}
 	if agent.Model != "" {
 		fmt.Printf("  Model: %s\n", agent.Model)
@@ -359,7 +359,7 @@ func listAgents(cmd *cobra.Command, args []string) error {
 			fmt.Printf("   OCI: %s\n", agent.OCI)
 		}
 		if agent.Run {
-			fmt.Printf("   Run locally: %s\n", ui.FormatEnabled())
+			fmt.Printf("   Run locally: %s\n", formatting.FormatEnabled())
 		}
 		if agent.Model != "" {
 			fmt.Printf("   Model: %s\n", agent.Model)

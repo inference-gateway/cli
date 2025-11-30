@@ -12,7 +12,7 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 
-	generated "github.com/inference-gateway/cli/tests/mocks/generated"
+	generated "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func TestConversationTitleGenerator_GenerateTitleForConversation(t *testing.T) {

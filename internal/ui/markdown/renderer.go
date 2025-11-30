@@ -6,7 +6,7 @@ import (
 	glamour "github.com/charmbracelet/glamour"
 	ansi "github.com/charmbracelet/glamour/ansi"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
 )
 
 // Renderer handles markdown to styled terminal output conversion
@@ -47,7 +47,7 @@ func (r *Renderer) Render(content string) string {
 	}
 
 	if !containsMarkdown(content) {
-		return shared.FormatResponsiveMessage(content, r.width)
+		return formatting.FormatResponsiveMessage(content, r.width)
 	}
 
 	rendered, err := r.renderer.Render(content)

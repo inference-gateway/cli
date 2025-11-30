@@ -5,7 +5,8 @@ import (
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	formatting "github.com/inference-gateway/cli/internal/formatting"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -34,10 +35,10 @@ type ChatInterfaceData struct {
 // RenderChatInterface renders the main chat interface
 func (r *ApplicationViewRenderer) RenderChatInterface(
 	data ChatInterfaceData,
-	conversationView shared.ConversationRenderer,
-	inputView shared.InputComponent,
-	statusView shared.StatusComponent,
-	helpBar shared.HelpBarComponent,
+	conversationView ui.ConversationRenderer,
+	inputView ui.InputComponent,
+	statusView ui.StatusComponent,
+	helpBar ui.HelpBarComponent,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
 ) string {
@@ -67,9 +68,9 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	}
 
 	adjustedHeight := height - headerHeight - helpBarHeight - queueBoxHeight - todoBoxHeight
-	conversationHeight := shared.CalculateConversationHeight(adjustedHeight)
-	inputHeight := shared.CalculateInputHeight(adjustedHeight)
-	statusHeight := shared.CalculateStatusHeight(adjustedHeight)
+	conversationHeight := ui.CalculateConversationHeight(adjustedHeight)
+	inputHeight := ui.CalculateInputHeight(adjustedHeight)
+	statusHeight := ui.CalculateStatusHeight(adjustedHeight)
 
 	if conversationHeight < 3 {
 		conversationHeight = 3
@@ -153,7 +154,7 @@ func (r *ApplicationViewRenderer) RenderFileSelection(
 	fileSelectionView *FileSelectionView,
 ) string {
 	if len(data.Files) == 0 {
-		return shared.FormatWarning("No files available for selection")
+		return formatting.FormatWarning("No files available for selection")
 	}
 
 	fileSelectionView.SetWidth(data.Width)
