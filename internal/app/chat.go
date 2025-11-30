@@ -337,6 +337,14 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	currentView := app.stateManager.GetCurrentView()
 
+	if inputView, ok := app.inputView.(*components.InputView); ok {
+		if currentView == domain.ViewStatePlanApproval || app.stateManager.GetApprovalUIState() != nil {
+			inputView.SetDisabled(true)
+		} else {
+			inputView.SetDisabled(false)
+		}
+	}
+
 	switch currentView {
 	case domain.ViewStateModelSelection:
 		return app.handleModelSelectionView(msg)

@@ -30,6 +30,9 @@ type InputView struct {
 	Autocomplete         ui.AutocompleteInterface
 	historyManager       *history.HistoryManager
 	isTextSelectionMode  bool
+	disabled             bool
+	savedText            string
+	savedCursor          int
 	themeService         domain.ThemeService
 	styleProvider        *styles.Provider
 	imageAttachments     []domain.ImageAttachment
@@ -137,7 +140,9 @@ func (iv *InputView) SetHeight(height int) {
 }
 
 func (iv *InputView) Render() string {
-	iv.updateHistorySuggestions()
+	if !iv.disabled {
+		iv.updateHistorySuggestions()
+	}
 
 	isToolsMode := strings.HasPrefix(iv.text, "!!")
 	isBashMode := strings.HasPrefix(iv.text, "!") && !isToolsMode
@@ -151,7 +156,9 @@ func (iv *InputView) Render() string {
 	components := []string{borderedInput}
 
 	components = iv.addModeIndicatorBelowInput(components, isBashMode, isToolsMode)
-	components = iv.addAutocomplete(components)
+	if !iv.disabled {
+		components = iv.addAutocomplete(components)
+	}
 	components = iv.addModelDisplayWithMode(components, isBashMode, isToolsMode)
 
 	return iv.styleProvider.JoinVertical(components...)
@@ -179,9 +186,26 @@ func (iv *InputView) getDisplayTextAndCursorOffset() (displayText string, cursor
 }
 
 func (iv *InputView) renderPlaceholder() string {
-	cursorChar := iv.createCursorChar(" ")
-	placeholder := iv.styleProvider.RenderInputPlaceholder(iv.placeholder)
-	return cursorChar + placeholder
+	if !iv.disabled {
+		cursorChar := iv.createCursorChar(" ")
+		placeholder := iv.styleProvider.RenderInputPlaceholder(iv.placeholder)
+		return cursorChar + placeholder
+	}
+
+	if iv.stateManager == nil {
+		return iv.styleProvider.RenderDimText("⏸  Input disabled")
+	}
+
+	currentView := iv.stateManager.GetCurrentView()
+	if currentView == domain.ViewStatePlanApproval {
+		return iv.styleProvider.RenderDimText("⏸  Plan approval required - use ←/→ or h/l to navigate, Enter to confirm")
+	}
+
+	if iv.stateManager.GetApprovalUIState() != nil {
+		return iv.styleProvider.RenderDimText("⏸  Tool approval required - use ←/→ to navigate, Enter to confirm")
+	}
+
+	return iv.styleProvider.RenderDimText("⏸  Input disabled")
 }
 
 // calculateAdjustedCursor calculates the cursor position for display text
@@ -632,6 +656,29 @@ func (iv *InputView) SetTextSelectionMode(enabled bool) {
 
 func (iv *InputView) IsTextSelectionMode() bool {
 	return iv.isTextSelectionMode
+}
+
+// SetDisabled sets whether the input is disabled (prevents typing)
+// When disabling, saves the current text and clears the input
+// When re-enabling, restores the saved text
+func (iv *InputView) SetDisabled(disabled bool) {
+	if disabled && !iv.disabled {
+		iv.savedText = iv.text
+		iv.savedCursor = iv.cursor
+		iv.text = ""
+		iv.cursor = 0
+	} else if !disabled && iv.disabled {
+		iv.text = iv.savedText
+		iv.cursor = iv.savedCursor
+		iv.savedText = ""
+		iv.savedCursor = 0
+	}
+	iv.disabled = disabled
+}
+
+// IsDisabled returns whether the input is disabled
+func (iv *InputView) IsDisabled() bool {
+	return iv.disabled
 }
 
 // AddImageAttachment adds an image attachment to the pending list

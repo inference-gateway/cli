@@ -780,7 +780,7 @@ func (s *ApplicationState) ClearApprovalUIState() {
 // SetupPlanApprovalUIState initializes plan approval UI state
 func (s *ApplicationState) SetupPlanApprovalUIState(planContent string, responseChan chan PlanApprovalAction) {
 	s.planApprovalUIState = &PlanApprovalUIState{
-		SelectedIndex: int(PlanApprovalAccept), // Default to accept
+		SelectedIndex: int(PlanApprovalAccept),
 		PlanContent:   planContent,
 		ResponseChan:  responseChan,
 	}
