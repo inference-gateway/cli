@@ -42,21 +42,15 @@ func NewHistorySearchView(historyManager *history.HistoryManager, styleProvider 
 
 // Init initializes the history search view
 func (h *HistorySearchView) Init() tea.Cmd {
-	// Load history from history manager
 	count := h.historyManager.GetHistoryCount()
 	h.allHistory = make([]string, 0, count)
 
-	// Get history entries by navigating through them
-	// We'll access the unexported allHistory field through the manager's navigation
-	// For now, we'll use a simple approach - build a list by navigating
 	h.historyManager.ResetNavigation()
 	tempHistory := make([]string, 0)
 
-	// Navigate to oldest entry first
 	for i := 0; i < count; i++ {
 		entry := h.historyManager.NavigateUp("")
 		if entry != "" {
-			// Prepend to maintain chronological order
 			tempHistory = append([]string{entry}, tempHistory...)
 		}
 	}
@@ -66,7 +60,6 @@ func (h *HistorySearchView) Init() tea.Cmd {
 	h.filteredHistory = make([]string, len(h.allHistory))
 	copy(h.filteredHistory, h.allHistory)
 
-	// Reverse to show most recent first
 	h.reverseHistory()
 
 	if len(h.filteredHistory) > 0 {
@@ -193,12 +186,10 @@ func (h *HistorySearchView) filterHistory() {
 func (h *HistorySearchView) View() string {
 	var b strings.Builder
 
-	// Header
 	accentColor := h.styleProvider.GetThemeColor("accent")
 	title := "Recursive History Search (ctrl+r)"
 	fmt.Fprintf(&b, "%s\n\n", h.styleProvider.RenderWithColor(title, accentColor))
 
-	// Search prompt (similar to bash reverse-i-search)
 	searchPrompt := fmt.Sprintf("(reverse-i-search)`%s': ", h.searchQuery)
 	fmt.Fprintf(&b, "%s", h.styleProvider.RenderWithColor(searchPrompt, accentColor))
 
@@ -208,14 +199,12 @@ func (h *HistorySearchView) View() string {
 		fmt.Fprintf(&b, "\n\n")
 	}
 
-	// Results count
 	resultInfo := fmt.Sprintf("%d matches found", len(h.filteredHistory))
 	if h.searchQuery == "" {
 		resultInfo = fmt.Sprintf("%d entries in history", len(h.filteredHistory))
 	}
 	fmt.Fprintf(&b, "%s\n\n", h.styleProvider.RenderDimText(resultInfo))
 
-	// List of matches (limited to available height)
 	if len(h.filteredHistory) > 0 {
 		h.writeHistoryList(&b)
 	} else {

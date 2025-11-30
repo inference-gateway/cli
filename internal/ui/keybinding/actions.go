@@ -1258,7 +1258,6 @@ func handlePlanApprovalAcceptAndAutoApprove(app KeyHandlerContext, keyMsg tea.Ke
 func handleHistorySearch(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 
-	// Transition to history search view
 	err := stateManager.TransitionToView(domain.ViewStateHistorySearch)
 	if err != nil {
 		return func() tea.Msg {

@@ -306,7 +306,6 @@ func TestKeyResolution(t *testing.T) {
 		t.Errorf("Expected ctrl+r to resolve to 'history_search', got %s", action.ID)
 	}
 
-	// Test the new binding for toggle raw format
 	action = registry.Resolve("ctrl+shift+r", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+shift+r to resolve to an action")
@@ -408,7 +407,6 @@ func TestHelpShortcutGeneration(t *testing.T) {
 		if shortcut.Key == "ctrl+o" && shortcut.Description == "expand/collapse tool results" {
 			foundToggle = true
 		}
-		// Updated to use the new keybinding ctrl+shift+r
 		if shortcut.Key == "ctrl+shift+r" && shortcut.Description == "toggle raw/rendered markdown" {
 			foundRaw = true
 		}

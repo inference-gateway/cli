@@ -31,7 +31,6 @@ func TestHistorySearchView_Init(t *testing.T) {
 	styleProvider := createMockStyleProvider()
 	historyManager := history.NewMemoryOnlyHistoryManager(10)
 
-	// Add some test history
 	_ = historyManager.AddToHistory("echo hello")
 	_ = historyManager.AddToHistory("ls -la")
 	_ = historyManager.AddToHistory("cd /tmp")
@@ -52,7 +51,6 @@ func TestHistorySearchView_Search(t *testing.T) {
 	styleProvider := createMockStyleProvider()
 	historyManager := history.NewMemoryOnlyHistoryManager(10)
 
-	// Add test history
 	_ = historyManager.AddToHistory("echo hello")
 	_ = historyManager.AddToHistory("ls -la")
 	_ = historyManager.AddToHistory("echo world")
@@ -60,7 +58,6 @@ func TestHistorySearchView_Search(t *testing.T) {
 	view := NewHistorySearchView(historyManager, styleProvider)
 	_ = view.Init()
 
-	// Search for "echo"
 	view.searchQuery = "echo"
 	view.filterHistory()
 
@@ -68,7 +65,6 @@ func TestHistorySearchView_Search(t *testing.T) {
 		t.Errorf("Expected 2 matches for 'echo', got %d", len(view.filteredHistory))
 	}
 
-	// Search for "ls"
 	view.searchQuery = "ls"
 	view.filterHistory()
 
@@ -76,7 +72,6 @@ func TestHistorySearchView_Search(t *testing.T) {
 		t.Errorf("Expected 1 match for 'ls', got %d", len(view.filteredHistory))
 	}
 
-	// Search for non-existent term
 	view.searchQuery = "nonexistent"
 	view.filterHistory()
 
@@ -96,20 +91,17 @@ func TestHistorySearchView_Navigation(t *testing.T) {
 	view := NewHistorySearchView(historyManager, styleProvider)
 	_ = view.Init()
 
-	// Test navigation down
 	initialSelected := view.selected
 	view.handleNavigationDown()
 	if view.selected != initialSelected+1 {
 		t.Errorf("Expected selected to increase, got %d", view.selected)
 	}
 
-	// Test navigation up
 	view.handleNavigationUp()
 	if view.selected != initialSelected {
 		t.Errorf("Expected selected to return to initial, got %d", view.selected)
 	}
 
-	// Test navigation at boundary (should not go below 0)
 	view.selected = 0
 	view.handleNavigationUp()
 	if view.selected != 0 {
@@ -126,7 +118,6 @@ func TestHistorySearchView_Selection(t *testing.T) {
 	view := NewHistorySearchView(historyManager, styleProvider)
 	_ = view.Init()
 
-	// Select the first item
 	view.selected = 0
 	view.handleSelection()
 
@@ -151,7 +142,6 @@ func TestHistorySearchView_Cancel(t *testing.T) {
 	view := NewHistorySearchView(historyManager, styleProvider)
 	_ = view.Init()
 
-	// Simulate escape key
 	msg := tea.KeyMsg{Type: tea.KeyEsc}
 	view.handleKeyInput(msg)
 
@@ -173,7 +163,6 @@ func TestHistorySearchView_CharacterInput(t *testing.T) {
 	view := NewHistorySearchView(historyManager, styleProvider)
 	_ = view.Init()
 
-	// Type "e"
 	msg := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}}
 	view.handleCharacterInput(msg)
 
@@ -181,7 +170,6 @@ func TestHistorySearchView_CharacterInput(t *testing.T) {
 		t.Errorf("Expected search query 'e', got '%s'", view.searchQuery)
 	}
 
-	// Type "c"
 	msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'c'}}
 	view.handleCharacterInput(msg)
 
@@ -204,7 +192,6 @@ func TestHistorySearchView_Backspace(t *testing.T) {
 		t.Errorf("Expected search query 'tes' after backspace, got '%s'", view.searchQuery)
 	}
 
-	// Test backspace on empty query
 	view.searchQuery = ""
 	view.handleBackspace()
 

@@ -171,7 +171,6 @@ func NewChatApplication(
 	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
 	app.textSelectionView = components.NewTextSelectionView(styleProvider)
 
-	// Initialize history search view with the input view's history manager
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		historyManager := iv.GetHistoryManager()
 		app.historySearchView = components.NewHistorySearchView(historyManager, styleProvider)
@@ -912,7 +911,6 @@ func (app *ChatApplication) handleHistorySearchView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
-	// Initialize on first entry or after reset
 	if app.historySearchView.IsDone() {
 		app.historySearchView.Reset()
 		if cmd := app.historySearchView.Init(); cmd != nil {
@@ -935,18 +933,15 @@ func (app *ChatApplication) handleHistorySearchSelection(cmds []tea.Cmd) []tea.C
 		return cmds
 	}
 
-	// User selected an entry
 	if !app.historySearchView.IsCancelled() {
 		selected := app.historySearchView.GetSelected()
 		if selected != "" {
-			// Insert into input field
 			cmds = append(cmds, func() tea.Msg {
 				return domain.SetInputEvent{Text: selected}
 			})
 		}
 	}
 
-	// Return to chat view
 	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
 		return []tea.Cmd{tea.Quit}
 	}
