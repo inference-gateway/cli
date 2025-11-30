@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.75.0](https://github.com/inference-gateway/cli/compare/v0.74.0...v0.75.0) (2025-11-30)
+
+### 🚀 Features
+
+* Improve UI layout and add PR plan generator command ([#291](https://github.com/inference-gateway/cli/issues/291)) ([e51cdd8](https://github.com/inference-gateway/cli/commit/e51cdd874530e249aa4544576c4394d55a357929))
+
 ## [0.74.0](https://github.com/inference-gateway/cli/compare/v0.73.0...v0.74.0) (2025-11-30)
 
 ### 🚀 Features
