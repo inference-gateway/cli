@@ -1095,6 +1095,17 @@ func handleCharacterInput(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return handlePasteEvent(app, keyStr)
 	}
 
+	stateManager := app.GetStateManager()
+	currentView := stateManager.GetCurrentView()
+
+	if currentView == domain.ViewStatePlanApproval {
+		return nil
+	}
+
+	if stateManager.GetApprovalUIState() != nil {
+		return nil
+	}
+
 	inputView := app.GetInputView()
 	if inputView != nil {
 		if inputView.CanHandle(keyMsg) {

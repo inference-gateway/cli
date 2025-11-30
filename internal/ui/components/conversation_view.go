@@ -823,12 +823,7 @@ func (cv *ConversationView) renderInlineApprovalButtons(_ int) string {
 		autoApproveStyled = cv.styleProvider.RenderWithColor("[ "+autoApproveText+" ]", accentColor)
 	}
 
-	helpText := cv.styleProvider.RenderWithColor(
-		"  ←/→: Navigate • Enter: Confirm • Esc: Reject",
-		cv.styleProvider.GetThemeColor("dim"),
-	)
-
-	return fmt.Sprintf("  %s  %s  %s\n%s", acceptStyled, rejectStyled, autoApproveStyled, helpText)
+	return fmt.Sprintf("  %s  %s  %s", acceptStyled, rejectStyled, autoApproveStyled)
 }
 
 // renderPendingToolEntry renders a pending tool call that requires approval
@@ -985,12 +980,7 @@ func (cv *ConversationView) renderInlineToolApprovalButtons(_ int) string {
 		autoApproveStyled = cv.styleProvider.RenderWithColor("[ "+autoApproveText+" ]", accentColor)
 	}
 
-	helpText := cv.styleProvider.RenderWithColor(
-		"  ←/→: Navigate • Enter: Confirm • Esc: Reject",
-		cv.styleProvider.GetThemeColor("dim"),
-	)
-
-	return fmt.Sprintf("  %s  %s  %s\n%s", approveStyled, rejectStyled, autoApproveStyled, helpText)
+	return fmt.Sprintf("  %s  %s  %s", approveStyled, rejectStyled, autoApproveStyled)
 }
 
 // handleToolCallRendererEvents processes tool call renderer specific events
