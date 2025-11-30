@@ -8,7 +8,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
-	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 )

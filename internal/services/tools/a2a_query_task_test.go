@@ -9,7 +9,7 @@ import (
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func TestA2AQueryTaskTool_Definition(t *testing.T) {

@@ -20,6 +20,7 @@ import (
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	factory "github.com/inference-gateway/cli/internal/ui/factory"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -59,7 +60,6 @@ type ChatApplication struct {
 	conversationSelector  *components.ConversationSelectorImpl
 	fileSelectionView     *components.FileSelectionView
 	textSelectionView     *components.TextSelectionView
-	historySearchView     *components.HistorySearchView
 	a2aServersView        *components.A2AServersView
 	taskManager           *components.TaskManagerImpl
 	toolCallRenderer      *components.ToolCallRenderer
@@ -140,7 +140,7 @@ func NewChatApplication(
 
 	app.toolCallRenderer = components.NewToolCallRenderer(styleProvider)
 	app.planApprovalComponent = components.NewPlanApprovalComponent(styleProvider)
-	app.conversationView = ui.CreateConversationView(app.themeService)
+	app.conversationView = factory.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
 
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
@@ -155,7 +155,7 @@ func NewChatApplication(
 		configDir = filepath.Dir(configPath)
 	}
 
-	app.inputView = ui.CreateInputViewWithToolServiceAndConfigDir(app.modelService, app.shortcutRegistry, app.toolService, configDir)
+	app.inputView = factory.CreateInputViewWithToolServiceAndConfigDir(app.modelService, app.shortcutRegistry, app.toolService, configDir)
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)
@@ -163,18 +163,13 @@ func NewChatApplication(
 		iv.SetConfigService(app.configService)
 		iv.SetConversationRepo(app.conversationRepo)
 	}
-	app.statusView = ui.CreateStatusView(app.themeService)
-	app.helpBar = ui.CreateHelpBar(app.themeService)
+	app.statusView = factory.CreateStatusView(app.themeService)
+	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
 
 	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
 	app.textSelectionView = components.NewTextSelectionView(styleProvider)
-
-	if iv, ok := app.inputView.(*components.InputView); ok {
-		historyManager := iv.GetHistoryManager()
-		app.historySearchView = components.NewHistorySearchView(historyManager, styleProvider)
-	}
 
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
 	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
@@ -353,8 +348,6 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleConversationSelectionView(msg)
 	case domain.ViewStateThemeSelection:
 		return app.handleThemeSelectionView(msg)
-	case domain.ViewStateHistorySearch:
-		return app.handleHistorySearchView(msg)
 	case domain.ViewStateA2AServers:
 		return app.handleA2AServersView(msg)
 	case domain.ViewStateA2ATaskManagement:
@@ -503,8 +496,6 @@ func (app *ChatApplication) View() string {
 		return app.renderConversationSelection()
 	case domain.ViewStateThemeSelection:
 		return app.renderThemeSelection()
-	case domain.ViewStateHistorySearch:
-		return app.renderHistorySearch()
 	case domain.ViewStateA2AServers:
 		return app.renderA2AServers()
 	case domain.ViewStateA2ATaskManagement:
@@ -898,59 +889,6 @@ func (app *ChatApplication) handleConversationCancelled(cmds []tea.Cmd) []tea.Cm
 	return cmds
 }
 
-func (app *ChatApplication) handleHistorySearchView(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	if app.historySearchView == nil {
-		cmds = append(cmds, func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error:  "History search view not initialized.",
-				Sticky: true,
-			}
-		})
-		return cmds
-	}
-
-	if app.historySearchView.IsDone() {
-		app.historySearchView.Reset()
-		if cmd := app.historySearchView.Init(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	model, cmd := app.historySearchView.Update(msg)
-	app.historySearchView = model.(*components.HistorySearchView)
-
-	if cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
-	return app.handleHistorySearchSelection(cmds)
-}
-
-func (app *ChatApplication) handleHistorySearchSelection(cmds []tea.Cmd) []tea.Cmd {
-	if !app.historySearchView.IsDone() {
-		return cmds
-	}
-
-	if !app.historySearchView.IsCancelled() {
-		selected := app.historySearchView.GetSelected()
-		if selected != "" {
-			cmds = append(cmds, func() tea.Msg {
-				return domain.SetInputEvent{Text: selected}
-			})
-		}
-	}
-
-	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
-		return []tea.Cmd{tea.Quit}
-	}
-
-	app.focusedComponent = app.inputView
-
-	return cmds
-}
-
 func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
@@ -1183,17 +1121,6 @@ func (app *ChatApplication) renderConversationSelection() string {
 	return app.conversationSelector.View()
 }
 
-func (app *ChatApplication) renderHistorySearch() string {
-	if app.historySearchView == nil {
-		return "History search view not initialized."
-	}
-
-	width, height := app.stateManager.GetDimensions()
-	app.historySearchView.SetWidth(width)
-	app.historySearchView.SetHeight(height)
-	return app.historySearchView.View()
-}
-
 func (app *ChatApplication) renderA2ATaskManagement() string {
 	if app.taskManager == nil {
 		return "Task management requires A2A to be enabled in configuration."
@@ -1297,8 +1224,8 @@ func (app *ChatApplication) renderTextSelection() string {
 		helpBarHeight = 6
 	}
 	adjustedHeight := height - 3 - helpBarHeight
-	conversationHeight := ui.CalculateConversationHeight(adjustedHeight)
-	statusHeight := ui.CalculateStatusHeight(adjustedHeight)
+	conversationHeight := factory.CalculateConversationHeight(adjustedHeight)
+	statusHeight := factory.CalculateStatusHeight(adjustedHeight)
 
 	app.textSelectionView.SetWidth(width)
 	app.textSelectionView.SetHeight(conversationHeight)
@@ -1479,7 +1406,7 @@ func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.C
 
 func (app *ChatApplication) getPageSize() int {
 	_, height := app.stateManager.GetDimensions()
-	conversationHeight := ui.CalculateConversationHeight(height)
+	conversationHeight := factory.CalculateConversationHeight(height)
 	return max(1, conversationHeight-2)
 }
 

@@ -81,22 +81,10 @@ func (r *Registry) createChatActions() []*KeyAction {
 		},
 		{
 			ID:          "toggle_raw_format",
-			Keys:        []string{"ctrl+shift+r"},
+			Keys:        []string{"ctrl+r"},
 			Description: "toggle raw/rendered markdown",
 			Category:    "display",
 			Handler:     handleToggleRawFormat,
-			Priority:    150,
-			Enabled:     true,
-			Context: KeyContext{
-				Views: []domain.ViewState{domain.ViewStateChat},
-			},
-		},
-		{
-			ID:          "history_search",
-			Keys:        []string{"ctrl+r"},
-			Description: "recursive history search",
-			Category:    "navigation",
-			Handler:     handleHistorySearch,
 			Priority:    150,
 			Enabled:     true,
 			Context: KeyContext{
@@ -162,11 +150,8 @@ func (r *Registry) createChatActions() []*KeyAction {
 		},
 	}
 
-	// Add clipboard actions
 	actions = append(actions, r.createClipboardActions()...)
-	// Add text editing actions
 	actions = append(actions, r.createTextEditingActions()...)
-	// Add history actions
 	actions = append(actions, r.createHistoryActions()...)
 
 	return actions
@@ -833,12 +818,22 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cm
 	}
 
 	inputView := app.GetInputView()
-	if inputView != nil {
-		cursor := inputView.GetCursor()
-		text := inputView.GetInput()
-		if cursor < len(text) {
-			inputView.SetCursor(cursor + 1)
+	if inputView == nil {
+		return nil
+	}
+
+	cursor := inputView.GetCursor()
+	text := inputView.GetInput()
+
+	if cursor == len(text) {
+		if iv, ok := inputView.(*components.InputView); ok && iv.HasHistorySuggestion() {
+			iv.AcceptHistorySuggestion()
+			return nil
 		}
+	}
+
+	if cursor < len(text) {
+		inputView.SetCursor(cursor + 1)
 	}
 	return nil
 }
@@ -1251,23 +1246,5 @@ func handlePlanApprovalAcceptAndAutoApprove(app KeyHandlerContext, keyMsg tea.Ke
 		return domain.PlanApprovalResponseEvent{
 			Action: domain.PlanApprovalAcceptAndAutoApprove,
 		}
-	}
-}
-
-// handleHistorySearch opens the recursive history search UI
-func handleHistorySearch(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
-
-	err := stateManager.TransitionToView(domain.ViewStateHistorySearch)
-	if err != nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error: "Failed to open history search: " + err.Error(),
-			}
-		}
-	}
-
-	return func() tea.Msg {
-		return domain.HistorySearchRequestedEvent{}
 	}
 }

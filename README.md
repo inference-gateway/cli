@@ -113,11 +113,11 @@ and management of inference services.
   - Toggle between modes with **Shift+Tab**
 - **Token Usage Tracking**: Accurate token counting with polyfill support for providers (like Ollama Cloud)
   that don't return usage metrics in their responses
-- **Recursive History Search**: Search through chat history with **Ctrl+R** (similar to bash reverse-i-search)
-  - Real-time search filtering
-  - Navigate with arrow keys or Ctrl+P/Ctrl+N
-  - Select entries with Tab or Enter
-  - Insert selected commands directly into input field
+- **Inline History Auto-Completion**: Smart command history suggestions with inline completion
+  - Ghost-text suggestions appear as you type, matching command history by prefix
+  - **Right Arrow** to accept the entire suggestion
+  - **Tab** to cycle through multiple matching suggestions
+  - Suggestions automatically update as you type
 
 ## Installation
 

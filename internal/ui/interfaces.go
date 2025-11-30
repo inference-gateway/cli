@@ -1,8 +1,8 @@
 package ui
 
 import (
-	"github.com/inference-gateway/cli/internal/ui/shared"
-	"github.com/inference-gateway/cli/internal/ui/styles/colors"
+	shared "github.com/inference-gateway/cli/internal/ui/shared"
+	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 )
 
 // Type aliases to shared interfaces to avoid duplication
@@ -29,9 +29,6 @@ func (t *DefaultTheme) GetDimColor() string        { return colors.DimColor.ANSI
 func (t *DefaultTheme) GetBorderColor() string     { return colors.BorderColor.ANSI }
 func (t *DefaultTheme) GetDiffAddColor() string    { return colors.DiffAddColor.ANSI }
 func (t *DefaultTheme) GetDiffRemoveColor() string { return colors.DiffRemoveColor.ANSI }
-
-// Compile-time check to ensure AutocompleteImpl implements the interface
-var _ shared.AutocompleteInterface = (*AutocompleteImpl)(nil)
 
 // SelectionComponent is specific to UI layer (not duplicated in shared)
 type SelectionComponent interface {

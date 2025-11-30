@@ -10,7 +10,7 @@ import (
 	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
 	config "github.com/inference-gateway/cli/config"
-	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	assert "github.com/stretchr/testify/assert"
 	zap "go.uber.org/zap"
 )

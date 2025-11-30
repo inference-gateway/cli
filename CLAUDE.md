@@ -379,7 +379,7 @@ Configuration is loaded using Viper with environment variable overrides (`INFER_
 ## Testing Strategy
 
 - **Unit tests**: Co-located with source files (`*_test.go`)
-- **Mocks**: Generated via counterfeiter in `tests/mocks/generated/`
+- **Mocks**: Generated via counterfeiter in `tests/mocks/`
 - **Integration tests**: Minimal, focused on critical paths
 - **Test coverage**: Not enforced, but expected for new features
 

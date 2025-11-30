@@ -5,7 +5,7 @@ import (
 
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/shortcuts"
-	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	"github.com/stretchr/testify/assert"
 )
 

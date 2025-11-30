@@ -9,7 +9,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	generated "github.com/inference-gateway/cli/tests/mocks/generated"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
@@ -241,10 +241,10 @@ func TestAgentServiceImpl_StreamingDeltaAccumulation(t *testing.T) {
 }
 
 func TestNewAgentService(t *testing.T) {
-	fakeToolService := &generated.FakeToolService{}
-	fakeConfig := &generated.FakeConfigService{}
-	fakeConversationRepo := &generated.FakeConversationRepository{}
-	fakeStateManager := &generated.FakeStateManager{}
+	fakeToolService := &domainmocks.FakeToolService{}
+	fakeConfig := &domainmocks.FakeConfigService{}
+	fakeConversationRepo := &domainmocks.FakeConversationRepository{}
+	fakeStateManager := &domainmocks.FakeStateManager{}
 
 	fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
 		MaxTokens: 4096,
@@ -415,7 +415,7 @@ func TestAgentServiceImpl_ShouldInjectSystemReminder(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &generated.FakeConfigService{}
+			fakeConfig := &domainmocks.FakeConfigService{}
 			fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
 				SystemReminders: tt.remindersConfig,
 			})
@@ -454,7 +454,7 @@ func TestAgentServiceImpl_GetSystemReminderMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &generated.FakeConfigService{}
+			fakeConfig := &domainmocks.FakeConfigService{}
 			fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
 				SystemReminders: config.SystemRemindersConfig{
 					ReminderText: tt.reminderText,
@@ -528,7 +528,7 @@ func TestAgentServiceImpl_BuildSandboxInfo(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &generated.FakeConfigService{}
+			fakeConfig := &domainmocks.FakeConfigService{}
 			fakeConfig.GetSandboxDirectoriesReturns(tt.sandboxDirs)
 			fakeConfig.GetProtectedPathsReturns(tt.protectedPaths)
 
@@ -661,11 +661,11 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &generated.FakeConfigService{}
+			fakeConfig := &domainmocks.FakeConfigService{}
 			fakeConfig.IsApprovalRequiredReturns(tt.isApprovalRequired)
 			fakeConfig.IsBashCommandWhitelistedReturns(tt.isBashCommandWhitelisted)
 
-			fakeStateManager := &generated.FakeStateManager{}
+			fakeStateManager := &domainmocks.FakeStateManager{}
 			fakeStateManager.GetAgentModeReturns(tt.agentMode)
 
 			agentService := &AgentServiceImpl{
@@ -850,7 +850,7 @@ func TestAgentServiceImpl_StoreIterationMetrics(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeRepo := &generated.FakeConversationRepository{}
+			fakeRepo := &domainmocks.FakeConversationRepository{}
 
 			agentService := &AgentServiceImpl{
 				conversationRepo: fakeRepo,
@@ -1174,7 +1174,7 @@ func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			fakeConfig := &generated.FakeConfigService{}
+			fakeConfig := &domainmocks.FakeConfigService{}
 			fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
 				SystemPrompt:     tt.systemPrompt,
 				SystemPromptPlan: tt.planPrompt,
@@ -1185,7 +1185,7 @@ func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 			}
 
 			if !tt.nilStateManager {
-				fakeStateManager := &generated.FakeStateManager{}
+				fakeStateManager := &domainmocks.FakeStateManager{}
 				fakeStateManager.GetAgentModeReturns(tt.agentMode)
 				agentService.stateManager = fakeStateManager
 			}
@@ -1198,7 +1198,7 @@ func TestAgentServiceImpl_GetSystemPromptForMode(t *testing.T) {
 }
 
 func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
-	fakeConfig := &generated.FakeConfigService{}
+	fakeConfig := &domainmocks.FakeConfigService{}
 	fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
 		SystemPrompt: "You are a helpful assistant.",
 	})
@@ -1229,7 +1229,7 @@ func TestAgentServiceImpl_AddSystemPrompt(t *testing.T) {
 }
 
 func TestAgentServiceImpl_AddSystemPrompt_EmptyPrompt(t *testing.T) {
-	fakeConfig := &generated.FakeConfigService{}
+	fakeConfig := &domainmocks.FakeConfigService{}
 	fakeConfig.GetAgentConfigReturns(&config.AgentConfig{
 		SystemPrompt: "",
 	})
@@ -1311,20 +1311,15 @@ func TestAgentServiceImpl_ConcurrentToolCallsAccess(t *testing.T) {
 	wg.Wait()
 }
 
-// mockA2AAgentService is a simple mock for testing buildA2AAgentInfo
-type mockA2AAgentService struct {
-	configuredAgents []string
-}
-
-func (m *mockA2AAgentService) GetAgentCards(_ context.Context) ([]*domain.CachedAgentCard, error) {
-	return nil, nil
-}
-
-func (m *mockA2AAgentService) GetConfiguredAgents() []string {
-	return m.configuredAgents
-}
-
 func TestAgentServiceImpl_BuildA2AAgentInfo(t *testing.T) {
+	// Helper to create configured fake A2A agent service
+	createFakeA2AAgentService := func(agents []string) *domainmocks.FakeA2AAgentService {
+		fake := &domainmocks.FakeA2AAgentService{}
+		fake.GetConfiguredAgentsReturns(agents)
+		fake.GetAgentCardsReturns(nil, nil)
+		return fake
+	}
+
 	tests := []struct {
 		name            string
 		a2aAgentService domain.A2AAgentService
@@ -1338,12 +1333,12 @@ func TestAgentServiceImpl_BuildA2AAgentInfo(t *testing.T) {
 		},
 		{
 			name:            "empty_agents_returns_empty",
-			a2aAgentService: &mockA2AAgentService{configuredAgents: []string{}},
+			a2aAgentService: createFakeA2AAgentService([]string{}),
 			expectedEmpty:   true,
 		},
 		{
 			name:            "with_configured_agents",
-			a2aAgentService: &mockA2AAgentService{configuredAgents: []string{"http://agent1.local", "http://agent2.local"}},
+			a2aAgentService: createFakeA2AAgentService([]string{"http://agent1.local", "http://agent2.local"}),
 			expectedParts: []string{
 				"Available A2A Agents:",
 				"http://agent1.local",
@@ -1354,7 +1349,7 @@ func TestAgentServiceImpl_BuildA2AAgentInfo(t *testing.T) {
 		},
 		{
 			name:            "single_agent",
-			a2aAgentService: &mockA2AAgentService{configuredAgents: []string{"http://single-agent.local"}},
+			a2aAgentService: createFakeA2AAgentService([]string{"http://single-agent.local"}),
 			expectedParts: []string{
 				"Available A2A Agents:",
 				"http://single-agent.local",

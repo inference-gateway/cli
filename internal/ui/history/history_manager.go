@@ -63,13 +63,10 @@ func (hm *HistoryManager) loadCombinedHistory() error {
 		return err
 	}
 
-	// Combine shell history with in-memory history
-	// Shell history comes first (older), then in-memory (newer)
 	hm.allHistory = make([]string, 0, len(shellCommands)+len(hm.inMemoryHistory))
 	hm.allHistory = append(hm.allHistory, shellCommands...)
 	hm.allHistory = append(hm.allHistory, hm.inMemoryHistory...)
 
-	// Remove duplicates while preserving order
 	hm.allHistory = removeDuplicates(hm.allHistory)
 
 	return nil
@@ -82,22 +79,16 @@ func (hm *HistoryManager) AddToHistory(command string) error {
 		return nil
 	}
 
-	// Add to in-memory history
 	hm.addToInMemoryHistory(command)
 
-	// Save to shell history
 	if err := hm.shellHistory.SaveToHistory(command); err != nil {
-		// Don't fail the operation if shell history save fails
 		logger.Warn("Could not save to shell history", "error", err)
 	}
 
-	// Reload combined history to include the new command
 	if err := hm.loadCombinedHistory(); err != nil {
-		// If reload fails, at least we have the in-memory version
 		logger.Warn("Could not reload combined history", "error", err)
 	}
 
-	// Reset history navigation
 	hm.historyIndex = -1
 	hm.currentInput = ""
 
@@ -106,14 +97,12 @@ func (hm *HistoryManager) AddToHistory(command string) error {
 
 // addToInMemoryHistory adds a command to in-memory history with size limit
 func (hm *HistoryManager) addToInMemoryHistory(command string) {
-	// Skip if it's the same as the last command
 	if len(hm.inMemoryHistory) > 0 && hm.inMemoryHistory[len(hm.inMemoryHistory)-1] == command {
 		return
 	}
 
 	hm.inMemoryHistory = append(hm.inMemoryHistory, command)
 
-	// Keep only the most recent commands
 	if len(hm.inMemoryHistory) > hm.maxInMemory {
 		hm.inMemoryHistory = hm.inMemoryHistory[1:]
 	}
@@ -126,13 +115,11 @@ func (hm *HistoryManager) NavigateUp(currentText string) string {
 	}
 
 	if hm.historyIndex == -1 {
-		// First time navigating, save current input
 		hm.currentInput = currentText
 		hm.historyIndex = len(hm.allHistory) - 1
 	} else if hm.historyIndex > 0 {
 		hm.historyIndex--
 	} else {
-		// Already at the oldest command, stay there
 		return hm.allHistory[hm.historyIndex]
 	}
 
@@ -142,7 +129,6 @@ func (hm *HistoryManager) NavigateUp(currentText string) string {
 // NavigateDown moves down in history (to newer commands)
 func (hm *HistoryManager) NavigateDown(currentText string) string {
 	if hm.historyIndex == -1 {
-		// Not currently navigating history
 		return currentText
 	}
 
@@ -150,7 +136,6 @@ func (hm *HistoryManager) NavigateDown(currentText string) string {
 		hm.historyIndex++
 		return hm.allHistory[hm.historyIndex]
 	} else {
-		// At the newest command, return to current input
 		hm.historyIndex = -1
 		result := hm.currentInput
 		hm.currentInput = ""

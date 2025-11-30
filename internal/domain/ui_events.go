@@ -227,13 +227,3 @@ type AgentErrorEvent struct {
 
 // TriggerGitHubAppSetupEvent triggers the GitHub App setup flow
 type TriggerGitHubAppSetupEvent struct{}
-
-// History Search Events
-
-// HistorySearchRequestedEvent requests the history search UI
-type HistorySearchRequestedEvent struct{}
-
-// HistorySearchSelectedEvent indicates a history entry was selected
-type HistorySearchSelectedEvent struct {
-	Entry string
-}

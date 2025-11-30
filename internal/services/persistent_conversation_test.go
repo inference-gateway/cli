@@ -9,7 +9,7 @@ import (
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
-	generated "github.com/inference-gateway/cli/tests/mocks/generated"
+	generated "github.com/inference-gateway/cli/tests/mocks/domain"
 	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"

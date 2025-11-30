@@ -1,52 +1,59 @@
 package components
 
 import (
-	"context"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	history "github.com/inference-gateway/cli/internal/ui/history"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
+	require "github.com/stretchr/testify/require"
 )
 
-// mockModelService is a simple mock for testing
-type mockModelService struct{}
-
-var _ domain.ModelService = (*mockModelService)(nil)
-
-func (m *mockModelService) ListModels(ctx context.Context) ([]string, error) {
-	return []string{"test-model"}, nil
+// createMockModelService creates a fake model service with default test values
+func createMockModelService() *domainmocks.FakeModelService {
+	fake := &domainmocks.FakeModelService{}
+	fake.ListModelsReturns([]string{"test-model"}, nil)
+	fake.GetCurrentModelReturns("test-model")
+	fake.IsModelAvailableReturns(true)
+	fake.ValidateModelReturns(nil)
+	fake.IsVisionModelReturns(false)
+	return fake
 }
 
-func (m *mockModelService) SelectModel(modelID string) error {
-	return nil
-}
-
-func (m *mockModelService) GetCurrentModel() string {
-	return "test-model"
-}
-
-func (m *mockModelService) IsModelAvailable(modelID string) bool {
-	return true
-}
-
-func (m *mockModelService) ValidateModel(modelID string) error {
-	return nil
-}
-
-func (m *mockModelService) IsVisionModel(modelID string) bool {
-	return false
-}
-
-// createInputViewWithTheme creates an InputView with a mock theme service for testing
+// createInputViewWithTheme creates an InputView with isolated memory-only history for testing
 func createInputViewWithTheme(modelService domain.ModelService) *InputView {
-	iv := NewInputView(modelService)
-	iv.SetThemeService(&mockThemeService{})
+	iv := &InputView{
+		text:                "",
+		cursor:              0,
+		placeholder:         "Type your message...",
+		width:               80,
+		height:              5,
+		modelService:        modelService,
+		Autocomplete:        nil,
+		historyManager:      history.NewMemoryOnlyHistoryManager(5),
+		isTextSelectionMode: false,
+		themeService:        nil,
+		imageAttachments:    []domain.ImageAttachment{},
+	}
+
+	fakeTheme := &uimocks.FakeTheme{}
+	fakeTheme.GetDimColorReturns("#888888")
+
+	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
+
+	iv.themeService = fakeThemeService
+	iv.styleProvider = styles.NewProvider(fakeThemeService)
+
 	return iv
 }
 
 func TestNewInputView(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
 	if iv.text != "" {
@@ -75,7 +82,7 @@ func TestNewInputView(t *testing.T) {
 }
 
 func TestInputView_GetInput(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
 	testText := "Hello, world!"
@@ -87,7 +94,7 @@ func TestInputView_GetInput(t *testing.T) {
 }
 
 func TestInputView_ClearInput(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
 	iv.text = "Some text"
@@ -105,7 +112,7 @@ func TestInputView_ClearInput(t *testing.T) {
 }
 
 func TestInputView_SetPlaceholder(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
 	testPlaceholder := "Enter your message..."
@@ -117,7 +124,7 @@ func TestInputView_SetPlaceholder(t *testing.T) {
 }
 
 func TestInputView_GetCursor(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
 	iv.cursor = 42
@@ -128,7 +135,7 @@ func TestInputView_GetCursor(t *testing.T) {
 }
 
 func TestInputView_SetCursor(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
 	iv.SetCursor(15)
@@ -144,7 +151,7 @@ func TestInputView_SetCursor(t *testing.T) {
 }
 
 func TestInputView_SetText(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
 	testText := "New text content"
@@ -160,7 +167,7 @@ func TestInputView_SetText(t *testing.T) {
 }
 
 func TestInputView_SetWidth(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
 	iv.SetWidth(120)
@@ -171,7 +178,7 @@ func TestInputView_SetWidth(t *testing.T) {
 }
 
 func TestInputView_SetHeight(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
 	iv.SetHeight(8)
@@ -182,7 +189,7 @@ func TestInputView_SetHeight(t *testing.T) {
 }
 
 func TestInputView_Render(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := createInputViewWithTheme(mockModelService)
 
 	output := iv.Render()
@@ -198,7 +205,7 @@ func TestInputView_Render(t *testing.T) {
 }
 
 func TestInputView_CanHandle(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
 	charKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'a'}}
@@ -222,14 +229,8 @@ func TestInputView_CanHandle(t *testing.T) {
 	}
 }
 
-// Character input is now handled by the key binding registry
-
-// Backspace is now handled by the key binding registry
-
-// Arrow keys are now handled by the key binding registry
-
 func TestInputView_History(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := NewInputView(mockModelService)
 
 	if iv.historyManager == nil {
@@ -238,7 +239,7 @@ func TestInputView_History(t *testing.T) {
 }
 
 func TestInputView_BashModeBorderColor(t *testing.T) {
-	mockModelService := &mockModelService{}
+	mockModelService := createMockModelService()
 	iv := createInputViewWithTheme(mockModelService)
 
 	iv.SetText("normal text")
@@ -265,5 +266,226 @@ func TestInputView_BashModeBorderColor(t *testing.T) {
 
 	if !strings.Contains(toolsOutput, "TOOLS MODE") {
 		t.Error("Expected tools mode output to contain 'TOOLS MODE' indicator")
+	}
+}
+
+func TestInputView_HistorySuggestions_SingleMatch(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+
+	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
+	require.NoError(t, iv.historyManager.AddToHistory("list files"))
+
+	iv.SetText("cre")
+	iv.cursor = len(iv.text)
+
+	iv.Render()
+
+	if !iv.HasHistorySuggestion() {
+		t.Error("Expected history suggestion to be available")
+	}
+
+	if iv.historySuggestion != "ate a pull request" {
+		t.Errorf("Expected suggestion 'ate a pull request', got '%s'", iv.historySuggestion)
+	}
+
+	if len(iv.historySuggestions) != 1 {
+		t.Errorf("Expected 1 matching suggestion, got %d", len(iv.historySuggestions))
+	}
+}
+
+func TestInputView_HistorySuggestions_MultipleMatches(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+
+	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
+	require.NoError(t, iv.historyManager.AddToHistory("create a new branch"))
+	require.NoError(t, iv.historyManager.AddToHistory("create tests"))
+
+	iv.SetText("create")
+	iv.cursor = len(iv.text)
+
+	iv.Render()
+
+	if len(iv.historySuggestions) != 3 {
+		t.Errorf("Expected 3 matching suggestions, got %d", len(iv.historySuggestions))
+	}
+
+	if iv.historySuggestion != " a pull request" {
+		t.Errorf("Expected suggestion ' a pull request', got '%s'", iv.historySuggestion)
+	}
+}
+
+func TestInputView_HistorySuggestions_CycleThrough(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+
+	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
+	require.NoError(t, iv.historyManager.AddToHistory("create a new branch"))
+
+	iv.SetText("create")
+	iv.cursor = len(iv.text)
+	iv.Render()
+
+	firstSuggestion := iv.historySuggestion
+
+	iv.cycleHistorySuggestion()
+	secondSuggestion := iv.historySuggestion
+
+	if firstSuggestion == secondSuggestion {
+		t.Error("Expected different suggestion after cycling")
+	}
+
+	iv.cycleHistorySuggestion()
+	if iv.historySuggestion != firstSuggestion {
+		t.Errorf("Expected to cycle back to first suggestion '%s', got '%s'", firstSuggestion, iv.historySuggestion)
+	}
+}
+
+func TestInputView_HistorySuggestions_AcceptSuggestion(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+
+	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
+
+	iv.SetText("cre")
+	iv.cursor = len(iv.text)
+	iv.Render()
+
+	accepted := iv.AcceptHistorySuggestion()
+
+	if !accepted {
+		t.Error("Expected AcceptHistorySuggestion to return true")
+	}
+
+	if iv.text != "create a pull request" {
+		t.Errorf("Expected text to be 'create a pull request', got '%s'", iv.text)
+	}
+
+	if iv.cursor != len(iv.text) {
+		t.Errorf("Expected cursor to be at end (%d), got %d", len(iv.text), iv.cursor)
+	}
+
+	if iv.HasHistorySuggestion() {
+		t.Error("Expected suggestion to be cleared after acceptance")
+	}
+}
+
+func TestInputView_HistorySuggestions_NoMatchWhenEmpty(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+
+	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
+
+	iv.SetText("")
+	iv.cursor = 0
+	iv.Render()
+
+	if iv.HasHistorySuggestion() {
+		t.Error("Expected no suggestion for empty text")
+	}
+
+	if len(iv.historySuggestions) != 0 {
+		t.Errorf("Expected 0 suggestions, got %d", len(iv.historySuggestions))
+	}
+}
+
+func TestInputView_HistorySuggestions_NoMatchWhenCursorNotAtEnd(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+
+	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
+
+	iv.SetText("create")
+	iv.cursor = 3
+	iv.Render()
+
+	if iv.HasHistorySuggestion() {
+		t.Error("Expected no suggestion when cursor is not at end")
+	}
+}
+
+func TestInputView_HistorySuggestions_NoMatchWhenNoPrefix(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+
+	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
+
+	iv.SetText("xyz")
+	iv.cursor = len(iv.text)
+	iv.Render()
+
+	if iv.HasHistorySuggestion() {
+		t.Error("Expected no suggestion for non-matching prefix")
+	}
+
+	if len(iv.historySuggestions) != 0 {
+		t.Errorf("Expected 0 suggestions, got %d", len(iv.historySuggestions))
+	}
+}
+
+func TestInputView_HistorySuggestions_CaseInsensitive(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+
+	require.NoError(t, iv.historyManager.AddToHistory("Create a pull request"))
+
+	iv.SetText("cre")
+	iv.cursor = len(iv.text)
+	iv.Render()
+
+	if !iv.HasHistorySuggestion() {
+		t.Error("Expected case-insensitive matching to work")
+	}
+
+	if len(iv.historySuggestions) != 1 {
+		t.Errorf("Expected 1 suggestion with case-insensitive match, got %d", len(iv.historySuggestions))
+	}
+}
+
+func TestInputView_HistorySuggestions_ExcludesExactMatch(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+
+	require.NoError(t, iv.historyManager.AddToHistory("create"))
+
+	iv.SetText("create")
+	iv.cursor = len(iv.text)
+	iv.Render()
+
+	if iv.HasHistorySuggestion() {
+		t.Error("Expected no suggestion for exact match")
+	}
+}
+
+func TestInputView_HistorySuggestions_AcceptWithNoSuggestion(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+
+	accepted := iv.AcceptHistorySuggestion()
+
+	if accepted {
+		t.Error("Expected AcceptHistorySuggestion to return false when no suggestion")
+	}
+}
+
+func TestInputView_HistorySuggestions_TabHandling(t *testing.T) {
+	mockModelService := createMockModelService()
+	iv := createInputViewWithTheme(mockModelService)
+
+	require.NoError(t, iv.historyManager.AddToHistory("create a pull request"))
+	require.NoError(t, iv.historyManager.AddToHistory("create a new branch"))
+
+	iv.SetText("create")
+	iv.cursor = len(iv.text)
+	iv.Render()
+
+	firstSuggestion := iv.historySuggestion
+
+	tabKey := tea.KeyMsg{Type: tea.KeyTab}
+	_, _ = iv.HandleKey(tabKey)
+
+	if iv.historySuggestion == firstSuggestion {
+		t.Error("Expected Tab to cycle to different suggestion")
 	}
 }

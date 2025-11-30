@@ -1,18 +1,24 @@
 package components
 
 import (
-	"context"
 	"testing"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	shortcutsmocks "github.com/inference-gateway/cli/tests/mocks/shortcuts"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 func TestConversationSelectorImpl_Reset(t *testing.T) {
-	mockRepo := &mockPersistentConversationRepository{}
-	themeService := &mockThemeService{}
-	styleProvider := styles.NewProvider(themeService)
+	mockRepo := &shortcutsmocks.FakePersistentConversationRepository{}
+	fakeTheme := &uimocks.FakeTheme{}
+	fakeTheme.GetDimColorReturns("#888888")
+
+	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
+
+	styleProvider := styles.NewProvider(fakeThemeService)
 
 	selector := NewConversationSelector(mockRepo, styleProvider)
 
@@ -60,9 +66,14 @@ func TestConversationSelectorImpl_Reset(t *testing.T) {
 }
 
 func TestConversationSelectorImpl_ResetAllowsReuse(t *testing.T) {
-	mockRepo := &mockPersistentConversationRepository{}
-	themeService := &mockThemeService{}
-	styleProvider := styles.NewProvider(themeService)
+	mockRepo := &shortcutsmocks.FakePersistentConversationRepository{}
+	fakeTheme := &uimocks.FakeTheme{}
+	fakeTheme.GetDimColorReturns("#888888")
+
+	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
+
+	styleProvider := styles.NewProvider(fakeThemeService)
 
 	selector := NewConversationSelector(mockRepo, styleProvider)
 
@@ -92,71 +103,4 @@ func TestConversationSelectorImpl_ResetAllowsReuse(t *testing.T) {
 	if !selector.IsSelected() {
 		t.Error("Expected selector to be selected after second use")
 	}
-}
-
-// Mock repository for testing
-type mockPersistentConversationRepository struct{}
-
-func (m *mockPersistentConversationRepository) ListSavedConversations(ctx context.Context, limit, offset int) ([]shortcuts.ConversationSummary, error) {
-	return []shortcuts.ConversationSummary{}, nil
-}
-
-func (m *mockPersistentConversationRepository) LoadConversation(ctx context.Context, conversationID string) error {
-	return nil
-}
-
-func (m *mockPersistentConversationRepository) GetCurrentConversationMetadata() shortcuts.ConversationMetadata {
-	return shortcuts.ConversationMetadata{}
-}
-
-func (m *mockPersistentConversationRepository) SaveConversation(ctx context.Context) error {
-	return nil
-}
-
-func (m *mockPersistentConversationRepository) StartNewConversation(title string) error {
-	return nil
-}
-
-func (m *mockPersistentConversationRepository) GetCurrentConversationID() string {
-	return ""
-}
-
-func (m *mockPersistentConversationRepository) SetConversationTitle(title string) {
-}
-
-func (m *mockPersistentConversationRepository) DeleteSavedConversation(ctx context.Context, conversationID string) error {
-	return nil
-}
-
-// Mock theme for testing
-type mockTheme struct{}
-
-func (t *mockTheme) GetUserColor() string       { return "" }
-func (t *mockTheme) GetAssistantColor() string  { return "" }
-func (t *mockTheme) GetErrorColor() string      { return "" }
-func (t *mockTheme) GetSuccessColor() string    { return "" }
-func (t *mockTheme) GetStatusColor() string     { return "" }
-func (t *mockTheme) GetAccentColor() string     { return "" }
-func (t *mockTheme) GetDimColor() string        { return "" }
-func (t *mockTheme) GetBorderColor() string     { return "" }
-func (t *mockTheme) GetDiffAddColor() string    { return "" }
-func (t *mockTheme) GetDiffRemoveColor() string { return "" }
-
-// Mock theme service for testing
-type mockThemeService struct{}
-
-func (s *mockThemeService) GetCurrentTheme() domain.Theme {
-	return &mockTheme{}
-}
-
-func (s *mockThemeService) SetTheme(theme string) error {
-	return nil
-}
-
-func (s *mockThemeService) GetCurrentThemeName() string {
-	return "test-theme"
-}
-
-func (s *mockThemeService) ListThemes() []string {
-	return []string{"test-theme"}
 }

@@ -6,7 +6,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	mocks "github.com/inference-gateway/cli/tests/mocks/generated"
+	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	"github.com/inference-gateway/sdk"
 )
 

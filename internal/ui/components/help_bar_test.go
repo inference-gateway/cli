@@ -6,11 +6,16 @@ import (
 
 	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
 // createMockStyleProviderForHelpBar creates a mock styles provider for testing
 func createMockStyleProviderForHelpBar() *styles.Provider {
-	return styles.NewProvider(&mockThemeService{})
+	fakeTheme := &uimocks.FakeTheme{}
+	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
+	return styles.NewProvider(fakeThemeService)
 }
 
 func TestNewHelpBar(t *testing.T) {
@@ -114,7 +119,10 @@ func TestHelpBar_Render_NoShortcuts(t *testing.T) {
 }
 
 func TestHelpBar_Render_WithShortcuts(t *testing.T) {
-	styleProvider := styles.NewProvider(&mockThemeService{})
+	fakeTheme := &uimocks.FakeTheme{}
+	fakeThemeService := &domainmocks.FakeThemeService{}
+	fakeThemeService.GetCurrentThemeReturns(fakeTheme)
+	styleProvider := styles.NewProvider(fakeThemeService)
 	hb := NewHelpBar(styleProvider)
 	hb.SetEnabled(true)
 
