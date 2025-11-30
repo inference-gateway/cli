@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.73.0](https://github.com/inference-gateway/cli/compare/v0.72.0...v0.73.0) (2025-11-30)
+
+### 🚀 Features
+
+* **ui:** Add recursive inline history search with autocomplete ([#288](https://github.com/inference-gateway/cli/issues/288)) ([8d458fc](https://github.com/inference-gateway/cli/commit/8d458fc63b076456fbd7cd90f8f253b388a5356d)), closes [#287](https://github.com/inference-gateway/cli/issues/287)
+
+### 👷 CI/CD
+
+* Install pre-commit hook for code quality checks ([#289](https://github.com/inference-gateway/cli/issues/289)) ([801757f](https://github.com/inference-gateway/cli/commit/801757f94a4d04c159665cc3ea826ef03c5d7fdf))
+
 ## [0.72.0](https://github.com/inference-gateway/cli/compare/v0.71.0...v0.72.0) (2025-11-29)
 
 ### 🚀 Features
