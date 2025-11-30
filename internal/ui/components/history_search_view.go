@@ -12,16 +12,16 @@ import (
 
 // HistorySearchView implements the recursive history search UI (like bash ctrl+r)
 type HistorySearchView struct {
-	historyManager    *history.HistoryManager
-	allHistory        []string
-	filteredHistory   []string
-	selected          int
-	width             int
-	height            int
-	styleProvider     *styles.Provider
-	searchQuery       string
-	done              bool
-	cancelled         bool
+	historyManager  *history.HistoryManager
+	allHistory      []string
+	filteredHistory []string
+	selected        int
+	width           int
+	height          int
+	styleProvider   *styles.Provider
+	searchQuery     string
+	done            bool
+	cancelled       bool
 }
 
 // NewHistorySearchView creates a new history search view
