@@ -771,7 +771,7 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 			newIndex = int(domain.ApprovalAutoAccept)
 		}
 		stateManager.SetApprovalSelectedIndex(newIndex)
-		return nil
+		return func() tea.Msg { return nil }
 	}
 
 	planApprovalState := stateManager.GetPlanApprovalUIState()
@@ -781,7 +781,7 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 			newIndex = int(domain.PlanApprovalAcceptAndAutoApprove)
 		}
 		stateManager.SetPlanApprovalSelectedIndex(newIndex)
-		return nil
+		return func() tea.Msg { return nil }
 	}
 
 	inputView := app.GetInputView()
@@ -804,7 +804,7 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cm
 			newIndex = 0
 		}
 		stateManager.SetApprovalSelectedIndex(newIndex)
-		return nil
+		return func() tea.Msg { return nil }
 	}
 
 	planApprovalState := stateManager.GetPlanApprovalUIState()
@@ -814,7 +814,7 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cm
 			newIndex = 0
 		}
 		stateManager.SetPlanApprovalSelectedIndex(newIndex)
-		return nil
+		return func() tea.Msg { return nil }
 	}
 
 	inputView := app.GetInputView()
@@ -1207,7 +1207,8 @@ func handlePlanApprovalLeft(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		newIndex = int(domain.PlanApprovalAcceptAndAutoApprove)
 	}
 	stateManager.SetPlanApprovalSelectedIndex(newIndex)
-	return nil
+
+	return func() tea.Msg { return nil }
 }
 
 func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
@@ -1222,7 +1223,8 @@ func handlePlanApprovalRight(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		newIndex = 0
 	}
 	stateManager.SetPlanApprovalSelectedIndex(newIndex)
-	return nil
+
+	return func() tea.Msg { return nil }
 }
 
 func handlePlanApprovalAccept(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {

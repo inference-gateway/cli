@@ -56,7 +56,8 @@ func (sh *ShellHistory) LoadHistory() ([]string, error) {
 			continue
 		}
 
-		commands = append(commands, line)
+		unescaped := strings.ReplaceAll(line, "\\n", "\n")
+		commands = append(commands, unescaped)
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -84,7 +85,8 @@ func (sh *ShellHistory) SaveToHistory(command string) error {
 		_ = file.Close()
 	}()
 
-	entry := command + "\n"
+	escaped := strings.ReplaceAll(command, "\n", "\\n")
+	entry := escaped + "\n"
 
 	if _, err := file.WriteString(entry); err != nil {
 		return fmt.Errorf("failed to write to history file: %w", err)

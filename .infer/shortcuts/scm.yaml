@@ -32,7 +32,7 @@ shortcuts:
       - "number,title,body,state,author,labels,comments,createdAt,updatedAt"
 
   - name: scm-pr-create
-    description: "Generate AI-powered PR plan with LLM"
+    description: "Generate AI-powered PR plan with LLM (usage: /scm-pr-create [optional context])"
     command: bash
     args:
       - -c
@@ -44,17 +44,22 @@ shortcuts:
         fi
         branch=$(git branch --show-current)
         base_branch="main"
+        user_context="$*"
         jq -n \
           --arg diff "$diff" \
           --arg branch "$branch" \
           --arg base "$base_branch" \
-          '{diff: $diff, currentBranch: $branch, baseBranch: $base}'
+          --arg context "$user_context" \
+          '{diff: $diff, currentBranch: $branch, baseBranch: $base, userContext: $context}'
+      - --
     snippet:
       prompt: |
         Analyze this git diff and generate a step-by-step plan to create a pull request.
 
         Current branch: {currentBranch}
         Base branch: {baseBranch}
+
+        {userContext}
 
         Changes:
         ```diff
@@ -81,6 +86,7 @@ shortcuts:
         - PR description: Brief summary of changes (2-3 sentences, focus on WHAT changed and WHY)
         - Use simple, direct language - NO filler words like "comprehensive", "enhance", "robust"
         - For creating the PR, use the Github tool with resource="create_pull_request"
+        - If user provided additional context, incorporate it into your understanding of the changes
 
         Output a clear, numbered action plan. Be specific about branch names, commit messages, and PR details based on the diff.
       template: |

@@ -273,7 +273,7 @@ func (iv *InputView) buildTextWithCursor(before, after string) string {
 
 		if iv.cursor == len(iv.text) && iv.historySuggestion != "" {
 			ghostText := iv.styleProvider.RenderDimText(iv.historySuggestion)
-			result = fmt.Sprintf("%s%s", before, ghostText)
+			result = fmt.Sprintf("%s%s%s", before, cursorChar, ghostText)
 		}
 
 		return result
@@ -719,6 +719,10 @@ func (iv *InputView) updateHistorySuggestions() {
 		iv.historySuggestion = ""
 		iv.historySuggestions = nil
 		iv.historySelectedIndex = 0
+		return
+	}
+
+	if iv.historyManager.IsNavigating() {
 		return
 	}
 

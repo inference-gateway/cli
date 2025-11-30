@@ -119,11 +119,10 @@ func (hm *HistoryManager) NavigateUp(currentText string) string {
 		hm.historyIndex = len(hm.allHistory) - 1
 	} else if hm.historyIndex > 0 {
 		hm.historyIndex--
-	} else {
-		return hm.allHistory[hm.historyIndex]
 	}
 
-	return hm.allHistory[hm.historyIndex]
+	result := hm.allHistory[hm.historyIndex]
+	return result
 }
 
 // NavigateDown moves down in history (to newer commands)
@@ -152,6 +151,11 @@ func (hm *HistoryManager) ResetNavigation() {
 // GetHistoryCount returns the total number of commands in history
 func (hm *HistoryManager) GetHistoryCount() int {
 	return len(hm.allHistory)
+}
+
+// IsNavigating returns true if currently navigating through history
+func (hm *HistoryManager) IsNavigating() bool {
+	return hm.historyIndex != -1
 }
 
 // GetShellHistoryFile returns the shell history file path
