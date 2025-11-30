@@ -931,25 +931,27 @@ func (app *ChatApplication) handleHistorySearchView(msg tea.Msg) []tea.Cmd {
 }
 
 func (app *ChatApplication) handleHistorySearchSelection(cmds []tea.Cmd) []tea.Cmd {
-	if app.historySearchView.IsDone() {
-		if !app.historySearchView.IsCancelled() {
-			// User selected an entry
-			selected := app.historySearchView.GetSelected()
-			if selected != "" {
-				// Insert into input field
-				cmds = append(cmds, func() tea.Msg {
-					return domain.SetInputEvent{Text: selected}
-				})
-			}
-		}
-
-		// Return to chat view
-		if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
-			return []tea.Cmd{tea.Quit}
-		}
-
-		app.focusedComponent = app.inputView
+	if !app.historySearchView.IsDone() {
+		return cmds
 	}
+
+	// User selected an entry
+	if !app.historySearchView.IsCancelled() {
+		selected := app.historySearchView.GetSelected()
+		if selected != "" {
+			// Insert into input field
+			cmds = append(cmds, func() tea.Msg {
+				return domain.SetInputEvent{Text: selected}
+			})
+		}
+	}
+
+	// Return to chat view
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		return []tea.Cmd{tea.Quit}
+	}
+
+	app.focusedComponent = app.inputView
 
 	return cmds
 }

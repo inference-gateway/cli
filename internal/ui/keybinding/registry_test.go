@@ -39,7 +39,7 @@ func (t *testKeyHandlerContext) GetAgentService() domain.AgentService {
 }
 
 func (t *testKeyHandlerContext) GetImageService() domain.ImageService {
-	return services.NewImageService()
+	return services.NewImageService(t.GetConfig())
 }
 
 func (t *testKeyHandlerContext) GetConversationView() ui.ConversationRenderer {
