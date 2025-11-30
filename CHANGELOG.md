@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.76.0](https://github.com/inference-gateway/cli/compare/v0.75.0...v0.76.0) (2025-11-30)
+
+### 🚀 Features
+
+* Disable user input during plan and tool approval flows ([#292](https://github.com/inference-gateway/cli/issues/292)) ([414a02b](https://github.com/inference-gateway/cli/commit/414a02b4d7af22fc8d1d8a48f846070afcd13b2d))
+
+### 📚 Documentation
+
+* Regenerate AGENTS.md with DeepSeek ([15b27f9](https://github.com/inference-gateway/cli/commit/15b27f97508bdba4a338be1e96c57b1967aa29a4))
+* Regenerate CLAUDE.md ([887bb2c](https://github.com/inference-gateway/cli/commit/887bb2cb2ed440fe9bfd0402c4de92f3e002e65f))
+
 ## [0.75.0](https://github.com/inference-gateway/cli/compare/v0.74.0...v0.75.0) (2025-11-30)
 
 ### 🚀 Features
