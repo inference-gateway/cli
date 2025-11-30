@@ -108,7 +108,11 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		getEffectiveConfigPath(),
 	)
 
-	program := tea.NewProgram(application)
+	program := tea.NewProgram(
+		application,
+		tea.WithAltScreen(),
+		tea.WithMouseCellMotion(),
+	)
 
 	if _, err := program.Run(); err != nil {
 		return fmt.Errorf("error running chat interface: %w", err)

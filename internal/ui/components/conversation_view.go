@@ -42,6 +42,8 @@ type ConversationView struct {
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	vp := viewport.New(80, 20)
 	vp.SetContent("")
+	vp.MouseWheelEnabled = true
+	vp.MouseWheelDelta = 3
 
 	var mdRenderer *markdown.Renderer
 	if themeService := styleProvider.GetThemeService(); themeService != nil {
@@ -560,8 +562,14 @@ func (cv *ConversationView) View() string { return cv.Render() }
 func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	if handled, result, mouseCmd := cv.handleMouseMsg(msg); handled {
-		return result, mouseCmd
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
+		if mouseMsg.Action == tea.MouseActionPress {
+			switch mouseMsg.Button {
+			case tea.MouseButtonWheelUp:
+				cv.userScrolledUp = true
+			case tea.MouseButtonWheelDown:
+			}
+		}
 	}
 
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
@@ -596,6 +604,10 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	default:
 		if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
 			cv.Viewport, cmd = cv.Viewport.Update(msg)
+			// After viewport updates, check if we're at bottom
+			if cv.Viewport.AtBottom() {
+				cv.userScrolledUp = false
+			}
 		}
 	}
 
@@ -699,32 +711,10 @@ func (cv *ConversationView) appendStreamingContent(content string) {
 	cv.updateViewportContent()
 }
 
-// handleMouseMsg handles mouse wheel scrolling events
-func (cv *ConversationView) handleMouseMsg(msg tea.Msg) (bool, tea.Model, tea.Cmd) {
-	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
-		if mouseMsg.Action == tea.MouseActionPress {
-			switch mouseMsg.Button {
-			case tea.MouseButtonWheelDown:
-				cv.Viewport.ScrollDown(1)
-				if cv.Viewport.AtBottom() {
-					cv.userScrolledUp = false
-				}
-				return true, cv, nil
-			case tea.MouseButtonWheelUp:
-				cv.userScrolledUp = true
-				cv.Viewport.ScrollUp(1)
-				return true, cv, nil
-			}
-		}
-	}
-	return false, nil, nil
-}
-
 // renderPlanEntry renders a plan entry with inline approval buttons
 func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, index int) string {
 	var result strings.Builder
 
-	// Determine the color and role based on approval status
 	var color string
 	var role string
 	switch entry.PlanApprovalStatus {
