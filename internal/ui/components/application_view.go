@@ -76,7 +76,13 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		conversationHeight = 3
 	}
 
-	conversationView.SetWidth(width)
+	conversationMargin := 4
+	conversationWidth := width
+	if width > 80 {
+		conversationWidth = width - conversationMargin
+	}
+
+	conversationView.SetWidth(conversationWidth)
 	conversationView.SetHeight(conversationHeight)
 	inputView.SetWidth(width)
 	inputView.SetHeight(inputHeight)

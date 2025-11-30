@@ -202,8 +202,10 @@ func (cv *ConversationView) Render() string {
 
 	viewportContent := cv.Viewport.View()
 	lines := strings.Split(viewportContent, "\n")
+
+	leftPadding := "  "
 	for i, line := range lines {
-		lines[i] = strings.TrimRight(line, " ")
+		lines[i] = leftPadding + strings.TrimRight(line, " ")
 	}
 	return strings.Join(lines, "\n")
 }

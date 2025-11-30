@@ -176,18 +176,85 @@ func createSCMShortcutsFile(path string) error {
 # Usage:
 # - /scm-issues - List all GitHub issues for the repository
 # - /scm-issue <number> - Show details for a specific GitHub issue
+# - /scm-pr-create - Generate AI-powered PR plan with branch name, commit, and description
 
 shortcuts:
-  - name: "scm-issues"
+  - name: scm-issues
     description: "List all GitHub issues for the repository"
-    command: "gh"
-    args: ["issue", "list", "--json", "number,title,state,author,labels,createdAt,updatedAt", "--limit", "20"]
+    command: gh
+    args:
+      - issue
+      - list
+      - --json
+      - "number,title,state,author,labels,createdAt,updatedAt"
+      - --limit
+      - "20"
 
-  - name: "scm-issue"
+  - name: scm-issue
     description: "Show details for a specific GitHub issue (usage: /scm-issue <number>)"
-    command: "gh"
-    args: ["issue", "view", "--json", "number,title,body,state,author,labels,comments,createdAt,updatedAt"]
-    # User-provided arguments (like issue number) are automatically appended to the args
+    command: gh
+    args:
+      - issue
+      - view
+      - --json
+      - "number,title,body,state,author,labels,comments,createdAt,updatedAt"
+
+  - name: scm-pr-create
+    description: "Generate AI-powered PR plan with LLM"
+    command: bash
+    args:
+      - -c
+      - |
+        diff=$(git diff --cached 2>/dev/null || git diff 2>/dev/null)
+        if [ -z "$diff" ]; then
+          echo '{"error": "No changes detected. Stage your changes with git add first."}'
+          exit 1
+        fi
+        branch=$(git branch --show-current)
+        base_branch="main"
+        jq -n \
+          --arg diff "$diff" \
+          --arg branch "$branch" \
+          --arg base "$base_branch" \
+          '{diff: $diff, currentBranch: $branch, baseBranch: $base}'
+    snippet:
+      prompt: |
+        Analyze this git diff and generate a step-by-step plan to create a pull request.
+
+        Current branch: {currentBranch}
+        Base branch: {baseBranch}
+
+        Changes:
+        ` + "```diff\n        {diff}\n        ```" + `
+
+        Based on the current branch, generate these actions:
+
+        IF current branch is "main" or "master":
+          1. Create a new branch with a descriptive name
+          2. Stage and commit the changes
+          3. Push the branch to remote
+          4. Create a pull request using the Github tool
+
+        IF current branch is already a feature branch (not main/master):
+          1. Stage and commit the changes
+          2. Push the branch to remote
+          3. Create a pull request using the Github tool
+
+        REQUIREMENTS:
+        - Branch name: Use conventional format (feat/, fix/, docs/, refactor/, chore/) with kebab-case
+        - Commit message: Follow conventional commits format "type: Description" (under 50 chars, capitalize first letter)
+        - PR title: Clear and descriptive (similar to commit message but can be slightly longer)
+        - PR description: Brief summary of changes (2-3 sentences, focus on WHAT changed and WHY)
+        - Use simple, direct language - NO filler words like "comprehensive", "enhance", "robust"
+        - For creating the PR, use the Github tool with resource="create_pull_request"
+
+        Output a clear, numbered action plan. Be specific about branch names, commit messages, and PR details based on the diff.
+      template: |
+        ## Pull Request Plan
+
+        {llm}
+
+        **Next:** I'll help you execute these steps. Let me know when you're ready to proceed.
 `
 
 	return os.WriteFile(path, []byte(scmShortcutsContent), 0644)

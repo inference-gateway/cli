@@ -51,7 +51,7 @@ shortcuts:
           '{diff: $diff, currentBranch: $branch, baseBranch: $base}'
     snippet:
       prompt: |
-        Analyze this git diff and generate a concise PR creation plan.
+        Analyze this git diff and generate a step-by-step plan to create a pull request.
 
         Current branch: {currentBranch}
         Base branch: {baseBranch}
@@ -61,31 +61,31 @@ shortcuts:
         {diff}
         ```
 
-        Output EXACTLY this format (each field on its own line with blank lines between):
+        Based on the current branch, generate these actions:
 
-        **Branch:** feat/descriptive-branch-name
+        IF current branch is "main" or "master":
+          1. Create a new branch with a descriptive name
+          2. Stage and commit the changes
+          3. Push the branch to remote
+          4. Create a pull request using the Github tool
 
-        **Commit:** type: concise commit message
-
-        **PR Title:** Clear, descriptive title
-
-        **PR Description:**
-        Brief summary of changes (2-3 sentences max)
+        IF current branch is already a feature branch (not main/master):
+          1. Stage and commit the changes
+          2. Push the branch to remote
+          3. Create a pull request using the Github tool
 
         REQUIREMENTS:
-        - Branch: Use conventional format (feat/, fix/, docs/, refactor/, chore/)
-        - Commit: Follow conventional commits, under 50 chars, capitalize first letter after colon
-        - PR Title: Clear and descriptive
-        - Description: Brief, focused on what and why
-        - NO filler words like "comprehensive", "enhance", "robust"
-        - Use simple verbs: Add, Fix, Update, Remove, Refactor
+        - Branch name: Use conventional format (feat/, fix/, docs/, refactor/, chore/) with kebab-case
+        - Commit message: Follow conventional commits format "type: Description" (under 50 chars, capitalize first letter)
+        - PR title: Clear and descriptive (similar to commit message but can be slightly longer)
+        - PR description: Brief summary of changes (2-3 sentences, focus on WHAT changed and WHY)
+        - Use simple, direct language - NO filler words like "comprehensive", "enhance", "robust"
+        - For creating the PR, use the Github tool with resource="create_pull_request"
 
-        Output ONLY the plan, no explanations.
+        Output a clear, numbered action plan. Be specific about branch names, commit messages, and PR details based on the diff.
       template: |
-        ## PR Plan
+        ## Pull Request Plan
 
         {llm}
 
-        **Next steps:** Please follow these exact steps.
-
-        Finally, return to the main branch and delete the branch.
+        **Next:** I'll help you execute these steps. Let me know when you're ready to proceed.
