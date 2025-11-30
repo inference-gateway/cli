@@ -225,7 +225,7 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui SelectionComponent
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui Theme
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui/autocomplete ShortcutRegistry
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui/shared AutocompleteInterface
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui AutocompleteInterface
       - mkdir -p tests/mocks/history
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/history internal/ui/history ShellHistoryProvider
     sources:
@@ -234,7 +234,6 @@ tasks:
       - "internal/domain/config_service.go"
       - "internal/infra/storage/interfaces.go"
       - "internal/ui/interfaces.go"
-      - "internal/ui/shared/interfaces.go"
       - "internal/services/background_jobs.go"
       - "internal/shortcuts/interfaces.go"
     generates:

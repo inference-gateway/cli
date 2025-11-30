@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/inference-gateway/cli/internal/ui/shared"
+	"github.com/inference-gateway/cli/internal/ui"
 )
 
 type FakeAutocompleteInterface struct {
@@ -405,4 +405,4 @@ func (fake *FakeAutocompleteInterface) recordInvocation(key string, args []inter
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ shared.AutocompleteInterface = new(FakeAutocompleteInterface)
+var _ ui.AutocompleteInterface = new(FakeAutocompleteInterface)

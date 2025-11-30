@@ -9,9 +9,9 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	models "github.com/inference-gateway/cli/internal/models"
+	ui "github.com/inference-gateway/cli/internal/ui"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
@@ -27,7 +27,7 @@ type InputView struct {
 	stateManager         domain.StateManager
 	configService        *config.Config
 	conversationRepo     domain.ConversationRepository
-	Autocomplete         shared.AutocompleteInterface
+	Autocomplete         ui.AutocompleteInterface
 	historyManager       *history.HistoryManager
 	isTextSelectionMode  bool
 	themeService         domain.ThemeService

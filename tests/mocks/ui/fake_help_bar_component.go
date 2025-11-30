@@ -5,7 +5,6 @@ import (
 	"sync"
 
 	"github.com/inference-gateway/cli/internal/ui"
-	"github.com/inference-gateway/cli/internal/ui/shared"
 )
 
 type FakeHelpBarComponent struct {
@@ -39,10 +38,10 @@ type FakeHelpBarComponent struct {
 	setHeightArgsForCall []struct {
 		arg1 int
 	}
-	SetShortcutsStub        func([]shared.KeyShortcut)
+	SetShortcutsStub        func([]ui.KeyShortcut)
 	setShortcutsMutex       sync.RWMutex
 	setShortcutsArgsForCall []struct {
-		arg1 []shared.KeyShortcut
+		arg1 []ui.KeyShortcut
 	}
 	SetWidthStub        func(int)
 	setWidthMutex       sync.RWMutex
@@ -223,15 +222,15 @@ func (fake *FakeHelpBarComponent) SetHeightArgsForCall(i int) int {
 	return argsForCall.arg1
 }
 
-func (fake *FakeHelpBarComponent) SetShortcuts(arg1 []shared.KeyShortcut) {
-	var arg1Copy []shared.KeyShortcut
+func (fake *FakeHelpBarComponent) SetShortcuts(arg1 []ui.KeyShortcut) {
+	var arg1Copy []ui.KeyShortcut
 	if arg1 != nil {
-		arg1Copy = make([]shared.KeyShortcut, len(arg1))
+		arg1Copy = make([]ui.KeyShortcut, len(arg1))
 		copy(arg1Copy, arg1)
 	}
 	fake.setShortcutsMutex.Lock()
 	fake.setShortcutsArgsForCall = append(fake.setShortcutsArgsForCall, struct {
-		arg1 []shared.KeyShortcut
+		arg1 []ui.KeyShortcut
 	}{arg1Copy})
 	stub := fake.SetShortcutsStub
 	fake.recordInvocation("SetShortcuts", []interface{}{arg1Copy})
@@ -247,13 +246,13 @@ func (fake *FakeHelpBarComponent) SetShortcutsCallCount() int {
 	return len(fake.setShortcutsArgsForCall)
 }
 
-func (fake *FakeHelpBarComponent) SetShortcutsCalls(stub func([]shared.KeyShortcut)) {
+func (fake *FakeHelpBarComponent) SetShortcutsCalls(stub func([]ui.KeyShortcut)) {
 	fake.setShortcutsMutex.Lock()
 	defer fake.setShortcutsMutex.Unlock()
 	fake.SetShortcutsStub = stub
 }
 
-func (fake *FakeHelpBarComponent) SetShortcutsArgsForCall(i int) []shared.KeyShortcut {
+func (fake *FakeHelpBarComponent) SetShortcutsArgsForCall(i int) []ui.KeyShortcut {
 	fake.setShortcutsMutex.RLock()
 	defer fake.setShortcutsMutex.RUnlock()
 	argsForCall := fake.setShortcutsArgsForCall[i]

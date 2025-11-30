@@ -7,7 +7,6 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
-	shared "github.com/inference-gateway/cli/internal/ui/shared"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -407,4 +406,4 @@ func (a *AutocompleteImpl) Hide() {
 }
 
 // Compile-time check to ensure AutocompleteImpl implements the interface
-var _ shared.AutocompleteInterface = (*AutocompleteImpl)(nil)
+var _ ui.AutocompleteInterface = (*AutocompleteImpl)(nil)
