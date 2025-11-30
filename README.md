@@ -579,7 +579,7 @@ conversational interface where you can select models and have conversations.
 - **Page Up/Page Down**: Scroll by page
 - **Home/End**: Jump to top/bottom of chat history
 - **Shift+↑/Shift+↓**: Half-page scrolling
-- **Ctrl+R**: Toggle expanded view of tool results
+- **Ctrl+O**: Toggle expanded view of tool results
 - **Shift+Tab**: Cycle agent mode (Standard → Plan → Auto-Accept)
 
 **Agent Modes:**
