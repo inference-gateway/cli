@@ -341,7 +341,15 @@ func (t *BashTool) FormatPreview(result *domain.ToolExecutionResult) string {
 	}
 
 	if bashResult.ExitCode == 0 && bashResult.Output != "" {
-		return t.formatter.TruncateText(strings.TrimSpace(bashResult.Output), 60)
+		output := strings.TrimSpace(bashResult.Output)
+		lines := strings.Split(output, "\n")
+
+		if len(lines) <= 4 {
+			return output
+		}
+
+		preview := strings.Join(lines[:4], "\n")
+		return preview + "\n..."
 	} else if bashResult.ExitCode != 0 {
 		return fmt.Sprintf("Exit code: %d", bashResult.ExitCode)
 	}
@@ -360,7 +368,15 @@ func (t *BashTool) FormatForUI(result *domain.ToolExecutionResult) string {
 
 	var output strings.Builder
 	output.WriteString(fmt.Sprintf("%s\n", toolCall))
-	output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, preview))
+
+	previewLines := strings.Split(preview, "\n")
+	for i, line := range previewLines {
+		if i == 0 {
+			output.WriteString(fmt.Sprintf("└─ %s %s", statusIcon, line))
+		} else {
+			output.WriteString(fmt.Sprintf("\n     %s", line))
+		}
+	}
 
 	return output.String()
 }
@@ -395,7 +411,6 @@ func (t *BashTool) formatBashData(data any) string {
 	}
 
 	var output strings.Builder
-	output.WriteString(fmt.Sprintf("Command: %s\n", bashResult.Command))
 	output.WriteString(fmt.Sprintf("Exit Code: %d\n", bashResult.ExitCode))
 	if bashResult.Error != "" {
 		output.WriteString(fmt.Sprintf("Error: %s\n", bashResult.Error))
