@@ -34,6 +34,33 @@ jobs:
         with:
           token: ${{ steps.app_token.outputs.token }}
 
+      - name: Set up Go
+        uses: actions/setup-go@v6.1.0
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Install golangci-lint
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b /usr/local/bin v2.6.0
+
+      - name: Install task
+        run: |
+          curl -s https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin v3.45.4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 'lts/*'
+
+      - name: Install additional dependencies
+        run: npm install -g markdownlint-cli
+
+      - name: Install pre-commit
+        run: |
+          pip install pre-commit
+          task precommit:install
+
       - name: Run Infer Agent
         uses: inference-gateway/infer-action@main
         with:

@@ -11,7 +11,8 @@ repos:
       - id: check-merge-conflict
       - id: check-added-large-files
       - id: mixed-line-ending
-        args: ['--fix=lf']
+        args:
+          - --fix=lf
 
   - repo: local
     hooks:
