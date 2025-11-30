@@ -58,6 +58,11 @@ jobs:
       - name: Install additional dependencies
         run: npm install -g markdownlint-cli
 
+      - name: Install pre-commit
+        run: |
+          pip install pre-commit
+          task precommit:install
+
       - name: Run Claude Code
         id: claude
         uses: anthropics/claude-code-action@main
