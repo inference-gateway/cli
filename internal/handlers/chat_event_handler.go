@@ -205,9 +205,6 @@ func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
 
 ) tea.Cmd {
-	// Automatic plan approval removed - agent now controls when to request approval
-	// via the RequestPlanApproval tool
-
 	if len(msg.ToolCalls) == 0 {
 		_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
 	}
