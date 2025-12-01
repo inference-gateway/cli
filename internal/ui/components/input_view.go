@@ -160,11 +160,19 @@ func (iv *InputView) Render() string {
 	focused := isBashMode || isToolsMode
 	borderedInput := iv.styleProvider.RenderInputField(inputContent, iv.width-4, focused)
 
-	components := []string{borderedInput}
+	var components []string
+	components = append(components, borderedInput)
 
-	components = iv.addModelDisplayWithMode(components, isBashMode, isToolsMode)
+	modelBar := iv.renderModelDisplayWithMode(isBashMode, isToolsMode)
+	if modelBar != "" {
+		components = append(components, modelBar)
+	}
+
 	if !iv.disabled {
-		components = iv.addAutocomplete(components)
+		autocompleteContent := iv.renderAutocomplete()
+		if autocompleteContent != "" {
+			components = append(components, autocompleteContent)
+		}
 	}
 
 	return iv.styleProvider.JoinVertical(components...)
@@ -324,95 +332,119 @@ func (iv *InputView) getAgentModeIndicator() string {
 	)
 }
 
-func (iv *InputView) addAutocomplete(components []string) []string {
+// renderAutocomplete returns the autocomplete dropdown content if visible
+func (iv *InputView) renderAutocomplete() string {
 	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() && iv.height >= 3 {
-		autocompleteContent := iv.Autocomplete.Render()
-		if autocompleteContent != "" {
-			components = append(components, autocompleteContent)
-		}
+		return iv.Autocomplete.Render()
 	}
-	return components
+	return ""
 }
 
-func (iv *InputView) addModelDisplayWithMode(components []string, isBashMode bool, isToolsMode bool) []string {
-	if iv.height < 2 {
-		return components
-	}
-
-	var leftText string
-	if isBashMode {
-		leftText = "BASH MODE"
-	} else if isToolsMode {
-		leftText = "TOOLS MODE"
-	} else if iv.modelService != nil {
-		currentModel := iv.modelService.GetCurrentModel()
-		if currentModel != "" {
-			leftText = iv.buildModelDisplayText(currentModel)
-		}
-	}
-
+// renderModelDisplayWithMode returns the model/mode status line
+func (iv *InputView) renderModelDisplayWithMode(isBashMode bool, isToolsMode bool) string {
+	renderedLeft := iv.buildAndRenderLeftText(isBashMode, isToolsMode)
 	modeIndicator := iv.getAgentModeIndicator()
 
-	if leftText != "" || modeIndicator != "" {
-		return iv.buildStatusLine(components, leftText, modeIndicator, isBashMode, isToolsMode)
+	if renderedLeft == "" && modeIndicator == "" {
+		return ""
 	}
 
-	return components
+	return iv.combineLeftAndRight(renderedLeft, modeIndicator)
 }
 
-// buildStatusLine creates a status line with left text and right mode indicator
-func (iv *InputView) buildStatusLine(components []string, leftText string, modeIndicator string, isBashMode bool, isToolsMode bool) []string {
-	if leftText == "" && modeIndicator == "" {
-		return components
-	}
+// buildAndRenderLeftText constructs and styles the left portion of the status line
+func (iv *InputView) buildAndRenderLeftText(isBashMode bool, isToolsMode bool) string {
+	dimColor := iv.styleProvider.GetThemeColor("dim")
 
-	// Determine color for left text
-	var leftColor string
+	// Get mode-specific prefix and color
+	var modePrefix string
+	var modeColor string
 	if isBashMode {
-		leftColor = iv.styleProvider.GetThemeColor("status")
+		modePrefix = "Bash mode"
+		modeColor = iv.styleProvider.GetThemeColor("status")
 	} else if isToolsMode {
-		leftColor = iv.styleProvider.GetThemeColor("accent")
-	} else {
-		leftColor = iv.styleProvider.GetThemeColor("dim")
+		modePrefix = "Tools mode"
+		modeColor = iv.styleProvider.GetThemeColor("accent")
 	}
 
-	// Render left text with appropriate color
-	var renderedLeft string
-	if leftText != "" {
-		renderedLeft = iv.styleProvider.RenderStyledText(leftText, styles.StyleOptions{
-			Foreground: leftColor,
+	modelInfo := iv.getModelInfo()
+
+	// Build the complete text with selective coloring
+	if modePrefix != "" && modelInfo != "" {
+		coloredMode := iv.styleProvider.RenderStyledText(modePrefix, styles.StyleOptions{
+			Foreground: modeColor,
+		})
+		separator := iv.styleProvider.RenderStyledText(" • ", styles.StyleOptions{
+			Foreground: dimColor,
+		})
+		coloredModel := iv.styleProvider.RenderStyledText(modelInfo, styles.StyleOptions{
+			Foreground: dimColor,
+		})
+		return "  " + coloredMode + separator + coloredModel
+	}
+
+	if modePrefix != "" {
+		return "  " + iv.styleProvider.RenderStyledText(modePrefix, styles.StyleOptions{
+			Foreground: modeColor,
 		})
 	}
 
-	// If we have both left and right, combine them with padding
+	if modelInfo != "" {
+		return "  " + iv.styleProvider.RenderStyledText(modelInfo, styles.StyleOptions{
+			Foreground: dimColor,
+		})
+	}
+
+	return ""
+}
+
+// getModelInfo returns the model display information without leading spaces
+func (iv *InputView) getModelInfo() string {
+	if iv.modelService == nil {
+		return ""
+	}
+	currentModel := iv.modelService.GetCurrentModel()
+	if currentModel == "" {
+		return ""
+	}
+	return strings.TrimPrefix(iv.buildModelDisplayText(currentModel), "  ")
+}
+
+// combineLeftAndRight combines the left text and right mode indicator with appropriate spacing
+func (iv *InputView) combineLeftAndRight(renderedLeft string, modeIndicator string) string {
+	if renderedLeft == "" && modeIndicator == "" {
+		return ""
+	}
+
+	inputRightEdge := iv.width - 4
+
+	// Both left and right exist
 	if renderedLeft != "" && modeIndicator != "" {
-		inputRightEdge := iv.width - 4
 		leftWidth := iv.styleProvider.GetWidth(renderedLeft)
 		rightWidth := iv.styleProvider.GetWidth(modeIndicator)
 		availableWidth := inputRightEdge - leftWidth - rightWidth
 
 		if availableWidth > 0 {
-			combined := renderedLeft + strings.Repeat(" ", availableWidth) + modeIndicator
-			return append(components, combined)
+			return renderedLeft + strings.Repeat(" ", availableWidth) + modeIndicator
 		}
-		return append(components, renderedLeft+" "+modeIndicator)
+		return renderedLeft + " " + modeIndicator
 	}
 
 	// Only left text
 	if renderedLeft != "" {
-		return append(components, renderedLeft)
+		return renderedLeft
 	}
 
 	// Only right indicator
-	inputRightEdge := iv.width - 4
 	rightWidth := iv.styleProvider.GetWidth(modeIndicator)
 	availableWidth := inputRightEdge - rightWidth
 	if availableWidth > 0 {
-		paddedMode := strings.Repeat(" ", availableWidth) + modeIndicator
-		return append(components, paddedMode)
+		return strings.Repeat(" ", availableWidth) + modeIndicator
 	}
-	return append(components, modeIndicator)
+	return modeIndicator
 }
+
+
 
 func (iv *InputView) buildModelDisplayText(currentModel string) string {
 	parts := []string{fmt.Sprintf("Model: %s", currentModel)}
