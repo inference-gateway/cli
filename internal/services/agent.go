@@ -190,6 +190,22 @@ func (p *eventPublisher) publishTodoUpdate(todos []domain.TodoItem) {
 	}
 }
 
+// publishPlanApprovalRequest publishes a PlanApprovalRequestedEvent when RequestPlanApproval tool executes
+func (p *eventPublisher) publishPlanApprovalRequest(planContent string) {
+	event := domain.PlanApprovalRequestedEvent{
+		RequestID:    p.requestID,
+		Timestamp:    time.Now(),
+		PlanContent:  planContent,
+		ResponseChan: nil,
+	}
+
+	select {
+	case p.chatEvents <- event:
+	default:
+		logger.Warn("plan approval request event dropped - channel full")
+	}
+}
+
 // NewAgentService creates a new agent service with pre-configured client
 func NewAgentService(
 	client sdk.Client,
@@ -626,27 +642,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 				toolResults := s.executeToolCallsParallel(ctx, toolCallsSlice, eventPublisher, req.IsChatMode)
 
-				hasRejection := false
-				for _, entry := range toolResults {
-					if entry.ToolExecution != nil && entry.ToolExecution.Rejected {
-						hasRejection = true
-						break
-					}
-				}
-
-				for _, entry := range toolResults {
-					toolResult := sdk.Message{
-						Role:       sdk.Tool,
-						Content:    entry.Message.Content,
-						ToolCallId: entry.Message.ToolCallId,
-					}
-					conversation = append(conversation, toolResult)
-				}
-
-				s.addImageMessageFromToolResults(toolResults, &conversation)
-
-				if hasRejection {
-					eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
+				if s.handleToolResults(toolResults, &conversation, eventPublisher, req) {
 					return
 				}
 
@@ -850,7 +846,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 
 		time.Sleep(constants.AgentToolExecutionDelay)
 
-		result := s.executeToolWithFlashingUI(ctx, *at.tool, eventPublisher, isChatMode)
+		result := s.executeTool(ctx, *at.tool, eventPublisher, isChatMode)
 
 		status := "complete"
 		message := "Completed successfully"
@@ -888,7 +884,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 
 				time.Sleep(constants.AgentToolExecutionDelay)
 
-				result := s.executeToolWithFlashingUI(ctx, *toolCall, eventPublisher, isChatMode)
+				result := s.executeTool(ctx, *toolCall, eventPublisher, isChatMode)
 
 				status := "complete"
 				message := "Completed successfully"
@@ -937,13 +933,13 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 	return results
 }
 
-func (s *AgentServiceImpl) executeToolWithFlashingUI(
+//nolint:funlen // Tool execution requires comprehensive error handling and status updates
+func (s *AgentServiceImpl) executeTool(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 	isChatMode bool,
 ) domain.ConversationEntry {
-
 	startTime := time.Now()
 
 	requiresApproval := s.shouldRequireApproval(&tc, isChatMode)
@@ -1026,13 +1022,14 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 	var result *domain.ToolExecutionResult
 	var err error
 
-	for {
+	resultReceived := false
+	for !resultReceived {
 		select {
 		case res := <-resultChan:
 			result = res.result
 			err = res.err
 			ticker.Stop()
-			goto done
+			resultReceived = true
 		case <-ticker.C:
 			eventPublisher.publishToolStatusChange(tc.Id, "running", "Processing...")
 		case <-ctx.Done():
@@ -1041,7 +1038,6 @@ func (s *AgentServiceImpl) executeToolWithFlashingUI(
 		}
 	}
 
-done:
 	if err != nil {
 		logger.Error("failed to execute tool", "tool", tc.Function.Name, "error", err)
 		return s.createErrorEntry(tc, err, startTime)
@@ -1069,6 +1065,15 @@ done:
 		}
 	}
 
+	if result.ToolName == "RequestPlanApproval" && result.Success {
+		planContent := extractPlanContent(result)
+		if planContent != "" {
+			eventPublisher.publishPlanApprovalRequest(planContent)
+		} else {
+			logger.Warn("RequestPlanApproval succeeded but plan content is empty")
+		}
+	}
+
 	formattedContent := s.conversationRepo.FormatToolResultForLLM(toolExecutionResult)
 
 	entry := domain.ConversationEntry{
@@ -1086,6 +1091,107 @@ done:
 	}
 
 	return entry
+}
+
+// handleToolResults processes tool execution results and returns true if agent should stop
+func (s *AgentServiceImpl) handleToolResults(
+	toolResults []domain.ConversationEntry,
+	conversation *[]sdk.Message,
+	eventPublisher *eventPublisher,
+	req *domain.AgentRequest,
+) bool {
+	hasRejection, planContent := s.checkToolResultsStatus(toolResults)
+
+	s.addToolResultsToConversation(toolResults, conversation)
+
+	if hasRejection {
+		logger.Info("Tool was rejected - stopping agent loop")
+		eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
+		return true
+	}
+
+	if planContent != "" {
+		s.createPlanMessage(planContent, conversation, eventPublisher, req)
+		return true
+	}
+
+	return false
+}
+
+// checkToolResultsStatus checks for rejections and plan approval in tool results
+func (s *AgentServiceImpl) checkToolResultsStatus(toolResults []domain.ConversationEntry) (hasRejection bool, planContent string) {
+	for _, entry := range toolResults {
+		if entry.ToolExecution != nil {
+			if entry.ToolExecution.Rejected {
+				return true, ""
+			}
+			if entry.ToolExecution.ToolName == "RequestPlanApproval" && entry.ToolExecution.Success {
+				planContent = extractPlanContent(entry.ToolExecution)
+				logger.Info("RequestPlanApproval tool executed - stopping agent loop to wait for user approval", "planLength", len(planContent))
+			}
+		}
+	}
+	return false, planContent
+}
+
+// addToolResultsToConversation adds tool results and images to the conversation
+func (s *AgentServiceImpl) addToolResultsToConversation(toolResults []domain.ConversationEntry, conversation *[]sdk.Message) {
+	for _, entry := range toolResults {
+		toolResult := sdk.Message{
+			Role:       sdk.Tool,
+			Content:    entry.Message.Content,
+			ToolCallId: entry.Message.ToolCallId,
+		}
+		*conversation = append(*conversation, toolResult)
+	}
+
+	s.addImageMessageFromToolResults(toolResults, conversation)
+}
+
+// createPlanMessage creates and stores a plan message for approval
+func (s *AgentServiceImpl) createPlanMessage(
+	planContent string,
+	conversation *[]sdk.Message,
+	eventPublisher *eventPublisher,
+	req *domain.AgentRequest,
+) {
+	planMessage := sdk.Message{
+		Role:    sdk.Assistant,
+		Content: sdk.NewMessageContent(planContent),
+	}
+	*conversation = append(*conversation, planMessage)
+
+	planEntry := domain.ConversationEntry{
+		Message:            planMessage,
+		Time:               time.Now(),
+		IsPlan:             true,
+		PlanApprovalStatus: domain.PlanApprovalPending,
+	}
+	if err := s.conversationRepo.AddMessage(planEntry); err != nil {
+		logger.Error("failed to store plan message", "error", err)
+	}
+
+	logger.Info("Plan approval requested - stopping agent loop")
+	eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
+}
+
+// extractPlanContent extracts plan content from RequestPlanApproval tool result
+func extractPlanContent(result *domain.ToolExecutionResult) string {
+	if result == nil || result.Data == nil {
+		return ""
+	}
+
+	data, ok := result.Data.(map[string]any)
+	if !ok {
+		return ""
+	}
+
+	plan, ok := data["plan"].(string)
+	if !ok {
+		return ""
+	}
+
+	return plan
 }
 
 // addImageMessageFromToolResults adds images from tool results as a separate hidden user message

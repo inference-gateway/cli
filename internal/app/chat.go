@@ -49,22 +49,21 @@ type ChatApplication struct {
 	messageQueue domain.MessageQueue
 
 	// UI components
-	conversationView      ui.ConversationRenderer
-	inputView             ui.InputComponent
-	statusView            ui.StatusComponent
-	helpBar               ui.HelpBarComponent
-	queueBoxView          *components.QueueBoxView
-	todoBoxView           *components.TodoBoxView
-	modelSelector         *components.ModelSelectorImpl
-	themeSelector         *components.ThemeSelectorImpl
-	conversationSelector  *components.ConversationSelectorImpl
-	fileSelectionView     *components.FileSelectionView
-	textSelectionView     *components.TextSelectionView
-	a2aServersView        *components.A2AServersView
-	taskManager           *components.TaskManagerImpl
-	toolCallRenderer      *components.ToolCallRenderer
-	planApprovalComponent *components.PlanApprovalComponent
-	initGithubActionView  *components.InitGithubActionView
+	conversationView     ui.ConversationRenderer
+	inputView            ui.InputComponent
+	statusView           ui.StatusComponent
+	helpBar              ui.HelpBarComponent
+	queueBoxView         *components.QueueBoxView
+	todoBoxView          *components.TodoBoxView
+	modelSelector        *components.ModelSelectorImpl
+	themeSelector        *components.ThemeSelectorImpl
+	conversationSelector *components.ConversationSelectorImpl
+	fileSelectionView    *components.FileSelectionView
+	textSelectionView    *components.TextSelectionView
+	a2aServersView       *components.A2AServersView
+	taskManager          *components.TaskManagerImpl
+	toolCallRenderer     *components.ToolCallRenderer
+	initGithubActionView *components.InitGithubActionView
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -139,7 +138,6 @@ func NewChatApplication(
 	styleProvider := styles.NewProvider(app.themeService)
 
 	app.toolCallRenderer = components.NewToolCallRenderer(styleProvider)
-	app.planApprovalComponent = components.NewPlanApprovalComponent(styleProvider)
 	app.conversationView = factory.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
 
@@ -338,7 +336,7 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	currentView := app.stateManager.GetCurrentView()
 
 	if inputView, ok := app.inputView.(*components.InputView); ok {
-		if currentView == domain.ViewStatePlanApproval || app.stateManager.GetApprovalUIState() != nil {
+		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil {
 			inputView.SetDisabled(true)
 		} else {
 			inputView.SetDisabled(false)
@@ -362,8 +360,6 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleA2AServersView(msg)
 	case domain.ViewStateA2ATaskManagement:
 		return app.handleA2ATaskManagementView(msg)
-	case domain.ViewStatePlanApproval:
-		return app.handlePlanApprovalView(msg)
 	case domain.ViewStateGitHubAppSetup:
 		return app.handleInitGithubActionView(msg)
 	default:
@@ -399,6 +395,15 @@ func (app *ChatApplication) handleModelSelection(cmds []tea.Cmd) []tea.Cmd {
 func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
+	if approvalEvent, ok := msg.(domain.PlanApprovalResponseEvent); ok {
+		approvalState := app.stateManager.GetPlanApprovalUIState()
+		if approvalState != nil && approvalState.ResponseChan != nil {
+			approvalState.ResponseChan <- approvalEvent.Action
+			app.stateManager.ClearPlanApprovalUIState()
+		}
+		return cmds
+	}
+
 	keyMsg, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return cmds
@@ -418,31 +423,6 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd 
 
 	if isHandledByAction {
 		app.lastHandledKey = keyMsg.String()
-	}
-
-	return cmds
-}
-
-func (app *ChatApplication) handlePlanApprovalView(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	if approvalEvent, ok := msg.(domain.PlanApprovalResponseEvent); ok {
-		approvalState := app.stateManager.GetPlanApprovalUIState()
-		if approvalState != nil && approvalState.ResponseChan != nil {
-			approvalState.ResponseChan <- approvalEvent.Action
-
-			if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
-				logger.Error("Failed to transition back to chat view", "error", err)
-			}
-
-			app.stateManager.ClearPlanApprovalUIState()
-		}
 	}
 
 	return cmds
@@ -510,8 +490,6 @@ func (app *ChatApplication) View() string {
 		return app.renderA2AServers()
 	case domain.ViewStateA2ATaskManagement:
 		return app.renderA2ATaskManagement()
-	case domain.ViewStatePlanApproval:
-		return app.renderPlanApproval()
 	case domain.ViewStateGitHubAppSetup:
 		return app.renderGitHubAppSetup()
 	default:
@@ -1140,19 +1118,6 @@ func (app *ChatApplication) renderA2ATaskManagement() string {
 	app.taskManager.SetWidth(width)
 	app.taskManager.SetHeight(height)
 	return app.taskManager.View()
-}
-
-func (app *ChatApplication) renderPlanApproval() string {
-	approvalState := app.stateManager.GetPlanApprovalUIState()
-	if approvalState == nil {
-		return "No pending plan approval"
-	}
-
-	width, height := app.stateManager.GetDimensions()
-	app.planApprovalComponent.SetDimensions(width, height)
-
-	theme := app.themeService.GetCurrentTheme()
-	return app.planApprovalComponent.Render(approvalState, theme)
 }
 
 func (app *ChatApplication) renderGitHubAppSetup() string {

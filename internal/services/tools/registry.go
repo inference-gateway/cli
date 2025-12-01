@@ -43,6 +43,7 @@ func (r *Registry) registerTools() {
 	r.tools["Grep"] = NewGrepTool(r.config)
 	r.tools["Tree"] = NewTreeTool(r.config)
 	r.tools["TodoWrite"] = NewTodoWriteTool(r.config)
+	r.tools["RequestPlanApproval"] = NewRequestPlanApprovalTool(r.config)
 
 	if r.config.Tools.WebFetch.Enabled {
 		r.tools["WebFetch"] = NewWebFetchTool(r.config)

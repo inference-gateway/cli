@@ -774,6 +774,7 @@ func (cv *ConversationView) appendStreamingContent(content string) tea.Cmd {
 	if !cv.isStreaming {
 		cv.isStreaming = true
 		cv.lastRenderTime = time.Now()
+		return renderTickCmd()
 	}
 
 	cv.streamingBuffer.WriteString(content)
@@ -785,7 +786,8 @@ func (cv *ConversationView) appendStreamingContent(content string) tea.Cmd {
 		return nil
 	}
 
-	return renderTickCmd()
+	// Don't return tick command - it's already running
+	return nil
 }
 
 // flushStreamingBuffer applies buffered streaming content to the conversation
@@ -971,6 +973,37 @@ func (cv *ConversationView) renderWriteToolArgs(args map[string]any) string {
 	return result.String()
 }
 
+// renderRequestPlanApprovalArgs renders RequestPlanApproval arguments with the plan content
+func (cv *ConversationView) renderRequestPlanApprovalArgs(args map[string]any) string {
+	var result strings.Builder
+
+	if plan, ok := args["plan"].(string); ok && plan != "" {
+		result.WriteString("  Plan:\n\n")
+		cv.renderIndentedPlanContent(&result, plan)
+	}
+
+	return result.String()
+}
+
+// renderIndentedPlanContent renders plan content with proper indentation
+func (cv *ConversationView) renderIndentedPlanContent(result *strings.Builder, content string) {
+	var rendered string
+	if cv.markdownRenderer != nil && !cv.rawFormat {
+		rendered = cv.markdownRenderer.Render(content)
+	} else {
+		rendered = formatting.FormatResponsiveMessage(content, cv.width)
+	}
+
+	lines := strings.Split(rendered, "\n")
+	for _, line := range lines {
+		if line != "" {
+			result.WriteString("    " + line + "\n")
+		} else {
+			result.WriteString("\n")
+		}
+	}
+}
+
 // renderGenericToolArgs renders tool arguments as JSON
 func (cv *ConversationView) renderGenericToolArgs(args map[string]any) string {
 	argsJSON, _ := json.MarshalIndent(args, "  ", "  ")
@@ -1012,6 +1045,8 @@ func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntr
 			result.WriteString(cv.renderEditToolArgs(args))
 		case "Write":
 			result.WriteString(cv.renderWriteToolArgs(args))
+		case "RequestPlanApproval":
+			result.WriteString(cv.renderRequestPlanApprovalArgs(args))
 		default:
 			result.WriteString(cv.renderGenericToolArgs(args))
 		}

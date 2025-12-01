@@ -729,7 +729,7 @@ func (h *ChatHandler) addHiddenContinueMessage() {
 
 	continueMessage := sdk.Message{
 		Role:    sdk.User,
-		Content: sdk.NewMessageContent("The plan has been approved. Please proceed with executing it."),
+		Content: sdk.NewMessageContent("The plan has been approved. Please proceed with executing it step by step. Start by taking the first action required to implement the plan."),
 	}
 
 	entry := domain.ConversationEntry{
@@ -768,6 +768,7 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.ModelSelectedEvent,
 		domain.ThemeSelectedEvent,
 		domain.ShowPlanApprovalEvent,
+		domain.RefreshAutocompleteEvent,
 		tea.KeyMsg,
 		tea.WindowSizeMsg,
 		tea.MouseMsg,

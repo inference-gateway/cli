@@ -201,47 +201,12 @@ func (e *ChatEventHandler) createStatusUpdateCmd(status domain.ChatStatus) []tea
 	return nil
 }
 
-// triggerPlanApproval extracts plan content and triggers plan approval flow
-func (e *ChatEventHandler) triggerPlanApproval(msg domain.ChatCompleteEvent) tea.Cmd {
-	messages := e.handler.conversationRepo.GetMessages()
-	var planContent string
-	for i := len(messages) - 1; i >= 0; i-- {
-		if messages[i].Message.Role == sdk.Assistant {
-			contentStr, err := messages[i].Message.Content.AsMessageContent0()
-			if err == nil {
-				planContent = contentStr
-			}
-			break
-		}
-	}
-
-	var cmds []tea.Cmd
-	cmds = append(cmds, func() tea.Msg {
-		return domain.PlanApprovalRequestedEvent{
-			RequestID:    msg.RequestID,
-			Timestamp:    msg.Timestamp,
-			PlanContent:  planContent,
-			ResponseChan: nil,
-		}
-	})
-
-	chatSession := e.handler.stateManager.GetChatSession()
-	if chatSession != nil && chatSession.EventChannel != nil {
-		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
-	}
-
-	return tea.Batch(cmds...)
-}
-
 func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
 
 ) tea.Cmd {
-	agentMode := e.handler.stateManager.GetAgentMode()
-
-	if agentMode == domain.AgentModePlan && len(msg.ToolCalls) == 0 {
-		return e.triggerPlanApproval(msg)
-	}
+	// Automatic plan approval removed - agent now controls when to request approval
+	// via the RequestPlanApproval tool
 
 	if len(msg.ToolCalls) == 0 {
 		_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)

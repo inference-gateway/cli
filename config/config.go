@@ -81,19 +81,20 @@ type ImageConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled   bool                `yaml:"enabled" mapstructure:"enabled"`
-	Sandbox   SandboxConfig       `yaml:"sandbox" mapstructure:"sandbox"`
-	Bash      BashToolConfig      `yaml:"bash" mapstructure:"bash"`
-	Read      ReadToolConfig      `yaml:"read" mapstructure:"read"`
-	Write     WriteToolConfig     `yaml:"write" mapstructure:"write"`
-	Edit      EditToolConfig      `yaml:"edit" mapstructure:"edit"`
-	Delete    DeleteToolConfig    `yaml:"delete" mapstructure:"delete"`
-	Grep      GrepToolConfig      `yaml:"grep" mapstructure:"grep"`
-	Tree      TreeToolConfig      `yaml:"tree" mapstructure:"tree"`
-	WebFetch  WebFetchToolConfig  `yaml:"web_fetch" mapstructure:"web_fetch"`
-	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
-	Github    GithubToolConfig    `yaml:"github" mapstructure:"github"`
-	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
+	Enabled             bool                          `yaml:"enabled" mapstructure:"enabled"`
+	Sandbox             SandboxConfig                 `yaml:"sandbox" mapstructure:"sandbox"`
+	Bash                BashToolConfig                `yaml:"bash" mapstructure:"bash"`
+	Read                ReadToolConfig                `yaml:"read" mapstructure:"read"`
+	Write               WriteToolConfig               `yaml:"write" mapstructure:"write"`
+	Edit                EditToolConfig                `yaml:"edit" mapstructure:"edit"`
+	Delete              DeleteToolConfig              `yaml:"delete" mapstructure:"delete"`
+	Grep                GrepToolConfig                `yaml:"grep" mapstructure:"grep"`
+	Tree                TreeToolConfig                `yaml:"tree" mapstructure:"tree"`
+	WebFetch            WebFetchToolConfig            `yaml:"web_fetch" mapstructure:"web_fetch"`
+	WebSearch           WebSearchToolConfig           `yaml:"web_search" mapstructure:"web_search"`
+	Github              GithubToolConfig              `yaml:"github" mapstructure:"github"`
+	TodoWrite           TodoWriteToolConfig           `yaml:"todo_write" mapstructure:"todo_write"`
+	RequestPlanApproval RequestPlanApprovalToolConfig `yaml:"request_plan_approval" mapstructure:"request_plan_approval"`
 
 	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
@@ -163,6 +164,12 @@ type WebSearchToolConfig struct {
 
 // TodoWriteToolConfig contains TodoWrite-specific tool settings
 type TodoWriteToolConfig struct {
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// RequestPlanApprovalToolConfig contains RequestPlanApproval-specific tool settings
+type RequestPlanApprovalToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
@@ -537,6 +544,10 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
 			},
+			RequestPlanApproval: RequestPlanApprovalToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{false}[0],
+			},
 			Safety: SafetyConfig{
 				RequireApproval: true,
 			},
@@ -551,37 +562,54 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		Agent: AgentConfig{
 			Model: "",
-			SystemPromptPlan: `You are an AI planning assistant in PLAN MODE. Your role is to analyze user requests and create detailed, actionable plans WITHOUT executing them.
+			SystemPromptPlan: `You are an AI planning assistant in PLAN MODE. Your role is to analyze user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them.
+
+CRITICAL: Your plan MUST be actionable - if the user accepts it, you will be asked to execute it step-by-step. Plans that are not actionable are NOT plans.
 
 CAPABILITIES IN PLAN MODE:
-- Read, Grep, and Tree tools ONLY for gathering information
+- Read, Grep, and Tree tools for gathering information
+- TodoWrite for tracking planning progress
+- RequestPlanApproval tool to submit your plan for user approval
 - Analyze code structure and dependencies
-- Break down complex tasks into clear steps
-- Explain reasoning and approaches
-- Identify potential challenges and solutions
+- Break down complex tasks into concrete, executable steps
+- Identify exact files and code locations that need changes
 
 RESTRICTIONS IN PLAN MODE:
 - DO NOT execute Write, Edit, Delete, Bash, or modification tools
 - DO NOT make any changes to files or system
 - DO NOT attempt to implement the plan
-- Focus solely on planning and explanation
+- Focus solely on creating an executable plan
 
 PLANNING WORKFLOW:
-1. Use Read/Grep/Tree to understand the codebase
-2. Analyze the user's request thoroughly
-3. Break down into logical, sequential steps
-4. Explain your reasoning for each step
-5. Identify files/components that need changes
-6. Suggest testing and validation approaches
-7. Present the complete plan to the user
+1. Use Read/Grep/Tree to understand the codebase thoroughly
+2. Analyze the user's request and identify ALL requirements
+3. If you need clarification or more information, ASK the user - do NOT call RequestPlanApproval yet
+4. Break down into specific, numbered action steps
+5. For EACH step, specify:
+   - Exact file paths to modify
+   - Specific changes to make
+   - Tool calls that will be needed
+6. Include testing and validation steps
+7. When your plan is complete and actionable, call RequestPlanApproval tool
 
-OUTPUT FORMAT:
-Structure your plan clearly with:
-- Overview: What needs to be done and why
-- Steps: Numbered, actionable steps with explanations
-- Files: List of files that would be modified
-- Testing: How to verify the changes
-- Considerations: Potential issues or alternatives`,
+DECISION MAKING:
+- Need more info? ASK questions instead of requesting approval
+- Plan has gaps or uncertainties? ASK for clarification
+- Plan is complete and specific? Call RequestPlanApproval tool
+
+OUTPUT FORMAT - ACTIONABLE STEPS:
+Structure your plan with concrete actions:
+- Overview: What will be done and why
+- Steps: Numbered steps with SPECIFIC actions
+  Example: "Step 1: Edit /path/to/file.go - Add function X at line Y"
+  Example: "Step 2: Run 'task test' to verify changes"
+- Files: Exact list of files to be modified
+- Testing: Specific commands to run and expected outcomes
+
+REMEMBER:
+- If accepted, YOU will execute this plan. Make it specific and actionable!
+- Call RequestPlanApproval ONLY when your plan is complete and ready
+- If you need clarification, ASK - don't guess!`,
 			SystemPrompt: `Autonomous software engineering agent. Execute tasks iteratively until completion.
 
 IMPORTANT: You NEVER push to main or master or to the current branch - instead you create a branch and push to a branch.
@@ -826,6 +854,10 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	case "TodoWrite":
 		if c.Tools.TodoWrite.RequireApproval != nil {
 			return *c.Tools.TodoWrite.RequireApproval
+		}
+	case "RequestPlanApproval":
+		if c.Tools.RequestPlanApproval.RequireApproval != nil {
+			return *c.Tools.RequestPlanApproval.RequireApproval
 		}
 	case "A2A_QueryAgent":
 		if c.A2A.Tools.QueryAgent.RequireApproval != nil {

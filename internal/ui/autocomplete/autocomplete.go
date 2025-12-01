@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"
@@ -34,6 +35,8 @@ type AutocompleteImpl struct {
 	width            int
 	maxVisible       int
 	shortcutRegistry ShortcutRegistry
+	stateManager     domain.StateManager
+	lastAgentMode    domain.AgentMode
 	toolService      interface {
 		ListAvailableTools() []string
 		ListTools() []sdk.ChatCompletionTool
@@ -62,6 +65,11 @@ func (a *AutocompleteImpl) SetToolService(toolService interface {
 	ListTools() []sdk.ChatCompletionTool
 }) {
 	a.toolService = toolService
+}
+
+// SetStateManager sets the state manager for agent mode filtering
+func (a *AutocompleteImpl) SetStateManager(stateManager domain.StateManager) {
+	a.stateManager = stateManager
 }
 
 // loadShortcuts loads shortcuts from the registry
@@ -98,7 +106,25 @@ func (a *AutocompleteImpl) loadTools() {
 		toolDefMap[toolDef.Function.Name] = toolDef
 	}
 
+	planModeTools := map[string]bool{
+		"Read":                true,
+		"Grep":                true,
+		"Tree":                true,
+		"TodoWrite":           true,
+		"RequestPlanApproval": true,
+	}
+
+	var isInPlanMode bool
+	if a.stateManager != nil {
+		agentMode := a.stateManager.GetAgentMode()
+		isInPlanMode = agentMode == domain.AgentModePlan
+	}
+
 	for _, toolName := range availableTools {
+		if isInPlanMode && !planModeTools[toolName] {
+			continue
+		}
+
 		var template string
 		if toolDef, exists := toolDefMap[toolName]; exists {
 			template = a.generateToolTemplate(toolDef)
@@ -205,7 +231,16 @@ func (a *AutocompleteImpl) generateArgumentTemplate(paramName string, properties
 func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 	switch {
 	case strings.HasPrefix(inputText, "!!") && cursorPos >= 2:
-		a.loadTools()
+		var currentMode domain.AgentMode
+		if a.stateManager != nil {
+			currentMode = a.stateManager.GetAgentMode()
+		}
+
+		if currentMode != a.lastAgentMode || len(a.suggestions) == 0 || !strings.HasPrefix(a.suggestions[0].Shortcut, "!!") {
+			a.loadTools()
+			a.lastAgentMode = currentMode
+		}
+
 		a.query = inputText[2:cursorPos]
 		a.filterSuggestions()
 		a.visible = len(a.filtered) > 0

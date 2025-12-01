@@ -79,6 +79,15 @@ func (iv *InputView) SetThemeService(themeService domain.ThemeService) {
 // SetStateManager sets the state manager for this input view
 func (iv *InputView) SetStateManager(stateManager domain.StateManager) {
 	iv.stateManager = stateManager
+
+	if iv.Autocomplete != nil {
+		type stateManagerSetter interface {
+			SetStateManager(domain.StateManager)
+		}
+		if ac, ok := iv.Autocomplete.(stateManagerSetter); ok {
+			ac.SetStateManager(stateManager)
+		}
+	}
 }
 
 // SetConfigService sets the config service for this input view
@@ -156,10 +165,10 @@ func (iv *InputView) Render() string {
 	components := []string{borderedInput}
 
 	components = iv.addModeIndicatorBelowInput(components, isBashMode, isToolsMode)
+	components = iv.addModelDisplayWithMode(components, isBashMode, isToolsMode)
 	if !iv.disabled {
 		components = iv.addAutocomplete(components)
 	}
-	components = iv.addModelDisplayWithMode(components, isBashMode, isToolsMode)
 
 	return iv.styleProvider.JoinVertical(components...)
 }
@@ -196,9 +205,8 @@ func (iv *InputView) renderPlaceholder() string {
 		return iv.styleProvider.RenderDimText("⏸  Input disabled")
 	}
 
-	currentView := iv.stateManager.GetCurrentView()
-	if currentView == domain.ViewStatePlanApproval {
-		return iv.styleProvider.RenderDimText("⏸  Plan approval required - use ←/→ or h/l to navigate, Enter to confirm")
+	if iv.stateManager.GetPlanApprovalUIState() != nil {
+		return iv.styleProvider.RenderDimText("⏸  Plan approval required - use ←/→ or h/l to navigate, Enter/y to accept, n to reject, a for auto-approve")
 	}
 
 	if iv.stateManager.GetApprovalUIState() != nil {
@@ -319,40 +327,18 @@ func (iv *InputView) getAgentModeIndicator() string {
 	)
 }
 
-// addModeIndicatorBelowInput adds mode indicators below the input field (for bash/tools modes)
+// addModeIndicatorBelowInput adds mode indicators below the input field (for text selection mode only)
 func (iv *InputView) addModeIndicatorBelowInput(components []string, isBashMode bool, isToolsMode bool) []string {
-	if iv.height >= 2 {
-		if iv.isTextSelectionMode {
-			indicator := iv.styleProvider.RenderStyledText(
-				"TEXT SELECTION MODE - Use vim keys to navigate and select text (Escape to exit)",
-				styles.StyleOptions{
-					Foreground: iv.styleProvider.GetThemeColor("accent"),
-					Bold:       true,
-					Width:      iv.width,
-				},
-			)
-			components = append(components, indicator)
-		} else if isBashMode {
-			indicator := iv.styleProvider.RenderStyledText(
-				"  BASH MODE - Command will be executed directly",
-				styles.StyleOptions{
-					Foreground: iv.styleProvider.GetThemeColor("status"),
-					Bold:       true,
-					Width:      iv.width,
-				},
-			)
-			components = append(components, indicator)
-		} else if isToolsMode {
-			indicator := iv.styleProvider.RenderStyledText(
-				"  TOOLS MODE - !!ToolName(arg=\"value\") - Tab for autocomplete",
-				styles.StyleOptions{
-					Foreground: iv.styleProvider.GetThemeColor("accent"),
-					Bold:       true,
-					Width:      iv.width,
-				},
-			)
-			components = append(components, indicator)
-		}
+	if iv.height >= 2 && iv.isTextSelectionMode {
+		indicator := iv.styleProvider.RenderStyledText(
+			"TEXT SELECTION MODE - Use vim keys to navigate and select text (Escape to exit)",
+			styles.StyleOptions{
+				Foreground: iv.styleProvider.GetThemeColor("accent"),
+				Bold:       true,
+				Width:      iv.width,
+			},
+		)
+		components = append(components, indicator)
 	}
 	return components
 }
@@ -368,28 +354,86 @@ func (iv *InputView) addAutocomplete(components []string) []string {
 }
 
 func (iv *InputView) addModelDisplayWithMode(components []string, isBashMode bool, isToolsMode bool) []string {
-	if !iv.shouldShowModelDisplay(isBashMode, isToolsMode) {
+	if iv.height < 2 {
 		return components
 	}
 
-	currentModel := iv.modelService.GetCurrentModel()
-	displayText := iv.buildModelDisplayText(currentModel)
+	// Build the left side text (bash/tools mode indicator or model info)
+	var leftText string
+	if isBashMode {
+		leftText = "BASH MODE"
+	} else if isToolsMode {
+		leftText = "TOOLS MODE"
+	} else if iv.modelService != nil {
+		currentModel := iv.modelService.GetCurrentModel()
+		if currentModel != "" {
+			leftText = iv.buildModelDisplayText(currentModel)
+		}
+	}
+
+	// Get the right side indicator (agent mode)
 	modeIndicator := iv.getAgentModeIndicator()
 
-	if modeIndicator != "" {
-		return iv.addModelWithModeIndicator(components, displayText, modeIndicator)
+	// Render the status line
+	if leftText != "" || modeIndicator != "" {
+		return iv.buildStatusLine(components, leftText, modeIndicator, isBashMode, isToolsMode)
 	}
 
-	return iv.addModelOnly(components, displayText)
+	return components
 }
 
-func (iv *InputView) shouldShowModelDisplay(isBashMode bool, isToolsMode bool) bool {
-	if iv.modelService == nil {
-		return false
+// buildStatusLine creates a status line with left text and right mode indicator
+func (iv *InputView) buildStatusLine(components []string, leftText string, modeIndicator string, isBashMode bool, isToolsMode bool) []string {
+	if leftText == "" && modeIndicator == "" {
+		return components
 	}
 
-	currentModel := iv.modelService.GetCurrentModel()
-	return currentModel != "" && iv.height >= 2 && !isBashMode && !isToolsMode
+	// Determine color for left text
+	var leftColor string
+	if isBashMode {
+		leftColor = iv.styleProvider.GetThemeColor("status")
+	} else if isToolsMode {
+		leftColor = iv.styleProvider.GetThemeColor("accent")
+	} else {
+		leftColor = iv.styleProvider.GetThemeColor("dim")
+	}
+
+	// Render left text with appropriate color
+	var renderedLeft string
+	if leftText != "" {
+		renderedLeft = iv.styleProvider.RenderStyledText(leftText, styles.StyleOptions{
+			Foreground: leftColor,
+		})
+	}
+
+	// If we have both left and right, combine them with padding
+	if renderedLeft != "" && modeIndicator != "" {
+		inputRightEdge := iv.width - 4
+		leftWidth := iv.styleProvider.GetWidth(renderedLeft)
+		rightWidth := iv.styleProvider.GetWidth(modeIndicator)
+		availableWidth := inputRightEdge - leftWidth - rightWidth
+
+		if availableWidth > 0 {
+			combined := renderedLeft + strings.Repeat(" ", availableWidth) + modeIndicator
+			return append(components, combined)
+		}
+		return append(components, renderedLeft+" "+modeIndicator)
+	}
+
+	// Only left text
+	if renderedLeft != "" {
+		return append(components, renderedLeft)
+	}
+
+	// Only right indicator
+	inputRightEdge := iv.width - 4
+	rightWidth := iv.styleProvider.GetWidth(modeIndicator)
+	availableWidth := inputRightEdge - rightWidth
+	if availableWidth > 0 {
+		paddedMode := strings.Repeat(" ", availableWidth) + modeIndicator
+		return append(components, paddedMode)
+	}
+	return append(components, modeIndicator)
 }
 
 func (iv *InputView) buildModelDisplayText(currentModel string) string {
@@ -460,35 +504,6 @@ func (iv *InputView) estimateContextWindow(model string) int {
 	return models.EstimateContextWindow(model)
 }
 
-func (iv *InputView) addModelWithModeIndicator(components []string, displayText string, modeIndicator string) []string {
-	modelText := iv.styleProvider.RenderStyledText(displayText, styles.StyleOptions{
-		Foreground: iv.styleProvider.GetThemeColor("dim"),
-	})
-
-	combinedLine := iv.buildCombinedLine(modelText, modeIndicator)
-	return append(components, combinedLine)
-}
-
-func (iv *InputView) buildCombinedLine(modelText string, modeIndicator string) string {
-	inputRightEdge := iv.width - 4
-	modelWidth := iv.styleProvider.GetWidth(modelText)
-	modeWidth := iv.styleProvider.GetWidth(modeIndicator)
-	availableWidth := inputRightEdge - modelWidth - modeWidth
-
-	if availableWidth > 0 {
-		return modelText + strings.Repeat(" ", availableWidth) + modeIndicator
-	}
-	return modelText + " " + modeIndicator
-}
-
-func (iv *InputView) addModelOnly(components []string, displayText string) []string {
-	modelDisplay := iv.styleProvider.RenderStyledText(displayText, styles.StyleOptions{
-		Foreground: iv.styleProvider.GetThemeColor("dim"),
-		Width:      iv.width,
-	})
-	return append(components, modelDisplay)
-}
-
 // NavigateHistoryUp moves up in history (to older messages) - public method for interface
 func (iv *InputView) NavigateHistoryUp() {
 	iv.navigateHistoryUp()
@@ -538,6 +553,11 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case domain.SetInputEvent:
 		iv.SetText(msg.Text)
 		iv.SetCursor(len(msg.Text))
+		return iv, nil
+	case domain.RefreshAutocompleteEvent:
+		if iv.Autocomplete != nil && strings.HasPrefix(iv.text, "!!") {
+			iv.Autocomplete.Update(iv.text, iv.cursor)
+		}
 		return iv, nil
 	}
 	return iv, nil

@@ -963,12 +963,17 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 	newMode := stateManager.CycleAgentMode()
 
-	return func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message: fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
-			Spinner: false,
-		}
-	}
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message: fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
+				Spinner: false,
+			}
+		},
+		func() tea.Msg {
+			return domain.RefreshAutocompleteEvent{}
+		},
+	)
 }
 
 func handleEnterSelectionMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
