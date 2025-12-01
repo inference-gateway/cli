@@ -29,9 +29,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             platform: linux-amd64
-          - os: ubuntu-latest
+          - os: ubuntu-24.04
             platform: linux-arm64
           - os: macos-15-intel
             platform: darwin-amd64
@@ -104,7 +104,7 @@ jobs:
 
   summary:
     name: Build Summary
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.0
     needs:
       - nix-build
       - nix-fmt-check

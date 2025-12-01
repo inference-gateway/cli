@@ -35,8 +35,8 @@ Runs on every PR and push to verify:
 
 **Matrix Testing:**
 
-- ubuntu-latest (linux-amd64, linux-arm64)
-- macos-13 (darwin-amd64, Intel Mac)
+- ubuntu-24.04 (linux-amd64, linux-arm64)
+- macos-15 (darwin-amd64, Intel Mac)
 - macos-latest (darwin-arm64, Apple Silicon)
 
 **Optimizations:**
