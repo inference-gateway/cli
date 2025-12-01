@@ -3,7 +3,6 @@
 , fetchFromGitHub
 , installShellFiles
 , stdenv
-, darwin
 }:
 
 buildGoModule rec {
@@ -14,25 +13,19 @@ buildGoModule rec {
     owner = "inference-gateway";
     repo = "cli";
     rev = "v${version}";
-    hash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # This will need to be updated with actual hash
+    hash = "sha256-ObI6zG8noykPhPq6ESohbkHp6gvUY3Q0qYZl32Kj//I=";
   };
 
-  vendorHash = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="; # This will need to be calculated
+  vendorHash = "sha256-BUrb8mvktPPEbokccVEfc2UCLjWP0nTQbLeCxCCb32k=";
 
   # macOS requires CGO for clipboard support (golang.design/x/clipboard)
-  CGO_ENABLED = if stdenv.isDarwin then 1 else 0;
-
-  buildInputs = lib.optionals stdenv.isDarwin [
-    darwin.apple_sdk.frameworks.Cocoa
-    darwin.apple_sdk.frameworks.UserNotifications
-  ];
+  env.CGO_ENABLED = if stdenv.isDarwin then "1" else "0";
 
   ldflags = [
     "-s"
     "-w"
     "-X github.com/inference-gateway/cli/cmd.version=${version}"
     "-X github.com/inference-gateway/cli/cmd.commit=${src.rev}"
-    "-X github.com/inference-gateway/cli/cmd.date=1970-01-01T00:00:00Z"
   ];
 
   # Disable tests that require network or external dependencies
