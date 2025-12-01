@@ -6,7 +6,7 @@
 }:
 
 buildGoModule rec {
-  pname = "infer";
+  pname = "inference-gateway-cli";
   version = "0.76.1";
 
   src = fetchFromGitHub {
@@ -70,7 +70,7 @@ buildGoModule rec {
     homepage = "https://github.com/inference-gateway/cli";
     changelog = "https://github.com/inference-gateway/cli/blob/main/CHANGELOG.md";
     license = licenses.mit;
-    maintainers = with maintainers; [ ]; # Add maintainer names here when submitting to nixpkgs
+    maintainers = with maintainers; [ edenreich ];
     mainProgram = "infer";
     platforms = platforms.unix;
   };
