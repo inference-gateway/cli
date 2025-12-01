@@ -52,6 +52,7 @@ type ChatApplication struct {
 	// UI components
 	conversationView     ui.ConversationRenderer
 	inputView            ui.InputComponent
+	inputStatusBar       ui.InputStatusBarComponent
 	statusView           ui.StatusComponent
 	helpBar              ui.HelpBarComponent
 	queueBoxView         *components.QueueBoxView
@@ -85,7 +86,7 @@ type ChatApplication struct {
 	availableModels []string
 }
 
-// NewChatApplication creates a new chat application
+// nolint: funlen // NewChatApplication creates a new chat application
 func NewChatApplication(
 	models []string,
 	defaultModel string,
@@ -129,7 +130,7 @@ func NewChatApplication(
 		availableModels:       models,
 		stateManager:          stateManager,
 		messageQueue:          messageQueue,
-		mouseEnabled:          true, // Start with mouse enabled
+		mouseEnabled:          true,
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -162,6 +163,16 @@ func NewChatApplication(
 		iv.SetConfigService(app.configService)
 		iv.SetConversationRepo(app.conversationRepo)
 	}
+
+	app.inputStatusBar = factory.CreateInputStatusBar(app.themeService)
+	if isb, ok := app.inputStatusBar.(*components.InputStatusBar); ok {
+		isb.SetModelService(app.modelService)
+		isb.SetThemeService(app.themeService)
+		isb.SetStateManager(app.stateManager)
+		isb.SetConfigService(app.configService)
+		isb.SetConversationRepo(app.conversationRepo)
+	}
+
 	app.statusView = factory.CreateStatusView(app.themeService)
 	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
@@ -1100,6 +1111,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		data,
 		app.conversationView,
 		app.inputView,
+		app.inputStatusBar,
 		app.statusView,
 		app.helpBar,
 		app.queueBoxView,

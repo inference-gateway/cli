@@ -1,7 +1,6 @@
 package components
 
 import (
-	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -253,18 +252,10 @@ func TestInputView_BashModeBorderColor(t *testing.T) {
 		t.Error("Expected non-empty render output for bash mode")
 	}
 
-	if !strings.Contains(bashOutput, "BASH MODE") {
-		t.Error("Expected bash mode output to contain 'BASH MODE' indicator")
-	}
-
 	iv.SetText("!!")
 	toolsOutput := iv.Render()
 	if toolsOutput == "" {
 		t.Error("Expected non-empty render output for tools mode")
-	}
-
-	if !strings.Contains(toolsOutput, "TOOLS MODE") {
-		t.Error("Expected tools mode output to contain 'TOOLS MODE' indicator")
 	}
 }
 

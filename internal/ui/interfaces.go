@@ -103,6 +103,14 @@ type StatusComponent interface {
 	HasSavedState() bool
 }
 
+// InputStatusBarComponent interface for input status bar
+type InputStatusBarComponent interface {
+	SetWidth(width int)
+	SetHeight(height int)
+	SetInputText(text string)
+	Render() string
+}
+
 // HelpBarComponent interface for help bar
 type HelpBarComponent interface {
 	SetShortcuts(shortcuts []KeyShortcut)
@@ -154,13 +162,14 @@ type SelectionComponent interface {
 func CalculateConversationHeight(totalHeight int) int {
 	inputHeight := CalculateInputHeight(totalHeight)
 	statusHeight := CalculateStatusHeight(totalHeight)
+	inputStatusBarHeight := 1
 
 	extraLines := 5
 	if totalHeight < 12 {
 		extraLines = 3
 	}
 
-	conversationHeight := totalHeight - inputHeight - statusHeight - extraLines
+	conversationHeight := totalHeight - inputHeight - statusHeight - inputStatusBarHeight - extraLines
 
 	minConversationHeight := 3
 	if conversationHeight < minConversationHeight {

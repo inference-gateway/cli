@@ -69,20 +69,20 @@ type Color struct {
 
 // Predefined colors for consistent theming - Tokyo Night Theme
 var (
-	UserColor               = Color{ANSI: Blue, Lipgloss: LipglossBlue}                        // Blue for user prompts
-	AssistantColor          = Color{ANSI: White, Lipgloss: LipglossWhite}                      // Light gray-blue for assistant
-	ErrorColor              = Color{ANSI: Red, Lipgloss: LipglossRed}                          // Soft red for errors
-	SuccessColor            = Color{ANSI: Green, Lipgloss: LipglossGreen}                      // Green for success
-	StatusColor             = Color{ANSI: Magenta, Lipgloss: LipglossMagenta}                  // Purple for status/info
-	AccentColor             = Color{ANSI: Blue, Lipgloss: LipglossBlue}                        // Blue for accents
-	DimColor                = Color{ANSI: Gray, Lipgloss: LipglossGray}                        // Dim gray
-	BorderColor             = Color{ANSI: Gray, Lipgloss: LipglossGray}                        // Gray for borders
-	HeaderColor             = Color{ANSI: Blue, Lipgloss: LipglossBlue}                        // Blue for headers
-	SpinnerColor            = Color{ANSI: Magenta, Lipgloss: LipglossMagenta}                  // Purple for spinners
-	DiffAddColor            = Color{ANSI: Green, Lipgloss: LipglossGreen}                      // Green for additions
-	DiffRemoveColor         = Color{ANSI: Red, Lipgloss: LipglossRed}                          // Red for removals
-	WarningColor            = Color{ANSI: Amber, Lipgloss: LipglossAmber}                      // Amber for warnings
-	QueuedMessageColor      = Color{ANSI: LightGray, Lipgloss: LipglossLightGray}              // Light gray for queued messages
+	UserColor          = Color{ANSI: Blue, Lipgloss: LipglossBlue}           // Blue for user prompts
+	AssistantColor     = Color{ANSI: White, Lipgloss: LipglossWhite}         // Light gray-blue for assistant
+	ErrorColor         = Color{ANSI: Red, Lipgloss: LipglossRed}             // Soft red for errors
+	SuccessColor       = Color{ANSI: Green, Lipgloss: LipglossGreen}         // Green for success
+	StatusColor        = Color{ANSI: Magenta, Lipgloss: LipglossMagenta}     // Purple for status/info
+	AccentColor        = Color{ANSI: Blue, Lipgloss: LipglossBlue}           // Blue for accents
+	DimColor           = Color{ANSI: Gray, Lipgloss: LipglossGray}           // Dim gray
+	BorderColor        = Color{ANSI: Gray, Lipgloss: LipglossGray}           // Gray for borders
+	HeaderColor        = Color{ANSI: Blue, Lipgloss: LipglossBlue}           // Blue for headers
+	SpinnerColor       = Color{ANSI: Magenta, Lipgloss: LipglossMagenta}     // Purple for spinners
+	DiffAddColor       = Color{ANSI: Green, Lipgloss: LipglossGreen}         // Green for additions
+	DiffRemoveColor    = Color{ANSI: Red, Lipgloss: LipglossRed}             // Red for removals
+	WarningColor       = Color{ANSI: Amber, Lipgloss: LipglossAmber}         // Amber for warnings
+	QueuedMessageColor = Color{ANSI: LightGray, Lipgloss: LipglossLightGray} // Light gray for queued messages
 
 	// GitHub Light Theme Colors
 	GithubUserColor       = Color{ANSI: "\033[38;2;3;102;214m", Lipgloss: GithubBlue}

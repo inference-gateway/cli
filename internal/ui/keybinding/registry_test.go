@@ -7,8 +7,8 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
-	keybindingmocks "github.com/inference-gateway/cli/tests/mocks/keybinding"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	keybindingmocks "github.com/inference-gateway/cli/tests/mocks/keybinding"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 

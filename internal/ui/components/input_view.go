@@ -8,7 +8,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
-	models "github.com/inference-gateway/cli/internal/models"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
@@ -163,11 +162,6 @@ func (iv *InputView) Render() string {
 	var components []string
 	components = append(components, borderedInput)
 
-	modelBar := iv.renderModelDisplayWithMode(isBashMode, isToolsMode)
-	if modelBar != "" {
-		components = append(components, modelBar)
-	}
-
 	if !iv.disabled {
 		autocompleteContent := iv.renderAutocomplete()
 		if autocompleteContent != "" {
@@ -304,210 +298,12 @@ func (iv *InputView) createCursorChar(char string) string {
 	return iv.styleProvider.RenderCursor(char)
 }
 
-// getAgentModeIndicator returns a compact mode indicator for display on the right side
-func (iv *InputView) getAgentModeIndicator() string {
-	if iv.stateManager == nil {
-		return ""
-	}
-
-	agentMode := iv.stateManager.GetAgentMode()
-	if agentMode == domain.AgentModeStandard {
-		return ""
-	}
-
-	var modeText string
-	switch agentMode {
-	case domain.AgentModePlan:
-		modeText = "▶ PLAN"
-	case domain.AgentModeAutoAccept:
-		modeText = "▸ AUTO"
-	}
-
-	return iv.styleProvider.RenderStyledText(
-		modeText,
-		styles.StyleOptions{
-			Foreground: iv.styleProvider.GetThemeColor("accent"),
-			Bold:       true,
-		},
-	)
-}
-
 // renderAutocomplete returns the autocomplete dropdown content if visible
 func (iv *InputView) renderAutocomplete() string {
 	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() && iv.height >= 3 {
 		return iv.Autocomplete.Render()
 	}
 	return ""
-}
-
-// renderModelDisplayWithMode returns the model/mode status line
-func (iv *InputView) renderModelDisplayWithMode(isBashMode bool, isToolsMode bool) string {
-	renderedLeft := iv.buildAndRenderLeftText(isBashMode, isToolsMode)
-	modeIndicator := iv.getAgentModeIndicator()
-
-	if renderedLeft == "" && modeIndicator == "" {
-		return ""
-	}
-
-	return iv.combineLeftAndRight(renderedLeft, modeIndicator)
-}
-
-// buildAndRenderLeftText constructs and styles the left portion of the status line
-func (iv *InputView) buildAndRenderLeftText(isBashMode bool, isToolsMode bool) string {
-	dimColor := iv.styleProvider.GetThemeColor("dim")
-
-	var modePrefix string
-	var modeColor string
-	if isBashMode {
-		modePrefix = "Bash mode"
-		modeColor = iv.styleProvider.GetThemeColor("status")
-	} else if isToolsMode {
-		modePrefix = "Tools mode"
-		modeColor = iv.styleProvider.GetThemeColor("accent")
-	}
-
-	modelInfo := iv.getModelInfo()
-
-	if modePrefix != "" && modelInfo != "" {
-		coloredMode := iv.styleProvider.RenderStyledText(modePrefix, styles.StyleOptions{
-			Foreground: modeColor,
-		})
-		separator := iv.styleProvider.RenderStyledText(" • ", styles.StyleOptions{
-			Foreground: dimColor,
-		})
-		coloredModel := iv.styleProvider.RenderStyledText(modelInfo, styles.StyleOptions{
-			Foreground: dimColor,
-		})
-		return "  " + coloredMode + separator + coloredModel
-	}
-
-	if modePrefix != "" {
-		return "  " + iv.styleProvider.RenderStyledText(modePrefix, styles.StyleOptions{
-			Foreground: modeColor,
-		})
-	}
-
-	if modelInfo != "" {
-		return "  " + iv.styleProvider.RenderStyledText(modelInfo, styles.StyleOptions{
-			Foreground: dimColor,
-		})
-	}
-
-	return ""
-}
-
-// getModelInfo returns the model display information without leading spaces
-func (iv *InputView) getModelInfo() string {
-	if iv.modelService == nil {
-		return ""
-	}
-	currentModel := iv.modelService.GetCurrentModel()
-	if currentModel == "" {
-		return ""
-	}
-	return strings.TrimPrefix(iv.buildModelDisplayText(currentModel), "  ")
-}
-
-// combineLeftAndRight combines the left text and right mode indicator with appropriate spacing
-func (iv *InputView) combineLeftAndRight(renderedLeft string, modeIndicator string) string {
-	if renderedLeft == "" && modeIndicator == "" {
-		return ""
-	}
-
-	inputRightEdge := iv.width - 4
-
-	// Both left and right exist
-	if renderedLeft != "" && modeIndicator != "" {
-		leftWidth := iv.styleProvider.GetWidth(renderedLeft)
-		rightWidth := iv.styleProvider.GetWidth(modeIndicator)
-		availableWidth := inputRightEdge - leftWidth - rightWidth
-
-		if availableWidth > 0 {
-			return renderedLeft + strings.Repeat(" ", availableWidth) + modeIndicator
-		}
-		return renderedLeft + " " + modeIndicator
-	}
-
-	// Only left text
-	if renderedLeft != "" {
-		return renderedLeft
-	}
-
-	// Only right indicator
-	rightWidth := iv.styleProvider.GetWidth(modeIndicator)
-	availableWidth := inputRightEdge - rightWidth
-	if availableWidth > 0 {
-		return strings.Repeat(" ", availableWidth) + modeIndicator
-	}
-	return modeIndicator
-}
-
-func (iv *InputView) buildModelDisplayText(currentModel string) string {
-	parts := []string{fmt.Sprintf("Model: %s", currentModel)}
-
-	if iv.themeService != nil {
-		currentTheme := iv.themeService.GetCurrentThemeName()
-		parts = append(parts, fmt.Sprintf("Theme: %s", currentTheme))
-	}
-
-	if iv.configService != nil {
-		maxTokens := iv.configService.Agent.MaxTokens
-		if maxTokens > 0 {
-			parts = append(parts, fmt.Sprintf("Max Output: %d", maxTokens))
-		}
-	}
-
-	if iv.stateManager != nil {
-		if readiness := iv.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
-			parts = append(parts, fmt.Sprintf("Agents: %d/%d", readiness.ReadyAgents, readiness.TotalAgents))
-		}
-	}
-
-	if contextIndicator := iv.getContextUsageIndicator(currentModel); contextIndicator != "" {
-		parts = append(parts, contextIndicator)
-	}
-
-	return "  " + strings.Join(parts, " • ")
-}
-
-// getContextUsageIndicator returns a context usage indicator string
-func (iv *InputView) getContextUsageIndicator(model string) string {
-	if iv.conversationRepo == nil {
-		return ""
-	}
-
-	stats := iv.conversationRepo.GetSessionTokens()
-	currentContextSize := stats.LastInputTokens
-	if currentContextSize == 0 {
-		return ""
-	}
-
-	contextWindow := iv.estimateContextWindow(model)
-	if contextWindow == 0 {
-		return ""
-	}
-
-	usagePercent := float64(currentContextSize) * 100 / float64(contextWindow)
-
-	displayPercent := usagePercent
-	if displayPercent > 100 {
-		displayPercent = 100
-	}
-
-	if usagePercent >= 90 {
-		return fmt.Sprintf("Context: %.0f%% FULL", displayPercent)
-	} else if usagePercent >= 75 {
-		return fmt.Sprintf("Context: %.0f%% HIGH", displayPercent)
-	} else if usagePercent >= 50 {
-		return fmt.Sprintf("Context: %.0f%%", displayPercent)
-	}
-
-	return ""
-}
-
-// estimateContextWindow returns an estimated context window size based on model name
-func (iv *InputView) estimateContextWindow(model string) int {
-	return models.EstimateContextWindow(model)
 }
 
 // NavigateHistoryUp moves up in history (to older messages) - public method for interface

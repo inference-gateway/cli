@@ -423,7 +423,7 @@ func (a *AutocompleteImpl) Render() string {
 
 	helpColor := a.theme.GetDimColor()
 	if len(a.filtered) > 0 {
-		b.WriteString(fmt.Sprintf("\n\n%sTab to select, ↑↓ to navigate%s\n",
+		b.WriteString(fmt.Sprintf("\n\n  %sTab to select, ↑↓ to navigate%s\n",
 			helpColor, colors.Reset))
 	}
 
