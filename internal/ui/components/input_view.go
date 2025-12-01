@@ -356,7 +356,6 @@ func (iv *InputView) renderModelDisplayWithMode(isBashMode bool, isToolsMode boo
 func (iv *InputView) buildAndRenderLeftText(isBashMode bool, isToolsMode bool) string {
 	dimColor := iv.styleProvider.GetThemeColor("dim")
 
-	// Get mode-specific prefix and color
 	var modePrefix string
 	var modeColor string
 	if isBashMode {
@@ -369,7 +368,6 @@ func (iv *InputView) buildAndRenderLeftText(isBashMode bool, isToolsMode bool) s
 
 	modelInfo := iv.getModelInfo()
 
-	// Build the complete text with selective coloring
 	if modePrefix != "" && modelInfo != "" {
 		coloredMode := iv.styleProvider.RenderStyledText(modePrefix, styles.StyleOptions{
 			Foreground: modeColor,
@@ -443,8 +441,6 @@ func (iv *InputView) combineLeftAndRight(renderedLeft string, modeIndicator stri
 	}
 	return modeIndicator
 }
-
-
 
 func (iv *InputView) buildModelDisplayText(currentModel string) string {
 	parts := []string{fmt.Sprintf("Model: %s", currentModel)}
