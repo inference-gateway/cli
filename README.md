@@ -28,6 +28,7 @@ and management of inference services.
 - [Installation](#installation)
   - [Using Go Install](#using-go-install)
   - [Using Container Image](#using-container-image)
+  - [Using NixOS / Nix Package Manager](#using-nixos--nix-package-manager)
   - [Using Install Script](#using-install-script)
   - [Manual Download](#manual-download)
   - [Verifying Release Binaries](#verifying-release-binaries)
@@ -149,6 +150,52 @@ docker run --rm -it ghcr.io/inference-gateway/cli:0.48.12
 ```
 
 **Available architectures:** `linux/amd64`, `linux/arm64`
+
+### Using NixOS / Nix Package Manager
+
+For NixOS users or systems with the Nix package manager:
+
+**Install from nixpkgs (after submission is accepted):**
+
+```bash
+# NixOS configuration
+environment.systemPackages = with pkgs; [
+  infer
+];
+
+# Or install to user profile
+nix-env -iA nixpkgs.infer
+
+# Or with nix profile (flakes)
+nix profile install nixpkgs#infer
+```
+
+**Build from source with Nix:**
+
+```bash
+# Clone the repository
+git clone https://github.com/inference-gateway/cli.git
+cd cli
+
+# Build using the Nix expression
+nix-build nix/infer.nix
+
+# Test the binary
+./result/bin/infer version
+
+# Install to user profile
+nix-env -if nix/infer.nix
+```
+
+**Benefits of using Nix:**
+
+- Reproducible builds across all platforms
+- Automatic dependency management
+- Shell completions automatically installed
+- Easy rollback to previous versions
+- Integration with NixOS system configuration
+
+See [nixpkgs submission guide](docs/nixpkgs-submission.md) for details on the official package submission process.
 
 ### Using Install Script
 
