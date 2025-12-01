@@ -771,14 +771,14 @@ func (cv *ConversationView) renderToolCommandEntry(_ domain.ConversationEntry, c
 
 // appendStreamingContent buffers streaming content for throttled rendering
 func (cv *ConversationView) appendStreamingContent(content string) tea.Cmd {
+	cv.streamingBuffer.WriteString(content)
+	cv.renderPending = true
+
 	if !cv.isStreaming {
 		cv.isStreaming = true
 		cv.lastRenderTime = time.Now()
 		return renderTickCmd()
 	}
-
-	cv.streamingBuffer.WriteString(content)
-	cv.renderPending = true
 
 	timeSinceLastRender := time.Since(cv.lastRenderTime)
 	if timeSinceLastRender >= constants.RenderThrottleInterval {
@@ -786,7 +786,6 @@ func (cv *ConversationView) appendStreamingContent(content string) tea.Cmd {
 		return nil
 	}
 
-	// Don't return tick command - it's already running
 	return nil
 }
 
