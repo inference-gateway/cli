@@ -455,14 +455,6 @@ func (p *Provider) GetWidth(s string) int {
 
 // Custom rendering - for complex styling needs
 
-// RenderTextSelectionCursor renders a cursor character for text selection mode
-func (p *Provider) RenderTextSelectionCursor(char string) string {
-	style := lipgloss.NewStyle().
-		Background(lipgloss.Color("#ffffff")).
-		Foreground(lipgloss.Color("#000000"))
-	return style.Render(char)
-}
-
 // RenderWithColor renders text with a specific hex color
 func (p *Provider) RenderWithColor(text, hexColor string) string {
 	style := lipgloss.NewStyle().Foreground(lipgloss.Color(hexColor))
@@ -531,28 +523,10 @@ type StyleOptions struct {
 	MarginTop    int
 }
 
-// RenderTextSelection renders text with selection highlighting (accent background)
-func (p *Provider) RenderTextSelection(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Background(lipgloss.Color(theme.GetAccentColor())).
-		Foreground(lipgloss.Color("#ffffff"))
-	return style.Render(text)
-}
-
 // RenderCursor renders text with cursor styling
 func (p *Provider) RenderCursor(text string) string {
 	style := lipgloss.NewStyle().
-		Background(lipgloss.Color("#00FFFF")).
-		Foreground(lipgloss.Color("#000000"))
-	return style.Render(text)
-}
-
-// RenderVisualLineSelection renders a full line with visual line selection styling
-func (p *Provider) RenderVisualLineSelection(text string) string {
-	theme := p.themeService.GetCurrentTheme()
-	style := lipgloss.NewStyle().
-		Background(lipgloss.Color(theme.GetAccentColor())).
+		Background(lipgloss.Color("#808080")).
 		Foreground(lipgloss.Color("#000000"))
 	return style.Render(text)
 }

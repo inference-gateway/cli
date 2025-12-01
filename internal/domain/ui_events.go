@@ -116,12 +116,6 @@ type ToggleHelpBarEvent struct{}
 // HideHelpBarEvent hides the help bar when typing other characters
 type HideHelpBarEvent struct{}
 
-// ExitSelectionModeEvent exits text selection mode
-type ExitSelectionModeEvent struct{}
-
-// InitializeTextSelectionEvent initializes text selection mode with current conversation
-type InitializeTextSelectionEvent struct{}
-
 // ConversationsLoadedEvent indicates conversations have been loaded
 type ConversationsLoadedEvent struct {
 	Conversations []interface{}

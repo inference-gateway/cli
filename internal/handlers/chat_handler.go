@@ -763,8 +763,6 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.SetupFileSelectionEvent,
 		domain.ScrollRequestEvent,
 		domain.ConversationsLoadedEvent,
-		domain.InitializeTextSelectionEvent,
-		domain.ExitSelectionModeEvent,
 		domain.ModelSelectedEvent,
 		domain.ThemeSelectedEvent,
 		domain.ShowPlanApprovalEvent,
@@ -773,6 +771,11 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		tea.WindowSizeMsg,
 		tea.MouseMsg,
 		spinner.TickMsg:
+		return true
+	}
+
+	msgType := fmt.Sprintf("%T", msg)
+	if msgType == "components.renderTickMsg" || msgType == "tea.clearScreenMsg" {
 		return true
 	}
 

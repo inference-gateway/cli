@@ -107,11 +107,10 @@ func (a *AutocompleteImpl) loadTools() {
 	}
 
 	planModeTools := map[string]bool{
-		"Read":                true,
-		"Grep":                true,
-		"Tree":                true,
-		"TodoWrite":           true,
-		"RequestPlanApproval": true,
+		"Read":      true,
+		"Grep":      true,
+		"Tree":      true,
+		"TodoWrite": true,
 	}
 
 	var isInPlanMode bool
@@ -121,6 +120,10 @@ func (a *AutocompleteImpl) loadTools() {
 	}
 
 	for _, toolName := range availableTools {
+		if toolName == "RequestPlanApproval" {
+			continue
+		}
+
 		if isInPlanMode && !planModeTools[toolName] {
 			continue
 		}

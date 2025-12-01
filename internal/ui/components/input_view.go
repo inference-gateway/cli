@@ -29,7 +29,6 @@ type InputView struct {
 	conversationRepo     domain.ConversationRepository
 	Autocomplete         ui.AutocompleteInterface
 	historyManager       *history.HistoryManager
-	isTextSelectionMode  bool
 	disabled             bool
 	savedText            string
 	savedCursor          int
@@ -56,17 +55,16 @@ func NewInputViewWithConfigDir(modelService domain.ModelService, configDir strin
 	}
 
 	return &InputView{
-		text:                "",
-		cursor:              0,
-		placeholder:         "Type your message... (Press Enter to send, Alt+Enter or Ctrl+J for newline, ? for help)",
-		width:               80,
-		height:              5,
-		modelService:        modelService,
-		Autocomplete:        nil,
-		historyManager:      historyManager,
-		isTextSelectionMode: false,
-		themeService:        nil,
-		imageAttachments:    []domain.ImageAttachment{},
+		text:             "",
+		cursor:           0,
+		placeholder:      "Type your message... (Press Enter to send, Alt+Enter or Ctrl+J for newline, ? for help)",
+		width:            80,
+		height:           5,
+		modelService:     modelService,
+		Autocomplete:     nil,
+		historyManager:   historyManager,
+		themeService:     nil,
+		imageAttachments: []domain.ImageAttachment{},
 	}
 }
 
@@ -164,7 +162,6 @@ func (iv *InputView) Render() string {
 
 	components := []string{borderedInput}
 
-	components = iv.addModeIndicatorBelowInput(components, isBashMode, isToolsMode)
 	components = iv.addModelDisplayWithMode(components, isBashMode, isToolsMode)
 	if !iv.disabled {
 		components = iv.addAutocomplete(components)
@@ -296,7 +293,7 @@ func (iv *InputView) buildTextWithCursor(before, after string) string {
 }
 
 func (iv *InputView) createCursorChar(char string) string {
-	return iv.styleProvider.RenderTextSelectionCursor(char)
+	return iv.styleProvider.RenderCursor(char)
 }
 
 // getAgentModeIndicator returns a compact mode indicator for display on the right side
@@ -327,22 +324,6 @@ func (iv *InputView) getAgentModeIndicator() string {
 	)
 }
 
-// addModeIndicatorBelowInput adds mode indicators below the input field (for text selection mode only)
-func (iv *InputView) addModeIndicatorBelowInput(components []string, isBashMode bool, isToolsMode bool) []string {
-	if iv.height >= 2 && iv.isTextSelectionMode {
-		indicator := iv.styleProvider.RenderStyledText(
-			"TEXT SELECTION MODE - Use vim keys to navigate and select text (Escape to exit)",
-			styles.StyleOptions{
-				Foreground: iv.styleProvider.GetThemeColor("accent"),
-				Bold:       true,
-				Width:      iv.width,
-			},
-		)
-		components = append(components, indicator)
-	}
-	return components
-}
-
 func (iv *InputView) addAutocomplete(components []string) []string {
 	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() && iv.height >= 3 {
 		autocompleteContent := iv.Autocomplete.Render()
@@ -358,7 +339,6 @@ func (iv *InputView) addModelDisplayWithMode(components []string, isBashMode boo
 		return components
 	}
 
-	// Build the left side text (bash/tools mode indicator or model info)
 	var leftText string
 	if isBashMode {
 		leftText = "BASH MODE"
@@ -371,10 +351,8 @@ func (iv *InputView) addModelDisplayWithMode(components []string, isBashMode boo
 		}
 	}
 
-	// Get the right side indicator (agent mode)
 	modeIndicator := iv.getAgentModeIndicator()
 
-	// Render the status line
 	if leftText != "" || modeIndicator != "" {
 		return iv.buildStatusLine(components, leftText, modeIndicator, isBashMode, isToolsMode)
 	}
@@ -668,14 +646,6 @@ func (iv *InputView) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, comple
 		return iv.Autocomplete.HandleKey(key)
 	}
 	return false, ""
-}
-
-func (iv *InputView) SetTextSelectionMode(enabled bool) {
-	iv.isTextSelectionMode = enabled
-}
-
-func (iv *InputView) IsTextSelectionMode() bool {
-	return iv.isTextSelectionMode
 }
 
 // SetDisabled sets whether the input is disabled (prevents typing)

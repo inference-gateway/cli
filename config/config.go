@@ -81,20 +81,19 @@ type ImageConfig struct {
 
 // ToolsConfig contains tool execution settings
 type ToolsConfig struct {
-	Enabled             bool                          `yaml:"enabled" mapstructure:"enabled"`
-	Sandbox             SandboxConfig                 `yaml:"sandbox" mapstructure:"sandbox"`
-	Bash                BashToolConfig                `yaml:"bash" mapstructure:"bash"`
-	Read                ReadToolConfig                `yaml:"read" mapstructure:"read"`
-	Write               WriteToolConfig               `yaml:"write" mapstructure:"write"`
-	Edit                EditToolConfig                `yaml:"edit" mapstructure:"edit"`
-	Delete              DeleteToolConfig              `yaml:"delete" mapstructure:"delete"`
-	Grep                GrepToolConfig                `yaml:"grep" mapstructure:"grep"`
-	Tree                TreeToolConfig                `yaml:"tree" mapstructure:"tree"`
-	WebFetch            WebFetchToolConfig            `yaml:"web_fetch" mapstructure:"web_fetch"`
-	WebSearch           WebSearchToolConfig           `yaml:"web_search" mapstructure:"web_search"`
-	Github              GithubToolConfig              `yaml:"github" mapstructure:"github"`
-	TodoWrite           TodoWriteToolConfig           `yaml:"todo_write" mapstructure:"todo_write"`
-	RequestPlanApproval RequestPlanApprovalToolConfig `yaml:"request_plan_approval" mapstructure:"request_plan_approval"`
+	Enabled   bool                `yaml:"enabled" mapstructure:"enabled"`
+	Sandbox   SandboxConfig       `yaml:"sandbox" mapstructure:"sandbox"`
+	Bash      BashToolConfig      `yaml:"bash" mapstructure:"bash"`
+	Read      ReadToolConfig      `yaml:"read" mapstructure:"read"`
+	Write     WriteToolConfig     `yaml:"write" mapstructure:"write"`
+	Edit      EditToolConfig      `yaml:"edit" mapstructure:"edit"`
+	Delete    DeleteToolConfig    `yaml:"delete" mapstructure:"delete"`
+	Grep      GrepToolConfig      `yaml:"grep" mapstructure:"grep"`
+	Tree      TreeToolConfig      `yaml:"tree" mapstructure:"tree"`
+	WebFetch  WebFetchToolConfig  `yaml:"web_fetch" mapstructure:"web_fetch"`
+	WebSearch WebSearchToolConfig `yaml:"web_search" mapstructure:"web_search"`
+	Github    GithubToolConfig    `yaml:"github" mapstructure:"github"`
+	TodoWrite TodoWriteToolConfig `yaml:"todo_write" mapstructure:"todo_write"`
 
 	Safety SafetyConfig `yaml:"safety" mapstructure:"safety"`
 }
@@ -164,12 +163,6 @@ type WebSearchToolConfig struct {
 
 // TodoWriteToolConfig contains TodoWrite-specific tool settings
 type TodoWriteToolConfig struct {
-	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
-}
-
-// RequestPlanApprovalToolConfig contains RequestPlanApproval-specific tool settings
-type RequestPlanApprovalToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
@@ -544,10 +537,6 @@ func DefaultConfig() *Config { //nolint:funlen
 				Enabled:         true,
 				RequireApproval: &[]bool{false}[0],
 			},
-			RequestPlanApproval: RequestPlanApprovalToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
-			},
 			Safety: SafetyConfig{
 				RequireApproval: true,
 			},
@@ -856,9 +845,7 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 			return *c.Tools.TodoWrite.RequireApproval
 		}
 	case "RequestPlanApproval":
-		if c.Tools.RequestPlanApproval.RequireApproval != nil {
-			return *c.Tools.RequestPlanApproval.RequireApproval
-		}
+		return false
 	case "A2A_QueryAgent":
 		if c.A2A.Tools.QueryAgent.RequireApproval != nil {
 			return *c.A2A.Tools.QueryAgent.RequireApproval

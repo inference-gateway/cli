@@ -85,8 +85,6 @@ type InputComponent interface {
 	GetImageAttachments() []domain.ImageAttachment
 	ClearImageAttachments()
 	AddToHistory(text string) error
-	SetTextSelectionMode(enabled bool)
-	IsTextSelectionMode() bool
 }
 
 // StatusComponent interface for status display

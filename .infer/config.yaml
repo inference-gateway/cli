@@ -28,7 +28,7 @@ client:
       - 503
       - 504
 logging:
-  debug: false
+  debug: true
   dir: ""
 tools:
   enabled: true
@@ -110,9 +110,6 @@ tools:
       max_size: 1048576
       timeout: 30
   todo_write:
-    enabled: true
-    require_approval: false
-  request_plan_approval:
     enabled: true
     require_approval: false
   safety:

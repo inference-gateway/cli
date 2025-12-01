@@ -27,17 +27,16 @@ func createMockModelService() *domainmocks.FakeModelService {
 // createInputViewWithTheme creates an InputView with isolated memory-only history for testing
 func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 	iv := &InputView{
-		text:                "",
-		cursor:              0,
-		placeholder:         "Type your message...",
-		width:               80,
-		height:              5,
-		modelService:        modelService,
-		Autocomplete:        nil,
-		historyManager:      history.NewMemoryOnlyHistoryManager(5),
-		isTextSelectionMode: false,
-		themeService:        nil,
-		imageAttachments:    []domain.ImageAttachment{},
+		text:             "",
+		cursor:           0,
+		placeholder:      "Type your message...",
+		width:            80,
+		height:           5,
+		modelService:     modelService,
+		Autocomplete:     nil,
+		historyManager:   history.NewMemoryOnlyHistoryManager(5),
+		themeService:     nil,
+		imageAttachments: []domain.ImageAttachment{},
 	}
 
 	fakeTheme := &uimocks.FakeTheme{}

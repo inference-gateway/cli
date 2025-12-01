@@ -83,8 +83,6 @@ var (
 	DiffRemoveColor         = Color{ANSI: Red, Lipgloss: LipglossRed}                          // Red for removals
 	WarningColor            = Color{ANSI: Amber, Lipgloss: LipglossAmber}                      // Amber for warnings
 	QueuedMessageColor      = Color{ANSI: LightGray, Lipgloss: LipglossLightGray}              // Light gray for queued messages
-	TextSelectionForeground = Color{ANSI: "\033[38;2;0;0;0m", Lipgloss: LipglossBlack}         // Black for text selection foreground
-	TextSelectionCursor     = Color{ANSI: "\033[48;2;255;255;255m", Lipgloss: LipglossWhiteBg} // White background for text selection cursor
 
 	// GitHub Light Theme Colors
 	GithubUserColor       = Color{ANSI: "\033[38;2;3;102;214m", Lipgloss: GithubBlue}
