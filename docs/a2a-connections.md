@@ -72,6 +72,29 @@ Query the agent at localhost:8081 for its capabilities
 }
 ```
 
+#### A2A_QueryTask Tool - Query Task Status
+
+The `A2A_QueryTask` tool queries the status and result of a specific A2A task:
+
+```text
+Check the status of task task-456 from the agent at http://localhost:8081
+```
+
+```json
+{
+  "agent_url": "http://localhost:8081",
+  "context_id": "context-123",
+  "task_id": "task-456"
+}
+```
+
+**Important:** When you submit a task via `A2A_SubmitTask`, it automatically monitors the task in the
+background. Only use `A2A_QueryTask` to:
+
+1. Check tasks from previous conversations
+2. Check tasks submitted outside this session
+3. Get detailed results AFTER you receive a completion notification
+
 ### Tool Implementation Details
 
 #### A2A_SubmitTask Tool
@@ -91,6 +114,17 @@ Query the agent at localhost:8081 for its capabilities
   - `agent_url` (required): URL of the A2A agent to query
 - **Returns**: Agent card information with capabilities and configuration
 - **Behavior**: Retrieves agent metadata for discovery and validation
+
+#### A2A_QueryTask Tool
+
+- **Name**: `A2A_QueryTask`
+- **Parameters**:
+  - `agent_url` (required): URL of the A2A agent server
+  - `context_id` (required): Context ID for the task
+  - `task_id` (required): ID of the task to query
+- **Returns**: Complete task object including status, artifacts, and message data
+- **Behavior**: Queries task status and returns detailed information. Cannot be used while background
+  polling is active for the same agent.
 
 #### A2A_DownloadArtifacts Tool - Download Task Artifacts
 
@@ -128,38 +162,39 @@ Tool Details:
 
 ## A2A Integration
 
-### Shortcut Command
-
-Use the `/a2a` shortcut to view A2A server status:
-
-```bash
-/a2a
-/a2a list
-```
-
-This opens the A2A servers view showing:
-
-- Gateway URL configuration
-- A2A middleware status (enabled/disabled)
-- API key configuration status
-- Connection timeout settings
-
 ### A2A Tool Configuration
 
-A2A tools are configured in the tools section:
+A2A tools are configured in the `a2a.tools` section of your configuration:
 
 ```yaml
 a2a:
-  enabled: true
+  enabled: true  # Enable A2A functionality
+  cache:
+    enabled: true  # Enable agent card caching
+    ttl: 300       # Cache TTL in seconds
+  task:
+    status_poll_seconds: 5       # Background task polling interval
+    polling_strategy: "exponential"  # Polling strategy
+    initial_poll_interval_sec: 2     # Initial poll interval
+    max_poll_interval_sec: 60        # Maximum poll interval
+    backoff_multiplier: 2.0          # Backoff multiplier
+    background_monitoring: true      # Enable background monitoring
+    completed_task_retention: 5      # Number of completed tasks to retain
   tools:
-    submit_task:
-      enabled: true  # Enable A2A_SubmitTask tool
     query_agent:
-      enabled: true  # Enable A2A_QueryAgent tool
+      enabled: true         # Enable A2A_QueryAgent tool
+      require_approval: false  # Whether approval is required
     query_task:
-      enabled: true  # Enable A2A_QueryTask tool
+      enabled: true         # Enable A2A_QueryTask tool
+      require_approval: false  # Whether approval is required
+    submit_task:
+      enabled: true         # Enable A2A_SubmitTask tool
+      require_approval: true   # Whether approval is required
     download_artifacts:
-      enabled: true  # Enable A2A_DownloadArtifacts tool
+      enabled: true         # Enable A2A_DownloadArtifacts tool
+      download_dir: "/tmp/downloads"  # Directory for downloaded artifacts
+      timeout_seconds: 30   # Download timeout in seconds
+      require_approval: true   # Whether approval is required
 ```
 
 ## Security Considerations
