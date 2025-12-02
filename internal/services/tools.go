@@ -63,10 +63,12 @@ func (s *LLMToolService) ListTools() []sdk.ChatCompletionTool {
 func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompletionTool {
 	if mode == domain.AgentModePlan {
 		allowedTools := map[string]bool{
-			"Read":           true,
-			"Grep":           true,
-			"Tree":           true,
-			"A2A_QueryAgent": true,
+			"Read":                true,
+			"Grep":                true,
+			"Tree":                true,
+			"A2A_QueryAgent":      true,
+			"TodoWrite":           true,
+			"RequestPlanApproval": true,
 		}
 
 		var definitions []sdk.ChatCompletionTool
@@ -79,8 +81,18 @@ func (s *LLMToolService) ListToolsForMode(mode domain.AgentMode) []sdk.ChatCompl
 		return definitions
 	}
 
-	allTools := s.ListTools()
-	return allTools
+	planOnlyTools := map[string]bool{
+		"RequestPlanApproval": true,
+	}
+
+	var definitions []sdk.ChatCompletionTool
+	allTools := s.registry.GetToolDefinitions()
+	for _, tool := range allTools {
+		if s.isToolEnabled(tool.Function.Name) && !planOnlyTools[tool.Function.Name] {
+			definitions = append(definitions, tool)
+		}
+	}
+	return definitions
 }
 
 // ListAvailableTools returns names of all enabled tools

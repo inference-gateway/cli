@@ -37,6 +37,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	data ChatInterfaceData,
 	conversationView ui.ConversationRenderer,
 	inputView ui.InputComponent,
+	inputStatusBar ui.InputStatusBarComponent,
 	statusView ui.StatusComponent,
 	helpBar ui.HelpBarComponent,
 	queueBoxView *QueueBoxView,
@@ -86,6 +87,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	conversationView.SetHeight(conversationHeight)
 	inputView.SetWidth(width)
 	inputView.SetHeight(inputHeight)
+	inputStatusBar.SetWidth(width)
 	statusView.SetWidth(width)
 
 	if queueBoxView != nil {
@@ -105,7 +107,6 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	headerBorder := ""
 
 	conversationArea := conversationView.Render()
-	separator := strings.Repeat("─", width)
 	inputArea := inputView.Render()
 
 	components := []string{header, headerBorder, conversationArea}
@@ -124,8 +125,6 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 		}
 	}
 
-	components = append(components, separator)
-
 	if statusHeight > 0 {
 		statusContent := statusView.Render()
 		if statusContent != "" {
@@ -135,11 +134,17 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 
 	components = append(components, inputArea)
 
+	inputStatusBar.SetInputText(inputView.GetInput())
+	inputStatusBarContent := inputStatusBar.Render()
+	if inputStatusBarContent != "" {
+		components = append(components, inputStatusBarContent)
+	}
+
 	helpBar.SetWidth(width)
 	helpBarContent := helpBar.Render()
 	if helpBarContent != "" {
-		separator := strings.Repeat("─", width)
-		components = append(components, separator)
+		helpBarSeparator := "  " + strings.Repeat("─", width-4)
+		components = append(components, helpBarSeparator)
 		components = append(components, helpBarContent)
 	}
 

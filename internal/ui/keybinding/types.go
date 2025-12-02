@@ -31,6 +31,10 @@ type KeyHandlerContext interface {
 	ToggleRawFormat()
 	SendMessage() tea.Cmd
 	GetPageSize() int
+
+	// Mouse mode
+	GetMouseEnabled() bool
+	SetMouseEnabled(bool)
 }
 
 // Theme is an alias to the ui Theme interface

@@ -7,20 +7,15 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
-	"time"
 
 	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
-	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	markdown "github.com/inference-gateway/cli/internal/ui/markdown"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
 )
-
-// renderTickMsg is sent by the ticker to trigger batched UI updates
-type renderTickMsg struct{}
 
 // ConversationView handles the chat conversation display
 type ConversationView struct {
@@ -35,7 +30,6 @@ type ConversationView struct {
 	plainTextLines      []string
 	configPath          string
 	styleProvider       *styles.Provider
-	isStreaming         bool
 	toolCallRenderer    *ToolCallRenderer
 	markdownRenderer    *markdown.Renderer
 	rawFormat           bool
@@ -43,8 +37,7 @@ type ConversationView struct {
 	stateManager        domain.StateManager
 	renderedContent     string
 	streamingBuffer     strings.Builder
-	lastRenderTime      time.Time
-	renderPending       bool
+	isStreaming         bool
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
@@ -96,7 +89,6 @@ func (cv *ConversationView) SetStateManager(stateManager domain.StateManager) {
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
 	wasAtBottom := cv.Viewport.AtBottom()
 	cv.conversation = conversation
-	cv.isStreaming = false
 	cv.updatePlainTextLines()
 	cv.updateViewportContentFull()
 	if wasAtBottom {
@@ -218,11 +210,20 @@ func (cv *ConversationView) Render() string {
 }
 
 func (cv *ConversationView) updateViewportContent() {
-	if cv.isStreaming {
-		cv.updateViewportContentIncremental()
-	} else {
-		cv.updateViewportContentFull()
-	}
+	cv.updateViewportContentFull()
+}
+
+// appendStreamingContent appends content to the streaming buffer and triggers immediate render
+func (cv *ConversationView) appendStreamingContent(content string) {
+	cv.isStreaming = true
+	cv.streamingBuffer.WriteString(content)
+	cv.updateViewportContentFull()
+}
+
+// flushStreamingBuffer clears the streaming buffer after completion
+func (cv *ConversationView) flushStreamingBuffer() {
+	cv.streamingBuffer.Reset()
+	cv.isStreaming = false
 }
 
 // updateViewportContentFull performs a full rebuild of the viewport content
@@ -248,45 +249,17 @@ func (cv *ConversationView) updateViewportContentFull() {
 		}
 	}
 
-	cv.renderedContent = b.String()
-	cv.Viewport.SetContent(cv.renderedContent)
-
-	if !cv.userScrolledUp {
-		cv.Viewport.GotoBottom()
-	}
-}
-
-// updateViewportContentIncremental optimizes updates during streaming by only updating the last entry
-func (cv *ConversationView) updateViewportContentIncremental() {
-	if len(cv.conversation) == 0 {
-		return
-	}
-
-	var b strings.Builder
-
-	for i := 0; i < len(cv.conversation)-1; i++ {
-		entry := cv.conversation[i]
-		if entry.Hidden {
-			continue
+	if cv.isStreaming && cv.streamingBuffer.Len() > 0 {
+		streamingContent := cv.streamingBuffer.String()
+		if cv.markdownRenderer != nil && !cv.rawFormat {
+			streamingContent = cv.markdownRenderer.Render(streamingContent)
+		} else {
+			streamingContent = formatting.FormatResponsiveMessage(streamingContent, cv.width)
 		}
-		b.WriteString(cv.renderEntryWithIndex(entry, i))
-		b.WriteString("\n")
-	}
 
-	lastIdx := len(cv.conversation) - 1
-	lastEntry := cv.conversation[lastIdx]
-	if !lastEntry.Hidden {
-		b.WriteString(cv.renderEntryWithIndex(lastEntry, lastIdx))
-		b.WriteString("\n")
-	}
-
-	if cv.toolCallRenderer != nil {
-		toolPreviews := cv.toolCallRenderer.RenderPreviews()
-		if toolPreviews != "" {
-			b.WriteString("\n")
-			b.WriteString(toolPreviews)
-			b.WriteString("\n")
-		}
+		assistantColor := cv.styleProvider.GetThemeColor("assistant")
+		roleStyled := cv.styleProvider.RenderWithColor("⏺ Assistant:", assistantColor)
+		b.WriteString(roleStyled + " " + streamingContent + "\n")
 	}
 
 	cv.renderedContent = b.String()
@@ -392,7 +365,7 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 	content := contentStr
 
 	var formattedContent string
-	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.isStreaming && !cv.rawFormat {
+	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.rawFormat {
 		formattedContent = cv.markdownRenderer.Render(content)
 	} else {
 		formattedContent = formatting.FormatResponsiveMessage(content, cv.width)
@@ -623,13 +596,6 @@ func (cv *ConversationView) shortenPath(path string) string {
 	return "..." + string(filepath.Separator) + parts[len(parts)-2] + string(filepath.Separator) + parts[len(parts)-1]
 }
 
-// renderTickCmd creates a ticker command for throttled UI updates
-func renderTickCmd() tea.Cmd {
-	return tea.Tick(constants.RenderThrottleInterval, func(t time.Time) tea.Msg {
-		return renderTickMsg{}
-	})
-}
-
 // Bubble Tea interface
 func (cv *ConversationView) Init() tea.Cmd { return nil }
 
@@ -660,29 +626,17 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case domain.UpdateHistoryEvent:
-		cv.isStreaming = false
 		cv.flushStreamingBuffer()
 		cv.SetConversation(msg.History)
 		return cv, cmd
 	case domain.BashCommandCompletedEvent:
-		cv.isStreaming = false
-		cv.flushStreamingBuffer()
 		cv.SetConversation(msg.History)
 		if cv.toolCallRenderer != nil {
 			cv.toolCallRenderer.ClearPreviews()
 		}
 		return cv, cmd
 	case domain.StreamingContentEvent:
-		tickCmd := cv.appendStreamingContent(msg.Content)
-		if tickCmd != nil {
-			cmd = tea.Batch(cmd, tickCmd)
-		}
-		return cv, cmd
-	case renderTickMsg:
-		cv.flushStreamingBuffer()
-		if cv.isStreaming && cv.renderPending {
-			cmd = renderTickCmd()
-		}
+		cv.appendStreamingContent(msg.Content)
 		return cv, cmd
 	case domain.ScrollRequestEvent:
 		if msg.ComponentID == "conversation" {
@@ -769,62 +723,6 @@ func (cv *ConversationView) renderToolCommandEntry(_ domain.ConversationEntry, c
 	return message + "\n"
 }
 
-// appendStreamingContent buffers streaming content for throttled rendering
-func (cv *ConversationView) appendStreamingContent(content string) tea.Cmd {
-	if !cv.isStreaming {
-		cv.isStreaming = true
-		cv.lastRenderTime = time.Now()
-	}
-
-	cv.streamingBuffer.WriteString(content)
-	cv.renderPending = true
-
-	timeSinceLastRender := time.Since(cv.lastRenderTime)
-	if timeSinceLastRender >= constants.RenderThrottleInterval {
-		cv.flushStreamingBuffer()
-		return nil
-	}
-
-	return renderTickCmd()
-}
-
-// flushStreamingBuffer applies buffered streaming content to the conversation
-func (cv *ConversationView) flushStreamingBuffer() {
-	if !cv.renderPending {
-		return
-	}
-
-	bufferedContent := cv.streamingBuffer.String()
-	if bufferedContent == "" {
-		return
-	}
-
-	cv.streamingBuffer.Reset()
-	cv.renderPending = false
-	cv.lastRenderTime = time.Now()
-
-	if len(cv.conversation) == 0 || cv.conversation[len(cv.conversation)-1].Message.Role != sdk.Assistant {
-		streamingEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(bufferedContent),
-			},
-			Time: time.Now(),
-		}
-		cv.conversation = append(cv.conversation, streamingEntry)
-	} else {
-		lastIdx := len(cv.conversation) - 1
-		currentContent, err := cv.conversation[lastIdx].Message.Content.AsMessageContent0()
-		if err != nil {
-			currentContent = ""
-		}
-		cv.conversation[lastIdx].Message.Content = sdk.NewMessageContent(currentContent + bufferedContent)
-	}
-
-	cv.updatePlainTextLines()
-	cv.updateViewportContent()
-}
-
 // renderPlanEntry renders a plan entry with inline approval buttons
 func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, index int) string {
 	var result strings.Builder
@@ -859,7 +757,7 @@ func (cv *ConversationView) renderPlanEntry(entry domain.ConversationEntry, inde
 	if entry.PlanApprovalStatus == domain.PlanApprovalRejected {
 		plainContent := formatting.FormatResponsiveMessage(contentStr, cv.width)
 		formattedContent = cv.styleProvider.RenderWithColor(plainContent, color)
-	} else if cv.markdownRenderer != nil && !cv.isStreaming && !cv.rawFormat {
+	} else if cv.markdownRenderer != nil && !cv.rawFormat {
 		formattedContent = cv.markdownRenderer.Render(contentStr)
 	} else {
 		formattedContent = formatting.FormatResponsiveMessage(contentStr, cv.width)
@@ -971,6 +869,37 @@ func (cv *ConversationView) renderWriteToolArgs(args map[string]any) string {
 	return result.String()
 }
 
+// renderRequestPlanApprovalArgs renders RequestPlanApproval arguments with the plan content
+func (cv *ConversationView) renderRequestPlanApprovalArgs(args map[string]any) string {
+	var result strings.Builder
+
+	if plan, ok := args["plan"].(string); ok && plan != "" {
+		result.WriteString("  Plan:\n\n")
+		cv.renderIndentedPlanContent(&result, plan)
+	}
+
+	return result.String()
+}
+
+// renderIndentedPlanContent renders plan content with proper indentation
+func (cv *ConversationView) renderIndentedPlanContent(result *strings.Builder, content string) {
+	var rendered string
+	if cv.markdownRenderer != nil && !cv.rawFormat {
+		rendered = cv.markdownRenderer.Render(content)
+	} else {
+		rendered = formatting.FormatResponsiveMessage(content, cv.width)
+	}
+
+	lines := strings.Split(rendered, "\n")
+	for _, line := range lines {
+		if line != "" {
+			result.WriteString("    " + line + "\n")
+		} else {
+			result.WriteString("\n")
+		}
+	}
+}
+
 // renderGenericToolArgs renders tool arguments as JSON
 func (cv *ConversationView) renderGenericToolArgs(args map[string]any) string {
 	argsJSON, _ := json.MarshalIndent(args, "  ", "  ")
@@ -1012,6 +941,8 @@ func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntr
 			result.WriteString(cv.renderEditToolArgs(args))
 		case "Write":
 			result.WriteString(cv.renderWriteToolArgs(args))
+		case "RequestPlanApproval":
+			result.WriteString(cv.renderRequestPlanApprovalArgs(args))
 		default:
 			result.WriteString(cv.renderGenericToolArgs(args))
 		}
