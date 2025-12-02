@@ -16,32 +16,26 @@ func CreateConversationView(themeService domain.ThemeService) ui.ConversationRen
 }
 
 // CreateInputView creates a new input view component
-func CreateInputView(modelService domain.ModelService, shortcutRegistry *shortcuts.Registry) ui.InputComponent {
-	iv := components.NewInputView(modelService)
-
-	if shortcutRegistry != nil {
-		iv.Autocomplete = autocomplete.NewAutocomplete(ui.NewDefaultTheme(), shortcutRegistry)
-	}
-	return iv
+func CreateInputView(modelService domain.ModelService) ui.InputComponent {
+	return components.NewInputView(modelService)
 }
 
-// CreateInputViewWithToolService creates a new input view component with tool service
-func CreateInputViewWithToolService(modelService domain.ModelService, shortcutRegistry *shortcuts.Registry, toolService domain.ToolService) ui.InputComponent {
-	return CreateInputViewWithToolServiceAndConfigDir(modelService, shortcutRegistry, toolService, "")
+// CreateInputViewWithConfigDir creates a new input view component with config directory
+func CreateInputViewWithConfigDir(modelService domain.ModelService, configDir string) ui.InputComponent {
+	return components.NewInputViewWithConfigDir(modelService, configDir)
 }
 
-// CreateInputViewWithToolServiceAndConfigDir creates a new input view component with tool service and config directory
-func CreateInputViewWithToolServiceAndConfigDir(modelService domain.ModelService, shortcutRegistry *shortcuts.Registry, toolService domain.ToolService, configDir string) ui.InputComponent {
-	iv := components.NewInputViewWithConfigDir(modelService, configDir)
-
-	if shortcutRegistry != nil {
-		autocomplete := autocomplete.NewAutocomplete(ui.NewDefaultTheme(), shortcutRegistry)
-		if toolService != nil {
-			autocomplete.SetToolService(toolService)
-		}
-		iv.Autocomplete = autocomplete
+// CreateAutocomplete creates a new autocomplete component
+func CreateAutocomplete(shortcutRegistry *shortcuts.Registry, toolService domain.ToolService) ui.AutocompleteComponent {
+	if shortcutRegistry == nil {
+		return nil
 	}
-	return iv
+
+	ac := autocomplete.NewAutocomplete(ui.NewDefaultTheme(), shortcutRegistry)
+	if toolService != nil {
+		ac.SetToolService(toolService)
+	}
+	return ac
 }
 
 // CreateStatusView creates a new status view component

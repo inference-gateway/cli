@@ -320,6 +320,9 @@ func (r *PersistentConversationRepository) SetOptimizedMessages(ctx context.Cont
 		return fmt.Errorf("no active conversation to store optimized messages")
 	}
 
+	r.autoSaveMutex.Lock()
+	defer r.autoSaveMutex.Unlock()
+
 	conversationEntries := make([]domain.ConversationEntry, 0, len(optimizedMessages))
 	now := time.Now()
 

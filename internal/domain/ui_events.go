@@ -49,6 +49,25 @@ type SetInputEvent struct {
 	Text string
 }
 
+// AutocompleteUpdateEvent is fired when input text changes and autocomplete should update
+type AutocompleteUpdateEvent struct {
+	Text      string
+	CursorPos int
+}
+
+// AutocompleteHideEvent is fired when autocomplete should be hidden
+type AutocompleteHideEvent struct{}
+
+// AutocompleteCompleteEvent is fired when a completion is selected
+type AutocompleteCompleteEvent struct {
+	Completion string
+}
+
+// AutocompleteVisibilityCheckEvent requests autocomplete visibility state
+type AutocompleteVisibilityCheckEvent struct {
+	ResponseChan chan bool
+}
+
 // UserInputEvent represents user input submission
 type UserInputEvent struct {
 	Content string

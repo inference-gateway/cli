@@ -111,10 +111,32 @@ plugins:
 
         ## 📦 Installation
 
+        ### Quick Install (Recommended)
+
+        Install the latest version using our install script:
+
+        ```bash
+        curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash
+        ```
+
+        Or install a specific version:
+
+        ```bash
+        curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --version <%= nextRelease.gitTag %>
+        ```
+
+        Custom installation directory:
+
+        ```bash
+        curl -fsSL https://raw.githubusercontent.com/inference-gateway/cli/main/install.sh | bash -s -- --install-dir $HOME/.local/bin
+        ```
+
         ### Binary Download
+
         Download the appropriate binary for your platform from the assets below.
 
         ### Container Image
+
         ```bash
         docker run --rm -it ghcr.io/inference-gateway/cli:<%= nextRelease.version %>
         ```

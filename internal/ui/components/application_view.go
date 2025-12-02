@@ -37,6 +37,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	data ChatInterfaceData,
 	conversationView ui.ConversationRenderer,
 	inputView ui.InputComponent,
+	autocomplete ui.AutocompleteComponent,
 	inputStatusBar ui.InputStatusBarComponent,
 	statusView ui.StatusComponent,
 	helpBar ui.HelpBarComponent,
@@ -45,38 +46,85 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 ) string {
 	width, height := data.Width, data.Height
 
-	headerHeight := 3
-	helpBarHeight := 0
-	queueBoxHeight := 0
-	todoBoxHeight := 0
+	heights := r.calculateComponentHeights(data, height, helpBar, queueBoxView, todoBoxView)
 
-	helpBar.SetWidth(width)
+	r.setComponentDimensions(width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
+		queueBoxView, todoBoxView, heights)
+
+	header := r.renderHeader(data, width)
+	conversationArea := conversationView.Render()
+	inputArea := inputView.Render()
+
+	components := r.assembleComponents(data, header, conversationArea, inputArea, statusView,
+		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, width, heights.statusHeight)
+
+	return strings.Join(components, "\n")
+}
+
+// componentHeights holds calculated heights for various components
+type componentHeights struct {
+	headerHeight       int
+	helpBarHeight      int
+	queueBoxHeight     int
+	todoBoxHeight      int
+	conversationHeight int
+	inputHeight        int
+	statusHeight       int
+}
+
+// calculateComponentHeights calculates the heights for all components
+func (r *ApplicationViewRenderer) calculateComponentHeights(
+	data ChatInterfaceData,
+	totalHeight int,
+	helpBar ui.HelpBarComponent,
+	queueBoxView *QueueBoxView,
+	todoBoxView *TodoBoxView,
+) componentHeights {
+	heights := componentHeights{
+		headerHeight: 3,
+	}
+
 	if helpBar.IsEnabled() {
-		helpBarHeight = 6
+		heights.helpBarHeight = 6
 	}
 
 	if queueBoxView != nil && (len(data.QueuedMessages) > 0 || len(data.BackgroundTasks) > 0) {
 		totalItems := len(data.QueuedMessages) + len(data.BackgroundTasks)
-		queueBoxHeight = totalItems + 4
+		heights.queueBoxHeight = totalItems + 4
 		if len(data.BackgroundTasks) > 0 && len(data.QueuedMessages) > 0 {
-			queueBoxHeight += 2
+			heights.queueBoxHeight += 2
 		}
 	}
 
-	// Calculate todo box height
 	if todoBoxView != nil && todoBoxView.HasTodos() {
-		todoBoxHeight = todoBoxView.GetHeight()
+		heights.todoBoxHeight = todoBoxView.GetHeight()
 	}
 
-	adjustedHeight := height - headerHeight - helpBarHeight - queueBoxHeight - todoBoxHeight
-	conversationHeight := ui.CalculateConversationHeight(adjustedHeight)
-	inputHeight := ui.CalculateInputHeight(adjustedHeight)
-	statusHeight := ui.CalculateStatusHeight(adjustedHeight)
+	adjustedHeight := totalHeight - heights.headerHeight - heights.helpBarHeight -
+		heights.queueBoxHeight - heights.todoBoxHeight
+	heights.conversationHeight = ui.CalculateConversationHeight(adjustedHeight)
+	heights.inputHeight = ui.CalculateInputHeight(adjustedHeight)
+	heights.statusHeight = ui.CalculateStatusHeight(adjustedHeight)
 
-	if conversationHeight < 3 {
-		conversationHeight = 3
+	if heights.conversationHeight < 3 {
+		heights.conversationHeight = 3
 	}
 
+	return heights
+}
+
+// setComponentDimensions sets the width and height for all components
+func (r *ApplicationViewRenderer) setComponentDimensions(
+	width int,
+	conversationView ui.ConversationRenderer,
+	inputView ui.InputComponent,
+	autocomplete ui.AutocompleteComponent,
+	inputStatusBar ui.InputStatusBarComponent,
+	statusView ui.StatusComponent,
+	queueBoxView *QueueBoxView,
+	todoBoxView *TodoBoxView,
+	heights componentHeights,
+) {
 	conversationMargin := 4
 	conversationWidth := width
 	if width > 80 {
@@ -84,11 +132,16 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	}
 
 	conversationView.SetWidth(conversationWidth)
-	conversationView.SetHeight(conversationHeight)
+	conversationView.SetHeight(heights.conversationHeight)
 	inputView.SetWidth(width)
-	inputView.SetHeight(inputHeight)
+	inputView.SetHeight(heights.inputHeight)
 	inputStatusBar.SetWidth(width)
 	statusView.SetWidth(width)
+
+	if autocomplete != nil {
+		autocomplete.SetWidth(width)
+		autocomplete.SetHeight(10)
+	}
 
 	if queueBoxView != nil {
 		queueBoxView.SetWidth(width)
@@ -97,58 +150,123 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	if todoBoxView != nil {
 		todoBoxView.SetWidth(width)
 	}
+}
 
+// renderHeader renders the header section with background task count
+func (r *ApplicationViewRenderer) renderHeader(data ChatInterfaceData, width int) string {
 	headerText := ""
 	if len(data.BackgroundTasks) > 0 {
 		headerText = fmt.Sprintf("(%d)", len(data.BackgroundTasks))
 	}
 	accentColor := r.styleProvider.GetThemeColor("accent")
-	header := r.styleProvider.RenderCenteredBoldWithColor(headerText, accentColor, width)
-	headerBorder := ""
+	return r.styleProvider.RenderCenteredBoldWithColor(headerText, accentColor, width)
+}
 
-	conversationArea := conversationView.Render()
-	inputArea := inputView.Render()
+// assembleComponents assembles all rendered components into a slice
+func (r *ApplicationViewRenderer) assembleComponents(
+	data ChatInterfaceData,
+	header, conversationArea, inputArea string,
+	statusView ui.StatusComponent,
+	inputView ui.InputComponent,
+	inputStatusBar ui.InputStatusBarComponent,
+	autocomplete ui.AutocompleteComponent,
+	helpBar ui.HelpBarComponent,
+	queueBoxView *QueueBoxView,
+	todoBoxView *TodoBoxView,
+	width, statusHeight int,
+) []string {
+	components := []string{header, "", conversationArea}
 
-	components := []string{header, headerBorder, conversationArea}
+	components = r.appendQueueBox(components, data, queueBoxView)
+	components = r.appendTodoBox(components, todoBoxView)
+	components = r.appendStatusView(components, statusView, statusHeight)
+	components = append(components, inputArea)
+	components = r.appendAutocomplete(components, autocomplete)
+	components = r.appendInputStatusBar(components, inputView, inputStatusBar)
+	components = r.appendHelpBar(components, helpBar, width)
 
+	return components
+}
+
+// appendQueueBox appends queue box content if available
+func (r *ApplicationViewRenderer) appendQueueBox(
+	components []string,
+	data ChatInterfaceData,
+	queueBoxView *QueueBoxView,
+) []string {
 	if queueBoxView != nil && (len(data.QueuedMessages) > 0 || len(data.BackgroundTasks) > 0) {
-		queueBoxContent := queueBoxView.Render(data.QueuedMessages, data.BackgroundTasks)
-		if queueBoxContent != "" {
+		if queueBoxContent := queueBoxView.Render(data.QueuedMessages, data.BackgroundTasks); queueBoxContent != "" {
 			components = append(components, queueBoxContent)
 		}
 	}
+	return components
+}
 
+// appendTodoBox appends todo box content if available
+func (r *ApplicationViewRenderer) appendTodoBox(
+	components []string,
+	todoBoxView *TodoBoxView,
+) []string {
 	if todoBoxView != nil && todoBoxView.HasTodos() {
-		todoBoxContent := todoBoxView.Render()
-		if todoBoxContent != "" {
+		if todoBoxContent := todoBoxView.Render(); todoBoxContent != "" {
 			components = append(components, todoBoxContent)
 		}
 	}
+	return components
+}
 
+// appendStatusView appends status view content if available
+func (r *ApplicationViewRenderer) appendStatusView(
+	components []string,
+	statusView ui.StatusComponent,
+	statusHeight int,
+) []string {
 	if statusHeight > 0 {
-		statusContent := statusView.Render()
-		if statusContent != "" {
+		if statusContent := statusView.Render(); statusContent != "" {
 			components = append(components, statusContent)
 		}
 	}
+	return components
+}
 
-	components = append(components, inputArea)
+// appendAutocomplete appends autocomplete content if visible
+func (r *ApplicationViewRenderer) appendAutocomplete(
+	components []string,
+	autocomplete ui.AutocompleteComponent,
+) []string {
+	if autocomplete != nil && autocomplete.IsVisible() {
+		if autocompleteContent := autocomplete.Render(); autocompleteContent != "" {
+			components = append(components, autocompleteContent)
+		}
+	}
+	return components
+}
 
+// appendInputStatusBar appends input status bar content
+func (r *ApplicationViewRenderer) appendInputStatusBar(
+	components []string,
+	inputView ui.InputComponent,
+	inputStatusBar ui.InputStatusBarComponent,
+) []string {
 	inputStatusBar.SetInputText(inputView.GetInput())
-	inputStatusBarContent := inputStatusBar.Render()
-	if inputStatusBarContent != "" {
+	if inputStatusBarContent := inputStatusBar.Render(); inputStatusBarContent != "" {
 		components = append(components, inputStatusBarContent)
 	}
+	return components
+}
 
+// appendHelpBar appends help bar content if available
+func (r *ApplicationViewRenderer) appendHelpBar(
+	components []string,
+	helpBar ui.HelpBarComponent,
+	width int,
+) []string {
 	helpBar.SetWidth(width)
-	helpBarContent := helpBar.Render()
-	if helpBarContent != "" {
+	if helpBarContent := helpBar.Render(); helpBarContent != "" {
 		helpBarSeparator := "  " + strings.Repeat("─", width-4)
-		components = append(components, helpBarSeparator)
-		components = append(components, helpBarContent)
+		components = append(components, helpBarSeparator, helpBarContent)
 	}
-
-	return strings.Join(components, "\n")
+	return components
 }
 
 // FileSelectionData holds the data needed to render the file selection view

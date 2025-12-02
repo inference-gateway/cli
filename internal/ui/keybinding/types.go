@@ -25,6 +25,7 @@ type KeyHandlerContext interface {
 	GetConversationView() ui.ConversationRenderer
 	GetInputView() ui.InputComponent
 	GetStatusView() ui.StatusComponent
+	GetAutocomplete() ui.AutocompleteComponent
 
 	// Actions
 	ToggleToolResultExpansion()

@@ -111,6 +111,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	program := tea.NewProgram(
 		application,
 		tea.WithMouseCellMotion(),
+		tea.WithReportFocus(),
 	)
 
 	if _, err := program.Run(); err != nil {

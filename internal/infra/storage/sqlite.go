@@ -27,13 +27,13 @@ func NewSQLiteStorage(config SQLiteConfig) (*SQLiteStorage, error) {
 		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	db, err := sql.Open("sqlite", config.Path+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_timeout=5000")
+	db, err := sql.Open("sqlite", config.Path+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_timeout=30000&_busy_timeout=30000")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQLite database: %w", err)
 	}
 
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
 	db.SetConnMaxLifetime(time.Hour)
 
 	storage := &SQLiteStorage{

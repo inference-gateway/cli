@@ -20,6 +20,7 @@ import (
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
+	autocomplete "github.com/inference-gateway/cli/internal/ui/autocomplete"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	factory "github.com/inference-gateway/cli/internal/ui/components/factory"
 	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
@@ -52,6 +53,7 @@ type ChatApplication struct {
 	// UI components
 	conversationView     ui.ConversationRenderer
 	inputView            ui.InputComponent
+	autocomplete         ui.AutocompleteComponent
 	inputStatusBar       ui.InputStatusBarComponent
 	statusView           ui.StatusComponent
 	helpBar              ui.HelpBarComponent
@@ -155,13 +157,19 @@ func NewChatApplication(
 		configDir = filepath.Dir(configPath)
 	}
 
-	app.inputView = factory.CreateInputViewWithToolServiceAndConfigDir(app.modelService, app.shortcutRegistry, app.toolService, configDir)
+	app.inputView = factory.CreateInputViewWithConfigDir(app.modelService, configDir)
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)
 		iv.SetImageService(app.imageService)
 		iv.SetConfigService(app.configService)
 		iv.SetConversationRepo(app.conversationRepo)
+	}
+
+	// Create autocomplete separately
+	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService)
+	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
+		ac.SetStateManager(app.stateManager)
 	}
 
 	app.inputStatusBar = factory.CreateInputStatusBar(app.themeService)
@@ -1111,6 +1119,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		data,
 		app.conversationView,
 		app.inputView,
+		app.autocomplete,
 		app.inputStatusBar,
 		app.statusView,
 		app.helpBar,
@@ -1237,6 +1246,8 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 
 	app.handleTodoEvents(msg, &cmds)
 
+	app.handleAutocompleteEvents(msg, &cmds)
+
 	return cmds
 }
 
@@ -1271,7 +1282,7 @@ func (app *ChatApplication) handleDuplicateKeyEvents(msg tea.Msg, _ *[]tea.Cmd) 
 // updateUIComponentsForUIMessages updates UI components for UI events and framework messages
 func (app *ChatApplication) updateUIComponentsForUIMessages(msg tea.Msg) []tea.Cmd {
 	switch msg.(type) {
-	case tea.WindowSizeMsg, tea.MouseMsg, tea.KeyMsg:
+	case tea.WindowSizeMsg, tea.MouseMsg, tea.KeyMsg, tea.FocusMsg, tea.BlurMsg:
 		return app.updateUIComponents(msg)
 	}
 
@@ -1375,6 +1386,40 @@ func (app *ChatApplication) handleTodoEvents(msg tea.Msg, cmds *[]tea.Cmd) {
 	}
 }
 
+// handleAutocompleteEvents handles autocomplete-related events
+func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cmd) {
+	if app.autocomplete == nil {
+		return
+	}
+
+	switch acMsg := msg.(type) {
+	case domain.AutocompleteUpdateEvent:
+		app.autocomplete.Update(acMsg.Text, acMsg.CursorPos)
+
+	case domain.AutocompleteHideEvent:
+		app.autocomplete.Hide()
+
+	case domain.AutocompleteCompleteEvent:
+		if acMsg.Completion != "" {
+			app.inputView.SetText(acMsg.Completion)
+			if idx := strings.Index(acMsg.Completion, `=""`); idx != -1 {
+				app.inputView.SetCursor(idx + 2)
+			} else {
+				app.inputView.SetCursor(len(acMsg.Completion))
+			}
+		}
+		app.autocomplete.Hide()
+
+	case domain.RefreshAutocompleteEvent:
+		text := app.inputView.GetInput()
+		cursor := app.inputView.GetCursor()
+		app.autocomplete.Update(text, cursor)
+
+	case domain.ClearInputEvent:
+		app.autocomplete.Hide()
+	}
+}
+
 // GetServices returns the service container
 func (app *ChatApplication) GetConversationRepository() domain.ConversationRepository {
 	return app.conversationRepo
@@ -1410,6 +1455,11 @@ func (app *ChatApplication) GetConversationView() ui.ConversationRenderer {
 // GetInputView returns the input view
 func (app *ChatApplication) GetInputView() ui.InputComponent {
 	return app.inputView
+}
+
+// GetAutocomplete returns the autocomplete component
+func (app *ChatApplication) GetAutocomplete() ui.AutocompleteComponent {
+	return app.autocomplete
 }
 
 // GetStatusView returns the status view

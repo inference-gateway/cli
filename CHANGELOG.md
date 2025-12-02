@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.76.4](https://github.com/inference-gateway/cli/compare/v0.76.3...v0.76.4) (2025-12-02)
+
+### 📚 Documentation
+
+* Improve release notes with a quick guide how to install ([034723e](https://github.com/inference-gateway/cli/commit/034723e49581b584f57b0e5b2a85edf9590e6fae))
+
+## [0.76.3](https://github.com/inference-gateway/cli/compare/v0.76.2...v0.76.3) (2025-12-02)
+
+### 📚 Documentation
+
+* Add A2A_QueryTask documentation and update configuration ([#297](https://github.com/inference-gateway/cli/issues/297)) ([56b23bc](https://github.com/inference-gateway/cli/commit/56b23bc51f4de0d6867861e6d02a654f24a893b2))
+
 ## [0.76.2](https://github.com/inference-gateway/cli/compare/v0.76.1...v0.76.2) (2025-12-02)
 
 ### ♻️ Code Refactoring

@@ -32,7 +32,6 @@ func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 		width:            80,
 		height:           5,
 		modelService:     modelService,
-		Autocomplete:     nil,
 		historyManager:   history.NewMemoryOnlyHistoryManager(5),
 		themeService:     nil,
 		imageAttachments: []domain.ImageAttachment{},
