@@ -72,7 +72,7 @@ func (isb *InputStatusBar) SetHeight(height int) {
 func (isb *InputStatusBar) Render() string {
 	renderedLeft := isb.buildLeftText()
 	modeIndicator := isb.getAgentModeIndicator()
-	availableWidth := isb.width - 4 - 2
+	availableWidth := isb.width - 2 - 2
 	return isb.combineLeftAndRight(renderedLeft, modeIndicator, availableWidth)
 }
 
@@ -228,34 +228,43 @@ func (isb *InputStatusBar) getAgentModeIndicator() string {
 
 // combineLeftAndRight combines the left text and right mode indicator with appropriate spacing
 func (isb *InputStatusBar) combineLeftAndRight(renderedLeft string, modeIndicator string, availableWidth int) string {
-	// Add left padding to match input field alignment
-	leftPadding := "  "
+	const leftPadding = "  "
 
-	if renderedLeft != "" && modeIndicator != "" {
-		leftWidth := isb.styleProvider.GetWidth(renderedLeft)
-		rightWidth := isb.styleProvider.GetWidth(modeIndicator)
-		spacingWidth := availableWidth - leftWidth - rightWidth
-
-		if spacingWidth > 0 {
-			return leftPadding + renderedLeft + strings.Repeat(" ", spacingWidth) + modeIndicator
-		}
-		return leftPadding + renderedLeft + " " + modeIndicator
+	if renderedLeft == "" && modeIndicator == "" {
+		return leftPadding + "\u00A0"
 	}
 
-	if renderedLeft != "" {
+	if renderedLeft == "" {
+		return leftPadding + isb.formatRightOnly(modeIndicator, availableWidth)
+	}
+
+	if modeIndicator == "" {
 		return leftPadding + renderedLeft
 	}
 
-	if modeIndicator != "" {
-		rightWidth := isb.styleProvider.GetWidth(modeIndicator)
-		spacingWidth := availableWidth - rightWidth
-		if spacingWidth > 0 {
-			return leftPadding + strings.Repeat(" ", spacingWidth) + modeIndicator
-		}
-		return leftPadding + modeIndicator
-	}
+	return leftPadding + isb.formatBothSides(renderedLeft, modeIndicator, availableWidth)
+}
 
-	return leftPadding + "\u00A0"
+// formatBothSides formats content when both left and right text are present
+func (isb *InputStatusBar) formatBothSides(renderedLeft, modeIndicator string, availableWidth int) string {
+	leftWidth := isb.styleProvider.GetWidth(renderedLeft)
+	rightWidth := isb.styleProvider.GetWidth(modeIndicator)
+	spacingWidth := availableWidth - leftWidth - rightWidth
+
+	if spacingWidth > 0 {
+		return renderedLeft + strings.Repeat(" ", spacingWidth) + modeIndicator
+	}
+	return renderedLeft + " " + modeIndicator
+}
+
+// formatRightOnly formats content when only right text is present
+func (isb *InputStatusBar) formatRightOnly(modeIndicator string, availableWidth int) string {
+	rightWidth := isb.styleProvider.GetWidth(modeIndicator)
+	spacingWidth := availableWidth - rightWidth
+	if spacingWidth > 0 {
+		return strings.Repeat(" ", spacingWidth) + modeIndicator
+	}
+	return modeIndicator
 }
 
 // Bubble Tea interface

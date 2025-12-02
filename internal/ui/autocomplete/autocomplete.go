@@ -33,6 +33,7 @@ type AutocompleteImpl struct {
 	query            string
 	theme            ui.Theme
 	width            int
+	height           int
 	maxVisible       int
 	shortcutRegistry ShortcutRegistry
 	stateManager     domain.StateManager
@@ -342,6 +343,11 @@ func (a *AutocompleteImpl) SetWidth(width int) {
 	a.width = width
 }
 
+// SetHeight sets the height for rendering
+func (a *AutocompleteImpl) SetHeight(height int) {
+	a.height = height
+}
+
 // Render returns the autocomplete suggestions as a string
 func (a *AutocompleteImpl) Render() string {
 	if !a.visible || len(a.filtered) == 0 {
@@ -349,7 +355,18 @@ func (a *AutocompleteImpl) Render() string {
 	}
 
 	var b strings.Builder
+	start, end := a.calculateVisibleRange()
+	maxShortcutWidth := a.calculateMaxShortcutWidth()
+	descWidth := a.calculateDescriptionWidth(maxShortcutWidth)
 
+	a.renderItems(&b, start, end, maxShortcutWidth, descWidth)
+	a.renderHelpText(&b)
+
+	return b.String()
+}
+
+// calculateVisibleRange returns the start and end indices for visible items
+func (a *AutocompleteImpl) calculateVisibleRange() (int, int) {
 	start := 0
 	end := len(a.filtered)
 
@@ -364,70 +381,125 @@ func (a *AutocompleteImpl) Render() string {
 		}
 	}
 
+	return start, end
+}
+
+// calculateMaxShortcutWidth calculates the maximum width for shortcut display
+func (a *AutocompleteImpl) calculateMaxShortcutWidth() int {
 	maxShortcutWidth := 0
 	for _, cmd := range a.filtered {
-		displayText := ""
-		if cmd.Usage != "" && cmd.Usage != cmd.Shortcut {
-			displayText = cmd.Usage
-		} else {
-			displayText = cmd.Shortcut
-		}
+		displayText := a.getShortcutDisplayText(cmd)
 		displayText = strings.TrimPrefix(displayText, "!!")
 		if len(displayText) > maxShortcutWidth {
 			maxShortcutWidth = len(displayText)
 		}
 	}
 
-	if maxShortcutWidth < 30 {
-		maxShortcutWidth = 30
+	minShortcutWidth := 15
+	if a.width < 60 {
+		minShortcutWidth = 10
 	}
+
+	if maxShortcutWidth < minShortcutWidth {
+		maxShortcutWidth = minShortcutWidth
+	}
+
+	maxAllowedShortcutWidth := a.width / 3
+	if maxShortcutWidth > maxAllowedShortcutWidth && maxAllowedShortcutWidth > minShortcutWidth {
+		maxShortcutWidth = maxAllowedShortcutWidth
+	}
+
+	return maxShortcutWidth
+}
+
+// calculateDescriptionWidth calculates the width for description display
+func (a *AutocompleteImpl) calculateDescriptionWidth(maxShortcutWidth int) int {
+	const reservedSpace = 7
+	descWidth := a.width - maxShortcutWidth - reservedSpace
+	if descWidth < 20 {
+		descWidth = 20
+	}
+	return descWidth
+}
+
+// getShortcutDisplayText returns the display text for a shortcut
+func (a *AutocompleteImpl) getShortcutDisplayText(cmd ShortcutOption) string {
+	if cmd.Usage != "" && cmd.Usage != cmd.Shortcut {
+		return cmd.Usage
+	}
+	return cmd.Shortcut
+}
+
+// truncateText truncates text to fit within maxWidth
+func truncateText(text string, maxWidth int) string {
+	if len(text) <= maxWidth {
+		return text
+	}
+	if maxWidth > 3 {
+		return text[:maxWidth-3] + "..."
+	}
+	return text[:maxWidth]
+}
+
+// renderItems renders all visible autocomplete items
+func (a *AutocompleteImpl) renderItems(b *strings.Builder, start, end, maxShortcutWidth, descWidth int) {
+	const leftPadding = "  "
 
 	for i := start; i < end; i++ {
 		cmd := a.filtered[i]
-		var prefix string
-		var marker string
-
+		marker := "  "
 		if i == a.selected {
 			marker = "▶ "
-			prefix = fmt.Sprintf("%s%s%s", a.theme.GetAccentColor(), marker, colors.Reset)
-		} else {
-			marker = "  "
-			prefix = marker
 		}
 
-		var shortcutText string
-		if cmd.Usage != "" && cmd.Usage != cmd.Shortcut {
-			shortcutText = cmd.Usage
-		} else {
-			shortcutText = cmd.Shortcut
-		}
-
-		displayText := strings.TrimPrefix(shortcutText, "!!")
-
+		displayText := a.getShortcutDisplayText(cmd)
+		displayText = strings.TrimPrefix(displayText, "!!")
+		displayText = truncateText(displayText, maxShortcutWidth)
 		paddedShortcut := displayText + strings.Repeat(" ", maxShortcutWidth-len(displayText))
-		separator := " │ "
 
-		line := fmt.Sprintf("%s%s%s%s%s%s",
-			prefix,
-			paddedShortcut,
-			a.theme.GetDimColor(),
-			separator,
-			cmd.Description,
-			colors.Reset)
+		description := truncateText(cmd.Description, descWidth)
+		paddedDescription := description + strings.Repeat(" ", descWidth-len(description))
 
-		b.WriteString(line)
+		a.renderItem(b, i == a.selected, leftPadding, marker, paddedShortcut, paddedDescription)
+
 		if i < end-1 {
 			b.WriteString("\n")
 		}
 	}
+}
 
+// renderItem renders a single autocomplete item
+func (a *AutocompleteImpl) renderItem(b *strings.Builder, selected bool, leftPadding, marker, paddedShortcut, paddedDescription string) {
+	if selected {
+		line := fmt.Sprintf("%s%s%s%s%s │ %s%s",
+			leftPadding,
+			a.theme.GetAccentColor(),
+			marker,
+			paddedShortcut,
+			a.theme.GetDimColor(),
+			paddedDescription,
+			colors.Reset)
+		b.WriteString(line)
+	} else {
+		line := fmt.Sprintf("%s%s%s │ %s%s%s",
+			leftPadding,
+			marker,
+			paddedShortcut,
+			a.theme.GetDimColor(),
+			paddedDescription,
+			colors.Reset)
+		b.WriteString(line)
+	}
+}
+
+// renderHelpText renders the help text at the bottom
+func (a *AutocompleteImpl) renderHelpText(b *strings.Builder) {
+	const leftPadding = "  "
 	helpColor := a.theme.GetDimColor()
 	if len(a.filtered) > 0 {
-		b.WriteString(fmt.Sprintf("\n\n  %sTab to select, ↑↓ to navigate%s\n",
-			helpColor, colors.Reset))
+		fmt.Fprintf(b, "\n\n%s%sTab to select, ↑↓ to navigate%s\n",
+			leftPadding, helpColor, colors.Reset)
 	}
-
-	return b.String()
 }
 
 // GetSelectedShortcut returns the currently selected shortcut
@@ -444,4 +516,4 @@ func (a *AutocompleteImpl) Hide() {
 }
 
 // Compile-time check to ensure AutocompleteImpl implements the interface
-var _ ui.AutocompleteInterface = (*AutocompleteImpl)(nil)
+var _ ui.AutocompleteComponent = (*AutocompleteImpl)(nil)

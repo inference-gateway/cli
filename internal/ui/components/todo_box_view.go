@@ -164,7 +164,8 @@ func (tv *TodoBoxView) renderCollapsed() string {
 	indicatorStyled := tv.styleProvider.RenderWithColor(indicator, accentColor)
 	hintStyled := tv.styleProvider.RenderWithColor(hint, dimColor)
 
-	return fmt.Sprintf("%s %s", indicatorStyled, hintStyled)
+	leftPadding := "  "
+	return fmt.Sprintf("%s%s %s", leftPadding, indicatorStyled, hintStyled)
 }
 
 // renderExpanded renders the full expanded view

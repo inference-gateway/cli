@@ -22,12 +22,13 @@ const (
 	ScrollToBottom
 )
 
-// AutocompleteInterface defines the interface for autocomplete functionality
-type AutocompleteInterface interface {
+// AutocompleteComponent defines the interface for autocomplete functionality
+type AutocompleteComponent interface {
 	Update(inputText string, cursorPos int)
 	HandleKey(key tea.KeyMsg) (bool, string)
 	IsVisible() bool
 	SetWidth(width int)
+	SetHeight(height int)
 	Render() string
 	GetSelectedShortcut() string
 	Hide()
@@ -79,8 +80,6 @@ type InputComponent interface {
 	CanHandle(key tea.KeyMsg) bool
 	NavigateHistoryUp()
 	NavigateHistoryDown()
-	IsAutocompleteVisible() bool
-	TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string)
 	AddImageAttachment(image domain.ImageAttachment)
 	GetImageAttachments() []domain.ImageAttachment
 	ClearImageAttachments()

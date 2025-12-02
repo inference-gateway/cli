@@ -767,9 +767,14 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.ThemeSelectedEvent,
 		domain.ShowPlanApprovalEvent,
 		domain.RefreshAutocompleteEvent,
+		domain.AutocompleteUpdateEvent,
+		domain.AutocompleteHideEvent,
+		domain.AutocompleteCompleteEvent,
 		tea.KeyMsg,
 		tea.WindowSizeMsg,
 		tea.MouseMsg,
+		tea.FocusMsg,
+		tea.BlurMsg,
 		spinner.TickMsg:
 		return true
 	}

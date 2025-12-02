@@ -225,9 +225,11 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui SelectionComponent
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui Theme
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui/autocomplete ShortcutRegistry
-      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui AutocompleteInterface
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/ui internal/ui AutocompleteComponent
       - mkdir -p tests/mocks/history
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/history internal/ui/history ShellHistoryProvider
+      - mkdir -p tests/mocks/keybinding
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/keybinding internal/ui/keybinding KeyHandlerContext
     sources:
       - "internal/domain/interfaces.go"
       - "internal/domain/agent.go"

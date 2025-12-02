@@ -28,7 +28,7 @@ func TestCreateInputView(t *testing.T) {
 	mockModelService.ValidateModelReturns(nil)
 	mockModelService.IsVisionModelReturns(false)
 
-	iv := CreateInputView(mockModelService, nil)
+	iv := CreateInputView(mockModelService)
 
 	if iv == nil {
 		t.Fatal("Expected CreateInputView to return non-nil component")
