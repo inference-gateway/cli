@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.76.5](https://github.com/inference-gateway/cli/compare/v0.76.4...v0.76.5) (2025-12-02)
+
+### 🐛 Bug Fixes
+
+* Serialize SQLite writes to prevent lock contention ([#299](https://github.com/inference-gateway/cli/issues/299)) ([fabdad0](https://github.com/inference-gateway/cli/commit/fabdad0200331ceec2de88f594b7433fd76e6dfd))
+
+### ♻️ Code Refactoring
+
+* Separate autocomplete component from input view ([#298](https://github.com/inference-gateway/cli/issues/298)) ([aeac152](https://github.com/inference-gateway/cli/commit/aeac152d1536659584407d503fda690f089e0a53))
+
 ## [0.76.4](https://github.com/inference-gateway/cli/compare/v0.76.3...v0.76.4) (2025-12-02)
 
 ### 📚 Documentation
