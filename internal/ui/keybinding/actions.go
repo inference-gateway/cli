@@ -510,9 +510,11 @@ func handleQuit(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	inputView := app.GetInputView()
-	if inputView != nil && inputView.IsAutocompleteVisible() {
-		return nil
+	autocomplete := app.GetAutocomplete()
+	if autocomplete != nil && autocomplete.IsVisible() {
+		return func() tea.Msg {
+			return domain.AutocompleteHideEvent{}
+		}
 	}
 
 	stateManager := app.GetStateManager()
@@ -599,9 +601,14 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		return nil
 	}
 
-	if inputView.IsAutocompleteVisible() {
-		if handled, completion := inputView.TryHandleAutocomplete(keyMsg); handled {
-			applyAutocompleteCompletion(inputView, completion)
+	autocomplete := app.GetAutocomplete()
+	if autocomplete != nil && autocomplete.IsVisible() {
+		if handled, completion := autocomplete.HandleKey(keyMsg); handled {
+			if completion != "" {
+				return func() tea.Msg {
+					return domain.AutocompleteCompleteEvent{Completion: completion}
+				}
+			}
 			return nil
 		}
 	}
@@ -621,22 +628,6 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	}
 
 	return app.SendMessage()
-}
-
-// applyAutocompleteCompletion sets the completion text and positions cursor appropriately
-func applyAutocompleteCompletion(inputView ui.InputComponent, completion string) {
-	if completion == "" {
-		return
-	}
-
-	inputView.SetText(completion)
-
-	if idx := strings.Index(completion, `=""`); idx != -1 {
-		inputView.SetCursor(idx + 2)
-		return
-	}
-
-	inputView.SetCursor(len(completion))
 }
 
 func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
@@ -848,8 +839,11 @@ func handleBackspace(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 			inputView.SetText(newText)
 			inputView.SetCursor(cursor - 1)
 
-			if iv, ok := inputView.(*components.InputView); ok && iv.Autocomplete != nil {
-				iv.Autocomplete.Update(newText, cursor-1)
+			return func() tea.Msg {
+				return domain.AutocompleteUpdateEvent{
+					Text:      newText,
+					CursorPos: cursor - 1,
+				}
 			}
 		}
 	}
@@ -858,10 +852,11 @@ func handleBackspace(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleHistoryUp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView := app.GetInputView()
+	autocomplete := app.GetAutocomplete()
 	if inputView != nil {
-		if inputView.IsAutocompleteVisible() {
-			_, cmd := inputView.HandleKey(keyMsg)
-			return cmd
+		if autocomplete != nil && autocomplete.IsVisible() {
+			autocomplete.HandleKey(keyMsg)
+			return nil
 		}
 		inputView.NavigateHistoryUp()
 	}
@@ -870,10 +865,11 @@ func handleHistoryUp(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleHistoryDown(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView := app.GetInputView()
+	autocomplete := app.GetAutocomplete()
 	if inputView != nil {
-		if inputView.IsAutocompleteVisible() {
-			_, cmd := inputView.HandleKey(keyMsg)
-			return cmd
+		if autocomplete != nil && autocomplete.IsVisible() {
+			autocomplete.HandleKey(keyMsg)
+			return nil
 		}
 		inputView.NavigateHistoryDown()
 	}
@@ -1141,12 +1137,16 @@ func handlePrintableCharacter(keyStr string, inputView ui.InputComponent) tea.Cm
 	inputView.SetText(newText)
 	inputView.SetCursor(newCursor)
 
-	if autocomplete := inputView.(*components.InputView).Autocomplete; autocomplete != nil {
-		autocomplete.Update(newText, newCursor)
+	autocompleteCmd := func() tea.Msg {
+		return domain.AutocompleteUpdateEvent{
+			Text:      newText,
+			CursorPos: newCursor,
+		}
 	}
 
 	if keyStr == "@" {
 		return tea.Batch(
+			autocompleteCmd,
 			func() tea.Msg {
 				return domain.ScrollRequestEvent{
 					ComponentID: "conversation",
@@ -1160,7 +1160,9 @@ func handlePrintableCharacter(keyStr string, inputView ui.InputComponent) tea.Cm
 		)
 	}
 
+	// Default: autocomplete update, scroll to bottom, hide help
 	return tea.Batch(
+		autocompleteCmd,
 		func() tea.Msg {
 			return domain.ScrollRequestEvent{
 				ComponentID: "conversation",

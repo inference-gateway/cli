@@ -8,13 +8,12 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
-	ui "github.com/inference-gateway/cli/internal/ui"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
-// InputView handles user input with history and autocomplete
+// InputView handles user input with history
 type InputView struct {
 	text                 string
 	cursor               int
@@ -26,7 +25,6 @@ type InputView struct {
 	stateManager         domain.StateManager
 	configService        *config.Config
 	conversationRepo     domain.ConversationRepository
-	Autocomplete         ui.AutocompleteInterface
 	historyManager       *history.HistoryManager
 	disabled             bool
 	savedText            string
@@ -37,6 +35,7 @@ type InputView struct {
 	historySuggestion    string
 	historySuggestions   []string
 	historySelectedIndex int
+	focused              bool
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -60,10 +59,10 @@ func NewInputViewWithConfigDir(modelService domain.ModelService, configDir strin
 		width:            80,
 		height:           5,
 		modelService:     modelService,
-		Autocomplete:     nil,
 		historyManager:   historyManager,
 		themeService:     nil,
 		imageAttachments: []domain.ImageAttachment{},
+		focused:          true,
 	}
 }
 
@@ -76,15 +75,6 @@ func (iv *InputView) SetThemeService(themeService domain.ThemeService) {
 // SetStateManager sets the state manager for this input view
 func (iv *InputView) SetStateManager(stateManager domain.StateManager) {
 	iv.stateManager = stateManager
-
-	if iv.Autocomplete != nil {
-		type stateManagerSetter interface {
-			SetStateManager(domain.StateManager)
-		}
-		if ac, ok := iv.Autocomplete.(stateManagerSetter); ok {
-			ac.SetStateManager(stateManager)
-		}
-	}
 }
 
 // SetConfigService sets the config service for this input view
@@ -111,9 +101,6 @@ func (iv *InputView) ClearInput() {
 	iv.cursor = 0
 	iv.imageAttachments = []domain.ImageAttachment{}
 	iv.historyManager.ResetNavigation()
-	if iv.Autocomplete != nil {
-		iv.Autocomplete.Hide()
-	}
 }
 
 func (iv *InputView) SetPlaceholder(text string) {
@@ -136,9 +123,6 @@ func (iv *InputView) SetText(text string) {
 
 func (iv *InputView) SetWidth(width int) {
 	iv.width = width
-	if iv.Autocomplete != nil {
-		iv.Autocomplete.SetWidth(width)
-	}
 }
 
 func (iv *InputView) SetHeight(height int) {
@@ -159,17 +143,7 @@ func (iv *InputView) Render() string {
 	focused := isBashMode || isToolsMode
 	borderedInput := iv.styleProvider.RenderInputField(inputContent, iv.width-4, focused)
 
-	var components []string
-	components = append(components, borderedInput)
-
-	if !iv.disabled {
-		autocompleteContent := iv.renderAutocomplete()
-		if autocompleteContent != "" {
-			components = append(components, autocompleteContent)
-		}
-	}
-
-	return iv.styleProvider.JoinVertical(components...)
+	return borderedInput
 }
 
 func (iv *InputView) renderDisplayText() string {
@@ -194,12 +168,19 @@ func (iv *InputView) getDisplayTextAndCursorOffset() (displayText string, cursor
 }
 
 func (iv *InputView) renderPlaceholder() string {
-	if !iv.disabled {
-		cursorChar := iv.createCursorChar(" ")
-		placeholder := iv.styleProvider.RenderInputPlaceholder(iv.placeholder)
-		return cursorChar + placeholder
+	if iv.disabled {
+		return iv.renderDisabledPlaceholder()
 	}
 
+	if !iv.focused {
+		return iv.styleProvider.RenderInputPlaceholder(iv.placeholder)
+	}
+
+	return iv.renderFocusedPlaceholder()
+}
+
+// renderDisabledPlaceholder returns placeholder text when input is disabled
+func (iv *InputView) renderDisabledPlaceholder() string {
 	if iv.stateManager == nil {
 		return iv.styleProvider.RenderDimText("⏸  Input disabled")
 	}
@@ -213,6 +194,22 @@ func (iv *InputView) renderPlaceholder() string {
 	}
 
 	return iv.styleProvider.RenderDimText("⏸  Input disabled")
+}
+
+// renderFocusedPlaceholder returns placeholder text when input is focused
+func (iv *InputView) renderFocusedPlaceholder() string {
+	if len(iv.placeholder) == 0 {
+		return iv.createCursorChar(" ")
+	}
+
+	firstChar := string(iv.placeholder[0])
+	rest := ""
+	if len(iv.placeholder) > 1 {
+		rest = iv.placeholder[1:]
+	}
+	cursorChar := iv.createCursorChar(firstChar)
+	restPlaceholder := iv.styleProvider.RenderInputPlaceholder(rest)
+	return cursorChar + restPlaceholder
 }
 
 // calculateAdjustedCursor calculates the cursor position for display text
@@ -274,16 +271,30 @@ func (iv *InputView) renderUnwrappedText(before, after string) string {
 }
 
 func (iv *InputView) buildTextWithCursor(before, after string) string {
-	if len(after) == 0 {
-		cursorChar := iv.createCursorChar(" ")
-		result := fmt.Sprintf("%s%s", before, cursorChar)
+	if !iv.focused {
+		if len(after) == 0 {
+			if iv.cursor == len(iv.text) && iv.historySuggestion != "" {
+				ghostText := iv.styleProvider.RenderDimText(iv.historySuggestion)
+				return fmt.Sprintf("%s%s", before, ghostText)
+			}
+			return before
+		}
+		return fmt.Sprintf("%s%s", before, after)
+	}
 
-		if iv.cursor == len(iv.text) && iv.historySuggestion != "" {
-			ghostText := iv.styleProvider.RenderDimText(iv.historySuggestion)
-			result = fmt.Sprintf("%s%s%s", before, cursorChar, ghostText)
+	if len(after) == 0 {
+		if iv.cursor == len(iv.text) && iv.historySuggestion != "" && len(iv.historySuggestion) > 0 {
+			firstGhostChar := string(iv.historySuggestion[0])
+			cursorChar := iv.createCursorChar(firstGhostChar)
+			restGhost := ""
+			if len(iv.historySuggestion) > 1 {
+				restGhost = iv.styleProvider.RenderDimText(iv.historySuggestion[1:])
+			}
+			return fmt.Sprintf("%s%s%s", before, cursorChar, restGhost)
 		}
 
-		return result
+		cursorChar := iv.createCursorChar(" ")
+		return fmt.Sprintf("%s%s", before, cursorChar)
 	}
 
 	cursorChar := iv.createCursorChar(string(after[0]))
@@ -296,14 +307,6 @@ func (iv *InputView) buildTextWithCursor(before, after string) string {
 
 func (iv *InputView) createCursorChar(char string) string {
 	return iv.styleProvider.RenderCursor(char)
-}
-
-// renderAutocomplete returns the autocomplete dropdown content if visible
-func (iv *InputView) renderAutocomplete() string {
-	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() && iv.height >= 3 {
-		return iv.Autocomplete.Render()
-	}
-	return ""
 }
 
 // NavigateHistoryUp moves up in history (to older messages) - public method for interface
@@ -344,22 +347,22 @@ func (iv *InputView) Init() tea.Cmd { return nil }
 func (iv *InputView) View() string { return iv.Render() }
 
 func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		iv.SetWidth(windowMsg.Width)
-	}
-
 	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		iv.SetWidth(msg.Width)
+		return iv, nil
+	case tea.FocusMsg:
+		iv.focused = true
+		return iv, func() tea.Msg { return nil }
+	case tea.BlurMsg:
+		iv.focused = false
+		return iv, func() tea.Msg { return nil }
 	case domain.ClearInputEvent:
 		iv.ClearInput()
 		return iv, nil
 	case domain.SetInputEvent:
 		iv.SetText(msg.Text)
 		iv.SetCursor(len(msg.Text))
-		return iv, nil
-	case domain.RefreshAutocompleteEvent:
-		if iv.Autocomplete != nil && strings.HasPrefix(iv.text, "!!") {
-			iv.Autocomplete.Update(iv.text, iv.cursor)
-		}
 		return iv, nil
 	}
 	return iv, nil
@@ -368,34 +371,20 @@ func (iv *InputView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 	keyStr := key.String()
 
-	if keyStr == "tab" && (iv.Autocomplete == nil || !iv.Autocomplete.IsVisible()) {
+	if keyStr == "tab" {
 		if iv.HasHistorySuggestion() && iv.cursor == len(iv.text) {
 			iv.cycleHistorySuggestion()
 			return iv, nil
 		}
 	}
 
-	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
-		if handled, completion := iv.Autocomplete.HandleKey(key); handled {
-			return iv.handleAutocomplete(completion)
-		}
-	}
-
-	if iv.Autocomplete == nil || !iv.Autocomplete.IsVisible() {
-		switch keyStr {
-		case "up":
-			iv.navigateHistoryUp()
-			if iv.Autocomplete != nil {
-				iv.Autocomplete.Update(iv.text, iv.cursor)
-			}
-			return iv, nil
-		case "down":
-			iv.navigateHistoryDown()
-			if iv.Autocomplete != nil {
-				iv.Autocomplete.Update(iv.text, iv.cursor)
-			}
-			return iv, nil
-		}
+	switch keyStr {
+	case "up":
+		iv.navigateHistoryUp()
+		return iv, nil
+	case "down":
+		iv.navigateHistoryDown()
+		return iv, nil
 	}
 
 	if keyStr != "up" && keyStr != "down" && keyStr != "left" && keyStr != "right" &&
@@ -403,35 +392,7 @@ func (iv *InputView) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 		iv.historyManager.ResetNavigation()
 	}
 
-	if iv.Autocomplete != nil {
-		iv.Autocomplete.Update(iv.text, iv.cursor)
-	}
 	return iv, nil
-}
-
-func (iv *InputView) handleAutocomplete(completion string) (tea.Model, tea.Cmd) {
-	if completion != "" {
-		iv.text = completion
-		iv.setCursorPosition(completion)
-		if iv.Autocomplete != nil {
-			iv.Autocomplete.Hide()
-		}
-		return iv, nil
-	}
-	return iv, nil
-}
-
-// setCursorPosition sets the appropriate cursor position based on completion content
-func (iv *InputView) setCursorPosition(completion string) {
-	if strings.Contains(completion, `=""`) {
-		if idx := strings.Index(completion, `=""`); idx != -1 {
-			iv.cursor = idx + 2
-		} else {
-			iv.cursor = len(completion)
-		}
-	} else {
-		iv.cursor = len(completion)
-	}
 }
 
 func (iv *InputView) CanHandle(key tea.KeyMsg) bool {
@@ -457,19 +418,6 @@ func (iv *InputView) preserveTrailingSpaces(text string, availableWidth int) str
 	}
 
 	return wrappedText
-}
-
-// IsAutocompleteVisible returns whether autocomplete is currently visible
-func (iv *InputView) IsAutocompleteVisible() bool {
-	return iv.Autocomplete != nil && iv.Autocomplete.IsVisible()
-}
-
-// TryHandleAutocomplete attempts to handle autocomplete key input
-func (iv *InputView) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string) {
-	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
-		return iv.Autocomplete.HandleKey(key)
-	}
-	return false, ""
 }
 
 // SetDisabled sets whether the input is disabled (prevents typing)
@@ -523,13 +471,6 @@ func (iv *InputView) GetHistoryManager() *history.HistoryManager {
 // updateHistorySuggestions filters history based on current input and updates suggestions
 func (iv *InputView) updateHistorySuggestions() {
 	if iv.text == "" || iv.cursor != len(iv.text) {
-		iv.historySuggestion = ""
-		iv.historySuggestions = nil
-		iv.historySelectedIndex = 0
-		return
-	}
-
-	if iv.Autocomplete != nil && iv.Autocomplete.IsVisible() {
 		iv.historySuggestion = ""
 		iv.historySuggestions = nil
 		iv.historySelectedIndex = 0

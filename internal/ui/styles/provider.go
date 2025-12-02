@@ -599,3 +599,8 @@ func (p *Provider) GetSpinnerStyle() lipgloss.Style {
 func (p *Provider) GetThemeService() domain.ThemeService {
 	return p.themeService
 }
+
+// RenderStatusLine renders a status line with no padding
+func (p *Provider) RenderStatusLine(content string) string {
+	return content
+}

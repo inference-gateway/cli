@@ -271,25 +271,34 @@ func (cv *ConversationView) updateViewportContentFull() {
 }
 
 func (cv *ConversationView) renderWelcome() string {
-	wd, err := os.Getwd()
-	if err != nil {
-		wd = "unknown"
-	}
-
 	statusColor := cv.styleProvider.GetThemeColor("status")
 	successColor := cv.styleProvider.GetThemeColor("success")
 	dimColor := cv.styleProvider.GetThemeColor("dim")
-	headerColor := cv.getHeaderColor()
 
 	headerLine := cv.styleProvider.RenderWithColor("✨ Inference Gateway CLI", statusColor)
 	readyLine := cv.styleProvider.RenderWithColor("🚀 Ready to chat!", successColor)
-	workingLinePrefix := cv.styleProvider.RenderWithColor("📂 Working in: ", dimColor)
-	workingLinePath := cv.styleProvider.RenderWithColor(wd, headerColor)
-	workingLine := workingLinePrefix + workingLinePath
 
-	configLine := cv.buildConfigLine()
+	var content string
 
-	content := headerLine + "\n\n" + readyLine + "\n\n" + workingLine + "\n\n" + configLine
+	if cv.height >= 20 {
+		wd, err := os.Getwd()
+		if err != nil {
+			wd = "unknown"
+		}
+
+		headerColor := cv.getHeaderColor()
+
+		workingLinePrefix := cv.styleProvider.RenderWithColor("📂 Working in: ", dimColor)
+		workingLinePath := cv.styleProvider.RenderWithColor(wd, headerColor)
+		workingLine := workingLinePrefix + workingLinePath
+
+		configLine := cv.buildConfigLine()
+
+		content = headerLine + "\n\n" + readyLine + "\n\n" + workingLine + "\n\n" + configLine
+	} else {
+		separator := cv.styleProvider.RenderWithColor("  •  ", dimColor)
+		content = headerLine + separator + readyLine
+	}
 
 	return cv.styleProvider.RenderBorderedBox(content, cv.styleProvider.GetThemeColor("accent"), 1, 1)
 }

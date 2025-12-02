@@ -22,6 +22,16 @@ type FakeKeyHandlerContext struct {
 	getAgentServiceReturnsOnCall map[int]struct {
 		result1 domain.AgentService
 	}
+	GetAutocompleteStub        func() ui.AutocompleteComponent
+	getAutocompleteMutex       sync.RWMutex
+	getAutocompleteArgsForCall []struct {
+	}
+	getAutocompleteReturns struct {
+		result1 ui.AutocompleteComponent
+	}
+	getAutocompleteReturnsOnCall map[int]struct {
+		result1 ui.AutocompleteComponent
+	}
 	GetConfigStub        func() *config.Config
 	getConfigMutex       sync.RWMutex
 	getConfigArgsForCall []struct {
@@ -189,6 +199,59 @@ func (fake *FakeKeyHandlerContext) GetAgentServiceReturnsOnCall(i int, result1 d
 	}
 	fake.getAgentServiceReturnsOnCall[i] = struct {
 		result1 domain.AgentService
+	}{result1}
+}
+
+func (fake *FakeKeyHandlerContext) GetAutocomplete() ui.AutocompleteComponent {
+	fake.getAutocompleteMutex.Lock()
+	ret, specificReturn := fake.getAutocompleteReturnsOnCall[len(fake.getAutocompleteArgsForCall)]
+	fake.getAutocompleteArgsForCall = append(fake.getAutocompleteArgsForCall, struct {
+	}{})
+	stub := fake.GetAutocompleteStub
+	fakeReturns := fake.getAutocompleteReturns
+	fake.recordInvocation("GetAutocomplete", []interface{}{})
+	fake.getAutocompleteMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeKeyHandlerContext) GetAutocompleteCallCount() int {
+	fake.getAutocompleteMutex.RLock()
+	defer fake.getAutocompleteMutex.RUnlock()
+	return len(fake.getAutocompleteArgsForCall)
+}
+
+func (fake *FakeKeyHandlerContext) GetAutocompleteCalls(stub func() ui.AutocompleteComponent) {
+	fake.getAutocompleteMutex.Lock()
+	defer fake.getAutocompleteMutex.Unlock()
+	fake.GetAutocompleteStub = stub
+}
+
+func (fake *FakeKeyHandlerContext) GetAutocompleteReturns(result1 ui.AutocompleteComponent) {
+	fake.getAutocompleteMutex.Lock()
+	defer fake.getAutocompleteMutex.Unlock()
+	fake.GetAutocompleteStub = nil
+	fake.getAutocompleteReturns = struct {
+		result1 ui.AutocompleteComponent
+	}{result1}
+}
+
+func (fake *FakeKeyHandlerContext) GetAutocompleteReturnsOnCall(i int, result1 ui.AutocompleteComponent) {
+	fake.getAutocompleteMutex.Lock()
+	defer fake.getAutocompleteMutex.Unlock()
+	fake.GetAutocompleteStub = nil
+	if fake.getAutocompleteReturnsOnCall == nil {
+		fake.getAutocompleteReturnsOnCall = make(map[int]struct {
+			result1 ui.AutocompleteComponent
+		})
+	}
+	fake.getAutocompleteReturnsOnCall[i] = struct {
+		result1 ui.AutocompleteComponent
 	}{result1}
 }
 

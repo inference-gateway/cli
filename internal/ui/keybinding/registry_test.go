@@ -16,26 +16,21 @@ import (
 func newTestContext(currentView domain.ViewState, inputText string) *keybindingmocks.FakeKeyHandlerContext {
 	fake := &keybindingmocks.FakeKeyHandlerContext{}
 
-	// Setup state manager
 	stateManager := services.NewStateManager(false)
 	_ = stateManager.TransitionToView(currentView)
 	fake.GetStateManagerReturns(stateManager)
 
-	// Setup input component
 	fakeInput := &uimocks.FakeInputComponent{}
 	fakeInput.GetInputReturns(inputText)
 	fakeInput.GetCursorReturns(0)
 	fake.GetInputViewReturns(fakeInput)
 
-	// Setup conversation view
 	fakeConversation := &uimocks.FakeConversationRenderer{}
 	fake.GetConversationViewReturns(fakeConversation)
 
-	// Setup status view
 	fakeStatus := &uimocks.FakeStatusComponent{}
 	fake.GetStatusViewReturns(fakeStatus)
 
-	// Setup other defaults
 	fake.GetPageSizeReturns(20)
 	fake.GetMouseEnabledReturns(false)
 	fake.GetConfigReturns(nil)
