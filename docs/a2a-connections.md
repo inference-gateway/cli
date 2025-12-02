@@ -24,6 +24,45 @@ The CLI connects to A2A agents using their URL endpoints through the ADK client 
 
 ## Usage
 
+### Using the /a2a Shortcut
+
+The `/a2a` shortcut provides command-line interface for managing A2A agent configurations:
+
+#### List A2A Servers
+
+```bash
+/a2a
+/a2a list
+```
+
+This opens the A2A servers view showing:
+
+- Gateway URL configuration
+- A2A middleware status (enabled/disabled)
+- API key configuration status
+- Connection timeout settings
+- Configured agents and their status
+
+#### Add an Agent
+
+```bash
+/a2a add my-agent http://localhost:8081 --run --model openai/gpt-4
+```
+
+Options:
+
+- `--oci IMAGE`: Specify OCI container image
+- `--artifacts-url URL`: Artifacts download URL
+- `--run`: Run the agent locally
+- `--model MODEL`: Model to use for the agent
+- `--environment KEY=VALUE`: Environment variables
+
+#### Remove an Agent
+
+```bash
+/a2a remove my-agent
+```
+
 ### Using the A2A Tools
 
 The A2A functionality is exposed through multiple tools that can be used in conversations:
@@ -164,6 +203,9 @@ Tool Details:
 
 ### A2A Tool Configuration
 
+**Note**: The `/a2a` shortcut is used for **agent configuration management**,
+while the A2A tools below are used for **runtime interaction** with configured agents.
+
 A2A tools are configured in the `a2a.tools` section of your configuration:
 
 ```yaml
@@ -280,6 +322,16 @@ Enable verbose logging and check for:
 - Error stack traces
 
 ## Examples
+
+### Agent Configuration with /a2a Shortcut
+
+```bash
+# First, configure an agent using the /a2a shortcut
+/a2a add code-reviewer http://localhost:8081 --run --model openai/gpt-4 --environment GITHUB_TOKEN=xxx
+
+# List configured agents
+/a2a list
+```
 
 ### Code Review Task
 
