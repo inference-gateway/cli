@@ -50,6 +50,12 @@ func CreateStatusView(themeService domain.ThemeService) ui.StatusComponent {
 	return components.NewStatusView(styleProvider)
 }
 
+// CreateInputStatusBar creates a new input status bar component
+func CreateInputStatusBar(themeService domain.ThemeService) ui.InputStatusBarComponent {
+	styleProvider := styles.NewProvider(themeService)
+	return components.NewInputStatusBar(styleProvider)
+}
+
 // CreateHelpBar creates a new help bar component
 func CreateHelpBar(themeService domain.ThemeService) ui.HelpBarComponent {
 	styleProvider := styles.NewProvider(themeService)

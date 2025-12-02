@@ -51,7 +51,6 @@ const (
 	ViewStateModelSelection ViewState = iota
 	ViewStateChat
 	ViewStateFileSelection
-	ViewStateTextSelection
 	ViewStateConversationSelection
 	ViewStateThemeSelection
 	ViewStateA2AServers
@@ -80,8 +79,6 @@ func (v ViewState) String() string {
 		return "Chat"
 	case ViewStateFileSelection:
 		return "FileSelection"
-	case ViewStateTextSelection:
-		return "TextSelection"
 	case ViewStateConversationSelection:
 		return "ConversationSelection"
 	case ViewStateThemeSelection:
@@ -399,7 +396,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateChat: {
 			ViewStateModelSelection,
 			ViewStateFileSelection,
-			ViewStateTextSelection,
 			ViewStateConversationSelection,
 			ViewStateThemeSelection,
 			ViewStateA2AServers,
@@ -408,7 +404,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateGitHubAppSetup,
 		},
 		ViewStateFileSelection:         {ViewStateChat},
-		ViewStateTextSelection:         {ViewStateChat},
 		ViewStateConversationSelection: {ViewStateChat},
 		ViewStateThemeSelection:        {ViewStateChat},
 		ViewStateA2AServers:            {ViewStateChat},

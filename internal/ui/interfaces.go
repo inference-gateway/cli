@@ -85,8 +85,6 @@ type InputComponent interface {
 	GetImageAttachments() []domain.ImageAttachment
 	ClearImageAttachments()
 	AddToHistory(text string) error
-	SetTextSelectionMode(enabled bool)
-	IsTextSelectionMode() bool
 }
 
 // StatusComponent interface for status display
@@ -103,6 +101,14 @@ type StatusComponent interface {
 	SaveCurrentState()
 	RestoreSavedState() tea.Cmd
 	HasSavedState() bool
+}
+
+// InputStatusBarComponent interface for input status bar
+type InputStatusBarComponent interface {
+	SetWidth(width int)
+	SetHeight(height int)
+	SetInputText(text string)
+	Render() string
 }
 
 // HelpBarComponent interface for help bar
@@ -156,13 +162,14 @@ type SelectionComponent interface {
 func CalculateConversationHeight(totalHeight int) int {
 	inputHeight := CalculateInputHeight(totalHeight)
 	statusHeight := CalculateStatusHeight(totalHeight)
+	inputStatusBarHeight := 1
 
 	extraLines := 5
 	if totalHeight < 12 {
 		extraLines = 3
 	}
 
-	conversationHeight := totalHeight - inputHeight - statusHeight - extraLines
+	conversationHeight := totalHeight - inputHeight - statusHeight - inputStatusBarHeight - extraLines
 
 	minConversationHeight := 3
 	if conversationHeight < minConversationHeight {

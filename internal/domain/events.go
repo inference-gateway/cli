@@ -273,3 +273,6 @@ type PlanRejectedEvent struct {
 
 func (e PlanRejectedEvent) GetRequestID() string    { return e.RequestID }
 func (e PlanRejectedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// RefreshAutocompleteEvent is sent when autocomplete needs to refresh (e.g., after mode change)
+type RefreshAutocompleteEvent struct{}

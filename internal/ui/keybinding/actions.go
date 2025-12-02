@@ -92,11 +92,11 @@ func (r *Registry) createChatActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "enter_selection_mode",
+			ID:          "toggle_mouse_mode",
 			Keys:        []string{"ctrl+s"},
-			Description: "enter text selection mode",
+			Description: "toggle mouse scrolling/text selection",
 			Category:    "selection",
-			Handler:     handleEnterSelectionMode,
+			Handler:     handleToggleMouseMode,
 			Priority:    150,
 			Enabled:     true,
 			Context: KeyContext{
@@ -963,37 +963,43 @@ func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 	newMode := stateManager.CycleAgentMode()
 
-	return func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message: fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
-			Spinner: false,
-		}
-	}
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message: fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
+				Spinner: false,
+			}
+		},
+		func() tea.Msg {
+			return domain.RefreshAutocompleteEvent{}
+		},
+	)
 }
 
-func handleEnterSelectionMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
+func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	mouseEnabled := app.GetMouseEnabled()
+	app.SetMouseEnabled(!mouseEnabled)
 
-	statusView := app.GetStatusView()
-	statusView.SaveCurrentState()
-
-	err := stateManager.TransitionToView(domain.ViewStateTextSelection)
-	if err != nil {
-		return func() tea.Msg {
-			return domain.ShowErrorEvent{
-				Error: "Failed to enter selection mode: " + err.Error(),
-			}
-		}
+	if !mouseEnabled {
+		return tea.Batch(
+			tea.EnableMouseCellMotion,
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    "Mouse scrolling enabled",
+					Spinner:    false,
+					StatusType: domain.StatusDefault,
+				}
+			},
+		)
 	}
 
 	return tea.Batch(
-		func() tea.Msg {
-			return domain.InitializeTextSelectionEvent{}
-		},
+		tea.DisableMouse,
 		func() tea.Msg {
 			return domain.SetStatusEvent{
-				Message: "Entered text selection mode - use vim keys to navigate",
-				Spinner: false,
+				Message:    "Text selection enabled",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
 			}
 		},
 	)

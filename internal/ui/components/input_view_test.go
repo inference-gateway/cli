@@ -1,7 +1,6 @@
 package components
 
 import (
-	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,17 +26,16 @@ func createMockModelService() *domainmocks.FakeModelService {
 // createInputViewWithTheme creates an InputView with isolated memory-only history for testing
 func createInputViewWithTheme(modelService domain.ModelService) *InputView {
 	iv := &InputView{
-		text:                "",
-		cursor:              0,
-		placeholder:         "Type your message...",
-		width:               80,
-		height:              5,
-		modelService:        modelService,
-		Autocomplete:        nil,
-		historyManager:      history.NewMemoryOnlyHistoryManager(5),
-		isTextSelectionMode: false,
-		themeService:        nil,
-		imageAttachments:    []domain.ImageAttachment{},
+		text:             "",
+		cursor:           0,
+		placeholder:      "Type your message...",
+		width:            80,
+		height:           5,
+		modelService:     modelService,
+		Autocomplete:     nil,
+		historyManager:   history.NewMemoryOnlyHistoryManager(5),
+		themeService:     nil,
+		imageAttachments: []domain.ImageAttachment{},
 	}
 
 	fakeTheme := &uimocks.FakeTheme{}
@@ -254,18 +252,10 @@ func TestInputView_BashModeBorderColor(t *testing.T) {
 		t.Error("Expected non-empty render output for bash mode")
 	}
 
-	if !strings.Contains(bashOutput, "BASH MODE") {
-		t.Error("Expected bash mode output to contain 'BASH MODE' indicator")
-	}
-
 	iv.SetText("!!")
 	toolsOutput := iv.Render()
 	if toolsOutput == "" {
 		t.Error("Expected non-empty render output for tools mode")
-	}
-
-	if !strings.Contains(toolsOutput, "TOOLS MODE") {
-		t.Error("Expected tools mode output to contain 'TOOLS MODE' indicator")
 	}
 }
 

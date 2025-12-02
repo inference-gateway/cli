@@ -1,257 +1,60 @@
-package keybinding
+package keybinding_test
 
 import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
-	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
-	ui "github.com/inference-gateway/cli/internal/ui"
+	keybinding "github.com/inference-gateway/cli/internal/ui/keybinding"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	keybindingmocks "github.com/inference-gateway/cli/tests/mocks/keybinding"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
 )
 
-type testKeyHandlerContext struct {
-	currentView       domain.ViewState
-	inputText         string
-	expandToggleCalls int
-	messageSentCalls  int
-	stateManager      *services.StateManager
-}
-
-func (t *testKeyHandlerContext) GetStateManager() domain.StateManager {
-	if t.stateManager == nil {
-		t.stateManager = services.NewStateManager(false)
-		_ = t.stateManager.TransitionToView(t.currentView)
-	}
-	return t.stateManager
-}
-
-func (t *testKeyHandlerContext) GetConversationRepository() domain.ConversationRepository {
-	return nil
-}
-
-func (t *testKeyHandlerContext) GetConfig() *config.Config {
-	return nil
-}
-
-func (t *testKeyHandlerContext) GetAgentService() domain.AgentService {
-	return nil
-}
-
-func (t *testKeyHandlerContext) GetImageService() domain.ImageService {
-	return services.NewImageService(t.GetConfig())
-}
-
-func (t *testKeyHandlerContext) GetConversationView() ui.ConversationRenderer {
-	return &testConversationRenderer{}
-}
-
-func (t *testKeyHandlerContext) GetInputView() ui.InputComponent {
-	return &testInputComponent{text: t.inputText}
-}
-
-func (t *testKeyHandlerContext) GetStatusView() ui.StatusComponent {
-	return &testStatusComponent{}
-}
-
-func (t *testKeyHandlerContext) ToggleToolResultExpansion() {
-	t.expandToggleCalls++
-}
-
-func (t *testKeyHandlerContext) ToggleRawFormat() {
-}
-
-func (t *testKeyHandlerContext) SendMessage() tea.Cmd {
-	t.messageSentCalls++
-	return nil
-}
-
-func (t *testKeyHandlerContext) CancelCurrentOperation() tea.Cmd {
-	return nil
-}
-
-func (t *testKeyHandlerContext) HasPendingApproval() bool {
-	return false
-}
-
-func (t *testKeyHandlerContext) GetPageSize() int {
-	return 20
-}
-
-func (t *testKeyHandlerContext) ApproveToolCall() tea.Cmd {
-	return nil
-}
-
-func (t *testKeyHandlerContext) DenyToolCall() tea.Cmd {
-	return nil
-}
-
-type testConversationRenderer struct{}
-
-func (t *testConversationRenderer) SetConversation([]domain.ConversationEntry) {}
-
-func (t *testConversationRenderer) GetScrollOffset() int {
-	return 0
-}
-
-func (t *testConversationRenderer) CanScrollUp() bool {
-	return false
-}
-
-func (t *testConversationRenderer) CanScrollDown() bool {
-	return false
-}
-
-func (t *testConversationRenderer) ToggleToolResultExpansion(index int) {}
-
-func (t *testConversationRenderer) ToggleAllToolResultsExpansion() {}
-
-func (t *testConversationRenderer) IsToolResultExpanded(index int) bool {
-	return false
-}
-
-func (t *testConversationRenderer) ToggleRawFormat() {}
-
-func (t *testConversationRenderer) IsRawFormat() bool {
-	return false
-}
-
-func (t *testConversationRenderer) ResetUserScroll() {}
-
-func (t *testConversationRenderer) SetWidth(width int) {}
-
-func (t *testConversationRenderer) SetHeight(height int) {}
-
-func (t *testConversationRenderer) Render() string {
-	return ""
-}
-
-type testInputComponent struct {
-	text   string
-	cursor int
-}
-
-func (t *testInputComponent) GetInput() string {
-	return t.text
-}
-
-func (t *testInputComponent) SetText(text string) {
-	t.text = text
-}
-
-func (t *testInputComponent) GetCursor() int {
-	return t.cursor
-}
-
-func (t *testInputComponent) SetCursor(pos int) {
-	t.cursor = pos
-}
-
-func (t *testInputComponent) NavigateHistoryUp() {
-	// Test implementation - no-op
-}
-
-func (t *testInputComponent) NavigateHistoryDown() {
-	// Test implementation - no-op
-}
-
-func (t *testInputComponent) AddToHistory(text string) error {
-	// Test implementation - no-op
-	return nil
-}
-
-func (t *testInputComponent) ClearInput() {}
-
-func (t *testInputComponent) SetPlaceholder(text string) {}
-
-func (t *testInputComponent) SetWidth(width int) {}
-
-func (t *testInputComponent) SetHeight(height int) {}
-
-func (t *testInputComponent) Render() string {
-	return ""
-}
-
-func (t *testInputComponent) HandleKey(key tea.KeyMsg) (tea.Model, tea.Cmd) {
-	return nil, nil
-}
-
-func (t *testInputComponent) CanHandle(key tea.KeyMsg) bool {
-	return false
-}
-
-func (t *testInputComponent) IsAutocompleteVisible() bool {
-	return false
-}
-
-func (t *testInputComponent) SetTextSelectionMode(enabled bool) {
-	// Test implementation - no-op
-}
-
-func (t *testInputComponent) IsTextSelectionMode() bool {
-	return false
-}
-
-func (t *testInputComponent) AddImageAttachment(image domain.ImageAttachment) {}
-
-func (t *testInputComponent) GetImageAttachments() []domain.ImageAttachment {
-	return []domain.ImageAttachment{}
-}
-
-func (t *testInputComponent) ClearImageAttachments() {}
-
-func (t *testInputComponent) TryHandleAutocomplete(key tea.KeyMsg) (handled bool, completion string) {
-	return false, ""
-}
-
-type testStatusComponent struct{}
-
-func (t *testStatusComponent) ShowStatus(message string) {}
-
-func (t *testStatusComponent) ShowError(message string) {}
-
-func (t *testStatusComponent) ShowSpinner(message string) {}
-
-func (t *testStatusComponent) ClearStatus() {}
-
-func (t *testStatusComponent) IsShowingError() bool {
-	return false
-}
-
-func (t *testStatusComponent) IsShowingSpinner() bool {
-	return false
-}
-
-func (t *testStatusComponent) SetTokenUsage(usage string) {}
-
-func (t *testStatusComponent) SetWidth(width int) {}
-
-func (t *testStatusComponent) SetHeight(height int) {}
-
-func (t *testStatusComponent) Render() string {
-	return ""
-}
-
-func (t *testStatusComponent) SaveCurrentState() {}
-
-func (t *testStatusComponent) RestoreSavedState() tea.Cmd {
-	return nil
-}
-
-func (t *testStatusComponent) HasSavedState() bool {
-	return false
+// newTestContext creates a configured FakeKeyHandlerContext for testing
+func newTestContext(currentView domain.ViewState, inputText string) *keybindingmocks.FakeKeyHandlerContext {
+	fake := &keybindingmocks.FakeKeyHandlerContext{}
+
+	// Setup state manager
+	stateManager := services.NewStateManager(false)
+	_ = stateManager.TransitionToView(currentView)
+	fake.GetStateManagerReturns(stateManager)
+
+	// Setup input component
+	fakeInput := &uimocks.FakeInputComponent{}
+	fakeInput.GetInputReturns(inputText)
+	fakeInput.GetCursorReturns(0)
+	fake.GetInputViewReturns(fakeInput)
+
+	// Setup conversation view
+	fakeConversation := &uimocks.FakeConversationRenderer{}
+	fake.GetConversationViewReturns(fakeConversation)
+
+	// Setup status view
+	fakeStatus := &uimocks.FakeStatusComponent{}
+	fake.GetStatusViewReturns(fakeStatus)
+
+	// Setup other defaults
+	fake.GetPageSizeReturns(20)
+	fake.GetMouseEnabledReturns(false)
+	fake.GetConfigReturns(nil)
+	fake.GetConversationRepositoryReturns(nil)
+	fake.GetAgentServiceReturns(nil)
+
+	fakeImageService := &domainmocks.FakeImageService{}
+	fake.GetImageServiceReturns(fakeImageService)
+
+	return fake
 }
 
 func TestRegistryCreation(t *testing.T) {
-	registry := NewRegistry()
+	registry := keybinding.NewRegistry()
 	if registry == nil {
 		t.Fatal("Expected registry to be created")
 	}
 
-	mockContext := &testKeyHandlerContext{
-		currentView: domain.ViewStateChat,
-		inputText:   "test message",
-	}
+	mockContext := newTestContext(domain.ViewStateChat, "test message")
 
 	actions := registry.GetActiveActions(mockContext)
 
@@ -279,11 +82,8 @@ func TestRegistryCreation(t *testing.T) {
 }
 
 func TestKeyResolution(t *testing.T) {
-	registry := NewRegistry()
-	mockContext := &testKeyHandlerContext{
-		currentView: domain.ViewStateChat,
-		inputText:   "test message",
-	}
+	registry := keybinding.NewRegistry()
+	mockContext := newTestContext(domain.ViewStateChat, "test message")
 
 	action := registry.Resolve("ctrl+c", mockContext)
 	if action == nil {
@@ -313,12 +113,9 @@ func TestKeyResolution(t *testing.T) {
 }
 
 func TestViewContextFiltering(t *testing.T) {
-	registry := NewRegistry()
+	registry := keybinding.NewRegistry()
 
-	chatContext := &testKeyHandlerContext{
-		currentView: domain.ViewStateChat,
-		inputText:   "test message",
-	}
+	chatContext := newTestContext(domain.ViewStateChat, "test message")
 
 	chatActions := registry.GetActiveActions(chatContext)
 	hasToggleAction := false
@@ -332,9 +129,7 @@ func TestViewContextFiltering(t *testing.T) {
 		t.Error("Expected toggle_tool_expansion to be available in chat view")
 	}
 
-	modelContext := &testKeyHandlerContext{
-		currentView: domain.ViewStateModelSelection,
-	}
+	modelContext := newTestContext(domain.ViewStateModelSelection, "")
 
 	modelActions := registry.GetActiveActions(modelContext)
 	hasToggleActionInModel := false
@@ -350,10 +145,8 @@ func TestViewContextFiltering(t *testing.T) {
 }
 
 func TestActionHandlers(t *testing.T) {
-	registry := NewRegistry()
-	mockContext := &testKeyHandlerContext{
-		currentView: domain.ViewStateChat,
-	}
+	registry := keybinding.NewRegistry()
+	mockContext := newTestContext(domain.ViewStateChat, "")
 
 	action := registry.Resolve("ctrl+c", mockContext)
 	if action == nil {
@@ -369,21 +162,18 @@ func TestActionHandlers(t *testing.T) {
 	if action == nil {
 		t.Fatal("Expected ctrl+o to resolve to toggle action")
 	} else {
-		initialCallCount := mockContext.expandToggleCalls
+		initialCallCount := mockContext.ToggleToolResultExpansionCallCount()
 		_ = action.Handler(mockContext, tea.KeyMsg{})
 
-		if mockContext.expandToggleCalls != initialCallCount+1 {
+		if mockContext.ToggleToolResultExpansionCallCount() != initialCallCount+1 {
 			t.Error("Expected toggle handler to call ToggleToolResultExpansion()")
 		}
 	}
 }
 
 func TestHelpShortcutGeneration(t *testing.T) {
-	registry := NewRegistry()
-	mockContext := &testKeyHandlerContext{
-		currentView: domain.ViewStateChat,
-		inputText:   "test message",
-	}
+	registry := keybinding.NewRegistry()
+	mockContext := newTestContext(domain.ViewStateChat, "test message")
 
 	shortcuts := registry.GetHelpShortcuts(mockContext)
 	if len(shortcuts) == 0 {
@@ -417,12 +207,9 @@ func TestHelpShortcutGeneration(t *testing.T) {
 }
 
 func TestConditionalKeyBindings(t *testing.T) {
-	registry := NewRegistry()
+	registry := keybinding.NewRegistry()
 
-	emptyInputContext := &testKeyHandlerContext{
-		currentView: domain.ViewStateChat,
-		inputText:   "",
-	}
+	emptyInputContext := newTestContext(domain.ViewStateChat, "")
 	action := registry.Resolve("enter", emptyInputContext)
 	if action == nil {
 		t.Fatal("Expected enter key to resolve to enter_key_handler even when input is empty")
@@ -430,10 +217,7 @@ func TestConditionalKeyBindings(t *testing.T) {
 		t.Errorf("Expected enter to resolve to 'enter_key_handler', got %s", action.ID)
 	}
 
-	nonEmptyInputContext := &testKeyHandlerContext{
-		currentView: domain.ViewStateChat,
-		inputText:   "hello",
-	}
+	nonEmptyInputContext := newTestContext(domain.ViewStateChat, "hello")
 	action = registry.Resolve("enter", nonEmptyInputContext)
 	if action == nil {
 		t.Fatal("Expected enter key to resolve to enter_key_handler when input has content")
@@ -443,7 +227,7 @@ func TestConditionalKeyBindings(t *testing.T) {
 }
 
 func TestLayerPriority(t *testing.T) {
-	registry := NewRegistry()
+	registry := keybinding.NewRegistry()
 
 	layers := registry.GetLayers()
 	if len(layers) == 0 {
@@ -459,19 +243,19 @@ func TestLayerPriority(t *testing.T) {
 }
 
 func TestActionRegistration(t *testing.T) {
-	registry := NewRegistry()
+	registry := keybinding.NewRegistry()
 
-	customAction := &KeyAction{
+	customAction := &keybinding.KeyAction{
 		ID:          "test_action",
 		Keys:        []string{"ctrl+shift+t"},
 		Description: "test action",
 		Category:    "test",
-		Handler: func(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+		Handler: func(app keybinding.KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 			return nil
 		},
 		Priority: 100,
 		Enabled:  true,
-		Context: KeyContext{
+		Context: keybinding.KeyContext{
 			Views: []domain.ViewState{domain.ViewStateChat},
 		},
 	}
@@ -488,9 +272,7 @@ func TestActionRegistration(t *testing.T) {
 		t.Errorf("Expected retrieved action ID to be 'test_action', got %s", retrievedAction.ID)
 	}
 
-	mockContext := &testKeyHandlerContext{
-		currentView: domain.ViewStateChat,
-	}
+	mockContext := newTestContext(domain.ViewStateChat, "")
 	resolvedAction := registry.Resolve("ctrl+shift+t", mockContext)
 	if resolvedAction == nil {
 		t.Fatal("Expected custom action to be resolved")
@@ -500,14 +282,14 @@ func TestActionRegistration(t *testing.T) {
 }
 
 func TestActionConflictDetection(t *testing.T) {
-	registry := NewRegistry()
+	registry := keybinding.NewRegistry()
 
-	conflictingAction := &KeyAction{
+	conflictingAction := &keybinding.KeyAction{
 		ID:          "conflicting_action",
 		Keys:        []string{"ctrl+c"},
 		Description: "conflicting action",
 		Category:    "test",
-		Handler: func(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+		Handler: func(app keybinding.KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 			return nil
 		},
 		Priority: 100,

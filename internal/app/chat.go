@@ -47,24 +47,24 @@ type ChatApplication struct {
 	// State management
 	stateManager domain.StateManager
 	messageQueue domain.MessageQueue
+	mouseEnabled bool
 
 	// UI components
-	conversationView      ui.ConversationRenderer
-	inputView             ui.InputComponent
-	statusView            ui.StatusComponent
-	helpBar               ui.HelpBarComponent
-	queueBoxView          *components.QueueBoxView
-	todoBoxView           *components.TodoBoxView
-	modelSelector         *components.ModelSelectorImpl
-	themeSelector         *components.ThemeSelectorImpl
-	conversationSelector  *components.ConversationSelectorImpl
-	fileSelectionView     *components.FileSelectionView
-	textSelectionView     *components.TextSelectionView
-	a2aServersView        *components.A2AServersView
-	taskManager           *components.TaskManagerImpl
-	toolCallRenderer      *components.ToolCallRenderer
-	planApprovalComponent *components.PlanApprovalComponent
-	initGithubActionView  *components.InitGithubActionView
+	conversationView     ui.ConversationRenderer
+	inputView            ui.InputComponent
+	inputStatusBar       ui.InputStatusBarComponent
+	statusView           ui.StatusComponent
+	helpBar              ui.HelpBarComponent
+	queueBoxView         *components.QueueBoxView
+	todoBoxView          *components.TodoBoxView
+	modelSelector        *components.ModelSelectorImpl
+	themeSelector        *components.ThemeSelectorImpl
+	conversationSelector *components.ConversationSelectorImpl
+	fileSelectionView    *components.FileSelectionView
+	a2aServersView       *components.A2AServersView
+	taskManager          *components.TaskManagerImpl
+	toolCallRenderer     *components.ToolCallRenderer
+	initGithubActionView *components.InitGithubActionView
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -86,7 +86,7 @@ type ChatApplication struct {
 	availableModels []string
 }
 
-// NewChatApplication creates a new chat application
+// nolint: funlen // NewChatApplication creates a new chat application
 func NewChatApplication(
 	models []string,
 	defaultModel string,
@@ -130,6 +130,7 @@ func NewChatApplication(
 		availableModels:       models,
 		stateManager:          stateManager,
 		messageQueue:          messageQueue,
+		mouseEnabled:          true,
 	}
 
 	if err := app.stateManager.TransitionToView(initialView); err != nil {
@@ -139,7 +140,6 @@ func NewChatApplication(
 	styleProvider := styles.NewProvider(app.themeService)
 
 	app.toolCallRenderer = components.NewToolCallRenderer(styleProvider)
-	app.planApprovalComponent = components.NewPlanApprovalComponent(styleProvider)
 	app.conversationView = factory.CreateConversationView(app.themeService)
 	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
 
@@ -163,13 +163,22 @@ func NewChatApplication(
 		iv.SetConfigService(app.configService)
 		iv.SetConversationRepo(app.conversationRepo)
 	}
+
+	app.inputStatusBar = factory.CreateInputStatusBar(app.themeService)
+	if isb, ok := app.inputStatusBar.(*components.InputStatusBar); ok {
+		isb.SetModelService(app.modelService)
+		isb.SetThemeService(app.themeService)
+		isb.SetStateManager(app.stateManager)
+		isb.SetConfigService(app.configService)
+		isb.SetConversationRepo(app.conversationRepo)
+	}
+
 	app.statusView = factory.CreateStatusView(app.themeService)
 	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
 
 	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
-	app.textSelectionView = components.NewTextSelectionView(styleProvider)
 
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
 	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
@@ -262,24 +271,6 @@ func (app *ChatApplication) updateHelpBarShortcuts() {
 	app.helpBar.SetShortcuts(shortcuts)
 }
 
-// updateHelpBarShortcutsForTextSelection updates help bar with vim navigation instructions
-func (app *ChatApplication) updateHelpBarShortcutsForTextSelection() {
-	var shortcuts []ui.KeyShortcut
-
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "h/j/k/l", Description: "navigate"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "w/b", Description: "word jump"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "0/$", Description: "line start/end"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "g/G", Description: "document start/end"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "v", Description: "visual mode"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "V", Description: "visual line"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "y", Description: "copy"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+c", Description: "copy & exit"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "esc/q", Description: "exit"})
-
-	app.helpBar.SetEnabled(true)
-	app.helpBar.SetShortcuts(shortcuts)
-}
-
 // Init initializes the application
 func (app *ChatApplication) Init() tea.Cmd {
 	var cmds []tea.Cmd
@@ -338,7 +329,7 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	currentView := app.stateManager.GetCurrentView()
 
 	if inputView, ok := app.inputView.(*components.InputView); ok {
-		if currentView == domain.ViewStatePlanApproval || app.stateManager.GetApprovalUIState() != nil {
+		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil {
 			inputView.SetDisabled(true)
 		} else {
 			inputView.SetDisabled(false)
@@ -352,8 +343,6 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleChatView(msg)
 	case domain.ViewStateFileSelection:
 		return app.handleFileSelectionView(msg)
-	case domain.ViewStateTextSelection:
-		return app.handleTextSelectionView(msg)
 	case domain.ViewStateConversationSelection:
 		return app.handleConversationSelectionView(msg)
 	case domain.ViewStateThemeSelection:
@@ -362,8 +351,6 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleA2AServersView(msg)
 	case domain.ViewStateA2ATaskManagement:
 		return app.handleA2ATaskManagementView(msg)
-	case domain.ViewStatePlanApproval:
-		return app.handlePlanApprovalView(msg)
 	case domain.ViewStateGitHubAppSetup:
 		return app.handleInitGithubActionView(msg)
 	default:
@@ -399,6 +386,15 @@ func (app *ChatApplication) handleModelSelection(cmds []tea.Cmd) []tea.Cmd {
 func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
+	if approvalEvent, ok := msg.(domain.PlanApprovalResponseEvent); ok {
+		approvalState := app.stateManager.GetPlanApprovalUIState()
+		if approvalState != nil && approvalState.ResponseChan != nil {
+			approvalState.ResponseChan <- approvalEvent.Action
+			app.stateManager.ClearPlanApprovalUIState()
+		}
+		return cmds
+	}
+
 	keyMsg, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return cmds
@@ -423,65 +419,11 @@ func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd 
 	return cmds
 }
 
-func (app *ChatApplication) handlePlanApprovalView(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		if cmd := app.keyBindingManager.ProcessKey(keyMsg); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	if approvalEvent, ok := msg.(domain.PlanApprovalResponseEvent); ok {
-		approvalState := app.stateManager.GetPlanApprovalUIState()
-		if approvalState != nil && approvalState.ResponseChan != nil {
-			approvalState.ResponseChan <- approvalEvent.Action
-
-			if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
-				logger.Error("Failed to transition back to chat view", "error", err)
-			}
-
-			app.stateManager.ClearPlanApprovalUIState()
-		}
-	}
-
-	return cmds
-}
-
 func (app *ChatApplication) handleFileSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if keyMsg, ok := msg.(tea.KeyMsg); ok {
 		if cmd := app.handleFileSelectionKeys(keyMsg); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	return cmds
-}
-
-func (app *ChatApplication) handleTextSelectionView(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	if _, ok := msg.(domain.ExitSelectionModeEvent); ok {
-		return app.handleExitSelectionMode(cmds)
-	}
-
-	if _, ok := msg.(domain.InitializeTextSelectionEvent); ok {
-		if conversationView, ok := app.conversationView.(*components.ConversationView); ok {
-			lines := conversationView.GetPlainTextLines()
-			app.textSelectionView.SetLines(lines)
-		}
-		return cmds
-	}
-
-	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		app.textSelectionView.SetWidth(windowMsg.Width)
-		app.textSelectionView.SetHeight(windowMsg.Height - 5)
-	}
-
-	if keyMsg, ok := msg.(tea.KeyMsg); ok {
-		if cmd := app.textSelectionView.HandleKey(keyMsg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
@@ -500,8 +442,6 @@ func (app *ChatApplication) View() string {
 		return app.renderChatInterface()
 	case domain.ViewStateFileSelection:
 		return app.renderFileSelection()
-	case domain.ViewStateTextSelection:
-		return app.renderTextSelection()
 	case domain.ViewStateConversationSelection:
 		return app.renderConversationSelection()
 	case domain.ViewStateThemeSelection:
@@ -510,8 +450,6 @@ func (app *ChatApplication) View() string {
 		return app.renderA2AServers()
 	case domain.ViewStateA2ATaskManagement:
 		return app.renderA2ATaskManagement()
-	case domain.ViewStatePlanApproval:
-		return app.renderPlanApproval()
 	case domain.ViewStateGitHubAppSetup:
 		return app.renderGitHubAppSetup()
 	default:
@@ -1142,19 +1080,6 @@ func (app *ChatApplication) renderA2ATaskManagement() string {
 	return app.taskManager.View()
 }
 
-func (app *ChatApplication) renderPlanApproval() string {
-	approvalState := app.stateManager.GetPlanApprovalUIState()
-	if approvalState == nil {
-		return "No pending plan approval"
-	}
-
-	width, height := app.stateManager.GetDimensions()
-	app.planApprovalComponent.SetDimensions(width, height)
-
-	theme := app.themeService.GetCurrentTheme()
-	return app.planApprovalComponent.Render(approvalState, theme)
-}
-
 func (app *ChatApplication) renderGitHubAppSetup() string {
 	width, height := app.stateManager.GetDimensions()
 	app.initGithubActionView.SetWidth(width)
@@ -1163,8 +1088,6 @@ func (app *ChatApplication) renderGitHubAppSetup() string {
 }
 
 func (app *ChatApplication) renderChatInterface() string {
-	app.inputView.SetTextSelectionMode(false)
-
 	app.updateHelpBarShortcuts()
 
 	width, height := app.stateManager.GetDimensions()
@@ -1188,6 +1111,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		data,
 		app.conversationView,
 		app.inputView,
+		app.inputStatusBar,
 		app.statusView,
 		app.helpBar,
 		app.queueBoxView,
@@ -1220,64 +1144,6 @@ func (app *ChatApplication) renderFileSelection() string {
 	}
 
 	return app.fileSelectionHandler.RenderFileSelection(data)
-}
-
-func (app *ChatApplication) renderTextSelection() string {
-	app.inputView.SetTextSelectionMode(true)
-
-	app.updateHelpBarShortcutsForTextSelection()
-
-	width, height := app.stateManager.GetDimensions()
-
-	helpBarHeight := 0
-	if app.helpBar.IsEnabled() {
-		helpBarHeight = 6
-	}
-	adjustedHeight := height - 3 - helpBarHeight
-	conversationHeight := factory.CalculateConversationHeight(adjustedHeight)
-	statusHeight := factory.CalculateStatusHeight(adjustedHeight)
-
-	app.textSelectionView.SetWidth(width)
-	app.textSelectionView.SetHeight(conversationHeight)
-	app.statusView.SetWidth(width)
-
-	textSelectionContent := app.textSelectionView.Render()
-	inputContent := app.inputView.Render()
-
-	components := []string{textSelectionContent}
-
-	if statusHeight > 0 {
-		statusContent := app.statusView.Render()
-		if statusContent != "" {
-			components = append(components, statusContent)
-		}
-	}
-
-	components = append(components, inputContent)
-
-	return strings.Join(components, "\n")
-}
-
-func (app *ChatApplication) handleExitSelectionMode(cmds []tea.Cmd) []tea.Cmd {
-	app.inputView.SetTextSelectionMode(false)
-	app.updateHelpBarShortcuts()
-
-	cmds = append(cmds, func() tea.Msg {
-		return domain.HideHelpBarEvent{}
-	})
-
-	if app.statusView.HasSavedState() {
-		if cmd := app.statusView.RestoreSavedState(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	err := app.stateManager.TransitionToView(domain.ViewStateChat)
-	if err != nil {
-		logger.Error("Failed to transition back to chat view", "error", err)
-	}
-
-	return cmds
 }
 
 func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
@@ -1591,6 +1457,16 @@ func (app *ChatApplication) ToggleToolResultExpansion() {
 // ToggleRawFormat toggles between raw and rendered markdown display
 func (app *ChatApplication) ToggleRawFormat() {
 	app.conversationView.ToggleRawFormat()
+}
+
+// GetMouseEnabled returns the current mouse mode state
+func (app *ChatApplication) GetMouseEnabled() bool {
+	return app.mouseEnabled
+}
+
+// SetMouseEnabled sets the mouse mode state
+func (app *ChatApplication) SetMouseEnabled(enabled bool) {
+	app.mouseEnabled = enabled
 }
 
 func (app *ChatApplication) getCurrentRepo() (string, error) {

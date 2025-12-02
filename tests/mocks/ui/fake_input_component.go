@@ -98,16 +98,6 @@ type FakeInputComponent struct {
 	isAutocompleteVisibleReturnsOnCall map[int]struct {
 		result1 bool
 	}
-	IsTextSelectionModeStub        func() bool
-	isTextSelectionModeMutex       sync.RWMutex
-	isTextSelectionModeArgsForCall []struct {
-	}
-	isTextSelectionModeReturns struct {
-		result1 bool
-	}
-	isTextSelectionModeReturnsOnCall map[int]struct {
-		result1 bool
-	}
 	NavigateHistoryDownStub        func()
 	navigateHistoryDownMutex       sync.RWMutex
 	navigateHistoryDownArgsForCall []struct {
@@ -145,11 +135,6 @@ type FakeInputComponent struct {
 	setTextMutex       sync.RWMutex
 	setTextArgsForCall []struct {
 		arg1 string
-	}
-	SetTextSelectionModeStub        func(bool)
-	setTextSelectionModeMutex       sync.RWMutex
-	setTextSelectionModeArgsForCall []struct {
-		arg1 bool
 	}
 	SetWidthStub        func(int)
 	setWidthMutex       sync.RWMutex
@@ -651,59 +636,6 @@ func (fake *FakeInputComponent) IsAutocompleteVisibleReturnsOnCall(i int, result
 	}{result1}
 }
 
-func (fake *FakeInputComponent) IsTextSelectionMode() bool {
-	fake.isTextSelectionModeMutex.Lock()
-	ret, specificReturn := fake.isTextSelectionModeReturnsOnCall[len(fake.isTextSelectionModeArgsForCall)]
-	fake.isTextSelectionModeArgsForCall = append(fake.isTextSelectionModeArgsForCall, struct {
-	}{})
-	stub := fake.IsTextSelectionModeStub
-	fakeReturns := fake.isTextSelectionModeReturns
-	fake.recordInvocation("IsTextSelectionMode", []interface{}{})
-	fake.isTextSelectionModeMutex.Unlock()
-	if stub != nil {
-		return stub()
-	}
-	if specificReturn {
-		return ret.result1
-	}
-	return fakeReturns.result1
-}
-
-func (fake *FakeInputComponent) IsTextSelectionModeCallCount() int {
-	fake.isTextSelectionModeMutex.RLock()
-	defer fake.isTextSelectionModeMutex.RUnlock()
-	return len(fake.isTextSelectionModeArgsForCall)
-}
-
-func (fake *FakeInputComponent) IsTextSelectionModeCalls(stub func() bool) {
-	fake.isTextSelectionModeMutex.Lock()
-	defer fake.isTextSelectionModeMutex.Unlock()
-	fake.IsTextSelectionModeStub = stub
-}
-
-func (fake *FakeInputComponent) IsTextSelectionModeReturns(result1 bool) {
-	fake.isTextSelectionModeMutex.Lock()
-	defer fake.isTextSelectionModeMutex.Unlock()
-	fake.IsTextSelectionModeStub = nil
-	fake.isTextSelectionModeReturns = struct {
-		result1 bool
-	}{result1}
-}
-
-func (fake *FakeInputComponent) IsTextSelectionModeReturnsOnCall(i int, result1 bool) {
-	fake.isTextSelectionModeMutex.Lock()
-	defer fake.isTextSelectionModeMutex.Unlock()
-	fake.IsTextSelectionModeStub = nil
-	if fake.isTextSelectionModeReturnsOnCall == nil {
-		fake.isTextSelectionModeReturnsOnCall = make(map[int]struct {
-			result1 bool
-		})
-	}
-	fake.isTextSelectionModeReturnsOnCall[i] = struct {
-		result1 bool
-	}{result1}
-}
-
 func (fake *FakeInputComponent) NavigateHistoryDown() {
 	fake.navigateHistoryDownMutex.Lock()
 	fake.navigateHistoryDownArgsForCall = append(fake.navigateHistoryDownArgsForCall, struct {
@@ -930,38 +862,6 @@ func (fake *FakeInputComponent) SetTextArgsForCall(i int) string {
 	fake.setTextMutex.RLock()
 	defer fake.setTextMutex.RUnlock()
 	argsForCall := fake.setTextArgsForCall[i]
-	return argsForCall.arg1
-}
-
-func (fake *FakeInputComponent) SetTextSelectionMode(arg1 bool) {
-	fake.setTextSelectionModeMutex.Lock()
-	fake.setTextSelectionModeArgsForCall = append(fake.setTextSelectionModeArgsForCall, struct {
-		arg1 bool
-	}{arg1})
-	stub := fake.SetTextSelectionModeStub
-	fake.recordInvocation("SetTextSelectionMode", []interface{}{arg1})
-	fake.setTextSelectionModeMutex.Unlock()
-	if stub != nil {
-		fake.SetTextSelectionModeStub(arg1)
-	}
-}
-
-func (fake *FakeInputComponent) SetTextSelectionModeCallCount() int {
-	fake.setTextSelectionModeMutex.RLock()
-	defer fake.setTextSelectionModeMutex.RUnlock()
-	return len(fake.setTextSelectionModeArgsForCall)
-}
-
-func (fake *FakeInputComponent) SetTextSelectionModeCalls(stub func(bool)) {
-	fake.setTextSelectionModeMutex.Lock()
-	defer fake.setTextSelectionModeMutex.Unlock()
-	fake.SetTextSelectionModeStub = stub
-}
-
-func (fake *FakeInputComponent) SetTextSelectionModeArgsForCall(i int) bool {
-	fake.setTextSelectionModeMutex.RLock()
-	defer fake.setTextSelectionModeMutex.RUnlock()
-	argsForCall := fake.setTextSelectionModeArgsForCall[i]
 	return argsForCall.arg1
 }
 

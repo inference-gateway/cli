@@ -68,6 +68,17 @@ func (r *InMemoryConversationRepository) MarkLastMessageAsPlan() {
 	}
 }
 
+// MarkMessageAsPlanByIndex marks a specific message by index as a plan with pending approval
+func (r *InMemoryConversationRepository) MarkMessageAsPlanByIndex(index int) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if index >= 0 && index < len(r.messages) {
+		r.messages[index].IsPlan = true
+		r.messages[index].PlanApprovalStatus = domain.PlanApprovalPending
+	}
+}
+
 // UpdatePlanStatus updates the status of the most recent pending plan
 func (r *InMemoryConversationRepository) UpdatePlanStatus(action domain.PlanApprovalAction) {
 	r.mutex.Lock()
