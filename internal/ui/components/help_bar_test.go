@@ -49,12 +49,16 @@ func TestHelpBar_SetShortcuts(t *testing.T) {
 		t.Errorf("Expected 3 shortcuts, got %d", len(hb.shortcuts))
 	}
 
-	if hb.shortcuts[0].Key != "Enter" {
-		t.Errorf("Expected first shortcut key 'Enter', got '%s'", hb.shortcuts[0].Key)
+	if hb.shortcuts[0].Key != "Ctrl+C" {
+		t.Errorf("Expected first shortcut key 'Ctrl+C', got '%s'", hb.shortcuts[0].Key)
 	}
 
-	if hb.shortcuts[1].Description != "Cancel" {
-		t.Errorf("Expected second shortcut description 'Cancel', got '%s'", hb.shortcuts[1].Description)
+	if hb.shortcuts[0].Description != "Cancel" {
+		t.Errorf("Expected first shortcut description 'Cancel', got '%s'", hb.shortcuts[0].Description)
+	}
+
+	if hb.shortcuts[1].Key != "Enter" {
+		t.Errorf("Expected second shortcut key 'Enter', got '%s'", hb.shortcuts[1].Key)
 	}
 }
 
