@@ -37,20 +37,15 @@ func (qv *QueueBoxView) Render(queuedMessages []domain.QueuedMessage, background
 	var sections []string
 
 	if len(backgroundTasks) > 0 {
-		sections = append(sections, qv.renderBackgroundTasks(backgroundTasks))
+		dimColor := qv.styleProvider.GetThemeColor("dim")
+		sections = append(sections, qv.styleProvider.RenderBorderedBox(qv.renderBackgroundTasks(backgroundTasks), dimColor, 0, 1))
 	}
 
 	if len(queuedMessages) > 0 {
 		sections = append(sections, qv.renderQueuedMessages(queuedMessages))
 	}
 
-	separator := strings.Repeat("─", qv.width-4)
-	dimColor := qv.styleProvider.GetThemeColor("dim")
-	dimSeparator := qv.styleProvider.RenderWithColor(separator, dimColor)
-
-	contentText := strings.Join(sections, "\n"+dimSeparator+"\n")
-
-	return qv.styleProvider.RenderBorderedBox(contentText, dimColor, 0, 1)
+	return strings.Join(sections, "\n")
 }
 
 func (qv *QueueBoxView) renderBackgroundTasks(backgroundTasks []domain.TaskPollingState) string {
@@ -83,28 +78,21 @@ func (qv *QueueBoxView) renderBackgroundTasks(backgroundTasks []domain.TaskPolli
 }
 
 func (qv *QueueBoxView) renderQueuedMessages(queuedMessages []domain.QueuedMessage) string {
-	accentColor := qv.styleProvider.GetThemeColor("accent")
-	titleText := fmt.Sprintf("Queued Messages (%d)", len(queuedMessages))
-
 	var messageLines []string
 	for _, queuedMsg := range queuedMessages {
 		messageLines = append(messageLines, qv.formatQueuedMessage(queuedMsg))
 	}
 
-	return qv.styleProvider.RenderWithColorAndBold(titleText, accentColor) + "\n" + strings.Join(messageLines, "\n")
+	return strings.Join(messageLines, "\n")
 }
 
 func (qv *QueueBoxView) formatQueuedMessage(queuedMsg domain.QueuedMessage) string {
-	accentColor := qv.styleProvider.GetThemeColor("accent")
 	dimColor := qv.styleProvider.GetThemeColor("dim")
 	preview := qv.formatMessagePreview(queuedMsg)
 
-	formattedLine := fmt.Sprintf("  %s %s",
-		qv.styleProvider.RenderWithColor("→", accentColor),
-		qv.styleProvider.RenderWithColor(preview, dimColor),
-	)
+	formattedLine := fmt.Sprintf("   %s", preview)
 
-	return formattedLine
+	return qv.styleProvider.RenderWithColor(formattedLine, dimColor)
 }
 
 func (qv *QueueBoxView) formatMessagePreview(queuedMsg domain.QueuedMessage) string {
