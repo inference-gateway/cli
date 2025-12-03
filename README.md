@@ -1559,6 +1559,25 @@ default** and must be explicitly enabled.
 - **Self-Documenting**: All keybindings are visible in config with descriptions
 - **No Runtime Validation**: Config loaded once at startup for performance
 - **Explicit Validation**: Run `infer keybindings validate` to check config
+- **Environment Variable Support**: Configure keybindings via comma-separated env vars
+
+**Environment Variables:**
+
+Keybindings can be configured via environment variables (supports comma-separated or
+newline-separated lists):
+
+```bash
+# Enable keybindings
+export INFER_CHAT_KEYBINDINGS_ENABLED=true
+
+# Set keys for an action (comma-separated or newline-separated)
+export INFER_CHAT_KEYBINDINGS_BINDINGS_GLOBAL_QUIT_KEYS="ctrl+q,ctrl+x"
+
+# Enable/disable specific actions
+export INFER_CHAT_KEYBINDINGS_BINDINGS_DISPLAY_TOGGLE_RAW_FORMAT_ENABLED=false
+```
+
+Format: `INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_<FIELD>`
 
 **Example Configuration:**
 

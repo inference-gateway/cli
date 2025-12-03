@@ -160,6 +160,31 @@ allows the same key to be used in different namespaces without conflict, as acti
 context-specific. The namespace is extracted from the first part of the action ID before the
 underscore.
 
+**Environment Variable Support:**
+
+Keybindings can be configured via environment variables using comma-separated or newline-separated
+lists:
+
+```bash
+# Enable keybindings
+export INFER_CHAT_KEYBINDINGS_ENABLED=true
+
+# Set keys for an action (comma-separated or newline-separated)
+export INFER_CHAT_KEYBINDINGS_BINDINGS_GLOBAL_QUIT_KEYS="ctrl+q,ctrl+x"
+
+# Multiline format
+export INFER_CHAT_KEYBINDINGS_BINDINGS_MODE_CYCLE_AGENT_MODE_KEYS="shift+tab
+ctrl+m"
+
+# Enable/disable specific actions
+export INFER_CHAT_KEYBINDINGS_BINDINGS_DISPLAY_TOGGLE_RAW_FORMAT_ENABLED=false
+```
+
+Format: `INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_<FIELD>`
+
+- `<ACTION_ID>`: Uppercase namespaced action ID (e.g., `GLOBAL_QUIT`, `MODE_CYCLE_AGENT_MODE`)
+- `<FIELD>`: Either `KEYS` (comma/newline-separated) or `ENABLED` (true/false)
+
 **Configuration Structure:**
 
 ```yaml
