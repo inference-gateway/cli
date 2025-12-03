@@ -44,6 +44,7 @@ type Theme = ui.Theme
 // KeyAction represents a key binding action with metadata
 type KeyAction struct {
 	ID          string
+	Namespace   config.KeyNamespace
 	Keys        []string
 	Description string
 	Category    string

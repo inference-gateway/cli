@@ -302,7 +302,22 @@ type ConversationTitleConfig struct {
 
 // ChatConfig contains chat interface settings
 type ChatConfig struct {
-	Theme string `yaml:"theme" mapstructure:"theme"`
+	Theme       string            `yaml:"theme" mapstructure:"theme"`
+	Keybindings KeybindingsConfig `yaml:"keybindings" mapstructure:"keybindings"`
+}
+
+// KeybindingsConfig contains settings for customizing keybindings
+type KeybindingsConfig struct {
+	Enabled  bool                       `yaml:"enabled" mapstructure:"enabled"`
+	Bindings map[string]KeyBindingEntry `yaml:"bindings,omitempty" mapstructure:"bindings,omitempty"`
+}
+
+// KeyBindingEntry defines a complete keybinding with its properties
+type KeyBindingEntry struct {
+	Keys        []string `yaml:"keys" mapstructure:"keys"`
+	Description string   `yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Category    string   `yaml:"category,omitempty" mapstructure:"category,omitempty"`
+	Enabled     *bool    `yaml:"enabled,omitempty" mapstructure:"enabled,omitempty"`
 }
 
 // InitConfig contains settings for the /init shortcut
@@ -722,6 +737,10 @@ Respond with ONLY the title, no quotes or explanation.`,
 		},
 		Chat: ChatConfig{
 			Theme: "tokyo-night",
+			Keybindings: KeybindingsConfig{
+				Enabled:  false,
+				Bindings: GetDefaultKeybindings(),
+			},
 		},
 		A2A: A2AConfig{
 			Enabled: true,
@@ -1076,4 +1095,28 @@ func parseGithubOwnerFromURL(url string) string {
 	}
 
 	return ""
+}
+
+// KeyNamespace represents the namespace for key binding actions
+type KeyNamespace string
+
+// Namespace constants for organizing key binding actions
+const (
+	NamespaceGlobal       KeyNamespace = "global"
+	NamespaceChat         KeyNamespace = "chat"
+	NamespaceClipboard    KeyNamespace = "clipboard"
+	NamespaceDisplay      KeyNamespace = "display"
+	NamespaceHelp         KeyNamespace = "help"
+	NamespaceMode         KeyNamespace = "mode"
+	NamespaceNavigation   KeyNamespace = "navigation"
+	NamespacePlanApproval KeyNamespace = "plan_approval"
+	NamespaceSelection    KeyNamespace = "selection"
+	NamespaceTextEditing  KeyNamespace = "text_editing"
+	NamespaceTools        KeyNamespace = "tools"
+)
+
+// ActionID constructs a namespaced action ID from namespace and action name
+// Format: "namespace_action" (e.g., "global_quit", "chat_enter_key_handler")
+func ActionID(namespace KeyNamespace, action string) string {
+	return string(namespace) + "_" + action
 }

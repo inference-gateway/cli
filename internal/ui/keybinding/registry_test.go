@@ -44,7 +44,7 @@ func newTestContext(currentView domain.ViewState, inputText string) *keybindingm
 }
 
 func TestRegistryCreation(t *testing.T) {
-	registry := keybinding.NewRegistry()
+	registry := keybinding.NewRegistry(nil)
 	if registry == nil {
 		t.Fatal("Expected registry to be created")
 	}
@@ -61,44 +61,44 @@ func TestRegistryCreation(t *testing.T) {
 	foundToggle := false
 	for _, action := range actions {
 		switch action.ID {
-		case "quit":
+		case "global_quit":
 			foundQuit = true
-		case "toggle_tool_expansion":
+		case "tools_toggle_tool_expansion":
 			foundToggle = true
 		}
 	}
 
 	if !foundQuit {
-		t.Error("Expected 'quit' action to be registered")
+		t.Error("Expected 'global_quit' action to be registered")
 	}
 	if !foundToggle {
-		t.Error("Expected 'toggle_tool_expansion' action to be registered")
+		t.Error("Expected 'tools_toggle_tool_expansion' action to be registered")
 	}
 }
 
 func TestKeyResolution(t *testing.T) {
-	registry := keybinding.NewRegistry()
+	registry := keybinding.NewRegistry(nil)
 	mockContext := newTestContext(domain.ViewStateChat, "test message")
 
 	action := registry.Resolve("ctrl+c", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+c to resolve to an action")
-	} else if action.ID != "quit" {
-		t.Errorf("Expected ctrl+c to resolve to 'quit', got %s", action.ID)
+	} else if action.ID != "global_quit" {
+		t.Errorf("Expected ctrl+c to resolve to 'global_quit', got %s", action.ID)
 	}
 
 	action = registry.Resolve("ctrl+o", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+o to resolve to an action")
-	} else if action.ID != "toggle_tool_expansion" {
-		t.Errorf("Expected ctrl+o to resolve to 'toggle_tool_expansion', got %s", action.ID)
+	} else if action.ID != "tools_toggle_tool_expansion" {
+		t.Errorf("Expected ctrl+o to resolve to 'tools_toggle_tool_expansion', got %s", action.ID)
 	}
 
 	action = registry.Resolve("ctrl+r", mockContext)
 	if action == nil {
 		t.Fatal("Expected ctrl+r to resolve to an action")
-	} else if action.ID != "toggle_raw_format" {
-		t.Errorf("Expected ctrl+r to resolve to 'toggle_raw_format', got %s", action.ID)
+	} else if action.ID != "display_toggle_raw_format" {
+		t.Errorf("Expected ctrl+r to resolve to 'display_toggle_raw_format', got %s", action.ID)
 	}
 
 	action = registry.Resolve("ctrl+z", mockContext)
@@ -108,20 +108,20 @@ func TestKeyResolution(t *testing.T) {
 }
 
 func TestViewContextFiltering(t *testing.T) {
-	registry := keybinding.NewRegistry()
+	registry := keybinding.NewRegistry(nil)
 
 	chatContext := newTestContext(domain.ViewStateChat, "test message")
 
 	chatActions := registry.GetActiveActions(chatContext)
 	hasToggleAction := false
 	for _, action := range chatActions {
-		if action.ID == "toggle_tool_expansion" {
+		if action.ID == "tools_toggle_tool_expansion" {
 			hasToggleAction = true
 			break
 		}
 	}
 	if !hasToggleAction {
-		t.Error("Expected toggle_tool_expansion to be available in chat view")
+		t.Error("Expected tools_toggle_tool_expansion to be available in chat view")
 	}
 
 	modelContext := newTestContext(domain.ViewStateModelSelection, "")
@@ -129,18 +129,18 @@ func TestViewContextFiltering(t *testing.T) {
 	modelActions := registry.GetActiveActions(modelContext)
 	hasToggleActionInModel := false
 	for _, action := range modelActions {
-		if action.ID == "toggle_tool_expansion" {
+		if action.ID == "tools_toggle_tool_expansion" {
 			hasToggleActionInModel = true
 			break
 		}
 	}
 	if hasToggleActionInModel {
-		t.Error("Expected toggle_tool_expansion to NOT be available in model selection view")
+		t.Error("Expected tools_toggle_tool_expansion to NOT be available in model selection view")
 	}
 }
 
 func TestActionHandlers(t *testing.T) {
-	registry := keybinding.NewRegistry()
+	registry := keybinding.NewRegistry(nil)
 	mockContext := newTestContext(domain.ViewStateChat, "")
 
 	action := registry.Resolve("ctrl+c", mockContext)
@@ -167,7 +167,7 @@ func TestActionHandlers(t *testing.T) {
 }
 
 func TestHelpShortcutGeneration(t *testing.T) {
-	registry := keybinding.NewRegistry()
+	registry := keybinding.NewRegistry(nil)
 	mockContext := newTestContext(domain.ViewStateChat, "test message")
 
 	shortcuts := registry.GetHelpShortcuts(mockContext)
@@ -202,27 +202,27 @@ func TestHelpShortcutGeneration(t *testing.T) {
 }
 
 func TestConditionalKeyBindings(t *testing.T) {
-	registry := keybinding.NewRegistry()
+	registry := keybinding.NewRegistry(nil)
 
 	emptyInputContext := newTestContext(domain.ViewStateChat, "")
 	action := registry.Resolve("enter", emptyInputContext)
 	if action == nil {
-		t.Fatal("Expected enter key to resolve to enter_key_handler even when input is empty")
-	} else if action.ID != "enter_key_handler" {
-		t.Errorf("Expected enter to resolve to 'enter_key_handler', got %s", action.ID)
+		t.Fatal("Expected enter key to resolve to chat_enter_key_handler even when input is empty")
+	} else if action.ID != "chat_enter_key_handler" {
+		t.Errorf("Expected enter to resolve to 'chat_enter_key_handler', got %s", action.ID)
 	}
 
 	nonEmptyInputContext := newTestContext(domain.ViewStateChat, "hello")
 	action = registry.Resolve("enter", nonEmptyInputContext)
 	if action == nil {
-		t.Fatal("Expected enter key to resolve to enter_key_handler when input has content")
-	} else if action.ID != "enter_key_handler" {
-		t.Errorf("Expected enter to resolve to 'enter_key_handler', got %s", action.ID)
+		t.Fatal("Expected enter key to resolve to chat_enter_key_handler when input has content")
+	} else if action.ID != "chat_enter_key_handler" {
+		t.Errorf("Expected enter to resolve to 'chat_enter_key_handler', got %s", action.ID)
 	}
 }
 
 func TestLayerPriority(t *testing.T) {
-	registry := keybinding.NewRegistry()
+	registry := keybinding.NewRegistry(nil)
 
 	layers := registry.GetLayers()
 	if len(layers) == 0 {
@@ -238,7 +238,7 @@ func TestLayerPriority(t *testing.T) {
 }
 
 func TestActionRegistration(t *testing.T) {
-	registry := keybinding.NewRegistry()
+	registry := keybinding.NewRegistry(nil)
 
 	customAction := &keybinding.KeyAction{
 		ID:          "test_action",
@@ -277,10 +277,10 @@ func TestActionRegistration(t *testing.T) {
 }
 
 func TestActionConflictDetection(t *testing.T) {
-	registry := keybinding.NewRegistry()
+	registry := keybinding.NewRegistry(nil)
 
 	conflictingAction := &keybinding.KeyAction{
-		ID:          "conflicting_action",
+		ID:          "test_conflicting_action",
 		Keys:        []string{"ctrl+c"},
 		Description: "conflicting action",
 		Category:    "test",
@@ -289,10 +289,13 @@ func TestActionConflictDetection(t *testing.T) {
 		},
 		Priority: 100,
 		Enabled:  true,
+		Context: keybinding.KeyContext{
+			Views: []domain.ViewState{domain.ViewStateChat},
+		},
 	}
 
 	err := registry.Register(conflictingAction)
-	if err == nil {
-		t.Error("Expected registration to fail due to key conflict")
+	if err != nil {
+		t.Errorf("Expected registration to succeed (key sharing is allowed), got error: %v", err)
 	}
 }

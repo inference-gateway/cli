@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	config "github.com/inference-gateway/cli/config"
 	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
@@ -26,7 +27,8 @@ func (r *Registry) registerDefaultBindings() {
 func (r *Registry) createGlobalActions() []*KeyAction {
 	return []*KeyAction{
 		{
-			ID:          "quit",
+			ID:          config.ActionID(config.NamespaceGlobal, "quit"),
+			Namespace:   config.NamespaceGlobal,
 			Keys:        []string{"ctrl+c"},
 			Description: "exit application",
 			Category:    "global",
@@ -38,7 +40,8 @@ func (r *Registry) createGlobalActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "cancel",
+			ID:          config.ActionID(config.NamespaceGlobal, "cancel"),
+			Namespace:   config.NamespaceGlobal,
 			Keys:        []string{"esc"},
 			Description: "cancel current operation",
 			Category:    "global",
@@ -56,7 +59,8 @@ func (r *Registry) createGlobalActions() []*KeyAction {
 func (r *Registry) createChatActions() []*KeyAction {
 	actions := []*KeyAction{
 		{
-			ID:          "cycle_agent_mode",
+			Namespace:   config.NamespaceMode,
+			ID:          config.ActionID(config.NamespaceMode, "cycle_agent_mode"),
 			Keys:        []string{"shift+tab"},
 			Description: "cycle agent mode (Standard/Plan/Auto-Accept)",
 			Category:    "mode",
@@ -68,7 +72,8 @@ func (r *Registry) createChatActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "toggle_tool_expansion",
+			Namespace:   config.NamespaceTools,
+			ID:          config.ActionID(config.NamespaceTools, "toggle_tool_expansion"),
 			Keys:        []string{"ctrl+o"},
 			Description: "expand/collapse tool results",
 			Category:    "tools",
@@ -80,7 +85,8 @@ func (r *Registry) createChatActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "toggle_raw_format",
+			Namespace:   config.NamespaceDisplay,
+			ID:          config.ActionID(config.NamespaceDisplay, "toggle_raw_format"),
 			Keys:        []string{"ctrl+r"},
 			Description: "toggle raw/rendered markdown",
 			Category:    "display",
@@ -92,7 +98,8 @@ func (r *Registry) createChatActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "toggle_mouse_mode",
+			Namespace:   config.NamespaceSelection,
+			ID:          config.ActionID(config.NamespaceSelection, "toggle_mouse_mode"),
 			Keys:        []string{"ctrl+s"},
 			Description: "toggle mouse scrolling/text selection",
 			Category:    "selection",
@@ -104,7 +111,8 @@ func (r *Registry) createChatActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "enter_key_handler",
+			Namespace:   config.NamespaceChat,
+			ID:          config.ActionID(config.NamespaceChat, "enter_key_handler"),
 			Keys:        []string{"enter"},
 			Description: "send message or insert newline",
 			Category:    "chat",
@@ -116,7 +124,8 @@ func (r *Registry) createChatActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "toggle_help",
+			Namespace:   config.NamespaceHelp,
+			ID:          config.ActionID(config.NamespaceHelp, "toggle_help"),
 			Keys:        []string{"?"},
 			Description: "toggle help when input is empty",
 			Category:    "help",
@@ -137,7 +146,8 @@ func (r *Registry) createChatActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "toggle_todo_box",
+			Namespace:   config.NamespaceDisplay,
+			ID:          config.ActionID(config.NamespaceDisplay, "toggle_todo_box"),
 			Keys:        []string{"ctrl+t"},
 			Description: "toggle todo list",
 			Category:    "display",
@@ -161,7 +171,8 @@ func (r *Registry) createChatActions() []*KeyAction {
 func (r *Registry) createClipboardActions() []*KeyAction {
 	return []*KeyAction{
 		{
-			ID:          "paste_text",
+			Namespace:   config.NamespaceClipboard,
+			ID:          config.ActionID(config.NamespaceClipboard, "paste_text"),
 			Keys:        []string{"ctrl+v"},
 			Description: "paste text",
 			Category:    "clipboard",
@@ -173,7 +184,8 @@ func (r *Registry) createClipboardActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "copy_text",
+			Namespace:   config.NamespaceClipboard,
+			ID:          config.ActionID(config.NamespaceClipboard, "copy_text"),
 			Keys:        []string{"ctrl+shift+c"},
 			Description: "copy text",
 			Category:    "clipboard",
@@ -191,7 +203,8 @@ func (r *Registry) createClipboardActions() []*KeyAction {
 func (r *Registry) createTextEditingActions() []*KeyAction {
 	return []*KeyAction{
 		{
-			ID:          "insert_newline_alt",
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "insert_newline_alt"),
 			Keys:        []string{"alt+enter"},
 			Description: "insert newline",
 			Category:    "text_editing",
@@ -203,7 +216,8 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "insert_newline_ctrl",
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "insert_newline_ctrl"),
 			Keys:        []string{"ctrl+j"},
 			Description: "insert newline",
 			Category:    "text_editing",
@@ -215,7 +229,8 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "move_cursor_left",
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "move_cursor_left"),
 			Keys:        []string{"left"},
 			Description: "move cursor left",
 			Category:    "text_editing",
@@ -227,7 +242,8 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "move_cursor_right",
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "move_cursor_right"),
 			Keys:        []string{"right"},
 			Description: "move cursor right",
 			Category:    "text_editing",
@@ -239,7 +255,8 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "backspace",
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "backspace"),
 			Keys:        []string{"backspace"},
 			Description: "delete character",
 			Category:    "text_editing",
@@ -251,7 +268,8 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "delete_to_beginning",
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "delete_to_beginning"),
 			Keys:        []string{"ctrl+u"},
 			Description: "delete to beginning of line",
 			Category:    "text_editing",
@@ -263,7 +281,8 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "delete_word_backward",
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "delete_word_backward"),
 			Keys:        []string{"ctrl+w"},
 			Description: "delete word backward",
 			Category:    "text_editing",
@@ -275,7 +294,8 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "move_to_beginning",
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "move_to_beginning"),
 			Keys:        []string{"ctrl+a"},
 			Description: "move cursor to beginning",
 			Category:    "text_editing",
@@ -287,7 +307,8 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "move_to_end",
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "move_to_end"),
 			Keys:        []string{"ctrl+e"},
 			Description: "move cursor to end",
 			Category:    "text_editing",
@@ -305,7 +326,8 @@ func (r *Registry) createTextEditingActions() []*KeyAction {
 func (r *Registry) createHistoryActions() []*KeyAction {
 	return []*KeyAction{
 		{
-			ID:          "history_up",
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "history_up"),
 			Keys:        []string{"up"},
 			Description: "navigate to previous message in history",
 			Category:    "text_editing",
@@ -317,7 +339,8 @@ func (r *Registry) createHistoryActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "history_down",
+			Namespace:   config.NamespaceTextEditing,
+			ID:          config.ActionID(config.NamespaceTextEditing, "history_down"),
 			Keys:        []string{"down"},
 			Description: "navigate to next message in history",
 			Category:    "text_editing",
@@ -335,7 +358,8 @@ func (r *Registry) createHistoryActions() []*KeyAction {
 func (r *Registry) createScrollActions() []*KeyAction {
 	return []*KeyAction{
 		{
-			ID:          "scroll_to_top",
+			Namespace:   config.NamespaceNavigation,
+			ID:          config.ActionID(config.NamespaceNavigation, "scroll_to_top"),
 			Keys:        []string{"home"},
 			Description: "scroll to top",
 			Category:    "navigation",
@@ -347,7 +371,8 @@ func (r *Registry) createScrollActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "scroll_to_bottom",
+			Namespace:   config.NamespaceNavigation,
+			ID:          config.ActionID(config.NamespaceNavigation, "scroll_to_bottom"),
 			Keys:        []string{"end"},
 			Description: "scroll to bottom",
 			Category:    "navigation",
@@ -359,7 +384,8 @@ func (r *Registry) createScrollActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "scroll_up_half_page",
+			Namespace:   config.NamespaceNavigation,
+			ID:          config.ActionID(config.NamespaceNavigation, "scroll_up_half_page"),
 			Keys:        []string{"shift+up"},
 			Description: "scroll up half page",
 			Category:    "navigation",
@@ -371,7 +397,8 @@ func (r *Registry) createScrollActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "scroll_down_half_page",
+			Namespace:   config.NamespaceNavigation,
+			ID:          config.ActionID(config.NamespaceNavigation, "scroll_down_half_page"),
 			Keys:        []string{"shift+down"},
 			Description: "scroll down half page",
 			Category:    "navigation",
@@ -383,7 +410,8 @@ func (r *Registry) createScrollActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "page_up",
+			Namespace:   config.NamespaceNavigation,
+			ID:          config.ActionID(config.NamespaceNavigation, "page_up"),
 			Keys:        []string{"pgup", "page_up"},
 			Description: "page up",
 			Category:    "navigation",
@@ -395,7 +423,8 @@ func (r *Registry) createScrollActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "page_down",
+			Namespace:   config.NamespaceNavigation,
+			ID:          config.ActionID(config.NamespaceNavigation, "page_down"),
 			Keys:        []string{"pgdn", "page_down"},
 			Description: "page down",
 			Category:    "navigation",
@@ -413,7 +442,8 @@ func (r *Registry) createScrollActions() []*KeyAction {
 func (r *Registry) createApprovalActions() []*KeyAction {
 	return []*KeyAction{
 		{
-			ID:          "plan_approval_left",
+			Namespace:   config.NamespacePlanApproval,
+			ID:          config.ActionID(config.NamespacePlanApproval, "plan_approval_left"),
 			Keys:        []string{"left", "h"},
 			Description: "move selection left",
 			Category:    "plan_approval",
@@ -425,7 +455,8 @@ func (r *Registry) createApprovalActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "plan_approval_right",
+			Namespace:   config.NamespacePlanApproval,
+			ID:          config.ActionID(config.NamespacePlanApproval, "plan_approval_right"),
 			Keys:        []string{"right", "l"},
 			Description: "move selection right",
 			Category:    "plan_approval",
@@ -437,7 +468,8 @@ func (r *Registry) createApprovalActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "plan_approval_accept",
+			Namespace:   config.NamespacePlanApproval,
+			ID:          config.ActionID(config.NamespacePlanApproval, "plan_approval_accept"),
 			Keys:        []string{"enter", "y"},
 			Description: "accept plan",
 			Category:    "plan_approval",
@@ -449,7 +481,8 @@ func (r *Registry) createApprovalActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "plan_approval_reject",
+			Namespace:   config.NamespacePlanApproval,
+			ID:          config.ActionID(config.NamespacePlanApproval, "plan_approval_reject"),
 			Keys:        []string{"n"},
 			Description: "reject plan",
 			Category:    "plan_approval",
@@ -461,7 +494,8 @@ func (r *Registry) createApprovalActions() []*KeyAction {
 			},
 		},
 		{
-			ID:          "plan_approval_accept_and_auto_approve",
+			Namespace:   config.NamespacePlanApproval,
+			ID:          config.ActionID(config.NamespacePlanApproval, "plan_approval_accept_and_auto_approve"),
 			Keys:        []string{"a"},
 			Description: "accept plan and enable auto-approve mode",
 			Category:    "plan_approval",
@@ -1008,9 +1042,9 @@ type KeyBindingManager struct {
 }
 
 // NewKeyBindingManager creates a new key binding manager
-func NewKeyBindingManager(app KeyHandlerContext) *KeyBindingManager {
+func NewKeyBindingManager(app KeyHandlerContext, cfg *config.Config) *KeyBindingManager {
 	return &KeyBindingManager{
-		registry: NewRegistry(),
+		registry: NewRegistry(cfg),
 		app:      app,
 	}
 }

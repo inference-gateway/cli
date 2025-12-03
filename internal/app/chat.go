@@ -191,7 +191,7 @@ func NewChatApplication(
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
 	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
 
-	app.keyBindingManager = keybinding.NewKeyBindingManager(app)
+	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.configService)
 	app.updateHelpBarShortcuts()
 
 	app.modelSelector = components.NewModelSelector(models, app.modelService, styleProvider)
@@ -271,10 +271,6 @@ func (app *ChatApplication) updateHelpBarShortcuts() {
 			Description: kbShortcut.Description,
 		})
 	}
-
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+v", Description: "paste text"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+shift+c", Description: "copy text"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "alt+enter/ctrl+j", Description: "new line"})
 
 	app.helpBar.SetShortcuts(shortcuts)
 }
