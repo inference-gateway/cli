@@ -166,7 +166,6 @@ func NewChatApplication(
 		iv.SetConversationRepo(app.conversationRepo)
 	}
 
-	// Create autocomplete separately
 	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService)
 	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
 		ac.SetStateManager(app.stateManager)
@@ -191,8 +190,16 @@ func NewChatApplication(
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
 	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
 
-	app.keyBindingManager = keybinding.NewKeyBindingManager(app)
+	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.configService)
 	app.updateHelpBarShortcuts()
+
+	keyHintFormatter := app.keyBindingManager.GetHintFormatter()
+	if cv, ok := app.conversationView.(*components.ConversationView); ok {
+		cv.SetKeyHintFormatter(keyHintFormatter)
+	}
+	if sv, ok := app.statusView.(*components.StatusView); ok {
+		sv.SetKeyHintFormatter(keyHintFormatter)
+	}
 
 	app.modelSelector = components.NewModelSelector(models, app.modelService, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
@@ -271,10 +278,6 @@ func (app *ChatApplication) updateHelpBarShortcuts() {
 			Description: kbShortcut.Description,
 		})
 	}
-
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+v", Description: "paste text"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+shift+c", Description: "copy text"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "alt+enter/ctrl+j", Description: "new line"})
 
 	app.helpBar.SetShortcuts(shortcuts)
 }

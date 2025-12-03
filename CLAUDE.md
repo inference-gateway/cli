@@ -144,6 +144,145 @@ All config fields can be overridden via environment variables:
 - Example: `gateway.url` → `INFER_GATEWAY_URL`
 - Example: `tools.bash.enabled` → `INFER_TOOLS_BASH_ENABLED`
 
+### Keybinding Configuration
+
+The CLI supports customizable keybindings for the chat interface with a namespace-based organization
+system. All keybindings are visible in the config file by default for self-documentation.
+
+**Configuration Location:** `chat.keybindings` in config.yaml
+
+**Default State:** Keybindings are **disabled by default**. Users must explicitly enable them.
+
+**Namespace System:**
+
+Action IDs use the format `namespace_action` (e.g., `global_quit`, `mode_cycle_agent_mode`). This
+allows the same key to be used in different namespaces without conflict, as actions are
+context-specific. The namespace is extracted from the first part of the action ID before the
+underscore.
+
+**Environment Variable Support:**
+
+Keybindings can be configured via environment variables using comma-separated or newline-separated
+lists:
+
+```bash
+# Enable keybindings
+export INFER_CHAT_KEYBINDINGS_ENABLED=true
+
+# Set keys for an action (comma-separated or newline-separated)
+export INFER_CHAT_KEYBINDINGS_BINDINGS_GLOBAL_QUIT_KEYS="ctrl+q,ctrl+x"
+
+# Multiline format
+export INFER_CHAT_KEYBINDINGS_BINDINGS_MODE_CYCLE_AGENT_MODE_KEYS="shift+tab
+ctrl+m"
+
+# Enable/disable specific actions
+export INFER_CHAT_KEYBINDINGS_BINDINGS_DISPLAY_TOGGLE_RAW_FORMAT_ENABLED=false
+```
+
+Format: `INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_<FIELD>`
+
+- `<ACTION_ID>`: Uppercase namespaced action ID (e.g., `GLOBAL_QUIT`, `MODE_CYCLE_AGENT_MODE`)
+- `<FIELD>`: Either `KEYS` (comma/newline-separated) or `ENABLED` (true/false)
+
+**Configuration Structure:**
+
+```yaml
+chat:
+  theme: tokyo-night
+  keybindings:
+    enabled: false  # Set to true to enable custom keybindings
+    bindings:
+      # All keybindings are listed with their defaults
+      # Format: namespace_action
+      global_quit:
+        keys:
+          - ctrl+c
+        description: "exit application"
+        category: "global"
+        enabled: true
+      mode_cycle_agent_mode:
+        keys:
+          - shift+tab  # Modify this to change the key
+        description: "cycle agent mode (Standard/Plan/Auto-Accept)"
+        category: "mode"
+        enabled: true
+      tools_toggle_tool_expansion:
+        keys:
+          - ctrl+o
+        enabled: false  # Disable specific actions
+      # ... all other keybindings visible
+```
+
+**Key Features:**
+
+- **Namespace-Based Organization**: Actions organized by namespace for context-specific bindings
+- **Context-Aware Conflicts**: Same key allowed across namespaces, validated within namespaces
+- **Self-Documenting**: All keybindings are visible in config with descriptions
+- **Fallback to Defaults**: Remove an entry from config to use the default
+- **No Runtime Validation**: Config is loaded once at startup for performance
+- **Explicit Validation**: Run `infer keybindings validate` before committing changes
+
+**Available Commands:**
+
+```bash
+# List all keybindings with their current assignments
+infer keybindings list
+
+# Set custom key for an action (use namespaced action ID)
+infer keybindings set mode_cycle_agent_mode ctrl+m
+
+# Disable a specific action
+infer keybindings disable display_toggle_raw_format
+
+# Enable a specific action
+infer keybindings enable display_toggle_raw_format
+
+# Reset all keybindings to defaults
+infer keybindings reset
+
+# Validate configuration for conflicts, invalid keys, and unknown actions
+infer keybindings validate
+```
+
+**Validation:**
+
+The `validate` command checks for:
+
+- Unknown action IDs not in the registry
+- Invalid keys not in the known keys list
+- Key conflicts **within the same namespace** (cross-namespace conflicts are allowed)
+
+Validation is namespace-aware: actions in different namespaces can share the same key without
+triggering a conflict, as they operate in different contexts.
+
+**Key Action Namespaces:**
+
+Actions are organized by namespace. Each namespace represents a specific context or domain:
+
+- **global**: Application-level actions (e.g., `global_quit`, `global_cancel`)
+- **chat**: Chat-specific actions (e.g., `chat_enter_key_handler`)
+- **mode**: Agent mode controls (e.g., `mode_cycle_agent_mode`)
+- **tools**: Tool-related actions (e.g., `tools_toggle_tool_expansion`)
+- **display**: Display toggles (e.g., `display_toggle_raw_format`, `display_toggle_todo_box`)
+- **text_editing**: Text manipulation (e.g., `text_editing_move_cursor_left`,
+  `text_editing_history_up`)
+- **navigation**: Viewport navigation (e.g., `navigation_scroll_to_top`, `navigation_page_down`)
+- **clipboard**: Copy/paste operations (e.g., `clipboard_copy_text`, `clipboard_paste_text`)
+- **selection**: Selection mode controls (e.g., `selection_toggle_mouse_mode`)
+- **plan_approval**: Plan approval navigation (e.g., `plan_approval_plan_approval_accept`)
+- **help**: Help system (e.g., `help_toggle_help`)
+
+**Implementation Details:**
+
+- Registry pattern in `internal/ui/keybinding/`
+- Layer-based priority system for context-aware bindings
+- Namespace definitions in `config/config.go` with `ActionID()` helper function
+- Config loaded once at chat startup (no runtime reloading)
+- Conflict resolution: layer system handles priority, last binding wins at runtime
+- Key validation uses `internal/ui/keys/` package
+- Namespace-aware validation in `cmd/keybindings.go`
+
 ## Code Conventions
 
 ### File Organization

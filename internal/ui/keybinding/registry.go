@@ -3,10 +3,11 @@ package keybinding
 import (
 	"fmt"
 	"sort"
-	"strings"
 	"sync"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 // Registry implements the KeyRegistry interface
@@ -18,7 +19,7 @@ type Registry struct {
 }
 
 // NewRegistry creates a new key binding registry
-func NewRegistry() *Registry {
+func NewRegistry(cfg *config.Config) *Registry {
 	registry := &Registry{
 		actions: make(map[string]*KeyAction),
 		keyMap:  make(map[string]*KeyAction),
@@ -28,10 +29,17 @@ func NewRegistry() *Registry {
 	registry.initializeLayers()
 	registry.registerDefaultBindings()
 
+	if cfg != nil && cfg.Chat.Keybindings.Enabled {
+		if err := registry.ApplyConfigOverrides(cfg.Chat.Keybindings); err != nil {
+			logger.Warn("Failed to apply keybinding overrides: %v", err)
+		}
+	}
+
 	return registry
 }
 
 // Register adds a new key binding action to the registry
+// Multiple actions can share the same key - the layer system resolves conflicts based on context
 func (r *Registry) Register(action *KeyAction) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
@@ -44,19 +52,13 @@ func (r *Registry) Register(action *KeyAction) error {
 		return fmt.Errorf("key action must have at least one key")
 	}
 
-	for _, key := range action.Keys {
-		if existing, exists := r.keyMap[key]; exists {
-			return fmt.Errorf("key '%s' already bound to action '%s'", key, existing.ID)
-		}
-	}
-
 	r.actions[action.ID] = action
 
+	// Allow multiple actions to share keys - layer system handles resolution
 	for _, key := range action.Keys {
 		r.keyMap[key] = action
 	}
 
-	// Automatically add to appropriate layer based on context
 	r.addActionToAppropriateLayer(action)
 
 	return nil
@@ -140,8 +142,16 @@ func (r *Registry) GetHelpShortcuts(app KeyHandlerContext) []HelpShortcut {
 
 	shortcuts := make([]HelpShortcut, 0, len(actions))
 	for _, action := range actions {
+		if len(action.Keys) == 0 {
+			continue
+		}
+
+		sortedKeys := make([]string, len(action.Keys))
+		copy(sortedKeys, action.Keys)
+		sort.Strings(sortedKeys)
+
 		shortcuts = append(shortcuts, HelpShortcut{
-			Key:         strings.Join(action.Keys, "/"),
+			Key:         sortedKeys[0],
 			Description: action.Description,
 			Category:    action.Category,
 		})
@@ -327,4 +337,80 @@ func (r *Registry) determineTargetLayer(views []domain.ViewState) string {
 		}
 	}
 	return "global"
+}
+
+// ApplyConfigOverrides applies keybinding configuration from config
+// Only processes config bindings. Missing entries automatically use defaults already registered.
+func (r *Registry) ApplyConfigOverrides(cfg config.KeybindingsConfig) error {
+	if !cfg.Enabled {
+		logger.Debug("Keybindings disabled in config, using defaults only")
+		return nil
+	}
+
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	for actionID, configBinding := range cfg.Bindings {
+		action, exists := r.actions[actionID]
+		if !exists {
+			logger.Warn("Unknown keybinding action '%s' in config, ignoring", actionID)
+			continue
+		}
+
+		if configBinding.Enabled != nil {
+			action.Enabled = *configBinding.Enabled
+		}
+
+		if len(configBinding.Keys) > 0 {
+			r.updateActionKeysUnsafe(action, configBinding.Keys)
+		}
+	}
+
+	return nil
+}
+
+// updateActionKeysUnsafe updates the keys for an action without validation
+// Used at runtime to apply config without blocking on conflicts
+func (r *Registry) updateActionKeysUnsafe(action *KeyAction, newKeys []string) {
+	for _, oldKey := range action.Keys {
+		delete(r.keyMap, oldKey)
+		r.removeKeyFromLayers(oldKey, action)
+	}
+
+	action.Keys = newKeys
+
+	for _, newKey := range newKeys {
+		r.keyMap[newKey] = action
+	}
+
+	r.addActionToAppropriateLayer(action)
+}
+
+// removeKeyFromLayers removes a key from all layers
+func (r *Registry) removeKeyFromLayers(key string, action *KeyAction) {
+	for _, layer := range r.layers {
+		if layerAction, exists := layer.Bindings[key]; exists && layerAction.ID == action.ID {
+			delete(layer.Bindings, key)
+		}
+	}
+}
+
+// ListAllActions returns all registered actions for debugging/management
+func (r *Registry) ListAllActions() []*KeyAction {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	actions := make([]*KeyAction, 0, len(r.actions))
+	for _, action := range r.actions {
+		actions = append(actions, action)
+	}
+
+	sort.Slice(actions, func(i, j int) bool {
+		if actions[i].Category == actions[j].Category {
+			return actions[i].ID < actions[j].ID
+		}
+		return actions[i].Category < actions[j].Category
+	})
+
+	return actions
 }

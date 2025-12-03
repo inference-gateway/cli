@@ -1543,6 +1543,102 @@ compact:
   - Can be changed during chat using `/theme [theme-name]` shortcut
   - Affects colors and styling of the chat interface
 
+**Keybinding Configuration:**
+
+The CLI supports customizable keybindings for the chat interface. Keybindings are **disabled by
+default** and must be explicitly enabled.
+
+- **chat.keybindings.enabled**: Enable/disable custom keybindings (default: `false`)
+- **chat.keybindings.bindings**: Map of keybinding configurations
+
+**Features:**
+
+- **Namespace-Based Organization**: Action IDs use format `namespace_action` (e.g.,
+  `global_quit`, `mode_cycle_agent_mode`)
+- **Context-Aware Conflict Detection**: Validates conflicts only within the same namespace
+- **Self-Documenting**: All keybindings are visible in config with descriptions
+- **No Runtime Validation**: Config loaded once at startup for performance
+- **Explicit Validation**: Run `infer keybindings validate` to check config
+- **Environment Variable Support**: Configure keybindings via comma-separated env vars
+
+**Environment Variables:**
+
+Keybindings can be configured via environment variables (supports comma-separated or
+newline-separated lists):
+
+```bash
+# Enable keybindings
+export INFER_CHAT_KEYBINDINGS_ENABLED=true
+
+# Set keys for an action (comma-separated or newline-separated)
+export INFER_CHAT_KEYBINDINGS_BINDINGS_GLOBAL_QUIT_KEYS="ctrl+q,ctrl+x"
+
+# Enable/disable specific actions
+export INFER_CHAT_KEYBINDINGS_BINDINGS_DISPLAY_TOGGLE_RAW_FORMAT_ENABLED=false
+```
+
+Format: `INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_<FIELD>`
+
+**Example Configuration:**
+
+```yaml
+chat:
+  theme: tokyo-night
+  keybindings:
+    enabled: false  # Set to true to enable
+    bindings:
+      global_quit:  # Namespace: global, Action: quit
+        keys:
+          - ctrl+c
+        description: "exit application"
+        category: "global"
+        enabled: true
+      mode_cycle_agent_mode:  # Namespace: mode, Action: cycle_agent_mode
+        keys:
+          - shift+tab
+        description: "cycle agent mode"
+        category: "mode"
+        enabled: true
+```
+
+**Available Commands:**
+
+```bash
+# List all keybindings
+infer keybindings list
+
+# Set custom key for an action (use namespaced action ID)
+infer keybindings set mode_cycle_agent_mode ctrl+m
+
+# Disable/enable specific actions
+infer keybindings disable display_toggle_raw_format
+infer keybindings enable display_toggle_raw_format
+
+# Reset to defaults
+infer keybindings reset
+
+# Validate configuration (checks for conflicts within namespaces)
+infer keybindings validate
+```
+
+**Key Action Namespaces:**
+
+Actions are organized by namespace to distinguish between different contexts. The same key can be
+used in different namespaces without conflict.
+
+- **global**: Application-level actions (e.g., `global_quit`, `global_cancel`)
+- **chat**: Chat-specific actions (e.g., `chat_enter_key_handler`)
+- **mode**: Agent mode controls (e.g., `mode_cycle_agent_mode`)
+- **tools**: Tool-related actions (e.g., `tools_toggle_tool_expansion`)
+- **display**: Display toggles (e.g., `display_toggle_raw_format`, `display_toggle_todo_box`)
+- **text_editing**: Text manipulation (e.g., `text_editing_move_cursor_left`,
+  `text_editing_history_up`)
+- **navigation**: Viewport navigation (e.g., `navigation_scroll_to_top`, `navigation_page_down`)
+- **clipboard**: Copy/paste operations (e.g., `clipboard_copy_text`, `clipboard_paste_text`)
+- **selection**: Selection mode controls (e.g., `selection_toggle_mouse_mode`)
+- **plan_approval**: Plan approval navigation (e.g., `plan_approval_plan_approval_accept`)
+- **help**: Help system (e.g., `help_toggle_help`)
+
 #### Web Search API Setup (Optional)
 
 Both search engines work out of the box, but for better reliability and performance in production, you can

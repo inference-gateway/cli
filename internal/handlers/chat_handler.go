@@ -759,6 +759,7 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.SetInputEvent,
 		domain.ToggleHelpBarEvent,
 		domain.HideHelpBarEvent,
+		domain.ToggleTodoBoxEvent,
 		domain.DebugKeyEvent,
 		domain.SetupFileSelectionEvent,
 		domain.ScrollRequestEvent,
