@@ -760,6 +760,7 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.ToggleHelpBarEvent,
 		domain.HideHelpBarEvent,
 		domain.ToggleTodoBoxEvent,
+		domain.TodoUpdateEvent,
 		domain.DebugKeyEvent,
 		domain.SetupFileSelectionEvent,
 		domain.ScrollRequestEvent,
@@ -781,7 +782,9 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 	}
 
 	msgType := fmt.Sprintf("%T", msg)
-	if msgType == "components.renderTickMsg" || msgType == "tea.clearScreenMsg" {
+	if msgType == "components.renderTickMsg" ||
+		msgType == "tea.clearScreenMsg" ||
+		msgType == "components.AutoCollapseTickMsg" {
 		return true
 	}
 
