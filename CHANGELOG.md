@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.77.0](https://github.com/inference-gateway/cli/compare/v0.76.5...v0.77.0) (2025-12-03)
+
+### 🚀 Features
+
+* Add configurable keybinding system ([#300](https://github.com/inference-gateway/cli/issues/300)) ([b0e5b96](https://github.com/inference-gateway/cli/commit/b0e5b9685b3c10e563f258134b3f9462d488abe9))
+
 ## [0.76.5](https://github.com/inference-gateway/cli/compare/v0.76.4...v0.76.5) (2025-12-02)
 
 ### 🐛 Bug Fixes
