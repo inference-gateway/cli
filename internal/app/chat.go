@@ -166,7 +166,6 @@ func NewChatApplication(
 		iv.SetConversationRepo(app.conversationRepo)
 	}
 
-	// Create autocomplete separately
 	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService)
 	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
 		ac.SetStateManager(app.stateManager)
@@ -193,6 +192,14 @@ func NewChatApplication(
 
 	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.configService)
 	app.updateHelpBarShortcuts()
+
+	keyHintFormatter := app.keyBindingManager.GetHintFormatter()
+	if cv, ok := app.conversationView.(*components.ConversationView); ok {
+		cv.SetKeyHintFormatter(keyHintFormatter)
+	}
+	if sv, ok := app.statusView.(*components.StatusView); ok {
+		sv.SetKeyHintFormatter(keyHintFormatter)
+	}
 
 	app.modelSelector = components.NewModelSelector(models, app.modelService, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)

@@ -10,8 +10,10 @@ import (
 
 	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
+	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	markdown "github.com/inference-gateway/cli/internal/ui/markdown"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	sdk "github.com/inference-gateway/sdk"
@@ -38,6 +40,7 @@ type ConversationView struct {
 	renderedContent     string
 	streamingBuffer     strings.Builder
 	isStreaming         bool
+	keyHintFormatter    *hints.Formatter
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
@@ -84,6 +87,11 @@ func (cv *ConversationView) SetToolCallRenderer(renderer *ToolCallRenderer) {
 // SetStateManager sets the state manager for accessing plan approval state
 func (cv *ConversationView) SetStateManager(stateManager domain.StateManager) {
 	cv.stateManager = stateManager
+}
+
+// SetKeyHintFormatter sets the key hint formatter for displaying keybinding hints
+func (cv *ConversationView) SetKeyHintFormatter(formatter *hints.Formatter) {
+	cv.keyHintFormatter = formatter
 }
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
@@ -467,7 +475,7 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 		if cv.toolFormatter != nil && cv.toolFormatter.ShouldAlwaysExpandTool(entry.ToolExecution.ToolName) {
 			helpText = ""
 		} else {
-			helpText = "\nPress ctrl+o to collapse all tool calls"
+			helpText = cv.getToggleToolHint("collapse all tool calls")
 		}
 
 		return content + helpText
@@ -477,13 +485,15 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
 	wrappedContent := formatting.FormatResponsiveMessage(contentStr, cv.width)
-	return wrappedContent + "\n\n• Press ctrl+o to collapse all tool calls"
+	hint := cv.getToggleToolHint("collapse all tool calls")
+	return wrappedContent + "\n\n• " + hint
 }
 
 func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
+	hint := cv.getToggleToolHint("expand all tool calls")
 	if entry.ToolExecution != nil {
 		content := cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
-		return content + "\n• Press ctrl+o to expand all tool calls"
+		return content + "\n• " + hint
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
@@ -491,7 +501,7 @@ func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry)
 	}
 	content := cv.formatToolContentCompact(contentStr)
 	wrappedContent := formatting.FormatResponsiveMessage(content, cv.width)
-	return wrappedContent + "\n• Press ctrl+o to expand all tool calls"
+	return wrappedContent + "\n• " + hint
 }
 
 func (cv *ConversationView) formatToolContentCompact(content string) string {
@@ -1047,4 +1057,21 @@ func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cm
 
 	cv.updateViewportContent()
 	return cmd
+}
+
+// getToggleToolHint returns a keybinding hint for toggling tool expansion
+func (cv *ConversationView) getToggleToolHint(action string) string {
+	if cv.keyHintFormatter == nil {
+		// Fallback to hardcoded hint if formatter not set
+		return "Press ctrl+o to " + action
+	}
+
+	actionID := config.ActionID(config.NamespaceTools, "toggle_tool_expansion")
+	hint := cv.keyHintFormatter.GetKeyHint(actionID, action)
+	if hint == "" {
+		// Fallback if keybinding not found
+		return "Press ctrl+o to " + action
+	}
+
+	return hint
 }

@@ -10,6 +10,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
+	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	keys "github.com/inference-gateway/cli/internal/ui/keys"
 )
 
@@ -1103,6 +1104,14 @@ func (m *KeyBindingManager) RegisterCustomAction(action *KeyAction) error {
 // GetRegistry returns the underlying registry (for advanced usage)
 func (m *KeyBindingManager) GetRegistry() KeyRegistry {
 	return m.registry
+}
+
+// GetHintFormatter returns a hint formatter for displaying keybinding hints in UI
+func (m *KeyBindingManager) GetHintFormatter() *hints.Formatter {
+	if registry, ok := m.registry.(*Registry); ok {
+		return NewHintFormatterFromRegistry(registry)
+	}
+	return nil
 }
 
 // debugKeyBinding logs key binding events when debug mode is enabled

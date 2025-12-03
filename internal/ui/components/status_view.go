@@ -6,26 +6,29 @@ import (
 
 	spinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
+	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
 
 // StatusView handles status messages, errors, and loading spinners
 type StatusView struct {
-	message       string
-	isError       bool
-	isSpinner     bool
-	spinner       spinner.Model
-	startTime     time.Time
-	baseMessage   string
-	debugInfo     string
-	width         int
-	statusType    domain.StatusType
-	progress      *domain.StatusProgress
-	savedState    *StatusState
-	styleProvider *styles.Provider
+	message          string
+	isError          bool
+	isSpinner        bool
+	spinner          spinner.Model
+	startTime        time.Time
+	baseMessage      string
+	debugInfo        string
+	width            int
+	statusType       domain.StatusType
+	progress         *domain.StatusProgress
+	savedState       *StatusState
+	styleProvider    *styles.Provider
+	keyHintFormatter *hints.Formatter
 }
 
 // StatusState represents a saved status state
@@ -173,6 +176,11 @@ func (sv *StatusView) SetHeight(height int) {
 	// Status view has dynamic height
 }
 
+// SetKeyHintFormatter sets the key hint formatter for displaying keybinding hints
+func (sv *StatusView) SetKeyHintFormatter(formatter *hints.Formatter) {
+	sv.keyHintFormatter = formatter
+}
+
 func (sv *StatusView) Render() string {
 	if sv.message == "" && sv.baseMessage == "" && sv.debugInfo == "" {
 		return ""
@@ -271,7 +279,9 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 	elapsed := time.Since(sv.startTime)
 	seconds := elapsed.Seconds()
 	baseMsg := sv.formatStatusWithType(sv.baseMessage)
-	displayMessage := fmt.Sprintf("%s (%.1fs) - Press ESC to interrupt", baseMsg, seconds)
+
+	cancelHint := sv.getCancelHint()
+	displayMessage := fmt.Sprintf("%s (%.1fs) - %s", baseMsg, seconds, cancelHint)
 
 	statusColor := sv.styleProvider.GetThemeColor("status")
 	return prefix, statusColor, displayMessage
@@ -283,6 +293,21 @@ func (sv *StatusView) formatNormalStatus() (string, string, string) {
 	displayMessage := sv.formatStatusWithType(sv.message)
 
 	return prefix, statusColor, displayMessage
+}
+
+// getCancelHint returns a keybinding hint for cancelling/interrupting operations
+func (sv *StatusView) getCancelHint() string {
+	if sv.keyHintFormatter == nil {
+		return "Press esc to interrupt"
+	}
+
+	actionID := config.ActionID(config.NamespaceGlobal, "cancel")
+	hint := sv.keyHintFormatter.GetKeyHint(actionID, "interrupt")
+	if hint == "" {
+		return "Press esc to interrupt"
+	}
+
+	return hint
 }
 
 // Bubble Tea interface
