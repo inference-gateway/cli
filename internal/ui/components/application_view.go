@@ -263,7 +263,7 @@ func (r *ApplicationViewRenderer) appendHelpBar(
 ) []string {
 	helpBar.SetWidth(width)
 	if helpBarContent := helpBar.Render(); helpBarContent != "" {
-		helpBarSeparator := "  " + strings.Repeat("─", width-4)
+		helpBarSeparator := strings.Repeat("─", width)
 		components = append(components, helpBarSeparator, helpBarContent)
 	}
 	return components
