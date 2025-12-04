@@ -422,10 +422,11 @@ func (c *HelpShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 
 	shortcuts := c.registry.GetAll()
 	for _, shortcut := range shortcuts {
-		output.WriteString(fmt.Sprintf("• **`/%s`** - %s\n", shortcut.GetName(), shortcut.GetDescription()))
+		output.WriteString(fmt.Sprintf("/%s\n", shortcut.GetName()))
+		output.WriteString(fmt.Sprintf("  %s\n\n", shortcut.GetDescription()))
 	}
 
-	output.WriteString("\n• *Type `/help <shortcut>` for detailed usage information.*")
+	output.WriteString("Type `/help <shortcut>` for detailed usage information.")
 
 	return ShortcutResult{
 		Output:     output.String(),
