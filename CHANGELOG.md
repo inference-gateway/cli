@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.77.1](https://github.com/inference-gateway/cli/compare/v0.77.0...v0.77.1) (2025-12-04)
+
+### 🐛 Bug Fixes
+
+* Command description to be more precise ([40ba09c](https://github.com/inference-gateway/cli/commit/40ba09cfc0f271f1f9d450061586469f16bb1ac0))
+* Correct agent idle state handling and improve queue display ([#301](https://github.com/inference-gateway/cli/issues/301)) ([b3979c7](https://github.com/inference-gateway/cli/commit/b3979c78bb6575fc5eae210c07f29f0e43d6dd53))
+* **docs:** The docker setup requires that the inference gateway is running ([6c134d8](https://github.com/inference-gateway/cli/commit/6c134d8ecaa4f1dfed800ac1df245cf7f96dcdfc))
+
+### 📚 Documentation
+
+* Breakdown the docs to smaller chunks ([e21c2c7](https://github.com/inference-gateway/cli/commit/e21c2c7ff9bcbaaea6975ebcf5ee267590def82d))
+
+### 🧹 Maintenance
+
+* Add debug mode support for gateway ([9f57711](https://github.com/inference-gateway/cli/commit/9f5771176f692f7698feec73c618a555f7492119))
+* **deps:** Upgrade all deps ([59af57e](https://github.com/inference-gateway/cli/commit/59af57eb22a7189dbbcf01a06de86aa2aa45eb56))
+
 ## [0.77.0](https://github.com/inference-gateway/cli/compare/v0.76.5...v0.77.0) (2025-12-03)
 
 ### 🚀 Features
