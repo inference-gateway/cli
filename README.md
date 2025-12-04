@@ -83,11 +83,15 @@ alias infer="$(go env GOPATH)/bin/cli"
 ### Using Container Image
 
 ```bash
-# Pull the image
-docker pull ghcr.io/inference-gateway/cli:latest
+# Create network and deploy inference gateway first
+docker network create inference-gateway
+docker run -d --name inference-gateway --network inference-gateway \
+  --env-file .env \
+  ghcr.io/inference-gateway/inference-gateway:latest
 
-# Run the CLI
-docker run -it --rm ghcr.io/inference-gateway/cli:latest chat
+# Pull and run the CLI
+docker pull ghcr.io/inference-gateway/cli:latest
+docker run -it --rm --network inference-gateway ghcr.io/inference-gateway/cli:latest chat
 ```
 
 ### Using Install Script
