@@ -52,12 +52,22 @@ func init() {
 	cobra.OnInitialize(initConfig)
 }
 
-func initConfig() {
+func initConfig() { // nolint:funlen
 	V = viper.New()
 	v := V
 
 	defaults := config.DefaultConfig()
 	v.SetDefault("gateway", defaults.Gateway)
+	v.SetDefault("gateway.url", defaults.Gateway.URL)
+	v.SetDefault("gateway.api_key", defaults.Gateway.APIKey)
+	v.SetDefault("gateway.timeout", defaults.Gateway.Timeout)
+	v.SetDefault("gateway.oci", defaults.Gateway.OCI)
+	v.SetDefault("gateway.run", defaults.Gateway.Run)
+	v.SetDefault("gateway.docker", defaults.Gateway.Docker)
+	v.SetDefault("gateway.debug", defaults.Gateway.Debug)
+	v.SetDefault("gateway.include_models", defaults.Gateway.IncludeModels)
+	v.SetDefault("gateway.exclude_models", defaults.Gateway.ExcludeModels)
+	v.SetDefault("gateway.vision_enabled", defaults.Gateway.VisionEnabled)
 	v.SetDefault("logging", defaults.Logging)
 	v.SetDefault("client", defaults.Client)
 	v.SetDefault("tools", defaults.Tools)

@@ -46,6 +46,7 @@ type GatewayConfig struct {
 	OCI           string   `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
 	Run           bool     `yaml:"run" mapstructure:"run"`
 	Docker        bool     `yaml:"docker" mapstructure:"docker"`
+	Debug         bool     `yaml:"debug,omitempty" mapstructure:"debug,omitempty"`
 	IncludeModels []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
 	ExcludeModels []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
 	VisionEnabled bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
