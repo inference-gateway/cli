@@ -500,7 +500,7 @@ Key third-party libraries:
 
 ## Development Environment
 
-- **Go version**: 1.25.2+ required
+- **Go version**: 1.25.4+ required
 - **Task**: Task runner (taskfile.dev) for build automation
 - **golangci-lint**: Linting and static analysis
 - **pre-commit**: Git hooks for code quality

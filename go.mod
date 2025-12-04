@@ -1,6 +1,6 @@
 module github.com/inference-gateway/cli
 
-go 1.25.2
+go 1.25.4
 
 tool github.com/maxbrunsfeld/counterfeiter/v6
 
@@ -11,13 +11,13 @@ require (
 	github.com/charmbracelet/lipgloss v1.1.1-0.20250404203927-76690c660834
 	github.com/go-redis/redis/v8 v8.11.5
 	github.com/google/uuid v1.6.0
-	github.com/inference-gateway/adk v0.15.3
+	github.com/inference-gateway/adk v0.16.0
 	github.com/inference-gateway/sdk v1.14.1
 	github.com/ledongthuc/pdf v0.0.0-20250511090121-5959a4027728
 	github.com/lib/pq v1.10.9
 	github.com/muesli/reflow v0.3.0
 	github.com/sabhiram/go-gitignore v0.0.0-20210923224102-525f6e181f06
-	github.com/spf13/cobra v1.10.1
+	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.21.0
 	github.com/stretchr/testify v1.11.1
 	github.com/subosito/gotenv v1.6.0
