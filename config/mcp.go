@@ -2,9 +2,9 @@ package config
 
 // MCPConfig represents the mcp.yaml configuration file
 type MCPConfig struct {
-	Enabled           bool             `yaml:"enabled" mapstructure:"enabled"`                                           // Global enable/disable
-	ConnectionTimeout int              `yaml:"connection_timeout,omitempty" mapstructure:"connection_timeout,omitempty"` // seconds, default 30
-	DiscoveryTimeout  int              `yaml:"discovery_timeout,omitempty" mapstructure:"discovery_timeout,omitempty"`   // seconds, default 30
+	Enabled           bool             `yaml:"enabled" mapstructure:"enabled"`
+	ConnectionTimeout int              `yaml:"connection_timeout,omitempty" mapstructure:"connection_timeout,omitempty"`
+	DiscoveryTimeout  int              `yaml:"discovery_timeout,omitempty" mapstructure:"discovery_timeout,omitempty"`
 	Servers           []MCPServerEntry `yaml:"servers" mapstructure:"servers"`
 }
 
@@ -13,10 +13,10 @@ type MCPServerEntry struct {
 	Name         string   `yaml:"name" mapstructure:"name"`
 	URL          string   `yaml:"url" mapstructure:"url"`
 	Enabled      bool     `yaml:"enabled" mapstructure:"enabled"`
-	Timeout      int      `yaml:"timeout,omitempty" mapstructure:"timeout,omitempty"` // seconds, overrides global
+	Timeout      int      `yaml:"timeout,omitempty" mapstructure:"timeout,omitempty"`
 	Description  string   `yaml:"description,omitempty" mapstructure:"description,omitempty"`
-	IncludeTools []string `yaml:"include_tools,omitempty" mapstructure:"include_tools,omitempty"` // Whitelist specific tools
-	ExcludeTools []string `yaml:"exclude_tools,omitempty" mapstructure:"exclude_tools,omitempty"` // Blacklist specific tools
+	IncludeTools []string `yaml:"include_tools,omitempty" mapstructure:"include_tools,omitempty"`
+	ExcludeTools []string `yaml:"exclude_tools,omitempty" mapstructure:"exclude_tools,omitempty"`
 }
 
 // ShouldIncludeTool determines if a tool should be included based on include/exclude lists
@@ -55,9 +55,9 @@ func (e *MCPServerEntry) GetTimeout(globalTimeout int) int {
 // DefaultMCPConfig returns a default MCP configuration
 func DefaultMCPConfig() *MCPConfig {
 	return &MCPConfig{
-		Enabled:           false, // Disabled by default
-		ConnectionTimeout: 30,    // 30 seconds default
-		DiscoveryTimeout:  30,    // 30 seconds default
+		Enabled:           false,
+		ConnectionTimeout: 30,
+		DiscoveryTimeout:  30,
 		Servers:           []MCPServerEntry{},
 	}
 }
