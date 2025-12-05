@@ -48,6 +48,9 @@ func (s *MCPConfigService) Load() (*config.MCPConfig, error) {
 // Save saves the MCP configuration to the file
 func (s *MCPConfigService) Save(cfg *config.MCPConfig) error {
 	var buf bytes.Buffer
+
+	buf.WriteString("---\n")
+
 	encoder := yaml.NewEncoder(&buf)
 	encoder.SetIndent(2)
 

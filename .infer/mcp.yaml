@@ -1,11 +1,7 @@
 ---
-enabled: true
+enabled: false
 connection_timeout: 30
 discovery_timeout: 30
 liveness_probe_enabled: true
 liveness_probe_interval: 10
-servers:
-  - name: demo-server
-    url: http://localhost:3000/mcp
-    enabled: true
-    description: "Demo MCP server with example tools"
+servers: []
