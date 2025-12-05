@@ -721,7 +721,6 @@ func (t *GithubTool) validateResourceType(resource string, args map[string]any) 
 		return fmt.Errorf("resource must be one of: %v", validResources)
 	}
 
-	// Delegate to specific validation functions based on resource type
 	switch resource {
 	case "issue", "pull_request", "comments", "create_comment", "update_pull_request":
 		if err := t.validateIssueNumber(args, resource); err != nil {
