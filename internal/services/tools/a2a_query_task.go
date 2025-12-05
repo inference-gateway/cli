@@ -50,16 +50,16 @@ func (t *A2AQueryTaskTool) Definition() sdk.ChatCompletionTool {
 			Description: &description,
 			Parameters: &sdk.FunctionParameters{
 				"type": "object",
-				"properties": map[string]interface{}{
-					"agent_url": map[string]interface{}{
+				"properties": map[string]any{
+					"agent_url": map[string]any{
 						"type":        "string",
 						"description": "URL of the A2A agent server",
 					},
-					"context_id": map[string]interface{}{
+					"context_id": map[string]any{
 						"type":        "string",
 						"description": "Context ID for the task",
 					},
-					"task_id": map[string]interface{}{
+					"task_id": map[string]any{
 						"type":        "string",
 						"description": "ID of the task to query",
 					},

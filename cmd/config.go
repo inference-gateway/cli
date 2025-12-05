@@ -482,7 +482,7 @@ var configToolsWebFetchCacheClearCmd = &cobra.Command{
 }
 
 // resolveViperEnvironmentVariables recursively resolves environment variables for all string fields using Viper
-func resolveViperEnvironmentVariables(cfg interface{}, keyPrefix string) {
+func resolveViperEnvironmentVariables(cfg any, keyPrefix string) {
 	rv := reflect.ValueOf(cfg)
 	if rv.Kind() != reflect.Ptr || rv.IsNil() {
 		return

@@ -21,7 +21,7 @@ func NewParameterExtractor() *ParameterExtractor {
 }
 
 // ExtractWriteParams extracts and validates write operation parameters
-func (p *ParameterExtractor) ExtractWriteParams(params map[string]interface{}) (*WriteParams, error) {
+func (p *ParameterExtractor) ExtractWriteParams(params map[string]any) (*WriteParams, error) {
 	filePath, err := p.extractString(params, "file_path", true)
 	if err != nil {
 		return nil, err
@@ -49,7 +49,7 @@ func (p *ParameterExtractor) ToWriteRequest(params *WriteParams) filewriter.Writ
 }
 
 // extractString extracts a string parameter
-func (p *ParameterExtractor) extractString(params map[string]interface{}, key string, required bool) (string, error) {
+func (p *ParameterExtractor) extractString(params map[string]any, key string, required bool) (string, error) {
 	value, exists := params[key]
 	if !exists {
 		if required {
