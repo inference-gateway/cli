@@ -462,6 +462,17 @@ type MCPDiscoveredTool struct {
 	InputSchema any
 }
 
+// MCPServerEntry represents an MCP server configuration entry
+type MCPServerEntry struct {
+	Name         string
+	URL          string
+	Enabled      bool
+	Timeout      int
+	Description  string
+	IncludeTools []string
+	ExcludeTools []string
+}
+
 // MCPClient handles communication with MCP servers
 type MCPClient interface {
 	// DiscoverTools discovers all tools from enabled MCP servers
@@ -470,10 +481,25 @@ type MCPClient interface {
 	// CallTool executes a tool on an MCP server
 	CallTool(ctx context.Context, serverName, toolName string, args map[string]any) (any, error)
 
-	// GetMCPServerStatus returns the status of MCP server connections
-	GetMCPServerStatus() *MCPServerStatus
+	// PingServer sends a ping request to check if a specific server is alive
+	PingServer(ctx context.Context, serverName string) error
 
 	// Close cleans up MCP client resources
+	Close() error
+}
+
+// MCPManager manages the lifecycle and health monitoring of MCP server connections
+type MCPManager interface {
+	// Returns a list of clients
+	GetClients() []MCPClient
+
+	// GetMCPServerStatus returns aggregated status of all MCP server connections
+	GetMCPServerStatus() *MCPServerStatus
+
+	// StartMonitoring begins background health monitoring and returns a channel for status updates
+	StartMonitoring(ctx context.Context) <-chan MCPServerStatusUpdateEvent
+
+	// Close stops monitoring and cleans up resources
 	Close() error
 }
 

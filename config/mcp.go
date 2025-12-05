@@ -2,10 +2,12 @@ package config
 
 // MCPConfig represents the mcp.yaml configuration file
 type MCPConfig struct {
-	Enabled           bool             `yaml:"enabled" mapstructure:"enabled"`
-	ConnectionTimeout int              `yaml:"connection_timeout,omitempty" mapstructure:"connection_timeout,omitempty"`
-	DiscoveryTimeout  int              `yaml:"discovery_timeout,omitempty" mapstructure:"discovery_timeout,omitempty"`
-	Servers           []MCPServerEntry `yaml:"servers" mapstructure:"servers"`
+	Enabled               bool             `yaml:"enabled" mapstructure:"enabled"`
+	ConnectionTimeout     int              `yaml:"connection_timeout,omitempty" mapstructure:"connection_timeout,omitempty"`
+	DiscoveryTimeout      int              `yaml:"discovery_timeout,omitempty" mapstructure:"discovery_timeout,omitempty"`
+	LivenessProbeEnabled  bool             `yaml:"liveness_probe_enabled,omitempty" mapstructure:"liveness_probe_enabled,omitempty"`
+	LivenessProbeInterval int              `yaml:"liveness_probe_interval,omitempty" mapstructure:"liveness_probe_interval,omitempty"`
+	Servers               []MCPServerEntry `yaml:"servers" mapstructure:"servers"`
 }
 
 // MCPServerEntry represents a single MCP server configuration
@@ -55,10 +57,12 @@ func (e *MCPServerEntry) GetTimeout(globalTimeout int) int {
 // DefaultMCPConfig returns a default MCP configuration
 func DefaultMCPConfig() *MCPConfig {
 	return &MCPConfig{
-		Enabled:           false,
-		ConnectionTimeout: 30,
-		DiscoveryTimeout:  30,
-		Servers:           []MCPServerEntry{},
+		Enabled:               false,
+		ConnectionTimeout:     30,
+		DiscoveryTimeout:      30,
+		LivenessProbeEnabled:  true,
+		LivenessProbeInterval: 10,
+		Servers:               []MCPServerEntry{},
 	}
 }
 

@@ -19,18 +19,18 @@ type Registry struct {
 	readToolUsed bool
 	taskTracker  domain.TaskTracker
 	imageService domain.ImageService
-	mcpClient    domain.MCPClient
+	mcpManager   domain.MCPManager
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
-func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpClient domain.MCPClient) *Registry {
+func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager) *Registry {
 	registry := &Registry{
 		config:       cfg,
 		tools:        make(map[string]domain.Tool),
 		readToolUsed: false,
 		taskTracker:  utils.NewTaskTracker(),
 		imageService: imageService,
-		mcpClient:    mcpClient,
+		mcpManager:   mcpManager,
 	}
 
 	registry.registerTools()
@@ -69,8 +69,7 @@ func (r *Registry) registerTools() {
 		r.tools["A2A_DownloadArtifacts"] = NewA2ADownloadArtifactsTool(r.config, r.taskTracker)
 	}
 
-	// Register MCP tools if enabled and client is available
-	if r.config.MCP.Enabled && r.mcpClient != nil {
+	if r.config.MCP.Enabled && r.mcpManager != nil {
 		r.registerMCPTools()
 	}
 }
@@ -80,37 +79,37 @@ func (r *Registry) registerMCPTools() {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.config.MCP.DiscoveryTimeout)*time.Second)
 	defer cancel()
 
-	// Discover tools from all enabled MCP servers
-	discoveredTools, err := r.mcpClient.DiscoverTools(ctx)
-	if err != nil {
-		logger.Warn("Failed to discover MCP tools", "error", err)
-		return
-	}
-
-	// Register each discovered tool
 	toolCount := 0
-	for serverName, tools := range discoveredTools {
-		for _, tool := range tools {
-			// Create tool name: MCP_<servername>_<toolname>
-			fullToolName := fmt.Sprintf("MCP_%s_%s", serverName, tool.Name)
+	clients := r.mcpManager.GetClients()
 
-			// Create and register the MCP tool wrapper
-			mcpTool := NewMCPTool(
-				serverName,
-				tool.Name,
-				tool.Description,
-				tool.InputSchema,
-				r.mcpClient,
-				&r.config.MCP,
-			)
+	for _, client := range clients {
+		discoveredTools, err := client.DiscoverTools(ctx)
+		if err != nil {
+			logger.Warn("Failed to discover MCP tools from client", "error", err)
+			continue
+		}
 
-			r.tools[fullToolName] = mcpTool
-			toolCount++
+		for serverName, tools := range discoveredTools {
+			for _, tool := range tools {
+				fullToolName := fmt.Sprintf("MCP_%s_%s", serverName, tool.Name)
 
-			logger.Debug("Registered MCP tool",
-				"tool", fullToolName,
-				"server", serverName,
-				"description", tool.Description)
+				mcpTool := NewMCPTool(
+					serverName,
+					tool.Name,
+					tool.Description,
+					tool.InputSchema,
+					client,
+					&r.config.MCP,
+				)
+
+				r.tools[fullToolName] = mcpTool
+				toolCount++
+
+				logger.Debug("Registered MCP tool",
+					"tool", fullToolName,
+					"server", serverName,
+					"description", tool.Description)
+			}
 		}
 	}
 
@@ -157,6 +156,61 @@ func (r *Registry) IsToolEnabled(name string) bool {
 		return false
 	}
 	return tool.IsEnabled()
+}
+
+// RegisterMCPServerTools dynamically registers tools from an MCP server
+func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPDiscoveredTool) int {
+	if r.mcpManager == nil {
+		return 0
+	}
+
+	var targetClient domain.MCPClient
+	for _, client := range r.mcpManager.GetClients() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		discovered, err := client.DiscoverTools(ctx)
+		cancel()
+
+		if err == nil {
+			for sname := range discovered {
+				if sname == serverName {
+					targetClient = client
+					break
+				}
+			}
+		}
+		if targetClient != nil {
+			break
+		}
+	}
+
+	if targetClient == nil {
+		logger.Warn("Could not find MCP client for server", "server", serverName)
+		return 0
+	}
+
+	toolCount := 0
+	for _, tool := range tools {
+		fullToolName := fmt.Sprintf("MCP_%s_%s", serverName, tool.Name)
+
+		mcpTool := NewMCPTool(
+			serverName,
+			tool.Name,
+			tool.Description,
+			tool.InputSchema,
+			targetClient,
+			&r.config.MCP,
+		)
+
+		r.tools[fullToolName] = mcpTool
+		toolCount++
+
+		logger.Info("Dynamically registered MCP tool",
+			"tool", fullToolName,
+			"server", serverName,
+			"description", tool.Description)
+	}
+
+	return toolCount
 }
 
 // SetReadToolUsed marks that the Read tool has been used

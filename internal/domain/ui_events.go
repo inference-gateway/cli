@@ -236,6 +236,16 @@ type AgentErrorEvent struct {
 	Error     error
 }
 
+// MCP Server Status Events
+
+// MCPServerStatusUpdateEvent indicates MCP server status has changed
+type MCPServerStatusUpdateEvent struct {
+	ServerName       string
+	Connected        bool
+	TotalServers     int
+	ConnectedServers int
+}
+
 // GitHub App Setup Events
 
 // TriggerGitHubAppSetupEvent triggers the GitHub App setup flow

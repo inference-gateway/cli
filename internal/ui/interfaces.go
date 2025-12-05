@@ -107,6 +107,7 @@ type InputStatusBarComponent interface {
 	SetWidth(width int)
 	SetHeight(height int)
 	SetInputText(text string)
+	UpdateMCPStatus(status *domain.MCPServerStatus)
 	Render() string
 }
 

@@ -780,12 +780,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 				},
 			},
 		},
-		MCP: MCPConfig{
-			Enabled:           false,
-			ConnectionTimeout: 30,
-			DiscoveryTimeout:  30,
-			Servers:           []MCPServerEntry{},
-		},
+		MCP: *DefaultMCPConfig(),
 		Init: InitConfig{
 			Prompt: `Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.
 Use your available tools to examine configuration files, documentation, build systems, and development workflow.

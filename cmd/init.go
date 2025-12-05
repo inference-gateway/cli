@@ -371,70 +371,13 @@ func createMCPConfigFile(path string) error {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
-	mcpConfigContent := `# MCP (Model Context Protocol) Server Configuration
-# This file configures direct connections to MCP servers for tool integration.
-# MCP servers provide additional tools that can be used by the LLM.
-#
-# Documentation: https://github.com/inference-gateway/cli/docs/mcp-integration.md
-
-# Global MCP settings
-enabled: false  # Set to true to enable MCP integration
-connection_timeout: 30  # Global connection timeout in seconds
-discovery_timeout: 30   # Timeout for discovering tools from servers
-
-# MCP server definitions
+	mcpConfigContent := `---
+enabled: false
+connection_timeout: 30
+discovery_timeout: 30
+liveness_probe_enabled: true
+liveness_probe_interval: 10
 servers: []
-  # Example: Filesystem MCP server
-  # - name: "filesystem"
-  #   url: "http://localhost:3000/sse"
-  #   enabled: true
-  #   timeout: 60  # Override global timeout for this server (optional)
-  #   description: "File system operations"
-  #
-  #   # Tool filtering (optional)
-  #   # Use include_tools to whitelist specific tools (if set, only these tools are exposed)
-  #   # include_tools:
-  #   #   - "read_file"
-  #   #   - "write_file"
-  #   #   - "list_directory"
-  #
-  #   # Use exclude_tools to blacklist specific tools (remove dangerous operations)
-  #   # exclude_tools:
-  #   #   - "delete_file"
-  #   #   - "format_disk"
-
-  # Example: Database MCP server
-  # - name: "database"
-  #   url: "http://localhost:3001/sse"
-  #   enabled: true
-  #   description: "Database query tools"
-  #   include_tools:  # Only expose these specific tools
-  #     - "query"
-  #     - "describe_table"
-  #     - "list_tables"
-
-  # Example: Disabled server
-  # - name: "web-scraper"
-  #   url: "http://localhost:3002/sse"
-  #   enabled: false  # This server will be skipped
-  #   description: "Web scraping tools"
-
-# Environment variable support:
-# All values support environment variable expansion using ${VAR_NAME} syntax
-# Example:
-#   url: "${MCP_SERVER_URL}"
-#
-# You can also use environment variables to override config:
-#   INFER_MCP_ENABLED=true
-#   INFER_MCP_CONNECTION_TIMEOUT=60
-#   INFER_MCP_DISCOVERY_TIMEOUT=45
-
-# Notes:
-# - MCP tools are named as: MCP_<servername>_<toolname>
-# - MCP tools are automatically excluded from Plan mode
-# - Servers are contacted concurrently during tool discovery
-# - Failed servers don't prevent CLI startup (logged as warnings)
-# - Each tool execution creates a new stateless HTTP SSE connection
 `
 
 	return os.WriteFile(path, []byte(mcpConfigContent), 0644)

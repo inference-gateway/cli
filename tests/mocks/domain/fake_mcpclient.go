@@ -48,15 +48,17 @@ type FakeMCPClient struct {
 		result1 map[string][]domain.MCPDiscoveredTool
 		result2 error
 	}
-	GetMCPServerStatusStub        func() *domain.MCPServerStatus
-	getMCPServerStatusMutex       sync.RWMutex
-	getMCPServerStatusArgsForCall []struct {
+	PingServerStub        func(context.Context, string) error
+	pingServerMutex       sync.RWMutex
+	pingServerArgsForCall []struct {
+		arg1 context.Context
+		arg2 string
 	}
-	getMCPServerStatusReturns struct {
-		result1 *domain.MCPServerStatus
+	pingServerReturns struct {
+		result1 error
 	}
-	getMCPServerStatusReturnsOnCall map[int]struct {
-		result1 *domain.MCPServerStatus
+	pingServerReturnsOnCall map[int]struct {
+		result1 error
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
@@ -246,17 +248,19 @@ func (fake *FakeMCPClient) DiscoverToolsReturnsOnCall(i int, result1 map[string]
 	}{result1, result2}
 }
 
-func (fake *FakeMCPClient) GetMCPServerStatus() *domain.MCPServerStatus {
-	fake.getMCPServerStatusMutex.Lock()
-	ret, specificReturn := fake.getMCPServerStatusReturnsOnCall[len(fake.getMCPServerStatusArgsForCall)]
-	fake.getMCPServerStatusArgsForCall = append(fake.getMCPServerStatusArgsForCall, struct {
-	}{})
-	stub := fake.GetMCPServerStatusStub
-	fakeReturns := fake.getMCPServerStatusReturns
-	fake.recordInvocation("GetMCPServerStatus", []interface{}{})
-	fake.getMCPServerStatusMutex.Unlock()
+func (fake *FakeMCPClient) PingServer(arg1 context.Context, arg2 string) error {
+	fake.pingServerMutex.Lock()
+	ret, specificReturn := fake.pingServerReturnsOnCall[len(fake.pingServerArgsForCall)]
+	fake.pingServerArgsForCall = append(fake.pingServerArgsForCall, struct {
+		arg1 context.Context
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.PingServerStub
+	fakeReturns := fake.pingServerReturns
+	fake.recordInvocation("PingServer", []interface{}{arg1, arg2})
+	fake.pingServerMutex.Unlock()
 	if stub != nil {
-		return stub()
+		return stub(arg1, arg2)
 	}
 	if specificReturn {
 		return ret.result1
@@ -264,38 +268,45 @@ func (fake *FakeMCPClient) GetMCPServerStatus() *domain.MCPServerStatus {
 	return fakeReturns.result1
 }
 
-func (fake *FakeMCPClient) GetMCPServerStatusCallCount() int {
-	fake.getMCPServerStatusMutex.RLock()
-	defer fake.getMCPServerStatusMutex.RUnlock()
-	return len(fake.getMCPServerStatusArgsForCall)
+func (fake *FakeMCPClient) PingServerCallCount() int {
+	fake.pingServerMutex.RLock()
+	defer fake.pingServerMutex.RUnlock()
+	return len(fake.pingServerArgsForCall)
 }
 
-func (fake *FakeMCPClient) GetMCPServerStatusCalls(stub func() *domain.MCPServerStatus) {
-	fake.getMCPServerStatusMutex.Lock()
-	defer fake.getMCPServerStatusMutex.Unlock()
-	fake.GetMCPServerStatusStub = stub
+func (fake *FakeMCPClient) PingServerCalls(stub func(context.Context, string) error) {
+	fake.pingServerMutex.Lock()
+	defer fake.pingServerMutex.Unlock()
+	fake.PingServerStub = stub
 }
 
-func (fake *FakeMCPClient) GetMCPServerStatusReturns(result1 *domain.MCPServerStatus) {
-	fake.getMCPServerStatusMutex.Lock()
-	defer fake.getMCPServerStatusMutex.Unlock()
-	fake.GetMCPServerStatusStub = nil
-	fake.getMCPServerStatusReturns = struct {
-		result1 *domain.MCPServerStatus
+func (fake *FakeMCPClient) PingServerArgsForCall(i int) (context.Context, string) {
+	fake.pingServerMutex.RLock()
+	defer fake.pingServerMutex.RUnlock()
+	argsForCall := fake.pingServerArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeMCPClient) PingServerReturns(result1 error) {
+	fake.pingServerMutex.Lock()
+	defer fake.pingServerMutex.Unlock()
+	fake.PingServerStub = nil
+	fake.pingServerReturns = struct {
+		result1 error
 	}{result1}
 }
 
-func (fake *FakeMCPClient) GetMCPServerStatusReturnsOnCall(i int, result1 *domain.MCPServerStatus) {
-	fake.getMCPServerStatusMutex.Lock()
-	defer fake.getMCPServerStatusMutex.Unlock()
-	fake.GetMCPServerStatusStub = nil
-	if fake.getMCPServerStatusReturnsOnCall == nil {
-		fake.getMCPServerStatusReturnsOnCall = make(map[int]struct {
-			result1 *domain.MCPServerStatus
+func (fake *FakeMCPClient) PingServerReturnsOnCall(i int, result1 error) {
+	fake.pingServerMutex.Lock()
+	defer fake.pingServerMutex.Unlock()
+	fake.PingServerStub = nil
+	if fake.pingServerReturnsOnCall == nil {
+		fake.pingServerReturnsOnCall = make(map[int]struct {
+			result1 error
 		})
 	}
-	fake.getMCPServerStatusReturnsOnCall[i] = struct {
-		result1 *domain.MCPServerStatus
+	fake.pingServerReturnsOnCall[i] = struct {
+		result1 error
 	}{result1}
 }
 

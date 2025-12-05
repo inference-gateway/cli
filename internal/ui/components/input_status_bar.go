@@ -19,7 +19,7 @@ type InputStatusBar struct {
 	stateManager     domain.StateManager
 	configService    *config.Config
 	conversationRepo domain.ConversationRepository
-	mcpClient        domain.MCPClient
+	mcpStatus        *domain.MCPServerStatus
 	styleProvider    *styles.Provider
 	currentInputText string
 }
@@ -57,9 +57,9 @@ func (isb *InputStatusBar) SetConversationRepo(repo domain.ConversationRepositor
 	isb.conversationRepo = repo
 }
 
-// SetMCPClient sets the MCP client
-func (isb *InputStatusBar) SetMCPClient(mcpClient domain.MCPClient) {
-	isb.mcpClient = mcpClient
+// UpdateMCPStatus updates the MCP server status (called by event handler)
+func (isb *InputStatusBar) UpdateMCPStatus(status *domain.MCPServerStatus) {
+	isb.mcpStatus = status
 }
 
 // SetInputText sets the current input text for mode detection
@@ -139,10 +139,8 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 		}
 	}
 
-	if isb.mcpClient != nil {
-		if status := isb.mcpClient.GetMCPServerStatus(); status != nil && status.TotalServers > 0 {
-			parts = append(parts, fmt.Sprintf("MCP: %d/%d", status.ConnectedServers, status.TotalServers))
-		}
+	if isb.mcpStatus != nil {
+		parts = append(parts, fmt.Sprintf("MCP: %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
 	}
 
 	if contextIndicator := isb.getContextUsageIndicator(currentModel); contextIndicator != "" {

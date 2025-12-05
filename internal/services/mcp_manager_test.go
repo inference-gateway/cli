@@ -2,7 +2,6 @@ package services
 
 import (
 	"context"
-	"strings"
 	"testing"
 	"time"
 
@@ -10,7 +9,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
-func TestNewMCPClientManager(t *testing.T) {
+func TestNewMCPManager(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled:           true,
 		ConnectionTimeout: 30,
@@ -24,7 +23,7 @@ func TestNewMCPClientManager(t *testing.T) {
 		},
 	}
 
-	manager := NewMCPClientManager(cfg)
+	manager := NewMCPManager(cfg)
 
 	if manager == nil {
 		t.Fatal("Expected non-nil manager")
@@ -33,54 +32,49 @@ func TestNewMCPClientManager(t *testing.T) {
 	if manager.config != cfg {
 		t.Error("Expected config to be set correctly")
 	}
+
+	clients := manager.GetClients()
+	if len(clients) != 1 {
+		t.Errorf("Expected 1 client, got %d", len(clients))
+	}
 }
 
-func TestMCPClientManager_Close(t *testing.T) {
+func TestMCPManager_Close(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled: true,
 		Servers: []config.MCPServerEntry{},
 	}
 
-	manager := NewMCPClientManager(cfg)
+	manager := NewMCPManager(cfg)
 
-	// Close should not error even if stateless
 	err := manager.Close()
 	if err != nil {
 		t.Errorf("Close() returned unexpected error: %v", err)
 	}
 }
 
-func TestMCPClientManager_DiscoverTools_NoServers(t *testing.T) {
+func TestMCPManager_GetClients_NoServers(t *testing.T) {
 	cfg := &config.MCPConfig{
-		Enabled:          true,
-		DiscoveryTimeout: 5,
-		Servers:          []config.MCPServerEntry{},
+		Enabled: true,
+		Servers: []config.MCPServerEntry{},
 	}
 
-	manager := NewMCPClientManager(cfg)
+	manager := NewMCPManager(cfg)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	clients := manager.GetClients()
 
-	result, err := manager.DiscoverTools(ctx)
-
-	if err != nil {
-		t.Errorf("DiscoverTools() returned error: %v", err)
+	if clients == nil {
+		t.Fatal("Expected non-nil clients slice")
 	}
 
-	if result == nil {
-		t.Fatal("Expected non-nil result")
-	}
-
-	if len(result) != 0 {
-		t.Errorf("Expected empty result, got %d servers", len(result))
+	if len(clients) != 0 {
+		t.Errorf("Expected 0 clients, got %d", len(clients))
 	}
 }
 
-func TestMCPClientManager_DiscoverTools_DisabledServer(t *testing.T) {
+func TestMCPManager_GetClients_DisabledServer(t *testing.T) {
 	cfg := &config.MCPConfig{
-		Enabled:          true,
-		DiscoveryTimeout: 5,
+		Enabled: true,
 		Servers: []config.MCPServerEntry{
 			{
 				Name:    "disabled-server",
@@ -90,27 +84,16 @@ func TestMCPClientManager_DiscoverTools_DisabledServer(t *testing.T) {
 		},
 	}
 
-	manager := NewMCPClientManager(cfg)
+	manager := NewMCPManager(cfg)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	clients := manager.GetClients()
 
-	result, err := manager.DiscoverTools(ctx)
-
-	if err != nil {
-		t.Errorf("DiscoverTools() returned error: %v", err)
-	}
-
-	if result == nil {
-		t.Fatal("Expected non-nil result")
-	}
-
-	if len(result) != 0 {
-		t.Errorf("Expected empty result for disabled server, got %d servers", len(result))
+	if len(clients) != 0 {
+		t.Errorf("Expected 0 clients for disabled server, got %d", len(clients))
 	}
 }
 
-func TestMCPClientManager_CallTool_ServerNotFound(t *testing.T) {
+func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled: true,
 		Servers: []config.MCPServerEntry{
@@ -119,51 +102,122 @@ func TestMCPClientManager_CallTool_ServerNotFound(t *testing.T) {
 				URL:     "http://localhost:8080/mcp",
 				Enabled: true,
 			},
-		},
-	}
-
-	manager := NewMCPClientManager(cfg)
-
-	ctx := context.Background()
-
-	_, err := manager.CallTool(ctx, "nonexistent-server", "someTool", map[string]any{})
-
-	if err == nil {
-		t.Error("Expected error for non-existent server")
-	}
-
-	expectedMsg := "not found in configuration"
-	if err != nil && !strings.Contains(err.Error(), expectedMsg) {
-		t.Errorf("Expected error to contain %q, got: %v", expectedMsg, err)
-	}
-}
-
-func TestMCPClientManager_CallTool_DisabledServer(t *testing.T) {
-	cfg := &config.MCPConfig{
-		Enabled: true,
-		Servers: []config.MCPServerEntry{
+			{
+				Name:    "server2",
+				URL:     "http://localhost:8081/mcp",
+				Enabled: true,
+			},
 			{
 				Name:    "disabled-server",
-				URL:     "http://localhost:8080/mcp",
+				URL:     "http://localhost:8082/mcp",
 				Enabled: false,
 			},
 		},
 	}
 
-	manager := NewMCPClientManager(cfg)
+	manager := NewMCPManager(cfg)
 
-	ctx := context.Background()
+	clients := manager.GetClients()
 
-	_, err := manager.CallTool(ctx, "disabled-server", "someTool", map[string]any{})
+	if len(clients) != 2 {
+		t.Errorf("Expected 2 clients, got %d", len(clients))
+	}
+}
 
-	if err == nil {
-		t.Error("Expected error for disabled server")
+func TestMCPManager_GetMCPServerStatus(t *testing.T) {
+	cfg := &config.MCPConfig{
+		Enabled: true,
+		Servers: []config.MCPServerEntry{
+			{
+				Name:    "server1",
+				URL:     "http://localhost:8080/mcp",
+				Enabled: true,
+			},
+			{
+				Name:    "server2",
+				URL:     "http://localhost:8081/mcp",
+				Enabled: true,
+			},
+		},
 	}
 
-	expectedMsg := "is disabled"
-	if err != nil && !strings.Contains(err.Error(), expectedMsg) {
-		t.Errorf("Expected error to contain %q, got: %v", expectedMsg, err)
+	manager := NewMCPManager(cfg)
+
+	status := manager.GetMCPServerStatus()
+
+	if status == nil {
+		t.Fatal("Expected non-nil status")
 	}
+
+	if status.TotalServers != 2 {
+		t.Errorf("Expected 2 total servers, got %d", status.TotalServers)
+	}
+
+	if status.ConnectedServers != 0 {
+		t.Errorf("Expected 0 connected servers initially, got %d", status.ConnectedServers)
+	}
+}
+
+func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
+	cfg := &config.MCPConfig{
+		Enabled:               true,
+		LivenessProbeEnabled:  false,
+		LivenessProbeInterval: 10,
+		Servers: []config.MCPServerEntry{
+			{
+				Name:    "test-server",
+				URL:     "http://localhost:8080/mcp",
+				Enabled: true,
+			},
+		},
+	}
+
+	manager := NewMCPManager(cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	chan1 := manager.StartMonitoring(ctx)
+	chan2 := manager.StartMonitoring(ctx)
+
+	if chan1 != chan2 {
+		t.Error("StartMonitoring should be idempotent and return the same channel")
+	}
+
+	_ = manager.Close()
+}
+
+func TestMCPManager_StartMonitoring_DisabledProbes(t *testing.T) {
+	cfg := &config.MCPConfig{
+		Enabled:               true,
+		LivenessProbeEnabled:  false,
+		LivenessProbeInterval: 10,
+		Servers: []config.MCPServerEntry{
+			{
+				Name:    "test-server",
+				URL:     "http://localhost:8080/mcp",
+				Enabled: true,
+			},
+		},
+	}
+
+	manager := NewMCPManager(cfg)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	statusChan := manager.StartMonitoring(ctx)
+
+	select {
+	case _, ok := <-statusChan:
+		if ok {
+			t.Error("Expected channel to be closed when probes are disabled")
+		}
+	case <-time.After(100 * time.Millisecond):
+		t.Error("Channel should be closed immediately when probes are disabled")
+	}
+
+	_ = manager.Close()
 }
 
 func TestMCPServerEntry_ShouldIncludeTool(t *testing.T) {
@@ -286,5 +340,5 @@ func TestMCPServerEntry_GetTimeout(t *testing.T) {
 	}
 }
 
-// Ensure MCPClientManager implements domain.MCPClient interface
-var _ domain.MCPClient = (*MCPClientManager)(nil)
+// Ensure MCPManager implements domain.MCPManager interface
+var _ domain.MCPManager = (*MCPManager)(nil)

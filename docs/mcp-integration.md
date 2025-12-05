@@ -9,6 +9,7 @@ the LLM's capabilities with custom tools from external services.
 - [Quick Start](#quick-start)
 - [Configuration](#configuration)
 - [Tool Discovery](#tool-discovery)
+- [Liveness Probes](#liveness-probes)
 - [Tool Execution](#tool-execution)
 - [Examples](#examples)
 - [Troubleshooting](#troubleshooting)
@@ -124,6 +125,8 @@ Located in `.infer/mcp.yaml`:
 | `enabled` | boolean | `false` | Global MCP enable/disable toggle |
 | `connection_timeout` | integer | `30` | Default connection timeout (seconds) |
 | `discovery_timeout` | integer | `30` | Tool discovery timeout (seconds) |
+| `liveness_probe_enabled` | boolean | `false` | Enable health monitoring |
+| `liveness_probe_interval` | integer | `10` | Health check interval (seconds) |
 | `servers` | array | `[]` | List of MCP server configurations |
 
 ### Per-Server Configuration
@@ -229,6 +232,54 @@ Example log output:
 WARN Failed to discover tools from MCP server server=filesystem url=http://localhost:3000/sse error="connection refused"
 INFO Discovered tools from MCP server server=database tool_count=5
 ```
+
+## Liveness Probes
+
+The CLI includes health monitoring for MCP servers to detect disconnections and
+display real-time connection status in the UI.
+
+### Health Monitoring
+
+1. **Background Monitoring**: Goroutines periodically ping each enabled MCP server
+2. **Status Updates**: Connection changes trigger UI updates via event channels
+3. **Real-time Display**: Status bar shows "MCP: X/Y" (connected/total)
+4. **Auto-reconnection**: When server reconnects, tools become available immediately
+
+### Probe Configuration
+
+```yaml
+liveness_probe_enabled: true   # Enable health monitoring
+liveness_probe_interval: 10    # Seconds between health checks
+```
+
+### Status Display
+
+The status bar displays current MCP server health:
+
+```text
+MCP: 0/1    # 0 connected, 1 total (server down)
+MCP: 1/1    # 1 connected, 1 total (server healthy)
+MCP: 2/3    # 2 connected, 3 total (1 server down)
+```
+
+### Probe Behavior
+
+- **Initial State**: Shows total servers, all marked disconnected
+- **First Connect**: When server responds to ping, status updates to connected
+- **Disconnection**: Failed ping marks server as disconnected
+- **Reconnection**: Successful ping after failure marks server as connected
+- **Event-Driven**: UI updates only when status actually changes (no polling)
+
+### Disabling Probes
+
+To disable health monitoring:
+
+```yaml
+liveness_probe_enabled: false
+```
+
+With probes disabled, the MCP status will not appear in the status bar. Servers
+are still checked during initial tool discovery at startup.
 
 ## Tool Execution
 

@@ -42,7 +42,7 @@ type ChatApplication struct {
 	shortcutRegistry      *shortcuts.Registry
 	themeService          domain.ThemeService
 	toolRegistry          *tools.Registry
-	mcpClient             domain.MCPClient
+	mcpManager            domain.MCPManager
 	taskRetentionService  domain.TaskRetentionService
 	backgroundTaskService domain.BackgroundTaskService
 
@@ -106,7 +106,7 @@ func NewChatApplication(
 	messageQueue domain.MessageQueue,
 	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
-	mcpClient domain.MCPClient,
+	mcpManager domain.MCPManager,
 	taskRetentionService domain.TaskRetentionService,
 	backgroundTaskService domain.BackgroundTaskService,
 	agentManager domain.AgentManager,
@@ -129,7 +129,7 @@ func NewChatApplication(
 		shortcutRegistry:      shortcutRegistry,
 		themeService:          themeService,
 		toolRegistry:          toolRegistry,
-		mcpClient:             mcpClient,
+		mcpManager:            mcpManager,
 		taskRetentionService:  taskRetentionService,
 		backgroundTaskService: backgroundTaskService,
 		availableModels:       models,
@@ -181,7 +181,6 @@ func NewChatApplication(
 		isb.SetStateManager(app.stateManager)
 		isb.SetConfigService(app.configService)
 		isb.SetConversationRepo(app.conversationRepo)
-		isb.SetMCPClient(app.mcpClient)
 	}
 
 	app.statusView = factory.CreateStatusView(app.themeService)
@@ -317,7 +316,48 @@ func (app *ChatApplication) Init() tea.Cmd {
 		})
 	}
 
+	if app.mcpManager != nil {
+		logger.Debug("Starting MCP monitoring in chat application")
+
+		initialStatus := app.mcpManager.GetMCPServerStatus()
+		app.inputStatusBar.UpdateMCPStatus(initialStatus)
+		logger.Debug("Set initial MCP status", "total", initialStatus.TotalServers, "connected", initialStatus.ConnectedServers)
+
+		ctx := context.Background()
+		statusChan := app.mcpManager.StartMonitoring(ctx)
+		logger.Debug("MCP monitoring started, waiting for status updates")
+		cmds = append(cmds, waitForMCPStatusUpdate(statusChan))
+	}
+
 	return tea.Batch(cmds...)
+}
+
+// waitForMCPStatusUpdate waits for a status update from the MCP manager channel
+// The channel is captured in the closure and passed along with each event
+func waitForMCPStatusUpdate(statusChan <-chan domain.MCPServerStatusUpdateEvent) tea.Cmd {
+	return func() tea.Msg {
+		logger.Debug("Waiting for MCP status update from channel")
+		event, ok := <-statusChan
+		if !ok {
+			logger.Debug("MCP status channel closed")
+			return nil
+		}
+		logger.Info("Received MCP status update event",
+			"server", event.ServerName,
+			"connected", event.Connected)
+
+		// Return a wrapper that includes both the event and the channel
+		return mcpStatusUpdateWithChannel{
+			event:   event,
+			channel: statusChan,
+		}
+	}
+}
+
+// mcpStatusUpdateWithChannel wraps the event with the channel for continuation
+type mcpStatusUpdateWithChannel struct {
+	event   domain.MCPServerStatusUpdateEvent
+	channel <-chan domain.MCPServerStatusUpdateEvent
 }
 
 // Update handles all application messages using the state management system
@@ -336,6 +376,21 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	cmds = append(cmds, app.handleViewSpecificMessages(msg)...)
 
 	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg)...)
+
+	if wrapper, ok := msg.(mcpStatusUpdateWithChannel); ok {
+		logger.Info("MCP server status changed in Update handler",
+			"server", wrapper.event.ServerName,
+			"connected", wrapper.event.Connected,
+			"total", wrapper.event.TotalServers,
+			"connected_count", wrapper.event.ConnectedServers)
+
+		app.inputStatusBar.UpdateMCPStatus(&domain.MCPServerStatus{
+			TotalServers:     wrapper.event.TotalServers,
+			ConnectedServers: wrapper.event.ConnectedServers,
+		})
+
+		cmds = append(cmds, waitForMCPStatusUpdate(wrapper.channel))
+	}
 
 	return app, tea.Batch(cmds...)
 }
