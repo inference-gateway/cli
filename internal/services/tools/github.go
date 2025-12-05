@@ -92,7 +92,7 @@ func (t *GithubTool) Definition() sdk.ChatCompletionTool {
 					"resource": map[string]any{
 						"type":        "string",
 						"description": "Resource type to fetch or create",
-						"enum":        []string{"issue", "issues", "pull_request", "comments", "create_comment", "update_comment", "create_pull_request"},
+						"enum":        []string{"issue", "issues", "pull_request", "comments", "create_comment", "update_comment", "create_pull_request", "update_pull_request"},
 						"default":     "issue",
 					},
 					"comment_body": map[string]any{
@@ -120,11 +120,11 @@ func (t *GithubTool) Definition() sdk.ChatCompletionTool {
 					},
 					"title": map[string]any{
 						"type":        "string",
-						"description": "Pull request title (required for create_pull_request resource)",
+						"description": "Pull request title (required for create_pull_request, optional for update_pull_request)",
 					},
 					"body": map[string]any{
 						"type":        "string",
-						"description": "Pull request body/description (optional for create_pull_request resource)",
+						"description": "Pull request body/description (optional for create_pull_request and update_pull_request)",
 					},
 					"head": map[string]any{
 						"type":        "string",
@@ -259,6 +259,8 @@ func (t *GithubTool) executeResource(ctx context.Context, resource, owner, repo 
 		return t.handleUpdateCommentResource(ctx, owner, repo, args)
 	case "create_pull_request":
 		return t.handleCreatePullRequestResource(ctx, owner, repo, args)
+	case "update_pull_request":
+		return t.handleUpdatePullRequestResource(ctx, owner, repo, args)
 	default:
 		return nil, fmt.Errorf("unsupported resource type: %s", resource)
 	}
@@ -357,6 +359,30 @@ func (t *GithubTool) handleCreatePullRequestResource(ctx context.Context, owner,
 	}
 
 	return t.createPullRequest(ctx, owner, repo, title, body, head, base)
+}
+
+// handleUpdatePullRequestResource handles updating a pull request
+func (t *GithubTool) handleUpdatePullRequestResource(ctx context.Context, owner, repo string, args map[string]any) (any, error) {
+	prNum, ok := parseIssueNumber(args["issue_number"])
+	if !ok {
+		return nil, &ToolExecutionError{"issue_number parameter is required for updating a pull request"}
+	}
+
+	title := ""
+	if t, ok := args["title"].(string); ok {
+		title = t
+	}
+
+	body := ""
+	if b, ok := args["body"].(string); ok {
+		body = b
+	}
+
+	if title == "" && body == "" {
+		return nil, &ToolExecutionError{"at least one of 'title' or 'body' must be provided for update_pull_request"}
+	}
+
+	return t.updatePullRequest(ctx, owner, repo, prNum, title, body)
 }
 
 // createResult creates a ToolExecutionResult
@@ -605,6 +631,36 @@ func (t *GithubTool) createPullRequest(ctx context.Context, owner, repo, title, 
 	return &pr, nil
 }
 
+// updatePullRequest updates an existing pull request
+func (t *GithubTool) updatePullRequest(ctx context.Context, owner, repo string, prNumber int, title, body string) (*domain.GitHubPullRequest, error) {
+	url := fmt.Sprintf("%s/repos/%s/%s/pulls/%d", t.config.Tools.Github.BaseURL, owner, repo, prNumber)
+
+	prData := make(map[string]string)
+	if title != "" {
+		prData["title"] = title
+	}
+	if body != "" {
+		prData["body"] = body
+	}
+
+	jsonData, err := json.Marshal(prData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal pull request data: %w", err)
+	}
+
+	respBody, err := t.makeAPIRequest(ctx, "PATCH", url, jsonData)
+	if err != nil {
+		return nil, err
+	}
+
+	var pr domain.GitHubPullRequest
+	if err := json.Unmarshal(respBody, &pr); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal pull request response: %w", err)
+	}
+
+	return &pr, nil
+}
+
 // makeAPIRequest makes an API request to GitHub and returns the response body
 func (t *GithubTool) makeAPIRequest(ctx context.Context, method, url string, body []byte) ([]byte, error) {
 	var reqBody io.Reader
@@ -653,7 +709,7 @@ func (t *GithubTool) makeAPIRequest(ctx context.Context, method, url string, bod
 
 // validateResourceType validates the resource type and its requirements
 func (t *GithubTool) validateResourceType(resource string, args map[string]any) error {
-	validResources := []string{"issue", "issues", "pull_request", "comments", "create_comment", "update_comment", "create_pull_request"}
+	validResources := []string{"issue", "issues", "pull_request", "comments", "create_comment", "update_comment", "create_pull_request", "update_pull_request"}
 	valid := false
 	for _, validRes := range validResources {
 		if resource == validRes {
@@ -665,40 +721,70 @@ func (t *GithubTool) validateResourceType(resource string, args map[string]any) 
 		return fmt.Errorf("resource must be one of: %v", validResources)
 	}
 
-	if resource == "issue" || resource == "pull_request" || resource == "comments" || resource == "create_comment" {
+	// Delegate to specific validation functions based on resource type
+	switch resource {
+	case "issue", "pull_request", "comments", "create_comment", "update_pull_request":
 		if err := t.validateIssueNumber(args, resource); err != nil {
 			return err
 		}
 	}
 
-	if resource == "create_comment" {
-		if commentBody, ok := args["comment_body"].(string); !ok || commentBody == "" {
-			return fmt.Errorf("comment_body parameter is required for create_comment resource")
-		}
+	switch resource {
+	case "create_comment":
+		return t.validateCreateComment(args)
+	case "update_comment":
+		return t.validateUpdateComment(args)
+	case "create_pull_request":
+		return t.validateCreatePullRequest(args)
+	case "update_pull_request":
+		return t.validateUpdatePullRequest(args)
 	}
 
-	if resource == "update_comment" {
-		commentID, ok := args["comment_id"]
-		if !ok {
-			return fmt.Errorf("comment_id parameter is required for update_comment resource")
-		}
-		if _, valid := parseIssueNumber(commentID); !valid {
-			return fmt.Errorf("comment_id must be a valid number for update_comment resource")
-		}
-		if commentBody, ok := args["comment_body"].(string); !ok || commentBody == "" {
-			return fmt.Errorf("comment_body parameter is required for update_comment resource")
-		}
-	}
+	return nil
+}
 
-	if resource == "create_pull_request" {
-		if title, ok := args["title"].(string); !ok || title == "" {
-			return fmt.Errorf("title parameter is required for create_pull_request resource")
-		}
-		if head, ok := args["head"].(string); !ok || head == "" {
-			return fmt.Errorf("head parameter is required for create_pull_request resource")
-		}
+// validateCreateComment validates create_comment resource requirements
+func (t *GithubTool) validateCreateComment(args map[string]any) error {
+	if commentBody, ok := args["comment_body"].(string); !ok || commentBody == "" {
+		return fmt.Errorf("comment_body parameter is required for create_comment resource")
 	}
+	return nil
+}
 
+// validateUpdateComment validates update_comment resource requirements
+func (t *GithubTool) validateUpdateComment(args map[string]any) error {
+	commentID, ok := args["comment_id"]
+	if !ok {
+		return fmt.Errorf("comment_id parameter is required for update_comment resource")
+	}
+	if _, valid := parseIssueNumber(commentID); !valid {
+		return fmt.Errorf("comment_id must be a valid number for update_comment resource")
+	}
+	if commentBody, ok := args["comment_body"].(string); !ok || commentBody == "" {
+		return fmt.Errorf("comment_body parameter is required for update_comment resource")
+	}
+	return nil
+}
+
+// validateCreatePullRequest validates create_pull_request resource requirements
+func (t *GithubTool) validateCreatePullRequest(args map[string]any) error {
+	if title, ok := args["title"].(string); !ok || title == "" {
+		return fmt.Errorf("title parameter is required for create_pull_request resource")
+	}
+	if head, ok := args["head"].(string); !ok || head == "" {
+		return fmt.Errorf("head parameter is required for create_pull_request resource")
+	}
+	return nil
+}
+
+// validateUpdatePullRequest validates update_pull_request resource requirements
+func (t *GithubTool) validateUpdatePullRequest(args map[string]any) error {
+	title, hasTitle := args["title"].(string)
+	body, hasBody := args["body"].(string)
+
+	if (!hasTitle || title == "") && (!hasBody || body == "") {
+		return fmt.Errorf("at least one of 'title' or 'body' must be provided for update_pull_request resource")
+	}
 	return nil
 }
 
