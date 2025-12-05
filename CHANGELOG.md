@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.78.0](https://github.com/inference-gateway/cli/compare/v0.77.1...v0.78.0) (2025-12-05)
+
+### 🚀 Features
+
+* Add support for updating pull requests ([#306](https://github.com/inference-gateway/cli/issues/306)) ([578d193](https://github.com/inference-gateway/cli/commit/578d193471b49edd4925e33d9cba08f7c0c3b8e4))
+
+### 🐛 Bug Fixes
+
+* Keep it simple ([4c2ab27](https://github.com/inference-gateway/cli/commit/4c2ab2722d5771b9e28e78f7bf9e7b6fc2aef428))
+* Not very clear from the docs but I'll just set it to true, this ensures uniqueness ([c89f4ae](https://github.com/inference-gateway/cli/commit/c89f4aef4533e5967647ca70ecd93256eb0d8463))
+* Semantic release config ([5be1282](https://github.com/inference-gateway/cli/commit/5be12826e1696591f2b7fd9a810449916008deb9))
+
+### ♻️ Code Refactoring
+
+* Use 'any' type alias instead of interface{} ([#307](https://github.com/inference-gateway/cli/issues/307)) ([1efd5b6](https://github.com/inference-gateway/cli/commit/1efd5b6e71cfb7bf425a0e75dbc4f8120debccdf))
+
 ## [0.77.1](https://github.com/inference-gateway/cli/compare/v0.77.0...v0.77.1) (2025-12-04)
 
 ### 🐛 Bug Fixes
