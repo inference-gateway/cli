@@ -235,6 +235,8 @@ func addMCPServer(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("  Status: %s\n", enabledText(enabled))
 	fmt.Printf("\nConfiguration saved to %s\n", configPath)
+	fmt.Printf("\n⚠️  Note: If using chat mode, restart the chat session to connect to the new MCP server.\n")
+	// TODO: Implement hot-reload for MCP configuration changes without requiring chat restart
 
 	return nil
 }
@@ -333,6 +335,7 @@ func enableMCPServer(cmd *cobra.Command, args []string) error {
 		icons.CheckMarkStyle.Render(icons.CheckMark),
 		name)
 	fmt.Printf("Configuration saved to %s\n", configPath)
+	fmt.Printf("\n⚠️  Note: If using chat mode, restart the chat session to apply changes.\n")
 
 	return nil
 }
@@ -358,6 +361,7 @@ func disableMCPServer(cmd *cobra.Command, args []string) error {
 		icons.CrossMarkStyle.Render(icons.CrossMark),
 		name)
 	fmt.Printf("Configuration saved to %s\n", configPath)
+	fmt.Printf("\n⚠️  Note: If using chat mode, restart the chat session to apply changes.\n")
 
 	return nil
 }
@@ -380,6 +384,7 @@ func enableMCPGlobal(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s MCP enabled globally\n",
 		icons.CheckMarkStyle.Render(icons.CheckMark))
 	fmt.Printf("Configuration saved to %s\n", configPath)
+	fmt.Printf("\n⚠️  Note: If using chat mode, restart the chat session to apply changes.\n")
 
 	return nil
 }
@@ -402,6 +407,7 @@ func disableMCPGlobal(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s MCP disabled globally\n",
 		icons.CrossMarkStyle.Render(icons.CrossMark))
 	fmt.Printf("Configuration saved to %s\n", configPath)
+	fmt.Printf("\n⚠️  Note: If using chat mode, restart the chat session to apply changes.\n")
 
 	return nil
 }
