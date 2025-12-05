@@ -1,14 +1,7 @@
+---
 branches:
   - name: main
   - name: rc/*
-    prerelease: rc
-  - name: feat/*
-    prerelease: rc
-  - name: feature/*
-    prerelease: rc
-  - name: fix/*
-    prerelease: rc
-  - name: refactor/*
     prerelease: rc
 
 tagFormat: "v${version}"
