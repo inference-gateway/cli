@@ -271,8 +271,8 @@ func TestCalculateUsagePolyfill(t *testing.T) {
 					Description: &description,
 					Parameters: &sdk.FunctionParameters{
 						"type": "object",
-						"properties": map[string]interface{}{
-							"path": map[string]interface{}{
+						"properties": map[string]any{
+							"path": map[string]any{
 								"type":        "string",
 								"description": "The file path to read",
 							},

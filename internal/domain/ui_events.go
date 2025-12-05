@@ -137,7 +137,7 @@ type HideHelpBarEvent struct{}
 
 // ConversationsLoadedEvent indicates conversations have been loaded
 type ConversationsLoadedEvent struct {
-	Conversations []interface{}
+	Conversations []any
 	Error         error
 }
 
@@ -145,8 +145,8 @@ type ConversationsLoadedEvent struct {
 
 // TasksLoadedEvent indicates tasks have been loaded
 type TasksLoadedEvent struct {
-	ActiveTasks    []interface{}
-	CompletedTasks []interface{}
+	ActiveTasks    []any
+	CompletedTasks []any
 	Error          error
 }
 

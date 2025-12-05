@@ -65,7 +65,7 @@ func (c *ConversationSelectorImpl) loadConversationsCmd() tea.Cmd {
 
 		conversations, err := c.repo.ListSavedConversations(ctx, 50, 0)
 
-		interfaceConversations := make([]interface{}, len(conversations))
+		interfaceConversations := make([]any, len(conversations))
 		for i, conv := range conversations {
 			interfaceConversations[i] = conv
 		}

@@ -106,12 +106,12 @@ func (t *A2ASubmitTaskTool) Definition() sdk.ChatCompletionTool {
 			Description: &description,
 			Parameters: &sdk.FunctionParameters{
 				"type": "object",
-				"properties": map[string]interface{}{
-					"agent_url": map[string]interface{}{
+				"properties": map[string]any{
+					"agent_url": map[string]any{
 						"type":        "string",
 						"description": "URL of the A2A agent server",
 					},
-					"task_description": map[string]interface{}{
+					"task_description": map[string]any{
 						"type":        "string",
 						"description": "The question to ask or work to perform. Can be a question, task, action, or continuation of existing work",
 					},

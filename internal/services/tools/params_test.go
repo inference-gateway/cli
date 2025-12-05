@@ -8,7 +8,7 @@ import (
 
 type writeParamsTestCase struct {
 	name      string
-	params    map[string]interface{}
+	params    map[string]any
 	expected  *WriteParams
 	wantError bool
 	errorMsg  string
@@ -18,7 +18,7 @@ func getWriteParamsTestCases() []writeParamsTestCase {
 	return []writeParamsTestCase{
 		{
 			name: "valid basic params",
-			params: map[string]interface{}{
+			params: map[string]any{
 				"file_path": "/test/file.txt",
 				"content":   "test content",
 			},
@@ -29,7 +29,7 @@ func getWriteParamsTestCases() []writeParamsTestCase {
 		},
 		{
 			name: "missing file_path",
-			params: map[string]interface{}{
+			params: map[string]any{
 				"content": "test content",
 			},
 			wantError: true,
@@ -37,7 +37,7 @@ func getWriteParamsTestCases() []writeParamsTestCase {
 		},
 		{
 			name: "missing content",
-			params: map[string]interface{}{
+			params: map[string]any{
 				"file_path": "/test/file.txt",
 			},
 			wantError: true,
@@ -45,7 +45,7 @@ func getWriteParamsTestCases() []writeParamsTestCase {
 		},
 		{
 			name: "empty file_path",
-			params: map[string]interface{}{
+			params: map[string]any{
 				"file_path": "",
 				"content":   "test content",
 			},
@@ -54,7 +54,7 @@ func getWriteParamsTestCases() []writeParamsTestCase {
 		},
 		{
 			name: "invalid file_path type",
-			params: map[string]interface{}{
+			params: map[string]any{
 				"file_path": 123,
 				"content":   "test content",
 			},

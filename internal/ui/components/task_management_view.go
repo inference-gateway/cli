@@ -108,8 +108,8 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 	return func() tea.Msg {
 		if t.backgroundTaskService == nil {
 			return domain.TasksLoadedEvent{
-				ActiveTasks:    []interface{}{},
-				CompletedTasks: []interface{}{},
+				ActiveTasks:    []any{},
+				CompletedTasks: []any{},
 				Error:          fmt.Errorf("background task service not available"),
 			}
 		}
@@ -159,12 +159,12 @@ func (t *TaskManagerImpl) loadTasksCmd() tea.Cmd {
 			completedTasks = append(completedTasks, taskInfo)
 		}
 
-		interfaceActiveTasks := make([]interface{}, len(activeTasks))
+		interfaceActiveTasks := make([]any, len(activeTasks))
 		for i, task := range activeTasks {
 			interfaceActiveTasks[i] = task
 		}
 
-		interfaceCompletedTasks := make([]interface{}, len(completedTasks))
+		interfaceCompletedTasks := make([]any, len(completedTasks))
 		for i, task := range completedTasks {
 			interfaceCompletedTasks[i] = task
 		}

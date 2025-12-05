@@ -200,7 +200,7 @@ func (c *ConfigShortcut) executeReload() (ShortcutResult, error) {
 }
 
 // getConfigValue retrieves a config value using dot notation (e.g., "agent.model")
-func (c *ConfigShortcut) getConfigValue(key string) (interface{}, error) {
+func (c *ConfigShortcut) getConfigValue(key string) (any, error) {
 	parts := strings.Split(key, ".")
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("empty key")
@@ -262,7 +262,7 @@ func (c *ConfigShortcut) findField(structValue reflect.Value, fieldName string) 
 }
 
 // formatValue formats a reflect.Value for display
-func (c *ConfigShortcut) formatValue(value reflect.Value) interface{} {
+func (c *ConfigShortcut) formatValue(value reflect.Value) any {
 	switch value.Kind() {
 	case reflect.String:
 		return value.String()
