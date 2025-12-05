@@ -176,6 +176,7 @@ type MCPManager struct {
 	config         *config.MCPConfig
 	mu             sync.RWMutex
 	clients        map[string]*mcpClient
+	toolCounts     map[string]int
 	probeCancel    context.CancelFunc
 	probeWg        sync.WaitGroup
 	statusChan     chan domain.MCPServerStatusUpdateEvent
@@ -194,8 +195,9 @@ func NewMCPManager(cfg *config.MCPConfig) *MCPManager {
 	}
 
 	return &MCPManager{
-		config:  cfg,
-		clients: clients,
+		config:     cfg,
+		clients:    clients,
+		toolCounts: make(map[string]int),
 	}
 }
 
@@ -211,25 +213,32 @@ func (m *MCPManager) GetClients() []domain.MCPClient {
 	return clients
 }
 
+// GetTotalServers returns the total number of configured MCP servers from config
+func (m *MCPManager) GetTotalServers() int {
+	return len(m.config.Servers)
+}
+
 // StartMonitoring begins background health monitoring and returns a channel for status updates
 // This method is idempotent - calling it multiple times returns the same channel
 func (m *MCPManager) StartMonitoring(ctx context.Context) <-chan domain.MCPServerStatusUpdateEvent {
 	m.mu.Lock()
-	defer m.mu.Unlock()
 
 	if m.monitorStarted {
-		logger.Debug("MCP monitoring already started, returning existing channel")
+		m.mu.Unlock()
 		return m.statusChan
 	}
 
 	m.statusChan = make(chan domain.MCPServerStatusUpdateEvent, 10)
 	m.monitorStarted = true
-	logger.Debug("Created MCP status channel", "buffer_size", 10)
+	m.mu.Unlock()
 
+	m.sendInitialStatusUpdate()
+
+	m.mu.Lock()
 	if !m.config.LivenessProbeEnabled {
-		logger.Debug("MCP liveness probe disabled")
 		close(m.statusChan)
 		m.channelClosed = true
+		m.mu.Unlock()
 		return m.statusChan
 	}
 
@@ -242,12 +251,12 @@ func (m *MCPManager) StartMonitoring(ctx context.Context) <-chan domain.MCPServe
 	m.probeCancel = cancel
 
 	logger.Info("Starting MCP liveness probes", "interval", interval, "client_count", len(m.clients))
-
 	for _, client := range m.clients {
 		m.probeWg.Add(1)
-		logger.Debug("Starting health check goroutine", "server", client.serverName)
 		go func(c *mcpClient) {
 			defer m.probeWg.Done()
+
+			m.checkClientHealth(probeCtx, c)
 
 			ticker := time.NewTicker(interval)
 			defer ticker.Stop()
@@ -255,15 +264,14 @@ func (m *MCPManager) StartMonitoring(ctx context.Context) <-chan domain.MCPServe
 			for {
 				select {
 				case <-probeCtx.Done():
-					logger.Debug("Health check goroutine stopping", "server", c.serverName)
 					return
 				case <-ticker.C:
-					logger.Debug("Health check tick", "server", c.serverName)
 					m.checkClientHealth(probeCtx, c)
 				}
 			}
 		}(client)
 	}
+	m.mu.Unlock()
 
 	return m.statusChan
 }
@@ -274,12 +282,8 @@ func (m *MCPManager) checkClientHealth(ctx context.Context, client *mcpClient) {
 	wasConnected := client.isConnected
 	client.mu.RUnlock()
 
-	logger.Debug("Checking client health", "server", client.serverName, "was_connected", wasConnected)
-
 	err := client.PingServer(ctx, client.serverName)
-
 	if err != nil {
-		logger.Debug("Ping failed", "server", client.serverName, "error", err)
 		if wasConnected {
 			logger.Warn("MCP server became unhealthy", "server", client.serverName, "error", err)
 			m.sendStatusUpdate(client.serverName, false)
@@ -287,10 +291,7 @@ func (m *MCPManager) checkClientHealth(ctx context.Context, client *mcpClient) {
 		return
 	}
 
-	logger.Debug("Ping succeeded", "server", client.serverName)
-
 	if !wasConnected {
-		logger.Debug("Server was not connected, discovering tools", "server", client.serverName)
 		toolsMap, err := client.DiscoverTools(ctx)
 		if err != nil {
 			logger.Warn("MCP server responded to ping but tool discovery failed",
@@ -300,54 +301,49 @@ func (m *MCPManager) checkClientHealth(ctx context.Context, client *mcpClient) {
 		}
 
 		tools := toolsMap[client.serverName]
-		logger.Info("MCP server reconnected",
-			"server", client.serverName,
-			"tool_count", len(tools))
 
-		m.sendStatusUpdate(client.serverName, true)
-	} else {
-		logger.Debug("Server still connected, no status change", "server", client.serverName)
+		m.mu.Lock()
+		m.toolCounts[client.serverName] = len(tools)
+		m.mu.Unlock()
+
+		m.sendStatusUpdateWithTools(client.serverName, true, tools)
 	}
 }
 
-// sendStatusUpdate sends a status update event to the channel
-func (m *MCPManager) sendStatusUpdate(serverName string, connected bool) {
-	if m.statusChan == nil {
-		logger.Warn("Cannot send status update: status channel is nil", "server", serverName)
-		return
-	}
-
-	status := m.GetMCPServerStatus()
-
-	event := domain.MCPServerStatusUpdateEvent{
-		ServerName:       serverName,
-		Connected:        connected,
-		TotalServers:     status.TotalServers,
-		ConnectedServers: status.ConnectedServers,
-	}
-
-	logger.Info("Sending MCP status update",
-		"server", serverName,
-		"connected", connected,
-		"total", status.TotalServers,
-		"connected_count", status.ConnectedServers)
-
-	select {
-	case m.statusChan <- event:
-		logger.Debug("MCP status update sent successfully", "server", serverName)
-	default:
-		// Channel full, skip this update
-		logger.Warn("MCP status channel full, skipping update", "server", serverName)
-	}
-}
-
-// GetMCPServerStatus aggregates status from all clients
-func (m *MCPManager) GetMCPServerStatus() *domain.MCPServerStatus {
+// sendInitialStatusUpdate sends the current status for all connected clients
+func (m *MCPManager) sendInitialStatusUpdate() {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	totalServers := len(m.clients)
+	for _, client := range m.clients {
+		client.mu.RLock()
+		isConnected := client.isConnected
+		client.mu.RUnlock()
+
+		if isConnected {
+			m.sendStatusUpdateWithTools(client.serverName, true, nil)
+		}
+	}
+}
+
+// sendStatusUpdate sends a status update event to the channel without tools
+func (m *MCPManager) sendStatusUpdate(serverName string, connected bool) {
+	if !connected {
+		m.mu.Lock()
+		delete(m.toolCounts, serverName)
+		m.mu.Unlock()
+	}
+	m.sendStatusUpdateWithTools(serverName, connected, nil)
+}
+
+// getMCPServerStatus calculates the current MCP server status
+func (m *MCPManager) getMCPServerStatus() domain.MCPServerStatus {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	totalServers := len(m.config.Servers)
 	connectedServers := 0
+	totalTools := 0
 
 	for _, client := range m.clients {
 		client.mu.RLock()
@@ -357,10 +353,55 @@ func (m *MCPManager) GetMCPServerStatus() *domain.MCPServerStatus {
 		client.mu.RUnlock()
 	}
 
-	return &domain.MCPServerStatus{
+	for _, count := range m.toolCounts {
+		totalTools += count
+	}
+
+	return domain.MCPServerStatus{
 		TotalServers:     totalServers,
 		ConnectedServers: connectedServers,
+		TotalTools:       totalTools,
 	}
+}
+
+// sendStatusUpdateWithTools sends a status update event with discovered tools
+func (m *MCPManager) sendStatusUpdateWithTools(serverName string, connected bool, tools []domain.MCPDiscoveredTool) {
+	if m.statusChan == nil {
+		logger.Warn("Cannot send status update: status channel is nil", "server", serverName)
+		return
+	}
+
+	status := m.getMCPServerStatus()
+
+	event := domain.MCPServerStatusUpdateEvent{
+		ServerName:       serverName,
+		Connected:        connected,
+		TotalServers:     status.TotalServers,
+		ConnectedServers: status.ConnectedServers,
+		TotalTools:       status.TotalTools,
+		Tools:            tools,
+	}
+
+	select {
+	case m.statusChan <- event:
+		logger.Debug("MCP status update sent successfully", "server", serverName)
+	default:
+		logger.Warn("MCP status channel full, skipping update", "server", serverName)
+	}
+}
+
+// UpdateToolCount updates the tool count for a specific server
+func (m *MCPManager) UpdateToolCount(serverName string, count int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.toolCounts[serverName] = count
+}
+
+// ClearToolCount removes the tool count for a specific server
+func (m *MCPManager) ClearToolCount(serverName string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.toolCounts, serverName)
 }
 
 // Close stops monitoring and cleans up resources
@@ -373,7 +414,6 @@ func (m *MCPManager) Close() error {
 	m.mu.Unlock()
 
 	m.probeWg.Wait()
-	logger.Debug("MCP liveness probes stopped")
 
 	m.mu.Lock()
 	if m.statusChan != nil && !m.channelClosed {

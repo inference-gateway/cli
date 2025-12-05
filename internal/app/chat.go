@@ -317,15 +317,14 @@ func (app *ChatApplication) Init() tea.Cmd {
 	}
 
 	if app.mcpManager != nil {
-		logger.Debug("Starting MCP monitoring in chat application")
-
-		initialStatus := app.mcpManager.GetMCPServerStatus()
-		app.inputStatusBar.UpdateMCPStatus(initialStatus)
-		logger.Debug("Set initial MCP status", "total", initialStatus.TotalServers, "connected", initialStatus.ConnectedServers)
+		app.inputStatusBar.UpdateMCPStatus(&domain.MCPServerStatus{
+			TotalServers:     app.mcpManager.GetTotalServers(),
+			ConnectedServers: 0,
+			TotalTools:       0,
+		})
 
 		ctx := context.Background()
 		statusChan := app.mcpManager.StartMonitoring(ctx)
-		logger.Debug("MCP monitoring started, waiting for status updates")
 		cmds = append(cmds, waitForMCPStatusUpdate(statusChan))
 	}
 
@@ -336,17 +335,11 @@ func (app *ChatApplication) Init() tea.Cmd {
 // The channel is captured in the closure and passed along with each event
 func waitForMCPStatusUpdate(statusChan <-chan domain.MCPServerStatusUpdateEvent) tea.Cmd {
 	return func() tea.Msg {
-		logger.Debug("Waiting for MCP status update from channel")
 		event, ok := <-statusChan
 		if !ok {
-			logger.Debug("MCP status channel closed")
 			return nil
 		}
-		logger.Info("Received MCP status update event",
-			"server", event.ServerName,
-			"connected", event.Connected)
 
-		// Return a wrapper that includes both the event and the channel
 		return mcpStatusUpdateWithChannel{
 			event:   event,
 			channel: statusChan,
@@ -377,22 +370,46 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg)...)
 
-	if wrapper, ok := msg.(mcpStatusUpdateWithChannel); ok {
-		logger.Info("MCP server status changed in Update handler",
-			"server", wrapper.event.ServerName,
-			"connected", wrapper.event.Connected,
-			"total", wrapper.event.TotalServers,
-			"connected_count", wrapper.event.ConnectedServers)
-
-		app.inputStatusBar.UpdateMCPStatus(&domain.MCPServerStatus{
-			TotalServers:     wrapper.event.TotalServers,
-			ConnectedServers: wrapper.event.ConnectedServers,
-		})
-
-		cmds = append(cmds, waitForMCPStatusUpdate(wrapper.channel))
+	if mcpStatusUpdate, ok := msg.(mcpStatusUpdateWithChannel); ok {
+		if cmd := app.handleMCPStatusUpdate(mcpStatusUpdate.event); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		cmds = append(cmds, waitForMCPStatusUpdate(mcpStatusUpdate.channel))
 	}
 
 	return app, tea.Batch(cmds...)
+}
+
+// handleMCPStatusUpdate processes MCP server connection status changes
+func (app *ChatApplication) handleMCPStatusUpdate(event domain.MCPServerStatusUpdateEvent) tea.Cmd {
+	app.inputStatusBar.UpdateMCPStatus(&domain.MCPServerStatus{
+		TotalServers:     event.TotalServers,
+		ConnectedServers: event.ConnectedServers,
+		TotalTools:       event.TotalTools,
+	})
+
+	if app.toolRegistry == nil {
+		return nil
+	}
+
+	if event.Connected && len(event.Tools) > 0 {
+		count := app.toolRegistry.RegisterMCPServerTools(event.ServerName, event.Tools)
+		logger.Debug("Registered MCP tools", "server", event.ServerName, "count", count)
+	}
+
+	if !event.Connected {
+		count := app.toolRegistry.UnregisterMCPServerTools(event.ServerName)
+		logger.Debug("Unregistered MCP tools", "server", event.ServerName, "count", count)
+	}
+
+	if app.autocomplete != nil {
+		app.autocomplete.RefreshToolsList()
+		return func() tea.Msg {
+			return domain.RefreshAutocompleteEvent{}
+		}
+	}
+
+	return nil
 }
 
 func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {

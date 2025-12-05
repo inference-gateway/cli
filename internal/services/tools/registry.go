@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -90,31 +91,13 @@ func (r *Registry) registerMCPTools() {
 		}
 
 		for serverName, tools := range discoveredTools {
-			for _, tool := range tools {
-				fullToolName := fmt.Sprintf("MCP_%s_%s", serverName, tool.Name)
-
-				mcpTool := NewMCPTool(
-					serverName,
-					tool.Name,
-					tool.Description,
-					tool.InputSchema,
-					client,
-					&r.config.MCP,
-				)
-
-				r.tools[fullToolName] = mcpTool
-				toolCount++
-
-				logger.Debug("Registered MCP tool",
-					"tool", fullToolName,
-					"server", serverName,
-					"description", tool.Description)
-			}
+			count := r.RegisterMCPServerTools(serverName, tools)
+			toolCount += count
 		}
 	}
 
 	if toolCount > 0 {
-		logger.Info("Successfully registered MCP tools", "count", toolCount)
+		logger.Debug("Successfully registered MCP tools", "count", toolCount)
 	}
 }
 
@@ -210,7 +193,30 @@ func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPD
 			"description", tool.Description)
 	}
 
+	// Update tool count in MCP manager
+	r.mcpManager.UpdateToolCount(serverName, toolCount)
+
 	return toolCount
+}
+
+// UnregisterMCPServerTools removes all tools from a specific MCP server
+func (r *Registry) UnregisterMCPServerTools(serverName string) int {
+	removedCount := 0
+	prefix := fmt.Sprintf("MCP_%s_", serverName)
+
+	for toolName := range r.tools {
+		if strings.HasPrefix(toolName, prefix) {
+			delete(r.tools, toolName)
+			removedCount++
+		}
+	}
+
+	if removedCount > 0 {
+		logger.Debug("Unregistered MCP tools from disconnected server", "server", serverName, "count", removedCount)
+		r.mcpManager.ClearToolCount(serverName)
+	}
+
+	return removedCount
 }
 
 // SetReadToolUsed marks that the Read tool has been used

@@ -46,6 +46,10 @@ type FakeAutocompleteComponent struct {
 	isVisibleReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	RefreshToolsListStub        func()
+	refreshToolsListMutex       sync.RWMutex
+	refreshToolsListArgsForCall []struct {
+	}
 	RenderStub        func() string
 	renderMutex       sync.RWMutex
 	renderArgsForCall []struct {
@@ -268,6 +272,30 @@ func (fake *FakeAutocompleteComponent) IsVisibleReturnsOnCall(i int, result1 boo
 	fake.isVisibleReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
+}
+
+func (fake *FakeAutocompleteComponent) RefreshToolsList() {
+	fake.refreshToolsListMutex.Lock()
+	fake.refreshToolsListArgsForCall = append(fake.refreshToolsListArgsForCall, struct {
+	}{})
+	stub := fake.RefreshToolsListStub
+	fake.recordInvocation("RefreshToolsList", []interface{}{})
+	fake.refreshToolsListMutex.Unlock()
+	if stub != nil {
+		fake.RefreshToolsListStub()
+	}
+}
+
+func (fake *FakeAutocompleteComponent) RefreshToolsListCallCount() int {
+	fake.refreshToolsListMutex.RLock()
+	defer fake.refreshToolsListMutex.RUnlock()
+	return len(fake.refreshToolsListArgsForCall)
+}
+
+func (fake *FakeAutocompleteComponent) RefreshToolsListCalls(stub func()) {
+	fake.refreshToolsListMutex.Lock()
+	defer fake.refreshToolsListMutex.Unlock()
+	fake.RefreshToolsListStub = stub
 }
 
 func (fake *FakeAutocompleteComponent) Render() string {

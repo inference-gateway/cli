@@ -140,7 +140,11 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 	}
 
 	if isb.mcpStatus != nil {
-		parts = append(parts, fmt.Sprintf("MCP: %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
+		if isb.mcpStatus.TotalTools > 0 {
+			parts = append(parts, fmt.Sprintf("MCP: %d tools, %d/%d", isb.mcpStatus.TotalTools, isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
+		} else {
+			parts = append(parts, fmt.Sprintf("MCP: %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
+		}
 	}
 
 	if contextIndicator := isb.getContextUsageIndicator(currentModel); contextIndicator != "" {

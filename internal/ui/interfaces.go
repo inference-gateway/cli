@@ -32,6 +32,7 @@ type AutocompleteComponent interface {
 	Render() string
 	GetSelectedShortcut() string
 	Hide()
+	RefreshToolsList()
 }
 
 // Theme interface for UI theming

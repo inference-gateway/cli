@@ -124,40 +124,6 @@ func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
 	}
 }
 
-func TestMCPManager_GetMCPServerStatus(t *testing.T) {
-	cfg := &config.MCPConfig{
-		Enabled: true,
-		Servers: []config.MCPServerEntry{
-			{
-				Name:    "server1",
-				URL:     "http://localhost:8080/mcp",
-				Enabled: true,
-			},
-			{
-				Name:    "server2",
-				URL:     "http://localhost:8081/mcp",
-				Enabled: true,
-			},
-		},
-	}
-
-	manager := NewMCPManager(cfg)
-
-	status := manager.GetMCPServerStatus()
-
-	if status == nil {
-		t.Fatal("Expected non-nil status")
-	}
-
-	if status.TotalServers != 2 {
-		t.Errorf("Expected 2 total servers, got %d", status.TotalServers)
-	}
-
-	if status.ConnectedServers != 0 {
-		t.Errorf("Expected 0 connected servers initially, got %d", status.ConnectedServers)
-	}
-}
-
 func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
 	cfg := &config.MCPConfig{
 		Enabled:               true,

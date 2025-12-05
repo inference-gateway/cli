@@ -493,11 +493,17 @@ type MCPManager interface {
 	// Returns a list of clients
 	GetClients() []MCPClient
 
-	// GetMCPServerStatus returns aggregated status of all MCP server connections
-	GetMCPServerStatus() *MCPServerStatus
+	// GetTotalServers returns the total number of configured MCP servers
+	GetTotalServers() int
 
 	// StartMonitoring begins background health monitoring and returns a channel for status updates
 	StartMonitoring(ctx context.Context) <-chan MCPServerStatusUpdateEvent
+
+	// UpdateToolCount updates the tool count for a specific server
+	UpdateToolCount(serverName string, count int)
+
+	// ClearToolCount removes the tool count for a specific server
+	ClearToolCount(serverName string)
 
 	// Close stops monitoring and cleans up resources
 	Close() error

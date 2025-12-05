@@ -244,6 +244,8 @@ type MCPServerStatusUpdateEvent struct {
 	Connected        bool
 	TotalServers     int
 	ConnectedServers int
+	TotalTools       int
+	Tools            []MCPDiscoveredTool
 }
 
 // GitHub App Setup Events
