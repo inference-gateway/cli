@@ -2,15 +2,7 @@
 branches:
   - name: main
   - name: rc/*
-    prerelease: true
-  - name: feat/*
-    prerelease: true
-  - name: feature/*
-    prerelease: true
-  - name: fix/*
-    prerelease: true
-  - name: refactor/*
-    prerelease: true
+    prerelease: rc
 
 tagFormat: "v${version}"
 
