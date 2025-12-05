@@ -239,7 +239,7 @@ func isCompleteJSON(s string) bool {
 		return false
 	}
 
-	var js interface{}
+	var js any
 	return json.Unmarshal([]byte(s), &js) == nil
 }
 

@@ -1,0 +1,29 @@
+# Example MCP configuration for Inference Gateway CLI
+# Copy this to your .infer/config.yaml or merge with existing config
+
+mcp:
+  # Enable MCP integration
+  enabled: true
+
+  # Global timeouts (in seconds)
+  connection_timeout: 30
+  discovery_timeout: 30
+
+  # MCP Servers
+  servers:
+    - name: demo-server
+      url: http://localhost:3000/mcp
+      enabled: true
+      description: "Demo MCP server with example tools"
+
+      # Optional: Filter which tools to use
+      # include_tools:
+      #   - get_time
+      #   - calculate
+
+      # Optional: Exclude specific tools
+      # exclude_tools:
+      #   - list_files
+
+      # Optional: Override global timeout for this server
+      # timeout: 60

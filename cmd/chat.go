@@ -79,6 +79,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	messageQueue := services.GetMessageQueue()
 	themeService := services.GetThemeService()
 	toolRegistry := services.GetToolRegistry()
+	mcpClient := services.GetMCPClient()
 	taskRetentionService := services.GetTaskRetentionService()
 	backgroundTaskService := services.GetBackgroundTaskService()
 	agentManager := services.GetAgentManager()
@@ -100,6 +101,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		messageQueue,
 		themeService,
 		toolRegistry,
+		mcpClient,
 		taskRetentionService,
 		backgroundTaskService,
 		agentManager,

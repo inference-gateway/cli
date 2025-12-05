@@ -8,7 +8,7 @@
 # Usage:
 # - /scm-issues - List all GitHub issues for the repository
 # - /scm-issue <number> - Show details for a specific GitHub issue
-# - /scm-pr-create - Generate AI-powered PR plan with branch name, commit, and description
+# - /scm-pr-create [optional context] - Generate AI-powered PR plan with branch name, commit, and description
 
 shortcuts:
   - name: scm-issues

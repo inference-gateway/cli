@@ -448,6 +448,74 @@ Enables task delegation to specialized agents:
 - Tools: `A2A_SubmitTask`, `A2A_QueryAgent`, `A2A_QueryTask`, `A2A_DownloadArtifacts`
 - Background task monitoring with exponential backoff polling
 
+### MCP (Model Context Protocol) Integration
+
+Direct integration with MCP servers for stateless tool execution:
+
+**Configuration**: `.infer/mcp.yaml`
+
+**Key Features**:
+
+- Direct CLI → MCP server connections (bypasses gateway)
+- Stateless HTTP SSE transport
+- Per-server enable/disable toggle
+- Tool filtering with include/exclude lists
+- Concurrent tool discovery at startup
+- Automatic exclusion from Plan mode
+
+**Global Settings**:
+
+```yaml
+enabled: true
+connection_timeout: 30  # seconds
+discovery_timeout: 30   # seconds
+```
+
+**Server Configuration**:
+
+```yaml
+servers:
+  - name: "filesystem"
+    url: "http://localhost:3000/sse"
+    enabled: true
+    timeout: 60  # Override global timeout
+    description: "File system operations"
+    exclude_tools:  # Blacklist dangerous operations
+      - "delete_file"
+      - "format_disk"
+```
+
+**Tool Naming**: MCP tools use `MCP_<servername>_<toolname>` format
+
+- Example: `MCP_filesystem_read_file`
+
+**Environment Variables**:
+
+- `INFER_MCP_ENABLED` - Enable/disable MCP globally
+- `INFER_MCP_CONNECTION_TIMEOUT` - Override connection timeout
+- Server URLs support ${VAR} expansion
+
+**Implementation**:
+
+- Client manager: `internal/services/mcp_client_manager.go`
+- Tool wrapper: `internal/services/tools/mcp_tool.go`
+- Config service: `internal/services/mcp_config.go`
+- Uses `github.com/metoro-io/mcp-golang` library
+
+**Mode Behavior**:
+
+- Standard mode: All MCP tools available
+- Auto-Accept mode: All MCP tools available
+- Plan mode: MCP tools excluded (read-only)
+
+**Resilience**:
+
+- Failed servers log warnings but don't prevent CLI startup
+- Partial tool discovery continues if some servers fail
+- Timeouts prevent hanging connections
+
+**See Also**: `docs/mcp-integration.md` for comprehensive guide
+
 ### Shortcuts System
 
 User-defined commands in `.infer/shortcuts/`:
@@ -497,6 +565,7 @@ Key third-party libraries:
 - **go-redis**: Redis client for storage backend
 - **lib/pq**: PostgreSQL driver
 - **modernc.org/sqlite**: CGO-free SQLite driver
+- **metoro-io/mcp-golang**: MCP (Model Context Protocol) client library
 
 ## Development Environment
 

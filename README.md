@@ -59,6 +59,8 @@ and management of inference services.
 - **Inline History Auto-Completion**: Smart command history suggestions with inline completion
 - **Customizable Keybindings**: Fully configurable keyboard shortcuts for the chat interface
 - **Extensible Shortcuts System**: Create custom commands with AI-powered snippets - [Learn more →](docs/shortcuts-guide.md)
+- **MCP Server Support**: Direct integration with Model Context Protocol servers for extended tool capabilities -
+  [Learn more →](docs/mcp-integration.md)
 
 ## Installation
 

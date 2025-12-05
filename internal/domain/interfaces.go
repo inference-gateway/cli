@@ -454,6 +454,29 @@ type Theme interface {
 	GetDiffRemoveColor() string
 }
 
+// MCPDiscoveredTool represents a tool discovered from an MCP server
+type MCPDiscoveredTool struct {
+	ServerName  string
+	Name        string
+	Description string
+	InputSchema any
+}
+
+// MCPClient handles communication with MCP servers
+type MCPClient interface {
+	// DiscoverTools discovers all tools from enabled MCP servers
+	DiscoverTools(ctx context.Context) (map[string][]MCPDiscoveredTool, error)
+
+	// CallTool executes a tool on an MCP server
+	CallTool(ctx context.Context, serverName, toolName string, args map[string]any) (any, error)
+
+	// GetMCPServerStatus returns the status of MCP server connections
+	GetMCPServerStatus() *MCPServerStatus
+
+	// Close cleans up MCP client resources
+	Close() error
+}
+
 // Tool represents a single tool with its definition, handler, and validator
 type Tool interface {
 	// Definition returns the tool definition for the LLM
@@ -643,6 +666,14 @@ type TodoWriteToolResult struct {
 	CompletedTasks int        `json:"completed_tasks"`
 	InProgressTask string     `json:"in_progress_task,omitempty"`
 	ValidationOK   bool       `json:"validation_ok"`
+}
+
+// MCPToolResult represents the result of an MCP tool execution
+type MCPToolResult struct {
+	ServerName string `json:"server_name"`
+	ToolName   string `json:"tool_name"`
+	Content    string `json:"content"`
+	Error      string `json:"error,omitempty"`
 }
 
 // GitHubUser represents a GitHub user

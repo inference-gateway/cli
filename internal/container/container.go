@@ -62,6 +62,7 @@ type ServiceContainer struct {
 
 	// Tool registry
 	toolRegistry *tools.Registry
+	mcpClient    domain.MCPClient
 
 	// File writing services
 	pathValidator  filewriterdomain.PathValidator
@@ -165,7 +166,11 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.imageService = services.NewImageService(c.config)
 	c.messageQueue = services.NewMessageQueueService()
 
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService)
+	if c.config.MCP.Enabled {
+		c.mcpClient = services.NewMCPClientManager(&c.config.MCP)
+	}
+
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpClient)
 	c.taskTrackerService = c.toolRegistry.GetTaskTracker()
 
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
@@ -398,6 +403,11 @@ func (c *ServiceContainer) GetBackgroundTaskService() domain.BackgroundTaskServi
 	return c.backgroundTaskService
 }
 
+// GetMCPClient returns the MCP client (may be nil if MCP is not enabled)
+func (c *ServiceContainer) GetMCPClient() domain.MCPClient {
+	return c.mcpClient
+}
+
 // createRetryConfig creates a retry config with logging callback
 func (c *ServiceContainer) createRetryConfig() *sdk.RetryConfig {
 	retryConfig := &sdk.RetryConfig{
@@ -524,5 +534,12 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 			return err
 		}
 	}
+
+	if c.mcpClient != nil {
+		if err := c.mcpClient.Close(); err != nil {
+			logger.Error("Failed to close MCP client", "error", err)
+		}
+	}
+
 	return nil
 }

@@ -1,10 +1,13 @@
 package tools
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -16,16 +19,18 @@ type Registry struct {
 	readToolUsed bool
 	taskTracker  domain.TaskTracker
 	imageService domain.ImageService
+	mcpClient    domain.MCPClient
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
-func NewRegistry(cfg *config.Config, imageService domain.ImageService) *Registry {
+func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpClient domain.MCPClient) *Registry {
 	registry := &Registry{
 		config:       cfg,
 		tools:        make(map[string]domain.Tool),
 		readToolUsed: false,
 		taskTracker:  utils.NewTaskTracker(),
 		imageService: imageService,
+		mcpClient:    mcpClient,
 	}
 
 	registry.registerTools()
@@ -62,6 +67,55 @@ func (r *Registry) registerTools() {
 		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(r.config, r.taskTracker)
 		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(r.config, r.taskTracker)
 		r.tools["A2A_DownloadArtifacts"] = NewA2ADownloadArtifactsTool(r.config, r.taskTracker)
+	}
+
+	// Register MCP tools if enabled and client is available
+	if r.config.MCP.Enabled && r.mcpClient != nil {
+		r.registerMCPTools()
+	}
+}
+
+// registerMCPTools discovers and registers tools from enabled MCP servers
+func (r *Registry) registerMCPTools() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.config.MCP.DiscoveryTimeout)*time.Second)
+	defer cancel()
+
+	// Discover tools from all enabled MCP servers
+	discoveredTools, err := r.mcpClient.DiscoverTools(ctx)
+	if err != nil {
+		logger.Warn("Failed to discover MCP tools", "error", err)
+		return
+	}
+
+	// Register each discovered tool
+	toolCount := 0
+	for serverName, tools := range discoveredTools {
+		for _, tool := range tools {
+			// Create tool name: MCP_<servername>_<toolname>
+			fullToolName := fmt.Sprintf("MCP_%s_%s", serverName, tool.Name)
+
+			// Create and register the MCP tool wrapper
+			mcpTool := NewMCPTool(
+				serverName,
+				tool.Name,
+				tool.Description,
+				tool.InputSchema,
+				r.mcpClient,
+				&r.config.MCP,
+			)
+
+			r.tools[fullToolName] = mcpTool
+			toolCount++
+
+			logger.Debug("Registered MCP tool",
+				"tool", fullToolName,
+				"server", serverName,
+				"description", tool.Description)
+		}
+	}
+
+	if toolCount > 0 {
+		logger.Info("Successfully registered MCP tools", "count", toolCount)
 	}
 }
 

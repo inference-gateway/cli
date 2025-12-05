@@ -42,6 +42,7 @@ type ChatApplication struct {
 	shortcutRegistry      *shortcuts.Registry
 	themeService          domain.ThemeService
 	toolRegistry          *tools.Registry
+	mcpClient             domain.MCPClient
 	taskRetentionService  domain.TaskRetentionService
 	backgroundTaskService domain.BackgroundTaskService
 
@@ -105,6 +106,7 @@ func NewChatApplication(
 	messageQueue domain.MessageQueue,
 	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
+	mcpClient domain.MCPClient,
 	taskRetentionService domain.TaskRetentionService,
 	backgroundTaskService domain.BackgroundTaskService,
 	agentManager domain.AgentManager,
@@ -127,6 +129,7 @@ func NewChatApplication(
 		shortcutRegistry:      shortcutRegistry,
 		themeService:          themeService,
 		toolRegistry:          toolRegistry,
+		mcpClient:             mcpClient,
 		taskRetentionService:  taskRetentionService,
 		backgroundTaskService: backgroundTaskService,
 		availableModels:       models,
@@ -178,6 +181,7 @@ func NewChatApplication(
 		isb.SetStateManager(app.stateManager)
 		isb.SetConfigService(app.configService)
 		isb.SetConversationRepo(app.conversationRepo)
+		isb.SetMCPClient(app.mcpClient)
 	}
 
 	app.statusView = factory.CreateStatusView(app.themeService)

@@ -1,0 +1,68 @@
+package config
+
+// MCPConfig represents the mcp.yaml configuration file
+type MCPConfig struct {
+	Enabled           bool             `yaml:"enabled" mapstructure:"enabled"`                                           // Global enable/disable
+	ConnectionTimeout int              `yaml:"connection_timeout,omitempty" mapstructure:"connection_timeout,omitempty"` // seconds, default 30
+	DiscoveryTimeout  int              `yaml:"discovery_timeout,omitempty" mapstructure:"discovery_timeout,omitempty"`   // seconds, default 30
+	Servers           []MCPServerEntry `yaml:"servers" mapstructure:"servers"`
+}
+
+// MCPServerEntry represents a single MCP server configuration
+type MCPServerEntry struct {
+	Name         string   `yaml:"name" mapstructure:"name"`
+	URL          string   `yaml:"url" mapstructure:"url"`
+	Enabled      bool     `yaml:"enabled" mapstructure:"enabled"`
+	Timeout      int      `yaml:"timeout,omitempty" mapstructure:"timeout,omitempty"` // seconds, overrides global
+	Description  string   `yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	IncludeTools []string `yaml:"include_tools,omitempty" mapstructure:"include_tools,omitempty"` // Whitelist specific tools
+	ExcludeTools []string `yaml:"exclude_tools,omitempty" mapstructure:"exclude_tools,omitempty"` // Blacklist specific tools
+}
+
+// ShouldIncludeTool determines if a tool should be included based on include/exclude lists
+func (e *MCPServerEntry) ShouldIncludeTool(toolName string) bool {
+	if len(e.IncludeTools) > 0 {
+		for _, included := range e.IncludeTools {
+			if included == toolName {
+				return true
+			}
+		}
+		return false
+	}
+
+	if len(e.ExcludeTools) > 0 {
+		for _, excluded := range e.ExcludeTools {
+			if excluded == toolName {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// GetTimeout returns the effective timeout for this server
+func (e *MCPServerEntry) GetTimeout(globalTimeout int) int {
+	if e.Timeout > 0 {
+		return e.Timeout
+	}
+	if globalTimeout > 0 {
+		return globalTimeout
+	}
+	return 30
+}
+
+// DefaultMCPConfig returns a default MCP configuration
+func DefaultMCPConfig() *MCPConfig {
+	return &MCPConfig{
+		Enabled:           false, // Disabled by default
+		ConnectionTimeout: 30,    // 30 seconds default
+		DiscoveryTimeout:  30,    // 30 seconds default
+		Servers:           []MCPServerEntry{},
+	}
+}
+
+const (
+	MCPFileName    = "mcp.yaml"
+	DefaultMCPPath = ConfigDirName + "/" + MCPFileName
+)

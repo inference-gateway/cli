@@ -1,0 +1,20 @@
+# Binaries
+mcp-demo-server
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go
+go.sum
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store

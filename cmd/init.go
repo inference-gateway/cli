@@ -37,7 +37,7 @@ func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -48,15 +48,17 @@ func initializeProject(cmd *cobra.Command) error {
 		gitignorePath = filepath.Join(homeDir, config.ConfigDirName, config.GitignoreFileName)
 		scmShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "scm.yaml")
 		gitShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "git.yaml")
+		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
 	} else {
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
 		scmShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "scm.yaml")
 		gitShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "git.yaml")
+		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpPath); err != nil {
 			return err
 		}
 	}
@@ -85,6 +87,10 @@ bin/
 		return fmt.Errorf("failed to create Git shortcuts file: %w", err)
 	}
 
+	if err := createMCPConfigFile(mcpPath); err != nil {
+		return fmt.Errorf("failed to create MCP config file: %w", err)
+	}
+
 	var scopeDesc string
 	if userspace {
 		scopeDesc = "userspace"
@@ -97,6 +103,7 @@ bin/
 	fmt.Printf("   Created: %s\n", gitignorePath)
 	fmt.Printf("   Created: %s\n", scmShortcutsPath)
 	fmt.Printf("   Created: %s\n", gitShortcutsPath)
+	fmt.Printf("   Created: %s\n", mcpPath)
 	fmt.Println("")
 	if userspace {
 		fmt.Println("This userspace configuration will be used as a fallback for all projects.")
@@ -356,4 +363,79 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(gitShortcutsContent), 0644)
+}
+
+// createMCPConfigFile creates the MCP configuration YAML file
+func createMCPConfigFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	mcpConfigContent := `# MCP (Model Context Protocol) Server Configuration
+# This file configures direct connections to MCP servers for tool integration.
+# MCP servers provide additional tools that can be used by the LLM.
+#
+# Documentation: https://github.com/inference-gateway/cli/docs/mcp-integration.md
+
+# Global MCP settings
+enabled: false  # Set to true to enable MCP integration
+connection_timeout: 30  # Global connection timeout in seconds
+discovery_timeout: 30   # Timeout for discovering tools from servers
+
+# MCP server definitions
+servers: []
+  # Example: Filesystem MCP server
+  # - name: "filesystem"
+  #   url: "http://localhost:3000/sse"
+  #   enabled: true
+  #   timeout: 60  # Override global timeout for this server (optional)
+  #   description: "File system operations"
+  #
+  #   # Tool filtering (optional)
+  #   # Use include_tools to whitelist specific tools (if set, only these tools are exposed)
+  #   # include_tools:
+  #   #   - "read_file"
+  #   #   - "write_file"
+  #   #   - "list_directory"
+  #
+  #   # Use exclude_tools to blacklist specific tools (remove dangerous operations)
+  #   # exclude_tools:
+  #   #   - "delete_file"
+  #   #   - "format_disk"
+
+  # Example: Database MCP server
+  # - name: "database"
+  #   url: "http://localhost:3001/sse"
+  #   enabled: true
+  #   description: "Database query tools"
+  #   include_tools:  # Only expose these specific tools
+  #     - "query"
+  #     - "describe_table"
+  #     - "list_tables"
+
+  # Example: Disabled server
+  # - name: "web-scraper"
+  #   url: "http://localhost:3002/sse"
+  #   enabled: false  # This server will be skipped
+  #   description: "Web scraping tools"
+
+# Environment variable support:
+# All values support environment variable expansion using ${VAR_NAME} syntax
+# Example:
+#   url: "${MCP_SERVER_URL}"
+#
+# You can also use environment variables to override config:
+#   INFER_MCP_ENABLED=true
+#   INFER_MCP_CONNECTION_TIMEOUT=60
+#   INFER_MCP_DISCOVERY_TIMEOUT=45
+
+# Notes:
+# - MCP tools are named as: MCP_<servername>_<toolname>
+# - MCP tools are automatically excluded from Plan mode
+# - Servers are contacted concurrently during tool discovery
+# - Failed servers don't prevent CLI startup (logged as warnings)
+# - Each tool execution creates a new stateless HTTP SSE connection
+`
+
+	return os.WriteFile(path, []byte(mcpConfigContent), 0644)
 }
