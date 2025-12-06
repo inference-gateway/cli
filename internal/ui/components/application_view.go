@@ -196,7 +196,7 @@ func (r *ApplicationViewRenderer) appendQueueBox(
 ) []string {
 	if queueBoxView != nil && (len(data.QueuedMessages) > 0 || len(data.BackgroundTasks) > 0) {
 		if queueBoxContent := queueBoxView.Render(data.QueuedMessages, data.BackgroundTasks); queueBoxContent != "" {
-			components = append(components, queueBoxContent)
+			components = append(components, queueBoxContent, "")
 		}
 	}
 	return components
@@ -263,7 +263,7 @@ func (r *ApplicationViewRenderer) appendHelpBar(
 ) []string {
 	helpBar.SetWidth(width)
 	if helpBarContent := helpBar.Render(); helpBarContent != "" {
-		helpBarSeparator := "  " + strings.Repeat("─", width-4)
+		helpBarSeparator := strings.Repeat("─", width)
 		components = append(components, helpBarSeparator, helpBarContent)
 	}
 	return components

@@ -41,8 +41,6 @@ and have a conversational interface with the inference gateway.`,
 
 // StartChatSession starts a chat session
 func StartChatSession(cfg *config.Config, v *viper.Viper) error {
-	// Initialize clipboard silently - if it fails (e.g., CGO_ENABLED=0),
-	// image paste functionality won't be available but that's acceptable
 	_ = clipboard.Init()
 
 	services := container.NewServiceContainer(cfg, v)
@@ -81,6 +79,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	messageQueue := services.GetMessageQueue()
 	themeService := services.GetThemeService()
 	toolRegistry := services.GetToolRegistry()
+	mcpManager := services.GetMCPManager()
 	taskRetentionService := services.GetTaskRetentionService()
 	backgroundTaskService := services.GetBackgroundTaskService()
 	agentManager := services.GetAgentManager()
@@ -102,6 +101,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		messageQueue,
 		themeService,
 		toolRegistry,
+		mcpManager,
 		taskRetentionService,
 		backgroundTaskService,
 		agentManager,
@@ -120,7 +120,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 
 	application.PrintConversationHistory()
 
-	fmt.Println("👋 Chat session ended!")
+	fmt.Println("• Chat session ended!")
 	return nil
 }
 
@@ -134,16 +134,16 @@ func validateAndSetDefaultModel(modelService domain.ModelService, models []strin
 	}
 
 	if !modelFound {
-		fmt.Printf("⚠️  Default model '%s' is not available, showing model selection...\n", defaultModel)
+		fmt.Printf("• Default model '%s' is not available, showing model selection...\n", defaultModel)
 		return ""
 	}
 
 	if err := modelService.SelectModel(defaultModel); err != nil {
-		fmt.Printf("⚠️  Failed to set default model: %v, showing model selection...\n", err)
+		fmt.Printf("• Failed to set default model: %v, showing model selection...\n", err)
 		return ""
 	}
 
-	fmt.Printf("🤖 Using default model: %s\n", defaultModel)
+	fmt.Printf("• Using default model: %s\n", defaultModel)
 	return defaultModel
 }
 

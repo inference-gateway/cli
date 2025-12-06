@@ -321,10 +321,12 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 }
 
 // handleIdleState processes queued messages and background tasks when the agent is idle
+// The canComplete parameter controls whether the agent is allowed to complete when idle
 func (s *AgentServiceImpl) handleIdleState(
 	eventPublisher *eventPublisher,
 	taskTracker domain.TaskTracker,
 	conversation *[]sdk.Message,
+	canComplete bool,
 ) (shouldContinue bool, shouldReturn bool) {
 	hasQueuedMessage := s.messageQueue != nil && !s.messageQueue.IsEmpty()
 	hasBackgroundTasks := taskTracker != nil && len(taskTracker.GetAllPollingTasks()) > 0
@@ -346,12 +348,12 @@ func (s *AgentServiceImpl) handleIdleState(
 				Timestamp: time.Now(),
 				Message:   queuedMsg.Message,
 			}
-			return true, false
+			return false, false
 		}
 	case hasBackgroundTasks:
 		time.Sleep(500 * time.Millisecond)
 		return true, false
-	default:
+	case canComplete:
 		eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(eventPublisher.requestID))
 
 		time.Sleep(100 * time.Millisecond)
@@ -423,15 +425,13 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			default:
 			}
 
-			if !hasToolResults && turns > 0 {
-				shouldContinue, shouldReturn := s.handleIdleState(eventPublisher, taskTracker, &conversation)
-				if shouldReturn {
-					return
-				}
-				if shouldContinue {
-					hasToolResults = true
-					continue
-				}
+			canComplete := turns > 0 && !hasToolResults
+			shouldContinue, shouldReturn := s.handleIdleState(eventPublisher, taskTracker, &conversation, canComplete)
+			if shouldReturn {
+				return
+			}
+			if shouldContinue {
+				continue
 			}
 
 			hasToolResults = false

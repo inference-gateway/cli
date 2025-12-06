@@ -52,12 +52,22 @@ func init() {
 	cobra.OnInitialize(initConfig)
 }
 
-func initConfig() {
+func initConfig() { // nolint:funlen
 	V = viper.New()
 	v := V
 
 	defaults := config.DefaultConfig()
 	v.SetDefault("gateway", defaults.Gateway)
+	v.SetDefault("gateway.url", defaults.Gateway.URL)
+	v.SetDefault("gateway.api_key", defaults.Gateway.APIKey)
+	v.SetDefault("gateway.timeout", defaults.Gateway.Timeout)
+	v.SetDefault("gateway.oci", defaults.Gateway.OCI)
+	v.SetDefault("gateway.run", defaults.Gateway.Run)
+	v.SetDefault("gateway.docker", defaults.Gateway.Docker)
+	v.SetDefault("gateway.debug", defaults.Gateway.Debug)
+	v.SetDefault("gateway.include_models", defaults.Gateway.IncludeModels)
+	v.SetDefault("gateway.exclude_models", defaults.Gateway.ExcludeModels)
+	v.SetDefault("gateway.vision_enabled", defaults.Gateway.VisionEnabled)
 	v.SetDefault("logging", defaults.Logging)
 	v.SetDefault("client", defaults.Client)
 	v.SetDefault("tools", defaults.Tools)
@@ -148,6 +158,8 @@ func initConfig() {
 		}
 	}
 
+	processKeybindingEnvVars(v)
+
 	verbose := v.GetBool("verbose")
 	debug := v.GetBool("logging.debug")
 	logDir := v.GetString("logging.dir")
@@ -161,4 +173,69 @@ func initConfig() {
 	}
 
 	logger.Init(verbose, debug, logDir)
+}
+
+// processKeybindingEnvVars processes environment variables for keybinding configuration
+// Supports: INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_KEYS="key1,key2,key3"
+// Supports: INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_ENABLED="true/false"
+func processKeybindingEnvVars(v *viper.Viper) {
+	const prefix = "INFER_CHAT_KEYBINDINGS_BINDINGS_"
+
+	for _, env := range os.Environ() {
+		pair := strings.SplitN(env, "=", 2)
+		if len(pair) != 2 {
+			continue
+		}
+
+		envKey := pair[0]
+		envValue := pair[1]
+
+		if !strings.HasPrefix(envKey, prefix) {
+			continue
+		}
+
+		suffix := strings.TrimPrefix(envKey, prefix)
+		parts := strings.Split(suffix, "_")
+
+		if len(parts) < 2 {
+			continue
+		}
+
+		field := parts[len(parts)-1]
+		actionIDParts := parts[:len(parts)-1]
+		actionID := strings.ToLower(strings.Join(actionIDParts, "_"))
+
+		switch field {
+		case "KEYS":
+			processKeybindingKeys(v, actionID, envValue)
+		case "ENABLED":
+			processKeybindingEnabled(v, actionID, envValue)
+		}
+	}
+}
+
+// processKeybindingKeys parses comma-separated keys and sets them in viper
+func processKeybindingKeys(v *viper.Viper, actionID, envValue string) {
+	var keys []string
+	for _, key := range strings.FieldsFunc(envValue, func(c rune) bool {
+		return c == ',' || c == '\n'
+	}) {
+		if trimmed := strings.TrimSpace(key); trimmed != "" {
+			keys = append(keys, trimmed)
+		}
+	}
+
+	if len(keys) > 0 {
+		configPath := fmt.Sprintf("chat.keybindings.bindings.%s.keys", actionID)
+		v.Set(configPath, keys)
+	}
+}
+
+// processKeybindingEnabled parses boolean enabled value and sets it in viper
+func processKeybindingEnabled(v *viper.Viper, actionID, envValue string) {
+	enabled := strings.ToLower(strings.TrimSpace(envValue))
+	if enabled == "true" || enabled == "false" {
+		configPath := fmt.Sprintf("chat.keybindings.bindings.%s.enabled", actionID)
+		v.Set(configPath, enabled == "true")
+	}
 }

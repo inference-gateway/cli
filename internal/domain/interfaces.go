@@ -454,6 +454,68 @@ type Theme interface {
 	GetDiffRemoveColor() string
 }
 
+// MCPDiscoveredTool represents a tool discovered from an MCP server
+type MCPDiscoveredTool struct {
+	ServerName  string
+	Name        string
+	Description string
+	InputSchema any
+}
+
+// MCPServerEntry represents an MCP server configuration entry
+type MCPServerEntry struct {
+	Name         string
+	URL          string
+	Enabled      bool
+	Timeout      int
+	Description  string
+	IncludeTools []string
+	ExcludeTools []string
+}
+
+// MCPClient handles communication with MCP servers
+type MCPClient interface {
+	// DiscoverTools discovers all tools from enabled MCP servers
+	DiscoverTools(ctx context.Context) (map[string][]MCPDiscoveredTool, error)
+
+	// CallTool executes a tool on an MCP server
+	CallTool(ctx context.Context, serverName, toolName string, args map[string]any) (any, error)
+
+	// PingServer sends a ping request to check if a specific server is alive
+	PingServer(ctx context.Context, serverName string) error
+
+	// Close cleans up MCP client resources
+	Close() error
+}
+
+// MCPManager manages the lifecycle, health monitoring, and container orchestration of MCP servers
+type MCPManager interface {
+	// Returns a list of clients
+	GetClients() []MCPClient
+
+	// GetTotalServers returns the total number of configured MCP servers
+	GetTotalServers() int
+
+	// StartMonitoring begins background health monitoring and returns a channel for status updates
+	StartMonitoring(ctx context.Context) <-chan MCPServerStatusUpdateEvent
+
+	// UpdateToolCount updates the tool count for a specific server
+	UpdateToolCount(serverName string, count int)
+
+	// ClearToolCount removes the tool count for a specific server
+	ClearToolCount(serverName string)
+
+	// Container lifecycle management
+	// StartServers starts all MCP servers that have run=true (non-fatal)
+	StartServers(ctx context.Context) error
+
+	// StopServers stops all running MCP server containers
+	StopServers(ctx context.Context) error
+
+	// Close stops monitoring, stops containers, and cleans up resources
+	Close() error
+}
+
 // Tool represents a single tool with its definition, handler, and validator
 type Tool interface {
 	// Definition returns the tool definition for the LLM
@@ -643,6 +705,14 @@ type TodoWriteToolResult struct {
 	CompletedTasks int        `json:"completed_tasks"`
 	InProgressTask string     `json:"in_progress_task,omitempty"`
 	ValidationOK   bool       `json:"validation_ok"`
+}
+
+// MCPToolResult represents the result of an MCP tool execution
+type MCPToolResult struct {
+	ServerName string `json:"server_name"`
+	ToolName   string `json:"tool_name"`
+	Content    string `json:"content"`
+	Error      string `json:"error,omitempty"`
 }
 
 // GitHubUser represents a GitHub user

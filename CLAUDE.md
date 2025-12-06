@@ -144,6 +144,145 @@ All config fields can be overridden via environment variables:
 - Example: `gateway.url` → `INFER_GATEWAY_URL`
 - Example: `tools.bash.enabled` → `INFER_TOOLS_BASH_ENABLED`
 
+### Keybinding Configuration
+
+The CLI supports customizable keybindings for the chat interface with a namespace-based organization
+system. All keybindings are visible in the config file by default for self-documentation.
+
+**Configuration Location:** `chat.keybindings` in config.yaml
+
+**Default State:** Keybindings are **disabled by default**. Users must explicitly enable them.
+
+**Namespace System:**
+
+Action IDs use the format `namespace_action` (e.g., `global_quit`, `mode_cycle_agent_mode`). This
+allows the same key to be used in different namespaces without conflict, as actions are
+context-specific. The namespace is extracted from the first part of the action ID before the
+underscore.
+
+**Environment Variable Support:**
+
+Keybindings can be configured via environment variables using comma-separated or newline-separated
+lists:
+
+```bash
+# Enable keybindings
+export INFER_CHAT_KEYBINDINGS_ENABLED=true
+
+# Set keys for an action (comma-separated or newline-separated)
+export INFER_CHAT_KEYBINDINGS_BINDINGS_GLOBAL_QUIT_KEYS="ctrl+q,ctrl+x"
+
+# Multiline format
+export INFER_CHAT_KEYBINDINGS_BINDINGS_MODE_CYCLE_AGENT_MODE_KEYS="shift+tab
+ctrl+m"
+
+# Enable/disable specific actions
+export INFER_CHAT_KEYBINDINGS_BINDINGS_DISPLAY_TOGGLE_RAW_FORMAT_ENABLED=false
+```
+
+Format: `INFER_CHAT_KEYBINDINGS_BINDINGS_<ACTION_ID>_<FIELD>`
+
+- `<ACTION_ID>`: Uppercase namespaced action ID (e.g., `GLOBAL_QUIT`, `MODE_CYCLE_AGENT_MODE`)
+- `<FIELD>`: Either `KEYS` (comma/newline-separated) or `ENABLED` (true/false)
+
+**Configuration Structure:**
+
+```yaml
+chat:
+  theme: tokyo-night
+  keybindings:
+    enabled: false  # Set to true to enable custom keybindings
+    bindings:
+      # All keybindings are listed with their defaults
+      # Format: namespace_action
+      global_quit:
+        keys:
+          - ctrl+c
+        description: "exit application"
+        category: "global"
+        enabled: true
+      mode_cycle_agent_mode:
+        keys:
+          - shift+tab  # Modify this to change the key
+        description: "cycle agent mode (Standard/Plan/Auto-Accept)"
+        category: "mode"
+        enabled: true
+      tools_toggle_tool_expansion:
+        keys:
+          - ctrl+o
+        enabled: false  # Disable specific actions
+      # ... all other keybindings visible
+```
+
+**Key Features:**
+
+- **Namespace-Based Organization**: Actions organized by namespace for context-specific bindings
+- **Context-Aware Conflicts**: Same key allowed across namespaces, validated within namespaces
+- **Self-Documenting**: All keybindings are visible in config with descriptions
+- **Fallback to Defaults**: Remove an entry from config to use the default
+- **No Runtime Validation**: Config is loaded once at startup for performance
+- **Explicit Validation**: Run `infer keybindings validate` before committing changes
+
+**Available Commands:**
+
+```bash
+# List all keybindings with their current assignments
+infer keybindings list
+
+# Set custom key for an action (use namespaced action ID)
+infer keybindings set mode_cycle_agent_mode ctrl+m
+
+# Disable a specific action
+infer keybindings disable display_toggle_raw_format
+
+# Enable a specific action
+infer keybindings enable display_toggle_raw_format
+
+# Reset all keybindings to defaults
+infer keybindings reset
+
+# Validate configuration for conflicts, invalid keys, and unknown actions
+infer keybindings validate
+```
+
+**Validation:**
+
+The `validate` command checks for:
+
+- Unknown action IDs not in the registry
+- Invalid keys not in the known keys list
+- Key conflicts **within the same namespace** (cross-namespace conflicts are allowed)
+
+Validation is namespace-aware: actions in different namespaces can share the same key without
+triggering a conflict, as they operate in different contexts.
+
+**Key Action Namespaces:**
+
+Actions are organized by namespace. Each namespace represents a specific context or domain:
+
+- **global**: Application-level actions (e.g., `global_quit`, `global_cancel`)
+- **chat**: Chat-specific actions (e.g., `chat_enter_key_handler`)
+- **mode**: Agent mode controls (e.g., `mode_cycle_agent_mode`)
+- **tools**: Tool-related actions (e.g., `tools_toggle_tool_expansion`)
+- **display**: Display toggles (e.g., `display_toggle_raw_format`, `display_toggle_todo_box`)
+- **text_editing**: Text manipulation (e.g., `text_editing_move_cursor_left`,
+  `text_editing_history_up`)
+- **navigation**: Viewport navigation (e.g., `navigation_scroll_to_top`, `navigation_page_down`)
+- **clipboard**: Copy/paste operations (e.g., `clipboard_copy_text`, `clipboard_paste_text`)
+- **selection**: Selection mode controls (e.g., `selection_toggle_mouse_mode`)
+- **plan_approval**: Plan approval navigation (e.g., `plan_approval_plan_approval_accept`)
+- **help**: Help system (e.g., `help_toggle_help`)
+
+**Implementation Details:**
+
+- Registry pattern in `internal/ui/keybinding/`
+- Layer-based priority system for context-aware bindings
+- Namespace definitions in `config/config.go` with `ActionID()` helper function
+- Config loaded once at chat startup (no runtime reloading)
+- Conflict resolution: layer system handles priority, last binding wins at runtime
+- Key validation uses `internal/ui/keys/` package
+- Namespace-aware validation in `cmd/keybindings.go`
+
 ## Code Conventions
 
 ### File Organization
@@ -309,6 +448,117 @@ Enables task delegation to specialized agents:
 - Tools: `A2A_SubmitTask`, `A2A_QueryAgent`, `A2A_QueryTask`, `A2A_DownloadArtifacts`
 - Background task monitoring with exponential backoff polling
 
+### MCP (Model Context Protocol) Integration
+
+Direct integration with MCP servers for stateless tool execution:
+
+**Configuration**: `.infer/mcp.yaml`
+
+**Key Features**:
+
+- Direct CLI → MCP server connections (bypasses gateway)
+- Stateless HTTP SSE transport
+- **Auto-start MCP servers in OCI/Docker containers**
+- **Automatic port assignment** (no manual configuration needed)
+- Per-server enable/disable toggle
+- Tool filtering with include/exclude lists
+- Concurrent tool discovery at startup
+- Automatic exclusion from Plan mode
+
+**Global Settings**:
+
+```yaml
+enabled: true
+connection_timeout: 30  # seconds
+discovery_timeout: 30   # seconds
+```
+
+**Server Configuration (External)**:
+
+```yaml
+servers:
+  - name: "filesystem"
+    url: "http://localhost:3000/sse"
+    enabled: true
+    timeout: 60  # Override global timeout
+    description: "File system operations"
+    exclude_tools:  # Blacklist dangerous operations
+      - "delete_file"
+      - "format_disk"
+```
+
+**Server Configuration (Auto-start)**:
+
+```yaml
+servers:
+  - name: "demo-server"
+    enabled: true
+    run: true                      # Auto-start in container
+    oci: "mcp-demo-server:latest"  # OCI/Docker image
+    port: 3000                     # Auto-assigned if omitted
+    path: /mcp
+    startup_timeout: 60
+    env:
+      LOG_LEVEL: "debug"
+    volumes:
+      - "/data:/mnt/data"
+```
+
+**Tool Naming**: MCP tools use `MCP_<servername>_<toolname>` format
+
+- Example: `MCP_filesystem_read_file`
+
+**Environment Variables**:
+
+- `INFER_MCP_ENABLED` - Enable/disable MCP globally
+- `INFER_MCP_CONNECTION_TIMEOUT` - Override connection timeout
+- Server URLs support ${VAR} expansion
+
+**Implementation**:
+
+- Client manager: `internal/services/mcp_client_manager.go`
+- Server manager: `internal/services/mcp_server_manager.go` (OCI container lifecycle)
+- Tool wrapper: `internal/services/tools/mcp_tool.go`
+- Config service: `internal/services/mcp_config.go`
+- Uses `github.com/metoro-io/mcp-golang` library
+
+**Mode Behavior**:
+
+- Standard mode: All MCP tools available
+- Auto-Accept mode: All MCP tools available
+- Plan mode: MCP tools excluded (read-only)
+
+**Resilience**:
+
+- Failed servers log warnings but don't prevent CLI startup
+- Partial tool discovery continues if some servers fail
+- Timeouts prevent hanging connections
+- Background server startup (non-blocking)
+
+**CLI Commands**:
+
+```bash
+# Add server with auto-start (automatic port assignment)
+infer mcp add <name> --run --oci=<image>
+
+# Add server with specific port
+infer mcp add <name> --run --oci=<image> --port=8080
+
+# Add external server (manual start)
+infer mcp add <name> <url>
+
+# List all MCP servers
+infer mcp list
+
+# Remove server
+infer mcp remove <name>
+
+# Toggle server enable/disable
+infer mcp toggle <name>
+```
+
+**See Also**: `docs/mcp-integration.md` for comprehensive guide
+
 ### Shortcuts System
 
 User-defined commands in `.infer/shortcuts/`:
@@ -358,10 +608,11 @@ Key third-party libraries:
 - **go-redis**: Redis client for storage backend
 - **lib/pq**: PostgreSQL driver
 - **modernc.org/sqlite**: CGO-free SQLite driver
+- **metoro-io/mcp-golang**: MCP (Model Context Protocol) client library
 
 ## Development Environment
 
-- **Go version**: 1.25.2+ required
+- **Go version**: 1.25.4+ required
 - **Task**: Task runner (taskfile.dev) for build automation
 - **golangci-lint**: Linting and static analysis
 - **pre-commit**: Git hooks for code quality

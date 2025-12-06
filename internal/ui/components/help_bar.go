@@ -1,6 +1,7 @@
 package components
 
 import (
+	"sort"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -27,7 +28,17 @@ func NewHelpBar(styleProvider *styles.Provider) *HelpBar {
 }
 
 func (hb *HelpBar) SetShortcuts(shortcuts []ui.KeyShortcut) {
-	hb.shortcuts = shortcuts
+	sortedShortcuts := make([]ui.KeyShortcut, len(shortcuts))
+	copy(sortedShortcuts, shortcuts)
+
+	sort.Slice(sortedShortcuts, func(i, j int) bool {
+		if sortedShortcuts[i].Key == sortedShortcuts[j].Key {
+			return sortedShortcuts[i].Description < sortedShortcuts[j].Description
+		}
+		return sortedShortcuts[i].Key < sortedShortcuts[j].Key
+	})
+
+	hb.shortcuts = sortedShortcuts
 }
 
 func (hb *HelpBar) IsEnabled() bool {

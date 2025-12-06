@@ -11,50 +11,29 @@ NODE_PATH = "$FLOX_ENV_PROJECT/.flox/npm/lib/node_modules"
 
 [install]
 go.pkg-path = "go"
-go.version = "1.25.2"
-
+go.version = "^1.25.4"
 nodejs.pkg-path = "nodejs_24"
-nodejs.version = "24.11.0"
-
+nodejs.version = "^24.11.1"
 git.pkg-path = "git"
-git.version = "2.51.0"
-git.pkg-group = "vcs"
-
+git.version = "^2.51.2"
 gh.pkg-path = "gh"
-gh.version = "2.82.1"
-gh.pkg-group = "vcs"
-
+gh.version = "^2.83.1"
 golangci-lint.pkg-path = "golangci-lint"
-golangci-lint.version = "2.6.0"
-golangci-lint.pkg-group = "linting"
-
+golangci-lint.version = "^2.6.2"
 pre-commit.pkg-path = "pre-commit"
-pre-commit.version = "4.3.0"
-pre-commit.pkg-group = "linting"
-
+pre-commit.version = "^4.5.0"
 go-task.pkg-path = "go-task"
-go-task.version = "3.45.4"
-go-task.pkg-group = "build"
-
+go-task.version = "^3.45.5"
 ripgrep.pkg-path = "ripgrep"
-ripgrep.version = "14.1.1"
-ripgrep.pkg-group = "tools"
-
+ripgrep.version = "^15.1.0"
 markdownlint-cli.pkg-path = "markdownlint-cli"
-markdownlint-cli.version = "0.45.0"
-markdownlint-cli.pkg-group = "linting"
-
+markdownlint-cli.version = "^0.46.0"
 claude-code.pkg-path = "claude-code"
-claude-code.version = "2.0.37"
-claude-code.pkg-group = "common"
-
+claude-code.version = "^2.0.55"
 docker.pkg-path = "docker"
-docker.version = "28.5.1"
-docker.pkg-group = "common"
-
+docker.version = "^28.5.1"
 docker-compose.pkg-path = "docker-compose"
-docker-compose.version = "2.39.4"
-docker-compose.pkg-group = "common"
+docker-compose.version = "^2.39.4"
 
 [hook]
 on-activate = """

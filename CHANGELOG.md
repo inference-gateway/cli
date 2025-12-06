@@ -6,6 +6,91 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.80.1](https://github.com/inference-gateway/cli/compare/v0.80.0...v0.80.1) (2025-12-06)
+
+### 📚 Documentation
+
+* **example:** Add Context7 MCP service to docker-compose ([6778274](https://github.com/inference-gateway/cli/commit/67782743456cd9c3d0a262e350eee75fe8174911))
+
+## [0.80.0](https://github.com/inference-gateway/cli/compare/v0.79.1...v0.80.0) (2025-12-06)
+
+### 🚀 Features
+
+* Add auto-start capability for MCP servers ([#308](https://github.com/inference-gateway/cli/issues/308)) ([0f78a40](https://github.com/inference-gateway/cli/commit/0f78a40635abd92ba72819cfa1b6bef793cb5d0e))
+
+### 🧹 Maintenance
+
+* Cleanup ([6b76921](https://github.com/inference-gateway/cli/commit/6b76921cacc1701e3d47b825aecf5f7130c8a387))
+
+## [0.79.1](https://github.com/inference-gateway/cli/compare/v0.79.0...v0.79.1) (2025-12-06)
+
+### 🐛 Bug Fixes
+
+* **example:** Add healthcheck and more providers keys ([c1a454b](https://github.com/inference-gateway/cli/commit/c1a454b3a6450ba6384e26cf41444c12e4f4d8ba))
+
+### 📚 Documentation
+
+* **example:** Improve MCP example ([19e0af8](https://github.com/inference-gateway/cli/commit/19e0af8d1228ef7141450654e5a77affc0127994))
+
+## [0.79.0](https://github.com/inference-gateway/cli/compare/v0.78.0...v0.79.0) (2025-12-06)
+
+### 🚀 Features
+
+* Add MCP (Model Context Protocol) server integration ([#304](https://github.com/inference-gateway/cli/issues/304)) ([8153edb](https://github.com/inference-gateway/cli/commit/8153edb367b44dbde790d6ed1c99a42621a01b51))
+
+### 🧹 Maintenance
+
+* Re-generate the config files ([418ef15](https://github.com/inference-gateway/cli/commit/418ef157383a14b1d2a82cef97265e33e4d08c15))
+
+## [0.78.0](https://github.com/inference-gateway/cli/compare/v0.77.1...v0.78.0) (2025-12-05)
+
+### 🚀 Features
+
+* Add support for updating pull requests ([#306](https://github.com/inference-gateway/cli/issues/306)) ([578d193](https://github.com/inference-gateway/cli/commit/578d193471b49edd4925e33d9cba08f7c0c3b8e4))
+
+### 🐛 Bug Fixes
+
+* Keep it simple ([4c2ab27](https://github.com/inference-gateway/cli/commit/4c2ab2722d5771b9e28e78f7bf9e7b6fc2aef428))
+* Not very clear from the docs but I'll just set it to true, this ensures uniqueness ([c89f4ae](https://github.com/inference-gateway/cli/commit/c89f4aef4533e5967647ca70ecd93256eb0d8463))
+* Semantic release config ([5be1282](https://github.com/inference-gateway/cli/commit/5be12826e1696591f2b7fd9a810449916008deb9))
+
+### ♻️ Code Refactoring
+
+* Use 'any' type alias instead of interface{} ([#307](https://github.com/inference-gateway/cli/issues/307)) ([1efd5b6](https://github.com/inference-gateway/cli/commit/1efd5b6e71cfb7bf425a0e75dbc4f8120debccdf))
+
+## [0.77.1](https://github.com/inference-gateway/cli/compare/v0.77.0...v0.77.1) (2025-12-04)
+
+### 🐛 Bug Fixes
+
+* Command description to be more precise ([40ba09c](https://github.com/inference-gateway/cli/commit/40ba09cfc0f271f1f9d450061586469f16bb1ac0))
+* Correct agent idle state handling and improve queue display ([#301](https://github.com/inference-gateway/cli/issues/301)) ([b3979c7](https://github.com/inference-gateway/cli/commit/b3979c78bb6575fc5eae210c07f29f0e43d6dd53))
+* **docs:** The docker setup requires that the inference gateway is running ([6c134d8](https://github.com/inference-gateway/cli/commit/6c134d8ecaa4f1dfed800ac1df245cf7f96dcdfc))
+
+### 📚 Documentation
+
+* Breakdown the docs to smaller chunks ([e21c2c7](https://github.com/inference-gateway/cli/commit/e21c2c7ff9bcbaaea6975ebcf5ee267590def82d))
+
+### 🧹 Maintenance
+
+* Add debug mode support for gateway ([9f57711](https://github.com/inference-gateway/cli/commit/9f5771176f692f7698feec73c618a555f7492119))
+* **deps:** Upgrade all deps ([59af57e](https://github.com/inference-gateway/cli/commit/59af57eb22a7189dbbcf01a06de86aa2aa45eb56))
+
+## [0.77.0](https://github.com/inference-gateway/cli/compare/v0.76.5...v0.77.0) (2025-12-03)
+
+### 🚀 Features
+
+* Add configurable keybinding system ([#300](https://github.com/inference-gateway/cli/issues/300)) ([b0e5b96](https://github.com/inference-gateway/cli/commit/b0e5b9685b3c10e563f258134b3f9462d488abe9))
+
+## [0.76.5](https://github.com/inference-gateway/cli/compare/v0.76.4...v0.76.5) (2025-12-02)
+
+### 🐛 Bug Fixes
+
+* Serialize SQLite writes to prevent lock contention ([#299](https://github.com/inference-gateway/cli/issues/299)) ([fabdad0](https://github.com/inference-gateway/cli/commit/fabdad0200331ceec2de88f594b7433fd76e6dfd))
+
+### ♻️ Code Refactoring
+
+* Separate autocomplete component from input view ([#298](https://github.com/inference-gateway/cli/issues/298)) ([aeac152](https://github.com/inference-gateway/cli/commit/aeac152d1536659584407d503fda690f089e0a53))
+
 ## [0.76.4](https://github.com/inference-gateway/cli/compare/v0.76.3...v0.76.4) (2025-12-02)
 
 ### 📚 Documentation

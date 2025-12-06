@@ -42,6 +42,7 @@ type ChatApplication struct {
 	shortcutRegistry      *shortcuts.Registry
 	themeService          domain.ThemeService
 	toolRegistry          *tools.Registry
+	mcpManager            domain.MCPManager
 	taskRetentionService  domain.TaskRetentionService
 	backgroundTaskService domain.BackgroundTaskService
 
@@ -105,6 +106,7 @@ func NewChatApplication(
 	messageQueue domain.MessageQueue,
 	themeService domain.ThemeService,
 	toolRegistry *tools.Registry,
+	mcpManager domain.MCPManager,
 	taskRetentionService domain.TaskRetentionService,
 	backgroundTaskService domain.BackgroundTaskService,
 	agentManager domain.AgentManager,
@@ -127,6 +129,7 @@ func NewChatApplication(
 		shortcutRegistry:      shortcutRegistry,
 		themeService:          themeService,
 		toolRegistry:          toolRegistry,
+		mcpManager:            mcpManager,
 		taskRetentionService:  taskRetentionService,
 		backgroundTaskService: backgroundTaskService,
 		availableModels:       models,
@@ -166,7 +169,6 @@ func NewChatApplication(
 		iv.SetConversationRepo(app.conversationRepo)
 	}
 
-	// Create autocomplete separately
 	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService)
 	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
 		ac.SetStateManager(app.stateManager)
@@ -191,8 +193,16 @@ func NewChatApplication(
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
 	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
 
-	app.keyBindingManager = keybinding.NewKeyBindingManager(app)
+	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.configService)
 	app.updateHelpBarShortcuts()
+
+	keyHintFormatter := app.keyBindingManager.GetHintFormatter()
+	if cv, ok := app.conversationView.(*components.ConversationView); ok {
+		cv.SetKeyHintFormatter(keyHintFormatter)
+	}
+	if sv, ok := app.statusView.(*components.StatusView); ok {
+		sv.SetKeyHintFormatter(keyHintFormatter)
+	}
 
 	app.modelSelector = components.NewModelSelector(models, app.modelService, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
@@ -272,10 +282,6 @@ func (app *ChatApplication) updateHelpBarShortcuts() {
 		})
 	}
 
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+v", Description: "paste text"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "ctrl+shift+c", Description: "copy text"})
-	shortcuts = append(shortcuts, ui.KeyShortcut{Key: "alt+enter/ctrl+j", Description: "new line"})
-
 	app.helpBar.SetShortcuts(shortcuts)
 }
 
@@ -310,7 +316,41 @@ func (app *ChatApplication) Init() tea.Cmd {
 		})
 	}
 
+	if app.mcpManager != nil {
+		app.inputStatusBar.UpdateMCPStatus(&domain.MCPServerStatus{
+			TotalServers:     app.mcpManager.GetTotalServers(),
+			ConnectedServers: 0,
+			TotalTools:       0,
+		})
+
+		ctx := context.Background()
+		statusChan := app.mcpManager.StartMonitoring(ctx)
+		cmds = append(cmds, waitForMCPStatusUpdate(statusChan))
+	}
+
 	return tea.Batch(cmds...)
+}
+
+// waitForMCPStatusUpdate waits for a status update from the MCP manager channel
+// The channel is captured in the closure and passed along with each event
+func waitForMCPStatusUpdate(statusChan <-chan domain.MCPServerStatusUpdateEvent) tea.Cmd {
+	return func() tea.Msg {
+		event, ok := <-statusChan
+		if !ok {
+			return nil
+		}
+
+		return mcpStatusUpdateWithChannel{
+			event:   event,
+			channel: statusChan,
+		}
+	}
+}
+
+// mcpStatusUpdateWithChannel wraps the event with the channel for continuation
+type mcpStatusUpdateWithChannel struct {
+	event   domain.MCPServerStatusUpdateEvent
+	channel <-chan domain.MCPServerStatusUpdateEvent
 }
 
 // Update handles all application messages using the state management system
@@ -330,7 +370,46 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg)...)
 
+	if mcpStatusUpdate, ok := msg.(mcpStatusUpdateWithChannel); ok {
+		if cmd := app.handleMCPStatusUpdate(mcpStatusUpdate.event); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		cmds = append(cmds, waitForMCPStatusUpdate(mcpStatusUpdate.channel))
+	}
+
 	return app, tea.Batch(cmds...)
+}
+
+// handleMCPStatusUpdate processes MCP server connection status changes
+func (app *ChatApplication) handleMCPStatusUpdate(event domain.MCPServerStatusUpdateEvent) tea.Cmd {
+	app.inputStatusBar.UpdateMCPStatus(&domain.MCPServerStatus{
+		TotalServers:     event.TotalServers,
+		ConnectedServers: event.ConnectedServers,
+		TotalTools:       event.TotalTools,
+	})
+
+	if app.toolRegistry == nil {
+		return nil
+	}
+
+	if event.Connected && len(event.Tools) > 0 {
+		count := app.toolRegistry.RegisterMCPServerTools(event.ServerName, event.Tools)
+		logger.Debug("Registered MCP tools", "server", event.ServerName, "count", count)
+	}
+
+	if !event.Connected {
+		count := app.toolRegistry.UnregisterMCPServerTools(event.ServerName)
+		logger.Debug("Unregistered MCP tools", "server", event.ServerName, "count", count)
+	}
+
+	if app.autocomplete != nil {
+		app.autocomplete.RefreshToolsList()
+		return func() tea.Msg {
+			return domain.RefreshAutocompleteEvent{}
+		}
+	}
+
+	return nil
 }
 
 func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {

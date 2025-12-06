@@ -1,0 +1,59 @@
+---
+# MCP configuration for Docker Compose demo
+enabled: true
+connection_timeout: 30
+discovery_timeout: 30
+liveness_probe_enabled: true
+liveness_probe_interval: 10
+servers:
+  # Example 1: Manually started server (via docker-compose in this directory)
+  - name: demo-server
+    host: mcp-demo-server
+    port: 3000
+    enabled: true
+    description: "Demo MCP server with example tools"
+    # run: false (default) - server must be started manually
+
+  # Example 2: Context7 - Production documentation search with Streamable HTTP
+  - name: context7
+    host: context7
+    port: 8010
+    enabled: true
+    description: "Context7 - Up-to-date code documentation for LLMs"
+    path: /mcp
+    # run: false (default) - server must be started via docker-compose
+    # Context7 provides library documentation search tools:
+    # - MCP_context7_resolve-library-id: Find library IDs from package names
+    # - MCP_context7_get-library-docs: Fetch up-to-date docs for any library
+
+  # Example 3: Auto-started server with automatic port mapping
+  # - name: filesystem
+  #   enabled: true
+  #   run: true  # Auto-start this server when CLI starts
+  #   ports:
+  #     - "3003:8080"  # Automatically finds next available port if 3003 is taken
+  #   path: /mcp  # Optional, defaults to /mcp
+  #   oci: mcp/filesystem-server:latest
+  #   env:
+  #     BASE_PATH: /workspace
+  #     ALLOW_WRITE: "true"
+  #   volumes:
+  #     - ./workspace:/workspace
+  #   startup_timeout: 60
+  #   exclude_tools:
+  #     - delete_file
+
+  # Example 4: Auto-started server with multiple ports
+  # - name: web-search
+  #   enabled: true
+  #   run: true
+  #   scheme: http  # Optional, defaults to http
+  #   host: localhost  # Optional, defaults to localhost
+  #   ports:
+  #     - "3004:8080"  # Main service port
+  #     - "3005:8081"  # Metrics port (optional)
+  #   path: /api/mcp
+  #   oci: mcp/web-search:latest
+  #   args: ["--verbose", "--max-results=10"]
+  #   env:
+  #     API_KEY: ${SEARCH_API_KEY}  # Environment variable expansion supported

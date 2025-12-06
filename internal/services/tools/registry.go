@@ -1,10 +1,14 @@
 package tools
 
 import (
+	"context"
 	"fmt"
+	"strings"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -16,16 +20,18 @@ type Registry struct {
 	readToolUsed bool
 	taskTracker  domain.TaskTracker
 	imageService domain.ImageService
+	mcpManager   domain.MCPManager
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
-func NewRegistry(cfg *config.Config, imageService domain.ImageService) *Registry {
+func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager) *Registry {
 	registry := &Registry{
 		config:       cfg,
 		tools:        make(map[string]domain.Tool),
 		readToolUsed: false,
 		taskTracker:  utils.NewTaskTracker(),
 		imageService: imageService,
+		mcpManager:   mcpManager,
 	}
 
 	registry.registerTools()
@@ -62,6 +68,36 @@ func (r *Registry) registerTools() {
 		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(r.config, r.taskTracker)
 		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(r.config, r.taskTracker)
 		r.tools["A2A_DownloadArtifacts"] = NewA2ADownloadArtifactsTool(r.config, r.taskTracker)
+	}
+
+	if r.config.MCP.Enabled && r.mcpManager != nil {
+		r.registerMCPTools()
+	}
+}
+
+// registerMCPTools discovers and registers tools from enabled MCP servers
+func (r *Registry) registerMCPTools() {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.config.MCP.DiscoveryTimeout)*time.Second)
+	defer cancel()
+
+	toolCount := 0
+	clients := r.mcpManager.GetClients()
+
+	for _, client := range clients {
+		discoveredTools, err := client.DiscoverTools(ctx)
+		if err != nil {
+			logger.Debug("MCP server not ready yet, will retry via liveness probe", "error", err)
+			continue
+		}
+
+		for serverName, tools := range discoveredTools {
+			count := r.RegisterMCPServerTools(serverName, tools)
+			toolCount += count
+		}
+	}
+
+	if toolCount > 0 {
+		logger.Debug("Successfully registered MCP tools", "count", toolCount)
 	}
 }
 
@@ -103,6 +139,84 @@ func (r *Registry) IsToolEnabled(name string) bool {
 		return false
 	}
 	return tool.IsEnabled()
+}
+
+// RegisterMCPServerTools dynamically registers tools from an MCP server
+func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPDiscoveredTool) int {
+	if r.mcpManager == nil {
+		return 0
+	}
+
+	var targetClient domain.MCPClient
+	for _, client := range r.mcpManager.GetClients() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		discovered, err := client.DiscoverTools(ctx)
+		cancel()
+
+		if err == nil {
+			for sname := range discovered {
+				if sname == serverName {
+					targetClient = client
+					break
+				}
+			}
+		}
+		if targetClient != nil {
+			break
+		}
+	}
+
+	if targetClient == nil {
+		logger.Warn("Could not find MCP client for server", "server", serverName)
+		return 0
+	}
+
+	toolCount := 0
+	for _, tool := range tools {
+		fullToolName := fmt.Sprintf("MCP_%s_%s", serverName, tool.Name)
+
+		mcpTool := NewMCPTool(
+			serverName,
+			tool.Name,
+			tool.Description,
+			tool.InputSchema,
+			targetClient,
+			&r.config.MCP,
+		)
+
+		r.tools[fullToolName] = mcpTool
+		toolCount++
+
+		logger.Info("Dynamically registered MCP tool",
+			"tool", fullToolName,
+			"server", serverName,
+			"description", tool.Description)
+	}
+
+	// Update tool count in MCP manager
+	r.mcpManager.UpdateToolCount(serverName, toolCount)
+
+	return toolCount
+}
+
+// UnregisterMCPServerTools removes all tools from a specific MCP server
+func (r *Registry) UnregisterMCPServerTools(serverName string) int {
+	removedCount := 0
+	prefix := fmt.Sprintf("MCP_%s_", serverName)
+
+	for toolName := range r.tools {
+		if strings.HasPrefix(toolName, prefix) {
+			delete(r.tools, toolName)
+			removedCount++
+		}
+	}
+
+	if removedCount > 0 {
+		logger.Debug("Unregistered MCP tools from disconnected server", "server", serverName, "count", removedCount)
+		r.mcpManager.ClearToolCount(serverName)
+	}
+
+	return removedCount
 }
 
 // SetReadToolUsed marks that the Read tool has been used

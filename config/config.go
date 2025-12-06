@@ -34,6 +34,7 @@ type Config struct {
 	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
 	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
 	A2A          A2AConfig          `yaml:"a2a" mapstructure:"a2a"`
+	MCP          MCPConfig          `yaml:"mcp" mapstructure:"mcp"`
 	Init         InitConfig         `yaml:"init" mapstructure:"init"`
 	Compact      CompactConfig      `yaml:"compact" mapstructure:"compact"`
 }
@@ -46,6 +47,7 @@ type GatewayConfig struct {
 	OCI           string   `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
 	Run           bool     `yaml:"run" mapstructure:"run"`
 	Docker        bool     `yaml:"docker" mapstructure:"docker"`
+	Debug         bool     `yaml:"debug,omitempty" mapstructure:"debug,omitempty"`
 	IncludeModels []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
 	ExcludeModels []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
 	VisionEnabled bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
@@ -302,7 +304,22 @@ type ConversationTitleConfig struct {
 
 // ChatConfig contains chat interface settings
 type ChatConfig struct {
-	Theme string `yaml:"theme" mapstructure:"theme"`
+	Theme       string            `yaml:"theme" mapstructure:"theme"`
+	Keybindings KeybindingsConfig `yaml:"keybindings" mapstructure:"keybindings"`
+}
+
+// KeybindingsConfig contains settings for customizing keybindings
+type KeybindingsConfig struct {
+	Enabled  bool                       `yaml:"enabled" mapstructure:"enabled"`
+	Bindings map[string]KeyBindingEntry `yaml:"bindings,omitempty" mapstructure:"bindings,omitempty"`
+}
+
+// KeyBindingEntry defines a complete keybinding with its properties
+type KeyBindingEntry struct {
+	Keys        []string `yaml:"keys" mapstructure:"keys"`
+	Description string   `yaml:"description,omitempty" mapstructure:"description,omitempty"`
+	Category    string   `yaml:"category,omitempty" mapstructure:"category,omitempty"`
+	Enabled     *bool    `yaml:"enabled,omitempty" mapstructure:"enabled,omitempty"`
 }
 
 // InitConfig contains settings for the /init shortcut
@@ -722,6 +739,10 @@ Respond with ONLY the title, no quotes or explanation.`,
 		},
 		Chat: ChatConfig{
 			Theme: "tokyo-night",
+			Keybindings: KeybindingsConfig{
+				Enabled:  false,
+				Bindings: GetDefaultKeybindings(),
+			},
 		},
 		A2A: A2AConfig{
 			Enabled: true,
@@ -759,6 +780,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 				},
 			},
 		},
+		MCP: *DefaultMCPConfig(),
 		Init: InitConfig{
 			Prompt: `Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.
 Use your available tools to examine configuration files, documentation, build systems, and development workflow.
@@ -1076,4 +1098,28 @@ func parseGithubOwnerFromURL(url string) string {
 	}
 
 	return ""
+}
+
+// KeyNamespace represents the namespace for key binding actions
+type KeyNamespace string
+
+// Namespace constants for organizing key binding actions
+const (
+	NamespaceGlobal       KeyNamespace = "global"
+	NamespaceChat         KeyNamespace = "chat"
+	NamespaceClipboard    KeyNamespace = "clipboard"
+	NamespaceDisplay      KeyNamespace = "display"
+	NamespaceHelp         KeyNamespace = "help"
+	NamespaceMode         KeyNamespace = "mode"
+	NamespaceNavigation   KeyNamespace = "navigation"
+	NamespacePlanApproval KeyNamespace = "plan_approval"
+	NamespaceSelection    KeyNamespace = "selection"
+	NamespaceTextEditing  KeyNamespace = "text_editing"
+	NamespaceTools        KeyNamespace = "tools"
+)
+
+// ActionID constructs a namespaced action ID from namespace and action name
+// Format: "namespace_action" (e.g., "global_quit", "chat_enter_key_handler")
+func ActionID(namespace KeyNamespace, action string) string {
+	return string(namespace) + "_" + action
 }

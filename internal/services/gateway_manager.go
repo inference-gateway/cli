@@ -63,6 +63,10 @@ func (gm *GatewayManager) startBinary(ctx context.Context) error {
 		return fmt.Errorf("failed to download gateway binary: %w", err)
 	}
 
+	if gm.config.Gateway.Debug {
+		fmt.Println("• Debug mode enabled - Gateway is running in development mode with detailed logging")
+	}
+
 	fmt.Println("• Starting gateway binary...")
 
 	if err := gm.runBinary(binaryPath); err != nil {
@@ -104,6 +108,10 @@ func (gm *GatewayManager) startDocker(ctx context.Context) error {
 	if err := gm.pullImage(ctx); err != nil {
 		logger.Warn("Failed to pull image, attempting to use local image", "error", err)
 		fmt.Println("• Could not pull latest image, using cached version")
+	}
+
+	if gm.config.Gateway.Debug {
+		fmt.Println("• Debug mode enabled - Gateway is running in development mode with detailed logging")
 	}
 
 	fmt.Println("• Starting gateway container...")
@@ -163,14 +171,15 @@ func (gm *GatewayManager) stopDocker(ctx context.Context) error {
 		return nil
 	}
 
+	if !gm.containerExists(gm.containerID) {
+		gm.isRunning = false
+		gm.containerID = ""
+		return nil
+	}
+
 	cmd := exec.CommandContext(ctx, "docker", "stop", gm.containerID)
 	if err := cmd.Run(); err != nil {
 		logger.Warn("Failed to stop container", "error", err)
-	}
-
-	cmd = exec.CommandContext(ctx, "docker", "rm", gm.containerID)
-	if err := cmd.Run(); err != nil {
-		logger.Warn("Failed to remove container", "error", err)
 	}
 
 	gm.isRunning = false
@@ -264,6 +273,10 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 
 	if gm.config.Gateway.VisionEnabled {
 		args = append(args, "-e", "ENABLE_VISION=true")
+	}
+
+	if gm.config.Gateway.Debug {
+		args = append(args, "-e", "ENVIRONMENT=development")
 	}
 
 	args = append(args, gm.config.Gateway.OCI)
@@ -417,6 +430,10 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, "ENABLE_VISION=true")
 	}
 
+	if gm.config.Gateway.Debug {
+		cmd.Env = append(cmd.Env, "ENVIRONMENT=development")
+	}
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start binary: %w", err)
 	}
@@ -468,4 +485,13 @@ func (gm *GatewayManager) ensureNetwork(ctx context.Context) error {
 
 	logger.Info("Docker network created successfully", "network", InferNetworkName)
 	return nil
+}
+
+// containerExists checks if a Docker container exists (running or stopped)
+func (gm *GatewayManager) containerExists(containerID string) bool {
+	if containerID == "" {
+		return false
+	}
+	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerID)
+	return cmd.Run() == nil
 }

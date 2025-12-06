@@ -28,6 +28,7 @@ var AllKnownKeys = []string{
 	"ctrl+h", "ctrl+i", "ctrl+j", "ctrl+k", "ctrl+l", "ctrl+m", "ctrl+n",
 	"ctrl+o", "ctrl+p", "ctrl+q", "ctrl+r", "ctrl+s", "ctrl+t", "ctrl+u",
 	"ctrl+v", "ctrl+w", "ctrl+x", "ctrl+y", "ctrl+z",
+	"ctrl+enter", "ctrl+backspace", "ctrl+delete",
 
 	// Ctrl+Shift combinations
 	"ctrl+shift+a", "ctrl+shift+b", "ctrl+shift+c", "ctrl+shift+d",
@@ -55,8 +56,9 @@ func IsPrintableCharacter(keyStr string) bool {
 }
 
 // IsKnownKey checks if a key string represents a known keyboard key combination
+// or a single printable character
 func IsKnownKey(keyStr string) bool {
-	return slices.Contains(AllKnownKeys, keyStr)
+	return slices.Contains(AllKnownKeys, keyStr) || IsPrintableCharacter(keyStr)
 }
 
 // CanInputHandle checks if a key can be handled by input components

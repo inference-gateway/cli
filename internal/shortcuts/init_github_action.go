@@ -20,7 +20,7 @@ func (g *InitGithubActionShortcut) GetName() string {
 }
 
 func (g *InitGithubActionShortcut) GetDescription() string {
-	return "Setup GitHub App for infer-action bot identity (interactive wizard)"
+	return "Setup GitHub Action (interactive wizard)"
 }
 
 func (g *InitGithubActionShortcut) GetUsage() string {
