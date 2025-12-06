@@ -7,7 +7,7 @@ A demonstration Model Context Protocol (MCP) server with four example tools: `ge
 ```bash
 # Copy and configure API keys
 cp .env.example .env
-# Edit .env and add your DEEPSEEK_API_KEY, OPENAI_API_KEY or ANTHROPIC_API_KEY
+# Edit .env and add your DEEPSEEK_API_KEY, OPENAI_API_KEY, or ANTHROPIC_API_KEY
 
 # Start services
 docker compose up --build
@@ -29,25 +29,19 @@ Try these with the LLM:
 
 ## Services
 
-**inference-gateway**: Inference Gateway for LLM access
-**mcp-demo-server**: MCP server with example tools (see `mcp-server/`)
-**cli**: Inference Gateway CLI using `ghcr.io/inference-gateway/cli:latest`
+- **inference-gateway**: Inference Gateway for LLM access
+- **mcp-demo-server**: MCP server with example tools (see `mcp-server/`)
+- **cli**: Inference Gateway CLI using `ghcr.io/inference-gateway/cli:latest`
 
 ## Troubleshooting
 
-**Port 3000 already in use:**
-
-```bash
-lsof -i :3000  # Check what's using the port
-```
-
-**View detailed logs:**
+### View detailed logs
 
 ```bash
 docker compose logs -f
 ```
 
-**Reset everything:**
+### Reset everything
 
 ```bash
 docker compose down -v
