@@ -98,13 +98,14 @@ servers:
 
 ### 3. Start MCP Server
 
-Example using Node.js MCP server:
+Run the included demo MCP server using Docker Compose:
 
 ```bash
-cd tests/mcp-test-server
-npm install
-npm start
+cd examples/mcp
+docker compose up -d
 ```
+
+The demo server provides four example tools: `get_time`, `calculate`, `list_files`, and `get_env`.
 
 ### 4. Verify Tools
 

@@ -1,0 +1,72 @@
+services:
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    container_name: inference-gateway
+    ports:
+      - "8080:8080"
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    restart: unless-stopped
+    networks:
+      - mcp-demo
+
+  mcp-demo-server:
+    build:
+      context: ./mcp-server
+      dockerfile: Dockerfile
+    container_name: mcp-demo-server
+    ports:
+      - "3000:3000"
+    environment:
+      DEMO_MESSAGE: Hello from MCP Demo Server!
+      ENVIRONMENT: development
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - wget
+        - --quiet
+        - --tries=1
+        - --spider
+        - http://localhost:3000/mcp
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - mcp-demo
+
+  cli:
+    profiles:
+      - cli
+    image: ghcr.io/inference-gateway/cli:latest
+    environment:
+      # Gateway configuration
+      INFER_GATEWAY_URL: http://inference-gateway:8080
+      INFER_GATEWAY_RUN: "false"
+      INFER_GATEWAY_DOCKER: "false"
+      # MCP configuration
+      INFER_MCP_ENABLED: "true"
+      INFER_MCP_CONNECTION_TIMEOUT: "30"
+      INFER_MCP_DISCOVERY_TIMEOUT: "30"
+    volumes:
+      # Mount MCP config
+      - ./mcp-config.yaml:/home/infer/.infer/mcp.yaml:ro
+      # Persist conversation data
+      - infer-data:/home/infer/.infer/data
+    command:
+      - chat
+    depends_on:
+      - inference-gateway
+      - mcp-demo-server
+    networks:
+      - mcp-demo
+
+networks:
+  mcp-demo:
+    driver: bridge
+
+volumes:
+  infer-data:
