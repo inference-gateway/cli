@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.80.0](https://github.com/inference-gateway/cli/compare/v0.79.1...v0.80.0) (2025-12-06)
+
+### 🚀 Features
+
+* Add auto-start capability for MCP servers ([#308](https://github.com/inference-gateway/cli/issues/308)) ([0f78a40](https://github.com/inference-gateway/cli/commit/0f78a40635abd92ba72819cfa1b6bef793cb5d0e))
+
+### 🧹 Maintenance
+
+* Cleanup ([6b76921](https://github.com/inference-gateway/cli/commit/6b76921cacc1701e3d47b825aecf5f7130c8a387))
+
 ## [0.79.1](https://github.com/inference-gateway/cli/compare/v0.79.0...v0.79.1) (2025-12-06)
 
 ### 🐛 Bug Fixes
