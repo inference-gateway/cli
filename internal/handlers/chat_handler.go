@@ -784,7 +784,8 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 	msgType := fmt.Sprintf("%T", msg)
 	if msgType == "components.renderTickMsg" ||
 		msgType == "tea.clearScreenMsg" ||
-		msgType == "components.AutoCollapseTickMsg" {
+		msgType == "components.AutoCollapseTickMsg" ||
+		msgType == "app.mcpStatusUpdateWithChannel" {
 		return true
 	}
 

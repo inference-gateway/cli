@@ -44,6 +44,7 @@ type ServiceContainer struct {
 	backgroundTaskService domain.BackgroundTaskService
 	gatewayManager        domain.GatewayManager
 	agentManager          domain.AgentManager
+	mcpServerManager      domain.MCPServerManager
 
 	// Services
 	stateManager domain.StateManager
@@ -84,6 +85,7 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 	}
 
 	container.initializeGatewayManager()
+	container.initializeMCPServerManager()
 	container.initializeFileWriterServices()
 	container.initializeStateManager()
 	container.initializeAgentManager()
@@ -111,6 +113,33 @@ func (c *ServiceContainer) initializeGatewayManager() {
 			logger.Warn("Continuing without local gateway - make sure gateway is running manually")
 		}
 	}
+}
+
+// initializeMCPServerManager creates and starts the MCP server manager if configured
+func (c *ServiceContainer) initializeMCPServerManager() {
+	if !c.config.MCP.Enabled {
+		return
+	}
+
+	hasServersToStart := false
+	for _, server := range c.config.MCP.Servers {
+		if server.Run {
+			hasServersToStart = true
+			break
+		}
+	}
+
+	if !hasServersToStart {
+		return
+	}
+
+	c.mcpServerManager = services.NewMCPServerManager(&c.config.MCP)
+
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		defer cancel()
+		_ = c.mcpServerManager.StartServers(ctx)
+	}()
 }
 
 // initializeAgentManager creates and starts the agent manager if A2A is enabled
@@ -532,6 +561,12 @@ func (c *ServiceContainer) Shutdown(ctx context.Context) error {
 		if err := c.gatewayManager.Stop(ctx); err != nil {
 			logger.Error("Failed to stop gateway container", "error", err)
 			return err
+		}
+	}
+
+	if c.mcpServerManager != nil {
+		if err := c.mcpServerManager.StopServers(ctx); err != nil {
+			logger.Error("Failed to stop MCP server containers", "error", err)
 		}
 	}
 

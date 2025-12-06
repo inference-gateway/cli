@@ -17,7 +17,10 @@ func TestNewMCPManager(t *testing.T) {
 		Servers: []config.MCPServerEntry{
 			{
 				Name:    "test-server",
-				URL:     "http://localhost:8080/mcp",
+				Scheme:  "http",
+				Host:    "localhost",
+				Ports:   []string{"8080:8080"},
+				Path:    "/mcp",
 				Enabled: true,
 			},
 		},
@@ -78,7 +81,10 @@ func TestMCPManager_GetClients_DisabledServer(t *testing.T) {
 		Servers: []config.MCPServerEntry{
 			{
 				Name:    "disabled-server",
-				URL:     "http://localhost:8080/mcp",
+				Scheme:  "http",
+				Host:    "localhost",
+				Ports:   []string{"8080:8080"},
+				Path:    "/mcp",
 				Enabled: false,
 			},
 		},
@@ -99,17 +105,26 @@ func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
 		Servers: []config.MCPServerEntry{
 			{
 				Name:    "server1",
-				URL:     "http://localhost:8080/mcp",
+				Scheme:  "http",
+				Host:    "localhost",
+				Ports:   []string{"8080:8080"},
+				Path:    "/mcp",
 				Enabled: true,
 			},
 			{
 				Name:    "server2",
-				URL:     "http://localhost:8081/mcp",
+				Scheme:  "http",
+				Host:    "localhost",
+				Ports:   []string{"8081:8080"},
+				Path:    "/mcp",
 				Enabled: true,
 			},
 			{
 				Name:    "disabled-server",
-				URL:     "http://localhost:8082/mcp",
+				Scheme:  "http",
+				Host:    "localhost",
+				Ports:   []string{"8082:8080"},
+				Path:    "/mcp",
 				Enabled: false,
 			},
 		},
@@ -132,7 +147,10 @@ func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
 		Servers: []config.MCPServerEntry{
 			{
 				Name:    "test-server",
-				URL:     "http://localhost:8080/mcp",
+				Scheme:  "http",
+				Host:    "localhost",
+				Ports:   []string{"8080:8080"},
+				Path:    "/mcp",
 				Enabled: true,
 			},
 		},
@@ -161,7 +179,10 @@ func TestMCPManager_StartMonitoring_DisabledProbes(t *testing.T) {
 		Servers: []config.MCPServerEntry{
 			{
 				Name:    "test-server",
-				URL:     "http://localhost:8080/mcp",
+				Scheme:  "http",
+				Host:    "localhost",
+				Ports:   []string{"8080:8080"},
+				Path:    "/mcp",
 				Enabled: true,
 			},
 		},

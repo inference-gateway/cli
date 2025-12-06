@@ -458,6 +458,8 @@ Direct integration with MCP servers for stateless tool execution:
 
 - Direct CLI → MCP server connections (bypasses gateway)
 - Stateless HTTP SSE transport
+- **Auto-start MCP servers in OCI/Docker containers**
+- **Automatic port assignment** (no manual configuration needed)
 - Per-server enable/disable toggle
 - Tool filtering with include/exclude lists
 - Concurrent tool discovery at startup
@@ -471,7 +473,7 @@ connection_timeout: 30  # seconds
 discovery_timeout: 30   # seconds
 ```
 
-**Server Configuration**:
+**Server Configuration (External)**:
 
 ```yaml
 servers:
@@ -483,6 +485,23 @@ servers:
     exclude_tools:  # Blacklist dangerous operations
       - "delete_file"
       - "format_disk"
+```
+
+**Server Configuration (Auto-start)**:
+
+```yaml
+servers:
+  - name: "demo-server"
+    enabled: true
+    run: true                      # Auto-start in container
+    oci: "mcp-demo-server:latest"  # OCI/Docker image
+    port: 3000                     # Auto-assigned if omitted
+    path: /mcp
+    startup_timeout: 60
+    env:
+      LOG_LEVEL: "debug"
+    volumes:
+      - "/data:/mnt/data"
 ```
 
 **Tool Naming**: MCP tools use `MCP_<servername>_<toolname>` format
@@ -498,6 +517,7 @@ servers:
 **Implementation**:
 
 - Client manager: `internal/services/mcp_client_manager.go`
+- Server manager: `internal/services/mcp_server_manager.go` (OCI container lifecycle)
 - Tool wrapper: `internal/services/tools/mcp_tool.go`
 - Config service: `internal/services/mcp_config.go`
 - Uses `github.com/metoro-io/mcp-golang` library
@@ -513,6 +533,29 @@ servers:
 - Failed servers log warnings but don't prevent CLI startup
 - Partial tool discovery continues if some servers fail
 - Timeouts prevent hanging connections
+- Background server startup (non-blocking)
+
+**CLI Commands**:
+
+```bash
+# Add server with auto-start (automatic port assignment)
+infer mcp add <name> --run --oci=<image>
+
+# Add server with specific port
+infer mcp add <name> --run --oci=<image> --port=8080
+
+# Add external server (manual start)
+infer mcp add <name> <url>
+
+# List all MCP servers
+infer mcp list
+
+# Remove server
+infer mcp remove <name>
+
+# Toggle server enable/disable
+infer mcp toggle <name>
+```
 
 **See Also**: `docs/mcp-integration.md` for comprehensive guide
 

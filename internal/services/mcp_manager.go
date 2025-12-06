@@ -10,7 +10,6 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	mcp "github.com/metoro-io/mcp-golang"
-	mcphttp "github.com/metoro-io/mcp-golang/transport/http"
 )
 
 // Compile-time interface checks
@@ -32,7 +31,8 @@ type mcpClient struct {
 
 // newMCPClient creates and initializes a new MCP client for a specific server
 func newMCPClient(serverConfig config.MCPServerEntry, globalConfig *config.MCPConfig) *mcpClient {
-	transport := mcphttp.NewHTTPClientTransport(serverConfig.URL)
+	transport := NewSSEHTTPClientTransport(serverConfig.GetURL()).
+		WithHeader("Accept", "application/json, text/event-stream")
 
 	client := mcp.NewClientWithInfo(transport, mcp.ClientInfo{
 		Name:    "inference-gateway-cli",
@@ -54,25 +54,45 @@ func (c *mcpClient) DiscoverTools(ctx context.Context) (map[string][]domain.MCPD
 	serverCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	logger.Info("Attempting to discover tools from MCP server",
+		"server", c.serverName,
+		"url", c.serverConfig.GetURL(),
+		"timeout", timeout)
+
 	c.mu.Lock()
 	if !c.isInitialized {
-		_, err := c.client.Initialize(serverCtx)
+		logger.Info("Initializing MCP client", "server", c.serverName)
+		initResp, err := c.client.Initialize(serverCtx)
 		if err != nil {
 			c.isConnected = false
 			c.mu.Unlock()
+			logger.Error("Failed to initialize MCP client",
+				"server", c.serverName,
+				"error", err)
 			return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
 		}
 		c.isInitialized = true
+		logger.Info("MCP client initialized successfully",
+			"server", c.serverName,
+			"serverInfo", initResp.ServerInfo)
 	}
 	c.mu.Unlock()
 
+	logger.Info("Listing tools from MCP server", "server", c.serverName)
 	toolsResp, err := c.client.ListTools(serverCtx, nil)
 	if err != nil {
 		c.mu.Lock()
 		c.isConnected = false
 		c.mu.Unlock()
+		logger.Error("Failed to list tools from MCP server",
+			"server", c.serverName,
+			"error", err)
 		return nil, fmt.Errorf("failed to list tools: %w", err)
 	}
+
+	logger.Info("Successfully retrieved tools from MCP server",
+		"server", c.serverName,
+		"toolCount", len(toolsResp.Tools))
 
 	tools := make([]domain.MCPDiscoveredTool, 0, len(toolsResp.Tools))
 	for _, tool := range toolsResp.Tools {
@@ -138,15 +158,22 @@ func (c *mcpClient) PingServer(ctx context.Context, serverName string) error {
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	logger.Debug("Pinging MCP server", "server", c.serverName, "url", c.serverConfig.GetURL())
+
 	c.mu.Lock()
 	if !c.isInitialized {
+		logger.Debug("Initializing MCP client for ping", "server", c.serverName)
 		_, err := c.client.Initialize(pingCtx)
 		if err != nil {
 			c.isConnected = false
 			c.mu.Unlock()
+			logger.Warn("Failed to initialize MCP client during ping",
+				"server", c.serverName,
+				"error", err)
 			return fmt.Errorf("failed to initialize MCP client: %w", err)
 		}
 		c.isInitialized = true
+		logger.Debug("MCP client initialized successfully for ping", "server", c.serverName)
 	}
 	c.mu.Unlock()
 
@@ -155,8 +182,13 @@ func (c *mcpClient) PingServer(ctx context.Context, serverName string) error {
 		c.mu.Lock()
 		c.isConnected = false
 		c.mu.Unlock()
+		logger.Warn("MCP server ping failed",
+			"server", c.serverName,
+			"error", err)
 		return fmt.Errorf("ping failed: %w", err)
 	}
+
+	logger.Debug("MCP server ping successful", "server", c.serverName)
 
 	c.mu.Lock()
 	c.isConnected = true
@@ -282,19 +314,10 @@ func (m *MCPManager) checkClientHealth(ctx context.Context, client *mcpClient) {
 	wasConnected := client.isConnected
 	client.mu.RUnlock()
 
-	err := client.PingServer(ctx, client.serverName)
-	if err != nil {
-		if wasConnected {
-			logger.Warn("MCP server became unhealthy", "server", client.serverName, "error", err)
-			m.sendStatusUpdate(client.serverName, false)
-		}
-		return
-	}
-
 	if !wasConnected {
 		toolsMap, err := client.DiscoverTools(ctx)
 		if err != nil {
-			logger.Warn("MCP server responded to ping but tool discovery failed",
+			logger.Error("MCP server health check failed (tool discovery failed)",
 				"server", client.serverName,
 				"error", err)
 			return
@@ -306,7 +329,20 @@ func (m *MCPManager) checkClientHealth(ctx context.Context, client *mcpClient) {
 		m.toolCounts[client.serverName] = len(tools)
 		m.mu.Unlock()
 
+		logger.Info("MCP server tools discovered successfully",
+			"server", client.serverName,
+			"toolCount", len(tools))
+
 		m.sendStatusUpdateWithTools(client.serverName, true, tools)
+	} else {
+		// For already-connected servers, use ping for lightweight health check
+		err := client.PingServer(ctx, client.serverName)
+		if err != nil {
+			logger.Warn("MCP server became unhealthy", "server", client.serverName, "error", err)
+			m.sendStatusUpdate(client.serverName, false)
+			return
+		}
+		logger.Debug("MCP server health check passed", "server", client.serverName)
 	}
 }
 

@@ -432,6 +432,15 @@ type GatewayManager interface {
 	IsRunning() bool
 }
 
+// MCPServerManager manages the lifecycle of MCP server containers
+type MCPServerManager interface {
+	// StartServers starts all MCP servers that have run=true (non-fatal)
+	StartServers(ctx context.Context) error
+
+	// StopServers stops all running MCP server containers
+	StopServers(ctx context.Context) error
+}
+
 // ThemeService handles theme management
 type ThemeService interface {
 	ListThemes() []string

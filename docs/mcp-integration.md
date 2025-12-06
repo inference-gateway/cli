@@ -12,9 +12,11 @@ the LLM's capabilities with custom tools from external services.
 - [Liveness Probes](#liveness-probes)
 - [Tool Execution](#tool-execution)
 - [Examples](#examples)
+- [Auto-Starting MCP Servers](#auto-starting-mcp-servers)
 - [Troubleshooting](#troubleshooting)
 - [Security Considerations](#security-considerations)
 - [MCP vs A2A](#mcp-vs-a2a)
+- [Advanced Topics](#advanced-topics)
 
 ## Overview
 
@@ -63,6 +65,8 @@ Model Context Protocol (MCP) is a standardized protocol for connecting AI models
 
 - **Direct connections**: CLI connects directly to MCP servers (no gateway intermediary)
 - **Stateless design**: Each tool execution creates a new HTTP connection
+- **Auto-start servers**: Automatically start and manage MCP servers in OCI/Docker containers
+- **Automatic port assignment**: No need to manually configure ports for auto-started servers
 - **Per-server configuration**: Enable/disable servers independently
 - **Tool filtering**: Include/exclude specific tools per server
 - **Concurrent discovery**: Servers are queried in parallel
@@ -98,11 +102,43 @@ servers:
 
 ### 3. Start MCP Server
 
-Run the included demo MCP server using Docker Compose:
+#### Option A: Auto-start with OCI container (recommended)
+
+Configure the server to start automatically when the CLI launches:
+
+```yaml
+servers:
+  - name: "demo-server"
+    enabled: true
+    run: true  # Auto-start in container
+    oci: "mcp-demo-server:latest"
+    description: "Demo MCP server"
+```
+
+The CLI will automatically:
+
+- Pull the OCI image if needed
+- Start the container in the background
+- Assign an available port (starting from 3000)
+- Configure healthchecks
+- Connect to the server
+
+#### Option B: Manual start with Docker Compose
+
+Run the included demo MCP server manually:
 
 ```bash
 cd examples/mcp
 docker compose up -d
+```
+
+Then configure the server URL:
+
+```yaml
+servers:
+  - name: "demo-server"
+    url: "http://localhost:3000/sse"
+    enabled: true
 ```
 
 The demo server provides four example tools: `get_time`, `calculate`, `list_files`, and `get_env`.
@@ -137,12 +173,24 @@ Each server in the `servers` array supports:
 | Field | Required | Type | Description |
 | ----- | -------- | ---- | ----------- |
 | `name` | ✅ | string | Unique server identifier |
-| `url` | ✅ | string | HTTP SSE endpoint URL |
+| `url` | ❌* | string | HTTP SSE endpoint URL (*required if `run=false`) |
 | `enabled` | ✅ | boolean | Enable/disable this server |
 | `timeout` | ❌ | integer | Override global timeout |
 | `description` | ❌ | string | Human-readable description |
 | `include_tools` | ❌ | array | Whitelist specific tools |
 | `exclude_tools` | ❌ | array | Blacklist specific tools |
+| `run` | ❌ | boolean | Auto-start server in OCI container (default: false) |
+| `host` | ❌ | string | Container host (default: localhost) |
+| `scheme` | ❌ | string | URL scheme (default: http) |
+| `port` | ❌ | integer | Simple port mapping (auto-assigned if omitted) |
+| `ports` | ❌ | array | Advanced Docker-compose style port mappings |
+| `path` | ❌ | string | HTTP path (default: /mcp) |
+| `oci` | ❌* | string | OCI/Docker image (*required if `run=true`) |
+| `args` | ❌ | array | Container startup arguments |
+| `env` | ❌ | object | Environment variables for container |
+| `volumes` | ❌ | array | Docker volume mounts |
+| `startup_timeout` | ❌ | integer | Container startup timeout in seconds (default: 30) |
+| `health_cmd` | ❌ | string | Custom Docker healthcheck command |
 
 ### Tool Filtering
 
@@ -555,6 +603,268 @@ Run MCP servers in sandboxed environments:
 | **Use case** | Tool execution | Task delegation |
 | **Polling** | N/A | Background monitoring |
 | **Mode availability** | Standard, Auto-Accept | All modes |
+
+## Auto-Starting MCP Servers
+
+### Auto-Start Overview
+
+The CLI can automatically start and manage MCP servers as OCI/Docker containers. This provides:
+
+- **Zero-configuration startup**: Servers start automatically when CLI launches
+- **Automatic port assignment**: No need to manually configure ports
+- **Container lifecycle management**: Start, stop, and health monitoring
+- **Background execution**: Non-blocking startup, CLI ready immediately
+- **Automatic healthchecks**: Docker healthchecks with MCP ping method
+
+### Auto-Start Quick Start
+
+Add a server with auto-start:
+
+```bash
+infer mcp add my-server \
+  --description="My MCP server" \
+  --run \
+  --oci=my-mcp-server:latest
+```
+
+This automatically:
+
+1. Creates server configuration with `run: true`
+2. Assigns next available port (e.g., 3000, 3001, ...)
+3. Configures container with defaults (localhost, http, /mcp path)
+4. Adds Docker healthcheck using MCP ping method
+
+### Auto-Start Configuration
+
+Auto-start servers use component-based URL configuration instead of a single URL field:
+
+```yaml
+servers:
+  - name: "my-server"
+    enabled: true
+    run: true                           # Enable auto-start
+    oci: "my-mcp-server:latest"         # OCI/Docker image
+    host: localhost                     # Default: localhost
+    scheme: http                        # Default: http
+    port: 3000                          # Auto-assigned if omitted
+    path: /mcp                          # Default: /mcp
+    startup_timeout: 60                 # Default: 30 seconds
+```
+
+The URL is constructed as: `{scheme}://{host}:{port}{path}`
+
+### Port Assignment
+
+**Automatic (recommended)**:
+
+When adding servers without specifying `--port`, the CLI automatically:
+
+1. Finds the highest port currently used by MCP servers
+2. Assigns `basePort + 1` (starting from 3000)
+
+```bash
+infer mcp add server-1 --run --oci=image:latest  # Gets port 3000
+infer mcp add server-2 --run --oci=image:latest  # Gets port 3001
+infer mcp add server-3 --run --oci=image:latest  # Gets port 3002
+```
+
+**Manual**:
+
+Specify a custom port:
+
+```bash
+infer mcp add my-server --run --oci=image:latest --port=8080
+```
+
+**Advanced port mappings**:
+
+For complex scenarios, use `ports` array (Docker-compose style):
+
+```yaml
+servers:
+  - name: "multi-port-server"
+    run: true
+    oci: "my-server:latest"
+    ports:
+      - "3000:8080"    # Host:Container
+      - "3001:8081"
+```
+
+### Container Configuration
+
+**Environment variables**:
+
+```yaml
+servers:
+  - name: "api-server"
+    run: true
+    oci: "api-mcp:latest"
+    env:
+      API_KEY: "${MY_API_KEY}"          # Supports variable expansion
+      LOG_LEVEL: "debug"
+      DATABASE_URL: "postgres://..."
+```
+
+**Volume mounts**:
+
+```yaml
+servers:
+  - name: "filesystem-server"
+    run: true
+    oci: "fs-mcp:latest"
+    volumes:
+      - "/host/path:/container/path"
+      - "/data:/mnt/data:ro"            # Read-only
+```
+
+**Startup arguments**:
+
+```yaml
+servers:
+  - name: "custom-server"
+    run: true
+    oci: "custom-mcp:latest"
+    args:
+      - "--verbose"
+      - "--config=/etc/config.yaml"
+```
+
+**Custom healthcheck**:
+
+```yaml
+servers:
+  - name: "api-server"
+    run: true
+    oci: "api-mcp:latest"
+    health_cmd: 'sh -c "curl -f http://localhost:8080/health || exit 1"'
+```
+
+Default healthcheck (MCP ping):
+
+```bash
+sh -c 'curl -f -X POST http://localhost:3000/mcp \
+  -H "Content-Type: application/json" \
+  -d "{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":1}" || exit 1'
+```
+
+### Lifecycle Management
+
+**Container naming**: `inference-mcp-{server-name}`
+
+**Network**: All containers join the `infer-network` Docker network
+
+**Restart policy**: `unless-stopped` (containers restart on Docker daemon restart)
+
+**Startup behavior**:
+
+1. CLI checks if container already running (reuses if exists)
+2. Pulls image if not cached locally
+3. Starts container in background goroutine
+4. Waits for healthcheck to pass (with timeout)
+5. Logs success or failure (non-fatal)
+
+**Shutdown**: Containers are stopped and removed when CLI exits
+
+### CLI Commands
+
+**Add server with auto-start**:
+
+```bash
+infer mcp add <name> [flags]
+  --run                    # Enable auto-start
+  --oci <image>            # OCI/Docker image (required if --run)
+  --port <port>            # Optional: specific port
+  --startup-timeout <sec>  # Optional: startup timeout (default: 60)
+  --description <text>     # Optional: description
+  --enabled                # Optional: enable immediately (default: true)
+```
+
+**Examples**:
+
+```bash
+# Minimal - automatic port assignment
+infer mcp add demo --run --oci=mcp-demo:latest
+
+# With custom port
+infer mcp add api --run --oci=api-mcp:latest --port=8080
+
+# With startup timeout
+infer mcp add slow --run --oci=slow-mcp:latest --startup-timeout=120
+
+# Complete configuration
+infer mcp add custom \
+  --run \
+  --oci=custom-mcp:latest \
+  --port=3000 \
+  --startup-timeout=60 \
+  --description="Custom MCP server" \
+  --enabled
+```
+
+**Managing servers**:
+
+```bash
+# List servers
+infer mcp list
+
+# Remove server (stops container if running)
+infer mcp remove <name>
+
+# Toggle server
+infer mcp toggle <name>
+```
+
+### Auto-Start Troubleshooting
+
+**Container won't start**:
+
+Check container logs:
+
+```bash
+docker logs inference-mcp-<name>
+```
+
+Check if port is already in use:
+
+```bash
+lsof -i :<port>
+```
+
+**Healthcheck failing**:
+
+Verify the server's healthcheck endpoint:
+
+```bash
+curl -v http://localhost:<port>/health
+```
+
+Test MCP ping method:
+
+```bash
+curl -X POST http://localhost:<port>/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"ping","id":1}'
+```
+
+**Image not found**:
+
+Build or pull the image manually:
+
+```bash
+docker pull <image>
+# or
+docker build -t <image> .
+```
+
+**Startup timeout**:
+
+Increase timeout for slow-starting servers:
+
+```yaml
+servers:
+  - name: "slow-server"
+    startup_timeout: 120  # 2 minutes
+```
 
 ## Advanced Topics
 

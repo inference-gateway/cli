@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"net/url"
 	"strings"
 
 	config "github.com/inference-gateway/cli/config"
@@ -24,14 +25,17 @@ var mcpListCmd = &cobra.Command{
 }
 
 var mcpAddCmd = &cobra.Command{
-	Use:   "add <name> <url>",
+	Use:   "add <name> [url]",
 	Short: "Add a new MCP server",
 	Long: `Add a new MCP server to the configuration.
 
-Example:
+Examples:
+  # Add external/manual server
   infer mcp add filesystem http://localhost:3000/sse
-  infer mcp add database http://localhost:3001/sse --description="Database queries"`,
-	Args: cobra.ExactArgs(2),
+
+  # Add auto-starting container
+  infer mcp add demo --run --oci=mcp-demo-server:latest --port=3000`,
+	Args: cobra.RangeArgs(1, 2),
 	RunE: addMCPServer,
 }
 
@@ -103,6 +107,10 @@ func init() {
 	mcpAddCmd.Flags().StringSlice("include", []string{}, "Whitelist specific tools (comma-separated)")
 	mcpAddCmd.Flags().StringSlice("exclude", []string{}, "Blacklist specific tools (comma-separated)")
 	mcpAddCmd.Flags().Bool("enabled", true, "Enable the server immediately")
+	mcpAddCmd.Flags().Bool("run", false, "Auto-start this server in a container")
+	mcpAddCmd.Flags().String("oci", "", "OCI image to use (required if --run is true)")
+	mcpAddCmd.Flags().Int("port", 0, "Container port to expose")
+	mcpAddCmd.Flags().Int("startup-timeout", 60, "Startup timeout in seconds")
 
 	mcpUpdateCmd.Flags().String("url", "", "Update the server URL")
 	mcpUpdateCmd.Flags().String("description", "", "Update the description")
@@ -172,7 +180,7 @@ func listMCPServers(cmd *cobra.Command, args []string) error {
 		}
 
 		fmt.Printf("%s %s\n", status, server.Name)
-		fmt.Printf("  URL: %s\n", server.URL)
+		fmt.Printf("  URL: %s\n", server.GetURL())
 
 		if server.Description != "" {
 			fmt.Printf("  Description: %s\n", server.Description)
@@ -201,22 +209,63 @@ func listMCPServers(cmd *cobra.Command, args []string) error {
 
 func addMCPServer(cmd *cobra.Command, args []string) error {
 	name := args[0]
-	url := args[1]
 
 	description, _ := cmd.Flags().GetString("description")
 	timeout, _ := cmd.Flags().GetInt("timeout")
 	include, _ := cmd.Flags().GetStringSlice("include")
 	exclude, _ := cmd.Flags().GetStringSlice("exclude")
 	enabled, _ := cmd.Flags().GetBool("enabled")
+	run, _ := cmd.Flags().GetBool("run")
+	oci, _ := cmd.Flags().GetString("oci")
+	containerPort, _ := cmd.Flags().GetInt("port")
+	startupTimeout, _ := cmd.Flags().GetInt("startup-timeout")
 
 	server := config.MCPServerEntry{
-		Name:         name,
-		URL:          url,
-		Enabled:      enabled,
-		Description:  description,
-		Timeout:      timeout,
-		IncludeTools: include,
-		ExcludeTools: exclude,
+		Name:           name,
+		Enabled:        enabled,
+		Description:    description,
+		Timeout:        timeout,
+		IncludeTools:   include,
+		ExcludeTools:   exclude,
+		Run:            run,
+		OCI:            oci,
+		StartupTimeout: startupTimeout,
+	}
+
+	if len(args) > 1 {
+		urlStr := args[1]
+		scheme, host, port, path := parseURL(urlStr)
+		server.Scheme = scheme
+		server.Host = host
+		server.Ports = []string{port}
+		server.Path = path
+	} else {
+		server.Scheme = "http"
+		server.Host = "localhost"
+		server.Path = "/mcp"
+	}
+
+	if containerPort > 0 {
+		server.Port = containerPort
+		server.Ports = nil
+	} else if run {
+		basePort := 3000
+
+		configPath := getMCPConfigPath(cmd)
+		mcpConfigService := services.NewMCPConfigService(configPath)
+		existingConfig, _ := mcpConfigService.Load()
+
+		for _, existing := range existingConfig.Servers {
+			if existing.Port > basePort {
+				basePort = existing.Port
+			}
+			if primaryPort := existing.GetPrimaryPort(); primaryPort > basePort {
+				basePort = primaryPort
+			}
+		}
+
+		server.Port = basePort + 1
+		server.Ports = nil
 	}
 
 	configPath := getMCPConfigPath(cmd)
@@ -229,9 +278,12 @@ func addMCPServer(cmd *cobra.Command, args []string) error {
 	fmt.Printf("%s MCP server added: %s\n",
 		icons.CheckMarkStyle.Render(icons.CheckMark),
 		name)
-	fmt.Printf("  URL: %s\n", url)
+	fmt.Printf("  URL: %s\n", server.GetURL())
 	if description != "" {
 		fmt.Printf("  Description: %s\n", description)
+	}
+	if run {
+		fmt.Printf("  Auto-start: %s (OCI: %s)\n", enabledText(true), oci)
 	}
 	fmt.Printf("  Status: %s\n", enabledText(enabled))
 	fmt.Printf("\nConfiguration saved to %s\n", configPath)
@@ -271,8 +323,12 @@ func updateMCPServer(cmd *cobra.Command, args []string) error {
 	}
 
 	if cmd.Flags().Changed("url") {
-		url, _ := cmd.Flags().GetString("url")
-		existing.URL = url
+		urlStr, _ := cmd.Flags().GetString("url")
+		scheme, host, port, path := parseURL(urlStr)
+		existing.Scheme = scheme
+		existing.Host = host
+		existing.Ports = []string{port}
+		existing.Path = path
 	}
 
 	if cmd.Flags().Changed("description") {
@@ -417,4 +473,34 @@ func enabledText(enabled bool) string {
 		return "enabled"
 	}
 	return "disabled"
+}
+
+// parseURL parses a URL string into its components (scheme, host, port, path)
+func parseURL(urlStr string) (scheme, host, port, path string) {
+	u, err := url.Parse(urlStr)
+	if err != nil {
+		return "http", "localhost", "8080", "/mcp"
+	}
+
+	scheme = u.Scheme
+	if scheme == "" {
+		scheme = "http"
+	}
+
+	host = u.Hostname()
+	if host == "" {
+		host = "localhost"
+	}
+
+	port = u.Port()
+	if port == "" {
+		port = "8080"
+	}
+
+	path = u.Path
+	if path == "" {
+		path = "/mcp"
+	}
+
+	return scheme, host, port, path
 }

@@ -1,7 +1,33 @@
 ---
-enabled: false
+enabled: true
 connection_timeout: 30
 discovery_timeout: 30
 liveness_probe_enabled: true
 liveness_probe_interval: 10
-servers: []
+servers:
+  - name: demo-server
+    enabled: true
+    description: First demo MCP server
+    run: true
+    host: localhost
+    scheme: http
+    port: 3000
+    path: /mcp
+    oci: mcp-mcp-demo-server:latest
+    startup_timeout: 60
+  - name: context7
+    enabled: true
+    description: Context7 - Up-to-date code documentation for LLMs
+    run: true
+    host: localhost
+    scheme: http
+    ports:
+      - "3002:8010"
+    path: /mcp
+    oci: mekayelanik/context7-mcp:stable
+    startup_timeout: 90
+    health_cmd: 'wget --spider -q http://localhost:8010/healthz || exit 1'
+    env:
+      PORT: "8010"
+      NODE_ENV: "production"
+      PROTOCOL: "SHTTP"
