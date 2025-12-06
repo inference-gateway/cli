@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.79.1](https://github.com/inference-gateway/cli/compare/v0.79.0...v0.79.1) (2025-12-06)
+
+### 🐛 Bug Fixes
+
+* **example:** Add healthcheck and more providers keys ([c1a454b](https://github.com/inference-gateway/cli/commit/c1a454b3a6450ba6384e26cf41444c12e4f4d8ba))
+
+### 📚 Documentation
+
+* **example:** Improve MCP example ([19e0af8](https://github.com/inference-gateway/cli/commit/19e0af8d1228ef7141450654e5a77affc0127994))
+
 ## [0.79.0](https://github.com/inference-gateway/cli/compare/v0.78.0...v0.79.0) (2025-12-06)
 
 ### 🚀 Features
