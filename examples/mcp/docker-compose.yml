@@ -1,6 +1,7 @@
 services:
   inference-gateway:
     image: ghcr.io/inference-gateway/inference-gateway:latest
+    pull_policy: always
     container_name: inference-gateway
     ports:
       - "8080:8080"
@@ -42,6 +43,7 @@ services:
     profiles:
       - cli
     image: ghcr.io/inference-gateway/cli:latest
+    pull_policy: always
     environment:
       # Gateway configuration
       INFER_GATEWAY_URL: http://inference-gateway:8080
