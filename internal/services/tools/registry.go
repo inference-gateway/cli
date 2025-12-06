@@ -86,7 +86,7 @@ func (r *Registry) registerMCPTools() {
 	for _, client := range clients {
 		discoveredTools, err := client.DiscoverTools(ctx)
 		if err != nil {
-			logger.Warn("Failed to discover MCP tools from client", "error", err)
+			logger.Debug("MCP server not ready yet, will retry via liveness probe", "error", err)
 			continue
 		}
 

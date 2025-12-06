@@ -143,14 +143,14 @@ func (am *AgentManager) StopAgent(ctx context.Context, agentName string) error {
 		return nil
 	}
 
+	if !am.containerExists(containerID) {
+		delete(am.containers, agentName)
+		return nil
+	}
+
 	cmd := exec.CommandContext(ctx, "docker", "stop", containerID)
 	if err := cmd.Run(); err != nil {
 		logger.Warn("Failed to stop agent container", "name", agentName, "error", err)
-	}
-
-	cmd = exec.CommandContext(ctx, "docker", "rm", containerID)
-	if err := cmd.Run(); err != nil {
-		logger.Warn("Failed to remove agent container", "name", agentName, "error", err)
 	}
 
 	delete(am.containers, agentName)
@@ -324,4 +324,13 @@ func (am *AgentManager) waitForReady(ctx context.Context, agent config.AgentEntr
 			}
 		}
 	}
+}
+
+// containerExists checks if a Docker container exists by ID (running or stopped)
+func (am *AgentManager) containerExists(containerID string) bool {
+	if containerID == "" {
+		return false
+	}
+	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerID)
+	return cmd.Run() == nil
 }

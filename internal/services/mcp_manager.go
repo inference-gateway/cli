@@ -651,14 +651,13 @@ func (m *MCPManager) startContainer(ctx context.Context, server config.MCPServer
 
 // stopContainer stops and removes a container
 func (m *MCPManager) stopContainer(ctx context.Context, containerName string) error {
+	if !m.containerExistsByName(containerName) {
+		return nil
+	}
+
 	cmd := exec.CommandContext(ctx, "docker", "stop", containerName)
 	if err := cmd.Run(); err != nil {
 		logger.Warn("Failed to stop container", "container", containerName, "error", err)
-	}
-
-	cmd = exec.CommandContext(ctx, "docker", "rm", containerName)
-	if err := cmd.Run(); err != nil {
-		logger.Warn("Failed to remove container", "container", containerName, "error", err)
 	}
 
 	return nil
@@ -802,4 +801,13 @@ func (m *MCPManager) getPath(server config.MCPServerEntry) string {
 		return server.Path
 	}
 	return "/mcp"
+}
+
+// containerExistsByName checks if a Docker container exists by name (running or stopped)
+func (m *MCPManager) containerExistsByName(containerName string) bool {
+	if containerName == "" {
+		return false
+	}
+	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerName)
+	return cmd.Run() == nil
 }

@@ -160,31 +160,47 @@ func (c *ServiceContainer) initializeFileWriterServices() {
 	c.paramExtractor = tools.NewParameterExtractor()
 }
 
+// initializeMCPManager creates and starts MCP manager if enabled
+func (c *ServiceContainer) initializeMCPManager() {
+	if !c.config.MCP.Enabled {
+		return
+	}
+
+	c.mcpManager = services.NewMCPManager(&c.config.MCP)
+
+	hasServersToStart := c.hasAutoStartMCPServers()
+	if !hasServersToStart {
+		return
+	}
+
+	logger.Info("Starting MCP servers in background...")
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+		defer cancel()
+
+		if err := c.mcpManager.StartServers(ctx); err != nil {
+			logger.Warn("Some MCP servers failed to start", "error", err)
+		}
+	}()
+}
+
+// hasAutoStartMCPServers checks if any MCP servers are configured for auto-start
+func (c *ServiceContainer) hasAutoStartMCPServers() bool {
+	for _, server := range c.config.MCP.Servers {
+		if server.Run && server.Enabled {
+			return true
+		}
+	}
+	return false
+}
+
 // initializeDomainServices creates and wires domain service implementations
 func (c *ServiceContainer) initializeDomainServices() {
 	c.fileService = services.NewFileService()
 	c.imageService = services.NewImageService(c.config)
 	c.messageQueue = services.NewMessageQueueService()
 
-	if c.config.MCP.Enabled {
-		c.mcpManager = services.NewMCPManager(&c.config.MCP)
-
-		hasServersToStart := false
-		for _, server := range c.config.MCP.Servers {
-			if server.Run && server.Enabled {
-				hasServersToStart = true
-				break
-			}
-		}
-
-		if hasServersToStart {
-			go func() {
-				ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-				defer cancel()
-				_ = c.mcpManager.StartServers(ctx)
-			}()
-		}
-	}
+	c.initializeMCPManager()
 
 	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager)
 	c.taskTrackerService = c.toolRegistry.GetTaskTracker()
