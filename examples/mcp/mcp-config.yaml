@@ -9,27 +9,19 @@ servers:
   # Example 1: Manually started server (via docker-compose in this directory)
   - name: demo-server
     host: mcp-demo-server
-    ports:
-      - "3000:8080"
+    port: 3000
     enabled: true
     description: "Demo MCP server with example tools"
     # run: false (default) - server must be started manually
 
   # Example 2: Context7 - Production documentation search with Streamable HTTP
   - name: context7
+    host: context7
+    port: 8010
     enabled: true
-    run: true  # Auto-start this server when CLI starts
     description: "Context7 - Up-to-date code documentation for LLMs"
-    ports:
-      - "3002:8010"  # Maps host port 3002 to container port 8010
     path: /mcp
-    oci: mekayelanik/context7-mcp:stable
-    startup_timeout: 90
-    health_cmd: 'wget --spider -q http://localhost:8010/healthz || exit 1'
-    env:
-      PORT: "8010"
-      NODE_ENV: "production"
-      PROTOCOL: "SHTTP"  # Uses Streamable HTTP (SSE format responses)
+    # run: false (default) - server must be started via docker-compose
     # Context7 provides library documentation search tools:
     # - MCP_context7_resolve-library-id: Find library IDs from package names
     # - MCP_context7_get-library-docs: Fetch up-to-date docs for any library

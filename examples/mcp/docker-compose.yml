@@ -43,6 +43,29 @@ services:
     networks:
       - mcp-demo
 
+  context7:
+    image: mekayelanik/context7-mcp:stable
+    container_name: context7
+    ports:
+      - "3002:8010"
+    environment:
+      PORT: "8010"
+      NODE_ENV: production
+      PROTOCOL: SHTTP
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - sh
+        - -c
+        - 'wget --spider -q http://localhost:8010/healthz || exit 1'
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    networks:
+      - mcp-demo
+
   cli:
     profiles:
       - cli
