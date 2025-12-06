@@ -113,7 +113,6 @@ func (c *ServiceContainer) initializeGatewayManager() {
 	}
 }
 
-
 // initializeAgentManager creates and starts the agent manager if A2A is enabled
 func (c *ServiceContainer) initializeAgentManager() {
 	agentsPath := filepath.Join(config.ConfigDirName, config.AgentsFileName)

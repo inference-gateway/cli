@@ -217,8 +217,8 @@ type MCPManager struct {
 	statusChan     chan domain.MCPServerStatusUpdateEvent
 	monitorStarted bool
 	channelClosed  bool
-	containerIDs  map[string]string
-	assignedPorts map[string]int
+	containerIDs   map[string]string
+	assignedPorts  map[string]int
 }
 
 // NewMCPManager creates a new MCP manager
