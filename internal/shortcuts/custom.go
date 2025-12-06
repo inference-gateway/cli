@@ -163,7 +163,14 @@ func fillTemplate(template string, data map[string]string) string {
 
 func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	command := c.config.Command
-	cmdArgs := append(c.config.Args, args...)
+	cmdArgs := append([]string{}, c.config.Args...)
+
+	if command == "bash" && len(cmdArgs) >= 2 && cmdArgs[0] == "-c" {
+		cmdArgs = append(cmdArgs, "bash")
+		cmdArgs = append(cmdArgs, args...)
+	} else {
+		cmdArgs = append(cmdArgs, args...)
+	}
 
 	cmd := exec.CommandContext(ctx, command, cmdArgs...)
 

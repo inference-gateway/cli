@@ -873,6 +873,13 @@ type AgentStatus struct {
 	Error     string     `json:"error,omitempty"`
 }
 
+// MCPServerStatus represents the status of MCP server connections
+type MCPServerStatus struct {
+	TotalServers     int `json:"total_servers"`
+	ConnectedServers int `json:"connected_servers"`
+	TotalTools       int `json:"total_tools"`
+}
+
 // AgentState represents the current state of an agent
 type AgentState int
 

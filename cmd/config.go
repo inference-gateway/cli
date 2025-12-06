@@ -15,6 +15,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	container "github.com/inference-gateway/cli/internal/container"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	utils "github.com/inference-gateway/cli/internal/utils"
@@ -550,6 +551,27 @@ func resolveViperEnvironmentVariables(cfg any, keyPrefix string) {
 	}
 }
 
+// getEffectiveMCPConfigPath returns the path to the MCP config file
+// Searches in this order: 1) project .infer/mcp.yaml, 2) user home ~/.infer/mcp.yaml
+func getEffectiveMCPConfigPath() string {
+	searchPaths := []string{
+		".infer/mcp.yaml",
+	}
+
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		homePath := filepath.Join(homeDir, ".infer", "mcp.yaml")
+		searchPaths = append(searchPaths, homePath)
+	}
+
+	for _, path := range searchPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	return ".infer/mcp.yaml"
+}
+
 // getConfigFromViper creates a config object from current Viper settings
 func getConfigFromViper() (*config.Config, error) {
 	cfg := &config.Config{}
@@ -558,6 +580,16 @@ func getConfigFromViper() (*config.Config, error) {
 	}
 
 	resolveViperEnvironmentVariables(cfg, "")
+
+	mcpConfigPath := getEffectiveMCPConfigPath()
+	mcpConfigService := services.NewMCPConfigService(mcpConfigPath)
+	mcpConfig, err := mcpConfigService.Load()
+	if err != nil {
+		logger.Warn("Failed to load MCP config, using defaults", "error", err, "path", mcpConfigPath)
+		mcpConfig = config.DefaultMCPConfig()
+	}
+
+	cfg.MCP = *mcpConfig
 
 	return cfg, nil
 }

@@ -37,7 +37,7 @@ func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, mcpPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -48,15 +48,19 @@ func initializeProject(cmd *cobra.Command) error {
 		gitignorePath = filepath.Join(homeDir, config.ConfigDirName, config.GitignoreFileName)
 		scmShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "scm.yaml")
 		gitShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "git.yaml")
+		mcpShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "mcp.yaml")
+		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
 	} else {
 		configPath = config.DefaultConfigPath
 		gitignorePath = filepath.Join(config.ConfigDirName, config.GitignoreFileName)
 		scmShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "scm.yaml")
 		gitShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "git.yaml")
+		mcpShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "mcp.yaml")
+		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, mcpPath); err != nil {
 			return err
 		}
 	}
@@ -85,6 +89,14 @@ bin/
 		return fmt.Errorf("failed to create Git shortcuts file: %w", err)
 	}
 
+	if err := createMCPShortcutsFile(mcpShortcutsPath); err != nil {
+		return fmt.Errorf("failed to create MCP shortcuts file: %w", err)
+	}
+
+	if err := createMCPConfigFile(mcpPath); err != nil {
+		return fmt.Errorf("failed to create MCP config file: %w", err)
+	}
+
 	var scopeDesc string
 	if userspace {
 		scopeDesc = "userspace"
@@ -97,6 +109,8 @@ bin/
 	fmt.Printf("   Created: %s\n", gitignorePath)
 	fmt.Printf("   Created: %s\n", scmShortcutsPath)
 	fmt.Printf("   Created: %s\n", gitShortcutsPath)
+	fmt.Printf("   Created: %s\n", mcpShortcutsPath)
+	fmt.Printf("   Created: %s\n", mcpPath)
 	fmt.Println("")
 	if userspace {
 		fmt.Println("This userspace configuration will be used as a fallback for all projects.")
@@ -356,4 +370,129 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(gitShortcutsContent), 0644)
+}
+
+// createMCPConfigFile creates the MCP configuration YAML file
+func createMCPConfigFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create config directory: %w", err)
+	}
+
+	mcpConfigContent := `---
+enabled: false
+connection_timeout: 30
+discovery_timeout: 30
+liveness_probe_enabled: true
+liveness_probe_interval: 10
+servers: []
+`
+
+	return os.WriteFile(path, []byte(mcpConfigContent), 0644)
+}
+
+// createMCPShortcutsFile creates the MCP shortcuts YAML file
+func createMCPShortcutsFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create shortcuts directory: %w", err)
+	}
+
+	mcpShortcutsContent := `---
+# MCP (Model Context Protocol) Shortcuts
+# Manage MCP server configuration from within chat
+#
+# Usage:
+# - /mcp - List all configured MCP servers with details
+# - /mcp-add <name> <url> [description] - Add a new MCP server
+# - /mcp-remove <name> - Remove an MCP server
+# - /mcp-enable <name> - Enable an MCP server
+# - /mcp-disable <name> - Disable an MCP server
+# - /mcp-enable-global - Enable MCP globally
+# - /mcp-disable-global - Disable MCP globally
+
+shortcuts:
+  - name: mcp
+    description: "List all configured MCP servers"
+    command: infer
+    args:
+      - mcp
+      - list
+
+  - name: mcp-add
+    description: "Add a new MCP server (usage: /mcp-add <name> <url> [description])"
+    command: bash
+    args:
+      - -c
+      - |
+        if [ $# -lt 2 ]; then
+          echo "Usage: /mcp-add <name> <url> [description]"
+          echo "Example: /mcp-add filesystem http://localhost:3000/sse File operations"
+          exit 1
+        fi
+
+        NAME="$1"
+        URL="$2"
+        shift 2
+        DESCRIPTION="$*"
+
+        if [ -n "$DESCRIPTION" ]; then
+          infer mcp add "$NAME" "$URL" --description="$DESCRIPTION"
+        else
+          infer mcp add "$NAME" "$URL"
+        fi
+
+  - name: mcp-remove
+    description: "Remove an MCP server (usage: /mcp-remove <name>)"
+    command: bash
+    args:
+      - -c
+      - |
+        if [ $# -lt 1 ]; then
+          echo "Usage: /mcp-remove <name>"
+          echo "Example: /mcp-remove filesystem"
+          exit 1
+        fi
+        infer mcp remove "$1"
+
+  - name: mcp-enable
+    description: "Enable an MCP server (usage: /mcp-enable <name>)"
+    command: bash
+    args:
+      - -c
+      - |
+        if [ $# -lt 1 ]; then
+          echo "Usage: /mcp-enable <name>"
+          echo "Example: /mcp-enable filesystem"
+          exit 1
+        fi
+        infer mcp enable "$1"
+
+  - name: mcp-disable
+    description: "Disable an MCP server (usage: /mcp-disable <name>)"
+    command: bash
+    args:
+      - -c
+      - |
+        if [ $# -lt 1 ]; then
+          echo "Usage: /mcp-disable <name>"
+          echo "Example: /mcp-disable filesystem"
+          exit 1
+        fi
+        infer mcp disable "$1"
+
+  - name: mcp-enable-global
+    description: "Enable MCP globally"
+    command: infer
+    args:
+      - mcp
+      - enable-global
+
+  - name: mcp-disable-global
+    description: "Disable MCP globally"
+    command: infer
+    args:
+      - mcp
+      - disable-global
+`
+
+	return os.WriteFile(path, []byte(mcpShortcutsContent), 0644)
 }

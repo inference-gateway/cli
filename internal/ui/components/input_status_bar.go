@@ -19,6 +19,7 @@ type InputStatusBar struct {
 	stateManager     domain.StateManager
 	configService    *config.Config
 	conversationRepo domain.ConversationRepository
+	mcpStatus        *domain.MCPServerStatus
 	styleProvider    *styles.Provider
 	currentInputText string
 }
@@ -54,6 +55,11 @@ func (isb *InputStatusBar) SetConfigService(configService *config.Config) {
 // SetConversationRepo sets the conversation repository
 func (isb *InputStatusBar) SetConversationRepo(repo domain.ConversationRepository) {
 	isb.conversationRepo = repo
+}
+
+// UpdateMCPStatus updates the MCP server status (called by event handler)
+func (isb *InputStatusBar) UpdateMCPStatus(status *domain.MCPServerStatus) {
+	isb.mcpStatus = status
 }
 
 // SetInputText sets the current input text for mode detection
@@ -130,6 +136,14 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 	if isb.stateManager != nil {
 		if readiness := isb.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
 			parts = append(parts, fmt.Sprintf("Agents: %d/%d", readiness.ReadyAgents, readiness.TotalAgents))
+		}
+	}
+
+	if isb.mcpStatus != nil {
+		if isb.mcpStatus.TotalTools > 0 {
+			parts = append(parts, fmt.Sprintf("MCP: %d tools, %d/%d", isb.mcpStatus.TotalTools, isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
+		} else {
+			parts = append(parts, fmt.Sprintf("MCP: %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
 		}
 	}
 

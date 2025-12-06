@@ -515,5 +515,13 @@ func (a *AutocompleteImpl) Hide() {
 	a.visible = false
 }
 
+// RefreshToolsList forces a reload of the tools list
+// This should be called when MCP servers connect or disconnect
+func (a *AutocompleteImpl) RefreshToolsList() {
+	if len(a.suggestions) > 0 && strings.HasPrefix(a.suggestions[0].Shortcut, "!!") {
+		a.suggestions = []ShortcutOption{}
+	}
+}
+
 // Compile-time check to ensure AutocompleteImpl implements the interface
 var _ ui.AutocompleteComponent = (*AutocompleteImpl)(nil)

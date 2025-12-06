@@ -34,6 +34,7 @@ type Config struct {
 	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
 	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
 	A2A          A2AConfig          `yaml:"a2a" mapstructure:"a2a"`
+	MCP          MCPConfig          `yaml:"mcp" mapstructure:"mcp"`
 	Init         InitConfig         `yaml:"init" mapstructure:"init"`
 	Compact      CompactConfig      `yaml:"compact" mapstructure:"compact"`
 }
@@ -779,6 +780,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 				},
 			},
 		},
+		MCP: *DefaultMCPConfig(),
 		Init: InitConfig{
 			Prompt: `Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.
 Use your available tools to examine configuration files, documentation, build systems, and development workflow.

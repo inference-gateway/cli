@@ -1,0 +1,12 @@
+---
+# MCP configuration for Docker Compose demo
+enabled: true
+connection_timeout: 30
+discovery_timeout: 30
+liveness_probe_enabled: true
+liveness_probe_interval: 10
+servers:
+  - name: demo-server
+    url: http://mcp-demo-server:3000/mcp
+    enabled: true
+    description: "Demo MCP server with example tools"
