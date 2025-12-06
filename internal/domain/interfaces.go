@@ -488,7 +488,7 @@ type MCPClient interface {
 	Close() error
 }
 
-// MCPManager manages the lifecycle and health monitoring of MCP server connections
+// MCPManager manages the lifecycle, health monitoring, and container orchestration of MCP servers
 type MCPManager interface {
 	// Returns a list of clients
 	GetClients() []MCPClient
@@ -505,7 +505,14 @@ type MCPManager interface {
 	// ClearToolCount removes the tool count for a specific server
 	ClearToolCount(serverName string)
 
-	// Close stops monitoring and cleans up resources
+	// Container lifecycle management
+	// StartServers starts all MCP servers that have run=true (non-fatal)
+	StartServers(ctx context.Context) error
+
+	// StopServers stops all running MCP server containers
+	StopServers(ctx context.Context) error
+
+	// Close stops monitoring, stops containers, and cleans up resources
 	Close() error
 }
 

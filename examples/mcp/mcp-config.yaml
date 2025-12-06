@@ -6,7 +6,62 @@ discovery_timeout: 30
 liveness_probe_enabled: true
 liveness_probe_interval: 10
 servers:
+  # Example 1: Manually started server (via docker-compose in this directory)
   - name: demo-server
-    url: http://mcp-demo-server:3000/mcp
+    host: mcp-demo-server
+    ports:
+      - "3000:8080"
     enabled: true
     description: "Demo MCP server with example tools"
+    # run: false (default) - server must be started manually
+
+  # Example 2: Context7 - Production documentation search with Streamable HTTP
+  - name: context7
+    enabled: true
+    run: true  # Auto-start this server when CLI starts
+    description: "Context7 - Up-to-date code documentation for LLMs"
+    ports:
+      - "3002:8010"  # Maps host port 3002 to container port 8010
+    path: /mcp
+    oci: mekayelanik/context7-mcp:stable
+    startup_timeout: 90
+    health_cmd: 'wget --spider -q http://localhost:8010/healthz || exit 1'
+    env:
+      PORT: "8010"
+      NODE_ENV: "production"
+      PROTOCOL: "SHTTP"  # Uses Streamable HTTP (SSE format responses)
+    # Context7 provides library documentation search tools:
+    # - MCP_context7_resolve-library-id: Find library IDs from package names
+    # - MCP_context7_get-library-docs: Fetch up-to-date docs for any library
+
+  # Example 3: Auto-started server with automatic port mapping
+  # - name: filesystem
+  #   enabled: true
+  #   run: true  # Auto-start this server when CLI starts
+  #   ports:
+  #     - "3003:8080"  # Automatically finds next available port if 3003 is taken
+  #   path: /mcp  # Optional, defaults to /mcp
+  #   oci: mcp/filesystem-server:latest
+  #   env:
+  #     BASE_PATH: /workspace
+  #     ALLOW_WRITE: "true"
+  #   volumes:
+  #     - ./workspace:/workspace
+  #   startup_timeout: 60
+  #   exclude_tools:
+  #     - delete_file
+
+  # Example 4: Auto-started server with multiple ports
+  # - name: web-search
+  #   enabled: true
+  #   run: true
+  #   scheme: http  # Optional, defaults to http
+  #   host: localhost  # Optional, defaults to localhost
+  #   ports:
+  #     - "3004:8080"  # Main service port
+  #     - "3005:8081"  # Metrics port (optional)
+  #   path: /api/mcp
+  #   oci: mcp/web-search:latest
+  #   args: ["--verbose", "--max-results=10"]
+  #   env:
+  #     API_KEY: ${SEARCH_API_KEY}  # Environment variable expansion supported

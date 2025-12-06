@@ -3,6 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
+	"os"
+	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -10,7 +13,6 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	mcp "github.com/metoro-io/mcp-golang"
-	mcphttp "github.com/metoro-io/mcp-golang/transport/http"
 )
 
 // Compile-time interface checks
@@ -32,7 +34,8 @@ type mcpClient struct {
 
 // newMCPClient creates and initializes a new MCP client for a specific server
 func newMCPClient(serverConfig config.MCPServerEntry, globalConfig *config.MCPConfig) *mcpClient {
-	transport := mcphttp.NewHTTPClientTransport(serverConfig.URL)
+	transport := NewSSEHTTPClientTransport(serverConfig.GetURL()).
+		WithHeader("Accept", "application/json, text/event-stream")
 
 	client := mcp.NewClientWithInfo(transport, mcp.ClientInfo{
 		Name:    "inference-gateway-cli",
@@ -54,25 +57,45 @@ func (c *mcpClient) DiscoverTools(ctx context.Context) (map[string][]domain.MCPD
 	serverCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	logger.Info("Attempting to discover tools from MCP server",
+		"server", c.serverName,
+		"url", c.serverConfig.GetURL(),
+		"timeout", timeout)
+
 	c.mu.Lock()
 	if !c.isInitialized {
-		_, err := c.client.Initialize(serverCtx)
+		logger.Info("Initializing MCP client", "server", c.serverName)
+		initResp, err := c.client.Initialize(serverCtx)
 		if err != nil {
 			c.isConnected = false
 			c.mu.Unlock()
+			logger.Error("Failed to initialize MCP client",
+				"server", c.serverName,
+				"error", err)
 			return nil, fmt.Errorf("failed to initialize MCP client: %w", err)
 		}
 		c.isInitialized = true
+		logger.Info("MCP client initialized successfully",
+			"server", c.serverName,
+			"serverInfo", initResp.ServerInfo)
 	}
 	c.mu.Unlock()
 
+	logger.Info("Listing tools from MCP server", "server", c.serverName)
 	toolsResp, err := c.client.ListTools(serverCtx, nil)
 	if err != nil {
 		c.mu.Lock()
 		c.isConnected = false
 		c.mu.Unlock()
+		logger.Error("Failed to list tools from MCP server",
+			"server", c.serverName,
+			"error", err)
 		return nil, fmt.Errorf("failed to list tools: %w", err)
 	}
+
+	logger.Info("Successfully retrieved tools from MCP server",
+		"server", c.serverName,
+		"toolCount", len(toolsResp.Tools))
 
 	tools := make([]domain.MCPDiscoveredTool, 0, len(toolsResp.Tools))
 	for _, tool := range toolsResp.Tools {
@@ -138,15 +161,22 @@ func (c *mcpClient) PingServer(ctx context.Context, serverName string) error {
 	pingCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
+	logger.Debug("Pinging MCP server", "server", c.serverName, "url", c.serverConfig.GetURL())
+
 	c.mu.Lock()
 	if !c.isInitialized {
+		logger.Debug("Initializing MCP client for ping", "server", c.serverName)
 		_, err := c.client.Initialize(pingCtx)
 		if err != nil {
 			c.isConnected = false
 			c.mu.Unlock()
+			logger.Warn("Failed to initialize MCP client during ping",
+				"server", c.serverName,
+				"error", err)
 			return fmt.Errorf("failed to initialize MCP client: %w", err)
 		}
 		c.isInitialized = true
+		logger.Debug("MCP client initialized successfully for ping", "server", c.serverName)
 	}
 	c.mu.Unlock()
 
@@ -155,8 +185,13 @@ func (c *mcpClient) PingServer(ctx context.Context, serverName string) error {
 		c.mu.Lock()
 		c.isConnected = false
 		c.mu.Unlock()
+		logger.Warn("MCP server ping failed",
+			"server", c.serverName,
+			"error", err)
 		return fmt.Errorf("ping failed: %w", err)
 	}
+
+	logger.Debug("MCP server ping successful", "server", c.serverName)
 
 	c.mu.Lock()
 	c.isConnected = true
@@ -171,7 +206,7 @@ func (c *mcpClient) Close() error {
 	return nil
 }
 
-// MCPManager manages multiple MCP server connections
+// MCPManager manages multiple MCP server connections and their container lifecycle
 type MCPManager struct {
 	config         *config.MCPConfig
 	mu             sync.RWMutex
@@ -182,6 +217,8 @@ type MCPManager struct {
 	statusChan     chan domain.MCPServerStatusUpdateEvent
 	monitorStarted bool
 	channelClosed  bool
+	containerIDs   map[string]string
+	assignedPorts  map[string]int
 }
 
 // NewMCPManager creates a new MCP manager
@@ -195,9 +232,11 @@ func NewMCPManager(cfg *config.MCPConfig) *MCPManager {
 	}
 
 	return &MCPManager{
-		config:     cfg,
-		clients:    clients,
-		toolCounts: make(map[string]int),
+		config:        cfg,
+		clients:       clients,
+		toolCounts:    make(map[string]int),
+		containerIDs:  make(map[string]string),
+		assignedPorts: make(map[string]int),
 	}
 }
 
@@ -282,19 +321,10 @@ func (m *MCPManager) checkClientHealth(ctx context.Context, client *mcpClient) {
 	wasConnected := client.isConnected
 	client.mu.RUnlock()
 
-	err := client.PingServer(ctx, client.serverName)
-	if err != nil {
-		if wasConnected {
-			logger.Warn("MCP server became unhealthy", "server", client.serverName, "error", err)
-			m.sendStatusUpdate(client.serverName, false)
-		}
-		return
-	}
-
 	if !wasConnected {
 		toolsMap, err := client.DiscoverTools(ctx)
 		if err != nil {
-			logger.Warn("MCP server responded to ping but tool discovery failed",
+			logger.Error("MCP server health check failed (tool discovery failed)",
 				"server", client.serverName,
 				"error", err)
 			return
@@ -306,7 +336,19 @@ func (m *MCPManager) checkClientHealth(ctx context.Context, client *mcpClient) {
 		m.toolCounts[client.serverName] = len(tools)
 		m.mu.Unlock()
 
+		logger.Info("MCP server tools discovered successfully",
+			"server", client.serverName,
+			"toolCount", len(tools))
+
 		m.sendStatusUpdateWithTools(client.serverName, true, tools)
+	} else {
+		err := client.PingServer(ctx, client.serverName)
+		if err != nil {
+			logger.Warn("MCP server became unhealthy", "server", client.serverName, "error", err)
+			m.sendStatusUpdate(client.serverName, false)
+			return
+		}
+		logger.Debug("MCP server health check passed", "server", client.serverName)
 	}
 }
 
@@ -404,8 +446,10 @@ func (m *MCPManager) ClearToolCount(serverName string) {
 	delete(m.toolCounts, serverName)
 }
 
-// Close stops monitoring and cleans up resources
+// Close stops monitoring, stops containers, and cleans up resources
 func (m *MCPManager) Close() error {
+	_ = m.StopServers(context.Background())
+
 	m.mu.Lock()
 	if m.probeCancel != nil {
 		m.probeCancel()
@@ -430,4 +474,340 @@ func (m *MCPManager) Close() error {
 	}
 
 	return nil
+}
+
+// ==================== Container Lifecycle Management ====================
+
+// StartServers starts all MCP servers that have run=true
+// This method is non-fatal and always returns nil
+func (m *MCPManager) StartServers(ctx context.Context) error {
+	serversToStart := make([]config.MCPServerEntry, 0)
+	for _, server := range m.config.Servers {
+		if server.Run && server.Enabled {
+			serversToStart = append(serversToStart, server)
+		}
+	}
+
+	if len(serversToStart) == 0 {
+		return nil
+	}
+
+	if err := m.ensureNetwork(ctx); err != nil {
+		logger.Warn("Failed to create Docker network", "error", err)
+	}
+
+	var wg sync.WaitGroup
+	for _, server := range serversToStart {
+		wg.Add(1)
+		go func(srv config.MCPServerEntry) {
+			defer wg.Done()
+			if err := m.StartServer(ctx, srv); err != nil {
+				logger.Warn("Failed to start MCP server",
+					"server", srv.Name,
+					"error", err,
+					"container", fmt.Sprintf("inference-mcp-%s", srv.Name))
+			}
+		}(server)
+	}
+
+	wg.Wait()
+	return nil
+}
+
+// StartServer starts a single MCP server container
+func (m *MCPManager) StartServer(ctx context.Context, server config.MCPServerEntry) error {
+	containerName := fmt.Sprintf("inference-mcp-%s", server.Name)
+
+	assignedPort := m.assignPort(server)
+
+	if m.isServerRunning(containerName) {
+		logger.Info("MCP server container already running", "server", server.Name, "port", assignedPort)
+		return nil
+	}
+
+	if err := m.pullImage(ctx, server.OCI); err != nil {
+		logger.Warn("Failed to pull image, using cached version", "image", server.OCI, "error", err)
+	}
+
+	logger.Info("Starting MCP server", "server", server.Name, "port", assignedPort)
+
+	if err := m.startContainer(ctx, server, assignedPort); err != nil {
+		return fmt.Errorf("failed to start container: %w", err)
+	}
+
+	logger.Info("Waiting for MCP server to become ready", "server", server.Name)
+
+	if err := m.waitForReady(ctx, server, assignedPort); err != nil {
+		_ = m.stopContainer(ctx, containerName)
+		return fmt.Errorf("server failed to become ready: %w", err)
+	}
+
+	fullURL := fmt.Sprintf("http://localhost:%d%s", assignedPort, m.getPath(server))
+	logger.Info("MCP server started successfully", "server", server.Name, "url", fullURL)
+	return nil
+}
+
+// StopServers stops all running MCP server containers
+func (m *MCPManager) StopServers(ctx context.Context) error {
+	m.mu.Lock()
+	containerNames := make([]string, 0, len(m.containerIDs))
+	for k := range m.containerIDs {
+		containerNames = append(containerNames, k)
+	}
+	m.mu.Unlock()
+
+	for _, name := range containerNames {
+		if err := m.stopContainer(ctx, name); err != nil {
+			logger.Warn("Failed to stop MCP server container", "server", name, "error", err)
+		} else {
+			logger.Info("Stopped MCP server container", "server", name)
+		}
+		m.mu.Lock()
+		delete(m.containerIDs, name)
+		m.mu.Unlock()
+	}
+
+	return nil
+}
+
+// pullImage pulls the container image
+func (m *MCPManager) pullImage(ctx context.Context, image string) error {
+	cmd := exec.CommandContext(ctx, "docker", "pull", image)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker pull failed: %w, output: %s", err, string(output))
+	}
+	return nil
+}
+
+// startContainer starts the MCP server container
+func (m *MCPManager) startContainer(ctx context.Context, server config.MCPServerEntry, assignedPort int) error {
+	containerName := fmt.Sprintf("inference-mcp-%s", server.Name)
+
+	args := []string{
+		"run",
+		"-d",
+		"--name", containerName,
+		"--network", InferNetworkName,
+		"--restart", "unless-stopped",
+	}
+
+	args = m.appendPortMappings(args, server, assignedPort)
+
+	healthCmd := server.HealthCmd
+	if healthCmd == "" {
+		healthCmd = `sh -c 'curl -f -X POST http://localhost:3000/mcp -H "Content-Type: application/json" -d "{\"jsonrpc\":\"2.0\",\"method\":\"ping\",\"id\":1}" || exit 1'`
+	}
+	args = append(args,
+		"--health-cmd", healthCmd,
+		"--health-interval", "10s",
+		"--health-timeout", "5s",
+		"--health-retries", "3",
+		"--health-start-period", "10s",
+	)
+
+	for key, value := range server.Env {
+		expandedValue := os.ExpandEnv(value)
+		args = append(args, "-e", fmt.Sprintf("%s=%s", key, expandedValue))
+	}
+
+	for _, volume := range server.Volumes {
+		args = append(args, "-v", volume)
+	}
+
+	if len(server.Entrypoint) > 0 {
+		args = append(args, "--entrypoint", server.Entrypoint[0])
+	}
+
+	args = append(args, server.OCI)
+
+	if len(server.Entrypoint) > 1 {
+		args = append(args, server.Entrypoint[1:]...)
+	} else if len(server.Command) > 0 {
+		args = append(args, server.Command...)
+	}
+
+	if len(server.Args) > 0 {
+		args = append(args, server.Args...)
+	}
+
+	logger.Info("Starting MCP server container",
+		"server", server.Name,
+		"command", fmt.Sprintf("docker %s", strings.Join(args, " ")))
+
+	cmd := exec.CommandContext(ctx, "docker", args...)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("docker run failed: %w, output: %s", err, string(output))
+	}
+
+	containerID := strings.TrimSpace(string(output))
+	m.mu.Lock()
+	m.containerIDs[containerName] = containerID
+	m.mu.Unlock()
+
+	return nil
+}
+
+// stopContainer stops and removes a container
+func (m *MCPManager) stopContainer(ctx context.Context, containerName string) error {
+	if !m.containerExistsByName(containerName) {
+		return nil
+	}
+
+	cmd := exec.CommandContext(ctx, "docker", "stop", containerName)
+	if err := cmd.Run(); err != nil {
+		logger.Warn("Failed to stop container", "container", containerName, "error", err)
+	}
+
+	return nil
+}
+
+// isServerRunning checks if a container is already running
+func (m *MCPManager) isServerRunning(containerName string) bool {
+	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.ID}}")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return false
+	}
+
+	containerID := strings.TrimSpace(string(output))
+	if containerID != "" {
+		m.mu.Lock()
+		m.containerIDs[containerName] = containerID
+		m.mu.Unlock()
+		return true
+	}
+	return false
+}
+
+// waitForReady waits for the server to become ready by using Docker's healthcheck status
+func (m *MCPManager) waitForReady(ctx context.Context, server config.MCPServerEntry, _ int) error {
+	containerName := fmt.Sprintf("inference-mcp-%s", server.Name)
+	timeout := time.Duration(server.GetStartupTimeout()) * time.Second
+	deadline := time.Now().Add(timeout)
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			if time.Now().After(deadline) {
+				return fmt.Errorf("timeout waiting for server to become ready")
+			}
+
+			cmd := exec.Command("docker", "inspect", "--format", "{{.State.Health.Status}}", containerName)
+			output, err := cmd.Output()
+			if err != nil {
+				continue
+			}
+
+			healthStatus := strings.TrimSpace(string(output))
+			if healthStatus == "healthy" {
+				return nil
+			}
+			if healthStatus == "unhealthy" {
+				return fmt.Errorf("container became unhealthy during startup")
+			}
+		}
+	}
+}
+
+// ensureNetwork creates the Docker network if it doesn't exist
+func (m *MCPManager) ensureNetwork(ctx context.Context) error {
+	cmd := exec.CommandContext(ctx, "docker", "network", "inspect", InferNetworkName)
+	if err := cmd.Run(); err == nil {
+		return nil
+	}
+
+	logger.Info("Creating Docker network", "network", InferNetworkName)
+	cmd = exec.CommandContext(ctx, "docker", "network", "create", InferNetworkName)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		if strings.Contains(string(output), "already exists") {
+			return nil
+		}
+		return fmt.Errorf("failed to create Docker network: %w, output: %s", err, string(output))
+	}
+
+	logger.Info("Docker network created successfully", "network", InferNetworkName)
+	return nil
+}
+
+// assignPort assigns a port for the server, finding an available one if needed
+func (m *MCPManager) assignPort(server config.MCPServerEntry) int {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if port, exists := m.assignedPorts[server.Name]; exists {
+		return port
+	}
+
+	port := m.determinePort(server)
+	m.assignedPorts[server.Name] = port
+	return port
+}
+
+// appendPortMappings adds port mappings to docker run args
+func (m *MCPManager) appendPortMappings(args []string, server config.MCPServerEntry, assignedPort int) []string {
+	if server.Port > 0 {
+		return append(args, "-p", fmt.Sprintf("%d:3000", assignedPort))
+	}
+
+	if len(server.Ports) > 0 {
+		for i, portMapping := range server.Ports {
+			mappedPort := m.mapPort(portMapping, i, assignedPort)
+			args = append(args, "-p", mappedPort)
+		}
+		return args
+	}
+
+	return append(args, "-p", fmt.Sprintf("%d:8080", assignedPort))
+}
+
+// mapPort creates the port mapping string for docker
+func (m *MCPManager) mapPort(portMapping string, index int, assignedPort int) string {
+	if index != 0 {
+		return portMapping
+	}
+
+	if strings.Contains(portMapping, ":") {
+		parts := strings.Split(portMapping, ":")
+		return fmt.Sprintf("%d:%s", assignedPort, parts[1])
+	}
+
+	return fmt.Sprintf("%d:%s", assignedPort, portMapping)
+}
+
+// determinePort determines the port to assign to a server
+func (m *MCPManager) determinePort(server config.MCPServerEntry) int {
+	if server.Port > 0 {
+		return server.Port
+	}
+
+	primaryPort := server.GetPrimaryPort()
+	if len(server.Ports) > 0 && primaryPort > 0 {
+		return config.FindAvailablePort(primaryPort)
+	}
+
+	return config.FindAvailablePort(3000)
+}
+
+// getPath returns the path for the server
+func (m *MCPManager) getPath(server config.MCPServerEntry) string {
+	if server.Path != "" {
+		return server.Path
+	}
+	return "/mcp"
+}
+
+// containerExistsByName checks if a Docker container exists by name (running or stopped)
+func (m *MCPManager) containerExistsByName(containerName string) bool {
+	if containerName == "" {
+		return false
+	}
+	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerName)
+	return cmd.Run() == nil
 }

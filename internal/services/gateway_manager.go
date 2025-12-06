@@ -171,14 +171,15 @@ func (gm *GatewayManager) stopDocker(ctx context.Context) error {
 		return nil
 	}
 
+	if !gm.containerExists(gm.containerID) {
+		gm.isRunning = false
+		gm.containerID = ""
+		return nil
+	}
+
 	cmd := exec.CommandContext(ctx, "docker", "stop", gm.containerID)
 	if err := cmd.Run(); err != nil {
 		logger.Warn("Failed to stop container", "error", err)
-	}
-
-	cmd = exec.CommandContext(ctx, "docker", "rm", gm.containerID)
-	if err := cmd.Run(); err != nil {
-		logger.Warn("Failed to remove container", "error", err)
 	}
 
 	gm.isRunning = false
@@ -484,4 +485,13 @@ func (gm *GatewayManager) ensureNetwork(ctx context.Context) error {
 
 	logger.Info("Docker network created successfully", "network", InferNetworkName)
 	return nil
+}
+
+// containerExists checks if a Docker container exists (running or stopped)
+func (gm *GatewayManager) containerExists(containerID string) bool {
+	if containerID == "" {
+		return false
+	}
+	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerID)
+	return cmd.Run() == nil
 }

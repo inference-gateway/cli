@@ -38,7 +38,11 @@ connection_timeout: 60
 discovery_timeout: 45
 servers:
   - name: test-server
-    url: http://localhost:3000/sse
+    scheme: http
+    host: localhost
+    ports:
+      - "3000:8080"
+    path: /sse
     enabled: true
     timeout: 30
     description: Test MCP server
@@ -82,8 +86,9 @@ servers:
 		t.Errorf("Expected server name 'test-server', got %q", server.Name)
 	}
 
-	if server.URL != "http://localhost:3000/sse" {
-		t.Errorf("Expected server URL 'http://localhost:3000/sse', got %q", server.URL)
+	expectedURL := "http://localhost:3000/sse"
+	if server.GetURL() != expectedURL {
+		t.Errorf("Expected server URL %q, got %q", expectedURL, server.GetURL())
 	}
 
 	if !server.Enabled {
@@ -119,7 +124,11 @@ func TestMCPConfigService_Load_EnvironmentVariableExpansion(t *testing.T) {
 	yamlContent := `enabled: true
 servers:
   - name: env-server
-    url: ${TEST_MCP_URL}
+    scheme: http
+    host: env-server
+    ports:
+      - "8080:8080"
+    path: /sse
     enabled: true
 `
 
@@ -141,8 +150,8 @@ servers:
 
 	server := cfg.Servers[0]
 	expectedURL := "http://env-server:8080/sse"
-	if server.URL != expectedURL {
-		t.Errorf("Expected URL %q (from env var), got %q", expectedURL, server.URL)
+	if server.GetURL() != expectedURL {
+		t.Errorf("Expected URL %q, got %q", expectedURL, server.GetURL())
 	}
 }
 
@@ -159,7 +168,10 @@ func TestMCPConfigService_Save(t *testing.T) {
 		Servers: []config.MCPServerEntry{
 			{
 				Name:        "test-server",
-				URL:         "http://localhost:3000/sse",
+				Scheme:      "http",
+				Host:        "localhost",
+				Ports:       []string{"3000:8080"},
+				Path:        "/sse",
 				Enabled:     true,
 				Timeout:     30,
 				Description: "Test server",
@@ -198,7 +210,10 @@ func TestMCPConfigService_AddServer(t *testing.T) {
 
 	newServer := config.MCPServerEntry{
 		Name:        "new-server",
-		URL:         "http://localhost:4000/sse",
+		Scheme:      "http",
+		Host:        "localhost",
+		Ports:       []string{"4000:8080"},
+		Path:        "/sse",
 		Enabled:     true,
 		Description: "New server",
 	}
@@ -230,7 +245,10 @@ func TestMCPConfigService_AddServer_DuplicateName(t *testing.T) {
 
 	server := config.MCPServerEntry{
 		Name:    "duplicate-server",
-		URL:     "http://localhost:3000/sse",
+		Scheme:  "http",
+		Host:    "localhost",
+		Ports:   []string{"3000:8080"},
+		Path:    "/sse",
 		Enabled: true,
 	}
 
@@ -253,7 +271,10 @@ func TestMCPConfigService_UpdateServer(t *testing.T) {
 
 	initialServer := config.MCPServerEntry{
 		Name:    "update-server",
-		URL:     "http://localhost:3000/sse",
+		Scheme:  "http",
+		Host:    "localhost",
+		Ports:   []string{"3000:8080"},
+		Path:    "/sse",
 		Enabled: true,
 	}
 
@@ -264,7 +285,10 @@ func TestMCPConfigService_UpdateServer(t *testing.T) {
 
 	updatedServer := config.MCPServerEntry{
 		Name:        "update-server",
-		URL:         "http://localhost:5000/sse",
+		Scheme:      "http",
+		Host:        "localhost",
+		Ports:       []string{"5000:8080"},
+		Path:        "/sse",
 		Enabled:     false,
 		Description: "Updated description",
 	}
@@ -284,8 +308,8 @@ func TestMCPConfigService_UpdateServer(t *testing.T) {
 	}
 
 	server := cfg.Servers[0]
-	if server.URL != updatedServer.URL {
-		t.Errorf("Expected URL %q, got %q", updatedServer.URL, server.URL)
+	if server.GetURL() != updatedServer.GetURL() {
+		t.Errorf("Expected URL %q, got %q", updatedServer.GetURL(), server.GetURL())
 	}
 
 	if server.Enabled != updatedServer.Enabled {
@@ -305,7 +329,10 @@ func TestMCPConfigService_UpdateServer_NotFound(t *testing.T) {
 
 	server := config.MCPServerEntry{
 		Name:    "nonexistent-server",
-		URL:     "http://localhost:3000/sse",
+		Scheme:  "http",
+		Host:    "localhost",
+		Ports:   []string{"3000:8080"},
+		Path:    "/sse",
 		Enabled: true,
 	}
 
@@ -321,8 +348,22 @@ func TestMCPConfigService_RemoveServer(t *testing.T) {
 
 	service := NewMCPConfigService(configPath)
 
-	server1 := config.MCPServerEntry{Name: "server1", URL: "http://localhost:3000/sse", Enabled: true}
-	server2 := config.MCPServerEntry{Name: "server2", URL: "http://localhost:4000/sse", Enabled: true}
+	server1 := config.MCPServerEntry{
+		Name:    "server1",
+		Scheme:  "http",
+		Host:    "localhost",
+		Ports:   []string{"3000:8080"},
+		Path:    "/sse",
+		Enabled: true,
+	}
+	server2 := config.MCPServerEntry{
+		Name:    "server2",
+		Scheme:  "http",
+		Host:    "localhost",
+		Ports:   []string{"4000:8080"},
+		Path:    "/sse",
+		Enabled: true,
+	}
 
 	if err := service.AddServer(server1); err != nil {
 		t.Fatalf("Failed to add server1: %v", err)
@@ -377,8 +418,22 @@ func TestMCPConfigService_ListServers(t *testing.T) {
 		t.Errorf("Expected 0 servers initially, got %d", len(servers))
 	}
 
-	server1 := config.MCPServerEntry{Name: "server1", URL: "http://localhost:3000/sse", Enabled: true}
-	server2 := config.MCPServerEntry{Name: "server2", URL: "http://localhost:4000/sse", Enabled: false}
+	server1 := config.MCPServerEntry{
+		Name:    "server1",
+		Scheme:  "http",
+		Host:    "localhost",
+		Ports:   []string{"3000:8080"},
+		Path:    "/sse",
+		Enabled: true,
+	}
+	server2 := config.MCPServerEntry{
+		Name:    "server2",
+		Scheme:  "http",
+		Host:    "localhost",
+		Ports:   []string{"4000:8080"},
+		Path:    "/sse",
+		Enabled: false,
+	}
 
 	if err := service.AddServer(server1); err != nil {
 		t.Fatalf("Failed to add server1: %v", err)
@@ -405,7 +460,10 @@ func TestMCPConfigService_GetServer(t *testing.T) {
 
 	expectedServer := config.MCPServerEntry{
 		Name:        "get-server",
-		URL:         "http://localhost:3000/sse",
+		Scheme:      "http",
+		Host:        "localhost",
+		Ports:       []string{"3000:8080"},
+		Path:        "/sse",
 		Enabled:     true,
 		Description: "Test server",
 	}
@@ -423,8 +481,8 @@ func TestMCPConfigService_GetServer(t *testing.T) {
 		t.Errorf("Expected name %q, got %q", expectedServer.Name, server.Name)
 	}
 
-	if server.URL != expectedServer.URL {
-		t.Errorf("Expected URL %q, got %q", expectedServer.URL, server.URL)
+	if server.GetURL() != expectedServer.GetURL() {
+		t.Errorf("Expected URL %q, got %q", expectedServer.GetURL(), server.GetURL())
 	}
 }
 
