@@ -335,7 +335,6 @@ func (m *MCPManager) checkClientHealth(ctx context.Context, client *mcpClient) {
 
 		m.sendStatusUpdateWithTools(client.serverName, true, tools)
 	} else {
-		// For already-connected servers, use ping for lightweight health check
 		err := client.PingServer(ctx, client.serverName)
 		if err != nil {
 			logger.Warn("MCP server became unhealthy", "server", client.serverName, "error", err)

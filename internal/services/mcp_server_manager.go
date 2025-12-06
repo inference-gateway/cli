@@ -48,12 +48,10 @@ func (m *MCPServerManager) StartServers(ctx context.Context) error {
 		return nil
 	}
 
-	// Ensure network exists
 	if err := m.ensureNetwork(ctx); err != nil {
 		logger.Warn("Failed to create Docker network", "error", err)
 	}
 
-	// Start servers concurrently
 	var wg sync.WaitGroup
 	for _, server := range serversToStart {
 		wg.Add(1)
