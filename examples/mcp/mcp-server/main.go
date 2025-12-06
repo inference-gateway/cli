@@ -10,7 +10,7 @@ import (
 	"time"
 
 	mcp_golang "github.com/metoro-io/mcp-golang"
-	"github.com/metoro-io/mcp-golang/transport/http"
+	mcphttp "github.com/metoro-io/mcp-golang/transport/http"
 )
 
 // Tool argument structures with jsonschema tags
@@ -39,7 +39,7 @@ func main() {
 	flag.Parse()
 
 	// Create HTTP transport
-	transport := http.NewHTTPTransport(*path)
+	transport := mcphttp.NewHTTPTransport(*path)
 	transport.WithAddr(fmt.Sprintf(":%d", *port))
 
 	// Create MCP server
@@ -48,7 +48,7 @@ func main() {
 	// Register tools
 	registerTools(server)
 
-	// Start server
+	// Start server logging
 	addr := fmt.Sprintf("http://localhost:%d", *port)
 	log.Printf("🚀 Demo MCP Server starting on %s", addr)
 	log.Printf("📝 MCP endpoint: %s%s", addr, *path)
@@ -63,8 +63,9 @@ func main() {
 	log.Printf("        enabled: true")
 	log.Println()
 
+	// Start MCP server
 	if err := server.Serve(); err != nil {
-		log.Fatalf("Failed to start server: %v", err)
+		log.Fatalf("Failed to start MCP server: %v", err)
 	}
 }
 

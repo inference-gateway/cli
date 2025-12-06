@@ -2,7 +2,9 @@ module github.com/inference-gateway/cli/examples/mcp-server
 
 go 1.25.4
 
-require github.com/metoro-io/mcp-golang v0.16.0
+require (
+	github.com/metoro-io/mcp-golang v0.16.0
+)
 
 require (
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
