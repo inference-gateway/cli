@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.80.1](https://github.com/inference-gateway/cli/compare/v0.80.0...v0.80.1) (2025-12-06)
+
+### 📚 Documentation
+
+* **example:** Add Context7 MCP service to docker-compose ([6778274](https://github.com/inference-gateway/cli/commit/67782743456cd9c3d0a262e350eee75fe8174911))
+
 ## [0.80.0](https://github.com/inference-gateway/cli/compare/v0.79.1...v0.80.0) (2025-12-06)
 
 ### 🚀 Features
