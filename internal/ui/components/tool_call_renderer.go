@@ -108,7 +108,6 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) { //
 func (r *ToolCallRenderer) handleWindowSize(msg tea.WindowSizeMsg) {
 	r.width = msg.Width
 	r.height = msg.Height
-	r.updateArgsContainerWidth()
 }
 
 func (r *ToolCallRenderer) handleToolCallPreview(msg domain.ToolCallPreviewEvent) (*ToolCallRenderer, tea.Cmd) {
@@ -228,11 +227,6 @@ func (r *ToolCallRenderer) handleSpinnerTick(msg spinner.TickMsg) (*ToolCallRend
 
 func (r *ToolCallRenderer) SetWidth(width int) {
 	r.width = width
-	r.updateArgsContainerWidth()
-}
-
-func (r *ToolCallRenderer) updateArgsContainerWidth() {
-	// Width is now handled dynamically by styleProvider methods
 }
 
 // SetKeyHintFormatter sets the key hint formatter for dynamic keybinding hints
@@ -251,7 +245,6 @@ func (r *ToolCallRenderer) RenderPreviews() string {
 			continue
 		}
 
-		// Remove completed/failed tools after showing them briefly
 		if (tool.Status == "complete" || tool.Status == "failed") && tool.EndTime != nil {
 			showDuration := now.Sub(*tool.EndTime)
 			if showDuration > 1000*time.Millisecond {
@@ -260,7 +253,6 @@ func (r *ToolCallRenderer) RenderPreviews() string {
 			}
 		}
 
-		// Render the tool
 		allPreviews = append(allPreviews, r.renderTool(tool))
 		remainingTools = append(remainingTools, callID)
 	}

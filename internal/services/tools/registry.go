@@ -44,7 +44,6 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 func (r *Registry) registerTools() {
 	r.tools["Bash"] = NewBashTool(r.config, r.shellService)
 
-	// Register background shell management tools
 	if r.config.Tools.Bash.BackgroundShells.Enabled && r.shellService != nil {
 		r.tools["BashOutput"] = NewBashOutputTool(r.config, r.shellService)
 		r.tools["KillShell"] = NewKillShellTool(r.config, r.shellService)
@@ -203,7 +202,6 @@ func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPD
 			"description", tool.Description)
 	}
 
-	// Update tool count in MCP manager
 	r.mcpManager.UpdateToolCount(serverName, toolCount)
 
 	return toolCount
