@@ -55,7 +55,6 @@ func (t *BashOutputTool) Definition() sdk.ChatCompletionTool {
 
 // Execute retrieves output from a background shell
 func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
-	// Validate arguments
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
@@ -63,7 +62,6 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*dom
 	bashID, _ := args["bash_id"].(string)
 	filter, _ := args["filter"].(string)
 
-	// Get shell output
 	var output string
 	var newOffset int64
 	var state domain.ShellState
@@ -83,7 +81,6 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*dom
 		}, nil
 	}
 
-	// Build response
 	shell := t.shellService.GetShell(bashID)
 	if shell == nil {
 		return &domain.ToolExecutionResult{
@@ -113,7 +110,6 @@ func (t *BashOutputTool) Execute(ctx context.Context, args map[string]any) (*dom
 		statusMsg = "Shell was cancelled"
 	}
 
-	// Build result data
 	result := map[string]any{
 		"shell_id":       bashID,
 		"command":        shell.Command,
@@ -139,10 +135,7 @@ func (t *BashOutputTool) Validate(args map[string]any) error {
 		return fmt.Errorf("bash_id is required and must be a non-empty string")
 	}
 
-	// Validate filter pattern if provided
 	if filter, ok := args["filter"].(string); ok && filter != "" {
-		// The service will validate the regex pattern
-		// We just check it's a string here
 		if len(filter) > 1000 {
 			return fmt.Errorf("filter pattern is too long (max 1000 characters)")
 		}
