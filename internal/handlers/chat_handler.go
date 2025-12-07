@@ -321,7 +321,7 @@ func (h *ChatHandler) handleConversationSelected(
 		func() tea.Msg {
 			metadata := persistentRepo.GetCurrentConversationMetadata()
 			return domain.SetStatusEvent{
-				Message: fmt.Sprintf("🔄 Loaded conversation: %s (%d messages)",
+				Message: fmt.Sprintf("Loaded conversation: %s (%d messages)",
 					metadata.Title, metadata.MessageCount),
 				Spinner:    false,
 				StatusType: domain.StatusDefault,
