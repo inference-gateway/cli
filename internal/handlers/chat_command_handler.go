@@ -568,7 +568,6 @@ func (c *ChatCommandHandler) executeToolCommandAsync(toolName, argsJSON, toolCal
 			message = "Execution failed"
 		}
 
-		// Send completion event
 		eventChan <- domain.ToolExecutionProgressEvent{
 			BaseChatEvent: domain.BaseChatEvent{
 				RequestID: toolCallID,
@@ -580,12 +579,10 @@ func (c *ChatCommandHandler) executeToolCommandAsync(toolName, argsJSON, toolCal
 			Message:    message,
 		}
 
-		// Send history update
 		eventChan <- domain.UpdateHistoryEvent{
 			History: c.handler.conversationRepo.GetMessages(),
 		}
 
-		// Send status update
 		eventChan <- domain.SetStatusEvent{
 			Message:    fmt.Sprintf("%s %s", toolName, message),
 			Spinner:    false,

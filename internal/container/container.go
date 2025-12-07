@@ -577,7 +577,6 @@ func (c *ServiceContainer) BackgroundShellService() *services.BackgroundShellSer
 
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
-	// Stop background shell service
 	if c.backgroundShellService != nil {
 		logger.Info("Stopping background shell service...")
 		c.backgroundShellService.Stop()
