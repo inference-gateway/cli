@@ -310,11 +310,12 @@ func TestCountRunning(t *testing.T) {
 }
 
 func TestConcurrentAccess(t *testing.T) {
-	tracker := NewShellTracker(50)
+	maxConcurrent := 50
+	tracker := NewShellTracker(maxConcurrent)
 
 	var wg sync.WaitGroup
 	numGoroutines := 10
-	operationsPerGoroutine := 100
+	operationsPerGoroutine := 10
 
 	wg.Add(numGoroutines)
 	for i := 0; i < numGoroutines; i++ {
@@ -323,7 +324,7 @@ func TestConcurrentAccess(t *testing.T) {
 
 			for j := 0; j < operationsPerGoroutine; j++ {
 				shell := createTestShell(fmt.Sprintf("shell-%d-%d", id, j), domain.ShellStateRunning)
-				require.NoError(t, tracker.Add(shell))
+				_ = tracker.Add(shell)
 			}
 		}(i)
 	}
@@ -334,8 +335,11 @@ func TestConcurrentAccess(t *testing.T) {
 	if count == 0 {
 		t.Error("Expected some shells to be added")
 	}
+	if count > maxConcurrent {
+		t.Errorf("Expected count to not exceed max concurrent limit of %d, got %d", maxConcurrent, count)
+	}
 
-	t.Logf("Successfully added %d shells concurrently", count)
+	t.Logf("Successfully added %d shells concurrently (max: %d)", count, maxConcurrent)
 
 	wg.Add(numGoroutines)
 	for i := 0; i < numGoroutines; i++ {

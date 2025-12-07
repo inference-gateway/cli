@@ -81,14 +81,11 @@ func (hm *HistoryManager) AddToHistory(command string) error {
 
 	if shouldSave {
 		hm.addToInMemoryHistory(command)
+		hm.allHistory = append(hm.allHistory, command)
 
 		if err := hm.shellHistory.SaveToHistory(command); err != nil {
 			logger.Warn("Could not save to shell history", "error", err)
 		}
-	}
-
-	if err := hm.loadCombinedHistory(); err != nil {
-		logger.Warn("Could not reload combined history", "error", err)
 	}
 
 	hm.historyIndex = -1
