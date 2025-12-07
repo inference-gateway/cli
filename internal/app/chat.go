@@ -64,7 +64,6 @@ type ChatApplication struct {
 	themeSelector        *components.ThemeSelectorImpl
 	conversationSelector *components.ConversationSelectorImpl
 	fileSelectionView    *components.FileSelectionView
-	a2aServersView       *components.A2AServersView
 	taskManager          *components.TaskManagerImpl
 	toolCallRenderer     *components.ToolCallRenderer
 	initGithubActionView *components.InitGithubActionView
@@ -439,8 +438,6 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleConversationSelectionView(msg)
 	case domain.ViewStateThemeSelection:
 		return app.handleThemeSelectionView(msg)
-	case domain.ViewStateA2AServers:
-		return app.handleA2AServersView(msg)
 	case domain.ViewStateA2ATaskManagement:
 		return app.handleA2ATaskManagementView(msg)
 	case domain.ViewStateGitHubAppSetup:
@@ -538,8 +535,6 @@ func (app *ChatApplication) View() string {
 		return app.renderConversationSelection()
 	case domain.ViewStateThemeSelection:
 		return app.renderThemeSelection()
-	case domain.ViewStateA2AServers:
-		return app.renderA2AServers()
 	case domain.ViewStateA2ATaskManagement:
 		return app.renderA2ATaskManagement()
 	case domain.ViewStateGitHubAppSetup:
@@ -998,53 +993,6 @@ func (app *ChatApplication) handleA2ATaskManagementCancelled(cmds []tea.Cmd) []t
 	return cmds
 }
 
-func (app *ChatApplication) handleA2AServersView(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	if app.a2aServersView != nil {
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch msg.String() {
-			case "esc":
-				app.a2aServersView = nil
-				_ = app.stateManager.TransitionToView(domain.ViewStateChat)
-				cmds = append(cmds, func() tea.Msg {
-					return domain.SetStatusEvent{
-						Message:    "Returned to chat",
-						Spinner:    false,
-						StatusType: domain.StatusDefault,
-					}
-				})
-			}
-		}
-
-		if app.a2aServersView != nil {
-			model, cmd := app.a2aServersView.Update(msg)
-			app.a2aServersView = model.(*components.A2AServersView)
-			if cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
-		return cmds
-	}
-
-	var a2aAgentService domain.A2AAgentService
-	if a2aShortcut, exists := app.shortcutRegistry.Get("a2a"); exists {
-		if a2a, ok := a2aShortcut.(*shortcuts.A2AShortcut); ok {
-			a2aAgentService = a2a.GetA2AAgentService()
-		}
-	}
-	styleProvider := styles.NewProvider(app.themeService)
-	app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, styleProvider)
-
-	ctx := context.Background()
-	if cmd := app.a2aServersView.LoadServers(ctx); cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
-	return cmds
-}
-
 func (app *ChatApplication) handleThemeSelectionView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
@@ -1130,24 +1078,6 @@ func (app *ChatApplication) renderThemeSelection() string {
 	app.themeSelector.SetWidth(width)
 	app.themeSelector.SetHeight(height)
 	return app.themeSelector.View()
-}
-
-func (app *ChatApplication) renderA2AServers() string {
-	if app.a2aServersView == nil {
-		var a2aAgentService domain.A2AAgentService
-		if a2aShortcut, exists := app.shortcutRegistry.Get("a2a"); exists {
-			if a2a, ok := a2aShortcut.(*shortcuts.A2AShortcut); ok {
-				a2aAgentService = a2a.GetA2AAgentService()
-			}
-		}
-		styleProvider := styles.NewProvider(app.themeService)
-		app.a2aServersView = components.NewA2AServersView(app.configService, a2aAgentService, styleProvider)
-	}
-
-	width, height := app.stateManager.GetDimensions()
-	app.a2aServersView.SetWidth(width)
-	app.a2aServersView.SetHeight(height)
-	return app.a2aServersView.View()
 }
 
 func (app *ChatApplication) renderConversationSelection() string {

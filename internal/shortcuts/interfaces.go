@@ -38,13 +38,10 @@ const (
 	SideEffectSaveConversation
 	SideEffectShowConversationSelection
 	SideEffectStartNewConversation
-	SideEffectShowA2AServers
 	SideEffectShowA2ATaskManagement
 	SideEffectSetInput
 	SideEffectGenerateSnippet
 	SideEffectCompactConversation
-	SideEffectA2AAgentAdded
-	SideEffectA2AAgentRemoved
 	SideEffectShowInitGithubActionSetup
 	SideEffectEmbedImages
 )
