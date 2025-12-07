@@ -475,7 +475,7 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 		if cv.toolFormatter != nil && cv.toolFormatter.ShouldAlwaysExpandTool(entry.ToolExecution.ToolName) {
 			helpText = ""
 		} else {
-			helpText = cv.getToggleToolHint("collapse all tool calls")
+			helpText = "\n• " + cv.getToggleToolHint("collapse all tool calls")
 		}
 
 		return content + helpText

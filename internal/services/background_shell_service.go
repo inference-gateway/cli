@@ -40,7 +40,6 @@ func NewBackgroundShellService(
 		stopCleanup:  make(chan struct{}),
 	}
 
-	// Start cleanup goroutine
 	service.startCleanupRoutine()
 
 	return service
@@ -86,7 +85,7 @@ func (s *BackgroundShellService) DetachToBackground(
 	if s.eventChannel != nil {
 		select {
 		case s.eventChannel <- domain.ShellDetachedEvent{
-			RequestID: "system", // TODO: Get from context if available
+			RequestID: "system",
 			Timestamp: time.Now(),
 			ShellID:   shellID,
 			Command:   command,
@@ -323,7 +322,6 @@ func (s *BackgroundShellService) GetStats() map[string]int {
 
 // startCleanupRoutine starts the periodic cleanup of old completed shells
 func (s *BackgroundShellService) startCleanupRoutine() {
-	// Run cleanup every 10 minutes
 	s.cleanupTicker = time.NewTicker(10 * time.Minute)
 
 	s.wg.Add(1)
