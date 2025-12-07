@@ -19,10 +19,10 @@ import (
 
 // BashTool handles bash command execution with security validation
 type BashTool struct {
-	config                  *config.Config
-	enabled                 bool
-	formatter               domain.BaseFormatter
-	backgroundShellService  domain.BackgroundShellService
+	config                 *config.Config
+	enabled                bool
+	formatter              domain.BaseFormatter
+	backgroundShellService domain.BackgroundShellService
 }
 
 // NewBashTool creates a new bash tool

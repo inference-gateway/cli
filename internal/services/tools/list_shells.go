@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	domain "github.com/inference-gateway/cli/internal/domain"
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // ListShellsTool implements listing of background shells
 type ListShellsTool struct {
-	enabled               bool
+	enabled                bool
 	backgroundShellService domain.BackgroundShellService
 }
 

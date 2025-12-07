@@ -102,10 +102,10 @@ type ToolsConfig struct {
 
 // BashToolConfig contains bash-specific tool settings
 type BashToolConfig struct {
-	Enabled          bool                      `yaml:"enabled" mapstructure:"enabled"`
-	Whitelist        ToolWhitelistConfig       `yaml:"whitelist" mapstructure:"whitelist"`
-	RequireApproval  *bool                     `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
-	BackgroundShells BackgroundShellsConfig    `yaml:"background_shells" mapstructure:"background_shells"`
+	Enabled          bool                   `yaml:"enabled" mapstructure:"enabled"`
+	Whitelist        ToolWhitelistConfig    `yaml:"whitelist" mapstructure:"whitelist"`
+	RequireApproval  *bool                  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	BackgroundShells BackgroundShellsConfig `yaml:"background_shells" mapstructure:"background_shells"`
 }
 
 // BackgroundShellsConfig contains background shell execution settings
