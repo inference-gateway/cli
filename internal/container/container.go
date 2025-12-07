@@ -566,12 +566,10 @@ func (c *ServiceContainer) ShellTracker() domain.ShellTracker {
 // BackgroundShellService returns the background shell service
 func (c *ServiceContainer) BackgroundShellService() *services.BackgroundShellService {
 	if c.backgroundShellService == nil {
-		// Background shell service needs event channel which comes from StateManager
-		// For now, pass nil - it will be set up properly when integrated with chat
 		c.backgroundShellService = services.NewBackgroundShellService(
 			c.ShellTracker(),
 			c.config,
-			nil, // Event channel will be provided by chat handler
+			nil,
 		)
 	}
 	return c.backgroundShellService
