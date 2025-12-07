@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.81.0](https://github.com/inference-gateway/cli/compare/v0.80.1...v0.81.0) (2025-12-07)
+
+### 🚀 Features
+
+* Add background shell execution support ([#309](https://github.com/inference-gateway/cli/issues/309)) ([e2336a3](https://github.com/inference-gateway/cli/commit/e2336a3c6bc6f698985c55c2aa75d38939d5df4d))
+
 ## [0.80.1](https://github.com/inference-gateway/cli/compare/v0.80.0...v0.80.1) (2025-12-06)
 
 ### 📚 Documentation

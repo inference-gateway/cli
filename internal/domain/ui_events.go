@@ -24,12 +24,14 @@ type SetStatusEvent struct {
 	Spinner    bool
 	StatusType StatusType
 	Progress   *StatusProgress
+	ToolName   string
 }
 
 // UpdateStatusEvent updates an existing status message without resetting timer
 type UpdateStatusEvent struct {
 	Message    string
 	StatusType StatusType
+	ToolName   string
 }
 
 // ShowErrorEvent displays an error message

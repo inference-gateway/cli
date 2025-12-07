@@ -102,9 +102,19 @@ type ToolsConfig struct {
 
 // BashToolConfig contains bash-specific tool settings
 type BashToolConfig struct {
-	Enabled         bool                `yaml:"enabled" mapstructure:"enabled"`
-	Whitelist       ToolWhitelistConfig `yaml:"whitelist" mapstructure:"whitelist"`
-	RequireApproval *bool               `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled          bool                   `yaml:"enabled" mapstructure:"enabled"`
+	Timeout          int                    `yaml:"timeout" mapstructure:"timeout"`
+	Whitelist        ToolWhitelistConfig    `yaml:"whitelist" mapstructure:"whitelist"`
+	RequireApproval  *bool                  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	BackgroundShells BackgroundShellsConfig `yaml:"background_shells" mapstructure:"background_shells"`
+}
+
+// BackgroundShellsConfig contains background shell execution settings
+type BackgroundShellsConfig struct {
+	Enabled           bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxConcurrent     int  `yaml:"max_concurrent" mapstructure:"max_concurrent"`
+	MaxOutputBufferMB int  `yaml:"max_output_buffer_mb" mapstructure:"max_output_buffer_mb"`
+	RetentionMinutes  int  `yaml:"retention_minutes" mapstructure:"retention_minutes"`
 }
 
 // ReadToolConfig contains read-specific tool settings
@@ -477,6 +487,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			Bash: BashToolConfig{
 				Enabled: true,
+				Timeout: 120,
 				Whitelist: ToolWhitelistConfig{
 					Commands: []string{
 						"ls", "pwd", "tree",
@@ -491,6 +502,12 @@ func DefaultConfig() *Config { //nolint:funlen
 						"^git remote( -v)?$",
 						"^git show",
 					},
+				},
+				BackgroundShells: BackgroundShellsConfig{
+					Enabled:           true,
+					MaxConcurrent:     5,
+					MaxOutputBufferMB: 10,
+					RetentionMinutes:  60,
 				},
 			},
 			Read: ReadToolConfig{

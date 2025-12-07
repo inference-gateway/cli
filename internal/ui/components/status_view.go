@@ -6,7 +6,6 @@ import (
 
 	spinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
-	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
@@ -29,6 +28,7 @@ type StatusView struct {
 	savedState       *StatusState
 	styleProvider    *styles.Provider
 	keyHintFormatter *hints.Formatter
+	toolName         string
 }
 
 // StatusState represents a saved status state
@@ -280,8 +280,7 @@ func (sv *StatusView) formatSpinnerStatus() (string, string, string) {
 	seconds := elapsed.Seconds()
 	baseMsg := sv.formatStatusWithType(sv.baseMessage)
 
-	cancelHint := sv.getCancelHint()
-	displayMessage := fmt.Sprintf("%s (%.1fs) - %s", baseMsg, seconds, cancelHint)
+	displayMessage := fmt.Sprintf("%s (%.1fs)", baseMsg, seconds)
 
 	statusColor := sv.styleProvider.GetThemeColor("status")
 	return prefix, statusColor, displayMessage
@@ -293,21 +292,6 @@ func (sv *StatusView) formatNormalStatus() (string, string, string) {
 	displayMessage := sv.formatStatusWithType(sv.message)
 
 	return prefix, statusColor, displayMessage
-}
-
-// getCancelHint returns a keybinding hint for cancelling/interrupting operations
-func (sv *StatusView) getCancelHint() string {
-	if sv.keyHintFormatter == nil {
-		return "Press esc to interrupt"
-	}
-
-	actionID := config.ActionID(config.NamespaceGlobal, "cancel")
-	hint := sv.keyHintFormatter.GetKeyHint(actionID, "interrupt")
-	if hint == "" {
-		return "Press esc to interrupt"
-	}
-
-	return hint
 }
 
 // Bubble Tea interface
@@ -328,6 +312,7 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case domain.SetStatusEvent:
+		sv.toolName = msg.ToolName
 		if msg.Spinner {
 			sv.ShowSpinnerWithType(msg.Message, msg.StatusType, msg.Progress)
 			if cmd == nil {
@@ -337,6 +322,7 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			sv.ShowStatusWithType(msg.Message, msg.StatusType, msg.Progress)
 		}
 	case domain.UpdateStatusEvent:
+		sv.toolName = msg.ToolName
 		sv.UpdateSpinnerMessage(msg.Message, msg.StatusType)
 	case domain.ShowErrorEvent:
 		sv.ShowError(msg.Error)

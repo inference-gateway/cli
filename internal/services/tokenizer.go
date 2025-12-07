@@ -5,7 +5,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/inference-gateway/sdk"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // TokenizerService provides token counting functionality for LLM messages.
@@ -242,4 +243,20 @@ func (t *TokenizerService) AdjustedEstimate(text string) int {
 	}
 
 	return baseEstimate
+}
+
+// GetToolStats returns token count and tool count for a given agent mode
+func (t *TokenizerService) GetToolStats(toolService domain.ToolService, agentMode domain.AgentMode) (tokens int, count int) {
+	if toolService == nil {
+		return 0, 0
+	}
+
+	tools := toolService.ListToolsForMode(agentMode)
+	if len(tools) == 0 {
+		return 0, 0
+	}
+
+	tokens = t.EstimateToolDefinitionsTokens(tools)
+	count = len(tools)
+	return tokens, count
 }

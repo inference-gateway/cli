@@ -1,0 +1,20 @@
+version: "0.2"
+language: en
+words:
+  - bubbletea
+  - charmbracelet
+  - deepseek
+  - DEEPSEEK
+  - funlen
+  - gocyclo
+  - groq
+  - GROQ
+  - mekayelanik
+  - nolint
+  - ollama
+  - OLLAMA
+  - oneline
+  - pgdn
+  - pgup
+  - SHTTP
+  - sname

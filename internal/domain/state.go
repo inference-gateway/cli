@@ -53,7 +53,6 @@ const (
 	ViewStateFileSelection
 	ViewStateConversationSelection
 	ViewStateThemeSelection
-	ViewStateA2AServers
 	ViewStateA2ATaskManagement
 	ViewStatePlanApproval
 	ViewStateGitHubAppSetup
@@ -83,8 +82,6 @@ func (v ViewState) String() string {
 		return "ConversationSelection"
 	case ViewStateThemeSelection:
 		return "ThemeSelection"
-	case ViewStateA2AServers:
-		return "A2AServers"
 	case ViewStateA2ATaskManagement:
 		return "A2ATaskManagement"
 	case ViewStatePlanApproval:
@@ -398,7 +395,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateFileSelection,
 			ViewStateConversationSelection,
 			ViewStateThemeSelection,
-			ViewStateA2AServers,
 			ViewStateA2ATaskManagement,
 			ViewStatePlanApproval,
 			ViewStateGitHubAppSetup,
@@ -406,7 +402,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateFileSelection:         {ViewStateChat},
 		ViewStateConversationSelection: {ViewStateChat},
 		ViewStateThemeSelection:        {ViewStateChat},
-		ViewStateA2AServers:            {ViewStateChat},
 		ViewStateA2ATaskManagement:     {ViewStateChat},
 		ViewStatePlanApproval:          {ViewStateChat},
 		ViewStateGitHubAppSetup:        {ViewStateChat},

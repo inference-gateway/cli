@@ -1044,7 +1044,7 @@ func TestEventPublisher_PublishToolStatusChange(t *testing.T) {
 	chatEvents := make(chan domain.ChatEvent, 1)
 	publisher := newEventPublisher("request-123", chatEvents)
 
-	publisher.publishToolStatusChange("call-1", "running", "Executing...")
+	publisher.publishToolStatusChange("call-1", "TestTool", "running", "Executing...")
 
 	select {
 	case event := <-chatEvents:

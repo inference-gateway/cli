@@ -3,7 +3,9 @@ package services
 import (
 	"testing"
 
-	"github.com/inference-gateway/sdk"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 func TestNewTokenizerService(t *testing.T) {
@@ -453,5 +455,135 @@ func BenchmarkCalculateUsagePolyfill(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		tokenizer.CalculateUsagePolyfill(messages, "The capital of France is Paris.", nil, nil)
+	}
+}
+
+func TestGetToolStats(t *testing.T) {
+	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
+
+	desc1 := "Read the contents of a file"
+	desc2 := "Write data to a file"
+
+	tests := []struct {
+		name              string
+		toolService       domain.ToolService
+		agentMode         domain.AgentMode
+		expectedTokensMin int
+		expectedTokensMax int
+		expectedCount     int
+	}{
+		{
+			name:              "nil tool service",
+			toolService:       nil,
+			agentMode:         domain.AgentModeStandard,
+			expectedTokensMin: 0,
+			expectedTokensMax: 0,
+			expectedCount:     0,
+		},
+		{
+			name: "empty tools list",
+			toolService: func() domain.ToolService {
+				fake := &domainmocks.FakeToolService{}
+				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{})
+				return fake
+			}(),
+			agentMode:         domain.AgentModeStandard,
+			expectedTokensMin: 0,
+			expectedTokensMax: 0,
+			expectedCount:     0,
+		},
+		{
+			name: "single tool",
+			toolService: func() domain.ToolService {
+				fake := &domainmocks.FakeToolService{}
+				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{
+					{
+						Type: sdk.Function,
+						Function: sdk.FunctionObject{
+							Name:        "read_file",
+							Description: &desc1,
+						},
+					},
+				})
+				return fake
+			}(),
+			agentMode:         domain.AgentModeStandard,
+			expectedTokensMin: 10,
+			expectedTokensMax: 50,
+			expectedCount:     1,
+		},
+		{
+			name: "multiple tools",
+			toolService: func() domain.ToolService {
+				fake := &domainmocks.FakeToolService{}
+				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{
+					{
+						Type: sdk.Function,
+						Function: sdk.FunctionObject{
+							Name:        "read_file",
+							Description: &desc1,
+						},
+					},
+					{
+						Type: sdk.Function,
+						Function: sdk.FunctionObject{
+							Name:        "write_file",
+							Description: &desc2,
+						},
+					},
+				})
+				return fake
+			}(),
+			agentMode:         domain.AgentModeStandard,
+			expectedTokensMin: 20,
+			expectedTokensMax: 100,
+			expectedCount:     2,
+		},
+		{
+			name: "plan mode filtering",
+			toolService: func() domain.ToolService {
+				fake := &domainmocks.FakeToolService{}
+				fake.ListToolsForModeReturns([]sdk.ChatCompletionTool{
+					{
+						Type: sdk.Function,
+						Function: sdk.FunctionObject{
+							Name:        "read_file",
+							Description: &desc1,
+						},
+					},
+				})
+				return fake
+			}(),
+			agentMode:         domain.AgentModePlan,
+			expectedTokensMin: 10,
+			expectedTokensMax: 50,
+			expectedCount:     1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tokens, count := tokenizer.GetToolStats(tt.toolService, tt.agentMode)
+
+			if count != tt.expectedCount {
+				t.Errorf("Expected count=%d, got %d", tt.expectedCount, count)
+			}
+
+			if tokens < tt.expectedTokensMin || tokens > tt.expectedTokensMax {
+				t.Errorf("Expected tokens between %d and %d, got %d",
+					tt.expectedTokensMin, tt.expectedTokensMax, tokens)
+			}
+
+			if tt.toolService != nil && tt.expectedCount > 0 {
+				fake, ok := tt.toolService.(*domainmocks.FakeToolService)
+				if ok && fake.ListToolsForModeCallCount() > 0 {
+					actualMode := fake.ListToolsForModeArgsForCall(0)
+					if actualMode != tt.agentMode {
+						t.Errorf("Expected ListToolsForMode to be called with %v, got %v",
+							tt.agentMode, actualMode)
+					}
+				}
+			}
+		})
 	}
 }

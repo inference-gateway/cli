@@ -17,7 +17,7 @@ func TestBashTool_Definition(t *testing.T) {
 		},
 	}
 
-	tool := NewBashTool(cfg)
+	tool := NewBashTool(cfg, nil)
 	def := tool.Definition()
 
 	if def.Function.Name != "Bash" {
@@ -62,7 +62,7 @@ func TestBashTool_IsEnabled(t *testing.T) {
 				},
 			}
 
-			tool := NewBashTool(cfg)
+			tool := NewBashTool(cfg, nil)
 			if tool.IsEnabled() != tt.expectedState {
 				t.Errorf("Expected IsEnabled() = %v, got %v", tt.expectedState, tool.IsEnabled())
 			}
@@ -84,7 +84,7 @@ func TestBashTool_Validate(t *testing.T) {
 		},
 	}
 
-	tool := NewBashTool(cfg)
+	tool := NewBashTool(cfg, nil)
 
 	tests := []struct {
 		name      string
@@ -149,7 +149,7 @@ func TestBashTool_Execute(t *testing.T) {
 		},
 	}
 
-	tool := NewBashTool(cfg)
+	tool := NewBashTool(cfg, nil)
 	ctx := context.Background()
 
 	args := map[string]any{
@@ -188,7 +188,7 @@ func TestBashTool_GitPushValidation(t *testing.T) {
 		},
 	}
 
-	tool := NewBashTool(cfg)
+	tool := NewBashTool(cfg, nil)
 
 	tests := []struct {
 		name      string
@@ -285,7 +285,7 @@ func TestBashTool_StreamingOutput(t *testing.T) {
 		},
 	}
 
-	tool := NewBashTool(cfg)
+	tool := NewBashTool(cfg, nil)
 
 	t.Run("streaming callback receives output", func(t *testing.T) {
 		var receivedOutput []string

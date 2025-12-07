@@ -48,6 +48,19 @@ type FakeToolService struct {
 	getTaskTrackerReturnsOnCall map[int]struct {
 		result1 domain.TaskTracker
 	}
+	GetToolStub        func(string) (domain.Tool, error)
+	getToolMutex       sync.RWMutex
+	getToolArgsForCall []struct {
+		arg1 string
+	}
+	getToolReturns struct {
+		result1 domain.Tool
+		result2 error
+	}
+	getToolReturnsOnCall map[int]struct {
+		result1 domain.Tool
+		result2 error
+	}
 	IsToolEnabledStub        func(string) bool
 	isToolEnabledMutex       sync.RWMutex
 	isToolEnabledArgsForCall []struct {
@@ -287,6 +300,70 @@ func (fake *FakeToolService) GetTaskTrackerReturnsOnCall(i int, result1 domain.T
 	fake.getTaskTrackerReturnsOnCall[i] = struct {
 		result1 domain.TaskTracker
 	}{result1}
+}
+
+func (fake *FakeToolService) GetTool(arg1 string) (domain.Tool, error) {
+	fake.getToolMutex.Lock()
+	ret, specificReturn := fake.getToolReturnsOnCall[len(fake.getToolArgsForCall)]
+	fake.getToolArgsForCall = append(fake.getToolArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.GetToolStub
+	fakeReturns := fake.getToolReturns
+	fake.recordInvocation("GetTool", []interface{}{arg1})
+	fake.getToolMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeToolService) GetToolCallCount() int {
+	fake.getToolMutex.RLock()
+	defer fake.getToolMutex.RUnlock()
+	return len(fake.getToolArgsForCall)
+}
+
+func (fake *FakeToolService) GetToolCalls(stub func(string) (domain.Tool, error)) {
+	fake.getToolMutex.Lock()
+	defer fake.getToolMutex.Unlock()
+	fake.GetToolStub = stub
+}
+
+func (fake *FakeToolService) GetToolArgsForCall(i int) string {
+	fake.getToolMutex.RLock()
+	defer fake.getToolMutex.RUnlock()
+	argsForCall := fake.getToolArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeToolService) GetToolReturns(result1 domain.Tool, result2 error) {
+	fake.getToolMutex.Lock()
+	defer fake.getToolMutex.Unlock()
+	fake.GetToolStub = nil
+	fake.getToolReturns = struct {
+		result1 domain.Tool
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *FakeToolService) GetToolReturnsOnCall(i int, result1 domain.Tool, result2 error) {
+	fake.getToolMutex.Lock()
+	defer fake.getToolMutex.Unlock()
+	fake.GetToolStub = nil
+	if fake.getToolReturnsOnCall == nil {
+		fake.getToolReturnsOnCall = make(map[int]struct {
+			result1 domain.Tool
+			result2 error
+		})
+	}
+	fake.getToolReturnsOnCall[i] = struct {
+		result1 domain.Tool
+		result2 error
+	}{result1, result2}
 }
 
 func (fake *FakeToolService) IsToolEnabled(arg1 string) bool {

@@ -24,29 +24,30 @@ The CLI connects to A2A agents using their URL endpoints through the ADK client 
 
 ## Usage
 
-### Using the /a2a Shortcut
+### Using the /agents Shortcut
 
-The `/a2a` shortcut provides command-line interface for managing A2A agent configurations:
+The `/agents` shortcut provides command-line interface for managing A2A agent configurations:
 
-#### List A2A Servers
+#### List A2A Agents
 
 ```bash
-/a2a
-/a2a list
+/agents
+/agents list
 ```
 
-This opens the A2A servers view showing:
+This displays a list of all configured A2A agents showing:
 
-- Gateway URL configuration
-- A2A middleware status (enabled/disabled)
-- API key configuration status
-- Connection timeout settings
-- Configured agents and their status
+- Agent name
+- URL endpoint
+- OCI container image (if configured)
+- Run locally status (enabled/disabled)
+- Model configuration
+- Enabled/disabled status
 
 #### Add an Agent
 
 ```bash
-/a2a add my-agent http://localhost:8081 --run --model openai/gpt-4
+/agents-add my-agent http://localhost:8081 --run --model openai/gpt-4
 ```
 
 Options:
@@ -60,7 +61,19 @@ Options:
 #### Remove an Agent
 
 ```bash
-/a2a remove my-agent
+/agents-remove my-agent
+```
+
+#### Enable an Agent
+
+```bash
+/agents-enable my-agent
+```
+
+#### Disable an Agent
+
+```bash
+/agents-disable my-agent
 ```
 
 ### Using the A2A Tools
@@ -203,7 +216,7 @@ Tool Details:
 
 ### A2A Tool Configuration
 
-**Note**: The `/a2a` shortcut is used for **agent configuration management**,
+**Note**: The `/agents` shortcut is used for **agent configuration management**,
 while the A2A tools below are used for **runtime interaction** with configured agents.
 
 A2A tools are configured in the `a2a.tools` section of your configuration:
@@ -323,14 +336,18 @@ Enable verbose logging and check for:
 
 ## Examples
 
-### Agent Configuration with /a2a Shortcut
+### Agent Configuration with /agents Shortcut
 
 ```bash
-# First, configure an agent using the /a2a shortcut
-/a2a add code-reviewer http://localhost:8081 --run --model openai/gpt-4 --environment GITHUB_TOKEN=xxx
+# First, configure an agent using the /agents shortcut
+/agents-add code-reviewer http://localhost:8081 --run --model openai/gpt-4 --environment GITHUB_TOKEN=xxx
 
 # List configured agents
-/a2a list
+/agents list
+
+# Enable or disable an agent
+/agents-enable code-reviewer
+/agents-disable code-reviewer
 ```
 
 ### Code Review Task

@@ -241,6 +241,12 @@ func addToolsBindings(bindings map[string]KeyBindingEntry) {
 		Category:    "tools",
 		Enabled:     &enabled,
 	}
+	bindings[ActionID(NamespaceTools, "background_shell")] = KeyBindingEntry{
+		Keys:        []string{"ctrl+b"},
+		Description: "move running bash command to background",
+		Category:    "tools",
+		Enabled:     &enabled,
+	}
 }
 
 func addSelectionBindings(bindings map[string]KeyBindingEntry) {

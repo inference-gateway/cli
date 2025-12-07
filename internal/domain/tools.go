@@ -16,4 +16,5 @@ type ToolService interface {
 	IsToolEnabled(name string) bool
 	ValidateTool(name string, args map[string]any) error
 	GetTaskTracker() TaskTracker
+	GetTool(name string) (Tool, error)
 }

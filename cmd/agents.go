@@ -187,6 +187,26 @@ var agentsInitCmd = &cobra.Command{
 	RunE:  initAgents,
 }
 
+var agentsEnableCmd = &cobra.Command{
+	Use:   "enable <name>",
+	Short: "Enable an A2A agent",
+	Long:  `Enable a specific Agent-to-Agent (A2A) agent. Note: You may need to restart your chat session for changes to take effect.`,
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return enableAgent(cmd, args[0])
+	},
+}
+
+var agentsDisableCmd = &cobra.Command{
+	Use:   "disable <name>",
+	Short: "Disable an A2A agent",
+	Long:  `Disable a specific Agent-to-Agent (A2A) agent. Note: You may need to restart your chat session for changes to take effect.`,
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return disableAgent(cmd, args[0])
+	},
+}
+
 func getAgentsConfigService(cmd *cobra.Command) (*services.AgentsConfigService, error) {
 	userspace := GetUserspaceFlag(cmd)
 
@@ -435,6 +455,52 @@ func initAgents(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
+func enableAgent(cmd *cobra.Command, name string) error {
+	svc, err := getAgentsConfigService(cmd)
+	if err != nil {
+		return err
+	}
+
+	agent, err := svc.GetAgent(name)
+	if err != nil {
+		return fmt.Errorf("failed to find agent: %w", err)
+	}
+
+	agent.Enabled = true
+	if err := svc.UpdateAgent(*agent); err != nil {
+		return fmt.Errorf("failed to enable agent: %w", err)
+	}
+
+	fmt.Printf("%s Agent '%s' enabled successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark), name)
+	fmt.Println()
+	fmt.Println("Note: Restart your chat session for changes to take effect.")
+
+	return nil
+}
+
+func disableAgent(cmd *cobra.Command, name string) error {
+	svc, err := getAgentsConfigService(cmd)
+	if err != nil {
+		return err
+	}
+
+	agent, err := svc.GetAgent(name)
+	if err != nil {
+		return fmt.Errorf("failed to find agent: %w", err)
+	}
+
+	agent.Enabled = false
+	if err := svc.UpdateAgent(*agent); err != nil {
+		return fmt.Errorf("failed to disable agent: %w", err)
+	}
+
+	fmt.Printf("%s Agent '%s' disabled successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark), name)
+	fmt.Println()
+	fmt.Println("Note: Restart your chat session for changes to take effect.")
+
+	return nil
+}
+
 func init() {
 	agentsCmd.AddCommand(agentsAddCmd)
 	agentsCmd.AddCommand(agentsUpdateCmd)
@@ -442,6 +508,8 @@ func init() {
 	agentsCmd.AddCommand(agentsRemoveCmd)
 	agentsCmd.AddCommand(agentsShowCmd)
 	agentsCmd.AddCommand(agentsInitCmd)
+	agentsCmd.AddCommand(agentsEnableCmd)
+	agentsCmd.AddCommand(agentsDisableCmd)
 
 	agentsAddCmd.Flags().String("oci", "", "OCI image reference for local execution")
 	agentsAddCmd.Flags().String("artifacts-url", "", "Artifacts server URL")
