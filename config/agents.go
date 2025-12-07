@@ -16,6 +16,7 @@ type AgentEntry struct {
 	Run          bool              `yaml:"run" mapstructure:"run"`
 	Model        string            `yaml:"model,omitempty" mapstructure:"model,omitempty"`
 	Environment  map[string]string `yaml:"environment,omitempty" mapstructure:"environment,omitempty"`
+	Enabled      bool              `yaml:"enabled" mapstructure:"enabled"`
 }
 
 // DefaultAgentsConfig returns a default agents configuration

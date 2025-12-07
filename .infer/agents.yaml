@@ -4,3 +4,4 @@ agents:
     oci: ghcr.io/inference-gateway/mock-agent:latest
     run: true
     model: deepseek/deepseek-chat
+    enabled: true

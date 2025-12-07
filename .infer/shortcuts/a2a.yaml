@@ -1,0 +1,86 @@
+---
+# A2A (Agent-to-Agent) Shortcuts
+# Manage A2A agent configuration from within chat
+#
+# Usage:
+# - /agents - List all configured A2A agents
+# - /agents-add <name> [url] [options] - Add a new A2A agent
+# - /agents-remove <name> - Remove an A2A agent
+# - /agents-enable <name> - Enable an A2A agent
+# - /agents-disable <name> - Disable an A2A agent
+
+shortcuts:
+  - name: agents
+    description: "List all configured A2A agents"
+    command: infer
+    args:
+      - agents
+      - list
+
+  - name: agents-add
+    description: "Add a new A2A agent (usage: /agents-add <name> [url] [--oci IMAGE] [--run] [--model MODEL] [--artifacts-url URL] [--environment KEY=VALUE]...)"
+    command: bash
+    args:
+      - -c
+      - |
+        if [ $# -lt 1 ]; then
+          echo "Usage: /agents-add <name> [url] [options]"
+          echo "Options:"
+          echo "  --oci IMAGE               OCI image for auto-start"
+          echo "  --run                     Enable auto-start"
+          echo "  --model MODEL             Model specification (required with --run)"
+          echo "  --artifacts-url URL       Artifacts download URL"
+          echo "  --environment KEY=VALUE   Environment variable (repeatable)"
+          echo ""
+          echo "Examples:"
+          echo "  /agents-add researcher https://api.example.com/a2a --model anthropic/claude-4-5-sonnet"
+          echo "  /agents-add coder --run --oci my-agent:latest --model openai/gpt-4"
+          exit 1
+        fi
+
+        # Build command dynamically to handle all flags
+        CMD="infer agents add"
+        for arg in "$@"; do
+          CMD="$CMD \"$arg\""
+        done
+
+        eval "$CMD"
+
+  - name: agents-remove
+    description: "Remove an A2A agent (usage: /agents-remove <name>)"
+    command: bash
+    args:
+      - -c
+      - |
+        if [ $# -lt 1 ]; then
+          echo "Usage: /agents-remove <name>"
+          echo "Example: /agents-remove researcher"
+          exit 1
+        fi
+        infer agents remove "$1"
+
+  - name: agents-enable
+    description: "Enable an A2A agent (usage: /agents-enable <name>)"
+    command: bash
+    args:
+      - -c
+      - |
+        if [ $# -lt 1 ]; then
+          echo "Usage: /agents-enable <name>"
+          echo "Example: /agents-enable researcher"
+          exit 1
+        fi
+        infer agents enable "$1"
+
+  - name: agents-disable
+    description: "Disable an A2A agent (usage: /agents-disable <name>)"
+    command: bash
+    args:
+      - -c
+      - |
+        if [ $# -lt 1 ]; then
+          echo "Usage: /agents-disable <name>"
+          echo "Example: /agents-disable researcher"
+          exit 1
+        fi
+        infer agents disable "$1"
