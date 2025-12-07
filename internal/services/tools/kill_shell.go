@@ -51,14 +51,12 @@ func (t *KillShellTool) Definition() sdk.ChatCompletionTool {
 
 // Execute cancels a background shell
 func (t *KillShellTool) Execute(ctx context.Context, args map[string]any) (*domain.ToolExecutionResult, error) {
-	// Validate arguments
 	if err := t.Validate(args); err != nil {
 		return nil, err
 	}
 
 	shellID, _ := args["shell_id"].(string)
 
-	// Get shell info before cancelling
 	shell := t.shellService.GetShell(shellID)
 	if shell == nil {
 		return &domain.ToolExecutionResult{
@@ -68,7 +66,6 @@ func (t *KillShellTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}, nil
 	}
 
-	// Cancel the shell
 	if err := t.shellService.CancelShell(shellID); err != nil {
 		return &domain.ToolExecutionResult{
 			ToolName: "KillShell",
@@ -77,7 +74,6 @@ func (t *KillShellTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}, nil
 	}
 
-	// Build result
 	result := map[string]any{
 		"shell_id": shellID,
 		"command":  shell.Command,
