@@ -490,7 +490,7 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 }
 
 func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
-	hint := cv.getToggleToolHint("expand all tool calls")
+	hint := cv.getHintForEntry(entry)
 	if entry.ToolExecution != nil {
 		content := cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
 		return content + "\n• " + hint
@@ -1059,17 +1059,19 @@ func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cm
 	return cmd
 }
 
-// getToggleToolHint returns a keybinding hint for toggling tool expansion
+// getHintForEntry returns the appropriate hint based on entry state
+func (cv *ConversationView) getHintForEntry(_ domain.ConversationEntry) string {
+	return cv.getToggleToolHint("expand all tool calls")
+}
+
 func (cv *ConversationView) getToggleToolHint(action string) string {
 	if cv.keyHintFormatter == nil {
-		// Fallback to hardcoded hint if formatter not set
 		return "Press ctrl+o to " + action
 	}
 
 	actionID := config.ActionID(config.NamespaceTools, "toggle_tool_expansion")
 	hint := cv.keyHintFormatter.GetKeyHint(actionID, action)
 	if hint == "" {
-		// Fallback if keybinding not found
 		return "Press ctrl+o to " + action
 	}
 

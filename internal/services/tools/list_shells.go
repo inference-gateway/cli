@@ -179,8 +179,8 @@ func (t *ListShellsTool) formatLLMResult(result *domain.ToolExecutionResult) str
 		output += fmt.Sprintf("   Started: %s\n", shell["started_at"])
 		output += fmt.Sprintf("   Elapsed: %s\n", shell["elapsed"])
 		output += fmt.Sprintf("   Output Size: %d bytes\n", shell["output_size"])
-		if shell["exit_code"] != nil {
-			output += fmt.Sprintf("   Exit Code: %d\n", shell["exit_code"])
+		if exitCode, ok := shell["exit_code"].(*int); ok && exitCode != nil {
+			output += fmt.Sprintf("   Exit Code: %d\n", *exitCode)
 		}
 		output += "\n"
 	}

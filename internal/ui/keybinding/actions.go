@@ -611,13 +611,6 @@ func handleToggleToolExpansion(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 }
 
 func handleBackgroundShell(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
-	stateManager := app.GetStateManager()
-	chatSession := stateManager.GetChatSession()
-
-	if chatSession == nil {
-		return nil
-	}
-
 	return func() tea.Msg {
 		return domain.BackgroundShellRequestEvent{}
 	}

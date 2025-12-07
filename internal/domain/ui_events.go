@@ -31,6 +31,7 @@ type SetStatusEvent struct {
 type UpdateStatusEvent struct {
 	Message    string
 	StatusType StatusType
+	ToolName   string
 }
 
 // ShowErrorEvent displays an error message

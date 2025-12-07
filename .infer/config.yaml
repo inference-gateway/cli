@@ -42,6 +42,7 @@ tools:
       - '*.env'
   bash:
     enabled: true
+    timeout: 120
     whitelist:
       commands:
         - ls

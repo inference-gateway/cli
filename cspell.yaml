@@ -1,0 +1,16 @@
+version: "0.2"
+language: en
+words:
+  - bubbletea
+  - charmbracelet
+  - deepseek
+  - DEEPSEEK
+  - funlen
+  - groq
+  - GROQ
+  - nolint
+  - ollama
+  - OLLAMA
+  - oneline
+  - pgdn
+  - pgup

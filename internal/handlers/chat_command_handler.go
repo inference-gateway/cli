@@ -147,7 +147,7 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 // executeBashCommandAsync executes the bash command and returns results
 func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID string) tea.Cmd {
 	eventChan := make(chan tea.Msg, 10000)
-	detachChan := make(chan struct{})
+	detachChan := make(chan struct{}, 1)
 
 	c.bashEventChannelMu.Lock()
 	c.bashEventChannel = eventChan
@@ -172,6 +172,7 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 				Timestamp: time.Now(),
 			},
 			ToolCallID: toolCallID,
+			ToolName:   "Bash",
 			Status:     "running",
 			Message:    "Executing...",
 		}
@@ -195,7 +196,7 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 
 		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
 		ctx = context.WithValue(ctx, domain.BashOutputCallbackKey, domain.BashOutputCallback(bashCallback))
-		ctx = context.WithValue(ctx, domain.BashDetachChannelKey, detachChan)
+		ctx = context.WithValue(ctx, domain.BashDetachChannelKey, (<-chan struct{})(detachChan))
 		result, err := c.handler.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
@@ -341,7 +342,7 @@ func (c *ChatCommandHandler) executeBashCommandInBackground(commandText, command
 		assistantEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(fmt.Sprintf("Command backgrounded with ID: %s. Use ListShells() to view background shells or BashOutput(shell_id=\"%s\") to view output.", shellID, shellID)),
+				Content: sdk.NewMessageContent(fmt.Sprintf("Command sent to the background with ID: %s. Use ListShells() to view background shells or BashOutput(shell_id=\"%s\") to view output.", shellID, shellID)),
 			},
 			Time: time.Now(),
 		}
@@ -506,7 +507,6 @@ func (c *ChatCommandHandler) executeToolCommandAsync(toolName, argsJSON, toolCal
 			c.toolEventChannelMu.Unlock()
 		}()
 
-		// Send progress event
 		eventChan <- domain.ToolExecutionProgressEvent{
 			BaseChatEvent: domain.BaseChatEvent{
 				RequestID: toolCallID,

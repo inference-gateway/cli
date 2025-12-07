@@ -1003,7 +1003,7 @@ func (s *AgentServiceImpl) executeTool(
 		}
 		execCtx = context.WithValue(execCtx, domain.BashOutputCallbackKey, domain.BashOutputCallback(bashCallback))
 
-		detachChan := make(chan struct{})
+		detachChan := make(chan struct{}, 1)
 		if chatHandler, ok := ctx.Value(domain.ChatHandlerKey).(domain.BashDetachChannelHolder); ok && chatHandler != nil {
 			chatHandler.SetBashDetachChan(detachChan)
 

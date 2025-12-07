@@ -101,7 +101,7 @@ func (s *BackgroundShellService) DetachToBackground(
 }
 
 // monitorShell monitors a background shell until completion
-func (s *BackgroundShellService) monitorShell(ctx context.Context, shell *domain.BackgroundShell) {
+func (s *BackgroundShellService) monitorShell(_ context.Context, shell *domain.BackgroundShell) {
 	defer s.wg.Done()
 
 	err := shell.Cmd.Wait()
@@ -122,7 +122,6 @@ func (s *BackgroundShellService) monitorShell(ctx context.Context, shell *domain
 		shell.State = domain.ShellStateCompleted
 
 		logger.Info("Background shell completed", "shell_id", shell.ShellID, "duration", duration)
-
 		if s.eventChannel != nil {
 			select {
 			case s.eventChannel <- domain.ShellCompletedEvent{
@@ -353,13 +352,55 @@ func (s *BackgroundShellService) performCleanup() {
 
 // Stop stops the background shell service and cleanup routine
 func (s *BackgroundShellService) Stop() {
-	logger.Info("Stopping background shell service")
+	s.killAllRunningShells()
 
 	close(s.stopCleanup)
 
 	s.wg.Wait()
+}
 
-	logger.Info("Background shell service stopped")
+// killAllRunningShells terminates all running background shells
+func (s *BackgroundShellService) killAllRunningShells() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	shells := s.shellTracker.GetAll()
+	runningCount := 0
+
+	for _, shell := range shells {
+		if shell.State != domain.ShellStateRunning {
+			continue
+		}
+
+		runningCount++
+		s.terminateShell(shell)
+	}
+
+	if runningCount > 0 {
+		logger.Info("Terminated running background shells", "count", runningCount)
+	}
+}
+
+// terminateShell terminates a single background shell
+func (s *BackgroundShellService) terminateShell(shell *domain.BackgroundShell) {
+	logger.Info("Terminating background shell on exit", "shell_id", shell.ShellID, "command", shell.Command)
+
+	if shell.Cmd.Process != nil {
+		if err := shell.Cmd.Process.Signal(syscall.SIGTERM); err != nil {
+			logger.Warn("Failed to send SIGTERM to shell", "shell_id", shell.ShellID, "error", err)
+			if killErr := shell.Cmd.Process.Kill(); killErr != nil {
+				logger.Error("Failed to kill shell process", "shell_id", shell.ShellID, "error", killErr)
+			}
+		}
+	}
+
+	if shell.CancelFunc != nil {
+		shell.CancelFunc()
+	}
+
+	shell.State = domain.ShellStateCancelled
+	completedAt := time.Now()
+	shell.CompletedAt = &completedAt
 }
 
 // generateShellID generates a unique shell ID

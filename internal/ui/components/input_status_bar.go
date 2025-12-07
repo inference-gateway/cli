@@ -13,17 +13,18 @@ import (
 
 // InputStatusBar displays input status information like model, theme, agents
 type InputStatusBar struct {
-	width            int
-	modelService     domain.ModelService
-	themeService     domain.ThemeService
-	stateManager     domain.StateManager
-	configService    *config.Config
-	conversationRepo domain.ConversationRepository
-	toolService      domain.ToolService
-	tokenEstimator   domain.TokenEstimator
-	mcpStatus        *domain.MCPServerStatus
-	styleProvider    *styles.Provider
-	currentInputText string
+	width                  int
+	modelService           domain.ModelService
+	themeService           domain.ThemeService
+	stateManager           domain.StateManager
+	configService          *config.Config
+	conversationRepo       domain.ConversationRepository
+	toolService            domain.ToolService
+	tokenEstimator         domain.TokenEstimator
+	backgroundShellService domain.BackgroundShellService
+	mcpStatus              *domain.MCPServerStatus
+	styleProvider          *styles.Provider
+	currentInputText       string
 }
 
 // NewInputStatusBar creates a new input status bar
@@ -67,6 +68,11 @@ func (isb *InputStatusBar) SetToolService(toolService domain.ToolService) {
 // SetTokenEstimator sets the token estimator
 func (isb *InputStatusBar) SetTokenEstimator(estimator domain.TokenEstimator) {
 	isb.tokenEstimator = estimator
+}
+
+// SetBackgroundShellService sets the background shell service
+func (isb *InputStatusBar) SetBackgroundShellService(service domain.BackgroundShellService) {
+	isb.backgroundShellService = service
 }
 
 // UpdateMCPStatus updates the MCP server status (called by event handler)
@@ -155,6 +161,10 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 		parts = append(parts, toolInfo)
 	}
 
+	if backgroundInfo := isb.getBackgroundInfo(); backgroundInfo != "" {
+		parts = append(parts, backgroundInfo)
+	}
+
 	if isb.mcpStatus != nil {
 		if isb.mcpStatus.TotalTools > 0 {
 			parts = append(parts, fmt.Sprintf("MCP: %d tools, %d/%d", isb.mcpStatus.TotalTools, isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
@@ -187,6 +197,27 @@ func (isb *InputStatusBar) getToolInfo() string {
 	}
 
 	return fmt.Sprintf("Tools: %d tokens / %d tools", tokens, count)
+}
+
+// getBackgroundInfo returns background process count information
+func (isb *InputStatusBar) getBackgroundInfo() string {
+	if isb.backgroundShellService == nil {
+		return ""
+	}
+
+	shells := isb.backgroundShellService.GetAllShells()
+	runningCount := 0
+	for _, shell := range shells {
+		if shell.State == domain.ShellStateRunning {
+			runningCount++
+		}
+	}
+
+	if runningCount == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("Background: (%d)", runningCount)
 }
 
 // getContextUsageIndicator returns a context usage indicator string

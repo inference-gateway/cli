@@ -314,6 +314,7 @@ func (e *ChatEventHandler) handleToolCallUpdate(
 			return domain.UpdateStatusEvent{
 				Message:    statusMsg,
 				StatusType: domain.StatusWorking,
+				ToolName:   msg.ToolName,
 			}
 		})
 	default:
@@ -322,6 +323,7 @@ func (e *ChatEventHandler) handleToolCallUpdate(
 				Message:    statusMsg,
 				Spinner:    false,
 				StatusType: domain.StatusWorking,
+				ToolName:   msg.ToolName,
 			}
 		})
 	}

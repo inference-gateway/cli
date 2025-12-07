@@ -103,6 +103,7 @@ type ToolsConfig struct {
 // BashToolConfig contains bash-specific tool settings
 type BashToolConfig struct {
 	Enabled          bool                   `yaml:"enabled" mapstructure:"enabled"`
+	Timeout          int                    `yaml:"timeout" mapstructure:"timeout"`
 	Whitelist        ToolWhitelistConfig    `yaml:"whitelist" mapstructure:"whitelist"`
 	RequireApproval  *bool                  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 	BackgroundShells BackgroundShellsConfig `yaml:"background_shells" mapstructure:"background_shells"`
@@ -486,6 +487,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			Bash: BashToolConfig{
 				Enabled: true,
+				Timeout: 120,
 				Whitelist: ToolWhitelistConfig{
 					Commands: []string{
 						"ls", "pwd", "tree",
