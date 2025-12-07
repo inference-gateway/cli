@@ -253,6 +253,7 @@ func NewChatApplication(
 		messageQueue,
 		app.taskRetentionService,
 		app.backgroundTaskService,
+		app.toolRegistry.GetBackgroundShellService(),
 		agentManager,
 		configService,
 	)

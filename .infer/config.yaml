@@ -62,6 +62,11 @@ tools:
         - ^git diff
         - ^git remote( -v)?$
         - ^git show
+    background_shells:
+      enabled: true
+      max_concurrent: 5
+      max_output_buffer_mb: 10
+      retention_minutes: 60
   read:
     enabled: true
     require_approval: false
@@ -496,6 +501,12 @@ chat:
           - ctrl+e
         description: move cursor to end
         category: text_editing
+        enabled: true
+      tools_background_shell:
+        keys:
+          - ctrl+b
+        description: move running bash command to background
+        category: tools
         enabled: true
       tools_toggle_tool_expansion:
         keys:

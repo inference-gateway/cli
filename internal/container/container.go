@@ -17,6 +17,7 @@ import (
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
 	viper "github.com/spf13/viper"
 )
@@ -49,10 +50,12 @@ type ServiceContainer struct {
 	stateManager domain.StateManager
 
 	// Background services
-	titleGenerator       *services.ConversationTitleGenerator
-	backgroundJobManager *services.BackgroundJobManager
-	storage              storage.ConversationStorage
-	agentsConfigService  *services.AgentsConfigService
+	titleGenerator         *services.ConversationTitleGenerator
+	backgroundJobManager   *services.BackgroundJobManager
+	backgroundShellService *services.BackgroundShellService
+	shellTracker           domain.ShellTracker
+	storage                storage.ConversationStorage
+	agentsConfigService    *services.AgentsConfigService
 
 	// UI components
 	themeService domain.ThemeService
@@ -202,7 +205,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.initializeMCPManager()
 
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager)
+	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService())
 	c.taskTrackerService = c.toolRegistry.GetTaskTracker()
 
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
@@ -551,8 +554,37 @@ func (c *ServiceContainer) GetGatewayManager() domain.GatewayManager {
 	return c.gatewayManager
 }
 
+// ShellTracker returns the shell tracker
+func (c *ServiceContainer) ShellTracker() domain.ShellTracker {
+	if c.shellTracker == nil {
+		maxConcurrent := c.config.Tools.Bash.BackgroundShells.MaxConcurrent
+		c.shellTracker = utils.NewShellTracker(maxConcurrent)
+	}
+	return c.shellTracker
+}
+
+// BackgroundShellService returns the background shell service
+func (c *ServiceContainer) BackgroundShellService() *services.BackgroundShellService {
+	if c.backgroundShellService == nil {
+		// Background shell service needs event channel which comes from StateManager
+		// For now, pass nil - it will be set up properly when integrated with chat
+		c.backgroundShellService = services.NewBackgroundShellService(
+			c.ShellTracker(),
+			c.config,
+			nil, // Event channel will be provided by chat handler
+		)
+	}
+	return c.backgroundShellService
+}
+
 // Shutdown gracefully shuts down the service container and its resources
 func (c *ServiceContainer) Shutdown(ctx context.Context) error {
+	// Stop background shell service
+	if c.backgroundShellService != nil {
+		logger.Info("Stopping background shell service...")
+		c.backgroundShellService.Stop()
+	}
+
 	if c.agentManager != nil && c.agentManager.IsRunning() {
 		logger.Info("Shutting down agent containers...")
 		if err := c.agentManager.StopAgents(ctx); err != nil {

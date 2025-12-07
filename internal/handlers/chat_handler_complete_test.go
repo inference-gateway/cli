@@ -5,6 +5,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -272,6 +273,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		nil,
 		nil,
 		nil,
+		config.DefaultConfig(),
 	)
 }
 
@@ -419,6 +421,7 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 				nil,
 				nil,
 				nil,
+				config.DefaultConfig(),
 			)
 
 			cmd := handler.eventHandler.handleChatComplete(tt.msg)

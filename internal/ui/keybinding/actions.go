@@ -86,6 +86,19 @@ func (r *Registry) createChatActions() []*KeyAction {
 			},
 		},
 		{
+			Namespace:   config.NamespaceTools,
+			ID:          config.ActionID(config.NamespaceTools, "background_shell"),
+			Keys:        []string{"ctrl+b"},
+			Description: "move running bash command to background",
+			Category:    "tools",
+			Handler:     handleBackgroundShell,
+			Priority:    200,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
+		{
 			Namespace:   config.NamespaceDisplay,
 			ID:          config.ActionID(config.NamespaceDisplay, "toggle_raw_format"),
 			Keys:        []string{"ctrl+r"},
@@ -597,6 +610,19 @@ func handleToggleToolExpansion(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 	return nil
 }
 
+func handleBackgroundShell(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+	chatSession := stateManager.GetChatSession()
+
+	if chatSession == nil {
+		return nil
+	}
+
+	return func() tea.Msg {
+		return domain.BackgroundShellRequestEvent{}
+	}
+}
+
 func handleToggleRawFormat(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	app.ToggleRawFormat()
 	return func() tea.Msg {
@@ -854,6 +880,12 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cm
 	if cursor == len(text) {
 		if iv, ok := inputView.(*components.InputView); ok && iv.HasHistorySuggestion() {
 			iv.AcceptHistorySuggestion()
+
+			autocomplete := app.GetAutocomplete()
+			if autocomplete != nil && autocomplete.IsVisible() {
+				autocomplete.Hide()
+			}
+
 			return nil
 		}
 	}

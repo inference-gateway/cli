@@ -21,13 +21,15 @@ type Registry struct {
 	taskTracker  domain.TaskTracker
 	imageService domain.ImageService
 	mcpManager   domain.MCPManager
+	shellService domain.BackgroundShellService
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
-func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager) *Registry {
+func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService) *Registry {
 	registry := &Registry{
 		config:       cfg,
 		tools:        make(map[string]domain.Tool),
+		shellService: shellService,
 		readToolUsed: false,
 		taskTracker:  utils.NewTaskTracker(),
 		imageService: imageService,
@@ -40,7 +42,15 @@ func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManage
 
 // registerTools initializes and registers all available tools
 func (r *Registry) registerTools() {
-	r.tools["Bash"] = NewBashTool(r.config)
+	r.tools["Bash"] = NewBashTool(r.config, r.shellService)
+
+	// Register background shell management tools
+	if r.config.Tools.Bash.BackgroundShells.Enabled && r.shellService != nil {
+		r.tools["BashOutput"] = NewBashOutputTool(r.config, r.shellService)
+		r.tools["KillShell"] = NewKillShellTool(r.config, r.shellService)
+		r.tools["ListShells"] = NewListShellsTool(r.config, r.shellService)
+	}
+
 	r.tools["Read"] = NewReadTool(r.config)
 	r.tools["Write"] = NewWriteTool(r.config)
 	r.tools["Edit"] = NewEditToolWithRegistry(r.config, r)
@@ -232,4 +242,9 @@ func (r *Registry) IsReadToolUsed() bool {
 // GetTaskTracker returns the task tracker instance
 func (r *Registry) GetTaskTracker() domain.TaskTracker {
 	return r.taskTracker
+}
+
+// GetBackgroundShellService returns the background shell service instance
+func (r *Registry) GetBackgroundShellService() domain.BackgroundShellService {
+	return r.shellService
 }

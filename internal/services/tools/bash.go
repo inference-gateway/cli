@@ -13,22 +13,25 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // BashTool handles bash command execution with security validation
 type BashTool struct {
-	config    *config.Config
-	enabled   bool
-	formatter domain.BaseFormatter
+	config                  *config.Config
+	enabled                 bool
+	formatter               domain.BaseFormatter
+	backgroundShellService  domain.BackgroundShellService
 }
 
 // NewBashTool creates a new bash tool
-func NewBashTool(cfg *config.Config) *BashTool {
+func NewBashTool(cfg *config.Config, backgroundShellService domain.BackgroundShellService) *BashTool {
 	return &BashTool{
-		config:    cfg,
-		enabled:   cfg.Tools.Enabled && cfg.Tools.Bash.Enabled,
-		formatter: domain.NewBaseFormatter("Bash"),
+		config:                 cfg,
+		enabled:                cfg.Tools.Enabled && cfg.Tools.Bash.Enabled,
+		formatter:              domain.NewBaseFormatter("Bash"),
+		backgroundShellService: backgroundShellService,
 	}
 }
 
@@ -228,9 +231,19 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 		return result, err
 	}
 
+	detachChan, hasDetachChan := ctx.Value(domain.BashDetachChannelKey).(<-chan struct{})
+
 	var outputBuilder strings.Builder
+	var outputBuffer domain.OutputRingBuffer
 	var wg sync.WaitGroup
 	var outputMux sync.Mutex
+
+	if hasDetachChan && detachChan != nil && t.backgroundShellService != nil {
+		outputBuffer = utils.NewOutputRingBuffer(1024 * 1024)
+	}
+
+	detached := false
+	detachedMux := sync.Mutex{}
 
 	readPipe := func(pipe io.ReadCloser) {
 		defer wg.Done()
@@ -248,16 +261,28 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 			}
 
 			combined := strings.Join(batch, "\n")
-			callback(combined)
+
+			detachedMux.Lock()
+			isDetached := detached
+			detachedMux.Unlock()
+
+			if !isDetached {
+				callback(combined)
+			}
 			batch = batch[:0]
 			lastFlush = time.Now()
 		}
 
 		for scanner.Scan() {
 			line := scanner.Text()
+
 			outputMux.Lock()
-			outputBuilder.WriteString(line)
-			outputBuilder.WriteString("\n")
+			if outputBuffer != nil {
+				_, _ = outputBuffer.Write([]byte(line + "\n"))
+			} else {
+				outputBuilder.WriteString(line)
+				outputBuilder.WriteString("\n")
+			}
 			outputMux.Unlock()
 
 			batch = append(batch, line)
@@ -274,11 +299,55 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 	go readPipe(stdout)
 	go readPipe(stderr)
 
-	wg.Wait()
+	// If detach channel is available, listen for detach signal
+	if hasDetachChan && detachChan != nil && t.backgroundShellService != nil && outputBuffer != nil {
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-detachChan:
+			// Detach requested
+			detachedMux.Lock()
+			detached = true
+			detachedMux.Unlock()
+
+			// Let readers finish current batch
+			time.Sleep(100 * time.Millisecond)
+
+			// Detach to background
+			shellID, err := t.backgroundShellService.DetachToBackground(ctx, cmd, result.Command, outputBuffer)
+			if err != nil {
+				result.ExitCode = -1
+				result.Duration = time.Since(start).String()
+				result.Error = fmt.Sprintf("failed to detach to background: %v", err)
+				return result, err
+			}
+
+			// Return result indicating successful detachment
+			result.Duration = time.Since(start).String()
+			result.Output = fmt.Sprintf("Command detached to background (shell ID: %s)\nUse 'BashOutput(shell_id=\"%s\")' to view output.", shellID, shellID)
+			result.ExitCode = 0
+			return result, nil
+
+		case <-done:
+			// Command completed before detach
+			// Continue with normal flow
+		}
+	} else {
+		wg.Wait()
+	}
 
 	err = cmd.Wait()
 	result.Duration = time.Since(start).String()
-	result.Output = outputBuilder.String()
+
+	if outputBuffer != nil {
+		result.Output = outputBuffer.String()
+	} else {
+		result.Output = outputBuilder.String()
+	}
 
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {

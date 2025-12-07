@@ -276,3 +276,63 @@ func (e PlanRejectedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // RefreshAutocompleteEvent is sent when autocomplete needs to refresh (e.g., after mode change)
 type RefreshAutocompleteEvent struct{}
+
+// BackgroundShellRequestEvent requests that the current running Bash command be moved to background
+type BackgroundShellRequestEvent struct{}
+
+// ShellDetachedEvent indicates a Bash command has been moved to background
+type ShellDetachedEvent struct {
+	RequestID string
+	Timestamp time.Time
+	ShellID   string
+	Command   string
+}
+
+func (e ShellDetachedEvent) GetRequestID() string    { return e.RequestID }
+func (e ShellDetachedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ShellOutputUpdateEvent contains new output from a background shell
+type ShellOutputUpdateEvent struct {
+	RequestID  string
+	Timestamp  time.Time
+	ShellID    string
+	NewOutput  string
+	TotalBytes int64
+}
+
+func (e ShellOutputUpdateEvent) GetRequestID() string    { return e.RequestID }
+func (e ShellOutputUpdateEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ShellCompletedEvent indicates a background shell finished successfully
+type ShellCompletedEvent struct {
+	RequestID string
+	Timestamp time.Time
+	ShellID   string
+	ExitCode  int
+	Duration  time.Duration
+}
+
+func (e ShellCompletedEvent) GetRequestID() string    { return e.RequestID }
+func (e ShellCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ShellFailedEvent indicates a background shell failed
+type ShellFailedEvent struct {
+	RequestID string
+	Timestamp time.Time
+	ShellID   string
+	Error     string
+	ExitCode  int
+}
+
+func (e ShellFailedEvent) GetRequestID() string    { return e.RequestID }
+func (e ShellFailedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ShellCancelledEvent indicates a background shell was killed
+type ShellCancelledEvent struct {
+	RequestID string
+	Timestamp time.Time
+	ShellID   string
+}
+
+func (e ShellCancelledEvent) GetRequestID() string    { return e.RequestID }
+func (e ShellCancelledEvent) GetTimestamp() time.Time { return e.Timestamp }

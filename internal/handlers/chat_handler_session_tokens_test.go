@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
 	"github.com/inference-gateway/cli/internal/services"
 	"github.com/inference-gateway/cli/internal/shortcuts"
@@ -31,8 +32,9 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		messageQueue,
 		nil, // taskRetentionService
 		nil, // backgroundTaskService
+		nil, // backgroundShellService
 		nil, // agentManager
-		nil, // config
+		config.DefaultConfig(),
 	)
 
 	err := conversationRepo.AddTokenUsage(100, 50, 150)

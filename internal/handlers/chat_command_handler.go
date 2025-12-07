@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
@@ -12,6 +14,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -21,6 +24,8 @@ type ChatCommandHandler struct {
 	shortcutHandler    *ChatShortcutHandler
 	bashEventChannel   <-chan tea.Msg
 	bashEventChannelMu sync.RWMutex
+	toolEventChannel   <-chan tea.Msg
+	toolEventChannelMu sync.RWMutex
 }
 
 // NewChatCommandHandler creates a new command handler
@@ -72,6 +77,23 @@ func (c *ChatCommandHandler) handleBashCommand(
 		}
 	}
 
+	if strings.HasSuffix(command, " &") || strings.HasSuffix(command, "&") {
+		command = strings.TrimSuffix(command, " &")
+		command = strings.TrimSuffix(command, "&")
+		command = strings.TrimSpace(command)
+
+		if command == "" {
+			return func() tea.Msg {
+				return domain.ShowErrorEvent{
+					Error:  "No bash command provided. Use: !<command>",
+					Sticky: false,
+				}
+			}
+		}
+
+		return c.executeBashCommandInBackground(commandText, command)
+	}
+
 	return c.executeBashCommand(commandText, command)
 }
 
@@ -99,6 +121,7 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 				Message:    fmt.Sprintf("Executing: %s", command),
 				Spinner:    true,
 				StatusType: domain.StatusWorking,
+				ToolName:   "Bash",
 			}
 		},
 		// Emit ParallelToolsStartEvent so UI knows to display this tool
@@ -124,10 +147,13 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 // executeBashCommandAsync executes the bash command and returns results
 func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID string) tea.Cmd {
 	eventChan := make(chan tea.Msg, 10000)
+	detachChan := make(chan struct{})
 
 	c.bashEventChannelMu.Lock()
 	c.bashEventChannel = eventChan
 	c.bashEventChannelMu.Unlock()
+
+	c.handler.SetBashDetachChan(detachChan)
 
 	go func() {
 		defer func() {
@@ -136,6 +162,8 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 			c.bashEventChannelMu.Lock()
 			c.bashEventChannel = nil
 			c.bashEventChannelMu.Unlock()
+
+			c.handler.ClearBashDetachChan()
 		}()
 
 		eventChan <- domain.ToolExecutionProgressEvent{
@@ -167,6 +195,7 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 
 		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
 		ctx = context.WithValue(ctx, domain.BashOutputCallbackKey, domain.BashOutputCallback(bashCallback))
+		ctx = context.WithValue(ctx, domain.BashDetachChannelKey, detachChan)
 		result, err := c.handler.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
@@ -243,6 +272,130 @@ func (c *ChatCommandHandler) listenToBashEvents(eventChan <-chan tea.Msg) tea.Cm
 	}
 }
 
+// executeBashCommandInBackground executes a bash command immediately in the background
+func (c *ChatCommandHandler) executeBashCommandInBackground(commandText, command string) tea.Cmd {
+	userEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent(commandText),
+		},
+		Time: time.Now(),
+	}
+	_ = c.handler.conversationRepo.AddMessage(userEntry)
+
+	go func() {
+		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
+
+		cmd := exec.CommandContext(ctx, "bash", "-c", command)
+
+		outputBuffer := utils.NewOutputRingBuffer(1024 * 1024)
+
+		stdout, err := cmd.StdoutPipe()
+		if err != nil {
+			return
+		}
+
+		stderr, err := cmd.StderrPipe()
+		if err != nil {
+			return
+		}
+
+		if err := cmd.Start(); err != nil {
+			return
+		}
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		go func() {
+			defer wg.Done()
+			scanner := bufio.NewScanner(stdout)
+			for scanner.Scan() {
+				line := scanner.Text()
+				_, _ = outputBuffer.Write([]byte(line + "\n"))
+			}
+		}()
+
+		go func() {
+			defer wg.Done()
+			scanner := bufio.NewScanner(stderr)
+			for scanner.Scan() {
+				line := scanner.Text()
+				_, _ = outputBuffer.Write([]byte(line + "\n"))
+			}
+		}()
+
+		shellID, err := c.handler.backgroundShellService.DetachToBackground(
+			ctx,
+			cmd,
+			command,
+			outputBuffer,
+		)
+
+		if err != nil {
+			return
+		}
+
+		wg.Wait()
+
+		assistantEntry := domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent(fmt.Sprintf("Command backgrounded with ID: %s. Use ListShells() to view background shells or BashOutput(shell_id=\"%s\") to view output.", shellID, shellID)),
+			},
+			Time: time.Now(),
+		}
+		_ = c.handler.conversationRepo.AddMessage(assistantEntry)
+	}()
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: c.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Starting command in background: %s", command),
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		},
+	)
+}
+
+// handleBackgroundShellRequest handles a request to background a running bash command
+func (c *ChatCommandHandler) handleBackgroundShellRequest() tea.Cmd {
+	detachChan := c.handler.GetBashDetachChan()
+
+	if detachChan == nil {
+		return func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  "No running Bash command to background",
+				Sticky: false,
+			}
+		}
+	}
+
+	select {
+	case detachChan <- struct{}{}:
+		return func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Moving command to background...",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
+		}
+	default:
+		return func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  "Failed to signal detach to running command",
+				Sticky: false,
+			}
+		}
+	}
+}
+
 // handleToolCommand processes tool commands starting with !!
 func (c *ChatCommandHandler) handleToolCommand(
 	commandText string,
@@ -314,6 +467,7 @@ func (c *ChatCommandHandler) executeToolCommand(commandText, toolName, argsJSON 
 				Message:    fmt.Sprintf("Executing: %s", toolName),
 				Spinner:    true,
 				StatusType: domain.StatusWorking,
+				ToolName:   toolName,
 			}
 		},
 		func() tea.Msg {
@@ -337,14 +491,29 @@ func (c *ChatCommandHandler) executeToolCommand(commandText, toolName, argsJSON 
 
 // executeToolCommandAsync executes the tool command asynchronously and returns results
 func (c *ChatCommandHandler) executeToolCommandAsync(toolName, argsJSON, toolCallID string) tea.Cmd {
-	return func() tea.Msg {
+	eventChan := make(chan tea.Msg, 100)
+
+	c.toolEventChannelMu.Lock()
+	c.toolEventChannel = eventChan
+	c.toolEventChannelMu.Unlock()
+
+	go func() {
+		defer func() {
+			time.Sleep(100 * time.Millisecond)
+			close(eventChan)
+			c.toolEventChannelMu.Lock()
+			c.toolEventChannel = nil
+			c.toolEventChannelMu.Unlock()
+		}()
+
 		// Send progress event
-		progressEvent := domain.ToolExecutionProgressEvent{
+		eventChan <- domain.ToolExecutionProgressEvent{
 			BaseChatEvent: domain.BaseChatEvent{
 				RequestID: toolCallID,
 				Timestamp: time.Now(),
 			},
 			ToolCallID: toolCallID,
+			ToolName:   toolName,
 			Status:     "running",
 			Message:    "Executing...",
 		}
@@ -357,10 +526,11 @@ func (c *ChatCommandHandler) executeToolCommandAsync(toolName, argsJSON, toolCal
 		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
 		result, err := c.handler.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 		if err != nil {
-			return domain.ShowErrorEvent{
+			eventChan <- domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to execute tool: %v", err),
 				Sticky: false,
 			}
+			return
 		}
 
 		toolCalls := []sdk.ChatCompletionMessageToolCall{
@@ -391,32 +561,49 @@ func (c *ChatCommandHandler) executeToolCommandAsync(toolName, argsJSON, toolCal
 		}
 		_ = c.handler.conversationRepo.AddMessage(toolEntry)
 
-		completedEvent := domain.ToolExecutionProgressEvent{
+		status := "complete"
+		message := "Completed successfully"
+		if result != nil && !result.Success {
+			status = "failed"
+			message = "Execution failed"
+		}
+
+		// Send completion event
+		eventChan <- domain.ToolExecutionProgressEvent{
 			BaseChatEvent: domain.BaseChatEvent{
 				RequestID: toolCallID,
 				Timestamp: time.Now(),
 			},
 			ToolCallID: toolCallID,
-			Status:     "complete",
-			Message:    "Completed successfully",
+			ToolName:   toolName,
+			Status:     status,
+			Message:    message,
 		}
 
-		return tea.Batch(
-			func() tea.Msg { return progressEvent },
-			func() tea.Msg { return completedEvent },
-			func() tea.Msg {
-				return domain.UpdateHistoryEvent{
-					History: c.handler.conversationRepo.GetMessages(),
-				}
-			},
-			func() tea.Msg {
-				return domain.SetStatusEvent{
-					Message:    fmt.Sprintf("%s completed successfully", toolName),
-					Spinner:    false,
-					StatusType: domain.StatusDefault,
-				}
-			},
-		)()
+		// Send history update
+		eventChan <- domain.UpdateHistoryEvent{
+			History: c.handler.conversationRepo.GetMessages(),
+		}
+
+		// Send status update
+		eventChan <- domain.SetStatusEvent{
+			Message:    fmt.Sprintf("%s %s", toolName, message),
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}()
+
+	return c.listenToToolEvents(eventChan)
+}
+
+// listenToToolEvents listens for tool execution events from the channel
+func (c *ChatCommandHandler) listenToToolEvents(eventChan <-chan tea.Msg) tea.Cmd {
+	return func() tea.Msg {
+		msg, ok := <-eventChan
+		if !ok {
+			return nil
+		}
+		return msg
 	}
 }
 

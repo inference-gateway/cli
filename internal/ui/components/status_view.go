@@ -29,6 +29,7 @@ type StatusView struct {
 	savedState       *StatusState
 	styleProvider    *styles.Provider
 	keyHintFormatter *hints.Formatter
+	toolName         string
 }
 
 // StatusState represents a saved status state
@@ -297,6 +298,10 @@ func (sv *StatusView) formatNormalStatus() (string, string, string) {
 
 // getCancelHint returns a keybinding hint for cancelling/interrupting operations
 func (sv *StatusView) getCancelHint() string {
+	if sv.toolName == "Bash" {
+		return sv.getBashCancelHint()
+	}
+
 	if sv.keyHintFormatter == nil {
 		return "Press esc to interrupt"
 	}
@@ -308,6 +313,26 @@ func (sv *StatusView) getCancelHint() string {
 	}
 
 	return hint
+}
+
+// getBashCancelHint returns the Bash-specific cancel hint with background option
+func (sv *StatusView) getBashCancelHint() string {
+	cancelHint := "Press esc to interrupt"
+	backgroundHint := "Press ctrl+b to background"
+
+	if sv.keyHintFormatter != nil {
+		cancelActionID := config.ActionID(config.NamespaceGlobal, "cancel")
+		if hint := sv.keyHintFormatter.GetKeyHint(cancelActionID, "interrupt"); hint != "" {
+			cancelHint = hint
+		}
+
+		backgroundActionID := config.ActionID(config.NamespaceTools, "background_shell")
+		if hint := sv.keyHintFormatter.GetKeyHint(backgroundActionID, "background"); hint != "" {
+			backgroundHint = hint
+		}
+	}
+
+	return fmt.Sprintf("%s, %s", cancelHint, backgroundHint)
 }
 
 // Bubble Tea interface
@@ -328,6 +353,7 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case domain.SetStatusEvent:
+		sv.toolName = msg.ToolName
 		if msg.Spinner {
 			sv.ShowSpinnerWithType(msg.Message, msg.StatusType, msg.Progress)
 			if cmd == nil {
