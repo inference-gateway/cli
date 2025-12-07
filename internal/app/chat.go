@@ -181,6 +181,8 @@ func NewChatApplication(
 		isb.SetStateManager(app.stateManager)
 		isb.SetConfigService(app.configService)
 		isb.SetConversationRepo(app.conversationRepo)
+		isb.SetToolService(app.toolService)
+		isb.SetTokenEstimator(services.NewTokenizerService(services.DefaultTokenizerConfig()))
 	}
 
 	app.statusView = factory.CreateStatusView(app.themeService)
