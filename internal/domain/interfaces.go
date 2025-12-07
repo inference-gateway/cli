@@ -432,6 +432,13 @@ type GatewayManager interface {
 	IsRunning() bool
 }
 
+// BashDetachChannelHolder manages the bash detach channel for background shell operations
+type BashDetachChannelHolder interface {
+	SetBashDetachChan(chan<- struct{})
+	GetBashDetachChan() chan<- struct{}
+	ClearBashDetachChan()
+}
+
 // ThemeService handles theme management
 type ThemeService interface {
 	ListThemes() []string

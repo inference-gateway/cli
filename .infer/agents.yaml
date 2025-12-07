@@ -1,10 +1,4 @@
 agents:
-  - name: browser-agent
-    url: http://localhost:8083
-    artifacts_url: http://localhost:8084
-    oci: ghcr.io/inference-gateway/browser-agent:latest
-    run: true
-    model: deepseek/deepseek-chat
   - name: mock-agent
     url: http://localhost:8081
     oci: ghcr.io/inference-gateway/mock-agent:latest

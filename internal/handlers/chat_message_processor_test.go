@@ -4,6 +4,7 @@ import (
 	"errors"
 	"testing"
 
+	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
@@ -111,6 +112,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				nil,
 				nil,
 				nil,
+				config.DefaultConfig(),
 			)
 
 			processor := NewChatMessageProcessor(handler)

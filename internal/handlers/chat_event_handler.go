@@ -314,6 +314,7 @@ func (e *ChatEventHandler) handleToolCallUpdate(
 			return domain.UpdateStatusEvent{
 				Message:    statusMsg,
 				StatusType: domain.StatusWorking,
+				ToolName:   msg.ToolName,
 			}
 		})
 	default:
@@ -322,6 +323,7 @@ func (e *ChatEventHandler) handleToolCallUpdate(
 				Message:    statusMsg,
 				Spinner:    false,
 				StatusType: domain.StatusWorking,
+				ToolName:   msg.ToolName,
 			}
 		})
 	}
@@ -411,20 +413,56 @@ func (e *ChatEventHandler) handleToolExecutionStarted(
 }
 
 func (e *ChatEventHandler) handleToolExecutionProgress(
-	_ domain.ToolExecutionProgressEvent,
+	msg domain.ToolExecutionProgressEvent,
 ) tea.Cmd {
+	var cmds []tea.Cmd
+
+	switch msg.Status {
+	case "starting", "running":
+		cmds = append(cmds, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    msg.Message,
+				Spinner:    true,
+				StatusType: domain.StatusWorking,
+				ToolName:   msg.ToolName,
+			}
+		})
+	case "complete", "failed", "saving":
+		cmds = append(cmds, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    msg.Message,
+				Spinner:    msg.Status == "saving",
+				StatusType: domain.StatusDefault,
+				ToolName:   "",
+			}
+		})
+	}
+
+	e.handler.commandHandler.toolEventChannelMu.RLock()
+	toolEventChan := e.handler.commandHandler.toolEventChannel
+	e.handler.commandHandler.toolEventChannelMu.RUnlock()
+
+	if toolEventChan != nil {
+		cmds = append(cmds, e.handler.commandHandler.listenToToolEvents(toolEventChan))
+		return tea.Batch(cmds...)
+	}
+
 	e.handler.commandHandler.bashEventChannelMu.RLock()
 	bashEventChan := e.handler.commandHandler.bashEventChannel
 	e.handler.commandHandler.bashEventChannelMu.RUnlock()
 
 	if bashEventChan != nil {
-		return e.handler.commandHandler.listenToBashEvents(bashEventChan)
+		cmds = append(cmds, e.handler.commandHandler.listenToBashEvents(bashEventChan))
+		return tea.Batch(cmds...)
 	}
 
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
-		return e.handler.listenForChatEvents(chatSession.EventChannel)
+		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
+	if len(cmds) > 0 {
+		return tea.Batch(cmds...)
+	}
 	return nil
 }
 

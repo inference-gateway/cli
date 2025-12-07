@@ -28,6 +28,7 @@ type ParallelToolsStartEvent struct {
 type ToolExecutionProgressEvent struct {
 	BaseChatEvent
 	ToolCallID string
+	ToolName   string
 	Status     string
 	Message    string
 }

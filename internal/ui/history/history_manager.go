@@ -67,8 +67,6 @@ func (hm *HistoryManager) loadCombinedHistory() error {
 	hm.allHistory = append(hm.allHistory, shellCommands...)
 	hm.allHistory = append(hm.allHistory, hm.inMemoryHistory...)
 
-	hm.allHistory = removeDuplicates(hm.allHistory)
-
 	return nil
 }
 
@@ -79,14 +77,15 @@ func (hm *HistoryManager) AddToHistory(command string) error {
 		return nil
 	}
 
-	hm.addToInMemoryHistory(command)
+	shouldSave := len(hm.allHistory) == 0 || hm.allHistory[len(hm.allHistory)-1] != command
 
-	if err := hm.shellHistory.SaveToHistory(command); err != nil {
-		logger.Warn("Could not save to shell history", "error", err)
-	}
+	if shouldSave {
+		hm.addToInMemoryHistory(command)
+		hm.allHistory = append(hm.allHistory, command)
 
-	if err := hm.loadCombinedHistory(); err != nil {
-		logger.Warn("Could not reload combined history", "error", err)
+		if err := hm.shellHistory.SaveToHistory(command); err != nil {
+			logger.Warn("Could not save to shell history", "error", err)
+		}
 	}
 
 	hm.historyIndex = -1
@@ -161,21 +160,6 @@ func (hm *HistoryManager) IsNavigating() bool {
 // GetShellHistoryFile returns the shell history file path
 func (hm *HistoryManager) GetShellHistoryFile() string {
 	return hm.shellHistory.GetHistoryFile()
-}
-
-// removeDuplicates removes duplicate commands while preserving order
-func removeDuplicates(commands []string) []string {
-	seen := make(map[string]bool)
-	result := make([]string, 0, len(commands))
-
-	for _, command := range commands {
-		if !seen[command] {
-			seen[command] = true
-			result = append(result, command)
-		}
-	}
-
-	return result
 }
 
 // MemoryOnlyShellHistory provides a no-op shell history provider for testing

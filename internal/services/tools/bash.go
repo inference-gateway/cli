@@ -13,22 +13,26 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // BashTool handles bash command execution with security validation
 type BashTool struct {
-	config    *config.Config
-	enabled   bool
-	formatter domain.BaseFormatter
+	config                 *config.Config
+	enabled                bool
+	formatter              domain.BaseFormatter
+	backgroundShellService domain.BackgroundShellService
 }
 
 // NewBashTool creates a new bash tool
-func NewBashTool(cfg *config.Config) *BashTool {
+func NewBashTool(cfg *config.Config, backgroundShellService domain.BackgroundShellService) *BashTool {
 	return &BashTool{
-		config:    cfg,
-		enabled:   cfg.Tools.Enabled && cfg.Tools.Bash.Enabled,
-		formatter: domain.NewBaseFormatter("Bash"),
+		config:                 cfg,
+		enabled:                cfg.Tools.Enabled && cfg.Tools.Bash.Enabled,
+		formatter:              domain.NewBaseFormatter("Bash"),
+		backgroundShellService: backgroundShellService,
 	}
 }
 
@@ -173,15 +177,30 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 	}
 
 	outputCallback, hasCallback := ctx.Value(domain.BashOutputCallbackKey).(domain.BashOutputCallback)
+	detachChan, hasDetachChan := ctx.Value(domain.BashDetachChannelKey).(<-chan struct{})
 
-	cmdCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
-	defer cancel()
+	var cmdCtx context.Context
+	var cancel context.CancelFunc
+
+	if hasDetachChan && detachChan != nil && t.backgroundShellService != nil {
+		cmdCtx, cancel = context.WithCancel(context.Background())
+		cmdCtx = context.WithValue(cmdCtx, domain.BashDetachChannelKey, detachChan)
+		cmdCtx = context.WithValue(cmdCtx, domain.BashOutputCallbackKey, outputCallback)
+	} else {
+		timeout := time.Duration(t.config.Tools.Bash.Timeout) * time.Second
+		if timeout <= 0 {
+			timeout = 120 * time.Second
+		}
+		cmdCtx, cancel = context.WithTimeout(ctx, timeout)
+	}
 
 	cmd := exec.CommandContext(cmdCtx, "bash", "-c", command)
 
 	if hasCallback && outputCallback != nil {
-		return t.executeBashWithStreaming(cmdCtx, cmd, outputCallback, start)
+		return t.executeBashWithStreaming(cmdCtx, cmd, outputCallback, cancel, start)
 	}
+
+	defer cancel()
 
 	output, err := cmd.CombinedOutput()
 	result.Duration = time.Since(start).String()
@@ -200,10 +219,17 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 }
 
 // executeBashWithStreaming executes a bash command and streams output through the callback
-func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, callback domain.BashOutputCallback, start time.Time) (*BashResult, error) {
+func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, callback domain.BashOutputCallback, cancel context.CancelFunc, start time.Time) (*BashResult, error) {
 	result := &BashResult{
 		Command: cmd.Args[len(cmd.Args)-1],
 	}
+
+	shouldCancel := true
+	defer func() {
+		if shouldCancel {
+			cancel()
+		}
+	}()
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -228,57 +254,69 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 		return result, err
 	}
 
+	detachChan, hasDetachChan := ctx.Value(domain.BashDetachChannelKey).(<-chan struct{})
+
 	var outputBuilder strings.Builder
+	var outputBuffer domain.OutputRingBuffer
 	var wg sync.WaitGroup
 	var outputMux sync.Mutex
 
-	readPipe := func(pipe io.ReadCloser) {
-		defer wg.Done()
-		scanner := bufio.NewScanner(pipe)
-
-		const batchSize = 20
-		const flushInterval = 50 * time.Millisecond
-
-		batch := make([]string, 0, batchSize)
-		lastFlush := time.Now()
-
-		flushBatch := func() {
-			if len(batch) == 0 {
-				return
-			}
-
-			combined := strings.Join(batch, "\n")
-			callback(combined)
-			batch = batch[:0]
-			lastFlush = time.Now()
-		}
-
-		for scanner.Scan() {
-			line := scanner.Text()
-			outputMux.Lock()
-			outputBuilder.WriteString(line)
-			outputBuilder.WriteString("\n")
-			outputMux.Unlock()
-
-			batch = append(batch, line)
-
-			if len(batch) >= batchSize || time.Since(lastFlush) >= flushInterval {
-				flushBatch()
-			}
-		}
-
-		flushBatch()
+	if hasDetachChan && detachChan != nil && t.backgroundShellService != nil {
+		outputBuffer = utils.NewOutputRingBuffer(1024 * 1024)
 	}
 
-	wg.Add(2)
-	go readPipe(stdout)
-	go readPipe(stderr)
+	detached := false
+	detachedMux := sync.Mutex{}
 
-	wg.Wait()
+	wg.Add(2)
+	go t.readPipeWithBatching(stdout, callback, outputBuffer, &outputBuilder, &outputMux, &detached, &detachedMux, &wg)
+	go t.readPipeWithBatching(stderr, callback, outputBuffer, &outputBuilder, &outputMux, &detached, &detachedMux, &wg)
+
+	if hasDetachChan && detachChan != nil && t.backgroundShellService != nil && outputBuffer != nil {
+		done := make(chan struct{})
+		go func() {
+			wg.Wait()
+			close(done)
+		}()
+
+		select {
+		case <-detachChan:
+			detachedMux.Lock()
+			detached = true
+			detachedMux.Unlock()
+
+			time.Sleep(100 * time.Millisecond)
+
+			shellID, err := t.backgroundShellService.DetachToBackground(ctx, cmd, result.Command, outputBuffer)
+			if err != nil {
+				logger.Debug("bash: DetachToBackground failed", "error", err)
+				result.ExitCode = -1
+				result.Duration = time.Since(start).String()
+				result.Error = fmt.Sprintf("failed to detach to background: %v", err)
+				return result, err
+			}
+
+			result.Duration = time.Since(start).String()
+			result.Output = fmt.Sprintf("Command detached to background (shell ID: %s)\nUse 'BashOutput(shell_id=\"%s\")' to view output.", shellID, shellID)
+			result.ExitCode = 0
+			shouldCancel = false
+			return result, nil
+
+		case <-done:
+			logger.Debug("bash: command completed before detach signal")
+		}
+	} else {
+		wg.Wait()
+	}
 
 	err = cmd.Wait()
 	result.Duration = time.Since(start).String()
-	result.Output = outputBuilder.String()
+
+	if outputBuffer != nil {
+		result.Output = outputBuffer.String()
+	} else {
+		result.Output = outputBuilder.String()
+	}
 
 	if err != nil {
 		if exitError, ok := err.(*exec.ExitError); ok {
@@ -290,6 +328,66 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 	}
 
 	return result, nil
+}
+
+// readPipeWithBatching reads from a pipe and batches output for efficient callback delivery
+func (t *BashTool) readPipeWithBatching(
+	pipe io.ReadCloser,
+	callback domain.BashOutputCallback,
+	outputBuffer domain.OutputRingBuffer,
+	outputBuilder *strings.Builder,
+	outputMux *sync.Mutex,
+	detached *bool,
+	detachedMux *sync.Mutex,
+	wg *sync.WaitGroup,
+) {
+	defer wg.Done()
+	scanner := bufio.NewScanner(pipe)
+
+	const batchSize = 20
+	const flushInterval = 50 * time.Millisecond
+
+	batch := make([]string, 0, batchSize)
+	lastFlush := time.Now()
+
+	flushBatch := func() {
+		if len(batch) == 0 {
+			return
+		}
+
+		combined := strings.Join(batch, "\n")
+
+		detachedMux.Lock()
+		isDetached := *detached
+		detachedMux.Unlock()
+
+		if !isDetached {
+			callback(combined)
+		}
+		batch = batch[:0]
+		lastFlush = time.Now()
+	}
+
+	for scanner.Scan() {
+		line := scanner.Text()
+
+		outputMux.Lock()
+		if outputBuffer != nil {
+			_, _ = outputBuffer.Write([]byte(line + "\n"))
+		} else {
+			outputBuilder.WriteString(line)
+			outputBuilder.WriteString("\n")
+		}
+		outputMux.Unlock()
+
+		batch = append(batch, line)
+
+		if len(batch) >= batchSize || time.Since(lastFlush) >= flushInterval {
+			flushBatch()
+		}
+	}
+
+	flushBatch()
 }
 
 // isCommandAllowed checks if a command is whitelisted

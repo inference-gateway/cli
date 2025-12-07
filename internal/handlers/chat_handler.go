@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	spinner "github.com/charmbracelet/bubbles/spinner"
@@ -16,25 +17,29 @@ import (
 )
 
 type ChatHandler struct {
-	agentService          domain.AgentService
-	conversationRepo      domain.ConversationRepository
-	conversationOptimizer domain.ConversationOptimizerService
-	modelService          domain.ModelService
-	configService         domain.ConfigService
-	toolService           domain.ToolService
-	fileService           domain.FileService
-	imageService          domain.ImageService
-	shortcutRegistry      *shortcuts.Registry
-	stateManager          domain.StateManager
-	messageQueue          domain.MessageQueue
-	taskRetentionService  domain.TaskRetentionService
-	backgroundTaskService domain.BackgroundTaskService
-	agentManager          domain.AgentManager
-	config                *config.Config
+	agentService           domain.AgentService
+	conversationRepo       domain.ConversationRepository
+	conversationOptimizer  domain.ConversationOptimizerService
+	modelService           domain.ModelService
+	configService          domain.ConfigService
+	toolService            domain.ToolService
+	fileService            domain.FileService
+	imageService           domain.ImageService
+	shortcutRegistry       *shortcuts.Registry
+	stateManager           domain.StateManager
+	messageQueue           domain.MessageQueue
+	taskRetentionService   domain.TaskRetentionService
+	backgroundTaskService  domain.BackgroundTaskService
+	backgroundShellService domain.BackgroundShellService
+	agentManager           domain.AgentManager
+	config                 *config.Config
 
 	messageProcessor *ChatMessageProcessor
 	commandHandler   *ChatCommandHandler
 	eventHandler     *ChatEventHandler
+
+	bashDetachChan   chan<- struct{}
+	bashDetachChanMu sync.RWMutex
 }
 
 func NewChatHandler(
@@ -51,25 +56,27 @@ func NewChatHandler(
 	messageQueue domain.MessageQueue,
 	taskRetentionService domain.TaskRetentionService,
 	backgroundTaskService domain.BackgroundTaskService,
+	backgroundShellService domain.BackgroundShellService,
 	agentManager domain.AgentManager,
 	cfg *config.Config,
 ) *ChatHandler {
 	handler := &ChatHandler{
-		agentService:          agentService,
-		conversationRepo:      conversationRepo,
-		conversationOptimizer: conversationOptimizer,
-		modelService:          modelService,
-		configService:         configService,
-		toolService:           toolService,
-		fileService:           fileService,
-		imageService:          imageService,
-		shortcutRegistry:      shortcutRegistry,
-		stateManager:          stateManager,
-		messageQueue:          messageQueue,
-		agentManager:          agentManager,
-		config:                cfg,
-		taskRetentionService:  taskRetentionService,
-		backgroundTaskService: backgroundTaskService,
+		agentService:           agentService,
+		conversationRepo:       conversationRepo,
+		conversationOptimizer:  conversationOptimizer,
+		modelService:           modelService,
+		configService:          configService,
+		toolService:            toolService,
+		fileService:            fileService,
+		imageService:           imageService,
+		shortcutRegistry:       shortcutRegistry,
+		stateManager:           stateManager,
+		messageQueue:           messageQueue,
+		agentManager:           agentManager,
+		config:                 cfg,
+		taskRetentionService:   taskRetentionService,
+		backgroundTaskService:  backgroundTaskService,
+		backgroundShellService: backgroundShellService,
 	}
 
 	handler.messageProcessor = NewChatMessageProcessor(handler)
@@ -113,6 +120,8 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return h.HandleBashOutputChunkEvent(m)
 	case domain.BashCommandCompletedEvent:
 		return h.HandleBashCommandCompletedEvent(m)
+	case domain.BackgroundShellRequestEvent:
+		return h.commandHandler.handleBackgroundShellRequest()
 	case domain.ToolExecutionCompletedEvent:
 		return h.HandleToolExecutionCompletedEvent(m)
 	case domain.ParallelToolsStartEvent:
@@ -186,6 +195,8 @@ func (h *ChatHandler) startChatCompletion() tea.Cmd {
 			Messages:   messages,
 			IsChatMode: true,
 		}
+
+		ctx = context.WithValue(ctx, domain.ChatHandlerKey, h)
 
 		eventChan, err := h.agentService.RunWithStream(ctx, req)
 		if err != nil {
@@ -310,7 +321,7 @@ func (h *ChatHandler) handleConversationSelected(
 		func() tea.Msg {
 			metadata := persistentRepo.GetCurrentConversationMetadata()
 			return domain.SetStatusEvent{
-				Message: fmt.Sprintf("🔄 Loaded conversation: %s (%d messages)",
+				Message: fmt.Sprintf("Loaded conversation: %s (%d messages)",
 					metadata.Title, metadata.MessageCount),
 				Spinner:    false,
 				StatusType: domain.StatusDefault,
@@ -566,6 +577,7 @@ func (h *ChatHandler) handleToolApprovalResponse(
 				Message:    "Auto-Approve mode enabled - executing tool...",
 				Spinner:    true,
 				StatusType: domain.StatusDefault,
+				ToolName:   msg.ToolCall.Function.Name,
 			}
 		})
 
@@ -610,6 +622,7 @@ func (h *ChatHandler) handleToolApprovalResponse(
 			Message:    statusMessage,
 			Spinner:    spinner,
 			StatusType: domain.StatusDefault,
+			ToolName:   msg.ToolCall.Function.Name,
 		}
 	})
 
@@ -810,4 +823,25 @@ func (h *ChatHandler) HandleAgentStatusUpdateEvent(msg domain.AgentStatusUpdateE
 		time.Sleep(500 * time.Millisecond)
 		return domain.AgentStatusUpdateEvent{}
 	}
+}
+
+// SetBashDetachChan sets the bash detach channel (thread-safe)
+func (h *ChatHandler) SetBashDetachChan(ch chan<- struct{}) {
+	h.bashDetachChanMu.Lock()
+	defer h.bashDetachChanMu.Unlock()
+	h.bashDetachChan = ch
+}
+
+// GetBashDetachChan gets the bash detach channel (thread-safe)
+func (h *ChatHandler) GetBashDetachChan() chan<- struct{} {
+	h.bashDetachChanMu.RLock()
+	defer h.bashDetachChanMu.RUnlock()
+	return h.bashDetachChan
+}
+
+// ClearBashDetachChan clears the bash detach channel (thread-safe)
+func (h *ChatHandler) ClearBashDetachChan() {
+	h.bashDetachChanMu.Lock()
+	defer h.bashDetachChanMu.Unlock()
+	h.bashDetachChan = nil
 }

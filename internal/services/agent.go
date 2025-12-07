@@ -124,13 +124,14 @@ func (p *eventPublisher) publishParallelToolsStart(toolCalls []sdk.ChatCompletio
 }
 
 // publishToolStatusChange publishes a ToolExecutionProgressEvent
-func (p *eventPublisher) publishToolStatusChange(callID string, status string, message string) {
+func (p *eventPublisher) publishToolStatusChange(callID string, toolName string, status string, message string) {
 	event := domain.ToolExecutionProgressEvent{
 		BaseChatEvent: domain.BaseChatEvent{
 			RequestID: p.requestID,
 			Timestamp: time.Now(),
 		},
 		ToolCallID: callID,
+		ToolName:   toolName,
 		Status:     status,
 		Message:    message,
 	}
@@ -855,7 +856,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 			message = "Execution failed"
 		}
 
-		eventPublisher.publishToolStatusChange(at.tool.Id, status, message)
+		eventPublisher.publishToolStatusChange(at.tool.Id, at.tool.Function.Name, status, message)
 		results[at.index] = result
 	}
 
@@ -878,7 +879,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 
 				eventPublisher.publishToolStatusChange(
 					toolCall.Id,
-					"starting",
+					toolCall.Function.Name, "starting",
 					fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
 				)
 
@@ -893,7 +894,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 					message = "Execution failed"
 				}
 
-				eventPublisher.publishToolStatusChange(toolCall.Id, status, message)
+				eventPublisher.publishToolStatusChange(toolCall.Id, toolCall.Function.Name, status, message)
 
 				resultsChan <- IndexedToolResult{
 					Index:  index,
@@ -933,7 +934,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 	return results
 }
 
-//nolint:funlen // Tool execution requires comprehensive error handling and status updates
+//nolint:funlen,gocyclo,cyclop // Tool execution requires comprehensive error handling and status updates
 func (s *AgentServiceImpl) executeTool(
 	ctx context.Context,
 	tc sdk.ChatCompletionMessageToolCall,
@@ -961,7 +962,7 @@ func (s *AgentServiceImpl) executeTool(
 		wasApproved = true
 	}
 
-	eventPublisher.publishToolStatusChange(tc.Id, "running", "Executing...")
+	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Executing...")
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 
@@ -1001,6 +1002,16 @@ func (s *AgentServiceImpl) executeTool(
 			eventPublisher.publishBashOutputChunk(tc.Id, line, false)
 		}
 		execCtx = context.WithValue(execCtx, domain.BashOutputCallbackKey, domain.BashOutputCallback(bashCallback))
+
+		detachChan := make(chan struct{}, 1)
+		if chatHandler, ok := ctx.Value(domain.ChatHandlerKey).(domain.BashDetachChannelHolder); ok && chatHandler != nil {
+			chatHandler.SetBashDetachChan(detachChan)
+
+			defer func() {
+				chatHandler.ClearBashDetachChan()
+			}()
+		}
+		execCtx = context.WithValue(execCtx, domain.BashDetachChannelKey, (<-chan struct{})(detachChan))
 	}
 
 	resultChan := make(chan struct {
@@ -1031,7 +1042,7 @@ func (s *AgentServiceImpl) executeTool(
 			ticker.Stop()
 			resultReceived = true
 		case <-ticker.C:
-			eventPublisher.publishToolStatusChange(tc.Id, "running", "Processing...")
+			eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Processing...")
 		case <-ctx.Done():
 			logger.Error("tool execution cancelled", "tool", tc.Function.Name)
 			return s.createErrorEntry(tc, ctx.Err(), startTime)
@@ -1043,7 +1054,7 @@ func (s *AgentServiceImpl) executeTool(
 		return s.createErrorEntry(tc, err, startTime)
 	}
 
-	eventPublisher.publishToolStatusChange(tc.Id, "saving", "Saving results...")
+	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "saving", "Saving results...")
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 

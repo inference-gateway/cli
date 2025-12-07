@@ -37,7 +37,7 @@ func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, mcpPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, mcpPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -49,6 +49,7 @@ func initializeProject(cmd *cobra.Command) error {
 		scmShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "scm.yaml")
 		gitShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "git.yaml")
 		mcpShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "mcp.yaml")
+		shellsShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "shells.yaml")
 		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
 	} else {
 		configPath = config.DefaultConfigPath
@@ -56,11 +57,12 @@ func initializeProject(cmd *cobra.Command) error {
 		scmShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "scm.yaml")
 		gitShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "git.yaml")
 		mcpShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "mcp.yaml")
+		shellsShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "shells.yaml")
 		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, mcpPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, mcpPath); err != nil {
 			return err
 		}
 	}
@@ -93,6 +95,10 @@ bin/
 		return fmt.Errorf("failed to create MCP shortcuts file: %w", err)
 	}
 
+	if err := createShellsShortcutsFile(shellsShortcutsPath); err != nil {
+		return fmt.Errorf("failed to create Shells shortcuts file: %w", err)
+	}
+
 	if err := createMCPConfigFile(mcpPath); err != nil {
 		return fmt.Errorf("failed to create MCP config file: %w", err)
 	}
@@ -110,6 +116,7 @@ bin/
 	fmt.Printf("   Created: %s\n", scmShortcutsPath)
 	fmt.Printf("   Created: %s\n", gitShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpShortcutsPath)
+	fmt.Printf("   Created: %s\n", shellsShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpPath)
 	fmt.Println("")
 	if userspace {
@@ -495,4 +502,26 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(mcpShortcutsContent), 0644)
+}
+
+// createShellsShortcutsFile creates the Shells shortcuts YAML file
+func createShellsShortcutsFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create shortcuts directory: %w", err)
+	}
+
+	shellsShortcutsContent := `# Background Shells Shortcuts
+# List and manage background shell processes
+#
+# Usage:
+# - /shells - List all background shells
+
+shortcuts:
+  - name: shells
+    description: "List all running and recent background shell processes"
+    tool: ListShells
+    tool_args: {}
+`
+
+	return os.WriteFile(path, []byte(shellsShortcutsContent), 0644)
 }

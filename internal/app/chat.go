@@ -181,6 +181,9 @@ func NewChatApplication(
 		isb.SetStateManager(app.stateManager)
 		isb.SetConfigService(app.configService)
 		isb.SetConversationRepo(app.conversationRepo)
+		isb.SetToolService(app.toolService)
+		isb.SetTokenEstimator(services.NewTokenizerService(services.DefaultTokenizerConfig()))
+		isb.SetBackgroundShellService(app.toolRegistry.GetBackgroundShellService())
 	}
 
 	app.statusView = factory.CreateStatusView(app.themeService)
@@ -204,6 +207,7 @@ func NewChatApplication(
 		sv.SetKeyHintFormatter(keyHintFormatter)
 	}
 
+	app.toolCallRenderer.SetKeyHintFormatter(keyHintFormatter)
 	app.modelSelector = components.NewModelSelector(models, app.modelService, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.initGithubActionView = components.NewInitGithubActionView(styleProvider)
@@ -253,6 +257,7 @@ func NewChatApplication(
 		messageQueue,
 		app.taskRetentionService,
 		app.backgroundTaskService,
+		app.toolRegistry.GetBackgroundShellService(),
 		agentManager,
 		configService,
 	)
@@ -1325,7 +1330,7 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 
 	app.handleTodoEvents(msg, &cmds)
 
-	app.handleAutocompleteEvents(msg, &cmds)
+	app.handleAutocompleteEvents(msg)
 
 	return cmds
 }
@@ -1400,6 +1405,12 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, cmds *[]tea.Cmd)
 		}
 	}
 
+	if keyMsg, ok := msg.(tea.KeyMsg); ok {
+		if app.keyBindingManager.IsKeyHandledByAction(keyMsg) {
+			return
+		}
+	}
+
 	if model, cmd := app.inputView.(tea.Model).Update(msg); cmd != nil {
 		*cmds = append(*cmds, cmd)
 		if inputModel, ok := model.(ui.InputComponent); ok {
@@ -1466,7 +1477,7 @@ func (app *ChatApplication) handleTodoEvents(msg tea.Msg, cmds *[]tea.Cmd) {
 }
 
 // handleAutocompleteEvents handles autocomplete-related events
-func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cmd) {
+func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg) {
 	if app.autocomplete == nil {
 		return
 	}
