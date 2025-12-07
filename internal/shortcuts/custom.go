@@ -27,9 +27,11 @@ type SnippetConfig struct {
 type CustomShortcutConfig struct {
 	Name        string         `yaml:"name"`
 	Description string         `yaml:"description"`
-	Command     string         `yaml:"command"`
+	Command     string         `yaml:"command,omitempty"`
 	Args        []string       `yaml:"args,omitempty"`
 	WorkingDir  string         `yaml:"working_dir,omitempty"`
+	Tool        string         `yaml:"tool,omitempty"`
+	ToolArgs    map[string]any `yaml:"tool_args,omitempty"`
 	Snippet     *SnippetConfig `yaml:"snippet,omitempty"`
 }
 
@@ -44,15 +46,17 @@ type CustomShortcut struct {
 	client       sdk.Client
 	modelService domain.ModelService
 	imageService domain.ImageService
+	toolService  domain.ToolService
 }
 
 // NewCustomShortcut creates a new custom shortcut from configuration
-func NewCustomShortcut(config CustomShortcutConfig, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService) *CustomShortcut {
+func NewCustomShortcut(config CustomShortcutConfig, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService, toolService domain.ToolService) *CustomShortcut {
 	return &CustomShortcut{
 		config:       config,
 		client:       client,
 		modelService: modelService,
 		imageService: imageService,
+		toolService:  toolService,
 	}
 }
 
@@ -162,6 +166,10 @@ func fillTemplate(template string, data map[string]string) string {
 }
 
 func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+	if c.config.Tool != "" {
+		return c.executeWithTool(ctx, args)
+	}
+
 	command := c.config.Command
 	cmdArgs := append([]string{}, c.config.Args...)
 
@@ -216,6 +224,84 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 
 	return ShortcutResult{
 		Output:  fmt.Sprintf("%s **%s completed**\n\n```\n%s\n```", icons.StyledCheckMark(), c.config.Name, outputStr),
+		Success: true,
+	}, nil
+}
+
+// executeWithTool executes a tool directly without using AI
+func (c *CustomShortcut) executeWithTool(ctx context.Context, _ []string) (ShortcutResult, error) {
+	if c.toolService == nil {
+		return ShortcutResult{
+			Output:  fmt.Sprintf("%s Tool service not available", icons.StyledCrossMark()),
+			Success: false,
+		}, nil
+	}
+
+	if !c.toolService.IsToolEnabled(c.config.Tool) {
+		return ShortcutResult{
+			Output:  fmt.Sprintf("%s Tool '%s' is not enabled", icons.StyledCrossMark(), c.config.Tool),
+			Success: false,
+		}, nil
+	}
+
+	toolArgs := make(map[string]any)
+	if c.config.ToolArgs != nil {
+		toolArgs = c.config.ToolArgs
+	}
+
+	if err := c.toolService.ValidateTool(c.config.Tool, toolArgs); err != nil {
+		return ShortcutResult{
+			Output:  fmt.Sprintf("%s Tool validation failed: %v", icons.StyledCrossMark(), err),
+			Success: false,
+		}, nil
+	}
+
+	argsJSON, err := json.Marshal(toolArgs)
+	if err != nil {
+		return ShortcutResult{
+			Output:  fmt.Sprintf("%s Failed to marshal tool arguments: %v", icons.StyledCrossMark(), err),
+			Success: false,
+		}, nil
+	}
+
+	toolCall := sdk.ChatCompletionMessageToolCallFunction{
+		Name:      c.config.Tool,
+		Arguments: string(argsJSON),
+	}
+
+	result, err := c.toolService.ExecuteToolDirect(ctx, toolCall)
+	if err != nil {
+		return ShortcutResult{
+			Output:  fmt.Sprintf("%s Tool execution failed: %v", icons.StyledCrossMark(), err),
+			Success: false,
+		}, nil
+	}
+
+	if !result.Success {
+		return ShortcutResult{
+			Output:  fmt.Sprintf("%s Tool '%s' failed", icons.StyledCrossMark(), c.config.Tool),
+			Success: false,
+		}, nil
+	}
+
+	tool, err := c.toolService.GetTool(c.config.Tool)
+	if err != nil {
+		if data, ok := result.Data.(map[string]any); ok {
+			dataJSON, _ := json.MarshalIndent(data, "", "  ")
+			return ShortcutResult{
+				Output:  fmt.Sprintf("%s **%s completed**\n\n```json\n%s\n```", icons.StyledCheckMark(), result.ToolName, string(dataJSON)),
+				Success: true,
+			}, nil
+		}
+		return ShortcutResult{
+			Output:  fmt.Sprintf("%s Tool '%s' executed successfully", icons.StyledCheckMark(), result.ToolName),
+			Success: true,
+		}, nil
+	}
+
+	output := tool.FormatResult(result, domain.FormatterUI)
+	return ShortcutResult{
+		Output:  output,
 		Success: true,
 	}, nil
 }
@@ -321,7 +407,7 @@ func (c *CustomShortcut) callLLM(ctx context.Context, prompt string) (string, er
 }
 
 // LoadCustomShortcuts loads user-defined shortcuts from shortcuts/ directory within the specified base directory
-func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService) ([]Shortcut, error) {
+func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService, toolService domain.ToolService) ([]Shortcut, error) {
 	shortcuts := make([]Shortcut, 0)
 
 	shortcutsDir := filepath.Join(baseDir, "shortcuts")
@@ -336,7 +422,7 @@ func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.
 	}
 
 	for _, file := range files {
-		shortcutsFromFile, err := loadShortcutsFromFile(file, client, modelService, imageService)
+		shortcutsFromFile, err := loadShortcutsFromFile(file, client, modelService, imageService, toolService)
 		if err != nil {
 			fmt.Printf("Warning: failed to load shortcuts from %s: %v\n", file, err)
 			continue
@@ -348,7 +434,7 @@ func LoadCustomShortcuts(baseDir string, client sdk.Client, modelService domain.
 }
 
 // loadShortcutsFromFile loads shortcuts from a specific YAML file
-func loadShortcutsFromFile(filename string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService) ([]Shortcut, error) {
+func loadShortcutsFromFile(filename string, client sdk.Client, modelService domain.ModelService, imageService domain.ImageService, toolService domain.ToolService) ([]Shortcut, error) {
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file %s: %w", filename, err)
@@ -365,12 +451,13 @@ func loadShortcutsFromFile(filename string, client sdk.Client, modelService doma
 			fmt.Printf("Warning: shortcut without name found in %s, skipping\n", filename)
 			continue
 		}
-		if shortcutConfig.Command == "" {
-			fmt.Printf("Warning: shortcut '%s' without command found in %s, skipping\n", shortcutConfig.Name, filename)
+		// Must have either a command or a tool
+		if shortcutConfig.Command == "" && shortcutConfig.Tool == "" {
+			fmt.Printf("Warning: shortcut '%s' must have either 'command' or 'tool' specified in %s, skipping\n", shortcutConfig.Name, filename)
 			continue
 		}
 
-		shortcuts = append(shortcuts, NewCustomShortcut(shortcutConfig, client, modelService, imageService))
+		shortcuts = append(shortcuts, NewCustomShortcut(shortcutConfig, client, modelService, imageService, toolService))
 	}
 
 	return shortcuts, nil

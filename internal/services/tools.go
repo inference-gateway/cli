@@ -178,6 +178,10 @@ func (s *LLMToolService) GetTaskTracker() domain.TaskTracker {
 	return s.registry.GetTaskTracker()
 }
 
+func (s *LLMToolService) GetTool(name string) (domain.Tool, error) {
+	return s.registry.GetTool(name)
+}
+
 // NoOpToolService implements ToolService as a no-op (when tools are disabled)
 type NoOpToolService struct{}
 
@@ -216,4 +220,8 @@ func (s *NoOpToolService) ValidateTool(name string, args map[string]any) error {
 
 func (s *NoOpToolService) GetTaskTracker() domain.TaskTracker {
 	return nil
+}
+
+func (s *NoOpToolService) GetTool(name string) (domain.Tool, error) {
+	return nil, fmt.Errorf("tools are not enabled")
 }

@@ -519,12 +519,8 @@ func createShellsShortcutsFile(path string) error {
 shortcuts:
   - name: shells
     description: "List all running and recent background shell processes"
-    command: echo
-    args:
-      - '{"action": "list_shells"}'
-    snippet:
-      prompt: "Use the ListShells tool to show all background shell processes."
-      template: "!!ListShells()"
+    tool: ListShells
+    tool_args: {}
 `
 
 	return os.WriteFile(path, []byte(shellsShortcutsContent), 0644)

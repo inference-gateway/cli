@@ -6,11 +6,15 @@ words:
   - deepseek
   - DEEPSEEK
   - funlen
+  - gocyclo
   - groq
   - GROQ
+  - mekayelanik
   - nolint
   - ollama
   - OLLAMA
   - oneline
   - pgdn
   - pgup
+  - SHTTP
+  - sname
