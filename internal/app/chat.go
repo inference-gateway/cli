@@ -1359,6 +1359,13 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, cmds *[]tea.Cmd)
 		}
 	}
 
+	if model, cmd := app.inputStatusBar.(tea.Model).Update(msg); cmd != nil {
+		*cmds = append(*cmds, cmd)
+		if statusBarModel, ok := model.(ui.InputStatusBarComponent); ok {
+			app.inputStatusBar = statusBarModel
+		}
+	}
+
 }
 
 // updateOptionalComponents updates optional components (conversation selector, task manager)
