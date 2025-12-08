@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.84.0](https://github.com/inference-gateway/cli/compare/v0.83.0...v0.84.0) (2025-12-08)
+
+### 🚀 Features
+
+* Add git branch indicator to status bar ([#321](https://github.com/inference-gateway/cli/issues/321)) ([e2c45e2](https://github.com/inference-gateway/cli/commit/e2c45e29e69d321e9c45fd4d5ae0ac2d162a66e2))
+* Add session tokens indicator to chat status bar ([#319](https://github.com/inference-gateway/cli/issues/319)) ([445fb0a](https://github.com/inference-gateway/cli/commit/445fb0a75e3428370409104d0a41272fd5501607))
+
+### 🐛 Bug Fixes
+
+* Skip hidden entries in compact async ([8eee131](https://github.com/inference-gateway/cli/commit/8eee131cea7e608a1ae5f209d30070c29f11d6d1))
+
+### 🧹 Maintenance
+
+* Add missing default values to viper config ([5dbbee3](https://github.com/inference-gateway/cli/commit/5dbbee3805e46f3e301f9417ea222cfc954cf032))
+
 ## [0.83.0](https://github.com/inference-gateway/cli/compare/v0.82.0...v0.83.0) (2025-12-08)
 
 ### 🚀 Features
