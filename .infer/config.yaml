@@ -528,6 +528,7 @@ chat:
       background_shells: true
       mcp: true
       context_usage: true
+      session_tokens: true
 a2a:
   enabled: true
   cache:

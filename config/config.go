@@ -343,21 +343,22 @@ type KeyBindingEntry struct {
 // StatusBarConfig contains settings for the chat status bar
 // The status bar displays model information and system status indicators
 type StatusBarConfig struct {
-	Enabled    bool                `yaml:"enabled" mapstructure:"enabled"`       // Master toggle for entire status bar
-	Indicators StatusBarIndicators `yaml:"indicators" mapstructure:"indicators"` // Individual indicator toggles
+	Enabled    bool                `yaml:"enabled" mapstructure:"enabled"`
+	Indicators StatusBarIndicators `yaml:"indicators" mapstructure:"indicators"`
 }
 
 // StatusBarIndicators contains individual enable/disable toggles for each indicator
 // All indicators are enabled by default to maintain current behavior
 type StatusBarIndicators struct {
-	Model            bool `yaml:"model" mapstructure:"model"`                         // Current AI model name
-	Theme            bool `yaml:"theme" mapstructure:"theme"`                         // Current theme name
-	MaxOutput        bool `yaml:"max_output" mapstructure:"max_output"`               // Maximum output tokens
-	A2AAgents        bool `yaml:"a2a_agents" mapstructure:"a2a_agents"`               // A2A agent readiness (ready/total)
-	Tools            bool `yaml:"tools" mapstructure:"tools"`                         // Tool count and token usage
-	BackgroundShells bool `yaml:"background_shells" mapstructure:"background_shells"` // Running background shell count
-	MCP              bool `yaml:"mcp" mapstructure:"mcp"`                             // MCP server status and tool count
-	ContextUsage     bool `yaml:"context_usage" mapstructure:"context_usage"`         // Token consumption percentage
+	Model            bool `yaml:"model" mapstructure:"model"`
+	Theme            bool `yaml:"theme" mapstructure:"theme"`
+	MaxOutput        bool `yaml:"max_output" mapstructure:"max_output"`
+	A2AAgents        bool `yaml:"a2a_agents" mapstructure:"a2a_agents"`
+	Tools            bool `yaml:"tools" mapstructure:"tools"`
+	BackgroundShells bool `yaml:"background_shells" mapstructure:"background_shells"`
+	MCP              bool `yaml:"mcp" mapstructure:"mcp"`
+	ContextUsage     bool `yaml:"context_usage" mapstructure:"context_usage"`
+	SessionTokens    bool `yaml:"session_tokens" mapstructure:"session_tokens"`
 }
 
 // InitConfig contains settings for the /init shortcut
@@ -483,6 +484,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			BackgroundShells: true,
 			MCP:              true,
 			ContextUsage:     true,
+			SessionTokens:    true,
 		},
 	}
 }

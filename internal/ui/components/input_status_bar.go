@@ -9,6 +9,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // InputStatusBar displays input status information like model, theme, agents
@@ -187,6 +188,12 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 		}
 	}
 
+	if isb.shouldShowIndicator("session_tokens") {
+		if sessionTokensPart := isb.buildSessionTokensIndicator(); sessionTokensPart != "" {
+			parts = append(parts, sessionTokensPart)
+		}
+	}
+
 	return strings.Join(parts, " • ")
 }
 
@@ -214,6 +221,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.MCP
 	case "context_usage":
 		return indicators.ContextUsage
+	case "session_tokens":
+		return indicators.SessionTokens
 	default:
 		return true
 	}
@@ -260,6 +269,33 @@ func (isb *InputStatusBar) buildMCPIndicator() string {
 		return fmt.Sprintf("MCP: %d tools, %d/%d", isb.mcpStatus.TotalTools, isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers)
 	}
 	return fmt.Sprintf("MCP: %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers)
+}
+
+// buildSessionTokensIndicator builds the session token usage indicator text
+func (isb *InputStatusBar) buildSessionTokensIndicator() string {
+	if isb.conversationRepo == nil {
+		return ""
+	}
+
+	stats := isb.conversationRepo.GetSessionTokens()
+	totalTokens := stats.TotalTokens
+
+	if totalTokens == 0 && isb.tokenEstimator != nil {
+		messages := isb.conversationRepo.GetMessages()
+		if len(messages) > 0 {
+			sdkMessages := make([]sdk.Message, 0, len(messages))
+			for _, entry := range messages {
+				sdkMessages = append(sdkMessages, entry.Message)
+			}
+			totalTokens = isb.tokenEstimator.EstimateMessagesTokens(sdkMessages)
+		}
+	}
+
+	if totalTokens == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("Tokens: %d", totalTokens)
 }
 
 // getToolInfo returns tool count and token information

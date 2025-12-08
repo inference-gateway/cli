@@ -324,6 +324,133 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 	}
 }
 
+func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
+	tests := []struct {
+		name         string
+		stats        domain.SessionTokenStats
+		expectedText string
+		expectEmpty  bool
+		nilRepo      bool
+	}{
+		{
+			name: "returns session tokens when present",
+			stats: domain.SessionTokenStats{
+				TotalInputTokens:  500,
+				TotalOutputTokens: 300,
+				TotalTokens:       800,
+				RequestCount:      5,
+			},
+			expectedText: "Tokens: 800",
+			expectEmpty:  false,
+			nilRepo:      false,
+		},
+		{
+			name: "returns empty when total tokens is zero",
+			stats: domain.SessionTokenStats{
+				TotalTokens: 0,
+			},
+			expectedText: "",
+			expectEmpty:  true,
+			nilRepo:      false,
+		},
+		{
+			name:         "returns empty when repo is nil",
+			expectedText: "",
+			expectEmpty:  true,
+			nilRepo:      true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var conversationRepo domain.ConversationRepository
+			if !tt.nilRepo {
+				mockRepo := &domainmocks.FakeConversationRepository{}
+				mockRepo.GetSessionTokensReturns(tt.stats)
+				conversationRepo = mockRepo
+			}
+
+			statusBar := &InputStatusBar{
+				conversationRepo: conversationRepo,
+			}
+
+			result := statusBar.buildSessionTokensIndicator()
+
+			if tt.expectEmpty && result != "" {
+				t.Errorf("Expected empty string but got: %s", result)
+			}
+			if !tt.expectEmpty && result != tt.expectedText {
+				t.Errorf("Expected '%s' but got '%s'", tt.expectedText, result)
+			}
+		})
+	}
+}
+
+func TestInputStatusBar_ShouldShowIndicator_SessionTokens(t *testing.T) {
+	tests := []struct {
+		name          string
+		configEnabled bool
+		expected      bool
+	}{
+		{
+			name:          "session_tokens enabled returns true",
+			configEnabled: true,
+			expected:      true,
+		},
+		{
+			name:          "session_tokens disabled returns false",
+			configEnabled: false,
+			expected:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			cfg.Chat.StatusBar.Indicators.SessionTokens = tt.configEnabled
+
+			statusBar := &InputStatusBar{
+				configService: cfg,
+			}
+
+			result := statusBar.shouldShowIndicator("session_tokens")
+
+			if result != tt.expected {
+				t.Errorf("Expected %v but got %v", tt.expected, result)
+			}
+		})
+	}
+}
+
+func TestInputStatusBar_BuildModelDisplayText_WithSessionTokens(t *testing.T) {
+	cfg := config.DefaultConfig()
+	cfg.Agent.MaxTokens = 8000
+	cfg.Chat.StatusBar.Indicators.SessionTokens = true
+
+	mockRepo := &domainmocks.FakeConversationRepository{}
+	mockRepo.GetSessionTokensReturns(domain.SessionTokenStats{
+		TotalTokens: 1234,
+	})
+
+	themeService := &domainmocks.FakeThemeService{}
+	themeService.GetCurrentThemeNameReturns("tokyo-night")
+
+	statusBar := &InputStatusBar{
+		configService:    cfg,
+		themeService:     themeService,
+		conversationRepo: mockRepo,
+	}
+
+	result := statusBar.buildModelDisplayText("test-model")
+
+	if result == "" {
+		t.Error("Expected non-empty output when indicators are enabled")
+	}
+	if !strings.Contains(result, "Tokens: 1234") {
+		t.Errorf("Expected output to contain 'Tokens: 1234', got: %s", result)
+	}
+}
+
 func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.Chat.StatusBar.Indicators.Model = false
@@ -334,6 +461,7 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 	cfg.Chat.StatusBar.Indicators.BackgroundShells = false
 	cfg.Chat.StatusBar.Indicators.MCP = false
 	cfg.Chat.StatusBar.Indicators.ContextUsage = false
+	cfg.Chat.StatusBar.Indicators.SessionTokens = false
 
 	statusBar := &InputStatusBar{
 		configService: cfg,
