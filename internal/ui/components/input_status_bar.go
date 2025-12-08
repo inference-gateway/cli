@@ -466,6 +466,12 @@ func (isb *InputStatusBar) getCurrentGitBranch() (string, bool) {
 	return branch, branch != ""
 }
 
+// InvalidateGitBranchCache clears the git branch cache to force a refresh
+func (isb *InputStatusBar) InvalidateGitBranchCache() {
+	isb.gitBranchCache = ""
+	isb.gitBranchCacheTime = time.Time{}
+}
+
 // buildGitBranchIndicator builds the git branch indicator text
 func (isb *InputStatusBar) buildGitBranchIndicator() string {
 	branch, ok := isb.getCurrentGitBranch()
@@ -567,8 +573,11 @@ func (isb *InputStatusBar) Init() tea.Cmd { return nil }
 func (isb *InputStatusBar) View() string { return isb.Render() }
 
 func (isb *InputStatusBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		isb.SetWidth(windowMsg.Width)
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		isb.SetWidth(msg.Width)
+	case domain.BashCommandCompletedEvent:
+		isb.InvalidateGitBranchCache()
 	}
 	return isb, nil
 }
