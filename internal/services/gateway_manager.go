@@ -11,27 +11,36 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
 const (
-	// InferNetworkName is the Docker network name for inference gateway and agents
-	InferNetworkName = "infer-network"
+	// InferNetworkPrefix is the prefix for session-specific Docker networks
+	InferNetworkPrefix = "infer-network"
 )
 
 // GatewayManager manages the lifecycle of the gateway container or binary
 type GatewayManager struct {
-	config      *config.Config
-	containerID string
-	isRunning   bool
-	binaryCmd   *exec.Cmd
+	sessionID    domain.SessionID
+	config       *config.Config
+	containerID  string
+	isRunning    bool
+	binaryCmd    *exec.Cmd
+	assignedPort int
 }
 
 // NewGatewayManager creates a new gateway manager
-func NewGatewayManager(cfg *config.Config) *GatewayManager {
+func NewGatewayManager(sessionID domain.SessionID, cfg *config.Config) *GatewayManager {
 	return &GatewayManager{
-		config: cfg,
+		sessionID: sessionID,
+		config:    cfg,
 	}
+}
+
+// getNetworkName returns the session-specific network name
+func (gm *GatewayManager) getNetworkName() string {
+	return fmt.Sprintf("%s-%s", InferNetworkPrefix, gm.sessionID)
 }
 
 // Start starts the gateway container or binary if configured to run locally
@@ -76,7 +85,9 @@ func (gm *GatewayManager) startBinary(ctx context.Context) error {
 	fmt.Println("• Waiting for gateway to become ready...")
 
 	if err := gm.waitForReady(ctx); err != nil {
-		_ = gm.Stop(ctx)
+		if stopErr := gm.Stop(ctx); stopErr != nil {
+			logger.Warn("Failed to stop gateway during error cleanup", "error", stopErr)
+		}
 		return fmt.Errorf("gateway failed to become ready: %w", err)
 	}
 
@@ -123,13 +134,16 @@ func (gm *GatewayManager) startDocker(ctx context.Context) error {
 	fmt.Println("• Waiting for gateway to become ready...")
 
 	if err := gm.waitForReady(ctx); err != nil {
-		_ = gm.Stop(ctx)
+		if stopErr := gm.Stop(ctx); stopErr != nil {
+			logger.Warn("Failed to stop gateway during error cleanup", "error", stopErr)
+		}
 		return fmt.Errorf("gateway failed to become ready: %w", err)
 	}
 
 	gm.isRunning = true
-	fmt.Printf("• Gateway is ready at %s\n\n", gm.config.Gateway.URL)
-	logger.Info("Gateway container started successfully", "url", gm.config.Gateway.URL)
+	actualURL := gm.GetGatewayURL()
+	fmt.Printf("• Gateway is ready at %s\n\n", actualURL)
+	logger.Info("Gateway container started successfully", "session", gm.sessionID, "url", actualURL, "port", gm.assignedPort)
 	return nil
 }
 
@@ -165,7 +179,7 @@ func (gm *GatewayManager) stopBinary() error {
 	return nil
 }
 
-// stopDocker stops the Docker container
+// stopDocker stops the Docker container and cleans up the network
 func (gm *GatewayManager) stopDocker(ctx context.Context) error {
 	if gm.containerID == "" {
 		return nil
@@ -174,6 +188,9 @@ func (gm *GatewayManager) stopDocker(ctx context.Context) error {
 	if !gm.containerExists(gm.containerID) {
 		gm.isRunning = false
 		gm.containerID = ""
+		if err := gm.cleanupNetwork(ctx); err != nil {
+			logger.Warn("Failed to cleanup network", "session", gm.sessionID, "error", err)
+		}
 		return nil
 	}
 
@@ -184,6 +201,9 @@ func (gm *GatewayManager) stopDocker(ctx context.Context) error {
 
 	gm.isRunning = false
 	gm.containerID = ""
+	if err := gm.cleanupNetwork(ctx); err != nil {
+		logger.Warn("Failed to cleanup network", "session", gm.sessionID, "error", err)
+	}
 	return nil
 }
 
@@ -209,20 +229,17 @@ func (gm *GatewayManager) pullImage(ctx context.Context) error {
 
 // startContainer starts the gateway container
 func (gm *GatewayManager) startContainer(ctx context.Context) error {
-	port := "8080"
-	if strings.Contains(gm.config.Gateway.URL, ":") {
-		parts := strings.Split(gm.config.Gateway.URL, ":")
-		if len(parts) > 0 {
-			port = strings.TrimPrefix(parts[len(parts)-1], "/")
-		}
-	}
+	assignedPort := gm.determineGatewayPort()
+	containerPort := "8080"
 
+	containerName := fmt.Sprintf("inference-gateway-%s", gm.sessionID)
+	networkName := gm.getNetworkName()
 	args := []string{
 		"run",
 		"-d",
-		"--name", "inference-gateway",
-		"--network", InferNetworkName,
-		"-p", fmt.Sprintf("%s:%s", port, port),
+		"--name", containerName,
+		"--network", networkName,
+		"-p", fmt.Sprintf("%d:%s", assignedPort, containerPort),
 		"--rm",
 	}
 
@@ -294,23 +311,37 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 
 // isContainerRunning checks if a gateway container is already running
 func (gm *GatewayManager) isContainerRunning() bool {
-	cmd := exec.Command("docker", "ps", "--filter", "name=inference-gateway", "--format", "{{.ID}}")
+	expectedName := fmt.Sprintf("inference-gateway-%s", gm.sessionID)
+	cmd := exec.Command("docker", "ps", "--filter", "name=inference-gateway", "--format", "{{.ID}}\t{{.Names}}")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return false
 	}
 
-	containerID := strings.TrimSpace(string(output))
-	if containerID != "" {
-		gm.containerID = containerID
-		return true
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "\t")
+		if len(parts) != 2 {
+			continue
+		}
+		containerID := parts[0]
+		foundName := parts[1]
+
+		if foundName == expectedName {
+			gm.containerID = containerID
+			return true
+		}
 	}
 	return false
 }
 
 // waitForReady waits for the gateway to become ready
 func (gm *GatewayManager) waitForReady(ctx context.Context) error {
-	healthURL := strings.TrimSuffix(gm.config.Gateway.URL, "/") + "/health"
+	actualURL := gm.GetGatewayURL()
+	healthURL := strings.TrimSuffix(actualURL, "/") + "/health"
 
 	timeout := time.Duration(gm.config.Gateway.Timeout) * time.Second
 	if timeout == 0 {
@@ -471,19 +502,20 @@ func (gm *GatewayManager) loadEnvironment() []string {
 
 // ensureNetwork creates the Docker network if it doesn't exist
 func (gm *GatewayManager) ensureNetwork(ctx context.Context) error {
-	cmd := exec.CommandContext(ctx, "docker", "network", "inspect", InferNetworkName)
+	networkName := gm.getNetworkName()
+	cmd := exec.CommandContext(ctx, "docker", "network", "inspect", networkName)
 	if err := cmd.Run(); err == nil {
 		return nil
 	}
 
-	logger.Info("Creating Docker network", "network", InferNetworkName)
-	cmd = exec.CommandContext(ctx, "docker", "network", "create", InferNetworkName)
+	logger.Info("Creating Docker network", "session", gm.sessionID, "network", networkName)
+	cmd = exec.CommandContext(ctx, "docker", "network", "create", networkName)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("failed to create Docker network: %w, output: %s", err, string(output))
 	}
 
-	logger.Info("Docker network created successfully", "network", InferNetworkName)
+	logger.Info("Docker network created successfully", "session", gm.sessionID, "network", networkName)
 	return nil
 }
 
@@ -494,4 +526,89 @@ func (gm *GatewayManager) containerExists(containerID string) bool {
 	}
 	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerID)
 	return cmd.Run() == nil
+}
+
+// cleanupNetwork removes the session-specific network
+func (gm *GatewayManager) cleanupNetwork(ctx context.Context) error {
+	networkName := gm.getNetworkName()
+	cmd := exec.CommandContext(ctx, "docker", "network", "rm", networkName)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to remove Docker network %s: %w", networkName, err)
+	}
+	logger.Info("Docker network removed successfully", "session", gm.sessionID, "network", networkName)
+	return nil
+}
+
+// determineGatewayPort determines the port to use for the gateway
+// If a port is already assigned, it returns that; otherwise finds an available port
+func (gm *GatewayManager) determineGatewayPort() int {
+	if gm.assignedPort > 0 {
+		return gm.assignedPort
+	}
+
+	basePort := gm.extractPortFromURL()
+	if basePort <= 0 {
+		basePort = 8080
+	}
+
+	gm.assignedPort = config.FindAvailablePort(basePort)
+	logger.Info("Assigned gateway port", "session", gm.sessionID, "port", gm.assignedPort)
+	return gm.assignedPort
+}
+
+// extractPortFromURL extracts the port number from the configured gateway URL
+func (gm *GatewayManager) extractPortFromURL() int {
+	if !strings.Contains(gm.config.Gateway.URL, ":") {
+		return 8080
+	}
+
+	parts := strings.Split(gm.config.Gateway.URL, ":")
+	if len(parts) == 0 {
+		return 8080
+	}
+
+	portStr := strings.TrimPrefix(parts[len(parts)-1], "/")
+	portStr = strings.Split(portStr, "/")[0]
+
+	var port int
+	if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
+		return 8080
+	}
+
+	return port
+}
+
+// GetGatewayURL returns the actual gateway URL with the assigned port
+func (gm *GatewayManager) GetGatewayURL() string {
+	if gm.assignedPort == 0 {
+		return gm.config.Gateway.URL
+	}
+
+	configURL := gm.config.Gateway.URL
+
+	if !strings.Contains(configURL, "://") {
+		return fmt.Sprintf("http://%s:%d", configURL, gm.assignedPort)
+	}
+
+	parts := strings.SplitN(configURL, "://", 2)
+	if len(parts) != 2 {
+		return fmt.Sprintf("http://localhost:%d", gm.assignedPort)
+	}
+
+	scheme := parts[0]
+	rest := parts[1]
+
+	hostAndPath := strings.SplitN(rest, "/", 2)
+	host := hostAndPath[0]
+
+	if strings.Contains(host, ":") {
+		hostParts := strings.Split(host, ":")
+		host = hostParts[0]
+	}
+
+	if len(hostAndPath) == 2 {
+		return fmt.Sprintf("%s://%s:%d/%s", scheme, host, gm.assignedPort, hostAndPath[1])
+	}
+
+	return fmt.Sprintf("%s://%s:%d", scheme, host, gm.assignedPort)
 }

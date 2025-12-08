@@ -24,6 +24,9 @@ import (
 
 // ServiceContainer manages all application dependencies
 type ServiceContainer struct {
+	// Session
+	sessionID domain.SessionID
+
 	// Configuration
 	viper         *viper.Viper
 	config        *config.Config
@@ -78,7 +81,8 @@ type ServiceContainer struct {
 // NewServiceContainer creates a new service container with all dependencies
 func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContainer {
 	container := &ServiceContainer{
-		config: cfg,
+		sessionID: domain.GenerateSessionID(),
+		config:    cfg,
 	}
 
 	if len(v) > 0 && v[0] != nil {
@@ -100,7 +104,7 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 
 // initializeGatewayManager creates and starts the gateway manager if configured
 func (c *ServiceContainer) initializeGatewayManager() {
-	c.gatewayManager = services.NewGatewayManager(c.config)
+	c.gatewayManager = services.NewGatewayManager(c.sessionID, c.config)
 
 	if c.config.Gateway.Run {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -142,7 +146,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 
-	c.agentManager = services.NewAgentManager(c.config, agentsConfig)
+	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig)
 
 	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
@@ -169,7 +173,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 		return
 	}
 
-	c.mcpManager = services.NewMCPManager(&c.config.MCP)
+	c.mcpManager = services.NewMCPManager(c.sessionID, &c.config.MCP)
 
 	hasServersToStart := c.hasAutoStartMCPServers()
 	if !hasServersToStart {
@@ -476,6 +480,12 @@ func (c *ServiceContainer) createSDKClient() sdk.Client {
 	}
 
 	baseURL := c.config.Gateway.URL
+	if c.gatewayManager != nil && c.config.Gateway.Run {
+		actualURL := c.gatewayManager.GetGatewayURL()
+		if actualURL != "" {
+			baseURL = actualURL
+		}
+	}
 	if baseURL == "" {
 		baseURL = "http://localhost:8080"
 	}

@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"net"
 	"strings"
 )
 
@@ -133,21 +132,6 @@ func (e *MCPServerEntry) GetPrimaryPort() int {
 		return 0
 	}
 	return port
-}
-
-// FindAvailablePort finds the next available port starting from basePort
-// It checks up to 100 ports after the base port
-func FindAvailablePort(basePort int) int {
-	for port := basePort; port < basePort+100; port++ {
-		address := fmt.Sprintf("localhost:%d", port)
-		listener, err := net.Listen("tcp", address)
-		if err != nil {
-			continue
-		}
-		_ = listener.Close()
-		return port
-	}
-	return basePort
 }
 
 // DefaultMCPConfig returns a default MCP configuration

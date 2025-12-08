@@ -430,6 +430,9 @@ type GatewayManager interface {
 
 	// IsRunning returns whether the gateway is running
 	IsRunning() bool
+
+	// GetGatewayURL returns the actual gateway URL with the assigned port
+	GetGatewayURL() string
 }
 
 // BashDetachChannelHolder manages the bash detach channel for background shell operations

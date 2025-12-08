@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -1139,4 +1140,20 @@ const (
 // Format: "namespace_action" (e.g., "global_quit", "chat_enter_key_handler")
 func ActionID(namespace KeyNamespace, action string) string {
 	return string(namespace) + "_" + action
+}
+
+// FindAvailablePort finds the next available port starting from basePort
+// It checks up to 100 ports after the base port
+// Binds to all interfaces (0.0.0.0) to match Docker's behavior
+func FindAvailablePort(basePort int) int {
+	for port := basePort; port < basePort+100; port++ {
+		address := fmt.Sprintf(":%d", port)
+		listener, err := net.Listen("tcp", address)
+		if err != nil {
+			continue
+		}
+		_ = listener.Close()
+		return port
+	}
+	return basePort
 }
