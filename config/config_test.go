@@ -860,3 +860,70 @@ func TestDetectGithubOwner(t *testing.T) {
 		t.Log("No GitHub owner detected (not a git repo or not a GitHub remote)")
 	}
 }
+
+func TestDefaultStatusBarConfig(t *testing.T) {
+	cfg := DefaultConfig()
+
+	if !cfg.Chat.StatusBar.Enabled {
+		t.Error("Expected status bar to be enabled by default")
+	}
+
+	indicators := cfg.Chat.StatusBar.Indicators
+	if !indicators.Model {
+		t.Error("Expected model indicator to be enabled by default")
+	}
+	if !indicators.Theme {
+		t.Error("Expected theme indicator to be enabled by default")
+	}
+	if indicators.MaxOutput {
+		t.Error("Expected max_output indicator to be disabled by default")
+	}
+	if !indicators.A2AAgents {
+		t.Error("Expected a2a_agents indicator to be enabled by default")
+	}
+	if !indicators.Tools {
+		t.Error("Expected tools indicator to be enabled by default")
+	}
+	if !indicators.BackgroundShells {
+		t.Error("Expected background_shells indicator to be enabled by default")
+	}
+	if !indicators.MCP {
+		t.Error("Expected mcp indicator to be enabled by default")
+	}
+	if !indicators.ContextUsage {
+		t.Error("Expected context_usage indicator to be enabled by default")
+	}
+}
+
+func TestGetDefaultStatusBarConfig(t *testing.T) {
+	cfg := GetDefaultStatusBarConfig()
+
+	if !cfg.Enabled {
+		t.Error("Expected status bar to be enabled by default")
+	}
+
+	if !cfg.Indicators.Model {
+		t.Error("Expected model indicator to be enabled by default")
+	}
+	if !cfg.Indicators.Theme {
+		t.Error("Expected theme indicator to be enabled by default")
+	}
+	if cfg.Indicators.MaxOutput {
+		t.Error("Expected max_output indicator to be disabled by default")
+	}
+	if !cfg.Indicators.A2AAgents {
+		t.Error("Expected a2a_agents indicator to be enabled by default")
+	}
+	if !cfg.Indicators.Tools {
+		t.Error("Expected tools indicator to be enabled by default")
+	}
+	if !cfg.Indicators.BackgroundShells {
+		t.Error("Expected background_shells indicator to be enabled by default")
+	}
+	if !cfg.Indicators.MCP {
+		t.Error("Expected mcp indicator to be enabled by default")
+	}
+	if !cfg.Indicators.ContextUsage {
+		t.Error("Expected context_usage indicator to be enabled by default")
+	}
+}

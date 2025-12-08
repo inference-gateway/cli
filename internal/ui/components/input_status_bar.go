@@ -94,6 +94,10 @@ func (isb *InputStatusBar) SetHeight(height int) {
 }
 
 func (isb *InputStatusBar) Render() string {
+	if isb.configService != nil && !isb.configService.Chat.StatusBar.Enabled {
+		return ""
+	}
+
 	renderedLeft := isb.buildLeftText()
 	modeIndicator := isb.getAgentModeIndicator()
 	availableWidth := isb.width - 2 - 2
@@ -111,12 +115,10 @@ func (isb *InputStatusBar) buildLeftText() string {
 		return ""
 	}
 
-	// Combine input mode with model info if present
 	inputMode := isb.getInputModeIndicator()
 	dimColor := isb.styleProvider.GetThemeColor("dim")
 	accentColor := isb.styleProvider.GetThemeColor("accent")
 
-	// If there's an input mode, apply accent color to mode and dim color to rest
 	if inputMode != "" {
 		return isb.styleProvider.RenderWithColor(inputMode, accentColor) + " " + isb.styleProvider.RenderWithColor(modelInfo, dimColor)
 	}
@@ -137,47 +139,127 @@ func (isb *InputStatusBar) getModelInfo() string {
 }
 
 func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
-	parts := []string{fmt.Sprintf("Model: %s", currentModel)}
+	parts := []string{}
 
-	if isb.themeService != nil {
-		currentTheme := isb.themeService.GetCurrentThemeName()
-		parts = append(parts, fmt.Sprintf("Theme: %s", currentTheme))
+	if isb.shouldShowIndicator("model") {
+		parts = append(parts, fmt.Sprintf("Model: %s", currentModel))
 	}
 
-	if isb.configService != nil {
-		maxTokens := isb.configService.Agent.MaxTokens
-		if maxTokens > 0 {
-			parts = append(parts, fmt.Sprintf("Max Output: %d", maxTokens))
+	if isb.shouldShowIndicator("theme") {
+		if themePart := isb.buildThemeIndicator(); themePart != "" {
+			parts = append(parts, themePart)
 		}
 	}
 
-	if isb.stateManager != nil {
-		if readiness := isb.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
-			parts = append(parts, fmt.Sprintf("Agents: %d/%d", readiness.ReadyAgents, readiness.TotalAgents))
+	if isb.shouldShowIndicator("max_output") {
+		if maxOutputPart := isb.buildMaxOutputIndicator(); maxOutputPart != "" {
+			parts = append(parts, maxOutputPart)
 		}
 	}
 
-	if toolInfo := isb.getToolInfo(); toolInfo != "" {
-		parts = append(parts, toolInfo)
-	}
-
-	if backgroundInfo := isb.getBackgroundInfo(); backgroundInfo != "" {
-		parts = append(parts, backgroundInfo)
-	}
-
-	if isb.mcpStatus != nil && len(isb.configService.MCP.Servers) > 0 {
-		if isb.mcpStatus.TotalTools > 0 {
-			parts = append(parts, fmt.Sprintf("MCP: %d tools, %d/%d", isb.mcpStatus.TotalTools, isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
-		} else {
-			parts = append(parts, fmt.Sprintf("MCP: %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
+	if isb.shouldShowIndicator("a2a_agents") {
+		if agentsPart := isb.buildA2AAgentsIndicator(); agentsPart != "" {
+			parts = append(parts, agentsPart)
 		}
 	}
 
-	if contextIndicator := isb.getContextUsageIndicator(currentModel); contextIndicator != "" {
-		parts = append(parts, contextIndicator)
+	if isb.shouldShowIndicator("tools") {
+		if toolInfo := isb.getToolInfo(); toolInfo != "" {
+			parts = append(parts, toolInfo)
+		}
+	}
+
+	if isb.shouldShowIndicator("background_shells") {
+		if backgroundInfo := isb.getBackgroundInfo(); backgroundInfo != "" {
+			parts = append(parts, backgroundInfo)
+		}
+	}
+
+	if isb.shouldShowIndicator("mcp") {
+		if mcpPart := isb.buildMCPIndicator(); mcpPart != "" {
+			parts = append(parts, mcpPart)
+		}
+	}
+
+	if isb.shouldShowIndicator("context_usage") {
+		if contextIndicator := isb.getContextUsageIndicator(currentModel); contextIndicator != "" {
+			parts = append(parts, contextIndicator)
+		}
 	}
 
 	return strings.Join(parts, " • ")
+}
+
+// shouldShowIndicator checks if a specific indicator should be shown
+func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
+	if isb.configService == nil {
+		return true
+	}
+
+	indicators := isb.configService.Chat.StatusBar.Indicators
+	switch indicator {
+	case "model":
+		return indicators.Model
+	case "theme":
+		return indicators.Theme
+	case "max_output":
+		return indicators.MaxOutput
+	case "a2a_agents":
+		return indicators.A2AAgents
+	case "tools":
+		return indicators.Tools
+	case "background_shells":
+		return indicators.BackgroundShells
+	case "mcp":
+		return indicators.MCP
+	case "context_usage":
+		return indicators.ContextUsage
+	default:
+		return true
+	}
+}
+
+// buildThemeIndicator builds the theme indicator text
+func (isb *InputStatusBar) buildThemeIndicator() string {
+	if isb.themeService == nil {
+		return ""
+	}
+	currentTheme := isb.themeService.GetCurrentThemeName()
+	return fmt.Sprintf("Theme: %s", currentTheme)
+}
+
+// buildMaxOutputIndicator builds the max output tokens indicator text
+func (isb *InputStatusBar) buildMaxOutputIndicator() string {
+	if isb.configService == nil {
+		return ""
+	}
+	maxTokens := isb.configService.Agent.MaxTokens
+	if maxTokens > 0 {
+		return fmt.Sprintf("Max Output: %d", maxTokens)
+	}
+	return ""
+}
+
+// buildA2AAgentsIndicator builds the A2A agents readiness indicator text
+func (isb *InputStatusBar) buildA2AAgentsIndicator() string {
+	if isb.stateManager == nil {
+		return ""
+	}
+	if readiness := isb.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
+		return fmt.Sprintf("Agents: %d/%d", readiness.ReadyAgents, readiness.TotalAgents)
+	}
+	return ""
+}
+
+// buildMCPIndicator builds the MCP server status indicator text
+func (isb *InputStatusBar) buildMCPIndicator() string {
+	if isb.mcpStatus == nil || isb.configService == nil || len(isb.configService.MCP.Servers) == 0 {
+		return ""
+	}
+	if isb.mcpStatus.TotalTools > 0 {
+		return fmt.Sprintf("MCP: %d tools, %d/%d", isb.mcpStatus.TotalTools, isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers)
+	}
+	return fmt.Sprintf("MCP: %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers)
 }
 
 // getToolInfo returns tool count and token information
