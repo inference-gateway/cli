@@ -1,6 +1,7 @@
 package components
 
 import (
+	"strings"
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
@@ -362,21 +363,7 @@ func TestInputStatusBar_BuildModelDisplayText_AllEnabled(t *testing.T) {
 	if result == "" {
 		t.Error("Expected non-empty output when indicators are enabled")
 	}
-	if !containsString(result, "Model: test-model") {
+	if !strings.Contains(result, "Model: test-model") {
 		t.Error("Expected output to contain model information")
 	}
-}
-
-// Helper function to check if a string contains a substring
-func containsString(s, substr string) bool {
-	return len(s) >= len(substr) && (s == substr || len(s) > len(substr) && (s[:len(substr)] == substr || s[len(s)-len(substr):] == substr || findSubstring(s, substr)))
-}
-
-func findSubstring(s, substr string) bool {
-	for i := 0; i <= len(s)-len(substr); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
 }
