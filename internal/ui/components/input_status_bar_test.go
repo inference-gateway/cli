@@ -3,6 +3,7 @@ package components
 import (
 	"strings"
 	"testing"
+	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -157,7 +158,7 @@ func TestInputStatusBar_BuildThemeIndicator(t *testing.T) {
 	}
 
 	result := statusBar.buildThemeIndicator()
-	expectedText := "Theme: tokyo-night"
+	expectedText := "tokyo-night"
 
 	if result != expectedText {
 		t.Errorf("Expected '%s' but got '%s'", expectedText, result)
@@ -276,7 +277,7 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 				TotalTools:       2500,
 			},
 			serverCount:  4,
-			expectedText: "MCP: 2500 tools, 3/4",
+			expectedText: "🔌 3/4 (2500)",
 			expectEmpty:  false,
 		},
 		{
@@ -287,7 +288,7 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 				TotalTools:       0,
 			},
 			serverCount:  4,
-			expectedText: "MCP: 3/4",
+			expectedText: "🔌 3/4",
 			expectEmpty:  false,
 		},
 		{
@@ -340,7 +341,7 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 				TotalTokens:       800,
 				RequestCount:      5,
 			},
-			expectedText: "Tokens: 800",
+			expectedText: "T.800",
 			expectEmpty:  false,
 			nilRepo:      false,
 		},
@@ -446,8 +447,95 @@ func TestInputStatusBar_BuildModelDisplayText_WithSessionTokens(t *testing.T) {
 	if result == "" {
 		t.Error("Expected non-empty output when indicators are enabled")
 	}
-	if !strings.Contains(result, "Tokens: 1234") {
-		t.Errorf("Expected output to contain 'Tokens: 1234', got: %s", result)
+	if !strings.Contains(result, "T.1234") {
+		t.Errorf("Expected output to contain 'T.1234', got: %s", result)
+	}
+}
+
+func TestInputStatusBar_BuildGitBranchIndicator(t *testing.T) {
+	tests := []struct {
+		name         string
+		branch       string
+		branchExists bool
+		expectedText string
+		expectEmpty  bool
+	}{
+		{
+			name:         "shows branch name when in git repo",
+			branch:       "main",
+			branchExists: true,
+			expectedText: "⎇ main",
+			expectEmpty:  false,
+		},
+		{
+			name:         "shows feature branch",
+			branch:       "feature/git-indicator",
+			branchExists: true,
+			expectedText: "⎇ feature/git-indicator",
+			expectEmpty:  false,
+		},
+		{
+			name:         "truncates very long branch names",
+			branch:       "feature/this-is-a-very-long-branch-name-that-should-be-truncated",
+			branchExists: true,
+			expectedText: "⎇ feature/this-is-a-very-long-branch-...",
+			expectEmpty:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			statusBar := &InputStatusBar{
+				gitBranchCache:     tt.branch,
+				gitBranchCacheTime: time.Now(),
+				gitBranchCacheTTL:  5 * time.Second,
+			}
+
+			result := statusBar.buildGitBranchIndicator()
+
+			if tt.expectEmpty && result != "" {
+				t.Errorf("Expected empty string but got: %s", result)
+			}
+			if !tt.expectEmpty && result != tt.expectedText {
+				t.Errorf("Expected '%s' but got '%s'", tt.expectedText, result)
+			}
+		})
+	}
+}
+
+func TestInputStatusBar_ShouldShowIndicator_GitBranch(t *testing.T) {
+	tests := []struct {
+		name          string
+		configEnabled bool
+		expected      bool
+	}{
+		{
+			name:          "git_branch enabled returns true",
+			configEnabled: true,
+			expected:      true,
+		},
+		{
+			name:          "git_branch disabled returns false",
+			configEnabled: false,
+			expected:      false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.DefaultConfig()
+			cfg.Chat.StatusBar.Indicators.GitBranch = tt.configEnabled
+
+			statusBar := &InputStatusBar{
+				configService: cfg,
+			}
+
+			result := statusBar.shouldShowIndicator("git_branch")
+
+			if result != tt.expected {
+				t.Errorf("Expected %v but got %v", tt.expected, result)
+			}
+		})
 	}
 }
 
@@ -462,6 +550,7 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 	cfg.Chat.StatusBar.Indicators.MCP = false
 	cfg.Chat.StatusBar.Indicators.ContextUsage = false
 	cfg.Chat.StatusBar.Indicators.SessionTokens = false
+	cfg.Chat.StatusBar.Indicators.GitBranch = false
 
 	statusBar := &InputStatusBar{
 		configService: cfg,
@@ -491,7 +580,7 @@ func TestInputStatusBar_BuildModelDisplayText_AllEnabled(t *testing.T) {
 	if result == "" {
 		t.Error("Expected non-empty output when indicators are enabled")
 	}
-	if !strings.Contains(result, "Model: test-model") {
+	if !strings.Contains(result, "test-model") {
 		t.Error("Expected output to contain model information")
 	}
 }

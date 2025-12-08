@@ -40,6 +40,7 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	autocomplete ui.AutocompleteComponent,
 	inputStatusBar ui.InputStatusBarComponent,
 	statusView ui.StatusComponent,
+	modeIndicator *ModeIndicator,
 	helpBar ui.HelpBarComponent,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
@@ -49,13 +50,13 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	heights := r.calculateComponentHeights(data, height, helpBar, queueBoxView, todoBoxView)
 
 	r.setComponentDimensions(width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
-		queueBoxView, todoBoxView, heights)
+		modeIndicator, queueBoxView, todoBoxView, heights)
 
 	header := r.renderHeader(data, width)
 	conversationArea := conversationView.Render()
 	inputArea := inputView.Render()
 
-	components := r.assembleComponents(data, header, conversationArea, inputArea, statusView,
+	components := r.assembleComponents(data, header, conversationArea, inputArea, statusView, modeIndicator,
 		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, width, heights.statusHeight)
 
 	return strings.Join(components, "\n")
@@ -121,6 +122,7 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	autocomplete ui.AutocompleteComponent,
 	inputStatusBar ui.InputStatusBarComponent,
 	statusView ui.StatusComponent,
+	modeIndicator *ModeIndicator,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
 	heights componentHeights,
@@ -137,6 +139,10 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	inputView.SetHeight(heights.inputHeight)
 	inputStatusBar.SetWidth(width)
 	statusView.SetWidth(width)
+
+	if modeIndicator != nil {
+		modeIndicator.SetWidth(width)
+	}
 
 	if autocomplete != nil {
 		autocomplete.SetWidth(width)
@@ -167,6 +173,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	data ChatInterfaceData,
 	header, conversationArea, inputArea string,
 	statusView ui.StatusComponent,
+	modeIndicator *ModeIndicator,
 	inputView ui.InputComponent,
 	inputStatusBar ui.InputStatusBarComponent,
 	autocomplete ui.AutocompleteComponent,
@@ -179,6 +186,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 
 	components = r.appendQueueBox(components, data, queueBoxView)
 	components = r.appendTodoBox(components, todoBoxView)
+	components = r.appendModeIndicator(components, modeIndicator)
 	components = r.appendStatusView(components, statusView, statusHeight)
 	components = append(components, inputArea)
 	components = r.appendAutocomplete(components, autocomplete)
@@ -224,6 +232,19 @@ func (r *ApplicationViewRenderer) appendStatusView(
 	if statusHeight > 0 {
 		if statusContent := statusView.Render(); statusContent != "" {
 			components = append(components, statusContent)
+		}
+	}
+	return components
+}
+
+// appendModeIndicator appends mode indicator content if available
+func (r *ApplicationViewRenderer) appendModeIndicator(
+	components []string,
+	modeIndicator *ModeIndicator,
+) []string {
+	if modeIndicator != nil {
+		if modeContent := modeIndicator.Render(); modeContent != "" {
+			components = append(components, modeContent)
 		}
 	}
 	return components

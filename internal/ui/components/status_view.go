@@ -211,7 +211,8 @@ func (sv *StatusView) Render() string {
 	}
 
 	statusLine := fmt.Sprintf("%s %s", prefix, displayMessage)
-	return sv.styleProvider.RenderWithColor(statusLine, color)
+	styledStatusLine := sv.styleProvider.RenderWithColor(statusLine, color)
+	return styledStatusLine
 }
 
 // getStatusIcon returns the appropriate icon for the current status type

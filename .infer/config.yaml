@@ -529,6 +529,7 @@ chat:
       mcp: true
       context_usage: true
       session_tokens: true
+      git_branch: true
 a2a:
   enabled: true
   cache:

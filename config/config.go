@@ -359,6 +359,7 @@ type StatusBarIndicators struct {
 	MCP              bool `yaml:"mcp" mapstructure:"mcp"`
 	ContextUsage     bool `yaml:"context_usage" mapstructure:"context_usage"`
 	SessionTokens    bool `yaml:"session_tokens" mapstructure:"session_tokens"`
+	GitBranch        bool `yaml:"git_branch" mapstructure:"git_branch"`
 }
 
 // InitConfig contains settings for the /init shortcut
@@ -485,6 +486,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			MCP:              true,
 			ContextUsage:     true,
 			SessionTokens:    true,
+			GitBranch:        true,
 		},
 	}
 }
