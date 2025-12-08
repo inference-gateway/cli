@@ -158,7 +158,7 @@ func TestInputStatusBar_BuildThemeIndicator(t *testing.T) {
 	}
 
 	result := statusBar.buildThemeIndicator()
-	expectedText := "Theme: tokyo-night"
+	expectedText := "tokyo-night"
 
 	if result != expectedText {
 		t.Errorf("Expected '%s' but got '%s'", expectedText, result)
@@ -277,7 +277,7 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 				TotalTools:       2500,
 			},
 			serverCount:  4,
-			expectedText: "MCP: 2500 tools, 3/4",
+			expectedText: "🔌 3/4 (2500)",
 			expectEmpty:  false,
 		},
 		{
@@ -288,7 +288,7 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 				TotalTools:       0,
 			},
 			serverCount:  4,
-			expectedText: "MCP: 3/4",
+			expectedText: "🔌 3/4",
 			expectEmpty:  false,
 		},
 		{
@@ -341,7 +341,7 @@ func TestInputStatusBar_BuildSessionTokensIndicator(t *testing.T) {
 				TotalTokens:       800,
 				RequestCount:      5,
 			},
-			expectedText: "Tokens: 800",
+			expectedText: "T.800",
 			expectEmpty:  false,
 			nilRepo:      false,
 		},
@@ -447,8 +447,8 @@ func TestInputStatusBar_BuildModelDisplayText_WithSessionTokens(t *testing.T) {
 	if result == "" {
 		t.Error("Expected non-empty output when indicators are enabled")
 	}
-	if !strings.Contains(result, "Tokens: 1234") {
-		t.Errorf("Expected output to contain 'Tokens: 1234', got: %s", result)
+	if !strings.Contains(result, "T.1234") {
+		t.Errorf("Expected output to contain 'T.1234', got: %s", result)
 	}
 }
 
@@ -580,7 +580,7 @@ func TestInputStatusBar_BuildModelDisplayText_AllEnabled(t *testing.T) {
 	if result == "" {
 		t.Error("Expected non-empty output when indicators are enabled")
 	}
-	if !strings.Contains(result, "Model: test-model") {
+	if !strings.Contains(result, "test-model") {
 		t.Error("Expected output to contain model information")
 	}
 }

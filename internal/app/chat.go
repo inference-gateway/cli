@@ -57,6 +57,7 @@ type ChatApplication struct {
 	autocomplete         ui.AutocompleteComponent
 	inputStatusBar       ui.InputStatusBarComponent
 	statusView           ui.StatusComponent
+	modeIndicator        *components.ModeIndicator
 	helpBar              ui.HelpBarComponent
 	queueBoxView         *components.QueueBoxView
 	todoBoxView          *components.TodoBoxView
@@ -186,6 +187,8 @@ func NewChatApplication(
 	}
 
 	app.statusView = factory.CreateStatusView(app.themeService)
+	app.modeIndicator = components.NewModeIndicator(styleProvider)
+	app.modeIndicator.SetStateManager(app.stateManager)
 	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
@@ -1136,6 +1139,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		app.autocomplete,
 		app.inputStatusBar,
 		app.statusView,
+		app.modeIndicator,
 		app.helpBar,
 		app.queueBoxView,
 		app.todoBoxView,
