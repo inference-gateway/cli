@@ -91,7 +91,6 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("chat.status_bar.indicators.mcp", defaults.Chat.StatusBar.Indicators.MCP)
 	v.SetDefault("chat.status_bar.indicators.context_usage", defaults.Chat.StatusBar.Indicators.ContextUsage)
 	v.SetDefault("chat.status_bar.indicators.session_tokens", defaults.Chat.StatusBar.Indicators.SessionTokens)
-
 	v.SetDefault("a2a.enabled", defaults.A2A.Enabled)
 	v.SetDefault("a2a.cache.enabled", defaults.A2A.Cache.Enabled)
 	v.SetDefault("a2a.cache.ttl", defaults.A2A.Cache.TTL)
