@@ -517,6 +517,17 @@ chat:
         description: expand/collapse tool results
         category: tools
         enabled: true
+  status_bar:
+    enabled: true
+    indicators:
+      model: true
+      theme: true
+      max_output: false
+      a2a_agents: true
+      tools: true
+      background_shells: true
+      mcp: true
+      context_usage: true
 a2a:
   enabled: true
   cache:

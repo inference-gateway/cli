@@ -360,6 +360,8 @@ infer chat --model "anthropic/claude-4"
 - **agent.model** - Default model for agent operations
 - **agent.max_turns** - Maximum turns for agent sessions (default: `50`)
 - **chat.theme** - Chat interface theme (default: `tokyo-night`)
+- **chat.status_bar.enabled** - Enable/disable status bar (default: `true`)
+- **chat.status_bar.indicators** - Configure individual status indicators (all enabled by default except `max_output`)
 
 ### Environment Variables
 

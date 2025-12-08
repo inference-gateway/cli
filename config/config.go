@@ -323,6 +323,7 @@ type ConversationTitleConfig struct {
 type ChatConfig struct {
 	Theme       string            `yaml:"theme" mapstructure:"theme"`
 	Keybindings KeybindingsConfig `yaml:"keybindings" mapstructure:"keybindings"`
+	StatusBar   StatusBarConfig   `yaml:"status_bar" mapstructure:"status_bar"`
 }
 
 // KeybindingsConfig contains settings for customizing keybindings
@@ -337,6 +338,26 @@ type KeyBindingEntry struct {
 	Description string   `yaml:"description,omitempty" mapstructure:"description,omitempty"`
 	Category    string   `yaml:"category,omitempty" mapstructure:"category,omitempty"`
 	Enabled     *bool    `yaml:"enabled,omitempty" mapstructure:"enabled,omitempty"`
+}
+
+// StatusBarConfig contains settings for the chat status bar
+// The status bar displays model information and system status indicators
+type StatusBarConfig struct {
+	Enabled    bool                `yaml:"enabled" mapstructure:"enabled"`       // Master toggle for entire status bar
+	Indicators StatusBarIndicators `yaml:"indicators" mapstructure:"indicators"` // Individual indicator toggles
+}
+
+// StatusBarIndicators contains individual enable/disable toggles for each indicator
+// All indicators are enabled by default to maintain current behavior
+type StatusBarIndicators struct {
+	Model            bool `yaml:"model" mapstructure:"model"`                         // Current AI model name
+	Theme            bool `yaml:"theme" mapstructure:"theme"`                         // Current theme name
+	MaxOutput        bool `yaml:"max_output" mapstructure:"max_output"`               // Maximum output tokens
+	A2AAgents        bool `yaml:"a2a_agents" mapstructure:"a2a_agents"`               // A2A agent readiness (ready/total)
+	Tools            bool `yaml:"tools" mapstructure:"tools"`                         // Tool count and token usage
+	BackgroundShells bool `yaml:"background_shells" mapstructure:"background_shells"` // Running background shell count
+	MCP              bool `yaml:"mcp" mapstructure:"mcp"`                             // MCP server status and tool count
+	ContextUsage     bool `yaml:"context_usage" mapstructure:"context_usage"`         // Token consumption percentage
 }
 
 // InitConfig contains settings for the /init shortcut
@@ -446,6 +467,24 @@ type A2ATaskConfig struct {
 type A2ACacheConfig struct {
 	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 	TTL     int  `yaml:"ttl" mapstructure:"ttl"`
+}
+
+// GetDefaultStatusBarConfig returns the default status bar configuration
+// All indicators are enabled by default except MaxOutput to maintain current behavior
+func GetDefaultStatusBarConfig() StatusBarConfig {
+	return StatusBarConfig{
+		Enabled: true,
+		Indicators: StatusBarIndicators{
+			Model:            true,
+			Theme:            true,
+			MaxOutput:        false,
+			A2AAgents:        true,
+			Tools:            true,
+			BackgroundShells: true,
+			MCP:              true,
+			ContextUsage:     true,
+		},
+	}
 }
 
 // DefaultConfig returns a default configuration
@@ -770,6 +809,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 				Enabled:  false,
 				Bindings: GetDefaultKeybindings(),
 			},
+			StatusBar: GetDefaultStatusBarConfig(),
 		},
 		A2A: A2AConfig{
 			Enabled: true,
