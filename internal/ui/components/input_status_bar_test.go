@@ -325,7 +325,6 @@ func TestInputStatusBar_BuildMCPIndicator(t *testing.T) {
 
 func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 	cfg := config.DefaultConfig()
-	// Disable all indicators
 	cfg.Chat.StatusBar.Indicators.Model = false
 	cfg.Chat.StatusBar.Indicators.Theme = false
 	cfg.Chat.StatusBar.Indicators.MaxOutput = false
@@ -348,7 +347,6 @@ func TestInputStatusBar_BuildModelDisplayText(t *testing.T) {
 
 func TestInputStatusBar_BuildModelDisplayText_AllEnabled(t *testing.T) {
 	cfg := config.DefaultConfig()
-	// All indicators enabled by default
 	cfg.Agent.MaxTokens = 8000
 
 	themeService := &domainmocks.FakeThemeService{}
@@ -361,7 +359,6 @@ func TestInputStatusBar_BuildModelDisplayText_AllEnabled(t *testing.T) {
 
 	result := statusBar.buildModelDisplayText("test-model")
 
-	// Should contain model and theme at minimum
 	if result == "" {
 		t.Error("Expected non-empty output when indicators are enabled")
 	}
