@@ -232,6 +232,8 @@ chat:
       background_shells: true
       mcp: true
       context_usage: true
+      session_tokens: true
+      git_branch: true
 compact:
   enabled: false # Enable automatic conversation compaction
   auto_at: 80 # Compact when context reaches this percentage (20-100)
@@ -336,6 +338,12 @@ compact:
     - **background_shells**: Running background shell count (default: `true`)
     - **mcp**: MCP server status and tool count (default: `true`)
     - **context_usage**: Token consumption percentage (default: `true`)
+    - **session_tokens**: Session token usage statistics (default: `true`)
+    - **git_branch**: Current Git branch name (default: `true`)
+      - Only displays when in a Git repository
+      - Uses 5-second cache for performance
+      - Automatically updates after Git operations in bash mode
+      - Long branch names are truncated with "..." indicator
 
 **Example Configuration:**
 
@@ -353,6 +361,8 @@ chat:
       background_shells: false # Hide background shells indicator
       mcp: true
       context_usage: true
+      session_tokens: true
+      git_branch: true       # Show current Git branch
 ```
 
 ### Keybinding Configuration
