@@ -2,13 +2,16 @@ package components
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -26,13 +29,17 @@ type InputStatusBar struct {
 	mcpStatus              *domain.MCPServerStatus
 	styleProvider          *styles.Provider
 	currentInputText       string
+	gitBranchCache         string
+	gitBranchCacheTime     time.Time
+	gitBranchCacheTTL      time.Duration
 }
 
 // NewInputStatusBar creates a new input status bar
 func NewInputStatusBar(styleProvider *styles.Provider) *InputStatusBar {
 	return &InputStatusBar{
-		width:         80,
-		styleProvider: styleProvider,
+		width:             80,
+		styleProvider:     styleProvider,
+		gitBranchCacheTTL: 5 * time.Second,
 	}
 }
 
@@ -142,6 +149,12 @@ func (isb *InputStatusBar) getModelInfo() string {
 func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 	parts := []string{}
 
+	if isb.shouldShowIndicator("git_branch") {
+		if gitBranchPart := isb.buildGitBranchIndicator(); gitBranchPart != "" {
+			parts = append(parts, gitBranchPart)
+		}
+	}
+
 	if isb.shouldShowIndicator("model") {
 		parts = append(parts, fmt.Sprintf("Model: %s", currentModel))
 	}
@@ -223,6 +236,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.ContextUsage
 	case "session_tokens":
 		return indicators.SessionTokens
+	case "git_branch":
+		return indicators.GitBranch
 	default:
 		return true
 	}
@@ -296,6 +311,42 @@ func (isb *InputStatusBar) buildSessionTokensIndicator() string {
 	}
 
 	return fmt.Sprintf("Tokens: %d", totalTokens)
+}
+
+// getCurrentGitBranch returns the current git branch with caching
+func (isb *InputStatusBar) getCurrentGitBranch() (string, bool) {
+	if time.Since(isb.gitBranchCacheTime) < isb.gitBranchCacheTTL && isb.gitBranchCache != "" {
+		return isb.gitBranchCache, true
+	}
+
+	cmd := exec.Command("git", "branch", "--show-current")
+	output, err := cmd.Output()
+
+	isb.gitBranchCacheTime = time.Now()
+
+	if err != nil {
+		isb.gitBranchCache = ""
+		return "", false
+	}
+
+	branch := strings.TrimSpace(string(output))
+	isb.gitBranchCache = branch
+	return branch, branch != ""
+}
+
+// buildGitBranchIndicator builds the git branch indicator text
+func (isb *InputStatusBar) buildGitBranchIndicator() string {
+	branch, ok := isb.getCurrentGitBranch()
+	if !ok || branch == "" {
+		return ""
+	}
+
+	const maxBranchLength = 35
+	if len(branch) > maxBranchLength {
+		branch = branch[:maxBranchLength] + "..."
+	}
+
+	return fmt.Sprintf("%s %s", icons.GitBranch, branch)
 }
 
 // getToolInfo returns tool count and token information
