@@ -602,6 +602,9 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 
 		messages := make([]sdk.Message, 0, len(entries))
 		for _, entry := range entries {
+			if entry.Hidden {
+				continue
+			}
 			messages = append(messages, entry.Message)
 		}
 
