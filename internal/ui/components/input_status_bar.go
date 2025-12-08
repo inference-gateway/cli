@@ -9,6 +9,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // InputStatusBar displays input status information like model, theme, agents
@@ -277,11 +278,24 @@ func (isb *InputStatusBar) buildSessionTokensIndicator() string {
 	}
 
 	stats := isb.conversationRepo.GetSessionTokens()
-	if stats.TotalTokens == 0 {
+	totalTokens := stats.TotalTokens
+
+	if totalTokens == 0 && isb.tokenEstimator != nil {
+		messages := isb.conversationRepo.GetMessages()
+		if len(messages) > 0 {
+			sdkMessages := make([]sdk.Message, 0, len(messages))
+			for _, entry := range messages {
+				sdkMessages = append(sdkMessages, entry.Message)
+			}
+			totalTokens = isb.tokenEstimator.EstimateMessagesTokens(sdkMessages)
+		}
+	}
+
+	if totalTokens == 0 {
 		return ""
 	}
 
-	return fmt.Sprintf("Tokens: %d", stats.TotalTokens)
+	return fmt.Sprintf("Tokens: %d", totalTokens)
 }
 
 // getToolInfo returns tool count and token information
