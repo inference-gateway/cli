@@ -27,7 +27,7 @@ func TestNewMCPManager(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg)
+	manager := NewMCPManager(sessionID, cfg, nil)
 
 	if manager == nil {
 		t.Fatal("Expected non-nil manager")
@@ -50,7 +50,7 @@ func TestMCPManager_Close(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg)
+	manager := NewMCPManager(sessionID, cfg, nil)
 
 	err := manager.Close()
 	if err != nil {
@@ -65,7 +65,7 @@ func TestMCPManager_GetClients_NoServers(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg)
+	manager := NewMCPManager(sessionID, cfg, nil)
 
 	clients := manager.GetClients()
 
@@ -94,7 +94,7 @@ func TestMCPManager_GetClients_DisabledServer(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg)
+	manager := NewMCPManager(sessionID, cfg, nil)
 
 	clients := manager.GetClients()
 
@@ -135,7 +135,7 @@ func TestMCPManager_GetClients_MultipleServers(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg)
+	manager := NewMCPManager(sessionID, cfg, nil)
 
 	clients := manager.GetClients()
 
@@ -162,7 +162,7 @@ func TestMCPManager_StartMonitoring_Idempotent(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg)
+	manager := NewMCPManager(sessionID, cfg, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -195,7 +195,7 @@ func TestMCPManager_StartMonitoring_DisabledProbes(t *testing.T) {
 	}
 
 	sessionID := domain.GenerateSessionID()
-	manager := NewMCPManager(sessionID, cfg)
+	manager := NewMCPManager(sessionID, cfg, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

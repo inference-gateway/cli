@@ -27,6 +27,9 @@ type ServiceContainer struct {
 	// Session
 	sessionID domain.SessionID
 
+	// Container runtime
+	containerRuntime domain.ContainerRuntime
+
 	// Configuration
 	viper         *viper.Viper
 	config        *config.Config
@@ -80,9 +83,20 @@ type ServiceContainer struct {
 
 // NewServiceContainer creates a new service container with all dependencies
 func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContainer {
+	sessionID := domain.GenerateSessionID()
+
+	containerRuntime, err := services.NewContainerRuntime(
+		sessionID,
+		services.RuntimeType(cfg.ContainerRuntime.Type),
+	)
+	if err != nil {
+		logger.Warn("Failed to initialize container runtime, continuing without container support", "error", err)
+	}
+
 	container := &ServiceContainer{
-		sessionID: domain.GenerateSessionID(),
-		config:    cfg,
+		sessionID:        sessionID,
+		config:           cfg,
+		containerRuntime: containerRuntime,
 	}
 
 	if len(v) > 0 && v[0] != nil {
@@ -104,7 +118,7 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 
 // initializeGatewayManager creates and starts the gateway manager if configured
 func (c *ServiceContainer) initializeGatewayManager() {
-	c.gatewayManager = services.NewGatewayManager(c.sessionID, c.config)
+	c.gatewayManager = services.NewGatewayManager(c.sessionID, c.config, c.containerRuntime)
 
 	if c.config.Gateway.Run {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -146,7 +160,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 
-	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig)
+	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime)
 
 	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
@@ -173,7 +187,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 		return
 	}
 
-	c.mcpManager = services.NewMCPManager(c.sessionID, &c.config.MCP)
+	c.mcpManager = services.NewMCPManager(c.sessionID, &c.config.MCP, c.containerRuntime)
 
 	hasServersToStart := c.hasAutoStartMCPServers()
 	if !hasServersToStart {

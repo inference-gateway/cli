@@ -1,10 +1,11 @@
+container_runtime:
+  type: docker
 gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
   oci: ghcr.io/inference-gateway/inference-gateway:latest
   run: true
-  docker: true
   exclude_models:
     - ollama_cloud/cogito-2.1:671b
     - ollama_cloud/kimi-k2:1t

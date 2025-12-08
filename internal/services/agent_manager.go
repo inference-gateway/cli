@@ -24,30 +24,27 @@ const (
 
 // AgentManager manages the lifecycle of A2A agent containers
 type AgentManager struct {
-	sessionID       domain.SessionID
-	config          *config.Config
-	agentsConfig    *config.AgentsConfig
-	containers      map[string]string
-	assignedPorts   map[string]int
-	isRunning       bool
-	statusCallback  func(agentName string, state domain.AgentState, message string, url string, image string)
-	containersMutex sync.Mutex
+	sessionID        domain.SessionID
+	config           *config.Config
+	agentsConfig     *config.AgentsConfig
+	containerRuntime domain.ContainerRuntime
+	containers       map[string]string
+	assignedPorts    map[string]int
+	isRunning        bool
+	statusCallback   func(agentName string, state domain.AgentState, message string, url string, image string)
+	containersMutex  sync.Mutex
 }
 
 // NewAgentManager creates a new agent manager
-func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig) *AgentManager {
+func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime domain.ContainerRuntime) *AgentManager {
 	return &AgentManager{
-		sessionID:     sessionID,
-		config:        cfg,
-		agentsConfig:  agentsConfig,
-		containers:    make(map[string]string),
-		assignedPorts: make(map[string]int),
+		sessionID:        sessionID,
+		config:           cfg,
+		agentsConfig:     agentsConfig,
+		containerRuntime: runtime,
+		containers:       make(map[string]string),
+		assignedPorts:    make(map[string]int),
 	}
-}
-
-// getNetworkName returns the session-specific network name
-func (am *AgentManager) getNetworkName() string {
-	return fmt.Sprintf("%s-%s", InferNetworkPrefix, am.sessionID)
 }
 
 // SetStatusCallback sets the callback function for agent status updates
@@ -184,7 +181,10 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	containerPort := "8080"
 
 	containerName := fmt.Sprintf("%s%s-%s", AgentContainerPrefix, agent.Name, am.sessionID)
-	networkName := am.getNetworkName()
+	var networkName string
+	if am.containerRuntime != nil {
+		networkName = am.containerRuntime.GetNetworkName()
+	}
 	args := []string{
 		"run",
 		"-d",
@@ -212,7 +212,7 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 	env := agent.GetEnvironmentWithModel()
 
 	var gatewayURL string
-	if am.config.Gateway.Docker {
+	if am.containerRuntime != nil && am.config.Gateway.OCI != "" {
 		gatewayURL = fmt.Sprintf("http://inference-gateway-%s:8080/v1", am.sessionID)
 	} else {
 		gatewayURL = am.config.Gateway.URL

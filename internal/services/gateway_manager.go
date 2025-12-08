@@ -22,25 +22,22 @@ const (
 
 // GatewayManager manages the lifecycle of the gateway container or binary
 type GatewayManager struct {
-	sessionID    domain.SessionID
-	config       *config.Config
-	containerID  string
-	isRunning    bool
-	binaryCmd    *exec.Cmd
-	assignedPort int
+	sessionID        domain.SessionID
+	config           *config.Config
+	containerRuntime domain.ContainerRuntime
+	containerID      string
+	isRunning        bool
+	binaryCmd        *exec.Cmd
+	assignedPort     int
 }
 
 // NewGatewayManager creates a new gateway manager
-func NewGatewayManager(sessionID domain.SessionID, cfg *config.Config) *GatewayManager {
+func NewGatewayManager(sessionID domain.SessionID, cfg *config.Config, runtime domain.ContainerRuntime) *GatewayManager {
 	return &GatewayManager{
-		sessionID: sessionID,
-		config:    cfg,
+		sessionID:        sessionID,
+		config:           cfg,
+		containerRuntime: runtime,
 	}
-}
-
-// getNetworkName returns the session-specific network name
-func (gm *GatewayManager) getNetworkName() string {
-	return fmt.Sprintf("%s-%s", InferNetworkPrefix, gm.sessionID)
 }
 
 // Start starts the gateway container or binary if configured to run locally
@@ -49,8 +46,9 @@ func (gm *GatewayManager) Start(ctx context.Context) error {
 		return nil
 	}
 
-	if gm.config.Gateway.Docker {
-		return gm.startDocker(ctx)
+	// Use container runtime if available, otherwise fall back to binary mode
+	if gm.containerRuntime != nil && gm.config.Gateway.OCI != "" {
+		return gm.startContainer(ctx)
 	}
 
 	return gm.startBinary(ctx)
@@ -97,8 +95,8 @@ func (gm *GatewayManager) startBinary(ctx context.Context) error {
 	return nil
 }
 
-// startDocker starts the gateway in a Docker container
-func (gm *GatewayManager) startDocker(ctx context.Context) error {
+// startContainer starts the gateway in a container
+func (gm *GatewayManager) startContainer(ctx context.Context) error {
 	if gm.config.Gateway.OCI == "" {
 		return fmt.Errorf("gateway OCI image not specified in configuration")
 	}
@@ -112,8 +110,10 @@ func (gm *GatewayManager) startDocker(ctx context.Context) error {
 		return nil
 	}
 
-	if err := gm.ensureNetwork(ctx); err != nil {
-		logger.Warn("Failed to create Docker network", "error", err)
+	if gm.containerRuntime != nil {
+		if err := gm.containerRuntime.EnsureNetwork(ctx); err != nil {
+			logger.Warn("Failed to create Docker network", "session", gm.sessionID, "error", err)
+		}
 	}
 
 	if err := gm.pullImage(ctx); err != nil {
@@ -127,7 +127,7 @@ func (gm *GatewayManager) startDocker(ctx context.Context) error {
 
 	fmt.Println("• Starting gateway container...")
 
-	if err := gm.startContainer(ctx); err != nil {
+	if err := gm.runContainer(ctx); err != nil {
 		return fmt.Errorf("failed to start gateway container: %w", err)
 	}
 
@@ -153,8 +153,8 @@ func (gm *GatewayManager) Stop(ctx context.Context) error {
 		return nil
 	}
 
-	if gm.config.Gateway.Docker {
-		return gm.stopDocker(ctx)
+	if gm.containerRuntime != nil && gm.containerID != "" {
+		return gm.stopContainer(ctx)
 	}
 
 	return gm.stopBinary()
@@ -179,30 +179,33 @@ func (gm *GatewayManager) stopBinary() error {
 	return nil
 }
 
-// stopDocker stops the Docker container and cleans up the network
-func (gm *GatewayManager) stopDocker(ctx context.Context) error {
+// stopContainer stops the container and cleans up the network
+func (gm *GatewayManager) stopContainer(ctx context.Context) error {
 	if gm.containerID == "" {
 		return nil
 	}
 
-	if !gm.containerExists(gm.containerID) {
+	if gm.containerRuntime != nil && !gm.containerRuntime.ContainerExists(gm.containerID) {
 		gm.isRunning = false
 		gm.containerID = ""
-		if err := gm.cleanupNetwork(ctx); err != nil {
+		if err := gm.containerRuntime.CleanupNetwork(ctx); err != nil {
 			logger.Warn("Failed to cleanup network", "session", gm.sessionID, "error", err)
 		}
 		return nil
 	}
 
-	cmd := exec.CommandContext(ctx, "docker", "stop", gm.containerID)
-	if err := cmd.Run(); err != nil {
-		logger.Warn("Failed to stop container", "error", err)
+	if gm.containerRuntime != nil {
+		if err := gm.containerRuntime.StopContainer(ctx, gm.containerID); err != nil {
+			logger.Warn("Failed to stop container", "session", gm.sessionID, "error", err)
+		}
 	}
 
 	gm.isRunning = false
 	gm.containerID = ""
-	if err := gm.cleanupNetwork(ctx); err != nil {
-		logger.Warn("Failed to cleanup network", "session", gm.sessionID, "error", err)
+	if gm.containerRuntime != nil {
+		if err := gm.containerRuntime.CleanupNetwork(ctx); err != nil {
+			logger.Warn("Failed to cleanup network", "session", gm.sessionID, "error", err)
+		}
 	}
 	return nil
 }
@@ -227,13 +230,16 @@ func (gm *GatewayManager) pullImage(ctx context.Context) error {
 	return nil
 }
 
-// startContainer starts the gateway container
-func (gm *GatewayManager) startContainer(ctx context.Context) error {
+// runContainer runs the gateway container using docker run command
+func (gm *GatewayManager) runContainer(ctx context.Context) error {
 	assignedPort := gm.determineGatewayPort()
 	containerPort := "8080"
 
 	containerName := fmt.Sprintf("inference-gateway-%s", gm.sessionID)
-	networkName := gm.getNetworkName()
+	var networkName string
+	if gm.containerRuntime != nil {
+		networkName = gm.containerRuntime.GetNetworkName()
+	}
 	args := []string{
 		"run",
 		"-d",
@@ -498,45 +504,6 @@ func (gm *GatewayManager) loadEnvironment() []string {
 	}
 
 	return envVars
-}
-
-// ensureNetwork creates the Docker network if it doesn't exist
-func (gm *GatewayManager) ensureNetwork(ctx context.Context) error {
-	networkName := gm.getNetworkName()
-	cmd := exec.CommandContext(ctx, "docker", "network", "inspect", networkName)
-	if err := cmd.Run(); err == nil {
-		return nil
-	}
-
-	logger.Info("Creating Docker network", "session", gm.sessionID, "network", networkName)
-	cmd = exec.CommandContext(ctx, "docker", "network", "create", networkName)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("failed to create Docker network: %w, output: %s", err, string(output))
-	}
-
-	logger.Info("Docker network created successfully", "session", gm.sessionID, "network", networkName)
-	return nil
-}
-
-// containerExists checks if a Docker container exists (running or stopped)
-func (gm *GatewayManager) containerExists(containerID string) bool {
-	if containerID == "" {
-		return false
-	}
-	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerID)
-	return cmd.Run() == nil
-}
-
-// cleanupNetwork removes the session-specific network
-func (gm *GatewayManager) cleanupNetwork(ctx context.Context) error {
-	networkName := gm.getNetworkName()
-	cmd := exec.CommandContext(ctx, "docker", "network", "rm", networkName)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove Docker network %s: %w", networkName, err)
-	}
-	logger.Info("Docker network removed successfully", "session", gm.sessionID, "network", networkName)
-	return nil
 }
 
 // determineGatewayPort determines the port to use for the gateway

@@ -232,22 +232,23 @@ func (c *mcpClient) Close() error {
 
 // MCPManager manages multiple MCP server connections and their container lifecycle
 type MCPManager struct {
-	sessionID      domain.SessionID
-	config         *config.MCPConfig
-	mu             sync.RWMutex
-	clients        map[string]*mcpClient
-	toolCounts     map[string]int
-	probeCancel    context.CancelFunc
-	probeWg        sync.WaitGroup
-	statusChan     chan domain.MCPServerStatusUpdateEvent
-	monitorStarted bool
-	channelClosed  bool
-	containerIDs   map[string]string
-	assignedPorts  map[string]int
+	sessionID        domain.SessionID
+	config           *config.MCPConfig
+	containerRuntime domain.ContainerRuntime
+	mu               sync.RWMutex
+	clients          map[string]*mcpClient
+	toolCounts       map[string]int
+	probeCancel      context.CancelFunc
+	probeWg          sync.WaitGroup
+	statusChan       chan domain.MCPServerStatusUpdateEvent
+	monitorStarted   bool
+	channelClosed    bool
+	containerIDs     map[string]string
+	assignedPorts    map[string]int
 }
 
 // NewMCPManager creates a new MCP manager
-func NewMCPManager(sessionID domain.SessionID, cfg *config.MCPConfig) *MCPManager {
+func NewMCPManager(sessionID domain.SessionID, cfg *config.MCPConfig, runtime domain.ContainerRuntime) *MCPManager {
 	clients := make(map[string]*mcpClient)
 
 	for _, server := range cfg.Servers {
@@ -257,18 +258,14 @@ func NewMCPManager(sessionID domain.SessionID, cfg *config.MCPConfig) *MCPManage
 	}
 
 	return &MCPManager{
-		sessionID:     sessionID,
-		config:        cfg,
-		clients:       clients,
-		toolCounts:    make(map[string]int),
-		containerIDs:  make(map[string]string),
-		assignedPorts: make(map[string]int),
+		sessionID:        sessionID,
+		config:           cfg,
+		containerRuntime: runtime,
+		clients:          clients,
+		toolCounts:       make(map[string]int),
+		containerIDs:     make(map[string]string),
+		assignedPorts:    make(map[string]int),
 	}
-}
-
-// getNetworkName returns the session-specific network name
-func (m *MCPManager) getNetworkName() string {
-	return fmt.Sprintf("%s-%s", InferNetworkPrefix, m.sessionID)
 }
 
 // GetClients returns a list of MCP clients
@@ -509,8 +506,10 @@ func (m *MCPManager) Close() error {
 	}
 	m.mu.RUnlock()
 
-	if err := m.cleanupNetwork(ctx); err != nil {
-		logger.Warn("Failed to cleanup network during MCP manager close", "session", m.sessionID, "error", err)
+	if m.containerRuntime != nil {
+		if err := m.containerRuntime.CleanupNetwork(ctx); err != nil {
+			logger.Warn("Failed to cleanup network during MCP manager close", "session", m.sessionID, "error", err)
+		}
 	}
 
 	return nil
@@ -532,8 +531,10 @@ func (m *MCPManager) StartServers(ctx context.Context) error {
 		return nil
 	}
 
-	if err := m.ensureNetwork(ctx); err != nil {
-		logger.Warn("Failed to create Docker network", "session", m.sessionID, "error", err)
+	if m.containerRuntime != nil {
+		if err := m.containerRuntime.EnsureNetwork(ctx); err != nil {
+			logger.Warn("Failed to create Docker network", "session", m.sessionID, "error", err)
+		}
 	}
 
 	var wg sync.WaitGroup
@@ -632,7 +633,10 @@ func (m *MCPManager) pullImage(ctx context.Context, image string) error {
 func (m *MCPManager) startContainer(ctx context.Context, server config.MCPServerEntry, assignedPort int) error {
 	containerName := fmt.Sprintf("inference-mcp-%s-%s", server.Name, m.sessionID)
 
-	networkName := m.getNetworkName()
+	var networkName string
+	if m.containerRuntime != nil {
+		networkName = m.containerRuntime.GetNetworkName()
+	}
 	args := []string{
 		"run",
 		"-d",
@@ -701,7 +705,7 @@ func (m *MCPManager) startContainer(ctx context.Context, server config.MCPServer
 
 // stopContainer stops and removes a container
 func (m *MCPManager) stopContainer(ctx context.Context, containerName string) error {
-	if !m.containerExistsByName(containerName) {
+	if m.containerRuntime != nil && !m.containerRuntime.ContainerExists(containerName) {
 		return nil
 	}
 
@@ -777,39 +781,6 @@ func (m *MCPManager) waitForReady(ctx context.Context, server config.MCPServerEn
 	}
 }
 
-// ensureNetwork creates the Docker network if it doesn't exist
-func (m *MCPManager) ensureNetwork(ctx context.Context) error {
-	networkName := m.getNetworkName()
-	cmd := exec.CommandContext(ctx, "docker", "network", "inspect", networkName)
-	if err := cmd.Run(); err == nil {
-		return nil
-	}
-
-	logger.Info("Creating Docker network", "session", m.sessionID, "network", networkName)
-	cmd = exec.CommandContext(ctx, "docker", "network", "create", networkName)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		if strings.Contains(string(output), "already exists") {
-			return nil
-		}
-		return fmt.Errorf("failed to create Docker network: %w, output: %s", err, string(output))
-	}
-
-	logger.Info("Docker network created successfully", "session", m.sessionID, "network", networkName)
-	return nil
-}
-
-// cleanupNetwork removes the session-specific network
-func (m *MCPManager) cleanupNetwork(ctx context.Context) error {
-	networkName := m.getNetworkName()
-	cmd := exec.CommandContext(ctx, "docker", "network", "rm", networkName)
-	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove Docker network %s: %w", networkName, err)
-	}
-	logger.Info("Docker network removed successfully", "session", m.sessionID, "network", networkName)
-	return nil
-}
-
 // assignPort assigns a port for the server, finding an available one if needed
 func (m *MCPManager) assignPort(server config.MCPServerEntry) int {
 	m.mu.Lock()
@@ -875,13 +846,4 @@ func (m *MCPManager) getPath(server config.MCPServerEntry) string {
 		return server.Path
 	}
 	return "/mcp"
-}
-
-// containerExistsByName checks if a Docker container exists by name (running or stopped)
-func (m *MCPManager) containerExistsByName(containerName string) bool {
-	if containerName == "" {
-		return false
-	}
-	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerName)
-	return cmd.Run() == nil
 }
