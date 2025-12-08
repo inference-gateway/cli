@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.82.0](https://github.com/inference-gateway/cli/compare/v0.81.0...v0.82.0) (2025-12-08)
+
+### 🚀 Features
+
+* Add session isolation for Docker containers ([#316](https://github.com/inference-gateway/cli/issues/316)) ([ba8b48a](https://github.com/inference-gateway/cli/commit/ba8b48a1d681f96ad9e5436108ad244274da5aba))
+
+### ♻️ Code Refactoring
+
+* Move A2A agent management to CLI commands ([#310](https://github.com/inference-gateway/cli/issues/310)) ([c2e389a](https://github.com/inference-gateway/cli/commit/c2e389ad581f2a21abcf0fee411beed60a380333))
+
+### 🧹 Maintenance
+
+* Update claude-code to version 2.0.59 ([6c65372](https://github.com/inference-gateway/cli/commit/6c6537247129295caf629ed488f479ec8a54d672))
+
 ## [0.81.0](https://github.com/inference-gateway/cli/compare/v0.80.1...v0.81.0) (2025-12-07)
 
 ### 🚀 Features
