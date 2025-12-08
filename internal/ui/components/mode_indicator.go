@@ -58,8 +58,7 @@ func (mi *ModeIndicator) Render() string {
 		},
 	)
 
-	// Right-align the mode indicator
-	modeWidth := 7 // "▶ PLAN" or "▸ AUTO"
+	modeWidth := 7
 	availableWidth := mi.width - 4
 	spacingWidth := availableWidth - modeWidth
 
