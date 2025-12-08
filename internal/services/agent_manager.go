@@ -211,18 +211,9 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 
 	env := agent.GetEnvironmentWithModel()
 
-	var gatewayURL string
-	if am.containerRuntime != nil && am.config.Gateway.OCI != "" {
-		gatewayURL = fmt.Sprintf("http://inference-gateway-%s:8080/v1", am.sessionID)
-	} else {
-		gatewayURL = am.config.Gateway.URL
-		if !strings.HasSuffix(gatewayURL, "/v1") {
-			gatewayURL = strings.TrimSuffix(gatewayURL, "/") + "/v1"
-		}
-	}
+	gatewayURL := am.determineGatewayURL()
 	env["A2A_AGENT_CLIENT_BASE_URL"] = gatewayURL
 
-	// Configure artifacts server if artifacts_url is specified
 	if agent.ArtifactsURL != "" {
 		env["A2A_ARTIFACTS_ENABLE"] = "true"
 		env["A2A_ARTIFACTS_SERVER_HOST"] = "0.0.0.0"
@@ -379,6 +370,27 @@ func (am *AgentManager) determineAgentPort(agent config.AgentEntry) int {
 	}
 
 	return config.FindAvailablePort(basePort)
+}
+
+// determineGatewayURL determines the gateway URL that agents should use to connect
+func (am *AgentManager) determineGatewayURL() string {
+	if am.config.Gateway.StandaloneBinary {
+		gatewayURL := strings.Replace(am.config.Gateway.URL, "localhost", "host.docker.internal", 1)
+		if !strings.HasSuffix(gatewayURL, "/v1") {
+			gatewayURL = strings.TrimSuffix(gatewayURL, "/") + "/v1"
+		}
+		return gatewayURL
+	}
+
+	if am.containerRuntime != nil && am.config.Gateway.OCI != "" {
+		return fmt.Sprintf("http://inference-gateway-%s:8080/v1", am.sessionID)
+	}
+
+	gatewayURL := am.config.Gateway.URL
+	if !strings.HasSuffix(gatewayURL, "/v1") {
+		gatewayURL = strings.TrimSuffix(gatewayURL, "/") + "/v1"
+	}
+	return gatewayURL
 }
 
 // extractPortFromURL extracts the port number from an agent URL

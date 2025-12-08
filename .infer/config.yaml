@@ -6,6 +6,7 @@ gateway:
   timeout: 200
   oci: ghcr.io/inference-gateway/inference-gateway:latest
   run: true
+  standalone_binary: true
   exclude_models:
     - ollama_cloud/cogito-2.1:671b
     - ollama_cloud/kimi-k2:1t

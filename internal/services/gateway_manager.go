@@ -46,7 +46,10 @@ func (gm *GatewayManager) Start(ctx context.Context) error {
 		return nil
 	}
 
-	// Use container runtime if available, otherwise fall back to binary mode
+	if gm.config.Gateway.StandaloneBinary {
+		return gm.startBinary(ctx)
+	}
+
 	if gm.containerRuntime != nil && gm.config.Gateway.OCI != "" {
 		return gm.startContainer(ctx)
 	}

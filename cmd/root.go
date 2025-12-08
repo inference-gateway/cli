@@ -65,6 +65,7 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("gateway.timeout", defaults.Gateway.Timeout)
 	v.SetDefault("gateway.oci", defaults.Gateway.OCI)
 	v.SetDefault("gateway.run", defaults.Gateway.Run)
+	v.SetDefault("gateway.standalone_binary", defaults.Gateway.StandaloneBinary)
 	v.SetDefault("gateway.debug", defaults.Gateway.Debug)
 	v.SetDefault("gateway.include_models", defaults.Gateway.IncludeModels)
 	v.SetDefault("gateway.exclude_models", defaults.Gateway.ExcludeModels)
