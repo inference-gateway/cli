@@ -57,13 +57,15 @@ func initConfig() { // nolint:funlen
 	v := V
 
 	defaults := config.DefaultConfig()
+	v.SetDefault("container_runtime", defaults.ContainerRuntime)
+	v.SetDefault("container_runtime.type", defaults.ContainerRuntime.Type)
 	v.SetDefault("gateway", defaults.Gateway)
 	v.SetDefault("gateway.url", defaults.Gateway.URL)
 	v.SetDefault("gateway.api_key", defaults.Gateway.APIKey)
 	v.SetDefault("gateway.timeout", defaults.Gateway.Timeout)
 	v.SetDefault("gateway.oci", defaults.Gateway.OCI)
 	v.SetDefault("gateway.run", defaults.Gateway.Run)
-	v.SetDefault("gateway.docker", defaults.Gateway.Docker)
+	v.SetDefault("gateway.standalone_binary", defaults.Gateway.StandaloneBinary)
 	v.SetDefault("gateway.debug", defaults.Gateway.Debug)
 	v.SetDefault("gateway.include_models", defaults.Gateway.IncludeModels)
 	v.SetDefault("gateway.exclude_models", defaults.Gateway.ExcludeModels)

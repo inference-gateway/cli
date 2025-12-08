@@ -165,7 +165,7 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 		parts = append(parts, backgroundInfo)
 	}
 
-	if isb.mcpStatus != nil {
+	if isb.mcpStatus != nil && len(isb.configService.MCP.Servers) > 0 {
 		if isb.mcpStatus.TotalTools > 0 {
 			parts = append(parts, fmt.Sprintf("MCP: %d tools, %d/%d", isb.mcpStatus.TotalTools, isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
 		} else {

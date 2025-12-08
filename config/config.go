@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,36 +22,42 @@ const (
 
 // Config represents the CLI configuration
 type Config struct {
-	Gateway      GatewayConfig      `yaml:"gateway" mapstructure:"gateway"`
-	Client       ClientConfig       `yaml:"client" mapstructure:"client"`
-	Logging      LoggingConfig      `yaml:"logging" mapstructure:"logging"`
-	Tools        ToolsConfig        `yaml:"tools" mapstructure:"tools"`
-	Image        ImageConfig        `yaml:"image" mapstructure:"image"`
-	Export       ExportConfig       `yaml:"export" mapstructure:"export"`
-	Agent        AgentConfig        `yaml:"agent" mapstructure:"agent"`
-	Git          GitConfig          `yaml:"git" mapstructure:"git"`
-	SCM          SCMConfig          `yaml:"scm" mapstructure:"scm"`
-	Storage      StorageConfig      `yaml:"storage" mapstructure:"storage"`
-	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
-	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
-	A2A          A2AConfig          `yaml:"a2a" mapstructure:"a2a"`
-	MCP          MCPConfig          `yaml:"mcp" mapstructure:"mcp"`
-	Init         InitConfig         `yaml:"init" mapstructure:"init"`
-	Compact      CompactConfig      `yaml:"compact" mapstructure:"compact"`
+	ContainerRuntime ContainerRuntimeConfig `yaml:"container_runtime" mapstructure:"container_runtime"`
+	Gateway          GatewayConfig          `yaml:"gateway" mapstructure:"gateway"`
+	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
+	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
+	Tools            ToolsConfig            `yaml:"tools" mapstructure:"tools"`
+	Image            ImageConfig            `yaml:"image" mapstructure:"image"`
+	Export           ExportConfig           `yaml:"export" mapstructure:"export"`
+	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`
+	Git              GitConfig              `yaml:"git" mapstructure:"git"`
+	SCM              SCMConfig              `yaml:"scm" mapstructure:"scm"`
+	Storage          StorageConfig          `yaml:"storage" mapstructure:"storage"`
+	Conversation     ConversationConfig     `yaml:"conversation" mapstructure:"conversation"`
+	Chat             ChatConfig             `yaml:"chat" mapstructure:"chat"`
+	A2A              A2AConfig              `yaml:"a2a" mapstructure:"a2a"`
+	MCP              MCPConfig              `yaml:"mcp" mapstructure:"mcp"`
+	Init             InitConfig             `yaml:"init" mapstructure:"init"`
+	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
+}
+
+// ContainerRuntimeConfig contains container runtime settings
+type ContainerRuntimeConfig struct {
+	Type string `yaml:"type" mapstructure:"type"` // "docker", "podman", or "" for auto-detect
 }
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL           string   `yaml:"url" mapstructure:"url"`
-	APIKey        string   `yaml:"api_key" mapstructure:"api_key"`
-	Timeout       int      `yaml:"timeout" mapstructure:"timeout"`
-	OCI           string   `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
-	Run           bool     `yaml:"run" mapstructure:"run"`
-	Docker        bool     `yaml:"docker" mapstructure:"docker"`
-	Debug         bool     `yaml:"debug,omitempty" mapstructure:"debug,omitempty"`
-	IncludeModels []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
-	ExcludeModels []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
-	VisionEnabled bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
+	URL              string   `yaml:"url" mapstructure:"url"`
+	APIKey           string   `yaml:"api_key" mapstructure:"api_key"`
+	Timeout          int      `yaml:"timeout" mapstructure:"timeout"`
+	OCI              string   `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
+	Run              bool     `yaml:"run" mapstructure:"run"`
+	StandaloneBinary bool     `yaml:"standalone_binary" mapstructure:"standalone_binary"`
+	Debug            bool     `yaml:"debug,omitempty" mapstructure:"debug,omitempty"`
+	IncludeModels    []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
+	ExcludeModels    []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
+	VisionEnabled    bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -444,14 +451,17 @@ type A2ACacheConfig struct {
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config { //nolint:funlen
 	return &Config{
+		ContainerRuntime: ContainerRuntimeConfig{
+			Type: "docker",
+		},
 		Gateway: GatewayConfig{
-			URL:           "http://localhost:8080",
-			APIKey:        "",
-			Timeout:       200,
-			OCI:           "ghcr.io/inference-gateway/inference-gateway:latest",
-			Run:           true,
-			Docker:        true,
-			IncludeModels: []string{},
+			URL:              "http://localhost:8080",
+			APIKey:           "",
+			Timeout:          200,
+			OCI:              "ghcr.io/inference-gateway/inference-gateway:latest",
+			Run:              true,
+			StandaloneBinary: true,
+			IncludeModels:    []string{},
 			ExcludeModels: []string{
 				"ollama_cloud/cogito-2.1:671b",
 				"ollama_cloud/kimi-k2:1t",
@@ -1139,4 +1149,20 @@ const (
 // Format: "namespace_action" (e.g., "global_quit", "chat_enter_key_handler")
 func ActionID(namespace KeyNamespace, action string) string {
 	return string(namespace) + "_" + action
+}
+
+// FindAvailablePort finds the next available port starting from basePort
+// It checks up to 100 ports after the base port
+// Binds to all interfaces (0.0.0.0) to match Docker's behavior
+func FindAvailablePort(basePort int) int {
+	for port := basePort; port < basePort+100; port++ {
+		address := fmt.Sprintf(":%d", port)
+		listener, err := net.Listen("tcp", address)
+		if err != nil {
+			continue
+		}
+		_ = listener.Close()
+		return port
+	}
+	return basePort
 }

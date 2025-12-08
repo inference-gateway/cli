@@ -1,4 +1,4 @@
-FROM alpine:3.22.1
+FROM alpine:3.23.0
 
 LABEL org.opencontainers.image.title="Inference Gateway CLI"
 LABEL org.opencontainers.image.description="A powerful command-line interface for managing and interacting with the Inference Gateway. Provides interactive chat, autonomous agent capabilities, and extensive tool execution for AI models."
@@ -28,7 +28,6 @@ RUN mkdir -p .infer && chown -R infer:infer .infer
 USER infer
 
 ENV INFER_GATEWAY_RUN=false
-ENV INFER_GATEWAY_DOCKER=false
 ENV INFER_GATEWAY_URL=http://inference-gateway:8080
 
 ENTRYPOINT ["./infer"]

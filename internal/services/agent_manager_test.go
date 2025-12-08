@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	require "github.com/stretchr/testify/require"
 )
 
@@ -30,7 +31,8 @@ PORT=8080
 
 	cfg := &config.Config{}
 	agentsConfig := &config.AgentsConfig{}
-	am := NewAgentManager(cfg, agentsConfig)
+	sessionID := domain.GenerateSessionID()
+	am := NewAgentManager(sessionID, cfg, agentsConfig, nil)
 
 	envMap, err := am.loadDotEnvFile()
 	require.NoError(t, err)
@@ -56,7 +58,8 @@ func TestAgentManager_loadDotEnvFile_NotFound(t *testing.T) {
 
 	cfg := &config.Config{}
 	agentsConfig := &config.AgentsConfig{}
-	am := NewAgentManager(cfg, agentsConfig)
+	sessionID := domain.GenerateSessionID()
+	am := NewAgentManager(sessionID, cfg, agentsConfig, nil)
 
 	envMap, err := am.loadDotEnvFile()
 	require.Error(t, err)
@@ -80,7 +83,8 @@ func TestAgentManager_loadDotEnvFile_InvalidFormat(t *testing.T) {
 
 	cfg := &config.Config{}
 	agentsConfig := &config.AgentsConfig{}
-	am := NewAgentManager(cfg, agentsConfig)
+	sessionID := domain.GenerateSessionID()
+	am := NewAgentManager(sessionID, cfg, agentsConfig, nil)
 
 	envMap, err := am.loadDotEnvFile()
 	if err == nil {
@@ -104,7 +108,8 @@ func TestAgentManager_loadDotEnvFile_EmptyFile(t *testing.T) {
 
 	cfg := &config.Config{}
 	agentsConfig := &config.AgentsConfig{}
-	am := NewAgentManager(cfg, agentsConfig)
+	sessionID := domain.GenerateSessionID()
+	am := NewAgentManager(sessionID, cfg, agentsConfig, nil)
 
 	envMap, err := am.loadDotEnvFile()
 	require.NoError(t, err)
@@ -136,7 +141,8 @@ LOG_LEVEL=debug
 
 	cfg := &config.Config{}
 	agentsConfig := &config.AgentsConfig{}
-	am := NewAgentManager(cfg, agentsConfig)
+	sessionID := domain.GenerateSessionID()
+	am := NewAgentManager(sessionID, cfg, agentsConfig, nil)
 
 	envMap, err := am.loadDotEnvFile()
 	require.NoError(t, err)
