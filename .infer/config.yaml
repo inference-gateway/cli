@@ -12,6 +12,10 @@ gateway:
     - ollama_cloud/kimi-k2:1t
     - ollama_cloud/kimi-k2-thinking
     - ollama_cloud/deepseek-v3.1:671b
+    - groq/whisper-large-v3
+    - groq/whisper-large-v3-turbo
+    - groq/playai-tts
+    - groq/playai-tts-arabic
   vision_enabled: true
 client:
   timeout: 200
