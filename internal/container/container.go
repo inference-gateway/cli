@@ -44,6 +44,7 @@ type ServiceContainer struct {
 	toolService           domain.ToolService
 	fileService           domain.FileService
 	imageService          domain.ImageService
+	pricingService        domain.PricingService
 	a2aAgentService       domain.A2AAgentService
 	messageQueue          domain.MessageQueue
 	taskTrackerService    domain.TaskTracker
@@ -232,10 +233,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 	storageBackend, err := storage.NewStorage(storageConfig)
 	if err != nil {
 		logger.Error("Failed to initialize storage, using basic in-memory repository", "error", err, "type", storageConfig.Type)
-		c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService)
+		c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
 	} else {
 		c.storage = storageBackend
-		persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, storageBackend)
+		persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), storageBackend)
 		c.conversationRepo = persistentRepo
 		logger.Info("Initialized conversation storage", "type", storageConfig.Type)
 
@@ -327,6 +328,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, c.taskTrackerService))
 	c.shortcutRegistry.Register(shortcuts.NewCompactShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewContextShortcut(c.conversationRepo, c.modelService))
+	c.shortcutRegistry.Register(shortcuts.NewCostShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeService))
@@ -403,6 +405,17 @@ func (c *ServiceContainer) GetFileService() domain.FileService {
 
 func (c *ServiceContainer) GetImageService() domain.ImageService {
 	return c.imageService
+}
+
+func (c *ServiceContainer) GetPricingService() domain.PricingService {
+	return c.PricingService()
+}
+
+func (c *ServiceContainer) PricingService() domain.PricingService {
+	if c.pricingService == nil {
+		c.pricingService = services.NewPricingService(&c.config.Pricing)
+	}
+	return c.pricingService
 }
 
 func (c *ServiceContainer) GetTheme() domain.Theme {

@@ -38,9 +38,10 @@ func (a *PersistentConversationAdapter) ListSavedConversations(ctx context.Conte
 				TotalTokens:       conv.TokenStats.TotalTokens,
 				RequestCount:      conv.TokenStats.RequestCount,
 			},
-			Model:   conv.Model,
-			Tags:    conv.Tags,
-			Summary: conv.Summary,
+			CostStats: conv.CostStats,
+			Model:     conv.Model,
+			Tags:      conv.Tags,
+			Summary:   conv.Summary,
 		}
 	}
 
@@ -67,9 +68,10 @@ func (a *PersistentConversationAdapter) GetCurrentConversationMetadata() shortcu
 			TotalTokens:       metadata.TokenStats.TotalTokens,
 			RequestCount:      metadata.TokenStats.RequestCount,
 		},
-		Model:   metadata.Model,
-		Tags:    metadata.Tags,
-		Summary: metadata.Summary,
+		CostStats: metadata.CostStats,
+		Model:     metadata.Model,
+		Tags:      metadata.Tags,
+		Summary:   metadata.Summary,
 	}
 }
 

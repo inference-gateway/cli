@@ -39,6 +39,7 @@ type ChatApplication struct {
 	toolService           domain.ToolService
 	fileService           domain.FileService
 	imageService          domain.ImageService
+	pricingService        domain.PricingService
 	shortcutRegistry      *shortcuts.Registry
 	themeService          domain.ThemeService
 	toolRegistry          *tools.Registry
@@ -101,6 +102,7 @@ func NewChatApplication(
 	toolService domain.ToolService,
 	fileService domain.FileService,
 	imageService domain.ImageService,
+	pricingService domain.PricingService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager domain.StateManager,
 	messageQueue domain.MessageQueue,
@@ -127,6 +129,7 @@ func NewChatApplication(
 		toolService:           toolService,
 		fileService:           fileService,
 		imageService:          imageService,
+		pricingService:        pricingService,
 		shortcutRegistry:      shortcutRegistry,
 		themeService:          themeService,
 		toolRegistry:          toolRegistry,
@@ -212,7 +215,7 @@ func NewChatApplication(
 	}
 
 	app.toolCallRenderer.SetKeyHintFormatter(keyHintFormatter)
-	app.modelSelector = components.NewModelSelector(models, app.modelService, styleProvider)
+	app.modelSelector = components.NewModelSelector(models, app.modelService, app.pricingService, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.initGithubActionView = components.NewInitGithubActionView(styleProvider)
 
@@ -875,7 +878,11 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 		return cmds
 	}
 
-	if app.conversationSelector.IsSelected() || app.conversationSelector.IsCancelled() {
+	isDone := app.conversationSelector.IsSelected() || app.conversationSelector.IsCancelled()
+	needsInit := app.conversationSelector.NeedsInitialization()
+	fromDifferentView := app.stateManager.GetPreviousView() != domain.ViewStateConversationSelection
+
+	if fromDifferentView && (isDone || needsInit) {
 		app.conversationSelector.Reset()
 		if cmd := app.conversationSelector.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -1075,7 +1082,7 @@ func (app *ChatApplication) updateAllComponentsWithNewTheme() {
 	}
 
 	styleProvider := styles.NewProvider(app.themeService)
-	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, styleProvider)
+	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.pricingService, styleProvider)
 }
 
 func (app *ChatApplication) renderThemeSelection() string {

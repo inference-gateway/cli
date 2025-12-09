@@ -346,6 +346,11 @@ func (s *ApplicationState) GetCurrentView() ViewState {
 	return s.currentView
 }
 
+// GetPreviousView returns the previous view state
+func (s *ApplicationState) GetPreviousView() ViewState {
+	return s.previousView
+}
+
 // TransitionToView changes the current view with validation
 func (s *ApplicationState) TransitionToView(newView ViewState) error {
 	if !s.isValidTransition(s.currentView, newView) {

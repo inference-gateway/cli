@@ -13,7 +13,7 @@ import (
 )
 
 func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
-	conversationRepo := services.NewInMemoryConversationRepository(nil)
+	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
 	shortcutRegistry := shortcuts.NewRegistry()
 
 	messageQueue := services.NewMessageQueueService()
@@ -37,7 +37,7 @@ func TestFormatMetricsWithoutSessionTokens(t *testing.T) {
 		config.DefaultConfig(),
 	)
 
-	err := conversationRepo.AddTokenUsage(100, 50, 150)
+	err := conversationRepo.AddTokenUsage("test-model", 100, 50, 150)
 	if err != nil {
 		t.Fatalf("Failed to add token usage: %v", err)
 	}

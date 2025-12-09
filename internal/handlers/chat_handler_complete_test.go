@@ -253,7 +253,7 @@ func setupTestChatHandler(_ *testing.T, setupMocks func(*mocks.FakeAgentService,
 		setupMocks(mockAgent, mockModel, mockTool, mockFile, mockConfig)
 	}
 
-	conversationRepo := services.NewInMemoryConversationRepository(nil)
+	conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
 	shortcutRegistry := shortcuts.NewRegistry()
 	messageQueue := services.NewMessageQueueService()
 
@@ -400,7 +400,7 @@ func TestChatEventHandler_handleChatComplete(t *testing.T) {
 			mockTool := &mocks.FakeToolService{}
 			mockFile := &mocks.FakeFileService{}
 
-			conversationRepo := services.NewInMemoryConversationRepository(nil)
+			conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
 			stateManager := services.NewStateManager(false)
 			shortcutRegistry := shortcuts.NewRegistry()
 			messageQueue := services.NewMessageQueueService()

@@ -86,7 +86,7 @@ func TestInMemoryConversationRepository_RemovePendingToolCallByID(t *testing.T) 
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			repo := NewInMemoryConversationRepository(nil)
+			repo := NewInMemoryConversationRepository(nil, nil)
 
 			for _, toolCall := range tt.setupToolCalls {
 				err := repo.AddPendingToolCall(toolCall, make(chan domain.ApprovalAction))

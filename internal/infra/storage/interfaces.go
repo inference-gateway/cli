@@ -42,6 +42,7 @@ type ConversationMetadata struct {
 	UpdatedAt           time.Time                  `json:"updated_at"`
 	MessageCount        int                        `json:"message_count"`
 	TokenStats          domain.SessionTokenStats   `json:"token_stats"`
+	CostStats           domain.SessionCostStats    `json:"cost_stats,omitempty"`
 	Model               string                     `json:"model,omitempty"`
 	Tags                []string                   `json:"tags,omitempty"`
 	Summary             string                     `json:"summary,omitempty"`
@@ -60,6 +61,7 @@ type ConversationSummary struct {
 	UpdatedAt           time.Time                `json:"updated_at"`
 	MessageCount        int                      `json:"message_count"`
 	TokenStats          domain.SessionTokenStats `json:"token_stats"`
+	CostStats           domain.SessionCostStats  `json:"cost_stats,omitempty"`
 	Model               string                   `json:"model,omitempty"`
 	Tags                []string                 `json:"tags,omitempty"`
 	Summary             string                   `json:"summary,omitempty"`

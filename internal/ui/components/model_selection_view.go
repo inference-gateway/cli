@@ -9,6 +9,15 @@ import (
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
+// ModelViewMode defines the different filter modes for models
+type ModelViewMode int
+
+const (
+	ModelViewAll ModelViewMode = iota
+	ModelViewFree
+	ModelViewProprietary
+)
+
 // ModelSelectorImpl implements model selection UI
 type ModelSelectorImpl struct {
 	models         []string
@@ -20,12 +29,14 @@ type ModelSelectorImpl struct {
 	done           bool
 	cancelled      bool
 	modelService   domain.ModelService
+	pricingService domain.PricingService
 	searchQuery    string
 	searchMode     bool
+	currentView    ModelViewMode
 }
 
 // NewModelSelector creates a new model selector
-func NewModelSelector(models []string, modelService domain.ModelService, styleProvider *styles.Provider) *ModelSelectorImpl {
+func NewModelSelector(models []string, modelService domain.ModelService, pricingService domain.PricingService, styleProvider *styles.Provider) *ModelSelectorImpl {
 	m := &ModelSelectorImpl{
 		models:         models,
 		filteredModels: make([]string, len(models)),
@@ -34,8 +45,10 @@ func NewModelSelector(models []string, modelService domain.ModelService, stylePr
 		height:         24,
 		styleProvider:  styleProvider,
 		modelService:   modelService,
+		pricingService: pricingService,
 		searchQuery:    "",
 		searchMode:     false,
+		currentView:    ModelViewAll,
 	}
 	copy(m.filteredModels, models)
 	return m
@@ -79,6 +92,9 @@ func (m *ModelSelectorImpl) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) 
 		return m.handleCharacterInput(msg)
 	case "backspace":
 		return m.handleBackspace()
+	case "1", "2", "3":
+		m.handleViewSwitch(msg.String())
+		return m, nil
 	default:
 		return m.handleCharacterInput(msg)
 	}
@@ -139,8 +155,21 @@ func (m *ModelSelectorImpl) handleCharacterInput(msg tea.KeyMsg) (tea.Model, tea
 }
 
 func (m *ModelSelectorImpl) updateSearch() {
-	m.filterModels()
+	m.applyFilters()
 	m.selected = 0
+}
+
+func (m *ModelSelectorImpl) handleViewSwitch(key string) {
+	switch key {
+	case "1":
+		m.currentView = ModelViewAll
+	case "2":
+		m.currentView = ModelViewFree
+	case "3":
+		m.currentView = ModelViewProprietary
+	}
+	m.selected = 0
+	m.applyFilters()
 }
 
 func (m *ModelSelectorImpl) View() string {
@@ -150,13 +179,15 @@ func (m *ModelSelectorImpl) View() string {
 	b.WriteString(m.styleProvider.RenderWithColor("Select a Model", accentColor))
 	b.WriteString("\n\n")
 
+	m.writeViewTabs(&b)
+
 	if m.searchMode {
 		statusColor := m.styleProvider.GetThemeColor("status")
 		b.WriteString(m.styleProvider.RenderWithColor("Search: "+m.searchQuery, statusColor))
 		b.WriteString(m.styleProvider.RenderWithColor("│", accentColor))
 		b.WriteString("\n\n")
 	} else {
-		helpText := fmt.Sprintf("Press / to search • %d models available", len(m.models))
+		helpText := fmt.Sprintf("Press / to search • %d models available", len(m.filteredModels))
 		b.WriteString(m.styleProvider.RenderDimText(helpText))
 		b.WriteString("\n\n")
 	}
@@ -185,12 +216,22 @@ func (m *ModelSelectorImpl) View() string {
 
 	for i := start; i < start+maxVisible && i < len(m.filteredModels); i++ {
 		model := m.filteredModels[i]
+		pricingSuffix := m.getModelPricingSuffix(model)
 
 		if i == m.selected {
 			b.WriteString(m.styleProvider.RenderWithColor("▶ "+model, accentColor))
+			if pricingSuffix != "" {
+				b.WriteString(" ")
+				b.WriteString(m.styleProvider.RenderDimText(pricingSuffix))
+			}
 			b.WriteString("\n")
 		} else {
-			b.WriteString(fmt.Sprintf("  %s\n", model))
+			b.WriteString(fmt.Sprintf("  %s", model))
+			if pricingSuffix != "" {
+				b.WriteString(" ")
+				b.WriteString(m.styleProvider.RenderDimText(pricingSuffix))
+			}
+			b.WriteString("\n")
 		}
 	}
 
@@ -208,28 +249,60 @@ func (m *ModelSelectorImpl) View() string {
 	if m.searchMode {
 		b.WriteString(m.styleProvider.RenderDimText("Type to search, ↑↓ to navigate, Enter to select, Esc to clear search"))
 	} else {
-		b.WriteString(m.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter to select, / to search, Esc/Ctrl+C to cancel"))
+		b.WriteString(m.styleProvider.RenderDimText("Use ↑↓ arrows to navigate, Enter to select, / to search, 1-3 to filter, Esc/Ctrl+C to cancel"))
 	}
 
 	return b.String()
 }
 
-// filterModels filters the models based on the search query
-func (m *ModelSelectorImpl) filterModels() {
+// applyFilters filters the models based on the current view and search query
+func (m *ModelSelectorImpl) applyFilters() {
+	var baseModels []string
+
+	switch m.currentView {
+	case ModelViewAll:
+		baseModels = m.models
+	case ModelViewFree:
+		baseModels = make([]string, 0)
+		for _, model := range m.models {
+			if m.isModelFree(model) {
+				baseModels = append(baseModels, model)
+			}
+		}
+	case ModelViewProprietary:
+		baseModels = make([]string, 0)
+		for _, model := range m.models {
+			if !m.isModelFree(model) {
+				baseModels = append(baseModels, model)
+			}
+		}
+	}
+
 	if m.searchQuery == "" {
-		m.filteredModels = make([]string, len(m.models))
-		copy(m.filteredModels, m.models)
+		m.filteredModels = baseModels
 		return
 	}
 
-	m.filteredModels = m.filteredModels[:0]
+	m.filteredModels = make([]string, 0)
 	query := strings.ToLower(m.searchQuery)
 
-	for _, model := range m.models {
+	for _, model := range baseModels {
 		if strings.Contains(strings.ToLower(model), query) {
 			m.filteredModels = append(m.filteredModels, model)
 		}
 	}
+}
+
+// isModelFree checks if a model is free (both input and output prices are 0.0)
+func (m *ModelSelectorImpl) isModelFree(model string) bool {
+	if m.pricingService == nil {
+		return true
+	}
+
+	inputPrice := m.pricingService.GetInputPrice(model)
+	outputPrice := m.pricingService.GetOutputPrice(model)
+
+	return inputPrice == 0.0 && outputPrice == 0.0
 }
 
 // IsSelected returns true if a model was selected
@@ -258,4 +331,49 @@ func (m *ModelSelectorImpl) SetWidth(width int) {
 // SetHeight sets the height of the model selector
 func (m *ModelSelectorImpl) SetHeight(height int) {
 	m.height = height
+}
+
+// writeViewTabs writes the view selection tabs
+func (m *ModelSelectorImpl) writeViewTabs(b *strings.Builder) {
+	accentColor := m.styleProvider.GetThemeColor("accent")
+
+	allStyle := "[1] All"
+	freeStyle := "[2] Free"
+	proprietaryStyle := "[3] Proprietary"
+
+	switch m.currentView {
+	case ModelViewAll:
+		allStyle = m.styleProvider.RenderWithColor("[1] All", accentColor)
+	case ModelViewFree:
+		freeStyle = m.styleProvider.RenderWithColor("[2] Free", accentColor)
+	case ModelViewProprietary:
+		proprietaryStyle = m.styleProvider.RenderWithColor("[3] Proprietary", accentColor)
+	}
+
+	tabs := fmt.Sprintf("%s  %s  %s", allStyle, freeStyle, proprietaryStyle)
+	dimTabs := m.styleProvider.RenderDimText(tabs)
+	fmt.Fprintf(b, "%s\n", dimTabs)
+
+	separatorWidth := m.width - 4
+	if separatorWidth < 0 {
+		separatorWidth = 40
+	}
+	separator := m.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth))
+	fmt.Fprintf(b, "%s\n\n", separator)
+}
+
+// getModelPricingSuffix returns the pricing information suffix for a model
+func (m *ModelSelectorImpl) getModelPricingSuffix(model string) string {
+	if m.pricingService == nil {
+		return ""
+	}
+
+	inputPrice := m.pricingService.GetInputPrice(model)
+	outputPrice := m.pricingService.GetOutputPrice(model)
+
+	if inputPrice == 0.0 && outputPrice == 0.0 {
+		return "(free)"
+	}
+
+	return fmt.Sprintf("($%.2f/$%.2f per MTok)", inputPrice, outputPrice)
 }

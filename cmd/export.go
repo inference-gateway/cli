@@ -48,7 +48,8 @@ func runExport(sessionID string) error {
 
 	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil)
 	toolFormatterService := services.NewToolFormatterService(toolRegistry)
-	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, storageBackend)
+	pricingService := services.NewPricingService(&cfg.Pricing)
+	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, pricingService, storageBackend)
 
 	ctx := context.Background()
 	if err := persistentRepo.LoadConversation(ctx, sessionID); err != nil {

@@ -7,14 +7,14 @@ import (
 )
 
 func TestSessionTokenTracking(t *testing.T) {
-	repo := NewInMemoryConversationRepository(nil)
+	repo := NewInMemoryConversationRepository(nil, nil)
 
 	stats := repo.GetSessionTokens()
 	if stats.TotalInputTokens != 0 || stats.TotalOutputTokens != 0 || stats.TotalTokens != 0 || stats.RequestCount != 0 {
 		t.Errorf("Expected zero stats initially, got %+v", stats)
 	}
 
-	err := repo.AddTokenUsage(100, 50, 150)
+	err := repo.AddTokenUsage("test-model", 100, 50, 150)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -31,7 +31,7 @@ func TestSessionTokenTracking(t *testing.T) {
 		t.Errorf("Expected %+v, got %+v", expected, stats)
 	}
 
-	err = repo.AddTokenUsage(200, 75, 275)
+	err = repo.AddTokenUsage("test-model", 200, 75, 275)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}
@@ -66,9 +66,9 @@ func TestSessionTokenTracking(t *testing.T) {
 }
 
 func TestSessionTokensWithZeroValues(t *testing.T) {
-	repo := NewInMemoryConversationRepository(nil)
+	repo := NewInMemoryConversationRepository(nil, nil)
 
-	err := repo.AddTokenUsage(0, 0, 0)
+	err := repo.AddTokenUsage("test-model", 0, 0, 0)
 	if err != nil {
 		t.Errorf("Expected no error, got %v", err)
 	}

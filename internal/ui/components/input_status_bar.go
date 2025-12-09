@@ -223,6 +223,12 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []string {
 		}
 	}
 
+	if isb.shouldShowIndicator("cost") {
+		if costPart := isb.buildCostIndicator(); costPart != "" {
+			parts = append(parts, costPart)
+		}
+	}
+
 	return parts
 }
 
@@ -368,6 +374,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.ContextUsage
 	case "session_tokens":
 		return indicators.SessionTokens
+	case "cost":
+		return indicators.Cost
 	case "git_branch":
 		return indicators.GitBranch
 	default:
@@ -443,6 +451,29 @@ func (isb *InputStatusBar) buildSessionTokensIndicator() string {
 	}
 
 	return fmt.Sprintf("T.%d", totalTokens)
+}
+
+// buildCostIndicator builds the cost indicator text
+func (isb *InputStatusBar) buildCostIndicator() string {
+	if isb.conversationRepo == nil {
+		return ""
+	}
+
+	costStats := isb.conversationRepo.GetSessionCostStats()
+
+	// Don't show if cost is zero or pricing disabled
+	if costStats.TotalCost == 0 {
+		return ""
+	}
+
+	// Format: 💰 $0.0234
+	if costStats.TotalCost < 0.01 {
+		return fmt.Sprintf("💰 $%.4f", costStats.TotalCost)
+	} else if costStats.TotalCost < 1.0 {
+		return fmt.Sprintf("💰 $%.3f", costStats.TotalCost)
+	} else {
+		return fmt.Sprintf("💰 $%.2f", costStats.TotalCost)
+	}
 }
 
 // getCurrentGitBranch returns the current git branch with caching

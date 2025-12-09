@@ -58,6 +58,7 @@ func (s *PostgresStorage) createTables(ctx context.Context) error {
 		summary TEXT,
 		optimized_messages JSONB,
 		token_stats JSONB,
+		cost_stats JSONB,
 		title_generated BOOLEAN DEFAULT FALSE,
 		title_invalidated BOOLEAN DEFAULT FALSE,
 		title_generation_time TIMESTAMP WITH TIME ZONE
@@ -90,6 +91,7 @@ func (s *PostgresStorage) createTables(ctx context.Context) error {
 	ALTER TABLE conversations ADD COLUMN IF NOT EXISTS title_invalidated BOOLEAN DEFAULT FALSE;
 	ALTER TABLE conversations ADD COLUMN IF NOT EXISTS title_generation_time TIMESTAMP WITH TIME ZONE;
 	ALTER TABLE conversations ADD COLUMN IF NOT EXISTS optimized_messages JSONB;
+	ALTER TABLE conversations ADD COLUMN IF NOT EXISTS cost_stats JSONB;
 	`
 
 	_, _ = s.db.ExecContext(ctx, migrationSchema)
@@ -115,6 +117,11 @@ func (s *PostgresStorage) SaveConversation(ctx context.Context, conversationID s
 		return fmt.Errorf("failed to marshal tags: %w", err)
 	}
 
+	costStatsJSON, err := json.Marshal(metadata.CostStats)
+	if err != nil {
+		return fmt.Errorf("failed to marshal cost stats: %w", err)
+	}
+
 	var optimizedMessagesJSON []byte
 	if len(metadata.OptimizedMessages) > 0 {
 		optimizedMessagesJSON, err = json.Marshal(metadata.OptimizedMessages)
@@ -124,8 +131,8 @@ func (s *PostgresStorage) SaveConversation(ctx context.Context, conversationID s
 	}
 
 	_, err = tx.ExecContext(ctx, `
-		INSERT INTO conversations (id, title, created_at, updated_at, message_count, model, tags, summary, optimized_messages, token_stats, title_generated, title_invalidated, title_generation_time)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		INSERT INTO conversations (id, title, created_at, updated_at, message_count, model, tags, summary, optimized_messages, token_stats, cost_stats, title_generated, title_invalidated, title_generation_time)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		ON CONFLICT(id) DO UPDATE SET
 			title = EXCLUDED.title,
 			updated_at = EXCLUDED.updated_at,
@@ -135,10 +142,11 @@ func (s *PostgresStorage) SaveConversation(ctx context.Context, conversationID s
 			summary = EXCLUDED.summary,
 			optimized_messages = EXCLUDED.optimized_messages,
 			token_stats = EXCLUDED.token_stats,
+			cost_stats = EXCLUDED.cost_stats,
 			title_generated = EXCLUDED.title_generated,
 			title_invalidated = EXCLUDED.title_invalidated,
 			title_generation_time = EXCLUDED.title_generation_time
-	`, conversationID, metadata.Title, metadata.CreatedAt, metadata.UpdatedAt, len(entries), metadata.Model, string(tagsJSON), metadata.Summary, optimizedMessagesJSON, string(tokenStatsJSON), metadata.TitleGenerated, metadata.TitleInvalidated, metadata.TitleGenerationTime)
+	`, conversationID, metadata.Title, metadata.CreatedAt, metadata.UpdatedAt, len(entries), metadata.Model, string(tagsJSON), metadata.Summary, optimizedMessagesJSON, string(tokenStatsJSON), string(costStatsJSON), metadata.TitleGenerated, metadata.TitleInvalidated, metadata.TitleGenerationTime)
 	if err != nil {
 		return fmt.Errorf("failed to save conversation metadata: %w", err)
 	}
@@ -169,16 +177,16 @@ func (s *PostgresStorage) SaveConversation(ctx context.Context, conversationID s
 // LoadConversation loads a conversation by its ID
 func (s *PostgresStorage) LoadConversation(ctx context.Context, conversationID string) ([]domain.ConversationEntry, ConversationMetadata, error) {
 	var metadata ConversationMetadata
-	var tokenStatsJSON, tagsJSON string
+	var tokenStatsJSON, tagsJSON, costStatsJSON string
 	var optimizedMessagesJSON sql.NullString
 
 	err := s.db.QueryRowContext(ctx, `
-		SELECT id, title, created_at, updated_at, message_count, model, tags, summary, optimized_messages, token_stats,
+		SELECT id, title, created_at, updated_at, message_count, model, tags, summary, optimized_messages, token_stats, COALESCE(cost_stats, '{}'),
 			   COALESCE(title_generated, FALSE), COALESCE(title_invalidated, FALSE), title_generation_time
 		FROM conversations WHERE id = $1
 	`, conversationID).Scan(
 		&metadata.ID, &metadata.Title, &metadata.CreatedAt, &metadata.UpdatedAt,
-		&metadata.MessageCount, &metadata.Model, &tagsJSON, &metadata.Summary, &optimizedMessagesJSON, &tokenStatsJSON,
+		&metadata.MessageCount, &metadata.Model, &tagsJSON, &metadata.Summary, &optimizedMessagesJSON, &tokenStatsJSON, &costStatsJSON,
 		&metadata.TitleGenerated, &metadata.TitleInvalidated, &metadata.TitleGenerationTime,
 	)
 	if err != nil {
@@ -190,6 +198,12 @@ func (s *PostgresStorage) LoadConversation(ctx context.Context, conversationID s
 
 	if err := json.Unmarshal([]byte(tokenStatsJSON), &metadata.TokenStats); err != nil {
 		return nil, metadata, fmt.Errorf("failed to unmarshal token stats: %w", err)
+	}
+
+	if costStatsJSON != "" && costStatsJSON != "{}" {
+		if err := json.Unmarshal([]byte(costStatsJSON), &metadata.CostStats); err != nil {
+			metadata.CostStats = domain.SessionCostStats{}
+		}
 	}
 
 	if err := json.Unmarshal([]byte(tagsJSON), &metadata.Tags); err != nil {
@@ -233,7 +247,7 @@ func (s *PostgresStorage) LoadConversation(ctx context.Context, conversationID s
 // ListConversations returns a list of conversation summaries
 func (s *PostgresStorage) ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, title, created_at, updated_at, message_count, model, tags, summary, token_stats,
+		SELECT id, title, created_at, updated_at, message_count, model, tags, summary, token_stats, COALESCE(cost_stats, '{}'),
 			   COALESCE(title_generated, FALSE), COALESCE(title_invalidated, FALSE), title_generation_time
 		FROM conversations
 		ORDER BY updated_at DESC
@@ -247,11 +261,11 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, limit, offset i
 	var summaries []ConversationSummary
 	for rows.Next() {
 		var summary ConversationSummary
-		var tokenStatsJSON, tagsJSON string
+		var tokenStatsJSON, tagsJSON, costStatsJSON string
 
 		err := rows.Scan(
 			&summary.ID, &summary.Title, &summary.CreatedAt, &summary.UpdatedAt,
-			&summary.MessageCount, &summary.Model, &tagsJSON, &summary.Summary, &tokenStatsJSON,
+			&summary.MessageCount, &summary.Model, &tagsJSON, &summary.Summary, &tokenStatsJSON, &costStatsJSON,
 			&summary.TitleGenerated, &summary.TitleInvalidated, &summary.TitleGenerationTime,
 		)
 		if err != nil {
@@ -260,6 +274,12 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, limit, offset i
 
 		if err := json.Unmarshal([]byte(tokenStatsJSON), &summary.TokenStats); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal token stats: %w", err)
+		}
+
+		if costStatsJSON != "" && costStatsJSON != "{}" {
+			if err := json.Unmarshal([]byte(costStatsJSON), &summary.CostStats); err != nil {
+				summary.CostStats = domain.SessionCostStats{}
+			}
 		}
 
 		if err := json.Unmarshal([]byte(tagsJSON), &summary.Tags); err != nil {
@@ -275,7 +295,7 @@ func (s *PostgresStorage) ListConversations(ctx context.Context, limit, offset i
 // ListConversationsNeedingTitles returns conversations that need title generation
 func (s *PostgresStorage) ListConversationsNeedingTitles(ctx context.Context, limit int) ([]ConversationSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, title, created_at, updated_at, message_count, model, tags, summary, token_stats,
+		SELECT id, title, created_at, updated_at, message_count, model, tags, summary, token_stats, COALESCE(cost_stats, '{}'),
 			   COALESCE(title_generated, FALSE), COALESCE(title_invalidated, FALSE), title_generation_time
 		FROM conversations
 		WHERE (COALESCE(title_generated, FALSE) = FALSE OR COALESCE(title_invalidated, FALSE) = TRUE)
@@ -291,11 +311,11 @@ func (s *PostgresStorage) ListConversationsNeedingTitles(ctx context.Context, li
 	var summaries []ConversationSummary
 	for rows.Next() {
 		var summary ConversationSummary
-		var tokenStatsJSON, tagsJSON string
+		var tokenStatsJSON, tagsJSON, costStatsJSON string
 
 		err := rows.Scan(
 			&summary.ID, &summary.Title, &summary.CreatedAt, &summary.UpdatedAt,
-			&summary.MessageCount, &summary.Model, &tagsJSON, &summary.Summary, &tokenStatsJSON,
+			&summary.MessageCount, &summary.Model, &tagsJSON, &summary.Summary, &tokenStatsJSON, &costStatsJSON,
 			&summary.TitleGenerated, &summary.TitleInvalidated, &summary.TitleGenerationTime,
 		)
 		if err != nil {
@@ -304,6 +324,12 @@ func (s *PostgresStorage) ListConversationsNeedingTitles(ctx context.Context, li
 
 		if err := json.Unmarshal([]byte(tokenStatsJSON), &summary.TokenStats); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal token stats: %w", err)
+		}
+
+		if costStatsJSON != "" && costStatsJSON != "{}" {
+			if err := json.Unmarshal([]byte(costStatsJSON), &summary.CostStats); err != nil {
+				summary.CostStats = domain.SessionCostStats{}
+			}
 		}
 
 		if err := json.Unmarshal([]byte(tagsJSON), &summary.Tags); err != nil {
@@ -347,12 +373,17 @@ func (s *PostgresStorage) UpdateConversationMetadata(ctx context.Context, conver
 		return fmt.Errorf("failed to marshal tags: %w", err)
 	}
 
+	costStatsJSON, err := json.Marshal(metadata.CostStats)
+	if err != nil {
+		return fmt.Errorf("failed to marshal cost stats: %w", err)
+	}
+
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE conversations
-		SET title = $1, updated_at = $2, model = $3, tags = $4, summary = $5, token_stats = $6,
-		    title_generated = $7, title_invalidated = $8, title_generation_time = $9
-		WHERE id = $10
-	`, metadata.Title, metadata.UpdatedAt, metadata.Model, string(tagsJSON), metadata.Summary, string(tokenStatsJSON), metadata.TitleGenerated, metadata.TitleInvalidated, metadata.TitleGenerationTime, conversationID)
+		SET title = $1, updated_at = $2, model = $3, tags = $4, summary = $5, token_stats = $6, cost_stats = $7,
+		    title_generated = $8, title_invalidated = $9, title_generation_time = $10
+		WHERE id = $11
+	`, metadata.Title, metadata.UpdatedAt, metadata.Model, string(tagsJSON), metadata.Summary, string(tokenStatsJSON), string(costStatsJSON), metadata.TitleGenerated, metadata.TitleInvalidated, metadata.TitleGenerationTime, conversationID)
 	if err != nil {
 		return fmt.Errorf("failed to update conversation metadata: %w", err)
 	}

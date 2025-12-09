@@ -12,6 +12,10 @@ gateway:
     - ollama_cloud/kimi-k2:1t
     - ollama_cloud/kimi-k2-thinking
     - ollama_cloud/deepseek-v3.1:671b
+    - groq/whisper-large-v3
+    - groq/whisper-large-v3-turbo
+    - groq/playai-tts
+    - groq/playai-tts-arabic
   vision_enabled: true
 client:
   timeout: 200
@@ -529,6 +533,7 @@ chat:
       mcp: true
       context_usage: true
       session_tokens: true
+      cost: true
       git_branch: true
 a2a:
   enabled: true
@@ -565,6 +570,10 @@ mcp:
   liveness_probe_enabled: true
   liveness_probe_interval: 10
   servers: []
+pricing:
+  enabled: true
+  currency: USD
+  custom_prices: {}
 init:
   prompt: |-
     Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.

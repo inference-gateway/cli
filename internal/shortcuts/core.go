@@ -3,6 +3,7 @@ package shortcuts
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -163,6 +164,97 @@ func (c *ContextShortcut) formatContextUsage(lastInputTokens, contextWindowSize 
 	}
 
 	return output.String()
+}
+
+// CostShortcut displays cost information for the current session
+type CostShortcut struct {
+	repo domain.ConversationRepository
+}
+
+func NewCostShortcut(repo domain.ConversationRepository) *CostShortcut {
+	return &CostShortcut{repo: repo}
+}
+
+func (c *CostShortcut) GetName() string               { return "cost" }
+func (c *CostShortcut) GetDescription() string        { return "Show session cost breakdown" }
+func (c *CostShortcut) GetUsage() string              { return "/cost" }
+func (c *CostShortcut) CanExecute(args []string) bool { return len(args) == 0 }
+
+func (c *CostShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
+	costStats := c.repo.GetSessionCostStats()
+	tokenStats := c.repo.GetSessionTokens()
+
+	var output strings.Builder
+	output.WriteString("## Session Cost Summary\n\n")
+
+	output.WriteString("| Metric | Value |\n")
+	output.WriteString("|--------|-------|\n")
+	output.WriteString(fmt.Sprintf("| **Input Cost** | $%.4f (%s tokens) |\n",
+		costStats.TotalInputCost,
+		formatTokenCount(tokenStats.TotalInputTokens)))
+	output.WriteString(fmt.Sprintf("| **Output Cost** | $%.4f (%s tokens) |\n",
+		costStats.TotalOutputCost,
+		formatTokenCount(tokenStats.TotalOutputTokens)))
+	output.WriteString(fmt.Sprintf("| **API Requests** | %d |\n", tokenStats.RequestCount))
+	output.WriteString(fmt.Sprintf("| **Total Cost** | $%.4f %s |\n\n",
+		costStats.TotalCost, costStats.Currency))
+
+	if len(costStats.PerModelStats) > 1 {
+		output.WriteString("### Cost by Model\n\n")
+
+		type modelCost struct {
+			model string
+			cost  float64
+		}
+		var models []modelCost
+		for model, stats := range costStats.PerModelStats {
+			models = append(models, modelCost{model, stats.TotalCost})
+		}
+		sort.Slice(models, func(i, j int) bool {
+			return models[i].cost > models[j].cost
+		})
+
+		output.WriteString("| Model | Cost | Input | Output | Requests |\n")
+		output.WriteString("|-------|------|-------|--------|----------|\n")
+		for _, mc := range models {
+			stats := costStats.PerModelStats[mc.model]
+			output.WriteString(fmt.Sprintf("| %s | $%.4f (%.1f%%) | %s tokens ($%.4f) | %s tokens ($%.4f) | %d |\n",
+				stats.Model,
+				stats.TotalCost,
+				(stats.TotalCost/costStats.TotalCost)*100,
+				formatTokenCount(stats.InputTokens),
+				stats.InputCost,
+				formatTokenCount(stats.OutputTokens),
+				stats.OutputCost,
+				stats.RequestCount))
+		}
+		output.WriteString("\n")
+	} else if len(costStats.PerModelStats) == 1 {
+		for model := range costStats.PerModelStats {
+			output.WriteString(fmt.Sprintf("**Model:** %s\n", model))
+		}
+	}
+
+	hasFreeCost := costStats.TotalCost == 0.0 && tokenStats.TotalTokens > 0
+	if hasFreeCost {
+		output.WriteString("*Note: This session used models with no pricing data " +
+			"(e.g., Ollama, free tier, or custom models). Cost shown may be incomplete.*\n")
+	}
+
+	return ShortcutResult{
+		Output:  output.String(),
+		Success: true,
+	}, nil
+}
+
+// formatTokenCount formats token counts in a human-readable way
+func formatTokenCount(tokens int) string {
+	if tokens >= 1_000_000 {
+		return fmt.Sprintf("%.2fM", float64(tokens)/1_000_000.0)
+	} else if tokens >= 1_000 {
+		return fmt.Sprintf("%.1fK", float64(tokens)/1_000.0)
+	}
+	return fmt.Sprintf("%d", tokens)
 }
 
 // NewShortcut starts a new conversation

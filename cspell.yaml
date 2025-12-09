@@ -1,20 +1,31 @@
 version: "0.2"
 language: en
 words:
+  - alrvd
   - bubbletea
   - charmbracelet
+  - codellama
   - deepseek
   - DEEPSEEK
+  - duckduckgo
   - funlen
   - gocyclo
   - groq
   - GROQ
+  - kimi
+  - mapstructure
   - mekayelanik
+  - mixtral
+  - moonshotai
+  - mtoken
   - nolint
   - ollama
   - OLLAMA
   - oneline
   - pgdn
   - pgup
+  - playai
+  - qwen
+  - retryable
   - SHTTP
   - sname
