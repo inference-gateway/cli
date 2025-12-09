@@ -20,12 +20,13 @@ type ModelSelectorImpl struct {
 	done           bool
 	cancelled      bool
 	modelService   domain.ModelService
+	pricingService domain.PricingService
 	searchQuery    string
 	searchMode     bool
 }
 
 // NewModelSelector creates a new model selector
-func NewModelSelector(models []string, modelService domain.ModelService, styleProvider *styles.Provider) *ModelSelectorImpl {
+func NewModelSelector(models []string, modelService domain.ModelService, pricingService domain.PricingService, styleProvider *styles.Provider) *ModelSelectorImpl {
 	m := &ModelSelectorImpl{
 		models:         models,
 		filteredModels: make([]string, len(models)),
@@ -34,6 +35,7 @@ func NewModelSelector(models []string, modelService domain.ModelService, stylePr
 		height:         24,
 		styleProvider:  styleProvider,
 		modelService:   modelService,
+		pricingService: pricingService,
 		searchQuery:    "",
 		searchMode:     false,
 	}
@@ -185,12 +187,22 @@ func (m *ModelSelectorImpl) View() string {
 
 	for i := start; i < start+maxVisible && i < len(m.filteredModels); i++ {
 		model := m.filteredModels[i]
+		pricingSuffix := m.getModelPricingSuffix(model)
 
 		if i == m.selected {
 			b.WriteString(m.styleProvider.RenderWithColor("▶ "+model, accentColor))
+			if pricingSuffix != "" {
+				b.WriteString(" ")
+				b.WriteString(m.styleProvider.RenderDimText(pricingSuffix))
+			}
 			b.WriteString("\n")
 		} else {
-			b.WriteString(fmt.Sprintf("  %s\n", model))
+			b.WriteString(fmt.Sprintf("  %s", model))
+			if pricingSuffix != "" {
+				b.WriteString(" ")
+				b.WriteString(m.styleProvider.RenderDimText(pricingSuffix))
+			}
+			b.WriteString("\n")
 		}
 	}
 
@@ -258,4 +270,20 @@ func (m *ModelSelectorImpl) SetWidth(width int) {
 // SetHeight sets the height of the model selector
 func (m *ModelSelectorImpl) SetHeight(height int) {
 	m.height = height
+}
+
+// getModelPricingSuffix returns the pricing information suffix for a model
+func (m *ModelSelectorImpl) getModelPricingSuffix(model string) string {
+	if m.pricingService == nil {
+		return ""
+	}
+
+	inputPrice := m.pricingService.GetInputPrice(model)
+	outputPrice := m.pricingService.GetOutputPrice(model)
+
+	if inputPrice == 0.0 && outputPrice == 0.0 {
+		return "(free)"
+	}
+
+	return fmt.Sprintf("($%.2f/$%.2f per MTok)", inputPrice, outputPrice)
 }

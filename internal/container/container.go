@@ -407,6 +407,10 @@ func (c *ServiceContainer) GetImageService() domain.ImageService {
 	return c.imageService
 }
 
+func (c *ServiceContainer) GetPricingService() domain.PricingService {
+	return c.PricingService()
+}
+
 func (c *ServiceContainer) PricingService() domain.PricingService {
 	if c.pricingService == nil {
 		c.pricingService = services.NewPricingService(&c.config.Pricing)
