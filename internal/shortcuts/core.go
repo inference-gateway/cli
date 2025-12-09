@@ -3,12 +3,8 @@ package shortcuts
 import (
 	"context"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
-	"time"
 
-	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 )
@@ -47,74 +43,6 @@ func (c *ClearShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 		Output:     "🧹 Conversation history cleared!",
 		Success:    true,
 		SideEffect: SideEffectClearConversation,
-	}, nil
-}
-
-// ExportShortcut exports the conversation
-type ExportShortcut struct {
-	repo   domain.ConversationRepository
-	config *config.Config
-}
-
-func NewExportShortcut(repo domain.ConversationRepository, config *config.Config) *ExportShortcut {
-	return &ExportShortcut{
-		repo:   repo,
-		config: config,
-	}
-}
-
-func (c *ExportShortcut) GetName() string               { return "export" }
-func (c *ExportShortcut) GetDescription() string        { return "Export conversation to markdown" }
-func (c *ExportShortcut) GetUsage() string              { return "/export" }
-func (c *ExportShortcut) CanExecute(args []string) bool { return len(args) == 0 }
-
-func (c *ExportShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	if c.repo.GetMessageCount() == 0 {
-		return ShortcutResult{
-			Output:  "• No conversation to export - conversation history is empty",
-			Success: true,
-		}, nil
-	}
-
-	return ShortcutResult{
-		Output:     "• Exporting conversation...",
-		Success:    true,
-		SideEffect: SideEffectExportConversation,
-		Data:       ctx,
-	}, nil
-}
-
-// ExportResult contains the results of an export operation
-type ExportResult struct {
-	FilePath string
-}
-
-// PerformExport performs the actual export operation (called by side effect handler)
-func (c *ExportShortcut) PerformExport(ctx context.Context) (*ExportResult, error) {
-	filename := fmt.Sprintf("chat_export_%s.md", time.Now().Format("20060102_150405"))
-
-	outputDir := c.config.Export.OutputDir
-	if outputDir == "" {
-		outputDir = ".infer"
-	}
-
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, fmt.Errorf("failed to create output directory: %w", err)
-	}
-
-	filePath := filepath.Join(outputDir, filename)
-
-	conversationData, err := c.repo.Export(domain.ExportMarkdown)
-	if err != nil {
-		return nil, fmt.Errorf("failed to export conversation: %w", err)
-	}
-
-	if err := os.WriteFile(filePath, conversationData, 0644); err != nil {
-		return nil, fmt.Errorf("failed to write export file: %w", err)
-	}
-
-	return &ExportResult{
-		FilePath: filePath,
 	}, nil
 }
 

@@ -24,3 +24,7 @@ const BashDetachChannelKey ContextKey = "bash_detach_channel"
 // ChatHandlerKey is the context key for passing the ChatHandler reference
 // This allows the agent service to access ChatHandler for setting up the detach channel
 const ChatHandlerKey ContextKey = "chat_handler"
+
+// SessionIDKey is the context key for the current conversation session ID
+// This allows shortcuts to access the session ID when they need it (e.g., /export)
+const SessionIDKey ContextKey = "session_id"

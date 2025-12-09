@@ -25,14 +25,15 @@ type SnippetConfig struct {
 
 // CustomShortcutConfig represents a user-defined shortcut configuration
 type CustomShortcutConfig struct {
-	Name        string         `yaml:"name"`
-	Description string         `yaml:"description"`
-	Command     string         `yaml:"command,omitempty"`
-	Args        []string       `yaml:"args,omitempty"`
-	WorkingDir  string         `yaml:"working_dir,omitempty"`
-	Tool        string         `yaml:"tool,omitempty"`
-	ToolArgs    map[string]any `yaml:"tool_args,omitempty"`
-	Snippet     *SnippetConfig `yaml:"snippet,omitempty"`
+	Name          string         `yaml:"name"`
+	Description   string         `yaml:"description"`
+	Command       string         `yaml:"command,omitempty"`
+	Args          []string       `yaml:"args,omitempty"`
+	WorkingDir    string         `yaml:"working_dir,omitempty"`
+	Tool          string         `yaml:"tool,omitempty"`
+	ToolArgs      map[string]any `yaml:"tool_args,omitempty"`
+	Snippet       *SnippetConfig `yaml:"snippet,omitempty"`
+	PassSessionID bool           `yaml:"pass_session_id,omitempty"`
 }
 
 // CustomShortcutsConfig represents the structure of a custom shortcuts YAML file
@@ -172,6 +173,14 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 
 	command := c.config.Command
 	cmdArgs := append([]string{}, c.config.Args...)
+
+	if c.config.PassSessionID {
+		if sessionID := ctx.Value(domain.SessionIDKey); sessionID != nil {
+			if sessionIDStr, ok := sessionID.(string); ok {
+				args = append(args, sessionIDStr)
+			}
+		}
+	}
 
 	if command == "bash" && len(cmdArgs) >= 2 && cmdArgs[0] == "-c" {
 		cmdArgs = append(cmdArgs, "bash")
