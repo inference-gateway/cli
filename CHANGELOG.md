@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.86.0](https://github.com/inference-gateway/cli/compare/v0.85.0...v0.86.0) (2025-12-09)
+
+### 🚀 Features
+
+* Add cost tracking for API usage ([#324](https://github.com/inference-gateway/cli/issues/324)) ([1bf9cee](https://github.com/inference-gateway/cli/commit/1bf9cee1c18c2318566ad07da499d626bece67c7)), closes [#80](https://github.com/inference-gateway/cli/issues/80)
+
+### ♻️ Code Refactoring
+
+* Simplify export shortcut functionality ([#323](https://github.com/inference-gateway/cli/issues/323)) ([fd9b053](https://github.com/inference-gateway/cli/commit/fd9b053b848e69cfebc770b19bc76234c518a262))
+
 ## [0.85.0](https://github.com/inference-gateway/cli/compare/v0.84.1...v0.85.0) (2025-12-09)
 
 ### 🚀 Features
