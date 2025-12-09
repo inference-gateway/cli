@@ -187,16 +187,17 @@ func (c *CostShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 	var output strings.Builder
 	output.WriteString("## Session Cost Summary\n\n")
 
-	// Overall session stats
-	output.WriteString(fmt.Sprintf("**Total Cost:** $%.4f %s\n",
-		costStats.TotalCost, costStats.Currency))
-	output.WriteString(fmt.Sprintf("**Input Cost:** $%.4f (from %s tokens)\n",
+	output.WriteString("| Metric | Value |\n")
+	output.WriteString("|--------|-------|\n")
+	output.WriteString(fmt.Sprintf("| **Input Cost** | $%.4f (%s tokens) |\n",
 		costStats.TotalInputCost,
 		formatTokenCount(tokenStats.TotalInputTokens)))
-	output.WriteString(fmt.Sprintf("**Output Cost:** $%.4f (from %s tokens)\n",
+	output.WriteString(fmt.Sprintf("| **Output Cost** | $%.4f (%s tokens) |\n",
 		costStats.TotalOutputCost,
 		formatTokenCount(tokenStats.TotalOutputTokens)))
-	output.WriteString(fmt.Sprintf("**API Requests:** %d\n\n", tokenStats.RequestCount))
+	output.WriteString(fmt.Sprintf("| **API Requests** | %d |\n", tokenStats.RequestCount))
+	output.WriteString(fmt.Sprintf("| **Total Cost** | $%.4f %s |\n\n",
+		costStats.TotalCost, costStats.Currency))
 
 	if len(costStats.PerModelStats) > 1 {
 		output.WriteString("### Cost by Model\n\n")
@@ -213,20 +214,21 @@ func (c *CostShortcut) Execute(ctx context.Context, args []string) (ShortcutResu
 			return models[i].cost > models[j].cost
 		})
 
+		output.WriteString("| Model | Cost | Input | Output | Requests |\n")
+		output.WriteString("|-------|------|-------|--------|----------|\n")
 		for _, mc := range models {
 			stats := costStats.PerModelStats[mc.model]
-			output.WriteString(fmt.Sprintf("**%s**\n", stats.Model))
-			output.WriteString(fmt.Sprintf("- Cost: $%.4f (%.1f%%)\n",
+			output.WriteString(fmt.Sprintf("| %s | $%.4f (%.1f%%) | %s tokens ($%.4f) | %s tokens ($%.4f) | %d |\n",
+				stats.Model,
 				stats.TotalCost,
-				(stats.TotalCost/costStats.TotalCost)*100))
-			output.WriteString(fmt.Sprintf("- Input: %s tokens ($%.4f)\n",
+				(stats.TotalCost/costStats.TotalCost)*100,
 				formatTokenCount(stats.InputTokens),
-				stats.InputCost))
-			output.WriteString(fmt.Sprintf("- Output: %s tokens ($%.4f)\n",
+				stats.InputCost,
 				formatTokenCount(stats.OutputTokens),
-				stats.OutputCost))
-			output.WriteString(fmt.Sprintf("- Requests: %d\n\n", stats.RequestCount))
+				stats.OutputCost,
+				stats.RequestCount))
 		}
+		output.WriteString("\n")
 	} else if len(costStats.PerModelStats) == 1 {
 		for model := range costStats.PerModelStats {
 			output.WriteString(fmt.Sprintf("**Model:** %s\n", model))
