@@ -23,13 +23,15 @@ var (
 
 // mcpClient wraps a single MCP server connection with an initialized MCP library client
 type mcpClient struct {
-	serverName    string
-	client        *mcp.Client
-	globalConfig  *config.MCPConfig
-	serverConfig  config.MCPServerEntry
-	mu            sync.RWMutex
-	isConnected   bool
-	isInitialized bool
+	serverName      string
+	client          *mcp.Client
+	globalConfig    *config.MCPConfig
+	serverConfig    config.MCPServerEntry
+	mu              sync.RWMutex
+	isConnected     bool
+	isInitialized   bool
+	retryAttempt    int
+	lastAttemptTime time.Time
 }
 
 // newMCPClient creates a new MCP client (without initializing the transport yet)
@@ -253,7 +255,12 @@ func NewMCPManager(sessionID domain.SessionID, cfg *config.MCPConfig, runtime do
 
 	for _, server := range cfg.Servers {
 		if server.Enabled {
-			clients[server.Name] = newMCPClient(server, cfg)
+			client := newMCPClient(server, cfg)
+			if !server.Run {
+				serverURL := server.GetURL()
+				client.initializeClient(serverURL)
+			}
+			clients[server.Name] = client
 		}
 	}
 
@@ -325,15 +332,29 @@ func (m *MCPManager) StartMonitoring(ctx context.Context) <-chan domain.MCPServe
 
 			m.checkClientHealth(probeCtx, c)
 
-			ticker := time.NewTicker(interval)
-			defer ticker.Stop()
-
 			for {
 				select {
 				case <-probeCtx.Done():
 					return
-				case <-ticker.C:
-					m.checkClientHealth(probeCtx, c)
+				default:
+					c.mu.RLock()
+					isConnected := c.isConnected
+					retryAttempt := c.retryAttempt
+					c.mu.RUnlock()
+
+					var delay time.Duration
+					if isConnected {
+						delay = interval
+					} else {
+						delay = m.calculateBackoff(retryAttempt, interval)
+					}
+
+					select {
+					case <-probeCtx.Done():
+						return
+					case <-time.After(delay):
+						m.checkClientHealth(probeCtx, c)
+					}
 				}
 			}
 		}(client)
@@ -352,11 +373,23 @@ func (m *MCPManager) checkClientHealth(ctx context.Context, client *mcpClient) {
 	if !wasConnected {
 		toolsMap, err := client.DiscoverTools(ctx)
 		if err != nil {
+			client.mu.Lock()
+			client.retryAttempt++
+			client.lastAttemptTime = time.Now()
+			retryCount := client.retryAttempt
+			client.mu.Unlock()
+
 			logger.Error("MCP server health check failed (tool discovery failed)",
 				"server", client.serverName,
+				"retryAttempt", retryCount,
 				"error", err)
 			return
 		}
+
+		client.mu.Lock()
+		client.retryAttempt = 0
+		client.lastAttemptTime = time.Now()
+		client.mu.Unlock()
 
 		tools := toolsMap[client.serverName]
 
@@ -372,12 +405,53 @@ func (m *MCPManager) checkClientHealth(ctx context.Context, client *mcpClient) {
 	} else {
 		err := client.PingServer(ctx, client.serverName)
 		if err != nil {
+			// Increment retry attempt on ping failure
+			client.mu.Lock()
+			client.retryAttempt++
+			client.lastAttemptTime = time.Now()
+			client.mu.Unlock()
+
 			logger.Warn("MCP server became unhealthy", "server", client.serverName, "error", err)
 			m.sendStatusUpdate(client.serverName, false)
 			return
 		}
+
+		// Reset retry count on successful ping
+		client.mu.Lock()
+		client.retryAttempt = 0
+		client.lastAttemptTime = time.Now()
+		client.mu.Unlock()
+
 		logger.Debug("MCP server health check passed", "server", client.serverName)
 	}
+}
+
+// calculateBackoff calculates exponential backoff delay
+// Formula: min(baseInterval * 2^attempt, maxBackoff)
+func (m *MCPManager) calculateBackoff(attempt int, baseInterval time.Duration) time.Duration {
+	const maxBackoff = 5 * time.Minute
+
+	if attempt == 0 {
+		return baseInterval
+	}
+
+	// Calculate 2^attempt with overflow protection
+	multiplier := 1 << uint(attempt)
+	if multiplier > 32 {
+		multiplier = 32 // Cap at 2^5 = 32x
+	}
+
+	backoff := baseInterval * time.Duration(multiplier)
+	if backoff > maxBackoff {
+		backoff = maxBackoff
+	}
+
+	logger.Debug("Calculated exponential backoff",
+		"attempt", attempt,
+		"baseInterval", baseInterval,
+		"backoff", backoff)
+
+	return backoff
 }
 
 // sendInitialStatusUpdate sends the current status for all connected clients

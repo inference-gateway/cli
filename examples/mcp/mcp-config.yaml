@@ -10,6 +10,7 @@ servers:
   - name: demo-server
     host: mcp-demo-server
     port: 3000
+    path: /mcp
     enabled: true
     description: "Demo MCP server with example tools"
     # run: false (default) - server must be started manually
