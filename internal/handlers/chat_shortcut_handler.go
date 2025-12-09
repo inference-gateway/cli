@@ -312,7 +312,7 @@ func (s *ChatShortcutHandler) performSummaryGeneration() tea.Cmd {
 		summaryEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(fmt.Sprintf("📝 **Conversation Summary**\n\n%s\n\n---\n\n*Full conversation exported to: %s*", exportResult.Summary, exportResult.FilePath)),
+				Content: sdk.NewMessageContent(fmt.Sprintf("• Conversation exported to: %s", exportResult.FilePath)),
 			},
 			Model: "",
 			Time:  time.Now(),

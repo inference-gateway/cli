@@ -65,8 +65,8 @@ func NewExportShortcut(repo domain.ConversationRepository, config *config.Config
 
 func (c *ExportShortcut) GetName() string               { return "export" }
 func (c *ExportShortcut) GetDescription() string        { return "Export conversation to markdown" }
-func (c *ExportShortcut) GetUsage() string              { return "/export [format]" }
-func (c *ExportShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
+func (c *ExportShortcut) GetUsage() string              { return "/export" }
+func (c *ExportShortcut) CanExecute(args []string) bool { return len(args) == 0 }
 
 func (c *ExportShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
 	if c.repo.GetMessageCount() == 0 {
@@ -87,7 +87,6 @@ func (c *ExportShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 // ExportResult contains the results of an export operation
 type ExportResult struct {
 	FilePath string
-	Summary  string
 }
 
 // PerformExport performs the actual export operation (called by side effect handler)
@@ -116,7 +115,6 @@ func (c *ExportShortcut) PerformExport(ctx context.Context) (*ExportResult, erro
 
 	return &ExportResult{
 		FilePath: filePath,
-		Summary:  "",
 	}, nil
 }
 
