@@ -325,7 +325,6 @@ func (c *ServiceContainer) initializeExtensibility() {
 // registerDefaultCommands registers the built-in commands
 func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, c.taskTrackerService))
-	c.shortcutRegistry.Register(shortcuts.NewExportShortcut(c.conversationRepo, c.agentService, c.modelService, c.config))
 	c.shortcutRegistry.Register(shortcuts.NewCompactShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewContextShortcut(c.conversationRepo, c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())

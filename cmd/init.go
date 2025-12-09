@@ -37,7 +37,7 @@ func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, mcpPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, mcpPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -50,6 +50,7 @@ func initializeProject(cmd *cobra.Command) error {
 		gitShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "git.yaml")
 		mcpShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "mcp.yaml")
 		shellsShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "shells.yaml")
+		exportShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "export.yaml")
 		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
 	} else {
 		configPath = config.DefaultConfigPath
@@ -58,11 +59,12 @@ func initializeProject(cmd *cobra.Command) error {
 		gitShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "git.yaml")
 		mcpShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "mcp.yaml")
 		shellsShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "shells.yaml")
+		exportShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "export.yaml")
 		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, mcpPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, mcpPath); err != nil {
 			return err
 		}
 	}
@@ -99,6 +101,10 @@ bin/
 		return fmt.Errorf("failed to create Shells shortcuts file: %w", err)
 	}
 
+	if err := createExportShortcutsFile(exportShortcutsPath); err != nil {
+		return fmt.Errorf("failed to create Export shortcuts file: %w", err)
+	}
+
 	if err := createMCPConfigFile(mcpPath); err != nil {
 		return fmt.Errorf("failed to create MCP config file: %w", err)
 	}
@@ -117,6 +123,7 @@ bin/
 	fmt.Printf("   Created: %s\n", gitShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpShortcutsPath)
 	fmt.Printf("   Created: %s\n", shellsShortcutsPath)
+	fmt.Printf("   Created: %s\n", exportShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpPath)
 	fmt.Println("")
 	if userspace {
@@ -524,4 +531,29 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(shellsShortcutsContent), 0644)
+}
+
+// createExportShortcutsFile creates the Export shortcuts YAML file
+func createExportShortcutsFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create shortcuts directory: %w", err)
+	}
+
+	exportShortcutsContent := `---
+# Export Shortcuts
+# Export conversations to markdown files
+#
+# Usage:
+# - /export - Export the current active conversation
+
+shortcuts:
+  - name: export
+    description: "Export current conversation to markdown"
+    command: infer
+    args:
+      - export
+    pass_session_id: true
+`
+
+	return os.WriteFile(path, []byte(exportShortcutsContent), 0644)
 }

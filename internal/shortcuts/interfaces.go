@@ -29,7 +29,6 @@ type SideEffectType int
 const (
 	SideEffectNone SideEffectType = iota
 	SideEffectClearConversation
-	SideEffectExportConversation
 	SideEffectExit
 	SideEffectSwitchModel
 	SideEffectSwitchTheme
