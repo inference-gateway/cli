@@ -31,6 +31,7 @@ type ConversationView struct {
 	lineFormatter       *formatting.ConversationLineFormatter
 	plainTextLines      []string
 	configPath          string
+	versionInfo         *domain.VersionInfo
 	styleProvider       *styles.Provider
 	toolCallRenderer    *ToolCallRenderer
 	markdownRenderer    *markdown.Renderer
@@ -77,6 +78,11 @@ func (cv *ConversationView) SetToolFormatter(formatter domain.ToolFormatter) {
 // SetConfigPath sets the config path for the welcome message
 func (cv *ConversationView) SetConfigPath(configPath string) {
 	cv.configPath = configPath
+}
+
+// SetVersionInfo sets the version information for the welcome message
+func (cv *ConversationView) SetVersionInfo(info domain.VersionInfo) {
+	cv.versionInfo = &info
 }
 
 // SetToolCallRenderer sets the tool call renderer for displaying real-time tool execution status
@@ -279,6 +285,13 @@ func (cv *ConversationView) updateViewportContentFull() {
 }
 
 func (cv *ConversationView) renderWelcome() string {
+	if cv.height >= 20 {
+		return cv.renderFullWelcome()
+	}
+	return cv.renderCompactWelcome()
+}
+
+func (cv *ConversationView) renderFullWelcome() string {
 	statusColor := cv.styleProvider.GetThemeColor("status")
 	successColor := cv.styleProvider.GetThemeColor("success")
 	dimColor := cv.styleProvider.GetThemeColor("dim")
@@ -286,25 +299,43 @@ func (cv *ConversationView) renderWelcome() string {
 	headerLine := cv.styleProvider.RenderWithColor("✨ Inference Gateway CLI", statusColor)
 	readyLine := cv.styleProvider.RenderWithColor("🚀 Ready to chat!", successColor)
 
+	wd, err := os.Getwd()
+	if err != nil {
+		wd = "unknown"
+	}
+
+	headerColor := cv.getHeaderColor()
+	workingLinePrefix := cv.styleProvider.RenderWithColor("📂 Working in: ", dimColor)
+	workingLinePath := cv.styleProvider.RenderWithColor(wd, headerColor)
+	workingLine := workingLinePrefix + workingLinePath
+
+	configLine := cv.buildConfigLine()
+	versionLine := cv.buildVersionLine()
+
 	var content string
-
-	if cv.height >= 20 {
-		wd, err := os.Getwd()
-		if err != nil {
-			wd = "unknown"
-		}
-
-		headerColor := cv.getHeaderColor()
-
-		workingLinePrefix := cv.styleProvider.RenderWithColor("📂 Working in: ", dimColor)
-		workingLinePath := cv.styleProvider.RenderWithColor(wd, headerColor)
-		workingLine := workingLinePrefix + workingLinePath
-
-		configLine := cv.buildConfigLine()
-
-		content = headerLine + "\n\n" + readyLine + "\n\n" + workingLine + "\n\n" + configLine
+	if versionLine != "" {
+		content = headerLine + "\n\n" + readyLine + "\n\n" + workingLine + "\n\n" + configLine + "\n\n" + versionLine
 	} else {
-		separator := cv.styleProvider.RenderWithColor("  •  ", dimColor)
+		content = headerLine + "\n\n" + readyLine + "\n\n" + workingLine + "\n\n" + configLine
+	}
+
+	return cv.styleProvider.RenderBorderedBox(content, cv.styleProvider.GetThemeColor("accent"), 1, 1)
+}
+
+func (cv *ConversationView) renderCompactWelcome() string {
+	statusColor := cv.styleProvider.GetThemeColor("status")
+	successColor := cv.styleProvider.GetThemeColor("success")
+	dimColor := cv.styleProvider.GetThemeColor("dim")
+
+	headerLine := cv.styleProvider.RenderWithColor("✨ Inference Gateway CLI", statusColor)
+	readyLine := cv.styleProvider.RenderWithColor("🚀 Ready to chat!", successColor)
+	separator := cv.styleProvider.RenderWithColor("  •  ", dimColor)
+	versionShort := cv.buildVersionShort()
+
+	var content string
+	if versionShort != "" {
+		content = headerLine + separator + readyLine + separator + versionShort
+	} else {
 		content = headerLine + separator + readyLine
 	}
 
@@ -585,6 +616,38 @@ func (cv *ConversationView) buildConfigLine() string {
 	configTypeStyled := cv.styleProvider.RenderWithColor(" ("+configType+")", dimColor)
 
 	return configPrefix + pathStyled + configTypeStyled
+}
+
+// buildVersionLine constructs the version line for the welcome screen (full layout)
+func (cv *ConversationView) buildVersionLine() string {
+	if cv.versionInfo == nil || cv.versionInfo.Version == "" {
+		return ""
+	}
+
+	dimColor := cv.styleProvider.GetThemeColor("dim")
+	accentColor := cv.styleProvider.GetThemeColor("accent")
+
+	version := cv.versionInfo.Version
+	if version == "dev" {
+		version = "dev"
+	}
+
+	prefix := cv.styleProvider.RenderWithColor("•  Version: ", dimColor)
+	versionStyled := cv.styleProvider.RenderWithColor(version, accentColor)
+
+	return prefix + versionStyled
+}
+
+// buildVersionShort constructs the short version for compact layout
+func (cv *ConversationView) buildVersionShort() string {
+	if cv.versionInfo == nil || cv.versionInfo.Version == "" {
+		return ""
+	}
+
+	dimColor := cv.styleProvider.GetThemeColor("dim")
+	version := cv.versionInfo.Version
+
+	return cv.styleProvider.RenderWithColor(version, dimColor)
 }
 
 // getConfigType determines if the config is project-level or userspace

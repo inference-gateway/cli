@@ -85,6 +85,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	agentManager := services.GetAgentManager()
 	conversationOptimizer := services.GetConversationOptimizer()
 
+	versionInfo := GetVersionInfo()
 	application := app.NewChatApplication(
 		models,
 		defaultModel,
@@ -106,6 +107,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		backgroundTaskService,
 		agentManager,
 		getEffectiveConfigPath(),
+		versionInfo,
 	)
 
 	program := tea.NewProgram(
