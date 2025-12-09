@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.84.1](https://github.com/inference-gateway/cli/compare/v0.84.0...v0.84.1) (2025-12-09)
+
+### ♻️ Code Refactoring
+
+* Improve MCP health monitoring with exponential backoff ([03afd64](https://github.com/inference-gateway/cli/commit/03afd6439dcdf372bd1d32531464d4aec27e1aa8))
+
+### 💄 Styles
+
+* Add colors also for linux ([ae14e81](https://github.com/inference-gateway/cli/commit/ae14e81da730f8264394fe1d2e2206625aad936e))
+
 ## [0.84.0](https://github.com/inference-gateway/cli/compare/v0.83.0...v0.84.0) (2025-12-09)
 
 ### 🚀 Features
