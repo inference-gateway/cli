@@ -17,14 +17,21 @@ type InMemoryConversationRepository struct {
 	messages         []domain.ConversationEntry
 	mutex            sync.RWMutex
 	sessionStats     domain.SessionTokenStats
+	costStats        domain.SessionCostStats
 	formatterService *ToolFormatterService
+	pricingService   domain.PricingService
 }
 
 // NewInMemoryConversationRepository creates a new in-memory conversation repository
-func NewInMemoryConversationRepository(formatterService *ToolFormatterService) *InMemoryConversationRepository {
+func NewInMemoryConversationRepository(formatterService *ToolFormatterService, pricingService domain.PricingService) *InMemoryConversationRepository {
 	return &InMemoryConversationRepository{
 		messages:         make([]domain.ConversationEntry, 0),
 		formatterService: formatterService,
+		pricingService:   pricingService,
+		costStats: domain.SessionCostStats{
+			PerModelStats: make(map[string]*domain.ModelCostStats),
+			Currency:      "USD",
+		},
 	}
 }
 
@@ -164,6 +171,10 @@ func (r *InMemoryConversationRepository) Clear() error {
 
 	r.messages = r.messages[:0]
 	r.sessionStats = domain.SessionTokenStats{}
+	r.costStats = domain.SessionCostStats{
+		PerModelStats: make(map[string]*domain.ModelCostStats),
+		Currency:      "USD",
+	}
 	return nil
 }
 
@@ -187,6 +198,10 @@ func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {
 
 	r.messages = []domain.ConversationEntry{*firstUserMessage}
 	r.sessionStats = domain.SessionTokenStats{}
+	r.costStats = domain.SessionCostStats{
+		PerModelStats: make(map[string]*domain.ModelCostStats),
+		Currency:      "USD",
+	}
 	return nil
 }
 
@@ -367,8 +382,9 @@ func (r *InMemoryConversationRepository) filterHiddenMessages() []domain.Convers
 	return filtered
 }
 
-// AddTokenUsage adds token usage from a single API call to session totals
-func (r *InMemoryConversationRepository) AddTokenUsage(inputTokens, outputTokens, totalTokens int) error {
+// AddTokenUsage adds token usage from a single API call to session totals with model tracking.
+// The model parameter is required for cost tracking. Use empty string for unknown models.
+func (r *InMemoryConversationRepository) AddTokenUsage(model string, inputTokens, outputTokens, totalTokens int) error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 
@@ -377,6 +393,34 @@ func (r *InMemoryConversationRepository) AddTokenUsage(inputTokens, outputTokens
 	r.sessionStats.TotalTokens += totalTokens
 	r.sessionStats.RequestCount++
 	r.sessionStats.LastInputTokens = inputTokens
+
+	if r.pricingService == nil || model == "" {
+		return nil
+	}
+
+	inputCost, outputCost, totalCost := r.pricingService.CalculateCost(model, inputTokens, outputTokens)
+
+	if r.costStats.PerModelStats == nil {
+		r.costStats.PerModelStats = make(map[string]*domain.ModelCostStats)
+	}
+
+	if _, exists := r.costStats.PerModelStats[model]; !exists {
+		r.costStats.PerModelStats[model] = &domain.ModelCostStats{
+			Model: model,
+		}
+	}
+
+	modelStats := r.costStats.PerModelStats[model]
+	modelStats.InputTokens += inputTokens
+	modelStats.OutputTokens += outputTokens
+	modelStats.InputCost += inputCost
+	modelStats.OutputCost += outputCost
+	modelStats.TotalCost += totalCost
+	modelStats.RequestCount++
+
+	r.costStats.TotalInputCost += inputCost
+	r.costStats.TotalOutputCost += outputCost
+	r.costStats.TotalCost += totalCost
 
 	return nil
 }
@@ -387,6 +431,21 @@ func (r *InMemoryConversationRepository) GetSessionTokens() domain.SessionTokenS
 	defer r.mutex.RUnlock()
 
 	return r.sessionStats
+}
+
+// GetSessionCostStats returns the accumulated cost statistics for the session
+func (r *InMemoryConversationRepository) GetSessionCostStats() domain.SessionCostStats {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	stats := r.costStats
+	stats.PerModelStats = make(map[string]*domain.ModelCostStats)
+	for k, v := range r.costStats.PerModelStats {
+		statsCopy := *v
+		stats.PerModelStats[k] = &statsCopy
+	}
+
+	return stats
 }
 
 // FormatToolResultForLLM formats tool execution results for LLM consumption

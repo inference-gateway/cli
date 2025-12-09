@@ -216,14 +216,21 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 			return
 		}
 
+		status := "complete"
+		message := "Completed successfully"
+		if result != nil && !result.Success {
+			status = "failed"
+			message = "Execution failed"
+		}
+
 		eventChan <- domain.ToolExecutionProgressEvent{
 			BaseChatEvent: domain.BaseChatEvent{
 				RequestID: toolCallID,
 				Timestamp: time.Now(),
 			},
 			ToolCallID: toolCallID,
-			Status:     "complete",
-			Message:    "Completed successfully",
+			Status:     status,
+			Message:    message,
 		}
 
 		toolCalls := []sdk.ChatCompletionMessageToolCall{
@@ -243,10 +250,16 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 		}
 		_ = c.handler.conversationRepo.AddMessage(assistantEntry)
 
+		var formattedContent string
+		if result != nil {
+			formattedContent = c.handler.conversationRepo.FormatToolResultForLLM(result)
+		} else {
+			formattedContent = "Tool execution failed: no result returned"
+		}
 		toolEntry := domain.ConversationEntry{
 			Message: sdk.Message{
 				Role:       sdk.Tool,
-				Content:    sdk.NewMessageContent(""),
+				Content:    sdk.NewMessageContent(formattedContent),
 				ToolCallId: &toolCallID,
 			},
 			ToolExecution: result,

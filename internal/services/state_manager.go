@@ -123,6 +123,13 @@ func (sm *StateManager) GetCurrentView() domain.ViewState {
 	return sm.state.GetCurrentView()
 }
 
+// GetPreviousView returns the previous view state
+func (sm *StateManager) GetPreviousView() domain.ViewState {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.GetPreviousView()
+}
+
 // TransitionToView transitions to a new view with validation and logging
 func (sm *StateManager) TransitionToView(newView domain.ViewState) error {
 	sm.mutex.Lock()

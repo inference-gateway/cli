@@ -529,6 +529,7 @@ chat:
       mcp: true
       context_usage: true
       session_tokens: true
+      cost: true
       git_branch: true
 a2a:
   enabled: true
@@ -565,6 +566,10 @@ mcp:
   liveness_probe_enabled: true
   liveness_probe_interval: 10
   servers: []
+pricing:
+  enabled: true
+  currency: USD
+  custom_prices: {}
 init:
   prompt: |-
     Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.

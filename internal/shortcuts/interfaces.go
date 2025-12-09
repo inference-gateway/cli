@@ -4,6 +4,7 @@ import (
 	"context"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // Shortcut interface represents a chat shortcut that can be executed
@@ -65,6 +66,7 @@ type ConversationSummary struct {
 	UpdatedAt    string
 	MessageCount int
 	TokenStats   TokenStats
+	CostStats    domain.SessionCostStats
 	Model        string
 	Tags         []string
 	Summary      string
@@ -78,6 +80,7 @@ type ConversationMetadata struct {
 	UpdatedAt    string
 	MessageCount int
 	TokenStats   TokenStats
+	CostStats    domain.SessionCostStats
 	Model        string
 	Tags         []string
 	Summary      string

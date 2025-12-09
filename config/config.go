@@ -37,6 +37,7 @@ type Config struct {
 	Chat             ChatConfig             `yaml:"chat" mapstructure:"chat"`
 	A2A              A2AConfig              `yaml:"a2a" mapstructure:"a2a"`
 	MCP              MCPConfig              `yaml:"mcp" mapstructure:"mcp"`
+	Pricing          PricingConfig          `yaml:"pricing" mapstructure:"pricing"`
 	Init             InitConfig             `yaml:"init" mapstructure:"init"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
 }
@@ -359,6 +360,7 @@ type StatusBarIndicators struct {
 	MCP              bool `yaml:"mcp" mapstructure:"mcp"`
 	ContextUsage     bool `yaml:"context_usage" mapstructure:"context_usage"`
 	SessionTokens    bool `yaml:"session_tokens" mapstructure:"session_tokens"`
+	Cost             bool `yaml:"cost" mapstructure:"cost"`
 	GitBranch        bool `yaml:"git_branch" mapstructure:"git_branch"`
 }
 
@@ -486,6 +488,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			MCP:              true,
 			ContextUsage:     true,
 			SessionTokens:    true,
+			Cost:             true,
 			GitBranch:        true,
 		},
 	}
@@ -851,7 +854,8 @@ Respond with ONLY the title, no quotes or explanation.`,
 				},
 			},
 		},
-		MCP: *DefaultMCPConfig(),
+		MCP:     *DefaultMCPConfig(),
+		Pricing: GetDefaultPricingConfig(),
 		Init: InitConfig{
 			Prompt: `Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.
 Use your available tools to examine configuration files, documentation, build systems, and development workflow.

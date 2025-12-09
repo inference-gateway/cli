@@ -875,7 +875,11 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 		return cmds
 	}
 
-	if app.conversationSelector.IsSelected() || app.conversationSelector.IsCancelled() {
+	isDone := app.conversationSelector.IsSelected() || app.conversationSelector.IsCancelled()
+	needsInit := app.conversationSelector.NeedsInitialization()
+	fromDifferentView := app.stateManager.GetPreviousView() != domain.ViewStateConversationSelection
+
+	if fromDifferentView && (isDone || needsInit) {
 		app.conversationSelector.Reset()
 		if cmd := app.conversationSelector.Init(); cmd != nil {
 			cmds = append(cmds, cmd)

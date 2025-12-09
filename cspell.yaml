@@ -3,18 +3,25 @@ language: en
 words:
   - bubbletea
   - charmbracelet
+  - codellama
   - deepseek
   - DEEPSEEK
   - funlen
   - gocyclo
   - groq
   - GROQ
+  - kimi
+  - mapstructure
   - mekayelanik
+  - mixtral
+  - moonshotai
+  - mtoken
   - nolint
   - ollama
   - OLLAMA
   - oneline
   - pgdn
   - pgup
+  - qwen
   - SHTTP
   - sname

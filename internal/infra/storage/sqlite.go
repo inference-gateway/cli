@@ -77,6 +77,8 @@ func (s *SQLiteStorage) createTables() error {
 		optimized_messages TEXT,           -- JSON array of optimized messages
 		total_input_tokens INTEGER NOT NULL DEFAULT 0,   -- Total input tokens used
 		total_output_tokens INTEGER NOT NULL DEFAULT 0,  -- Total output tokens used
+		request_count INTEGER NOT NULL DEFAULT 0,        -- Number of API requests made
+		cost_stats TEXT DEFAULT '{}',      -- JSON object of cost statistics
 		models TEXT DEFAULT '[]',          -- JSON array of models used
 		tags TEXT DEFAULT '[]',            -- JSON array of tags
 		summary TEXT DEFAULT '',           -- Conversation summary
@@ -210,6 +212,12 @@ func (s *SQLiteStorage) SaveConversation(ctx context.Context, conversationID str
 
 	totalInputTokens := metadata.TokenStats.TotalInputTokens
 	totalOutputTokens := metadata.TokenStats.TotalOutputTokens
+	requestCount := metadata.TokenStats.RequestCount
+
+	costStatsJSON, err := json.Marshal(metadata.CostStats)
+	if err != nil {
+		return fmt.Errorf("failed to marshal cost stats: %w", err)
+	}
 
 	var optimizedMessagesStr *string
 	if len(optimizedMessagesJSON) > 0 {
@@ -219,9 +227,9 @@ func (s *SQLiteStorage) SaveConversation(ctx context.Context, conversationID str
 
 	_, err = s.db.ExecContext(ctx, `
 		INSERT INTO conversations (id, title, count, messages, optimized_messages, total_input_tokens, total_output_tokens,
-		                          models, tags, summary, title_generated, title_invalidated, title_generation_time,
+		                          request_count, cost_stats, models, tags, summary, title_generated, title_invalidated, title_generation_time,
 		                          created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET
 			title = excluded.title,
 			count = excluded.count,
@@ -229,6 +237,8 @@ func (s *SQLiteStorage) SaveConversation(ctx context.Context, conversationID str
 			optimized_messages = excluded.optimized_messages,
 			total_input_tokens = excluded.total_input_tokens,
 			total_output_tokens = excluded.total_output_tokens,
+			request_count = excluded.request_count,
+			cost_stats = excluded.cost_stats,
 			models = excluded.models,
 			tags = excluded.tags,
 			summary = excluded.summary,
@@ -237,7 +247,7 @@ func (s *SQLiteStorage) SaveConversation(ctx context.Context, conversationID str
 			title_generation_time = excluded.title_generation_time,
 			updated_at = excluded.updated_at
 	`, conversationID, metadata.Title, len(entries), string(messagesJSON), optimizedMessagesStr, totalInputTokens, totalOutputTokens,
-		string(modelsJSON), string(tagsJSON), metadata.Summary, metadata.TitleGenerated, metadata.TitleInvalidated,
+		requestCount, string(costStatsJSON), string(modelsJSON), string(tagsJSON), metadata.Summary, metadata.TitleGenerated, metadata.TitleInvalidated,
 		metadata.TitleGenerationTime, metadata.CreatedAt.Format(time.RFC3339), metadata.UpdatedAt.Format(time.RFC3339))
 	if err != nil {
 		return fmt.Errorf("failed to save conversation: %w", err)
@@ -274,20 +284,20 @@ func (s *SQLiteStorage) LoadConversation(ctx context.Context, conversationID str
 // loadConversationMetadata loads the metadata for a conversation
 func (s *SQLiteStorage) loadConversationMetadata(ctx context.Context, conversationID string) (ConversationMetadata, string, sql.NullString, error) {
 	var metadata ConversationMetadata
-	var messagesJSON, modelsJSON, tagsJSON string
+	var messagesJSON, modelsJSON, tagsJSON, costStatsJSON string
 	var optimizedMessagesJSON sql.NullString
-	var totalInputTokens, totalOutputTokens int
+	var totalInputTokens, totalOutputTokens, requestCount int
 	var titleGenerationTime sql.NullTime
 
 	err := s.db.QueryRowContext(ctx, `
 		SELECT id, title, count, messages, optimized_messages, total_input_tokens, total_output_tokens,
-		       models, tags, summary, title_generated, title_invalidated, title_generation_time,
+		       request_count, cost_stats, models, tags, summary, title_generated, title_invalidated, title_generation_time,
 		       created_at, updated_at
 		FROM conversations WHERE id = ?
 	`, conversationID).Scan(
 		&metadata.ID, &metadata.Title, &metadata.MessageCount,
 		&messagesJSON, &optimizedMessagesJSON, &totalInputTokens, &totalOutputTokens,
-		&modelsJSON, &tagsJSON, &metadata.Summary,
+		&requestCount, &costStatsJSON, &modelsJSON, &tagsJSON, &metadata.Summary,
 		&metadata.TitleGenerated, &metadata.TitleInvalidated, &titleGenerationTime,
 		&metadata.CreatedAt, &metadata.UpdatedAt,
 	)
@@ -302,7 +312,13 @@ func (s *SQLiteStorage) loadConversationMetadata(ctx context.Context, conversati
 		TotalInputTokens:  totalInputTokens,
 		TotalOutputTokens: totalOutputTokens,
 		TotalTokens:       totalInputTokens + totalOutputTokens,
-		RequestCount:      metadata.MessageCount / 2,
+		RequestCount:      requestCount,
+	}
+
+	if costStatsJSON != "" && costStatsJSON != "{}" {
+		if err := json.Unmarshal([]byte(costStatsJSON), &metadata.CostStats); err != nil {
+			metadata.CostStats = domain.SessionCostStats{}
+		}
 	}
 
 	var models []string
@@ -442,7 +458,7 @@ func (s *SQLiteStorage) parseMessageImages(entry *domain.ConversationEntry, msg 
 // ListConversations returns a list of conversation summaries
 func (s *SQLiteStorage) ListConversations(ctx context.Context, limit, offset int) ([]ConversationSummary, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, title, created_at, updated_at, count, total_input_tokens, total_output_tokens
+		SELECT id, title, created_at, updated_at, count, total_input_tokens, total_output_tokens, request_count, cost_stats
 		FROM conversations
 		ORDER BY updated_at DESC
 		LIMIT ? OFFSET ?
@@ -455,11 +471,12 @@ func (s *SQLiteStorage) ListConversations(ctx context.Context, limit, offset int
 	var summaries []ConversationSummary
 	for rows.Next() {
 		var summary ConversationSummary
-		var totalInputTokens, totalOutputTokens int
+		var totalInputTokens, totalOutputTokens, requestCount int
+		var costStatsJSON string
 
 		err := rows.Scan(
 			&summary.ID, &summary.Title, &summary.CreatedAt, &summary.UpdatedAt,
-			&summary.MessageCount, &totalInputTokens, &totalOutputTokens,
+			&summary.MessageCount, &totalInputTokens, &totalOutputTokens, &requestCount, &costStatsJSON,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan conversation: %w", err)
@@ -469,7 +486,13 @@ func (s *SQLiteStorage) ListConversations(ctx context.Context, limit, offset int
 			TotalInputTokens:  totalInputTokens,
 			TotalOutputTokens: totalOutputTokens,
 			TotalTokens:       totalInputTokens + totalOutputTokens,
-			RequestCount:      1,
+			RequestCount:      requestCount,
+		}
+
+		if costStatsJSON != "" && costStatsJSON != "{}" {
+			if err := json.Unmarshal([]byte(costStatsJSON), &summary.CostStats); err != nil {
+				summary.CostStats = domain.SessionCostStats{}
+			}
 		}
 
 		summaries = append(summaries, summary)
@@ -565,6 +588,11 @@ func (s *SQLiteStorage) UpdateConversationMetadata(ctx context.Context, conversa
 		return fmt.Errorf("failed to marshal tags: %w", err)
 	}
 
+	costStatsJSON, err := json.Marshal(metadata.CostStats)
+	if err != nil {
+		return fmt.Errorf("failed to marshal cost stats: %w", err)
+	}
+
 	modelsJSON := "[]"
 	if metadata.Model != "" {
 		models := []string{metadata.Model}
@@ -576,11 +604,11 @@ func (s *SQLiteStorage) UpdateConversationMetadata(ctx context.Context, conversa
 	result, err := s.db.ExecContext(ctx, `
 		UPDATE conversations
 		SET title = ?, updated_at = ?, models = ?, tags = ?, summary = ?,
-		    total_input_tokens = ?, total_output_tokens = ?,
+		    total_input_tokens = ?, total_output_tokens = ?, request_count = ?, cost_stats = ?,
 		    title_generated = ?, title_invalidated = ?, title_generation_time = ?
 		WHERE id = ?
 	`, metadata.Title, metadata.UpdatedAt, modelsJSON, string(tagsJSON), metadata.Summary,
-		metadata.TokenStats.TotalInputTokens, metadata.TokenStats.TotalOutputTokens,
+		metadata.TokenStats.TotalInputTokens, metadata.TokenStats.TotalOutputTokens, metadata.TokenStats.RequestCount, string(costStatsJSON),
 		metadata.TitleGenerated, metadata.TitleInvalidated, metadata.TitleGenerationTime, conversationID)
 	if err != nil {
 		return fmt.Errorf("failed to update conversation metadata: %w", err)

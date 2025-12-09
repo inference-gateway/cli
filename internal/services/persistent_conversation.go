@@ -27,8 +27,8 @@ type PersistentConversationRepository struct {
 }
 
 // NewPersistentConversationRepository creates a new persistent conversation repository
-func NewPersistentConversationRepository(formatterService *ToolFormatterService, storageBackend storage.ConversationStorage) *PersistentConversationRepository {
-	inMemory := NewInMemoryConversationRepository(formatterService)
+func NewPersistentConversationRepository(formatterService *ToolFormatterService, pricingService domain.PricingService, storageBackend storage.ConversationStorage) *PersistentConversationRepository {
+	inMemory := NewInMemoryConversationRepository(formatterService, pricingService)
 
 	return &PersistentConversationRepository{
 		InMemoryConversationRepository: inMemory,
@@ -103,6 +103,7 @@ func (r *PersistentConversationRepository) LoadConversation(ctx context.Context,
 	r.metadata = metadata
 
 	r.sessionStats = metadata.TokenStats
+	r.costStats = metadata.CostStats
 
 	if r.taskTracker != nil {
 		r.taskTracker.ClearAllAgents()
@@ -122,6 +123,7 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 	r.metadata.UpdatedAt = time.Now()
 	r.metadata.MessageCount = len(entries)
 	r.metadata.TokenStats = r.GetSessionTokens()
+	r.metadata.CostStats = r.GetSessionCostStats()
 
 	return r.storage.SaveConversation(ctx, r.conversationID, entries, r.metadata)
 }
@@ -180,12 +182,16 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 		}
 
 		r.metadata = storage.ConversationMetadata{
-			ID:               r.conversationID,
-			Title:            title,
-			CreatedAt:        now,
-			UpdatedAt:        now,
-			MessageCount:     0,
-			TokenStats:       domain.SessionTokenStats{},
+			ID:           r.conversationID,
+			Title:        title,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+			MessageCount: 0,
+			TokenStats:   domain.SessionTokenStats{},
+			CostStats: domain.SessionCostStats{
+				PerModelStats: make(map[string]*domain.ModelCostStats),
+				Currency:      "USD",
+			},
 			Tags:             []string{},
 			TitleGenerated:   false,
 			TitleInvalidated: false,
@@ -246,8 +252,8 @@ func (r *PersistentConversationRepository) Clear() error {
 	return nil
 }
 
-// Override AddTokenUsage to trigger auto-save
-func (r *PersistentConversationRepository) AddTokenUsage(inputTokens, outputTokens, totalTokens int) error {
+// AddTokenUsage wraps the in-memory implementation with persistence and auto-save
+func (r *PersistentConversationRepository) AddTokenUsage(model string, inputTokens, outputTokens, totalTokens int) error {
 	if r.autoSave && r.conversationID == "" {
 		r.conversationID = uuid.New().String()
 		now := time.Now()
@@ -263,19 +269,23 @@ func (r *PersistentConversationRepository) AddTokenUsage(inputTokens, outputToke
 		}
 
 		r.metadata = storage.ConversationMetadata{
-			ID:               r.conversationID,
-			Title:            title,
-			CreatedAt:        now,
-			UpdatedAt:        now,
-			MessageCount:     0,
-			TokenStats:       domain.SessionTokenStats{},
+			ID:           r.conversationID,
+			Title:        title,
+			CreatedAt:    now,
+			UpdatedAt:    now,
+			MessageCount: 0,
+			TokenStats:   domain.SessionTokenStats{},
+			CostStats: domain.SessionCostStats{
+				PerModelStats: make(map[string]*domain.ModelCostStats),
+				Currency:      "USD",
+			},
 			Tags:             []string{},
 			TitleGenerated:   false,
 			TitleInvalidated: false,
 		}
 	}
 
-	if err := r.InMemoryConversationRepository.AddTokenUsage(inputTokens, outputTokens, totalTokens); err != nil {
+	if err := r.InMemoryConversationRepository.AddTokenUsage(model, inputTokens, outputTokens, totalTokens); err != nil {
 		return err
 	}
 
