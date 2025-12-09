@@ -111,6 +111,7 @@ func NewChatApplication(
 	backgroundTaskService domain.BackgroundTaskService,
 	agentManager domain.AgentManager,
 	configPath string,
+	versionInfo domain.VersionInfo,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
 	if defaultModel != "" {
@@ -151,6 +152,7 @@ func NewChatApplication(
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
+		cv.SetVersionInfo(versionInfo)
 		cv.SetToolCallRenderer(app.toolCallRenderer)
 		cv.SetStateManager(app.stateManager)
 	}
