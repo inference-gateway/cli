@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.86.3](https://github.com/inference-gateway/cli/compare/v0.86.2...v0.86.3) (2025-12-10)
+
+### 🐛 Bug Fixes
+
+* Improve markdown rendering and text wrapping ([#326](https://github.com/inference-gateway/cli/issues/326)) ([6ca2ecf](https://github.com/inference-gateway/cli/commit/6ca2ecf296bae5880938155d3154670a204fc3f3))
+
+### ♻️ Code Refactoring
+
+* **example:** Cleanups - remove unnecessary exposed port, volume and network in example ([52fe582](https://github.com/inference-gateway/cli/commit/52fe5829fd5b3bb3c8c636408f32b3b251ce61ee))
+
+### 🧹 Maintenance
+
+* Remove default vars syntax from env vars ([b47562a](https://github.com/inference-gateway/cli/commit/b47562a750bdf37fe75629459c6fc23249295214))
+
 ## [0.86.2](https://github.com/inference-gateway/cli/compare/v0.86.1...v0.86.2) (2025-12-10)
 
 ### 📚 Documentation
