@@ -270,3 +270,21 @@ func joinArgs(args []string) string {
 	}
 	return result
 }
+
+// ============================================================================
+// Cost Formatting
+// ============================================================================
+
+// FormatCost formats cost with adaptive precision based on magnitude
+// Returns "-" for zero cost, and uses 2-4 decimal places based on the amount
+func FormatCost(cost float64) string {
+	if cost == 0 {
+		return "-"
+	} else if cost < 0.01 {
+		return fmt.Sprintf("$%.4f", cost)
+	} else if cost < 1.0 {
+		return fmt.Sprintf("$%.3f", cost)
+	} else {
+		return fmt.Sprintf("$%.2f", cost)
+	}
+}

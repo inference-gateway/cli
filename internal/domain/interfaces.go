@@ -435,6 +435,10 @@ type GatewayManager interface {
 
 	// GetGatewayURL returns the actual gateway URL with the assigned port
 	GetGatewayURL() string
+
+	// EnsureStarted starts the gateway if configured and not already running
+	// This is a convenience method that checks config and running state before starting
+	EnsureStarted() error
 }
 
 // BashDetachChannelHolder manages the bash detach channel for background shell operations

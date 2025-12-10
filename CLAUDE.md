@@ -440,6 +440,70 @@ Tools requiring user approval use a two-phase execution:
 
 Controlled by `require_approval` config per tool.
 
+### Conversation Management Commands
+
+The CLI provides commands to manage saved conversation history:
+
+**Command:** `infer conversations list [flags]`
+
+**Purpose:** List all saved conversations from the database with pagination support
+
+**Flags:**
+
+- `--limit, -l int` (default: 50) - Maximum conversations to display
+- `--offset int` (default: 0) - Number of conversations to skip
+- `--format, -f string` (default: "text") - Output format (text, json)
+
+**Output Columns (text format):**
+
+- **ID**: Full conversation ID (36 chars)
+- **Summary**: Conversation title (truncated to 25 chars)
+- **Messages**: Total message count
+- **Requests**: API request count
+- **Input Tokens**: Total input tokens used
+- **Output Tokens**: Total output tokens generated
+- **Cost**: Formatted cost with adaptive precision (e.g., "$0.023" or "-")
+
+**JSON Output:**
+
+```json
+{
+  "conversations": [
+    {
+      "id": "...",
+      "title": "...",
+      "created_at": "...",
+      "updated_at": "...",
+      "message_count": 10,
+      "token_stats": {...},
+      "cost_stats": {...}
+    }
+  ],
+  "count": 42
+}
+```
+
+**Storage Backend:** Uses `ConversationStorage.ListConversations(ctx, limit, offset)` interface
+
+**Implementation Files:**
+
+- `cmd/conversations.go` - Command implementation
+- `cmd/conversations_test.go` - Unit tests
+- `internal/formatting/formatting.go` - Contains `FormatCost()` helper
+
+**Examples:**
+
+```bash
+# List all conversations (default: 50)
+infer conversations list
+
+# Pagination
+infer conversations list --limit 20 --offset 40
+
+# JSON output for scripting
+infer conversations list --format json
+```
+
 ### A2A (Agent-to-Agent) Communication
 
 Enables task delegation to specialized agents:

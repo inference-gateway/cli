@@ -50,6 +50,12 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		_ = services.Shutdown(ctx)
 	}()
 
+	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
+		fmt.Printf("\n⚠️  Failed to start gateway automatically: %v\n", err)
+		fmt.Printf("   Continuing without local gateway.\n")
+		fmt.Printf("   Make sure the inference gateway is running at: %s\n\n", cfg.Gateway.URL)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()
 
@@ -195,6 +201,10 @@ func runNonInteractiveChat(cfg *config.Config, v *viper.Viper) error {
 		defer cancel()
 		_ = services.Shutdown(ctx)
 	}()
+
+	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
+		return fmt.Errorf("failed to start gateway: %w", err)
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
 	defer cancel()

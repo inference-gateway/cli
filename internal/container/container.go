@@ -2,7 +2,6 @@ package container
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -117,22 +116,10 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 	return container
 }
 
-// initializeGatewayManager creates and starts the gateway manager if configured
+// initializeGatewayManager creates the gateway manager (but does not start it)
+// Commands that need the gateway should call gatewayManager.EnsureStarted() explicitly
 func (c *ServiceContainer) initializeGatewayManager() {
 	c.gatewayManager = services.NewGatewayManager(c.sessionID, c.config, c.containerRuntime)
-
-	if c.config.Gateway.Run {
-		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-		defer cancel()
-
-		if err := c.gatewayManager.Start(ctx); err != nil {
-			fmt.Printf("\n⚠️  Failed to start gateway automatically: %v\n", err)
-			fmt.Printf("   Continuing without local gateway.\n")
-			fmt.Printf("   Make sure the inference gateway is running at: %s\n\n", c.config.Gateway.URL)
-			logger.Error("Failed to start gateway", "error", err)
-			logger.Warn("Continuing without local gateway - make sure gateway is running manually")
-		}
-	}
 }
 
 // initializeAgentManager creates and starts the agent manager if A2A is enabled
