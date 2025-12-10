@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.87.0](https://github.com/inference-gateway/cli/compare/v0.86.3...v0.87.0) (2025-12-10)
+
+### 🚀 Features
+
+* Add conversations list command ([#331](https://github.com/inference-gateway/cli/issues/331)) ([e30eede](https://github.com/inference-gateway/cli/commit/e30eede24c1481a2ecd538826177f37eb1338f9a)), closes [#330](https://github.com/inference-gateway/cli/issues/330)
+* Add max retries configuration for MCP servers ([171444e](https://github.com/inference-gateway/cli/commit/171444e9b23f9570db85176edb8f5d4a1ee0f32b))
+
+### ♻️ Code Refactoring
+
+* Format CLI listings as markdown tables ([#327](https://github.com/inference-gateway/cli/issues/327)) ([4418122](https://github.com/inference-gateway/cli/commit/441812293627a558a72f0f374b8a4fd1c00634c6)), closes [#311](https://github.com/inference-gateway/cli/issues/311)
+* Rename GitHub App to Github Action ([fcfdc98](https://github.com/inference-gateway/cli/commit/fcfdc982743f879de6c2713db35e61d6a0e3bc0f))
+
 ## [0.86.3](https://github.com/inference-gateway/cli/compare/v0.86.2...v0.86.3) (2025-12-10)
 
 ### 🐛 Bug Fixes
