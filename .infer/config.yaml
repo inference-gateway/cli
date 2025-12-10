@@ -1,15 +1,21 @@
+container_runtime:
+  type: docker
 gateway:
   url: http://localhost:8080
   api_key: ""
   timeout: 200
   oci: ghcr.io/inference-gateway/inference-gateway:latest
   run: true
-  docker: true
+  standalone_binary: true
   exclude_models:
     - ollama_cloud/cogito-2.1:671b
     - ollama_cloud/kimi-k2:1t
     - ollama_cloud/kimi-k2-thinking
     - ollama_cloud/deepseek-v3.1:671b
+    - groq/whisper-large-v3
+    - groq/whisper-large-v3-turbo
+    - groq/playai-tts
+    - groq/playai-tts-arabic
   vision_enabled: true
 client:
   timeout: 200
@@ -515,6 +521,20 @@ chat:
         description: expand/collapse tool results
         category: tools
         enabled: true
+  status_bar:
+    enabled: true
+    indicators:
+      model: true
+      theme: true
+      max_output: false
+      a2a_agents: true
+      tools: true
+      background_shells: true
+      mcp: true
+      context_usage: true
+      session_tokens: true
+      cost: true
+      git_branch: true
 a2a:
   enabled: true
   cache:
@@ -549,7 +569,12 @@ mcp:
   discovery_timeout: 30
   liveness_probe_enabled: true
   liveness_probe_interval: 10
+  max_retries: 10
   servers: []
+pricing:
+  enabled: true
+  currency: USD
+  custom_prices: {}
 init:
   prompt: |-
     Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.

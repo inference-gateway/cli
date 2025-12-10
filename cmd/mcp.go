@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	glamour "github.com/charmbracelet/glamour"
 	config "github.com/inference-gateway/cli/config"
 	services "github.com/inference-gateway/cli/internal/services"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
@@ -149,62 +150,108 @@ func listMCPServers(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Printf("MCP CONFIGURATION\n")
-	fmt.Printf("═════════════════\n\n")
+	var md strings.Builder
+	md.WriteString("**MCP CONFIGURATION**\n\n")
 
-	globalStatus := icons.CheckMarkStyle.Render(icons.CheckMark)
+	globalStatus := icons.CheckMark
 	if !cfg.Enabled {
-		globalStatus = icons.CrossMarkStyle.Render(icons.CrossMark)
+		globalStatus = icons.CrossMark
 	}
-	fmt.Printf("Global Status:      %s %s\n", globalStatus, enabledText(cfg.Enabled))
-	fmt.Printf("Connection Timeout: %ds\n", cfg.ConnectionTimeout)
-	fmt.Printf("Discovery Timeout:  %ds\n", cfg.DiscoveryTimeout)
-	fmt.Printf("Liveness Probes:    %s\n", enabledText(cfg.LivenessProbeEnabled))
+
+	md.WriteString(fmt.Sprintf("**Global Status:** %s %s  \n", globalStatus, enabledText(cfg.Enabled)))
+	md.WriteString(fmt.Sprintf("**Connection Timeout:** %ds  \n", cfg.ConnectionTimeout))
+	md.WriteString(fmt.Sprintf("**Discovery Timeout:** %ds  \n", cfg.DiscoveryTimeout))
+	md.WriteString(fmt.Sprintf("**Liveness Probes:** %s", enabledText(cfg.LivenessProbeEnabled)))
 	if cfg.LivenessProbeEnabled {
-		fmt.Printf("Probe Interval:     %ds\n", cfg.LivenessProbeInterval)
+		md.WriteString(fmt.Sprintf(" (Interval: %ds)", cfg.LivenessProbeInterval))
 	}
-	fmt.Printf("Config Path:        %s\n", configPath)
-	fmt.Println()
+	md.WriteString("\n")
+	md.WriteString(fmt.Sprintf("**Config Path:** `%s`\n\n", configPath))
 
-	fmt.Printf("SERVERS (%d total)\n", len(cfg.Servers))
-	fmt.Printf("═════════════════\n\n")
+	md.WriteString(fmt.Sprintf("**Servers:** %d total\n\n", len(cfg.Servers)))
 
-	for i, server := range cfg.Servers {
-		if i > 0 {
-			fmt.Println()
-		}
+	md.WriteString("| Enabled | Name | URL | Description | Timeout | Auto |\n")
+	md.WriteString("|---------|------|-----|-------------|---------|------|\n")
 
-		status := icons.CheckMarkStyle.Render(icons.CheckMark)
+	for _, server := range cfg.Servers {
+		status := icons.CheckMark
 		if !server.Enabled {
-			status = icons.CrossMarkStyle.Render(icons.CrossMark)
+			status = icons.CrossMark
 		}
 
-		fmt.Printf("%s %s\n", status, server.Name)
-		fmt.Printf("  URL: %s\n", server.GetURL())
-
-		if server.Description != "" {
-			fmt.Printf("  Description: %s\n", server.Description)
+		name := server.Name
+		url := server.GetURL()
+		description := server.Description
+		if description == "" {
+			description = "-"
 		}
 
+		timeoutStr := "-"
 		if server.Timeout > 0 {
-			fmt.Printf("  Timeout: %ds\n", server.Timeout)
+			timeoutStr = fmt.Sprintf("%ds", server.Timeout)
 		}
 
-		if len(server.IncludeTools) > 0 {
-			fmt.Printf("  Include Tools: %s\n", strings.Join(server.IncludeTools, ", "))
+		autoStart := "-"
+		if server.Run {
+			autoStart = icons.CheckMark
+			if server.OCI != "" {
+				ociParts := strings.Split(server.OCI, "/")
+				ociShort := ociParts[len(ociParts)-1]
+				autoStart = fmt.Sprintf("%s %s", icons.CheckMark, ociShort)
+			}
 		}
 
-		if len(server.ExcludeTools) > 0 {
-			fmt.Printf("  Exclude Tools: %s\n", strings.Join(server.ExcludeTools, ", "))
+		md.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %s |\n",
+			status, name, url, description, timeoutStr, autoStart))
+	}
+
+	md.WriteString("\n")
+
+	hasFilters := false
+	for _, server := range cfg.Servers {
+		if len(server.IncludeTools) > 0 || len(server.ExcludeTools) > 0 {
+			hasFilters = true
+			break
 		}
 	}
 
-	fmt.Println()
-	fmt.Printf("\n%s = enabled, %s = disabled\n",
-		icons.CheckMarkStyle.Render(icons.CheckMark),
-		icons.CrossMarkStyle.Render(icons.CrossMark))
+	if hasFilters {
+		md.WriteString("### Tool Filters\n\n")
+		for _, server := range cfg.Servers {
+			if len(server.IncludeTools) > 0 {
+				md.WriteString(fmt.Sprintf("**%s** - Include: `%s`  \n", server.Name, strings.Join(server.IncludeTools, ", ")))
+			}
+			if len(server.ExcludeTools) > 0 {
+				md.WriteString(fmt.Sprintf("**%s** - Exclude: `%s`  \n", server.Name, strings.Join(server.ExcludeTools, ", ")))
+			}
+		}
+		md.WriteString("\n")
+	}
 
+	md.WriteString(fmt.Sprintf("\n%s = enabled, %s = disabled\n",
+		icons.CheckMark,
+		icons.CrossMark))
+
+	rendered, err := renderMarkdown(md.String())
+	if err != nil {
+		fmt.Print(md.String())
+		return nil
+	}
+
+	fmt.Print(rendered)
 	return nil
+}
+
+func renderMarkdown(markdown string) (string, error) {
+	r, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(0),
+	)
+	if err != nil {
+		return "", err
+	}
+
+	return r.Render(markdown)
 }
 
 func addMCPServer(cmd *cobra.Command, args []string) error {

@@ -9,6 +9,7 @@ import (
 const (
 	CheckMark = "✓"
 	CrossMark = "✗"
+	GitBranch = "⎇"
 )
 
 // Emoji icons

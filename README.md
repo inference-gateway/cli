@@ -30,6 +30,7 @@ and management of inference services.
 - [Commands](#commands)
 - [Tools for LLMs](#tools-for-llms)
 - [Configuration](#configuration)
+- [Cost Tracking](#cost-tracking)
 - [Tool Approval System](#tool-approval-system)
 - [Shortcuts](#shortcuts)
 - [Global Flags](#global-flags)
@@ -56,6 +57,7 @@ and management of inference services.
   - **Auto-Accept Mode**: All tools auto-approved for rapid execution (YOLO mode)
   - Toggle between modes with **Shift+Tab**
 - **Token Usage Tracking**: Accurate token counting with polyfill support for providers that don't return usage metrics
+- **Cost Tracking**: Real-time cost calculation for API usage with per-model breakdown and configurable pricing
 - **Inline History Auto-Completion**: Smart command history suggestions with inline completion
 - **Customizable Keybindings**: Fully configurable keyboard shortcuts for the chat interface
 - **Extensible Shortcuts System**: Create custom commands with AI-powered snippets - [Learn more →](docs/shortcuts-guide.md)
@@ -360,6 +362,8 @@ infer chat --model "anthropic/claude-4"
 - **agent.model** - Default model for agent operations
 - **agent.max_turns** - Maximum turns for agent sessions (default: `50`)
 - **chat.theme** - Chat interface theme (default: `tokyo-night`)
+- **chat.status_bar.enabled** - Enable/disable status bar (default: `true`)
+- **chat.status_bar.indicators** - Configure individual status indicators (all enabled by default except `max_output`)
 
 ### Environment Variables
 
@@ -376,6 +380,90 @@ export INFER_CHAT_THEME="tokyo-night"
 Example: `agent.model` → `INFER_AGENT_MODEL`
 
 For complete configuration documentation, including all options and environment variables, see [Configuration Reference](docs/configuration-reference.md).
+
+## Cost Tracking
+
+The CLI automatically tracks API costs based on token usage for all providers and models.
+Costs are calculated in real-time with support for both aggregate totals and per-model breakdowns.
+
+### Viewing Costs
+
+Use the `/cost` command in any chat session to see the cost breakdown:
+
+```bash
+# In chat, use the /cost shortcut
+/cost
+```
+
+This displays:
+
+- **Total session cost** in USD
+- **Input/output costs** separately
+- **Per-model breakdown** when using multiple models
+- **Token usage** for each model
+
+**Status Bar**: Session costs are also displayed in the status bar (e.g., `💰 $0.0234`) if enabled.
+
+### Configuring Pricing
+
+The CLI includes hardcoded pricing for 30+ models across all major providers
+(Anthropic, OpenAI, Google, DeepSeek, Groq, Mistral, Cohere, etc.).
+Prices are updated regularly to match current provider pricing.
+
+**Override pricing** for specific models or add pricing for custom models:
+
+```yaml
+# .infer/config.yaml
+pricing:
+  enabled: true
+  currency: "USD"
+  custom_prices:
+    # Override existing model pricing
+    "openai/gpt-4o":
+      input_price_per_mtoken: 2.50    # Price per million input tokens
+      output_price_per_mtoken: 10.00  # Price per million output tokens
+
+    # Add pricing for custom/local models
+    "ollama/llama3.2":
+      input_price_per_mtoken: 0.0
+      output_price_per_mtoken: 0.0
+
+    "custom-fine-tuned-model":
+      input_price_per_mtoken: 5.00
+      output_price_per_mtoken: 15.00
+```
+
+**Via environment variables:**
+
+```bash
+# Disable cost tracking entirely
+export INFER_PRICING_ENABLED=false
+
+# Override specific model pricing (use underscores in model names)
+export INFER_PRICING_CUSTOM_PRICES_OPENAI_GPT_4O_INPUT_PRICE_PER_MTOKEN=3.00
+export INFER_PRICING_CUSTOM_PRICES_OPENAI_GPT_4O_OUTPUT_PRICE_PER_MTOKEN=12.00
+
+# Hide cost from status bar
+export INFER_CHAT_STATUS_BAR_INDICATORS_COST=false
+```
+
+**Status Bar Configuration:**
+
+```yaml
+# .infer/config.yaml
+chat:
+  status_bar:
+    enabled: true
+    indicators:
+      cost: true  # Show/hide cost indicator
+```
+
+### Cost Calculation
+
+- Costs are calculated as: `(tokens / 1,000,000) × price_per_million_tokens`
+- Prices are per million tokens (input and output priced separately)
+- Models without pricing data (Ollama, free tiers) show $0.00
+- Token counts use actual usage from providers or polyfilled estimates
 
 ## Tool Approval System
 
@@ -447,6 +535,7 @@ The CLI provides an extensible shortcuts system for quickly executing common com
 - `/help [shortcut]` - Show available shortcuts
 - `/switch [model]` - Switch to different model
 - `/theme [name]` - Switch chat theme
+- `/cost` - Show session cost breakdown with per-model details
 - `/compact` - Compact conversation
 - `/export [format]` - Export conversation
 

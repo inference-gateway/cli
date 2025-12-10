@@ -93,8 +93,9 @@ type ConversationRepository interface {
 	GetMessageCount() int
 	UpdateLastMessage(content string) error
 	UpdateLastMessageToolCalls(toolCalls *[]sdk.ChatCompletionMessageToolCall) error
-	AddTokenUsage(inputTokens, outputTokens, totalTokens int) error
+	AddTokenUsage(model string, inputTokens, outputTokens, totalTokens int) error
 	GetSessionTokens() SessionTokenStats
+	GetSessionCostStats() SessionCostStats
 	FormatToolResultForLLM(result *ToolExecutionResult) string
 	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
 	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
@@ -174,6 +175,7 @@ type MessageQueue interface {
 type StateManager interface {
 	// View state management
 	GetCurrentView() ViewState
+	GetPreviousView() ViewState
 	TransitionToView(newView ViewState) error
 
 	// Agent mode management
@@ -430,6 +432,9 @@ type GatewayManager interface {
 
 	// IsRunning returns whether the gateway is running
 	IsRunning() bool
+
+	// GetGatewayURL returns the actual gateway URL with the assigned port
+	GetGatewayURL() string
 }
 
 // BashDetachChannelHolder manages the bash detach channel for background shell operations

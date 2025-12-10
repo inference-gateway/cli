@@ -24,7 +24,7 @@ func setupTestRepository(t *testing.T) (*PersistentConversationRepository, func(
 	require.NoError(t, err)
 
 	formatterService := &ToolFormatterService{}
-	repo := NewPersistentConversationRepository(formatterService, storageBackend)
+	repo := NewPersistentConversationRepository(formatterService, nil, storageBackend)
 
 	cleanup := func() {
 		_ = repo.Close()
@@ -182,7 +182,7 @@ func TestPersistentConversationRepository_AutoSaveTitle(t *testing.T) {
 func TestPersistentConversationRepository_ConversationManagement(t *testing.T) {
 	mockStorage := &generated.FakeConversationStorage{}
 	formatterService := &ToolFormatterService{}
-	repo := NewPersistentConversationRepository(formatterService, mockStorage)
+	repo := NewPersistentConversationRepository(formatterService, nil, mockStorage)
 
 	ctx := context.Background()
 
@@ -266,7 +266,7 @@ func TestPersistentConversationRepository_TokenTracking(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("Token Usage Tracking", func(t *testing.T) {
-		err := repo.AddTokenUsage(50, 75, 125)
+		err := repo.AddTokenUsage("test-model", 50, 75, 125)
 		assert.NoError(t, err)
 
 		stats := repo.GetSessionTokens()
@@ -275,7 +275,7 @@ func TestPersistentConversationRepository_TokenTracking(t *testing.T) {
 		assert.Equal(t, 125, stats.TotalTokens)
 		assert.Equal(t, 1, stats.RequestCount)
 
-		err = repo.AddTokenUsage(30, 45, 75)
+		err = repo.AddTokenUsage("test-model", 30, 45, 75)
 		assert.NoError(t, err)
 
 		stats = repo.GetSessionTokens()

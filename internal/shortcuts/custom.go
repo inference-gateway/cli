@@ -25,14 +25,15 @@ type SnippetConfig struct {
 
 // CustomShortcutConfig represents a user-defined shortcut configuration
 type CustomShortcutConfig struct {
-	Name        string         `yaml:"name"`
-	Description string         `yaml:"description"`
-	Command     string         `yaml:"command,omitempty"`
-	Args        []string       `yaml:"args,omitempty"`
-	WorkingDir  string         `yaml:"working_dir,omitempty"`
-	Tool        string         `yaml:"tool,omitempty"`
-	ToolArgs    map[string]any `yaml:"tool_args,omitempty"`
-	Snippet     *SnippetConfig `yaml:"snippet,omitempty"`
+	Name          string         `yaml:"name"`
+	Description   string         `yaml:"description"`
+	Command       string         `yaml:"command,omitempty"`
+	Args          []string       `yaml:"args,omitempty"`
+	WorkingDir    string         `yaml:"working_dir,omitempty"`
+	Tool          string         `yaml:"tool,omitempty"`
+	ToolArgs      map[string]any `yaml:"tool_args,omitempty"`
+	Snippet       *SnippetConfig `yaml:"snippet,omitempty"`
+	PassSessionID bool           `yaml:"pass_session_id,omitempty"`
 }
 
 // CustomShortcutsConfig represents the structure of a custom shortcuts YAML file
@@ -173,8 +174,16 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 	command := c.config.Command
 	cmdArgs := append([]string{}, c.config.Args...)
 
-	if command == "bash" && len(cmdArgs) >= 2 && cmdArgs[0] == "-c" {
-		cmdArgs = append(cmdArgs, "bash")
+	if c.config.PassSessionID {
+		if sessionID := ctx.Value(domain.SessionIDKey); sessionID != nil {
+			if sessionIDStr, ok := sessionID.(string); ok {
+				args = append(args, sessionIDStr)
+			}
+		}
+	}
+
+	if (command == "bash" || command == "sh") && len(cmdArgs) >= 2 && cmdArgs[0] == "-c" {
+		cmdArgs = append(cmdArgs, command)
 		cmdArgs = append(cmdArgs, args...)
 	} else {
 		cmdArgs = append(cmdArgs, args...)
@@ -211,6 +220,27 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		}
 	}
 
+	// Check if output looks like markdown (contains markdown table syntax)
+	isMarkdown := strings.Contains(outputStr, "| ") && strings.Contains(outputStr, " |") && strings.Contains(outputStr, "---")
+
+	if isMarkdown {
+		// Output raw markdown without code fences - will be rendered by chat
+		if len(imageAttachments) > 0 {
+			return ShortcutResult{
+				Output:     outputStr,
+				Success:    true,
+				SideEffect: SideEffectEmbedImages,
+				Data:       imageAttachments,
+			}, nil
+		}
+
+		return ShortcutResult{
+			Output:  outputStr,
+			Success: true,
+		}, nil
+	}
+
+	// For non-markdown output, wrap in code fences as before
 	formattedOutput := fmt.Sprintf("```json\n%s\n```", outputStr)
 
 	if len(imageAttachments) > 0 {

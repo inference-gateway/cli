@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -21,36 +22,43 @@ const (
 
 // Config represents the CLI configuration
 type Config struct {
-	Gateway      GatewayConfig      `yaml:"gateway" mapstructure:"gateway"`
-	Client       ClientConfig       `yaml:"client" mapstructure:"client"`
-	Logging      LoggingConfig      `yaml:"logging" mapstructure:"logging"`
-	Tools        ToolsConfig        `yaml:"tools" mapstructure:"tools"`
-	Image        ImageConfig        `yaml:"image" mapstructure:"image"`
-	Export       ExportConfig       `yaml:"export" mapstructure:"export"`
-	Agent        AgentConfig        `yaml:"agent" mapstructure:"agent"`
-	Git          GitConfig          `yaml:"git" mapstructure:"git"`
-	SCM          SCMConfig          `yaml:"scm" mapstructure:"scm"`
-	Storage      StorageConfig      `yaml:"storage" mapstructure:"storage"`
-	Conversation ConversationConfig `yaml:"conversation" mapstructure:"conversation"`
-	Chat         ChatConfig         `yaml:"chat" mapstructure:"chat"`
-	A2A          A2AConfig          `yaml:"a2a" mapstructure:"a2a"`
-	MCP          MCPConfig          `yaml:"mcp" mapstructure:"mcp"`
-	Init         InitConfig         `yaml:"init" mapstructure:"init"`
-	Compact      CompactConfig      `yaml:"compact" mapstructure:"compact"`
+	ContainerRuntime ContainerRuntimeConfig `yaml:"container_runtime" mapstructure:"container_runtime"`
+	Gateway          GatewayConfig          `yaml:"gateway" mapstructure:"gateway"`
+	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
+	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
+	Tools            ToolsConfig            `yaml:"tools" mapstructure:"tools"`
+	Image            ImageConfig            `yaml:"image" mapstructure:"image"`
+	Export           ExportConfig           `yaml:"export" mapstructure:"export"`
+	Agent            AgentConfig            `yaml:"agent" mapstructure:"agent"`
+	Git              GitConfig              `yaml:"git" mapstructure:"git"`
+	SCM              SCMConfig              `yaml:"scm" mapstructure:"scm"`
+	Storage          StorageConfig          `yaml:"storage" mapstructure:"storage"`
+	Conversation     ConversationConfig     `yaml:"conversation" mapstructure:"conversation"`
+	Chat             ChatConfig             `yaml:"chat" mapstructure:"chat"`
+	A2A              A2AConfig              `yaml:"a2a" mapstructure:"a2a"`
+	MCP              MCPConfig              `yaml:"mcp" mapstructure:"mcp"`
+	Pricing          PricingConfig          `yaml:"pricing" mapstructure:"pricing"`
+	Init             InitConfig             `yaml:"init" mapstructure:"init"`
+	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
+}
+
+// ContainerRuntimeConfig contains container runtime settings
+type ContainerRuntimeConfig struct {
+	Type string `yaml:"type" mapstructure:"type"` // "docker", "podman", or "" for auto-detect
 }
 
 // GatewayConfig contains gateway connection settings
 type GatewayConfig struct {
-	URL           string   `yaml:"url" mapstructure:"url"`
-	APIKey        string   `yaml:"api_key" mapstructure:"api_key"`
-	Timeout       int      `yaml:"timeout" mapstructure:"timeout"`
-	OCI           string   `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
-	Run           bool     `yaml:"run" mapstructure:"run"`
-	Docker        bool     `yaml:"docker" mapstructure:"docker"`
-	Debug         bool     `yaml:"debug,omitempty" mapstructure:"debug,omitempty"`
-	IncludeModels []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
-	ExcludeModels []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
-	VisionEnabled bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
+	URL              string   `yaml:"url" mapstructure:"url"`
+	APIKey           string   `yaml:"api_key" mapstructure:"api_key"`
+	Timeout          int      `yaml:"timeout" mapstructure:"timeout"`
+	OCI              string   `yaml:"oci,omitempty" mapstructure:"oci,omitempty"`
+	Run              bool     `yaml:"run" mapstructure:"run"`
+	StandaloneBinary bool     `yaml:"standalone_binary" mapstructure:"standalone_binary"`
+	Debug            bool     `yaml:"debug,omitempty" mapstructure:"debug,omitempty"`
+	IncludeModels    []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
+	ExcludeModels    []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
+	VisionEnabled    bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -316,6 +324,7 @@ type ConversationTitleConfig struct {
 type ChatConfig struct {
 	Theme       string            `yaml:"theme" mapstructure:"theme"`
 	Keybindings KeybindingsConfig `yaml:"keybindings" mapstructure:"keybindings"`
+	StatusBar   StatusBarConfig   `yaml:"status_bar" mapstructure:"status_bar"`
 }
 
 // KeybindingsConfig contains settings for customizing keybindings
@@ -330,6 +339,29 @@ type KeyBindingEntry struct {
 	Description string   `yaml:"description,omitempty" mapstructure:"description,omitempty"`
 	Category    string   `yaml:"category,omitempty" mapstructure:"category,omitempty"`
 	Enabled     *bool    `yaml:"enabled,omitempty" mapstructure:"enabled,omitempty"`
+}
+
+// StatusBarConfig contains settings for the chat status bar
+// The status bar displays model information and system status indicators
+type StatusBarConfig struct {
+	Enabled    bool                `yaml:"enabled" mapstructure:"enabled"`
+	Indicators StatusBarIndicators `yaml:"indicators" mapstructure:"indicators"`
+}
+
+// StatusBarIndicators contains individual enable/disable toggles for each indicator
+// All indicators are enabled by default to maintain current behavior
+type StatusBarIndicators struct {
+	Model            bool `yaml:"model" mapstructure:"model"`
+	Theme            bool `yaml:"theme" mapstructure:"theme"`
+	MaxOutput        bool `yaml:"max_output" mapstructure:"max_output"`
+	A2AAgents        bool `yaml:"a2a_agents" mapstructure:"a2a_agents"`
+	Tools            bool `yaml:"tools" mapstructure:"tools"`
+	BackgroundShells bool `yaml:"background_shells" mapstructure:"background_shells"`
+	MCP              bool `yaml:"mcp" mapstructure:"mcp"`
+	ContextUsage     bool `yaml:"context_usage" mapstructure:"context_usage"`
+	SessionTokens    bool `yaml:"session_tokens" mapstructure:"session_tokens"`
+	Cost             bool `yaml:"cost" mapstructure:"cost"`
+	GitBranch        bool `yaml:"git_branch" mapstructure:"git_branch"`
 }
 
 // InitConfig contains settings for the /init shortcut
@@ -441,22 +473,50 @@ type A2ACacheConfig struct {
 	TTL     int  `yaml:"ttl" mapstructure:"ttl"`
 }
 
+// GetDefaultStatusBarConfig returns the default status bar configuration
+// All indicators are enabled by default except MaxOutput to maintain current behavior
+func GetDefaultStatusBarConfig() StatusBarConfig {
+	return StatusBarConfig{
+		Enabled: true,
+		Indicators: StatusBarIndicators{
+			Model:            true,
+			Theme:            true,
+			MaxOutput:        false,
+			A2AAgents:        true,
+			Tools:            true,
+			BackgroundShells: true,
+			MCP:              true,
+			ContextUsage:     true,
+			SessionTokens:    true,
+			Cost:             true,
+			GitBranch:        true,
+		},
+	}
+}
+
 // DefaultConfig returns a default configuration
 func DefaultConfig() *Config { //nolint:funlen
 	return &Config{
+		ContainerRuntime: ContainerRuntimeConfig{
+			Type: "docker",
+		},
 		Gateway: GatewayConfig{
-			URL:           "http://localhost:8080",
-			APIKey:        "",
-			Timeout:       200,
-			OCI:           "ghcr.io/inference-gateway/inference-gateway:latest",
-			Run:           true,
-			Docker:        true,
-			IncludeModels: []string{},
+			URL:              "http://localhost:8080",
+			APIKey:           "",
+			Timeout:          200,
+			OCI:              "ghcr.io/inference-gateway/inference-gateway:latest",
+			Run:              true,
+			StandaloneBinary: true,
+			IncludeModels:    []string{},
 			ExcludeModels: []string{
 				"ollama_cloud/cogito-2.1:671b",
 				"ollama_cloud/kimi-k2:1t",
 				"ollama_cloud/kimi-k2-thinking",
 				"ollama_cloud/deepseek-v3.1:671b",
+				"groq/whisper-large-v3",
+				"groq/whisper-large-v3-turbo",
+				"groq/playai-tts",
+				"groq/playai-tts-arabic",
 			},
 			VisionEnabled: true,
 		},
@@ -760,6 +820,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 				Enabled:  false,
 				Bindings: GetDefaultKeybindings(),
 			},
+			StatusBar: GetDefaultStatusBarConfig(),
 		},
 		A2A: A2AConfig{
 			Enabled: true,
@@ -797,7 +858,8 @@ Respond with ONLY the title, no quotes or explanation.`,
 				},
 			},
 		},
-		MCP: *DefaultMCPConfig(),
+		MCP:     *DefaultMCPConfig(),
+		Pricing: GetDefaultPricingConfig(),
 		Init: InitConfig{
 			Prompt: `Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.
 Use your available tools to examine configuration files, documentation, build systems, and development workflow.
@@ -1139,4 +1201,20 @@ const (
 // Format: "namespace_action" (e.g., "global_quit", "chat_enter_key_handler")
 func ActionID(namespace KeyNamespace, action string) string {
 	return string(namespace) + "_" + action
+}
+
+// FindAvailablePort finds the next available port starting from basePort
+// It checks up to 100 ports after the base port
+// Binds to all interfaces (0.0.0.0) to match Docker's behavior
+func FindAvailablePort(basePort int) int {
+	for port := basePort; port < basePort+100; port++ {
+		address := fmt.Sprintf(":%d", port)
+		listener, err := net.Listen("tcp", address)
+		if err != nil {
+			continue
+		}
+		_ = listener.Close()
+		return port
+	}
+	return basePort
 }

@@ -176,32 +176,40 @@ func Merge(base *config.MCPConfig, optional *config.MCPConfig) *config.MCPConfig
 	}
 
 	merged := &config.MCPConfig{
-		Enabled:           optional.Enabled || base.Enabled,
-		ConnectionTimeout: base.ConnectionTimeout,
-		DiscoveryTimeout:  base.DiscoveryTimeout,
-		Servers:           make([]config.MCPServerEntry, 0),
+		Enabled:               optional.Enabled || base.Enabled,
+		ConnectionTimeout:     base.ConnectionTimeout,
+		DiscoveryTimeout:      base.DiscoveryTimeout,
+		LivenessProbeEnabled:  base.LivenessProbeEnabled,
+		LivenessProbeInterval: base.LivenessProbeInterval,
+		MaxRetries:            base.MaxRetries,
+		Servers:               make([]config.MCPServerEntry, 0),
 	}
 
-	// Optional config overrides global settings if specified
 	if optional.ConnectionTimeout > 0 {
 		merged.ConnectionTimeout = optional.ConnectionTimeout
 	}
 	if optional.DiscoveryTimeout > 0 {
 		merged.DiscoveryTimeout = optional.DiscoveryTimeout
 	}
+	if optional.LivenessProbeInterval > 0 {
+		merged.LivenessProbeInterval = optional.LivenessProbeInterval
+	}
+	if optional.MaxRetries > 0 {
+		merged.MaxRetries = optional.MaxRetries
+	}
+	if optional.LivenessProbeEnabled {
+		merged.LivenessProbeEnabled = true
+	}
 
-	// Merge servers: start with base servers
 	serverMap := make(map[string]config.MCPServerEntry)
 	for _, server := range base.Servers {
 		serverMap[server.Name] = server
 	}
 
-	// Override/add servers from optional config
 	for _, server := range optional.Servers {
 		serverMap[server.Name] = server
 	}
 
-	// Convert map back to slice
 	for _, server := range serverMap {
 		merged.Servers = append(merged.Servers, server)
 	}

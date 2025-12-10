@@ -24,20 +24,26 @@ const (
 
 // AgentManager manages the lifecycle of A2A agent containers
 type AgentManager struct {
-	config          *config.Config
-	agentsConfig    *config.AgentsConfig
-	containers      map[string]string
-	isRunning       bool
-	statusCallback  func(agentName string, state domain.AgentState, message string, url string, image string)
-	containersMutex sync.Mutex
+	sessionID        domain.SessionID
+	config           *config.Config
+	agentsConfig     *config.AgentsConfig
+	containerRuntime domain.ContainerRuntime
+	containers       map[string]string
+	assignedPorts    map[string]int
+	isRunning        bool
+	statusCallback   func(agentName string, state domain.AgentState, message string, url string, image string)
+	containersMutex  sync.Mutex
 }
 
 // NewAgentManager creates a new agent manager
-func NewAgentManager(cfg *config.Config, agentsConfig *config.AgentsConfig) *AgentManager {
+func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime domain.ContainerRuntime) *AgentManager {
 	return &AgentManager{
-		config:       cfg,
-		agentsConfig: agentsConfig,
-		containers:   make(map[string]string),
+		sessionID:        sessionID,
+		config:           cfg,
+		agentsConfig:     agentsConfig,
+		containerRuntime: runtime,
+		containers:       make(map[string]string),
+		assignedPorts:    make(map[string]int),
 	}
 }
 
@@ -110,7 +116,9 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 
 	am.notifyStatus(agent.Name, domain.AgentStateWaitingReady, "Waiting for health check", agent.URL, agent.OCI)
 	if err := am.waitForReady(ctx, agent); err != nil {
-		_ = am.StopAgent(ctx, agent.Name)
+		if stopErr := am.StopAgent(ctx, agent.Name); stopErr != nil {
+			logger.Warn("Failed to stop agent during error cleanup", "name", agent.Name, "error", stopErr)
+		}
 		return fmt.Errorf("agent failed to become ready: %w", err)
 	}
 
@@ -169,32 +177,31 @@ func (am *AgentManager) pullImage(ctx context.Context, image string) error {
 
 // startContainer starts the agent container
 func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEntry) error {
-	port := "8080"
-	if strings.Contains(agent.URL, ":") {
-		parts := strings.Split(agent.URL, ":")
-		if len(parts) > 0 {
-			port = strings.TrimPrefix(parts[len(parts)-1], "/")
-		}
-	}
+	assignedPort := am.assignPort(agent)
+	containerPort := "8080"
 
+	containerName := fmt.Sprintf("%s%s-%s", AgentContainerPrefix, agent.Name, am.sessionID)
+	var networkName string
+	if am.containerRuntime != nil {
+		networkName = am.containerRuntime.GetNetworkName()
+	}
 	args := []string{
 		"run",
 		"-d",
-		"--name", fmt.Sprintf("%s%s", AgentContainerPrefix, agent.Name),
-		"--network", InferNetworkName,
-		"-p", fmt.Sprintf("%s:8080", port),
+		"--name", containerName,
+		"--network", networkName,
+		"-p", fmt.Sprintf("%d:%s", assignedPort, containerPort),
 		"--rm",
 	}
 
 	if agent.ArtifactsURL != "" {
-		artifactsPort := "8081"
-		if strings.Contains(agent.ArtifactsURL, ":") {
-			parts := strings.Split(agent.ArtifactsURL, ":")
-			if len(parts) > 0 {
-				artifactsPort = strings.TrimPrefix(parts[len(parts)-1], "/")
-			}
+		artifactsBasePort := am.extractPortFromURL(agent.ArtifactsURL)
+		if artifactsBasePort <= 0 {
+			artifactsBasePort = 8081
 		}
-		args = append(args, "-p", fmt.Sprintf("%s:8081", artifactsPort))
+		artifactsPort := config.FindAvailablePort(artifactsBasePort)
+		args = append(args, "-p", fmt.Sprintf("%d:8081", artifactsPort))
+		logger.Info("Assigned artifacts port", "session", am.sessionID, "agent", agent.Name, "port", artifactsPort)
 	}
 
 	dotEnvVars, err := am.loadDotEnvFile()
@@ -204,16 +211,9 @@ func (am *AgentManager) startContainer(ctx context.Context, agent config.AgentEn
 
 	env := agent.GetEnvironmentWithModel()
 
-	gatewayURL := "http://inference-gateway:8080/v1"
-	if !am.config.Gateway.Docker {
-		gatewayURL = am.config.Gateway.URL
-		if !strings.HasSuffix(gatewayURL, "/v1") {
-			gatewayURL = strings.TrimSuffix(gatewayURL, "/") + "/v1"
-		}
-	}
+	gatewayURL := am.determineGatewayURL()
 	env["A2A_AGENT_CLIENT_BASE_URL"] = gatewayURL
 
-	// Configure artifacts server if artifacts_url is specified
 	if agent.ArtifactsURL != "" {
 		env["A2A_ARTIFACTS_ENABLE"] = "true"
 		env["A2A_ARTIFACTS_SERVER_HOST"] = "0.0.0.0"
@@ -276,19 +276,31 @@ func (am *AgentManager) loadDotEnvFile() (map[string]string, error) {
 
 // isAgentRunning checks if an agent container is already running
 func (am *AgentManager) isAgentRunning(agentName string) bool {
-	containerName := fmt.Sprintf("%s%s", AgentContainerPrefix, agentName)
-	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", containerName), "--format", "{{.ID}}")
+	expectedName := fmt.Sprintf("%s%s-%s", AgentContainerPrefix, agentName, am.sessionID)
+	cmd := exec.Command("docker", "ps", "--filter", fmt.Sprintf("name=%s", AgentContainerPrefix), "--format", "{{.ID}}\t{{.Names}}")
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return false
 	}
 
-	containerID := strings.TrimSpace(string(output))
-	if containerID != "" {
-		am.containersMutex.Lock()
-		am.containers[agentName] = containerID
-		am.containersMutex.Unlock()
-		return true
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+		parts := strings.Split(line, "\t")
+		if len(parts) != 2 {
+			continue
+		}
+		containerID := parts[0]
+		foundName := parts[1]
+
+		if foundName == expectedName {
+			am.containersMutex.Lock()
+			am.containers[agentName] = containerID
+			am.containersMutex.Unlock()
+			return true
+		}
 	}
 	return false
 }
@@ -333,4 +345,72 @@ func (am *AgentManager) containerExists(containerID string) bool {
 	}
 	cmd := exec.Command("docker", "inspect", "--format", "{{.State.Status}}", containerID)
 	return cmd.Run() == nil
+}
+
+// assignPort assigns a port for the agent, finding an available one if needed
+func (am *AgentManager) assignPort(agent config.AgentEntry) int {
+	am.containersMutex.Lock()
+	defer am.containersMutex.Unlock()
+
+	if port, exists := am.assignedPorts[agent.Name]; exists {
+		return port
+	}
+
+	port := am.determineAgentPort(agent)
+	am.assignedPorts[agent.Name] = port
+	logger.Info("Assigned agent port", "session", am.sessionID, "agent", agent.Name, "port", port)
+	return port
+}
+
+// determineAgentPort determines the port to use for an agent
+func (am *AgentManager) determineAgentPort(agent config.AgentEntry) int {
+	basePort := am.extractPortFromURL(agent.URL)
+	if basePort <= 0 {
+		basePort = 8080
+	}
+
+	return config.FindAvailablePort(basePort)
+}
+
+// determineGatewayURL determines the gateway URL that agents should use to connect
+func (am *AgentManager) determineGatewayURL() string {
+	if am.config.Gateway.StandaloneBinary {
+		gatewayURL := strings.Replace(am.config.Gateway.URL, "localhost", "host.docker.internal", 1)
+		if !strings.HasSuffix(gatewayURL, "/v1") {
+			gatewayURL = strings.TrimSuffix(gatewayURL, "/") + "/v1"
+		}
+		return gatewayURL
+	}
+
+	if am.containerRuntime != nil && am.config.Gateway.OCI != "" {
+		return fmt.Sprintf("http://inference-gateway-%s:8080/v1", am.sessionID)
+	}
+
+	gatewayURL := am.config.Gateway.URL
+	if !strings.HasSuffix(gatewayURL, "/v1") {
+		gatewayURL = strings.TrimSuffix(gatewayURL, "/") + "/v1"
+	}
+	return gatewayURL
+}
+
+// extractPortFromURL extracts the port number from an agent URL
+func (am *AgentManager) extractPortFromURL(url string) int {
+	if !strings.Contains(url, ":") {
+		return 8080
+	}
+
+	parts := strings.Split(url, ":")
+	if len(parts) == 0 {
+		return 8080
+	}
+
+	portStr := strings.TrimPrefix(parts[len(parts)-1], "/")
+	portStr = strings.Split(portStr, "/")[0]
+
+	var port int
+	if _, err := fmt.Sscanf(portStr, "%d", &port); err != nil {
+		return 8080
+	}
+
+	return port
 }

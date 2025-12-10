@@ -25,10 +25,14 @@ func WrapText(text string, width int) string {
 
 // GetResponsiveWidth calculates appropriate width based on terminal size
 func GetResponsiveWidth(terminalWidth int) int {
-	minWidth := 40
-	maxWidth := 180
+	const (
+		minWidth    = 40
+		maxWidth    = 150
+		leftPadding = 2
+		rightBuffer = 6
+		margin      = leftPadding + rightBuffer
+	)
 
-	margin := 4
 	availableWidth := terminalWidth - margin
 
 	if availableWidth < minWidth {

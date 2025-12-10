@@ -2,13 +2,17 @@ package components
 
 import (
 	"fmt"
+	"os/exec"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	models "github.com/inference-gateway/cli/internal/models"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // InputStatusBar displays input status information like model, theme, agents
@@ -25,13 +29,17 @@ type InputStatusBar struct {
 	mcpStatus              *domain.MCPServerStatus
 	styleProvider          *styles.Provider
 	currentInputText       string
+	gitBranchCache         string
+	gitBranchCacheTime     time.Time
+	gitBranchCacheTTL      time.Duration
 }
 
 // NewInputStatusBar creates a new input status bar
 func NewInputStatusBar(styleProvider *styles.Provider) *InputStatusBar {
 	return &InputStatusBar{
-		width:         80,
-		styleProvider: styleProvider,
+		width:             80,
+		styleProvider:     styleProvider,
+		gitBranchCacheTTL: 5 * time.Second,
 	}
 }
 
@@ -94,90 +102,420 @@ func (isb *InputStatusBar) SetHeight(height int) {
 }
 
 func (isb *InputStatusBar) Render() string {
-	renderedLeft := isb.buildLeftText()
-	modeIndicator := isb.getAgentModeIndicator()
-	availableWidth := isb.width - 2 - 2
-	return isb.combineLeftAndRight(renderedLeft, modeIndicator, availableWidth)
+	if isb.configService != nil && !isb.configService.Chat.StatusBar.Enabled {
+		return ""
+	}
+
+	lines := isb.buildStatusLines()
+	return strings.Join(lines, "\n")
 }
 
-// buildLeftText constructs and styles the left portion of the status bar
-func (isb *InputStatusBar) buildLeftText() string {
+// buildStatusLines builds status bar content across multiple lines (max 2 lines, dynamically fit based on width)
+func (isb *InputStatusBar) buildStatusLines() []string {
+	const (
+		maxLines       = 2
+		leftPadding    = "  "
+		separatorWidth = 3
+	)
+
 	if isb.styleProvider == nil {
-		return ""
+		return []string{leftPadding + "\u00A0"}
 	}
 
-	modelInfo := isb.getModelInfo()
-	if modelInfo == "" {
-		return ""
+	parts := isb.getAllIndicatorParts()
+	availableWidth := isb.width - len(leftPadding) - 2
+
+	if len(parts) == 0 {
+		return []string{leftPadding + "\u00A0"}
 	}
 
-	// Combine input mode with model info if present
-	inputMode := isb.getInputModeIndicator()
 	dimColor := isb.styleProvider.GetThemeColor("dim")
-	accentColor := isb.styleProvider.GetThemeColor("accent")
 
-	// If there's an input mode, apply accent color to mode and dim color to rest
-	if inputMode != "" {
-		return isb.styleProvider.RenderWithColor(inputMode, accentColor) + " " + isb.styleProvider.RenderWithColor(modelInfo, dimColor)
+	lineGroups := isb.splitPartsIntoLines(parts, availableWidth, maxLines, separatorWidth)
+
+	var lines []string
+	for _, lineItems := range lineGroups {
+		lineText := strings.Join(lineItems, " • ")
+		renderedLine := isb.styleProvider.RenderWithColor(lineText, dimColor)
+		lines = append(lines, leftPadding+renderedLine)
 	}
 
-	return isb.styleProvider.RenderWithColor(modelInfo, dimColor)
+	if len(lines) == 0 {
+		return []string{leftPadding + "\u00A0"}
+	}
+
+	return lines
 }
 
-// getModelInfo returns the model display information
-func (isb *InputStatusBar) getModelInfo() string {
+// getAllIndicatorParts returns all indicator parts as a slice
+func (isb *InputStatusBar) getAllIndicatorParts() []string {
 	if isb.modelService == nil {
-		return ""
+		return []string{}
 	}
+
 	currentModel := isb.modelService.GetCurrentModel()
 	if currentModel == "" {
-		return ""
+		return []string{}
 	}
-	return isb.buildModelDisplayText(currentModel)
+
+	return isb.buildIndicatorParts(currentModel)
+}
+
+// buildIndicatorParts builds individual indicator parts without joining them
+func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []string {
+	parts := []string{}
+
+	if isb.shouldShowIndicator("git_branch") {
+		if gitBranchPart := isb.buildGitBranchIndicator(); gitBranchPart != "" {
+			parts = append(parts, gitBranchPart)
+		}
+	}
+
+	if isb.shouldShowIndicator("model") {
+		parts = append(parts, currentModel)
+	}
+
+	if isb.shouldShowIndicator("theme") {
+		if themePart := isb.buildThemeIndicator(); themePart != "" {
+			parts = append(parts, themePart)
+		}
+	}
+
+	if isb.shouldShowIndicator("max_output") {
+		if maxOutputPart := isb.buildMaxOutputIndicator(); maxOutputPart != "" {
+			parts = append(parts, maxOutputPart)
+		}
+	}
+
+	if isb.shouldShowIndicator("a2a_agents") {
+		if agentsPart := isb.buildA2AAgentsIndicator(); agentsPart != "" {
+			parts = append(parts, agentsPart)
+		}
+	}
+
+	if isb.shouldShowIndicator("tools") {
+		if toolInfo := isb.getToolInfo(); toolInfo != "" {
+			parts = append(parts, toolInfo)
+		}
+	}
+
+	if isb.shouldShowIndicator("background_shells") {
+		if backgroundInfo := isb.getBackgroundInfo(); backgroundInfo != "" {
+			parts = append(parts, backgroundInfo)
+		}
+	}
+
+	if isb.shouldShowIndicator("mcp") {
+		if mcpPart := isb.buildMCPIndicator(); mcpPart != "" {
+			parts = append(parts, mcpPart)
+		}
+	}
+
+	if isb.shouldShowIndicator("context_usage") {
+		if contextIndicator := isb.getContextUsageIndicator(currentModel); contextIndicator != "" {
+			parts = append(parts, contextIndicator)
+		}
+	}
+
+	if isb.shouldShowIndicator("session_tokens") {
+		if sessionTokensPart := isb.buildSessionTokensIndicator(); sessionTokensPart != "" {
+			parts = append(parts, sessionTokensPart)
+		}
+	}
+
+	if isb.shouldShowIndicator("cost") {
+		if costPart := isb.buildCostIndicator(); costPart != "" {
+			parts = append(parts, costPart)
+		}
+	}
+
+	return parts
+}
+
+// splitPartsIntoLines splits indicator parts into line groups based on available width
+func (isb *InputStatusBar) splitPartsIntoLines(parts []string, availableWidth, maxLines, separatorWidth int) [][]string {
+	var lineGroups [][]string
+	currentLineItems := []string{}
+	currentLineWidth := 0
+
+	for i, part := range parts {
+		itemWidth := len(part)
+		separatorLen := 0
+
+		if len(currentLineItems) > 0 {
+			separatorLen = separatorWidth
+		}
+
+		needsNewLine := len(currentLineItems) > 0 && currentLineWidth+separatorLen+itemWidth > availableWidth
+		if needsNewLine {
+			lineGroups = append(lineGroups, currentLineItems)
+			currentLineItems = []string{part}
+			currentLineWidth = itemWidth
+
+			if isb.shouldAddOverflowAndBreak(len(lineGroups), maxLines, i, len(parts), currentLineWidth, separatorWidth, availableWidth, &currentLineItems) {
+				break
+			}
+		} else {
+			currentLineItems = append(currentLineItems, part)
+			currentLineWidth += separatorLen + itemWidth
+		}
+	}
+
+	if len(currentLineItems) > 0 {
+		lineGroups = append(lineGroups, currentLineItems)
+	}
+
+	return lineGroups
+}
+
+// shouldAddOverflowAndBreak checks if we've reached max lines and adds overflow indicator if needed
+func (isb *InputStatusBar) shouldAddOverflowAndBreak(currentLines, maxLines, currentIndex, totalParts, lineWidth, separatorWidth, availableWidth int, lineItems *[]string) bool {
+	if currentLines < maxLines {
+		return false
+	}
+
+	if currentIndex < totalParts-1 {
+		overflowWidth := 3
+		if lineWidth+separatorWidth+overflowWidth <= availableWidth {
+			*lineItems = append(*lineItems, "...")
+		}
+	}
+
+	return true
 }
 
 func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
-	parts := []string{fmt.Sprintf("Model: %s", currentModel)}
+	parts := []string{}
 
-	if isb.themeService != nil {
-		currentTheme := isb.themeService.GetCurrentThemeName()
-		parts = append(parts, fmt.Sprintf("Theme: %s", currentTheme))
-	}
-
-	if isb.configService != nil {
-		maxTokens := isb.configService.Agent.MaxTokens
-		if maxTokens > 0 {
-			parts = append(parts, fmt.Sprintf("Max Output: %d", maxTokens))
+	if isb.shouldShowIndicator("git_branch") {
+		if gitBranchPart := isb.buildGitBranchIndicator(); gitBranchPart != "" {
+			parts = append(parts, gitBranchPart)
 		}
 	}
 
-	if isb.stateManager != nil {
-		if readiness := isb.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
-			parts = append(parts, fmt.Sprintf("Agents: %d/%d", readiness.ReadyAgents, readiness.TotalAgents))
+	if isb.shouldShowIndicator("model") {
+		parts = append(parts, currentModel)
+	}
+
+	if isb.shouldShowIndicator("theme") {
+		if themePart := isb.buildThemeIndicator(); themePart != "" {
+			parts = append(parts, themePart)
 		}
 	}
 
-	if toolInfo := isb.getToolInfo(); toolInfo != "" {
-		parts = append(parts, toolInfo)
-	}
-
-	if backgroundInfo := isb.getBackgroundInfo(); backgroundInfo != "" {
-		parts = append(parts, backgroundInfo)
-	}
-
-	if isb.mcpStatus != nil {
-		if isb.mcpStatus.TotalTools > 0 {
-			parts = append(parts, fmt.Sprintf("MCP: %d tools, %d/%d", isb.mcpStatus.TotalTools, isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
-		} else {
-			parts = append(parts, fmt.Sprintf("MCP: %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers))
+	if isb.shouldShowIndicator("max_output") {
+		if maxOutputPart := isb.buildMaxOutputIndicator(); maxOutputPart != "" {
+			parts = append(parts, maxOutputPart)
 		}
 	}
 
-	if contextIndicator := isb.getContextUsageIndicator(currentModel); contextIndicator != "" {
-		parts = append(parts, contextIndicator)
+	if isb.shouldShowIndicator("a2a_agents") {
+		if agentsPart := isb.buildA2AAgentsIndicator(); agentsPart != "" {
+			parts = append(parts, agentsPart)
+		}
+	}
+
+	if isb.shouldShowIndicator("tools") {
+		if toolInfo := isb.getToolInfo(); toolInfo != "" {
+			parts = append(parts, toolInfo)
+		}
+	}
+
+	if isb.shouldShowIndicator("background_shells") {
+		if backgroundInfo := isb.getBackgroundInfo(); backgroundInfo != "" {
+			parts = append(parts, backgroundInfo)
+		}
+	}
+
+	if isb.shouldShowIndicator("mcp") {
+		if mcpPart := isb.buildMCPIndicator(); mcpPart != "" {
+			parts = append(parts, mcpPart)
+		}
+	}
+
+	if isb.shouldShowIndicator("context_usage") {
+		if contextIndicator := isb.getContextUsageIndicator(currentModel); contextIndicator != "" {
+			parts = append(parts, contextIndicator)
+		}
+	}
+
+	if isb.shouldShowIndicator("session_tokens") {
+		if sessionTokensPart := isb.buildSessionTokensIndicator(); sessionTokensPart != "" {
+			parts = append(parts, sessionTokensPart)
+		}
 	}
 
 	return strings.Join(parts, " • ")
+}
+
+// shouldShowIndicator checks if a specific indicator should be shown
+func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
+	if isb.configService == nil {
+		return true
+	}
+
+	indicators := isb.configService.Chat.StatusBar.Indicators
+	switch indicator {
+	case "model":
+		return indicators.Model
+	case "theme":
+		return indicators.Theme
+	case "max_output":
+		return indicators.MaxOutput
+	case "a2a_agents":
+		return indicators.A2AAgents
+	case "tools":
+		return indicators.Tools
+	case "background_shells":
+		return indicators.BackgroundShells
+	case "mcp":
+		return indicators.MCP
+	case "context_usage":
+		return indicators.ContextUsage
+	case "session_tokens":
+		return indicators.SessionTokens
+	case "cost":
+		return indicators.Cost
+	case "git_branch":
+		return indicators.GitBranch
+	default:
+		return true
+	}
+}
+
+// buildThemeIndicator builds the theme indicator text
+func (isb *InputStatusBar) buildThemeIndicator() string {
+	if isb.themeService == nil {
+		return ""
+	}
+	currentTheme := isb.themeService.GetCurrentThemeName()
+	return currentTheme
+}
+
+// buildMaxOutputIndicator builds the max output tokens indicator text
+func (isb *InputStatusBar) buildMaxOutputIndicator() string {
+	if isb.configService == nil {
+		return ""
+	}
+	maxTokens := isb.configService.Agent.MaxTokens
+	if maxTokens > 0 {
+		return fmt.Sprintf("Max Output: %d", maxTokens)
+	}
+	return ""
+}
+
+// buildA2AAgentsIndicator builds the A2A agents readiness indicator text
+func (isb *InputStatusBar) buildA2AAgentsIndicator() string {
+	if isb.stateManager == nil {
+		return ""
+	}
+	if readiness := isb.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
+		return fmt.Sprintf("Agents: %d/%d", readiness.ReadyAgents, readiness.TotalAgents)
+	}
+	return ""
+}
+
+// buildMCPIndicator builds the MCP server status indicator text
+func (isb *InputStatusBar) buildMCPIndicator() string {
+	if isb.mcpStatus == nil || isb.configService == nil || len(isb.configService.MCP.Servers) == 0 {
+		return ""
+	}
+	if isb.mcpStatus.TotalTools > 0 {
+		return fmt.Sprintf("🔌 %d/%d (%d)", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers, isb.mcpStatus.TotalTools)
+	}
+	return fmt.Sprintf("🔌 %d/%d", isb.mcpStatus.ConnectedServers, isb.mcpStatus.TotalServers)
+}
+
+// buildSessionTokensIndicator builds the session token usage indicator text
+func (isb *InputStatusBar) buildSessionTokensIndicator() string {
+	if isb.conversationRepo == nil {
+		return ""
+	}
+
+	stats := isb.conversationRepo.GetSessionTokens()
+	totalTokens := stats.TotalTokens
+
+	if totalTokens == 0 && isb.tokenEstimator != nil {
+		messages := isb.conversationRepo.GetMessages()
+		if len(messages) > 0 {
+			sdkMessages := make([]sdk.Message, 0, len(messages))
+			for _, entry := range messages {
+				sdkMessages = append(sdkMessages, entry.Message)
+			}
+			totalTokens = isb.tokenEstimator.EstimateMessagesTokens(sdkMessages)
+		}
+	}
+
+	if totalTokens == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("T.%d", totalTokens)
+}
+
+// buildCostIndicator builds the cost indicator text
+func (isb *InputStatusBar) buildCostIndicator() string {
+	if isb.conversationRepo == nil {
+		return ""
+	}
+
+	costStats := isb.conversationRepo.GetSessionCostStats()
+
+	// Don't show if cost is zero or pricing disabled
+	if costStats.TotalCost == 0 {
+		return ""
+	}
+
+	// Format: 💰 $0.0234
+	if costStats.TotalCost < 0.01 {
+		return fmt.Sprintf("💰 $%.4f", costStats.TotalCost)
+	} else if costStats.TotalCost < 1.0 {
+		return fmt.Sprintf("💰 $%.3f", costStats.TotalCost)
+	} else {
+		return fmt.Sprintf("💰 $%.2f", costStats.TotalCost)
+	}
+}
+
+// getCurrentGitBranch returns the current git branch with caching
+func (isb *InputStatusBar) getCurrentGitBranch() (string, bool) {
+	if time.Since(isb.gitBranchCacheTime) < isb.gitBranchCacheTTL && isb.gitBranchCache != "" {
+		return isb.gitBranchCache, true
+	}
+
+	cmd := exec.Command("git", "branch", "--show-current")
+	output, err := cmd.Output()
+
+	isb.gitBranchCacheTime = time.Now()
+
+	if err != nil {
+		isb.gitBranchCache = ""
+		return "", false
+	}
+
+	branch := strings.TrimSpace(string(output))
+	isb.gitBranchCache = branch
+	return branch, branch != ""
+}
+
+// InvalidateGitBranchCache clears the git branch cache to force a refresh
+func (isb *InputStatusBar) InvalidateGitBranchCache() {
+	isb.gitBranchCache = ""
+	isb.gitBranchCacheTime = time.Time{}
+}
+
+// buildGitBranchIndicator builds the git branch indicator text
+func (isb *InputStatusBar) buildGitBranchIndicator() string {
+	branch, ok := isb.getCurrentGitBranch()
+	if !ok || branch == "" {
+		return ""
+	}
+
+	const maxBranchLength = 35
+	if len(branch) > maxBranchLength {
+		branch = branch[:maxBranchLength] + "..."
+	}
+
+	return fmt.Sprintf("%s %s", icons.GitBranch, branch)
 }
 
 // getToolInfo returns tool count and token information
@@ -196,7 +534,7 @@ func (isb *InputStatusBar) getToolInfo() string {
 		return ""
 	}
 
-	return fmt.Sprintf("Tools: %d tokens / %d tools", tokens, count)
+	return fmt.Sprintf("🔧 %d (%d)", count, tokens)
 }
 
 // getBackgroundInfo returns background process count information
@@ -260,101 +598,17 @@ func (isb *InputStatusBar) estimateContextWindow(model string) int {
 	return models.EstimateContextWindow(model)
 }
 
-// getInputModeIndicator returns a mode indicator for bash/tools mode (plain text, no styling)
-func (isb *InputStatusBar) getInputModeIndicator() string {
-	if isb.currentInputText == "" {
-		return ""
-	}
-
-	isToolsMode := strings.HasPrefix(isb.currentInputText, "!!")
-	isBashMode := strings.HasPrefix(isb.currentInputText, "!") && !isToolsMode
-
-	if isToolsMode {
-		return "Tools mode •"
-	} else if isBashMode {
-		return "Bash mode •"
-	}
-
-	return ""
-}
-
-// getAgentModeIndicator returns a compact mode indicator for display on the right side
-func (isb *InputStatusBar) getAgentModeIndicator() string {
-	if isb.stateManager == nil {
-		return ""
-	}
-
-	agentMode := isb.stateManager.GetAgentMode()
-	if agentMode == domain.AgentModeStandard {
-		return ""
-	}
-
-	var modeText string
-	switch agentMode {
-	case domain.AgentModePlan:
-		modeText = "▶ PLAN"
-	case domain.AgentModeAutoAccept:
-		modeText = "▸ AUTO"
-	}
-
-	return isb.styleProvider.RenderStyledText(
-		modeText,
-		styles.StyleOptions{
-			Foreground: isb.styleProvider.GetThemeColor("accent"),
-			Bold:       true,
-		},
-	)
-}
-
-// combineLeftAndRight combines the left text and right mode indicator with appropriate spacing
-func (isb *InputStatusBar) combineLeftAndRight(renderedLeft string, modeIndicator string, availableWidth int) string {
-	const leftPadding = "  "
-
-	if renderedLeft == "" && modeIndicator == "" {
-		return leftPadding + "\u00A0"
-	}
-
-	if renderedLeft == "" {
-		return leftPadding + isb.formatRightOnly(modeIndicator, availableWidth)
-	}
-
-	if modeIndicator == "" {
-		return leftPadding + renderedLeft
-	}
-
-	return leftPadding + isb.formatBothSides(renderedLeft, modeIndicator, availableWidth)
-}
-
-// formatBothSides formats content when both left and right text are present
-func (isb *InputStatusBar) formatBothSides(renderedLeft, modeIndicator string, availableWidth int) string {
-	leftWidth := isb.styleProvider.GetWidth(renderedLeft)
-	rightWidth := isb.styleProvider.GetWidth(modeIndicator)
-	spacingWidth := availableWidth - leftWidth - rightWidth
-
-	if spacingWidth > 0 {
-		return renderedLeft + strings.Repeat(" ", spacingWidth) + modeIndicator
-	}
-	return renderedLeft + " " + modeIndicator
-}
-
-// formatRightOnly formats content when only right text is present
-func (isb *InputStatusBar) formatRightOnly(modeIndicator string, availableWidth int) string {
-	rightWidth := isb.styleProvider.GetWidth(modeIndicator)
-	spacingWidth := availableWidth - rightWidth
-	if spacingWidth > 0 {
-		return strings.Repeat(" ", spacingWidth) + modeIndicator
-	}
-	return modeIndicator
-}
-
 // Bubble Tea interface
 func (isb *InputStatusBar) Init() tea.Cmd { return nil }
 
 func (isb *InputStatusBar) View() string { return isb.Render() }
 
 func (isb *InputStatusBar) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
-		isb.SetWidth(windowMsg.Width)
+	switch msg := msg.(type) {
+	case tea.WindowSizeMsg:
+		isb.SetWidth(msg.Width)
+	case domain.BashCommandCompletedEvent:
+		isb.InvalidateGitBranchCache()
 	}
 	return isb, nil
 }

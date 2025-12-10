@@ -39,6 +39,7 @@ type ChatApplication struct {
 	toolService           domain.ToolService
 	fileService           domain.FileService
 	imageService          domain.ImageService
+	pricingService        domain.PricingService
 	shortcutRegistry      *shortcuts.Registry
 	themeService          domain.ThemeService
 	toolRegistry          *tools.Registry
@@ -57,6 +58,7 @@ type ChatApplication struct {
 	autocomplete         ui.AutocompleteComponent
 	inputStatusBar       ui.InputStatusBarComponent
 	statusView           ui.StatusComponent
+	modeIndicator        *components.ModeIndicator
 	helpBar              ui.HelpBarComponent
 	queueBoxView         *components.QueueBoxView
 	todoBoxView          *components.TodoBoxView
@@ -100,6 +102,7 @@ func NewChatApplication(
 	toolService domain.ToolService,
 	fileService domain.FileService,
 	imageService domain.ImageService,
+	pricingService domain.PricingService,
 	shortcutRegistry *shortcuts.Registry,
 	stateManager domain.StateManager,
 	messageQueue domain.MessageQueue,
@@ -110,6 +113,7 @@ func NewChatApplication(
 	backgroundTaskService domain.BackgroundTaskService,
 	agentManager domain.AgentManager,
 	configPath string,
+	versionInfo domain.VersionInfo,
 ) *ChatApplication {
 	initialView := domain.ViewStateModelSelection
 	if defaultModel != "" {
@@ -125,6 +129,7 @@ func NewChatApplication(
 		toolService:           toolService,
 		fileService:           fileService,
 		imageService:          imageService,
+		pricingService:        pricingService,
 		shortcutRegistry:      shortcutRegistry,
 		themeService:          themeService,
 		toolRegistry:          toolRegistry,
@@ -150,6 +155,7 @@ func NewChatApplication(
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
 		cv.SetConfigPath(configPath)
+		cv.SetVersionInfo(versionInfo)
 		cv.SetToolCallRenderer(app.toolCallRenderer)
 		cv.SetStateManager(app.stateManager)
 	}
@@ -186,6 +192,8 @@ func NewChatApplication(
 	}
 
 	app.statusView = factory.CreateStatusView(app.themeService)
+	app.modeIndicator = components.NewModeIndicator(styleProvider)
+	app.modeIndicator.SetStateManager(app.stateManager)
 	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
@@ -207,7 +215,7 @@ func NewChatApplication(
 	}
 
 	app.toolCallRenderer.SetKeyHintFormatter(keyHintFormatter)
-	app.modelSelector = components.NewModelSelector(models, app.modelService, styleProvider)
+	app.modelSelector = components.NewModelSelector(models, app.modelService, app.pricingService, styleProvider)
 	app.themeSelector = components.NewThemeSelector(app.themeService, styleProvider)
 	app.initGithubActionView = components.NewInitGithubActionView(styleProvider)
 
@@ -361,8 +369,8 @@ type mcpStatusUpdateWithChannel struct {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	if _, ok := msg.(domain.TriggerGitHubAppSetupEvent); ok {
-		cmds = append(cmds, app.handleGitHubAppSetupTrigger()...)
+	if _, ok := msg.(domain.TriggerGithubActionSetupEvent); ok {
+		cmds = append(cmds, app.handleGithubActionSetupTrigger()...)
 		return app, tea.Batch(cmds...)
 	}
 
@@ -440,7 +448,7 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleThemeSelectionView(msg)
 	case domain.ViewStateA2ATaskManagement:
 		return app.handleA2ATaskManagementView(msg)
-	case domain.ViewStateGitHubAppSetup:
+	case domain.ViewStateGithubActionSetup:
 		return app.handleInitGithubActionView(msg)
 	default:
 		return nil
@@ -537,8 +545,8 @@ func (app *ChatApplication) View() string {
 		return app.renderThemeSelection()
 	case domain.ViewStateA2ATaskManagement:
 		return app.renderA2ATaskManagement()
-	case domain.ViewStateGitHubAppSetup:
-		return app.renderGitHubAppSetup()
+	case domain.ViewStateGithubActionSetup:
+		return app.renderGithubActionSetup()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -583,7 +591,7 @@ func (app *ChatApplication) handleInitGithubActionCompleted(cmds []tea.Cmd) []te
 			}
 		})
 
-		cmds = append(cmds, app.performGitHubAppSetup(appID, privateKeyPath))
+		cmds = append(cmds, app.performGithubActionSetup(appID, privateKeyPath))
 	}
 
 	app.initGithubActionView.Reset()
@@ -631,7 +639,7 @@ func (app *ChatApplication) handleInitGithubActionCancelled(cmds []tea.Cmd) []te
 	return cmds
 }
 
-func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
+func (app *ChatApplication) handleGithubActionSetupTrigger() []tea.Cmd {
 	var cmds []tea.Cmd
 
 	repo, err := app.getCurrentRepo()
@@ -679,7 +687,7 @@ func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
 				}
 			})
 
-			cmds = append(cmds, app.performGitHubAppSetup("", ""))
+			cmds = append(cmds, app.performGithubActionSetup("", ""))
 
 			return cmds
 		}
@@ -687,7 +695,7 @@ func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
 
 	app.initGithubActionView.SetRepositoryInfo(owner, isOrg)
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateGitHubAppSetup); err != nil {
+	if err := app.stateManager.TransitionToView(domain.ViewStateGithubActionSetup); err != nil {
 		cmds = append(cmds, func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to show Init Github Action setup: %v", err),
@@ -708,7 +716,7 @@ func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
 	return cmds
 }
 
-func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) tea.Cmd {
+func (app *ChatApplication) performGithubActionSetup(appID, privateKeyPath string) tea.Cmd {
 	return func() tea.Msg {
 		repo, err := app.getCurrentRepo()
 		if err != nil {
@@ -773,7 +781,7 @@ func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string)
 		}
 	}
 
-	workflowContent := app.generateGitHubAppWorkflowContent()
+	workflowContent := app.generateGithubActionWorkflowContent()
 	workflowPath := ".github/workflows/infer.yml"
 
 	if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
@@ -870,7 +878,11 @@ func (app *ChatApplication) handleConversationSelectionView(msg tea.Msg) []tea.C
 		return cmds
 	}
 
-	if app.conversationSelector.IsSelected() || app.conversationSelector.IsCancelled() {
+	isDone := app.conversationSelector.IsSelected() || app.conversationSelector.IsCancelled()
+	needsInit := app.conversationSelector.NeedsInitialization()
+	fromDifferentView := app.stateManager.GetPreviousView() != domain.ViewStateConversationSelection
+
+	if fromDifferentView && (isDone || needsInit) {
 		app.conversationSelector.Reset()
 		if cmd := app.conversationSelector.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -1070,7 +1082,7 @@ func (app *ChatApplication) updateAllComponentsWithNewTheme() {
 	}
 
 	styleProvider := styles.NewProvider(app.themeService)
-	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, styleProvider)
+	app.modelSelector = components.NewModelSelector(app.availableModels, app.modelService, app.pricingService, styleProvider)
 }
 
 func (app *ChatApplication) renderThemeSelection() string {
@@ -1102,7 +1114,7 @@ func (app *ChatApplication) renderA2ATaskManagement() string {
 	return app.taskManager.View()
 }
 
-func (app *ChatApplication) renderGitHubAppSetup() string {
+func (app *ChatApplication) renderGithubActionSetup() string {
 	width, height := app.stateManager.GetDimensions()
 	app.initGithubActionView.SetWidth(width)
 	app.initGithubActionView.SetHeight(height)
@@ -1136,6 +1148,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		app.autocomplete,
 		app.inputStatusBar,
 		app.statusView,
+		app.modeIndicator,
 		app.helpBar,
 		app.queueBoxView,
 		app.todoBoxView,
@@ -1352,6 +1365,13 @@ func (app *ChatApplication) updateMainUIComponents(msg tea.Msg, cmds *[]tea.Cmd)
 		*cmds = append(*cmds, cmd)
 		if helpBarModel, ok := model.(ui.HelpBarComponent); ok {
 			app.helpBar = helpBarModel
+		}
+	}
+
+	if model, cmd := app.inputStatusBar.(tea.Model).Update(msg); cmd != nil {
+		*cmds = append(*cmds, cmd)
+		if statusBarModel, ok := model.(ui.InputStatusBarComponent); ok {
+			app.inputStatusBar = statusBarModel
 		}
 	}
 
@@ -1643,7 +1663,7 @@ jobs:
 `
 }
 
-func (app *ChatApplication) generateGitHubAppWorkflowContent() string {
+func (app *ChatApplication) generateGithubActionWorkflowContent() string {
 	return `---
 name: Infer
 

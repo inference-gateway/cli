@@ -24,6 +24,12 @@ import (
 
 // ServiceContainer manages all application dependencies
 type ServiceContainer struct {
+	// Session
+	sessionID domain.SessionID
+
+	// Container runtime
+	containerRuntime domain.ContainerRuntime
+
 	// Configuration
 	viper         *viper.Viper
 	config        *config.Config
@@ -38,6 +44,7 @@ type ServiceContainer struct {
 	toolService           domain.ToolService
 	fileService           domain.FileService
 	imageService          domain.ImageService
+	pricingService        domain.PricingService
 	a2aAgentService       domain.A2AAgentService
 	messageQueue          domain.MessageQueue
 	taskTrackerService    domain.TaskTracker
@@ -77,8 +84,20 @@ type ServiceContainer struct {
 
 // NewServiceContainer creates a new service container with all dependencies
 func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContainer {
+	sessionID := domain.GenerateSessionID()
+
+	containerRuntime, err := services.NewContainerRuntime(
+		sessionID,
+		services.RuntimeType(cfg.ContainerRuntime.Type),
+	)
+	if err != nil {
+		logger.Warn("Failed to initialize container runtime, continuing without container support", "error", err)
+	}
+
 	container := &ServiceContainer{
-		config: cfg,
+		sessionID:        sessionID,
+		config:           cfg,
+		containerRuntime: containerRuntime,
 	}
 
 	if len(v) > 0 && v[0] != nil {
@@ -100,7 +119,7 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 
 // initializeGatewayManager creates and starts the gateway manager if configured
 func (c *ServiceContainer) initializeGatewayManager() {
-	c.gatewayManager = services.NewGatewayManager(c.config)
+	c.gatewayManager = services.NewGatewayManager(c.sessionID, c.config, c.containerRuntime)
 
 	if c.config.Gateway.Run {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -142,7 +161,7 @@ func (c *ServiceContainer) initializeAgentManager() {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 
-	c.agentManager = services.NewAgentManager(c.config, agentsConfig)
+	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime)
 
 	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
@@ -169,7 +188,7 @@ func (c *ServiceContainer) initializeMCPManager() {
 		return
 	}
 
-	c.mcpManager = services.NewMCPManager(&c.config.MCP)
+	c.mcpManager = services.NewMCPManager(c.sessionID, &c.config.MCP, c.containerRuntime)
 
 	hasServersToStart := c.hasAutoStartMCPServers()
 	if !hasServersToStart {
@@ -214,10 +233,10 @@ func (c *ServiceContainer) initializeDomainServices() {
 	storageBackend, err := storage.NewStorage(storageConfig)
 	if err != nil {
 		logger.Error("Failed to initialize storage, using basic in-memory repository", "error", err, "type", storageConfig.Type)
-		c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService)
+		c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
 	} else {
 		c.storage = storageBackend
-		persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, storageBackend)
+		persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, c.PricingService(), storageBackend)
 		c.conversationRepo = persistentRepo
 		logger.Info("Initialized conversation storage", "type", storageConfig.Type)
 
@@ -307,9 +326,9 @@ func (c *ServiceContainer) initializeExtensibility() {
 // registerDefaultCommands registers the built-in commands
 func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewClearShortcut(c.conversationRepo, c.taskTrackerService))
-	c.shortcutRegistry.Register(shortcuts.NewExportShortcut(c.conversationRepo, c.agentService, c.modelService, c.config))
 	c.shortcutRegistry.Register(shortcuts.NewCompactShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewContextShortcut(c.conversationRepo, c.modelService))
+	c.shortcutRegistry.Register(shortcuts.NewCostShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeService))
@@ -386,6 +405,17 @@ func (c *ServiceContainer) GetFileService() domain.FileService {
 
 func (c *ServiceContainer) GetImageService() domain.ImageService {
 	return c.imageService
+}
+
+func (c *ServiceContainer) GetPricingService() domain.PricingService {
+	return c.PricingService()
+}
+
+func (c *ServiceContainer) PricingService() domain.PricingService {
+	if c.pricingService == nil {
+		c.pricingService = services.NewPricingService(&c.config.Pricing)
+	}
+	return c.pricingService
 }
 
 func (c *ServiceContainer) GetTheme() domain.Theme {
@@ -476,6 +506,12 @@ func (c *ServiceContainer) createSDKClient() sdk.Client {
 	}
 
 	baseURL := c.config.Gateway.URL
+	if c.gatewayManager != nil && c.config.Gateway.Run {
+		actualURL := c.gatewayManager.GetGatewayURL()
+		if actualURL != "" {
+			baseURL = actualURL
+		}
+	}
 	if baseURL == "" {
 		baseURL = "http://localhost:8080"
 	}

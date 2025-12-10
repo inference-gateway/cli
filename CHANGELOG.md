@@ -6,6 +6,113 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.86.3](https://github.com/inference-gateway/cli/compare/v0.86.2...v0.86.3) (2025-12-10)
+
+### 🐛 Bug Fixes
+
+* Improve markdown rendering and text wrapping ([#326](https://github.com/inference-gateway/cli/issues/326)) ([6ca2ecf](https://github.com/inference-gateway/cli/commit/6ca2ecf296bae5880938155d3154670a204fc3f3))
+
+### ♻️ Code Refactoring
+
+* **example:** Cleanups - remove unnecessary exposed port, volume and network in example ([52fe582](https://github.com/inference-gateway/cli/commit/52fe5829fd5b3bb3c8c636408f32b3b251ce61ee))
+
+### 🧹 Maintenance
+
+* Remove default vars syntax from env vars ([b47562a](https://github.com/inference-gateway/cli/commit/b47562a750bdf37fe75629459c6fc23249295214))
+
+## [0.86.2](https://github.com/inference-gateway/cli/compare/v0.86.1...v0.86.2) (2025-12-10)
+
+### 📚 Documentation
+
+* Add shortcuts example with demo configuration ([#325](https://github.com/inference-gateway/cli/issues/325)) ([9969021](https://github.com/inference-gateway/cli/commit/99690213f0b9e3db8d5fef33d63e39367564d8fd))
+
+## [0.86.1](https://github.com/inference-gateway/cli/compare/v0.86.0...v0.86.1) (2025-12-10)
+
+### 🐛 Bug Fixes
+
+* Show nothing if pricing is disabled ([dd85638](https://github.com/inference-gateway/cli/commit/dd856382b711c24447e17e635449d5ded3f694df))
+
+## [0.86.0](https://github.com/inference-gateway/cli/compare/v0.85.0...v0.86.0) (2025-12-09)
+
+### 🚀 Features
+
+* Add cost tracking for API usage ([#324](https://github.com/inference-gateway/cli/issues/324)) ([1bf9cee](https://github.com/inference-gateway/cli/commit/1bf9cee1c18c2318566ad07da499d626bece67c7)), closes [#80](https://github.com/inference-gateway/cli/issues/80)
+
+### ♻️ Code Refactoring
+
+* Simplify export shortcut functionality ([#323](https://github.com/inference-gateway/cli/issues/323)) ([fd9b053](https://github.com/inference-gateway/cli/commit/fd9b053b848e69cfebc770b19bc76234c518a262))
+
+## [0.85.0](https://github.com/inference-gateway/cli/compare/v0.84.1...v0.85.0) (2025-12-09)
+
+### 🚀 Features
+
+* Display version information in chat interface ([#322](https://github.com/inference-gateway/cli/issues/322)) ([42ddeba](https://github.com/inference-gateway/cli/commit/42ddeba77a75593136d78dbc76c632fe44b65deb))
+
+## [0.84.1](https://github.com/inference-gateway/cli/compare/v0.84.0...v0.84.1) (2025-12-09)
+
+### ♻️ Code Refactoring
+
+* Improve MCP health monitoring with exponential backoff ([03afd64](https://github.com/inference-gateway/cli/commit/03afd6439dcdf372bd1d32531464d4aec27e1aa8))
+
+### 💄 Styles
+
+* Add colors also for linux ([ae14e81](https://github.com/inference-gateway/cli/commit/ae14e81da730f8264394fe1d2e2206625aad936e))
+
+## [0.84.0](https://github.com/inference-gateway/cli/compare/v0.83.0...v0.84.0) (2025-12-09)
+
+### 🚀 Features
+
+* Add git branch indicator to status bar ([#321](https://github.com/inference-gateway/cli/issues/321)) ([e2c45e2](https://github.com/inference-gateway/cli/commit/e2c45e29e69d321e9c45fd4d5ae0ac2d162a66e2))
+* Add session tokens indicator to chat status bar ([#319](https://github.com/inference-gateway/cli/issues/319)) ([445fb0a](https://github.com/inference-gateway/cli/commit/445fb0a75e3428370409104d0a41272fd5501607))
+
+### 🐛 Bug Fixes
+
+* Skip hidden entries in compact async ([8eee131](https://github.com/inference-gateway/cli/commit/8eee131cea7e608a1ae5f209d30070c29f11d6d1))
+
+### 👷 CI/CD
+
+* Fix release - use latest buildx ([80e8f76](https://github.com/inference-gateway/cli/commit/80e8f76c6420fe6297fadcbd04c3ac294ed792eb))
+
+### 🧹 Maintenance
+
+* **release:** 0.84.0 [skip ci] ([068c301](https://github.com/inference-gateway/cli/commit/068c301214b339c5cf0d22de7cca2d9cdd14817c))
+* Add missing default values to viper config ([5dbbee3](https://github.com/inference-gateway/cli/commit/5dbbee3805e46f3e301f9417ea222cfc954cf032))
+
+## [0.84.0](https://github.com/inference-gateway/cli/compare/v0.83.0...v0.84.0) (2025-12-08)
+
+### 🚀 Features
+
+* Add git branch indicator to status bar ([#321](https://github.com/inference-gateway/cli/issues/321)) ([e2c45e2](https://github.com/inference-gateway/cli/commit/e2c45e29e69d321e9c45fd4d5ae0ac2d162a66e2))
+* Add session tokens indicator to chat status bar ([#319](https://github.com/inference-gateway/cli/issues/319)) ([445fb0a](https://github.com/inference-gateway/cli/commit/445fb0a75e3428370409104d0a41272fd5501607))
+
+### 🐛 Bug Fixes
+
+* Skip hidden entries in compact async ([8eee131](https://github.com/inference-gateway/cli/commit/8eee131cea7e608a1ae5f209d30070c29f11d6d1))
+
+### 🧹 Maintenance
+
+* Add missing default values to viper config ([5dbbee3](https://github.com/inference-gateway/cli/commit/5dbbee3805e46f3e301f9417ea222cfc954cf032))
+
+## [0.83.0](https://github.com/inference-gateway/cli/compare/v0.82.0...v0.83.0) (2025-12-08)
+
+### 🚀 Features
+
+* Add configurable status bar indicators ([#317](https://github.com/inference-gateway/cli/issues/317)) ([1c0b0a4](https://github.com/inference-gateway/cli/commit/1c0b0a4355aba9590042d139a00704860385b980)), closes [#313](https://github.com/inference-gateway/cli/issues/313)
+
+## [0.82.0](https://github.com/inference-gateway/cli/compare/v0.81.0...v0.82.0) (2025-12-08)
+
+### 🚀 Features
+
+* Add session isolation for Docker containers ([#316](https://github.com/inference-gateway/cli/issues/316)) ([ba8b48a](https://github.com/inference-gateway/cli/commit/ba8b48a1d681f96ad9e5436108ad244274da5aba))
+
+### ♻️ Code Refactoring
+
+* Move A2A agent management to CLI commands ([#310](https://github.com/inference-gateway/cli/issues/310)) ([c2e389a](https://github.com/inference-gateway/cli/commit/c2e389ad581f2a21abcf0fee411beed60a380333))
+
+### 🧹 Maintenance
+
+* Update claude-code to version 2.0.59 ([6c65372](https://github.com/inference-gateway/cli/commit/6c6537247129295caf629ed488f479ec8a54d672))
+
 ## [0.81.0](https://github.com/inference-gateway/cli/compare/v0.80.1...v0.81.0) (2025-12-07)
 
 ### 🚀 Features

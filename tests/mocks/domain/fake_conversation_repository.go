@@ -20,12 +20,13 @@ type FakeConversationRepository struct {
 	addMessageReturnsOnCall map[int]struct {
 		result1 error
 	}
-	AddTokenUsageStub        func(int, int, int) error
+	AddTokenUsageStub        func(string, int, int, int) error
 	addTokenUsageMutex       sync.RWMutex
 	addTokenUsageArgsForCall []struct {
-		arg1 int
+		arg1 string
 		arg2 int
 		arg3 int
+		arg4 int
 	}
 	addTokenUsageReturns struct {
 		result1 error
@@ -120,6 +121,16 @@ type FakeConversationRepository struct {
 	}
 	getMessagesReturnsOnCall map[int]struct {
 		result1 []domain.ConversationEntry
+	}
+	GetSessionCostStatsStub        func() domain.SessionCostStats
+	getSessionCostStatsMutex       sync.RWMutex
+	getSessionCostStatsArgsForCall []struct {
+	}
+	getSessionCostStatsReturns struct {
+		result1 domain.SessionCostStats
+	}
+	getSessionCostStatsReturnsOnCall map[int]struct {
+		result1 domain.SessionCostStats
 	}
 	GetSessionTokensStub        func() domain.SessionTokenStats
 	getSessionTokensMutex       sync.RWMutex
@@ -223,20 +234,21 @@ func (fake *FakeConversationRepository) AddMessageReturnsOnCall(i int, result1 e
 	}{result1}
 }
 
-func (fake *FakeConversationRepository) AddTokenUsage(arg1 int, arg2 int, arg3 int) error {
+func (fake *FakeConversationRepository) AddTokenUsage(arg1 string, arg2 int, arg3 int, arg4 int) error {
 	fake.addTokenUsageMutex.Lock()
 	ret, specificReturn := fake.addTokenUsageReturnsOnCall[len(fake.addTokenUsageArgsForCall)]
 	fake.addTokenUsageArgsForCall = append(fake.addTokenUsageArgsForCall, struct {
-		arg1 int
+		arg1 string
 		arg2 int
 		arg3 int
-	}{arg1, arg2, arg3})
+		arg4 int
+	}{arg1, arg2, arg3, arg4})
 	stub := fake.AddTokenUsageStub
 	fakeReturns := fake.addTokenUsageReturns
-	fake.recordInvocation("AddTokenUsage", []interface{}{arg1, arg2, arg3})
+	fake.recordInvocation("AddTokenUsage", []interface{}{arg1, arg2, arg3, arg4})
 	fake.addTokenUsageMutex.Unlock()
 	if stub != nil {
-		return stub(arg1, arg2, arg3)
+		return stub(arg1, arg2, arg3, arg4)
 	}
 	if specificReturn {
 		return ret.result1
@@ -250,17 +262,17 @@ func (fake *FakeConversationRepository) AddTokenUsageCallCount() int {
 	return len(fake.addTokenUsageArgsForCall)
 }
 
-func (fake *FakeConversationRepository) AddTokenUsageCalls(stub func(int, int, int) error) {
+func (fake *FakeConversationRepository) AddTokenUsageCalls(stub func(string, int, int, int) error) {
 	fake.addTokenUsageMutex.Lock()
 	defer fake.addTokenUsageMutex.Unlock()
 	fake.AddTokenUsageStub = stub
 }
 
-func (fake *FakeConversationRepository) AddTokenUsageArgsForCall(i int) (int, int, int) {
+func (fake *FakeConversationRepository) AddTokenUsageArgsForCall(i int) (string, int, int, int) {
 	fake.addTokenUsageMutex.RLock()
 	defer fake.addTokenUsageMutex.RUnlock()
 	argsForCall := fake.addTokenUsageArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3, argsForCall.arg4
 }
 
 func (fake *FakeConversationRepository) AddTokenUsageReturns(result1 error) {
@@ -744,6 +756,59 @@ func (fake *FakeConversationRepository) GetMessagesReturnsOnCall(i int, result1 
 	}
 	fake.getMessagesReturnsOnCall[i] = struct {
 		result1 []domain.ConversationEntry
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) GetSessionCostStats() domain.SessionCostStats {
+	fake.getSessionCostStatsMutex.Lock()
+	ret, specificReturn := fake.getSessionCostStatsReturnsOnCall[len(fake.getSessionCostStatsArgsForCall)]
+	fake.getSessionCostStatsArgsForCall = append(fake.getSessionCostStatsArgsForCall, struct {
+	}{})
+	stub := fake.GetSessionCostStatsStub
+	fakeReturns := fake.getSessionCostStatsReturns
+	fake.recordInvocation("GetSessionCostStats", []interface{}{})
+	fake.getSessionCostStatsMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) GetSessionCostStatsCallCount() int {
+	fake.getSessionCostStatsMutex.RLock()
+	defer fake.getSessionCostStatsMutex.RUnlock()
+	return len(fake.getSessionCostStatsArgsForCall)
+}
+
+func (fake *FakeConversationRepository) GetSessionCostStatsCalls(stub func() domain.SessionCostStats) {
+	fake.getSessionCostStatsMutex.Lock()
+	defer fake.getSessionCostStatsMutex.Unlock()
+	fake.GetSessionCostStatsStub = stub
+}
+
+func (fake *FakeConversationRepository) GetSessionCostStatsReturns(result1 domain.SessionCostStats) {
+	fake.getSessionCostStatsMutex.Lock()
+	defer fake.getSessionCostStatsMutex.Unlock()
+	fake.GetSessionCostStatsStub = nil
+	fake.getSessionCostStatsReturns = struct {
+		result1 domain.SessionCostStats
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) GetSessionCostStatsReturnsOnCall(i int, result1 domain.SessionCostStats) {
+	fake.getSessionCostStatsMutex.Lock()
+	defer fake.getSessionCostStatsMutex.Unlock()
+	fake.GetSessionCostStatsStub = nil
+	if fake.getSessionCostStatsReturnsOnCall == nil {
+		fake.getSessionCostStatsReturnsOnCall = make(map[int]struct {
+			result1 domain.SessionCostStats
+		})
+	}
+	fake.getSessionCostStatsReturnsOnCall[i] = struct {
+		result1 domain.SessionCostStats
 	}{result1}
 }
 

@@ -157,6 +157,16 @@ type FakeStateManager struct {
 	getPlanApprovalUIStateReturnsOnCall map[int]struct {
 		result1 *domain.PlanApprovalUIState
 	}
+	GetPreviousViewStub        func() domain.ViewState
+	getPreviousViewMutex       sync.RWMutex
+	getPreviousViewArgsForCall []struct {
+	}
+	getPreviousViewReturns struct {
+		result1 domain.ViewState
+	}
+	getPreviousViewReturnsOnCall map[int]struct {
+		result1 domain.ViewState
+	}
 	GetTodosStub        func() []domain.TodoItem
 	getTodosMutex       sync.RWMutex
 	getTodosArgsForCall []struct {
@@ -1115,6 +1125,59 @@ func (fake *FakeStateManager) GetPlanApprovalUIStateReturnsOnCall(i int, result1
 	}
 	fake.getPlanApprovalUIStateReturnsOnCall[i] = struct {
 		result1 *domain.PlanApprovalUIState
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetPreviousView() domain.ViewState {
+	fake.getPreviousViewMutex.Lock()
+	ret, specificReturn := fake.getPreviousViewReturnsOnCall[len(fake.getPreviousViewArgsForCall)]
+	fake.getPreviousViewArgsForCall = append(fake.getPreviousViewArgsForCall, struct {
+	}{})
+	stub := fake.GetPreviousViewStub
+	fakeReturns := fake.getPreviousViewReturns
+	fake.recordInvocation("GetPreviousView", []interface{}{})
+	fake.getPreviousViewMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetPreviousViewCallCount() int {
+	fake.getPreviousViewMutex.RLock()
+	defer fake.getPreviousViewMutex.RUnlock()
+	return len(fake.getPreviousViewArgsForCall)
+}
+
+func (fake *FakeStateManager) GetPreviousViewCalls(stub func() domain.ViewState) {
+	fake.getPreviousViewMutex.Lock()
+	defer fake.getPreviousViewMutex.Unlock()
+	fake.GetPreviousViewStub = stub
+}
+
+func (fake *FakeStateManager) GetPreviousViewReturns(result1 domain.ViewState) {
+	fake.getPreviousViewMutex.Lock()
+	defer fake.getPreviousViewMutex.Unlock()
+	fake.GetPreviousViewStub = nil
+	fake.getPreviousViewReturns = struct {
+		result1 domain.ViewState
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetPreviousViewReturnsOnCall(i int, result1 domain.ViewState) {
+	fake.getPreviousViewMutex.Lock()
+	defer fake.getPreviousViewMutex.Unlock()
+	fake.GetPreviousViewStub = nil
+	if fake.getPreviousViewReturnsOnCall == nil {
+		fake.getPreviousViewReturnsOnCall = make(map[int]struct {
+			result1 domain.ViewState
+		})
+	}
+	fake.getPreviousViewReturnsOnCall[i] = struct {
+		result1 domain.ViewState
 	}{result1}
 }
 

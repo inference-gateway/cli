@@ -91,7 +91,7 @@ func TestChatMessageProcessor_handleUserInput(t *testing.T) {
 				tt.setupMocks(mockFile)
 			}
 
-			conversationRepo := services.NewInMemoryConversationRepository(nil)
+			conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
 			shortcutRegistry := shortcuts.NewRegistry()
 			stateManager := services.NewStateManager(false)
 			messageQueue := services.NewMessageQueueService()
@@ -236,7 +236,7 @@ func TestChatMessageProcessor_processChatMessage(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			conversationRepo := services.NewInMemoryConversationRepository(nil)
+			conversationRepo := services.NewInMemoryConversationRepository(nil, nil)
 
 			for i := 0; i < tt.existingMessages; i++ {
 				entry := domain.ConversationEntry{

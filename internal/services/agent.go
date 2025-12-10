@@ -633,7 +633,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				availableTools:  availableTools,
 			}
 
-			s.storeIterationMetrics(req.RequestID, iterationStartTime, streamUsage, polyfillInput)
+			s.storeIterationMetrics(req.RequestID, req.Model, iterationStartTime, streamUsage, polyfillInput)
 
 			if len(toolCalls) > 0 {
 				toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
@@ -712,6 +712,7 @@ type storeIterationMetricsInput struct {
 // If the provider doesn't return usage metrics, it uses the tokenizer polyfill to estimate them.
 func (s *AgentServiceImpl) storeIterationMetrics(
 	requestID string,
+	model string,
 	startTime time.Time,
 	usage *sdk.CompletionUsage,
 	polyfillInput *storeIterationMetricsInput,
@@ -741,6 +742,7 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 	s.metricsMux.Unlock()
 
 	if err := s.conversationRepo.AddTokenUsage(
+		model,
 		int(effectiveUsage.PromptTokens),
 		int(effectiveUsage.CompletionTokens),
 		int(effectiveUsage.TotalTokens),

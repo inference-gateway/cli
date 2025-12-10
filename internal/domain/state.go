@@ -55,7 +55,7 @@ const (
 	ViewStateThemeSelection
 	ViewStateA2ATaskManagement
 	ViewStatePlanApproval
-	ViewStateGitHubAppSetup
+	ViewStateGithubActionSetup
 )
 
 // AgentMode represents the operational mode of the agent
@@ -86,8 +86,8 @@ func (v ViewState) String() string {
 		return "A2ATaskManagement"
 	case ViewStatePlanApproval:
 		return "PlanApproval"
-	case ViewStateGitHubAppSetup:
-		return "GitHubAppSetup"
+	case ViewStateGithubActionSetup:
+		return "GithubActionSetup"
 	default:
 		return "Unknown"
 	}
@@ -346,6 +346,11 @@ func (s *ApplicationState) GetCurrentView() ViewState {
 	return s.currentView
 }
 
+// GetPreviousView returns the previous view state
+func (s *ApplicationState) GetPreviousView() ViewState {
+	return s.previousView
+}
+
 // TransitionToView changes the current view with validation
 func (s *ApplicationState) TransitionToView(newView ViewState) error {
 	if !s.isValidTransition(s.currentView, newView) {
@@ -397,14 +402,14 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateThemeSelection,
 			ViewStateA2ATaskManagement,
 			ViewStatePlanApproval,
-			ViewStateGitHubAppSetup,
+			ViewStateGithubActionSetup,
 		},
 		ViewStateFileSelection:         {ViewStateChat},
 		ViewStateConversationSelection: {ViewStateChat},
 		ViewStateThemeSelection:        {ViewStateChat},
 		ViewStateA2ATaskManagement:     {ViewStateChat},
 		ViewStatePlanApproval:          {ViewStateChat},
-		ViewStateGitHubAppSetup:        {ViewStateChat},
+		ViewStateGithubActionSetup:     {ViewStateChat},
 	}
 
 	allowed, exists := validTransitions[from]

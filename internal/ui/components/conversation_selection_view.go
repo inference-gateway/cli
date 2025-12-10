@@ -31,6 +31,7 @@ type ConversationSelectorImpl struct {
 	loadError             error
 	confirmDelete         bool
 	deleteError           error
+	dataLoaded            bool
 }
 
 // NewConversationSelector creates a new conversation selector
@@ -96,6 +97,7 @@ func (c *ConversationSelectorImpl) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (c *ConversationSelectorImpl) handleConversationsLoaded(msg domain.ConversationsLoadedEvent) (tea.Model, tea.Cmd) {
 	c.loading = false
 	c.loadError = msg.Error
+	c.dataLoaded = true
 
 	if msg.Error == nil {
 		conversations := make([]shortcuts.ConversationSummary, len(msg.Conversations))
@@ -373,6 +375,12 @@ func (c *ConversationSelectorImpl) Reset() {
 	c.loadError = nil
 	c.conversations = make([]shortcuts.ConversationSummary, 0)
 	c.filteredConversations = make([]shortcuts.ConversationSummary, 0)
+	c.dataLoaded = false
+}
+
+// NeedsInitialization returns true if the component needs to load data
+func (c *ConversationSelectorImpl) NeedsInitialization() bool {
+	return !c.dataLoaded
 }
 
 // writeHeader writes the header section of the view
@@ -437,8 +445,8 @@ func (c *ConversationSelectorImpl) writeConversationList(b *strings.Builder) {
 
 // writeTableHeader writes the table header
 func (c *ConversationSelectorImpl) writeTableHeader(b *strings.Builder) {
-	headerLine := fmt.Sprintf("%-38s │ %-25s │ %-20s │ %-10s │ %-12s",
-		"ID", "Summary", "Updated", "Messages", "Input Tokens")
+	headerLine := fmt.Sprintf("%-38s │ %-25s │ %-10s │ %-8s │ %-12s │ %-13s │ %-10s",
+		"ID", "Summary", "Messages", "Requests", "Input Tokens", "Output Tokens", "Cost")
 	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderDimText(headerLine))
 
 	separator := strings.Repeat("─", c.width-4)
@@ -479,18 +487,30 @@ func (c *ConversationSelectorImpl) calculatePagination() paginationInfo {
 func (c *ConversationSelectorImpl) writeConversationRow(b *strings.Builder, conv shortcuts.ConversationSummary, index int) {
 	fullID := conv.ID
 	summary := c.truncateString(conv.Title, 25)
-	updatedAt := c.formatUpdatedAt(conv.UpdatedAt)
 	msgCount := fmt.Sprintf("%d", conv.MessageCount)
+	requestCount := fmt.Sprintf("%d", conv.TokenStats.RequestCount)
 	inputTokens := fmt.Sprintf("%d", conv.TokenStats.TotalInputTokens)
+	outputTokens := fmt.Sprintf("%d", conv.TokenStats.TotalOutputTokens)
+
+	costStr := "-"
+	if conv.CostStats.TotalCost > 0 {
+		if conv.CostStats.TotalCost < 0.01 {
+			costStr = fmt.Sprintf("$%.4f", conv.CostStats.TotalCost)
+		} else if conv.CostStats.TotalCost < 1.0 {
+			costStr = fmt.Sprintf("$%.3f", conv.CostStats.TotalCost)
+		} else {
+			costStr = fmt.Sprintf("$%.2f", conv.CostStats.TotalCost)
+		}
+	}
 
 	if index == c.selected {
 		accentColor := c.styleProvider.GetThemeColor("accent")
-		rowText := fmt.Sprintf("▶ %-36s │ %-25s │ %-20s │ %-10s │ %-12s",
-			fullID, summary, updatedAt, msgCount, inputTokens)
+		rowText := fmt.Sprintf("▶ %-36s │ %-25s │ %-10s │ %-8s │ %-12s │ %-13s │ %-10s",
+			fullID, summary, msgCount, requestCount, inputTokens, outputTokens, costStr)
 		fmt.Fprintf(b, "%s\n", c.styleProvider.RenderWithColor(rowText, accentColor))
 	} else {
-		fmt.Fprintf(b, "  %-36s │ %-25s │ %-20s │ %-10s │ %-12s\n",
-			fullID, summary, updatedAt, msgCount, inputTokens)
+		fmt.Fprintf(b, "  %-36s │ %-25s │ %-10s │ %-8s │ %-12s │ %-13s │ %-10s\n",
+			fullID, summary, msgCount, requestCount, inputTokens, outputTokens, costStr)
 	}
 }
 
@@ -503,45 +523,6 @@ func (c *ConversationSelectorImpl) truncateString(s string, maxLen int) string {
 		return s[:maxLen]
 	}
 	return s[:maxLen-3] + "..."
-}
-
-// formatUpdatedAt formats the updatedAt timestamp
-func (c *ConversationSelectorImpl) formatUpdatedAt(updatedAt string) string {
-	if len(updatedAt) <= 20 {
-		return updatedAt
-	}
-
-	formatted := c.formatDateTimeParts(updatedAt)
-	if len(formatted) > 20 {
-		formatted = formatted[:20]
-	}
-	return formatted
-}
-
-// formatDateTimeParts formats date and time parts
-func (c *ConversationSelectorImpl) formatDateTimeParts(updatedAt string) string {
-	if !strings.Contains(updatedAt, " ") {
-		return updatedAt
-	}
-
-	parts := strings.Split(updatedAt, " ")
-	if len(parts) < 2 {
-		return updatedAt
-	}
-
-	datePart := parts[0]
-	timePart := parts[1]
-
-	if !strings.Contains(timePart, ":") {
-		return updatedAt
-	}
-
-	timeComponents := strings.Split(timePart, ":")
-	if len(timeComponents) < 2 {
-		return updatedAt
-	}
-
-	return fmt.Sprintf("%s %s:%s", datePart, timeComponents[0], timeComponents[1])
 }
 
 // writeFooter writes the footer section

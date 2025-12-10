@@ -221,6 +221,19 @@ agent:
   max_concurrent_tools: 5 # Maximum concurrent tool executions
 chat:
   theme: tokyo-night
+  status_bar:
+    enabled: true
+    indicators:
+      model: true
+      theme: true
+      max_output: false
+      a2a_agents: true
+      tools: true
+      background_shells: true
+      mcp: true
+      context_usage: true
+      session_tokens: true
+      git_branch: true
 compact:
   enabled: false # Enable automatic conversation compaction
   auto_at: 80 # Compact when context reaches this percentage (20-100)
@@ -309,6 +322,48 @@ compact:
   - Available themes: `tokyo-night`, `github-light`, `dracula`
   - Can be changed during chat using `/theme [theme-name]` shortcut
   - Affects colors and styling of the chat interface
+
+- **chat.status_bar.enabled**: Enable/disable the entire status bar (default: `true`)
+  - When disabled, no status indicators will be shown
+  - When enabled, individual indicators can be configured
+
+- **chat.status_bar.indicators**: Configuration for individual status bar indicators
+  - All indicators are enabled by default except `max_output` to maintain current behavior
+  - Available indicators:
+    - **model**: Current AI model name (default: `true`)
+    - **theme**: Current theme name (default: `true`)
+    - **max_output**: Maximum output tokens (default: `false`)
+    - **a2a_agents**: A2A agent readiness (ready/total) (default: `true`)
+    - **tools**: Tool count and token usage (default: `true`)
+    - **background_shells**: Running background shell count (default: `true`)
+    - **mcp**: MCP server status and tool count (default: `true`)
+    - **context_usage**: Token consumption percentage (default: `true`)
+    - **session_tokens**: Session token usage statistics (default: `true`)
+    - **git_branch**: Current Git branch name (default: `true`)
+      - Only displays when in a Git repository
+      - Uses 5-second cache for performance
+      - Automatically updates after Git operations in bash mode
+      - Long branch names are truncated with "..." indicator
+
+**Example Configuration:**
+
+```yaml
+chat:
+  theme: tokyo-night
+  status_bar:
+    enabled: true
+    indicators:
+      model: true
+      theme: false           # Hide theme indicator
+      max_output: false
+      a2a_agents: true
+      tools: true
+      background_shells: false # Hide background shells indicator
+      mcp: true
+      context_usage: true
+      session_tokens: true
+      git_branch: true       # Show current Git branch
+```
 
 ### Keybinding Configuration
 

@@ -2,7 +2,6 @@ package config
 
 import (
 	"fmt"
-	"net"
 	"strings"
 )
 
@@ -13,6 +12,7 @@ type MCPConfig struct {
 	DiscoveryTimeout      int              `yaml:"discovery_timeout,omitempty" mapstructure:"discovery_timeout,omitempty"`
 	LivenessProbeEnabled  bool             `yaml:"liveness_probe_enabled,omitempty" mapstructure:"liveness_probe_enabled,omitempty"`
 	LivenessProbeInterval int              `yaml:"liveness_probe_interval,omitempty" mapstructure:"liveness_probe_interval,omitempty"`
+	MaxRetries            int              `yaml:"max_retries,omitempty" mapstructure:"max_retries,omitempty"`
 	Servers               []MCPServerEntry `yaml:"servers" mapstructure:"servers"`
 }
 
@@ -135,21 +135,6 @@ func (e *MCPServerEntry) GetPrimaryPort() int {
 	return port
 }
 
-// FindAvailablePort finds the next available port starting from basePort
-// It checks up to 100 ports after the base port
-func FindAvailablePort(basePort int) int {
-	for port := basePort; port < basePort+100; port++ {
-		address := fmt.Sprintf("localhost:%d", port)
-		listener, err := net.Listen("tcp", address)
-		if err != nil {
-			continue
-		}
-		_ = listener.Close()
-		return port
-	}
-	return basePort
-}
-
 // DefaultMCPConfig returns a default MCP configuration
 func DefaultMCPConfig() *MCPConfig {
 	return &MCPConfig{
@@ -158,6 +143,7 @@ func DefaultMCPConfig() *MCPConfig {
 		DiscoveryTimeout:      30,
 		LivenessProbeEnabled:  true,
 		LivenessProbeInterval: 10,
+		MaxRetries:            10,
 		Servers:               []MCPServerEntry{},
 	}
 }

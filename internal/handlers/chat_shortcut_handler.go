@@ -107,6 +107,16 @@ func (s *ChatShortcutHandler) tryExecuteFromRegistry(shortcut string, args []str
 // executeRegistryShortcut executes a shortcut from the registry and handles results
 func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args []string) tea.Msg {
 	ctx := context.Background()
+
+	sessionID := ""
+	if persistentRepo, ok := s.handler.conversationRepo.(*services.PersistentConversationRepository); ok {
+		sessionID = persistentRepo.GetCurrentConversationID()
+		logger.Debug("Adding session ID to shortcut context", "session_id", sessionID, "shortcut", shortcut.GetName())
+	} else {
+		logger.Debug("ConversationRepo is not PersistentConversationRepository", "type", fmt.Sprintf("%T", s.handler.conversationRepo))
+	}
+	ctx = context.WithValue(ctx, domain.SessionIDKey, sessionID)
+
 	result, err := shortcut.Execute(ctx, args)
 	if err != nil {
 		return domain.SetStatusEvent{
@@ -160,8 +170,6 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleSwitchThemeSideEffect()
 	case shortcuts.SideEffectClearConversation:
 		return s.handleClearConversationSideEffect()
-	case shortcuts.SideEffectExportConversation:
-		return s.handleExportConversationSideEffect()
 	case shortcuts.SideEffectReloadConfig:
 		return s.handleReloadConfigSideEffect()
 	case shortcuts.SideEffectShowHelp:
@@ -175,7 +183,7 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 	case shortcuts.SideEffectStartNewConversation:
 		return s.handleStartNewConversationSideEffect(data)
 	case shortcuts.SideEffectShowInitGithubActionSetup:
-		return s.handleShowGitHubAppSetupSideEffect()
+		return s.handleShowGithubActionSetupSideEffect()
 	case shortcuts.SideEffectShowA2ATaskManagement:
 		return s.handleShowA2ATaskManagementSideEffect()
 	case shortcuts.SideEffectSetInput:
@@ -248,97 +256,6 @@ func (s *ChatShortcutHandler) handleClearConversationSideEffect() tea.Msg {
 	)()
 }
 
-func (s *ChatShortcutHandler) handleExportConversationSideEffect() tea.Msg {
-	return tea.Batch(
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "📝 Generating summary and exporting conversation...",
-				Spinner:    true,
-				StatusType: domain.StatusWorking,
-			}
-		},
-		s.performExportAsync(),
-	)()
-}
-
-func (s *ChatShortcutHandler) performExportAsync() tea.Cmd {
-	return tea.Sequence(
-		func() tea.Msg {
-			return domain.SetStatusEvent{
-				Message:    "🤖 Generating AI summary...",
-				Spinner:    true,
-				StatusType: domain.StatusGenerating,
-			}
-		},
-		s.performSummaryGeneration(),
-	)
-}
-
-func (s *ChatShortcutHandler) performSummaryGeneration() tea.Cmd {
-	return func() tea.Msg {
-		ctx := context.Background()
-
-		shortcut, exists := s.handler.shortcutRegistry.Get("export")
-		if !exists {
-			return domain.SetStatusEvent{
-				Message:    "Export command not found",
-				Spinner:    false,
-				StatusType: domain.StatusError,
-			}
-		}
-
-		exportShortcut, ok := shortcut.(*shortcuts.ExportShortcut)
-		if !ok {
-			return domain.SetStatusEvent{
-				Message:    "Invalid export command type",
-				Spinner:    false,
-				StatusType: domain.StatusError,
-			}
-		}
-
-		exportResult, err := exportShortcut.PerformExport(ctx)
-		if err != nil {
-			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Export failed: %v", err),
-				Spinner:    false,
-				StatusType: domain.StatusError,
-			}
-		}
-
-		if clearErr := s.handler.conversationRepo.ClearExceptFirstUserMessage(); clearErr != nil {
-			logger.Error("failed to clear conversation except first message", "error", clearErr)
-		}
-
-		summaryEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(fmt.Sprintf("📝 **Conversation Summary**\n\n%s\n\n---\n\n*Full conversation exported to: %s*", exportResult.Summary, exportResult.FilePath)),
-			},
-			Model: "",
-			Time:  time.Now(),
-		}
-
-		if addErr := s.handler.conversationRepo.AddMessage(summaryEntry); addErr != nil {
-			logger.Error("failed to add summary message", "error", addErr)
-		}
-
-		return tea.Batch(
-			func() tea.Msg {
-				return domain.UpdateHistoryEvent{
-					History: s.handler.conversationRepo.GetMessages(),
-				}
-			},
-			func() tea.Msg {
-				return domain.SetStatusEvent{
-					Message:    fmt.Sprintf("Conversation exported to: %s", exportResult.FilePath),
-					Spinner:    false,
-					StatusType: domain.StatusDefault,
-				}
-			},
-		)()
-	}
-}
-
 func (s *ChatShortcutHandler) handleReloadConfigSideEffect() tea.Msg {
 	return domain.SetStatusEvent{
 		Message:    "Configuration reloaded successfully",
@@ -388,8 +305,8 @@ func (s *ChatShortcutHandler) handleShowConversationSelectionSideEffect() tea.Ms
 	}
 }
 
-func (s *ChatShortcutHandler) handleShowGitHubAppSetupSideEffect() tea.Msg {
-	return domain.TriggerGitHubAppSetupEvent{}
+func (s *ChatShortcutHandler) handleShowGithubActionSetupSideEffect() tea.Msg {
+	return domain.TriggerGithubActionSetupEvent{}
 }
 
 func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea.Msg {
@@ -602,6 +519,9 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 
 		messages := make([]sdk.Message, 0, len(entries))
 		for _, entry := range entries {
+			if entry.Hidden {
+				continue
+			}
 			messages = append(messages, entry.Message)
 		}
 
