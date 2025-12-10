@@ -272,8 +272,6 @@ func (cv *ConversationView) updateViewportContentFull() {
 			wrapWidth = 40
 		}
 
-		// IMPORTANT: During streaming, use plain text wrapping only for performance
-		// Markdown rendering happens once after streaming completes (in the normal message flow)
 		streamingContent = formatting.FormatResponsiveMessage(streamingContent, wrapWidth)
 
 		assistantColor := cv.styleProvider.GetThemeColor("assistant")
