@@ -252,6 +252,15 @@ For detailed A2A setup, see [A2A Agents Configuration](docs/agents-configuration
 infer status
 ```
 
+**`infer conversations`** - List and manage conversation history
+
+```bash
+infer conversations list                    # List all saved conversations
+infer conversations list --limit 20         # List first 20 conversations
+infer conversations list --offset 40 -l 20  # Paginate: conversations 41-60
+infer conversations list --format json      # Output as JSON
+```
+
 **`infer conversation-title`** - Manage AI-powered conversation titles
 
 ```bash

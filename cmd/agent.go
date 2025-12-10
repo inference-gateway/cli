@@ -79,9 +79,8 @@ func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, file
 		_ = services.Shutdown(ctx)
 	}()
 
-	gatewayManager := services.GetGatewayManager()
-	if gatewayManager != nil && !gatewayManager.IsRunning() {
-		return fmt.Errorf(`inference gateway is not running. Please ensure the gateway is started.
+	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
+		return fmt.Errorf(`failed to start inference gateway: %w
 
 Possible solutions:
 1. Ensure Docker is running: docker ps
@@ -89,7 +88,7 @@ Possible solutions:
 3. Or disable auto-run in config and start the gateway manually
 4. Check gateway logs: docker logs inference-gateway
 
-For more information, visit: https://github.com/inference-gateway/inference-gateway`)
+For more information, visit: https://github.com/inference-gateway/inference-gateway`, err)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
