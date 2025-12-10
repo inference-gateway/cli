@@ -265,11 +265,14 @@ func (cv *ConversationView) updateViewportContentFull() {
 
 	if cv.isStreaming && cv.streamingBuffer.Len() > 0 {
 		streamingContent := cv.streamingBuffer.String()
-		if cv.markdownRenderer != nil && !cv.rawFormat {
-			streamingContent = cv.markdownRenderer.Render(streamingContent)
-		} else {
-			streamingContent = formatting.FormatResponsiveMessage(streamingContent, cv.width)
+
+		rolePrefixLength := 13
+		wrapWidth := cv.width - rolePrefixLength
+		if wrapWidth < 40 {
+			wrapWidth = 40
 		}
+
+		streamingContent = formatting.FormatResponsiveMessage(streamingContent, wrapWidth)
 
 		assistantColor := cv.styleProvider.GetThemeColor("assistant")
 		roleStyled := cv.styleProvider.RenderWithColor("⏺ Assistant:", assistantColor)
@@ -412,11 +415,20 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 	}
 	content := contentStr
 
+	rolePrefixLength := len(role) + 2
+	wrapWidth := cv.width - rolePrefixLength
+	if wrapWidth < 40 {
+		wrapWidth = 40
+	}
+
 	var formattedContent string
 	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.rawFormat {
+		originalWidth := cv.width
+		cv.markdownRenderer.SetWidth(wrapWidth)
 		formattedContent = cv.markdownRenderer.Render(content)
+		cv.markdownRenderer.SetWidth(originalWidth)
 	} else {
-		formattedContent = formatting.FormatResponsiveMessage(content, cv.width)
+		formattedContent = formatting.FormatResponsiveMessage(content, wrapWidth)
 	}
 
 	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
@@ -434,13 +446,9 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 	if err != nil {
 		contentStr = ""
 	}
+
 	if contentStr != "" {
-		var formattedContent string
-		if cv.markdownRenderer != nil && !cv.rawFormat {
-			formattedContent = cv.markdownRenderer.Render(contentStr)
-		} else {
-			formattedContent = formatting.FormatResponsiveMessage(contentStr, cv.width)
-		}
+		formattedContent := cv.formatAssistantContent(contentStr, role)
 		result.WriteString(roleStyled + " " + formattedContent + "\n")
 	} else {
 		result.WriteString(roleStyled + "\n")
@@ -470,6 +478,25 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 	}
 
 	return result.String() + "\n"
+}
+
+// formatAssistantContent formats assistant message content with proper wrapping
+func (cv *ConversationView) formatAssistantContent(contentStr, role string) string {
+	rolePrefixLength := len(role) + 2
+	wrapWidth := cv.width - rolePrefixLength
+	if wrapWidth < 40 {
+		wrapWidth = 40
+	}
+
+	if cv.markdownRenderer != nil && !cv.rawFormat {
+		originalWidth := cv.width
+		cv.markdownRenderer.SetWidth(wrapWidth)
+		formattedContent := cv.markdownRenderer.Render(contentStr)
+		cv.markdownRenderer.SetWidth(originalWidth)
+		return formattedContent
+	}
+
+	return formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 }
 
 func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, index int, color, role string) string {

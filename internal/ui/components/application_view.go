@@ -127,11 +127,7 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	todoBoxView *TodoBoxView,
 	heights componentHeights,
 ) {
-	conversationMargin := 4
-	conversationWidth := width
-	if width > 80 {
-		conversationWidth = width - conversationMargin
-	}
+	conversationWidth := formatting.GetResponsiveWidth(width)
 
 	conversationView.SetWidth(conversationWidth)
 	conversationView.SetHeight(heights.conversationHeight)
