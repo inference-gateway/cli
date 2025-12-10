@@ -18,6 +18,7 @@ words:
   - mixtral
   - moonshotai
   - mtoken
+  - myshortcuts
   - nolint
   - ollama
   - OLLAMA
@@ -29,3 +30,4 @@ words:
   - retryable
   - SHTTP
   - sname
+  - sysinfo
