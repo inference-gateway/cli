@@ -164,6 +164,7 @@ Located in `.infer/mcp.yaml`:
 | `discovery_timeout` | integer | `30` | Tool discovery timeout (seconds) |
 | `liveness_probe_enabled` | boolean | `false` | Enable health monitoring |
 | `liveness_probe_interval` | integer | `10` | Health check interval (seconds) |
+| `max_retries` | integer | `10` | Maximum retry attempts before marking server as permanently failed |
 | `servers` | array | `[]` | List of MCP server configurations |
 
 ### Per-Server Configuration
@@ -299,6 +300,7 @@ display real-time connection status in the UI.
 ```yaml
 liveness_probe_enabled: true   # Enable health monitoring
 liveness_probe_interval: 10    # Seconds between health checks
+max_retries: 10                # Maximum retry attempts before permanent failure
 ```
 
 ### Status Display

@@ -398,6 +398,7 @@ connection_timeout: 30
 discovery_timeout: 30
 liveness_probe_enabled: true
 liveness_probe_interval: 10
+max_retries: 10
 servers: []
 `
 

@@ -12,6 +12,7 @@ type MCPConfig struct {
 	DiscoveryTimeout      int              `yaml:"discovery_timeout,omitempty" mapstructure:"discovery_timeout,omitempty"`
 	LivenessProbeEnabled  bool             `yaml:"liveness_probe_enabled,omitempty" mapstructure:"liveness_probe_enabled,omitempty"`
 	LivenessProbeInterval int              `yaml:"liveness_probe_interval,omitempty" mapstructure:"liveness_probe_interval,omitempty"`
+	MaxRetries            int              `yaml:"max_retries,omitempty" mapstructure:"max_retries,omitempty"`
 	Servers               []MCPServerEntry `yaml:"servers" mapstructure:"servers"`
 }
 
@@ -142,6 +143,7 @@ func DefaultMCPConfig() *MCPConfig {
 		DiscoveryTimeout:      30,
 		LivenessProbeEnabled:  true,
 		LivenessProbeInterval: 10,
+		MaxRetries:            10,
 		Servers:               []MCPServerEntry{},
 	}
 }

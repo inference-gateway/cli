@@ -23,15 +23,16 @@ var (
 
 // mcpClient wraps a single MCP server connection with an initialized MCP library client
 type mcpClient struct {
-	serverName      string
-	client          *mcp.Client
-	globalConfig    *config.MCPConfig
-	serverConfig    config.MCPServerEntry
-	mu              sync.RWMutex
-	isConnected     bool
-	isInitialized   bool
-	retryAttempt    int
-	lastAttemptTime time.Time
+	serverName        string
+	client            *mcp.Client
+	globalConfig      *config.MCPConfig
+	serverConfig      config.MCPServerEntry
+	mu                sync.RWMutex
+	isConnected       bool
+	isInitialized     bool
+	retryAttempt      int
+	lastAttemptTime   time.Time
+	permanentlyFailed bool
 }
 
 // newMCPClient creates a new MCP client (without initializing the transport yet)
@@ -340,7 +341,13 @@ func (m *MCPManager) StartMonitoring(ctx context.Context) <-chan domain.MCPServe
 					c.mu.RLock()
 					isConnected := c.isConnected
 					retryAttempt := c.retryAttempt
+					isPermanentlyFailed := c.permanentlyFailed
 					c.mu.RUnlock()
+
+					if isPermanentlyFailed {
+						logger.Info("Stopping health monitoring for permanently failed MCP server", "server", c.serverName)
+						return
+					}
 
 					var delay time.Duration
 					if isConnected {
@@ -368,62 +375,116 @@ func (m *MCPManager) StartMonitoring(ctx context.Context) <-chan domain.MCPServe
 func (m *MCPManager) checkClientHealth(ctx context.Context, client *mcpClient) {
 	client.mu.RLock()
 	wasConnected := client.isConnected
+	isPermanentlyFailed := client.permanentlyFailed
 	client.mu.RUnlock()
 
-	if !wasConnected {
-		toolsMap, err := client.DiscoverTools(ctx)
-		if err != nil {
-			client.mu.Lock()
-			client.retryAttempt++
-			client.lastAttemptTime = time.Now()
-			retryCount := client.retryAttempt
-			client.mu.Unlock()
-
-			logger.Error("MCP server health check failed (tool discovery failed)",
-				"server", client.serverName,
-				"retryAttempt", retryCount,
-				"error", err)
-			return
-		}
-
-		client.mu.Lock()
-		client.retryAttempt = 0
-		client.lastAttemptTime = time.Now()
-		client.mu.Unlock()
-
-		tools := toolsMap[client.serverName]
-
-		m.mu.Lock()
-		m.toolCounts[client.serverName] = len(tools)
-		m.mu.Unlock()
-
-		logger.Info("MCP server tools discovered successfully",
-			"server", client.serverName,
-			"toolCount", len(tools))
-
-		m.sendStatusUpdateWithTools(client.serverName, true, tools)
-	} else {
-		err := client.PingServer(ctx, client.serverName)
-		if err != nil {
-			// Increment retry attempt on ping failure
-			client.mu.Lock()
-			client.retryAttempt++
-			client.lastAttemptTime = time.Now()
-			client.mu.Unlock()
-
-			logger.Warn("MCP server became unhealthy", "server", client.serverName, "error", err)
-			m.sendStatusUpdate(client.serverName, false)
-			return
-		}
-
-		// Reset retry count on successful ping
-		client.mu.Lock()
-		client.retryAttempt = 0
-		client.lastAttemptTime = time.Now()
-		client.mu.Unlock()
-
-		logger.Debug("MCP server health check passed", "server", client.serverName)
+	if isPermanentlyFailed {
+		return
 	}
+
+	maxRetries := m.config.MaxRetries
+	if maxRetries <= 0 {
+		maxRetries = 10
+	}
+
+	if !wasConnected {
+		m.handleToolDiscovery(ctx, client, maxRetries)
+		return
+	}
+
+	m.handlePing(ctx, client, maxRetries)
+}
+
+// handleToolDiscovery attempts to discover tools and handles retry logic
+func (m *MCPManager) handleToolDiscovery(ctx context.Context, client *mcpClient, maxRetries int) {
+	toolsMap, err := client.DiscoverTools(ctx)
+	if err != nil {
+		m.handleDiscoveryFailure(client, maxRetries, err)
+		return
+	}
+
+	client.mu.Lock()
+	client.retryAttempt = 0
+	client.lastAttemptTime = time.Now()
+	client.mu.Unlock()
+
+	tools := toolsMap[client.serverName]
+
+	m.mu.Lock()
+	m.toolCounts[client.serverName] = len(tools)
+	m.mu.Unlock()
+
+	logger.Info("MCP server tools discovered successfully",
+		"server", client.serverName,
+		"toolCount", len(tools))
+
+	m.sendStatusUpdateWithTools(client.serverName, true, tools)
+}
+
+// handleDiscoveryFailure handles tool discovery failures and retry logic
+func (m *MCPManager) handleDiscoveryFailure(client *mcpClient, maxRetries int, err error) {
+	client.mu.Lock()
+	client.retryAttempt++
+	client.lastAttemptTime = time.Now()
+	retryCount := client.retryAttempt
+
+	if retryCount >= maxRetries {
+		client.permanentlyFailed = true
+		client.mu.Unlock()
+		logger.Error("MCP server permanently failed after max retries",
+			"server", client.serverName,
+			"retryAttempt", retryCount,
+			"maxRetries", maxRetries,
+			"error", err)
+		return
+	}
+	client.mu.Unlock()
+
+	logger.Error("MCP server health check failed (tool discovery failed)",
+		"server", client.serverName,
+		"retryAttempt", retryCount,
+		"maxRetries", maxRetries,
+		"error", err)
+}
+
+// handlePing attempts to ping the server and handles retry logic
+func (m *MCPManager) handlePing(ctx context.Context, client *mcpClient, maxRetries int) {
+	err := client.PingServer(ctx, client.serverName)
+	if err != nil {
+		m.handlePingFailure(client, maxRetries, err)
+		return
+	}
+
+	client.mu.Lock()
+	client.retryAttempt = 0
+	client.lastAttemptTime = time.Now()
+	client.mu.Unlock()
+
+	logger.Debug("MCP server health check passed", "server", client.serverName)
+}
+
+// handlePingFailure handles ping failures and retry logic
+func (m *MCPManager) handlePingFailure(client *mcpClient, maxRetries int, err error) {
+	client.mu.Lock()
+	client.retryAttempt++
+	client.lastAttemptTime = time.Now()
+	retryCount := client.retryAttempt
+
+	if retryCount >= maxRetries {
+		client.permanentlyFailed = true
+		client.mu.Unlock()
+		logger.Error("MCP server permanently failed after max retries",
+			"server", client.serverName,
+			"retryAttempt", retryCount,
+			"maxRetries", maxRetries,
+			"error", err)
+		m.sendStatusUpdate(client.serverName, false)
+		return
+	}
+	client.mu.Unlock()
+
+	logger.Warn("MCP server became unhealthy", "server", client.serverName, "error", err)
+	m.sendStatusUpdate(client.serverName, false)
 }
 
 // calculateBackoff calculates exponential backoff delay
