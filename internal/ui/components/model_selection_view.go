@@ -294,9 +294,10 @@ func (m *ModelSelectorImpl) applyFilters() {
 }
 
 // isModelFree checks if a model is free (both input and output prices are 0.0)
+// Returns false if pricing is disabled or not configured
 func (m *ModelSelectorImpl) isModelFree(model string) bool {
-	if m.pricingService == nil {
-		return true
+	if m.pricingService == nil || !m.pricingService.IsEnabled() {
+		return false
 	}
 
 	inputPrice := m.pricingService.GetInputPrice(model)
@@ -363,8 +364,9 @@ func (m *ModelSelectorImpl) writeViewTabs(b *strings.Builder) {
 }
 
 // getModelPricingSuffix returns the pricing information suffix for a model
+// Returns empty string if pricing is disabled or not configured
 func (m *ModelSelectorImpl) getModelPricingSuffix(model string) string {
-	if m.pricingService == nil {
+	if m.pricingService == nil || !m.pricingService.IsEnabled() {
 		return ""
 	}
 

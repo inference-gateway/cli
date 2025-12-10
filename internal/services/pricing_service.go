@@ -19,6 +19,11 @@ func NewPricingService(cfg *config.PricingConfig) domain.PricingService {
 	}
 }
 
+// IsEnabled returns whether pricing is enabled in the configuration.
+func (p *PricingServiceImpl) IsEnabled() bool {
+	return p.config.Enabled
+}
+
 // GetInputPrice retrieves the input price per million tokens for a specific model.
 // Returns 0.0 for unknown models (e.g., Ollama, custom models).
 func (p *PricingServiceImpl) GetInputPrice(model string) float64 {

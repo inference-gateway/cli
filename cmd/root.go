@@ -111,6 +111,9 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("a2a.tools.download_artifacts.require_approval", defaults.A2A.Tools.DownloadArtifacts.RequireApproval)
 	v.SetDefault("a2a.tools.download_artifacts.download_dir", defaults.A2A.Tools.DownloadArtifacts.DownloadDir)
 	v.SetDefault("a2a.tools.download_artifacts.timeout_seconds", defaults.A2A.Tools.DownloadArtifacts.TimeoutSeconds)
+	v.SetDefault("pricing", defaults.Pricing)
+	v.SetDefault("pricing.enabled", defaults.Pricing.Enabled)
+	v.SetDefault("pricing.currency", defaults.Pricing.Currency)
 
 	v.SetConfigName("config")
 	v.SetConfigType("yaml")

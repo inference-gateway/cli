@@ -26,6 +26,9 @@ type SessionCostStats struct {
 // Note: This interface returns float64 for pricing to avoid import cycles.
 // The actual ModelPricing struct is defined in the config package.
 type PricingService interface {
+	// IsEnabled returns whether pricing is enabled in the configuration.
+	IsEnabled() bool
+
 	// GetInputPrice retrieves the input price per million tokens for a specific model.
 	// Returns 0.0 for unknown models (e.g., Ollama, custom models).
 	GetInputPrice(model string) float64
