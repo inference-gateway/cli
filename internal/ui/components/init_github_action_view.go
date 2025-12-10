@@ -127,7 +127,7 @@ func (v *InitGithubActionView) handleYesInput() (tea.Model, tea.Cmd) {
 func (v *InitGithubActionView) handleNoInput() (tea.Model, tea.Cmd) {
 	if v.step == 0 {
 		v.hasExisting = false
-		_ = openGitHubAppCreationURL(v.repoOwner, v.isOrgRepo)
+		_ = openGithubActionCreationURL(v.repoOwner, v.isOrgRepo)
 		v.step = 2
 		v.inputBuffer = ""
 		v.cursorPos = 0
@@ -297,7 +297,7 @@ func (v *InitGithubActionView) renderStepManualAppID(b *strings.Builder) {
 		b.WriteString("You can find your App ID at:\n")
 
 		accentColor := v.styleProvider.GetThemeColor("accent")
-		appsURL := v.getGitHubAppsURL()
+		appsURL := v.getGithubActionsURL()
 		link := v.styleProvider.RenderWithColor(appsURL, accentColor)
 		b.WriteString("  " + link + "\n\n")
 
@@ -324,7 +324,7 @@ func (v *InitGithubActionView) renderStepPrivateKey(b *strings.Builder) {
 
 	b.WriteString("To download your private key:\n")
 	accentColor := v.styleProvider.GetThemeColor("accent")
-	appsPageURL := v.getGitHubAppsURL()
+	appsPageURL := v.getGithubActionsURL()
 	link := v.styleProvider.RenderWithColor(appsPageURL, accentColor)
 	b.WriteString("  1. Go to " + link + "\n")
 	b.WriteString("  2. Click on your app name from the list\n")
@@ -413,8 +413,8 @@ func (v *InitGithubActionView) SetRepositoryInfo(owner string, isOrg bool) {
 	v.isOrgRepo = isOrg
 }
 
-// getGitHubAppsURL returns the appropriate GitHub Apps URL based on whether this is an org repo
-func (v *InitGithubActionView) getGitHubAppsURL() string {
+// getGithubActionsURL returns the appropriate GitHub Apps URL based on whether this is an org repo
+func (v *InitGithubActionView) getGithubActionsURL() string {
 	if v.isOrgRepo && v.repoOwner != "" {
 		return fmt.Sprintf("https://github.com/organizations/%s/settings/apps", v.repoOwner)
 	}
@@ -435,8 +435,8 @@ func (v *InitGithubActionView) Reset() {
 	v.err = nil
 }
 
-// openGitHubAppCreationURL opens the GitHub App creation page with pre-filled parameters
-func openGitHubAppCreationURL(owner string, isOrg bool) error {
+// openGithubActionCreationURL opens the GitHub App creation page with pre-filled parameters
+func openGithubActionCreationURL(owner string, isOrg bool) error {
 	params := url.Values{}
 	params.Set("name", "infer-bot")
 	params.Set("url", "https://github.com/inference-gateway/cli")

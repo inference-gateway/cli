@@ -252,5 +252,5 @@ type MCPServerStatusUpdateEvent struct {
 
 // GitHub App Setup Events
 
-// TriggerGitHubAppSetupEvent triggers the GitHub App setup flow
-type TriggerGitHubAppSetupEvent struct{}
+// TriggerGithubActionSetupEvent triggers the GitHub App setup flow
+type TriggerGithubActionSetupEvent struct{}

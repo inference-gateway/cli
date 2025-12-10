@@ -369,8 +369,8 @@ type mcpStatusUpdateWithChannel struct {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	if _, ok := msg.(domain.TriggerGitHubAppSetupEvent); ok {
-		cmds = append(cmds, app.handleGitHubAppSetupTrigger()...)
+	if _, ok := msg.(domain.TriggerGithubActionSetupEvent); ok {
+		cmds = append(cmds, app.handleGithubActionSetupTrigger()...)
 		return app, tea.Batch(cmds...)
 	}
 
@@ -448,7 +448,7 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleThemeSelectionView(msg)
 	case domain.ViewStateA2ATaskManagement:
 		return app.handleA2ATaskManagementView(msg)
-	case domain.ViewStateGitHubAppSetup:
+	case domain.ViewStateGithubActionSetup:
 		return app.handleInitGithubActionView(msg)
 	default:
 		return nil
@@ -545,8 +545,8 @@ func (app *ChatApplication) View() string {
 		return app.renderThemeSelection()
 	case domain.ViewStateA2ATaskManagement:
 		return app.renderA2ATaskManagement()
-	case domain.ViewStateGitHubAppSetup:
-		return app.renderGitHubAppSetup()
+	case domain.ViewStateGithubActionSetup:
+		return app.renderGithubActionSetup()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -591,7 +591,7 @@ func (app *ChatApplication) handleInitGithubActionCompleted(cmds []tea.Cmd) []te
 			}
 		})
 
-		cmds = append(cmds, app.performGitHubAppSetup(appID, privateKeyPath))
+		cmds = append(cmds, app.performGithubActionSetup(appID, privateKeyPath))
 	}
 
 	app.initGithubActionView.Reset()
@@ -639,7 +639,7 @@ func (app *ChatApplication) handleInitGithubActionCancelled(cmds []tea.Cmd) []te
 	return cmds
 }
 
-func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
+func (app *ChatApplication) handleGithubActionSetupTrigger() []tea.Cmd {
 	var cmds []tea.Cmd
 
 	repo, err := app.getCurrentRepo()
@@ -687,7 +687,7 @@ func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
 				}
 			})
 
-			cmds = append(cmds, app.performGitHubAppSetup("", ""))
+			cmds = append(cmds, app.performGithubActionSetup("", ""))
 
 			return cmds
 		}
@@ -695,7 +695,7 @@ func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
 
 	app.initGithubActionView.SetRepositoryInfo(owner, isOrg)
 
-	if err := app.stateManager.TransitionToView(domain.ViewStateGitHubAppSetup); err != nil {
+	if err := app.stateManager.TransitionToView(domain.ViewStateGithubActionSetup); err != nil {
 		cmds = append(cmds, func() tea.Msg {
 			return domain.ShowErrorEvent{
 				Error:  fmt.Sprintf("Failed to show Init Github Action setup: %v", err),
@@ -716,7 +716,7 @@ func (app *ChatApplication) handleGitHubAppSetupTrigger() []tea.Cmd {
 	return cmds
 }
 
-func (app *ChatApplication) performGitHubAppSetup(appID, privateKeyPath string) tea.Cmd {
+func (app *ChatApplication) performGithubActionSetup(appID, privateKeyPath string) tea.Cmd {
 	return func() tea.Msg {
 		repo, err := app.getCurrentRepo()
 		if err != nil {
@@ -781,7 +781,7 @@ func (app *ChatApplication) setupOrgWorkflow(repo, appID, privateKeyPath string)
 		}
 	}
 
-	workflowContent := app.generateGitHubAppWorkflowContent()
+	workflowContent := app.generateGithubActionWorkflowContent()
 	workflowPath := ".github/workflows/infer.yml"
 
 	if err := app.writeWorkflowFile(workflowPath, workflowContent); err != nil {
@@ -1114,7 +1114,7 @@ func (app *ChatApplication) renderA2ATaskManagement() string {
 	return app.taskManager.View()
 }
 
-func (app *ChatApplication) renderGitHubAppSetup() string {
+func (app *ChatApplication) renderGithubActionSetup() string {
 	width, height := app.stateManager.GetDimensions()
 	app.initGithubActionView.SetWidth(width)
 	app.initGithubActionView.SetHeight(height)
@@ -1663,7 +1663,7 @@ jobs:
 `
 }
 
-func (app *ChatApplication) generateGitHubAppWorkflowContent() string {
+func (app *ChatApplication) generateGithubActionWorkflowContent() string {
 	return `---
 name: Infer
 
