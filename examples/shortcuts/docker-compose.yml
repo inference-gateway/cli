@@ -3,8 +3,6 @@ services:
   inference-gateway:
     image: ghcr.io/inference-gateway/inference-gateway:latest
     pull_policy: always
-    ports:
-      - "8080:8080"
     environment:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
@@ -16,8 +14,6 @@ services:
       GOOGLE_API_KEY: ${OLLAMA_CLOUD_API_KEY}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY}
     restart: unless-stopped
-    networks:
-      - shortcuts-demo
 
   cli:
     image: ghcr.io/inference-gateway/cli:latest
@@ -31,17 +27,7 @@ services:
       INFER_AGENT_MODEL: ${INFER_AGENT_MODEL}
     volumes:
       - ./.infer/shortcuts:/home/infer/.infer/shortcuts:ro
-      - cli-data:/home/infer/.infer/data
     command:
       - chat
     depends_on:
       - inference-gateway
-    networks:
-      - shortcuts-demo
-
-networks:
-  shortcuts-demo:
-    driver: bridge
-
-volumes:
-  cli-data:
