@@ -220,6 +220,27 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		}
 	}
 
+	// Check if output looks like markdown (contains markdown table syntax)
+	isMarkdown := strings.Contains(outputStr, "| ") && strings.Contains(outputStr, " |") && strings.Contains(outputStr, "---")
+
+	if isMarkdown {
+		// Output raw markdown without code fences - will be rendered by chat
+		if len(imageAttachments) > 0 {
+			return ShortcutResult{
+				Output:     outputStr,
+				Success:    true,
+				SideEffect: SideEffectEmbedImages,
+				Data:       imageAttachments,
+			}, nil
+		}
+
+		return ShortcutResult{
+			Output:  outputStr,
+			Success: true,
+		}, nil
+	}
+
+	// For non-markdown output, wrap in code fences as before
 	formattedOutput := fmt.Sprintf("```json\n%s\n```", outputStr)
 
 	if len(imageAttachments) > 0 {
