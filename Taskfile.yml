@@ -121,7 +121,13 @@ tasks:
       - CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PACKAGE}}
       - CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-arm64 {{.MAIN_PACKAGE}}
       - cd dist && sha256sum {{.BINARY_NAME}}-* > checksums.txt
-      - cd dist && cosign sign-blob --yes --output-signature checksums.txt.sig --output-certificate checksums.txt.pem checksums.txt
+      - |
+        if command -v cosign >/dev/null 2>&1; then
+          cd dist && cosign sign-blob --yes --output-signature checksums.txt.sig --output-certificate checksums.txt.pem checksums.txt
+          echo "✓ Signed checksums with cosign"
+        else
+          echo "⚠ cosign not found, skipping signature (install cosign for signed releases)"
+        fi
 
   release:build:darwin:
     desc: Build macOS binary with CGO enabled (for clipboard image support)
@@ -131,6 +137,20 @@ tasks:
     cmds:
       - mkdir -p dist
       - CGO_ENABLED=1 GOOS=darwin GOARCH={{.GOARCH}} go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-darwin-{{.GOARCH}} {{.MAIN_PACKAGE}}
+
+  container:build:
+    desc: Build container image locally for testing
+    cmds:
+      - task: release:build
+      - |
+        docker build \
+          --build-context binaries=dist/ \
+          --build-arg VERSION={{.VERSION}} \
+          --build-arg REVISION={{.COMMIT}} \
+          --build-arg BUILD_DATE={{.DATE}} \
+          -t ghcr.io/inference-gateway/cli:local \
+          -f Dockerfile \
+          .
 
   container:push:
     desc: Push pre-built container images to registry

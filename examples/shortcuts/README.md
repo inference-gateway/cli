@@ -12,6 +12,8 @@ or AI-powered operations within the chat interface. They support:
 - **Parameter support**: Pass arguments to shortcuts
 - **JSON output parsing**: Structure command output for AI processing
 
+> **Container Environment**: The CLI runs in Alpine Linux with `bash` and `jq` pre-installed for scripting and JSON processing.
+
 ## Quick Start
 
 1. **Copy environment file**:
@@ -45,7 +47,7 @@ or AI-powered operations within the chat interface. They support:
    ```text
    /hello
    /sysinfo
-   /code-quality
+   /review-comments
    ```
 
 ## Custom Shortcuts
@@ -80,26 +82,41 @@ This example includes three types of shortcuts in `.infer/shortcuts/custom-demo.
 
 **Usage**: `/sysinfo`
 
-### 3. AI-Powered Code Quality Analysis
+### 3. AI-Powered Review Comment Reply Generator
 
 ```yaml
-- name: code-quality
-  description: "AI-powered code quality analysis"
+- name: review-comments
+  description: "Generate suggested replies to code review comments"
   command: bash
   args:
     - -c
     - |
-      # Find and analyze files
-      # Output as JSON for AI processing
+      # Fetch mock GitHub review comments
+      jq -n '{repo: "...", prNumber: "123", comments: [...]}'
   snippet:
     prompt: |
-      Analyze these code files for quality...
+      Draft professional replies to review comments...
+      Generate a gh CLI command to post all replies.
     template: |
-      ## 📊 Code Quality Analysis
-      {llm}
+      ! {llm}
 ```
 
-**Usage**: `/code-quality` or `/code-quality *.py`
+**Usage**: `/review-comments`
+
+**How it works**:
+
+1. Fetches mock review comments from a PR (simulates GitHub API)
+2. AI analyzes the comments and drafts professional replies
+3. AI generates an executable `gh` CLI command with the replies
+4. Command is placed in your input box with `!` prefix
+5. **Review and press Enter** to execute and post the replies to GitHub
+
+This demonstrates the **snippet + template** feature where:
+
+- The **command** outputs JSON data
+- The **snippet** sends data to AI with instructions
+- The **template** formats the AI response as an executable command
+- Perfect for workflows that need human review before execution!
 
 ## Shortcut Structure
 
@@ -182,7 +199,8 @@ The CLI includes several built-in shortcuts (available by default):
 ## Tips
 
 - **File naming**: Use `custom-*.yaml` for custom shortcuts
-- **JSON output**: Use `jq` to format command output for AI processing
+- **Shell support**: Both `bash` and `sh` are available in the container
+- **JSON output**: Use `jq` to format command output for AI processing (pre-installed)
 - **Error handling**: Check command success and provide helpful error messages
 - **Parameter support**: Use `$1`, `$2`, etc. in bash scripts to accept arguments
 - **Testing**: Test shortcuts locally before adding to production configs
@@ -205,7 +223,6 @@ This ensures:
 ## Next Steps
 
 - Check out other examples in `examples/` directory
-- Read `CLAUDE.md` for detailed shortcut documentation
 - Explore built-in shortcuts in the main `.infer/shortcuts/` directory
 - Create shortcuts for your common workflows
 
@@ -216,12 +233,6 @@ This ensures:
 - Check file is in `.infer/shortcuts/` directory
 - Verify YAML syntax is correct
 - Restart the CLI container
-
-**Command fails**:
-
-- Check command is available in container
-- Verify environment variables are set
-- Test command manually with `docker exec`
 
 **AI snippet not working**:
 

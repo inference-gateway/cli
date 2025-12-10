@@ -17,9 +17,9 @@ LABEL org.opencontainers.image.version="${VERSION}"
 LABEL org.opencontainers.image.revision="${REVISION}"
 LABEL org.opencontainers.image.created="${BUILD_DATE}"
 
-RUN apk --no-cache --no-scripts add ca-certificates
+RUN apk --no-cache --no-scripts add ca-certificates jq bash
 RUN addgroup -g 1000 infer && \
-    adduser -u 1000 -G infer -h /home/infer -s /bin/sh -D infer
+    adduser -u 1000 -G infer -h /home/infer -s /bin/bash -D infer
 WORKDIR /home/infer
 ARG TARGETARCH
 COPY --from=binaries infer-linux-${TARGETARCH} ./infer

@@ -182,8 +182,8 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		}
 	}
 
-	if command == "bash" && len(cmdArgs) >= 2 && cmdArgs[0] == "-c" {
-		cmdArgs = append(cmdArgs, "bash")
+	if (command == "bash" || command == "sh") && len(cmdArgs) >= 2 && cmdArgs[0] == "-c" {
+		cmdArgs = append(cmdArgs, command)
 		cmdArgs = append(cmdArgs, args...)
 	} else {
 		cmdArgs = append(cmdArgs, args...)

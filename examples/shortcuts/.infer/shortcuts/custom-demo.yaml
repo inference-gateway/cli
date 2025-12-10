@@ -28,62 +28,46 @@ shortcuts:
         echo "CPU: $(nproc) cores"
         echo "Memory: $(free -h 2>/dev/null | grep Mem | awk '{print $2}' || echo 'N/A')"
 
-  # AI-powered code quality analysis
-  - name: code-quality
-    description: "AI-powered code quality analysis (usage: /code-quality <file-pattern>)"
+  # AI-powered review comment reply generator
+  - name: review-comments
+    description: "Generate suggested replies to code review comments"
     command: bash
     args:
       - -c
       - |
-        # Find files matching pattern (default to *.go in current dir)
-        pattern="${1:-*.go}"
-        files=$(find . -name "$pattern" -type f 2>/dev/null | head -5)
-
-        if [ -z "$files" ]; then
-          echo "{\"error\": \"No files found matching pattern: $pattern\"}"
-          exit 1
-        fi
-
-        # Count lines and files
-        total_lines=0
-        file_count=0
-        file_list=""
-
-        while IFS= read -r file; do
-          lines=$(wc -l < "$file" 2>/dev/null || echo "0")
-          total_lines=$((total_lines + lines))
-          file_count=$((file_count + 1))
-          file_list="${file_list}\n  - ${file} (${lines} lines)"
-        done <<< "$files"
-
-        # Output as JSON
+        # Mock GitHub review comments (in a real scenario, this could fetch from GitHub API)
         jq -n \
-          --arg files "$file_list" \
-          --arg count "$file_count" \
-          --arg lines "$total_lines" \
-          '{files: $files, fileCount: $count, totalLines: $lines}'
-      - --
+          --arg repo "inference-gateway/cli" \
+          --arg pr "123" \
+          --arg reviewer "alice" \
+          --arg comment1 "Why are we using a mutex here? This looks like overkill for this use case." \
+          --arg comment2 "This error handling seems incomplete. What happens if the database connection fails?" \
+          --arg comment3 "Nice refactoring! Much cleaner than before. Just one small thing - can we add a unit test for this?" \
+          '{
+            repo: $repo,
+            prNumber: $pr,
+            reviewer: $reviewer,
+            comments: [
+              {id: 1, commentId: "c1234", text: $comment1, file: "internal/services/cache.go", line: 45},
+              {id: 2, commentId: "c1235", text: $comment2, file: "internal/services/db.go", line: 123},
+              {id: 3, commentId: "c1236", text: $comment3, file: "internal/handlers/api.go", line: 78}
+            ]
+          }'
     snippet:
       prompt: |
-        Analyze these code files for quality and provide recommendations.
+        You are helping respond to code review comments from {reviewer} on PR #{prNumber} in {repo}.
 
-        **Files Found**: {fileCount} files
-        **Total Lines**: {totalLines}
+        Review comments:
+        {comments}
 
-        **File List**:
-        {files}
+        For each comment, draft a professional, helpful reply that:
+        1. Acknowledges the feedback
+        2. Explains reasoning or agrees to changes
+        3. Is concise and friendly (keep each reply under 100 words)
 
-        Provide a brief quality assessment:
+        Generate a SINGLE gh CLI command that posts all replies at once.
+        Use this format: gh pr review {prNumber} --repo {repo} --comment --body "Reply to all comments:\n\n1. [reply to comment 1]\n2. [reply to comment 2]\n3. [reply to comment 3]"
 
-        1. **Observations**: What can you tell about the codebase from these stats?
-        2. **Recommendations**: General code quality tips for this file type
-        3. **Best Practices**: 3-5 best practices to follow
-
-        Keep it concise and actionable.
+        Output ONLY the command, nothing else. Make sure to escape quotes properly.
       template: |
-        ## 📊 Code Quality Analysis
-
-        {llm}
-
-        ---
-        *Tip: Use /code-quality <pattern> to analyze specific files*
+        ! {llm}
