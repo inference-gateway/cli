@@ -1,0 +1,47 @@
+---
+services:
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    pull_policy: always
+    ports:
+      - "8080:8080"
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      CLOUDFLARE_API_KEY: ${CLOUDFLARE_API_KEY}
+      COHERE_API_KEY: ${COHERE_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      OLLAMA_CLOUD_API_KEY: ${OLLAMA_CLOUD_API_KEY}
+      GOOGLE_API_KEY: ${OLLAMA_CLOUD_API_KEY}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+    restart: unless-stopped
+    networks:
+      - shortcuts-demo
+
+  cli:
+    image: ghcr.io/inference-gateway/cli:latest
+    pull_policy: always
+    profiles:
+      - cli
+    stdin_open: true
+    tty: true
+    environment:
+      INFER_GATEWAY_URL: http://inference-gateway:8080
+      INFER_AGENT_MODEL: ${INFER_AGENT_MODEL}
+    volumes:
+      - ./.infer/shortcuts:/home/infer/.infer/shortcuts:ro
+      - cli-data:/home/infer/.infer/data
+    command:
+      - chat
+    depends_on:
+      - inference-gateway
+    networks:
+      - shortcuts-demo
+
+networks:
+  shortcuts-demo:
+    driver: bridge
+
+volumes:
+  cli-data:

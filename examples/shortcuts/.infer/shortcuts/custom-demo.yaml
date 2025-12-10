@@ -1,0 +1,89 @@
+# Custom Demo Shortcuts
+# Demonstrates various shortcut capabilities
+#
+# Usage:
+# - /hello - Simple echo command
+# - /sysinfo - Display system information
+# - /code-quality - AI-powered code quality analysis
+
+shortcuts:
+  # Simple command shortcut
+  - name: hello
+    description: "Say hello from the container"
+    command: echo
+    args:
+      - "Hello from the Inference Gateway CLI! 🚀"
+
+  # System information shortcut
+  - name: sysinfo
+    description: "Display system information"
+    command: bash
+    args:
+      - -c
+      - |
+        echo "=== System Information ==="
+        echo "Hostname: $(hostname)"
+        echo "Kernel: $(uname -r)"
+        echo "Uptime: $(uptime -p 2>/dev/null || uptime)"
+        echo "CPU: $(nproc) cores"
+        echo "Memory: $(free -h 2>/dev/null | grep Mem | awk '{print $2}' || echo 'N/A')"
+
+  # AI-powered code quality analysis
+  - name: code-quality
+    description: "AI-powered code quality analysis (usage: /code-quality <file-pattern>)"
+    command: bash
+    args:
+      - -c
+      - |
+        # Find files matching pattern (default to *.go in current dir)
+        pattern="${1:-*.go}"
+        files=$(find . -name "$pattern" -type f 2>/dev/null | head -5)
+
+        if [ -z "$files" ]; then
+          echo "{\"error\": \"No files found matching pattern: $pattern\"}"
+          exit 1
+        fi
+
+        # Count lines and files
+        total_lines=0
+        file_count=0
+        file_list=""
+
+        while IFS= read -r file; do
+          lines=$(wc -l < "$file" 2>/dev/null || echo "0")
+          total_lines=$((total_lines + lines))
+          file_count=$((file_count + 1))
+          file_list="${file_list}\n  - ${file} (${lines} lines)"
+        done <<< "$files"
+
+        # Output as JSON
+        jq -n \
+          --arg files "$file_list" \
+          --arg count "$file_count" \
+          --arg lines "$total_lines" \
+          '{files: $files, fileCount: $count, totalLines: $lines}'
+      - --
+    snippet:
+      prompt: |
+        Analyze these code files for quality and provide recommendations.
+
+        **Files Found**: {fileCount} files
+        **Total Lines**: {totalLines}
+
+        **File List**:
+        {files}
+
+        Provide a brief quality assessment:
+
+        1. **Observations**: What can you tell about the codebase from these stats?
+        2. **Recommendations**: General code quality tips for this file type
+        3. **Best Practices**: 3-5 best practices to follow
+
+        Keep it concise and actionable.
+      template: |
+        ## 📊 Code Quality Analysis
+
+        {llm}
+
+        ---
+        *Tip: Use /code-quality <pattern> to analyze specific files*
