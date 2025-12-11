@@ -126,7 +126,6 @@ func TestPricingService_CalculateCost(t *testing.T) {
 
 	service := NewPricingService(cfg)
 
-	// Test with 100,000 input tokens and 50,000 output tokens
 	inputCost, outputCost, totalCost := service.CalculateCost("test-model", 100000, 50000)
 
 	expectedInputCost := (100000.0 / 1_000_000.0) * 10.00       // $1.00
