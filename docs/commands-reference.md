@@ -390,11 +390,14 @@ task is considered complete. Particularly useful for SCM tickets like GitHub iss
 - **Configurable concurrency**: Control the maximum number of parallel tool executions (default: 5)
 - **JSON output**: Structured JSON output for easy parsing and integration
 - **Multimodal support**: Process images and files with vision-capable models
+- **Session resumption**: Resume previous agent sessions to continue work from where it left off
 
 **Options:**
 
 - `-m, --model`: Model to use for the agent (e.g., openai/gpt-4)
 - `-f, --files`: Files or images to include (can be specified multiple times)
+- `--session-id`: Resume an existing agent session by conversation ID
+- `--no-save`: Disable saving conversation to database
 
 **Examples:**
 
@@ -422,6 +425,51 @@ infer agent "Review @app.go and @architecture.png and suggest refactoring"
 
 # Combine --files flag with @filename references
 infer agent "Analyze @error.log and this screenshot" --files debug-screen.png
+
+# Session resumption - list conversations to find session IDs
+infer conversations list
+
+# Resume an existing session with new instructions
+infer agent "continue fixing the authentication bug" --session-id abc-123-def
+
+# Resume with additional files
+infer agent "analyze these new error logs" --session-id abc-123-def --files error.log
+
+# Resume without saving (testing mode)
+infer agent "try a different refactoring approach" --session-id abc-123-def --no-save
+```
+
+**Session Resumption:**
+
+The agent command supports resuming previous sessions, allowing you to continue work from where it left off:
+
+- Use `infer conversations list` to find available session IDs
+- Pass `--session-id <id>` to resume a specific session
+- The agent will load the full conversation history and continue from there
+- Your task description is appended as a new user message
+- Turn counter resets to full budget when resuming
+- Session ID is preserved for continued persistence
+- If session ID is invalid or not found, a warning is shown and a fresh session starts
+
+**Example JSON Status Messages:**
+
+When resuming a session, the agent outputs structured JSON status messages:
+
+```json
+// Successful resume
+{"type":"info","message":"Resumed agent session","session_id":"abc-123","message_count":15,"timestamp":"2025-12-11T..."}
+
+// Failed resume (warning)
+{
+  "type": "warning",
+  "message": "Could not load session, starting fresh",
+  "session_id": "invalid",
+  "error": "failed to load conversation: not found",
+  "timestamp": "2025-12-11T..."
+}
+
+// New session
+{"type":"info","message":"Starting new agent session","session_id":"new-uuid","model":"openai/gpt-4","timestamp":"2025-12-11T..."}
 ```
 
 **Image and File Support:**

@@ -14,6 +14,7 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	services "github.com/inference-gateway/cli/internal/services"
 	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
 )
@@ -24,23 +25,34 @@ var agentCmd = &cobra.Command{
 	Long: `Execute a task using an autonomous agent in background mode. The CLI will work iteratively
 until the task is considered complete. Particularly useful for SCM tickets like GitHub issues.
 
+Session Resumption:
+  Use --session-id to resume a previous agent session and continue work from where it left off.
+  Find session IDs using: infer conversations list
+
 Examples:
+  # Start new agent sessions
   infer agent "Please fix the github issue 38"
   infer agent --model "openai/gpt-4" "Implement the feature described in issue #42"
   infer agent "Debug the failing test in PR 15"
   infer agent "Analyze this screenshot" --files screenshot.png
   infer agent "Compare these images" -f image1.png -f image2.png
-  infer agent "Review this code and diagram" --files @code.go @diagram.png`,
+  infer agent "Review this code and diagram" --files @code.go @diagram.png
+
+  # Resume existing sessions
+  infer agent "continue fixing the authentication bug" --session-id abc-123-def
+  infer agent "analyze these new error logs" --session-id abc-123 --files error.log
+  infer agent "try a different approach" --session-id abc-123 --no-save`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		model, _ := cmd.Flags().GetString("model")
 		files, _ := cmd.Flags().GetStringSlice("files")
 		noSave, _ := cmd.Flags().GetBool("no-save")
+		sessionID, _ := cmd.Flags().GetString("session-id")
 		cfg, err := getConfigFromViper()
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		return RunAgentCommand(cfg, model, args[0], files, noSave)
+		return RunAgentCommand(cfg, model, args[0], files, noSave, sessionID)
 	},
 }
 
@@ -75,7 +87,7 @@ type AgentSession struct {
 	saveEnabled      bool
 }
 
-func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool) error {
+func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool, sessionID string) error {
 	services := container.NewServiceContainer(cfg)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -134,7 +146,33 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 		saveEnabled:      saveEnabled,
 	}
 
-	logger.Info("Starting agent session", "session_id", session.sessionID, "model", selectedModel)
+	if sessionID != "" {
+		if err := session.loadExistingSession(sessionID); err != nil {
+			logger.Warn("Failed to load session, starting fresh",
+				"session_id", sessionID,
+				"error", err)
+			session.outputStatusMessage("warning", "Could not load session, starting fresh", map[string]any{
+				"session_id": sessionID,
+				"error":      err.Error(),
+			})
+		} else {
+			logger.Info("Resumed agent session",
+				"session_id", sessionID,
+				"messages", len(session.conversation))
+			session.outputStatusMessage("info", "Resumed agent session", map[string]any{
+				"session_id":    sessionID,
+				"message_count": len(session.conversation),
+			})
+		}
+	} else {
+		logger.Info("Starting agent session",
+			"session_id", session.sessionID,
+			"model", selectedModel)
+		session.outputStatusMessage("info", "Starting new agent session", map[string]any{
+			"session_id": session.sessionID,
+			"model":      selectedModel,
+		})
+	}
 
 	return session.execute(taskDescription, files)
 }
@@ -505,6 +543,35 @@ func (s *AgentSession) convertToConversationEntry(msg ConversationMessage) domai
 	return entry
 }
 
+// convertFromConversationEntry converts domain.ConversationEntry back to ConversationMessage
+// This is the reverse of convertToConversationEntry, used for loading saved conversations
+func (s *AgentSession) convertFromConversationEntry(entry domain.ConversationEntry) ConversationMessage {
+	msg := ConversationMessage{
+		Role:      string(entry.Message.Role),
+		Timestamp: entry.Time,
+		Images:    entry.Images,
+		Internal:  entry.Hidden,
+	}
+
+	if contentStr, err := entry.Message.Content.AsMessageContent0(); err == nil {
+		msg.Content = contentStr
+	}
+
+	if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
+		msg.ToolCalls = entry.Message.ToolCalls
+	}
+
+	if entry.Message.ToolCallId != nil {
+		msg.ToolCallID = *entry.Message.ToolCallId
+	}
+
+	if entry.ToolExecution != nil {
+		msg.ToolExecution = entry.ToolExecution
+	}
+
+	return msg
+}
+
 func (s *AgentSession) addMessage(msg ConversationMessage) {
 	s.conversation = append(s.conversation, msg)
 
@@ -517,6 +584,39 @@ func (s *AgentSession) addMessage(msg ConversationMessage) {
 			}
 		}()
 	}
+}
+
+// loadExistingSession loads a conversation from the database and restores session state
+func (s *AgentSession) loadExistingSession(conversationID string) error {
+	ctx := context.Background()
+
+	persistentRepo, ok := s.conversationRepo.(*services.PersistentConversationRepository)
+	if !ok {
+		return fmt.Errorf("conversation repository does not support loading")
+	}
+
+	if err := persistentRepo.LoadConversation(ctx, conversationID); err != nil {
+		return fmt.Errorf("failed to load conversation: %w", err)
+	}
+
+	entries := persistentRepo.GetMessages()
+	if len(entries) == 0 {
+		return fmt.Errorf("loaded conversation is empty")
+	}
+
+	s.conversation = make([]ConversationMessage, 0, len(entries))
+	for _, entry := range entries {
+		msg := s.convertFromConversationEntry(entry)
+		s.conversation = append(s.conversation, msg)
+	}
+
+	s.sessionID = conversationID
+
+	logger.Info("Loaded conversation history",
+		"session_id", conversationID,
+		"message_count", len(entries))
+
+	return nil
 }
 
 func (s *AgentSession) outputMessage(msg ConversationMessage) {
@@ -538,6 +638,27 @@ func (s *AgentSession) outputMessage(msg ConversationMessage) {
 	output, err := json.Marshal(logMsg)
 	if err != nil {
 		logger.Error("Failed to marshal message", "error", err)
+		return
+	}
+
+	fmt.Println(string(output))
+}
+
+// outputStatusMessage outputs a structured JSON status message
+func (s *AgentSession) outputStatusMessage(messageType, message string, metadata map[string]any) {
+	statusMsg := map[string]any{
+		"type":      messageType,
+		"message":   message,
+		"timestamp": time.Now(),
+	}
+
+	for k, v := range metadata {
+		statusMsg[k] = v
+	}
+
+	output, err := json.Marshal(statusMsg)
+	if err != nil {
+		logger.Error("Failed to marshal status message", "error", err)
 		return
 	}
 
@@ -590,5 +711,6 @@ func init() {
 	agentCmd.Flags().StringP("model", "m", "", "Model to use for the agent (e.g., openai/gpt-4)")
 	agentCmd.Flags().StringSliceP("files", "f", []string{}, "Files or images to include (e.g., -f image.png -f code.go)")
 	agentCmd.Flags().Bool("no-save", false, "Disable saving conversation to database")
+	agentCmd.Flags().String("session-id", "", "Resume an existing agent session by conversation ID")
 	rootCmd.AddCommand(agentCmd)
 }

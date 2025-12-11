@@ -322,3 +322,304 @@ func TestProcessSyncResponseParallel(t *testing.T) {
 func mockTime() time.Time {
 	return time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC)
 }
+
+func TestConvertFromConversationEntry(t *testing.T) {
+	session := &AgentSession{
+		model: "openai/gpt-4",
+	}
+
+	tests := getConvertFromConversationEntryTestCases()
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := session.convertFromConversationEntry(tt.entry)
+
+			if result.Role != tt.expected.Role {
+				t.Errorf("Role = %v, want %v", result.Role, tt.expected.Role)
+			}
+
+			if result.Content != tt.expected.Content {
+				t.Errorf("Content = %v, want %v", result.Content, tt.expected.Content)
+			}
+
+			if !result.Timestamp.Equal(tt.expected.Timestamp) {
+				t.Errorf("Timestamp = %v, want %v", result.Timestamp, tt.expected.Timestamp)
+			}
+
+			if result.Internal != tt.expected.Internal {
+				t.Errorf("Internal = %v, want %v", result.Internal, tt.expected.Internal)
+			}
+
+			if result.ToolCallID != tt.expected.ToolCallID {
+				t.Errorf("ToolCallID = %v, want %v", result.ToolCallID, tt.expected.ToolCallID)
+			}
+
+			if len(result.Images) != len(tt.expected.Images) {
+				t.Errorf("Images length = %v, want %v", len(result.Images), len(tt.expected.Images))
+			}
+
+			if tt.expected.ToolCalls != nil {
+				if result.ToolCalls == nil {
+					t.Error("ToolCalls is nil, expected non-nil")
+				} else if len(*result.ToolCalls) != len(*tt.expected.ToolCalls) {
+					t.Errorf("ToolCalls length = %v, want %v", len(*result.ToolCalls), len(*tt.expected.ToolCalls))
+				}
+			}
+
+			validateToolExecution(t, result.ToolExecution, tt.expected.ToolExecution)
+		})
+	}
+}
+
+func getConvertFromConversationEntryTestCases() []struct {
+	name     string
+	entry    domain.ConversationEntry
+	expected ConversationMessage
+} {
+	var tests []struct {
+		name     string
+		entry    domain.ConversationEntry
+		expected ConversationMessage
+	}
+
+	tests = append(tests, getUserMessageWithPlainTextTestCase())
+	tests = append(tests, getAssistantMessageWithToolCallsTestCase())
+	tests = append(tests, getToolResponseWithToolCallIDTestCase())
+	tests = append(tests, getMessageWithImagesTestCase())
+	tests = append(tests, getInternalMessageTestCase())
+	tests = append(tests, getMessageWithToolExecutionMetadataTestCase())
+
+	return tests
+}
+
+func getUserMessageWithPlainTextTestCase() struct {
+	name     string
+	entry    domain.ConversationEntry
+	expected ConversationMessage
+} {
+	return struct {
+		name     string
+		entry    domain.ConversationEntry
+		expected ConversationMessage
+	}{
+		name: "user message with plain text",
+		entry: domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: sdk.NewMessageContent("Hello, how are you?"),
+			},
+			Model:  "openai/gpt-4",
+			Time:   mockTime(),
+			Hidden: false,
+		},
+		expected: ConversationMessage{
+			Role:      "user",
+			Content:   "Hello, how are you?",
+			Timestamp: mockTime(),
+			Internal:  false,
+		},
+	}
+}
+
+func getAssistantMessageWithToolCallsTestCase() struct {
+	name     string
+	entry    domain.ConversationEntry
+	expected ConversationMessage
+} {
+	return struct {
+		name     string
+		entry    domain.ConversationEntry
+		expected ConversationMessage
+	}{
+		name: "assistant message with tool calls",
+		entry: domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.Assistant,
+				Content: sdk.NewMessageContent(""),
+				ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
+					{
+						Id: "call_1",
+						Function: sdk.ChatCompletionMessageToolCallFunction{
+							Name:      "Read",
+							Arguments: `{"file_path":"test.txt"}`,
+						},
+					},
+				},
+			},
+			Model: "openai/gpt-4",
+			Time:  mockTime(),
+		},
+		expected: ConversationMessage{
+			Role:      "assistant",
+			Content:   "",
+			Timestamp: mockTime(),
+			ToolCalls: &[]sdk.ChatCompletionMessageToolCall{
+				{
+					Id: "call_1",
+					Function: sdk.ChatCompletionMessageToolCallFunction{
+						Name:      "Read",
+						Arguments: `{"file_path":"test.txt"}`,
+					},
+				},
+			},
+		},
+	}
+}
+
+func getToolResponseWithToolCallIDTestCase() struct {
+	name     string
+	entry    domain.ConversationEntry
+	expected ConversationMessage
+} {
+	return struct {
+		name     string
+		entry    domain.ConversationEntry
+		expected ConversationMessage
+	}{
+		name: "tool response with tool_call_id",
+		entry: domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:       sdk.Tool,
+				Content:    sdk.NewMessageContent("File content here"),
+				ToolCallId: stringPtr("call_1"),
+			},
+			Model: "openai/gpt-4",
+			Time:  mockTime(),
+		},
+		expected: ConversationMessage{
+			Role:       "tool",
+			Content:    "File content here",
+			Timestamp:  mockTime(),
+			ToolCallID: "call_1",
+		},
+	}
+}
+
+func getMessageWithImagesTestCase() struct {
+	name     string
+	entry    domain.ConversationEntry
+	expected ConversationMessage
+} {
+	return struct {
+		name     string
+		entry    domain.ConversationEntry
+		expected ConversationMessage
+	}{
+		name: "message with images",
+		entry: domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: sdk.NewMessageContent("Check this image"),
+			},
+			Model: "openai/gpt-4",
+			Time:  mockTime(),
+			Images: []domain.ImageAttachment{
+				{
+					Filename: "screenshot.png",
+					MimeType: "image/png",
+					Data:     "base64data",
+				},
+			},
+		},
+		expected: ConversationMessage{
+			Role:      "user",
+			Content:   "Check this image",
+			Timestamp: mockTime(),
+			Images: []domain.ImageAttachment{
+				{
+					Filename: "screenshot.png",
+					MimeType: "image/png",
+					Data:     "base64data",
+				},
+			},
+		},
+	}
+}
+
+func getInternalMessageTestCase() struct {
+	name     string
+	entry    domain.ConversationEntry
+	expected ConversationMessage
+} {
+	return struct {
+		name     string
+		entry    domain.ConversationEntry
+		expected ConversationMessage
+	}{
+		name: "internal message",
+		entry: domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:    sdk.User,
+				Content: sdk.NewMessageContent("Continue working"),
+			},
+			Model:  "openai/gpt-4",
+			Time:   mockTime(),
+			Hidden: true,
+		},
+		expected: ConversationMessage{
+			Role:      "user",
+			Content:   "Continue working",
+			Timestamp: mockTime(),
+			Internal:  true,
+		},
+	}
+}
+
+func getMessageWithToolExecutionMetadataTestCase() struct {
+	name     string
+	entry    domain.ConversationEntry
+	expected ConversationMessage
+} {
+	return struct {
+		name     string
+		entry    domain.ConversationEntry
+		expected ConversationMessage
+	}{
+		name: "message with tool execution metadata",
+		entry: domain.ConversationEntry{
+			Message: sdk.Message{
+				Role:       sdk.Tool,
+				Content:    sdk.NewMessageContent("Result data"),
+				ToolCallId: stringPtr("call_2"),
+			},
+			Model: "openai/gpt-4",
+			Time:  mockTime(),
+			ToolExecution: &domain.ToolExecutionResult{
+				ToolName: "Read",
+				Success:  true,
+				Data:     "file content",
+			},
+		},
+		expected: ConversationMessage{
+			Role:       "tool",
+			Content:    "Result data",
+			Timestamp:  mockTime(),
+			ToolCallID: "call_2",
+			ToolExecution: &domain.ToolExecutionResult{
+				ToolName: "Read",
+				Success:  true,
+				Data:     "file content",
+			},
+		},
+	}
+}
+
+func validateToolExecution(t *testing.T, actual, expected *domain.ToolExecutionResult) {
+	t.Helper()
+	if expected != nil {
+		if actual == nil {
+			t.Error("ToolExecution is nil, expected non-nil")
+			return
+		}
+		if actual.ToolName != expected.ToolName {
+			t.Errorf("ToolExecution.ToolName = %v, want %v", actual.ToolName, expected.ToolName)
+		}
+		if actual.Success != expected.Success {
+			t.Errorf("ToolExecution.Success = %v, want %v", actual.Success, expected.Success)
+		}
+	}
+}
+
+func stringPtr(s string) *string {
+	return &s
+}
