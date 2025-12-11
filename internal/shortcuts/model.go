@@ -38,7 +38,6 @@ func (m *ModelShortcut) GetUsage() string {
 }
 
 func (m *ModelShortcut) CanExecute(args []string) bool {
-	// Need at least 2 args: model name and prompt
 	return len(args) >= 2
 }
 
@@ -53,7 +52,6 @@ func (m *ModelShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 	targetModel := args[0]
 	prompt := strings.Join(args[1:], " ")
 
-	// Validate target model exists
 	if err := m.modelService.ValidateModel(targetModel); err != nil {
 		return ShortcutResult{
 			Output:  fmt.Sprintf("Invalid model '%s': %v", targetModel, err),
@@ -61,7 +59,6 @@ func (m *ModelShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 		}, nil
 	}
 
-	// Get current model for restoration
 	originalModel := m.modelService.GetCurrentModel()
 	if originalModel == "" {
 		return ShortcutResult{
@@ -70,9 +67,8 @@ func (m *ModelShortcut) Execute(ctx context.Context, args []string) (ShortcutRes
 		}, nil
 	}
 
-	// Return side effect with all necessary data
 	return ShortcutResult{
-		Output:     "", // No output - the side effect handler will add the message
+		Output:     "",
 		Success:    true,
 		SideEffect: SideEffectSendMessageWithModel,
 		Data: ModelSwitchData{
