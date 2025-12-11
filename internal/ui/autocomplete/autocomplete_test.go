@@ -288,14 +288,14 @@ func TestAutocomplete_ModelsMode(t *testing.T) {
 			input:           "/model deep",
 			cursorPos:       11,
 			expectedVisible: true,
-			expectedCount:   2, // deepseek-chat and deepseek-reasoner
+			expectedCount:   2,
 		},
 		{
 			name:            "Partial model match - claude",
 			input:           "/model claude",
 			cursorPos:       13,
 			expectedVisible: true,
-			expectedCount:   2, // claude-opus-4 and claude-sonnet-4
+			expectedCount:   2,
 		},
 		{
 			name:            "No model match",
