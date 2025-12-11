@@ -147,6 +147,17 @@ type FakeConversationRepository struct {
 	removePendingToolCallByIDArgsForCall []struct {
 		arg1 string
 	}
+	StartNewConversationStub        func(string) error
+	startNewConversationMutex       sync.RWMutex
+	startNewConversationArgsForCall []struct {
+		arg1 string
+	}
+	startNewConversationReturns struct {
+		result1 error
+	}
+	startNewConversationReturnsOnCall map[int]struct {
+		result1 error
+	}
 	UpdateLastMessageStub        func(string) error
 	updateLastMessageMutex       sync.RWMutex
 	updateLastMessageArgsForCall []struct {
@@ -895,6 +906,67 @@ func (fake *FakeConversationRepository) RemovePendingToolCallByIDArgsForCall(i i
 	defer fake.removePendingToolCallByIDMutex.RUnlock()
 	argsForCall := fake.removePendingToolCallByIDArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeConversationRepository) StartNewConversation(arg1 string) error {
+	fake.startNewConversationMutex.Lock()
+	ret, specificReturn := fake.startNewConversationReturnsOnCall[len(fake.startNewConversationArgsForCall)]
+	fake.startNewConversationArgsForCall = append(fake.startNewConversationArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.StartNewConversationStub
+	fakeReturns := fake.startNewConversationReturns
+	fake.recordInvocation("StartNewConversation", []interface{}{arg1})
+	fake.startNewConversationMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) StartNewConversationCallCount() int {
+	fake.startNewConversationMutex.RLock()
+	defer fake.startNewConversationMutex.RUnlock()
+	return len(fake.startNewConversationArgsForCall)
+}
+
+func (fake *FakeConversationRepository) StartNewConversationCalls(stub func(string) error) {
+	fake.startNewConversationMutex.Lock()
+	defer fake.startNewConversationMutex.Unlock()
+	fake.StartNewConversationStub = stub
+}
+
+func (fake *FakeConversationRepository) StartNewConversationArgsForCall(i int) string {
+	fake.startNewConversationMutex.RLock()
+	defer fake.startNewConversationMutex.RUnlock()
+	argsForCall := fake.startNewConversationArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeConversationRepository) StartNewConversationReturns(result1 error) {
+	fake.startNewConversationMutex.Lock()
+	defer fake.startNewConversationMutex.Unlock()
+	fake.StartNewConversationStub = nil
+	fake.startNewConversationReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) StartNewConversationReturnsOnCall(i int, result1 error) {
+	fake.startNewConversationMutex.Lock()
+	defer fake.startNewConversationMutex.Unlock()
+	fake.StartNewConversationStub = nil
+	if fake.startNewConversationReturnsOnCall == nil {
+		fake.startNewConversationReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.startNewConversationReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeConversationRepository) UpdateLastMessage(arg1 string) error {

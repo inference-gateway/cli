@@ -178,6 +178,11 @@ func (r *InMemoryConversationRepository) Clear() error {
 	return nil
 }
 
+// StartNewConversation clears the current conversation (in-memory doesn't persist)
+func (r *InMemoryConversationRepository) StartNewConversation(title string) error {
+	return r.Clear()
+}
+
 func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()

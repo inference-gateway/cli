@@ -100,6 +100,7 @@ type ConversationRepository interface {
 	FormatToolResultForUI(result *ToolExecutionResult, terminalWidth int) string
 	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
 	RemovePendingToolCallByID(toolCallID string)
+	StartNewConversation(title string) error
 }
 
 // ConversationOptimizerService optimizes conversation history to reduce token usage
