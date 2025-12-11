@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.88.0](https://github.com/inference-gateway/cli/compare/v0.87.0...v0.88.0) (2025-12-11)
+
+### 🚀 Features
+
+* Add persistent storage for agent mode conversations ([#333](https://github.com/inference-gateway/cli/issues/333)) ([cba596a](https://github.com/inference-gateway/cli/commit/cba596aff9b11c20c75f3a6bc275c3b9be6ce3a4))
+* **agent:** Add session resumption support ([#335](https://github.com/inference-gateway/cli/issues/335)) ([a8942f7](https://github.com/inference-gateway/cli/commit/a8942f7246638f71f1fba4c11e626a28412317f9))
+
+### 🐛 Bug Fixes
+
+* Improve tool execution status tracking ([#334](https://github.com/inference-gateway/cli/issues/334)) ([95f71cd](https://github.com/inference-gateway/cli/commit/95f71cd5d3061d0e8e8219117e52e0600f59602d))
+
 ## [0.87.0](https://github.com/inference-gateway/cli/compare/v0.86.3...v0.87.0) (2025-12-10)
 
 ### 🚀 Features
