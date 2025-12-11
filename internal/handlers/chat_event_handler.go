@@ -14,12 +14,14 @@ import (
 )
 
 type ChatEventHandler struct {
-	handler *ChatHandler
+	handler          *ChatHandler
+	activeToolCallID string
 }
 
 func NewChatEventHandler(handler *ChatHandler) *ChatEventHandler {
 	return &ChatEventHandler{
-		handler: handler,
+		handler:          handler,
+		activeToolCallID: "",
 	}
 }
 
@@ -27,6 +29,7 @@ func (e *ChatEventHandler) handleChatStart(
 	_ /* event */ domain.ChatStartEvent,
 ) tea.Cmd {
 	_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusStarting)
+	e.activeToolCallID = ""
 
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
@@ -251,6 +254,7 @@ func (e *ChatEventHandler) handleChatError(
 	_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusError)
 	e.handler.stateManager.EndChatSession()
 	e.handler.stateManager.EndToolExecution()
+	e.activeToolCallID = ""
 
 	_ = e.handler.stateManager.TransitionToView(domain.ViewStateChat)
 
@@ -418,7 +422,8 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 	var cmds []tea.Cmd
 
 	switch msg.Status {
-	case "starting", "running":
+	case "starting":
+		e.activeToolCallID = msg.ToolCallID
 		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    msg.Message,
@@ -427,11 +432,41 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 				ToolName:   msg.ToolName,
 			}
 		})
-	case "complete", "failed", "saving":
+	case "running":
+		if e.activeToolCallID == msg.ToolCallID {
+			cmds = append(cmds, func() tea.Msg {
+				return domain.UpdateStatusEvent{
+					Message:    msg.Message,
+					StatusType: domain.StatusWorking,
+					ToolName:   msg.ToolName,
+				}
+			})
+		} else {
+			e.activeToolCallID = msg.ToolCallID
+			cmds = append(cmds, func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message:    msg.Message,
+					Spinner:    true,
+					StatusType: domain.StatusWorking,
+					ToolName:   msg.ToolName,
+				}
+			})
+		}
+	case "complete", "failed":
+		e.activeToolCallID = ""
 		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    msg.Message,
-				Spinner:    msg.Status == "saving",
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+				ToolName:   "",
+			}
+		})
+	case "saving":
+		cmds = append(cmds, func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    msg.Message,
+				Spinner:    true,
 				StatusType: domain.StatusDefault,
 				ToolName:   "",
 			}
@@ -488,6 +523,8 @@ func (e *ChatEventHandler) handleToolExecutionCompleted(
 	msg domain.ToolExecutionCompletedEvent,
 
 ) tea.Cmd {
+	e.activeToolCallID = ""
+
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return domain.UpdateHistoryEvent{
@@ -832,6 +869,7 @@ func (e *ChatEventHandler) handleCancelled(
 	_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusCancelled)
 	e.handler.stateManager.EndChatSession()
 	e.handler.stateManager.EndToolExecution()
+	e.activeToolCallID = ""
 
 	return func() tea.Msg {
 		return domain.SetStatusEvent{
