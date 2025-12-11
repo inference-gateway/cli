@@ -16,6 +16,7 @@ type StreamingContentEvent struct {
 	RequestID string
 	Content   string
 	Delta     bool
+	Model     string
 }
 
 // SetStatusEvent sets a status message

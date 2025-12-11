@@ -39,4 +39,10 @@ type PricingService interface {
 
 	// CalculateCost computes the total cost for a given number of input and output tokens.
 	CalculateCost(model string, inputTokens, outputTokens int) (inputCost, outputCost, totalCost float64)
+
+	// FormatModelPricing returns a formatted string describing the model's pricing.
+	// Returns empty string if pricing is disabled.
+	// Returns "free" if both input and output prices are 0.0.
+	// Returns "$X.XX/$Y.YY per MTok" for paid models.
+	FormatModelPricing(model string) string
 }

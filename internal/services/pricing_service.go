@@ -1,6 +1,8 @@
 package services
 
 import (
+	"fmt"
+
 	"github.com/inference-gateway/cli/config"
 	"github.com/inference-gateway/cli/internal/domain"
 )
@@ -75,4 +77,23 @@ func (p *PricingServiceImpl) CalculateCost(model string, inputTokens, outputToke
 	totalCost = inputCost + outputCost
 
 	return inputCost, outputCost, totalCost
+}
+
+// FormatModelPricing returns a formatted string describing the model's pricing.
+// Returns empty string if pricing is disabled.
+// Returns "free" if both input and output prices are 0.0.
+// Returns "$X.XX/$Y.YY per MTok" for paid models.
+func (p *PricingServiceImpl) FormatModelPricing(model string) string {
+	if !p.config.Enabled {
+		return ""
+	}
+
+	inputPrice := p.GetInputPrice(model)
+	outputPrice := p.GetOutputPrice(model)
+
+	if inputPrice == 0.0 && outputPrice == 0.0 {
+		return "free"
+	}
+
+	return fmt.Sprintf("$%.2f/$%.2f per MTok", inputPrice, outputPrice)
 }

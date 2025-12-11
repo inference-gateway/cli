@@ -1,6 +1,7 @@
 package autocomplete
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -42,6 +43,9 @@ type AutocompleteImpl struct {
 		ListAvailableTools() []string
 		ListTools() []sdk.ChatCompletionTool
 	}
+	modelService   domain.ModelService
+	pricingService domain.PricingService
+	completionMode string
 }
 
 // NewAutocomplete creates a new autocomplete component
@@ -71,6 +75,43 @@ func (a *AutocompleteImpl) SetToolService(toolService interface {
 // SetStateManager sets the state manager for agent mode filtering
 func (a *AutocompleteImpl) SetStateManager(stateManager domain.StateManager) {
 	a.stateManager = stateManager
+}
+
+// SetModelService sets the model service for model autocomplete
+func (a *AutocompleteImpl) SetModelService(modelService domain.ModelService) {
+	a.modelService = modelService
+}
+
+// SetPricingService sets the pricing service for model pricing display
+func (a *AutocompleteImpl) SetPricingService(pricingService domain.PricingService) {
+	a.pricingService = pricingService
+}
+
+// loadModels loads available models from the model service
+func (a *AutocompleteImpl) loadModels() {
+	if a.modelService == nil {
+		return
+	}
+
+	a.suggestions = []ShortcutOption{}
+	ctx := context.Background()
+
+	models, err := a.modelService.ListModels(ctx)
+	if err != nil {
+		return
+	}
+
+	for _, model := range models {
+		description := ""
+		if a.pricingService != nil {
+			description = a.pricingService.FormatModelPricing(model)
+		}
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    model,
+			Description: description,
+			Usage:       "",
+		})
+	}
 }
 
 // loadShortcuts loads shortcuts from the registry
@@ -234,15 +275,27 @@ func (a *AutocompleteImpl) generateArgumentTemplate(paramName string, properties
 // Update handles autocomplete logic
 func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 	switch {
+	case strings.HasPrefix(inputText, "/model ") && cursorPos >= 7:
+		if a.completionMode != "models" || len(a.suggestions) == 0 {
+			a.loadModels()
+			a.completionMode = "models"
+		}
+		a.query = inputText[7:cursorPos]
+		a.filterSuggestions()
+		a.visible = len(a.filtered) > 0
+		if a.selected >= len(a.filtered) {
+			a.selected = 0
+		}
 	case strings.HasPrefix(inputText, "!!") && cursorPos >= 2:
 		var currentMode domain.AgentMode
 		if a.stateManager != nil {
 			currentMode = a.stateManager.GetAgentMode()
 		}
 
-		if currentMode != a.lastAgentMode || len(a.suggestions) == 0 || !strings.HasPrefix(a.suggestions[0].Shortcut, "!!") {
+		if currentMode != a.lastAgentMode || len(a.suggestions) == 0 || a.completionMode != "tools" {
 			a.loadTools()
 			a.lastAgentMode = currentMode
+			a.completionMode = "tools"
 		}
 
 		a.query = inputText[2:cursorPos]
@@ -252,8 +305,9 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 			a.selected = 0
 		}
 	case strings.HasPrefix(inputText, "/") && cursorPos >= 1:
-		if len(a.suggestions) == 0 || (len(a.suggestions) > 0 && !strings.HasPrefix(a.suggestions[0].Shortcut, "/")) {
+		if len(a.suggestions) == 0 || a.completionMode != "shortcuts" {
 			a.loadShortcuts()
+			a.completionMode = "shortcuts"
 		}
 		a.query = inputText[1:cursorPos]
 		a.filterSuggestions()
@@ -265,6 +319,7 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 		a.visible = false
 		a.filtered = []ShortcutOption{}
 		a.selected = 0
+		a.completionMode = ""
 	}
 }
 
@@ -320,6 +375,22 @@ func (a *AutocompleteImpl) HandleKey(key tea.KeyMsg) (bool, string) {
 	case "tab", "enter":
 		if a.selected < len(a.filtered) {
 			selected := a.filtered[a.selected].Shortcut
+			if a.completionMode == "models" {
+				selected = "/model " + selected + " "
+				a.visible = false
+				return true, selected
+			} else if a.completionMode == "shortcuts" && selected == "/model" {
+				selected = selected + " "
+				a.loadModels()
+				a.completionMode = "models"
+				a.query = ""
+				a.filterSuggestions()
+				a.visible = len(a.filtered) > 0
+				return true, selected
+			} else if a.completionMode == "shortcuts" {
+				selected = selected + " "
+			}
+
 			a.visible = false
 			return true, selected
 		}

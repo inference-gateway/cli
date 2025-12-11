@@ -248,3 +248,76 @@ func TestAutocomplete_KeyHandling(t *testing.T) {
 	autocomplete.Hide()
 	assert.False(t, autocomplete.IsVisible())
 }
+
+func TestAutocomplete_ModelsMode(t *testing.T) {
+	mockRegistry := &uimocks.FakeShortcutRegistry{}
+	mockRegistry.GetAllReturns([]shortcuts.Shortcut{})
+
+	mockModelService := &domainmocks.FakeModelService{}
+	mockModelService.ListModelsReturns([]string{
+		"deepseek-chat",
+		"deepseek-reasoner",
+		"claude-opus-4",
+		"claude-sonnet-4",
+		"gpt-4o",
+	}, nil)
+
+	theme := &uimocks.FakeTheme{}
+	theme.GetDimColorReturns("#808080")
+	theme.GetAccentColorReturns("#FF00FF")
+
+	ac := autocomplete.NewAutocomplete(theme, mockRegistry)
+	ac.SetModelService(mockModelService)
+
+	tests := []struct {
+		name            string
+		input           string
+		cursorPos       int
+		expectedVisible bool
+		expectedCount   int
+	}{
+		{
+			name:            "Empty model prefix shows all models",
+			input:           "/model ",
+			cursorPos:       7,
+			expectedVisible: true,
+			expectedCount:   5,
+		},
+		{
+			name:            "Partial model match - deepseek",
+			input:           "/model deep",
+			cursorPos:       11,
+			expectedVisible: true,
+			expectedCount:   2, // deepseek-chat and deepseek-reasoner
+		},
+		{
+			name:            "Partial model match - claude",
+			input:           "/model claude",
+			cursorPos:       13,
+			expectedVisible: true,
+			expectedCount:   2, // claude-opus-4 and claude-sonnet-4
+		},
+		{
+			name:            "No model match",
+			input:           "/model xyz",
+			cursorPos:       10,
+			expectedVisible: false,
+			expectedCount:   0,
+		},
+		{
+			name:            "Not a model command - just /model",
+			input:           "/model",
+			cursorPos:       6,
+			expectedVisible: false,
+			expectedCount:   0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ac.Update(tt.input, tt.cursorPos)
+
+			assert.Equal(t, tt.expectedVisible, ac.IsVisible(), "visibility mismatch")
+		})
+	}
+}

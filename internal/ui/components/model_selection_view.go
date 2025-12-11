@@ -216,7 +216,12 @@ func (m *ModelSelectorImpl) View() string {
 
 	for i := start; i < start+maxVisible && i < len(m.filteredModels); i++ {
 		model := m.filteredModels[i]
-		pricingSuffix := m.getModelPricingSuffix(model)
+		var pricingSuffix string
+		if m.pricingService != nil {
+			if pricing := m.pricingService.FormatModelPricing(model); pricing != "" {
+				pricingSuffix = fmt.Sprintf("(%s)", pricing)
+			}
+		}
 
 		if i == m.selected {
 			b.WriteString(m.styleProvider.RenderWithColor("▶ "+model, accentColor))
@@ -361,21 +366,4 @@ func (m *ModelSelectorImpl) writeViewTabs(b *strings.Builder) {
 	}
 	separator := m.styleProvider.RenderDimText(strings.Repeat("─", separatorWidth))
 	fmt.Fprintf(b, "%s\n\n", separator)
-}
-
-// getModelPricingSuffix returns the pricing information suffix for a model
-// Returns empty string if pricing is disabled or not configured
-func (m *ModelSelectorImpl) getModelPricingSuffix(model string) string {
-	if m.pricingService == nil || !m.pricingService.IsEnabled() {
-		return ""
-	}
-
-	inputPrice := m.pricingService.GetInputPrice(model)
-	outputPrice := m.pricingService.GetOutputPrice(model)
-
-	if inputPrice == 0.0 && outputPrice == 0.0 {
-		return "(free)"
-	}
-
-	return fmt.Sprintf("($%.2f/$%.2f per MTok)", inputPrice, outputPrice)
 }

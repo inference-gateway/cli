@@ -174,7 +174,7 @@ func NewChatApplication(
 		iv.SetConversationRepo(app.conversationRepo)
 	}
 
-	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService)
+	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService)
 	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
 		ac.SetStateManager(app.stateManager)
 	}
@@ -1448,7 +1448,10 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg) {
 				app.inputView.SetCursor(len(acMsg.Completion))
 			}
 		}
-		app.autocomplete.Hide()
+
+		text := app.inputView.GetInput()
+		cursor := app.inputView.GetCursor()
+		app.autocomplete.Update(text, cursor)
 
 	case domain.RefreshAutocompleteEvent:
 		text := app.inputView.GetInput()
