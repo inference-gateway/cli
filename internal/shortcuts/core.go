@@ -23,27 +23,26 @@ func NewClearShortcut(repo domain.ConversationRepository, taskTracker domain.Tas
 	}
 }
 
-func (c *ClearShortcut) GetName() string               { return "clear" }
-func (c *ClearShortcut) GetDescription() string        { return "Clear conversation history" }
+func (c *ClearShortcut) GetName() string { return "clear" }
+func (c *ClearShortcut) GetDescription() string {
+	return "Save current conversation and start a new one"
+}
 func (c *ClearShortcut) GetUsage() string              { return "/clear" }
 func (c *ClearShortcut) CanExecute(args []string) bool { return len(args) == 0 }
 
 func (c *ClearShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
-	if err := c.repo.Clear(); err != nil {
+	if err := c.repo.StartNewConversation("New Conversation"); err != nil {
 		return ShortcutResult{
-			Output:  fmt.Sprintf("Failed to clear conversation: %v", err),
+			Output:  fmt.Sprintf("Failed to start new conversation: %v", err),
 			Success: false,
 		}, nil
 	}
 
-	if c.taskTracker != nil {
-		c.taskTracker.ClearAllAgents()
-	}
-
 	return ShortcutResult{
-		Output:     "🧹 Conversation history cleared!",
+		Output:     "• Conversation saved and started new session!",
 		Success:    true,
-		SideEffect: SideEffectClearConversation,
+		SideEffect: SideEffectStartNewConversation,
+		Data:       "New Conversation",
 	}, nil
 }
 
@@ -286,7 +285,7 @@ func (c *NewShortcut) Execute(ctx context.Context, args []string) (ShortcutResul
 	}
 
 	return ShortcutResult{
-		Output:     fmt.Sprintf("🆕 Starting new conversation: %s", title),
+		Output:     fmt.Sprintf("• Starting new conversation: %s", title),
 		Success:    true,
 		SideEffect: SideEffectStartNewConversation,
 		Data:       title,

@@ -35,43 +35,47 @@ Examples:
 	RunE: func(cmd *cobra.Command, args []string) error {
 		model, _ := cmd.Flags().GetString("model")
 		files, _ := cmd.Flags().GetStringSlice("files")
+		noSave, _ := cmd.Flags().GetBool("no-save")
 		cfg, err := getConfigFromViper()
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		return RunAgentCommand(cfg, model, args[0], files)
+		return RunAgentCommand(cfg, model, args[0], files, noSave)
 	},
 }
 
 // ConversationMessage represents a message in the JSON output conversation
 type ConversationMessage struct {
-	Role       string                               `json:"role"`
-	Content    string                               `json:"content"`
-	ToolCalls  *[]sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
-	Tools      []string                             `json:"tools,omitempty"`
-	ToolCallID string                               `json:"tool_call_id,omitempty"`
-	TokenUsage *sdk.CompletionUsage                 `json:"token_usage,omitempty"`
-	Timestamp  time.Time                            `json:"timestamp"`
-	RequestID  string                               `json:"request_id,omitempty"`
-	Internal   bool                                 `json:"-"`
-	Images     []domain.ImageAttachment             `json:"images,omitempty"`
+	Role          string                               `json:"role"`
+	Content       string                               `json:"content"`
+	ToolCalls     *[]sdk.ChatCompletionMessageToolCall `json:"tool_calls,omitempty"`
+	Tools         []string                             `json:"tools,omitempty"`
+	ToolCallID    string                               `json:"tool_call_id,omitempty"`
+	ToolExecution *domain.ToolExecutionResult          `json:"-"`
+	TokenUsage    *sdk.CompletionUsage                 `json:"token_usage,omitempty"`
+	Timestamp     time.Time                            `json:"timestamp"`
+	RequestID     string                               `json:"request_id,omitempty"`
+	Internal      bool                                 `json:"-"`
+	Images        []domain.ImageAttachment             `json:"images,omitempty"`
 }
 
 // AgentSession manages the background execution session
 type AgentSession struct {
-	agentService   domain.AgentService
-	toolService    domain.ToolService
-	fileService    domain.FileService
-	imageService   domain.ImageService
-	model          string
-	conversation   []ConversationMessage
-	sessionID      string
-	maxTurns       int
-	completedTurns int
-	config         *config.Config
+	agentService     domain.AgentService
+	toolService      domain.ToolService
+	fileService      domain.FileService
+	imageService     domain.ImageService
+	model            string
+	conversation     []ConversationMessage
+	sessionID        string
+	maxTurns         int
+	completedTurns   int
+	config           *config.Config
+	conversationRepo domain.ConversationRepository
+	saveEnabled      bool
 }
 
-func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string) error {
+func RunAgentCommand(cfg *config.Config, modelFlag, taskDescription string, files []string, noSave bool) error {
 	services := container.NewServiceContainer(cfg)
 	defer func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -112,17 +116,22 @@ For more information, visit: https://github.com/inference-gateway/inference-gate
 	toolService := services.GetToolService()
 	fileService := services.GetFileService()
 	imageService := services.GetImageService()
+	conversationRepo := services.GetConversationRepository()
+
+	saveEnabled := !noSave
 
 	session := &AgentSession{
-		agentService: agentService,
-		toolService:  toolService,
-		fileService:  fileService,
-		imageService: imageService,
-		model:        selectedModel,
-		sessionID:    uuid.New().String(),
-		maxTurns:     cfg.Agent.MaxTurns,
-		conversation: []ConversationMessage{},
-		config:       cfg,
+		agentService:     agentService,
+		toolService:      toolService,
+		fileService:      fileService,
+		imageService:     imageService,
+		model:            selectedModel,
+		sessionID:        uuid.New().String(),
+		maxTurns:         cfg.Agent.MaxTurns,
+		conversation:     []ConversationMessage{},
+		config:           cfg,
+		conversationRepo: conversationRepo,
+		saveEnabled:      saveEnabled,
 	}
 
 	logger.Info("Starting agent session", "session_id", session.sessionID, "model", selectedModel)
@@ -254,6 +263,7 @@ func (s *AgentSession) execute(taskDescription string, files []string) error {
 		logger.Info("Maximum turns reached", "turns", s.completedTurns)
 	}
 
+	logger.Info("Agent session completed", "turns", s.completedTurns)
 	return nil
 }
 
@@ -348,6 +358,19 @@ func (s *AgentSession) processSyncResponse(response *domain.ChatSyncResponse, re
 		}
 		s.addMessage(assistantMsg)
 		s.outputMessage(assistantMsg)
+
+		if s.saveEnabled && s.conversationRepo != nil && response.Usage != nil {
+			go func() {
+				if err := s.conversationRepo.AddTokenUsage(
+					s.model,
+					int(response.Usage.PromptTokens),
+					int(response.Usage.CompletionTokens),
+					int(response.Usage.TotalTokens),
+				); err != nil {
+					logger.Warn("Failed to track token usage", "error", err)
+				}
+			}()
+		}
 	}
 
 	if len(response.ToolCalls) == 0 {
@@ -410,20 +433,27 @@ func (s *AgentSession) executeToolCallsParallel(toolCalls []sdk.ChatCompletionMe
 			result, err := s.executeToolCall(tc.Function.Name, tc.Function.Arguments)
 			if err != nil {
 				logger.Error("Tool execution failed", "tool", tc.Function.Name, "error", err)
+				errorResult := &domain.ToolExecutionResult{
+					ToolName: tc.Function.Name,
+					Success:  false,
+					Error:    err.Error(),
+				}
 				results[index] = ConversationMessage{
-					Role:       "tool",
-					Content:    fmt.Sprintf("Tool execution failed: %s", err.Error()),
-					ToolCallID: tc.Id,
-					Timestamp:  time.Now(),
+					Role:          "tool",
+					Content:       fmt.Sprintf("Tool execution failed: %s", err.Error()),
+					ToolCallID:    tc.Id,
+					ToolExecution: errorResult,
+					Timestamp:     time.Now(),
 				}
 				return
 			}
 
 			results[index] = ConversationMessage{
-				Role:       "tool",
-				Content:    s.formatToolResult(result),
-				ToolCallID: tc.Id,
-				Timestamp:  time.Now(),
+				Role:          "tool",
+				Content:       s.formatToolResult(result),
+				ToolCallID:    tc.Id,
+				ToolExecution: result,
+				Timestamp:     time.Now(),
 			}
 		}(i, toolCall)
 	}
@@ -449,8 +479,44 @@ func (s *AgentSession) formatToolResult(result *domain.ToolExecutionResult) stri
 	return fmt.Sprintf("Result of tool call: %s", string(resultBytes))
 }
 
+// convertToConversationEntry converts a ConversationMessage to domain.ConversationEntry
+func (s *AgentSession) convertToConversationEntry(msg ConversationMessage) domain.ConversationEntry {
+	var sdkMsg sdk.Message
+	sdkMsg.Role = sdk.MessageRole(msg.Role)
+	sdkMsg.Content = sdk.NewMessageContent(msg.Content)
+
+	if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
+		sdkMsg.ToolCalls = msg.ToolCalls
+	}
+
+	if msg.ToolCallID != "" {
+		sdkMsg.ToolCallId = &msg.ToolCallID
+	}
+
+	entry := domain.ConversationEntry{
+		Message:       sdkMsg,
+		Model:         s.model,
+		Time:          msg.Timestamp,
+		Images:        msg.Images,
+		Hidden:        msg.Internal,
+		ToolExecution: msg.ToolExecution,
+	}
+
+	return entry
+}
+
 func (s *AgentSession) addMessage(msg ConversationMessage) {
 	s.conversation = append(s.conversation, msg)
+
+	if s.saveEnabled && s.conversationRepo != nil {
+		entry := s.convertToConversationEntry(msg)
+
+		go func() {
+			if err := s.conversationRepo.AddMessage(entry); err != nil {
+				logger.Warn("Failed to persist agent message", "error", err, "role", msg.Role)
+			}
+		}()
+	}
 }
 
 func (s *AgentSession) outputMessage(msg ConversationMessage) {
@@ -523,5 +589,6 @@ func isModelAvailable(models []string, targetModel string) bool {
 func init() {
 	agentCmd.Flags().StringP("model", "m", "", "Model to use for the agent (e.g., openai/gpt-4)")
 	agentCmd.Flags().StringSliceP("files", "f", []string{}, "Files or images to include (e.g., -f image.png -f code.go)")
+	agentCmd.Flags().Bool("no-save", false, "Disable saving conversation to database")
 	rootCmd.AddCommand(agentCmd)
 }

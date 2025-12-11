@@ -315,25 +315,12 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 		title = "New Conversation"
 	}
 
-	persistentRepo, ok := s.handler.conversationRepo.(*services.PersistentConversationRepository)
-	if !ok {
-		return domain.SetStatusEvent{
-			Message:    "New conversation feature requires persistent storage to be enabled",
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
-	}
-
-	if err := persistentRepo.StartNewConversation(title); err != nil {
+	if err := s.handler.conversationRepo.StartNewConversation(title); err != nil {
 		return domain.SetStatusEvent{
 			Message:    fmt.Sprintf("Failed to start new conversation: %v", err),
 			Spinner:    false,
 			StatusType: domain.StatusDefault,
 		}
-	}
-
-	if err := s.handler.conversationRepo.Clear(); err != nil {
-		logger.Error("failed to clear conversation UI after starting new", "error", err)
 	}
 
 	return tea.Batch(
@@ -349,7 +336,7 @@ func (s *ChatShortcutHandler) handleStartNewConversationSideEffect(data any) tea
 		},
 		func() tea.Msg {
 			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("🆕 Started new conversation: %s", title),
+				Message:    fmt.Sprintf("• Started new conversation: %s", title),
 				Spinner:    false,
 				StatusType: domain.StatusDefault,
 			}
