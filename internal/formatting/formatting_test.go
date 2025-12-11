@@ -89,3 +89,71 @@ func TestFormatResponsiveMessage_HandlesEmptyContent(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatCost(t *testing.T) {
+	tests := []struct {
+		name string
+		cost float64
+		want string
+	}{
+		{
+			name: "Zero cost",
+			cost: 0.0,
+			want: "-",
+		},
+		{
+			name: "Very small cost (4 decimals)",
+			cost: 0.0023,
+			want: "$0.0023",
+		},
+		{
+			name: "Small cost under $0.01 (4 decimals)",
+			cost: 0.0099,
+			want: "$0.0099",
+		},
+		{
+			name: "Cost exactly $0.01 (3 decimals)",
+			cost: 0.01,
+			want: "$0.010",
+		},
+		{
+			name: "Cost between $0.01 and $1 (3 decimals)",
+			cost: 0.142,
+			want: "$0.142",
+		},
+		{
+			name: "Cost just under $1 (3 decimals)",
+			cost: 0.999,
+			want: "$0.999",
+		},
+		{
+			name: "Cost exactly $1 (2 decimals)",
+			cost: 1.0,
+			want: "$1.00",
+		},
+		{
+			name: "Cost over $1 (2 decimals)",
+			cost: 5.47,
+			want: "$5.47",
+		},
+		{
+			name: "Large cost (2 decimals)",
+			cost: 123.45,
+			want: "$123.45",
+		},
+		{
+			name: "Cost with many decimals gets rounded",
+			cost: 1.23456789,
+			want: "$1.23",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := FormatCost(tt.cost)
+			if result != tt.want {
+				t.Errorf("FormatCost(%v) = %q, want %q", tt.cost, result, tt.want)
+			}
+		})
+	}
+}

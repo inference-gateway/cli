@@ -58,8 +58,19 @@ func (r *PersistentConversationRepository) SetTaskTracker(taskTracker domain.Tas
 	r.taskTracker = taskTracker
 }
 
-// StartNewConversation begins a new conversation with a unique ID
+// StartNewConversation saves the current conversation (if any), then begins a new conversation with a unique ID
 func (r *PersistentConversationRepository) StartNewConversation(title string) error {
+	if r.conversationID != "" && r.GetMessageCount() > 0 {
+		ctx := context.Background()
+		if err := r.SaveConversation(ctx); err != nil {
+			logger.Warn("Failed to save current conversation before starting new one", "error", err, "conversation_id", r.conversationID)
+		}
+	}
+
+	if err := r.InMemoryConversationRepository.Clear(); err != nil {
+		return fmt.Errorf("failed to clear in-memory conversation: %w", err)
+	}
+
 	r.conversationID = uuid.New().String()
 
 	now := time.Now()
@@ -79,7 +90,7 @@ func (r *PersistentConversationRepository) StartNewConversation(title string) er
 		r.taskTracker.ClearAllAgents()
 	}
 
-	return r.InMemoryConversationRepository.Clear()
+	return nil
 }
 
 // LoadConversation loads a conversation from persistent storage

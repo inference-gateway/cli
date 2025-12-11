@@ -202,12 +202,18 @@ infer chat
 **`infer agent`** - Execute autonomous tasks in background mode
 
 ```bash
+# Start new agent sessions
 infer agent "Please fix the github issue 38"
 infer agent --model "openai/gpt-4" "Implement feature from issue #42"
 infer agent "Analyze this UI issue" --files screenshot.png
+
+# Resume existing sessions
+infer conversations list  # Find session IDs
+infer agent "continue fixing the bug" --session-id abc-123-def
+infer agent "analyze new logs" --session-id abc-123 --files error.log
 ```
 
-**Features:** Autonomous execution, multimodal support (images/files), parallel tool execution.
+**Features:** Autonomous execution, multimodal support (images/files), parallel tool execution, **session resumption**.
 
 ### Configuration Commands
 
@@ -250,6 +256,15 @@ For detailed A2A setup, see [A2A Agents Configuration](docs/agents-configuration
 
 ```bash
 infer status
+```
+
+**`infer conversations`** - List and manage conversation history
+
+```bash
+infer conversations list                    # List all saved conversations
+infer conversations list --limit 20         # List first 20 conversations
+infer conversations list --offset 40 -l 20  # Paginate: conversations 41-60
+infer conversations list --format json      # Output as JSON
 ```
 
 **`infer conversation-title`** - Manage AI-powered conversation titles

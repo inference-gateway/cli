@@ -440,6 +440,114 @@ Tools requiring user approval use a two-phase execution:
 
 Controlled by `require_approval` config per tool.
 
+### Conversation Management Commands
+
+The CLI provides commands to manage saved conversation history:
+
+**Command:** `infer conversations list [flags]`
+
+**Purpose:** List all saved conversations from the database with pagination support
+
+**Flags:**
+
+- `--limit, -l int` (default: 50) - Maximum conversations to display
+- `--offset int` (default: 0) - Number of conversations to skip
+- `--format, -f string` (default: "text") - Output format (text, json)
+
+**Output Columns (text format):**
+
+- **ID**: Full conversation ID (36 chars)
+- **Summary**: Conversation title (truncated to 25 chars)
+- **Messages**: Total message count
+- **Requests**: API request count
+- **Input Tokens**: Total input tokens used
+- **Output Tokens**: Total output tokens generated
+- **Cost**: Formatted cost with adaptive precision (e.g., "$0.023" or "-")
+
+**JSON Output:**
+
+```json
+{
+  "conversations": [
+    {
+      "id": "...",
+      "title": "...",
+      "created_at": "...",
+      "updated_at": "...",
+      "message_count": 10,
+      "token_stats": {...},
+      "cost_stats": {...}
+    }
+  ],
+  "count": 42
+}
+```
+
+**Storage Backend:** Uses `ConversationStorage.ListConversations(ctx, limit, offset)` interface
+
+**Implementation Files:**
+
+- `cmd/conversations.go` - Command implementation
+- `cmd/conversations_test.go` - Unit tests
+- `internal/formatting/formatting.go` - Contains `FormatCost()` helper
+
+**Examples:**
+
+```bash
+# List all conversations (default: 50)
+infer conversations list
+
+# Pagination
+infer conversations list --limit 20 --offset 40
+
+# JSON output for scripting
+infer conversations list --format json
+```
+
+### Agent Mode Persistence
+
+Agent mode conversations are automatically saved to the database, allowing you to review agent execution history
+alongside interactive chat sessions.
+
+**Behavior:**
+
+- Agent conversations are saved by default to the configured storage backend (SQLite/PostgreSQL/Redis)
+- Each message, tool execution, and token usage is persisted automatically
+- Agent sessions appear in `infer conversations list` alongside chat conversations
+- Auto-save uses async goroutines to prevent blocking execution
+- Graceful degradation: if storage fails, the agent continues without persistence
+
+**Disable saving for specific runs:**
+
+```bash
+# Run agent without saving conversation
+infer agent "task description" --no-save
+```
+
+**Viewing saved agent sessions:**
+
+```bash
+# List all conversations (includes both chat and agent sessions)
+infer conversations list
+
+# Agent conversations are marked with session metadata
+# Use conversation ID to review execution history
+```
+
+**Key Features:**
+
+- Automatic persistence of all messages (user, assistant, tool responses)
+- Token usage tracking per model
+- Cost calculation integrated with pricing service
+- Session completion summary with statistics
+- Works with all storage backends (SQLite, PostgreSQL, Redis)
+
+**Implementation Files:**
+
+- `cmd/agent.go` - Agent command with persistence integration
+- `config/config.go` - `SaveConversations` field in `AgentConfig`
+- Uses `ConversationRepository` interface for storage
+
 ### A2A (Agent-to-Agent) Communication
 
 Enables task delegation to specialized agents:

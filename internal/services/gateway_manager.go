@@ -57,6 +57,27 @@ func (gm *GatewayManager) Start(ctx context.Context) error {
 	return gm.startBinary(ctx)
 }
 
+// EnsureStarted starts the gateway if configured and not already running
+// This is a convenience method that checks config and running state before starting
+func (gm *GatewayManager) EnsureStarted() error {
+	if !gm.config.Gateway.Run {
+		return nil
+	}
+
+	if gm.isRunning {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	if err := gm.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start gateway: %w", err)
+	}
+
+	return nil
+}
+
 // startBinary downloads and runs the gateway as a binary
 func (gm *GatewayManager) startBinary(ctx context.Context) error {
 	logger.Info("Starting gateway from binary")
