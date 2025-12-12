@@ -151,7 +151,6 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 
 // renderHeader renders the header section
 func (r *ApplicationViewRenderer) renderHeader(_ ChatInterfaceData, width int) string {
-	// Background tasks are now shown in status bar, not in header
 	headerText := ""
 	accentColor := r.styleProvider.GetThemeColor("accent")
 	return r.styleProvider.RenderCenteredBoldWithColor(headerText, accentColor, width)
