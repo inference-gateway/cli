@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.89.0](https://github.com/inference-gateway/cli/compare/v0.88.0...v0.89.0) (2025-12-12)
+
+### 🚀 Features
+
+* Add /model command for temporary model switching ([#336](https://github.com/inference-gateway/cli/issues/336)) ([09baf39](https://github.com/inference-gateway/cli/commit/09baf3919b56814ea7f4ba7cbbc1270d8344e7f1))
+
 ## [0.88.0](https://github.com/inference-gateway/cli/compare/v0.87.0...v0.88.0) (2025-12-11)
 
 ### 🚀 Features
