@@ -129,12 +129,6 @@ tools:
 image:
   max_size: 5242880
   timeout: 30
-  clipboard_optimize:
-    enabled: true
-    max_width: 1920
-    max_height: 1080
-    quality: 75
-    convert_jpeg: true
 export:
   output_dir: .infer
   summary_model: ""
@@ -600,4 +594,3 @@ init:
 compact:
   enabled: true
   auto_at: 80
-  keep_first_messages: 2

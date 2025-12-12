@@ -1,0 +1,8 @@
+services:
+  frontend:
+    image: nginx:alpine
+    pull_policy: always
+    ports:
+      - "3000:80"
+    volumes:
+      - ./frontend:/usr/share/nginx/html:ro

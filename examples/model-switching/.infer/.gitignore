@@ -4,4 +4,3 @@ history
 chat_export_*
 conversations.db
 bin/
-tmp/

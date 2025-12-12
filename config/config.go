@@ -85,8 +85,18 @@ type LoggingConfig struct {
 
 // ImageConfig contains image service settings
 type ImageConfig struct {
-	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
-	Timeout int   `yaml:"timeout" mapstructure:"timeout"`
+	MaxSize           int64                        `yaml:"max_size" mapstructure:"max_size"`
+	Timeout           int                          `yaml:"timeout" mapstructure:"timeout"`
+	ClipboardOptimize ClipboardImageOptimizeConfig `yaml:"clipboard_optimize" mapstructure:"clipboard_optimize"`
+}
+
+// ClipboardImageOptimizeConfig contains clipboard image optimization settings
+type ClipboardImageOptimizeConfig struct {
+	Enabled     bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxWidth    int  `yaml:"max_width" mapstructure:"max_width"`
+	MaxHeight   int  `yaml:"max_height" mapstructure:"max_height"`
+	Quality     int  `yaml:"quality" mapstructure:"quality"`
+	ConvertJPEG bool `yaml:"convert_jpeg" mapstructure:"convert_jpeg"`
 }
 
 // ToolsConfig contains tool execution settings
@@ -255,8 +265,9 @@ type ExportConfig struct {
 
 // CompactConfig contains conversation compaction settings
 type CompactConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-	AutoAt  int  `yaml:"auto_at" mapstructure:"auto_at"`
+	Enabled           bool `yaml:"enabled" mapstructure:"enabled"`
+	AutoAt            int  `yaml:"auto_at" mapstructure:"auto_at"`
+	KeepFirstMessages int  `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
 }
 
 // SystemRemindersConfig contains settings for dynamic system reminders
@@ -638,6 +649,13 @@ func DefaultConfig() *Config { //nolint:funlen
 		Image: ImageConfig{
 			MaxSize: 5242880, // 5MB
 			Timeout: 30,      // 30 seconds
+			ClipboardOptimize: ClipboardImageOptimizeConfig{
+				Enabled:     true,
+				MaxWidth:    1920, // 1920px max width
+				MaxHeight:   1080, // 1080px max height
+				Quality:     75,   // 75% JPEG quality
+				ConvertJPEG: true,
+			},
 		},
 		Export: ExportConfig{
 			OutputDir:    ConfigDirName,
@@ -888,8 +906,9 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			},
 		},
 		Compact: CompactConfig{
-			Enabled: true,
-			AutoAt:  80,
+			Enabled:           true,
+			AutoAt:            80,
+			KeepFirstMessages: 2,
 		},
 	}
 }

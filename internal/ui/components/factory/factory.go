@@ -26,7 +26,7 @@ func CreateInputViewWithConfigDir(modelService domain.ModelService, configDir st
 }
 
 // CreateAutocomplete creates a new autocomplete component
-func CreateAutocomplete(shortcutRegistry *shortcuts.Registry, toolService domain.ToolService) ui.AutocompleteComponent {
+func CreateAutocomplete(shortcutRegistry *shortcuts.Registry, toolService domain.ToolService, modelService domain.ModelService, pricingService domain.PricingService) ui.AutocompleteComponent {
 	if shortcutRegistry == nil {
 		return nil
 	}
@@ -34,6 +34,12 @@ func CreateAutocomplete(shortcutRegistry *shortcuts.Registry, toolService domain
 	ac := autocomplete.NewAutocomplete(ui.NewDefaultTheme(), shortcutRegistry)
 	if toolService != nil {
 		ac.SetToolService(toolService)
+	}
+	if modelService != nil {
+		ac.SetModelService(modelService)
+	}
+	if pricingService != nil {
+		ac.SetPricingService(pricingService)
 	}
 	return ac
 }

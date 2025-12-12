@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ShoeZone - Buy Shoes Online!</title>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: Arial, sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState } = React;
+
+    const ShoeStore = () => {
+      const [cart, setCart] = useState([]);
+      const [searchTerm, setSearchTerm] = useState('');
+
+      const shoes = [
+        { id: 1, name: 'Red Sneakers', price: 79.99, image: 'https://via.placeholder.com/200x150/ff0000/ffffff?text=Red+Sneakers' },
+        { id: 2, name: 'Blue Running Shoes', price: 120, image: 'https://via.placeholder.com/200x150/0000ff/ffffff?text=Blue+Shoes' },
+        { id: 3, name: 'Black Boots', price: 150.00, image: 'https://via.placeholder.com/200x150/000000/ffffff?text=Black+Boots' },
+        { id: 4, name: 'White Casual', price: 65, image: 'https://via.placeholder.com/200x150/ffffff/000000?text=White+Casual' },
+        { id: 5, name: 'Green Sandals', price: 45.99, image: 'https://via.placeholder.com/200x150/00ff00/000000?text=Sandals' },
+        { id: 6, name: 'Yellow High Tops', price: 89, image: 'https://via.placeholder.com/200x150/ffff00/000000?text=High+Tops' },
+      ];
+
+      const addToCart = (shoe) => {
+        setCart([...cart, shoe]);
+      };
+
+      return (
+        <div>
+          {/* Issue: Inconsistent header styling, no semantic HTML */}
+          <div style={{
+            background: 'linear-gradient(45deg, #ff6b6b, #4ecdc4)',
+            padding: '15px 25px',
+            color: 'white',
+            fontSize: '32px',
+            fontWeight: 'bold',
+            textAlign: 'left',
+            boxShadow: '0 4px 8px rgba(0,0,0,0.3)'
+          }}>
+            🎉 SHOEZONE - BEST DEALS!!! 🎉
+          </div>
+
+          {/* Issue: Search bar with poor contrast and no label */}
+          <div style={{
+            backgroundColor: '#f0f0f0',
+            padding: '10px',
+            borderBottom: '3px solid red'
+          }}>
+            <input
+              type="text"
+              placeholder="Search shoes..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              style={{
+                width: '300px',
+                padding: '8px',
+                border: '1px solid #ccc',
+                fontSize: '14px',
+                backgroundColor: '#e0e0e0',
+                color: '#666'
+              }}
+            />
+            {/* Issue: Button with poor contrast */}
+            <button style={{
+              marginLeft: '5px',
+              padding: '8px 15px',
+              backgroundColor: '#888',
+              color: '#bbb',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '13px'
+            }}>
+              Search
+            </button>
+          </div>
+
+          <div style={{ display: 'flex' }}>
+            {/* Issue: Sidebar with no responsive design */}
+            <div style={{
+              width: '220px',
+              backgroundColor: '#2c3e50',
+              color: 'white',
+              padding: '20px',
+              position: 'fixed',
+              height: '100vh',
+              fontSize: '16px'
+            }}>
+              <h3 style={{ marginBottom: '15px', fontSize: '20px' }}>Categories</h3>
+              <ul style={{ listStyle: 'none' }}>
+                {/* Issue: No aria labels, inconsistent spacing */}
+                <li style={{ marginBottom: '8px' }}><a href="#" style={{ color: 'yellow', textDecoration: 'underline' }}>Sneakers</a></li>
+                <li style={{ marginBottom: '12px' }}><a href="#" style={{ color: '#4ecdc4' }}>Running</a></li>
+                <li style={{ marginBottom: '6px' }}><a href="#" style={{ color: 'lime', fontWeight: 'bold' }}>Boots</a></li>
+                <li style={{ marginBottom: '15px' }}><a href="#" style={{ color: 'pink' }}>Sandals</a></li>
+                <li><a href="#" style={{ color: 'orange', fontSize: '18px' }}>Sale!</a></li>
+              </ul>
+            </div>
+
+            {/* Issue: Main content doesn't account for fixed sidebar */}
+            <div style={{ flex: 1, padding: '20px', backgroundColor: '#fff' }}>
+              {/* Issue: Cart with inconsistent styling */}
+              <div style={{
+                backgroundColor: '#ffe0b2',
+                padding: '12px',
+                marginBottom: '25px',
+                border: '2px dashed red',
+                fontSize: '15px'
+              }}>
+                <span style={{ fontWeight: 'bold', color: '#d32f2f' }}>🛒 Cart ({cart.length})</span>
+                {cart.length > 0 && (
+                  <span style={{ marginLeft: '10px', color: 'green', fontSize: '13px' }}>
+                    Total: ${cart.reduce((sum, item) => sum + item.price, 0).toFixed(2)}
+                  </span>
+                )}
+              </div>
+
+              <h2 style={{
+                fontSize: '28px',
+                color: '#000',
+                marginBottom: '15px',
+                fontFamily: 'Comic Sans MS, cursive'
+              }}>
+                Featured Products
+              </h2>
+
+              {/* Issue: Product grid with no responsive design, inconsistent cards */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '20px'
+              }}>
+                {shoes.map((shoe, index) => (
+                  <div
+                    key={shoe.id}
+                    style={{
+                      border: index % 2 === 0 ? '2px solid blue' : '3px dotted green',
+                      padding: index % 3 === 0 ? '20px' : '15px',
+                      backgroundColor: index % 2 === 0 ? '#f9f9f9' : '#fff',
+                      boxShadow: index === 0 ? '0 4px 6px rgba(0,0,0,0.2)' : 'none',
+                      borderRadius: index % 2 === 0 ? '8px' : '0px'
+                    }}
+                  >
+                    {/* Issue: Images with inconsistent sizes */}
+                    <img
+                      src={shoe.image}
+                      alt={shoe.name}
+                      style={{
+                        width: index % 2 === 0 ? '100%' : '180px',
+                        height: 'auto',
+                        marginBottom: '10px'
+                      }}
+                    />
+                    {/* Issue: Inconsistent typography */}
+                    <h3 style={{
+                      fontSize: index % 2 === 0 ? '18px' : '16px',
+                      color: index % 3 === 0 ? '#e91e63' : '#000',
+                      marginBottom: '5px',
+                      fontFamily: index === 1 ? 'Georgia, serif' : 'inherit'
+                    }}>
+                      {shoe.name}
+                    </h3>
+                    {/* Issue: Price formatting inconsistent */}
+                    <p style={{
+                      fontSize: index % 2 === 0 ? '20px' : '17px',
+                      fontWeight: index === 2 ? 'bold' : 'normal',
+                      color: index % 2 === 0 ? 'green' : '#ff5722',
+                      marginBottom: '10px'
+                    }}>
+                      {index % 2 === 0 ? `$${shoe.price}` : `Price: ${shoe.price} USD`}
+                    </p>
+                    {/* Issue: Buttons with terrible contrast and inconsistent styles */}
+                    <button
+                      onClick={() => addToCart(shoe)}
+                      style={{
+                        padding: index % 2 === 0 ? '10px 20px' : '8px 15px',
+                        backgroundColor: index % 3 === 0 ? '#795548' : (index % 2 === 0 ? '#9c27b0' : '#ff9800'),
+                        color: index % 2 === 0 ? '#ddd' : '#eee',
+                        border: 'none',
+                        cursor: 'pointer',
+                        fontSize: index === 3 ? '12px' : '14px',
+                        borderRadius: index % 2 === 0 ? '4px' : '0px',
+                        fontWeight: index === 0 ? 'bold' : 'normal'
+                      }}
+                    >
+                      {index % 2 === 0 ? 'ADD TO CART' : 'Buy Now'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              {/* Issue: Footer with poor placement and styling */}
+              <div style={{
+                marginTop: '30px',
+                padding: '15px',
+                backgroundColor: '#607d8b',
+                color: '#fff',
+                textAlign: 'center',
+                fontSize: '12px',
+                borderTop: '5px solid yellow'
+              }}>
+                <p style={{ marginBottom: '5px', fontSize: '14px' }}>© 2025 ShoeZone Inc.</p>
+                <p style={{ fontSize: '11px', color: '#cfd8dc' }}>Contact: shoes@example.com | Phone: 555-1234</p>
+                <div style={{ marginTop: '8px' }}>
+                  <a href="#" style={{ color: 'cyan', marginRight: '15px', textDecoration: 'none' }}>Privacy</a>
+                  <a href="#" style={{ color: 'lime', marginRight: '15px' }}>Terms</a>
+                  <a href="#" style={{ color: 'pink' }}>Returns</a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<ShoeStore />);
+  </script>
+</body>
+</html>

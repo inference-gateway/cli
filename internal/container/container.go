@@ -248,12 +248,13 @@ func (c *ServiceContainer) initializeDomainServices() {
 		summaryClient := c.createSDKClient()
 		tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 		c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
-			Enabled:    c.config.Compact.Enabled,
-			AutoAt:     c.config.Compact.AutoAt,
-			BufferSize: 2,
-			Client:     summaryClient,
-			Config:     c.config,
-			Tokenizer:  tokenizer,
+			Enabled:           c.config.Compact.Enabled,
+			AutoAt:            c.config.Compact.AutoAt,
+			BufferSize:        2,
+			KeepFirstMessages: c.config.Compact.KeepFirstMessages,
+			Client:            summaryClient,
+			Config:            c.config,
+			Tokenizer:         tokenizer,
 		})
 	}
 
@@ -318,6 +319,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewCostShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
+	c.shortcutRegistry.Register(shortcuts.NewModelShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeService))
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 

@@ -16,6 +16,7 @@ type KeyHandlerContext interface {
 	GetStateManager() domain.StateManager
 	GetConversationRepository() domain.ConversationRepository
 	GetConfig() *config.Config
+	GetConfigDir() string
 
 	// Services
 	GetAgentService() domain.AgentService

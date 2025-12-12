@@ -65,6 +65,7 @@ func (e *ChatEventHandler) handleChatChunk(
 				RequestID: msg.RequestID,
 				Content:   msg.Content,
 				Delta:     true,
+				Model:     chatSession.Model,
 			}
 		},
 	}
@@ -208,6 +209,8 @@ func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
 
 ) tea.Cmd {
+	e.restorePendingModel()
+
 	if len(msg.ToolCalls) == 0 {
 		_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
 	}
@@ -246,6 +249,39 @@ func (e *ChatEventHandler) handleChatComplete(
 	}
 
 	return tea.Batch(cmds...)
+}
+
+// restorePendingModel restores the original model if a temporary model switch is pending
+func (e *ChatEventHandler) restorePendingModel() {
+	if e.handler.pendingModelRestoration == "" {
+		return
+	}
+
+	originalModel := e.handler.pendingModelRestoration
+	e.handler.pendingModelRestoration = ""
+
+	if err := e.handler.modelService.SelectModel(originalModel); err != nil {
+		logger.Error("Failed to restore original model", "model", originalModel, "error", err)
+		e.addModelRestorationWarning(originalModel)
+		return
+	}
+
+	logger.Debug("Successfully restored original model", "model", originalModel)
+}
+
+// addModelRestorationWarning adds a warning message when model restoration fails
+func (e *ChatEventHandler) addModelRestorationWarning(originalModel string) {
+	warningEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: sdk.NewMessageContent(fmt.Sprintf("[Warning: Failed to restore model to %s]", originalModel)),
+		},
+		Time: time.Now(),
+	}
+
+	if err := e.handler.conversationRepo.AddMessage(warningEntry); err != nil {
+		logger.Error("Failed to add model restoration warning message", "error", err)
+	}
 }
 
 func (e *ChatEventHandler) handleChatError(

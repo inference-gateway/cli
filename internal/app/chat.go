@@ -88,6 +88,9 @@ type ChatApplication struct {
 
 	// Available models
 	availableModels []string
+
+	// Configuration
+	configDir string
 }
 
 // nolint: funlen // NewChatApplication creates a new chat application
@@ -164,6 +167,7 @@ func NewChatApplication(
 	if configPath != "" {
 		configDir = filepath.Dir(configPath)
 	}
+	app.configDir = configDir
 
 	app.inputView = factory.CreateInputViewWithConfigDir(app.modelService, configDir)
 	if iv, ok := app.inputView.(*components.InputView); ok {
@@ -174,7 +178,7 @@ func NewChatApplication(
 		iv.SetConversationRepo(app.conversationRepo)
 	}
 
-	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService)
+	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService)
 	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
 		ac.SetStateManager(app.stateManager)
 	}
@@ -1273,7 +1277,7 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 
 	app.handleTodoEvents(msg, &cmds)
 
-	app.handleAutocompleteEvents(msg)
+	app.handleAutocompleteEvents(msg, &cmds)
 
 	return cmds
 }
@@ -1427,7 +1431,7 @@ func (app *ChatApplication) handleTodoEvents(msg tea.Msg, cmds *[]tea.Cmd) {
 }
 
 // handleAutocompleteEvents handles autocomplete-related events
-func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg) {
+func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cmd) {
 	if app.autocomplete == nil {
 		return
 	}
@@ -1448,7 +1452,16 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg) {
 				app.inputView.SetCursor(len(acMsg.Completion))
 			}
 		}
-		app.autocomplete.Hide()
+
+		if acMsg.ExecuteImmediately {
+			app.autocomplete.Hide()
+			*cmds = append(*cmds, app.SendMessage())
+			return
+		}
+
+		text := app.inputView.GetInput()
+		cursor := app.inputView.GetCursor()
+		app.autocomplete.Update(text, cursor)
 
 	case domain.RefreshAutocompleteEvent:
 		text := app.inputView.GetInput()
@@ -1478,6 +1491,11 @@ func (app *ChatApplication) GetImageService() domain.ImageService {
 // GetConfig returns the configuration for keybinding context
 func (app *ChatApplication) GetConfig() *config.Config {
 	return app.configService
+}
+
+// GetConfigDir returns the configuration directory path
+func (app *ChatApplication) GetConfigDir() string {
+	return app.configDir
 }
 
 // GetStateManager returns the current state manager
@@ -1530,6 +1548,14 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	app.inputView.ClearInput()
 
 	app.conversationView.ResetUserScroll()
+
+	for _, img := range images {
+		if img.SourcePath != "" {
+			if err := os.Remove(img.SourcePath); err != nil {
+				logger.Warn("Failed to clean up temporary image file %s: %v", img.SourcePath, err)
+			}
+		}
+	}
 
 	return func() tea.Msg {
 		return domain.UserInputEvent{

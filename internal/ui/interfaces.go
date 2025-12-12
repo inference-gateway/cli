@@ -27,6 +27,7 @@ type AutocompleteComponent interface {
 	Update(inputText string, cursorPos int)
 	HandleKey(key tea.KeyMsg) (bool, string)
 	IsVisible() bool
+	ShouldExecuteImmediately() bool
 	SetWidth(width int)
 	SetHeight(height int)
 	Render() string

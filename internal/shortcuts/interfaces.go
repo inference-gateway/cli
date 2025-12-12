@@ -44,6 +44,7 @@ const (
 	SideEffectCompactConversation
 	SideEffectShowInitGithubActionSetup
 	SideEffectEmbedImages
+	SideEffectSendMessageWithModel
 )
 
 // PersistentConversationRepository interface for conversation persistence

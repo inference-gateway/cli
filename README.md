@@ -548,11 +548,11 @@ The CLI provides an extensible shortcuts system for quickly executing common com
 - `/clear` - Clear conversation history
 - `/exit` - Exit chat session
 - `/help [shortcut]` - Show available shortcuts
-- `/switch [model]` - Switch to different model
-- `/theme [name]` - Switch chat theme
+- `/switch` - Switch to different model
+- `/theme` - Switch chat theme
 - `/cost` - Show session cost breakdown with per-model details
 - `/compact` - Compact conversation
-- `/export [format]` - Export conversation
+- `/export` - Export conversation
 
 **Git Shortcuts** (created by `infer init`):
 
