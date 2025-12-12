@@ -27,7 +27,7 @@ func NewImageOptimizer(cfg config.ClipboardImageOptimizeConfig) *ImageOptimizer 
 // OptimizeResult contains the optimized image data and format information
 type OptimizeResult struct {
 	Data      []byte
-	Extension string // File extension without dot (e.g., "jpg", "png")
+	Extension string
 }
 
 // OptimizeImage optimizes an image file according to configuration
@@ -120,7 +120,6 @@ func (o *ImageOptimizer) encodeImage(img image.Image, originalFormat string) ([]
 		return buf.Bytes(), "jpg", nil
 	}
 
-	// Keep original format
 	switch originalFormat {
 	case "jpeg", "jpg":
 		quality := o.config.Quality
@@ -140,7 +139,6 @@ func (o *ImageOptimizer) encodeImage(img image.Image, originalFormat string) ([]
 		return buf.Bytes(), "png", nil
 
 	default:
-		// For unsupported formats, use PNG
 		if err := png.Encode(&buf, img); err != nil {
 			return nil, "", fmt.Errorf("failed to encode as PNG: %w", err)
 		}
