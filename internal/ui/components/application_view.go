@@ -1,7 +1,6 @@
 package components
 
 import (
-	"fmt"
 	"strings"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -24,12 +23,11 @@ func NewApplicationViewRenderer(styleProvider *styles.Provider) *ApplicationView
 
 // ChatInterfaceData holds the data needed to render the chat interface
 type ChatInterfaceData struct {
-	Width           int
-	Height          int
-	ToolExecution   *domain.ToolExecutionSession
-	CurrentView     domain.ViewState
-	QueuedMessages  []domain.QueuedMessage
-	BackgroundTasks []domain.TaskPollingState
+	Width          int
+	Height         int
+	ToolExecution  *domain.ToolExecutionSession
+	CurrentView    domain.ViewState
+	QueuedMessages []domain.QueuedMessage
 }
 
 // RenderChatInterface renders the main chat interface
@@ -89,12 +87,9 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 		heights.helpBarHeight = 6
 	}
 
-	if queueBoxView != nil && (len(data.QueuedMessages) > 0 || len(data.BackgroundTasks) > 0) {
-		totalItems := len(data.QueuedMessages) + len(data.BackgroundTasks)
+	if queueBoxView != nil && len(data.QueuedMessages) > 0 {
+		totalItems := len(data.QueuedMessages)
 		heights.queueBoxHeight = totalItems + 4
-		if len(data.BackgroundTasks) > 0 && len(data.QueuedMessages) > 0 {
-			heights.queueBoxHeight += 2
-		}
 	}
 
 	if todoBoxView != nil && todoBoxView.HasTodos() {
@@ -154,12 +149,10 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	}
 }
 
-// renderHeader renders the header section with background task count
-func (r *ApplicationViewRenderer) renderHeader(data ChatInterfaceData, width int) string {
+// renderHeader renders the header section
+func (r *ApplicationViewRenderer) renderHeader(_ ChatInterfaceData, width int) string {
+	// Background tasks are now shown in status bar, not in header
 	headerText := ""
-	if len(data.BackgroundTasks) > 0 {
-		headerText = fmt.Sprintf("(%d)", len(data.BackgroundTasks))
-	}
 	accentColor := r.styleProvider.GetThemeColor("accent")
 	return r.styleProvider.RenderCenteredBoldWithColor(headerText, accentColor, width)
 }
@@ -198,8 +191,8 @@ func (r *ApplicationViewRenderer) appendQueueBox(
 	data ChatInterfaceData,
 	queueBoxView *QueueBoxView,
 ) []string {
-	if queueBoxView != nil && (len(data.QueuedMessages) > 0 || len(data.BackgroundTasks) > 0) {
-		if queueBoxContent := queueBoxView.Render(data.QueuedMessages, data.BackgroundTasks); queueBoxContent != "" {
+	if queueBoxView != nil && len(data.QueuedMessages) > 0 {
+		if queueBoxContent := queueBoxView.Render(data.QueuedMessages); queueBoxContent != "" {
 			components = append(components, queueBoxContent, "")
 		}
 	}

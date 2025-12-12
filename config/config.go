@@ -368,6 +368,7 @@ type StatusBarIndicators struct {
 	A2AAgents        bool `yaml:"a2a_agents" mapstructure:"a2a_agents"`
 	Tools            bool `yaml:"tools" mapstructure:"tools"`
 	BackgroundShells bool `yaml:"background_shells" mapstructure:"background_shells"`
+	A2ATasks         bool `yaml:"a2a_tasks" mapstructure:"a2a_tasks"`
 	MCP              bool `yaml:"mcp" mapstructure:"mcp"`
 	ContextUsage     bool `yaml:"context_usage" mapstructure:"context_usage"`
 	SessionTokens    bool `yaml:"session_tokens" mapstructure:"session_tokens"`
@@ -496,6 +497,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			A2AAgents:        true,
 			Tools:            true,
 			BackgroundShells: true,
+			A2ATasks:         true,
 			MCP:              true,
 			ContextUsage:     true,
 			SessionTokens:    true,
