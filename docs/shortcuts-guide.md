@@ -43,8 +43,8 @@ These shortcuts are available out of the box:
 - `/clear` - Clear conversation history
 - `/exit` - Exit the chat session
 - `/help [shortcut]` - Show available shortcuts or specific shortcut help
-- `/switch [model]` - Switch to a different model
-- `/theme [theme-name]` - Switch chat interface theme or list available themes
+- `/switch` - Switch to a different model
+- `/theme` - Switch chat interface theme or list available themes
 - `/config <show|get|set|reload> [key] [value]` - Manage configuration settings
 - `/compact` - Immediately compact conversation to reduce token usage
 - `/export [format]` - Export conversation to markdown
