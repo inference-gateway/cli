@@ -24,6 +24,7 @@ require (
 	github.com/subosito/gotenv v1.6.0
 	go.uber.org/zap v1.27.1
 	golang.design/x/clipboard v0.7.1
+	golang.org/x/image v0.28.0
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.40.1
 )
@@ -90,7 +91,6 @@ require (
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20250620022241-b7579e27df2b // indirect
 	golang.org/x/exp/shiny v0.0.0-20250606033433-dcc06ee1d476 // indirect
-	golang.org/x/image v0.28.0 // indirect
 	golang.org/x/mobile v0.0.0-20250606033058-a2a15c67f36f // indirect
 	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/net v0.43.0 // indirect
