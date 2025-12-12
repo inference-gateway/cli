@@ -453,7 +453,6 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 				Success:    true,
 				Message:    fmt.Sprintf("Task %s", currentTask.Status.State),
 				TaskResult: finalResult,
-				Task:       &currentTask,
 			},
 		}
 		return true, result
@@ -476,7 +475,6 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 				Success:    false,
 				Message:    fmt.Sprintf("Task %s", currentTask.Status.State),
 				TaskResult: finalResult,
-				Task:       &currentTask,
 			},
 		}
 		return true, result
@@ -499,7 +497,6 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 				Success:    true,
 				Message:    fmt.Sprintf("Task requires input: %s", inputMessage),
 				TaskResult: inputMessage,
-				Task:       &currentTask,
 			},
 		}
 		return true, result
@@ -567,8 +564,7 @@ func (t *A2ASubmitTaskTool) FormatForLLM(result *domain.ToolExecutionResult) str
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
 	if result.Data != nil {
-		dataContent := t.formatter.FormatAsJSON(result.Data)
-		hasMetadata := len(result.Metadata) > 0
+		dataContent, hasMetadata := t.formatA2ATaskData(result.Data, result.Metadata)
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
@@ -576,6 +572,29 @@ func (t *A2ASubmitTaskTool) FormatForLLM(result *domain.ToolExecutionResult) str
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
 	return output.String()
+}
+
+// formatA2ATaskData formats the task data content and returns it along with metadata presence
+func (t *A2ASubmitTaskTool) formatA2ATaskData(data any, metadata map[string]string) (string, bool) {
+	taskData, ok := data.(A2ASubmitTaskResult)
+	if !ok {
+		dataContent := t.formatter.FormatAsJSON(data)
+		hasMetadata := len(metadata) > 0
+		return dataContent, hasMetadata
+	}
+
+	var dataContent strings.Builder
+	dataContent.WriteString(fmt.Sprintf("Task ID: %s\n", taskData.TaskID))
+	if taskData.ContextID != "" {
+		dataContent.WriteString(fmt.Sprintf("Context ID: %s\n", taskData.ContextID))
+	}
+	dataContent.WriteString(fmt.Sprintf("State: %s\n", taskData.State))
+	if taskData.TaskResult != "" {
+		dataContent.WriteString(fmt.Sprintf("\n%s", taskData.TaskResult))
+	}
+
+	hasMetadata := len(metadata) > 0
+	return dataContent.String(), hasMetadata
 }
 
 // FormatPreview returns a short preview of the result for UI display

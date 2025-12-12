@@ -40,6 +40,7 @@ type Config struct {
 	Pricing          PricingConfig          `yaml:"pricing" mapstructure:"pricing"`
 	Init             InitConfig             `yaml:"init" mapstructure:"init"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
+	configDir        string
 }
 
 // ContainerRuntimeConfig contains container runtime settings
@@ -872,7 +873,7 @@ Respond with ONLY the title, no quotes or explanation.`,
 				},
 				DownloadArtifacts: DownloadArtifactsToolConfig{
 					Enabled:         true,
-					DownloadDir:     "/tmp/downloads",
+					DownloadDir:     "",
 					TimeoutSeconds:  30,
 					RequireApproval: &[]bool{true}[0],
 				},
@@ -1041,6 +1042,19 @@ func (c *Config) GetIncludeModels() []string {
 
 func (c *Config) GetExcludeModels() []string {
 	return c.Gateway.ExcludeModels
+}
+
+// SetConfigDir sets the configuration directory path
+func (c *Config) SetConfigDir(dir string) {
+	c.configDir = dir
+}
+
+// GetConfigDir returns the configuration directory path
+func (c *Config) GetConfigDir() string {
+	if c.configDir == "" {
+		return ConfigDirName
+	}
+	return c.configDir
 }
 
 // IsBashCommandWhitelisted checks if a specific bash command is whitelisted

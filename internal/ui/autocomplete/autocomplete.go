@@ -438,7 +438,8 @@ func (a *AutocompleteImpl) isNoArgShortcut(shortcutName string) bool {
 	shortcuts := a.shortcutRegistry.GetAll()
 	for _, s := range shortcuts {
 		if s.GetName() == name {
-			return s.CanExecute([]string{})
+			desc := s.GetDescription()
+			return !strings.Contains(desc, "<") && !strings.Contains(desc, "[")
 		}
 	}
 

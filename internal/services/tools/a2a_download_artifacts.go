@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -181,7 +182,8 @@ func (t *A2ADownloadArtifactsTool) Execute(ctx context.Context, args map[string]
 }
 
 func (t *A2ADownloadArtifactsTool) downloadTaskArtifacts(ctx context.Context, task *adk.Task) ([]DownloadInfo, error) {
-	downloadDir := "/tmp/downloads"
+	defaultDownloadDir := filepath.Join(t.config.GetConfigDir(), "tmp")
+	downloadDir := defaultDownloadDir
 	if t.config.A2A.Tools.DownloadArtifacts.DownloadDir != "" {
 		downloadDir = t.config.A2A.Tools.DownloadArtifacts.DownloadDir
 	}

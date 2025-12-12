@@ -104,6 +104,8 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 		container.configService = services.NewConfigService(v[0], cfg)
 	}
 
+	cfg.SetConfigDir(container.determineConfigDirectory())
+
 	container.initializeGatewayManager()
 	container.initializeFileWriterServices()
 	container.initializeStateManager()
