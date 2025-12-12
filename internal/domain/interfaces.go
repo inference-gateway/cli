@@ -25,6 +25,7 @@ type ImageAttachment struct {
 	MimeType    string `json:"mime_type"`
 	Filename    string `json:"filename,omitempty"`
 	DisplayName string `json:"display_name"`
+	SourcePath  string `json:"-"`
 }
 
 // ConversationEntry represents a message in the conversation with metadata

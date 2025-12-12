@@ -1549,6 +1549,14 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 
 	app.conversationView.ResetUserScroll()
 
+	for _, img := range images {
+		if img.SourcePath != "" {
+			if err := os.Remove(img.SourcePath); err != nil {
+				logger.Warn("Failed to clean up temporary image file %s: %v", img.SourcePath, err)
+			}
+		}
+	}
+
 	return func() tea.Msg {
 		return domain.UserInputEvent{
 			Content: input,

@@ -718,6 +718,8 @@ func handleImagePaste(app KeyHandlerContext, imageService domain.ImageService, i
 		return
 	}
 
+	imageAttachment.SourcePath = finalPath
+
 	inputView.AddImageAttachment(*imageAttachment)
 }
 
