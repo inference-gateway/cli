@@ -265,8 +265,9 @@ type ExportConfig struct {
 
 // CompactConfig contains conversation compaction settings
 type CompactConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-	AutoAt  int  `yaml:"auto_at" mapstructure:"auto_at"`
+	Enabled           bool `yaml:"enabled" mapstructure:"enabled"`
+	AutoAt            int  `yaml:"auto_at" mapstructure:"auto_at"`
+	KeepFirstMessages int  `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
 }
 
 // SystemRemindersConfig contains settings for dynamic system reminders
@@ -905,8 +906,9 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			},
 		},
 		Compact: CompactConfig{
-			Enabled: true,
-			AutoAt:  80,
+			Enabled:           true,
+			AutoAt:            80,
+			KeepFirstMessages: 2,
 		},
 	}
 }

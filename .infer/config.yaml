@@ -600,3 +600,4 @@ init:
 compact:
   enabled: true
   auto_at: 80
+  keep_first_messages: 2

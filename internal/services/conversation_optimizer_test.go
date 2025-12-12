@@ -163,27 +163,27 @@ func TestConversationOptimizer_ToolCallIntegrity_PartialResponses(t *testing.T) 
 // TestConversationOptimizer_EdgeCases tests edge cases and boundary conditions
 func TestConversationOptimizer_EdgeCases(t *testing.T) {
 	tests := []struct {
-		name        string
-		messages    []sdk.Message
-		bufferSize  int
-		expectEmpty bool
-		description string
+		name              string
+		messages          []sdk.Message
+		keepFirstMessages int
+		expectEmpty       bool
+		description       string
 	}{
 		{
-			name:        "empty conversation",
-			messages:    []sdk.Message{},
-			bufferSize:  2,
-			expectEmpty: true,
-			description: "Empty input should return empty output",
+			name:              "empty conversation",
+			messages:          []sdk.Message{},
+			keepFirstMessages: 2,
+			expectEmpty:       true,
+			description:       "Empty input should return empty output",
 		},
 		{
 			name: "single message",
 			messages: []sdk.Message{
 				{Role: "user", Content: sdk.NewMessageContent("Hello")},
 			},
-			bufferSize:  2,
-			expectEmpty: false,
-			description: "Single message should be preserved",
+			keepFirstMessages: 2,
+			expectEmpty:       false,
+			description:       "Single message should be preserved",
 		},
 		{
 			name: "only system messages",
@@ -191,9 +191,9 @@ func TestConversationOptimizer_EdgeCases(t *testing.T) {
 				{Role: "system", Content: sdk.NewMessageContent("System prompt 1")},
 				{Role: "system", Content: sdk.NewMessageContent("System prompt 2")},
 			},
-			bufferSize:  2,
-			expectEmpty: false,
-			description: "System messages should be preserved",
+			keepFirstMessages: 2,
+			expectEmpty:       false,
+			description:       "System messages should be preserved",
 		},
 		{
 			name: "very short conversation",
@@ -201,21 +201,22 @@ func TestConversationOptimizer_EdgeCases(t *testing.T) {
 				{Role: "user", Content: sdk.NewMessageContent("Hi")},
 				{Role: "assistant", Content: sdk.NewMessageContent("Hello")},
 			},
-			bufferSize:  2,
-			expectEmpty: false,
-			description: "Short conversations should not be optimized",
+			keepFirstMessages: 2,
+			expectEmpty:       false,
+			description:       "Short conversations should not be optimized",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
-				Enabled:    true,
-				AutoAt:     80,
-				BufferSize: tt.bufferSize,
-				Client:     nil,
-				Config:     &config.Config{},
-				Tokenizer:  nil,
+				Enabled:           true,
+				AutoAt:            80,
+				BufferSize:        2,
+				KeepFirstMessages: tt.keepFirstMessages,
+				Client:            nil,
+				Config:            &config.Config{},
+				Tokenizer:         nil,
 			})
 
 			result := optimizer.OptimizeMessages(tt.messages, false)
@@ -241,12 +242,13 @@ func TestConversationOptimizer_DisabledOptimization(t *testing.T) {
 	}
 
 	optimizer := services.NewConversationOptimizer(services.OptimizerConfig{
-		Enabled:    false,
-		AutoAt:     80,
-		BufferSize: 2,
-		Client:     nil,
-		Config:     &config.Config{},
-		Tokenizer:  nil,
+		Enabled:           false,
+		AutoAt:            80,
+		BufferSize:        2,
+		KeepFirstMessages: 2,
+		Client:            nil,
+		Config:            &config.Config{},
+		Tokenizer:         nil,
 	})
 
 	result := optimizer.OptimizeMessages(messages, false)
@@ -261,15 +263,16 @@ func stringPtr(s string) *string {
 	return &s
 }
 
-// createTestOptimizer creates an optimizer with the given buffer size for testing
-func createTestOptimizer(bufferSize int) *services.ConversationOptimizer {
+// createTestOptimizer creates an optimizer with the given keepFirstMessages setting for testing
+func createTestOptimizer(keepFirstMessages int) *services.ConversationOptimizer {
 	return services.NewConversationOptimizer(services.OptimizerConfig{
-		Enabled:    true,
-		AutoAt:     80,
-		BufferSize: bufferSize,
-		Client:     nil,
-		Config:     &config.Config{},
-		Tokenizer:  nil,
+		Enabled:           true,
+		AutoAt:            80,
+		BufferSize:        2,
+		KeepFirstMessages: keepFirstMessages,
+		Client:            nil,
+		Config:            &config.Config{},
+		Tokenizer:         nil,
 	})
 }
 
