@@ -27,25 +27,23 @@ type ShortcutRegistry interface {
 
 // AutocompleteImpl implements inline autocomplete functionality
 type AutocompleteImpl struct {
-	suggestions      []ShortcutOption
-	filtered         []ShortcutOption
-	selected         int
-	visible          bool
-	query            string
-	theme            ui.Theme
-	width            int
-	height           int
-	maxVisible       int
-	shortcutRegistry ShortcutRegistry
-	stateManager     domain.StateManager
-	lastAgentMode    domain.AgentMode
-	toolService      interface {
-		ListAvailableTools() []string
-		ListTools() []sdk.ChatCompletionTool
-	}
-	modelService   domain.ModelService
-	pricingService domain.PricingService
-	completionMode string
+	suggestions              []ShortcutOption
+	filtered                 []ShortcutOption
+	selected                 int
+	visible                  bool
+	query                    string
+	theme                    ui.Theme
+	width                    int
+	height                   int
+	maxVisible               int
+	shortcutRegistry         ShortcutRegistry
+	stateManager             domain.StateManager
+	lastAgentMode            domain.AgentMode
+	toolService              domain.ToolService
+	modelService             domain.ModelService
+	pricingService           domain.PricingService
+	completionMode           string
+	shouldExecuteImmediately bool
 }
 
 // NewAutocomplete creates a new autocomplete component
@@ -65,10 +63,7 @@ func NewAutocomplete(theme ui.Theme, shortcutRegistry ShortcutRegistry) *Autocom
 }
 
 // SetToolService sets the tool service for tool autocomplete
-func (a *AutocompleteImpl) SetToolService(toolService interface {
-	ListAvailableTools() []string
-	ListTools() []sdk.ChatCompletionTool
-}) {
+func (a *AutocompleteImpl) SetToolService(toolService domain.ToolService) {
 	a.toolService = toolService
 }
 
@@ -373,28 +368,10 @@ func (a *AutocompleteImpl) HandleKey(key tea.KeyMsg) (bool, string) {
 		return true, ""
 
 	case "tab", "enter":
-		if a.selected < len(a.filtered) {
-			selected := a.filtered[a.selected].Shortcut
-			if a.completionMode == "models" {
-				selected = "/model " + selected + " "
-				a.visible = false
-				return true, selected
-			} else if a.completionMode == "shortcuts" && selected == "/model" {
-				selected = selected + " "
-				a.loadModels()
-				a.completionMode = "models"
-				a.query = ""
-				a.filterSuggestions()
-				a.visible = len(a.filtered) > 0
-				return true, selected
-			} else if a.completionMode == "shortcuts" {
-				selected = selected + " "
-			}
-
-			a.visible = false
-			return true, selected
+		if a.selected >= len(a.filtered) {
+			return true, ""
 		}
-		return true, ""
+		return a.handleSelection()
 
 	case "esc":
 		a.visible = false
@@ -407,6 +384,65 @@ func (a *AutocompleteImpl) HandleKey(key tea.KeyMsg) (bool, string) {
 // IsVisible returns whether autocomplete is currently visible
 func (a *AutocompleteImpl) IsVisible() bool {
 	return a.visible
+}
+
+// ShouldExecuteImmediately returns whether the last selected shortcut should execute immediately
+func (a *AutocompleteImpl) ShouldExecuteImmediately() bool {
+	return a.shouldExecuteImmediately
+}
+
+// handleSelection handles the selected autocomplete item
+func (a *AutocompleteImpl) handleSelection() (bool, string) {
+	selected := a.filtered[a.selected].Shortcut
+	a.shouldExecuteImmediately = false
+
+	if a.completionMode == "models" {
+		selected = "/model " + selected + " "
+		a.visible = false
+		return true, selected
+	}
+
+	if a.completionMode == "shortcuts" && selected == "/model" {
+		selected = selected + " "
+		a.loadModels()
+		a.completionMode = "models"
+		a.query = ""
+		a.filterSuggestions()
+		a.visible = len(a.filtered) > 0
+		return true, selected
+	}
+
+	if a.completionMode == "shortcuts" {
+		if a.isNoArgShortcut(selected) {
+			a.shouldExecuteImmediately = true
+		} else {
+			selected = selected + " "
+		}
+	}
+
+	a.visible = false
+	return true, selected
+}
+
+// isNoArgShortcut checks if a shortcut accepts no arguments
+func (a *AutocompleteImpl) isNoArgShortcut(shortcutName string) bool {
+	if a.shortcutRegistry == nil {
+		return false
+	}
+
+	name := shortcutName
+	if len(name) > 0 && name[0] == '/' {
+		name = name[1:]
+	}
+
+	shortcuts := a.shortcutRegistry.GetAll()
+	for _, s := range shortcuts {
+		if s.GetName() == name {
+			return s.CanExecute([]string{})
+		}
+	}
+
+	return false
 }
 
 // SetWidth sets the width for rendering

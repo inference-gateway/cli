@@ -70,6 +70,16 @@ type FakeAutocompleteComponent struct {
 	setWidthArgsForCall []struct {
 		arg1 int
 	}
+	ShouldExecuteImmediatelyStub        func() bool
+	shouldExecuteImmediatelyMutex       sync.RWMutex
+	shouldExecuteImmediatelyArgsForCall []struct {
+	}
+	shouldExecuteImmediatelyReturns struct {
+		result1 bool
+	}
+	shouldExecuteImmediatelyReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	UpdateStub        func(string, int)
 	updateMutex       sync.RWMutex
 	updateArgsForCall []struct {
@@ -413,6 +423,59 @@ func (fake *FakeAutocompleteComponent) SetWidthArgsForCall(i int) int {
 	defer fake.setWidthMutex.RUnlock()
 	argsForCall := fake.setWidthArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeAutocompleteComponent) ShouldExecuteImmediately() bool {
+	fake.shouldExecuteImmediatelyMutex.Lock()
+	ret, specificReturn := fake.shouldExecuteImmediatelyReturnsOnCall[len(fake.shouldExecuteImmediatelyArgsForCall)]
+	fake.shouldExecuteImmediatelyArgsForCall = append(fake.shouldExecuteImmediatelyArgsForCall, struct {
+	}{})
+	stub := fake.ShouldExecuteImmediatelyStub
+	fakeReturns := fake.shouldExecuteImmediatelyReturns
+	fake.recordInvocation("ShouldExecuteImmediately", []interface{}{})
+	fake.shouldExecuteImmediatelyMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeAutocompleteComponent) ShouldExecuteImmediatelyCallCount() int {
+	fake.shouldExecuteImmediatelyMutex.RLock()
+	defer fake.shouldExecuteImmediatelyMutex.RUnlock()
+	return len(fake.shouldExecuteImmediatelyArgsForCall)
+}
+
+func (fake *FakeAutocompleteComponent) ShouldExecuteImmediatelyCalls(stub func() bool) {
+	fake.shouldExecuteImmediatelyMutex.Lock()
+	defer fake.shouldExecuteImmediatelyMutex.Unlock()
+	fake.ShouldExecuteImmediatelyStub = stub
+}
+
+func (fake *FakeAutocompleteComponent) ShouldExecuteImmediatelyReturns(result1 bool) {
+	fake.shouldExecuteImmediatelyMutex.Lock()
+	defer fake.shouldExecuteImmediatelyMutex.Unlock()
+	fake.ShouldExecuteImmediatelyStub = nil
+	fake.shouldExecuteImmediatelyReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeAutocompleteComponent) ShouldExecuteImmediatelyReturnsOnCall(i int, result1 bool) {
+	fake.shouldExecuteImmediatelyMutex.Lock()
+	defer fake.shouldExecuteImmediatelyMutex.Unlock()
+	fake.ShouldExecuteImmediatelyStub = nil
+	if fake.shouldExecuteImmediatelyReturnsOnCall == nil {
+		fake.shouldExecuteImmediatelyReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.shouldExecuteImmediatelyReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
 }
 
 func (fake *FakeAutocompleteComponent) Update(arg1 string, arg2 int) {

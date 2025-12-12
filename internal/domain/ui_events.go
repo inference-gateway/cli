@@ -63,7 +63,8 @@ type AutocompleteHideEvent struct{}
 
 // AutocompleteCompleteEvent is fired when a completion is selected
 type AutocompleteCompleteEvent struct {
-	Completion string
+	Completion         string
+	ExecuteImmediately bool
 }
 
 // AutocompleteVisibilityCheckEvent requests autocomplete visibility state

@@ -2,12 +2,17 @@ package keybinding
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
 	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	services "github.com/inference-gateway/cli/internal/services"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	components "github.com/inference-gateway/cli/internal/ui/components"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
@@ -660,7 +665,10 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		if handled, completion := autocomplete.HandleKey(keyMsg); handled {
 			if completion != "" {
 				return func() tea.Msg {
-					return domain.AutocompleteCompleteEvent{Completion: completion}
+					return domain.AutocompleteCompleteEvent{
+						Completion:         completion,
+						ExecuteImmediately: autocomplete.ShouldExecuteImmediately(),
+					}
 				}
 			}
 			return nil
@@ -684,6 +692,75 @@ func handleEnterKey(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	return app.SendMessage()
 }
 
+// handleImagePaste processes clipboard image data and adds it as an attachment
+func handleImagePaste(app KeyHandlerContext, imageService domain.ImageService, inputView ui.InputComponent, imageData []byte) {
+	timestamp := time.Now().Format("20060102-150405")
+	tmpDir := filepath.Join(app.GetConfigDir(), "tmp")
+
+	if err := os.MkdirAll(tmpDir, 0755); err != nil {
+		logger.Warn("Failed to create %s/tmp directory: %v", app.GetConfigDir(), err)
+		return
+	}
+
+	tmpPath := filepath.Join(tmpDir, fmt.Sprintf("clipboard-image-%s.png", timestamp))
+
+	if err := os.WriteFile(tmpPath, imageData, 0644); err != nil {
+		logger.Warn("Failed to save clipboard image to %s/tmp: %v", app.GetConfigDir(), err)
+		return
+	}
+
+	cfg := app.GetConfig()
+	finalPath := applyImageOptimization(tmpPath, imageData, cfg)
+
+	imageAttachment, err := imageService.ReadImageFromFile(finalPath)
+	if err != nil {
+		logger.Warn("Failed to read saved clipboard image: %v", err)
+		return
+	}
+
+	inputView.AddImageAttachment(*imageAttachment)
+}
+
+// applyImageOptimization applies image optimization if enabled in config
+// Returns the final file path (which may have a different extension)
+func applyImageOptimization(tmpPath string, originalData []byte, cfg *config.Config) string {
+	if cfg == nil || !cfg.Image.ClipboardOptimize.Enabled {
+		logger.Info("Clipboard image saved to: %s (you can inspect this file)", tmpPath)
+		return tmpPath
+	}
+
+	result, err := optimizeClipboardImage(tmpPath, cfg.Image.ClipboardOptimize)
+	if err != nil {
+		logger.Warn("Failed to optimize clipboard image, using original: %v", err)
+		return tmpPath
+	}
+
+	finalPath := tmpPath
+	if result.Extension != "png" {
+		finalPath = strings.TrimSuffix(tmpPath, filepath.Ext(tmpPath)) + "." + result.Extension
+	}
+
+	if err := os.WriteFile(finalPath, result.Data, 0644); err != nil {
+		logger.Warn("Failed to save optimized image: %v", err)
+		return tmpPath
+	}
+
+	if finalPath != tmpPath {
+		_ = os.Remove(tmpPath)
+	}
+
+	logger.Info("Clipboard image optimized and saved to: %s (original: %d bytes, optimized: %d bytes)",
+		finalPath, len(originalData), len(result.Data))
+
+	return finalPath
+}
+
+// optimizeClipboardImage optimizes an image according to configuration
+func optimizeClipboardImage(imagePath string, cfg config.ClipboardImageOptimizeConfig) (*services.OptimizeResult, error) {
+	optimizer := services.NewImageOptimizer(cfg)
+	return optimizer.OptimizeImage(imagePath)
+}
+
 func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	inputView := app.GetInputView()
 	if inputView == nil {
@@ -694,11 +771,8 @@ func handlePaste(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 	imageData := clipboard.Read(clipboard.FmtImage)
 	if len(imageData) > 0 {
-		imageAttachment, err := imageService.ReadImageFromBinary(imageData, "clipboard-screenshot.png")
-		if err == nil {
-			inputView.AddImageAttachment(*imageAttachment)
-			return nil
-		}
+		handleImagePaste(app, imageService, inputView, imageData)
+		return nil
 	}
 
 	clipboardText := string(clipboard.Read(clipboard.FmtText))

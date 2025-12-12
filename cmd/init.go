@@ -79,6 +79,7 @@ history
 chat_export_*
 conversations.db
 bin/
+tmp/
 `
 
 	if err := os.WriteFile(gitignorePath, []byte(gitignoreContent), 0644); err != nil {

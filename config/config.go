@@ -85,8 +85,18 @@ type LoggingConfig struct {
 
 // ImageConfig contains image service settings
 type ImageConfig struct {
-	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
-	Timeout int   `yaml:"timeout" mapstructure:"timeout"`
+	MaxSize           int64                        `yaml:"max_size" mapstructure:"max_size"`
+	Timeout           int                          `yaml:"timeout" mapstructure:"timeout"`
+	ClipboardOptimize ClipboardImageOptimizeConfig `yaml:"clipboard_optimize" mapstructure:"clipboard_optimize"`
+}
+
+// ClipboardImageOptimizeConfig contains clipboard image optimization settings
+type ClipboardImageOptimizeConfig struct {
+	Enabled     bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxWidth    int  `yaml:"max_width" mapstructure:"max_width"`
+	MaxHeight   int  `yaml:"max_height" mapstructure:"max_height"`
+	Quality     int  `yaml:"quality" mapstructure:"quality"`
+	ConvertJPEG bool `yaml:"convert_jpeg" mapstructure:"convert_jpeg"`
 }
 
 // ToolsConfig contains tool execution settings
@@ -638,6 +648,13 @@ func DefaultConfig() *Config { //nolint:funlen
 		Image: ImageConfig{
 			MaxSize: 5242880, // 5MB
 			Timeout: 30,      // 30 seconds
+			ClipboardOptimize: ClipboardImageOptimizeConfig{
+				Enabled:     true,
+				MaxWidth:    1920, // 1920px max width
+				MaxHeight:   1080, // 1080px max height
+				Quality:     75,   // 75% JPEG quality
+				ConvertJPEG: true,
+			},
 		},
 		Export: ExportConfig{
 			OutputDir:    ConfigDirName,
