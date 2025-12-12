@@ -536,6 +536,7 @@ chat:
       a2a_agents: true
       tools: true
       background_shells: true
+      a2a_tasks: true
       mcp: true
       context_usage: true
       session_tokens: true

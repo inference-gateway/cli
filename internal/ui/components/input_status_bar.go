@@ -26,6 +26,7 @@ type InputStatusBar struct {
 	toolService            domain.ToolService
 	tokenEstimator         domain.TokenEstimator
 	backgroundShellService domain.BackgroundShellService
+	backgroundTaskService  domain.BackgroundTaskService
 	mcpStatus              *domain.MCPServerStatus
 	styleProvider          *styles.Provider
 	currentInputText       string
@@ -81,6 +82,11 @@ func (isb *InputStatusBar) SetTokenEstimator(estimator domain.TokenEstimator) {
 // SetBackgroundShellService sets the background shell service
 func (isb *InputStatusBar) SetBackgroundShellService(service domain.BackgroundShellService) {
 	isb.backgroundShellService = service
+}
+
+// SetBackgroundTaskService sets the background task service
+func (isb *InputStatusBar) SetBackgroundTaskService(service domain.BackgroundTaskService) {
+	isb.backgroundTaskService = service
 }
 
 // UpdateMCPStatus updates the MCP server status (called by event handler)
@@ -202,6 +208,12 @@ func (isb *InputStatusBar) buildIndicatorParts(currentModel string) []string {
 	if isb.shouldShowIndicator("background_shells") {
 		if backgroundInfo := isb.getBackgroundInfo(); backgroundInfo != "" {
 			parts = append(parts, backgroundInfo)
+		}
+	}
+
+	if isb.shouldShowIndicator("a2a_tasks") {
+		if a2aInfo := isb.getA2ATaskInfo(); a2aInfo != "" {
+			parts = append(parts, a2aInfo)
 		}
 	}
 
@@ -327,6 +339,12 @@ func (isb *InputStatusBar) buildModelDisplayText(currentModel string) string {
 		}
 	}
 
+	if isb.shouldShowIndicator("a2a_tasks") {
+		if a2aInfo := isb.getA2ATaskInfo(); a2aInfo != "" {
+			parts = append(parts, a2aInfo)
+		}
+	}
+
 	if isb.shouldShowIndicator("mcp") {
 		if mcpPart := isb.buildMCPIndicator(); mcpPart != "" {
 			parts = append(parts, mcpPart)
@@ -368,6 +386,8 @@ func (isb *InputStatusBar) shouldShowIndicator(indicator string) bool {
 		return indicators.Tools
 	case "background_shells":
 		return indicators.BackgroundShells
+	case "a2a_tasks":
+		return indicators.A2ATasks
 	case "mcp":
 		return indicators.MCP
 	case "context_usage":
@@ -556,6 +576,27 @@ func (isb *InputStatusBar) getBackgroundInfo() string {
 	}
 
 	return fmt.Sprintf("Background: (%d)", runningCount)
+}
+
+// getA2ATaskInfo returns A2A background task count information
+func (isb *InputStatusBar) getA2ATaskInfo() string {
+	if isb.backgroundTaskService == nil {
+		return ""
+	}
+
+	tasks := isb.backgroundTaskService.GetBackgroundTasks()
+	activeCount := 0
+	for _, task := range tasks {
+		if task.IsPolling {
+			activeCount++
+		}
+	}
+
+	if activeCount == 0 {
+		return ""
+	}
+
+	return fmt.Sprintf("Tasks: (%d)", activeCount)
 }
 
 // getContextUsageIndicator returns a context usage indicator string
