@@ -414,97 +414,35 @@ func createMCPShortcutsFile(path string) error {
 # Manage MCP server configuration from within chat
 #
 # Usage:
-# - /mcp - List all configured MCP servers with details
-# - /mcp-add <name> <url> [description] - Add a new MCP server
-# - /mcp-remove <name> - Remove an MCP server
-# - /mcp-enable <name> - Enable an MCP server
-# - /mcp-disable <name> - Disable an MCP server
-# - /mcp-enable-global - Enable MCP globally
-# - /mcp-disable-global - Disable MCP globally
+# - /mcp list - List all configured MCP servers with details
+# - /mcp add - Add a new MCP server
+# - /mcp remove - Remove an MCP server
+# - /mcp enable - Enable an MCP server
+# - /mcp disable - Disable an MCP server
+# - /mcp enable-global - Enable MCP globally
+# - /mcp disable-global - Disable MCP globally
 
 shortcuts:
   - name: mcp
-    description: "List all configured MCP servers"
+    description: "Manage MCP servers"
     command: infer
     args:
       - mcp
-      - list
-
-  - name: mcp-add
-    description: "Add a new MCP server (usage: /mcp-add <name> <url> [description])"
-    command: bash
-    args:
-      - -c
-      - |
-        if [ $# -lt 2 ]; then
-          echo "Usage: /mcp-add <name> <url> [description]"
-          echo "Example: /mcp-add filesystem http://localhost:3000/sse File operations"
-          exit 1
-        fi
-
-        NAME="$1"
-        URL="$2"
-        shift 2
-        DESCRIPTION="$*"
-
-        if [ -n "$DESCRIPTION" ]; then
-          infer mcp add "$NAME" "$URL" --description="$DESCRIPTION"
-        else
-          infer mcp add "$NAME" "$URL"
-        fi
-
-  - name: mcp-remove
-    description: "Remove an MCP server (usage: /mcp-remove <name>)"
-    command: bash
-    args:
-      - -c
-      - |
-        if [ $# -lt 1 ]; then
-          echo "Usage: /mcp-remove <name>"
-          echo "Example: /mcp-remove filesystem"
-          exit 1
-        fi
-        infer mcp remove "$1"
-
-  - name: mcp-enable
-    description: "Enable an MCP server (usage: /mcp-enable <name>)"
-    command: bash
-    args:
-      - -c
-      - |
-        if [ $# -lt 1 ]; then
-          echo "Usage: /mcp-enable <name>"
-          echo "Example: /mcp-enable filesystem"
-          exit 1
-        fi
-        infer mcp enable "$1"
-
-  - name: mcp-disable
-    description: "Disable an MCP server (usage: /mcp-disable <name>)"
-    command: bash
-    args:
-      - -c
-      - |
-        if [ $# -lt 1 ]; then
-          echo "Usage: /mcp-disable <name>"
-          echo "Example: /mcp-disable filesystem"
-          exit 1
-        fi
-        infer mcp disable "$1"
-
-  - name: mcp-enable-global
-    description: "Enable MCP globally"
-    command: infer
-    args:
-      - mcp
-      - enable-global
-
-  - name: mcp-disable-global
-    description: "Disable MCP globally"
-    command: infer
-    args:
-      - mcp
-      - disable-global
+    subcommands:
+      - name: list
+        description: "List all configured MCP servers"
+      - name: add
+        description: "Add a new MCP server (usage: <name> <url> [options])"
+      - name: remove
+        description: "Remove an MCP server (usage: <name>)"
+      - name: enable
+        description: "Enable an MCP server (usage: <name>)"
+      - name: disable
+        description: "Disable an MCP server (usage: <name>)"
+      - name: enable-global
+        description: "Enable MCP globally"
+      - name: disable-global
+        description: "Disable MCP globally"
 `
 
 	return os.WriteFile(path, []byte(mcpShortcutsContent), 0644)
