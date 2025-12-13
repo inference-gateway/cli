@@ -133,6 +133,9 @@ func (m *A2APollingMonitor) monitorSingleTask(ctx context.Context, taskID string
 			return
 
 		case statusUpdate := <-state.StatusChan:
+			if statusUpdate != nil {
+				state.LastKnownState = statusUpdate.State
+			}
 			m.emitStatusUpdateEvent(statusUpdate)
 
 		case err := <-state.ErrorChan:
