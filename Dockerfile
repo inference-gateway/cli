@@ -32,4 +32,6 @@ ENV INFER_GATEWAY_URL=http://inference-gateway:8080
 ENV TERM=xterm-256color
 ENV COLORTERM=truecolor
 
+RUN ./infer init
+
 ENTRYPOINT ["./infer"]
