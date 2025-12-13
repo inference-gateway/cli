@@ -453,6 +453,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 				Success:    true,
 				Message:    fmt.Sprintf("Task %s", currentTask.Status.State),
 				TaskResult: finalResult,
+				Task:       &currentTask,
 			},
 		}
 		return true, result
@@ -593,8 +594,41 @@ func (t *A2ASubmitTaskTool) formatA2ATaskData(data any, metadata map[string]stri
 		dataContent.WriteString(fmt.Sprintf("\n%s", taskData.TaskResult))
 	}
 
+	if taskData.Task != nil && len(taskData.Task.Artifacts) > 0 {
+		dataContent.WriteString(fmt.Sprintf("\n\nArtifacts Available: %d\n", len(taskData.Task.Artifacts)))
+		for i, artifact := range taskData.Task.Artifacts {
+			t.formatArtifact(&dataContent, i+1, artifact)
+		}
+		dataContent.WriteString("\nTo download artifacts: Use WebFetch tool with the Download URL from each artifact above.\n")
+	}
+
 	hasMetadata := len(metadata) > 0
 	return dataContent.String(), hasMetadata
+}
+
+// formatArtifact formats a single artifact for display
+func (t *A2ASubmitTaskTool) formatArtifact(builder *strings.Builder, index int, artifact adk.Artifact) {
+	artifactName := "unnamed"
+	if artifact.Name != nil {
+		artifactName = *artifact.Name
+	}
+	fmt.Fprintf(builder, "%d. %s (ID: %s)", index, artifactName, artifact.ArtifactID)
+
+	if artifact.Metadata == nil {
+		builder.WriteString("\n")
+		return
+	}
+
+	if mimeType, ok := artifact.Metadata["mime_type"].(string); ok {
+		fmt.Fprintf(builder, ", Type: %s", mimeType)
+	}
+	if size, ok := artifact.Metadata["size"].(float64); ok {
+		fmt.Fprintf(builder, ", Size: %d bytes", int64(size))
+	}
+	if url, ok := artifact.Metadata["url"].(string); ok {
+		fmt.Fprintf(builder, "\n   Download URL: %s", url)
+	}
+	builder.WriteString("\n")
 }
 
 // FormatPreview returns a short preview of the result for UI display

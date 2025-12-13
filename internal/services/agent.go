@@ -649,9 +649,9 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				}
 
 				hasToolResults = true
+			} else {
+				eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
 			}
-
-			eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
 		}
 		//// EVENT LOOP FINISHED
 	}()
