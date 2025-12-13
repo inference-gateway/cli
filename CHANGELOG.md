@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.90.0](https://github.com/inference-gateway/cli/compare/v0.89.0...v0.90.0) (2025-12-13)
+
+### 🚀 Features
+
+* Move background task indicators to status bar ([#337](https://github.com/inference-gateway/cli/issues/337)) ([b459f79](https://github.com/inference-gateway/cli/commit/b459f7905af377909418ac09c167df1dade6cd2d))
+
+### ♻️ Code Refactoring
+
+* Refactor A2A task display and configuration handling ([#338](https://github.com/inference-gateway/cli/issues/338)) ([abfff79](https://github.com/inference-gateway/cli/commit/abfff79a6d150e11bf31da3bb8c210d1f9c4c6ca))
+
 ## [0.89.0](https://github.com/inference-gateway/cli/compare/v0.88.0...v0.89.0) (2025-12-12)
 
 ### 🚀 Features
