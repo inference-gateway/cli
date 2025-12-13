@@ -23,6 +23,7 @@ var agentBaseDefaults = map[string]struct {
 	OCI                 string
 	Run                 bool
 	Model               string
+	Environment         map[string]string
 }{
 	"browser-agent": {
 		BasePort:            8083,
@@ -30,6 +31,9 @@ var agentBaseDefaults = map[string]struct {
 		OCI:                 "ghcr.io/inference-gateway/browser-agent:latest",
 		Run:                 true,
 		Model:               "deepseek/deepseek-chat",
+		Environment: map[string]string{
+			"A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT": "true",
+		},
 	},
 	"mock-agent": {
 		BasePort: 8081,
@@ -90,7 +94,7 @@ func GetAgentDefaults(name string) *AgentDefaults {
 			OCI:         template.OCI,
 			Run:         template.Run,
 			Model:       template.Model,
-			Environment: nil,
+			Environment: template.Environment,
 		}
 
 		if template.ArtifactsPortOffset > 0 {

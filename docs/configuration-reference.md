@@ -689,10 +689,6 @@ http://browser-agent:8080
 - `INFER_A2A_TOOLS_QUERY_AGENT_REQUIRE_APPROVAL`: Require approval for QueryAgent (default: `false`)
 - `INFER_A2A_TOOLS_QUERY_TASK_ENABLED`: Enable/disable A2A QueryTask tool (default: `true`)
 - `INFER_A2A_TOOLS_QUERY_TASK_REQUIRE_APPROVAL`: Require approval for QueryTask (default: `false`)
-- `INFER_A2A_TOOLS_DOWNLOAD_ARTIFACTS_ENABLED`: Enable/disable A2A DownloadArtifacts tool (default: `true`)
-- `INFER_A2A_TOOLS_DOWNLOAD_ARTIFACTS_REQUIRE_APPROVAL`: Require approval for DownloadArtifacts (default: `false`)
-- `INFER_A2A_TOOLS_DOWNLOAD_ARTIFACTS_DOWNLOAD_DIR`: Directory for downloading A2A task artifacts (default: `/tmp/downloads`)
-- `INFER_A2A_TOOLS_DOWNLOAD_ARTIFACTS_TIMEOUT_SECONDS`: Timeout for downloading artifacts in seconds (default: `30`)
 
 ### Export Configuration
 

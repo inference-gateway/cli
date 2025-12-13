@@ -303,7 +303,6 @@ summary of available tools. For detailed documentation, parameters, and examples
 | **A2A_SubmitTask** | Submit tasks to A2A agents | No | [Details](docs/tools-reference.md#a2a_submittask-tool) |
 | **A2A_QueryAgent** | Query A2A agent capabilities | No | [Details](docs/tools-reference.md#a2a_queryagent-tool) |
 | **A2A_QueryTask** | Check A2A task status | No | [Details](docs/tools-reference.md#a2a_querytask-tool) |
-| **A2A_DownloadArtifacts** | Download A2A task outputs | No | [Details](docs/tools-reference.md#a2a_downloadartifacts-tool) |
 
 **Tool Configuration:**
 
@@ -541,6 +540,10 @@ tools:
 
 The CLI provides an extensible shortcuts system for quickly executing common commands with `/shortcut-name` syntax.
 
+**Subcommands:** Shortcuts can have subcommands for organized command groups (e.g., `/git status`,
+`/scm issues`). This allows related operations to be grouped under a single shortcut name with multiple
+actions.
+
 ### Built-in Shortcuts
 
 **Core:**
@@ -556,16 +559,16 @@ The CLI provides an extensible shortcuts system for quickly executing common com
 
 **Git Shortcuts** (created by `infer init`):
 
-- `/git-status` - Show working tree status
-- `/git-commit` - Generate AI commit message from staged changes
-- `/git-push` - Push commits to remote
-- `/git-log` - Show commit logs
+- `/git status` - Show working tree status
+- `/git commit` - Generate AI commit message from staged changes
+- `/git push` - Push commits to remote
+- `/git log` - Show commit logs
 
 **SCM Shortcuts** (GitHub integration):
 
-- `/scm-issues` - List GitHub issues
-- `/scm-issue <number>` - Show issue details
-- `/scm-pr-create [context]` - Generate AI-powered PR plan
+- `/scm issues` - List GitHub issues
+- `/scm issue <number>` - Show issue details
+- `/scm pr-create [context]` - Generate AI-powered PR plan
 
 ### AI-Powered Snippets
 
@@ -617,6 +620,33 @@ shortcuts:
       - .
 ```
 
+**With Subcommands:**
+
+```yaml
+# .infer/shortcuts/custom-docker.yaml
+shortcuts:
+  - name: docker
+    description: "Docker operations"
+    command: docker
+    subcommands:
+      - name: build
+        description: "Build Docker image"
+        args:
+          - build
+          - -t
+          - myapp
+          - .
+      - name: run
+        description: "Run Docker container"
+        args:
+          - run
+          - -p
+          - "8080:8080"
+          - myapp
+```
+
+Use as: `/docker build` or `/docker run`
+
 Use with `/tests` or `/build`.
 
 For complete shortcuts documentation, including advanced features and examples, see [Shortcuts Guide](docs/shortcuts-guide.md).
@@ -651,7 +681,7 @@ infer status
 infer chat
 
 # In chat, use shortcuts to get context
-/scm-issue 123
+/scm issue 123
 
 # Discuss with AI, let it use tools to:
 # - Read files
@@ -660,7 +690,7 @@ infer chat
 # - Run tests
 
 # Generate PR plan when ready
-/scm-pr-create Fixes the authentication timeout issue
+/scm pr-create Fixes the authentication timeout issue
 ```
 
 ### Configuration Example

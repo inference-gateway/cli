@@ -387,6 +387,7 @@ type FetchResult struct {
 	Size        int64             `json:"size"`
 	ContentType string            `json:"content_type"`
 	Cached      bool              `json:"cached"`
+	SavedPath   string            `json:"saved_path,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 	Warning     string            `json:"warning,omitempty"`
 }

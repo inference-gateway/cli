@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	progress "github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -164,7 +165,7 @@ func (tv *TodoBoxView) renderCollapsed() string {
 	indicatorStyled := tv.styleProvider.RenderWithColor(indicator, accentColor)
 	hintStyled := tv.styleProvider.RenderWithColor(hint, dimColor)
 
-	leftPadding := "  "
+	leftPadding := " "
 	return fmt.Sprintf("%s%s %s", leftPadding, indicatorStyled, hintStyled)
 }
 
@@ -207,7 +208,7 @@ func (tv *TodoBoxView) renderExpanded() string {
 
 	for _, todo := range tv.todos {
 		line := tv.formatTodoItem(todo)
-		lines = append(lines, "  "+line)
+		lines = append(lines, " "+line)
 	}
 
 	content := strings.Join(lines, "\n")
@@ -237,47 +238,41 @@ func (tv *TodoBoxView) formatTodoItem(todo domain.TodoItem) string {
 // formatProgressBar creates a visual progress bar
 func (tv *TodoBoxView) formatProgressBar(completed, total int) string {
 	if total == 0 {
-		return "[░░░░░░░░░░]"
+		return progress.New(
+			progress.WithoutPercentage(),
+			progress.WithWidth(10),
+		).ViewAs(0.0)
 	}
 
-	barLength := 10
-	progress := int(float64(completed) / float64(total) * float64(barLength))
+	percent := float64(completed) / float64(total)
 
-	var bar strings.Builder
-	bar.WriteString("[")
-	for i := 0; i < barLength; i++ {
-		if i < progress {
-			bar.WriteString("█")
-		} else {
-			bar.WriteString("░")
-		}
-	}
-	bar.WriteString("]")
+	prog := progress.New(
+		progress.WithoutPercentage(),
+		progress.WithWidth(10),
+		progress.WithDefaultGradient(),
+	)
 
-	return bar.String()
+	return prog.ViewAs(percent)
 }
 
 // formatMiniProgressBar creates a compact progress bar for collapsed view
 func (tv *TodoBoxView) formatMiniProgressBar(completed, total int) string {
 	if total == 0 {
-		return "[░░░░░]"
+		return progress.New(
+			progress.WithoutPercentage(),
+			progress.WithWidth(5),
+		).ViewAs(0.0)
 	}
 
-	barLength := 5
-	progress := int(float64(completed) / float64(total) * float64(barLength))
+	percent := float64(completed) / float64(total)
 
-	var bar strings.Builder
-	bar.WriteString("[")
-	for i := 0; i < barLength; i++ {
-		if i < progress {
-			bar.WriteString("█")
-		} else {
-			bar.WriteString("░")
-		}
-	}
-	bar.WriteString("]")
+	prog := progress.New(
+		progress.WithoutPercentage(),
+		progress.WithWidth(5),
+		progress.WithDefaultGradient(),
+	)
 
-	return bar.String()
+	return prog.ViewAs(percent)
 }
 
 // countTasks returns completed and total task counts

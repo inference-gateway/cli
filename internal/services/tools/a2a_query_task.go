@@ -263,7 +263,6 @@ func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) stri
 		}
 		output.WriteString("\n")
 	}
-	output.WriteString("\nTo download these artifacts, use the A2A_DownloadArtifacts tool with the same task_id.\n")
 
 	output.WriteString("\nFull Task Data:\n")
 	dataContent := t.formatter.FormatAsJSON(result.Data)

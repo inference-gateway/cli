@@ -104,6 +104,8 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 		container.configService = services.NewConfigService(v[0], cfg)
 	}
 
+	cfg.SetConfigDir(container.determineConfigDirectory())
+
 	container.initializeGatewayManager()
 	container.initializeFileWriterServices()
 	container.initializeStateManager()
@@ -334,12 +336,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 
 	if c.config.IsA2AToolsEnabled() {
 		c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut(c.config))
-	}
-
-	if c.configService != nil {
-		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService, c.modelService))
-	} else {
-		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, nil, nil, c.modelService))
 	}
 
 	configDir := c.determineConfigDirectory()

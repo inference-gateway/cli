@@ -424,8 +424,9 @@ func (s *ChatShortcutHandler) performSnippetGeneration(data any) tea.Cmd {
 		snippetDataMap, ok2 := dataMap["dataMap"].(map[string]string)
 		customShortcut, ok3 := dataMap["customShortcut"].(*shortcuts.CustomShortcut)
 		shortcutName, ok4 := dataMap["shortcutName"].(string)
+		snippetConfig, ok5 := dataMap["snippet"].(*shortcuts.SnippetConfig)
 
-		if !ok1 || !ok2 || !ok3 || !ok4 {
+		if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 {
 			return domain.SetStatusEvent{
 				Message:    "Missing snippet generation data",
 				Spinner:    false,
@@ -433,7 +434,7 @@ func (s *ChatShortcutHandler) performSnippetGeneration(data any) tea.Cmd {
 			}
 		}
 
-		snippet, err := customShortcut.GenerateSnippet(ctx, snippetDataMap)
+		snippet, err := customShortcut.GenerateSnippet(ctx, snippetDataMap, snippetConfig)
 		if err != nil {
 			return tea.Batch(
 				func() tea.Msg {

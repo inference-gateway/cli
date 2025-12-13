@@ -31,7 +31,6 @@ The `/agents` shortcut provides command-line interface for managing A2A agent co
 #### List A2A Agents
 
 ```bash
-/agents
 /agents list
 ```
 
@@ -47,7 +46,7 @@ This displays a list of all configured A2A agents showing:
 #### Add an Agent
 
 ```bash
-/agents-add my-agent http://localhost:8081 --run --model openai/gpt-4
+/agents add my-agent http://localhost:8081 --run --model openai/gpt-4
 ```
 
 Options:
@@ -61,19 +60,19 @@ Options:
 #### Remove an Agent
 
 ```bash
-/agents-remove my-agent
+/agents remove my-agent
 ```
 
 #### Enable an Agent
 
 ```bash
-/agents-enable my-agent
+/agents enable my-agent
 ```
 
 #### Disable an Agent
 
 ```bash
-/agents-disable my-agent
+/agents disable my-agent
 ```
 
 ### Using the A2A Tools
@@ -178,40 +177,6 @@ background. Only use `A2A_QueryTask` to:
 - **Behavior**: Queries task status and returns detailed information. Cannot be used while background
   polling is active for the same agent.
 
-#### A2A_DownloadArtifacts Tool - Download Task Artifacts
-
-The `A2A_DownloadArtifacts` tool downloads artifacts from completed A2A tasks:
-
-```text
-Download artifacts from the completed task
-```
-
-The LLM will use the `A2A_DownloadArtifacts` tool:
-
-```json
-{
-  "agent_url": "http://localhost:8081",
-  "context_id": "context-123",
-  "task_id": "task-456"
-}
-```
-
-**Important Requirements:**
-
-- The task must be in "completed" status before artifacts can be downloaded
-- The agent must first use the QueryTask tool to verify completion status
-- Only works with tasks that have generated artifacts
-
-Tool Details:
-
-- **Name**: `A2A_DownloadArtifacts`
-- **Parameters**:
-  - `agent_url` (required): URL of the A2A agent server
-  - `context_id` (required): Context ID for the task
-  - `task_id` (required): ID of the completed task to download artifacts from
-- **Returns**: List of artifacts with metadata and content
-- **Behavior**: Validates task completion status, then downloads available artifacts
-
 ## A2A Integration
 
 ### A2A Tool Configuration
@@ -244,11 +209,6 @@ a2a:
       require_approval: false  # Whether approval is required
     submit_task:
       enabled: true         # Enable A2A_SubmitTask tool
-      require_approval: true   # Whether approval is required
-    download_artifacts:
-      enabled: true         # Enable A2A_DownloadArtifacts tool
-      download_dir: "/tmp/downloads"  # Directory for downloaded artifacts
-      timeout_seconds: 30   # Download timeout in seconds
       require_approval: true   # Whether approval is required
 ```
 
@@ -340,14 +300,14 @@ Enable verbose logging and check for:
 
 ```bash
 # First, configure an agent using the /agents shortcut
-/agents-add code-reviewer http://localhost:8081 --run --model openai/gpt-4 --environment GITHUB_TOKEN=xxx
+/agents add code-reviewer http://localhost:8081 --run --model openai/gpt-4 --environment GITHUB_TOKEN=xxx
 
 # List configured agents
 /agents list
 
 # Enable or disable an agent
-/agents-enable code-reviewer
-/agents-disable code-reviewer
+/agents enable code-reviewer
+/agents disable code-reviewer
 ```
 
 ### Code Review Task
@@ -370,11 +330,22 @@ Query the documentation agent at http://localhost:8083 for its available feature
 
 ### Artifact Download
 
+When a delegated A2A task completes with artifacts:
+
 ```text
-First check if task task-456 is completed, then download its artifacts from the agent at http://localhost:8081
+Download the artifact from task task-456
 ```
 
 This will:
 
-1. Use A2A_QueryTask to verify the task is completed
-2. Use A2A_DownloadArtifacts to retrieve any generated files, documents, or other outputs from the task
+1. Wait for the automatic completion notification with artifact details
+2. Use WebFetch with `download=true` to automatically save artifacts to disk
+3. The file will be saved to `<configDir>/tmp` with filename extracted from URL
+
+**Important:** The artifact download URLs are provided in the completion notification. Use WebFetch to download artifacts:
+
+```text
+Use WebFetch to download http://localhost:8081/artifacts/task-456/report.pdf
+```
+
+This automatically saves the file to the configured download directory and returns the local file path.

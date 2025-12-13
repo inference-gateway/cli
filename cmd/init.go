@@ -37,7 +37,7 @@ func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
 
-	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, mcpPath string
+	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath string
 
 	if userspace {
 		homeDir, err := os.UserHomeDir()
@@ -51,6 +51,7 @@ func initializeProject(cmd *cobra.Command) error {
 		mcpShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "mcp.yaml")
 		shellsShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "shells.yaml")
 		exportShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "export.yaml")
+		a2aShortcutsPath = filepath.Join(homeDir, config.ConfigDirName, "shortcuts", "a2a.yaml")
 		mcpPath = filepath.Join(homeDir, config.ConfigDirName, config.MCPFileName)
 	} else {
 		configPath = config.DefaultConfigPath
@@ -60,11 +61,12 @@ func initializeProject(cmd *cobra.Command) error {
 		mcpShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "mcp.yaml")
 		shellsShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "shells.yaml")
 		exportShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "export.yaml")
+		a2aShortcutsPath = filepath.Join(config.ConfigDirName, "shortcuts", "a2a.yaml")
 		mcpPath = filepath.Join(config.ConfigDirName, config.MCPFileName)
 	}
 
 	if !overwrite {
-		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, mcpPath); err != nil {
+		if err := validateFilesNotExist(configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath); err != nil {
 			return err
 		}
 	}
@@ -106,6 +108,10 @@ tmp/
 		return fmt.Errorf("failed to create Export shortcuts file: %w", err)
 	}
 
+	if err := createA2AShortcutsFile(a2aShortcutsPath); err != nil {
+		return fmt.Errorf("failed to create A2A shortcuts file: %w", err)
+	}
+
 	if err := createMCPConfigFile(mcpPath); err != nil {
 		return fmt.Errorf("failed to create MCP config file: %w", err)
 	}
@@ -125,6 +131,7 @@ tmp/
 	fmt.Printf("   Created: %s\n", mcpShortcutsPath)
 	fmt.Printf("   Created: %s\n", shellsShortcutsPath)
 	fmt.Printf("   Created: %s\n", exportShortcutsPath)
+	fmt.Printf("   Created: %s\n", a2aShortcutsPath)
 	fmt.Printf("   Created: %s\n", mcpPath)
 	fmt.Println("")
 	if userspace {
@@ -203,93 +210,95 @@ func createSCMShortcutsFile(path string) error {
 # - Authenticate with: gh auth login
 #
 # Usage:
-# - /scm-issues - List all GitHub issues for the repository
-# - /scm-issue <number> - Show details for a specific GitHub issue
-# - /scm-pr-create [optional context] - Generate AI-powered PR plan with branch name, commit, and description
+# - /scm issues - List all GitHub issues for the repository
+# - /scm issue - Show details for a specific GitHub issue
+# - /scm pr-create - Generate AI-powered PR plan with branch name, commit, and description
 
 shortcuts:
-  - name: scm-issues
-    description: "List all GitHub issues for the repository"
+  - name: scm
+    description: "Source control management operations"
     command: gh
-    args:
-      - issue
-      - list
-      - --json
-      - "number,title,state,author,labels,createdAt,updatedAt"
-      - --limit
-      - "20"
+    subcommands:
+      - name: issues
+        description: "List all GitHub issues for the repository"
+        args:
+          - issue
+          - list
+          - --json
+          - "number,title,state,author,labels,createdAt,updatedAt"
+          - --limit
+          - "20"
 
-  - name: scm-issue
-    description: "Show details for a specific GitHub issue (usage: /scm-issue <number>)"
-    command: gh
-    args:
-      - issue
-      - view
-      - --json
-      - "number,title,body,state,author,labels,comments,createdAt,updatedAt"
+      - name: issue
+        description: "Show details for a specific GitHub issue (usage: <number>)"
+        args:
+          - issue
+          - view
+          - --json
+          - "number,title,body,state,author,labels,comments,createdAt,updatedAt"
 
-  - name: scm-pr-create
-    description: "Generate AI-powered PR plan with LLM (usage: /scm-pr-create [optional context])"
-    command: bash
-    args:
-      - -c
-      - |
-        diff=$(git diff --cached 2>/dev/null || git diff 2>/dev/null)
-        if [ -z "$diff" ]; then
-          echo '{"error": "No changes detected. Stage your changes with git add first."}'
-          exit 1
-        fi
-        branch=$(git branch --show-current)
-        base_branch="main"
-        user_context="$*"
-        jq -n \
-          --arg diff "$diff" \
-          --arg branch "$branch" \
-          --arg base "$base_branch" \
-          --arg context "$user_context" \
-          '{diff: $diff, currentBranch: $branch, baseBranch: $base, userContext: $context}'
-      - --
-    snippet:
-      prompt: |
-        Analyze this git diff and generate a step-by-step plan to create a pull request.
+      - name: pr-create
+        description: "Generate AI-powered PR plan with LLM (usage: [optional context])"
+        command: bash
+        args:
+          - -c
+          - |
+            diff=$(git diff --cached 2>/dev/null || git diff 2>/dev/null)
+            if [ -z "$diff" ]; then
+              echo '{"error": "No changes detected. Stage your changes with git add first."}'
+              exit 1
+            fi
+            branch=$(git branch --show-current)
+            base_branch="main"
+            user_context="$*"
+            jq -n \
+              --arg diff "$diff" \
+              --arg branch "$branch" \
+              --arg base "$base_branch" \
+              --arg context "$user_context" \
+              '{diff: $diff, currentBranch: $branch, baseBranch: $base, userContext: $context}'
+          - --
+        snippet:
+          prompt: |
+            Analyze this git diff and generate a step-by-step plan to create a pull request.
 
-        Current branch: {currentBranch}
-        Base branch: {baseBranch}
+            Current branch: {currentBranch}
+            Base branch: {baseBranch}
 
-        {userContext}
+            {userContext}
 
-        Changes:
-        ` + "```diff\n        {diff}\n        ```" + `
+            Changes:
+            ` + "```diff\n            {diff}\n            ```" + `
 
-        Based on the current branch, generate these actions:
+            Based on the current branch, generate these actions:
 
-        IF current branch is "main" or "master":
-          1. Create a new branch with a descriptive name
-          2. Stage and commit the changes
-          3. Push the branch to remote
-          4. Create a pull request using the Github tool
+            IF current branch is "main" or "master":
+              1. Create a new branch with a descriptive name
+              2. Stage and commit the changes
+              3. Push the branch to remote
+              4. Create a pull request using the Github tool
 
-        IF current branch is already a feature branch (not main/master):
-          1. Stage and commit the changes
-          2. Push the branch to remote
-          3. Create a pull request using the Github tool
+            IF current branch is already a feature branch (not main/master):
+              1. Stage and commit the changes
+              2. Push the branch to remote
+              3. Create a pull request using the Github tool
 
-        REQUIREMENTS:
-        - Branch name: Use conventional format (feat/, fix/, docs/, refactor/, chore/) with kebab-case
-        - Commit message: Follow conventional commits format "type: Description" (under 50 chars, capitalize first letter)
-        - PR title: Clear and descriptive (similar to commit message but can be slightly longer)
-        - PR description: Brief summary of changes (2-3 sentences, focus on WHAT changed and WHY)
-        - Use simple, direct language - NO filler words like "comprehensive", "enhance", "robust"
-        - For creating the PR, use the Github tool with resource="create_pull_request"
-        - If user provided additional context, incorporate it into your understanding of the changes
+            REQUIREMENTS:
+            - Branch name: Use conventional format (feat/, fix/, docs/, refactor/, chore/) with kebab-case
+            - Commit message: Follow conventional commits format "type: Description" (under 50 chars, capitalize first letter)
+            - PR title: Clear and descriptive (similar to commit message but can be slightly longer)
+            - PR description: Brief summary of changes (2-3 sentences, focus on WHAT changed and WHY)
+            - Use simple, direct language - NO filler words like "comprehensive", "enhance", "robust"
+            - For creating the PR, use the Github tool with resource="create_pull_request"
+            - If user provided additional context, incorporate it into your understanding of the changes
 
-        Output a clear, numbered action plan. Be specific about branch names, commit messages, and PR details based on the diff.
-      template: |
-        ## Pull Request Plan
+            Output a clear, numbered action plan. Be specific about branch names, commit messages, and PR details based on the diff.
+          template: |
+            ## Pull Request Plan
 
-        {llm}
+            {llm}
 
-        **Next:** I'll help you execute these steps. Let me know when you're ready to proceed.
+            **Next:** I'll help you execute these steps. Let me know when you're ready to proceed.
 `
 
 	return os.WriteFile(path, []byte(scmShortcutsContent), 0644)
@@ -305,83 +314,71 @@ func createGitShortcutsFile(path string) error {
 # Common git operations with AI-powered commit messages
 #
 # Usage:
-# - /git-status - Show working tree status
-# - /git-pull - Pull changes from remote
-# - /git-push - Push commits to remote
-# - /git-log - Show commit logs
-# - /git-commit - Generate AI commit message from staged changes
+# - /git status - Show working tree status
+# - /git pull - Pull changes from remote
+# - /git push - Push commits to remote
+# - /git log - Show commit logs
+# - /git commit - Generate AI commit message from staged changes
 
 shortcuts:
-  - name: git-status
-    description: "Show working tree status"
+  - name: git
+    description: "Common git operations"
     command: git
-    args:
-      - status
+    subcommands:
+      - name: status
+        description: "Show working tree status"
+      - name: pull
+        description: "Pull changes from remote repository"
+      - name: push
+        description: "Push commits to remote repository"
+      - name: log
+        description: "Show commit logs (last 5)"
+        args:
+          - --oneline
+          - -n
+          - "5"
+      - name: commit
+        description: "Generate AI commit message from staged changes"
+        command: bash
+        args:
+          - -c
+          - |
+            if ! git diff --cached --quiet 2>/dev/null; then
+              diff=$(git diff --cached)
+              jq -n --arg diff "$diff" '{diff: $diff}'
+            else
+              echo '{"error": "No staged changes found. Use git add to stage changes first."}'
+              exit 1
+            fi
+        snippet:
+          prompt: |
+            Generate a concise git commit message following conventional commit format.
 
-  - name: git-pull
-    description: "Pull changes from remote repository"
-    command: git
-    args:
-      - pull
+            REQUIREMENTS:
+            - MUST use format: "type: Brief description"
+            - Type MUST be one of: feat, fix, docs, style, refactor, test, chore
+            - Description MUST start with a capital letter
+            - Description MUST be under 50 characters
+            - DO NOT include any explanation, body, or additional text
+            - Output ONLY the commit message, nothing else
 
-  - name: git-push
-    description: "Push commits to remote repository"
-    command: git
-    args:
-      - push
+            Examples of GOOD commit messages:
+            - feat: Add user authentication
+            - fix: Resolve memory leak in parser
+            - docs: Update API documentation
+            - refactor: Simplify error handling
 
-  - name: git-log
-    description: "Show commit logs (last 10)"
-    command: git
-    args:
-      - log
-      - --oneline
-      - --graph
-      - --decorate
-      - "-10"
+            Examples of BAD commit messages (DO NOT DO THIS):
+            - Add user authentication (missing type)
+            - feat: add user authentication (lowercase description)
+            - feat: added a comprehensive user authentication system with OAuth2 support (too long, too detailed)
 
-  - name: git-commit
-    description: "Generate AI commit message from staged changes"
-    command: bash
-    args:
-      - -c
-      - |
-        if ! git diff --cached --quiet 2>/dev/null; then
-          diff=$(git diff --cached)
-          jq -n --arg diff "$diff" '{diff: $diff}'
-        else
-          echo '{"error": "No staged changes found. Use git add to stage changes first."}'
-          exit 1
-        fi
-    snippet:
-      prompt: |
-        Generate a concise git commit message following conventional commit format.
+            Analyze this diff and generate ONE commit message:
 
-        REQUIREMENTS:
-        - MUST use format: "type: Brief description"
-        - Type MUST be one of: feat, fix, docs, style, refactor, test, chore
-        - Description MUST start with a capital letter
-        - Description MUST be under 50 characters
-        - DO NOT include any explanation, body, or additional text
-        - Output ONLY the commit message, nothing else
+            ` + "```diff\n            {diff}\n            ```" + `
 
-        Examples of GOOD commit messages:
-        - feat: Add user authentication
-        - fix: Resolve memory leak in parser
-        - docs: Update API documentation
-        - refactor: Simplify error handling
-
-        Examples of BAD commit messages (DO NOT DO THIS):
-        - Add user authentication (missing type)
-        - feat: add user authentication (lowercase description)
-        - feat: added a comprehensive user authentication system with OAuth2 support (too long, too detailed)
-
-        Analyze this diff and generate ONE commit message:
-
-        ` + "```diff\n        {diff}\n        ```" + `
-
-        Output ONLY the commit message in the format "type: Description"
-      template: "!git commit -m \"{llm}\""
+            Output ONLY the commit message in the format "type: Description"
+          template: "!git commit -m \"{llm}\""
 `
 
 	return os.WriteFile(path, []byte(gitShortcutsContent), 0644)
@@ -417,97 +414,35 @@ func createMCPShortcutsFile(path string) error {
 # Manage MCP server configuration from within chat
 #
 # Usage:
-# - /mcp - List all configured MCP servers with details
-# - /mcp-add <name> <url> [description] - Add a new MCP server
-# - /mcp-remove <name> - Remove an MCP server
-# - /mcp-enable <name> - Enable an MCP server
-# - /mcp-disable <name> - Disable an MCP server
-# - /mcp-enable-global - Enable MCP globally
-# - /mcp-disable-global - Disable MCP globally
+# - /mcp list - List all configured MCP servers with details
+# - /mcp add - Add a new MCP server
+# - /mcp remove - Remove an MCP server
+# - /mcp enable - Enable an MCP server
+# - /mcp disable - Disable an MCP server
+# - /mcp enable-global - Enable MCP globally
+# - /mcp disable-global - Disable MCP globally
 
 shortcuts:
   - name: mcp
-    description: "List all configured MCP servers"
+    description: "Manage MCP servers"
     command: infer
     args:
       - mcp
-      - list
-
-  - name: mcp-add
-    description: "Add a new MCP server (usage: /mcp-add <name> <url> [description])"
-    command: bash
-    args:
-      - -c
-      - |
-        if [ $# -lt 2 ]; then
-          echo "Usage: /mcp-add <name> <url> [description]"
-          echo "Example: /mcp-add filesystem http://localhost:3000/sse File operations"
-          exit 1
-        fi
-
-        NAME="$1"
-        URL="$2"
-        shift 2
-        DESCRIPTION="$*"
-
-        if [ -n "$DESCRIPTION" ]; then
-          infer mcp add "$NAME" "$URL" --description="$DESCRIPTION"
-        else
-          infer mcp add "$NAME" "$URL"
-        fi
-
-  - name: mcp-remove
-    description: "Remove an MCP server (usage: /mcp-remove <name>)"
-    command: bash
-    args:
-      - -c
-      - |
-        if [ $# -lt 1 ]; then
-          echo "Usage: /mcp-remove <name>"
-          echo "Example: /mcp-remove filesystem"
-          exit 1
-        fi
-        infer mcp remove "$1"
-
-  - name: mcp-enable
-    description: "Enable an MCP server (usage: /mcp-enable <name>)"
-    command: bash
-    args:
-      - -c
-      - |
-        if [ $# -lt 1 ]; then
-          echo "Usage: /mcp-enable <name>"
-          echo "Example: /mcp-enable filesystem"
-          exit 1
-        fi
-        infer mcp enable "$1"
-
-  - name: mcp-disable
-    description: "Disable an MCP server (usage: /mcp-disable <name>)"
-    command: bash
-    args:
-      - -c
-      - |
-        if [ $# -lt 1 ]; then
-          echo "Usage: /mcp-disable <name>"
-          echo "Example: /mcp-disable filesystem"
-          exit 1
-        fi
-        infer mcp disable "$1"
-
-  - name: mcp-enable-global
-    description: "Enable MCP globally"
-    command: infer
-    args:
-      - mcp
-      - enable-global
-
-  - name: mcp-disable-global
-    description: "Disable MCP globally"
-    command: infer
-    args:
-      - mcp
-      - disable-global
+    subcommands:
+      - name: list
+        description: "List all configured MCP servers"
+      - name: add
+        description: "Add a new MCP server (usage: <name> <url> [options])"
+      - name: remove
+        description: "Remove an MCP server (usage: <name>)"
+      - name: enable
+        description: "Enable an MCP server (usage: <name>)"
+      - name: disable
+        description: "Disable an MCP server (usage: <name>)"
+      - name: enable-global
+        description: "Enable MCP globally"
+      - name: disable-global
+        description: "Disable MCP globally"
 `
 
 	return os.WriteFile(path, []byte(mcpShortcutsContent), 0644)
@@ -558,4 +493,43 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(exportShortcutsContent), 0644)
+}
+
+// createA2AShortcutsFile creates the A2A shortcuts YAML file
+func createA2AShortcutsFile(path string) error {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		return fmt.Errorf("failed to create shortcuts directory: %w", err)
+	}
+
+	a2aShortcutsContent := `---
+# A2A (Agent-to-Agent) Shortcuts
+# Manage A2A agent configuration from within chat
+#
+# Usage:
+# - /agents list - List all configured A2A agents
+# - /agents add - Add a new A2A agent
+# - /agents remove - Remove an A2A agent
+# - /agents enable - Enable an A2A agent
+# - /agents disable - Disable an A2A agent
+
+shortcuts:
+  - name: agents
+    description: "Manage A2A agents"
+    command: infer
+    args:
+      - agents
+    subcommands:
+      - name: list
+        description: "List all configured A2A agents"
+      - name: add
+        description: "Add a new A2A agent (usage: <name> [url] [options])"
+      - name: remove
+        description: "Remove an A2A agent (usage: <name>)"
+      - name: enable
+        description: "Enable an A2A agent (usage: <name>)"
+      - name: disable
+        description: "Disable an A2A agent (usage: <name>)"
+`
+
+	return os.WriteFile(path, []byte(a2aShortcutsContent), 0644)
 }
