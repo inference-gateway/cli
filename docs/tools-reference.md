@@ -621,14 +621,17 @@ a2a:
   tools:
     submit_task:
       enabled: true
+      require_approval: true
     query_agent:
       enabled: true
+      require_approval: false
     query_task:
       enabled: true
-    download_artifacts:
-      enabled: true
-      download_dir: "./downloads"  # Configurable download directory
+      require_approval: false
 ```
+
+**Note:** Artifact downloads from A2A tasks are handled via the WebFetch tool with `download=true`.
+Files are automatically saved to `<configDir>/tmp` with the filename extracted from the download URL.
 
 ## A2A Use Cases
 
