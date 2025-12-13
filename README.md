@@ -303,7 +303,6 @@ summary of available tools. For detailed documentation, parameters, and examples
 | **A2A_SubmitTask** | Submit tasks to A2A agents | No | [Details](docs/tools-reference.md#a2a_submittask-tool) |
 | **A2A_QueryAgent** | Query A2A agent capabilities | No | [Details](docs/tools-reference.md#a2a_queryagent-tool) |
 | **A2A_QueryTask** | Check A2A task status | No | [Details](docs/tools-reference.md#a2a_querytask-tool) |
-| **A2A_DownloadArtifacts** | Download A2A task outputs | No | [Details](docs/tools-reference.md#a2a_downloadartifacts-tool) |
 
 **Tool Configuration:**
 

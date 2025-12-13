@@ -553,7 +553,7 @@ infer conversations list
 Enables task delegation to specialized agents:
 
 - Configuration in `.infer/agents.yaml`
-- Tools: `A2A_SubmitTask`, `A2A_QueryAgent`, `A2A_QueryTask`, `A2A_DownloadArtifacts`
+- Tools: `A2A_SubmitTask`, `A2A_QueryAgent`, `A2A_QueryTask`
 - Background task monitoring with exponential backoff polling
 
 ### MCP (Model Context Protocol) Integration

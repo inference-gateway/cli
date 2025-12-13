@@ -352,7 +352,6 @@ AI agents can use these tools when tool execution is enabled:
 - **A2A_SubmitTask**: Delegate tasks to specialized agents
 - **A2A_QueryAgent**: Discover agent capabilities
 - **A2A_QueryTask**: Monitor task progress
-- **A2A_DownloadArtifacts**: Retrieve task outputs
 
 ### Agent Configuration
 

@@ -178,40 +178,6 @@ background. Only use `A2A_QueryTask` to:
 - **Behavior**: Queries task status and returns detailed information. Cannot be used while background
   polling is active for the same agent.
 
-#### A2A_DownloadArtifacts Tool - Download Task Artifacts
-
-The `A2A_DownloadArtifacts` tool downloads artifacts from completed A2A tasks:
-
-```text
-Download artifacts from the completed task
-```
-
-The LLM will use the `A2A_DownloadArtifacts` tool:
-
-```json
-{
-  "agent_url": "http://localhost:8081",
-  "context_id": "context-123",
-  "task_id": "task-456"
-}
-```
-
-**Important Requirements:**
-
-- The task must be in "completed" status before artifacts can be downloaded
-- The agent must first use the QueryTask tool to verify completion status
-- Only works with tasks that have generated artifacts
-
-Tool Details:
-
-- **Name**: `A2A_DownloadArtifacts`
-- **Parameters**:
-  - `agent_url` (required): URL of the A2A agent server
-  - `context_id` (required): Context ID for the task
-  - `task_id` (required): ID of the completed task to download artifacts from
-- **Returns**: List of artifacts with metadata and content
-- **Behavior**: Validates task completion status, then downloads available artifacts
-
 ## A2A Integration
 
 ### A2A Tool Configuration
@@ -244,11 +210,6 @@ a2a:
       require_approval: false  # Whether approval is required
     submit_task:
       enabled: true         # Enable A2A_SubmitTask tool
-      require_approval: true   # Whether approval is required
-    download_artifacts:
-      enabled: true         # Enable A2A_DownloadArtifacts tool
-      download_dir: "/tmp/downloads"  # Directory for downloaded artifacts
-      timeout_seconds: 30   # Download timeout in seconds
       require_approval: true   # Whether approval is required
 ```
 
@@ -377,4 +338,4 @@ First check if task task-456 is completed, then download its artifacts from the 
 This will:
 
 1. Use A2A_QueryTask to verify the task is completed
-2. Use A2A_DownloadArtifacts to retrieve any generated files, documents, or other outputs from the task
+2. Use WebFetch to retrieve any generated files, documents, or other outputs from the task

@@ -314,7 +314,7 @@ Available A2A Agents:
 - https://security.example.com
 - https://perf.example.com
 
-You can delegate tasks to these agents using the A2A tools (A2A_SubmitTask, A2A_QueryAgent, A2A_QueryTask, A2A_DownloadArtifacts).
+You can delegate tasks to these agents using the A2A tools (A2A_SubmitTask, A2A_QueryAgent, A2A_QueryTask).
 ```
 
 ## Using Agents in Chat
