@@ -267,6 +267,7 @@ func (c *CustomShortcut) resolveCommandConfig(subcommand *SubcommandConfig) comm
 		cfg.args = append([]string{}, subcommand.Args...)
 	} else {
 		cfg.args = append(cfg.args, subcommand.Name)
+		cfg.args = append(cfg.args, subcommand.Args...)
 	}
 
 	if subcommand.WorkingDir != "" {

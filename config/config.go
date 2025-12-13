@@ -602,7 +602,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			WebFetch: WebFetchToolConfig{
 				Enabled:            true,
-				WhitelistedDomains: []string{"golang.org"},
+				WhitelistedDomains: []string{"golang.org", "localhost"},
 				Safety: FetchSafetyConfig{
 					MaxSize:       10485760, // 10MB
 					Timeout:       30,       // 30 seconds

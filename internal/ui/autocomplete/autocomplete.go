@@ -355,6 +355,7 @@ func (a *AutocompleteImpl) handleSubcommandCompletion(parts []string) {
 	if a.completionMode != subcommandMode {
 		a.loadSubcommands(shortcutName)
 		a.completionMode = subcommandMode
+		a.usageHint = ""
 	}
 
 	a.query = parts[1]
@@ -377,6 +378,7 @@ func (a *AutocompleteImpl) handleShortcutCompletion(inputText string, cursorPos 
 	if a.selected >= len(a.filtered) {
 		a.selected = 0
 	}
+	a.usageHint = ""
 }
 
 // filterSuggestions filters commands based on current query

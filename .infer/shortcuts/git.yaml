@@ -20,7 +20,11 @@ shortcuts:
       - name: push
         description: "Push commits to remote repository"
       - name: log
-        description: "Show commit logs (last 10)"
+        description: "Show commit logs (last 5)"
+        args:
+          - --oneline
+          - -n
+          - "5"
       - name: commit
         description: "Generate AI commit message from staged changes"
         command: bash
