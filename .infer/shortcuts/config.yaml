@@ -1,0 +1,36 @@
+# Config Shortcuts
+# Manage CLI configuration settings
+#
+# This provides autocomplete for common config subcommands while passing through
+# all additional arguments to the underlying `infer config` command.
+#
+# Usage Examples:
+# - /config tools list                    - List all tools and their status
+# - /config tools bash enable             - Enable bash tool
+# - /config tools bash disable            - Disable bash tool
+# - /config tools grep enable             - Enable grep tool
+# - /config tools grep set-backend auto   - Set grep backend
+# - /config tools web-search enable       - Enable web search tool
+# - /config tools web-fetch enable        - Enable web fetch tool
+# - /config tools safety enable           - Enable safety approval
+# - /config agent set-model <model>       - Set default agent model
+# - /config agent set-max-turns <number>  - Set max turns
+# - /config agent verbose-tools enable    - Enable verbose tool output
+# - /config init                          - Initialize config file
+# - /config export                        - Export configuration
+
+shortcuts:
+  - name: config
+    description: "Manage CLI configuration"
+    command: infer
+    args:
+      - config
+    subcommands:
+      - name: tools
+        description: "Manage tool execution settings (supports: list, enable, disable, bash, grep, web-search, web-fetch, github, safety, sandbox, exec)"
+      - name: agent
+        description: "Configure agent command settings (supports: set-model, set-system, set-max-turns, set-max-concurrent-tools, verbose-tools)"
+      - name: init
+        description: "Initialize a new configuration file"
+      - name: export
+        description: "Export configuration to stdout"

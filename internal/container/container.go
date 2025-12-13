@@ -338,12 +338,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 		c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut(c.config))
 	}
 
-	if c.configService != nil {
-		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService, c.modelService))
-	} else {
-		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, nil, nil, c.modelService))
-	}
-
 	configDir := c.determineConfigDirectory()
 	customShortcutClient := c.createSDKClient()
 	if err := c.shortcutRegistry.LoadCustomShortcuts(configDir, customShortcutClient, c.modelService, c.imageService, c.toolService); err != nil {
