@@ -36,6 +36,7 @@ type InputView struct {
 	historySuggestions   []string
 	historySelectedIndex int
 	focused              bool
+	usageHint            string
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -272,29 +273,11 @@ func (iv *InputView) renderUnwrappedText(before, after string) string {
 
 func (iv *InputView) buildTextWithCursor(before, after string) string {
 	if !iv.focused {
-		if len(after) == 0 {
-			if iv.cursor == len(iv.text) && iv.historySuggestion != "" {
-				ghostText := iv.styleProvider.RenderDimText(iv.historySuggestion)
-				return fmt.Sprintf("%s%s", before, ghostText)
-			}
-			return before
-		}
-		return fmt.Sprintf("%s%s", before, after)
+		return iv.buildUnfocusedText(before, after)
 	}
 
 	if len(after) == 0 {
-		if iv.cursor == len(iv.text) && iv.historySuggestion != "" && len(iv.historySuggestion) > 0 {
-			firstGhostChar := string(iv.historySuggestion[0])
-			cursorChar := iv.createCursorChar(firstGhostChar)
-			restGhost := ""
-			if len(iv.historySuggestion) > 1 {
-				restGhost = iv.styleProvider.RenderDimText(iv.historySuggestion[1:])
-			}
-			return fmt.Sprintf("%s%s%s", before, cursorChar, restGhost)
-		}
-
-		cursorChar := iv.createCursorChar(" ")
-		return fmt.Sprintf("%s%s", before, cursorChar)
+		return iv.buildEndOfTextWithCursor(before)
 	}
 
 	cursorChar := iv.createCursorChar(string(after[0]))
@@ -303,6 +286,44 @@ func (iv *InputView) buildTextWithCursor(before, after string) string {
 		restAfter = after[1:]
 	}
 	return fmt.Sprintf("%s%s%s", before, cursorChar, restAfter)
+}
+
+// buildUnfocusedText renders text when input is not focused
+func (iv *InputView) buildUnfocusedText(before, after string) string {
+	if len(after) == 0 {
+		if iv.cursor == len(iv.text) && iv.usageHint != "" {
+			ghostText := iv.styleProvider.RenderDimText(iv.usageHint)
+			return fmt.Sprintf("%s%s", before, ghostText)
+		}
+		if iv.cursor == len(iv.text) && iv.historySuggestion != "" {
+			ghostText := iv.styleProvider.RenderDimText(iv.historySuggestion)
+			return fmt.Sprintf("%s%s", before, ghostText)
+		}
+		return before
+	}
+	return fmt.Sprintf("%s%s", before, after)
+}
+
+// buildEndOfTextWithCursor renders end of text with cursor and ghost text
+func (iv *InputView) buildEndOfTextWithCursor(before string) string {
+	if iv.cursor == len(iv.text) && iv.usageHint != "" && len(iv.usageHint) > 0 {
+		ghostText := iv.styleProvider.RenderDimText(iv.usageHint)
+		cursorChar := iv.createCursorChar(" ")
+		return fmt.Sprintf("%s%s%s", before, cursorChar, ghostText)
+	}
+
+	if iv.cursor == len(iv.text) && iv.historySuggestion != "" && len(iv.historySuggestion) > 0 {
+		firstGhostChar := string(iv.historySuggestion[0])
+		cursorChar := iv.createCursorChar(firstGhostChar)
+		restGhost := ""
+		if len(iv.historySuggestion) > 1 {
+			restGhost = iv.styleProvider.RenderDimText(iv.historySuggestion[1:])
+		}
+		return fmt.Sprintf("%s%s%s", before, cursorChar, restGhost)
+	}
+
+	cursorChar := iv.createCursorChar(" ")
+	return fmt.Sprintf("%s%s", before, cursorChar)
 }
 
 func (iv *InputView) createCursorChar(char string) string {
@@ -339,6 +360,16 @@ func (iv *InputView) AddToHistory(text string) error {
 		return nil
 	}
 	return iv.historyManager.AddToHistory(text)
+}
+
+// SetUsageHint sets the usage hint for ghost text display
+func (iv *InputView) SetUsageHint(hint string) {
+	iv.usageHint = hint
+}
+
+// GetUsageHint returns the current usage hint
+func (iv *InputView) GetUsageHint() string {
+	return iv.usageHint
 }
 
 // Bubble Tea interface

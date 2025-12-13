@@ -9,6 +9,10 @@ import (
 )
 
 type FakeAutocompleteComponent struct {
+	ClearUsageHintStub        func()
+	clearUsageHintMutex       sync.RWMutex
+	clearUsageHintArgsForCall []struct {
+	}
 	GetSelectedShortcutStub        func() string
 	getSelectedShortcutMutex       sync.RWMutex
 	getSelectedShortcutArgsForCall []struct {
@@ -17,6 +21,16 @@ type FakeAutocompleteComponent struct {
 		result1 string
 	}
 	getSelectedShortcutReturnsOnCall map[int]struct {
+		result1 string
+	}
+	GetUsageHintStub        func() string
+	getUsageHintMutex       sync.RWMutex
+	getUsageHintArgsForCall []struct {
+	}
+	getUsageHintReturns struct {
+		result1 string
+	}
+	getUsageHintReturnsOnCall map[int]struct {
 		result1 string
 	}
 	HandleKeyStub        func(tea.KeyMsg) (bool, string)
@@ -90,6 +104,30 @@ type FakeAutocompleteComponent struct {
 	invocationsMutex sync.RWMutex
 }
 
+func (fake *FakeAutocompleteComponent) ClearUsageHint() {
+	fake.clearUsageHintMutex.Lock()
+	fake.clearUsageHintArgsForCall = append(fake.clearUsageHintArgsForCall, struct {
+	}{})
+	stub := fake.ClearUsageHintStub
+	fake.recordInvocation("ClearUsageHint", []interface{}{})
+	fake.clearUsageHintMutex.Unlock()
+	if stub != nil {
+		fake.ClearUsageHintStub()
+	}
+}
+
+func (fake *FakeAutocompleteComponent) ClearUsageHintCallCount() int {
+	fake.clearUsageHintMutex.RLock()
+	defer fake.clearUsageHintMutex.RUnlock()
+	return len(fake.clearUsageHintArgsForCall)
+}
+
+func (fake *FakeAutocompleteComponent) ClearUsageHintCalls(stub func()) {
+	fake.clearUsageHintMutex.Lock()
+	defer fake.clearUsageHintMutex.Unlock()
+	fake.ClearUsageHintStub = stub
+}
+
 func (fake *FakeAutocompleteComponent) GetSelectedShortcut() string {
 	fake.getSelectedShortcutMutex.Lock()
 	ret, specificReturn := fake.getSelectedShortcutReturnsOnCall[len(fake.getSelectedShortcutArgsForCall)]
@@ -139,6 +177,59 @@ func (fake *FakeAutocompleteComponent) GetSelectedShortcutReturnsOnCall(i int, r
 		})
 	}
 	fake.getSelectedShortcutReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeAutocompleteComponent) GetUsageHint() string {
+	fake.getUsageHintMutex.Lock()
+	ret, specificReturn := fake.getUsageHintReturnsOnCall[len(fake.getUsageHintArgsForCall)]
+	fake.getUsageHintArgsForCall = append(fake.getUsageHintArgsForCall, struct {
+	}{})
+	stub := fake.GetUsageHintStub
+	fakeReturns := fake.getUsageHintReturns
+	fake.recordInvocation("GetUsageHint", []interface{}{})
+	fake.getUsageHintMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeAutocompleteComponent) GetUsageHintCallCount() int {
+	fake.getUsageHintMutex.RLock()
+	defer fake.getUsageHintMutex.RUnlock()
+	return len(fake.getUsageHintArgsForCall)
+}
+
+func (fake *FakeAutocompleteComponent) GetUsageHintCalls(stub func() string) {
+	fake.getUsageHintMutex.Lock()
+	defer fake.getUsageHintMutex.Unlock()
+	fake.GetUsageHintStub = stub
+}
+
+func (fake *FakeAutocompleteComponent) GetUsageHintReturns(result1 string) {
+	fake.getUsageHintMutex.Lock()
+	defer fake.getUsageHintMutex.Unlock()
+	fake.GetUsageHintStub = nil
+	fake.getUsageHintReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeAutocompleteComponent) GetUsageHintReturnsOnCall(i int, result1 string) {
+	fake.getUsageHintMutex.Lock()
+	defer fake.getUsageHintMutex.Unlock()
+	fake.GetUsageHintStub = nil
+	if fake.getUsageHintReturnsOnCall == nil {
+		fake.getUsageHintReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getUsageHintReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
 }

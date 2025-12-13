@@ -1422,6 +1422,19 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 	case domain.AutocompleteUpdateEvent:
 		app.autocomplete.Update(acMsg.Text, acMsg.CursorPos)
 
+		if len(acMsg.Text) > 0 && strings.HasSuffix(acMsg.Text, " ") {
+			autocompleteHint := app.autocomplete.GetUsageHint()
+			currentInputHint := app.inputView.GetUsageHint()
+			if autocompleteHint != "" && currentInputHint != autocompleteHint {
+				app.inputView.SetUsageHint(autocompleteHint)
+			}
+		} else if len(acMsg.Text) > 0 {
+			currentHint := app.inputView.GetUsageHint()
+			if currentHint != "" {
+				app.inputView.SetUsageHint("")
+			}
+		}
+
 	case domain.AutocompleteHideEvent:
 		app.autocomplete.Hide()
 
@@ -1433,10 +1446,15 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 			} else {
 				app.inputView.SetCursor(len(acMsg.Completion))
 			}
+
+			usageHint := app.autocomplete.GetUsageHint()
+			app.inputView.SetUsageHint(usageHint)
 		}
 
 		if acMsg.ExecuteImmediately {
 			app.autocomplete.Hide()
+			app.autocomplete.ClearUsageHint()
+			app.inputView.SetUsageHint("")
 			*cmds = append(*cmds, app.SendMessage())
 			return
 		}
@@ -1449,9 +1467,11 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cm
 		text := app.inputView.GetInput()
 		cursor := app.inputView.GetCursor()
 		app.autocomplete.Update(text, cursor)
+		app.inputView.SetUsageHint("")
 
 	case domain.ClearInputEvent:
 		app.autocomplete.Hide()
+		app.inputView.SetUsageHint("")
 	}
 }
 

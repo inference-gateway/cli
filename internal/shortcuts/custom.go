@@ -23,17 +23,28 @@ type SnippetConfig struct {
 	Template string `yaml:"template"`
 }
 
+// SubcommandConfig represents a subcommand for shortcuts with autocomplete
+type SubcommandConfig struct {
+	Name        string         `yaml:"name"`
+	Description string         `yaml:"description"`
+	Command     string         `yaml:"command,omitempty"`
+	Args        []string       `yaml:"args,omitempty"`
+	WorkingDir  string         `yaml:"working_dir,omitempty"`
+	Snippet     *SnippetConfig `yaml:"snippet,omitempty"`
+}
+
 // CustomShortcutConfig represents a user-defined shortcut configuration
 type CustomShortcutConfig struct {
-	Name          string         `yaml:"name"`
-	Description   string         `yaml:"description"`
-	Command       string         `yaml:"command,omitempty"`
-	Args          []string       `yaml:"args,omitempty"`
-	WorkingDir    string         `yaml:"working_dir,omitempty"`
-	Tool          string         `yaml:"tool,omitempty"`
-	ToolArgs      map[string]any `yaml:"tool_args,omitempty"`
-	Snippet       *SnippetConfig `yaml:"snippet,omitempty"`
-	PassSessionID bool           `yaml:"pass_session_id,omitempty"`
+	Name          string             `yaml:"name"`
+	Description   string             `yaml:"description"`
+	Command       string             `yaml:"command,omitempty"`
+	Args          []string           `yaml:"args,omitempty"`
+	WorkingDir    string             `yaml:"working_dir,omitempty"`
+	Tool          string             `yaml:"tool,omitempty"`
+	ToolArgs      map[string]any     `yaml:"tool_args,omitempty"`
+	Snippet       *SnippetConfig     `yaml:"snippet,omitempty"`
+	PassSessionID bool               `yaml:"pass_session_id,omitempty"`
+	Subcommands   []SubcommandConfig `yaml:"subcommands,omitempty"`
 }
 
 // CustomShortcutsConfig represents the structure of a custom shortcuts YAML file
@@ -75,6 +86,24 @@ func (c *CustomShortcut) GetUsage() string {
 
 func (c *CustomShortcut) CanExecute(args []string) bool {
 	return true
+}
+
+// Subcommand represents a subcommand for autocomplete
+type Subcommand struct {
+	Name        string
+	Description string
+}
+
+// GetSubcommands returns the list of subcommands for this shortcut
+func (c *CustomShortcut) GetSubcommands() []Subcommand {
+	result := make([]Subcommand, len(c.config.Subcommands))
+	for i, sc := range c.config.Subcommands {
+		result[i] = Subcommand{
+			Name:        sc.Name,
+			Description: sc.Description,
+		}
+	}
+	return result
 }
 
 // extractImageURLs extracts all image URLs from both HTML <img> tags and markdown ![](url) syntax
@@ -171,28 +200,13 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		return c.executeWithTool(ctx, args)
 	}
 
-	command := c.config.Command
-	cmdArgs := append([]string{}, c.config.Args...)
+	subcommand, remainingArgs := c.findSubcommand(args)
+	cmdConfig := c.resolveCommandConfig(subcommand)
+	cmdArgs := c.buildCommandArgs(cmdConfig, remainingArgs, ctx)
 
-	if c.config.PassSessionID {
-		if sessionID := ctx.Value(domain.SessionIDKey); sessionID != nil {
-			if sessionIDStr, ok := sessionID.(string); ok {
-				args = append(args, sessionIDStr)
-			}
-		}
-	}
-
-	if (command == "bash" || command == "sh") && len(cmdArgs) >= 2 && cmdArgs[0] == "-c" {
-		cmdArgs = append(cmdArgs, command)
-		cmdArgs = append(cmdArgs, args...)
-	} else {
-		cmdArgs = append(cmdArgs, args...)
-	}
-
-	cmd := exec.CommandContext(ctx, command, cmdArgs...)
-
-	if c.config.WorkingDir != "" {
-		cmd.Dir = c.config.WorkingDir
+	cmd := exec.CommandContext(ctx, cmdConfig.command, cmdArgs...)
+	if cmdConfig.workingDir != "" {
+		cmd.Dir = cmdConfig.workingDir
 	}
 
 	output, err := cmd.CombinedOutput()
@@ -205,10 +219,89 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		}, nil
 	}
 
-	if c.config.Snippet != nil {
-		return c.executeWithSnippet(ctx, outputStr)
+	if cmdConfig.snippet != nil {
+		return c.executeWithSnippet(ctx, outputStr, cmdConfig.snippet)
 	}
 
+	return c.formatOutput(outputStr)
+}
+
+// commandConfig holds resolved command configuration
+type commandConfig struct {
+	command    string
+	args       []string
+	workingDir string
+	snippet    *SnippetConfig
+}
+
+// findSubcommand finds a matching subcommand and returns it with remaining args
+func (c *CustomShortcut) findSubcommand(args []string) (*SubcommandConfig, []string) {
+	if len(args) == 0 || len(c.config.Subcommands) == 0 {
+		return nil, args
+	}
+
+	for i := range c.config.Subcommands {
+		if c.config.Subcommands[i].Name == args[0] {
+			return &c.config.Subcommands[i], args[1:]
+		}
+	}
+
+	return nil, args
+}
+
+// resolveCommandConfig determines which command configuration to use
+func (c *CustomShortcut) resolveCommandConfig(subcommand *SubcommandConfig) commandConfig {
+	cfg := commandConfig{
+		command:    c.config.Command,
+		args:       append([]string{}, c.config.Args...),
+		workingDir: c.config.WorkingDir,
+		snippet:    c.config.Snippet,
+	}
+
+	if subcommand == nil {
+		return cfg
+	}
+
+	if subcommand.Command != "" {
+		cfg.command = subcommand.Command
+		cfg.args = append([]string{}, subcommand.Args...)
+	} else {
+		cfg.args = append(cfg.args, subcommand.Name)
+	}
+
+	if subcommand.WorkingDir != "" {
+		cfg.workingDir = subcommand.WorkingDir
+	}
+	if subcommand.Snippet != nil {
+		cfg.snippet = subcommand.Snippet
+	}
+
+	return cfg
+}
+
+// buildCommandArgs builds the final command arguments
+func (c *CustomShortcut) buildCommandArgs(cfg commandConfig, args []string, ctx context.Context) []string {
+	if c.config.PassSessionID {
+		if sessionID := ctx.Value(domain.SessionIDKey); sessionID != nil {
+			if sessionIDStr, ok := sessionID.(string); ok {
+				args = append(args, sessionIDStr)
+			}
+		}
+	}
+
+	cmdArgs := cfg.args
+	if (cfg.command == "bash" || cfg.command == "sh") && len(cmdArgs) >= 2 && cmdArgs[0] == "-c" {
+		cmdArgs = append(cmdArgs, cfg.command)
+		cmdArgs = append(cmdArgs, args...)
+	} else {
+		cmdArgs = append(cmdArgs, args...)
+	}
+
+	return cmdArgs
+}
+
+// formatOutput formats the command output with appropriate styling
+func (c *CustomShortcut) formatOutput(outputStr string) (ShortcutResult, error) {
 	imageURLs := extractAllImageURLs(outputStr)
 	var imageAttachments []domain.ImageAttachment
 
@@ -220,11 +313,9 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 		}
 	}
 
-	// Check if output looks like markdown (contains markdown table syntax)
 	isMarkdown := strings.Contains(outputStr, "| ") && strings.Contains(outputStr, " |") && strings.Contains(outputStr, "---")
 
 	if isMarkdown {
-		// Output raw markdown without code fences - will be rendered by chat
 		if len(imageAttachments) > 0 {
 			return ShortcutResult{
 				Output:     outputStr,
@@ -233,16 +324,13 @@ func (c *CustomShortcut) Execute(ctx context.Context, args []string) (ShortcutRe
 				Data:       imageAttachments,
 			}, nil
 		}
-
 		return ShortcutResult{
 			Output:  outputStr,
 			Success: true,
 		}, nil
 	}
 
-	// For non-markdown output, wrap in code fences as before
 	formattedOutput := fmt.Sprintf("```json\n%s\n```", outputStr)
-
 	if len(imageAttachments) > 0 {
 		return ShortcutResult{
 			Output:     formattedOutput,
@@ -337,7 +425,7 @@ func (c *CustomShortcut) executeWithTool(ctx context.Context, _ []string) (Short
 }
 
 // executeWithSnippet handles snippet generation with LLM (async)
-func (c *CustomShortcut) executeWithSnippet(ctx context.Context, commandOutput string) (ShortcutResult, error) {
+func (c *CustomShortcut) executeWithSnippet(ctx context.Context, commandOutput string, snippet *SnippetConfig) (ShortcutResult, error) {
 	var jsonData map[string]any
 	if err := json.Unmarshal([]byte(commandOutput), &jsonData); err != nil {
 		return ShortcutResult{
@@ -360,13 +448,14 @@ func (c *CustomShortcut) executeWithSnippet(ctx context.Context, commandOutput s
 			"dataMap":        dataMap,
 			"customShortcut": c,
 			"shortcutName":   c.config.Name,
+			"snippet":        snippet,
 		},
 	}, nil
 }
 
 // GenerateSnippet generates the final snippet by calling LLM (called async from handler)
-func (c *CustomShortcut) GenerateSnippet(ctx context.Context, dataMap map[string]string) (string, error) {
-	filledPrompt := fillTemplate(c.config.Snippet.Prompt, dataMap)
+func (c *CustomShortcut) GenerateSnippet(ctx context.Context, dataMap map[string]string, snippet *SnippetConfig) (string, error) {
+	filledPrompt := fillTemplate(snippet.Prompt, dataMap)
 
 	llmResponse, err := c.callLLM(ctx, filledPrompt)
 	if err != nil {
@@ -375,7 +464,7 @@ func (c *CustomShortcut) GenerateSnippet(ctx context.Context, dataMap map[string
 
 	dataMap["llm"] = llmResponse
 
-	finalSnippet := fillTemplate(c.config.Snippet.Template, dataMap)
+	finalSnippet := fillTemplate(snippet.Template, dataMap)
 
 	return finalSnippet, nil
 }
