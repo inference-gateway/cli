@@ -12,3 +12,6 @@ agents:
     run: true
     model: deepseek/deepseek-chat
     enabled: true
+    environment:
+      A2A_AGENT_CLIENT_MAX_CHAT_COMPLETION_ITERATIONS: "30"
+      A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT: "true"

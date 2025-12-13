@@ -304,4 +304,18 @@ func (m *A2APollingMonitor) addResultToMessageQueue(taskID string, result *domai
 	}
 
 	m.messageQueue.Enqueue(message, m.requestID)
+
+	if m.eventChan != nil {
+		event := domain.MessageQueuedEvent{
+			RequestID: m.requestID,
+			Timestamp: time.Now(),
+			Message:   message,
+		}
+		select {
+		case m.eventChan <- event:
+		default:
+			logger.Warn("Failed to emit MessageQueued event - channel full",
+				"task_id", taskID)
+		}
+	}
 }

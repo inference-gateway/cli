@@ -501,6 +501,28 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 			},
 		}
 		return true, result
+
+	case adk.TaskStateCanceled:
+		cancelMessage := ""
+		if currentTask.Status.Message != nil {
+			cancelMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
+		}
+
+		result := &domain.ToolExecutionResult{
+			ToolName: "A2A_SubmitTask",
+			Success:  false,
+			Duration: time.Since(state.StartedAt),
+			Data: A2ASubmitTaskResult{
+				TaskID:     currentTask.ID,
+				ContextID:  currentTask.ContextID,
+				AgentURL:   agentURL,
+				State:      string(currentTask.Status.State),
+				Success:    false,
+				Message:    fmt.Sprintf("Task was canceled: %s", cancelMessage),
+				TaskResult: cancelMessage,
+			},
+		}
+		return true, result
 	}
 
 	return false, nil
