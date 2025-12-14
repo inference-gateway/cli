@@ -6,6 +6,22 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.90.2](https://github.com/inference-gateway/cli/compare/v0.90.1...v0.90.2) (2025-12-14)
+
+### 🐛 Bug Fixes
+
+* Add git to container image and adjust gateway manager ([aa6f99c](https://github.com/inference-gateway/cli/commit/aa6f99c8ee2e6f7ecf9afe79bd9d13e7efcef4be))
+* Support both local and remote agents ([8e068f5](https://github.com/inference-gateway/cli/commit/8e068f5d8cd7c471c6aefd1a022b48c2a9b770df))
+
+### ♻️ Code Refactoring
+
+* **examples:** Remove unused container image ([8a91743](https://github.com/inference-gateway/cli/commit/8a91743f7b536bc5ebca342a6c2f46f2f502a531))
+
+### 🧹 Maintenance
+
+* **examples:** Add whitelist agents domains to allow to download artifacts ([390e304](https://github.com/inference-gateway/cli/commit/390e3047f52e6c5d8f94f87d17f0199068b86f48))
+* **examples:** Update container image ([a289e85](https://github.com/inference-gateway/cli/commit/a289e850523ea90edbda9711703c24518c6e58da))
+
 ## [0.90.1](https://github.com/inference-gateway/cli/compare/v0.90.0...v0.90.1) (2025-12-14)
 
 ### ♻️ Code Refactoring
