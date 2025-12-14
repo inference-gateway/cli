@@ -29,8 +29,8 @@ services:
   cli:
     profiles:
       - manual
-    image: ghcr.io/inference-gateway/cli:latest
-    pull_policy: always
+    image: ghcr.io/inference-gateway/cli:local
+    # pull_policy: always
     tty: true
     volumes:
       - ./downloads:/home/infer/.infer/tmp
@@ -45,6 +45,12 @@ services:
         http://n8n-agent:8080
         http://documentation-agent:8080
         http://browser-agent:8080
+      INFER_TOOLS_WEB_FETCH_WHITELISTED_DOMAINS: |
+        mock-agent
+        google-calendar-agent
+        n8n-agent
+        documentation-agent
+        browser-agent
     command:
       - chat
     networks:
