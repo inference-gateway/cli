@@ -29,8 +29,8 @@ services:
   cli:
     profiles:
       - manual
-    image: ghcr.io/inference-gateway/cli:local
-    # pull_policy: always
+    image: ghcr.io/inference-gateway/cli:latest
+    pull_policy: always
     tty: true
     volumes:
       - ./downloads:/home/infer/.infer/tmp
