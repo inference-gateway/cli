@@ -20,10 +20,10 @@ LABEL org.opencontainers.image.created="${BUILD_DATE}"
 RUN apk --no-cache --no-scripts add ca-certificates jq bash
 RUN addgroup -g 1000 infer && \
     adduser -u 1000 -G infer -h /home/infer -s /bin/bash -D infer
-WORKDIR /home/infer
 ARG TARGETARCH
-COPY --from=binaries infer-linux-${TARGETARCH} ./infer
-RUN chmod +x ./infer && chown infer:infer ./infer
+COPY --from=binaries infer-linux-${TARGETARCH} /usr/local/bin/infer
+RUN chmod +x /usr/local/bin/infer
+WORKDIR /home/infer
 RUN mkdir -p .infer && chown -R infer:infer .infer
 USER infer
 
@@ -32,6 +32,6 @@ ENV INFER_GATEWAY_URL=http://inference-gateway:8080
 ENV TERM=xterm-256color
 ENV COLORTERM=truecolor
 
-RUN ./infer init
+RUN infer init
 
-ENTRYPOINT ["./infer"]
+ENTRYPOINT ["infer"]
