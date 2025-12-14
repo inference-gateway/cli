@@ -68,7 +68,7 @@ func (gm *GatewayManager) EnsureStarted() error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	if err := gm.Start(ctx); err != nil {
@@ -444,11 +444,11 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 
 	cmd := exec.CommandContext(ctx, "bash", "-c", installCmd)
 	cmd.Stdin = nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-	output, err := cmd.CombinedOutput()
-
-	if err != nil {
-		return "", fmt.Errorf("installer failed: %w, output: %s", err, string(output))
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("installer failed: %w", err)
 	}
 
 	if _, err := os.Stat(binaryPath); err != nil {
