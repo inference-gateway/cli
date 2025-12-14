@@ -543,9 +543,13 @@ func DefaultConfig() *Config { //nolint:funlen
 		Tools: ToolsConfig{
 			Enabled: true,
 			Sandbox: SandboxConfig{
-				Directories: []string{".", "/tmp"},
+				Directories: []string{".", "/tmp", ConfigDirName + "/tmp"},
 				ProtectedPaths: []string{
-					ConfigDirName + "/",
+					ConfigDirName + "/config.yaml",
+					ConfigDirName + "/*.db",
+					ConfigDirName + "/shortcuts/",
+					ConfigDirName + "/agents.yaml",
+					ConfigDirName + "/mcp.yaml",
 					".git/",
 					"*.env",
 				},
@@ -652,7 +656,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Export: ExportConfig{
-			OutputDir:    ConfigDirName,
+			OutputDir:    ConfigDirName + "/tmp",
 			SummaryModel: "",
 		},
 		Agent: AgentConfig{

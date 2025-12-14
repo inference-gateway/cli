@@ -42,8 +42,13 @@ tools:
     directories:
       - .
       - /tmp
+      - .infer/tmp
     protected_paths:
-      - .infer/
+      - .infer/config.yaml
+      - .infer/*.db
+      - .infer/shortcuts/
+      - .infer/agents.yaml
+      - .infer/mcp.yaml
       - .git/
       - '*.env'
   bash:
@@ -137,7 +142,7 @@ image:
     quality: 75
     convert_jpeg: true
 export:
-  output_dir: .infer
+  output_dir: .infer/tmp
   summary_model: ""
 agent:
   model: ""
