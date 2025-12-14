@@ -41,6 +41,7 @@ type ConversationView struct {
 	renderedContent     string
 	streamingBuffer     strings.Builder
 	isStreaming         bool
+	streamingModel      string
 	keyHintFormatter    *hints.Formatter
 }
 
@@ -228,8 +229,9 @@ func (cv *ConversationView) updateViewportContent() {
 }
 
 // appendStreamingContent appends content to the streaming buffer and triggers immediate render
-func (cv *ConversationView) appendStreamingContent(content string) {
+func (cv *ConversationView) appendStreamingContent(content, model string) {
 	cv.isStreaming = true
+	cv.streamingModel = model
 	cv.streamingBuffer.WriteString(content)
 	cv.updateViewportContentFull()
 }
@@ -238,6 +240,37 @@ func (cv *ConversationView) appendStreamingContent(content string) {
 func (cv *ConversationView) flushStreamingBuffer() {
 	cv.streamingBuffer.Reset()
 	cv.isStreaming = false
+	cv.streamingModel = ""
+}
+
+// renderStreamingContent renders the currently streaming assistant message
+func (cv *ConversationView) renderStreamingContent() string {
+	streamingContent := cv.streamingBuffer.String()
+
+	rolePrefixLength := 13
+	if cv.streamingModel != "" {
+		rolePrefixLength += len(fmt.Sprintf(" (%s)", cv.streamingModel))
+	}
+
+	wrapWidth := cv.width - rolePrefixLength
+	if wrapWidth < 40 {
+		wrapWidth = 40
+	}
+
+	streamingContent = formatting.FormatResponsiveMessage(streamingContent, wrapWidth)
+
+	assistantColor := cv.styleProvider.GetThemeColor("assistant")
+	var roleStyled string
+	if cv.streamingModel != "" {
+		dimColor := cv.styleProvider.GetThemeColor("dim")
+		rolePart := cv.styleProvider.RenderWithColor("⏺ Assistant", assistantColor)
+		modelLabel := cv.styleProvider.RenderWithColor(fmt.Sprintf(" (%s)", cv.streamingModel), dimColor)
+		roleStyled = rolePart + modelLabel + cv.styleProvider.RenderWithColor(":", assistantColor)
+	} else {
+		roleStyled = cv.styleProvider.RenderWithColor("⏺ Assistant:", assistantColor)
+	}
+
+	return roleStyled + " " + streamingContent + "\n"
 }
 
 // updateViewportContentFull performs a full rebuild of the viewport content
@@ -264,19 +297,8 @@ func (cv *ConversationView) updateViewportContentFull() {
 	}
 
 	if cv.isStreaming && cv.streamingBuffer.Len() > 0 {
-		streamingContent := cv.streamingBuffer.String()
-
-		rolePrefixLength := 13
-		wrapWidth := cv.width - rolePrefixLength
-		if wrapWidth < 40 {
-			wrapWidth = 40
-		}
-
-		streamingContent = formatting.FormatResponsiveMessage(streamingContent, wrapWidth)
-
-		assistantColor := cv.styleProvider.GetThemeColor("assistant")
-		roleStyled := cv.styleProvider.RenderWithColor("⏺ Assistant:", assistantColor)
-		b.WriteString(roleStyled + " " + streamingContent + "\n")
+		streamingText := cv.renderStreamingContent()
+		b.WriteString(streamingText)
 	}
 
 	cv.renderedContent = b.String()
@@ -346,76 +368,113 @@ func (cv *ConversationView) renderCompactWelcome() string {
 }
 
 func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
-	var color, role string
-
-	switch string(entry.Message.Role) {
-	case "user":
-		color = cv.getUserColor()
-		role = "> You"
-
-		contentStr, contentErr := entry.Message.Content.AsMessageContent0()
-		if contentErr == nil {
-			if strings.HasPrefix(contentStr, "!!") {
-				return cv.renderToolCommandEntry(entry, color, role, contentStr)
-			} else if strings.HasPrefix(contentStr, "!") {
-				return cv.renderShellCommandEntry(entry, color, role, contentStr)
-			}
-		}
-	case "assistant":
-		if entry.IsPlan {
-			return cv.renderPlanEntry(entry, index)
-		}
-
-		if entry.PendingToolCall != nil {
-			return cv.renderPendingToolEntry(entry, index)
-		}
-
-		if entry.Rejected {
-			color = cv.styleProvider.GetThemeColor("dim")
-			role = "⊘ Rejected Plan"
-		} else {
-			color = cv.getAssistantColor()
-			if entry.Model != "" {
-				role = fmt.Sprintf("⏺ %s", entry.Model)
-			} else {
-				role = "⏺ Assistant"
-			}
-		}
-
-		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
-			return cv.renderAssistantWithToolCalls(entry, index, color, role)
-		}
-	case "system":
-		color = cv.styleProvider.GetThemeColor("dim")
-		role = "⚙️ System"
-	case "tool":
-		if entry.ToolExecution != nil && !entry.ToolExecution.Success {
-			color = cv.styleProvider.GetThemeColor("error")
-			role = "🔧 Tool"
-		} else if entry.ToolExecution != nil && entry.ToolExecution.Success {
-			color = cv.styleProvider.GetThemeColor("success")
-			role = "🔧 Tool"
-		} else {
-			color = cv.styleProvider.GetThemeColor("accent")
-			role = "🔧 Tool"
-		}
-		return cv.renderToolEntry(entry, index, color, role)
-	default:
-		color = cv.styleProvider.GetThemeColor("dim")
-		role = string(entry.Message.Role)
+	if handled, result := cv.tryRenderSpecialEntry(entry, index); handled {
+		return result
 	}
+
+	color, role := cv.getRoleAndColor(entry)
 
 	if entry.Hidden {
 		return ""
 	}
 
+	return cv.renderStandardEntry(entry, color, role)
+}
+
+// tryRenderSpecialEntry attempts to render special entry types (user commands, plans, tools)
+func (cv *ConversationView) tryRenderSpecialEntry(entry domain.ConversationEntry, index int) (bool, string) {
+	switch string(entry.Message.Role) {
+	case "user":
+		if result := cv.tryRenderUserCommand(entry); result != "" {
+			return true, result
+		}
+	case "assistant":
+		if entry.IsPlan {
+			return true, cv.renderPlanEntry(entry, index)
+		}
+		if entry.PendingToolCall != nil {
+			return true, cv.renderPendingToolEntry(entry, index)
+		}
+		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
+			color, role := cv.getAssistantRoleAndColor(entry)
+			return true, cv.renderAssistantWithToolCalls(entry, index, color, role)
+		}
+	case "tool":
+		color, role := cv.getToolRoleAndColor(entry)
+		return true, cv.renderToolEntry(entry, index, color, role)
+	}
+	return false, ""
+}
+
+// tryRenderUserCommand checks if user entry is a command and renders it
+func (cv *ConversationView) tryRenderUserCommand(entry domain.ConversationEntry) string {
+	contentStr, err := entry.Message.Content.AsMessageContent0()
+	if err != nil {
+		return ""
+	}
+
+	color := cv.getUserColor()
+	role := "> You"
+
+	if strings.HasPrefix(contentStr, "!!") {
+		return cv.renderToolCommandEntry(entry, color, role, contentStr)
+	}
+	if strings.HasPrefix(contentStr, "!") {
+		return cv.renderShellCommandEntry(entry, color, role, contentStr)
+	}
+	return ""
+}
+
+// getRoleAndColor returns the role label and color for a given entry
+func (cv *ConversationView) getRoleAndColor(entry domain.ConversationEntry) (string, string) {
+	switch string(entry.Message.Role) {
+	case "user":
+		return cv.getUserColor(), "> You"
+	case "assistant":
+		return cv.getAssistantRoleAndColor(entry)
+	case "system":
+		return cv.styleProvider.GetThemeColor("dim"), "⚙️ System"
+	case "tool":
+		return cv.getToolRoleAndColor(entry)
+	default:
+		return cv.styleProvider.GetThemeColor("dim"), string(entry.Message.Role)
+	}
+}
+
+// getAssistantRoleAndColor returns role and color for assistant entries
+func (cv *ConversationView) getAssistantRoleAndColor(entry domain.ConversationEntry) (string, string) {
+	if entry.Rejected {
+		return cv.styleProvider.GetThemeColor("dim"), "⊘ Rejected Plan"
+	}
+	return cv.getAssistantColor(), "⏺ Assistant"
+}
+
+// getToolRoleAndColor returns role and color for tool entries
+func (cv *ConversationView) getToolRoleAndColor(entry domain.ConversationEntry) (string, string) {
+	role := "🔧 Tool"
+	if entry.ToolExecution != nil && !entry.ToolExecution.Success {
+		return cv.styleProvider.GetThemeColor("error"), role
+	}
+	if entry.ToolExecution != nil && entry.ToolExecution.Success {
+		return cv.styleProvider.GetThemeColor("success"), role
+	}
+	return cv.styleProvider.GetThemeColor("accent"), role
+}
+
+// renderStandardEntry renders a standard message entry
+func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, color, role string) string {
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
 		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
 	}
-	content := contentStr
 
 	rolePrefixLength := len(role) + 2
+	var modelLabelText string
+	if entry.Message.Role == sdk.Assistant && entry.Model != "" && !entry.Rejected {
+		modelLabelText = fmt.Sprintf(" (%s)", entry.Model)
+		rolePrefixLength += len(modelLabelText)
+	}
+
 	wrapWidth := cv.width - rolePrefixLength
 	if wrapWidth < 40 {
 		wrapWidth = 40
@@ -425,22 +484,40 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.rawFormat {
 		originalWidth := cv.width
 		cv.markdownRenderer.SetWidth(wrapWidth)
-		formattedContent = cv.markdownRenderer.Render(content)
+		formattedContent = cv.markdownRenderer.Render(contentStr)
 		cv.markdownRenderer.SetWidth(originalWidth)
 	} else {
-		formattedContent = formatting.FormatResponsiveMessage(content, wrapWidth)
+		formattedContent = formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 	}
 
-	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
-	message := roleStyled + " " + formattedContent
+	roleStyled := cv.formatRoleWithModel(role, color, modelLabelText)
+	return roleStyled + " " + formattedContent + "\n"
+}
 
-	return message + "\n"
+// formatRoleWithModel formats the role prefix with optional model label
+func (cv *ConversationView) formatRoleWithModel(role, color, modelLabelText string) string {
+	if modelLabelText == "" {
+		return cv.styleProvider.RenderWithColor(role+":", color)
+	}
+
+	dimColor := cv.styleProvider.GetThemeColor("dim")
+	rolePart := cv.styleProvider.RenderWithColor(role, color)
+	modelLabel := cv.styleProvider.RenderWithColor(modelLabelText, dimColor)
+	return rolePart + modelLabel + cv.styleProvider.RenderWithColor(":", color)
 }
 
 func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, _ int, color, role string) string {
 	var result strings.Builder
 
-	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
+	var roleStyled string
+	if entry.Model != "" && !entry.Rejected {
+		dimColor := cv.styleProvider.GetThemeColor("dim")
+		rolePart := cv.styleProvider.RenderWithColor(role, color)
+		modelLabel := cv.styleProvider.RenderWithColor(fmt.Sprintf(" (%s)", entry.Model), dimColor)
+		roleStyled = rolePart + modelLabel + cv.styleProvider.RenderWithColor(":", color)
+	} else {
+		roleStyled = cv.styleProvider.RenderWithColor(role+":", color)
+	}
 
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
@@ -448,7 +525,11 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 	}
 
 	if contentStr != "" {
-		formattedContent := cv.formatAssistantContent(contentStr, role)
+		modelLabelLen := 0
+		if entry.Model != "" && !entry.Rejected {
+			modelLabelLen = len(fmt.Sprintf(" (%s)", entry.Model))
+		}
+		formattedContent := cv.formatAssistantContent(contentStr, role, modelLabelLen)
 		result.WriteString(roleStyled + " " + formattedContent + "\n")
 	} else {
 		result.WriteString(roleStyled + "\n")
@@ -481,8 +562,8 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 }
 
 // formatAssistantContent formats assistant message content with proper wrapping
-func (cv *ConversationView) formatAssistantContent(contentStr, role string) string {
-	rolePrefixLength := len(role) + 2
+func (cv *ConversationView) formatAssistantContent(contentStr, role string, modelLabelLen int) string {
+	rolePrefixLength := len(role) + 2 + modelLabelLen
 	wrapWidth := cv.width - rolePrefixLength
 	if wrapWidth < 40 {
 		wrapWidth = 40
@@ -745,7 +826,7 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return cv, cmd
 	case domain.StreamingContentEvent:
-		cv.appendStreamingContent(msg.Content)
+		cv.appendStreamingContent(msg.Content, msg.Model)
 		return cv, cmd
 	case domain.ScrollRequestEvent:
 		if msg.ComponentID == "conversation" {

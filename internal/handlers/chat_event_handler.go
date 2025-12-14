@@ -65,6 +65,7 @@ func (e *ChatEventHandler) handleChatChunk(
 				RequestID: msg.RequestID,
 				Content:   msg.Content,
 				Delta:     true,
+				Model:     chatSession.Model,
 			}
 		},
 	}
@@ -208,6 +209,8 @@ func (e *ChatEventHandler) handleChatComplete(
 	msg domain.ChatCompleteEvent,
 
 ) tea.Cmd {
+	e.restorePendingModel()
+
 	if len(msg.ToolCalls) == 0 {
 		_ = e.handler.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
 	}
@@ -220,22 +223,10 @@ func (e *ChatEventHandler) handleChatComplete(
 		}
 	})
 
-	statusMsg := "Response complete"
-
-	var backgroundTasks []domain.TaskPollingState
-	if e.handler.backgroundTaskService != nil {
-		backgroundTasks = e.handler.backgroundTaskService.GetBackgroundTasks()
-	}
-	hasBackgroundTasks := len(backgroundTasks) > 0
-
-	if hasBackgroundTasks {
-		statusMsg = fmt.Sprintf("Response complete - %d background task(s) running", len(backgroundTasks))
-	}
-
 	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message:    statusMsg,
-			Spinner:    hasBackgroundTasks,
+			Message:    "Response complete",
+			Spinner:    false,
 			StatusType: domain.StatusDefault,
 		}
 	})
@@ -246,6 +237,39 @@ func (e *ChatEventHandler) handleChatComplete(
 	}
 
 	return tea.Batch(cmds...)
+}
+
+// restorePendingModel restores the original model if a temporary model switch is pending
+func (e *ChatEventHandler) restorePendingModel() {
+	if e.handler.pendingModelRestoration == "" {
+		return
+	}
+
+	originalModel := e.handler.pendingModelRestoration
+	e.handler.pendingModelRestoration = ""
+
+	if err := e.handler.modelService.SelectModel(originalModel); err != nil {
+		logger.Error("Failed to restore original model", "model", originalModel, "error", err)
+		e.addModelRestorationWarning(originalModel)
+		return
+	}
+
+	logger.Debug("Successfully restored original model", "model", originalModel)
+}
+
+// addModelRestorationWarning adds a warning message when model restoration fails
+func (e *ChatEventHandler) addModelRestorationWarning(originalModel string) {
+	warningEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.Assistant,
+			Content: sdk.NewMessageContent(fmt.Sprintf("[Warning: Failed to restore model to %s]", originalModel)),
+		},
+		Time: time.Now(),
+	}
+
+	if err := e.handler.conversationRepo.AddMessage(warningEntry); err != nil {
+		logger.Error("Failed to add model restoration warning message", "error", err)
+	}
 }
 
 func (e *ChatEventHandler) handleChatError(
@@ -694,23 +718,12 @@ func (e *ChatEventHandler) handleA2ATaskCompleted(
 		}
 	})
 
-	var backgroundTasks []domain.TaskPollingState
-	if e.handler.backgroundTaskService != nil {
-		backgroundTasks = e.handler.backgroundTaskService.GetBackgroundTasks()
-	}
-	hasBackgroundTasks := len(backgroundTasks) > 0
-
 	chatSession := e.handler.stateManager.GetChatSession()
-
-	statusMessage := "A2A task completed"
-	if hasBackgroundTasks {
-		statusMessage = fmt.Sprintf("A2A task completed - %d background task(s) remaining", len(backgroundTasks))
-	}
 
 	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message:    statusMessage,
-			Spinner:    hasBackgroundTasks,
+			Message:    "A2A task completed",
+			Spinner:    false,
 			StatusType: domain.StatusDefault,
 		}
 	})
@@ -766,23 +779,12 @@ func (e *ChatEventHandler) handleA2ATaskFailed(
 		}
 	})
 
-	var backgroundTasks []domain.TaskPollingState
-	if e.handler.backgroundTaskService != nil {
-		backgroundTasks = e.handler.backgroundTaskService.GetBackgroundTasks()
-	}
-	hasBackgroundTasks := len(backgroundTasks) > 0
-
 	chatSession := e.handler.stateManager.GetChatSession()
-
-	statusMessage := fmt.Sprintf("A2A task failed: %s", msg.Error)
-	if hasBackgroundTasks {
-		statusMessage = fmt.Sprintf("A2A task failed - %d background task(s) remaining", len(backgroundTasks))
-	}
 
 	cmds = append(cmds, func() tea.Msg {
 		return domain.SetStatusEvent{
-			Message:    statusMessage,
-			Spinner:    hasBackgroundTasks,
+			Message:    fmt.Sprintf("A2A task failed: %s", msg.Error),
+			Spinner:    false,
 			StatusType: domain.StatusDefault,
 		}
 	})

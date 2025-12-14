@@ -40,6 +40,7 @@ type Config struct {
 	Pricing          PricingConfig          `yaml:"pricing" mapstructure:"pricing"`
 	Init             InitConfig             `yaml:"init" mapstructure:"init"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
+	configDir        string
 }
 
 // ContainerRuntimeConfig contains container runtime settings
@@ -85,8 +86,18 @@ type LoggingConfig struct {
 
 // ImageConfig contains image service settings
 type ImageConfig struct {
-	MaxSize int64 `yaml:"max_size" mapstructure:"max_size"`
-	Timeout int   `yaml:"timeout" mapstructure:"timeout"`
+	MaxSize           int64                        `yaml:"max_size" mapstructure:"max_size"`
+	Timeout           int                          `yaml:"timeout" mapstructure:"timeout"`
+	ClipboardOptimize ClipboardImageOptimizeConfig `yaml:"clipboard_optimize" mapstructure:"clipboard_optimize"`
+}
+
+// ClipboardImageOptimizeConfig contains clipboard image optimization settings
+type ClipboardImageOptimizeConfig struct {
+	Enabled     bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxWidth    int  `yaml:"max_width" mapstructure:"max_width"`
+	MaxHeight   int  `yaml:"max_height" mapstructure:"max_height"`
+	Quality     int  `yaml:"quality" mapstructure:"quality"`
+	ConvertJPEG bool `yaml:"convert_jpeg" mapstructure:"convert_jpeg"`
 }
 
 // ToolsConfig contains tool execution settings
@@ -205,14 +216,6 @@ type QueryTaskToolConfig struct {
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
-// DownloadArtifactsToolConfig contains DownloadArtifacts-specific tool settings
-type DownloadArtifactsToolConfig struct {
-	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
-	DownloadDir     string `yaml:"download_dir" mapstructure:"download_dir"`
-	TimeoutSeconds  int    `yaml:"timeout_seconds" mapstructure:"timeout_seconds"`
-	RequireApproval *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
-}
-
 // GithubToolConfig contains GitHub fetch-specific tool settings
 type GithubToolConfig struct {
 	Enabled         bool               `yaml:"enabled" mapstructure:"enabled"`
@@ -255,8 +258,9 @@ type ExportConfig struct {
 
 // CompactConfig contains conversation compaction settings
 type CompactConfig struct {
-	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
-	AutoAt  int  `yaml:"auto_at" mapstructure:"auto_at"`
+	Enabled           bool `yaml:"enabled" mapstructure:"enabled"`
+	AutoAt            int  `yaml:"auto_at" mapstructure:"auto_at"`
+	KeepFirstMessages int  `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
 }
 
 // SystemRemindersConfig contains settings for dynamic system reminders
@@ -294,10 +298,9 @@ type A2AConfig struct {
 
 // A2AToolsConfig contains A2A-specific tool configurations
 type A2AToolsConfig struct {
-	QueryAgent        QueryAgentToolConfig        `yaml:"query_agent" mapstructure:"query_agent"`
-	QueryTask         QueryTaskToolConfig         `yaml:"query_task" mapstructure:"query_task"`
-	SubmitTask        SubmitTaskToolConfig        `yaml:"submit_task" mapstructure:"submit_task"`
-	DownloadArtifacts DownloadArtifactsToolConfig `yaml:"download_artifacts" mapstructure:"download_artifacts"`
+	QueryAgent QueryAgentToolConfig `yaml:"query_agent" mapstructure:"query_agent"`
+	QueryTask  QueryTaskToolConfig  `yaml:"query_task" mapstructure:"query_task"`
+	SubmitTask SubmitTaskToolConfig `yaml:"submit_task" mapstructure:"submit_task"`
 }
 
 // ConversationConfig contains conversation-specific settings
@@ -357,6 +360,7 @@ type StatusBarIndicators struct {
 	A2AAgents        bool `yaml:"a2a_agents" mapstructure:"a2a_agents"`
 	Tools            bool `yaml:"tools" mapstructure:"tools"`
 	BackgroundShells bool `yaml:"background_shells" mapstructure:"background_shells"`
+	A2ATasks         bool `yaml:"a2a_tasks" mapstructure:"a2a_tasks"`
 	MCP              bool `yaml:"mcp" mapstructure:"mcp"`
 	ContextUsage     bool `yaml:"context_usage" mapstructure:"context_usage"`
 	SessionTokens    bool `yaml:"session_tokens" mapstructure:"session_tokens"`
@@ -485,6 +489,7 @@ func GetDefaultStatusBarConfig() StatusBarConfig {
 			A2AAgents:        true,
 			Tools:            true,
 			BackgroundShells: true,
+			A2ATasks:         true,
 			MCP:              true,
 			ContextUsage:     true,
 			SessionTokens:    true,
@@ -597,10 +602,10 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			WebFetch: WebFetchToolConfig{
 				Enabled:            true,
-				WhitelistedDomains: []string{"golang.org"},
+				WhitelistedDomains: []string{"golang.org", "localhost"},
 				Safety: FetchSafetyConfig{
-					MaxSize:       8192, // 8KB
-					Timeout:       30,   // 30 seconds
+					MaxSize:       10485760, // 10MB
+					Timeout:       30,       // 30 seconds
 					AllowRedirect: true,
 				},
 				Cache: FetchCacheConfig{
@@ -638,6 +643,13 @@ func DefaultConfig() *Config { //nolint:funlen
 		Image: ImageConfig{
 			MaxSize: 5242880, // 5MB
 			Timeout: 30,      // 30 seconds
+			ClipboardOptimize: ClipboardImageOptimizeConfig{
+				Enabled:     true,
+				MaxWidth:    1920, // 1920px max width
+				MaxHeight:   1080, // 1080px max height
+				Quality:     75,   // 75% JPEG quality
+				ConvertJPEG: true,
+			},
 		},
 		Export: ExportConfig{
 			OutputDir:    ConfigDirName,
@@ -724,6 +736,15 @@ When asked to implement features or fix issues:
 5. Run lint/format with: task fmt and task lint
 6. Commit changes (only if explicitly asked)
 7. Create a pull request (only if explicitly asked)
+
+A2A ARTIFACT DOWNLOADS:
+When a delegated A2A task completes with artifacts:
+1. Wait for the automatic completion notification
+2. The completion message will show artifact details including Download URLs
+3. Use WebFetch with download=true to automatically save artifacts to disk
+   Example: WebFetch(url="http://agent/artifacts/123/file.png", download=true)
+4. The file will be saved to <configDir>/tmp with filename extracted from URL
+5. Check the tool result for the saved file path
 
 EXAMPLE:
 <user>Can you create a pull request with the changes?</user>
@@ -850,12 +871,6 @@ Respond with ONLY the title, no quotes or explanation.`,
 					Enabled:         true,
 					RequireApproval: &[]bool{true}[0],
 				},
-				DownloadArtifacts: DownloadArtifactsToolConfig{
-					Enabled:         true,
-					DownloadDir:     "/tmp/downloads",
-					TimeoutSeconds:  30,
-					RequireApproval: &[]bool{true}[0],
-				},
 			},
 		},
 		MCP:     *DefaultMCPConfig(),
@@ -888,8 +903,9 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			},
 		},
 		Compact: CompactConfig{
-			Enabled: true,
-			AutoAt:  80,
+			Enabled:           true,
+			AutoAt:            80,
+			KeepFirstMessages: 2,
 		},
 	}
 }
@@ -959,10 +975,6 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		if c.A2A.Tools.SubmitTask.RequireApproval != nil {
 			return *c.A2A.Tools.SubmitTask.RequireApproval
 		}
-	case "A2A_DownloadArtifacts":
-		if c.A2A.Tools.DownloadArtifacts.RequireApproval != nil {
-			return *c.A2A.Tools.DownloadArtifacts.RequireApproval
-		}
 	}
 
 	return globalApproval
@@ -1020,6 +1032,19 @@ func (c *Config) GetIncludeModels() []string {
 
 func (c *Config) GetExcludeModels() []string {
 	return c.Gateway.ExcludeModels
+}
+
+// SetConfigDir sets the configuration directory path
+func (c *Config) SetConfigDir(dir string) {
+	c.configDir = dir
+}
+
+// GetConfigDir returns the configuration directory path
+func (c *Config) GetConfigDir() string {
+	if c.configDir == "" {
+		return ConfigDirName
+	}
+	return c.configDir
 }
 
 // IsBashCommandWhitelisted checks if a specific bash command is whitelisted

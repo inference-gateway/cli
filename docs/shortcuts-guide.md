@@ -43,8 +43,8 @@ These shortcuts are available out of the box:
 - `/clear` - Clear conversation history
 - `/exit` - Exit the chat session
 - `/help [shortcut]` - Show available shortcuts or specific shortcut help
-- `/switch [model]` - Switch to a different model
-- `/theme [theme-name]` - Switch chat interface theme or list available themes
+- `/switch` - Switch to a different model
+- `/theme` - Switch chat interface theme or list available themes
 - `/config <show|get|set|reload> [key] [value]` - Manage configuration settings
 - `/compact` - Immediately compact conversation to reduce token usage
 - `/export [format]` - Export conversation to markdown
@@ -71,15 +71,15 @@ The prompt is configurable in your config file under `init.prompt`. The default 
 
 When you run `infer init`, a `.infer/shortcuts/git.yaml` file is created with common git operations:
 
-- `/git-status` - Show working tree status
-- `/git-pull` - Pull changes from remote repository
-- `/git-push` - Push commits to remote repository
-- `/git-log` - Show commit logs (last 10 commits with graph)
-- `/git-commit` - Generate AI commit message from staged changes
+- `/git status` - Show working tree status
+- `/git pull` - Pull changes from remote repository
+- `/git push` - Push commits to remote repository
+- `/git log` - Show commit logs (last 5 commits)
+- `/git commit` - Generate AI commit message from staged changes
 
 ### AI-Powered Commit Messages
 
-The `/git-commit` shortcut uses the **snippet feature** to generate conventional commit messages:
+The `/git commit` shortcut uses the **snippet feature** to generate conventional commit messages:
 
 1. Analyzes your staged changes (`git diff --cached`)
 2. Sends the diff to the LLM with a prompt to generate a conventional commit message
@@ -92,7 +92,7 @@ The `/git-commit` shortcut uses the **snippet feature** to generate conventional
 git add .
 
 # Generate commit message and commit
-/git-commit
+/git commit
 ```
 
 The AI will generate a commit message following the conventional commit format (e.g.,
@@ -101,7 +101,7 @@ The AI will generate a commit message following the conventional commit format (
 **Requirements:**
 
 - Run `infer init` to create the shortcuts file
-- Stage changes with `git add` before using `/git-commit`
+- Stage changes with `git add` before using `/git commit`
 - The shortcut uses `jq` to format JSON output
 
 ---
@@ -112,13 +112,13 @@ The SCM (Source Control Management) shortcuts provide seamless integration with 
 
 When you run `infer init`, a `.infer/shortcuts/scm.yaml` file is created with the following shortcuts:
 
-- `/scm-issues` - List all GitHub issues for the repository
-- `/scm-issue <number>` - Show details for a specific GitHub issue with comments
-- `/scm-pr-create [optional context]` - Generate AI-powered PR plan with branch name, commit, and description
+- `/scm issues` - List all GitHub issues for the repository
+- `/scm issue <number>` - Show details for a specific GitHub issue with comments
+- `/scm pr-create [optional context]` - Generate AI-powered PR plan with branch name, commit, and description
 
 ### AI-Powered PR Creation
 
-The `/scm-pr-create` shortcut uses the **snippet feature** to analyze your changes and generate a complete PR plan:
+The `/scm pr-create` shortcut uses the **snippet feature** to analyze your changes and generate a complete PR plan:
 
 1. Analyzes staged or unstaged changes (`git diff`)
 2. Sends the diff to the LLM with context about the current and base branches
@@ -134,19 +134,19 @@ This provides a deterministic way to fetch GitHub data and AI assistance for PR 
 
 ```bash
 # List all open issues
-/scm-issues
+/scm issues
 
 # View details for issue #123 including comments
-/scm-issue 123
+/scm issue 123
 
 # Generate PR plan (basic)
-/scm-pr-create
+/scm pr-create
 
 # Generate PR plan with additional context
-/scm-pr-create This fixes the timing issue where conversations were loading too slowly
+/scm pr-create This fixes the timing issue where conversations were loading too slowly
 
 # Generate PR plan with quoted context (for complex explanations)
-/scm-pr-create "This implements user-requested feature for dark mode support"
+/scm pr-create "This implements user-requested feature for dark mode support"
 ```
 
 **Requirements:**
@@ -161,16 +161,19 @@ You can customize these shortcuts by editing `.infer/shortcuts/scm.yaml`:
 
 ```yaml
 shortcuts:
-  - name: scm-issues
-    description: "List all GitHub issues for the repository"
+  - name: scm
+    description: "Source control management operations"
     command: gh
-    args:
-      - issue
-      - list
-      - --json
-      - number,title,state,author,labels,createdAt,updatedAt
-      - --limit
-      - "20"
+    subcommands:
+      - name: issues
+        description: "List all GitHub issues for the repository"
+        args:
+          - issue
+          - list
+          - --json
+          - number,title,state,author,labels,createdAt,updatedAt
+          - --limit
+          - "20"
 ```
 
 **Use Cases:**
@@ -222,37 +225,42 @@ shortcuts:
 
 ### Real-World Example: AI Commit Messages
 
-The `/git-commit` shortcut demonstrates the snippet feature:
+The `/git commit` shortcut demonstrates the snippet feature:
 
 ```yaml
-- name: git-commit
-  description: "Generate AI commit message from staged changes"
-  command: bash
-  args:
-    - -c
-    - |
-      if ! git diff --cached --quiet 2>/dev/null; then
-        diff=$(git diff --cached)
-        jq -n --arg diff "$diff" '{diff: $diff}'
-      else
-        echo '{"error": "No staged changes found."}'
-        exit 1
-      fi
-  snippet:
-    prompt: |
-      Generate a conventional commit message.
+shortcuts:
+  - name: git
+    description: "Common git operations"
+    command: git
+    subcommands:
+      - name: commit
+        description: "Generate AI commit message from staged changes"
+        command: bash
+        args:
+          - -c
+          - |
+            if ! git diff --cached --quiet 2>/dev/null; then
+              diff=$(git diff --cached)
+              jq -n --arg diff "$diff" '{diff: $diff}'
+            else
+              echo '{"error": "No staged changes found."}'
+              exit 1
+            fi
+        snippet:
+          prompt: |
+            Generate a conventional commit message.
 
-      Changes:
-      ```diff
-      {diff}
-      ```
+            Changes:
+            ```diff
+            {diff}
+            ```
 
-      Format: "type: Description"
-      - Type: feat, fix, docs, refactor, etc.
-      - Description: "Capital first letter, under 50 chars"
+            Format: "type: Description"
+            - Type: feat, fix, docs, refactor, etc.
+            - Description: "Capital first letter, under 50 chars"
 
-      Output ONLY the commit message.
-    template: "!git commit -m \"{llm}\""
+            Output ONLY the commit message.
+          template: "!git commit -m \"{llm}\""
 ```
 
 **How This Works:**

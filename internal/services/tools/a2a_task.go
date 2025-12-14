@@ -476,7 +476,6 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 				Success:    false,
 				Message:    fmt.Sprintf("Task %s", currentTask.Status.State),
 				TaskResult: finalResult,
-				Task:       &currentTask,
 			},
 		}
 		return true, result
@@ -499,7 +498,28 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 				Success:    true,
 				Message:    fmt.Sprintf("Task requires input: %s", inputMessage),
 				TaskResult: inputMessage,
-				Task:       &currentTask,
+			},
+		}
+		return true, result
+
+	case adk.TaskStateCanceled:
+		cancelMessage := ""
+		if currentTask.Status.Message != nil {
+			cancelMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
+		}
+
+		result := &domain.ToolExecutionResult{
+			ToolName: "A2A_SubmitTask",
+			Success:  false,
+			Duration: time.Since(state.StartedAt),
+			Data: A2ASubmitTaskResult{
+				TaskID:     currentTask.ID,
+				ContextID:  currentTask.ContextID,
+				AgentURL:   agentURL,
+				State:      string(currentTask.Status.State),
+				Success:    false,
+				Message:    fmt.Sprintf("Task was canceled: %s", cancelMessage),
+				TaskResult: cancelMessage,
 			},
 		}
 		return true, result
@@ -567,8 +587,7 @@ func (t *A2ASubmitTaskTool) FormatForLLM(result *domain.ToolExecutionResult) str
 	output.WriteString(t.formatter.FormatExpandedHeader(result))
 
 	if result.Data != nil {
-		dataContent := t.formatter.FormatAsJSON(result.Data)
-		hasMetadata := len(result.Metadata) > 0
+		dataContent, hasMetadata := t.formatA2ATaskData(result.Data, result.Metadata)
 		output.WriteString(t.formatter.FormatDataSection(dataContent, hasMetadata))
 	}
 
@@ -576,6 +595,62 @@ func (t *A2ASubmitTaskTool) FormatForLLM(result *domain.ToolExecutionResult) str
 	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
 
 	return output.String()
+}
+
+// formatA2ATaskData formats the task data content and returns it along with metadata presence
+func (t *A2ASubmitTaskTool) formatA2ATaskData(data any, metadata map[string]string) (string, bool) {
+	taskData, ok := data.(A2ASubmitTaskResult)
+	if !ok {
+		dataContent := t.formatter.FormatAsJSON(data)
+		hasMetadata := len(metadata) > 0
+		return dataContent, hasMetadata
+	}
+
+	var dataContent strings.Builder
+	dataContent.WriteString(fmt.Sprintf("Task ID: %s\n", taskData.TaskID))
+	if taskData.ContextID != "" {
+		dataContent.WriteString(fmt.Sprintf("Context ID: %s\n", taskData.ContextID))
+	}
+	dataContent.WriteString(fmt.Sprintf("State: %s\n", taskData.State))
+	if taskData.TaskResult != "" {
+		dataContent.WriteString(fmt.Sprintf("\n%s", taskData.TaskResult))
+	}
+
+	if taskData.Task != nil && len(taskData.Task.Artifacts) > 0 {
+		dataContent.WriteString(fmt.Sprintf("\n\nArtifacts Available: %d\n", len(taskData.Task.Artifacts)))
+		for i, artifact := range taskData.Task.Artifacts {
+			t.formatArtifact(&dataContent, i+1, artifact)
+		}
+		dataContent.WriteString("\nTo download artifacts: Use WebFetch tool with the Download URL from each artifact above.\n")
+	}
+
+	hasMetadata := len(metadata) > 0
+	return dataContent.String(), hasMetadata
+}
+
+// formatArtifact formats a single artifact for display
+func (t *A2ASubmitTaskTool) formatArtifact(builder *strings.Builder, index int, artifact adk.Artifact) {
+	artifactName := "unnamed"
+	if artifact.Name != nil {
+		artifactName = *artifact.Name
+	}
+	fmt.Fprintf(builder, "%d. %s (ID: %s)", index, artifactName, artifact.ArtifactID)
+
+	if artifact.Metadata == nil {
+		builder.WriteString("\n")
+		return
+	}
+
+	if mimeType, ok := artifact.Metadata["mime_type"].(string); ok {
+		fmt.Fprintf(builder, ", Type: %s", mimeType)
+	}
+	if size, ok := artifact.Metadata["size"].(float64); ok {
+		fmt.Fprintf(builder, ", Size: %d bytes", int64(size))
+	}
+	if url, ok := artifact.Metadata["url"].(string); ok {
+		fmt.Fprintf(builder, "\n   Download URL: %s", url)
+	}
+	builder.WriteString("\n")
 }
 
 // FormatPreview returns a short preview of the result for UI display

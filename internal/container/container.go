@@ -104,6 +104,8 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 		container.configService = services.NewConfigService(v[0], cfg)
 	}
 
+	cfg.SetConfigDir(container.determineConfigDirectory())
+
 	container.initializeGatewayManager()
 	container.initializeFileWriterServices()
 	container.initializeStateManager()
@@ -248,12 +250,13 @@ func (c *ServiceContainer) initializeDomainServices() {
 		summaryClient := c.createSDKClient()
 		tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 		c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
-			Enabled:    c.config.Compact.Enabled,
-			AutoAt:     c.config.Compact.AutoAt,
-			BufferSize: 2,
-			Client:     summaryClient,
-			Config:     c.config,
-			Tokenizer:  tokenizer,
+			Enabled:           c.config.Compact.Enabled,
+			AutoAt:            c.config.Compact.AutoAt,
+			BufferSize:        2,
+			KeepFirstMessages: c.config.Compact.KeepFirstMessages,
+			Client:            summaryClient,
+			Config:            c.config,
+			Tokenizer:         tokenizer,
 		})
 	}
 
@@ -318,6 +321,7 @@ func (c *ServiceContainer) registerDefaultCommands() {
 	c.shortcutRegistry.Register(shortcuts.NewCostShortcut(c.conversationRepo))
 	c.shortcutRegistry.Register(shortcuts.NewExitShortcut())
 	c.shortcutRegistry.Register(shortcuts.NewSwitchShortcut(c.modelService))
+	c.shortcutRegistry.Register(shortcuts.NewModelShortcut(c.modelService))
 	c.shortcutRegistry.Register(shortcuts.NewThemeShortcut(c.themeService))
 	c.shortcutRegistry.Register(shortcuts.NewHelpShortcut(c.shortcutRegistry))
 
@@ -332,12 +336,6 @@ func (c *ServiceContainer) registerDefaultCommands() {
 
 	if c.config.IsA2AToolsEnabled() {
 		c.shortcutRegistry.Register(shortcuts.NewA2ATaskManagementShortcut(c.config))
-	}
-
-	if c.configService != nil {
-		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, c.configService.Reload, c.configService, c.modelService))
-	} else {
-		c.shortcutRegistry.Register(shortcuts.NewConfigShortcut(c.config, nil, nil, c.modelService))
 	}
 
 	configDir := c.determineConfigDirectory()

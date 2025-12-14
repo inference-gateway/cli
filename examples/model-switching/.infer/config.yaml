@@ -97,9 +97,8 @@ tools:
     enabled: true
     whitelisted_domains:
       - golang.org
-      - localhost
     safety:
-      max_size: 10485760
+      max_size: 8192
       timeout: 30
       allow_redirect: true
     cache:
@@ -130,12 +129,6 @@ tools:
 image:
   max_size: 5242880
   timeout: 30
-  clipboard_optimize:
-    enabled: true
-    max_width: 1920
-    max_height: 1080
-    quality: 75
-    convert_jpeg: true
 export:
   output_dir: .infer
   summary_model: ""
@@ -173,15 +166,6 @@ agent:
     5. Run lint/format with: task fmt and task lint
     6. Commit changes (only if explicitly asked)
     7. Create a pull request (only if explicitly asked)
-
-    A2A ARTIFACT DOWNLOADS:
-    When a delegated A2A task completes with artifacts:
-    1. Wait for the automatic completion notification
-    2. The completion message will show artifact details including Download URLs
-    3. Use WebFetch with download=true to automatically save artifacts to disk
-       Example: WebFetch(url="http://agent/artifacts/123/file.png", download=true)
-    4. The file will be saved to <configDir>/tmp with filename extracted from URL
-    5. Check the tool result for the saved file path
 
     EXAMPLE:
     <user>Can you create a pull request with the changes?</user>
@@ -546,7 +530,6 @@ chat:
       a2a_agents: true
       tools: true
       background_shells: true
-      a2a_tasks: true
       mcp: true
       context_usage: true
       session_tokens: true
@@ -574,6 +557,11 @@ a2a:
       require_approval: false
     submit_task:
       enabled: true
+      require_approval: true
+    download_artifacts:
+      enabled: true
+      download_dir: /tmp/downloads
+      timeout_seconds: 30
       require_approval: true
 mcp:
   enabled: false
@@ -606,4 +594,3 @@ init:
 compact:
   enabled: true
   auto_at: 80
-  keep_first_messages: 2

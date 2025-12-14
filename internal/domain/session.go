@@ -9,8 +9,8 @@ import (
 )
 
 // SessionID represents a unique identifier for a chat session.
-// Format: {unix-timestamp}-{4-char-random-hex}
-// Example: 1733678400-a3f2
+// Format: {unix-timestamp}-{8-char-random-hex}
+// Example: 1733678400-a3f2bc8d
 type SessionID string
 
 // GenerateSessionID creates a new unique session identifier.
@@ -19,7 +19,7 @@ type SessionID string
 func GenerateSessionID() SessionID {
 	timestamp := time.Now().Unix()
 
-	randomBytes := make([]byte, 2)
+	randomBytes := make([]byte, 4)
 	if _, err := rand.Read(randomBytes); err != nil {
 		return SessionID(fmt.Sprintf("%d", timestamp))
 	}

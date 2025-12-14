@@ -88,6 +88,9 @@ type ChatApplication struct {
 
 	// Available models
 	availableModels []string
+
+	// Configuration
+	configDir string
 }
 
 // nolint: funlen // NewChatApplication creates a new chat application
@@ -164,6 +167,7 @@ func NewChatApplication(
 	if configPath != "" {
 		configDir = filepath.Dir(configPath)
 	}
+	app.configDir = configDir
 
 	app.inputView = factory.CreateInputViewWithConfigDir(app.modelService, configDir)
 	if iv, ok := app.inputView.(*components.InputView); ok {
@@ -174,7 +178,7 @@ func NewChatApplication(
 		iv.SetConversationRepo(app.conversationRepo)
 	}
 
-	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService)
+	app.autocomplete = factory.CreateAutocomplete(app.shortcutRegistry, app.toolService, app.modelService, app.pricingService)
 	if ac, ok := app.autocomplete.(*autocomplete.AutocompleteImpl); ok {
 		ac.SetStateManager(app.stateManager)
 	}
@@ -189,6 +193,7 @@ func NewChatApplication(
 		isb.SetToolService(app.toolService)
 		isb.SetTokenEstimator(services.NewTokenizerService(services.DefaultTokenizerConfig()))
 		isb.SetBackgroundShellService(app.toolRegistry.GetBackgroundShellService())
+		isb.SetBackgroundTaskService(app.backgroundTaskService)
 	}
 
 	app.statusView = factory.CreateStatusView(app.themeService)
@@ -989,19 +994,6 @@ func (app *ChatApplication) handleA2ATaskManagementCancelled(cmds []tea.Cmd) []t
 
 	app.focusedComponent = app.inputView
 
-	if app.backgroundTaskService != nil {
-		backgroundTasks := app.backgroundTaskService.GetBackgroundTasks()
-		if len(backgroundTasks) > 0 {
-			cmds = append(cmds, func() tea.Msg {
-				return domain.SetStatusEvent{
-					Message:    fmt.Sprintf("Background tasks running (%d)", len(backgroundTasks)),
-					Spinner:    true,
-					StatusType: domain.StatusDefault,
-				}
-			})
-		}
-	}
-
 	return cmds
 }
 
@@ -1127,18 +1119,12 @@ func (app *ChatApplication) renderChatInterface() string {
 	width, height := app.stateManager.GetDimensions()
 	queuedMessages := app.messageQueue.GetAll()
 
-	var backgroundTasks []domain.TaskPollingState
-	if app.backgroundTaskService != nil {
-		backgroundTasks = app.backgroundTaskService.GetBackgroundTasks()
-	}
-
 	data := components.ChatInterfaceData{
-		Width:           width,
-		Height:          height,
-		ToolExecution:   app.stateManager.GetToolExecution(),
-		CurrentView:     app.stateManager.GetCurrentView(),
-		QueuedMessages:  queuedMessages,
-		BackgroundTasks: backgroundTasks,
+		Width:          width,
+		Height:         height,
+		ToolExecution:  app.stateManager.GetToolExecution(),
+		CurrentView:    app.stateManager.GetCurrentView(),
+		QueuedMessages: queuedMessages,
 	}
 
 	chatInterface := app.applicationViewRenderer.RenderChatInterface(
@@ -1273,7 +1259,7 @@ func (app *ChatApplication) updateUIComponents(msg tea.Msg) []tea.Cmd {
 
 	app.handleTodoEvents(msg, &cmds)
 
-	app.handleAutocompleteEvents(msg)
+	app.handleAutocompleteEvents(msg, &cmds)
 
 	return cmds
 }
@@ -1427,7 +1413,7 @@ func (app *ChatApplication) handleTodoEvents(msg tea.Msg, cmds *[]tea.Cmd) {
 }
 
 // handleAutocompleteEvents handles autocomplete-related events
-func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg) {
+func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg, cmds *[]tea.Cmd) {
 	if app.autocomplete == nil {
 		return
 	}
@@ -1435,6 +1421,19 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg) {
 	switch acMsg := msg.(type) {
 	case domain.AutocompleteUpdateEvent:
 		app.autocomplete.Update(acMsg.Text, acMsg.CursorPos)
+
+		if len(acMsg.Text) > 0 && strings.HasSuffix(acMsg.Text, " ") {
+			autocompleteHint := app.autocomplete.GetUsageHint()
+			currentInputHint := app.inputView.GetUsageHint()
+			if autocompleteHint != "" && currentInputHint != autocompleteHint {
+				app.inputView.SetUsageHint(autocompleteHint)
+			}
+		} else if len(acMsg.Text) > 0 {
+			currentHint := app.inputView.GetUsageHint()
+			if currentHint != "" {
+				app.inputView.SetUsageHint("")
+			}
+		}
 
 	case domain.AutocompleteHideEvent:
 		app.autocomplete.Hide()
@@ -1447,16 +1446,32 @@ func (app *ChatApplication) handleAutocompleteEvents(msg tea.Msg) {
 			} else {
 				app.inputView.SetCursor(len(acMsg.Completion))
 			}
+
+			usageHint := app.autocomplete.GetUsageHint()
+			app.inputView.SetUsageHint(usageHint)
 		}
-		app.autocomplete.Hide()
+
+		if acMsg.ExecuteImmediately {
+			app.autocomplete.Hide()
+			app.autocomplete.ClearUsageHint()
+			app.inputView.SetUsageHint("")
+			*cmds = append(*cmds, app.SendMessage())
+			return
+		}
+
+		text := app.inputView.GetInput()
+		cursor := app.inputView.GetCursor()
+		app.autocomplete.Update(text, cursor)
 
 	case domain.RefreshAutocompleteEvent:
 		text := app.inputView.GetInput()
 		cursor := app.inputView.GetCursor()
 		app.autocomplete.Update(text, cursor)
+		app.inputView.SetUsageHint("")
 
 	case domain.ClearInputEvent:
 		app.autocomplete.Hide()
+		app.inputView.SetUsageHint("")
 	}
 }
 
@@ -1478,6 +1493,11 @@ func (app *ChatApplication) GetImageService() domain.ImageService {
 // GetConfig returns the configuration for keybinding context
 func (app *ChatApplication) GetConfig() *config.Config {
 	return app.configService
+}
+
+// GetConfigDir returns the configuration directory path
+func (app *ChatApplication) GetConfigDir() string {
+	return app.configDir
 }
 
 // GetStateManager returns the current state manager
@@ -1530,6 +1550,14 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 	app.inputView.ClearInput()
 
 	app.conversationView.ResetUserScroll()
+
+	for _, img := range images {
+		if img.SourcePath != "" {
+			if err := os.Remove(img.SourcePath); err != nil {
+				logger.Warn("Failed to clean up temporary image file %s: %v", img.SourcePath, err)
+			}
+		}
+	}
 
 	return func() tea.Msg {
 		return domain.UserInputEvent{

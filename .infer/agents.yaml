@@ -5,3 +5,12 @@ agents:
     run: true
     model: deepseek/deepseek-chat
     enabled: true
+  - name: browser-agent
+    url: http://localhost:8083
+    artifacts_url: http://localhost:8084
+    oci: ghcr.io/inference-gateway/browser-agent:latest
+    run: true
+    model: deepseek/deepseek-chat
+    environment:
+      A2A_AGENT_CLIENT_TOOLS_CREATE_ARTIFACT: "true"
+    enabled: true

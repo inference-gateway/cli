@@ -15,22 +15,24 @@ import (
 
 // ConversationOptimizer provides methods to optimize conversation history for token efficiency
 type ConversationOptimizer struct {
-	enabled    bool
-	autoAt     int
-	bufferSize int
-	client     sdk.Client
-	config     *config.Config
-	tokenizer  *TokenizerService
+	enabled           bool
+	autoAt            int
+	bufferSize        int
+	keepFirstMessages int
+	client            sdk.Client
+	config            *config.Config
+	tokenizer         *TokenizerService
 }
 
 // OptimizerConfig represents configuration for the conversation optimizer
 type OptimizerConfig struct {
-	Enabled    bool
-	AutoAt     int
-	BufferSize int
-	Client     sdk.Client
-	Config     *config.Config
-	Tokenizer  *TokenizerService
+	Enabled           bool
+	AutoAt            int
+	BufferSize        int
+	KeepFirstMessages int
+	Client            sdk.Client
+	Config            *config.Config
+	Tokenizer         *TokenizerService
 }
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration
@@ -42,6 +44,9 @@ func NewConversationOptimizer(config OptimizerConfig) *ConversationOptimizer {
 	if config.BufferSize <= 0 {
 		config.BufferSize = 2
 	}
+	if config.KeepFirstMessages <= 0 {
+		config.KeepFirstMessages = 2
+	}
 
 	tokenizer := config.Tokenizer
 	if tokenizer == nil {
@@ -49,12 +54,13 @@ func NewConversationOptimizer(config OptimizerConfig) *ConversationOptimizer {
 	}
 
 	return &ConversationOptimizer{
-		enabled:    config.Enabled,
-		autoAt:     config.AutoAt,
-		bufferSize: config.BufferSize,
-		client:     config.Client,
-		config:     config.Config,
-		tokenizer:  tokenizer,
+		enabled:           config.Enabled,
+		autoAt:            config.AutoAt,
+		bufferSize:        config.BufferSize,
+		keepFirstMessages: config.KeepFirstMessages,
+		client:            config.Client,
+		config:            config.Config,
+		tokenizer:         tokenizer,
 	}
 }
 
@@ -107,48 +113,33 @@ func (co *ConversationOptimizer) OptimizeMessagesWithModel(messages []sdk.Messag
 }
 
 // smartOptimize implements the smart optimization strategy
-// It keeps the first user message (root context), summarizes the middle, and preserves recent context
+// It keeps the first N messages (default 2) and summarizes the rest
 func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model string) ([]sdk.Message, error) {
-	if len(messages) < 3 {
+	minMessages := co.keepFirstMessages + 1
+	if len(messages) < minMessages {
 		return messages, nil
 	}
 
-	var result []sdk.Message
-	var firstUserIndex = -1
-	for i, msg := range messages {
-		if msg.Role == "user" {
-			firstUserIndex = i
-			result = append(result, msg)
-			break
-		}
-	}
+	result := make([]sdk.Message, co.keepFirstMessages)
+	copy(result, messages[:co.keepFirstMessages])
 
-	if firstUserIndex == -1 {
+	summaryStartIndex := co.keepFirstMessages
+
+	summaryStartIndex = co.adjustBoundaryForToolCallsAtStart(messages, summaryStartIndex)
+
+	if summaryStartIndex >= len(messages) {
 		return messages, nil
 	}
 
-	if len(messages) <= co.bufferSize+1 {
+	messagesToSummarize := messages[summaryStartIndex:]
+
+	if len(messagesToSummarize) == 0 {
 		return messages, nil
 	}
-
-	lastMessagesStart := len(messages) - co.bufferSize
-
-	if co.hasUnresolvedToolCallsAtBoundary(messages, lastMessagesStart) {
-		lastMessagesStart++
-	}
-
-	lastMessagesStart = co.adjustBoundaryForToolCalls(messages, lastMessagesStart)
-
-	if lastMessagesStart <= firstUserIndex+1 {
-		return messages, nil
-	}
-
-	messagesToSummarize := messages[firstUserIndex+1 : lastMessagesStart]
 
 	if co.client == nil {
 		return nil, fmt.Errorf("LLM client is required for conversation compaction")
 	}
-
 	if model == "" {
 		return nil, fmt.Errorf("model is required for conversation compaction")
 	}
@@ -172,79 +163,46 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model str
 		result = append(result, summaryMsg)
 	}
 
-	result = append(result, messages[lastMessagesStart:]...)
-
 	return result, nil
 }
 
-// hasUnresolvedToolCallsAtBoundary checks if there are unresolved tool calls at the boundary
-func (co *ConversationOptimizer) hasUnresolvedToolCallsAtBoundary(messages []sdk.Message, boundaryIndex int) bool {
-	if boundaryIndex >= len(messages) || messages[boundaryIndex].Role != "assistant" {
-		return false
+// adjustBoundaryForToolCallsAtStart ensures tool call/response pairs aren't split
+// at the start boundary. If the last kept message has tool calls with responses
+// beyond the boundary, we need to include those responses before summarization.
+func (co *ConversationOptimizer) adjustBoundaryForToolCallsAtStart(messages []sdk.Message, boundaryIndex int) int {
+	if boundaryIndex <= 0 || boundaryIndex >= len(messages) {
+		return boundaryIndex
 	}
-	if messages[boundaryIndex].ToolCalls == nil || len(*messages[boundaryIndex].ToolCalls) == 0 {
-		return false
+
+	lastKeptMsg := messages[boundaryIndex-1]
+	if lastKeptMsg.Role != "assistant" || lastKeptMsg.ToolCalls == nil || len(*lastKeptMsg.ToolCalls) == 0 {
+		return boundaryIndex
 	}
 
 	toolCallIDs := make(map[string]bool)
-	for _, tc := range *messages[boundaryIndex].ToolCalls {
+	for _, tc := range *lastKeptMsg.ToolCalls {
 		if tc.Id != "" {
 			toolCallIDs[tc.Id] = true
 		}
 	}
 
-	for i := boundaryIndex + 1; i < len(messages); i++ {
+	adjustedBoundary := boundaryIndex
+	for i := boundaryIndex; i < len(messages); i++ {
 		if messages[i].Role == "tool" && messages[i].ToolCallId != nil {
-			delete(toolCallIDs, *messages[i].ToolCallId)
+			if toolCallIDs[*messages[i].ToolCallId] {
+				adjustedBoundary = i + 1
+				delete(toolCallIDs, *messages[i].ToolCallId)
+			}
 		} else if messages[i].Role == "assistant" || messages[i].Role == "user" {
 			break
 		}
 	}
 
-	return len(toolCallIDs) > 0
-}
-
-// adjustBoundaryForToolCalls adjusts the boundary to ensure tool call/response pairs are preserved
-func (co *ConversationOptimizer) adjustBoundaryForToolCalls(messages []sdk.Message, boundaryIndex int) int {
-	adjustedBoundary := boundaryIndex
-
-	for i := boundaryIndex; i < len(messages); i++ {
-		if messages[i].Role == "tool" && messages[i].ToolCallId != nil {
-			if !co.hasMatchingAssistant(messages, boundaryIndex, i, *messages[i].ToolCallId) {
-				adjustedBoundary = co.findMatchingAssistant(messages, boundaryIndex, *messages[i].ToolCallId)
-			}
-		}
+	if len(toolCallIDs) > 0 {
+		logger.Warn("Found unresolved tool calls at compaction boundary", "count", len(toolCallIDs))
 	}
 
 	return adjustedBoundary
-}
-
-// hasMatchingAssistant checks if there's a matching assistant message for a tool call
-func (co *ConversationOptimizer) hasMatchingAssistant(messages []sdk.Message, startIndex, currentIndex int, toolCallID string) bool {
-	for j := startIndex; j < currentIndex; j++ {
-		if messages[j].Role == "assistant" && messages[j].ToolCalls != nil {
-			for _, tc := range *messages[j].ToolCalls {
-				if tc.Id != "" && tc.Id == toolCallID {
-					return true
-				}
-			}
-		}
-	}
-	return false
-}
-
-// findMatchingAssistant finds the index of the assistant message that contains the tool call
-func (co *ConversationOptimizer) findMatchingAssistant(messages []sdk.Message, boundaryIndex int, toolCallID string) int {
-	for j := boundaryIndex - 1; j >= 0; j-- {
-		if messages[j].Role == "assistant" && messages[j].ToolCalls != nil {
-			for _, tc := range *messages[j].ToolCalls {
-				if tc.Id != "" && tc.Id == toolCallID {
-					return j
-				}
-			}
-		}
-	}
-	return boundaryIndex
 }
 
 // generateLLMSummary uses the SDK client to generate an intelligent summary

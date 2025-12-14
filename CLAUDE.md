@@ -553,7 +553,7 @@ infer conversations list
 Enables task delegation to specialized agents:
 
 - Configuration in `.infer/agents.yaml`
-- Tools: `A2A_SubmitTask`, `A2A_QueryAgent`, `A2A_QueryTask`, `A2A_DownloadArtifacts`
+- Tools: `A2A_SubmitTask`, `A2A_QueryAgent`, `A2A_QueryTask`
 - Background task monitoring with exponential backoff polling
 
 ### MCP (Model Context Protocol) Integration
@@ -672,8 +672,8 @@ infer mcp toggle <name>
 User-defined commands in `.infer/shortcuts/`:
 
 - Built-in: `/clear`, `/exit`, `/help`, `/switch`, `/theme`
-- Git: `/git-status`, `/git-commit`, `/git-push`
-- SCM: `/scm-issues`, `/scm-pr-create`
+- Git: `/git status`, `/git commit`, `/git push`
+- SCM: `/scm issues`, `/scm pr-create`
 - Custom: `custom-*.yaml` files in shortcuts directory
 
 **AI-powered snippets**: Execute commands, send output to LLM, use response in template

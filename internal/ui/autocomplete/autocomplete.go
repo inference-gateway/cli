@@ -1,6 +1,7 @@
 package autocomplete
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -26,22 +27,24 @@ type ShortcutRegistry interface {
 
 // AutocompleteImpl implements inline autocomplete functionality
 type AutocompleteImpl struct {
-	suggestions      []ShortcutOption
-	filtered         []ShortcutOption
-	selected         int
-	visible          bool
-	query            string
-	theme            ui.Theme
-	width            int
-	height           int
-	maxVisible       int
-	shortcutRegistry ShortcutRegistry
-	stateManager     domain.StateManager
-	lastAgentMode    domain.AgentMode
-	toolService      interface {
-		ListAvailableTools() []string
-		ListTools() []sdk.ChatCompletionTool
-	}
+	suggestions              []ShortcutOption
+	filtered                 []ShortcutOption
+	selected                 int
+	visible                  bool
+	query                    string
+	theme                    ui.Theme
+	width                    int
+	height                   int
+	maxVisible               int
+	shortcutRegistry         ShortcutRegistry
+	stateManager             domain.StateManager
+	lastAgentMode            domain.AgentMode
+	toolService              domain.ToolService
+	modelService             domain.ModelService
+	pricingService           domain.PricingService
+	completionMode           string
+	shouldExecuteImmediately bool
+	usageHint                string
 }
 
 // NewAutocomplete creates a new autocomplete component
@@ -61,16 +64,50 @@ func NewAutocomplete(theme ui.Theme, shortcutRegistry ShortcutRegistry) *Autocom
 }
 
 // SetToolService sets the tool service for tool autocomplete
-func (a *AutocompleteImpl) SetToolService(toolService interface {
-	ListAvailableTools() []string
-	ListTools() []sdk.ChatCompletionTool
-}) {
+func (a *AutocompleteImpl) SetToolService(toolService domain.ToolService) {
 	a.toolService = toolService
 }
 
 // SetStateManager sets the state manager for agent mode filtering
 func (a *AutocompleteImpl) SetStateManager(stateManager domain.StateManager) {
 	a.stateManager = stateManager
+}
+
+// SetModelService sets the model service for model autocomplete
+func (a *AutocompleteImpl) SetModelService(modelService domain.ModelService) {
+	a.modelService = modelService
+}
+
+// SetPricingService sets the pricing service for model pricing display
+func (a *AutocompleteImpl) SetPricingService(pricingService domain.PricingService) {
+	a.pricingService = pricingService
+}
+
+// loadModels loads available models from the model service
+func (a *AutocompleteImpl) loadModels() {
+	if a.modelService == nil {
+		return
+	}
+
+	a.suggestions = []ShortcutOption{}
+	ctx := context.Background()
+
+	models, err := a.modelService.ListModels(ctx)
+	if err != nil {
+		return
+	}
+
+	for _, model := range models {
+		description := ""
+		if a.pricingService != nil {
+			description = a.pricingService.FormatModelPricing(model)
+		}
+		a.suggestions = append(a.suggestions, ShortcutOption{
+			Shortcut:    model,
+			Description: description,
+			Usage:       "",
+		})
+	}
 }
 
 // loadShortcuts loads shortcuts from the registry
@@ -88,6 +125,37 @@ func (a *AutocompleteImpl) loadShortcuts() {
 			Description: shortcut.GetDescription(),
 			Usage:       shortcut.GetUsage(),
 		})
+	}
+}
+
+// SubcommandProvider is an interface for shortcuts that provide subcommands
+type SubcommandProvider interface {
+	GetSubcommands() []shortcuts.Subcommand
+}
+
+// loadSubcommands loads subcommands for a specific shortcut
+func (a *AutocompleteImpl) loadSubcommands(shortcutName string) {
+	if a.shortcutRegistry == nil {
+		return
+	}
+
+	a.suggestions = []ShortcutOption{}
+	allShortcuts := a.shortcutRegistry.GetAll()
+
+	for _, shortcut := range allShortcuts {
+		if shortcut.GetName() == shortcutName {
+			if provider, ok := shortcut.(SubcommandProvider); ok {
+				subcommands := provider.GetSubcommands()
+				for _, subCmd := range subcommands {
+					a.suggestions = append(a.suggestions, ShortcutOption{
+						Shortcut:    subCmd.Name,
+						Description: subCmd.Description,
+						Usage:       fmt.Sprintf("/%s %s", shortcutName, subCmd.Name),
+					})
+				}
+			}
+			break
+		}
 	}
 }
 
@@ -234,15 +302,27 @@ func (a *AutocompleteImpl) generateArgumentTemplate(paramName string, properties
 // Update handles autocomplete logic
 func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 	switch {
+	case strings.HasPrefix(inputText, "/model ") && cursorPos >= 7:
+		if a.completionMode != "models" || len(a.suggestions) == 0 {
+			a.loadModels()
+			a.completionMode = "models"
+		}
+		a.query = inputText[7:cursorPos]
+		a.filterSuggestions()
+		a.visible = len(a.filtered) > 0
+		if a.selected >= len(a.filtered) {
+			a.selected = 0
+		}
 	case strings.HasPrefix(inputText, "!!") && cursorPos >= 2:
 		var currentMode domain.AgentMode
 		if a.stateManager != nil {
 			currentMode = a.stateManager.GetAgentMode()
 		}
 
-		if currentMode != a.lastAgentMode || len(a.suggestions) == 0 || !strings.HasPrefix(a.suggestions[0].Shortcut, "!!") {
+		if currentMode != a.lastAgentMode || len(a.suggestions) == 0 || a.completionMode != "tools" {
 			a.loadTools()
 			a.lastAgentMode = currentMode
+			a.completionMode = "tools"
 		}
 
 		a.query = inputText[2:cursorPos]
@@ -252,20 +332,53 @@ func (a *AutocompleteImpl) Update(inputText string, cursorPos int) {
 			a.selected = 0
 		}
 	case strings.HasPrefix(inputText, "/") && cursorPos >= 1:
-		if len(a.suggestions) == 0 || (len(a.suggestions) > 0 && !strings.HasPrefix(a.suggestions[0].Shortcut, "/")) {
-			a.loadShortcuts()
-		}
-		a.query = inputText[1:cursorPos]
-		a.filterSuggestions()
-		a.visible = len(a.filtered) > 0
-		if a.selected >= len(a.filtered) {
-			a.selected = 0
+		parts := strings.SplitN(inputText[:cursorPos], " ", 2)
+		if len(parts) == 2 && parts[0] != "/model" {
+			a.handleSubcommandCompletion(parts)
+		} else {
+			a.handleShortcutCompletion(inputText, cursorPos)
 		}
 	default:
 		a.visible = false
 		a.filtered = []ShortcutOption{}
 		a.selected = 0
+		a.completionMode = ""
+		a.usageHint = ""
 	}
+}
+
+// handleSubcommandCompletion handles autocomplete for subcommands
+func (a *AutocompleteImpl) handleSubcommandCompletion(parts []string) {
+	shortcutName := strings.TrimPrefix(parts[0], "/")
+	subcommandMode := "subcommand:" + shortcutName
+
+	if a.completionMode != subcommandMode {
+		a.loadSubcommands(shortcutName)
+		a.completionMode = subcommandMode
+		a.usageHint = ""
+	}
+
+	a.query = parts[1]
+	a.filterSuggestions()
+	a.visible = len(a.filtered) > 0
+	if a.selected >= len(a.filtered) {
+		a.selected = 0
+	}
+}
+
+// handleShortcutCompletion handles autocomplete for shortcuts
+func (a *AutocompleteImpl) handleShortcutCompletion(inputText string, cursorPos int) {
+	if len(a.suggestions) == 0 || a.completionMode != "shortcuts" {
+		a.loadShortcuts()
+		a.completionMode = "shortcuts"
+	}
+	a.query = inputText[1:cursorPos]
+	a.filterSuggestions()
+	a.visible = len(a.filtered) > 0
+	if a.selected >= len(a.filtered) {
+		a.selected = 0
+	}
+	a.usageHint = ""
 }
 
 // filterSuggestions filters commands based on current query
@@ -318,12 +431,10 @@ func (a *AutocompleteImpl) HandleKey(key tea.KeyMsg) (bool, string) {
 		return true, ""
 
 	case "tab", "enter":
-		if a.selected < len(a.filtered) {
-			selected := a.filtered[a.selected].Shortcut
-			a.visible = false
-			return true, selected
+		if a.selected >= len(a.filtered) {
+			return true, ""
 		}
-		return true, ""
+		return a.handleSelection()
 
 	case "esc":
 		a.visible = false
@@ -336,6 +447,125 @@ func (a *AutocompleteImpl) HandleKey(key tea.KeyMsg) (bool, string) {
 // IsVisible returns whether autocomplete is currently visible
 func (a *AutocompleteImpl) IsVisible() bool {
 	return a.visible
+}
+
+// ShouldExecuteImmediately returns whether the last selected shortcut should execute immediately
+func (a *AutocompleteImpl) ShouldExecuteImmediately() bool {
+	return a.shouldExecuteImmediately
+}
+
+// handleSelection handles the selected autocomplete item
+func (a *AutocompleteImpl) handleSelection() (bool, string) {
+	selected := a.filtered[a.selected].Shortcut
+	usage := a.filtered[a.selected].Usage
+	a.shouldExecuteImmediately = false
+
+	if a.completionMode == "models" {
+		selected = "/model " + selected + " "
+		a.visible = false
+		return true, selected
+	}
+
+	if a.completionMode == "shortcuts" && selected == "/model" {
+		selected = selected + " "
+		a.loadModels()
+		a.completionMode = "models"
+		a.query = ""
+		a.filterSuggestions()
+		a.visible = len(a.filtered) > 0
+		return true, selected
+	}
+
+	if strings.HasPrefix(a.completionMode, "subcommand:") {
+		if usage != "" {
+			selected = usage
+		}
+
+		description := a.filtered[a.selected].Description
+		requiresArgs := strings.Contains(description, "<") || strings.Contains(description, "[")
+
+		if requiresArgs {
+			selected = selected + " "
+			a.shouldExecuteImmediately = false
+			a.usageHint = a.extractUsageHint(description)
+		} else {
+			a.shouldExecuteImmediately = true
+			a.usageHint = ""
+		}
+
+		a.visible = false
+		return true, selected
+	}
+
+	if a.completionMode == "shortcuts" {
+		hasSubcommands := a.hasSubcommands(selected)
+
+		if hasSubcommands {
+			selected = selected + " "
+			shortcutName := strings.TrimPrefix(selected, "/")
+			shortcutName = strings.TrimSpace(shortcutName)
+			a.loadSubcommands(shortcutName)
+			a.completionMode = "subcommand:" + shortcutName
+			a.query = ""
+			a.filterSuggestions()
+			a.visible = len(a.filtered) > 0
+			return true, selected
+		} else if a.isNoArgShortcut(selected) {
+			a.shouldExecuteImmediately = true
+		} else {
+			selected = selected + " "
+		}
+	}
+
+	a.visible = false
+	return true, selected
+}
+
+// hasSubcommands checks if a shortcut has subcommands defined
+func (a *AutocompleteImpl) hasSubcommands(shortcutName string) bool {
+	if a.shortcutRegistry == nil {
+		return false
+	}
+
+	name := shortcutName
+	if len(name) > 0 && name[0] == '/' {
+		name = name[1:]
+	}
+
+	shortcuts := a.shortcutRegistry.GetAll()
+	for _, s := range shortcuts {
+		if s.GetName() == name {
+			if provider, ok := s.(SubcommandProvider); ok {
+				subcommands := provider.GetSubcommands()
+				return len(subcommands) > 0
+			}
+			return false
+		}
+	}
+
+	return false
+}
+
+// isNoArgShortcut checks if a shortcut accepts no arguments
+func (a *AutocompleteImpl) isNoArgShortcut(shortcutName string) bool {
+	if a.shortcutRegistry == nil {
+		return false
+	}
+
+	name := shortcutName
+	if len(name) > 0 && name[0] == '/' {
+		name = name[1:]
+	}
+
+	shortcuts := a.shortcutRegistry.GetAll()
+	for _, s := range shortcuts {
+		if s.GetName() == name {
+			desc := s.GetDescription()
+			return !strings.Contains(desc, "<") && !strings.Contains(desc, "[")
+		}
+	}
+
+	return false
 }
 
 // SetWidth sets the width for rendering
@@ -513,6 +743,36 @@ func (a *AutocompleteImpl) GetSelectedShortcut() string {
 // Hide hides the autocomplete
 func (a *AutocompleteImpl) Hide() {
 	a.visible = false
+}
+
+// GetUsageHint returns the current usage hint for ghost text display
+func (a *AutocompleteImpl) GetUsageHint() string {
+	return a.usageHint
+}
+
+// ClearUsageHint clears the current usage hint
+func (a *AutocompleteImpl) ClearUsageHint() {
+	a.usageHint = ""
+}
+
+// extractUsageHint extracts the usage pattern from a description
+// Example: "Remove an A2A agent (usage: <name>)" -> "<name>"
+func (a *AutocompleteImpl) extractUsageHint(description string) string {
+	// Look for "(usage: ...)" pattern
+	usageStart := strings.Index(description, "(usage:")
+	if usageStart == -1 {
+		return ""
+	}
+
+	// Find the closing parenthesis
+	usageEnd := strings.Index(description[usageStart:], ")")
+	if usageEnd == -1 {
+		return ""
+	}
+
+	// Extract the usage part and clean it up
+	usagePart := description[usageStart+7 : usageStart+usageEnd] // +7 to skip "(usage:"
+	return strings.TrimSpace(usagePart)
 }
 
 // RefreshToolsList forces a reload of the tools list

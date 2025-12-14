@@ -8,6 +8,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 type QueueBoxView struct {
@@ -29,52 +30,12 @@ func (qv *QueueBoxView) SetWidth(width int) {
 func (qv *QueueBoxView) SetHeight(height int) {
 }
 
-func (qv *QueueBoxView) Render(queuedMessages []domain.QueuedMessage, backgroundTasks []domain.TaskPollingState) string {
-	if len(queuedMessages) == 0 && len(backgroundTasks) == 0 {
+func (qv *QueueBoxView) Render(queuedMessages []domain.QueuedMessage) string {
+	if len(queuedMessages) == 0 {
 		return ""
 	}
 
-	var sections []string
-
-	if len(backgroundTasks) > 0 {
-		dimColor := qv.styleProvider.GetThemeColor("dim")
-		sections = append(sections, qv.styleProvider.RenderBorderedBox(qv.renderBackgroundTasks(backgroundTasks), dimColor, 0, 1))
-	}
-
-	if len(queuedMessages) > 0 {
-		sections = append(sections, qv.renderQueuedMessages(queuedMessages))
-	}
-
-	return strings.Join(sections, "\n")
-}
-
-func (qv *QueueBoxView) renderBackgroundTasks(backgroundTasks []domain.TaskPollingState) string {
-	accentColor := qv.styleProvider.GetThemeColor("accent")
-
-	count := len(backgroundTasks)
-	taskWord := "task"
-	if count != 1 {
-		taskWord = "tasks"
-	}
-
-	titleText := fmt.Sprintf("Background Tasks (%d)", count)
-
-	hintText := fmt.Sprintf("  %d active %s running • Type /tasks to view details", count, taskWord)
-
-	maxHintWidth := qv.width - 4
-	if maxHintWidth < 20 {
-		maxHintWidth = 20
-	}
-
-	if len(hintText) > maxHintWidth {
-		hintText = fmt.Sprintf("  %d active %s running", count, taskWord)
-
-		if len(hintText) > maxHintWidth {
-			hintText = fmt.Sprintf("  %d running", count)
-		}
-	}
-
-	return qv.styleProvider.RenderWithColorAndBold(titleText, accentColor) + "\n" + qv.styleProvider.RenderDimText(hintText)
+	return qv.renderQueuedMessages(queuedMessages)
 }
 
 func (qv *QueueBoxView) renderQueuedMessages(queuedMessages []domain.QueuedMessage) string {
@@ -98,10 +59,22 @@ func (qv *QueueBoxView) formatQueuedMessage(queuedMsg domain.QueuedMessage) stri
 func (qv *QueueBoxView) formatMessagePreview(queuedMsg domain.QueuedMessage) string {
 	msg := queuedMsg.Message
 
+	if msg.ToolCalls != nil && len(*msg.ToolCalls) > 0 {
+		return qv.formatToolCallsPreview(*msg.ToolCalls)
+	}
+
 	contentStr, err := msg.Content.AsMessageContent0()
 	if err != nil {
 		contentStr = formatting.ExtractTextFromContent(msg.Content, nil)
 	}
+
+	if strings.HasPrefix(contentStr, "[A2A Task Completed:") || strings.HasPrefix(contentStr, "[A2A Task Failed:") {
+		lines := strings.Split(contentStr, "\n")
+		if len(lines) > 0 {
+			return strings.TrimSpace(lines[0])
+		}
+	}
+
 	content := contentStr
 
 	maxPreviewLength := qv.width - 20
@@ -119,6 +92,19 @@ func (qv *QueueBoxView) formatMessagePreview(queuedMsg domain.QueuedMessage) str
 	wrappedPreview := formatting.WrapText(preview, maxPreviewLength)
 
 	return wrappedPreview
+}
+
+func (qv *QueueBoxView) formatToolCallsPreview(toolCalls []sdk.ChatCompletionMessageToolCall) string {
+	if len(toolCalls) == 0 {
+		return ""
+	}
+
+	if len(toolCalls) > 1 {
+		return fmt.Sprintf("%d tool calls queued", len(toolCalls))
+	}
+
+	toolCall := toolCalls[0]
+	return fmt.Sprintf("Tool: %s(...)", toolCall.Function.Name)
 }
 
 func (qv *QueueBoxView) Init() tea.Cmd {

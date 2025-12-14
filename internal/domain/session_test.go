@@ -56,7 +56,7 @@ func TestSessionID_Timestamp(t *testing.T) {
 	}{
 		{
 			name:      "valid session ID with hyphen",
-			sessionID: "1733678400-a3f2",
+			sessionID: "1733678400-a3f2bc8d",
 			wantZero:  false,
 		},
 		{
@@ -111,7 +111,7 @@ func TestSessionID_Age(t *testing.T) {
 	}{
 		{
 			name:      "valid session ID with hyphen",
-			sessionID: "1733678400-a3f2",
+			sessionID: "1733678400-a3f2bc8d",
 			wantZero:  false,
 		},
 		{
@@ -170,8 +170,8 @@ func TestSessionID_Format(t *testing.T) {
 }
 
 func TestSessionID_String(t *testing.T) {
-	testID := SessionID("1733678400-a3f2")
-	if testID.String() != "1733678400-a3f2" {
-		t.Errorf("SessionID.String() = %v, want 1733678400-a3f2", testID.String())
+	testID := SessionID("1733678400-a3f2bc8d")
+	if testID.String() != "1733678400-a3f2bc8d" {
+		t.Errorf("SessionID.String() = %v, want 1733678400-a3f2bc8d", testID.String())
 	}
 }

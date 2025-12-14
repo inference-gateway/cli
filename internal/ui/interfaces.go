@@ -27,12 +27,15 @@ type AutocompleteComponent interface {
 	Update(inputText string, cursorPos int)
 	HandleKey(key tea.KeyMsg) (bool, string)
 	IsVisible() bool
+	ShouldExecuteImmediately() bool
 	SetWidth(width int)
 	SetHeight(height int)
 	Render() string
 	GetSelectedShortcut() string
 	Hide()
 	RefreshToolsList()
+	GetUsageHint() string
+	ClearUsageHint()
 }
 
 // Theme interface for UI theming
@@ -85,6 +88,8 @@ type InputComponent interface {
 	GetImageAttachments() []domain.ImageAttachment
 	ClearImageAttachments()
 	AddToHistory(text string) error
+	SetUsageHint(hint string)
+	GetUsageHint() string
 }
 
 // StatusComponent interface for status display

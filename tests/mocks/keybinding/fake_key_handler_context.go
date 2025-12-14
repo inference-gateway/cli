@@ -42,6 +42,16 @@ type FakeKeyHandlerContext struct {
 	getConfigReturnsOnCall map[int]struct {
 		result1 *config.Config
 	}
+	GetConfigDirStub        func() string
+	getConfigDirMutex       sync.RWMutex
+	getConfigDirArgsForCall []struct {
+	}
+	getConfigDirReturns struct {
+		result1 string
+	}
+	getConfigDirReturnsOnCall map[int]struct {
+		result1 string
+	}
 	GetConversationRepositoryStub        func() domain.ConversationRepository
 	getConversationRepositoryMutex       sync.RWMutex
 	getConversationRepositoryArgsForCall []struct {
@@ -305,6 +315,59 @@ func (fake *FakeKeyHandlerContext) GetConfigReturnsOnCall(i int, result1 *config
 	}
 	fake.getConfigReturnsOnCall[i] = struct {
 		result1 *config.Config
+	}{result1}
+}
+
+func (fake *FakeKeyHandlerContext) GetConfigDir() string {
+	fake.getConfigDirMutex.Lock()
+	ret, specificReturn := fake.getConfigDirReturnsOnCall[len(fake.getConfigDirArgsForCall)]
+	fake.getConfigDirArgsForCall = append(fake.getConfigDirArgsForCall, struct {
+	}{})
+	stub := fake.GetConfigDirStub
+	fakeReturns := fake.getConfigDirReturns
+	fake.recordInvocation("GetConfigDir", []interface{}{})
+	fake.getConfigDirMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeKeyHandlerContext) GetConfigDirCallCount() int {
+	fake.getConfigDirMutex.RLock()
+	defer fake.getConfigDirMutex.RUnlock()
+	return len(fake.getConfigDirArgsForCall)
+}
+
+func (fake *FakeKeyHandlerContext) GetConfigDirCalls(stub func() string) {
+	fake.getConfigDirMutex.Lock()
+	defer fake.getConfigDirMutex.Unlock()
+	fake.GetConfigDirStub = stub
+}
+
+func (fake *FakeKeyHandlerContext) GetConfigDirReturns(result1 string) {
+	fake.getConfigDirMutex.Lock()
+	defer fake.getConfigDirMutex.Unlock()
+	fake.GetConfigDirStub = nil
+	fake.getConfigDirReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeKeyHandlerContext) GetConfigDirReturnsOnCall(i int, result1 string) {
+	fake.getConfigDirMutex.Lock()
+	defer fake.getConfigDirMutex.Unlock()
+	fake.GetConfigDirStub = nil
+	if fake.getConfigDirReturnsOnCall == nil {
+		fake.getConfigDirReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getConfigDirReturnsOnCall[i] = struct {
+		result1 string
 	}{result1}
 }
 

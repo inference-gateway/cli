@@ -9,6 +9,10 @@ import (
 )
 
 type FakeAutocompleteComponent struct {
+	ClearUsageHintStub        func()
+	clearUsageHintMutex       sync.RWMutex
+	clearUsageHintArgsForCall []struct {
+	}
 	GetSelectedShortcutStub        func() string
 	getSelectedShortcutMutex       sync.RWMutex
 	getSelectedShortcutArgsForCall []struct {
@@ -17,6 +21,16 @@ type FakeAutocompleteComponent struct {
 		result1 string
 	}
 	getSelectedShortcutReturnsOnCall map[int]struct {
+		result1 string
+	}
+	GetUsageHintStub        func() string
+	getUsageHintMutex       sync.RWMutex
+	getUsageHintArgsForCall []struct {
+	}
+	getUsageHintReturns struct {
+		result1 string
+	}
+	getUsageHintReturnsOnCall map[int]struct {
 		result1 string
 	}
 	HandleKeyStub        func(tea.KeyMsg) (bool, string)
@@ -70,6 +84,16 @@ type FakeAutocompleteComponent struct {
 	setWidthArgsForCall []struct {
 		arg1 int
 	}
+	ShouldExecuteImmediatelyStub        func() bool
+	shouldExecuteImmediatelyMutex       sync.RWMutex
+	shouldExecuteImmediatelyArgsForCall []struct {
+	}
+	shouldExecuteImmediatelyReturns struct {
+		result1 bool
+	}
+	shouldExecuteImmediatelyReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	UpdateStub        func(string, int)
 	updateMutex       sync.RWMutex
 	updateArgsForCall []struct {
@@ -78,6 +102,30 @@ type FakeAutocompleteComponent struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeAutocompleteComponent) ClearUsageHint() {
+	fake.clearUsageHintMutex.Lock()
+	fake.clearUsageHintArgsForCall = append(fake.clearUsageHintArgsForCall, struct {
+	}{})
+	stub := fake.ClearUsageHintStub
+	fake.recordInvocation("ClearUsageHint", []interface{}{})
+	fake.clearUsageHintMutex.Unlock()
+	if stub != nil {
+		fake.ClearUsageHintStub()
+	}
+}
+
+func (fake *FakeAutocompleteComponent) ClearUsageHintCallCount() int {
+	fake.clearUsageHintMutex.RLock()
+	defer fake.clearUsageHintMutex.RUnlock()
+	return len(fake.clearUsageHintArgsForCall)
+}
+
+func (fake *FakeAutocompleteComponent) ClearUsageHintCalls(stub func()) {
+	fake.clearUsageHintMutex.Lock()
+	defer fake.clearUsageHintMutex.Unlock()
+	fake.ClearUsageHintStub = stub
 }
 
 func (fake *FakeAutocompleteComponent) GetSelectedShortcut() string {
@@ -129,6 +177,59 @@ func (fake *FakeAutocompleteComponent) GetSelectedShortcutReturnsOnCall(i int, r
 		})
 	}
 	fake.getSelectedShortcutReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeAutocompleteComponent) GetUsageHint() string {
+	fake.getUsageHintMutex.Lock()
+	ret, specificReturn := fake.getUsageHintReturnsOnCall[len(fake.getUsageHintArgsForCall)]
+	fake.getUsageHintArgsForCall = append(fake.getUsageHintArgsForCall, struct {
+	}{})
+	stub := fake.GetUsageHintStub
+	fakeReturns := fake.getUsageHintReturns
+	fake.recordInvocation("GetUsageHint", []interface{}{})
+	fake.getUsageHintMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeAutocompleteComponent) GetUsageHintCallCount() int {
+	fake.getUsageHintMutex.RLock()
+	defer fake.getUsageHintMutex.RUnlock()
+	return len(fake.getUsageHintArgsForCall)
+}
+
+func (fake *FakeAutocompleteComponent) GetUsageHintCalls(stub func() string) {
+	fake.getUsageHintMutex.Lock()
+	defer fake.getUsageHintMutex.Unlock()
+	fake.GetUsageHintStub = stub
+}
+
+func (fake *FakeAutocompleteComponent) GetUsageHintReturns(result1 string) {
+	fake.getUsageHintMutex.Lock()
+	defer fake.getUsageHintMutex.Unlock()
+	fake.GetUsageHintStub = nil
+	fake.getUsageHintReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeAutocompleteComponent) GetUsageHintReturnsOnCall(i int, result1 string) {
+	fake.getUsageHintMutex.Lock()
+	defer fake.getUsageHintMutex.Unlock()
+	fake.GetUsageHintStub = nil
+	if fake.getUsageHintReturnsOnCall == nil {
+		fake.getUsageHintReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getUsageHintReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
 }
@@ -413,6 +514,59 @@ func (fake *FakeAutocompleteComponent) SetWidthArgsForCall(i int) int {
 	defer fake.setWidthMutex.RUnlock()
 	argsForCall := fake.setWidthArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeAutocompleteComponent) ShouldExecuteImmediately() bool {
+	fake.shouldExecuteImmediatelyMutex.Lock()
+	ret, specificReturn := fake.shouldExecuteImmediatelyReturnsOnCall[len(fake.shouldExecuteImmediatelyArgsForCall)]
+	fake.shouldExecuteImmediatelyArgsForCall = append(fake.shouldExecuteImmediatelyArgsForCall, struct {
+	}{})
+	stub := fake.ShouldExecuteImmediatelyStub
+	fakeReturns := fake.shouldExecuteImmediatelyReturns
+	fake.recordInvocation("ShouldExecuteImmediately", []interface{}{})
+	fake.shouldExecuteImmediatelyMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeAutocompleteComponent) ShouldExecuteImmediatelyCallCount() int {
+	fake.shouldExecuteImmediatelyMutex.RLock()
+	defer fake.shouldExecuteImmediatelyMutex.RUnlock()
+	return len(fake.shouldExecuteImmediatelyArgsForCall)
+}
+
+func (fake *FakeAutocompleteComponent) ShouldExecuteImmediatelyCalls(stub func() bool) {
+	fake.shouldExecuteImmediatelyMutex.Lock()
+	defer fake.shouldExecuteImmediatelyMutex.Unlock()
+	fake.ShouldExecuteImmediatelyStub = stub
+}
+
+func (fake *FakeAutocompleteComponent) ShouldExecuteImmediatelyReturns(result1 bool) {
+	fake.shouldExecuteImmediatelyMutex.Lock()
+	defer fake.shouldExecuteImmediatelyMutex.Unlock()
+	fake.ShouldExecuteImmediatelyStub = nil
+	fake.shouldExecuteImmediatelyReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeAutocompleteComponent) ShouldExecuteImmediatelyReturnsOnCall(i int, result1 bool) {
+	fake.shouldExecuteImmediatelyMutex.Lock()
+	defer fake.shouldExecuteImmediatelyMutex.Unlock()
+	fake.ShouldExecuteImmediatelyStub = nil
+	if fake.shouldExecuteImmediatelyReturnsOnCall == nil {
+		fake.shouldExecuteImmediatelyReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.shouldExecuteImmediatelyReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
 }
 
 func (fake *FakeAutocompleteComponent) Update(arg1 string, arg2 int) {

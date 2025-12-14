@@ -75,6 +75,16 @@ type FakeInputComponent struct {
 	getInputReturnsOnCall map[int]struct {
 		result1 string
 	}
+	GetUsageHintStub        func() string
+	getUsageHintMutex       sync.RWMutex
+	getUsageHintArgsForCall []struct {
+	}
+	getUsageHintReturns struct {
+		result1 string
+	}
+	getUsageHintReturnsOnCall map[int]struct {
+		result1 string
+	}
 	HandleKeyStub        func(tea.KeyMsg) (tea.Model, tea.Cmd)
 	handleKeyMutex       sync.RWMutex
 	handleKeyArgsForCall []struct {
@@ -124,6 +134,11 @@ type FakeInputComponent struct {
 	SetTextStub        func(string)
 	setTextMutex       sync.RWMutex
 	setTextArgsForCall []struct {
+		arg1 string
+	}
+	SetUsageHintStub        func(string)
+	setUsageHintMutex       sync.RWMutex
+	setUsageHintArgsForCall []struct {
 		arg1 string
 	}
 	SetWidthStub        func(int)
@@ -496,6 +511,59 @@ func (fake *FakeInputComponent) GetInputReturnsOnCall(i int, result1 string) {
 	}{result1}
 }
 
+func (fake *FakeInputComponent) GetUsageHint() string {
+	fake.getUsageHintMutex.Lock()
+	ret, specificReturn := fake.getUsageHintReturnsOnCall[len(fake.getUsageHintArgsForCall)]
+	fake.getUsageHintArgsForCall = append(fake.getUsageHintArgsForCall, struct {
+	}{})
+	stub := fake.GetUsageHintStub
+	fakeReturns := fake.getUsageHintReturns
+	fake.recordInvocation("GetUsageHint", []interface{}{})
+	fake.getUsageHintMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeInputComponent) GetUsageHintCallCount() int {
+	fake.getUsageHintMutex.RLock()
+	defer fake.getUsageHintMutex.RUnlock()
+	return len(fake.getUsageHintArgsForCall)
+}
+
+func (fake *FakeInputComponent) GetUsageHintCalls(stub func() string) {
+	fake.getUsageHintMutex.Lock()
+	defer fake.getUsageHintMutex.Unlock()
+	fake.GetUsageHintStub = stub
+}
+
+func (fake *FakeInputComponent) GetUsageHintReturns(result1 string) {
+	fake.getUsageHintMutex.Lock()
+	defer fake.getUsageHintMutex.Unlock()
+	fake.GetUsageHintStub = nil
+	fake.getUsageHintReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeInputComponent) GetUsageHintReturnsOnCall(i int, result1 string) {
+	fake.getUsageHintMutex.Lock()
+	defer fake.getUsageHintMutex.Unlock()
+	fake.GetUsageHintStub = nil
+	if fake.getUsageHintReturnsOnCall == nil {
+		fake.getUsageHintReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getUsageHintReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
 func (fake *FakeInputComponent) HandleKey(arg1 tea.KeyMsg) (tea.Model, tea.Cmd) {
 	fake.handleKeyMutex.Lock()
 	ret, specificReturn := fake.handleKeyReturnsOnCall[len(fake.handleKeyArgsForCall)]
@@ -786,6 +854,38 @@ func (fake *FakeInputComponent) SetTextArgsForCall(i int) string {
 	fake.setTextMutex.RLock()
 	defer fake.setTextMutex.RUnlock()
 	argsForCall := fake.setTextArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeInputComponent) SetUsageHint(arg1 string) {
+	fake.setUsageHintMutex.Lock()
+	fake.setUsageHintArgsForCall = append(fake.setUsageHintArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.SetUsageHintStub
+	fake.recordInvocation("SetUsageHint", []interface{}{arg1})
+	fake.setUsageHintMutex.Unlock()
+	if stub != nil {
+		fake.SetUsageHintStub(arg1)
+	}
+}
+
+func (fake *FakeInputComponent) SetUsageHintCallCount() int {
+	fake.setUsageHintMutex.RLock()
+	defer fake.setUsageHintMutex.RUnlock()
+	return len(fake.setUsageHintArgsForCall)
+}
+
+func (fake *FakeInputComponent) SetUsageHintCalls(stub func(string)) {
+	fake.setUsageHintMutex.Lock()
+	defer fake.setUsageHintMutex.Unlock()
+	fake.SetUsageHintStub = stub
+}
+
+func (fake *FakeInputComponent) SetUsageHintArgsForCall(i int) string {
+	fake.setUsageHintMutex.RLock()
+	defer fake.setUsageHintMutex.RUnlock()
+	argsForCall := fake.setUsageHintArgsForCall[i]
 	return argsForCall.arg1
 }
 

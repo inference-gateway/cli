@@ -375,7 +375,7 @@ func NewSwitchShortcut(modelService domain.ModelService) *SwitchShortcut {
 
 func (c *SwitchShortcut) GetName() string               { return "switch" }
 func (c *SwitchShortcut) GetDescription() string        { return "Switch to a different model" }
-func (c *SwitchShortcut) GetUsage() string              { return "/switch [model]" }
+func (c *SwitchShortcut) GetUsage() string              { return "/switch" }
 func (c *SwitchShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
 
 func (c *SwitchShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {
@@ -414,7 +414,7 @@ func NewThemeShortcut(themeService domain.ThemeService) *ThemeShortcut {
 
 func (c *ThemeShortcut) GetName() string               { return "theme" }
 func (c *ThemeShortcut) GetDescription() string        { return "Switch to a different theme" }
-func (c *ThemeShortcut) GetUsage() string              { return "/theme [theme-name]" }
+func (c *ThemeShortcut) GetUsage() string              { return "/theme" }
 func (c *ThemeShortcut) CanExecute(args []string) bool { return len(args) <= 1 }
 
 func (c *ThemeShortcut) Execute(ctx context.Context, args []string) (ShortcutResult, error) {

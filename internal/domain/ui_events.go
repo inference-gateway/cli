@@ -16,6 +16,7 @@ type StreamingContentEvent struct {
 	RequestID string
 	Content   string
 	Delta     bool
+	Model     string
 }
 
 // SetStatusEvent sets a status message
@@ -62,7 +63,8 @@ type AutocompleteHideEvent struct{}
 
 // AutocompleteCompleteEvent is fired when a completion is selected
 type AutocompleteCompleteEvent struct {
-	Completion string
+	Completion         string
+	ExecuteImmediately bool
 }
 
 // AutocompleteVisibilityCheckEvent requests autocomplete visibility state

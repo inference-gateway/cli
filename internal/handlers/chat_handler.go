@@ -40,6 +40,9 @@ type ChatHandler struct {
 
 	bashDetachChan   chan<- struct{}
 	bashDetachChanMu sync.RWMutex
+
+	// pendingModelRestoration stores the original model to restore after temporary model switch
+	pendingModelRestoration string
 }
 
 func NewChatHandler(

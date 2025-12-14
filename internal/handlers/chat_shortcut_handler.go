@@ -194,6 +194,8 @@ func (s *ChatShortcutHandler) handleShortcutSideEffect(sideEffect shortcuts.Side
 		return s.handleCompactConversationSideEffect()
 	case shortcuts.SideEffectEmbedImages:
 		return s.handleEmbedImagesSideEffect(data)
+	case shortcuts.SideEffectSendMessageWithModel:
+		return s.handleSendMessageWithModelSideEffect(data)
 	default:
 		return domain.SetStatusEvent{
 			Message:    "Shortcut completed",
@@ -422,8 +424,9 @@ func (s *ChatShortcutHandler) performSnippetGeneration(data any) tea.Cmd {
 		snippetDataMap, ok2 := dataMap["dataMap"].(map[string]string)
 		customShortcut, ok3 := dataMap["customShortcut"].(*shortcuts.CustomShortcut)
 		shortcutName, ok4 := dataMap["shortcutName"].(string)
+		snippetConfig, ok5 := dataMap["snippet"].(*shortcuts.SnippetConfig)
 
-		if !ok1 || !ok2 || !ok3 || !ok4 {
+		if !ok1 || !ok2 || !ok3 || !ok4 || !ok5 {
 			return domain.SetStatusEvent{
 				Message:    "Missing snippet generation data",
 				Spinner:    false,
@@ -431,7 +434,7 @@ func (s *ChatShortcutHandler) performSnippetGeneration(data any) tea.Cmd {
 			}
 		}
 
-		snippet, err := customShortcut.GenerateSnippet(ctx, snippetDataMap)
+		snippet, err := customShortcut.GenerateSnippet(ctx, snippetDataMap, snippetConfig)
 		if err != nil {
 			return tea.Batch(
 				func() tea.Msg {
@@ -667,5 +670,73 @@ func (s *ChatShortcutHandler) handleEmbedImagesSideEffect(data any) tea.Msg {
 				StatusType: domain.StatusDefault,
 			}
 		},
+	)()
+}
+
+// handleSendMessageWithModelSideEffect handles sending a message with a temporary model switch
+func (s *ChatShortcutHandler) handleSendMessageWithModelSideEffect(data any) tea.Msg {
+	if data == nil {
+		return domain.SetStatusEvent{
+			Message:    "No model switch data provided",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	switchData, ok := data.(shortcuts.ModelSwitchData)
+	if !ok {
+		logger.Error("Invalid model switch data type", "type", fmt.Sprintf("%T", data))
+		return domain.SetStatusEvent{
+			Message:    "Invalid model switch data",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	if err := s.handler.modelService.SelectModel(switchData.TargetModel); err != nil {
+		logger.Error("Failed to switch to temporary model", "model", switchData.TargetModel, "error", err)
+		return domain.SetStatusEvent{
+			Message:    fmt.Sprintf("Failed to switch to model '%s': %v", switchData.TargetModel, err),
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	userEntry := domain.ConversationEntry{
+		Message: sdk.Message{
+			Role:    sdk.User,
+			Content: sdk.NewMessageContent(switchData.Prompt),
+		},
+		Time: time.Now(),
+	}
+
+	if err := s.handler.conversationRepo.AddMessage(userEntry); err != nil {
+		logger.Error("Failed to add message to conversation", "error", err)
+		if restoreErr := s.handler.modelService.SelectModel(switchData.OriginalModel); restoreErr != nil {
+			logger.Error("Failed to restore original model", "model", switchData.OriginalModel, "error", restoreErr)
+		}
+		return domain.SetStatusEvent{
+			Message:    fmt.Sprintf("Failed to add message: %v", err),
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+
+	s.handler.pendingModelRestoration = switchData.OriginalModel
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.UpdateHistoryEvent{
+				History: s.handler.conversationRepo.GetMessages(),
+			}
+		},
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Using model: %s", switchData.TargetModel),
+				Spinner:    true,
+				StatusType: domain.StatusPreparing,
+			}
+		},
+		s.handler.startChatCompletion(),
 	)()
 }

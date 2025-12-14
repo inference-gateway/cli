@@ -25,6 +25,7 @@ type ImageAttachment struct {
 	MimeType    string `json:"mime_type"`
 	Filename    string `json:"filename,omitempty"`
 	DisplayName string `json:"display_name"`
+	SourcePath  string `json:"-"`
 }
 
 // ConversationEntry represents a message in the conversation with metadata
@@ -386,6 +387,7 @@ type FetchResult struct {
 	Size        int64             `json:"size"`
 	ContentType string            `json:"content_type"`
 	Cached      bool              `json:"cached"`
+	SavedPath   string            `json:"saved_path,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty"`
 	Warning     string            `json:"warning,omitempty"`
 }

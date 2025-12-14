@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -35,7 +37,7 @@ func NewWebFetchTool(cfg *config.Config) *WebFetchTool {
 
 // Definition returns the tool definition for the LLM
 func (t *WebFetchTool) Definition() sdk.ChatCompletionTool {
-	description := "Fetch content from whitelisted URLs references."
+	description := "Fetch content from whitelisted URLs. Set download=true to save the file to disk automatically. Useful for downloading A2A task artifacts or other files."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
@@ -53,6 +55,11 @@ func (t *WebFetchTool) Definition() sdk.ChatCompletionTool {
 						"description": "Output format (text or json)",
 						"enum":        []string{"text", "json"},
 						"default":     "text",
+					},
+					"download": map[string]any{
+						"type":        "boolean",
+						"description": "Set to true to automatically save the fetched content to disk. File will be saved with a name extracted from the URL.",
+						"default":     false,
 					},
 				},
 				"required": []string{"url"},
@@ -79,6 +86,18 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domai
 		}, nil
 	}
 
+	if err := t.validateURL(url); err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "WebFetch",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     fmt.Sprintf("URL validation failed: %v", err),
+		}, nil
+	}
+
+	download, _ := args["download"].(bool)
+
 	fetchResult, err := t.fetchContent(ctx, url)
 	success := err == nil
 
@@ -91,9 +110,20 @@ func (t *WebFetchTool) Execute(ctx context.Context, args map[string]any) (*domai
 
 	if err != nil {
 		result.Error = err.Error()
-	} else {
-		result.Data = fetchResult
+		return result, nil
 	}
+
+	if download {
+		filename := t.extractFilenameFromURL(url)
+		savedPath, saveErr := t.saveToFile(fetchResult, filename)
+		if saveErr != nil {
+			result.Error = fmt.Sprintf("failed to save file: %v", saveErr)
+			result.Success = false
+			return result, nil
+		}
+		fetchResult.SavedPath = savedPath
+	}
+	result.Data = fetchResult
 
 	return result, nil
 }
@@ -244,6 +274,21 @@ func (t *WebFetchTool) FormatPreview(result *domain.ToolExecutionResult) string 
 	}
 
 	sizeText := t.formatSize(fetchResult.Size)
+
+	if fetchResult.SavedPath != "" {
+		resultText := fmt.Sprintf("Fetched and saved to: %s (%s, %s)", fetchResult.SavedPath, statusText, sizeText)
+
+		if fetchResult.Warning != "" {
+			resultText += " [truncated]"
+		}
+
+		if fetchResult.Cached {
+			resultText += " [cached]"
+		}
+
+		return resultText
+	}
+
 	resultText := fmt.Sprintf("Fetched from %s (%s, %s)", domain, statusText, sizeText)
 
 	if fetchResult.Warning != "" {
@@ -310,11 +355,14 @@ func (t *WebFetchTool) formatFetchData(data any) string {
 	output.WriteString(fmt.Sprintf("Content Type: %s\n", fetchResult.ContentType))
 	output.WriteString(fmt.Sprintf("Cached: %t\n", fetchResult.Cached))
 
+	if fetchResult.SavedPath != "" {
+		output.WriteString(fmt.Sprintf("Saved to: %s\n", fetchResult.SavedPath))
+	}
+
 	if fetchResult.Warning != "" {
 		output.WriteString(fmt.Sprintf("Warning: %s\n", fetchResult.Warning))
 	}
 
-	// Metadata
 	if len(fetchResult.Metadata) > 0 {
 		output.WriteString("Metadata:\n")
 		for key, value := range fetchResult.Metadata {
@@ -324,7 +372,6 @@ func (t *WebFetchTool) formatFetchData(data any) string {
 		}
 	}
 
-	// Show content preview
 	if fetchResult.Content != "" {
 		contentPreview := t.formatter.TruncateText(fetchResult.Content, 500)
 		output.WriteString(fmt.Sprintf("Content:\n%s\n", contentPreview))
@@ -369,4 +416,58 @@ func (t *WebFetchTool) ShouldCollapseArg(key string) bool {
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
 func (t *WebFetchTool) ShouldAlwaysExpand() bool {
 	return false
+}
+
+// extractFilenameFromURL extracts a safe filename from a URL
+func (t *WebFetchTool) extractFilenameFromURL(url string) string {
+	parts := strings.Split(url, "/")
+	filename := "download"
+
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i] != "" {
+			if idx := strings.Index(parts[i], "?"); idx != -1 {
+				parts[i] = parts[i][:idx]
+			}
+			if idx := strings.Index(parts[i], "#"); idx != -1 {
+				parts[i] = parts[i][:idx]
+			}
+			if parts[i] != "" {
+				filename = parts[i]
+				break
+			}
+		}
+	}
+
+	filename = filepath.Base(filename)
+
+	if !strings.Contains(filename, ".") {
+		filename = fmt.Sprintf("%s.dat", filename)
+	}
+
+	return filename
+}
+
+// saveToFile saves the fetched content to disk in <configDir>/tmp directory
+func (t *WebFetchTool) saveToFile(fetchResult *domain.FetchResult, filename string) (string, error) {
+	baseDir := filepath.Join(t.config.GetConfigDir(), "tmp")
+
+	if err := os.MkdirAll(baseDir, 0755); err != nil {
+		return "", fmt.Errorf("failed to create directory %s: %w", baseDir, err)
+	}
+
+	// Clean filename for safety
+	filename = filepath.Base(filename)
+
+	fullPath := filepath.Join(baseDir, filename)
+
+	if err := os.WriteFile(fullPath, []byte(fetchResult.Content), 0644); err != nil {
+		return "", fmt.Errorf("failed to write file: %w", err)
+	}
+
+	absPath, err := filepath.Abs(fullPath)
+	if err != nil {
+		return fullPath, nil
+	}
+
+	return absPath, nil
 }
