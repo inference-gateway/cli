@@ -109,8 +109,8 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 	container.initializeGatewayManager()
 	container.initializeFileWriterServices()
 	container.initializeStateManager()
-	container.initializeAgentManager()
 	container.initializeDomainServices()
+	container.initializeAgentManager()
 	container.initializeServices()
 	container.initializeUIComponents()
 	container.initializeExtensibility()
@@ -146,11 +146,15 @@ func (c *ServiceContainer) initializeAgentManager() {
 		}
 	}
 
+	if len(c.config.A2A.Agents) > 0 {
+		agentCount += len(c.config.A2A.Agents)
+	}
+
 	if agentCount > 0 {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 
-	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime)
+	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
 
 	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)

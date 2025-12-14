@@ -235,6 +235,54 @@ func getAgentsConfigService(cmd *cobra.Command) (*services.AgentsConfigService, 
 	return services.NewAgentsConfigService(agentsPath), nil
 }
 
+// ExternalAgent represents an agent configured via INFER_A2A_AGENTS
+type ExternalAgent struct {
+	Name string
+	URL  string
+}
+
+// getConfig loads the configuration from viper
+func getConfig(cmd *cobra.Command) (*config.Config, error) {
+	cfg, err := getConfigFromViper()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+	return cfg, nil
+}
+
+// extractExternalAgents extracts agent names and URLs from INFER_A2A_AGENTS
+func extractExternalAgents(cfg *config.Config) []ExternalAgent {
+	if len(cfg.A2A.Agents) == 0 {
+		return nil
+	}
+
+	externalAgents := make([]ExternalAgent, 0, len(cfg.A2A.Agents))
+	for _, agentURL := range cfg.A2A.Agents {
+		name := extractAgentNameFromURL(agentURL)
+		externalAgents = append(externalAgents, ExternalAgent{
+			Name: name,
+			URL:  agentURL,
+		})
+	}
+
+	return externalAgents
+}
+
+// extractAgentNameFromURL extracts a display name from an agent URL
+func extractAgentNameFromURL(url string) string {
+	url = strings.TrimPrefix(url, "http://")
+	url = strings.TrimPrefix(url, "https://")
+
+	parts := strings.Split(url, "/")
+	if len(parts) == 0 {
+		return url
+	}
+
+	hostPort := parts[0]
+	host := strings.Split(hostPort, ":")[0]
+	return host
+}
+
 func addAgent(cmd *cobra.Command, name, url, artifactsURL, oci string, run bool, model string, environment map[string]string) error {
 	if run && model == "" {
 		return fmt.Errorf("--model is required when --run is enabled. Specify a model in the format provider/model (e.g., openai/gpt-5, anthropic/claude-4-5-sonnet)")
@@ -360,15 +408,29 @@ func listAgents(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	agents, err := svc.ListAgents()
+	localAgents, err := svc.ListAgents()
 	if err != nil {
 		return err
 	}
 
+	cfg, err := getConfig(cmd)
+	if err != nil {
+		return err
+	}
+
+	externalAgents := extractExternalAgents(cfg)
+
+	totalAgents := len(localAgents) + len(externalAgents)
+
 	format, _ := cmd.Flags().GetString("format")
 
 	if format == "json" {
-		output, err := json.MarshalIndent(agents, "", "  ")
+		combinedOutput := map[string]interface{}{
+			"local":    localAgents,
+			"external": externalAgents,
+			"total":    totalAgents,
+		}
+		output, err := json.MarshalIndent(combinedOutput, "", "  ")
 		if err != nil {
 			return fmt.Errorf("failed to marshal agents: %w", err)
 		}
@@ -376,19 +438,19 @@ func listAgents(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	if len(agents) == 0 {
+	if totalAgents == 0 {
 		fmt.Println("No agents configured.")
-		fmt.Println("Use 'infer agents add <name> <url>' to add an agent.")
+		fmt.Println("Use 'infer agents add <name> <url>' to add an agent or set INFER_A2A_AGENTS environment variable.")
 		return nil
 	}
 
 	var md strings.Builder
-	md.WriteString(fmt.Sprintf("**CONFIGURED A2A AGENTS:** %d total\n\n", len(agents)))
+	md.WriteString(fmt.Sprintf("**CONFIGURED A2A AGENTS:** %d total (%d local, %d external)\n\n", totalAgents, len(localAgents), len(externalAgents)))
 
-	md.WriteString("| Enabled | Name | URL | OCI Image | Local | Model | Env |\n")
-	md.WriteString("|---------|------|-----|-----------|-------|-------|-----|\n")
+	md.WriteString("| Source | Enabled | Name | URL | OCI Image | Local | Model | Env |\n")
+	md.WriteString("|--------|---------|------|-----|-----------|-------|-------|-----|\n")
 
-	for _, agent := range agents {
+	for _, agent := range localAgents {
 		status := icons.CheckMark
 		if !agent.Enabled {
 			status = icons.CrossMark
@@ -418,8 +480,13 @@ func listAgents(cmd *cobra.Command, args []string) error {
 			envStr = fmt.Sprintf("%d", len(agent.Environment))
 		}
 
-		md.WriteString(fmt.Sprintf("| %s | %s | %s | %s | %s | %s | %s |\n",
+		md.WriteString(fmt.Sprintf("| yaml | %s | %s | %s | %s | %s | %s | %s |\n",
 			status, name, url, oci, runLocally, model, envStr))
+	}
+
+	for _, agent := range externalAgents {
+		md.WriteString(fmt.Sprintf("| env | %s | %s | %s | - | - | - | - |\n",
+			icons.CheckMark, agent.Name, agent.URL))
 	}
 
 	md.WriteString(fmt.Sprintf("\n%s = enabled, %s = disabled\n",
