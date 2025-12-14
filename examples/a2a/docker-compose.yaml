@@ -151,6 +151,7 @@ services:
       BROWSER_XVFB_ENABLED: true
       BROWSER_XVFB_DISPLAY: ":99"
       BROWSER_XVFB_SCREEN_RESOLUTION: "1920x1080x24"
+      BROWSER_XVFB_ALLOW_TCP: "true"
       A2A_AGENT_URL: http://browser-agent:8080
       A2A_AGENT_CLIENT_PROVIDER: deepseek
       A2A_AGENT_CLIENT_MODEL: deepseek-chat
@@ -172,7 +173,6 @@ services:
       A2A_ARTIFACTS_RETENTION_CLEANUP_INTERVAL: 24h
     volumes:
       - ./agents/browser-agent:/tmp/artifacts
-      - x11-socket:/tmp/.X11-unix
     restart: unless-stopped
     networks:
       - a2a-network
@@ -182,9 +182,8 @@ services:
       context: .
       dockerfile: Dockerfile.vnc
     environment:
-      DISPLAY: :99
-    volumes:
-      - x11-socket:/tmp/.X11-unix
+      X_HOST: browser-agent
+      X_DISPLAY: 99
     ports:
       - "5900:5900"
     depends_on:
@@ -215,8 +214,3 @@ services:
 networks:
   a2a-network:
     driver: bridge
-
-volumes:
-  go-modules:
-  go-build-cache:
-  x11-socket:
