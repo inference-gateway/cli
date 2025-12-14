@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.90.3](https://github.com/inference-gateway/cli/compare/v0.90.2...v0.90.3) (2025-12-14)
+
+### 🐛 Bug Fixes
+
+* Allow the agent to read and write to the .infer/tmp directory ([938f0ab](https://github.com/inference-gateway/cli/commit/938f0ab3c25bb9dcf6eae857a6a8cb87f4ab6fd2))
+
+### ♻️ Code Refactoring
+
+* **example:** Remove debug logging and fix browser-agent headless mode set to false ([6af2e04](https://github.com/inference-gateway/cli/commit/6af2e047e05fd6db6c2137c3a39139661ef6605a))
+* **examples:** Remove hardcoded max iteration, the default is 50 which is decent ([802b742](https://github.com/inference-gateway/cli/commit/802b742cc3b58356967f4069df38ef42c5ddf930))
+
 ## [0.90.2](https://github.com/inference-gateway/cli/compare/v0.90.1...v0.90.2) (2025-12-14)
 
 ### 🐛 Bug Fixes
