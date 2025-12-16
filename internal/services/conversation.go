@@ -210,6 +210,21 @@ func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {
 	return nil
 }
 
+// DeleteMessagesAfterIndex deletes all messages after the specified index
+// (keeps messages from 0 to index inclusive, deletes index+1 onward)
+func (r *InMemoryConversationRepository) DeleteMessagesAfterIndex(index int) error {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+
+	if index < 0 || index >= len(r.messages) {
+		return fmt.Errorf("index %d out of range (total entries: %d)", index, len(r.messages))
+	}
+
+	// Keep entries from 0 to index (inclusive)
+	r.messages = r.messages[:index+1]
+	return nil
+}
+
 func (r *InMemoryConversationRepository) Export(format domain.ExportFormat) ([]byte, error) {
 	r.mutex.RLock()
 	defer r.mutex.RUnlock()

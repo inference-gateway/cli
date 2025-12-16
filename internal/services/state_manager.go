@@ -23,6 +23,11 @@ type StateManager struct {
 	debugMode      bool
 	stateHistory   []domain.StateSnapshot
 	maxHistorySize int
+
+	// ESC key tracking for double ESC detection
+	lastEscPressTime time.Time
+	escPressCount    int
+	escMutex         sync.Mutex
 }
 
 // Compile-time assertion that StateManager implements domain.StateManager interface
@@ -713,4 +718,64 @@ type HealthStatus struct {
 	StateHistorySize int       `json:"state_history_size"`
 	LastStateChange  time.Time `json:"last_state_change"`
 	MemoryUsageKB    int       `json:"memory_usage_kb"`
+}
+
+// RecordEscPress records an ESC key press and returns true if a double ESC is detected.
+// Double ESC is defined as two ESC presses within 300ms.
+func (sm *StateManager) RecordEscPress() bool {
+	sm.escMutex.Lock()
+	defer sm.escMutex.Unlock()
+
+	now := time.Now()
+
+	// If within 300ms of last ESC, increment count
+	if !sm.lastEscPressTime.IsZero() && now.Sub(sm.lastEscPressTime) < 300*time.Millisecond {
+		sm.escPressCount++
+		if sm.escPressCount == 2 {
+			// Double ESC detected, reset and return true
+			sm.escPressCount = 0
+			sm.lastEscPressTime = time.Time{}
+			return true
+		}
+	} else {
+		// First ESC or outside time window
+		sm.escPressCount = 1
+	}
+
+	sm.lastEscPressTime = now
+	return false
+}
+
+// ResetEscTracking resets the ESC key tracking state.
+// This can be used to clear the ESC state when transitioning between views or canceling operations.
+func (sm *StateManager) ResetEscTracking() {
+	sm.escMutex.Lock()
+	defer sm.escMutex.Unlock()
+
+	sm.escPressCount = 0
+	sm.lastEscPressTime = time.Time{}
+}
+
+// SetupMessageHistoryState initializes message history state
+func (sm *StateManager) SetupMessageHistoryState(messages []domain.UserMessageSnapshot) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.SetupMessageHistoryState(messages)
+}
+
+// GetMessageHistoryState returns the current message history state
+func (sm *StateManager) GetMessageHistoryState() *domain.MessageHistoryState {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	return sm.state.GetMessageHistoryState()
+}
+
+// ClearMessageHistoryState clears the message history state
+func (sm *StateManager) ClearMessageHistoryState() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.ClearMessageHistoryState()
 }

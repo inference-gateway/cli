@@ -69,13 +69,15 @@ type ChatApplication struct {
 	taskManager          *components.TaskManagerImpl
 	toolCallRenderer     *components.ToolCallRenderer
 	initGithubActionView *components.InitGithubActionView
+	messageHistoryView   *components.MessageHistorySelector
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
 	fileSelectionHandler    *components.FileSelectionHandler
 
 	// Event handling
-	chatHandler handlers.EventHandler
+	chatHandler           handlers.EventHandler
+	messageHistoryHandler *handlers.MessageHistoryHandler
 
 	// Current active component for key handling
 	focusedComponent ui.InputComponent
@@ -274,6 +276,11 @@ func NewChatApplication(
 		configService,
 	)
 
+	app.messageHistoryHandler = handlers.NewMessageHistoryHandler(
+		app.stateManager,
+		app.conversationRepo,
+	)
+
 	return app
 }
 
@@ -383,6 +390,19 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 	}
 
+	switch m := msg.(type) {
+	case domain.NavigateBackInTimeEvent:
+		logger.Info("Received NavigateBackInTimeEvent")
+		if cmd := app.messageHistoryHandler.HandleNavigateBackInTime(m); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	case domain.MessageHistoryRestoreEvent:
+		logger.Info("Received MessageHistoryRestoreEvent", "restoreToIndex", m.RestoreToIndex)
+		if cmd := app.messageHistoryHandler.HandleRestore(m); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
 	cmds = append(cmds, app.handleViewSpecificMessages(msg)...)
 
 	cmds = append(cmds, app.updateUIComponentsForUIMessages(msg)...)
@@ -455,6 +475,8 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleA2ATaskManagementView(msg)
 	case domain.ViewStateGithubActionSetup:
 		return app.handleInitGithubActionView(msg)
+	case domain.ViewStateMessageHistory:
+		return app.handleMessageHistoryView(msg)
 	default:
 		return nil
 	}
@@ -552,6 +574,8 @@ func (app *ChatApplication) View() string {
 		return app.renderA2ATaskManagement()
 	case domain.ViewStateGithubActionSetup:
 		return app.renderGithubActionSetup()
+	case domain.ViewStateMessageHistory:
+		return app.renderMessageHistory()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -1093,6 +1117,63 @@ func (app *ChatApplication) renderConversationSelection() string {
 	app.conversationSelector.SetWidth(width)
 	app.conversationSelector.SetHeight(height)
 	return app.conversationSelector.View()
+}
+
+func (app *ChatApplication) handleMessageHistoryView(msg tea.Msg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	// Get message history state from state manager
+	historyState := app.stateManager.GetMessageHistoryState()
+	if historyState == nil {
+		// No history state, transition back to chat
+		_ = app.stateManager.TransitionToView(domain.ViewStateChat)
+		return cmds
+	}
+
+	// Initialize view if needed (only create once, not on every key press)
+	if app.messageHistoryView == nil {
+		styleProvider := styles.NewProvider(app.themeService)
+		app.messageHistoryView = components.NewMessageHistorySelector(
+			historyState.Messages,
+			styleProvider,
+		)
+		if cmd := app.messageHistoryView.Init(); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	// Update the view
+	model, cmd := app.messageHistoryView.Update(msg)
+	app.messageHistoryView = model.(*components.MessageHistorySelector)
+
+	if cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	// Check if cancelled
+	if app.messageHistoryView.IsCancelled() {
+		app.stateManager.ClearMessageHistoryState()
+		app.messageHistoryView = nil // Clear view so it gets recreated next time
+		_ = app.stateManager.TransitionToView(domain.ViewStateChat)
+		return cmds
+	}
+
+	// Check if selection was made (done but not cancelled)
+	if app.messageHistoryView.IsSelected() {
+		// The restore event has been emitted, clear the view
+		app.messageHistoryView = nil // Clear view so it gets recreated next time
+		return cmds
+	}
+
+	return cmds
+}
+
+func (app *ChatApplication) renderMessageHistory() string {
+	if app.messageHistoryView == nil {
+		return "Loading message history..."
+	}
+
+	return app.messageHistoryView.View()
 }
 
 func (app *ChatApplication) renderA2ATaskManagement() string {

@@ -336,3 +336,22 @@ type ShellCancelledEvent struct {
 
 func (e ShellCancelledEvent) GetRequestID() string    { return e.RequestID }
 func (e ShellCancelledEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// NavigateBackInTimeEvent triggers the message history selector view
+type NavigateBackInTimeEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e NavigateBackInTimeEvent) GetRequestID() string    { return e.RequestID }
+func (e NavigateBackInTimeEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// MessageHistoryRestoreEvent is emitted when user selects a restore point in message history
+type MessageHistoryRestoreEvent struct {
+	RequestID      string
+	Timestamp      time.Time
+	RestoreToIndex int // Index in conversation to restore to
+}
+
+func (e MessageHistoryRestoreEvent) GetRequestID() string    { return e.RequestID }
+func (e MessageHistoryRestoreEvent) GetTimestamp() time.Time { return e.Timestamp }

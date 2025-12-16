@@ -31,6 +31,10 @@ type FakeStateManager struct {
 	clearFileSelectionStateMutex       sync.RWMutex
 	clearFileSelectionStateArgsForCall []struct {
 	}
+	ClearMessageHistoryStateStub        func()
+	clearMessageHistoryStateMutex       sync.RWMutex
+	clearMessageHistoryStateArgsForCall []struct {
+	}
 	ClearPlanApprovalUIStateStub        func()
 	clearPlanApprovalUIStateMutex       sync.RWMutex
 	clearPlanApprovalUIStateArgsForCall []struct {
@@ -147,6 +151,16 @@ type FakeStateManager struct {
 	getFileSelectionStateReturnsOnCall map[int]struct {
 		result1 *domain.FileSelectionState
 	}
+	GetMessageHistoryStateStub        func() *domain.MessageHistoryState
+	getMessageHistoryStateMutex       sync.RWMutex
+	getMessageHistoryStateArgsForCall []struct {
+	}
+	getMessageHistoryStateReturns struct {
+		result1 *domain.MessageHistoryState
+	}
+	getMessageHistoryStateReturnsOnCall map[int]struct {
+		result1 *domain.MessageHistoryState
+	}
 	GetPlanApprovalUIStateStub        func() *domain.PlanApprovalUIState
 	getPlanApprovalUIStateMutex       sync.RWMutex
 	getPlanApprovalUIStateArgsForCall []struct {
@@ -202,10 +216,24 @@ type FakeStateManager struct {
 	isAgentBusyReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	RecordEscPressStub        func() bool
+	recordEscPressMutex       sync.RWMutex
+	recordEscPressArgsForCall []struct {
+	}
+	recordEscPressReturns struct {
+		result1 bool
+	}
+	recordEscPressReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	RemoveAgentStub        func(string)
 	removeAgentMutex       sync.RWMutex
 	removeAgentArgsForCall []struct {
 		arg1 string
+	}
+	ResetEscTrackingStub        func()
+	resetEscTrackingMutex       sync.RWMutex
+	resetEscTrackingArgsForCall []struct {
 	}
 	SetAgentErrorStub        func(string, error)
 	setAgentErrorMutex       sync.RWMutex
@@ -258,6 +286,11 @@ type FakeStateManager struct {
 	setupFileSelectionMutex       sync.RWMutex
 	setupFileSelectionArgsForCall []struct {
 		arg1 []string
+	}
+	SetupMessageHistoryStateStub        func([]domain.UserMessageSnapshot)
+	setupMessageHistoryStateMutex       sync.RWMutex
+	setupMessageHistoryStateArgsForCall []struct {
+		arg1 []domain.UserMessageSnapshot
 	}
 	SetupPlanApprovalUIStateStub        func(string, chan domain.PlanApprovalAction)
 	setupPlanApprovalUIStateMutex       sync.RWMutex
@@ -452,6 +485,30 @@ func (fake *FakeStateManager) ClearFileSelectionStateCalls(stub func()) {
 	fake.clearFileSelectionStateMutex.Lock()
 	defer fake.clearFileSelectionStateMutex.Unlock()
 	fake.ClearFileSelectionStateStub = stub
+}
+
+func (fake *FakeStateManager) ClearMessageHistoryState() {
+	fake.clearMessageHistoryStateMutex.Lock()
+	fake.clearMessageHistoryStateArgsForCall = append(fake.clearMessageHistoryStateArgsForCall, struct {
+	}{})
+	stub := fake.ClearMessageHistoryStateStub
+	fake.recordInvocation("ClearMessageHistoryState", []interface{}{})
+	fake.clearMessageHistoryStateMutex.Unlock()
+	if stub != nil {
+		fake.ClearMessageHistoryStateStub()
+	}
+}
+
+func (fake *FakeStateManager) ClearMessageHistoryStateCallCount() int {
+	fake.clearMessageHistoryStateMutex.RLock()
+	defer fake.clearMessageHistoryStateMutex.RUnlock()
+	return len(fake.clearMessageHistoryStateArgsForCall)
+}
+
+func (fake *FakeStateManager) ClearMessageHistoryStateCalls(stub func()) {
+	fake.clearMessageHistoryStateMutex.Lock()
+	defer fake.clearMessageHistoryStateMutex.Unlock()
+	fake.ClearMessageHistoryStateStub = stub
 }
 
 func (fake *FakeStateManager) ClearPlanApprovalUIState() {
@@ -1075,6 +1132,59 @@ func (fake *FakeStateManager) GetFileSelectionStateReturnsOnCall(i int, result1 
 	}{result1}
 }
 
+func (fake *FakeStateManager) GetMessageHistoryState() *domain.MessageHistoryState {
+	fake.getMessageHistoryStateMutex.Lock()
+	ret, specificReturn := fake.getMessageHistoryStateReturnsOnCall[len(fake.getMessageHistoryStateArgsForCall)]
+	fake.getMessageHistoryStateArgsForCall = append(fake.getMessageHistoryStateArgsForCall, struct {
+	}{})
+	stub := fake.GetMessageHistoryStateStub
+	fakeReturns := fake.getMessageHistoryStateReturns
+	fake.recordInvocation("GetMessageHistoryState", []interface{}{})
+	fake.getMessageHistoryStateMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetMessageHistoryStateCallCount() int {
+	fake.getMessageHistoryStateMutex.RLock()
+	defer fake.getMessageHistoryStateMutex.RUnlock()
+	return len(fake.getMessageHistoryStateArgsForCall)
+}
+
+func (fake *FakeStateManager) GetMessageHistoryStateCalls(stub func() *domain.MessageHistoryState) {
+	fake.getMessageHistoryStateMutex.Lock()
+	defer fake.getMessageHistoryStateMutex.Unlock()
+	fake.GetMessageHistoryStateStub = stub
+}
+
+func (fake *FakeStateManager) GetMessageHistoryStateReturns(result1 *domain.MessageHistoryState) {
+	fake.getMessageHistoryStateMutex.Lock()
+	defer fake.getMessageHistoryStateMutex.Unlock()
+	fake.GetMessageHistoryStateStub = nil
+	fake.getMessageHistoryStateReturns = struct {
+		result1 *domain.MessageHistoryState
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetMessageHistoryStateReturnsOnCall(i int, result1 *domain.MessageHistoryState) {
+	fake.getMessageHistoryStateMutex.Lock()
+	defer fake.getMessageHistoryStateMutex.Unlock()
+	fake.GetMessageHistoryStateStub = nil
+	if fake.getMessageHistoryStateReturnsOnCall == nil {
+		fake.getMessageHistoryStateReturnsOnCall = make(map[int]struct {
+			result1 *domain.MessageHistoryState
+		})
+	}
+	fake.getMessageHistoryStateReturnsOnCall[i] = struct {
+		result1 *domain.MessageHistoryState
+	}{result1}
+}
+
 func (fake *FakeStateManager) GetPlanApprovalUIState() *domain.PlanApprovalUIState {
 	fake.getPlanApprovalUIStateMutex.Lock()
 	ret, specificReturn := fake.getPlanApprovalUIStateReturnsOnCall[len(fake.getPlanApprovalUIStateArgsForCall)]
@@ -1372,6 +1482,59 @@ func (fake *FakeStateManager) IsAgentBusyReturnsOnCall(i int, result1 bool) {
 	}{result1}
 }
 
+func (fake *FakeStateManager) RecordEscPress() bool {
+	fake.recordEscPressMutex.Lock()
+	ret, specificReturn := fake.recordEscPressReturnsOnCall[len(fake.recordEscPressArgsForCall)]
+	fake.recordEscPressArgsForCall = append(fake.recordEscPressArgsForCall, struct {
+	}{})
+	stub := fake.RecordEscPressStub
+	fakeReturns := fake.recordEscPressReturns
+	fake.recordInvocation("RecordEscPress", []interface{}{})
+	fake.recordEscPressMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) RecordEscPressCallCount() int {
+	fake.recordEscPressMutex.RLock()
+	defer fake.recordEscPressMutex.RUnlock()
+	return len(fake.recordEscPressArgsForCall)
+}
+
+func (fake *FakeStateManager) RecordEscPressCalls(stub func() bool) {
+	fake.recordEscPressMutex.Lock()
+	defer fake.recordEscPressMutex.Unlock()
+	fake.RecordEscPressStub = stub
+}
+
+func (fake *FakeStateManager) RecordEscPressReturns(result1 bool) {
+	fake.recordEscPressMutex.Lock()
+	defer fake.recordEscPressMutex.Unlock()
+	fake.RecordEscPressStub = nil
+	fake.recordEscPressReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStateManager) RecordEscPressReturnsOnCall(i int, result1 bool) {
+	fake.recordEscPressMutex.Lock()
+	defer fake.recordEscPressMutex.Unlock()
+	fake.RecordEscPressStub = nil
+	if fake.recordEscPressReturnsOnCall == nil {
+		fake.recordEscPressReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.recordEscPressReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
 func (fake *FakeStateManager) RemoveAgent(arg1 string) {
 	fake.removeAgentMutex.Lock()
 	fake.removeAgentArgsForCall = append(fake.removeAgentArgsForCall, struct {
@@ -1402,6 +1565,30 @@ func (fake *FakeStateManager) RemoveAgentArgsForCall(i int) string {
 	defer fake.removeAgentMutex.RUnlock()
 	argsForCall := fake.removeAgentArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) ResetEscTracking() {
+	fake.resetEscTrackingMutex.Lock()
+	fake.resetEscTrackingArgsForCall = append(fake.resetEscTrackingArgsForCall, struct {
+	}{})
+	stub := fake.ResetEscTrackingStub
+	fake.recordInvocation("ResetEscTracking", []interface{}{})
+	fake.resetEscTrackingMutex.Unlock()
+	if stub != nil {
+		fake.ResetEscTrackingStub()
+	}
+}
+
+func (fake *FakeStateManager) ResetEscTrackingCallCount() int {
+	fake.resetEscTrackingMutex.RLock()
+	defer fake.resetEscTrackingMutex.RUnlock()
+	return len(fake.resetEscTrackingArgsForCall)
+}
+
+func (fake *FakeStateManager) ResetEscTrackingCalls(stub func()) {
+	fake.resetEscTrackingMutex.Lock()
+	defer fake.resetEscTrackingMutex.Unlock()
+	fake.ResetEscTrackingStub = stub
 }
 
 func (fake *FakeStateManager) SetAgentError(arg1 string, arg2 error) {
@@ -1726,6 +1913,43 @@ func (fake *FakeStateManager) SetupFileSelectionArgsForCall(i int) []string {
 	fake.setupFileSelectionMutex.RLock()
 	defer fake.setupFileSelectionMutex.RUnlock()
 	argsForCall := fake.setupFileSelectionArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) SetupMessageHistoryState(arg1 []domain.UserMessageSnapshot) {
+	var arg1Copy []domain.UserMessageSnapshot
+	if arg1 != nil {
+		arg1Copy = make([]domain.UserMessageSnapshot, len(arg1))
+		copy(arg1Copy, arg1)
+	}
+	fake.setupMessageHistoryStateMutex.Lock()
+	fake.setupMessageHistoryStateArgsForCall = append(fake.setupMessageHistoryStateArgsForCall, struct {
+		arg1 []domain.UserMessageSnapshot
+	}{arg1Copy})
+	stub := fake.SetupMessageHistoryStateStub
+	fake.recordInvocation("SetupMessageHistoryState", []interface{}{arg1Copy})
+	fake.setupMessageHistoryStateMutex.Unlock()
+	if stub != nil {
+		fake.SetupMessageHistoryStateStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetupMessageHistoryStateCallCount() int {
+	fake.setupMessageHistoryStateMutex.RLock()
+	defer fake.setupMessageHistoryStateMutex.RUnlock()
+	return len(fake.setupMessageHistoryStateArgsForCall)
+}
+
+func (fake *FakeStateManager) SetupMessageHistoryStateCalls(stub func([]domain.UserMessageSnapshot)) {
+	fake.setupMessageHistoryStateMutex.Lock()
+	defer fake.setupMessageHistoryStateMutex.Unlock()
+	fake.SetupMessageHistoryStateStub = stub
+}
+
+func (fake *FakeStateManager) SetupMessageHistoryStateArgsForCall(i int) []domain.UserMessageSnapshot {
+	fake.setupMessageHistoryStateMutex.RLock()
+	defer fake.setupMessageHistoryStateMutex.RUnlock()
+	argsForCall := fake.setupMessageHistoryStateArgsForCall[i]
 	return argsForCall.arg1
 }
 

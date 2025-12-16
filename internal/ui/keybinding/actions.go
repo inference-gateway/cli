@@ -563,6 +563,34 @@ func handleQuit(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+
+	// Check for double ESC (for going back in time feature)
+	// Only trigger if we're in chat view and not in any approval states
+	currentView := stateManager.GetCurrentView()
+	planApprovalState := stateManager.GetPlanApprovalUIState()
+	approvalState := stateManager.GetApprovalUIState()
+	chatSession := stateManager.GetChatSession()
+
+	// Only detect double ESC when in chat view without active approvals or chat sessions
+	if currentView == domain.ViewStateChat &&
+		planApprovalState == nil &&
+		approvalState == nil &&
+		(chatSession == nil || chatSession.Status == domain.ChatStatusIdle || chatSession.Status == domain.ChatStatusCompleted) {
+
+		if isDoubleEsc := stateManager.RecordEscPress(); isDoubleEsc {
+			return func() tea.Msg {
+				return domain.NavigateBackInTimeEvent{
+					RequestID: "navigate-back-in-time",
+					Timestamp: time.Now(),
+				}
+			}
+		}
+	} else {
+		// Reset ESC tracking if we're in a state where double ESC shouldn't trigger
+		stateManager.ResetEscTracking()
+	}
+
 	autocomplete := app.GetAutocomplete()
 	if autocomplete != nil && autocomplete.IsVisible() {
 		return func() tea.Msg {
@@ -570,9 +598,6 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 
-	stateManager := app.GetStateManager()
-
-	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState != nil {
 		return func() tea.Msg {
 			return domain.PlanApprovalResponseEvent{
@@ -581,7 +606,6 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 
-	approvalState := stateManager.GetApprovalUIState()
 	if approvalState != nil && approvalState.PendingToolCall != nil {
 		return func() tea.Msg {
 			return domain.ToolApprovalResponseEvent{
