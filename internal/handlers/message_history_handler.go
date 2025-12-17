@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -89,6 +90,10 @@ func (h *MessageHistoryHandler) extractUserMessages(entries []domain.Conversatio
 			continue
 		}
 
+		if h.isSystemReminder(content) {
+			continue
+		}
+
 		truncated := h.truncateMessage(content, 50)
 
 		userMessage := domain.UserMessageSnapshot{
@@ -101,6 +106,11 @@ func (h *MessageHistoryHandler) extractUserMessages(entries []domain.Conversatio
 	}
 
 	return userMessages
+}
+
+// isSystemReminder checks if a message content is a system reminder
+func (h *MessageHistoryHandler) isSystemReminder(content string) bool {
+	return strings.Contains(content, "<system-reminder>")
 }
 
 // truncateMessage truncates a message to the specified length

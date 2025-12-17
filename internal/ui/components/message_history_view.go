@@ -106,6 +106,10 @@ func (m *MessageHistorySelector) handleNavigationUp() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
+	if m.selected > 0 {
+		m.selected--
+	}
+
 	return m, nil
 }
 
@@ -114,6 +118,11 @@ func (m *MessageHistorySelector) handleNavigationDown() (tea.Model, tea.Cmd) {
 		logger.Warn("Cannot navigate down: no filtered messages")
 		return m, nil
 	}
+
+	if m.selected < len(m.filteredMessages)-1 {
+		m.selected++
+	}
+
 	return m, nil
 }
 

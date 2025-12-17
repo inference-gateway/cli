@@ -874,7 +874,9 @@ func (app *ChatApplication) createSuccessMessage(repo, prURL, successMsg string)
 		Message: message,
 		Time:    time.Now(),
 	}
-	_ = app.conversationRepo.AddMessage(entry)
+	if err := app.conversationRepo.AddMessage(entry); err != nil {
+		logger.Error("Failed to add pull request creation message to conversation", "error", err)
+	}
 
 	return tea.Batch(
 		func() tea.Msg {
@@ -1280,7 +1282,9 @@ func (app *ChatApplication) handleFileSelectionKeys(keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func (app *ChatApplication) clearFileSelectionState() {
-	_ = app.stateManager.TransitionToView(domain.ViewStateChat)
+	if err := app.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
+		logger.Error("Failed to transition to chat view after file selection", "error", err)
+	}
 	app.stateManager.ClearFileSelectionState()
 }
 
@@ -1623,7 +1627,9 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 		return nil
 	}
 
-	_ = app.inputView.AddToHistory(input)
+	if err := app.inputView.AddToHistory(input); err != nil {
+		logger.Error("Failed to add input to history", "error", err)
+	}
 
 	app.inputView.ClearInput()
 
