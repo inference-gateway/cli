@@ -9,12 +9,13 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
+	sdk "github.com/inference-gateway/sdk"
 )
 
 // MessageHistorySelector implements the message history selection UI
 type MessageHistorySelector struct {
-	userMessages     []domain.UserMessageSnapshot
-	filteredMessages []domain.UserMessageSnapshot
+	messages         []domain.MessageSnapshot
+	filteredMessages []domain.MessageSnapshot
 	selected         int
 	width            int
 	height           int
@@ -26,10 +27,10 @@ type MessageHistorySelector struct {
 }
 
 // NewMessageHistorySelector creates a new message history selector
-func NewMessageHistorySelector(messages []domain.UserMessageSnapshot, styleProvider *styles.Provider) *MessageHistorySelector {
+func NewMessageHistorySelector(messages []domain.MessageSnapshot, styleProvider *styles.Provider) *MessageHistorySelector {
 	m := &MessageHistorySelector{
-		userMessages:     messages,
-		filteredMessages: make([]domain.UserMessageSnapshot, len(messages)),
+		messages:         messages,
+		filteredMessages: make([]domain.MessageSnapshot, len(messages)),
 		selected:         len(messages) - 1, // Default to most recent
 		width:            80,
 		height:           24,
@@ -47,6 +48,12 @@ func NewMessageHistorySelector(messages []domain.UserMessageSnapshot, styleProvi
 // Init initializes the component
 func (m *MessageHistorySelector) Init() tea.Cmd {
 	return nil
+}
+
+// SetDimensions sets the width and height of the component
+func (m *MessageHistorySelector) SetDimensions(width, height int) {
+	m.width = width
+	m.height = height
 }
 
 // Update handles bubbletea messages
@@ -183,14 +190,14 @@ func (m *MessageHistorySelector) updateSearch() {
 
 func (m *MessageHistorySelector) filterMessages() {
 	if m.searchQuery == "" {
-		m.filteredMessages = make([]domain.UserMessageSnapshot, len(m.userMessages))
-		copy(m.filteredMessages, m.userMessages)
+		m.filteredMessages = make([]domain.MessageSnapshot, len(m.messages))
+		copy(m.filteredMessages, m.messages)
 		return
 	}
 
-	m.filteredMessages = make([]domain.UserMessageSnapshot, 0)
+	m.filteredMessages = make([]domain.MessageSnapshot, 0)
 	query := strings.ToLower(m.searchQuery)
-	for _, msg := range m.userMessages {
+	for _, msg := range m.messages {
 		if strings.Contains(strings.ToLower(msg.Content), query) {
 			m.filteredMessages = append(m.filteredMessages, msg)
 		}
@@ -290,17 +297,36 @@ func (m *MessageHistorySelector) calculatePaginationBounds(maxVisible int) (int,
 	return start, end
 }
 
-func (m *MessageHistorySelector) writeMessageEntry(b *strings.Builder, msg domain.UserMessageSnapshot, isSelected bool) {
+func (m *MessageHistorySelector) writeMessageEntry(b *strings.Builder, msg domain.MessageSnapshot, isSelected bool) {
 	timestamp := msg.Timestamp.Format("15:04:05")
+
+	roleIndicator := "User"
+	if msg.Role == sdk.Assistant {
+		roleIndicator = "Assistant"
+	}
+
+	prefixWidth := 25
+	availableWidth := m.width - prefixWidth
+	if availableWidth < 20 {
+		availableWidth = 20
+	}
+
+	truncatedMsg := strings.ReplaceAll(msg.Content, "\n", " ")
+	truncatedMsg = strings.ReplaceAll(truncatedMsg, "\r", " ")
+	truncatedMsg = strings.Join(strings.Fields(truncatedMsg), " ")
+
+	if len(truncatedMsg) > availableWidth {
+		truncatedMsg = truncatedMsg[:availableWidth-3] + "..."
+	}
 
 	var entry string
 	if isSelected {
-		entry = fmt.Sprintf("▶ [%s] %s", timestamp, msg.TruncatedMsg)
+		entry = fmt.Sprintf("▶ [%s] [%s] %s", timestamp, roleIndicator, truncatedMsg)
 		if m.styleProvider != nil {
 			entry = m.styleProvider.RenderWithColor(entry, "accent")
 		}
 	} else {
-		entry = fmt.Sprintf("  [%s] %s", timestamp, msg.TruncatedMsg)
+		entry = fmt.Sprintf("  [%s] [%s] %s", timestamp, roleIndicator, truncatedMsg)
 		if m.styleProvider != nil {
 			entry = m.styleProvider.RenderDimText(entry)
 		}
@@ -321,7 +347,7 @@ func (m *MessageHistorySelector) writeFooter(b *strings.Builder) {
 }
 
 func (m *MessageHistorySelector) writeEmptyView(b *strings.Builder) string {
-	emptyText := "No user messages to restore"
+	emptyText := "No messages to restore"
 	if m.searchMode && m.searchQuery != "" {
 		emptyText = fmt.Sprintf("No messages found matching '%s'", m.searchQuery)
 	}

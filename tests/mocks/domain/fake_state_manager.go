@@ -287,10 +287,10 @@ type FakeStateManager struct {
 	setupFileSelectionArgsForCall []struct {
 		arg1 []string
 	}
-	SetupMessageHistoryStateStub        func([]domain.UserMessageSnapshot)
+	SetupMessageHistoryStateStub        func([]domain.MessageSnapshot)
 	setupMessageHistoryStateMutex       sync.RWMutex
 	setupMessageHistoryStateArgsForCall []struct {
-		arg1 []domain.UserMessageSnapshot
+		arg1 []domain.MessageSnapshot
 	}
 	SetupPlanApprovalUIStateStub        func(string, chan domain.PlanApprovalAction)
 	setupPlanApprovalUIStateMutex       sync.RWMutex
@@ -1916,15 +1916,15 @@ func (fake *FakeStateManager) SetupFileSelectionArgsForCall(i int) []string {
 	return argsForCall.arg1
 }
 
-func (fake *FakeStateManager) SetupMessageHistoryState(arg1 []domain.UserMessageSnapshot) {
-	var arg1Copy []domain.UserMessageSnapshot
+func (fake *FakeStateManager) SetupMessageHistoryState(arg1 []domain.MessageSnapshot) {
+	var arg1Copy []domain.MessageSnapshot
 	if arg1 != nil {
-		arg1Copy = make([]domain.UserMessageSnapshot, len(arg1))
+		arg1Copy = make([]domain.MessageSnapshot, len(arg1))
 		copy(arg1Copy, arg1)
 	}
 	fake.setupMessageHistoryStateMutex.Lock()
 	fake.setupMessageHistoryStateArgsForCall = append(fake.setupMessageHistoryStateArgsForCall, struct {
-		arg1 []domain.UserMessageSnapshot
+		arg1 []domain.MessageSnapshot
 	}{arg1Copy})
 	stub := fake.SetupMessageHistoryStateStub
 	fake.recordInvocation("SetupMessageHistoryState", []interface{}{arg1Copy})
@@ -1940,13 +1940,13 @@ func (fake *FakeStateManager) SetupMessageHistoryStateCallCount() int {
 	return len(fake.setupMessageHistoryStateArgsForCall)
 }
 
-func (fake *FakeStateManager) SetupMessageHistoryStateCalls(stub func([]domain.UserMessageSnapshot)) {
+func (fake *FakeStateManager) SetupMessageHistoryStateCalls(stub func([]domain.MessageSnapshot)) {
 	fake.setupMessageHistoryStateMutex.Lock()
 	defer fake.setupMessageHistoryStateMutex.Unlock()
 	fake.SetupMessageHistoryStateStub = stub
 }
 
-func (fake *FakeStateManager) SetupMessageHistoryStateArgsForCall(i int) []domain.UserMessageSnapshot {
+func (fake *FakeStateManager) SetupMessageHistoryStateArgsForCall(i int) []domain.MessageSnapshot {
 	fake.setupMessageHistoryStateMutex.RLock()
 	defer fake.setupMessageHistoryStateMutex.RUnlock()
 	argsForCall := fake.setupMessageHistoryStateArgsForCall[i]

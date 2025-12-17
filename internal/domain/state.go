@@ -333,16 +333,17 @@ type PlanApprovalUIState struct {
 
 // MessageHistoryState represents the state of message history view
 type MessageHistoryState struct {
-	Messages      []UserMessageSnapshot `json:"messages"`
-	SelectedIndex int                   `json:"selected_index"`
+	Messages      []MessageSnapshot `json:"messages"`
+	SelectedIndex int               `json:"selected_index"`
 }
 
-// UserMessageSnapshot represents a snapshot of a user message for the history view
-type UserMessageSnapshot struct {
-	Index        int       `json:"index"`         // Index in conversation
-	Content      string    `json:"content"`       // Message content
-	Timestamp    time.Time `json:"timestamp"`     // When sent
-	TruncatedMsg string    `json:"truncated_msg"` // Truncated for display
+// MessageSnapshot represents a snapshot of a message for the history view
+type MessageSnapshot struct {
+	Index        int             `json:"index"`
+	Role         sdk.MessageRole `json:"role"`
+	Content      string          `json:"content"`
+	Timestamp    time.Time       `json:"timestamp"`
+	TruncatedMsg string          `json:"truncated_msg"`
 }
 
 // NewApplicationState creates a new application state
@@ -1052,7 +1053,7 @@ func (s *ApplicationState) RemoveAgent(name string) {
 // Message History State Management
 
 // SetupMessageHistoryState initializes message history state
-func (s *ApplicationState) SetupMessageHistoryState(messages []UserMessageSnapshot) {
+func (s *ApplicationState) SetupMessageHistoryState(messages []MessageSnapshot) {
 	s.messageHistoryState = &MessageHistoryState{
 		Messages:      messages,
 		SelectedIndex: len(messages) - 1, // Default to most recent

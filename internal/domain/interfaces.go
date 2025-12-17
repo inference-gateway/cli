@@ -242,7 +242,7 @@ type StateManager interface {
 	ResetEscTracking()
 
 	// Message history state management
-	SetupMessageHistoryState(messages []UserMessageSnapshot)
+	SetupMessageHistoryState(messages []MessageSnapshot)
 	GetMessageHistoryState() *MessageHistoryState
 	ClearMessageHistoryState()
 }

@@ -754,7 +754,7 @@ func (sm *StateManager) ResetEscTracking() {
 }
 
 // SetupMessageHistoryState initializes message history state
-func (sm *StateManager) SetupMessageHistoryState(messages []domain.UserMessageSnapshot) {
+func (sm *StateManager) SetupMessageHistoryState(messages []domain.MessageSnapshot) {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 

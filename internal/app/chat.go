@@ -1133,10 +1133,13 @@ func (app *ChatApplication) handleMessageHistoryView(msg tea.Msg) []tea.Cmd {
 
 	if app.messageHistoryView == nil {
 		styleProvider := styles.NewProvider(app.themeService)
+		width, height := app.stateManager.GetDimensions()
 		app.messageHistoryView = components.NewMessageHistorySelector(
 			historyState.Messages,
 			styleProvider,
 		)
+
+		app.messageHistoryView.SetDimensions(width, height)
 		if cmd := app.messageHistoryView.Init(); cmd != nil {
 			cmds = append(cmds, cmd)
 		}

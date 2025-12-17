@@ -32,14 +32,14 @@ func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBa
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
 
-		userMessages := h.extractUserMessages(entries)
+		messages := h.extractMessages(entries)
 
-		if len(userMessages) == 0 {
-			logger.Warn("No user messages to navigate back to")
+		if len(messages) == 0 {
+			logger.Warn("No messages to navigate back to")
 			return nil
 		}
 
-		h.stateManager.SetupMessageHistoryState(userMessages)
+		h.stateManager.SetupMessageHistoryState(messages)
 
 		if err := h.stateManager.TransitionToView(domain.ViewStateMessageHistory); err != nil {
 			logger.Error("Failed to transition to message history view", "error", err)
@@ -53,8 +53,11 @@ func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBa
 // HandleRestore processes the message history restore event
 func (h *MessageHistoryHandler) HandleRestore(event domain.MessageHistoryRestoreEvent) tea.Cmd {
 	return func() tea.Msg {
-		if err := h.conversationRepo.DeleteMessagesAfterIndex(event.RestoreToIndex); err != nil {
-			logger.Error("Failed to restore conversation", "error", err, "index", event.RestoreToIndex)
+		entries := h.conversationRepo.GetMessages()
+		restoreIndex := h.adjustRestoreIndex(entries, event.RestoreToIndex)
+
+		if err := h.conversationRepo.DeleteMessagesAfterIndex(restoreIndex); err != nil {
+			logger.Error("Failed to restore conversation", "error", err, "index", restoreIndex)
 			return domain.ChatErrorEvent{
 				RequestID: event.RequestID,
 				Error:     err,
@@ -74,13 +77,44 @@ func (h *MessageHistoryHandler) HandleRestore(event domain.MessageHistoryRestore
 	}
 }
 
-// extractUserMessages filters conversation entries to only user messages
+// adjustRestoreIndex adjusts the restore index based on message role and tool calls
+func (h *MessageHistoryHandler) adjustRestoreIndex(entries []domain.ConversationEntry, restoreIndex int) int {
+	if restoreIndex >= len(entries) {
+		return restoreIndex
+	}
+
+	msg := entries[restoreIndex]
+	if msg.Message.Role == sdk.Assistant && msg.Message.ToolCalls != nil && len(*msg.Message.ToolCalls) > 0 {
+		toolResponsesFound := 0
+		for i := restoreIndex + 1; i < len(entries); i++ {
+			if entries[i].Message.Role == sdk.Tool {
+				restoreIndex = i
+				toolResponsesFound++
+			} else {
+				break
+			}
+		}
+		logger.Info("Adjusted restore point to after tool responses",
+			"newIndex", restoreIndex,
+			"toolResponsesFound", toolResponsesFound)
+	} else {
+		for restoreIndex > 0 && entries[restoreIndex].Message.Role == sdk.Tool {
+			restoreIndex--
+			logger.Info("Removed trailing tool message", "adjustedIndex", restoreIndex)
+		}
+	}
+
+	return restoreIndex
+}
+
+// extractMessages filters conversation entries to user and assistant messages
 // and creates snapshots with truncated content for display
-func (h *MessageHistoryHandler) extractUserMessages(entries []domain.ConversationEntry) []domain.UserMessageSnapshot {
-	userMessages := make([]domain.UserMessageSnapshot, 0)
+func (h *MessageHistoryHandler) extractMessages(entries []domain.ConversationEntry) []domain.MessageSnapshot {
+	messages := make([]domain.MessageSnapshot, 0)
 
 	for i, entry := range entries {
-		if entry.Message.Role != sdk.User {
+		// Only include user and assistant messages
+		if entry.Message.Role != sdk.User && entry.Message.Role != sdk.Assistant {
 			continue
 		}
 
@@ -94,18 +128,23 @@ func (h *MessageHistoryHandler) extractUserMessages(entries []domain.Conversatio
 			continue
 		}
 
+		if strings.TrimSpace(content) == "" {
+			continue
+		}
+
 		truncated := h.truncateMessage(content, 50)
 
-		userMessage := domain.UserMessageSnapshot{
+		message := domain.MessageSnapshot{
 			Index:        i,
+			Role:         entry.Message.Role,
 			Content:      content,
 			Timestamp:    entry.Time,
 			TruncatedMsg: truncated,
 		}
-		userMessages = append(userMessages, userMessage)
+		messages = append(messages, message)
 	}
 
-	return userMessages
+	return messages
 }
 
 // isSystemReminder checks if a message content is a system reminder
