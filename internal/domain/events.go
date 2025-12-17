@@ -350,7 +350,7 @@ func (e NavigateBackInTimeEvent) GetTimestamp() time.Time { return e.Timestamp }
 type MessageHistoryRestoreEvent struct {
 	RequestID      string
 	Timestamp      time.Time
-	RestoreToIndex int // Index in conversation to restore to
+	RestoreToIndex int
 }
 
 func (e MessageHistoryRestoreEvent) GetRequestID() string    { return e.RequestID }
