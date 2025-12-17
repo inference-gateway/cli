@@ -29,9 +29,15 @@ func NewMessageHistoryHandler(
 
 // HandleNavigateBackInTime processes the navigate back in time event
 func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBackInTimeEvent) tea.Cmd {
+	h.stateManager.SetupMessageHistoryState([]domain.MessageSnapshot{})
+
+	if err := h.stateManager.TransitionToView(domain.ViewStateMessageHistory); err != nil {
+		logger.Error("Failed to transition to message history view", "error", err)
+		return nil
+	}
+
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
-
 		messages := h.extractMessages(entries)
 
 		if len(messages) == 0 {
@@ -41,12 +47,7 @@ func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBa
 
 		h.stateManager.SetupMessageHistoryState(messages)
 
-		if err := h.stateManager.TransitionToView(domain.ViewStateMessageHistory); err != nil {
-			logger.Error("Failed to transition to message history view", "error", err)
-			return nil
-		}
-
-		return nil
+		return domain.MessageHistoryReadyEvent{}
 	}
 }
 

@@ -346,6 +346,9 @@ type NavigateBackInTimeEvent struct {
 func (e NavigateBackInTimeEvent) GetRequestID() string    { return e.RequestID }
 func (e NavigateBackInTimeEvent) GetTimestamp() time.Time { return e.Timestamp }
 
+// MessageHistoryReadyEvent indicates message history has been loaded and is ready to display
+type MessageHistoryReadyEvent struct{}
+
 // MessageHistoryRestoreEvent is emitted when user selects a restore point in message history
 type MessageHistoryRestoreEvent struct {
 	RequestID      string

@@ -1056,7 +1056,7 @@ func (s *ApplicationState) RemoveAgent(name string) {
 func (s *ApplicationState) SetupMessageHistoryState(messages []MessageSnapshot) {
 	s.messageHistoryState = &MessageHistoryState{
 		Messages:      messages,
-		SelectedIndex: len(messages) - 1, // Default to most recent
+		SelectedIndex: len(messages) - 1,
 	}
 }
 
