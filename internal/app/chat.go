@@ -1122,15 +1122,15 @@ func (app *ChatApplication) renderConversationSelection() string {
 func (app *ChatApplication) handleMessageHistoryView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	// Get message history state from state manager
 	historyState := app.stateManager.GetMessageHistoryState()
 	if historyState == nil {
-		// No history state, transition back to chat
-		_ = app.stateManager.TransitionToView(domain.ViewStateChat)
+		err := app.stateManager.TransitionToView(domain.ViewStateChat)
+		if err != nil {
+			logger.Error("Failed to transition to chat view", "error", err)
+		}
 		return cmds
 	}
 
-	// Initialize view if needed (only create once, not on every key press)
 	if app.messageHistoryView == nil {
 		styleProvider := styles.NewProvider(app.themeService)
 		app.messageHistoryView = components.NewMessageHistorySelector(
@@ -1142,7 +1142,6 @@ func (app *ChatApplication) handleMessageHistoryView(msg tea.Msg) []tea.Cmd {
 		}
 	}
 
-	// Update the view
 	model, cmd := app.messageHistoryView.Update(msg)
 	app.messageHistoryView = model.(*components.MessageHistorySelector)
 
@@ -1150,18 +1149,18 @@ func (app *ChatApplication) handleMessageHistoryView(msg tea.Msg) []tea.Cmd {
 		cmds = append(cmds, cmd)
 	}
 
-	// Check if cancelled
 	if app.messageHistoryView.IsCancelled() {
 		app.stateManager.ClearMessageHistoryState()
-		app.messageHistoryView = nil // Clear view so it gets recreated next time
-		_ = app.stateManager.TransitionToView(domain.ViewStateChat)
+		app.messageHistoryView = nil
+		err := app.stateManager.TransitionToView(domain.ViewStateChat)
+		if err != nil {
+			logger.Error("Failed to transition to chat view after cancelling history", "error", err)
+		}
 		return cmds
 	}
 
-	// Check if selection was made (done but not cancelled)
 	if app.messageHistoryView.IsSelected() {
-		// The restore event has been emitted, clear the view
-		app.messageHistoryView = nil // Clear view so it gets recreated next time
+		app.messageHistoryView = nil
 		return cmds
 	}
 
