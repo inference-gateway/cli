@@ -37,6 +37,7 @@ type InputView struct {
 	historySelectedIndex int
 	focused              bool
 	usageHint            string
+	customHint           string
 }
 
 func NewInputView(modelService domain.ModelService) *InputView {
@@ -56,7 +57,7 @@ func NewInputViewWithConfigDir(modelService domain.ModelService, configDir strin
 	return &InputView{
 		text:             "",
 		cursor:           0,
-		placeholder:      "Type your message... (Press Enter to send, Alt+Enter or Ctrl+J for newline, ? for help)",
+		placeholder:      "Type your message... (Press Enter to send, alt+enter or ctrl+j for newline, ? for help)",
 		width:            80,
 		height:           5,
 		modelService:     modelService,
@@ -182,6 +183,10 @@ func (iv *InputView) renderPlaceholder() string {
 
 // renderDisabledPlaceholder returns placeholder text when input is disabled
 func (iv *InputView) renderDisabledPlaceholder() string {
+	if iv.customHint != "" {
+		return iv.styleProvider.RenderDimText("⏸  " + iv.customHint)
+	}
+
 	if iv.stateManager == nil {
 		return iv.styleProvider.RenderDimText("⏸  Input disabled")
 	}
@@ -370,6 +375,18 @@ func (iv *InputView) SetUsageHint(hint string) {
 // GetUsageHint returns the current usage hint
 func (iv *InputView) GetUsageHint() string {
 	return iv.usageHint
+}
+
+// SetCustomHint sets a custom hint
+// Note: The input is disabled separately by handleViewSpecificMessages based on navigation mode
+func (iv *InputView) SetCustomHint(hint string) {
+	iv.customHint = hint
+}
+
+// ClearCustomHint clears the custom hint
+// Note: The input is re-enabled separately by handleViewSpecificMessages when exiting navigation mode
+func (iv *InputView) ClearCustomHint() {
+	iv.customHint = ""
 }
 
 // Bubble Tea interface

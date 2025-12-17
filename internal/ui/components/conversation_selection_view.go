@@ -562,7 +562,7 @@ func (c *ConversationSelectorImpl) writeDeleteConfirmation(b *strings.Builder) s
 	fmt.Fprintf(b, "Are you sure you want to delete this conversation?\n\n")
 	fmt.Fprintf(b, "%s\n", c.styleProvider.RenderDimText("ID: "+conv.ID))
 	fmt.Fprintf(b, "%s\n\n", c.styleProvider.RenderDimText("Title: "+conv.Title))
-	fmt.Fprintf(b, "%s", c.styleProvider.RenderWithColor("Press Y to confirm, N or Esc to cancel", accentColor))
+	fmt.Fprintf(b, "%s", c.styleProvider.RenderWithColor("Press Y to confirm, N or esc to cancel", accentColor))
 
 	return b.String()
 }

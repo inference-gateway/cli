@@ -29,13 +29,6 @@ func NewMessageHistoryHandler(
 
 // HandleNavigateBackInTime processes the navigate back in time event
 func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBackInTimeEvent) tea.Cmd {
-	h.stateManager.SetupMessageHistoryState([]domain.MessageSnapshot{})
-
-	if err := h.stateManager.TransitionToView(domain.ViewStateMessageHistory); err != nil {
-		logger.Error("Failed to transition to message history view", "error", err)
-		return nil
-	}
-
 	return func() tea.Msg {
 		entries := h.conversationRepo.GetMessages()
 		messages := h.extractMessages(entries)
@@ -45,9 +38,9 @@ func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBa
 			return nil
 		}
 
-		h.stateManager.SetupMessageHistoryState(messages)
-
-		return domain.MessageHistoryReadyEvent{}
+		return domain.MessageHistoryReadyEvent{
+			Messages: messages,
+		}
 	}
 }
 
@@ -64,12 +57,6 @@ func (h *MessageHistoryHandler) HandleRestore(event domain.MessageHistoryRestore
 				Error:     err,
 				Timestamp: time.Now(),
 			}
-		}
-
-		h.stateManager.ClearMessageHistoryState()
-
-		if err := h.stateManager.TransitionToView(domain.ViewStateChat); err != nil {
-			logger.Error("Failed to transition back to chat", "error", err)
 		}
 
 		return domain.UpdateHistoryEvent{
@@ -114,7 +101,6 @@ func (h *MessageHistoryHandler) extractMessages(entries []domain.ConversationEnt
 	messages := make([]domain.MessageSnapshot, 0)
 
 	for i, entry := range entries {
-		// Only include user and assistant messages
 		if entry.Message.Role != sdk.User && entry.Message.Role != sdk.Assistant {
 			continue
 		}

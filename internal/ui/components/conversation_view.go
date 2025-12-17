@@ -19,6 +19,16 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
+// NavigationMode represents the current navigation state of the conversation view
+type NavigationMode int
+
+const (
+	// NavigationModeNormal is the default mode for displaying conversation
+	NavigationModeNormal NavigationMode = iota
+	// NavigationModeMessageHistory is the mode for navigating message history
+	NavigationModeMessageHistory
+)
+
 // ConversationView handles the chat conversation display
 type ConversationView struct {
 	conversation        []domain.ConversationEntry
@@ -43,6 +53,11 @@ type ConversationView struct {
 	isStreaming         bool
 	streamingModel      string
 	keyHintFormatter    *hints.Formatter
+
+	// Message history navigation
+	navigationMode       NavigationMode
+	messageSnapshots     []domain.MessageSnapshot
+	historySelectedIndex int
 }
 
 func NewConversationView(styleProvider *styles.Provider) *ConversationView {
@@ -105,9 +120,12 @@ func (cv *ConversationView) SetConversation(conversation []domain.ConversationEn
 	wasAtBottom := cv.Viewport.AtBottom()
 	cv.conversation = conversation
 	cv.updatePlainTextLines()
-	cv.updateViewportContentFull()
-	if wasAtBottom {
-		cv.Viewport.GotoBottom()
+
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContentFull()
+		if wasAtBottom {
+			cv.Viewport.GotoBottom()
+		}
 	}
 }
 
@@ -132,7 +150,9 @@ func (cv *ConversationView) ResetUserScroll() {
 func (cv *ConversationView) ToggleToolResultExpansion(index int) {
 	if index >= 0 && index < len(cv.conversation) {
 		cv.expandedToolResults[index] = !cv.expandedToolResults[index]
-		cv.updateViewportContentFull()
+		if cv.navigationMode != NavigationModeMessageHistory {
+			cv.updateViewportContentFull()
+		}
 	}
 }
 
@@ -144,7 +164,10 @@ func (cv *ConversationView) ToggleAllToolResultsExpansion() {
 			cv.expandedToolResults[i] = cv.allToolsExpanded
 		}
 	}
-	cv.updateViewportContentFull()
+
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContentFull()
+	}
 }
 
 func (cv *ConversationView) IsToolResultExpanded(index int) bool {
@@ -157,7 +180,9 @@ func (cv *ConversationView) IsToolResultExpanded(index int) bool {
 // ToggleRawFormat toggles between raw and rendered markdown display
 func (cv *ConversationView) ToggleRawFormat() {
 	cv.rawFormat = !cv.rawFormat
-	cv.updateViewportContentFull()
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContentFull()
+	}
 }
 
 // IsRawFormat returns true if raw format (no markdown rendering) is enabled
@@ -170,7 +195,9 @@ func (cv *ConversationView) RefreshTheme() {
 	if cv.markdownRenderer != nil {
 		cv.markdownRenderer.RefreshTheme()
 	}
-	cv.updateViewportContentFull()
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContentFull()
+	}
 }
 
 // GetPlainTextLines returns the conversation as plain text lines for selection mode
@@ -210,6 +237,17 @@ func (cv *ConversationView) SetHeight(height int) {
 }
 
 func (cv *ConversationView) Render() string {
+	if cv.navigationMode == NavigationModeMessageHistory {
+		viewportContent := cv.Viewport.View()
+		lines := strings.Split(viewportContent, "\n")
+		leftPadding := "  "
+		for i, line := range lines {
+			lines[i] = leftPadding + strings.TrimRight(line, " ")
+		}
+		result := strings.Join(lines, "\n")
+		return result
+	}
+
 	if len(cv.conversation) == 0 {
 		cv.Viewport.SetContent(cv.renderWelcome())
 	}
@@ -807,7 +845,11 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		cv.SetWidth(windowMsg.Width)
 		cv.height = windowMsg.Height
-		cv.updateViewportContentFull()
+		if cv.navigationMode != NavigationModeMessageHistory {
+			cv.updateViewportContentFull()
+		} else {
+			cv.updateMessageHistoryView()
+		}
 	}
 
 	if cv.toolCallRenderer != nil {
@@ -816,17 +858,23 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case domain.UpdateHistoryEvent:
-		cv.flushStreamingBuffer()
-		cv.SetConversation(msg.History)
+		if cv.navigationMode != NavigationModeMessageHistory {
+			cv.flushStreamingBuffer()
+			cv.SetConversation(msg.History)
+		}
 		return cv, cmd
 	case domain.BashCommandCompletedEvent:
-		cv.SetConversation(msg.History)
-		if cv.toolCallRenderer != nil {
-			cv.toolCallRenderer.ClearPreviews()
+		if cv.navigationMode != NavigationModeMessageHistory {
+			cv.SetConversation(msg.History)
+			if cv.toolCallRenderer != nil {
+				cv.toolCallRenderer.ClearPreviews()
+			}
 		}
 		return cv, cmd
 	case domain.StreamingContentEvent:
-		cv.appendStreamingContent(msg.Content, msg.Model)
+		if cv.navigationMode != NavigationModeMessageHistory {
+			cv.appendStreamingContent(msg.Content, msg.Model)
+		}
 		return cv, cmd
 	case domain.ScrollRequestEvent:
 		if msg.ComponentID == "conversation" {
@@ -1226,7 +1274,9 @@ func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cm
 		}
 	}
 
-	cv.updateViewportContent()
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
 	return cmd
 }
 
@@ -1247,4 +1297,203 @@ func (cv *ConversationView) getToggleToolHint(action string) string {
 	}
 
 	return hint
+}
+
+// Message History Navigation Methods
+
+// EnterMessageHistoryMode switches the conversation view to message history navigation mode
+func (cv *ConversationView) EnterMessageHistoryMode(snapshots []domain.MessageSnapshot) {
+	cv.navigationMode = NavigationModeMessageHistory
+	cv.messageSnapshots = snapshots
+	if len(snapshots) > 0 {
+		cv.historySelectedIndex = len(snapshots) - 1 // Default to most recent
+	} else {
+		cv.historySelectedIndex = 0
+	}
+	cv.updateMessageHistoryView()
+	cv.Viewport.GotoTop()
+}
+
+// ExitMessageHistoryMode returns the conversation view to normal mode
+func (cv *ConversationView) ExitMessageHistoryMode() {
+	cv.navigationMode = NavigationModeNormal
+	cv.messageSnapshots = nil
+	cv.historySelectedIndex = 0
+	cv.updateViewportContentFull()
+}
+
+// IsInMessageHistoryMode returns true if currently in message history navigation mode
+func (cv *ConversationView) IsInMessageHistoryMode() bool {
+	return cv.navigationMode == NavigationModeMessageHistory
+}
+
+// NavigateHistoryUp moves the selection up in message history
+func (cv *ConversationView) NavigateHistoryUp() {
+	if len(cv.messageSnapshots) == 0 {
+		return
+	}
+	if cv.historySelectedIndex > 0 {
+		cv.historySelectedIndex--
+		cv.updateMessageHistoryView()
+	}
+}
+
+// NavigateHistoryDown moves the selection down in message history
+func (cv *ConversationView) NavigateHistoryDown() {
+	if len(cv.messageSnapshots) == 0 {
+		return
+	}
+	if cv.historySelectedIndex < len(cv.messageSnapshots)-1 {
+		cv.historySelectedIndex++
+		cv.updateMessageHistoryView()
+	}
+}
+
+// GetSelectedMessageIndex returns the conversation index of the selected message
+func (cv *ConversationView) GetSelectedMessageIndex() int {
+	if len(cv.messageSnapshots) == 0 || cv.historySelectedIndex < 0 || cv.historySelectedIndex >= len(cv.messageSnapshots) {
+		return -1
+	}
+	return cv.messageSnapshots[cv.historySelectedIndex].Index
+}
+
+// updateMessageHistoryView updates the viewport content with the message history selector
+func (cv *ConversationView) updateMessageHistoryView() {
+	content := cv.renderMessageHistorySelector()
+	cv.Viewport.SetContent(content)
+}
+
+// renderMessageHistorySelector renders the message history selector interface
+func (cv *ConversationView) renderMessageHistorySelector() string {
+	var b strings.Builder
+
+	header := "# Message History\n\n"
+	header += "_Select a restore point to rewind your conversation_\n\n"
+
+	if cv.styleProvider != nil && cv.markdownRenderer != nil && !cv.rawFormat {
+		cv.markdownRenderer.SetWidth(cv.width)
+		b.WriteString(cv.markdownRenderer.Render(header))
+	} else {
+		title := "Message History"
+		subtitle := "Select a restore point to rewind your conversation"
+		if cv.styleProvider != nil {
+			b.WriteString(cv.styleProvider.RenderWithColor(title, "accent"))
+			b.WriteString("\n")
+			b.WriteString(cv.styleProvider.RenderDimText(subtitle))
+		} else {
+			b.WriteString(title)
+			b.WriteString("\n")
+			b.WriteString(subtitle)
+		}
+		b.WriteString("\n\n")
+	}
+
+	countText := fmt.Sprintf("**%d messages** available for restoration", len(cv.messageSnapshots))
+	if cv.styleProvider != nil && cv.markdownRenderer != nil && !cv.rawFormat {
+		b.WriteString(cv.markdownRenderer.Render(countText))
+	} else {
+		plainCount := fmt.Sprintf("%d messages available for restoration", len(cv.messageSnapshots))
+		if cv.styleProvider != nil {
+			b.WriteString(cv.styleProvider.RenderDimText(plainCount))
+		} else {
+			b.WriteString(plainCount)
+		}
+	}
+	b.WriteString("\n\n")
+
+	if len(cv.messageSnapshots) == 0 {
+		emptyText := "No messages to restore"
+		if cv.styleProvider != nil {
+			b.WriteString(cv.styleProvider.RenderDimText(emptyText))
+		} else {
+			b.WriteString(emptyText)
+		}
+		b.WriteString("\n\n")
+		return b.String()
+	}
+
+	maxVisible := cv.height - 10
+	if maxVisible < 5 {
+		maxVisible = 5
+	}
+
+	start, end := cv.calculatePaginationBounds(maxVisible)
+
+	b.WriteString("\n")
+
+	for i := start; i < end; i++ {
+		msg := cv.messageSnapshots[i]
+		isSelected := i == cv.historySelectedIndex
+
+		timestamp := msg.Timestamp.Format("15:04:05")
+		roleIndicator := "User"
+		if msg.Role == sdk.Assistant {
+			roleIndicator = "Assistant"
+		}
+
+		prefixWidth := 25
+		availableWidth := cv.width - prefixWidth
+		if availableWidth < 20 {
+			availableWidth = 20
+		}
+
+		truncatedMsg := strings.ReplaceAll(msg.Content, "\n", " ")
+		truncatedMsg = strings.ReplaceAll(truncatedMsg, "\r", " ")
+		truncatedMsg = strings.Join(strings.Fields(truncatedMsg), " ")
+
+		if len(truncatedMsg) > availableWidth {
+			truncatedMsg = truncatedMsg[:availableWidth-3] + "..."
+		}
+
+		var entry string
+		if isSelected {
+			entry = fmt.Sprintf("▶ [%s] [%s] %s", timestamp, roleIndicator, truncatedMsg)
+			if cv.styleProvider != nil {
+				entry = cv.styleProvider.RenderWithColor(entry, "accent")
+			}
+		} else {
+			entry = fmt.Sprintf("  [%s] [%s] %s", timestamp, roleIndicator, truncatedMsg)
+			if cv.styleProvider != nil {
+				entry = cv.styleProvider.RenderDimText(entry)
+			}
+		}
+
+		b.WriteString(entry)
+		b.WriteString("\n")
+	}
+
+	if end < len(cv.messageSnapshots) {
+		moreText := fmt.Sprintf("\n... and %d more messages", len(cv.messageSnapshots)-end)
+		if cv.styleProvider != nil {
+			b.WriteString(cv.styleProvider.RenderDimText(moreText))
+		} else {
+			b.WriteString(moreText)
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
+
+// calculatePaginationBounds calculates the start and end indices for pagination
+func (cv *ConversationView) calculatePaginationBounds(maxVisible int) (int, int) {
+	totalMessages := len(cv.messageSnapshots)
+	if totalMessages <= maxVisible {
+		return 0, totalMessages
+	}
+
+	start := cv.historySelectedIndex - maxVisible/2
+	if start < 0 {
+		start = 0
+	}
+	end := start + maxVisible
+	if end > totalMessages {
+		end = totalMessages
+		start = end - maxVisible
+		if start < 0 {
+			start = 0
+		}
+	}
+
+	return start, end
 }

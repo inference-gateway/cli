@@ -33,7 +33,6 @@ type ApplicationState struct {
 	fileSelectionState  *FileSelectionState
 	approvalUIState     *ApprovalUIState
 	planApprovalUIState *PlanApprovalUIState
-	messageHistoryState *MessageHistoryState
 
 	// Todo State
 	todos []TodoItem
@@ -57,7 +56,6 @@ const (
 	ViewStateA2ATaskManagement
 	ViewStatePlanApproval
 	ViewStateGithubActionSetup
-	ViewStateMessageHistory
 )
 
 // AgentMode represents the operational mode of the agent
@@ -90,8 +88,6 @@ func (v ViewState) String() string {
 		return "PlanApproval"
 	case ViewStateGithubActionSetup:
 		return "GithubActionSetup"
-	case ViewStateMessageHistory:
-		return "MessageHistory"
 	default:
 		return "Unknown"
 	}
@@ -331,12 +327,6 @@ type PlanApprovalUIState struct {
 	ResponseChan  chan PlanApprovalAction `json:"-"`
 }
 
-// MessageHistoryState represents the state of message history view
-type MessageHistoryState struct {
-	Messages      []MessageSnapshot `json:"messages"`
-	SelectedIndex int               `json:"selected_index"`
-}
-
 // MessageSnapshot represents a snapshot of a message for the history view
 type MessageSnapshot struct {
 	Index        int             `json:"index"`
@@ -422,7 +412,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 			ViewStateA2ATaskManagement,
 			ViewStatePlanApproval,
 			ViewStateGithubActionSetup,
-			ViewStateMessageHistory,
 		},
 		ViewStateFileSelection:         {ViewStateChat},
 		ViewStateConversationSelection: {ViewStateChat},
@@ -430,7 +419,6 @@ func (s *ApplicationState) isValidTransition(from, to ViewState) bool {
 		ViewStateA2ATaskManagement:     {ViewStateChat},
 		ViewStatePlanApproval:          {ViewStateChat},
 		ViewStateGithubActionSetup:     {ViewStateChat},
-		ViewStateMessageHistory:        {ViewStateChat},
 	}
 
 	allowed, exists := validTransitions[from]
@@ -1048,24 +1036,4 @@ func (s *ApplicationState) RemoveAgent(name string) {
 	delete(s.agentReadiness.Agents, name)
 
 	s.agentReadiness.TotalAgents--
-}
-
-// Message History State Management
-
-// SetupMessageHistoryState initializes message history state
-func (s *ApplicationState) SetupMessageHistoryState(messages []MessageSnapshot) {
-	s.messageHistoryState = &MessageHistoryState{
-		Messages:      messages,
-		SelectedIndex: len(messages) - 1,
-	}
-}
-
-// GetMessageHistoryState returns the current message history state
-func (s *ApplicationState) GetMessageHistoryState() *MessageHistoryState {
-	return s.messageHistoryState
-}
-
-// ClearMessageHistoryState clears the message history state
-func (s *ApplicationState) ClearMessageHistoryState() {
-	s.messageHistoryState = nil
 }

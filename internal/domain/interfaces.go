@@ -236,15 +236,6 @@ type StateManager interface {
 	AreAllAgentsReady() bool
 	ClearAgentReadiness()
 	RemoveAgent(name string)
-
-	// ESC key tracking for double ESC detection
-	RecordEscPress() bool
-	ResetEscTracking()
-
-	// Message history state management
-	SetupMessageHistoryState(messages []MessageSnapshot)
-	GetMessageHistoryState() *MessageHistoryState
-	ClearMessageHistoryState()
 }
 
 // FileService handles file operations

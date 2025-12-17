@@ -69,7 +69,6 @@ type ChatApplication struct {
 	taskManager          *components.TaskManagerImpl
 	toolCallRenderer     *components.ToolCallRenderer
 	initGithubActionView *components.InitGithubActionView
-	messageHistoryView   *components.MessageHistorySelector
 
 	// Presentation layer
 	applicationViewRenderer *components.ApplicationViewRenderer
@@ -391,10 +390,6 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch m := msg.(type) {
-	case domain.NavigateBackInTimeEvent:
-		if cmd := app.messageHistoryHandler.HandleNavigateBackInTime(m); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
 	case domain.MessageHistoryRestoreEvent:
 		if cmd := app.messageHistoryHandler.HandleRestore(m); cmd != nil {
 			cmds = append(cmds, cmd)
@@ -451,7 +446,12 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 	currentView := app.stateManager.GetCurrentView()
 
 	if inputView, ok := app.inputView.(*components.InputView); ok {
-		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil {
+		inHistoryMode := false
+		if cv, ok := app.conversationView.(*components.ConversationView); ok {
+			inHistoryMode = cv.IsInMessageHistoryMode()
+		}
+
+		if app.stateManager.GetApprovalUIState() != nil || app.stateManager.GetPlanApprovalUIState() != nil || inHistoryMode {
 			inputView.SetDisabled(true)
 		} else {
 			inputView.SetDisabled(false)
@@ -473,8 +473,6 @@ func (app *ChatApplication) handleViewSpecificMessages(msg tea.Msg) []tea.Cmd {
 		return app.handleA2ATaskManagementView(msg)
 	case domain.ViewStateGithubActionSetup:
 		return app.handleInitGithubActionView(msg)
-	case domain.ViewStateMessageHistory:
-		return app.handleMessageHistoryView(msg)
 	default:
 		return nil
 	}
@@ -517,6 +515,21 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	if navEvent, ok := msg.(domain.NavigateBackInTimeEvent); ok {
+		return app.handleNavigateBackInTime(navEvent)
+	}
+
+	if readyEvent, ok := msg.(domain.MessageHistoryReadyEvent); ok {
+		if cv, ok := app.conversationView.(*components.ConversationView); ok {
+			cv.EnterMessageHistoryMode(readyEvent.Messages)
+
+			if iv, ok := app.inputView.(*components.InputView); ok {
+				iv.SetCustomHint("Input paused - use ↑/↓ to navigate, enter to restore, esc to cancel")
+			}
+		}
+		return cmds
+	}
+
 	keyMsg, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return cmds
@@ -527,6 +540,10 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 
 func (app *ChatApplication) handleChatViewKeyPress(keyMsg tea.KeyMsg) []tea.Cmd {
 	var cmds []tea.Cmd
+
+	if cv, ok := app.conversationView.(*components.ConversationView); ok && cv.IsInMessageHistoryMode() {
+		return app.handleMessageHistoryKeys(keyMsg)
+	}
 
 	isHandledByAction := app.keyBindingManager.IsKeyHandledByAction(keyMsg)
 
@@ -572,8 +589,6 @@ func (app *ChatApplication) View() string {
 		return app.renderA2ATaskManagement()
 	case domain.ViewStateGithubActionSetup:
 		return app.renderGithubActionSetup()
-	case domain.ViewStateMessageHistory:
-		return app.renderMessageHistory()
 	default:
 		return fmt.Sprintf("Unknown view state: %v", currentView)
 	}
@@ -1119,69 +1134,6 @@ func (app *ChatApplication) renderConversationSelection() string {
 	return app.conversationSelector.View()
 }
 
-func (app *ChatApplication) handleMessageHistoryView(msg tea.Msg) []tea.Cmd {
-	var cmds []tea.Cmd
-
-	historyState := app.stateManager.GetMessageHistoryState()
-	if historyState == nil {
-		err := app.stateManager.TransitionToView(domain.ViewStateChat)
-		if err != nil {
-			logger.Error("Failed to transition to chat view", "error", err)
-		}
-		return cmds
-	}
-
-	if _, ok := msg.(domain.MessageHistoryReadyEvent); ok {
-		app.messageHistoryView = nil
-	}
-
-	if app.messageHistoryView == nil {
-		styleProvider := styles.NewProvider(app.themeService)
-		width, height := app.stateManager.GetDimensions()
-		app.messageHistoryView = components.NewMessageHistorySelector(
-			historyState.Messages,
-			styleProvider,
-		)
-
-		app.messageHistoryView.SetDimensions(width, height)
-		if cmd := app.messageHistoryView.Init(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
-
-	model, cmd := app.messageHistoryView.Update(msg)
-	app.messageHistoryView = model.(*components.MessageHistorySelector)
-
-	if cmd != nil {
-		cmds = append(cmds, cmd)
-	}
-
-	if app.messageHistoryView.IsCancelled() {
-		app.stateManager.ClearMessageHistoryState()
-		app.messageHistoryView = nil
-		err := app.stateManager.TransitionToView(domain.ViewStateChat)
-		if err != nil {
-			logger.Error("Failed to transition to chat view after cancelling history", "error", err)
-		}
-		return cmds
-	}
-
-	if app.messageHistoryView.IsSelected() {
-		app.messageHistoryView = nil
-		return cmds
-	}
-
-	return cmds
-}
-
-func (app *ChatApplication) renderMessageHistory() string {
-	if app.messageHistoryView == nil {
-		return "Loading message history..."
-	}
-
-	return app.messageHistoryView.View()
-}
-
 func (app *ChatApplication) renderA2ATaskManagement() string {
 	if app.taskManager == nil {
 		return "Task management requires A2A to be enabled in configuration."
@@ -1676,6 +1628,71 @@ func (app *ChatApplication) GetMouseEnabled() bool {
 // SetMouseEnabled sets the mouse mode state
 func (app *ChatApplication) SetMouseEnabled(enabled bool) {
 	app.mouseEnabled = enabled
+}
+
+// Message History Navigation Helpers
+
+// handleNavigateBackInTime initiates message history navigation mode
+func (app *ChatApplication) handleNavigateBackInTime(event domain.NavigateBackInTimeEvent) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	iv, ok := app.inputView.(*components.InputView)
+	if !ok {
+		return cmds
+	}
+
+	if cmd := app.messageHistoryHandler.HandleNavigateBackInTime(event); cmd != nil {
+		cmds = append(cmds, cmd)
+	}
+
+	iv.SetCustomHint("Loading message history...")
+
+	return cmds
+}
+
+// handleMessageHistoryKeys handles key presses during message history navigation
+func (app *ChatApplication) handleMessageHistoryKeys(keyMsg tea.KeyMsg) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	cv, ok := app.conversationView.(*components.ConversationView)
+	if !ok {
+		logger.Warn("Failed to cast conversationView to ConversationView")
+		return cmds
+	}
+
+	iv, ok := app.inputView.(*components.InputView)
+	if !ok {
+		logger.Warn("Failed to cast inputView to InputView")
+		return cmds
+	}
+
+	switch keyMsg.String() {
+	case "up", "k":
+		cv.NavigateHistoryUp()
+	case "down", "j":
+		cv.NavigateHistoryDown()
+	case "enter":
+		selectedIndex := cv.GetSelectedMessageIndex()
+		if selectedIndex >= 0 {
+			restoreEvent := domain.MessageHistoryRestoreEvent{
+				RequestID:      "message-history-restore",
+				Timestamp:      time.Now(),
+				RestoreToIndex: selectedIndex,
+			}
+
+			cv.ExitMessageHistoryMode()
+			iv.ClearCustomHint()
+
+			if cmd := app.messageHistoryHandler.HandleRestore(restoreEvent); cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+	case "esc":
+		cv.ExitMessageHistoryMode()
+		iv.ClearCustomHint()
+	}
+
+	return cmds
 }
 
 func (app *ChatApplication) getCurrentRepo() (string, error) {
