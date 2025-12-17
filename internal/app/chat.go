@@ -392,12 +392,10 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch m := msg.(type) {
 	case domain.NavigateBackInTimeEvent:
-		logger.Info("Received NavigateBackInTimeEvent")
 		if cmd := app.messageHistoryHandler.HandleNavigateBackInTime(m); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	case domain.MessageHistoryRestoreEvent:
-		logger.Info("Received MessageHistoryRestoreEvent", "restoreToIndex", m.RestoreToIndex)
 		if cmd := app.messageHistoryHandler.HandleRestore(m); cmd != nil {
 			cmds = append(cmds, cmd)
 		}

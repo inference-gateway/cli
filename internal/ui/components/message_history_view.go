@@ -46,10 +46,6 @@ func NewMessageHistorySelector(messages []domain.UserMessageSnapshot, styleProvi
 
 // Init initializes the component
 func (m *MessageHistorySelector) Init() tea.Cmd {
-	logger.Info("Message history selector initialized",
-		"totalMessages", len(m.userMessages),
-		"filteredMessages", len(m.filteredMessages),
-		"initialSelected", m.selected)
 	return nil
 }
 
@@ -110,13 +106,6 @@ func (m *MessageHistorySelector) handleNavigationUp() (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	oldSelected := m.selected
-	if m.selected > 0 {
-		m.selected--
-		logger.Debug("Navigated up", "from", oldSelected, "to", m.selected, "total", len(m.filteredMessages))
-	} else {
-		logger.Debug("Already at first message", "selected", m.selected)
-	}
 	return m, nil
 }
 
@@ -124,15 +113,6 @@ func (m *MessageHistorySelector) handleNavigationDown() (tea.Model, tea.Cmd) {
 	if len(m.filteredMessages) == 0 {
 		logger.Warn("Cannot navigate down: no filtered messages")
 		return m, nil
-	}
-
-	oldSelected := m.selected
-	maxIndex := len(m.filteredMessages) - 1
-	if m.selected < maxIndex {
-		m.selected++
-		logger.Debug("Navigated down", "from", oldSelected, "to", m.selected, "total", len(m.filteredMessages))
-	} else {
-		logger.Debug("Already at last message", "selected", m.selected, "maxIndex", maxIndex)
 	}
 	return m, nil
 }
@@ -142,18 +122,12 @@ func (m *MessageHistorySelector) handleSelection() (tea.Model, tea.Cmd) {
 		selectedMessage := m.filteredMessages[m.selected]
 		m.done = true
 
-		logger.Info("Message history selection made",
-			"selectedIndex", m.selected,
-			"conversationIndex", selectedMessage.Index,
-			"message", selectedMessage.TruncatedMsg)
-
 		return m, func() tea.Msg {
 			event := domain.MessageHistoryRestoreEvent{
 				RequestID:      "message-history-restore",
 				Timestamp:      time.Now(),
 				RestoreToIndex: selectedMessage.Index,
 			}
-			logger.Info("Emitting MessageHistoryRestoreEvent", "restoreToIndex", event.RestoreToIndex)
 			return event
 		}
 	}

@@ -52,11 +52,6 @@ func (h *MessageHistoryHandler) HandleNavigateBackInTime(event domain.NavigateBa
 // HandleRestore processes the message history restore event
 func (h *MessageHistoryHandler) HandleRestore(event domain.MessageHistoryRestoreEvent) tea.Cmd {
 	return func() tea.Msg {
-		beforeCount := len(h.conversationRepo.GetMessages())
-		logger.Info("Starting conversation restore",
-			"beforeMessageCount", beforeCount,
-			"restoreToIndex", event.RestoreToIndex)
-
 		if err := h.conversationRepo.DeleteMessagesAfterIndex(event.RestoreToIndex); err != nil {
 			logger.Error("Failed to restore conversation", "error", err, "index", event.RestoreToIndex)
 			return domain.ChatErrorEvent{
@@ -65,13 +60,6 @@ func (h *MessageHistoryHandler) HandleRestore(event domain.MessageHistoryRestore
 				Timestamp: time.Now(),
 			}
 		}
-
-		afterCount := len(h.conversationRepo.GetMessages())
-		logger.Info("Conversation restored",
-			"restoreToIndex", event.RestoreToIndex,
-			"beforeMessageCount", beforeCount,
-			"afterMessageCount", afterCount,
-			"deletedCount", beforeCount-afterCount)
 
 		h.stateManager.ClearMessageHistoryState()
 
@@ -89,8 +77,6 @@ func (h *MessageHistoryHandler) HandleRestore(event domain.MessageHistoryRestore
 // and creates snapshots with truncated content for display
 func (h *MessageHistoryHandler) extractUserMessages(entries []domain.ConversationEntry) []domain.UserMessageSnapshot {
 	userMessages := make([]domain.UserMessageSnapshot, 0)
-
-	logger.Info("Extracting user messages", "totalEntries", len(entries))
 
 	for i, entry := range entries {
 		if entry.Message.Role != sdk.User {
@@ -112,16 +98,7 @@ func (h *MessageHistoryHandler) extractUserMessages(entries []domain.Conversatio
 			TruncatedMsg: truncated,
 		}
 		userMessages = append(userMessages, userMessage)
-
-		logger.Debug("Found user message",
-			"conversationIndex", i,
-			"userMessageNumber", len(userMessages),
-			"truncated", truncated)
 	}
-
-	logger.Info("User message extraction complete",
-		"totalUserMessages", len(userMessages),
-		"totalConversationEntries", len(entries))
 
 	return userMessages
 }
