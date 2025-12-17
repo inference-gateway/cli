@@ -220,7 +220,6 @@ func (r *InMemoryConversationRepository) DeleteMessagesAfterIndex(index int) err
 		return fmt.Errorf("index %d out of range (total entries: %d)", index, len(r.messages))
 	}
 
-	// Keep entries from 0 to index (inclusive)
 	r.messages = r.messages[:index+1]
 	return nil
 }

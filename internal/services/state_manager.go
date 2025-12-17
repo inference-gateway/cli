@@ -728,17 +728,14 @@ func (sm *StateManager) RecordEscPress() bool {
 
 	now := time.Now()
 
-	// If within 300ms of last ESC, increment count
 	if !sm.lastEscPressTime.IsZero() && now.Sub(sm.lastEscPressTime) < 300*time.Millisecond {
 		sm.escPressCount++
 		if sm.escPressCount == 2 {
-			// Double ESC detected, reset and return true
 			sm.escPressCount = 0
 			sm.lastEscPressTime = time.Time{}
 			return true
 		}
 	} else {
-		// First ESC or outside time window
 		sm.escPressCount = 1
 	}
 

@@ -142,7 +142,6 @@ func (m *MessageHistorySelector) handleSelection() (tea.Model, tea.Cmd) {
 		selectedMessage := m.filteredMessages[m.selected]
 		m.done = true
 
-		// Log selection for debugging
 		logger.Info("Message history selection made",
 			"selectedIndex", m.selected,
 			"conversationIndex", selectedMessage.Index,
