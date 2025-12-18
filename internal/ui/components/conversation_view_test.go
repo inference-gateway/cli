@@ -1,6 +1,7 @@
 package components
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -245,5 +246,51 @@ func TestConversationView_Render(t *testing.T) {
 
 	if output == "" {
 		t.Error("Expected non-empty render output with conversation")
+	}
+}
+
+// TestConversationView_ConcurrentStreamingAccess tests thread-safety of streaming operations
+func TestConversationView_ConcurrentStreamingAccess(t *testing.T) {
+	cv := NewConversationView(createMockStyleProvider())
+	cv.SetWidth(100)
+	cv.SetHeight(30)
+
+	// Simulate concurrent writes (from Update goroutine)
+	done := make(chan bool)
+	go func() {
+		for i := 0; i < 1000; i++ {
+			cv.appendStreamingContent(fmt.Sprintf("chunk %d ", i), "test-model")
+			time.Sleep(time.Microsecond)
+		}
+		done <- true
+	}()
+
+	// Simulate concurrent reads (from View goroutine)
+	go func() {
+		for i := 0; i < 1000; i++ {
+			_ = cv.Render()
+			time.Sleep(time.Microsecond)
+		}
+		done <- true
+	}()
+
+	// Wait for both goroutines
+	<-done
+	<-done
+
+	// Cleanup
+	cv.flushStreamingBuffer()
+
+	// Verify final state is consistent
+	cv.streamingMu.RLock()
+	isStreaming := cv.isStreaming
+	bufLen := cv.streamingBuffer.Len()
+	cv.streamingMu.RUnlock()
+
+	if isStreaming {
+		t.Error("Expected streaming to be stopped after flush")
+	}
+	if bufLen != 0 {
+		t.Errorf("Expected buffer length 0 after flush, got %d", bufLen)
 	}
 }
