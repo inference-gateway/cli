@@ -44,7 +44,7 @@ func (e *ChatEventHandler) handleChatStart(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleChatChunk(
@@ -77,7 +77,7 @@ func (e *ChatEventHandler) handleChatChunk(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleOptimizationStatus(
@@ -107,7 +107,7 @@ func (e *ChatEventHandler) handleOptimizationStatus(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleNoChatSession(msg domain.ChatChunkEvent) tea.Cmd {
@@ -236,7 +236,7 @@ func (e *ChatEventHandler) handleChatComplete(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 // restorePendingModel restores the original model if a temporary model switch is pending
@@ -319,7 +319,7 @@ func (e *ChatEventHandler) handleToolCallPreview(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolCallUpdate(
@@ -360,7 +360,7 @@ func (e *ChatEventHandler) handleToolCallUpdate(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolCallReady(
@@ -379,7 +379,7 @@ func (e *ChatEventHandler) handleToolCallReady(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolApprovalRequested(
@@ -417,7 +417,7 @@ func (e *ChatEventHandler) handleToolApprovalRequested(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolExecutionStarted(
@@ -437,7 +437,7 @@ func (e *ChatEventHandler) handleToolExecutionStarted(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleToolExecutionProgress(
@@ -503,7 +503,7 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 
 	if toolEventChan != nil {
 		cmds = append(cmds, e.handler.commandHandler.listenToToolEvents(toolEventChan))
-		return tea.Batch(cmds...)
+		return tea.Sequence(cmds...)
 	}
 
 	e.handler.commandHandler.bashEventChannelMu.RLock()
@@ -512,7 +512,7 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 
 	if bashEventChan != nil {
 		cmds = append(cmds, e.handler.commandHandler.listenToBashEvents(bashEventChan))
-		return tea.Batch(cmds...)
+		return tea.Sequence(cmds...)
 	}
 
 	if chatSession := e.handler.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
@@ -520,7 +520,7 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 	}
 
 	if len(cmds) > 0 {
-		return tea.Batch(cmds...)
+		return tea.Sequence(cmds...)
 	}
 	return nil
 }
@@ -571,7 +571,7 @@ func (e *ChatEventHandler) handleToolExecutionCompleted(
 		cmds = append(cmds, todoUpdateCmd)
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 // extractTodoUpdateCmd checks tool results for TodoWrite and returns a command to update todos
@@ -631,7 +631,7 @@ func (e *ChatEventHandler) handleParallelToolsComplete(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) FormatMetrics(metrics *domain.ChatMetrics) string {
@@ -732,7 +732,7 @@ func (e *ChatEventHandler) handleA2ATaskCompleted(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return nil, tea.Batch(cmds...)
+	return nil, tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleA2ATaskFailed(
@@ -793,7 +793,7 @@ func (e *ChatEventHandler) handleA2ATaskFailed(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return nil, tea.Batch(cmds...)
+	return nil, tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleA2ATaskStatusUpdate(
@@ -813,7 +813,7 @@ func (e *ChatEventHandler) handleA2ATaskStatusUpdate(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return nil, tea.Batch(cmds...)
+	return nil, tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleMessageQueued(
@@ -840,7 +840,7 @@ func (e *ChatEventHandler) handleMessageQueued(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return nil, tea.Batch(cmds...)
+	return nil, tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleA2ATaskInputRequired(
@@ -862,7 +862,7 @@ func (e *ChatEventHandler) handleA2ATaskInputRequired(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return nil, tea.Batch(cmds...)
+	return nil, tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleCancelled(
@@ -900,7 +900,7 @@ func (e *ChatEventHandler) handleA2AToolCallExecuted(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
 
 func (e *ChatEventHandler) handleA2ATaskSubmitted(
@@ -921,5 +921,5 @@ func (e *ChatEventHandler) handleA2ATaskSubmitted(
 		cmds = append(cmds, e.handler.listenForChatEvents(chatSession.EventChannel))
 	}
 
-	return tea.Batch(cmds...)
+	return tea.Sequence(cmds...)
 }
