@@ -530,6 +530,17 @@ func (app *ChatApplication) handleChatView(msg tea.Msg) []tea.Cmd {
 		return cmds
 	}
 
+	if editReadyEvent, ok := msg.(domain.MessageHistoryEditReadyEvent); ok {
+		return app.handleEditReady(editReadyEvent)
+	}
+
+	if editSubmitEvent, ok := msg.(domain.MessageEditSubmitEvent); ok {
+		if cmd := app.messageHistoryHandler.HandleEditSubmit(editSubmitEvent); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+		return cmds
+	}
+
 	keyMsg, ok := msg.(tea.KeyMsg)
 	if !ok {
 		return cmds
@@ -1602,6 +1613,28 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 		}
 	}
 
+	// Check if we're in edit mode
+	if app.stateManager.IsEditingMessage() {
+		editState := app.stateManager.GetMessageEditState()
+
+		// Clear edit state and hint
+		app.stateManager.ClearMessageEditState()
+		if iv, ok := app.inputView.(*components.InputView); ok {
+			iv.ClearCustomHint()
+		}
+
+		return func() tea.Msg {
+			return domain.MessageEditSubmitEvent{
+				RequestID:     "message-edit-submit",
+				Timestamp:     time.Now(),
+				OriginalIndex: editState.OriginalMessageIndex,
+				EditedContent: input,
+				Images:        images,
+			}
+		}
+	}
+
+	// Normal message submission
 	return func() tea.Msg {
 		return domain.UserInputEvent{
 			Content: input,
@@ -1650,6 +1683,74 @@ func (app *ChatApplication) handleNavigateBackInTime(event domain.NavigateBackIn
 	return cmds
 }
 
+// handleEditReady enters edit mode with the selected message content
+func (app *ChatApplication) handleEditReady(event domain.MessageHistoryEditReadyEvent) []tea.Cmd {
+	var cmds []tea.Cmd
+
+	// Set edit state
+	app.stateManager.SetMessageEditState(&domain.MessageEditState{
+		OriginalMessageIndex: event.MessageIndex,
+		OriginalContent:      event.Content,
+		EditTimestamp:        time.Now(),
+	})
+
+	// Populate input view with message content
+	if iv, ok := app.inputView.(*components.InputView); ok {
+		iv.SetText(event.Content)
+		iv.SetCursor(len(event.Content))
+
+		// Set custom hint to indicate edit mode
+		timestamp := event.Snapshot.Timestamp.Format("15:04:05")
+		hint := fmt.Sprintf("✏️  Editing message from %s - Press Enter to submit, Esc to cancel", timestamp)
+		iv.SetCustomHint(hint)
+	}
+
+	return cmds
+}
+
+// handleMessageHistoryEnter handles the enter key press in message history mode
+func (app *ChatApplication) handleMessageHistoryEnter(cv *components.ConversationView, iv *components.InputView, cmds []tea.Cmd) []tea.Cmd {
+	selectedIndex := cv.GetSelectedMessageIndex()
+	if selectedIndex < 0 {
+		return cmds
+	}
+
+	selectedSnapshot := cv.GetSelectedMessageSnapshot()
+	if selectedSnapshot == nil {
+		return cmds
+	}
+
+	cv.ExitMessageHistoryMode()
+
+	if selectedSnapshot.Role == sdk.User {
+		editEvent := domain.MessageHistoryEditEvent{
+			RequestID:       "message-history-edit",
+			Timestamp:       time.Now(),
+			MessageIndex:    selectedIndex,
+			MessageContent:  selectedSnapshot.Content,
+			MessageSnapshot: *selectedSnapshot,
+		}
+
+		if cmd := app.messageHistoryHandler.HandleEdit(editEvent); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	} else {
+		restoreEvent := domain.MessageHistoryRestoreEvent{
+			RequestID:      "message-history-restore",
+			Timestamp:      time.Now(),
+			RestoreToIndex: selectedIndex,
+		}
+
+		iv.ClearCustomHint()
+
+		if cmd := app.messageHistoryHandler.HandleRestore(restoreEvent); cmd != nil {
+			cmds = append(cmds, cmd)
+		}
+	}
+
+	return cmds
+}
+
 // handleMessageHistoryKeys handles key presses during message history navigation
 func (app *ChatApplication) handleMessageHistoryKeys(keyMsg tea.KeyMsg) []tea.Cmd {
 	var cmds []tea.Cmd
@@ -1672,21 +1773,7 @@ func (app *ChatApplication) handleMessageHistoryKeys(keyMsg tea.KeyMsg) []tea.Cm
 	case "down", "j":
 		cv.NavigateHistoryDown()
 	case "enter":
-		selectedIndex := cv.GetSelectedMessageIndex()
-		if selectedIndex >= 0 {
-			restoreEvent := domain.MessageHistoryRestoreEvent{
-				RequestID:      "message-history-restore",
-				Timestamp:      time.Now(),
-				RestoreToIndex: selectedIndex,
-			}
-
-			cv.ExitMessageHistoryMode()
-			iv.ClearCustomHint()
-
-			if cmd := app.messageHistoryHandler.HandleRestore(restoreEvent); cmd != nil {
-				cmds = append(cmds, cmd)
-			}
-		}
+		cmds = app.handleMessageHistoryEnter(cv, iv, cmds)
 	case "esc":
 		cv.ExitMessageHistoryMode()
 		iv.ClearCustomHint()

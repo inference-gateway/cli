@@ -1357,6 +1357,16 @@ func (cv *ConversationView) GetSelectedMessageIndex() int {
 	return cv.messageSnapshots[cv.historySelectedIndex].Index
 }
 
+// GetSelectedMessageSnapshot returns the full snapshot of the selected message
+func (cv *ConversationView) GetSelectedMessageSnapshot() *domain.MessageSnapshot {
+	if len(cv.messageSnapshots) == 0 || cv.historySelectedIndex < 0 ||
+		cv.historySelectedIndex >= len(cv.messageSnapshots) {
+		return nil
+	}
+	snapshot := cv.messageSnapshots[cv.historySelectedIndex]
+	return &snapshot
+}
+
 // updateMessageHistoryView updates the viewport content with the message history selector
 func (cv *ConversationView) updateMessageHistoryView() {
 	content := cv.renderMessageHistorySelector()

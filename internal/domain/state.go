@@ -40,6 +40,9 @@ type ApplicationState struct {
 	// Agent Readiness State
 	agentReadiness *AgentReadinessState
 
+	// Message Edit State
+	messageEditState *MessageEditState
+
 	// Debugging
 	debugMode bool
 }
@@ -325,6 +328,13 @@ type PlanApprovalUIState struct {
 	SelectedIndex int                     `json:"selected_index"`
 	PlanContent   string                  `json:"plan_content"`
 	ResponseChan  chan PlanApprovalAction `json:"-"`
+}
+
+// MessageEditState represents the state when editing a message
+type MessageEditState struct {
+	OriginalMessageIndex int       `json:"original_message_index"`
+	OriginalContent      string    `json:"original_content"`
+	EditTimestamp        time.Time `json:"edit_timestamp"`
 }
 
 // MessageSnapshot represents a snapshot of a message for the history view
@@ -820,6 +830,28 @@ func (s *ApplicationState) SetTodos(todos []TodoItem) {
 // GetTodos returns the current todo list
 func (s *ApplicationState) GetTodos() []TodoItem {
 	return s.todos
+}
+
+// Message Edit State Management
+
+// SetMessageEditState sets the message edit state
+func (s *ApplicationState) SetMessageEditState(state *MessageEditState) {
+	s.messageEditState = state
+}
+
+// GetMessageEditState returns the current message edit state
+func (s *ApplicationState) GetMessageEditState() *MessageEditState {
+	return s.messageEditState
+}
+
+// ClearMessageEditState clears the message edit state
+func (s *ApplicationState) ClearMessageEditState() {
+	s.messageEditState = nil
+}
+
+// IsEditingMessage returns true if currently editing a message
+func (s *ApplicationState) IsEditingMessage() bool {
+	return s.messageEditState != nil
 }
 
 // StateSnapshot represents a point-in-time snapshot of application state
