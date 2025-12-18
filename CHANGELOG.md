@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.91.0](https://github.com/inference-gateway/cli/compare/v0.90.3...v0.91.0) (2025-12-18)
+
+### 🚀 Features
+
+* Add conversation versioning ([#342](https://github.com/inference-gateway/cli/issues/342)) ([94e143a](https://github.com/inference-gateway/cli/commit/94e143a349354e774e508daad265aa7316a77cd9)), closes [#341](https://github.com/inference-gateway/cli/issues/341)
+
+### 🐛 Bug Fixes
+
+* **examples:** Connect to the browser agent via vnc using tcp ([ae220d3](https://github.com/inference-gateway/cli/commit/ae220d3af1df5ded8d9bf16134496e085f7dfb6e))
+
+### 🧹 Maintenance
+
+* **deps:** bump golang.org/x/image from 0.28.0 to 0.34.0 ([#339](https://github.com/inference-gateway/cli/issues/339)) ([bdf4d06](https://github.com/inference-gateway/cli/commit/bdf4d06e0431295f69c6df3fb46587c401b2c557))
+
 ## [0.90.3](https://github.com/inference-gateway/cli/compare/v0.90.2...v0.90.3) (2025-12-14)
 
 ### 🐛 Bug Fixes
