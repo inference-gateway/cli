@@ -1613,11 +1613,9 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 		}
 	}
 
-	// Check if we're in edit mode
 	if app.stateManager.IsEditingMessage() {
 		editState := app.stateManager.GetMessageEditState()
 
-		// Clear edit state and hint
 		app.stateManager.ClearMessageEditState()
 		if iv, ok := app.inputView.(*components.InputView); ok {
 			iv.ClearCustomHint()
@@ -1634,7 +1632,6 @@ func (app *ChatApplication) SendMessage() tea.Cmd {
 		}
 	}
 
-	// Normal message submission
 	return func() tea.Msg {
 		return domain.UserInputEvent{
 			Content: input,
@@ -1687,19 +1684,16 @@ func (app *ChatApplication) handleNavigateBackInTime(event domain.NavigateBackIn
 func (app *ChatApplication) handleEditReady(event domain.MessageHistoryEditReadyEvent) []tea.Cmd {
 	var cmds []tea.Cmd
 
-	// Set edit state
 	app.stateManager.SetMessageEditState(&domain.MessageEditState{
 		OriginalMessageIndex: event.MessageIndex,
 		OriginalContent:      event.Content,
 		EditTimestamp:        time.Now(),
 	})
 
-	// Populate input view with message content
 	if iv, ok := app.inputView.(*components.InputView); ok {
 		iv.SetText(event.Content)
 		iv.SetCursor(len(event.Content))
 
-		// Set custom hint to indicate edit mode
 		timestamp := event.Snapshot.Timestamp.Format("15:04:05")
 		hint := fmt.Sprintf("✏️  Editing message from %s - Press Enter to submit, Esc to cancel", timestamp)
 		iv.SetCustomHint(hint)
