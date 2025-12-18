@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.92.0](https://github.com/inference-gateway/cli/compare/v0.91.0...v0.92.0) (2025-12-18)
+
+### 🚀 Features
+
+* Add message editing functionality to chat history ([#343](https://github.com/inference-gateway/cli/issues/343)) ([00d2ff6](https://github.com/inference-gateway/cli/commit/00d2ff64e6d02d1835658a6ed5d9bb09a70deb9c))
+
+### 🧹 Maintenance
+
+* **deps:** Update package versions in flox manifest ([3b71de9](https://github.com/inference-gateway/cli/commit/3b71de9de248d1bd255c2385835a4e301d200ca5))
+
 ## [0.91.0](https://github.com/inference-gateway/cli/compare/v0.90.3...v0.91.0) (2025-12-18)
 
 ### 🚀 Features
