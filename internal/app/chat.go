@@ -1695,7 +1695,7 @@ func (app *ChatApplication) handleEditReady(event domain.MessageHistoryEditReady
 		iv.SetCursor(len(event.Content))
 
 		timestamp := event.Snapshot.Timestamp.Format("15:04:05")
-		hint := fmt.Sprintf("Editing message from %s - Press enter to submit, esc to cancel", timestamp)
+		hint := fmt.Sprintf("Editing message from %s - Press enter to submit", timestamp)
 		iv.SetCustomHint(hint)
 	}
 
