@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/go-redis/redis/v8"
-	"github.com/inference-gateway/cli/internal/domain"
+	redis "github.com/go-redis/redis/v8"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // RedisStorage implements ConversationStorage using Redis
@@ -18,8 +18,39 @@ type RedisStorage struct {
 	ttl    time.Duration
 }
 
+// verifyRedisAvailable checks if Redis is available
+func verifyRedisAvailable(config RedisConfig) error {
+	options := &redis.Options{
+		Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
+		DB:       config.Database,
+		Password: config.Password,
+		Username: config.Username,
+	}
+
+	client := redis.NewClient(options)
+	defer func() { _ = client.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := client.Ping(ctx).Err(); err != nil {
+		return fmt.Errorf("redis connection failed: %w\n\n"+
+			"Redis server not available. Verify:\n"+
+			"  - Redis server is running\n"+
+			"  - Connection details are correct\n"+
+			"  - Network connectivity to %s:%d", err, config.Host, config.Port)
+	}
+
+	return nil
+}
+
 // NewRedisStorage creates a new Redis storage instance
 func NewRedisStorage(config RedisConfig) (*RedisStorage, error) {
+	// Verify Redis is available before proceeding
+	if err := verifyRedisAvailable(config); err != nil {
+		return nil, err
+	}
+
 	options := &redis.Options{
 		Addr:     fmt.Sprintf("%s:%d", config.Host, config.Port),
 		DB:       config.Database,

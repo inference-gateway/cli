@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -225,7 +226,27 @@ func (c *ServiceContainer) initializeDomainServices() {
 	storageConfig := storage.NewStorageFromConfig(c.config)
 	storageBackend, err := storage.NewStorage(storageConfig)
 	if err != nil {
-		logger.Error("Failed to initialize storage, using basic in-memory repository", "error", err, "type", storageConfig.Type)
+		// Check if storage was explicitly configured (not just default memory)
+		isExplicitStorage := c.config.Storage.Enabled && storageConfig.Type != "memory"
+
+		if isExplicitStorage {
+			// Fail hard when explicitly configured storage is unavailable
+			logger.Error("Storage backend initialization failed",
+				"error", err,
+				"type", storageConfig.Type,
+				"enabled", c.config.Storage.Enabled)
+			logger.Error("Storage backend '%s' is not available. "+
+				"Either fix the configuration or disable storage by setting 'storage.enabled: false'",
+				storageConfig.Type)
+			panic(fmt.Sprintf("Failed to initialize storage backend '%s': %v\n\n"+
+				"To use in-memory storage instead, set:\n"+
+				"  storage.enabled: false\n\n"+
+				"Or use an alternative storage backend:\n"+
+				"  storage.type: postgres  # or redis", storageConfig.Type, err))
+		}
+
+		// Fallback to in-memory storage only if storage was not explicitly configured
+		logger.Warn("Using in-memory conversation storage (conversations will not be persisted)")
 		c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
 	} else {
 		c.storage = storageBackend
