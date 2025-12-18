@@ -255,7 +255,6 @@ func TestConversationView_ConcurrentStreamingAccess(t *testing.T) {
 	cv.SetWidth(100)
 	cv.SetHeight(30)
 
-	// Simulate concurrent writes (from Update goroutine)
 	done := make(chan bool)
 	go func() {
 		for i := 0; i < 1000; i++ {
@@ -265,7 +264,6 @@ func TestConversationView_ConcurrentStreamingAccess(t *testing.T) {
 		done <- true
 	}()
 
-	// Simulate concurrent reads (from View goroutine)
 	go func() {
 		for i := 0; i < 1000; i++ {
 			_ = cv.Render()
@@ -274,14 +272,11 @@ func TestConversationView_ConcurrentStreamingAccess(t *testing.T) {
 		done <- true
 	}()
 
-	// Wait for both goroutines
 	<-done
 	<-done
 
-	// Cleanup
 	cv.flushStreamingBuffer()
 
-	// Verify final state is consistent
 	cv.streamingMu.RLock()
 	isStreaming := cv.isStreaming
 	bufLen := cv.streamingBuffer.Len()
