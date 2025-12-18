@@ -10,6 +10,7 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/infra/storage/migrations"
 	_ "modernc.org/sqlite"
 )
 
@@ -17,6 +18,11 @@ import (
 type SQLiteStorage struct {
 	db   *sql.DB
 	path string
+}
+
+// DB returns the underlying database connection
+func (s *SQLiteStorage) DB() *sql.DB {
+	return s.db
 }
 
 // NewSQLiteStorage creates a new SQLite storage instance
@@ -40,88 +46,32 @@ func NewSQLiteStorage(config SQLiteConfig) (*SQLiteStorage, error) {
 		path: config.Path,
 	}
 
-	if err := storage.createTables(); err != nil {
+	if err := storage.runMigrations(); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("failed to create tables: %w", err)
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	return storage, nil
 }
 
-// createTables creates the simplified single-table conversation storage
-func (s *SQLiteStorage) createTables() error {
-	var hasCorrectSchema int
-	err := s.db.QueryRow(`
-		SELECT COUNT(*) FROM sqlite_master
-		WHERE type='table' AND name='conversations'
-		AND sql LIKE '%messages TEXT NOT NULL%'
-		AND sql LIKE '%models TEXT%'
-		AND sql LIKE '%tags TEXT%'
-		AND sql LIKE '%summary TEXT%'
-	`).Scan(&hasCorrectSchema)
+// runMigrations applies all pending database migrations
+func (s *SQLiteStorage) runMigrations() error {
+	ctx := context.Background()
+	runner := migrations.NewMigrationRunner(s.db, "sqlite")
+
+	// Get all SQLite migrations
+	allMigrations := migrations.GetSQLiteMigrations()
+
+	// Apply migrations
+	appliedCount, err := runner.ApplyMigrations(ctx, allMigrations)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
 
-	if hasCorrectSchema > 0 {
-		return nil
-	}
-
-	newSchema := `
-	CREATE TABLE IF NOT EXISTS conversations_new (
-		id TEXT PRIMARY KEY,                -- Session ID
-		title TEXT NOT NULL,               -- Conversation title
-		count INTEGER NOT NULL DEFAULT 0,  -- Message count
-		messages TEXT NOT NULL,            -- JSON array of all messages
-		optimized_messages TEXT,           -- JSON array of optimized messages
-		total_input_tokens INTEGER NOT NULL DEFAULT 0,   -- Total input tokens used
-		total_output_tokens INTEGER NOT NULL DEFAULT 0,  -- Total output tokens used
-		request_count INTEGER NOT NULL DEFAULT 0,        -- Number of API requests made
-		cost_stats TEXT DEFAULT '{}',      -- JSON object of cost statistics
-		models TEXT DEFAULT '[]',          -- JSON array of models used
-		tags TEXT DEFAULT '[]',            -- JSON array of tags
-		summary TEXT DEFAULT '',           -- Conversation summary
-		title_generated BOOLEAN DEFAULT FALSE,
-		title_invalidated BOOLEAN DEFAULT FALSE,
-		title_generation_time DATETIME,
-		created_at DATETIME NOT NULL,
-		updated_at DATETIME NOT NULL
-	);
-
-	CREATE INDEX IF NOT EXISTS idx_conversations_new_updated_at ON conversations_new(updated_at DESC);
-	`
-
-	if _, err := s.db.Exec(newSchema); err != nil {
-		return err
-	}
-
-	migrationQuery := `
-	INSERT OR IGNORE INTO conversations_new (id, title, count, messages, optimized_messages, total_input_tokens, total_output_tokens, created_at, updated_at)
-	SELECT
-		c.id,
-		c.title,
-		c.message_count,
-		'[' || GROUP_CONCAT(ce.entry_data) || ']' as messages,
-		NULL as optimized_messages,  -- No optimized messages for migrated data
-		0 as total_input_tokens,     -- Start with 0 for migrated data
-		0 as total_output_tokens,    -- Start with 0 for migrated data
-		c.created_at,
-		c.updated_at
-	FROM conversations c
-	LEFT JOIN conversation_entries ce ON c.id = ce.conversation_id
-	WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='conversations')
-	GROUP BY c.id, c.title, c.message_count, c.created_at, c.updated_at;
-	`
-
-	_, _ = s.db.Exec(migrationQuery)
-
-	renameSchema := `
-	DROP TABLE IF EXISTS conversations;
-	ALTER TABLE conversations_new RENAME TO conversations;
-	`
-
-	if _, err := s.db.Exec(renameSchema); err != nil {
-		return err
+	// Log applied migrations count (only if any were applied)
+	if appliedCount > 0 {
+		// Migrations were applied, but we don't log here as this is a library
+		_ = appliedCount
 	}
 
 	return nil
