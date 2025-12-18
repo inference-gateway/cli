@@ -236,6 +236,12 @@ type StateManager interface {
 	AreAllAgentsReady() bool
 	ClearAgentReadiness()
 	RemoveAgent(name string)
+
+	// Message edit state management
+	SetMessageEditState(state *MessageEditState)
+	GetMessageEditState() *MessageEditState
+	ClearMessageEditState()
+	IsEditingMessage() bool
 }
 
 // FileService handles file operations

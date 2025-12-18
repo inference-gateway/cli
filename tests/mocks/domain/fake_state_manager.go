@@ -31,6 +31,10 @@ type FakeStateManager struct {
 	clearFileSelectionStateMutex       sync.RWMutex
 	clearFileSelectionStateArgsForCall []struct {
 	}
+	ClearMessageEditStateStub        func()
+	clearMessageEditStateMutex       sync.RWMutex
+	clearMessageEditStateArgsForCall []struct {
+	}
 	ClearPlanApprovalUIStateStub        func()
 	clearPlanApprovalUIStateMutex       sync.RWMutex
 	clearPlanApprovalUIStateArgsForCall []struct {
@@ -147,6 +151,16 @@ type FakeStateManager struct {
 	getFileSelectionStateReturnsOnCall map[int]struct {
 		result1 *domain.FileSelectionState
 	}
+	GetMessageEditStateStub        func() *domain.MessageEditState
+	getMessageEditStateMutex       sync.RWMutex
+	getMessageEditStateArgsForCall []struct {
+	}
+	getMessageEditStateReturns struct {
+		result1 *domain.MessageEditState
+	}
+	getMessageEditStateReturnsOnCall map[int]struct {
+		result1 *domain.MessageEditState
+	}
 	GetPlanApprovalUIStateStub        func() *domain.PlanApprovalUIState
 	getPlanApprovalUIStateMutex       sync.RWMutex
 	getPlanApprovalUIStateArgsForCall []struct {
@@ -202,6 +216,16 @@ type FakeStateManager struct {
 	isAgentBusyReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	IsEditingMessageStub        func() bool
+	isEditingMessageMutex       sync.RWMutex
+	isEditingMessageArgsForCall []struct {
+	}
+	isEditingMessageReturns struct {
+		result1 bool
+	}
+	isEditingMessageReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	RemoveAgentStub        func(string)
 	removeAgentMutex       sync.RWMutex
 	removeAgentArgsForCall []struct {
@@ -237,6 +261,11 @@ type FakeStateManager struct {
 	setFileSelectedIndexMutex       sync.RWMutex
 	setFileSelectedIndexArgsForCall []struct {
 		arg1 int
+	}
+	SetMessageEditStateStub        func(*domain.MessageEditState)
+	setMessageEditStateMutex       sync.RWMutex
+	setMessageEditStateArgsForCall []struct {
+		arg1 *domain.MessageEditState
 	}
 	SetPlanApprovalSelectedIndexStub        func(int)
 	setPlanApprovalSelectedIndexMutex       sync.RWMutex
@@ -452,6 +481,30 @@ func (fake *FakeStateManager) ClearFileSelectionStateCalls(stub func()) {
 	fake.clearFileSelectionStateMutex.Lock()
 	defer fake.clearFileSelectionStateMutex.Unlock()
 	fake.ClearFileSelectionStateStub = stub
+}
+
+func (fake *FakeStateManager) ClearMessageEditState() {
+	fake.clearMessageEditStateMutex.Lock()
+	fake.clearMessageEditStateArgsForCall = append(fake.clearMessageEditStateArgsForCall, struct {
+	}{})
+	stub := fake.ClearMessageEditStateStub
+	fake.recordInvocation("ClearMessageEditState", []interface{}{})
+	fake.clearMessageEditStateMutex.Unlock()
+	if stub != nil {
+		fake.ClearMessageEditStateStub()
+	}
+}
+
+func (fake *FakeStateManager) ClearMessageEditStateCallCount() int {
+	fake.clearMessageEditStateMutex.RLock()
+	defer fake.clearMessageEditStateMutex.RUnlock()
+	return len(fake.clearMessageEditStateArgsForCall)
+}
+
+func (fake *FakeStateManager) ClearMessageEditStateCalls(stub func()) {
+	fake.clearMessageEditStateMutex.Lock()
+	defer fake.clearMessageEditStateMutex.Unlock()
+	fake.ClearMessageEditStateStub = stub
 }
 
 func (fake *FakeStateManager) ClearPlanApprovalUIState() {
@@ -1075,6 +1128,59 @@ func (fake *FakeStateManager) GetFileSelectionStateReturnsOnCall(i int, result1 
 	}{result1}
 }
 
+func (fake *FakeStateManager) GetMessageEditState() *domain.MessageEditState {
+	fake.getMessageEditStateMutex.Lock()
+	ret, specificReturn := fake.getMessageEditStateReturnsOnCall[len(fake.getMessageEditStateArgsForCall)]
+	fake.getMessageEditStateArgsForCall = append(fake.getMessageEditStateArgsForCall, struct {
+	}{})
+	stub := fake.GetMessageEditStateStub
+	fakeReturns := fake.getMessageEditStateReturns
+	fake.recordInvocation("GetMessageEditState", []interface{}{})
+	fake.getMessageEditStateMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetMessageEditStateCallCount() int {
+	fake.getMessageEditStateMutex.RLock()
+	defer fake.getMessageEditStateMutex.RUnlock()
+	return len(fake.getMessageEditStateArgsForCall)
+}
+
+func (fake *FakeStateManager) GetMessageEditStateCalls(stub func() *domain.MessageEditState) {
+	fake.getMessageEditStateMutex.Lock()
+	defer fake.getMessageEditStateMutex.Unlock()
+	fake.GetMessageEditStateStub = stub
+}
+
+func (fake *FakeStateManager) GetMessageEditStateReturns(result1 *domain.MessageEditState) {
+	fake.getMessageEditStateMutex.Lock()
+	defer fake.getMessageEditStateMutex.Unlock()
+	fake.GetMessageEditStateStub = nil
+	fake.getMessageEditStateReturns = struct {
+		result1 *domain.MessageEditState
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetMessageEditStateReturnsOnCall(i int, result1 *domain.MessageEditState) {
+	fake.getMessageEditStateMutex.Lock()
+	defer fake.getMessageEditStateMutex.Unlock()
+	fake.GetMessageEditStateStub = nil
+	if fake.getMessageEditStateReturnsOnCall == nil {
+		fake.getMessageEditStateReturnsOnCall = make(map[int]struct {
+			result1 *domain.MessageEditState
+		})
+	}
+	fake.getMessageEditStateReturnsOnCall[i] = struct {
+		result1 *domain.MessageEditState
+	}{result1}
+}
+
 func (fake *FakeStateManager) GetPlanApprovalUIState() *domain.PlanApprovalUIState {
 	fake.getPlanApprovalUIStateMutex.Lock()
 	ret, specificReturn := fake.getPlanApprovalUIStateReturnsOnCall[len(fake.getPlanApprovalUIStateArgsForCall)]
@@ -1372,6 +1478,59 @@ func (fake *FakeStateManager) IsAgentBusyReturnsOnCall(i int, result1 bool) {
 	}{result1}
 }
 
+func (fake *FakeStateManager) IsEditingMessage() bool {
+	fake.isEditingMessageMutex.Lock()
+	ret, specificReturn := fake.isEditingMessageReturnsOnCall[len(fake.isEditingMessageArgsForCall)]
+	fake.isEditingMessageArgsForCall = append(fake.isEditingMessageArgsForCall, struct {
+	}{})
+	stub := fake.IsEditingMessageStub
+	fakeReturns := fake.isEditingMessageReturns
+	fake.recordInvocation("IsEditingMessage", []interface{}{})
+	fake.isEditingMessageMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) IsEditingMessageCallCount() int {
+	fake.isEditingMessageMutex.RLock()
+	defer fake.isEditingMessageMutex.RUnlock()
+	return len(fake.isEditingMessageArgsForCall)
+}
+
+func (fake *FakeStateManager) IsEditingMessageCalls(stub func() bool) {
+	fake.isEditingMessageMutex.Lock()
+	defer fake.isEditingMessageMutex.Unlock()
+	fake.IsEditingMessageStub = stub
+}
+
+func (fake *FakeStateManager) IsEditingMessageReturns(result1 bool) {
+	fake.isEditingMessageMutex.Lock()
+	defer fake.isEditingMessageMutex.Unlock()
+	fake.IsEditingMessageStub = nil
+	fake.isEditingMessageReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStateManager) IsEditingMessageReturnsOnCall(i int, result1 bool) {
+	fake.isEditingMessageMutex.Lock()
+	defer fake.isEditingMessageMutex.Unlock()
+	fake.IsEditingMessageStub = nil
+	if fake.isEditingMessageReturnsOnCall == nil {
+		fake.isEditingMessageReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isEditingMessageReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
 func (fake *FakeStateManager) RemoveAgent(arg1 string) {
 	fake.removeAgentMutex.Lock()
 	fake.removeAgentArgsForCall = append(fake.removeAgentArgsForCall, struct {
@@ -1587,6 +1746,38 @@ func (fake *FakeStateManager) SetFileSelectedIndexArgsForCall(i int) int {
 	fake.setFileSelectedIndexMutex.RLock()
 	defer fake.setFileSelectedIndexMutex.RUnlock()
 	argsForCall := fake.setFileSelectedIndexArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) SetMessageEditState(arg1 *domain.MessageEditState) {
+	fake.setMessageEditStateMutex.Lock()
+	fake.setMessageEditStateArgsForCall = append(fake.setMessageEditStateArgsForCall, struct {
+		arg1 *domain.MessageEditState
+	}{arg1})
+	stub := fake.SetMessageEditStateStub
+	fake.recordInvocation("SetMessageEditState", []interface{}{arg1})
+	fake.setMessageEditStateMutex.Unlock()
+	if stub != nil {
+		fake.SetMessageEditStateStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetMessageEditStateCallCount() int {
+	fake.setMessageEditStateMutex.RLock()
+	defer fake.setMessageEditStateMutex.RUnlock()
+	return len(fake.setMessageEditStateArgsForCall)
+}
+
+func (fake *FakeStateManager) SetMessageEditStateCalls(stub func(*domain.MessageEditState)) {
+	fake.setMessageEditStateMutex.Lock()
+	defer fake.setMessageEditStateMutex.Unlock()
+	fake.SetMessageEditStateStub = stub
+}
+
+func (fake *FakeStateManager) SetMessageEditStateArgsForCall(i int) *domain.MessageEditState {
+	fake.setMessageEditStateMutex.RLock()
+	defer fake.setMessageEditStateMutex.RUnlock()
+	argsForCall := fake.setMessageEditStateArgsForCall[i]
 	return argsForCall.arg1
 }
 

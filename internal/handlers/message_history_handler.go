@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"fmt"
 	"strings"
 	"time"
 
@@ -61,6 +62,59 @@ func (h *MessageHistoryHandler) HandleRestore(event domain.MessageHistoryRestore
 
 		return domain.UpdateHistoryEvent{
 			History: h.conversationRepo.GetMessages(),
+		}
+	}
+}
+
+// HandleEdit processes the message history edit event
+func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent) tea.Cmd {
+	return func() tea.Msg {
+		entries := h.conversationRepo.GetMessages()
+		if event.MessageIndex >= len(entries) {
+			logger.Error("Invalid message index for edit", "index", event.MessageIndex)
+			return domain.ChatErrorEvent{
+				RequestID: event.RequestID,
+				Error:     fmt.Errorf("invalid message index: %d", event.MessageIndex),
+				Timestamp: time.Now(),
+			}
+		}
+
+		msg := entries[event.MessageIndex]
+		if msg.Message.Role != sdk.User {
+			logger.Error("Cannot edit non-user message", "role", msg.Message.Role)
+			return domain.ChatErrorEvent{
+				RequestID: event.RequestID,
+				Error:     fmt.Errorf("cannot edit %s message", msg.Message.Role),
+				Timestamp: time.Now(),
+			}
+		}
+
+		return domain.MessageHistoryEditReadyEvent{
+			MessageIndex: event.MessageIndex,
+			Content:      event.MessageContent,
+			Snapshot:     event.MessageSnapshot,
+		}
+	}
+}
+
+// HandleEditSubmit processes the message edit submission
+func (h *MessageHistoryHandler) HandleEditSubmit(event domain.MessageEditSubmitEvent) tea.Cmd {
+	return func() tea.Msg {
+		entries := h.conversationRepo.GetMessages()
+		deleteIndex := h.adjustRestoreIndex(entries, event.OriginalIndex)
+
+		if err := h.conversationRepo.DeleteMessagesAfterIndex(deleteIndex - 1); err != nil {
+			logger.Error("Failed to delete messages during edit", "error", err)
+			return domain.ChatErrorEvent{
+				RequestID: event.RequestID,
+				Error:     err,
+				Timestamp: time.Now(),
+			}
+		}
+
+		return domain.UserInputEvent{
+			Content: event.EditedContent,
+			Images:  event.Images,
 		}
 	}
 }

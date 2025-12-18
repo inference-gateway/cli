@@ -597,6 +597,40 @@ func (sm *StateManager) GetQueuedMessages() []domain.QueuedMessage {
 	return sm.state.GetQueuedMessages()
 }
 
+// Message edit state methods
+
+// SetMessageEditState sets the message edit state
+func (sm *StateManager) SetMessageEditState(state *domain.MessageEditState) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.SetMessageEditState(state)
+}
+
+// GetMessageEditState returns the current message edit state
+func (sm *StateManager) GetMessageEditState() *domain.MessageEditState {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	return sm.state.GetMessageEditState()
+}
+
+// ClearMessageEditState clears the message edit state
+func (sm *StateManager) ClearMessageEditState() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+
+	sm.state.ClearMessageEditState()
+}
+
+// IsEditingMessage returns true if currently editing a message
+func (sm *StateManager) IsEditingMessage() bool {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+
+	return sm.state.IsEditingMessage()
+}
+
 // RecoverFromInconsistentState attempts to recover from an inconsistent state
 func (sm *StateManager) RecoverFromInconsistentState() error {
 	sm.mutex.Lock()

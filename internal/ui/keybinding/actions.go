@@ -593,6 +593,20 @@ func handleQuit(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
 
+	if stateManager.IsEditingMessage() {
+		stateManager.ClearMessageEditState()
+
+		input := app.GetInputView()
+		if input != nil {
+			input.ClearInput()
+			if iv, ok := input.(*components.InputView); ok {
+				iv.ClearCustomHint()
+			}
+		}
+
+		return nil
+	}
+
 	autocomplete := app.GetAutocomplete()
 	if autocomplete != nil && autocomplete.IsVisible() {
 		return func() tea.Msg {
