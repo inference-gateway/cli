@@ -4,7 +4,8 @@ This document describes the database migration system in the Inference Gateway C
 
 ## Overview
 
-The CLI uses a migration system to ensure smooth upgrades between versions. Migrations are automatically applied when the database is initialized, ensuring your schema is always up to date.
+The CLI uses a migration system to ensure smooth upgrades between versions. Migrations are automatically applied when the
+database is initialized, ensuring your schema is always up to date.
 
 ## How It Works
 
@@ -81,7 +82,8 @@ infer migrate --status
 ```
 
 Output example:
-```
+
+```text
 SQLite Migration Status:
 
   ✅ Version 001: Initial schema - conversations table (Applied)
@@ -189,6 +191,7 @@ infer migrate
 ```
 
 Common issues:
+
 - **Database locked**: Close all CLI instances
 - **Permission denied**: Check file/directory permissions
 - **Syntax error**: Review migration SQL
@@ -240,10 +243,12 @@ psql infer_gateway -c "SELECT version, description, applied_at FROM schema_migra
 ### Version 001 (Initial Schema)
 
 **SQLite**:
+
 - Created `conversations` table with all required columns
 - Added index on `updated_at` for efficient queries
 
 **PostgreSQL**:
+
 - Created `conversations` table with JSONB columns
 - Created `conversation_entries` table with foreign key
 - Added indexes for efficient queries

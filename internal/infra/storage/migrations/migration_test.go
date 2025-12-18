@@ -23,13 +23,13 @@ func setupTestDB(t *testing.T) (*sql.DB, func()) {
 	dbPath := filepath.Join(tmpDir, "test.db")
 	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
-		os.RemoveAll(tmpDir)
+		_ = os.RemoveAll(tmpDir)
 		t.Fatalf("Failed to open database: %v", err)
 	}
 
 	cleanup := func() {
-		db.Close()
-		os.RemoveAll(tmpDir)
+		_ = db.Close()
+		_ = os.RemoveAll(tmpDir)
 	}
 
 	return db, cleanup
@@ -158,8 +158,8 @@ func TestMigrationRunner_ApplyMigrations(t *testing.T) {
 
 	// Verify both tables exist
 	var usersCount, postsCount int
-	db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='users'").Scan(&usersCount)
-	db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='posts'").Scan(&postsCount)
+	_ = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='users'").Scan(&usersCount)
+	_ = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='posts'").Scan(&postsCount)
 
 	if usersCount != 1 {
 		t.Errorf("Expected users table to exist")
