@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 
 	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -49,10 +50,17 @@ type ConversationView struct {
 	userScrolledUp      bool
 	stateManager        domain.StateManager
 	renderedContent     string
-	streamingBuffer     strings.Builder
-	isStreaming         bool
-	streamingModel      string
-	keyHintFormatter    *hints.Formatter
+
+	// Streaming state with mutex protection
+	streamingMu     sync.RWMutex
+	streamingBuffer strings.Builder
+	isStreaming     bool
+	streamingModel  string
+
+	// Viewport mutex to protect concurrent access
+	viewportMu sync.Mutex
+
+	keyHintFormatter *hints.Formatter
 
 	// Message history navigation
 	navigationMode       NavigationMode
@@ -238,7 +246,10 @@ func (cv *ConversationView) SetHeight(height int) {
 
 func (cv *ConversationView) Render() string {
 	if cv.navigationMode == NavigationModeMessageHistory {
+		cv.viewportMu.Lock()
 		viewportContent := cv.Viewport.View()
+		cv.viewportMu.Unlock()
+
 		lines := strings.Split(viewportContent, "\n")
 		leftPadding := "  "
 		for i, line := range lines {
@@ -248,11 +259,13 @@ func (cv *ConversationView) Render() string {
 		return result
 	}
 
+	cv.viewportMu.Lock()
 	if len(cv.conversation) == 0 {
 		cv.Viewport.SetContent(cv.renderWelcome())
 	}
-
 	viewportContent := cv.Viewport.View()
+	cv.viewportMu.Unlock()
+
 	lines := strings.Split(viewportContent, "\n")
 
 	leftPadding := "  "
@@ -268,14 +281,20 @@ func (cv *ConversationView) updateViewportContent() {
 
 // appendStreamingContent appends content to the streaming buffer and triggers immediate render
 func (cv *ConversationView) appendStreamingContent(content, model string) {
+	cv.streamingMu.Lock()
 	cv.isStreaming = true
 	cv.streamingModel = model
 	cv.streamingBuffer.WriteString(content)
+	cv.streamingMu.Unlock()
+
 	cv.updateViewportContentFull()
 }
 
 // flushStreamingBuffer clears the streaming buffer after completion
 func (cv *ConversationView) flushStreamingBuffer() {
+	cv.streamingMu.Lock()
+	defer cv.streamingMu.Unlock()
+
 	cv.streamingBuffer.Reset()
 	cv.isStreaming = false
 	cv.streamingModel = ""
@@ -283,11 +302,14 @@ func (cv *ConversationView) flushStreamingBuffer() {
 
 // renderStreamingContent renders the currently streaming assistant message
 func (cv *ConversationView) renderStreamingContent() string {
+	cv.streamingMu.RLock()
 	streamingContent := cv.streamingBuffer.String()
+	model := cv.streamingModel
+	cv.streamingMu.RUnlock()
 
 	rolePrefixLength := 13
-	if cv.streamingModel != "" {
-		rolePrefixLength += len(fmt.Sprintf(" (%s)", cv.streamingModel))
+	if model != "" {
+		rolePrefixLength += len(fmt.Sprintf(" (%s)", model))
 	}
 
 	wrapWidth := cv.width - rolePrefixLength
@@ -299,10 +321,10 @@ func (cv *ConversationView) renderStreamingContent() string {
 
 	assistantColor := cv.styleProvider.GetThemeColor("assistant")
 	var roleStyled string
-	if cv.streamingModel != "" {
+	if model != "" {
 		dimColor := cv.styleProvider.GetThemeColor("dim")
 		rolePart := cv.styleProvider.RenderWithColor("⏺ Assistant", assistantColor)
-		modelLabel := cv.styleProvider.RenderWithColor(fmt.Sprintf(" (%s)", cv.streamingModel), dimColor)
+		modelLabel := cv.styleProvider.RenderWithColor(fmt.Sprintf(" (%s)", model), dimColor)
 		roleStyled = rolePart + modelLabel + cv.styleProvider.RenderWithColor(":", assistantColor)
 	} else {
 		roleStyled = cv.styleProvider.RenderWithColor("⏺ Assistant:", assistantColor)
@@ -334,17 +356,23 @@ func (cv *ConversationView) updateViewportContentFull() {
 		}
 	}
 
-	if cv.isStreaming && cv.streamingBuffer.Len() > 0 {
+	cv.streamingMu.RLock()
+	shouldRenderStreaming := cv.isStreaming && cv.streamingBuffer.Len() > 0
+	cv.streamingMu.RUnlock()
+
+	if shouldRenderStreaming {
 		streamingText := cv.renderStreamingContent()
 		b.WriteString(streamingText)
 	}
 
 	cv.renderedContent = b.String()
-	cv.Viewport.SetContent(cv.renderedContent)
 
+	cv.viewportMu.Lock()
+	cv.Viewport.SetContent(cv.renderedContent)
 	if !cv.userScrolledUp {
 		cv.Viewport.GotoBottom()
 	}
+	cv.viewportMu.Unlock()
 }
 
 func (cv *ConversationView) renderWelcome() string {
