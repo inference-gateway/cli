@@ -263,6 +263,29 @@ func (r *PersistentConversationRepository) Clear() error {
 	return nil
 }
 
+// DeleteMessagesAfterIndex wraps the in-memory implementation with auto-save
+func (r *PersistentConversationRepository) DeleteMessagesAfterIndex(index int) error {
+	if err := r.InMemoryConversationRepository.DeleteMessagesAfterIndex(index); err != nil {
+		return err
+	}
+
+	if r.autoSave && r.conversationID != "" {
+		go func() {
+			r.autoSaveMutex.Lock()
+			defer r.autoSaveMutex.Unlock()
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			if err := r.SaveConversation(ctx); err != nil {
+				logger.Warn("Failed to auto-save conversation after deleting messages", "error", err)
+			}
+		}()
+	}
+
+	return nil
+}
+
 // AddTokenUsage wraps the in-memory implementation with persistence and auto-save
 func (r *PersistentConversationRepository) AddTokenUsage(model string, inputTokens, outputTokens, totalTokens int) error {
 	if r.autoSave && r.conversationID == "" {

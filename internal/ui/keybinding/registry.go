@@ -3,6 +3,7 @@ package keybinding
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 
 	config "github.com/inference-gateway/cli/config"
@@ -52,9 +53,15 @@ func (r *Registry) Register(action *KeyAction) error {
 		return fmt.Errorf("key action must have at least one key")
 	}
 
+	for _, key := range action.Keys {
+		keyCount := strings.Count(key, ",") + 1
+		if keyCount > 2 {
+			return fmt.Errorf("key sequence '%s' exceeds maximum length of 2 keys (has %d keys)", key, keyCount)
+		}
+	}
+
 	r.actions[action.ID] = action
 
-	// Allow multiple actions to share keys - layer system handles resolution
 	for _, key := range action.Keys {
 		r.keyMap[key] = action
 	}
@@ -393,6 +400,54 @@ func (r *Registry) removeKeyFromLayers(key string, action *KeyAction) {
 			delete(layer.Bindings, key)
 		}
 	}
+}
+
+// HasSequenceWithPrefix checks if any registered action has a key sequence that starts with the given prefix
+func (r *Registry) HasSequenceWithPrefix(prefix string, app KeyHandlerContext) bool {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	for _, action := range r.actions {
+		if !r.canExecuteAction(action, app) {
+			continue
+		}
+
+		for _, key := range action.Keys {
+			if !strings.Contains(key, ",") {
+				continue
+			}
+
+			if strings.HasPrefix(key, prefix+",") || key == prefix {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// GetSequenceActionForPrefix returns the action that matches a sequence starting with the given prefix
+func (r *Registry) GetSequenceActionForPrefix(prefix string, app KeyHandlerContext) *KeyAction {
+	r.mutex.RLock()
+	defer r.mutex.RUnlock()
+
+	for _, action := range r.actions {
+		if !r.canExecuteAction(action, app) {
+			continue
+		}
+
+		for _, key := range action.Keys {
+			if !strings.Contains(key, ",") {
+				continue
+			}
+
+			if strings.HasPrefix(key, prefix+",") || key == prefix {
+				return action
+			}
+		}
+	}
+
+	return nil
 }
 
 // ListAllActions returns all registered actions for debugging/management

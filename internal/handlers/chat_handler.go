@@ -159,6 +159,10 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return h.HandleTodoUpdateChatEvent(m)
 	case domain.AgentStatusUpdateEvent:
 		return h.HandleAgentStatusUpdateEvent(m)
+	case domain.NavigateBackInTimeEvent:
+		return nil
+	case domain.MessageHistoryRestoreEvent:
+		return nil
 	default:
 		if isUIOnlyEvent(msg) {
 			return nil
@@ -788,6 +792,7 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.AutocompleteUpdateEvent,
 		domain.AutocompleteHideEvent,
 		domain.AutocompleteCompleteEvent,
+		domain.MessageHistoryReadyEvent,
 		tea.KeyMsg,
 		tea.WindowSizeMsg,
 		tea.MouseMsg,

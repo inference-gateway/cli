@@ -495,6 +495,22 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, "ENVIRONMENT=development")
 	}
 
+	logDir := filepath.Join(".infer", "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		logger.Warn("Failed to create gateway log directory", "error", err)
+	} else {
+		logFileName := fmt.Sprintf("gateway-%s.log", time.Now().Format("2006-01-02"))
+		gatewayLogPath := filepath.Join(logDir, logFileName)
+
+		logFile, err := os.OpenFile(gatewayLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			logger.Warn("Failed to open gateway log file", "error", err)
+		} else {
+			cmd.Stdout = logFile
+			cmd.Stderr = logFile
+		}
+	}
+
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start binary: %w", err)
 	}

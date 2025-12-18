@@ -387,6 +387,12 @@ chat:
         description: cycle agent mode (Standard/Plan/Auto-Accept)
         category: mode
         enabled: true
+      navigation_go_back_in_time:
+        keys:
+          - esc,esc
+        description: go back in time to previous message (double ESC)
+        category: navigation
+        enabled: true
       navigation_page_down:
         keys:
           - pgdn

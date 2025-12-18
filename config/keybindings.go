@@ -101,6 +101,12 @@ func addNavigationBindings(bindings map[string]KeyBindingEntry) {
 		Category:    "navigation",
 		Enabled:     &enabled,
 	}
+	bindings[ActionID(NamespaceNavigation, "go_back_in_time")] = KeyBindingEntry{
+		Keys:        []string{"esc,esc"},
+		Description: "go back in time to previous message (double ESC)",
+		Category:    "navigation",
+		Enabled:     &enabled,
+	}
 }
 
 func addTextEditingBindings(bindings map[string]KeyBindingEntry) {

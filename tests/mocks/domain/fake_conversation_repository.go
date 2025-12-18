@@ -54,6 +54,17 @@ type FakeConversationRepository struct {
 	clearExceptFirstUserMessageReturnsOnCall map[int]struct {
 		result1 error
 	}
+	DeleteMessagesAfterIndexStub        func(int) error
+	deleteMessagesAfterIndexMutex       sync.RWMutex
+	deleteMessagesAfterIndexArgsForCall []struct {
+		arg1 int
+	}
+	deleteMessagesAfterIndexReturns struct {
+		result1 error
+	}
+	deleteMessagesAfterIndexReturnsOnCall map[int]struct {
+		result1 error
+	}
 	ExportStub        func(domain.ExportFormat) ([]byte, error)
 	exportMutex       sync.RWMutex
 	exportArgsForCall []struct {
@@ -411,6 +422,67 @@ func (fake *FakeConversationRepository) ClearExceptFirstUserMessageReturnsOnCall
 		})
 	}
 	fake.clearExceptFirstUserMessageReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) DeleteMessagesAfterIndex(arg1 int) error {
+	fake.deleteMessagesAfterIndexMutex.Lock()
+	ret, specificReturn := fake.deleteMessagesAfterIndexReturnsOnCall[len(fake.deleteMessagesAfterIndexArgsForCall)]
+	fake.deleteMessagesAfterIndexArgsForCall = append(fake.deleteMessagesAfterIndexArgsForCall, struct {
+		arg1 int
+	}{arg1})
+	stub := fake.DeleteMessagesAfterIndexStub
+	fakeReturns := fake.deleteMessagesAfterIndexReturns
+	fake.recordInvocation("DeleteMessagesAfterIndex", []interface{}{arg1})
+	fake.deleteMessagesAfterIndexMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) DeleteMessagesAfterIndexCallCount() int {
+	fake.deleteMessagesAfterIndexMutex.RLock()
+	defer fake.deleteMessagesAfterIndexMutex.RUnlock()
+	return len(fake.deleteMessagesAfterIndexArgsForCall)
+}
+
+func (fake *FakeConversationRepository) DeleteMessagesAfterIndexCalls(stub func(int) error) {
+	fake.deleteMessagesAfterIndexMutex.Lock()
+	defer fake.deleteMessagesAfterIndexMutex.Unlock()
+	fake.DeleteMessagesAfterIndexStub = stub
+}
+
+func (fake *FakeConversationRepository) DeleteMessagesAfterIndexArgsForCall(i int) int {
+	fake.deleteMessagesAfterIndexMutex.RLock()
+	defer fake.deleteMessagesAfterIndexMutex.RUnlock()
+	argsForCall := fake.deleteMessagesAfterIndexArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeConversationRepository) DeleteMessagesAfterIndexReturns(result1 error) {
+	fake.deleteMessagesAfterIndexMutex.Lock()
+	defer fake.deleteMessagesAfterIndexMutex.Unlock()
+	fake.DeleteMessagesAfterIndexStub = nil
+	fake.deleteMessagesAfterIndexReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) DeleteMessagesAfterIndexReturnsOnCall(i int, result1 error) {
+	fake.deleteMessagesAfterIndexMutex.Lock()
+	defer fake.deleteMessagesAfterIndexMutex.Unlock()
+	fake.DeleteMessagesAfterIndexStub = nil
+	if fake.deleteMessagesAfterIndexReturnsOnCall == nil {
+		fake.deleteMessagesAfterIndexReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.deleteMessagesAfterIndexReturnsOnCall[i] = struct {
 		result1 error
 	}{result1}
 }

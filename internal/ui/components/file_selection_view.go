@@ -136,6 +136,6 @@ func (f *FileSelectionView) renderFooter(b *strings.Builder, files []string, sel
 		b.WriteString("\n")
 	}
 
-	helpText := "Type to search, ↑↓ to navigate, ENTER to select, BACKSPACE to clear, ESC to cancel"
+	helpText := "Type to search, ↑↓ to navigate, enter to select, backspace to clear, esc to cancel"
 	b.WriteString(f.styleProvider.RenderDimText(helpText))
 }

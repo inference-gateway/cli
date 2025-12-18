@@ -327,6 +327,15 @@ type PlanApprovalUIState struct {
 	ResponseChan  chan PlanApprovalAction `json:"-"`
 }
 
+// MessageSnapshot represents a snapshot of a message for the history view
+type MessageSnapshot struct {
+	Index        int             `json:"index"`
+	Role         sdk.MessageRole `json:"role"`
+	Content      string          `json:"content"`
+	Timestamp    time.Time       `json:"timestamp"`
+	TruncatedMsg string          `json:"truncated_msg"`
+}
+
 // NewApplicationState creates a new application state
 func NewApplicationState() *ApplicationState {
 	return &ApplicationState{
