@@ -155,7 +155,13 @@ tasks:
     cmds:
       - mkdir -p dist
       - CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PACKAGE}}
-      - CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-arm64 {{.MAIN_PACKAGE}}
+      - |
+        if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
+          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-arm64 {{.MAIN_PACKAGE}}
+        else
+          echo "⚠ ARM64 cross-compiler not found, skipping linux-arm64 build"
+          echo "  Install: gcc-aarch64-linux-gnu (or build on ARM64 machine)"
+        fi
       - cd dist && sha256sum {{.BINARY_NAME}}-* > checksums.txt
       - |
         if command -v cosign >/dev/null 2>&1; then
