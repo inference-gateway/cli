@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.92.2](https://github.com/inference-gateway/cli/compare/v0.92.1...v0.92.2) (2025-12-19)
+
+### 🐛 Bug Fixes
+
+* Add ARM64 cross-compilation support for CGO builds ([0e52036](https://github.com/inference-gateway/cli/commit/0e52036a23a395e05675d2c395bef3c53aa79e90))
+
 ## [0.92.1](https://github.com/inference-gateway/cli/compare/v0.92.0...v0.92.1) (2025-12-19)
 
 ### 🐛 Bug Fixes
