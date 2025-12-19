@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.92.6](https://github.com/inference-gateway/cli/compare/v0.92.5...v0.92.6) (2025-12-19)
+
+### 🐛 Bug Fixes
+
+* Build Linux binaries in Alpine containers for musl libc compatibility ([c8c7164](https://github.com/inference-gateway/cli/commit/c8c71641c350fcd9d328f038f75da8a963536776))
+
 ## [0.92.5](https://github.com/inference-gateway/cli/compare/v0.92.4...v0.92.5) (2025-12-19)
 
 ### ♻️ Code Refactoring
