@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.92.1](https://github.com/inference-gateway/cli/compare/v0.92.0...v0.92.1) (2025-12-19)
+
+### 🐛 Bug Fixes
+
+* Add mutex protection for concurrent streaming access ([#348](https://github.com/inference-gateway/cli/issues/348)) ([e1314c7](https://github.com/inference-gateway/cli/commit/e1314c734d5d4590b79b17377ac54f01b3e68c66))
+
+### ♻️ Code Refactoring
+
+* Replace static SQLite with dynamic linking and add JSONL default storage ([#346](https://github.com/inference-gateway/cli/issues/346)) ([2794b60](https://github.com/inference-gateway/cli/commit/2794b60cb0c96b252895044683c5201998569f02))
+
 ## [0.92.0](https://github.com/inference-gateway/cli/compare/v0.91.0...v0.92.0) (2025-12-18)
 
 ### 🚀 Features
