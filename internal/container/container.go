@@ -226,11 +226,9 @@ func (c *ServiceContainer) initializeDomainServices() {
 	storageConfig := storage.NewStorageFromConfig(c.config)
 	storageBackend, err := storage.NewStorage(storageConfig)
 	if err != nil {
-		// Check if storage was explicitly configured (not just default memory)
 		isExplicitStorage := c.config.Storage.Enabled && storageConfig.Type != "memory"
 
 		if isExplicitStorage {
-			// Fail hard when explicitly configured storage is unavailable
 			logger.Error("Storage backend initialization failed",
 				"error", err,
 				"type", storageConfig.Type,
@@ -245,7 +243,6 @@ func (c *ServiceContainer) initializeDomainServices() {
 				"  storage.type: postgres  # or redis", storageConfig.Type, err))
 		}
 
-		// Fallback to in-memory storage only if storage was not explicitly configured
 		logger.Warn("Using in-memory conversation storage (conversations will not be persisted)")
 		c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
 	} else {
