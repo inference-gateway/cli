@@ -30,12 +30,14 @@ This is the recommended command to start working with Inference Gateway CLI in a
 func init() {
 	initCmd.Flags().Bool("overwrite", false, "Overwrite existing files if they already exist")
 	initCmd.Flags().Bool("userspace", false, "Initialize configuration in user home directory (~/.infer/)")
+	initCmd.Flags().Bool("skip-migrations", false, "Skip running database migrations")
 	rootCmd.AddCommand(initCmd)
 }
 
 func initializeProject(cmd *cobra.Command) error {
 	overwrite, _ := cmd.Flags().GetBool("overwrite")
 	userspace, _ := cmd.Flags().GetBool("userspace")
+	skipMigrations, _ := cmd.Flags().GetBool("skip-migrations")
 
 	var configPath, gitignorePath, scmShortcutsPath, gitShortcutsPath, mcpShortcutsPath, shellsShortcutsPath, exportShortcutsPath, a2aShortcutsPath, mcpPath string
 
@@ -79,7 +81,8 @@ func initializeProject(cmd *cobra.Command) error {
 logs/*.log
 history
 chat_export_*
-conversations.db
+conversations.db*
+conversations
 bin/
 tmp/
 `
@@ -146,6 +149,17 @@ tmp/
 	fmt.Println("  - Start chatting: infer chat")
 	fmt.Println("")
 	fmt.Println("Tip: Use /init in chat mode to generate an AGENTS.md file interactively")
+
+	if !skipMigrations {
+		fmt.Println("")
+		fmt.Println("Running database migrations...")
+		if err := runMigrations(); err != nil {
+			fmt.Printf("%s Warning: Failed to run migrations: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), err)
+			fmt.Println("   You can run migrations manually with: infer migrate")
+		} else {
+			fmt.Printf("%s Database migrations completed successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+		}
+	}
 
 	return nil
 }

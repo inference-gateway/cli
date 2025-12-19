@@ -2,6 +2,7 @@ package container
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"time"
@@ -109,8 +110,8 @@ func NewServiceContainer(cfg *config.Config, v ...*viper.Viper) *ServiceContaine
 	container.initializeGatewayManager()
 	container.initializeFileWriterServices()
 	container.initializeStateManager()
-	container.initializeAgentManager()
 	container.initializeDomainServices()
+	container.initializeAgentManager()
 	container.initializeServices()
 	container.initializeUIComponents()
 	container.initializeExtensibility()
@@ -146,11 +147,15 @@ func (c *ServiceContainer) initializeAgentManager() {
 		}
 	}
 
+	if len(c.config.A2A.Agents) > 0 {
+		agentCount += len(c.config.A2A.Agents)
+	}
+
 	if agentCount > 0 {
 		c.stateManager.InitializeAgentReadiness(agentCount)
 	}
 
-	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime)
+	c.agentManager = services.NewAgentManager(c.sessionID, c.config, agentsConfig, c.containerRuntime, c.a2aAgentService)
 
 	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
@@ -221,7 +226,24 @@ func (c *ServiceContainer) initializeDomainServices() {
 	storageConfig := storage.NewStorageFromConfig(c.config)
 	storageBackend, err := storage.NewStorage(storageConfig)
 	if err != nil {
-		logger.Error("Failed to initialize storage, using basic in-memory repository", "error", err, "type", storageConfig.Type)
+		isExplicitStorage := c.config.Storage.Enabled && storageConfig.Type != "memory"
+
+		if isExplicitStorage {
+			logger.Error("Storage backend initialization failed",
+				"error", err,
+				"type", storageConfig.Type,
+				"enabled", c.config.Storage.Enabled)
+			logger.Error("Storage backend '%s' is not available. "+
+				"Either fix the configuration or disable storage by setting 'storage.enabled: false'",
+				storageConfig.Type)
+			panic(fmt.Sprintf("Failed to initialize storage backend '%s': %v\n\n"+
+				"To use in-memory storage instead, set:\n"+
+				"  storage.enabled: false\n\n"+
+				"Or use an alternative storage backend:\n"+
+				"  storage.type: postgres  # or redis", storageConfig.Type, err))
+		}
+
+		logger.Warn("Using in-memory conversation storage (conversations will not be persisted)")
 		c.conversationRepo = services.NewInMemoryConversationRepository(toolFormatterService, c.PricingService())
 	} else {
 		c.storage = storageBackend

@@ -22,7 +22,7 @@ const (
 	AgentContainerPrefix = "inference-agent-"
 )
 
-// AgentManager manages the lifecycle of A2A agent containers
+// AgentManager manages the lifecycle of A2A agent containers (local and external)
 type AgentManager struct {
 	sessionID        domain.SessionID
 	config           *config.Config
@@ -30,13 +30,15 @@ type AgentManager struct {
 	containerRuntime domain.ContainerRuntime
 	containers       map[string]string
 	assignedPorts    map[string]int
+	externalAgents   map[string]string
 	isRunning        bool
 	statusCallback   func(agentName string, state domain.AgentState, message string, url string, image string)
 	containersMutex  sync.Mutex
+	a2aAgentService  domain.A2AAgentService
 }
 
 // NewAgentManager creates a new agent manager
-func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime domain.ContainerRuntime) *AgentManager {
+func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfig *config.AgentsConfig, runtime domain.ContainerRuntime, a2aService domain.A2AAgentService) *AgentManager {
 	return &AgentManager{
 		sessionID:        sessionID,
 		config:           cfg,
@@ -44,6 +46,8 @@ func NewAgentManager(sessionID domain.SessionID, cfg *config.Config, agentsConfi
 		containerRuntime: runtime,
 		containers:       make(map[string]string),
 		assignedPorts:    make(map[string]int),
+		externalAgents:   make(map[string]string),
+		a2aAgentService:  a2aService,
 	}
 }
 
@@ -59,7 +63,7 @@ func (am *AgentManager) notifyStatus(agentName string, state domain.AgentState, 
 	}
 }
 
-// StartAgents starts all agents configured with run: true asynchronously
+// StartAgents starts all local agents (run: true) and monitors external agents
 func (am *AgentManager) StartAgents(ctx context.Context) error {
 	agentsToStart := []config.AgentEntry{}
 	for _, agent := range am.agentsConfig.Agents {
@@ -68,18 +72,74 @@ func (am *AgentManager) StartAgents(ctx context.Context) error {
 		}
 	}
 
-	if len(agentsToStart) == 0 {
-		return nil
-	}
-
 	for _, agent := range agentsToStart {
 		go am.startAgentAsync(ctx, agent)
 	}
 
-	am.isRunning = true
-	logger.Info("Starting agents in background", "count", len(agentsToStart))
+	if len(agentsToStart) > 0 {
+		logger.Info("Starting local agents in background", "count", len(agentsToStart))
+	}
 
+	am.initializeExternalAgents(ctx)
+
+	am.isRunning = true
 	return nil
+}
+
+// initializeExternalAgents loads external agents and monitors their readiness
+func (am *AgentManager) initializeExternalAgents(ctx context.Context) {
+	if len(am.config.A2A.Agents) == 0 {
+		return
+	}
+
+	for _, agentURL := range am.config.A2A.Agents {
+		agentName := am.extractAgentNameFromURL(agentURL)
+		am.externalAgents[agentName] = agentURL
+	}
+
+	logger.Info("Monitoring external agents", "count", len(am.externalAgents))
+
+	go am.monitorExternalAgents(ctx)
+}
+
+// monitorExternalAgents monitors the readiness of external agents
+func (am *AgentManager) monitorExternalAgents(ctx context.Context) {
+	time.Sleep(2 * time.Second)
+
+	a2aSvc, ok := am.a2aAgentService.(*A2AAgentService)
+	if !ok || a2aSvc == nil {
+		logger.Warn("Cannot monitor external agents: A2A service not available")
+		return
+	}
+
+	for agentName, agentURL := range am.externalAgents {
+		checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		_, err := a2aSvc.GetAgentCard(checkCtx, agentURL)
+		cancel()
+
+		if err != nil {
+			logger.Warn("External agent not ready", "name", agentName, "url", agentURL, "error", err)
+			am.notifyStatus(agentName, domain.AgentStateFailed, "Agent not reachable", agentURL, "")
+		} else {
+			logger.Info("External agent ready", "name", agentName, "url", agentURL)
+			am.notifyStatus(agentName, domain.AgentStateReady, "Ready (external)", agentURL, "")
+		}
+	}
+}
+
+// extractAgentNameFromURL extracts a display name from an agent URL
+func (am *AgentManager) extractAgentNameFromURL(url string) string {
+	url = strings.TrimPrefix(url, "http://")
+	url = strings.TrimPrefix(url, "https://")
+
+	parts := strings.Split(url, "/")
+	if len(parts) == 0 {
+		return url
+	}
+
+	hostPort := parts[0]
+	host := strings.Split(hostPort, ":")[0]
+	return host
 }
 
 // startAgentAsync starts a single agent asynchronously with status updates

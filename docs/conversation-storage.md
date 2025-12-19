@@ -1,20 +1,85 @@
 # Conversation Storage
 
 The CLI supports configurable conversation storage, allowing you to save, resume, and manage your chat
-sessions across different invocations. By default, conversations are stored in memory, but you can enable
-persistent storage using SQLite, PostgreSQL, or Redis.
+sessions across different invocations. By default, conversations are stored using JSONL (JSON Lines) files,
+which provides zero-dependency persistent storage. You can also choose SQLite, PostgreSQL, or Redis.
 
 ## Overview
 
 The conversation storage system provides:
 
-- **Configurable Storage**: Choose between in-memory (default), SQLite, PostgreSQL, or Redis
+- **Configurable Storage**: Choose between JSONL (default), SQLite, PostgreSQL, Redis, or in-memory
 - **Conversation Management**: List, save, load, and delete conversations using `/conversations`
 - **Unified Interface**: Consistent API across all storage backends
 
 ## Storage Backends
 
-### SQLite (Recommended for local use)
+### JSONL (Default - Recommended for personal use)
+
+JSONL (JSON Lines) provides a simple, file-based storage solution perfect for personal use with zero dependencies.
+
+**Configuration:**
+
+```yaml
+storage:
+  enabled: true
+  type: jsonl
+  jsonl:
+    path: ~/.infer/conversations
+```
+
+**Pros:**
+
+- No external dependencies (no database, no CGO)
+- Human-readable format (text files)
+- Easy to backup, sync, and version control
+- Git-friendly (text-based)
+- Zero setup required
+- Works on all platforms
+- Fast for typical usage (dozens to hundreds of conversations)
+
+**Cons:**
+
+- Not suitable for thousands of conversations
+- No advanced querying capabilities
+- Sequential file access (vs indexed database)
+
+**File Structure:**
+
+Each conversation is stored in a separate JSONL file in the configured directory:
+
+```text
+~/.infer/conversations/
+├── <conversation-id-1>.jsonl
+├── <conversation-id-2>.jsonl
+└── <conversation-id-3>.jsonl
+```
+
+Each file contains exactly two lines:
+
+- **Line 1**: Metadata (JSON object)
+- **Line 2**: Entries array (JSON array)
+
+**Backup:**
+
+Simply copy the conversations directory:
+
+```bash
+cp -r ~/.infer/conversations ~/backups/conversations-$(date +%Y%m%d)
+```
+
+**Version Control:**
+
+Works well with Git:
+
+```bash
+cd ~/.infer/conversations
+git init
+git add *.jsonl
+git commit -m "Save conversations"
+```
+
+### SQLite (Alternative for local use)
 
 SQLite provides a lightweight, file-based storage solution perfect for personal use:
 
@@ -101,8 +166,12 @@ Add storage configuration to your `.infer/config.yaml`:
 ```yaml
 # Storage configuration
 storage:
-  enabled: false  # Set to true to enable persistent storage
-  type: memory    # Options: memory (default), sqlite, postgres, or redis
+  enabled: true       # true to enable persistent storage
+  type: jsonl         # Options: jsonl (default), sqlite, postgres, redis, memory
+
+  # JSONL configuration (used when type: jsonl)
+  jsonl:
+    path: ~/.infer/conversations  # Directory for JSONL files
 
   # SQLite configuration (used when type: sqlite)
   sqlite:
@@ -127,9 +196,15 @@ storage:
 
 ### Enabling Storage
 
-1. **For in-memory storage (default)**:
-   - No configuration needed, or set `enabled: false`
-   - Conversations are lost when the CLI exits
+1. **For JSONL storage (default)**:
+
+   ```yaml
+   storage:
+     enabled: true
+     type: jsonl
+     jsonl:
+       path: ~/.infer/conversations
+   ```
 
 2. **For SQLite storage**:
 
@@ -166,6 +241,10 @@ storage:
        port: 6379
        password: "%REDIS_PASSWORD%"
    ```
+
+5. **For in-memory storage**:
+   - Set `enabled: false` or `type: memory`
+   - Conversations are lost when the CLI exits
 
 ## Usage
 

@@ -336,3 +336,58 @@ type ShellCancelledEvent struct {
 
 func (e ShellCancelledEvent) GetRequestID() string    { return e.RequestID }
 func (e ShellCancelledEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// NavigateBackInTimeEvent triggers the message history selector view
+type NavigateBackInTimeEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e NavigateBackInTimeEvent) GetRequestID() string    { return e.RequestID }
+func (e NavigateBackInTimeEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// MessageHistoryReadyEvent indicates message history has been loaded and is ready to display
+type MessageHistoryReadyEvent struct {
+	Messages []MessageSnapshot
+}
+
+// MessageHistoryRestoreEvent is emitted when user selects a restore point in message history
+type MessageHistoryRestoreEvent struct {
+	RequestID      string
+	Timestamp      time.Time
+	RestoreToIndex int
+}
+
+func (e MessageHistoryRestoreEvent) GetRequestID() string    { return e.RequestID }
+func (e MessageHistoryRestoreEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// MessageHistoryEditEvent is emitted when user wants to edit a selected message
+type MessageHistoryEditEvent struct {
+	RequestID       string
+	Timestamp       time.Time
+	MessageIndex    int
+	MessageContent  string
+	MessageSnapshot MessageSnapshot
+}
+
+func (e MessageHistoryEditEvent) GetRequestID() string    { return e.RequestID }
+func (e MessageHistoryEditEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// MessageHistoryEditReadyEvent indicates editing is ready to begin
+type MessageHistoryEditReadyEvent struct {
+	MessageIndex int
+	Content      string
+	Snapshot     MessageSnapshot
+}
+
+// MessageEditSubmitEvent is emitted when edited message is submitted
+type MessageEditSubmitEvent struct {
+	RequestID     string
+	Timestamp     time.Time
+	OriginalIndex int
+	EditedContent string
+	Images        []ImageAttachment
+}
+
+func (e MessageEditSubmitEvent) GetRequestID() string    { return e.RequestID }
+func (e MessageEditSubmitEvent) GetTimestamp() time.Time { return e.Timestamp }

@@ -68,7 +68,7 @@ func (gm *GatewayManager) EnsureStarted() error {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
 	if err := gm.Start(ctx); err != nil {
@@ -444,11 +444,11 @@ func (gm *GatewayManager) downloadBinary(ctx context.Context) (string, error) {
 
 	cmd := exec.CommandContext(ctx, "bash", "-c", installCmd)
 	cmd.Stdin = nil
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
 
-	output, err := cmd.CombinedOutput()
-
-	if err != nil {
-		return "", fmt.Errorf("installer failed: %w, output: %s", err, string(output))
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("installer failed: %w", err)
 	}
 
 	if _, err := os.Stat(binaryPath); err != nil {
@@ -493,6 +493,22 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 
 	if gm.config.Gateway.Debug {
 		cmd.Env = append(cmd.Env, "ENVIRONMENT=development")
+	}
+
+	logDir := filepath.Join(".infer", "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		logger.Warn("Failed to create gateway log directory", "error", err)
+	} else {
+		logFileName := fmt.Sprintf("gateway-%s.log", time.Now().Format("2006-01-02"))
+		gatewayLogPath := filepath.Join(logDir, logFileName)
+
+		logFile, err := os.OpenFile(gatewayLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			logger.Warn("Failed to open gateway log file", "error", err)
+		} else {
+			cmd.Stdout = logFile
+			cmd.Stderr = logFile
+		}
 	}
 
 	if err := cmd.Start(); err != nil {

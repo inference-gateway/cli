@@ -78,7 +78,7 @@ The codebase follows Clean Architecture principles with clear separation:
    - Orchestrates domain services
 
 3. **Infrastructure Layer** (`internal/infra/`, `internal/services/`): External concerns
-   - Storage implementations (SQLite, PostgreSQL, Redis)
+   - Storage implementations (JSONL, SQLite, PostgreSQL, Redis)
    - Tool implementations (Bash, Read, Write, Grep, etc.)
    - SDK integration for model communication
 
@@ -343,7 +343,7 @@ func setupTestConfig() *config.Config {
 Storage implementations abstracted behind interfaces:
 
 - Interface: `domain.ConversationRepository`
-- Implementations: `storage.SQLiteStorage`, `storage.PostgresStorage`, `storage.RedisStorage`
+- Implementations: `storage.JsonlStorage`, `storage.SQLiteStorage`, `storage.PostgresStorage`, `storage.RedisStorage`
 - Factory: `storage.NewConversationStorage(cfg)`
 
 ### Strategy Pattern
@@ -352,7 +352,7 @@ Tools and services use strategy pattern for different implementations:
 
 - Grep backend: ripgrep vs Go implementation
 - Gateway mode: Docker vs binary mode
-- Storage backend: SQLite vs PostgreSQL vs Redis
+- Storage backend: JSONL (default) vs SQLite vs PostgreSQL vs Redis
 
 ### Observer Pattern
 
@@ -511,7 +511,7 @@ alongside interactive chat sessions.
 
 **Behavior:**
 
-- Agent conversations are saved by default to the configured storage backend (SQLite/PostgreSQL/Redis)
+- Agent conversations are saved by default to the configured storage backend (JSONL/SQLite/PostgreSQL/Redis)
 - Each message, tool execution, and token usage is persisted automatically
 - Agent sessions appear in `infer conversations list` alongside chat conversations
 - Auto-save uses async goroutines to prevent blocking execution
@@ -540,7 +540,7 @@ infer conversations list
 - Token usage tracking per model
 - Cost calculation integrated with pricing service
 - Session completion summary with statistics
-- Works with all storage backends (SQLite, PostgreSQL, Redis)
+- Works with all storage backends (JSONL, SQLite, PostgreSQL, Redis)
 
 **Implementation Files:**
 

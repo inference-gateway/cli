@@ -96,8 +96,8 @@ func testWebSearchEngineValidation(t *testing.T, cfg *Config) {
 }
 
 func testExportDefaults(t *testing.T, cfg *Config) {
-	if cfg.Export.OutputDir != ".infer" {
-		t.Errorf("Expected export output dir to be '.infer', got %q", cfg.Export.OutputDir)
+	if cfg.Export.OutputDir != ".infer/tmp" {
+		t.Errorf("Expected export output dir to be '.infer/tmp', got %q", cfg.Export.OutputDir)
 	}
 }
 

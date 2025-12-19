@@ -42,8 +42,13 @@ tools:
     directories:
       - .
       - /tmp
+      - .infer/tmp
     protected_paths:
-      - .infer/
+      - .infer/config.yaml
+      - .infer/*.db
+      - .infer/shortcuts/
+      - .infer/agents.yaml
+      - .infer/mcp.yaml
       - .git/
       - '*.env'
   bash:
@@ -137,7 +142,7 @@ image:
     quality: 75
     convert_jpeg: true
 export:
-  output_dir: .infer
+  output_dir: .infer/tmp
   summary_model: ""
 agent:
   model: ""
@@ -285,7 +290,7 @@ scm:
     delete_local_branch: false
 storage:
   enabled: true
-  type: sqlite
+  type: jsonl
   sqlite:
     path: .infer/conversations.db
   postgres:
@@ -300,6 +305,8 @@ storage:
     port: 6379
     password: ""
     db: 0
+  jsonl:
+    path: .infer/conversations
 conversation:
   title_generation:
     enabled: true
@@ -381,6 +388,12 @@ chat:
           - shift+tab
         description: cycle agent mode (Standard/Plan/Auto-Accept)
         category: mode
+        enabled: true
+      navigation_go_back_in_time:
+        keys:
+          - esc,esc
+        description: go back in time to previous message (double ESC)
+        category: navigation
         enabled: true
       navigation_page_down:
         keys:

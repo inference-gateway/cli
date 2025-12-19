@@ -97,10 +97,19 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc libsqlite3-dev
+
     - name: Build project
+      env:
+        CGO_ENABLED: 1
       run: |
         go build \
+          -tags libsqlite3 \
           -ldflags "\
+            -w -s \
             -X github.com/inference-gateway/cli/cmd.version=${{ github.ref_name }} \
             -X github.com/inference-gateway/cli/cmd.commit=${{ github.sha }} \
             -X github.com/inference-gateway/cli/cmd.date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
@@ -120,5 +129,12 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc libsqlite3-dev
+
     - name: Run tests
-      run: go test ./...
+      env:
+        CGO_ENABLED: 1
+      run: go test -tags libsqlite3 ./...

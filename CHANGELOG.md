@@ -6,6 +6,107 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.92.6](https://github.com/inference-gateway/cli/compare/v0.92.5...v0.92.6) (2025-12-19)
+
+### 🐛 Bug Fixes
+
+* Build Linux binaries in Alpine containers for musl libc compatibility ([c8c7164](https://github.com/inference-gateway/cli/commit/c8c71641c350fcd9d328f038f75da8a963536776))
+
+## [0.92.5](https://github.com/inference-gateway/cli/compare/v0.92.4...v0.92.5) (2025-12-19)
+
+### ♻️ Code Refactoring
+
+* Use native ARM64 runners instead of cross-compilation ([47a4fec](https://github.com/inference-gateway/cli/commit/47a4fec446de2d688f6512dad00140a898399adc))
+
+## [0.92.4](https://github.com/inference-gateway/cli/compare/v0.92.3...v0.92.4) (2025-12-19)
+
+### 🐛 Bug Fixes
+
+* Add ARM64 SQLite library for cross-compilation ([0bc083a](https://github.com/inference-gateway/cli/commit/0bc083acacd396c1efa94ea03200ac426aa25687))
+
+## [0.92.3](https://github.com/inference-gateway/cli/compare/v0.92.2...v0.92.3) (2025-12-19)
+
+### ♻️ Code Refactoring
+
+* Enable true dynamic SQLite linking and strip debug symbols ([84e8cc5](https://github.com/inference-gateway/cli/commit/84e8cc52b9d83e2706929b5893de29184331f09e))
+
+## [0.92.2](https://github.com/inference-gateway/cli/compare/v0.92.1...v0.92.2) (2025-12-19)
+
+### 🐛 Bug Fixes
+
+* Add ARM64 cross-compilation support for CGO builds ([0e52036](https://github.com/inference-gateway/cli/commit/0e52036a23a395e05675d2c395bef3c53aa79e90))
+
+## [0.92.1](https://github.com/inference-gateway/cli/compare/v0.92.0...v0.92.1) (2025-12-19)
+
+### 🐛 Bug Fixes
+
+* Add mutex protection for concurrent streaming access ([#348](https://github.com/inference-gateway/cli/issues/348)) ([e1314c7](https://github.com/inference-gateway/cli/commit/e1314c734d5d4590b79b17377ac54f01b3e68c66))
+
+### ♻️ Code Refactoring
+
+* Replace static SQLite with dynamic linking and add JSONL default storage ([#346](https://github.com/inference-gateway/cli/issues/346)) ([2794b60](https://github.com/inference-gateway/cli/commit/2794b60cb0c96b252895044683c5201998569f02))
+
+## [0.92.0](https://github.com/inference-gateway/cli/compare/v0.91.0...v0.92.0) (2025-12-18)
+
+### 🚀 Features
+
+* Add message editing functionality to chat history ([#343](https://github.com/inference-gateway/cli/issues/343)) ([00d2ff6](https://github.com/inference-gateway/cli/commit/00d2ff64e6d02d1835658a6ed5d9bb09a70deb9c))
+
+### 🧹 Maintenance
+
+* **deps:** Update package versions in flox manifest ([3b71de9](https://github.com/inference-gateway/cli/commit/3b71de9de248d1bd255c2385835a4e301d200ca5))
+
+## [0.91.0](https://github.com/inference-gateway/cli/compare/v0.90.3...v0.91.0) (2025-12-18)
+
+### 🚀 Features
+
+* Add conversation versioning ([#342](https://github.com/inference-gateway/cli/issues/342)) ([94e143a](https://github.com/inference-gateway/cli/commit/94e143a349354e774e508daad265aa7316a77cd9)), closes [#341](https://github.com/inference-gateway/cli/issues/341)
+
+### 🐛 Bug Fixes
+
+* **examples:** Connect to the browser agent via vnc using tcp ([ae220d3](https://github.com/inference-gateway/cli/commit/ae220d3af1df5ded8d9bf16134496e085f7dfb6e))
+
+### 🧹 Maintenance
+
+* **deps:** bump golang.org/x/image from 0.28.0 to 0.34.0 ([#339](https://github.com/inference-gateway/cli/issues/339)) ([bdf4d06](https://github.com/inference-gateway/cli/commit/bdf4d06e0431295f69c6df3fb46587c401b2c557))
+
+## [0.90.3](https://github.com/inference-gateway/cli/compare/v0.90.2...v0.90.3) (2025-12-14)
+
+### 🐛 Bug Fixes
+
+* Allow the agent to read and write to the .infer/tmp directory ([938f0ab](https://github.com/inference-gateway/cli/commit/938f0ab3c25bb9dcf6eae857a6a8cb87f4ab6fd2))
+
+### ♻️ Code Refactoring
+
+* **example:** Remove debug logging and fix browser-agent headless mode set to false ([6af2e04](https://github.com/inference-gateway/cli/commit/6af2e047e05fd6db6c2137c3a39139661ef6605a))
+* **examples:** Remove hardcoded max iteration, the default is 50 which is decent ([802b742](https://github.com/inference-gateway/cli/commit/802b742cc3b58356967f4069df38ef42c5ddf930))
+
+## [0.90.2](https://github.com/inference-gateway/cli/compare/v0.90.1...v0.90.2) (2025-12-14)
+
+### 🐛 Bug Fixes
+
+* Add git to container image and adjust gateway manager ([aa6f99c](https://github.com/inference-gateway/cli/commit/aa6f99c8ee2e6f7ecf9afe79bd9d13e7efcef4be))
+* Support both local and remote agents ([8e068f5](https://github.com/inference-gateway/cli/commit/8e068f5d8cd7c471c6aefd1a022b48c2a9b770df))
+
+### ♻️ Code Refactoring
+
+* **examples:** Remove unused container image ([8a91743](https://github.com/inference-gateway/cli/commit/8a91743f7b536bc5ebca342a6c2f46f2f502a531))
+
+### 🧹 Maintenance
+
+* **examples:** Add whitelist agents domains to allow to download artifacts ([390e304](https://github.com/inference-gateway/cli/commit/390e3047f52e6c5d8f94f87d17f0199068b86f48))
+* **examples:** Update container image ([a289e85](https://github.com/inference-gateway/cli/commit/a289e850523ea90edbda9711703c24518c6e58da))
+
+## [0.90.1](https://github.com/inference-gateway/cli/compare/v0.90.0...v0.90.1) (2025-12-14)
+
+### ♻️ Code Refactoring
+
+* **container:** Move the binary to system path ([c72c6de](https://github.com/inference-gateway/cli/commit/c72c6de4f44c94a544d601be96ddb0db950fa889))
+
+### 🧹 Maintenance
+
+* **examples:** Use the latest cli image ([7adc977](https://github.com/inference-gateway/cli/commit/7adc9770299832ac18b40e397ac2f71f83789919))
+
 ## [0.90.0](https://github.com/inference-gateway/cli/compare/v0.89.0...v0.90.0) (2025-12-13)
 
 ### 🚀 Features

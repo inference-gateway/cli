@@ -10,7 +10,8 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	_ "modernc.org/sqlite"
+	migrations "github.com/inference-gateway/cli/internal/infra/storage/migrations"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // SQLiteStorage implements ConversationStorage using SQLite
@@ -19,14 +20,23 @@ type SQLiteStorage struct {
 	path string
 }
 
+// DB returns the underlying database connection
+func (s *SQLiteStorage) DB() *sql.DB {
+	return s.db
+}
+
 // NewSQLiteStorage creates a new SQLite storage instance
 func NewSQLiteStorage(config SQLiteConfig) (*SQLiteStorage, error) {
+	if err := verifySQLiteAvailable(); err != nil {
+		return nil, err
+	}
+
 	dir := filepath.Dir(config.Path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	db, err := sql.Open("sqlite", config.Path+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_timeout=30000&_busy_timeout=30000")
+	db, err := sql.Open("sqlite3", config.Path+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_timeout=30000&_busy_timeout=30000")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQLite database: %w", err)
 	}
@@ -40,88 +50,48 @@ func NewSQLiteStorage(config SQLiteConfig) (*SQLiteStorage, error) {
 		path: config.Path,
 	}
 
-	if err := storage.createTables(); err != nil {
+	if err := storage.runMigrations(); err != nil {
 		_ = db.Close()
-		return nil, fmt.Errorf("failed to create tables: %w", err)
+		return nil, fmt.Errorf("failed to run migrations: %w", err)
 	}
 
 	return storage, nil
 }
 
-// createTables creates the simplified single-table conversation storage
-func (s *SQLiteStorage) createTables() error {
-	var hasCorrectSchema int
-	err := s.db.QueryRow(`
-		SELECT COUNT(*) FROM sqlite_master
-		WHERE type='table' AND name='conversations'
-		AND sql LIKE '%messages TEXT NOT NULL%'
-		AND sql LIKE '%models TEXT%'
-		AND sql LIKE '%tags TEXT%'
-		AND sql LIKE '%summary TEXT%'
-	`).Scan(&hasCorrectSchema)
+// runMigrations applies all pending database migrations
+func (s *SQLiteStorage) runMigrations() error {
+	ctx := context.Background()
+	runner := migrations.NewMigrationRunner(s.db, "sqlite")
+
+	allMigrations := migrations.GetSQLiteMigrations()
+
+	appliedCount, err := runner.ApplyMigrations(ctx, allMigrations)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to apply migrations: %w", err)
 	}
 
-	if hasCorrectSchema > 0 {
-		return nil
+	if appliedCount > 0 {
+		_ = appliedCount
 	}
 
-	newSchema := `
-	CREATE TABLE IF NOT EXISTS conversations_new (
-		id TEXT PRIMARY KEY,                -- Session ID
-		title TEXT NOT NULL,               -- Conversation title
-		count INTEGER NOT NULL DEFAULT 0,  -- Message count
-		messages TEXT NOT NULL,            -- JSON array of all messages
-		optimized_messages TEXT,           -- JSON array of optimized messages
-		total_input_tokens INTEGER NOT NULL DEFAULT 0,   -- Total input tokens used
-		total_output_tokens INTEGER NOT NULL DEFAULT 0,  -- Total output tokens used
-		request_count INTEGER NOT NULL DEFAULT 0,        -- Number of API requests made
-		cost_stats TEXT DEFAULT '{}',      -- JSON object of cost statistics
-		models TEXT DEFAULT '[]',          -- JSON array of models used
-		tags TEXT DEFAULT '[]',            -- JSON array of tags
-		summary TEXT DEFAULT '',           -- Conversation summary
-		title_generated BOOLEAN DEFAULT FALSE,
-		title_invalidated BOOLEAN DEFAULT FALSE,
-		title_generation_time DATETIME,
-		created_at DATETIME NOT NULL,
-		updated_at DATETIME NOT NULL
-	);
+	return nil
+}
 
-	CREATE INDEX IF NOT EXISTS idx_conversations_new_updated_at ON conversations_new(updated_at DESC);
-	`
-
-	if _, err := s.db.Exec(newSchema); err != nil {
-		return err
+// verifySQLiteAvailable checks if SQLite is available on the system
+func verifySQLiteAvailable() error {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		return fmt.Errorf("SQLite driver not available: %w\n\n"+
+			"System SQLite library is required. Install:\n"+
+			"  Ubuntu/Debian: sudo apt-get install libsqlite3-0\n"+
+			"  RHEL/CentOS:   sudo yum install sqlite\n"+
+			"  macOS:         brew install sqlite3 (or use system SQLite)\n"+
+			"  Windows:       Download from https://www.sqlite.org/download.html", err)
 	}
+	defer func() { _ = db.Close() }()
 
-	migrationQuery := `
-	INSERT OR IGNORE INTO conversations_new (id, title, count, messages, optimized_messages, total_input_tokens, total_output_tokens, created_at, updated_at)
-	SELECT
-		c.id,
-		c.title,
-		c.message_count,
-		'[' || GROUP_CONCAT(ce.entry_data) || ']' as messages,
-		NULL as optimized_messages,  -- No optimized messages for migrated data
-		0 as total_input_tokens,     -- Start with 0 for migrated data
-		0 as total_output_tokens,    -- Start with 0 for migrated data
-		c.created_at,
-		c.updated_at
-	FROM conversations c
-	LEFT JOIN conversation_entries ce ON c.id = ce.conversation_id
-	WHERE EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='conversations')
-	GROUP BY c.id, c.title, c.message_count, c.created_at, c.updated_at;
-	`
-
-	_, _ = s.db.Exec(migrationQuery)
-
-	renameSchema := `
-	DROP TABLE IF EXISTS conversations;
-	ALTER TABLE conversations_new RENAME TO conversations;
-	`
-
-	if _, err := s.db.Exec(renameSchema); err != nil {
-		return err
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("SQLite connection test failed: %w", err)
 	}
 
 	return nil

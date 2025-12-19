@@ -415,6 +415,7 @@ const (
 	StorageTypeSQLite   StorageType = "sqlite"
 	StorageTypePostgres StorageType = "postgres"
 	StorageTypeRedis    StorageType = "redis"
+	StorageTypeJsonl    StorageType = "jsonl"
 )
 
 // StorageConfig contains storage backend configuration
@@ -424,6 +425,7 @@ type StorageConfig struct {
 	SQLite   SQLiteStorageConfig   `yaml:"sqlite,omitempty" mapstructure:"sqlite,omitempty"`
 	Postgres PostgresStorageConfig `yaml:"postgres,omitempty" mapstructure:"postgres,omitempty"`
 	Redis    RedisStorageConfig    `yaml:"redis,omitempty" mapstructure:"redis,omitempty"`
+	Jsonl    JsonlStorageConfig    `yaml:"jsonl,omitempty" mapstructure:"jsonl,omitempty"`
 }
 
 // SQLiteStorageConfig contains SQLite-specific configuration
@@ -447,6 +449,11 @@ type RedisStorageConfig struct {
 	Port     int    `yaml:"port" mapstructure:"port"`
 	Password string `yaml:"password" mapstructure:"password"`
 	DB       int    `yaml:"db" mapstructure:"db"`
+}
+
+// JsonlStorageConfig contains JSONL-specific configuration
+type JsonlStorageConfig struct {
+	Path string `yaml:"path" mapstructure:"path"`
 }
 
 // A2AAgentInfo contains information about an A2A agent connection
@@ -543,9 +550,13 @@ func DefaultConfig() *Config { //nolint:funlen
 		Tools: ToolsConfig{
 			Enabled: true,
 			Sandbox: SandboxConfig{
-				Directories: []string{".", "/tmp"},
+				Directories: []string{".", "/tmp", ConfigDirName + "/tmp"},
 				ProtectedPaths: []string{
-					ConfigDirName + "/",
+					ConfigDirName + "/config.yaml",
+					ConfigDirName + "/*.db",
+					ConfigDirName + "/shortcuts/",
+					ConfigDirName + "/agents.yaml",
+					ConfigDirName + "/mcp.yaml",
 					".git/",
 					"*.env",
 				},
@@ -652,7 +663,7 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Export: ExportConfig{
-			OutputDir:    ConfigDirName,
+			OutputDir:    ConfigDirName + "/tmp",
 			SummaryModel: "",
 		},
 		Agent: AgentConfig{
@@ -793,7 +804,10 @@ Respond with ONLY the commit message, no quotes or explanation.`,
 		},
 		Storage: StorageConfig{
 			Enabled: true,
-			Type:    "sqlite",
+			Type:    "jsonl",
+			Jsonl: JsonlStorageConfig{
+				Path: ConfigDirName + "/conversations",
+			},
 			SQLite: SQLiteStorageConfig{
 				Path: ConfigDirName + "/conversations.db",
 			},

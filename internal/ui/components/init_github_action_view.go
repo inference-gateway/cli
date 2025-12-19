@@ -374,7 +374,7 @@ func (v *InitGithubActionView) renderFilePicker(b *strings.Builder) {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(v.styleProvider.RenderDimText("Use ↑↓ or j/k to navigate, Enter to select, Esc to cancel"))
+	b.WriteString(v.styleProvider.RenderDimText("Use ↑↓ or j/k to navigate, enter to select, esc to cancel"))
 }
 
 // IsDone returns whether the wizard is complete

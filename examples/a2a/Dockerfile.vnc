@@ -1,27 +1,37 @@
 FROM alpine:latest
 
-# Install x11vnc
-RUN apk add --no-cache x11vnc
+RUN apk add --no-cache x11vnc xdpyinfo
 
-# Create a startup script that connects to the shared X display
 COPY <<'EOF' /usr/local/bin/start-vnc.sh
 #!/bin/sh
 set -e
 
-echo "Waiting for X display :99 to be available..."
-echo "Checking /tmp/.X11-unix directory..."
-ls -la /tmp/.X11-unix/ 2>/dev/null || echo "Directory not found or empty"
+X_HOST="${X_HOST:-browser-agent}"
+X_DISPLAY="${X_DISPLAY:-99}"
 
-while true; do
-  if [ -S /tmp/.X11-unix/X99 ]; then
-    echo "X11 socket found, attempting to start x11vnc..."
-    x11vnc -display :99 -forever -shared -passwd password -rfbport 5900 -listen 0.0.0.0 -noshm && break
-  else
-    echo "Waiting for /tmp/.X11-unix/X99 socket... ($(date))"
-    ls -la /tmp/.X11-unix/ 2>/dev/null || echo "Directory still empty"
+echo "Waiting for X display on ${X_HOST}:${X_DISPLAY} to be available..."
+
+max_attempts=60
+attempt=0
+
+while [ $attempt -lt $max_attempts ]; do
+  if DISPLAY="${X_HOST}:${X_DISPLAY}" xdpyinfo >/dev/null 2>&1; then
+    echo "X display ${X_HOST}:${X_DISPLAY} is accessible!"
+    break
   fi
-  sleep 5
+
+  echo "Waiting for X display... attempt $((attempt + 1))/$max_attempts"
+  sleep 2
+  attempt=$((attempt + 1))
 done
+
+if [ $attempt -eq $max_attempts ]; then
+  echo "ERROR: X display not accessible after $max_attempts attempts"
+  exit 1
+fi
+
+echo "Starting x11vnc connected to ${X_HOST}:${X_DISPLAY}..."
+exec x11vnc -display "${X_HOST}:${X_DISPLAY}" -forever -shared -passwd password -rfbport 5900 -listen 0.0.0.0 -noshm
 EOF
 
 RUN chmod +x /usr/local/bin/start-vnc.sh

@@ -102,6 +102,7 @@ type ConversationRepository interface {
 	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
 	RemovePendingToolCallByID(toolCallID string)
 	StartNewConversation(title string) error
+	DeleteMessagesAfterIndex(index int) error
 }
 
 // ConversationOptimizerService optimizes conversation history to reduce token usage
@@ -235,6 +236,12 @@ type StateManager interface {
 	AreAllAgentsReady() bool
 	ClearAgentReadiness()
 	RemoveAgent(name string)
+
+	// Message edit state management
+	SetMessageEditState(state *MessageEditState)
+	GetMessageEditState() *MessageEditState
+	ClearMessageEditState()
+	IsEditingMessage() bool
 }
 
 // FileService handles file operations

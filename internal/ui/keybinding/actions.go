@@ -378,6 +378,34 @@ func (r *Registry) createScrollActions() []*KeyAction {
 	return []*KeyAction{
 		{
 			Namespace:   config.NamespaceNavigation,
+			ID:          config.ActionID(config.NamespaceNavigation, "go_back_in_time"),
+			Keys:        []string{"esc,esc"},
+			Description: "go back in time to previous message (double esc)",
+			Category:    "navigation",
+			Handler:     handleGoBackInTime,
+			Priority:    120,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+				Conditions: []ContextCondition{
+					{
+						Name: "chat_idle_or_completed",
+						Check: func(app KeyHandlerContext) bool {
+							stateManager := app.GetStateManager()
+							chatSession := stateManager.GetChatSession()
+							planApprovalState := stateManager.GetPlanApprovalUIState()
+							approvalState := stateManager.GetApprovalUIState()
+
+							return planApprovalState == nil &&
+								approvalState == nil &&
+								(chatSession == nil || chatSession.Status == domain.ChatStatusIdle || chatSession.Status == domain.ChatStatusCompleted)
+						},
+					},
+				},
+			},
+		},
+		{
+			Namespace:   config.NamespaceNavigation,
 			ID:          config.ActionID(config.NamespaceNavigation, "scroll_to_top"),
 			Keys:        []string{"home"},
 			Description: "scroll to top",
@@ -563,14 +591,28 @@ func handleQuit(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 }
 
 func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	stateManager := app.GetStateManager()
+
+	if stateManager.IsEditingMessage() {
+		stateManager.ClearMessageEditState()
+
+		input := app.GetInputView()
+		if input != nil {
+			input.ClearInput()
+			if iv, ok := input.(*components.InputView); ok {
+				iv.ClearCustomHint()
+			}
+		}
+
+		return nil
+	}
+
 	autocomplete := app.GetAutocomplete()
 	if autocomplete != nil && autocomplete.IsVisible() {
 		return func() tea.Msg {
 			return domain.AutocompleteHideEvent{}
 		}
 	}
-
-	stateManager := app.GetStateManager()
 
 	planApprovalState := stateManager.GetPlanApprovalUIState()
 	if planApprovalState != nil {
@@ -819,6 +861,15 @@ func handleCopy(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 		}
 	}
 	return nil
+}
+
+func handleGoBackInTime(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	return func() tea.Msg {
+		return domain.NavigateBackInTimeEvent{
+			RequestID: "navigate-back-in-time",
+			Timestamp: time.Now(),
+		}
+	}
 }
 
 func handleScrollToTop(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
@@ -1139,15 +1190,22 @@ func handleToggleMouseMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 // KeyBindingManager manages the key binding system for ChatApplication
 type KeyBindingManager struct {
-	registry KeyRegistry
-	app      KeyHandlerContext
+	registry          KeyRegistry
+	app               KeyHandlerContext
+	keySequenceBuffer []string
+	lastKeyTime       time.Time
+	sequenceTimeout   time.Duration
 }
+
+const maxSequenceLength = 2
 
 // NewKeyBindingManager creates a new key binding manager
 func NewKeyBindingManager(app KeyHandlerContext, cfg *config.Config) *KeyBindingManager {
 	return &KeyBindingManager{
-		registry: NewRegistry(cfg),
-		app:      app,
+		registry:          NewRegistry(cfg),
+		app:               app,
+		keySequenceBuffer: make([]string, 0, maxSequenceLength),
+		sequenceTimeout:   300 * time.Millisecond,
 	}
 }
 
@@ -1156,33 +1214,163 @@ func (m *KeyBindingManager) ProcessKey(keyMsg tea.KeyMsg) tea.Cmd {
 	keyStr := keyMsg.String()
 	var cmds []tea.Cmd
 
+	if debugCmd := m.addDebugCmd(keyStr, keyMsg); debugCmd != nil {
+		cmds = append(cmds, debugCmd)
+	}
+
+	now := time.Now()
+	if timeoutCmd := m.handleSequenceTimeout(now, keyMsg); timeoutCmd != nil {
+		return timeoutCmd
+	}
+
+	m.keySequenceBuffer = append(m.keySequenceBuffer, keyStr)
+	m.lastKeyTime = now
+
+	if len(m.keySequenceBuffer) > maxSequenceLength {
+		m.keySequenceBuffer = m.keySequenceBuffer[:0]
+		m.keySequenceBuffer = append(m.keySequenceBuffer, keyStr)
+	}
+
+	sequenceKey := m.joinSequence(m.keySequenceBuffer)
+
+	if cmd := m.handleMultiKeySequence(sequenceKey, keyMsg, cmds); cmd != nil {
+		return cmd
+	}
+
+	if cmd := m.handleSingleKey(keyStr, keyMsg, cmds); cmd != nil {
+		return cmd
+	}
+
+	return m.batchCmds(cmds)
+}
+
+func (m *KeyBindingManager) addDebugCmd(keyStr string, keyMsg tea.KeyMsg) tea.Cmd {
 	config := m.app.GetConfig()
-	if config != nil && config.Logging.Debug {
-		debugInfo := keyStr
-		if len(keyStr) == 1 {
-			debugInfo = fmt.Sprintf("%s (char: 0x%02X)", keyStr, keyStr[0])
+	if config == nil || !config.Logging.Debug {
+		return nil
+	}
+
+	debugInfo := keyStr
+	if len(keyStr) == 1 {
+		debugInfo = fmt.Sprintf("%s (char: 0x%02X)", keyStr, keyStr[0])
+	}
+	return m.debugKeyBinding(keyMsg, debugInfo)
+}
+
+func (m *KeyBindingManager) handleSequenceTimeout(now time.Time, keyMsg tea.KeyMsg) tea.Cmd {
+	if m.lastKeyTime.IsZero() || now.Sub(m.lastKeyTime) <= m.sequenceTimeout {
+		return nil
+	}
+
+	if len(m.keySequenceBuffer) == 1 {
+		pendingKey := m.keySequenceBuffer[0]
+		m.keySequenceBuffer = m.keySequenceBuffer[:0]
+
+		action := m.registry.Resolve(pendingKey, m.app)
+		if action != nil {
+			pendingCmd := action.Handler(m.app, tea.KeyMsg{})
+			newKeyCmd := m.ProcessKey(keyMsg)
+			return m.batchCmds([]tea.Cmd{pendingCmd, newKeyCmd})
 		}
-		if debugCmd := m.debugKeyBinding(keyMsg, debugInfo); debugCmd != nil {
-			cmds = append(cmds, debugCmd)
-		}
+	}
+	m.keySequenceBuffer = m.keySequenceBuffer[:0]
+	return nil
+}
+
+func (m *KeyBindingManager) handleMultiKeySequence(sequenceKey string, keyMsg tea.KeyMsg, cmds []tea.Cmd) tea.Cmd {
+	if len(m.keySequenceBuffer) <= 1 {
+		return nil
+	}
+
+	sequenceAction := m.registry.Resolve(sequenceKey, m.app)
+	if sequenceAction != nil {
+		m.keySequenceBuffer = m.keySequenceBuffer[:0]
+		actionCmd := sequenceAction.Handler(m.app, keyMsg)
+		return m.batchCmds(append(cmds, actionCmd))
+	}
+	return m.batchCmds(cmds)
+}
+
+func (m *KeyBindingManager) handleSingleKey(keyStr string, keyMsg tea.KeyMsg, cmds []tea.Cmd) tea.Cmd {
+	if len(m.keySequenceBuffer) != 1 {
+		return nil
+	}
+
+	if statusCmds := m.showSequenceHint(keyStr); statusCmds != nil {
+		return m.batchCmds(append(cmds, statusCmds...))
 	}
 
 	action := m.registry.Resolve(keyStr, m.app)
 	if action != nil {
+		m.keySequenceBuffer = m.keySequenceBuffer[:0]
 		actionCmd := action.Handler(m.app, keyMsg)
-		if len(cmds) > 0 {
-			cmds = append(cmds, actionCmd)
-			return tea.Batch(cmds...)
-		}
-		return actionCmd
+		return m.batchCmds(append(cmds, actionCmd))
 	}
 
+	m.keySequenceBuffer = m.keySequenceBuffer[:0]
 	charCmd := handleCharacterInput(m.app, keyMsg)
-	if len(cmds) > 0 {
-		cmds = append(cmds, charCmd)
-		return tea.Batch(cmds...)
+	return m.batchCmds(append(cmds, charCmd))
+}
+
+func (m *KeyBindingManager) showSequenceHint(keyStr string) []tea.Cmd {
+	registry, ok := m.registry.(*Registry)
+	if !ok {
+		return nil
 	}
-	return charCmd
+
+	sequenceAction := registry.GetSequenceActionForPrefix(keyStr, m.app)
+	if sequenceAction == nil {
+		return nil
+	}
+
+	statusCmd := func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message: sequenceAction.Description,
+			Spinner: false,
+		}
+	}
+
+	clearStatusCmd := func() tea.Msg {
+		time.Sleep(1 * time.Second)
+		return domain.SetStatusEvent{
+			Message: "",
+			Spinner: false,
+		}
+	}
+
+	return []tea.Cmd{statusCmd, clearStatusCmd}
+}
+
+func (m *KeyBindingManager) batchCmds(cmds []tea.Cmd) tea.Cmd {
+	var validCmds []tea.Cmd
+	for _, cmd := range cmds {
+		if cmd != nil {
+			validCmds = append(validCmds, cmd)
+		}
+	}
+
+	if len(validCmds) == 0 {
+		return nil
+	}
+	if len(validCmds) == 1 {
+		return validCmds[0]
+	}
+	return tea.Batch(validCmds...)
+}
+
+// joinSequence joins key sequence buffer into a comma-separated string
+func (m *KeyBindingManager) joinSequence(keys []string) string {
+	if len(keys) == 0 {
+		return ""
+	}
+	if len(keys) == 1 {
+		return keys[0]
+	}
+	result := keys[0]
+	for i := 1; i < len(keys); i++ {
+		result += "," + keys[i]
+	}
+	return result
 }
 
 // IsKeyHandledByAction returns true if the key would be handled by a keybinding action

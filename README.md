@@ -47,6 +47,11 @@ and management of inference services.
 - **Conversation History**: Store and retrieve past conversations with multiple storage backends
   - [Conversation Storage](docs/conversation-storage.md) - Detailed storage backend documentation
   - [Conversation Title Generation](docs/conversation-title-generation.md) - AI-powered title generation system
+- **Conversation Versioning**: Navigate back in time to previous conversation points (double ESC)
+  - View message history with timestamps
+  - Restore conversation to any previous user message
+  - Permanent deletion of messages after restore point
+  - [Learn more →](docs/features/conversation-versioning.md)
 - **Configuration Management**: Manage gateway settings via YAML config
 - **Project Initialization**: Set up local project configurations
 - **Tool Execution**: LLMs can execute whitelisted commands and tools - [See all tools →](docs/tools-reference.md)
