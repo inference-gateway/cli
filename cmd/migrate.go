@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/inference-gateway/cli/internal/container"
-	"github.com/inference-gateway/cli/internal/infra/storage"
-	"github.com/inference-gateway/cli/internal/infra/storage/migrations"
-	"github.com/inference-gateway/cli/internal/ui/styles/icons"
-	"github.com/spf13/cobra"
+	container "github.com/inference-gateway/cli/internal/container"
+	storage "github.com/inference-gateway/cli/internal/infra/storage"
+	migrations "github.com/inference-gateway/cli/internal/infra/storage/migrations"
+	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
+	cobra "github.com/spf13/cobra"
 )
 
 var migrateCmd = &cobra.Command{
@@ -39,34 +39,27 @@ func init() {
 
 // runMigrations executes pending database migrations
 func runMigrations() error {
-	// Get configuration from global viper
 	cfg, err := getConfigFromViper()
 	if err != nil {
 		return fmt.Errorf("failed to get config: %w", err)
 	}
 
-	// Create service container
 	serviceContainer := container.NewServiceContainer(cfg, V)
 
-	// Get storage backend
 	conversationStorage := serviceContainer.GetStorage()
 
-	// Close storage when done
 	defer func() {
 		if err := conversationStorage.Close(); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to close storage: %v\n", err)
 		}
 	}()
 
-	// Get underlying database connection
 	switch conversationStorage.(type) {
 	case *storage.SQLiteStorage:
-		// Migrations are automatically run during NewSQLiteStorage
 		fmt.Printf("%s SQLite database migrations are up to date\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 		fmt.Println("   All migrations have been applied automatically")
 		return nil
 	case *storage.PostgresStorage:
-		// Migrations are automatically run during NewPostgresStorage
 		fmt.Printf("%s PostgreSQL database migrations are up to date\n", icons.CheckMarkStyle.Render(icons.CheckMark))
 		fmt.Println("   All migrations have been applied automatically")
 		return nil
@@ -86,26 +79,21 @@ func runMigrations() error {
 
 // showMigrationStatus displays the current migration status
 func showMigrationStatus() error {
-	// Get configuration from global viper
 	cfg, err := getConfigFromViper()
 	if err != nil {
 		return fmt.Errorf("failed to get config: %w", err)
 	}
 
-	// Create service container
 	serviceContainer := container.NewServiceContainer(cfg, V)
 
-	// Get storage backend
 	conversationStorage := serviceContainer.GetStorage()
 
-	// Close storage when done
 	defer func() {
 		if err := conversationStorage.Close(); err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to close storage: %v\n", err)
 		}
 	}()
 
-	// Check storage type and show status
 	switch s := conversationStorage.(type) {
 	case *storage.SQLiteStorage:
 		return showSQLiteMigrationStatus(s)
@@ -128,7 +116,7 @@ func showMigrationStatus() error {
 // showSQLiteMigrationStatus shows migration status for SQLite
 func showSQLiteMigrationStatus(s *storage.SQLiteStorage) error {
 	ctx := context.Background()
-	db := s.DB() // We'll need to expose this
+	db := s.DB()
 	if db == nil {
 		return fmt.Errorf("database connection is nil")
 	}
@@ -159,7 +147,7 @@ func showSQLiteMigrationStatus(s *storage.SQLiteStorage) error {
 // showPostgresMigrationStatus shows migration status for PostgreSQL
 func showPostgresMigrationStatus(s *storage.PostgresStorage) error {
 	ctx := context.Background()
-	db := s.DB() // We'll need to expose this
+	db := s.DB()
 	if db == nil {
 		return fmt.Errorf("database connection is nil")
 	}
