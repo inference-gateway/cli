@@ -55,8 +55,9 @@ jobs:
       - name: Install build dependencies (Linux arm64)
         if: matrix.goos == 'linux' && matrix.goarch == 'arm64'
         run: |
+          sudo dpkg --add-architecture arm64
           sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu libsqlite3-dev
+          sudo apt-get install -y gcc-aarch64-linux-gnu libsqlite3-dev:arm64
 
       - name: Get version info
         id: version
@@ -74,6 +75,7 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CC: ${{ matrix.goarch == 'arm64' && matrix.goos == 'linux' && 'aarch64-linux-gnu-gcc' || '' }}
+          PKG_CONFIG_PATH: ${{ matrix.goarch == 'arm64' && matrix.goos == 'linux' && '/usr/lib/aarch64-linux-gnu/pkgconfig' || '' }}
         run: |
           go build -tags libsqlite3 -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }} -X github.com/inference-gateway/cli/cmd.commit=${{ steps.version.outputs.commit }} -X github.com/inference-gateway/cli/cmd.date=${{ steps.version.outputs.date }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
 
