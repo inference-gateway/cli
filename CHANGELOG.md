@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.92.3](https://github.com/inference-gateway/cli/compare/v0.92.2...v0.92.3) (2025-12-19)
+
+### ♻️ Code Refactoring
+
+* Enable true dynamic SQLite linking and strip debug symbols ([84e8cc5](https://github.com/inference-gateway/cli/commit/84e8cc52b9d83e2706929b5893de29184331f09e))
+
 ## [0.92.2](https://github.com/inference-gateway/cli/compare/v0.92.1...v0.92.2) (2025-12-19)
 
 ### 🐛 Bug Fixes
