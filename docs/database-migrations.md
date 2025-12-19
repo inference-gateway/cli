@@ -253,16 +253,6 @@ psql infer_gateway -c "SELECT version, description, applied_at FROM schema_migra
 - Created `conversation_entries` table with foreign key
 - Added indexes for efficient queries
 
-## Future Enhancements
-
-Potential improvements to the migration system:
-
-- [ ] Migration dry-run mode
-- [ ] Migration rollback support
-- [ ] Migration file generator CLI command
-- [ ] Migration lint/validation tool
-- [ ] Data migration helpers (not just schema)
-- [ ] Multi-step migration with progress reporting
 
 ## See Also
 
