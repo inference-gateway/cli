@@ -81,7 +81,7 @@ func initializeProject(cmd *cobra.Command) error {
 logs/*.log
 history
 chat_export_*
-conversations.db
+conversations.db*
 conversations
 bin/
 tmp/
