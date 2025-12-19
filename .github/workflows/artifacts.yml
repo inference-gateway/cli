@@ -20,11 +20,11 @@ jobs:
           - os: ubuntu-24.04
             goos: linux
             goarch: amd64
-            cgo: "0"
+            cgo: "1"
           - os: ubuntu-24.04
             goos: linux
             goarch: arm64
-            cgo: "0"
+            cgo: "1"
           - os: macos-15-intel
             goos: darwin
             goarch: amd64
@@ -45,6 +45,12 @@ jobs:
         with:
           go-version-file: 'go.mod'
           cache: true
+
+      - name: Install build dependencies (Linux)
+        if: matrix.goos == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc libsqlite3-dev
 
       - name: Get version info
         id: version
