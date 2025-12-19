@@ -793,6 +793,8 @@ func isUIOnlyEvent(msg tea.Msg) bool {
 		domain.AutocompleteHideEvent,
 		domain.AutocompleteCompleteEvent,
 		domain.MessageHistoryReadyEvent,
+		domain.MessageHistoryEditReadyEvent,
+		domain.MessageEditSubmitEvent,
 		tea.KeyMsg,
 		tea.WindowSizeMsg,
 		tea.MouseMsg,

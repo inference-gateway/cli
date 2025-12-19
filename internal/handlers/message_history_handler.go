@@ -100,18 +100,6 @@ func (h *MessageHistoryHandler) HandleEdit(event domain.MessageHistoryEditEvent)
 // HandleEditSubmit processes the message edit submission
 func (h *MessageHistoryHandler) HandleEditSubmit(event domain.MessageEditSubmitEvent) tea.Cmd {
 	return func() tea.Msg {
-		entries := h.conversationRepo.GetMessages()
-		deleteIndex := h.adjustRestoreIndex(entries, event.OriginalIndex)
-
-		if err := h.conversationRepo.DeleteMessagesAfterIndex(deleteIndex - 1); err != nil {
-			logger.Error("Failed to delete messages during edit", "error", err)
-			return domain.ChatErrorEvent{
-				RequestID: event.RequestID,
-				Error:     err,
-				Timestamp: time.Now(),
-			}
-		}
-
 		return domain.UserInputEvent{
 			Content: event.EditedContent,
 			Images:  event.Images,

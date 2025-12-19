@@ -20,8 +20,9 @@ func TestInitializeProject(t *testing.T) {
 		{
 			name: "basic project initialization",
 			flags: map[string]any{
-				"overwrite": false,
-				"userspace": false,
+				"overwrite":       false,
+				"userspace":       false,
+				"skip-migrations": true,
 			},
 			wantFiles:   []string{".infer/config.yaml", ".infer/.gitignore"},
 			wantNoFiles: []string{"AGENTS.md"},
@@ -30,8 +31,9 @@ func TestInitializeProject(t *testing.T) {
 		{
 			name: "userspace initialization",
 			flags: map[string]any{
-				"overwrite": true,
-				"userspace": true,
+				"overwrite":       true,
+				"userspace":       true,
+				"skip-migrations": true,
 			},
 			wantFiles:   []string{},
 			wantNoFiles: []string{".infer/config.yaml", ".infer/.gitignore", "AGENTS.md"},
