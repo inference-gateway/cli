@@ -63,13 +63,20 @@ func (s *SQLiteStorage) runMigrations() error {
 	ctx := context.Background()
 	runner := migrations.NewMigrationRunner(s.db, "sqlite")
 
-	// Get all SQLite migrations
 	allMigrations := migrations.GetSQLiteMigrations()
 
-	// Apply migrations
 	appliedCount, err := runner.ApplyMigrations(ctx, allMigrations)
+	if err != nil {
+		return fmt.Errorf("failed to apply migrations: %w", err)
+	}
+
+	if appliedCount > 0 {
+		_ = appliedCount
+	}
+
+	return nil
 }
-  
+
 // verifySQLiteAvailable checks if SQLite is available on the system
 func verifySQLiteAvailable() error {
 	db, err := sql.Open("sqlite3", ":memory:")
@@ -85,30 +92,6 @@ func verifySQLiteAvailable() error {
 
 	if err := db.Ping(); err != nil {
 		return fmt.Errorf("SQLite connection test failed: %w", err)
-	}
-
-	return nil
-}
-
-// createTables creates the simplified single-table conversation storage
-func (s *SQLiteStorage) createTables() error {
-	var hasCorrectSchema int
-	err := s.db.QueryRow(`
-		SELECT COUNT(*) FROM sqlite_master
-		WHERE type='table' AND name='conversations'
-		AND sql LIKE '%messages TEXT NOT NULL%'
-		AND sql LIKE '%models TEXT%'
-		AND sql LIKE '%tags TEXT%'
-		AND sql LIKE '%summary TEXT%'
-	`).Scan(&hasCorrectSchema)
-	if err != nil {
-		return fmt.Errorf("failed to apply migrations: %w", err)
-	}
-
-	// Log applied migrations count (only if any were applied)
-	if appliedCount > 0 {
-		// Migrations were applied, but we don't log here as this is a library
-		_ = appliedCount
 	}
 
 	return nil

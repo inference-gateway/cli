@@ -7,21 +7,19 @@ import (
 	"path/filepath"
 	"testing"
 
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func setupTestDB(t *testing.T) (*sql.DB, func()) {
 	t.Helper()
 
-	// Create temp directory
 	tmpDir, err := os.MkdirTemp("", "migration_test_*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
 
-	// Create database
 	dbPath := filepath.Join(tmpDir, "test.db")
-	db, err := sql.Open("sqlite", dbPath)
+	db, err := sql.Open("sqlite3", dbPath)
 	if err != nil {
 		_ = os.RemoveAll(tmpDir)
 		t.Fatalf("Failed to open database: %v", err)
@@ -42,13 +40,11 @@ func TestMigrationRunner_EnsureMigrationTable(t *testing.T) {
 	runner := NewMigrationRunner(db, "sqlite")
 	ctx := context.Background()
 
-	// Ensure table creation
 	err := runner.EnsureMigrationTable(ctx)
 	if err != nil {
 		t.Fatalf("Failed to ensure migration table: %v", err)
 	}
 
-	// Verify table exists
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'").Scan(&count)
 	if err != nil {
@@ -67,12 +63,10 @@ func TestMigrationRunner_ApplyMigration(t *testing.T) {
 	runner := NewMigrationRunner(db, "sqlite")
 	ctx := context.Background()
 
-	// Ensure migration table
 	if err := runner.EnsureMigrationTable(ctx); err != nil {
 		t.Fatalf("Failed to ensure migration table: %v", err)
 	}
 
-	// Define test migration
 	migration := Migration{
 		Version:     "001",
 		Description: "Create test table",
@@ -85,13 +79,11 @@ func TestMigrationRunner_ApplyMigration(t *testing.T) {
 		DownSQL: `DROP TABLE test_table;`,
 	}
 
-	// Apply migration
 	err := runner.ApplyMigration(ctx, migration)
 	if err != nil {
 		t.Fatalf("Failed to apply migration: %v", err)
 	}
 
-	// Verify test table exists
 	var count int
 	err = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='test_table'").Scan(&count)
 	if err != nil {
@@ -102,7 +94,6 @@ func TestMigrationRunner_ApplyMigration(t *testing.T) {
 		t.Errorf("Expected test_table to exist, got count: %d", count)
 	}
 
-	// Verify migration recorded
 	var version string
 	err = db.QueryRow("SELECT version FROM schema_migrations WHERE version = ?", migration.Version).Scan(&version)
 	if err != nil {
@@ -121,7 +112,6 @@ func TestMigrationRunner_ApplyMigrations(t *testing.T) {
 	runner := NewMigrationRunner(db, "sqlite")
 	ctx := context.Background()
 
-	// Define test migrations
 	migrations := []Migration{
 		{
 			Version:     "001",
@@ -146,7 +136,6 @@ func TestMigrationRunner_ApplyMigrations(t *testing.T) {
 		},
 	}
 
-	// Apply all migrations
 	appliedCount, err := runner.ApplyMigrations(ctx, migrations)
 	if err != nil {
 		t.Fatalf("Failed to apply migrations: %v", err)
@@ -156,7 +145,6 @@ func TestMigrationRunner_ApplyMigrations(t *testing.T) {
 		t.Errorf("Expected 2 migrations to be applied, got %d", appliedCount)
 	}
 
-	// Verify both tables exist
 	var usersCount, postsCount int
 	_ = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='users'").Scan(&usersCount)
 	_ = db.QueryRow("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='posts'").Scan(&postsCount)
@@ -168,7 +156,6 @@ func TestMigrationRunner_ApplyMigrations(t *testing.T) {
 		t.Errorf("Expected posts table to exist")
 	}
 
-	// Run migrations again - should apply 0
 	appliedCount, err = runner.ApplyMigrations(ctx, migrations)
 	if err != nil {
 		t.Fatalf("Failed to apply migrations second time: %v", err)
@@ -186,7 +173,6 @@ func TestMigrationRunner_GetMigrationStatus(t *testing.T) {
 	runner := NewMigrationRunner(db, "sqlite")
 	ctx := context.Background()
 
-	// Define test migrations
 	migrations := []Migration{
 		{
 			Version:     "001",
@@ -200,7 +186,6 @@ func TestMigrationRunner_GetMigrationStatus(t *testing.T) {
 		},
 	}
 
-	// Apply only first migration
 	if err := runner.EnsureMigrationTable(ctx); err != nil {
 		t.Fatalf("Failed to ensure migration table: %v", err)
 	}
@@ -208,7 +193,6 @@ func TestMigrationRunner_GetMigrationStatus(t *testing.T) {
 		t.Fatalf("Failed to apply migration: %v", err)
 	}
 
-	// Get status
 	status, err := runner.GetMigrationStatus(ctx, migrations)
 	if err != nil {
 		t.Fatalf("Failed to get migration status: %v", err)
@@ -218,7 +202,6 @@ func TestMigrationRunner_GetMigrationStatus(t *testing.T) {
 		t.Fatalf("Expected 2 status entries, got %d", len(status))
 	}
 
-	// Check first migration is applied
 	if !status[0].Applied {
 		t.Errorf("Expected migration 001 to be applied")
 	}
@@ -226,7 +209,6 @@ func TestMigrationRunner_GetMigrationStatus(t *testing.T) {
 		t.Errorf("Expected version 001, got %s", status[0].Version)
 	}
 
-	// Check second migration is not applied
 	if status[1].Applied {
 		t.Errorf("Expected migration 002 to not be applied")
 	}
@@ -242,7 +224,6 @@ func TestGetSQLiteMigrations(t *testing.T) {
 		t.Fatal("Expected at least one SQLite migration")
 	}
 
-	// Check first migration has required fields
 	first := migrations[0]
 	if first.Version == "" {
 		t.Error("Expected migration to have a version")
@@ -262,7 +243,6 @@ func TestGetPostgresMigrations(t *testing.T) {
 		t.Fatal("Expected at least one PostgreSQL migration")
 	}
 
-	// Check first migration has required fields
 	first := migrations[0]
 	if first.Version == "" {
 		t.Error("Expected migration to have a version")
