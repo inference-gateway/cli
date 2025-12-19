@@ -80,6 +80,7 @@ logs/*.log
 history
 chat_export_*
 conversations.db
+conversations
 bin/
 tmp/
 `

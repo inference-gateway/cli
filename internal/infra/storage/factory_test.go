@@ -3,8 +3,8 @@ package storage
 import (
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	assert "github.com/stretchr/testify/assert"
+	require "github.com/stretchr/testify/require"
 )
 
 func TestStorageFactory(t *testing.T) {
@@ -52,6 +52,24 @@ func TestStorageFactory(t *testing.T) {
 
 		_, err := NewStorage(config)
 		assert.Error(t, err)
+	})
+
+	t.Run("JSONL Storage", func(t *testing.T) {
+		tempDir := t.TempDir()
+
+		config := StorageConfig{
+			Type: "jsonl",
+			Jsonl: JsonlStorageConfig{
+				Path: tempDir,
+			},
+		}
+
+		storage, err := NewStorage(config)
+		require.NoError(t, err)
+		assert.IsType(t, &JsonlStorage{}, storage)
+
+		err = storage.Close()
+		assert.NoError(t, err)
 	})
 
 	t.Run("Memory Storage", func(t *testing.T) {

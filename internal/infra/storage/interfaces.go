@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
+	domain "github.com/inference-gateway/cli/internal/domain"
 )
 
 // ConversationStorage defines the interface for persistent conversation storage
@@ -72,7 +72,7 @@ type ConversationSummary struct {
 
 // StorageConfig contains configuration for storage backends
 type StorageConfig struct {
-	// Type specifies the storage backend type (sqlite, postgres, redis)
+	// Type specifies the storage backend type (sqlite, postgres, redis, jsonl)
 	Type string `json:"type" yaml:"type"`
 
 	// SQLite specific configuration
@@ -83,6 +83,9 @@ type StorageConfig struct {
 
 	// Redis specific configuration
 	Redis RedisConfig `json:"redis,omitempty" yaml:"redis,omitempty"`
+
+	// JSONL specific configuration
+	Jsonl JsonlStorageConfig `json:"jsonl,omitempty" yaml:"jsonl,omitempty"`
 }
 
 // SQLiteConfig contains SQLite-specific configuration
@@ -108,4 +111,9 @@ type RedisConfig struct {
 	Password string `json:"password,omitempty" yaml:"password,omitempty"`
 	Username string `json:"username,omitempty" yaml:"username,omitempty"`
 	TTL      int    `json:"ttl,omitempty" yaml:"ttl,omitempty"` // TTL in seconds, 0 means no expiration
+}
+
+// JsonlStorageConfig contains JSONL-specific configuration
+type JsonlStorageConfig struct {
+	Path string `json:"path" yaml:"path"`
 }

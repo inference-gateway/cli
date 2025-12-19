@@ -97,7 +97,14 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc libsqlite3-dev
+
     - name: Build project
+      env:
+        CGO_ENABLED: 1
       run: |
         go build \
           -ldflags "\
@@ -120,5 +127,12 @@ jobs:
         go-version-file: 'go.mod'
         cache: true
 
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y gcc libsqlite3-dev
+
     - name: Run tests
+      env:
+        CGO_ENABLED: 1
       run: go test ./...
