@@ -10,8 +10,8 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/infra/storage/migrations"
-	_ "modernc.org/sqlite"
+	migrations "github.com/inference-gateway/cli/internal/infra/storage/migrations"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 // SQLiteStorage implements ConversationStorage using SQLite
@@ -27,12 +27,16 @@ func (s *SQLiteStorage) DB() *sql.DB {
 
 // NewSQLiteStorage creates a new SQLite storage instance
 func NewSQLiteStorage(config SQLiteConfig) (*SQLiteStorage, error) {
+	if err := verifySQLiteAvailable(); err != nil {
+		return nil, err
+	}
+
 	dir := filepath.Dir(config.Path)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	db, err := sql.Open("sqlite", config.Path+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_timeout=30000&_busy_timeout=30000")
+	db, err := sql.Open("sqlite3", config.Path+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_timeout=30000&_busy_timeout=30000")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQLite database: %w", err)
 	}
@@ -64,6 +68,39 @@ func (s *SQLiteStorage) runMigrations() error {
 
 	// Apply migrations
 	appliedCount, err := runner.ApplyMigrations(ctx, allMigrations)
+}
+  
+// verifySQLiteAvailable checks if SQLite is available on the system
+func verifySQLiteAvailable() error {
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		return fmt.Errorf("SQLite driver not available: %w\n\n"+
+			"System SQLite library is required. Install:\n"+
+			"  Ubuntu/Debian: sudo apt-get install libsqlite3-0\n"+
+			"  RHEL/CentOS:   sudo yum install sqlite\n"+
+			"  macOS:         brew install sqlite3 (or use system SQLite)\n"+
+			"  Windows:       Download from https://www.sqlite.org/download.html", err)
+	}
+	defer func() { _ = db.Close() }()
+
+	if err := db.Ping(); err != nil {
+		return fmt.Errorf("SQLite connection test failed: %w", err)
+	}
+
+	return nil
+}
+
+// createTables creates the simplified single-table conversation storage
+func (s *SQLiteStorage) createTables() error {
+	var hasCorrectSchema int
+	err := s.db.QueryRow(`
+		SELECT COUNT(*) FROM sqlite_master
+		WHERE type='table' AND name='conversations'
+		AND sql LIKE '%messages TEXT NOT NULL%'
+		AND sql LIKE '%models TEXT%'
+		AND sql LIKE '%tags TEXT%'
+		AND sql LIKE '%summary TEXT%'
+	`).Scan(&hasCorrectSchema)
 	if err != nil {
 		return fmt.Errorf("failed to apply migrations: %w", err)
 	}

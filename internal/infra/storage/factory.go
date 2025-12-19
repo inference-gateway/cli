@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
-	"github.com/inference-gateway/cli/config"
+	config "github.com/inference-gateway/cli/config"
 )
 
 // NewStorageFromConfig creates a storage configuration from app config
@@ -52,6 +52,20 @@ func NewStorageFromConfig(cfg *config.Config) StorageConfig {
 				Database: cfg.Storage.Redis.DB,
 			},
 		}
+	case "jsonl":
+		path := cfg.Storage.Jsonl.Path
+		if !filepath.IsAbs(path) {
+			absPath, err := filepath.Abs(path)
+			if err == nil {
+				path = absPath
+			}
+		}
+		return StorageConfig{
+			Type: "jsonl",
+			Jsonl: JsonlStorageConfig{
+				Path: path,
+			},
+		}
 	case "memory":
 		return StorageConfig{
 			Type: "memory",
@@ -72,6 +86,8 @@ func NewStorage(config StorageConfig) (ConversationStorage, error) {
 		return NewPostgresStorage(config.Postgres)
 	case "redis":
 		return NewRedisStorage(config.Redis)
+	case "jsonl":
+		return NewJsonlStorage(config.Jsonl)
 	case "memory":
 		return NewMemoryStorage(), nil
 	default:

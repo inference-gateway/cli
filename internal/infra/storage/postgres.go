@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/inference-gateway/cli/internal/domain"
-	"github.com/inference-gateway/cli/internal/infra/storage/migrations"
+	migrations "github.com/inference-gateway/cli/internal/infra/storage/migrations"
+	domain "github.com/inference-gateway/cli/internal/domain"
+
 	_ "github.com/lib/pq"
 )
 
@@ -17,13 +18,42 @@ type PostgresStorage struct {
 	db *sql.DB
 }
 
-// DB returns the underlying database connection
-func (s *PostgresStorage) DB() *sql.DB {
-	return s.db
+// verifyPostgresAvailable checks if PostgreSQL is available
+func verifyPostgresAvailable(config PostgresConfig) error {
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		config.Host, config.Port, config.Username, config.Password, config.Database, config.SSLMode)
+
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return fmt.Errorf("PostgreSQL driver not available: %w\n\n"+
+			"PostgreSQL connection failed. Verify:\n"+
+			"  - PostgreSQL server is running\n"+
+			"  - Connection details are correct\n"+
+			"  - Network connectivity to %s:%d", err, config.Host, config.Port)
+	}
+	defer func() { _ = db.Close() }()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		return fmt.Errorf("PostgreSQL connection test failed: %w\n\n"+
+			"Failed to connect to PostgreSQL. Verify:\n"+
+			"  - PostgreSQL server is running at %s:%d\n"+
+			"  - Database '%s' exists\n"+
+			"  - User '%s' has proper permissions\n"+
+			"  - Network connectivity is working", err, config.Host, config.Port, config.Database, config.Username)
+	}
+
+	return nil
 }
 
 // NewPostgresStorage creates a new PostgreSQL storage instance
 func NewPostgresStorage(config PostgresConfig) (*PostgresStorage, error) {
+	if err := verifyPostgresAvailable(config); err != nil {
+		return nil, err
+	}
+
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		config.Host, config.Port, config.Username, config.Password, config.Database, config.SSLMode)
 
@@ -68,6 +98,58 @@ func (s *PostgresStorage) runMigrations(ctx context.Context) error {
 		// Migrations were applied, but we don't log here as this is a library
 		_ = appliedCount
 	}
+}
+
+// createTables creates the necessary tables for conversation storage
+func (s *PostgresStorage) createTables(ctx context.Context) error {
+	schema := `
+	CREATE TABLE IF NOT EXISTS conversations (
+		id VARCHAR(255) PRIMARY KEY,
+		title TEXT NOT NULL,
+		created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+		updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+		message_count INTEGER NOT NULL DEFAULT 0,
+		model VARCHAR(255),
+		tags JSONB,
+		summary TEXT,
+		optimized_messages JSONB,
+		token_stats JSONB,
+		cost_stats JSONB,
+		title_generated BOOLEAN DEFAULT FALSE,
+		title_invalidated BOOLEAN DEFAULT FALSE,
+		title_generation_time TIMESTAMP WITH TIME ZONE
+	);
+
+	CREATE TABLE IF NOT EXISTS conversation_entries (
+		id BIGSERIAL PRIMARY KEY,
+		conversation_id VARCHAR(255) NOT NULL,
+		entry_data JSONB NOT NULL,
+		sequence_number INTEGER NOT NULL,
+		created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+		FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+	);
+
+	CREATE INDEX IF NOT EXISTS idx_conversations_updated_at ON conversations(updated_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_conversations_created_at ON conversations(created_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_conversation_entries_conversation_id ON conversation_entries(conversation_id);
+	CREATE INDEX IF NOT EXISTS idx_conversation_entries_sequence ON conversation_entries(conversation_id, sequence_number);
+	CREATE INDEX IF NOT EXISTS idx_conversations_tags ON conversations USING gin(tags);
+	CREATE INDEX IF NOT EXISTS idx_conversations_title_invalidated ON conversations(title_invalidated, title_generated);
+	`
+
+	if _, err := s.db.ExecContext(ctx, schema); err != nil {
+		return err
+	}
+
+	migrationSchema := `
+	ALTER TABLE conversations ADD COLUMN IF NOT EXISTS title_generated BOOLEAN DEFAULT FALSE;
+	ALTER TABLE conversations ADD COLUMN IF NOT EXISTS title_invalidated BOOLEAN DEFAULT FALSE;
+	ALTER TABLE conversations ADD COLUMN IF NOT EXISTS title_generation_time TIMESTAMP WITH TIME ZONE;
+	ALTER TABLE conversations ADD COLUMN IF NOT EXISTS optimized_messages JSONB;
+	ALTER TABLE conversations ADD COLUMN IF NOT EXISTS cost_stats JSONB;
+	`
+
+	_, _ = s.db.ExecContext(ctx, migrationSchema)
 
 	return nil
 }

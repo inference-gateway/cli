@@ -6,6 +6,46 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.92.6](https://github.com/inference-gateway/cli/compare/v0.92.5...v0.92.6) (2025-12-19)
+
+### 🐛 Bug Fixes
+
+* Build Linux binaries in Alpine containers for musl libc compatibility ([c8c7164](https://github.com/inference-gateway/cli/commit/c8c71641c350fcd9d328f038f75da8a963536776))
+
+## [0.92.5](https://github.com/inference-gateway/cli/compare/v0.92.4...v0.92.5) (2025-12-19)
+
+### ♻️ Code Refactoring
+
+* Use native ARM64 runners instead of cross-compilation ([47a4fec](https://github.com/inference-gateway/cli/commit/47a4fec446de2d688f6512dad00140a898399adc))
+
+## [0.92.4](https://github.com/inference-gateway/cli/compare/v0.92.3...v0.92.4) (2025-12-19)
+
+### 🐛 Bug Fixes
+
+* Add ARM64 SQLite library for cross-compilation ([0bc083a](https://github.com/inference-gateway/cli/commit/0bc083acacd396c1efa94ea03200ac426aa25687))
+
+## [0.92.3](https://github.com/inference-gateway/cli/compare/v0.92.2...v0.92.3) (2025-12-19)
+
+### ♻️ Code Refactoring
+
+* Enable true dynamic SQLite linking and strip debug symbols ([84e8cc5](https://github.com/inference-gateway/cli/commit/84e8cc52b9d83e2706929b5893de29184331f09e))
+
+## [0.92.2](https://github.com/inference-gateway/cli/compare/v0.92.1...v0.92.2) (2025-12-19)
+
+### 🐛 Bug Fixes
+
+* Add ARM64 cross-compilation support for CGO builds ([0e52036](https://github.com/inference-gateway/cli/commit/0e52036a23a395e05675d2c395bef3c53aa79e90))
+
+## [0.92.1](https://github.com/inference-gateway/cli/compare/v0.92.0...v0.92.1) (2025-12-19)
+
+### 🐛 Bug Fixes
+
+* Add mutex protection for concurrent streaming access ([#348](https://github.com/inference-gateway/cli/issues/348)) ([e1314c7](https://github.com/inference-gateway/cli/commit/e1314c734d5d4590b79b17377ac54f01b3e68c66))
+
+### ♻️ Code Refactoring
+
+* Replace static SQLite with dynamic linking and add JSONL default storage ([#346](https://github.com/inference-gateway/cli/issues/346)) ([2794b60](https://github.com/inference-gateway/cli/commit/2794b60cb0c96b252895044683c5201998569f02))
+
 ## [0.92.0](https://github.com/inference-gateway/cli/compare/v0.91.0...v0.92.0) (2025-12-18)
 
 ### 🚀 Features

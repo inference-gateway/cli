@@ -20,11 +20,11 @@ jobs:
           - os: ubuntu-24.04
             goos: linux
             goarch: amd64
-            cgo: "0"
-          - os: ubuntu-24.04
+            cgo: "1"
+          - os: ubuntu-24.04-arm
             goos: linux
             goarch: arm64
-            cgo: "0"
+            cgo: "1"
           - os: macos-15-intel
             goos: darwin
             goarch: amd64
@@ -56,13 +56,22 @@ jobs:
           echo "commit=$COMMIT" >> $GITHUB_OUTPUT
           echo "date=$DATE" >> $GITHUB_OUTPUT
 
-      - name: Build binary
+      - name: Build binary (Linux in Alpine container)
+        if: matrix.goos == 'linux'
+        run: |
+          docker run --rm \
+            -v $PWD:/workspace \
+            -w /workspace \
+            -e CGO_ENABLED=1 \
+            golang:1.25-alpine3.23 \
+            sh -c "apk add --no-cache gcc musl-dev sqlite-dev && go build -tags libsqlite3 -ldflags '-w -s -X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }} -X github.com/inference-gateway/cli/cmd.commit=${{ steps.version.outputs.commit }} -X github.com/inference-gateway/cli/cmd.date=${{ steps.version.outputs.date }}' -o infer-${{ matrix.goos }}-${{ matrix.goarch }} ."
+
+      - name: Build binary (macOS native)
+        if: matrix.goos == 'darwin'
         env:
           CGO_ENABLED: ${{ matrix.cgo }}
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
         run: |
-          go build -ldflags "-X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }} -X github.com/inference-gateway/cli/cmd.commit=${{ steps.version.outputs.commit }} -X github.com/inference-gateway/cli/cmd.date=${{ steps.version.outputs.date }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
+          go build -tags libsqlite3 -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }} -X github.com/inference-gateway/cli/cmd.commit=${{ steps.version.outputs.commit }} -X github.com/inference-gateway/cli/cmd.date=${{ steps.version.outputs.date }}" -o infer-${{ matrix.goos }}-${{ matrix.goarch }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v5
