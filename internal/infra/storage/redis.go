@@ -46,7 +46,6 @@ func verifyRedisAvailable(config RedisConfig) error {
 
 // NewRedisStorage creates a new Redis storage instance
 func NewRedisStorage(config RedisConfig) (*RedisStorage, error) {
-	// Verify Redis is available before proceeding
 	if err := verifyRedisAvailable(config); err != nil {
 		return nil, err
 	}

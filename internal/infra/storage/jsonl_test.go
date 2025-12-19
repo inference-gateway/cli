@@ -430,7 +430,6 @@ func TestJsonlStorage_ConcurrentAccess(t *testing.T) {
 			<-done
 		}
 
-		// Verify all conversations were saved
 		summaries, err := storage.ListConversations(ctx, 0, 0)
 		require.NoError(t, err)
 		assert.Equal(t, 3, len(summaries))

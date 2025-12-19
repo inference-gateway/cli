@@ -48,7 +48,6 @@ func verifyPostgresAvailable(config PostgresConfig) error {
 
 // NewPostgresStorage creates a new PostgreSQL storage instance
 func NewPostgresStorage(config PostgresConfig) (*PostgresStorage, error) {
-	// Verify PostgreSQL is available before proceeding
 	if err := verifyPostgresAvailable(config); err != nil {
 		return nil, err
 	}
@@ -120,7 +119,6 @@ func (s *PostgresStorage) createTables(ctx context.Context) error {
 		return err
 	}
 
-	// Migration for existing databases
 	migrationSchema := `
 	ALTER TABLE conversations ADD COLUMN IF NOT EXISTS title_generated BOOLEAN DEFAULT FALSE;
 	ALTER TABLE conversations ADD COLUMN IF NOT EXISTS title_invalidated BOOLEAN DEFAULT FALSE;
