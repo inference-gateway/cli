@@ -253,7 +253,6 @@ psql infer_gateway -c "SELECT version, description, applied_at FROM schema_migra
 - Created `conversation_entries` table with foreign key
 - Added indexes for efficient queries
 
-
 ## See Also
 
 - [Storage Architecture](./storage-architecture.md) (if exists)
