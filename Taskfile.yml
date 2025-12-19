@@ -151,17 +151,18 @@ tasks:
       - test
 
   release:build:
-    desc: Build release binaries for multiple platforms (Linux only - macOS builds require native runners)
+    desc: Build release binary for current platform only (multi-platform builds use GitHub Actions with native runners)
     cmds:
       - mkdir -p dist
-      - CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags libsqlite3 -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PACKAGE}}
       - |
-        if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
-          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -tags libsqlite3 -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-arm64 {{.MAIN_PACKAGE}}
-        else
-          echo "⚠ ARM64 cross-compiler not found, skipping linux-arm64 build"
-          echo "  Install: gcc-aarch64-linux-gnu (or build on ARM64 machine)"
-        fi
+        echo "Building for native platform only..."
+        GOOS=$(go env GOOS)
+        GOARCH=$(go env GOARCH)
+        CGO_ENABLED=1 go build -tags libsqlite3 -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-${GOOS}-${GOARCH} {{.MAIN_PACKAGE}}
+        echo "✓ Built dist/{{.BINARY_NAME}}-${GOOS}-${GOARCH}"
+        echo ""
+        echo "Note: Cross-platform builds with dynamic SQLite linking require native runners."
+        echo "Use GitHub Actions for multi-platform releases."
       - cd dist && sha256sum {{.BINARY_NAME}}-* > checksums.txt
       - |
         if command -v cosign >/dev/null 2>&1; then
