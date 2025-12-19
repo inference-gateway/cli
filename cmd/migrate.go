@@ -132,10 +132,10 @@ func showSQLiteMigrationStatus(s *storage.SQLiteStorage) error {
 	fmt.Println("SQLite Migration Status:")
 	fmt.Println()
 	for _, s := range status {
-		statusIcon := "❌"
+		statusIcon := icons.StyledCrossMark()
 		statusText := "Pending"
 		if s.Applied {
-			statusIcon = "✅"
+			statusIcon = icons.StyledCheckMark()
 			statusText = "Applied"
 		}
 		fmt.Printf("  %s Version %s: %s (%s)\n", statusIcon, s.Version, s.Description, statusText)
@@ -163,10 +163,10 @@ func showPostgresMigrationStatus(s *storage.PostgresStorage) error {
 	fmt.Println("PostgreSQL Migration Status:")
 	fmt.Println()
 	for _, s := range status {
-		statusIcon := "❌"
+		statusIcon := icons.StyledCrossMark()
 		statusText := "Pending"
 		if s.Applied {
-			statusIcon = "✅"
+			statusIcon = icons.StyledCheckMark()
 			statusText = "Applied"
 		}
 		fmt.Printf("  %s Version %s: %s (%s)\n", statusIcon, s.Version, s.Description, statusText)
