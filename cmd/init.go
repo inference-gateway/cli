@@ -150,7 +150,6 @@ tmp/
 	fmt.Println("")
 	fmt.Println("Tip: Use /init in chat mode to generate an AGENTS.md file interactively")
 
-	// Run database migrations unless skipped
 	if !skipMigrations {
 		fmt.Println("")
 		fmt.Println("Running database migrations...")
