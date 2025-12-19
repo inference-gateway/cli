@@ -25,7 +25,7 @@ tasks:
           echo "Install: build-essential (Linux) or Xcode CLI Tools (macOS)"
           exit 1
         fi
-      - CGO_ENABLED=1 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o {{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=1 go build -tags libsqlite3 -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o {{.BINARY_NAME}} {{.MAIN_PACKAGE}}
     sources:
       - "**/*.go"
       - go.mod
@@ -36,7 +36,7 @@ tasks:
   install:
     desc: Install the CLI from source
     cmds:
-      - CGO_ENABLED=1 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o $(go env GOPATH)/bin/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=1 go build -tags libsqlite3 -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o $(go env GOPATH)/bin/{{.BINARY_NAME}} {{.MAIN_PACKAGE}}
 
   clean:
     desc: Clean build artifacts
@@ -47,17 +47,17 @@ tasks:
   test:
     desc: Run all tests
     cmds:
-      - CGO_ENABLED=1 go test ./...
+      - CGO_ENABLED=1 go test -tags libsqlite3 ./...
 
   test:verbose:
     desc: Run tests with verbose output
     cmds:
-      - CGO_ENABLED=1 go test -v ./...
+      - CGO_ENABLED=1 go test -tags libsqlite3 -v ./...
 
   test:coverage:
     desc: Run tests with coverage report
     cmds:
-      - CGO_ENABLED=1 go test -cover ./...
+      - CGO_ENABLED=1 go test -tags libsqlite3 -cover ./...
 
   lint:
     desc: Run linter (requires golangci-lint)
@@ -154,10 +154,10 @@ tasks:
     desc: Build release binaries for multiple platforms (Linux only - macOS builds require native runners)
     cmds:
       - mkdir -p dist
-      - CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=1 GOOS=linux GOARCH=amd64 go build -tags libsqlite3 -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-amd64 {{.MAIN_PACKAGE}}
       - |
         if command -v aarch64-linux-gnu-gcc >/dev/null 2>&1; then
-          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-arm64 {{.MAIN_PACKAGE}}
+          CC=aarch64-linux-gnu-gcc CGO_ENABLED=1 GOOS=linux GOARCH=arm64 go build -tags libsqlite3 -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-linux-arm64 {{.MAIN_PACKAGE}}
         else
           echo "⚠ ARM64 cross-compiler not found, skipping linux-arm64 build"
           echo "  Install: gcc-aarch64-linux-gnu (or build on ARM64 machine)"
@@ -178,7 +178,7 @@ tasks:
         sh: go env GOARCH
     cmds:
       - mkdir -p dist
-      - CGO_ENABLED=1 GOOS=darwin GOARCH={{.GOARCH}} go build -ldflags "-X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-darwin-{{.GOARCH}} {{.MAIN_PACKAGE}}
+      - CGO_ENABLED=1 GOOS=darwin GOARCH={{.GOARCH}} go build -tags libsqlite3 -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-darwin-{{.GOARCH}} {{.MAIN_PACKAGE}}
 
   container:build:
     desc: Build container image locally for testing

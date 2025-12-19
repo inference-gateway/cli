@@ -107,7 +107,9 @@ jobs:
         CGO_ENABLED: 1
       run: |
         go build \
+          -tags libsqlite3 \
           -ldflags "\
+            -w -s \
             -X github.com/inference-gateway/cli/cmd.version=${{ github.ref_name }} \
             -X github.com/inference-gateway/cli/cmd.commit=${{ github.sha }} \
             -X github.com/inference-gateway/cli/cmd.date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" \
@@ -135,4 +137,4 @@ jobs:
     - name: Run tests
       env:
         CGO_ENABLED: 1
-      run: go test ./...
+      run: go test -tags libsqlite3 ./...
