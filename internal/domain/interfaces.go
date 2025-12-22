@@ -102,6 +102,7 @@ type ConversationRepository interface {
 	FormatToolResultExpanded(result *ToolExecutionResult, terminalWidth int) string
 	RemovePendingToolCallByID(toolCallID string)
 	StartNewConversation(title string) error
+	GetCurrentConversationID() string
 	DeleteMessagesAfterIndex(index int) error
 }
 

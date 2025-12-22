@@ -34,6 +34,8 @@ docker.pkg-path = "docker"
 docker.version = "^29.1.2"
 docker-compose.pkg-path = "docker-compose"
 docker-compose.version = "^5.0.0"
+nodejs_24.pkg-path = "nodejs_24"
+nodejs_24.version = "24.11.1"
 
 [hook]
 on-activate = """

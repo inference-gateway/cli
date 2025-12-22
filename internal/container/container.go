@@ -125,7 +125,8 @@ func (c *ServiceContainer) initializeGatewayManager() {
 	c.gatewayManager = services.NewGatewayManager(c.sessionID, c.config, c.containerRuntime)
 }
 
-// initializeAgentManager creates and starts the agent manager if A2A is enabled
+// initializeAgentManager creates the agent manager if A2A is enabled
+// Note: This does NOT start agents. Caller must explicitly call agentManager.StartAgents(ctx).
 func (c *ServiceContainer) initializeAgentManager() {
 	agentsPath := filepath.Join(config.ConfigDirName, config.AgentsFileName)
 	c.agentsConfigService = services.NewAgentsConfigService(agentsPath)
@@ -160,11 +161,6 @@ func (c *ServiceContainer) initializeAgentManager() {
 	c.agentManager.SetStatusCallback(func(agentName string, state domain.AgentState, message string, url string, image string) {
 		c.stateManager.UpdateAgentStatus(agentName, state, message, url, image)
 	})
-
-	ctx := context.Background()
-	if err := c.agentManager.StartAgents(ctx); err != nil {
-		logger.Warn("Failed to start agents in background", "error", err)
-	}
 }
 
 // initializeFileWriterServices creates the new file writer architecture services
@@ -176,38 +172,14 @@ func (c *ServiceContainer) initializeFileWriterServices() {
 	c.paramExtractor = tools.NewParameterExtractor()
 }
 
-// initializeMCPManager creates and starts MCP manager if enabled
+// initializeMCPManager creates the MCP manager if enabled
+// Note: This does NOT start MCP servers. Caller must explicitly call mcpManager.StartServers(ctx).
 func (c *ServiceContainer) initializeMCPManager() {
 	if !c.config.MCP.Enabled {
 		return
 	}
 
 	c.mcpManager = services.NewMCPManager(c.sessionID, &c.config.MCP, c.containerRuntime)
-
-	hasServersToStart := c.hasAutoStartMCPServers()
-	if !hasServersToStart {
-		return
-	}
-
-	logger.Info("Starting MCP servers in background...")
-	go func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
-		defer cancel()
-
-		if err := c.mcpManager.StartServers(ctx); err != nil {
-			logger.Warn("Some MCP servers failed to start", "error", err)
-		}
-	}()
-}
-
-// hasAutoStartMCPServers checks if any MCP servers are configured for auto-start
-func (c *ServiceContainer) hasAutoStartMCPServers() bool {
-	for _, server := range c.config.MCP.Servers {
-		if server.Run && server.Enabled {
-			return true
-		}
-	}
-	return false
 }
 
 // initializeDomainServices creates and wires domain service implementations

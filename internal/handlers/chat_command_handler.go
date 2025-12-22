@@ -110,6 +110,8 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 	}
 	_ = c.handler.conversationRepo.AddMessage(userEntry)
 
+	argsJSON := fmt.Sprintf(`{"command":%q}`, command)
+
 	return tea.Batch(
 		func() tea.Msg {
 			return domain.UpdateHistoryEvent{
@@ -133,9 +135,10 @@ func (c *ChatCommandHandler) executeBashCommand(commandText, command string) tea
 				},
 				Tools: []domain.ToolInfo{
 					{
-						CallID: toolCallID,
-						Name:   "Bash",
-						Status: "starting",
+						CallID:    toolCallID,
+						Name:      "Bash",
+						Status:    "starting",
+						Arguments: argsJSON,
 					},
 				},
 			}
@@ -492,9 +495,10 @@ func (c *ChatCommandHandler) executeToolCommand(commandText, toolName, argsJSON 
 				},
 				Tools: []domain.ToolInfo{
 					{
-						CallID: toolCallID,
-						Name:   toolName,
-						Status: "starting",
+						CallID:    toolCallID,
+						Name:      toolName,
+						Status:    "starting",
+						Arguments: argsJSON,
 					},
 				},
 			}

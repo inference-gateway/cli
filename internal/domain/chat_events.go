@@ -4,9 +4,10 @@ import "time"
 
 // ToolInfo represents basic tool information for UI display
 type ToolInfo struct {
-	CallID string
-	Name   string
-	Status string
+	CallID    string
+	Name      string
+	Status    string
+	Arguments string
 }
 
 // BaseChatEvent provides common implementation for ChatEvent interface
@@ -31,6 +32,7 @@ type ToolExecutionProgressEvent struct {
 	ToolName   string
 	Status     string
 	Message    string
+	Result     string
 }
 
 // BashOutputChunkEvent indicates a new chunk of bash output is available

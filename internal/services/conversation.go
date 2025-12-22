@@ -183,6 +183,11 @@ func (r *InMemoryConversationRepository) StartNewConversation(title string) erro
 	return r.Clear()
 }
 
+// GetCurrentConversationID returns empty string for in-memory repository
+func (r *InMemoryConversationRepository) GetCurrentConversationID() string {
+	return ""
+}
+
 func (r *InMemoryConversationRepository) ClearExceptFirstUserMessage() error {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()

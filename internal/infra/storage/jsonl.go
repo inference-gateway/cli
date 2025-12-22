@@ -53,12 +53,12 @@ func (s *JsonlStorage) conversationFilePath(conversationID string) string {
 // saveConversationUnlocked saves a conversation without acquiring the lock
 // Caller must hold the lock before calling this method
 func (s *JsonlStorage) saveConversationUnlocked(ctx context.Context, conversationID string, entries []domain.ConversationEntry, metadata ConversationMetadata) error {
-	metadataJSON, err := json.Marshal(map[string]interface{}{"metadata": metadata})
+	metadataJSON, err := json.Marshal(map[string]any{"metadata": metadata})
 	if err != nil {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
-	entriesJSON, err := json.Marshal(map[string]interface{}{"entries": entries})
+	entriesJSON, err := json.Marshal(map[string]any{"entries": entries})
 	if err != nil {
 		return fmt.Errorf("failed to marshal entries: %w", err)
 	}
@@ -309,12 +309,12 @@ func (s *JsonlStorage) UpdateConversationMetadata(ctx context.Context, conversat
 		return fmt.Errorf("failed to unmarshal entries: %w", err)
 	}
 
-	metadataJSON, err := json.Marshal(map[string]interface{}{"metadata": metadata})
+	metadataJSON, err := json.Marshal(map[string]any{"metadata": metadata})
 	if err != nil {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
-	entriesJSON, err := json.Marshal(map[string]interface{}{"entries": entriesWrapper.Entries})
+	entriesJSON, err := json.Marshal(map[string]any{"entries": entriesWrapper.Entries})
 	if err != nil {
 		return fmt.Errorf("failed to marshal entries: %w", err)
 	}

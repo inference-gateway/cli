@@ -15,6 +15,8 @@ import (
 	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	handlers "github.com/inference-gateway/cli/internal/handlers"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
@@ -25,10 +27,18 @@ var chatCmd = &cobra.Command{
 	Short: "Start an interactive chat session with model selection",
 	Long: `Start an interactive chat session where you can select a model from a dropdown
 and have a conversational interface with the inference gateway.`,
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := getConfigFromViper()
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		headless, _ := cmd.Flags().GetBool("headless")
+		sessionID, _ := cmd.Flags().GetString("session-id")
+		conversationID, _ := cmd.Flags().GetString("conversation-id")
+
+		if headless {
+			return runHeadlessChat(cfg, V, sessionID, conversationID)
 		}
 
 		if !isInteractiveTerminal() {
@@ -54,6 +64,23 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		fmt.Printf("\n⚠️  Failed to start gateway automatically: %v\n", err)
 		fmt.Printf("   Continuing without local gateway.\n")
 		fmt.Printf("   Make sure the inference gateway is running at: %s\n\n", cfg.Gateway.URL)
+	}
+
+	agentManager := services.GetAgentManager()
+	if agentManager != nil {
+		agentCtx := context.Background()
+		if err := agentManager.StartAgents(agentCtx); err != nil {
+			logger.Error("Failed to start agents", "error", err)
+		}
+	}
+
+	mcpManager := services.GetMCPManager()
+	if mcpManager != nil {
+		mcpCtx, mcpCancel := context.WithTimeout(context.Background(), 120*time.Second)
+		defer mcpCancel()
+		if err := mcpManager.StartServers(mcpCtx); err != nil {
+			logger.Error("Some MCP servers failed to start", "error", err)
+		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.Gateway.Timeout)*time.Second)
@@ -86,10 +113,8 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	messageQueue := services.GetMessageQueue()
 	themeService := services.GetThemeService()
 	toolRegistry := services.GetToolRegistry()
-	mcpManager := services.GetMCPManager()
 	taskRetentionService := services.GetTaskRetentionService()
 	backgroundTaskService := services.GetBackgroundTaskService()
-	agentManager := services.GetAgentManager()
 	conversationOptimizer := services.GetConversationOptimizer()
 
 	versionInfo := GetVersionInfo()
@@ -300,6 +325,22 @@ func processStreamingOutput(events <-chan domain.ChatEvent) error {
 	return nil
 }
 
+// runHeadlessChat runs the chat in headless mode (JSON I/O via stdin/stdout)
+func runHeadlessChat(cfg *config.Config, v *viper.Viper, sessionID string, conversationID string) error {
+	services := container.NewServiceContainer(cfg, v)
+
+	handler := handlers.NewHeadlessHandler(sessionID, conversationID, services, cfg)
+	defer func() {
+		_ = handler.Shutdown()
+	}()
+
+	return handler.Start()
+}
+
 func init() {
 	rootCmd.AddCommand(chatCmd)
+
+	chatCmd.Flags().Bool("headless", false, "Run in headless mode (JSON I/O via stdin/stdout)")
+	chatCmd.Flags().String("session-id", "", "Session identifier for headless mode")
+	chatCmd.Flags().String("conversation-id", "", "Conversation ID to continue (for headless mode)")
 }

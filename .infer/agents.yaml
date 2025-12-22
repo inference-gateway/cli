@@ -1,6 +1,6 @@
 agents:
   - name: mock-agent
-    url: http://localhost:8081
+    url: http://localhost:8082
     oci: ghcr.io/inference-gateway/mock-agent:latest
     run: true
     model: deepseek/deepseek-chat

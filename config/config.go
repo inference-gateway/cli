@@ -37,6 +37,7 @@ type Config struct {
 	Chat             ChatConfig             `yaml:"chat" mapstructure:"chat"`
 	A2A              A2AConfig              `yaml:"a2a" mapstructure:"a2a"`
 	MCP              MCPConfig              `yaml:"mcp" mapstructure:"mcp"`
+	API              APIConfig              `yaml:"api" mapstructure:"api"`
 	Pricing          PricingConfig          `yaml:"pricing" mapstructure:"pricing"`
 	Init             InitConfig             `yaml:"init" mapstructure:"init"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
@@ -887,7 +888,26 @@ Respond with ONLY the title, no quotes or explanation.`,
 				},
 			},
 		},
-		MCP:     *DefaultMCPConfig(),
+		MCP: *DefaultMCPConfig(),
+		API: APIConfig{
+			Host:         "127.0.0.1",
+			Port:         8081,
+			ReadTimeout:  30,
+			WriteTimeout: 30,
+			IdleTimeout:  120,
+			CORS: CORSConfig{
+				Enabled:        true,
+				AllowedOrigins: []string{"http://localhost:3000", "http://localhost:3001"},
+				AllowedMethods: []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
+				AllowedHeaders: []string{"Content-Type", "Authorization"},
+			},
+			UI: UIConfig{
+				Port:       3000,
+				AutoOpen:   true,
+				Mode:       "npm",
+				WorkingDir: "./ui",
+			},
+		},
 		Pricing: GetDefaultPricingConfig(),
 		Init: InitConfig{
 			Prompt: `Please analyze this project and generate a comprehensive AGENTS.md file. Start by using the Tree tool to understand the project structure.

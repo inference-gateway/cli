@@ -425,7 +425,7 @@ func listAgents(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString("format")
 
 	if format == "json" {
-		combinedOutput := map[string]interface{}{
+		combinedOutput := map[string]any{
 			"local":    localAgents,
 			"external": externalAgents,
 			"total":    totalAgents,

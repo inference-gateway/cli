@@ -72,6 +72,12 @@ func (am *AgentManager) StartAgents(ctx context.Context) error {
 		}
 	}
 
+	if len(agentsToStart) > 0 && am.containerRuntime != nil {
+		if err := am.containerRuntime.EnsureNetwork(ctx); err != nil {
+			logger.Warn("Failed to create container network", "session", am.sessionID, "error", err)
+		}
+	}
+
 	for _, agent := range agentsToStart {
 		go am.startAgentAsync(ctx, agent)
 	}

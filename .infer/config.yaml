@@ -596,6 +596,32 @@ mcp:
   liveness_probe_interval: 10
   max_retries: 10
   servers: []
+api:
+  host: 127.0.0.1
+  port: 8081
+  read_timeout: 30
+  write_timeout: 30
+  idle_timeout: 120
+  cors:
+    enabled: true
+    allowed_origins:
+      - http://localhost:3000
+      - http://localhost:3001
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - PATCH
+      - DELETE
+      - OPTIONS
+    allowed_headers:
+      - Content-Type
+      - Authorization
+  ui:
+    port: 3000
+    auto_open: true
+    mode: npm
+    working_dir: ./ui
 pricing:
   enabled: true
   currency: USD

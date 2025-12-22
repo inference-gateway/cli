@@ -106,9 +106,10 @@ func (p *eventPublisher) publishParallelToolsStart(toolCalls []sdk.ChatCompletio
 	tools := make([]domain.ToolInfo, len(toolCalls))
 	for i, tc := range toolCalls {
 		tools[i] = domain.ToolInfo{
-			CallID: tc.Id,
-			Name:   tc.Function.Name,
-			Status: "queued",
+			CallID:    tc.Id,
+			Name:      tc.Function.Name,
+			Status:    "queued",
+			Arguments: tc.Function.Arguments,
 		}
 	}
 
@@ -134,6 +135,23 @@ func (p *eventPublisher) publishToolStatusChange(callID string, toolName string,
 		ToolName:   toolName,
 		Status:     status,
 		Message:    message,
+	}
+
+	p.chatEvents <- event
+}
+
+// publishToolStatusChangeWithResult publishes a ToolExecutionProgressEvent with formatted result
+func (p *eventPublisher) publishToolStatusChangeWithResult(callID string, toolName string, status string, message string, result string) {
+	event := domain.ToolExecutionProgressEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: p.requestID,
+			Timestamp: time.Now(),
+		},
+		ToolCallID: callID,
+		ToolName:   toolName,
+		Status:     status,
+		Message:    message,
+		Result:     result,
 	}
 
 	p.chatEvents <- event
@@ -847,19 +865,12 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 	}
 
 	for _, at := range approvalTools {
-
 		time.Sleep(constants.AgentToolExecutionDelay)
 
 		result := s.executeTool(ctx, *at.tool, eventPublisher, isChatMode)
+		status, message, formattedResult := extractToolResultStatus(result)
 
-		status := "complete"
-		message := "Completed successfully"
-		if result.ToolExecution != nil && !result.ToolExecution.Success {
-			status = "failed"
-			message = "Execution failed"
-		}
-
-		eventPublisher.publishToolStatusChange(at.tool.Id, at.tool.Function.Name, status, message)
+		eventPublisher.publishToolStatusChangeWithResult(at.tool.Id, at.tool.Function.Name, status, message, formattedResult)
 		results[at.index] = result
 	}
 
@@ -889,15 +900,9 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 				time.Sleep(constants.AgentToolExecutionDelay)
 
 				result := s.executeTool(ctx, *toolCall, eventPublisher, isChatMode)
+				status, message, formattedResult := extractToolResultStatus(result)
 
-				status := "complete"
-				message := "Completed successfully"
-				if result.ToolExecution != nil && !result.ToolExecution.Success {
-					status = "failed"
-					message = "Execution failed"
-				}
-
-				eventPublisher.publishToolStatusChange(toolCall.Id, toolCall.Function.Name, status, message)
+				eventPublisher.publishToolStatusChangeWithResult(toolCall.Id, toolCall.Function.Name, status, message, formattedResult)
 
 				resultsChan <- IndexedToolResult{
 					Index:  index,
@@ -935,6 +940,29 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 	}
 
 	return results
+}
+
+func extractToolResultStatus(result domain.ConversationEntry) (status, message, formattedResult string) {
+	status = "complete"
+	message = "Completed successfully"
+	formattedResult = ""
+
+	if result.ToolExecution == nil {
+		return status, message, formattedResult
+	}
+
+	if !result.ToolExecution.Success {
+		status = "failed"
+		message = "Execution failed"
+	}
+
+	if result.ToolExecution.Data != nil {
+		if jsonData, err := json.Marshal(result.ToolExecution.Data); err == nil {
+			formattedResult = string(jsonData)
+		}
+	}
+
+	return status, message, formattedResult
 }
 
 //nolint:funlen,gocyclo,cyclop // Tool execution requires comprehensive error handling and status updates
