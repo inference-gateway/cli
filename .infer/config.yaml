@@ -620,3 +620,8 @@ compact:
   enabled: true
   auto_at: 80
   keep_first_messages: 2
+web:
+  enabled: false
+  port: 3000
+  host: localhost
+  session_inactivity_mins: 5

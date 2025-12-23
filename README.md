@@ -68,6 +68,7 @@ and management of inference services.
 - **Extensible Shortcuts System**: Create custom commands with AI-powered snippets - [Learn more →](docs/shortcuts-guide.md)
 - **MCP Server Support**: Direct integration with Model Context Protocol servers for extended tool capabilities -
   [Learn more →](docs/mcp-integration.md)
+- **Web Terminal Interface**: Browser-based terminal access with tabbed sessions for remote access and multi-session workflows - [Learn more →](docs/web-terminal.md)
 
 ## Installation
 
@@ -180,6 +181,7 @@ Now that you're up and running, explore these guides:
 - **[Commands Reference](docs/commands-reference.md)** - Complete command documentation
 - **[Tools Reference](docs/tools-reference.md)** - Available tools for LLMs
 - **[Configuration Guide](docs/configuration-reference.md)** - Full configuration options
+- **[Web Terminal](docs/web-terminal.md)** - Browser-based terminal interface
 - **[Shortcuts Guide](docs/shortcuts-guide.md)** - Custom shortcuts and AI-powered snippets
 - **[A2A Agents](docs/agents-configuration.md)** - Agent-to-agent communication setup
 
@@ -199,10 +201,24 @@ infer init --userspace  # Initialize user-level configuration
 **`infer chat`** - Start an interactive chat session with model selection
 
 ```bash
+# Terminal mode (default)
 infer chat
+
+# Web terminal mode with browser interface
+infer chat --web
+infer chat --web --port 8080  # Custom port
 ```
 
 **Features:** Model selection, real-time streaming, scrollable history, three agent modes (Standard/Plan/Auto-Accept).
+
+**Web Mode Features:**
+
+- Browser-based terminal using xterm.js
+- Multiple independent tabbed sessions
+- Automatic session cleanup on inactivity
+- Each tab manages its own `infer chat` process with isolated containers
+- Access from any device on the network
+- Responsive terminal sizing with horizontal padding
 
 **`infer agent`** - Execute autonomous tasks in background mode
 
@@ -383,6 +399,10 @@ infer chat --model "anthropic/claude-4"
 - **chat.theme** - Chat interface theme (default: `tokyo-night`)
 - **chat.status_bar.enabled** - Enable/disable status bar (default: `true`)
 - **chat.status_bar.indicators** - Configure individual status indicators (all enabled by default except `max_output`)
+- **web.enabled** - Enable web terminal mode (default: `false`)
+- **web.port** - Web server port (default: `3000`)
+- **web.host** - Web server host (default: `localhost`)
+- **web.session_inactivity_mins** - Session timeout in minutes (default: `5`)
 
 ### Environment Variables
 
@@ -393,6 +413,11 @@ export INFER_GATEWAY_URL="http://localhost:8080"
 export INFER_AGENT_MODEL="deepseek/deepseek-chat"
 export INFER_TOOLS_BASH_ENABLED=true
 export INFER_CHAT_THEME="tokyo-night"
+
+# Web terminal configuration
+export INFER_WEB_PORT=3000
+export INFER_WEB_HOST="localhost"
+export INFER_WEB_SESSION_INACTIVITY_MINS=5
 ```
 
 **Format:** `INFER_<PATH>` where dots become underscores.
@@ -713,6 +738,38 @@ infer config tools web-search enable
 # Check current configuration
 infer config show
 ```
+
+### Web Terminal Example
+
+```bash
+# Start web terminal server
+infer chat --web
+
+# Open browser to http://localhost:3000
+# Click "+" to create new terminal tabs
+# Each tab is an independent chat session
+
+# Custom port for remote access
+infer chat --web --port 8080 --host 0.0.0.0
+
+# Configure via config file
+cat > .infer/config.yaml <<EOF
+web:
+  enabled: true
+  port: 3000
+  host: "localhost"
+  session_inactivity_mins: 10  # Auto-cleanup after 10 minutes
+EOF
+
+infer chat --web  # Uses config file settings
+```
+
+**Use Cases:**
+
+- Remote access to CLI from any device
+- Multiple parallel chat sessions in browser tabs
+- Team collaboration with shared terminal access
+- Persistent sessions with automatic cleanup
 
 ## Development
 

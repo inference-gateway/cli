@@ -5,19 +5,25 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	cobra "github.com/spf13/cobra"
+	viper "github.com/spf13/viper"
+
 	config "github.com/inference-gateway/cli/config"
 	app "github.com/inference-gateway/cli/internal/app"
 	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
+	web "github.com/inference-gateway/cli/internal/web"
 	sdk "github.com/inference-gateway/sdk"
-	cobra "github.com/spf13/cobra"
-	viper "github.com/spf13/viper"
 )
 
 var chatCmd = &cobra.Command{
@@ -25,10 +31,18 @@ var chatCmd = &cobra.Command{
 	Short: "Start an interactive chat session with model selection",
 	Long: `Start an interactive chat session where you can select a model from a dropdown
 and have a conversational interface with the inference gateway.`,
-	RunE: func(_ *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		cfg, err := getConfigFromViper()
 		if err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
+		}
+
+		webMode, _ := cmd.Flags().GetBool("web")
+		if webMode {
+			if cmd.Flags().Changed("port") {
+				cfg.Web.Port, _ = cmd.Flags().GetInt("port")
+			}
+			return StartWebChatSession(cfg, V)
 		}
 
 		if !isInteractiveTerminal() {
@@ -44,10 +58,31 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	_ = clipboard.Init()
 
 	services := container.NewServiceContainer(cfg, v)
-	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = services.Shutdown(ctx)
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
+
+	shutdownComplete := make(chan struct{})
+	var shutdownOnce sync.Once
+
+	doShutdown := func() {
+		shutdownOnce.Do(func() {
+			logger.Info("Received shutdown signal, cleaning up...")
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			if err := services.Shutdown(ctx); err != nil {
+				logger.Error("Error during shutdown", "error", err)
+			}
+			close(shutdownComplete)
+		})
+	}
+
+	defer doShutdown()
+
+	go func() {
+		<-sigChan
+		doShutdown()
+		os.Exit(0)
 	}()
 
 	if err := services.GetGatewayManager().EnsureStarted(); err != nil {
@@ -134,6 +169,12 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	return nil
 }
 
+// StartWebChatSession starts a web-based chat session with PTY and WebSocket
+func StartWebChatSession(cfg *config.Config, v *viper.Viper) error {
+	server := web.NewWebTerminalServer(cfg, v)
+	return server.Start()
+}
+
 func validateAndSetDefaultModel(modelService domain.ModelService, models []string, defaultModel string) string {
 	modelFound := false
 	for _, model := range models {
@@ -197,7 +238,7 @@ func isInteractiveTerminal() bool {
 func runNonInteractiveChat(cfg *config.Config, v *viper.Viper) error {
 	services := container.NewServiceContainer(cfg, v)
 	defer func() {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 		defer cancel()
 		_ = services.Shutdown(ctx)
 	}()
@@ -302,4 +343,6 @@ func processStreamingOutput(events <-chan domain.ChatEvent) error {
 
 func init() {
 	rootCmd.AddCommand(chatCmd)
+	chatCmd.Flags().Bool("web", false, "Start web terminal interface")
+	chatCmd.Flags().Int("port", 0, "Web server port (default: 3000)")
 }
