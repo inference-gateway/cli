@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.94.0](https://github.com/inference-gateway/cli/compare/v0.93.0...v0.94.0) (2025-12-23)
+
+### 🚀 Features
+
+* Add web terminal interface with browser-based terminal access ([#351](https://github.com/inference-gateway/cli/issues/351)) ([eaaac69](https://github.com/inference-gateway/cli/commit/eaaac69301b86feb3b6a069591791cbb28ec40a9))
+
+### 🧹 Maintenance
+
+* **deps:** Bump claude-code from 2.0.67 to 2.0.74 ([68d462b](https://github.com/inference-gateway/cli/commit/68d462be5467ca94429115e6b8fb13e9f77e5bcb))
+
 ## [0.93.0](https://github.com/inference-gateway/cli/compare/v0.92.6...v0.93.0) (2025-12-19)
 
 ### 🚀 Features
