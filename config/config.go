@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
 )
 
 const (
@@ -40,6 +41,7 @@ type Config struct {
 	Pricing          PricingConfig          `yaml:"pricing" mapstructure:"pricing"`
 	Init             InitConfig             `yaml:"init" mapstructure:"init"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
+	Web              WebConfig              `yaml:"web" mapstructure:"web"`
 	configDir        string
 }
 
@@ -261,6 +263,14 @@ type CompactConfig struct {
 	Enabled           bool `yaml:"enabled" mapstructure:"enabled"`
 	AutoAt            int  `yaml:"auto_at" mapstructure:"auto_at"`
 	KeepFirstMessages int  `yaml:"keep_first_messages" mapstructure:"keep_first_messages"`
+}
+
+// WebConfig contains web terminal settings
+type WebConfig struct {
+	Enabled               bool   `yaml:"enabled" mapstructure:"enabled"`
+	Port                  int    `yaml:"port" mapstructure:"port"`
+	Host                  string `yaml:"host" mapstructure:"host"`
+	SessionInactivityMins int    `yaml:"session_inactivity_mins" mapstructure:"session_inactivity_mins"`
 }
 
 // SystemRemindersConfig contains settings for dynamic system reminders
@@ -921,6 +931,12 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			AutoAt:            80,
 			KeepFirstMessages: 2,
 		},
+		Web: WebConfig{
+			Enabled:               false,
+			Port:                  3000,
+			Host:                  "localhost",
+			SessionInactivityMins: 5,
+		},
 	}
 }
 
@@ -1242,18 +1258,42 @@ func ActionID(namespace KeyNamespace, action string) string {
 	return string(namespace) + "_" + action
 }
 
+// Global port registry to prevent race conditions when allocating ports
+var (
+	allocatedPorts = make(map[int]bool)
+	portMutex      sync.Mutex
+)
+
 // FindAvailablePort finds the next available port starting from basePort
 // It checks up to 100 ports after the base port
 // Binds to all interfaces (0.0.0.0) to match Docker's behavior
+// Thread-safe: uses global port registry to prevent race conditions
 func FindAvailablePort(basePort int) int {
+	portMutex.Lock()
+	defer portMutex.Unlock()
+
 	for port := basePort; port < basePort+100; port++ {
+		if allocatedPorts[port] {
+			continue
+		}
+
 		address := fmt.Sprintf(":%d", port)
 		listener, err := net.Listen("tcp", address)
 		if err != nil {
 			continue
 		}
 		_ = listener.Close()
+
+		allocatedPorts[port] = true
 		return port
 	}
 	return basePort
+}
+
+// ReleasePort releases a previously allocated port
+// Should be called when containers are stopped
+func ReleasePort(port int) {
+	portMutex.Lock()
+	defer portMutex.Unlock()
+	delete(allocatedPorts, port)
 }

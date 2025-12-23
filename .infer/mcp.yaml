@@ -13,7 +13,7 @@ servers:
     host: localhost
     scheme: http
     ports:
-      - "3000:8010"
+      - "8010:8010"
     path: /mcp
     oci: mekayelanik/context7-mcp:stable
     startup_timeout: 90

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>{{.Title}} - Web Terminal</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="/static/xterm.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #1a1b26;
+            color: #a9b1d6;
+            overflow: hidden;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #tab-bar {
+            background: #16161e;
+            border-bottom: 1px solid #414868;
+            display: flex;
+            align-items: center;
+            padding: 0 8px;
+            height: 36px;
+            user-select: none;
+        }
+        .tab {
+            display: flex;
+            align-items: center;
+            padding: 6px 12px;
+            margin: 4px 2px;
+            background: #1a1b26;
+            border: 1px solid #414868;
+            border-radius: 4px 4px 0 0;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.15s;
+        }
+        .tab:hover {
+            background: #24283b;
+        }
+        .tab.active {
+            background: #1a1b26;
+            border-bottom-color: #1a1b26;
+            color: #7aa2f7;
+        }
+        .tab-title {
+            margin-right: 8px;
+        }
+        .tab-close {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0.6;
+        }
+        .tab-close:hover {
+            background: #f7768e;
+            opacity: 1;
+            color: #1a1b26;
+        }
+        #new-tab-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            margin: 0 4px;
+            background: #24283b;
+            border: none;
+            border-radius: 4px;
+            color: #7aa2f7;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.15s;
+        }
+        #new-tab-btn:hover {
+            background: #414868;
+        }
+        #terminal-area {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        .terminal-tab {
+            position: absolute;
+            top: 5px;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            padding: 0 25px;
+            display: none;
+        }
+        .terminal-tab.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div id="tab-bar">
+        <button id="new-tab-btn" title="New terminal">+</button>
+    </div>
+    <div id="terminal-area"></div>
+
+    <script src="/static/xterm.js"></script>
+    <script src="/static/xterm-addon-fit.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+</html>
