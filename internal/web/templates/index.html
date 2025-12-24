@@ -68,6 +68,35 @@
             opacity: 1;
             color: #1a1b26;
         }
+        #server-selector-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-right: 12px;
+            padding: 0 8px;
+        }
+        #server-selector-label {
+            font-size: 13px;
+            color: #a9b1d6;
+        }
+        #server-selector {
+            background: #24283b;
+            color: #a9b1d6;
+            border: 1px solid #414868;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+            min-width: 150px;
+            cursor: pointer;
+        }
+        #server-selector:focus {
+            outline: none;
+            border-color: #7aa2f7;
+        }
+        #server-selector option {
+            background: #1a1b26;
+            color: #a9b1d6;
+        }
         #new-tab-btn {
             display: flex;
             align-items: center;
@@ -107,6 +136,12 @@
 </head>
 <body>
     <div id="tab-bar">
+        <div id="server-selector-container">
+            <label id="server-selector-label" for="server-selector">Server:</label>
+            <select id="server-selector">
+                <option value="local">Local</option>
+            </select>
+        </div>
         <button id="new-tab-btn" title="New terminal">+</button>
     </div>
     <div id="terminal-area"></div>

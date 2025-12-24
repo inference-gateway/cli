@@ -42,6 +42,34 @@ and have a conversational interface with the inference gateway.`,
 			if cmd.Flags().Changed("port") {
 				cfg.Web.Port, _ = cmd.Flags().GetInt("port")
 			}
+			if cmd.Flags().Changed("host") {
+				cfg.Web.Host, _ = cmd.Flags().GetString("host")
+			}
+
+			// SSH remote mode flags
+			if cmd.Flags().Changed("ssh-host") {
+				cfg.Web.SSH.Enabled = true
+				sshHost, _ := cmd.Flags().GetString("ssh-host")
+				sshUser, _ := cmd.Flags().GetString("ssh-user")
+				sshPort, _ := cmd.Flags().GetInt("ssh-port")
+				sshCommand, _ := cmd.Flags().GetString("ssh-command")
+				noInstall, _ := cmd.Flags().GetBool("ssh-no-install")
+
+				// Create a single server config from CLI flags
+				cfg.Web.Servers = []config.SSHServerConfig{
+					{
+						Name:        "CLI Remote Server",
+						ID:          "cli-remote",
+						RemoteHost:  sshHost,
+						RemotePort:  sshPort,
+						RemoteUser:  sshUser,
+						CommandPath: sshCommand,
+						AutoInstall: func() *bool { b := !noInstall; return &b }(),
+						Description: "Remote server configured via CLI flags",
+					},
+				}
+			}
+
 			return StartWebChatSession(cfg, V)
 		}
 
@@ -345,4 +373,10 @@ func init() {
 	rootCmd.AddCommand(chatCmd)
 	chatCmd.Flags().Bool("web", false, "Start web terminal interface")
 	chatCmd.Flags().Int("port", 0, "Web server port (default: 3000)")
+	chatCmd.Flags().String("host", "", "Web server host (default: localhost)")
+	chatCmd.Flags().String("ssh-host", "", "Remote SSH server hostname")
+	chatCmd.Flags().String("ssh-user", "", "Remote SSH username")
+	chatCmd.Flags().Int("ssh-port", 22, "Remote SSH port")
+	chatCmd.Flags().Bool("ssh-no-install", false, "Disable auto-installation of infer on remote")
+	chatCmd.Flags().String("ssh-command", "infer", "Path to infer binary on remote")
 }

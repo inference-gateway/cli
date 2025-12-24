@@ -6,15 +6,52 @@ class TerminalManager {
         this.tabBar = document.getElementById('tab-bar');
         this.terminalArea = document.getElementById('terminal-area');
         this.newTabBtn = document.getElementById('new-tab-btn');
+        this.serverSelector = document.getElementById('server-selector');
+        this.servers = [];
+        this.currentServerID = 'local';
 
+        this.loadServers();
         this.newTabBtn.addEventListener('click', () => this.createTab());
+        this.serverSelector.addEventListener('change', (e) => {
+            this.currentServerID = e.target.value;
+        });
+    }
 
-        this.createTab();
+    async loadServers() {
+        try {
+            const response = await fetch('/api/servers');
+            const data = await response.json();
+            this.servers = data.servers;
+
+            // Populate dropdown
+            this.serverSelector.innerHTML = '';
+            this.servers.forEach(server => {
+                const option = document.createElement('option');
+                option.value = server.id;
+                option.textContent = server.name;
+                if (server.description) {
+                    option.title = server.description;
+                }
+                this.serverSelector.appendChild(option);
+            });
+
+            // Set default selection
+            this.serverSelector.value = 'local';
+            this.currentServerID = 'local';
+
+            // Create first tab after servers are loaded
+            this.createTab();
+        } catch (error) {
+            console.error('Failed to load servers:', error);
+            // Fallback: create tab anyway with local mode
+            this.createTab();
+        }
     }
 
     createTab() {
         const tabId = this.nextTabId++;
-        const tab = new TerminalTab(tabId, this);
+        const serverID = this.currentServerID;
+        const tab = new TerminalTab(tabId, this, serverID);
         this.tabs.set(tabId, tab);
         this.switchTab(tabId);
     }
@@ -54,9 +91,10 @@ class TerminalManager {
 }
 
 class TerminalTab {
-    constructor(id, manager) {
+    constructor(id, manager, serverID = 'local') {
         this.id = id;
         this.manager = manager;
+        this.serverID = serverID;
         this.socket = null;
         this.term = null;
         this.fitAddon = null;
@@ -147,11 +185,18 @@ class TerminalTab {
         this.socket = new WebSocket(wsUrl);
 
         this.socket.onopen = () => {
-            console.log(`Tab ${this.id}: WebSocket connected`);
+            console.log(`Tab ${this.id}: WebSocket connected to server: ${this.serverID}`);
             this.connected = true;
 
             this.fitAddon.fit();
-            this.sendResize();
+
+            // Send init message with server selection
+            this.socket.send(JSON.stringify({
+                type: 'init',
+                server_id: this.serverID,
+                cols: this.term.cols,
+                rows: this.term.rows
+            }));
 
             requestAnimationFrame(() => {
                 this.term.focus();
@@ -221,5 +266,7 @@ class TerminalTab {
     }
 }
 
-// Initialize
-const terminalManager = new TerminalManager();
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    const terminalManager = new TerminalManager();
+});
