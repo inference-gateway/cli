@@ -181,10 +181,30 @@ tasks:
       - mkdir -p dist
       - CGO_ENABLED=1 GOOS=darwin GOARCH={{.GOARCH}} go build -tags libsqlite3 -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" -o dist/{{.BINARY_NAME}}-darwin-{{.GOARCH}} {{.MAIN_PACKAGE}}
 
+  release:build:linux:
+    desc: Build portable Linux binary using Docker (no CGO/SQLite for maximum compatibility)
+    vars:
+      GOARCH:
+        sh: go env GOARCH
+    cmds:
+      - mkdir -p dist
+      - |
+        echo "Building portable Linux binary using Docker (no SQLite dependencies)..."
+        docker run --rm \
+          -v "{{.PWD}}":/build \
+          -w /build \
+          golang:1.25-alpine \
+          sh -c 'CGO_ENABLED=0 GOOS=linux GOARCH={{.GOARCH}} \
+            go build \
+            -ldflags "-w -s -X github.com/inference-gateway/cli/cmd.version={{.VERSION}} -X github.com/inference-gateway/cli/cmd.commit={{.COMMIT}} -X github.com/inference-gateway/cli/cmd.date={{.DATE}}" \
+            -o dist/{{.BINARY_NAME}}-linux-{{.GOARCH}} .'
+        echo "✓ Built portable dist/{{.BINARY_NAME}}-linux-{{.GOARCH}} (JSONL/Redis/PostgreSQL support, no SQLite)"
+
   container:build:
     desc: Build container image locally for testing
     cmds:
       - task: release:build
+      - task: release:build:linux
       - |
         docker build \
           --build-context binaries=dist/ \

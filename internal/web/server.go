@@ -68,6 +68,7 @@ func (s *WebTerminalServer) Start() error {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", s.handleIndex)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
+	mux.HandleFunc("/api/servers", s.handleServers)
 	mux.HandleFunc("/ws", s.handleWebSocket)
 
 	addr := fmt.Sprintf("%s:%d", s.cfg.Web.Host, s.cfg.Web.Port)
@@ -111,6 +112,44 @@ func (s *WebTerminalServer) handleIndex(w http.ResponseWriter, r *http.Request) 
 	}
 }
 
+func (s *WebTerminalServer) handleServers(w http.ResponseWriter, r *http.Request) {
+	type ServerInfo struct {
+		ID          string   `json:"id"`
+		Name        string   `json:"name"`
+		Description string   `json:"description"`
+		Tags        []string `json:"tags"`
+	}
+
+	servers := []ServerInfo{}
+
+	// Add local mode option
+	servers = append(servers, ServerInfo{
+		ID:          "local",
+		Name:        "Local",
+		Description: "Run infer chat locally on this machine",
+		Tags:        []string{"local"},
+	})
+
+	// Add configured remote servers
+	for _, srv := range s.cfg.Web.Servers {
+		servers = append(servers, ServerInfo{
+			ID:          srv.ID,
+			Name:        srv.Name,
+			Description: srv.Description,
+			Tags:        srv.Tags,
+		})
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+		"servers":     servers,
+		"ssh_enabled": s.cfg.Web.SSH.Enabled,
+	}); err != nil {
+		logger.Error("Failed to encode servers response", "error", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+	}
+}
+
 func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -126,10 +165,10 @@ func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Reque
 	sessionID := uuid.New().String()
 	logger.Info("WebSocket connected", "remote", r.RemoteAddr, "session_id", sessionID)
 
-	session := s.sessionManager.CreateSession(sessionID)
-	defer s.sessionManager.RemoveSession(sessionID)
-
+	// Wait for initial connection message with server selection
 	cols, rows := 80, 24
+	serverID := "local" // Default to local mode
+
 	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
 		logger.Warn("Failed to set read deadline", "session_id", sessionID, "error", err)
 	}
@@ -140,35 +179,84 @@ func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Reque
 
 	if err == nil && msgType == websocket.TextMessage {
 		var msg struct {
-			Type string `json:"type"`
-			Cols int    `json:"cols"`
-			Rows int    `json:"rows"`
+			Type     string `json:"type"`
+			ServerID string `json:"server_id"`
+			Cols     int    `json:"cols"`
+			Rows     int    `json:"rows"`
 		}
-		if json.Unmarshal(data, &msg) == nil && msg.Type == "resize" {
+		if json.Unmarshal(data, &msg) == nil && msg.Type == "init" {
 			cols, rows = msg.Cols, msg.Rows
-			logger.Info("Received initial terminal size", "session_id", sessionID, "cols", cols, "rows", rows)
+			serverID = msg.ServerID
+			logger.Info("Session initialized",
+				"session_id", sessionID,
+				"server_id", serverID,
+				"cols", cols,
+				"rows", rows)
 		}
 	} else if err != nil {
-		logger.Warn("Failed to read initial resize message, using defaults", "session_id", sessionID, "error", err)
+		logger.Warn("Failed to read init message, using defaults",
+			"session_id", sessionID, "error", err)
 	}
 
-	if err := session.Start(cols, rows); err != nil {
-		logger.Error("Failed to start PTY session", "session_id", sessionID, "error", err)
-		if writeErr := conn.WriteMessage(websocket.TextMessage, []byte("Failed to start terminal session")); writeErr != nil {
-			logger.Warn("Failed to write error message to client", "session_id", sessionID, "error", writeErr)
+	serverCfg, ok := s.findServerConfig(serverID, sessionID, conn)
+	if !ok {
+		return
+	}
+
+	handler, err := CreateSessionHandler(&s.cfg.Web, serverCfg, s.cfg, s.viper)
+	if err != nil {
+		logger.Error("Failed to create session",
+			"error", err,
+			"server_id", serverID)
+		errMsg := fmt.Sprintf("Failed to start session: %v", err)
+		if writeErr := conn.WriteMessage(websocket.TextMessage, []byte(errMsg)); writeErr != nil {
+			logger.Warn("Failed to write error message", "session_id", sessionID, "error", writeErr)
+		}
+		return
+	}
+	defer func() {
+		if closeErr := handler.Close(); closeErr != nil {
+			logger.Warn("Failed to close session handler", "session_id", sessionID, "error", closeErr)
+		}
+	}()
+
+	if err := handler.Start(cols, rows); err != nil {
+		logger.Error("Failed to start session", "error", err)
+		errMsg := fmt.Sprintf("Failed to start terminal: %v", err)
+		if writeErr := conn.WriteMessage(websocket.TextMessage, []byte(errMsg)); writeErr != nil {
+			logger.Warn("Failed to write error message", "session_id", sessionID, "error", writeErr)
 		}
 		return
 	}
 
-	logger.Info("PTY session started", "session_id", sessionID)
+	logger.Info("Session started", "session_id", sessionID, "server_id", serverID)
 
-	handler := s.sessionManager.WrapSession(sessionID, session)
-
+	// Handle I/O
 	if err := handler.HandleConnection(conn); err != nil {
 		logger.Error("Connection error", "session_id", sessionID, "error", err)
 	}
 
 	logger.Info("WebSocket connection closed", "session_id", sessionID)
+}
+
+// findServerConfig finds server configuration by ID and handles error reporting
+func (s *WebTerminalServer) findServerConfig(serverID, sessionID string, conn *websocket.Conn) (*config.SSHServerConfig, bool) {
+	if serverID == "local" {
+		return nil, true
+	}
+
+	for i := range s.cfg.Web.Servers {
+		if s.cfg.Web.Servers[i].ID == serverID {
+			return &s.cfg.Web.Servers[i], true
+		}
+	}
+
+	errMsg := fmt.Sprintf("Server not found: %s", serverID)
+	logger.Error("Invalid server ID", "session_id", sessionID, "server_id", serverID)
+	if writeErr := conn.WriteMessage(websocket.TextMessage, []byte(errMsg)); writeErr != nil {
+		logger.Warn("Failed to write error message", "session_id", sessionID, "error", writeErr)
+	}
+	return nil, false
 }
 
 func (s *WebTerminalServer) handleShutdown() {

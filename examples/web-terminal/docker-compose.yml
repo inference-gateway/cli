@@ -1,0 +1,101 @@
+---
+services:
+  # SSH key generator - creates keys if they don't exist
+  ssh-keygen:
+    image: alpine:3.23.0
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssh-keygen
+        if [ ! -f /keys/id_rsa ]; then
+          echo "Generating SSH keys for demo..."
+          ssh-keygen -t rsa -b 2048 -f /keys/id_rsa -N ""
+          chmod 600 /keys/id_rsa
+          chmod 644 /keys/id_rsa.pub
+          echo "✓ SSH keys generated in .ssh-keys/"
+        else
+          echo "✓ Using existing SSH keys from .ssh-keys/"
+        fi
+    volumes:
+      - ./.ssh-keys:/keys
+
+  # Web terminal server - provides web UI with both local and remote options
+  web-terminal:
+    image: ghcr.io/inference-gateway/cli:local
+    command:
+      - chat
+      - --web
+    ports:
+      - "3000:3000"
+    environment:
+      - INFER_WEB_HOST=0.0.0.0
+      - INFER_WEB_PORT=3000
+      - INFER_GATEWAY_URL=http://inference-gateway:8080
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./.ssh-keys:/home/infer/.ssh:ro
+      - ./config.yaml:/home/infer/.infer/config.yaml:ro
+    networks:
+      - infer-network
+    depends_on:
+      ssh-keygen:
+        condition: service_completed_successfully
+      inference-gateway:
+        condition: service_started
+      remote-ubuntu:
+        condition: service_started
+    restart: unless-stopped
+
+  # Inference gateway for local mode
+  inference-gateway:
+    image: ghcr.io/inference-gateway/inference-gateway:latest
+    ports:
+      - "8080:8080"
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      CLOUDFLARE_API_KEY: ${CLOUDFLARE_API_KEY}
+      COHERE_API_KEY: ${COHERE_API_KEY}
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+    networks:
+      - infer-network
+    restart: unless-stopped
+
+  # Remote Ubuntu server - demonstrates SSH + auto-install
+  remote-ubuntu:
+    image: ubuntu:24.04
+    command:
+      - sh
+      - -c
+      - |
+        apt-get update && apt-get install -y openssh-server sudo curl musl libsqlite3-0
+        mkdir -p /run/sshd
+        useradd -m -s /bin/bash developer
+        echo 'developer ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+        mkdir -p /home/developer/.ssh
+        if [ -f /ssh-keys/id_rsa.pub ]; then
+          cat /ssh-keys/id_rsa.pub > /home/developer/.ssh/authorized_keys
+          chown -R developer:developer /home/developer/.ssh
+          chmod 700 /home/developer/.ssh
+          chmod 600 /home/developer/.ssh/authorized_keys
+          echo "✓ SSH public key installed for developer user"
+        else
+          echo "✗ No SSH public key found in /ssh-keys/"
+        fi
+        /usr/sbin/sshd -D -e
+    volumes:
+      - ./.ssh-keys:/ssh-keys:ro
+    depends_on:
+      ssh-keygen:
+        condition: service_completed_successfully
+    networks:
+      - infer-network
+    restart: unless-stopped
+
+networks:
+  infer-network:
+    driver: bridge
