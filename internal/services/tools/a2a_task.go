@@ -176,13 +176,10 @@ func (t *A2ASubmitTaskTool) Execute(ctx context.Context, args map[string]any) (*
 	shouldResume := taskState == adk.TaskStateInputRequired
 
 	message := adk.Message{
-		Kind: "message",
-		Role: "user",
+		MessageID: fmt.Sprintf("user-message-%d", time.Now().UnixNano()),
+		Role:      adk.RoleUser,
 		Parts: []adk.Part{
-			map[string]any{
-				"kind": "text",
-				"text": taskDescription,
-			},
+			adk.NewTextPart(taskDescription),
 		},
 	}
 
@@ -398,12 +395,8 @@ func (t *A2ASubmitTaskTool) handleQueryError(_ /* agentURL */, _ /* taskID */ st
 func (t *A2ASubmitTaskTool) extractTextFromParts(parts []adk.Part) string {
 	var text string
 	for _, part := range parts {
-		if textPart, ok := part.(adk.TextPart); ok {
-			text += textPart.Text
-		} else if partMap, ok := part.(map[string]any); ok {
-			if partText, exists := partMap["text"]; exists {
-				text += fmt.Sprintf("%v", partText)
-			}
+		if part.Text != nil {
+			text += *part.Text
 		}
 	}
 	return text
@@ -502,7 +495,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 		}
 		return true, result
 
-	case adk.TaskStateCanceled:
+	case adk.TaskStateCancelled:
 		cancelMessage := ""
 		if currentTask.Status.Message != nil {
 			cancelMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
@@ -641,14 +634,16 @@ func (t *A2ASubmitTaskTool) formatArtifact(builder *strings.Builder, index int, 
 		return
 	}
 
-	if mimeType, ok := artifact.Metadata["mime_type"].(string); ok {
-		fmt.Fprintf(builder, ", Type: %s", mimeType)
-	}
-	if size, ok := artifact.Metadata["size"].(float64); ok {
-		fmt.Fprintf(builder, ", Size: %d bytes", int64(size))
-	}
-	if url, ok := artifact.Metadata["url"].(string); ok {
-		fmt.Fprintf(builder, "\n   Download URL: %s", url)
+	if artifact.Metadata != nil {
+		if mimeType, ok := (*artifact.Metadata)["mime_type"].(string); ok {
+			fmt.Fprintf(builder, ", Type: %s", mimeType)
+		}
+		if size, ok := (*artifact.Metadata)["size"].(float64); ok {
+			fmt.Fprintf(builder, ", Size: %d bytes", int64(size))
+		}
+		if url, ok := (*artifact.Metadata)["url"].(string); ok {
+			fmt.Fprintf(builder, "\n   Download URL: %s", url)
+		}
 	}
 	builder.WriteString("\n")
 }

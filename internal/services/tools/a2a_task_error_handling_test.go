@@ -195,7 +195,7 @@ func TestA2ASubmitTaskTool_CompletedTaskHandling(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, result.Success)
 
-		assert.Contains(t, result.Error, "is already completed (cleared from tracker)")
+		assert.Contains(t, result.Error, "is already TASK_STATE_COMPLETED (cleared from tracker)")
 
 		// Verify RemoveTask was called
 		assert.Equal(t, 1, tracker.RemoveTaskCallCount())
@@ -257,7 +257,7 @@ func TestA2ASubmitTaskTool_WorkingTaskGuardrail(t *testing.T) {
 		{
 			name:                "allows submission when task is canceled",
 			existingTaskID:      "canceled-task-102",
-			existingTaskState:   adk.TaskStateCanceled,
+			existingTaskState:   adk.TaskStateCancelled,
 			getTaskError:        nil,
 			shouldPreventSubmit: false,
 		},

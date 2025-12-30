@@ -416,7 +416,7 @@ func (t *TaskManagerImpl) mapTaskStatus(state adk.TaskState) string {
 	statusMap := map[adk.TaskState]string{
 		adk.TaskStateCompleted:     "Completed",
 		adk.TaskStateFailed:        "Failed",
-		adk.TaskStateCanceled:      "Canceled",
+		adk.TaskStateCancelled:     "Cancelled",
 		adk.TaskStateRejected:      "Rejected",
 		adk.TaskStateInputRequired: "Input Required",
 	}
@@ -588,16 +588,14 @@ func (t *TaskManagerImpl) renderTaskHistory(content *strings.Builder, task TaskI
 			content.WriteString("\n")
 		}
 
-		t.renderHistoryItemRole(content, historyItem.Role)
+		t.renderHistoryItemRole(content, string(historyItem.Role))
 
 		for _, part := range historyItem.Parts {
-			if textPart, ok := part.(adk.TextPart); ok {
-				if textPart.Text != "" {
-					wrappedText := formatting.FormatResponsiveMessage(textPart.Text, textWidth)
-					lines := strings.Split(wrappedText, "\n")
-					for _, line := range lines {
-						fmt.Fprintf(content, "  %s\n", line)
-					}
+			if part.Text != nil && *part.Text != "" {
+				wrappedText := formatting.FormatResponsiveMessage(*part.Text, textWidth)
+				lines := strings.Split(wrappedText, "\n")
+				for _, line := range lines {
+					fmt.Fprintf(content, "  %s\n", line)
 				}
 			}
 		}
@@ -647,13 +645,11 @@ func (t *TaskManagerImpl) renderFinalResult(content *strings.Builder, task TaskI
 	fmt.Fprintf(content, "%s %s\n", marker, roleText)
 
 	for _, part := range task.TaskRef.Task.Status.Message.Parts {
-		if textPart, ok := part.(adk.TextPart); ok {
-			if textPart.Text != "" {
-				wrappedText := formatting.FormatResponsiveMessage(textPart.Text, textWidth)
-				lines := strings.Split(wrappedText, "\n")
-				for _, line := range lines {
-					fmt.Fprintf(content, "  %s\n", line)
-				}
+		if part.Text != nil && *part.Text != "" {
+			wrappedText := formatting.FormatResponsiveMessage(*part.Text, textWidth)
+			lines := strings.Split(wrappedText, "\n")
+			for _, line := range lines {
+				fmt.Fprintf(content, "  %s\n", line)
 			}
 		}
 	}
