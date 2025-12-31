@@ -1,33 +1,94 @@
 version: "0.2"
 language: en
 words:
+  - afero
+  - alecthomas
   - alrvd
+  - apapsch
+  - aymanbagabas
+  - aymerick
+  - bahlo
+  - bluemonday
   - bubbletea
+  - buger
+  - cancelreader
+  - cellbuf
+  - cespare
   - charmbracelet
+  - cloudevents
+  - codegen
   - codellama
+  - colorprofile
+  - coninput
+  - creack
+  - davecgh
   - deepseek
   - DEEPSEEK
+  - dgryski
+  - difflib
+  - dlclark
   - duckduckgo
+  - easyjson
+  - erikgeiser
+  - fsnotify
   - funlen
+  - gjson
   - gocyclo
+  - goldmark
+  - gopkg
+  - gotenv
   - groq
   - GROQ
+  - inconshreveable
+  - invopop
+  - isatty
+  - jsonmerge
+  - jsonparser
+  - jsonschema
   - kimi
+  - ledongthuc
+  - lipgloss
+  - locafero
+  - localereader
+  - lucasb
+  - mailru
   - mapstructure
+  - mattn
+  - maxbrunsfeld
   - mekayelanik
+  - metoro
   - mixtral
   - moonshotai
   - mtoken
+  - multierr
   - myshortcuts
   - nolint
+  - oapi
   - ollama
   - OLLAMA
   - oneline
+  - pflag
   - pgdn
   - pgup
   - playai
+  - pmezard
   - qwen
+  - resty
   - retryable
+  - rivo
+  - runewidth
+  - sabhiram
+  - sagikazarmark
   - SHTTP
+  - sjson
   - sname
+  - sourcegraph
+  - stretchr
+  - subosito
   - sysinfo
+  - termenv
+  - terminfo
+  - tidwall
+  - uniseg
+  - xxhash
+  - yuin
