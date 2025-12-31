@@ -1,6 +1,5 @@
 ---
 services:
-  # SSH key generator - creates keys if they don't exist
   ssh-keygen:
     image: alpine:3.23.0
     command:
@@ -20,7 +19,6 @@ services:
     volumes:
       - ./.ssh-keys:/keys
 
-  # Web terminal server - provides web UI with both local and remote options
   web-terminal:
     image: ghcr.io/inference-gateway/cli:local
     command:
@@ -29,9 +27,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - INFER_WEB_HOST=0.0.0.0
-      - INFER_WEB_PORT=3000
-      - INFER_GATEWAY_URL=http://inference-gateway:8080
+      INFER_WEB_HOST: 0.0.0.0
+      INFER_WEB_PORT: 3000
+      INFER_GATEWAY_URL: http://inference-gateway:8080
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./.ssh-keys:/home/infer/.ssh:ro
@@ -47,7 +45,6 @@ services:
         condition: service_started
     restart: unless-stopped
 
-  # Inference gateway for local mode
   inference-gateway:
     image: ghcr.io/inference-gateway/inference-gateway:latest
     ports:
@@ -65,7 +62,6 @@ services:
       - infer-network
     restart: unless-stopped
 
-  # Remote Ubuntu server - demonstrates SSH + auto-install
   remote-ubuntu:
     image: ubuntu:24.04
     command:

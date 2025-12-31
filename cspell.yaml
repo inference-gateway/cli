@@ -39,14 +39,17 @@ words:
   - gotenv
   - groq
   - GROQ
+  - healthcheck
   - inconshreveable
   - invopop
   - isatty
   - jsonmerge
   - jsonparser
   - jsonschema
+  - keygen
   - kimi
   - ledongthuc
+  - libsqlite
   - lipgloss
   - locafero
   - localereader
@@ -63,6 +66,7 @@ words:
   - multierr
   - myshortcuts
   - nolint
+  - NOPASSWD
   - oapi
   - ollama
   - OLLAMA
