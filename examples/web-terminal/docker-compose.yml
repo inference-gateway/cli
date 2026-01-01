@@ -20,7 +20,7 @@ services:
       - ./.ssh-keys:/keys
 
   web-terminal:
-    image: ghcr.io/inference-gateway/cli:0.95.0-rc.3
+    image: ghcr.io/inference-gateway/cli:0.95.0-rc.4
     command:
       - chat
       - --web
@@ -30,7 +30,7 @@ services:
       INFER_WEB_HOST: 0.0.0.0
       INFER_WEB_PORT: 3000
       INFER_GATEWAY_URL: http://inference-gateway:8080
-      INFER_WEB_SSH_INSTALL_VERSION: 0.95.0-rc.3
+      INFER_WEB_SSH_INSTALL_VERSION: 0.95.0-rc.4
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./.ssh-keys:/home/infer/.ssh:ro
