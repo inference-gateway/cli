@@ -11,7 +11,7 @@ import (
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	migrations "github.com/inference-gateway/cli/internal/infra/storage/migrations"
-	_ "github.com/mattn/go-sqlite3"
+	_ "modernc.org/sqlite"
 )
 
 // SQLiteStorage implements ConversationStorage using SQLite
@@ -36,7 +36,7 @@ func NewSQLiteStorage(config SQLiteConfig) (*SQLiteStorage, error) {
 		return nil, fmt.Errorf("failed to create directory %s: %w", dir, err)
 	}
 
-	db, err := sql.Open("sqlite3", config.Path+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_timeout=30000&_busy_timeout=30000")
+	db, err := sql.Open("sqlite", config.Path+"?_journal_mode=WAL&_synchronous=NORMAL&_cache_size=1000&_timeout=30000&_busy_timeout=30000")
 	if err != nil {
 		return nil, fmt.Errorf("failed to open SQLite database: %w", err)
 	}
@@ -77,16 +77,11 @@ func (s *SQLiteStorage) runMigrations() error {
 	return nil
 }
 
-// verifySQLiteAvailable checks if SQLite is available on the system
+// verifySQLiteAvailable checks if SQLite is available (using pure Go implementation)
 func verifySQLiteAvailable() error {
-	db, err := sql.Open("sqlite3", ":memory:")
+	db, err := sql.Open("sqlite", ":memory:")
 	if err != nil {
-		return fmt.Errorf("SQLite driver not available: %w\n\n"+
-			"System SQLite library is required. Install:\n"+
-			"  Ubuntu/Debian: sudo apt-get install libsqlite3-0\n"+
-			"  RHEL/CentOS:   sudo yum install sqlite\n"+
-			"  macOS:         brew install sqlite3 (or use system SQLite)\n"+
-			"  Windows:       Download from https://www.sqlite.org/download.html", err)
+		return fmt.Errorf("SQLite driver not available (pure Go implementation): %w", err)
 	}
 	defer func() { _ = db.Close() }()
 
