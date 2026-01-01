@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.95.0-rc.2](https://github.com/inference-gateway/cli/compare/v0.95.0-rc.1...v0.95.0-rc.2) (2026-01-01)
+
+### ♻️ Code Refactoring
+
+* Simplify the sqlite deps ([70c0df4](https://github.com/inference-gateway/cli/commit/70c0df46312136754eb0c21a6ef7e43953445edb))
+
+### 🧹 Maintenance
+
+* **deps:** Bump claude-code version ([09c8610](https://github.com/inference-gateway/cli/commit/09c861065f3677435dfce0055c7ea1b1304c7914))
+* **deps:** Bump docker compose cli version ([d28000c](https://github.com/inference-gateway/cli/commit/d28000c9d994441406446b8e517c4c6190cdaabb))
+* Test the CLI ([2936b04](https://github.com/inference-gateway/cli/commit/2936b040cad9c5d211b10f1506deceae965d3945))
+
 ## [0.95.0-rc.1](https://github.com/inference-gateway/cli/compare/v0.94.0...v0.95.0-rc.1) (2025-12-31)
 
 ### 🚀 Features
