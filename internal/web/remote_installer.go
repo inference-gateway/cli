@@ -154,8 +154,7 @@ fi
 	}
 	defer func() { _ = session3.Close() }()
 
-	initCmd := fmt.Sprintf("INFER_GATEWAY_URL=%s INFER_GATEWAY_MODE=remote %s/infer init",
-		i.gatewayURL, installDir)
+	initCmd := fmt.Sprintf("%s/infer init --userspace", installDir)
 	initOutput, err := session3.CombinedOutput(initCmd)
 	if err != nil {
 		logger.Warn("Failed to initialize infer config, may need manual setup", "error", err, "output", string(initOutput))

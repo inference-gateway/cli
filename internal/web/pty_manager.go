@@ -59,7 +59,7 @@ func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServe
 		return nil, err
 	}
 
-	session, err := NewSSHSession(client, serverCfg)
+	session, err := NewSSHSession(client, serverCfg, gatewayURL)
 	if err != nil {
 		if closeErr := client.Close(); closeErr != nil {
 			logger.Warn("Failed to close SSH client after session error", "error", closeErr)
