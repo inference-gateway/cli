@@ -81,7 +81,6 @@ func (m *MemoryStorage) ListConversations(ctx context.Context, limit, offset int
 			TokenStats:          data.metadata.TokenStats,
 			Model:               data.metadata.Model,
 			Tags:                data.metadata.Tags,
-			Summary:             data.metadata.Summary,
 			TitleGenerated:      data.metadata.TitleGenerated,
 			TitleInvalidated:    data.metadata.TitleInvalidated,
 			TitleGenerationTime: data.metadata.TitleGenerationTime,

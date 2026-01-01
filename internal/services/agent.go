@@ -759,16 +759,6 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 
 	originalCount := len(conversation)
 
-	persistentRepo, isPersistent := s.conversationRepo.(*PersistentConversationRepository)
-	if isPersistent {
-		if cachedMessages := persistentRepo.GetOptimizedMessages(); len(cachedMessages) > 0 {
-			if len(conversation) <= len(cachedMessages) {
-				return cachedMessages
-			}
-			conversation = append(cachedMessages, conversation[len(cachedMessages):]...)
-		}
-	}
-
 	eventPublisher.publishOptimizationStatus("Optimizing conversation history...", true, originalCount, originalCount)
 
 	conversation = s.optimizer.OptimizeMessages(conversation, req.Model, false)
@@ -782,12 +772,6 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 	}
 
 	eventPublisher.publishOptimizationStatus(message, false, originalCount, optimizedCount)
-
-	if isPersistent {
-		if err := persistentRepo.SetOptimizedMessages(ctx, conversation); err != nil {
-			logger.Error("Failed to save optimized conversation", "error", err)
-		}
-	}
 
 	return conversation
 }

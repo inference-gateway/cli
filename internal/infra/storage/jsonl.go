@@ -208,7 +208,6 @@ func (s *JsonlStorage) ListConversations(ctx context.Context, limit, offset int)
 					CostStats:           metadataWrapper.Metadata.CostStats,
 					Model:               metadataWrapper.Metadata.Model,
 					Tags:                metadataWrapper.Metadata.Tags,
-					Summary:             metadataWrapper.Metadata.Summary,
 					TitleGenerated:      metadataWrapper.Metadata.TitleGenerated,
 					TitleInvalidated:    metadataWrapper.Metadata.TitleInvalidated,
 					TitleGenerationTime: metadataWrapper.Metadata.TitleGenerationTime,
