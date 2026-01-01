@@ -6,17 +6,61 @@ class TerminalManager {
         this.tabBar = document.getElementById('tab-bar');
         this.terminalArea = document.getElementById('terminal-area');
         this.newTabBtn = document.getElementById('new-tab-btn');
+        this.serverSelector = document.getElementById('server-selector');
+        this.welcomeMessage = document.getElementById('welcome-message');
+        this.servers = [];
+        this.currentServerID = 'local';
 
+        this.loadServers();
         this.newTabBtn.addEventListener('click', () => this.createTab());
+        this.serverSelector.addEventListener('change', (e) => {
+            this.currentServerID = e.target.value;
+        });
+    }
 
-        this.createTab();
+    async loadServers() {
+        try {
+            const response = await fetch('/api/servers');
+            const data = await response.json();
+            this.servers = data.servers;
+
+            this.serverSelector.innerHTML = '';
+            this.servers.forEach(server => {
+                const option = document.createElement('option');
+                option.value = server.id;
+                option.textContent = server.name;
+                if (server.description) {
+                    option.title = server.description;
+                }
+                this.serverSelector.appendChild(option);
+            });
+
+            this.serverSelector.value = 'local';
+            this.currentServerID = 'local';
+        } catch (error) {
+            console.error('Failed to load servers:', error);
+        }
     }
 
     createTab() {
         const tabId = this.nextTabId++;
-        const tab = new TerminalTab(tabId, this);
+        const serverID = this.currentServerID;
+        const tab = new TerminalTab(tabId, this, serverID);
         this.tabs.set(tabId, tab);
         this.switchTab(tabId);
+        this.hideWelcomeMessage();
+    }
+
+    hideWelcomeMessage() {
+        if (this.welcomeMessage) {
+            this.welcomeMessage.classList.add('hidden');
+        }
+    }
+
+    showWelcomeMessage() {
+        if (this.welcomeMessage && this.tabs.size === 0) {
+            this.welcomeMessage.classList.remove('hidden');
+        }
     }
 
     switchTab(tabId) {
@@ -47,16 +91,17 @@ class TerminalManager {
                 this.switchTab(remainingTabs[remainingTabs.length - 1]);
             } else {
                 this.activeTabId = null;
-                this.createTab();
+                this.showWelcomeMessage();
             }
         }
     }
 }
 
 class TerminalTab {
-    constructor(id, manager) {
+    constructor(id, manager, serverID = 'local') {
         this.id = id;
         this.manager = manager;
+        this.serverID = serverID;
         this.socket = null;
         this.term = null;
         this.fitAddon = null;
@@ -70,10 +115,13 @@ class TerminalTab {
     }
 
     createUI() {
+        const server = this.manager.servers.find(s => s.id === this.serverID);
+        const serverName = server ? server.name : 'Local';
+
         this.tabElement = document.createElement('div');
         this.tabElement.className = 'tab';
         this.tabElement.innerHTML = `
-            <span class="tab-title">Terminal ${this.id}</span>
+            <span class="tab-title">Terminal ${this.id} (${serverName})</span>
             <span class="tab-close">×</span>
         `;
 
@@ -147,11 +195,18 @@ class TerminalTab {
         this.socket = new WebSocket(wsUrl);
 
         this.socket.onopen = () => {
-            console.log(`Tab ${this.id}: WebSocket connected`);
+            console.log(`Tab ${this.id}: WebSocket connected to server: ${this.serverID}`);
             this.connected = true;
 
             this.fitAddon.fit();
-            this.sendResize();
+
+            // Send init message with server selection
+            this.socket.send(JSON.stringify({
+                type: 'init',
+                server_id: this.serverID,
+                cols: this.term.cols,
+                rows: this.term.rows
+            }));
 
             requestAnimationFrame(() => {
                 this.term.focus();
@@ -221,5 +276,7 @@ class TerminalTab {
     }
 }
 
-// Initialize
-const terminalManager = new TerminalManager();
+// Initialize when DOM is ready
+document.addEventListener('DOMContentLoaded', () => {
+    const terminalManager = new TerminalManager();
+});

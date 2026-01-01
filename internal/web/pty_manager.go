@@ -18,11 +18,75 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
-// Session interface for both local PTY and future SSH sessions
-type Session interface {
+// SessionHandler interface for both local PTY and remote SSH sessions
+type SessionHandler interface {
 	Start(cols, rows int) error
-	Stop() error
+	Resize(cols, rows int) error
 	HandleConnection(conn *websocket.Conn) error
+	Close() error
+}
+
+// Session is an alias for backward compatibility
+type Session = SessionHandler
+
+// CreateSessionHandler creates either a local PTY session or remote SSH session
+func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, v *viper.Viper) (SessionHandler, error) {
+	if serverCfg != nil {
+		return createRemoteSSHSession(webCfg, serverCfg, cfg.Gateway.URL)
+	}
+
+	logger.Info("Creating local PTY session")
+	return NewLocalPTYSession(cfg, v), nil
+}
+
+// createRemoteSSHSession creates a remote SSH session with optional auto-install
+func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string) (SessionHandler, error) {
+	logger.Info("Creating remote SSH session", "server", serverCfg.Name)
+
+	client, err := NewSSHClient(&webCfg.SSH, serverCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create SSH client: %w", err)
+	}
+
+	if err := client.Connect(); err != nil {
+		return nil, fmt.Errorf("failed to connect to SSH server: %w", err)
+	}
+
+	if err := ensureRemoteBinary(client, webCfg, serverCfg, gatewayURL); err != nil {
+		if closeErr := client.Close(); closeErr != nil {
+			logger.Warn("Failed to close SSH client after install error", "error", closeErr)
+		}
+		return nil, err
+	}
+
+	session, err := NewSSHSession(client, serverCfg, gatewayURL)
+	if err != nil {
+		if closeErr := client.Close(); closeErr != nil {
+			logger.Warn("Failed to close SSH client after session error", "error", closeErr)
+		}
+		return nil, fmt.Errorf("failed to create SSH session: %w", err)
+	}
+
+	return session, nil
+}
+
+// ensureRemoteBinary installs infer binary on remote server if auto-install is enabled
+func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string) error {
+	autoInstall := webCfg.SSH.AutoInstall
+	if serverCfg.AutoInstall != nil {
+		autoInstall = *serverCfg.AutoInstall
+	}
+
+	if !autoInstall {
+		return nil
+	}
+
+	installer := NewRemoteInstaller(client, &webCfg.SSH, serverCfg, gatewayURL)
+	if err := installer.EnsureBinary(); err != nil {
+		return fmt.Errorf("failed to ensure infer binary: %w", err)
+	}
+
+	return nil
 }
 
 // LocalPTYSession represents a single local terminal session
@@ -75,7 +139,13 @@ func (s *LocalPTYSession) Start(cols, rows int) error {
 	return nil
 }
 
-func (s *LocalPTYSession) Stop() error {
+// Resize changes the PTY window size
+func (s *LocalPTYSession) Resize(cols, rows int) error {
+	return s.setWindowSize(cols, rows)
+}
+
+// Close terminates the PTY session
+func (s *LocalPTYSession) Close() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -86,6 +156,11 @@ func (s *LocalPTYSession) Stop() error {
 	}
 
 	return s.shutdownProcess()
+}
+
+// Stop is deprecated, use Close instead
+func (s *LocalPTYSession) Stop() error {
+	return s.Close()
 }
 
 func (s *LocalPTYSession) closePTYOnly() error {

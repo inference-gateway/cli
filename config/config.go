@@ -267,10 +267,36 @@ type CompactConfig struct {
 
 // WebConfig contains web terminal settings
 type WebConfig struct {
-	Enabled               bool   `yaml:"enabled" mapstructure:"enabled"`
-	Port                  int    `yaml:"port" mapstructure:"port"`
-	Host                  string `yaml:"host" mapstructure:"host"`
-	SessionInactivityMins int    `yaml:"session_inactivity_mins" mapstructure:"session_inactivity_mins"`
+	Enabled               bool              `yaml:"enabled" mapstructure:"enabled"`
+	Port                  int               `yaml:"port" mapstructure:"port"`
+	Host                  string            `yaml:"host" mapstructure:"host"`
+	SessionInactivityMins int               `yaml:"session_inactivity_mins" mapstructure:"session_inactivity_mins"`
+	SSH                   WebSSHConfig      `yaml:"ssh" mapstructure:"ssh"`
+	Servers               []SSHServerConfig `yaml:"servers" mapstructure:"servers"`
+}
+
+// WebSSHConfig contains SSH connection settings for remote servers
+type WebSSHConfig struct {
+	Enabled        bool   `yaml:"enabled" mapstructure:"enabled"`
+	UseSSHConfig   bool   `yaml:"use_ssh_config" mapstructure:"use_ssh_config"`
+	KnownHostsPath string `yaml:"known_hosts_path" mapstructure:"known_hosts_path"`
+	AutoInstall    bool   `yaml:"auto_install" mapstructure:"auto_install"`
+	InstallVersion string `yaml:"install_version" mapstructure:"install_version"`
+}
+
+// SSHServerConfig contains configuration for a single remote SSH server
+type SSHServerConfig struct {
+	Name        string   `yaml:"name" mapstructure:"name"`
+	ID          string   `yaml:"id" mapstructure:"id"`
+	RemoteHost  string   `yaml:"remote_host" mapstructure:"remote_host"`
+	RemotePort  int      `yaml:"remote_port" mapstructure:"remote_port"`
+	RemoteUser  string   `yaml:"remote_user" mapstructure:"remote_user"`
+	CommandPath string   `yaml:"command_path" mapstructure:"command_path"`
+	CommandArgs []string `yaml:"command_args" mapstructure:"command_args"`
+	AutoInstall *bool    `yaml:"auto_install,omitempty" mapstructure:"auto_install"`
+	InstallPath string   `yaml:"install_path" mapstructure:"install_path"`
+	Description string   `yaml:"description" mapstructure:"description"`
+	Tags        []string `yaml:"tags" mapstructure:"tags"`
 }
 
 // SystemRemindersConfig contains settings for dynamic system reminders
@@ -285,6 +311,7 @@ type AgentConfig struct {
 	Model              string                `yaml:"model" mapstructure:"model"`
 	SystemPrompt       string                `yaml:"system_prompt" mapstructure:"system_prompt"`
 	SystemPromptPlan   string                `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
+	SystemPromptRemote string                `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
 	SystemReminders    SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
 	VerboseTools       bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
 	MaxTurns           int                   `yaml:"max_turns" mapstructure:"max_turns"`
@@ -780,6 +807,11 @@ EXAMPLE:
 <assistant>Now I'll create a pull request</assistant>
 <tool>Github(...)</tool>
 `,
+			SystemPromptRemote: `Remote system administration agent. You are operating on a remote machine via SSH.
+
+FOCUS: System operations, service management, monitoring, diagnostics, and infrastructure tasks.
+
+CONTEXT: This is a shared system environment, not a project workspace. Users may be managing servers, containers, services, or general infrastructure.`,
 			SystemReminders: SystemRemindersConfig{
 				Enabled:  true,
 				Interval: 4,
@@ -936,6 +968,14 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			Port:                  3000,
 			Host:                  "localhost",
 			SessionInactivityMins: 5,
+			SSH: WebSSHConfig{
+				Enabled:        false,
+				UseSSHConfig:   true,
+				KnownHostsPath: "~/.ssh/known_hosts",
+				AutoInstall:    true,
+				InstallVersion: "latest",
+			},
+			Servers: []SSHServerConfig{},
 		},
 	}
 }
@@ -1037,6 +1077,9 @@ func (c *Config) GetTimeout() int {
 }
 
 func (c *Config) GetSystemPrompt() string {
+	if os.Getenv("INFER_REMOTE_MANAGED") == "true" && c.Agent.SystemPromptRemote != "" {
+		return c.Agent.SystemPromptRemote
+	}
 	return c.Agent.SystemPrompt
 }
 

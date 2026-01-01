@@ -76,7 +76,7 @@ func (sm *SessionManager) RemoveSession(sessionID string) {
 	defer sm.mu.Unlock()
 
 	if entry, exists := sm.sessions[sessionID]; exists {
-		if err := entry.session.Stop(); err != nil {
+		if err := entry.session.Close(); err != nil {
 			logger.Warn("Error stopping session", "id", sessionID, "error", err)
 		}
 		delete(sm.sessions, sessionID)
@@ -121,7 +121,7 @@ func (sm *SessionManager) cleanupInactiveSessions() {
 	for _, sessionID := range toRemove {
 		if entry, exists := sm.sessions[sessionID]; exists {
 			logger.Info("Cleaning up inactive session", "id", sessionID, "inactive_duration", now.Sub(entry.lastActive), "threshold", inactiveThreshold)
-			if err := entry.session.Stop(); err != nil {
+			if err := entry.session.Close(); err != nil {
 				logger.Warn("Error stopping inactive session", "id", sessionID, "error", err)
 			}
 			delete(sm.sessions, sessionID)
@@ -151,7 +151,7 @@ func (sm *SessionManager) Shutdown() {
 
 	for sessionID, entry := range sm.sessions {
 		logger.Info("Stopping session", "id", sessionID)
-		if err := entry.session.Stop(); err != nil {
+		if err := entry.session.Close(); err != nil {
 			logger.Warn("Error stopping session during shutdown", "id", sessionID, "error", err)
 		}
 	}
@@ -160,22 +160,22 @@ func (sm *SessionManager) Shutdown() {
 	logger.Info("All sessions stopped")
 }
 
-// SessionHandler wraps a session to track activity
-type SessionHandler struct {
+// SessionWrapper wraps a session to track activity
+type SessionWrapper struct {
 	sessionID string
 	session   Session
 	manager   *SessionManager
 }
 
-func (sm *SessionManager) WrapSession(sessionID string, session Session) *SessionHandler {
-	return &SessionHandler{
+func (sm *SessionManager) WrapSession(sessionID string, session Session) *SessionWrapper {
+	return &SessionWrapper{
 		sessionID: sessionID,
 		session:   session,
 		manager:   sm,
 	}
 }
 
-func (sh *SessionHandler) HandleConnection(conn *websocket.Conn) error {
+func (sh *SessionWrapper) HandleConnection(conn *websocket.Conn) error {
 	done := make(chan struct{})
 	go func() {
 		ticker := time.NewTicker(10 * time.Second)
