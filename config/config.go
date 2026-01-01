@@ -311,6 +311,7 @@ type AgentConfig struct {
 	Model              string                `yaml:"model" mapstructure:"model"`
 	SystemPrompt       string                `yaml:"system_prompt" mapstructure:"system_prompt"`
 	SystemPromptPlan   string                `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
+	SystemPromptRemote string                `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
 	SystemReminders    SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
 	VerboseTools       bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
 	MaxTurns           int                   `yaml:"max_turns" mapstructure:"max_turns"`
@@ -806,6 +807,11 @@ EXAMPLE:
 <assistant>Now I'll create a pull request</assistant>
 <tool>Github(...)</tool>
 `,
+			SystemPromptRemote: `Remote system administration agent. You are operating on a remote machine via SSH.
+
+FOCUS: System operations, service management, monitoring, diagnostics, and infrastructure tasks.
+
+CONTEXT: This is a shared system environment, not a project workspace. Users may be managing servers, containers, services, or general infrastructure.`,
 			SystemReminders: SystemRemindersConfig{
 				Enabled:  true,
 				Interval: 4,
@@ -1071,6 +1077,9 @@ func (c *Config) GetTimeout() int {
 }
 
 func (c *Config) GetSystemPrompt() string {
+	if os.Getenv("INFER_REMOTE_MANAGED") == "true" && c.Agent.SystemPromptRemote != "" {
+		return c.Agent.SystemPromptRemote
+	}
 	return c.Agent.SystemPrompt
 }
 

@@ -56,7 +56,7 @@ jobs:
           echo "commit=$COMMIT" >> $GITHUB_OUTPUT
           echo "date=$DATE" >> $GITHUB_OUTPUT
 
-      - name: Build binary (Linux portable - no CGO/SQLite for maximum compatibility)
+      - name: Build binary (Linux portable - pure Go, no CGO dependencies)
         if: matrix.goos == 'linux'
         run: |
           docker run --rm \
@@ -66,7 +66,7 @@ jobs:
             golang:1.25-alpine3.23 \
             sh -c "go build -ldflags '-w -s -X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }} -X github.com/inference-gateway/cli/cmd.commit=${{ steps.version.outputs.commit }} -X github.com/inference-gateway/cli/cmd.date=${{ steps.version.outputs.date }}' -o infer-${{ matrix.goos }}-${{ matrix.goarch }} ."
 
-      - name: Build binary (macOS native with CGO for clipboard support)
+      - name: Build binary (macOS with CGO for clipboard image support)
         if: matrix.goos == 'darwin'
         env:
           CGO_ENABLED: ${{ matrix.cgo }}

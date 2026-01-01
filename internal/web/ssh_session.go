@@ -17,20 +17,21 @@ import (
 
 // SSHSession wraps an SSH session with PTY for remote terminal access
 type SSHSession struct {
-	sshClient *SSHClient
-	server    *config.SSHServerConfig
-	session   *ssh.Session
-	stdin     io.WriteCloser
-	stdout    io.Reader
-	stderr    io.Reader
-	mu        sync.Mutex
-	running   bool
-	ctx       context.Context
-	cancel    context.CancelFunc
+	sshClient  *SSHClient
+	server     *config.SSHServerConfig
+	gatewayURL string
+	session    *ssh.Session
+	stdin      io.WriteCloser
+	stdout     io.Reader
+	stderr     io.Reader
+	mu         sync.Mutex
+	running    bool
+	ctx        context.Context
+	cancel     context.CancelFunc
 }
 
 // NewSSHSession creates a new SSH session with PTY
-func NewSSHSession(client *SSHClient, server *config.SSHServerConfig) (*SSHSession, error) {
+func NewSSHSession(client *SSHClient, server *config.SSHServerConfig, gatewayURL string) (*SSHSession, error) {
 	if client == nil {
 		return nil, fmt.Errorf("SSH client is required")
 	}
@@ -41,10 +42,11 @@ func NewSSHSession(client *SSHClient, server *config.SSHServerConfig) (*SSHSessi
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &SSHSession{
-		sshClient: client,
-		server:    server,
-		ctx:       ctx,
-		cancel:    cancel,
+		sshClient:  client,
+		server:     server,
+		gatewayURL: gatewayURL,
+		ctx:        ctx,
+		cancel:     cancel,
 	}, nil
 }
 
@@ -109,7 +111,8 @@ func (s *SSHSession) Start(cols, rows int) error {
 	}
 
 	cmdArgs := append([]string{"chat"}, s.server.CommandArgs...)
-	cmd := fmt.Sprintf("%s %s", commandPath, strings.Join(cmdArgs, " "))
+	cmd := fmt.Sprintf("INFER_GATEWAY_URL=%s INFER_GATEWAY_MODE=remote %s %s",
+		s.gatewayURL, commandPath, strings.Join(cmdArgs, " "))
 
 	logger.Info("Starting remote command",
 		"command", cmd,

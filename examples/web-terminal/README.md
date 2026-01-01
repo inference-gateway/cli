@@ -23,10 +23,11 @@ docker compose up -d
 
 Open <http://localhost:3000>
 
-You'll see a dropdown with two options:
+You'll see a dropdown with three options:
 
 - **Local** - Runs `infer chat` locally in the container
-- **Remote Ubuntu Server** - Connects via SSH to demonstrate auto-install
+- **Remote Ubuntu Server** - Ubuntu 24.04 server with SSH (demonstrates auto-install)
+- **Remote Alpine Server** - Alpine 3.23.0 server with SSH (demonstrates lightweight distribution)
 
 ## What's Running
 
@@ -36,6 +37,7 @@ When you run `docker compose up`, it starts:
 2. **web-terminal** - Web UI server on port 3000
 3. **inference-gateway** - Gateway for local mode
 4. **remote-ubuntu** - Ubuntu 24.04 server with SSH (for demo)
+5. **remote-alpine** - Alpine 3.23.0 server with SSH (for demo)
 
 All services are connected on the `infer-network` Docker network.
 
@@ -50,15 +52,17 @@ All services are connected on the `infer-network` Docker network.
 
 ### Remote SSH Mode
 
-1. Select "Remote Ubuntu Server" from the dropdown
+1. Select "Remote Ubuntu Server" or "Remote Alpine Server" from the dropdown
 2. Click "+ New Tab"
-3. Web terminal connects to remote-ubuntu via SSH
+3. Web terminal connects to the selected remote server via SSH
 4. Authenticates using automatically generated SSH keys
 5. **Auto-installer runs** (first connection only):
    - Detects `infer` is not installed
    - Identifies OS and architecture (linux/arm64 or linux/amd64)
    - Downloads **portable binary** from GitHub releases (CGO-free, no SQLite dependencies)
    - Installs to `/home/developer/bin/infer`
+   - Runs `infer init --userspace` to initialize configuration
+   - Configures environment variables to connect to the shared gateway
    - Starts `infer chat` on the remote server
 6. Terminal shows remote session output
 
@@ -79,18 +83,33 @@ web:
     install_version: "latest"
 
   servers:
-    - name: "Local"
-      id: "local"
-      description: "Run infer chat locally in this container"
-
     - name: "Remote Ubuntu Server"
       id: "remote-ubuntu"
       remote_host: "remote-ubuntu"
       remote_user: "developer"
       remote_port: 22
       command_path: "/home/developer/bin/infer"
+      install_path: "/home/developer/bin/infer"
       auto_install: true
       description: "Ubuntu 24.04 server (demonstrates auto-install via SSH)"
+      tags:
+        - remote
+        - demo
+        - ubuntu
+
+    - name: "Remote Alpine Server"
+      id: "remote-alpine"
+      remote_host: "remote-alpine"
+      remote_user: "developer"
+      remote_port: 22
+      command_path: "/home/developer/bin/infer"
+      install_path: "/home/developer/bin/infer"
+      auto_install: true
+      description: "Alpine 3.23.0 server (demonstrates lightweight Linux distribution)"
+      tags:
+        - remote
+        - demo
+        - alpine
 ```
 
 ### Adding Your Own Remote Servers
@@ -189,7 +208,7 @@ Check logs:
 
 ```bash
 docker compose logs web-terminal
-docker compose logs remote-ubuntu
+docker compose logs remote-ubuntu  # or remote-alpine
 ```
 
 Common issues:
@@ -204,10 +223,10 @@ Verify:
 
 ```bash
 # Check remote server logs
-docker compose logs remote-ubuntu
+docker compose logs remote-ubuntu  # or remote-alpine
 
 # Test manual SSH connection
-docker exec -it infer-web-terminal ssh developer@remote-ubuntu
+docker exec -it infer-web-terminal ssh developer@remote-ubuntu  # or developer@remote-alpine
 ```
 
 Common issues:
@@ -241,7 +260,8 @@ Common issues:
 
 ## Next Steps
 
-- Try both Local and Remote modes in the dropdown
+- Try all three modes in the dropdown (Local, Ubuntu, Alpine)
 - Watch the auto-install process on first remote connection
+- Compare behavior across different Linux distributions (Ubuntu vs Alpine)
 - Add your own remote servers to `config.yaml`
 - Explore multi-server tab management in the UI

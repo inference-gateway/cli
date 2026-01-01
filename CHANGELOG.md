@@ -6,6 +6,62 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.95.0-rc.5](https://github.com/inference-gateway/cli/compare/v0.95.0-rc.4...v0.95.0-rc.5) (2026-01-01)
+
+### 🚀 Features
+
+* Add remote system administration support ([6f4751c](https://github.com/inference-gateway/cli/commit/6f4751cba152f045b657f7060281edb601eb2604))
+
+### 🧹 Maintenance
+
+* Add label to the tab to indicate what server is the session connected to ([568ed5d](https://github.com/inference-gateway/cli/commit/568ed5db21532f99b7df774316e0b7b25782a915))
+* Bump cli version ([8788cd1](https://github.com/inference-gateway/cli/commit/8788cd1fc50292128577ba4e4dda09cf79d11ab7))
+
+## [0.95.0-rc.4](https://github.com/inference-gateway/cli/compare/v0.95.0-rc.3...v0.95.0-rc.4) (2026-01-01)
+
+### 🐛 Bug Fixes
+
+* Use remote instance ([c382662](https://github.com/inference-gateway/cli/commit/c382662ca77d183e1f8c1c131a5eb0215cece2d8))
+
+## [0.95.0-rc.3](https://github.com/inference-gateway/cli/compare/v0.95.0-rc.2...v0.95.0-rc.3) (2026-01-01)
+
+### 🐛 Bug Fixes
+
+* Connect to remote gateway instance when installing on remote instance ([4ba6019](https://github.com/inference-gateway/cli/commit/4ba60193e94a1a32a240fb908e8f9a87a1a3f14d))
+
+### 🧹 Maintenance
+
+* **deps:** Bump CLI version ([e2be346](https://github.com/inference-gateway/cli/commit/e2be346c91526f56abaa0c6a0bf777ee80ff3de4))
+
+## [0.95.0-rc.2](https://github.com/inference-gateway/cli/compare/v0.95.0-rc.1...v0.95.0-rc.2) (2026-01-01)
+
+### ♻️ Code Refactoring
+
+* Simplify the sqlite deps ([70c0df4](https://github.com/inference-gateway/cli/commit/70c0df46312136754eb0c21a6ef7e43953445edb))
+
+### 🧹 Maintenance
+
+* **deps:** Bump claude-code version ([09c8610](https://github.com/inference-gateway/cli/commit/09c861065f3677435dfce0055c7ea1b1304c7914))
+* **deps:** Bump docker compose cli version ([d28000c](https://github.com/inference-gateway/cli/commit/d28000c9d994441406446b8e517c4c6190cdaabb))
+* Test the CLI ([2936b04](https://github.com/inference-gateway/cli/commit/2936b040cad9c5d211b10f1506deceae965d3945))
+
+## [0.95.0-rc.1](https://github.com/inference-gateway/cli/compare/v0.94.0...v0.95.0-rc.1) (2025-12-31)
+
+### 🚀 Features
+
+* Add SSH remote terminal support to web interface ([41614cf](https://github.com/inference-gateway/cli/commit/41614cfccf513205efa6bf45406a9367c144a0cd))
+
+### 🐛 Bug Fixes
+
+* Update ADK to v0.17.0 and fix API compatibility issues ([7450b5b](https://github.com/inference-gateway/cli/commit/7450b5b50923e98253760aa380d83df1c62c3336))
+
+### 🧹 Maintenance
+
+* **deps:** bump github.com/creack/pty from 1.1.18 to 1.1.24 ([#354](https://github.com/inference-gateway/cli/issues/354)) ([a1c1daf](https://github.com/inference-gateway/cli/commit/a1c1daf50417da51a411f3a31dcbae537d3c3639))
+* **deps:** Bump github.com/gorilla/websocket from 1.5.0 to 1.5.3 ([#353](https://github.com/inference-gateway/cli/issues/353)) ([6953bf1](https://github.com/inference-gateway/cli/commit/6953bf101327f060603a49a5f7966a7609faa498))
+* Cleanup comments ([68e9075](https://github.com/inference-gateway/cli/commit/68e90754cb88de40dc38e514f769aece121ce084))
+* Cleanup IDE diagnostic warnings ([ae815b2](https://github.com/inference-gateway/cli/commit/ae815b25308d49b35b3ab84edc80b4638cb1eb21))
+
 ## [0.94.0](https://github.com/inference-gateway/cli/compare/v0.93.0...v0.94.0) (2025-12-23)
 
 ### 🚀 Features

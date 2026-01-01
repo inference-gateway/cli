@@ -7,6 +7,7 @@ class TerminalManager {
         this.terminalArea = document.getElementById('terminal-area');
         this.newTabBtn = document.getElementById('new-tab-btn');
         this.serverSelector = document.getElementById('server-selector');
+        this.welcomeMessage = document.getElementById('welcome-message');
         this.servers = [];
         this.currentServerID = 'local';
 
@@ -23,7 +24,6 @@ class TerminalManager {
             const data = await response.json();
             this.servers = data.servers;
 
-            // Populate dropdown
             this.serverSelector.innerHTML = '';
             this.servers.forEach(server => {
                 const option = document.createElement('option');
@@ -35,16 +35,10 @@ class TerminalManager {
                 this.serverSelector.appendChild(option);
             });
 
-            // Set default selection
             this.serverSelector.value = 'local';
             this.currentServerID = 'local';
-
-            // Create first tab after servers are loaded
-            this.createTab();
         } catch (error) {
             console.error('Failed to load servers:', error);
-            // Fallback: create tab anyway with local mode
-            this.createTab();
         }
     }
 
@@ -54,6 +48,19 @@ class TerminalManager {
         const tab = new TerminalTab(tabId, this, serverID);
         this.tabs.set(tabId, tab);
         this.switchTab(tabId);
+        this.hideWelcomeMessage();
+    }
+
+    hideWelcomeMessage() {
+        if (this.welcomeMessage) {
+            this.welcomeMessage.classList.add('hidden');
+        }
+    }
+
+    showWelcomeMessage() {
+        if (this.welcomeMessage && this.tabs.size === 0) {
+            this.welcomeMessage.classList.remove('hidden');
+        }
     }
 
     switchTab(tabId) {
@@ -84,7 +91,7 @@ class TerminalManager {
                 this.switchTab(remainingTabs[remainingTabs.length - 1]);
             } else {
                 this.activeTabId = null;
-                this.createTab();
+                this.showWelcomeMessage();
             }
         }
     }
@@ -108,10 +115,13 @@ class TerminalTab {
     }
 
     createUI() {
+        const server = this.manager.servers.find(s => s.id === this.serverID);
+        const serverName = server ? server.name : 'Local';
+
         this.tabElement = document.createElement('div');
         this.tabElement.className = 'tab';
         this.tabElement.innerHTML = `
-            <span class="tab-title">Terminal ${this.id}</span>
+            <span class="tab-title">Terminal ${this.id} (${serverName})</span>
             <span class="tab-close">×</span>
         `;
 
