@@ -20,7 +20,7 @@ services:
       - ./.ssh-keys:/keys
 
   web-terminal:
-    image: ghcr.io/inference-gateway/cli:0.95.0-rc.1
+    image: ghcr.io/inference-gateway/cli:0.95.0-rc.2
     command:
       - chat
       - --web
@@ -66,7 +66,7 @@ services:
       - sh
       - -c
       - |
-        apt-get update && apt-get install -y openssh-server sudo curl musl libsqlite3-0
+        apt-get update && apt-get install -y openssh-server sudo curl musl
         mkdir -p /run/sshd
         useradd -m -s /bin/bash developer
         echo 'developer ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
