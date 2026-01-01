@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.95.0-rc.5](https://github.com/inference-gateway/cli/compare/v0.95.0-rc.4...v0.95.0-rc.5) (2026-01-01)
+
+### 🚀 Features
+
+* Add remote system administration support ([6f4751c](https://github.com/inference-gateway/cli/commit/6f4751cba152f045b657f7060281edb601eb2604))
+
+### 🧹 Maintenance
+
+* Add label to the tab to indicate what server is the session connected to ([568ed5d](https://github.com/inference-gateway/cli/commit/568ed5db21532f99b7df774316e0b7b25782a915))
+* Bump cli version ([8788cd1](https://github.com/inference-gateway/cli/commit/8788cd1fc50292128577ba4e4dda09cf79d11ab7))
+
 ## [0.95.0-rc.4](https://github.com/inference-gateway/cli/compare/v0.95.0-rc.3...v0.95.0-rc.4) (2026-01-01)
 
 ### 🐛 Bug Fixes
