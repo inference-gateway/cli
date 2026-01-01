@@ -507,6 +507,8 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 
 		logger.Info("Starting conversation compaction", "message_count", len(entries))
 
+		originalTitle := s.handler.conversationRepo.GetCurrentConversationTitle()
+
 		messages := make([]sdk.Message, 0, len(entries))
 		for _, entry := range entries {
 			if entry.Hidden {
@@ -517,14 +519,19 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 
 		currentModel := s.handler.modelService.GetCurrentModel()
 		if currentModel == "" {
-			logger.Warn("No current model set for compaction - will use basic summary")
+			return domain.SetStatusEvent{
+				Message:    "No model selected - please select a model first",
+				Spinner:    false,
+				StatusType: domain.StatusError,
+			}
 		}
-		logger.Info("About to optimize conversation", "model", currentModel, "message_count", len(messages))
+
+		logger.Info("Optimizing conversation", "model", currentModel, "message_count", len(messages))
 
 		optimizedChan := make(chan []sdk.Message, 1)
 		go func() {
-			result := s.handler.conversationOptimizer.OptimizeMessagesWithModel(messages, currentModel, true)
-			optimizedChan <- result
+			optimized := s.handler.conversationOptimizer.OptimizeMessages(messages, currentModel, true)
+			optimizedChan <- optimized
 		}()
 
 		var optimizedMessages []sdk.Message
@@ -534,7 +541,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 		case <-time.After(70 * time.Second):
 			logger.Error("Optimization timed out after 70 seconds")
 			return domain.SetStatusEvent{
-				Message:    "Conversation compaction timed out - try again or check gateway logs",
+				Message:    "Conversation optimization timed out - try again or check gateway logs",
 				Spinner:    false,
 				StatusType: domain.StatusError,
 			}
@@ -548,10 +555,11 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			}
 		}
 
-		if clearErr := s.handler.conversationRepo.Clear(); clearErr != nil {
-			logger.Error("failed to clear conversation during compaction", "error", clearErr)
+		newTitle := fmt.Sprintf("Continued from %s", originalTitle)
+		if err := s.handler.conversationRepo.StartNewConversation(newTitle); err != nil {
+			logger.Error("Failed to start new conversation", "error", err)
 			return domain.SetStatusEvent{
-				Message:    fmt.Sprintf("Failed to compact conversation: %v", clearErr),
+				Message:    fmt.Sprintf("Failed to start new conversation: %v", err),
 				Spinner:    false,
 				StatusType: domain.StatusError,
 			}
@@ -560,27 +568,12 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 		for _, msg := range optimizedMessages {
 			entry := domain.ConversationEntry{
 				Message: msg,
+				Model:   currentModel,
 				Time:    time.Now(),
 			}
-			if addErr := s.handler.conversationRepo.AddMessage(entry); addErr != nil {
-				logger.Error("failed to add optimized message during compaction", "error", addErr)
+			if err := s.handler.conversationRepo.AddMessage(entry); err != nil {
+				logger.Error("Failed to add optimized message", "error", err)
 			}
-		}
-
-		reduction := len(messages) - len(optimizedMessages)
-		reductionPercent := (float64(reduction) / float64(len(messages))) * 100
-
-		infoEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(fmt.Sprintf("Conversation compacted successfully! Reduced from %d to %d messages (%.1f%% reduction).", len(messages), len(optimizedMessages), reductionPercent)),
-			},
-			Model: "",
-			Time:  time.Now(),
-		}
-
-		if addErr := s.handler.conversationRepo.AddMessage(infoEntry); addErr != nil {
-			logger.Error("failed to add compact info message", "error", addErr)
 		}
 
 		return tea.Batch(
@@ -591,7 +584,7 @@ func (s *ChatShortcutHandler) performCompactAsync() tea.Cmd {
 			},
 			func() tea.Msg {
 				return domain.SetStatusEvent{
-					Message:    fmt.Sprintf("Conversation compacted: %d messages reduced to %d", len(messages), len(optimizedMessages)),
+					Message:    fmt.Sprintf("• Started new conversation with summary (%d messages preserved)", len(messages)),
 					Spinner:    false,
 					StatusType: domain.StatusDefault,
 				}

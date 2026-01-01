@@ -31,7 +31,7 @@ func TestConversationOptimizer_ToolCallIntegrity_BufferBoundary(t *testing.T) {
 	}
 
 	optimizer := createTestOptimizer(2)
-	result := optimizer.OptimizeMessages(messages, false)
+	result := optimizer.OptimizeMessages(messages, "deepseek/deepseek-chat", false)
 
 	validateAssistantToolCallsPreserved(t, result)
 	validateNoOrphanedToolCalls(t, result)
@@ -55,7 +55,7 @@ func TestConversationOptimizer_ToolCallIntegrity_ToolResponseInBuffer(t *testing
 	}
 
 	optimizer := createTestOptimizer(2)
-	result := optimizer.OptimizeMessages(messages, false)
+	result := optimizer.OptimizeMessages(messages, "deepseek/deepseek-chat", false)
 
 	validateToolResponseHasAssistant(t, result)
 	validateNoOrphanedToolCalls(t, result)
@@ -88,7 +88,7 @@ func TestConversationOptimizer_ToolCallIntegrity_MultipleGroups(t *testing.T) {
 	}
 
 	optimizer := createTestOptimizer(3)
-	result := optimizer.OptimizeMessages(messages, false)
+	result := optimizer.OptimizeMessages(messages, "deepseek/deepseek-chat", false)
 
 	validateNoOrphanedToolCalls(t, result)
 }
@@ -110,7 +110,7 @@ func TestConversationOptimizer_ToolCallIntegrity_ExactBufferStart(t *testing.T) 
 	}
 
 	optimizer := createTestOptimizer(2)
-	result := optimizer.OptimizeMessages(messages, false)
+	result := optimizer.OptimizeMessages(messages, "deepseek/deepseek-chat", false)
 
 	validateNoOrphanedToolCalls(t, result)
 }
@@ -129,7 +129,7 @@ func TestConversationOptimizer_ToolCallIntegrity_NoToolCalls(t *testing.T) {
 	}
 
 	optimizer := createTestOptimizer(2)
-	result := optimizer.OptimizeMessages(messages, false)
+	result := optimizer.OptimizeMessages(messages, "deepseek/deepseek-chat", false)
 
 	validateNoOrphanedToolCalls(t, result)
 	assert.NotEmpty(t, result)
@@ -155,7 +155,7 @@ func TestConversationOptimizer_ToolCallIntegrity_PartialResponses(t *testing.T) 
 	}
 
 	optimizer := createTestOptimizer(1)
-	result := optimizer.OptimizeMessages(messages, false)
+	result := optimizer.OptimizeMessages(messages, "deepseek/deepseek-chat", false)
 
 	validateNoOrphanedToolCalls(t, result)
 }
@@ -219,7 +219,7 @@ func TestConversationOptimizer_EdgeCases(t *testing.T) {
 				Tokenizer:         nil,
 			})
 
-			result := optimizer.OptimizeMessages(tt.messages, false)
+			result := optimizer.OptimizeMessages(tt.messages, "anthropic/claude-3-5-sonnet-20241022", false)
 
 			if tt.expectEmpty {
 				assert.Empty(t, result)
@@ -251,7 +251,7 @@ func TestConversationOptimizer_DisabledOptimization(t *testing.T) {
 		Tokenizer:         nil,
 	})
 
-	result := optimizer.OptimizeMessages(messages, false)
+	result := optimizer.OptimizeMessages(messages, "deepseek/deepseek-chat", false)
 
 	assert.Equal(t, len(messages), len(result))
 	assert.Equal(t, messages, result)

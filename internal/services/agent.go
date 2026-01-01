@@ -248,7 +248,7 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 
 	optimizedMessages := req.Messages
 	if s.optimizer != nil {
-		optimizedMessages = s.optimizer.OptimizeMessagesWithModel(req.Messages, req.Model, false)
+		optimizedMessages = s.optimizer.OptimizeMessages(req.Messages, req.Model, false)
 	}
 
 	messages := s.addSystemPrompt(optimizedMessages)
@@ -771,7 +771,7 @@ func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain
 
 	eventPublisher.publishOptimizationStatus("Optimizing conversation history...", true, originalCount, originalCount)
 
-	conversation = s.optimizer.OptimizeMessagesWithModel(conversation, req.Model, false)
+	conversation = s.optimizer.OptimizeMessages(conversation, req.Model, false)
 	optimizedCount := len(conversation)
 
 	var message string

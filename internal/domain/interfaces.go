@@ -103,12 +103,12 @@ type ConversationRepository interface {
 	RemovePendingToolCallByID(toolCallID string)
 	StartNewConversation(title string) error
 	DeleteMessagesAfterIndex(index int) error
+	GetCurrentConversationTitle() string
 }
 
 // ConversationOptimizerService optimizes conversation history to reduce token usage
 type ConversationOptimizerService interface {
-	OptimizeMessages(messages []sdk.Message, force bool) []sdk.Message
-	OptimizeMessagesWithModel(messages []sdk.Message, currentModel string, force bool) []sdk.Message
+	OptimizeMessages(messages []sdk.Message, model string, force bool) []sdk.Message
 }
 
 // ModelService handles model selection and information

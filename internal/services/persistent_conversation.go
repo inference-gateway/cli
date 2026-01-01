@@ -396,3 +396,8 @@ func (r *PersistentConversationRepository) Close() error {
 	}
 	return nil
 }
+
+// GetCurrentConversationTitle returns the current conversation title
+func (r *PersistentConversationRepository) GetCurrentConversationTitle() string {
+	return r.metadata.Title
+}
