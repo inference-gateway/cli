@@ -162,6 +162,28 @@ fi
 		logger.Info("Infer configuration initialized", "output", string(initOutput))
 	}
 
+	session4, err := i.sshClient.NewSession()
+	if err != nil {
+		return fmt.Errorf("failed to create SSH session for env setup: %w", err)
+	}
+	defer func() { _ = session4.Close() }()
+
+	envSetupCmd := fmt.Sprintf(`
+if ! grep -q "INFER_REMOTE_MANAGED" ~/.bashrc 2>/dev/null; then
+  echo "" >> ~/.bashrc
+  echo "# Infer CLI - Remote managed instance" >> ~/.bashrc
+  echo "export INFER_REMOTE_MANAGED=true" >> ~/.bashrc
+  echo "export INFER_GATEWAY_URL=%s" >> ~/.bashrc
+  echo "export INFER_GATEWAY_MODE=remote" >> ~/.bashrc
+fi`, i.gatewayURL)
+
+	envOutput, err := session4.CombinedOutput(envSetupCmd)
+	if err != nil {
+		logger.Warn("Failed to setup environment variables in profile", "error", err, "output", string(envOutput))
+	} else {
+		logger.Info("Environment variables configured in user profile")
+	}
+
 	return nil
 }
 
