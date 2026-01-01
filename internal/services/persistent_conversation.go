@@ -340,59 +340,15 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 	return nil
 }
 
-// GetOptimizedMessages retrieves the stored optimized conversation messages
-func (r *PersistentConversationRepository) GetOptimizedMessages() []sdk.Message {
-	if len(r.metadata.OptimizedMessages) == 0 {
-		return nil
-	}
-
-	optimizedMessages := make([]sdk.Message, 0, len(r.metadata.OptimizedMessages))
-	for _, entry := range r.metadata.OptimizedMessages {
-		optimizedMessages = append(optimizedMessages, sdk.Message{
-			Role:       entry.Message.Role,
-			Content:    entry.Message.Content,
-			ToolCalls:  entry.Message.ToolCalls,
-			ToolCallId: entry.Message.ToolCallId,
-		})
-	}
-	return optimizedMessages
-}
-
-// SetOptimizedMessages stores the optimized conversation messages
-func (r *PersistentConversationRepository) SetOptimizedMessages(ctx context.Context, optimizedMessages []sdk.Message) error {
-	if r.conversationID == "" {
-		return fmt.Errorf("no active conversation to store optimized messages")
-	}
-
-	r.autoSaveMutex.Lock()
-	defer r.autoSaveMutex.Unlock()
-
-	conversationEntries := make([]domain.ConversationEntry, 0, len(optimizedMessages))
-	now := time.Now()
-
-	for _, msg := range optimizedMessages {
-		entry := domain.ConversationEntry{
-			Message: domain.Message{
-				Role:       msg.Role,
-				Content:    msg.Content,
-				ToolCalls:  msg.ToolCalls,
-				ToolCallId: msg.ToolCallId,
-			},
-			Time: now,
-		}
-		conversationEntries = append(conversationEntries, entry)
-	}
-
-	r.metadata.OptimizedMessages = conversationEntries
-	r.metadata.UpdatedAt = now
-
-	return r.storage.UpdateConversationMetadata(ctx, r.conversationID, r.metadata)
-}
-
 // Close closes the storage connection
 func (r *PersistentConversationRepository) Close() error {
 	if r.storage != nil {
 		return r.storage.Close()
 	}
 	return nil
+}
+
+// GetCurrentConversationTitle returns the current conversation title
+func (r *PersistentConversationRepository) GetCurrentConversationTitle() string {
+	return r.metadata.Title
 }
