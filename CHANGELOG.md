@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.95.0-rc.3](https://github.com/inference-gateway/cli/compare/v0.95.0-rc.2...v0.95.0-rc.3) (2026-01-01)
+
+### 🐛 Bug Fixes
+
+* Connect to remote gateway instance when installing on remote instance ([4ba6019](https://github.com/inference-gateway/cli/commit/4ba60193e94a1a32a240fb908e8f9a87a1a3f14d))
+
+### 🧹 Maintenance
+
+* **deps:** Bump CLI version ([e2be346](https://github.com/inference-gateway/cli/commit/e2be346c91526f56abaa0c6a0bf777ee80ff3de4))
+
 ## [0.95.0-rc.2](https://github.com/inference-gateway/cli/compare/v0.95.0-rc.1...v0.95.0-rc.2) (2026-01-01)
 
 ### ♻️ Code Refactoring
