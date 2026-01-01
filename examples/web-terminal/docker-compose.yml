@@ -20,7 +20,7 @@ services:
       - ./.ssh-keys:/keys
 
   web-terminal:
-    image: ghcr.io/inference-gateway/cli:0.95.0-rc.5
+    image: ghcr.io/inference-gateway/cli:latest
     command:
       - chat
       - --web
@@ -30,7 +30,6 @@ services:
       INFER_WEB_HOST: 0.0.0.0
       INFER_WEB_PORT: 3000
       INFER_GATEWAY_URL: http://inference-gateway:8080
-      INFER_WEB_SSH_INSTALL_VERSION: 0.95.0-rc.5
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./.ssh-keys:/home/infer/.ssh:ro
@@ -81,6 +80,46 @@ services:
         else
           echo "✗ No SSH public key found in /ssh-keys/"
         fi
+        /usr/sbin/sshd -D -e
+    volumes:
+      - ./.ssh-keys:/ssh-keys:ro
+    depends_on:
+      ssh-keygen:
+        condition: service_completed_successfully
+      inference-gateway:
+        condition: service_started
+    networks:
+      - infer-network
+    restart: unless-stopped
+
+  remote-alpine:
+    image: alpine:3.23.0
+    command:
+      - sh
+      - -c
+      - |
+        apk add --no-cache openssh-server sudo curl bash
+        ssh-keygen -A
+
+        sed -i 's/#PubkeyAuthentication yes/PubkeyAuthentication yes/' /etc/ssh/sshd_config
+        sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
+        sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
+
+        adduser -D -s /bin/bash developer
+        passwd -u developer
+        echo 'developer ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers
+        mkdir -p /home/developer/.ssh
+
+        if [ -f /ssh-keys/id_rsa.pub ]; then
+          cat /ssh-keys/id_rsa.pub > /home/developer/.ssh/authorized_keys
+          chown -R developer:developer /home/developer/.ssh
+          chmod 700 /home/developer/.ssh
+          chmod 600 /home/developer/.ssh/authorized_keys
+          echo "✓ SSH public key installed for developer user"
+        else
+          echo "✗ No SSH public key found in /ssh-keys/"
+        fi
+
         /usr/sbin/sshd -D -e
     volumes:
       - ./.ssh-keys:/ssh-keys:ro

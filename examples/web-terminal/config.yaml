@@ -4,7 +4,6 @@ web:
   port: 3000
   session_inactivity_mins: 30
 
-  # Global SSH settings
   ssh:
     enabled: true
     use_ssh_config: true
@@ -12,8 +11,6 @@ web:
     auto_install: true
     install_version: "latest"
 
-  # List of available servers (shown in dropdown)
-  # Note: "Local" is always available by default, no need to define it here
   servers:
     - name: "Remote Ubuntu Server"
       id: "remote-ubuntu"
@@ -24,4 +21,21 @@ web:
       install_path: "/home/developer/bin/infer"
       auto_install: true
       description: "Ubuntu 24.04 server (demonstrates auto-install via SSH)"
-      tags: ["remote", "demo", "ubuntu"]
+      tags:
+        - remote
+        - demo
+        - ubuntu
+
+    - name: "Remote Alpine Server"
+      id: "remote-alpine"
+      remote_host: "remote-alpine"
+      remote_user: "developer"
+      remote_port: 22
+      command_path: "/home/developer/bin/infer"
+      install_path: "/home/developer/bin/infer"
+      auto_install: true
+      description: "Alpine 3.23.0 server (demonstrates lightweight Linux distribution)"
+      tags:
+        - remote
+        - demo
+        - alpine
