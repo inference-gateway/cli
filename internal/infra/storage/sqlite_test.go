@@ -165,7 +165,6 @@ func TestSQLiteStorage_ConversationManagement(t *testing.T) {
 
 		metadata.Title = "New Title"
 		metadata.Tags = []string{"updated", "test"}
-		metadata.Summary = "Updated summary"
 		metadata.UpdatedAt = time.Now()
 
 		err = storage.UpdateConversationMetadata(ctx, conversationID, metadata)
@@ -176,7 +175,6 @@ func TestSQLiteStorage_ConversationManagement(t *testing.T) {
 
 		assert.Equal(t, "New Title", loadedMetadata.Title)
 		assert.Equal(t, []string{"updated", "test"}, loadedMetadata.Tags)
-		assert.Equal(t, "Updated summary", loadedMetadata.Summary)
 	})
 }
 
@@ -250,8 +248,7 @@ func createTestMetadata(id string) ConversationMetadata {
 			TotalTokens:       250,
 			RequestCount:      2,
 		},
-		Model:   "claude-4",
-		Tags:    []string{"test", "demo"},
-		Summary: "A test conversation",
+		Model: "claude-4",
+		Tags:  []string{"test", "demo"},
 	}
 }

@@ -249,15 +249,14 @@ func (t *A2AQueryTaskTool) FormatForLLM(result *domain.ToolExecutionResult) stri
 		}
 		output.WriteString(fmt.Sprintf(" (ID: %s)", artifact.ArtifactID))
 
-		hasMetadata := artifact.Metadata != nil
-		if hasMetadata {
-			if url, ok := artifact.Metadata["url"].(string); ok {
+		if artifact.Metadata != nil {
+			if url, ok := (*artifact.Metadata)["url"].(string); ok {
 				output.WriteString(fmt.Sprintf("\n   Download URL: %s", url))
 			}
-			if mimeType, ok := artifact.Metadata["mime_type"].(string); ok {
+			if mimeType, ok := (*artifact.Metadata)["mime_type"].(string); ok {
 				output.WriteString(fmt.Sprintf("\n   MIME Type: %s", mimeType))
 			}
-			if size, ok := artifact.Metadata["size"].(float64); ok {
+			if size, ok := (*artifact.Metadata)["size"].(float64); ok {
 				output.WriteString(fmt.Sprintf("\n   Size: %d bytes", int64(size)))
 			}
 		}

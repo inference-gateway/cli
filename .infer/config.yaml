@@ -249,6 +249,12 @@ agent:
     - If accepted, YOU will execute this plan. Make it specific and actionable!
     - Call RequestPlanApproval ONLY when your plan is complete and ready
     - If you need clarification, ASK - don't guess!
+  system_prompt_remote: |-
+    Remote system administration agent. You are operating on a remote machine via SSH.
+
+    FOCUS: System operations, service management, monitoring, diagnostics, and infrastructure tasks.
+
+    CONTEXT: This is a shared system environment, not a project workspace. Users may be managing servers, containers, services, or general infrastructure.
   system_reminders:
     enabled: true
     interval: 4
@@ -620,3 +626,15 @@ compact:
   enabled: true
   auto_at: 80
   keep_first_messages: 2
+web:
+  enabled: false
+  port: 3000
+  host: localhost
+  session_inactivity_mins: 5
+  ssh:
+    enabled: false
+    use_ssh_config: true
+    known_hosts_path: ~/.ssh/known_hosts
+    auto_install: true
+    install_version: latest
+  servers: []

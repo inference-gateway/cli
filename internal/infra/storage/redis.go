@@ -221,15 +221,15 @@ func (s *RedisStorage) ListConversations(ctx context.Context, limit, offset int)
 		}
 
 		summary := ConversationSummary{
-			ID:                  metadata.ID,
-			Title:               metadata.Title,
-			CreatedAt:           metadata.CreatedAt,
-			UpdatedAt:           metadata.UpdatedAt,
-			MessageCount:        metadata.MessageCount,
-			TokenStats:          metadata.TokenStats,
-			Model:               metadata.Model,
-			Tags:                metadata.Tags,
-			Summary:             metadata.Summary,
+			ID:           metadata.ID,
+			Title:        metadata.Title,
+			CreatedAt:    metadata.CreatedAt,
+			UpdatedAt:    metadata.UpdatedAt,
+			MessageCount: metadata.MessageCount,
+			TokenStats:   metadata.TokenStats,
+			Model:        metadata.Model,
+			Tags:         metadata.Tags,
+
 			TitleGenerated:      metadata.TitleGenerated,
 			TitleInvalidated:    metadata.TitleInvalidated,
 			TitleGenerationTime: metadata.TitleGenerationTime,
@@ -288,15 +288,15 @@ func (s *RedisStorage) ListConversationsNeedingTitles(ctx context.Context, limit
 
 		if (!metadata.TitleGenerated || metadata.TitleInvalidated) && metadata.MessageCount > 0 {
 			summary := ConversationSummary{
-				ID:                  metadata.ID,
-				Title:               metadata.Title,
-				CreatedAt:           metadata.CreatedAt,
-				UpdatedAt:           metadata.UpdatedAt,
-				MessageCount:        metadata.MessageCount,
-				TokenStats:          metadata.TokenStats,
-				Model:               metadata.Model,
-				Tags:                metadata.Tags,
-				Summary:             metadata.Summary,
+				ID:           metadata.ID,
+				Title:        metadata.Title,
+				CreatedAt:    metadata.CreatedAt,
+				UpdatedAt:    metadata.UpdatedAt,
+				MessageCount: metadata.MessageCount,
+				TokenStats:   metadata.TokenStats,
+				Model:        metadata.Model,
+				Tags:         metadata.Tags,
+
 				TitleGenerated:      metadata.TitleGenerated,
 				TitleInvalidated:    metadata.TitleInvalidated,
 				TitleGenerationTime: metadata.TitleGenerationTime,

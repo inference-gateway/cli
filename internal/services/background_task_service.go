@@ -95,7 +95,7 @@ func (s *BackgroundTaskService) sendCancelToAgent(task *domain.TaskPollingState)
 		var currentTask adk.Task
 		if mapErr := mapToStruct(taskStatus.Result, &currentTask); mapErr == nil {
 			switch currentTask.Status.State {
-			case adk.TaskStateCompleted, adk.TaskStateFailed, adk.TaskStateCanceled, adk.TaskStateRejected:
+			case adk.TaskStateCompleted, adk.TaskStateFailed, adk.TaskStateCancelled, adk.TaskStateRejected:
 				logger.Info("Task is already in terminal state, skipping cancel request",
 					"task_id", task.TaskID,
 					"state", currentTask.Status.State)

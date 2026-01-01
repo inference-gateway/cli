@@ -13,7 +13,7 @@ The project uses Clean Architecture with domain-driven design patterns.
 ### Development Commands
 
 ```bash
-# Build the binary
+# Build the binary (pure Go, no CGO required)
 task build
 
 # Run all tests
@@ -33,6 +33,9 @@ task check
 
 # Complete development workflow (format, build, test)
 task dev
+
+# Verify dependencies
+task verify:deps
 ```
 
 ### Module Management
@@ -715,7 +718,7 @@ Key third-party libraries:
 - **Lipgloss**: Styling for terminal output
 - **go-redis**: Redis client for storage backend
 - **lib/pq**: PostgreSQL driver
-- **modernc.org/sqlite**: CGO-free SQLite driver
+- **modernc.org/sqlite**: Pure Go SQLite driver (no CGO required)
 - **metoro-io/mcp-golang**: MCP (Model Context Protocol) client library
 
 ## Development Environment

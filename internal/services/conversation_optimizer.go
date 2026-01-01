@@ -64,13 +64,8 @@ func NewConversationOptimizer(config OptimizerConfig) *ConversationOptimizer {
 	}
 }
 
-// OptimizeMessages reduces token usage by intelligently managing conversation history
-func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, force bool) []sdk.Message {
-	return co.OptimizeMessagesWithModel(messages, "", force)
-}
-
-// OptimizeMessagesWithModel reduces token usage with optional current model for fallback
-func (co *ConversationOptimizer) OptimizeMessagesWithModel(messages []sdk.Message, currentModel string, force bool) []sdk.Message {
+// OptimizeMessages reduces token usage by intelligently managing conversation history with LLM summarization
+func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model string, force bool) []sdk.Message {
 	if len(messages) == 0 {
 		return messages
 	}
@@ -81,7 +76,7 @@ func (co *ConversationOptimizer) OptimizeMessagesWithModel(messages []sdk.Messag
 
 	currentTokens := co.tokenizer.EstimateMessagesTokens(messages)
 
-	contextWindow := models.EstimateContextWindow(currentModel)
+	contextWindow := models.EstimateContextWindow(model)
 	if contextWindow == 0 {
 		contextWindow = 30000
 	}
@@ -103,7 +98,7 @@ func (co *ConversationOptimizer) OptimizeMessagesWithModel(messages []sdk.Messag
 		}
 	}
 
-	optimized, err := co.smartOptimize(conversationMessages, currentModel)
+	optimized, err := co.smartOptimize(conversationMessages, model)
 	if err != nil {
 		logger.Error("Optimization failed", "error", err)
 		// If optimization fails, return original messages
@@ -145,7 +140,7 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model str
 	}
 
 	logger.Info("Generating LLM summary for compaction", "model", model, "messages_to_summarize", len(messagesToSummarize))
-	summary, err := co.generateLLMSummary(messagesToSummarize, model)
+	summary, err := co.GenerateLLMSummary(messagesToSummarize, model)
 	if err != nil {
 		logger.Error("Failed to generate LLM summary", "error", err)
 		return nil, fmt.Errorf("failed to generate summary: %w", err)
@@ -205,8 +200,10 @@ func (co *ConversationOptimizer) adjustBoundaryForToolCallsAtStart(messages []sd
 	return adjustedBoundary
 }
 
-// generateLLMSummary uses the SDK client to generate an intelligent summary
-func (co *ConversationOptimizer) generateLLMSummary(messages []sdk.Message, model string) (string, error) {
+// GenerateLLMSummary creates a concise summary of conversation messages using an LLM.
+// It uses the SDK client to generate an intelligent summary focused on key tasks,
+// decisions, critical context, and next steps. The summary is limited to 2-3 sentences.
+func (co *ConversationOptimizer) GenerateLLMSummary(messages []sdk.Message, model string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 

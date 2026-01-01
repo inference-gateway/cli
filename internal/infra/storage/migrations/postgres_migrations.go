@@ -15,8 +15,6 @@ func GetPostgresMigrations() []Migration {
 					message_count INTEGER NOT NULL DEFAULT 0,
 					model VARCHAR(255),
 					tags JSONB,
-					summary TEXT,
-					optimized_messages JSONB,
 					token_stats JSONB,
 					cost_stats JSONB,
 					title_generated BOOLEAN DEFAULT FALSE,

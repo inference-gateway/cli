@@ -113,6 +113,16 @@ type FakeConversationRepository struct {
 	formatToolResultForUIReturnsOnCall map[int]struct {
 		result1 string
 	}
+	GetCurrentConversationTitleStub        func() string
+	getCurrentConversationTitleMutex       sync.RWMutex
+	getCurrentConversationTitleArgsForCall []struct {
+	}
+	getCurrentConversationTitleReturns struct {
+		result1 string
+	}
+	getCurrentConversationTitleReturnsOnCall map[int]struct {
+		result1 string
+	}
 	GetMessageCountStub        func() int
 	getMessageCountMutex       sync.RWMutex
 	getMessageCountArgsForCall []struct {
@@ -732,6 +742,59 @@ func (fake *FakeConversationRepository) FormatToolResultForUIReturnsOnCall(i int
 		})
 	}
 	fake.formatToolResultForUIReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) GetCurrentConversationTitle() string {
+	fake.getCurrentConversationTitleMutex.Lock()
+	ret, specificReturn := fake.getCurrentConversationTitleReturnsOnCall[len(fake.getCurrentConversationTitleArgsForCall)]
+	fake.getCurrentConversationTitleArgsForCall = append(fake.getCurrentConversationTitleArgsForCall, struct {
+	}{})
+	stub := fake.GetCurrentConversationTitleStub
+	fakeReturns := fake.getCurrentConversationTitleReturns
+	fake.recordInvocation("GetCurrentConversationTitle", []interface{}{})
+	fake.getCurrentConversationTitleMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRepository) GetCurrentConversationTitleCallCount() int {
+	fake.getCurrentConversationTitleMutex.RLock()
+	defer fake.getCurrentConversationTitleMutex.RUnlock()
+	return len(fake.getCurrentConversationTitleArgsForCall)
+}
+
+func (fake *FakeConversationRepository) GetCurrentConversationTitleCalls(stub func() string) {
+	fake.getCurrentConversationTitleMutex.Lock()
+	defer fake.getCurrentConversationTitleMutex.Unlock()
+	fake.GetCurrentConversationTitleStub = stub
+}
+
+func (fake *FakeConversationRepository) GetCurrentConversationTitleReturns(result1 string) {
+	fake.getCurrentConversationTitleMutex.Lock()
+	defer fake.getCurrentConversationTitleMutex.Unlock()
+	fake.GetCurrentConversationTitleStub = nil
+	fake.getCurrentConversationTitleReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeConversationRepository) GetCurrentConversationTitleReturnsOnCall(i int, result1 string) {
+	fake.getCurrentConversationTitleMutex.Lock()
+	defer fake.getCurrentConversationTitleMutex.Unlock()
+	fake.GetCurrentConversationTitleStub = nil
+	if fake.getCurrentConversationTitleReturnsOnCall == nil {
+		fake.getCurrentConversationTitleReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getCurrentConversationTitleReturnsOnCall[i] = struct {
 		result1 string
 	}{result1}
 }

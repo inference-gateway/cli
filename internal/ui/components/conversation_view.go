@@ -387,8 +387,8 @@ func (cv *ConversationView) renderFullWelcome() string {
 	successColor := cv.styleProvider.GetThemeColor("success")
 	dimColor := cv.styleProvider.GetThemeColor("dim")
 
-	headerLine := cv.styleProvider.RenderWithColor("✨ Inference Gateway CLI", statusColor)
-	readyLine := cv.styleProvider.RenderWithColor("🚀 Ready to chat!", successColor)
+	headerLine := cv.styleProvider.RenderWithColor("* Inference Gateway CLI", statusColor)
+	readyLine := cv.styleProvider.RenderWithColor("> Ready to chat!", successColor)
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -396,7 +396,7 @@ func (cv *ConversationView) renderFullWelcome() string {
 	}
 
 	headerColor := cv.getHeaderColor()
-	workingLinePrefix := cv.styleProvider.RenderWithColor("📂 Working in: ", dimColor)
+	workingLinePrefix := cv.styleProvider.RenderWithColor("@ Working in: ", dimColor)
 	workingLinePath := cv.styleProvider.RenderWithColor(wd, headerColor)
 	workingLine := workingLinePrefix + workingLinePath
 
@@ -418,8 +418,8 @@ func (cv *ConversationView) renderCompactWelcome() string {
 	successColor := cv.styleProvider.GetThemeColor("success")
 	dimColor := cv.styleProvider.GetThemeColor("dim")
 
-	headerLine := cv.styleProvider.RenderWithColor("✨ Inference Gateway CLI", statusColor)
-	readyLine := cv.styleProvider.RenderWithColor("🚀 Ready to chat!", successColor)
+	headerLine := cv.styleProvider.RenderWithColor("* Inference Gateway CLI", statusColor)
+	readyLine := cv.styleProvider.RenderWithColor("> Ready to chat!", successColor)
 	separator := cv.styleProvider.RenderWithColor("  •  ", dimColor)
 	versionShort := cv.buildVersionShort()
 
@@ -785,7 +785,7 @@ func (cv *ConversationView) buildConfigLine() string {
 	dimColor := cv.styleProvider.GetThemeColor("dim")
 	accentColor := cv.styleProvider.GetThemeColor("accent")
 
-	configPrefix := cv.styleProvider.RenderWithColor("⚙  Config: ", dimColor)
+	configPrefix := cv.styleProvider.RenderWithColor("⚙ Config: ", dimColor)
 	pathStyled := cv.styleProvider.RenderWithColor(displayPath, accentColor)
 	configTypeStyled := cv.styleProvider.RenderWithColor(" ("+configType+")", dimColor)
 
@@ -806,7 +806,7 @@ func (cv *ConversationView) buildVersionLine() string {
 		version = "dev"
 	}
 
-	prefix := cv.styleProvider.RenderWithColor("•  Version: ", dimColor)
+	prefix := cv.styleProvider.RenderWithColor("• Version: ", dimColor)
 	versionStyled := cv.styleProvider.RenderWithColor(version, accentColor)
 
 	return prefix + versionStyled

@@ -71,7 +71,6 @@ func (a *PersistentConversationAdapter) GetCurrentConversationMetadata() shortcu
 		CostStats: metadata.CostStats,
 		Model:     metadata.Model,
 		Tags:      metadata.Tags,
-		Summary:   metadata.Summary,
 	}
 }
 

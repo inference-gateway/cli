@@ -499,3 +499,8 @@ func (r *InMemoryConversationRepository) FormatToolResultExpanded(result *domain
 	}
 	return "Tool execution failed"
 }
+
+// GetCurrentConversationTitle returns the current conversation title
+func (r *InMemoryConversationRepository) GetCurrentConversationTitle() string {
+	return "New Conversation"
+}
