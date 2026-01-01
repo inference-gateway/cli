@@ -20,7 +20,7 @@ services:
       - ./.ssh-keys:/keys
 
   web-terminal:
-    image: ghcr.io/inference-gateway/cli:local
+    image: ghcr.io/inference-gateway/cli:0.95.0-rc.1
     command:
       - chat
       - --web
