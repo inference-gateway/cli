@@ -108,10 +108,13 @@ class TerminalTab {
     }
 
     createUI() {
+        const server = this.manager.servers.find(s => s.id === this.serverID);
+        const serverName = server ? server.name : 'Local';
+
         this.tabElement = document.createElement('div');
         this.tabElement.className = 'tab';
         this.tabElement.innerHTML = `
-            <span class="tab-title">Terminal ${this.id}</span>
+            <span class="tab-title">Terminal ${this.id} (${serverName})</span>
             <span class="tab-close">×</span>
         `;
 
