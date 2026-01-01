@@ -32,7 +32,7 @@ type Session = SessionHandler
 // CreateSessionHandler creates either a local PTY session or remote SSH session
 func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, v *viper.Viper) (SessionHandler, error) {
 	if serverCfg != nil {
-		return createRemoteSSHSession(webCfg, serverCfg)
+		return createRemoteSSHSession(webCfg, serverCfg, cfg.Gateway.URL)
 	}
 
 	logger.Info("Creating local PTY session")
@@ -40,7 +40,7 @@ func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerC
 }
 
 // createRemoteSSHSession creates a remote SSH session with optional auto-install
-func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig) (SessionHandler, error) {
+func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string) (SessionHandler, error) {
 	logger.Info("Creating remote SSH session", "server", serverCfg.Name)
 
 	client, err := NewSSHClient(&webCfg.SSH, serverCfg)
@@ -52,7 +52,7 @@ func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServe
 		return nil, fmt.Errorf("failed to connect to SSH server: %w", err)
 	}
 
-	if err := ensureRemoteBinary(client, webCfg, serverCfg); err != nil {
+	if err := ensureRemoteBinary(client, webCfg, serverCfg, gatewayURL); err != nil {
 		if closeErr := client.Close(); closeErr != nil {
 			logger.Warn("Failed to close SSH client after install error", "error", closeErr)
 		}
@@ -71,7 +71,7 @@ func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServe
 }
 
 // ensureRemoteBinary installs infer binary on remote server if auto-install is enabled
-func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *config.SSHServerConfig) error {
+func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string) error {
 	autoInstall := webCfg.SSH.AutoInstall
 	if serverCfg.AutoInstall != nil {
 		autoInstall = *serverCfg.AutoInstall
@@ -81,7 +81,7 @@ func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *
 		return nil
 	}
 
-	installer := NewRemoteInstaller(client, &webCfg.SSH, serverCfg)
+	installer := NewRemoteInstaller(client, &webCfg.SSH, serverCfg, gatewayURL)
 	if err := installer.EnsureBinary(); err != nil {
 		return fmt.Errorf("failed to ensure infer binary: %w", err)
 	}

@@ -14,23 +14,24 @@ import (
 
 // RemoteInstaller handles auto-installation of infer binary on remote servers
 type RemoteInstaller struct {
-	sshClient *SSHClient
-	cfg       *config.WebSSHConfig
-	server    *config.SSHServerConfig
+	sshClient  *SSHClient
+	cfg        *config.WebSSHConfig
+	server     *config.SSHServerConfig
+	gatewayURL string
 }
 
 // NewRemoteInstaller creates a new remote installer
-func NewRemoteInstaller(client *SSHClient, cfg *config.WebSSHConfig, server *config.SSHServerConfig) *RemoteInstaller {
+func NewRemoteInstaller(client *SSHClient, cfg *config.WebSSHConfig, server *config.SSHServerConfig, gatewayURL string) *RemoteInstaller {
 	return &RemoteInstaller{
-		sshClient: client,
-		cfg:       cfg,
-		server:    server,
+		sshClient:  client,
+		cfg:        cfg,
+		server:     server,
+		gatewayURL: gatewayURL,
 	}
 }
 
 // EnsureBinary checks if infer exists on remote server, installs if missing
 func (i *RemoteInstaller) EnsureBinary() error {
-	// Check if auto-install is enabled
 	autoInstall := i.cfg.AutoInstall
 	if i.server.AutoInstall != nil {
 		autoInstall = *i.server.AutoInstall
@@ -43,7 +44,6 @@ func (i *RemoteInstaller) EnsureBinary() error {
 
 	logger.Info("Checking if infer binary exists on remote server", "server", i.server.Name)
 
-	// Check if binary exists
 	exists, err := i.checkBinaryExists()
 	if err != nil {
 		return fmt.Errorf("failed to check if binary exists: %w", err)
@@ -56,7 +56,6 @@ func (i *RemoteInstaller) EnsureBinary() error {
 
 	logger.Info("Infer binary not found, installing...", "server", i.server.Name)
 
-	// Install binary
 	if err := i.installBinary(); err != nil {
 		return fmt.Errorf("failed to install binary: %w", err)
 	}
@@ -78,24 +77,20 @@ func (i *RemoteInstaller) checkBinaryExists() (bool, error) {
 	}
 	defer func() { _ = session.Close() }()
 
-	// Try to run: command -v <binary>
 	cmd := fmt.Sprintf("command -v %s", commandPath)
 	output, err := session.CombinedOutput(cmd)
 
 	if err != nil {
-		// Command failed, binary doesn't exist
 		logger.Info("Binary not found", "command", commandPath, "output", string(output))
 		return false, nil
 	}
 
-	// Binary exists
 	logger.Info("Binary found", "path", strings.TrimSpace(string(output)))
 	return true, nil
 }
 
 // installBinary downloads and installs infer binary on remote server using the official install script
 func (i *RemoteInstaller) installBinary() error {
-	// Get version to install
 	version := i.cfg.InstallVersion
 	var err error
 	if version == "latest" || version == "" {
@@ -107,13 +102,11 @@ func (i *RemoteInstaller) installBinary() error {
 
 	logger.Info("Installing version using install script", "version", version, "server", i.server.Name)
 
-	// Determine install directory
 	installDir := "$HOME/bin"
 	if i.server.InstallPath != "" {
 		installDir = strings.TrimSuffix(i.server.InstallPath, "/infer")
 	}
 
-	// Use the official install script which handles OS/arch detection and downloads the right binary
 	installScript := fmt.Sprintf(`
 set -e
 mkdir -p %s
@@ -128,7 +121,6 @@ fi
 
 	logger.Info("Running installation script", "server", i.server.Name)
 
-	// Execute installation script
 	session, err := i.sshClient.NewSession()
 	if err != nil {
 		return fmt.Errorf("failed to create SSH session: %w", err)
@@ -142,7 +134,6 @@ fi
 
 	logger.Info("Installation output", "output", string(output))
 
-	// Verify installation
 	session2, err := i.sshClient.NewSession()
 	if err != nil {
 		return fmt.Errorf("failed to create SSH session for verification: %w", err)
@@ -156,6 +147,21 @@ fi
 	}
 
 	logger.Info("Installation verified", "version_output", string(verifyOutput))
+
+	session3, err := i.sshClient.NewSession()
+	if err != nil {
+		return fmt.Errorf("failed to create SSH session for initialization: %w", err)
+	}
+	defer func() { _ = session3.Close() }()
+
+	initCmd := fmt.Sprintf("INFER_GATEWAY_URL=%s INFER_GATEWAY_MODE=remote %s/infer init",
+		i.gatewayURL, installDir)
+	initOutput, err := session3.CombinedOutput(initCmd)
+	if err != nil {
+		logger.Warn("Failed to initialize infer config, may need manual setup", "error", err, "output", string(initOutput))
+	} else {
+		logger.Info("Infer configuration initialized", "output", string(initOutput))
+	}
 
 	return nil
 }
@@ -175,7 +181,6 @@ func (i *RemoteInstaller) getLatestVersion() (string, error) {
 		return "", fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Set User-Agent to avoid GitHub API rate limiting
 	req.Header.Set("User-Agent", "inference-gateway-cli")
 
 	resp, err := client.Do(req)
@@ -197,7 +202,6 @@ func (i *RemoteInstaller) getLatestVersion() (string, error) {
 		return "", fmt.Errorf("failed to parse release info: %w", err)
 	}
 
-	// Remove 'v' prefix if present
 	version := strings.TrimPrefix(release.TagName, "v")
 
 	logger.Info("Latest version detected", "version", version)
