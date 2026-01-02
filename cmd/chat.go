@@ -13,6 +13,7 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+	uuid "github.com/google/uuid"
 	cobra "github.com/spf13/cobra"
 	viper "github.com/spf13/viper"
 
@@ -22,6 +23,8 @@ import (
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	screenshotsvc "github.com/inference-gateway/cli/internal/services"
+	tools "github.com/inference-gateway/cli/internal/services/tools"
 	web "github.com/inference-gateway/cli/internal/web"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -154,6 +157,23 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	backgroundTaskService := services.GetBackgroundTaskService()
 	agentManager := services.GetAgentManager()
 	conversationOptimizer := services.GetConversationOptimizer()
+
+	var screenshotServer *screenshotsvc.ScreenshotServer
+	logger.Info("Checking screenshot streaming config",
+		"computer_use_enabled", config.ComputerUse.Enabled,
+		"screenshot_enabled", config.ComputerUse.Screenshot.Enabled,
+		"streaming_enabled", config.ComputerUse.Screenshot.StreamingEnabled)
+
+	if config.ComputerUse.Enabled && config.ComputerUse.Screenshot.StreamingEnabled {
+		screenshotServer = startScreenshotServer(config, imageService, toolRegistry)
+		if screenshotServer != nil {
+			defer func() {
+				if err := screenshotServer.Stop(); err != nil {
+					logger.Error("Failed to stop screenshot server", "error", err)
+				}
+			}()
+		}
+	}
 
 	versionInfo := GetVersionInfo()
 	application := app.NewChatApplication(
@@ -367,6 +387,28 @@ func processStreamingOutput(events <-chan domain.ChatEvent) error {
 		}
 	}
 	return nil
+}
+
+// startScreenshotServer initializes and starts the screenshot streaming server
+func startScreenshotServer(config *config.Config, imageService domain.ImageService, toolRegistry *tools.Registry) *screenshotsvc.ScreenshotServer {
+	logger.Info("Screenshot streaming conditions met, starting server")
+	sessionID := fmt.Sprintf("%d-%s", time.Now().Unix(), uuid.New().String()[:8])
+	screenshotServer := screenshotsvc.NewScreenshotServer(config, imageService, sessionID)
+
+	if err := screenshotServer.Start(); err != nil {
+		logger.Warn("Failed to start screenshot server", "error", err)
+		return nil
+	}
+
+	fmt.Printf("• Screenshot API: http://localhost:%d\n", screenshotServer.Port())
+	toolRegistry.SetScreenshotServer(screenshotServer)
+	logger.Info("Registered GetLatestScreenshot tool with tool registry")
+
+	if os.Getenv("INFER_GATEWAY_MODE") == "remote" {
+		fmt.Printf("\x1b]5555;screenshot_port=%d\x07", screenshotServer.Port())
+	}
+
+	return screenshotServer
 }
 
 func init() {

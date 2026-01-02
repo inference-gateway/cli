@@ -391,3 +391,16 @@ type MessageEditSubmitEvent struct {
 
 func (e MessageEditSubmitEvent) GetRequestID() string    { return e.RequestID }
 func (e MessageEditSubmitEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ComputerUseScreenshotEvent is emitted when a screenshot is captured
+type ComputerUseScreenshotEvent struct {
+	RequestID string
+	Timestamp time.Time
+	Width     int
+	Height    int
+	Region    *ScreenRegion
+	ImageData string
+}
+
+func (e ComputerUseScreenshotEvent) GetRequestID() string    { return e.RequestID }
+func (e ComputerUseScreenshotEvent) GetTimestamp() time.Time { return e.Timestamp }

@@ -30,9 +30,9 @@ type SessionHandler interface {
 type Session = SessionHandler
 
 // CreateSessionHandler creates either a local PTY session or remote SSH session
-func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, v *viper.Viper) (SessionHandler, error) {
+func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, v *viper.Viper, sessionID string, sessionManager *SessionManager) (SessionHandler, error) {
 	if serverCfg != nil {
-		return createRemoteSSHSession(webCfg, serverCfg, cfg.Gateway.URL)
+		return createRemoteSSHSession(webCfg, serverCfg, cfg.Gateway.URL, sessionID, sessionManager)
 	}
 
 	logger.Info("Creating local PTY session")
@@ -40,7 +40,7 @@ func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerC
 }
 
 // createRemoteSSHSession creates a remote SSH session with optional auto-install
-func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string) (SessionHandler, error) {
+func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string, sessionID string, sessionManager *SessionManager) (SessionHandler, error) {
 	logger.Info("Creating remote SSH session", "server", serverCfg.Name)
 
 	client, err := NewSSHClient(&webCfg.SSH, serverCfg)
@@ -59,7 +59,11 @@ func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServe
 		return nil, err
 	}
 
-	session, err := NewSSHSession(client, serverCfg, gatewayURL)
+	if err := ensureRemoteConfig(client, serverCfg, gatewayURL); err != nil {
+		logger.Warn("Failed to ensure remote config, continuing anyway", "error", err)
+	}
+
+	session, err := NewSSHSession(client, serverCfg, gatewayURL, sessionID, sessionManager)
 	if err != nil {
 		if closeErr := client.Close(); closeErr != nil {
 			logger.Warn("Failed to close SSH client after session error", "error", closeErr)
@@ -86,6 +90,52 @@ func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *
 		return fmt.Errorf("failed to ensure infer binary: %w", err)
 	}
 
+	return nil
+}
+
+// ensureRemoteConfig ensures infer config exists on remote server
+// Runs infer init --userspace if ~/.infer/config.yaml doesn't exist
+func ensureRemoteConfig(client *SSHClient, serverCfg *config.SSHServerConfig, gatewayURL string) error {
+	commandPath := serverCfg.CommandPath
+	if commandPath == "" {
+		commandPath = "infer"
+	}
+
+	logger.Info("Checking if infer config exists on remote server", "server", serverCfg.Name)
+
+	session, err := client.NewSession()
+	if err != nil {
+		return fmt.Errorf("failed to create SSH session: %w", err)
+	}
+	defer func() { _ = session.Close() }()
+
+	checkCmd := "test -f ~/.infer/config.yaml && echo 'exists' || echo 'missing'"
+	output, err := session.CombinedOutput(checkCmd)
+	if err != nil {
+		return fmt.Errorf("failed to check config file: %w", err)
+	}
+
+	outputStr := string(output)
+	if len(outputStr) > 0 && outputStr[0] == 'e' {
+		logger.Info("Infer config already exists on remote server", "server", serverCfg.Name)
+		return nil
+	}
+
+	logger.Info("Infer config not found, running init...", "server", serverCfg.Name)
+
+	session2, err := client.NewSession()
+	if err != nil {
+		return fmt.Errorf("failed to create SSH session for init: %w", err)
+	}
+	defer func() { _ = session2.Close() }()
+
+	initCmd := fmt.Sprintf("%s init --userspace", commandPath)
+	initOutput, err := session2.CombinedOutput(initCmd)
+	if err != nil {
+		return fmt.Errorf("failed to initialize config: %w\nOutput: %s", err, string(initOutput))
+	}
+
+	logger.Info("Infer config initialized", "server", serverCfg.Name, "output", string(initOutput))
 	return nil
 }
 

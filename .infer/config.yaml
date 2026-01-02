@@ -638,3 +638,31 @@ web:
     auto_install: true
     install_version: latest
   servers: []
+computer_use:
+  enabled: false
+  display: :0
+  screenshot:
+    enabled: true
+    max_width: 1920
+    max_height: 1080
+    format: jpeg
+    quality: 80
+    require_approval: false
+    streaming_enabled: false
+    capture_interval: 3
+    buffer_size: 30
+    temp_dir: /tmp/infer-screenshots
+  mouse_move:
+    enabled: true
+    require_approval: true
+  mouse_click:
+    enabled: true
+    require_approval: true
+  keyboard_type:
+    enabled: true
+    max_text_length: 1000
+    require_approval: true
+  rate_limit:
+    enabled: true
+    max_actions_per_minute: 60
+    window_seconds: 60

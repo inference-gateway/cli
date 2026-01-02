@@ -1,0 +1,103 @@
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+ENV TZ=UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+RUN apt-get update && apt-get install -y \
+    xfce4 \
+    xfce4-terminal \
+    xfce4-goodies \
+    xvfb \
+    x11-xserver-utils \
+    x11-apps \
+    xdotool \
+    xterm \
+    firefox \
+    mousepad \
+    thunar \
+    git \
+    curl \
+    wget \
+    vim \
+    nano \
+    dbus-x11 \
+    net-tools \
+    procps \
+    sudo \
+    pm-utils \
+    openssh-server \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN useradd -m -s /bin/bash ubuntu 2>/dev/null || true && \
+    echo "ubuntu:ubuntu" | chpasswd && \
+    usermod -aG sudo ubuntu && \
+    echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN mkdir -p /var/run/sshd && \
+    mkdir -p /home/ubuntu/.ssh && \
+    chmod 700 /home/ubuntu/.ssh && \
+    chown ubuntu:ubuntu /home/ubuntu/.ssh && \
+    sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config && \
+    sed -i 's/PasswordAuthentication no/PasswordAuthentication yes/' /etc/ssh/sshd_config
+
+COPY <<'EOF' /usr/local/bin/start-services.sh
+#!/bin/bash
+set -e
+
+# Export INFER_* and DISPLAY environment variables to /etc/environment for SSH sessions
+echo "Exporting environment variables to /etc/environment..."
+env | grep -E '^(INFER_|DISPLAY=)' | while IFS='=' read -r key value; do
+    sed -i "/^${key}=/d" /etc/environment 2>/dev/null || true
+    echo "${key}=${value}" >> /etc/environment
+    echo "  Exported: ${key}=${value}"
+done
+
+if [ -f /tmp/authorized_keys ]; then
+    cp /tmp/authorized_keys /home/ubuntu/.ssh/authorized_keys
+    chmod 600 /home/ubuntu/.ssh/authorized_keys
+    chown ubuntu:ubuntu /home/ubuntu/.ssh/authorized_keys
+    echo "✓ SSH keys configured"
+fi
+
+echo "Starting SSH server..."
+/usr/sbin/sshd
+
+SCREEN_RESOLUTION="${SCREEN_RESOLUTION:-1280x720}"
+SCREEN_DEPTH="${SCREEN_DEPTH:-24}"
+
+echo "Starting Xvfb (headless X11 server)..."
+Xvfb :1 -screen 0 ${SCREEN_RESOLUTION}x${SCREEN_DEPTH} -ac +extension GLX +render -noreset &
+XVFB_PID=$!
+
+sleep 2
+
+export DISPLAY=:1
+
+echo "Starting XFCE desktop environment with D-Bus session..."
+runuser -u ubuntu -- env DISPLAY=:1 dbus-launch --exit-with-session startxfce4 &
+XFCE_PID=$!
+
+echo "✓ Headless X11 server running on display :1 (${SCREEN_RESOLUTION}x${SCREEN_DEPTH})"
+echo "✓ XFCE desktop started"
+echo "✓ Ready for computer use tools"
+
+while kill -0 $XVFB_PID 2>/dev/null && kill -0 $XFCE_PID 2>/dev/null; do
+    sleep 5
+done
+
+echo "X11 server or desktop manager stopped, exiting..."
+exit 1
+EOF
+
+RUN chmod +x /usr/local/bin/start-services.sh
+
+WORKDIR /home/ubuntu
+
+ENV DISPLAY=:1
+
+EXPOSE 22
+
+CMD ["/usr/local/bin/start-services.sh"]

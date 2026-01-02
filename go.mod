@@ -5,6 +5,8 @@ go 1.25.4
 tool github.com/maxbrunsfeld/counterfeiter/v6
 
 require (
+	github.com/BurntSushi/xgb v0.0.0-20210121224620-deaf085860bc
+	github.com/BurntSushi/xgbutil v0.0.0-20190907113008-ad855c713046
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/glamour v0.10.0
@@ -33,6 +35,8 @@ require (
 )
 
 require (
+	github.com/BurntSushi/freetype-go v0.0.0-20160129220410-b763ddbfe298 // indirect
+	github.com/BurntSushi/graphics-go v0.0.0-20160129215708-b43f31a4a966 // indirect
 	github.com/alecthomas/chroma/v2 v2.14.0 // indirect
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect

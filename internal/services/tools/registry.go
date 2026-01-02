@@ -78,6 +78,14 @@ func (r *Registry) registerTools() {
 		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(r.config, r.taskTracker)
 	}
 
+	if r.config.ComputerUse.Enabled {
+		rateLimiter := NewRateLimiter(r.config.ComputerUse.RateLimit)
+		r.tools["Screenshot"] = NewScreenshotTool(r.config, r.imageService, rateLimiter)
+		r.tools["MouseMove"] = NewMouseMoveTool(r.config, rateLimiter)
+		r.tools["MouseClick"] = NewMouseClickTool(r.config, rateLimiter)
+		r.tools["KeyboardType"] = NewKeyboardTypeTool(r.config, rateLimiter)
+	}
+
 	if r.config.MCP.Enabled && r.mcpManager != nil {
 		r.registerMCPTools()
 	}
@@ -224,6 +232,25 @@ func (r *Registry) UnregisterMCPServerTools(serverName string) int {
 	}
 
 	return removedCount
+}
+
+// SetScreenshotServer dynamically registers the GetLatestScreenshot tool
+// This should be called after the screenshot server is started
+func (r *Registry) SetScreenshotServer(provider domain.ScreenshotProvider) {
+	if !r.config.ComputerUse.Enabled || !r.config.ComputerUse.Screenshot.StreamingEnabled {
+		logger.Debug("Screenshot streaming not enabled, skipping GetLatestScreenshot tool registration")
+		return
+	}
+
+	if provider == nil {
+		logger.Warn("Screenshot provider is nil, cannot register GetLatestScreenshot tool")
+		return
+	}
+
+	getLatestTool := NewGetLatestScreenshotTool(r.config, provider)
+	r.tools["GetLatestScreenshot"] = getLatestTool
+
+	logger.Info("Dynamically registered GetLatestScreenshot tool for streaming mode")
 }
 
 // SetReadToolUsed marks that the Read tool has been used

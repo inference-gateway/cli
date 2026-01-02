@@ -42,6 +42,7 @@ type Config struct {
 	Init             InitConfig             `yaml:"init" mapstructure:"init"`
 	Compact          CompactConfig          `yaml:"compact" mapstructure:"compact"`
 	Web              WebConfig              `yaml:"web" mapstructure:"web"`
+	ComputerUse      ComputerUseConfig      `yaml:"computer_use" mapstructure:"computer_use"`
 	configDir        string
 }
 
@@ -245,6 +246,57 @@ type ToolWhitelistConfig struct {
 type SandboxConfig struct {
 	Directories    []string `yaml:"directories" mapstructure:"directories"`
 	ProtectedPaths []string `yaml:"protected_paths" mapstructure:"protected_paths"`
+}
+
+// ComputerUseConfig contains computer use tool settings
+type ComputerUseConfig struct {
+	Enabled      bool                   `yaml:"enabled" mapstructure:"enabled"`
+	Display      string                 `yaml:"display" mapstructure:"display"`
+	Screenshot   ScreenshotToolConfig   `yaml:"screenshot" mapstructure:"screenshot"`
+	MouseMove    MouseMoveToolConfig    `yaml:"mouse_move" mapstructure:"mouse_move"`
+	MouseClick   MouseClickToolConfig   `yaml:"mouse_click" mapstructure:"mouse_click"`
+	KeyboardType KeyboardTypeToolConfig `yaml:"keyboard_type" mapstructure:"keyboard_type"`
+	RateLimit    RateLimitConfig        `yaml:"rate_limit" mapstructure:"rate_limit"`
+}
+
+// ScreenshotToolConfig contains screenshot-specific tool settings
+type ScreenshotToolConfig struct {
+	Enabled          bool   `yaml:"enabled" mapstructure:"enabled"`
+	MaxWidth         int    `yaml:"max_width" mapstructure:"max_width"`
+	MaxHeight        int    `yaml:"max_height" mapstructure:"max_height"`
+	Format           string `yaml:"format" mapstructure:"format"`
+	Quality          int    `yaml:"quality" mapstructure:"quality"`
+	RequireApproval  *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	StreamingEnabled bool   `yaml:"streaming_enabled" mapstructure:"streaming_enabled"`
+	CaptureInterval  int    `yaml:"capture_interval" mapstructure:"capture_interval"` // seconds
+	BufferSize       int    `yaml:"buffer_size" mapstructure:"buffer_size"`           // number of screenshots
+	TempDir          string `yaml:"temp_dir" mapstructure:"temp_dir"`                 // path for disk storage
+}
+
+// MouseMoveToolConfig contains mouse move-specific tool settings
+type MouseMoveToolConfig struct {
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// MouseClickToolConfig contains mouse click-specific tool settings
+type MouseClickToolConfig struct {
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// KeyboardTypeToolConfig contains keyboard type-specific tool settings
+type KeyboardTypeToolConfig struct {
+	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
+	MaxTextLength   int   `yaml:"max_text_length" mapstructure:"max_text_length"`
+	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+}
+
+// RateLimitConfig contains rate limiting settings
+type RateLimitConfig struct {
+	Enabled             bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxActionsPerMinute int  `yaml:"max_actions_per_minute" mapstructure:"max_actions_per_minute"`
+	WindowSeconds       int  `yaml:"window_seconds" mapstructure:"window_seconds"`
 }
 
 // SafetyConfig contains safety approval settings
@@ -977,6 +1029,40 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			},
 			Servers: []SSHServerConfig{},
 		},
+		ComputerUse: ComputerUseConfig{
+			Enabled: false, // Security: disabled by default
+			Display: ":0",
+			Screenshot: ScreenshotToolConfig{
+				Enabled:          true,
+				MaxWidth:         1920,
+				MaxHeight:        1080,
+				Format:           "jpeg",
+				Quality:          80,
+				RequireApproval:  &[]bool{false}[0],
+				StreamingEnabled: false,
+				CaptureInterval:  3,
+				BufferSize:       30,
+				TempDir:          "/tmp/infer-screenshots",
+			},
+			MouseMove: MouseMoveToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{true}[0],
+			},
+			MouseClick: MouseClickToolConfig{
+				Enabled:         true,
+				RequireApproval: &[]bool{true}[0],
+			},
+			KeyboardType: KeyboardTypeToolConfig{
+				Enabled:         true,
+				MaxTextLength:   1000,
+				RequireApproval: &[]bool{true}[0],
+			},
+			RateLimit: RateLimitConfig{
+				Enabled:             true,
+				MaxActionsPerMinute: 60,
+				WindowSeconds:       60,
+			},
+		},
 	}
 }
 
@@ -1044,6 +1130,22 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 	case "A2A_SubmitTask":
 		if c.A2A.Tools.SubmitTask.RequireApproval != nil {
 			return *c.A2A.Tools.SubmitTask.RequireApproval
+		}
+	case "Screenshot":
+		if c.ComputerUse.Screenshot.RequireApproval != nil {
+			return *c.ComputerUse.Screenshot.RequireApproval
+		}
+	case "MouseMove":
+		if c.ComputerUse.MouseMove.RequireApproval != nil {
+			return *c.ComputerUse.MouseMove.RequireApproval
+		}
+	case "MouseClick":
+		if c.ComputerUse.MouseClick.RequireApproval != nil {
+			return *c.ComputerUse.MouseClick.RequireApproval
+		}
+	case "KeyboardType":
+		if c.ComputerUse.KeyboardType.RequireApproval != nil {
+			return *c.ComputerUse.KeyboardType.RequireApproval
 		}
 	}
 

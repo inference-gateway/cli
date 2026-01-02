@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"net/http"
 	"os"
@@ -69,7 +70,11 @@ func (s *WebTerminalServer) Start() error {
 	mux.HandleFunc("/", s.handleIndex)
 	mux.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))))
 	mux.HandleFunc("/api/servers", s.handleServers)
+	mux.HandleFunc("/api/screenshots/", s.handleScreenshotProxy)
 	mux.HandleFunc("/ws", s.handleWebSocket)
+
+	logger.Info("HTTP routes registered",
+		"routes", []string{"/", "/static/", "/api/servers", "/api/screenshots/", "/ws"})
 
 	addr := fmt.Sprintf("%s:%d", s.cfg.Web.Host, s.cfg.Web.Port)
 	s.server = &http.Server{
@@ -121,8 +126,6 @@ func (s *WebTerminalServer) handleServers(w http.ResponseWriter, r *http.Request
 	}
 
 	servers := []ServerInfo{}
-
-	// Add local mode option
 	servers = append(servers, ServerInfo{
 		ID:          "local",
 		Name:        "Local",
@@ -130,7 +133,6 @@ func (s *WebTerminalServer) handleServers(w http.ResponseWriter, r *http.Request
 		Tags:        []string{"local"},
 	})
 
-	// Add configured remote servers
 	for _, srv := range s.cfg.Web.Servers {
 		servers = append(servers, ServerInfo{
 			ID:          srv.ID,
@@ -150,6 +152,140 @@ func (s *WebTerminalServer) handleServers(w http.ResponseWriter, r *http.Request
 	}
 }
 
+func (s *WebTerminalServer) handleScreenshotProxy(w http.ResponseWriter, r *http.Request) {
+	logger.Info("Screenshot proxy handler called",
+		"method", r.Method,
+		"path", r.URL.Path,
+		"query", r.URL.RawQuery)
+
+	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		sessionID = r.Header.Get("X-Session-ID")
+	}
+
+	if sessionID == "" {
+		logger.Warn("Screenshot proxy: missing session_id", "path", r.URL.Path)
+		http.Error(w, "Missing session_id", http.StatusBadRequest)
+		return
+	}
+
+	port, ok := s.sessionManager.GetScreenshotPort(sessionID)
+	if !ok {
+		http.Error(w, "No screenshot port for session", http.StatusNotFound)
+		return
+	}
+
+	targetURL := fmt.Sprintf("http://localhost:%d%s", port, r.URL.Path)
+	if r.URL.RawQuery != "" {
+		targetURL += "?" + r.URL.RawQuery
+	}
+
+	logger.Info("Proxying screenshot request", "session_id", sessionID, "target", targetURL)
+
+	proxyReq, err := http.NewRequest(r.Method, targetURL, r.Body)
+	if err != nil {
+		logger.Error("Failed to create proxy request", "error", err)
+		http.Error(w, "Proxy error", http.StatusInternalServerError)
+		return
+	}
+
+	for name, values := range r.Header {
+		for _, value := range values {
+			proxyReq.Header.Add(name, value)
+		}
+	}
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(proxyReq)
+	if err != nil {
+		logger.Error("Proxy request failed", "error", err)
+		http.Error(w, "Failed to fetch screenshot", http.StatusBadGateway)
+		return
+	}
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			logger.Warn("Failed to close response body", "error", err)
+		}
+	}()
+
+	for name, values := range resp.Header {
+		for _, value := range values {
+			w.Header().Add(name, value)
+		}
+	}
+
+	w.WriteHeader(resp.StatusCode)
+
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		logger.Warn("Failed to copy response body", "error", err)
+	}
+}
+
+// handleInitMessage reads and processes the initial WebSocket message
+func (s *WebTerminalServer) handleInitMessage(conn *websocket.Conn, sessionID string) (cols, rows int, serverID string) {
+	cols, rows = 80, 24
+	serverID = "local"
+
+	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
+		logger.Warn("Failed to set read deadline", "session_id", sessionID, "error", err)
+	}
+
+	msgType, data, err := conn.ReadMessage()
+
+	if err := conn.SetReadDeadline(time.Time{}); err != nil {
+		logger.Warn("Failed to clear read deadline", "session_id", sessionID, "error", err)
+	}
+
+	if err != nil {
+		logger.Warn("Failed to read init message, using defaults", "session_id", sessionID, "error", err)
+		return
+	}
+
+	if msgType != websocket.TextMessage {
+		return
+	}
+
+	var msg struct {
+		Type     string `json:"type"`
+		ServerID string `json:"server_id"`
+		Cols     int    `json:"cols"`
+		Rows     int    `json:"rows"`
+	}
+
+	if err := json.Unmarshal(data, &msg); err != nil {
+		return
+	}
+
+	if msg.Type != "init" {
+		return
+	}
+
+	cols, rows = msg.Cols, msg.Rows
+	serverID = msg.ServerID
+
+	logger.Info("Session initialized",
+		"session_id", sessionID,
+		"server_id", serverID,
+		"cols", cols,
+		"rows", rows)
+
+	initResp := map[string]any{
+		"type":       "init_response",
+		"session_id": sessionID,
+	}
+
+	respData, err := json.Marshal(initResp)
+	if err != nil {
+		return
+	}
+
+	if writeErr := conn.WriteMessage(websocket.TextMessage, respData); writeErr != nil {
+		logger.Warn("Failed to send init response", "error", writeErr)
+	}
+
+	return
+}
+
 func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -165,45 +301,14 @@ func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Reque
 	sessionID := uuid.New().String()
 	logger.Info("WebSocket connected", "remote", r.RemoteAddr, "session_id", sessionID)
 
-	// Wait for initial connection message with server selection
-	cols, rows := 80, 24
-	serverID := "local" // Default to local mode
-
-	if err := conn.SetReadDeadline(time.Now().Add(3 * time.Second)); err != nil {
-		logger.Warn("Failed to set read deadline", "session_id", sessionID, "error", err)
-	}
-	msgType, data, err := conn.ReadMessage()
-	if err := conn.SetReadDeadline(time.Time{}); err != nil {
-		logger.Warn("Failed to clear read deadline", "session_id", sessionID, "error", err)
-	}
-
-	if err == nil && msgType == websocket.TextMessage {
-		var msg struct {
-			Type     string `json:"type"`
-			ServerID string `json:"server_id"`
-			Cols     int    `json:"cols"`
-			Rows     int    `json:"rows"`
-		}
-		if json.Unmarshal(data, &msg) == nil && msg.Type == "init" {
-			cols, rows = msg.Cols, msg.Rows
-			serverID = msg.ServerID
-			logger.Info("Session initialized",
-				"session_id", sessionID,
-				"server_id", serverID,
-				"cols", cols,
-				"rows", rows)
-		}
-	} else if err != nil {
-		logger.Warn("Failed to read init message, using defaults",
-			"session_id", sessionID, "error", err)
-	}
+	cols, rows, serverID := s.handleInitMessage(conn, sessionID)
 
 	serverCfg, ok := s.findServerConfig(serverID, sessionID, conn)
 	if !ok {
 		return
 	}
 
-	handler, err := CreateSessionHandler(&s.cfg.Web, serverCfg, s.cfg, s.viper)
+	handler, err := CreateSessionHandler(&s.cfg.Web, serverCfg, s.cfg, s.viper, sessionID, s.sessionManager)
 	if err != nil {
 		logger.Error("Failed to create session",
 			"error", err,
@@ -214,7 +319,11 @@ func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Reque
 		}
 		return
 	}
+
+	s.sessionManager.RegisterSession(sessionID, handler)
+
 	defer func() {
+		s.sessionManager.RemoveSession(sessionID)
 		if closeErr := handler.Close(); closeErr != nil {
 			logger.Warn("Failed to close session handler", "session_id", sessionID, "error", closeErr)
 		}
@@ -231,7 +340,6 @@ func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Reque
 
 	logger.Info("Session started", "session_id", sessionID, "server_id", serverID)
 
-	// Handle I/O
 	if err := handler.HandleConnection(conn); err != nil {
 		logger.Error("Connection error", "session_id", sessionID, "error", err)
 	}

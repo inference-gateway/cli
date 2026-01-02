@@ -1,0 +1,198 @@
+container_runtime:
+  type: docker
+gateway:
+  url: http://inference-gateway:8080
+  api_key: ""
+  timeout: 200
+  run: false
+  vision_enabled: true
+client:
+  timeout: 200
+  retry:
+    enabled: true
+    max_attempts: 3
+    initial_backoff_sec: 5
+    max_backoff_sec: 60
+    backoff_multiplier: 2
+    retryable_status_codes:
+      - 400
+      - 408
+      - 429
+      - 500
+      - 502
+      - 503
+      - 504
+logging:
+  debug: false
+  dir: ""
+tools:
+  enabled: true
+  sandbox:
+    directories:
+      - .
+      - /tmp
+      - .infer/tmp
+    protected_paths:
+      - .infer/config.yaml
+      - .infer/*.db
+      - .git/
+      - '*.env'
+  bash:
+    enabled: true
+    timeout: 120
+    background_shells:
+      enabled: true
+      max_concurrent: 5
+      max_output_buffer_mb: 10
+      retention_minutes: 60
+  read:
+    enabled: true
+    require_approval: false
+  write:
+    enabled: true
+    require_approval: true
+  edit:
+    enabled: true
+    require_approval: true
+  delete:
+    enabled: true
+    require_approval: true
+  grep:
+    enabled: true
+    backend: auto
+    require_approval: false
+  tree:
+    enabled: true
+    require_approval: false
+  web_fetch:
+    enabled: true
+    safety:
+      max_size: 10485760
+      timeout: 30
+      allow_redirect: true
+    cache:
+      enabled: true
+      ttl: 3600
+      max_size: 52428800
+  web_search:
+    enabled: true
+    default_engine: duckduckgo
+    max_results: 10
+    engines:
+      - duckduckgo
+      - google
+    timeout: 10
+  todo_write:
+    enabled: true
+    require_approval: false
+  safety:
+    require_approval: true
+image:
+  max_size: 5242880
+  timeout: 30
+  clipboard_optimize:
+    enabled: true
+    max_width: 1920
+    max_height: 1080
+    quality: 75
+    convert_jpeg: true
+export:
+  output_dir: .infer/tmp
+  summary_model: ""
+agent:
+  verbose_tools: false
+  max_turns: 50
+  max_tokens: 8192
+  max_concurrent_tools: 5
+storage:
+  enabled: true
+  type: jsonl
+  jsonl:
+    path: .infer/conversations
+conversation:
+  title_generation:
+    enabled: true
+    batch_size: 10
+    interval: 0
+chat:
+  theme: tokyo-night
+  keybindings:
+    enabled: false
+  status_bar:
+    enabled: true
+    indicators:
+      model: true
+      theme: true
+      max_output: false
+      a2a_agents: true
+      tools: true
+      background_shells: true
+      a2a_tasks: true
+      mcp: true
+      context_usage: true
+      session_tokens: true
+      cost: true
+      git_branch: true
+a2a:
+  enabled: false
+mcp:
+  enabled: false
+pricing:
+  enabled: true
+  currency: USD
+  custom_prices: {}
+compact:
+  enabled: true
+  auto_at: 80
+  keep_first_messages: 2
+web:
+  enabled: true
+  port: 3000
+  host: 0.0.0.0
+  session_inactivity_mins: 5
+  ssh:
+    enabled: true
+    use_ssh_config: false
+    auto_install: false
+  servers:
+    - name: "Ubuntu GUI Desktop"
+      id: "ubuntu-gui-desktop"
+      remote_host: "ubuntu-gui"
+      remote_user: "ubuntu"
+      remote_port: 22
+      command_path: "/usr/local/bin/infer"
+      auto_install: false
+      description: "Ubuntu 24.04 Desktop with Computer Use capabilities"
+      tags:
+        - local
+        - computer-use
+        - ubuntu
+computer_use:
+  enabled: true
+  display: "ubuntu-gui:1"
+  screenshot:
+    enabled: true
+    max_width: 1920
+    max_height: 1080
+    format: "jpeg"
+    quality: 80
+    require_approval: false
+    # Screenshot streaming for web UI
+    streaming_enabled: true
+    capture_interval: 3
+    buffer_size: 30
+    temp_dir: "/tmp/infer-screenshots"
+  mouse_move:
+    enabled: true
+    require_approval: true
+  mouse_click:
+    enabled: true
+    require_approval: true
+  keyboard_type:
+    enabled: true
+    max_text_length: 1000
+    require_approval: true
+  rate_limit:
+    enabled: true
+    max_actions_per_minute: 60
+    window_seconds: 60

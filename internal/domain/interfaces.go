@@ -28,6 +28,70 @@ type ImageAttachment struct {
 	SourcePath  string `json:"-"`
 }
 
+// Computer use result types
+
+// ScreenRegion represents a rectangular region of the screen
+type ScreenRegion struct {
+	X      int `json:"x"`
+	Y      int `json:"y"`
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
+// Screenshot represents a captured screenshot with metadata
+type Screenshot struct {
+	ID        string    `json:"id"`
+	Timestamp time.Time `json:"timestamp"`
+	Data      string    `json:"data"` // base64 encoded image
+	Width     int       `json:"width"`
+	Height    int       `json:"height"`
+	Format    string    `json:"format"` // "png" or "jpeg"
+	Method    string    `json:"method"` // "x11" or "wayland"
+}
+
+// ScreenshotProvider defines the interface for getting screenshots from a buffer
+type ScreenshotProvider interface {
+	GetLatestScreenshot() (*Screenshot, error)
+}
+
+// ScreenshotToolResult represents the result of a screenshot capture
+type ScreenshotToolResult struct {
+	Display string        `json:"display"`
+	Region  *ScreenRegion `json:"region,omitempty"`
+	Width   int           `json:"width"`
+	Height  int           `json:"height"`
+	Format  string        `json:"format"`
+	Method  string        `json:"method"`
+}
+
+// MouseMoveToolResult represents the result of a mouse move operation
+type MouseMoveToolResult struct {
+	FromX   int    `json:"from_x"`
+	FromY   int    `json:"from_y"`
+	ToX     int    `json:"to_x"`
+	ToY     int    `json:"to_y"`
+	Display string `json:"display"`
+	Method  string `json:"method"`
+}
+
+// MouseClickToolResult represents the result of a mouse click operation
+type MouseClickToolResult struct {
+	Button  string `json:"button"`
+	Clicks  int    `json:"clicks"`
+	X       int    `json:"x"`
+	Y       int    `json:"y"`
+	Display string `json:"display"`
+	Method  string `json:"method"`
+}
+
+// KeyboardTypeToolResult represents the result of a keyboard input operation
+type KeyboardTypeToolResult struct {
+	Text     string `json:"text,omitempty"`
+	KeyCombo string `json:"key_combo,omitempty"`
+	Display  string `json:"display"`
+	Method   string `json:"method"`
+}
+
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
 	// Core message fields
