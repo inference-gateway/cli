@@ -5,7 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     xfce4 \
     xfce4-terminal \
     xfce4-goodies \
@@ -14,7 +14,6 @@ RUN apt-get update && apt-get install -y \
     x11-apps \
     xdotool \
     xterm \
-    firefox \
     mousepad \
     thunar \
     git \
@@ -28,6 +27,18 @@ RUN apt-get update && apt-get install -y \
     sudo \
     pm-utils \
     openssh-server \
+    xdg-utils \
+    gnupg \
+    ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL https://ftp-master.debian.org/keys/archive-key-12.asc | gpg --dearmor -o /usr/share/keyrings/debian-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm main" > /etc/apt/sources.list.d/debian.list \
+    && echo "deb [signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] http://deb.debian.org/debian bookworm-updates main" >> /etc/apt/sources.list.d/debian.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends -t bookworm chromium chromium-common chromium-sandbox \
+    && rm /etc/apt/sources.list.d/debian.list \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -35,6 +46,26 @@ RUN useradd -m -s /bin/bash ubuntu 2>/dev/null || true && \
     echo "ubuntu:ubuntu" | chpasswd && \
     usermod -aG sudo ubuntu && \
     echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+RUN printf '#!/bin/bash\nexec /usr/bin/chromium --no-sandbox --disable-dev-shm-usage --disable-gpu --disable-software-rasterizer "$@"\n' > /usr/local/bin/chromium && \
+    chmod +x /usr/local/bin/chromium
+
+RUN update-alternatives --install /usr/bin/x-www-browser x-www-browser /usr/local/bin/chromium 100 && \
+    update-alternatives --install /usr/bin/gnome-www-browser gnome-www-browser /usr/local/bin/chromium 100 && \
+    update-alternatives --set x-www-browser /usr/local/bin/chromium && \
+    update-alternatives --set gnome-www-browser /usr/local/bin/chromium
+
+RUN mkdir -p /usr/share/applications && \
+    printf '[Desktop Entry]\nVersion=1.0\nName=Chromium Web Browser\nComment=Access the Internet\nExec=/usr/local/bin/chromium %%U\nTerminal=false\nType=Application\nIcon=chromium-browser\nCategories=Network;WebBrowser;\nMimeType=text/html;text/xml;application/xhtml+xml;x-scheme-handler/http;x-scheme-handler/https;\nStartupNotify=true\n' > /usr/share/applications/chromium.desktop && \
+    chmod 644 /usr/share/applications/chromium.desktop
+
+RUN mkdir -p /usr/share/xfce4/helpers && \
+    printf '[Desktop Entry]\nVersion=1.0\nType=X-XFCE-Helper\nX-XFCE-Category=WebBrowser\nX-XFCE-Commands=/usr/local/bin/chromium\nX-XFCE-CommandsWithParameter=/usr/local/bin/chromium %%s\nIcon=chromium-browser\nName=Chromium\nX-XFCE-Binaries=chromium\n' > /usr/share/xfce4/helpers/chromium.desktop && \
+    chmod 644 /usr/share/xfce4/helpers/chromium.desktop
+
+RUN mkdir -p /etc/xdg && \
+    printf '[Default Applications]\ntext/html=chromium.desktop\ntext/xml=chromium.desktop\napplication/xhtml+xml=chromium.desktop\nx-scheme-handler/http=chromium.desktop\nx-scheme-handler/https=chromium.desktop\nx-scheme-handler/about=chromium.desktop\nx-scheme-handler/unknown=chromium.desktop\n\n[Added Associations]\ntext/html=chromium.desktop\ntext/xml=chromium.desktop\napplication/xhtml+xml=chromium.desktop\nx-scheme-handler/http=chromium.desktop\nx-scheme-handler/https=chromium.desktop\n' > /etc/xdg/mimeapps.list && \
+    printf '[Default Applications]\ntext/html=chromium.desktop\ntext/xml=chromium.desktop\napplication/xhtml+xml=chromium.desktop\nx-scheme-handler/http=chromium.desktop\nx-scheme-handler/https=chromium.desktop\nx-scheme-handler/about=chromium.desktop\nx-scheme-handler/unknown=chromium.desktop\n\n[Added Associations]\ntext/html=chromium.desktop\ntext/xml=chromium.desktop\napplication/xhtml+xml=chromium.desktop\nx-scheme-handler/http=chromium.desktop\nx-scheme-handler/https=chromium.desktop\n' > /etc/xdg/xfce-mimeapps.list
 
 RUN mkdir -p /var/run/sshd && \
     mkdir -p /home/ubuntu/.ssh && \
@@ -76,12 +107,57 @@ sleep 2
 
 export DISPLAY=:1
 
+echo "Configuring default browser for ubuntu user..."
+mkdir -p /home/ubuntu/.config/xfce4 \
+         /home/ubuntu/.local/share/applications \
+         /home/ubuntu/.local/share/xfce4/helpers
+
+# Create user-level mimeapps.list
+cat > /home/ubuntu/.config/mimeapps.list << 'MIMEAPPS'
+[Default Applications]
+text/html=chromium.desktop
+text/xml=chromium.desktop
+application/xhtml+xml=chromium.desktop
+x-scheme-handler/http=chromium.desktop
+x-scheme-handler/https=chromium.desktop
+x-scheme-handler/about=chromium.desktop
+x-scheme-handler/unknown=chromium.desktop
+
+[Added Associations]
+text/html=chromium.desktop
+text/xml=chromium.desktop
+application/xhtml+xml=chromium.desktop
+x-scheme-handler/http=chromium.desktop
+x-scheme-handler/https=chromium.desktop
+MIMEAPPS
+
+# Create user-level XFCE helper file
+cat > /home/ubuntu/.local/share/xfce4/helpers/chromium.desktop << 'HELPER'
+[Desktop Entry]
+Version=1.0
+Type=X-XFCE-Helper
+X-XFCE-Category=WebBrowser
+X-XFCE-Commands=/usr/local/bin/chromium
+X-XFCE-CommandsWithParameter=/usr/local/bin/chromium %s
+Icon=chromium-browser
+Name=Chromium
+X-XFCE-Binaries=chromium
+HELPER
+
+# Create XFCE helpers.rc pointing to our chromium helper
+cat > /home/ubuntu/.config/xfce4/helpers.rc << 'HELPERS'
+WebBrowser=chromium
+HELPERS
+
+chown -R ubuntu:ubuntu /home/ubuntu/.config /home/ubuntu/.local
+
 echo "Starting XFCE desktop environment with D-Bus session..."
 runuser -u ubuntu -- env DISPLAY=:1 dbus-launch --exit-with-session startxfce4 &
 XFCE_PID=$!
 
 echo "✓ Headless X11 server running on display :1 (${SCREEN_RESOLUTION}x${SCREEN_DEPTH})"
 echo "✓ XFCE desktop started"
+echo "✓ Chromium browser configured"
 echo "✓ Ready for computer use tools"
 
 while kill -0 $XVFB_PID 2>/dev/null && kill -0 $XFCE_PID 2>/dev/null; do

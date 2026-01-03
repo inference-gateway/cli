@@ -444,7 +444,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				time.Sleep(constants.AgentIterationDelay)
 			}
 
-			requestCtx, requestCancel := context.WithCancel(ctx)
+			requestCtx, requestCancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
 
 			s.requestsMux.Lock()
 			s.activeRequests[req.RequestID] = requestCancel
@@ -514,6 +514,21 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			var streamUsage *sdk.CompletionUsage
 			////// STREAM ITERATION START
 			for event := range events {
+				select {
+				case <-requestCtx.Done():
+					if requestCtx.Err() == context.DeadlineExceeded {
+						logger.Error("stream timeout", "error", requestCtx.Err())
+						eventPublisher.chatEvents <- domain.ChatErrorEvent{
+							RequestID: req.RequestID,
+							Timestamp: time.Now(),
+							Error:     fmt.Errorf("stream timed out after %d seconds", s.timeoutSeconds),
+						}
+						return
+					}
+					return
+				default:
+				}
+
 				if event.Event == nil {
 					logger.Error("event is nil")
 					continue

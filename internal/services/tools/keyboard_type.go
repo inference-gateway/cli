@@ -117,7 +117,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 		defer client.Close()
 
 		if hasText {
-			err = client.TypeText(text)
+			err = client.TypeText(text, t.config.ComputerUse.KeyboardType.TypingDelayMs)
 		} else {
 			err = client.SendKeyCombo(keyCombo)
 		}
@@ -146,7 +146,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 		defer client.Close()
 
 		if hasText {
-			err = client.TypeText(text)
+			err = client.TypeText(text, t.config.ComputerUse.KeyboardType.TypingDelayMs)
 		} else {
 			err = client.SendKeyCombo(keyCombo)
 		}

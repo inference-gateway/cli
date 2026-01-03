@@ -289,6 +289,7 @@ type MouseClickToolConfig struct {
 type KeyboardTypeToolConfig struct {
 	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
 	MaxTextLength   int   `yaml:"max_text_length" mapstructure:"max_text_length"`
+	TypingDelayMs   int   `yaml:"typing_delay_ms" mapstructure:"typing_delay_ms"`
 	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 }
 
@@ -1055,6 +1056,7 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			KeyboardType: KeyboardTypeToolConfig{
 				Enabled:         true,
 				MaxTextLength:   1000,
+				TypingDelayMs:   200,
 				RequireApproval: &[]bool{true}[0],
 			},
 			RateLimit: RateLimitConfig{

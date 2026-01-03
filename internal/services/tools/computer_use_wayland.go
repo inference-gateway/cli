@@ -124,44 +124,56 @@ func (c *WaylandClient) ClickMouse(button string, clicks int) error {
 	return nil
 }
 
-// TypeText types the given text
-func (c *WaylandClient) TypeText(text string) error {
+// TypeText types the given text with a configurable delay between keystrokes (in milliseconds)
+func (c *WaylandClient) TypeText(text string, delayMs int) error {
 	if _, err := exec.LookPath("wtype"); err == nil {
-		return c.typeTextWithWtype(text)
+		return c.typeTextWithWtype(text, delayMs)
 	}
 
 	if _, err := exec.LookPath("ydotool"); err == nil {
-		return c.typeTextWithYdotool(text)
+		return c.typeTextWithYdotool(text, delayMs)
 	}
 
 	return fmt.Errorf("no text input tool available (install wtype or ydotool)")
 }
 
 // typeTextWithWtype types text using the wtype command
-func (c *WaylandClient) typeTextWithWtype(text string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+func (c *WaylandClient) typeTextWithWtype(text string, delayMs int) error {
+	for _, char := range text {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
-	cmd := exec.CommandContext(ctx, "wtype", text)
+		cmd := exec.CommandContext(ctx, "wtype", string(char))
+		output, err := cmd.CombinedOutput()
+		cancel()
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("wtype failed: %s", string(output))
+		if err != nil {
+			return fmt.Errorf("wtype failed: %s", string(output))
+		}
+
+		if delayMs > 0 {
+			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+		}
 	}
 
 	return nil
 }
 
 // typeTextWithYdotool types text using the ydotool command
-func (c *WaylandClient) typeTextWithYdotool(text string) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+func (c *WaylandClient) typeTextWithYdotool(text string, delayMs int) error {
+	for _, char := range text {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 
-	cmd := exec.CommandContext(ctx, "ydotool", "type", text)
+		cmd := exec.CommandContext(ctx, "ydotool", "type", string(char))
+		output, err := cmd.CombinedOutput()
+		cancel()
 
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return fmt.Errorf("ydotool type failed: %s", string(output))
+		if err != nil {
+			return fmt.Errorf("ydotool failed: %s", string(output))
+		}
+
+		if delayMs > 0 {
+			time.Sleep(time.Duration(delayMs) * time.Millisecond)
+		}
 	}
 
 	return nil
