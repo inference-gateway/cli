@@ -27,13 +27,13 @@ class ScreenshotOverlay {
         this.overlayElement.className = 'screenshot-overlay hidden';
         this.overlayElement.innerHTML = `
             <div class="screenshot-header">
-                <h3>Live Screenshot</h3>
+                <h3>Live Preview</h3>
                 <button class="screenshot-close" title="Close overlay">×</button>
             </div>
             <div class="screenshot-content">
                 <div class="screenshot-status">Connecting...</div>
                 <div class="screenshot-error hidden"></div>
-                <img class="screenshot-image" alt="Remote screenshot" />
+                <img class="screenshot-image" alt="Remote preview" />
                 <div class="screenshot-info">
                     <div class="screenshot-timestamp">—</div>
                     <div class="screenshot-dimensions">—</div>
@@ -73,7 +73,7 @@ class ScreenshotOverlay {
         console.log(`Screenshot overlay: starting polling for session ${sessionID}`);
 
         // Show status
-        this.updateStatus('Loading screenshots...');
+        this.updateStatus('Loading preview...');
         this.hideError();
 
         // Fetch immediately
@@ -120,7 +120,7 @@ class ScreenshotOverlay {
 
         } catch (error) {
             console.error('Failed to fetch screenshot:', error);
-            this.showError(`Failed to fetch screenshot: ${error.message}`);
+            this.showError(`Failed to fetch preview: ${error.message}`);
             this.updateStatus('Connection error');
         }
     }
@@ -131,7 +131,7 @@ class ScreenshotOverlay {
      */
     updateDisplay(screenshot) {
         if (!screenshot || !screenshot.data) {
-            this.showError('Invalid screenshot data');
+            this.showError('Invalid preview data');
             return;
         }
 
