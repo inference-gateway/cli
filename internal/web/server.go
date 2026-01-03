@@ -143,7 +143,7 @@ func (s *WebTerminalServer) handleServers(w http.ResponseWriter, r *http.Request
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(map[string]interface{}{
+	if err := json.NewEncoder(w).Encode(map[string]any{
 		"servers":     servers,
 		"ssh_enabled": s.cfg.Web.SSH.Enabled,
 	}); err != nil {

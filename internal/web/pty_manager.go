@@ -95,7 +95,7 @@ func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *
 
 // ensureRemoteConfig ensures infer config exists on remote server
 // Runs infer init --userspace if ~/.infer/config.yaml doesn't exist
-func ensureRemoteConfig(client *SSHClient, serverCfg *config.SSHServerConfig, gatewayURL string) error {
+func ensureRemoteConfig(client *SSHClient, serverCfg *config.SSHServerConfig, _ string) error {
 	commandPath := serverCfg.CommandPath
 	if commandPath == "" {
 		commandPath = "infer"

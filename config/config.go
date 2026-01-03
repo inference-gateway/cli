@@ -271,6 +271,7 @@ type ScreenshotToolConfig struct {
 	CaptureInterval  int    `yaml:"capture_interval" mapstructure:"capture_interval"` // seconds
 	BufferSize       int    `yaml:"buffer_size" mapstructure:"buffer_size"`           // number of screenshots
 	TempDir          string `yaml:"temp_dir" mapstructure:"temp_dir"`                 // path for disk storage
+	LogCaptures      bool   `yaml:"log_captures" mapstructure:"log_captures"`         // log every capture (debug)
 }
 
 // MouseMoveToolConfig contains mouse move-specific tool settings
@@ -1031,7 +1032,7 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			Servers: []SSHServerConfig{},
 		},
 		ComputerUse: ComputerUseConfig{
-			Enabled: false, // Security: disabled by default
+			Enabled: false,
 			Display: ":0",
 			Screenshot: ScreenshotToolConfig{
 				Enabled:          true,
@@ -1043,7 +1044,8 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				StreamingEnabled: false,
 				CaptureInterval:  3,
 				BufferSize:       30,
-				TempDir:          "/tmp/infer-screenshots",
+				TempDir:          "",
+				LogCaptures:      false,
 			},
 			MouseMove: MouseMoveToolConfig{
 				Enabled:         true,

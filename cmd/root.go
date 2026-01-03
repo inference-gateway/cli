@@ -103,6 +103,7 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("computer_use.screenshot.capture_interval", defaults.ComputerUse.Screenshot.CaptureInterval)
 	v.SetDefault("computer_use.screenshot.buffer_size", defaults.ComputerUse.Screenshot.BufferSize)
 	v.SetDefault("computer_use.screenshot.temp_dir", defaults.ComputerUse.Screenshot.TempDir)
+	v.SetDefault("computer_use.screenshot.log_captures", defaults.ComputerUse.Screenshot.LogCaptures)
 	v.SetDefault("computer_use.mouse_move.enabled", defaults.ComputerUse.MouseMove.Enabled)
 	v.SetDefault("computer_use.mouse_click.enabled", defaults.ComputerUse.MouseClick.Enabled)
 	v.SetDefault("computer_use.keyboard_type.enabled", defaults.ComputerUse.KeyboardType.Enabled)

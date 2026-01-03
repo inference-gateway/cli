@@ -767,7 +767,7 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 	}
 }
 
-func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain.AgentRequest, conversation []sdk.Message, eventPublisher *eventPublisher) []sdk.Message {
+func (s *AgentServiceImpl) optimizeConversation(_ context.Context, req *domain.AgentRequest, conversation []sdk.Message, eventPublisher *eventPublisher) []sdk.Message {
 	if s.optimizer == nil {
 		return conversation
 	}

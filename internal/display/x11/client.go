@@ -1,4 +1,4 @@
-package tools
+package x11
 
 import (
 	"bytes"
@@ -256,7 +256,7 @@ func (c *X11Client) TypeText(text string, delayMs int) error {
 
 		keycodes := keybind.StrToKeycodes(c.xu, keyInfo.keyStr)
 		if len(keycodes) == 0 {
-			logger.Warn("No keycode found for character", "char", string(char), "keyStr", keyInfo.keyStr)
+			logger.Debug("No keycode found for character", "char", string(char), "keyStr", keyInfo.keyStr)
 			continue
 		}
 

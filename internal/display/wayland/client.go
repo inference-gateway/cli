@@ -1,4 +1,4 @@
-package tools
+package wayland
 
 import (
 	"context"
@@ -226,10 +226,6 @@ func (c *WaylandClient) sendKeyComboWithYdotool(combo string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// ydotool key combo format: key1:key2
-	// Convert "ctrl+c" to "29:46" (keycodes)
-	// This is a simplified version - proper implementation would need keycode mapping
-
 	cmd := exec.CommandContext(ctx, "ydotool", "key", combo)
 
 	output, err := cmd.CombinedOutput()
@@ -242,9 +238,6 @@ func (c *WaylandClient) sendKeyComboWithYdotool(combo string) error {
 
 // GetScreenDimensions returns the screen width and height
 func (c *WaylandClient) GetScreenDimensions() (int, int, error) {
-	// Wayland doesn't have a simple command to get screen dimensions
-	// We can use wlr-randr if available, or return default values
-
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

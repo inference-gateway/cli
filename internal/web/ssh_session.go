@@ -80,9 +80,9 @@ func (s *SSHSession) Start(cols, rows int) error {
 	s.session = session
 
 	modes := ssh.TerminalModes{
-		ssh.ECHO:          1,     // Enable echoing
-		ssh.TTY_OP_ISPEED: 14400, // Input speed = 14.4kbaud
-		ssh.TTY_OP_OSPEED: 14400, // Output speed = 14.4kbaud
+		ssh.ECHO:          1,
+		ssh.TTY_OP_ISPEED: 14400,
+		ssh.TTY_OP_OSPEED: 14400,
 	}
 
 	if err := session.RequestPty("xterm-256color", rows, cols, modes); err != nil {
@@ -451,7 +451,7 @@ func (s *SSHSession) notifyWebUI(localPort int) {
 		return
 	}
 
-	msg := map[string]interface{}{
+	msg := map[string]any{
 		"type": "screenshot_port",
 		"port": localPort,
 	}

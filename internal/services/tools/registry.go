@@ -7,10 +7,15 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
+
+	_ "github.com/inference-gateway/cli/internal/display/macos"
+	_ "github.com/inference-gateway/cli/internal/display/wayland"
+	_ "github.com/inference-gateway/cli/internal/display/x11"
 )
 
 // Registry manages all available tools
@@ -79,11 +84,15 @@ func (r *Registry) registerTools() {
 	}
 
 	if r.config.ComputerUse.Enabled {
-		rateLimiter := NewRateLimiter(r.config.ComputerUse.RateLimit)
-		r.tools["Screenshot"] = NewScreenshotTool(r.config, r.imageService, rateLimiter)
-		r.tools["MouseMove"] = NewMouseMoveTool(r.config, rateLimiter)
-		r.tools["MouseClick"] = NewMouseClickTool(r.config, rateLimiter)
-		r.tools["KeyboardType"] = NewKeyboardTypeTool(r.config, rateLimiter)
+		displayProvider, err := display.DetectDisplay()
+		if err != nil {
+			logger.Warn("No compatible display platform detected, computer use tools will be disabled", "error", err)
+		} else {
+			rateLimiter := utils.NewRateLimiter(r.config.ComputerUse.RateLimit)
+			r.tools["MouseMove"] = NewMouseMoveTool(r.config, rateLimiter, displayProvider)
+			r.tools["MouseClick"] = NewMouseClickTool(r.config, rateLimiter, displayProvider)
+			r.tools["KeyboardType"] = NewKeyboardTypeTool(r.config, rateLimiter, displayProvider)
+		}
 	}
 
 	if r.config.MCP.Enabled && r.mcpManager != nil {

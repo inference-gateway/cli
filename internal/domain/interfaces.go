@@ -54,6 +54,16 @@ type ScreenshotProvider interface {
 	GetLatestScreenshot() (*Screenshot, error)
 }
 
+// RateLimiter defines the interface for rate limiting computer use actions
+type RateLimiter interface {
+	// CheckAndRecord checks if the action is within rate limits and records it
+	CheckAndRecord(toolName string) error
+	// GetCurrentCount returns the number of actions in the current window
+	GetCurrentCount() int
+	// Reset clears all recorded actions
+	Reset()
+}
+
 // ScreenshotToolResult represents the result of a screenshot capture
 type ScreenshotToolResult struct {
 	Display string        `json:"display"`

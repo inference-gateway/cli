@@ -6,25 +6,29 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // KeyboardTypeTool types text or sends key combinations
 type KeyboardTypeTool struct {
-	config      *config.Config
-	enabled     bool
-	formatter   domain.BaseFormatter
-	rateLimiter *RateLimiter
+	config          *config.Config
+	enabled         bool
+	formatter       domain.BaseFormatter
+	rateLimiter     domain.RateLimiter
+	displayProvider display.Provider
 }
 
 // NewKeyboardTypeTool creates a new keyboard type tool
-func NewKeyboardTypeTool(cfg *config.Config, rateLimiter *RateLimiter) *KeyboardTypeTool {
+func NewKeyboardTypeTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider) *KeyboardTypeTool {
 	return &KeyboardTypeTool{
-		config:      cfg,
-		enabled:     cfg.ComputerUse.Enabled && cfg.ComputerUse.KeyboardType.Enabled,
-		formatter:   domain.NewBaseFormatter("KeyboardType"),
-		rateLimiter: rateLimiter,
+		config:          cfg,
+		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.KeyboardType.Enabled,
+		formatter:       domain.NewBaseFormatter("KeyboardType"),
+		rateLimiter:     rateLimiter,
+		displayProvider: displayProvider,
 	}
 }
 
@@ -95,87 +99,59 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 		}, nil
 	}
 
-	display := t.config.ComputerUse.Display
+	displayName := t.config.ComputerUse.Display
 	if displayArg, ok := args["display"].(string); ok && displayArg != "" {
-		display = displayArg
+		displayName = displayArg
 	}
 
-	displayServer := DetectDisplayServer()
-
-	switch displayServer {
-	case DisplayServerX11:
-		client, err := NewX11Client(display)
-		if err != nil {
-			return &domain.ToolExecutionResult{
-				ToolName:  "KeyboardType",
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(start),
-				Error:     err.Error(),
-			}, nil
-		}
-		defer client.Close()
-
-		if hasText {
-			err = client.TypeText(text, t.config.ComputerUse.KeyboardType.TypingDelayMs)
-		} else {
-			err = client.SendKeyCombo(keyCombo)
-		}
-
-		if err != nil {
-			return &domain.ToolExecutionResult{
-				ToolName:  "KeyboardType",
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(start),
-				Error:     err.Error(),
-			}, nil
-		}
-
-	case DisplayServerWayland:
-		client, err := NewWaylandClient(display)
-		if err != nil {
-			return &domain.ToolExecutionResult{
-				ToolName:  "KeyboardType",
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(start),
-				Error:     err.Error(),
-			}, nil
-		}
-		defer client.Close()
-
-		if hasText {
-			err = client.TypeText(text, t.config.ComputerUse.KeyboardType.TypingDelayMs)
-		} else {
-			err = client.SendKeyCombo(keyCombo)
-		}
-
-		if err != nil {
-			return &domain.ToolExecutionResult{
-				ToolName:  "KeyboardType",
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(start),
-				Error:     err.Error(),
-			}, nil
-		}
-
-	default:
+	if t.displayProvider == nil {
 		return &domain.ToolExecutionResult{
 			ToolName:  "KeyboardType",
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
-			Error:     "no display server detected (neither X11 nor Wayland)",
+			Error:     "no compatible display platform detected",
+		}, nil
+	}
+
+	controller, err := t.displayProvider.GetController(displayName)
+	if err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "KeyboardType",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     fmt.Sprintf("failed to get platform controller: %v", err),
+		}, nil
+	}
+	defer func() {
+		if closeErr := controller.Close(); closeErr != nil {
+			logger.Warn("Failed to close controller", "error", closeErr)
+		}
+	}()
+
+	var execErr error
+	if hasText {
+		execErr = controller.TypeText(ctx, text, t.config.ComputerUse.KeyboardType.TypingDelayMs)
+	} else {
+		execErr = controller.SendKeyCombo(ctx, keyCombo)
+	}
+
+	if execErr != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "KeyboardType",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     fmt.Sprintf("keyboard action failed: %v", execErr),
 		}, nil
 	}
 
 	result := domain.KeyboardTypeToolResult{
 		Text:     text,
 		KeyCombo: keyCombo,
-		Display:  display,
-		Method:   displayServer.String(),
+		Display:  displayName,
+		Method:   t.displayProvider.GetDisplayInfo().Name,
 	}
 
 	return &domain.ToolExecutionResult{

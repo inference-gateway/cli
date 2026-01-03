@@ -6,25 +6,29 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
 // MouseMoveTool moves the mouse cursor to specified coordinates
 type MouseMoveTool struct {
-	config      *config.Config
-	enabled     bool
-	formatter   domain.BaseFormatter
-	rateLimiter *RateLimiter
+	config          *config.Config
+	enabled         bool
+	formatter       domain.BaseFormatter
+	rateLimiter     domain.RateLimiter
+	displayProvider display.Provider
 }
 
 // NewMouseMoveTool creates a new mouse move tool
-func NewMouseMoveTool(cfg *config.Config, rateLimiter *RateLimiter) *MouseMoveTool {
+func NewMouseMoveTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider) *MouseMoveTool {
 	return &MouseMoveTool{
-		config:      cfg,
-		enabled:     cfg.ComputerUse.Enabled && cfg.ComputerUse.MouseMove.Enabled,
-		formatter:   domain.NewBaseFormatter("MouseMove"),
-		rateLimiter: rateLimiter,
+		config:          cfg,
+		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.MouseMove.Enabled,
+		formatter:       domain.NewBaseFormatter("MouseMove"),
+		rateLimiter:     rateLimiter,
+		displayProvider: displayProvider,
 	}
 }
 
@@ -86,72 +90,46 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}, nil
 	}
 
-	display := t.config.ComputerUse.Display
+	displayName := t.config.ComputerUse.Display
 	if displayArg, ok := args["display"].(string); ok && displayArg != "" {
-		display = displayArg
+		displayName = displayArg
 	}
 
-	var fromX, fromY int
-	displayServer := DetectDisplayServer()
-
-	switch displayServer {
-	case DisplayServerX11:
-		client, err := NewX11Client(display)
-		if err != nil {
-			return &domain.ToolExecutionResult{
-				ToolName:  "MouseMove",
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(start),
-				Error:     err.Error(),
-			}, nil
-		}
-		defer client.Close()
-
-		fromX, fromY, _ = client.GetCursorPosition()
-
-		if err := client.MoveMouse(int(x), int(y)); err != nil {
-			return &domain.ToolExecutionResult{
-				ToolName:  "MouseMove",
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(start),
-				Error:     err.Error(),
-			}, nil
-		}
-
-	case DisplayServerWayland:
-		client, err := NewWaylandClient(display)
-		if err != nil {
-			return &domain.ToolExecutionResult{
-				ToolName:  "MouseMove",
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(start),
-				Error:     err.Error(),
-			}, nil
-		}
-		defer client.Close()
-
-		fromX, fromY = 0, 0
-
-		if err := client.MoveMouse(int(x), int(y)); err != nil {
-			return &domain.ToolExecutionResult{
-				ToolName:  "MouseMove",
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(start),
-				Error:     err.Error(),
-			}, nil
-		}
-
-	default:
+	if t.displayProvider == nil {
 		return &domain.ToolExecutionResult{
 			ToolName:  "MouseMove",
 			Arguments: args,
 			Success:   false,
 			Duration:  time.Since(start),
-			Error:     "no display server detected (neither X11 nor Wayland)",
+			Error:     "no compatible display platform detected",
+		}, nil
+	}
+
+	controller, err := t.displayProvider.GetController(displayName)
+	if err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "MouseMove",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     fmt.Sprintf("failed to get platform controller: %v", err),
+		}, nil
+	}
+	defer func() {
+		if closeErr := controller.Close(); closeErr != nil {
+			logger.Warn("Failed to close controller", "error", closeErr)
+		}
+	}()
+
+	fromX, fromY, _ := controller.GetCursorPosition(ctx)
+
+	if err := controller.MoveMouse(ctx, int(x), int(y)); err != nil {
+		return &domain.ToolExecutionResult{
+			ToolName:  "MouseMove",
+			Arguments: args,
+			Success:   false,
+			Duration:  time.Since(start),
+			Error:     fmt.Sprintf("failed to move mouse: %v", err),
 		}, nil
 	}
 
@@ -160,8 +138,8 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 		FromY:   fromY,
 		ToX:     int(x),
 		ToY:     int(y),
-		Display: display,
-		Method:  displayServer.String(),
+		Display: displayName,
+		Method:  t.displayProvider.GetDisplayInfo().Name,
 	}
 
 	return &domain.ToolExecutionResult{

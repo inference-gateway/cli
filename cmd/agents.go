@@ -242,7 +242,7 @@ type ExternalAgent struct {
 }
 
 // getConfig loads the configuration from viper
-func getConfig(cmd *cobra.Command) (*config.Config, error) {
+func getConfig(_ *cobra.Command) (*config.Config, error) {
 	cfg, err := getConfigFromViper()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load config: %w", err)
@@ -425,7 +425,7 @@ func listAgents(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString("format")
 
 	if format == "json" {
-		combinedOutput := map[string]interface{}{
+		combinedOutput := map[string]any{
 			"local":    localAgents,
 			"external": externalAgents,
 			"total":    totalAgents,

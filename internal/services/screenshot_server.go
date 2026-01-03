@@ -6,14 +6,18 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	tools "github.com/inference-gateway/cli/internal/services/tools"
+
+	_ "github.com/inference-gateway/cli/internal/display/wayland"
+	_ "github.com/inference-gateway/cli/internal/display/x11"
 )
 
 // ScreenshotServer provides an HTTP API for screenshot streaming
@@ -49,37 +53,34 @@ func (s *ScreenshotServer) Start() error {
 		return fmt.Errorf("screenshot server already running")
 	}
 
-	logger.Info("Starting screenshot server", "session_id", s.sessionID)
-
-	// Create circular buffer
 	bufferSize := s.cfg.ComputerUse.Screenshot.BufferSize
 	if bufferSize <= 0 {
-		bufferSize = 30 // default
+		bufferSize = 30
 	}
 
 	tempDir := s.cfg.ComputerUse.Screenshot.TempDir
 	if tempDir == "" {
-		tempDir = "/tmp/infer-screenshots"
+		tempDir = filepath.Join(s.cfg.GetConfigDir(), "tmp", "screenshots")
 	}
 
-	logger.Info("Creating screenshot buffer", "buffer_size", bufferSize, "temp_dir", tempDir)
+	absTempDir, err := filepath.Abs(tempDir)
+	if err != nil {
+		return fmt.Errorf("failed to resolve temp directory path: %w", err)
+	}
 
-	buffer, err := NewCircularScreenshotBuffer(bufferSize, tempDir, s.sessionID)
+	buffer, err := NewCircularScreenshotBuffer(bufferSize, absTempDir, s.sessionID)
 	if err != nil {
 		return fmt.Errorf("failed to create screenshot buffer: %w", err)
 	}
 	s.buffer = buffer
 
-	// Listen on random port
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
 		return fmt.Errorf("failed to listen: %w", err)
 	}
 
 	s.port = listener.Addr().(*net.TCPAddr).Port
-	logger.Info("Screenshot server listening", "port", s.port)
 
-	// Create HTTP server
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/screenshots/latest", s.handleGetLatest)
 	mux.HandleFunc("/api/screenshots", s.handleGetRecent)
@@ -89,20 +90,27 @@ func (s *ScreenshotServer) Start() error {
 		Handler: mux,
 	}
 
-	// Start HTTP server in goroutine
 	go func() {
-		logger.Info("Screenshot HTTP server started", "port", s.port)
 		if err := s.server.Serve(listener); err != nil && err != http.ErrServerClosed {
 			logger.Error("Screenshot server error", "error", err)
 		}
 	}()
 
-	// Start capture loop
 	s.captureCtx, s.captureStop = context.WithCancel(context.Background())
 	go s.startCaptureLoop()
 
 	s.running = true
-	logger.Info("Screenshot server fully initialized", "port", s.port, "capture_interval", s.cfg.ComputerUse.Screenshot.CaptureInterval)
+
+	interval := s.cfg.ComputerUse.Screenshot.CaptureInterval
+	if interval <= 0 {
+		interval = 3
+	}
+	logger.Info("Screenshot server started",
+		"session_id", s.sessionID,
+		"port", s.port,
+		"buffer_size", bufferSize,
+		"temp_dir", absTempDir,
+		"capture_interval", interval)
 
 	return nil
 }
@@ -116,12 +124,10 @@ func (s *ScreenshotServer) Stop() error {
 		return nil
 	}
 
-	// Stop capture loop
 	if s.captureStop != nil {
 		s.captureStop()
 	}
 
-	// Shutdown HTTP server
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -131,7 +137,6 @@ func (s *ScreenshotServer) Stop() error {
 		}
 	}
 
-	// Cleanup buffer
 	if s.buffer != nil {
 		if err := s.buffer.Cleanup(); err != nil {
 			logger.Warn("Failed to cleanup buffer", "error", err)
@@ -154,10 +159,8 @@ func (s *ScreenshotServer) Port() int {
 func (s *ScreenshotServer) startCaptureLoop() {
 	interval := s.cfg.ComputerUse.Screenshot.CaptureInterval
 	if interval <= 0 {
-		interval = 3 // default: 3 seconds
+		interval = 3
 	}
-
-	logger.Info("Screenshot capture loop started", "interval_seconds", interval)
 
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
@@ -165,14 +168,12 @@ func (s *ScreenshotServer) startCaptureLoop() {
 	for {
 		select {
 		case <-s.captureCtx.Done():
-			logger.Info("Screenshot capture loop stopped")
 			return
 		case <-ticker.C:
-			logger.Info("Attempting screenshot capture")
 			if err := s.captureScreenshot(); err != nil {
 				logger.Warn("Screenshot capture failed", "error", err)
-			} else {
-				logger.Info("Screenshot captured successfully")
+			} else if s.cfg.ComputerUse.Screenshot.LogCaptures {
+				logger.Debug("Screenshot captured")
 			}
 		}
 	}
@@ -180,43 +181,45 @@ func (s *ScreenshotServer) startCaptureLoop() {
 
 // captureScreenshot captures a screenshot and adds it to the buffer
 func (s *ScreenshotServer) captureScreenshot() error {
-	// Use the screenshot tool to capture
-	tool := tools.NewScreenshotTool(s.cfg, s.imageSvc, nil) // No rate limiter for auto-capture
-
-	// Execute with default args (full screen)
-	result, err := tool.Execute(s.captureCtx, map[string]any{})
+	displayProvider, err := display.DetectDisplay()
 	if err != nil {
-		return err
+		return fmt.Errorf("no compatible display platform detected: %w", err)
 	}
 
-	if !result.Success {
-		return fmt.Errorf("screenshot capture failed: %s", result.Error)
+	controller, err := displayProvider.GetController(s.cfg.ComputerUse.Display)
+	if err != nil {
+		return fmt.Errorf("failed to get platform controller: %w", err)
+	}
+	defer func() {
+		if closeErr := controller.Close(); closeErr != nil {
+			logger.Warn("Failed to close controller", "error", closeErr)
+		}
+	}()
+
+	width, height, err := controller.GetScreenDimensions(s.captureCtx)
+	if err != nil {
+		return fmt.Errorf("failed to get screen dimensions: %w", err)
 	}
 
-	// Extract screenshot data
-	toolResult, ok := result.Data.(domain.ScreenshotToolResult)
-	if !ok {
-		return fmt.Errorf("unexpected result type")
+	imageBytes, err := controller.CaptureScreenBytes(s.captureCtx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to capture screenshot: %w", err)
 	}
 
-	// Get image attachment
-	if len(result.Images) == 0 {
-		return fmt.Errorf("no image in result")
+	imageAttachment, err := s.imageSvc.ReadImageFromBinary(imageBytes, "screenshot.png")
+	if err != nil {
+		return fmt.Errorf("failed to process image: %w", err)
 	}
 
-	imageAttachment := result.Images[0]
-
-	// Create Screenshot object
 	screenshot := &domain.Screenshot{
 		Timestamp: time.Now(),
 		Data:      imageAttachment.Data,
-		Width:     toolResult.Width,
-		Height:    toolResult.Height,
-		Format:    toolResult.Format,
-		Method:    toolResult.Method,
+		Width:     width,
+		Height:    height,
+		Format:    "png",
+		Method:    displayProvider.GetDisplayInfo().Name,
 	}
 
-	// Add to buffer
 	return s.buffer.Add(screenshot)
 }
 
@@ -246,8 +249,7 @@ func (s *ScreenshotServer) handleGetRecent(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// Parse limit parameter
-	limit := 30 // default
+	limit := 30
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if parsedLimit, err := strconv.Atoi(limitStr); err == nil {
 			if parsedLimit > 0 && parsedLimit <= 100 {
@@ -258,7 +260,7 @@ func (s *ScreenshotServer) handleGetRecent(w http.ResponseWriter, r *http.Reques
 
 	screenshots := s.buffer.GetRecent(limit)
 
-	response := map[string]interface{}{
+	response := map[string]any{
 		"screenshots": screenshots,
 		"count":       len(screenshots),
 	}
@@ -279,7 +281,7 @@ func (s *ScreenshotServer) handleGetStatus(w http.ResponseWriter, r *http.Reques
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	status := map[string]interface{}{
+	status := map[string]any{
 		"running":      s.running,
 		"count":        s.buffer.Count(),
 		"interval_sec": s.cfg.ComputerUse.Screenshot.CaptureInterval,

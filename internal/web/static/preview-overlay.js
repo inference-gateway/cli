@@ -9,6 +9,7 @@ class ScreenshotOverlay {
         this.pollInterval = null;
         this.pollingFrequency = 2000; // 2 seconds
         this.overlayElement = null;
+        this.skeletonElement = null;
         this.imageElement = null;
         this.timestampElement = null;
         this.dimensionsElement = null;
@@ -33,7 +34,8 @@ class ScreenshotOverlay {
             <div class="screenshot-content">
                 <div class="screenshot-status">Connecting...</div>
                 <div class="screenshot-error hidden"></div>
-                <img class="screenshot-image" alt="Remote preview" />
+                <div class="screenshot-skeleton"></div>
+                <img class="screenshot-image hidden" alt="Remote preview" />
                 <div class="screenshot-info">
                     <div class="screenshot-timestamp">—</div>
                     <div class="screenshot-dimensions">—</div>
@@ -41,7 +43,7 @@ class ScreenshotOverlay {
             </div>
         `;
 
-        // Cache DOM elements
+        this.skeletonElement = this.overlayElement.querySelector('.screenshot-skeleton');
         this.imageElement = this.overlayElement.querySelector('.screenshot-image');
         this.timestampElement = this.overlayElement.querySelector('.screenshot-timestamp');
         this.dimensionsElement = this.overlayElement.querySelector('.screenshot-dimensions');
@@ -71,6 +73,9 @@ class ScreenshotOverlay {
 
         this.sessionID = sessionID;
         console.log(`Screenshot overlay: starting polling for session ${sessionID}`);
+
+        this.skeletonElement.classList.remove('hidden');
+        this.imageElement.classList.add('hidden');
 
         // Show status
         this.updateStatus('Loading preview...');
@@ -135,9 +140,11 @@ class ScreenshotOverlay {
             return;
         }
 
+        this.skeletonElement.classList.add('hidden');
+        this.imageElement.classList.remove('hidden');
+
         // Update image
         this.imageElement.src = `data:image/${screenshot.format};base64,${screenshot.data}`;
-        this.imageElement.style.display = 'block';
 
         // Update timestamp
         const timestamp = new Date(screenshot.timestamp);

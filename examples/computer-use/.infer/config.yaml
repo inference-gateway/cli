@@ -177,11 +177,9 @@ computer_use:
     format: "jpeg"
     quality: 80
     require_approval: false
-    # Screenshot streaming for web UI
     streaming_enabled: true
     capture_interval: 3
     buffer_size: 30
-    temp_dir: "/tmp/infer-screenshots"
   mouse_move:
     enabled: true
     require_approval: true

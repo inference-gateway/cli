@@ -651,7 +651,8 @@ computer_use:
     streaming_enabled: false
     capture_interval: 3
     buffer_size: 30
-    temp_dir: /tmp/infer-screenshots
+    temp_dir: ""
+    log_captures: false
   mouse_move:
     enabled: true
     require_approval: true
@@ -661,6 +662,7 @@ computer_use:
   keyboard_type:
     enabled: true
     max_text_length: 1000
+    typing_delay_ms: 200
     require_approval: true
   rate_limit:
     enabled: true

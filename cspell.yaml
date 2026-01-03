@@ -5,10 +5,16 @@ words:
   - alecthomas
   - alrvd
   - apapsch
+  - asciicircum
+  - asciitilde
   - aymanbagabas
   - aymerick
   - bahlo
   - bluemonday
+  - braceleft
+  - braceright
+  - bracketleft
+  - bracketright
   - bubbletea
   - buger
   - cancelreader
@@ -21,6 +27,7 @@ words:
   - colorprofile
   - coninput
   - creack
+  - cyclop
   - davecgh
   - deepseek
   - DEEPSEEK
@@ -30,9 +37,11 @@ words:
   - duckduckgo
   - easyjson
   - erikgeiser
+  - exclam
   - fsnotify
   - funlen
   - gjson
+  - gocognit
   - gocyclo
   - goldmark
   - gopkg
@@ -43,9 +52,11 @@ words:
   - inconshreveable
   - invopop
   - isatty
+  - ISPEED
   - jsonmerge
   - jsonparser
   - jsonschema
+  - keybind
   - keygen
   - kimi
   - ledongthuc
@@ -67,21 +78,28 @@ words:
   - myshortcuts
   - nolint
   - NOPASSWD
+  - numbersign
   - oapi
   - ollama
   - OLLAMA
   - oneline
+  - OSPEED
+  - parenleft
+  - parenright
   - pflag
   - pgdn
+  - pgrep
   - pgup
   - playai
   - pmezard
+  - quotedbl
   - qwen
   - resty
   - retryable
   - rivo
   - runewidth
   - sabhiram
+  - sagents
   - sagikazarmark
   - SHTTP
   - sjson
@@ -93,6 +111,15 @@ words:
   - termenv
   - terminfo
   - tidwall
+  - tmpl
   - uniseg
+  - upgrader
+  - userspace
+  - Winsize
+  - xdraw
+  - xgbutil
+  - xgraphics
+  - ximg
+  - xtest
   - xxhash
   - yuin
