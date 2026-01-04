@@ -47,9 +47,6 @@ var (
 
 // NewX11Client creates a new X11 client connection
 func NewX11Client(display string) (*X11Client, error) {
-	if display == "" {
-		display = ":0"
-	}
 
 	oldStderr := os.Stderr
 	devNull, devErr := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
@@ -198,6 +195,53 @@ func (c *X11Client) ClickMouse(button string, clicks int) error {
 
 		if i < clicks-1 {
 			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	c.conn.Sync()
+	return nil
+}
+
+// ScrollMouse scrolls the mouse wheel
+// For X11: button 4 = scroll up, button 5 = scroll down
+//
+//	button 6 = scroll left, button 7 = scroll right
+func (c *X11Client) ScrollMouse(clicks int, direction string) error {
+	root := c.screen.Root
+
+	var buttonCode byte
+	absClicks := clicks
+	if clicks < 0 {
+		absClicks = -clicks
+	}
+
+	if direction == "horizontal" {
+		buttonCode = 7
+		if clicks < 0 {
+			buttonCode = 6
+		}
+	} else {
+		buttonCode = 5
+		if clicks < 0 {
+			buttonCode = 4
+		}
+	}
+
+	absClicks = absClicks * 100
+
+	for i := 0; i < absClicks; i++ {
+		cookie := xtest.FakeInputChecked(c.conn, xproto.ButtonPress, buttonCode, 0, root, 0, 0, 0)
+		if err := cookie.Check(); err != nil {
+			return fmt.Errorf("failed to send scroll press: %w", err)
+		}
+
+		cookie = xtest.FakeInputChecked(c.conn, xproto.ButtonRelease, buttonCode, 0, root, 0, 0, 0)
+		if err := cookie.Check(); err != nil {
+			return fmt.Errorf("failed to send scroll release: %w", err)
+		}
+
+		if i < absClicks-1 {
+			time.Sleep(50 * time.Millisecond)
 		}
 	}
 

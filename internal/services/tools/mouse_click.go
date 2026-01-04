@@ -63,11 +63,6 @@ func (t *MouseClickTool) Definition() sdk.ChatCompletionTool {
 						"type":        "integer",
 						"description": "Optional: Y coordinate to move to before clicking",
 					},
-					"display": map[string]any{
-						"type":        "string",
-						"description": "Display to use (e.g., ':0'). Defaults to ':0'.",
-						"default":     ":0",
-					},
 				},
 				"required": []string{"button"},
 			},
@@ -99,11 +94,6 @@ func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*dom
 		clicks = int(clicksArg)
 	}
 
-	displayName := t.config.ComputerUse.Display
-	if displayArg, ok := args["display"].(string); ok && displayArg != "" {
-		displayName = displayArg
-	}
-
 	var finalX, finalY int
 	shouldMove := false
 
@@ -125,7 +115,7 @@ func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*dom
 		}, nil
 	}
 
-	controller, err := t.displayProvider.GetController(displayName)
+	controller, err := t.displayProvider.GetController()
 	if err != nil {
 		return &domain.ToolExecutionResult{
 			ToolName:  "MouseClick",
@@ -168,12 +158,11 @@ func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*dom
 	}
 
 	result := domain.MouseClickToolResult{
-		Button:  button,
-		Clicks:  clicks,
-		X:       finalX,
-		Y:       finalY,
-		Display: displayName,
-		Method:  t.displayProvider.GetDisplayInfo().Name,
+		Button: button,
+		Clicks: clicks,
+		X:      finalX,
+		Y:      finalY,
+		Method: t.displayProvider.GetDisplayInfo().Name,
 	}
 
 	return &domain.ToolExecutionResult{

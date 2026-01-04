@@ -40,8 +40,16 @@ and have a conversational interface with the inference gateway.`,
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 
+		if os.Getenv("INFER_WEB_MODE") == "true" {
+			cfg.Web.Enabled = true
+			V.Set("web.enabled", true)
+		}
+
 		webMode, _ := cmd.Flags().GetBool("web")
 		if webMode {
+			cfg.Web.Enabled = true
+			V.Set("web.enabled", true)
+
 			if cmd.Flags().Changed("port") {
 				cfg.Web.Port, _ = cmd.Flags().GetInt("port")
 			}
@@ -49,7 +57,6 @@ and have a conversational interface with the inference gateway.`,
 				cfg.Web.Host, _ = cmd.Flags().GetString("host")
 			}
 
-			// SSH remote mode flags
 			if cmd.Flags().Changed("ssh-host") {
 				cfg.Web.SSH.Enabled = true
 				sshHost, _ := cmd.Flags().GetString("ssh-host")
@@ -58,7 +65,6 @@ and have a conversational interface with the inference gateway.`,
 				sshCommand, _ := cmd.Flags().GetString("ssh-command")
 				noInstall, _ := cmd.Flags().GetBool("ssh-no-install")
 
-				// Create a single server config from CLI flags
 				cfg.Web.Servers = []config.SSHServerConfig{
 					{
 						Name:        "CLI Remote Server",
@@ -143,6 +149,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	conversationRepo := services.GetConversationRepository()
 	modelService := services.GetModelService()
 	config := services.GetConfig()
+	configService := services.GetConfigService()
 	toolService := services.GetToolService()
 	fileService := services.GetFileService()
 	imageService := services.GetImageService()
@@ -183,7 +190,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		conversationRepo,
 		conversationOptimizer,
 		modelService,
-		config,
+		configService,
 		toolService,
 		fileService,
 		imageService,

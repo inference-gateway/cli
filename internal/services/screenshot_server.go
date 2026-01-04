@@ -16,6 +16,7 @@ import (
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 
+	_ "github.com/inference-gateway/cli/internal/display/macos"
 	_ "github.com/inference-gateway/cli/internal/display/wayland"
 	_ "github.com/inference-gateway/cli/internal/display/x11"
 )
@@ -186,7 +187,7 @@ func (s *ScreenshotServer) captureScreenshot() error {
 		return fmt.Errorf("no compatible display platform detected: %w", err)
 	}
 
-	controller, err := displayProvider.GetController(s.cfg.ComputerUse.Display)
+	controller, err := displayProvider.GetController()
 	if err != nil {
 		return fmt.Errorf("failed to get platform controller: %w", err)
 	}

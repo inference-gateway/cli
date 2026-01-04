@@ -165,7 +165,10 @@ func (s *LocalPTYSession) Start(cols, rows int) error {
 	}
 
 	s.cmd = exec.Command(execPath, "chat")
-	s.cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	s.cmd.Env = append(os.Environ(),
+		"TERM=xterm-256color",
+		"INFER_WEB_MODE=true",
+	)
 
 	ptyFile, err := pty.Start(s.cmd)
 	if err != nil {

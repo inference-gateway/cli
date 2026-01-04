@@ -34,7 +34,7 @@ func NewKeyboardTypeTool(cfg *config.Config, rateLimiter domain.RateLimiter, dis
 
 // Definition returns the tool definition for the LLM
 func (t *KeyboardTypeTool) Definition() sdk.ChatCompletionTool {
-	description := "Types text or sends key combinations. Can type regular text or send special key combinations like 'ctrl+c'. Requires user approval unless in auto-accept mode. Note: Exactly one of 'text' or 'key_combo' must be provided."
+	description := "Types text or sends key combinations INTO GUI APPLICATIONS at the current cursor position (e.g., typing in a text editor, browser search box, or form field). DO NOT use this to run shell commands - use the Bash tool instead. To open applications on macOS, use Bash with 'open -a AppName'. Requires user approval unless in auto-accept mode. Note: Exactly one of 'text' or 'key_combo' must be provided."
 	return sdk.ChatCompletionTool{
 		Type: sdk.Function,
 		Function: sdk.FunctionObject{
@@ -45,16 +45,11 @@ func (t *KeyboardTypeTool) Definition() sdk.ChatCompletionTool {
 				"properties": map[string]any{
 					"text": map[string]any{
 						"type":        "string",
-						"description": "Text to type. Mutually exclusive with key_combo.",
+						"description": "Text to type into the active GUI application (NOT for running commands).",
 					},
 					"key_combo": map[string]any{
 						"type":        "string",
-						"description": "Key combination to send (e.g., 'ctrl+c', 'alt+tab', 'shift+enter'). Mutually exclusive with text.",
-					},
-					"display": map[string]any{
-						"type":        "string",
-						"description": "Display to use (e.g., ':0'). Defaults to ':0'.",
-						"default":     ":0",
+						"description": "Key combination to send (e.g., 'cmd+c' for copy, 'cmd+v' for paste, 'cmd+tab' to switch apps). Use platform-specific modifiers: 'cmd' on macOS, 'ctrl' on Linux/Windows.",
 					},
 				},
 			},
@@ -99,11 +94,6 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 		}, nil
 	}
 
-	displayName := t.config.ComputerUse.Display
-	if displayArg, ok := args["display"].(string); ok && displayArg != "" {
-		displayName = displayArg
-	}
-
 	if t.displayProvider == nil {
 		return &domain.ToolExecutionResult{
 			ToolName:  "KeyboardType",
@@ -114,7 +104,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 		}, nil
 	}
 
-	controller, err := t.displayProvider.GetController(displayName)
+	controller, err := t.displayProvider.GetController()
 	if err != nil {
 		return &domain.ToolExecutionResult{
 			ToolName:  "KeyboardType",
@@ -150,7 +140,6 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 	result := domain.KeyboardTypeToolResult{
 		Text:     text,
 		KeyCombo: keyCombo,
-		Display:  displayName,
 		Method:   t.displayProvider.GetDisplayInfo().Name,
 	}
 

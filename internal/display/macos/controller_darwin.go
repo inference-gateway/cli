@@ -2,72 +2,108 @@
 
 package macos
 
+/*
+#cgo CFLAGS: -x objective-c
+#cgo LDFLAGS: -framework ApplicationServices
+#include <ApplicationServices/ApplicationServices.h>
+
+bool checkAccessibilityPermissions() {
+    return AXIsProcessTrusted();
+}
+*/
+import "C"
+
 import (
 	"context"
 	"fmt"
 	"image"
+	"os"
 	"runtime"
 
 	display "github.com/inference-gateway/cli/internal/display"
+	logger "github.com/inference-gateway/cli/internal/logger"
 )
 
-// Controller implements display.DisplayController for macOS
-// This is a placeholder for future CGO implementation using:
-// - CGDisplayCreateImage for screenshots
-// - CGEventPost for mouse/keyboard control
-// - Accessibility API for permissions
-type Controller struct{}
+// Controller implements display.DisplayController for macOS using RobotGo
+type Controller struct {
+	client *MacOSClient
+}
 
 var _ display.DisplayController = (*Controller)(nil)
+var _ display.FocusManager = (*Controller)(nil)
 
 func (c *Controller) CaptureScreenBytes(ctx context.Context, region *display.Region) ([]byte, error) {
-	// TODO: Implement using CGDisplayCreateImage + CGO
-	// Sample code structure:
-	// /*
-	// #cgo LDFLAGS: -framework CoreGraphics -framework CoreFoundation
-	// #include <CoreGraphics/CoreGraphics.h>
-	// CGImageRef CGDisplayCreateImage(CGDirectDisplayID displayID);
-	// */
-	// import "C"
-	return nil, fmt.Errorf("macOS screenshot not yet implemented (requires CGO)")
+	if region == nil {
+		return c.client.CaptureScreenBytes(0, 0, 0, 0)
+	}
+	return c.client.CaptureScreenBytes(region.X, region.Y, region.Width, region.Height)
 }
 
 func (c *Controller) CaptureScreen(ctx context.Context, region *display.Region) (image.Image, error) {
-	return nil, fmt.Errorf("macOS screenshot not yet implemented (requires CGO)")
+	if region == nil {
+		return c.client.CaptureScreen(0, 0, 0, 0)
+	}
+	return c.client.CaptureScreen(region.X, region.Y, region.Width, region.Height)
 }
 
 func (c *Controller) GetScreenDimensions(ctx context.Context) (width, height int, err error) {
-	// TODO: Implement using CGDisplayBounds
-	return 0, 0, fmt.Errorf("macOS screen dimensions not yet implemented (requires CGO)")
+	w, h := c.client.GetScreenDimensions()
+	return w, h, nil
 }
 
 func (c *Controller) GetCursorPosition(ctx context.Context) (x, y int, err error) {
-	// TODO: Implement using CGEventGetLocation
-	return 0, 0, fmt.Errorf("macOS cursor position not yet implemented (requires CGO)")
+	return c.client.GetCursorPosition()
 }
 
 func (c *Controller) MoveMouse(ctx context.Context, x, y int) error {
-	// TODO: Implement using CGEventCreateMouseEvent + CGEventPost
-	return fmt.Errorf("macOS mouse move not yet implemented (requires CGO)")
+	return c.client.MoveMouse(x, y)
 }
 
 func (c *Controller) ClickMouse(ctx context.Context, button display.MouseButton, clicks int) error {
-	// TODO: Implement using CGEventCreateMouseEvent + CGEventPost
-	return fmt.Errorf("macOS mouse click not yet implemented (requires CGO)")
+	return c.client.ClickMouse(button.String(), clicks)
+}
+
+func (c *Controller) ScrollMouse(ctx context.Context, clicks int, direction string) error {
+	return c.client.ScrollMouse(clicks, direction)
 }
 
 func (c *Controller) TypeText(ctx context.Context, text string, delayMs int) error {
-	// TODO: Implement using CGEventCreateKeyboardEvent + CGEventPost
-	return fmt.Errorf("macOS keyboard type not yet implemented (requires CGO)")
+	return c.client.TypeText(text, delayMs)
 }
 
 func (c *Controller) SendKeyCombo(ctx context.Context, combo string) error {
-	// TODO: Implement using CGEventCreateKeyboardEvent with modifiers
-	return fmt.Errorf("macOS key combo not yet implemented (requires CGO)")
+	return c.client.SendKeyCombo(combo)
 }
 
 func (c *Controller) Close() error {
+	c.client.Close()
 	return nil
+}
+
+// FocusManager implementation for macOS
+
+func (c *Controller) GetFrontmostApp(ctx context.Context) (string, error) {
+	appID := c.client.GetFrontmostApp()
+	if appID == "" {
+		return "", fmt.Errorf("no frontmost application found")
+	}
+	return appID, nil
+}
+
+func (c *Controller) ActivateApp(ctx context.Context, appIdentifier string) error {
+	return c.client.ActivateApp(appIdentifier)
+}
+
+func (c *Controller) GetTerminalApp(ctx context.Context) (string, error) {
+	terminalID := c.client.GetTerminalApp()
+	if terminalID == "" {
+		return "", fmt.Errorf("no terminal application found")
+	}
+	return terminalID, nil
+}
+
+func (c *Controller) SwitchToTerminal(ctx context.Context) error {
+	return c.client.SwitchToTerminal()
 }
 
 // Provider implements the display.Provider interface for macOS
@@ -79,11 +115,34 @@ func NewProvider() *Provider {
 	return &Provider{}
 }
 
-func (p *Provider) GetController(display string) (display.DisplayController, error) {
-	// TODO: Check Accessibility permissions
-	// Sample code:
-	// AXIsProcessTrustedWithOptions()
-	return nil, fmt.Errorf("macOS provider not yet implemented (requires CGO)")
+func (p *Provider) GetController() (display.DisplayController, error) {
+	if os.Getenv("SSH_CONNECTION") != "" {
+		return nil, fmt.Errorf("macOS display not available in SSH session")
+	}
+
+	if !hasAccessibilityPermissions() {
+		return nil, fmt.Errorf("accessibility permissions required. Grant access in System Settings > Privacy & Security > Accessibility (or System Preferences > Security & Privacy > Privacy > Accessibility on older macOS)")
+	}
+
+	client, err := NewMacOSClient()
+	if err != nil {
+		return nil, fmt.Errorf("failed to create macOS client: %w", err)
+	}
+
+	return &Controller{client: client}, nil
+}
+
+// hasAccessibilityPermissions checks if the app has accessibility permissions
+// Uses native macOS AXIsProcessTrusted() API for reliable detection
+func hasAccessibilityPermissions() bool {
+	trusted := C.checkAccessibilityPermissions()
+	hasPerm := bool(trusted)
+
+	if !hasPerm {
+		logger.Debug("Accessibility permissions not granted")
+	}
+
+	return hasPerm
 }
 
 func (p *Provider) GetDisplayInfo() display.DisplayInfo {
@@ -105,9 +164,6 @@ func (p *Provider) IsAvailable() bool {
 
 // Register the macOS provider in the global registry (darwin only)
 func init() {
-	// TODO: Uncomment when implementation is ready
-	// display.Register(NewProvider())
-
-	// For now, don't register to avoid false positives
-	// The stub implementation will prevent compilation errors
+	display.Register(NewProvider())
+	logger.Debug("Registered macOS display provider")
 }

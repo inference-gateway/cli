@@ -52,6 +52,11 @@ func (c *Controller) ClickMouse(ctx context.Context, button display.MouseButton,
 	return c.client.ClickMouse(button.String(), clicks)
 }
 
+// ScrollMouse scrolls the mouse wheel
+func (c *Controller) ScrollMouse(ctx context.Context, clicks int, direction string) error {
+	return c.client.ScrollMouse(clicks, direction)
+}
+
 // TypeText types the given text with the specified delay between keystrokes
 func (c *Controller) TypeText(ctx context.Context, text string, delayMs int) error {
 	return c.client.TypeText(text, delayMs)
@@ -78,9 +83,15 @@ func NewProvider() *Provider {
 	return &Provider{}
 }
 
-// GetController creates a new DisplayController for the specified display
-func (p *Provider) GetController(display string) (display.DisplayController, error) {
-	client, err := NewX11Client(display)
+// GetController creates a new DisplayController (auto-detects display from $DISPLAY env var)
+func (p *Provider) GetController() (display.DisplayController, error) {
+	// Detect display from environment
+	displayName := os.Getenv("DISPLAY")
+	if displayName == "" {
+		displayName = ":0" // Fallback to default
+	}
+
+	client, err := NewX11Client(displayName)
 	if err != nil {
 		return nil, err
 	}
@@ -101,8 +112,6 @@ func (p *Provider) GetDisplayInfo() display.DisplayInfo {
 
 // IsAvailable returns true if X11 is available on the current system
 func (p *Provider) IsAvailable() bool {
-	// X11 is available if the DISPLAY environment variable is set
-	// and WAYLAND_DISPLAY is not set (Wayland takes priority)
 	return os.Getenv("DISPLAY") != "" && os.Getenv("WAYLAND_DISPLAY") == ""
 }
 

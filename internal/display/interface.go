@@ -16,6 +16,7 @@ type DisplayController interface {
 	GetCursorPosition(ctx context.Context) (x, y int, err error)
 	MoveMouse(ctx context.Context, x, y int) error
 	ClickMouse(ctx context.Context, button MouseButton, clicks int) error
+	ScrollMouse(ctx context.Context, clicks int, direction string) error
 
 	// Keyboard operations
 	TypeText(ctx context.Context, text string, delayMs int) error
@@ -72,8 +73,8 @@ func ParseMouseButton(s string) MouseButton {
 
 // Provider creates DisplayController instances for a specific display server/protocol
 type Provider interface {
-	// GetController creates a new DisplayController for the specified display
-	GetController(display string) (DisplayController, error)
+	// GetController creates a new DisplayController (display is auto-detected from environment)
+	GetController() (DisplayController, error)
 
 	// GetDisplayInfo returns information about the display server/protocol
 	GetDisplayInfo() DisplayInfo
@@ -90,4 +91,20 @@ type DisplayInfo struct {
 	SupportsKeyboard  bool
 	MaxTextLength     int
 	RequiresElevation bool
+}
+
+// FocusManager is an optional interface for window focus management
+// Only implemented by platforms that support it (e.g., macOS)
+type FocusManager interface {
+	// GetFrontmostApp returns the identifier of the currently focused application
+	GetFrontmostApp(ctx context.Context) (string, error)
+
+	// ActivateApp brings an application to the foreground
+	ActivateApp(ctx context.Context, appIdentifier string) error
+
+	// GetTerminalApp returns the identifier of the terminal application
+	GetTerminalApp(ctx context.Context) (string, error)
+
+	// SwitchToTerminal switches focus to the terminal application
+	SwitchToTerminal(ctx context.Context) error
 }

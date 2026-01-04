@@ -102,12 +102,11 @@ func (t *GetLatestScreenshotTool) Execute(ctx context.Context, args map[string]a
 	}
 
 	result := domain.ScreenshotToolResult{
-		Display: t.config.ComputerUse.Display,
-		Region:  nil,
-		Width:   screenshot.Width,
-		Height:  screenshot.Height,
-		Format:  screenshot.Format,
-		Method:  screenshot.Method,
+		Region: nil,
+		Width:  screenshot.Width,
+		Height: screenshot.Height,
+		Format: screenshot.Format,
+		Method: screenshot.Method,
 	}
 
 	return &domain.ToolExecutionResult{

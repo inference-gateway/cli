@@ -51,11 +51,6 @@ func (t *MouseMoveTool) Definition() sdk.ChatCompletionTool {
 						"type":        "integer",
 						"description": "Y coordinate (absolute position from top edge of screen)",
 					},
-					"display": map[string]any{
-						"type":        "string",
-						"description": "Display to use (e.g., ':0'). Defaults to ':0'.",
-						"default":     ":0",
-					},
 				},
 				"required": []string{"x", "y"},
 			},
@@ -90,11 +85,6 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}, nil
 	}
 
-	displayName := t.config.ComputerUse.Display
-	if displayArg, ok := args["display"].(string); ok && displayArg != "" {
-		displayName = displayArg
-	}
-
 	if t.displayProvider == nil {
 		return &domain.ToolExecutionResult{
 			ToolName:  "MouseMove",
@@ -105,7 +95,7 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}, nil
 	}
 
-	controller, err := t.displayProvider.GetController(displayName)
+	controller, err := t.displayProvider.GetController()
 	if err != nil {
 		return &domain.ToolExecutionResult{
 			ToolName:  "MouseMove",
@@ -134,12 +124,11 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 	}
 
 	result := domain.MouseMoveToolResult{
-		FromX:   fromX,
-		FromY:   fromY,
-		ToX:     int(x),
-		ToY:     int(y),
-		Display: displayName,
-		Method:  t.displayProvider.GetDisplayInfo().Name,
+		FromX:  fromX,
+		FromY:  fromY,
+		ToX:    int(x),
+		ToY:    int(y),
+		Method: t.displayProvider.GetDisplayInfo().Name,
 	}
 
 	return &domain.ToolExecutionResult{

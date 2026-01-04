@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	robotgo "github.com/go-vgo/robotgo"
 )
 
 // WaylandClient provides Wayland screen control operations using command-line tools
@@ -121,6 +123,16 @@ func (c *WaylandClient) ClickMouse(button string, clicks int) error {
 		}
 	}
 
+	return nil
+}
+
+// ScrollMouse scrolls the mouse wheel
+func (c *WaylandClient) ScrollMouse(clicks int, direction string) error {
+	if direction == "horizontal" {
+		robotgo.ScrollDir(clicks, "right")
+	} else {
+		robotgo.Scroll(0, clicks)
+	}
 	return nil
 }
 

@@ -7,8 +7,65 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	mocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	"github.com/inference-gateway/sdk"
+	sdk "github.com/inference-gateway/sdk"
 )
+
+// testConfigService is a minimal mock implementation of domain.ConfigService for testing
+type testConfigService struct {
+	config *config.Config
+}
+
+func newTestConfigService(cfg *config.Config) domain.ConfigService {
+	return &testConfigService{config: cfg}
+}
+
+func (t *testConfigService) GetConfig() *config.Config {
+	return t.config
+}
+
+func (t *testConfigService) Reload() (*config.Config, error) {
+	return t.config, nil
+}
+
+func (t *testConfigService) SetValue(key, value string) error {
+	return nil
+}
+
+func (t *testConfigService) IsApprovalRequired(toolName string) bool {
+	return t.config.IsApprovalRequired(toolName)
+}
+
+func (t *testConfigService) IsBashCommandWhitelisted(command string) bool {
+	return t.config.IsBashCommandWhitelisted(command)
+}
+
+func (t *testConfigService) GetOutputDirectory() string {
+	return t.config.GetOutputDirectory()
+}
+
+func (t *testConfigService) GetGatewayURL() string {
+	return t.config.Gateway.URL
+}
+
+func (t *testConfigService) GetAPIKey() string {
+	return t.config.Gateway.APIKey
+}
+
+func (t *testConfigService) GetTimeout() int {
+	return t.config.Gateway.Timeout
+}
+
+func (t *testConfigService) GetAgentConfig() *config.AgentConfig {
+	return t.config.GetAgentConfig()
+}
+
+func (t *testConfigService) GetSandboxDirectories() []string {
+	return t.config.GetSandboxDirectories()
+}
+
+func (t *testConfigService) GetProtectedPaths() []string {
+	return t.config.GetProtectedPaths()
+}
 
 func createTestRegistry() *Registry {
 	cfg := &config.Config{
@@ -33,7 +90,7 @@ func createTestRegistry() *Registry {
 		},
 	}
 
-	return NewRegistry(cfg, nil, nil, nil)
+	return NewRegistry(newTestConfigService(cfg), nil, nil, nil)
 }
 
 func TestRegistry_GetTool_Unknown(t *testing.T) {
@@ -65,7 +122,7 @@ func TestRegistry_DisabledTools(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil)
+	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil)
 
 	tools := registry.ListAvailableTools()
 
@@ -117,13 +174,14 @@ func TestRegistry_NewRegistry(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil)
+	configService := newTestConfigService(cfg)
+	registry := NewRegistry(configService, nil, nil, nil)
 
 	if registry == nil {
 		t.Fatal("Expected non-nil registry")
 	}
 
-	if registry.config != cfg {
+	if registry.config.GetConfig() != cfg {
 		t.Error("Expected config to be set correctly")
 	}
 
@@ -152,7 +210,7 @@ func TestRegistry_GetTool(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil)
+	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -303,7 +361,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			registry := NewRegistry(tt.config, nil, nil, nil)
+			registry := NewRegistry(newTestConfigService(tt.config), nil, nil, nil)
 			tools := registry.ListAvailableTools()
 
 			if len(tools) < tt.expectedMin || len(tools) > tt.expectedMax {
@@ -356,7 +414,7 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil)
+	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil)
 	definitions := registry.GetToolDefinitions()
 
 	if len(definitions) < 5 || len(definitions) > 15 {
@@ -406,7 +464,7 @@ func TestRegistry_IsToolEnabled(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil)
+	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -459,7 +517,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(cfg, nil, nil, nil)
+	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil)
 
 	fakeTool := &mocks.FakeTool{}
 	fakeTool.IsEnabledReturns(true)

@@ -28,7 +28,6 @@ func (c *Controller) CaptureScreenBytes(ctx context.Context, region *display.Reg
 
 // CaptureScreen captures a screenshot and returns an image.Image
 func (c *Controller) CaptureScreen(ctx context.Context, region *display.Region) (image.Image, error) {
-	// WaylandClient only returns bytes, so we need to decode them
 	var imgBytes []byte
 	var err error
 
@@ -42,7 +41,6 @@ func (c *Controller) CaptureScreen(ctx context.Context, region *display.Region) 
 		return nil, err
 	}
 
-	// Decode PNG bytes to image.Image
 	img, err := png.Decode(bytes.NewReader(imgBytes))
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode screenshot: %w", err)
@@ -74,6 +72,11 @@ func (c *Controller) ClickMouse(ctx context.Context, button display.MouseButton,
 	return c.client.ClickMouse(button.String(), clicks)
 }
 
+// ScrollMouse scrolls the mouse wheel
+func (c *Controller) ScrollMouse(ctx context.Context, clicks int, direction string) error {
+	return c.client.ScrollMouse(clicks, direction)
+}
+
 // TypeText types the given text with the specified delay between keystrokes
 func (c *Controller) TypeText(ctx context.Context, text string, delayMs int) error {
 	return c.client.TypeText(text, delayMs)
@@ -100,9 +103,11 @@ func NewProvider() *Provider {
 	return &Provider{}
 }
 
-// GetController creates a new DisplayController for the specified display
-func (p *Provider) GetController(display string) (display.DisplayController, error) {
-	client, err := NewWaylandClient(display)
+// GetController creates a new DisplayController (auto-detects display from $WAYLAND_DISPLAY env var)
+func (p *Provider) GetController() (display.DisplayController, error) {
+	displayName := os.Getenv("WAYLAND_DISPLAY")
+
+	client, err := NewWaylandClient(displayName)
 	if err != nil {
 		return nil, err
 	}
@@ -123,8 +128,6 @@ func (p *Provider) GetDisplayInfo() display.DisplayInfo {
 
 // IsAvailable returns true if Wayland is available on the current system
 func (p *Provider) IsAvailable() bool {
-	// Wayland is available if the WAYLAND_DISPLAY environment variable is set
-	// Wayland takes priority over X11
 	return os.Getenv("WAYLAND_DISPLAY") != ""
 }
 

@@ -701,7 +701,7 @@ web:
   servers: []
 computer_use:
   enabled: false
-  display: :0
+  restore_focus_on_approval: true
   screenshot:
     enabled: true
     max_width: 1920
@@ -711,20 +711,29 @@ computer_use:
     require_approval: false
     streaming_enabled: false
     capture_interval: 3
-    buffer_size: 30
+    buffer_size: 5
     temp_dir: ""
     log_captures: false
   mouse_move:
     enabled: true
-    require_approval: true
+    require_approval: false
   mouse_click:
     enabled: true
     require_approval: true
+  mouse_scroll:
+    enabled: true
+    require_approval: false
   keyboard_type:
     enabled: true
     max_text_length: 1000
     typing_delay_ms: 200
     require_approval: true
+  get_focused_app:
+    enabled: true
+    require_approval: false
+  activate_app:
+    enabled: true
+    require_approval: false
   rate_limit:
     enabled: true
     max_actions_per_minute: 60

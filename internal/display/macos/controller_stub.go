@@ -39,6 +39,10 @@ func (c *Controller) ClickMouse(ctx context.Context, button display.MouseButton,
 	return fmt.Errorf("macOS platform not available on this system")
 }
 
+func (c *Controller) ScrollMouse(ctx context.Context, clicks int, direction string) error {
+	return fmt.Errorf("macOS platform not available on this system")
+}
+
 func (c *Controller) TypeText(ctx context.Context, text string, delayMs int) error {
 	return fmt.Errorf("macOS platform not available on this system")
 }
@@ -60,7 +64,7 @@ func NewProvider() *Provider {
 	return &Provider{}
 }
 
-func (p *Provider) GetController(display string) (display.DisplayController, error) {
+func (p *Provider) GetController() (display.DisplayController, error) {
 	return nil, fmt.Errorf("macOS platform not available on this system")
 }
 
