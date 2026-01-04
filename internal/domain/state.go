@@ -763,7 +763,7 @@ func (s *ApplicationState) ClearFileSelectionState() {
 // SetupApprovalUIState initializes approval UI state with the pending tool call
 func (s *ApplicationState) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan ApprovalAction) {
 	s.approvalUIState = &ApprovalUIState{
-		SelectedIndex:   int(ApprovalApprove), // Default to approve
+		SelectedIndex:   int(ApprovalApprove),
 		PendingToolCall: toolCall,
 		ResponseChan:    responseChan,
 	}

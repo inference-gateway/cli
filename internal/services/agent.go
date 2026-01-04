@@ -9,7 +9,6 @@ import (
 	"time"
 
 	constants "github.com/inference-gateway/cli/internal/constants"
-	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
@@ -107,9 +106,10 @@ func (p *eventPublisher) publishParallelToolsStart(toolCalls []sdk.ChatCompletio
 	tools := make([]domain.ToolInfo, len(toolCalls))
 	for i, tc := range toolCalls {
 		tools[i] = domain.ToolInfo{
-			CallID: tc.Id,
-			Name:   tc.Function.Name,
-			Status: "queued",
+			CallID:    tc.Id,
+			Name:      tc.Function.Name,
+			Status:    "queued",
+			Arguments: tc.Function.Arguments,
 		}
 	}
 
@@ -700,6 +700,15 @@ func (s *AgentServiceImpl) CancelRequest(requestID string) error {
 		}
 	}
 
+	if s.stateManager != nil {
+		cancelEvent := domain.CancelledEvent{
+			RequestID: requestID,
+			Timestamp: time.Now(),
+			Reason:    "user cancelled",
+		}
+		s.stateManager.BroadcastEvent(cancelEvent)
+	}
+
 	return nil
 }
 
@@ -775,19 +784,12 @@ func (s *AgentServiceImpl) optimizeConversation(_ context.Context, req *domain.A
 
 	originalCount := len(conversation)
 
-	eventPublisher.publishOptimizationStatus("Optimizing conversation history...", true, originalCount, originalCount)
-
 	conversation = s.optimizer.OptimizeMessages(conversation, req.Model, false)
 	optimizedCount := len(conversation)
 
-	var message string
 	if originalCount != optimizedCount {
-		message = fmt.Sprintf("Conversation optimized (%d → %d messages)", originalCount, optimizedCount)
-	} else {
-		message = "Conversation optimization completed"
+		eventPublisher.publishOptimizationStatus(fmt.Sprintf("Conversation optimized (%d → %d messages)", originalCount, optimizedCount), false, originalCount, optimizedCount)
 	}
-
-	eventPublisher.publishOptimizationStatus(message, false, originalCount, optimizedCount)
 
 	return conversation
 }
@@ -1276,13 +1278,6 @@ func (s *AgentServiceImpl) requestToolApproval(
 	tc sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
 ) (bool, error) {
-	var savedAppID string
-	shouldRestoreFocus := s.shouldRestoreFocusForTool(tc.Function.Name)
-
-	if shouldRestoreFocus {
-		savedAppID = s.saveFocusAndSwitchToTerminal(ctx)
-	}
-
 	responseChan := make(chan domain.ApprovalAction, 1)
 
 	eventPublisher.chatEvents <- domain.ToolApprovalRequestedEvent{
@@ -1297,135 +1292,18 @@ func (s *AgentServiceImpl) requestToolApproval(
 
 	select {
 	case response := <-responseChan:
-		approved = response == domain.ApprovalApprove
+		if response == domain.ApprovalAutoAccept {
+			logger.Info("Switching to auto-accept mode from floating window")
+			s.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
+		}
+		approved = response == domain.ApprovalApprove || response == domain.ApprovalAutoAccept
 	case <-ctx.Done():
 		err = fmt.Errorf("approval request cancelled: %w", ctx.Err())
 	case <-time.After(5 * time.Minute):
 		err = fmt.Errorf("approval request timed out")
 	}
 
-	if shouldRestoreFocus && savedAppID != "" {
-		s.restoreFocus(ctx, savedAppID)
-		time.Sleep(500 * time.Millisecond)
-	}
-
 	return approved, err
-}
-
-// shouldRestoreFocusForTool determines if focus should be restored for a given tool
-func (s *AgentServiceImpl) shouldRestoreFocusForTool(toolName string) bool {
-	cfg := s.config.GetConfig()
-	if cfg == nil {
-		return false
-	}
-
-	if !cfg.ComputerUse.Enabled || !cfg.ComputerUse.RestoreFocusOnApproval {
-		return false
-	}
-
-	// Only restore focus for computer use tools
-	computerUseTools := map[string]bool{
-		"MouseMove":    true,
-		"MouseClick":   true,
-		"KeyboardType": true,
-	}
-
-	return computerUseTools[toolName]
-}
-
-// saveFocusAndSwitchToTerminal saves the currently focused app and switches to approval target
-// In terminal mode: switches to terminal
-// In web mode: switches to browser running web UI
-// Returns the saved app ID for later restoration
-func (s *AgentServiceImpl) saveFocusAndSwitchToTerminal(ctx context.Context) string {
-	displayProvider, err := display.DetectDisplay()
-	if err != nil {
-		logger.Debug("Failed to detect display for focus management", "error", err)
-		return ""
-	}
-
-	controller, err := displayProvider.GetController()
-	if err != nil {
-		logger.Debug("Failed to get display controller for focus management", "error", err)
-		return ""
-	}
-	defer func() {
-		if err := controller.Close(); err != nil {
-			logger.Debug("Failed to close display controller", "error", err)
-		}
-	}()
-
-	// Check if controller supports focus management
-	focusManager, ok := controller.(display.FocusManager)
-	if !ok {
-		logger.Debug("Display controller does not support focus management")
-		return ""
-	}
-
-	// Save currently focused app
-	savedAppID, err := focusManager.GetFrontmostApp(ctx)
-	if err != nil {
-		logger.Debug("Failed to get frontmost app", "error", err)
-		return ""
-	}
-
-	cfg := s.config.GetConfig()
-	if cfg == nil {
-		return savedAppID
-	}
-
-	if cfg.Web.Enabled && !cfg.Web.SSH.Enabled {
-		logger.Debug("Web mode - no focus switch needed for approval", "saved_app", savedAppID)
-		return savedAppID
-	}
-
-	// Terminal mode: switch to terminal
-	if err := focusManager.SwitchToTerminal(ctx); err != nil {
-		logger.Warn("Failed to switch to terminal for approval", "error", err)
-		return savedAppID
-	}
-
-	logger.Debug("Switched to terminal for approval", "saved_app", savedAppID)
-	return savedAppID
-}
-
-// restoreFocus restores focus to the previously focused application
-func (s *AgentServiceImpl) restoreFocus(ctx context.Context, appID string) {
-	if appID == "" {
-		return
-	}
-
-	displayProvider, err := display.DetectDisplay()
-	if err != nil {
-		logger.Debug("Failed to detect display for focus restoration", "error", err)
-		return
-	}
-
-	controller, err := displayProvider.GetController()
-	if err != nil {
-		logger.Debug("Failed to get display controller for focus restoration", "error", err)
-		return
-	}
-	defer func() {
-		if err := controller.Close(); err != nil {
-			logger.Debug("Failed to close display controller", "error", err)
-		}
-	}()
-
-	focusManager, ok := controller.(display.FocusManager)
-	if !ok {
-		return
-	}
-
-	// Small delay to allow approval UI to process before switching away
-	time.Sleep(200 * time.Millisecond)
-
-	if err := focusManager.ActivateApp(ctx, appID); err != nil {
-		logger.Debug("Failed to restore focus", "app", appID, "error", err)
-		return
-	}
-
-	logger.Debug("Restored focus after approval", "app", appID)
 }
 
 // isBashCommandWhitelisted checks if a Bash tool command is whitelisted

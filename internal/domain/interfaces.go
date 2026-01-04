@@ -201,6 +201,16 @@ type ChatEvent interface {
 	GetTimestamp() time.Time
 }
 
+// EventBridge multicasts chat events to multiple subscribers (e.g., terminal UI and floating window)
+type EventBridge interface {
+	// Tap intercepts an event stream and multicasts it to all subscribers
+	// Returns a new channel that mirrors the input channel
+	Tap(input <-chan ChatEvent) <-chan ChatEvent
+
+	// Publish broadcasts an event to all subscribers
+	Publish(event ChatEvent)
+}
+
 // ChatMetrics holds performance and usage metrics
 type ChatMetrics struct {
 	Duration time.Duration
@@ -267,6 +277,10 @@ type StateManager interface {
 	EndChatSession()
 	GetChatSession() *ChatSession
 	IsAgentBusy() bool
+
+	// Event multicast for floating window
+	SetEventBridge(bridge EventBridge)
+	BroadcastEvent(event ChatEvent)
 
 	// Tool execution management
 	StartToolExecution(toolCalls []sdk.ChatCompletionMessageToolCall) error

@@ -7,32 +7,34 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"sync"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
 	display "github.com/inference-gateway/cli/internal/display"
+	"github.com/inference-gateway/cli/internal/display/macos"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 
-	_ "github.com/inference-gateway/cli/internal/display/macos"
 	_ "github.com/inference-gateway/cli/internal/display/wayland"
 	_ "github.com/inference-gateway/cli/internal/display/x11"
 )
 
 // ScreenshotServer provides an HTTP API for screenshot streaming
 type ScreenshotServer struct {
-	cfg         *config.Config
-	port        int
-	server      *http.Server
-	buffer      *CircularScreenshotBuffer
-	captureCtx  context.Context
-	captureStop context.CancelFunc
-	mu          sync.RWMutex
-	sessionID   string
-	imageSvc    domain.ImageService
-	running     bool
+	cfg           *config.Config
+	port          int
+	server        *http.Server
+	buffer        *CircularScreenshotBuffer
+	captureCtx    context.Context
+	captureStop   context.CancelFunc
+	mu            sync.RWMutex
+	sessionID     string
+	imageSvc      domain.ImageService
+	running       bool
+	overlayWindow *macos.OverlayWindow
 }
 
 // NewScreenshotServer creates a new screenshot server
@@ -102,6 +104,8 @@ func (s *ScreenshotServer) Start() error {
 
 	s.running = true
 
+	s.showOverlayIfEnabled()
+
 	interval := s.cfg.ComputerUse.Screenshot.CaptureInterval
 	if interval <= 0 {
 		interval = 3
@@ -144,6 +148,17 @@ func (s *ScreenshotServer) Stop() error {
 		}
 	}
 
+	if s.overlayWindow != nil {
+		if err := s.overlayWindow.Hide(); err != nil {
+			logger.Warn("Failed to hide overlay window", "error", err)
+		}
+		if err := s.overlayWindow.Destroy(); err != nil {
+			logger.Warn("Failed to destroy overlay window", "error", err)
+		}
+		s.overlayWindow = nil
+		logger.Info("Screenshot overlay window destroyed")
+	}
+
 	s.running = false
 
 	return nil
@@ -154,6 +169,31 @@ func (s *ScreenshotServer) Port() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.port
+}
+
+// showOverlayIfEnabled shows the overlay window if configured
+func (s *ScreenshotServer) showOverlayIfEnabled() {
+	if !s.cfg.ComputerUse.Screenshot.ShowOverlay {
+		return
+	}
+
+	if runtime.GOOS != "darwin" {
+		return
+	}
+
+	overlay, err := macos.NewOverlayWindow()
+	if err != nil {
+		logger.Warn("Failed to create overlay window", "error", err)
+		return
+	}
+
+	s.overlayWindow = overlay
+	if err := s.overlayWindow.Show(); err != nil {
+		logger.Warn("Failed to show overlay window", "error", err)
+		return
+	}
+
+	logger.Info("Screenshot overlay window shown")
 }
 
 // startCaptureLoop runs the background screenshot capture loop

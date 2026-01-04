@@ -40,6 +40,7 @@ words:
   - easyjson
   - erikgeiser
   - exclam
+  - floatingwindow
   - frontmost
   - fsnotify
   - funlen
@@ -102,6 +103,7 @@ words:
   - pmezard
   - quotedbl
   - qwen
+  - Respawn
   - resty
   - retryable
   - rivo

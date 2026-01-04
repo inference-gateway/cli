@@ -74,7 +74,6 @@ func (t *GetFocusedAppTool) Execute(ctx context.Context, args map[string]any) (*
 		return nil, fmt.Errorf("no application is currently focused")
 	}
 
-	// Parse app name from bundle ID (e.g., "org.mozilla.firefox" -> "Firefox")
 	appName := parseAppName(appID)
 
 	result := fmt.Sprintf("Currently focused application:\n- Name: %s\n- Bundle ID: %s", appName, appID)
@@ -149,7 +148,6 @@ func (t *GetFocusedAppTool) FormatResult(result *domain.ToolExecutionResult, for
 
 // parseAppName extracts a human-readable app name from bundle ID
 func parseAppName(bundleID string) string {
-	// Common mappings
 	appNames := map[string]string{
 		"com.apple.Terminal":        "Terminal",
 		"com.googlecode.iterm2":     "iTerm2",
@@ -183,6 +181,5 @@ func parseAppName(bundleID string) string {
 		return name
 	}
 
-	// Fallback: return bundle ID
 	return bundleID
 }

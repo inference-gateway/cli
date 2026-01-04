@@ -210,7 +210,7 @@ type ToolApprovalRequestedEvent struct {
 	RequestID    string
 	Timestamp    time.Time
 	ToolCall     sdk.ChatCompletionMessageToolCall
-	ResponseChan chan ApprovalAction
+	ResponseChan chan ApprovalAction `json:"-"`
 }
 
 func (e ToolApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
@@ -236,12 +236,21 @@ type ToolRejectedEvent struct {
 func (e ToolRejectedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolRejectedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
+// ToolApprovalClearedEvent indicates approval UI should be cleared (approval was processed)
+type ToolApprovalClearedEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e ToolApprovalClearedEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolApprovalClearedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
 // PlanApprovalRequestedEvent indicates plan mode completion requires user approval
 type PlanApprovalRequestedEvent struct {
 	RequestID    string
 	Timestamp    time.Time
 	PlanContent  string
-	ResponseChan chan PlanApprovalAction
+	ResponseChan chan PlanApprovalAction `json:"-"`
 }
 
 func (e PlanApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }

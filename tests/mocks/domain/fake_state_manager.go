@@ -19,6 +19,11 @@ type FakeStateManager struct {
 	areAllAgentsReadyReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	BroadcastEventStub        func(domain.ChatEvent)
+	broadcastEventMutex       sync.RWMutex
+	broadcastEventArgsForCall []struct {
+		arg1 domain.ChatEvent
+	}
 	ClearAgentReadinessStub        func()
 	clearAgentReadinessMutex       sync.RWMutex
 	clearAgentReadinessArgsForCall []struct {
@@ -257,6 +262,11 @@ type FakeStateManager struct {
 		arg1 int
 		arg2 int
 	}
+	SetEventBridgeStub        func(domain.EventBridge)
+	setEventBridgeMutex       sync.RWMutex
+	setEventBridgeArgsForCall []struct {
+		arg1 domain.EventBridge
+	}
 	SetFileSelectedIndexStub        func(int)
 	setFileSelectedIndexMutex       sync.RWMutex
 	setFileSelectedIndexArgsForCall []struct {
@@ -409,6 +419,38 @@ func (fake *FakeStateManager) AreAllAgentsReadyReturnsOnCall(i int, result1 bool
 	fake.areAllAgentsReadyReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
+}
+
+func (fake *FakeStateManager) BroadcastEvent(arg1 domain.ChatEvent) {
+	fake.broadcastEventMutex.Lock()
+	fake.broadcastEventArgsForCall = append(fake.broadcastEventArgsForCall, struct {
+		arg1 domain.ChatEvent
+	}{arg1})
+	stub := fake.BroadcastEventStub
+	fake.recordInvocation("BroadcastEvent", []interface{}{arg1})
+	fake.broadcastEventMutex.Unlock()
+	if stub != nil {
+		fake.BroadcastEventStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) BroadcastEventCallCount() int {
+	fake.broadcastEventMutex.RLock()
+	defer fake.broadcastEventMutex.RUnlock()
+	return len(fake.broadcastEventArgsForCall)
+}
+
+func (fake *FakeStateManager) BroadcastEventCalls(stub func(domain.ChatEvent)) {
+	fake.broadcastEventMutex.Lock()
+	defer fake.broadcastEventMutex.Unlock()
+	fake.BroadcastEventStub = stub
+}
+
+func (fake *FakeStateManager) BroadcastEventArgsForCall(i int) domain.ChatEvent {
+	fake.broadcastEventMutex.RLock()
+	defer fake.broadcastEventMutex.RUnlock()
+	argsForCall := fake.broadcastEventArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeStateManager) ClearAgentReadiness() {
@@ -1715,6 +1757,38 @@ func (fake *FakeStateManager) SetDimensionsArgsForCall(i int) (int, int) {
 	defer fake.setDimensionsMutex.RUnlock()
 	argsForCall := fake.setDimensionsArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeStateManager) SetEventBridge(arg1 domain.EventBridge) {
+	fake.setEventBridgeMutex.Lock()
+	fake.setEventBridgeArgsForCall = append(fake.setEventBridgeArgsForCall, struct {
+		arg1 domain.EventBridge
+	}{arg1})
+	stub := fake.SetEventBridgeStub
+	fake.recordInvocation("SetEventBridge", []interface{}{arg1})
+	fake.setEventBridgeMutex.Unlock()
+	if stub != nil {
+		fake.SetEventBridgeStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetEventBridgeCallCount() int {
+	fake.setEventBridgeMutex.RLock()
+	defer fake.setEventBridgeMutex.RUnlock()
+	return len(fake.setEventBridgeArgsForCall)
+}
+
+func (fake *FakeStateManager) SetEventBridgeCalls(stub func(domain.EventBridge)) {
+	fake.setEventBridgeMutex.Lock()
+	defer fake.setEventBridgeMutex.Unlock()
+	fake.SetEventBridgeStub = stub
+}
+
+func (fake *FakeStateManager) SetEventBridgeArgsForCall(i int) domain.EventBridge {
+	fake.setEventBridgeMutex.RLock()
+	defer fake.setEventBridgeMutex.RUnlock()
+	argsForCall := fake.setEventBridgeArgsForCall[i]
+	return argsForCall.arg1
 }
 
 func (fake *FakeStateManager) SetFileSelectedIndex(arg1 int) {

@@ -250,16 +250,16 @@ type SandboxConfig struct {
 
 // ComputerUseConfig contains computer use tool settings
 type ComputerUseConfig struct {
-	Enabled                bool                    `yaml:"enabled" mapstructure:"enabled"`
-	RestoreFocusOnApproval bool                    `yaml:"restore_focus_on_approval" mapstructure:"restore_focus_on_approval"` // Switch to terminal for approval, then restore focus
-	Screenshot             ScreenshotToolConfig    `yaml:"screenshot" mapstructure:"screenshot"`
-	MouseMove              MouseMoveToolConfig     `yaml:"mouse_move" mapstructure:"mouse_move"`
-	MouseClick             MouseClickToolConfig    `yaml:"mouse_click" mapstructure:"mouse_click"`
-	MouseScroll            MouseScrollToolConfig   `yaml:"mouse_scroll" mapstructure:"mouse_scroll"`
-	KeyboardType           KeyboardTypeToolConfig  `yaml:"keyboard_type" mapstructure:"keyboard_type"`
-	GetFocusedApp          GetFocusedAppToolConfig `yaml:"get_focused_app" mapstructure:"get_focused_app"`
-	ActivateApp            ActivateAppToolConfig   `yaml:"activate_app" mapstructure:"activate_app"`
-	RateLimit              RateLimitConfig         `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Enabled        bool                    `yaml:"enabled" mapstructure:"enabled"`
+	FloatingWindow FloatingWindowConfig    `yaml:"floating_window" mapstructure:"floating_window"`
+	Screenshot     ScreenshotToolConfig    `yaml:"screenshot" mapstructure:"screenshot"`
+	MouseMove      MouseMoveToolConfig     `yaml:"mouse_move" mapstructure:"mouse_move"`
+	MouseClick     MouseClickToolConfig    `yaml:"mouse_click" mapstructure:"mouse_click"`
+	MouseScroll    MouseScrollToolConfig   `yaml:"mouse_scroll" mapstructure:"mouse_scroll"`
+	KeyboardType   KeyboardTypeToolConfig  `yaml:"keyboard_type" mapstructure:"keyboard_type"`
+	GetFocusedApp  GetFocusedAppToolConfig `yaml:"get_focused_app" mapstructure:"get_focused_app"`
+	ActivateApp    ActivateAppToolConfig   `yaml:"activate_app" mapstructure:"activate_app"`
+	RateLimit      RateLimitConfig         `yaml:"rate_limit" mapstructure:"rate_limit"`
 }
 
 // ScreenshotToolConfig contains screenshot-specific tool settings
@@ -271,10 +271,19 @@ type ScreenshotToolConfig struct {
 	Quality          int    `yaml:"quality" mapstructure:"quality"`
 	RequireApproval  *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 	StreamingEnabled bool   `yaml:"streaming_enabled" mapstructure:"streaming_enabled"`
-	CaptureInterval  int    `yaml:"capture_interval" mapstructure:"capture_interval"` // seconds
-	BufferSize       int    `yaml:"buffer_size" mapstructure:"buffer_size"`           // number of screenshots
-	TempDir          string `yaml:"temp_dir" mapstructure:"temp_dir"`                 // path for disk storage
-	LogCaptures      bool   `yaml:"log_captures" mapstructure:"log_captures"`         // log every capture (debug)
+	CaptureInterval  int    `yaml:"capture_interval" mapstructure:"capture_interval"`
+	BufferSize       int    `yaml:"buffer_size" mapstructure:"buffer_size"`
+	TempDir          string `yaml:"temp_dir" mapstructure:"temp_dir"`
+	LogCaptures      bool   `yaml:"log_captures" mapstructure:"log_captures"`
+	ShowOverlay      bool   `yaml:"show_overlay" mapstructure:"show_overlay"`
+}
+
+// FloatingWindowConfig contains floating progress window settings
+type FloatingWindowConfig struct {
+	Enabled        bool   `yaml:"enabled" mapstructure:"enabled"`
+	RespawnOnClose bool   `yaml:"respawn_on_close" mapstructure:"respawn_on_close"`
+	Position       string `yaml:"position" mapstructure:"position"`
+	AlwaysOnTop    bool   `yaml:"always_on_top" mapstructure:"always_on_top"`
 }
 
 // MouseMoveToolConfig contains mouse move-specific tool settings
@@ -1114,8 +1123,13 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			Servers: []SSHServerConfig{},
 		},
 		ComputerUse: ComputerUseConfig{
-			Enabled:                false,
-			RestoreFocusOnApproval: true, // Switch to terminal for approval, then restore focus to original app
+			Enabled: false,
+			FloatingWindow: FloatingWindowConfig{
+				Enabled:        true,
+				RespawnOnClose: true,
+				Position:       "top-right",
+				AlwaysOnTop:    true,
+			},
 			Screenshot: ScreenshotToolConfig{
 				Enabled:          true,
 				MaxWidth:         1920,
@@ -1123,11 +1137,12 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				Format:           "jpeg",
 				Quality:          80,
 				RequireApproval:  &[]bool{false}[0],
-				StreamingEnabled: false,
+				StreamingEnabled: true,
 				CaptureInterval:  3,
 				BufferSize:       5,
 				TempDir:          "",
 				LogCaptures:      false,
+				ShowOverlay:      true,
 			},
 			MouseMove: MouseMoveToolConfig{
 				Enabled:         true,

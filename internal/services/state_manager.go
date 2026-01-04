@@ -19,6 +19,9 @@ type StateManager struct {
 	// State change listeners
 	listeners []StateChangeListener
 
+	// Event multicast for floating window (optional)
+	eventBridge domain.EventBridge
+
 	// Debug and audit trail
 	debugMode      bool
 	stateHistory   []domain.StateSnapshot
@@ -187,12 +190,23 @@ func (sm *StateManager) SetChatPending() {
 	}
 }
 
+// SetEventBridge sets the event bridge for multicasting events to floating window
+func (sm *StateManager) SetEventBridge(bridge domain.EventBridge) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.eventBridge = bridge
+}
+
 // StartChatSession starts a new chat session
 func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-chan domain.ChatEvent) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
 	oldState := sm.state.GetStateSnapshot()
+
+	if sm.eventBridge != nil {
+		eventChan = sm.eventBridge.Tap(eventChan)
+	}
 
 	sm.state.StartChatSession(requestID, model, eventChan)
 
@@ -505,6 +519,24 @@ func (sm *StateManager) ClearApprovalUIState() {
 	defer sm.mutex.Unlock()
 
 	sm.state.ClearApprovalUIState()
+
+	if sm.eventBridge != nil {
+		requestID := ""
+		if chatSession := sm.state.GetChatSession(); chatSession != nil {
+			requestID = chatSession.RequestID
+		}
+		sm.eventBridge.Publish(domain.ToolApprovalClearedEvent{
+			RequestID: requestID,
+			Timestamp: time.Now(),
+		})
+	}
+}
+
+// BroadcastEvent publishes an event to the EventBridge for floating window
+func (sm *StateManager) BroadcastEvent(event domain.ChatEvent) {
+	if sm.eventBridge != nil {
+		sm.eventBridge.Publish(event)
+	}
 }
 
 // Plan approval state methods

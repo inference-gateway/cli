@@ -701,7 +701,11 @@ web:
   servers: []
 computer_use:
   enabled: true
-  restore_focus_on_approval: true
+  floating_window:
+    enabled: true
+    respawn_on_close: true
+    position: top-right
+    always_on_top: true
   screenshot:
     enabled: true
     max_width: 1920
@@ -714,6 +718,7 @@ computer_use:
     buffer_size: 5
     temp_dir: ""
     log_captures: false
+    show_overlay: true
   mouse_move:
     enabled: true
     require_approval: false

@@ -91,6 +91,8 @@ and have a conversational interface with the inference gateway.`,
 }
 
 // StartChatSession starts a chat session
+//
+//nolint:funlen // Chat session initialization requires multiple setup steps
 func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	_ = clipboard.Init()
 
@@ -180,6 +182,18 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 				}
 			}()
 		}
+	}
+
+	floatingWindowMgr, err := initFloatingWindow(config, stateManager)
+	if err != nil {
+		return fmt.Errorf("failed to initialize floating window: %w", err)
+	}
+	if floatingWindowMgr != nil {
+		defer func() {
+			if err := floatingWindowMgr.Shutdown(); err != nil {
+				logger.Error("Failed to shutdown floating window", "error", err)
+			}
+		}()
 	}
 
 	versionInfo := GetVersionInfo()

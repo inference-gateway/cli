@@ -217,6 +217,18 @@ func (e *ChatEventHandler) handleChatComplete(
 
 	var cmds []tea.Cmd
 
+	for _, toolCall := range msg.ToolCalls {
+		previewEvent := domain.ToolCallPreviewEvent{
+			RequestID:  msg.RequestID,
+			Timestamp:  msg.Timestamp,
+			ToolCallID: toolCall.Id,
+			ToolName:   toolCall.Function.Name,
+			Arguments:  toolCall.Function.Arguments,
+		}
+
+		e.handler.stateManager.BroadcastEvent(previewEvent)
+	}
+
 	cmds = append(cmds, func() tea.Msg {
 		return domain.UpdateHistoryEvent{
 			History: e.handler.conversationRepo.GetMessages(),
@@ -444,6 +456,8 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 	msg domain.ToolExecutionProgressEvent,
 ) tea.Cmd {
 	var cmds []tea.Cmd
+
+	// Don't broadcast progress events - tool calls are broadcast from ChatCompleteEvent
 
 	switch msg.Status {
 	case "starting":
