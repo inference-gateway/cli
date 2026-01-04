@@ -7,6 +7,7 @@ words:
   - apapsch
   - asciicircum
   - asciitilde
+  - autoreleasepool
   - aymanbagabas
   - aymerick
   - bahlo
@@ -20,6 +21,7 @@ words:
   - cancelreader
   - cellbuf
   - cespare
+  - CFLAGS
   - charmbracelet
   - cloudevents
   - codegen
@@ -38,12 +40,14 @@ words:
   - easyjson
   - erikgeiser
   - exclam
+  - frontmost
   - fsnotify
   - funlen
   - gjson
   - gocognit
   - gocyclo
   - goldmark
+  - googlecode
   - gopkg
   - gotenv
   - groq
@@ -53,6 +57,7 @@ words:
   - invopop
   - isatty
   - ISPEED
+  - iterm
   - journalctl
   - jsonmerge
   - jsonparser
@@ -60,6 +65,7 @@ words:
   - keybind
   - keygen
   - kimi
+  - kovidgoyal
   - ledongthuc
   - libsqlite
   - lipgloss
@@ -74,6 +80,7 @@ words:
   - metoro
   - mixtral
   - moonshotai
+  - mousemove
   - mtoken
   - multierr
   - myshortcuts
@@ -98,6 +105,7 @@ words:
   - resty
   - retryable
   - rivo
+  - robotgo
   - runewidth
   - sabhiram
   - sagents
@@ -108,6 +116,7 @@ words:
   - sname
   - sourcegraph
   - stretchr
+  - sublimetext
   - subosito
   - sysinfo
   - systemctl

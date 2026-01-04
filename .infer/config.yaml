@@ -700,7 +700,7 @@ web:
     install_version: latest
   servers: []
 computer_use:
-  enabled: false
+  enabled: true
   restore_focus_on_approval: true
   screenshot:
     enabled: true
@@ -709,7 +709,7 @@ computer_use:
     format: jpeg
     quality: 80
     require_approval: false
-    streaming_enabled: false
+    streaming_enabled: true
     capture_interval: 3
     buffer_size: 5
     temp_dir: ""

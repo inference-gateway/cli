@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	robotgo "github.com/go-vgo/robotgo"
 )
 
 // WaylandClient provides Wayland screen control operations using command-line tools
@@ -128,11 +126,30 @@ func (c *WaylandClient) ClickMouse(button string, clicks int) error {
 
 // ScrollMouse scrolls the mouse wheel
 func (c *WaylandClient) ScrollMouse(clicks int, direction string) error {
-	if direction == "horizontal" {
-		robotgo.ScrollDir(clicks, "right")
-	} else {
-		robotgo.Scroll(0, clicks)
+	if _, err := exec.LookPath("ydotool"); err != nil {
+		return fmt.Errorf("ydotool not found (install with: sudo apt install ydotool)")
 	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// ydotool uses scroll codes: 0x150007 for vertical scroll
+	// Positive clicks = scroll down/right, negative = scroll up/left
+	var scrollCode string
+	if direction == "horizontal" {
+		// Horizontal scroll not commonly supported by ydotool
+		return fmt.Errorf("horizontal scrolling not supported on Wayland")
+	} else {
+		scrollCode = "0x150007"
+	}
+
+	// Execute scroll command
+	cmd := exec.CommandContext(ctx, "ydotool", "click", scrollCode, "--", strconv.Itoa(clicks))
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("ydotool scroll failed: %s", string(output))
+	}
+
 	return nil
 }
 
