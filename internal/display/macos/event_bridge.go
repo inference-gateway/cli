@@ -70,7 +70,7 @@ func (eb *EventBridge) Subscribe() chan domain.ChatEvent {
 
 	eb.subscribers = append(eb.subscribers, sub)
 
-	eb.eventBuffer.Do(func(val interface{}) {
+	eb.eventBuffer.Do(func(val any) {
 		if val != nil {
 			event, ok := val.(domain.ChatEvent)
 			if ok {

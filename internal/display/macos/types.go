@@ -15,9 +15,9 @@ type ApprovalResponse struct {
 
 // WindowEvent wraps domain.ChatEvent with additional metadata for the window
 type WindowEvent struct {
-	Type      string      `json:"type"`
-	Timestamp int64       `json:"timestamp"`
-	Data      interface{} `json:"data"`
+	Type      string `json:"type"`
+	Timestamp int64  `json:"timestamp"`
+	Data      any    `json:"data"`
 }
 
 // WindowState represents the current state snapshot of the floating window
@@ -32,8 +32,8 @@ type WindowState struct {
 
 // PendingApproval represents a tool waiting for user approval
 type PendingApproval struct {
-	CallID    string                 `json:"call_id"`
-	ToolName  string                 `json:"tool_name"`
-	Arguments map[string]interface{} `json:"arguments"`
-	Timestamp int64                  `json:"timestamp"`
+	CallID    string         `json:"call_id"`
+	ToolName  string         `json:"tool_name"`
+	Arguments map[string]any `json:"arguments"`
+	Timestamp int64          `json:"timestamp"`
 }
