@@ -43,6 +43,13 @@ type ApplicationState struct {
 	// Message Edit State
 	messageEditState *MessageEditState
 
+	// Focus Management (macOS computer-use tools)
+	// Stores the bundle ID of the app that was clicked (for restoring focus before keyboard operations)
+	lastFocusedAppID string
+	// Stores the coordinates of the last click (for re-clicking before keyboard operations)
+	lastClickX int
+	lastClickY int
+
 	// Debugging
 	debugMode bool
 }
@@ -852,6 +859,41 @@ func (s *ApplicationState) ClearMessageEditState() {
 // IsEditingMessage returns true if currently editing a message
 func (s *ApplicationState) IsEditingMessage() bool {
 	return s.messageEditState != nil
+}
+
+// Focus Management Methods (macOS computer-use tools)
+
+// SetLastFocusedApp stores the bundle ID of the last focused application
+// This is used to restore focus before keyboard operations
+func (s *ApplicationState) SetLastFocusedApp(appID string) {
+	s.lastFocusedAppID = appID
+}
+
+// GetLastFocusedApp returns the bundle ID of the last focused application
+func (s *ApplicationState) GetLastFocusedApp() string {
+	return s.lastFocusedAppID
+}
+
+// ClearLastFocusedApp clears the stored focused app
+func (s *ApplicationState) ClearLastFocusedApp() {
+	s.lastFocusedAppID = ""
+}
+
+// SetLastClickCoordinates stores the coordinates of the last click
+func (s *ApplicationState) SetLastClickCoordinates(x, y int) {
+	s.lastClickX = x
+	s.lastClickY = y
+}
+
+// GetLastClickCoordinates returns the coordinates of the last click
+func (s *ApplicationState) GetLastClickCoordinates() (x, y int) {
+	return s.lastClickX, s.lastClickY
+}
+
+// ClearLastClickCoordinates clears the stored click coordinates
+func (s *ApplicationState) ClearLastClickCoordinates() {
+	s.lastClickX = 0
+	s.lastClickY = 0
 }
 
 // StateSnapshot represents a point-in-time snapshot of application state

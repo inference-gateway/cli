@@ -100,6 +100,8 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("computer_use.screenshot.enabled", defaults.ComputerUse.Screenshot.Enabled)
 	v.SetDefault("computer_use.screenshot.max_width", defaults.ComputerUse.Screenshot.MaxWidth)
 	v.SetDefault("computer_use.screenshot.max_height", defaults.ComputerUse.Screenshot.MaxHeight)
+	v.SetDefault("computer_use.screenshot.target_width", defaults.ComputerUse.Screenshot.TargetWidth)
+	v.SetDefault("computer_use.screenshot.target_height", defaults.ComputerUse.Screenshot.TargetHeight)
 	v.SetDefault("computer_use.screenshot.format", defaults.ComputerUse.Screenshot.Format)
 	v.SetDefault("computer_use.screenshot.quality", defaults.ComputerUse.Screenshot.Quality)
 	v.SetDefault("computer_use.screenshot.streaming_enabled", defaults.ComputerUse.Screenshot.StreamingEnabled)

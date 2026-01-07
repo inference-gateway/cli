@@ -19,16 +19,18 @@ type MouseClickTool struct {
 	formatter       domain.BaseFormatter
 	rateLimiter     domain.RateLimiter
 	displayProvider display.Provider
+	stateManager    domain.StateManager
 }
 
 // NewMouseClickTool creates a new mouse click tool
-func NewMouseClickTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider) *MouseClickTool {
+func NewMouseClickTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider, stateManager domain.StateManager) *MouseClickTool {
 	return &MouseClickTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.MouseClick.Enabled,
 		formatter:       domain.NewBaseFormatter("MouseClick"),
 		rateLimiter:     rateLimiter,
 		displayProvider: displayProvider,
+		stateManager:    stateManager,
 	}
 }
 
@@ -75,55 +77,20 @@ func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*dom
 	start := time.Now()
 
 	if err := t.rateLimiter.CheckAndRecord("MouseClick"); err != nil {
-		return &domain.ToolExecutionResult{
-			ToolName:  "MouseClick",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     err.Error(),
-		}, nil
+		return t.errorResult(args, start, err.Error()), nil
 	}
 
-	button, ok := args["button"].(string)
-	if !ok {
-		button = "left"
-	}
-
-	clicks := 1
-	if clicksArg, ok := args["clicks"].(float64); ok {
-		clicks = int(clicksArg)
-	}
-
-	var finalX, finalY int
-	shouldMove := false
-
-	if xArg, xOk := args["x"].(float64); xOk {
-		if yArg, yOk := args["y"].(float64); yOk {
-			finalX = int(xArg)
-			finalY = int(yArg)
-			shouldMove = true
-		}
-	}
+	button := t.getButton(args)
+	clicks := t.getClicks(args)
+	finalX, finalY, shouldMove := t.getCoordinates(args)
 
 	if t.displayProvider == nil {
-		return &domain.ToolExecutionResult{
-			ToolName:  "MouseClick",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     "no compatible display platform detected",
-		}, nil
+		return t.errorResult(args, start, "no compatible display platform detected"), nil
 	}
 
 	controller, err := t.displayProvider.GetController()
 	if err != nil {
-		return &domain.ToolExecutionResult{
-			ToolName:  "MouseClick",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     fmt.Sprintf("failed to get platform controller: %v", err),
-		}, nil
+		return t.errorResult(args, start, fmt.Sprintf("failed to get platform controller: %v", err)), nil
 	}
 	defer func() {
 		if closeErr := controller.Close(); closeErr != nil {
@@ -131,31 +98,17 @@ func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*dom
 		}
 	}()
 
-	if shouldMove {
-		if err := controller.MoveMouse(ctx, finalX, finalY); err != nil {
-			return &domain.ToolExecutionResult{
-				ToolName:  "MouseClick",
-				Arguments: args,
-				Success:   false,
-				Duration:  time.Since(start),
-				Error:     fmt.Sprintf("failed to move mouse: %v", err),
-			}, nil
-		}
-	} else {
-		x, y, _ := controller.GetCursorPosition(ctx)
-		finalX, finalY = x, y
+	finalX, finalY, err = t.handleMovement(ctx, controller, shouldMove, finalX, finalY)
+	if err != nil {
+		return t.errorResult(args, start, err.Error()), nil
 	}
 
 	mouseButton := display.ParseMouseButton(button)
 	if err := controller.ClickMouse(ctx, mouseButton, clicks); err != nil {
-		return &domain.ToolExecutionResult{
-			ToolName:  "MouseClick",
-			Arguments: args,
-			Success:   false,
-			Duration:  time.Since(start),
-			Error:     fmt.Sprintf("failed to click mouse: %v", err),
-		}, nil
+		return t.errorResult(args, start, fmt.Sprintf("failed to click mouse: %v", err)), nil
 	}
+
+	t.updateStateAfterClick(ctx, controller, finalX, finalY)
 
 	result := domain.MouseClickToolResult{
 		Button: button,
@@ -172,6 +125,137 @@ func (t *MouseClickTool) Execute(ctx context.Context, args map[string]any) (*dom
 		Duration:  time.Since(start),
 		Data:      result,
 	}, nil
+}
+
+func (t *MouseClickTool) getButton(args map[string]any) string {
+	button, ok := args["button"].(string)
+	if !ok {
+		return "left"
+	}
+	return button
+}
+
+func (t *MouseClickTool) getClicks(args map[string]any) int {
+	if clicksArg, ok := args["clicks"].(float64); ok {
+		return int(clicksArg)
+	}
+	return 1
+}
+
+func (t *MouseClickTool) getCoordinates(args map[string]any) (int, int, bool) {
+	if xArg, xOk := args["x"].(float64); xOk {
+		if yArg, yOk := args["y"].(float64); yOk {
+			return int(xArg), int(yArg), true
+		}
+	}
+	return 0, 0, false
+}
+
+func (t *MouseClickTool) errorResult(args map[string]any, start time.Time, errorMsg string) *domain.ToolExecutionResult {
+	return &domain.ToolExecutionResult{
+		ToolName:  "MouseClick",
+		Arguments: args,
+		Success:   false,
+		Duration:  time.Since(start),
+		Error:     errorMsg,
+	}
+}
+
+func (t *MouseClickTool) handleMovement(ctx context.Context, controller display.DisplayController, shouldMove bool, x, y int) (int, int, error) {
+	if !shouldMove {
+		cursorX, cursorY, _ := controller.GetCursorPosition(ctx)
+		return cursorX, cursorY, nil
+	}
+
+	targetX, targetY := t.scaleCoordinates(ctx, controller, x, y)
+
+	if err := controller.MoveMouse(ctx, targetX, targetY); err != nil {
+		return 0, 0, fmt.Errorf("failed to move mouse: %w", err)
+	}
+
+	return targetX, targetY, nil
+}
+
+// scaleCoordinates converts API coordinates to screen coordinates using Anthropic's proportional scaling.
+// This follows the official computer-use-demo implementation strategy.
+func (t *MouseClickTool) scaleCoordinates(ctx context.Context, controller display.DisplayController, x, y int) (int, int) {
+	if isDirectExec := ctx.Value(domain.DirectExecutionKey); isDirectExec != nil && isDirectExec.(bool) {
+		return x, y
+	}
+
+	screenWidth, screenHeight, err := controller.GetScreenDimensions(ctx)
+	if err != nil {
+		logger.Warn("Failed to get screen dimensions, no scaling", "error", err)
+		return x, y
+	}
+
+	apiWidth := t.config.ComputerUse.Screenshot.TargetWidth
+	apiHeight := t.config.ComputerUse.Screenshot.TargetHeight
+
+	if apiWidth == 0 || apiHeight == 0 {
+		return x, y
+	}
+
+	screenX, screenY := ScaleAPIToScreen(x, y, apiWidth, apiHeight, screenWidth, screenHeight)
+
+	return screenX, screenY
+}
+
+func (t *MouseClickTool) updateStateAfterClick(ctx context.Context, controller display.DisplayController, x, y int) {
+	if t.stateManager == nil {
+		return
+	}
+
+	t.storeFocusedApp(ctx, controller)
+	t.stateManager.SetLastClickCoordinates(x, y)
+	t.broadcastClickEvent(x, y)
+}
+
+func (t *MouseClickTool) storeFocusedApp(ctx context.Context, controller display.DisplayController) {
+	focusManager, ok := controller.(display.FocusManager)
+	if !ok {
+		return
+	}
+
+	appID, err := focusManager.GetFrontmostApp(ctx)
+	if err != nil {
+		logger.Warn("Failed to get frontmost app after click", "error", err)
+		return
+	}
+
+	t.stateManager.SetLastFocusedApp(appID)
+}
+
+func (t *MouseClickTool) broadcastClickEvent(x, y int) {
+	controller, err := t.displayProvider.GetController()
+	if err != nil {
+		logger.Warn("Failed to get controller for click indicator", "error", err)
+		return
+	}
+	defer func() {
+		if closeErr := controller.Close(); closeErr != nil {
+			logger.Warn("Failed to close controller", "error", closeErr)
+		}
+	}()
+
+	_, screenHeight, err := controller.GetScreenDimensions(context.Background())
+	if err != nil {
+		logger.Warn("Failed to get screen dimensions for click indicator", "error", err)
+		screenHeight = 1117
+	}
+
+	macosY := screenHeight - y
+
+	clickEvent := domain.ClickIndicatorEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: "click-indicator",
+			Timestamp: time.Now(),
+		},
+		X:              x,
+		Y:              macosY,
+		ClickIndicator: true,
+	}
+	t.stateManager.BroadcastEvent(clickEvent)
 }
 
 // Validate checks if the tool arguments are valid

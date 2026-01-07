@@ -267,6 +267,8 @@ type ScreenshotToolConfig struct {
 	Enabled          bool   `yaml:"enabled" mapstructure:"enabled"`
 	MaxWidth         int    `yaml:"max_width" mapstructure:"max_width"`
 	MaxHeight        int    `yaml:"max_height" mapstructure:"max_height"`
+	TargetWidth      int    `yaml:"target_width" mapstructure:"target_width"`
+	TargetHeight     int    `yaml:"target_height" mapstructure:"target_height"`
 	Format           string `yaml:"format" mapstructure:"format"`
 	Quality          int    `yaml:"quality" mapstructure:"quality"`
 	RequireApproval  *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
@@ -1134,8 +1136,10 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				Enabled:          true,
 				MaxWidth:         1920,
 				MaxHeight:        1080,
+				TargetWidth:      1024,
+				TargetHeight:     768,
 				Format:           "jpeg",
-				Quality:          80,
+				Quality:          85,
 				RequireApproval:  &[]bool{false}[0],
 				StreamingEnabled: true,
 				CaptureInterval:  3,
@@ -1159,7 +1163,7 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 			KeyboardType: KeyboardTypeToolConfig{
 				Enabled:         true,
 				MaxTextLength:   1000,
-				TypingDelayMs:   200,
+				TypingDelayMs:   100,
 				RequireApproval: &[]bool{true}[0],
 			},
 			GetFocusedApp: GetFocusedAppToolConfig{

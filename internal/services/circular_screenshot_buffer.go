@@ -177,7 +177,11 @@ func (b *CircularScreenshotBuffer) writeToDisk(screenshot *domain.Screenshot) er
 		return fmt.Errorf("failed to decode base64 data: %w", err)
 	}
 
-	filename := filepath.Join(b.tempDir, fmt.Sprintf("screenshot-%s.png", screenshot.ID))
+	extension := screenshot.Format
+	if extension == "" {
+		extension = "png"
+	}
+	filename := filepath.Join(b.tempDir, fmt.Sprintf("screenshot-%s.%s", screenshot.ID, extension))
 	if err := os.WriteFile(filename, imageData, 0644); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
@@ -187,8 +191,10 @@ func (b *CircularScreenshotBuffer) writeToDisk(screenshot *domain.Screenshot) er
 
 // deleteFromDisk removes a screenshot file from disk
 func (b *CircularScreenshotBuffer) deleteFromDisk(id string) {
-	filename := filepath.Join(b.tempDir, fmt.Sprintf("screenshot-%s.png", id))
-	if err := os.Remove(filename); err != nil && !os.IsNotExist(err) {
-		logger.Warn("Failed to delete screenshot file", "error", err, "filename", filename)
+	for _, ext := range []string{"png", "jpeg", "jpg"} {
+		filename := filepath.Join(b.tempDir, fmt.Sprintf("screenshot-%s.%s", id, ext))
+		if err := os.Remove(filename); err == nil {
+			return
+		}
 	}
 }

@@ -73,8 +73,6 @@ func NewX11Client(display string) (*X11Client, error) {
 
 	keybind.Initialize(xu)
 
-	logger.Debug("Successfully connected to X11 display", "display", display)
-
 	return &X11Client{
 		xu:      xu,
 		conn:    xu.Conn(),

@@ -780,3 +780,47 @@ type HealthStatus struct {
 	LastStateChange  time.Time `json:"last_state_change"`
 	MemoryUsageKB    int       `json:"memory_usage_kb"`
 }
+
+// Focus management methods (macOS computer-use tools)
+
+// SetLastFocusedApp stores the bundle ID of the last focused application
+func (sm *StateManager) SetLastFocusedApp(appID string) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.SetLastFocusedApp(appID)
+}
+
+// GetLastFocusedApp returns the bundle ID of the last focused application
+func (sm *StateManager) GetLastFocusedApp() string {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.GetLastFocusedApp()
+}
+
+// ClearLastFocusedApp clears the stored focused app
+func (sm *StateManager) ClearLastFocusedApp() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.ClearLastFocusedApp()
+}
+
+// SetLastClickCoordinates stores the coordinates of the last click
+func (sm *StateManager) SetLastClickCoordinates(x, y int) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.SetLastClickCoordinates(x, y)
+}
+
+// GetLastClickCoordinates returns the coordinates of the last click
+func (sm *StateManager) GetLastClickCoordinates() (x, y int) {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.GetLastClickCoordinates()
+}
+
+// ClearLastClickCoordinates clears the stored click coordinates
+func (sm *StateManager) ClearLastClickCoordinates() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.ClearLastClickCoordinates()
+}

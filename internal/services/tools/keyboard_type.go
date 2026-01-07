@@ -19,16 +19,18 @@ type KeyboardTypeTool struct {
 	formatter       domain.BaseFormatter
 	rateLimiter     domain.RateLimiter
 	displayProvider display.Provider
+	stateManager    domain.StateManager
 }
 
 // NewKeyboardTypeTool creates a new keyboard type tool
-func NewKeyboardTypeTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider) *KeyboardTypeTool {
+func NewKeyboardTypeTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider, stateManager domain.StateManager) *KeyboardTypeTool {
 	return &KeyboardTypeTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.KeyboardType.Enabled,
 		formatter:       domain.NewBaseFormatter("KeyboardType"),
 		rateLimiter:     rateLimiter,
 		displayProvider: displayProvider,
+		stateManager:    stateManager,
 	}
 }
 
@@ -119,6 +121,10 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 			logger.Warn("Failed to close controller", "error", closeErr)
 		}
 	}()
+
+	if t.stateManager != nil {
+		t.restoreInputFocus(ctx, controller)
+	}
 
 	var execErr error
 	if hasText {
@@ -242,4 +248,47 @@ func (t *KeyboardTypeTool) ShouldCollapseArg(key string) bool {
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
 func (t *KeyboardTypeTool) ShouldAlwaysExpand() bool {
 	return false
+}
+
+func (t *KeyboardTypeTool) restoreInputFocus(ctx context.Context, controller display.DisplayController) {
+	clickX, clickY := t.stateManager.GetLastClickCoordinates()
+	if clickX <= 0 && clickY <= 0 {
+		return
+	}
+
+	lastFocusedApp := t.stateManager.GetLastFocusedApp()
+	if lastFocusedApp != "" {
+		t.activateLastFocusedApp(ctx, controller, lastFocusedApp)
+	}
+
+	t.reClickInputField(ctx, controller, clickX, clickY)
+}
+
+func (t *KeyboardTypeTool) activateLastFocusedApp(ctx context.Context, controller display.DisplayController, appID string) {
+	focusManager, ok := controller.(display.FocusManager)
+	if !ok {
+		return
+	}
+
+	if err := focusManager.ActivateApp(ctx, appID); err != nil {
+		logger.Warn("Failed to restore app focus", "app_id", appID, "error", err)
+		return
+	}
+
+	time.Sleep(100 * time.Millisecond)
+}
+
+func (t *KeyboardTypeTool) reClickInputField(ctx context.Context, controller display.DisplayController, x, y int) {
+	if err := controller.MoveMouse(ctx, x, y); err != nil {
+		logger.Warn("Failed to move mouse to stored coordinates", "x", x, "y", y, "error", err)
+		return
+	}
+
+	mouseButton := display.ParseMouseButton("left")
+	if err := controller.ClickMouse(ctx, mouseButton, 1); err != nil {
+		logger.Warn("Failed to re-click input field", "error", err)
+		return
+	}
+
+	time.Sleep(100 * time.Millisecond)
 }

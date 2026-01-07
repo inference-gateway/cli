@@ -19,29 +19,47 @@ import (
 
 // Registry manages all available tools
 type Registry struct {
-	config       domain.ConfigService
-	tools        map[string]domain.Tool
-	readToolUsed bool
-	taskTracker  domain.TaskTracker
-	imageService domain.ImageService
-	mcpManager   domain.MCPManager
-	shellService domain.BackgroundShellService
+	config             domain.ConfigService
+	tools              map[string]domain.Tool
+	readToolUsed       bool
+	taskTracker        domain.TaskTracker
+	imageService       domain.ImageService
+	mcpManager         domain.MCPManager
+	shellService       domain.BackgroundShellService
+	stateManager       domain.StateManager
+	screenshotProvider domain.ScreenshotProvider
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
-func NewRegistry(cfg domain.ConfigService, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService) *Registry {
+func NewRegistry(cfg domain.ConfigService, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager domain.StateManager, screenshotProvider domain.ScreenshotProvider) *Registry {
 	registry := &Registry{
-		config:       cfg,
-		tools:        make(map[string]domain.Tool),
-		shellService: shellService,
-		readToolUsed: false,
-		taskTracker:  utils.NewTaskTracker(),
-		imageService: imageService,
-		mcpManager:   mcpManager,
+		config:             cfg,
+		tools:              make(map[string]domain.Tool),
+		shellService:       shellService,
+		readToolUsed:       false,
+		taskTracker:        utils.NewTaskTracker(),
+		imageService:       imageService,
+		mcpManager:         mcpManager,
+		stateManager:       stateManager,
+		screenshotProvider: screenshotProvider,
 	}
 
 	registry.registerTools()
 	return registry
+}
+
+// SetScreenshotProvider updates the screenshot provider for tools that need it
+func (r *Registry) SetScreenshotProvider(provider domain.ScreenshotProvider) {
+	r.screenshotProvider = provider
+
+	cfg := r.config.GetConfig()
+	if cfg.ComputerUse.Enabled {
+		displayProvider, err := display.DetectDisplay()
+		if err == nil {
+			rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
+			r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
+		}
+	}
 }
 
 // registerTools initializes and registers all available tools
@@ -90,10 +108,10 @@ func (r *Registry) registerTools() {
 			logger.Warn("No compatible display platform detected, computer use tools will be disabled", "error", err)
 		} else {
 			rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
-			r.tools["MouseMove"] = NewMouseMoveTool(cfg, rateLimiter, displayProvider)
-			r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider)
+			r.tools["MouseMove"] = NewMouseMoveTool(cfg, rateLimiter, displayProvider, r.stateManager)
+			r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
 			r.tools["MouseScroll"] = NewMouseScrollTool(cfg, rateLimiter, displayProvider)
-			r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
+			r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider, r.stateManager)
 			r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
 			r.tools["ActivateApp"] = NewActivateAppTool(r.config)
 		}
@@ -263,6 +281,8 @@ func (r *Registry) SetScreenshotServer(provider domain.ScreenshotProvider) {
 		logger.Warn("Screenshot provider is nil, cannot register GetLatestScreenshot tool")
 		return
 	}
+
+	r.SetScreenshotProvider(provider)
 
 	getLatestTool := NewGetLatestScreenshotTool(cfg, provider)
 	r.tools["GetLatestScreenshot"] = getLatestTool

@@ -90,7 +90,7 @@ func createTestRegistry() *Registry {
 		},
 	}
 
-	return NewRegistry(newTestConfigService(cfg), nil, nil, nil)
+	return NewRegistry(newTestConfigService(cfg), nil, nil, nil, nil, nil)
 }
 
 func TestRegistry_GetTool_Unknown(t *testing.T) {
@@ -122,7 +122,7 @@ func TestRegistry_DisabledTools(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil)
+	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil, nil, nil)
 
 	tools := registry.ListAvailableTools()
 
@@ -175,7 +175,7 @@ func TestRegistry_NewRegistry(t *testing.T) {
 	}
 
 	configService := newTestConfigService(cfg)
-	registry := NewRegistry(configService, nil, nil, nil)
+	registry := NewRegistry(configService, nil, nil, nil, nil, nil)
 
 	if registry == nil {
 		t.Fatal("Expected non-nil registry")
@@ -210,7 +210,7 @@ func TestRegistry_GetTool(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil)
+	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -361,7 +361,7 @@ func TestRegistry_ListAvailableTools(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			registry := NewRegistry(newTestConfigService(tt.config), nil, nil, nil)
+			registry := NewRegistry(newTestConfigService(tt.config), nil, nil, nil, nil, nil)
 			tools := registry.ListAvailableTools()
 
 			if len(tools) < tt.expectedMin || len(tools) > tt.expectedMax {
@@ -414,7 +414,7 @@ func TestRegistry_GetToolDefinitions(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil)
+	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil, nil, nil)
 	definitions := registry.GetToolDefinitions()
 
 	if len(definitions) < 5 || len(definitions) > 15 {
@@ -464,7 +464,7 @@ func TestRegistry_IsToolEnabled(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil)
+	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil, nil, nil)
 
 	tests := []struct {
 		name     string
@@ -517,7 +517,7 @@ func TestRegistry_WithMockedTool(t *testing.T) {
 		},
 	}
 
-	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil)
+	registry := NewRegistry(newTestConfigService(cfg), nil, nil, nil, nil, nil)
 
 	fakeTool := &mocks.FakeTool{}
 	fakeTool.IsEnabledReturns(true)

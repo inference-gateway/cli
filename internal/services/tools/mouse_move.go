@@ -19,16 +19,18 @@ type MouseMoveTool struct {
 	formatter       domain.BaseFormatter
 	rateLimiter     domain.RateLimiter
 	displayProvider display.Provider
+	stateManager    domain.StateManager
 }
 
 // NewMouseMoveTool creates a new mouse move tool
-func NewMouseMoveTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider) *MouseMoveTool {
+func NewMouseMoveTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider, stateManager domain.StateManager) *MouseMoveTool {
 	return &MouseMoveTool{
 		config:          cfg,
 		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.MouseMove.Enabled,
 		formatter:       domain.NewBaseFormatter("MouseMove"),
 		rateLimiter:     rateLimiter,
 		displayProvider: displayProvider,
+		stateManager:    stateManager,
 	}
 }
 
@@ -111,9 +113,11 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}
 	}()
 
+	targetX, targetY := t.scaleCoordinates(ctx, controller, int(x), int(y))
+
 	fromX, fromY, _ := controller.GetCursorPosition(ctx)
 
-	if err := controller.MoveMouse(ctx, int(x), int(y)); err != nil {
+	if err := controller.MoveMouse(ctx, targetX, targetY); err != nil {
 		return &domain.ToolExecutionResult{
 			ToolName:  "MouseMove",
 			Arguments: args,
@@ -123,11 +127,13 @@ func (t *MouseMoveTool) Execute(ctx context.Context, args map[string]any) (*doma
 		}, nil
 	}
 
+	t.broadcastMoveEvent(fromX, fromY, targetX, targetY)
+
 	result := domain.MouseMoveToolResult{
 		FromX:  fromX,
 		FromY:  fromY,
-		ToX:    int(x),
-		ToY:    int(y),
+		ToX:    targetX,
+		ToY:    targetY,
 		Method: t.displayProvider.GetDisplayInfo().Name,
 	}
 
@@ -211,4 +217,70 @@ func (t *MouseMoveTool) ShouldCollapseArg(key string) bool {
 // ShouldAlwaysExpand determines if tool results should always be expanded in UI
 func (t *MouseMoveTool) ShouldAlwaysExpand() bool {
 	return false
+}
+
+// scaleCoordinates converts API coordinates to screen coordinates using Anthropic's proportional scaling.
+// This follows the official computer-use-demo implementation strategy.
+func (t *MouseMoveTool) scaleCoordinates(ctx context.Context, controller display.DisplayController, x, y int) (int, int) {
+	if isDirectExec := ctx.Value(domain.DirectExecutionKey); isDirectExec != nil && isDirectExec.(bool) {
+		return x, y
+	}
+
+	screenWidth, screenHeight, err := controller.GetScreenDimensions(ctx)
+	if err != nil {
+		logger.Warn("Failed to get screen dimensions", "error", err)
+		return x, y
+	}
+
+	apiWidth := t.config.ComputerUse.Screenshot.TargetWidth
+	apiHeight := t.config.ComputerUse.Screenshot.TargetHeight
+
+	if apiWidth == 0 || apiHeight == 0 {
+		return x, y
+	}
+
+	screenX, screenY := ScaleAPIToScreen(x, y, apiWidth, apiHeight, screenWidth, screenHeight)
+
+	return screenX, screenY
+}
+
+// broadcastMoveEvent broadcasts a visual move indicator event for user feedback
+func (t *MouseMoveTool) broadcastMoveEvent(fromX, fromY, toX, toY int) {
+	if t.stateManager == nil {
+		return
+	}
+
+	controller, err := t.displayProvider.GetController()
+	if err != nil {
+		logger.Warn("Failed to get controller for move indicator", "error", err)
+		return
+	}
+	defer func() {
+		if closeErr := controller.Close(); closeErr != nil {
+			logger.Warn("Failed to close controller", "error", closeErr)
+		}
+	}()
+
+	_, screenHeight, err := controller.GetScreenDimensions(context.Background())
+	if err != nil {
+		logger.Warn("Failed to get screen dimensions for move indicator", "error", err)
+		screenHeight = 1117
+	}
+
+	macosFromY := screenHeight - fromY
+	macosToY := screenHeight - toY
+
+	moveEvent := domain.MoveIndicatorEvent{
+		BaseChatEvent: domain.BaseChatEvent{
+			RequestID: "move-indicator",
+			Timestamp: time.Now(),
+		},
+		FromX:         fromX,
+		FromY:         macosFromY,
+		ToX:           toX,
+		ToY:           macosToY,
+		MoveIndicator: true,
+	}
+
+	t.stateManager.BroadcastEvent(moveEvent)
 }

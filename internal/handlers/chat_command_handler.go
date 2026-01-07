@@ -197,6 +197,7 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
 		ctx = context.WithValue(ctx, domain.BashOutputCallbackKey, domain.BashOutputCallback(bashCallback))
 		ctx = context.WithValue(ctx, domain.BashDetachChannelKey, (<-chan struct{})(detachChan))
+		ctx = context.WithValue(ctx, domain.DirectExecutionKey, true)
 		result, err := c.handler.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
@@ -537,6 +538,7 @@ func (c *ChatCommandHandler) executeToolCommandAsync(toolName, argsJSON, toolCal
 		}
 
 		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
+		ctx = context.WithValue(ctx, domain.DirectExecutionKey, true)
 		result, err := c.handler.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 		if err != nil {
 			eventChan <- domain.ShowErrorEvent{

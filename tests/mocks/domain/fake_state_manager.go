@@ -36,6 +36,14 @@ type FakeStateManager struct {
 	clearFileSelectionStateMutex       sync.RWMutex
 	clearFileSelectionStateArgsForCall []struct {
 	}
+	ClearLastClickCoordinatesStub        func()
+	clearLastClickCoordinatesMutex       sync.RWMutex
+	clearLastClickCoordinatesArgsForCall []struct {
+	}
+	ClearLastFocusedAppStub        func()
+	clearLastFocusedAppMutex       sync.RWMutex
+	clearLastFocusedAppArgsForCall []struct {
+	}
 	ClearMessageEditStateStub        func()
 	clearMessageEditStateMutex       sync.RWMutex
 	clearMessageEditStateArgsForCall []struct {
@@ -156,6 +164,28 @@ type FakeStateManager struct {
 	getFileSelectionStateReturnsOnCall map[int]struct {
 		result1 *domain.FileSelectionState
 	}
+	GetLastClickCoordinatesStub        func() (int, int)
+	getLastClickCoordinatesMutex       sync.RWMutex
+	getLastClickCoordinatesArgsForCall []struct {
+	}
+	getLastClickCoordinatesReturns struct {
+		result1 int
+		result2 int
+	}
+	getLastClickCoordinatesReturnsOnCall map[int]struct {
+		result1 int
+		result2 int
+	}
+	GetLastFocusedAppStub        func() string
+	getLastFocusedAppMutex       sync.RWMutex
+	getLastFocusedAppArgsForCall []struct {
+	}
+	getLastFocusedAppReturns struct {
+		result1 string
+	}
+	getLastFocusedAppReturnsOnCall map[int]struct {
+		result1 string
+	}
 	GetMessageEditStateStub        func() *domain.MessageEditState
 	getMessageEditStateMutex       sync.RWMutex
 	getMessageEditStateArgsForCall []struct {
@@ -271,6 +301,17 @@ type FakeStateManager struct {
 	setFileSelectedIndexMutex       sync.RWMutex
 	setFileSelectedIndexArgsForCall []struct {
 		arg1 int
+	}
+	SetLastClickCoordinatesStub        func(int, int)
+	setLastClickCoordinatesMutex       sync.RWMutex
+	setLastClickCoordinatesArgsForCall []struct {
+		arg1 int
+		arg2 int
+	}
+	SetLastFocusedAppStub        func(string)
+	setLastFocusedAppMutex       sync.RWMutex
+	setLastFocusedAppArgsForCall []struct {
+		arg1 string
 	}
 	SetMessageEditStateStub        func(*domain.MessageEditState)
 	setMessageEditStateMutex       sync.RWMutex
@@ -523,6 +564,54 @@ func (fake *FakeStateManager) ClearFileSelectionStateCalls(stub func()) {
 	fake.clearFileSelectionStateMutex.Lock()
 	defer fake.clearFileSelectionStateMutex.Unlock()
 	fake.ClearFileSelectionStateStub = stub
+}
+
+func (fake *FakeStateManager) ClearLastClickCoordinates() {
+	fake.clearLastClickCoordinatesMutex.Lock()
+	fake.clearLastClickCoordinatesArgsForCall = append(fake.clearLastClickCoordinatesArgsForCall, struct {
+	}{})
+	stub := fake.ClearLastClickCoordinatesStub
+	fake.recordInvocation("ClearLastClickCoordinates", []interface{}{})
+	fake.clearLastClickCoordinatesMutex.Unlock()
+	if stub != nil {
+		fake.ClearLastClickCoordinatesStub()
+	}
+}
+
+func (fake *FakeStateManager) ClearLastClickCoordinatesCallCount() int {
+	fake.clearLastClickCoordinatesMutex.RLock()
+	defer fake.clearLastClickCoordinatesMutex.RUnlock()
+	return len(fake.clearLastClickCoordinatesArgsForCall)
+}
+
+func (fake *FakeStateManager) ClearLastClickCoordinatesCalls(stub func()) {
+	fake.clearLastClickCoordinatesMutex.Lock()
+	defer fake.clearLastClickCoordinatesMutex.Unlock()
+	fake.ClearLastClickCoordinatesStub = stub
+}
+
+func (fake *FakeStateManager) ClearLastFocusedApp() {
+	fake.clearLastFocusedAppMutex.Lock()
+	fake.clearLastFocusedAppArgsForCall = append(fake.clearLastFocusedAppArgsForCall, struct {
+	}{})
+	stub := fake.ClearLastFocusedAppStub
+	fake.recordInvocation("ClearLastFocusedApp", []interface{}{})
+	fake.clearLastFocusedAppMutex.Unlock()
+	if stub != nil {
+		fake.ClearLastFocusedAppStub()
+	}
+}
+
+func (fake *FakeStateManager) ClearLastFocusedAppCallCount() int {
+	fake.clearLastFocusedAppMutex.RLock()
+	defer fake.clearLastFocusedAppMutex.RUnlock()
+	return len(fake.clearLastFocusedAppArgsForCall)
+}
+
+func (fake *FakeStateManager) ClearLastFocusedAppCalls(stub func()) {
+	fake.clearLastFocusedAppMutex.Lock()
+	defer fake.clearLastFocusedAppMutex.Unlock()
+	fake.ClearLastFocusedAppStub = stub
 }
 
 func (fake *FakeStateManager) ClearMessageEditState() {
@@ -1167,6 +1256,115 @@ func (fake *FakeStateManager) GetFileSelectionStateReturnsOnCall(i int, result1 
 	}
 	fake.getFileSelectionStateReturnsOnCall[i] = struct {
 		result1 *domain.FileSelectionState
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetLastClickCoordinates() (int, int) {
+	fake.getLastClickCoordinatesMutex.Lock()
+	ret, specificReturn := fake.getLastClickCoordinatesReturnsOnCall[len(fake.getLastClickCoordinatesArgsForCall)]
+	fake.getLastClickCoordinatesArgsForCall = append(fake.getLastClickCoordinatesArgsForCall, struct {
+	}{})
+	stub := fake.GetLastClickCoordinatesStub
+	fakeReturns := fake.getLastClickCoordinatesReturns
+	fake.recordInvocation("GetLastClickCoordinates", []interface{}{})
+	fake.getLastClickCoordinatesMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *FakeStateManager) GetLastClickCoordinatesCallCount() int {
+	fake.getLastClickCoordinatesMutex.RLock()
+	defer fake.getLastClickCoordinatesMutex.RUnlock()
+	return len(fake.getLastClickCoordinatesArgsForCall)
+}
+
+func (fake *FakeStateManager) GetLastClickCoordinatesCalls(stub func() (int, int)) {
+	fake.getLastClickCoordinatesMutex.Lock()
+	defer fake.getLastClickCoordinatesMutex.Unlock()
+	fake.GetLastClickCoordinatesStub = stub
+}
+
+func (fake *FakeStateManager) GetLastClickCoordinatesReturns(result1 int, result2 int) {
+	fake.getLastClickCoordinatesMutex.Lock()
+	defer fake.getLastClickCoordinatesMutex.Unlock()
+	fake.GetLastClickCoordinatesStub = nil
+	fake.getLastClickCoordinatesReturns = struct {
+		result1 int
+		result2 int
+	}{result1, result2}
+}
+
+func (fake *FakeStateManager) GetLastClickCoordinatesReturnsOnCall(i int, result1 int, result2 int) {
+	fake.getLastClickCoordinatesMutex.Lock()
+	defer fake.getLastClickCoordinatesMutex.Unlock()
+	fake.GetLastClickCoordinatesStub = nil
+	if fake.getLastClickCoordinatesReturnsOnCall == nil {
+		fake.getLastClickCoordinatesReturnsOnCall = make(map[int]struct {
+			result1 int
+			result2 int
+		})
+	}
+	fake.getLastClickCoordinatesReturnsOnCall[i] = struct {
+		result1 int
+		result2 int
+	}{result1, result2}
+}
+
+func (fake *FakeStateManager) GetLastFocusedApp() string {
+	fake.getLastFocusedAppMutex.Lock()
+	ret, specificReturn := fake.getLastFocusedAppReturnsOnCall[len(fake.getLastFocusedAppArgsForCall)]
+	fake.getLastFocusedAppArgsForCall = append(fake.getLastFocusedAppArgsForCall, struct {
+	}{})
+	stub := fake.GetLastFocusedAppStub
+	fakeReturns := fake.getLastFocusedAppReturns
+	fake.recordInvocation("GetLastFocusedApp", []interface{}{})
+	fake.getLastFocusedAppMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetLastFocusedAppCallCount() int {
+	fake.getLastFocusedAppMutex.RLock()
+	defer fake.getLastFocusedAppMutex.RUnlock()
+	return len(fake.getLastFocusedAppArgsForCall)
+}
+
+func (fake *FakeStateManager) GetLastFocusedAppCalls(stub func() string) {
+	fake.getLastFocusedAppMutex.Lock()
+	defer fake.getLastFocusedAppMutex.Unlock()
+	fake.GetLastFocusedAppStub = stub
+}
+
+func (fake *FakeStateManager) GetLastFocusedAppReturns(result1 string) {
+	fake.getLastFocusedAppMutex.Lock()
+	defer fake.getLastFocusedAppMutex.Unlock()
+	fake.GetLastFocusedAppStub = nil
+	fake.getLastFocusedAppReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetLastFocusedAppReturnsOnCall(i int, result1 string) {
+	fake.getLastFocusedAppMutex.Lock()
+	defer fake.getLastFocusedAppMutex.Unlock()
+	fake.GetLastFocusedAppStub = nil
+	if fake.getLastFocusedAppReturnsOnCall == nil {
+		fake.getLastFocusedAppReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getLastFocusedAppReturnsOnCall[i] = struct {
+		result1 string
 	}{result1}
 }
 
@@ -1820,6 +2018,71 @@ func (fake *FakeStateManager) SetFileSelectedIndexArgsForCall(i int) int {
 	fake.setFileSelectedIndexMutex.RLock()
 	defer fake.setFileSelectedIndexMutex.RUnlock()
 	argsForCall := fake.setFileSelectedIndexArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeStateManager) SetLastClickCoordinates(arg1 int, arg2 int) {
+	fake.setLastClickCoordinatesMutex.Lock()
+	fake.setLastClickCoordinatesArgsForCall = append(fake.setLastClickCoordinatesArgsForCall, struct {
+		arg1 int
+		arg2 int
+	}{arg1, arg2})
+	stub := fake.SetLastClickCoordinatesStub
+	fake.recordInvocation("SetLastClickCoordinates", []interface{}{arg1, arg2})
+	fake.setLastClickCoordinatesMutex.Unlock()
+	if stub != nil {
+		fake.SetLastClickCoordinatesStub(arg1, arg2)
+	}
+}
+
+func (fake *FakeStateManager) SetLastClickCoordinatesCallCount() int {
+	fake.setLastClickCoordinatesMutex.RLock()
+	defer fake.setLastClickCoordinatesMutex.RUnlock()
+	return len(fake.setLastClickCoordinatesArgsForCall)
+}
+
+func (fake *FakeStateManager) SetLastClickCoordinatesCalls(stub func(int, int)) {
+	fake.setLastClickCoordinatesMutex.Lock()
+	defer fake.setLastClickCoordinatesMutex.Unlock()
+	fake.SetLastClickCoordinatesStub = stub
+}
+
+func (fake *FakeStateManager) SetLastClickCoordinatesArgsForCall(i int) (int, int) {
+	fake.setLastClickCoordinatesMutex.RLock()
+	defer fake.setLastClickCoordinatesMutex.RUnlock()
+	argsForCall := fake.setLastClickCoordinatesArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeStateManager) SetLastFocusedApp(arg1 string) {
+	fake.setLastFocusedAppMutex.Lock()
+	fake.setLastFocusedAppArgsForCall = append(fake.setLastFocusedAppArgsForCall, struct {
+		arg1 string
+	}{arg1})
+	stub := fake.SetLastFocusedAppStub
+	fake.recordInvocation("SetLastFocusedApp", []interface{}{arg1})
+	fake.setLastFocusedAppMutex.Unlock()
+	if stub != nil {
+		fake.SetLastFocusedAppStub(arg1)
+	}
+}
+
+func (fake *FakeStateManager) SetLastFocusedAppCallCount() int {
+	fake.setLastFocusedAppMutex.RLock()
+	defer fake.setLastFocusedAppMutex.RUnlock()
+	return len(fake.setLastFocusedAppArgsForCall)
+}
+
+func (fake *FakeStateManager) SetLastFocusedAppCalls(stub func(string)) {
+	fake.setLastFocusedAppMutex.Lock()
+	defer fake.setLastFocusedAppMutex.Unlock()
+	fake.SetLastFocusedAppStub = stub
+}
+
+func (fake *FakeStateManager) SetLastFocusedAppArgsForCall(i int) string {
+	fake.setLastFocusedAppMutex.RLock()
+	defer fake.setLastFocusedAppMutex.RUnlock()
+	argsForCall := fake.setLastFocusedAppArgsForCall[i]
 	return argsForCall.arg1
 }
 

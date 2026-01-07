@@ -47,7 +47,7 @@ func runExport(sessionID string) error {
 	}
 
 	configService := services.NewConfigService(V, cfg)
-	toolRegistry := tools.NewRegistry(configService, nil, nil, nil)
+	toolRegistry := tools.NewRegistry(configService, nil, nil, nil, nil, nil)
 	toolFormatterService := services.NewToolFormatterService(toolRegistry)
 	pricingService := services.NewPricingService(&cfg.Pricing)
 	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, pricingService, storageBackend)

@@ -40,13 +40,15 @@ type ScreenRegion struct {
 
 // Screenshot represents a captured screenshot with metadata
 type Screenshot struct {
-	ID        string    `json:"id"`
-	Timestamp time.Time `json:"timestamp"`
-	Data      string    `json:"data"` // base64 encoded image
-	Width     int       `json:"width"`
-	Height    int       `json:"height"`
-	Format    string    `json:"format"` // "png" or "jpeg"
-	Method    string    `json:"method"` // "x11" or "wayland"
+	ID             string    `json:"id"`
+	Timestamp      time.Time `json:"timestamp"`
+	Data           string    `json:"data"`            // base64 encoded image
+	Width          int       `json:"width"`           // Final image width (after scaling)
+	Height         int       `json:"height"`          // Final image height (after scaling)
+	Format         string    `json:"format"`          // "png" or "jpeg"
+	Method         string    `json:"method"`          // "x11" or "wayland"
+	OriginalWidth  int       `json:"original_width"`  // Screen width before scaling
+	OriginalHeight int       `json:"original_height"` // Screen height before scaling
 }
 
 // ScreenshotProvider defines the interface for getting screenshots from a buffer
@@ -330,6 +332,14 @@ type StateManager interface {
 	GetMessageEditState() *MessageEditState
 	ClearMessageEditState()
 	IsEditingMessage() bool
+
+	// Focus management (macOS computer-use tools)
+	SetLastFocusedApp(appID string)
+	GetLastFocusedApp() string
+	ClearLastFocusedApp()
+	SetLastClickCoordinates(x, y int)
+	GetLastClickCoordinates() (x, y int)
+	ClearLastClickCoordinates()
 }
 
 // FileService handles file operations

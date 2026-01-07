@@ -710,8 +710,10 @@ computer_use:
     enabled: true
     max_width: 1920
     max_height: 1080
+    target_width: 1024
+    target_height: 768
     format: jpeg
-    quality: 80
+    quality: 85
     require_approval: false
     streaming_enabled: true
     capture_interval: 3
@@ -731,7 +733,7 @@ computer_use:
   keyboard_type:
     enabled: true
     max_text_length: 1000
-    typing_delay_ms: 200
+    typing_delay_ms: 100
     require_approval: true
   get_focused_app:
     enabled: true

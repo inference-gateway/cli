@@ -26,7 +26,6 @@ bool activateApp(const char *bundleIdentifier) {
             return false;
         }
         NSRunningApplication *app = [apps firstObject];
-        // Use activate instead of activateWithOptions (deprecated in macOS 14+)
         return [app activateWithOptions:NSApplicationActivateAllWindows];
     }
 }
@@ -34,7 +33,6 @@ bool activateApp(const char *bundleIdentifier) {
 // Get the terminal app bundle ID (Terminal.app, iTerm2, VS Code, etc.)
 const char* getTerminalApp() {
     @autoreleasepool {
-        // Common terminal applications
         NSArray *terminalBundles = @[
             @"com.apple.Terminal",           // Terminal.app
             @"com.googlecode.iterm2",        // iTerm2
@@ -73,8 +71,9 @@ import (
 
 // MacOSClient provides macOS screen control operations using RobotGo
 type MacOSClient struct {
-	screenWidth  int
-	screenHeight int
+	screenWidth  int     // Physical pixels (e.g., 2880 on 2x Retina)
+	screenHeight int     // Physical pixels (e.g., 1800 on 2x Retina)
+	scaleFactor  float64 // Display scale factor (1.0, 2.0, or 3.0)
 }
 
 // Modifier and key mapping tables
@@ -125,12 +124,20 @@ var (
 
 // NewMacOSClient creates a new macOS client
 func NewMacOSClient() (*MacOSClient, error) {
-	// Get screen dimensions
-	width, height := robotgo.GetScreenSize()
+	logicalWidth, logicalHeight := robotgo.GetScreenSize()
+
+	scaleFactor := robotgo.ScaleF()
+	if scaleFactor == 0.0 {
+		scaleFactor = 1.0
+	}
+
+	physicalWidth := int(float64(logicalWidth) * scaleFactor)
+	physicalHeight := int(float64(logicalHeight) * scaleFactor)
 
 	return &MacOSClient{
-		screenWidth:  width,
-		screenHeight: height,
+		screenWidth:  physicalWidth,
+		screenHeight: physicalHeight,
+		scaleFactor:  scaleFactor,
 	}, nil
 }
 
@@ -139,21 +146,42 @@ func (c *MacOSClient) Close() {
 	// Nothing to close for RobotGo
 }
 
-// GetScreenDimensions returns the screen width and height
+// GetScreenDimensions returns the screen width and height in logical pixels
+// This matches the coordinate space used by RobotGo's mouse operations
 func (c *MacOSClient) GetScreenDimensions() (int, int) {
-	return c.screenWidth, c.screenHeight
+	return c.ScalePhysicalToLogical(c.screenWidth, c.screenHeight)
+}
+
+// GetScaleFactor returns the display scale factor (1.0, 2.0, or 3.0)
+func (c *MacOSClient) GetScaleFactor() float64 {
+	return c.scaleFactor
+}
+
+// ScalePhysicalToLogical converts physical pixel coordinates to logical coordinates
+// This is used when passing coordinates to RobotGo APIs (mouse movement, clicks)
+// On Retina displays, physical pixels are 2x or 3x logical pixels
+func (c *MacOSClient) ScalePhysicalToLogical(x, y int) (int, int) {
+	if c.scaleFactor == 1.0 {
+		return x, y
+	}
+	logicalX := int(float64(x) / c.scaleFactor)
+	logicalY := int(float64(y) / c.scaleFactor)
+	return logicalX, logicalY
 }
 
 // CaptureScreen captures a screenshot and returns it as an image.Image
+// Coordinates are expected in logical pixels (matching RobotGo's coordinate space)
 func (c *MacOSClient) CaptureScreen(x, y, width, height int) (image.Image, error) {
+	logicalWidth, logicalHeight := c.ScalePhysicalToLogical(c.screenWidth, c.screenHeight)
+
 	if width == 0 || height == 0 {
-		width = c.screenWidth
-		height = c.screenHeight
+		width = logicalWidth
+		height = logicalHeight
 	}
 
-	if x < 0 || y < 0 || x+width > c.screenWidth || y+height > c.screenHeight {
+	if x < 0 || y < 0 || x+width > logicalWidth || y+height > logicalHeight {
 		return nil, fmt.Errorf("invalid region: (%d,%d,%d,%d) exceeds screen bounds (%d,%d)",
-			x, y, width, height, c.screenWidth, c.screenHeight)
+			x, y, width, height, logicalWidth, logicalHeight)
 	}
 
 	bitmap := robotgo.CaptureScreen(x, y, width, height)
@@ -185,16 +213,20 @@ func (c *MacOSClient) CaptureScreenBytes(x, y, width, height int) ([]byte, error
 }
 
 // GetCursorPosition returns the current cursor position
+// Returns coordinates in top-left origin (Y=0 at top) to match screenshot coordinates
 func (c *MacOSClient) GetCursorPosition() (int, int, error) {
 	x, y := robotgo.Location()
 	return x, y, nil
 }
 
-// MoveMouse moves the cursor to the specified coordinates (smooth movement)
+// MoveMouse moves the cursor to the specified coordinates
+// Coordinates should be in logical pixel space (matching GetScreenDimensions)
+// Input coordinates use top-left origin (Y=0 at top)
 func (c *MacOSClient) MoveMouse(x, y int) error {
-	if x < 0 || y < 0 || x > c.screenWidth || y > c.screenHeight {
+	logicalWidth, logicalHeight := c.GetScreenDimensions()
+	if x < 0 || y < 0 || x > logicalWidth || y > logicalHeight {
 		return fmt.Errorf("invalid coordinates: (%d,%d) exceeds screen bounds (%d,%d)",
-			x, y, c.screenWidth, c.screenHeight)
+			x, y, logicalWidth, logicalHeight)
 	}
 
 	robotgo.Move(x, y)
