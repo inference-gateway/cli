@@ -329,6 +329,10 @@ class FloatingWindow: NSPanel {
         self.orderFront(nil)
     }
 
+    deinit {
+        NotificationCenter.default.removeObserver(self, name: NSWindow.didResizeNotification, object: nil)
+    }
+
     @objc func customMinimize() {
         if isMinimized {
             restoreWindow()
@@ -412,7 +416,32 @@ class FloatingWindow: NSPanel {
             context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             self.animator().setFrame(savedFrame, display: true)
             self.animator().alphaValue = 0.95
-        }, completionHandler: nil)
+        }, completionHandler: {
+            self.updateTextContainerWidth()
+        })
+    }
+
+    func updateTextContainerWidth() {
+        guard !isMinimized else { return }
+
+        DispatchQueue.main.async {
+            let visibleWidth = self.scrollView.contentView.bounds.width
+
+            var newFrame = self.textView.frame
+            newFrame.size.width = visibleWidth
+            self.textView.frame = newFrame
+
+            let textInset: CGFloat = 16
+            let availableWidth = visibleWidth - (textInset * 2)
+
+            self.textView.textContainer?.containerSize = NSSize(
+                width: availableWidth,
+                height: CGFloat.greatestFiniteMagnitude
+            )
+
+            self.textView.layoutManager?.ensureLayout(for: self.textView.textContainer!)
+            self.textView.setNeedsDisplay(self.textView.bounds)
+        }
     }
 
     func updateMinimizedUI() {
@@ -470,6 +499,7 @@ class FloatingWindow: NSPanel {
 
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.frame = contentView.bounds
         scrollView.autoresizingMask = [.width, .height]
@@ -516,6 +546,16 @@ class FloatingWindow: NSPanel {
         approvalBox.addSubview(autoButton)
 
         contentView.addSubview(approvalBox)
+
+        NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification,
+            object: self,
+            queue: .main
+        ) { [weak self] _ in
+            self?.updateTextContainerWidth()
+        }
+
+        updateTextContainerWidth()
 
         fputs("UI ready for output\n", stderr)
         fflush(stderr)
