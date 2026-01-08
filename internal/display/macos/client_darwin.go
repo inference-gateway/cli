@@ -248,10 +248,14 @@ func (c *MacOSClient) ClickMouse(button string, clicks int) error {
 		return fmt.Errorf("invalid click count: %d (must be 1-3)", clicks)
 	}
 
-	for i := range clicks {
-		if i > 0 {
-			time.Sleep(100 * time.Millisecond)
-		}
+	switch clicks {
+	case 1:
+		robotgo.Click(robotButton, false)
+	case 2:
+		robotgo.Click(robotButton, true)
+	case 3:
+		robotgo.Click(robotButton, true)
+		time.Sleep(100 * time.Millisecond)
 		robotgo.Click(robotButton, false)
 	}
 

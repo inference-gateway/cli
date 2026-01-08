@@ -277,7 +277,7 @@ class FloatingWindow: NSPanel {
     init(position: String, alwaysOnTop: Bool) {
         let screenFrame = NSScreen.main!.visibleFrame
         let windowWidth: CGFloat = 450
-        let windowHeight: CGFloat = 600
+        let windowHeight: CGFloat = 350
 
         var xPos: CGFloat
         switch position {
@@ -706,7 +706,7 @@ class EventReader {
                         if let toolName = tool["Name"] as? String {
                             let args = tool["Arguments"] as? String ?? ""
                             if !args.isEmpty {
-                                window.appendText("\n▶ \(toolName): \(args)\n", color: blue)
+                                window.appendText("\n▶ \(toolName)\n  \(args)\n", color: blue)
                             } else {
                                 window.appendText("\n▶ \(toolName)\n", color: blue)
                             }

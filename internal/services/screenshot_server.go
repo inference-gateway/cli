@@ -248,10 +248,6 @@ func (s *ScreenshotServer) captureScreenshot() error {
 		img = resizeImage(img, targetW, targetH)
 		width = targetW
 		height = targetH
-
-		logger.Info("Screenshot force-resized to target dimensions",
-			"from", fmt.Sprintf("%dx%d", originalWidth, originalHeight),
-			"to", fmt.Sprintf("%dx%d", width, height))
 	}
 
 	quality := s.cfg.ComputerUse.Screenshot.Quality
