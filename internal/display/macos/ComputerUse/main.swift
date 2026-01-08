@@ -483,6 +483,9 @@ class FloatingWindow: NSPanel {
     func setupUI() {
         guard let contentView = self.contentView else { return }
 
+        let titleBarHeight = self.frame.height - contentView.frame.height
+        let topPadding = titleBarHeight > 0 ? titleBarHeight : 28
+
         textView.frame = contentView.bounds
         textView.autoresizingMask = [.width]
         textView.isEditable = false
@@ -497,11 +500,15 @@ class FloatingWindow: NSPanel {
         textView.textContainer?.containerSize = NSSize(width: contentView.bounds.width, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.lineBreakMode = .byWordWrapping
 
+        var scrollFrame = contentView.bounds
+        scrollFrame.origin.y = 0
+        scrollFrame.size.height = contentView.bounds.height - topPadding
+
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
-        scrollView.frame = contentView.bounds
+        scrollView.frame = scrollFrame
         scrollView.autoresizingMask = [.width, .height]
         contentView.addSubview(scrollView)
 
