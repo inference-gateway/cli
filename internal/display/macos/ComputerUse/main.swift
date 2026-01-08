@@ -239,6 +239,11 @@ class ClickableView: NSView {
 
         var newOrigin = window.frame.origin
         newOrigin.y += deltaY
+
+        let minY = screenFrame.minY
+        let maxY = screenFrame.maxY - window.frame.height
+        newOrigin.y = max(minY, min(maxY, newOrigin.y))
+
         newOrigin.x = screenFrame.maxX - window.frame.width
 
         window.setFrameOrigin(newOrigin)
@@ -292,7 +297,7 @@ class FloatingWindow: NSPanel {
         let yPos = screenFrame.maxY - windowHeight - 20
         let frame = NSRect(x: xPos, y: yPos, width: windowWidth, height: windowHeight)
 
-        super.init(contentRect: frame, styleMask: [.titled, .resizable, .miniaturizable, .fullSizeContentView], backing: .buffered, defer: false)
+        super.init(contentRect: frame, styleMask: [.titled, .resizable, .miniaturizable], backing: .buffered, defer: false)
 
         self.title = "Computer Use"
         self.isFloatingPanel = true
@@ -313,7 +318,7 @@ class FloatingWindow: NSPanel {
         self.hasShadow = true
         self.invalidateShadow()
 
-        self.titlebarAppearsTransparent = true
+        self.titlebarAppearsTransparent = false
         self.titleVisibility = .visible
         self.isMovableByWindowBackground = true
 
@@ -390,7 +395,7 @@ class FloatingWindow: NSPanel {
         isMinimized = false
 
         self.titleVisibility = .visible
-        self.titlebarAppearsTransparent = true
+        self.titlebarAppearsTransparent = false
         self.standardWindowButton(.closeButton)?.alphaValue = 0
         self.standardWindowButton(.miniaturizeButton)?.alphaValue = 1.0
         self.standardWindowButton(.zoomButton)?.alphaValue = 0
@@ -418,6 +423,7 @@ class FloatingWindow: NSPanel {
             self.animator().alphaValue = 0.95
         }, completionHandler: {
             self.updateTextContainerWidth()
+            self.updateScrollViewInsets()
         })
     }
 
@@ -483,9 +489,6 @@ class FloatingWindow: NSPanel {
     func setupUI() {
         guard let contentView = self.contentView else { return }
 
-        let titleBarHeight = self.frame.height - contentView.frame.height
-        let topPadding = titleBarHeight > 0 ? titleBarHeight : 28
-
         textView.frame = contentView.bounds
         textView.autoresizingMask = [.width]
         textView.isEditable = false
@@ -500,15 +503,11 @@ class FloatingWindow: NSPanel {
         textView.textContainer?.containerSize = NSSize(width: contentView.bounds.width, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.lineBreakMode = .byWordWrapping
 
-        var scrollFrame = contentView.bounds
-        scrollFrame.origin.y = 0
-        scrollFrame.size.height = contentView.bounds.height - topPadding
-
         scrollView.documentView = textView
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
-        scrollView.frame = scrollFrame
+        scrollView.frame = contentView.bounds
         scrollView.autoresizingMask = [.width, .height]
         contentView.addSubview(scrollView)
 
@@ -590,6 +589,7 @@ class FloatingWindow: NSPanel {
         }
         approvalBox.isHidden = true
         currentCallID = nil
+        updateScrollViewInsets()
     }
 
     func appendText(_ text: String, color: NSColor? = nil) {
@@ -608,6 +608,29 @@ class FloatingWindow: NSPanel {
         DispatchQueue.main.async {
             self.currentCallID = callID
             self.approvalBox.isHidden = false
+            self.updateScrollViewInsets()
+        }
+    }
+
+    func updateScrollViewInsets() {
+        guard let contentView = self.contentView else { return }
+
+        let buttonAreaHeight: CGFloat = 70
+
+        if approvalBox.isHidden {
+            scrollView.frame = contentView.bounds
+        } else {
+            let scrollFrame = NSRect(
+                x: 0,
+                y: buttonAreaHeight,
+                width: contentView.bounds.width,
+                height: contentView.bounds.height - buttonAreaHeight
+            )
+            scrollView.frame = scrollFrame
+
+            DispatchQueue.main.async {
+                self.textView.scrollToEndOfDocument(nil)
+            }
         }
     }
 
@@ -780,6 +803,7 @@ class EventReader {
             case "Approval Cleared":
                 DispatchQueue.main.async {
                     self.window.approvalBox.isHidden = true
+                    self.window.updateScrollViewInsets()
                 }
 
             case "Border Show":
