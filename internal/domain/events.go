@@ -11,7 +11,7 @@ type ToolCallStreamStatus string
 
 const (
 	ToolCallStreamStatusStreaming ToolCallStreamStatus = "streaming"
-	ToolCallStreamStatusComplete  ToolCallStreamStatus = "complete"
+	ToolCallStreamStatusComplete  ToolCallStreamStatus = "completed"
 	ToolCallStreamStatusReady     ToolCallStreamStatus = "ready"
 )
 

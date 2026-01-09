@@ -121,7 +121,6 @@ func (t *GetLatestScreenshotTool) Execute(ctx context.Context, args map[string]a
 
 // Validate checks if the tool arguments are valid
 func (t *GetLatestScreenshotTool) Validate(args map[string]any) error {
-	// No arguments needed
 	return nil
 }
 

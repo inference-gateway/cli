@@ -228,6 +228,13 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		tea.WithReportFocus(),
 	)
 
+	if floatingWindowMgr != nil {
+		eventBridge := stateManager.GetEventBridge()
+		if eventBridge != nil {
+			go forwardControlEventsToBubbleTea(program, eventBridge)
+		}
+	}
+
 	if _, err := program.Run(); err != nil {
 		return fmt.Errorf("error running chat interface: %w", err)
 	}
@@ -430,6 +437,29 @@ func startScreenshotServer(config *config.Config, imageService domain.ImageServi
 	}
 
 	return screenshotServer
+}
+
+// forwardControlEventsToBubbleTea forwards control events from EventBridge to BubbleTea program
+// This ensures control events (pause/resume) reach ChatHandler even when chat session is closed
+func forwardControlEventsToBubbleTea(program *tea.Program, eventBridge domain.EventBridge) {
+	logger.Debug("Starting control event forwarder")
+	subscription := eventBridge.Subscribe()
+
+	for event := range subscription {
+		switch e := event.(type) {
+		case domain.ComputerUsePausedEvent:
+			logger.Debug("Forwarding ComputerUsePausedEvent to BubbleTea", "request_id", e.RequestID)
+			program.Send(e)
+
+		case domain.ComputerUseResumedEvent:
+			logger.Debug("Forwarding ComputerUseResumedEvent to BubbleTea", "request_id", e.RequestID)
+			program.Send(e)
+
+		default:
+		}
+	}
+
+	logger.Debug("Control event forwarder stopped")
 }
 
 func init() {

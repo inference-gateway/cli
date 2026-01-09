@@ -260,7 +260,6 @@ func (t *MouseClickTool) broadcastClickEvent(x, y int) {
 
 // Validate checks if the tool arguments are valid
 func (t *MouseClickTool) Validate(args map[string]any) error {
-	// Button is optional (defaults to "left"), but if provided, must be valid
 	if button, ok := args["button"].(string); ok {
 		if button != "left" && button != "right" && button != "middle" {
 			return fmt.Errorf("button must be 'left', 'right', or 'middle'")

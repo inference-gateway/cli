@@ -81,15 +81,12 @@ func (t *ActivateAppTool) Execute(ctx context.Context, args map[string]any) (*do
 		return nil, fmt.Errorf("display controller does not support focus management")
 	}
 
-	// Activate the application
 	if err := focusManager.ActivateApp(ctx, bundleID); err != nil {
 		return nil, fmt.Errorf("failed to activate app '%s': %w (app may not be running)", bundleID, err)
 	}
 
-	// Give the OS time to fully switch focus
 	time.Sleep(300 * time.Millisecond)
 
-	// Verify activation
 	currentApp, err := focusManager.GetFrontmostApp(ctx)
 	if err == nil && currentApp == bundleID {
 		result := fmt.Sprintf("Successfully activated %s (bundle ID: %s). The application is now in focus.", parseAppName(bundleID), bundleID)
@@ -104,7 +101,6 @@ func (t *ActivateAppTool) Execute(ctx context.Context, args map[string]any) (*do
 		}, nil
 	}
 
-	// Activation succeeded but couldn't verify
 	result := fmt.Sprintf("Attempted to activate %s (bundle ID: %s)", parseAppName(bundleID), bundleID)
 	return &domain.ToolExecutionResult{
 		ToolName: "ActivateApp",

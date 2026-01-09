@@ -106,19 +106,6 @@ func (s *ScreenshotServer) Start() error {
 
 	s.running = true
 
-	// Note: Border overlay is now managed by FloatingWindow.app via BorderOverlayEvent
-
-	interval := s.cfg.ComputerUse.Screenshot.CaptureInterval
-	if interval <= 0 {
-		interval = 3
-	}
-	logger.Info("Screenshot server started",
-		"session_id", s.sessionID,
-		"port", s.port,
-		"buffer_size", bufferSize,
-		"temp_dir", absTempDir,
-		"capture_interval", interval)
-
 	return nil
 }
 

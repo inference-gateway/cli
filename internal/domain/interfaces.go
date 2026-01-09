@@ -211,6 +211,12 @@ type EventBridge interface {
 
 	// Publish broadcasts an event to all subscribers
 	Publish(event ChatEvent)
+
+	// Subscribe creates a new event channel and returns it
+	Subscribe() chan ChatEvent
+
+	// Unsubscribe removes a subscriber and closes its channel
+	Unsubscribe(ch chan ChatEvent)
 }
 
 // ChatMetrics holds performance and usage metrics
@@ -282,6 +288,7 @@ type StateManager interface {
 
 	// Event multicast for floating window
 	SetEventBridge(bridge EventBridge)
+	GetEventBridge() EventBridge
 	BroadcastEvent(event ChatEvent)
 
 	// Tool execution management

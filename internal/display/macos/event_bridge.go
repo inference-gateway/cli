@@ -113,8 +113,8 @@ func (eb *EventBridge) Tap(input <-chan domain.ChatEvent) <-chan domain.ChatEven
 	go func() {
 		defer close(output)
 		for event := range input {
-			output <- event
-			eb.Publish(event)
+			output <- event   // Forward to TUI
+			eb.Publish(event) // Multicast to subscribers (FloatingWindow)
 		}
 	}()
 

@@ -136,7 +136,6 @@ func (mgr *FloatingWindowManager) launchWindow() error {
 		scanner := bufio.NewScanner(stderr)
 		for scanner.Scan() {
 			line := scanner.Text()
-			// Log ComputerUse stderr for debugging
 			logger.Debug("ComputerUse stderr", "output", line)
 		}
 	}()
@@ -225,16 +224,40 @@ func (mgr *FloatingWindowManager) monitorProcess() {
 		logger.Error("Swift process exited", "error", err)
 	}
 
-	if mgr.enabled && mgr.cfg.ComputerUse.FloatingWindow.RespawnOnClose {
-		time.Sleep(1 * time.Second)
+	if !mgr.enabled || !mgr.cfg.ComputerUse.FloatingWindow.RespawnOnClose {
+		return
+	}
 
-		if err := mgr.launchWindow(); err != nil {
-			logger.Error("Failed to respawn floating window", "error", err)
-			return
-		}
+	mgr.respawnWindow()
+}
 
-		mgr.monitorWg.Add(1)
-		go mgr.monitorProcess()
+// respawnWindow handles respawning the floating window after crash/close
+func (mgr *FloatingWindowManager) respawnWindow() {
+	logger.Debug("Respawning floating window after crash/close")
+	time.Sleep(1 * time.Second)
+
+	if err := mgr.launchWindow(); err != nil {
+		logger.Error("Failed to respawn floating window", "error", err)
+		return
+	}
+
+	mgr.restoreBorderOverlay()
+
+	mgr.monitorWg.Add(1)
+	go mgr.monitorProcess()
+}
+
+// restoreBorderOverlay restores the border overlay if it was enabled
+func (mgr *FloatingWindowManager) restoreBorderOverlay() {
+	if !mgr.cfg.ComputerUse.Screenshot.ShowOverlay {
+		return
+	}
+
+	time.Sleep(200 * time.Millisecond)
+	if err := mgr.ShowBorderOverlay(); err != nil {
+		logger.Warn("Failed to show border overlay after respawn", "error", err)
+	} else {
+		logger.Info("Border overlay restored after respawn")
 	}
 }
 
@@ -262,10 +285,9 @@ func (mgr *FloatingWindowManager) Shutdown() error {
 
 	mgr.monitorWg.Wait()
 
-	// Note: We don't delete the .app - it persists in .infer/ for future runs
-	// This avoids re-extracting the embedded .app on every launch
-
-	logger.Info("Floating window manager shutdown complete")
+	if mgr.eventBridge != nil {
+		mgr.eventBridge.Close()
+	}
 
 	return nil
 }
@@ -295,15 +317,21 @@ func (mgr *FloatingWindowManager) writeEvent(event domain.ChatEvent) error {
 	mgr.stdinMutex.Lock()
 	defer mgr.stdinMutex.Unlock()
 
+	if !mgr.enabled {
+		return fmt.Errorf("manager is disabled (shutting down)")
+	}
+
+	if mgr.cmd == nil || mgr.cmd.Process == nil {
+		return fmt.Errorf("process not running")
+	}
+
 	data, err := json.Marshal(event)
 	if err != nil {
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
-	// DEBUG: Log ToolExecutionProgressEvent with GetLatestScreenshot
 	if progressEvent, ok := event.(domain.ToolExecutionProgressEvent); ok {
 		if progressEvent.ToolName == "GetLatestScreenshot" && progressEvent.Status == "completed" {
-			// Log the first 500 chars of JSON to see structure (excluding base64 data)
 			jsonPreview := string(data)
 			if len(jsonPreview) > 500 {
 				jsonPreview = jsonPreview[:500] + "..."
@@ -326,15 +354,18 @@ func (mgr *FloatingWindowManager) writeEvent(event domain.ChatEvent) error {
 
 // startPauseResumeListener reads pause/resume requests from the Swift process via stdout
 func (mgr *FloatingWindowManager) startPauseResumeListener() {
+	logger.Debug("startPauseResumeListener started")
 	scanner := bufio.NewScanner(mgr.stdout)
 	for scanner.Scan() {
 		select {
 		case <-mgr.pauseListener:
+			logger.Debug("Pause listener stopped")
 			return
 		default:
 		}
 
 		line := scanner.Text()
+		logger.Debug("Pause listener received line", "line", line)
 		if line == "" {
 			continue
 		}
@@ -345,6 +376,7 @@ func (mgr *FloatingWindowManager) startPauseResumeListener() {
 			continue
 		}
 
+		logger.Debug("Pause listener parsed request", "action", request.Action, "request_id", request.RequestID)
 		mgr.handlePauseResumeRequest(request)
 	}
 
@@ -361,42 +393,18 @@ func (mgr *FloatingWindowManager) startPauseResumeListener() {
 func (mgr *FloatingWindowManager) handlePauseResumeRequest(req PauseResumeRequest) {
 	switch req.Action {
 	case "pause":
-		logger.Info("Pause requested", "request_id", req.RequestID)
-
-		// Cancel the active request to stop execution
-		if mgr.agentService != nil {
-			if err := mgr.agentService.CancelRequest(req.RequestID); err != nil {
-				logger.Error("Failed to cancel request", "error", err)
-				return
-			}
-		}
-
-		// Update state
-		if mgr.stateManager != nil {
-			mgr.stateManager.SetComputerUsePaused(true, req.RequestID)
-		}
-
-		// Broadcast paused event
-		pausedEvent := domain.ComputerUsePausedEvent{
+		event := domain.ComputerUsePausedEvent{
 			RequestID: req.RequestID,
 			Timestamp: time.Now(),
 		}
-		mgr.eventBridge.Publish(pausedEvent)
+		mgr.eventBridge.Publish(event)
 
 	case "resume":
-		logger.Info("Resume requested", "request_id", req.RequestID)
-
-		// Update state
-		if mgr.stateManager != nil {
-			mgr.stateManager.ClearComputerUsePauseState()
-		}
-
-		// Broadcast resumed event
-		resumedEvent := domain.ComputerUseResumedEvent{
+		event := domain.ComputerUseResumedEvent{
 			RequestID: req.RequestID,
 			Timestamp: time.Now(),
 		}
-		mgr.eventBridge.Publish(resumedEvent)
+		mgr.eventBridge.Publish(event)
 
 	default:
 		logger.Warn("Unknown pause/resume action", "action", req.Action)

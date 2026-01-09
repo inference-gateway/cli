@@ -27,7 +27,6 @@ type CircularScreenshotBuffer struct {
 
 // NewCircularScreenshotBuffer creates a new circular buffer for screenshots
 func NewCircularScreenshotBuffer(maxSize int, tempDir string, sessionID string) (*CircularScreenshotBuffer, error) {
-	// Create temp directory for this session
 	sessionTempDir := filepath.Join(tempDir, fmt.Sprintf("session-%s", sessionID))
 	if err := os.MkdirAll(sessionTempDir, 0755); err != nil {
 		return nil, fmt.Errorf("failed to create temp directory: %w", err)
@@ -49,17 +48,14 @@ func (b *CircularScreenshotBuffer) Add(screenshot *domain.Screenshot) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	// Generate ID if not set
 	if screenshot.ID == "" {
 		screenshot.ID = uuid.New().String()
 	}
 
-	// Set timestamp if not set
 	if screenshot.Timestamp.IsZero() {
 		screenshot.Timestamp = time.Now()
 	}
 
-	// Evict old screenshot if buffer is full
 	if b.count >= b.maxSize {
 		oldScreenshot := b.screenshots[b.currentIndex]
 		if oldScreenshot != nil {

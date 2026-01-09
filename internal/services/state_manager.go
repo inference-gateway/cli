@@ -197,6 +197,13 @@ func (sm *StateManager) SetEventBridge(bridge domain.EventBridge) {
 	sm.eventBridge = bridge
 }
 
+// GetEventBridge returns the event bridge for control event forwarding
+func (sm *StateManager) GetEventBridge() domain.EventBridge {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.eventBridge
+}
+
 // StartChatSession starts a new chat session
 func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-chan domain.ChatEvent) error {
 	sm.mutex.Lock()

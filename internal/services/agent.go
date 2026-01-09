@@ -377,7 +377,6 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		return nil, err
 	}
 
-	// Check if execution is paused
 	if s.stateManager != nil && s.stateManager.IsComputerUsePaused() {
 		logger.Info("Execution is paused, waiting for resume")
 		return nil, fmt.Errorf("execution is paused")
@@ -807,7 +806,7 @@ type IndexedToolResult struct {
 	Result domain.ConversationEntry
 }
 
-func (s *AgentServiceImpl) executeToolCallsParallel(
+func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 	ctx context.Context,
 	toolCalls []*sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
@@ -872,7 +871,6 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 			}
 			images = result.ToolExecution.Images
 
-			// DEBUG: Log image count for GetLatestScreenshot
 			if at.tool.Function.Name == "GetLatestScreenshot" && len(images) > 0 {
 				logger.Info("Publishing GetLatestScreenshot completion with images",
 					"imageCount", len(images),
@@ -1350,7 +1348,6 @@ func (s *AgentServiceImpl) isBashCommandWhitelisted(tc *sdk.ChatCompletionMessag
 // Computer use tools always bypass approval (run silently in background)
 // For Bash tool specifically, it checks if the command is whitelisted
 func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
-	// Computer use tools always bypass approval
 	toolService, ok := s.toolService.(*LLMToolService)
 	if ok && toolService != nil && toolService.registry != nil {
 		if tools.IsComputerUseTool(tc.Function.Name) {

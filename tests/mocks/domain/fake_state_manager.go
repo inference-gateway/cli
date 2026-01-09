@@ -158,6 +158,16 @@ type FakeStateManager struct {
 		result1 int
 		result2 int
 	}
+	GetEventBridgeStub        func() domain.EventBridge
+	getEventBridgeMutex       sync.RWMutex
+	getEventBridgeArgsForCall []struct {
+	}
+	getEventBridgeReturns struct {
+		result1 domain.EventBridge
+	}
+	getEventBridgeReturnsOnCall map[int]struct {
+		result1 domain.EventBridge
+	}
 	GetFileSelectionStateStub        func() *domain.FileSelectionState
 	getFileSelectionStateMutex       sync.RWMutex
 	getFileSelectionStateArgsForCall []struct {
@@ -1258,6 +1268,59 @@ func (fake *FakeStateManager) GetDimensionsReturnsOnCall(i int, result1 int, res
 		result1 int
 		result2 int
 	}{result1, result2}
+}
+
+func (fake *FakeStateManager) GetEventBridge() domain.EventBridge {
+	fake.getEventBridgeMutex.Lock()
+	ret, specificReturn := fake.getEventBridgeReturnsOnCall[len(fake.getEventBridgeArgsForCall)]
+	fake.getEventBridgeArgsForCall = append(fake.getEventBridgeArgsForCall, struct {
+	}{})
+	stub := fake.GetEventBridgeStub
+	fakeReturns := fake.getEventBridgeReturns
+	fake.recordInvocation("GetEventBridge", []interface{}{})
+	fake.getEventBridgeMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetEventBridgeCallCount() int {
+	fake.getEventBridgeMutex.RLock()
+	defer fake.getEventBridgeMutex.RUnlock()
+	return len(fake.getEventBridgeArgsForCall)
+}
+
+func (fake *FakeStateManager) GetEventBridgeCalls(stub func() domain.EventBridge) {
+	fake.getEventBridgeMutex.Lock()
+	defer fake.getEventBridgeMutex.Unlock()
+	fake.GetEventBridgeStub = stub
+}
+
+func (fake *FakeStateManager) GetEventBridgeReturns(result1 domain.EventBridge) {
+	fake.getEventBridgeMutex.Lock()
+	defer fake.getEventBridgeMutex.Unlock()
+	fake.GetEventBridgeStub = nil
+	fake.getEventBridgeReturns = struct {
+		result1 domain.EventBridge
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetEventBridgeReturnsOnCall(i int, result1 domain.EventBridge) {
+	fake.getEventBridgeMutex.Lock()
+	defer fake.getEventBridgeMutex.Unlock()
+	fake.GetEventBridgeStub = nil
+	if fake.getEventBridgeReturnsOnCall == nil {
+		fake.getEventBridgeReturnsOnCall = make(map[int]struct {
+			result1 domain.EventBridge
+		})
+	}
+	fake.getEventBridgeReturnsOnCall[i] = struct {
+		result1 domain.EventBridge
+	}{result1}
 }
 
 func (fake *FakeStateManager) GetFileSelectionState() *domain.FileSelectionState {

@@ -29,6 +29,18 @@ swiftc -O \
     -sdk "$(xcrun --show-sdk-path)" \
     -target "${TARGET}" \
     -o "${MACOS_DIR}/${APP_NAME}" \
+    "${SCRIPT_DIR}/Models/Events.swift" \
+    "${SCRIPT_DIR}/EventSystem/EventDispatcher.swift" \
+    "${SCRIPT_DIR}/EventSystem/EventReader.swift" \
+    "${SCRIPT_DIR}/ViewModels/MainViewModel.swift" \
+    "${SCRIPT_DIR}/Utilities/Design.swift" \
+    "${SCRIPT_DIR}/Utilities/OutputWriter.swift" \
+    "${SCRIPT_DIR}/Coordinators/WindowCoordinator.swift" \
+    "${SCRIPT_DIR}/Views/ClickIndicator.swift" \
+    "${SCRIPT_DIR}/Views/MoveTrail.swift" \
+    "${SCRIPT_DIR}/Views/ControlBar.swift" \
+    "${SCRIPT_DIR}/Views/ImageThumbnail.swift" \
+    "${SCRIPT_DIR}/Views/MainWindow.swift" \
     "${SCRIPT_DIR}/main.swift"
 
 echo "Copying Info.plist..."
