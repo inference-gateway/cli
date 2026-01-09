@@ -32,6 +32,7 @@ type ToolExecutionProgressEvent struct {
 	ToolName   string
 	Status     string
 	Message    string
+	Images     []ImageAttachment // Optional image attachments for completed tools
 }
 
 // BashOutputChunkEvent indicates a new chunk of bash output is available

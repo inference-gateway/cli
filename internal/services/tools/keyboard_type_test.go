@@ -58,7 +58,7 @@ func TestKeyboardTypeTool_TypingDelay(t *testing.T) {
 				},
 			}
 
-			tool := NewKeyboardTypeTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit), nil, nil)
+			tool := NewKeyboardTypeTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit), nil)
 
 			if tool.config.ComputerUse.KeyboardType.TypingDelayMs != tt.delayMs {
 				t.Errorf("Expected delay %d ms, got %d ms", tt.delayMs, tool.config.ComputerUse.KeyboardType.TypingDelayMs)
@@ -95,7 +95,7 @@ func TestKeyboardTypeTool_Validation(t *testing.T) {
 		},
 	}
 
-	tool := NewKeyboardTypeTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit), nil, nil)
+	tool := NewKeyboardTypeTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit), nil)
 
 	tests := []struct {
 		name    string
@@ -206,7 +206,7 @@ func TestKeyboardTypeTool_FormatResult(t *testing.T) {
 		},
 	}
 
-	tool := NewKeyboardTypeTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit), nil, nil)
+	tool := NewKeyboardTypeTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit), nil)
 
 	result := &domain.ToolExecutionResult{
 		ToolName:  "KeyboardType",

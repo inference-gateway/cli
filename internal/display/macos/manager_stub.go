@@ -13,7 +13,12 @@ type FloatingWindowManager struct {
 }
 
 // NewFloatingWindowManager returns a disabled manager on non-macOS platforms
-func NewFloatingWindowManager(cfg *config.Config, eventBridge *EventBridge, stateManager domain.StateManager) (*FloatingWindowManager, error) {
+func NewFloatingWindowManager(
+	cfg *config.Config,
+	eventBridge *EventBridge,
+	stateManager domain.StateManager,
+	agentService domain.AgentService,
+) (*FloatingWindowManager, error) {
 	return &FloatingWindowManager{enabled: false}, nil
 }
 

@@ -47,7 +47,7 @@ func (t *MouseClickTool) Definition() sdk.ChatCompletionTool {
 				"properties": map[string]any{
 					"button": map[string]any{
 						"type":        "string",
-						"description": "Mouse button to click",
+						"description": "Mouse button to click (defaults to 'left')",
 						"enum":        []string{"left", "right", "middle"},
 						"default":     "left",
 					},
@@ -66,7 +66,7 @@ func (t *MouseClickTool) Definition() sdk.ChatCompletionTool {
 						"description": "Optional: Y coordinate to move to before clicking",
 					},
 				},
-				"required": []string{"button"},
+				"required": []string{},
 			},
 		},
 	}
@@ -260,13 +260,11 @@ func (t *MouseClickTool) broadcastClickEvent(x, y int) {
 
 // Validate checks if the tool arguments are valid
 func (t *MouseClickTool) Validate(args map[string]any) error {
-	button, ok := args["button"].(string)
-	if !ok {
-		return fmt.Errorf("button is required")
-	}
-
-	if button != "left" && button != "right" && button != "middle" {
-		return fmt.Errorf("button must be 'left', 'right', or 'middle'")
+	// Button is optional (defaults to "left"), but if provided, must be valid
+	if button, ok := args["button"].(string); ok {
+		if button != "left" && button != "right" && button != "middle" {
+			return fmt.Errorf("button must be 'left', 'right', or 'middle'")
+		}
 	}
 
 	if clicksArg, ok := args["clicks"].(float64); ok {

@@ -714,7 +714,6 @@ computer_use:
     target_height: 768
     format: jpeg
     quality: 85
-    require_approval: false
     streaming_enabled: true
     capture_interval: 3
     buffer_size: 5
@@ -723,24 +722,18 @@ computer_use:
     show_overlay: true
   mouse_move:
     enabled: true
-    require_approval: false
   mouse_click:
     enabled: true
-    require_approval: true
   mouse_scroll:
     enabled: true
-    require_approval: false
   keyboard_type:
     enabled: true
     max_text_length: 1000
     typing_delay_ms: 100
-    require_approval: true
   get_focused_app:
     enabled: true
-    require_approval: false
   activate_app:
     enabled: true
-    require_approval: false
   rate_limit:
     enabled: true
     max_actions_per_minute: 60

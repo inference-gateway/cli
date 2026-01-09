@@ -32,6 +32,10 @@ type FakeStateManager struct {
 	clearApprovalUIStateMutex       sync.RWMutex
 	clearApprovalUIStateArgsForCall []struct {
 	}
+	ClearComputerUsePauseStateStub        func()
+	clearComputerUsePauseStateMutex       sync.RWMutex
+	clearComputerUsePauseStateArgsForCall []struct {
+	}
 	ClearFileSelectionStateStub        func()
 	clearFileSelectionStateMutex       sync.RWMutex
 	clearFileSelectionStateArgsForCall []struct {
@@ -196,6 +200,16 @@ type FakeStateManager struct {
 	getMessageEditStateReturnsOnCall map[int]struct {
 		result1 *domain.MessageEditState
 	}
+	GetPausedRequestIDStub        func() string
+	getPausedRequestIDMutex       sync.RWMutex
+	getPausedRequestIDArgsForCall []struct {
+	}
+	getPausedRequestIDReturns struct {
+		result1 string
+	}
+	getPausedRequestIDReturnsOnCall map[int]struct {
+		result1 string
+	}
 	GetPlanApprovalUIStateStub        func() *domain.PlanApprovalUIState
 	getPlanApprovalUIStateMutex       sync.RWMutex
 	getPlanApprovalUIStateArgsForCall []struct {
@@ -251,6 +265,16 @@ type FakeStateManager struct {
 	isAgentBusyReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	IsComputerUsePausedStub        func() bool
+	isComputerUsePausedMutex       sync.RWMutex
+	isComputerUsePausedArgsForCall []struct {
+	}
+	isComputerUsePausedReturns struct {
+		result1 bool
+	}
+	isComputerUsePausedReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	IsEditingMessageStub        func() bool
 	isEditingMessageMutex       sync.RWMutex
 	isEditingMessageArgsForCall []struct {
@@ -285,6 +309,12 @@ type FakeStateManager struct {
 	SetChatPendingStub        func()
 	setChatPendingMutex       sync.RWMutex
 	setChatPendingArgsForCall []struct {
+	}
+	SetComputerUsePausedStub        func(bool, string)
+	setComputerUsePausedMutex       sync.RWMutex
+	setComputerUsePausedArgsForCall []struct {
+		arg1 bool
+		arg2 string
 	}
 	SetDimensionsStub        func(int, int)
 	setDimensionsMutex       sync.RWMutex
@@ -540,6 +570,30 @@ func (fake *FakeStateManager) ClearApprovalUIStateCalls(stub func()) {
 	fake.clearApprovalUIStateMutex.Lock()
 	defer fake.clearApprovalUIStateMutex.Unlock()
 	fake.ClearApprovalUIStateStub = stub
+}
+
+func (fake *FakeStateManager) ClearComputerUsePauseState() {
+	fake.clearComputerUsePauseStateMutex.Lock()
+	fake.clearComputerUsePauseStateArgsForCall = append(fake.clearComputerUsePauseStateArgsForCall, struct {
+	}{})
+	stub := fake.ClearComputerUsePauseStateStub
+	fake.recordInvocation("ClearComputerUsePauseState", []interface{}{})
+	fake.clearComputerUsePauseStateMutex.Unlock()
+	if stub != nil {
+		fake.ClearComputerUsePauseStateStub()
+	}
+}
+
+func (fake *FakeStateManager) ClearComputerUsePauseStateCallCount() int {
+	fake.clearComputerUsePauseStateMutex.RLock()
+	defer fake.clearComputerUsePauseStateMutex.RUnlock()
+	return len(fake.clearComputerUsePauseStateArgsForCall)
+}
+
+func (fake *FakeStateManager) ClearComputerUsePauseStateCalls(stub func()) {
+	fake.clearComputerUsePauseStateMutex.Lock()
+	defer fake.clearComputerUsePauseStateMutex.Unlock()
+	fake.ClearComputerUsePauseStateStub = stub
 }
 
 func (fake *FakeStateManager) ClearFileSelectionState() {
@@ -1421,6 +1475,59 @@ func (fake *FakeStateManager) GetMessageEditStateReturnsOnCall(i int, result1 *d
 	}{result1}
 }
 
+func (fake *FakeStateManager) GetPausedRequestID() string {
+	fake.getPausedRequestIDMutex.Lock()
+	ret, specificReturn := fake.getPausedRequestIDReturnsOnCall[len(fake.getPausedRequestIDArgsForCall)]
+	fake.getPausedRequestIDArgsForCall = append(fake.getPausedRequestIDArgsForCall, struct {
+	}{})
+	stub := fake.GetPausedRequestIDStub
+	fakeReturns := fake.getPausedRequestIDReturns
+	fake.recordInvocation("GetPausedRequestID", []interface{}{})
+	fake.getPausedRequestIDMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) GetPausedRequestIDCallCount() int {
+	fake.getPausedRequestIDMutex.RLock()
+	defer fake.getPausedRequestIDMutex.RUnlock()
+	return len(fake.getPausedRequestIDArgsForCall)
+}
+
+func (fake *FakeStateManager) GetPausedRequestIDCalls(stub func() string) {
+	fake.getPausedRequestIDMutex.Lock()
+	defer fake.getPausedRequestIDMutex.Unlock()
+	fake.GetPausedRequestIDStub = stub
+}
+
+func (fake *FakeStateManager) GetPausedRequestIDReturns(result1 string) {
+	fake.getPausedRequestIDMutex.Lock()
+	defer fake.getPausedRequestIDMutex.Unlock()
+	fake.GetPausedRequestIDStub = nil
+	fake.getPausedRequestIDReturns = struct {
+		result1 string
+	}{result1}
+}
+
+func (fake *FakeStateManager) GetPausedRequestIDReturnsOnCall(i int, result1 string) {
+	fake.getPausedRequestIDMutex.Lock()
+	defer fake.getPausedRequestIDMutex.Unlock()
+	fake.GetPausedRequestIDStub = nil
+	if fake.getPausedRequestIDReturnsOnCall == nil {
+		fake.getPausedRequestIDReturnsOnCall = make(map[int]struct {
+			result1 string
+		})
+	}
+	fake.getPausedRequestIDReturnsOnCall[i] = struct {
+		result1 string
+	}{result1}
+}
+
 func (fake *FakeStateManager) GetPlanApprovalUIState() *domain.PlanApprovalUIState {
 	fake.getPlanApprovalUIStateMutex.Lock()
 	ret, specificReturn := fake.getPlanApprovalUIStateReturnsOnCall[len(fake.getPlanApprovalUIStateArgsForCall)]
@@ -1718,6 +1825,59 @@ func (fake *FakeStateManager) IsAgentBusyReturnsOnCall(i int, result1 bool) {
 	}{result1}
 }
 
+func (fake *FakeStateManager) IsComputerUsePaused() bool {
+	fake.isComputerUsePausedMutex.Lock()
+	ret, specificReturn := fake.isComputerUsePausedReturnsOnCall[len(fake.isComputerUsePausedArgsForCall)]
+	fake.isComputerUsePausedArgsForCall = append(fake.isComputerUsePausedArgsForCall, struct {
+	}{})
+	stub := fake.IsComputerUsePausedStub
+	fakeReturns := fake.isComputerUsePausedReturns
+	fake.recordInvocation("IsComputerUsePaused", []interface{}{})
+	fake.isComputerUsePausedMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeStateManager) IsComputerUsePausedCallCount() int {
+	fake.isComputerUsePausedMutex.RLock()
+	defer fake.isComputerUsePausedMutex.RUnlock()
+	return len(fake.isComputerUsePausedArgsForCall)
+}
+
+func (fake *FakeStateManager) IsComputerUsePausedCalls(stub func() bool) {
+	fake.isComputerUsePausedMutex.Lock()
+	defer fake.isComputerUsePausedMutex.Unlock()
+	fake.IsComputerUsePausedStub = stub
+}
+
+func (fake *FakeStateManager) IsComputerUsePausedReturns(result1 bool) {
+	fake.isComputerUsePausedMutex.Lock()
+	defer fake.isComputerUsePausedMutex.Unlock()
+	fake.IsComputerUsePausedStub = nil
+	fake.isComputerUsePausedReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeStateManager) IsComputerUsePausedReturnsOnCall(i int, result1 bool) {
+	fake.isComputerUsePausedMutex.Lock()
+	defer fake.isComputerUsePausedMutex.Unlock()
+	fake.IsComputerUsePausedStub = nil
+	if fake.isComputerUsePausedReturnsOnCall == nil {
+		fake.isComputerUsePausedReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isComputerUsePausedReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
 func (fake *FakeStateManager) IsEditingMessage() bool {
 	fake.isEditingMessageMutex.Lock()
 	ret, specificReturn := fake.isEditingMessageReturnsOnCall[len(fake.isEditingMessageArgsForCall)]
@@ -1922,6 +2082,39 @@ func (fake *FakeStateManager) SetChatPendingCalls(stub func()) {
 	fake.setChatPendingMutex.Lock()
 	defer fake.setChatPendingMutex.Unlock()
 	fake.SetChatPendingStub = stub
+}
+
+func (fake *FakeStateManager) SetComputerUsePaused(arg1 bool, arg2 string) {
+	fake.setComputerUsePausedMutex.Lock()
+	fake.setComputerUsePausedArgsForCall = append(fake.setComputerUsePausedArgsForCall, struct {
+		arg1 bool
+		arg2 string
+	}{arg1, arg2})
+	stub := fake.SetComputerUsePausedStub
+	fake.recordInvocation("SetComputerUsePaused", []interface{}{arg1, arg2})
+	fake.setComputerUsePausedMutex.Unlock()
+	if stub != nil {
+		fake.SetComputerUsePausedStub(arg1, arg2)
+	}
+}
+
+func (fake *FakeStateManager) SetComputerUsePausedCallCount() int {
+	fake.setComputerUsePausedMutex.RLock()
+	defer fake.setComputerUsePausedMutex.RUnlock()
+	return len(fake.setComputerUsePausedArgsForCall)
+}
+
+func (fake *FakeStateManager) SetComputerUsePausedCalls(stub func(bool, string)) {
+	fake.setComputerUsePausedMutex.Lock()
+	defer fake.setComputerUsePausedMutex.Unlock()
+	fake.SetComputerUsePausedStub = stub
+}
+
+func (fake *FakeStateManager) SetComputerUsePausedArgsForCall(i int) (bool, string) {
+	fake.setComputerUsePausedMutex.RLock()
+	defer fake.setComputerUsePausedMutex.RUnlock()
+	argsForCall := fake.setComputerUsePausedArgsForCall[i]
+	return argsForCall.arg1, argsForCall.arg2
 }
 
 func (fake *FakeStateManager) SetDimensions(arg1 int, arg2 int) {

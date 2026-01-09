@@ -111,7 +111,7 @@ func (r *Registry) registerTools() {
 			r.tools["MouseMove"] = NewMouseMoveTool(cfg, rateLimiter, displayProvider, r.stateManager)
 			r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
 			r.tools["MouseScroll"] = NewMouseScrollTool(cfg, rateLimiter, displayProvider)
-			r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider, r.stateManager)
+			r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
 			r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
 			r.tools["ActivateApp"] = NewActivateAppTool(r.config)
 		}
@@ -308,4 +308,20 @@ func (r *Registry) GetTaskTracker() domain.TaskTracker {
 // GetBackgroundShellService returns the background shell service instance
 func (r *Registry) GetBackgroundShellService() domain.BackgroundShellService {
 	return r.shellService
+}
+
+// IsComputerUseTool returns true if the given tool name is a computer use tool
+// Computer use tools operate directly on the computer (mouse, keyboard, screenshot)
+// and bypass the standard approval flow
+func IsComputerUseTool(toolName string) bool {
+	computerUseTools := map[string]bool{
+		"MouseClick":          true,
+		"MouseMove":           true,
+		"MouseScroll":         true,
+		"KeyboardType":        true,
+		"ActivateApp":         true,
+		"GetFocusedApp":       true,
+		"GetLatestScreenshot": true,
+	}
+	return computerUseTools[toolName]
 }

@@ -3,9 +3,9 @@ import Foundation
 
 // MARK: - Models
 
-struct ApprovalResponse: Codable {
-    let call_id: String
-    let action: Int  // 0=Approve, 1=Reject, 2=AutoAccept
+struct PauseResumeRequest: Codable {
+    let action: String
+    let request_id: String
 }
 
 // MARK: - Border Overlay Windows
@@ -19,6 +19,69 @@ class BorderWindow: NSWindow {
         self.ignoresMouseEvents = true
         self.collectionBehavior = [.canJoinAllSpaces, .stationary]
         self.orderFront(nil)
+    }
+}
+
+// MARK: - Image Enlarged Window
+
+class ImageEnlargedWindow: NSPanel {
+    var onClose: (() -> Void)?
+
+    init(image: NSImage, metadata: String) {
+        let screen = NSScreen.main!
+        let screenFrame = screen.visibleFrame
+
+        let maxWidth = screenFrame.width * 0.8
+        let maxHeight = screenFrame.height * 0.8
+        let aspectRatio = image.size.width / image.size.height
+
+        var windowSize = image.size
+        if windowSize.width > maxWidth {
+            windowSize.width = maxWidth
+            windowSize.height = maxWidth / aspectRatio
+        }
+        if windowSize.height > maxHeight {
+            windowSize.height = maxHeight
+            windowSize.width = maxHeight * aspectRatio
+        }
+
+        let frame = NSRect(
+            x: screenFrame.midX - windowSize.width / 2,
+            y: screenFrame.midY - windowSize.height / 2,
+            width: windowSize.width,
+            height: windowSize.height
+        )
+
+        super.init(
+            contentRect: frame,
+            styleMask: [.titled, .closable],
+            backing: .buffered,
+            defer: false
+        )
+
+        self.title = metadata
+        self.level = .modalPanel
+        self.isMovableByWindowBackground = true
+
+        let imageView = NSImageView(frame: NSRect(origin: .zero, size: windowSize))
+        imageView.image = image
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        self.contentView = imageView
+
+        self.makeKeyAndOrderFront(nil)
+
+        NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 {
+                self?.close()
+                return nil
+            }
+            return event
+        }
+    }
+
+    override func close() {
+        onClose?()
+        super.close()
     }
 }
 
@@ -259,20 +322,89 @@ class ClickableView: NSView {
     }
 }
 
+// MARK: - Flipped View for Stack Container
+
+class FlippedView: NSView {
+    override var isFlipped: Bool {
+        return true
+    }
+}
+
+// MARK: - Clickable Image View
+
+class ClickableImageView: NSView {
+    private let imageView: NSImageView
+    private let fullImage: NSImage
+    private let metadata: String
+    private var enlargedWindow: ImageEnlargedWindow?
+
+    init(thumbnail: NSImage, fullImage: NSImage, metadata: String) {
+        self.fullImage = fullImage
+        self.metadata = metadata
+        self.imageView = NSImageView(image: thumbnail)
+
+        super.init(frame: NSRect(x: 0, y: 0, width: thumbnail.size.width, height: thumbnail.size.height))
+
+        self.addSubview(imageView)
+        imageView.frame = self.bounds
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+
+        self.wantsLayer = true
+        self.layer?.borderColor = NSColor(red: 0.48, green: 0.64, blue: 0.97, alpha: 0.5).cgColor
+        self.layer?.borderWidth = 2
+        self.layer?.cornerRadius = 8
+        self.layer?.masksToBounds = true
+
+        addTrackingArea(NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInKeyWindow],
+            owner: self,
+            userInfo: nil
+        ))
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) not implemented")
+    }
+
+    override func mouseDown(with event: NSEvent) {
+        showEnlarged()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        NSCursor.pointingHand.set()
+        self.layer?.borderColor = NSColor(red: 0.48, green: 0.64, blue: 0.97, alpha: 1.0).cgColor
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        NSCursor.arrow.set()
+        self.layer?.borderColor = NSColor(red: 0.48, green: 0.64, blue: 0.97, alpha: 0.5).cgColor
+    }
+
+    private func showEnlarged() {
+        if enlargedWindow == nil {
+            enlargedWindow = ImageEnlargedWindow(image: fullImage, metadata: metadata)
+            enlargedWindow?.onClose = { [weak self] in
+                self?.enlargedWindow = nil
+            }
+        }
+    }
+}
+
 // MARK: - Main Floating Window
 
 class FloatingWindow: NSPanel {
     let scrollView = NSScrollView()
+    let contentStack = NSStackView()
     let textView = NSTextView()
-    let approvalBox = NSView()
-    let approveButton = NSButton(title: "✓ Approve", target: nil, action: nil)
-    let rejectButton = NSButton(title: "✗ Reject", target: nil, action: nil)
-    let autoButton = NSButton(title: "Auto-Approve", target: nil, action: nil)
+    let controlBox = NSView()
+    let pauseButton = NSButton(title: "⏸ Pause", target: nil, action: nil)
+    let resumeButton = NSButton(title: "▶ Resume", target: nil, action: nil)
 
-    var currentCallID: String?
+    var isPaused = false
+    var currentRequestID: String?
     var isMinimized = false
     var fullFrame: NSRect?
-    var wasApprovalVisible = false
     let minimizedWidth: CGFloat = 40
     let minimizedHeight: CGFloat = 150
     var minimizedYPosition: CGFloat?
@@ -350,7 +482,6 @@ class FloatingWindow: NSPanel {
         guard let screen = NSScreen.main else { return }
         isMinimized = true
         fullFrame = self.frame
-        wasApprovalVisible = !self.approvalBox.isHidden
 
         let screenFrame = screen.visibleFrame
         let xPos = screenFrame.maxX - minimizedWidth
@@ -371,7 +502,7 @@ class FloatingWindow: NSPanel {
             self.animator().alphaValue = 1.0
         }, completionHandler: {
             self.scrollView.isHidden = true
-            self.approvalBox.isHidden = true
+            self.controlBox.isHidden = true
             self.titleVisibility = .hidden
             self.titlebarAppearsTransparent = true
             self.standardWindowButton(.closeButton)?.alphaValue = 0
@@ -414,7 +545,7 @@ class FloatingWindow: NSPanel {
         }
 
         self.scrollView.isHidden = false
-        self.approvalBox.isHidden = !wasApprovalVisible
+        self.controlBox.isHidden = false
 
         NSAnimationContext.runAnimationGroup({ context in
             context.duration = 0.3
@@ -432,21 +563,14 @@ class FloatingWindow: NSPanel {
 
         DispatchQueue.main.async {
             let visibleWidth = self.scrollView.contentView.bounds.width
-
-            var newFrame = self.textView.frame
-            newFrame.size.width = visibleWidth
-            self.textView.frame = newFrame
-
             let textInset: CGFloat = 16
             let availableWidth = visibleWidth - (textInset * 2)
 
-            self.textView.textContainer?.containerSize = NSSize(
-                width: availableWidth,
-                height: CGFloat.greatestFiniteMagnitude
-            )
-
-            self.textView.layoutManager?.ensureLayout(for: self.textView.textContainer!)
-            self.textView.setNeedsDisplay(self.textView.bounds)
+            for view in self.contentStack.arrangedSubviews {
+                if let textField = view as? NSTextField {
+                    textField.preferredMaxLayoutWidth = availableWidth
+                }
+            }
         }
     }
 
@@ -489,107 +613,130 @@ class FloatingWindow: NSPanel {
     func setupUI() {
         guard let contentView = self.contentView else { return }
 
-        textView.frame = contentView.bounds
+        textView.frame = NSRect(x: 0, y: 0, width: contentView.bounds.width, height: 100)
         textView.autoresizingMask = [.width]
         textView.isEditable = false
         textView.isSelectable = true
         textView.backgroundColor = NSColor(red: 0.10, green: 0.11, blue: 0.15, alpha: 1.0)
         textView.textColor = NSColor(red: 0.66, green: 0.69, blue: 0.84, alpha: 1.0)
-        textView.font = NSFont.systemFont(ofSize: 13)
+        textView.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
         textView.textContainerInset = NSSize(width: 16, height: 16)
         textView.isVerticallyResizable = true
         textView.isHorizontallyResizable = false
         textView.textContainer?.widthTracksTextView = true
-        textView.textContainer?.containerSize = NSSize(width: contentView.bounds.width, height: CGFloat.greatestFiniteMagnitude)
         textView.textContainer?.lineBreakMode = .byWordWrapping
+        textView.textContainer?.containerSize = NSSize(width: contentView.bounds.width, height: CGFloat.greatestFiniteMagnitude)
 
-        scrollView.documentView = textView
+        contentStack.orientation = .vertical
+        contentStack.alignment = .leading
+        contentStack.spacing = 8
+        contentStack.edgeInsets = NSEdgeInsets(top: 16, left: 0, bottom: 16, right: 0)
+
+        contentStack.frame = NSRect(x: 0, y: 0, width: contentView.bounds.width, height: contentView.bounds.height)
+        contentStack.autoresizingMask = [.width]
+
+        contentStack.addArrangedSubview(textView)
+
+        let containerView = FlippedView(frame: NSRect(x: 0, y: 0, width: contentView.bounds.width, height: contentView.bounds.height))
+        containerView.autoresizingMask = [.width]
+        contentStack.frame.origin = NSPoint(x: 0, y: 0)
+        containerView.addSubview(contentStack)
+
+        scrollView.documentView = containerView
+        scrollView.drawsBackground = false
+        scrollView.backgroundColor = .clear
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
         scrollView.autohidesScrollers = true
         scrollView.frame = contentView.bounds
         scrollView.autoresizingMask = [.width, .height]
+
+        scrollView.automaticallyAdjustsContentInsets = false
+        scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 70, right: 0)
+
         contentView.addSubview(scrollView)
 
-        approvalBox.wantsLayer = true
-        approvalBox.layer?.backgroundColor = NSColor(red: 0.14, green: 0.16, blue: 0.23, alpha: 1.0).cgColor
-        approvalBox.layer?.borderColor = NSColor(red: 0.48, green: 0.64, blue: 0.97, alpha: 1.0).cgColor
-        approvalBox.layer?.borderWidth = 2
-        approvalBox.layer?.cornerRadius = 8
-        approvalBox.frame = NSRect(x: 10, y: 10, width: contentView.bounds.width - 20, height: 50)
-        approvalBox.autoresizingMask = [.width, .maxYMargin]
-        approvalBox.isHidden = true
+        controlBox.wantsLayer = true
+        controlBox.layer?.backgroundColor = NSColor(red: 0.14, green: 0.16, blue: 0.23, alpha: 1.0).cgColor
+        controlBox.layer?.borderColor = NSColor(red: 0.48, green: 0.64, blue: 0.97, alpha: 1.0).cgColor
+        controlBox.layer?.borderWidth = 2
+        controlBox.layer?.cornerRadius = 8
+        controlBox.frame = NSRect(x: 10, y: 10, width: contentView.bounds.width - 20, height: 50)
+        controlBox.autoresizingMask = [.width, .maxYMargin]
+        controlBox.isHidden = false
 
-        approveButton.bezelStyle = .regularSquare
-        approveButton.target = self
-        approveButton.action = #selector(approveClicked)
-        approveButton.frame = NSRect(x: 10, y: 10, width: 120, height: 30)
-        approveButton.contentTintColor = NSColor(red: 0.45, green: 0.87, blue: 0.68, alpha: 1.0)
-        approveButton.wantsLayer = true
-        approveButton.layer?.backgroundColor = NSColor(red: 0.45, green: 0.87, blue: 0.68, alpha: 0.2).cgColor
-        approveButton.layer?.cornerRadius = 6
+        pauseButton.bezelStyle = .regularSquare
+        pauseButton.target = self
+        pauseButton.action = #selector(pauseClicked)
+        pauseButton.frame = NSRect(x: 10, y: 10, width: 160, height: 30)
+        pauseButton.contentTintColor = NSColor(red: 0.97, green: 0.64, blue: 0.30, alpha: 1.0)
+        pauseButton.wantsLayer = true
+        pauseButton.layer?.backgroundColor = NSColor(red: 0.97, green: 0.64, blue: 0.30, alpha: 0.2).cgColor
+        pauseButton.layer?.cornerRadius = 6
+        pauseButton.isHidden = false
 
-        rejectButton.bezelStyle = .regularSquare
-        rejectButton.target = self
-        rejectButton.action = #selector(rejectClicked)
-        rejectButton.frame = NSRect(x: 140, y: 10, width: 120, height: 30)
-        rejectButton.contentTintColor = NSColor(red: 0.97, green: 0.46, blue: 0.56, alpha: 1.0)
-        rejectButton.wantsLayer = true
-        rejectButton.layer?.backgroundColor = NSColor(red: 0.97, green: 0.46, blue: 0.56, alpha: 0.2).cgColor
-        rejectButton.layer?.cornerRadius = 6
+        resumeButton.bezelStyle = .regularSquare
+        resumeButton.target = self
+        resumeButton.action = #selector(resumeClicked)
+        resumeButton.frame = NSRect(x: 10, y: 10, width: 160, height: 30)
+        resumeButton.contentTintColor = NSColor(red: 0.45, green: 0.87, blue: 0.68, alpha: 1.0)
+        resumeButton.wantsLayer = true
+        resumeButton.layer?.backgroundColor = NSColor(red: 0.45, green: 0.87, blue: 0.68, alpha: 0.2).cgColor
+        resumeButton.layer?.cornerRadius = 6
+        resumeButton.isHidden = true
 
-        autoButton.bezelStyle = .regularSquare
-        autoButton.target = self
-        autoButton.action = #selector(autoClicked)
-        autoButton.frame = NSRect(x: 270, y: 10, width: 140, height: 30)
-        autoButton.contentTintColor = NSColor(red: 0.48, green: 0.64, blue: 0.97, alpha: 1.0)
-        autoButton.wantsLayer = true
-        autoButton.layer?.backgroundColor = NSColor(red: 0.48, green: 0.64, blue: 0.97, alpha: 0.2).cgColor
-        autoButton.layer?.cornerRadius = 6
+        controlBox.addSubview(pauseButton)
+        controlBox.addSubview(resumeButton)
 
-        approvalBox.addSubview(approveButton)
-        approvalBox.addSubview(rejectButton)
-        approvalBox.addSubview(autoButton)
-
-        contentView.addSubview(approvalBox)
+        contentView.addSubview(controlBox)
 
         NotificationCenter.default.addObserver(
             forName: NSWindow.didResizeNotification,
             object: self,
             queue: .main
         ) { [weak self] _ in
+            self?.updateScrollViewInsets()
             self?.updateTextContainerWidth()
         }
 
+        updateScrollViewInsets()
         updateTextContainerWidth()
-
-        fputs("UI ready for output\n", stderr)
-        fflush(stderr)
     }
 
-    @objc func approveClicked() {
-        sendApproval(action: 0)
-    }
+    @objc func pauseClicked() {
+        guard let requestID = currentRequestID else { return }
+        isPaused = true
 
-    @objc func rejectClicked() {
-        sendApproval(action: 1)
-    }
-
-    @objc func autoClicked() {
-        sendApproval(action: 2)
-    }
-
-    func sendApproval(action: Int) {
-        guard let callID = currentCallID else { return }
-        let response = ApprovalResponse(call_id: callID, action: action)
-        if let jsonData = try? JSONEncoder().encode(response),
+        let request = PauseResumeRequest(action: "pause", request_id: requestID)
+        if let jsonData = try? JSONEncoder().encode(request),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             print(jsonString)
             fflush(stdout)
         }
-        approvalBox.isHidden = true
-        currentCallID = nil
-        updateScrollViewInsets()
+
+        pauseButton.isHidden = true
+        resumeButton.isHidden = false
+
+        let orange = NSColor(red: 0.97, green: 0.64, blue: 0.30, alpha: 1.0)
+        appendText("\n⏸ Execution paused by user\n", color: orange)
+    }
+
+    @objc func resumeClicked() {
+        guard let requestID = currentRequestID else { return }
+        isPaused = false
+
+        let request = PauseResumeRequest(action: "resume", request_id: requestID)
+        if let jsonData = try? JSONEncoder().encode(request),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            print(jsonString)
+            fflush(stdout)
+        }
+
+        pauseButton.isHidden = false
+        resumeButton.isHidden = true
+
+        let green = NSColor(red: 0.45, green: 0.87, blue: 0.68, alpha: 1.0)
+        appendText("\n▶ Execution resuming...\n", color: green)
     }
 
     func appendText(_ text: String, color: NSColor? = nil) {
@@ -600,38 +747,142 @@ class FloatingWindow: NSPanel {
             ]
             let attrString = NSAttributedString(string: text, attributes: attrs)
             self.textView.textStorage?.append(attrString)
-            self.textView.scrollToEndOfDocument(nil)
+
+            self.textView.layoutManager?.ensureLayout(for: self.textView.textContainer!)
+
+            if let layoutManager = self.textView.layoutManager,
+               let textContainer = self.textView.textContainer {
+                layoutManager.ensureLayout(for: textContainer)
+                let usedRect = layoutManager.usedRect(for: textContainer)
+                let inset = self.textView.textContainerInset
+                let newHeight = usedRect.height + inset.height * 2
+
+                var textFrame = self.textView.frame
+                textFrame.size.height = newHeight
+                self.textView.frame = textFrame
+            }
+
+            self.updateStackViewHeight()
+            self.scrollToBottomIfNeeded()
         }
     }
 
-    func showApproval(callID: String, toolName: String) {
+    func appendImage(_ imageData: String, mimeType: String, width: Int, height: Int, toolName: String) {
         DispatchQueue.main.async {
-            self.currentCallID = callID
-            self.approvalBox.isHidden = false
-            self.updateScrollViewInsets()
+            guard let data = Data(base64Encoded: imageData),
+                  let fullImage = NSImage(data: data) else {
+                return
+            }
+
+            let thumbnailSize = NSSize(width: 200, height: 150)
+            let thumbnail = self.resizeImage(fullImage, to: thumbnailSize)
+
+            let imageContainer = ClickableImageView(
+                thumbnail: thumbnail,
+                fullImage: fullImage,
+                metadata: "\(toolName) - \(width)x\(height)"
+            )
+
+            self.contentStack.addArrangedSubview(imageContainer)
+            self.updateStackViewHeight()
+            self.scrollToBottomIfNeeded()
+        }
+    }
+
+    func updateStackViewHeight() {
+        let fittingSize = contentStack.fittingSize
+        let minHeight = scrollView.contentView.bounds.height
+        let newHeight = max(fittingSize.height, minHeight)
+
+        var stackFrame = contentStack.frame
+        stackFrame.size.height = newHeight
+        stackFrame.size.width = scrollView.contentView.bounds.width
+        contentStack.frame = stackFrame
+
+        if let containerView = scrollView.documentView {
+            var containerFrame = containerView.frame
+            containerFrame.size.height = newHeight
+            containerFrame.size.width = scrollView.contentView.bounds.width
+            containerView.frame = containerFrame
+
+            scrollView.needsLayout = true
+            scrollView.layoutSubtreeIfNeeded()
+        }
+    }
+
+    func isScrolledNearBottom() -> Bool {
+        guard let documentView = scrollView.documentView else { return true }
+
+        let visibleRect = scrollView.contentView.documentVisibleRect
+        let documentHeight = documentView.bounds.height
+        let bottomY = visibleRect.origin.y + visibleRect.height
+
+        let threshold: CGFloat = 100
+        return (documentHeight - bottomY) < threshold
+    }
+
+    func scrollToBottomIfNeeded() {
+        guard isScrolledNearBottom() else { return }
+
+        if let documentView = scrollView.documentView {
+            let newScrollOrigin = NSPoint(x: 0, y: max(0, documentView.bounds.height - scrollView.contentView.bounds.height))
+            scrollView.contentView.scroll(to: newScrollOrigin)
+            scrollView.reflectScrolledClipView(scrollView.contentView)
+        }
+    }
+
+    func resizeImage(_ image: NSImage, to targetSize: NSSize) -> NSImage {
+        let aspectRatio = image.size.width / image.size.height
+        var newSize = targetSize
+
+        if aspectRatio > targetSize.width / targetSize.height {
+            newSize.height = targetSize.width / aspectRatio
+        } else {
+            newSize.width = targetSize.height * aspectRatio
+        }
+
+        let resized = NSImage(size: newSize)
+        resized.lockFocus()
+        image.draw(in: NSRect(origin: .zero, size: newSize))
+        resized.unlockFocus()
+        return resized
+    }
+
+    func extractImagesFromJSON(_ json: [String: Any]) -> [[String: Any]]? {
+        if let images = json["Images"] as? [[String: Any]] {
+            return images
+        }
+
+        guard let nsArray = json["Images"] as? NSArray else {
+            return nil
+        }
+
+        let converted = nsArray.compactMap { element -> [String: Any]? in
+            if let nsDict = element as? NSDictionary {
+                return nsDict as? [String: Any]
+            }
+            return element as? [String: Any]
+        }
+
+        return converted.isEmpty ? nil : converted
+    }
+
+    func setRequestID(requestID: String) {
+        DispatchQueue.main.async {
+            self.currentRequestID = requestID
+        }
+    }
+
+    func updatePauseState(paused: Bool) {
+        DispatchQueue.main.async {
+            self.isPaused = paused
+            self.pauseButton.isHidden = paused
+            self.resumeButton.isHidden = !paused
         }
     }
 
     func updateScrollViewInsets() {
-        guard let contentView = self.contentView else { return }
-
-        let buttonAreaHeight: CGFloat = 70
-
-        if approvalBox.isHidden {
-            scrollView.frame = contentView.bounds
-        } else {
-            let scrollFrame = NSRect(
-                x: 0,
-                y: buttonAreaHeight,
-                width: contentView.bounds.width,
-                height: contentView.bounds.height - buttonAreaHeight
-            )
-            scrollView.frame = scrollFrame
-
-            DispatchQueue.main.async {
-                self.textView.scrollToEndOfDocument(nil)
-            }
-        }
+        updateStackViewHeight()
     }
 
     // MARK: - Border Overlay Control
@@ -665,8 +916,6 @@ class FloatingWindow: NSPanel {
                 color: borderColor
             ))
 
-            fputs("Border overlay shown\n", stderr)
-            fflush(stderr)
         }
     }
 
@@ -676,8 +925,6 @@ class FloatingWindow: NSPanel {
                 window.close()
             }
             self.borderWindows.removeAll()
-            fputs("Border overlay hidden\n", stderr)
-            fflush(stderr)
         }
     }
 
@@ -686,16 +933,12 @@ class FloatingWindow: NSPanel {
     func showClickIndicator(x: CGFloat, y: CGFloat) {
         DispatchQueue.main.async {
             _ = ClickIndicatorWindow(x: x, y: y)
-            fputs("Click indicator shown at (\(x), \(y))\n", stderr)
-            fflush(stderr)
         }
     }
 
     func showMoveIndicator(fromX: CGFloat, fromY: CGFloat, toX: CGFloat, toY: CGFloat) {
         DispatchQueue.main.async {
             _ = MoveTrailWindow(fromX: fromX, fromY: fromY, toX: toX, toY: toY)
-            fputs("Move trail shown from (\(fromX), \(fromY)) to (\(toX), \(toY))\n", stderr)
-            fflush(stderr)
         }
     }
 }
@@ -758,15 +1001,23 @@ class EventReader {
                 let blue = NSColor(red: 0.48, green: 0.64, blue: 0.97, alpha: 1.0)
                 window.appendText("\n● Starting...\n\n", color: blue)
 
+                if let requestID = json["RequestID"] as? String {
+                    window.setRequestID(requestID: requestID)
+                }
+
             case "Chat Chunk":
                 window.appendText(description)
 
-            case "Tool Approval":
-                if let toolCall = json["ToolCall"] as? [String: Any],
-                   let callID = toolCall["id"] as? String,
-                   let function = toolCall["function"] as? [String: Any],
-                   let toolName = function["name"] as? String {
-                    window.showApproval(callID: callID, toolName: toolName)
+            case "Computer Use Paused":
+                window.updatePauseState(paused: true)
+
+            case "Computer Use Resumed":
+                window.updatePauseState(paused: false)
+
+            case "Tool Approval Notification":
+                if let message = json["Message"] as? String {
+                    let yellow = NSColor(red: 0.97, green: 0.85, blue: 0.30, alpha: 1.0)
+                    window.appendText("\n\(message)\n", color: yellow)
                 }
 
             case "Parallel Tools Start":
@@ -785,26 +1036,42 @@ class EventReader {
                 }
 
             case "Tool Execution Progress":
-                if let toolName = json["ToolName"] as? String,
-                   let status = json["Status"] as? String {
-                    if status == "completed" {
+                guard let toolName = json["ToolName"] as? String,
+                      let status = json["Status"] as? String else { break }
+
+                if status == "completed" {
+                    if let images = window.extractImagesFromJSON(json), !images.isEmpty {
+                        window.appendText("\n")
+
+                        for imageData in images {
+                            guard let base64 = imageData["data"] as? String,
+                                  let mimeType = imageData["mime_type"] as? String,
+                                  let displayName = imageData["display_name"] as? String else {
+                                continue
+                            }
+
+                            window.appendImage(
+                                base64,
+                                mimeType: mimeType,
+                                width: 1920,
+                                height: 1080,
+                                toolName: displayName
+                            )
+                        }
+
+                        window.appendText("\n")
+                    } else {
                         let green = NSColor(red: 0.45, green: 0.87, blue: 0.68, alpha: 1.0)
                         window.appendText("✓ \(toolName) completed\n", color: green)
-                    } else if status == "failed" {
-                        let red = NSColor(red: 0.97, green: 0.46, blue: 0.56, alpha: 1.0)
-                        window.appendText("✗ \(toolName) failed\n", color: red)
                     }
+                } else if status == "failed" {
+                    let red = NSColor(red: 0.97, green: 0.46, blue: 0.56, alpha: 1.0)
+                    window.appendText("✗ \(toolName) failed\n", color: red)
                 }
 
             case "Tool Failed", "Tool Rejected":
                 let red = NSColor(red: 0.97, green: 0.46, blue: 0.56, alpha: 1.0)
                 window.appendText("\n✗ \(description)\n", color: red)
-
-            case "Approval Cleared":
-                DispatchQueue.main.async {
-                    self.window.approvalBox.isHidden = true
-                    self.window.updateScrollViewInsets()
-                }
 
             case "Border Show":
                 window.showBorderOverlay()
@@ -847,11 +1114,15 @@ class EventReader {
         if json["X"] != nil && json["Y"] != nil && json["ClickIndicator"] as? Bool == true { return "Click Indicator" }
         if json["Content"] != nil { return "Chat Chunk" }
         if json["Model"] != nil { return "Chat Start" }
-        if json["ToolCall"] != nil { return "Tool Approval" }
         if json["Tools"] != nil { return "Parallel Tools Start" }
         if json["ToolName"] != nil && json["Status"] != nil { return "Tool Execution Progress" }
-        if json["RequestID"] != nil && json["Timestamp"] != nil &&
-           json["Content"] == nil && json["ToolCall"] == nil { return "Approval Cleared" }
+        if let typeName = json["$type"] as? String {
+            if typeName.contains("ComputerUsePaused") { return "Computer Use Paused" }
+            if typeName.contains("ComputerUseResumed") { return "Computer Use Resumed" }
+        }
+        if json["Message"] != nil && json["ToolName"] != nil && json["Timestamp"] != nil {
+            return "Tool Approval Notification"
+        }
         return "Unknown"
     }
 

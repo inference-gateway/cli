@@ -184,7 +184,7 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 		}
 	}
 
-	floatingWindowMgr, err := initFloatingWindow(config, stateManager)
+	floatingWindowMgr, err := initFloatingWindow(config, stateManager, agentService)
 	if err != nil {
 		return fmt.Errorf("failed to initialize floating window: %w", err)
 	}

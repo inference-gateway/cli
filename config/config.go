@@ -271,7 +271,6 @@ type ScreenshotToolConfig struct {
 	TargetHeight     int    `yaml:"target_height" mapstructure:"target_height"`
 	Format           string `yaml:"format" mapstructure:"format"`
 	Quality          int    `yaml:"quality" mapstructure:"quality"`
-	RequireApproval  *bool  `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
 	StreamingEnabled bool   `yaml:"streaming_enabled" mapstructure:"streaming_enabled"`
 	CaptureInterval  int    `yaml:"capture_interval" mapstructure:"capture_interval"`
 	BufferSize       int    `yaml:"buffer_size" mapstructure:"buffer_size"`
@@ -290,40 +289,34 @@ type FloatingWindowConfig struct {
 
 // MouseMoveToolConfig contains mouse move-specific tool settings
 type MouseMoveToolConfig struct {
-	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 }
 
 // MouseClickToolConfig contains mouse click-specific tool settings
 type MouseClickToolConfig struct {
-	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 }
 
 // MouseScrollToolConfig contains mouse scroll-specific tool settings
 type MouseScrollToolConfig struct {
-	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 }
 
 // KeyboardTypeToolConfig contains keyboard type-specific tool settings
 type KeyboardTypeToolConfig struct {
-	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
-	MaxTextLength   int   `yaml:"max_text_length" mapstructure:"max_text_length"`
-	TypingDelayMs   int   `yaml:"typing_delay_ms" mapstructure:"typing_delay_ms"`
-	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled       bool `yaml:"enabled" mapstructure:"enabled"`
+	MaxTextLength int  `yaml:"max_text_length" mapstructure:"max_text_length"`
+	TypingDelayMs int  `yaml:"typing_delay_ms" mapstructure:"typing_delay_ms"`
 }
 
 // GetFocusedAppToolConfig contains get focused app-specific tool settings
 type GetFocusedAppToolConfig struct {
-	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 }
 
 // ActivateAppToolConfig contains activate app-specific tool settings
 type ActivateAppToolConfig struct {
-	Enabled         bool  `yaml:"enabled" mapstructure:"enabled"`
-	RequireApproval *bool `yaml:"require_approval,omitempty" mapstructure:"require_approval,omitempty"`
+	Enabled bool `yaml:"enabled" mapstructure:"enabled"`
 }
 
 // RateLimitConfig contains rate limiting settings
@@ -1140,7 +1133,6 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				TargetHeight:     768,
 				Format:           "jpeg",
 				Quality:          85,
-				RequireApproval:  &[]bool{false}[0],
 				StreamingEnabled: true,
 				CaptureInterval:  3,
 				BufferSize:       5,
@@ -1149,30 +1141,24 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				ShowOverlay:      true,
 			},
 			MouseMove: MouseMoveToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
+				Enabled: true,
 			},
 			MouseClick: MouseClickToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{true}[0],
+				Enabled: true,
 			},
 			MouseScroll: MouseScrollToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
+				Enabled: true,
 			},
 			KeyboardType: KeyboardTypeToolConfig{
-				Enabled:         true,
-				MaxTextLength:   1000,
-				TypingDelayMs:   100,
-				RequireApproval: &[]bool{true}[0],
+				Enabled:       true,
+				MaxTextLength: 1000,
+				TypingDelayMs: 100,
 			},
 			GetFocusedApp: GetFocusedAppToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
+				Enabled: true,
 			},
 			ActivateApp: ActivateAppToolConfig{
-				Enabled:         true,
-				RequireApproval: &[]bool{false}[0],
+				Enabled: true,
 			},
 			RateLimit: RateLimitConfig{
 				Enabled:             true,
@@ -1248,35 +1234,8 @@ func (c *Config) IsApprovalRequired(toolName string) bool { // nolint:gocyclo,cy
 		if c.A2A.Tools.SubmitTask.RequireApproval != nil {
 			return *c.A2A.Tools.SubmitTask.RequireApproval
 		}
-	case "Screenshot":
-		if c.ComputerUse.Screenshot.RequireApproval != nil {
-			return *c.ComputerUse.Screenshot.RequireApproval
-		}
-	case "MouseMove":
-		if c.ComputerUse.MouseMove.RequireApproval != nil {
-			return *c.ComputerUse.MouseMove.RequireApproval
-		}
-	case "MouseClick":
-		if c.ComputerUse.MouseClick.RequireApproval != nil {
-			return *c.ComputerUse.MouseClick.RequireApproval
-		}
-	case "MouseScroll":
-		if c.ComputerUse.MouseScroll.RequireApproval != nil {
-			return *c.ComputerUse.MouseScroll.RequireApproval
-		}
-	case "KeyboardType":
-		if c.ComputerUse.KeyboardType.RequireApproval != nil {
-			return *c.ComputerUse.KeyboardType.RequireApproval
-		}
-	case "GetFocusedApp":
-		if c.ComputerUse.GetFocusedApp.RequireApproval != nil {
-			return *c.ComputerUse.GetFocusedApp.RequireApproval
-		}
-	case "ActivateApp":
-		if c.ComputerUse.ActivateApp.RequireApproval != nil {
-			return *c.ComputerUse.ActivateApp.RequireApproval
-		}
-	case "GetLatestScreenshot":
+	// Computer use tools bypass approval entirely (checked in shouldRequireApproval)
+	case "Screenshot", "MouseMove", "MouseClick", "MouseScroll", "KeyboardType", "GetFocusedApp", "ActivateApp", "GetLatestScreenshot":
 		return false
 	}
 

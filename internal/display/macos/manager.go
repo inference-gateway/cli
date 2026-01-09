@@ -38,18 +38,23 @@ type FloatingWindowManager struct {
 	appPath      string
 	monitorWg    sync.WaitGroup
 	// IPC fields (merged from ProcessManager)
-	stdin                io.Writer
-	stdout               io.Reader
-	stdinMutex           sync.Mutex
-	approvalChans        map[string]chan domain.ApprovalAction
-	approvalMutex        sync.RWMutex
-	stopListener         chan struct{}
-	listenerStopped      bool
-	listenerStoppedMutex sync.Mutex
+	stdin        io.Writer
+	stdout       io.Reader
+	stdinMutex   sync.Mutex
+	agentService domain.AgentService
+	// Pause/resume listener
+	pauseListener        chan struct{}
+	pauseListenerStopped bool
+	pauseStopMutex       sync.Mutex
 }
 
 // NewFloatingWindowManager creates and starts a new floating window manager
-func NewFloatingWindowManager(cfg *config.Config, eventBridge *EventBridge, stateManager domain.StateManager) (*FloatingWindowManager, error) {
+func NewFloatingWindowManager(
+	cfg *config.Config,
+	eventBridge *EventBridge,
+	stateManager domain.StateManager,
+	agentService domain.AgentService,
+) (*FloatingWindowManager, error) {
 	if runtime.GOOS != "darwin" {
 		return &FloatingWindowManager{enabled: false}, nil
 	}
@@ -59,14 +64,14 @@ func NewFloatingWindowManager(cfg *config.Config, eventBridge *EventBridge, stat
 	}
 
 	mgr := &FloatingWindowManager{
-		cfg:             cfg,
-		eventBridge:     eventBridge,
-		stateManager:    stateManager,
-		enabled:         true,
-		stopForward:     make(chan struct{}),
-		approvalChans:   make(map[string]chan domain.ApprovalAction),
-		stopListener:    make(chan struct{}),
-		listenerStopped: false,
+		cfg:                  cfg,
+		eventBridge:          eventBridge,
+		stateManager:         stateManager,
+		agentService:         agentService,
+		enabled:              true,
+		stopForward:          make(chan struct{}),
+		pauseListener:        make(chan struct{}),
+		pauseListenerStopped: false,
 	}
 
 	if err := mgr.launchWindow(); err != nil {
@@ -128,12 +133,11 @@ func (mgr *FloatingWindowManager) launchWindow() error {
 	}
 
 	go func() {
-		buf := make([]byte, 1024)
-		for {
-			_, err := stderr.Read(buf)
-			if err != nil {
-				break
-			}
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			line := scanner.Text()
+			// Log ComputerUse stderr for debugging
+			logger.Debug("ComputerUse stderr", "output", line)
 		}
 	}()
 
@@ -141,7 +145,7 @@ func (mgr *FloatingWindowManager) launchWindow() error {
 	mgr.stdout = stdout
 	mgr.cmd = cmd
 
-	go mgr.startApprovalListener()
+	go mgr.startPauseResumeListener()
 
 	return nil
 }
@@ -198,10 +202,6 @@ func (mgr *FloatingWindowManager) forwardEvents() {
 	for {
 		select {
 		case event := <-mgr.eventSub:
-			if approvalEvent, ok := event.(domain.ToolApprovalRequestedEvent); ok {
-				mgr.registerApprovalChannel(approvalEvent.ToolCall.Id, approvalEvent.ResponseChan)
-			}
-
 			if err := mgr.writeEvent(event); err != nil {
 				logger.Warn("Failed to forward event to window", "error", err)
 			}
@@ -254,7 +254,7 @@ func (mgr *FloatingWindowManager) Shutdown() error {
 		mgr.eventBridge.Unsubscribe(mgr.eventSub)
 	}
 
-	mgr.stopApprovalListener()
+	mgr.stopPauseResumeListener()
 
 	if err := mgr.shutdownProcess(); err != nil {
 		return err
@@ -300,6 +300,22 @@ func (mgr *FloatingWindowManager) writeEvent(event domain.ChatEvent) error {
 		return fmt.Errorf("failed to marshal event: %w", err)
 	}
 
+	// DEBUG: Log ToolExecutionProgressEvent with GetLatestScreenshot
+	if progressEvent, ok := event.(domain.ToolExecutionProgressEvent); ok {
+		if progressEvent.ToolName == "GetLatestScreenshot" && progressEvent.Status == "completed" {
+			// Log the first 500 chars of JSON to see structure (excluding base64 data)
+			jsonPreview := string(data)
+			if len(jsonPreview) > 500 {
+				jsonPreview = jsonPreview[:500] + "..."
+			}
+			logger.Info("Sending GetLatestScreenshot completed event to Swift",
+				"hasImages", len(progressEvent.Images) > 0,
+				"imageCount", len(progressEvent.Images),
+				"jsonLength", len(data),
+				"jsonPreview", jsonPreview)
+		}
+	}
+
 	if _, err := fmt.Fprintf(mgr.stdin, "%s\n", data); err != nil {
 		logger.Warn("Failed to write event to window", "error", err)
 		return fmt.Errorf("failed to write to stdin: %w", err)
@@ -308,89 +324,93 @@ func (mgr *FloatingWindowManager) writeEvent(event domain.ChatEvent) error {
 	return nil
 }
 
-// startApprovalListener reads approval responses from the Swift process via stdout
-func (mgr *FloatingWindowManager) startApprovalListener() {
+// startPauseResumeListener reads pause/resume requests from the Swift process via stdout
+func (mgr *FloatingWindowManager) startPauseResumeListener() {
 	scanner := bufio.NewScanner(mgr.stdout)
 	for scanner.Scan() {
 		select {
-		case <-mgr.stopListener:
+		case <-mgr.pauseListener:
 			return
 		default:
 		}
 
 		line := scanner.Text()
-
 		if line == "" {
 			continue
 		}
 
-		var response ApprovalResponse
-		if err := json.Unmarshal([]byte(line), &response); err != nil {
-			logger.Warn("Failed to parse approval response", "error", err, "line", line)
+		var request PauseResumeRequest
+		if err := json.Unmarshal([]byte(line), &request); err != nil {
+			logger.Warn("Failed to parse pause/resume request", "error", err, "line", line)
 			continue
 		}
 
-		mgr.handleApprovalResponse(response)
+		mgr.handlePauseResumeRequest(request)
 	}
 
 	if err := scanner.Err(); err != nil {
-		mgr.listenerStoppedMutex.Lock()
-		if !mgr.listenerStopped {
-			logger.Warn("Approval listener error", "error", err)
+		mgr.pauseStopMutex.Lock()
+		if !mgr.pauseListenerStopped {
+			logger.Warn("Pause/resume listener error", "error", err)
 		}
-		mgr.listenerStoppedMutex.Unlock()
+		mgr.pauseStopMutex.Unlock()
 	}
 }
 
-// handleApprovalResponse processes an approval response from the window
-func (mgr *FloatingWindowManager) handleApprovalResponse(resp ApprovalResponse) {
-	mgr.approvalMutex.Lock()
-	defer mgr.approvalMutex.Unlock()
+// handlePauseResumeRequest processes a pause or resume request from the window
+func (mgr *FloatingWindowManager) handlePauseResumeRequest(req PauseResumeRequest) {
+	switch req.Action {
+	case "pause":
+		logger.Info("Pause requested", "request_id", req.RequestID)
 
-	ch, exists := mgr.approvalChans[resp.CallID]
-	if !exists {
-		logger.Warn("Received approval for unknown call ID", "call_id", resp.CallID, "known_call_ids", mgr.getCallIDs())
-		return
-	}
+		// Cancel the active request to stop execution
+		if mgr.agentService != nil {
+			if err := mgr.agentService.CancelRequest(req.RequestID); err != nil {
+				logger.Error("Failed to cancel request", "error", err)
+				return
+			}
+		}
 
-	logger.Info("Sending approval to channel", "call_id", resp.CallID, "action", resp.Action)
-
-	select {
-	case ch <- resp.Action:
-		delete(mgr.approvalChans, resp.CallID)
+		// Update state
 		if mgr.stateManager != nil {
-			mgr.stateManager.ClearApprovalUIState()
+			mgr.stateManager.SetComputerUsePaused(true, req.RequestID)
 		}
+
+		// Broadcast paused event
+		pausedEvent := domain.ComputerUsePausedEvent{
+			RequestID: req.RequestID,
+			Timestamp: time.Now(),
+		}
+		mgr.eventBridge.Publish(pausedEvent)
+
+	case "resume":
+		logger.Info("Resume requested", "request_id", req.RequestID)
+
+		// Update state
+		if mgr.stateManager != nil {
+			mgr.stateManager.ClearComputerUsePauseState()
+		}
+
+		// Broadcast resumed event
+		resumedEvent := domain.ComputerUseResumedEvent{
+			RequestID: req.RequestID,
+			Timestamp: time.Now(),
+		}
+		mgr.eventBridge.Publish(resumedEvent)
+
 	default:
-		logger.Warn("Approval channel blocked", "call_id", resp.CallID)
+		logger.Warn("Unknown pause/resume action", "action", req.Action)
 	}
 }
 
-// registerApprovalChannel registers a response channel for a specific tool call
-func (mgr *FloatingWindowManager) registerApprovalChannel(callID string, ch chan domain.ApprovalAction) {
-	mgr.approvalMutex.Lock()
-	defer mgr.approvalMutex.Unlock()
+// stopPauseResumeListener signals the pause/resume listener to stop
+func (mgr *FloatingWindowManager) stopPauseResumeListener() {
+	mgr.pauseStopMutex.Lock()
+	defer mgr.pauseStopMutex.Unlock()
 
-	mgr.approvalChans[callID] = ch
-}
-
-// getCallIDs returns a list of registered call IDs (for debugging)
-func (mgr *FloatingWindowManager) getCallIDs() []string {
-	ids := make([]string, 0, len(mgr.approvalChans))
-	for id := range mgr.approvalChans {
-		ids = append(ids, id)
-	}
-	return ids
-}
-
-// stopApprovalListener signals the approval listener to stop
-func (mgr *FloatingWindowManager) stopApprovalListener() {
-	mgr.listenerStoppedMutex.Lock()
-	defer mgr.listenerStoppedMutex.Unlock()
-
-	if !mgr.listenerStopped {
-		close(mgr.stopListener)
-		mgr.listenerStopped = true
+	if !mgr.pauseListenerStopped {
+		close(mgr.pauseListener)
+		mgr.pauseListenerStopped = true
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	tools "github.com/inference-gateway/cli/internal/services/tools"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -125,7 +126,7 @@ func (p *eventPublisher) publishParallelToolsStart(toolCalls []sdk.ChatCompletio
 }
 
 // publishToolStatusChange publishes a ToolExecutionProgressEvent
-func (p *eventPublisher) publishToolStatusChange(callID string, toolName string, status string, message string) {
+func (p *eventPublisher) publishToolStatusChange(callID string, toolName string, status string, message string, images []domain.ImageAttachment) {
 	event := domain.ToolExecutionProgressEvent{
 		BaseChatEvent: domain.BaseChatEvent{
 			RequestID: p.requestID,
@@ -135,6 +136,7 @@ func (p *eventPublisher) publishToolStatusChange(callID string, toolName string,
 		ToolName:   toolName,
 		Status:     status,
 		Message:    message,
+		Images:     images,
 	}
 
 	p.chatEvents <- event
@@ -373,6 +375,12 @@ func (s *AgentServiceImpl) handleIdleState(
 func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentRequest) (<-chan domain.ChatEvent, error) { // nolint:gocognit,gocyclo,cyclop,funlen
 	if err := s.validateRequest(req); err != nil {
 		return nil, err
+	}
+
+	// Check if execution is paused
+	if s.stateManager != nil && s.stateManager.IsComputerUsePaused() {
+		logger.Info("Execution is paused, waiting for resume")
+		return nil, fmt.Errorf("execution is paused")
 	}
 
 	chatEvents := make(chan domain.ChatEvent, 1000)
@@ -854,14 +862,25 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 
 		result := s.executeTool(ctx, *at.tool, eventPublisher, isChatMode)
 
-		status := "complete"
+		status := "completed"
 		message := "Completed successfully"
-		if result.ToolExecution != nil && !result.ToolExecution.Success {
-			status = "failed"
-			message = "Execution failed"
+		var images []domain.ImageAttachment
+		if result.ToolExecution != nil {
+			if !result.ToolExecution.Success {
+				status = "failed"
+				message = "Execution failed"
+			}
+			images = result.ToolExecution.Images
+
+			// DEBUG: Log image count for GetLatestScreenshot
+			if at.tool.Function.Name == "GetLatestScreenshot" && len(images) > 0 {
+				logger.Info("Publishing GetLatestScreenshot completion with images",
+					"imageCount", len(images),
+					"status", status)
+			}
 		}
 
-		eventPublisher.publishToolStatusChange(at.tool.Id, at.tool.Function.Name, status, message)
+		eventPublisher.publishToolStatusChange(at.tool.Id, at.tool.Function.Name, status, message, images)
 		results[at.index] = result
 	}
 
@@ -886,20 +905,25 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 					toolCall.Id,
 					toolCall.Function.Name, "starting",
 					fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
+					nil,
 				)
 
 				time.Sleep(constants.AgentToolExecutionDelay)
 
 				result := s.executeTool(ctx, *toolCall, eventPublisher, isChatMode)
 
-				status := "complete"
+				status := "completed"
 				message := "Completed successfully"
-				if result.ToolExecution != nil && !result.ToolExecution.Success {
-					status = "failed"
-					message = "Execution failed"
+				var images []domain.ImageAttachment
+				if result.ToolExecution != nil {
+					if !result.ToolExecution.Success {
+						status = "failed"
+						message = "Execution failed"
+					}
+					images = result.ToolExecution.Images
 				}
 
-				eventPublisher.publishToolStatusChange(toolCall.Id, toolCall.Function.Name, status, message)
+				eventPublisher.publishToolStatusChange(toolCall.Id, toolCall.Function.Name, status, message, images)
 
 				resultsChan <- IndexedToolResult{
 					Index:  index,
@@ -967,7 +991,7 @@ func (s *AgentServiceImpl) executeTool(
 		wasApproved = true
 	}
 
-	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Executing...")
+	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Executing...", nil)
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 
@@ -1047,7 +1071,7 @@ func (s *AgentServiceImpl) executeTool(
 			ticker.Stop()
 			resultReceived = true
 		case <-ticker.C:
-			eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Processing...")
+			eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Processing...", nil)
 		case <-ctx.Done():
 			logger.Error("tool execution cancelled", "tool", tc.Function.Name)
 			return s.createErrorEntry(tc, ctx.Err(), startTime)
@@ -1059,7 +1083,7 @@ func (s *AgentServiceImpl) executeTool(
 		return s.createErrorEntry(tc, err, startTime)
 	}
 
-	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "saving", "Saving results...")
+	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "saving", "Saving results...", nil)
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 
@@ -1323,8 +1347,17 @@ func (s *AgentServiceImpl) isBashCommandWhitelisted(tc *sdk.ChatCompletionMessag
 }
 
 // shouldRequireApproval determines if a tool execution requires user approval
+// Computer use tools always bypass approval (run silently in background)
 // For Bash tool specifically, it checks if the command is whitelisted
 func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
+	// Computer use tools always bypass approval
+	toolService, ok := s.toolService.(*LLMToolService)
+	if ok && toolService != nil && toolService.registry != nil {
+		if tools.IsComputerUseTool(tc.Function.Name) {
+			return false
+		}
+	}
+
 	if s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
 		return false
 	}

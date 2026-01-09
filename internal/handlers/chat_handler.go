@@ -163,6 +163,10 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return nil
 	case domain.MessageHistoryRestoreEvent:
 		return nil
+	case domain.ComputerUsePausedEvent:
+		return h.HandleComputerUsePausedEvent(m)
+	case domain.ComputerUseResumedEvent:
+		return h.HandleComputerUseResumedEvent(m)
 	default:
 		if isUIOnlyEvent(msg) {
 			return nil
@@ -832,6 +836,32 @@ func (h *ChatHandler) HandleAgentStatusUpdateEvent(msg domain.AgentStatusUpdateE
 	return func() tea.Msg {
 		time.Sleep(500 * time.Millisecond)
 		return domain.AgentStatusUpdateEvent{}
+	}
+}
+
+// HandleComputerUsePausedEvent handles computer use pause events
+func (h *ChatHandler) HandleComputerUsePausedEvent(msg domain.ComputerUsePausedEvent) tea.Cmd {
+	logger.Info("Computer use execution paused", "request_id", msg.RequestID)
+
+	return func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Computer use paused by user",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+}
+
+// HandleComputerUseResumedEvent handles computer use resume events
+func (h *ChatHandler) HandleComputerUseResumedEvent(msg domain.ComputerUseResumedEvent) tea.Cmd {
+	logger.Info("Computer use execution resumed", "request_id", msg.RequestID)
+
+	return func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Computer use execution resuming...",
+			Spinner:    true,
+			StatusType: domain.StatusDefault,
+		}
 	}
 }
 

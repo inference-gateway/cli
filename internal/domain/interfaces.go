@@ -340,6 +340,12 @@ type StateManager interface {
 	SetLastClickCoordinates(x, y int)
 	GetLastClickCoordinates() (x, y int)
 	ClearLastClickCoordinates()
+
+	// Computer Use Pause State
+	SetComputerUsePaused(paused bool, requestID string)
+	IsComputerUsePaused() bool
+	GetPausedRequestID() string
+	ClearComputerUsePauseState()
 }
 
 // FileService handles file operations

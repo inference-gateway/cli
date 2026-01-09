@@ -409,6 +409,13 @@ func (e *ChatEventHandler) handleToolApprovalRequested(
 
 	e.handler.stateManager.SetupApprovalUIState(&msg.ToolCall, msg.ResponseChan)
 
+	e.handler.stateManager.BroadcastEvent(domain.ToolApprovalNotificationEvent{
+		RequestID: msg.RequestID,
+		Timestamp: time.Now(),
+		ToolName:  msg.ToolCall.Function.Name,
+		Message:   "Tool approval required - Check terminal for approval",
+	})
+
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
@@ -490,7 +497,7 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 				}
 			})
 		}
-	case "complete", "failed":
+	case "completed", "failed":
 		e.activeToolCallID = ""
 		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{
