@@ -88,17 +88,6 @@ env | grep -E '^(INFER_|DISPLAY=)' | while IFS='=' read -r key value; do
     echo "  Exported: ${key}=${value}"
 done
 
-LOG_DIR="/home/ubuntu/.infer/logs"
-runuser -u ubuntu -- bash -c '
-    while true; do
-        if [ -d "'"$LOG_DIR"'" ] && [ -n "$(ls -A '"$LOG_DIR"'/*.log 2>/dev/null)" ]; then
-            tail -F '"$LOG_DIR"'/*.log 2>/dev/null
-        fi
-        sleep 5
-    done
-' &
-echo "✓ Log forwarding enabled for $LOG_DIR"
-
 if [ -f /tmp/authorized_keys ]; then
     cp /tmp/authorized_keys /home/ubuntu/.ssh/authorized_keys
     chmod 600 /home/ubuntu/.ssh/authorized_keys
@@ -183,6 +172,7 @@ RUN chmod +x /usr/local/bin/start-services.sh
 WORKDIR /home/ubuntu
 
 ENV DISPLAY=:1
+ENV INFER_LOGGING_CONSOLE_OUTPUT=stderr
 
 EXPOSE 22
 

@@ -83,8 +83,22 @@ type RetryConfig struct {
 
 // LoggingConfig contains logging settings
 type LoggingConfig struct {
-	Debug bool   `yaml:"debug" mapstructure:"debug"`
-	Dir   string `yaml:"dir" mapstructure:"dir"`
+	Debug         bool   `yaml:"debug" mapstructure:"debug"`
+	Dir           string `yaml:"dir" mapstructure:"dir"`
+	ConsoleOutput string `yaml:"console_output" mapstructure:"console_output"`
+}
+
+// ValidateConsoleOutput validates the console_output field value
+func (l *LoggingConfig) ValidateConsoleOutput() error {
+	if l.ConsoleOutput == "" {
+		return nil
+	}
+
+	if l.ConsoleOutput == "stderr" {
+		return nil
+	}
+
+	return fmt.Errorf("invalid console_output value '%s': must be empty or 'stderr'", l.ConsoleOutput)
 }
 
 // ImageConfig contains image service settings
@@ -661,8 +675,9 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Logging: LoggingConfig{
-			Debug: false,
-			Dir:   "",
+			Debug:         false,
+			Dir:           "",
+			ConsoleOutput: "",
 		},
 		Tools: ToolsConfig{
 			Enabled: true,

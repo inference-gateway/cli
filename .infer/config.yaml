@@ -36,6 +36,7 @@ client:
 logging:
   debug: false
   dir: ""
+  console_output: ""
 tools:
   enabled: true
   sandbox:
