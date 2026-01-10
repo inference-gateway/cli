@@ -89,14 +89,14 @@ env | grep -E '^(INFER_|DISPLAY=)' | while IFS='=' read -r key value; do
 done
 
 LOG_DIR="/home/ubuntu/.infer/logs"
-(
+runuser -u ubuntu -- bash -c '
     while true; do
-        if [ -d "$LOG_DIR" ] && [ -n "$(ls -A $LOG_DIR/*.log 2>/dev/null)" ]; then
-            tail -F $LOG_DIR/*.log 2>/dev/null
+        if [ -d "'"$LOG_DIR"'" ] && [ -n "$(ls -A '"$LOG_DIR"'/*.log 2>/dev/null)" ]; then
+            tail -F '"$LOG_DIR"'/*.log 2>/dev/null
         fi
         sleep 5
     done
-) &
+' &
 echo "✓ Log forwarding enabled for $LOG_DIR"
 
 if [ -f /tmp/authorized_keys ]; then

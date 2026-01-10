@@ -361,6 +361,7 @@ type WebSSHConfig struct {
 	KnownHostsPath string `yaml:"known_hosts_path" mapstructure:"known_hosts_path"`
 	AutoInstall    bool   `yaml:"auto_install" mapstructure:"auto_install"`
 	InstallVersion string `yaml:"install_version" mapstructure:"install_version"`
+	InstallDir     string `yaml:"install_dir" mapstructure:"install_dir"`
 }
 
 // SSHServerConfig contains configuration for a single remote SSH server
@@ -1114,6 +1115,7 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				KnownHostsPath: "~/.ssh/known_hosts",
 				AutoInstall:    true,
 				InstallVersion: "latest",
+				InstallDir:     "/usr/local/bin",
 			},
 			Servers: []SSHServerConfig{},
 		},

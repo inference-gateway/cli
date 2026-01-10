@@ -90,6 +90,7 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("web.ssh.known_hosts_path", defaults.Web.SSH.KnownHostsPath)
 	v.SetDefault("web.ssh.auto_install", defaults.Web.SSH.AutoInstall)
 	v.SetDefault("web.ssh.install_version", defaults.Web.SSH.InstallVersion)
+	v.SetDefault("web.ssh.install_dir", defaults.Web.SSH.InstallDir)
 	v.SetDefault("web.servers", defaults.Web.Servers)
 	v.SetDefault("computer_use", defaults.ComputerUse)
 	v.SetDefault("computer_use.enabled", defaults.ComputerUse.Enabled)

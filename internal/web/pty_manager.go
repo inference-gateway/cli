@@ -30,9 +30,9 @@ type SessionHandler interface {
 type Session = SessionHandler
 
 // CreateSessionHandler creates either a local PTY session or remote SSH session
-func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, v *viper.Viper, sessionID string, sessionManager *SessionManager) (SessionHandler, error) {
+func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, v *viper.Viper, sessionID string, sessionManager *SessionManager, progressCh chan<- string) (SessionHandler, error) {
 	if serverCfg != nil {
-		return createRemoteSSHSession(webCfg, serverCfg, cfg.Gateway.URL, sessionID, sessionManager)
+		return createRemoteSSHSession(webCfg, serverCfg, cfg.Gateway.URL, sessionID, sessionManager, progressCh)
 	}
 
 	logger.Info("Creating local PTY session")
@@ -40,8 +40,19 @@ func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerC
 }
 
 // createRemoteSSHSession creates a remote SSH session with optional auto-install
-func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string, sessionID string, sessionManager *SessionManager) (SessionHandler, error) {
+func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string, sessionID string, sessionManager *SessionManager, progressCh chan<- string) (SessionHandler, error) {
 	logger.Info("Creating remote SSH session", "server", serverCfg.Name)
+
+	sendProgress := func(msg string) {
+		if progressCh != nil {
+			select {
+			case progressCh <- msg:
+			default:
+			}
+		}
+	}
+
+	sendProgress("Connecting to remote server...")
 
 	client, err := NewSSHClient(&webCfg.SSH, serverCfg)
 	if err != nil {
@@ -52,7 +63,9 @@ func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServe
 		return nil, fmt.Errorf("failed to connect to SSH server: %w", err)
 	}
 
-	if err := ensureRemoteBinary(client, webCfg, serverCfg, gatewayURL); err != nil {
+	sendProgress("Connected to remote server")
+
+	if err := ensureRemoteBinary(client, webCfg, serverCfg, gatewayURL, progressCh); err != nil {
 		if closeErr := client.Close(); closeErr != nil {
 			logger.Warn("Failed to close SSH client after install error", "error", closeErr)
 		}
@@ -62,6 +75,8 @@ func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServe
 	if err := ensureRemoteConfig(client, serverCfg, gatewayURL); err != nil {
 		logger.Warn("Failed to ensure remote config, continuing anyway", "error", err)
 	}
+
+	sendProgress("Starting remote terminal...")
 
 	session, err := NewSSHSession(client, serverCfg, gatewayURL, sessionID, sessionManager)
 	if err != nil {
@@ -75,7 +90,7 @@ func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServe
 }
 
 // ensureRemoteBinary installs infer binary on remote server if auto-install is enabled
-func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string) error {
+func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string, progressCh chan<- string) error {
 	autoInstall := webCfg.SSH.AutoInstall
 	if serverCfg.AutoInstall != nil {
 		autoInstall = *serverCfg.AutoInstall
@@ -85,7 +100,7 @@ func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *
 		return nil
 	}
 
-	installer := NewRemoteInstaller(client, &webCfg.SSH, serverCfg, gatewayURL)
+	installer := NewRemoteInstaller(client, &webCfg.SSH, serverCfg, gatewayURL, progressCh)
 	if err := installer.EnsureBinary(); err != nil {
 		return fmt.Errorf("failed to ensure infer binary: %w", err)
 	}
