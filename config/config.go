@@ -1130,7 +1130,7 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				KnownHostsPath: "~/.ssh/known_hosts",
 				AutoInstall:    true,
 				InstallVersion: "latest",
-				InstallDir:     "/usr/local/bin",
+				InstallDir:     "~/.local/bin",
 			},
 			Servers: []SSHServerConfig{},
 		},

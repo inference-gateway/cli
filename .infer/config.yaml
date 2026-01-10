@@ -699,7 +699,7 @@ web:
     known_hosts_path: ~/.ssh/known_hosts
     auto_install: true
     install_version: latest
-    install_dir: /usr/local/bin
+    install_dir: ~/.local/bin
   servers: []
 computer_use:
   enabled: false

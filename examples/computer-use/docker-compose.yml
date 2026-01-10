@@ -56,7 +56,7 @@ services:
     restart: unless-stopped
 
   cli:
-    image: ghcr.io/inference-gateway/cli:local
+    image: ghcr.io/inference-gateway/cli:0.96.0-rc.3
     hostname: cli
     environment:
       INFER_GATEWAY_URL: http://inference-gateway:8080
@@ -66,7 +66,7 @@ services:
       INFER_WEB_PORT: 3000
       INFER_STORAGE_TYPE: jsonl
       INFER_DEFAULT_MODEL: anthropic/claude-sonnet-4.5
-      INFER_WEB_SSH_INSTALL_VERSION: 0.96.0-rc.2
+      INFER_WEB_SSH_INSTALL_VERSION: 0.96.0-rc.3
       INFER_WEB_SSH_AUTO_INSTALL: true
     ports:
       - "3000:3000"
