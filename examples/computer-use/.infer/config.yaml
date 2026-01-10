@@ -698,14 +698,13 @@ web:
     known_hosts_path: ~/.ssh/known_hosts
     auto_install: true
     install_version: latest
-    install_dir: /usr/local/bin
+    install_dir: ~/.local/bin
   servers:
     - name: "Ubuntu GUI Desktop"
       id: "ubuntu-gui-desktop"
       remote_host: "ubuntu-gui"
       remote_user: "ubuntu"
       remote_port: 22
-      command_path: "/usr/local/bin/infer"
       auto_install: true
       description: "Ubuntu 24.04 Desktop with Computer Use capabilities"
       tags:
