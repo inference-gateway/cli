@@ -5,15 +5,23 @@ words:
   - alecthomas
   - alrvd
   - apapsch
+  - asciicircum
+  - asciitilde
+  - autoreleasepool
   - aymanbagabas
   - aymerick
   - bahlo
   - bluemonday
+  - braceleft
+  - braceright
+  - bracketleft
+  - bracketright
   - bubbletea
   - buger
   - cancelreader
   - cellbuf
   - cespare
+  - CFLAGS
   - charmbracelet
   - cloudevents
   - codegen
@@ -21,6 +29,7 @@ words:
   - colorprofile
   - coninput
   - creack
+  - cyclop
   - davecgh
   - deepseek
   - DEEPSEEK
@@ -30,11 +39,16 @@ words:
   - duckduckgo
   - easyjson
   - erikgeiser
+  - exclam
+  - floatingwindow
+  - frontmost
   - fsnotify
   - funlen
   - gjson
+  - gocognit
   - gocyclo
   - goldmark
+  - googlecode
   - gopkg
   - gotenv
   - groq
@@ -43,11 +57,16 @@ words:
   - inconshreveable
   - invopop
   - isatty
+  - ISPEED
+  - iterm
+  - journalctl
   - jsonmerge
   - jsonparser
   - jsonschema
+  - keybind
   - keygen
   - kimi
+  - kovidgoyal
   - ledongthuc
   - libsqlite
   - lipgloss
@@ -62,37 +81,59 @@ words:
   - metoro
   - mixtral
   - moonshotai
+  - mousemove
   - mtoken
   - multierr
   - myshortcuts
   - nolint
   - NOPASSWD
+  - numbersign
   - oapi
   - ollama
   - OLLAMA
   - oneline
+  - OSPEED
+  - parenleft
+  - parenright
   - pflag
   - pgdn
+  - pgrep
   - pgup
   - playai
   - pmezard
+  - quotedbl
   - qwen
+  - Respawn
   - resty
   - retryable
   - rivo
+  - robotgo
   - runewidth
   - sabhiram
+  - sagents
   - sagikazarmark
+  - SCMPR
   - SHTTP
   - sjson
   - sname
   - sourcegraph
   - stretchr
+  - sublimetext
   - subosito
   - sysinfo
+  - systemctl
   - termenv
   - terminfo
   - tidwall
+  - tmpl
   - uniseg
+  - upgrader
+  - userspace
+  - Winsize
+  - xdraw
+  - xgbutil
+  - xgraphics
+  - ximg
+  - xtest
   - xxhash
   - yuin

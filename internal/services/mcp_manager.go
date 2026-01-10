@@ -440,7 +440,7 @@ func (m *MCPManager) handleDiscoveryFailure(client *mcpClient, maxRetries int, e
 	}
 	client.mu.Unlock()
 
-	logger.Error("MCP server health check failed (tool discovery failed)",
+	logger.Debug("MCP server health check failed (tool discovery failed)",
 		"server", client.serverName,
 		"retryAttempt", retryCount,
 		"maxRetries", maxRetries,

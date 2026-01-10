@@ -28,3 +28,9 @@ const ChatHandlerKey ContextKey = "chat_handler"
 // SessionIDKey is the context key for the current conversation session ID
 // This allows shortcuts to access the session ID when they need it (e.g., /export)
 const SessionIDKey ContextKey = "session_id"
+
+// DirectExecutionKey is the context key for direct tool execution
+// When this key is set to true in the context, it indicates that the tool
+// was invoked directly by the user (e.g., via !! command) rather than by the LLM
+// This allows tools to adjust behavior (e.g., skip coordinate scaling for mouse operations)
+const DirectExecutionKey ContextKey = "direct_execution"

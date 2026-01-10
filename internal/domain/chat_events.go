@@ -4,9 +4,10 @@ import "time"
 
 // ToolInfo represents basic tool information for UI display
 type ToolInfo struct {
-	CallID string
-	Name   string
-	Status string
+	CallID    string
+	Name      string
+	Status    string
+	Arguments string
 }
 
 // BaseChatEvent provides common implementation for ChatEvent interface
@@ -31,6 +32,7 @@ type ToolExecutionProgressEvent struct {
 	ToolName   string
 	Status     string
 	Message    string
+	Images     []ImageAttachment // Optional image attachments for completed tools
 }
 
 // BashOutputChunkEvent indicates a new chunk of bash output is available
@@ -54,4 +56,28 @@ type ParallelToolsCompleteEvent struct {
 type TodoUpdateChatEvent struct {
 	BaseChatEvent
 	Todos []TodoItem
+}
+
+// BorderOverlayEvent indicates the screen border overlay should be shown or hidden
+type BorderOverlayEvent struct {
+	BaseChatEvent
+	BorderAction string
+}
+
+// ClickIndicatorEvent indicates a visual click indicator should be shown at coordinates
+type ClickIndicatorEvent struct {
+	BaseChatEvent
+	X              int  `json:"X"`
+	Y              int  `json:"Y"`
+	ClickIndicator bool `json:"ClickIndicator"`
+}
+
+// MoveIndicatorEvent indicates a visual move indicator should be shown at coordinates
+type MoveIndicatorEvent struct {
+	BaseChatEvent
+	FromX         int  `json:"FromX"`
+	FromY         int  `json:"FromY"`
+	ToX           int  `json:"ToX"`
+	ToY           int  `json:"ToY"`
+	MoveIndicator bool `json:"MoveIndicator"`
 }

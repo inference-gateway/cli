@@ -3,9 +3,10 @@ package services
 import (
 	"fmt"
 
-	"github.com/inference-gateway/cli/config"
-	"github.com/inference-gateway/cli/internal/utils"
-	"github.com/spf13/viper"
+	viper "github.com/spf13/viper"
+
+	config "github.com/inference-gateway/cli/config"
+	utils "github.com/inference-gateway/cli/internal/utils"
 )
 
 // ConfigService handles configuration management and reloading
@@ -59,4 +60,42 @@ func (cs *ConfigService) SetValue(key, value string) error {
 	cs.config = newConfig
 
 	return nil
+}
+
+// Domain ConfigService interface implementation (delegates to underlying config)
+
+func (cs *ConfigService) IsApprovalRequired(toolName string) bool {
+	return cs.config.IsApprovalRequired(toolName)
+}
+
+func (cs *ConfigService) IsBashCommandWhitelisted(command string) bool {
+	return cs.config.IsBashCommandWhitelisted(command)
+}
+
+func (cs *ConfigService) GetOutputDirectory() string {
+	return cs.config.GetOutputDirectory()
+}
+
+func (cs *ConfigService) GetGatewayURL() string {
+	return cs.config.Gateway.URL
+}
+
+func (cs *ConfigService) GetAPIKey() string {
+	return cs.config.Gateway.APIKey
+}
+
+func (cs *ConfigService) GetTimeout() int {
+	return cs.config.Gateway.Timeout
+}
+
+func (cs *ConfigService) GetAgentConfig() *config.AgentConfig {
+	return cs.config.GetAgentConfig()
+}
+
+func (cs *ConfigService) GetSandboxDirectories() []string {
+	return cs.config.GetSandboxDirectories()
+}
+
+func (cs *ConfigService) GetProtectedPaths() []string {
+	return cs.config.GetProtectedPaths()
 }

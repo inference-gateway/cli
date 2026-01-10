@@ -3,6 +3,7 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"runtime"
 	"strings"
 	"time"
 
@@ -85,8 +86,10 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 
 		a2aAgentInfo := s.buildA2AAgentInfo()
 
-		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s\n\nCurrent date and time: %s",
-			baseSystemPrompt, sandboxInfo, a2aAgentInfo, currentTime)
+		osInfo := s.buildOSInfo()
+
+		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s%s\n\nCurrent date and time: %s",
+			baseSystemPrompt, sandboxInfo, a2aAgentInfo, osInfo, currentTime)
 
 		systemMessages = append(systemMessages, sdk.Message{
 			Role:    sdk.System,
@@ -170,6 +173,27 @@ func (s *AgentServiceImpl) buildSandboxInfo() string {
 	}
 
 	return sandboxInfo.String()
+}
+
+// buildOSInfo creates dynamic OS information for the system prompt
+func (s *AgentServiceImpl) buildOSInfo() string {
+	osInfo := fmt.Sprintf("\n\nOPERATING SYSTEM: %s", runtime.GOOS)
+
+	switch runtime.GOOS {
+	case "darwin":
+		osInfo += "\n- Use 'cmd' modifier for keyboard shortcuts (e.g., 'cmd+c' for copy)"
+		osInfo += "\n- Use 'open -a AppName' to launch applications (e.g., 'open -a Firefox')"
+		osInfo += "\n- Use 'open file.txt' to open files with default app"
+		osInfo += "\n- IMPORTANT: When opening URLs in browsers, ALWAYS open in a NEW WINDOW, not a new tab"
+		osInfo += "\n  Example: 'open -n -a \"Google Chrome\" --args --new-window https://example.com'"
+		osInfo += "\n  Or for Safari: 'open -n -a Safari https://example.com'"
+		osInfo += "\n  This allows proper focus management between windows"
+	case "linux":
+		osInfo += "\n- Use 'ctrl' modifier for keyboard shortcuts (e.g., 'ctrl+c' for copy)"
+		osInfo += "\n- Use command name directly or 'xdg-open' to launch applications"
+	}
+
+	return osInfo
 }
 
 // validateRequest validates the agent request

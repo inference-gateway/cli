@@ -18,7 +18,7 @@ const (
 	ToolStatusStarting ToolExecutionStatus = "starting"
 	ToolStatusRunning  ToolExecutionStatus = "running"
 	ToolStatusSaving   ToolExecutionStatus = "saving"
-	ToolStatusComplete ToolExecutionStatus = "complete"
+	ToolStatusComplete ToolExecutionStatus = "completed"
 	ToolStatusFailed   ToolExecutionStatus = "failed"
 )
 

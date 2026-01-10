@@ -29,6 +29,16 @@ type FakeConfigService struct {
 	getAgentConfigReturnsOnCall map[int]struct {
 		result1 *config.AgentConfig
 	}
+	GetConfigStub        func() *config.Config
+	getConfigMutex       sync.RWMutex
+	getConfigArgsForCall []struct {
+	}
+	getConfigReturns struct {
+		result1 *config.Config
+	}
+	getConfigReturnsOnCall map[int]struct {
+		result1 *config.Config
+	}
 	GetGatewayURLStub        func() string
 	getGatewayURLMutex       sync.RWMutex
 	getGatewayURLArgsForCall []struct {
@@ -208,6 +218,59 @@ func (fake *FakeConfigService) GetAgentConfigReturnsOnCall(i int, result1 *confi
 	}
 	fake.getAgentConfigReturnsOnCall[i] = struct {
 		result1 *config.AgentConfig
+	}{result1}
+}
+
+func (fake *FakeConfigService) GetConfig() *config.Config {
+	fake.getConfigMutex.Lock()
+	ret, specificReturn := fake.getConfigReturnsOnCall[len(fake.getConfigArgsForCall)]
+	fake.getConfigArgsForCall = append(fake.getConfigArgsForCall, struct {
+	}{})
+	stub := fake.GetConfigStub
+	fakeReturns := fake.getConfigReturns
+	fake.recordInvocation("GetConfig", []interface{}{})
+	fake.getConfigMutex.Unlock()
+	if stub != nil {
+		return stub()
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConfigService) GetConfigCallCount() int {
+	fake.getConfigMutex.RLock()
+	defer fake.getConfigMutex.RUnlock()
+	return len(fake.getConfigArgsForCall)
+}
+
+func (fake *FakeConfigService) GetConfigCalls(stub func() *config.Config) {
+	fake.getConfigMutex.Lock()
+	defer fake.getConfigMutex.Unlock()
+	fake.GetConfigStub = stub
+}
+
+func (fake *FakeConfigService) GetConfigReturns(result1 *config.Config) {
+	fake.getConfigMutex.Lock()
+	defer fake.getConfigMutex.Unlock()
+	fake.GetConfigStub = nil
+	fake.getConfigReturns = struct {
+		result1 *config.Config
+	}{result1}
+}
+
+func (fake *FakeConfigService) GetConfigReturnsOnCall(i int, result1 *config.Config) {
+	fake.getConfigMutex.Lock()
+	defer fake.getConfigMutex.Unlock()
+	fake.GetConfigStub = nil
+	if fake.getConfigReturnsOnCall == nil {
+		fake.getConfigReturnsOnCall = make(map[int]struct {
+			result1 *config.Config
+		})
+	}
+	fake.getConfigReturnsOnCall[i] = struct {
+		result1 *config.Config
 	}{result1}
 }
 

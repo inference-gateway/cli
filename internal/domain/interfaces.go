@@ -28,6 +28,82 @@ type ImageAttachment struct {
 	SourcePath  string `json:"-"`
 }
 
+// Computer use result types
+
+// ScreenRegion represents a rectangular region of the screen
+type ScreenRegion struct {
+	X      int `json:"x"`
+	Y      int `json:"y"`
+	Width  int `json:"width"`
+	Height int `json:"height"`
+}
+
+// Screenshot represents a captured screenshot with metadata
+type Screenshot struct {
+	ID             string    `json:"id"`
+	Timestamp      time.Time `json:"timestamp"`
+	Data           string    `json:"data"`            // base64 encoded image
+	Width          int       `json:"width"`           // Final image width (after scaling)
+	Height         int       `json:"height"`          // Final image height (after scaling)
+	Format         string    `json:"format"`          // "png" or "jpeg"
+	Method         string    `json:"method"`          // "x11" or "wayland"
+	OriginalWidth  int       `json:"original_width"`  // Screen width before scaling
+	OriginalHeight int       `json:"original_height"` // Screen height before scaling
+}
+
+// ScreenshotProvider defines the interface for getting screenshots from a buffer
+type ScreenshotProvider interface {
+	GetLatestScreenshot() (*Screenshot, error)
+}
+
+// RateLimiter defines the interface for rate limiting computer use actions
+type RateLimiter interface {
+	// CheckAndRecord checks if the action is within rate limits and records it
+	CheckAndRecord(toolName string) error
+	// GetCurrentCount returns the number of actions in the current window
+	GetCurrentCount() int
+	// Reset clears all recorded actions
+	Reset()
+}
+
+// ScreenshotToolResult represents the result of a screenshot capture
+type ScreenshotToolResult struct {
+	Display string        `json:"display"`
+	Region  *ScreenRegion `json:"region,omitempty"`
+	Width   int           `json:"width"`
+	Height  int           `json:"height"`
+	Format  string        `json:"format"`
+	Method  string        `json:"method"`
+}
+
+// MouseMoveToolResult represents the result of a mouse move operation
+type MouseMoveToolResult struct {
+	FromX   int    `json:"from_x"`
+	FromY   int    `json:"from_y"`
+	ToX     int    `json:"to_x"`
+	ToY     int    `json:"to_y"`
+	Display string `json:"display"`
+	Method  string `json:"method"`
+}
+
+// MouseClickToolResult represents the result of a mouse click operation
+type MouseClickToolResult struct {
+	Button  string `json:"button"`
+	Clicks  int    `json:"clicks"`
+	X       int    `json:"x"`
+	Y       int    `json:"y"`
+	Display string `json:"display"`
+	Method  string `json:"method"`
+}
+
+// KeyboardTypeToolResult represents the result of a keyboard input operation
+type KeyboardTypeToolResult struct {
+	Text     string `json:"text,omitempty"`
+	KeyCombo string `json:"key_combo,omitempty"`
+	Display  string `json:"display"`
+	Method   string `json:"method"`
+}
+
 // ConversationEntry represents a message in the conversation with metadata
 type ConversationEntry struct {
 	// Core message fields
@@ -127,6 +203,22 @@ type ChatEvent interface {
 	GetTimestamp() time.Time
 }
 
+// EventBridge multicasts chat events to multiple subscribers (e.g., terminal UI and floating window)
+type EventBridge interface {
+	// Tap intercepts an event stream and multicasts it to all subscribers
+	// Returns a new channel that mirrors the input channel
+	Tap(input <-chan ChatEvent) <-chan ChatEvent
+
+	// Publish broadcasts an event to all subscribers
+	Publish(event ChatEvent)
+
+	// Subscribe creates a new event channel and returns it
+	Subscribe() chan ChatEvent
+
+	// Unsubscribe removes a subscriber and closes its channel
+	Unsubscribe(ch chan ChatEvent)
+}
+
 // ChatMetrics holds performance and usage metrics
 type ChatMetrics struct {
 	Duration time.Duration
@@ -194,6 +286,11 @@ type StateManager interface {
 	GetChatSession() *ChatSession
 	IsAgentBusy() bool
 
+	// Event multicast for floating window
+	SetEventBridge(bridge EventBridge)
+	GetEventBridge() EventBridge
+	BroadcastEvent(event ChatEvent)
+
 	// Tool execution management
 	StartToolExecution(toolCalls []sdk.ChatCompletionMessageToolCall) error
 	CompleteCurrentTool(result *ToolExecutionResult) error
@@ -242,6 +339,20 @@ type StateManager interface {
 	GetMessageEditState() *MessageEditState
 	ClearMessageEditState()
 	IsEditingMessage() bool
+
+	// Focus management (macOS computer-use tools)
+	SetLastFocusedApp(appID string)
+	GetLastFocusedApp() string
+	ClearLastFocusedApp()
+	SetLastClickCoordinates(x, y int)
+	GetLastClickCoordinates() (x, y int)
+	ClearLastClickCoordinates()
+
+	// Computer Use Pause State
+	SetComputerUsePaused(paused bool, requestID string)
+	IsComputerUsePaused() bool
+	GetPausedRequestID() string
+	ClearComputerUsePauseState()
 }
 
 // FileService handles file operations

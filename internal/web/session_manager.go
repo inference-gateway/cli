@@ -22,9 +22,10 @@ type SessionManager struct {
 
 // SessionEntry tracks a session and its activity
 type SessionEntry struct {
-	session    Session
-	lastActive time.Time
-	mu         sync.Mutex
+	session        Session
+	lastActive     time.Time
+	screenshotPort int // Local forwarded port for screenshot streaming
+	mu             sync.Mutex
 }
 
 func NewSessionManager(cfg *config.Config, v *viper.Viper) *SessionManager {
@@ -138,6 +139,70 @@ func (sm *SessionManager) ActiveSessionCount() int {
 	sm.mu.RLock()
 	defer sm.mu.RUnlock()
 	return len(sm.sessions)
+}
+
+// RegisterSession registers an existing session with the manager
+func (sm *SessionManager) RegisterSession(sessionID string, session Session) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+
+	entry := &SessionEntry{
+		session:    session,
+		lastActive: time.Now(),
+	}
+
+	sm.sessions[sessionID] = entry
+	logger.Info("Session registered", "id", sessionID, "total", len(sm.sessions))
+}
+
+// SetScreenshotPort sets the local screenshot port for a session
+func (sm *SessionManager) SetScreenshotPort(sessionID string, port int) {
+	sm.mu.RLock()
+	entry, exists := sm.sessions[sessionID]
+	sm.mu.RUnlock()
+
+	if exists {
+		entry.mu.Lock()
+		entry.screenshotPort = port
+		entry.mu.Unlock()
+		logger.Info("Screenshot port set for session",
+			"session_id", sessionID,
+			"port", port)
+	} else {
+		logger.Warn("Cannot set screenshot port: session not found",
+			"session_id", sessionID,
+			"port", port)
+	}
+}
+
+// GetScreenshotPort retrieves the local screenshot port for a session
+func (sm *SessionManager) GetScreenshotPort(sessionID string) (int, bool) {
+	sm.mu.RLock()
+	entry, exists := sm.sessions[sessionID]
+	sm.mu.RUnlock()
+
+	if !exists {
+		logger.Warn("Cannot get screenshot port: session not found",
+			"session_id", sessionID,
+			"total_sessions", len(sm.sessions))
+		return 0, false
+	}
+
+	entry.mu.Lock()
+	port := entry.screenshotPort
+	entry.mu.Unlock()
+
+	if port == 0 {
+		logger.Warn("Screenshot port not set for session",
+			"session_id", sessionID)
+		return 0, false
+	}
+
+	logger.Info("Retrieved screenshot port for session",
+		"session_id", sessionID,
+		"port", port)
+
+	return port, true
 }
 
 // Shutdown stops all sessions and the cleanup goroutine

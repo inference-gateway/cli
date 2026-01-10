@@ -286,8 +286,10 @@ func (a *AutocompleteImpl) generateArgumentTemplate(paramName string, properties
 			switch paramType {
 			case "string":
 				return paramName + "=\"\""
-			case "integer", "number":
-				return ""
+			case "integer":
+				return paramName + "=0"
+			case "number":
+				return paramName + "=0.0"
 			case "boolean":
 				return paramName + "=false"
 			default:

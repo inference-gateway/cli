@@ -6,86 +6,126 @@ import (
 	"strings"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
+	display "github.com/inference-gateway/cli/internal/display"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
+
+	_ "github.com/inference-gateway/cli/internal/display/macos"
+	_ "github.com/inference-gateway/cli/internal/display/wayland"
+	_ "github.com/inference-gateway/cli/internal/display/x11"
 )
 
 // Registry manages all available tools
 type Registry struct {
-	config       *config.Config
-	tools        map[string]domain.Tool
-	readToolUsed bool
-	taskTracker  domain.TaskTracker
-	imageService domain.ImageService
-	mcpManager   domain.MCPManager
-	shellService domain.BackgroundShellService
+	config             domain.ConfigService
+	tools              map[string]domain.Tool
+	readToolUsed       bool
+	taskTracker        domain.TaskTracker
+	imageService       domain.ImageService
+	mcpManager         domain.MCPManager
+	shellService       domain.BackgroundShellService
+	stateManager       domain.StateManager
+	screenshotProvider domain.ScreenshotProvider
 }
 
 // NewRegistry creates a new tool registry with self-contained tools
-func NewRegistry(cfg *config.Config, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService) *Registry {
+func NewRegistry(cfg domain.ConfigService, imageService domain.ImageService, mcpManager domain.MCPManager, shellService domain.BackgroundShellService, stateManager domain.StateManager, screenshotProvider domain.ScreenshotProvider) *Registry {
 	registry := &Registry{
-		config:       cfg,
-		tools:        make(map[string]domain.Tool),
-		shellService: shellService,
-		readToolUsed: false,
-		taskTracker:  utils.NewTaskTracker(),
-		imageService: imageService,
-		mcpManager:   mcpManager,
+		config:             cfg,
+		tools:              make(map[string]domain.Tool),
+		shellService:       shellService,
+		readToolUsed:       false,
+		taskTracker:        utils.NewTaskTracker(),
+		imageService:       imageService,
+		mcpManager:         mcpManager,
+		stateManager:       stateManager,
+		screenshotProvider: screenshotProvider,
 	}
 
 	registry.registerTools()
 	return registry
 }
 
+// SetScreenshotProvider updates the screenshot provider for tools that need it
+func (r *Registry) SetScreenshotProvider(provider domain.ScreenshotProvider) {
+	r.screenshotProvider = provider
+
+	cfg := r.config.GetConfig()
+	if cfg.ComputerUse.Enabled {
+		displayProvider, err := display.DetectDisplay()
+		if err == nil {
+			rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
+			r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
+		}
+	}
+}
+
 // registerTools initializes and registers all available tools
 func (r *Registry) registerTools() {
-	r.tools["Bash"] = NewBashTool(r.config, r.shellService)
+	cfg := r.config.GetConfig()
 
-	if r.config.Tools.Bash.BackgroundShells.Enabled && r.shellService != nil {
-		r.tools["BashOutput"] = NewBashOutputTool(r.config, r.shellService)
-		r.tools["KillShell"] = NewKillShellTool(r.config, r.shellService)
-		r.tools["ListShells"] = NewListShellsTool(r.config, r.shellService)
+	r.tools["Bash"] = NewBashTool(cfg, r.shellService)
+
+	if cfg.Tools.Bash.BackgroundShells.Enabled && r.shellService != nil {
+		r.tools["BashOutput"] = NewBashOutputTool(cfg, r.shellService)
+		r.tools["KillShell"] = NewKillShellTool(cfg, r.shellService)
+		r.tools["ListShells"] = NewListShellsTool(cfg, r.shellService)
 	}
 
-	r.tools["Read"] = NewReadTool(r.config)
-	r.tools["Write"] = NewWriteTool(r.config)
-	r.tools["Edit"] = NewEditToolWithRegistry(r.config, r)
-	r.tools["MultiEdit"] = NewMultiEditToolWithRegistry(r.config, r)
-	r.tools["Delete"] = NewDeleteTool(r.config)
-	r.tools["Grep"] = NewGrepTool(r.config)
-	r.tools["Tree"] = NewTreeTool(r.config)
-	r.tools["TodoWrite"] = NewTodoWriteTool(r.config)
-	r.tools["RequestPlanApproval"] = NewRequestPlanApprovalTool(r.config)
+	r.tools["Read"] = NewReadTool(cfg)
+	r.tools["Write"] = NewWriteTool(cfg)
+	r.tools["Edit"] = NewEditToolWithRegistry(cfg, r)
+	r.tools["MultiEdit"] = NewMultiEditToolWithRegistry(cfg, r)
+	r.tools["Delete"] = NewDeleteTool(cfg)
+	r.tools["Grep"] = NewGrepTool(cfg)
+	r.tools["Tree"] = NewTreeTool(cfg)
+	r.tools["TodoWrite"] = NewTodoWriteTool(cfg)
+	r.tools["RequestPlanApproval"] = NewRequestPlanApprovalTool(cfg)
 
-	if r.config.Tools.WebFetch.Enabled {
-		r.tools["WebFetch"] = NewWebFetchTool(r.config)
+	if cfg.Tools.WebFetch.Enabled {
+		r.tools["WebFetch"] = NewWebFetchTool(cfg)
 	}
 
-	if r.config.Tools.WebSearch.Enabled {
-		r.tools["WebSearch"] = NewWebSearchTool(r.config)
+	if cfg.Tools.WebSearch.Enabled {
+		r.tools["WebSearch"] = NewWebSearchTool(cfg)
 	}
 
-	if r.config.Tools.Github.Enabled {
-		r.tools["Github"] = NewGithubTool(r.config, r.imageService)
+	if cfg.Tools.Github.Enabled {
+		r.tools["Github"] = NewGithubTool(cfg, r.imageService)
 	}
 
-	if r.config.IsA2AToolsEnabled() {
-		r.tools["A2A_QueryAgent"] = NewA2AQueryAgentTool(r.config)
-		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(r.config, r.taskTracker)
-		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(r.config, r.taskTracker)
+	if cfg.IsA2AToolsEnabled() {
+		r.tools["A2A_QueryAgent"] = NewA2AQueryAgentTool(cfg)
+		r.tools["A2A_QueryTask"] = NewA2AQueryTaskTool(cfg, r.taskTracker)
+		r.tools["A2A_SubmitTask"] = NewA2ASubmitTaskTool(cfg, r.taskTracker)
 	}
 
-	if r.config.MCP.Enabled && r.mcpManager != nil {
+	if cfg.ComputerUse.Enabled {
+		displayProvider, err := display.DetectDisplay()
+		if err != nil {
+			logger.Warn("No compatible display platform detected, computer use tools will be disabled", "error", err)
+		} else {
+			rateLimiter := utils.NewRateLimiter(cfg.ComputerUse.RateLimit)
+			r.tools["MouseMove"] = NewMouseMoveTool(cfg, rateLimiter, displayProvider, r.stateManager)
+			r.tools["MouseClick"] = NewMouseClickTool(cfg, rateLimiter, displayProvider, r.stateManager)
+			r.tools["MouseScroll"] = NewMouseScrollTool(cfg, rateLimiter, displayProvider)
+			r.tools["KeyboardType"] = NewKeyboardTypeTool(cfg, rateLimiter, displayProvider)
+			r.tools["GetFocusedApp"] = NewGetFocusedAppTool(r.config)
+			r.tools["ActivateApp"] = NewActivateAppTool(r.config)
+		}
+	}
+
+	if cfg.MCP.Enabled && r.mcpManager != nil {
 		r.registerMCPTools()
 	}
 }
 
 // registerMCPTools discovers and registers tools from enabled MCP servers
 func (r *Registry) registerMCPTools() {
-	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(r.config.MCP.DiscoveryTimeout)*time.Second)
+	cfg := r.config.GetConfig()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.MCP.DiscoveryTimeout)*time.Second)
 	defer cancel()
 
 	toolCount := 0
@@ -180,6 +220,8 @@ func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPD
 	}
 
 	toolCount := 0
+	cfg := r.config.GetConfig()
+
 	for _, tool := range tools {
 		fullToolName := fmt.Sprintf("MCP_%s_%s", serverName, tool.Name)
 
@@ -189,7 +231,7 @@ func (r *Registry) RegisterMCPServerTools(serverName string, tools []domain.MCPD
 			tool.Description,
 			tool.InputSchema,
 			targetClient,
-			&r.config.MCP,
+			&cfg.MCP,
 		)
 
 		r.tools[fullToolName] = mcpTool
@@ -226,6 +268,28 @@ func (r *Registry) UnregisterMCPServerTools(serverName string) int {
 	return removedCount
 }
 
+// SetScreenshotServer dynamically registers the GetLatestScreenshot tool
+// This should be called after the screenshot server is started
+func (r *Registry) SetScreenshotServer(provider domain.ScreenshotProvider) {
+	cfg := r.config.GetConfig()
+	if !cfg.ComputerUse.Enabled || !cfg.ComputerUse.Screenshot.StreamingEnabled {
+		logger.Debug("Screenshot streaming not enabled, skipping GetLatestScreenshot tool registration")
+		return
+	}
+
+	if provider == nil {
+		logger.Warn("Screenshot provider is nil, cannot register GetLatestScreenshot tool")
+		return
+	}
+
+	r.SetScreenshotProvider(provider)
+
+	getLatestTool := NewGetLatestScreenshotTool(cfg, provider)
+	r.tools["GetLatestScreenshot"] = getLatestTool
+
+	logger.Info("Dynamically registered GetLatestScreenshot tool for streaming mode")
+}
+
 // SetReadToolUsed marks that the Read tool has been used
 func (r *Registry) SetReadToolUsed() {
 	r.readToolUsed = true
@@ -244,4 +308,20 @@ func (r *Registry) GetTaskTracker() domain.TaskTracker {
 // GetBackgroundShellService returns the background shell service instance
 func (r *Registry) GetBackgroundShellService() domain.BackgroundShellService {
 	return r.shellService
+}
+
+// IsComputerUseTool returns true if the given tool name is a computer use tool
+// Computer use tools operate directly on the computer (mouse, keyboard, screenshot)
+// and bypass the standard approval flow
+func IsComputerUseTool(toolName string) bool {
+	computerUseTools := map[string]bool{
+		"MouseClick":          true,
+		"MouseMove":           true,
+		"MouseScroll":         true,
+		"KeyboardType":        true,
+		"ActivateApp":         true,
+		"GetFocusedApp":       true,
+		"GetLatestScreenshot": true,
+	}
+	return computerUseTools[toolName]
 }

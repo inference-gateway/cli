@@ -19,6 +19,9 @@ type StateManager struct {
 	// State change listeners
 	listeners []StateChangeListener
 
+	// Event multicast for floating window (optional)
+	eventBridge domain.EventBridge
+
 	// Debug and audit trail
 	debugMode      bool
 	stateHistory   []domain.StateSnapshot
@@ -187,12 +190,30 @@ func (sm *StateManager) SetChatPending() {
 	}
 }
 
+// SetEventBridge sets the event bridge for multicasting events to floating window
+func (sm *StateManager) SetEventBridge(bridge domain.EventBridge) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.eventBridge = bridge
+}
+
+// GetEventBridge returns the event bridge for control event forwarding
+func (sm *StateManager) GetEventBridge() domain.EventBridge {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.eventBridge
+}
+
 // StartChatSession starts a new chat session
 func (sm *StateManager) StartChatSession(requestID, model string, eventChan <-chan domain.ChatEvent) error {
 	sm.mutex.Lock()
 	defer sm.mutex.Unlock()
 
 	oldState := sm.state.GetStateSnapshot()
+
+	if sm.eventBridge != nil {
+		eventChan = sm.eventBridge.Tap(eventChan)
+	}
 
 	sm.state.StartChatSession(requestID, model, eventChan)
 
@@ -505,6 +526,24 @@ func (sm *StateManager) ClearApprovalUIState() {
 	defer sm.mutex.Unlock()
 
 	sm.state.ClearApprovalUIState()
+
+	if sm.eventBridge != nil {
+		requestID := ""
+		if chatSession := sm.state.GetChatSession(); chatSession != nil {
+			requestID = chatSession.RequestID
+		}
+		sm.eventBridge.Publish(domain.ToolApprovalClearedEvent{
+			RequestID: requestID,
+			Timestamp: time.Now(),
+		})
+	}
+}
+
+// BroadcastEvent publishes an event to the EventBridge for floating window
+func (sm *StateManager) BroadcastEvent(event domain.ChatEvent) {
+	if sm.eventBridge != nil {
+		sm.eventBridge.Publish(event)
+	}
 }
 
 // Plan approval state methods
@@ -747,4 +786,78 @@ type HealthStatus struct {
 	StateHistorySize int       `json:"state_history_size"`
 	LastStateChange  time.Time `json:"last_state_change"`
 	MemoryUsageKB    int       `json:"memory_usage_kb"`
+}
+
+// Focus management methods (macOS computer-use tools)
+
+// SetLastFocusedApp stores the bundle ID of the last focused application
+func (sm *StateManager) SetLastFocusedApp(appID string) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.SetLastFocusedApp(appID)
+}
+
+// GetLastFocusedApp returns the bundle ID of the last focused application
+func (sm *StateManager) GetLastFocusedApp() string {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.GetLastFocusedApp()
+}
+
+// ClearLastFocusedApp clears the stored focused app
+func (sm *StateManager) ClearLastFocusedApp() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.ClearLastFocusedApp()
+}
+
+// SetLastClickCoordinates stores the coordinates of the last click
+func (sm *StateManager) SetLastClickCoordinates(x, y int) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.SetLastClickCoordinates(x, y)
+}
+
+// GetLastClickCoordinates returns the coordinates of the last click
+func (sm *StateManager) GetLastClickCoordinates() (x, y int) {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.GetLastClickCoordinates()
+}
+
+// ClearLastClickCoordinates clears the stored click coordinates
+func (sm *StateManager) ClearLastClickCoordinates() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.ClearLastClickCoordinates()
+}
+
+// Computer Use Pause State Management
+
+// SetComputerUsePaused sets the paused state for computer use
+func (sm *StateManager) SetComputerUsePaused(paused bool, requestID string) {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.SetComputerUsePaused(paused, requestID)
+}
+
+// IsComputerUsePaused returns whether computer use is currently paused
+func (sm *StateManager) IsComputerUsePaused() bool {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.IsComputerUsePaused()
+}
+
+// GetPausedRequestID returns the request ID of the paused execution
+func (sm *StateManager) GetPausedRequestID() string {
+	sm.mutex.RLock()
+	defer sm.mutex.RUnlock()
+	return sm.state.GetPausedRequestID()
+}
+
+// ClearComputerUsePauseState clears the pause state
+func (sm *StateManager) ClearComputerUsePauseState() {
+	sm.mutex.Lock()
+	defer sm.mutex.Unlock()
+	sm.state.ClearComputerUsePauseState()
 }
