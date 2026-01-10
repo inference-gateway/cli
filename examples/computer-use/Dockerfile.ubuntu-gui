@@ -47,6 +47,9 @@ RUN useradd -m -s /bin/bash ubuntu 2>/dev/null || true && \
     usermod -aG sudo ubuntu && \
     echo "ubuntu ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
+RUN mkdir -p /home/ubuntu/.infer/logs && \
+    chown -R ubuntu:ubuntu /home/ubuntu/.infer
+
 RUN printf '#!/bin/bash\nexec /usr/bin/chromium --no-sandbox --disable-dev-shm-usage --disable-gpu --disable-software-rasterizer "$@"\n' > /usr/local/bin/chromium && \
     chmod +x /usr/local/bin/chromium
 
@@ -78,13 +81,23 @@ COPY <<'EOF' /usr/local/bin/start-services.sh
 #!/bin/bash
 set -e
 
-# Export INFER_* and DISPLAY environment variables to /etc/environment for SSH sessions
 echo "Exporting environment variables to /etc/environment..."
 env | grep -E '^(INFER_|DISPLAY=)' | while IFS='=' read -r key value; do
     sed -i "/^${key}=/d" /etc/environment 2>/dev/null || true
     echo "${key}=${value}" >> /etc/environment
     echo "  Exported: ${key}=${value}"
 done
+
+LOG_DIR="/home/ubuntu/.infer/logs"
+(
+    while true; do
+        if [ -d "$LOG_DIR" ] && [ -n "$(ls -A $LOG_DIR/*.log 2>/dev/null)" ]; then
+            tail -F $LOG_DIR/*.log 2>/dev/null
+        fi
+        sleep 5
+    done
+) &
+echo "✓ Log forwarding enabled for $LOG_DIR"
 
 if [ -f /tmp/authorized_keys ]; then
     cp /tmp/authorized_keys /home/ubuntu/.ssh/authorized_keys
@@ -112,7 +125,6 @@ mkdir -p /home/ubuntu/.config/xfce4 \
          /home/ubuntu/.local/share/applications \
          /home/ubuntu/.local/share/xfce4/helpers
 
-# Create user-level mimeapps.list
 cat > /home/ubuntu/.config/mimeapps.list << 'MIMEAPPS'
 [Default Applications]
 text/html=chromium.desktop
@@ -131,7 +143,6 @@ x-scheme-handler/http=chromium.desktop
 x-scheme-handler/https=chromium.desktop
 MIMEAPPS
 
-# Create user-level XFCE helper file
 cat > /home/ubuntu/.local/share/xfce4/helpers/chromium.desktop << 'HELPER'
 [Desktop Entry]
 Version=1.0
@@ -144,7 +155,6 @@ Name=Chromium
 X-XFCE-Binaries=chromium
 HELPER
 
-# Create XFCE helpers.rc pointing to our chromium helper
 cat > /home/ubuntu/.config/xfce4/helpers.rc << 'HELPERS'
 WebBrowser=chromium
 HELPERS
