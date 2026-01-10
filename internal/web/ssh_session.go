@@ -126,11 +126,9 @@ func (s *SSHSession) Start(cols, rows int) error {
 
 	cmdArgs := append([]string{"chat"}, s.server.CommandArgs...)
 
-	// Source /etc/environment to pick up docker-compose environment variables, then run infer
-	// Redirect stderr to /dev/null to suppress X11 library warnings
 	cmd := fmt.Sprintf(
 		"sh -c 'set -a; test -f /etc/environment && . /etc/environment; set +a; "+
-			"INFER_GATEWAY_URL=%s INFER_GATEWAY_MODE=remote "+
+			"INFER_GATEWAY_URL=%s "+
 			"%s %s 2>/dev/null'",
 		s.gatewayURL, commandPath, strings.Join(cmdArgs, " "))
 
