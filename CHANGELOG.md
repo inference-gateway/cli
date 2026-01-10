@@ -6,6 +6,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.96.0-rc.1](https://github.com/inference-gateway/cli/compare/v0.95.1...v0.96.0-rc.1) (2026-01-10)
+
+### 🚀 Features
+
+* Add computer use tools with screenshot streaming and remote GUI control ([ebe5cef](https://github.com/inference-gateway/cli/commit/ebe5cefda7f06b242ca7f8898cfcff05add4090d))
+* Add floating window for computer use ([c863fef](https://github.com/inference-gateway/cli/commit/c863fef2c3543a3ef2b8e94051edbbdc145281fe))
+* Add macOS support and focus management tools ([0153abc](https://github.com/inference-gateway/cli/commit/0153abcc623b385565ca9534632170ad9e1395ee))
+* Add native macOS floating window for computer use ([b10a45f](https://github.com/inference-gateway/cli/commit/b10a45fb558b29e0ff2b72d703d536090067df6f))
+* Add typing delay and improve X11 keyboard support ([5bd5520](https://github.com/inference-gateway/cli/commit/5bd552050c8bcd350f4f12b7bd98e21e7e51215f))
+
+### 🐛 Bug Fixes
+
+* Thread safety, coordinate fixes, and manual tool execution ([32adf3b](https://github.com/inference-gateway/cli/commit/32adf3b25f5598acc6bbde43946c291cc7a1783b))
+* Window title overlapping the conversation history ([0ed1361](https://github.com/inference-gateway/cli/commit/0ed136146ac055d2f03cefb6ccec887e30ed1f83))
+
+### ♻️ Code Refactoring
+
+* Add some space when approval actions appear ([c69d5b4](https://github.com/inference-gateway/cli/commit/c69d5b42da925c1e2d8e42ecab8538568955a3c1))
+* Forward inference gateway cli logs to stdout for easy debugging ([cdc8657](https://github.com/inference-gateway/cli/commit/cdc8657271c8813094575dc720e9c422ad346f34))
+* Improve UI layout and mouse click logic ([ed38ee7](https://github.com/inference-gateway/cli/commit/ed38ee707cb058dcd20f7f627cc154c9d97d3f9a))
+* Progress on events ([d0b6631](https://github.com/inference-gateway/cli/commit/d0b6631c1756901e0a2f7a1f240ea7993facc90f))
+* Refactor computer use tools with display protocol abstraction ([9c32649](https://github.com/inference-gateway/cli/commit/9c326499634e00de3609c62ee4eb9f0224dbb0d2))
+* Remove horizontal scrolling from ComputerUse dialog ([157bc38](https://github.com/inference-gateway/cli/commit/157bc38de0770d5904af16c2666cba566b19a0eb))
+* **web:** Rename screenshot overlay to preview ([841bb09](https://github.com/inference-gateway/cli/commit/841bb09444c59987cbcb4390c2cecf6bc6e62452))
+* Replace interface{} with any type ([75610a0](https://github.com/inference-gateway/cli/commit/75610a0f4a51c910a4b9ffe2ff75f215496fc870))
+
+### 📚 Documentation
+
+* Add computer use tools documentation ([ab05f03](https://github.com/inference-gateway/cli/commit/ab05f030542534b6e76bda2ecb829948cf66db6b))
+
+### 🧹 Maintenance
+
+* **deps:** Bump claude-code ([ffe52bf](https://github.com/inference-gateway/cli/commit/ffe52bfd3e0de2ddf7b721fb25cdfedc5c067fe1))
+* Enable computer use ([69ead75](https://github.com/inference-gateway/cli/commit/69ead75e80aece0e09b1d70a8c66fffd86e44063))
+
 ## [0.95.1](https://github.com/inference-gateway/cli/compare/v0.95.0...v0.95.1) (2026-01-01)
 
 ### ♻️ Code Refactoring
