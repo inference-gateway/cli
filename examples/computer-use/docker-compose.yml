@@ -39,7 +39,6 @@ services:
       INFER_COMPUTER_USE_KEYBOARD_TYPE_ENABLED: "true"
     volumes:
       - ubuntu-home:/home/ubuntu
-      # - ../../dist/infer-linux-arm64:/usr/local/bin/infer:ro
       - ./.ssh-keys/id_rsa.pub:/tmp/authorized_keys:ro
     networks:
       - computer-use-network
