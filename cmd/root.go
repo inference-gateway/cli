@@ -71,6 +71,9 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("gateway.exclude_models", defaults.Gateway.ExcludeModels)
 	v.SetDefault("gateway.vision_enabled", defaults.Gateway.VisionEnabled)
 	v.SetDefault("logging", defaults.Logging)
+	v.SetDefault("logging.debug", defaults.Logging.Debug)
+	v.SetDefault("logging.dir", defaults.Logging.Dir)
+	v.SetDefault("logging.console_output", defaults.Logging.ConsoleOutput)
 	v.SetDefault("client", defaults.Client)
 	v.SetDefault("tools", defaults.Tools)
 	v.SetDefault("agent", defaults.Agent)
@@ -90,6 +93,7 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("web.ssh.known_hosts_path", defaults.Web.SSH.KnownHostsPath)
 	v.SetDefault("web.ssh.auto_install", defaults.Web.SSH.AutoInstall)
 	v.SetDefault("web.ssh.install_version", defaults.Web.SSH.InstallVersion)
+	v.SetDefault("web.ssh.install_dir", defaults.Web.SSH.InstallDir)
 	v.SetDefault("web.servers", defaults.Web.Servers)
 	v.SetDefault("computer_use", defaults.ComputerUse)
 	v.SetDefault("computer_use.enabled", defaults.ComputerUse.Enabled)
@@ -237,7 +241,14 @@ func initConfig() { // nolint:funlen
 		}
 	}
 
-	logger.Init(verbose, debug, logDir)
+	consoleOutput := v.GetString("logging.console_output")
+
+	if consoleOutput != "" && consoleOutput != "stderr" {
+		fmt.Fprintf(os.Stderr, "Warning: invalid logging.console_output value '%s', must be 'stderr' or empty\n", consoleOutput)
+		consoleOutput = ""
+	}
+
+	logger.Init(verbose, debug, logDir, consoleOutput)
 }
 
 // processKeybindingEnvVars processes environment variables for keybinding configuration

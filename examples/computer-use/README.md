@@ -121,7 +121,6 @@ environment:
 
   # Computer Use Tools
   INFER_COMPUTER_USE_ENABLED: "true"
-  INFER_COMPUTER_USE_DISPLAY: ":1"
 
   # Screenshot Streaming (automatically disables Screenshot tool)
   INFER_COMPUTER_USE_SCREENSHOT_ENABLED: "true"

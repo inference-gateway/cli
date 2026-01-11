@@ -50,6 +50,8 @@ RUN useradd -m -s /bin/bash ubuntu 2>/dev/null || true && \
 RUN mkdir -p /home/ubuntu/.infer/logs && \
     chown -R ubuntu:ubuntu /home/ubuntu/.infer
 
+RUN echo 'PATH="/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"' > /etc/environment
+
 RUN printf '#!/bin/bash\nexec /usr/bin/chromium --no-sandbox --disable-dev-shm-usage --disable-gpu --disable-software-rasterizer "$@"\n' > /usr/local/bin/chromium && \
     chmod +x /usr/local/bin/chromium
 
@@ -85,19 +87,7 @@ echo "Exporting environment variables to /etc/environment..."
 env | grep -E '^(INFER_|DISPLAY=)' | while IFS='=' read -r key value; do
     sed -i "/^${key}=/d" /etc/environment 2>/dev/null || true
     echo "${key}=${value}" >> /etc/environment
-    echo "  Exported: ${key}=${value}"
 done
-
-LOG_DIR="/home/ubuntu/.infer/logs"
-(
-    while true; do
-        if [ -d "$LOG_DIR" ] && [ -n "$(ls -A $LOG_DIR/*.log 2>/dev/null)" ]; then
-            tail -F $LOG_DIR/*.log 2>/dev/null
-        fi
-        sleep 5
-    done
-) &
-echo "✓ Log forwarding enabled for $LOG_DIR"
 
 if [ -f /tmp/authorized_keys ]; then
     cp /tmp/authorized_keys /home/ubuntu/.ssh/authorized_keys
@@ -181,8 +171,6 @@ EOF
 RUN chmod +x /usr/local/bin/start-services.sh
 
 WORKDIR /home/ubuntu
-
-ENV DISPLAY=:1
 
 EXPOSE 22
 

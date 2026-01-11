@@ -31,6 +31,8 @@ words:
   - creack
   - cyclop
   - davecgh
+  - dbus
+  - dearmor
   - deepseek
   - DEEPSEEK
   - dgryski
@@ -65,6 +67,7 @@ words:
   - jsonschema
   - keybind
   - keygen
+  - keyrings
   - kimi
   - kovidgoyal
   - ledongthuc
@@ -72,6 +75,7 @@ words:
   - lipgloss
   - locafero
   - localereader
+  - localtime
   - lucasb
   - mailru
   - mapstructure
@@ -79,6 +83,7 @@ words:
   - maxbrunsfeld
   - mekayelanik
   - metoro
+  - mimeapps
   - mixtral
   - moonshotai
   - mousemove
@@ -86,7 +91,9 @@ words:
   - multierr
   - myshortcuts
   - nolint
+  - noninteractive
   - NOPASSWD
+  - noreset
   - numbersign
   - oapi
   - ollama
@@ -101,14 +108,17 @@ words:
   - pgup
   - playai
   - pmezard
+  - procps
   - quotedbl
   - qwen
+  - rasterizer
   - Respawn
   - resty
   - retryable
   - rivo
   - robotgo
   - runewidth
+  - runuser
   - sabhiram
   - sagents
   - sagikazarmark
@@ -117,6 +127,7 @@ words:
   - sjson
   - sname
   - sourcegraph
+  - startxfce
   - stretchr
   - sublimetext
   - subosito
@@ -124,10 +135,12 @@ words:
   - systemctl
   - termenv
   - terminfo
+  - thunar
   - tidwall
   - tmpl
   - uniseg
   - upgrader
+  - usermod
   - userspace
   - Winsize
   - xdraw
@@ -137,3 +150,4 @@ words:
   - xtest
   - xxhash
   - yuin
+  - zoneinfo

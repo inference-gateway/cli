@@ -308,12 +308,31 @@ func (s *WebTerminalServer) handleWebSocket(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	handler, err := CreateSessionHandler(&s.cfg.Web, serverCfg, s.cfg, s.viper, sessionID, s.sessionManager)
-	if err != nil {
+	progressCh := make(chan string, 10)
+	var handler SessionHandler
+	var handlerErr error
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		handler, handlerErr = CreateSessionHandler(&s.cfg.Web, serverCfg, s.cfg, s.viper, sessionID, s.sessionManager, progressCh)
+		close(progressCh)
+	}()
+
+	for msg := range progressCh {
+		progressMsg := fmt.Sprintf("\r\n\033[1;36m[Setup]\033[0m %s\r\n", msg)
+		if err := conn.WriteMessage(websocket.BinaryMessage, []byte(progressMsg)); err != nil {
+			logger.Warn("Failed to send progress message", "session_id", sessionID, "error", err)
+		}
+	}
+
+	<-done
+
+	if handlerErr != nil {
 		logger.Error("Failed to create session",
-			"error", err,
+			"error", handlerErr,
 			"server_id", serverID)
-		errMsg := fmt.Sprintf("Failed to start session: %v", err)
+		errMsg := fmt.Sprintf("Failed to start session: %v", handlerErr)
 		if writeErr := conn.WriteMessage(websocket.TextMessage, []byte(errMsg)); writeErr != nil {
 			logger.Warn("Failed to write error message", "session_id", sessionID, "error", writeErr)
 		}

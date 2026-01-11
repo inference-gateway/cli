@@ -429,12 +429,11 @@ func startScreenshotServer(config *config.Config, imageService domain.ImageServi
 	}
 
 	fmt.Printf("• Screenshot API: http://localhost:%d\n", screenshotServer.Port())
+
+	fmt.Printf("\x1b]5555;screenshot_port=%d\x07", screenshotServer.Port())
+
 	toolRegistry.SetScreenshotServer(screenshotServer)
 	logger.Info("Registered GetLatestScreenshot tool with tool registry")
-
-	if os.Getenv("INFER_GATEWAY_MODE") == "remote" {
-		fmt.Printf("\x1b]5555;screenshot_port=%d\x07", screenshotServer.Port())
-	}
 
 	return screenshotServer
 }

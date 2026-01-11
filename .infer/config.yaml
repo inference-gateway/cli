@@ -36,6 +36,7 @@ client:
 logging:
   debug: false
   dir: ""
+  console_output: ""
 tools:
   enabled: true
   sandbox:
@@ -698,9 +699,10 @@ web:
     known_hosts_path: ~/.ssh/known_hosts
     auto_install: true
     install_version: latest
+    install_dir: ~/.local/bin
   servers: []
 computer_use:
-  enabled: true
+  enabled: false
   floating_window:
     enabled: true
     respawn_on_close: true

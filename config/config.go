@@ -83,8 +83,22 @@ type RetryConfig struct {
 
 // LoggingConfig contains logging settings
 type LoggingConfig struct {
-	Debug bool   `yaml:"debug" mapstructure:"debug"`
-	Dir   string `yaml:"dir" mapstructure:"dir"`
+	Debug         bool   `yaml:"debug" mapstructure:"debug"`
+	Dir           string `yaml:"dir" mapstructure:"dir"`
+	ConsoleOutput string `yaml:"console_output" mapstructure:"console_output"`
+}
+
+// ValidateConsoleOutput validates the console_output field value
+func (l *LoggingConfig) ValidateConsoleOutput() error {
+	if l.ConsoleOutput == "" {
+		return nil
+	}
+
+	if l.ConsoleOutput == "stderr" {
+		return nil
+	}
+
+	return fmt.Errorf("invalid console_output value '%s': must be empty or 'stderr'", l.ConsoleOutput)
 }
 
 // ImageConfig contains image service settings
@@ -361,6 +375,7 @@ type WebSSHConfig struct {
 	KnownHostsPath string `yaml:"known_hosts_path" mapstructure:"known_hosts_path"`
 	AutoInstall    bool   `yaml:"auto_install" mapstructure:"auto_install"`
 	InstallVersion string `yaml:"install_version" mapstructure:"install_version"`
+	InstallDir     string `yaml:"install_dir" mapstructure:"install_dir"`
 }
 
 // SSHServerConfig contains configuration for a single remote SSH server
@@ -660,8 +675,9 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 		},
 		Logging: LoggingConfig{
-			Debug: false,
-			Dir:   "",
+			Debug:         false,
+			Dir:           "",
+			ConsoleOutput: "",
 		},
 		Tools: ToolsConfig{
 			Enabled: true,
@@ -1114,6 +1130,7 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				KnownHostsPath: "~/.ssh/known_hosts",
 				AutoInstall:    true,
 				InstallVersion: "latest",
+				InstallDir:     "~/.local/bin",
 			},
 			Servers: []SSHServerConfig{},
 		},
