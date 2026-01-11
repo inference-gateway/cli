@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.96.0](https://github.com/inference-gateway/cli/compare/v0.95.1...v0.96.0) (2026-01-11)
+
+### 🚀 Features
+
+* Add computer use tools for remote and local GUI automation ([#359](https://github.com/inference-gateway/cli/issues/359)) ([7de2498](https://github.com/inference-gateway/cli/commit/7de2498abc40d2d3796714fe11bcf84b102d6a7a))
+
 ## [0.96.0-rc.5](https://github.com/inference-gateway/cli/compare/v0.96.0-rc.4...v0.96.0-rc.5) (2026-01-11)
 
 ### ♻️ Code Refactoring
