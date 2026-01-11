@@ -46,7 +46,8 @@ func runExport(sessionID string) error {
 		return fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	toolRegistry := tools.NewRegistry(cfg, nil, nil, nil)
+	configService := services.NewConfigService(V, cfg)
+	toolRegistry := tools.NewRegistry(configService, nil, nil, nil, nil, nil)
 	toolFormatterService := services.NewToolFormatterService(toolRegistry)
 	pricingService := services.NewPricingService(&cfg.Pricing)
 	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, pricingService, storageBackend)

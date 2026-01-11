@@ -11,6 +11,7 @@ import (
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	tools "github.com/inference-gateway/cli/internal/services/tools"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -106,9 +107,10 @@ func (p *eventPublisher) publishParallelToolsStart(toolCalls []sdk.ChatCompletio
 	tools := make([]domain.ToolInfo, len(toolCalls))
 	for i, tc := range toolCalls {
 		tools[i] = domain.ToolInfo{
-			CallID: tc.Id,
-			Name:   tc.Function.Name,
-			Status: "queued",
+			CallID:    tc.Id,
+			Name:      tc.Function.Name,
+			Status:    "queued",
+			Arguments: tc.Function.Arguments,
 		}
 	}
 
@@ -124,7 +126,7 @@ func (p *eventPublisher) publishParallelToolsStart(toolCalls []sdk.ChatCompletio
 }
 
 // publishToolStatusChange publishes a ToolExecutionProgressEvent
-func (p *eventPublisher) publishToolStatusChange(callID string, toolName string, status string, message string) {
+func (p *eventPublisher) publishToolStatusChange(callID string, toolName string, status string, message string, images []domain.ImageAttachment) {
 	event := domain.ToolExecutionProgressEvent{
 		BaseChatEvent: domain.BaseChatEvent{
 			RequestID: p.requestID,
@@ -134,6 +136,7 @@ func (p *eventPublisher) publishToolStatusChange(callID string, toolName string,
 		ToolName:   toolName,
 		Status:     status,
 		Message:    message,
+		Images:     images,
 	}
 
 	p.chatEvents <- event
@@ -374,6 +377,11 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		return nil, err
 	}
 
+	if s.stateManager != nil && s.stateManager.IsComputerUsePaused() {
+		logger.Info("Execution is paused, waiting for resume")
+		return nil, fmt.Errorf("execution is paused")
+	}
+
 	chatEvents := make(chan domain.ChatEvent, 1000)
 	eventPublisher := newEventPublisher(req.RequestID, chatEvents)
 
@@ -444,7 +452,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				time.Sleep(constants.AgentIterationDelay)
 			}
 
-			requestCtx, requestCancel := context.WithCancel(ctx)
+			requestCtx, requestCancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
 
 			s.requestsMux.Lock()
 			s.activeRequests[req.RequestID] = requestCancel
@@ -514,6 +522,21 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			var streamUsage *sdk.CompletionUsage
 			////// STREAM ITERATION START
 			for event := range events {
+				select {
+				case <-requestCtx.Done():
+					if requestCtx.Err() == context.DeadlineExceeded {
+						logger.Error("stream timeout", "error", requestCtx.Err())
+						eventPublisher.chatEvents <- domain.ChatErrorEvent{
+							RequestID: req.RequestID,
+							Timestamp: time.Now(),
+							Error:     fmt.Errorf("stream timed out after %d seconds", s.timeoutSeconds),
+						}
+						return
+					}
+					return
+				default:
+				}
+
 				if event.Event == nil {
 					logger.Error("event is nil")
 					continue
@@ -684,6 +707,15 @@ func (s *AgentServiceImpl) CancelRequest(requestID string) error {
 		}
 	}
 
+	if s.stateManager != nil {
+		cancelEvent := domain.CancelledEvent{
+			RequestID: requestID,
+			Timestamp: time.Now(),
+			Reason:    "user cancelled",
+		}
+		s.stateManager.BroadcastEvent(cancelEvent)
+	}
+
 	return nil
 }
 
@@ -752,26 +784,19 @@ func (s *AgentServiceImpl) storeIterationMetrics(
 	}
 }
 
-func (s *AgentServiceImpl) optimizeConversation(ctx context.Context, req *domain.AgentRequest, conversation []sdk.Message, eventPublisher *eventPublisher) []sdk.Message {
+func (s *AgentServiceImpl) optimizeConversation(_ context.Context, req *domain.AgentRequest, conversation []sdk.Message, eventPublisher *eventPublisher) []sdk.Message {
 	if s.optimizer == nil {
 		return conversation
 	}
 
 	originalCount := len(conversation)
 
-	eventPublisher.publishOptimizationStatus("Optimizing conversation history...", true, originalCount, originalCount)
-
 	conversation = s.optimizer.OptimizeMessages(conversation, req.Model, false)
 	optimizedCount := len(conversation)
 
-	var message string
 	if originalCount != optimizedCount {
-		message = fmt.Sprintf("Conversation optimized (%d → %d messages)", originalCount, optimizedCount)
-	} else {
-		message = "Conversation optimization completed"
+		eventPublisher.publishOptimizationStatus(fmt.Sprintf("Conversation optimized (%d → %d messages)", originalCount, optimizedCount), false, originalCount, optimizedCount)
 	}
-
-	eventPublisher.publishOptimizationStatus(message, false, originalCount, optimizedCount)
 
 	return conversation
 }
@@ -781,7 +806,7 @@ type IndexedToolResult struct {
 	Result domain.ConversationEntry
 }
 
-func (s *AgentServiceImpl) executeToolCallsParallel(
+func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 	ctx context.Context,
 	toolCalls []*sdk.ChatCompletionMessageToolCall,
 	eventPublisher *eventPublisher,
@@ -836,14 +861,24 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 
 		result := s.executeTool(ctx, *at.tool, eventPublisher, isChatMode)
 
-		status := "complete"
+		status := "completed"
 		message := "Completed successfully"
-		if result.ToolExecution != nil && !result.ToolExecution.Success {
-			status = "failed"
-			message = "Execution failed"
+		var images []domain.ImageAttachment
+		if result.ToolExecution != nil {
+			if !result.ToolExecution.Success {
+				status = "failed"
+				message = "Execution failed"
+			}
+			images = result.ToolExecution.Images
+
+			if at.tool.Function.Name == "GetLatestScreenshot" && len(images) > 0 {
+				logger.Info("Publishing GetLatestScreenshot completion with images",
+					"imageCount", len(images),
+					"status", status)
+			}
 		}
 
-		eventPublisher.publishToolStatusChange(at.tool.Id, at.tool.Function.Name, status, message)
+		eventPublisher.publishToolStatusChange(at.tool.Id, at.tool.Function.Name, status, message, images)
 		results[at.index] = result
 	}
 
@@ -868,20 +903,25 @@ func (s *AgentServiceImpl) executeToolCallsParallel(
 					toolCall.Id,
 					toolCall.Function.Name, "starting",
 					fmt.Sprintf("Initializing %s...", toolCall.Function.Name),
+					nil,
 				)
 
 				time.Sleep(constants.AgentToolExecutionDelay)
 
 				result := s.executeTool(ctx, *toolCall, eventPublisher, isChatMode)
 
-				status := "complete"
+				status := "completed"
 				message := "Completed successfully"
-				if result.ToolExecution != nil && !result.ToolExecution.Success {
-					status = "failed"
-					message = "Execution failed"
+				var images []domain.ImageAttachment
+				if result.ToolExecution != nil {
+					if !result.ToolExecution.Success {
+						status = "failed"
+						message = "Execution failed"
+					}
+					images = result.ToolExecution.Images
 				}
 
-				eventPublisher.publishToolStatusChange(toolCall.Id, toolCall.Function.Name, status, message)
+				eventPublisher.publishToolStatusChange(toolCall.Id, toolCall.Function.Name, status, message, images)
 
 				resultsChan <- IndexedToolResult{
 					Index:  index,
@@ -949,7 +989,7 @@ func (s *AgentServiceImpl) executeTool(
 		wasApproved = true
 	}
 
-	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Executing...")
+	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Executing...", nil)
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 
@@ -1029,7 +1069,7 @@ func (s *AgentServiceImpl) executeTool(
 			ticker.Stop()
 			resultReceived = true
 		case <-ticker.C:
-			eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Processing...")
+			eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Processing...", nil)
 		case <-ctx.Done():
 			logger.Error("tool execution cancelled", "tool", tc.Function.Name)
 			return s.createErrorEntry(tc, ctx.Err(), startTime)
@@ -1041,7 +1081,7 @@ func (s *AgentServiceImpl) executeTool(
 		return s.createErrorEntry(tc, err, startTime)
 	}
 
-	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "saving", "Saving results...")
+	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "saving", "Saving results...", nil)
 
 	time.Sleep(constants.AgentToolExecutionDelay)
 
@@ -1269,14 +1309,23 @@ func (s *AgentServiceImpl) requestToolApproval(
 		ResponseChan: responseChan,
 	}
 
+	var approved bool
+	var err error
+
 	select {
 	case response := <-responseChan:
-		return response == domain.ApprovalApprove, nil
+		if response == domain.ApprovalAutoAccept {
+			logger.Info("Switching to auto-accept mode from floating window")
+			s.stateManager.SetAgentMode(domain.AgentModeAutoAccept)
+		}
+		approved = response == domain.ApprovalApprove || response == domain.ApprovalAutoAccept
 	case <-ctx.Done():
-		return false, fmt.Errorf("approval request cancelled: %w", ctx.Err())
+		err = fmt.Errorf("approval request cancelled: %w", ctx.Err())
 	case <-time.After(5 * time.Minute):
-		return false, fmt.Errorf("approval request timed out")
+		err = fmt.Errorf("approval request timed out")
 	}
+
+	return approved, err
 }
 
 // isBashCommandWhitelisted checks if a Bash tool command is whitelisted
@@ -1296,8 +1345,16 @@ func (s *AgentServiceImpl) isBashCommandWhitelisted(tc *sdk.ChatCompletionMessag
 }
 
 // shouldRequireApproval determines if a tool execution requires user approval
+// Computer use tools always bypass approval (run silently in background)
 // For Bash tool specifically, it checks if the command is whitelisted
 func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
+	toolService, ok := s.toolService.(*LLMToolService)
+	if ok && toolService != nil && toolService.registry != nil {
+		if tools.IsComputerUseTool(tc.Function.Name) {
+			return false
+		}
+	}
+
 	if s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
 		return false
 	}

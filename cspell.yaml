@@ -5,15 +5,23 @@ words:
   - alecthomas
   - alrvd
   - apapsch
+  - asciicircum
+  - asciitilde
+  - autoreleasepool
   - aymanbagabas
   - aymerick
   - bahlo
   - bluemonday
+  - braceleft
+  - braceright
+  - bracketleft
+  - bracketright
   - bubbletea
   - buger
   - cancelreader
   - cellbuf
   - cespare
+  - CFLAGS
   - charmbracelet
   - cloudevents
   - codegen
@@ -21,7 +29,10 @@ words:
   - colorprofile
   - coninput
   - creack
+  - cyclop
   - davecgh
+  - dbus
+  - dearmor
   - deepseek
   - DEEPSEEK
   - dgryski
@@ -30,11 +41,16 @@ words:
   - duckduckgo
   - easyjson
   - erikgeiser
+  - exclam
+  - floatingwindow
+  - frontmost
   - fsnotify
   - funlen
   - gjson
+  - gocognit
   - gocyclo
   - goldmark
+  - googlecode
   - gopkg
   - gotenv
   - groq
@@ -43,16 +59,23 @@ words:
   - inconshreveable
   - invopop
   - isatty
+  - ISPEED
+  - iterm
+  - journalctl
   - jsonmerge
   - jsonparser
   - jsonschema
+  - keybind
   - keygen
+  - keyrings
   - kimi
+  - kovidgoyal
   - ledongthuc
   - libsqlite
   - lipgloss
   - locafero
   - localereader
+  - localtime
   - lucasb
   - mailru
   - mapstructure
@@ -60,39 +83,71 @@ words:
   - maxbrunsfeld
   - mekayelanik
   - metoro
+  - mimeapps
   - mixtral
   - moonshotai
+  - mousemove
   - mtoken
   - multierr
   - myshortcuts
   - nolint
+  - noninteractive
   - NOPASSWD
+  - noreset
+  - numbersign
   - oapi
   - ollama
   - OLLAMA
   - oneline
+  - OSPEED
+  - parenleft
+  - parenright
   - pflag
   - pgdn
+  - pgrep
   - pgup
   - playai
   - pmezard
+  - procps
+  - quotedbl
   - qwen
+  - rasterizer
+  - Respawn
   - resty
   - retryable
   - rivo
+  - robotgo
   - runewidth
+  - runuser
   - sabhiram
+  - sagents
   - sagikazarmark
+  - SCMPR
   - SHTTP
   - sjson
   - sname
   - sourcegraph
+  - startxfce
   - stretchr
+  - sublimetext
   - subosito
   - sysinfo
+  - systemctl
   - termenv
   - terminfo
+  - thunar
   - tidwall
+  - tmpl
   - uniseg
+  - upgrader
+  - usermod
+  - userspace
+  - Winsize
+  - xdraw
+  - xgbutil
+  - xgraphics
+  - ximg
+  - xtest
   - xxhash
   - yuin
+  - zoneinfo

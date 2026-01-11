@@ -71,6 +71,9 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("gateway.exclude_models", defaults.Gateway.ExcludeModels)
 	v.SetDefault("gateway.vision_enabled", defaults.Gateway.VisionEnabled)
 	v.SetDefault("logging", defaults.Logging)
+	v.SetDefault("logging.debug", defaults.Logging.Debug)
+	v.SetDefault("logging.dir", defaults.Logging.Dir)
+	v.SetDefault("logging.console_output", defaults.Logging.ConsoleOutput)
 	v.SetDefault("client", defaults.Client)
 	v.SetDefault("tools", defaults.Tools)
 	v.SetDefault("agent", defaults.Agent)
@@ -90,7 +93,36 @@ func initConfig() { // nolint:funlen
 	v.SetDefault("web.ssh.known_hosts_path", defaults.Web.SSH.KnownHostsPath)
 	v.SetDefault("web.ssh.auto_install", defaults.Web.SSH.AutoInstall)
 	v.SetDefault("web.ssh.install_version", defaults.Web.SSH.InstallVersion)
+	v.SetDefault("web.ssh.install_dir", defaults.Web.SSH.InstallDir)
 	v.SetDefault("web.servers", defaults.Web.Servers)
+	v.SetDefault("computer_use", defaults.ComputerUse)
+	v.SetDefault("computer_use.enabled", defaults.ComputerUse.Enabled)
+	v.SetDefault("computer_use.floating_window.enabled", defaults.ComputerUse.FloatingWindow.Enabled)
+	v.SetDefault("computer_use.floating_window.respawn_on_close", defaults.ComputerUse.FloatingWindow.RespawnOnClose)
+	v.SetDefault("computer_use.floating_window.position", defaults.ComputerUse.FloatingWindow.Position)
+	v.SetDefault("computer_use.floating_window.always_on_top", defaults.ComputerUse.FloatingWindow.AlwaysOnTop)
+	v.SetDefault("computer_use.screenshot.enabled", defaults.ComputerUse.Screenshot.Enabled)
+	v.SetDefault("computer_use.screenshot.max_width", defaults.ComputerUse.Screenshot.MaxWidth)
+	v.SetDefault("computer_use.screenshot.max_height", defaults.ComputerUse.Screenshot.MaxHeight)
+	v.SetDefault("computer_use.screenshot.target_width", defaults.ComputerUse.Screenshot.TargetWidth)
+	v.SetDefault("computer_use.screenshot.target_height", defaults.ComputerUse.Screenshot.TargetHeight)
+	v.SetDefault("computer_use.screenshot.format", defaults.ComputerUse.Screenshot.Format)
+	v.SetDefault("computer_use.screenshot.quality", defaults.ComputerUse.Screenshot.Quality)
+	v.SetDefault("computer_use.screenshot.streaming_enabled", defaults.ComputerUse.Screenshot.StreamingEnabled)
+	v.SetDefault("computer_use.screenshot.capture_interval", defaults.ComputerUse.Screenshot.CaptureInterval)
+	v.SetDefault("computer_use.screenshot.buffer_size", defaults.ComputerUse.Screenshot.BufferSize)
+	v.SetDefault("computer_use.screenshot.temp_dir", defaults.ComputerUse.Screenshot.TempDir)
+	v.SetDefault("computer_use.screenshot.log_captures", defaults.ComputerUse.Screenshot.LogCaptures)
+	v.SetDefault("computer_use.mouse_move.enabled", defaults.ComputerUse.MouseMove.Enabled)
+	v.SetDefault("computer_use.mouse_click.enabled", defaults.ComputerUse.MouseClick.Enabled)
+	v.SetDefault("computer_use.mouse_scroll.enabled", defaults.ComputerUse.MouseScroll.Enabled)
+	v.SetDefault("computer_use.keyboard_type.enabled", defaults.ComputerUse.KeyboardType.Enabled)
+	v.SetDefault("computer_use.keyboard_type.max_text_length", defaults.ComputerUse.KeyboardType.MaxTextLength)
+	v.SetDefault("computer_use.get_focused_app.enabled", defaults.ComputerUse.GetFocusedApp.Enabled)
+	v.SetDefault("computer_use.activate_app.enabled", defaults.ComputerUse.ActivateApp.Enabled)
+	v.SetDefault("computer_use.rate_limit.enabled", defaults.ComputerUse.RateLimit.Enabled)
+	v.SetDefault("computer_use.rate_limit.max_actions_per_minute", defaults.ComputerUse.RateLimit.MaxActionsPerMinute)
+	v.SetDefault("computer_use.rate_limit.window_seconds", defaults.ComputerUse.RateLimit.WindowSeconds)
 	v.SetDefault("git", defaults.Git)
 	v.SetDefault("storage", defaults.Storage)
 	v.SetDefault("conversation", defaults.Conversation)
@@ -209,7 +241,14 @@ func initConfig() { // nolint:funlen
 		}
 	}
 
-	logger.Init(verbose, debug, logDir)
+	consoleOutput := v.GetString("logging.console_output")
+
+	if consoleOutput != "" && consoleOutput != "stderr" {
+		fmt.Fprintf(os.Stderr, "Warning: invalid logging.console_output value '%s', must be 'stderr' or empty\n", consoleOutput)
+		consoleOutput = ""
+	}
+
+	logger.Init(verbose, debug, logDir, consoleOutput)
 }
 
 // processKeybindingEnvVars processes environment variables for keybinding configuration

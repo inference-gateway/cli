@@ -218,7 +218,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	c.initializeMCPManager()
 
-	c.toolRegistry = tools.NewRegistry(c.config, c.imageService, c.mcpManager, c.BackgroundShellService())
+	c.toolRegistry = tools.NewRegistry(c.configService, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil)
 	c.taskTrackerService = c.toolRegistry.GetTaskTracker()
 
 	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
@@ -288,7 +288,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.agentService = services.NewAgentService(
 		agentClient,
 		c.toolService,
-		c.config,
+		c.configService,
 		c.conversationRepo,
 		c.a2aAgentService,
 		c.messageQueue,

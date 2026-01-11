@@ -495,20 +495,9 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 		cmd.Env = append(cmd.Env, "ENVIRONMENT=development")
 	}
 
-	logDir := filepath.Join(".infer", "logs")
-	if err := os.MkdirAll(logDir, 0755); err != nil {
-		logger.Warn("Failed to create gateway log directory", "error", err)
-	} else {
-		logFileName := fmt.Sprintf("gateway-%s.log", time.Now().Format("2006-01-02"))
-		gatewayLogPath := filepath.Join(logDir, logFileName)
-
-		logFile, err := os.OpenFile(gatewayLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-		if err != nil {
-			logger.Warn("Failed to open gateway log file", "error", err)
-		} else {
-			cmd.Stdout = logFile
-			cmd.Stderr = logFile
-		}
+	// Configure gateway output streams
+	if err := gm.configureGatewayOutput(cmd); err != nil {
+		return err
 	}
 
 	if err := cmd.Start(); err != nil {
@@ -517,6 +506,36 @@ func (gm *GatewayManager) runBinary(binaryPath string) error {
 
 	gm.binaryCmd = cmd
 
+	return nil
+}
+
+// configureGatewayOutput sets up stdout/stderr redirection for the gateway binary
+func (gm *GatewayManager) configureGatewayOutput(cmd *exec.Cmd) error {
+	if gm.config.Logging.ConsoleOutput == "stderr" {
+		devNull, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+		if err != nil {
+			return fmt.Errorf("failed to open /dev/null: %w", err)
+		}
+		cmd.Stdout = devNull
+		cmd.Stderr = devNull
+		return nil
+	}
+
+	logDir := filepath.Join(".infer", "logs")
+	if err := os.MkdirAll(logDir, 0755); err != nil {
+		return fmt.Errorf("failed to create gateway log directory: %w", err)
+	}
+
+	logFileName := fmt.Sprintf("gateway-%s.log", time.Now().Format("2006-01-02"))
+	gatewayLogPath := filepath.Join(logDir, logFileName)
+
+	logFile, err := os.OpenFile(gatewayLogPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open gateway log file: %w", err)
+	}
+
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
 	return nil
 }
 

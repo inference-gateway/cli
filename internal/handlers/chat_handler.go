@@ -91,7 +91,7 @@ func NewChatHandler(
 
 // Handle routes incoming messages to appropriate handler methods based on message type.
 // TODO - refactor this
-func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
+func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo,funlen
 	switch m := msg.(type) {
 	case domain.UserInputEvent:
 		return h.HandleUserInputEvent(m)
@@ -163,6 +163,10 @@ func (h *ChatHandler) Handle(msg tea.Msg) tea.Cmd { // nolint:cyclop,gocyclo
 		return nil
 	case domain.MessageHistoryRestoreEvent:
 		return nil
+	case domain.ComputerUsePausedEvent:
+		return h.HandleComputerUsePausedEvent(m)
+	case domain.ComputerUseResumedEvent:
+		return h.HandleComputerUseResumedEvent(m)
 	default:
 		if isUIOnlyEvent(msg) {
 			return nil
@@ -833,6 +837,71 @@ func (h *ChatHandler) HandleAgentStatusUpdateEvent(msg domain.AgentStatusUpdateE
 		time.Sleep(500 * time.Millisecond)
 		return domain.AgentStatusUpdateEvent{}
 	}
+}
+
+// HandleComputerUsePausedEvent handles computer use pause events
+func (h *ChatHandler) HandleComputerUsePausedEvent(msg domain.ComputerUsePausedEvent) tea.Cmd {
+	logger.Debug("HandleComputerUsePausedEvent called", "request_id", msg.RequestID)
+	logger.Info("Computer use execution paused", "request_id", msg.RequestID)
+
+	logger.Debug("Calling agentService.CancelRequest", "request_id", msg.RequestID)
+	if err := h.agentService.CancelRequest(msg.RequestID); err != nil {
+		logger.Error("Failed to cancel request on pause", "error", err, "request_id", msg.RequestID)
+	} else {
+		logger.Debug("Successfully cancelled request", "request_id", msg.RequestID)
+	}
+
+	logger.Debug("Calling stateManager.SetComputerUsePaused", "request_id", msg.RequestID)
+	h.stateManager.SetComputerUsePaused(true, msg.RequestID)
+
+	return func() tea.Msg {
+		return domain.SetStatusEvent{
+			Message:    "Computer use paused by user",
+			Spinner:    false,
+			StatusType: domain.StatusDefault,
+		}
+	}
+}
+
+// HandleComputerUseResumedEvent handles computer use resume events
+func (h *ChatHandler) HandleComputerUseResumedEvent(msg domain.ComputerUseResumedEvent) tea.Cmd {
+	h.stateManager.ClearComputerUsePauseState()
+
+	if h.stateManager.GetChatSession() != nil {
+		h.stateManager.EndChatSession()
+	}
+
+	continueMessage := sdk.Message{
+		Role:    sdk.User,
+		Content: sdk.NewMessageContent("Please continue from where you left off."),
+	}
+
+	entry := domain.ConversationEntry{
+		Message: continueMessage,
+		Time:    time.Now(),
+		Hidden:  true,
+	}
+
+	if err := h.conversationRepo.AddMessage(entry); err != nil {
+		logger.Error("Failed to add continue message", "error", err)
+		return func() tea.Msg {
+			return domain.ShowErrorEvent{
+				Error:  fmt.Sprintf("Failed to resume: %v", err),
+				Sticky: false,
+			}
+		}
+	}
+
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    "Resuming execution...",
+				Spinner:    true,
+				StatusType: domain.StatusDefault,
+			}
+		},
+		h.startChatCompletion(),
+	)
 }
 
 // SetBashDetachChan sets the bash detach channel (thread-safe)

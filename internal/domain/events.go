@@ -11,7 +11,7 @@ type ToolCallStreamStatus string
 
 const (
 	ToolCallStreamStatusStreaming ToolCallStreamStatus = "streaming"
-	ToolCallStreamStatusComplete  ToolCallStreamStatus = "complete"
+	ToolCallStreamStatusComplete  ToolCallStreamStatus = "completed"
 	ToolCallStreamStatusReady     ToolCallStreamStatus = "ready"
 )
 
@@ -205,18 +205,20 @@ type MessageQueuedEvent struct {
 func (e MessageQueuedEvent) GetRequestID() string    { return e.RequestID }
 func (e MessageQueuedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ToolApprovalRequestedEvent indicates a tool requires user approval before execution
+// DEPRECATED: ToolApprovalRequestedEvent is deprecated, computer-use tools now use pause/resume
+// This will be removed in a future version
 type ToolApprovalRequestedEvent struct {
 	RequestID    string
 	Timestamp    time.Time
 	ToolCall     sdk.ChatCompletionMessageToolCall
-	ResponseChan chan ApprovalAction
+	ResponseChan chan ApprovalAction `json:"-"`
 }
 
 func (e ToolApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolApprovalRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ToolApprovedEvent indicates the user approved the tool execution
+// DEPRECATED: ToolApprovedEvent is deprecated, computer-use tools now use pause/resume
+// This will be removed in a future version
 type ToolApprovedEvent struct {
 	RequestID string
 	Timestamp time.Time
@@ -226,7 +228,8 @@ type ToolApprovedEvent struct {
 func (e ToolApprovedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolApprovedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ToolRejectedEvent indicates the user rejected the tool execution
+// DEPRECATED: ToolRejectedEvent is deprecated, computer-use tools now use pause/resume
+// This will be removed in a future version
 type ToolRejectedEvent struct {
 	RequestID string
 	Timestamp time.Time
@@ -236,12 +239,69 @@ type ToolRejectedEvent struct {
 func (e ToolRejectedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolRejectedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
+// DEPRECATED: ToolApprovalClearedEvent is deprecated, computer-use tools now use pause/resume
+// This will be removed in a future version
+type ToolApprovalClearedEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e ToolApprovalClearedEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolApprovalClearedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ComputerUsePauseRequestedEvent indicates user requested to pause computer-use execution
+type ComputerUsePauseRequestedEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e ComputerUsePauseRequestedEvent) GetRequestID() string    { return e.RequestID }
+func (e ComputerUsePauseRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ComputerUseResumeRequestedEvent indicates user requested to resume computer-use execution
+type ComputerUseResumeRequestedEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e ComputerUseResumeRequestedEvent) GetRequestID() string    { return e.RequestID }
+func (e ComputerUseResumeRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ComputerUsePausedEvent indicates computer-use execution has been paused
+type ComputerUsePausedEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e ComputerUsePausedEvent) GetRequestID() string    { return e.RequestID }
+func (e ComputerUsePausedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ComputerUseResumedEvent indicates computer-use execution has resumed
+type ComputerUseResumedEvent struct {
+	RequestID string
+	Timestamp time.Time
+}
+
+func (e ComputerUseResumedEvent) GetRequestID() string    { return e.RequestID }
+func (e ComputerUseResumedEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ToolApprovalNotificationEvent is sent to notify the Computer Use dialog when tool approval is required in TUI
+type ToolApprovalNotificationEvent struct {
+	RequestID string
+	Timestamp time.Time
+	ToolName  string
+	Message   string
+}
+
+func (e ToolApprovalNotificationEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolApprovalNotificationEvent) GetTimestamp() time.Time { return e.Timestamp }
+
 // PlanApprovalRequestedEvent indicates plan mode completion requires user approval
 type PlanApprovalRequestedEvent struct {
 	RequestID    string
 	Timestamp    time.Time
 	PlanContent  string
-	ResponseChan chan PlanApprovalAction
+	ResponseChan chan PlanApprovalAction `json:"-"`
 }
 
 func (e PlanApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
@@ -391,3 +451,16 @@ type MessageEditSubmitEvent struct {
 
 func (e MessageEditSubmitEvent) GetRequestID() string    { return e.RequestID }
 func (e MessageEditSubmitEvent) GetTimestamp() time.Time { return e.Timestamp }
+
+// ComputerUseScreenshotEvent is emitted when a screenshot is captured
+type ComputerUseScreenshotEvent struct {
+	RequestID string
+	Timestamp time.Time
+	Width     int
+	Height    int
+	Region    *ScreenRegion
+	ImageData string
+}
+
+func (e ComputerUseScreenshotEvent) GetRequestID() string    { return e.RequestID }
+func (e ComputerUseScreenshotEvent) GetTimestamp() time.Time { return e.Timestamp }

@@ -31,7 +31,7 @@ import (
 // ChatApplication represents the main application model using state management
 type ChatApplication struct {
 	// Dependencies
-	configService         *config.Config
+	configService         domain.ConfigService
 	agentService          domain.AgentService
 	conversationRepo      domain.ConversationRepository
 	conversationOptimizer domain.ConversationOptimizerService
@@ -102,7 +102,7 @@ func NewChatApplication(
 	conversationRepo domain.ConversationRepository,
 	conversationOptimizer domain.ConversationOptimizerService,
 	modelService domain.ModelService,
-	configService *config.Config,
+	configService domain.ConfigService,
 	toolService domain.ToolService,
 	fileService domain.FileService,
 	imageService domain.ImageService,
@@ -175,7 +175,7 @@ func NewChatApplication(
 		iv.SetThemeService(app.themeService)
 		iv.SetStateManager(app.stateManager)
 		iv.SetImageService(app.imageService)
-		iv.SetConfigService(app.configService)
+		iv.SetConfigService(app.configService.GetConfig())
 		iv.SetConversationRepo(app.conversationRepo)
 	}
 
@@ -189,7 +189,7 @@ func NewChatApplication(
 		isb.SetModelService(app.modelService)
 		isb.SetThemeService(app.themeService)
 		isb.SetStateManager(app.stateManager)
-		isb.SetConfigService(app.configService)
+		isb.SetConfigService(app.configService.GetConfig())
 		isb.SetConversationRepo(app.conversationRepo)
 		isb.SetToolService(app.toolService)
 		isb.SetTokenEstimator(services.NewTokenizerService(services.DefaultTokenizerConfig()))
@@ -209,7 +209,7 @@ func NewChatApplication(
 	app.applicationViewRenderer = components.NewApplicationViewRenderer(styleProvider)
 	app.fileSelectionHandler = components.NewFileSelectionHandler(styleProvider)
 
-	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.configService)
+	app.keyBindingManager = keybinding.NewKeyBindingManager(app, app.configService.GetConfig())
 	app.updateHelpBarShortcuts()
 
 	keyHintFormatter := app.keyBindingManager.GetHintFormatter()
@@ -272,7 +272,7 @@ func NewChatApplication(
 		app.backgroundTaskService,
 		app.toolRegistry.GetBackgroundShellService(),
 		agentManager,
-		configService,
+		app.configService.GetConfig(),
 	)
 
 	app.messageHistoryHandler = handlers.NewMessageHistoryHandler(
@@ -995,7 +995,7 @@ func (app *ChatApplication) handleA2ATaskManagementView(msg tea.Msg) []tea.Cmd {
 	var cmds []tea.Cmd
 
 	if app.taskManager == nil {
-		if !app.configService.A2A.Enabled {
+		if !app.configService.GetConfig().A2A.Enabled {
 			cmds = append(cmds, func() tea.Msg {
 				return domain.ShowErrorEvent{
 					Error:  "Task management requires A2A to be enabled in configuration.",
@@ -1544,7 +1544,7 @@ func (app *ChatApplication) GetImageService() domain.ImageService {
 
 // GetConfig returns the configuration for keybinding context
 func (app *ChatApplication) GetConfig() *config.Config {
-	return app.configService
+	return app.configService.GetConfig()
 }
 
 // GetConfigDir returns the configuration directory path

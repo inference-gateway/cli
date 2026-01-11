@@ -43,6 +43,17 @@ type ApplicationState struct {
 	// Message Edit State
 	messageEditState *MessageEditState
 
+	// Focus Management (macOS computer-use tools)
+	// Stores the bundle ID of the app that was clicked (for restoring focus before keyboard operations)
+	lastFocusedAppID string
+	// Stores the coordinates of the last click (for re-clicking before keyboard operations)
+	lastClickX int
+	lastClickY int
+
+	// Computer Use Pause State
+	computerUsePaused bool
+	pausedRequestID   string
+
 	// Debugging
 	debugMode bool
 }
@@ -763,7 +774,7 @@ func (s *ApplicationState) ClearFileSelectionState() {
 // SetupApprovalUIState initializes approval UI state with the pending tool call
 func (s *ApplicationState) SetupApprovalUIState(toolCall *sdk.ChatCompletionMessageToolCall, responseChan chan ApprovalAction) {
 	s.approvalUIState = &ApprovalUIState{
-		SelectedIndex:   int(ApprovalApprove), // Default to approve
+		SelectedIndex:   int(ApprovalApprove),
 		PendingToolCall: toolCall,
 		ResponseChan:    responseChan,
 	}
@@ -852,6 +863,65 @@ func (s *ApplicationState) ClearMessageEditState() {
 // IsEditingMessage returns true if currently editing a message
 func (s *ApplicationState) IsEditingMessage() bool {
 	return s.messageEditState != nil
+}
+
+// Focus Management Methods (macOS computer-use tools)
+
+// SetLastFocusedApp stores the bundle ID of the last focused application
+// This is used to restore focus before keyboard operations
+func (s *ApplicationState) SetLastFocusedApp(appID string) {
+	s.lastFocusedAppID = appID
+}
+
+// GetLastFocusedApp returns the bundle ID of the last focused application
+func (s *ApplicationState) GetLastFocusedApp() string {
+	return s.lastFocusedAppID
+}
+
+// ClearLastFocusedApp clears the stored focused app
+func (s *ApplicationState) ClearLastFocusedApp() {
+	s.lastFocusedAppID = ""
+}
+
+// SetLastClickCoordinates stores the coordinates of the last click
+func (s *ApplicationState) SetLastClickCoordinates(x, y int) {
+	s.lastClickX = x
+	s.lastClickY = y
+}
+
+// GetLastClickCoordinates returns the coordinates of the last click
+func (s *ApplicationState) GetLastClickCoordinates() (x, y int) {
+	return s.lastClickX, s.lastClickY
+}
+
+// ClearLastClickCoordinates clears the stored click coordinates
+func (s *ApplicationState) ClearLastClickCoordinates() {
+	s.lastClickX = 0
+	s.lastClickY = 0
+}
+
+// Computer Use Pause Management
+
+// SetComputerUsePaused sets the paused state for computer use
+func (s *ApplicationState) SetComputerUsePaused(paused bool, requestID string) {
+	s.computerUsePaused = paused
+	s.pausedRequestID = requestID
+}
+
+// IsComputerUsePaused returns whether computer use is currently paused
+func (s *ApplicationState) IsComputerUsePaused() bool {
+	return s.computerUsePaused
+}
+
+// GetPausedRequestID returns the request ID of the paused execution
+func (s *ApplicationState) GetPausedRequestID() string {
+	return s.pausedRequestID
+}
+
+// ClearComputerUsePauseState clears the pause state
+func (s *ApplicationState) ClearComputerUsePauseState() {
+	s.computerUsePaused = false
+	s.pausedRequestID = ""
 }
 
 // StateSnapshot represents a point-in-time snapshot of application state

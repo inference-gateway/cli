@@ -217,6 +217,18 @@ func (e *ChatEventHandler) handleChatComplete(
 
 	var cmds []tea.Cmd
 
+	for _, toolCall := range msg.ToolCalls {
+		previewEvent := domain.ToolCallPreviewEvent{
+			RequestID:  msg.RequestID,
+			Timestamp:  msg.Timestamp,
+			ToolCallID: toolCall.Id,
+			ToolName:   toolCall.Function.Name,
+			Arguments:  toolCall.Function.Arguments,
+		}
+
+		e.handler.stateManager.BroadcastEvent(previewEvent)
+	}
+
 	cmds = append(cmds, func() tea.Msg {
 		return domain.UpdateHistoryEvent{
 			History: e.handler.conversationRepo.GetMessages(),
@@ -397,6 +409,13 @@ func (e *ChatEventHandler) handleToolApprovalRequested(
 
 	e.handler.stateManager.SetupApprovalUIState(&msg.ToolCall, msg.ResponseChan)
 
+	e.handler.stateManager.BroadcastEvent(domain.ToolApprovalNotificationEvent{
+		RequestID: msg.RequestID,
+		Timestamp: time.Now(),
+		ToolName:  msg.ToolCall.Function.Name,
+		Message:   "Tool approval required - Check terminal for approval",
+	})
+
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
@@ -445,6 +464,8 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 ) tea.Cmd {
 	var cmds []tea.Cmd
 
+	// Don't broadcast progress events - tool calls are broadcast from ChatCompleteEvent
+
 	switch msg.Status {
 	case "starting":
 		e.activeToolCallID = msg.ToolCallID
@@ -476,7 +497,7 @@ func (e *ChatEventHandler) handleToolExecutionProgress(
 				}
 			})
 		}
-	case "complete", "failed":
+	case "completed", "failed":
 		e.activeToolCallID = ""
 		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{

@@ -197,6 +197,7 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
 		ctx = context.WithValue(ctx, domain.BashOutputCallbackKey, domain.BashOutputCallback(bashCallback))
 		ctx = context.WithValue(ctx, domain.BashDetachChannelKey, (<-chan struct{})(detachChan))
+		ctx = context.WithValue(ctx, domain.DirectExecutionKey, true)
 		result, err := c.handler.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
@@ -216,7 +217,7 @@ func (c *ChatCommandHandler) executeBashCommandAsync(command string, toolCallID 
 			return
 		}
 
-		status := "complete"
+		status := "completed"
 		message := "Completed successfully"
 		if result != nil && !result.Success {
 			status = "failed"
@@ -537,6 +538,7 @@ func (c *ChatCommandHandler) executeToolCommandAsync(toolName, argsJSON, toolCal
 		}
 
 		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
+		ctx = context.WithValue(ctx, domain.DirectExecutionKey, true)
 		result, err := c.handler.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 		if err != nil {
 			eventChan <- domain.ShowErrorEvent{
@@ -574,11 +576,22 @@ func (c *ChatCommandHandler) executeToolCommandAsync(toolName, argsJSON, toolCal
 		}
 		_ = c.handler.conversationRepo.AddMessage(toolEntry)
 
-		status := "complete"
+		status := "completed"
 		message := "Completed successfully"
 		if result != nil && !result.Success {
 			status = "failed"
 			message = "Execution failed"
+		}
+
+		var images []domain.ImageAttachment
+		if result != nil && len(result.Images) > 0 {
+			for _, img := range result.Images {
+				images = append(images, domain.ImageAttachment{
+					Data:        img.Data,
+					MimeType:    img.MimeType,
+					DisplayName: img.DisplayName,
+				})
+			}
 		}
 
 		eventChan <- domain.ToolExecutionProgressEvent{
@@ -590,6 +603,7 @@ func (c *ChatCommandHandler) executeToolCommandAsync(toolName, argsJSON, toolCal
 			ToolName:   toolName,
 			Status:     status,
 			Message:    message,
+			Images:     images,
 		}
 
 		eventChan <- domain.UpdateHistoryEvent{

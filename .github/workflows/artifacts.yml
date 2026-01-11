@@ -66,6 +66,13 @@ jobs:
             golang:1.25-alpine3.23 \
             sh -c "go build -ldflags '-w -s -X github.com/inference-gateway/cli/cmd.version=${{ steps.version.outputs.version }} -X github.com/inference-gateway/cli/cmd.commit=${{ steps.version.outputs.commit }} -X github.com/inference-gateway/cli/cmd.date=${{ steps.version.outputs.date }}' -o infer-${{ matrix.goos }}-${{ matrix.goarch }} ."
 
+      - name: Computer Use App (macOS only)
+        if: matrix.goos == 'darwin'
+        run: |
+          cd internal/display/macos/ComputerUse
+          ./build.sh
+          cd ../../../..
+
       - name: Build binary (macOS with CGO for clipboard image support)
         if: matrix.goos == 'darwin'
         env:

@@ -30,9 +30,9 @@ type SessionHandler interface {
 type Session = SessionHandler
 
 // CreateSessionHandler creates either a local PTY session or remote SSH session
-func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, v *viper.Viper) (SessionHandler, error) {
+func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, cfg *config.Config, v *viper.Viper, sessionID string, sessionManager *SessionManager, progressCh chan<- string) (SessionHandler, error) {
 	if serverCfg != nil {
-		return createRemoteSSHSession(webCfg, serverCfg, cfg.Gateway.URL)
+		return createRemoteSSHSession(webCfg, serverCfg, cfg.Gateway.URL, sessionID, sessionManager, progressCh)
 	}
 
 	logger.Info("Creating local PTY session")
@@ -40,8 +40,19 @@ func CreateSessionHandler(webCfg *config.WebConfig, serverCfg *config.SSHServerC
 }
 
 // createRemoteSSHSession creates a remote SSH session with optional auto-install
-func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string) (SessionHandler, error) {
+func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string, sessionID string, sessionManager *SessionManager, progressCh chan<- string) (SessionHandler, error) {
 	logger.Info("Creating remote SSH session", "server", serverCfg.Name)
+
+	sendProgress := func(msg string) {
+		if progressCh != nil {
+			select {
+			case progressCh <- msg:
+			default:
+			}
+		}
+	}
+
+	sendProgress("Connecting to remote server...")
 
 	client, err := NewSSHClient(&webCfg.SSH, serverCfg)
 	if err != nil {
@@ -52,14 +63,22 @@ func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServe
 		return nil, fmt.Errorf("failed to connect to SSH server: %w", err)
 	}
 
-	if err := ensureRemoteBinary(client, webCfg, serverCfg, gatewayURL); err != nil {
+	sendProgress("Connected to remote server")
+
+	if err := ensureRemoteBinary(client, webCfg, serverCfg, gatewayURL, progressCh); err != nil {
 		if closeErr := client.Close(); closeErr != nil {
 			logger.Warn("Failed to close SSH client after install error", "error", closeErr)
 		}
 		return nil, err
 	}
 
-	session, err := NewSSHSession(client, serverCfg, gatewayURL)
+	if err := ensureRemoteConfig(client, serverCfg, gatewayURL); err != nil {
+		logger.Warn("Failed to ensure remote config, continuing anyway", "error", err)
+	}
+
+	sendProgress("Starting remote terminal...")
+
+	session, err := NewSSHSession(client, serverCfg, gatewayURL, sessionID, sessionManager)
 	if err != nil {
 		if closeErr := client.Close(); closeErr != nil {
 			logger.Warn("Failed to close SSH client after session error", "error", closeErr)
@@ -71,7 +90,7 @@ func createRemoteSSHSession(webCfg *config.WebConfig, serverCfg *config.SSHServe
 }
 
 // ensureRemoteBinary installs infer binary on remote server if auto-install is enabled
-func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string) error {
+func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *config.SSHServerConfig, gatewayURL string, progressCh chan<- string) error {
 	autoInstall := webCfg.SSH.AutoInstall
 	if serverCfg.AutoInstall != nil {
 		autoInstall = *serverCfg.AutoInstall
@@ -81,11 +100,57 @@ func ensureRemoteBinary(client *SSHClient, webCfg *config.WebConfig, serverCfg *
 		return nil
 	}
 
-	installer := NewRemoteInstaller(client, &webCfg.SSH, serverCfg, gatewayURL)
+	installer := NewRemoteInstaller(client, &webCfg.SSH, serverCfg, gatewayURL, progressCh)
 	if err := installer.EnsureBinary(); err != nil {
 		return fmt.Errorf("failed to ensure infer binary: %w", err)
 	}
 
+	return nil
+}
+
+// ensureRemoteConfig ensures infer config exists on remote server
+// Runs infer init --userspace if ~/.infer/config.yaml doesn't exist
+func ensureRemoteConfig(client *SSHClient, serverCfg *config.SSHServerConfig, _ string) error {
+	commandPath := serverCfg.CommandPath
+	if commandPath == "" {
+		commandPath = "infer"
+	}
+
+	logger.Info("Checking if infer config exists on remote server", "server", serverCfg.Name)
+
+	session, err := client.NewSession()
+	if err != nil {
+		return fmt.Errorf("failed to create SSH session: %w", err)
+	}
+	defer func() { _ = session.Close() }()
+
+	checkCmd := "test -f ~/.infer/config.yaml && echo 'exists' || echo 'missing'"
+	output, err := session.CombinedOutput(checkCmd)
+	if err != nil {
+		return fmt.Errorf("failed to check config file: %w", err)
+	}
+
+	outputStr := string(output)
+	if len(outputStr) > 0 && outputStr[0] == 'e' {
+		logger.Info("Infer config already exists on remote server", "server", serverCfg.Name)
+		return nil
+	}
+
+	logger.Info("Infer config not found, running init...", "server", serverCfg.Name)
+
+	session2, err := client.NewSession()
+	if err != nil {
+		return fmt.Errorf("failed to create SSH session for init: %w", err)
+	}
+	defer func() { _ = session2.Close() }()
+
+	initCmd := fmt.Sprintf("%s init --userspace", commandPath)
+	initOutput, err := session2.CombinedOutput(initCmd)
+	if err != nil {
+		return fmt.Errorf("failed to initialize config: %w\nOutput: %s", err, string(initOutput))
+	}
+
+	logger.Info("Infer config initialized", "server", serverCfg.Name, "output", string(initOutput))
 	return nil
 }
 
@@ -115,7 +180,10 @@ func (s *LocalPTYSession) Start(cols, rows int) error {
 	}
 
 	s.cmd = exec.Command(execPath, "chat")
-	s.cmd.Env = append(os.Environ(), "TERM=xterm-256color")
+	s.cmd.Env = append(os.Environ(),
+		"TERM=xterm-256color",
+		"INFER_WEB_MODE=true",
+	)
 
 	ptyFile, err := pty.Start(s.cmd)
 	if err != nil {

@@ -169,7 +169,7 @@ func (r *ToolCallRenderer) handleToolExecutionProgress(msg domain.ToolExecutionP
 	if state, exists := r.tools[msg.ToolCallID]; exists {
 		state.Status = msg.Status
 		state.LastUpdate = time.Now()
-		if msg.Status == "complete" || msg.Status == "failed" {
+		if msg.Status == "completed" || msg.Status == "failed" {
 			endTime := time.Now()
 			state.EndTime = &endTime
 			state.IsComplete = true
@@ -245,7 +245,7 @@ func (r *ToolCallRenderer) RenderPreviews() string {
 			continue
 		}
 
-		if (tool.Status == "complete" || tool.Status == "failed") && tool.EndTime != nil {
+		if (tool.Status == "completed" || tool.Status == "failed") && tool.EndTime != nil {
 			showDuration := now.Sub(*tool.EndTime)
 			if showDuration > 1000*time.Millisecond {
 				delete(r.tools, callID)
@@ -298,7 +298,7 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 			statusText = "executing"
 		}
 		colorName = "spinner"
-	case "complete", "completed", "executed":
+	case "completed", "executed":
 		statusIcon = icons.CheckMark
 		if tool.EndTime != nil {
 			duration := tool.EndTime.Sub(tool.StartTime)
@@ -381,7 +381,7 @@ func (r *ToolCallRenderer) renderToolCallContent(toolInfo ToolInfo, arguments, s
 	case "executing", "running", "starting", "saving":
 		statusIcon = icons.GetSpinnerFrame(r.spinnerStep)
 		statusText = status
-	case "executed", "completed", "complete":
+	case "executed", "completed":
 		statusIcon = icons.CheckMark
 		statusText = status
 	case "error", "failed":

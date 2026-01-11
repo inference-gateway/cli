@@ -22,4 +22,7 @@ type ConfigService interface {
 	// Sandbox configuration
 	GetSandboxDirectories() []string
 	GetProtectedPaths() []string
+
+	// Full configuration access
+	GetConfig() *config.Config
 }
