@@ -75,7 +75,7 @@ type ChatApplication struct {
 	fileSelectionHandler    *components.FileSelectionHandler
 
 	// Event handling
-	chatHandler           handlers.EventHandler
+	chatHandler           domain.ChatHandler
 	messageHistoryHandler *handlers.MessageHistoryHandler
 
 	// Current active component for key handling
@@ -154,7 +154,7 @@ func NewChatApplication(
 
 	app.toolCallRenderer = components.NewToolCallRenderer(styleProvider)
 	app.conversationView = factory.CreateConversationView(app.themeService)
-	toolFormatterService := services.NewToolFormatterService(app.toolRegistry)
+	toolFormatterService := services.NewToolFormatterService(app.toolRegistry, styleProvider)
 
 	if cv, ok := app.conversationView.(*components.ConversationView); ok {
 		cv.SetToolFormatter(toolFormatterService)
@@ -380,18 +380,12 @@ type mcpStatusUpdateWithChannel struct {
 func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmds []tea.Cmd
 
-	if _, ok := msg.(domain.TriggerGithubActionSetupEvent); ok {
-		cmds = append(cmds, app.handleGithubActionSetupTrigger()...)
-		return app, tea.Batch(cmds...)
-	}
-
-	if cmd := app.chatHandler.Handle(msg); cmd != nil {
+	if cmd := app.handleAppEvents(msg); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
 
-	switch m := msg.(type) {
-	case domain.MessageHistoryRestoreEvent:
-		if cmd := app.messageHistoryHandler.HandleRestore(m); cmd != nil {
+	if isDomainEvent(msg) {
+		if cmd := app.chatHandler.Handle(msg); cmd != nil {
 			cmds = append(cmds, cmd)
 		}
 	}
@@ -408,6 +402,84 @@ func (app *ChatApplication) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return app, tea.Batch(cmds...)
+}
+
+// isDomainEvent checks if an event should be handled by ChatHandler (positive filtering).
+// This replaces the negative filtering pattern (isUIOnlyEvent) with an explicit declaration
+// of what ChatHandler SHOULD handle, not what it shouldn't.
+func isDomainEvent(msg tea.Msg) bool {
+	switch msg.(type) {
+	// User input and interaction
+	case domain.UserInputEvent,
+		domain.FileSelectionRequestEvent,
+		domain.ConversationSelectedEvent:
+		return true
+
+	// Chat lifecycle
+	case domain.ChatStartEvent,
+		domain.ChatChunkEvent,
+		domain.ChatCompleteEvent,
+		domain.ChatErrorEvent,
+		domain.OptimizationStatusEvent:
+		return true
+
+	// Tool execution
+	case domain.ToolCallUpdateEvent,
+		domain.ToolCallReadyEvent,
+		domain.ToolExecutionStartedEvent,
+		domain.ToolExecutionProgressEvent,
+		domain.ToolExecutionCompletedEvent:
+		return true
+
+	// Tool and plan approval
+	case domain.ToolApprovalRequestedEvent,
+		domain.ToolApprovalResponseEvent,
+		domain.PlanApprovalRequestedEvent,
+		domain.PlanApprovalResponseEvent:
+		return true
+
+	// Bash command execution
+	case domain.BashOutputChunkEvent,
+		domain.BashCommandCompletedEvent,
+		domain.BackgroundShellRequestEvent:
+		return true
+
+	// A2A (Agent-to-Agent) task management
+	case domain.A2AToolCallExecutedEvent,
+		domain.A2ATaskSubmittedEvent,
+		domain.A2ATaskStatusUpdateEvent,
+		domain.A2ATaskCompletedEvent,
+		domain.A2ATaskFailedEvent,
+		domain.A2ATaskInputRequiredEvent:
+		return true
+
+	// Other domain events
+	case domain.CancelledEvent,
+		domain.MessageQueuedEvent,
+		domain.TodoUpdateChatEvent,
+		domain.AgentStatusUpdateEvent,
+		domain.NavigateBackInTimeEvent,
+		domain.MessageHistoryRestoreEvent,
+		domain.ComputerUsePausedEvent,
+		domain.ComputerUseResumedEvent:
+		return true
+	}
+
+	return false
+}
+
+// handleAppEvents handles application-level events (not component-specific)
+func (app *ChatApplication) handleAppEvents(msg tea.Msg) tea.Cmd {
+	switch m := msg.(type) {
+	case domain.TriggerGithubActionSetupEvent:
+		return tea.Batch(app.handleGithubActionSetupTrigger()...)
+
+	case domain.MessageHistoryRestoreEvent:
+		return app.messageHistoryHandler.HandleRestore(m)
+
+	}
+
+	return nil
 }
 
 // handleMCPStatusUpdate processes MCP server connection status changes

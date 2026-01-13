@@ -17,6 +17,7 @@ import (
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
@@ -988,7 +989,8 @@ func ExecTool(cfg *config.Config, args []string, format string) error {
 		return fmt.Errorf("tool execution failed: %w", err)
 	}
 
-	formatterService := services.NewToolFormatterService(toolRegistry)
+	styleProvider := styles.NewProvider(serviceContainer.GetThemeService())
+	formatterService := services.NewToolFormatterService(toolRegistry, styleProvider)
 
 	fmt.Print(formatterService.FormatToolResultExpanded(result, 80))
 	return nil

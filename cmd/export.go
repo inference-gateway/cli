@@ -11,6 +11,7 @@ import (
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	services "github.com/inference-gateway/cli/internal/services"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	cobra "github.com/spf13/cobra"
 )
 
@@ -48,7 +49,9 @@ func runExport(sessionID string) error {
 
 	configService := services.NewConfigService(V, cfg)
 	toolRegistry := tools.NewRegistry(configService, nil, nil, nil, nil, nil)
-	toolFormatterService := services.NewToolFormatterService(toolRegistry)
+	themeService := domain.NewThemeProvider()
+	styleProvider := styles.NewProvider(themeService)
+	toolFormatterService := services.NewToolFormatterService(toolRegistry, styleProvider)
 	pricingService := services.NewPricingService(&cfg.Pricing)
 	persistentRepo := services.NewPersistentConversationRepository(toolFormatterService, pricingService, storageBackend)
 

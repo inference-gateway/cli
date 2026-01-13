@@ -5,6 +5,10 @@ import (
 )
 
 // UI Events for application state management
+//
+// All events in this file implement tea.Msg (Bubble Tea's message interface) and are part
+// of the Bubble Tea message system. These events represent UI-specific operations like
+// input handling, status updates, and navigation.
 
 // UpdateHistoryEvent updates the conversation history display
 type UpdateHistoryEvent struct {

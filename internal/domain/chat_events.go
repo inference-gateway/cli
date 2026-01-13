@@ -2,13 +2,9 @@ package domain
 
 import "time"
 
-// ToolInfo represents basic tool information for UI display
-type ToolInfo struct {
-	CallID    string
-	Name      string
-	Status    string
-	Arguments string
-}
+// All events in this file implement tea.Msg (Bubble Tea's message interface) and are part
+// of the Bubble Tea message system. These events represent chat-specific operations like
+// tool execution and progress tracking.
 
 // BaseChatEvent provides common implementation for ChatEvent interface
 type BaseChatEvent struct {
@@ -19,20 +15,15 @@ type BaseChatEvent struct {
 func (e BaseChatEvent) GetRequestID() string    { return e.RequestID }
 func (e BaseChatEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// ParallelToolsStartEvent indicates parallel tool execution has started
-type ParallelToolsStartEvent struct {
-	BaseChatEvent
-	Tools []ToolInfo
-}
-
 // ToolExecutionProgressEvent indicates progress in tool execution
 type ToolExecutionProgressEvent struct {
 	BaseChatEvent
 	ToolCallID string
 	ToolName   string
+	Arguments  string
 	Status     string
 	Message    string
-	Images     []ImageAttachment // Optional image attachments for completed tools
+	Images     []ImageAttachment
 }
 
 // BashOutputChunkEvent indicates a new chunk of bash output is available
@@ -41,15 +32,6 @@ type BashOutputChunkEvent struct {
 	ToolCallID string
 	Output     string
 	IsComplete bool
-}
-
-// ParallelToolsCompleteEvent indicates all parallel tools have completed
-type ParallelToolsCompleteEvent struct {
-	BaseChatEvent
-	TotalExecuted int
-	SuccessCount  int
-	FailureCount  int
-	Duration      time.Duration
 }
 
 // TodoUpdateChatEvent indicates the todo list has been updated (flows through chat event channel)

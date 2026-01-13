@@ -330,7 +330,7 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 	return result, nil
 }
 
-// readPipeWithBatching reads from a pipe and batches output for efficient callback delivery
+// readPipeWithBatching reads from a pipe and streams output line by line
 func (t *BashTool) readPipeWithBatching(
 	pipe io.ReadCloser,
 	callback domain.BashOutputCallback,
@@ -342,31 +342,13 @@ func (t *BashTool) readPipeWithBatching(
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
+	defer func() {
+		if err := pipe.Close(); err != nil {
+			logger.Error("bash: pipe close error", "error", err)
+		}
+	}()
+
 	scanner := bufio.NewScanner(pipe)
-
-	const batchSize = 20
-	const flushInterval = 50 * time.Millisecond
-
-	batch := make([]string, 0, batchSize)
-	lastFlush := time.Now()
-
-	flushBatch := func() {
-		if len(batch) == 0 {
-			return
-		}
-
-		combined := strings.Join(batch, "\n")
-
-		detachedMux.Lock()
-		isDetached := *detached
-		detachedMux.Unlock()
-
-		if !isDetached {
-			callback(combined)
-		}
-		batch = batch[:0]
-		lastFlush = time.Now()
-	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -380,14 +362,18 @@ func (t *BashTool) readPipeWithBatching(
 		}
 		outputMux.Unlock()
 
-		batch = append(batch, line)
+		detachedMux.Lock()
+		isDetached := *detached
+		detachedMux.Unlock()
 
-		if len(batch) >= batchSize || time.Since(lastFlush) >= flushInterval {
-			flushBatch()
+		if !isDetached {
+			callback(line)
 		}
 	}
 
-	flushBatch()
+	if err := scanner.Err(); err != nil {
+		logger.Debug("bash: scanner error", "error", err)
+	}
 }
 
 // isCommandAllowed checks if a command is whitelisted
