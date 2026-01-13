@@ -325,25 +325,8 @@ func (r *ToolCallRenderer) renderTool(tool *ToolRenderState) string {
 		singleLine = fmt.Sprintf("%s %s() %s", styledIcon, tool.ToolName, styledStatus)
 	}
 
-	if tool.ToolName == "Bash" && len(tool.OutputBuffer) > 0 &&
-		(tool.Status == "running" || tool.Status == "starting" || tool.Status == "executing") {
-		outputLines := make([]string, 0, len(tool.OutputBuffer)+2)
-		outputLines = append(outputLines, singleLine)
-
-		dimColor := r.styleProvider.GetThemeColor("dim")
-
-		truncatedLines := tool.TotalOutputLines - len(tool.OutputBuffer)
-		if truncatedLines > 0 {
-			truncationText := fmt.Sprintf("  +%d more lines", truncatedLines)
-			styledTruncation := r.styleProvider.RenderWithColor(truncationText, dimColor)
-			outputLines = append(outputLines, styledTruncation)
-		}
-
-		for _, line := range tool.OutputBuffer {
-			styledLine := r.styleProvider.RenderWithColor("  "+line, dimColor)
-			outputLines = append(outputLines, styledLine)
-		}
-		return strings.Join(outputLines, "\n")
+	if r.shouldRenderBashOutput(tool) {
+		return r.renderBashOutput(tool, singleLine)
 	}
 
 	return singleLine
@@ -444,4 +427,45 @@ func (r *ToolCallRenderer) formatDuration(d time.Duration) string {
 	minutes := int(seconds / 60)
 	remainingSeconds := seconds - float64(minutes*60)
 	return fmt.Sprintf("%dm%.1fs", minutes, remainingSeconds)
+}
+
+// shouldRenderBashOutput determines if Bash tool output should be rendered
+func (r *ToolCallRenderer) shouldRenderBashOutput(tool *ToolRenderState) bool {
+	if tool.ToolName != "Bash" {
+		return false
+	}
+	if len(tool.OutputBuffer) == 0 {
+		return false
+	}
+	return tool.Status == "running" || tool.Status == "starting" || tool.Status == "executing"
+}
+
+// renderBashOutput renders the output for a Bash tool
+func (r *ToolCallRenderer) renderBashOutput(tool *ToolRenderState, singleLine string) string {
+	outputLines := make([]string, 0, len(tool.OutputBuffer)+3)
+	outputLines = append(outputLines, singleLine)
+
+	dimColor := r.styleProvider.GetThemeColor("dim")
+
+	truncatedLines := tool.TotalOutputLines - len(tool.OutputBuffer)
+	if truncatedLines > 0 {
+		truncationText := fmt.Sprintf("  +%d more lines", truncatedLines)
+		styledTruncation := r.styleProvider.RenderWithColor(truncationText, dimColor)
+		outputLines = append(outputLines, styledTruncation)
+	}
+
+	for _, line := range tool.OutputBuffer {
+		styledLine := r.styleProvider.RenderWithColor("  "+line, dimColor)
+		outputLines = append(outputLines, styledLine)
+	}
+
+	if r.keyHintFormatter != nil {
+		hint := r.keyHintFormatter.GetKeyHint("tools_background_shell", "move to background")
+		if hint != "" {
+			hintLine := r.styleProvider.RenderWithColor("  "+hint, dimColor)
+			outputLines = append(outputLines, hintLine)
+		}
+	}
+
+	return strings.Join(outputLines, "\n")
 }

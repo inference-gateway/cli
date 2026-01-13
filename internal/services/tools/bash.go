@@ -342,13 +342,10 @@ func (t *BashTool) readPipeWithBatching(
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
-	defer func() {
-		if err := pipe.Close(); err != nil {
-			logger.Error("bash: pipe close error", "error", err)
-		}
-	}()
 
 	scanner := bufio.NewScanner(pipe)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
 
 	for scanner.Scan() {
 		line := scanner.Text()
