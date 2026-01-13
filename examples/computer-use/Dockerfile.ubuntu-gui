@@ -50,6 +50,10 @@ RUN useradd -m -s /bin/bash ubuntu 2>/dev/null || true && \
 RUN mkdir -p /home/ubuntu/.infer/logs && \
     chown -R ubuntu:ubuntu /home/ubuntu/.infer
 
+ENV NO_AT_BRIDGE=1
+
+RUN mkdir -p /tmp/.ICE-unix && chmod 1777 /tmp/.ICE-unix
+
 RUN echo 'PATH="/home/ubuntu/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin"' > /etc/environment
 
 RUN printf '#!/bin/bash\nexec /usr/bin/chromium --no-sandbox --disable-dev-shm-usage --disable-gpu --disable-software-rasterizer "$@"\n' > /usr/local/bin/chromium && \
@@ -115,6 +119,17 @@ mkdir -p /home/ubuntu/.config/xfce4 \
          /home/ubuntu/.local/share/applications \
          /home/ubuntu/.local/share/xfce4/helpers
 
+# Disable compositing to prevent conflict warnings
+mkdir -p /home/ubuntu/.config/xfce4/xfconf/xfce-perchannel-xml
+cat > /home/ubuntu/.config/xfce4/xfconf/xfce-perchannel-xml/xfwm4.xml << 'XFWM4'
+<?xml version="1.0" encoding="UTF-8"?>
+<channel name="xfwm4" version="1.0">
+  <property name="general" type="empty">
+    <property name="use_compositing" type="bool" value="false"/>
+  </property>
+</channel>
+XFWM4
+
 cat > /home/ubuntu/.config/mimeapps.list << 'MIMEAPPS'
 [Default Applications]
 text/html=chromium.desktop
@@ -151,8 +166,17 @@ HELPERS
 
 chown -R ubuntu:ubuntu /home/ubuntu/.config /home/ubuntu/.local
 
+cat > /tmp/grep-wrapper.sh << 'GREPWRAP'
+#!/bin/bash
+if [[ "$*" == *"/sys/power/state"* ]]; then
+    exit 1
+fi
+exec /bin/grep "$@"
+GREPWRAP
+chmod +x /tmp/grep-wrapper.sh
+
 echo "Starting XFCE desktop environment with D-Bus session..."
-runuser -u ubuntu -- env DISPLAY=:1 dbus-launch --exit-with-session startxfce4 &
+runuser -u ubuntu -- env DISPLAY=:1 PATH="/tmp:$PATH" dbus-launch --exit-with-session startxfce4 2>&1 | grep -v "^grep:" &
 XFCE_PID=$!
 
 echo "✓ Headless X11 server running on display :1 (${SCREEN_RESOLUTION}x${SCREEN_DEPTH})"
