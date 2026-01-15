@@ -22,10 +22,6 @@ func initFloatingWindow(
 	stateManager domain.StateManager,
 	agentService domain.AgentService,
 ) (FloatingWindowManager, error) {
-	logger.Info("Checking floating window conditions",
-		"computer_use_enabled", config.ComputerUse.Enabled,
-		"floating_window_enabled", config.ComputerUse.FloatingWindow.Enabled)
-
 	if !config.ComputerUse.Enabled || !config.ComputerUse.FloatingWindow.Enabled {
 		return nil, nil
 	}

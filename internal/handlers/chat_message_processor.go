@@ -34,15 +34,15 @@ func (p *ChatMessageProcessor) handleUserInput(
 	msg domain.UserInputEvent,
 ) tea.Cmd {
 	if strings.HasPrefix(msg.Content, "/") {
-		return p.handler.commandHandler.handleCommand(msg.Content)
+		return p.handler.HandleCommand(msg.Content)
 	}
 
 	if strings.HasPrefix(msg.Content, "!!") {
-		return p.handler.commandHandler.handleToolCommand(msg.Content)
+		return p.handler.HandleToolCommand(msg.Content)
 	}
 
 	if strings.HasPrefix(msg.Content, "!") {
-		return p.handler.commandHandler.handleBashCommand(msg.Content)
+		return p.handler.HandleBashCommand(msg.Content)
 	}
 
 	result, err := p.expandFileReferences(msg.Content)

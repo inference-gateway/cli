@@ -168,10 +168,6 @@ func StartChatSession(cfg *config.Config, v *viper.Viper) error {
 	conversationOptimizer := services.GetConversationOptimizer()
 
 	var screenshotServer *screenshotsvc.ScreenshotServer
-	logger.Info("Checking screenshot streaming config",
-		"computer_use_enabled", config.ComputerUse.Enabled,
-		"screenshot_enabled", config.ComputerUse.Screenshot.Enabled,
-		"streaming_enabled", config.ComputerUse.Screenshot.StreamingEnabled)
 
 	if config.ComputerUse.Enabled && config.ComputerUse.Screenshot.StreamingEnabled {
 		screenshotServer = startScreenshotServer(config, imageService, toolRegistry)

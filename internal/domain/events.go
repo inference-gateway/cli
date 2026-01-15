@@ -6,6 +6,16 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
+// All events in this file implement tea.Msg (Bubble Tea's message interface) and are part
+// of the Bubble Tea message system. They can be passed directly through the Bubble Tea
+// event loop without conversion, since tea.Msg is an empty interface marker.
+//
+// Event Lifecycle:
+//   1. Events are created by services (agent, tools, etc.)
+//   2. Events are sent through tea.Cmd functions
+//   3. Components receive events via their Update(tea.Msg) method
+//   4. Components handle events directly, no central dispatcher needed
+
 // ToolCallStreamStatus represents the status of a tool call during streaming
 type ToolCallStreamStatus string
 

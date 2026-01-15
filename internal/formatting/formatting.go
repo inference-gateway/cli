@@ -28,9 +28,8 @@ func GetResponsiveWidth(terminalWidth int) int {
 	const (
 		minWidth    = 40
 		maxWidth    = 150
-		leftPadding = 2
 		rightBuffer = 6
-		margin      = leftPadding + rightBuffer
+		margin      = rightBuffer
 	)
 
 	availableWidth := terminalWidth - margin
