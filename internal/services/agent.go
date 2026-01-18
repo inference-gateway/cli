@@ -669,13 +669,19 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 // CancelRequest cancels an active request
 func (s *AgentServiceImpl) CancelRequest(requestID string) error {
-	s.requestsMux.RLock()
+	s.requestsMux.Lock()
 	cancel, contextExists := s.activeRequests[requestID]
-	s.requestsMux.RUnlock()
+	if contextExists {
+		delete(s.activeRequests, requestID)
+	}
+	s.requestsMux.Unlock()
 
-	s.cancelMux.RLock()
+	s.cancelMux.Lock()
 	cancelChan, chanExists := s.cancelChannels[requestID]
-	s.cancelMux.RUnlock()
+	if chanExists {
+		delete(s.cancelChannels, requestID)
+	}
+	s.cancelMux.Unlock()
 
 	if !contextExists && !chanExists {
 		return fmt.Errorf("request %s not found or already completed", requestID)

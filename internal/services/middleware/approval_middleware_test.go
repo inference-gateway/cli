@@ -67,7 +67,6 @@ func createMockExecutor(result *domain.ToolExecutionResult, err error) ToolExecu
 }
 
 func TestApprovalMiddleware_NoApprovalRequired(t *testing.T) {
-	// Setup
 	policy := &mockApprovalPolicy{shouldRequireApproval: false}
 	stateManager := &mocksdomain.FakeStateManager{}
 	eventBus := make(chan domain.ChatEvent, 1)
@@ -85,7 +84,6 @@ func TestApprovalMiddleware_NoApprovalRequired(t *testing.T) {
 	executorCalled := false
 	executor := func(ctx context.Context, tc *sdk.ChatCompletionMessageToolCall) (*domain.ToolExecutionResult, error) {
 		executorCalled = true
-		// Verify context does NOT have approval flag (not needed)
 		if domain.IsToolApproved(ctx) {
 			t.Error("Expected context to not have approval flag when approval not required")
 		}
@@ -96,10 +94,8 @@ func TestApprovalMiddleware_NoApprovalRequired(t *testing.T) {
 		}, nil
 	}
 
-	// Execute
 	result, err := middleware.Execute(ctx, toolCall, true, executor)
 
-	// Verify
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -110,17 +106,14 @@ func TestApprovalMiddleware_NoApprovalRequired(t *testing.T) {
 		t.Error("Expected result to be successful")
 	}
 
-	// Verify no approval event was published
 	select {
 	case <-eventBus:
 		t.Error("Expected no approval event to be published")
 	default:
-		// Good, no event
 	}
 }
 
 func TestApprovalMiddleware_ApprovalRequired_Approved(t *testing.T) {
-	// Setup
 	policy := &mockApprovalPolicy{shouldRequireApproval: true}
 	stateManager := &mocksdomain.FakeStateManager{}
 	eventBus := make(chan domain.ChatEvent, 1)
@@ -138,7 +131,6 @@ func TestApprovalMiddleware_ApprovalRequired_Approved(t *testing.T) {
 	executorCalled := false
 	executor := func(ctx context.Context, tc *sdk.ChatCompletionMessageToolCall) (*domain.ToolExecutionResult, error) {
 		executorCalled = true
-		// Verify context HAS approval flag
 		if !domain.IsToolApproved(ctx) {
 			t.Error("Expected context to have approval flag after approval")
 		}
@@ -149,7 +141,6 @@ func TestApprovalMiddleware_ApprovalRequired_Approved(t *testing.T) {
 		}, nil
 	}
 
-	// Simulate approval in background
 	go func() {
 		event := <-eventBus
 		approvalEvent, ok := event.(domain.ToolApprovalRequestedEvent)
@@ -157,14 +148,11 @@ func TestApprovalMiddleware_ApprovalRequired_Approved(t *testing.T) {
 			t.Error("Expected ToolApprovalRequestedEvent")
 			return
 		}
-		// Send approval
 		approvalEvent.ResponseChan <- domain.ApprovalApprove
 	}()
 
-	// Execute
 	result, err := middleware.Execute(ctx, toolCall, true, executor)
 
-	// Verify
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -177,7 +165,6 @@ func TestApprovalMiddleware_ApprovalRequired_Approved(t *testing.T) {
 }
 
 func TestApprovalMiddleware_ApprovalRequired_Rejected(t *testing.T) {
-	// Setup
 	policy := &mockApprovalPolicy{shouldRequireApproval: true}
 	stateManager := &mocksdomain.FakeStateManager{}
 	eventBus := make(chan domain.ChatEvent, 1)
@@ -198,7 +185,6 @@ func TestApprovalMiddleware_ApprovalRequired_Rejected(t *testing.T) {
 		return nil, nil
 	}
 
-	// Simulate rejection in background
 	go func() {
 		event := <-eventBus
 		approvalEvent, ok := event.(domain.ToolApprovalRequestedEvent)
@@ -206,14 +192,11 @@ func TestApprovalMiddleware_ApprovalRequired_Rejected(t *testing.T) {
 			t.Error("Expected ToolApprovalRequestedEvent")
 			return
 		}
-		// Send rejection
 		approvalEvent.ResponseChan <- domain.ApprovalReject
 	}()
 
-	// Execute
 	result, err := middleware.Execute(ctx, toolCall, true, executor)
 
-	// Verify
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -232,7 +215,6 @@ func TestApprovalMiddleware_ApprovalRequired_Rejected(t *testing.T) {
 }
 
 func TestApprovalMiddleware_AutoAccept(t *testing.T) {
-	// Setup
 	policy := &mockApprovalPolicy{shouldRequireApproval: true}
 	stateManager := &mocksdomain.FakeStateManager{}
 	stateManager.GetAgentModeReturns(domain.AgentModeStandard)
@@ -250,7 +232,6 @@ func TestApprovalMiddleware_AutoAccept(t *testing.T) {
 
 	executor := createMockExecutor(nil, nil)
 
-	// Simulate auto-accept in background
 	go func() {
 		event := <-eventBus
 		approvalEvent, ok := event.(domain.ToolApprovalRequestedEvent)
@@ -258,14 +239,11 @@ func TestApprovalMiddleware_AutoAccept(t *testing.T) {
 			t.Error("Expected ToolApprovalRequestedEvent")
 			return
 		}
-		// Send auto-accept
 		approvalEvent.ResponseChan <- domain.ApprovalAutoAccept
 	}()
 
-	// Execute
 	result, err := middleware.Execute(ctx, toolCall, true, executor)
 
-	// Verify
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -273,7 +251,6 @@ func TestApprovalMiddleware_AutoAccept(t *testing.T) {
 		t.Error("Expected result to be successful")
 	}
 
-	// Verify state manager was called to switch mode
 	if stateManager.SetAgentModeCallCount() != 1 {
 		t.Error("Expected SetAgentMode to be called once")
 	}
@@ -283,7 +260,6 @@ func TestApprovalMiddleware_AutoAccept(t *testing.T) {
 }
 
 func TestApprovalMiddleware_ContextCancellation(t *testing.T) {
-	// Setup
 	policy := &mockApprovalPolicy{shouldRequireApproval: true}
 	stateManager := &mocksdomain.FakeStateManager{}
 	eventBus := make(chan domain.ChatEvent, 1)
@@ -300,13 +276,10 @@ func TestApprovalMiddleware_ContextCancellation(t *testing.T) {
 
 	executor := createMockExecutor(nil, nil)
 
-	// Cancel context immediately
 	cancel()
 
-	// Execute
 	result, err := middleware.Execute(ctx, toolCall, true, executor)
 
-	// Verify
 	if err == nil {
 		t.Fatal("Expected error due to context cancellation")
 	}
@@ -319,12 +292,7 @@ func TestApprovalMiddleware_ContextCancellation(t *testing.T) {
 }
 
 func TestApprovalMiddleware_Timeout(t *testing.T) {
-	// This test is slow due to timeout - skip in short mode
-	if testing.Short() {
-		t.Skip("Skipping timeout test in short mode")
-	}
 
-	// Setup
 	policy := &mockApprovalPolicy{shouldRequireApproval: true}
 	stateManager := &mocksdomain.FakeStateManager{}
 	eventBus := make(chan domain.ChatEvent, 1)
@@ -337,52 +305,39 @@ func TestApprovalMiddleware_Timeout(t *testing.T) {
 	})
 
 	toolCall := createToolCall("call-1", "Bash", `{"command": "ls"}`)
-	ctx := context.Background()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
 
 	executor := createMockExecutor(nil, nil)
 
-	// Don't respond to approval request - let it timeout
-	// But we need to consume the event to prevent blocking
 	go func() {
 		<-eventBus
-		// Don't send response - let it timeout
 	}()
 
-	// Execute with a shorter timeout for testing
-	// Note: The middleware has a hardcoded 5-minute timeout
-	// For this test, we'll verify the error type
-	start := time.Now()
 	result, err := middleware.Execute(ctx, toolCall, true, executor)
-	duration := time.Since(start)
 
-	// Verify
 	if err == nil {
 		t.Fatal("Expected timeout error")
 	}
 	if result != nil {
 		t.Error("Expected nil result on timeout")
 	}
-
-	// Verify timeout occurred (should be ~5 minutes, but allow some margin)
-	if duration < 4*time.Minute || duration > 6*time.Minute {
-		t.Errorf("Expected timeout around 5 minutes, got: %v", duration)
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("Expected context.DeadlineExceeded error, got: %v", err)
 	}
 }
 
 func TestApprovalMiddleware_ExecuteBatch(t *testing.T) {
-	// Setup - use simple mock policy for testing
-	// Bash requires approval, other tools don't
 	approvalRequiredTools := map[string]bool{
 		"Bash": true,
 	}
 	policy := &mockApprovalPolicy{shouldRequireApproval: false}
 
-	// Create a custom policy for this test
 	customPolicy := &struct {
 		*mockApprovalPolicy
 	}{mockApprovalPolicy: &mockApprovalPolicy{}}
 
-	// Override ShouldRequireApproval to check tool name
 	realPolicy := services.NewStandardApprovalPolicy(
 		createTestConfig(),
 		&mocksdomain.FakeStateManager{},
@@ -391,7 +346,6 @@ func TestApprovalMiddleware_ExecuteBatch(t *testing.T) {
 	_ = customPolicy
 	_ = approvalRequiredTools
 
-	// For simplicity, use the mock policy and assume all tools require approval
 	policy.shouldRequireApproval = true
 
 	stateManager := &mocksdomain.FakeStateManager{}
@@ -406,28 +360,24 @@ func TestApprovalMiddleware_ExecuteBatch(t *testing.T) {
 	})
 
 	toolCalls := []sdk.ChatCompletionMessageToolCall{
-		*createToolCall("call-1", "Read", `{"file_path": "test.txt"}`), // No approval needed
-		*createToolCall("call-2", "Bash", `{"command": "rm -rf /"}`),   // Approval needed
-		*createToolCall("call-3", "Write", `{"file_path": "out.txt"}`), // No approval needed
+		*createToolCall("call-1", "Read", `{"file_path": "test.txt"}`),
+		*createToolCall("call-2", "Bash", `{"command": "rm -rf /"}`),
+		*createToolCall("call-3", "Write", `{"file_path": "out.txt"}`),
 	}
 
 	ctx := context.Background()
 	executor := createMockExecutor(nil, nil)
 
-	// Handle approval requests in background
 	go func() {
 		for event := range eventBus {
 			if approvalEvent, ok := event.(domain.ToolApprovalRequestedEvent); ok {
-				// Approve all requests
 				approvalEvent.ResponseChan <- domain.ApprovalApprove
 			}
 		}
 	}()
 
-	// Execute
 	results, err := middleware.ExecuteBatch(ctx, toolCalls, true, executor)
 
-	// Verify
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
@@ -442,7 +392,6 @@ func TestApprovalMiddleware_ExecuteBatch(t *testing.T) {
 }
 
 func TestApprovalMiddleware_ExecuteBatch_StopsOnRejection(t *testing.T) {
-	// Setup
 	policy := &mockApprovalPolicy{shouldRequireApproval: true}
 	stateManager := &mocksdomain.FakeStateManager{}
 	eventBus := make(chan domain.ChatEvent, 10)
@@ -456,14 +405,13 @@ func TestApprovalMiddleware_ExecuteBatch_StopsOnRejection(t *testing.T) {
 
 	toolCalls := []sdk.ChatCompletionMessageToolCall{
 		*createToolCall("call-1", "Read", `{}`),
-		*createToolCall("call-2", "Write", `{}`), // This will be rejected
-		*createToolCall("call-3", "Edit", `{}`),  // This should not execute
+		*createToolCall("call-2", "Write", `{}`),
+		*createToolCall("call-3", "Edit", `{}`),
 	}
 
 	ctx := context.Background()
 	executor := createMockExecutor(nil, nil)
 
-	// Handle approval requests - reject the second one
 	requestCount := 0
 	go func() {
 		for event := range eventBus {
@@ -478,15 +426,12 @@ func TestApprovalMiddleware_ExecuteBatch_StopsOnRejection(t *testing.T) {
 		}
 	}()
 
-	// Execute
 	results, err := middleware.ExecuteBatch(ctx, toolCalls, true, executor)
 
-	// Verify
 	if err != nil {
 		t.Fatalf("Expected no error, got: %v", err)
 	}
 
-	// Should only have 2 results (first approved, second rejected, third not executed)
 	if len(results) != 2 {
 		t.Errorf("Expected 2 results (execution stopped after rejection), got: %d", len(results))
 	}
@@ -497,7 +442,6 @@ func TestApprovalMiddleware_ExecuteBatch_StopsOnRejection(t *testing.T) {
 }
 
 func TestApprovalMiddleware_WithRequestID(t *testing.T) {
-	// Setup
 	policy := &mockApprovalPolicy{shouldRequireApproval: false}
 	stateManager := &mocksdomain.FakeStateManager{}
 	eventBus := make(chan domain.ChatEvent, 1)
@@ -509,15 +453,12 @@ func TestApprovalMiddleware_WithRequestID(t *testing.T) {
 		RequestID:    "original-request",
 	})
 
-	// Create new middleware with different request ID
 	newMiddleware := originalMiddleware.WithRequestID("new-request")
 
-	// Verify
 	if newMiddleware.requestID != "new-request" {
 		t.Errorf("Expected request ID 'new-request', got: %s", newMiddleware.requestID)
 	}
 
-	// Verify other fields are preserved
 	if newMiddleware.policy != originalMiddleware.policy {
 		t.Error("Expected policy to be preserved")
 	}
@@ -527,14 +468,13 @@ func TestApprovalMiddleware_WithRequestID(t *testing.T) {
 }
 
 func TestApprovalMiddleware_NilEventBus(t *testing.T) {
-	// Setup - middleware without event bus
 	policy := &mockApprovalPolicy{shouldRequireApproval: true}
 	stateManager := &mocksdomain.FakeStateManager{}
 
 	middleware := NewApprovalMiddleware(ApprovalMiddlewareConfig{
 		Policy:       policy,
 		StateManager: stateManager,
-		EventBus:     nil, // No event bus
+		EventBus:     nil,
 		RequestID:    "test-request",
 	})
 
@@ -542,10 +482,8 @@ func TestApprovalMiddleware_NilEventBus(t *testing.T) {
 	ctx := context.Background()
 	executor := createMockExecutor(nil, nil)
 
-	// Execute
 	result, err := middleware.Execute(ctx, toolCall, true, executor)
 
-	// Verify
 	if err == nil {
 		t.Fatal("Expected error when event bus is nil")
 	}

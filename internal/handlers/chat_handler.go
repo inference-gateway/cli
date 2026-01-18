@@ -24,32 +24,34 @@ import (
 )
 
 type ChatHandler struct {
-	agentService            domain.AgentService
-	conversationRepo        domain.ConversationRepository
-	conversationOptimizer   domain.ConversationOptimizerService
-	modelService            domain.ModelService
-	configService           domain.ConfigService
-	toolService             domain.ToolService
-	fileService             domain.FileService
-	imageService            domain.ImageService
-	shortcutRegistry        *shortcuts.Registry
-	stateManager            domain.StateManager
-	messageQueue            domain.MessageQueue
-	taskRetentionService    domain.TaskRetentionService
-	backgroundTaskService   domain.BackgroundTaskService
-	backgroundShellService  domain.BackgroundShellService
-	agentManager            domain.AgentManager
-	config                  *config.Config
-	messageProcessor        *ChatMessageProcessor
-	shortcutHandler         *ChatShortcutHandler
-	bashDetachChan          chan<- struct{}
-	bashDetachChanMu        sync.RWMutex
-	bashEventChannel        <-chan tea.Msg
-	bashEventChannelMu      sync.RWMutex
-	toolEventChannel        <-chan tea.Msg
-	toolEventChannelMu      sync.RWMutex
-	activeToolCallID        string
-	pendingModelRestoration string
+	agentService              domain.AgentService
+	conversationRepo          domain.ConversationRepository
+	conversationOptimizer     domain.ConversationOptimizerService
+	modelService              domain.ModelService
+	configService             domain.ConfigService
+	toolService               domain.ToolService
+	fileService               domain.FileService
+	imageService              domain.ImageService
+	shortcutRegistry          *shortcuts.Registry
+	stateManager              domain.StateManager
+	messageQueue              domain.MessageQueue
+	taskRetentionService      domain.TaskRetentionService
+	backgroundTaskService     domain.BackgroundTaskService
+	backgroundShellService    domain.BackgroundShellService
+	agentManager              domain.AgentManager
+	config                    *config.Config
+	messageProcessor          *ChatMessageProcessor
+	shortcutHandler           *ChatShortcutHandler
+	bashDetachChan            chan<- struct{}
+	bashDetachChanMu          sync.RWMutex
+	bashEventChannel          <-chan tea.Msg
+	bashEventChannelMu        sync.RWMutex
+	toolEventChannel          <-chan tea.Msg
+	toolEventChannelMu        sync.RWMutex
+	activeToolCallID          string
+	activeToolCallIDMu        sync.RWMutex
+	pendingModelRestoration   string
+	pendingModelRestorationMu sync.RWMutex
 }
 
 func NewChatHandler(
@@ -854,7 +856,7 @@ func (h *ChatHandler) handleChatStart(
 	_ /* event */ domain.ChatStartEvent,
 ) tea.Cmd {
 	_ = h.stateManager.UpdateChatStatus(domain.ChatStatusStarting)
-	h.activeToolCallID = ""
+	h.SetActiveToolCallID("")
 
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
@@ -1095,12 +1097,15 @@ func (h *ChatHandler) handleChatComplete(
 
 // restorePendingModel restores the original model if a temporary model switch is pending
 func (h *ChatHandler) restorePendingModel() {
+	h.pendingModelRestorationMu.Lock()
 	if h.pendingModelRestoration == "" {
+		h.pendingModelRestorationMu.Unlock()
 		return
 	}
 
 	originalModel := h.pendingModelRestoration
 	h.pendingModelRestoration = ""
+	h.pendingModelRestorationMu.Unlock()
 
 	if err := h.modelService.SelectModel(originalModel); err != nil {
 		logger.Error("Failed to restore original model", "model", originalModel, "error", err)
@@ -1132,7 +1137,7 @@ func (h *ChatHandler) handleChatError(
 	_ = h.stateManager.UpdateChatStatus(domain.ChatStatusError)
 	h.stateManager.EndChatSession()
 	h.stateManager.EndToolExecution()
-	h.activeToolCallID = ""
+	h.SetActiveToolCallID("")
 
 	_ = h.stateManager.TransitionToView(domain.ViewStateChat)
 
@@ -1282,11 +1287,9 @@ func (h *ChatHandler) handleToolExecutionProgress(
 ) tea.Cmd {
 	var cmds []tea.Cmd
 
-	// Don't broadcast progress events - tool calls are broadcast from ChatCompleteEvent
-
 	switch msg.Status {
 	case "starting":
-		h.activeToolCallID = msg.ToolCallID
+		h.SetActiveToolCallID(msg.ToolCallID)
 		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    msg.Message,
@@ -1297,7 +1300,7 @@ func (h *ChatHandler) handleToolExecutionProgress(
 		})
 	case "running":
 		if msg.Message != "" {
-			if h.activeToolCallID == msg.ToolCallID {
+			if h.GetActiveToolCallID() == msg.ToolCallID {
 				cmds = append(cmds, func() tea.Msg {
 					return domain.UpdateStatusEvent{
 						Message:    msg.Message,
@@ -1306,7 +1309,7 @@ func (h *ChatHandler) handleToolExecutionProgress(
 					}
 				})
 			} else {
-				h.activeToolCallID = msg.ToolCallID
+				h.SetActiveToolCallID(msg.ToolCallID)
 				cmds = append(cmds, func() tea.Msg {
 					return domain.SetStatusEvent{
 						Message:    msg.Message,
@@ -1317,10 +1320,10 @@ func (h *ChatHandler) handleToolExecutionProgress(
 				})
 			}
 		} else {
-			h.activeToolCallID = msg.ToolCallID
+			h.SetActiveToolCallID(msg.ToolCallID)
 		}
 	case "completed", "failed":
-		h.activeToolCallID = ""
+		h.SetActiveToolCallID("")
 		cmds = append(cmds, func() tea.Msg {
 			return domain.SetStatusEvent{
 				Message:    msg.Message,
@@ -1390,7 +1393,7 @@ func (h *ChatHandler) handleToolExecutionCompleted(
 	msg domain.ToolExecutionCompletedEvent,
 
 ) tea.Cmd {
-	h.activeToolCallID = ""
+	h.SetActiveToolCallID("")
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
@@ -1643,7 +1646,7 @@ func (h *ChatHandler) handleCancelled(
 	_ = h.stateManager.UpdateChatStatus(domain.ChatStatusCancelled)
 	h.stateManager.EndChatSession()
 	h.stateManager.EndToolExecution()
-	h.activeToolCallID = ""
+	h.SetActiveToolCallID("")
 
 	return func() tea.Msg {
 		return domain.SetStatusEvent{
@@ -1719,11 +1722,15 @@ func (h *ChatHandler) ClearBashDetachChan() {
 
 // GetActiveToolCallID returns the currently active tool call ID
 func (h *ChatHandler) GetActiveToolCallID() string {
+	h.activeToolCallIDMu.RLock()
+	defer h.activeToolCallIDMu.RUnlock()
 	return h.activeToolCallID
 }
 
 // SetActiveToolCallID sets the currently active tool call ID
 func (h *ChatHandler) SetActiveToolCallID(id string) {
+	h.activeToolCallIDMu.Lock()
+	defer h.activeToolCallIDMu.Unlock()
 	h.activeToolCallID = id
 }
 
