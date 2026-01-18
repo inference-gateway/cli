@@ -215,8 +215,8 @@ type MessageQueuedEvent struct {
 func (e MessageQueuedEvent) GetRequestID() string    { return e.RequestID }
 func (e MessageQueuedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// DEPRECATED: ToolApprovalRequestedEvent is deprecated, computer-use tools now use pause/resume
-// This will be removed in a future version
+// ToolApprovalRequestedEvent is used for standard tool approval workflow.
+// Computer-use tools use a separate pause/resume mechanism (ComputerUsePauseRequestedEvent).
 type ToolApprovalRequestedEvent struct {
 	RequestID    string
 	Timestamp    time.Time
@@ -227,8 +227,8 @@ type ToolApprovalRequestedEvent struct {
 func (e ToolApprovalRequestedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolApprovalRequestedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// DEPRECATED: ToolApprovedEvent is deprecated, computer-use tools now use pause/resume
-// This will be removed in a future version
+// ToolApprovedEvent is used for standard tool approval workflow.
+// Computer-use tools use a separate pause/resume mechanism.
 type ToolApprovedEvent struct {
 	RequestID string
 	Timestamp time.Time
@@ -238,8 +238,8 @@ type ToolApprovedEvent struct {
 func (e ToolApprovedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolApprovedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// DEPRECATED: ToolRejectedEvent is deprecated, computer-use tools now use pause/resume
-// This will be removed in a future version
+// ToolRejectedEvent is used for standard tool approval workflow.
+// Computer-use tools use a separate pause/resume mechanism.
 type ToolRejectedEvent struct {
 	RequestID string
 	Timestamp time.Time
@@ -249,8 +249,8 @@ type ToolRejectedEvent struct {
 func (e ToolRejectedEvent) GetRequestID() string    { return e.RequestID }
 func (e ToolRejectedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
-// DEPRECATED: ToolApprovalClearedEvent is deprecated, computer-use tools now use pause/resume
-// This will be removed in a future version
+// ToolApprovalClearedEvent is used for standard tool approval workflow.
+// Computer-use tools use a separate pause/resume mechanism.
 type ToolApprovalClearedEvent struct {
 	RequestID string
 	Timestamp time.Time

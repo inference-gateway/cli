@@ -264,16 +264,21 @@ type SandboxConfig struct {
 
 // ComputerUseConfig contains computer use tool settings
 type ComputerUseConfig struct {
-	Enabled        bool                    `yaml:"enabled" mapstructure:"enabled"`
-	FloatingWindow FloatingWindowConfig    `yaml:"floating_window" mapstructure:"floating_window"`
-	Screenshot     ScreenshotToolConfig    `yaml:"screenshot" mapstructure:"screenshot"`
-	MouseMove      MouseMoveToolConfig     `yaml:"mouse_move" mapstructure:"mouse_move"`
-	MouseClick     MouseClickToolConfig    `yaml:"mouse_click" mapstructure:"mouse_click"`
-	MouseScroll    MouseScrollToolConfig   `yaml:"mouse_scroll" mapstructure:"mouse_scroll"`
-	KeyboardType   KeyboardTypeToolConfig  `yaml:"keyboard_type" mapstructure:"keyboard_type"`
-	GetFocusedApp  GetFocusedAppToolConfig `yaml:"get_focused_app" mapstructure:"get_focused_app"`
-	ActivateApp    ActivateAppToolConfig   `yaml:"activate_app" mapstructure:"activate_app"`
-	RateLimit      RateLimitConfig         `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Enabled        bool                   `yaml:"enabled" mapstructure:"enabled"`
+	FloatingWindow FloatingWindowConfig   `yaml:"floating_window" mapstructure:"floating_window"`
+	Screenshot     ScreenshotToolConfig   `yaml:"screenshot" mapstructure:"screenshot"`
+	RateLimit      RateLimitConfig        `yaml:"rate_limit" mapstructure:"rate_limit"`
+	Tools          ComputerUseToolsConfig `yaml:"tools" mapstructure:"tools"`
+}
+
+// ComputerUseToolsConfig contains individual computer use tool settings
+type ComputerUseToolsConfig struct {
+	MouseMove     MouseMoveToolConfig     `yaml:"mouse_move" mapstructure:"mouse_move"`
+	MouseClick    MouseClickToolConfig    `yaml:"mouse_click" mapstructure:"mouse_click"`
+	MouseScroll   MouseScrollToolConfig   `yaml:"mouse_scroll" mapstructure:"mouse_scroll"`
+	KeyboardType  KeyboardTypeToolConfig  `yaml:"keyboard_type" mapstructure:"keyboard_type"`
+	GetFocusedApp GetFocusedAppToolConfig `yaml:"get_focused_app" mapstructure:"get_focused_app"`
+	ActivateApp   ActivateAppToolConfig   `yaml:"activate_app" mapstructure:"activate_app"`
 }
 
 // ScreenshotToolConfig contains screenshot-specific tool settings
@@ -1157,30 +1162,32 @@ Write the AGENTS.md file to the project root when you have gathered enough infor
 				LogCaptures:      false,
 				ShowOverlay:      true,
 			},
-			MouseMove: MouseMoveToolConfig{
-				Enabled: true,
-			},
-			MouseClick: MouseClickToolConfig{
-				Enabled: true,
-			},
-			MouseScroll: MouseScrollToolConfig{
-				Enabled: true,
-			},
-			KeyboardType: KeyboardTypeToolConfig{
-				Enabled:       true,
-				MaxTextLength: 1000,
-				TypingDelayMs: 100,
-			},
-			GetFocusedApp: GetFocusedAppToolConfig{
-				Enabled: true,
-			},
-			ActivateApp: ActivateAppToolConfig{
-				Enabled: true,
-			},
 			RateLimit: RateLimitConfig{
 				Enabled:             true,
 				MaxActionsPerMinute: 60,
 				WindowSeconds:       60,
+			},
+			Tools: ComputerUseToolsConfig{
+				MouseMove: MouseMoveToolConfig{
+					Enabled: true,
+				},
+				MouseClick: MouseClickToolConfig{
+					Enabled: true,
+				},
+				MouseScroll: MouseScrollToolConfig{
+					Enabled: true,
+				},
+				KeyboardType: KeyboardTypeToolConfig{
+					Enabled:       true,
+					MaxTextLength: 1000,
+					TypingDelayMs: 100,
+				},
+				GetFocusedApp: GetFocusedAppToolConfig{
+					Enabled: true,
+				},
+				ActivateApp: ActivateAppToolConfig{
+					Enabled: true,
+				},
 			},
 		},
 	}

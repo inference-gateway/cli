@@ -26,7 +26,7 @@ type MouseClickTool struct {
 func NewMouseClickTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider, stateManager domain.StateManager) *MouseClickTool {
 	return &MouseClickTool{
 		config:          cfg,
-		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.MouseClick.Enabled,
+		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.MouseClick.Enabled,
 		formatter:       domain.NewBaseFormatter("MouseClick"),
 		rateLimiter:     rateLimiter,
 		displayProvider: displayProvider,

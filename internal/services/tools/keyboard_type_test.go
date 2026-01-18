@@ -45,10 +45,12 @@ func TestKeyboardTypeTool_TypingDelay(t *testing.T) {
 			cfg := &config.Config{
 				ComputerUse: config.ComputerUseConfig{
 					Enabled: true,
-					KeyboardType: config.KeyboardTypeToolConfig{
-						Enabled:       true,
-						MaxTextLength: 1000,
-						TypingDelayMs: tt.delayMs,
+					Tools: config.ComputerUseToolsConfig{
+						KeyboardType: config.KeyboardTypeToolConfig{
+							Enabled:       true,
+							MaxTextLength: 1000,
+							TypingDelayMs: tt.delayMs,
+						},
 					},
 					RateLimit: config.RateLimitConfig{
 						Enabled:             true,
@@ -60,8 +62,8 @@ func TestKeyboardTypeTool_TypingDelay(t *testing.T) {
 
 			tool := NewKeyboardTypeTool(cfg, utils.NewRateLimiter(cfg.ComputerUse.RateLimit), nil)
 
-			if tool.config.ComputerUse.KeyboardType.TypingDelayMs != tt.delayMs {
-				t.Errorf("Expected delay %d ms, got %d ms", tt.delayMs, tool.config.ComputerUse.KeyboardType.TypingDelayMs)
+			if tool.config.ComputerUse.Tools.KeyboardType.TypingDelayMs != tt.delayMs {
+				t.Errorf("Expected delay %d ms, got %d ms", tt.delayMs, tool.config.ComputerUse.Tools.KeyboardType.TypingDelayMs)
 			}
 		})
 	}
@@ -71,7 +73,7 @@ func TestKeyboardTypeTool_ConfigDefault(t *testing.T) {
 	cfg := config.DefaultConfig()
 
 	expectedDelay := 100
-	actualDelay := cfg.ComputerUse.KeyboardType.TypingDelayMs
+	actualDelay := cfg.ComputerUse.Tools.KeyboardType.TypingDelayMs
 
 	if actualDelay != expectedDelay {
 		t.Errorf("Expected default typing delay %d ms, got %d ms", expectedDelay, actualDelay)
@@ -82,10 +84,12 @@ func TestKeyboardTypeTool_Validation(t *testing.T) {
 	cfg := &config.Config{
 		ComputerUse: config.ComputerUseConfig{
 			Enabled: true,
-			KeyboardType: config.KeyboardTypeToolConfig{
-				Enabled:       true,
-				MaxTextLength: 100,
-				TypingDelayMs: 200,
+			Tools: config.ComputerUseToolsConfig{
+				KeyboardType: config.KeyboardTypeToolConfig{
+					Enabled:       true,
+					MaxTextLength: 100,
+					TypingDelayMs: 200,
+				},
 			},
 			RateLimit: config.RateLimitConfig{
 				Enabled:             true,
@@ -193,10 +197,12 @@ func TestKeyboardTypeTool_FormatResult(t *testing.T) {
 	cfg := &config.Config{
 		ComputerUse: config.ComputerUseConfig{
 			Enabled: true,
-			KeyboardType: config.KeyboardTypeToolConfig{
-				Enabled:       true,
-				MaxTextLength: 1000,
-				TypingDelayMs: 200,
+			Tools: config.ComputerUseToolsConfig{
+				KeyboardType: config.KeyboardTypeToolConfig{
+					Enabled:       true,
+					MaxTextLength: 1000,
+					TypingDelayMs: 200,
+				},
 			},
 			RateLimit: config.RateLimitConfig{
 				Enabled:             true,
