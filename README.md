@@ -776,9 +776,10 @@ infer chat --web  # Uses config file settings
 For development, use [Task](https://taskfile.dev) for build automation:
 
 ```bash
-task dev   # Format, build, and test
 task build # Build binary
 task test  # Run tests
+task fmt   # Format code
+task lint  # Run linter
 ```
 
 See [CLAUDE.md](CLAUDE.md) for detailed development documentation.

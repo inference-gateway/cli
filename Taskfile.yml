@@ -112,21 +112,6 @@ tasks:
     cmds:
       - go run {{.MAIN_PACKAGE}} --help
 
-  check:
-    desc: Run all quality checks
-    deps:
-      - fmt
-      - vet
-      - lint
-      - test
-
-  dev:
-    desc: Development workflow - format, build, and test
-    deps:
-      - fmt
-      - build
-      - test
-
   release:build:
     desc: Build release binary for current platform only
     cmds:
@@ -225,18 +210,6 @@ tasks:
           --annotation "index:org.opencontainers.image.created={{.DATE}}" \
           -f Dockerfile \
           .
-
-  deps:install:
-    desc: Install development dependencies
-    cmds:
-      - go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-
-  setup:
-    desc: Set up development environment
-    deps:
-      - deps:install
-      - mod:download
-      - precommit:install
 
   precommit:install:
     desc: Install pre-commit hooks

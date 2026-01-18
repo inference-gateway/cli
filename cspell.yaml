@@ -18,6 +18,7 @@ words:
   - bracketright
   - bubbletea
   - buger
+  - buildx
   - cancelreader
   - cellbuf
   - cespare
@@ -42,15 +43,19 @@ words:
   - easyjson
   - erikgeiser
   - exclam
+  - filewriter
   - floatingwindow
   - frontmost
   - fsnotify
   - funlen
   - gjson
+  - GOARCH
   - gocognit
   - gocyclo
+  - golangci
   - goldmark
   - googlecode
+  - GOPATH
   - gopkg
   - gotenv
   - groq
@@ -70,6 +75,7 @@ words:
   - keyrings
   - kimi
   - kovidgoyal
+  - ldflags
   - ledongthuc
   - libsqlite
   - lipgloss
@@ -99,6 +105,7 @@ words:
   - ollama
   - OLLAMA
   - oneline
+  - opencontainers
   - OSPEED
   - parenleft
   - parenright
@@ -123,6 +130,7 @@ words:
   - sagents
   - sagikazarmark
   - SCMPR
+  - sdkclient
   - SHTTP
   - sjson
   - sname
