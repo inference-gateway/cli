@@ -664,16 +664,30 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 			fakeConfig := &domainmocks.FakeConfigService{}
 			fakeConfig.IsApprovalRequiredReturns(tt.isApprovalRequired)
 			fakeConfig.IsBashCommandWhitelistedReturns(tt.isBashCommandWhitelisted)
+			fakeConfig.GetConfigReturns(&config.Config{
+				Tools: config.ToolsConfig{
+					Safety: config.SafetyConfig{
+						RequireApproval: tt.isApprovalRequired,
+					},
+					Bash: config.BashToolConfig{
+						Whitelist: config.ToolWhitelistConfig{
+							Commands: func() []string {
+								if tt.isBashCommandWhitelisted {
+									return []string{"ls"}
+								}
+								return []string{}
+							}(),
+						},
+					},
+				},
+			})
 
 			fakeStateManager := &domainmocks.FakeStateManager{}
 			fakeStateManager.GetAgentModeReturns(tt.agentMode)
 
-			agentService := &AgentServiceImpl{
-				config:       fakeConfig,
-				stateManager: fakeStateManager,
-			}
+			approvalPolicy := NewStandardApprovalPolicy(fakeConfig.GetConfig(), fakeStateManager)
 
-			result := agentService.shouldRequireApproval(tt.toolCall, tt.isChatMode)
+			result := approvalPolicy.ShouldRequireApproval(context.Background(), tt.toolCall, tt.isChatMode)
 
 			assert.Equal(t, tt.expectedResult, result)
 		})
@@ -1015,28 +1029,30 @@ func TestEventPublisher_PublishOptimizationStatus(t *testing.T) {
 	}
 }
 
-func TestEventPublisher_PublishParallelToolsStart(t *testing.T) {
-	chatEvents := make(chan domain.ChatEvent, 1)
+func TestEventPublisher_PublishToolsQueued(t *testing.T) {
+	chatEvents := make(chan domain.ChatEvent, 10)
 	publisher := newEventPublisher("request-123", chatEvents)
 
 	toolCalls := []sdk.ChatCompletionMessageToolCall{
-		{Id: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read"}},
-		{Id: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write"}},
+		{Id: "call-1", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Read", Arguments: "{}"}},
+		{Id: "call-2", Function: sdk.ChatCompletionMessageToolCallFunction{Name: "Write", Arguments: "{}"}},
 	}
 
-	publisher.publishParallelToolsStart(toolCalls)
+	publisher.publishToolsQueued(toolCalls)
 
-	select {
-	case event := <-chatEvents:
-		startEvent, ok := event.(domain.ParallelToolsStartEvent)
-		assert.True(t, ok)
-		assert.Equal(t, "request-123", startEvent.RequestID)
-		assert.Len(t, startEvent.Tools, 2)
-		assert.Equal(t, "call-1", startEvent.Tools[0].CallID)
-		assert.Equal(t, "Read", startEvent.Tools[0].Name)
-		assert.Equal(t, "queued", startEvent.Tools[0].Status)
-	default:
-		t.Fatal("expected event to be published")
+	// Should publish individual events for each tool
+	for i, tc := range toolCalls {
+		select {
+		case event := <-chatEvents:
+			progressEvent, ok := event.(domain.ToolExecutionProgressEvent)
+			assert.True(t, ok, "expected ToolExecutionProgressEvent for tool %d", i)
+			assert.Equal(t, "request-123", progressEvent.RequestID)
+			assert.Equal(t, tc.Id, progressEvent.ToolCallID)
+			assert.Equal(t, tc.Function.Name, progressEvent.ToolName)
+			assert.Equal(t, "queued", progressEvent.Status)
+		default:
+			t.Fatalf("expected event to be published for tool %d", i)
+		}
 	}
 }
 
@@ -1054,28 +1070,6 @@ func TestEventPublisher_PublishToolStatusChange(t *testing.T) {
 		assert.Equal(t, "call-1", progressEvent.ToolCallID)
 		assert.Equal(t, "running", progressEvent.Status)
 		assert.Equal(t, "Executing...", progressEvent.Message)
-	default:
-		t.Fatal("expected event to be published")
-	}
-}
-
-func TestEventPublisher_PublishParallelToolsComplete(t *testing.T) {
-	chatEvents := make(chan domain.ChatEvent, 1)
-	publisher := newEventPublisher("request-123", chatEvents)
-
-	duration := 5 * time.Second
-
-	publisher.publishParallelToolsComplete(3, 2, 1, duration)
-
-	select {
-	case event := <-chatEvents:
-		completeEvent, ok := event.(domain.ParallelToolsCompleteEvent)
-		assert.True(t, ok)
-		assert.Equal(t, "request-123", completeEvent.RequestID)
-		assert.Equal(t, 3, completeEvent.TotalExecuted)
-		assert.Equal(t, 2, completeEvent.SuccessCount)
-		assert.Equal(t, 1, completeEvent.FailureCount)
-		assert.Equal(t, duration, completeEvent.Duration)
 	default:
 		t.Fatal("expected event to be published")
 	}

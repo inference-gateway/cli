@@ -17,6 +17,7 @@ import (
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
 	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
 	viper "github.com/spf13/viper"
@@ -221,7 +222,8 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.toolRegistry = tools.NewRegistry(c.configService, c.imageService, c.mcpManager, c.BackgroundShellService(), c.stateManager, nil)
 	c.taskTrackerService = c.toolRegistry.GetTaskTracker()
 
-	toolFormatterService := services.NewToolFormatterService(c.toolRegistry)
+	styleProvider := styles.NewProvider(c.themeService)
+	toolFormatterService := services.NewToolFormatterService(c.toolRegistry, styleProvider)
 
 	storageConfig := storage.NewStorageFromConfig(c.config)
 	storageBackend, err := storage.NewStorage(storageConfig)

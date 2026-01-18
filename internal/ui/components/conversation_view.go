@@ -14,6 +14,7 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	markdown "github.com/inference-gateway/cli/internal/ui/markdown"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -125,11 +126,13 @@ func (cv *ConversationView) SetKeyHintFormatter(formatter *hints.Formatter) {
 }
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
+	logger.Debug("SetConversation called", "entry_count", len(conversation))
 	wasAtBottom := cv.Viewport.AtBottom()
 	cv.conversation = conversation
 	cv.updatePlainTextLines()
 
 	if cv.navigationMode != NavigationModeMessageHistory {
+		logger.Debug("SetConversation: calling updateViewportContentFull")
 		cv.updateViewportContentFull()
 		if wasAtBottom {
 			cv.Viewport.GotoBottom()
@@ -335,6 +338,7 @@ func (cv *ConversationView) renderStreamingContent() string {
 
 // updateViewportContentFull performs a full rebuild of the viewport content
 func (cv *ConversationView) updateViewportContentFull() {
+	logger.Debug("updateViewportContentFull called")
 	var b strings.Builder
 
 	displayIndex := 0
@@ -350,7 +354,6 @@ func (cv *ConversationView) updateViewportContentFull() {
 	if cv.toolCallRenderer != nil {
 		toolPreviews := cv.toolCallRenderer.RenderPreviews()
 		if toolPreviews != "" {
-			b.WriteString("\n")
 			b.WriteString(toolPreviews)
 			b.WriteString("\n")
 		}
@@ -434,6 +437,18 @@ func (cv *ConversationView) renderCompactWelcome() string {
 }
 
 func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
+	logger.Debug("renderEntryWithIndex",
+		"index", index,
+		"role", entry.Message.Role,
+		"has_tool_execution", entry.ToolExecution != nil,
+		"has_tool_calls", entry.Message.ToolCalls != nil,
+		"tool_name", func() string {
+			if entry.ToolExecution != nil {
+				return entry.ToolExecution.ToolName
+			}
+			return ""
+		}())
+
 	if handled, result := cv.tryRenderSpecialEntry(entry, index); handled {
 		return result
 	}
@@ -466,8 +481,7 @@ func (cv *ConversationView) tryRenderSpecialEntry(entry domain.ConversationEntry
 			return true, cv.renderAssistantWithToolCalls(entry, index, color, role)
 		}
 	case "tool":
-		color, role := cv.getToolRoleAndColor(entry)
-		return true, cv.renderToolEntry(entry, index, color, role)
+		return true, cv.renderToolEntry(entry, index)
 	}
 	return false, ""
 }
@@ -601,30 +615,7 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 		result.WriteString(roleStyled + "\n")
 	}
 
-	if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 { // nolint:nestif
-		toolCallsColor := cv.styleProvider.GetThemeColor("accent")
-
-		for _, toolCall := range *entry.Message.ToolCalls {
-			toolName := toolCall.Function.Name
-			toolArgs := toolCall.Function.Arguments
-
-			var argsDisplay string
-			if toolArgs != "" && toolArgs != "{}" {
-				if len(toolArgs) > 100 {
-					argsDisplay = toolArgs[:97] + "..."
-				} else {
-					argsDisplay = toolArgs
-				}
-				toolNameStyled := cv.styleProvider.RenderWithColor(toolName, toolCallsColor)
-				result.WriteString(fmt.Sprintf("  • %s: %s\n", toolNameStyled, argsDisplay))
-			} else {
-				toolNameStyled := cv.styleProvider.RenderWithColor(toolName, toolCallsColor)
-				result.WriteString(fmt.Sprintf("  • %s\n", toolNameStyled))
-			}
-		}
-	}
-
-	return result.String() + "\n"
+	return result.String()
 }
 
 // formatAssistantContent formats assistant message content with proper wrapping
@@ -646,7 +637,7 @@ func (cv *ConversationView) formatAssistantContent(contentStr, role string, mode
 	return formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 }
 
-func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, index int, color, role string) string {
+func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, index int) string {
 	var isExpanded bool
 	if index >= 0 {
 		isExpanded = cv.IsToolResultExpanded(index)
@@ -660,9 +651,7 @@ func (cv *ConversationView) renderToolEntry(entry domain.ConversationEntry, inde
 
 	content := cv.formatEntryContent(entry, isExpanded)
 
-	roleStyled := cv.styleProvider.RenderWithColor(role+":", color)
-	message := roleStyled + " " + content
-	return message + "\n"
+	return content + "\n"
 }
 
 func (cv *ConversationView) formatEntryContent(entry domain.ConversationEntry, isExpanded bool) string {
@@ -697,7 +686,13 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
 	hint := cv.getHintForEntry(entry)
 	if entry.ToolExecution != nil {
+		logger.Debug("Formatting tool result for UI (compact)",
+			"tool", entry.ToolExecution.ToolName,
+			"success", entry.ToolExecution.Success,
+			"role", entry.Message.Role,
+			"has_tool_calls", entry.Message.ToolCalls != nil)
 		content := cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
+		logger.Debug("Tool result formatted", "content_length", len(content))
 		return content + "\n• " + hint
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
@@ -880,15 +875,17 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 
-	if cv.toolCallRenderer != nil {
-		cmd = cv.handleToolCallRendererEvents(msg, cmd)
-	}
-
 	switch msg := msg.(type) {
 	case domain.UpdateHistoryEvent:
 		if cv.navigationMode != NavigationModeMessageHistory {
 			cv.flushStreamingBuffer()
 			cv.SetConversation(msg.History)
+		}
+		return cv, cmd
+	case domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent,
+		domain.ToolExecutionProgressEvent, domain.BashOutputChunkEvent, domain.ChatCompleteEvent:
+		if cv.toolCallRenderer != nil {
+			cmd = cv.handleToolCallRendererEvents(msg, cmd)
 		}
 		return cv, cmd
 	case domain.BashCommandCompletedEvent:
@@ -1280,7 +1277,15 @@ func (cv *ConversationView) renderInlineToolApprovalButtons(_ int) string {
 // handleToolCallRendererEvents processes tool call renderer specific events
 func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cmd) tea.Cmd {
 	switch msg := msg.(type) {
-	case domain.ParallelToolsStartEvent:
+	case domain.ToolCallPreviewEvent:
+		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+			cmd = tea.Batch(cmd, rendererCmd)
+		}
+	case domain.ToolCallUpdateEvent:
+		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+			cmd = tea.Batch(cmd, rendererCmd)
+		}
+	case domain.ToolCallReadyEvent:
 		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
@@ -1289,10 +1294,6 @@ func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cm
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	case domain.BashOutputChunkEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
-			cmd = tea.Batch(cmd, rendererCmd)
-		}
-	case domain.ParallelToolsCompleteEvent:
 		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}

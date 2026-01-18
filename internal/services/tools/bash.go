@@ -167,7 +167,7 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		Command: command,
 	}
 
-	wasApproved, _ := ctx.Value(domain.ToolApprovedKey).(bool)
+	wasApproved := domain.IsToolApproved(ctx)
 
 	if !wasApproved && !t.isCommandAllowed(command) {
 		result.ExitCode = -1
@@ -176,16 +176,18 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		return result, fmt.Errorf("command not whitelisted: %s", command)
 	}
 
-	outputCallback, hasCallback := ctx.Value(domain.BashOutputCallbackKey).(domain.BashOutputCallback)
-	detachChan, hasDetachChan := ctx.Value(domain.BashDetachChannelKey).(<-chan struct{})
+	outputCallback := domain.GetBashOutputCallback(ctx)
+	hasCallback := domain.HasBashOutputCallback(ctx)
+	detachChan := domain.GetBashDetachChannel(ctx)
+	hasDetachChan := domain.HasBashDetachChannel(ctx)
 
 	var cmdCtx context.Context
 	var cancel context.CancelFunc
 
 	if hasDetachChan && detachChan != nil && t.backgroundShellService != nil {
 		cmdCtx, cancel = context.WithCancel(context.Background())
-		cmdCtx = context.WithValue(cmdCtx, domain.BashDetachChannelKey, detachChan)
-		cmdCtx = context.WithValue(cmdCtx, domain.BashOutputCallbackKey, outputCallback)
+		cmdCtx = domain.WithBashDetachChannel(cmdCtx, detachChan)
+		cmdCtx = domain.WithBashOutputCallback(cmdCtx, outputCallback)
 	} else {
 		timeout := time.Duration(t.config.Tools.Bash.Timeout) * time.Second
 		if timeout <= 0 {
@@ -330,7 +332,7 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 	return result, nil
 }
 
-// readPipeWithBatching reads from a pipe and batches output for efficient callback delivery
+// readPipeWithBatching reads from a pipe and streams output line by line
 func (t *BashTool) readPipeWithBatching(
 	pipe io.ReadCloser,
 	callback domain.BashOutputCallback,
@@ -342,31 +344,10 @@ func (t *BashTool) readPipeWithBatching(
 	wg *sync.WaitGroup,
 ) {
 	defer wg.Done()
+
 	scanner := bufio.NewScanner(pipe)
-
-	const batchSize = 20
-	const flushInterval = 50 * time.Millisecond
-
-	batch := make([]string, 0, batchSize)
-	lastFlush := time.Now()
-
-	flushBatch := func() {
-		if len(batch) == 0 {
-			return
-		}
-
-		combined := strings.Join(batch, "\n")
-
-		detachedMux.Lock()
-		isDetached := *detached
-		detachedMux.Unlock()
-
-		if !isDetached {
-			callback(combined)
-		}
-		batch = batch[:0]
-		lastFlush = time.Now()
-	}
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
 
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -380,14 +361,18 @@ func (t *BashTool) readPipeWithBatching(
 		}
 		outputMux.Unlock()
 
-		batch = append(batch, line)
+		detachedMux.Lock()
+		isDetached := *detached
+		detachedMux.Unlock()
 
-		if len(batch) >= batchSize || time.Since(lastFlush) >= flushInterval {
-			flushBatch()
+		if !isDetached {
+			callback(line)
 		}
 	}
 
-	flushBatch()
+	if err := scanner.Err(); err != nil {
+		logger.Debug("bash: scanner error", "error", err)
+	}
 }
 
 // isCommandAllowed checks if a command is whitelisted

@@ -11,7 +11,6 @@ import (
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	tools "github.com/inference-gateway/cli/internal/services/tools"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -28,6 +27,7 @@ type AgentServiceImpl struct {
 	maxTokens        int
 	optimizer        domain.ConversationOptimizerService
 	tokenizer        *TokenizerService
+	approvalPolicy   domain.ApprovalPolicy
 
 	// Request tracking
 	activeRequests map[string]context.CancelFunc
@@ -102,27 +102,22 @@ func (p *eventPublisher) publishOptimizationStatus(message string, isActive bool
 	}
 }
 
-// publishParallelToolsStart publishes a ParallelToolsStartEvent
-func (p *eventPublisher) publishParallelToolsStart(toolCalls []sdk.ChatCompletionMessageToolCall) {
-	tools := make([]domain.ToolInfo, len(toolCalls))
-	for i, tc := range toolCalls {
-		tools[i] = domain.ToolInfo{
-			CallID:    tc.Id,
-			Name:      tc.Function.Name,
-			Status:    "queued",
-			Arguments: tc.Function.Arguments,
+// publishToolsQueued publishes individual ToolExecutionProgressEvent for each queued tool
+func (p *eventPublisher) publishToolsQueued(toolCalls []sdk.ChatCompletionMessageToolCall) {
+	for _, tc := range toolCalls {
+		event := domain.ToolExecutionProgressEvent{
+			BaseChatEvent: domain.BaseChatEvent{
+				RequestID: p.requestID,
+				Timestamp: time.Now(),
+			},
+			ToolCallID: tc.Id,
+			ToolName:   tc.Function.Name,
+			Arguments:  tc.Function.Arguments,
+			Status:     "queued",
+			Message:    "",
 		}
+		p.chatEvents <- event
 	}
-
-	event := domain.ParallelToolsStartEvent{
-		BaseChatEvent: domain.BaseChatEvent{
-			RequestID: p.requestID,
-			Timestamp: time.Now(),
-		},
-		Tools: tools,
-	}
-
-	p.chatEvents <- event
 }
 
 // publishToolStatusChange publishes a ToolExecutionProgressEvent
@@ -159,22 +154,6 @@ func (p *eventPublisher) publishBashOutputChunk(callID string, output string, is
 	default:
 		logger.Warn("bash output chunk dropped - channel full")
 	}
-}
-
-// publishParallelToolsComplete publishes a ParallelToolsCompleteEvent
-func (p *eventPublisher) publishParallelToolsComplete(totalExecuted, successCount, failureCount int, duration time.Duration) {
-	event := domain.ParallelToolsCompleteEvent{
-		BaseChatEvent: domain.BaseChatEvent{
-			RequestID: p.requestID,
-			Timestamp: time.Now(),
-		},
-		TotalExecuted: totalExecuted,
-		SuccessCount:  successCount,
-		FailureCount:  failureCount,
-		Duration:      duration,
-	}
-
-	p.chatEvents <- event
 }
 
 // publishTodoUpdate publishes a TodoUpdateChatEvent when TodoWrite tool executes
@@ -224,6 +203,8 @@ func NewAgentService(
 ) *AgentServiceImpl {
 	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
 
+	approvalPolicy := NewStandardApprovalPolicy(config.GetConfig(), stateManager)
+
 	return &AgentServiceImpl{
 		client:           client,
 		toolService:      toolService,
@@ -236,6 +217,7 @@ func NewAgentService(
 		maxTokens:        config.GetAgentConfig().MaxTokens,
 		optimizer:        optimizer,
 		tokenizer:        tokenizer,
+		approvalPolicy:   approvalPolicy,
 		activeRequests:   make(map[string]context.CancelFunc),
 		cancelChannels:   make(map[string]chan struct{}),
 		metrics:          make(map[string]*domain.ChatMetrics),
@@ -660,6 +642,9 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			s.storeIterationMetrics(req.RequestID, req.Model, iterationStartTime, streamUsage, polyfillInput)
 
 			if len(toolCalls) > 0 {
+				// Publish chat complete event WITH tool calls before executing them
+				eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
+
 				toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
 				for _, tc := range toolCalls {
 					toolCallsSlice = append(toolCallsSlice, tc)
@@ -684,13 +669,19 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 // CancelRequest cancels an active request
 func (s *AgentServiceImpl) CancelRequest(requestID string) error {
-	s.requestsMux.RLock()
+	s.requestsMux.Lock()
 	cancel, contextExists := s.activeRequests[requestID]
-	s.requestsMux.RUnlock()
+	if contextExists {
+		delete(s.activeRequests, requestID)
+	}
+	s.requestsMux.Unlock()
 
-	s.cancelMux.RLock()
+	s.cancelMux.Lock()
 	cancelChan, chanExists := s.cancelChannels[requestID]
-	s.cancelMux.RUnlock()
+	if chanExists {
+		delete(s.cancelChannels, requestID)
+	}
+	s.cancelMux.Unlock()
 
 	if !contextExists && !chanExists {
 		return fmt.Errorf("request %s not found or already completed", requestID)
@@ -817,9 +808,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 		return []domain.ConversationEntry{}
 	}
 
-	startTime := time.Now()
-
-	eventPublisher.publishParallelToolsStart(func() []sdk.ChatCompletionMessageToolCall {
+	eventPublisher.publishToolsQueued(func() []sdk.ChatCompletionMessageToolCall {
 		calls := make([]sdk.ChatCompletionMessageToolCall, len(toolCalls))
 		for i, tc := range toolCalls {
 			calls[i] = *tc
@@ -841,7 +830,7 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 	}
 
 	for i, tc := range toolCalls {
-		requiresApproval := s.shouldRequireApproval(tc, isChatMode)
+		requiresApproval := s.approvalPolicy.ShouldRequireApproval(context.Background(), tc, isChatMode)
 		if requiresApproval {
 			approvalTools = append(approvalTools, struct {
 				index int
@@ -940,20 +929,6 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 		}
 	}
 
-	duration := time.Since(startTime)
-	successCount := 0
-	failureCount := 0
-
-	for _, result := range results {
-		if result.ToolExecution != nil && result.ToolExecution.Success {
-			successCount++
-		} else {
-			failureCount++
-		}
-	}
-
-	eventPublisher.publishParallelToolsComplete(len(toolCalls), successCount, failureCount, duration)
-
 	if err := s.batchSaveToolResults(results); err != nil {
 		logger.Error("failed to batch save tool results", "error", err)
 	}
@@ -970,7 +945,7 @@ func (s *AgentServiceImpl) executeTool(
 ) domain.ConversationEntry {
 	startTime := time.Now()
 
-	requiresApproval := s.shouldRequireApproval(&tc, isChatMode)
+	requiresApproval := s.approvalPolicy.ShouldRequireApproval(context.Background(), &tc, isChatMode)
 	wasApproved := false
 	isAutoAcceptMode := s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept
 	if isAutoAcceptMode {
@@ -1021,24 +996,24 @@ func (s *AgentServiceImpl) executeTool(
 
 	execCtx := ctx
 	if wasApproved {
-		execCtx = context.WithValue(ctx, domain.ToolApprovedKey, true)
+		execCtx = domain.WithToolApproved(execCtx)
 	}
 
 	if tc.Function.Name == "Bash" {
 		bashCallback := func(line string) {
 			eventPublisher.publishBashOutputChunk(tc.Id, line, false)
 		}
-		execCtx = context.WithValue(execCtx, domain.BashOutputCallbackKey, domain.BashOutputCallback(bashCallback))
+		execCtx = domain.WithBashOutputCallback(execCtx, bashCallback)
 
 		detachChan := make(chan struct{}, 1)
-		if chatHandler, ok := ctx.Value(domain.ChatHandlerKey).(domain.BashDetachChannelHolder); ok && chatHandler != nil {
+		if chatHandler := domain.GetChatHandler(ctx); chatHandler != nil {
 			chatHandler.SetBashDetachChan(detachChan)
 
 			defer func() {
 				chatHandler.ClearBashDetachChan()
 			}()
 		}
-		execCtx = context.WithValue(execCtx, domain.BashDetachChannelKey, (<-chan struct{})(detachChan))
+		execCtx = domain.WithBashDetachChannel(execCtx, detachChan)
 	}
 
 	resultChan := make(chan struct {
@@ -1326,49 +1301,6 @@ func (s *AgentServiceImpl) requestToolApproval(
 	}
 
 	return approved, err
-}
-
-// isBashCommandWhitelisted checks if a Bash tool command is whitelisted
-func (s *AgentServiceImpl) isBashCommandWhitelisted(tc *sdk.ChatCompletionMessageToolCall) bool {
-	var args map[string]any
-	if err := json.Unmarshal([]byte(tc.Function.Arguments), &args); err != nil {
-		return false
-	}
-
-	command, ok := args["command"].(string)
-	if !ok {
-		return false
-	}
-
-	isWhitelisted := s.config.IsBashCommandWhitelisted(command)
-	return isWhitelisted
-}
-
-// shouldRequireApproval determines if a tool execution requires user approval
-// Computer use tools always bypass approval (run silently in background)
-// For Bash tool specifically, it checks if the command is whitelisted
-func (s *AgentServiceImpl) shouldRequireApproval(tc *sdk.ChatCompletionMessageToolCall, isChatMode bool) bool {
-	toolService, ok := s.toolService.(*LLMToolService)
-	if ok && toolService != nil && toolService.registry != nil {
-		if tools.IsComputerUseTool(tc.Function.Name) {
-			return false
-		}
-	}
-
-	if s.stateManager != nil && s.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
-		return false
-	}
-
-	if !isChatMode {
-		return false
-	}
-
-	if tc.Function.Name == "Bash" {
-		return !s.isBashCommandWhitelisted(tc)
-	}
-
-	requiresApproval := s.config.IsApprovalRequired(tc.Function.Name)
-	return requiresApproval
 }
 
 func (s *AgentServiceImpl) createErrorEntry(tc sdk.ChatCompletionMessageToolCall, err error, startTime time.Time) domain.ConversationEntry {

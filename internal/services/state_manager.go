@@ -17,7 +17,8 @@ type StateManager struct {
 	mutex sync.RWMutex
 
 	// State change listeners
-	listeners []StateChangeListener
+	listeners   []StateChangeListener
+	listenersMu sync.RWMutex
 
 	// Event multicast for floating window (optional)
 	eventBridge domain.EventBridge
@@ -82,15 +83,15 @@ func NewStateManager(debugMode bool) *StateManager {
 
 // AddListener adds a state change listener
 func (sm *StateManager) AddListener(listener StateChangeListener) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
+	sm.listenersMu.Lock()
+	defer sm.listenersMu.Unlock()
 	sm.listeners = append(sm.listeners, listener)
 }
 
 // RemoveListener removes a state change listener
 func (sm *StateManager) RemoveListener(listener StateChangeListener) {
-	sm.mutex.Lock()
-	defer sm.mutex.Unlock()
+	sm.listenersMu.Lock()
+	defer sm.listenersMu.Unlock()
 
 	for i, l := range sm.listeners {
 		if l == listener {
@@ -100,10 +101,37 @@ func (sm *StateManager) RemoveListener(listener StateChangeListener) {
 	}
 }
 
-// notifyListeners notifies all listeners of a state change
+// notifyListeners notifies all listeners of a state change with coordination
 func (sm *StateManager) notifyListeners(oldState, newState domain.StateSnapshot) {
-	for _, listener := range sm.listeners {
-		go listener.OnStateChanged(oldState, newState)
+	sm.listenersMu.RLock()
+	listeners := make([]StateChangeListener, len(sm.listeners))
+	copy(listeners, sm.listeners)
+	sm.listenersMu.RUnlock()
+
+	var wg sync.WaitGroup
+	for _, listener := range listeners {
+		wg.Add(1)
+		go func(l StateChangeListener) {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					logger.Error("listener panicked", "panic", r)
+				}
+			}()
+			l.OnStateChanged(oldState, newState)
+		}(listener)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		logger.Warn("some listeners did not respond within timeout")
 	}
 }
 

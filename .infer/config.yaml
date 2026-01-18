@@ -722,21 +722,22 @@ computer_use:
     temp_dir: ""
     log_captures: false
     show_overlay: true
-  mouse_move:
-    enabled: true
-  mouse_click:
-    enabled: true
-  mouse_scroll:
-    enabled: true
-  keyboard_type:
-    enabled: true
-    max_text_length: 1000
-    typing_delay_ms: 100
-  get_focused_app:
-    enabled: true
-  activate_app:
-    enabled: true
   rate_limit:
     enabled: true
     max_actions_per_minute: 60
     window_seconds: 60
+  tools:
+    mouse_move:
+      enabled: true
+    mouse_click:
+      enabled: true
+    mouse_scroll:
+      enabled: true
+    keyboard_type:
+      enabled: true
+      max_text_length: 1000
+      typing_delay_ms: 100
+    get_focused_app:
+      enabled: true
+    activate_app:
+      enabled: true

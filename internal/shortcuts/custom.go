@@ -388,7 +388,7 @@ func (c *CustomShortcut) executeWithTool(ctx context.Context, _ []string) (Short
 		Arguments: string(argsJSON),
 	}
 
-	ctx = context.WithValue(ctx, domain.DirectExecutionKey, true)
+	ctx = domain.WithDirectExecution(ctx)
 	result, err := c.toolService.ExecuteToolDirect(ctx, toolCall)
 	if err != nil {
 		return ShortcutResult{

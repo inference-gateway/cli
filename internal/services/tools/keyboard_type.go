@@ -25,7 +25,7 @@ type KeyboardTypeTool struct {
 func NewKeyboardTypeTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider) *KeyboardTypeTool {
 	return &KeyboardTypeTool{
 		config:          cfg,
-		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.KeyboardType.Enabled,
+		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.KeyboardType.Enabled,
 		formatter:       domain.NewBaseFormatter("KeyboardType"),
 		rateLimiter:     rateLimiter,
 		displayProvider: displayProvider,
@@ -122,7 +122,7 @@ func (t *KeyboardTypeTool) Execute(ctx context.Context, args map[string]any) (*d
 
 	var execErr error
 	if hasText {
-		execErr = controller.TypeText(ctx, text, t.config.ComputerUse.KeyboardType.TypingDelayMs)
+		execErr = controller.TypeText(ctx, text, t.config.ComputerUse.Tools.KeyboardType.TypingDelayMs)
 	} else {
 		execErr = controller.SendKeyCombo(ctx, keyCombo)
 	}
@@ -166,8 +166,8 @@ func (t *KeyboardTypeTool) Validate(args map[string]any) error {
 	}
 
 	if hasText {
-		if len(text) > t.config.ComputerUse.KeyboardType.MaxTextLength {
-			return fmt.Errorf("text length exceeds maximum of %d characters", t.config.ComputerUse.KeyboardType.MaxTextLength)
+		if len(text) > t.config.ComputerUse.Tools.KeyboardType.MaxTextLength {
+			return fmt.Errorf("text length exceeds maximum of %d characters", t.config.ComputerUse.Tools.KeyboardType.MaxTextLength)
 		}
 		if len(text) == 0 {
 			return fmt.Errorf("text cannot be empty")

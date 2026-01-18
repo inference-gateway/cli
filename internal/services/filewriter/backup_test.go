@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +21,8 @@ func TestBackupManager_CreateBackup(t *testing.T) {
 		t.Fatalf("Failed to create test file: %v", err)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
 	t.Run("backup existing file", func(t *testing.T) {
 		backupPath, err := backupMgr.CreateBackup(ctx, testFile)
@@ -76,7 +78,8 @@ func TestBackupManager_RestoreBackup(t *testing.T) {
 		t.Fatalf("Failed to create original file: %v", err)
 	}
 
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 	backupPath, err := backupMgr.CreateBackup(ctx, originalFile)
 	if err != nil {
 		t.Fatalf("Failed to create backup: %v", err)

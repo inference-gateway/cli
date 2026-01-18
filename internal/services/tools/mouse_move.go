@@ -26,7 +26,7 @@ type MouseMoveTool struct {
 func NewMouseMoveTool(cfg *config.Config, rateLimiter domain.RateLimiter, displayProvider display.Provider, stateManager domain.StateManager) *MouseMoveTool {
 	return &MouseMoveTool{
 		config:          cfg,
-		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.MouseMove.Enabled,
+		enabled:         cfg.ComputerUse.Enabled && cfg.ComputerUse.Tools.MouseMove.Enabled,
 		formatter:       domain.NewBaseFormatter("MouseMove"),
 		rateLimiter:     rateLimiter,
 		displayProvider: displayProvider,

@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	adk "github.com/inference-gateway/adk/types"
 	sdk "github.com/inference-gateway/sdk"
 )
@@ -1002,3 +1003,40 @@ const (
 	ScrollToTop
 	ScrollToBottom
 )
+
+// ChatHandler defines the interface for the chat handler
+// This interface enables testing handlers in isolation and provides a clear contract
+type ChatHandler interface {
+	// Core event handling (to be deprecated as we move to component-based handling)
+	Handle(msg tea.Msg) tea.Cmd
+
+	// Specific event handlers
+	HandleUserInputEvent(msg UserInputEvent) tea.Cmd
+	HandleFileSelectionRequestEvent(msg FileSelectionRequestEvent) tea.Cmd
+	HandleConversationSelectedEvent(msg ConversationSelectedEvent) tea.Cmd
+	HandleToolApprovalRequestedEvent(msg ToolApprovalRequestedEvent) tea.Cmd
+	HandleToolApprovalResponseEvent(msg ToolApprovalResponseEvent) tea.Cmd
+	HandlePlanApprovalRequestedEvent(msg PlanApprovalRequestedEvent) tea.Cmd
+	HandlePlanApprovalResponseEvent(msg PlanApprovalResponseEvent) tea.Cmd
+
+	// Command handlers
+	HandleCommand(commandText string) tea.Cmd
+	HandleBashCommand(commandText string) tea.Cmd
+	HandleToolCommand(commandText string) tea.Cmd
+	HandleBackgroundShellRequest() tea.Cmd
+
+	// Event channel listeners
+	ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd
+	ListenForChatEvents(eventChan <-chan ChatEvent) tea.Cmd
+
+	// State management
+	GetActiveToolCallID() string
+	SetActiveToolCallID(id string)
+
+	// Utility methods
+	ParseToolCall(input string) (string, map[string]any, error)
+	ParseArguments(argsStr string) (map[string]any, error)
+	SetBashDetachChan(chan<- struct{})
+	GetBashDetachChan() chan<- struct{}
+	ClearBashDetachChan()
+}

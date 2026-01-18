@@ -312,6 +312,18 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case domain.ChatStartEvent:
+		sv.ShowSpinnerWithType("Starting response...", domain.StatusGenerating, nil)
+		if cmd == nil {
+			cmd = sv.spinner.Tick
+		}
+
+	case domain.ChatCompleteEvent:
+		sv.ClearStatus()
+
+	case domain.ChatErrorEvent:
+		sv.ShowError(fmt.Sprintf("Error: %v", msg.Error))
+
 	case domain.SetStatusEvent:
 		sv.toolName = msg.ToolName
 		if msg.Spinner {
@@ -322,15 +334,20 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		} else {
 			sv.ShowStatusWithType(msg.Message, msg.StatusType, msg.Progress)
 		}
+
 	case domain.UpdateStatusEvent:
 		sv.toolName = msg.ToolName
 		sv.UpdateSpinnerMessage(msg.Message, msg.StatusType)
+
 	case domain.ShowErrorEvent:
 		sv.ShowError(msg.Error)
+
 	case domain.ClearErrorEvent:
 		sv.ClearStatus()
+
 	case domain.DebugKeyEvent:
 		sv.debugInfo = fmt.Sprintf("DEBUG: %s -> %s", msg.Key, msg.Handler)
+
 	case domain.BashCommandCompletedEvent:
 		sv.ClearStatus()
 	}
