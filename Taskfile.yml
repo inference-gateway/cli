@@ -271,6 +271,10 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MCPClient
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain RateLimiter
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/infra/storage ConversationStorage
+      - mkdir -p tests/mocks/filewriter
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter FileWriter
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter PathValidator
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/filewriter internal/domain/filewriter BackupManager
       - mkdir -p tests/mocks/display
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/display DisplayController
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/display internal/display Provider

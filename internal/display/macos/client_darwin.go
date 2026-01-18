@@ -190,10 +190,6 @@ func (c *MacOSClient) CaptureScreen(x, y, width, height int) (image.Image, error
 	}
 
 	img := robotgo.ToImage(bitmap)
-	if img == nil {
-		return nil, fmt.Errorf("failed to convert bitmap to image")
-	}
-
 	return img, nil
 }
 

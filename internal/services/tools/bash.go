@@ -167,7 +167,7 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		Command: command,
 	}
 
-	wasApproved, _ := ctx.Value(domain.ToolApprovedKey).(bool)
+	wasApproved := domain.IsToolApproved(ctx)
 
 	if !wasApproved && !t.isCommandAllowed(command) {
 		result.ExitCode = -1
@@ -176,16 +176,18 @@ func (t *BashTool) executeBash(ctx context.Context, command string) (*BashResult
 		return result, fmt.Errorf("command not whitelisted: %s", command)
 	}
 
-	outputCallback, hasCallback := ctx.Value(domain.BashOutputCallbackKey).(domain.BashOutputCallback)
-	detachChan, hasDetachChan := ctx.Value(domain.BashDetachChannelKey).(<-chan struct{})
+	outputCallback := domain.GetBashOutputCallback(ctx)
+	hasCallback := domain.HasBashOutputCallback(ctx)
+	detachChan := domain.GetBashDetachChannel(ctx)
+	hasDetachChan := domain.HasBashDetachChannel(ctx)
 
 	var cmdCtx context.Context
 	var cancel context.CancelFunc
 
 	if hasDetachChan && detachChan != nil && t.backgroundShellService != nil {
 		cmdCtx, cancel = context.WithCancel(context.Background())
-		cmdCtx = context.WithValue(cmdCtx, domain.BashDetachChannelKey, detachChan)
-		cmdCtx = context.WithValue(cmdCtx, domain.BashOutputCallbackKey, outputCallback)
+		cmdCtx = domain.WithBashDetachChannel(cmdCtx, detachChan)
+		cmdCtx = domain.WithBashOutputCallback(cmdCtx, outputCallback)
 	} else {
 		timeout := time.Duration(t.config.Tools.Bash.Timeout) * time.Second
 		if timeout <= 0 {

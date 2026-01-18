@@ -203,7 +203,7 @@ func (h *ChatHandler) startChatCompletion() tea.Cmd {
 			IsChatMode: true,
 		}
 
-		ctx = context.WithValue(ctx, domain.ChatHandlerKey, h)
+		ctx = domain.WithChatHandler(ctx, h)
 
 		eventChan, err := h.agentService.RunWithStream(ctx, req)
 		if err != nil {
@@ -541,13 +541,16 @@ func (h *ChatHandler) handleToolApprovalResponse(
 ) tea.Cmd {
 	logger.Info("handleToolApprovalResponse called", "action", msg.Action, "tool", msg.ToolCall.Function.Name)
 
-	if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
-		logger.Info("Updating tool approval status (InMemory)")
-		inMemRepo.UpdateToolApprovalStatus(msg.Action)
-	} else if persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository); ok {
-		logger.Info("Updating tool approval status (Persistent)")
-		persistentRepo.UpdateToolApprovalStatus(msg.Action)
-	}
+	h.executeOnConversationRepo(
+		func(repo *services.InMemoryConversationRepository) {
+			logger.Info("Updating tool approval status (InMemory)")
+			repo.UpdateToolApprovalStatus(msg.Action)
+		},
+		func(repo *services.PersistentConversationRepository) {
+			logger.Info("Updating tool approval status (Persistent)")
+			repo.UpdateToolApprovalStatus(msg.Action)
+		},
+	)
 
 	if msg.Action == domain.ApprovalAutoAccept {
 		logger.Info("Switching to auto-accept mode for all future tools")
@@ -637,15 +640,16 @@ func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
 ) tea.Cmd {
 	logger.Info("HandlePlanApprovalRequestedEvent called")
 
-	if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
-		logger.Info("Marking last message as plan (InMemory)")
-		inMemRepo.MarkLastMessageAsPlan()
-	} else if persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository); ok {
-		logger.Info("Marking last message as plan (Persistent)")
-		persistentRepo.MarkLastMessageAsPlan()
-	} else {
-		logger.Warn("conversationRepo does not support plan approval", "type", fmt.Sprintf("%T", h.conversationRepo))
-	}
+	h.executeOnConversationRepo(
+		func(repo *services.InMemoryConversationRepository) {
+			logger.Info("Marking last message as plan (InMemory)")
+			repo.MarkLastMessageAsPlan()
+		},
+		func(repo *services.PersistentConversationRepository) {
+			logger.Info("Marking last message as plan (Persistent)")
+			repo.MarkLastMessageAsPlan()
+		},
+	)
 
 	h.stateManager.SetupPlanApprovalUIState(msg.PlanContent, msg.ResponseChan)
 
@@ -679,13 +683,16 @@ func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 	logger.Info("Clearing plan approval UI state to prevent re-entry")
 	h.stateManager.ClearPlanApprovalUIState()
 
-	if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
-		logger.Info("Updating plan status (InMemory)")
-		inMemRepo.UpdatePlanStatus(msg.Action)
-	} else if persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository); ok {
-		logger.Info("Updating plan status (Persistent)")
-		persistentRepo.UpdatePlanStatus(msg.Action)
-	}
+	h.executeOnConversationRepo(
+		func(repo *services.InMemoryConversationRepository) {
+			logger.Info("Updating plan status (InMemory)")
+			repo.UpdatePlanStatus(msg.Action)
+		},
+		func(repo *services.PersistentConversationRepository) {
+			logger.Info("Updating plan status (Persistent)")
+			repo.UpdatePlanStatus(msg.Action)
+		},
+	)
 
 	switch msg.Action {
 	case domain.PlanApprovalAccept:
@@ -1205,15 +1212,18 @@ func (h *ChatHandler) handleToolCallReady(
 func (h *ChatHandler) handleToolApprovalRequested(
 	msg domain.ToolApprovalRequestedEvent,
 ) tea.Cmd {
-	if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
-		if err := inMemRepo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
-			logger.Error("Failed to add pending tool call", "error", err)
-		}
-	} else if persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository); ok {
-		if err := persistentRepo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
-			logger.Error("Failed to add pending tool call", "error", err)
-		}
-	}
+	h.executeOnConversationRepo(
+		func(repo *services.InMemoryConversationRepository) {
+			if err := repo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
+				logger.Error("Failed to add pending tool call", "error", err)
+			}
+		},
+		func(repo *services.PersistentConversationRepository) {
+			if err := repo.AddPendingToolCall(msg.ToolCall, msg.ResponseChan); err != nil {
+				logger.Error("Failed to add pending tool call", "error", err)
+			}
+		},
+	)
 
 	h.stateManager.SetupApprovalUIState(&msg.ToolCall, msg.ResponseChan)
 
@@ -1335,7 +1345,7 @@ func (h *ChatHandler) handleToolExecutionProgress(
 	h.toolEventChannelMu.RUnlock()
 
 	if toolEventChan != nil {
-		cmds = append(cmds, h.ListenToToolEvents(toolEventChan))
+		cmds = append(cmds, h.ListenForEvents(toolEventChan))
 		return tea.Sequence(cmds...)
 	}
 
@@ -1344,7 +1354,7 @@ func (h *ChatHandler) handleToolExecutionProgress(
 	h.bashEventChannelMu.RUnlock()
 
 	if bashEventChan != nil {
-		cmds = append(cmds, h.ListenToBashEvents(bashEventChan))
+		cmds = append(cmds, h.ListenForEvents(bashEventChan))
 		return tea.Sequence(cmds...)
 	}
 
@@ -1366,7 +1376,7 @@ func (h *ChatHandler) handleBashOutputChunk(
 	h.bashEventChannelMu.RUnlock()
 
 	if bashEventChan != nil {
-		return h.ListenToBashEvents(bashEventChan)
+		return h.ListenForEvents(bashEventChan)
 	}
 
 	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
@@ -1901,10 +1911,10 @@ func (h *ChatHandler) executeBashCommandAsync(command string, toolCallID string)
 			}
 		}
 
-		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
-		ctx = context.WithValue(ctx, domain.BashOutputCallbackKey, domain.BashOutputCallback(bashCallback))
-		ctx = context.WithValue(ctx, domain.BashDetachChannelKey, (<-chan struct{})(detachChan))
-		ctx = context.WithValue(ctx, domain.DirectExecutionKey, true)
+		ctx := domain.WithToolApproved(context.Background())
+		ctx = domain.WithBashOutputCallback(ctx, bashCallback)
+		ctx = domain.WithBashDetachChannel(ctx, detachChan)
+		ctx = domain.WithDirectExecution(ctx)
 		result, err := h.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 
 		if err != nil {
@@ -1980,11 +1990,12 @@ func (h *ChatHandler) executeBashCommandAsync(command string, toolCallID string)
 		}
 	}()
 
-	return h.ListenToBashEvents(eventChan)
+	return h.ListenForEvents(eventChan)
 }
 
-// ListenToBashEvents listens for bash execution events from the channel
-func (h *ChatHandler) ListenToBashEvents(eventChan <-chan tea.Msg) tea.Cmd {
+// ListenForEvents creates a tea.Cmd that listens for the next event from the channel
+// This is a generic event listener that works with any tea.Msg channel
+func (h *ChatHandler) ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd {
 	return func() tea.Msg {
 		msg, ok := <-eventChan
 		if !ok {
@@ -2006,7 +2017,7 @@ func (h *ChatHandler) executeBashCommandInBackground(commandText, command string
 	_ = h.conversationRepo.AddMessage(userEntry)
 
 	go func() {
-		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
+		ctx := domain.WithToolApproved(context.Background())
 
 		cmd := exec.CommandContext(ctx, "bash", "-c", command)
 
@@ -2190,8 +2201,8 @@ func (h *ChatHandler) executeToolCommandAsync(toolName, argsJSON, toolCallID str
 			Arguments: argsJSON,
 		}
 
-		ctx := context.WithValue(context.Background(), domain.ToolApprovedKey, true)
-		ctx = context.WithValue(ctx, domain.DirectExecutionKey, true)
+		ctx := domain.WithToolApproved(context.Background())
+		ctx = domain.WithDirectExecution(ctx)
 		result, err := h.toolService.ExecuteToolDirect(ctx, toolCallFunc)
 		if err != nil {
 			eventChan <- domain.ShowErrorEvent{
@@ -2278,18 +2289,7 @@ func (h *ChatHandler) executeToolCommandAsync(toolName, argsJSON, toolCallID str
 		}
 	}()
 
-	return h.ListenToToolEvents(eventChan)
-}
-
-// ListenToToolEvents listens for tool execution events from the channel
-func (h *ChatHandler) ListenToToolEvents(eventChan <-chan tea.Msg) tea.Cmd {
-	return func() tea.Msg {
-		msg, ok := <-eventChan
-		if !ok {
-			return nil
-		}
-		return msg
-	}
+	return h.ListenForEvents(eventChan)
 }
 
 // ParseToolCall parses a tool call in the format ToolName(arg="value", arg2="value2") (exposed for testing)
@@ -2357,4 +2357,23 @@ func (h *ChatHandler) ParseArguments(argsStr string) (map[string]any, error) {
 	}
 
 	return args, nil
+}
+
+// executeOnConversationRepo executes functions on the conversation repository
+// handling both InMemory and Persistent repository types
+func (h *ChatHandler) executeOnConversationRepo(
+	inMemFunc func(*services.InMemoryConversationRepository),
+	persistFunc func(*services.PersistentConversationRepository),
+) {
+	if inMemFunc != nil {
+		if inMemRepo, ok := h.conversationRepo.(*services.InMemoryConversationRepository); ok {
+			inMemFunc(inMemRepo)
+			return
+		}
+	}
+	if persistFunc != nil {
+		if persistentRepo, ok := h.conversationRepo.(*services.PersistentConversationRepository); ok {
+			persistFunc(persistentRepo)
+		}
+	}
 }

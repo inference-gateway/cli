@@ -1026,8 +1026,7 @@ type ChatHandler interface {
 	HandleBackgroundShellRequest() tea.Cmd
 
 	// Event channel listeners
-	ListenToBashEvents(eventChan <-chan tea.Msg) tea.Cmd
-	ListenToToolEvents(eventChan <-chan tea.Msg) tea.Cmd
+	ListenForEvents(eventChan <-chan tea.Msg) tea.Cmd
 	ListenForChatEvents(eventChan <-chan ChatEvent) tea.Cmd
 
 	// State management
