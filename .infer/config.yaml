@@ -427,6 +427,12 @@ chat:
         description: toggle raw/rendered markdown
         category: display
         enabled: true
+      display_toggle_thinking:
+        keys:
+          - ctrl+k
+        description: expand/collapse thinking blocks
+        category: display
+        enabled: true
       display_toggle_todo_box:
         keys:
           - ctrl+t
@@ -634,7 +640,7 @@ chat:
       cost: true
       git_branch: true
 a2a:
-  enabled: true
+  enabled: false
   cache:
     enabled: true
     ttl: 300

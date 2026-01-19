@@ -151,6 +151,10 @@ type FakeKeyHandlerContext struct {
 	toggleRawFormatMutex       sync.RWMutex
 	toggleRawFormatArgsForCall []struct {
 	}
+	ToggleThinkingExpansionStub        func()
+	toggleThinkingExpansionMutex       sync.RWMutex
+	toggleThinkingExpansionArgsForCall []struct {
+	}
 	ToggleToolResultExpansionStub        func()
 	toggleToolResultExpansionMutex       sync.RWMutex
 	toggleToolResultExpansionArgsForCall []struct {
@@ -902,6 +906,30 @@ func (fake *FakeKeyHandlerContext) ToggleRawFormatCalls(stub func()) {
 	fake.toggleRawFormatMutex.Lock()
 	defer fake.toggleRawFormatMutex.Unlock()
 	fake.ToggleRawFormatStub = stub
+}
+
+func (fake *FakeKeyHandlerContext) ToggleThinkingExpansion() {
+	fake.toggleThinkingExpansionMutex.Lock()
+	fake.toggleThinkingExpansionArgsForCall = append(fake.toggleThinkingExpansionArgsForCall, struct {
+	}{})
+	stub := fake.ToggleThinkingExpansionStub
+	fake.recordInvocation("ToggleThinkingExpansion", []interface{}{})
+	fake.toggleThinkingExpansionMutex.Unlock()
+	if stub != nil {
+		fake.ToggleThinkingExpansionStub()
+	}
+}
+
+func (fake *FakeKeyHandlerContext) ToggleThinkingExpansionCallCount() int {
+	fake.toggleThinkingExpansionMutex.RLock()
+	defer fake.toggleThinkingExpansionMutex.RUnlock()
+	return len(fake.toggleThinkingExpansionArgsForCall)
+}
+
+func (fake *FakeKeyHandlerContext) ToggleThinkingExpansionCalls(stub func()) {
+	fake.toggleThinkingExpansionMutex.Lock()
+	defer fake.toggleThinkingExpansionMutex.Unlock()
+	fake.ToggleThinkingExpansionStub = stub
 }
 
 func (fake *FakeKeyHandlerContext) ToggleToolResultExpansion() {

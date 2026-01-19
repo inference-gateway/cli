@@ -971,7 +971,7 @@ func TestEventPublisher_PublishChatComplete(t *testing.T) {
 		Usage:    &sdk.CompletionUsage{TotalTokens: 100},
 	}
 
-	publisher.publishChatComplete(toolCalls, metrics)
+	publisher.publishChatComplete("", toolCalls, metrics)
 
 	select {
 	case event := <-chatEvents:

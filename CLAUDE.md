@@ -329,6 +329,33 @@ A2A enables agents to delegate tasks to specialized agents:
 - Agent polling: Background monitor for task status
 - Configuration: Via `infer agents` commands
 
+## Model Thinking Visualization
+
+When models use extended thinking (reasoning), their internal thought process is displayed as collapsible blocks above responses.
+
+### Implementation Details
+
+- **Data Storage**: Thinking content is stored in `ConversationEntry.ThinkingContent` field
+- **Event Flow**: Reasoning content flows through `StreamingContentEvent.ReasoningContent` during streaming
+- **Rendering**: Thinking blocks are rendered before assistant message content in `renderStandardEntry()` and `renderAssistantWithToolCalls()`
+- **Display State**: Collapsed by default, showing first sentence with ellipsis
+- **Styling**: Rendered using dim color (theme-aware) with 💭 icon
+- **Expansion**: Toggled via `ctrl+k` keybinding (configurable as `display_toggle_thinking`)
+
+### Key Files
+
+- `internal/domain/interfaces.go`: `ConversationEntry.ThinkingContent` field
+- `internal/domain/ui_events.go`: `StreamingContentEvent.ReasoningContent` field
+- `internal/ui/components/conversation_view.go`: Rendering logic and expansion state
+- `config/keybindings.go`: Keybinding definition
+- `internal/ui/keybinding/actions.go`: Action handler registration
+
+### User Controls
+
+- Press `ctrl+k` to toggle thinking block expansion/collapse
+- Default state: collapsed (first sentence visible)
+- Expanded state: full thinking content with word wrapping
+
 ## Commit Message Convention
 
 This project uses **Conventional Commits**:

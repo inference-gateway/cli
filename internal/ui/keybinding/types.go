@@ -30,6 +30,7 @@ type KeyHandlerContext interface {
 
 	// Actions
 	ToggleToolResultExpansion()
+	ToggleThinkingExpansion()
 	ToggleRawFormat()
 	SendMessage() tea.Cmd
 	GetPageSize() int
