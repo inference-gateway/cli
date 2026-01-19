@@ -59,7 +59,7 @@ To make multiple file edits, provide the following:
 2. edits: An array of edit operations to perform, where each edit contains:
    - old_string: The text to replace (must match the file contents exactly, including all whitespace and indentation)
    - new_string: The edited text to replace the old_string
-   - replace_all: Replace all occurences of old_string. This parameter is optional and defaults to false.
+   - replace_all: Replace all occurrences of old_string. This parameter is optional and defaults to false.
 
 IMPORTANT:
 - All edits are applied in sequence, in the order they are provided
@@ -118,7 +118,7 @@ If you want to create a new file, use:
 								},
 								"replace_all": map[string]any{
 									"type":        "boolean",
-									"description": "Replace all occurences of old_string (default false).",
+									"description": "Replace all occurrences of old_string (default false).",
 									"default":     false,
 								},
 							},
