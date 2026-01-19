@@ -11,6 +11,7 @@ words:
   - aymanbagabas
   - aymerick
   - bahlo
+  - bigfft
   - bluemonday
   - braceleft
   - braceright
@@ -32,6 +33,7 @@ words:
   - creack
   - cyclop
   - davecgh
+  - dblohm
   - dbus
   - dearmor
   - deepseek
@@ -41,10 +43,12 @@ words:
   - dlclark
   - duckduckgo
   - easyjson
+  - ebitengine
   - erikgeiser
   - exclam
   - filewriter
   - floatingwindow
+  - freetype
   - frontmost
   - fsnotify
   - funlen
@@ -52,20 +56,26 @@ words:
   - GOARCH
   - gocognit
   - gocyclo
+  - godbus
   - golangci
   - goldmark
   - googlecode
   - GOPATH
   - gopkg
+  - gops
+  - gopsutil
+  - gosseract
   - gotenv
   - groq
   - GROQ
   - healthcheck
+  - imgo
   - inconshreveable
   - invopop
   - isatty
   - ISPEED
   - iterm
+  - jezek
   - journalctl
   - jsonmerge
   - jsonparser
@@ -77,38 +87,46 @@ words:
   - kovidgoyal
   - ldflags
   - ledongthuc
+  - libc
   - libsqlite
   - lipgloss
   - locafero
   - localereader
   - localtime
   - lucasb
+  - lufia
   - mailru
   - mapstructure
+  - mathutil
   - mattn
   - maxbrunsfeld
   - mekayelanik
   - metoro
   - mimeapps
   - mixtral
+  - modernc
   - moonshotai
   - mousemove
   - mtoken
   - multierr
   - myshortcuts
+  - ncruces
   - nolint
   - noninteractive
   - NOPASSWD
   - noreset
   - numbersign
+  - numcpus
   - oapi
   - ollama
   - OLLAMA
   - oneline
   - opencontainers
   - OSPEED
+  - otiai
   - parenleft
   - parenright
+  - perfstat
   - pflag
   - pgdn
   - pgrep
@@ -116,14 +134,17 @@ words:
   - playai
   - pmezard
   - procps
+  - purego
   - quotedbl
   - qwen
   - rasterizer
+  - remyoudompheng
   - Respawn
   - resty
   - retryable
   - rivo
   - robotgo
+  - robotn
   - runewidth
   - runuser
   - sabhiram
@@ -131,25 +152,31 @@ words:
   - sagikazarmark
   - SCMPR
   - sdkclient
+  - shirou
   - SHTTP
   - sjson
   - sname
   - sourcegraph
   - startxfce
   - stretchr
+  - strftime
   - sublimetext
   - subosito
+  - sysconf
   - sysinfo
   - systemctl
   - termenv
   - terminfo
   - thunar
   - tidwall
+  - tklauser
   - tmpl
   - uniseg
   - upgrader
   - usermod
   - userspace
+  - vcaesar
+  - wingoes
   - Winsize
   - xdraw
   - xgbutil
@@ -158,4 +185,5 @@ words:
   - xtest
   - xxhash
   - yuin
+  - yusufpapurcu
   - zoneinfo
