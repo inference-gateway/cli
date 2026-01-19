@@ -275,7 +275,7 @@ func TestConversationView_ConcurrentStreamingAccess(t *testing.T) {
 	<-done
 	<-done
 
-	_, _ = cv.flushStreamingBuffer()
+	cv.flushStreamingBuffer()
 
 	cv.streamingMu.RLock()
 	isStreaming := cv.isStreaming

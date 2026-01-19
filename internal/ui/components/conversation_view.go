@@ -320,18 +320,14 @@ func (cv *ConversationView) appendStreamingContent(content, reasoning, model str
 }
 
 // flushStreamingBuffer clears the streaming buffer after completion
-func (cv *ConversationView) flushStreamingBuffer() (content, reasoning string) {
+func (cv *ConversationView) flushStreamingBuffer() {
 	cv.streamingMu.Lock()
 	defer cv.streamingMu.Unlock()
 
-	content = cv.streamingBuffer.String()
-	reasoning = cv.streamingReasoningBuffer.String()
 	cv.streamingBuffer.Reset()
 	cv.streamingReasoningBuffer.Reset()
 	cv.isStreaming = false
 	cv.streamingModel = ""
-
-	return content, reasoning
 }
 
 // renderStreamingContent renders the currently streaming assistant message
@@ -977,7 +973,7 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case domain.UpdateHistoryEvent:
 		if cv.navigationMode != NavigationModeMessageHistory {
-			_, _ = cv.flushStreamingBuffer()
+			cv.flushStreamingBuffer()
 			cv.SetConversation(msg.History)
 		}
 		return cv, cmd
