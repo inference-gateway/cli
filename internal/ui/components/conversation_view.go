@@ -33,30 +33,33 @@ const (
 
 // ConversationView handles the chat conversation display
 type ConversationView struct {
-	conversation        []domain.ConversationEntry
-	Viewport            viewport.Model
-	width               int
-	height              int
-	expandedToolResults map[int]bool
-	allToolsExpanded    bool
-	toolFormatter       domain.ToolFormatter
-	lineFormatter       *formatting.ConversationLineFormatter
-	plainTextLines      []string
-	configPath          string
-	versionInfo         *domain.VersionInfo
-	styleProvider       *styles.Provider
-	toolCallRenderer    *ToolCallRenderer
-	markdownRenderer    *markdown.Renderer
-	rawFormat           bool
-	userScrolledUp      bool
-	stateManager        domain.StateManager
-	renderedContent     string
+	conversation           []domain.ConversationEntry
+	Viewport               viewport.Model
+	width                  int
+	height                 int
+	expandedToolResults    map[int]bool
+	expandedThinkingBlocks map[int]bool
+	allToolsExpanded       bool
+	allThinkingExpanded    bool
+	toolFormatter          domain.ToolFormatter
+	lineFormatter          *formatting.ConversationLineFormatter
+	plainTextLines         []string
+	configPath             string
+	versionInfo            *domain.VersionInfo
+	styleProvider          *styles.Provider
+	toolCallRenderer       *ToolCallRenderer
+	markdownRenderer       *markdown.Renderer
+	rawFormat              bool
+	userScrolledUp         bool
+	stateManager           domain.StateManager
+	renderedContent        string
 
 	// Streaming state with mutex protection
-	streamingMu     sync.RWMutex
-	streamingBuffer strings.Builder
-	isStreaming     bool
-	streamingModel  string
+	streamingMu              sync.RWMutex
+	streamingBuffer          strings.Builder
+	streamingReasoningBuffer strings.Builder
+	isStreaming              bool
+	streamingModel           string
 
 	// Viewport mutex to protect concurrent access
 	viewportMu sync.Mutex
@@ -81,16 +84,18 @@ func NewConversationView(styleProvider *styles.Provider) *ConversationView {
 	}
 
 	return &ConversationView{
-		conversation:        []domain.ConversationEntry{},
-		Viewport:            vp,
-		width:               80,
-		height:              20,
-		expandedToolResults: make(map[int]bool),
-		allToolsExpanded:    false,
-		lineFormatter:       formatting.NewConversationLineFormatter(80, nil),
-		plainTextLines:      []string{},
-		styleProvider:       styleProvider,
-		markdownRenderer:    mdRenderer,
+		conversation:           []domain.ConversationEntry{},
+		Viewport:               vp,
+		width:                  80,
+		height:                 20,
+		expandedToolResults:    make(map[int]bool),
+		expandedThinkingBlocks: make(map[int]bool),
+		allToolsExpanded:       false,
+		allThinkingExpanded:    false,
+		lineFormatter:          formatting.NewConversationLineFormatter(80, nil),
+		plainTextLines:         []string{},
+		styleProvider:          styleProvider,
+		markdownRenderer:       mdRenderer,
 	}
 }
 
@@ -126,7 +131,6 @@ func (cv *ConversationView) SetKeyHintFormatter(formatter *hints.Formatter) {
 }
 
 func (cv *ConversationView) SetConversation(conversation []domain.ConversationEntry) {
-	logger.Debug("SetConversation called", "entry_count", len(conversation))
 	wasAtBottom := cv.Viewport.AtBottom()
 	cv.conversation = conversation
 	cv.updatePlainTextLines()
@@ -184,6 +188,27 @@ func (cv *ConversationView) ToggleAllToolResultsExpansion() {
 func (cv *ConversationView) IsToolResultExpanded(index int) bool {
 	if index >= 0 && index < len(cv.conversation) {
 		return cv.expandedToolResults[index]
+	}
+	return false
+}
+
+func (cv *ConversationView) ToggleAllThinkingExpansion() {
+	cv.allThinkingExpanded = !cv.allThinkingExpanded
+
+	for i, entry := range cv.conversation {
+		if entry.ReasoningContent != "" {
+			cv.expandedThinkingBlocks[i] = cv.allThinkingExpanded
+		}
+	}
+
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContentFull()
+	}
+}
+
+func (cv *ConversationView) IsThinkingExpanded(index int) bool {
+	if expanded, exists := cv.expandedThinkingBlocks[index]; exists {
+		return expanded
 	}
 	return false
 }
@@ -283,11 +308,12 @@ func (cv *ConversationView) updateViewportContent() {
 }
 
 // appendStreamingContent appends content to the streaming buffer and triggers immediate render
-func (cv *ConversationView) appendStreamingContent(content, model string) {
+func (cv *ConversationView) appendStreamingContent(content, reasoning, model string) {
 	cv.streamingMu.Lock()
 	cv.isStreaming = true
 	cv.streamingModel = model
 	cv.streamingBuffer.WriteString(content)
+	cv.streamingReasoningBuffer.WriteString(reasoning)
 	cv.streamingMu.Unlock()
 
 	cv.updateViewportContentFull()
@@ -299,6 +325,7 @@ func (cv *ConversationView) flushStreamingBuffer() {
 	defer cv.streamingMu.Unlock()
 
 	cv.streamingBuffer.Reset()
+	cv.streamingReasoningBuffer.Reset()
 	cv.isStreaming = false
 	cv.streamingModel = ""
 }
@@ -307,8 +334,17 @@ func (cv *ConversationView) flushStreamingBuffer() {
 func (cv *ConversationView) renderStreamingContent() string {
 	cv.streamingMu.RLock()
 	streamingContent := cv.streamingBuffer.String()
+	streamingReasoning := cv.streamingReasoningBuffer.String()
 	model := cv.streamingModel
 	cv.streamingMu.RUnlock()
+
+	var result strings.Builder
+
+	if streamingReasoning != "" {
+		isExpanded := false
+		thinkingBlock := cv.renderThinkingBlock(streamingReasoning, -1, isExpanded)
+		result.WriteString(thinkingBlock)
+	}
 
 	rolePrefixLength := 13
 	if model != "" {
@@ -333,7 +369,8 @@ func (cv *ConversationView) renderStreamingContent() string {
 		roleStyled = cv.styleProvider.RenderWithColor("⏺ Assistant:", assistantColor)
 	}
 
-	return roleStyled + " " + streamingContent + "\n"
+	result.WriteString(roleStyled + " " + streamingContent + "\n")
+	return result.String()
 }
 
 // updateViewportContentFull performs a full rebuild of the viewport content
@@ -360,7 +397,7 @@ func (cv *ConversationView) updateViewportContentFull() {
 	}
 
 	cv.streamingMu.RLock()
-	shouldRenderStreaming := cv.isStreaming && cv.streamingBuffer.Len() > 0
+	shouldRenderStreaming := cv.isStreaming && (cv.streamingBuffer.Len() > 0 || cv.streamingReasoningBuffer.Len() > 0)
 	cv.streamingMu.RUnlock()
 
 	if shouldRenderStreaming {
@@ -459,7 +496,7 @@ func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry,
 		return ""
 	}
 
-	return cv.renderStandardEntry(entry, color, role)
+	return cv.renderStandardEntry(entry, index, color, role)
 }
 
 // tryRenderSpecialEntry attempts to render special entry types (user commands, plans, tools)
@@ -542,7 +579,15 @@ func (cv *ConversationView) getToolRoleAndColor(entry domain.ConversationEntry) 
 }
 
 // renderStandardEntry renders a standard message entry
-func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, color, role string) string {
+func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, index int, color, role string) string {
+	var result strings.Builder
+
+	if entry.Message.Role == sdk.Assistant && entry.ReasoningContent != "" {
+		isExpanded := cv.IsThinkingExpanded(index)
+		thinkingBlock := cv.renderThinkingBlock(entry.ReasoningContent, index, isExpanded)
+		result.WriteString(thinkingBlock)
+	}
+
 	contentStr, err := entry.Message.Content.AsMessageContent0()
 	if err != nil {
 		contentStr = formatting.ExtractTextFromContent(entry.Message.Content, entry.Images)
@@ -571,7 +616,9 @@ func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, 
 	}
 
 	roleStyled := cv.formatRoleWithModel(role, color, modelLabelText)
-	return roleStyled + " " + formattedContent + "\n"
+	result.WriteString(roleStyled + " " + formattedContent + "\n")
+
+	return result.String()
 }
 
 // formatRoleWithModel formats the role prefix with optional model label
@@ -586,8 +633,14 @@ func (cv *ConversationView) formatRoleWithModel(role, color, modelLabelText stri
 	return rolePart + modelLabel + cv.styleProvider.RenderWithColor(":", color)
 }
 
-func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, _ int, color, role string) string {
+func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, index int, color, role string) string {
 	var result strings.Builder
+
+	if entry.ReasoningContent != "" {
+		isExpanded := cv.IsThinkingExpanded(index)
+		thinkingBlock := cv.renderThinkingBlock(entry.ReasoningContent, index, isExpanded)
+		result.WriteString(thinkingBlock)
+	}
 
 	var roleStyled string
 	if entry.Model != "" && !entry.Rejected {
@@ -768,6 +821,48 @@ func (cv *ConversationView) parseToolCallFromLine(line string) *ToolCallInfo {
 	}
 }
 
+// renderThinkingBlock renders a thinking/reasoning block for assistant messages
+func (cv *ConversationView) renderThinkingBlock(thinking string, index int, expanded bool) string {
+	if thinking == "" {
+		return ""
+	}
+
+	if !expanded {
+		preview := cv.extractThinkingPreview(thinking, 3)
+		hint := cv.getToggleThinkingHint("expand")
+		collapsedText := fmt.Sprintf("%s...\n• %s", preview, hint)
+		return cv.styleProvider.RenderDimText(collapsedText) + "\n"
+	}
+
+	wrappedThinking := formatting.FormatResponsiveMessage(thinking, cv.width)
+	hint := cv.getToggleThinkingHint("collapse")
+	expandedText := fmt.Sprintf("%s\n• %s", wrappedThinking, hint)
+	return cv.styleProvider.RenderDimText(expandedText) + "\n"
+}
+
+// extractThinkingPreview extracts the first N lines from thinking text for collapsed view
+func (cv *ConversationView) extractThinkingPreview(text string, maxLines int) string {
+	wrappedText := formatting.FormatResponsiveMessage(text, cv.width)
+	lines := strings.Split(wrappedText, "\n")
+
+	if len(lines) <= maxLines {
+		return wrappedText
+	}
+
+	preview := strings.Join(lines[:maxLines], "\n")
+	return preview
+}
+
+// getToggleThinkingHint returns the keybinding hint for toggling thinking blocks
+func (cv *ConversationView) getToggleThinkingHint(action string) string {
+	if cv.keyHintFormatter == nil {
+		return ""
+	}
+
+	actionID := config.ActionID(config.NamespaceDisplay, "toggle_thinking")
+	return cv.keyHintFormatter.GetKeyHint(actionID, action+" thinking")
+}
+
 // buildConfigLine constructs the configuration line for the welcome screen
 func (cv *ConversationView) buildConfigLine() string {
 	if cv.configPath == "" {
@@ -898,7 +993,7 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return cv, cmd
 	case domain.StreamingContentEvent:
 		if cv.navigationMode != NavigationModeMessageHistory {
-			cv.appendStreamingContent(msg.Content, msg.Model)
+			cv.appendStreamingContent(msg.Content, msg.ReasoningContent, msg.Model)
 		}
 		return cv, cmd
 	case domain.ScrollRequestEvent:
@@ -1316,16 +1411,11 @@ func (cv *ConversationView) getHintForEntry(_ domain.ConversationEntry) string {
 
 func (cv *ConversationView) getToggleToolHint(action string) string {
 	if cv.keyHintFormatter == nil {
-		return "Press ctrl+o to " + action
+		return ""
 	}
 
 	actionID := config.ActionID(config.NamespaceTools, "toggle_tool_expansion")
-	hint := cv.keyHintFormatter.GetKeyHint(actionID, action)
-	if hint == "" {
-		return "Press ctrl+o to " + action
-	}
-
-	return hint
+	return cv.keyHintFormatter.GetKeyHint(actionID, action)
 }
 
 // Message History Navigation Methods
@@ -1335,7 +1425,7 @@ func (cv *ConversationView) EnterMessageHistoryMode(snapshots []domain.MessageSn
 	cv.navigationMode = NavigationModeMessageHistory
 	cv.messageSnapshots = snapshots
 	if len(snapshots) > 0 {
-		cv.historySelectedIndex = len(snapshots) - 1 // Default to most recent
+		cv.historySelectedIndex = len(snapshots) - 1
 	} else {
 		cv.historySelectedIndex = 0
 	}

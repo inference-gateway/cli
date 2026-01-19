@@ -17,10 +17,11 @@ type UpdateHistoryEvent struct {
 
 // StreamingContentEvent delivers live streaming content for immediate UI display
 type StreamingContentEvent struct {
-	RequestID string
-	Content   string
-	Delta     bool
-	Model     string
+	RequestID        string
+	Content          string
+	ReasoningContent string
+	Delta            bool
+	Model            string
 }
 
 // SetStatusEvent sets a status message

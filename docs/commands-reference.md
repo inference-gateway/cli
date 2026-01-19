@@ -322,15 +322,16 @@ select models and have conversations.
 
 - **Mouse wheel**: Scroll up/down through chat history
 - **Arrow keys** (`↑`/`↓`) or **Vim keys** (`k`/`j`): Scroll one line at a time
-- **Page Up/Page Down**: Scroll by page
-- **Home/End**: Jump to top/bottom of chat history
-- **Shift+↑/Shift+↓**: Half-page scrolling
-- **Ctrl+O**: Toggle expanded view of tool results
-- **Shift+Tab**: Cycle agent mode (Standard → Plan → Auto-Accept)
+- **page up/page down**: Scroll by page
+- **home/end**: Jump to top/bottom of chat history
+- **shift+↑/shift+↓**: Half-page scrolling
+- **ctrl+o** (default): Toggle expanded view of tool results (configurable via `tools_toggle_tool_expansion`)
+- **ctrl+k** (default): Toggle expanded view of model thinking blocks (configurable via `display_toggle_thinking`)
+- **shift+tab**: Cycle agent mode (Standard → Plan → Auto-Accept)
 
 **Agent Modes:**
 
-The chat interface supports three operational modes that can be toggled with **Shift+Tab**:
+The chat interface supports three operational modes that can be toggled with **shift+tab**:
 
 - **Standard Mode** (default): Normal operation with all configured tools and approval checks enabled.
   The agent has access to all tools defined in your configuration and will request approval for

@@ -1717,6 +1717,11 @@ func (app *ChatApplication) ToggleToolResultExpansion() {
 	app.toggleToolResultExpansion()
 }
 
+// ToggleThinkingExpansion toggles thinking block expansion
+func (app *ChatApplication) ToggleThinkingExpansion() {
+	app.conversationView.ToggleAllThinkingExpansion()
+}
+
 // ToggleRawFormat toggles between raw and rendered markdown display
 func (app *ChatApplication) ToggleRawFormat() {
 	app.conversationView.ToggleRawFormat()

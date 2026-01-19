@@ -433,7 +433,7 @@ in different namespaces without conflict.
 - **chat**: Chat-specific actions (e.g., `chat_enter_key_handler`)
 - **mode**: Agent mode controls (e.g., `mode_cycle_agent_mode`)
 - **tools**: Tool-related actions (e.g., `tools_toggle_tool_expansion`)
-- **display**: Display toggles (e.g., `display_toggle_raw_format`, `display_toggle_todo_box`)
+- **display**: Display toggles (e.g., `display_toggle_raw_format`, `display_toggle_todo_box`, `display_toggle_thinking`)
 - **text_editing**: Text manipulation (e.g., `text_editing_move_cursor_left`, `text_editing_history_up`)
 - **navigation**: Viewport navigation (e.g., `navigation_scroll_to_top`, `navigation_page_down`)
 - **clipboard**: Copy/paste operations (e.g., `clipboard_copy_text`, `clipboard_paste_text`)

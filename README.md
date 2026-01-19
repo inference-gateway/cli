@@ -65,6 +65,8 @@ and management of inference services.
 - **Cost Tracking**: Real-time cost calculation for API usage with per-model breakdown and configurable pricing
 - **Inline History Auto-Completion**: Smart command history suggestions with inline completion
 - **Customizable Keybindings**: Fully configurable keyboard shortcuts for the chat interface
+- **Model Thinking Visualization**: When models use extended thinking,
+  their internal reasoning process is displayed as collapsible blocks above responses (toggle with **ctrl+k** by default, configurable via `display_toggle_thinking`)
 - **Extensible Shortcuts System**: Create custom commands with AI-powered snippets - [Learn more →](docs/shortcuts-guide.md)
 - **MCP Server Support**: Direct integration with Model Context Protocol servers for extended tool capabilities -
   [Learn more →](docs/mcp-integration.md)

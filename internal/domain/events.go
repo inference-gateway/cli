@@ -51,11 +51,12 @@ func (e ChatChunkEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // ChatCompleteEvent indicates chat completion
 type ChatCompleteEvent struct {
-	RequestID string
-	Timestamp time.Time
-	Message   string
-	ToolCalls []sdk.ChatCompletionMessageToolCall
-	Metrics   *ChatMetrics
+	RequestID        string
+	Timestamp        time.Time
+	Message          string
+	ReasoningContent string
+	ToolCalls        []sdk.ChatCompletionMessageToolCall
+	Metrics          *ChatMetrics
 }
 
 func (e ChatCompleteEvent) GetRequestID() string    { return e.RequestID }
