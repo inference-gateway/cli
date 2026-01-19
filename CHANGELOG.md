@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.97.0](https://github.com/inference-gateway/cli/compare/v0.96.0...v0.97.0) (2026-01-19)
+
+### 🚀 Features
+
+* Add model thinking visualization with collapsible blocks ([#366](https://github.com/inference-gateway/cli/issues/366)) ([533c02a](https://github.com/inference-gateway/cli/commit/533c02a251386b4a04c24f08ac609973630559ea)), closes [#360](https://github.com/inference-gateway/cli/issues/360)
+
+### ♻️ Code Refactoring
+
+* Consolidate chat handler and improve context helpers ([#363](https://github.com/inference-gateway/cli/issues/363)) ([cb48392](https://github.com/inference-gateway/cli/commit/cb48392ce4e13dadcad25f8ac85cb44ee055ee1e))
+
+### 📚 Documentation
+
+* Re-create AGENTS.md and CLAUDE.md ([a04d109](https://github.com/inference-gateway/cli/commit/a04d109255eb84493c6095679cf2e12d6ed5be3d))
+
+### 🧹 Maintenance
+
+* Add unknown words to cspell ([9a42067](https://github.com/inference-gateway/cli/commit/9a420670cc4b2ddaac320edf8c97456ec57647af))
+* **deps:** Bump golang.org/x/crypto from 0.46.0 to 0.47.0 ([#367](https://github.com/inference-gateway/cli/issues/367)) ([93ff87e](https://github.com/inference-gateway/cli/commit/93ff87ebc1cda8062197ae66d19ca44bb40d217f))
+* **deps:** Bump modernc.org/sqlite from 1.42.2 to 1.43.0 ([#362](https://github.com/inference-gateway/cli/issues/362)) ([7368ac6](https://github.com/inference-gateway/cli/commit/7368ac6e0188fbc8684b14ea8ba1432f42989820))
+* **deps:** Bump modernc.org/sqlite from 1.43.0 to 1.44.2 ([#369](https://github.com/inference-gateway/cli/issues/369)) ([2c942f9](https://github.com/inference-gateway/cli/commit/2c942f9837fd0211c336ff3fd790b39c7919df13))
+* **examples:** Bump versions ([80a024f](https://github.com/inference-gateway/cli/commit/80a024f01e1477ebd21a8fbdacf1a173b0bfe9d0))
+* **deps:** Update flox environment dependencies ([#364](https://github.com/inference-gateway/cli/issues/364)) ([b179523](https://github.com/inference-gateway/cli/commit/b1795237a55b92d63526fecd7d9645bcf06363d0))
+
 ## [0.96.0](https://github.com/inference-gateway/cli/compare/v0.95.1...v0.96.0) (2026-01-11)
 
 ### 🚀 Features
