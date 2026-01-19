@@ -69,12 +69,13 @@ func (p *eventPublisher) publishChatStart() {
 }
 
 // publishChatComplete publishes a ChatCompleteEvent
-func (p *eventPublisher) publishChatComplete(toolCalls []sdk.ChatCompletionMessageToolCall, metrics *domain.ChatMetrics) {
+func (p *eventPublisher) publishChatComplete(reasoning string, toolCalls []sdk.ChatCompletionMessageToolCall, metrics *domain.ChatMetrics) {
 	p.chatEvents <- domain.ChatCompleteEvent{
-		RequestID: p.requestID,
-		Timestamp: time.Now(),
-		ToolCalls: toolCalls,
-		Metrics:   metrics,
+		RequestID:        p.requestID,
+		Timestamp:        time.Now(),
+		ReasoningContent: reasoning,
+		ToolCalls:        toolCalls,
+		Metrics:          metrics,
 	}
 }
 
@@ -340,7 +341,7 @@ func (s *AgentServiceImpl) handleIdleState(
 		time.Sleep(500 * time.Millisecond)
 		return true, false
 	case canComplete:
-		eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(eventPublisher.requestID))
+		eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(eventPublisher.requestID))
 
 		time.Sleep(100 * time.Millisecond)
 		if s.messageQueue != nil && !s.messageQueue.IsEmpty() {
@@ -411,7 +412,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 		for maxTurns > turns {
 			select {
 			case <-cancelChan:
-				eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
+				eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
 				return
 			default:
 			}
@@ -557,10 +558,10 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					}
 
 					reasoning := ""
-					if message.Reasoning != nil && *message.Reasoning != "" {
-						reasoning = *message.Reasoning
-					} else if message.ReasoningContent != nil && *message.ReasoningContent != "" {
-						reasoning = *message.ReasoningContent
+					if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
+						reasoning = *choice.Delta.Reasoning
+					} else if choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
+						reasoning = *choice.Delta.ReasoningContent
 					}
 
 					if len(choice.Delta.ToolCalls) > 0 {
@@ -586,6 +587,13 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				assistantContent = sdk.NewMessageContent("")
 			}
 
+			reasoning := ""
+			if message.Reasoning != nil && *message.Reasoning != "" {
+				reasoning = *message.Reasoning
+			} else if message.ReasoningContent != nil && *message.ReasoningContent != "" {
+				reasoning = *message.ReasoningContent
+			}
+
 			assistantMessage := sdk.Message{
 				Role:    sdk.Assistant,
 				Content: assistantContent,
@@ -608,14 +616,20 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 					}
 				}
 				assistantMessage.ToolCalls = &assistantToolCalls
+
+				if reasoning != "" {
+					assistantMessage.Reasoning = &reasoning
+					assistantMessage.ReasoningContent = &reasoning
+				}
 			}
 
 			conversation = append(conversation, assistantMessage)
 
 			assistantEntry := domain.ConversationEntry{
-				Message: assistantMessage,
-				Model:   req.Model,
-				Time:    time.Now(),
+				Message:          assistantMessage,
+				ReasoningContent: reasoning,
+				Model:            req.Model,
+				Time:             time.Now(),
 			}
 
 			if err := s.conversationRepo.AddMessage(assistantEntry); err != nil {
@@ -642,8 +656,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			s.storeIterationMetrics(req.RequestID, req.Model, iterationStartTime, streamUsage, polyfillInput)
 
 			if len(toolCalls) > 0 {
-				// Publish chat complete event WITH tool calls before executing them
-				eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
+				eventPublisher.publishChatComplete(reasoning, completeToolCalls, s.GetMetrics(req.RequestID))
 
 				toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
 				for _, tc := range toolCalls {
@@ -658,7 +671,7 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 				hasToolResults = true
 			} else {
-				eventPublisher.publishChatComplete(completeToolCalls, s.GetMetrics(req.RequestID))
+				eventPublisher.publishChatComplete(reasoning, completeToolCalls, s.GetMetrics(req.RequestID))
 			}
 		}
 		//// EVENT LOOP FINISHED
@@ -1119,7 +1132,7 @@ func (s *AgentServiceImpl) handleToolResults(
 
 	if hasRejection {
 		logger.Info("Tool was rejected - stopping agent loop")
-		eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
+		eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
 		return true
 	}
 
@@ -1185,7 +1198,7 @@ func (s *AgentServiceImpl) createPlanMessage(
 	}
 
 	logger.Info("Plan approval requested - stopping agent loop")
-	eventPublisher.publishChatComplete([]sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
+	eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
 }
 
 // extractPlanContent extracts plan content from RequestPlanApproval tool result

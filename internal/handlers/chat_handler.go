@@ -889,10 +889,11 @@ func (h *ChatHandler) handleChatChunk(
 	cmds := []tea.Cmd{
 		func() tea.Msg {
 			return domain.StreamingContentEvent{
-				RequestID: msg.RequestID,
-				Content:   msg.Content,
-				Delta:     true,
-				Model:     chatSession.Model,
+				RequestID:        msg.RequestID,
+				Content:          msg.Content,
+				ReasoningContent: msg.ReasoningContent,
+				Delta:            true,
+				Model:            chatSession.Model,
 			}
 		},
 	}
@@ -1040,21 +1041,6 @@ func (h *ChatHandler) handleChatComplete(
 
 	if len(msg.ToolCalls) == 0 {
 		_ = h.stateManager.UpdateChatStatus(domain.ChatStatusCompleted)
-	}
-
-	if msg.Message != "" || len(msg.ToolCalls) > 0 {
-		assistantEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:      sdk.Assistant,
-				Content:   sdk.NewMessageContent(msg.Message),
-				ToolCalls: &msg.ToolCalls,
-			},
-			Time: time.Now(),
-		}
-
-		if err := h.conversationRepo.AddMessage(assistantEntry); err != nil {
-			logger.Error("Failed to add assistant message", "error", err)
-		}
 	}
 
 	var cmds []tea.Cmd
