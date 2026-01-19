@@ -1,6 +1,7 @@
 version: "0.2"
 language: en
 words:
+  - adduser
   - afero
   - alecthomas
   - alrvd
@@ -11,7 +12,10 @@ words:
   - aymanbagabas
   - aymerick
   - bahlo
+  - bakllava
   - bigfft
+  - BIGSERIAL
+  - blocklist
   - bluemonday
   - braceleft
   - braceright
@@ -21,32 +25,55 @@ words:
   - buger
   - buildx
   - cancelreader
+  - Catmull
   - cellbuf
   - cespare
+  - chans
+  - checkmark
   - CFLAGS
   - charmbracelet
   - cloudevents
   - codegen
   - codellama
+  - cogvlm
   - colorprofile
+  - commitlintrc
+  - conv
+  - coverprofile
   - coninput
   - creack
   - cyclop
   - davecgh
   - dblohm
+  - dbname
   - dbus
   - dearmor
+  - Debugw
   - deepseek
   - DEEPSEEK
   - dgryski
+  - diffinfo
   - difflib
+  - domainmocks
+  - dotall
   - dlclark
   - duckduckgo
   - easyjson
   - ebitengine
+  - ecommerce
+  - edgemac
+  - Emph
   - erikgeiser
+  - Errorf
+  - Errorw
   - exclam
+  - Fatalw
   - filewriter
+  - filewriterdomain
+  - filewriterservice
+  - flox
+  - Flox
+  - Fprintf
   - floatingwindow
   - freetype
   - frontmost
@@ -55,6 +82,7 @@ words:
   - gjson
   - GOARCH
   - gocognit
+  - gofmt
   - gocyclo
   - godbus
   - golangci
@@ -64,30 +92,46 @@ words:
   - gopkg
   - gops
   - gopsutil
+  - Goroutines
   - gosseract
   - gotenv
   - groq
   - GROQ
   - healthcheck
+  - healthchecks
+  - HTMLURL
+  - htpasswd
   - imgo
   - inconshreveable
+  - Infow
+  - internvl
   - invopop
+  - ipynb
   - isatty
   - ISPEED
   - iterm
   - jezek
   - journalctl
   - jsonmerge
+  - KHTML
+  - KLMNO
   - jsonparser
   - jsonschema
   - keybind
+  - keybindingmocks
   - keygen
   - keyrings
+  - keysym
+  - knownhosts
   - kimi
   - kovidgoyal
   - ldflags
   - ledongthuc
+  - letterboxing
   - libc
+  - linenum
+  - llava
+  - Loadash
   - libsqlite
   - lipgloss
   - locafero
@@ -100,24 +144,40 @@ words:
   - mathutil
   - mattn
   - maxbrunsfeld
+  - mcphttp
   - mekayelanik
   - metoro
   - mimeapps
+  - minicpm
   - mixtral
+  - mocksdomain
   - modernc
+  - modelcontextprotocol
+  - moondream
   - moonshotai
   - mousemove
+  - multicasting
+  - multicasts
+  - multiedit
+  - Multimodal
+  - multimodal
   - mtoken
   - multierr
+  - myapp
+  - myorg
+  - myrepo
   - myshortcuts
+  - nbsp
   - ncruces
   - nolint
   - noninteractive
+  - nord
   - NOPASSWD
   - noreset
   - numbersign
   - numcpus
   - oapi
+  - octocat
   - ollama
   - OLLAMA
   - oneline
@@ -129,17 +189,29 @@ words:
   - perfstat
   - pflag
   - pgdn
+  - pgdown
   - pgrep
   - pgup
+  - postmanlabs
+  - Preproc
+  - psql
+  - pycache
+  - pytest
   - playai
   - pmezard
   - procps
   - purego
   - quotedbl
   - qwen
+  - randr
   - rasterizer
+  - releaserc
   - remyoudompheng
+  - respawn
   - Respawn
+  - respawning
+  - Respawning
+  - respawns
   - resty
   - retryable
   - rivo
@@ -150,40 +222,85 @@ words:
   - sabhiram
   - sagents
   - sagikazarmark
+  - sandboxed
+  - Sandboxed
+  - Sandboxing
+  - sconfiguration
   - SCMPR
+  - screenshotsvc
+  - secureowner
+  - securerepo
+  - servicesmocks
+  - shortcutsmocks
+  - sigstore
+  - Sigstore
   - sdkclient
   - shirou
   - SHTTP
   - sjson
+  - slackmacgap
   - sname
   - sourcegraph
+  - SSEHTTP
+  - sslmode
   - startxfce
+  - Streamable
+  - strikethrough
+  - Strikethrough
+  - strs
   - stretchr
   - strftime
   - sublimetext
   - subosito
+  - swiftc
   - sysconf
+  - syscall
   - sysinfo
   - systemctl
+  - Taskfile
+  - testdb
+  - testdir
+  - testowner
+  - testrepo
+  - testuser
   - termenv
   - terminfo
   - thunar
   - tidwall
+  - tinyspeck
   - tklauser
   - tmpl
+  - todowrite
+  - toolname
+  - uimocks
   - uniseg
+  - Unticked
   - upgrader
   - usermod
   - userspace
+  - VARCHAR
   - vcaesar
+  - Warnw
+  - webfetch
+  - webp
+  - websearch
   - wingoes
   - Winsize
+  - wordwrap
+  - writability
+  - wrongowner
+  - Wtype
+  - wtype
+  - xclipboard
   - xdraw
   - xgbutil
   - xgraphics
   - ximg
   - xtest
   - xxhash
+  - Ydotool
+  - ydotool
+  - yourname
   - yuin
   - yusufpapurcu
   - zoneinfo
