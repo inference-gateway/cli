@@ -61,6 +61,8 @@ type ConversationRenderer interface {
 	ToggleToolResultExpansion(index int)
 	ToggleAllToolResultsExpansion()
 	IsToolResultExpanded(index int) bool
+	ToggleAllThinkingExpansion()
+	IsThinkingExpanded(index int) bool
 	ToggleRawFormat()
 	IsRawFormat() bool
 	ResetUserScroll()

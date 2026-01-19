@@ -258,7 +258,7 @@ func TestConversationView_ConcurrentStreamingAccess(t *testing.T) {
 	done := make(chan bool)
 	go func() {
 		for i := 0; i < 1000; i++ {
-			cv.appendStreamingContent(fmt.Sprintf("chunk %d ", i), "test-model")
+			cv.appendStreamingContent(fmt.Sprintf("chunk %d ", i), "", "test-model")
 			time.Sleep(time.Microsecond)
 		}
 		done <- true
