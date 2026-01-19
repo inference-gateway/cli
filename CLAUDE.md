@@ -340,7 +340,7 @@ When models use extended thinking (reasoning), their internal thought process is
 - **Rendering**: Thinking blocks are rendered before assistant message content in `renderStandardEntry()` and `renderAssistantWithToolCalls()`
 - **Display State**: Collapsed by default, showing first sentence with ellipsis
 - **Styling**: Rendered using dim color (theme-aware) with 💭 icon
-- **Expansion**: Toggled via `ctrl+k` keybinding (configurable as `display_toggle_thinking`)
+- **Expansion**: Toggled via keybinding (configurable as `display_toggle_thinking`, defaults to `ctrl+k`)
 
 ### Key Files
 
@@ -352,9 +352,10 @@ When models use extended thinking (reasoning), their internal thought process is
 
 ### User Controls
 
-- Press `ctrl+k` to toggle thinking block expansion/collapse
+- Toggle thinking block expansion/collapse using the configured keybinding (default: `ctrl+k`)
 - Default state: collapsed (first sentence visible)
 - Expanded state: full thinking content with word wrapping
+- Keybinding can be customized via `chat.keybindings.bindings.display_toggle_thinking` in config
 
 ## Commit Message Convention
 

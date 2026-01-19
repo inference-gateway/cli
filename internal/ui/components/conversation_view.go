@@ -860,15 +860,11 @@ func (cv *ConversationView) extractThinkingPreview(text string, maxLines int) st
 // getToggleThinkingHint returns the keybinding hint for toggling thinking blocks
 func (cv *ConversationView) getToggleThinkingHint(action string) string {
 	if cv.keyHintFormatter == nil {
-		return fmt.Sprintf("Press ctrl+k to %s thinking", action)
+		return ""
 	}
 
 	actionID := config.ActionID(config.NamespaceDisplay, "toggle_thinking")
-	hint := cv.keyHintFormatter.GetKeyHint(actionID, action+" thinking")
-	if hint == "" {
-		return fmt.Sprintf("Press ctrl+k to %s thinking", action)
-	}
-	return hint
+	return cv.keyHintFormatter.GetKeyHint(actionID, action+" thinking")
 }
 
 // buildConfigLine constructs the configuration line for the welcome screen
@@ -1419,16 +1415,11 @@ func (cv *ConversationView) getHintForEntry(_ domain.ConversationEntry) string {
 
 func (cv *ConversationView) getToggleToolHint(action string) string {
 	if cv.keyHintFormatter == nil {
-		return "Press ctrl+o to " + action
+		return ""
 	}
 
 	actionID := config.ActionID(config.NamespaceTools, "toggle_tool_expansion")
-	hint := cv.keyHintFormatter.GetKeyHint(actionID, action)
-	if hint == "" {
-		return "Press ctrl+o to " + action
-	}
-
-	return hint
+	return cv.keyHintFormatter.GetKeyHint(actionID, action)
 }
 
 // Message History Navigation Methods
@@ -1438,7 +1429,7 @@ func (cv *ConversationView) EnterMessageHistoryMode(snapshots []domain.MessageSn
 	cv.navigationMode = NavigationModeMessageHistory
 	cv.messageSnapshots = snapshots
 	if len(snapshots) > 0 {
-		cv.historySelectedIndex = len(snapshots) - 1 // Default to most recent
+		cv.historySelectedIndex = len(snapshots) - 1
 	} else {
 		cv.historySelectedIndex = 0
 	}
