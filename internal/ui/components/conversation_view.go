@@ -586,7 +586,6 @@ func (cv *ConversationView) getToolRoleAndColor(entry domain.ConversationEntry) 
 func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, index int, color, role string) string {
 	var result strings.Builder
 
-	// Render thinking block for assistant messages before the main content
 	if entry.Message.Role == sdk.Assistant && entry.ReasoningContent != "" {
 		isExpanded := cv.IsThinkingExpanded(index)
 		thinkingBlock := cv.renderThinkingBlock(entry.ReasoningContent, index, isExpanded)
@@ -641,7 +640,6 @@ func (cv *ConversationView) formatRoleWithModel(role, color, modelLabelText stri
 func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, index int, color, role string) string {
 	var result strings.Builder
 
-	// Render thinking block for assistant messages before the main content
 	if entry.ReasoningContent != "" {
 		isExpanded := cv.IsThinkingExpanded(index)
 		thinkingBlock := cv.renderThinkingBlock(entry.ReasoningContent, index, isExpanded)
@@ -840,7 +838,6 @@ func (cv *ConversationView) renderThinkingBlock(thinking string, index int, expa
 		return cv.styleProvider.RenderDimText(collapsedText) + "\n"
 	}
 
-	// Expanded view
 	wrappedThinking := formatting.FormatResponsiveMessage(thinking, cv.width)
 	hint := cv.getToggleThinkingHint("collapse")
 	expandedText := fmt.Sprintf("%s\n• %s", wrappedThinking, hint)
