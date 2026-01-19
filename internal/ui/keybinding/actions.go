@@ -177,6 +177,19 @@ func (r *Registry) createChatActions() []*KeyAction {
 				Views: []domain.ViewState{domain.ViewStateChat},
 			},
 		},
+		{
+			Namespace:   config.NamespaceDisplay,
+			ID:          config.ActionID(config.NamespaceDisplay, "toggle_thinking"),
+			Keys:        []string{"ctrl+k"},
+			Description: "expand/collapse thinking blocks",
+			Category:    "display",
+			Handler:     handleToggleThinkingExpansion,
+			Priority:    150,
+			Enabled:     true,
+			Context: KeyContext{
+				Views: []domain.ViewState{domain.ViewStateChat},
+			},
+		},
 	}
 
 	actions = append(actions, r.createClipboardActions()...)
@@ -654,6 +667,11 @@ func handleCancel(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleToggleToolExpansion(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	app.ToggleToolResultExpansion()
+	return nil
+}
+
+func handleToggleThinkingExpansion(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
+	app.ToggleThinkingExpansion()
 	return nil
 }
 

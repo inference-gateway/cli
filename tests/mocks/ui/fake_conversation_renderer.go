@@ -49,6 +49,17 @@ type FakeConversationRenderer struct {
 	isRawFormatReturnsOnCall map[int]struct {
 		result1 bool
 	}
+	IsThinkingExpandedStub        func(int) bool
+	isThinkingExpandedMutex       sync.RWMutex
+	isThinkingExpandedArgsForCall []struct {
+		arg1 int
+	}
+	isThinkingExpandedReturns struct {
+		result1 bool
+	}
+	isThinkingExpandedReturnsOnCall map[int]struct {
+		result1 bool
+	}
 	IsToolResultExpandedStub        func(int) bool
 	isToolResultExpandedMutex       sync.RWMutex
 	isToolResultExpandedArgsForCall []struct {
@@ -88,6 +99,10 @@ type FakeConversationRenderer struct {
 	setWidthMutex       sync.RWMutex
 	setWidthArgsForCall []struct {
 		arg1 int
+	}
+	ToggleAllThinkingExpansionStub        func()
+	toggleAllThinkingExpansionMutex       sync.RWMutex
+	toggleAllThinkingExpansionArgsForCall []struct {
 	}
 	ToggleAllToolResultsExpansionStub        func()
 	toggleAllToolResultsExpansionMutex       sync.RWMutex
@@ -314,6 +329,67 @@ func (fake *FakeConversationRenderer) IsRawFormatReturnsOnCall(i int, result1 bo
 		})
 	}
 	fake.isRawFormatReturnsOnCall[i] = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeConversationRenderer) IsThinkingExpanded(arg1 int) bool {
+	fake.isThinkingExpandedMutex.Lock()
+	ret, specificReturn := fake.isThinkingExpandedReturnsOnCall[len(fake.isThinkingExpandedArgsForCall)]
+	fake.isThinkingExpandedArgsForCall = append(fake.isThinkingExpandedArgsForCall, struct {
+		arg1 int
+	}{arg1})
+	stub := fake.IsThinkingExpandedStub
+	fakeReturns := fake.isThinkingExpandedReturns
+	fake.recordInvocation("IsThinkingExpanded", []interface{}{arg1})
+	fake.isThinkingExpandedMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
+}
+
+func (fake *FakeConversationRenderer) IsThinkingExpandedCallCount() int {
+	fake.isThinkingExpandedMutex.RLock()
+	defer fake.isThinkingExpandedMutex.RUnlock()
+	return len(fake.isThinkingExpandedArgsForCall)
+}
+
+func (fake *FakeConversationRenderer) IsThinkingExpandedCalls(stub func(int) bool) {
+	fake.isThinkingExpandedMutex.Lock()
+	defer fake.isThinkingExpandedMutex.Unlock()
+	fake.IsThinkingExpandedStub = stub
+}
+
+func (fake *FakeConversationRenderer) IsThinkingExpandedArgsForCall(i int) int {
+	fake.isThinkingExpandedMutex.RLock()
+	defer fake.isThinkingExpandedMutex.RUnlock()
+	argsForCall := fake.isThinkingExpandedArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *FakeConversationRenderer) IsThinkingExpandedReturns(result1 bool) {
+	fake.isThinkingExpandedMutex.Lock()
+	defer fake.isThinkingExpandedMutex.Unlock()
+	fake.IsThinkingExpandedStub = nil
+	fake.isThinkingExpandedReturns = struct {
+		result1 bool
+	}{result1}
+}
+
+func (fake *FakeConversationRenderer) IsThinkingExpandedReturnsOnCall(i int, result1 bool) {
+	fake.isThinkingExpandedMutex.Lock()
+	defer fake.isThinkingExpandedMutex.Unlock()
+	fake.IsThinkingExpandedStub = nil
+	if fake.isThinkingExpandedReturnsOnCall == nil {
+		fake.isThinkingExpandedReturnsOnCall = make(map[int]struct {
+			result1 bool
+		})
+	}
+	fake.isThinkingExpandedReturnsOnCall[i] = struct {
 		result1 bool
 	}{result1}
 }
@@ -555,6 +631,30 @@ func (fake *FakeConversationRenderer) SetWidthArgsForCall(i int) int {
 	defer fake.setWidthMutex.RUnlock()
 	argsForCall := fake.setWidthArgsForCall[i]
 	return argsForCall.arg1
+}
+
+func (fake *FakeConversationRenderer) ToggleAllThinkingExpansion() {
+	fake.toggleAllThinkingExpansionMutex.Lock()
+	fake.toggleAllThinkingExpansionArgsForCall = append(fake.toggleAllThinkingExpansionArgsForCall, struct {
+	}{})
+	stub := fake.ToggleAllThinkingExpansionStub
+	fake.recordInvocation("ToggleAllThinkingExpansion", []interface{}{})
+	fake.toggleAllThinkingExpansionMutex.Unlock()
+	if stub != nil {
+		fake.ToggleAllThinkingExpansionStub()
+	}
+}
+
+func (fake *FakeConversationRenderer) ToggleAllThinkingExpansionCallCount() int {
+	fake.toggleAllThinkingExpansionMutex.RLock()
+	defer fake.toggleAllThinkingExpansionMutex.RUnlock()
+	return len(fake.toggleAllThinkingExpansionArgsForCall)
+}
+
+func (fake *FakeConversationRenderer) ToggleAllThinkingExpansionCalls(stub func()) {
+	fake.toggleAllThinkingExpansionMutex.Lock()
+	defer fake.toggleAllThinkingExpansionMutex.Unlock()
+	fake.ToggleAllThinkingExpansionStub = stub
 }
 
 func (fake *FakeConversationRenderer) ToggleAllToolResultsExpansion() {
