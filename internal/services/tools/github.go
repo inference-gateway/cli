@@ -83,7 +83,7 @@ func (t *GithubTool) Definition() sdk.ChatCompletionTool {
 						"description": repoDescription,
 					},
 					"issue_number": map[string]any{
-						"oneOf": []map[string]any{
+						"anyOf": []map[string]any{
 							{"type": "integer"},
 							{"type": "string"},
 						},
@@ -100,7 +100,7 @@ func (t *GithubTool) Definition() sdk.ChatCompletionTool {
 						"description": "Comment body text (required for create_comment and update_comment resources)",
 					},
 					"comment_id": map[string]any{
-						"oneOf": []map[string]any{
+						"anyOf": []map[string]any{
 							{"type": "integer"},
 							{"type": "string"},
 						},
