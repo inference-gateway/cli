@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.99.1](https://github.com/inference-gateway/cli/compare/v0.99.0...v0.99.1) (2026-01-24)
+
+### ♻️ Code Refactoring
+
+* Ensure only one chat session at a time ([#378](https://github.com/inference-gateway/cli/issues/378)) ([4ebea6d](https://github.com/inference-gateway/cli/commit/4ebea6d57bf3f078175772f48c3daf19c406c85a))
+
+### 📚 Documentation
+
+* Revise README description for CLI functionality ([6f3702f](https://github.com/inference-gateway/cli/commit/6f3702f65e62e455b606c0dbd16a85477bb93824))
+
+### 🧹 Maintenance
+
+* Update package dependencies to latest versions ([#377](https://github.com/inference-gateway/cli/issues/377)) ([43960ce](https://github.com/inference-gateway/cli/commit/43960ced89a733d2d23ba791b1a1fbdc471c8562))
+
 ## [0.99.0](https://github.com/inference-gateway/cli/compare/v0.98.0...v0.99.0) (2026-01-24)
 
 ### 🚀 Features
