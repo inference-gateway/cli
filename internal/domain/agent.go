@@ -17,6 +17,48 @@ type SDKClient interface {
 	GenerateContentStream(ctx context.Context, provider sdk.Provider, model string, messages []sdk.Message) (<-chan sdk.SSEvent, error)
 }
 
+// AgentContext represents the execution context for the agent state machine
+type AgentContext struct {
+	Conversation     *[]sdk.Message
+	MessageQueue     MessageQueue
+	ConversationRepo ConversationRepository
+	ToolCalls        map[string]*sdk.ChatCompletionMessageToolCall
+	EventPublisher   any
+	Turns            int
+	MaxTurns         int
+	HasToolResults   bool
+	ApprovalPolicy   ApprovalPolicy
+	Ctx              context.Context
+	IsChatMode       bool
+}
+
+// StateGuard is a function that determines if a state transition should occur
+type StateGuard func(ctx *AgentContext) bool
+
+// StateAction is a function executed on state transitions
+type StateAction func(ctx *AgentContext) error
+
+// AgentStateMachine manages agent execution state transitions
+type AgentStateMachine interface {
+	// Transition attempts to transition to the target state
+	Transition(ctx *AgentContext, targetState AgentExecutionState) error
+
+	// GetCurrentState returns the current state (thread-safe)
+	GetCurrentState() AgentExecutionState
+
+	// GetPreviousState returns the previous state (thread-safe)
+	GetPreviousState() AgentExecutionState
+
+	// CanTransition checks if a transition is valid without executing it
+	CanTransition(ctx *AgentContext, targetState AgentExecutionState) bool
+
+	// GetValidTransitions returns all valid transitions from current state
+	GetValidTransitions(ctx *AgentContext) []AgentExecutionState
+
+	// Reset resets the state machine to idle
+	Reset()
+}
+
 // AgentRequest represents a request to the agent service
 type AgentRequest struct {
 	RequestID  string        `json:"request_id"`

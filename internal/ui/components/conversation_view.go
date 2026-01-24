@@ -950,6 +950,11 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	switch msg := msg.(type) {
+	case domain.ApprovalSelectionChangedEvent:
+		if cv.navigationMode != NavigationModeMessageHistory {
+			cv.updateViewportContent()
+		}
+		return cv, cmd
 	case domain.UpdateHistoryEvent:
 		if cv.navigationMode != NavigationModeMessageHistory {
 			cv.flushStreamingBuffer()

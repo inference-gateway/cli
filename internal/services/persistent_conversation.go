@@ -143,9 +143,16 @@ func (r *PersistentConversationRepository) SaveConversation(ctx context.Context)
 		return fmt.Errorf("no active conversation to save")
 	}
 
-	entries := r.GetMessages()
+	allEntries := r.GetMessages()
 	tokenStats := r.GetSessionTokens()
 	costStats := r.GetSessionCostStats()
+
+	entries := make([]domain.ConversationEntry, 0, len(allEntries))
+	for _, entry := range allEntries {
+		if entry.PendingToolCall == nil {
+			entries = append(entries, entry)
+		}
+	}
 
 	r.metadataMutex.Lock()
 	r.metadata.UpdatedAt = time.Now()

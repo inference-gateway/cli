@@ -268,3 +268,9 @@ type MCPServerStatusUpdateEvent struct {
 
 // TriggerGithubActionSetupEvent triggers the GitHub App setup flow
 type TriggerGithubActionSetupEvent struct{}
+
+// ApprovalSelectionChangedEvent signals that the approval selection index has changed
+// and the UI needs to refresh to show the new selection
+type ApprovalSelectionChangedEvent struct {
+	NewIndex int
+}

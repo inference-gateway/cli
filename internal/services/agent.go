@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -16,7 +15,7 @@ import (
 
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
 type AgentServiceImpl struct {
-	client           sdk.Client
+	client           domain.SDKClient
 	toolService      domain.ToolService
 	config           domain.ConfigService
 	conversationRepo domain.ConversationRepository
@@ -231,7 +230,7 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []domain.Conversa
 
 // NewAgentService creates a new agent service with pre-configured client
 func NewAgentService(
-	client sdk.Client,
+	client domain.SDKClient,
 	toolService domain.ToolService,
 	config domain.ConfigService,
 	conversationRepo domain.ConversationRepository,
@@ -347,50 +346,55 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 }
 
 // handleIdleState processes queued messages and background tasks when the agent is idle
-// The canComplete parameter controls whether the agent is allowed to complete when idle
-func (s *AgentServiceImpl) handleIdleState(
-	eventPublisher *eventPublisher,
-	taskTracker domain.TaskTracker,
+// batchDrainQueue drains all queued messages and adds them to conversation
+// Returns the number of messages drained
+func (s *AgentServiceImpl) batchDrainQueue(
 	conversation *[]sdk.Message,
-	canComplete bool,
-) (shouldContinue bool, shouldReturn bool) {
-	hasQueuedMessage := s.messageQueue != nil && !s.messageQueue.IsEmpty()
-	hasBackgroundTasks := taskTracker != nil && len(taskTracker.GetAllPollingTasks()) > 0
-
-	switch {
-	case hasQueuedMessage:
-		queuedMsg := s.messageQueue.Dequeue()
-		if queuedMsg != nil {
-			*conversation = append(*conversation, queuedMsg.Message)
-			entry := domain.ConversationEntry{
-				Message: queuedMsg.Message,
-				Time:    time.Now(),
-			}
-			if err := s.conversationRepo.AddMessage(entry); err != nil {
-				logger.Error("failed to store queued message", "error", err)
-			}
-			eventPublisher.chatEvents <- domain.MessageQueuedEvent{
-				RequestID: queuedMsg.RequestID,
-				Timestamp: time.Now(),
-				Message:   queuedMsg.Message,
-			}
-			return false, false
-		}
-	case hasBackgroundTasks:
-		time.Sleep(500 * time.Millisecond)
-		return true, false
-	case canComplete:
-		eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(eventPublisher.requestID))
-
-		time.Sleep(100 * time.Millisecond)
-		if s.messageQueue != nil && !s.messageQueue.IsEmpty() {
-			logger.Info("Detected queued message after chat complete, continuing")
-			return true, false
-		}
-
-		return false, true
+	eventPublisher *eventPublisher,
+) int {
+	if s.messageQueue == nil {
+		return 0
 	}
-	return false, false
+
+	messages := []domain.QueuedMessage{}
+
+	// Drain entire queue
+	for !s.messageQueue.IsEmpty() {
+		msg := s.messageQueue.Dequeue()
+		if msg != nil {
+			messages = append(messages, *msg)
+		}
+	}
+
+	if len(messages) == 0 {
+		return 0
+	}
+
+	logger.Info("Batching queued messages into conversation",
+		"count", len(messages),
+		"oldest", messages[0].QueuedAt,
+		"newest", messages[len(messages)-1].QueuedAt)
+
+	// Add all messages to conversation
+	for _, queuedMsg := range messages {
+		*conversation = append(*conversation, queuedMsg.Message)
+
+		entry := domain.ConversationEntry{
+			Message: queuedMsg.Message,
+			Time:    time.Now(),
+		}
+		if err := s.conversationRepo.AddMessage(entry); err != nil {
+			logger.Error("failed to store batched message", "error", err)
+		}
+
+		eventPublisher.chatEvents <- domain.MessageQueuedEvent{
+			RequestID: queuedMsg.RequestID,
+			Timestamp: time.Now(),
+			Message:   queuedMsg.Message,
+		}
+	}
+
+	return len(messages)
 }
 
 // RunWithStream executes an agent task with streaming (for interactive chat)
@@ -443,277 +447,20 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 
 		conversation = s.optimizeConversation(ctx, req, conversation, eventPublisher)
 
-		turns := 0
-		maxTurns := s.config.GetAgentConfig().MaxTurns
-		hasToolResults := false
+		agent := NewEventDrivenAgent(
+			s,
+			ctx,
+			req,
+			&conversation,
+			eventPublisher,
+			cancelChan,
+			provider,
+			model,
+			taskTracker,
+		)
 
-		//// EVENT LOOP START
-		for maxTurns > turns {
-			select {
-			case <-cancelChan:
-				eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, s.GetMetrics(req.RequestID))
-				return
-			default:
-			}
-
-			canComplete := turns > 0 && !hasToolResults
-			shouldContinue, shouldReturn := s.handleIdleState(eventPublisher, taskTracker, &conversation, canComplete)
-			if shouldReturn {
-				return
-			}
-			if shouldContinue {
-				continue
-			}
-
-			hasToolResults = false
-			turns++
-			s.clearToolCallsMap()
-			iterationStartTime := time.Now()
-
-			if turns > 1 {
-				time.Sleep(constants.AgentIterationDelay)
-			}
-
-			requestCtx, requestCancel := context.WithTimeout(ctx, time.Duration(s.timeoutSeconds)*time.Second)
-
-			s.requestsMux.Lock()
-			s.activeRequests[req.RequestID] = requestCancel
-			s.requestsMux.Unlock()
-
-			defer func() {
-				s.requestsMux.Lock()
-				delete(s.activeRequests, req.RequestID)
-				s.requestsMux.Unlock()
-			}()
-
-			eventPublisher.publishChatStart()
-
-			if s.shouldInjectSystemReminder(turns) {
-				systemReminderMsg := s.getSystemReminderMessage()
-				conversation = append(conversation, systemReminderMsg)
-
-				reminderEntry := domain.ConversationEntry{
-					Message: systemReminderMsg,
-					Time:    time.Now(),
-					Hidden:  true,
-				}
-
-				if err := s.conversationRepo.AddMessage(reminderEntry); err != nil {
-					logger.Error("failed to store system reminder message", "error", err)
-				}
-			}
-
-			mode := domain.AgentModeStandard
-			if s.stateManager != nil {
-				mode = s.stateManager.GetAgentMode()
-			}
-
-			availableTools := s.toolService.ListToolsForMode(mode)
-
-			client := s.client.
-				WithOptions(&sdk.CreateChatCompletionRequest{
-					MaxTokens: &s.maxTokens,
-					StreamOptions: &sdk.ChatCompletionStreamOptions{
-						IncludeUsage: true,
-					},
-				}).
-				WithMiddlewareOptions(&sdk.MiddlewareOptions{
-					SkipMCP: true,
-				})
-			if len(availableTools) > 0 {
-				client = client.WithTools(&availableTools)
-			}
-
-			events, err := client.GenerateContentStream(requestCtx, sdk.Provider(provider), model, conversation)
-			if err != nil {
-				logger.Error("Failed to create stream",
-					"error", err,
-					"turn", turns,
-					"conversationLength", len(conversation),
-					"provider", provider)
-				eventPublisher.chatEvents <- domain.ChatErrorEvent{
-					RequestID: req.RequestID,
-					Timestamp: time.Now(),
-					Error:     err,
-				}
-				return
-			}
-
-			var allToolCallDeltas []sdk.ChatCompletionMessageToolCallChunk
-			var message sdk.Message
-			var streamUsage *sdk.CompletionUsage
-			////// STREAM ITERATION START
-			for event := range events {
-				select {
-				case <-requestCtx.Done():
-					if requestCtx.Err() == context.DeadlineExceeded {
-						logger.Error("stream timeout", "error", requestCtx.Err())
-						eventPublisher.chatEvents <- domain.ChatErrorEvent{
-							RequestID: req.RequestID,
-							Timestamp: time.Now(),
-							Error:     fmt.Errorf("stream timed out after %d seconds", s.timeoutSeconds),
-						}
-						return
-					}
-					return
-				default:
-				}
-
-				if event.Event == nil {
-					logger.Error("event is nil")
-					continue
-				}
-
-				if event.Data == nil {
-					continue
-				}
-
-				var streamResponse sdk.CreateChatCompletionStreamResponse
-				if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
-					logger.Error("failed to unmarshal chat completion steam response")
-					continue
-				}
-
-				for _, choice := range streamResponse.Choices {
-					if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
-						if message.Reasoning == nil {
-							message.Reasoning = new(string)
-						}
-						*message.Reasoning += *choice.Delta.Reasoning
-					}
-					if choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
-						if message.ReasoningContent == nil {
-							message.ReasoningContent = new(string)
-						}
-						*message.ReasoningContent += *choice.Delta.ReasoningContent
-					}
-					deltaContent := choice.Delta.Content
-					if deltaContent != "" {
-						currentContent, err := message.Content.AsMessageContent0()
-						if err != nil {
-							currentContent = ""
-						}
-						message.Content = sdk.NewMessageContent(currentContent + deltaContent)
-					}
-
-					reasoning := ""
-					if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
-						reasoning = *choice.Delta.Reasoning
-					} else if choice.Delta.ReasoningContent != nil && *choice.Delta.ReasoningContent != "" {
-						reasoning = *choice.Delta.ReasoningContent
-					}
-
-					if len(choice.Delta.ToolCalls) > 0 {
-						allToolCallDeltas = append(allToolCallDeltas, choice.Delta.ToolCalls...)
-					}
-
-					if deltaContent != "" || reasoning != "" || len(choice.Delta.ToolCalls) > 0 {
-						eventPublisher.publishChatChunk(deltaContent, reasoning, choice.Delta.ToolCalls)
-					}
-
-					if streamResponse.Usage != nil {
-						streamUsage = streamResponse.Usage
-					}
-				}
-			}
-			////// STREAM ITERATION FINISHED
-
-			s.accumulateToolCalls(allToolCallDeltas)
-			toolCalls := s.getAccumulatedToolCalls()
-
-			assistantContent := message.Content
-			if _, err := assistantContent.AsMessageContent0(); err != nil {
-				assistantContent = sdk.NewMessageContent("")
-			}
-
-			reasoning := ""
-			if message.Reasoning != nil && *message.Reasoning != "" {
-				reasoning = *message.Reasoning
-			} else if message.ReasoningContent != nil && *message.ReasoningContent != "" {
-				reasoning = *message.ReasoningContent
-			}
-
-			assistantMessage := sdk.Message{
-				Role:    sdk.Assistant,
-				Content: assistantContent,
-			}
-
-			if len(toolCalls) > 0 {
-				indices := make([]int, 0, len(toolCalls))
-				for key := range toolCalls {
-					var idx int
-					_, _ = fmt.Sscanf(key, "%d", &idx)
-					indices = append(indices, idx)
-				}
-				sort.Ints(indices)
-
-				assistantToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
-				for _, idx := range indices {
-					key := fmt.Sprintf("%d", idx)
-					if tc, ok := toolCalls[key]; ok {
-						assistantToolCalls = append(assistantToolCalls, *tc)
-					}
-				}
-				assistantMessage.ToolCalls = &assistantToolCalls
-
-				if reasoning != "" {
-					assistantMessage.Reasoning = &reasoning
-					assistantMessage.ReasoningContent = &reasoning
-				}
-			}
-
-			conversation = append(conversation, assistantMessage)
-
-			assistantEntry := domain.ConversationEntry{
-				Message:          assistantMessage,
-				ReasoningContent: reasoning,
-				Model:            req.Model,
-				Time:             time.Now(),
-			}
-
-			if err := s.conversationRepo.AddMessage(assistantEntry); err != nil {
-				logger.Error("failed to store assistant message", "error", err)
-			}
-
-			var completeToolCalls []sdk.ChatCompletionMessageToolCall
-			if len(toolCalls) > 0 {
-				completeToolCalls = make([]sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
-				for _, tc := range toolCalls {
-					completeToolCalls = append(completeToolCalls, *tc)
-				}
-			}
-
-			outputContent, _ := assistantContent.AsMessageContent0()
-
-			polyfillInput := &storeIterationMetricsInput{
-				inputMessages:   conversation[:len(conversation)-1],
-				outputContent:   outputContent,
-				outputToolCalls: completeToolCalls,
-				availableTools:  availableTools,
-			}
-
-			s.storeIterationMetrics(req.RequestID, req.Model, iterationStartTime, streamUsage, polyfillInput)
-
-			if len(toolCalls) > 0 {
-				eventPublisher.publishChatComplete(reasoning, completeToolCalls, s.GetMetrics(req.RequestID))
-
-				toolCallsSlice := make([]*sdk.ChatCompletionMessageToolCall, 0, len(toolCalls))
-				for _, tc := range toolCalls {
-					toolCallsSlice = append(toolCallsSlice, tc)
-				}
-
-				toolResults := s.executeToolCallsParallel(ctx, toolCallsSlice, eventPublisher, req.IsChatMode)
-
-				if s.handleToolResults(toolResults, &conversation, eventPublisher, req) {
-					return
-				}
-
-				hasToolResults = true
-			} else {
-				eventPublisher.publishChatComplete(reasoning, completeToolCalls, s.GetMetrics(req.RequestID))
-			}
-		}
-		//// EVENT LOOP FINISHED
+		agent.Start()
+		agent.Wait()
 	}()
 
 	return chatEvents, nil
@@ -1018,6 +765,20 @@ func (s *AgentServiceImpl) executeTool(
 		wasApproved = true
 	}
 
+	return s.executeToolInternal(ctx, tc, eventPublisher, wasApproved, startTime)
+}
+
+// executeToolInternal performs the actual tool execution without approval checks
+// This is used by both executeTool() (after approval) and processNextTool() (approval already obtained)
+//
+//nolint:funlen,gocyclo,cyclop // Tool execution requires comprehensive error handling and status updates
+func (s *AgentServiceImpl) executeToolInternal(
+	ctx context.Context,
+	tc sdk.ChatCompletionMessageToolCall,
+	eventPublisher *eventPublisher,
+	wasApproved bool,
+	startTime time.Time,
+) domain.ConversationEntry {
 	eventPublisher.publishToolStatusChange(tc.Id, tc.Function.Name, "running", "Executing...", nil)
 
 	time.Sleep(constants.AgentToolExecutionDelay)
@@ -1153,7 +914,7 @@ func (s *AgentServiceImpl) executeTool(
 		ToolExecution: toolExecutionResult,
 	}
 
-	if requiresApproval {
+	if wasApproved {
 		s.conversationRepo.RemovePendingToolCallByID(tc.Id)
 	}
 

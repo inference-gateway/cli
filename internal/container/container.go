@@ -288,8 +288,9 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.a2aAgentService = services.NewA2AAgentService(c.config)
 
 	agentClient := c.createSDKClient()
+	agentClientAdapter := adapters.NewSDKClientAdapter(agentClient)
 	c.agentService = services.NewAgentService(
-		agentClient,
+		agentClientAdapter,
 		c.toolService,
 		c.configService,
 		c.conversationRepo,
