@@ -3,11 +3,15 @@ package services
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"os/exec"
+	"regexp"
 	"runtime"
 	"strings"
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -82,14 +86,22 @@ func (s *AgentServiceImpl) addSystemPrompt(messages []sdk.Message) []sdk.Message
 	if baseSystemPrompt != "" {
 		currentTime := time.Now().Format("Monday, January 2, 2006 at 3:04 PM MST")
 
+		currentTurn := len(messages) / 2
+
 		sandboxInfo := s.buildSandboxInfo()
-
 		a2aAgentInfo := s.buildA2AAgentInfo()
-
 		osInfo := s.buildOSInfo()
+		workingDirInfo := s.buildWorkingDirectoryInfo()
+		gitContextInfo := s.buildGitContextInfo(currentTurn)
 
-		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s%s\n\nCurrent date and time: %s",
-			baseSystemPrompt, sandboxInfo, a2aAgentInfo, osInfo, currentTime)
+		systemPromptWithInfo := fmt.Sprintf("%s\n\n%s%s%s%s%s\n\nCurrent date and time: %s",
+			baseSystemPrompt,
+			sandboxInfo,
+			a2aAgentInfo,
+			osInfo,
+			workingDirInfo,
+			gitContextInfo,
+			currentTime)
 
 		systemMessages = append(systemMessages, sdk.Message{
 			Role:    sdk.System,
@@ -194,6 +206,153 @@ func (s *AgentServiceImpl) buildOSInfo() string {
 	}
 
 	return osInfo
+}
+
+// buildWorkingDirectoryInfo creates dynamic working directory information for the system prompt
+func (s *AgentServiceImpl) buildWorkingDirectoryInfo() string {
+	cfg := s.config.GetAgentConfig()
+	if !cfg.Context.WorkingDirEnabled {
+		return ""
+	}
+
+	workingDir, err := os.Getwd()
+	if err != nil {
+		logger.Debug("Failed to get working directory: %v", err)
+		return ""
+	}
+
+	return fmt.Sprintf("\n\nWORKING DIRECTORY: %s", workingDir)
+}
+
+// buildGitContextInfo creates dynamic git repository information for the system prompt
+func (s *AgentServiceImpl) buildGitContextInfo(currentTurn int) string {
+	cfg := s.config.GetAgentConfig()
+	if !cfg.Context.GitContextEnabled {
+		return ""
+	}
+
+	s.contextCacheMux.RLock()
+	if s.gitContextCache != "" && currentTurn-s.gitContextTurn < cfg.Context.GitContextRefreshTurns {
+		defer s.contextCacheMux.RUnlock()
+		return s.gitContextCache
+	}
+	s.contextCacheMux.RUnlock()
+
+	if !isGitRepository() {
+		s.contextCacheMux.Lock()
+		s.gitContextCache = ""
+		s.gitContextTurn = currentTurn
+		s.contextCacheMux.Unlock()
+		return ""
+	}
+
+	var gitInfo strings.Builder
+	gitInfo.WriteString("\n\nGIT REPOSITORY CONTEXT:")
+
+	if repoName := getGitRepositoryName(); repoName != "" {
+		gitInfo.WriteString(fmt.Sprintf("\nRepository: %s", repoName))
+	}
+
+	if branch := getGitBranch(); branch != "" {
+		gitInfo.WriteString(fmt.Sprintf("\nCurrent branch: %s", branch))
+	}
+
+	if mainBranch := getGitMainBranch(); mainBranch != "" {
+		gitInfo.WriteString(fmt.Sprintf("\nMain branch: %s", mainBranch))
+	}
+
+	commits := getRecentCommits(5)
+	if len(commits) > 0 {
+		gitInfo.WriteString("\n\nRecent commits:")
+		for _, commit := range commits {
+			gitInfo.WriteString(fmt.Sprintf("\n%s", commit))
+		}
+	}
+
+	result := gitInfo.String()
+
+	s.contextCacheMux.Lock()
+	s.gitContextCache = result
+	s.gitContextTurn = currentTurn
+	s.contextCacheMux.Unlock()
+
+	return result
+}
+
+// isGitRepository checks if the current directory is a git repository
+func isGitRepository() bool {
+	cmd := exec.Command("git", "rev-parse", "--git-dir")
+	return cmd.Run() == nil
+}
+
+// getGitRepositoryName extracts the repository name from the git remote URL
+func getGitRepositoryName() string {
+	cmd := exec.Command("git", "remote", "get-url", "origin")
+	output, err := cmd.Output()
+	if err != nil {
+		logger.Debug("Failed to get git remote URL: %v", err)
+		return ""
+	}
+
+	remoteURL := strings.TrimSpace(string(output))
+
+	httpsPattern := regexp.MustCompile(`^https?://[^/]+/([^/]+/[^/]+?)(?:\.git)?$`)
+	if matches := httpsPattern.FindStringSubmatch(remoteURL); len(matches) > 1 {
+		return matches[1]
+	}
+
+	sshPattern := regexp.MustCompile(`^git@[^:]+:([^/]+/[^/]+?)(?:\.git)?$`)
+	if matches := sshPattern.FindStringSubmatch(remoteURL); len(matches) > 1 {
+		return matches[1]
+	}
+
+	logger.Debug("Could not parse git repository name from URL: %s", remoteURL)
+	return ""
+}
+
+// getGitBranch returns the current git branch name
+func getGitBranch() string {
+	cmd := exec.Command("git", "branch", "--show-current")
+	output, err := cmd.Output()
+	if err != nil {
+		logger.Debug("Failed to get current git branch: %v", err)
+		return ""
+	}
+
+	return strings.TrimSpace(string(output))
+}
+
+// getGitMainBranch returns the main branch name (main or master)
+func getGitMainBranch() string {
+	cmd := exec.Command("git", "rev-parse", "--verify", "main")
+	if err := cmd.Run(); err == nil {
+		return "main"
+	}
+
+	cmd = exec.Command("git", "rev-parse", "--verify", "master")
+	if err := cmd.Run(); err == nil {
+		return "master"
+	}
+
+	logger.Debug("Could not determine main branch (neither 'main' nor 'master' exists)")
+	return ""
+}
+
+// getRecentCommits returns the last N commit messages
+func getRecentCommits(count int) []string {
+	cmd := exec.Command("git", "log", fmt.Sprintf("-%d", count), "--oneline", "--no-decorate")
+	output, err := cmd.Output()
+	if err != nil {
+		logger.Debug("Failed to get recent commits: %v", err)
+		return nil
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	if len(lines) == 1 && lines[0] == "" {
+		return nil
+	}
+
+	return lines
 }
 
 // validateRequest validates the agent request

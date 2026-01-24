@@ -405,6 +405,13 @@ type SystemRemindersConfig struct {
 	ReminderText string `yaml:"reminder_text" mapstructure:"reminder_text"`
 }
 
+// AgentContextConfig contains settings for agent context enrichment
+type AgentContextConfig struct {
+	GitContextEnabled      bool `yaml:"git_context_enabled" mapstructure:"git_context_enabled"`
+	WorkingDirEnabled      bool `yaml:"working_dir_enabled" mapstructure:"working_dir_enabled"`
+	GitContextRefreshTurns int  `yaml:"git_context_refresh_turns" mapstructure:"git_context_refresh_turns"`
+}
+
 // AgentConfig contains agent command-specific settings
 type AgentConfig struct {
 	Model              string                `yaml:"model" mapstructure:"model"`
@@ -412,6 +419,7 @@ type AgentConfig struct {
 	SystemPromptPlan   string                `yaml:"system_prompt_plan" mapstructure:"system_prompt_plan"`
 	SystemPromptRemote string                `yaml:"system_prompt_remote" mapstructure:"system_prompt_remote"`
 	SystemReminders    SystemRemindersConfig `yaml:"system_reminders" mapstructure:"system_reminders"`
+	Context            AgentContextConfig    `yaml:"context" mapstructure:"context"`
 	VerboseTools       bool                  `yaml:"verbose_tools" mapstructure:"verbose_tools"`
 	MaxTurns           int                   `yaml:"max_turns" mapstructure:"max_turns"`
 	MaxTokens          int                   `yaml:"max_tokens" mapstructure:"max_tokens"`
@@ -805,6 +813,11 @@ func DefaultConfig() *Config { //nolint:funlen
 		},
 		Agent: AgentConfig{
 			Model: "",
+			Context: AgentContextConfig{
+				GitContextEnabled:      true,
+				WorkingDirEnabled:      true,
+				GitContextRefreshTurns: 10,
+			},
 			SystemPromptPlan: `You are an AI planning assistant in PLAN MODE. Your role is to analyze user requests and create ACTIONABLE, EXECUTABLE plans WITHOUT executing them.
 
 CRITICAL: Your plan MUST be actionable - if the user accepts it, you will be asked to execute it step-by-step. Plans that are not actionable are NOT plans.
