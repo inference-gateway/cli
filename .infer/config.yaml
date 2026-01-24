@@ -644,7 +644,7 @@ chat:
       cost: true
       git_branch: true
 a2a:
-  enabled: true
+  enabled: false
   cache:
     enabled: true
     ttl: 300
