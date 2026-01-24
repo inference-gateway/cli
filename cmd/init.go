@@ -151,14 +151,7 @@ tmp/
 	fmt.Println("Tip: Use /init in chat mode to generate an AGENTS.md file interactively")
 
 	if !skipMigrations {
-		fmt.Println("")
-		fmt.Println("Running database migrations...")
-		if err := runMigrations(); err != nil {
-			fmt.Printf("%s Warning: Failed to run migrations: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), err)
-			fmt.Println("   You can run migrations manually with: infer migrate")
-		} else {
-			fmt.Printf("%s Database migrations completed successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark))
-		}
+		handleMigrations()
 	}
 
 	return nil
@@ -546,4 +539,25 @@ shortcuts:
 `
 
 	return os.WriteFile(path, []byte(a2aShortcutsContent), 0644)
+}
+
+// handleMigrations handles the migration logic for the init command
+func handleMigrations() {
+	defaultConfig := config.DefaultConfig()
+	requiresMigrations := defaultConfig.Storage.Type == config.StorageTypeSQLite || defaultConfig.Storage.Type == config.StorageTypePostgres
+
+	if !requiresMigrations {
+		fmt.Println("")
+		fmt.Printf("%s Storage type '%s' does not require migrations\n", icons.CheckMarkStyle.Render(icons.CheckMark), defaultConfig.Storage.Type)
+		return
+	}
+
+	fmt.Println("")
+	fmt.Println("Running database migrations...")
+	if err := runMigrations(); err != nil {
+		fmt.Printf("%s Warning: Failed to run migrations: %v\n", icons.CrossMarkStyle.Render(icons.CrossMark), err)
+		fmt.Println("   You can run migrations manually with: infer migrate")
+	} else {
+		fmt.Printf("%s Database migrations completed successfully\n", icons.CheckMarkStyle.Render(icons.CheckMark))
+	}
 }
