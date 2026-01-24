@@ -8,9 +8,7 @@
 [![Release](https://img.shields.io/github/v/release/inference-gateway/cli?style=for-the-badge&logo=github)](https://github.com/inference-gateway/cli/releases)
 [![Go Report Card](https://img.shields.io/badge/Go%20Report%20Card-A+-brightgreen?style=for-the-badge&logo=go&logoColor=white)](https://goreportcard.com/report/github.com/inference-gateway/cli)
 
-A powerful command-line interface for managing and interacting with the
-Inference Gateway. This CLI provides tools for configuration, monitoring,
-and management of inference services.
+An agentic command-line assistant that helps humans by writing code, understanding project context, and using tools and computer actions to perform real tasks.
 
 </div>
 
