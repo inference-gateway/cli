@@ -671,23 +671,8 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				Time:             time.Now(),
 			}
 
-			// DEBUG: Log assistant message addition to trace duplicates
-			contentStr, _ := assistantContent.AsMessageContent0()
-			logger.Debug("Adding assistant message to repository",
-				"request_id", req.RequestID,
-				"content_length", len(contentStr),
-				"has_tool_calls", len(toolCalls) > 0,
-				"tool_call_count", len(toolCalls),
-				"reasoning_length", len(reasoning),
-				"model", req.Model,
-			)
-
 			if err := s.conversationRepo.AddMessage(assistantEntry); err != nil {
 				logger.Error("failed to store assistant message", "error", err)
-			} else {
-				logger.Debug("Assistant message added successfully",
-					"request_id", req.RequestID,
-				)
 			}
 
 			var completeToolCalls []sdk.ChatCompletionMessageToolCall
@@ -1420,21 +1405,8 @@ func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageTool
 }
 
 func (s *AgentServiceImpl) batchSaveToolResults(entries []domain.ConversationEntry) error {
-	// DEBUG: Log batch save start to detect duplicate saves
-	toolNames := extractToolNames(entries)
-	logger.Debug("batchSaveToolResults called",
-		"entry_count", len(entries),
-		"tool_names", toolNames,
-	)
-
 	savedCount := 0
-	for i, entry := range entries {
-		logger.Debug("Saving tool result",
-			"index", i,
-			"tool_name", entry.ToolExecution.ToolName,
-			"success", entry.ToolExecution.Success,
-		)
-
+	for _, entry := range entries {
 		if err := s.conversationRepo.AddMessage(entry); err != nil {
 			logger.Error("failed to save tool result",
 				"tool", entry.ToolExecution.ToolName,
@@ -1444,11 +1416,6 @@ func (s *AgentServiceImpl) batchSaveToolResults(entries []domain.ConversationEnt
 		}
 		savedCount++
 	}
-
-	logger.Debug("batchSaveToolResults completed",
-		"saved_count", savedCount,
-		"tool_names", toolNames,
-	)
 
 	return nil
 }
