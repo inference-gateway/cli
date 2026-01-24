@@ -58,6 +58,7 @@ func (r *InMemoryConversationRepository) AddMessage(msg domain.ConversationEntry
 	}
 
 	r.messages = append(r.messages, msg)
+
 	return nil
 }
 

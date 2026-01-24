@@ -84,7 +84,6 @@ func (r *ToolCallRenderer) Update(msg tea.Msg) (*ToolCallRenderer, tea.Cmd) { //
 		return r.handleToolCallUpdate(msg)
 
 	case domain.ToolCallReadyEvent:
-		r.ClearPreviews()
 
 	case domain.ChatCompleteEvent:
 		r.ClearPreviews()
@@ -218,7 +217,6 @@ func (r *ToolCallRenderer) SetKeyHintFormatter(formatter KeyHintFormatter) {
 
 func (r *ToolCallRenderer) RenderPreviews() string {
 	var allPreviews []string
-	now := time.Now()
 	var remainingTools []string
 
 	for _, callID := range r.toolsOrder {
@@ -227,12 +225,9 @@ func (r *ToolCallRenderer) RenderPreviews() string {
 			continue
 		}
 
-		if (tool.Status == "completed" || tool.Status == "failed") && tool.EndTime != nil {
-			showDuration := now.Sub(*tool.EndTime)
-			if showDuration > 1000*time.Millisecond {
-				delete(r.tools, callID)
-				continue
-			}
+		if tool.Status == "completed" || tool.Status == "failed" {
+			delete(r.tools, callID)
+			continue
 		}
 
 		allPreviews = append(allPreviews, r.renderTool(tool))

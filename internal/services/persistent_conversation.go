@@ -270,17 +270,16 @@ func (r *PersistentConversationRepository) AddMessage(msg domain.ConversationEnt
 	r.metadataMutex.RUnlock()
 
 	if shouldAutoSave {
-		go func() {
-			r.autoSaveMutex.Lock()
-			defer r.autoSaveMutex.Unlock()
+		r.autoSaveMutex.Lock()
+		defer r.autoSaveMutex.Unlock()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-			if err := r.SaveConversation(ctx); err != nil {
-				logger.Warn("Failed to auto-save conversation", "error", err)
-			}
-		}()
+		if err := r.SaveConversation(ctx); err != nil {
+			logger.Warn("Failed to auto-save conversation", "error", err)
+			return err
+		}
 	}
 
 	return nil
@@ -322,17 +321,16 @@ func (r *PersistentConversationRepository) DeleteMessagesAfterIndex(index int) e
 	r.metadataMutex.RUnlock()
 
 	if shouldAutoSave {
-		go func() {
-			r.autoSaveMutex.Lock()
-			defer r.autoSaveMutex.Unlock()
+		r.autoSaveMutex.Lock()
+		defer r.autoSaveMutex.Unlock()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-			if err := r.SaveConversation(ctx); err != nil {
-				logger.Warn("Failed to auto-save conversation after deleting messages", "error", err)
-			}
-		}()
+		if err := r.SaveConversation(ctx); err != nil {
+			logger.Warn("Failed to auto-save conversation after deleting messages", "error", err)
+			return err
+		}
 	}
 
 	return nil
@@ -387,17 +385,16 @@ func (r *PersistentConversationRepository) AddTokenUsage(model string, inputToke
 	r.metadataMutex.RUnlock()
 
 	if shouldAutoSave {
-		go func() {
-			r.autoSaveMutex.Lock()
-			defer r.autoSaveMutex.Unlock()
+		r.autoSaveMutex.Lock()
+		defer r.autoSaveMutex.Unlock()
 
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			defer cancel()
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
 
-			if err := r.SaveConversation(ctx); err != nil {
-				logger.Warn("Failed to auto-save conversation after token usage", "error", err)
-			}
-		}()
+		if err := r.SaveConversation(ctx); err != nil {
+			logger.Warn("Failed to auto-save conversation after token usage", "error", err)
+			return err
+		}
 	}
 
 	return nil

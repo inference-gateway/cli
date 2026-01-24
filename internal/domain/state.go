@@ -472,6 +472,10 @@ func (s *ApplicationState) SetChatPending() {
 
 // StartChatSession initializes a new chat session
 func (s *ApplicationState) StartChatSession(requestID, model string, eventChan <-chan ChatEvent) {
+	if s.chatSession != nil {
+		s.EndChatSession()
+	}
+
 	s.chatSession = &ChatSession{
 		RequestID:    requestID,
 		Status:       ChatStatusStarting,

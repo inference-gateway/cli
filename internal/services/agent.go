@@ -195,6 +195,40 @@ func (p *eventPublisher) publishPlanApprovalRequest(planContent string) {
 	}
 }
 
+// publishToolExecutionCompleted publishes a ToolExecutionCompletedEvent after all tools finish
+func (p *eventPublisher) publishToolExecutionCompleted(results []domain.ConversationEntry) {
+	successCount := 0
+	failureCount := 0
+	toolResults := make([]*domain.ToolExecutionResult, 0, len(results))
+
+	for _, entry := range results {
+		if entry.ToolExecution != nil {
+			if entry.ToolExecution.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+			toolResults = append(toolResults, entry.ToolExecution)
+		}
+	}
+
+	event := domain.ToolExecutionCompletedEvent{
+		SessionID:     p.requestID,
+		RequestID:     p.requestID,
+		Timestamp:     time.Now(),
+		TotalExecuted: len(results),
+		SuccessCount:  successCount,
+		FailureCount:  failureCount,
+		Results:       toolResults,
+	}
+
+	select {
+	case p.chatEvents <- event:
+	default:
+		logger.Warn("tool execution completed event dropped - channel full")
+	}
+}
+
 // NewAgentService creates a new agent service with pre-configured client
 func NewAgentService(
 	client sdk.Client,
@@ -950,6 +984,8 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 	if err := s.batchSaveToolResults(results); err != nil {
 		logger.Error("failed to batch save tool results", "error", err)
 	}
+
+	eventPublisher.publishToolExecutionCompleted(results)
 
 	return results
 }

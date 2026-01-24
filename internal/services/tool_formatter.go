@@ -7,7 +7,6 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
 )
@@ -90,12 +89,6 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutio
 		return "Tool execution result unavailable"
 	}
 
-	logger.Debug("FormatToolResultForUI called",
-		"tool", result.ToolName,
-		"success", result.Success,
-		"duration_ms", result.Duration.Milliseconds(),
-		"arguments", result.Arguments)
-
 	var statusIcon string
 	var statusText string
 	var iconColor string
@@ -127,16 +120,12 @@ func (s *ToolFormatterService) FormatToolResultForUI(result *domain.ToolExecutio
 		singleLine = fmt.Sprintf("%s %s() %s", styledIcon, result.ToolName, styledStatus)
 	}
 
-	logger.Debug("Tool formatted result (single-line)", "tool", result.ToolName, "result_length", len(singleLine))
 	return singleLine
 }
 
 // formatArgsPreview formats arguments for compact preview display
 func (s *ToolFormatterService) formatArgsPreview(args map[string]any) string {
-	logger.Debug("formatArgsPreview called", "args", args, "len", len(args))
-
 	if len(args) == 0 {
-		logger.Debug("formatArgsPreview: args empty, returning empty string")
 		return ""
 	}
 
@@ -162,7 +151,6 @@ func (s *ToolFormatterService) formatArgsPreview(args map[string]any) string {
 		preview = preview[:97] + "..."
 	}
 
-	logger.Debug("formatArgsPreview result", "preview", preview, "length", len(preview))
 	return preview
 }
 

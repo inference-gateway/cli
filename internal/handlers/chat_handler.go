@@ -340,8 +340,9 @@ func (h *ChatHandler) handleConversationSelected(
 
 	return tea.Batch(
 		func() tea.Msg {
+			history := h.conversationRepo.GetMessages()
 			return domain.UpdateHistoryEvent{
-				History: h.conversationRepo.GetMessages(),
+				History: history,
 			}
 		},
 		func() tea.Msg {
@@ -572,8 +573,9 @@ func (h *ChatHandler) handleToolApprovalResponse(
 
 		var cmds []tea.Cmd
 		cmds = append(cmds, func() tea.Msg {
+			history := h.conversationRepo.GetMessages()
 			return domain.UpdateHistoryEvent{
-				History: h.conversationRepo.GetMessages(),
+				History: history,
 			}
 		})
 		cmds = append(cmds, func() tea.Msg {
@@ -617,8 +619,9 @@ func (h *ChatHandler) handleToolApprovalResponse(
 
 	var cmds []tea.Cmd
 	cmds = append(cmds, func() tea.Msg {
+		history := h.conversationRepo.GetMessages()
 		return domain.UpdateHistoryEvent{
-			History: h.conversationRepo.GetMessages(),
+			History: history,
 		}
 	})
 	cmds = append(cmds, func() tea.Msg {
@@ -657,8 +660,9 @@ func (h *ChatHandler) HandlePlanApprovalRequestedEvent(
 
 	return tea.Batch(
 		func() tea.Msg {
+			history := h.conversationRepo.GetMessages()
 			return domain.UpdateHistoryEvent{
-				History: h.conversationRepo.GetMessages(),
+				History: history,
 			}
 		},
 		func() tea.Msg {
@@ -723,8 +727,9 @@ func (h *ChatHandler) HandlePlanApprovalResponseEvent(
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
+			history := h.conversationRepo.GetMessages()
 			return domain.UpdateHistoryEvent{
-				History: h.conversationRepo.GetMessages(),
+				History: history,
 			}
 		},
 		func() tea.Msg {
@@ -814,10 +819,6 @@ func (h *ChatHandler) HandleComputerUsePausedEvent(msg domain.ComputerUsePausedE
 // HandleComputerUseResumedEvent handles computer use resume events
 func (h *ChatHandler) HandleComputerUseResumedEvent(msg domain.ComputerUseResumedEvent) tea.Cmd {
 	h.stateManager.ClearComputerUsePauseState()
-
-	if h.stateManager.GetChatSession() != nil {
-		h.stateManager.EndChatSession()
-	}
 
 	continueMessage := sdk.Message{
 		Role:    sdk.User,
@@ -1046,8 +1047,9 @@ func (h *ChatHandler) handleChatComplete(
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
+		history := h.conversationRepo.GetMessages()
 		return domain.UpdateHistoryEvent{
-			History: h.conversationRepo.GetMessages(),
+			History: history,
 		}
 	})
 
@@ -1147,8 +1149,9 @@ func (h *ChatHandler) handleToolCallUpdate(
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
+		history := h.conversationRepo.GetMessages()
 		return domain.UpdateHistoryEvent{
-			History: h.conversationRepo.GetMessages(),
+			History: history,
 		}
 	})
 
@@ -1187,8 +1190,9 @@ func (h *ChatHandler) handleToolCallReady(
 ) tea.Cmd {
 	cmds := []tea.Cmd{
 		func() tea.Msg {
+			history := h.conversationRepo.GetMessages()
 			return domain.UpdateHistoryEvent{
-				History: h.conversationRepo.GetMessages(),
+				History: history,
 			}
 		},
 	}
@@ -1228,8 +1232,9 @@ func (h *ChatHandler) handleToolApprovalRequested(
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
+		history := h.conversationRepo.GetMessages()
 		return domain.UpdateHistoryEvent{
-			History: h.conversationRepo.GetMessages(),
+			History: history,
 		}
 	})
 
@@ -1383,8 +1388,9 @@ func (h *ChatHandler) handleToolExecutionCompleted(
 
 	cmds := []tea.Cmd{
 		func() tea.Msg {
+			history := h.conversationRepo.GetMessages()
 			return domain.UpdateHistoryEvent{
-				History: h.conversationRepo.GetMessages(),
+				History: history,
 			}
 		},
 		func() tea.Msg {
@@ -1395,12 +1401,15 @@ func (h *ChatHandler) handleToolExecutionCompleted(
 				StatusType: domain.StatusPreparing,
 			}
 		},
-		h.startChatCompletion(),
 	}
 
 	todoUpdateCmd := h.extractTodoUpdateCmd(msg.Results)
 	if todoUpdateCmd != nil {
 		cmds = append(cmds, todoUpdateCmd)
+	}
+
+	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
+		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
 	}
 
 	return tea.Sequence(cmds...)
@@ -1474,8 +1483,9 @@ func (h *ChatHandler) handleA2ATaskCompleted(
 	})
 
 	cmds = append(cmds, func() tea.Msg {
+		history := h.conversationRepo.GetMessages()
 		return domain.UpdateHistoryEvent{
-			History: h.conversationRepo.GetMessages(),
+			History: history,
 		}
 	})
 
@@ -1535,8 +1545,9 @@ func (h *ChatHandler) handleA2ATaskFailed(
 	})
 
 	cmds = append(cmds, func() tea.Msg {
+		history := h.conversationRepo.GetMessages()
 		return domain.UpdateHistoryEvent{
-			History: h.conversationRepo.GetMessages(),
+			History: history,
 		}
 	})
 
@@ -1583,8 +1594,9 @@ func (h *ChatHandler) handleMessageQueued(
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
+		history := h.conversationRepo.GetMessages()
 		return domain.UpdateHistoryEvent{
-			History: h.conversationRepo.GetMessages(),
+			History: history,
 		}
 	})
 
@@ -1837,8 +1849,9 @@ func (h *ChatHandler) executeBashCommand(commandText, command string) tea.Cmd {
 
 	return tea.Batch(
 		func() tea.Msg {
+			history := h.conversationRepo.GetMessages()
 			return domain.UpdateHistoryEvent{
-				History: h.conversationRepo.GetMessages(),
+				History: history,
 			}
 		},
 		func() tea.Msg {
@@ -2076,8 +2089,9 @@ func (h *ChatHandler) executeBashCommandInBackground(commandText, command string
 
 	return tea.Batch(
 		func() tea.Msg {
+			history := h.conversationRepo.GetMessages()
 			return domain.UpdateHistoryEvent{
-				History: h.conversationRepo.GetMessages(),
+				History: history,
 			}
 		},
 		func() tea.Msg {

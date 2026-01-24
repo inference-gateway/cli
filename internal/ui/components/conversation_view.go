@@ -14,7 +14,6 @@ import (
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
-	logger "github.com/inference-gateway/cli/internal/logger"
 	hints "github.com/inference-gateway/cli/internal/ui/hints"
 	markdown "github.com/inference-gateway/cli/internal/ui/markdown"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
@@ -136,7 +135,6 @@ func (cv *ConversationView) SetConversation(conversation []domain.ConversationEn
 	cv.updatePlainTextLines()
 
 	if cv.navigationMode != NavigationModeMessageHistory {
-		logger.Debug("SetConversation: calling updateViewportContentFull")
 		cv.updateViewportContentFull()
 		if wasAtBottom {
 			cv.Viewport.GotoBottom()
@@ -375,7 +373,6 @@ func (cv *ConversationView) renderStreamingContent() string {
 
 // updateViewportContentFull performs a full rebuild of the viewport content
 func (cv *ConversationView) updateViewportContentFull() {
-	logger.Debug("updateViewportContentFull called")
 	var b strings.Builder
 
 	displayIndex := 0
@@ -474,18 +471,6 @@ func (cv *ConversationView) renderCompactWelcome() string {
 }
 
 func (cv *ConversationView) renderEntryWithIndex(entry domain.ConversationEntry, index int) string {
-	logger.Debug("renderEntryWithIndex",
-		"index", index,
-		"role", entry.Message.Role,
-		"has_tool_execution", entry.ToolExecution != nil,
-		"has_tool_calls", entry.Message.ToolCalls != nil,
-		"tool_name", func() string {
-			if entry.ToolExecution != nil {
-				return entry.ToolExecution.ToolName
-			}
-			return ""
-		}())
-
 	if handled, result := cv.tryRenderSpecialEntry(entry, index); handled {
 		return result
 	}
@@ -739,13 +724,7 @@ func (cv *ConversationView) formatExpandedContent(entry domain.ConversationEntry
 func (cv *ConversationView) formatCompactContent(entry domain.ConversationEntry) string {
 	hint := cv.getHintForEntry(entry)
 	if entry.ToolExecution != nil {
-		logger.Debug("Formatting tool result for UI (compact)",
-			"tool", entry.ToolExecution.ToolName,
-			"success", entry.ToolExecution.Success,
-			"role", entry.Message.Role,
-			"has_tool_calls", entry.Message.ToolCalls != nil)
 		content := cv.toolFormatter.FormatToolResultForUI(entry.ToolExecution, cv.width)
-		logger.Debug("Tool result formatted", "content_length", len(content))
 		return content + "\n• " + hint
 	}
 	contentStr, err := entry.Message.Content.AsMessageContent0()
@@ -1373,27 +1352,39 @@ func (cv *ConversationView) renderInlineToolApprovalButtons(_ int) string {
 func (cv *ConversationView) handleToolCallRendererEvents(msg tea.Msg, cmd tea.Cmd) tea.Cmd {
 	switch msg := msg.(type) {
 	case domain.ToolCallPreviewEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	case domain.ToolCallUpdateEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	case domain.ToolCallReadyEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	case domain.ToolExecutionProgressEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	case domain.BashOutputChunkEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	case domain.ChatCompleteEvent:
-		if _, rendererCmd := cv.toolCallRenderer.Update(msg); rendererCmd != nil {
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if rendererCmd != nil {
 			cmd = tea.Batch(cmd, rendererCmd)
 		}
 	}
