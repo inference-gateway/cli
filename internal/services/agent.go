@@ -44,6 +44,11 @@ type AgentServiceImpl struct {
 	// Tool call accumulation
 	toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall
 	toolCallsMux sync.RWMutex
+
+	// Context caching
+	gitContextCache string
+	gitContextTurn  int
+	contextCacheMux sync.RWMutex
 }
 
 // eventPublisher provides a utility for publishing chat events

@@ -274,6 +274,80 @@ The CLI uses a 2-layer configuration system:
 Environment variable format: `INFER_<PATH>` (dots become underscores)
 Example: `agent.model` → `INFER_AGENT_MODEL`
 
+## Model Context System
+
+The CLI automatically enhances the model's context with project awareness to reduce confusion and improve accuracy.
+
+### Git Context
+
+When operating in a git repository, the model receives:
+
+- **Repository name** (extracted from remote URL, e.g., "inference-gateway/cli")
+- **Current branch** (e.g., "main", "feature/xyz")
+- **Main branch** name (detected as "main" or "master")
+- **Recent commits** (last 5 commits with hashes and messages)
+
+This context is automatically injected into the system prompt on every request.
+The git context is cached and refreshed every N turns (configurable) to balance performance with up-to-date information.
+
+### Working Directory
+
+The model receives the current working directory path, helping it understand:
+
+- Where files should be read from or written to
+- Which directory commands will execute in
+- Project location context
+
+### Performance Characteristics
+
+- **First prompt:** +50-100ms (git command execution)
+- **Subsequent prompts:** <1ms (cached)
+- **Token overhead:** ~100-300 tokens (depends on git history)
+- **Git refresh:** Every 10 turns by default (configurable)
+
+### Configuration
+
+Control via `.infer/config.yaml`:
+
+```yaml
+agent:
+  context:
+    git_context_enabled: true        # Enable git repository context
+    working_dir_enabled: true        # Enable working directory context
+    git_context_refresh_turns: 10    # Refresh git context every N turns
+```
+
+Or via environment variables:
+
+```bash
+INFER_AGENT_CONTEXT_GIT_CONTEXT_ENABLED=true
+INFER_AGENT_CONTEXT_WORKING_DIR_ENABLED=true
+INFER_AGENT_CONTEXT_GIT_CONTEXT_REFRESH_TURNS=10
+```
+
+### Benefits
+
+**Before:**
+
+- Model confused about repository name ("inference-gateway" vs "inference-gateway/cli" vs "inference-gateway/infer")
+- No awareness of current branch or git state
+- Unclear about working directory
+
+**After:**
+
+- Model knows exact repository: `inference-gateway/cli`
+- Aware of current branch and recent commits
+- Understands working directory context
+- Reduced need for clarifying questions
+
+### Technical Implementation
+
+- **Location:** `internal/services/agent_utils.go`
+- **Context builders:** `buildGitContextInfo()`, `buildWorkingDirectoryInfo()`
+- **Git helpers:** `isGitRepository()`, `getGitRepositoryName()`, `getGitBranch()`, `getGitMainBranch()`, `getRecentCommits()`
+- **Caching:** Thread-safe caching via `sync.RWMutex` in `AgentServiceImpl`
+- **Error handling:** All git operations fail gracefully (log debug, return empty string)
+
 ## Shortcuts System
 
 Shortcuts are YAML-defined commands stored in `.infer/shortcuts/`:

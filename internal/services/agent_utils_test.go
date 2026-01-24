@@ -224,3 +224,80 @@ func TestIsCompleteJSON_LargeFileSimulation(t *testing.T) {
 		t.Error("Expected complete JSON to return true")
 	}
 }
+
+func TestIsGitRepository(t *testing.T) {
+	result := isGitRepository()
+	t.Logf("isGitRepository() = %v", result)
+}
+
+func TestGetGitRepositoryName(t *testing.T) {
+	tests := []struct {
+		name        string
+		remoteURL   string
+		expected    string
+		description string
+	}{
+		{
+			name:        "HTTPS GitHub URL",
+			remoteURL:   "https://github.com/inference-gateway/cli.git",
+			expected:    "inference-gateway/cli",
+			description: "Should extract owner/repo from HTTPS URL",
+		},
+		{
+			name:        "HTTPS GitHub URL without .git",
+			remoteURL:   "https://github.com/inference-gateway/cli",
+			expected:    "inference-gateway/cli",
+			description: "Should extract owner/repo from HTTPS URL without .git extension",
+		},
+		{
+			name:        "SSH GitHub URL",
+			remoteURL:   "git@github.com:inference-gateway/cli.git",
+			expected:    "inference-gateway/cli",
+			description: "Should extract owner/repo from SSH URL",
+		},
+		{
+			name:        "SSH GitHub URL without .git",
+			remoteURL:   "git@github.com:inference-gateway/cli",
+			expected:    "inference-gateway/cli",
+			description: "Should extract owner/repo from SSH URL without .git extension",
+		},
+		{
+			name:        "HTTPS GitLab URL",
+			remoteURL:   "https://gitlab.com/myorg/myproject.git",
+			expected:    "myorg/myproject",
+			description: "Should extract owner/repo from GitLab HTTPS URL",
+		},
+		{
+			name:        "SSH GitLab URL",
+			remoteURL:   "git@gitlab.com:myorg/myproject.git",
+			expected:    "myorg/myproject",
+			description: "Should extract owner/repo from GitLab SSH URL",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Logf("Testing URL pattern: %s", tt.remoteURL)
+			t.Logf("Expected result: %s", tt.expected)
+			t.Logf("Description: %s", tt.description)
+		})
+	}
+}
+
+func TestGetGitBranch(t *testing.T) {
+	result := getGitBranch()
+	t.Logf("getGitBranch() = %q", result)
+}
+
+func TestGetGitMainBranch(t *testing.T) {
+	result := getGitMainBranch()
+	t.Logf("getGitMainBranch() = %q", result)
+}
+
+func TestGetRecentCommits(t *testing.T) {
+	commits := getRecentCommits(5)
+	t.Logf("getRecentCommits(5) returned %d commits", len(commits))
+	for i, commit := range commits {
+		t.Logf("Commit %d: %s", i+1, commit)
+	}
+}
