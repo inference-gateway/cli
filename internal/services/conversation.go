@@ -58,6 +58,7 @@ func (r *InMemoryConversationRepository) AddMessage(msg domain.ConversationEntry
 	}
 
 	r.messages = append(r.messages, msg)
+
 	return nil
 }
 
@@ -512,4 +513,17 @@ func (r *InMemoryConversationRepository) FormatToolResultExpanded(result *domain
 // GetCurrentConversationTitle returns the current conversation title
 func (r *InMemoryConversationRepository) GetCurrentConversationTitle() string {
 	return "New Conversation"
+}
+
+// Helper functions for debug logging
+
+// extractToolNames extracts tool names from conversation entries
+func extractToolNames(entries []domain.ConversationEntry) []string {
+	names := []string{}
+	for _, e := range entries {
+		if e.ToolExecution != nil {
+			names = append(names, e.ToolExecution.ToolName)
+		}
+	}
+	return names
 }

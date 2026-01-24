@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"time"
+
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -179,11 +181,16 @@ type ToolExecutionStartedEvent struct {
 // ToolExecutionCompletedEvent indicates tool execution is complete
 type ToolExecutionCompletedEvent struct {
 	SessionID     string
+	RequestID     string
+	Timestamp     time.Time
 	TotalExecuted int
 	SuccessCount  int
 	FailureCount  int
 	Results       []*ToolExecutionResult
 }
+
+func (e ToolExecutionCompletedEvent) GetRequestID() string    { return e.RequestID }
+func (e ToolExecutionCompletedEvent) GetTimestamp() time.Time { return e.Timestamp }
 
 // Approval Events
 

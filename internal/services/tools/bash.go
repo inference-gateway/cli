@@ -305,7 +305,7 @@ func (t *BashTool) executeBashWithStreaming(ctx context.Context, cmd *exec.Cmd, 
 			return result, nil
 
 		case <-done:
-			logger.Debug("bash: command completed before detach signal")
+			// TODO: run some cleanups perhaps
 		}
 	} else {
 		wg.Wait()

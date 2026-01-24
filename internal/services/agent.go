@@ -195,6 +195,40 @@ func (p *eventPublisher) publishPlanApprovalRequest(planContent string) {
 	}
 }
 
+// publishToolExecutionCompleted publishes a ToolExecutionCompletedEvent after all tools finish
+func (p *eventPublisher) publishToolExecutionCompleted(results []domain.ConversationEntry) {
+	successCount := 0
+	failureCount := 0
+	toolResults := make([]*domain.ToolExecutionResult, 0, len(results))
+
+	for _, entry := range results {
+		if entry.ToolExecution != nil {
+			if entry.ToolExecution.Success {
+				successCount++
+			} else {
+				failureCount++
+			}
+			toolResults = append(toolResults, entry.ToolExecution)
+		}
+	}
+
+	event := domain.ToolExecutionCompletedEvent{
+		SessionID:     p.requestID,
+		RequestID:     p.requestID,
+		Timestamp:     time.Now(),
+		TotalExecuted: len(results),
+		SuccessCount:  successCount,
+		FailureCount:  failureCount,
+		Results:       toolResults,
+	}
+
+	select {
+	case p.chatEvents <- event:
+	default:
+		logger.Warn("tool execution completed event dropped - channel full")
+	}
+}
+
 // NewAgentService creates a new agent service with pre-configured client
 func NewAgentService(
 	client sdk.Client,
@@ -637,8 +671,23 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 				Time:             time.Now(),
 			}
 
+			// DEBUG: Log assistant message addition to trace duplicates
+			contentStr, _ := assistantContent.AsMessageContent0()
+			logger.Debug("Adding assistant message to repository",
+				"request_id", req.RequestID,
+				"content_length", len(contentStr),
+				"has_tool_calls", len(toolCalls) > 0,
+				"tool_call_count", len(toolCalls),
+				"reasoning_length", len(reasoning),
+				"model", req.Model,
+			)
+
 			if err := s.conversationRepo.AddMessage(assistantEntry); err != nil {
 				logger.Error("failed to store assistant message", "error", err)
+			} else {
+				logger.Debug("Assistant message added successfully",
+					"request_id", req.RequestID,
+				)
 			}
 
 			var completeToolCalls []sdk.ChatCompletionMessageToolCall
@@ -950,6 +999,8 @@ func (s *AgentServiceImpl) executeToolCallsParallel( // nolint:funlen
 	if err := s.batchSaveToolResults(results); err != nil {
 		logger.Error("failed to batch save tool results", "error", err)
 	}
+
+	eventPublisher.publishToolExecutionCompleted(results)
 
 	return results
 }
@@ -1369,8 +1420,21 @@ func (s *AgentServiceImpl) createRejectionEntry(tc sdk.ChatCompletionMessageTool
 }
 
 func (s *AgentServiceImpl) batchSaveToolResults(entries []domain.ConversationEntry) error {
+	// DEBUG: Log batch save start to detect duplicate saves
+	toolNames := extractToolNames(entries)
+	logger.Debug("batchSaveToolResults called",
+		"entry_count", len(entries),
+		"tool_names", toolNames,
+	)
+
 	savedCount := 0
-	for _, entry := range entries {
+	for i, entry := range entries {
+		logger.Debug("Saving tool result",
+			"index", i,
+			"tool_name", entry.ToolExecution.ToolName,
+			"success", entry.ToolExecution.Success,
+		)
+
 		if err := s.conversationRepo.AddMessage(entry); err != nil {
 			logger.Error("failed to save tool result",
 				"tool", entry.ToolExecution.ToolName,
@@ -1380,6 +1444,11 @@ func (s *AgentServiceImpl) batchSaveToolResults(entries []domain.ConversationEnt
 		}
 		savedCount++
 	}
+
+	logger.Debug("batchSaveToolResults completed",
+		"saved_count", savedCount,
+		"tool_names", toolNames,
+	)
 
 	return nil
 }
