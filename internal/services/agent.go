@@ -25,7 +25,7 @@ type AgentServiceImpl struct {
 	stateManager     domain.StateManager
 	timeoutSeconds   int
 	maxTokens        int
-	optimizer        domain.ConversationOptimizerService
+	optimizer        domain.ConversationOptimizer
 	tokenizer        *TokenizerService
 	approvalPolicy   domain.ApprovalPolicy
 
@@ -200,7 +200,7 @@ func NewAgentService(
 	messageQueue domain.MessageQueue,
 	stateManager domain.StateManager,
 	timeoutSeconds int,
-	optimizer domain.ConversationOptimizerService,
+	optimizer domain.ConversationOptimizer,
 ) *AgentServiceImpl {
 	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
 

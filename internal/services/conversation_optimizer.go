@@ -7,6 +7,7 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	models "github.com/inference-gateway/cli/internal/models"
@@ -19,10 +20,12 @@ type ConversationOptimizer struct {
 	autoAt            int
 	bufferSize        int
 	keepFirstMessages int
-	client            sdk.Client
+	client            domain.SDKClient
 	config            *config.Config
 	tokenizer         *TokenizerService
 }
+
+var _ domain.ConversationOptimizer = (*ConversationOptimizer)(nil)
 
 // OptimizerConfig represents configuration for the conversation optimizer
 type OptimizerConfig struct {
@@ -30,13 +33,13 @@ type OptimizerConfig struct {
 	AutoAt            int
 	BufferSize        int
 	KeepFirstMessages int
-	Client            sdk.Client
+	Client            domain.SDKClient
 	Config            *config.Config
 	Tokenizer         *TokenizerService
 }
 
 // NewConversationOptimizer creates a new conversation optimizer with configuration
-func NewConversationOptimizer(config OptimizerConfig) *ConversationOptimizer {
+func NewConversationOptimizer(config OptimizerConfig) domain.ConversationOptimizer {
 	if config.AutoAt < 20 || config.AutoAt > 100 {
 		logger.Warn("AutoAt must be between 20 and 100, defaulting to 80", "provided", config.AutoAt)
 		config.AutoAt = 80
@@ -101,7 +104,6 @@ func (co *ConversationOptimizer) OptimizeMessages(messages []sdk.Message, model 
 	optimized, err := co.smartOptimize(conversationMessages, model)
 	if err != nil {
 		logger.Error("Optimization failed", "error", err)
-		// If optimization fails, return original messages
 		return messages
 	}
 	return append(systemMessages, optimized...)
@@ -121,6 +123,20 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model str
 	summaryStartIndex := co.keepFirstMessages
 
 	summaryStartIndex = co.adjustBoundaryForToolCallsAtStart(messages, summaryStartIndex)
+
+	if summaryStartIndex < co.keepFirstMessages {
+		logger.Info("Adjusting kept messages due to boundary moved back",
+			"original_keep", co.keepFirstMessages,
+			"adjusted_keep", summaryStartIndex)
+		result = make([]sdk.Message, summaryStartIndex)
+		copy(result, messages[:summaryStartIndex])
+	} else if summaryStartIndex > co.keepFirstMessages {
+		logger.Info("Adjusting kept messages due to boundary moved forward to include tool responses",
+			"original_keep", co.keepFirstMessages,
+			"adjusted_keep", summaryStartIndex)
+		result = make([]sdk.Message, summaryStartIndex)
+		copy(result, messages[:summaryStartIndex])
+	}
 
 	if summaryStartIndex >= len(messages) {
 		return messages, nil
@@ -164,6 +180,8 @@ func (co *ConversationOptimizer) smartOptimize(messages []sdk.Message, model str
 // adjustBoundaryForToolCallsAtStart ensures tool call/response pairs aren't split
 // at the start boundary. If the last kept message has tool calls with responses
 // beyond the boundary, we need to include those responses before summarization.
+// If tool calls cannot be resolved (interrupted by user/assistant messages), the
+// boundary is moved back to exclude the assistant message with incomplete tool calls.
 func (co *ConversationOptimizer) adjustBoundaryForToolCallsAtStart(messages []sdk.Message, boundaryIndex int) int {
 	if boundaryIndex <= 0 || boundaryIndex >= len(messages) {
 		return boundaryIndex
@@ -194,7 +212,25 @@ func (co *ConversationOptimizer) adjustBoundaryForToolCallsAtStart(messages []sd
 	}
 
 	if len(toolCallIDs) > 0 {
-		logger.Warn("Found unresolved tool calls at compaction boundary", "count", len(toolCallIDs))
+		logger.Warn("Found unresolved tool calls at compaction boundary, moving boundary back",
+			"count", len(toolCallIDs),
+			"original_boundary", boundaryIndex,
+			"attempted_boundary", adjustedBoundary)
+		for i := boundaryIndex - 1; i >= 0; i-- {
+			if messages[i].Role == "assistant" &&
+				messages[i].ToolCalls != nil &&
+				len(*messages[i].ToolCalls) > 0 {
+				logger.Info("Moving boundary back to exclude assistant message with incomplete tool calls",
+					"new_boundary", i)
+				return i
+			}
+		}
+
+		if boundaryIndex > 1 {
+			logger.Warn("Could not find assistant message with tool calls, using boundary - 1",
+				"new_boundary", boundaryIndex-1)
+			return boundaryIndex - 1
+		}
 	}
 
 	return adjustedBoundary

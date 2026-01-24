@@ -34,7 +34,7 @@ type ChatApplication struct {
 	configService         domain.ConfigService
 	agentService          domain.AgentService
 	conversationRepo      domain.ConversationRepository
-	conversationOptimizer domain.ConversationOptimizerService
+	conversationOptimizer domain.ConversationOptimizer
 	modelService          domain.ModelService
 	toolService           domain.ToolService
 	fileService           domain.FileService
@@ -100,7 +100,7 @@ func NewChatApplication(
 	defaultModel string,
 	agentService domain.AgentService,
 	conversationRepo domain.ConversationRepository,
-	conversationOptimizer domain.ConversationOptimizerService,
+	conversationOptimizer domain.ConversationOptimizer,
 	modelService domain.ModelService,
 	configService domain.ConfigService,
 	toolService domain.ToolService,

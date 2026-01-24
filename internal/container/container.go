@@ -38,7 +38,7 @@ type ServiceContainer struct {
 
 	// Domain services
 	conversationRepo      domain.ConversationRepository
-	conversationOptimizer domain.ConversationOptimizerService
+	conversationOptimizer domain.ConversationOptimizer
 	modelService          domain.ModelService
 	chatService           domain.ChatService
 	agentService          domain.AgentService
@@ -272,13 +272,14 @@ func (c *ServiceContainer) initializeDomainServices() {
 
 	if c.config.Compact.Enabled {
 		summaryClient := c.createSDKClient()
+		summaryClientAdapter := adapters.NewSDKClientAdapter(summaryClient)
 		tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 		c.conversationOptimizer = services.NewConversationOptimizer(services.OptimizerConfig{
 			Enabled:           c.config.Compact.Enabled,
 			AutoAt:            c.config.Compact.AutoAt,
 			BufferSize:        2,
 			KeepFirstMessages: c.config.Compact.KeepFirstMessages,
-			Client:            summaryClient,
+			Client:            summaryClientAdapter,
 			Config:            c.config,
 			Tokenizer:         tokenizer,
 		})
@@ -388,7 +389,7 @@ func (c *ServiceContainer) GetConversationRepository() domain.ConversationReposi
 	return c.conversationRepo
 }
 
-func (c *ServiceContainer) GetConversationOptimizer() domain.ConversationOptimizerService {
+func (c *ServiceContainer) GetConversationOptimizer() domain.ConversationOptimizer {
 	return c.conversationOptimizer
 }
 

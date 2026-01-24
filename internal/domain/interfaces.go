@@ -184,8 +184,8 @@ type ConversationRepository interface {
 	GetCurrentConversationTitle() string
 }
 
-// ConversationOptimizerService optimizes conversation history to reduce token usage
-type ConversationOptimizerService interface {
+// ConversationOptimizer optimizes conversation history to reduce token usage
+type ConversationOptimizer interface {
 	OptimizeMessages(messages []sdk.Message, model string, force bool) []sdk.Message
 }
 
