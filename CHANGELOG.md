@@ -6,6 +6,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.99.0](https://github.com/inference-gateway/cli/compare/v0.98.0...v0.99.0) (2026-01-24)
+
+### 🚀 Features
+
+* Add model context system for improved project awareness ([#375](https://github.com/inference-gateway/cli/issues/375)) ([1afb26b](https://github.com/inference-gateway/cli/commit/1afb26bd382ba6ac976fe549bd4232085495db24))
+
+### 🐛 Bug Fixes
+
+* Skip migrations for JSONL storage in infer init ([#376](https://github.com/inference-gateway/cli/issues/376)) ([3793345](https://github.com/inference-gateway/cli/commit/3793345d249ec37584f576bb8f0c1a33bd06e57e)), closes [#372](https://github.com/inference-gateway/cli/issues/372)
+
+### ♻️ Code Refactoring
+
+* Improve the testability of conversation optimizer ([#374](https://github.com/inference-gateway/cli/issues/374)) ([4c7c428](https://github.com/inference-gateway/cli/commit/4c7c428f42bb16ba1bd0ac2d5ea889cf6454fdb6))
+
 ## [0.98.0](https://github.com/inference-gateway/cli/compare/v0.97.0...v0.98.0) (2026-01-24)
 
 ### 🚀 Features
