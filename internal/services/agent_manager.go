@@ -72,6 +72,12 @@ func (am *AgentManager) StartAgents(ctx context.Context) error {
 		}
 	}
 
+	if am.containerRuntime != nil && len(agentsToStart) > 0 {
+		if err := am.containerRuntime.EnsureNetwork(ctx); err != nil {
+			logger.Warn("Failed to create Docker network", "session", am.sessionID, "error", err)
+		}
+	}
+
 	for _, agent := range agentsToStart {
 		go am.startAgentAsync(ctx, agent)
 	}
@@ -187,7 +193,7 @@ func (am *AgentManager) StartAgent(ctx context.Context, agent config.AgentEntry)
 	return nil
 }
 
-// StopAgents stops all running agent containers
+// StopAgents stops all running agent containers and cleans up the network
 func (am *AgentManager) StopAgents(ctx context.Context) error {
 	for agentName := range am.containers {
 		if err := am.StopAgent(ctx, agentName); err != nil {
@@ -196,6 +202,13 @@ func (am *AgentManager) StopAgents(ctx context.Context) error {
 	}
 
 	am.isRunning = false
+
+	if am.containerRuntime != nil {
+		if err := am.containerRuntime.CleanupNetwork(ctx); err != nil {
+			logger.Warn("Failed to cleanup network during agent shutdown", "session", am.sessionID, "error", err)
+		}
+	}
+
 	return nil
 }
 
