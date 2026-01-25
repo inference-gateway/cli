@@ -8,6 +8,8 @@ import (
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
+	agent "github.com/inference-gateway/cli/internal/agent"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	filewriterdomain "github.com/inference-gateway/cli/internal/domain/filewriter"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
@@ -15,7 +17,6 @@ import (
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
 	filewriterservice "github.com/inference-gateway/cli/internal/services/filewriter"
-	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	utils "github.com/inference-gateway/cli/internal/utils"
@@ -41,7 +42,7 @@ type ServiceContainer struct {
 	conversationOptimizer domain.ConversationOptimizer
 	modelService          domain.ModelService
 	chatService           domain.ChatService
-	agentService          domain.AgentService
+	agent                 domain.AgentService
 	toolService           domain.ToolService
 	fileService           domain.FileService
 	imageService          domain.ImageService
@@ -288,8 +289,9 @@ func (c *ServiceContainer) initializeDomainServices() {
 	c.a2aAgentService = services.NewA2AAgentService(c.config)
 
 	agentClient := c.createSDKClient()
-	c.agentService = services.NewAgentService(
-		agentClient,
+	agentClientAdapter := adapters.NewSDKClientAdapter(agentClient)
+	c.agent = agent.NewAgent(
+		agentClientAdapter,
 		c.toolService,
 		c.configService,
 		c.conversationRepo,
@@ -300,7 +302,7 @@ func (c *ServiceContainer) initializeDomainServices() {
 		c.conversationOptimizer,
 	)
 
-	c.chatService = services.NewStreamingChatService(c.agentService)
+	c.chatService = services.NewStreamingChatService(c.agent)
 }
 
 // initializeStateManager creates the state manager before domain services need it
@@ -455,7 +457,7 @@ func (c *ServiceContainer) GetAgentManager() domain.AgentManager {
 }
 
 func (c *ServiceContainer) GetAgentService() domain.AgentService {
-	return c.agentService
+	return c.agent
 }
 
 func (c *ServiceContainer) GetMessageQueue() domain.MessageQueue {

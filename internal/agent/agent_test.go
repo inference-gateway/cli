@@ -1,4 +1,4 @@
-package services
+package agent
 
 import (
 	"context"
@@ -7,12 +7,15 @@ import (
 	"testing"
 	"time"
 
-	config "github.com/inference-gateway/cli/config"
-	domain "github.com/inference-gateway/cli/internal/domain"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	sdk "github.com/inference-gateway/sdk"
 	assert "github.com/stretchr/testify/assert"
 	require "github.com/stretchr/testify/require"
+
+	sdk "github.com/inference-gateway/sdk"
+
+	config "github.com/inference-gateway/cli/config"
+	domain "github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/services"
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
 func TestAgentServiceImpl_GetMetrics(t *testing.T) {
@@ -251,7 +254,7 @@ func TestNewAgentService(t *testing.T) {
 		MaxTurns:  10,
 	})
 
-	agentService := NewAgentService(
+	agentService := NewAgent(
 		nil,
 		fakeToolService,
 		fakeConfig,
@@ -685,7 +688,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 			fakeStateManager := &domainmocks.FakeStateManager{}
 			fakeStateManager.GetAgentModeReturns(tt.agentMode)
 
-			approvalPolicy := NewStandardApprovalPolicy(fakeConfig.GetConfig(), fakeStateManager)
+			approvalPolicy := services.NewStandardApprovalPolicy(fakeConfig.GetConfig(), fakeStateManager)
 
 			result := approvalPolicy.ShouldRequireApproval(context.Background(), tt.toolCall, tt.isChatMode)
 
@@ -817,12 +820,12 @@ func TestAgentServiceImpl_GetAccumulatedToolCalls(t *testing.T) {
 
 	result := agentService.getAccumulatedToolCalls()
 
-	// Verify we got a copy
 	assert.Len(t, result, 2)
-	assert.Contains(t, result, "0")
-	assert.Contains(t, result, "1")
+	assert.Equal(t, "call-1", result[0].Id)
+	assert.Equal(t, "Read", result[0].Function.Name)
+	assert.Equal(t, "call-2", result[1].Id)
+	assert.Equal(t, "Write", result[1].Function.Name)
 
-	// Verify the original map was cleared
 	assert.Empty(t, agentService.toolCallsMap)
 }
 

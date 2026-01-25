@@ -106,59 +106,80 @@ func (s *ChatShortcutHandler) tryExecuteFromRegistry(shortcut string, args []str
 
 // executeRegistryShortcut executes a shortcut from the registry and handles results
 func (s *ChatShortcutHandler) executeRegistryShortcut(shortcut shortcuts.Shortcut, args []string) tea.Msg {
-	ctx := context.Background()
-
-	sessionID := ""
-	if persistentRepo, ok := s.handler.conversationRepo.(*services.PersistentConversationRepository); ok {
-		sessionID = persistentRepo.GetCurrentConversationID()
-		logger.Debug("Adding session ID to shortcut context", "session_id", sessionID, "shortcut", shortcut.GetName())
-	} else {
-		logger.Debug("ConversationRepo is not PersistentConversationRepository", "type", fmt.Sprintf("%T", s.handler.conversationRepo))
-	}
-	ctx = context.WithValue(ctx, domain.SessionIDKey, sessionID)
-
-	result, err := shortcut.Execute(ctx, args)
-	if err != nil {
-		return domain.SetStatusEvent{
-			Message:    fmt.Sprintf("Command failed: %v", err),
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
+	shortcutName := shortcut.GetName()
+	if len(args) > 0 {
+		shortcutName = fmt.Sprintf("%s %s", shortcutName, args[0])
 	}
 
-	if result.Output != "" {
-		assistantEntry := domain.ConversationEntry{
-			Message: sdk.Message{
-				Role:    sdk.Assistant,
-				Content: sdk.NewMessageContent(result.Output),
-			},
-			Model: "",
-			Time:  time.Now(),
+	return tea.Batch(
+		func() tea.Msg {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Executing %s...", shortcutName),
+				Spinner:    true,
+				StatusType: domain.StatusWorking,
+			}
+		},
+		s.performShortcutExecution(shortcut, args),
+	)()
+}
+
+// performShortcutExecution performs the async shortcut execution
+func (s *ChatShortcutHandler) performShortcutExecution(shortcut shortcuts.Shortcut, args []string) tea.Cmd {
+	return func() tea.Msg {
+		ctx := context.Background()
+
+		sessionID := ""
+		if persistentRepo, ok := s.handler.conversationRepo.(*services.PersistentConversationRepository); ok {
+			sessionID = persistentRepo.GetCurrentConversationID()
+			logger.Debug("Adding session ID to shortcut context", "session_id", sessionID, "shortcut", shortcut.GetName())
+		} else {
+			logger.Debug("ConversationRepo is not PersistentConversationRepository", "type", fmt.Sprintf("%T", s.handler.conversationRepo))
+		}
+		ctx = context.WithValue(ctx, domain.SessionIDKey, sessionID)
+
+		result, err := shortcut.Execute(ctx, args)
+		if err != nil {
+			return domain.SetStatusEvent{
+				Message:    fmt.Sprintf("Command failed: %v", err),
+				Spinner:    false,
+				StatusType: domain.StatusDefault,
+			}
 		}
 
-		if addErr := s.handler.conversationRepo.AddMessage(assistantEntry); addErr != nil {
-			logger.Error("failed to add shortcut result message", "error", addErr)
-		}
-
-		if result.SideEffect == shortcuts.SideEffectNone {
-			return tea.Batch(
-				func() tea.Msg {
-					return domain.UpdateHistoryEvent{
-						History: s.handler.conversationRepo.GetMessages(),
-					}
+		if result.Output != "" {
+			assistantEntry := domain.ConversationEntry{
+				Message: sdk.Message{
+					Role:    sdk.Assistant,
+					Content: sdk.NewMessageContent(result.Output),
 				},
-				func() tea.Msg {
-					return domain.SetStatusEvent{
-						Message:    "Shortcut action completed",
-						Spinner:    false,
-						StatusType: domain.StatusDefault,
-					}
-				},
-			)()
-		}
-	}
+				Model: "",
+				Time:  time.Now(),
+			}
 
-	return s.handleShortcutSideEffect(result.SideEffect, result.Data)
+			if addErr := s.handler.conversationRepo.AddMessage(assistantEntry); addErr != nil {
+				logger.Error("failed to add shortcut result message", "error", addErr)
+			}
+
+			if result.SideEffect == shortcuts.SideEffectNone {
+				return tea.Batch(
+					func() tea.Msg {
+						return domain.UpdateHistoryEvent{
+							History: s.handler.conversationRepo.GetMessages(),
+						}
+					},
+					func() tea.Msg {
+						return domain.SetStatusEvent{
+							Message:    "Shortcut action completed",
+							Spinner:    false,
+							StatusType: domain.StatusDefault,
+						}
+					},
+				)()
+			}
+		}
+
+		return s.handleShortcutSideEffect(result.SideEffect, result.Data)
+	}
 }
 
 // handleShortcutSideEffect handles side effects from shortcut execution

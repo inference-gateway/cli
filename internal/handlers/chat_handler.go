@@ -14,10 +14,10 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
-	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	utils "github.com/inference-gateway/cli/internal/utils"
 	sdk "github.com/inference-gateway/sdk"
@@ -1238,14 +1238,6 @@ func (h *ChatHandler) handleToolApprovalRequested(
 		}
 	})
 
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    fmt.Sprintf("Tool approval required: %s", msg.ToolCall.Function.Name),
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
-	})
-
 	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
 	}
@@ -1990,6 +1982,17 @@ func (h *ChatHandler) executeBashCommandAsync(command string, toolCallID string)
 			Time:          time.Now(),
 		}
 		_ = h.conversationRepo.AddMessage(toolEntry)
+
+		isUserInitiated := strings.HasPrefix(toolCallID, "user-bash-")
+		logger.Debug("Checking bash result", "success", result != nil && result.Success, "user_initiated", isUserInitiated)
+
+		if result != nil && !result.Success && isUserInitiated {
+			logger.Info("User-initiated bash command failed - triggering auto-fix", "tool_call_id", toolCallID)
+
+			eventChan <- domain.UserInputEvent{
+				Content: "The bash command failed. Please analyze the error and help me fix it.",
+			}
+		}
 
 		eventChan <- domain.BashCommandCompletedEvent{
 			History: h.conversationRepo.GetMessages(),

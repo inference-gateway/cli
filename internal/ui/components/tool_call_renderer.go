@@ -7,11 +7,13 @@ import (
 
 	spinner "github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	icons "github.com/inference-gateway/cli/internal/ui/styles/icons"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 type ToolCallRenderer struct {
@@ -195,13 +197,13 @@ func (r *ToolCallRenderer) handleSpinnerTick(msg spinner.TickMsg) (*ToolCallRend
 	var cmd tea.Cmd
 	r.spinner, cmd = r.spinner.Update(msg)
 
-	if r.hasActiveTools() {
-		return r, cmd
-	}
-
 	now := time.Now()
 	r.spinnerStep = (r.spinnerStep + 1) % 4
 	r.lastTimerRender = now
+
+	if r.hasActiveTools() {
+		return r, cmd
+	}
 
 	return r, cmd
 }

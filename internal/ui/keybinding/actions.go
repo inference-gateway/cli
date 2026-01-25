@@ -961,7 +961,9 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 			newIndex = int(domain.ApprovalAutoAccept)
 		}
 		stateManager.SetApprovalSelectedIndex(newIndex)
-		return func() tea.Msg { return nil }
+		return func() tea.Msg {
+			return domain.ApprovalSelectionChangedEvent{NewIndex: newIndex}
+		}
 	}
 
 	planApprovalState := stateManager.GetPlanApprovalUIState()
@@ -971,7 +973,7 @@ func handleCursorLeftOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd
 			newIndex = int(domain.PlanApprovalAcceptAndAutoApprove)
 		}
 		stateManager.SetPlanApprovalSelectedIndex(newIndex)
-		return func() tea.Msg { return nil }
+		return nil
 	}
 
 	inputView := app.GetInputView()
@@ -993,8 +995,11 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cm
 		if newIndex > int(domain.ApprovalAutoAccept) {
 			newIndex = 0
 		}
+
 		stateManager.SetApprovalSelectedIndex(newIndex)
-		return func() tea.Msg { return nil }
+		return func() tea.Msg {
+			return domain.ApprovalSelectionChangedEvent{NewIndex: newIndex}
+		}
 	}
 
 	planApprovalState := stateManager.GetPlanApprovalUIState()
@@ -1004,7 +1009,7 @@ func handleCursorRightOrPlanNav(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cm
 			newIndex = 0
 		}
 		stateManager.SetPlanApprovalSelectedIndex(newIndex)
-		return func() tea.Msg { return nil }
+		return nil
 	}
 
 	inputView := app.GetInputView()
@@ -1162,7 +1167,29 @@ func handleToggleTodoBox(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
+	statusView := app.GetStatusView()
 	newMode := stateManager.CycleAgentMode()
+
+	if statusView.IsShowingSpinner() {
+		return tea.Batch(
+			func() tea.Msg {
+				return domain.SaveStatusStateEvent{}
+			},
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message: fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
+					Spinner: false,
+				}
+			},
+			func() tea.Msg {
+				time.Sleep(800 * time.Millisecond)
+				return domain.RestoreStatusStateEvent{}
+			},
+			func() tea.Msg {
+				return domain.RefreshAutocompleteEvent{}
+			},
+		)
+	}
 
 	return tea.Batch(
 		func() tea.Msg {

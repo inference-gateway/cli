@@ -7,6 +7,7 @@ import (
 
 	progress "github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	colors "github.com/inference-gateway/cli/internal/ui/styles/colors"

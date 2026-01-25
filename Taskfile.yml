@@ -239,7 +239,10 @@ tasks:
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ConversationRepository
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain SDKClient
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain StateManager
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MessageQueue
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain TaskTracker
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain ApprovalPolicy
+      - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain AgentStateMachine
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain A2AAgentService
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain MCPClient
       - go run github.com/maxbrunsfeld/counterfeiter/v6 -o tests/mocks/domain internal/domain RateLimiter

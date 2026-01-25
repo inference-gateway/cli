@@ -7,10 +7,10 @@ import (
 	"path/filepath"
 	"time"
 
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	storage "github.com/inference-gateway/cli/internal/infra/storage"
 	services "github.com/inference-gateway/cli/internal/services"
-	tools "github.com/inference-gateway/cli/internal/services/tools"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	cobra "github.com/spf13/cobra"
 )

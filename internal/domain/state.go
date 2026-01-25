@@ -1143,3 +1143,65 @@ func (s *ApplicationState) RemoveAgent(name string) {
 
 	s.agentReadiness.TotalAgents--
 }
+
+// AgentExecutionState represents the state of the agent execution loop
+// This is a more granular state than ChatStatus and is used for the state machine
+type AgentExecutionState int
+
+const (
+	// StateIdle indicates no active work
+	StateIdle AgentExecutionState = iota
+	// StateCheckingQueue indicates examining message queue
+	StateCheckingQueue
+	// StateStreamingLLM indicates waiting for LLM response
+	StateStreamingLLM
+	// StatePostStream indicates after stream, before tool evaluation
+	StatePostStream
+	// StateEvaluatingTools indicates categorizing tool calls
+	StateEvaluatingTools
+	// StateApprovingTools indicates waiting for user approvals (sequential)
+	StateApprovingTools
+	// StateExecutingTools indicates running tools (parallel)
+	StateExecutingTools
+	// StatePostToolExecution indicates after all tools complete
+	StatePostToolExecution
+	// StateCompleting indicates finalizing loop
+	StateCompleting
+	// StateStopped indicates loop terminated
+	StateStopped
+	// StateCancelled indicates user cancelled
+	StateCancelled
+	// StateError indicates error occurred
+	StateError
+)
+
+func (s AgentExecutionState) String() string {
+	switch s {
+	case StateIdle:
+		return "Idle"
+	case StateCheckingQueue:
+		return "CheckingQueue"
+	case StateStreamingLLM:
+		return "StreamingLLM"
+	case StatePostStream:
+		return "PostStream"
+	case StateEvaluatingTools:
+		return "EvaluatingTools"
+	case StateApprovingTools:
+		return "ApprovingTools"
+	case StateExecutingTools:
+		return "ExecutingTools"
+	case StatePostToolExecution:
+		return "PostToolExecution"
+	case StateCompleting:
+		return "Completing"
+	case StateStopped:
+		return "Stopped"
+	case StateCancelled:
+		return "Cancelled"
+	case StateError:
+		return "Error"
+	default:
+		return "Unknown"
+	}
+}

@@ -18,13 +18,13 @@ import (
 	viper "github.com/spf13/viper"
 
 	config "github.com/inference-gateway/cli/config"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	app "github.com/inference-gateway/cli/internal/app"
 	clipboard "github.com/inference-gateway/cli/internal/clipboard"
 	container "github.com/inference-gateway/cli/internal/container"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	screenshotsvc "github.com/inference-gateway/cli/internal/services"
-	tools "github.com/inference-gateway/cli/internal/services/tools"
 	web "github.com/inference-gateway/cli/internal/web"
 	sdk "github.com/inference-gateway/sdk"
 )

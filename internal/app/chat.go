@@ -11,13 +11,13 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
+	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	formatting "github.com/inference-gateway/cli/internal/formatting"
 	handlers "github.com/inference-gateway/cli/internal/handlers"
 	adapters "github.com/inference-gateway/cli/internal/infra/adapters"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
-	tools "github.com/inference-gateway/cli/internal/services/tools"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	ui "github.com/inference-gateway/cli/internal/ui"
 	autocomplete "github.com/inference-gateway/cli/internal/ui/autocomplete"
@@ -62,6 +62,7 @@ type ChatApplication struct {
 	helpBar              ui.HelpBarComponent
 	queueBoxView         *components.QueueBoxView
 	todoBoxView          *components.TodoBoxView
+	approvalBoxView      *components.ApprovalBoxView
 	modelSelector        *components.ModelSelectorImpl
 	themeSelector        *components.ThemeSelectorImpl
 	conversationSelector *components.ConversationSelectorImpl
@@ -203,6 +204,7 @@ func NewChatApplication(
 	app.helpBar = factory.CreateHelpBar(app.themeService)
 	app.queueBoxView = components.NewQueueBoxView(styleProvider)
 	app.todoBoxView = components.NewTodoBoxView(styleProvider)
+	app.approvalBoxView = components.NewApprovalBoxView(styleProvider, app.stateManager)
 
 	app.fileSelectionView = components.NewFileSelectionView(styleProvider)
 
@@ -1260,6 +1262,7 @@ func (app *ChatApplication) renderChatInterface() string {
 		app.helpBar,
 		app.queueBoxView,
 		app.todoBoxView,
+		app.approvalBoxView,
 	)
 
 	return chatInterface

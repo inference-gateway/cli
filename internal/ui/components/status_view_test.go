@@ -4,9 +4,10 @@ import (
 	"strings"
 	"testing"
 
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
+
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // createMockStyleProviderForStatus creates a mock styles provider for testing

@@ -51,6 +51,12 @@ type ShowErrorEvent struct {
 // ClearErrorEvent clears any displayed error
 type ClearErrorEvent struct{}
 
+// SaveStatusStateEvent saves the current status state for later restoration
+type SaveStatusStateEvent struct{}
+
+// RestoreStatusStateEvent restores a previously saved status state
+type RestoreStatusStateEvent struct{}
+
 // ClearInputEvent clears the input field
 type ClearInputEvent struct{}
 
@@ -268,3 +274,9 @@ type MCPServerStatusUpdateEvent struct {
 
 // TriggerGithubActionSetupEvent triggers the GitHub App setup flow
 type TriggerGithubActionSetupEvent struct{}
+
+// ApprovalSelectionChangedEvent signals that the approval selection index has changed
+// and the UI needs to refresh to show the new selection
+type ApprovalSelectionChangedEvent struct {
+	NewIndex int
+}

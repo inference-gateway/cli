@@ -42,20 +42,21 @@ func (r *ApplicationViewRenderer) RenderChatInterface(
 	helpBar ui.HelpBarComponent,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
+	approvalBoxView *ApprovalBoxView,
 ) string {
 	width, height := data.Width, data.Height
 
-	heights := r.calculateComponentHeights(data, height, helpBar, queueBoxView, todoBoxView)
+	heights := r.calculateComponentHeights(data, height, helpBar, queueBoxView, todoBoxView, approvalBoxView)
 
 	r.setComponentDimensions(width, conversationView, inputView, autocomplete, inputStatusBar, statusView,
-		modeIndicator, queueBoxView, todoBoxView, heights)
+		modeIndicator, queueBoxView, todoBoxView, approvalBoxView, heights)
 
 	header := r.renderHeader(data, width)
 	conversationArea := conversationView.Render()
 	inputArea := inputView.Render()
 
 	components := r.assembleComponents(data, header, conversationArea, inputArea, statusView, modeIndicator,
-		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, width, heights.statusHeight)
+		inputView, inputStatusBar, autocomplete, helpBar, queueBoxView, todoBoxView, approvalBoxView, width, heights.statusHeight)
 
 	return strings.Join(components, "\n")
 }
@@ -66,6 +67,7 @@ type componentHeights struct {
 	helpBarHeight      int
 	queueBoxHeight     int
 	todoBoxHeight      int
+	approvalBoxHeight  int
 	conversationHeight int
 	inputHeight        int
 	statusHeight       int
@@ -78,6 +80,7 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 	helpBar ui.HelpBarComponent,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
+	approvalBoxView *ApprovalBoxView,
 ) componentHeights {
 	heights := componentHeights{
 		headerHeight: 3,
@@ -96,8 +99,16 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 		heights.todoBoxHeight = todoBoxView.GetHeight()
 	}
 
+	if approvalBoxView != nil {
+		approvalContent := approvalBoxView.Render()
+		if approvalContent != "" {
+			lines := strings.Count(approvalContent, "\n") + 1
+			heights.approvalBoxHeight = lines + 2
+		}
+	}
+
 	adjustedHeight := totalHeight - heights.headerHeight - heights.helpBarHeight -
-		heights.queueBoxHeight - heights.todoBoxHeight
+		heights.queueBoxHeight - heights.todoBoxHeight - heights.approvalBoxHeight
 	heights.conversationHeight = ui.CalculateConversationHeight(adjustedHeight)
 	heights.inputHeight = ui.CalculateInputHeight(adjustedHeight)
 	heights.statusHeight = ui.CalculateStatusHeight(adjustedHeight)
@@ -120,6 +131,7 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	modeIndicator *ModeIndicator,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
+	approvalBoxView *ApprovalBoxView,
 	heights componentHeights,
 ) {
 	conversationWidth := formatting.GetResponsiveWidth(width)
@@ -147,6 +159,10 @@ func (r *ApplicationViewRenderer) setComponentDimensions(
 	if todoBoxView != nil {
 		todoBoxView.SetWidth(width)
 	}
+
+	if approvalBoxView != nil {
+		approvalBoxView.SetWidth(width)
+	}
 }
 
 // renderHeader renders the header section
@@ -168,6 +184,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	helpBar ui.HelpBarComponent,
 	queueBoxView *QueueBoxView,
 	todoBoxView *TodoBoxView,
+	approvalBoxView *ApprovalBoxView,
 	width, statusHeight int,
 ) []string {
 	components := []string{header, "", conversationArea}
@@ -176,6 +193,7 @@ func (r *ApplicationViewRenderer) assembleComponents(
 	components = r.appendTodoBox(components, todoBoxView)
 	components = r.appendModeIndicator(components, modeIndicator)
 	components = r.appendStatusView(components, statusView, statusHeight)
+	components = r.appendApprovalBox(components, approvalBoxView)
 	components = append(components, inputArea)
 	components = r.appendAutocomplete(components, autocomplete)
 	components = r.appendInputStatusBar(components, inputView, inputStatusBar)
@@ -192,7 +210,7 @@ func (r *ApplicationViewRenderer) appendQueueBox(
 ) []string {
 	if queueBoxView != nil && len(data.QueuedMessages) > 0 {
 		if queueBoxContent := queueBoxView.Render(data.QueuedMessages); queueBoxContent != "" {
-			components = append(components, queueBoxContent, "")
+			components = append(components, "", queueBoxContent, "")
 		}
 	}
 	return components
@@ -225,14 +243,25 @@ func (r *ApplicationViewRenderer) appendStatusView(
 	return components
 }
 
-// appendModeIndicator appends mode indicator content if available
+// appendModeIndicator appends mode indicator content (always to maintain fixed height)
 func (r *ApplicationViewRenderer) appendModeIndicator(
 	components []string,
 	modeIndicator *ModeIndicator,
 ) []string {
 	if modeIndicator != nil {
-		if modeContent := modeIndicator.Render(); modeContent != "" {
-			components = append(components, modeContent)
+		components = append(components, modeIndicator.Render())
+	}
+	return components
+}
+
+// appendApprovalBox appends approval box content if available
+func (r *ApplicationViewRenderer) appendApprovalBox(
+	components []string,
+	approvalBoxView *ApprovalBoxView,
+) []string {
+	if approvalBoxView != nil {
+		if approvalContent := approvalBoxView.Render(); approvalContent != "" {
+			components = append(components, "", approvalContent)
 		}
 	}
 	return components

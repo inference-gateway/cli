@@ -1,4 +1,4 @@
-package services
+package agent
 
 import (
 	"encoding/json"
@@ -7,12 +7,14 @@ import (
 	"os/exec"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // accumulateToolCalls processes multiple tool call deltas and stores them in the agent's toolCallsMap
@@ -56,14 +58,29 @@ func (s *AgentServiceImpl) accumulateToolCalls(deltas []sdk.ChatCompletionMessag
 	}
 }
 
-// getAccumulatedToolCalls returns a copy of all accumulated tool calls and clears the map
-func (s *AgentServiceImpl) getAccumulatedToolCalls() map[string]*sdk.ChatCompletionMessageToolCall {
+// getAccumulatedToolCalls returns a sorted slice of all accumulated tool calls and clears the map
+func (s *AgentServiceImpl) getAccumulatedToolCalls() []*sdk.ChatCompletionMessageToolCall {
 	s.toolCallsMux.Lock()
 	defer s.toolCallsMux.Unlock()
 
-	result := make(map[string]*sdk.ChatCompletionMessageToolCall)
-	for k, v := range s.toolCallsMap {
-		result[k] = v
+	if len(s.toolCallsMap) == 0 {
+		return nil
+	}
+
+	indices := make([]int, 0, len(s.toolCallsMap))
+	for key := range s.toolCallsMap {
+		var idx int
+		_, _ = fmt.Sscanf(key, "%d", &idx)
+		indices = append(indices, idx)
+	}
+	sort.Ints(indices)
+
+	result := make([]*sdk.ChatCompletionMessageToolCall, 0, len(s.toolCallsMap))
+	for _, idx := range indices {
+		key := fmt.Sprintf("%d", idx)
+		if tc, ok := s.toolCallsMap[key]; ok {
+			result = append(result, tc)
+		}
 	}
 
 	s.toolCallsMap = make(map[string]*sdk.ChatCompletionMessageToolCall)

@@ -28,19 +28,19 @@ words:
   - Catmull
   - cellbuf
   - cespare
-  - chans
-  - checkmark
   - CFLAGS
+  - chans
   - charmbracelet
+  - checkmark
   - cloudevents
   - codegen
   - codellama
   - cogvlm
   - colorprofile
   - commitlintrc
+  - coninput
   - conv
   - coverprofile
-  - coninput
   - creack
   - cyclop
   - davecgh
@@ -54,9 +54,9 @@ words:
   - dgryski
   - diffinfo
   - difflib
+  - dlclark
   - domainmocks
   - dotall
-  - dlclark
   - duckduckgo
   - easyjson
   - ebitengine
@@ -71,10 +71,10 @@ words:
   - filewriter
   - filewriterdomain
   - filewriterservice
+  - floatingwindow
   - flox
   - Flox
   - Fprintf
-  - floatingwindow
   - freetype
   - frontmost
   - fsnotify
@@ -82,9 +82,9 @@ words:
   - gjson
   - GOARCH
   - gocognit
-  - gofmt
   - gocyclo
   - godbus
+  - gofmt
   - golangci
   - goldmark
   - googlecode
@@ -113,8 +113,6 @@ words:
   - jezek
   - journalctl
   - jsonmerge
-  - KHTML
-  - KLMNO
   - jsonparser
   - jsonschema
   - keybind
@@ -122,18 +120,20 @@ words:
   - keygen
   - keyrings
   - keysym
-  - knownhosts
+  - KHTML
   - kimi
+  - KLMNO
+  - knownhosts
   - kovidgoyal
   - ldflags
   - ledongthuc
   - letterboxing
   - libc
+  - libsqlite
   - linenum
+  - lipgloss
   - llava
   - Loadash
-  - libsqlite
-  - lipgloss
   - locafero
   - localereader
   - localtime
@@ -150,19 +150,20 @@ words:
   - mimeapps
   - minicpm
   - mixtral
+  - mockdomain
   - mocksdomain
-  - modernc
   - modelcontextprotocol
+  - modernc
   - moondream
   - moonshotai
   - mousemove
+  - mtoken
   - multicasting
   - multicasts
   - multiedit
-  - Multimodal
-  - multimodal
-  - mtoken
   - multierr
+  - multimodal
+  - Multimodal
   - myapp
   - myorg
   - myrepo
@@ -171,8 +172,8 @@ words:
   - ncruces
   - nolint
   - noninteractive
-  - nord
   - NOPASSWD
+  - nord
   - noreset
   - numbersign
   - numcpus
@@ -192,15 +193,15 @@ words:
   - pgdown
   - pgrep
   - pgup
-  - postmanlabs
-  - Preproc
-  - psql
-  - pycache
-  - pytest
   - playai
   - pmezard
+  - postmanlabs
+  - Preproc
   - procps
+  - psql
   - purego
+  - pycache
+  - pytest
   - quotedbl
   - qwen
   - randr
@@ -225,18 +226,18 @@ words:
   - sandboxed
   - Sandboxed
   - Sandboxing
-  - sconfiguration
   - SCMPR
+  - sconfiguration
   - screenshotsvc
+  - sdkclient
   - secureowner
   - securerepo
   - servicesmocks
+  - shirou
   - shortcutsmocks
+  - SHTTP
   - sigstore
   - Sigstore
-  - sdkclient
-  - shirou
-  - SHTTP
   - sjson
   - slackmacgap
   - sname
@@ -245,26 +246,26 @@ words:
   - sslmode
   - startxfce
   - Streamable
+  - stretchr
+  - strftime
   - strikethrough
   - Strikethrough
   - strs
-  - stretchr
-  - strftime
   - sublimetext
   - subosito
   - swiftc
-  - sysconf
   - syscall
+  - sysconf
   - sysinfo
   - systemctl
   - Taskfile
+  - termenv
+  - terminfo
   - testdb
   - testdir
   - testowner
   - testrepo
   - testuser
-  - termenv
-  - terminfo
   - thunar
   - tidwall
   - tinyspeck
@@ -289,8 +290,8 @@ words:
   - wordwrap
   - writability
   - wrongowner
-  - Wtype
   - wtype
+  - Wtype
   - xclipboard
   - xdraw
   - xgbutil
@@ -298,8 +299,8 @@ words:
   - ximg
   - xtest
   - xxhash
-  - Ydotool
   - ydotool
+  - Ydotool
   - yourname
   - yuin
   - yusufpapurcu
