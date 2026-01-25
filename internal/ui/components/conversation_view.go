@@ -389,7 +389,7 @@ func (cv *ConversationView) updateViewportContentFull() {
 		toolPreviews := cv.toolCallRenderer.RenderPreviews()
 		if toolPreviews != "" {
 			b.WriteString(toolPreviews)
-			b.WriteString("\n")
+			b.WriteString("\n\n")
 		}
 	}
 
@@ -496,7 +496,7 @@ func (cv *ConversationView) tryRenderSpecialEntry(entry domain.ConversationEntry
 			return true, cv.renderPlanEntry(entry, index)
 		}
 		if entry.PendingToolCall != nil {
-			return true, cv.renderPendingToolEntry(entry, index)
+			return true, cv.renderPendingToolEntry(entry)
 		}
 		if entry.Message.ToolCalls != nil && len(*entry.Message.ToolCalls) > 0 {
 			color, role := cv.getAssistantRoleAndColor(entry)
@@ -1248,15 +1248,16 @@ func (cv *ConversationView) renderGenericToolArgs(args map[string]any) string {
 	return fmt.Sprintf("  Arguments:\n  %s\n", string(argsJSON))
 }
 
-func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntry, index int) string {
+func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntry) string {
+	if entry.ToolApprovalStatus == domain.ToolApprovalPending {
+		return ""
+	}
+
 	var result strings.Builder
 
 	var color string
 	var role string
 	switch entry.ToolApprovalStatus {
-	case domain.ToolApprovalPending:
-		color = cv.styleProvider.GetThemeColor("accent")
-		role = "Tool (Pending Approval)"
 	case domain.ToolApprovalApproved:
 		color = cv.styleProvider.GetThemeColor("success")
 		role = "Tool (Approved)"
@@ -1292,65 +1293,7 @@ func (cv *ConversationView) renderPendingToolEntry(entry domain.ConversationEntr
 		result.WriteString(fmt.Sprintf("  Tool: %s\n", toolName))
 	}
 
-	if entry.ToolApprovalStatus == domain.ToolApprovalPending {
-		result.WriteString("\n")
-		result.WriteString(cv.renderInlineToolApprovalButtons(index))
-	}
-
 	return result.String() + "\n"
-}
-
-// renderInlineToolApprovalButtons renders inline approval buttons for a tool
-func (cv *ConversationView) renderInlineToolApprovalButtons(_ int) string {
-	selectedIndex := 0
-	if cv.stateManager != nil {
-		if approvalState := cv.stateManager.GetApprovalUIState(); approvalState != nil {
-			selectedIndex = approvalState.SelectedIndex
-		}
-	}
-
-	approveText := "Approve"
-	rejectText := "Reject"
-	autoApproveText := "Auto-Approve"
-
-	successColor := cv.styleProvider.GetThemeColor("success")
-	errorColor := cv.styleProvider.GetThemeColor("error")
-	accentColor := cv.styleProvider.GetThemeColor("accent")
-	highlightBg := cv.styleProvider.GetThemeColor("selection_bg")
-
-	// Render buttons with highlighting for selected one
-	var approveStyled, rejectStyled, autoApproveStyled string
-	if selectedIndex == int(domain.ApprovalApprove) {
-		approveStyled = cv.styleProvider.RenderStyledText("[ "+approveText+" ]", styles.StyleOptions{
-			Foreground: successColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		approveStyled = cv.styleProvider.RenderWithColor("[ "+approveText+" ]", successColor)
-	}
-
-	if selectedIndex == int(domain.ApprovalReject) {
-		rejectStyled = cv.styleProvider.RenderStyledText("[ "+rejectText+" ]", styles.StyleOptions{
-			Foreground: errorColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		rejectStyled = cv.styleProvider.RenderWithColor("[ "+rejectText+" ]", errorColor)
-	}
-
-	if selectedIndex == int(domain.ApprovalAutoAccept) {
-		autoApproveStyled = cv.styleProvider.RenderStyledText("[ "+autoApproveText+" ]", styles.StyleOptions{
-			Foreground: accentColor,
-			Background: highlightBg,
-			Bold:       true,
-		})
-	} else {
-		autoApproveStyled = cv.styleProvider.RenderWithColor("[ "+autoApproveText+" ]", accentColor)
-	}
-
-	return fmt.Sprintf("  %s  %s  %s", approveStyled, rejectStyled, autoApproveStyled)
 }
 
 // handleToolCallRendererEvents processes tool call renderer specific events

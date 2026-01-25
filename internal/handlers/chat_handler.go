@@ -1238,14 +1238,6 @@ func (h *ChatHandler) handleToolApprovalRequested(
 		}
 	})
 
-	cmds = append(cmds, func() tea.Msg {
-		return domain.SetStatusEvent{
-			Message:    fmt.Sprintf("Tool approval required: %s", msg.ToolCall.Function.Name),
-			Spinner:    false,
-			StatusType: domain.StatusDefault,
-		}
-	})
-
 	if chatSession := h.stateManager.GetChatSession(); chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
 	}

@@ -100,11 +100,11 @@ func (qv *QueueBoxView) formatToolCallsPreview(toolCalls []sdk.ChatCompletionMes
 	}
 
 	if len(toolCalls) > 1 {
-		return fmt.Sprintf("%d tool calls queued", len(toolCalls))
+		return fmt.Sprintf("%d tools", len(toolCalls))
 	}
 
 	toolCall := toolCalls[0]
-	return fmt.Sprintf("Tool: %s(...)", toolCall.Function.Name)
+	return fmt.Sprintf("%s(...)", toolCall.Function.Name)
 }
 
 func (qv *QueueBoxView) Init() tea.Cmd {

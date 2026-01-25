@@ -196,7 +196,7 @@ func (iv *InputView) renderDisabledPlaceholder() string {
 	}
 
 	if iv.stateManager.GetApprovalUIState() != nil {
-		return iv.styleProvider.RenderDimText("⏸  Tool approval required - use ←/→ to navigate, Enter to confirm")
+		return iv.styleProvider.RenderDimText("> ⏸  Tool approval required - use ←/→ to navigate, Enter to confirm")
 	}
 
 	return iv.styleProvider.RenderDimText("⏸  Input disabled")

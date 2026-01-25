@@ -3,6 +3,7 @@ package tools
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	config "github.com/inference-gateway/cli/config"
@@ -188,73 +189,79 @@ func (t *WriteTool) FormatPreview(result *domain.ToolExecutionResult) string {
 // FormatForUI formats the result for UI display
 func (t *WriteTool) FormatForUI(result *domain.ToolExecutionResult) string {
 	if result == nil {
-		return t.styleProvider.RenderErrorText("No result to display")
+		return "Tool execution result unavailable"
 	}
+
+	statusIcon := t.formatter.FormatStatusIcon(result.Success)
+
+	var output strings.Builder
+	toolCall := t.formatter.FormatToolCall(result.Arguments, false)
+	output.WriteString(fmt.Sprintf("%s\n", toolCall))
 
 	if !result.Success {
-		return fmt.Sprintf("%s %s",
-			t.styleProvider.RenderErrorIcon("✗"),
-			t.styleProvider.RenderErrorText(fmt.Sprintf("Write failed: %s", result.Error)))
-	}
-
-	if result.Data == nil {
-		return fmt.Sprintf("%s %s",
-			t.styleProvider.RenderSuccessIcon("✓"),
-			t.styleProvider.RenderSuccessText("Write completed successfully"))
+		output.WriteString(fmt.Sprintf("└─ %s Write failed: %s", statusIcon, result.Error))
+		return output.String()
 	}
 
 	if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
-		var status string
-
+		action := "Updated"
 		if writeResult.Created {
-			status = t.styleProvider.RenderCreatedText("Created")
-		} else {
-			status = t.styleProvider.RenderUpdatedText("Updated")
+			action = "Created"
 		}
-
-		icon := t.styleProvider.RenderSuccessIcon("✓")
-		path := t.styleProvider.RenderPathText(writeResult.FilePath)
-
-		metrics := fmt.Sprintf("(%s, %s)",
-			t.styleProvider.RenderMetricText(fmt.Sprintf("%d bytes", writeResult.BytesWritten)),
-			t.styleProvider.RenderMetricText(fmt.Sprintf("%d lines", writeResult.LinesWritten)))
-
-		return fmt.Sprintf("%s %s %s %s", icon, status, path, t.styleProvider.RenderDimText(metrics))
+		output.WriteString(fmt.Sprintf("└─ %s %s file (%d bytes, %d lines)",
+			statusIcon, action, writeResult.BytesWritten, writeResult.LinesWritten))
+		return output.String()
 	}
 
-	return fmt.Sprintf("%s %s",
-		t.styleProvider.RenderSuccessIcon("✓"),
-		t.styleProvider.RenderSuccessText("Write operation completed"))
+	output.WriteString(fmt.Sprintf("└─ %s Write completed", statusIcon))
+	return output.String()
 }
 
-// FormatForLLM formats the result for LLM consumption
+// FormatForLLM formats the result for LLM consumption with expanded tree structure
 func (t *WriteTool) FormatForLLM(result *domain.ToolExecutionResult) string {
 	if result == nil {
 		return "Write operation result unavailable"
 	}
 
-	if !result.Success {
-		return fmt.Sprintf("Write operation failed: %s", result.Error)
-	}
+	var output strings.Builder
 
+	output.WriteString(t.formatter.FormatExpandedHeader(result))
+	output.WriteString(t.formatWriteResultData(result))
+
+	hasDataSection := result.Data != nil
+	output.WriteString(t.formatter.FormatExpandedFooter(result, hasDataSection))
+
+	return output.String()
+}
+
+// formatWriteResultData formats the write result data section
+func (t *WriteTool) formatWriteResultData(result *domain.ToolExecutionResult) string {
 	if result.Data == nil {
-		return "Write operation completed successfully"
+		return ""
 	}
 
-	if writeResult, ok := result.Data.(*domain.FileWriteToolResult); ok {
-		action := "updated"
-		if writeResult.Created {
-			action = "created"
-		}
-
-		return fmt.Sprintf("Successfully %s file %s (%d bytes written, %d lines)",
-			action,
-			writeResult.FilePath,
-			writeResult.BytesWritten,
-			writeResult.LinesWritten)
+	writeResult, ok := result.Data.(*domain.FileWriteToolResult)
+	if !ok {
+		return ""
 	}
 
-	return "Write operation completed successfully"
+	action := "Updated"
+	if writeResult.Created {
+		action = "Created"
+	}
+
+	connector := "└─"
+	if len(result.Metadata) > 0 {
+		connector = "├─"
+	}
+
+	var output strings.Builder
+	output.WriteString(fmt.Sprintf("%s Result:\n", connector))
+	output.WriteString(fmt.Sprintf("   %s file: %s\n", action, writeResult.FilePath))
+	output.WriteString(fmt.Sprintf("   Bytes written: %d\n", writeResult.BytesWritten))
+	output.WriteString(fmt.Sprintf("   Lines: %d\n", writeResult.LinesWritten))
+
+	return output.String()
 }
 
 // ShouldCollapseArg determines if an argument should be collapsed in display
