@@ -392,14 +392,16 @@ func (s *AgentServiceImpl) validateRequest(req *domain.AgentRequest) error {
 // parseProvider parses provider and model name from model string
 // In Claude Code mode, models don't have a provider prefix, so we return "claude" as the provider
 func (s *AgentServiceImpl) parseProvider(model string) (string, string, error) {
-	cfg := s.config.GetAgentConfig()
-	if cfg != nil {
-		parts := strings.SplitN(model, "/", 2)
-		if len(parts) == 1 {
-			return "claude", model, nil
-		}
+	if s.config != nil {
+		cfg := s.config.GetAgentConfig()
+		if cfg != nil {
+			parts := strings.SplitN(model, "/", 2)
+			if len(parts) == 1 {
+				return "claude", model, nil
+			}
 
-		return parts[0], parts[1], nil
+			return parts[0], parts[1], nil
+		}
 	}
 
 	parts := strings.SplitN(model, "/", 2)
