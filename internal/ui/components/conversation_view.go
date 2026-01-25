@@ -590,18 +590,13 @@ func (cv *ConversationView) renderStandardEntry(entry domain.ConversationEntry, 
 		wrapWidth = 40
 	}
 
-	var formattedContent string
-	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.rawFormat {
-		originalWidth := cv.width
-		cv.markdownRenderer.SetWidth(wrapWidth)
-		formattedContent = cv.markdownRenderer.Render(contentStr)
-		cv.markdownRenderer.SetWidth(originalWidth)
-	} else {
-		formattedContent = formatting.FormatResponsiveMessage(contentStr, wrapWidth)
-	}
-
 	roleStyled := cv.formatRoleWithModel(role, color, modelLabelText)
-	result.WriteString(roleStyled + " " + formattedContent + "\n")
+
+	if entry.Message.Role == sdk.Assistant && entry.Model == "" {
+		cv.renderShortcutOutput(&result, roleStyled, contentStr, wrapWidth)
+	} else {
+		cv.renderInlineContent(&result, roleStyled, entry, contentStr, wrapWidth)
+	}
 
 	return result.String()
 }
@@ -616,6 +611,39 @@ func (cv *ConversationView) formatRoleWithModel(role, color, modelLabelText stri
 	rolePart := cv.styleProvider.RenderWithColor(role, color)
 	modelLabel := cv.styleProvider.RenderWithColor(modelLabelText, dimColor)
 	return rolePart + modelLabel + cv.styleProvider.RenderWithColor(":", color)
+}
+
+// renderShortcutOutput renders shortcut output on a new line with markdown support
+func (cv *ConversationView) renderShortcutOutput(result *strings.Builder, roleStyled, contentStr string, wrapWidth int) {
+	result.WriteString(roleStyled + "\n\n")
+	formattedContent := cv.applyMarkdownIfEnabled(contentStr, wrapWidth)
+	lines := strings.Split(formattedContent, "\n")
+	for _, line := range lines {
+		result.WriteString("  " + line + "\n")
+	}
+}
+
+// renderInlineContent renders content inline with the role
+func (cv *ConversationView) renderInlineContent(result *strings.Builder, roleStyled string, entry domain.ConversationEntry, contentStr string, wrapWidth int) {
+	var formattedContent string
+	if entry.Message.Role == sdk.Assistant && cv.markdownRenderer != nil && !cv.rawFormat {
+		formattedContent = cv.applyMarkdownIfEnabled(contentStr, wrapWidth)
+	} else {
+		formattedContent = formatting.FormatResponsiveMessage(contentStr, wrapWidth)
+	}
+	result.WriteString(roleStyled + " " + formattedContent + "\n")
+}
+
+// applyMarkdownIfEnabled applies markdown rendering if enabled, otherwise formats as plain text
+func (cv *ConversationView) applyMarkdownIfEnabled(contentStr string, wrapWidth int) string {
+	if cv.markdownRenderer != nil && !cv.rawFormat {
+		originalWidth := cv.width
+		cv.markdownRenderer.SetWidth(wrapWidth)
+		formattedContent := cv.markdownRenderer.Render(contentStr)
+		cv.markdownRenderer.SetWidth(originalWidth)
+		return formattedContent
+	}
+	return formatting.FormatResponsiveMessage(contentStr, wrapWidth)
 }
 
 func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.ConversationEntry, index int, color, role string) string {
@@ -643,12 +671,17 @@ func (cv *ConversationView) renderAssistantWithToolCalls(entry domain.Conversati
 	}
 
 	if contentStr != "" {
-		modelLabelLen := 0
-		if entry.Model != "" && !entry.Rejected {
-			modelLabelLen = len(fmt.Sprintf(" (%s)", entry.Model))
+		if entry.Model == "" {
+			result.WriteString(roleStyled + "\n")
+			lines := strings.Split(contentStr, "\n")
+			for _, line := range lines {
+				result.WriteString("  " + line + "\n")
+			}
+		} else {
+			modelLabelLen := len(fmt.Sprintf(" (%s)", entry.Model))
+			formattedContent := cv.formatAssistantContent(contentStr, role, modelLabelLen)
+			result.WriteString(roleStyled + " " + formattedContent + "\n")
 		}
-		formattedContent := cv.formatAssistantContent(contentStr, role, modelLabelLen)
-		result.WriteString(roleStyled + " " + formattedContent + "\n")
 	} else {
 		result.WriteString(roleStyled + "\n")
 	}

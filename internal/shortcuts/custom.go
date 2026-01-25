@@ -331,7 +331,8 @@ func (c *CustomShortcut) formatOutput(outputStr string) (ShortcutResult, error) 
 		}, nil
 	}
 
-	formattedOutput := fmt.Sprintf("```json\n%s\n```", outputStr)
+	formattedOutput := fmt.Sprintf("```\n%s\n```", outputStr)
+
 	if len(imageAttachments) > 0 {
 		return ShortcutResult{
 			Output:     formattedOutput,
@@ -342,7 +343,7 @@ func (c *CustomShortcut) formatOutput(outputStr string) (ShortcutResult, error) 
 	}
 
 	return ShortcutResult{
-		Output:  fmt.Sprintf("```\n%s\n```", outputStr),
+		Output:  formattedOutput,
 		Success: true,
 	}, nil
 }
