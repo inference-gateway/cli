@@ -346,7 +346,6 @@ func (s *AgentServiceImpl) Run(ctx context.Context, req *domain.AgentRequest) (*
 	}, nil
 }
 
-// handleIdleState processes queued messages and background tasks when the agent is idle
 // batchDrainQueue drains all queued messages and adds them to conversation
 // Returns the number of messages drained
 func (s *AgentServiceImpl) batchDrainQueue(

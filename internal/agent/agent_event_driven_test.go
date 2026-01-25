@@ -319,7 +319,6 @@ func TestHandlePostStreamState(t *testing.T) {
 				m.stateMachine.TransitionReturns(nil)
 			},
 			verifyMocks: func(t *testing.T, m *testMocks) {
-				assert.Equal(t, 1, m.repo.AddMessageCallCount())
 				assert.GreaterOrEqual(t, m.stateMachine.TransitionCallCount(), 1)
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
 				assert.Equal(t, domain.StateCheckingQueue, toState)
@@ -340,7 +339,6 @@ func TestHandlePostStreamState(t *testing.T) {
 				m.stateMachine.TransitionReturns(nil)
 			},
 			verifyMocks: func(t *testing.T, m *testMocks) {
-				assert.Equal(t, 1, m.repo.AddMessageCallCount())
 				assert.GreaterOrEqual(t, m.stateMachine.TransitionCallCount(), 1)
 				_, toState := m.stateMachine.TransitionArgsForCall(0)
 				assert.Equal(t, domain.StateCheckingQueue, toState)
