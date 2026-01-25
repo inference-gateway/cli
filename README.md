@@ -297,10 +297,39 @@ export INFER_CLAUDE_CODE_TIMEOUT=600
 
 **Supported Models:**
 
-- `claude-opus-4-5` - Most capable Claude model
-- `claude-sonnet-4-5-20250929` - Latest Sonnet (default)
-- `claude-3-7-sonnet-20250219` - Sonnet 3.7
-- `claude-3-5-haiku-20241022` - Fast Haiku model
+The following Claude models are available via Claude Code subscription mode:
+
+**Claude 4.5 Series (Latest):**
+
+- `claude-opus-4-5` - Most capable Claude model (vision support)
+- `claude-haiku-4-5-20251001` - Fastest Claude model (vision support)
+- `claude-sonnet-4-5-20250929` - Latest Sonnet model (default, vision support)
+
+**Claude 4.1 Series:**
+
+- `claude-opus-4-1-20250805` - Claude 4.1 Opus (vision support)
+- `claude-sonnet-4-1-20250805` - Claude 4.1 Sonnet (vision support)
+
+**Claude 4 Series:**
+
+- `claude-opus-4-20250514` - Claude 4 Opus (vision support)
+- `claude-sonnet-4-20250514` - Claude 4 Sonnet (vision support)
+
+**Claude 3.7 Series:**
+
+- `claude-3-7-sonnet-20250219` - Claude 3.7 Sonnet (vision support)
+
+**Claude 3.5 Series:**
+
+- `claude-3-5-haiku-20241022` - Claude 3.5 Haiku (vision support)
+
+**Claude 3 Series:**
+
+- `claude-3-haiku-20240307` - Claude 3 Haiku (vision support)
+- `claude-3-opus-20240229` - Claude 3 Opus (vision support)
+
+**Note:** All modern Claude models support vision capabilities. The Claude Code CLI automatically strips images
+from messages when using subscription mode.
 
 ### Troubleshooting
 
