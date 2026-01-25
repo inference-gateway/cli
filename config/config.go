@@ -73,7 +73,7 @@ type ClaudeCodeConfig struct {
 	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
 	MaxOutputTokens int    `yaml:"max_output_tokens" mapstructure:"max_output_tokens"`
 	ThinkingBudget  int    `yaml:"thinking_budget" mapstructure:"thinking_budget"`
-	MaxTurns        int    `yaml:"max_turns" mapstructure:"max_turns"` // Maximum agent loop turns
+	MaxTurns        int    `yaml:"max_turns" mapstructure:"max_turns"`
 }
 
 // ClientConfig contains HTTP client settings
