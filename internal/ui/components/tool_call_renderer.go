@@ -195,13 +195,13 @@ func (r *ToolCallRenderer) handleSpinnerTick(msg spinner.TickMsg) (*ToolCallRend
 	var cmd tea.Cmd
 	r.spinner, cmd = r.spinner.Update(msg)
 
-	if r.hasActiveTools() {
-		return r, cmd
-	}
-
 	now := time.Now()
 	r.spinnerStep = (r.spinnerStep + 1) % 4
 	r.lastTimerRender = now
+
+	if r.hasActiveTools() {
+		return r, cmd
+	}
 
 	return r, cmd
 }

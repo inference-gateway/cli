@@ -9,6 +9,7 @@ import (
 	"strings"
 	"sync"
 
+	spinner "github.com/charmbracelet/bubbles/spinner"
 	viewport "github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	config "github.com/inference-gateway/cli/config"
@@ -962,16 +963,47 @@ func (cv *ConversationView) View() string { return cv.Render() }
 func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
-		if mouseMsg.Action == tea.MouseActionPress {
-			switch mouseMsg.Button {
-			case tea.MouseButtonWheelUp:
-				cv.userScrolledUp = true
-			case tea.MouseButtonWheelDown:
-			}
-		}
+	if cmd = cv.handleMouseEvents(msg); cmd != nil {
+		return cv, cmd
 	}
 
+	if cmd = cv.handleWindowSizeEvents(msg); cmd != nil {
+		return cv, cmd
+	}
+
+	switch msg := msg.(type) {
+	case domain.ApprovalSelectionChangedEvent:
+		return cv.handleApprovalSelectionChanged(msg, cmd)
+	case domain.UpdateHistoryEvent:
+		return cv.handleUpdateHistoryEvent(msg, cmd)
+	case domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent,
+		domain.ToolExecutionProgressEvent, domain.BashOutputChunkEvent, domain.ChatCompleteEvent:
+		return cv.handleToolCallEvents(msg, cmd)
+	case domain.BashCommandCompletedEvent:
+		return cv.handleBashCommandCompletedEvent(msg, cmd)
+	case domain.StreamingContentEvent:
+		return cv.handleStreamingContentEvent(msg, cmd)
+	case domain.ScrollRequestEvent:
+		return cv.handleScrollRequestEvent(msg, cmd)
+	case spinner.TickMsg:
+		return cv.handleSpinnerTick(msg, cmd)
+	default:
+		return cv.handleDefaultEvents(msg, cmd)
+	}
+}
+
+// handleMouseEvents processes mouse wheel events
+func (cv *ConversationView) handleMouseEvents(msg tea.Msg) tea.Cmd {
+	if mouseMsg, ok := msg.(tea.MouseMsg); ok {
+		if mouseMsg.Action == tea.MouseActionPress && mouseMsg.Button == tea.MouseButtonWheelUp {
+			cv.userScrolledUp = true
+		}
+	}
+	return nil
+}
+
+// handleWindowSizeEvents processes window resize events
+func (cv *ConversationView) handleWindowSizeEvents(msg tea.Msg) tea.Cmd {
 	if windowMsg, ok := msg.(tea.WindowSizeMsg); ok {
 		cv.SetWidth(windowMsg.Width)
 		cv.height = windowMsg.Height
@@ -981,51 +1013,84 @@ func (cv *ConversationView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			cv.updateMessageHistoryView()
 		}
 	}
+	return nil
+}
 
-	switch msg := msg.(type) {
-	case domain.ApprovalSelectionChangedEvent:
-		if cv.navigationMode != NavigationModeMessageHistory {
-			cv.updateViewportContent()
-		}
-		return cv, cmd
-	case domain.UpdateHistoryEvent:
-		if cv.navigationMode != NavigationModeMessageHistory {
-			cv.flushStreamingBuffer()
-			cv.SetConversation(msg.History)
-		}
-		return cv, cmd
-	case domain.ToolCallPreviewEvent, domain.ToolCallUpdateEvent, domain.ToolCallReadyEvent,
-		domain.ToolExecutionProgressEvent, domain.BashOutputChunkEvent, domain.ChatCompleteEvent:
+// handleApprovalSelectionChanged processes approval selection change events
+func (cv *ConversationView) handleApprovalSelectionChanged(msg domain.ApprovalSelectionChangedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.updateViewportContent()
+	}
+	return cv, cmd
+}
+
+// handleUpdateHistoryEvent processes history update events
+func (cv *ConversationView) handleUpdateHistoryEvent(msg domain.UpdateHistoryEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.flushStreamingBuffer()
+		cv.SetConversation(msg.History)
+	}
+	return cv, cmd
+}
+
+// handleToolCallEvents processes tool call related events
+func (cv *ConversationView) handleToolCallEvents(msg tea.Msg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.toolCallRenderer != nil {
+		cmd = cv.handleToolCallRendererEvents(msg, cmd)
+	}
+	return cv, cmd
+}
+
+// handleBashCommandCompletedEvent processes bash command completion events
+func (cv *ConversationView) handleBashCommandCompletedEvent(msg domain.BashCommandCompletedEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.SetConversation(msg.History)
 		if cv.toolCallRenderer != nil {
-			cmd = cv.handleToolCallRendererEvents(msg, cmd)
-		}
-		return cv, cmd
-	case domain.BashCommandCompletedEvent:
-		if cv.navigationMode != NavigationModeMessageHistory {
-			cv.SetConversation(msg.History)
-			if cv.toolCallRenderer != nil {
-				cv.toolCallRenderer.ClearPreviews()
-			}
-		}
-		return cv, cmd
-	case domain.StreamingContentEvent:
-		if cv.navigationMode != NavigationModeMessageHistory {
-			cv.appendStreamingContent(msg.Content, msg.ReasoningContent, msg.Model)
-		}
-		return cv, cmd
-	case domain.ScrollRequestEvent:
-		if msg.ComponentID == "conversation" {
-			return cv.handleScrollRequest(msg)
-		}
-	default:
-		if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
-			cv.Viewport, cmd = cv.Viewport.Update(msg)
-			if cv.Viewport.AtBottom() {
-				cv.userScrolledUp = false
-			}
+			cv.toolCallRenderer.ClearPreviews()
 		}
 	}
+	return cv, cmd
+}
 
+// handleStreamingContentEvent processes streaming content events
+func (cv *ConversationView) handleStreamingContentEvent(msg domain.StreamingContentEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.navigationMode != NavigationModeMessageHistory {
+		cv.appendStreamingContent(msg.Content, msg.ReasoningContent, msg.Model)
+	}
+	return cv, cmd
+}
+
+// handleScrollRequestEvent processes scroll request events
+func (cv *ConversationView) handleScrollRequestEvent(msg domain.ScrollRequestEvent, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if msg.ComponentID == "conversation" {
+		return cv.handleScrollRequest(msg)
+	}
+	return cv, cmd
+}
+
+// handleSpinnerTick processes spinner tick events
+func (cv *ConversationView) handleSpinnerTick(msg spinner.TickMsg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if cv.toolCallRenderer != nil {
+		updatedRenderer, rendererCmd := cv.toolCallRenderer.Update(msg)
+		cv.toolCallRenderer = updatedRenderer
+		if cv.navigationMode != NavigationModeMessageHistory && cv.toolCallRenderer.HasActivePreviews() {
+			cv.updateViewportContent()
+		}
+		if rendererCmd != nil {
+			cmd = tea.Batch(cmd, rendererCmd)
+		}
+	}
+	return cv, cmd
+}
+
+// handleDefaultEvents processes all other events
+func (cv *ConversationView) handleDefaultEvents(msg tea.Msg, cmd tea.Cmd) (tea.Model, tea.Cmd) {
+	if _, isKeyMsg := msg.(tea.KeyMsg); !isKeyMsg {
+		cv.Viewport, cmd = cv.Viewport.Update(msg)
+		if cv.Viewport.AtBottom() {
+			cv.userScrolledUp = false
+		}
+	}
 	return cv, cmd
 }
 
