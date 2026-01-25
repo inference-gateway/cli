@@ -342,7 +342,7 @@ func (c *CustomShortcut) formatOutput(outputStr string) (ShortcutResult, error) 
 	}
 
 	return ShortcutResult{
-		Output:  fmt.Sprintf("%s **%s completed**\n\n```\n%s\n```", icons.StyledCheckMark(), c.config.Name, outputStr),
+		Output:  fmt.Sprintf("```\n%s\n```", outputStr),
 		Success: true,
 	}, nil
 }
@@ -409,12 +409,12 @@ func (c *CustomShortcut) executeWithTool(ctx context.Context, _ []string) (Short
 		if data, ok := result.Data.(map[string]any); ok {
 			dataJSON, _ := json.MarshalIndent(data, "", "  ")
 			return ShortcutResult{
-				Output:  fmt.Sprintf("%s **%s completed**\n\n```json\n%s\n```", icons.StyledCheckMark(), result.ToolName, string(dataJSON)),
+				Output:  fmt.Sprintf("```json\n%s\n```", string(dataJSON)),
 				Success: true,
 			}, nil
 		}
 		return ShortcutResult{
-			Output:  fmt.Sprintf("%s Tool '%s' executed successfully", icons.StyledCheckMark(), result.ToolName),
+			Output:  "",
 			Success: true,
 		}, nil
 	}
