@@ -159,7 +159,9 @@ func (a *EventDrivenAgent) processStreamEvent(
 
 	var streamResponse sdk.CreateChatCompletionStreamResponse
 	if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
-		logger.Error("failed to unmarshal chat completion stream response")
+		logger.Error("failed to unmarshal chat completion stream response",
+			"error", err,
+			"raw_data", string(*event.Data))
 		return nil
 	}
 

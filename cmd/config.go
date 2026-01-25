@@ -928,7 +928,7 @@ func ValidateTool(cfg *config.Config, command string) error {
 		return nil
 	}
 
-	services := container.NewServiceContainer(cfg)
+	services := container.NewServiceContainer(cfg, V)
 	toolService := services.GetToolService()
 	toolArgs := map[string]any{
 		"command": command,
@@ -951,7 +951,7 @@ func ExecTool(cfg *config.Config, args []string, format string) error {
 		return fmt.Errorf("tools are not enabled")
 	}
 
-	serviceContainer := container.NewServiceContainer(cfg)
+	serviceContainer := container.NewServiceContainer(cfg, V)
 	toolService := serviceContainer.GetToolService()
 	toolRegistry := serviceContainer.GetToolRegistry()
 

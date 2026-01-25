@@ -342,7 +342,7 @@ func (cv *ConversationView) renderStreamingContent() string {
 	var result strings.Builder
 
 	if streamingReasoning != "" {
-		isExpanded := false
+		isExpanded := cv.allThinkingExpanded || cv.expandedThinkingBlocks[-1]
 		thinkingBlock := cv.renderThinkingBlock(streamingReasoning, -1, isExpanded)
 		result.WriteString(thinkingBlock)
 	}

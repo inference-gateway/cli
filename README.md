@@ -185,6 +185,183 @@ Now that you're up and running, explore these guides:
 - **[Shortcuts Guide](docs/shortcuts-guide.md)** - Custom shortcuts and AI-powered snippets
 - **[A2A Agents](docs/agents-configuration.md)** - Agent-to-agent communication setup
 
+## Claude Code Mode (Subscription)
+
+Save on API costs by using your Claude Max or Pro subscription instead of pay-as-you-go API pricing.
+
+### Overview
+
+Claude Code mode enables you to use your **Claude Max or Pro subscription** ($100-200/month fixed cost)
+instead of paying per token via the Anthropic API. This is ideal for heavy users who want
+predictable monthly costs.
+
+**Cost Comparison:**
+
+| Mode                 | Pricing                                 | Best For                                |
+| -------------------- | --------------------------------------- | --------------------------------------- |
+| **Gateway Mode**     | Pay per token ($3-$75 per million)      | API users, multi-provider needs         |
+| **Claude Code Mode** | Fixed monthly ($100-200)                | Heavy Claude users, cost predictability |
+
+### Prerequisites
+
+- **Claude Max or Pro subscription** - Required ($100-200/month)
+- **Claude Code CLI** - Official CLI from Anthropic
+
+Install the Claude Code CLI:
+
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+### Setup
+
+1. **Configure for Claude Code mode**:
+
+Edit `.infer/config.yaml`:
+
+```yaml
+# Enable Claude Code mode
+claude_code:
+  enabled: true
+  cli_path: claude  # or /usr/local/bin/claude if not in PATH
+  timeout: 600
+  max_output_tokens: 32000
+  thinking_budget: 10000
+
+# Disable gateway mode
+gateway:
+  run: false
+
+# Set model (no provider prefix needed)
+agent:
+  model: claude-sonnet-4-5-20250929
+```
+
+2. **Authenticate with your subscription**:
+
+```bash
+infer claude-code setup
+```
+
+This opens your browser to authenticate with your Claude Max/Pro account.
+
+3. **Verify authentication**:
+
+```bash
+infer claude-code test
+```
+
+4. **Use normally**:
+
+```bash
+infer chat  # Now using your subscription!
+```
+
+### Available Commands
+
+- `infer claude-code setup` - Authenticate with Claude subscription
+- `infer claude-code test` - Test authentication and CLI integration
+
+### Configuration Options
+
+```yaml
+claude_code:
+  enabled: true                  # Enable/disable Claude Code mode
+  cli_path: claude               # Path to claude binary
+  timeout: 600                   # Command timeout in seconds
+  max_output_tokens: 32000       # Maximum output tokens per request
+  thinking_budget: 10000         # Token budget for extended thinking
+```
+
+**Environment Variables:**
+
+```bash
+export INFER_CLAUDE_CODE_ENABLED=true
+export INFER_CLAUDE_CODE_CLI_PATH=/usr/local/bin/claude
+export INFER_CLAUDE_CODE_TIMEOUT=600
+```
+
+### Features and Limitations
+
+| Feature               | Gateway Mode                            | Claude Code Mode                         |
+| --------------------- | --------------------------------------- | ---------------------------------------- |
+| **Cost**              | Pay-per-token                           | Fixed monthly                            |
+| **Providers**         | All providers (Anthropic, OpenAI, etc.) | Claude only                              |
+| **Models**            | All provider models                     | Claude models only                       |
+| **Images**            | ✓ Supported                             | ✗ Not supported (stripped from messages) |
+| **Prompt Caching**    | ✓ Supported                             | ✗ Not available via CLI                  |
+| **Streaming**         | ✓ Supported                             | ✓ Supported                              |
+| **Tool Execution**    | ✓ Supported                             | ✓ Supported                              |
+| **Extended Thinking** | ✓ Supported                             | ✓ Supported                              |
+| **Authentication**    | API keys                                | Browser login                            |
+
+**Supported Models:**
+
+- `claude-opus-4-5` - Most capable Claude model
+- `claude-sonnet-4-5-20250929` - Latest Sonnet (default)
+- `claude-3-7-sonnet-20250219` - Sonnet 3.7
+- `claude-3-5-haiku-20241022` - Fast Haiku model
+
+### Troubleshooting
+
+**CLI Not Found:**
+
+```bash
+# Check if Claude CLI is installed
+which claude
+
+# If not found, install it
+npm install -g @anthropic-ai/claude-code
+
+# Or set custom path in config
+claude_code:
+  cli_path: /full/path/to/claude
+```
+
+**Authentication Issues:**
+
+```bash
+# Re-authenticate
+infer claude-code setup
+
+# Test authentication
+infer claude-code test
+```
+
+**Update CLI:**
+
+```bash
+npm update -g @anthropic-ai/claude-code
+```
+
+### Switching Between Modes
+
+You can easily switch between gateway and Claude Code modes:
+
+**To Claude Code mode:**
+
+```yaml
+# .infer/config.yaml
+claude_code:
+  enabled: true
+gateway:
+  run: false
+agent:
+  model: claude-sonnet-4-5-20250929  # No provider prefix
+```
+
+**To Gateway mode:**
+
+```yaml
+# .infer/config.yaml
+claude_code:
+  enabled: false
+gateway:
+  run: true
+agent:
+  model: anthropic/claude-sonnet-4-5-20250929  # With provider prefix
+```
+
 ## Commands
 
 The CLI provides several commands for different workflows. For detailed documentation, see [Commands Reference](docs/commands-reference.md).

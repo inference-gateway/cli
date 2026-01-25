@@ -17,6 +17,13 @@ gateway:
     - groq/playai-tts
     - groq/playai-tts-arabic
   vision_enabled: true
+claude_code:
+  enabled: false
+  cli_path: claude
+  timeout: 600
+  max_output_tokens: 32000
+  thinking_budget: 10000
+  max_turns: 10
 client:
   timeout: 200
   retry:
