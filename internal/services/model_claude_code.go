@@ -48,7 +48,6 @@ func (s *ClaudeCodeModelService) GetCurrentModel() string {
 
 // IsModelAvailable checks if a model is available
 func (s *ClaudeCodeModelService) IsModelAvailable(modelID string) bool {
-	// Check if model is in our static list
 	models, _ := s.ListModels(context.Background())
 	for _, m := range models {
 		if m == modelID {
