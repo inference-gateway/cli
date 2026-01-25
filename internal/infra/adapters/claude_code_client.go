@@ -68,8 +68,6 @@ func (c *ClaudeCodeClient) GenerateContent(
 	model string,
 	messages []sdk.Message,
 ) (*sdk.CreateChatCompletionResponse, error) {
-	logger.Debug(fmt.Sprintf("ClaudeCodeClient.GenerateContent called with model: %s", model))
-
 	eventChan, err := c.GenerateContentStream(ctx, provider, model, messages)
 	if err != nil {
 		return nil, err
@@ -90,8 +88,6 @@ func (c *ClaudeCodeClient) GenerateContentStream(
 	model string,
 	messages []sdk.Message,
 ) (<-chan sdk.SSEvent, error) {
-	logger.Debug(fmt.Sprintf("claudeCodeClient.GenerateContentStream called with model: %s", model))
-
 	args := c.buildArgs(model)
 
 	cmd := exec.CommandContext(ctx, c.config.CLIPath, args...)
@@ -112,7 +108,6 @@ func (c *ClaudeCodeClient) GenerateContentStream(
 		return nil, c.wrapError(err)
 	}
 
-	logger.Debug(fmt.Sprintf("starting claude cli process: %s %v", c.config.CLIPath, args))
 	if err := cmd.Start(); err != nil {
 		return nil, c.wrapError(err)
 	}
@@ -123,7 +118,6 @@ func (c *ClaudeCodeClient) GenerateContentStream(
 		return nil, fmt.Errorf("failed to marshal messages: %w", err)
 	}
 
-	logger.Debug(fmt.Sprintf("writing %d bytes of messages to stdin", len(messagesJSON)))
 	if _, err := stdin.Write(messagesJSON); err != nil {
 		return nil, fmt.Errorf("failed to write to stdin: %w", err)
 	}
@@ -215,7 +209,7 @@ func (c *ClaudeCodeClient) streamOutput(
 		defer stderrDone.Done()
 		_, stderrErr = io.Copy(stderrBuf, stderr)
 		if stderrErr != nil {
-			logger.Debug(fmt.Sprintf("error reading stderr: %v", stderrErr))
+			logger.Error(fmt.Sprintf("error reading stderr: %v", stderrErr))
 		}
 	}()
 
@@ -223,7 +217,6 @@ func (c *ClaudeCodeClient) streamOutput(
 	for scanner.Scan() {
 		select {
 		case <-ctx.Done():
-			logger.Debug("context cancelled, stopping stream")
 			return
 		default:
 		}
@@ -234,15 +227,12 @@ func (c *ClaudeCodeClient) streamOutput(
 		}
 
 		if line == "done" || line == `"done"` {
-			logger.Debug("Claude CLI completed successfully")
 			break
 		}
 
-		logger.Debug(fmt.Sprintf("claude CLI output: %s", line))
-
 		var msg ClaudeCodeMessage
 		if err := json.Unmarshal([]byte(line), &msg); err != nil {
-			logger.Debug(fmt.Sprintf("Failed to parse JSON line: %v", err))
+			logger.Error(fmt.Sprintf("Failed to parse JSON line: %v", err))
 			continue
 		}
 
@@ -252,7 +242,7 @@ func (c *ClaudeCodeClient) streamOutput(
 	}
 
 	if err := scanner.Err(); err != nil {
-		logger.Debug(fmt.Sprintf("scanner error: %v", err))
+		logger.Error(fmt.Sprintf("scanner error: %v", err))
 		errMsg := []byte(err.Error())
 		eventType := sdk.SSEventEvent("error")
 		events <- sdk.SSEvent{
@@ -265,7 +255,7 @@ func (c *ClaudeCodeClient) streamOutput(
 		stderrDone.Wait()
 
 		stderrOutput := stderrBuf.String()
-		logger.Debug(fmt.Sprintf("Claude CLI process error: %v, stderr: %s", err, stderrOutput))
+		logger.Error(fmt.Sprintf("Claude CLI process error: %v, stderr: %s", err, stderrOutput))
 
 		if stderrOutput != "" {
 			errMsg := []byte(fmt.Sprintf("Claude CLI error: %s", stderrOutput))
@@ -290,32 +280,24 @@ func (c *ClaudeCodeClient) createDeltaEvent(delta map[string]any) sdk.SSEvent {
 	}
 
 	responseBytes, _ := json.Marshal(streamResponse)
-	logger.Debug(fmt.Sprintf("SSE event data: %s", string(responseBytes)))
 	eventType := sdk.SSEventEvent("content_block_delta")
 	return sdk.SSEvent{Event: &eventType, Data: &responseBytes}
 }
 
 func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent {
-	logger.Debug(fmt.Sprintf("transforming message type: %s, subtype: %s", msg.Type, msg.Subtype))
-
 	var events []sdk.SSEvent
 
 	switch msg.Type {
 	case "assistant":
 		var assistantMsg AssistantMessage
 		if err := json.Unmarshal(msg.Message, &assistantMsg); err != nil {
-			logger.Debug(fmt.Sprintf("failed to unmarshal assistant message: %v, raw: %s", err, string(msg.Message)))
 			return events
 		}
-
-		logger.Debug(fmt.Sprintf("assistant message content blocks: %d", len(assistantMsg.Content)))
 
 		var lastBlockType string
 		for _, block := range assistantMsg.Content {
 			switch block.Type {
 			case "text":
-				logger.Debug(fmt.Sprintf("text block with %d chars: '%s'", len(block.Text), block.Text))
-
 				content := block.Text
 				if lastBlockType == "text" && content != "" {
 					content = "\n" + content
@@ -335,8 +317,6 @@ func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent
 				events = append(events, c.createDeltaEvent(response))
 				lastBlockType = "text"
 			case "thinking":
-				logger.Debug(fmt.Sprintf("thinking block with %d chars", len(block.Thinking)))
-
 				response := map[string]any{
 					"choices": []map[string]any{
 						{
@@ -350,8 +330,6 @@ func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent
 
 				events = append(events, c.createDeltaEvent(response))
 			case "tool_use":
-				logger.Debug(fmt.Sprintf("tool_use block: %s (id: %s)", block.Name, block.ID))
-
 				response := map[string]any{
 					"choices": []map[string]any{
 						{
@@ -380,9 +358,6 @@ func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent
 		return events
 
 	case "result":
-		logger.Debug(fmt.Sprintf("result message: cost=$%.4f, duration=%dms, turns=%d",
-			msg.TotalCostUSD, msg.DurationMS, msg.NumTurns))
-
 		doneBytes := []byte("done")
 		eventType := sdk.SSEventEvent("message_stop")
 		return []sdk.SSEvent{{
@@ -391,18 +366,13 @@ func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent
 		}}
 
 	case "user":
-		logger.Debug("user message (tool results)")
-
 		var toolResultMsg ToolResultMessage
 		if err := json.Unmarshal(msg.Message, &toolResultMsg); err != nil {
-			logger.Debug(fmt.Sprintf("failed to unmarshal tool result message: %v", err))
 			return events
 		}
 
 		for _, content := range toolResultMsg.Content {
 			if content.Type == "tool_result" {
-				logger.Debug(fmt.Sprintf("tool result for %s: %s", content.ToolUseID, truncateString(content.Content, 100)))
-
 				response := map[string]any{
 					"choices": []map[string]any{
 						{
@@ -428,11 +398,9 @@ func (c *ClaudeCodeClient) transformMessage(msg ClaudeCodeMessage) []sdk.SSEvent
 		return events
 
 	case "system":
-		logger.Debug("System message (ignored)")
 		return events
 
 	default:
-		logger.Debug(fmt.Sprintf("unknown message type: %s", msg.Type))
 		return events
 	}
 }
@@ -470,7 +438,6 @@ type ContentBlock struct {
 // For now, we pass messages through as-is
 // TODO: Implement proper image filtering if Claude CLI doesn't support them
 func (c *ClaudeCodeClient) filterMessages(messages []sdk.Message) []sdk.Message {
-	logger.Debug(fmt.Sprintf("passing %d messages to claude cli", len(messages)))
 	return messages
 }
 
@@ -488,17 +455,6 @@ func (c *ClaudeCodeClient) wrapError(err error) error {
 		)
 	}
 	return err
-}
-
-// truncateString truncates a string to maxLen characters, adding "..." if truncated
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 3 {
-		return s[:maxLen]
-	}
-	return s[:maxLen-3] + "..."
 }
 
 // ClaudeCodeMessage represents a message from the Claude CLI JSON output
@@ -564,8 +520,7 @@ func (c *ClaudeCodeClient) handleEvent(event sdk.SSEvent, content *strings.Build
 func (c *ClaudeCodeClient) processEventData(data []byte, content *strings.Builder, toolCallsMap map[string]*sdk.ChatCompletionMessageToolCall) error {
 	var delta map[string]any
 	if err := json.Unmarshal(data, &delta); err != nil {
-		logger.Debug(fmt.Sprintf("failed to parse SSE event: %v", err))
-		return nil // Continue processing other events
+		return nil
 	}
 
 	choices, ok := delta["choices"].([]any)
