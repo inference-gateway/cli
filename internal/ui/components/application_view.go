@@ -99,13 +99,11 @@ func (r *ApplicationViewRenderer) calculateComponentHeights(
 		heights.todoBoxHeight = todoBoxView.GetHeight()
 	}
 
-	// Calculate approval box height
 	if approvalBoxView != nil {
 		approvalContent := approvalBoxView.Render()
 		if approvalContent != "" {
-			// Count lines in approval content + some padding
 			lines := strings.Count(approvalContent, "\n") + 1
-			heights.approvalBoxHeight = lines + 2 // Add padding
+			heights.approvalBoxHeight = lines + 2
 		}
 	}
 

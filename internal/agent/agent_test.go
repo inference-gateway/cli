@@ -1,4 +1,4 @@
-package services
+package agent
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
+	"github.com/inference-gateway/cli/internal/services"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 )
 
@@ -253,7 +254,7 @@ func TestNewAgentService(t *testing.T) {
 		MaxTurns:  10,
 	})
 
-	agentService := NewAgentService(
+	agentService := NewAgent(
 		nil,
 		fakeToolService,
 		fakeConfig,
@@ -687,7 +688,7 @@ func TestAgentServiceImpl_ShouldRequireApproval(t *testing.T) {
 			fakeStateManager := &domainmocks.FakeStateManager{}
 			fakeStateManager.GetAgentModeReturns(tt.agentMode)
 
-			approvalPolicy := NewStandardApprovalPolicy(fakeConfig.GetConfig(), fakeStateManager)
+			approvalPolicy := services.NewStandardApprovalPolicy(fakeConfig.GetConfig(), fakeStateManager)
 
 			result := approvalPolicy.ShouldRequireApproval(context.Background(), tt.toolCall, tt.isChatMode)
 

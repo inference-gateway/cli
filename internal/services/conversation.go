@@ -514,3 +514,8 @@ func (r *InMemoryConversationRepository) FormatToolResultExpanded(result *domain
 func (r *InMemoryConversationRepository) GetCurrentConversationTitle() string {
 	return "New Conversation"
 }
+
+// GetCurrentConversationID returns the current conversation ID (empty for in-memory)
+func (r *InMemoryConversationRepository) GetCurrentConversationID() string {
+	return ""
+}

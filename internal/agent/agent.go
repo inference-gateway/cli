@@ -1,4 +1,4 @@
-package services
+package agent
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
+	services "github.com/inference-gateway/cli/internal/services"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -25,7 +26,7 @@ type AgentServiceImpl struct {
 	timeoutSeconds   int
 	maxTokens        int
 	optimizer        domain.ConversationOptimizer
-	tokenizer        *TokenizerService
+	tokenizer        *services.TokenizerService
 	approvalPolicy   domain.ApprovalPolicy
 
 	// Request tracking
@@ -229,7 +230,7 @@ func (p *eventPublisher) publishToolExecutionCompleted(results []domain.Conversa
 }
 
 // NewAgentService creates a new agent service with pre-configured client
-func NewAgentService(
+func NewAgent(
 	client domain.SDKClient,
 	toolService domain.ToolService,
 	config domain.ConfigService,
@@ -240,9 +241,9 @@ func NewAgentService(
 	timeoutSeconds int,
 	optimizer domain.ConversationOptimizer,
 ) *AgentServiceImpl {
-	tokenizer := NewTokenizerService(DefaultTokenizerConfig())
+	tokenizer := services.NewTokenizerService(services.DefaultTokenizerConfig())
 
-	approvalPolicy := NewStandardApprovalPolicy(config.GetConfig(), stateManager)
+	approvalPolicy := services.NewStandardApprovalPolicy(config.GetConfig(), stateManager)
 
 	return &AgentServiceImpl{
 		client:           client,
@@ -428,10 +429,10 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 	}
 
 	taskTracker := s.toolService.GetTaskTracker()
-	var monitor *A2APollingMonitor
+	var monitor *services.A2APollingMonitor
 
 	if taskTracker != nil {
-		monitor = NewA2APollingMonitor(taskTracker, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
+		monitor = services.NewA2APollingMonitor(taskTracker, chatEvents, s.messageQueue, req.RequestID, s.conversationRepo)
 		go monitor.Start(ctx)
 	}
 

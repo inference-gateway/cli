@@ -182,6 +182,7 @@ type ConversationRepository interface {
 	StartNewConversation(title string) error
 	DeleteMessagesAfterIndex(index int) error
 	GetCurrentConversationTitle() string
+	GetCurrentConversationID() string
 }
 
 // ConversationOptimizer optimizes conversation history to reduce token usage

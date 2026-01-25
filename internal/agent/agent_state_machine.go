@@ -1,4 +1,4 @@
-package services
+package agent
 
 import (
 	"fmt"
@@ -6,6 +6,7 @@ import (
 	"time"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
+	logger "github.com/inference-gateway/cli/internal/logger"
 	sdk "github.com/inference-gateway/sdk"
 )
 
@@ -207,6 +208,17 @@ func (sm *AgentStateMachineImpl) Transition(ctx *domain.AgentContext, targetStat
 
 	sm.previousState = sm.currentState
 	sm.currentState = targetState
+
+	var sessionID string
+	if ctx.ConversationRepo != nil {
+		sessionID = ctx.ConversationRepo.GetCurrentConversationID()
+	}
+
+	logger.Debug("State transition",
+		"from", sm.previousState.String(),
+		"to", sm.currentState.String(),
+		"session_id", sessionID,
+		"request_id", ctx.RequestID)
 
 	if sm.stateManager != nil {
 		sm.stateManager.BroadcastEvent(domain.StateTransitionEvent{
