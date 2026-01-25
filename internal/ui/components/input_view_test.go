@@ -3,13 +3,16 @@ package components
 import (
 	"testing"
 
+	require "github.com/stretchr/testify/require"
+
 	tea "github.com/charmbracelet/bubbletea"
+
+	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
+	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 	history "github.com/inference-gateway/cli/internal/ui/history"
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
-	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
-	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
-	require "github.com/stretchr/testify/require"
 )
 
 // createMockModelService creates a fake model service with default test values

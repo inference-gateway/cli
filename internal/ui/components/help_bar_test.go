@@ -4,10 +4,11 @@ import (
 	"strings"
 	"testing"
 
-	ui "github.com/inference-gateway/cli/internal/ui"
-	styles "github.com/inference-gateway/cli/internal/ui/styles"
 	domainmocks "github.com/inference-gateway/cli/tests/mocks/domain"
 	uimocks "github.com/inference-gateway/cli/tests/mocks/ui"
+
+	ui "github.com/inference-gateway/cli/internal/ui"
+	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
 // createMockStyleProviderForHelpBar creates a mock styles provider for testing

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+
 	styles "github.com/inference-gateway/cli/internal/ui/styles"
 )
 
