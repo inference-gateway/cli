@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"sort"
 	"sync"
 	"time"
 
@@ -30,7 +29,7 @@ func (e MessageReceivedEvent) EventType() string { return "MessageReceived" }
 // StreamCompletedEvent is triggered when LLM streaming completes
 type StreamCompletedEvent struct {
 	Message            sdk.Message
-	ToolCalls          map[string]*sdk.ChatCompletionMessageToolCall
+	ToolCalls          []*sdk.ChatCompletionMessageToolCall
 	Reasoning          string
 	Usage              *sdk.CompletionUsage
 	IterationStartTime time.Time
@@ -92,7 +91,7 @@ type EventDrivenAgent struct {
 
 	// State data
 	currentMessage   sdk.Message
-	currentToolCalls map[string]*sdk.ChatCompletionMessageToolCall
+	currentToolCalls []*sdk.ChatCompletionMessageToolCall
 	currentReasoning string
 	availableTools   []sdk.ChatCompletionTool
 
@@ -124,11 +123,11 @@ func NewEventDrivenAgent(
 	stateMachine := NewAgentStateMachine(service.stateManager)
 
 	agentCtx := &domain.AgentContext{
+		RequestID:        req.RequestID,
 		Conversation:     conversation,
 		MessageQueue:     service.messageQueue,
 		ConversationRepo: service.conversationRepo,
-		ToolCalls:        make(map[string]*sdk.ChatCompletionMessageToolCall),
-		EventPublisher:   eventPublisher,
+		ToolCalls:        nil,
 		Turns:            0,
 		MaxTurns:         service.config.GetAgentConfig().MaxTurns,
 		HasToolResults:   false,
@@ -147,10 +146,9 @@ func NewEventDrivenAgent(
 		provider:       provider,
 		model:          model,
 		taskTracker:    taskTracker,
-		events:         make(chan AgentEvent, 100),
+		events:         make(chan AgentEvent, constants.EventChannelBufferSize),
 	}
 
-	// Set default tool executor
 	agent.toolExecutor = agent.executeTools
 
 	return agent
@@ -309,8 +307,17 @@ func (a *EventDrivenAgent) handleCheckingQueueState(event AgentEvent) {
 			logger.Info("⏳ Background tasks pending, waiting...", "tasks", numTasks)
 			a.wg.Add(1)
 			go func() {
-				time.Sleep(500 * time.Millisecond)
-				a.events <- MessageReceivedEvent{}
+				defer a.wg.Done()
+				select {
+				case <-time.After(constants.BackgroundTaskPollDelay):
+					select {
+					case a.events <- MessageReceivedEvent{}:
+					case <-a.cancelChan:
+						return
+					}
+				case <-a.cancelChan:
+					return
+				}
 			}()
 			return
 		}
@@ -469,7 +476,6 @@ func (a *EventDrivenAgent) processStreamChoice(
 	message *sdk.Message,
 	allToolCallDeltas *[]sdk.ChatCompletionMessageToolCallChunk,
 ) {
-	// Process reasoning content
 	if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
 		if message.Reasoning == nil {
 			message.Reasoning = new(string)
@@ -483,7 +489,6 @@ func (a *EventDrivenAgent) processStreamChoice(
 		*message.ReasoningContent += *choice.Delta.ReasoningContent
 	}
 
-	// Process delta content
 	deltaContent := choice.Delta.Content
 	if deltaContent != "" {
 		currentContent, err := message.Content.AsMessageContent0()
@@ -493,7 +498,6 @@ func (a *EventDrivenAgent) processStreamChoice(
 		message.Content = sdk.NewMessageContent(currentContent + deltaContent)
 	}
 
-	// Get reasoning for chunk event
 	reasoning := ""
 	if choice.Delta.Reasoning != nil && *choice.Delta.Reasoning != "" {
 		reasoning = *choice.Delta.Reasoning
@@ -501,12 +505,10 @@ func (a *EventDrivenAgent) processStreamChoice(
 		reasoning = *choice.Delta.ReasoningContent
 	}
 
-	// Accumulate tool calls
 	if len(choice.Delta.ToolCalls) > 0 {
 		*allToolCallDeltas = append(*allToolCallDeltas, choice.Delta.ToolCalls...)
 	}
 
-	// Publish chunk if there's content
 	if deltaContent != "" || reasoning != "" || len(choice.Delta.ToolCalls) > 0 {
 		a.eventPublisher.publishChatChunk(deltaContent, reasoning, choice.Delta.ToolCalls)
 	}
@@ -519,7 +521,6 @@ func (a *EventDrivenAgent) processStreamEvents(requestCtx context.Context, event
 	var streamUsage *sdk.CompletionUsage
 
 	for event := range events {
-		// Check for timeout
 		select {
 		case <-requestCtx.Done():
 			a.handleStreamTimeout(requestCtx)
@@ -527,30 +528,25 @@ func (a *EventDrivenAgent) processStreamEvents(requestCtx context.Context, event
 		default:
 		}
 
-		// Validate event
 		if event.Event == nil || event.Data == nil {
 			continue
 		}
 
-		// Parse stream response
 		var streamResponse sdk.CreateChatCompletionStreamResponse
 		if err := json.Unmarshal(*event.Data, &streamResponse); err != nil {
 			logger.Error("failed to unmarshal stream response")
 			continue
 		}
 
-		// Process each choice
 		for _, choice := range streamResponse.Choices {
 			a.processStreamChoice(choice, &message, &allToolCallDeltas)
 		}
 
-		// Update usage if available
 		if streamResponse.Usage != nil {
 			streamUsage = streamResponse.Usage
 		}
 	}
 
-	// Finalize and emit completion event
 	a.finalizeStreamCompletion(message, allToolCallDeltas, streamUsage, iterationStartTime)
 }
 
@@ -675,20 +671,9 @@ func (a *EventDrivenAgent) handlePostStreamState(_ AgentEvent) {
 	}
 
 	if len(a.currentToolCalls) > 0 {
-		indices := make([]int, 0, len(a.currentToolCalls))
-		for key := range a.currentToolCalls {
-			var idx int
-			_, _ = fmt.Sscanf(key, "%d", &idx)
-			indices = append(indices, idx)
-		}
-		sort.Ints(indices)
-
 		assistantToolCalls := make([]sdk.ChatCompletionMessageToolCall, 0, len(a.currentToolCalls))
-		for _, idx := range indices {
-			key := fmt.Sprintf("%d", idx)
-			if tc, ok := a.currentToolCalls[key]; ok {
-				assistantToolCalls = append(assistantToolCalls, *tc)
-			}
+		for _, tc := range a.currentToolCalls {
+			assistantToolCalls = append(assistantToolCalls, *tc)
 		}
 		assistantMessage.ToolCalls = &assistantToolCalls
 
@@ -863,134 +848,103 @@ func (a *EventDrivenAgent) handleApprovingToolsState(event AgentEvent) {
 	}
 }
 
-// processNextTool handles approval and execution of ONE tool sequentially
-func (a *EventDrivenAgent) processNextTool() {
-	defer a.wg.Done()
-
+// getNextToolForProcessing returns the next tool that needs processing
+// Returns nil if all tools have been processed
+func (a *EventDrivenAgent) getNextToolForProcessing() *sdk.ChatCompletionMessageToolCall {
 	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	if a.currentToolIndex >= len(a.toolsNeedingApproval) {
-		a.mu.Unlock()
-		logger.Info("✅ All tools processed", "approved", len(a.toolResults))
-		a.events <- AllToolsProcessedEvent{}
-		return
+		return nil
 	}
 
-	tc := a.toolsNeedingApproval[a.currentToolIndex]
+	tc := &a.toolsNeedingApproval[a.currentToolIndex]
 	a.currentToolIndex++
-	a.mu.Unlock()
+	return tc
+}
 
-	logger.Info("🔐 Requesting approval for tool", "tool", tc.Function.Name, "index", a.currentToolIndex-1)
+// handleToolRejection handles when a user rejects a tool call
+func (a *EventDrivenAgent) handleToolRejection(tc sdk.ChatCompletionMessageToolCall) {
+	logger.Info("❌ Tool rejected by user", "tool", tc.Function.Name)
 
-	approved, err := a.service.requestToolApproval(a.agentCtx.Ctx, tc, a.eventPublisher)
-
-	if err != nil {
-		logger.Error("❌ Approval request failed", "tool", tc.Function.Name, "error", err)
-		a.events <- ApprovalFailedEvent{Error: err}
-		return
+	rejectionMessage := sdk.Message{
+		Role:       sdk.Tool,
+		Content:    sdk.NewMessageContent(fmt.Sprintf("Tool execution rejected by user: %s", tc.Function.Name)),
+		ToolCallId: &tc.Id,
 	}
 
-	if !approved {
-		logger.Info("❌ Tool rejected by user", "tool", tc.Function.Name)
+	*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, rejectionMessage)
 
-		rejectionMessage := sdk.Message{
-			Role:       sdk.Tool,
-			Content:    sdk.NewMessageContent(fmt.Sprintf("Tool execution rejected by user: %s", tc.Function.Name)),
-			ToolCallId: &tc.Id,
-		}
-
-		*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, rejectionMessage)
-
-		rejectionEntry := domain.ConversationEntry{
-			Message: rejectionMessage,
-			Time:    time.Now(),
-		}
-
-		if err := a.service.conversationRepo.AddMessage(rejectionEntry); err != nil {
-			logger.Error("failed to store tool rejection message", "error", err)
-		}
-
-		a.eventPublisher.chatEvents <- domain.ToolRejectedEvent{
-			RequestID: a.eventPublisher.requestID,
-			Timestamp: time.Now(),
-			ToolCall:  tc,
-		}
-
-		a.agentCtx.HasToolResults = true
-
-		a.wg.Add(1)
-		go a.processNextTool()
-		return
+	rejectionEntry := domain.ConversationEntry{
+		Message: rejectionMessage,
+		Time:    time.Now(),
 	}
 
-	logger.Info("✅ Tool approved", "tool", tc.Function.Name)
+	if err := a.service.conversationRepo.AddMessage(rejectionEntry); err != nil {
+		logger.Error("failed to store tool rejection message", "error", err)
+	}
 
-	a.eventPublisher.chatEvents <- domain.ToolApprovedEvent{
+	a.eventPublisher.chatEvents <- domain.ToolRejectedEvent{
 		RequestID: a.eventPublisher.requestID,
 		Timestamp: time.Now(),
 		ToolCall:  tc,
 	}
 
-	if a.service.stateManager.GetAgentMode() == domain.AgentModeAutoAccept {
-		logger.Info("✅ Auto-accept mode enabled, auto-approving all remaining tools")
-		a.mu.Lock()
-		remainingTools := a.toolsNeedingApproval[a.currentToolIndex:]
-		a.mu.Unlock()
+	a.mu.Lock()
+	a.agentCtx.HasToolResults = true
+	a.mu.Unlock()
+}
 
-		for _, remainingTool := range remainingTools {
-			logger.Info("✅ Auto-approving tool", "tool", remainingTool.Function.Name)
+// shouldAutoApproveRemaining checks if auto-accept mode is enabled
+func (a *EventDrivenAgent) shouldAutoApproveRemaining() bool {
+	return a.service.stateManager.GetAgentMode() == domain.AgentModeAutoAccept
+}
 
-			a.eventPublisher.chatEvents <- domain.ToolApprovedEvent{
-				RequestID: a.eventPublisher.requestID,
-				Timestamp: time.Now(),
-				ToolCall:  remainingTool,
-			}
+// executeAllRemainingTools executes the current tool and all remaining tools in auto-accept mode
+func (a *EventDrivenAgent) executeAllRemainingTools(tc sdk.ChatCompletionMessageToolCall) {
+	logger.Info("✅ Auto-accept mode enabled, auto-approving all remaining tools")
 
-			result := a.service.executeToolInternal(
-				a.agentCtx.Ctx,
-				remainingTool,
-				a.eventPublisher,
-				true,
-				time.Now(),
-			)
+	a.mu.Lock()
+	remainingTools := a.toolsNeedingApproval[a.currentToolIndex:]
+	a.mu.Unlock()
 
-			a.mu.Lock()
-			a.toolResults = append(a.toolResults, result)
-			a.mu.Unlock()
+	for _, remainingTool := range remainingTools {
+		logger.Info("✅ Auto-approving tool", "tool", remainingTool.Function.Name)
 
-			*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, result.Message)
-
-			if err := a.service.conversationRepo.AddMessage(result); err != nil {
-				logger.Error("failed to store tool result", "error", err)
-			}
-
-			a.agentCtx.HasToolResults = true
+		a.eventPublisher.chatEvents <- domain.ToolApprovedEvent{
+			RequestID: a.eventPublisher.requestID,
+			Timestamp: time.Now(),
+			ToolCall:  remainingTool,
 		}
 
 		result := a.service.executeToolInternal(
 			a.agentCtx.Ctx,
-			tc,
+			remainingTool,
 			a.eventPublisher,
 			true,
 			time.Now(),
 		)
 
-		a.mu.Lock()
-		a.toolResults = append(a.toolResults, result)
-		a.currentToolIndex = len(a.toolsNeedingApproval)
-		a.mu.Unlock()
-
-		*a.agentCtx.Conversation = append(*a.agentCtx.Conversation, result.Message)
-
-		if err := a.service.conversationRepo.AddMessage(result); err != nil {
-			logger.Error("failed to store tool result", "error", err)
-		}
-
-		a.agentCtx.HasToolResults = true
-
-		a.events <- AllToolsProcessedEvent{}
-		return
+		a.appendToolResult(result)
 	}
 
+	result := a.service.executeToolInternal(
+		a.agentCtx.Ctx,
+		tc,
+		a.eventPublisher,
+		true,
+		time.Now(),
+	)
+
+	a.appendToolResult(result)
+
+	a.mu.Lock()
+	a.currentToolIndex = len(a.toolsNeedingApproval)
+	a.mu.Unlock()
+}
+
+// executeSingleApprovedTool executes a single approved tool
+func (a *EventDrivenAgent) executeSingleApprovedTool(tc sdk.ChatCompletionMessageToolCall) {
 	logger.Info("🚀 Executing approved tool", "tool", tc.Function.Name)
 
 	result := a.service.executeToolInternal(
@@ -1001,6 +955,11 @@ func (a *EventDrivenAgent) processNextTool() {
 		time.Now(),
 	)
 
+	a.appendToolResult(result)
+}
+
+// appendToolResult appends a tool execution result to the conversation and storage
+func (a *EventDrivenAgent) appendToolResult(result domain.ConversationEntry) {
 	a.mu.Lock()
 	a.toolResults = append(a.toolResults, result)
 	a.mu.Unlock()
@@ -1011,7 +970,52 @@ func (a *EventDrivenAgent) processNextTool() {
 		logger.Error("failed to store tool result", "error", err)
 	}
 
+	a.mu.Lock()
 	a.agentCtx.HasToolResults = true
+	a.mu.Unlock()
+}
+
+// processNextTool handles approval and execution of ONE tool sequentially
+func (a *EventDrivenAgent) processNextTool() {
+	defer a.wg.Done()
+
+	tc := a.getNextToolForProcessing()
+	if tc == nil {
+		logger.Info("✅ All tools processed", "approved", len(a.toolResults))
+		a.events <- AllToolsProcessedEvent{}
+		return
+	}
+
+	logger.Info("🔐 Requesting approval for tool", "tool", tc.Function.Name)
+
+	approved, err := a.service.requestToolApproval(a.agentCtx.Ctx, *tc, a.eventPublisher)
+	if err != nil {
+		logger.Error("❌ Approval request failed", "tool", tc.Function.Name, "error", err)
+		a.events <- ApprovalFailedEvent{Error: err}
+		return
+	}
+
+	if !approved {
+		a.handleToolRejection(*tc)
+		a.wg.Add(1)
+		go a.processNextTool()
+		return
+	}
+
+	logger.Info("✅ Tool approved", "tool", tc.Function.Name)
+	a.eventPublisher.chatEvents <- domain.ToolApprovedEvent{
+		RequestID: a.eventPublisher.requestID,
+		Timestamp: time.Now(),
+		ToolCall:  *tc,
+	}
+
+	if a.shouldAutoApproveRemaining() {
+		a.executeAllRemainingTools(*tc)
+		a.events <- AllToolsProcessedEvent{}
+		return
+	}
+
+	a.executeSingleApprovedTool(*tc)
 
 	a.wg.Add(1)
 	go a.processNextTool()
@@ -1054,7 +1058,9 @@ func (a *EventDrivenAgent) executeTools() {
 		return
 	}
 
+	a.mu.Lock()
 	a.agentCtx.HasToolResults = true
+	a.mu.Unlock()
 
 	logger.Debug("📤 Emitting ToolsCompletedEvent")
 	a.events <- ToolsCompletedEvent{Results: toolResults}

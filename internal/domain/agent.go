@@ -19,11 +19,11 @@ type SDKClient interface {
 
 // AgentContext represents the execution context for the agent state machine
 type AgentContext struct {
+	RequestID        string
 	Conversation     *[]sdk.Message
 	MessageQueue     MessageQueue
 	ConversationRepo ConversationRepository
-	ToolCalls        map[string]*sdk.ChatCompletionMessageToolCall
-	EventPublisher   any
+	ToolCalls        []*sdk.ChatCompletionMessageToolCall
 	Turns            int
 	MaxTurns         int
 	HasToolResults   bool

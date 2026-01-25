@@ -22,11 +22,11 @@ func TestStateMachineInitialization(t *testing.T) {
 // createTestAgentContext creates a minimal agent context for testing
 func createTestAgentContext() *domain.AgentContext {
 	return &domain.AgentContext{
+		RequestID:        "test-request-id",
 		Conversation:     &[]sdk.Message{},
 		MessageQueue:     &mockdomain.FakeMessageQueue{},
 		ConversationRepo: &mockdomain.FakeConversationRepository{},
-		ToolCalls:        make(map[string]*sdk.ChatCompletionMessageToolCall),
-		EventPublisher:   nil,
+		ToolCalls:        nil,
 		Turns:            0,
 		MaxTurns:         10,
 		HasToolResults:   false,
@@ -74,7 +74,7 @@ func TestInvalidTransitions(t *testing.T) {
 		Conversation:     &[]sdk.Message{},
 		MessageQueue:     &mockdomain.FakeMessageQueue{},
 		ConversationRepo: &mockdomain.FakeConversationRepository{},
-		ToolCalls:        make(map[string]*sdk.ChatCompletionMessageToolCall),
+		ToolCalls:        nil,
 		Turns:            0,
 		MaxTurns:         10,
 		Ctx:              context.Background(),
@@ -170,7 +170,7 @@ func TestGuardConditions(t *testing.T) {
 		ctx := &domain.AgentContext{
 			Conversation:   &[]sdk.Message{{Role: sdk.User, Content: sdk.NewMessageContent("test")}},
 			MessageQueue:   &mockdomain.FakeMessageQueue{},
-			ToolCalls:      make(map[string]*sdk.ChatCompletionMessageToolCall),
+			ToolCalls:      nil,
 			Turns:          10,
 			MaxTurns:       10,
 			HasToolResults: false,
@@ -184,11 +184,13 @@ func TestGuardConditions(t *testing.T) {
 		_ = sm.Transition(ctx, domain.StateStreamingLLM)
 		_ = sm.Transition(ctx, domain.StatePostStream)
 
-		ctx.ToolCalls["0"] = &sdk.ChatCompletionMessageToolCall{
-			Id: "test",
-			Function: sdk.ChatCompletionMessageToolCallFunction{
-				Name:      "test",
-				Arguments: "{}",
+		ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
+			{
+				Id: "test",
+				Function: sdk.ChatCompletionMessageToolCallFunction{
+					Name:      "test",
+					Arguments: "{}",
+				},
 			},
 		}
 		_ = sm.Transition(ctx, domain.StateEvaluatingTools)
@@ -376,8 +378,8 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 			name: "returns_false_when_no_approval_policy",
 			setupCtx: func(ctx *domain.AgentContext) {
 				ctx.ApprovalPolicy = nil
-				ctx.ToolCalls = map[string]*sdk.ChatCompletionMessageToolCall{
-					"0": {
+				ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
+					{
 						Id: "call-1",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Write",
@@ -394,8 +396,8 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 				fakePolicy := &mockdomain.FakeApprovalPolicy{}
 				fakePolicy.ShouldRequireApprovalReturns(true)
 				ctx.ApprovalPolicy = fakePolicy
-				ctx.ToolCalls = map[string]*sdk.ChatCompletionMessageToolCall{
-					"0": {
+				ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
+					{
 						Id: "call-1",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Write",
@@ -412,8 +414,8 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 				fakePolicy := &mockdomain.FakeApprovalPolicy{}
 				fakePolicy.ShouldRequireApprovalReturns(false)
 				ctx.ApprovalPolicy = fakePolicy
-				ctx.ToolCalls = map[string]*sdk.ChatCompletionMessageToolCall{
-					"0": {
+				ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{
+					{
 						Id: "call-1",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Read",
@@ -429,7 +431,7 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 			setupCtx: func(ctx *domain.AgentContext) {
 				fakePolicy := &mockdomain.FakeApprovalPolicy{}
 				ctx.ApprovalPolicy = fakePolicy
-				ctx.ToolCalls = map[string]*sdk.ChatCompletionMessageToolCall{}
+				ctx.ToolCalls = []*sdk.ChatCompletionMessageToolCall{}
 			},
 			expected: false,
 		},
@@ -442,7 +444,7 @@ func TestGuardFunctions_NeedsApproval(t *testing.T) {
 			smImpl := sm.(*AgentStateMachineImpl)
 
 			ctx := &domain.AgentContext{
-				ToolCalls:  make(map[string]*sdk.ChatCompletionMessageToolCall),
+				ToolCalls:  nil,
 				Ctx:        context.Background(),
 				IsChatMode: true,
 			}

@@ -9,14 +9,38 @@ import (
 	sdk "github.com/inference-gateway/sdk"
 )
 
-// AgentStateMachineImpl implements the AgentStateMachine interface
+// AgentStateMachineImpl implements the AgentStateMachine interface.
+//
+// The state machine manages the agent's execution flow through the following states:
+//
+// State Flow:
+//
+//	Idle → CheckingQueue → StreamingLLM → PostStream → EvaluatingTools → ApprovingTools/ExecutingTools → PostToolExecution → CheckingQueue (loop) → Completing → Idle
+//
+// State Descriptions:
+//   - Idle: Agent is not executing, waiting for work
+//   - CheckingQueue: Checking if there are queued messages or if completion criteria are met
+//   - StreamingLLM: Streaming responses from the LLM
+//   - PostStream: Processing LLM response, checking for tool calls or completion
+//   - EvaluatingTools: Determining if tool calls need approval
+//   - ApprovingTools: Waiting for user approval of tool calls (only in chat mode)
+//   - ExecutingTools: Executing approved or auto-approved tool calls
+//   - PostToolExecution: Processing tool results, checking for completion or continuing
+//   - Completing: Finalizing the agent execution
+//   - Error: An error occurred during execution
+//   - Cancelled: User cancelled the execution
+//   - Stopped: Tool execution indicated stop (user rejection or error)
+//
+// Thread Safety:
+//
+//	All state transitions are protected by a read-write mutex to ensure thread-safe access.
 type AgentStateMachineImpl struct {
 	currentState  domain.AgentExecutionState
 	previousState domain.AgentExecutionState
 	stateManager  domain.StateManager
 	mu            sync.RWMutex
 
-	// State transition map
+	// State transition map: maps each state to its possible transitions with guards and actions
 	transitions map[domain.AgentExecutionState][]StateTransition
 }
 
@@ -40,7 +64,13 @@ func NewAgentStateMachine(stateManager domain.StateManager) domain.AgentStateMac
 	return sm
 }
 
-// registerTransitions registers all valid state transitions with guards and actions
+// registerTransitions registers all valid state transitions with guards and actions.
+//
+// Each transition can have:
+//   - guard: A function that must return true for the transition to be allowed
+//   - action: A function executed when the transition occurs
+//
+// Transitions without guards are always allowed. Nil guards/actions are permitted.
 func (sm *AgentStateMachineImpl) registerTransitions() {
 	sm.addTransition(domain.StateIdle, domain.StateCheckingQueue, nil, nil)
 
@@ -181,7 +211,7 @@ func (sm *AgentStateMachineImpl) Transition(ctx *domain.AgentContext, targetStat
 	if sm.stateManager != nil {
 		sm.stateManager.BroadcastEvent(domain.StateTransitionEvent{
 			BaseChatEvent: domain.BaseChatEvent{
-				RequestID: "",
+				RequestID: ctx.RequestID,
 				Timestamp: time.Now(),
 			},
 			FromState: sm.previousState,
@@ -223,8 +253,19 @@ func (sm *AgentStateMachineImpl) GetPreviousState() domain.AgentExecutionState {
 }
 
 // Guard functions
+//
+// Guard functions determine whether a state transition should be allowed.
+// They return true if the transition can proceed, false otherwise.
 
-// canComplete checks if the agent can complete (no more work to do)
+// canComplete checks if the agent can complete (no more work to do).
+//
+// Completion criteria:
+//   - At least one turn has been completed
+//   - No pending tool results to process
+//   - Message queue is empty
+//   - Last message is not from the user (agent has responded)
+//
+// Returns true if all completion criteria are met.
 func (sm *AgentStateMachineImpl) canComplete(ctx *domain.AgentContext) bool {
 
 	if ctx.Turns == 0 {
@@ -249,7 +290,14 @@ func (sm *AgentStateMachineImpl) canComplete(ctx *domain.AgentContext) bool {
 	return true
 }
 
-// needsApproval checks if any tool calls need user approval
+// needsApproval checks if any tool calls need user approval.
+//
+// Tool approval is required if:
+//   - An approval policy is configured
+//   - At least one tool call requires approval according to the policy
+//   - The agent is running in chat mode (approval not needed in background mode)
+//
+// Returns true if user approval is needed before executing tools.
 func (sm *AgentStateMachineImpl) needsApproval(ctx *domain.AgentContext) bool {
 	if ctx.ApprovalPolicy == nil {
 		return false
@@ -264,7 +312,10 @@ func (sm *AgentStateMachineImpl) needsApproval(ctx *domain.AgentContext) bool {
 	return false
 }
 
-// maxTurnsReached checks if max turns have been reached
+// maxTurnsReached checks if the maximum number of turns has been reached.
+//
+// This prevents infinite loops by limiting the number of LLM-tool iterations.
+// Returns true if the current turn count has reached or exceeded the maximum.
 func (sm *AgentStateMachineImpl) maxTurnsReached(ctx *domain.AgentContext) bool {
 	return ctx.Turns >= ctx.MaxTurns
 }

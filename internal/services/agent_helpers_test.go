@@ -49,8 +49,10 @@ func TestGetAccumulatedToolCalls(t *testing.T) {
 	result := agentService.getAccumulatedToolCalls()
 
 	assert.Equal(t, 2, len(result))
-	assert.Contains(t, result, "0")
-	assert.Contains(t, result, "1")
+	assert.Equal(t, "call-1", result[0].Id)
+	assert.Equal(t, "Read", result[0].Function.Name)
+	assert.Equal(t, "call-2", result[1].Id)
+	assert.Equal(t, "Write", result[1].Function.Name)
 
 	// Verify map was cleared
 	assert.Empty(t, agentService.toolCallsMap)

@@ -11,6 +11,8 @@ const (
 	AgentParallelToolsDelay    = 100 * time.Millisecond // Delay for parallel tool coordination
 	AgentConversationSaveDelay = 100 * time.Millisecond // Delay when saving conversations
 	AgentStatusTickerInterval  = 200 * time.Millisecond // Status update ticker interval
+	BackgroundTaskPollDelay    = 500 * time.Millisecond // Delay for polling background tasks
+	CompletionCheckDelay       = 100 * time.Millisecond // Delay for checking completion status
 
 	// UI component timing for smooth transitions
 	ToolCallUpdateThrottle    = 50 * time.Millisecond  // Minimum time between tool call updates

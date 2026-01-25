@@ -1983,6 +1983,17 @@ func (h *ChatHandler) executeBashCommandAsync(command string, toolCallID string)
 		}
 		_ = h.conversationRepo.AddMessage(toolEntry)
 
+		isUserInitiated := strings.HasPrefix(toolCallID, "user-bash-")
+		logger.Debug("Checking bash result", "success", result != nil && result.Success, "user_initiated", isUserInitiated)
+
+		if result != nil && !result.Success && isUserInitiated {
+			logger.Info("User-initiated bash command failed - triggering auto-fix", "tool_call_id", toolCallID)
+
+			eventChan <- domain.UserInputEvent{
+				Content: "The bash command failed. Please analyze the error and help me fix it.",
+			}
+		}
+
 		eventChan <- domain.BashCommandCompletedEvent{
 			History: h.conversationRepo.GetMessages(),
 		}

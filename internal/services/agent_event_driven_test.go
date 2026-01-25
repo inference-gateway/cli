@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	assert "github.com/stretchr/testify/assert"
 
 	domain "github.com/inference-gateway/cli/internal/domain"
 	mockdomain "github.com/inference-gateway/cli/tests/mocks/domain"
@@ -36,11 +36,11 @@ func setupTestMocks() *testMocks {
 func createTestContext(mocks *testMocks) *domain.AgentContext {
 	conversation := []sdk.Message{}
 	return &domain.AgentContext{
+		RequestID:        "test-request-id",
 		Conversation:     &conversation,
 		MessageQueue:     mocks.queue,
 		ConversationRepo: mocks.repo,
-		ToolCalls:        make(map[string]*sdk.ChatCompletionMessageToolCall),
-		EventPublisher:   nil,
+		ToolCalls:        nil,
 		Turns:            0,
 		MaxTurns:         10,
 		HasToolResults:   false,
@@ -70,7 +70,7 @@ func createTestAgent(mocks *testMocks, ctx *domain.AgentContext) *EventDrivenAge
 		agentCtx:         ctx,
 		eventPublisher:   eventPublisher,
 		events:           make(chan AgentEvent, 100),
-		currentToolCalls: make(map[string]*sdk.ChatCompletionMessageToolCall),
+		currentToolCalls: []*sdk.ChatCompletionMessageToolCall{},
 	}
 }
 
@@ -221,7 +221,7 @@ func TestHandleStreamingState(t *testing.T) {
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent("response"),
 				},
-				ToolCalls:          map[string]*sdk.ChatCompletionMessageToolCall{},
+				ToolCalls:          []*sdk.ChatCompletionMessageToolCall{},
 				Reasoning:          "",
 				Usage:              nil,
 				IterationStartTime: time.Now(),
@@ -250,8 +250,8 @@ func TestHandleStreamingState(t *testing.T) {
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent(""),
 				},
-				ToolCalls: map[string]*sdk.ChatCompletionMessageToolCall{
-					"0": {
+				ToolCalls: []*sdk.ChatCompletionMessageToolCall{
+					{
 						Id: "call-1",
 						Function: sdk.ChatCompletionMessageToolCallFunction{
 							Name:      "Read",
@@ -308,7 +308,7 @@ func TestHandlePostStreamState(t *testing.T) {
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent("test"),
 				}
-				a.currentToolCalls = map[string]*sdk.ChatCompletionMessageToolCall{}
+				a.currentToolCalls = []*sdk.ChatCompletionMessageToolCall{}
 				ctx.Turns = 1
 			},
 			setupMocks: func(m *testMocks) {
@@ -329,7 +329,7 @@ func TestHandlePostStreamState(t *testing.T) {
 					Role:    sdk.Assistant,
 					Content: sdk.NewMessageContent("partial"),
 				}
-				a.currentToolCalls = map[string]*sdk.ChatCompletionMessageToolCall{}
+				a.currentToolCalls = []*sdk.ChatCompletionMessageToolCall{}
 				ctx.Turns = 0
 			},
 			setupMocks: func(m *testMocks) {
@@ -376,8 +376,8 @@ func TestHandleEvaluatingToolsState(t *testing.T) {
 		agent := createTestAgent(mocks, ctx)
 		agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
-		agent.currentToolCalls = map[string]*sdk.ChatCompletionMessageToolCall{
-			"0": {
+		agent.currentToolCalls = []*sdk.ChatCompletionMessageToolCall{
+			{
 				Id: "call-1",
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "Write",
@@ -412,14 +412,12 @@ func TestHandleEvaluatingToolsState(t *testing.T) {
 		agent := createTestAgent(mocks, ctx)
 		agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
-		// Override toolExecutor to prevent actual tool execution in test
 		agent.toolExecutor = func() {
-			agent.wg.Done() // Must call Done() to match Add() in startToolExecution
-			// No-op in test - don't actually execute tools
+			agent.wg.Done()
 		}
 
-		agent.currentToolCalls = map[string]*sdk.ChatCompletionMessageToolCall{
-			"0": {
+		agent.currentToolCalls = []*sdk.ChatCompletionMessageToolCall{
+			{
 				Id: "call-1",
 				Function: sdk.ChatCompletionMessageToolCallFunction{
 					Name:      "Read",
@@ -433,12 +431,10 @@ func TestHandleEvaluatingToolsState(t *testing.T) {
 
 		agent.handleEvaluatingToolsState(MessageReceivedEvent{})
 
-		// Should transition to ExecutingTools
 		assert.Equal(t, 1, mocks.stateMachine.TransitionCallCount())
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
 		assert.Equal(t, domain.StateExecutingTools, toState)
 
-		// Wait for goroutine to complete
 		agent.wg.Wait()
 	})
 }
@@ -472,7 +468,6 @@ func TestHandleExecutingToolsState(t *testing.T) {
 
 		agent.handleExecutingToolsState(event)
 
-		// Should transition to PostToolExecution
 		assert.GreaterOrEqual(t, mocks.stateMachine.TransitionCallCount(), 1)
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
 		assert.Equal(t, domain.StatePostToolExecution, toState)
@@ -490,14 +485,10 @@ func TestHandlePostToolExecutionState(t *testing.T) {
 		ctx.Turns = 1
 		ctx.MaxTurns = 10
 
-		// Mock batchDrainQueue behavior
 		callCount := 0
 		mocks.queue.IsEmptyCalls(func() bool {
 			callCount++
-			if callCount == 1 {
-				return false // First call: queue not empty
-			}
-			return true // Subsequent calls: queue empty
+			return callCount != 1
 		})
 		mocks.stateMachine.TransitionReturns(nil)
 
@@ -616,7 +607,6 @@ func TestHandleApprovingToolsState(t *testing.T) {
 		_, toState := mocks.stateMachine.TransitionArgsForCall(0)
 		assert.Equal(t, domain.StatePostToolExecution, toState)
 
-		// Should emit MessageReceivedEvent
 		select {
 		case event := <-agent.events:
 			_, ok := event.(MessageReceivedEvent)
@@ -632,7 +622,6 @@ func TestHandleApprovingToolsState(t *testing.T) {
 		agent := createTestAgent(mocks, ctx)
 		agent.req = &domain.AgentRequest{RequestID: "test-123", Model: "test-model"}
 
-		// Set up some tool calls
 		toolCall1 := &sdk.ChatCompletionMessageToolCall{
 			Id:   "call-1",
 			Type: sdk.Function,
@@ -641,25 +630,19 @@ func TestHandleApprovingToolsState(t *testing.T) {
 				Arguments: "{}",
 			},
 		}
-		agent.currentToolCalls = map[string]*sdk.ChatCompletionMessageToolCall{
-			"0": toolCall1,
+		agent.currentToolCalls = []*sdk.ChatCompletionMessageToolCall{
+			toolCall1,
 		}
 
-		// Process the event - this will spawn processNextTool in background
-		// We'll just verify the initialization happened correctly
 		go agent.handleApprovingToolsState(MessageReceivedEvent{})
 
-		// Give it a moment to initialize
 		time.Sleep(10 * time.Millisecond)
 
-		// Tool queue should be initialized
 		agent.mu.Lock()
 		assert.Equal(t, 1, len(agent.toolsNeedingApproval))
-		assert.Equal(t, 1, agent.currentToolIndex) // Will be 1 since processNextTool increments it
+		assert.Equal(t, 1, agent.currentToolIndex)
 		assert.NotNil(t, agent.toolResults)
 		agent.mu.Unlock()
-
-		// Note: We don't wait for processNextTool to complete as it will block on approval
 	})
 
 	t.Run("approval_failed_transitions_to_error", func(t *testing.T) {
