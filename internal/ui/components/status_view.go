@@ -252,7 +252,7 @@ func (sv *StatusView) createProgressBar() string {
 	filled := int(float64(sv.progress.Current) / float64(sv.progress.Total) * float64(barWidth))
 
 	bar := "["
-	for i := 0; i < barWidth; i++ {
+	for i := range barWidth {
 		if i < filled {
 			bar += "█"
 		} else {
@@ -344,6 +344,17 @@ func (sv *StatusView) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case domain.ClearErrorEvent:
 		sv.ClearStatus()
+
+	case domain.SaveStatusStateEvent:
+		sv.SaveCurrentState()
+
+	case domain.RestoreStatusStateEvent:
+		if sv.HasSavedState() {
+			restoreCmd := sv.RestoreSavedState()
+			if cmd == nil {
+				cmd = restoreCmd
+			}
+		}
 
 	case domain.DebugKeyEvent:
 		sv.debugInfo = fmt.Sprintf("DEBUG: %s -> %s", msg.Key, msg.Handler)

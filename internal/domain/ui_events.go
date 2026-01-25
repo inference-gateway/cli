@@ -51,6 +51,12 @@ type ShowErrorEvent struct {
 // ClearErrorEvent clears any displayed error
 type ClearErrorEvent struct{}
 
+// SaveStatusStateEvent saves the current status state for later restoration
+type SaveStatusStateEvent struct{}
+
+// RestoreStatusStateEvent restores a previously saved status state
+type RestoreStatusStateEvent struct{}
+
 // ClearInputEvent clears the input field
 type ClearInputEvent struct{}
 

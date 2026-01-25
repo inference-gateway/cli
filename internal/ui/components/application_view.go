@@ -245,15 +245,13 @@ func (r *ApplicationViewRenderer) appendStatusView(
 	return components
 }
 
-// appendModeIndicator appends mode indicator content if available
+// appendModeIndicator appends mode indicator content (always to maintain fixed height)
 func (r *ApplicationViewRenderer) appendModeIndicator(
 	components []string,
 	modeIndicator *ModeIndicator,
 ) []string {
 	if modeIndicator != nil {
-		if modeContent := modeIndicator.Render(); modeContent != "" {
-			components = append(components, modeContent)
-		}
+		components = append(components, modeIndicator.Render())
 	}
 	return components
 }

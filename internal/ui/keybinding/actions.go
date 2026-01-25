@@ -1167,7 +1167,29 @@ func handleToggleTodoBox(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 
 func handleCycleAgentMode(app KeyHandlerContext, keyMsg tea.KeyMsg) tea.Cmd {
 	stateManager := app.GetStateManager()
+	statusView := app.GetStatusView()
 	newMode := stateManager.CycleAgentMode()
+
+	if statusView.IsShowingSpinner() {
+		return tea.Batch(
+			func() tea.Msg {
+				return domain.SaveStatusStateEvent{}
+			},
+			func() tea.Msg {
+				return domain.SetStatusEvent{
+					Message: fmt.Sprintf("Mode changed to: %s", newMode.DisplayName()),
+					Spinner: false,
+				}
+			},
+			func() tea.Msg {
+				time.Sleep(800 * time.Millisecond)
+				return domain.RestoreStatusStateEvent{}
+			},
+			func() tea.Msg {
+				return domain.RefreshAutocompleteEvent{}
+			},
+		)
+	}
 
 	return tea.Batch(
 		func() tea.Msg {
