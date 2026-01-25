@@ -358,7 +358,6 @@ func (s *AgentServiceImpl) batchDrainQueue(
 
 	messages := []domain.QueuedMessage{}
 
-	// Drain entire queue
 	for !s.messageQueue.IsEmpty() {
 		msg := s.messageQueue.Dequeue()
 		if msg != nil {
@@ -375,7 +374,6 @@ func (s *AgentServiceImpl) batchDrainQueue(
 		"oldest", messages[0].QueuedAt,
 		"newest", messages[len(messages)-1].QueuedAt)
 
-	// Add all messages to conversation
 	for _, queuedMsg := range messages {
 		*conversation = append(*conversation, queuedMsg.Message)
 
