@@ -22,13 +22,16 @@ func NewClaudeCodeModelService() domain.ModelService {
 
 // ListModels returns a static list of Claude models available via subscription
 func (s *ClaudeCodeModelService) ListModels(ctx context.Context) ([]string, error) {
-	// Return static list of Claude models available via subscription
-	// Note: No provider prefix needed since Claude Code only supports Claude models
 	return []string{
 		"claude-opus-4-5",
+		"claude-haiku-4-5-20251001",
 		"claude-sonnet-4-5-20250929",
+		"claude-opus-4-1-20250805",
+		"claude-opus-4-20250514",
+		"claude-sonnet-4-1-20250805",
 		"claude-3-7-sonnet-20250219",
 		"claude-3-5-haiku-20241022",
+		"claude-3-haiku-20240307",
 	}, nil
 }
 
