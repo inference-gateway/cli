@@ -608,7 +608,6 @@ func (s *JsonlStorage) appendEntries(filePath string, entries []domain.Conversat
 
 	writer := bufio.NewWriter(file)
 
-	// Append new entry lines
 	for i, entry := range entries {
 		entryLine := EntryLine{
 			Type:  "entry",
@@ -627,7 +626,6 @@ func (s *JsonlStorage) appendEntries(filePath string, entries []domain.Conversat
 		}
 	}
 
-	// Append trailing metadata line (replaces previous metadata conceptually)
 	metaLine := struct {
 		Type     string               `json:"type"`
 		Metadata ConversationMetadata `json:"metadata"`
