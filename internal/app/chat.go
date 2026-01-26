@@ -328,11 +328,6 @@ func (app *ChatApplication) Init() tea.Cmd {
 	if cmd := app.modelSelector.Init(); cmd != nil {
 		cmds = append(cmds, cmd)
 	}
-	if app.conversationSelector != nil {
-		if cmd := app.conversationSelector.Init(); cmd != nil {
-			cmds = append(cmds, cmd)
-		}
-	}
 
 	if readiness := app.stateManager.GetAgentReadiness(); readiness != nil && readiness.TotalAgents > 0 {
 		cmds = append(cmds, func() tea.Msg {
