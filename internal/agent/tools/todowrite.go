@@ -103,14 +103,15 @@ When in doubt, use this tool. Being proactive with task management demonstrates 
 						"items": map[string]any{
 							"type":                 "object",
 							"additionalProperties": false,
-							"required":             []string{"content", "status", "id"},
+							"required":             []string{"content", "status"},
 							"properties": map[string]any{
 								"content": map[string]any{
 									"type":      "string",
 									"minLength": 1,
 								},
 								"id": map[string]any{
-									"type": "string",
+									"type":        "string",
+									"description": "Optional unique identifier. If not provided, will be auto-generated.",
 								},
 								"status": map[string]any{
 									"type": "string",
@@ -196,10 +197,10 @@ func (t *TodoWriteTool) executeTodoWrite(todosRaw []any) (*domain.TodoWriteToolR
 
 		todo := domain.TodoItem{}
 
-		if id, ok := todoMap["id"].(string); ok {
+		if id, ok := todoMap["id"].(string); ok && id != "" {
 			todo.ID = id
 		} else {
-			return nil, fmt.Errorf("todo item at index %d: id is required and must be a string", i)
+			todo.ID = fmt.Sprintf("todo-%d-%d", time.Now().UnixNano(), i)
 		}
 
 		if content, ok := todoMap["content"].(string); ok {
@@ -258,10 +259,10 @@ func (t *TodoWriteTool) validateTodos(todosRaw []any) error {
 
 		todo := domain.TodoItem{}
 
-		if id, ok := todoMap["id"].(string); ok {
+		if id, ok := todoMap["id"].(string); ok && id != "" {
 			todo.ID = id
 		} else {
-			return fmt.Errorf("todo item at index %d: id is required and must be a string", i)
+			todo.ID = fmt.Sprintf("todo-%d-%d", time.Now().UnixNano(), i)
 		}
 
 		if content, ok := todoMap["content"].(string); ok {

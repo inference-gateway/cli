@@ -59,7 +59,7 @@ var statusCmd = &cobra.Command{
 func fetchModels(cfg *config.Config) (*struct {
 	Data []string `json:"data"`
 }, error) {
-	services := container.NewServiceContainer(cfg)
+	services := container.NewServiceContainer(cfg, V)
 
 	timeout := time.Duration(cfg.Gateway.Timeout) * time.Second
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)

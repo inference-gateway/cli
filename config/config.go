@@ -25,6 +25,7 @@ const (
 type Config struct {
 	ContainerRuntime ContainerRuntimeConfig `yaml:"container_runtime" mapstructure:"container_runtime"`
 	Gateway          GatewayConfig          `yaml:"gateway" mapstructure:"gateway"`
+	ClaudeCode       ClaudeCodeConfig       `yaml:"claude_code" mapstructure:"claude_code"`
 	Client           ClientConfig           `yaml:"client" mapstructure:"client"`
 	Logging          LoggingConfig          `yaml:"logging" mapstructure:"logging"`
 	Tools            ToolsConfig            `yaml:"tools" mapstructure:"tools"`
@@ -63,6 +64,16 @@ type GatewayConfig struct {
 	IncludeModels    []string `yaml:"include_models,omitempty" mapstructure:"include_models,omitempty"`
 	ExcludeModels    []string `yaml:"exclude_models,omitempty" mapstructure:"exclude_models,omitempty"`
 	VisionEnabled    bool     `yaml:"vision_enabled" mapstructure:"vision_enabled"`
+}
+
+// ClaudeCodeConfig contains Claude Code CLI integration settings
+type ClaudeCodeConfig struct {
+	Enabled         bool   `yaml:"enabled" mapstructure:"enabled"`
+	CLIPath         string `yaml:"cli_path" mapstructure:"cli_path"`
+	Timeout         int    `yaml:"timeout" mapstructure:"timeout"`
+	MaxOutputTokens int    `yaml:"max_output_tokens" mapstructure:"max_output_tokens"`
+	ThinkingBudget  int    `yaml:"thinking_budget" mapstructure:"thinking_budget"`
+	MaxTurns        int    `yaml:"max_turns" mapstructure:"max_turns"`
 }
 
 // ClientConfig contains HTTP client settings
@@ -676,6 +687,14 @@ func DefaultConfig() *Config { //nolint:funlen
 			},
 			VisionEnabled: true,
 		},
+		ClaudeCode: ClaudeCodeConfig{
+			Enabled:         false,
+			CLIPath:         "claude",
+			Timeout:         600,
+			MaxOutputTokens: 32000,
+			ThinkingBudget:  10000,
+			MaxTurns:        10,
+		},
 		Client: ClientConfig{
 			Timeout: 200,
 			Retry: RetryConfig{
@@ -1285,6 +1304,12 @@ func (c *Config) IsA2AToolsEnabled() bool {
 	return c.A2A.Enabled
 }
 
+// IsClaudeCodeMode checks if Claude Code CLI mode is enabled
+// When enabled, the CLI will use Claude Max/Pro subscription instead of gateway
+func (c *Config) IsClaudeCodeMode() bool {
+	return c.ClaudeCode.Enabled
+}
+
 func (c *Config) GetAgentConfig() *AgentConfig {
 	return &c.Agent
 }
@@ -1382,6 +1407,16 @@ func (c *Config) ValidatePathInSandbox(path string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {
 		return fmt.Errorf("failed to resolve absolute path: %w", err)
+	}
+
+	if c.ClaudeCode.Enabled {
+		homeDir, err := os.UserHomeDir()
+		if err == nil {
+			claudeDir := filepath.Join(homeDir, ".claude")
+			if strings.HasPrefix(absPath, claudeDir) {
+				return nil
+			}
+		}
 	}
 
 	for _, sandboxDir := range c.Tools.Sandbox.Directories {

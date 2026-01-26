@@ -171,17 +171,26 @@ func (gm *GatewayManager) startContainer(ctx context.Context) error {
 	return nil
 }
 
-// Stop stops the gateway container or binary
+// Stop stops the gateway container or binary and cleans up the network
 func (gm *GatewayManager) Stop(ctx context.Context) error {
 	if !gm.isRunning {
 		return nil
 	}
 
+	var stopErr error
 	if gm.containerRuntime != nil && gm.containerID != "" {
-		return gm.stopContainer(ctx)
+		stopErr = gm.stopContainer(ctx)
+	} else {
+		stopErr = gm.stopBinary()
 	}
 
-	return gm.stopBinary()
+	if gm.containerRuntime != nil {
+		if err := gm.containerRuntime.CleanupNetwork(ctx); err != nil {
+			logger.Warn("Failed to cleanup network during gateway shutdown", "session", gm.sessionID, "error", err)
+		}
+	}
+
+	return stopErr
 }
 
 // stopBinary stops the binary process
@@ -203,7 +212,7 @@ func (gm *GatewayManager) stopBinary() error {
 	return nil
 }
 
-// stopContainer stops the container and cleans up the network
+// stopContainer stops the container (network cleanup is handled in Stop() method)
 func (gm *GatewayManager) stopContainer(ctx context.Context) error {
 	if gm.containerID == "" {
 		return nil
@@ -212,9 +221,6 @@ func (gm *GatewayManager) stopContainer(ctx context.Context) error {
 	if gm.containerRuntime != nil && !gm.containerRuntime.ContainerExists(gm.containerID) {
 		gm.isRunning = false
 		gm.containerID = ""
-		if err := gm.containerRuntime.CleanupNetwork(ctx); err != nil {
-			logger.Warn("Failed to cleanup network", "session", gm.sessionID, "error", err)
-		}
 		return nil
 	}
 
@@ -226,11 +232,6 @@ func (gm *GatewayManager) stopContainer(ctx context.Context) error {
 
 	gm.isRunning = false
 	gm.containerID = ""
-	if gm.containerRuntime != nil {
-		if err := gm.containerRuntime.CleanupNetwork(ctx); err != nil {
-			logger.Warn("Failed to cleanup network", "session", gm.sessionID, "error", err)
-		}
-	}
 	return nil
 }
 
