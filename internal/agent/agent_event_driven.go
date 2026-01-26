@@ -175,16 +175,11 @@ func (a *EventDrivenAgent) registerHandler(handler domain.StateHandler) {
 
 // Start begins the event-driven agent execution
 func (a *EventDrivenAgent) Start() {
-	logger.Debug("starting event-driven agent",
-		"request_id", a.req.RequestID,
-		"max_turns", a.agentCtx.MaxTurns)
-
 	_ = a.stateMachine.Transition(a.agentCtx, domain.StateIdle)
 
 	a.wg.Add(1)
 	go a.processEvents()
 
-	logger.Debug("triggering initial message received event")
 	a.events <- domain.MessageReceivedEvent{}
 }
 
@@ -194,41 +189,47 @@ func (a *EventDrivenAgent) Wait() {
 	close(a.events)
 }
 
+// GetEventChannel returns the agent's internal event channel for external components
+// to send wake-up events (e.g., when A2A tasks complete)
+func (a *EventDrivenAgent) GetEventChannel() chan<- domain.AgentEvent {
+	return a.events
+}
+
 // processEvents is the main event processing loop
 func (a *EventDrivenAgent) processEvents() {
 	defer a.wg.Done()
-	defer logger.Debug("agent event processing stopped", "request_id", a.req.RequestID)
 
 	for {
 		select {
 		case <-a.cancelChan:
-			logger.Debug("agent cancelled", "request_id", a.req.RequestID)
 			_ = a.stateMachine.Transition(a.agentCtx, domain.StateCancelled)
 			a.eventPublisher.publishChatComplete("", []sdk.ChatCompletionMessageToolCall{}, a.service.GetMetrics(a.req.RequestID))
 			return
 
 		case event, ok := <-a.events:
 			if !ok {
-				logger.Debug("event channel closed")
 				return
 			}
-
-			logger.Debug("received event",
-				"event_type", event.EventType(),
-				"current_state", a.stateMachine.GetCurrentState(),
-				"turn", a.agentCtx.Turns)
 
 			a.handleEvent(event)
 
 			currentState := a.stateMachine.GetCurrentState()
-			if currentState == domain.StateIdle ||
-				currentState == domain.StateStopped ||
+			if currentState == domain.StateStopped ||
 				currentState == domain.StateCancelled ||
 				currentState == domain.StateError {
-				logger.Debug("agent reached terminal state",
-					"state", currentState,
-					"total_turns", a.agentCtx.Turns)
 				return
+			}
+
+			if currentState == domain.StateIdle {
+				hasPendingTasks := a.taskTracker != nil && len(a.taskTracker.GetAllPollingTasks()) > 0
+				if hasPendingTasks {
+					logger.Debug("agent in Idle state but has pending A2A tasks, staying alive",
+						"pending_tasks", len(a.taskTracker.GetAllPollingTasks()))
+				} else {
+					logger.Debug("agent reached Idle state with no pending tasks",
+						"total_turns", a.agentCtx.Turns)
+					return
+				}
 			}
 		}
 	}
@@ -240,11 +241,6 @@ func (a *EventDrivenAgent) handleEvent(event domain.AgentEvent) {
 	defer a.mu.Unlock()
 
 	currentState := a.stateMachine.GetCurrentState()
-	logger.Debug("handling event in state",
-		"event", event.EventType(),
-		"state", currentState,
-		"turn", a.agentCtx.Turns,
-		"queue_empty", a.agentCtx.MessageQueue.IsEmpty())
 
 	handler, exists := a.stateHandlers[currentState]
 	if !exists {
@@ -257,8 +253,4 @@ func (a *EventDrivenAgent) handleEvent(event domain.AgentEvent) {
 			"state", currentState.String(),
 			"error", err)
 	}
-
-	logger.Debug("event handled",
-		"event", event.EventType(),
-		"new_state", a.stateMachine.GetCurrentState())
 }

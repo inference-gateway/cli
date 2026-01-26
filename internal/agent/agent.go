@@ -7,11 +7,12 @@ import (
 	"sync"
 	"time"
 
+	sdk "github.com/inference-gateway/sdk"
+
 	constants "github.com/inference-gateway/cli/internal/constants"
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
 	services "github.com/inference-gateway/cli/internal/services"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // AgentServiceImpl implements the AgentService interface with direct chat functionality
@@ -456,6 +457,10 @@ func (s *AgentServiceImpl) RunWithStream(ctx context.Context, req *domain.AgentR
 			model,
 			taskTracker,
 		)
+
+		if monitor != nil {
+			monitor.SetAgentEventChannel(agent.GetEventChannel())
+		}
 
 		agent.Start()
 		agent.Wait()

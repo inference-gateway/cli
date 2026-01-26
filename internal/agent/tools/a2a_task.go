@@ -7,11 +7,12 @@ import (
 	"strings"
 	"time"
 
-	client "github.com/inference-gateway/adk/client"
 	adk "github.com/inference-gateway/adk/types"
+	sdk "github.com/inference-gateway/sdk"
+
+	client "github.com/inference-gateway/adk/client"
 	config "github.com/inference-gateway/cli/config"
 	domain "github.com/inference-gateway/cli/internal/domain"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 // A2ASubmitTaskTool handles A2A task submission and management
@@ -286,7 +287,6 @@ func (t *A2ASubmitTaskTool) pollTaskInBackground(
 	adkClient := t.getOrCreateClient(agentURL)
 
 	strategy := t.config.A2A.Task.PollingStrategy
-
 	currentInterval := t.initializePollingStrategy(agentURL, taskID, strategy)
 	state.CurrentInterval = currentInterval
 	state.NextPollTime = time.Now().Add(currentInterval)
@@ -427,8 +427,10 @@ func (t *A2ASubmitTaskTool) publishStatusUpdate(state *domain.TaskPollingState, 
 }
 
 func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /* pollAttempt */ int, state *domain.TaskPollingState, currentTask adk.Task, _ /* pollingDetails */ string) (bool, *domain.ToolExecutionResult) {
-	switch currentTask.Status.State {
-	case adk.TaskStateCompleted:
+	normalizedState := strings.ToLower(string(currentTask.Status.State))
+
+	switch {
+	case normalizedState == strings.ToLower(string(adk.TaskStateCompleted)) || normalizedState == "completed":
 		finalResult := ""
 		if currentTask.Status.Message != nil {
 			finalResult = t.extractTextFromParts(currentTask.Status.Message.Parts)
@@ -451,7 +453,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 		}
 		return true, result
 
-	case adk.TaskStateFailed:
+	case normalizedState == strings.ToLower(string(adk.TaskStateFailed)) || normalizedState == "failed":
 		finalResult := ""
 		if currentTask.Status.Message != nil {
 			finalResult = t.extractTextFromParts(currentTask.Status.Message.Parts)
@@ -473,7 +475,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 		}
 		return true, result
 
-	case adk.TaskStateInputRequired:
+	case normalizedState == strings.ToLower(string(adk.TaskStateInputRequired)) || normalizedState == "input-required" || normalizedState == "input_required":
 		inputMessage := ""
 		if currentTask.Status.Message != nil {
 			inputMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
@@ -495,7 +497,7 @@ func (t *A2ASubmitTaskTool) handleTaskState(agentURL, _ /* taskID */ string, _ /
 		}
 		return true, result
 
-	case adk.TaskStateCancelled:
+	case normalizedState == strings.ToLower(string(adk.TaskStateCancelled)) || normalizedState == "cancelled" || normalizedState == "canceled":
 		cancelMessage := ""
 		if currentTask.Status.Message != nil {
 			cancelMessage = t.extractTextFromParts(currentTask.Status.Message.Parts)
