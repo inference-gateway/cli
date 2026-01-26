@@ -13,6 +13,9 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+
+	sdk "github.com/inference-gateway/sdk"
+
 	config "github.com/inference-gateway/cli/config"
 	tools "github.com/inference-gateway/cli/internal/agent/tools"
 	domain "github.com/inference-gateway/cli/internal/domain"
@@ -20,7 +23,6 @@ import (
 	services "github.com/inference-gateway/cli/internal/services"
 	shortcuts "github.com/inference-gateway/cli/internal/shortcuts"
 	utils "github.com/inference-gateway/cli/internal/utils"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 type ChatHandler struct {
@@ -1583,6 +1585,8 @@ func (h *ChatHandler) handleA2ATaskStatusUpdate(
 func (h *ChatHandler) handleMessageQueued(
 	_ domain.MessageQueuedEvent,
 ) (tea.Model, tea.Cmd) {
+	chatSession := h.stateManager.GetChatSession()
+
 	var cmds []tea.Cmd
 
 	cmds = append(cmds, func() tea.Msg {
@@ -1600,7 +1604,6 @@ func (h *ChatHandler) handleMessageQueued(
 		}
 	})
 
-	chatSession := h.stateManager.GetChatSession()
 	if chatSession != nil && chatSession.EventChannel != nil {
 		cmds = append(cmds, h.ListenForChatEvents(chatSession.EventChannel))
 	}

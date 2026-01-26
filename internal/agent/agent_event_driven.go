@@ -194,6 +194,12 @@ func (a *EventDrivenAgent) Wait() {
 	close(a.events)
 }
 
+// GetEventChannel returns the agent's internal event channel for external components
+// to send wake-up events (e.g., when A2A tasks complete)
+func (a *EventDrivenAgent) GetEventChannel() chan<- domain.AgentEvent {
+	return a.events
+}
+
 // processEvents is the main event processing loop
 func (a *EventDrivenAgent) processEvents() {
 	defer a.wg.Done()
@@ -221,14 +227,28 @@ func (a *EventDrivenAgent) processEvents() {
 			a.handleEvent(event)
 
 			currentState := a.stateMachine.GetCurrentState()
-			if currentState == domain.StateIdle ||
-				currentState == domain.StateStopped ||
+			// Check if we should exit the event loop
+			if currentState == domain.StateStopped ||
 				currentState == domain.StateCancelled ||
 				currentState == domain.StateError {
 				logger.Debug("agent reached terminal state",
 					"state", currentState,
 					"total_turns", a.agentCtx.Turns)
 				return
+			}
+
+			// For Idle state, only exit if there are no pending A2A tasks
+			if currentState == domain.StateIdle {
+				hasPendingTasks := a.taskTracker != nil && len(a.taskTracker.GetAllPollingTasks()) > 0
+				if hasPendingTasks {
+					logger.Debug("agent in Idle state but has pending A2A tasks, staying alive",
+						"pending_tasks", len(a.taskTracker.GetAllPollingTasks()))
+					// Don't return - stay in the event loop waiting for task completion
+				} else {
+					logger.Debug("agent reached Idle state with no pending tasks",
+						"total_turns", a.agentCtx.Turns)
+					return
+				}
 			}
 		}
 	}

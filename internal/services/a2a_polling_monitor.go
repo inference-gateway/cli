@@ -7,9 +7,10 @@ import (
 	"time"
 
 	adk "github.com/inference-gateway/adk/types"
+	sdk "github.com/inference-gateway/sdk"
+
 	domain "github.com/inference-gateway/cli/internal/domain"
 	logger "github.com/inference-gateway/cli/internal/logger"
-	sdk "github.com/inference-gateway/sdk"
 )
 
 type A2APollingMonitor struct {
@@ -22,6 +23,7 @@ type A2APollingMonitor struct {
 	activeMonitors   map[string]context.CancelFunc
 	stopChan         chan struct{}
 	stopped          bool
+	agentEventChan   chan<- domain.AgentEvent
 }
 
 func NewA2APollingMonitor(
@@ -41,6 +43,14 @@ func NewA2APollingMonitor(
 		stopChan:         make(chan struct{}),
 		stopped:          false,
 	}
+}
+
+// SetAgentEventChannel sets the agent's internal event channel for waking up the agent
+// when an A2A task completes. This should be called after the agent is created.
+func (m *A2APollingMonitor) SetAgentEventChannel(eventChan chan<- domain.AgentEvent) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.agentEventChan = eventChan
 }
 
 func (m *A2APollingMonitor) Start(ctx context.Context) {
@@ -304,6 +314,21 @@ func (m *A2APollingMonitor) addResultToMessageQueue(taskID string, result *domai
 	}
 
 	m.messageQueue.Enqueue(message, m.requestID)
+
+	m.mu.RLock()
+	agentChan := m.agentEventChan
+	m.mu.RUnlock()
+
+	if agentChan != nil {
+		select {
+		case agentChan <- domain.MessageReceivedEvent{}:
+			logger.Debug("Sent wake-up event to agent for A2A task completion",
+				"task_id", taskID)
+		default:
+			logger.Debug("Failed to send wake-up event to agent - channel full",
+				"task_id", taskID)
+		}
+	}
 
 	if m.eventChan != nil {
 		event := domain.MessageQueuedEvent{
