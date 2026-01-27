@@ -32,7 +32,7 @@ require (
 	golang.org/x/crypto v0.47.0
 	golang.org/x/image v0.34.0
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.44.2
+	modernc.org/sqlite v1.44.3
 )
 
 require (
