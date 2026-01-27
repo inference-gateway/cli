@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [0.100.3](https://github.com/inference-gateway/cli/compare/v0.100.2...v0.100.3) (2026-01-27)
+
+### 🧹 Maintenance
+
+* **deps:** Bump modernc.org/sqlite from 1.44.2 to 1.44.3 ([#385](https://github.com/inference-gateway/cli/issues/385)) ([357b451](https://github.com/inference-gateway/cli/commit/357b451b4eceaf0aa81de2f5ac77519404d7da8d))
+
 ## [0.100.2](https://github.com/inference-gateway/cli/compare/v0.100.1...v0.100.2) (2026-01-26)
 
 ### 🐛 Bug Fixes
